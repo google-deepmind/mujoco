@@ -45,11 +45,13 @@ class App {
   void InitEmptyModel();
 
   // Loads an mjModel from the given file. This extension should be one of:
-  // .xml or .mjb.
+  // .xml, .mjb, or .mjz.
   void LoadModelFromFile(const std::string& filepath);
 
   // Loads an mjModel from the given memory buffer. The content_type should be
-  // one of: "text/xml" or "application/mjb".
+  // one of: "text/xml", "application/mjb", or "application/mjz". For zip files,
+  // a name is required in order to uniquely identify the model within the
+  // archive.
   void LoadModelFromBuffer(std::span<const std::byte> buffer,
                            std::string_view content_type,
                            std::string_view name);

@@ -41,6 +41,7 @@
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
+#include "user/user_resource.h"
 
 namespace mujoco::studio {
 
@@ -202,6 +203,22 @@ void App::LoadModelFromFile(const std::string& filepath) {
   mj_deleteVFS(&vfs);
 }
 
+struct BufferProvider : public mjpResourceProvider {
+  BufferProvider(std::span<const std::byte> buffer) : buffer(buffer) {
+    mjp_defaultResourceProvider(this);
+    open = [](mjResource* resource) {
+      return 1;
+    };
+    read = [](mjResource* resource, const void** buffer) {
+      BufferProvider* self = (BufferProvider*)resource->provider;
+      *buffer = self->buffer.data();
+      return static_cast<int>(self->buffer.size());
+    };
+    close = [](mjResource* resource) {};
+  }
+  std::span<const std::byte> buffer;
+};
+
 void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
                               std::string_view content_type,
                               std::string_view filename) {
@@ -217,6 +234,14 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
     spec = mj_parseXMLString(ptr, nullptr, err, sizeof(err));
   } else if (content_type == "application/mjb") {
     model = mj_loadModelBuffer(buffer.data(), buffer.size());
+  } else if (content_type == "application/zip") {
+    BufferProvider provider(buffer);
+    mjResource resource;
+    memset(&resource, 0, sizeof(mjResource));
+    resource.vfs = &vfs;
+    resource.provider = &provider;
+    resource.name = (char*)filename.data();
+    spec = mju_decodeResource(&resource, content_type.data(), &vfs);
   } else {
     SetLoadError(
         "Unknown content type; expected text/xml or application/mjb");

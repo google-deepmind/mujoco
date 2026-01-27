@@ -104,6 +104,10 @@ void LoadFile(const std::string& filename, const std::string& data) {
   std::string content_type;
   if (filename.ends_with(".mjb")) {
     content_type = "application/mjb";
+  } else if (filename.ends_with(".mjz")) {
+    content_type = "application/zip";
+  } else if (filename.ends_with(".zip")) {
+    content_type = "application/zip";
   } else if (filename.ends_with(".xml")) {
     content_type = "text/xml";
   } else {
