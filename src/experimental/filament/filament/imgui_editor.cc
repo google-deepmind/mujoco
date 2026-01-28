@@ -15,12 +15,15 @@
 #include "experimental/filament/filament/imgui_editor.h"
 
 #include <algorithm>
+#include <any>
 #include <cstdint>
+#include <numbers>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <unordered_map>
 
 #include <imgui.h>
 #include <filament/ColorGrading.h>
@@ -41,6 +44,35 @@ using filament::math::float4;
 using filament::math::mat4;
 
 using NameList = std::span<const char*>;
+
+namespace {
+
+using InitValues = std::unordered_map<ImGuiID, std::any>;
+
+// Uses static storage (not heap) for a map that is never destroyed, avoiding
+// static destruction order issues. Note this is not causing a problem now but
+// may do so in the future.
+InitValues& GetInitValues() {
+  alignas(InitValues) static char buf[sizeof(InitValues)];
+  static InitValues* map = new (buf) InitValues();
+  return *map;
+}
+
+constexpr ImVec4 kModifiedColor = ImVec4(1.0f, 0.6f, 0.2f, 1.0f);
+
+template <typename T>
+bool IsModified(ImGuiID id, const T& current_value) {
+  auto it = GetInitValues().find(id);
+  if (it == GetInitValues().end()) {
+    GetInitValues()[id] = current_value;
+    return false;
+  }
+  const T& a = current_value;
+  const T& b = std::any_cast<const T&>(it->second);
+  return a != b;
+}
+
+}  // namespace
 
 NameList EnumNames(ToneMapperType v) {
   static const char* names[] = {"PBR Neutral", "ACES", "ACES Legacy", "Filmic",
@@ -104,6 +136,18 @@ struct dependent_false : std::false_type {};
 template <typename T>
 bool Ui(std::string_view label, T* value, UiOpts<T> opts = {}) {
   bool changed = false;
+  bool modified = false;
+  ImGuiID id = ImGui::GetID(label.data());
+
+  if constexpr (std::is_enum_v<T>) {
+    modified = IsModified(id, static_cast<int>(*value));
+  } else {
+    modified = IsModified(id, *value);
+  }
+
+  if (modified) {
+    ImGui::PushStyleColor(ImGuiCol_Text, kModifiedColor);
+  }
 
   if constexpr (std::is_enum_v<T>) {
     int idx = static_cast<int>(*value);
@@ -113,64 +157,86 @@ bool Ui(std::string_view label, T* value, UiOpts<T> opts = {}) {
   } else if constexpr (std::is_same_v<T, bool>) {
     changed = ImGui::Checkbox(label.data(), value);
   } else if constexpr (std::is_same_v<T, uint8_t>) {
-    changed = ImGui::InputScalar(label.data(), ImGuiDataType_U8, value);
+    changed = ImGui::DragScalar(label.data(), ImGuiDataType_U8, value, 1.0f);
   } else if constexpr (std::is_same_v<T, uint16_t>) {
-    changed = ImGui::InputScalar(label.data(), ImGuiDataType_U16, value);
+    changed = ImGui::DragScalar(label.data(), ImGuiDataType_U16, value, 1.0f);
   } else if constexpr (std::is_same_v<T, uint32_t>) {
-    changed = ImGui::InputScalar(label.data(), ImGuiDataType_U32, value);
+    changed = ImGui::DragScalar(label.data(), ImGuiDataType_U32, value, 1.0f);
   } else if constexpr (std::is_same_v<T, int>) {
     if (opts.min.has_value() && opts.max.has_value()) {
       changed = ImGui::SliderInt(label.data(), value, *opts.min, *opts.max);
     } else {
-      int step = opts.step.value_or(1);
-      int fast_step = opts.fstep.value_or(100);
-      changed = ImGui::InputInt(label.data(), value, step, fast_step);
+      float speed = opts.step.value_or(1);
+      changed = ImGui::DragInt(label.data(), value, speed);
     }
   } else if constexpr (std::is_same_v<T, float>) {
     if (opts.min.has_value() && opts.max.has_value()) {
-      changed = ImGui::SliderFloat(label.data(), value, *opts.min, *opts.max);
+      changed =
+          ImGui::SliderFloat(label.data(), value, *opts.min, *opts.max, "%.5f");
     } else {
-      float step = opts.step.value_or(0.f);
-      float fast_step = opts.fstep.value_or(0.f);
-      changed = ImGui::InputFloat(label.data(), value, step, fast_step);
+      float speed = opts.step.value_or(0.01f);
+      changed =
+          ImGui::DragFloat(label.data(), value, speed, 0.0f, 0.0f, "%.5f");
     }
   } else if constexpr (std::is_same_v<T, float3>) {
-    changed = ImGui::InputFloat3(label.data(), &value->x);
+    changed =
+        ImGui::DragFloat3(label.data(), &value->x, 0.01f, 0.0f, 0.0f, "%.5f");
   } else if constexpr (std::is_same_v<T, float4>) {
-    changed = ImGui::InputFloat4(label.data(), &value->x);
+    changed =
+        ImGui::DragFloat4(label.data(), &value->x, 0.01f, 0.0f, 0.0f, "%.5f");
   } else {
     static_assert(dependent_false<T>::value, "Unsupported type");
   }
+
+  if (modified) {
+    ImGui::PopStyleColor();
+    ImGui::SetItemTooltip("RMB to revert change");
+
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+      if constexpr (std::is_enum_v<T>) {
+        *value = static_cast<T>(std::any_cast<int>(GetInitValues()[id]));
+      } else {
+        *value = std::any_cast<T>(GetInitValues()[id]);
+      }
+      changed = true;
+    }
+  }
+
   return changed;
 }
 
 void DrawAmbientOcclusionGui(SceneView* scene_view) {
   filament::View* view = scene_view->GetDefaultRenderView();
   auto opts = view->getAmbientOcclusionOptions();
+  constexpr float PI = std::numbers::pi_v<float>;
 
   bool changed = false;
   changed |= Ui("Enabled", &opts.enabled);
-  changed |= Ui("Radius (m)", &opts.radius);
-  changed |= Ui("Power Contrrast", &opts.power);
-  changed |= Ui("Bias (m)", &opts.bias);
-  changed |= Ui("Resolution Scale", &opts.resolution);
-  changed |= Ui("Intensity", &opts.intensity);
+  changed |= Ui("Radius (m)", &opts.radius, {.min = 0.f, .max = 5.f});
+  changed |= Ui("Power Contrrast", &opts.power, {.min = 0.f, .max = 5.f});
+  changed |= Ui("Bias (m)", &opts.bias, {.min = 0.f, .max = .001f});
+  changed |= Ui("Resolution Scale", &opts.resolution, {.min = .5f, .max = 1.f});
+  changed |= Ui("AO Intensity", &opts.intensity, {.min = 0.f, .max = 5.f});
   changed |= Ui("Bend Normals", &opts.bentNormals);
-  changed |= Ui("Bilateral Threshold", &opts.bilateralThreshold);
-  changed |= Ui("Min. Horizon Angle (Rad)", &opts.minHorizonAngleRad);
+  changed |= Ui("Bilateral Threshold", &opts.bilateralThreshold,
+                {.min = 0.f, .max = 10.f});
+  changed |= Ui("Min. Horizon Angle (Rad)", &opts.minHorizonAngleRad,
+                {.min = 0.f, .max = PI / 2});
   changed |= Ui("Quality", &opts.quality);
   changed |= Ui("Low Pass Filter", &opts.lowPassFilter);
   changed |= Ui("Upsampling", &opts.upsampling);
   changed |= Ui("SSCT Enabled", &opts.ssct.enabled);
-  changed |= Ui("Cone Angle (Rad)", &opts.ssct.lightConeRad);
-  changed |= Ui("Shadow Distance (m)", &opts.ssct.shadowDistance);
-  changed |= Ui("Max Contact Distance (m)", &opts.ssct.contactDistanceMax);
-  changed |= Ui("Intensity", &opts.ssct.intensity);
-  changed |= Ui("Deeth Bias", &opts.ssct.depthBias);
-  changed |= Ui("Depth Slope Bias", &opts.ssct.depthSlopeBias);
-  changed |= Ui("Sample Count", &opts.ssct.sampleCount);
-  changed |= Ui("Raw Count", &opts.ssct.rayCount);
-  changed |= Ui("Light Direction", &opts.ssct.lightDirection);
+  changed |= Ui("SSCT Cone Angle (Rad)", &opts.ssct.lightConeRad,
+                {.min = 0.0f, .max = PI / 2});
+  changed |= Ui("SSCT Shadow Distance (m)", &opts.ssct.shadowDistance);
+  changed |= Ui("SSCT Max Contact (m)", &opts.ssct.contactDistanceMax);
+  changed |= Ui("SSCT Intensity", &opts.ssct.intensity);
+  changed |= Ui("SSCT Depth Bias", &opts.ssct.depthBias);
+  changed |= Ui("SSCT Depth Slope Bias", &opts.ssct.depthSlopeBias);
+  changed |=
+      Ui("SSCT Sample Count", &opts.ssct.sampleCount, {.min = 1, .max = 255});
+  changed |= Ui("SSCT Ray Count", &opts.ssct.rayCount, {.min = 1, .max = 255});
+  changed |= Ui("SSCT Light Direction", &opts.ssct.lightDirection);
 
   if (changed) {
     opts.resolution = (opts.resolution < 0.75f) ? 0.f : 1.0f;
@@ -408,7 +474,7 @@ void DrawDepthOfFieldGui(SceneView* scene_view) {
   changed |= Ui("COC Aspect Ratio", &opts.cocAspectRatio);
   changed |= Ui("Max COC (Foreground)", &opts.maxForegroundCOC);
   changed |= Ui("Max COC (Background)", &opts.maxBackgroundCOC);
-  changed |= Ui("Forground Ring Count", &opts.foregroundRingCount);
+  changed |= Ui("Foreground Ring Count", &opts.foregroundRingCount);
   changed |= Ui("Background Ring Count", &opts.backgroundRingCount);
   changed |= Ui("Fast Gather Ring Count", &opts.fastGatherRingCount);
   if (changed) {
