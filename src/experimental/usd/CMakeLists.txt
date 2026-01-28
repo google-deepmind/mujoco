@@ -41,7 +41,11 @@ function(configure_and_install_usd_plugin_info plugin_name source_subpath instal
     set(LIB_PREFIX "")
   endif()
 
-  set(PLUG_INFO_LIBRARY_PATH "../../${LIB_PREFIX}${plugin_name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  if(WIN32)
+    set(PLUG_INFO_LIBRARY_PATH "../../../bin/${LIB_PREFIX}${plugin_name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  else()
+    set(PLUG_INFO_LIBRARY_PATH "../../${LIB_PREFIX}${plugin_name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  endif()
   set(OUTPUT_DIR "${CMAKE_BINARY_DIR}/${install_base_dir}/${plugin_name}")
   set(OUTPUT_FILE "${OUTPUT_DIR}/plugInfo.json")
 
