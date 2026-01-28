@@ -668,3 +668,12 @@ Warmstart
 If warmstarts are not :ref:`disabled <option-flag-warmstart>`, the MJWarp solver warmstart always initializes the
 acceleration with ``qacc_warmstart``. In contrast, MuJoCo performs a comparison between ``qacc_smooth`` and
 ``qacc_warmstart`` to determine which one is utilized for the initialization.
+
+Inertia matrix factorization
+----------------------------
+
+When using dense computation, MJWarp's factorization of the inertia matrix ``qLD`` is computed with Warp's ``L'L``
+Cholesky factorization
+`wp.tile_cholesky <https://nvidia.github.io/warp/language_reference/_generated/warp._src.lang.tile_cholesky.html>`__
+and the result is not expected to match MuJoCo's corresponding field because a different reverse-mode ``L'DL`` routine
+:ref:`mj_factorM` is utilized.
