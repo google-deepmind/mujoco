@@ -75,8 +75,10 @@ General
   - OpenUSD can now be built with the
     `third_party_deps/openusd <https://github.com/google-deepmind/mujoco/tree/main/cmake/third_party_deps/openusd>`__
     CMake utility project.
-  - ``USD_DIR`` is no longer used by the MuJoCo CMake project, instead use ``pxr_DIR`` if you have a pre-built USD library.
-  - Users no longer have to set ``PXR_PLUGINPATH_NAME`` environment variable, MuJoCo should load USD plugins automatically.
+  - ``USD_DIR`` is no longer used by the MuJoCo CMake project, instead use ``pxr_DIR`` if you have a pre-built USD
+    library.
+  - Users no longer have to set ``PXR_PLUGINPATH_NAME`` environment variable, MuJoCo should load USD plugins
+    automatically.
 
 
 MJX
@@ -89,7 +91,8 @@ Documentation
 - General improvements to the :ref:`Programming/Simulation<Simulation>` chapter. Notably, the main discussion of
   :ref:`state<siStateControl>` has been moved there, and the section on :ref:`mjModel changes<siChange>` has been
   expanded.
-- The :ref:`MJCF schema<CSchema>` is now a more usable collapsible dropdown with links to both elements and attributes.
+- The usability of the :ref:`MJCF schema<CSchema>` is improved with a collapsible dropdown menu with links to elements
+  and attributes.
 
 
 Bug fixes
