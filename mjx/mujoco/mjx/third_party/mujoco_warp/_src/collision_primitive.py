@@ -1571,7 +1571,7 @@ assert _check_primitive_collisions(), "_PRIMITIVE_COLLISIONS is in invalid order
 
 @cache_kernel
 def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func):
-  @nested_kernel(module="unique", enable_backward=False)
+  @nested_kernel(module=f"{id(primitive_collisions_types)}", enable_backward=False)
   def primitive_narrowphase(
     # Model:
     geom_type: wp.array(dtype=int),
