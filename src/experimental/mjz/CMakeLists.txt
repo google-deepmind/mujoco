@@ -16,7 +16,7 @@ cmake_minimum_required(VERSION 3.16)
 
 set(MUJOCO_MJZ_TARGET_NAME mujoco_mjz)
 
-add_library(${MUJOCO_MJZ_TARGET_NAME} STATIC)
+add_library(${MUJOCO_MJZ_TARGET_NAME} SHARED)
 
 target_include_directories(${MUJOCO_MJZ_TARGET_NAME} PRIVATE
     ../..
