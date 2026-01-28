@@ -54,6 +54,7 @@ target_link_libraries(${MUJOCO_STUDIO_TARGET_NAME}
         implot
         mujoco::mujoco
         mujoco::platform
+        mujoco::mjz
 )
 
 file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
