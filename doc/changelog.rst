@@ -89,6 +89,7 @@ Documentation
 - General improvements to the :ref:`Programming/Simulation<Simulation>` chapter. Notably, the main discussion of
   :ref:`state<siStateControl>` has been moved there, and the section on :ref:`mjModel changes<siChange>` has been
   expanded.
+- The :ref:`MJCF schema<CSchema>` is now a more usable collapsible dropdown with links to both elements and attributes.
 
 
 Bug fixes
