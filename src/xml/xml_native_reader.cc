@@ -380,7 +380,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             {"pulley", "*", "divisor"},
         {">"},
         {"fixed", "*", "name", "class", "group", "limited", "actuatorfrclimited", "range",
-            "actuatorfrcrange","solreflimit", "solimplimit", "solreffriction", "solimpfriction",
+            "actuatorfrcrange", "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
             "frictionloss", "springlength", "margin", "stiffness", "damping", "armature", "user"},
         {"<"},
             {"joint", "*", "joint", "coef"},
