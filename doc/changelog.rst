@@ -56,12 +56,18 @@ General
   Unused by the renderer, it serves as a convenient location to store a camera's supported output types.
 - Added :ref:`mj_mountVFS` and :ref:`mj_unmountVFS` functions for mounting a custom VFS provider. Mounting Allows
   providers to be used to open/read/close resources dynamically at arbitrary paths.
+- The optimization whereby sequential :ref:`collision sensors<collision-sensors>` with identical attributes shared
+  computation has been removed. This results in a (likely minor) performance regression for models which exploited
+  this optimization. To recover the performance, use the :ref:`fromto<sensor-fromto>` and compute the other values
+  manually. If ``from = fromto[0:3]`` and ``to = fromto[3:6]`` then ``distance = norm(to-from)`` and
+  ``normal = normalize(to-from)``.
 - Non-breaking ABI changes:
 
   - The type of the ``sig`` (signature) argument of :ref:`mj_stateSize` and related functions has been changed from
     ``unsigned int`` to ``int``. Before this change, invalid negative arguments passed to this function would result in
     a silent implicit cast, now negativity will trigger an error.
   - Added a :ref:`depth<mjtRndFlag>` rendering flag.
+  - Allocating sizes in :ref:`mjModel` now use 64-bit rather than 32-bit integers to accommodate larger scenes.
 
 - :doc:`OpenUSD <OpenUSD/index>`:
 
@@ -71,10 +77,6 @@ General
     CMake utility project.
   - ``USD_DIR`` is no longer used by the MuJoCo CMake project, instead use ``pxr_DIR`` if you have a pre-built USD library.
   - Users no longer have to set ``PXR_PLUGINPATH_NAME`` environment variable, MuJoCo should load USD plugins automatically.
-- Non-breaking ABI changes:
-
-  - Allcating sizes in :ref:`mjModel` now use 64-bit rather than 32-bit integers to accommodate larger
-    scenes.
 
 
 MJX

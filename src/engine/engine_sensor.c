@@ -735,54 +735,17 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
             }
           }
 
-          // write sensordata for this sensor and all subsequent sensors with identical signature
-          int write_sensor = 1;
-          while (write_sensor) {
-            // write geom distance
-            if (type == mjSENS_GEOMDIST) {
-              d->sensordata[adr] = dist;
+          // write sensordata
+          if (type == mjSENS_GEOMDIST) {
+            d->sensordata[adr] = dist;
+          } else if (type == mjSENS_GEOMNORMAL) {
+            mjtNum normal[3] = {fromto[3]-fromto[0], fromto[4]-fromto[1], fromto[5]-fromto[2]};
+            if (normal[0] || normal[1] || normal[2]) {
+              mju_normalize3(normal);
             }
-
-            // write distance normal
-            else if (type == mjSENS_GEOMNORMAL) {
-              mjtNum normal[3] = {fromto[3]-fromto[0], fromto[4]-fromto[1], fromto[5]-fromto[2]};
-              if (normal[0] || normal[1] || normal[2]) {
-                mju_normalize3(normal);
-              }
-              mju_copy3(d->sensordata + adr, normal);
-            }
-
-            // write distance fromto
-            else {
-              mju_copy(d->sensordata + adr, fromto, 6);
-            }
-
-            // if this is the last sensor, break
-            if (i+1 == nsensor) {
-              break;
-            }
-
-            // type of the next sensor
-            mjtSensor type_next = m->sensor_type[i+1];
-
-            // check if signature of next sensor matches this sensor
-            write_sensor = (type_next == mjSENS_GEOMDIST   ||
-                            type_next == mjSENS_GEOMNORMAL ||
-                            type_next == mjSENS_GEOMFROMTO)   &&
-                           m->sensor_objtype[i+1] == objtype  &&
-                           m->sensor_objid[i+1]   == objid    &&
-                           m->sensor_reftype[i+1] == reftype  &&
-                           m->sensor_refid[i+1]   == refid    &&
-                           m->sensor_cutoff[i+1]  == cutoff;
-
-            // if signature matches, increment external loop variable i
-            if (write_sensor) {
-              i++;
-
-              // update adr and type, everything else is the same
-              adr = m->sensor_adr[i];
-              type = type_next;
-            }
+            mju_copy3(d->sensordata + adr, normal);
+          } else {  // mjSENS_GEOMFROMTO
+            mju_copy(d->sensordata + adr, fromto, 6);
           }
         }
         break;

@@ -7452,11 +7452,6 @@ pipeline. These 3 sensors share some common properties:
    all geoms of the specified body or bodies (mixed specification like :at:`geom1`, :at:`body2` are allowed), and
    select the collision with the smallest signed distance.
 
-sequential sensors
-   When multiple collision sensors are defined sequentially and have identical attributes (:at:`geom1`, :at:`body1`,
-   :at:`geom2`, :at:`body2`, :at:`cutoff`), for example when both distance and normal are queried for the same geom
-   pair, the collision functions will be called once for the whole sensor block, avoiding repeated computation.
-
 .. _sensor-distance:
 
 :el-prefix:`sensor/` |-| **distance** |*|
