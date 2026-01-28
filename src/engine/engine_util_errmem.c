@@ -99,7 +99,7 @@ void mju_writeLog(const char* type, const char* msg) {
 
 #if defined(_POSIX_C_SOURCE) || defined(__APPLE__) || defined(__STDC_VERSION_TIME_H__) || defined(__EMSCRIPTEN__)
     localtime_r(&rawtime, &timeinfo);
-#elif _MSC_VER
+#elif defined(_WIN32)
     localtime_s(&timeinfo, &rawtime);
 #elif __STDC_LIB_EXT1__
     localtime_s(&rawtime, &timeinfo);
@@ -207,8 +207,10 @@ void* mju_malloc(size_t size) {
   // default allocator
   else {
     // pad size to multiple of 64
-    if ((size%64)) {
-      size += 64 - (size%64);
+    if (size == 0) {
+      size = 64;
+    } else if ((size % 64)) {
+      size += 64 - (size % 64);
     }
 
     // allocate
