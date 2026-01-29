@@ -245,7 +245,9 @@ TEST_F(CoreConstraintTest, JacobianPreAllocate) {
 
     // iterate through dense and sparse
     for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
-      mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+      char error[1024];
+      mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+      ASSERT_THAT(model, NotNull()) << error;
       model->opt.jacobian = sparsity;
       mjData* data = mj_makeData(model);
 
@@ -261,7 +263,9 @@ TEST_F(CoreConstraintTest, EqualityBodySite) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/equality_site_body_compare.xml");
 
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // simulate, get diag(A)
