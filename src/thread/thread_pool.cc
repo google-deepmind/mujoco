@@ -239,7 +239,7 @@ static void  ConfigureMultiThreadedStack(mjData* d) {
       // abort if the current stack is already larger than the portion of the stack
       // that would be reserved for the main thread
       if ((uintptr_t)end_shard_cursor_ptr > current_limit) {
-        mju_error("mj_bindThreadPool: sharding stack - existing stack larger than shard size: current_size = %zu, "
+        mju_error("mj_bindThreadPool: sharding stack - existing stack larger than shard size: current_size = %llu, "
                   "max_size = %llu", (unsigned long long)current_limit, (unsigned long long)(uintptr_t) end_shard_cursor_ptr);
       }
       end_shard_cursor_ptr->top = current_limit;
