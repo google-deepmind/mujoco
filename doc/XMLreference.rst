@@ -7431,6 +7431,12 @@ smallest signed distance between the surfaces of two geoms using the narrow-phas
 computation is always performed, independently of the standard collision :ref:`selection and filtering<coSelection>`
 pipeline. These 3 sensors share some common properties:
 
+.. admonition:: different (correct) behavior under `nativeccd`
+   :class: note
+
+   As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
+   :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
+
 .. _collision-sensors-cutoff:
 
 :at:`cutoff`
@@ -7439,12 +7445,6 @@ pipeline. These 3 sensors share some common properties:
    argument of :ref:`mj_geomDistance`. For example, at the default value of 0, only negative distances (corresponding
    to geom-geom penetration) will be reported by :ref:`sensor/distance<sensor-distance>`.
    In order to determine collision properties of non-penetrating geom pairs, a positive :at:`cutoff` is required.
-
-   .. admonition:: different (correct) behavior under `nativeccd`
-      :class: note
-
-      As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
-      :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
 
 :at:`geom1`, :at:`geom2`, :at:`body1`, :at:`body2`
    For all 3 collision sensor types, the two colliding geoms can be specified explicitly using the :at:`geom1` and
