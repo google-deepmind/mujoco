@@ -413,6 +413,30 @@ def build_struct_header(
 
     MJMODEL_ACCESSORS
   #undef X_ACCESSOR""".lstrip())
+    elif w == "MjData":
+      builder.line("""
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)              \\
+    MjData##Name##Accessor accessor_name(const NumberOrString& val) const {   \\
+      if (val.isString()) {                                                   \\
+        int id = mj_name2id(model, OBJTYPE, val.as<std::string>().c_str());   \\
+        if (id == -1) {                                                       \\
+          mju_error("%s", KeyErrorMessage(model, OBJTYPE, model->nfield, val.as<std::string>(), #accessor_name).c_str());  \\
+        }                                                                     \\
+        return MjData##Name##Accessor(ptr_, model, id);                       \\
+      } else if (val.isNumber()) {                                            \\
+        int id = val.as<int>();                                               \\
+        if (id < 0 || id >= model->nfield) {                                  \\
+          mju_error("%s", IndexErrorMessage(id, model->nfield, #accessor_name).c_str());  \\
+        }                                                                     \\
+        return MjData##Name##Accessor(ptr_, model, id);                       \\
+      } else {                                                                \\
+        mju_error(#accessor_name "() argument must be a string or number");   \\
+        return MjData##Name##Accessor(nullptr, nullptr, 0);                   \\
+      }                                                                       \\
+    }
+    MJDATA_ACCESSORS
+  #undef X_ACCESSOR""".lstrip())
 
     # define private struct members
     builder.private()
@@ -518,6 +542,12 @@ def _build_struct_bindings(
     if w == "MjData":
       builder.line(".constructor<MjModel *>()")
       builder.line(".constructor<const MjModel &, const MjData &>()")
+      builder.line("""
+    // Binds the functions on MjData that return accessors.
+    #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \\
+      .function(#field_name, &MjData::field_name)
+      MJDATA_ACCESSORS
+    #undef X_ACCESSOR""".lstrip())
     elif w == "MjModel":
       f1 = common.wrapped_function_name(
           introspect_functions.FUNCTIONS["mj_loadXML"]

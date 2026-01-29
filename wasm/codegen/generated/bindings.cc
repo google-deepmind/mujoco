@@ -46,6 +46,7 @@ namespace mujoco::wasm {
 using emscripten::enum_;
 using emscripten::function;
 using emscripten::val;
+using emscripten::typed_memory_view;
 using emscripten::return_value_policy::reference;
 using emscripten::return_value_policy::take_ownership;
 
@@ -82,6 +83,24 @@ EMSCRIPTEN_DECLARE_VAL_TYPE(StringOrNull);
   X_ACCESSOR( TEXTURE,  Texture,  mjOBJ_TEXTURE,  tex,      ntex     ) \
   X_ACCESSOR( TUPLE,    Tuple,    mjOBJ_TUPLE,    tuple,    ntuple   ) \
   X_ACCESSOR( KEYFRAME, Keyframe, mjOBJ_KEY,      key,      nkey     )
+
+// Macro to define accessors for different MuJoCo object types within mjData.
+// Each line calls X_ACCESSOR with the following arguments:
+// 1.  NAME: The object type name in uppercase (e.g., ACTUATOR).
+// 2.  Name: The object type name in CamelCase (e.g., Actuator).
+// 3.  OBJTYPE: The corresponding mjOBJ_* enum value (e.g., mjOBJ_ACTUATOR).
+// 4.  field: The name of the array field in mjData (e.g., actuator).
+// 5.  nfield: The name of the count field in mjModel (e.g., nu).
+#define MJDATA_ACCESSORS                                               \
+  X_ACCESSOR( ACTUATOR, Actuator, mjOBJ_ACTUATOR, actuator, nu       ) \
+  X_ACCESSOR( BODY,     Body,     mjOBJ_BODY,     body,     nbody    ) \
+  X_ACCESSOR( CAMERA,   Camera,   mjOBJ_CAMERA,   cam,      ncam     ) \
+  X_ACCESSOR( GEOM,     Geom,     mjOBJ_GEOM,     geom,     ngeom    ) \
+  X_ACCESSOR( JOINT,    Joint,    mjOBJ_JOINT,    jnt,      njnt     ) \
+  X_ACCESSOR( LIGHT,    Light,    mjOBJ_LIGHT,    light,    nlight   ) \
+  X_ACCESSOR( SENSOR,   Sensor,   mjOBJ_SENSOR,   sensor,   nsensor  ) \
+  X_ACCESSOR( SITE,     Site,     mjOBJ_SITE,     site,     nsite    ) \
+  X_ACCESSOR( TENDON,   Tendon,   mjOBJ_TENDON,   tendon,   ntendon  )
 
 // Raises an error if the given val is null or undefined.
 // A macro is used so that the error contains the name of the variable.
@@ -211,40 +230,79 @@ using mjVisualScale = decltype(::mjVisual::scale);
 // - dim1: The fixed dimension of the array if not dynamically sized. If "1",
 //         a single element is returned. Otherwise, it's used as the stride
 //         for the typed memory view.
-#define X(type, prefix, var, dim0, dim1)                                          \
-  auto var() const {                                                               \
-    if constexpr (std::string_view(#dim0) == "nq") {                             \
-      int start = model_->jnt_qposadr[id_];                                      \
-      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq; \
-      return emscripten::val(emscripten::typed_memory_view(end - start, model_->prefix##var + start)); \
-    } else if constexpr (std::string_view(#dim0) == "nv") {                      \
-      int start = model_->jnt_dofadr[id_];                                       \
-      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv; \
-      return emscripten::val(emscripten::typed_memory_view(end - start, model_->prefix##var + start)); \
-    } else if constexpr (std::string_view(#dim0) == "nhfielddata") {             \
-      int start = model_->hfield_adr[id_];                                       \
-      int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];            \
-      return emscripten::val(emscripten::typed_memory_view(count, model_->hfield_data + start)); \
-    } else if constexpr (std::string_view(#dim0) == "ntexdata") {                \
-      int start = model_->tex_adr[id_];                                          \
-      int count = model_->tex_height[id_] * model_->tex_width[id_] * model_->tex_nchannel[id_]; \
-      return emscripten::val(emscripten::typed_memory_view(count, model_->tex_data + start)); \
-    } else if constexpr (std::string_view(#dim0) == "nnumericdata") {            \
-      int start = model_->numeric_adr[id_];                                      \
-      int count = model_->numeric_size[id_];                                     \
-      return emscripten::val(emscripten::typed_memory_view(count, model_->numeric_data + start)); \
-    } else if constexpr (std::string_view(#dim0) == "ntupledata") {              \
-      int start = model_->tuple_adr[id_];                                        \
-      int count = model_->tuple_size[id_];                                       \
-      return emscripten::val(emscripten::typed_memory_view(count, model_->prefix##var + start)); \
-    } else {                                                                     \
-      if constexpr (std::string_view(#dim1) == "1") {                           \
-        return model_->prefix##var[id_];                                         \
-      } else {                                                                   \
-        return emscripten::val(                                                  \
-            emscripten::typed_memory_view(dim1, model_->prefix##var + id_ * dim1)); \
-      }                                                                          \
-    }                                                                            \
+#define X(type, prefix, var, dim0, dim1)                                                         \
+  emscripten::val get_##var() const {                                                            \
+    if constexpr (std::string_view(#dim0) == "nq") {                                             \
+      int start = model_->jnt_qposadr[id_];                                                      \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;            \
+      return val(typed_memory_view(end - start, model_->prefix##var + start));                   \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                                      \
+      int start = model_->jnt_dofadr[id_];                                                       \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;             \
+      return val(typed_memory_view(end - start, model_->prefix##var + start));                   \
+    } else if constexpr (std::string_view(#dim0) == "nhfielddata") {                             \
+      int start = model_->hfield_adr[id_];                                                       \
+      int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];                           \
+      return val(typed_memory_view(count, model_->hfield_data + start));                         \
+    } else if constexpr (std::string_view(#dim0) == "ntexdata") {                                \
+      int start = model_->tex_adr[id_];                                                          \
+      int count = model_->tex_height[id_] * model_->tex_width[id_] * model_->tex_nchannel[id_];  \
+      return val(typed_memory_view(count, model_->tex_data + start));                            \
+    } else if constexpr (std::string_view(#dim0) == "nnumericdata") {                            \
+      int start = model_->numeric_adr[id_];                                                      \
+      int count = model_->numeric_size[id_];                                                     \
+      return val(typed_memory_view(count, model_->numeric_data + start));                        \
+    } else if constexpr (std::string_view(#dim0) == "ntupledata") {                              \
+      int start = model_->tuple_adr[id_];                                                        \
+      int count = model_->tuple_size[id_];                                                       \
+      return val(typed_memory_view(count, model_->prefix##var + start));                         \
+    } else {                                                                                     \
+      if constexpr (std::string_view(#dim1) == "1") {                                            \
+        return val(model_->prefix##var[id_]);                                                    \
+      } else {                                                                                   \
+        return val(typed_memory_view(dim1, model_->prefix##var + id_ * dim1));                   \
+      }                                                                                          \
+    }                                                                                            \
+  }                                                                                              \
+  void set_##var(const emscripten::val& value) {                                                 \
+    if constexpr (std::string_view(#dim0) == "nq") {                                             \
+      int start = model_->jnt_qposadr[id_];                                                      \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;            \
+      val(typed_memory_view(end - start, model_->prefix##var + start))                           \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                                      \
+      int start = model_->jnt_dofadr[id_];                                                       \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;             \
+      val(typed_memory_view(end - start, model_->prefix##var + start))                           \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nhfielddata") {                             \
+      int start = model_->hfield_adr[id_];                                                       \
+      int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];                           \
+      val(typed_memory_view(count, model_->hfield_data + start))                                 \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "ntexdata") {                                \
+      int start = model_->tex_adr[id_];                                                          \
+      int count = model_->tex_height[id_] * model_->tex_width[id_] * model_->tex_nchannel[id_];  \
+      val(typed_memory_view(count, model_->tex_data + start))                                    \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nnumericdata") {                            \
+      int start = model_->numeric_adr[id_];                                                      \
+      int count = model_->numeric_size[id_];                                                     \
+      val(typed_memory_view(count, model_->numeric_data + start))                                \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "ntupledata") {                              \
+      int start = model_->tuple_adr[id_];                                                        \
+      int count = model_->tuple_size[id_];                                                       \
+      val(typed_memory_view(count, model_->prefix##var + start))                                 \
+          .call<void>("set", value);                                                             \
+    } else {                                                                                     \
+      if constexpr (std::string_view(#dim1) == "1") {                                            \
+        model_->prefix##var[id_] = value.as<type>();                                             \
+      } else {                                                                                   \
+        val(typed_memory_view(dim1, model_->prefix##var + id_ * dim1))                           \
+            .call<void>("set", value);                                                           \
+      }                                                                                          \
+    }                                                                                            \
   }
 
 // Expands to a struct definition for each object type in MJMODEL_ACCESSORS.
@@ -254,22 +312,112 @@ using mjVisualScale = decltype(::mjVisual::scale);
 // - A `name()` method to get the object's name using `mj_id2name`.
 // - Member functions generated by the `MJMODEL_##NAME` macro, which in turn
 //   uses the `X` macro to define accessors for fields within `mjModel`.
-#define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                                         \
-  struct MjModel##Name##Accessor {                                     \
-    MjModel##Name##Accessor(mjModel* model, int id) : model_(model), id_(id) {} \
-                                                                       \
-    int id() const { return id_; }                                      \
-    std::string name() const {                                         \
-      return mj_id2name(model_, OBJTYPE, id_);                     \
-    }                                                                  \
-                                                                       \
-    MJMODEL_##NAME                                                     \
-                                                                       \
-   private:                                                            \
-    mjModel* model_;                                                   \
-    int id_;                                                           \
+#define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                           \
+  struct MjModel##Name##Accessor {                                               \
+    MjModel##Name##Accessor(mjModel* model, int id) : model_(model), id_(id) {}  \
+                                                                                 \
+    int id() const { return id_; }                                               \
+    std::string name() const {                                                   \
+      const char* name = mj_id2name(model_, OBJTYPE, id_);                       \
+      return name ? name : "";                                                   \
+    }                                                                            \
+                                                                                 \
+    MJMODEL_##NAME                                                               \
+                                                                                 \
+   private:                                                                      \
+    mjModel* model_;                                                             \
+    int id_;                                                                     \
   };
 MJMODEL_ACCESSORS
+#undef X_ACCESSOR
+
+// Expands to a struct definition for each object type in MJDATA_ACCESSORS.
+// Each struct, named `MjData{Name}Accessor`, provides:
+// - A constructor taking an `mjData*`, an `mjModel*`, and an integer `id`.
+// - An `id()` method to get the object's index.
+// - A `name()` method to get the object's name using `mj_id2name`.
+// - Member functions generated by the `MJDATA_##NAME` macro, which in turn
+//   uses the `X` macro to define accessors for fields within `mjData`.
+#undef MJ_M
+#define MJ_M(n) model_->n
+#undef X
+#define X(type, prefix, var, dim0, dim1)                                               \
+  emscripten::val get_##var() const {                                                  \
+    if constexpr (std::string_view(#dim0) == "nq") {                                   \
+      int start = model_->jnt_qposadr[id_];                                            \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;  \
+      return val(typed_memory_view(end - start, data_->prefix##var + start));          \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                            \
+      int start = model_->jnt_dofadr[id_];                                             \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;   \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        return val(typed_memory_view(end - start, data_->prefix##var + start));        \
+      } else {                                                                         \
+        return val(typed_memory_view(                                                  \
+            (end - start) * dim1, data_->prefix##var + start * dim1));                 \
+      }                                                                                \
+    } else if constexpr (std::string_view(#dim0) == "nsensordata") {                   \
+      int start = model_->sensor_adr[id_];                                             \
+      int count = model_->sensor_dim[id_];                                             \
+      return val(typed_memory_view(count, data_->sensordata + start));                 \
+    } else {                                                                           \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        return val(data_->prefix##var[id_]);                                           \
+      } else {                                                                         \
+        return val(typed_memory_view(dim1, data_->prefix##var + id_ * dim1));          \
+      }                                                                                \
+    }                                                                                  \
+  }                                                                                    \
+  void set_##var(const emscripten::val& value) {                                       \
+    if constexpr (std::string_view(#dim0) == "nq") {                                   \
+      int start = model_->jnt_qposadr[id_];                                            \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;  \
+      val(typed_memory_view(end - start, data_->prefix##var + start))                  \
+          .call<void>("set", value);                                                   \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                            \
+      int start = model_->jnt_dofadr[id_];                                             \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;   \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        val(typed_memory_view(end - start, data_->prefix##var + start))                \
+            .call<void>("set", value);                                                 \
+      } else {                                                                         \
+        val(typed_memory_view((end - start) * dim1,                                    \
+                                          data_->prefix##var + start * dim1))          \
+            .call<void>("set", value);                                                 \
+      }                                                                                \
+    } else if constexpr (std::string_view(#dim0) == "nsensordata") {                   \
+      int start = model_->sensor_adr[id_];                                             \
+      int count = model_->sensor_dim[id_];                                             \
+      val(typed_memory_view(count, data_->sensordata + start))                         \
+          .call<void>("set", value);                                                   \
+    } else {                                                                           \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        data_->prefix##var[id_] = value.as<type>();                                    \
+      } else {                                                                         \
+        val(typed_memory_view(dim1, data_->prefix##var + id_ * dim1))                  \
+            .call<void>("set", value);                                                 \
+      }                                                                                \
+    }                                                                                  \
+  }
+
+#define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                                                     \
+  struct MjData##Name##Accessor {                                                                          \
+    MjData##Name##Accessor(mjData* data, mjModel* model, int id) : data_(data), model_(model), id_(id) {}  \
+                                                                                                           \
+    int id() const { return id_; }                                                                         \
+    std::string name() const {                                                                             \
+      const char* name = mj_id2name(model_, OBJTYPE, id_);                                                 \
+      return name ? name : "";                                                                             \
+    }                                                                                                      \
+                                                                                                           \
+    MJDATA_##NAME                                                                                          \
+                                                                                                           \
+   private:                                                                                                \
+    mjData* data_;                                                                                         \
+    mjModel* model_;                                                                                       \
+    int id_;                                                                                               \
+  };
+MJDATA_ACCESSORS
 #undef X_ACCESSOR
 
 #undef X
@@ -6778,6 +6926,28 @@ struct MjData {
   void set_signature(uint64_t value) {
     ptr_->signature = value;
   }
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)              \
+    MjData##Name##Accessor accessor_name(const NumberOrString& val) const {   \
+      if (val.isString()) {                                                   \
+        int id = mj_name2id(model, OBJTYPE, val.as<std::string>().c_str());   \
+        if (id == -1) {                                                       \
+          mju_error("%s", KeyErrorMessage(model, OBJTYPE, model->nfield, val.as<std::string>(), #accessor_name).c_str());  \
+        }                                                                     \
+        return MjData##Name##Accessor(ptr_, model, id);                       \
+      } else if (val.isNumber()) {                                            \
+        int id = val.as<int>();                                               \
+        if (id < 0 || id >= model->nfield) {                                  \
+          mju_error("%s", IndexErrorMessage(id, model->nfield, #accessor_name).c_str());  \
+        }                                                                     \
+        return MjData##Name##Accessor(ptr_, model, id);                       \
+      } else {                                                                \
+        mju_error(#accessor_name "() argument must be a string or number");   \
+        return MjData##Name##Accessor(nullptr, nullptr, 0);                   \
+      }                                                                       \
+    }
+    MJDATA_ACCESSORS
+  #undef X_ACCESSOR
 
  private:
   mjData* ptr_;
@@ -11048,16 +11218,30 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjWRAP_CYLINDER", mjWRAP_CYLINDER);
 
   // Bindings for the MjModel accessor classes.
-  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::var)
-  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                     \
-    {                                                                        \
-      using Accessor = MjModel##Name##Accessor;                              \
-      emscripten::class_<Accessor>("MjModel" #Name "Accessor")               \
-          .property("id", &Accessor::id)                                     \
-          .property("name", &Accessor::name)                                 \
-          MJMODEL_##NAME;                                                    \
+  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::get_##var, &Accessor::set_##var)
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)        \
+    {                                                           \
+      using Accessor = MjModel##Name##Accessor;                 \
+      emscripten::class_<Accessor>("MjModel" #Name "Accessor")  \
+          .property("id", &Accessor::id)                        \
+          .property("name", &Accessor::name)                    \
+          MJMODEL_##NAME;                                       \
     }
     MJMODEL_ACCESSORS
+  #undef X
+  #undef X_ACCESSOR
+
+  // Bindings for the MjData accessor classes.
+  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::get_##var, &Accessor::set_##var)
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)       \
+    {                                                          \
+      using Accessor = MjData##Name##Accessor;                 \
+      emscripten::class_<Accessor>("MjData" #Name "Accessor")  \
+          .property("id", &Accessor::id)                       \
+          .property("name", &Accessor::name)                   \
+          MJDATA_##NAME;                                       \
+    }
+    MJDATA_ACCESSORS
   #undef X
   #undef X_ACCESSOR
 
@@ -11086,6 +11270,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjData>("MjData")
     .constructor<MjModel *>()
     .constructor<const MjModel &, const MjData &>()
+    // Binds the functions on MjData that return accessors.
+      #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \
+        .function(#field_name, &MjData::field_name)
+        MJDATA_ACCESSORS
+      #undef X_ACCESSOR
     .property("M", &MjData::M)
     .property("act", &MjData::act)
     .property("act_dot", &MjData::act_dot)
