@@ -1067,7 +1067,7 @@ void ParseMjcPhysicsTendon(mjSpec* spec, const pxr::MjcPhysicsTendon& tendon) {
       std::string side_site_name = "";
       if (!side_site_indices.empty()) {
         int side_site_index = side_site_indices[i];
-        if (side_site_index >= side_site_paths.size()) {
+        if (side_site_index > 0 && side_site_index >= side_site_paths.size()) {
           mju_warning(
               "Tendon %s has side site index %d but only %lu side sites, "
               "skipping.",
@@ -1075,7 +1075,9 @@ void ParseMjcPhysicsTendon(mjSpec* spec, const pxr::MjcPhysicsTendon& tendon) {
               side_site_paths.size());
           return;
         }
-        side_site_name = side_site_paths[side_site_index].GetAsString();
+        if (side_site_index >= 0) {
+          side_site_name = side_site_paths[side_site_index].GetAsString();
+        }
       }
       wrap = mjs_wrapGeom(mj_tendon, wrap_target.GetAsString().c_str(),
                           side_site_name.c_str());
@@ -1294,6 +1296,8 @@ void ParseMjcPhysicsActuator(mjSpec* spec,
     mj_act->trntype = mjTRN_BODY;
   } else if (target_prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
     mj_act->trntype = slider_crank ? mjTRN_SLIDERCRANK : mjTRN_SITE;
+  } else if (target_prim.IsA<pxr::MjcPhysicsTendon>()) {
+    mj_act->trntype = mjTRN_TENDON;
   } else {
     mju_warning("Actuator %s has an invalid target type, skipping.",
                 prim.GetPath().GetAsString().c_str());
