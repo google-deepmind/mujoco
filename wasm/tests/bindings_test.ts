@@ -1873,6 +1873,66 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 
+  it('should compile a spec from XML with 10 meshes and 10 textures', () => {
+    const assetsCount = 10;
+    let xml = `<mujoco>
+      <asset>`;
+    const cube1 = `
+    v -1 -1  1
+    v  1 -1  1
+    v -1  1  1
+    v  1  1  1
+    v -1  1 -1
+    v  1  1 -1
+    v -1 -1 -1
+    v  1 -1 -1`;
+    const dummyTex = 'dummy texture data';
+
+    for (let i = 0; i < assetsCount; i++) {
+      xml += `<mesh name="cube${i}" file="cube${i}.obj"/>`;
+      xml += `<texture name="tex${
+          i}" type="2d" builtin="checker" width="16" height="16"/>`;
+    }
+    xml += `</asset><worldbody>`;
+    for (let i = 0; i < assetsCount; i++) {
+      xml += `<geom type="mesh" mesh="cube${i}"/>`;
+    }
+    xml += `</worldbody></mujoco>`;
+
+    let spec: MjSpec|null = null;
+    let model: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+    try {
+      spec = mujoco.parseXMLString(xml);
+      assertExists(spec);
+
+      vfs = new mujoco.MjVFS();
+      assertExists(vfs);
+      for (let i = 0; i < assetsCount; i++) {
+        vfs.addBuffer(`cube${i}.obj`, new TextEncoder().encode(cube1));
+        vfs.addBuffer(`tex${i}.txt`, new TextEncoder().encode(dummyTex));
+      }
+
+      model = mujoco.mj_compile(spec, vfs);
+      assertExists(model);
+      expect(model.nmesh).toBe(assetsCount);
+      expect(model.ntex).toBe(assetsCount);
+
+      for (let i = 0; i < assetsCount; i++) {
+        const meshId = mujoco.mj_name2id(
+            model, mujoco.mjtObj.mjOBJ_MESH.value, `cube${i}`);
+        expect(meshId).toBe(i);
+        const tex = model.tex(`tex${i}`);
+        expect(tex).toBeDefined();
+        expect(tex!.name).toBe(`tex${i}`);
+      }
+    } finally {
+      spec?.delete();
+      vfs?.delete();
+      model?.delete();
+    }
+  });
+
   describe('MjModel named access', () => {
     // Corresponds to
     // bindings_test.py:test_named_indexing_invalid_names_in_model
