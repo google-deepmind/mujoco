@@ -117,7 +117,7 @@ allowing convenient access to model and data elements by name or index. For
 example, you can access a geometry by name using `model.geom('mygeom')` or a
 joint using `data.jnt('myjoint')`.
 
-For more details and examples of how to use named access, please refer to the [named access tests](tests/bindings_test.ts;l=2010-2487) and [documentation](https://mujoco.readthedocs.io/en/stable/python.html#named-access).
+For more details and examples of how to use named access, please refer to the [named access tests](tests/bindings_test.ts#L1876-L2378) and [documentation](https://mujoco.readthedocs.io/en/stable/python.html#named-access).
 
 ## Development
 
