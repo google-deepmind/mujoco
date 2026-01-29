@@ -1,0 +1,64 @@
+.{
+    .name = .lib_zmujoco,
+    .fingerprint = 0xaba5f16825593fb1,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.15.2",
+
+    .dependencies = .{
+        // GLFW bindings for Zig - includes GLFW source and compiles it
+        .zglfw = .{
+            .url = "https://github.com/zig-gamedev/zglfw/archive/feeeff9386dd44ba2c18488113023865c41b80a4.tar.gz",
+            .hash = "zglfw-0.10.0-dev-zgVDNLyhIQCZR_rbIf7hnCKuifzcmPOLOQhd_hrqq8cl",
+        },
+
+        // libccd - collision detection library (v2.1)
+        .libccd = .{
+            .url = "https://github.com/danfis/libccd/archive/7931e764a19ef6b21b443376c699bbc9c6d4fba8.tar.gz",
+            .hash = "1220b8a2032c446b8341ac4f91d95e618816b4942ba9a7fb858b79718b1d4d7a4fd0",
+        },
+
+        // Qhull 2020.2
+        .qhull = .{
+            .url = "https://github.com/qhull/qhull/archive/62ccc56af071eaa478bef6ed41fd7a55d3bb2d80.tar.gz",
+            .hash = "1220174b2623fb18999dc35f8e336b8e805504835e14c1dd162c363c54edcab79599",
+        },
+
+        // lodepng - PNG library
+        .lodepng = .{
+            .url = "https://github.com/lvandeve/lodepng/archive/17d08dd26cac4d63f43af217ebd70318bfb8189c.tar.gz",
+            .hash = "12208576e2b1cce536d14520679e9b07b9a9723dbbbb54cfdb841a0bb803cecc3e6d",
+        },
+
+        // tinyxml2 v11.0.0
+        .tinyxml2 = .{
+            .url = "https://github.com/leethomason/tinyxml2/archive/e6caeae85799003f4ca74ff26ee16a789bc2af48.tar.gz",
+            .hash = "1220b469204ecc3788fe5e0f3fe766e2aca15de19a067dcb0ca33ba8b0b041d0587a",
+        },
+
+        // tinyobjloader
+        .tinyobjloader = .{
+            .url = "https://github.com/tinyobjloader/tinyobjloader/archive/1421a10d6ed9742f5b2c1766d22faa6cfbc56248.tar.gz",
+            .hash = "N-V-__8AAMX9JADU3JSHHv9216BWCq4ccBU4GBJl7_9l9ZB5",
+        },
+
+        // MarchingCubeCpp - marching cubes header-only library
+        .marchingcubecpp = .{
+            .url = "https://github.com/aparis69/MarchingCubeCpp/archive/f03a1b3ec29b1d7d865691ca8aea4f1eb2c2873d.tar.gz",
+            .hash = "12200c590f2adca95e82bee5ebb7af9bb154cb392212a20e4a4c22a7fbc13803b1f5",
+        },
+
+        // TriangleMeshDistance - signed distance function to triangle mesh
+        .trianglemeshdistance = .{
+            .url = "https://github.com/InteractiveComputerGraphics/TriangleMeshDistance/archive/2cb643de1436e1ba8e2be49b07ec5491ac604457.tar.gz",
+            .hash = "122052f4f03ae78d4bfc51b043ff0f32f036c26fad0d31e0f67cdd631d35e286d97f",
+        },
+    },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "include",
+        "zig",
+    },
+}

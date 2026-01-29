@@ -98,6 +98,13 @@ Note that Pre-built Linux wheels target `manylinux2014`, see
 information such as building the bindings from source, see the [Python bindings]
 section of the documentation.
 
+### Zig ( 0.15.2 ) - Build & Use libmujoco
+
+```bash
+zig build
+./zig-out/bin/basic model/car/car.xml # Or any modelfile
+```
+
 ## Contributing
 
 We welcome community engagement: questions, requests for help, bug reports and
@@ -133,6 +140,7 @@ These packages give users of various languages access to MuJoCo functionality:
     a module for procedural manipulation of MuJoCo models.
 - [JavaScript bindings and WebAssembly support](/wasm/README.md) (inspired [stillonearth](https://github.com/stillonearth) and [zalo](https://github.com/zalo)'s community projects).
 - [C# bindings and Unity plug-in](https://mujoco.readthedocs.io/en/stable/unity.html)
+- [Zig bindings and build for libmujoco](/zig/README.md) Work In Progress
 
 #### Third-party bindings:
 
