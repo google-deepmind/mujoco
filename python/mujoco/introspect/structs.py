@@ -8025,7 +8025,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='group',
                  type=ValueType(name='int'),
-                 doc='group for visualizatioh',
+                 doc='group for visualization',
              ),
              StructFieldDecl(
                  name='edgestiffness',

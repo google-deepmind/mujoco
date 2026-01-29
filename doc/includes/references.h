@@ -2215,7 +2215,7 @@ typedef struct mjsFlex_ {          // flex specification
   int vertcollide;                 // mode for vertex collision
   int passive;                     // mode for passive collisions
   int activelayers;                // number of active element layers in 3D
-  int group;                       // group for visualizatioh
+  int group;                       // group for visualization
   double edgestiffness;            // edge stiffness
   double edgedamping;              // edge damping
   float rgba[4];                   // rgba when material is omitted
