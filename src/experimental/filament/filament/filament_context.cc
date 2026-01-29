@@ -144,7 +144,7 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
   scene_view_->UpdateScene(con, scene);
   // Update the UX renderable entity after processing the scene in case there
   // are any elements in the scene which generate UX draw calls (e.g. labels).
-  if (gui_view_) {
+  if (gui_view_ && gui_swap_chain_target_ == scene_swap_chain_target_) {
     // Prepare the filament Renderable that contains the GUI draw commands. We
     // must call this function even if we do not plan on rendering the GUI to
     // ensure the ImGui state is updated.
