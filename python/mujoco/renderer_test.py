@@ -158,5 +158,162 @@ class MuJoCoRendererTest(parameterized.TestCase):
         renderer.render(out=np.zeros((*failing_render_size, 3), np.uint8))
 
 
+  def test_update_hfield(self):
+    xml = """
+<mujoco>
+  <asset>
+    <hfield name="terrain" nrow="10" ncol="10" size="1 1 0.1 0.1"/>
+  </asset>
+  <worldbody>
+    <geom type="hfield" hfield="terrain"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      # Should succeed for valid hfield id
+      renderer.update_hfield(0)
+
+  def test_update_hfield_out_of_range(self):
+    xml = """
+<mujoco>
+  <asset>
+    <hfield name="terrain" nrow="10" ncol="10" size="1 1 0.1 0.1"/>
+  </asset>
+  <worldbody>
+    <geom type="hfield" hfield="terrain"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      with self.assertRaisesRegex(ValueError, 'out of range'):
+        renderer.update_hfield(-1)
+      with self.assertRaisesRegex(ValueError, 'out of range'):
+        renderer.update_hfield(1)
+
+  def test_update_hfield_after_close(self):
+    xml = """
+<mujoco>
+  <asset>
+    <hfield name="terrain" nrow="10" ncol="10" size="1 1 0.1 0.1"/>
+  </asset>
+  <worldbody>
+    <geom type="hfield" hfield="terrain"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    renderer = mujoco.Renderer(model, 50, 50)
+    renderer.close()
+    with self.assertRaisesRegex(RuntimeError, 'after close'):
+      renderer.update_hfield(0)
+
+  def test_update_mesh(self):
+    xml = """
+<mujoco>
+  <asset>
+    <mesh name="box" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="box"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      # Should succeed for valid mesh id
+      renderer.update_mesh(0)
+
+  def test_update_mesh_out_of_range(self):
+    xml = """
+<mujoco>
+  <asset>
+    <mesh name="box" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="box"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      with self.assertRaisesRegex(ValueError, 'out of range'):
+        renderer.update_mesh(-1)
+      with self.assertRaisesRegex(ValueError, 'out of range'):
+        renderer.update_mesh(1)
+
+  def test_update_mesh_after_close(self):
+    xml = """
+<mujoco>
+  <asset>
+    <mesh name="box" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="box"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    renderer = mujoco.Renderer(model, 50, 50)
+    renderer.close()
+    with self.assertRaisesRegex(RuntimeError, 'after close'):
+      renderer.update_mesh(0)
+
+  def test_update_texture(self):
+    xml = """
+<mujoco>
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="32" height="32"/>
+    <material name="grid" texture="grid"/>
+  </asset>
+  <worldbody>
+    <geom type="plane" size="1 1 0.1" material="grid"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      # Should succeed for valid texture id
+      renderer.update_texture(0)
+
+  def test_update_texture_out_of_range(self):
+    xml = """
+<mujoco>
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="32" height="32"/>
+    <material name="grid" texture="grid"/>
+  </asset>
+  <worldbody>
+    <geom type="plane" size="1 1 0.1" material="grid"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      with self.assertRaisesRegex(ValueError, 'out of range'):
+        renderer.update_texture(-1)
+      with self.assertRaisesRegex(ValueError, 'out of range'):
+        renderer.update_texture(1)
+
+  def test_update_texture_after_close(self):
+    xml = """
+<mujoco>
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="32" height="32"/>
+    <material name="grid" texture="grid"/>
+  </asset>
+  <worldbody>
+    <geom type="plane" size="1 1 0.1" material="grid"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    renderer = mujoco.Renderer(model, 50, 50)
+    renderer.close()
+    with self.assertRaisesRegex(RuntimeError, 'after close'):
+      renderer.update_texture(0)
+
+
 if __name__ == '__main__':
   absltest.main()

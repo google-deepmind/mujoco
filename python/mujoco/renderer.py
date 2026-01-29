@@ -304,6 +304,66 @@ the clause:
         self._scene,
     )
 
+  def update_hfield(self, hfieldid: int) -> None:
+    """Uploads modified height field data to the GPU.
+
+    Args:
+      hfieldid: The ID of the height field to update.
+
+    Raises:
+      RuntimeError: If called after the renderer is closed.
+      ValueError: If hfieldid is out of range.
+    """
+    if self._mjr_context is None:
+      raise RuntimeError('update_hfield cannot be called after close.')
+    if hfieldid < 0 or hfieldid >= self._model.nhfield:
+      raise ValueError(
+          f'hfieldid {hfieldid} is out of range [0, {self._model.nhfield}).'
+      )
+    if self._gl_context:
+      self._gl_context.make_current()
+    _render.mjr_uploadHField(self._model, self._mjr_context, hfieldid)
+
+  def update_mesh(self, meshid: int) -> None:
+    """Uploads modified mesh data to the GPU.
+
+    Args:
+      meshid: The ID of the mesh to update.
+
+    Raises:
+      RuntimeError: If called after the renderer is closed.
+      ValueError: If meshid is out of range.
+    """
+    if self._mjr_context is None:
+      raise RuntimeError('update_mesh cannot be called after close.')
+    if meshid < 0 or meshid >= self._model.nmesh:
+      raise ValueError(
+          f'meshid {meshid} is out of range [0, {self._model.nmesh}).'
+      )
+    if self._gl_context:
+      self._gl_context.make_current()
+    _render.mjr_uploadMesh(self._model, self._mjr_context, meshid)
+
+  def update_texture(self, texid: int) -> None:
+    """Uploads modified texture data to the GPU.
+
+    Args:
+      texid: The ID of the texture to update.
+
+    Raises:
+      RuntimeError: If called after the renderer is closed.
+      ValueError: If texid is out of range.
+    """
+    if self._mjr_context is None:
+      raise RuntimeError('update_texture cannot be called after close.')
+    if texid < 0 or texid >= self._model.ntex:
+      raise ValueError(
+          f'texid {texid} is out of range [0, {self._model.ntex}).'
+      )
+    if self._gl_context:
+      self._gl_context.make_current()
+    _render.mjr_uploadTexture(self._model, self._mjr_context, texid)
+
   def close(self) -> None:
     """Frees the resources used by the renderer.
 
