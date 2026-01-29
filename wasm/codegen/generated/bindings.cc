@@ -19,6 +19,7 @@
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -27,6 +28,7 @@
 #include <cstring>  // NOLINT
 #include <memory>
 #include <optional>  // NOLINT
+#include <sstream>
 #include <string>    // NOLINT
 #include <string_view>
 #include <vector>
@@ -100,6 +102,51 @@ void ThrowMujocoErrorToJS(const char* msg) {
 }
 __attribute__((constructor)) void InitMuJoCoErrorHandler() {
   mju_user_error = ThrowMujocoErrorToJS;
+}
+
+// Generates a descriptive error message for when a key lookup fails.
+// The message includes the invalid name and a list of valid names of the
+// specified object type currently present in the model.
+//
+// Arguments:
+//   model: Pointer to the mjModel.
+//   objtype: The mjOBJ_* enum value representing the object type.
+//   count: The number of objects of the given type in the model.
+//   name: The invalid name that was looked up.
+//
+// Returns:
+//   A string containing the error message.
+std::string KeyErrorMessage(const mjModel* model, int objtype, int count,
+                            std::string_view name, std::string_view accessor_name) {
+  std::vector<std::string> valid_names;
+  valid_names.reserve(count);
+  for (int i = 0; i < count; ++i) {
+    const char* n = mj_id2name(model, objtype, i);
+    if (n) {
+      valid_names.push_back(n);
+    }
+  }
+  std::sort(valid_names.begin(), valid_names.end());
+
+  std::ostringstream message;
+  message << "Invalid name '" << name << "' for " << accessor_name
+          << ". Valid names: [";
+  for (size_t i = 0; i < valid_names.size(); ++i) {
+    message << "'" << valid_names[i] << "'";
+    if (i < valid_names.size() - 1) {
+      message << ", ";
+    }
+  }
+  message << "]";
+  return message.str();
+}
+
+std::string IndexErrorMessage(int index, int count,
+                              std::string_view accessor_name) {
+  std::ostringstream message;
+  message << "Invalid index " << index << " for " << accessor_name
+          << ". Valid indices from 0 to " << count - 1;
+  return message.str();
 }
 
 template <size_t N>
@@ -5299,13 +5346,13 @@ struct MjModel {
       if (val.isString()) {                                                    \
         int id = mj_name2id(ptr_, OBJTYPE, val.as<std::string>().c_str());     \
         if (id == -1) {                                                        \
-          mju_error("Invalid name, MjModel." #accessor_name " not found");     \
+          mju_error("%s", KeyErrorMessage(ptr_, OBJTYPE, ptr_->nfield, val.as<std::string>(), #accessor_name).c_str());  \
         }                                                                      \
         return MjModel##Name##Accessor(ptr_, id);                              \
       } else if (val.isNumber()) {                                             \
         int id = val.as<int>();                                                \
         if (id < 0 || id >= ptr_->nfield) {                                    \
-          mju_error_i("Invalid id %d for MjModel." #accessor_name, id);        \
+          mju_error("%s", IndexErrorMessage(id, ptr_->nfield, #accessor_name).c_str());  \
         }                                                                      \
         return MjModel##Name##Accessor(ptr_, id);                              \
       } else {                                                                 \

@@ -396,13 +396,13 @@ def build_struct_header(
       if (val.isString()) {                                                    \\
         int id = mj_name2id(ptr_, OBJTYPE, val.as<std::string>().c_str());     \\
         if (id == -1) {                                                        \\
-          mju_error("Invalid name, MjModel." #accessor_name " not found");     \\
+          mju_error("%s", KeyErrorMessage(ptr_, OBJTYPE, ptr_->nfield, val.as<std::string>(), #accessor_name).c_str());  \\
         }                                                                      \\
         return MjModel##Name##Accessor(ptr_, id);                              \\
       } else if (val.isNumber()) {                                             \\
         int id = val.as<int>();                                                \\
         if (id < 0 || id >= ptr_->nfield) {                                    \\
-          mju_error_i("Invalid id %d for MjModel." #accessor_name, id);        \\
+          mju_error("%s", IndexErrorMessage(id, ptr_->nfield, #accessor_name).c_str());  \\
         }                                                                      \\
         return MjModel##Name##Accessor(ptr_, id);                              \\
       } else {                                                                 \\

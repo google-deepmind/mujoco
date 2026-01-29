@@ -1879,7 +1879,26 @@ describe('MuJoCo WASM Bindings', () => {
     it('should throw an error for invalid geom names in model', () => {
       expect(() => {
         model!.geom('badgeom');
-      }).toThrowError('MuJoCo Error: Invalid name, MjModel.geom not found');
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid name 'badgeom' for geom. Valid names: \['mybox', 'myplane'\]`);
+    });
+
+    // Corresponds to
+    // bindings_test.py:test_named_indexing_invalid_index_in_model
+    it('should throw an error for invalid geom indices in model', () => {
+      const numGeoms = model!.ngeom;
+      expect(() => {
+        model!.geom(numGeoms);
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid index 3 for geom. Valid indices from 0 to 2`);
+
+      expect(() => {
+        model!.geom(-1);
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid index -1 for geom. Valid indices from 0 to 2`);
     });
 
     // Corresponds to bindings_test.py:test_named_indexing_geom_size
