@@ -1361,7 +1361,7 @@ void App::ToolBarGui() {
     const int combo_flags = ImGuiComboFlags_NoArrowButton;
 
     const float scale = ImGui::GetWindowDpiScale();
-    const float right_width = 500.f * scale;
+    const float right_width = 520.f * scale;
     const ImVec2 button_size(48.f * scale, 32.f * scale);
     const ImVec2 play_button_size(120.f * scale, 32.f * scale);
 
