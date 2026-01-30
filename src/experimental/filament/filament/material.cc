@@ -110,6 +110,9 @@ void Material::UpdateMaterialInstances() {
   if (material->hasParameter("UvScale")) {
     instance->setParameter("UvScale", params_.uv_scale);
   }
+  if (material->hasParameter("UvOffset")) {
+    instance->setParameter("UvOffset", params_.uv_offset);
+  }
 
   if (instances_[DrawMode::kSegmentation]) {
     instances_[DrawMode::kSegmentation]->setParameter(

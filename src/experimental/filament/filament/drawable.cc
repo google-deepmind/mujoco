@@ -484,8 +484,15 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
         params.uv_scale.y = 2.0f * plane_scale / tile_size_y;
       }
 
+      // We want to do the equivalent of:
+      //   mjr_setf4(splane, 0.5 * scl.x,  0, 0, -0.5);
+      //   mjr_setf4(tplane, 0, -0.5 * scl.y, 0, -0.5);
+      //   glTexGenfv(GL_S, GL_OBJECT_PLANE, splane);
+      //   glTexGenfv(GL_T, GL_OBJECT_PLANE, tplane);
       params.uv_scale.x = 0.5f * params.uv_scale.x;
-      params.uv_scale.y = 0.5f * params.uv_scale.y;
+      params.uv_scale.y = -0.5f * params.uv_scale.y;
+      params.uv_offset.x = -0.5f;
+      params.uv_offset.y = -0.5f;
     } else {
       // For cube maps, if `tex_uniform` is true, then scale the texture so that
       // it covers a 1x1 area of world space rather than the area of the object.
