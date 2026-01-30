@@ -486,8 +486,8 @@ def implicit(m: Model, d: Data):
       qDeriv = wp.empty((d.nworld, 1, m.nM), dtype=float)
       qLD = wp.empty((d.nworld, 1, m.nC), dtype=float)
     else:
-      qDeriv = wp.empty((d.nworld, m.nv, m.nv), dtype=float)
-      qLD = wp.empty((d.nworld, m.nv, m.nv), dtype=float)
+      qDeriv = wp.empty(d.qM.shape, dtype=float)
+      qLD = wp.empty(d.qM.shape, dtype=float)
     qLDiagInv = wp.empty((d.nworld, m.nv), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
@@ -956,6 +956,7 @@ def step1(m: Model, d: Data):
   # TODO(team): mj_checkPos
   # TODO(team): mj_checkVel
   fwd_position(m, d)
+  d.sensordata.zero_()
   sensor.sensor_pos(m, d)
 
   if energy:

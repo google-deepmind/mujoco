@@ -1,4 +1,4 @@
-.. dropdown:: mujoco :octicon:`star`
+.. dropdown:: :ref:`mujoco<mujoco>` :octicon:`star`
    :open:
 
    .. grid:: 2 3 4 4
@@ -8,7 +8,7 @@
          :ref:`model<mujoco-model>`
 
 
-   .. dropdown:: option |m|
+   .. dropdown:: :ref:`option<option>` |*|
 
       .. grid:: 2 3 4 4
          :gutter: 0
@@ -95,7 +95,7 @@
             :ref:`actuatorgroupdisable<option-actuatorgroupdisable>`
 
 
-      .. dropdown:: flag :octicon:`dot`
+      .. dropdown:: :ref:`flag<option-flag>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -176,7 +176,7 @@
                :ref:`sleep<option-flag-sleep>`
 
 
-   .. dropdown:: compiler |m|
+   .. dropdown:: :ref:`compiler<compiler>` |*|
 
       .. grid:: 2 3 4 4
          :gutter: 0
@@ -242,7 +242,7 @@
             :ref:`alignfree<compiler-alignfree>`
 
 
-      .. dropdown:: lengthrange :octicon:`dot`
+      .. dropdown:: :ref:`lengthrange<compiler-lengthrange>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -278,7 +278,7 @@
                :ref:`tolrange<compiler-lengthrange-tolrange>`
 
 
-   .. dropdown:: size |m|
+   .. dropdown:: :ref:`size<size>` |*|
 
       .. grid:: 2 3 4 4
          :gutter: 0
@@ -326,7 +326,7 @@
             :ref:`nuser_sensor<size-nuser_sensor>`
 
 
-   .. dropdown:: statistic |m|
+   .. dropdown:: :ref:`statistic<statistic>` |*|
 
       .. grid:: 2 3 4 4
          :gutter: 0
@@ -347,10 +347,10 @@
             :ref:`center<statistic-center>`
 
 
-   .. dropdown:: asset |m|
+   .. dropdown:: :ref:`asset<asset>` |*|
 
 
-      .. dropdown:: mesh |m|
+      .. dropdown:: :ref:`mesh<asset-mesh>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -407,7 +407,7 @@
                :ref:`material<asset-mesh-material>`
 
 
-         .. dropdown:: plugin |m|
+         .. dropdown:: :ref:`plugin<mesh-plugin>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -419,7 +419,7 @@
                   :ref:`instance<mesh-plugin-instance>`
 
 
-            .. dropdown:: config |m|
+            .. dropdown:: :ref:`config<plugin-config>` |*|
 
                .. grid:: 2 3 4 4
                   :gutter: 0
@@ -431,7 +431,7 @@
                      :ref:`value<plugin-config-value>`
 
 
-      .. dropdown:: hfield |m|
+      .. dropdown:: :ref:`hfield<asset-hfield>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -458,7 +458,7 @@
                :ref:`elevation<asset-hfield-elevation>`
 
 
-      .. dropdown:: skin |m|
+      .. dropdown:: :ref:`skin<asset-skin>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -491,7 +491,7 @@
                :ref:`group<asset-skin-group>`
 
 
-         .. dropdown:: bone |m|
+         .. dropdown:: :ref:`bone<skin-bone>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -512,7 +512,7 @@
                   :ref:`vertweight<skin-bone-vertweight>`
 
 
-      .. dropdown:: texture |m|
+      .. dropdown:: :ref:`texture<asset-texture>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -590,7 +590,7 @@
                :ref:`nchannel<asset-texture-nchannel>`
 
 
-      .. dropdown:: material |m|
+      .. dropdown:: :ref:`material<asset-material>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -632,7 +632,7 @@
                :ref:`rgba<asset-material-rgba>`
 
 
-         .. dropdown:: layer |m|
+         .. dropdown:: :ref:`layer<material-layer>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -644,7 +644,7 @@
                   :ref:`role<material-layer-role>`
 
 
-      .. dropdown:: model |m|
+      .. dropdown:: :ref:`model<asset-model>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -659,7 +659,7 @@
                :ref:`content_type<asset-model-content_type>`
 
 
-   .. dropdown:: (world)body :octicon:`sync`
+   .. dropdown:: :ref:`(world)body<body>` :octicon:`sync`
 
       .. grid:: 2 3 4 4
          :gutter: 0
@@ -701,7 +701,7 @@
             :ref:`user<body-user>`
 
 
-      .. dropdown:: inertial :octicon:`dot`
+      .. dropdown:: :ref:`inertial<body-inertial>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -734,7 +734,7 @@
                :ref:`fullinertia<body-inertial-fullinertia>`
 
 
-      .. dropdown:: joint |m|
+      .. dropdown:: :ref:`joint<body-joint>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -812,7 +812,7 @@
                :ref:`user<body-joint-user>`
 
 
-      .. dropdown:: freejoint |m|
+      .. dropdown:: :ref:`freejoint<body-freejoint>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -827,7 +827,7 @@
                :ref:`align<body-freejoint-align>`
 
 
-      .. dropdown:: geom |m|
+      .. dropdown:: :ref:`geom<body-geom>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -932,7 +932,7 @@
                :ref:`user<body-geom-user>`
 
 
-         .. dropdown:: plugin |m|
+         .. dropdown:: :ref:`plugin<geom-plugin>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -944,7 +944,7 @@
                   :ref:`instance<geom-plugin-instance>`
 
 
-            .. dropdown:: config |m|
+            .. dropdown:: :ref:`config<plugin-config>` |*|
 
                .. grid:: 2 3 4 4
                   :gutter: 0
@@ -956,7 +956,7 @@
                      :ref:`value<plugin-config-value>`
 
 
-      .. dropdown:: attach |m|
+      .. dropdown:: :ref:`attach<body-attach>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -971,7 +971,7 @@
                :ref:`prefix<body-attach-prefix>`
 
 
-      .. dropdown:: site |m|
+      .. dropdown:: :ref:`site<body-site>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1022,7 +1022,7 @@
                :ref:`user<body-site-user>`
 
 
-      .. dropdown:: camera |m|
+      .. dropdown:: :ref:`camera<body-camera>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1091,7 +1091,7 @@
                :ref:`user<body-camera-user>`
 
 
-      .. dropdown:: light |m|
+      .. dropdown:: :ref:`light<body-light>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1157,7 +1157,7 @@
                :ref:`texture<body-light-texture>`
 
 
-      .. dropdown:: plugin |m|
+      .. dropdown:: :ref:`plugin<body-plugin>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1169,7 +1169,7 @@
                :ref:`instance<body-plugin-instance>`
 
 
-         .. dropdown:: config |m|
+         .. dropdown:: :ref:`config<plugin-config>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1181,7 +1181,7 @@
                   :ref:`value<plugin-config-value>`
 
 
-      .. dropdown:: composite |m|
+      .. dropdown:: :ref:`composite<body-composite>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1214,7 +1214,7 @@
                :ref:`quat<body-composite-quat>`
 
 
-         .. dropdown:: joint |m|
+         .. dropdown:: :ref:`joint<composite-joint>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1271,7 +1271,7 @@
                   :ref:`solimpfriction<composite-joint-solimpfriction>`
 
 
-         .. dropdown:: skin :octicon:`dot`
+         .. dropdown:: :ref:`skin<composite-skin>` :octicon:`dot`
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1295,7 +1295,7 @@
                   :ref:`subgrid<composite-skin-subgrid>`
 
 
-         .. dropdown:: geom :octicon:`dot`
+         .. dropdown:: :ref:`geom<composite-geom>` :octicon:`dot`
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1352,7 +1352,7 @@
                   :ref:`gap<composite-geom-gap>`
 
 
-         .. dropdown:: site :octicon:`dot`
+         .. dropdown:: :ref:`site<composite-site>` :octicon:`dot`
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1370,7 +1370,7 @@
                   :ref:`rgba<composite-site-rgba>`
 
 
-         .. dropdown:: plugin |m|
+         .. dropdown:: :ref:`plugin<composite-plugin>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1382,7 +1382,7 @@
                   :ref:`instance<composite-plugin-instance>`
 
 
-            .. dropdown:: config |m|
+            .. dropdown:: :ref:`config<plugin-config>` |*|
 
                .. grid:: 2 3 4 4
                   :gutter: 0
@@ -1394,7 +1394,7 @@
                      :ref:`value<plugin-config-value>`
 
 
-      .. dropdown:: flexcomp |m|
+      .. dropdown:: :ref:`flexcomp<body-flexcomp>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1478,7 +1478,7 @@
                :ref:`origin<body-flexcomp-origin>`
 
 
-         .. dropdown:: edge :octicon:`dot`
+         .. dropdown:: :ref:`edge<flexcomp-edge>` :octicon:`dot`
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1499,7 +1499,7 @@
                   :ref:`damping<flexcomp-edge-damping>`
 
 
-         .. dropdown:: elasticity :octicon:`dot`
+         .. dropdown:: :ref:`elasticity<flexcomp-elasticity>` :octicon:`dot`
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1520,7 +1520,7 @@
                   :ref:`elastic2d<flexcomp-elasticity-elastic2d>`
 
 
-         .. dropdown:: contact :octicon:`dot`
+         .. dropdown:: :ref:`contact<flexcomp-contact>` :octicon:`dot`
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1571,7 +1571,7 @@
                   :ref:`passive<flexcomp-contact-passive>`
 
 
-         .. dropdown:: pin |m|
+         .. dropdown:: :ref:`pin<flexcomp-pin>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1589,7 +1589,7 @@
                   :ref:`gridrange<flexcomp-pin-gridrange>`
 
 
-         .. dropdown:: plugin |m|
+         .. dropdown:: :ref:`plugin<flexcomp-plugin>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1601,7 +1601,7 @@
                   :ref:`instance<flexcomp-plugin-instance>`
 
 
-            .. dropdown:: config |m|
+            .. dropdown:: :ref:`config<plugin-config>` |*|
 
                .. grid:: 2 3 4 4
                   :gutter: 0
@@ -1613,10 +1613,10 @@
                      :ref:`value<plugin-config-value>`
 
 
-   .. dropdown:: deformable |m|
+   .. dropdown:: :ref:`deformable<deformable>` |*|
 
 
-      .. dropdown:: flex |m|
+      .. dropdown:: :ref:`flex<deformable-flex>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1661,7 +1661,7 @@
                :ref:`node<deformable-flex-node>`
 
 
-         .. dropdown:: contact :octicon:`dot`
+         .. dropdown:: :ref:`contact<flex-contact>` :octicon:`dot`
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1712,7 +1712,7 @@
                   :ref:`passive<flex-contact-passive>`
 
 
-         .. dropdown:: edge :octicon:`dot`
+         .. dropdown:: :ref:`edge<flex-edge>` :octicon:`dot`
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1724,7 +1724,7 @@
                   :ref:`damping<flex-edge-damping>`
 
 
-         .. dropdown:: elasticity :octicon:`dot`
+         .. dropdown:: :ref:`elasticity<flex-elasticity>` :octicon:`dot`
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1745,7 +1745,7 @@
                   :ref:`elastic2d<flex-elasticity-elastic2d>`
 
 
-      .. dropdown:: skin |m|
+      .. dropdown:: :ref:`skin<deformable-skin>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1778,7 +1778,7 @@
                :ref:`group<deformable-skin-group>`
 
 
-         .. dropdown:: bone |m|
+         .. dropdown:: :ref:`bone<skin-bone>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -1799,10 +1799,10 @@
                   :ref:`vertweight<skin-bone-vertweight>`
 
 
-   .. dropdown:: contact |m|
+   .. dropdown:: :ref:`contact<contact>` |*|
 
 
-      .. dropdown:: pair |m|
+      .. dropdown:: :ref:`pair<contact-pair>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1841,7 +1841,7 @@
                :ref:`margin<contact-pair-margin>`
 
 
-      .. dropdown:: exclude |m|
+      .. dropdown:: :ref:`exclude<contact-exclude>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1856,10 +1856,10 @@
                :ref:`body2<contact-exclude-body2>`
 
 
-   .. dropdown:: equality |m|
+   .. dropdown:: :ref:`equality<equality>` |*|
 
 
-      .. dropdown:: connect |m|
+      .. dropdown:: :ref:`connect<equality-connect>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1895,7 +1895,7 @@
                :ref:`solimp<equality-connect-solimp>`
 
 
-      .. dropdown:: weld |m|
+      .. dropdown:: :ref:`weld<equality-weld>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1937,7 +1937,7 @@
                :ref:`torquescale<equality-weld-torquescale>`
 
 
-      .. dropdown:: joint |m|
+      .. dropdown:: :ref:`joint<equality-joint>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1967,7 +1967,7 @@
                :ref:`solimp<equality-joint-solimp>`
 
 
-      .. dropdown:: tendon |m|
+      .. dropdown:: :ref:`tendon<equality-tendon>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -1997,7 +1997,7 @@
                :ref:`solimp<equality-tendon-solimp>`
 
 
-      .. dropdown:: flex |m|
+      .. dropdown:: :ref:`flex<equality-flex>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2021,10 +2021,34 @@
                :ref:`solimp<equality-flex-solimp>`
 
 
-   .. dropdown:: tendon |m|
+      .. dropdown:: :ref:`flexvert<equality-flexvert>` |*|
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`name<equality-flexvert-name>`
+
+            .. grid-item::
+               :ref:`class<equality-flexvert-class>`
+
+            .. grid-item::
+               :ref:`flex<equality-flexvert-flex>`
+
+            .. grid-item::
+               :ref:`active<equality-flexvert-active>`
+
+            .. grid-item::
+               :ref:`solref<equality-flexvert-solref>`
+
+            .. grid-item::
+               :ref:`solimp<equality-flexvert-solimp>`
 
 
-      .. dropdown:: spatial |m|
+   .. dropdown:: :ref:`tendon<tendon>` |*|
+
+
+      .. dropdown:: :ref:`spatial<tendon-spatial>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2093,7 +2117,7 @@
                :ref:`user<tendon-spatial-user>`
 
 
-         .. dropdown:: site |m|
+         .. dropdown:: :ref:`site<spatial-site>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -2102,7 +2126,7 @@
                   :ref:`site<spatial-site-site>`
 
 
-         .. dropdown:: geom |m|
+         .. dropdown:: :ref:`geom<spatial-geom>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -2114,7 +2138,7 @@
                   :ref:`sidesite<spatial-geom-sidesite>`
 
 
-         .. dropdown:: pulley |m|
+         .. dropdown:: :ref:`pulley<spatial-pulley>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -2123,7 +2147,7 @@
                   :ref:`divisor<spatial-pulley-divisor>`
 
 
-      .. dropdown:: fixed |m|
+      .. dropdown:: :ref:`fixed<tendon-fixed>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2183,7 +2207,7 @@
                :ref:`user<tendon-fixed-user>`
 
 
-         .. dropdown:: joint |m|
+         .. dropdown:: :ref:`joint<fixed-joint>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -2195,10 +2219,10 @@
                   :ref:`coef<fixed-joint-coef>`
 
 
-   .. dropdown:: actuator |m|
+   .. dropdown:: :ref:`actuator<actuator>` |*|
 
 
-      .. dropdown:: general |m|
+      .. dropdown:: :ref:`general<actuator-general>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2291,7 +2315,7 @@
                :ref:`actearly<actuator-general-actearly>`
 
 
-      .. dropdown:: motor |m|
+      .. dropdown:: :ref:`motor<actuator-motor>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2351,7 +2375,7 @@
                :ref:`refsite<actuator-motor-refsite>`
 
 
-      .. dropdown:: position |m|
+      .. dropdown:: :ref:`position<actuator-position>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2426,7 +2450,7 @@
                :ref:`timeconst<actuator-position-timeconst>`
 
 
-      .. dropdown:: velocity |m|
+      .. dropdown:: :ref:`velocity<actuator-velocity>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2489,7 +2513,7 @@
                :ref:`kv<actuator-velocity-kv>`
 
 
-      .. dropdown:: intvelocity |m|
+      .. dropdown:: :ref:`intvelocity<actuator-intvelocity>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2564,7 +2588,7 @@
                :ref:`dampratio<actuator-intvelocity-dampratio>`
 
 
-      .. dropdown:: damper |m|
+      .. dropdown:: :ref:`damper<actuator-damper>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2624,7 +2648,7 @@
                :ref:`kv<actuator-damper-kv>`
 
 
-      .. dropdown:: cylinder |m|
+      .. dropdown:: :ref:`cylinder<actuator-cylinder>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2696,7 +2720,7 @@
                :ref:`bias<actuator-cylinder-bias>`
 
 
-      .. dropdown:: muscle |m|
+      .. dropdown:: :ref:`muscle<actuator-muscle>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2780,7 +2804,7 @@
                :ref:`fvmax<actuator-muscle-fvmax>`
 
 
-      .. dropdown:: adhesion |m|
+      .. dropdown:: :ref:`adhesion<actuator-adhesion>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2813,7 +2837,7 @@
                :ref:`gain<actuator-adhesion-gain>`
 
 
-      .. dropdown:: plugin |m|
+      .. dropdown:: :ref:`plugin<actuator-plugin>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2894,7 +2918,7 @@
                :ref:`actearly<actuator-plugin-actearly>`
 
 
-         .. dropdown:: config |m|
+         .. dropdown:: :ref:`config<plugin-config>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -2906,10 +2930,10 @@
                   :ref:`value<plugin-config-value>`
 
 
-   .. dropdown:: sensor |m|
+   .. dropdown:: :ref:`sensor<sensor>` |*|
 
 
-      .. dropdown:: touch |m|
+      .. dropdown:: :ref:`touch<sensor-touch>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2930,7 +2954,7 @@
                :ref:`user<sensor-touch-user>`
 
 
-      .. dropdown:: accelerometer |m|
+      .. dropdown:: :ref:`accelerometer<sensor-accelerometer>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2951,7 +2975,7 @@
                :ref:`user<sensor-accelerometer-user>`
 
 
-      .. dropdown:: velocimeter |m|
+      .. dropdown:: :ref:`velocimeter<sensor-velocimeter>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2972,7 +2996,7 @@
                :ref:`user<sensor-velocimeter-user>`
 
 
-      .. dropdown:: gyro |m|
+      .. dropdown:: :ref:`gyro<sensor-gyro>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -2993,7 +3017,7 @@
                :ref:`user<sensor-gyro-user>`
 
 
-      .. dropdown:: force |m|
+      .. dropdown:: :ref:`force<sensor-force>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3014,7 +3038,7 @@
                :ref:`user<sensor-force-user>`
 
 
-      .. dropdown:: torque |m|
+      .. dropdown:: :ref:`torque<sensor-torque>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3035,7 +3059,7 @@
                :ref:`user<sensor-torque-user>`
 
 
-      .. dropdown:: magnetometer |m|
+      .. dropdown:: :ref:`magnetometer<sensor-magnetometer>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3056,7 +3080,7 @@
                :ref:`user<sensor-magnetometer-user>`
 
 
-      .. dropdown:: camprojection |m|
+      .. dropdown:: :ref:`camprojection<sensor-camprojection>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3080,7 +3104,7 @@
                :ref:`user<sensor-camprojection-user>`
 
 
-      .. dropdown:: rangefinder |m|
+      .. dropdown:: :ref:`rangefinder<sensor-rangefinder>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3107,7 +3131,7 @@
                :ref:`user<sensor-rangefinder-user>`
 
 
-      .. dropdown:: jointpos |m|
+      .. dropdown:: :ref:`jointpos<sensor-jointpos>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3128,7 +3152,7 @@
                :ref:`user<sensor-jointpos-user>`
 
 
-      .. dropdown:: jointvel |m|
+      .. dropdown:: :ref:`jointvel<sensor-jointvel>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3149,7 +3173,7 @@
                :ref:`user<sensor-jointvel-user>`
 
 
-      .. dropdown:: tendonpos |m|
+      .. dropdown:: :ref:`tendonpos<sensor-tendonpos>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3170,7 +3194,7 @@
                :ref:`user<sensor-tendonpos-user>`
 
 
-      .. dropdown:: tendonvel |m|
+      .. dropdown:: :ref:`tendonvel<sensor-tendonvel>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3191,7 +3215,7 @@
                :ref:`user<sensor-tendonvel-user>`
 
 
-      .. dropdown:: actuatorpos |m|
+      .. dropdown:: :ref:`actuatorpos<sensor-actuatorpos>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3212,7 +3236,7 @@
                :ref:`user<sensor-actuatorpos-user>`
 
 
-      .. dropdown:: actuatorvel |m|
+      .. dropdown:: :ref:`actuatorvel<sensor-actuatorvel>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3233,7 +3257,7 @@
                :ref:`user<sensor-actuatorvel-user>`
 
 
-      .. dropdown:: actuatorfrc |m|
+      .. dropdown:: :ref:`actuatorfrc<sensor-actuatorfrc>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3254,7 +3278,7 @@
                :ref:`user<sensor-actuatorfrc-user>`
 
 
-      .. dropdown:: jointactuatorfrc |m|
+      .. dropdown:: :ref:`jointactuatorfrc<sensor-jointactuatorfrc>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3275,7 +3299,7 @@
                :ref:`user<sensor-jointactuatorfrc-user>`
 
 
-      .. dropdown:: tendonactuatorfrc |m|
+      .. dropdown:: :ref:`tendonactuatorfrc<sensor-tendonactuatorfrc>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3296,7 +3320,7 @@
                :ref:`user<sensor-tendonactuatorfrc-user>`
 
 
-      .. dropdown:: ballquat |m|
+      .. dropdown:: :ref:`ballquat<sensor-ballquat>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3317,7 +3341,7 @@
                :ref:`user<sensor-ballquat-user>`
 
 
-      .. dropdown:: ballangvel |m|
+      .. dropdown:: :ref:`ballangvel<sensor-ballangvel>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3338,7 +3362,7 @@
                :ref:`user<sensor-ballangvel-user>`
 
 
-      .. dropdown:: jointlimitpos |m|
+      .. dropdown:: :ref:`jointlimitpos<sensor-jointlimitpos>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3359,7 +3383,7 @@
                :ref:`user<sensor-jointlimitpos-user>`
 
 
-      .. dropdown:: jointlimitvel |m|
+      .. dropdown:: :ref:`jointlimitvel<sensor-jointlimitvel>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3380,7 +3404,7 @@
                :ref:`user<sensor-jointlimitvel-user>`
 
 
-      .. dropdown:: jointlimitfrc |m|
+      .. dropdown:: :ref:`jointlimitfrc<sensor-jointlimitfrc>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3401,7 +3425,7 @@
                :ref:`user<sensor-jointlimitfrc-user>`
 
 
-      .. dropdown:: tendonlimitpos |m|
+      .. dropdown:: :ref:`tendonlimitpos<sensor-tendonlimitpos>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3422,7 +3446,7 @@
                :ref:`user<sensor-tendonlimitpos-user>`
 
 
-      .. dropdown:: tendonlimitvel |m|
+      .. dropdown:: :ref:`tendonlimitvel<sensor-tendonlimitvel>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3443,7 +3467,7 @@
                :ref:`user<sensor-tendonlimitvel-user>`
 
 
-      .. dropdown:: tendonlimitfrc |m|
+      .. dropdown:: :ref:`tendonlimitfrc<sensor-tendonlimitfrc>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3464,7 +3488,7 @@
                :ref:`user<sensor-tendonlimitfrc-user>`
 
 
-      .. dropdown:: framepos |m|
+      .. dropdown:: :ref:`framepos<sensor-framepos>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3494,7 +3518,7 @@
                :ref:`user<sensor-framepos-user>`
 
 
-      .. dropdown:: framequat |m|
+      .. dropdown:: :ref:`framequat<sensor-framequat>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3524,7 +3548,7 @@
                :ref:`user<sensor-framequat-user>`
 
 
-      .. dropdown:: framexaxis |m|
+      .. dropdown:: :ref:`framexaxis<sensor-framexaxis>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3554,7 +3578,7 @@
                :ref:`user<sensor-framexaxis-user>`
 
 
-      .. dropdown:: frameyaxis |m|
+      .. dropdown:: :ref:`frameyaxis<sensor-frameyaxis>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3584,7 +3608,7 @@
                :ref:`user<sensor-frameyaxis-user>`
 
 
-      .. dropdown:: framezaxis |m|
+      .. dropdown:: :ref:`framezaxis<sensor-framezaxis>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3614,7 +3638,7 @@
                :ref:`user<sensor-framezaxis-user>`
 
 
-      .. dropdown:: framelinvel |m|
+      .. dropdown:: :ref:`framelinvel<sensor-framelinvel>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3644,7 +3668,7 @@
                :ref:`user<sensor-framelinvel-user>`
 
 
-      .. dropdown:: frameangvel |m|
+      .. dropdown:: :ref:`frameangvel<sensor-frameangvel>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3674,7 +3698,7 @@
                :ref:`user<sensor-frameangvel-user>`
 
 
-      .. dropdown:: framelinacc |m|
+      .. dropdown:: :ref:`framelinacc<sensor-framelinacc>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3698,7 +3722,7 @@
                :ref:`user<sensor-framelinacc-user>`
 
 
-      .. dropdown:: frameangacc |m|
+      .. dropdown:: :ref:`frameangacc<sensor-frameangacc>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3722,7 +3746,7 @@
                :ref:`user<sensor-frameangacc-user>`
 
 
-      .. dropdown:: subtreecom |m|
+      .. dropdown:: :ref:`subtreecom<sensor-subtreecom>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3743,7 +3767,7 @@
                :ref:`user<sensor-subtreecom-user>`
 
 
-      .. dropdown:: subtreelinvel |m|
+      .. dropdown:: :ref:`subtreelinvel<sensor-subtreelinvel>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3764,7 +3788,7 @@
                :ref:`user<sensor-subtreelinvel-user>`
 
 
-      .. dropdown:: subtreeangmom |m|
+      .. dropdown:: :ref:`subtreeangmom<sensor-subtreeangmom>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3785,7 +3809,7 @@
                :ref:`user<sensor-subtreeangmom-user>`
 
 
-      .. dropdown:: insidesite |m|
+      .. dropdown:: :ref:`insidesite<sensor-insidesite>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3812,7 +3836,7 @@
                :ref:`user<sensor-insidesite-user>`
 
 
-      .. dropdown:: distance |m|
+      .. dropdown:: :ref:`distance<sensor-distance>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3842,7 +3866,7 @@
                :ref:`user<sensor-distance-user>`
 
 
-      .. dropdown:: normal |m|
+      .. dropdown:: :ref:`normal<sensor-normal>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3872,7 +3896,7 @@
                :ref:`user<sensor-normal-user>`
 
 
-      .. dropdown:: fromto |m|
+      .. dropdown:: :ref:`fromto<sensor-fromto>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3902,7 +3926,7 @@
                :ref:`user<sensor-fromto-user>`
 
 
-      .. dropdown:: contact |m|
+      .. dropdown:: :ref:`contact<sensor-contact>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3950,7 +3974,7 @@
                :ref:`user<sensor-contact-user>`
 
 
-      .. dropdown:: e_potential |m|
+      .. dropdown:: :ref:`e_potential<sensor-e_potential>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3968,7 +3992,7 @@
                :ref:`user<sensor-e_potential-user>`
 
 
-      .. dropdown:: e_kinetic |m|
+      .. dropdown:: :ref:`e_kinetic<sensor-e_kinetic>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -3986,7 +4010,7 @@
                :ref:`user<sensor-e_kinetic-user>`
 
 
-      .. dropdown:: clock |m|
+      .. dropdown:: :ref:`clock<sensor-clock>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4004,7 +4028,7 @@
                :ref:`user<sensor-clock-user>`
 
 
-      .. dropdown:: user |m|
+      .. dropdown:: :ref:`user<sensor-user>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4037,7 +4061,7 @@
                :ref:`user<sensor-user-user>`
 
 
-      .. dropdown:: tactile |m|
+      .. dropdown:: :ref:`tactile<sensor-tactile>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4055,7 +4079,7 @@
                :ref:`user<sensor-tactile-user>`
 
 
-      .. dropdown:: plugin |m|
+      .. dropdown:: :ref:`plugin<sensor-plugin>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4088,7 +4112,7 @@
                :ref:`user<sensor-plugin-user>`
 
 
-         .. dropdown:: config |m|
+         .. dropdown:: :ref:`config<plugin-config>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -4100,10 +4124,10 @@
                   :ref:`value<plugin-config-value>`
 
 
-   .. dropdown:: keyframe |m|
+   .. dropdown:: :ref:`keyframe<keyframe>` |*|
 
 
-      .. dropdown:: key |m|
+      .. dropdown:: :ref:`key<keyframe-key>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4133,10 +4157,10 @@
                :ref:`ctrl<keyframe-key-ctrl>`
 
 
-   .. dropdown:: visual |m|
+   .. dropdown:: :ref:`visual<visual>` |*|
 
 
-      .. dropdown:: global :octicon:`dot`
+      .. dropdown:: :ref:`global<visual-global>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4181,7 +4205,7 @@
                :ref:`bvactive<visual-global-bvactive>`
 
 
-      .. dropdown:: quality :octicon:`dot`
+      .. dropdown:: :ref:`quality<visual-quality>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4202,7 +4226,7 @@
                :ref:`numquads<visual-quality-numquads>`
 
 
-      .. dropdown:: headlight :octicon:`dot`
+      .. dropdown:: :ref:`headlight<visual-headlight>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4220,7 +4244,7 @@
                :ref:`active<visual-headlight-active>`
 
 
-      .. dropdown:: map :octicon:`dot`
+      .. dropdown:: :ref:`map<visual-map>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4265,7 +4289,7 @@
                :ref:`actuatortendon<visual-map-actuatortendon>`
 
 
-      .. dropdown:: scale :octicon:`dot`
+      .. dropdown:: :ref:`scale<visual-scale>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4322,7 +4346,7 @@
                :ref:`frustum<visual-scale-frustum>`
 
 
-      .. dropdown:: rgba :octicon:`dot`
+      .. dropdown:: :ref:`rgba<visual-rgba>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4403,7 +4427,7 @@
                :ref:`bvactive<visual-rgba-bvactive>`
 
 
-   .. dropdown:: default :octicon:`sync`
+   .. dropdown:: :ref:`default<default>` :octicon:`sync`
 
       .. grid:: 2 3 4 4
          :gutter: 0
@@ -4412,7 +4436,7 @@
             :ref:`class<default-class>`
 
 
-      .. dropdown:: mesh :octicon:`dot`
+      .. dropdown:: :ref:`mesh<default-mesh>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4427,7 +4451,7 @@
                :ref:`inertia<default-mesh-inertia>`
 
 
-      .. dropdown:: material :octicon:`dot`
+      .. dropdown:: :ref:`material<default-material>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4463,7 +4487,7 @@
                :ref:`texuniform<default-material-texuniform>`
 
 
-         .. dropdown:: layer |m|
+         .. dropdown:: :ref:`layer<material-layer>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -4475,7 +4499,7 @@
                   :ref:`role<material-layer-role>`
 
 
-      .. dropdown:: joint :octicon:`dot`
+      .. dropdown:: :ref:`joint<default-joint>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4547,7 +4571,7 @@
                :ref:`user<default-joint-user>`
 
 
-      .. dropdown:: geom :octicon:`dot`
+      .. dropdown:: :ref:`geom<default-geom>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4646,7 +4670,7 @@
                :ref:`user<default-geom-user>`
 
 
-      .. dropdown:: site :octicon:`dot`
+      .. dropdown:: :ref:`site<default-site>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4691,7 +4715,7 @@
                :ref:`user<default-site-user>`
 
 
-      .. dropdown:: camera :octicon:`dot`
+      .. dropdown:: :ref:`camera<default-camera>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4751,7 +4775,7 @@
                :ref:`user<default-camera-user>`
 
 
-      .. dropdown:: light :octicon:`dot`
+      .. dropdown:: :ref:`light<default-light>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4805,7 +4829,7 @@
                :ref:`mode<default-light-mode>`
 
 
-      .. dropdown:: pair :octicon:`dot`
+      .. dropdown:: :ref:`pair<default-pair>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4832,7 +4856,7 @@
                :ref:`margin<default-pair-margin>`
 
 
-      .. dropdown:: equality :octicon:`dot`
+      .. dropdown:: :ref:`equality<default-equality>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4847,7 +4871,7 @@
                :ref:`solimp<default-equality-solimp>`
 
 
-      .. dropdown:: tendon :octicon:`dot`
+      .. dropdown:: :ref:`tendon<default-tendon>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4901,7 +4925,7 @@
                :ref:`user<default-tendon-user>`
 
 
-      .. dropdown:: general :octicon:`dot`
+      .. dropdown:: :ref:`general<default-general>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4961,7 +4985,7 @@
                :ref:`actearly<default-general-actearly>`
 
 
-      .. dropdown:: motor :octicon:`dot`
+      .. dropdown:: :ref:`motor<default-motor>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -4991,7 +5015,7 @@
                :ref:`group<default-motor-group>`
 
 
-      .. dropdown:: position :octicon:`dot`
+      .. dropdown:: :ref:`position<default-position>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5036,7 +5060,7 @@
                :ref:`timeconst<default-position-timeconst>`
 
 
-      .. dropdown:: velocity :octicon:`dot`
+      .. dropdown:: :ref:`velocity<default-velocity>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5069,7 +5093,7 @@
                :ref:`kv<default-velocity-kv>`
 
 
-      .. dropdown:: intvelocity :octicon:`dot`
+      .. dropdown:: :ref:`intvelocity<default-intvelocity>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5114,7 +5138,7 @@
                :ref:`dampratio<default-intvelocity-dampratio>`
 
 
-      .. dropdown:: damper :octicon:`dot`
+      .. dropdown:: :ref:`damper<default-damper>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5144,7 +5168,7 @@
                :ref:`kv<default-damper-kv>`
 
 
-      .. dropdown:: cylinder :octicon:`dot`
+      .. dropdown:: :ref:`cylinder<default-cylinder>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5186,7 +5210,7 @@
                :ref:`bias<default-cylinder-bias>`
 
 
-      .. dropdown:: muscle :octicon:`dot`
+      .. dropdown:: :ref:`muscle<default-muscle>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5243,7 +5267,7 @@
                :ref:`fvmax<default-muscle-fvmax>`
 
 
-      .. dropdown:: adhesion :octicon:`dot`
+      .. dropdown:: :ref:`adhesion<default-adhesion>` :octicon:`dot`
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5267,10 +5291,10 @@
                :ref:`group<default-adhesion-group>`
 
 
-   .. dropdown:: custom |m|
+   .. dropdown:: :ref:`custom<custom>` |*|
 
 
-      .. dropdown:: numeric |m|
+      .. dropdown:: :ref:`numeric<custom-numeric>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5285,7 +5309,7 @@
                :ref:`data<custom-numeric-data>`
 
 
-      .. dropdown:: text |m|
+      .. dropdown:: :ref:`text<custom-text>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5297,7 +5321,7 @@
                :ref:`data<custom-text-data>`
 
 
-      .. dropdown:: tuple |m|
+      .. dropdown:: :ref:`tuple<custom-tuple>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5306,7 +5330,7 @@
                :ref:`name<custom-tuple-name>`
 
 
-         .. dropdown:: element |m|
+         .. dropdown:: :ref:`element<tuple-element>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -5321,10 +5345,10 @@
                   :ref:`prm<tuple-element-prm>`
 
 
-   .. dropdown:: extension |m|
+   .. dropdown:: :ref:`extension<extension>` |*|
 
 
-      .. dropdown:: plugin |m|
+      .. dropdown:: :ref:`plugin<extension-plugin>` |*|
 
          .. grid:: 2 3 4 4
             :gutter: 0
@@ -5333,7 +5357,7 @@
                :ref:`plugin<extension-plugin-plugin>`
 
 
-         .. dropdown:: instance |m|
+         .. dropdown:: :ref:`instance<plugin-instance>` |*|
 
             .. grid:: 2 3 4 4
                :gutter: 0
@@ -5342,7 +5366,7 @@
                   :ref:`name<plugin-instance-name>`
 
 
-            .. dropdown:: config |m|
+            .. dropdown:: :ref:`config<instance-config>` |*|
 
                .. grid:: 2 3 4 4
                   :gutter: 0

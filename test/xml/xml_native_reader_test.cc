@@ -892,11 +892,11 @@ TEST_F(XMLReaderTest, LargeTextureTest) {
   <mujoco>
   <asset>
     <!--
-      Use a texture width that exceeds the maximum texture size. For cube
-      textures, the height is ignored and set to width*6. The default number of
-      channels is 3.
+      Use a texture width that exceeds the size representable by an int.
+      For cube textures, the height is ignored and set to width*6.
+      The default number of channels is 3.
       The width in this test is chosen so that 6*width*width*3 is too large to
-      be represented as an integer.
+      be represented as a 32-bit integer.
     -->
     <texture name="tex" builtin="gradient" width="10923" height="2"/>
   </asset>
@@ -906,30 +906,7 @@ TEST_F(XMLReaderTest, LargeTextureTest) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
 
-  EXPECT_THAT(model, IsNull());
-  mj_deleteModel(model);
-}
-
-TEST_F(XMLReaderTest, HugeTextureTest) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-  <asset>
-    <!--
-      Use a texture width that exceeds the maximum texture size. For cube
-      textures, the height is ignored and set to width*6. The default number of
-      channels is 3.
-      The width in this test is chosen so that 6*width*width*3 is so large that
-      it overflows and becomes a positive integer.
-    -->
-    <texture name="tex" builtin="gradient" width="15447" height="2"/>
-  </asset>
-  </mujoco>
-  )";
-
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-
-  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(model, NotNull());
   mj_deleteModel(model);
 }
 

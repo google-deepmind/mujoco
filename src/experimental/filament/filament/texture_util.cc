@@ -83,14 +83,11 @@ filament::Texture* Create2dTexture(filament::Engine* engine, int width,
   builder.height(height);
   builder.format(GetTextureInternalFormat(num_channels, is_srgb));
   builder.sampler(filament::Texture::Sampler::SAMPLER_2D);
-  // TODO: Revisit this to make it this work in WebGL
-  #ifndef __EMSCRIPTEN__
   if (!is_srgb) {
     builder.usage(filament::Texture::Usage::GEN_MIPMAPPABLE |
                   filament::Texture::Usage::SAMPLEABLE |
                   filament::Texture::Usage::UPLOADABLE);
   }
-  #endif
   filament::Texture* texture = builder.build(*engine);
 
   if (data) {
@@ -100,10 +97,9 @@ filament::Texture* Create2dTexture(filament::Engine* engine, int width,
         *engine, 0,
         filament::Texture::PixelBufferDescriptor(
             data, num_bytes, format, filament::Texture::Type::UBYTE));
-    // TODO: Revisit this to make it this work in WebGL
-    #ifndef __EMSCRIPTEN__
-    texture->generateMipmaps(*engine);
-    #endif
+    if (!is_srgb) {
+      texture->generateMipmaps(*engine);
+    }
   }
   return texture;
 }
@@ -134,14 +130,11 @@ filament::Texture* CreateCubeTexture(filament::Engine* engine, int width,
   builder.height(face_height);
   builder.format(GetTextureInternalFormat(num_channels, is_srgb));
   builder.sampler(filament::Texture::Sampler::SAMPLER_CUBEMAP);
-  // TODO: Revisit this to make it this work in WebGL
-  #ifndef __EMSCRIPTEN__
   if (!is_srgb) {
     builder.usage(filament::Texture::Usage::GEN_MIPMAPPABLE |
                   filament::Texture::Usage::SAMPLEABLE |
                   filament::Texture::Usage::UPLOADABLE);
   }
-  #endif
   filament::Texture* texture = builder.build(*engine);
 
   const int face_size = width * face_height * num_channels;
@@ -168,10 +161,9 @@ filament::Texture* CreateCubeTexture(filament::Engine* engine, int width,
                           buffer, num_bytes, filament::Texture::Format::RGB,
                           filament::Texture::Type::UBYTE, callback);
     texture->setImage(*engine, 0, std::move(desc), offsets);
-    // TODO: Revisit this to make it this work in WebGL
-    #ifndef __EMSCRIPTEN__
-    texture->generateMipmaps(*engine);
-    #endif
+    if (!is_srgb) {
+      texture->generateMipmaps(*engine);
+    }
   }
   return texture;
 }

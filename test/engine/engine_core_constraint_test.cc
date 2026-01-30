@@ -419,5 +419,75 @@ TEST_F(CoreConstraintTest, ConstraintUpdateImpl) {
   mj_deleteModel(model);
 }
 
+// check mjEQ_FLEXVERT
+TEST_F(CoreConstraintTest, FlexvertEquality) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option jacobian="dense"/>
+    <worldbody>
+      <flexcomp name="flex" type="grid" count="3 3 1" spacing=".05 .15 .25" dim="2">
+        <edge equality="vert"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, testing::NotNull()) << error;
+  mjData* data = mj_makeData(model);
+  ASSERT_EQ(model->neq, 1);
+  ASSERT_EQ(model->eq_type[0], mjEQ_FLEXVERT);
+  ASSERT_EQ(model->nflex, 1);
+  ASSERT_EQ(model->flex_vertnum[0], 9);
+  ASSERT_EQ(model->flex_edgenum[0], 16);
+
+  // step1 to populate flexvert_length
+  mj_step1(model, data);
+  EXPECT_EQ(data->ne, 2*model->flex_vertnum[0]);
+  EXPECT_EQ(data->nefc, 18);
+  for (int i = 0; i < 18; ++i) {
+    EXPECT_EQ(data->efc_type[i], mjCNSTR_EQUALITY);
+    EXPECT_NEAR(data->efc_pos[i], 0, 1e-9);
+  }
+
+  // check that efc_J has rigid-body motions in kernel
+  std::vector<mjtNum> qvel(model->nv);
+  std::vector<mjtNum> Jqvel(data->nefc);
+
+  // pure translations
+  for (int i = 0; i < 3; ++i) {
+    mju_zero(qvel.data(), model->nv);
+    for (int j = 0; j < model->flex_vertnum[0]; ++j) {
+      qvel[3*j+i] = 1.0;
+    }
+    mj_mulJacVec(model, data, Jqvel.data(), qvel.data());
+    for (int j = 0; j < data->nefc; ++j) {
+      EXPECT_NEAR(Jqvel[j], 0, 1e-9);
+    }
+  }
+
+  // pure rotations
+  for (int i = 0; i < 3; ++i) {
+    mju_zero(qvel.data(), model->nv);
+    for (int j = 0; j < model->flex_vertnum[0]; ++j) {
+      mjtNum* p = data->flexvert_xpos + 3 * j;
+      mjtNum axisvel[3] = {0};
+      axisvel[i] = 1.0;
+      mjtNum linvel[3];
+      mju_cross(linvel, axisvel, p);
+      qvel[3 * j + 0] = linvel[0];
+      qvel[3 * j + 1] = linvel[1];
+      qvel[3 * j + 2] = linvel[2];
+    }
+    mj_mulJacVec(model, data, Jqvel.data(), qvel.data());
+    for (int j = 0; j < data->nefc; ++j) {
+      EXPECT_NEAR(Jqvel[j], 0, 1e-9);
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

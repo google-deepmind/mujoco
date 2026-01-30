@@ -580,6 +580,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsTendon
   const TfToken mjcPathSegments;
+  /// \brief "mjc:polycoef"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcPolycoef;
   /// \brief "mjc:priority"
   ///
   /// MjcPhysicsCollisionAPI
@@ -772,6 +776,10 @@ struct MjcPhysicsTokensType {
   ///
   /// Schema identifier and family for MjcPhysicsEqualityAPI
   const TfToken MjcEqualityAPI;
+  /// \brief "MjcEqualityJointAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsEqualityJointAPI
+  const TfToken MjcEqualityJointAPI;
   /// \brief "MjcEqualityWeldAPI"
   ///
   /// Schema identifier and family for MjcPhysicsEqualityWeldAPI

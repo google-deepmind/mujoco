@@ -66,7 +66,6 @@ class MeshData:
   mesh_faceadr: wp.array(dtype=int)
   mesh_face: wp.array(dtype=wp.vec3i)
   data_id: int
-  data_id: int
   pos: wp.vec3
   mat: wp.mat33
   pnt: wp.vec3
@@ -169,7 +168,7 @@ def grad_sphere(p: wp.vec3) -> wp.vec3:
   if c > 1e-9:
     return p / c
   else:
-    wp.vec3(0.0)
+    return wp.vec3(0.0)
 
 
 @wp.func

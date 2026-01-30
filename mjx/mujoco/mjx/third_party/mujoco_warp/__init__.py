@@ -15,6 +15,13 @@
 
 """Public API for MJWarp."""
 
+from importlib import metadata
+
+try:
+  __version__ = metadata.version("mujoco_warp")
+except metadata.PackageNotFoundError:
+  __version__ = "unknown"
+
 # isort: off
 from mujoco.mjx.third_party.mujoco_warp._src.forward import step as step
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model as Model

@@ -26,6 +26,7 @@
 namespace mujoco {
 namespace {
 
+using ::testing::IsNull;
 using ::testing::NotNull;
 using UserVfsTest = MujocoTest;
 
@@ -35,6 +36,46 @@ static bool HasFile(const mjVFS* vfs, const std::string& filename) {
   mju_closeResource(resource);
   return result;
 }
+
+struct TestProvider : public mjpResourceProvider {
+  // The TestProvider will increment the value at `addr` by these amounts when
+  // each callback is invoked. This can be used to verity that the correct
+  // callbacks are being invoked when expected.
+  enum CallbackValues {
+    Mounted = 100,
+    Unmounted = 200,
+    Opened = 300,
+    Read = 400,
+    Closed = 500,
+  };
+
+  explicit TestProvider(int* addr) {
+    mjp_defaultResourceProvider(this);
+    prefix = "test";
+    data = addr;
+
+    mount = [](mjResource* res) {
+      *(int*)res->provider->data += Mounted;
+      return 1;
+    };
+    unmount = [](mjResource* res) {
+      *(int*)res->provider->data += Unmounted;
+      return 1;
+    };
+    open = [](mjResource* res) {
+      *(int*)res->provider->data += Opened;
+      return 1;
+    };
+    read = [](mjResource* res, const void** out) {
+      *(int*)res->provider->data += Read;
+      *out = res->provider->data;
+      return (int)sizeof(int);
+    };
+    close = [](mjResource* res) {
+      *(int*)res->provider->data += Closed;
+    };
+  }
+};
 
 TEST_F(UserVfsTest, AddFile) {
   constexpr char path[] = "engine/testdata/actuation/";
@@ -245,5 +286,126 @@ TEST_F(UserVfsTest, Timestamps) {
   mj_deleteVFS(&vfs);
 }
 
+TEST_F(UserVfsTest, MountUnmount) {
+  int test = 0;
+  int expect = 0;
+  TestProvider provider(&test);
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mjResource* res = mju_openResource("", "/some/path/foo", &vfs, nullptr, 0);
+  EXPECT_THAT(res, IsNull());
+  EXPECT_EQ(test, expect);
+
+  mj_mountVFS(&vfs, "/some/path", &provider);
+  expect += TestProvider::Mounted;
+  EXPECT_EQ(test, expect);
+
+  res = mju_openResource("", "/some/path/foo", &vfs, nullptr, 0);
+  expect += TestProvider::Opened;
+  EXPECT_THAT(res, NotNull());
+  EXPECT_EQ(test, expect);
+
+  const void* buffer = nullptr;
+  const int size = mju_readResource(res, &buffer);
+  expect += TestProvider::Read;
+  EXPECT_THAT(buffer, NotNull());
+  EXPECT_GT(size, 0);
+  EXPECT_EQ(test, expect);
+
+  mju_closeResource(res);
+  expect += TestProvider::Closed;
+  EXPECT_EQ(test, expect);
+
+  mj_unmountVFS(&vfs, "/some/path");
+  expect += TestProvider::Unmounted;
+  EXPECT_EQ(test, expect);
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserVfsTest, AutoMountProviders) {
+  int test = 0;
+  int expect = 0;
+
+  TestProvider provider(&test);
+  mjp_registerResourceProvider(&provider);
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
+  mjResource* res = mju_openResource("", "test:foo", &vfs, nullptr, 0);
+  expect += TestProvider::Mounted + TestProvider::Opened;
+  EXPECT_THAT(res, NotNull());
+
+  mju_closeResource(res);
+  expect += TestProvider::Closed;
+  EXPECT_EQ(test, expect);
+
+  mj_deleteVFS(&vfs);
+  expect += TestProvider::Unmounted;
+  EXPECT_EQ(test, expect);
+}
+
+TEST_F(UserVfsTest, StackedMounts) {
+  int test1 = 0;
+  int test2 = 1000;
+  int test3 = 1000000;
+  int expect1 = test1;
+  int expect2 = test2;
+  int expect3 = test3;
+
+  TestProvider provider1(&test1);
+  TestProvider provider2(&test2);
+  TestProvider provider3(&test3);
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
+  mj_mountVFS(&vfs, "/some/path", &provider1);
+  mj_mountVFS(&vfs, "/some/path/further/down/very/deep", &provider2);
+  mj_mountVFS(&vfs, "/some/path/further/down", &provider3);
+  expect1 += TestProvider::Mounted;
+  expect2 += TestProvider::Mounted;
+  expect3 += TestProvider::Mounted;
+  EXPECT_EQ(test1, expect1);
+  EXPECT_EQ(test2, expect2);
+  EXPECT_EQ(test3, expect3);
+
+  mjResource* res1 = mju_openResource("", "/some/path/foo", &vfs, nullptr, 0);
+  expect1 += TestProvider::Opened;
+  EXPECT_EQ(test1, expect1);
+  EXPECT_EQ(test2, expect2);
+  EXPECT_EQ(test3, expect3);
+
+  mjResource* res2 =
+      mju_openResource("", "/some/path/further/down/foo", &vfs, nullptr, 0);
+  expect3 += TestProvider::Opened;
+  EXPECT_EQ(test1, expect1);
+  EXPECT_EQ(test2, expect2);
+  EXPECT_EQ(test3, expect3);
+
+  mjResource* res3 = mju_openResource(
+      "", "/some/path/further/down/very/deep/foo", &vfs, nullptr, 0);
+  expect2 += TestProvider::Opened;
+  EXPECT_EQ(test1, expect1);
+  EXPECT_EQ(test2, expect2);
+  EXPECT_EQ(test3, expect3);
+
+  mju_closeResource(res1);
+  mju_closeResource(res2);
+  mju_closeResource(res3);
+  expect1 += TestProvider::Closed;
+  expect2 += TestProvider::Closed;
+  expect3 += TestProvider::Closed;
+
+  mj_deleteVFS(&vfs);
+  expect1 += TestProvider::Unmounted;
+  expect2 += TestProvider::Unmounted;
+  expect3 += TestProvider::Unmounted;
+  EXPECT_EQ(test1, expect1);
+  EXPECT_EQ(test2, expect2);
+  EXPECT_EQ(test3, expect3);
+}
 }  // namespace
 }  // namespace mujoco

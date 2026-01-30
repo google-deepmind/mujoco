@@ -1413,7 +1413,7 @@
                 402 419 401
                 398 399 418
                 398 376 378">
-      <edge equality="true" damping="0.1"/>
+      <edge equality="vert" damping="0.1"/>
       <elasticity young="3e5" poisson="0" thickness="8e-3" elastic2d="bend"/>
       <contact solref="0.003"/>
     </flexcomp>

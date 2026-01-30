@@ -131,9 +131,6 @@ struct ScopedStyle {
   int num_vars = 0;
 };
 
-// ImGui file dialog.
-bool ImGui_FileDialog(char* buf, int len);
-
 // ImGui Slider that supports both float and double types.
 bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max);
 
@@ -264,6 +261,19 @@ bool ImGui_Input(const char* name, T* value, ImGuiOpts<T> opts = {}) {
 inline bool ImGui_IsChordJustPressed(ImGuiKeyChord chord) {
   return ImGui::IsKeyChordPressed(chord, 0);
 }
+
+// Begin a boxed section with outer borders - use EndBoxSection to close.
+inline bool BeginBoxSection(const char* id, ImGuiTableFlags extra_flags = 0) {
+  ImGuiTableFlags flags = ImGuiTableFlags_BordersOuter | extra_flags;
+  if (ImGui::BeginTable(id, 1, flags)) {
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    return true;
+  }
+  return false;
+}
+
+inline void EndBoxSection() { ImGui::EndTable(); }
 
 // Saves the given contents to the clipboard if the clipboard is available.
 void MaybeSaveToClipboard(const std::string& contents);

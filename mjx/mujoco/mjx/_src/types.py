@@ -49,7 +49,7 @@ class Impl(enum.Enum):
 class DisableBit(enum.IntFlag):
   """Disable default feature bitflags.
 
-  Members:
+  Attributes:
     CONSTRAINT:   entire constraint solver
     EQUALITY:     equality constraints
     FRICTIONLOSS: joint and tendon frictionloss constraints
@@ -86,7 +86,7 @@ class DisableBit(enum.IntFlag):
 class EnableBit(enum.IntFlag):
   """Enable optional feature bitflags.
 
-  Members:
+  Attributes:
     INVDISCRETE: discrete-time inverse dynamics
   """
 
@@ -100,7 +100,7 @@ class EnableBit(enum.IntFlag):
 class JointType(enum.IntEnum):
   """Type of degree of freedom.
 
-  Members:
+  Attributes:
     FREE:  global position and orientation (quat)       (7,)
     BALL:  orientation (quat) relative to parent        (4,)
     SLIDE: sliding distance along body-fixed axis       (1,)
@@ -122,7 +122,7 @@ class JointType(enum.IntEnum):
 class IntegratorType(enum.IntEnum):
   """Integrator mode.
 
-  Members:
+  Attributes:
     EULER: semi-implicit Euler
     RK4: 4th-order Runge Kutta
     IMPLICITFAST: implicit in velocity, no rne derivative
@@ -137,7 +137,7 @@ class IntegratorType(enum.IntEnum):
 class GeomType(enum.IntEnum):
   """Type of geometry.
 
-  Members:
+  Attributes:
     PLANE: plane
     HFIELD: height field
     SPHERE: sphere
@@ -163,7 +163,7 @@ class GeomType(enum.IntEnum):
 class ConvexMesh(PyTreeNode):
   """Geom properties for convex meshes.
 
-  Members:
+  Attributes:
     vert: vertices of the convex mesh
     face: faces of the convex mesh
     face_normal: normal vectors for the faces
@@ -181,7 +181,7 @@ class ConvexMesh(PyTreeNode):
 class ConeType(enum.IntEnum):
   """Type of friction cone.
 
-  Members:
+  Attributes:
     PYRAMIDAL: pyramidal
     ELLIPTIC: elliptic
   """
@@ -193,7 +193,7 @@ class ConeType(enum.IntEnum):
 class JacobianType(enum.IntEnum):
   """Type of constraint Jacobian.
 
-  Members:
+  Attributes:
     DENSE: dense
     SPARSE: sparse
     AUTO: sparse if nv>60 and device is TPU, dense otherwise
@@ -207,7 +207,7 @@ class JacobianType(enum.IntEnum):
 class SolverType(enum.IntEnum):
   """Constraint solver algorithm.
 
-  Members:
+  Attributes:
     CG: Conjugate gradient (primal)
     NEWTON: Newton (primal)
   """
@@ -220,7 +220,7 @@ class SolverType(enum.IntEnum):
 class EqType(enum.IntEnum):
   """Type of equality constraint.
 
-  Members:
+  Attributes:
     CONNECT: connect two bodies at a point (ball joint)
     WELD: fix relative position and orientation of two bodies
     JOINT: couple the values of two scalar joints with cubic
@@ -237,7 +237,7 @@ class EqType(enum.IntEnum):
 class WrapType(enum.IntEnum):
   """Type of tendon wrap object.
 
-  Members:
+  Attributes:
     JOINT: constant moment arm
     PULLEY: pulley used to split tendon
     SITE: pass through site
@@ -255,7 +255,7 @@ class WrapType(enum.IntEnum):
 class TrnType(enum.IntEnum):
   """Type of actuator transmission.
 
-  Members:
+  Attributes:
     JOINT: force on joint
     JOINTINPARENT: force on joint, expressed in parent frame
     TENDON: force on tendon
@@ -272,7 +272,7 @@ class TrnType(enum.IntEnum):
 class DynType(enum.IntEnum):
   """Type of actuator dynamics.
 
-  Members:
+  Attributes:
     NONE: no internal dynamics; ctrl specifies force
     INTEGRATOR: integrator: da/dt = u
     FILTER: linear filter: da/dt = (u-a) / tau
@@ -291,7 +291,7 @@ class DynType(enum.IntEnum):
 class GainType(enum.IntEnum):
   """Type of actuator gain.
 
-  Members:
+  Attributes:
     FIXED: fixed gain
     AFFINE: const + kp*length + kv*velocity
     MUSCLE: muscle FLV curve computed by muscle_gain
@@ -306,7 +306,7 @@ class GainType(enum.IntEnum):
 class BiasType(enum.IntEnum):
   """Type of actuator bias.
 
-  Members:
+  Attributes:
     NONE: no bias
     AFFINE: const + kp*length + kv*velocity
     MUSCLE: muscle passive force computed by muscle_bias
@@ -321,7 +321,7 @@ class BiasType(enum.IntEnum):
 class ConstraintType(enum.IntEnum):
   """Type of constraint.
 
-  Members:
+  Attributes:
     EQUALITY: equality constraint
     LIMIT_JOINT: joint limit
     LIMIT_TENDON: tendon limit
@@ -342,7 +342,7 @@ class ConstraintType(enum.IntEnum):
 class CamLightType(enum.IntEnum):
   """Type of camera light.
 
-  Members:
+  Attributes:
     FIXED: pos and rot fixed in body
     TRACK: pos tracks body, rot fixed in global
     TRACKCOM: pos tracks subtree com, rot fixed in body
@@ -360,7 +360,7 @@ class CamLightType(enum.IntEnum):
 class SensorType(enum.IntEnum):
   """Type of sensor.
 
-  Members:
+  Attributes:
     MAGNETOMETER: magnetometer
     CAMPROJECTION: camera projection
     RANGEFINDER: rangefinder
@@ -436,7 +436,7 @@ class SensorType(enum.IntEnum):
 class ObjType(PyTreeNode):
   """Type of object.
 
-  Members:
+  Attributes:
     UNKNOWN: unknown object type
     BODY: body
     XBODY: body, used to access regular frame instead of i-frame
@@ -673,7 +673,57 @@ class ModelJAX(PyTreeNode):
 
 
 class Model(PyTreeNode):
-  """Static model of the scene that remains unchanged with each physics step."""
+  """Static model of the scene that remains unchanged with each physics step.
+
+  Attributes:
+    nq: number of generalized coordinates
+    nv: number of degrees of freedom
+    nu: number of actuators/controls
+    na: number of activation states
+    nbody: number of bodies
+    njnt: number of joints
+    ngeom: number of geoms
+    nsite: number of sites
+    ncam: number of cameras
+    nlight: number of lights
+    nmesh: number of meshes
+    nmeshvert: number of vertices for all meshes
+    nmeshnormal: number of normals in all meshes
+    nmeshtexcoord: number of texcoords in all meshes
+    nmeshface: number of faces for all meshes
+    nmeshgraph: number of ints in mesh auxiliary data
+    nmeshpoly: number of polygons in all meshes
+    nmeshpolyvert: number of vertices in all polygons
+    nmeshpolymap: number of polygons in vertex map
+    nhfield: number of heightfields
+    nhfielddata: size of elevation data
+    ntex: number of textures
+    ntexdata: size of texture data
+    nmat: number of materials
+    npair: number of predefined geom pairs
+    nexclude: number of excluded geom pairs
+    neq: number of equality constraints
+    ntendon: number of tendons
+    nwrap: number of wrap objects in all tendon paths
+    nsensor: number of sensors
+    nnumeric: number of numeric custom fields
+    ntuple: number of tuple custom fields
+    nkey: number of keyframes
+    nmocap: number of mocap bodies
+    nM: number of non-zeros in sparse inertia matrix
+    nB: number of non-zeros in B matrix
+    nC: number of non-zeros in C matrix
+    nD: number of non-zeros in D matrix
+    nJmom: number of non-zeros in Jacobian momentum matrix
+    ngravcomp: number of bodies with nonzero gravcomp
+    nuserdata: number of elements in userdata
+    nsensordata: number of elements in sensor data vector
+    npluginstate: number of plugin state values
+    opt: physics options
+    stat: model statistics
+    qpos0: qpos values at default pose
+    qpos_spring: reference pose for springs
+  """
 
   nq: int
   nv: int
@@ -1149,7 +1199,55 @@ class DataJAX(PyTreeNode):
 
 
 class Data(PyTreeNode):
-  """Dynamic state that updates each step."""
+  """Dynamic state that updates each step.
+
+  Attributes:
+    time: simulation time
+    qpos: position
+    qvel: velocity
+    act: actuator activation
+    qacc_warmstart: warm start for solver
+    plugin_state: plugin state values
+    ctrl: control input
+    qfrc_applied: applied generalized force
+    xfrc_applied: applied Cartesian force/torque
+    eq_active: enable/disable equality constraints
+    mocap_pos: positions of mocap bodies
+    mocap_quat: orientations of mocap bodies
+    qacc: acceleration
+    act_dot: time-derivative of actuator activation
+    userdata: user data
+    sensordata: sensor data output
+    xpos: Cartesian position of body frame
+    xquat: Cartesian orientation of body frame
+    xmat: rotation matrix of body frame
+    xipos: Cartesian position of body com
+    ximat: rotation matrix of body inertia
+    xanchor: Cartesian position of joint anchor
+    xaxis: Cartesian joint axis
+    ten_length: tendon lengths
+    geom_xpos: Cartesian position of geoms
+    geom_xmat: rotation matrix of geoms
+    site_xpos: Cartesian position of sites
+    site_xmat: rotation matrix of sites
+    cam_xpos: camera positions
+    cam_xmat: camera rotation matrices
+    subtree_com: com of each subtree
+    cvel: center of mass based velocity
+    cdof: center of mass based jacobian
+    cdof_dot: time-derivative of cdof
+    qfrc_bias: C(qpos,qvel)
+    qfrc_gravcomp: gravity compensation term
+    qfrc_fluid: fluid drag and buoyancy forces
+    qfrc_passive: passive force
+    qfrc_actuator: actuator force
+    actuator_force: actuator force in actuation space
+    actuator_length: actuator lengths
+    qfrc_smooth: smooth dynamics force
+    qacc_smooth: acceleration without constraints
+    qfrc_constraint: constraint force
+    qfrc_inverse: net external force for inverse dynamics
+  """
 
   # global properties:
   time: jax.Array

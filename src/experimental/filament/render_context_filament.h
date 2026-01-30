@@ -71,6 +71,8 @@ uintptr_t mjr_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
                              int width, int height, int bpp,
                              const mjrContext* con);
 
+void mjr_updateGui(const mjrContext* con);
+
 #if defined(__cplusplus)
 }  // extern "C"
 #endif

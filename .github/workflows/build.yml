@@ -114,6 +114,8 @@ jobs:
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-13
               -DCMAKE_CXX_COMPILER:STRING=clang++-13
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-rtlib=compiler-rt
+              -DCMAKE_SHARED_LINKER_FLAGS:STRING=-rtlib=compiler-rt
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: macos-15

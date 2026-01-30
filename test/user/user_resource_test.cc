@@ -301,7 +301,7 @@ TEST_F(ResourceTest, GeneralFailureTest) {
                                           error.data(), error.size());
   ASSERT_THAT(resource, IsNull());
 
-  EXPECT_THAT(error.data(), HasSubstr("could not open"));
+  EXPECT_THAT(error.data(), HasSubstr("Error opening file"));
 }
 
 TEST_F(ResourceTest, NameWithValidPrefix) {

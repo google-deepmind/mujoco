@@ -178,7 +178,7 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
     return wp.types.warp_type_to_np_dtype[wp_dtype](wp_field)
 
   # warp arrays
-  if isinstance(wp_field, wp.types.array):
+  if isinstance(wp_field, wp.array):
     return wp_field.numpy()
 
   # static
@@ -191,7 +191,7 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
   # tuples
   if isinstance(wp_field, tuple) and len(wp_field) == 0:
     return ()
-  if isinstance(wp_field, tuple) and isinstance(wp_field[0], wp.types.array):
+  if isinstance(wp_field, tuple) and isinstance(wp_field[0], wp.array):
     return tuple(f.numpy() for f in wp_field)
   if isinstance(wp_field, tuple) and isinstance(
       wp_field[0], mjwp_types.TileSet

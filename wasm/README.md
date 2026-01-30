@@ -110,6 +110,15 @@ write your application in C++ and compile it using Emscripten, you may want to
 copy a subset of the `EMSCRIPTEN_BINDINGS` from `bindings.cc` into your
 application’s source file.
 
+### Named Access
+
+The bindings support named access methods, similar to the Python bindings,
+allowing convenient access to model and data elements by name or index. For
+example, you can access a geometry by name using `model.geom('mygeom')` or a
+joint using `data.jnt('myjoint')`.
+
+For more details and examples of how to use named access, please refer to the [named access tests](tests/bindings_test.ts#L1876-L2378) and [documentation](https://mujoco.readthedocs.io/en/stable/python.html#named-access).
+
 ## Development
 
 In order to change the bindings you will need to change the [`bindings.cc`](codegen/generated/bindings.cc)
@@ -180,13 +189,7 @@ welcome!
    These bindings are not yet complete. While the main MuJoCo APIs (`mj_step`,
    `mj_loadXML`, etc.) are well tested, other APIs (e.g., functions from
    `mjspec.h`) remain untested in real web applications (though test code for
-   the `mjspec` bindings does exist). One notable feature not yet supported in
-   the WASM bindings, which has proved very useful in the Python bindings, is
-   named access methods — where data distributed across multiple arrays in C can
-   be conveniently accessed by name, e.g., `model.geom('mygeom')` or
-   `data.joint('myjoint')`. Currently, this data must be accessed via the
-   `mj_name2id` function. Adding support for these features is a high priority,
-   as it affects user code written in JavaScript.
+   the `mjspec` bindings does exist).
 
 2. **Improve the developer experience.**
    There is still work to be done to improve the developer experience when

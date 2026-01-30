@@ -1155,6 +1155,7 @@ void mjCModel::Clear() {
   nflexevpair = 0;
   nflextexcoord = 0;
   nJfe = 0;
+  nJfv = 0;
   nmeshvert = 0;
   nmeshnormal = 0;
   nmeshtexcoord = 0;
@@ -2166,6 +2167,31 @@ void mjCModel::SetSizes() {
         nJfe += b->dofnum;
       }
     }
+
+    // compute nJfv
+    std::vector<std::vector<int>> adj(flexes_[i]->nvert);
+    for (const auto& edge : flexes_[i]->edge) {
+      adj[edge.first].push_back(edge.second);
+      adj[edge.second].push_back(edge.first);
+    }
+    for (int j=0; j < flexes_[i]->nvert; j++) {
+      std::unordered_set<int> vert_bodies;
+      vert_bodies.insert(flexes_[i]->vertbodyid[j]);
+      for (int neighbor : adj[j]) {
+        vert_bodies.insert(flexes_[i]->vertbodyid[neighbor]);
+      }
+      std::unordered_set<mjCBody*> bodies_in_jac;
+      for (int body_id : vert_bodies) {
+        mjCBody* b = bodies_[body_id];
+        while (b) {
+          bodies_in_jac.insert(b);
+          b = b->parent;
+        }
+      }
+      for (mjCBody* b : bodies_in_jac) {
+        nJfv += b->dofnum;
+      }
+    }
   }
 
   // mesh counts
@@ -2192,28 +2218,45 @@ void mjCModel::SetSizes() {
   }
 
   // nhfielddata
-  for (int i=0; i < nhfield; i++)nhfielddata += hfields_[i]->nrow * hfields_[i]->ncol;
+  for (int i=0; i < nhfield; i++) {
+    nhfielddata += static_cast<mjtSize>(hfields_[i]->nrow) * hfields_[i]->ncol;
+  }
 
   // ntexdata
-  for (int i=0; i < ntex; i++)ntexdata += textures_[i]->nchannel * textures_[i]->width * textures_[i]->height;
+  for (int i=0; i < ntex; i++) {
+    const mjCTexture* tex = textures_[i];
+    ntexdata += static_cast<mjtSize>(tex->nchannel) * tex->width * tex->height;
+  }
 
   // nwrap
-  for (int i=0; i < ntendon; i++)nwrap += (int)tendons_[i]->path.size();
+  for (int i=0; i < ntendon; i++) {
+    nwrap += static_cast<mjtSize>(tendons_[i]->path.size());
+  }
 
   // nsensordata
-  for (int i=0; i < nsensor; i++)nsensordata += sensors_[i]->dim;
+  for (int i=0; i < nsensor; i++) {
+    nsensordata += sensors_[i]->dim;
+  }
 
   // nnumericdata
-  for (int i=0; i < nnumeric; i++)nnumericdata += numerics_[i]->size;
+  for (int i=0; i < nnumeric; i++) {
+    nnumericdata += numerics_[i]->size;
+  }
 
   // ntextdata
-  for (int i=0; i < ntext; i++)ntextdata += (int)texts_[i]->data_.size() + 1;
+  for (int i=0; i < ntext; i++) {
+    ntextdata += (int)texts_[i]->data_.size() + 1;
+  }
 
   // ntupledata
-  for (int i=0; i < ntuple; i++)ntupledata += (int)tuples_[i]->objtype_.size();
+  for (int i=0; i < ntuple; i++) {
+    ntupledata += (int)tuples_[i]->objtype_.size();
+  }
 
   // npluginattr
-  for (int i=0; i < nplugin; i++)npluginattr += (int)plugins_[i]->flattened_attributes.size();
+  for (int i=0; i < nplugin; i++) {
+    npluginattr += (int)plugins_[i]->flattened_attributes.size();
+  }
 
   // nnames
   nnames = (int)modelname_.size() + 1;
@@ -3159,10 +3202,10 @@ int mjCModel::CountNJmom(const mjModel* m) {
 
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
-  int adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
-  int edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, evpair_adr;
-  int bonevert_adr, graph_adr, data_adr, bvh_adr;
-  int poly_adr, polymap_adr, polyvert_adr;
+  mjtSize adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
+  mjtSize edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, evpair_adr;
+  mjtSize bonevert_adr, graph_adr, data_adr, bvh_adr;
+  mjtSize poly_adr, polymap_adr, polyvert_adr;
 
   // sizes outside call to mj_makeModel
   m->nemax = nemax;
@@ -3288,6 +3331,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->flex_solref + mjNREF * i, pfl->solref, mjNREF);
     mjuu_copyvec(m->flex_solimp + mjNIMP * i, pfl->solimp, mjNIMP);
     m->flex_radius[i] = (mjtNum)pfl->radius;
+    mjuu_copyvec(m->flex_size + 3 * i, pfl->size, 3);
     mjuu_copyvec(m->flex_friction + 3 * i, pfl->friction, 3);
     m->flex_margin[i] = (mjtNum)pfl->margin;
     m->flex_gap[i] = (mjtNum)pfl->gap;
@@ -3359,9 +3403,15 @@ void mjCModel::CopyObjects(mjModel* m) {
     // find equality constraint referencing this flex
     m->flex_edgeequality[i] = 0;
     for (int k=0; k < (int)equalities_.size(); k++) {
-      if (equalities_[k]->type == mjEQ_FLEX && equalities_[k]->name1_ == pfl->name) {
-        m->flex_edgeequality[i] = 1;
-        break;
+      if (equalities_[k]->name1_ == pfl->name) {
+        if (equalities_[k]->type == mjEQ_FLEX) {
+          m->flex_edgeequality[i] = 1;
+          break;
+        }
+        if (equalities_[k]->type == mjEQ_FLEXVERT) {
+          m->flex_edgeequality[i] = 2;
+          break;
+        }
       }
     }
 
@@ -3528,7 +3578,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->hfield_adr[i] = data_adr;
 
     // copy elevation data
-    memcpy(m->hfield_data + data_adr, phf->data.data(), phf->nrow*phf->ncol*sizeof(float));
+    memcpy(m->hfield_data + data_adr, phf->data.data(),
+           static_cast<mjtSize>(phf->nrow) * phf->ncol * sizeof(float));
 
     // advance counter
     data_adr += phf->nrow*phf->ncol;
@@ -3549,11 +3600,11 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tex_adr[i] = data_adr;
 
     // copy rgb data
-    memcpy(m->tex_data + data_adr, ptex->data_.data(),
-           ptex->nchannel * ptex->width * ptex->height);
+    mjtSize nbytes = static_cast<mjtSize>(ptex->nchannel) * ptex->width * ptex->height;
+    memcpy(m->tex_data + data_adr, ptex->data_.data(), nbytes);
 
     // advance counter
-    data_adr += ptex->nchannel * ptex->width * ptex->height;
+    data_adr += nbytes;
   }
 
   // materials
@@ -4856,7 +4907,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   mj_makeModel(&m,
                nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ntree, nM, nB, nC,
                nD, ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
-               nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord, nJfe,
+               nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord, nJfe, nJfv,
                nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, nmeshpoly,
                nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert, nskinface, nskinbone,
                nskinbonevert, nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,

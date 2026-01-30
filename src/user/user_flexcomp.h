@@ -81,7 +81,7 @@ class mjCFlexcomp {
   double origin[3];               // origin for generating a 3D mesh from a convex 2D mesh
   double mass;                    // total mass of auto-generated bodies
   double inertiabox;              // size of inertia box for each body
-  bool equality;                  // create edge equality constraint
+  int equality;                   // create equality constraint, 0:none, 1:edge, 2:vert
   std::string file;               // mesh/gmsh file name
   mjtDof doftype;                 // dof type, all vertices or trilinear interpolation
 

@@ -533,10 +533,22 @@ void mj_updateDynamicBVH(const mjModel* m, mjData* d, int bvhadr, int bvhnum) {
 }
 
 
+// C(3x2) = A(3x2) * B(2x2)
+static inline void mju_mulMatMat322(mjtNum* C, const mjtNum* A, const mjtNum* B) {
+  C[0] = A[0]*B[0] + A[1]*B[2];
+  C[1] = A[0]*B[1] + A[1]*B[3];
+  C[2] = A[2]*B[0] + A[3]*B[2];
+  C[3] = A[2]*B[1] + A[3]*B[3];
+  C[4] = A[4]*B[0] + A[5]*B[2];
+  C[5] = A[4]*B[1] + A[5]*B[3];
+}
+
+
 // compute flex-related quantities
 void mj_flex(const mjModel* m, mjData* d) {
   int nv = m->nv;
-  int* rowadr = m->flexedge_J_rowadr, *rownnz = m->flexedge_J_rownnz;
+  int* rowadr = m->flexedge_J_rowadr;
+  int* vrowadr = m->flexvert_J_rowadr, *vrownnz = m->flexvert_J_rownnz;
 
   // skip if no flexes
   if (!m->nflex) {
@@ -657,8 +669,8 @@ void mj_flex(const mjModel* m, mjData* d) {
   int* chain = mjSTACKALLOC(d, nv, int);
 
   // clear Jacobian
-  mju_zeroInt(rowadr, m->nflexedge);
-  mju_zeroInt(rownnz, m->nflexedge);
+  mju_zero(d->flexvert_J, 2*m->nJfv);
+  mju_zero(d->flexedge_J, m->nJfe);
 
   // compute lengths and Jacobians of edges
   for (int f=0; f < m->nflex; f++) {
@@ -667,8 +679,8 @@ void mj_flex(const mjModel* m, mjData* d) {
       continue;
     }
 
-    // skip Jacobian if no built-in passive force is needed
-    int skipjacobian = !m->flex_edgeequality[f] &&
+    // skip edge Jacobian if no built-in passive force is needed
+    int skipjacobian = m->flex_edgeequality[f] != 1 &&
                        !m->flex_edgedamping[f] &&
                        !m->flex_edgestiffness[f] &&
                        !m->flex_damping[f];
@@ -676,7 +688,8 @@ void mj_flex(const mjModel* m, mjData* d) {
     // process edges of this flex
     int vbase = m->flex_vertadr[f];
     int ebase = m->flex_edgeadr[f];
-    for (int e=0; e < m->flex_edgenum[f]; e++) {
+    int edgenum = m->flex_edgenum[f];
+    for (int e=0; e < edgenum; e++) {
       int v1 = m->flex_edge[2*(ebase+e)];
       int v2 = m->flex_edge[2*(ebase+e)+1];
       int b1 = m->flex_vertbodyid[vbase+v1];
@@ -694,11 +707,6 @@ void mj_flex(const mjModel* m, mjData* d) {
         continue;
       }
 
-      // set rowadr
-      if (ebase+e > 0) {
-        rowadr[ebase+e] = rowadr[ebase+e-1] + rownnz[ebase+e-1];
-      }
-
       // get endpoint Jacobians, subtract
       int NV = mj_jacDifPair(m, d, chain, b1, b2, pos1, pos2,
                               jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1);
@@ -710,10 +718,183 @@ void mj_flex(const mjModel* m, mjData* d) {
 
       // apply chain rule to compute edge Jacobian
       mju_mulMatTVec(d->flexedge_J + rowadr[ebase+e], jacdif, vec, 3, NV);
+    }
 
-      // copy sparsity info
-      rownnz[ebase+e] = NV;
-      mju_copyInt(m->flexedge_J_colind + rowadr[ebase+e], chain, NV);
+    // if dim=2 and constraints are active we use the vertex-based constraint defined in
+    // Chen, Kry, and Vouga, "Locking-free Simulation of Isometric Thin Plates", 2019.
+    if (m->flex_dim[f] == 2 && m->flex_edgeequality[f] == 2) {
+      int nvert = m->flex_vertnum[f];
+
+      // use global vertex adjacency list
+      int* v_edge_cnt = m->flex_vertedgenum + vbase;
+      int* v_edge_adr = m->flex_vertedgeadr + vbase;
+      int* adj_edges = m->flex_vertedge;
+
+      mj_markStack(d);
+
+      // clear Jacobian and assemble vertex by vertex
+      int* chain1 = mjSTACKALLOC(d, nv, int);
+      int* chain2 = mjSTACKALLOC(d, nv, int);
+      mjtNum* J0_dense = mjSTACKALLOC(d, nv, mjtNum);
+      mjtNum* J1_dense = mjSTACKALLOC(d, nv, mjtNum);
+      mju_zero(J0_dense, nv);
+      mju_zero(J1_dense, nv);
+
+      // temporary buffer for Jacobian accumulation
+      mjtNum* J_local = mjSTACKALLOC(d, nv, mjtNum);
+
+      for (int v = 0; v < nvert; v++) {
+        mjtNum A[6] = {0};
+        int vadr = vbase + v;
+        mjtNum* metric = m->flex_vertmetric + 4 * vadr;
+
+        for (int k = 0; k < v_edge_cnt[v]; k++) {
+          int e = adj_edges[v_edge_adr[v] + k];
+
+          // compute rest configuration edge vector
+          mjtNum dx[3];
+          int v1 = m->flex_edge[2 * (ebase + e)];
+          int v2 = m->flex_edge[2 * (ebase + e) + 1];
+          mju_sub3(dx, m->flex_vert0 + 3 * (vbase + v2), m->flex_vert0 + 3 * (vbase + v1));
+
+          // apply scaling since they are half sizes
+          dx[0] *= 2 * m->flex_size[3 * f + 0];
+          dx[1] *= 2 * m->flex_size[3 * f + 1];
+          dx[2] *= 2 * m->flex_size[3 * f + 2];
+
+          mjtNum dy[3];
+          mju_sub3(dy, d->flexvert_xpos + 3 * (vbase + v2), d->flexvert_xpos + 3 * (vbase + v1));
+
+          // get mass of neighbor vertex
+          mjtNum weight = 1.0;
+          int neighbor_v = (v == v1) ? v2 : v1;
+          int b_neighbor = m->flex_vertbodyid[vbase + neighbor_v];
+          if (b_neighbor >= 0) {
+            weight = m->body_mass[b_neighbor];
+            if (weight < mjMINVAL) weight = mjMINVAL;
+          }
+
+          // accumulate A += w * dy * dx'
+          A[0] += weight * dy[0] * dx[0];
+          A[1] += weight * dy[0] * dx[1];
+          A[2] += weight * dy[1] * dx[0];
+          A[3] += weight * dy[1] * dx[1];
+          A[4] += weight * dy[2] * dx[0];
+          A[5] += weight * dy[2] * dx[1];
+        }
+
+        mjtNum F[6];
+        mju_mulMatMat322(F, A, metric);
+
+        // compute Cauchy strain tensor F^T F
+        mjtNum cauchy[4];
+        cauchy[0] = F[0] * F[0] + F[2] * F[2] + F[4] * F[4];  // c00
+        cauchy[1] = F[0] * F[1] + F[2] * F[3] + F[4] * F[5];  // c01
+        cauchy[2] = F[1] * F[0] + F[3] * F[2] + F[5] * F[4];  // c10
+        cauchy[3] = F[1] * F[1] + F[3] * F[3] + F[5] * F[5];  // c11
+
+        // mass scaling: scale constraint by sqrt(mass) to improve condition number
+        // note: departure from original algorithm in Chen, Kry, and Vouga 2019
+        mjtNum scale = 1.0;
+        int b = m->flex_vertbodyid[vadr];
+        if (b >= 0) {
+          mjtNum mass = m->body_mass[b];
+          if (mass > mjMINVAL) {
+            scale = mju_sqrt(mass);
+          }
+        }
+
+        // compute tensor invariants
+        d->flexvert_length[2 * vadr + 0] = (cauchy[0] + cauchy[3] - 2) * scale;
+        d->flexvert_length[2 * vadr + 1] =
+            (cauchy[0] * cauchy[3] - cauchy[1] * cauchy[2] - 1) * scale;
+
+        // Jacobian computation
+        mjtNum FB[6], adj[4], Fadj[6], FadjBinv[6];
+        mju_mulMatMat322(FB, F, metric);
+
+        adj[0] = cauchy[3];
+        adj[1] = -cauchy[1];
+        adj[2] = -cauchy[2];
+        adj[3] = cauchy[0];
+        mju_mulMatMat322(Fadj, F, adj);
+        mju_mulMatMat322(FadjBinv, Fadj, metric);
+
+        for (int k = 0; k < v_edge_cnt[v]; ++k) {
+          int e = adj_edges[v_edge_adr[v] + k];
+          mjtNum dx[3];  // rest edge vector
+          int v1 = m->flex_edge[2 * (ebase + e)];
+          int v2 = m->flex_edge[2 * (ebase + e) + 1];
+          mju_sub3(dx, m->flex_vert0 + 3 * (vbase + v2), m->flex_vert0 + 3 * (vbase + v1));
+          dx[0] *= 2 * m->flex_size[3 * f + 0];
+          dx[1] *= 2 * m->flex_size[3 * f + 1];
+          dx[2] *= 2 * m->flex_size[3 * f + 2];
+          mjtNum weight = 1.0;
+          int neighbor_v = (v == v1) ? v2 : v1;
+          int b_neighbor = m->flex_vertbodyid[vbase + neighbor_v];
+          if (b_neighbor >= 0) {
+            weight = m->body_mass[b_neighbor];
+            if (weight < mjMINVAL) weight = mjMINVAL;
+          }
+
+          mjtNum dI1dy1[3], dI1dy2[3], dI2dy[3], dI2dy1[3], dI2dy2[3];
+
+          // dI1/dy1, dI1/dy2 (scaled by weight)
+          mju_mulMatVec(dI1dy1, FB, dx, 3, 2);
+          mju_scl3(dI1dy1, dI1dy1, -2 * weight);
+          mju_scl3(dI1dy2, dI1dy1, -1);
+
+          // dI2/dy1, dI2/dy2 (scaled by weight)
+          mju_mulMatVec(dI2dy, FadjBinv, dx, 3, 2);
+          mju_scl3(dI2dy1, dI2dy, -2 * weight);
+          mju_scl3(dI2dy2, dI2dy1, -1);
+
+          // get endpoint Jacobians
+          int b1 = m->flex_vertbodyid[vbase+v1];
+          int b2 = m->flex_vertbodyid[vbase+v2];
+          int NV1 = mj_bodyChain(m, b1, chain1);
+          mj_jacSparse(m, d, jac1, NULL, d->flexvert_xpos + 3*(vbase+v1), b1, NV1, chain1);
+          int NV2 = mj_bodyChain(m, b2, chain2);
+          mj_jacSparse(m, d, jac2, NULL, d->flexvert_xpos + 3*(vbase+v2), b2, NV2, chain2);
+
+          // accumulate dense Jacobians for vertex v
+          mju_mulMatTVec(J_local, jac1, dI1dy1, 3, NV1);
+          for (int j=0; j<NV1; j++) {
+            J0_dense[chain1[j]] += J_local[j];
+          }
+          mju_mulMatTVec(J_local, jac2, dI1dy2, 3, NV2);
+          for (int j=0; j<NV2; j++) {
+            J0_dense[chain2[j]] += J_local[j];
+          }
+
+          mju_mulMatTVec(J_local, jac1, dI2dy1, 3, NV1);
+          for (int j=0; j<NV1; j++) {
+            J1_dense[chain1[j]] += J_local[j];
+          }
+          mju_mulMatTVec(J_local, jac2, dI2dy2, 3, NV2);
+          for (int j=0; j<NV2; j++) {
+            J1_dense[chain2[j]] += J_local[j];
+          }
+        }
+
+        // copy to sparse flexvert_J
+        int row0 = 2 * vadr;
+        int nnz0 = vrownnz[row0];
+        for (int j = 0; j < nnz0; j++) {
+          int col = m->flexvert_J_colind[vrowadr[row0] + j];
+          d->flexvert_J[vrowadr[row0] + j] += J0_dense[col] * scale;
+          J0_dense[col] = 0;
+        }
+        int row1 = 2 * vadr + 1;
+        int nnz1 = vrownnz[row1];
+        for (int j = 0; j < nnz1; j++) {
+          int col = m->flexvert_J_colind[vrowadr[row1] + j];
+          d->flexvert_J[vrowadr[row1] + j] += J1_dense[col] * scale;
+          J1_dense[col] = 0;
+        }
+      }
+
+      mj_freeStack(d);
     }
   }
 
@@ -2233,6 +2414,9 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
   }
 
   mj_freeStack(d);
+
+  // mark as computed
+  d->flg_subtreevel = 1;
 }
 
 
@@ -2456,6 +2640,11 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       }
       break;
 
+    case mjEQ_FLEXVERT:
+      k = m->eq_obj1id[id];
+      i += 2*m->flex_vertnum[k];
+      break;
+
     default:
       mjERROR("unknown constraint type type %d", m->eq_type[id]);    // SHOULD NOT OCCUR
     }
@@ -2488,6 +2677,9 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   for (int j=nbody-1; j > 0; j--) {
     mju_addTo(d->cfrc_int+6*m->body_parentid[j], d->cfrc_int+6*j, 6);
   }
+
+  // mark as computed
+  d->flg_rnepost = 1;
 }
 
 

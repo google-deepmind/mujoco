@@ -14,6 +14,7 @@
 
 #include "engine/engine_support.h"
 
+#include <inttypes.h>  // IWYU pragma: keep
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
@@ -343,7 +344,7 @@ void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig) {
 void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
   // check keyframe index
   if (k >= m->nkey) {
-    mjERROR("index must be smaller than %d (keyframes allocated in model)", m->nkey);
+    mjERROR("index must be smaller than %" PRId64 " (keyframes allocated in model)", m->nkey);
   }
   if (k < 0) {
     mjERROR("keyframe index cannot be negative");

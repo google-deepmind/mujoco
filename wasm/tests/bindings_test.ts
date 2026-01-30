@@ -17,7 +17,7 @@ import 'jasmine';
 import {MainModule, MjContact, MjContactVec, MjData, MjLROpt, MjModel,
 MjOption, MjsGeom, MjSolverStat, MjSpec, MjStatistic, MjTimerStat, MjvCamera,
 MjvFigure, MjvGeom, MjvGLCamera, MjvLight, MjvOption, MjvPerturb, MjvScene,
-MjWarningStat, MjVFS} from '../dist/mujoco_wasm.js';
+MjWarningStat, MjVFS, Uint8Buffer} from '../dist/mujoco_wasm.js';
 
 import loadMujoco from '../dist/mujoco_wasm.js'
 
@@ -45,17 +45,17 @@ const TEST_XML = `
       <geom name="mybox" type="box" size="0.1 0.1 0.1" mass="0.25"/>
       <freejoint name="myfree"/>
     </body>
-    <body>
+    <body name="myhinge-body" pos="0 0 1">
       <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
       <site pos="0 0 -1" name="mysite" type="sphere"/>
       <joint name="myhinge" type="hinge" axis="0 1 0" damping="1"/>
     </body>
-    <body>
+    <body name="myball-body" pos="2 0 1">
       <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
       <joint name="myball" type="ball"/>
     </body>
-    <body mocap="true" pos="42 0 42">
-      <geom type="sphere" size="0.1"/>
+    <body name="mocap-body" mocap="true" pos="42 0 42">
+      <geom name="mocap-sphere" type="sphere" size="0.1"/>
     </body>
   </worldbody>
   <actuator>
@@ -900,7 +900,7 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_can_read_array
   it('should read an array from the model', () => {
     const expected =
-        new Float64Array([0, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0, 0, 42, 0, 42]);
+        new Float64Array([0, 0, 0, 0, 0, 0.1, 0, 0, 1, 2, 0, 1, 42, 0, 42]);
     const bodyPos = new Float64Array(model!.body_pos);
     expectArraysEqual(bodyPos, expected);
   });
@@ -1879,7 +1879,26 @@ describe('MuJoCo WASM Bindings', () => {
     it('should throw an error for invalid geom names in model', () => {
       expect(() => {
         model!.geom('badgeom');
-      }).toThrowError('MuJoCo Error: Invalid name, MjModel.geom not found');
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid name 'badgeom' for geom. Valid names: ['mocap-sphere', 'mybox', 'myplane']`);
+    });
+
+    // Corresponds to
+    // bindings_test.py:test_named_indexing_invalid_index_in_model
+    it('should throw an error for invalid geom indices in model', () => {
+      const numGeoms = model!.ngeom;
+      expect(() => {
+        model!.geom(numGeoms);
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid index 3 for geom. Valid indices from 0 to 2`);
+
+      expect(() => {
+        model!.geom(-1);
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid index -1 for geom. Valid indices from 0 to 2`);
     });
 
     // Corresponds to bindings_test.py:test_named_indexing_geom_size
@@ -2140,4 +2159,342 @@ describe('MuJoCo WASM Bindings', () => {
       }
     });
   });
+
+  describe('MjData named access', () => {
+    it('should support named access for MjData', () => {
+      mujoco.mj_forward(model!, data!);
+
+      // Actuator
+      expect(model!.nu).toBe(1);
+      const actuator = data!.actuator(0);
+      expect(actuator.name).toBe('myactuator');
+      expect(actuator.velocity).toBe(0);
+      expect(actuator.force).toBe(0);
+      expectArraysClose(
+          actuator.moment, new Float64Array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+
+      // Body
+      expect(model!.nbody).toBe(5);
+      expect(data!.body('mybox').name).toBe('mybox');
+      expectArraysClose(
+          data!.body('mybox').xpos, new Float64Array([0, 0, 0.1]));
+      expect(data!.body('myhinge-body').name).toBe('myhinge-body');
+      expectArraysClose(
+          data!.body('myhinge-body').xpos, new Float64Array([0, 0, 1]));
+      expect(data!.body('myball-body').name).toBe('myball-body');
+      expectArraysClose(
+          data!.body('myball-body').xpos, new Float64Array([2, 0, 1]));
+      expect(data!.body('mocap-body').name).toBe('mocap-body');
+      expectArraysClose(
+          data!.body('mocap-body').xpos, new Float64Array([42, 0, 42]));
+
+      // Geom
+      expect(model!.ngeom).toBe(3);
+      expect(data!.geom('myplane').name).toBe('myplane');
+      expectArraysClose(
+          data!.geom('myplane').xpos, new Float64Array([0, 0, 0]));
+      expectArraysClose(
+          data!.geom('myplane').xmat,
+          new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+
+      expect(data!.geom('mybox').name).toBe('mybox');
+      expectArraysClose(
+          data!.geom('mybox').xpos, new Float64Array([0, 0, 0.1]));
+      expectArraysClose(
+          data!.geom('mybox').xmat,
+          new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+
+      expect(data!.geom('mocap-sphere').name).toBe('mocap-sphere');
+      expectArraysClose(
+          data!.geom('mocap-sphere').xpos, new Float64Array([42, 0, 42]));
+      expectArraysClose(
+          data!.geom('mocap-sphere').xmat,
+          new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+
+      // Joint
+      expect(model!.njnt).toBe(3);
+      const freeJnt = data!.jnt('myfree');
+      expect(freeJnt.name).toBe('myfree');
+      expectArraysClose(freeJnt.xanchor, new Float64Array([0, 0, 0.1]));
+      expectArraysClose(freeJnt.xaxis, new Float64Array([0, 0, 1]));
+
+      const hingeJnt = data!.jnt('myhinge');
+      expect(hingeJnt.name).toBe('myhinge');
+      expectArraysClose(hingeJnt.xanchor, new Float64Array([0, 0, 1]));
+      expectArraysClose(hingeJnt.xaxis, new Float64Array([0, 1, 0]));
+
+      const ballJnt = data!.jnt('myball');
+      expect(ballJnt.name).toBe('myball');
+      expectArraysClose(ballJnt.xanchor, new Float64Array([2, 0, 1]));
+      expectArraysClose(ballJnt.xaxis, new Float64Array([0, 0, 1]));
+
+      // Sensor
+      expect(model!.nsensor).toBe(2);
+      const jointvelSensor = data!.sensor('myjointvel');
+      expect(jointvelSensor.name).toBe('myjointvel');
+      expectArraysClose(jointvelSensor.data, new Float64Array([0]));
+
+      const accelSensor = data!.sensor('myaccelerometer');
+      expect(accelSensor.name).toBe('myaccelerometer');
+      expectArraysClose(accelSensor.data, new Float64Array([0, 0, 9.81]));
+
+      // Site
+      expect(model!.nsite).toBe(1);
+      const site = data!.site('mysite');
+      expect(site.name).toBe('mysite');
+      expectArraysClose(site.xpos, new Float64Array([0, 0, 0]));
+      expectArraysClose(
+          site.xmat, new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+    });
+
+    // Corresponds to bindings_test.py:test_indexer_name_id
+    it('should support named and indexed access for MjData geoms', () => {
+      const xml = `
+      <mujoco>
+        <worldbody>
+          <geom name="mygeom" size="1" pos="0 0 1"/>
+          <geom size="2" pos="0 0 2"/>
+          <geom size="3" pos="0 0 3"/>
+          <geom name="myothergeom" size="4" pos="0 0 4"/>
+          <geom size="5" pos="0 0 5"/>
+        </worldbody>
+      </mujoco>
+      `;
+      const tempXmlFilename = '/tmp/geom_idx.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      const data = new mujoco.MjData(model);
+      try {
+        assertExists(model);
+        assertExists(data);
+        mujoco.mj_forward(model, data);
+
+        expect(data.geom('mygeom').id).toBe(0);
+        expect(data.geom('myothergeom').id).toBe(3);
+        expect(data.geom(0).name).toBe('mygeom');
+        expect(data.geom(1).name).toBe('');
+        expect(data.geom(2).name).toBe('');
+        expect(data.geom(3).name).toBe('myothergeom');
+        expect(data.geom(4).name).toBe('');
+
+        expect(data.geom(0).xpos[2]).toBeCloseTo(1);
+        expect(data.geom(1).xpos[2]).toBeCloseTo(2);
+        expect(data.geom(2).xpos[2]).toBeCloseTo(3);
+        expect(data.geom(3).xpos[2]).toBeCloseTo(4);
+        expect(data.geom(4).xpos[2]).toBeCloseTo(5);
+      } finally {
+        model?.delete();
+        data?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_invalid_names_in_data
+    it('should throw an error for invalid geom names in data', () => {
+      expect(() => {
+        data!.geom('badgeom');
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid name 'badgeom' for geom. Valid names: ['mocap-sphere', 'mybox', 'myplane']`);
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_invalid_index_in_data
+    it('should throw an error for invalid geom indices in data', () => {
+      expect(() => {
+        data!.geom(3);
+      })
+          .toThrowError(
+              'MuJoCo Error: Invalid index 3 for geom. Valid indices from 0 to 2');
+      expect(() => {
+        data!.geom(-1);
+      })
+          .toThrowError(
+              'MuJoCo Error: Invalid index -1 for geom. Valid indices from 0 to 2');
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_actuator_ctrl
+    it('should support named access for Actuator ctrl', () => {
+      const actuatorId = mujoco.mj_name2id(
+          model!, mujoco.mjtObj.mjOBJ_ACTUATOR.value, 'myactuator');
+      assertExists(actuatorId);
+
+      const actuator = data!.actuator('myactuator');
+      expect(actuator).toEqual(data!.actuator(actuatorId));
+      expect(actuator.ctrl).toEqual(data!.actuator(actuatorId)!.ctrl);
+
+      // Test that the indexer is returning a view into the underlying
+      data!.ctrl[actuatorId] = 5;
+      expect(actuator.ctrl).toBe(5);
+      actuator.ctrl = 7;
+      expect(data!.ctrl[actuatorId]).toBe(7);
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_ragged_qpos
+    it('should support named access for Joint qpos', () => {
+      const balljointId =
+          mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_JOINT.value, 'myball');
+      assertExists(balljointId);
+
+      const ballJnt = data!.jnt('myball');
+      expect(ballJnt).toEqual(data!.jnt(balljointId));
+      expect(ballJnt.qpos).toEqual(data!.jnt(balljointId)!.qpos);
+
+      // Test that the indexer is returning a view into the underlying struct.
+      const qposFromIndexer = ballJnt.qpos;
+      const qposIdx = model!.jnt_qposadr[balljointId];
+      data!.qpos.set([4, 5, 6, 7], qposIdx);
+      expectArraysEqual(qposFromIndexer, new Float64Array([4, 5, 6, 7]));
+      ballJnt.qpos.set(new Float64Array([9, 8, 7, 6]))
+      expectArraysEqual(
+          data!.qpos.slice(qposIdx, qposIdx + 4),
+          new Float64Array([9, 8, 7, 6]));
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_ragged2d_cdof
+    it('should support named access for Joint cdof', () => {
+      const freejointId =
+          mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_JOINT.value, 'myfree');
+      assertExists(freejointId);
+      mujoco.mj_forward(model!, data!);
+
+      const freeJnt = data!.jnt('myfree');
+      expect(freeJnt).toEqual(data!.jnt(freejointId));
+      expect(freeJnt.cdof).toEqual(data!.jnt(freejointId)!.cdof);
+      expect(freeJnt.cdof.length).toBe(36);  // 6x6
+
+      // Test that the indexer is returning a view into the underlying
+      const cdofFromIndexer = freeJnt.cdof;
+      const dofIdx = model!.jnt_dofadr[freejointId];
+      const testArray = new Float64Array(36);
+      for (let i = 0; i < 36; i++) {
+        testArray[i] = i;
+      }
+      data!.cdof.set(testArray);
+      expectArraysEqual(freeJnt.cdof, testArray);
+      const expectedCdof = new Float64Array(36).fill(42);
+      freeJnt.cdof.set(expectedCdof);
+      expectArraysEqual(data!.cdof.slice(dofIdx, dofIdx + 36), expectedCdof);
+    });
+  });
+
+  it('should save model to buffer', () => {
+    assertExists(model);
+    const modelSize = mujoco.mj_sizeModel(model);
+    const buffer = new mujoco.Uint8Buffer(Number(modelSize));
+    try {
+      mujoco.mj_saveModel(model, null, buffer);
+      // Test the first 3 byte values of the buffer.
+      expect(buffer.GetView()[0]).toBe(49);
+      expect(buffer.GetView()[1]).toBe(212);
+      expect(buffer.GetView()[2]).toBe(0);
+    } finally {
+      buffer.delete();
+    }
+  });
+
+  it('should save model to file', () => {
+    assertExists(model);
+    const filename = '/tmp/test.mjb';
+    const modelSize = mujoco.mj_sizeModel(model);
+    const buffer = new mujoco.Uint8Buffer(Number(modelSize));
+    try {
+      mujoco.mj_saveModel(model, filename, null);
+      const fileContent =
+          (mujoco as any).FS.readFile(filename, {encoding: 'binary'});
+
+      mujoco.mj_saveModel(model, null, buffer);
+      const bufferContent = buffer.GetView();
+
+      expect(fileContent.length).toBe(bufferContent.length);
+      expect(fileContent).toEqual(bufferContent);
+    } finally {
+      buffer.delete();
+      unlinkXMLFile(filename);
+    }
+  });
+
+  it('should load and save a model with assets to binary', () => {
+    const xmlContent = `
+    <mujoco model="test_binary_save">
+      <asset>
+        <mesh file="cube.obj"/>
+      </asset>
+      <worldbody>
+        <geom type="mesh" mesh="cube"/>
+      </worldbody>
+    </mujoco>`;
+    const cube1 = `
+    v -1 -1  1
+    v  1 -1  1
+    v -1  1  1
+    v  1  1  1
+    v -1  1 -1
+    v  1  1 -1
+    v -1 -1 -1
+    v  1 -1 -1`;
+    const xmlFilename = '/tmp/binary_test.xml';
+    const objFilename = '/tmp/cube.obj';
+    const mjbFilename = '/tmp/binary_test.mjb';
+
+    writeXMLFile(xmlFilename, xmlContent);
+    writeXMLFile(objFilename, cube1);
+
+    let model: MjModel|null = null;
+    let binaryModel: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+
+    try {
+      model = mujoco.MjModel.mj_loadXML(xmlFilename);
+      assertExists(model);
+
+      mujoco.mj_saveModel(model, mjbFilename, null);
+
+      vfs = new mujoco.MjVFS();
+      vfs.addBuffer(objFilename, new TextEncoder().encode(cube1));
+      binaryModel = mujoco.MjModel.mj_loadBinary(mjbFilename, vfs);
+      assertExists(binaryModel);
+
+      expect(mujoco.mj_sizeModel(binaryModel))
+          .toEqual(mujoco.mj_sizeModel(model));
+      expect(binaryModel.nbody).toEqual(model!.nbody);
+      expect(binaryModel.nq).toEqual(model!.nq);
+      expect(binaryModel.nv).toEqual(model!.nv);
+      expect(binaryModel.njnt).toEqual(model!.njnt);
+      expect(binaryModel.nmesh).toEqual(model!.nmesh);
+    } finally {
+      model?.delete();
+      binaryModel?.delete();
+      vfs?.delete();
+      unlinkXMLFile(xmlFilename);
+      unlinkXMLFile(objFilename);
+      unlinkXMLFile(mjbFilename);
+    }
+  });
+
+  // Corresponds to bindings_test.py:test_mj_saveModel
+  it('should save and load a model from binary', () => {
+    const mjbFilename = '/tmp/saved_model.mjb';
+    let binaryModel: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+    try {
+      mujoco.mj_saveModel(model!, mjbFilename, null);
+      const bufSize = mujoco.mj_sizeModel(model!);
+
+      vfs = new mujoco.MjVFS();
+      binaryModel = mujoco.MjModel.mj_loadBinary(mjbFilename, vfs);
+      assertExists(binaryModel);
+
+      expect(mujoco.mj_sizeModel(binaryModel)).toEqual(bufSize);
+      expect(binaryModel.nbody).toEqual(model!.nbody);
+      expect(binaryModel.nq).toEqual(model!.nq);
+      expect(binaryModel.nv).toEqual(model!.nv);
+      expect(binaryModel.njnt).toEqual(model!.njnt);
+      expect(binaryModel.nmesh).toEqual(model!.nmesh);
+    } finally {
+      binaryModel?.delete();
+      vfs?.delete();
+      unlinkXMLFile(mjbFilename);
+    }
+  });
+
 });

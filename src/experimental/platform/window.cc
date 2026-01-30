@@ -14,13 +14,22 @@
 
 #include "experimental/platform/window.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <span>
 #include <string>
 #include <string_view>
 
+#ifdef MUJOCO_STUDIO_EGL_SUPPORTED
+#include "third_party/GL/gl/include/EGL/egl.h"
+#include "third_party/GL/gl/include/EGL/eglext.h"
+#endif
 #include <SDL.h>
 #include <SDL_error.h>
 #include <SDL_events.h>
 #include <SDL_hints.h>
+#include <SDL_render.h>
+#include <SDL_surface.h>
 #include <SDL_syswm.h>
 #include <SDL_version.h>
 #include <SDL_video.h>
@@ -89,22 +98,26 @@ static void InitImGui(SDL_Window* window, float content_scale, bool load_fonts,
 
 Window::Window(std::string_view title, int width, int height, Config config)
     : width_(width), height_(height), config_(config) {
-  SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "1");
-  SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-  SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16);
+  const RenderConfig render_config = config_.render_config;
+  if (config_.offscreen_mode) {
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
+    SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "0");
+  } else {
+    SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "1");
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16);
+  }
+
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
     mju_error("Error initializing SDL: %s", SDL_GetError());
   }
-
-  int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-
   if (!config_.enable_keyboard) {
     SDL_EventState(SDL_TEXTINPUT, SDL_DISABLE);
     SDL_EventState(SDL_KEYDOWN, SDL_DISABLE);
     SDL_EventState(SDL_KEYUP, SDL_DISABLE);
   }
 
-  RenderConfig render_config = config_.render_config;
+  int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
   if (render_config == kFilamentVulkan) {
     window_flags |= SDL_WINDOW_VULKAN;
   } else if (render_config == kFilamentWebGL) {
@@ -112,7 +125,8 @@ Window::Window(std::string_view title, int width, int height, Config config)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-  } else if (render_config == kClassicOpenGL || render_config == kFilamentOpenGL) {
+  } else if (render_config == kClassicOpenGL ||
+             render_config == kFilamentOpenGL) {
     window_flags |= SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
@@ -122,8 +136,8 @@ Window::Window(std::string_view title, int width, int height, Config config)
 
   const float content_scale = ImGui_ImplSDL2_GetContentScaleForDisplay(0);
   sdl_window_ = SDL_CreateWindow(title.data(), SDL_WINDOWPOS_UNDEFINED,
-                                 SDL_WINDOWPOS_UNDEFINED, width * content_scale,
-                                 height * content_scale, window_flags);
+                                 SDL_WINDOWPOS_UNDEFINED, width,
+                                 height, window_flags);
   if (!sdl_window_) {
     mju_error("Error creating window: %s", SDL_GetError());
   }
@@ -131,23 +145,33 @@ Window::Window(std::string_view title, int width, int height, Config config)
   InitImGui(sdl_window_, content_scale, config.load_fonts,
             (render_config != kClassicOpenGL));
 
-  if (render_config == kFilamentWebGL || render_config == kClassicOpenGL) {
+  if (render_config == kFilamentWebGL ||
+      (render_config == kClassicOpenGL && !config.offscreen_mode)) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);
     SDL_GL_MakeCurrent(sdl_window_, gl_context);
+  }
+
+  if (config.offscreen_mode) {
+    sdl_renderer_ = SDL_CreateRenderer(sdl_window_, -1, SDL_RENDERER_SOFTWARE);
+    if (config.render_config == kClassicOpenGL) {
+      InitOffscreenEglContext();
+    }
   }
 
   SDL_SysWMinfo wmi;
   SDL_VERSION(&wmi.version);
   SDL_GetWindowWMInfo(sdl_window_, &wmi);
 
-  #if defined(__linux__)
-    native_window_ = reinterpret_cast<void*>(wmi.info.x11.window);
-  #elif defined(__WIN32__)
-    native_window_ = reinterpret_cast<void*>(wmi.info.win.window);
-  #elif defined(__APPLE__)
-    native_window_ =
-        GetNativeWindowOsx(reinterpret_cast<void*>(wmi.info.cocoa.window));
-  #endif
+  if (!config.offscreen_mode) {
+    #if defined(__linux__)
+      native_window_ = reinterpret_cast<void*>(wmi.info.x11.window);
+    #elif defined(__WIN32__)
+      native_window_ = reinterpret_cast<void*>(wmi.info.win.window);
+    #elif defined(__APPLE__)
+      native_window_ =
+          GetNativeWindowOsx(reinterpret_cast<void*>(wmi.info.cocoa.window));
+    #endif
+  }
 
   int drawable_width = width;
   int drawable_height = height;
@@ -156,12 +180,26 @@ Window::Window(std::string_view title, int width, int height, Config config)
 }
 
 Window::~Window() {
+#ifdef MUJOCO_STUDIO_EGL_SUPPORTED
+  if (egl_display_ && egl_context_) {
+    eglMakeCurrent(egl_display_, nullptr, nullptr, EGL_NO_CONTEXT);
+    eglDestroyContext(egl_display_, egl_context_);
+    eglTerminate(egl_display_);
+  }
+#endif
   SDL_DestroyWindow(sdl_window_);
   SDL_Quit();
 }
 
 void Window::SetTitle(std::string_view title) {
   SDL_SetWindowTitle(sdl_window_, title.data());
+}
+
+void Window::DisableWindowResizing() {
+  SDL_SetWindowResizable(sdl_window_, SDL_FALSE);
+}
+void Window::EnableWindowResizing() {
+  SDL_SetWindowResizable(sdl_window_, SDL_TRUE);
 }
 
 std::string Window::GetDropFile() {
@@ -207,12 +245,133 @@ void Window::EndFrame() {
   ImGui::EndFrame();
 }
 
-void Window::Present() {
-  // Filament (with the exception of WebGL) handles the swapchain internally.
-  if (config_.render_config != kFilamentVulkan
+void Window::Present(std::span<const std::byte> pixels) {
+  if (config_.offscreen_mode) {
+    if (pixels.size() != width_ * height_ * 3) {
+      mju_error("Offscreen mode expects RGB buffer of size %d",
+                width_ * height_ * 3);
+    }
+
+    SDL_Surface* surface = SDL_GetWindowSurface(sdl_window_);
+    const unsigned char* src =
+        reinterpret_cast<const unsigned char*>(pixels.data());
+    unsigned char* dst =
+        static_cast<unsigned char*>(surface->pixels);
+
+    for (int i = 0; i < height_; ++i) {
+      for (int j = 0; j < width_; ++j) {
+        // Swap the RGB channels and add an alpha value of 1.0
+        dst[0] = src[2];
+        dst[1] = src[1];
+        dst[2] = src[0];
+        dst[3] = 0xff;
+        dst += 4;
+        src += 3;
+      }
+    }
+
+    if (config_.render_config == kClassicOpenGL) {
+      dst = static_cast<unsigned char*>(surface->pixels);
+      for (int r = 0; r < height_ / 2; ++r) {
+        unsigned char* top_row = &dst[4 * width_ * r];
+        unsigned char* bottom_row = &dst[4 * width_ * (height_ - 1 - r)];
+        std::swap_ranges(top_row, top_row + 4 * width_, bottom_row);
+      }
+    }
+
+    SDL_RenderPresent(sdl_renderer_);
+  } else if (config_.render_config != kFilamentVulkan
      && config_.render_config != kFilamentOpenGL) {
     SDL_GL_SwapWindow(sdl_window_);
   }
+}
+
+bool Window::IsOffscreenMode() const {
+  return config_.offscreen_mode;
+}
+
+void Window::InitOffscreenEglContext() {
+#ifdef MUJOCO_STUDIO_EGL_SUPPORTED
+  auto eglQueryDevicesEXT =
+      (PFNEGLQUERYDEVICESEXTPROC)eglGetProcAddress("eglQueryDevicesEXT");
+  auto eglGetPlatformDisplayEXT =
+      (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress(
+          "eglGetPlatformDisplayEXT");
+
+  if (!eglQueryDevicesEXT || !eglGetPlatformDisplayEXT) {
+    mju_error("Failed to load EGL functions");
+  }
+
+  // Query all available EGL devices.
+  constexpr int kMaxDevices = 32;
+  EGLDeviceEXT egl_devices[kMaxDevices];
+  int ndevice = 0;
+  if (!eglQueryDevicesEXT(kMaxDevices, egl_devices, &ndevice)) {
+    mju_error("eglQueryDevices error: 0x%x", eglGetError());
+  }
+
+  // Initialize the first valid EGL display.
+  for (int i = 0; i < ndevice; ++i) {
+    egl_display_ = eglGetPlatformDisplayEXT(EGL_PLATFORM_DEVICE_EXT,
+                                            egl_devices[i], nullptr);
+    if (egl_display_ != EGL_NO_DISPLAY) {
+      int major, minor;
+      EGLBoolean initialized = eglInitialize(egl_display_, &major, &minor);
+      if (!initialized) {
+        egl_display_ = EGL_NO_DISPLAY;
+      } else {
+        break;
+      }
+    }
+  }
+  if (egl_display_ == EGL_NO_DISPLAY) {
+    mju_error("Failed to create and initialize a valid EGL display!");
+  }
+
+  // Choose an EGL config.
+  constexpr EGLint config_attribs[] = {
+      EGL_RED_SIZE, 8,
+      EGL_GREEN_SIZE, 8,
+      EGL_BLUE_SIZE, 8,
+      EGL_ALPHA_SIZE, 8,
+      EGL_DEPTH_SIZE, 24,
+      EGL_STENCIL_SIZE, 8,
+      EGL_COLOR_BUFFER_TYPE, EGL_RGB_BUFFER,
+      EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+      EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+      EGL_NONE
+  };
+  EGLint nconfig;
+  EGLConfig config;
+  if (!eglChooseConfig(egl_display_, config_attribs, &config, 1, &nconfig)) {
+    mju_error("eglChooseConfig error: 0x%x", eglGetError());
+  }
+
+  // Bind the OpenGL API to the EGL.
+  if (!eglBindAPI(EGL_OPENGL_API)) {
+    mju_error("eglBindAPI error: 0x%x", eglGetError());
+  }
+
+  // Create an EGL context.
+  constexpr EGLint context_attribs[] = {
+      EGL_CONTEXT_MAJOR_VERSION, 1,
+      EGL_CONTEXT_MINOR_VERSION, 5,
+      EGL_CONTEXT_OPENGL_PROFILE_MASK,
+      EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT,
+      EGL_NONE};
+  egl_context_ =
+      eglCreateContext(egl_display_, config, EGL_NO_CONTEXT, context_attribs);
+  if (egl_context_ == EGL_NO_CONTEXT) {
+    mju_error("eglCreateContext error: 0x%x", eglGetError());
+  }
+
+  // Make the EGL context current.
+  if (!eglMakeCurrent(egl_display_, nullptr, nullptr, egl_context_)) {
+    mju_error("eglMakeCurrent error: 0x%x", eglGetError());
+  }
+#else
+  mju_error("EGL not supported on this platform");
+#endif
 }
 
 }  // namespace mujoco::platform

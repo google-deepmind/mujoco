@@ -19,6 +19,7 @@
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -27,6 +28,7 @@
 #include <cstring>  // NOLINT
 #include <memory>
 #include <optional>  // NOLINT
+#include <sstream>
 #include <string>    // NOLINT
 #include <string_view>
 #include <vector>
@@ -44,12 +46,14 @@ namespace mujoco::wasm {
 using emscripten::enum_;
 using emscripten::function;
 using emscripten::val;
+using emscripten::typed_memory_view;
 using emscripten::return_value_policy::reference;
 using emscripten::return_value_policy::take_ownership;
 
 EMSCRIPTEN_DECLARE_VAL_TYPE(NumberOrString);
 EMSCRIPTEN_DECLARE_VAL_TYPE(NumberArray);
 EMSCRIPTEN_DECLARE_VAL_TYPE(String);
+EMSCRIPTEN_DECLARE_VAL_TYPE(StringOrNull);
 
 // Macro to define accessors for different MuJoCo object types within mjModel.
 // Each line calls X_ACCESSOR with the following arguments:
@@ -80,6 +84,24 @@ EMSCRIPTEN_DECLARE_VAL_TYPE(String);
   X_ACCESSOR( TUPLE,    Tuple,    mjOBJ_TUPLE,    tuple,    ntuple   ) \
   X_ACCESSOR( KEYFRAME, Keyframe, mjOBJ_KEY,      key,      nkey     )
 
+// Macro to define accessors for different MuJoCo object types within mjData.
+// Each line calls X_ACCESSOR with the following arguments:
+// 1.  NAME: The object type name in uppercase (e.g., ACTUATOR).
+// 2.  Name: The object type name in CamelCase (e.g., Actuator).
+// 3.  OBJTYPE: The corresponding mjOBJ_* enum value (e.g., mjOBJ_ACTUATOR).
+// 4.  field: The name of the array field in mjData (e.g., actuator).
+// 5.  nfield: The name of the count field in mjModel (e.g., nu).
+#define MJDATA_ACCESSORS                                               \
+  X_ACCESSOR( ACTUATOR, Actuator, mjOBJ_ACTUATOR, actuator, nu       ) \
+  X_ACCESSOR( BODY,     Body,     mjOBJ_BODY,     body,     nbody    ) \
+  X_ACCESSOR( CAMERA,   Camera,   mjOBJ_CAMERA,   cam,      ncam     ) \
+  X_ACCESSOR( GEOM,     Geom,     mjOBJ_GEOM,     geom,     ngeom    ) \
+  X_ACCESSOR( JOINT,    Joint,    mjOBJ_JOINT,    jnt,      njnt     ) \
+  X_ACCESSOR( LIGHT,    Light,    mjOBJ_LIGHT,    light,    nlight   ) \
+  X_ACCESSOR( SENSOR,   Sensor,   mjOBJ_SENSOR,   sensor,   nsensor  ) \
+  X_ACCESSOR( SITE,     Site,     mjOBJ_SITE,     site,     nsite    ) \
+  X_ACCESSOR( TENDON,   Tendon,   mjOBJ_TENDON,   tendon,   ntendon  )
+
 // Raises an error if the given val is null or undefined.
 // A macro is used so that the error contains the name of the variable.
 // TODO(matijak): Remove this when we can handle strings using UNPACK_STRING?
@@ -99,6 +121,51 @@ void ThrowMujocoErrorToJS(const char* msg) {
 }
 __attribute__((constructor)) void InitMuJoCoErrorHandler() {
   mju_user_error = ThrowMujocoErrorToJS;
+}
+
+// Generates a descriptive error message for when a key lookup fails.
+// The message includes the invalid name and a list of valid names of the
+// specified object type currently present in the model.
+//
+// Arguments:
+//   model: Pointer to the mjModel.
+//   objtype: The mjOBJ_* enum value representing the object type.
+//   count: The number of objects of the given type in the model.
+//   name: The invalid name that was looked up.
+//
+// Returns:
+//   A string containing the error message.
+std::string KeyErrorMessage(const mjModel* model, int objtype, int count,
+                            std::string_view name, std::string_view accessor_name) {
+  std::vector<std::string> valid_names;
+  valid_names.reserve(count);
+  for (int i = 0; i < count; ++i) {
+    const char* n = mj_id2name(model, objtype, i);
+    if (n) {
+      valid_names.push_back(n);
+    }
+  }
+  std::sort(valid_names.begin(), valid_names.end());
+
+  std::ostringstream message;
+  message << "Invalid name '" << name << "' for " << accessor_name
+          << ". Valid names: [";
+  for (size_t i = 0; i < valid_names.size(); ++i) {
+    message << "'" << valid_names[i] << "'";
+    if (i < valid_names.size() - 1) {
+      message << ", ";
+    }
+  }
+  message << "]";
+  return message.str();
+}
+
+std::string IndexErrorMessage(int index, int count,
+                              std::string_view accessor_name) {
+  std::ostringstream message;
+  message << "Invalid index " << index << " for " << accessor_name
+          << ". Valid indices from 0 to " << count - 1;
+  return message.str();
 }
 
 template <size_t N>
@@ -163,40 +230,79 @@ using mjVisualScale = decltype(::mjVisual::scale);
 // - dim1: The fixed dimension of the array if not dynamically sized. If "1",
 //         a single element is returned. Otherwise, it's used as the stride
 //         for the typed memory view.
-#define X(type, prefix, var, dim0, dim1)                                          \
-  auto var() const {                                                               \
-    if constexpr (std::string_view(#dim0) == "nq") {                             \
-      int start = model_->jnt_qposadr[id_];                                      \
-      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq; \
-      return emscripten::val(emscripten::typed_memory_view(end - start, model_->prefix##var + start)); \
-    } else if constexpr (std::string_view(#dim0) == "nv") {                      \
-      int start = model_->jnt_dofadr[id_];                                       \
-      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv; \
-      return emscripten::val(emscripten::typed_memory_view(end - start, model_->prefix##var + start)); \
-    } else if constexpr (std::string_view(#dim0) == "nhfielddata") {             \
-      int start = model_->hfield_adr[id_];                                       \
-      int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];            \
-      return emscripten::val(emscripten::typed_memory_view(count, model_->hfield_data + start)); \
-    } else if constexpr (std::string_view(#dim0) == "ntexdata") {                \
-      int start = model_->tex_adr[id_];                                          \
-      int count = model_->tex_height[id_] * model_->tex_width[id_] * model_->tex_nchannel[id_]; \
-      return emscripten::val(emscripten::typed_memory_view(count, model_->tex_data + start)); \
-    } else if constexpr (std::string_view(#dim0) == "nnumericdata") {            \
-      int start = model_->numeric_adr[id_];                                      \
-      int count = model_->numeric_size[id_];                                     \
-      return emscripten::val(emscripten::typed_memory_view(count, model_->numeric_data + start)); \
-    } else if constexpr (std::string_view(#dim0) == "ntupledata") {              \
-      int start = model_->tuple_adr[id_];                                        \
-      int count = model_->tuple_size[id_];                                       \
-      return emscripten::val(emscripten::typed_memory_view(count, model_->prefix##var + start)); \
-    } else {                                                                     \
-      if constexpr (std::string_view(#dim1) == "1") {                           \
-        return model_->prefix##var[id_];                                         \
-      } else {                                                                   \
-        return emscripten::val(                                                  \
-            emscripten::typed_memory_view(dim1, model_->prefix##var + id_ * dim1)); \
-      }                                                                          \
-    }                                                                            \
+#define X(type, prefix, var, dim0, dim1)                                                         \
+  emscripten::val get_##var() const {                                                            \
+    if constexpr (std::string_view(#dim0) == "nq") {                                             \
+      int start = model_->jnt_qposadr[id_];                                                      \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;            \
+      return val(typed_memory_view(end - start, model_->prefix##var + start));                   \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                                      \
+      int start = model_->jnt_dofadr[id_];                                                       \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;             \
+      return val(typed_memory_view(end - start, model_->prefix##var + start));                   \
+    } else if constexpr (std::string_view(#dim0) == "nhfielddata") {                             \
+      int start = model_->hfield_adr[id_];                                                       \
+      int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];                           \
+      return val(typed_memory_view(count, model_->hfield_data + start));                         \
+    } else if constexpr (std::string_view(#dim0) == "ntexdata") {                                \
+      int start = model_->tex_adr[id_];                                                          \
+      int count = model_->tex_height[id_] * model_->tex_width[id_] * model_->tex_nchannel[id_];  \
+      return val(typed_memory_view(count, model_->tex_data + start));                            \
+    } else if constexpr (std::string_view(#dim0) == "nnumericdata") {                            \
+      int start = model_->numeric_adr[id_];                                                      \
+      int count = model_->numeric_size[id_];                                                     \
+      return val(typed_memory_view(count, model_->numeric_data + start));                        \
+    } else if constexpr (std::string_view(#dim0) == "ntupledata") {                              \
+      int start = model_->tuple_adr[id_];                                                        \
+      int count = model_->tuple_size[id_];                                                       \
+      return val(typed_memory_view(count, model_->prefix##var + start));                         \
+    } else {                                                                                     \
+      if constexpr (std::string_view(#dim1) == "1") {                                            \
+        return val(model_->prefix##var[id_]);                                                    \
+      } else {                                                                                   \
+        return val(typed_memory_view(dim1, model_->prefix##var + id_ * dim1));                   \
+      }                                                                                          \
+    }                                                                                            \
+  }                                                                                              \
+  void set_##var(const emscripten::val& value) {                                                 \
+    if constexpr (std::string_view(#dim0) == "nq") {                                             \
+      int start = model_->jnt_qposadr[id_];                                                      \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;            \
+      val(typed_memory_view(end - start, model_->prefix##var + start))                           \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                                      \
+      int start = model_->jnt_dofadr[id_];                                                       \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;             \
+      val(typed_memory_view(end - start, model_->prefix##var + start))                           \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nhfielddata") {                             \
+      int start = model_->hfield_adr[id_];                                                       \
+      int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];                           \
+      val(typed_memory_view(count, model_->hfield_data + start))                                 \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "ntexdata") {                                \
+      int start = model_->tex_adr[id_];                                                          \
+      int count = model_->tex_height[id_] * model_->tex_width[id_] * model_->tex_nchannel[id_];  \
+      val(typed_memory_view(count, model_->tex_data + start))                                    \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nnumericdata") {                            \
+      int start = model_->numeric_adr[id_];                                                      \
+      int count = model_->numeric_size[id_];                                                     \
+      val(typed_memory_view(count, model_->numeric_data + start))                                \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "ntupledata") {                              \
+      int start = model_->tuple_adr[id_];                                                        \
+      int count = model_->tuple_size[id_];                                                       \
+      val(typed_memory_view(count, model_->prefix##var + start))                                 \
+          .call<void>("set", value);                                                             \
+    } else {                                                                                     \
+      if constexpr (std::string_view(#dim1) == "1") {                                            \
+        model_->prefix##var[id_] = value.as<type>();                                             \
+      } else {                                                                                   \
+        val(typed_memory_view(dim1, model_->prefix##var + id_ * dim1))                           \
+            .call<void>("set", value);                                                           \
+      }                                                                                          \
+    }                                                                                            \
   }
 
 // Expands to a struct definition for each object type in MJMODEL_ACCESSORS.
@@ -206,22 +312,112 @@ using mjVisualScale = decltype(::mjVisual::scale);
 // - A `name()` method to get the object's name using `mj_id2name`.
 // - Member functions generated by the `MJMODEL_##NAME` macro, which in turn
 //   uses the `X` macro to define accessors for fields within `mjModel`.
-#define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                                         \
-  struct MjModel##Name##Accessor {                                     \
-    MjModel##Name##Accessor(mjModel* model, int id) : model_(model), id_(id) {} \
-                                                                       \
-    int id() const { return id_; }                                      \
-    std::string name() const {                                         \
-      return mj_id2name(model_, OBJTYPE, id_);                     \
-    }                                                                  \
-                                                                       \
-    MJMODEL_##NAME                                                     \
-                                                                       \
-   private:                                                            \
-    mjModel* model_;                                                   \
-    int id_;                                                           \
+#define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                           \
+  struct MjModel##Name##Accessor {                                               \
+    MjModel##Name##Accessor(mjModel* model, int id) : model_(model), id_(id) {}  \
+                                                                                 \
+    int id() const { return id_; }                                               \
+    std::string name() const {                                                   \
+      const char* name = mj_id2name(model_, OBJTYPE, id_);                       \
+      return name ? name : "";                                                   \
+    }                                                                            \
+                                                                                 \
+    MJMODEL_##NAME                                                               \
+                                                                                 \
+   private:                                                                      \
+    mjModel* model_;                                                             \
+    int id_;                                                                     \
   };
 MJMODEL_ACCESSORS
+#undef X_ACCESSOR
+
+// Expands to a struct definition for each object type in MJDATA_ACCESSORS.
+// Each struct, named `MjData{Name}Accessor`, provides:
+// - A constructor taking an `mjData*`, an `mjModel*`, and an integer `id`.
+// - An `id()` method to get the object's index.
+// - A `name()` method to get the object's name using `mj_id2name`.
+// - Member functions generated by the `MJDATA_##NAME` macro, which in turn
+//   uses the `X` macro to define accessors for fields within `mjData`.
+#undef MJ_M
+#define MJ_M(n) model_->n
+#undef X
+#define X(type, prefix, var, dim0, dim1)                                               \
+  emscripten::val get_##var() const {                                                  \
+    if constexpr (std::string_view(#dim0) == "nq") {                                   \
+      int start = model_->jnt_qposadr[id_];                                            \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;  \
+      return val(typed_memory_view(end - start, data_->prefix##var + start));          \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                            \
+      int start = model_->jnt_dofadr[id_];                                             \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;   \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        return val(typed_memory_view(end - start, data_->prefix##var + start));        \
+      } else {                                                                         \
+        return val(typed_memory_view(                                                  \
+            (end - start) * dim1, data_->prefix##var + start * dim1));                 \
+      }                                                                                \
+    } else if constexpr (std::string_view(#dim0) == "nsensordata") {                   \
+      int start = model_->sensor_adr[id_];                                             \
+      int count = model_->sensor_dim[id_];                                             \
+      return val(typed_memory_view(count, data_->sensordata + start));                 \
+    } else {                                                                           \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        return val(data_->prefix##var[id_]);                                           \
+      } else {                                                                         \
+        return val(typed_memory_view(dim1, data_->prefix##var + id_ * dim1));          \
+      }                                                                                \
+    }                                                                                  \
+  }                                                                                    \
+  void set_##var(const emscripten::val& value) {                                       \
+    if constexpr (std::string_view(#dim0) == "nq") {                                   \
+      int start = model_->jnt_qposadr[id_];                                            \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;  \
+      val(typed_memory_view(end - start, data_->prefix##var + start))                  \
+          .call<void>("set", value);                                                   \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                            \
+      int start = model_->jnt_dofadr[id_];                                             \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;   \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        val(typed_memory_view(end - start, data_->prefix##var + start))                \
+            .call<void>("set", value);                                                 \
+      } else {                                                                         \
+        val(typed_memory_view((end - start) * dim1,                                    \
+                                          data_->prefix##var + start * dim1))          \
+            .call<void>("set", value);                                                 \
+      }                                                                                \
+    } else if constexpr (std::string_view(#dim0) == "nsensordata") {                   \
+      int start = model_->sensor_adr[id_];                                             \
+      int count = model_->sensor_dim[id_];                                             \
+      val(typed_memory_view(count, data_->sensordata + start))                         \
+          .call<void>("set", value);                                                   \
+    } else {                                                                           \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        data_->prefix##var[id_] = value.as<type>();                                    \
+      } else {                                                                         \
+        val(typed_memory_view(dim1, data_->prefix##var + id_ * dim1))                  \
+            .call<void>("set", value);                                                 \
+      }                                                                                \
+    }                                                                                  \
+  }
+
+#define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                                                     \
+  struct MjData##Name##Accessor {                                                                          \
+    MjData##Name##Accessor(mjData* data, mjModel* model, int id) : data_(data), model_(model), id_(id) {}  \
+                                                                                                           \
+    int id() const { return id_; }                                                                         \
+    std::string name() const {                                                                             \
+      const char* name = mj_id2name(model_, OBJTYPE, id_);                                                 \
+      return name ? name : "";                                                                             \
+    }                                                                                                      \
+                                                                                                           \
+    MJDATA_##NAME                                                                                          \
+                                                                                                           \
+   private:                                                                                                \
+    mjData* data_;                                                                                         \
+    mjModel* model_;                                                                                       \
+    int id_;                                                                                               \
+  };
+MJDATA_ACCESSORS
 #undef X_ACCESSOR
 
 #undef X
@@ -2157,6 +2353,9 @@ struct MjsFlex {
   void set_radius(double value) {
     ptr_->radius = value;
   }
+  emscripten::val size() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->size));
+  }
   mjtByte internal() const {
     return ptr_->internal;
   }
@@ -3406,526 +3605,532 @@ struct MjModel {
   mjModel* get() const;
   void set(mjModel* ptr);
   int nq() const {
-    return ptr_->nq;
+    return static_cast<int>(ptr_->nq);
   }
   void set_nq(int value) {
-    ptr_->nq = value;
+    ptr_->nq = static_cast<mjtSize>(value);
   }
   int nv() const {
-    return ptr_->nv;
+    return static_cast<int>(ptr_->nv);
   }
   void set_nv(int value) {
-    ptr_->nv = value;
+    ptr_->nv = static_cast<mjtSize>(value);
   }
   int nu() const {
-    return ptr_->nu;
+    return static_cast<int>(ptr_->nu);
   }
   void set_nu(int value) {
-    ptr_->nu = value;
+    ptr_->nu = static_cast<mjtSize>(value);
   }
   int na() const {
-    return ptr_->na;
+    return static_cast<int>(ptr_->na);
   }
   void set_na(int value) {
-    ptr_->na = value;
+    ptr_->na = static_cast<mjtSize>(value);
   }
   int nbody() const {
-    return ptr_->nbody;
+    return static_cast<int>(ptr_->nbody);
   }
   void set_nbody(int value) {
-    ptr_->nbody = value;
+    ptr_->nbody = static_cast<mjtSize>(value);
   }
   int nbvh() const {
-    return ptr_->nbvh;
+    return static_cast<int>(ptr_->nbvh);
   }
   void set_nbvh(int value) {
-    ptr_->nbvh = value;
+    ptr_->nbvh = static_cast<mjtSize>(value);
   }
   int nbvhstatic() const {
-    return ptr_->nbvhstatic;
+    return static_cast<int>(ptr_->nbvhstatic);
   }
   void set_nbvhstatic(int value) {
-    ptr_->nbvhstatic = value;
+    ptr_->nbvhstatic = static_cast<mjtSize>(value);
   }
   int nbvhdynamic() const {
-    return ptr_->nbvhdynamic;
+    return static_cast<int>(ptr_->nbvhdynamic);
   }
   void set_nbvhdynamic(int value) {
-    ptr_->nbvhdynamic = value;
+    ptr_->nbvhdynamic = static_cast<mjtSize>(value);
   }
   int noct() const {
-    return ptr_->noct;
+    return static_cast<int>(ptr_->noct);
   }
   void set_noct(int value) {
-    ptr_->noct = value;
+    ptr_->noct = static_cast<mjtSize>(value);
   }
   int njnt() const {
-    return ptr_->njnt;
+    return static_cast<int>(ptr_->njnt);
   }
   void set_njnt(int value) {
-    ptr_->njnt = value;
+    ptr_->njnt = static_cast<mjtSize>(value);
   }
   int ntree() const {
-    return ptr_->ntree;
+    return static_cast<int>(ptr_->ntree);
   }
   void set_ntree(int value) {
-    ptr_->ntree = value;
+    ptr_->ntree = static_cast<mjtSize>(value);
   }
   int nM() const {
-    return ptr_->nM;
+    return static_cast<int>(ptr_->nM);
   }
   void set_nM(int value) {
-    ptr_->nM = value;
+    ptr_->nM = static_cast<mjtSize>(value);
   }
   int nB() const {
-    return ptr_->nB;
+    return static_cast<int>(ptr_->nB);
   }
   void set_nB(int value) {
-    ptr_->nB = value;
+    ptr_->nB = static_cast<mjtSize>(value);
   }
   int nC() const {
-    return ptr_->nC;
+    return static_cast<int>(ptr_->nC);
   }
   void set_nC(int value) {
-    ptr_->nC = value;
+    ptr_->nC = static_cast<mjtSize>(value);
   }
   int nD() const {
-    return ptr_->nD;
+    return static_cast<int>(ptr_->nD);
   }
   void set_nD(int value) {
-    ptr_->nD = value;
+    ptr_->nD = static_cast<mjtSize>(value);
   }
   int ngeom() const {
-    return ptr_->ngeom;
+    return static_cast<int>(ptr_->ngeom);
   }
   void set_ngeom(int value) {
-    ptr_->ngeom = value;
+    ptr_->ngeom = static_cast<mjtSize>(value);
   }
   int nsite() const {
-    return ptr_->nsite;
+    return static_cast<int>(ptr_->nsite);
   }
   void set_nsite(int value) {
-    ptr_->nsite = value;
+    ptr_->nsite = static_cast<mjtSize>(value);
   }
   int ncam() const {
-    return ptr_->ncam;
+    return static_cast<int>(ptr_->ncam);
   }
   void set_ncam(int value) {
-    ptr_->ncam = value;
+    ptr_->ncam = static_cast<mjtSize>(value);
   }
   int nlight() const {
-    return ptr_->nlight;
+    return static_cast<int>(ptr_->nlight);
   }
   void set_nlight(int value) {
-    ptr_->nlight = value;
+    ptr_->nlight = static_cast<mjtSize>(value);
   }
   int nflex() const {
-    return ptr_->nflex;
+    return static_cast<int>(ptr_->nflex);
   }
   void set_nflex(int value) {
-    ptr_->nflex = value;
+    ptr_->nflex = static_cast<mjtSize>(value);
   }
   int nflexnode() const {
-    return ptr_->nflexnode;
+    return static_cast<int>(ptr_->nflexnode);
   }
   void set_nflexnode(int value) {
-    ptr_->nflexnode = value;
+    ptr_->nflexnode = static_cast<mjtSize>(value);
   }
   int nflexvert() const {
-    return ptr_->nflexvert;
+    return static_cast<int>(ptr_->nflexvert);
   }
   void set_nflexvert(int value) {
-    ptr_->nflexvert = value;
+    ptr_->nflexvert = static_cast<mjtSize>(value);
   }
   int nflexedge() const {
-    return ptr_->nflexedge;
+    return static_cast<int>(ptr_->nflexedge);
   }
   void set_nflexedge(int value) {
-    ptr_->nflexedge = value;
+    ptr_->nflexedge = static_cast<mjtSize>(value);
   }
   int nflexelem() const {
-    return ptr_->nflexelem;
+    return static_cast<int>(ptr_->nflexelem);
   }
   void set_nflexelem(int value) {
-    ptr_->nflexelem = value;
+    ptr_->nflexelem = static_cast<mjtSize>(value);
   }
   int nflexelemdata() const {
-    return ptr_->nflexelemdata;
+    return static_cast<int>(ptr_->nflexelemdata);
   }
   void set_nflexelemdata(int value) {
-    ptr_->nflexelemdata = value;
+    ptr_->nflexelemdata = static_cast<mjtSize>(value);
   }
   int nflexelemedge() const {
-    return ptr_->nflexelemedge;
+    return static_cast<int>(ptr_->nflexelemedge);
   }
   void set_nflexelemedge(int value) {
-    ptr_->nflexelemedge = value;
+    ptr_->nflexelemedge = static_cast<mjtSize>(value);
   }
   int nflexshelldata() const {
-    return ptr_->nflexshelldata;
+    return static_cast<int>(ptr_->nflexshelldata);
   }
   void set_nflexshelldata(int value) {
-    ptr_->nflexshelldata = value;
+    ptr_->nflexshelldata = static_cast<mjtSize>(value);
   }
   int nflexevpair() const {
-    return ptr_->nflexevpair;
+    return static_cast<int>(ptr_->nflexevpair);
   }
   void set_nflexevpair(int value) {
-    ptr_->nflexevpair = value;
+    ptr_->nflexevpair = static_cast<mjtSize>(value);
   }
   int nflextexcoord() const {
-    return ptr_->nflextexcoord;
+    return static_cast<int>(ptr_->nflextexcoord);
   }
   void set_nflextexcoord(int value) {
-    ptr_->nflextexcoord = value;
+    ptr_->nflextexcoord = static_cast<mjtSize>(value);
   }
   int nJfe() const {
-    return ptr_->nJfe;
+    return static_cast<int>(ptr_->nJfe);
   }
   void set_nJfe(int value) {
-    ptr_->nJfe = value;
+    ptr_->nJfe = static_cast<mjtSize>(value);
+  }
+  int nJfv() const {
+    return static_cast<int>(ptr_->nJfv);
+  }
+  void set_nJfv(int value) {
+    ptr_->nJfv = static_cast<mjtSize>(value);
   }
   int nmesh() const {
-    return ptr_->nmesh;
+    return static_cast<int>(ptr_->nmesh);
   }
   void set_nmesh(int value) {
-    ptr_->nmesh = value;
+    ptr_->nmesh = static_cast<mjtSize>(value);
   }
   int nmeshvert() const {
-    return ptr_->nmeshvert;
+    return static_cast<int>(ptr_->nmeshvert);
   }
   void set_nmeshvert(int value) {
-    ptr_->nmeshvert = value;
+    ptr_->nmeshvert = static_cast<mjtSize>(value);
   }
   int nmeshnormal() const {
-    return ptr_->nmeshnormal;
+    return static_cast<int>(ptr_->nmeshnormal);
   }
   void set_nmeshnormal(int value) {
-    ptr_->nmeshnormal = value;
+    ptr_->nmeshnormal = static_cast<mjtSize>(value);
   }
   int nmeshtexcoord() const {
-    return ptr_->nmeshtexcoord;
+    return static_cast<int>(ptr_->nmeshtexcoord);
   }
   void set_nmeshtexcoord(int value) {
-    ptr_->nmeshtexcoord = value;
+    ptr_->nmeshtexcoord = static_cast<mjtSize>(value);
   }
   int nmeshface() const {
-    return ptr_->nmeshface;
+    return static_cast<int>(ptr_->nmeshface);
   }
   void set_nmeshface(int value) {
-    ptr_->nmeshface = value;
+    ptr_->nmeshface = static_cast<mjtSize>(value);
   }
   int nmeshgraph() const {
-    return ptr_->nmeshgraph;
+    return static_cast<int>(ptr_->nmeshgraph);
   }
   void set_nmeshgraph(int value) {
-    ptr_->nmeshgraph = value;
+    ptr_->nmeshgraph = static_cast<mjtSize>(value);
   }
   int nmeshpoly() const {
-    return ptr_->nmeshpoly;
+    return static_cast<int>(ptr_->nmeshpoly);
   }
   void set_nmeshpoly(int value) {
-    ptr_->nmeshpoly = value;
+    ptr_->nmeshpoly = static_cast<mjtSize>(value);
   }
   int nmeshpolyvert() const {
-    return ptr_->nmeshpolyvert;
+    return static_cast<int>(ptr_->nmeshpolyvert);
   }
   void set_nmeshpolyvert(int value) {
-    ptr_->nmeshpolyvert = value;
+    ptr_->nmeshpolyvert = static_cast<mjtSize>(value);
   }
   int nmeshpolymap() const {
-    return ptr_->nmeshpolymap;
+    return static_cast<int>(ptr_->nmeshpolymap);
   }
   void set_nmeshpolymap(int value) {
-    ptr_->nmeshpolymap = value;
+    ptr_->nmeshpolymap = static_cast<mjtSize>(value);
   }
   int nskin() const {
-    return ptr_->nskin;
+    return static_cast<int>(ptr_->nskin);
   }
   void set_nskin(int value) {
-    ptr_->nskin = value;
+    ptr_->nskin = static_cast<mjtSize>(value);
   }
   int nskinvert() const {
-    return ptr_->nskinvert;
+    return static_cast<int>(ptr_->nskinvert);
   }
   void set_nskinvert(int value) {
-    ptr_->nskinvert = value;
+    ptr_->nskinvert = static_cast<mjtSize>(value);
   }
   int nskintexvert() const {
-    return ptr_->nskintexvert;
+    return static_cast<int>(ptr_->nskintexvert);
   }
   void set_nskintexvert(int value) {
-    ptr_->nskintexvert = value;
+    ptr_->nskintexvert = static_cast<mjtSize>(value);
   }
   int nskinface() const {
-    return ptr_->nskinface;
+    return static_cast<int>(ptr_->nskinface);
   }
   void set_nskinface(int value) {
-    ptr_->nskinface = value;
+    ptr_->nskinface = static_cast<mjtSize>(value);
   }
   int nskinbone() const {
-    return ptr_->nskinbone;
+    return static_cast<int>(ptr_->nskinbone);
   }
   void set_nskinbone(int value) {
-    ptr_->nskinbone = value;
+    ptr_->nskinbone = static_cast<mjtSize>(value);
   }
   int nskinbonevert() const {
-    return ptr_->nskinbonevert;
+    return static_cast<int>(ptr_->nskinbonevert);
   }
   void set_nskinbonevert(int value) {
-    ptr_->nskinbonevert = value;
+    ptr_->nskinbonevert = static_cast<mjtSize>(value);
   }
   int nhfield() const {
-    return ptr_->nhfield;
+    return static_cast<int>(ptr_->nhfield);
   }
   void set_nhfield(int value) {
-    ptr_->nhfield = value;
+    ptr_->nhfield = static_cast<mjtSize>(value);
   }
   int nhfielddata() const {
-    return ptr_->nhfielddata;
+    return static_cast<int>(ptr_->nhfielddata);
   }
   void set_nhfielddata(int value) {
-    ptr_->nhfielddata = value;
+    ptr_->nhfielddata = static_cast<mjtSize>(value);
   }
   int ntex() const {
-    return ptr_->ntex;
+    return static_cast<int>(ptr_->ntex);
   }
   void set_ntex(int value) {
-    ptr_->ntex = value;
+    ptr_->ntex = static_cast<mjtSize>(value);
   }
   int ntexdata() const {
-    return ptr_->ntexdata;
+    return static_cast<int>(ptr_->ntexdata);
   }
   void set_ntexdata(int value) {
-    ptr_->ntexdata = value;
+    ptr_->ntexdata = static_cast<mjtSize>(value);
   }
   int nmat() const {
-    return ptr_->nmat;
+    return static_cast<int>(ptr_->nmat);
   }
   void set_nmat(int value) {
-    ptr_->nmat = value;
+    ptr_->nmat = static_cast<mjtSize>(value);
   }
   int npair() const {
-    return ptr_->npair;
+    return static_cast<int>(ptr_->npair);
   }
   void set_npair(int value) {
-    ptr_->npair = value;
+    ptr_->npair = static_cast<mjtSize>(value);
   }
   int nexclude() const {
-    return ptr_->nexclude;
+    return static_cast<int>(ptr_->nexclude);
   }
   void set_nexclude(int value) {
-    ptr_->nexclude = value;
+    ptr_->nexclude = static_cast<mjtSize>(value);
   }
   int neq() const {
-    return ptr_->neq;
+    return static_cast<int>(ptr_->neq);
   }
   void set_neq(int value) {
-    ptr_->neq = value;
+    ptr_->neq = static_cast<mjtSize>(value);
   }
   int ntendon() const {
-    return ptr_->ntendon;
+    return static_cast<int>(ptr_->ntendon);
   }
   void set_ntendon(int value) {
-    ptr_->ntendon = value;
+    ptr_->ntendon = static_cast<mjtSize>(value);
   }
   int nwrap() const {
-    return ptr_->nwrap;
+    return static_cast<int>(ptr_->nwrap);
   }
   void set_nwrap(int value) {
-    ptr_->nwrap = value;
+    ptr_->nwrap = static_cast<mjtSize>(value);
   }
   int nsensor() const {
-    return ptr_->nsensor;
+    return static_cast<int>(ptr_->nsensor);
   }
   void set_nsensor(int value) {
-    ptr_->nsensor = value;
+    ptr_->nsensor = static_cast<mjtSize>(value);
   }
   int nnumeric() const {
-    return ptr_->nnumeric;
+    return static_cast<int>(ptr_->nnumeric);
   }
   void set_nnumeric(int value) {
-    ptr_->nnumeric = value;
+    ptr_->nnumeric = static_cast<mjtSize>(value);
   }
   int nnumericdata() const {
-    return ptr_->nnumericdata;
+    return static_cast<int>(ptr_->nnumericdata);
   }
   void set_nnumericdata(int value) {
-    ptr_->nnumericdata = value;
+    ptr_->nnumericdata = static_cast<mjtSize>(value);
   }
   int ntext() const {
-    return ptr_->ntext;
+    return static_cast<int>(ptr_->ntext);
   }
   void set_ntext(int value) {
-    ptr_->ntext = value;
+    ptr_->ntext = static_cast<mjtSize>(value);
   }
   int ntextdata() const {
-    return ptr_->ntextdata;
+    return static_cast<int>(ptr_->ntextdata);
   }
   void set_ntextdata(int value) {
-    ptr_->ntextdata = value;
+    ptr_->ntextdata = static_cast<mjtSize>(value);
   }
   int ntuple() const {
-    return ptr_->ntuple;
+    return static_cast<int>(ptr_->ntuple);
   }
   void set_ntuple(int value) {
-    ptr_->ntuple = value;
+    ptr_->ntuple = static_cast<mjtSize>(value);
   }
   int ntupledata() const {
-    return ptr_->ntupledata;
+    return static_cast<int>(ptr_->ntupledata);
   }
   void set_ntupledata(int value) {
-    ptr_->ntupledata = value;
+    ptr_->ntupledata = static_cast<mjtSize>(value);
   }
   int nkey() const {
-    return ptr_->nkey;
+    return static_cast<int>(ptr_->nkey);
   }
   void set_nkey(int value) {
-    ptr_->nkey = value;
+    ptr_->nkey = static_cast<mjtSize>(value);
   }
   int nmocap() const {
-    return ptr_->nmocap;
+    return static_cast<int>(ptr_->nmocap);
   }
   void set_nmocap(int value) {
-    ptr_->nmocap = value;
+    ptr_->nmocap = static_cast<mjtSize>(value);
   }
   int nplugin() const {
-    return ptr_->nplugin;
+    return static_cast<int>(ptr_->nplugin);
   }
   void set_nplugin(int value) {
-    ptr_->nplugin = value;
+    ptr_->nplugin = static_cast<mjtSize>(value);
   }
   int npluginattr() const {
-    return ptr_->npluginattr;
+    return static_cast<int>(ptr_->npluginattr);
   }
   void set_npluginattr(int value) {
-    ptr_->npluginattr = value;
+    ptr_->npluginattr = static_cast<mjtSize>(value);
   }
   int nuser_body() const {
-    return ptr_->nuser_body;
+    return static_cast<int>(ptr_->nuser_body);
   }
   void set_nuser_body(int value) {
-    ptr_->nuser_body = value;
+    ptr_->nuser_body = static_cast<mjtSize>(value);
   }
   int nuser_jnt() const {
-    return ptr_->nuser_jnt;
+    return static_cast<int>(ptr_->nuser_jnt);
   }
   void set_nuser_jnt(int value) {
-    ptr_->nuser_jnt = value;
+    ptr_->nuser_jnt = static_cast<mjtSize>(value);
   }
   int nuser_geom() const {
-    return ptr_->nuser_geom;
+    return static_cast<int>(ptr_->nuser_geom);
   }
   void set_nuser_geom(int value) {
-    ptr_->nuser_geom = value;
+    ptr_->nuser_geom = static_cast<mjtSize>(value);
   }
   int nuser_site() const {
-    return ptr_->nuser_site;
+    return static_cast<int>(ptr_->nuser_site);
   }
   void set_nuser_site(int value) {
-    ptr_->nuser_site = value;
+    ptr_->nuser_site = static_cast<mjtSize>(value);
   }
   int nuser_cam() const {
-    return ptr_->nuser_cam;
+    return static_cast<int>(ptr_->nuser_cam);
   }
   void set_nuser_cam(int value) {
-    ptr_->nuser_cam = value;
+    ptr_->nuser_cam = static_cast<mjtSize>(value);
   }
   int nuser_tendon() const {
-    return ptr_->nuser_tendon;
+    return static_cast<int>(ptr_->nuser_tendon);
   }
   void set_nuser_tendon(int value) {
-    ptr_->nuser_tendon = value;
+    ptr_->nuser_tendon = static_cast<mjtSize>(value);
   }
   int nuser_actuator() const {
-    return ptr_->nuser_actuator;
+    return static_cast<int>(ptr_->nuser_actuator);
   }
   void set_nuser_actuator(int value) {
-    ptr_->nuser_actuator = value;
+    ptr_->nuser_actuator = static_cast<mjtSize>(value);
   }
   int nuser_sensor() const {
-    return ptr_->nuser_sensor;
+    return static_cast<int>(ptr_->nuser_sensor);
   }
   void set_nuser_sensor(int value) {
-    ptr_->nuser_sensor = value;
+    ptr_->nuser_sensor = static_cast<mjtSize>(value);
   }
   int nnames() const {
-    return ptr_->nnames;
+    return static_cast<int>(ptr_->nnames);
   }
   void set_nnames(int value) {
-    ptr_->nnames = value;
+    ptr_->nnames = static_cast<mjtSize>(value);
   }
   int npaths() const {
-    return ptr_->npaths;
+    return static_cast<int>(ptr_->npaths);
   }
   void set_npaths(int value) {
-    ptr_->npaths = value;
+    ptr_->npaths = static_cast<mjtSize>(value);
   }
   int nnames_map() const {
-    return ptr_->nnames_map;
+    return static_cast<int>(ptr_->nnames_map);
   }
   void set_nnames_map(int value) {
-    ptr_->nnames_map = value;
+    ptr_->nnames_map = static_cast<mjtSize>(value);
   }
   int nJmom() const {
-    return ptr_->nJmom;
+    return static_cast<int>(ptr_->nJmom);
   }
   void set_nJmom(int value) {
-    ptr_->nJmom = value;
+    ptr_->nJmom = static_cast<mjtSize>(value);
   }
   int ngravcomp() const {
-    return ptr_->ngravcomp;
+    return static_cast<int>(ptr_->ngravcomp);
   }
   void set_ngravcomp(int value) {
-    ptr_->ngravcomp = value;
+    ptr_->ngravcomp = static_cast<mjtSize>(value);
   }
   int nemax() const {
-    return ptr_->nemax;
+    return static_cast<int>(ptr_->nemax);
   }
   void set_nemax(int value) {
-    ptr_->nemax = value;
+    ptr_->nemax = static_cast<mjtSize>(value);
   }
   int njmax() const {
-    return ptr_->njmax;
+    return static_cast<int>(ptr_->njmax);
   }
   void set_njmax(int value) {
-    ptr_->njmax = value;
+    ptr_->njmax = static_cast<mjtSize>(value);
   }
   int nconmax() const {
-    return ptr_->nconmax;
+    return static_cast<int>(ptr_->nconmax);
   }
   void set_nconmax(int value) {
-    ptr_->nconmax = value;
+    ptr_->nconmax = static_cast<mjtSize>(value);
   }
   int nuserdata() const {
-    return ptr_->nuserdata;
+    return static_cast<int>(ptr_->nuserdata);
   }
   void set_nuserdata(int value) {
-    ptr_->nuserdata = value;
+    ptr_->nuserdata = static_cast<mjtSize>(value);
   }
   int nsensordata() const {
-    return ptr_->nsensordata;
+    return static_cast<int>(ptr_->nsensordata);
   }
   void set_nsensordata(int value) {
-    ptr_->nsensordata = value;
+    ptr_->nsensordata = static_cast<mjtSize>(value);
   }
   int npluginstate() const {
-    return ptr_->npluginstate;
+    return static_cast<int>(ptr_->npluginstate);
   }
   void set_npluginstate(int value) {
-    ptr_->npluginstate = value;
+    ptr_->npluginstate = static_cast<mjtSize>(value);
   }
-  mjtSize narena() const {
-    return ptr_->narena;
+  int narena() const {
+    return static_cast<int>(ptr_->narena);
   }
-  void set_narena(mjtSize value) {
-    ptr_->narena = value;
+  void set_narena(int value) {
+    ptr_->narena = static_cast<mjtSize>(value);
   }
-  mjtSize nbuffer() const {
-    return ptr_->nbuffer;
+  int nbuffer() const {
+    return static_cast<int>(ptr_->nbuffer);
   }
-  void set_nbuffer(mjtSize value) {
-    ptr_->nbuffer = value;
+  void set_nbuffer(int value) {
+    ptr_->nbuffer = static_cast<mjtSize>(value);
   }
   emscripten::val buffer() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nbuffer, static_cast<uint8_t*>(ptr_->buffer)));
@@ -4476,6 +4681,15 @@ struct MjModel {
   emscripten::val flex_vertbodyid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertbodyid));
   }
+  emscripten::val flex_vertedgeadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertedgeadr));
+  }
+  emscripten::val flex_vertedgenum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertedgenum));
+  }
+  emscripten::val flex_vertedge() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * 2, ptr_->flex_vertedge));
+  }
   emscripten::val flex_edge() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * 2, ptr_->flex_edge));
   }
@@ -4506,6 +4720,9 @@ struct MjModel {
   emscripten::val flex_vert0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 3, ptr_->flex_vert0));
   }
+  emscripten::val flex_vertmetric() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 4, ptr_->flex_vertmetric));
+  }
   emscripten::val flex_node() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexnode * 3, ptr_->flex_node));
   }
@@ -4520,6 +4737,9 @@ struct MjModel {
   }
   emscripten::val flex_radius() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_radius));
+  }
+  emscripten::val flex_size() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 3, ptr_->flex_size));
   }
   emscripten::val flex_stiffness() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexelem * 21, ptr_->flex_stiffness));
@@ -4565,6 +4785,15 @@ struct MjModel {
   }
   emscripten::val flexedge_J_colind() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nJfe, ptr_->flexedge_J_colind));
+  }
+  emscripten::val flexvert_J_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 2, ptr_->flexvert_J_rownnz));
+  }
+  emscripten::val flexvert_J_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 2, ptr_->flexvert_J_rowadr));
+  }
+  emscripten::val flexvert_J_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nJfv * 2, ptr_->flexvert_J_colind));
   }
   emscripten::val flex_rgba() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 4, ptr_->flex_rgba));
@@ -5265,13 +5494,13 @@ struct MjModel {
       if (val.isString()) {                                                    \
         int id = mj_name2id(ptr_, OBJTYPE, val.as<std::string>().c_str());     \
         if (id == -1) {                                                        \
-          mju_error("Invalid name, MjModel." #accessor_name " not found");     \
+          mju_error("%s", KeyErrorMessage(ptr_, OBJTYPE, ptr_->nfield, val.as<std::string>(), #accessor_name).c_str());  \
         }                                                                      \
         return MjModel##Name##Accessor(ptr_, id);                              \
       } else if (val.isNumber()) {                                             \
         int id = val.as<int>();                                                \
         if (id < 0 || id >= ptr_->nfield) {                                    \
-          mju_error_i("Invalid id %d for MjModel." #accessor_name, id);        \
+          mju_error("%s", IndexErrorMessage(id, ptr_->nfield, #accessor_name).c_str());  \
         }                                                                      \
         return MjModel##Name##Accessor(ptr_, id);                              \
       } else {                                                                 \
@@ -5315,11 +5544,11 @@ struct MjSpec {
   void set_strippath(mjtByte value) {
     ptr_->strippath = value;
   }
-  mjtSize memory() const {
-    return ptr_->memory;
+  int memory() const {
+    return static_cast<int>(ptr_->memory);
   }
-  void set_memory(mjtSize value) {
-    ptr_->memory = value;
+  void set_memory(int value) {
+    ptr_->memory = static_cast<mjtSize>(value);
   }
   int nemax() const {
     return ptr_->nemax;
@@ -5399,11 +5628,11 @@ struct MjSpec {
   void set_nconmax(int value) {
     ptr_->nconmax = value;
   }
-  mjtSize nstack() const {
-    return ptr_->nstack;
+  int nstack() const {
+    return static_cast<int>(ptr_->nstack);
   }
-  void set_nstack(mjtSize value) {
-    ptr_->nstack = value;
+  void set_nstack(int value) {
+    ptr_->nstack = static_cast<mjtSize>(value);
   }
   mjString comment() const {
     return (ptr_ && ptr_->comment) ? *(ptr_->comment) : "";
@@ -6021,17 +6250,17 @@ struct MjData {
   std::unique_ptr<MjData> copy();
   mjData* get() const;
   void set(mjData* ptr);
-  mjtSize narena() const {
-    return ptr_->narena;
+  int narena() const {
+    return static_cast<int>(ptr_->narena);
   }
-  void set_narena(mjtSize value) {
-    ptr_->narena = value;
+  void set_narena(int value) {
+    ptr_->narena = static_cast<mjtSize>(value);
   }
-  mjtSize nbuffer() const {
-    return ptr_->nbuffer;
+  int nbuffer() const {
+    return static_cast<int>(ptr_->nbuffer);
   }
-  void set_nbuffer(mjtSize value) {
-    ptr_->nbuffer = value;
+  void set_nbuffer(int value) {
+    ptr_->nbuffer = static_cast<mjtSize>(value);
   }
   int nplugin() const {
     return ptr_->nplugin;
@@ -6057,20 +6286,20 @@ struct MjData {
   void set_parena(size_t value) {
     ptr_->parena = value;
   }
-  mjtSize maxuse_stack() const {
-    return ptr_->maxuse_stack;
+  int maxuse_stack() const {
+    return static_cast<int>(ptr_->maxuse_stack);
   }
-  void set_maxuse_stack(mjtSize value) {
-    ptr_->maxuse_stack = value;
+  void set_maxuse_stack(int value) {
+    ptr_->maxuse_stack = static_cast<mjtSize>(value);
   }
   emscripten::val maxuse_threadstack() const {
     return emscripten::val(emscripten::typed_memory_view(128, ptr_->maxuse_threadstack));
   }
-  mjtSize maxuse_arena() const {
-    return ptr_->maxuse_arena;
+  int maxuse_arena() const {
+    return static_cast<int>(ptr_->maxuse_arena);
   }
-  void set_maxuse_arena(mjtSize value) {
-    ptr_->maxuse_arena = value;
+  void set_maxuse_arena(int value) {
+    ptr_->maxuse_arena = static_cast<mjtSize>(value);
   }
   int maxuse_con() const {
     return ptr_->maxuse_con;
@@ -6170,6 +6399,30 @@ struct MjData {
   }
   void set_nv_awake(int value) {
     ptr_->nv_awake = value;
+  }
+  mjtByte flg_energypos() const {
+    return ptr_->flg_energypos;
+  }
+  void set_flg_energypos(mjtByte value) {
+    ptr_->flg_energypos = value;
+  }
+  mjtByte flg_energyvel() const {
+    return ptr_->flg_energyvel;
+  }
+  void set_flg_energyvel(mjtByte value) {
+    ptr_->flg_energyvel = value;
+  }
+  mjtByte flg_subtreevel() const {
+    return ptr_->flg_subtreevel;
+  }
+  void set_flg_subtreevel(mjtByte value) {
+    ptr_->flg_subtreevel = value;
+  }
+  mjtByte flg_rnepost() const {
+    return ptr_->flg_rnepost;
+  }
+  void set_flg_rnepost(mjtByte value) {
+    ptr_->flg_rnepost = value;
   }
   mjtNum time() const {
     return ptr_->time;
@@ -6305,6 +6558,12 @@ struct MjData {
   }
   emscripten::val flexedge_length() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_length));
+  }
+  emscripten::val flexvert_J() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nJfv * 2, ptr_->flexvert_J));
+  }
+  emscripten::val flexvert_length() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflexvert * 2, ptr_->flexvert_length));
   }
   emscripten::val bvh_aabb_dyn() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbvhdynamic * 6, ptr_->bvh_aabb_dyn));
@@ -6667,6 +6926,28 @@ struct MjData {
   void set_signature(uint64_t value) {
     ptr_->signature = value;
   }
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)              \
+    MjData##Name##Accessor accessor_name(const NumberOrString& val) const {   \
+      if (val.isString()) {                                                   \
+        int id = mj_name2id(model, OBJTYPE, val.as<std::string>().c_str());   \
+        if (id == -1) {                                                       \
+          mju_error("%s", KeyErrorMessage(model, OBJTYPE, model->nfield, val.as<std::string>(), #accessor_name).c_str());  \
+        }                                                                     \
+        return MjData##Name##Accessor(ptr_, model, id);                       \
+      } else if (val.isNumber()) {                                            \
+        int id = val.as<int>();                                               \
+        if (id < 0 || id >= model->nfield) {                                  \
+          mju_error("%s", IndexErrorMessage(id, model->nfield, #accessor_name).c_str());  \
+        }                                                                     \
+        return MjData##Name##Accessor(ptr_, model, id);                       \
+      } else {                                                                \
+        mju_error(#accessor_name "() argument must be a string or number");   \
+        return MjData##Name##Accessor(nullptr, nullptr, 0);                   \
+      }                                                                       \
+    }
+    MJDATA_ACCESSORS
+  #undef X_ACCESSOR
 
  private:
   mjData* ptr_;
@@ -7977,8 +8258,21 @@ std::unique_ptr<MjModel> mj_loadXML_wrapper(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
   if (!model) {
-    printf("Loading error: %s\n", error);
-    return nullptr;
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+void mj_saveModel_wrapper(const MjModel& m, const StringOrNull& filename, const val& buffer) {
+  UNPACK_NULLABLE_STRING(filename);
+  UNPACK_NULLABLE_VALUE(uint8_t, buffer);
+  mj_saveModel(m.get(), filename_.data(), buffer_.data(), static_cast<int>(buffer_.size()));
+}
+
+std::unique_ptr<MjModel> mj_loadModel_wrapper(std::string filename, const MjVFS& vfs) {
+  mjModel *model = mj_loadModel(filename.c_str(), vfs.get());
+  if (!model) {
+    mju_error("Failed to load from mjb");
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -7987,8 +8281,7 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   char error[1000];
   mjSpec *ptr = mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error));
   if (!ptr) {
-    printf("Could not create Spec from XML string: %s\n", error);
-    return nullptr;
+    mju_error("Could not create Spec from XML string: %s\n", error);
   }
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
 }
@@ -10474,6 +10767,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjEQ_JOINT", mjEQ_JOINT)
     .value("mjEQ_TENDON", mjEQ_TENDON)
     .value("mjEQ_FLEX", mjEQ_FLEX)
+    .value("mjEQ_FLEXVERT", mjEQ_FLEXVERT)
     .value("mjEQ_DISTANCE", mjEQ_DISTANCE);
   enum_<mjtEvent>("mjtEvent")
     .value("mjEVENT_NONE", mjEVENT_NONE)
@@ -10924,16 +11218,30 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjWRAP_CYLINDER", mjWRAP_CYLINDER);
 
   // Bindings for the MjModel accessor classes.
-  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::var)
-  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                     \
-    {                                                                        \
-      using Accessor = MjModel##Name##Accessor;                              \
-      emscripten::class_<Accessor>("MjModel" #Name "Accessor")               \
-          .property("id", &Accessor::id)                                     \
-          .property("name", &Accessor::name)                                 \
-          MJMODEL_##NAME;                                                    \
+  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::get_##var, &Accessor::set_##var)
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)        \
+    {                                                           \
+      using Accessor = MjModel##Name##Accessor;                 \
+      emscripten::class_<Accessor>("MjModel" #Name "Accessor")  \
+          .property("id", &Accessor::id)                        \
+          .property("name", &Accessor::name)                    \
+          MJMODEL_##NAME;                                       \
     }
     MJMODEL_ACCESSORS
+  #undef X
+  #undef X_ACCESSOR
+
+  // Bindings for the MjData accessor classes.
+  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::get_##var, &Accessor::set_##var)
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)       \
+    {                                                          \
+      using Accessor = MjData##Name##Accessor;                 \
+      emscripten::class_<Accessor>("MjData" #Name "Accessor")  \
+          .property("id", &Accessor::id)                       \
+          .property("name", &Accessor::name)                   \
+          MJDATA_##NAME;                                       \
+    }
+    MJDATA_ACCESSORS
   #undef X
   #undef X_ACCESSOR
 
@@ -10962,6 +11270,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjData>("MjData")
     .constructor<MjModel *>()
     .constructor<const MjModel &, const MjData &>()
+    // Binds the functions on MjData that return accessors.
+      #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \
+        .function(#field_name, &MjData::field_name)
+        MJDATA_ACCESSORS
+      #undef X_ACCESSOR
     .property("M", &MjData::M)
     .property("act", &MjData::act)
     .property("act_dot", &MjData::act_dot)
@@ -11019,7 +11332,13 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flexedge_length", &MjData::flexedge_length)
     .property("flexedge_velocity", &MjData::flexedge_velocity)
     .property("flexelem_aabb", &MjData::flexelem_aabb)
+    .property("flexvert_J", &MjData::flexvert_J)
+    .property("flexvert_length", &MjData::flexvert_length)
     .property("flexvert_xpos", &MjData::flexvert_xpos)
+    .property("flg_energypos", &MjData::flg_energypos, &MjData::set_flg_energypos, reference())
+    .property("flg_energyvel", &MjData::flg_energyvel, &MjData::set_flg_energyvel, reference())
+    .property("flg_rnepost", &MjData::flg_rnepost, &MjData::set_flg_rnepost, reference())
+    .property("flg_subtreevel", &MjData::flg_subtreevel, &MjData::set_flg_subtreevel, reference())
     .property("geom_xmat", &MjData::geom_xmat)
     .property("geom_xpos", &MjData::geom_xpos)
     .property("iLD", &MjData::iLD)
@@ -11170,6 +11489,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("uselimit", &MjLROpt::uselimit, &MjLROpt::set_uselimit, reference());
   emscripten::class_<MjModel>("MjModel")
     .class_function("mj_loadXML", &mj_loadXML_wrapper, take_ownership())
+    .class_function("mj_loadBinary", &mj_loadModel_wrapper, take_ownership())
     .constructor<const MjModel &>()
     // Binds the functions on MjModel that return accessors.
     #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \
@@ -11334,6 +11654,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_shell", &MjModel::flex_shell)
     .property("flex_shelldataadr", &MjModel::flex_shelldataadr)
     .property("flex_shellnum", &MjModel::flex_shellnum)
+    .property("flex_size", &MjModel::flex_size)
     .property("flex_solimp", &MjModel::flex_solimp)
     .property("flex_solmix", &MjModel::flex_solmix)
     .property("flex_solref", &MjModel::flex_solref)
@@ -11344,6 +11665,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_vert0", &MjModel::flex_vert0)
     .property("flex_vertadr", &MjModel::flex_vertadr)
     .property("flex_vertbodyid", &MjModel::flex_vertbodyid)
+    .property("flex_vertedge", &MjModel::flex_vertedge)
+    .property("flex_vertedgeadr", &MjModel::flex_vertedgeadr)
+    .property("flex_vertedgenum", &MjModel::flex_vertedgenum)
+    .property("flex_vertmetric", &MjModel::flex_vertmetric)
     .property("flex_vertnum", &MjModel::flex_vertnum)
     .property("flexedge_J_colind", &MjModel::flexedge_J_colind)
     .property("flexedge_J_rowadr", &MjModel::flexedge_J_rowadr)
@@ -11351,6 +11676,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flexedge_invweight0", &MjModel::flexedge_invweight0)
     .property("flexedge_length0", &MjModel::flexedge_length0)
     .property("flexedge_rigid", &MjModel::flexedge_rigid)
+    .property("flexvert_J_colind", &MjModel::flexvert_J_colind)
+    .property("flexvert_J_rowadr", &MjModel::flexvert_J_rowadr)
+    .property("flexvert_J_rownnz", &MjModel::flexvert_J_rownnz)
     .property("geom_aabb", &MjModel::geom_aabb)
     .property("geom_bodyid", &MjModel::geom_bodyid)
     .property("geom_conaffinity", &MjModel::geom_conaffinity)
@@ -11477,6 +11805,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("nC", &MjModel::nC, &MjModel::set_nC, reference())
     .property("nD", &MjModel::nD, &MjModel::set_nD, reference())
     .property("nJfe", &MjModel::nJfe, &MjModel::set_nJfe, reference())
+    .property("nJfv", &MjModel::nJfv, &MjModel::set_nJfv, reference())
     .property("nJmom", &MjModel::nJmom, &MjModel::set_nJmom, reference())
     .property("nM", &MjModel::nM, &MjModel::set_nM, reference())
     .property("na", &MjModel::na, &MjModel::set_na, reference())
@@ -12048,6 +12377,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("radius", &MjsFlex::radius, &MjsFlex::set_radius, reference())
     .property("rgba", &MjsFlex::rgba)
     .property("selfcollide", &MjsFlex::selfcollide, &MjsFlex::set_selfcollide, reference())
+    .property("size", &MjsFlex::size)
     .property("solimp", &MjsFlex::solimp)
     .property("solmix", &MjsFlex::solmix, &MjsFlex::set_solmix, reference())
     .property("solref", &MjsFlex::solref)
@@ -12910,6 +13240,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjv_updateSkin", &mjv_updateSkin_wrapper);
   function("parseXMLString", &parseXMLString_wrapper, take_ownership());
   function("error", &error_wrapper);
+  function("mj_saveModel", &mj_saveModel_wrapper);
   function("mj_saveLastXML", &mj_saveLastXML_wrapper);
   function("mj_setLengthRange", &mj_setLengthRange_wrapper);
   // mj_compile is bound using two overloads to handle the optional MjVFS argument,
@@ -12938,6 +13269,13 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
       .function("GetElementCount", &WasmBuffer<int>::GetElementCount)
       .function("GetView", &WasmBuffer<int>::GetView);
 
+  emscripten::class_<WasmBuffer<uint8_t>>("Uint8Buffer")
+      .constructor<int>()
+      .class_function("FromArray", &WasmBuffer<uint8_t>::FromArray)
+      .function("GetPointer", &WasmBuffer<uint8_t>::GetPointer)
+      .function("GetElementCount", &WasmBuffer<uint8_t>::GetElementCount)
+      .function("GetView", &WasmBuffer<uint8_t>::GetView);
+
   emscripten::register_vector<std::string>("mjStringVec");
   emscripten::register_vector<int>("mjIntVec");
   emscripten::register_vector<mjIntVec>("mjIntVecVec");
@@ -12959,6 +13297,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::register_type<NumberOrString>("number|string");
   emscripten::register_type<NumberArray>("number[]");
   emscripten::register_type<String>("string");
+  emscripten::register_type<StringOrNull>("string|null");
 
   emscripten::constant("mjMAXCONPAIR", mjMAXCONPAIR);
   emscripten::constant("mjMAXIMP", mjMAXIMP);

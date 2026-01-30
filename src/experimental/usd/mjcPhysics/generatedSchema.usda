@@ -578,6 +578,29 @@ class "MjcEqualityWeldAPI" (
     )
 }
 
+class "MjcEqualityJointAPI" (
+    apiSchemas = ["MjcEqualityAPI"]
+    doc = """API providing extension attributes to represent equality/joint constraints.
+    This API is applied to a joint prim which acts as the constrained joint (joint1 in
+    MuJoCo terminology). The target relationship points to another joint prim which is
+    the reference joint (joint2 in MuJoCo terminology). The constrained joint's position
+    or angle is constrained to be a quartic polynomial of the reference joint's position
+    or angle. Only scalar joint types (slide and hinge) can be used."""
+)
+{
+    uniform double[] mjc:polycoef = [0, 1, 0, 0, 0] (
+        displayName = "Polynomial Coefficients"
+        doc = """Coefficients a0 through a4 of the quartic polynomial. If the joint values
+        of the constrained joint and reference joint are respectively y and x, and their
+        reference positions (corresponding to the joint values in the initial model
+        configuration) are y0 and x0, the constraint is:
+        y = y0 + a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4.
+        Omitting the target joint (joint2) is equivalent to setting x = x0, in which case
+        the constraint is y = y0 + a0. The default [0, 1, 0, 0, 0] creates a simple 1:1
+        mimic constraint where y tracks x with the same offset from their references."""
+    )
+}
+
 class MjcTendon "MjcTendon" (
     doc = "Type describing fixed and spatial tendons."
 )

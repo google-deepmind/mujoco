@@ -152,6 +152,9 @@ void mj_fwdKinematics(const mjModel* m, mjData* d) {
 void mj_fwdPosition(const mjModel* m, mjData* d) {
   TM_START1;
 
+  // clear position-dependent flags for lazy evaluation
+  d->flg_energypos = 0;
+
   TM_START;
   mj_fwdKinematics(m, d);
 
@@ -217,6 +220,10 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 // velocity-dependent computations
 void mj_fwdVelocity(const mjModel* m, mjData* d) {
   TM_START;
+
+  // clear velocity-dependent flags for lazy evaluation
+  d->flg_subtreevel = 0;
+  d->flg_energyvel = 0;
 
   // flexedge velocity: always sparse
   mju_mulMatVecSparse(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge,
@@ -1173,36 +1180,6 @@ void mj_implicit(const mjModel* m, mjData* d) {
 }
 
 
-// return 1 if potential energy was computed by sensor, 0 otherwise
-static int energyPosSensor(const mjModel* m) {
-  if (mjDISABLED(mjDSBL_SENSOR)) {
-    return 0;
-  }
-
-  for (int i=0; i < m->nsensor; i++) {
-    if (m->sensor_type[i] == mjSENS_E_POTENTIAL) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-
-// return 1 if kinetic energy was computed by sensor, 0 otherwise
-static int energyVelSensor(const mjModel* m) {
-  if (mjDISABLED(mjDSBL_SENSOR)) {
-    return 0;
-  }
-
-  for (int i=0; i < m->nsensor; i++) {
-    if (m->sensor_type[i] == mjSENS_E_KINETIC) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-
 //-------------------------- top-level API ---------------------------------------------------------
 
 // forward dynamics with skip; skipstage is mjtStage
@@ -1213,13 +1190,11 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   if (skipstage < mjSTAGE_POS) {
     mj_fwdPosition(m, d);
 
-    int energyPos = 0;
     if (!skipsensor) {
       mj_sensorPos(m, d);
-      energyPos = energyPosSensor(m);
     }
 
-    if (!energyPos) {
+    if (!d->flg_energypos) {
       if (mjENABLED(mjENBL_ENERGY)) {
         mj_energyPos(m, d);
       } else {
@@ -1232,13 +1207,11 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   if (skipstage < mjSTAGE_VEL) {
     mj_fwdVelocity(m, d);
 
-    int energyVel = 0;
     if (!skipsensor) {
       mj_sensorVel(m, d);
-      energyVel = energyVelSensor(m);
     }
 
-    if (mjENABLED(mjENBL_ENERGY) && !energyVel) {
+    if (mjENABLED(mjENBL_ENERGY) && !d->flg_energyvel) {
       mj_energyVel(m, d);
     }
   }
@@ -1252,6 +1225,7 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   mj_fwdAcceleration(m, d);
   mj_fwdConstraint(m, d);
   if (!skipsensor) {
+    d->flg_rnepost = 0;  // clear flag for lazy evaluation
     mj_sensorAcc(m, d);
   }
 
@@ -1310,18 +1284,21 @@ void mj_step1(const mjModel* m, mjData* d) {
   mj_checkVel(m, d);
   mj_fwdPosition(m, d);
   mj_sensorPos(m, d);
-  if (!energyPosSensor(m)) {
+
+  if (!d->flg_energypos) {
     if (mjENABLED(mjENBL_ENERGY)) {
       mj_energyPos(m, d);
     } else {
       d->energy[0] = d->energy[1] = 0;
     }
   }
+
   mj_fwdVelocity(m, d);
   mj_sensorVel(m, d);
-  if (mjENABLED(mjENBL_ENERGY) && !energyVelSensor(m)) {
+  if (mjENABLED(mjENBL_ENERGY) && !d->flg_energyvel) {
     mj_energyVel(m, d);
   }
+
   if (mjcb_control) {
     mjcb_control(m, d);
   }

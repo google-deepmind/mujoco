@@ -78,6 +78,13 @@ MJAPI extern const char* mjRNDSTRING[mjNRNDFLAG][3];
 // Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.
 MJAPI void mj_defaultVFS(mjVFS* vfs);
 
+// Mount a ResourceProvider to handle file operations under the given path; return 0: success,
+// 2: repeated name, -1: invalid resource provider.
+MJAPI int mj_mountVFS(mjVFS* vfs, const char* filepath, const mjpResourceProvider* provider);
+
+// Unmount a previously mounted ResourceProvider; return 0: success, -1: not found in VFS.
+MJAPI int mj_unmountVFS(mjVFS* vfs, const char* filename);
+
 // Add file to VFS; return 0: success, 2: repeated name, -1: failed to load.
 MJAPI int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 
