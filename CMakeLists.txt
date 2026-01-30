@@ -52,6 +52,8 @@ endif()
 
 if(EMSCRIPTEN)
   option(MUJOCO_BUILD_TESTS_WASM "Build tests for WASM bindings" ON)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -O3 -pthread -fexceptions")
 endif()
 
 if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
