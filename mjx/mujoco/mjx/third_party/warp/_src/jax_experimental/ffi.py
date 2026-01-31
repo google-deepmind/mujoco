@@ -681,11 +681,13 @@ class FfiCallable:
 
                 cuda_stream = get_stream_from_callframe(call_frame.contents)
 
+                device_ordinal = get_device_ordinal_from_callframe(call_frame.contents)
+
                 if self.graph_mode == GraphMode.WARP:
                     # check if we already captured an identical call
                     ip = [inputs[i].contents.data for i in self.array_input_indices]
                     op = [outputs[i].contents.data for i in self.array_output_indices]
-                    capture_key = hash((call_id, *ip, *op))
+                    capture_key = hash((device_ordinal, call_id, *ip, *op))
                     capture = self.captures.get(capture_key)
 
                     # launch existing graph
