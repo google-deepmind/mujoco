@@ -18,6 +18,7 @@
 #include <chrono>
 #include <cstddef>
 #include <ratio>
+#include <span>
 
 #include <mujoco/mujoco.h>
 
@@ -41,11 +42,11 @@ class Renderer {
   // Initializes the renderer with the given mjModel.
   void Init(const mjModel* model);
 
-  // Renders the simulation state into the active window. Also renders the imgui
-  // state, but that is obtained directly from the ImGui library.
+  // Renders the simulation and ux state. Renders into `pixels` if provided,
+  // otherwise renders to the `native_window` provided at construction.
   void Render(const mjModel* model, mjData* data, const mjvPerturb* perturb,
               mjvCamera* camera, const mjvOption* vis_option, int width,
-              int height);
+              int height, std::span<std::byte> pixels = {});
 
   // Populates the given output buffer with RGB888 pixel data. The size of the
   // output buffer must be at least width * height * 3.
@@ -68,6 +69,8 @@ class Renderer {
  private:
   // Resets the renderer; no rendering will occur until Init() is called again.
   void Deinit();
+
+  void UpdateFps();
 
   void* native_window_ = nullptr;
   mjrContext render_context_;

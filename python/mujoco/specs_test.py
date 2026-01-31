@@ -452,6 +452,42 @@ class SpecsTest(absltest.TestCase):
         'Only one of: iaxisangle, ixyaxes, izaxis, or ieuler can be set.',
     )
 
+  def test_size_kwarg_variable_length(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+
+    geom_size1 = body.add_geom(size=[0.5])
+    np.testing.assert_array_equal(geom_size1.size, [0.5, 0, 0])
+
+    geom_size2 = body.add_geom(size=[0.5, 0.3])
+    np.testing.assert_array_equal(geom_size2.size, [0.5, 0.3, 0])
+
+    geom_size3 = body.add_geom(size=[0.5, 0.3, 0.1])
+    np.testing.assert_array_equal(geom_size3.size, [0.5, 0.3, 0.1])
+
+    site_size1 = body.add_site(size=[0.2])
+    np.testing.assert_array_equal(site_size1.size, [0.2, 0, 0])
+
+    site_size2 = body.add_site(size=[0.2, 0.1])
+    np.testing.assert_array_equal(site_size2.size, [0.2, 0.1, 0])
+
+    site_size3 = body.add_site(size=[0.2, 0.1, 0.05])
+    np.testing.assert_array_equal(site_size3.size, [0.2, 0.1, 0.05])
+
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(size=[])
+    self.assertEqual(
+        str(cm.exception),
+        'size should be a list/array of size 1, 2, or 3.',
+    )
+
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(size=[1, 2, 3, 4])
+    self.assertEqual(
+        str(cm.exception),
+        'size should be a list/array of size 1, 2, or 3.',
+    )
+
   def test_load_xml(self):
     file_path = epath.resource_path("mujoco") / "testdata" / "model.xml"
     filename = file_path.as_posix()
@@ -960,6 +996,23 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNotNone(model)
     self.assertEqual(model.nplugin, 0)
 
+  def testPluginAssignment(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    body.name = 'test_body'
+
+    plugin = spec.add_plugin(
+        name='test_instance', plugin_name='mujoco.elasticity.cable', active=True
+    )
+    plugin.config = {'twist': '1e2', 'bend': '4e1'}
+
+    # Assignment should copy active flag and names
+    body.plugin = plugin
+
+    self.assertTrue(body.plugin.active)
+    self.assertEqual(body.plugin.name, 'test_instance')
+    self.assertEqual(body.plugin.plugin_name, 'mujoco.elasticity.cable')
+
   def test_access_option_stat_visual(self):
     spec = mujoco.MjSpec.from_string("""
       <mujoco model="MuJoCo Model">
@@ -1083,6 +1136,27 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.mesh('mesh'), mesh_name)
     self.assertIsNone(spec.texture('none'))
     self.assertIsNone(spec.mesh('none'))
+
+  def test_texture_gridlayout(self):
+    spec = mujoco.MjSpec()
+
+    texture = spec.add_texture(name='test', gridlayout='.U..LFRB.D..')
+    self.assertEqual(list(texture.gridlayout), list('.U..LFRB.D..'))
+
+    texture2 = spec.add_texture(name='test2', gridlayout=list('.U..LFRB.D..'))
+    self.assertEqual(list(texture2.gridlayout), list('.U..LFRB.D..'))
+
+    with self.assertRaises(ValueError) as cm:
+      spec.add_texture(name='test3', gridlayout='.U..')
+    self.assertIn('should have length 12', str(cm.exception))
+
+    with self.assertRaises(ValueError) as cm:
+      spec.add_texture(name='test4', gridlayout=['.', 'U', '.', '.'])
+    self.assertIn('should have length 12', str(cm.exception))
+
+    with self.assertRaises(ValueError) as cm:
+      spec.add_texture(name='test5', gridlayout=['..', 'U'] + ['.'] * 10)
+    self.assertIn('list elements must be single characters', str(cm.exception))
 
   def test_attach_units(self):
     child = mujoco.MjSpec()

@@ -74,6 +74,7 @@ _SKIPPED_CLASS_METHODS: tuple[str, ...] = (
     "mj_deleteModel",
     "mj_deleteSpec",
     "mj_deleteVFS",
+    "mj_loadModel",
     "mj_loadXML",
     "mj_makeData",
     "mj_makeSpec",
@@ -139,10 +140,8 @@ _SKIPPED_MEMORY_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_freeLastXML",
     "mj_freeStack",
-    "mj_loadModel",
     "mj_loadModelBuffer",
     "mj_markStack",
-    "mj_saveModel",
     "mj_stackAllocByte",
     "mj_stackAllocInt",
     "mj_stackAllocNum",
@@ -229,6 +228,7 @@ MANUAL_WRAPPER_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_compile",
     "mj_saveLastXML",
+    "mj_saveModel",
     "mj_setLengthRange",
     "mju_error",
     # go/keep-sorted end

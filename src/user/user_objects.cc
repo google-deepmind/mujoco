@@ -4825,7 +4825,7 @@ void mjCTexture::BuiltinCube(void) {
   if (w > std::numeric_limits<int>::max() / w) {
     throw mjCError(this, "Cube texture width is too large.");
   }
-  int ww = width*width;
+  mjtSize ww = width*width;
 
   // convert fixed colors
   for (int j = 0; j < 3; j++) {
@@ -4838,7 +4838,7 @@ void mjCTexture::BuiltinCube(void) {
 
   // gradient
   if (builtin == mjBUILTIN_GRADIENT) {
-    if (ww > std::numeric_limits<int>::max() / 18) {
+    if (ww > std::numeric_limits<std::int64_t>::max() / 18) {
       throw mjCError(this, "Gradient texture width is too large.");
     }
     for (int r = 0; r < w; r++) {
@@ -5176,7 +5176,7 @@ void mjCTexture::LoadCubeSingle(std::string filename, const mjVFS* vfs) {
 
   // allocate data
   std::int64_t size = static_cast<std::int64_t>(width)*height;
-  if (size >= std::numeric_limits<int>::max() / 3 || size <= 0) {
+  if (size >= std::numeric_limits<std::int64_t>::max() / 3 || size <= 0) {
     throw mjCError(this, "Cube texture too large");
   }
   try {
@@ -5293,7 +5293,7 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
         }
         height = 6*width;
         std::int64_t size = static_cast<std::int64_t>(width)*height;
-        if (size >= std::numeric_limits<int>::max() / 3 || size <= 0) {
+        if (size >= std::numeric_limits<mjtSize>::max() / 3 || size <= 0) {
           throw mjCError(this, "PNG texture too large");
         }
         try {
@@ -5378,7 +5378,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     }
 
     std::int64_t size = static_cast<std::int64_t>(width)*height;
-    if (size >= std::numeric_limits<int>::max() / nchannel || size <= 0) {
+    if (size >= std::numeric_limits<int64_t>::max() / nchannel || size <= 0) {
       throw mjCError(this, "Builtin texture too large");
     }
     // allocate data
@@ -5995,7 +5995,7 @@ void mjCEquality::ResolveReferences(const mjCModel* m) {
     object_type = mjOBJ_JOINT;
   } else if (type == mjEQ_TENDON) {
     object_type = mjOBJ_TENDON;
-  } else if (type == mjEQ_FLEX) {
+  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT) {
     object_type = mjOBJ_FLEX;
   } else {
     throw mjCError(this, "invalid type in equality constraint");
@@ -6052,7 +6052,7 @@ void mjCEquality::Compile(void) {
   ResolveReferences(model);
 
   // make sure flex is not rigid
-  if (type == mjEQ_FLEX && model->Flexes()[obj1id]->rigid) {
+  if ((type == mjEQ_FLEX || type == mjEQ_FLEXVERT) && model->Flexes()[obj1id]->rigid) {
     throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
   }
 }

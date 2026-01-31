@@ -30,12 +30,6 @@
 
 namespace mujoco::platform {
 
-static constexpr int kToolsBarHeight = 48;
-static constexpr int kStatusBarHeight = 32;
-static constexpr float kOptionsRelWidth = 0.22f;
-static constexpr float kInspectorRelWidth = 0.22f;
-static constexpr float kStatsRelHeight = 0.3f;
-
 static ImVec2 GetFlexElementSize(int num_cols) {
   const float width = (ImGui::GetContentRegionAvail().x / num_cols) -
                       ImGui::GetStyle().FramePadding.x * 2;
@@ -205,6 +199,13 @@ void SetupTheme(GuiTheme theme) {
 
 ImVec4 ConfigureDockingLayout() {
   ImGuiViewport* viewport = ImGui::GetMainViewport();
+  const float scale = ImGui::GetWindowDpiScale();
+
+  const float kOptionsRelWidth = 0.22f;
+  const float kInspectorRelWidth = 0.22f;
+  const float kStatsRelHeight = 0.3f;
+  const float kToolsBarHeight = 48.f * scale;
+  const float kStatusBarHeight = 32.f * scale;
 
   const ImVec2 dockspace_pos{
       viewport->WorkPos.x,

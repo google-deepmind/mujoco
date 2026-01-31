@@ -150,7 +150,7 @@ def _format_arg(arg: Any, name: str, annotation: Any, verbose: bool):
         for i in range(len(arg))
     )
 
-  if not isinstance(annotation, wp.types.array):
+  if not isinstance(annotation, wp.array):
     if verbose:
       print(f'Skipping {name}: {arg}')
     return arg

@@ -18,6 +18,7 @@ build:
       - asdf global uv latest
       - uv venv $READTHEDOCS_VIRTUALENV_PATH
       - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install -r doc/requirements.txt
+      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install mujoco mujoco-mjx
       # replace mujoco.mjx.third_party.mujoco_warp import paths with mujoco_warp
       - |
         find mjx/mujoco/mjx/third_party/mujoco_warp -type f -exec sed -i 's/mujoco\.mjx\.third_party\.mujoco_warp/mujoco_warp/g' {} \;

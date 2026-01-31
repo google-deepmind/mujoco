@@ -251,8 +251,8 @@ def ray(
     bodyexclude: ignore geoms on specified body id or sequence of body ids
 
   Returns:
-    dist: distance from ray origin to geom surface (or -1.0 for no intersection)
-    id: id of intersected geom (or -1 for no intersection)
+    Distance from ray origin to geom surface (or -1.0 for no intersection) and
+    id of intersected geom (or -1 for no intersection)
   """
 
   dists, ids = [], []

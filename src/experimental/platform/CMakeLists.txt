@@ -37,6 +37,8 @@ target_compile_definitions(${MUJOCO_PLATFORM_TARGET_NAME}
 
 target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
+        file_dialog.cc
+        file_dialog.h
         gui.cc
         gui.h
         helpers.cc
@@ -47,6 +49,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         interaction.h
         picture_gui.h
         picture_gui.cc
+        plugin.cc
+        plugin.h
         renderer.cc
         renderer.h
         sim_history.cc

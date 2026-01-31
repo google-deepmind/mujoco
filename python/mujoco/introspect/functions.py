@@ -40,6 +40,52 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.',  # pylint: disable=line-too-long
      )),
+    ('mj_mountVFS',
+     FunctionDecl(
+         name='mj_mountVFS',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='filepath',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='provider',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpResourceProvider', is_const=True),  # pylint: disable=line-too-long
+                 ),
+             ),
+         ),
+         doc='Mount a ResourceProvider to handle file operations under the given path; return 0: success, 2: repeated name, -1: invalid resource provider.',  # pylint: disable=line-too-long
+     )),
+    ('mj_unmountVFS',
+     FunctionDecl(
+         name='mj_unmountVFS',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Unmount a previously mounted ResourceProvider; return 0: success, -1: not found in VFS.',  # pylint: disable=line-too-long
+     )),
     ('mj_addFileVFS',
      FunctionDecl(
          name='mj_addFileVFS',

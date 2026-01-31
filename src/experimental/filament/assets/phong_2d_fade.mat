@@ -24,6 +24,7 @@ material {
         { type : float, name : GlossinessFactor },
         { type : float, name : EmissiveFactor },
         { type : float3, name : UvScale },
+        { type : float3, name : UvOffset },
         { type : sampler2d, name : BaseColor }
     ],
     variables : [
@@ -39,7 +40,7 @@ vertex {
 
 fragment {
   void material(inout MaterialInputs material) {
-    vec2 uv = variable_vertex_pos.xy * materialParams.UvScale.xy;
+    vec2 uv = variable_vertex_pos.xy * materialParams.UvScale.xy + materialParams.UvOffset.xy;
 
     prepareMaterial(material);
     material.baseColor     = materialParams.BaseColorFactor;

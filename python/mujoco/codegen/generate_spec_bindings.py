@@ -93,16 +93,26 @@ def _value_binding_code(
   fulltype = fulltype.replace('mjOption', 'raw::MjOption')
   fulltype = fulltype.replace('mjVisual', 'raw::MjVisual')
   fulltype = fulltype.replace('mjStatistic', 'raw::MjStatistic')
-  element = '.element' if fullvarname == 'plugin' else ''
+  element = ''
+
+  if field.name == 'mjsPlugin':
+    setter = f"""[]({rawclassname}& self, {fulltype} {varname}) {{
+      if (self.{fullvarname}.name && {varname}.name) *self.{fullvarname}.name = *{varname}.name;
+      if (self.{fullvarname}.plugin_name && {varname}.plugin_name) *self.{fullvarname}.plugin_name = *{varname}.plugin_name;
+      self.{fullvarname}.active = {varname}.active;
+      if (self.{fullvarname}.info && {varname}.info) *self.{fullvarname}.info = *{varname}.info;
+    }}"""
+  else:
+    setter = f"""[]({rawclassname}& self, {fulltype} {varname}) {{
+      self.{fullvarname}{element} = {varname}{element};
+    }}"""
 
   def_property_args = (
       f'"{varname}"',
       f"""[]({rawclassname}& self) -> {fulltype} {{
         return self.{fullvarname};
       }}""",
-      f"""[]({rawclassname}& self, {fulltype} {varname}) {{
-        self.{fullvarname}{element} = {varname}{element};
-      }}""",
+      setter,
   )
 
   if field.name not in SCALAR_TYPES:
@@ -463,6 +473,28 @@ def generate_add() -> None:
             f'py::arg("{f.name}") = py::none()',
         )
       elif isinstance(f.type, ast_nodes.ArrayType):
+        inner_type = f.type.inner_type.decl()
+        if inner_type == 'char':
+          return (
+              (
+                  f'set_char_array(out->{f.name}, {f.name},'
+                  f' {f.type.extents[0]}, "{f.name}");'
+              ),
+              'char_array',
+              f.name,
+              'str | list[str]',
+              f'py::object& {f.name}',
+              f'py::arg("{f.name}") = py::none()',
+          )
+        if f.name == 'size' and f.type.extents[0] == 3:
+          return (
+              f'set_array_size(out->{f.name}, {f.name});',
+              'array_size',
+              f.name,
+              'list[float]',
+              f'std::optional<std::vector<double>>& {f.name}',
+              f'py::arg("{f.name}") = py::none()',
+          )
         return (
             (
                 f'set_array(out->{f.name}, {f.name}, {f.type.extents[0]},'
@@ -746,6 +778,52 @@ def generate_add() -> None:
               int idx = 0;
               for (auto val : array.value()) {
                 des[idx++] = val;
+              }
+            }
+          };
+          """
+        elif t == 'char_array':
+          code += """\n
+          auto set_char_array = [](auto&& des, py::object& obj, int size, const char* name) {
+            if (obj.is_none()) {
+              return;
+            }
+            std::string chars;
+            if (py::isinstance<py::str>(obj)) {
+              chars = py::cast<std::string>(obj);
+            } else if (py::isinstance<py::list>(obj)) {
+              py::list list = py::cast<py::list>(obj);
+              chars.reserve(py::len(list));
+              for (auto item : list) {
+                std::string s = py::cast<std::string>(item);
+                if (s.size() != 1) {
+                  throw pybind11::value_error(std::string(name) + " list elements must be single characters.");
+                }
+                chars.push_back(s[0]);
+              }
+            } else {
+              throw pybind11::type_error(std::string(name) + " must be a string or a list of single-character strings.");
+            }
+            if (chars.size() != size) {
+              std::string msg = std::string(name) + " should have length " + std::to_string(size) + ", got " + std::to_string(chars.size()) + ".";
+              throw pybind11::value_error(msg);
+            }
+            int idx = 0;
+            for (char val : chars) {
+              des[idx++] = val;
+            }
+          };
+          """
+        elif t == 'array_size':
+          code += """\n
+          auto set_array_size = [](auto&& des, const std::optional<std::vector<double>>& array) {
+            if (array.has_value()) {
+              if (array->size() < 1 || array->size() > 3) {
+                std::string msg = "size should be a list/array of size 1, 2, or 3.";
+                throw pybind11::value_error(msg);
+              }
+              for (int i = 0; i < 3; i++) {
+                des[i] = (i < array->size()) ? array->at(i) : 0;
               }
             }
           };

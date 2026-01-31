@@ -203,6 +203,10 @@ auto Compare(unsigned char val1, unsigned char val2) {
   return val1 != val2;
 }
 
+auto Compare(mjtSize val1, mjtSize val2) {
+  return val1 > val2 ? val1 - val2 : val2 - val1;
+}
+
 // The maximum spacing between a normalised floating point number x and an
 // adjacent normalised number is 2 epsilon |x|; a factor 10 is added accounting
 // for losses during non-idempotent operations such as vector normalizations.
@@ -245,7 +249,7 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
       field = #name;                                          \
     }                                                         \
   }
-  MJMODEL_INTS
+  MJMODEL_SIZES
 #undef X
   if (maxdif > 0) return maxdif;
 

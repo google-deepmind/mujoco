@@ -15,11 +15,17 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_WINDOW_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_WINDOW_H_
 
+#include <cstddef>
+#include <span>
 #include <string>
 #include <string_view>
 
-#include "experimental/platform/helpers.h"
+#if __has_include("third_party/GL/gl/include/EGL/egl.h")
+#define MUJOCO_STUDIO_EGL_SUPPORTED 1
+#include "third_party/GL/gl/include/EGL/egl.h"
+#endif
 #include <SDL_video.h>
+#include <SDL_render.h>
 
 namespace mujoco::platform {
 
@@ -41,6 +47,7 @@ class Window {
     RenderConfig render_config = kClassicOpenGL;
     bool enable_keyboard = true;
     bool load_fonts = true;
+    bool offscreen_mode = false;
   };
 
   Window(std::string_view title, int width, int height, Config config);
@@ -63,7 +70,7 @@ class Window {
   void EndFrame();
 
   // Swaps and presents the window buffer.
-  void Present();
+  void Present(std::span<const std::byte> pixels = {});
 
   // Sets the title of the window.
   void SetTitle(std::string_view title);
@@ -82,18 +89,34 @@ class Window {
   // the value will be cleared until the next time a file is dropped.
   std::string GetDropFile();
 
+  // Returns true if the window is in offscreen mode.
+  bool IsOffscreenMode() const;
+
+  // Enables window resizing.
+  void EnableWindowResizing();
+
+  // Disables window resizing.
+  void DisableWindowResizing();
+
   // Returns the handle to the underlying native window.
   void* GetNativeWindowHandle() { return native_window_; }
 
  private:
+  void InitOffscreenEglContext();
+
   int width_ = 0;
   int height_ = 0;
   float scale_ = 1.0f;
   Config config_;
   void* native_window_ = nullptr;
   SDL_Window* sdl_window_ = nullptr;
+  SDL_Renderer* sdl_renderer_ = nullptr;
   bool should_exit_ = false;
   std::string drop_file_;
+  #ifdef MUJOCO_STUDIO_EGL_SUPPORTED
+  EGLDisplay egl_display_ = EGL_NO_DISPLAY;
+  EGLContext egl_context_ = EGL_NO_CONTEXT;
+  #endif
 };
 
 }  // namespace mujoco::platform
