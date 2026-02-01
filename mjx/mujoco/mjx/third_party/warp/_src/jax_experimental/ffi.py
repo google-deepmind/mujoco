@@ -199,6 +199,7 @@ class FfiKernel:
         ffi_ccall_address = ctypes.cast(self.callback_func, ctypes.c_void_p)
         ffi_capsule = jax.ffi.pycapsule(ffi_ccall_address.value)
         jax.ffi.register_ffi_target(self.name, ffi_capsule, platform="CUDA")
+        jax.ffi.register_ffi_target(self.name, ffi_capsule, platform="Host")
 
     def __call__(self, *args, output_dims=None, launch_dims=None, vmap_method=None):
         num_inputs = len(args)
@@ -298,6 +299,7 @@ class FfiKernel:
                     # ignore unsupported devices like TPUs
                     pass
                 # we only support CUDA devices for now
+                # TODO(hartikainen): Should this be `dev.is_cuda or dev.is_cpu`?
                 if dev.is_cuda:
                     self.kernel.module.load(dev)
 
@@ -320,10 +322,11 @@ class FfiKernel:
                     metadata_ext = ctypes.cast(extension, ctypes.POINTER(XLA_FFI_Metadata_Extension))
                     metadata_ext.contents.metadata.contents.api_version.major_version = 0
                     metadata_ext.contents.metadata.contents.api_version.minor_version = 1
-                    # Turn on CUDA graphs for this handler.
-                    metadata_ext.contents.metadata.contents.traits = (
-                        XLA_FFI_Handler_TraitsBits.COMMAND_BUFFER_COMPATIBLE
-                    )
+                    # Turn on CUDA graphs for this handler if CUDA is available.
+                    if wp.is_cuda_available():
+                        metadata_ext.contents.metadata.contents.traits = (
+                            XLA_FFI_Handler_TraitsBits.COMMAND_BUFFER_COMPATIBLE
+                        )
                     return None
 
             # Lock is required to prevent race conditions when callback is invoked
@@ -377,24 +380,36 @@ class FfiKernel:
                     arg_refs.append(arg)  # keep a reference
 
                 # get device and stream
-                device = wp.get_cuda_device(get_device_ordinal_from_callframe(call_frame.contents))
-                stream = get_stream_from_callframe(call_frame.contents)
+                if wp.is_cuda_available():
+                    device = wp.get_cuda_device(get_device_ordinal_from_callframe(call_frame.contents))
+                    stream = get_stream_from_callframe(call_frame.contents)
+                else:
+                    device = wp.get_device("cpu")
+                    stream = None
 
                 # get kernel hooks
                 hooks = self.kernel.module.get_kernel_hooks(self.kernel, device)
                 assert hooks.forward, "Failed to find kernel entry point"
 
                 # launch the kernel
-                wp._src.context.runtime.core.wp_cuda_launch_kernel(
-                    device.context,
-                    hooks.forward,
-                    launch_bounds.size,
-                    0,
-                    256,
-                    hooks.forward_smem_bytes,
-                    kernel_params,
-                    stream,
-                )
+                if device.is_cuda:
+                    wp._src.context.runtime.core.wp_cuda_launch_kernel(
+                        device.context,
+                        hooks.forward,
+                        launch_bounds.size,
+                        0,
+                        256,
+                        hooks.forward_smem_bytes,
+                        kernel_params,
+                        stream,
+                    )
+                else:
+                    wp._src.context.runtime.core.wp_cpu_launch_kernel(
+                        device.context,
+                        hooks.forward,
+                        launch_bounds.size,
+                        kernel_params,
+                    )
 
         except Exception as e:
             print(traceback.format_exc())
@@ -552,6 +567,7 @@ class FfiCallable:
         ffi_ccall_address = ctypes.cast(self.callback_func, ctypes.c_void_p)
         ffi_capsule = jax.ffi.pycapsule(ffi_ccall_address.value)
         jax.ffi.register_ffi_target(self.name, ffi_capsule, platform="CUDA")
+        jax.ffi.register_ffi_target(self.name, ffi_capsule, platform="Host")
 
     def __call__(self, *args, output_dims=None, vmap_method=None):
         num_inputs = len(args)
@@ -643,6 +659,7 @@ class FfiCallable:
                     # ignore unsupported devices like TPUs
                     pass
                 # we only support CUDA devices for now
+                # TODO(hartikainen): Should this be `dev.is_cuda or dev.is_cpu`?
                 if dev.is_cuda:
                     module.load(dev)
 
@@ -664,8 +681,8 @@ class FfiCallable:
                     metadata_ext = ctypes.cast(extension, ctypes.POINTER(XLA_FFI_Metadata_Extension))
                     metadata_ext.contents.metadata.contents.api_version.major_version = 0
                     metadata_ext.contents.metadata.contents.api_version.minor_version = 1
-                    # Turn on CUDA graphs for this handler.
-                    if self.graph_mode is GraphMode.JAX:
+                    # Turn on CUDA graphs for this handler if CUDA is available.
+                    if self.graph_mode is GraphMode.JAX and wp.is_cuda_available():
                         metadata_ext.contents.metadata.contents.traits = (
                             XLA_FFI_Handler_TraitsBits.COMMAND_BUFFER_COMPATIBLE
                         )
@@ -692,8 +709,12 @@ class FfiCallable:
                 assert num_inputs == self.num_inputs
                 assert num_outputs == self.num_outputs
 
-                cuda_stream = get_stream_from_callframe(call_frame.contents)
-                device_ordinal = get_device_ordinal_from_callframe(call_frame.contents)
+                if wp.is_cuda_available():
+                    cuda_stream = get_stream_from_callframe(call_frame.contents)
+                    device_ordinal = get_device_ordinal_from_callframe(call_frame.contents)
+                else:
+                    cuda_stream = None
+                    device_ordinal = 0
 
                 if self.graph_mode == GraphMode.WARP:
                     # check if we already captured an identical call
@@ -797,9 +818,12 @@ class FfiCallable:
                         # early out
                         return
 
-                device_ordinal = get_device_ordinal_from_callframe(call_frame.contents)
-                device = wp.get_cuda_device(device_ordinal)
-                stream = wp.Stream(device, cuda_stream=cuda_stream)
+                if wp.is_cuda_available():
+                    device = wp.get_cuda_device(device_ordinal)
+                    stream = wp.Stream(device, cuda_stream=cuda_stream)
+                else:
+                    device = wp.get_device("cpu")
+                    stream = None
 
                 # reconstruct the argument list
                 arg_list = []
@@ -824,8 +848,8 @@ class FfiCallable:
                     arg_list.append(arr)
 
                 # call the Python function with reconstructed arguments
-                with wp.ScopedStream(stream, sync_enter=False):
-                    if stream.is_capturing:
+                with wp.ScopedStream(stream, sync_enter=False) if stream else wp.ScopedDevice(device):
+                    if stream and stream.is_capturing:
                         # capturing with JAX
                         with wp.ScopedCapture(external=True) as capture:
                             self.func(*arg_list)
@@ -833,7 +857,7 @@ class FfiCallable:
                         # keep a reference to the capture object to prevent required modules getting unloaded
                         call_desc.capture = capture
 
-                    elif self.graph_mode == GraphMode.WARP:
+                    elif self.graph_mode == GraphMode.WARP and device.is_cuda:
                         # capturing with WARP
                         with wp.ScopedCapture() as capture:
                             self.func(*arg_list)
@@ -846,7 +870,7 @@ class FfiCallable:
                         if self._graph_cache_max is not None and len(self.captures) > self._graph_cache_max:
                             self.captures.popitem(last=False)
 
-                    elif self.graph_mode == GraphMode.WARP_STAGED_EX:
+                    elif self.graph_mode == GraphMode.WARP_STAGED_EX and device.is_cuda:
                         # capturing with WARP using staging buffers and memcopies done outside of the graph
                         wp_memcpy_batch = wp._src.context.runtime.core.wp_memcpy_batch
 
@@ -889,7 +913,7 @@ class FfiCallable:
                         # TODO: we should have a way of freeing this
                         call_desc.capture = capture
 
-                    elif self.graph_mode == GraphMode.WARP_STAGED:
+                    elif self.graph_mode == GraphMode.WARP_STAGED and device.is_cuda:
                         # capturing with WARP using staging buffers and memcopies done inside of the graph
                         wp_cuda_graph_insert_memcpy_batch = (
                             wp._src.context.runtime.core.wp_cuda_graph_insert_memcpy_batch
@@ -967,7 +991,7 @@ class FfiCallable:
                         call_desc.capture = capture
 
                     else:
-                        # not capturing
+                        # not capturing or on CPU
                         self.func(*arg_list)
 
         except Exception as e:
@@ -1537,7 +1561,7 @@ def register_ffi_callback(name: str, func: Callable, graph_compatible: bool = Tr
                     metadata_ext = ctypes.cast(extension, ctypes.POINTER(XLA_FFI_Metadata_Extension))
                     metadata_ext.contents.metadata.contents.api_version.major_version = 0
                     metadata_ext.contents.metadata.contents.api_version.minor_version = 1
-                    if graph_compatible:
+                    if graph_compatible and wp.is_cuda_available():
                         # Turn on CUDA graphs for this handler.
                         metadata_ext.contents.metadata.contents.traits = (
                             XLA_FFI_Handler_TraitsBits.COMMAND_BUFFER_COMPATIBLE
@@ -1576,6 +1600,7 @@ def register_ffi_callback(name: str, func: Callable, graph_compatible: bool = Tr
     ffi_ccall_address = ctypes.cast(callback_func, ctypes.c_void_p)
     ffi_capsule = jax.ffi.pycapsule(ffi_ccall_address.value)
     jax.ffi.register_ffi_target(name, ffi_capsule, platform="CUDA")
+    jax.ffi.register_ffi_target(name, ffi_capsule, platform="Host")
 
 
 ###############################################################################
