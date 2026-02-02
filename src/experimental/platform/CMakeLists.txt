@@ -37,7 +37,6 @@ target_compile_definitions(${MUJOCO_PLATFORM_TARGET_NAME}
 
 target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
-        file_dialog.cc
         file_dialog.h
         gui.cc
         gui.h
@@ -68,6 +67,19 @@ if(APPLE)
         COMPILE_FLAGS "-x objective-c++")
     target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
         window_osx.mm
+        file_dialog_cocoa.mm
+    )
+elseif(UNIX AND NOT APPLE)
+    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
+        file_dialog_zenity.cc
+    )
+elseif(WINDOWS)
+    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
+        file_dialog_win.cc
+    )
+else()
+    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
+        file_dialog.cc
     )
 endif()
 
