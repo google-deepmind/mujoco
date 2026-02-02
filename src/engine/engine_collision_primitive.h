@@ -46,6 +46,13 @@ int mjraw_CapsuleBox    (mjContact* con, mjtNum margin,
 int mjraw_SphereTriangle(mjContact* con, mjtNum margin,
                          const mjtNum* s, mjtNum rs,
                          const mjtNum* t1, const mjtNum* t2, const mjtNum* t3, mjtNum rt);
+int mjraw_BoxTriangle(mjContact* con, mjtNum margin, const mjtNum* pos,
+                      const mjtNum* mat, const mjtNum* size, const mjtNum* t1,
+                      const mjtNum* t2, const mjtNum* t3, mjtNum rt);
+int mjraw_CapsuleTriangle(mjContact* con, mjtNum margin, const mjtNum* pos,
+                          const mjtNum* mat, const mjtNum* size,
+                          const mjtNum* t1, const mjtNum* t2, const mjtNum* t3,
+                          mjtNum rt);
 
 // plane collisions
 MJAPI int mjc_PlaneSphere     (const mjModel* m, const mjData* d,
