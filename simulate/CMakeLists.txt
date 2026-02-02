@@ -185,21 +185,6 @@ if(SIMULATE_BUILD_EXECUTABLE)
     target_link_libraries(simulate "-framework CoreVideo")
   endif()
 
-  if (BUILD_WITH_USD)
-    # pxr/usd/tf/hashset.h might include deprecated headers so disable this check
-    # when compiling with USD enabled.
-    target_compile_options(
-         simulate
-         PRIVATE -Wno-deprecated
-    )
-
-    target_link_libraries(
-      simulate
-      mujoco::usd::mjcf
-      usd_decoder_plugin
-    )
-  endif()
-
   target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
   if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
@@ -265,30 +250,6 @@ if(SIMULATE_BUILD_EXECUTABLE)
       DEPENDS
       MUJOCO_ENABLE_RPATH
     )
-
-    if (BUILD_WITH_USD)
-      # pxr/usd/tf/hashset.h might include deprecated headers so disable this check
-      # when compiling with USD enabled.
-      target_compile_options(
-         simulate
-         PRIVATE -Wno-deprecated
-      )
-
-      # Add support to RPATH for the samples.
-      target_add_rpath(
-        TARGETS
-        simulate
-        INSTALL_DIRECTORY
-        "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
-        LIB_DIRS
-        DEPENDS
-        MUJOCO_ENABLE_RPATH
-      )
-
-      # Do we need this?
-      #target_link_options(simulate PRIVATE -rpath=${pxr_DIR}/lib)
-
-    endif()
 
     if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
       # We downloaded GLFW. Depending if it is a static or shared LIBRARY we might
