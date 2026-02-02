@@ -114,13 +114,18 @@ void BM_CompileManyTextures(benchmark::State& state) {
 
   // Disable cache to simulate many textures without needing separate
   // testdata files.
-  mj_setCacheCapacity(mj_getCache(), 0);
+  auto* cache = mj_getCache();
+  int old_capacity = mj_getCacheCapacity(cache);
+  mj_setCacheCapacity(cache, 0);
 
   for (auto s : state) {
     char error[1024];
     mjModel* model = LoadModelFromString(xml, error, sizeof(error));
     mj_deleteModel(model);
   }
+
+  // Reset cache capacity to default value.
+  mj_setCacheCapacity(cache, old_capacity);
 }
 
 BENCHMARK(BM_CompileManyTextures)->Range(10, 100);
