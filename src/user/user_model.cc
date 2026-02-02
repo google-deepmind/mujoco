@@ -15,9 +15,9 @@
 #include "user/user_model.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
-#include <array>
 #include <csetjmp>
 #include <cstdint>
 #include <cstdio>
@@ -32,16 +32,17 @@
 #include <string_view>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
-#include <unordered_set>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include <mujoco/mjspec.h>
 #include <mujoco/mjtnum.h>
-#include <mujoco/mjplugin.h>
+#include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
@@ -53,15 +54,13 @@
 #include "engine/engine_util_misc.h"
 #include "user/user_api.h"
 #include "user/user_objects.h"
+#include "user/user_threadpool.h"
 #include "user/user_util.h"
 
 namespace {
 namespace mju = ::mujoco::util;
 using std::string;
 using std::vector;
-constexpr int kMaxCompilerThreads = 16;
-
-
 
 //---------------------------------- LOCAL UTILITY FUNCTIONS ---------------------------------------
 
@@ -74,6 +73,18 @@ bool IsSameVec(const T pos1[3], const T pos2[3]) {
   return std::abs(pos1[0] - pos2[0]) < kFrameEps &&
          std::abs(pos1[1] - pos2[1]) < kFrameEps &&
          std::abs(pos1[2] - pos2[2]) < kFrameEps;
+}
+
+unsigned int NumCompilerThreads(int upper_bound = -1) {
+  // Use at most half the available threads to avoid
+  // overloading hyperthreaded CPUs.
+  // Compilation is largely compute-bound so we want to give each
+  // physical core a chance without too much L1/L2 cache thrashing.
+  unsigned int nthreads = std::thread::hardware_concurrency() / 2;
+  if (upper_bound > 0) {
+    nthreads = std::min(nthreads, static_cast<unsigned int>(upper_bound));
+  }
+  return std::max(static_cast<unsigned int>(1), nthreads);
 }
 
 // return true if two quaternions are element-wise less than kFrameEps apart, including double-cover
@@ -2389,10 +2400,6 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
     m->opt.timestep = compiler.LRopt.timestep;
   }
 
-  // number of threads available
-  int hardware_threads = std::thread::hardware_concurrency();
-  const int nthread = mjMAX(1, mjMIN(kMaxCompilerThreads, hardware_threads/2));
-
   // count actuators that need computation
   int cnt = 0;
   for (int i=0; i < m->nu; i++) {
@@ -2417,6 +2424,8 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
     cnt++;
   }
 
+  const auto nthread = NumCompilerThreads(cnt);
+
   // single thread
   if (!compiler.usethread || cnt < 2 || nthread < 2) {
     char err[200];
@@ -2430,8 +2439,11 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
   // multiple threads
   else {
     // allocate mjData for each thread
-    char err[kMaxCompilerThreads][200];
-    mjData* pdata[kMaxCompilerThreads] = {data};
+    // using vectors to allow arbitrary number of threads without stack overflow
+    std::vector<std::vector<char>> err(nthread, std::vector<char>(200));
+    std::vector<mjData*> pdata(nthread);
+    pdata[0] = data;
+
     for (int i=1; i < nthread; i++) {
       pdata[i] = mj_makeData(m);
     }
@@ -2442,18 +2454,20 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
       num++;
     }
 
-    // prepare thread function arguments, clear errors
-    LRThreadArg arg[kMaxCompilerThreads];
+    // prepare thread function arguments
+    std::vector<LRThreadArg> arg(nthread);
     for (int i=0; i < nthread; i++) {
-      LRThreadArg temp = {m, pdata[i], i*num, num, &compiler.LRopt, err[i], 200};
+      LRThreadArg temp = {
+          m, pdata[i], i * num, num, &compiler.LRopt, err[i].data(), 200};
       arg[i] = temp;
       err[i][0] = 0;
     }
 
     // launch threads
-    std::thread th[kMaxCompilerThreads];
+    std::vector<std::thread> th;
+    th.reserve(nthread);
     for (int i=0; i < nthread; i++) {
-      th[i] = std::thread(LRfunc, arg+i);
+      th.emplace_back(LRfunc, &arg[i]);
     }
 
     // wait for threads to finish
@@ -2469,7 +2483,7 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
     // report first error
     for (int i=0; i < nthread; i++) {
       if (err[i][0]) {
-        throw mjCError(0, "%s", err[i]);
+        throw mjCError(0, "%s", err[i].data());
       }
     }
   }
@@ -4485,7 +4499,9 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
       }
       throw mjCError(0, "engine error: %s", error_msg.c_str());
     }
-    TryCompile(*const_cast<mjModel**>(&model), *const_cast<mjData**>(&data), vfs);
+
+    TryCompile(*const_cast<mjModel**>(&model), *const_cast<mjData**>(&data),
+               vfs);
   } catch (mjCError err) {
     // deallocate everything allocated in Compile
     mj_deleteModel(model);
@@ -4515,16 +4531,14 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
 }
 
 
-
-// mesh compilation function to be used in threads
-void CompileMesh(mjCMesh* mesh, const mjVFS* vfs, std::exception_ptr& exception,
-                 std::mutex& exception_mutex, std::string* warningtext) {
-  // set warning text buffer to this local thread
+// Helper function for mesh compilation used by both serial and parallel paths
+static void CompileMesh(mjCMesh* mesh, const mjVFS* vfs,
+                        std::exception_ptr& exception, std::mutex& exception_mutex,
+                        std::string* warningtext) {
   local_warningtext_ptr = warningtext;
   auto previous_handler = _mjPRIVATE__get_tls_warning_fn();
   _mjPRIVATE__set_tls_warning_fn(warninghandler);
 
-  // compile the mesh, catch exception to be rethrown later
   try {
     mesh->Compile(vfs);
   } catch (...) {
@@ -4534,47 +4548,84 @@ void CompileMesh(mjCMesh* mesh, const mjVFS* vfs, std::exception_ptr& exception,
     }
   }
 
-  // restore warning handler to top-level
   _mjPRIVATE__set_tls_warning_fn(previous_handler);
   local_warningtext_ptr = nullptr;
 }
 
+// Helper function for texture compilation used by both serial and parallel paths
+static void CompileTexture(mjCTexture* texture, const mjVFS* vfs,
+                           std::exception_ptr& exception,
+                           std::mutex& exception_mutex, std::string* warningtext) {
+  local_warningtext_ptr = warningtext;
+  auto previous_handler = _mjPRIVATE__get_tls_warning_fn();
+  _mjPRIVATE__set_tls_warning_fn(warninghandler);
 
-
-// multi-threaded mesh compilation
-void mjCModel::CompileMeshes(const mjVFS* vfs) {
-  std::vector<std::thread> threads;
-  int nmesh = meshes_.size();
-  int hardware_threads = std::thread::hardware_concurrency() / 2;
-  int maxthread = std::min(nmesh, std::min(kMaxCompilerThreads, hardware_threads));
-  int nthread = std::max(1, maxthread);
-
-  threads.reserve(nthread);
-
-  // holds an exception thrown by a worker thread
-  std::exception_ptr exception;
-  std::mutex except_mutex;
-
-  std::atomic_int next_mesh = 0;
-  std::vector<std::string> mesh_warningtext(nmesh);
-  for (int i = 0; i < nthread; ++i) {
-    threads.emplace_back([&] {
-      for (int meshid = next_mesh++; meshid < nmesh; meshid = next_mesh++) {
-        auto& mesh = meshes_[meshid];
-        CompileMesh(mesh, vfs, exception, except_mutex,
-                    &mesh_warningtext[meshid]);
-      }
-    });
-  }
-
-  // join threads
-  for (auto& thread : threads) {
-    if (thread.joinable()) {
-      thread.join();
+  try {
+    texture->Compile(vfs);
+  } catch (...) {
+    std::lock_guard<std::mutex> lock(exception_mutex);
+    if (!exception) {
+      exception = std::current_exception();
     }
   }
 
-  // concatenate all warnings from threads, copy into warningtext
+  _mjPRIVATE__set_tls_warning_fn(previous_handler);
+  local_warningtext_ptr = nullptr;
+}
+
+// multi-threaded mesh and texture compilation with shared threadpool
+void mjCModel::CompileMeshesAndTextures(const mjVFS* vfs) {
+  int nmesh = meshes_.size();
+  int ntexture = textures_.size();
+  int total_tasks = nmesh + ntexture;
+
+  // holds exceptions thrown by worker threads
+  std::exception_ptr mesh_exception;
+  std::mutex mesh_except_mutex;
+  std::exception_ptr texture_exception;
+  std::mutex texture_except_mutex;
+
+  std::vector<std::string> mesh_warningtext(nmesh);
+  std::vector<std::string> texture_warningtext(ntexture);
+
+  // If no pool provided or too few total tasks, run serially
+  if (!compiler.usethread || total_tasks < 2) {
+    // Compile meshes serially
+    for (int i = 0; i < nmesh; i++) {
+      CompileMesh(meshes_[i], vfs, mesh_exception, mesh_except_mutex,
+                  &mesh_warningtext[i]);
+    }
+    // Compile textures serially
+    for (int i = 0; i < ntexture; i++) {
+      CompileTexture(textures_[i], vfs, texture_exception,
+                     texture_except_mutex, &texture_warningtext[i]);
+    }
+  } else {
+    mujoco::user::ThreadPool pool(NumCompilerThreads(total_tasks));
+
+    // Enqueue mesh tasks
+    for (int i = 0; i < nmesh; ++i) {
+      pool.Schedule([mesh = meshes_[i], vfs, &mesh_exception,
+                     &mesh_except_mutex, warningtext = &mesh_warningtext[i]]() {
+        CompileMesh(mesh, vfs, mesh_exception, mesh_except_mutex, warningtext);
+      });
+    }
+
+    // Enqueue texture tasks
+    for (int i = 0; i < ntexture; ++i) {
+      pool.Schedule([texture = textures_[i], vfs, &texture_exception,
+                     &texture_except_mutex,
+                     warningtext = &texture_warningtext[i]]() {
+        CompileTexture(texture, vfs, texture_exception, texture_except_mutex,
+                       warningtext);
+      });
+    }
+
+    // Wait for all tasks to complete
+    pool.WaitCount(total_tasks);
+  }
+
+  // concatenate all mesh warnings, copy into warningtext
   std::string concatenated_warnings;
   bool has_warning = false;
   for (int i = 0; i < nmesh; i++) {
@@ -4588,13 +4639,23 @@ void mjCModel::CompileMeshes(const mjVFS* vfs) {
   }
   mju::strcpy_arr(warningtext, concatenated_warnings.c_str());
 
-  // if exception was caught, rethrow it
-  if (exception) {
-    std::rethrow_exception(exception);
+  // aggregate texture warnings
+  for (int i = 0; i < ntexture; ++i) {
+    if (!texture_warningtext[i].empty()) {
+      if (has_warning) mju::strcat_arr(warningtext, "\n");
+      mju::strcat_arr(warningtext, texture_warningtext[i].c_str());
+      has_warning = true;
+    }
+  }
+
+  // if exceptions were caught, rethrow the first one
+  if (mesh_exception) {
+    std::rethrow_exception(mesh_exception);
+  }
+  if (texture_exception) {
+    std::rethrow_exception(texture_exception);
   }
 }
-
-
 
 // compute qpos0
 void mjCModel::ComputeReference() {
@@ -4720,8 +4781,6 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
   key_pending_.clear();
 }
 
-
-
 void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // check if nan test works
   double test = mjNAN;
@@ -4823,16 +4882,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // automatically set nuser fields
   SetNuser();
 
-  // compile meshes (needed for geom compilation)
-  if (compiler.usethread && meshes_.size() > 1) {
-    // multi-threaded mesh compile
-    CompileMeshes(vfs);
-  } else {
-    // single-threaded mesh compile
-    for (int i=0; i < meshes_.size(); i++) {
-      meshes_[i]->Compile(vfs);
-    }
-  }
+  // compile meshes and textures (needed for geom compilation)
+  CompileMeshesAndTextures(vfs);
 
   // compile objects in kinematic tree
   for (int i=0; i < bodies_.size(); i++) {
@@ -4854,7 +4905,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   for (auto flex : flexes_) flex->Compile(vfs);
   for (auto skin : skins_) skin->Compile(vfs);
   for (auto hfield : hfields_) hfield->Compile(vfs);
-  for (auto texture : textures_) texture->Compile(vfs);
+
   for (auto material : materials_) material->Compile();
   for (auto pair : pairs_) pair->Compile();
   for (auto exclude : excludes_) exclude->Compile();
@@ -5116,8 +5167,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     throw mjCError(0, "signature mismatch");  // SHOULD NOT OCCUR
   }
 }
-
-
 
 static void PrintIndent(std::stringstream& ss, int depth) {
   // A static string of spaces, created only once during the program's lifetime.

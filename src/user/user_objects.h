@@ -1441,14 +1441,13 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
   void CopyFromSpec(void);
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
+  void Compile(const mjVFS* vfs);
 
   std::string File() const { return file_; }
   std::string get_content_type() const { return content_type_; }
   std::vector<std::string> get_cubefiles() const { return cubefiles_; }
 
  private:
-  void Compile(const mjVFS* vfs);         // compiler
-
   // store texture into asset cache
   std::string GetCacheId(const mjResource* resource, const std::string& asset_type);
   void Builtin2D(void);                                 // make builtin 2D
