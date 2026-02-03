@@ -1779,7 +1779,8 @@ void App::FileDialogGui() {
     ImGui::EndPopup();
   }
 
-  if (!ImGui::IsPopupOpen("FileDialog")) {
+  if (!ImGui::IsPopupOpen("FileDialog") &&
+      tmp_.file_dialog != UiTempState::FileDialog_None) {
     const std::string& src = tmp_.last_path[tmp_.file_dialog];
     strncpy(tmp_.filename, src.c_str(), src.size());
     tmp_.filename[src.size()] = 0;
