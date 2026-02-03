@@ -23,6 +23,7 @@
 #if defined(MUJOCO_RENDERER_CLASSIC_OPENGL)
 #include <imgui.h>
 #include <backends/imgui_impl_opengl3.h>
+#include "experimental/platform/egl_utils.h"
 #else
 #include "experimental/filament/render_context_filament.h"
 #include "experimental/platform/plugin.h"
@@ -32,11 +33,17 @@ namespace mujoco::platform {
 
 Renderer::Renderer(void* native_window) : native_window_(native_window) {
 #ifdef MUJOCO_RENDERER_CLASSIC_OPENGL
+  if (native_window == nullptr) {
+    graphics_api_context_ = CreateEglContext();
+  }
   ImGui_ImplOpenGL3_Init();
 #endif
 }
 
-Renderer::~Renderer() { Deinit(); }
+Renderer::~Renderer() {
+  Deinit();
+  graphics_api_context_.reset();
+}
 
 void Renderer::Init(const mjModel* model) {
   Deinit();
@@ -184,7 +191,6 @@ RendererBackend Renderer::GetBackend() {
   #error "Unsupported renderer backend."
 #endif
 }
-
 }  // namespace mujoco::platform
 
 #if !defined(MUJOCO_RENDERER_CLASSIC_OPENGL)

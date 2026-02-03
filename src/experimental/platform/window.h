@@ -22,10 +22,6 @@
 
 #include "experimental/platform/renderer_backend.h"
 
-#if __has_include("third_party/GL/gl/include/EGL/egl.h")
-#define MUJOCO_STUDIO_EGL_SUPPORTED 1
-#include "third_party/GL/gl/include/EGL/egl.h"
-#endif
 #include <SDL_video.h>
 #include <SDL_render.h>
 
@@ -107,10 +103,6 @@ class Window {
   SDL_Renderer* sdl_renderer_ = nullptr;
   bool should_exit_ = false;
   std::string drop_file_;
-  #ifdef MUJOCO_STUDIO_EGL_SUPPORTED
-  EGLDisplay egl_display_ = EGL_NO_DISPLAY;
-  EGLContext egl_context_ = EGL_NO_CONTEXT;
-  #endif
 };
 
 }  // namespace mujoco::platform

@@ -17,11 +17,13 @@
 
 #include <chrono>
 #include <cstddef>
+#include <memory>
 #include <ratio>
 #include <span>
 
 #include <mujoco/mujoco.h>
 #include "experimental/platform/renderer_backend.h"
+
 
 namespace mujoco::platform {
 
@@ -99,6 +101,7 @@ class Renderer {
   void UpdateFps();
 
   void* native_window_ = nullptr;
+  std::shared_ptr<void> graphics_api_context_ = nullptr;
   mjrContext render_context_;
   mjvScene scene_;
   bool initialized_ = false;

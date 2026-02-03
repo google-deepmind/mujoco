@@ -37,6 +37,8 @@ target_compile_definitions(${MUJOCO_PLATFORM_TARGET_NAME}
 
 target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
+        egl_utils.cc
+        egl_utils.h
         file_dialog.h
         gui.cc
         gui.h
