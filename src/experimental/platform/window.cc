@@ -36,6 +36,7 @@
 #include <backends/imgui_impl_sdl2.h>
 #include <imgui.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/renderer_backend.h"
 #include "user/user_resource.h"
 
 // Because X11/Xlib.h defines Status.
@@ -98,7 +99,11 @@ static void InitImGui(SDL_Window* window, float content_scale, bool load_fonts,
 
 Window::Window(std::string_view title, int width, int height, Config config)
     : width_(width), height_(height), config_(config) {
-  const RenderConfig render_config = config_.render_config;
+  const RendererBackend renderer_backend = config_.renderer_backend;
+  if (renderer_backend == RendererBackend::FilamentOpenGlHeadless) {
+    config_.offscreen_mode = true;
+  }
+
   if (config_.offscreen_mode) {
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
     SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "0");
@@ -118,20 +123,21 @@ Window::Window(std::string_view title, int width, int height, Config config)
   }
 
   int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-  if (render_config == kFilamentVulkan) {
+  if (renderer_backend == RendererBackend::FilamentVulkan) {
     window_flags |= SDL_WINDOW_VULKAN;
-  } else if (render_config == kFilamentWebGL) {
+  } else if (renderer_backend == RendererBackend::FilamentWebGl) {
     window_flags |= SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-  } else if (render_config == kClassicOpenGL ||
-             render_config == kFilamentOpenGL) {
+  } else if (renderer_backend == RendererBackend::ClassicOpenGl ||
+             renderer_backend == RendererBackend::FilamentOpenGl ||
+             renderer_backend == RendererBackend::FilamentOpenGlHeadless) {
     window_flags |= SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
   } else {
-    mju_error("Unsupported window config: %d", render_config);
+    mju_error("Unsupported window config: %d", renderer_backend);
   }
 
   const float content_scale = ImGui_ImplSDL2_GetContentScaleForDisplay(0);
@@ -143,17 +149,18 @@ Window::Window(std::string_view title, int width, int height, Config config)
   }
 
   InitImGui(sdl_window_, content_scale, config.load_fonts,
-            (render_config != kClassicOpenGL));
+            (renderer_backend != RendererBackend::ClassicOpenGl));
 
-  if (render_config == kFilamentWebGL ||
-      (render_config == kClassicOpenGL && !config.offscreen_mode)) {
+  if (renderer_backend == RendererBackend::FilamentWebGl ||
+      (renderer_backend == RendererBackend::ClassicOpenGl &&
+       !config.offscreen_mode)) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);
     SDL_GL_MakeCurrent(sdl_window_, gl_context);
   }
 
-  if (config.offscreen_mode) {
+  if (config_.offscreen_mode) {
     sdl_renderer_ = SDL_CreateRenderer(sdl_window_, -1, SDL_RENDERER_SOFTWARE);
-    if (config.render_config == kClassicOpenGL) {
+    if (renderer_backend == RendererBackend::ClassicOpenGl) {
       InitOffscreenEglContext();
     }
   }
@@ -162,7 +169,7 @@ Window::Window(std::string_view title, int width, int height, Config config)
   SDL_VERSION(&wmi.version);
   SDL_GetWindowWMInfo(sdl_window_, &wmi);
 
-  if (!config.offscreen_mode) {
+  if (!config_.offscreen_mode) {
     #if defined(__linux__)
       native_window_ = reinterpret_cast<void*>(wmi.info.x11.window);
     #elif defined(__WIN32__)
@@ -270,7 +277,7 @@ void Window::Present(std::span<const std::byte> pixels) {
       }
     }
 
-    if (config_.render_config == kClassicOpenGL) {
+    if (config_.renderer_backend == RendererBackend::ClassicOpenGl) {
       dst = static_cast<unsigned char*>(surface->pixels);
       for (int r = 0; r < height_ / 2; ++r) {
         unsigned char* top_row = &dst[4 * width_ * r];
@@ -280,8 +287,8 @@ void Window::Present(std::span<const std::byte> pixels) {
     }
 
     SDL_RenderPresent(sdl_renderer_);
-  } else if (config_.render_config != kFilamentVulkan
-     && config_.render_config != kFilamentOpenGL) {
+  } else if (config_.renderer_backend != RendererBackend::FilamentVulkan
+     && config_.renderer_backend != RendererBackend::FilamentOpenGl) {
     SDL_GL_SwapWindow(sdl_window_);
   }
 }

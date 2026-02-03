@@ -46,17 +46,6 @@
 
 namespace mujoco::studio {
 
-static constexpr platform::Window::RenderConfig kRenderConfig =
-#if defined(__EMSCRIPTEN__)
-  platform::Window::RenderConfig::kFilamentWebGL;
-#elif defined(USE_FILAMENT_VULKAN)
-  platform::Window::RenderConfig::kFilamentVulkan;
-#elif defined(USE_FILAMENT_OPENGL)
-  platform::Window::RenderConfig::kFilamentOpenGL;
-#elif defined(USE_CLASSIC_OPENGL)
-  platform::Window::RenderConfig::kClassicOpenGL;
-#endif
-
 static void ToggleFlag(mjtByte& flag) { flag = flag ? 0 : 1; }
 
 static void ToggleWindow(bool& window) {
@@ -115,7 +104,7 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 App::App(Config config)
     : ini_path_(std::move(config.ini_path)) {
   platform::Window::Config window_config;
-  window_config.render_config = kRenderConfig;
+  window_config.renderer_backend = platform::Renderer::GetBackend();
   window_config.offscreen_mode = config.offscreen_mode;
   window_ = std::make_unique<platform::Window>("MuJoCo Studio", config.width,
                                                config.height, window_config);

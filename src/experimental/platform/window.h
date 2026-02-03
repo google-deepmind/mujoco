@@ -20,6 +20,8 @@
 #include <string>
 #include <string_view>
 
+#include "experimental/platform/renderer_backend.h"
+
 #if __has_include("third_party/GL/gl/include/EGL/egl.h")
 #define MUJOCO_STUDIO_EGL_SUPPORTED 1
 #include "third_party/GL/gl/include/EGL/egl.h"
@@ -35,16 +37,8 @@ namespace mujoco::platform {
 // handles events from the window.
 class Window {
  public:
-  // Configures the window for the specified rendering backend.
-  enum RenderConfig {
-    kClassicOpenGL,
-    kFilamentVulkan,
-    kFilamentOpenGL,
-    kFilamentWebGL,
-  };
-
   struct Config {
-    RenderConfig render_config = kClassicOpenGL;
+    RendererBackend renderer_backend = RendererBackend::ClassicOpenGl;
     bool enable_keyboard = true;
     bool load_fonts = true;
     bool offscreen_mode = false;
