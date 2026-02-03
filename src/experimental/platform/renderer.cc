@@ -36,7 +36,9 @@ Renderer::Renderer(void* native_window) : native_window_(native_window) {
   if (native_window == nullptr) {
     graphics_api_context_ = CreateEglContext();
   }
-  ImGui_ImplOpenGL3_Init();
+  if (ImGui::GetCurrentContext()) {
+    ImGui_ImplOpenGL3_Init();
+  }
 #endif
 }
 
@@ -117,9 +119,11 @@ void Renderer::Render(const mjModel* model, mjData* data,
   // The filament backend knows how to renders the ImGui draw data. For the
   // classic backend, we need to render the ImGui draw data ourselves.
   #ifdef MUJOCO_RENDERER_CLASSIC_OPENGL
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    if (ImGui::GetCurrentContext()) {
+      ImGui_ImplOpenGL3_NewFrame();
+      ImGui::Render();
+      ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
   #endif
 
   if (render_to_texture) {
