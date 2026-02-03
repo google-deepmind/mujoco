@@ -16,11 +16,16 @@
 
 #include <memory>
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
+#if __has_include("third_party/GL/gl/include/EGL/egl.h")
+  #define MUJOCO_HAS_EGL
+  #include <EGL/egl.h>
+  #include <EGL/eglext.h>
+#endif
 #include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
+
+#ifdef MUJOCO_HAS_EGL
 
 static EGLDisplay CreateInitializedEglDisplay() {
   auto eglQueryDevicesEXT =
@@ -136,9 +141,16 @@ struct EglContext {
   EGLContext context_;
 };
 
+#endif  // MUJOCO_HAS_EGL
+
 std::shared_ptr<void> CreateEglContext() {
+  #ifdef MUJOCO_HAS_EGL
   auto egl_context = std::make_shared<EglContext>();
   return std::static_pointer_cast<void>(egl_context);
+  #else
+  mju_error("EGL is not supported");
+  return nullptr;
+  #endif
 }
 
 }  // namespace mujoco::platform
