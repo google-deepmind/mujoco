@@ -668,3 +668,66 @@ Cholesky factorization
 `wp.tile_cholesky <https://nvidia.github.io/warp/language_reference/_generated/warp._src.lang.tile_cholesky.html>`__
 and the result is not expected to match MuJoCo's corresponding field because a different reverse-mode ``L'DL`` routine
 :ref:`mj_factorM` is utilized.
+
+Options
+-------
+
+:class:`mjw.Option <mujoco_warp.Option>` fields correspond to their :ref:`mjOption` counterparts with the following
+exceptions:
+
+- :ref:`impratio <option-impratio>` is stored as its inverse square root ``impratio_invsqrt``.
+- The constraint solver setting :ref:`tolerance <option-tolerance>` is clamped to a minimum value of ``1e-6``.
+- Contact :ref:`override <option-flag-override>` parameters :ref:`o_margin <option-o_margin>`,
+  :ref:`o_solref <option-o_solref>`, :ref:`o_solimp <option-o_solimp>`, and :ref:`o_friction <option-o_friction>` are
+  not available.
+
+:ref:`disableflags <option-flag>` has the following differences:
+
+- :ref:`mjDSBL_MIDPHASE <mjtDisablebit>` is not available.
+- :ref:`mjDSBL_AUTORESET <mjtDisablebit>` is not available.
+- :ref:`mjDSBL_NATIVECCD <mjtDisablebit>` changes the default box-box collider from CCD to a primitive collider.
+- :ref:`mjDSBL_ISLAND <mjtDisablebit>` is not currently available. Constraint island discovery is tracked in GitHub issue
+  `#886 <https://github.com/google-deepmind/mujoco_warp/issues/886>`__.
+
+:ref:`enableflags <option-flag>` has the following differences:
+
+- :ref:`mjENBL_OVERRIDE <mjtEnablebit>` is not available.
+- :ref:`mjENBL_FWDINV <mjtEnablebit>` is not available.
+- Constraint island sleeping enabled via :ref:`mjENBL_ISLAND <mjtEnablebit>` is not currently available. This feature is
+  tracked in GitHub issues `#886 <https://github.com/google-deepmind/mujoco_warp/issues/886>`__ and
+  `#887 <https://github.com/google-deepmind/mujoco_warp/issues/887>`__.
+
+Additional MJWarp-only options are available:
+
+- ``is_sparse``: use sparse representation
+- ``ls_parallel``: use parallel linesearch with the constraint solver
+- ``ls_parallel_min_step``: minimum step size for the parallel linesearch
+- ``has_fluid``: scene has non-zero wind, density, or viscosity at ``put_model`` time; if true, compute and apply fluid
+  forces and torques
+- ``broadphase``: type of broadphase algorithm (:class:`mjw.BroadphaseType <mujoco_warp.BroadphaseType>`)
+- ``broadphase_filter``: type of filtering utilized by broadphase
+  (:class:`mjw.BroadphaseFilter <mujoco_warp.BroadphaseFilter>`)
+- ``graph_conditional``: use CUDA graph conditional
+- ``run_collision_detection``: use collision detection routine
+- ``contact_sensor_maxmatch``: maximum number of contacts for contact sensor matching criteria
+
+Unlike MuJoCo where all :ref:`mjOption` fields are configurable at runtime, the following
+:class:`mjw.Option <mujoco_warp.Option>` fields should not be directly modified:
+
+- ``density``: may require updating ``has_fluid``
+- ``viscosity``: may require updating ``has_fluid``
+- ``wind``: may require updating ``has_fluid``
+- ``is_sparse``: this field should not be set directly, instead modify the :ref:`mjOption` field
+  :ref:`jacobian <option-jacobian>`
+
+These fields should be updated as recommended above or by modifying an :ref:`mjModel` instance that is utilized to
+construct new :class:`mjw.Model <mujoco_warp.Model>` and :class:`mjw.Data <mujoco_warp.Data>` instances with
+:func:`mjw.put_model <mujoco_warp.put_model>` and :func:`mjw.make_data <mujoco_warp.make_data>` /
+:func:`mjw.put_data <mujoco_warp.put_data>`. Directly modifying these fields at runtime may lead to unintended side
+effects.
+
+.. admonition:: Graph capture
+  :class: note
+
+  A new :ref:`graph capture <mjwGC>` may be necessary after modifying an :class:`mjw.Option <mujoco_warp.Option>` field
+  in order for the updated setting to take effect.
