@@ -62,7 +62,38 @@ void mju_clearHandlers(void) {
   mju_user_malloc = 0;
   mju_user_free = 0;
 }
+// Getter/setter functions for user handlers (Windows DLL export compatibility)
+void (*mju_getUserError(void))(const char*) {
+  return mju_user_error;
+}
 
+void mju_setUserError(void (*handler)(const char*)) {
+  mju_user_error = handler;
+}
+
+void (*mju_getUserWarning(void))(const char*) {
+  return mju_user_warning;
+}
+
+void mju_setUserWarning(void (*handler)(const char*)) {
+  mju_user_warning = handler;
+}
+
+void* (*mju_getUserMalloc(void))(size_t) {
+  return mju_user_malloc;
+}
+
+void mju_setUserMalloc(void* (*handler)(size_t)) {
+  mju_user_malloc = handler;
+}
+
+void (*mju_getUserFree(void))(void*) {
+  return mju_user_free;
+}
+
+void mju_setUserFree(void (*handler)(void*)) {
+  mju_user_free = handler;
+}
 //------------------------- internal-only handlers -------------------------------------------------
 
 typedef void (*callback_fn)(const char*);
