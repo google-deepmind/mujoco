@@ -16,8 +16,8 @@
 
 #include <memory>
 
-#include "third_party/GL/gl/include/EGL/egl.h"
-#include "third_party/GL/gl/include/EGL/eglext.h"
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
 #include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
