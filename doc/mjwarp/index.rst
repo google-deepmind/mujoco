@@ -17,17 +17,6 @@ beta.
 MJWarp is developed and maintained as a joint effort by `NVIDIA <https://nvidia.com>`__ and
 `Google DeepMind <https://deepmind.google/>`__.
 
-.. TODO: remove after release
-
-.. admonition:: Beta software
-   :class: warning
-
-   - MJWarp is beta software and is under active development.
-   - MJWarp developers will triage and respond to
-     `bug reports and feature requests <https://github.com/google-deepmind/mujoco_warp/issues>`__.
-   - MJWarp is mostly feature complete but requires performance optimization, documentation, and testing.
-   - The intended audience during Beta are physics engine enthusiasts and learning framework integrators.
-
 .. _MJW_tutorial:
 
 Tutorial notebook
