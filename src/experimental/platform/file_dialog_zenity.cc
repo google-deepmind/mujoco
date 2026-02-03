@@ -15,6 +15,7 @@
 #include "experimental/platform/file_dialog.h"
 
 #include <assert.h>
+#include <cstring>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -45,8 +46,10 @@ static DialogResult RunZenity(std::vector<std::string>& args) {
   if (ret == nullptr || ferror(output)) {
     return DialogResult{.status = DialogResult::kError};
   }
-  if (buffer[kBufferSize - 1] == '\0') {
-    buffer[0] = '\0';
+  // Zenity outputs a newline at the end of the buffer which we need to remove.
+  const int len = std::strlen(buffer);
+  if (len > 0) {
+    buffer[len - 1] = '\0';
   }
   return DialogResult{.status = DialogResult::kAccepted,
                       .path = std::string(buffer)};
