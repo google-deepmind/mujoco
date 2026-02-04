@@ -126,7 +126,14 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
     memcpy(resource->name, fullname.c_str(), sizeof(char) * (n + 1));
   }
 
-  return mju_decodeResource(resource, content_type, vfs);
+  mjSpec* spec = mju_decodeResource(resource, content_type, vfs);
+  if (spec == nullptr) {
+    if (error) {
+      strncpy(error, "could not decode content", error_sz);
+      error[error_sz - 1] = '\0';
+    }
+  }
+  return spec;
 }
 
 // compile model
