@@ -207,6 +207,13 @@ class App {
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
 
+  mjSpec* spec() { return spec_; }
+  mjModel* model() { return model_; }
+  mjData* data() { return data_; }
+  bool has_spec() const { return spec_ != nullptr; }
+  bool has_model() const { return model_ != nullptr; }
+  bool has_data() const { return data_ != nullptr; }
+
   std::string ini_path_;
   std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
   std::string model_path_;
