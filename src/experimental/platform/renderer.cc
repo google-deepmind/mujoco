@@ -91,6 +91,17 @@ void Renderer::Render(const mjModel* model, mjData* data,
     return;
   }
 
+  mjvCamera default_cam;
+  if (camera == nullptr) {
+    mjv_defaultCamera(&default_cam);
+    camera = &default_cam;
+  }
+  mjvOption default_opt;
+  if (vis_option == nullptr) {
+    mjv_defaultOption(&default_opt);
+    vis_option = &default_opt;
+  }
+
   mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
                   &scene_);
 

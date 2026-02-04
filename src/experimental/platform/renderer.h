@@ -57,7 +57,7 @@ class Renderer {
   using Seconds = std::chrono::duration<double>;
   using Milliseconds = std::chrono::duration<double, std::milli>;
 
-  explicit Renderer(void* native_window);
+  explicit Renderer(void* native_window = nullptr);
   ~Renderer();
 
   Renderer(const Renderer&) = delete;
