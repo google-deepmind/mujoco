@@ -102,7 +102,7 @@ void BM_CompileManyTextures(benchmark::State& state) {
   // Create a model with many textures
   std::string xml = "<mujoco>\n";
   xml += "  <asset>\n";
-  for (int i = 0; i < state.range(0); ++i) {
+  for (int i = 0; i < 100; ++i) {
     xml += absl::StrFormat("    <texture name='tex%d' type='2d' file='%s'/>\n",
                            i, texture_path);
   }
@@ -128,7 +128,7 @@ void BM_CompileManyTextures(benchmark::State& state) {
   mj_setCacheCapacity(cache, old_capacity);
 }
 
-BENCHMARK(BM_CompileManyTextures)->Range(10, 100);
+BENCHMARK(BM_CompileManyTextures);
 
 }  // namespace
 
