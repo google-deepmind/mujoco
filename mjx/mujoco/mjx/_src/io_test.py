@@ -334,6 +334,25 @@ class ModelIOTest(parameterized.TestCase):
 
     _ = jax.tree.map_with_path(check_ndim, mx)
 
+  @parameterized.parameters('JAX', 'WARP', None)
+  def test_put_model_warp_graph_mode(self, mode: str | None):
+    """Tests that put_model accepts graph_mode parameter."""
+    if not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp not installed.')
+    if not mjx_io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device available.')
+
+    if mode is None:
+      graph_mode = None
+    else:
+      graph_mode = getattr(mjxw_types.GraphMode, mode)
+
+    m = mujoco.MjModel.from_xml_string(_SIMPLE_BODY)
+    mx = mjx.put_model(m, impl='warp', graph_mode=graph_mode)
+
+    expected = graph_mode or mjxw_types.GraphMode.WARP
+    self.assertEqual(mx.opt._impl.graph_mode, expected)
+
   @parameterized.parameters('c', 'jax')
   def test_unsupported_contact_types(self, impl):
     """Tests that unsupported contact types raise an error."""

@@ -1220,6 +1220,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'efc__type',
           'efc__vel',
       },
+      graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(
       d.qpos.shape[0],
@@ -3018,6 +3019,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'efc__type',
           'efc__vel',
       },
+      graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(
       d.qpos.shape[0],

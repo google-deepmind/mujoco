@@ -84,7 +84,7 @@ General
 MJX
 ^^^
 - Added ``actuator_length``, ``cdof`` and ``cdof_dof`` fields to ``mjx.Data``.
-
+- Add ``graph_mode`` argument to ``put_model`` to support multiple Warp graph capture modes.
 
 Documentation
 ^^^^^^^^^^^^^

@@ -16,12 +16,21 @@
 DO NOT EDIT. This file is auto-generated.
 """
 import dataclasses
+import typing
 from typing import Tuple
 import jax
 from jax import tree_util
 from jax.interpreters import batching
 from mujoco.mjx._src import dataclasses as mjx_dataclasses
 import numpy as np
+
+if typing.TYPE_CHECKING:
+  GraphMode = int
+else:
+  try:
+    from warp._src.jax_experimental.ffi import GraphMode
+  except ImportError:
+    GraphMode = int
 PyTreeNode = mjx_dataclasses.PyTreeNode
 
 @dataclasses.dataclass(frozen=True)
@@ -35,7 +44,6 @@ class TileSet:
     adr: address of each tile in the set
     size: size of all the tiles in this set
   """
-
   adr: np.ndarray
   size: int
 
@@ -95,6 +103,7 @@ class OptionWarp(PyTreeNode):
   ccd_tolerance: jax.Array
   contact_sensor_maxmatch: int
   graph_conditional: bool
+  graph_mode: GraphMode
   has_fluid: bool
   impratio_invsqrt: jax.Array
   is_sparse: bool

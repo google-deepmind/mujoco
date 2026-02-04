@@ -50,6 +50,11 @@ def _is_cuda_gpu_device(device: jax.Device) -> bool:
   return device in jax.devices('cuda')
 
 
+def _check_warp_installed():
+  if not mjxw.WARP_INSTALLED:
+    raise RuntimeError('warp-lang is not installed. Cannot use WARP implementation of MJX.')
+
+
 def _resolve_impl(
     device: jax.Device,
 ) -> types.Impl:
@@ -119,10 +124,7 @@ def _check_impl_device_compatibility(
           'Warp implementation requires a CUDA GPU device, got '
           f'{device}.'
       )
-    if not mjxw.WARP_INSTALLED:
-      raise RuntimeError(
-          'Warp is not installed. Cannot use Warp implementation of MJX.'
-      )
+    _check_warp_installed()
 
   is_cpu_device = device.platform == 'cpu'
   if impl == types.Impl.C or impl == types.Impl.CPP:
@@ -448,12 +450,10 @@ def _put_model_c(
 
 def _put_model_warp(
     m: mujoco.MjModel,
+    graph_mode: mjxw.types.GraphMode,
     device: Optional[jax.Device] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
-  if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('Warp not installed.')
-
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
     mw = mjwp.put_model(m)  # pylint: disable=undefined-variable
 
@@ -464,7 +464,10 @@ def _put_model_warp(
   option_keys = {f.name for f in mjxw.types.OptionWarp.fields()} - {
       f.name for f in types.Option.fields()
   }
+  # graph_mode is MJX-specific, not from mujoco.mjx.third_party.mujoco_warp.
+  option_keys = option_keys - {'graph_mode'}
   private_options = {k: getattr(mw.opt, k) for k in option_keys}
+  private_options['graph_mode'] = graph_mode
   fields['opt'] = _put_option(m.opt, types.Impl.WARP, private_options)
   fields['stat'] = _put_statistic(m.stat, types.Impl.WARP)
 
@@ -527,6 +530,7 @@ def put_model(
     m: mujoco.MjModel,
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
+    graph_mode: Optional[mjxw.types.GraphMode] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model.
 
@@ -534,12 +538,15 @@ def put_model(
     m: the model to put onto device
     device: which device to use - if unspecified picks the default device
     impl: implementation to use
+    graph_mode: CUDA graph capture mode (for Warp only). Use GraphMode enum from
+      warp._src.jax_experimental.ffi. GraphMode.WARP is the default mode.
 
   Returns:
     an mjx.Model placed on device
 
   Raises:
     ValueError: if impl is not supported
+    RuntimeError: if impl is WARP and warp-lang is not installed
   """
 
   impl, device = _resolve_impl_and_device(impl, device)
@@ -548,7 +555,9 @@ def put_model(
   elif impl == types.Impl.C:
     return _put_model_c(m, device)
   elif impl == types.Impl.WARP:
-    return _put_model_warp(m, device)
+    _check_warp_installed()
+    graph_mode = graph_mode or getattr(mjxw.types.GraphMode, 'WARP')
+    return _put_model_warp(m, graph_mode, device)
   elif impl == types.Impl.CPP:
     return _put_model_cpp(m, device)
   else:
@@ -861,9 +870,6 @@ def _make_data_warp(
         f' {type(m)}.'
     )
 
-  if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('Warp is not installed.')
-
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
     dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
 
@@ -1003,6 +1009,7 @@ def make_data(
   elif impl == types.Impl.CPP:
     return _make_data_cpp(m, device)
   elif impl == types.Impl.WARP:
+    _check_warp_installed()
     naconmax = nconmax if naconmax is None else naconmax
     return _make_data_warp(m, device, naconmax, njmax)
 
