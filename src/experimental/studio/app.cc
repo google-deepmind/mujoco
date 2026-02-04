@@ -1741,7 +1741,10 @@ void App::FileDialogGui() {
   ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
   if (ImGui::BeginPopupModal("FileDialog", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    const platform::DialogResult res = platform::OpenFileDialog(tmp_.filename);
+    const platform::DialogResult res =
+        tmp_.file_dialog == UiTempState::FileDialog_Load
+            ? platform::OpenFileDialog(tmp_.filename)
+            : platform::SaveFileDialog(tmp_.filename);
 
     if (res.status == platform::DialogResult::kAccepted) {
       tmp_.last_path[tmp_.file_dialog] = res.path;
