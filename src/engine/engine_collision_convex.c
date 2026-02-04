@@ -57,8 +57,8 @@ static int mjc_penetration(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
   mjCCDStatus status;
 
   // set config
-  config.max_iterations = ccd->max_iterations,
-  config.tolerance = ccd->mpr_tolerance,
+  config.max_iterations = ccd->max_iterations;
+  config.tolerance = ccd->mpr_tolerance;
   config.max_contacts = 1;
   config.dist_cutoff = 0;  // no geom distances needed
   config.context = (void*)obj1->data;
