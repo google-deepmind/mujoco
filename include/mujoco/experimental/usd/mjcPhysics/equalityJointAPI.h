@@ -150,35 +150,124 @@ class MjcPhysicsEqualityJointAPI : public UsdAPISchemaBase {
 
  public:
   // --------------------------------------------------------------------- //
-  // POLYCOEF
+  // COEF0
   // --------------------------------------------------------------------- //
-  /// Coefficients a0 through a4 of the quartic polynomial. If the joint values
-  /// of the constrained joint and reference joint are respectively y and x, and
-  /// their reference positions (corresponding to the joint values in the
-  /// initial model configuration) are y0 and x0, the constraint is: y = y0 + a0
-  /// + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4. Omitting the target
-  /// joint (joint2) is equivalent to setting x = x0, in which case the
-  /// constraint is y = y0 + a0. The default [0, 1, 0, 0, 0] creates a simple
-  /// 1:1 mimic constraint where y tracks x with the same offset from their
-  /// references.
+  /// Constant coefficient a0 of the quartic polynomial. The constraint is:
+  /// y = y0 + a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4.
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double[] mjc:polycoef = [0, 1, 0, 0, 0]` |
-  /// | C++ Type | VtArray<double> |
-  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->DoubleArray |
+  /// | Declaration | `uniform double mjc:coef0 = 0` |
+  /// | C++ Type | double |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
   MJCPHYSICS_API
-  UsdAttribute GetPolycoefAttr() const;
+  UsdAttribute GetCoef0Attr() const;
 
-  /// See GetPolycoefAttr(), and also
+  /// See GetCoef0Attr(), and also
   /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
   /// If specified, author \p defaultValue as the attribute's default,
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreatePolycoefAttr(VtValue const& defaultValue = VtValue(),
-                                  bool writeSparsely = false) const;
+  UsdAttribute CreateCoef0Attr(VtValue const& defaultValue = VtValue(),
+                               bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // COEF1
+  // --------------------------------------------------------------------- //
+  /// Linear coefficient a1 of the quartic polynomial.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform double mjc:coef1 = 1` |
+  /// | C++ Type | double |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetCoef1Attr() const;
+
+  /// See GetCoef1Attr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateCoef1Attr(VtValue const& defaultValue = VtValue(),
+                               bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // COEF2
+  // --------------------------------------------------------------------- //
+  /// Quadratic coefficient a2 of the quartic polynomial.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform double mjc:coef2 = 0` |
+  /// | C++ Type | double |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetCoef2Attr() const;
+
+  /// See GetCoef2Attr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateCoef2Attr(VtValue const& defaultValue = VtValue(),
+                               bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // COEF3
+  // --------------------------------------------------------------------- //
+  /// Cubic coefficient a3 of the quartic polynomial.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform double mjc:coef3 = 0` |
+  /// | C++ Type | double |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetCoef3Attr() const;
+
+  /// See GetCoef3Attr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateCoef3Attr(VtValue const& defaultValue = VtValue(),
+                               bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // COEF4
+  // --------------------------------------------------------------------- //
+  /// Quartic coefficient a4 of the quartic polynomial.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform double mjc:coef4 = 0` |
+  /// | C++ Type | double |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetCoef4Attr() const;
+
+  /// See GetCoef4Attr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateCoef4Attr(VtValue const& defaultValue = VtValue(),
+                               bool writeSparsely = false) const;
 
  public:
   // ===================================================================== //

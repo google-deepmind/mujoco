@@ -1854,23 +1854,12 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     }
     // If no target, name2 remains empty, meaning joint1 is fixed to a constant.
 
-    // Parse polycoef attribute for the quartic polynomial coefficients.
-    auto polycoef_attr = eq_joint_api.GetPolycoefAttr();
-    if (polycoef_attr.HasAuthoredValue()) {
-      pxr::VtDoubleArray polycoef;
-      polycoef_attr.Get(&polycoef);
-      size_t num_coefs = std::min(polycoef.size(), static_cast<size_t>(5));
-      for (size_t i = 0; i < num_coefs; ++i) {
-        eq->data[i] = polycoef[i];
-      }
-    } else {
-      // Default polycoef [0, 1, 0, 0, 0] for 1:1 mimic.
-      eq->data[0] = 0;
-      eq->data[1] = 1;
-      eq->data[2] = 0;
-      eq->data[3] = 0;
-      eq->data[4] = 0;
-    }
+    // Parse individual coefficient attributes for the quartic polynomial.
+    eq_joint_api.GetCoef0Attr().Get(&eq->data[0]);
+    eq_joint_api.GetCoef1Attr().Get(&eq->data[1]);
+    eq_joint_api.GetCoef2Attr().Get(&eq->data[2]);
+    eq_joint_api.GetCoef3Attr().Get(&eq->data[3]);
+    eq_joint_api.GetCoef4Attr().Get(&eq->data[4]);
 
     // Parse solver parameters from MjcEqualityAPI.
     auto solref_attr = equality_api.GetSolRefAttr();
