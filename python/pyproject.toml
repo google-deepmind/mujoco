@@ -62,6 +62,18 @@ mujoco = [
 ]
 
 [project.optional-dependencies]
+sysid = [
+    "absl-py",
+    "colorama",
+    "imageio[ffmpeg]",
+    "jinja2",
+    "matplotlib",
+    "plotly",
+    "pyyaml",
+    "scipy",
+    "tabulate",
+    "typing_extensions",
+]
 usd = [
     "usd-core",
     "pillow"

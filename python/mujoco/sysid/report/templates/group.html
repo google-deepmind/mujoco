@@ -1,0 +1,13 @@
+<div class="group-section">
+    {% for child in child_sections %}
+    <details class="group-item" open
+        style="margin-bottom: 1rem; border: 1px solid var(--border-color); border-radius: 4px; padding: 1rem;">
+        <summary style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; border-bottom: none;">
+            {{ child.title }}
+        </summary>
+        <div class="group-content">
+            {{ child.content | safe }}
+        </div>
+    </details>
+    {% endfor %}
+</div>
