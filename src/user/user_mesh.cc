@@ -4137,6 +4137,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     nvert = (int)vert_.size()/3;
     if (vertbody_.size() == 1) {
       rigid = true;
+    } else if (vertbody_.size() != nvert) {
+      throw mjCError(this, "vertbody size must be 1 or nvert");
     }
   }
   if (nvert < dim+1) {
