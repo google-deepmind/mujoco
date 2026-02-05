@@ -975,5 +975,35 @@ TEST_F(MujocoTest, ConvertSpringdamper) {
   mj_deleteModel(model);
 }
 
+TEST_F(UserModelTest, KeyframeValidationChecks) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+      <worldbody>
+        <body>
+          <joint axis="0 1 0"/>
+          <geom type="box" size="0.1 0.1 0.1"/>
+        </body>
+      </worldbody>
+
+      <keyframe>
+        <!-- Including an invalid keyframe -->
+        <key name="test" qpos="0 1"/>
+      </keyframe>
+    </mujoco>
+  )";
+
+  std::array<char, 1024> err;
+
+  // model is not compiled, so no errors are expected
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  EXPECT_THAT(spec, NotNull()) << err.data();
+
+  // expect failure after compiling the model, validate the message
+  mjModel* model = mj_compile(spec, 0);
+  const char* spec_error = mjs_getError(spec);
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(spec_error, HasSubstr("expected 1, got 2"));
+}
+
 }  // namespace
 }  // namespace mujoco
