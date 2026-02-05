@@ -699,11 +699,8 @@ exceptions:
 
 Additional MJWarp-only options are available:
 
-- ``is_sparse``: use sparse representation
 - ``ls_parallel``: use parallel linesearch with the constraint solver
 - ``ls_parallel_min_step``: minimum step size for the parallel linesearch
-- ``has_fluid``: scene has non-zero wind, density, or viscosity at ``put_model`` time; if true, compute and apply fluid
-  forces and torques
 - ``broadphase``: type of broadphase algorithm (:class:`mjw.BroadphaseType <mujoco_warp.BroadphaseType>`)
 - ``broadphase_filter``: type of filtering utilized by broadphase
   (:class:`mjw.BroadphaseFilter <mujoco_warp.BroadphaseFilter>`)
@@ -711,20 +708,11 @@ Additional MJWarp-only options are available:
 - ``run_collision_detection``: use collision detection routine
 - ``contact_sensor_maxmatch``: maximum number of contacts for contact sensor matching criteria
 
-Unlike MuJoCo where all :ref:`mjOption` fields are configurable at runtime, the following
-:class:`mjw.Option <mujoco_warp.Option>` fields should not be directly modified:
+.. admonition:: Fluid model
+  :class: note
 
-- ``density``: may require updating ``has_fluid``
-- ``viscosity``: may require updating ``has_fluid``
-- ``wind``: may require updating ``has_fluid``
-- ``is_sparse``: this field should not be set directly, instead modify the :ref:`mjOption` field
-  :ref:`jacobian <option-jacobian>`
-
-These fields should be updated as recommended above or by modifying an :ref:`mjModel` instance that is utilized to
-construct new :class:`mjw.Model <mujoco_warp.Model>` and :class:`mjw.Data <mujoco_warp.Data>` instances with
-:func:`mjw.put_model <mujoco_warp.put_model>` and :func:`mjw.make_data <mujoco_warp.make_data>` /
-:func:`mjw.put_data <mujoco_warp.put_data>`. Directly modifying these fields at runtime may lead to unintended side
-effects.
+  Modifying fluid model parameters: ``density``, ``viscosity``, or ``wind`` may require updating
+  ``Model.has_fluid``.
 
 .. admonition:: Graph capture
   :class: note
