@@ -16,7 +16,7 @@
 #include <string>
 
 #include <Cocoa/Cocoa.h>
-#include "experimental/platform/file_dialog.h"
+#include "third_party/mujoco/src/experimental/platform/file_dialog.h"
 
 namespace mujoco::platform {
 
