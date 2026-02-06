@@ -2249,6 +2249,20 @@ void mjCModel::SetSizes() {
     nsensordata += sensors_[i]->dim;
   }
 
+  // nhistory: layout is [user, cursor, times(n), values(n*dim)] = 2+2n per actuator (dim=1)
+  nhistory = 0;
+  for (int i=0; i < actuators_.size(); i++) {
+    if (actuators_[i]->nsample > 0) {
+      nhistory += 2 + 2 * actuators_[i]->nsample;
+    }
+  }
+  // sensor delay: layout is [user, cursor, times(n), values(n*dim)] = 2 + n + n*dim
+  for (int i=0; i < sensors_.size(); i++) {
+    if (sensors_[i]->nsample > 0) {
+      nhistory += 2 + sensors_[i]->nsample + sensors_[i]->nsample * sensors_[i]->dim;
+    }
+  }
+
   // nnumericdata
   for (int i=0; i < nnumeric; i++) {
     nnumericdata += numerics_[i]->size;
@@ -3226,6 +3240,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   m->njmax = njmax;
   m->nconmax = nconmax;
   m->nsensordata = nsensordata;
+  m->nhistory = nhistory;
   m->nuserdata = nuserdata;
   m->na = na;
 
@@ -3724,6 +3739,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
   // actuators
   adr = 0;
+  int delay_adr = 0;
   for (int i=0; i < nu; i++) {
     // get pointer
     mjCActuator* pac = actuators_[i];
@@ -3741,6 +3757,18 @@ void mjCModel::CopyObjects(mjModel* m) {
     pac->actdim_ = m->actuator_actnum[i];
     adr += m->actuator_actnum[i];
     m->actuator_group[i] = pac->group;
+
+    // historyadr
+    m->actuator_delay[i] = (mjtNum)pac->delay;
+    m->actuator_history[2*i] = pac->nsample;
+    m->actuator_history[2*i+1] = pac->interp;
+    if (pac->nsample > 0) {
+      m->actuator_historyadr[i] = delay_adr;
+      delay_adr += 2 + 2 * pac->nsample;  // [user, cursor, times, values]
+    } else {
+      m->actuator_historyadr[i] = -1;
+    }
+
     m->actuator_ctrllimited[i] = (mjtByte)pac->is_ctrllimited();
     m->actuator_forcelimited[i] = (mjtByte)pac->is_forcelimited();
     m->actuator_actlimited[i] = (mjtByte)pac->is_actlimited();
@@ -3775,6 +3803,21 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->sensor_dim[i] = psen->dim;
     m->sensor_cutoff[i] = (mjtNum)psen->cutoff;
     m->sensor_noise[i] = (mjtNum)psen->noise;
+
+    // history buffer
+    m->sensor_delay[i] = (mjtNum)psen->delay;
+    m->sensor_history[2*i] = psen->nsample;
+    m->sensor_history[2*i+1] = psen->interp;
+    m->sensor_interval[2*i] = (mjtNum)psen->interval[0];
+    m->sensor_interval[2*i+1] = (mjtNum)psen->interval[1];
+    if (psen->nsample > 0) {
+      m->sensor_historyadr[i] = delay_adr;
+      int dim = psen->dim;
+      delay_adr += 2 + psen->nsample + psen->nsample * dim;  // [user, cursor, times(n), values(n*dim)]
+    } else {
+      m->sensor_historyadr[i] = -1;
+    }
+
     mjuu_copyvec(m->sensor_user+nuser_sensor*i, psen->get_userdata().data(), nuser_sensor);
 
     // calculate address and advance

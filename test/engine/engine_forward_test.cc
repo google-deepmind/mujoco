@@ -1513,5 +1513,109 @@ TEST_F(ActuatorTest, TendonActuatorForceRange) {
   mj_deleteModel(model);
 }
 
+// ----------------------------- actuator delays -------------------------------
+
+TEST_F(ForwardTest, ActuatorDelay) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.02" nsample="2"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // delay = 0.02 seconds, timestep = 0.01, so ndelay = ceil(0.02/0.01) = 2
+  EXPECT_EQ(model->actuator_history[0], 2);
+
+  // set ctrl to a nonzero value
+  data->ctrl[0] = 10.0;
+
+  // step once: the new ctrl is appended but won't be read for 2 timesteps
+  mj_step(model, data);
+  // actuator_force should still be 0 (delayed value from buffer init)
+  EXPECT_NEAR(data->actuator_force[0], 0.0, 1e-10);
+
+  // step again
+  mj_step(model, data);
+  // still reading old values
+  EXPECT_NEAR(data->actuator_force[0], 0.0, 1e-10);
+
+  // step a third time - now the delayed ctrl should arrive
+  mj_step(model, data);
+  // actuator_force should now be 10.0
+  EXPECT_NEAR(data->actuator_force[0], 10.0, 1e-10);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Test actuator delay with linear interpolation (interp=1)
+// Uses delay = 1.5*timestep so interpolation is meaningful
+TEST_F(ForwardTest, ActuatorDelayLinearInterp) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.015" nsample="3" interp="linear"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // delay = 0.015 seconds = 1.5*timestep, nsample=3, interp=1 (linear)
+  EXPECT_EQ(model->actuator_history[0], 3);
+  EXPECT_EQ(model->actuator_history[1], 1);  // interp=1 (linear)
+  EXPECT_NEAR(model->actuator_delay[0], 0.015, 1e-10);
+
+  // Set increasing ctrl values
+  // Buffer has samples at times: -0.02, -0.01, 0 with values 0, 0, 0
+  // After step 0 at time=0.01: buffer has times -0.01, 0, 0.01 with values 0, 0, ctrl[0]
+  // Read at time 0.01 - 0.015 = -0.005: interpolate between t=-0.01 and t=0
+  // Since both values are 0, expected actuator_force = 0
+
+  data->ctrl[0] = 10.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->actuator_force[0], 0.0, 1e-10) << "step 0";
+
+  // After step 1 at time=0.02: buffer has times 0, 0.01, 0.02 with values 0, 10, 20
+  // Read at time 0.02 - 0.015 = 0.005: interpolate between t=0 (val=0) and t=0.01 (val=10)
+  // Expected: 0 * 0.5 + 10 * 0.5 = 5
+
+  data->ctrl[0] = 20.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->actuator_force[0], 5.0, 1e-10) << "step 1";
+
+  // After step 2 at time=0.03: buffer has times 0.01, 0.02, 0.03 with values 10, 20, 30
+  // Read at 0.03 - 0.015 = 0.015: interpolate between t=0.01 (val=10) and t=0.02 (val=20)
+  // Expected: 10 * 0.5 + 20 * 0.5 = 15
+
+  data->ctrl[0] = 30.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->actuator_force[0], 15.0, 1e-10) << "step 2";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

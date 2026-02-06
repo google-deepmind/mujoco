@@ -571,6 +571,7 @@ def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
       'time': (float_,),
       'qvel': (m.nv, float_),
       'act': (m.na, float_),
+      'history': (m.nhistory, float_),
       'plugin_state': (m.npluginstate, float_),
       'qacc_warmstart': (m.nv, float_),
       'ctrl': (m.nu, float_),
@@ -875,7 +876,7 @@ def _make_data_warp(
 
   fields = _make_data_public_fields(m)
   for k in fields:
-    if k in {'userdata', 'plugin_state'}:
+    if k in {'userdata', 'plugin_state', 'history'}:
       continue
     if not hasattr(dw, k):
       raise ValueError(f'Public data field {k} not found in Warp data.')
@@ -1729,6 +1730,7 @@ _STATE_MAP = {
     mujoco.mjtState.mjSTATE_QPOS: 'qpos',
     mujoco.mjtState.mjSTATE_QVEL: 'qvel',
     mujoco.mjtState.mjSTATE_ACT: 'act',
+    mujoco.mjtState.mjSTATE_HISTORY: 'history',
     mujoco.mjtState.mjSTATE_WARMSTART: 'qacc_warmstart',
     mujoco.mjtState.mjSTATE_CTRL: 'ctrl',
     mujoco.mjtState.mjSTATE_QFRC_APPLIED: 'qfrc_applied',
@@ -1752,6 +1754,7 @@ def _state_elem_size(m: types.Model, state_enum: mujoco.mjtState) -> int:
       'qpos',
       'qvel',
       'act',
+      'history',
       'qacc_warmstart',
       'ctrl',
       'qfrc_applied',
@@ -1767,6 +1770,7 @@ def _state_elem_size(m: types.Model, state_enum: mujoco.mjtState) -> int:
             'qpos': 'nq',
             'qvel': 'nv',
             'act': 'na',
+            'history': 'nhistory',
             'qacc_warmstart': 'nv',
             'ctrl': 'nu',
             'qfrc_applied': 'nv',

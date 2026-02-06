@@ -4951,6 +4951,7 @@ public unsafe struct mjData_ {
   public double* qpos;
   public double* qvel;
   public double* act;
+  public double* history;
   public double* qacc_warmstart;
   public double* plugin_state;
   public double* ctrl;
@@ -5377,6 +5378,7 @@ public unsafe struct mjModel_ {
   public Int64 nuserdata;
   public Int64 nsensordata;
   public Int64 npluginstate;
+  public Int64 nhistory;
   public Int64 narena;
   public Int64 nbuffer;
   public mjOption_ opt;
@@ -5739,6 +5741,9 @@ public unsafe struct mjModel_ {
   public int* actuator_actadr;
   public int* actuator_actnum;
   public int* actuator_group;
+  public int* actuator_history;
+  public int* actuator_historyadr;
+  public double* actuator_delay;
   public byte* actuator_ctrllimited;
   public byte* actuator_forcelimited;
   public byte* actuator_actlimited;
@@ -5768,6 +5773,10 @@ public unsafe struct mjModel_ {
   public int* sensor_adr;
   public double* sensor_cutoff;
   public double* sensor_noise;
+  public int* sensor_history;
+  public int* sensor_historyadr;
+  public double* sensor_delay;
+  public double* sensor_interval;
   public double* sensor_user;
   public int* sensor_plugin;
   public int* plugin;
@@ -6708,6 +6717,18 @@ public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* st
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_copyState(mjModel_* m, mjData_* src, mjData_* dst, int sig);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double mj_readCtrl(mjModel_* m, mjData_* d, int id, double time, int interp);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double* mj_readSensor(mjModel_* m, mjData_* d, int id, double time, double* result, int interp);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_initCtrlHistory(mjModel_* m, mjData_* d, int id, double* times, double* values);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_initSensorHistory(mjModel_* m, mjData_* d, int id, double* times, double* values, double phase);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_setKeyframe(mjModel_* m, mjData_* d, int k);

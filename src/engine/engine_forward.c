@@ -320,10 +320,17 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   // any tendon transmission targets with force limits
   int tendon_frclimited = 0;
 
-  // local, clamped copy of ctrl
+  // local copy of ctrl
   mj_markStack(d);
   mjtNum *ctrl = mjSTACKALLOC(d, nu, mjtNum);
-  mju_copy(ctrl, d->ctrl, nu);
+
+  // read from ctrl or history buffer for delayed actuators
+  for (int i = 0; i < nu; i++) {
+    int interp = m->actuator_history[2*i+1];
+    ctrl[i] = m->actuator_delay[i] ? mj_readCtrl(m, d, i, d->time, interp) : d->ctrl[i];
+  }
+
+  // clamp local copy
   if (!mjDISABLED(mjDSBL_CLAMPCTRL)) {
     clampVec(ctrl, m->actuator_ctrlrange, m->actuator_ctrllimited, nu, NULL);
   }
@@ -846,14 +853,64 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 }
 
 
-//-------------------------- integrators  ----------------------------------------------------------
+//-------------------------- state advancement and integration  ------------------------------------
 
 // advance state and time given activation derivatives, acceleration, and optional velocity
 static void mj_advance(const mjModel* m, mjData* d,
                        const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
+  int nu = m->nu, nsensor = m->nsensor;
+
+  // advance history buffers
+  if (m->nhistory > 0) {
+    // advance ctrl history buffers
+    for (int i = 0; i < nu; i++) {
+      int nsample = m->actuator_history[2*i];
+      if (nsample == 0) continue;
+
+      // get history buffer pointer and insert ctrl at current time
+      mjtNum* buf = d->history + m->actuator_historyadr[i];
+      *mju_delayInsert(buf, nsample, /*dim=*/1, d->time) = d->ctrl[i];
+    }
+
+    // advance sensor history buffers
+    for (int i = 0; i < nsensor; i++) {
+      int nsample = m->sensor_history[2*i];
+      if (nsample == 0) continue;
+
+      // get history buffer parameters
+      int dim = m->sensor_dim[i];
+      mjtNum* buf = d->history + m->sensor_historyadr[i];
+      mjtNum delay = m->sensor_delay[i];
+      mjtNum interval = m->sensor_interval[2*i];
+
+      if (interval > 0) {
+        // interval mode: if condition is satisfied, compute; otherwise copy
+        mjtNum time_prev = buf[0];  // first slot stores previous sensor tick
+        if (time_prev + interval <= d->time) {
+          buf[0] += interval;  // advance by exact interval (continuous time)
+          mjtNum* slot = mju_delayInsert(buf, nsample, dim, d->time);
+          if (delay > 0) {
+            // have delay, compute sensor
+            mj_computeSensor(m, d, i, slot);
+          } else {
+            // no delay, copy from sensordata (already computed)
+            mju_copy(slot, d->sensordata + m->sensor_adr[i], dim);
+          }
+        }
+      } else if (delay > 0) {
+        // delay-only mode: always compute and insert
+        mjtNum* slot = mju_delayInsert(buf, nsample, dim, d->time);
+        mj_computeSensor(m, d, i, slot);
+      } else {
+        // history-only mode: copy from sensordata (already computed)
+        mjtNum* slot = mju_delayInsert(buf, nsample, dim, d->time);
+        mju_copy(slot, d->sensordata + m->sensor_adr[i], dim);
+      }
+    }
+  }
+
   // advance activations
   if (m->na && !mjDISABLED(mjDSBL_ACTUATION)) {
-    int nu = m->nu;
     for (int i=0; i < nu; i++) {
       int actadr = m->actuator_actadr[i];
       int actadr_end = actadr + m->actuator_actnum[i];

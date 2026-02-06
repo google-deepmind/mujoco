@@ -641,7 +641,14 @@ class ModelC(PyTreeNode):
   tendon_treenum: jax.Array
   tendon_treeid: jax.Array
   actuator_plugin: jax.Array
+  actuator_history: jax.Array
+  actuator_historyadr: jax.Array
+  actuator_delay: jax.Array
   sensor_plugin: jax.Array
+  sensor_history: jax.Array
+  sensor_historyadr: jax.Array
+  sensor_delay: jax.Array
+  sensor_interval: jax.Array
   plugin: jax.Array
   plugin_stateadr: jax.Array
   B_rownnz: jax.Array  # pylint:disable=invalid-name
@@ -719,6 +726,7 @@ class Model(PyTreeNode):
     nuserdata: number of elements in userdata
     nsensordata: number of elements in sensor data vector
     npluginstate: number of plugin state values
+    nhistory: number of history buffer elements
     opt: physics options
     stat: model statistics
     qpos0: qpos values at default pose
@@ -768,6 +776,7 @@ class Model(PyTreeNode):
   nuserdata: int
   nsensordata: int
   npluginstate: int
+  nhistory: int
   opt: Option
   stat: Union[Statistic, StatisticWarp]
   qpos0: jax.Array
@@ -1206,6 +1215,7 @@ class Data(PyTreeNode):
     qpos: position
     qvel: velocity
     act: actuator activation
+    history: actuator history buffer
     qacc_warmstart: warm start for solver
     plugin_state: plugin state values
     ctrl: control input
@@ -1255,6 +1265,7 @@ class Data(PyTreeNode):
   qpos: jax.Array
   qvel: jax.Array
   act: jax.Array
+  history: jax.Array
   qacc_warmstart: jax.Array
   plugin_state: jax.Array
   # control:

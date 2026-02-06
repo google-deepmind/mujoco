@@ -205,6 +205,69 @@ is not a subset of the bits set in ``srcsig``.
 Copy concatenated state components specified by ``sig`` from  ``state`` into ``d``. The bits of the integer
 ``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
 
+.. _mj_readCtrl:
+
+Read the control value for an actuator at a given time, taking delays into account. If no history buffer exists, return
+``mjData.ctrl[id]``. If a history buffer exists (:ref:`nsample<actuator-general-nsample>` > 0), read from the delay
+buffer at ``time - actuator_delay[id]`` using the requested interpolation order:
+
+- ``interp = 0``: Zero-order hold (piecewise constant)
+- ``interp = 1``: Piecewise Linear
+- ``interp = 2``: Cubic Spline (Catmull-Rom)
+- ``interp = -1``: Use the actuator's :ref:`interp<actuator-general-interp>` value.
+
+In all three cases, constant extrapolation outside of buffer bounds.
+See :ref:`Delays<CDelay>` for details.
+
+.. _mj_readSensor:
+
+Read a sensor value at a given time, taking delays into account. If no history buffer exists, return a pointer to the
+sensor's slice of ``mjData.sensordata``. If a history buffer exists (:ref:`nsample<sensor-nsample>` > 0), read from the
+history buffer at ``time - sensor_delay[id]``. See :ref:`Delays<CDelay>` for details.
+
+**Return value semantics:**
+
+- If no history buffer exists (:ref:`nsample<sensor-nsample>` = 0), returns a pointer to the sensor's slice of
+  ``mjData.sensordata``.
+- If a history buffer exists (:ref:`nsample<sensor-nsample>` > 0) and the requested time matches a stored sample
+  (always true for ``interp = 0``), returns a pointer to the data in the history buffer.
+- If interpolation is required (``interp = 1 or 2``), returns ``NULL`` and writes the interpolated result to
+  ``result`` (must be of size ``dim``).
+
+**Interpolation:**
+
+- ``interp = 0``: Zero-order hold (piecewise constant)
+- ``interp = 1``: Piecewise Linear
+- ``interp = 2``: Cubic Spline (Catmull-Rom)
+- ``interp = -1``: Use the value in :ref:`interp<sensor-interp>`
+
+In all three cases, constant extrapolation outside of buffer bounds.
+
+
+**Usage:**
+
+.. code-block:: C
+
+   // read sensor 0 of data size `dim` at time t
+   mjtNum result[dim];
+   const mjtNum* ptr = mj_readSensor(m, d, 0, t, result, /* interp = */ 1);
+   const mjtNum* data = ptr ? ptr : result;
+
+.. _mj_initCtrlHistory:
+
+Initialize the history buffer for an actuator with custom values. The ``times`` array specifies the timestamps for each
+sample (must be length :ref:`nsample<actuator-general-nsample>`), and ``values`` specifies the control values. If
+``times`` is ``NULL``, the existing timestamps in the buffer are used, and only the values are updated.
+See :ref:`Delays<CDelay>` for details.
+
+.. _mj_initSensorHistory:
+
+Initialize the history buffer for a sensor with custom values. The ``times`` array specifies the timestamps for each
+sample (must be length :ref:`nsample<sensor-nsample>`), and ``values`` specifies the sensor values (must be of size
+``nsample * dim``). If ``times`` is ``NULL``, the existing timestamps in the buffer are used.
+The ``phase`` argument sets the user slot, which stores the last computation time for interval sensors.
+See :ref:`Delays<CDelay>` for details.
+
 .. _mj_mulJacVec:
 
 This function multiplies the constraint Jacobian mjData.efc_J by a vector. Note that the Jacobian can be either dense or

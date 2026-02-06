@@ -825,6 +825,9 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
 
   // defaults and regular
   WriteAttrInt(elem, "group", actuator->group, def->Actuator().group);
+  WriteAttrInt(elem, "nsample", actuator->nsample, def->Actuator().nsample);
+  WriteAttrKey(elem, "interp", interp_map, interp_sz, actuator->interp, def->Actuator().interp);
+  WriteAttr(elem, "delay", 1, &actuator->delay, &def->Actuator().delay);
   WriteAttrKey(elem, "ctrllimited", TFAuto_map, 3, actuator->ctrllimited, def->Actuator().ctrllimited);
   WriteAttr(elem, "ctrlrange", 2, actuator->ctrlrange, def->Actuator().ctrlrange);
   WriteAttrKey(elem, "forcelimited", TFAuto_map, 3, actuator->forcelimited, def->Actuator().forcelimited);
@@ -2338,6 +2341,11 @@ void mjXWriter::Sensor(XMLElement* root) {
     if (sensor->type != mjSENS_PLUGIN) {
       WriteAttr(elem, "noise", 1, &sensor->noise, &zero);
     }
+    WriteAttrInt(elem, "nsample", sensor->nsample, 0);
+    WriteAttrKey(elem, "interp", interp_map, interp_sz, sensor->interp, 0);
+    WriteAttr(elem, "delay", 1, &sensor->delay, &zero);
+    double zeros[2] = {0, 0};
+    WriteAttr(elem, "interval", 2, sensor->interval, zeros);
     WriteVector(elem, "user", sensor->get_userdata());
   }
 

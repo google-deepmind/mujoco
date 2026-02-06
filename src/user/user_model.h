@@ -118,6 +118,7 @@ class mjCModel_ : public mjsElement {
   mjtSize ntexdata;        // number of texture bytes
   mjtSize nwrap;           // number of wrap objects in all tendon paths
   mjtSize nsensordata;     // number of mjtNums in sensor data vector
+  mjtSize nhistory;        // number of mjtNums in history buffer
   mjtSize nnumericdata;    // number of mjtNums in all custom fields
   mjtSize ntextdata;       // number of chars in all text fields, including 0
   mjtSize ntupledata;      // number of objects in all tuple fields

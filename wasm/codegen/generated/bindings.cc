@@ -4120,6 +4120,12 @@ struct MjModel {
   void set_npluginstate(int value) {
     ptr_->npluginstate = static_cast<mjtSize>(value);
   }
+  int nhistory() const {
+    return static_cast<int>(ptr_->nhistory);
+  }
+  void set_nhistory(int value) {
+    ptr_->nhistory = static_cast<mjtSize>(value);
+  }
   int narena() const {
     return static_cast<int>(ptr_->narena);
   }
@@ -5203,6 +5209,15 @@ struct MjModel {
   emscripten::val actuator_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_group));
   }
+  emscripten::val actuator_history() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_history));
+  }
+  emscripten::val actuator_historyadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_historyadr));
+  }
+  emscripten::val actuator_delay() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_delay));
+  }
   emscripten::val actuator_ctrllimited() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_ctrllimited));
   }
@@ -5289,6 +5304,18 @@ struct MjModel {
   }
   emscripten::val sensor_noise() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor, ptr_->sensor_noise));
+  }
+  emscripten::val sensor_history() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor * 2, ptr_->sensor_history));
+  }
+  emscripten::val sensor_historyadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor, ptr_->sensor_historyadr));
+  }
+  emscripten::val sensor_delay() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor, ptr_->sensor_delay));
+  }
+  emscripten::val sensor_interval() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor * 2, ptr_->sensor_interval));
   }
   emscripten::val sensor_user() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor * ptr_->nuser_sensor, ptr_->sensor_user));
@@ -5793,6 +5820,24 @@ struct MjsActuator {
   void set_group(int value) {
     ptr_->group = value;
   }
+  int nsample() const {
+    return ptr_->nsample;
+  }
+  void set_nsample(int value) {
+    ptr_->nsample = value;
+  }
+  int interp() const {
+    return ptr_->interp;
+  }
+  void set_interp(int value) {
+    ptr_->interp = value;
+  }
+  double delay() const {
+    return ptr_->delay;
+  }
+  void set_delay(double value) {
+    ptr_->delay = value;
+  }
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);
   }
@@ -6222,6 +6267,27 @@ struct MjsSensor {
   void set_noise(double value) {
     ptr_->noise = value;
   }
+  int nsample() const {
+    return ptr_->nsample;
+  }
+  void set_nsample(int value) {
+    ptr_->nsample = value;
+  }
+  int interp() const {
+    return ptr_->interp;
+  }
+  void set_interp(int value) {
+    ptr_->interp = value;
+  }
+  double delay() const {
+    return ptr_->delay;
+  }
+  void set_delay(double value) {
+    ptr_->delay = value;
+  }
+  emscripten::val interval() const {
+    return emscripten::val(emscripten::typed_memory_view(2, ptr_->interval));
+  }
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);
   }
@@ -6447,6 +6513,9 @@ struct MjData {
   }
   emscripten::val act() const {
     return emscripten::val(emscripten::typed_memory_view(model->na, ptr_->act));
+  }
+  emscripten::val history() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nhistory, ptr_->history));
   }
   emscripten::val qacc_warmstart() const {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qacc_warmstart));
@@ -8539,6 +8608,18 @@ void mj_implicit_wrapper(const MjModel& m, MjData& d) {
   mj_implicit(m.get(), d.get());
 }
 
+void mj_initCtrlHistory_wrapper(const MjModel& m, MjData& d, int id, const NumberArray& times, const NumberArray& values) {
+  UNPACK_NULLABLE_ARRAY(mjtNum, times);
+  UNPACK_ARRAY(mjtNum, values);
+  mj_initCtrlHistory(m.get(), d.get(), id, times_.data(), values_.data());
+}
+
+void mj_initSensorHistory_wrapper(const MjModel& m, MjData& d, int id, const NumberArray& times, const NumberArray& values, mjtNum phase) {
+  UNPACK_NULLABLE_ARRAY(mjtNum, times);
+  UNPACK_ARRAY(mjtNum, values);
+  mj_initSensorHistory(m.get(), d.get(), id, times_.data(), values_.data(), phase);
+}
+
 void mj_integratePos_wrapper(const MjModel& m, const val& qpos, const NumberArray& qvel, mjtNum dt) {
   UNPACK_VALUE(mjtNum, qpos);
   UNPACK_ARRAY(mjtNum, qvel);
@@ -8809,6 +8890,10 @@ mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const N
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_VALUE(mjtNum, normal);
   return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
+}
+
+mjtNum mj_readCtrl_wrapper(const MjModel& m, const MjData& d, int id, mjtNum time, int interp) {
+  return mj_readCtrl(m.get(), d.get(), id, time, interp);
 }
 
 void mj_referenceConstraint_wrapper(const MjModel& m, MjData& d) {
@@ -11103,6 +11188,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjSTATE_QPOS", mjSTATE_QPOS)
     .value("mjSTATE_QVEL", mjSTATE_QVEL)
     .value("mjSTATE_ACT", mjSTATE_ACT)
+    .value("mjSTATE_HISTORY", mjSTATE_HISTORY)
     .value("mjSTATE_WARMSTART", mjSTATE_WARMSTART)
     .value("mjSTATE_CTRL", mjSTATE_CTRL)
     .value("mjSTATE_QFRC_APPLIED", mjSTATE_QFRC_APPLIED)
@@ -11341,6 +11427,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flg_subtreevel", &MjData::flg_subtreevel, &MjData::set_flg_subtreevel, reference())
     .property("geom_xmat", &MjData::geom_xmat)
     .property("geom_xpos", &MjData::geom_xpos)
+    .property("history", &MjData::history)
     .property("iLD", &MjData::iLD)
     .property("iLDiagInv", &MjData::iLDiagInv)
     .property("iM", &MjData::iM)
@@ -11517,6 +11604,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actuator_cranklength", &MjModel::actuator_cranklength)
     .property("actuator_ctrllimited", &MjModel::actuator_ctrllimited)
     .property("actuator_ctrlrange", &MjModel::actuator_ctrlrange)
+    .property("actuator_delay", &MjModel::actuator_delay)
     .property("actuator_dynprm", &MjModel::actuator_dynprm)
     .property("actuator_dyntype", &MjModel::actuator_dyntype)
     .property("actuator_forcelimited", &MjModel::actuator_forcelimited)
@@ -11525,6 +11613,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actuator_gaintype", &MjModel::actuator_gaintype)
     .property("actuator_gear", &MjModel::actuator_gear)
     .property("actuator_group", &MjModel::actuator_group)
+    .property("actuator_history", &MjModel::actuator_history)
+    .property("actuator_historyadr", &MjModel::actuator_historyadr)
     .property("actuator_length0", &MjModel::actuator_length0)
     .property("actuator_lengthrange", &MjModel::actuator_lengthrange)
     .property("actuator_plugin", &MjModel::actuator_plugin)
@@ -11859,6 +11949,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("ngravcomp", &MjModel::ngravcomp, &MjModel::set_ngravcomp, reference())
     .property("nhfield", &MjModel::nhfield, &MjModel::set_nhfield, reference())
     .property("nhfielddata", &MjModel::nhfielddata, &MjModel::set_nhfielddata, reference())
+    .property("nhistory", &MjModel::nhistory, &MjModel::set_nhistory, reference())
     .property("njmax", &MjModel::njmax, &MjModel::set_njmax, reference())
     .property("njnt", &MjModel::njnt, &MjModel::set_njnt, reference())
     .property("nkey", &MjModel::nkey, &MjModel::set_nkey, reference())
@@ -11943,7 +12034,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("sensor_adr", &MjModel::sensor_adr)
     .property("sensor_cutoff", &MjModel::sensor_cutoff)
     .property("sensor_datatype", &MjModel::sensor_datatype)
+    .property("sensor_delay", &MjModel::sensor_delay)
     .property("sensor_dim", &MjModel::sensor_dim)
+    .property("sensor_history", &MjModel::sensor_history)
+    .property("sensor_historyadr", &MjModel::sensor_historyadr)
+    .property("sensor_interval", &MjModel::sensor_interval)
     .property("sensor_intprm", &MjModel::sensor_intprm)
     .property("sensor_needstage", &MjModel::sensor_needstage)
     .property("sensor_noise", &MjModel::sensor_noise)
@@ -12239,6 +12334,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("cranklength", &MjsActuator::cranklength, &MjsActuator::set_cranklength, reference())
     .property("ctrllimited", &MjsActuator::ctrllimited, &MjsActuator::set_ctrllimited, reference())
     .property("ctrlrange", &MjsActuator::ctrlrange)
+    .property("delay", &MjsActuator::delay, &MjsActuator::set_delay, reference())
     .property("dynprm", &MjsActuator::dynprm)
     .property("dyntype", &MjsActuator::dyntype, &MjsActuator::set_dyntype, reference())
     .property("element", &MjsActuator::element, reference())
@@ -12250,7 +12346,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("group", &MjsActuator::group, &MjsActuator::set_group, reference())
     .property("info", &MjsActuator::info, &MjsActuator::set_info, reference())
     .property("inheritrange", &MjsActuator::inheritrange, &MjsActuator::set_inheritrange, reference())
+    .property("interp", &MjsActuator::interp, &MjsActuator::set_interp, reference())
     .property("lengthrange", &MjsActuator::lengthrange)
+    .property("nsample", &MjsActuator::nsample, &MjsActuator::set_nsample, reference())
     .property("plugin", &MjsActuator::plugin, reference())
     .property("refsite", &MjsActuator::refsite, &MjsActuator::set_refsite, reference())
     .property("slidersite", &MjsActuator::slidersite, &MjsActuator::set_slidersite, reference())
@@ -12556,12 +12654,16 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjsSensor>("MjsSensor")
     .property("cutoff", &MjsSensor::cutoff, &MjsSensor::set_cutoff, reference())
     .property("datatype", &MjsSensor::datatype, &MjsSensor::set_datatype, reference())
+    .property("delay", &MjsSensor::delay, &MjsSensor::set_delay, reference())
     .property("dim", &MjsSensor::dim, &MjsSensor::set_dim, reference())
     .property("element", &MjsSensor::element, reference())
     .property("info", &MjsSensor::info, &MjsSensor::set_info, reference())
+    .property("interp", &MjsSensor::interp, &MjsSensor::set_interp, reference())
+    .property("interval", &MjsSensor::interval)
     .property("intprm", &MjsSensor::intprm)
     .property("needstage", &MjsSensor::needstage, &MjsSensor::set_needstage, reference())
     .property("noise", &MjsSensor::noise, &MjsSensor::set_noise, reference())
+    .property("nsample", &MjsSensor::nsample, &MjsSensor::set_nsample, reference())
     .property("objname", &MjsSensor::objname, &MjsSensor::set_objname, reference())
     .property("objtype", &MjsSensor::objtype, &MjsSensor::set_objtype, reference())
     .property("plugin", &MjsSensor::plugin, reference())
@@ -12908,6 +13010,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_getTotalmass", &mj_getTotalmass_wrapper);
   function("mj_id2name", &mj_id2name_wrapper);
   function("mj_implicit", &mj_implicit_wrapper);
+  function("mj_initCtrlHistory", &mj_initCtrlHistory_wrapper);
+  function("mj_initSensorHistory", &mj_initSensorHistory_wrapper);
   function("mj_integratePos", &mj_integratePos_wrapper);
   function("mj_invConstraint", &mj_invConstraint_wrapper);
   function("mj_invPosition", &mj_invPosition_wrapper);
@@ -12951,6 +13055,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_rayFlex", &mj_rayFlex_wrapper);
   function("mj_rayHfield", &mj_rayHfield_wrapper);
   function("mj_rayMesh", &mj_rayMesh_wrapper);
+  function("mj_readCtrl", &mj_readCtrl_wrapper);
   function("mj_referenceConstraint", &mj_referenceConstraint_wrapper);
   function("mj_resetCallbacks", &mj_resetCallbacks);
   function("mj_resetData", &mj_resetData_wrapper);

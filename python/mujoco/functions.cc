@@ -91,7 +91,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_printSchema,
                            "filename", "buffer", "buffer_sz")(
       pymodule, [](bool flg_html, bool flg_pad) {
-        constexpr int kBufferSize = 40000;
+        constexpr int kBufferSize = 60000;
         auto buffer = std::unique_ptr<char[]>(new char[kBufferSize]);
         const int out_length = InterceptMjErrors(::mj_printSchema)(
             nullptr, buffer.get(), kBufferSize, flg_html, flg_pad);
@@ -357,6 +357,60 @@ PYBIND11_MODULE(_functions, pymodule) {
         return InterceptMjErrors(::mj_setState)(m, d, state.data(), sig);
       });
   Def<traits::mj_copyState>(pymodule);
+  Def<traits::mj_readCtrl>(pymodule);
+  Def<traits::mj_readSensor>(
+      pymodule,
+      [](const raw::MjModel* m, const raw::MjData* d, int id, mjtNum time,
+         Eigen::Ref<EigenVectorX> result, int order) {
+        int dim = m->sensor_dim[id];
+        if (result.size() != dim) {
+          throw py::type_error("result should have length sensor_dim[id]");
+        }
+        const mjtNum* ptr = InterceptMjErrors(::mj_readSensor)(
+            m, d, id, time, result.data(), order);
+        if (ptr && ptr != result.data()) {
+          for (int i = 0; i < dim; ++i) {
+            result[i] = ptr[i];
+          }
+        }
+        return result;
+      });
+  Def<traits::mj_initCtrlHistory>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d, int id,
+         std::optional<Eigen::Ref<const EigenVectorX>> times,
+         Eigen::Ref<const EigenVectorX> values) {
+        int nhistory = m->actuator_history[2*id];
+        if (times.has_value() && times->size() != nhistory) {
+          throw py::type_error(
+              "times should have length actuator_history[2*id]");
+        }
+        if (values.size() != nhistory) {
+          throw py::type_error(
+              "values should have length actuator_history[2*id]");
+        }
+        return InterceptMjErrors(::mj_initCtrlHistory)(
+            m, d, id,
+            times.has_value() ? times->data() : nullptr, values.data());
+      });
+  Def<traits::mj_initSensorHistory>(
+      pymodule, [](const raw::MjModel* m, raw::MjData* d, int id,
+                   std::optional<Eigen::Ref<const EigenVectorX>> times,
+                   Eigen::Ref<const EigenArrayXX> values, mjtNum phase) {
+        int nhistory = m->sensor_history[2 * id];
+        int dim = m->sensor_dim[id];
+        if (times.has_value() && times->size() != nhistory) {
+          throw py::type_error("times should have length sensor_history[2*id]");
+        }
+        if (values.rows() != nhistory || values.cols() != dim) {
+          throw py::type_error(
+              "values should have shape (sensor_history[2*id], "
+              "sensor_dim[id])");
+        }
+        return InterceptMjErrors(::mj_initSensorHistory)(
+            m, d, id, times.has_value() ? times->data() : nullptr,
+            values.data(), phase);
+      });
   Def<traits::mj_setKeyframe>(pymodule);
   Def<traits::mj_addContact>(pymodule);
   Def<traits::mj_isPyramidal>(pymodule);

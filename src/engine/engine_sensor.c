@@ -1343,6 +1343,51 @@ void mj_computeSensor(const mjModel* m, mjData* d, int i, mjtNum* sensordata) {
 }
 
 
+// compute sensor or read from history buffer (handles delay and interval logic)
+static void compute_or_read_sensor(const mjModel* m, mjData* d, int i, mjtNum* sensordata) {
+  int nsample = m->sensor_history[2*i];
+
+  // no history: compute directly
+  if (nsample <= 0) {
+    mj_computeSensor(m, d, i, sensordata);
+    return;
+  }
+
+  mjtNum delay = m->sensor_delay[i];
+  int dim = m->sensor_dim[i];
+
+  // delay > 0: read delayed value from buffer
+  if (delay > 0) {
+    int interp = m->sensor_history[2*i+1];
+    const mjtNum* ptr = mj_readSensor(m, d, i, d->time, sensordata, interp);
+    if (ptr) mju_copy(sensordata, ptr, dim);
+    return;
+  }
+
+  // interval > 0: compute if interval condition satisfied, else read from buffer
+  mjtNum interval = m->sensor_interval[2*i];
+  if (interval > 0) {
+    int historyadr = m->sensor_historyadr[i];
+    mjtNum* buf = d->history + historyadr;
+    mjtNum time_prev = buf[0];  // first slot stores time_prev
+
+    if (time_prev + interval <= d->time) {
+      // interval condition satisfied: compute new sensor value
+      mj_computeSensor(m, d, i, sensordata);
+    } else {
+      // interval condition not satisfied: read from buffer
+      int interp = m->sensor_history[2*i+1];
+      const mjtNum* ptr = mj_readSensor(m, d, i, d->time, sensordata, interp);
+      if (ptr) mju_copy(sensordata, ptr, dim);
+    }
+    return;
+  }
+
+  // history only, no delay or interval: compute directly
+  mj_computeSensor(m, d, i, sensordata);
+}
+
+
 // compute user sensors: call user callback and apply cutoff
 static void compute_user_sensors(const mjModel* m, mjData* d, mjtStage stage) {
   if (mjcb_sensor) {
@@ -1438,13 +1483,14 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 
     if (m->sensor_needstage[i] == mjSTAGE_POS) {
       int adr = m->sensor_adr[i];
+      mjtNum* sensordata = d->sensordata + adr;
 
       if (type == mjSENS_USER) {
         // clear result, compute later
-        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
+        mju_zero(sensordata, m->sensor_dim[i]);
         nusersensor++;
       } else {
-        mj_computeSensor(m, d, i, d->sensordata + adr);
+        compute_or_read_sensor(m, d, i, sensordata);
       }
     }
   }
@@ -1486,6 +1532,7 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
     if (m->sensor_needstage[i] == mjSTAGE_VEL) {
       mjtSensor type = m->sensor_type[i];
       int adr = m->sensor_adr[i];
+      mjtNum* sensordata = d->sensordata + adr;
 
       if (type == mjSENS_USER) {
         // call mj_subtreeVel for user sensors
@@ -1494,10 +1541,10 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
         }
 
         // clear result, compute later
-        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
+        mju_zero(sensordata, m->sensor_dim[i]);
         nusersensor++;
       } else {
-        mj_computeSensor(m, d, i, d->sensordata + adr);
+        compute_or_read_sensor(m, d, i, sensordata);
       }
     }
   }
@@ -1539,6 +1586,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
     if (m->sensor_needstage[i] == mjSTAGE_ACC) {
       mjtSensor type = m->sensor_type[i];
       int adr = m->sensor_adr[i];
+      mjtNum* sensordata = d->sensordata + adr;
 
       if (type == mjSENS_USER) {
         // call mj_rnePostConstraint for user sensors
@@ -1547,10 +1595,10 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
         }
 
         // clear result, compute later
-        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
+        mju_zero(sensordata, m->sensor_dim[i]);
         nusersensor++;
       } else {
-        mj_computeSensor(m, d, i, d->sensordata + adr);
+        compute_or_read_sensor(m, d, i, sensordata);
       }
     }
   }

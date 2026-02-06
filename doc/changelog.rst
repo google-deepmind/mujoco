@@ -32,6 +32,9 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
+- Actuators and sensors now support arbitrary delays, see :ref:`Delays<CDelay>` for details. Adding
+  delays introduces a new ``mjData.history`` variable to the :ref:`Physics state<siPhysicsState>`.
+
 .. image:: images/changelog/poncho.png
    :width: 45%
    :align: right

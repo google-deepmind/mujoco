@@ -493,6 +493,29 @@ MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig
 // Copy state from src to dst.
 MJAPI void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig);
 
+// Read ctrl value for actuator at given time.
+// Returns d->ctrl[id] if no history, otherwise reads from history buffer.
+// interp: 0=zero-order-hold, 1=linear, 2=cubic spline.
+MJAPI mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp);
+
+// Read sensor value from history buffer at given time.
+// Returns pointer to sensordata (no history) or history buffer (exact match),
+// or NULL if interpolation performed (writes to result).
+// interp: 0=zero-order-hold, 1=linear, 2=cubic spline.
+MJAPI const mjtNum* mj_readSensor(const mjModel* m, const mjData* d, int id, mjtNum time,
+                                  mjtNum* result, int interp);
+
+// Initialize history buffer for actuator; if times is NULL, uses existing buffer timestamps.
+// Nullable: times
+MJAPI void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
+                              const mjtNum* times, const mjtNum* values);
+
+// Initialize history buffer for sensor; if times is NULL, uses existing buffer timestamps.
+// phase sets the user slot (last computation time for interval sensors).
+// Nullable: times
+MJAPI void mj_initSensorHistory(const mjModel* m, mjData* d, int id,
+                                const mjtNum* times, const mjtNum* values, mjtNum phase);
+
 // Copy current state to the k-th model keyframe.
 MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 

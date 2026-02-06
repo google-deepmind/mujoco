@@ -1113,7 +1113,7 @@ describe('MuJoCo WASM Bindings', () => {
       mujoco.mj_stateSize(model!, invalidSig);
     })
         .toThrowError(
-            'MuJoCo Error: mj_stateSize: invalid state signature 8192 >= 2^mjNSTATE');
+            'MuJoCo Error: mj_stateSize: invalid state signature 16384 >= 2^mjNSTATE');
 
     const sig = mujoco.mjtState.mjSTATE_INTEGRATION.value;
     const size = mujoco.mj_stateSize(model!, sig);

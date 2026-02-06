@@ -295,6 +295,10 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
 void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
                 mjtNum* DyDq, mjtNum* DyDv, mjtNum* DyDa, mjtNum* DyDu,
                 mjtNum* DsDq, mjtNum* DsDv, mjtNum* DsDa, mjtNum* DsDu) {
+  if (m->nhistory) {
+    mjERROR("delays are not supported");
+  }
+
   int nq = m->nq, nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;
   int ndx = 2*nv+na;  // row length of Dy Jacobians
   mj_markStack(d);
@@ -539,6 +543,9 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_cente
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D) {
   if (m->opt.integrator == mjINT_RK4) {
     mjERROR("RK4 integrator is not supported");
+  }
+  if (m->nhistory) {
+    mjERROR("delays are not supported");
   }
 
   int nv = m->nv, na = m->na, nu = m->nu, ns = m->nsensordata;

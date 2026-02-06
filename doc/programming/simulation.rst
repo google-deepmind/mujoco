@@ -264,7 +264,7 @@ individual components and combinations of components. These are:
 Physics state
 """""""""""""
 The *physics state* (:ref:`mjSTATE_PHYSICS<mjtState>`) contains the main quantities which are time-integrated during
-stepping. These are ``mjData.{qpos, qvel, act}``:
+stepping. These are ``mjData.{qpos, qvel, act, history}``:
 
 Position: ``qpos``
   The configuration in generalized coodinates, denoted in the :ref:`Numerical Integration<geIntegration>` section as
@@ -280,6 +280,11 @@ Actuator activation: ``act``
   For a second-order mechanical system, the state contains only position and velocity, but MuJoCo also models stateful
   actuators (such as biological muscles) that have their own activation states assembled in ``mjData.act``, denoted
   as :math:`w` in the :ref:`Numerical Integration<geIntegration>` section.
+
+History buffer: ``history``
+  When actuators or sensors have a positive :at:`nsample` attribute (:ref:`actuators<actuator-general-nsample>`,
+  :ref:`sensors<sensor-nsample>`), this buffer stores timestamped samples of previous
+  control or sensor values. See :ref:`Delays<CDelay>` for details.
 
 .. _siFullPhysics:
 

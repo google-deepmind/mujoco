@@ -1081,19 +1081,185 @@ copied in the array mjData.sensordata and are available for user processing.
 
 Here we describe the XML attributes common to all sensor types, so as to avoid repetition later.
 
+.. _sensor-name:
+
 :at:`name`: :at-val:`string, optional`
    Name of the sensor.
+
+.. _sensor-noise:
+
 :at:`noise`: :at-val:`real, "0"`
    The standard deviation of the noise model of this sensor. In versions prior to 3.1.4, this would lead to noise being
    added to the sensors. In release 3.1.4 this feature was removed, see :doc:`3.1.4 changelog <changelog>` for a
    detailed justification. As of subsequent versions, this attrbute serves as a convenient location for saving standard
    deviation information for later use.
+
+.. _sensor-cutoff:
+
 :at:`cutoff`: :at-val:`real, "0"`
    When this value is positive, it limits the absolute value of the sensor output. It is also used to normalize the
    sensor data plots in :ref:`simulate.cc <saSimulate>`. Note that :at:`cutoff` has a different meaning for
    :ref:`collision sensors<collision-sensors>`.
+
+.. _sensor-nsample:
+
+:at:`nsample`: :at-val:`int, "0"`
+   If :at-val:`nsample` is greater than 0, creates a time-indexed ring buffer with :at:`nsample` slots of sensor data.
+   During state advancement, the current sensor data is appended to the buffer with timestamp ``time``, and the oldest
+   sample is removed. Values in the history buffer can be read via :ref:`mj_readSensor`. A positive :at-val:`nsample`
+   is required for both :ref:`delay<sensor-delay>` and :ref:`interval<sensor-interval>` features.
+
+   See :ref:`Delays<CDelay>` for details.
+
+.. _sensor-interp:
+
+:at:`interp`: :at-val:`[zoh, linear, cubic], "zoh"`
+   The interpolation method used when reading from the history buffer. Corresponds to the ``interp`` argument in
+   :ref:`mj_readSensor`.
+
+   - ``zoh``: Zero-order hold (piecewise constant).
+   - ``linear``: Piecewise linear interpolation.
+   - ``cubic``: Cubic spline interpolation (Catmull-Rom).
+
+   The :at:`interp` value is for advanced use-cases, see :ref:`Delays<CDelay>` for details.
+
+.. _sensor-delay:
+
+:at:`delay`: :at-val:`real, "0"`
+   If greater than 0, sensor values in ``mjData.sensordata`` are read from the history buffer at ``time - delay`` rather
+   than computed directly. Requires positive :ref:`nsample<sensor-nsample>`, cannot be negative.
+
+   In the most common case, ``delay = nsample * timestep``, see :ref:`Delays<CDelay>` for details.
+
+.. _sensor-interval:
+
+:at:`interval`: :at-val:`real, "0 0"`
+   This attribute controls how often sensor values are recomputed. It is useful for modeling sensors that have a larger
+   sampling period than the simulation timestep. Requires a history buffer (:ref:`nsample <sensor-nsample>` > 0).
+
+   This attribute is defined by two real-valued numbers, both in units of time, called :at:`interval` =
+   ":at-val:`period` :at-val:`phase`". It is possible to only specify the :at-val:`period`, in which case the
+   :at-val:`phase` is assumed to be 0.
+
+   The :at-val:`period` specifies the interval period between recomputations. The default value of 0 has the special
+   meaning "every simulation timestep". Note that the period is not required to be an integer multiple of the timestep.
+   For example, if the simulation timestep is 1.0, and :at-val:`period` is 2.5, the sensor will be computed at times
+   0.0, 3.0, 5.0, 8.0, 10.0, 13.0, ... with the actual interval alternating between 2 and 3 timesteps. :at-val:`period`
+   cannot be negative. Note that only ``period > timestep`` values make sense; values smaller than or equal to the
+   timestep will not lead to an error but merely cause the sensor to be recomputed at every timestep.
+
+   The :at-val:`phase` only takes effect during history buffer initialization in :ref:`mj_resetData`. It specifies the
+   last time that the sensor was computed "before the simulation started" in continuous time (i.e., disregarding the
+   quantization of timesteps). It is useful for precisely controlling the *relative phase* of sensor computation and
+   simulation time, when interval is used. The default value of 0 has the special meaning ":at-val:`-period`", i.e.
+   specifying that the sensor should be computed at the first timestep of the simulation. Continuing our example from
+   earlier, if the timestep is 1.0 and interval is ":at-val:`2.5 -1.5`", the sensor will be computed at times 1.0, 4.0,
+   6.0, 9.0, 11.0, 14.0, etc. :at-val:`phase` must be in the range :math:`(-\text{period}, 0]`.
+
 :at:`user`: :at-val:`real(nuser_sensor), "0 0 ..."`
    See :ref:`User parameters <CUser>`.
+
+.. _CDelay:
+
+Delays
+~~~~~~
+
+Both actuators and sensors support time delays via a ring buffer that stores timestamped samples. When the integer
+attribute :at:`nsample` (:ref:`actuators<actuator-general-nsample>`, :ref:`sensors<sensor-nsample>`) is positive, a
+buffer with :at:`nsample` slots is included in the :ref:`physics state<siPhysicsState>` component ``mjData.history``
+and the samples and current timestamps are written into the buffer upon state advancement.
+
+If additionally the real-valued :at:`delay` attribute (:ref:`actuators<actuator-general-delay>`,
+:ref:`sensors<sensor-delay>`) is positive, then during the forward dynamics the control or sensor values are read from
+the history buffer (instead of being read from ``ctrl`` or recomputed, respectively). Positive :at:`delay` requires
+positive :at:`nsample`.
+
+Note that since reading happens before writing, the minimum positive delay is effectively one timestep, despite
+:at:`delay` being real-valued.
+
+Delayed reading in the engine is triggered by positive :at:`delay`, and performed by the API functions
+:ref:`mj_readCtrl` and :ref:`mj_readSensor`, which read from the buffer at ``time - delay``, effectively implementing
+the requested delay. These functions take ``time`` as an argument and can be used whenever :at:`nsample` is positive,
+allowing the user to inspect the contents of the history buffer at any time, including in a "history-only" mode
+(:at:`nsample` > 0, :at:`delay` = 0), where past values are accessible via the API but the simulation is unaffected.
+
+**Sensor Modes**
+
+Sensors support both :ref:`delay<sensor-delay>` and :ref:`interval<sensor-interval>` attributes.
+The combination determines behavior:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 10 80
+
+   * - delay
+     - interval
+     - Write / Read behavior
+   * - = 0
+     - = 0
+     - History-only: computed every step, written to ``sensordata``, pushed into history buffer
+   * - > 0
+     - = 0
+     - Delayed: computed every step, ``sensordata`` contains delayed reading (read from buffer)
+   * - = 0
+     - > 0
+     - Periodic: computed on interval, ``sensordata`` contains last computed value (no delay)
+   * - > 0
+     - > 0
+     - Periodic + Delayed: computed on interval, ``sensordata`` contains delayed reading (read from buffer)
+
+**Initialization**
+
+History buffers are initialized by :ref:`mj_resetData` as follows:
+
+- **Values**: Always initialized to zero. For custom initialization after reset, call :ref:`mj_initCtrlHistory`
+  and :ref:`mj_initSensorHistory`.
+
+- **Actuator timestamps**: ``[..., -2*dt, -dt]``.
+
+- **Sensor timestamps** without :ref:`interval<sensor-interval>`: ``[..., -2*dt, -dt]``.
+
+- **Sensor timestamps** with :ref:`interval<sensor-interval>`: Samples are spaced at ``period`` intervals rather than
+  ``dt``. The continuous-time timestamps ``[..., phase-2*period, phase-period, phase]`` are rounded up to the nearest
+  multiple of ``dt``, since that is when samples could have been computed. If ``phase = 0`` (the default), it is
+  interpreted as ``-period``, meaning the first sample will be computed at ``t = 0``.
+
+**Causality and interpolation**
+
+The most common positive delay value is ``delay = timestep * nsample``, which implements a simple
+history buffer, with no causality issues.
+
+.. warning::
+
+   If ``delay > timestep * nsample``, then data will be read before the earliest buffer bound, resulting in non-causal
+   extrapolation: using a value from before it was actually recorded. This scenario will not lead to a runtime error,
+   so it is up to the user to avoid it.
+
+Setting ``delay < timestep * nsample`` is not problematic and can be useful for system identification and stochastic
+delays. In these use cases, one should choose a maximum possible ``delay_max`` and set ``nsample = ceil(delay_max /
+timestep)``. Then at run-time or sysID-time, the :ref:`mjModel` fields ``actuator_delay`` or ``sensor_delay`` can be
+safely modified, so long as ``delay_max`` is not exceeded.
+
+.. image:: images/modeling/delay_buffer_light.svg
+   :width: 50%
+   :align: right
+   :class: only-light
+
+.. image:: images/modeling/delay_buffer_dark.svg
+   :width: 50%
+   :align: right
+   :class: only-dark
+
+These two use cases are the reason for including the :at:`interp` attribute (:ref:`actuators<actuator-general-interp>`,
+:ref:`sensors<sensor-interp>`). While real-world exogenous delays are generally a zero-order-hold phenomenon, this
+implies discontinuity: a small change in the delay has no effect, until the timestep threshold is crossed. For example
+with ``dt = 0.1`` and ``nsample = 2``, there is no functional difference between ``delay = 0.2`` and ``delay = 0.101``
+(both read from the oldest sample), but stepping from ``delay = 0.101`` to ``delay = 0.1`` crosses a threshold and
+changes behavior. By allowing higher order interpolation, the effect of delays becomes continuous (``interp = linear``)
+and differentiable (``interp = cubic``).
+
+Note that interpolation does not makes sense for some types of sensors, for example sensors that report integer values
+(e.g. :ref:`insidesite<sensor-insidesite>`).
 
 .. _CCamera:
 

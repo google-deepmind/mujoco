@@ -153,6 +153,7 @@
     X( nuserdata )          \
     X( nsensordata )        \
     X( npluginstate )       \
+    X( nhistory )           \
     X( narena )             \
     X( nbuffer )
 
@@ -563,6 +564,9 @@
     X   ( int,     actuator_actadr,       nu,            1                    ) \
     X   ( int,     actuator_actnum,       nu,            1                    ) \
     X   ( int,     actuator_group,        nu,            1                    ) \
+    X   ( int,     actuator_history,      nu,            2                    ) \
+    X   ( int,     actuator_historyadr,   nu,            1                    ) \
+    X   ( mjtNum,  actuator_delay,        nu,            1                    ) \
     X   ( mjtByte, actuator_ctrllimited,  nu,            1                    ) \
     X   ( mjtByte, actuator_forcelimited, nu,            1                    ) \
     X   ( mjtByte, actuator_actlimited,   nu,            1                    ) \
@@ -594,6 +598,10 @@
     X   ( int,     sensor_adr,            nsensor,       1                    ) \
     X   ( mjtNum,  sensor_cutoff,         nsensor,       1                    ) \
     X   ( mjtNum,  sensor_noise,          nsensor,       1                    ) \
+    X   ( int,     sensor_history,        nsensor,       2                    ) \
+    X   ( int,     sensor_historyadr,     nsensor,       1                    ) \
+    X   ( mjtNum,  sensor_delay,          nsensor,       1                    ) \
+    X   ( mjtNum,  sensor_interval,       nsensor,       2                    ) \
     X   ( mjtNum,  sensor_user,           nsensor,       MJ_M(nuser_sensor)   ) \
     X   ( int,     sensor_plugin,         nsensor,       1                    )
 
@@ -708,6 +716,7 @@
     X   ( mjtNum,    qpos,              nq,          1           ) \
     X   ( mjtNum,    qvel,              nv,          1           ) \
     X   ( mjtNum,    act,               na,          1           ) \
+    X   ( mjtNum,    history,           nhistory,    1           ) \
     X   ( mjtNum,    qacc_warmstart,    nv,          1           ) \
     X   ( mjtNum,    plugin_state,      npluginstate, 1          ) \
     X   ( mjtNum,    ctrl,              nu,          1           ) \
