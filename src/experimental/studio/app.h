@@ -27,6 +27,7 @@
 #include <mujoco/mujoco.h>
 #include "experimental/platform/gui.h"
 #include "experimental/platform/interaction.h"
+#include "experimental/platform/model_holder.h"
 #include "experimental/platform/picture_gui.h"
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/sim_history.h"
@@ -168,8 +169,7 @@ class App {
 
   // Updates the currently loaded model to the given model. If model is null,
   // then compile the spec to a model.
-  void InitModel(mjModel* model, mjSpec* spec, mjVFS* vfs, std::string filename,
-                 ModelKind model_kind);
+  void OnModelLoaded(std::string filename, ModelKind model_kind);
 
   void SetLoadError(std::string error);
   void UpdateFilePaths(const std::string& resolved_path);
@@ -207,12 +207,13 @@ class App {
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
 
-  mjSpec* spec() { return spec_; }
-  mjModel* model() { return model_; }
-  mjData* data() { return data_; }
-  bool has_spec() const { return spec_ != nullptr; }
-  bool has_model() const { return model_ != nullptr; }
-  bool has_data() const { return data_ != nullptr; }
+  mjSpec* spec() { return model_holder_->spec(); }
+  mjModel* model() { return model_holder_->model(); }
+  mjData* data() { return model_holder_->data(); }
+  bool has_spec() const { return model_holder_ && model_holder_->spec(); }
+  bool has_model() const { return model_holder_ && model_holder_->model(); }
+  bool has_data() const { return model_holder_ && model_holder_->data(); }
+
 
   std::string ini_path_;
   std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
@@ -224,15 +225,11 @@ class App {
 
   std::unique_ptr<platform::Window> window_;
   std::unique_ptr<platform::Renderer> renderer_;
+  std::unique_ptr<platform::ModelHolder> model_holder_;
   platform::StepControl step_control_;
   platform::SimProfiler profiler_;
   platform::SimHistory history_;
-
   std::vector<std::string> search_paths_;
-
-  mjSpec* spec_ = nullptr;
-  mjModel* model_ = nullptr;
-  mjData* data_ = nullptr;
   std::vector<std::byte> pixels_;
 
   mjvCamera camera_;

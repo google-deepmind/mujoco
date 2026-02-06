@@ -37,12 +37,12 @@
 #include "experimental/platform/helpers.h"
 #include "experimental/platform/imgui_widgets.h"
 #include "experimental/platform/interaction.h"
+#include "experimental/platform/model_holder.h"
 #include "experimental/platform/picture_gui.h"
 #include "experimental/platform/plugin.h"
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
-#include "user/user_resource.h"
 
 namespace mujoco::studio {
 
@@ -120,20 +120,8 @@ App::App(Config config)
 }
 
 void App::ClearModel() {
-  if (model_) {
-    mj_deleteData(data_);
-    data_ = nullptr;
-    mj_deleteModel(model_);
-    model_ = nullptr;
-
-    if (spec_) {
-      mj_deleteSpec(spec_);
-      spec_ = nullptr;
-    }
-  }
-
+  model_holder_.reset();
   window_->SetTitle("MuJoCo Studio");
-
   step_control_.SetSpeed(100.f);
   profiler_.Clear();
   tmp_ = UiTempState();
@@ -152,138 +140,61 @@ void App::RequestModelReload() {
 }
 
 void App::InitEmptyModel() {
-  mjSpec* spec = mj_makeSpec();
-  mjModel* model = mj_compile(spec, nullptr);
-  InitModel(model, spec, nullptr, "", kEmptyModel);
+  model_holder_ = platform::ModelHolder::FromSpec(mj_makeSpec());
+  OnModelLoaded("", kEmptyModel);
 }
 
 void App::LoadModelFromFile(const std::string& filepath) {
-  mjModel* model = nullptr;
-  mjSpec* spec = nullptr;
-  mjVFS vfs;
-  mj_defaultVFS(&vfs);
 
   const std::string resolved_file =
       platform::ResolveFile(filepath, search_paths_);
-
   if (resolved_file.empty()) {
     SetLoadError("File not found: " + filepath);
     return;
   }
 
-  char err[1000] = "";
-  if (resolved_file.ends_with(".mjb")) {
-    model = mj_loadModel(resolved_file.c_str(), &vfs);
+  model_holder_ = platform::ModelHolder::FromFile(resolved_file);
+  if (model_holder_->ok()) {
+    OnModelLoaded(filepath, kModelFromFile);
+    UpdateFilePaths(resolved_file);
+    window_->SetTitle("MuJoCo Studio : " + filepath);
   } else {
-    spec = mj_parse(resolved_file.c_str(), nullptr, &vfs, err, sizeof(err));
+    SetLoadError(std::string(model_holder_->error()));
   }
-  if (err[0]) {
-    SetLoadError(err);
-    return;
-  }
-
-  InitModel(model, spec, &vfs, filepath, kModelFromFile);
-  UpdateFilePaths(resolved_file);
-  window_->SetTitle("MuJoCo Studio : " + filepath);
-
-  mj_deleteVFS(&vfs);
 }
-
-struct BufferProvider : public mjpResourceProvider {
-  BufferProvider(std::span<const std::byte> buffer) : buffer(buffer) {
-    mjp_defaultResourceProvider(this);
-    open = [](mjResource* resource) {
-      return 1;
-    };
-    read = [](mjResource* resource, const void** buffer) {
-      BufferProvider* self = (BufferProvider*)resource->provider;
-      *buffer = self->buffer.data();
-      return static_cast<int>(self->buffer.size());
-    };
-    close = [](mjResource* resource) {};
-  }
-  std::span<const std::byte> buffer;
-};
 
 void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
                               std::string_view content_type,
                               std::string_view filename) {
-  mjModel* model = nullptr;
-  mjSpec* spec = nullptr;
-
-  mjVFS vfs;
-  mj_defaultVFS(&vfs);
-
-  char err[1000] = "";
-  if (content_type == "text/xml") {
-    const char* ptr = reinterpret_cast<const char*>(buffer.data());
-    spec = mj_parseXMLString(ptr, nullptr, err, sizeof(err));
-  } else if (content_type == "application/mjb") {
-    model = mj_loadModelBuffer(buffer.data(), buffer.size());
-  } else if (content_type == "application/zip") {
-    BufferProvider provider(buffer);
-    mjResource resource;
-    memset(&resource, 0, sizeof(mjResource));
-    resource.vfs = &vfs;
-    resource.provider = &provider;
-    resource.name = (char*)filename.data();
-    spec = mju_decodeResource(&resource, content_type.data(), &vfs);
+  model_holder_ =
+      platform::ModelHolder::FromBuffer(buffer, content_type, filename);
+  if (model_holder_->ok()) {
+    OnModelLoaded(std::string(filename), kModelFromFile);
   } else {
-    SetLoadError("Unknown content type; expected text/xml or application/mjb");
-    return;
+    SetLoadError(std::string(model_holder_->error()));
   }
-  if (err[0]) {
-    SetLoadError(err);
-    return;
-  }
-
-  InitModel(model, spec, &vfs, std::string(filename), kModelFromBuffer);
-
-  mj_deleteVFS(&vfs);
 }
 
-void App::InitModel(mjModel* model, mjSpec* spec, mjVFS* vfs,
-                    std::string filename, ModelKind model_kind) {
+void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
+  model_path_ = std::move(filename);
+
   if (model_kind_ == kEmptyModel) {
     step_control_.Unpause();
   }
-  ClearModel();
-
-  model_path_ = std::move(filename);
   model_kind_ = model_kind;
   if (model_kind_ == kEmptyModel) {
     step_control_.Pause();
   }
 
-  spec_ = spec;
-  model_ = model;
-
-  // If we have a spec but not a model, we need to compile the model from the spec.
-  if (spec_ && !model_) {
-    model_ = mj_compile(spec_, vfs);
-    if (!model_) {
-      SetLoadError("Error compiling model from spec.");
-      return;
-    }
-  }
-
-  if (!model_) {
-    mju_error("Error making data for model: %s", model_path_.c_str());
-  }
-
-  data_ = mj_makeData(model_);
-  if (!data_) {
-    mju_error("Error making data for model: %s", model_path_.c_str());
-  }
-
   // Reset/reinitialize everything that depends on the new mjModel.
-  renderer_->Init(model_);
-  const int state_size = mj_stateSize(model_, mjSTATE_INTEGRATION);
+  mjModel* model = model_holder_->model();
+  renderer_->Init(model);
+  const int state_size = mj_stateSize(model, mjSTATE_INTEGRATION);
   history_.Init(state_size);
 
   // Initialize the speed based on the model's default real-time setting.
   float min_error = FLT_MAX;
-  const float desired = mju_log(100 * model_->vis.global.realtime);
+  const float desired = mju_log(100 * model->vis.global.realtime);
   for (int i = 0; i < kPercentRealTime.size(); ++i) {
     const float speed = std::stof(kPercentRealTime[i]);
     const float error = mju_abs(mju_log(speed) - desired);

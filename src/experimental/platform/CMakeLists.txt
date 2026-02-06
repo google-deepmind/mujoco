@@ -48,6 +48,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         imgui_widgets.h
         interaction.cc
         interaction.h
+        model_holder.cc
+        model_holder.h
         picture_gui.h
         picture_gui.cc
         plugin.cc
