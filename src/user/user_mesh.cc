@@ -4036,6 +4036,9 @@ void mjCFlex::NameSpace(const mjCModel* m) {
   for (auto& name : spec_nodebody_) {
     name = m->prefix + name + m->suffix;
   }
+  if (!spec_material_.empty() && model != m) {
+    spec_material_ = m->prefix + spec_material_ + m->suffix;
+  }
 }
 
 
