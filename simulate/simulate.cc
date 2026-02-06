@@ -1661,7 +1661,7 @@ void UiEvent(mjuiState* state) {
   }
 
   // shortcut not handled by UI
-  if (state->type==mjEVENT_KEY && state->key!=0) {
+  if (state->type==mjEVENT_KEY && state->key!=0 && sim->keyboard_ui) {
     switch (state->key) {
     case ' ':                   // Mode
       if (!sim->is_passive_ && sim->m_) {
