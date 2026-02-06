@@ -42,3 +42,6 @@ MUJOCO_LOG.TXT
 wasm/**/dist/
 **/node_modules/
 
+# Zig bindings build
+.zig-cache
+zig-out
