@@ -244,8 +244,6 @@ void InducedMagnet::Compute(const mjModel* m, mjData* d, int instance) {
   // Visual
   forces_[instance] = {F[0], F[1], F[2]};
   torques_[instance] = {tau[0], tau[1], tau[2]};
-
-  std::cout  << "InducedMagnet plugin applied force: (" << F[0] << ", " << F[1] << ", " << F[2] << ") and torque: (" << tau[0] << ", " << tau[1] << ", " << tau[2] << ")" << std::endl;
 }
 
 void InducedMagnet::Visualize(const mjModel* m, mjData* d, mjvScene* scn, int instance) {
