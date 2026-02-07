@@ -4049,8 +4049,12 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
       "To prevent this, compile the child model before attaching it again.");
   }
 
-  // do not change compilation quantities in case the user wants to recompile preserving the state
+  // rebuild tree lists so that SaveDofOffsets computes correct sizes even when including
+  // things like `replicate` tags.
   if (!compiled) {
+    ResetTreeLists();
+    MakeTreeLists();
+    ProcessLists(/*checkrepeat=*/false);
     SaveDofOffsets(/*computesize=*/true);
     ComputeReference();
   }
