@@ -831,7 +831,7 @@ mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int i
   mjtNum delay = m->actuator_delay[id];
   const mjtNum* buf = d->history + m->actuator_historyadr[id];
   mjtNum res;
-  const mjtNum* ptr = mju_delayRead(buf, nsample, /*dim=*/1, &res, time - delay, interp);
+  const mjtNum* ptr = mju_historyRead(buf, nsample, /*dim=*/1, &res, time - delay, interp);
   return ptr ? *ptr : res;
 }
 
@@ -858,7 +858,7 @@ const mjtNum* mj_readSensor(const mjModel* m, const mjData* d, int id, mjtNum ti
   int dim = m->sensor_dim[id];
   mjtNum delay = m->sensor_delay[id];
   const mjtNum* buf = d->history + m->sensor_historyadr[id];
-  return mju_delayRead(buf, nsample, dim, result, time - delay, interp);
+  return mju_historyRead(buf, nsample, dim, result, time - delay, interp);
 }
 
 
@@ -888,7 +888,7 @@ void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
   mjtNum user = buf[0];
 
   // initialize history buffer
-  mju_delayInit(buf, nsample, 1, buf_times, values, user);
+  mju_historyInit(buf, nsample, 1, buf_times, values, user);
 }
 
 
@@ -916,5 +916,5 @@ void mj_initSensorHistory(const mjModel* m, mjData* d, int id,
   const mjtNum* buf_times = times ? times : buf + 2;
 
   // initialize history buffer with provided phase
-  mju_delayInit(buf, nsample, dim, buf_times, values, phase);
+  mju_historyInit(buf, nsample, dim, buf_times, values, phase);
 }

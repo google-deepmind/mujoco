@@ -724,22 +724,22 @@ TEST_F(Base64Test, decodeAndEncode) {
   EXPECT_THAT(buffer2.data(), StrEq(s));
 }
 
-// --------------------------------- Delay Buffers ----------------------------
+// --------------------------------- History Buffers ---------------------------
 
-using DelayTest = MujocoTest;
+using HistoryTest = MujocoTest;
 
 // buffer layout: [user(1), cursor(1), times(n), values(n*dim)]
 // cursor points to newest element (logical index n-1)
 // after init, cursor=n-1, so physical indices equal logical indices
 
-TEST_F(DelayTest, Init) {
+TEST_F(HistoryTest, Init) {
   constexpr int n = 4;
   constexpr int dim = 1;
   mjtNum buf[2 + n + n*dim];
 
   std::vector<mjtNum> times = {4, 6, 8, 10};
   std::vector<mjtNum> values = {99, 99, 99, 99};
-  mju_delayInit(buf, n, dim, times.data(), values.data(), 0.0);
+  mju_historyInit(buf, n, dim, times.data(), values.data(), 0.0);
 
   // check header
   EXPECT_EQ(buf[0], 0.0);  // user
@@ -749,30 +749,30 @@ TEST_F(DelayTest, Init) {
   // values: [99, 99, 99, 99]
   // verify via read function (logical order)
   mjtNum res;
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 4.0, 0), 99.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 10.0, 0), 99.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 4.0, 0), 99.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 10.0, 0), 99.0);
 }
 
-TEST_F(DelayTest, Init_Vector) {
+TEST_F(HistoryTest, Init_Vector) {
   constexpr int n = 3;
   constexpr int dim = 2;
   mjtNum buf[2 + n + n*dim];
 
   std::vector<mjtNum> times = {-2, -1, 0};
   std::vector<mjtNum> values = {1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
-  mju_delayInit(buf, n, dim, times.data(), values.data(), 0.0);
+  mju_historyInit(buf, n, dim, times.data(), values.data(), 0.0);
 
   EXPECT_EQ(buf[1], static_cast<mjtNum>(n-1));  // cursor = n-1
 
   // verify via read function
   mjtNum res[dim];
-  const mjtNum* ptr = mju_delayRead(buf, n, dim, res, -2.0, 0);
+  const mjtNum* ptr = mju_historyRead(buf, n, dim, res, -2.0, 0);
   ASSERT_NE(ptr, nullptr);
   EXPECT_EQ(ptr[0], 1.0);
   EXPECT_EQ(ptr[1], 2.0);
 }
 
-TEST_F(DelayTest, Append) {
+TEST_F(HistoryTest, Append) {
   constexpr int n = 4;
   constexpr int dim = 1;
   // Initialize buffer properly, then insert
@@ -786,26 +786,26 @@ TEST_F(DelayTest, Append) {
   mju_zero(buf + 2 + n, n);
 
   // overwrite with specific values
-  *mju_delayInsert(buf, n, dim, 4.0) = 1.0;
-  *mju_delayInsert(buf, n, dim, 6.0) = 2.0;
-  *mju_delayInsert(buf, n, dim, 8.0) = 3.0;
-  *mju_delayInsert(buf, n, dim, 10.0) = 4.0;
+  *mju_historyInsert(buf, n, dim, 4.0) = 1.0;
+  *mju_historyInsert(buf, n, dim, 6.0) = 2.0;
+  *mju_historyInsert(buf, n, dim, 8.0) = 3.0;
+  *mju_historyInsert(buf, n, dim, 10.0) = 4.0;
 
   // now append at t=12
-  *mju_delayInsert(buf, n, dim, 12.0) = 99.0;
+  *mju_historyInsert(buf, n, dim, 12.0) = 99.0;
 
   // verify logical order: [6, 8, 10, 12] -> [2, 3, 4, 99]
   mjtNum res;
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 6.0, 0), 2.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 8.0, 0), 3.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 10.0, 0), 4.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 12.0, 0), 99.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 6.0, 0), 2.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 8.0, 0), 3.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 10.0, 0), 4.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 12.0, 0), 99.0);
 
   // oldest should now be t=6
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 4.0, 0), 2.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 4.0, 0), 2.0);
 }
 
-TEST_F(DelayTest, Append_Multiple) {
+TEST_F(HistoryTest, Append_Multiple) {
   constexpr int n = 3;
   constexpr int dim = 1;
   mjtNum buf[2 + 2*n];
@@ -817,16 +817,16 @@ TEST_F(DelayTest, Append_Multiple) {
 
   for (int i = 1; i <= 4; i++) {
     mjtNum i_real = static_cast<mjtNum>(i);
-    *mju_delayInsert(buf, n, dim, i_real) = i_real;
+    *mju_historyInsert(buf, n, dim, i_real) = i_real;
   }
   // Final: logical timestamps [2, 3, 4], values [2, 3, 4]
   mjtNum res;
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 2.0, 0), 2.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 3.0, 0), 3.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 4.0, 0), 4.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 2.0, 0), 2.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 3.0, 0), 3.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 4.0, 0), 4.0);
 }
 
-TEST_F(DelayTest, ReadVector_ExactMatch) {
+TEST_F(HistoryTest, ReadVector_ExactMatch) {
   constexpr int n = 3;
   constexpr int dim = 2;
   mjtNum buf[2 + n + n*dim];
@@ -837,21 +837,21 @@ TEST_F(DelayTest, ReadVector_ExactMatch) {
   mju_zero(buf + 2 + n, n*dim);
 
   // set values: t=0->(1,2), t=1->(3,4), t=2->(5,6)
-  mjtNum* slot0 = mju_delayInsert(buf, n, dim, 0.0);
+  mjtNum* slot0 = mju_historyInsert(buf, n, dim, 0.0);
   slot0[0] = 1.0; slot0[1] = 2.0;
-  mjtNum* slot1 = mju_delayInsert(buf, n, dim, 1.0);
+  mjtNum* slot1 = mju_historyInsert(buf, n, dim, 1.0);
   slot1[0] = 3.0; slot1[1] = 4.0;
-  mjtNum* slot2 = mju_delayInsert(buf, n, dim, 2.0);
+  mjtNum* slot2 = mju_historyInsert(buf, n, dim, 2.0);
   slot2[0] = 5.0; slot2[1] = 6.0;
 
   mjtNum res[dim];
-  const mjtNum* ptr = mju_delayRead(buf, n, dim, res, 1.0, 0);
+  const mjtNum* ptr = mju_historyRead(buf, n, dim, res, 1.0, 0);
   ASSERT_NE(ptr, nullptr);
   EXPECT_EQ(ptr[0], 3.0);
   EXPECT_EQ(ptr[1], 4.0);
 }
 
-TEST_F(DelayTest, ReadVector_ZOH) {
+TEST_F(HistoryTest, ReadVector_ZOH) {
   constexpr int n = 3;
   constexpr int dim = 2;
   mjtNum buf[2 + n + n*dim];
@@ -861,21 +861,21 @@ TEST_F(DelayTest, ReadVector_ZOH) {
   mju_copy(buf + 2, times, n);
   mju_zero(buf + 2 + n, n*dim);
 
-  mjtNum* slot0 = mju_delayInsert(buf, n, dim, 0.0);
+  mjtNum* slot0 = mju_historyInsert(buf, n, dim, 0.0);
   slot0[0] = 1.0; slot0[1] = 2.0;
-  mjtNum* slot1 = mju_delayInsert(buf, n, dim, 1.0);
+  mjtNum* slot1 = mju_historyInsert(buf, n, dim, 1.0);
   slot1[0] = 3.0; slot1[1] = 4.0;
-  mjtNum* slot2 = mju_delayInsert(buf, n, dim, 2.0);
+  mjtNum* slot2 = mju_historyInsert(buf, n, dim, 2.0);
   slot2[0] = 5.0; slot2[1] = 6.0;
 
   mjtNum res[dim];
-  const mjtNum* ptr = mju_delayRead(buf, n, dim, res, 0.5, 0);
+  const mjtNum* ptr = mju_historyRead(buf, n, dim, res, 0.5, 0);
   ASSERT_NE(ptr, nullptr);
   EXPECT_EQ(ptr[0], 1.0);
   EXPECT_EQ(ptr[1], 2.0);
 }
 
-TEST_F(DelayTest, ReadVector_Linear) {
+TEST_F(HistoryTest, ReadVector_Linear) {
   constexpr int n = 3;
   constexpr int dim = 2;
   mjtNum buf[2 + n + n*dim];
@@ -885,21 +885,21 @@ TEST_F(DelayTest, ReadVector_Linear) {
   mju_copy(buf + 2, times, n);
   mju_zero(buf + 2 + n, n*dim);
 
-  mjtNum* slot0 = mju_delayInsert(buf, n, dim, 0.0);
+  mjtNum* slot0 = mju_historyInsert(buf, n, dim, 0.0);
   slot0[0] = 1.0; slot0[1] = 2.0;
-  mjtNum* slot1 = mju_delayInsert(buf, n, dim, 1.0);
+  mjtNum* slot1 = mju_historyInsert(buf, n, dim, 1.0);
   slot1[0] = 3.0; slot1[1] = 4.0;
-  mjtNum* slot2 = mju_delayInsert(buf, n, dim, 2.0);
+  mjtNum* slot2 = mju_historyInsert(buf, n, dim, 2.0);
   slot2[0] = 5.0; slot2[1] = 6.0;
 
   mjtNum res[dim];
-  const mjtNum* ptr = mju_delayRead(buf, n, dim, res, 0.5, 1);
+  const mjtNum* ptr = mju_historyRead(buf, n, dim, res, 0.5, 1);
   EXPECT_EQ(ptr, nullptr);
   EXPECT_THAT(res[0], DoubleNear(2.0, 1e-10));  // (1+3)/2
   EXPECT_THAT(res[1], DoubleNear(3.0, 1e-10));  // (2+4)/2
 }
 
-TEST_F(DelayTest, InsertOutOfOrder) {
+TEST_F(HistoryTest, InsertOutOfOrder) {
   constexpr int n = 4;
   constexpr int dim = 1;
   mjtNum buf[2 + 2*n];
@@ -912,41 +912,41 @@ TEST_F(DelayTest, InsertOutOfOrder) {
     mju_copy(buf + 2, times, n);
     mju_zero(buf + 2 + n, n);
 
-    *mju_delayInsert(buf, n, dim, 4.0) = 1.0;
-    *mju_delayInsert(buf, n, dim, 6.0) = 2.0;
-    *mju_delayInsert(buf, n, dim, 8.0) = 3.0;
-    *mju_delayInsert(buf, n, dim, 10.0) = 4.0;
+    *mju_historyInsert(buf, n, dim, 4.0) = 1.0;
+    *mju_historyInsert(buf, n, dim, 6.0) = 2.0;
+    *mju_historyInsert(buf, n, dim, 8.0) = 3.0;
+    *mju_historyInsert(buf, n, dim, 10.0) = 4.0;
   };
 
   // insert in middle (between t=8 and t=10)
   reset();
-  *mju_delayInsert(buf, n, dim, 9.0) = 99.0;
+  *mju_historyInsert(buf, n, dim, 9.0) = 99.0;
   // logical: [6, 8, 9, 10] -> [2, 3, 99, 4]
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 6.0, 0), 2.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 8.0, 0), 3.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 9.0, 0), 99.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 10.0, 0), 4.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 6.0, 0), 2.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 8.0, 0), 3.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 9.0, 0), 99.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 10.0, 0), 4.0);
 
   // insert near start (between t=4 and t=6)
   reset();
-  *mju_delayInsert(buf, n, dim, 5.0) = 99.0;
+  *mju_historyInsert(buf, n, dim, 5.0) = 99.0;
   // logical: [5, 6, 8, 10] -> [99, 2, 3, 4]
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 5.0, 0), 99.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 6.0, 0), 2.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 8.0, 0), 3.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 10.0, 0), 4.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 5.0, 0), 99.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 6.0, 0), 2.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 8.0, 0), 3.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 10.0, 0), 4.0);
 
   // insert before oldest (t=3 < t=4): replaces oldest
   reset();
-  *mju_delayInsert(buf, n, dim, 3.0) = 99.0;
+  *mju_historyInsert(buf, n, dim, 3.0) = 99.0;
   // logical: [3, 6, 8, 10] -> [99, 2, 3, 4]
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 3.0, 0), 99.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 6.0, 0), 2.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 8.0, 0), 3.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 10.0, 0), 4.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 3.0, 0), 99.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 6.0, 0), 2.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 8.0, 0), 3.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 10.0, 0), 4.0);
 }
 
-TEST_F(DelayTest, InsertReplaceOnCollision) {
+TEST_F(HistoryTest, InsertReplaceOnCollision) {
   constexpr int n = 4;
   constexpr int dim = 1;
   mjtNum buf[2 + 2*n];
@@ -960,50 +960,50 @@ TEST_F(DelayTest, InsertReplaceOnCollision) {
     mju_copy(buf + 2, times, n);
     mju_zero(buf + 2 + n, n);
 
-    *mju_delayInsert(buf, n, dim, 4.0) = 1.0;
-    *mju_delayInsert(buf, n, dim, 6.0) = 2.0;
-    *mju_delayInsert(buf, n, dim, 8.0) = 3.0;
-    *mju_delayInsert(buf, n, dim, 10.0) = 4.0;
+    *mju_historyInsert(buf, n, dim, 4.0) = 1.0;
+    *mju_historyInsert(buf, n, dim, 6.0) = 2.0;
+    *mju_historyInsert(buf, n, dim, 8.0) = 3.0;
+    *mju_historyInsert(buf, n, dim, 10.0) = 4.0;
   };
 
   // collision in middle (t=8)
   reset();
-  *mju_delayInsert(buf, n, dim, 8.0) = 99.0;
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 4.0, 0), 1.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 6.0, 0), 2.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 8.0, 0), 99.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 10.0, 0), 4.0);
+  *mju_historyInsert(buf, n, dim, 8.0) = 99.0;
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 4.0, 0), 1.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 6.0, 0), 2.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 8.0, 0), 99.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 10.0, 0), 4.0);
 
   // collision at newest (t=10)
   reset();
-  *mju_delayInsert(buf, n, dim, 10.0) = 99.0;
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 4.0, 0), 1.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 6.0, 0), 2.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 8.0, 0), 3.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 10.0, 0), 99.0);
+  *mju_historyInsert(buf, n, dim, 10.0) = 99.0;
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 4.0, 0), 1.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 6.0, 0), 2.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 8.0, 0), 3.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 10.0, 0), 99.0);
 
   // collision at oldest (t=4)
   reset();
-  *mju_delayInsert(buf, n, dim, 4.0) = 99.0;
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 4.0, 0), 99.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 6.0, 0), 2.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 8.0, 0), 3.0);
-  EXPECT_EQ(*mju_delayRead(buf, n, dim, &res, 10.0, 0), 4.0);
+  *mju_historyInsert(buf, n, dim, 4.0) = 99.0;
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 4.0, 0), 99.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 6.0, 0), 2.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 8.0, 0), 3.0);
+  EXPECT_EQ(*mju_historyRead(buf, n, dim, &res, 10.0, 0), 4.0);
 }
 
-void TriggerDelayInitNonMonotonic() {
+void TriggerHistoryInitNonMonotonic() {
   mjtNum buf[10];
   mjtNum times[4] = {1, 2, 2, 4};  // not strictly increasing
   mjtNum values[4] = {0};
-  mju_delayInit(buf, 4, 1, times, values, 0.0);
+  mju_historyInit(buf, 4, 1, times, values, 0.0);
 }
 
-TEST_F(DelayTest, Init_NonMonotonic) {
-  EXPECT_FATAL_FAILURE(TriggerDelayInitNonMonotonic(),
-                       "mju_delayInit: times must be strictly increasing");
+TEST_F(HistoryTest, Init_NonMonotonic) {
+  EXPECT_FATAL_FAILURE(TriggerHistoryInitNonMonotonic(),
+                       "mju_historyInit: times must be strictly increasing");
 }
 
-TEST_F(DelayTest, CubicInterpolation) {
+TEST_F(HistoryTest, CubicInterpolation) {
   int n = 2;
   int dim = 2;
   mjtNum buf[100];  // 2 + 2 + 2*2 = 8
@@ -1016,9 +1016,9 @@ TEST_F(DelayTest, CubicInterpolation) {
   // Insert (0, 0, 1) and (1, 1, 0).
   // Dim 0: 0 -> 1. Spline: p(x) = 3x^2 - 2x^3
   // Dim 1: 1 -> 0. Spline: p(x) = 1 - 3x^2 + 2x^3
-  mjtNum* slot0 = mju_delayInsert(buf, n, dim, 0.0);
+  mjtNum* slot0 = mju_historyInsert(buf, n, dim, 0.0);
   slot0[0] = 0.0; slot0[1] = 1.0;
-  mjtNum* slot1 = mju_delayInsert(buf, n, dim, 1.0);
+  mjtNum* slot1 = mju_historyInsert(buf, n, dim, 1.0);
   slot1[0] = 1.0; slot1[1] = 0.0;
 
   mjtNum res[2];
@@ -1026,14 +1026,14 @@ TEST_F(DelayTest, CubicInterpolation) {
   // Test midpoint x=0.5
   // Dim 0: 0.5
   // Dim 1: 1 - 0.5 = 0.5
-  mju_delayRead(buf, n, dim, res, 0.5, 2);
+  mju_historyRead(buf, n, dim, res, 0.5, 2);
   EXPECT_NEAR(res[0], 0.5, 1e-9);
   EXPECT_NEAR(res[1], 0.5, 1e-9);
 
   // Test x=0.25
   // Dim 0: 3*0.25^2 - 2*0.25^3
   // Dim 1: 1 - (3*0.25^2 - 2*0.25^3)
-  mju_delayRead(buf, n, dim, res, 0.25, 2);
+  mju_historyRead(buf, n, dim, res, 0.25, 2);
   mjtNum expected_0_25 = 3*0.25*0.25 - 2*0.25*0.25*0.25;
   EXPECT_NEAR(res[0], expected_0_25, 1e-9);
   EXPECT_NEAR(res[1], 1.0 - expected_0_25, 1e-9);
@@ -1041,7 +1041,7 @@ TEST_F(DelayTest, CubicInterpolation) {
   // Test x=0.8
   // Dim 0: 3*0.8^2 - 2*0.8^3
   // Dim 1: 1 - (3*0.8^2 - 2*0.8^3)
-  mju_delayRead(buf, n, dim, res, 0.8, 2);
+  mju_historyRead(buf, n, dim, res, 0.8, 2);
   mjtNum expected_0_8 = 3*0.8*0.8 - 2*0.8*0.8*0.8;
   EXPECT_NEAR(res[0], expected_0_8, 1e-9);
   EXPECT_NEAR(res[1], 1.0 - expected_0_8, 1e-9);

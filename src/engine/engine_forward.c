@@ -869,7 +869,7 @@ static void mj_advance(const mjModel* m, mjData* d,
 
       // get history buffer pointer and insert ctrl at current time
       mjtNum* buf = d->history + m->actuator_historyadr[i];
-      *mju_delayInsert(buf, nsample, /*dim=*/1, d->time) = d->ctrl[i];
+      *mju_historyInsert(buf, nsample, /*dim=*/1, d->time) = d->ctrl[i];
     }
 
     // advance sensor history buffers
@@ -888,7 +888,7 @@ static void mj_advance(const mjModel* m, mjData* d,
         mjtNum time_prev = buf[0];  // first slot stores previous sensor tick
         if (time_prev + interval <= d->time) {
           buf[0] += interval;  // advance by exact interval (continuous time)
-          mjtNum* slot = mju_delayInsert(buf, nsample, dim, d->time);
+          mjtNum* slot = mju_historyInsert(buf, nsample, dim, d->time);
           if (delay > 0) {
             // have delay, compute sensor
             mj_computeSensor(m, d, i, slot);
@@ -899,11 +899,11 @@ static void mj_advance(const mjModel* m, mjData* d,
         }
       } else if (delay > 0) {
         // delay-only mode: always compute and insert
-        mjtNum* slot = mju_delayInsert(buf, nsample, dim, d->time);
+        mjtNum* slot = mju_historyInsert(buf, nsample, dim, d->time);
         mj_computeSensor(m, d, i, slot);
       } else {
         // history-only mode: copy from sensordata (already computed)
-        mjtNum* slot = mju_delayInsert(buf, nsample, dim, d->time);
+        mjtNum* slot = mju_historyInsert(buf, nsample, dim, d->time);
         mju_copy(slot, d->sensordata + m->sensor_adr[i], dim);
       }
     }

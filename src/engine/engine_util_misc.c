@@ -910,11 +910,11 @@ size_t mju_decodeBase64(uint8_t* buf, const char* s) {
 }
 
 
-//------------------------------ delay buffers -----------------------------------------------------
+//------------------------------ history buffers ---------------------------------------------------
 
 // convert logical index (0=oldest, n-1=newest) to physical index
 // cursor points to the newest element (logical index n-1)
-static inline int delayPhysicalIndex(int cursor, int n, int logical) {
+static inline int historyPhysicalIndex(int cursor, int n, int logical) {
   return (cursor + 1 + logical) % n;
 }
 
@@ -922,10 +922,10 @@ static inline int delayPhysicalIndex(int cursor, int n, int logical) {
 // find logical index i such that times[i-1] < t <= times[i], using circular binary search
 // returns 0 if t <= times[oldest], n if t > times[newest]
 // cursor points to the newest element (logical index n-1)
-static int delayFindIndex(const mjtNum* times, int n, int cursor, mjtNum t) {
+static int historyFindIndex(const mjtNum* times, int n, int cursor, mjtNum t) {
   // get oldest and newest timestamps
-  int oldest_phys = delayPhysicalIndex(cursor, n, 0);
-  int newest_phys = delayPhysicalIndex(cursor, n, n-1);
+  int oldest_phys = historyPhysicalIndex(cursor, n, 0);
+  int newest_phys = historyPhysicalIndex(cursor, n, n-1);
   mjtNum t_oldest = times[oldest_phys];
   mjtNum t_newest = times[newest_phys];
 
@@ -944,7 +944,7 @@ static int delayFindIndex(const mjtNum* times, int n, int cursor, mjtNum t) {
   int hi = n - 1;
   while (hi - lo > 1) {
     int mid = (lo + hi) / 2;
-    int mid_phys = delayPhysicalIndex(cursor, n, mid);
+    int mid_phys = historyPhysicalIndex(cursor, n, mid);
     if (times[mid_phys] < t) {
       lo = mid;
     } else {
@@ -956,10 +956,10 @@ static int delayFindIndex(const mjtNum* times, int n, int cursor, mjtNum t) {
 }
 
 
-// initialize delay buffer with given times and values; times must be strictly increasing
+// initialize history buffer with given times and values; times must be strictly increasing
 // buffer layout: [user(1), cursor(1), times(n), values(n*dim)]
-void mju_delayInit(mjtNum* buf, int n, int dim, const mjtNum* times, const mjtNum* values,
-                   mjtNum user) {
+void mju_historyInit(mjtNum* buf, int n, int dim, const mjtNum* times, const mjtNum* values,
+                     mjtNum user) {
   // check strict monotonicity of times
   for (int i = 0; i < n-1; i++) {
     if (times[i+1] - times[i] < mjMINVAL) {
@@ -984,17 +984,17 @@ void mju_delayInit(mjtNum* buf, int n, int dim, const mjtNum* times, const mjtNu
 // if t matches an existing timestamp, returns pointer to that slot
 // if a new sample is inserted, the oldest sample is dropped
 // returns pointer to value slot where caller should write dim values
-mjtNum* mju_delayInsert(mjtNum* buf, int n, int dim, mjtNum t) {
+mjtNum* mju_historyInsert(mjtNum* buf, int n, int dim, mjtNum t) {
   int cursor = (int)buf[1];
   mjtNum* times = buf + 2;
   mjtNum* values = buf + 2 + n;
 
   // find logical insertion index: times[i-1] < t <= times[i]
-  int i = delayFindIndex(times, n, cursor, t);
+  int i = historyFindIndex(times, n, cursor, t);
 
   // exact match at logical i: return pointer to existing slot
   if (i < n) {
-    int phys_i = delayPhysicalIndex(cursor, n, i);
+    int phys_i = historyPhysicalIndex(cursor, n, i);
     if (mju_abs(t - times[phys_i]) < mjMINVAL) {
       return values + phys_i*dim;
     }
@@ -1002,7 +1002,7 @@ mjtNum* mju_delayInsert(mjtNum* buf, int n, int dim, mjtNum t) {
 
   // logical i == 0: new sample is older than oldest, replace oldest slot
   if (i == 0) {
-    int oldest_phys = delayPhysicalIndex(cursor, n, 0);
+    int oldest_phys = historyPhysicalIndex(cursor, n, 0);
     times[oldest_phys] = t;
     return values + oldest_phys*dim;
   }
@@ -1019,12 +1019,12 @@ mjtNum* mju_delayInsert(mjtNum* buf, int n, int dim, mjtNum t) {
 
   // 0 < i < n: out-of-order insertion, shift [1, i-1] left (dropping 0), insert at i-1
   for (int j = 0; j < i-1; j++) {
-    int src_phys = delayPhysicalIndex(cursor, n, j+1);
-    int dst_phys = delayPhysicalIndex(cursor, n, j);
+    int src_phys = historyPhysicalIndex(cursor, n, j+1);
+    int dst_phys = historyPhysicalIndex(cursor, n, j);
     times[dst_phys] = times[src_phys];
     mju_copy(values + dst_phys*dim, values + src_phys*dim, dim);
   }
-  int insert_phys = delayPhysicalIndex(cursor, n, i-1);
+  int insert_phys = historyPhysicalIndex(cursor, n, i-1);
   times[insert_phys] = t;
   return values + insert_phys*dim;
 }
@@ -1033,13 +1033,13 @@ mjtNum* mju_delayInsert(mjtNum* buf, int n, int dim, mjtNum t) {
 // read vector value at time t; interp: 0=zero-order-hold, 1=linear, 2=cubic spline
 // returns pointer to sample in buffer on exact match or ZOH (res untouched)
 // returns NULL and writes interpolated result to res on interpolation
-const mjtNum* mju_delayRead(const mjtNum* buf, int n, int dim, mjtNum* res, mjtNum t, int interp) {
+const mjtNum* mju_historyRead(const mjtNum* buf, int n, int dim, mjtNum* res, mjtNum t, int interp) {
   int cursor = (int)buf[1];
   const mjtNum* times = buf + 2;
   const mjtNum* values = buf + 2 + n;
 
-  int oldest_phys = delayPhysicalIndex(cursor, n, 0);
-  int newest_phys = delayPhysicalIndex(cursor, n, n-1);
+  int oldest_phys = historyPhysicalIndex(cursor, n, 0);
+  int newest_phys = historyPhysicalIndex(cursor, n, n-1);
   mjtNum t_oldest = times[oldest_phys];
   mjtNum t_newest = times[newest_phys];
 
@@ -1054,8 +1054,8 @@ const mjtNum* mju_delayRead(const mjtNum* buf, int n, int dim, mjtNum* res, mjtN
   }
 
   // find bracketing logical index: times[i-1] < t <= times[i]
-  int i = delayFindIndex(times, n, cursor, t);
-  int phys_i = delayPhysicalIndex(cursor, n, i);
+  int i = historyFindIndex(times, n, cursor, t);
+  int phys_i = historyPhysicalIndex(cursor, n, i);
 
   // check for exact match at i
   if (mju_abs(t - times[phys_i]) < mjMINVAL) {
@@ -1063,7 +1063,7 @@ const mjtNum* mju_delayRead(const mjtNum* buf, int n, int dim, mjtNum* res, mjtN
   }
 
   // lo = i-1, hi = i (we know i > 0 because t > t_oldest)
-  int phys_lo = delayPhysicalIndex(cursor, n, i-1);
+  int phys_lo = historyPhysicalIndex(cursor, n, i-1);
   int phys_hi = phys_i;
 
   // zero-order hold: return pointer to lo (most recent sample <= t)
@@ -1096,14 +1096,14 @@ const mjtNum* mju_delayRead(const mjtNum* buf, int n, int dim, mjtNum* res, mjtN
 
       mjtNum m_lo = 0;
       if (i > 1) {
-        int phys_lo_prev = delayPhysicalIndex(cursor, n, i-2);
+        int phys_lo_prev = historyPhysicalIndex(cursor, n, i-2);
         mjtNum dt_lo = times[phys_hi] - times[phys_lo_prev];
         m_lo = (values[phys_hi*dim+d] - values[phys_lo_prev*dim+d]) / dt_lo;
       }
 
       mjtNum m_hi = 0;
       if (i < n - 1) {
-        int phys_hi_next = delayPhysicalIndex(cursor, n, i+1);
+        int phys_hi_next = historyPhysicalIndex(cursor, n, i+1);
         mjtNum dt_hi = times[phys_hi_next] - times[phys_lo];
         m_hi = (values[phys_hi_next*dim+d] - values[phys_lo*dim+d]) / dt_hi;
       }
