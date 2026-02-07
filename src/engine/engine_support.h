@@ -31,6 +31,7 @@ MJAPI extern const char* mjTIMERSTRING[mjNTIMER];
 
 // arrays
 MJAPI extern const int mjCONDATA_SIZE[mjNCONDATA];  // TODO(tassa): expose in public header?
+extern const int mjRAYDATA_SIZE[mjNRAYDATA];
 
 
 //-------------------------- get/set state ---------------------------------------------------------
@@ -119,6 +120,38 @@ MJAPI const char* mj_versionString(void);
 
 // return total size of data fields in a contact sensor bitfield specification
 MJAPI int mju_condataSize(int dataSpec);
+
+// return total size of data fields in a rangefinder sensor bitfield specification
+int mju_raydataSize(int dataspec);
+
+// compute camera pixel parameters from model
+// outputs: fx, fy (focal length in pixels), cx, cy (principal point), ortho_extent
+void mju_camIntrinsics(const mjModel* m, int camid,
+                       mjtNum* fx, mjtNum* fy, mjtNum* cx, mjtNum* cy,
+                       mjtNum* ortho_extent);
+
+// read ctrl value for actuator at given time
+// returns d->ctrl[id] if no history, otherwise reads from history buffer
+// interp: 0=zero-order-hold, 1=linear, 2=cubic spline
+MJAPI mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp);
+
+// read sensor value from history buffer at given time
+// returns pointer to sensordata (no history) or history buffer (exact match),
+// or NULL if interpolation performed (writes to result)
+// interp: 0=zero-order-hold, 1=linear, 2=cubic spline
+MJAPI const mjtNum* mj_readSensor(const mjModel* m, const mjData* d, int id, mjtNum time,
+                                  mjtNum* result, int interp);
+
+// initialize history buffer for actuator with given values
+// if times is NULL, uses existing buffer timestamps
+MJAPI void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
+                              const mjtNum* times, const mjtNum* values);
+
+// initialize history buffer for sensor with given values
+// if times is NULL, uses existing buffer timestamps
+// phase sets the user slot (last computation time for interval sensors)
+MJAPI void mj_initSensorHistory(const mjModel* m, mjData* d, int id,
+                                const mjtNum* times, const mjtNum* values, mjtNum phase);
 
 #ifdef __cplusplus
 }

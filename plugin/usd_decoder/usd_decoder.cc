@@ -20,10 +20,14 @@
 #include <numbers>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/equalityAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/equalityJointAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/equalityWeldAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/imageableAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/keyframe.h>
@@ -33,13 +37,12 @@
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/tendon.h>
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
-#include <mujoco/experimental/usd/usd.h>
-#include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mujoco.h>
-#include "experimental/usd/kinematic_tree.h"
-#include "experimental/usd/material_parsing.h"
+#include "kinematic_tree.h"
+#include "material_parsing.h"
 #include <pxr/base/gf/declare.h>
 #include <pxr/base/gf/matrix4d.h>
+#include <pxr/base/gf/matrix4f.h>
 #include <pxr/base/gf/rotation.h>
 #include <pxr/base/gf/vec3d.h>
 #include <pxr/base/tf/token.h>
@@ -74,9 +77,6 @@
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
 
-namespace mujoco {
-namespace usd {
-
 using pxr::MjcPhysicsTokens;
 using pxr::TfToken;
 
@@ -86,6 +86,26 @@ struct UsdCaches {
   pxr::UsdShadeMaterialBindingAPI::CollectionQueryCache collection_query_cache;
   std::map<pxr::SdfPath, mjsMaterial*> parsed_materials;
 };
+
+constexpr const char* kUsdPrimPathKey = "usd_primpath";
+
+void SetUsdPrimPathUserValue(mjsElement* element,
+                             const pxr::SdfPath& prim_path) {
+  // The value is a pointer to a newly allocated SdfPath, which will be deleted
+  // when the mjsElement is deleted.
+  const pxr::SdfPath* usd_primpath = new pxr::SdfPath(prim_path);
+  mjs_setUserValueWithCleanup(
+      element, kUsdPrimPathKey, usd_primpath,
+      [](const void* data) { delete static_cast<const pxr::SdfPath*>(data); });
+}
+
+pxr::SdfPath GetUsdPrimPathUserValue(mjsElement* element) {
+  const void* user_data = mjs_getUserValue(element, kUsdPrimPathKey);
+  if (user_data) {
+    return *static_cast<const pxr::SdfPath*>(user_data);
+  }
+  return pxr::SdfPath();
+}
 
 void SetDoubleArrFromGfVec3d(double* to, const pxr::GfVec3d& from) {
   to[0] = from[0];
@@ -279,7 +299,7 @@ mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom,
   }
   mjsMesh* mesh = mjs_addMesh(spec, nullptr);
 
-  mujoco::usd::SetUsdPrimPathUserValue(mesh->element, prim.GetPath());
+  SetUsdPrimPathUserValue(mesh->element, prim.GetPath());
 
   geom->type = mjGEOM_MESH;
   pxr::UsdGeomMesh usd_mesh(prim);
@@ -924,20 +944,25 @@ void ParseMjcPhysicsMeshCollisionAPI(
   }
 }
 
-void ParseMjcPhysicsTendon(mjSpec* spec,
-                             const pxr::MjcPhysicsTendon& tendon) {
+void ParseMjcPhysicsTendon(mjSpec* spec, const pxr::MjcPhysicsTendon& tendon) {
   pxr::UsdPrim prim = tendon.GetPrim();
   pxr::UsdStageRefPtr stage = prim.GetStage();
   mjsTendon* mj_tendon = mjs_addTendon(spec, nullptr);
   mjs_setName(mj_tendon->element, prim.GetPath().GetAsString().c_str());
 
-  mujoco::usd::SetUsdPrimPathUserValue(mj_tendon->element, prim.GetPath());
+  SetUsdPrimPathUserValue(mj_tendon->element, prim.GetPath());
 
   pxr::TfToken type;
   tendon.GetTypeAttr().Get(&type);
 
   pxr::SdfPathVector wrap_targets;
   tendon.GetMjcPathRel().GetTargets(&wrap_targets);
+
+  pxr::VtIntArray wrap_path_indices;
+  tendon.GetMjcPathIndicesAttr().Get(&wrap_path_indices);
+
+  auto n_targets = wrap_path_indices.empty() ? wrap_targets.size()
+                                             : wrap_path_indices.size();
 
   pxr::SdfPathVector side_site_paths;
   tendon.GetMjcSideSitesRel().GetTargets(&side_site_paths);
@@ -956,63 +981,75 @@ void ParseMjcPhysicsTendon(mjSpec* spec,
 
   if (type == MjcPhysicsTokens->spatial) {
     // Check that for N targets we have 0 or N elements in segments.
-    if (!segments.empty() && segments.size() != wrap_targets.size()) {
+    if (!segments.empty() && segments.size() != n_targets) {
       mju_warning(
           "Spatial tendon %s has %lu segments but %lu wrap targets, skipping.",
           prim.GetPath().GetAsString().c_str(), segments.size(),
-          wrap_targets.size());
+          n_targets);
       return;
     }
-    // Check that if we have >1 segments that the user has specified how much each segment
-    // contributes to the total segment length.
+    // Check that if we have >1 segments that the user has specified how much
+    // each segment contributes to the total segment length.
     if (!segments.empty() && divisors.empty()) {
       mju_warning(
-          "Spatial tendon %s has >1 segments (%d) but does not specify divisors, skipping.",
-          prim.GetPath().GetAsString().c_str(), *std::max_element(segments.begin(), segments.end()) + 1);
+          "Spatial tendon %s has >1 segments (%d) but does not specify "
+          "divisors, skipping.",
+          prim.GetPath().GetAsString().c_str(),
+          *std::max_element(segments.begin(), segments.end()) + 1);
       return;
     }
     // Check that if we side site indices that we have N of them.
-    if (!side_site_indices.empty() && side_site_indices.size() != wrap_targets.size()) {
+    if (!side_site_indices.empty() &&
+        side_site_indices.size() != n_targets) {
       mju_warning(
-          "Spatial tendon %s has %lu sideSite indices but %lu wrap targets, skipping.",
-          prim.GetPath().GetAsString().c_str(), side_site_indices.size(), wrap_targets.size());
+          "Spatial tendon %s has %lu sideSite indices but %lu wrap targets, "
+          "skipping.",
+          prim.GetPath().GetAsString().c_str(), side_site_indices.size(),
+          n_targets);
       return;
     }
 
     if (!side_site_indices.empty() && side_site_paths.empty()) {
       mju_warning(
-          "Spatial tendon %s has %lu sideSite indices but no side sites, skipping.",
+          "Spatial tendon %s has %lu sideSite indices but no side sites, "
+          "skipping.",
           prim.GetPath().GetAsString().c_str(), side_site_indices.size());
       return;
     }
   } else {  // Fixed tendon.
     // Check that for N targets we have 0 or N elements in coef:
-    if (!coefs.empty() && coefs.size() != wrap_targets.size()) {
+    if (!coefs.empty() && coefs.size() != n_targets) {
       mju_warning(
           "Spatial tendon %s has %lu coefs but %lu wrap targets, skipping.",
-          prim.GetPath().GetAsString().c_str(), coefs.size(), wrap_targets.size());
+          prim.GetPath().GetAsString().c_str(), coefs.size(),
+          n_targets);
     }
   }
 
   int last_segment = 0;
-  for (int i = 0; i < wrap_targets.size(); ++i) {
-    auto wrap_target = wrap_targets[i];
+  for (int i = 0; i < n_targets; ++i) {
+    auto index = wrap_path_indices.empty() ? i : wrap_path_indices[i];
+    auto wrap_target = wrap_targets[index];
     auto wrap_prim = stage->GetPrimAtPath(wrap_target);
-    // Important to check site before Imageable here because some Imageable prims are sites.
+    // Important to check site before Imageable here because some Imageable
+    // prims are sites.
 
     if (!segments.empty()) {
       int segment = segments[i];
       if (segment >= divisors.size()) {
-        mju_warning("Tendon %s has at least %d segments but only %lu divisors, skipping.",
-                    prim.GetPath().GetAsString().c_str(), segment + 1, divisors.size());
+        mju_warning(
+            "Tendon %s has at least %d segments but only %lu divisors, "
+            "skipping.",
+            prim.GetPath().GetAsString().c_str(), segment + 1, divisors.size());
         return;
       }
 
       if (segment > last_segment) {
         mjsWrap* pulley_wrap = mjs_wrapPulley(mj_tendon, divisors[segment]);
         mjs_setString(pulley_wrap->info, ("Pulley between segments: " +
-                                        std::to_string(last_segment) + " and " +
-                                        std::to_string(segment)).c_str());
+                                          std::to_string(last_segment) +
+                                          " and " + std::to_string(segment))
+                                             .c_str());
       }
       last_segment = segment;
     }
@@ -1030,14 +1067,20 @@ void ParseMjcPhysicsTendon(mjSpec* spec,
       std::string side_site_name = "";
       if (!side_site_indices.empty()) {
         int side_site_index = side_site_indices[i];
-        if (side_site_index >= side_site_paths.size()) {
-          mju_warning("Tendon %s has side site index %d but only %lu side sites, skipping.",
-                      prim.GetPath().GetAsString().c_str(), side_site_index, side_site_paths.size());
+        if (side_site_index > 0 && side_site_index >= side_site_paths.size()) {
+          mju_warning(
+              "Tendon %s has side site index %d but only %lu side sites, "
+              "skipping.",
+              prim.GetPath().GetAsString().c_str(), side_site_index,
+              side_site_paths.size());
           return;
         }
-        side_site_name = side_site_paths[side_site_index].GetAsString();
+        if (side_site_index >= 0) {
+          side_site_name = side_site_paths[side_site_index].GetAsString();
+        }
       }
-      wrap = mjs_wrapGeom(mj_tendon, wrap_target.GetAsString().c_str(), side_site_name.c_str());
+      wrap = mjs_wrapGeom(mj_tendon, wrap_target.GetAsString().c_str(),
+                          side_site_name.c_str());
     } else {
       mju_warning("Tendon %s has an invalid wrap target type, skipping.",
                   prim.GetPath().GetAsString().c_str());
@@ -1226,7 +1269,7 @@ void ParseMjcPhysicsActuator(mjSpec* spec,
   mjsActuator* mj_act = mjs_addActuator(spec, nullptr);
   mjs_setName(mj_act->element, prim.GetPath().GetAsString().c_str());
 
-  mujoco::usd::SetUsdPrimPathUserValue(mj_act->element, prim.GetPath());
+  SetUsdPrimPathUserValue(mj_act->element, prim.GetPath());
 
   auto group_attr = tran.GetGroupAttr();
   if (group_attr.HasAuthoredValue()) {
@@ -1253,6 +1296,8 @@ void ParseMjcPhysicsActuator(mjSpec* spec,
     mj_act->trntype = mjTRN_BODY;
   } else if (target_prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
     mj_act->trntype = slider_crank ? mjTRN_SLIDERCRANK : mjTRN_SITE;
+  } else if (target_prim.IsA<pxr::MjcPhysicsTendon>()) {
+    mj_act->trntype = mjTRN_TENDON;
   } else {
     mju_warning("Actuator %s has an invalid target type, skipping.",
                 prim.GetPath().GetAsString().c_str());
@@ -1671,7 +1716,7 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   geom->contype = 0;
   geom->conaffinity = 0;
 
-  mujoco::usd::SetUsdPrimPathUserValue(geom->element, gprim.GetPath());
+  SetUsdPrimPathUserValue(geom->element, gprim.GetPath());
 
   ParseDisplayColorAndOpacity(gprim, geom);
   SetLocalPoseFromPrim(gprim, body_prim, geom, caches.xform_cache);
@@ -1728,7 +1773,7 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
   geom->contype = 1;
   geom->conaffinity = 1;
 
-  mujoco::usd::SetUsdPrimPathUserValue(geom->element, prim.GetPath());
+  SetUsdPrimPathUserValue(geom->element, prim.GetPath());
 
   if (prim.HasAPI<pxr::MjcPhysicsCollisionAPI>()) {
     ParseMjcPhysicsCollisionAPI(geom, pxr::MjcPhysicsCollisionAPI(prim));
@@ -1784,15 +1829,248 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
   }
 }
 
+void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
+                          pxr::UsdGeomXformCache& xform_cache) {
+  if (prim.HasAPI<pxr::MjcPhysicsEqualityJointAPI>()) {
+    // Handle MjcPhysicsEqualityJointAPI on revolute/prismatic joints.
+    pxr::MjcPhysicsEqualityJointAPI eq_joint_api(prim);
+    mjsEquality* eq = mjs_addEquality(spec, nullptr);
+    eq->type = mjEQ_JOINT;
+    mjs_setName(eq->element, prim.GetPath().GetAsString().c_str());
+    SetUsdPrimPathUserValue(eq->element, prim.GetPath());
+
+    // The prim this API is applied to is the constrained joint (joint1).
+    eq->objtype = mjOBJ_JOINT;
+    mjs_setString(eq->name1, prim.GetPath().GetAsString().c_str());
+
+    // Get the target joint (joint2) from the MjcEqualityAPI target
+    // relationship.
+    pxr::MjcPhysicsEqualityAPI equality_api(prim);
+    pxr::UsdRelationship target_rel = equality_api.GetMjcTargetRel();
+    pxr::SdfPathVector targets;
+    target_rel.GetTargets(&targets);
+    if (!targets.empty()) {
+      mjs_setString(eq->name2, targets[0].GetAsString().c_str());
+    }
+    // If no target, name2 remains empty, meaning joint1 is fixed to a constant.
+
+    // Parse individual coefficient attributes for the quartic polynomial.
+    eq_joint_api.GetCoef0Attr().Get(&eq->data[0]);
+    eq_joint_api.GetCoef1Attr().Get(&eq->data[1]);
+    eq_joint_api.GetCoef2Attr().Get(&eq->data[2]);
+    eq_joint_api.GetCoef3Attr().Get(&eq->data[3]);
+    eq_joint_api.GetCoef4Attr().Get(&eq->data[4]);
+
+    // Parse solver parameters from MjcEqualityAPI.
+    auto solref_attr = equality_api.GetSolRefAttr();
+    if (solref_attr.HasAuthoredValue()) {
+      pxr::VtDoubleArray solref;
+      solref_attr.Get(&solref);
+      if (solref.size() == mjNREF) {
+        for (int i = 0; i < mjNREF; ++i) {
+          eq->solref[i] = solref[i];
+        }
+      }
+    }
+
+    auto solimp_attr = equality_api.GetSolImpAttr();
+    if (solimp_attr.HasAuthoredValue()) {
+      pxr::VtDoubleArray solimp;
+      solimp_attr.Get(&solimp);
+      if (solimp.size() == mjNIMP) {
+        for (int i = 0; i < mjNIMP; ++i) {
+          eq->solimp[i] = solimp[i];
+        }
+      }
+    }
+  } else if (prim.IsA<pxr::UsdPhysicsFixedJoint>()) {
+    // Handle fixed joints as weld constraints.
+    pxr::UsdPhysicsJoint joint(prim);
+    // A fixed joint means the bodies are welded.
+    pxr::UsdRelationship body0_rel = joint.GetBody0Rel();
+    pxr::UsdRelationship body1_rel = joint.GetBody1Rel();
+    pxr::SdfPathVector targets0, targets1;
+    body0_rel.GetTargets(&targets0);
+    body1_rel.GetTargets(&targets1);
+
+    pxr::SdfPath body0_path;
+    if (!targets0.empty()) body0_path = targets0[0];
+    pxr::SdfPath body1_path;
+    if (!targets1.empty()) body1_path = targets1[0];
+
+    auto stage = prim.GetStage();
+
+    auto body0_prim = stage->GetPrimAtPath(body0_path);
+    auto body1_prim = stage->GetPrimAtPath(body1_path);
+
+    bool body0_is_site = false;
+    if (!body0_path.IsEmpty()) {
+      body0_is_site = body0_prim.HasAPI<pxr::MjcPhysicsSiteAPI>();
+    }
+    bool body1_is_site = false;
+    if (!body1_path.IsEmpty()) {
+      body1_is_site = body1_prim.HasAPI<pxr::MjcPhysicsSiteAPI>();
+    }
+
+    if (body0_is_site != body1_is_site) {
+      mju_warning(
+          "Weld constraint %s has mismatch between site and body targets, "
+          "skipping",
+          prim.GetPath().GetAsString().c_str());
+      return;
+    }
+
+    mjsEquality* eq = mjs_addEquality(spec, nullptr);
+    eq->type = mjEQ_WELD;
+    mjs_setName(eq->element, prim.GetPath().GetAsString().c_str());
+    SetUsdPrimPathUserValue(eq->element, prim.GetPath());
+
+    if (body0_is_site) {
+      mjs_setString(eq->name1, body0_path.GetAsString().c_str());
+      mjs_setString(eq->name2, body1_path.GetAsString().c_str());
+      eq->objtype = mjOBJ_SITE;
+    } else {
+      mjs_setString(eq->name1, body0_path.GetAsString().c_str());
+      mjs_setString(eq->name2, body1_path.GetAsString().c_str());
+      eq->objtype = mjOBJ_BODY;
+    }
+
+    // In USD, joints have a reference frame that is shared between the two
+    // connecting bodies. This reference frame is defined relative to both
+    // bodies, in localPos/Rot 0 and 1. A fixed joint removes all degrees of
+    // freedom for the joint, ensuring the reference frame is fixed in place
+    // This means the bodies should also be fixed, but relative to the joint
+    // depending on their respective localPos/Rot.
+    // In MuJoCo fixed joint frames are not explicitly defined relative to their
+    // connecting bodies. Instead, we define a weld constraint providing the
+    // weld point (anchor) relative to body 2 and then we specify the position
+    // of body 2 relative to body 1.
+
+    // Here is the mapping of terms concretely:
+    // T(bodyX) = transform of bodyX relative to joint frame (localPos/Rot).
+    // anchor = localPos1 (position of the weld point relative to mjc body 2)
+    // relpose = T(body0)*T(body1)^-1
+
+    // relpose is float[7], pos(3) + quat(4)
+    // anchor is float[3], pos(3)
+    // in mjsEquality data: anchor 0-2, relpose 3-9.
+
+    auto body0_xform = xform_cache.GetLocalToWorldTransform(body0_prim);
+    auto body1_xform = xform_cache.GetLocalToWorldTransform(body1_prim);
+
+    pxr::GfVec3d body0_scale, body1_scale;
+
+    {
+      pxr::GfMatrix4d scale_orient, rot, persp;
+      pxr::GfVec3d translation;
+      if (!body0_xform.Factor(&scale_orient, &body0_scale, &rot, &translation,
+                              &persp)) {
+        // unable to decompose, emit warning and set scale to identity
+        mju_warning(
+              "Unable to decompose matrix for body 0: %s.",
+              body0_path.GetAsString().c_str());
+        body0_scale = pxr::GfVec3f(1, 1, 1);
+      }
+
+    if (!body1_xform.Factor(&scale_orient, &body1_scale, &rot,
+                  &translation, &persp)) {
+        // unable to decompose, emit warning and set scale to identity
+        mju_warning(
+              "Unable to decompose matrix for body 1: %s.",
+              body1_path.GetAsString().c_str());
+        body1_scale = pxr::GfVec3f(1, 1, 1);
+    }
+    }
+
+  pxr::GfVec3f localPos1;
+  joint.GetLocalPos1Attr().Get(&localPos1);
+  localPos1[0] *= body1_scale[0];
+  localPos1[1] *= body1_scale[1];
+  localPos1[2] *= body1_scale[2];
+  pxr::GfQuatf localRot1;
+  joint.GetLocalRot1Attr().Get(&localRot1);
+
+  pxr::GfVec3f localPos0;
+  joint.GetLocalPos0Attr().Get(&localPos0);
+  localPos0[0] *= body0_scale[0];
+  localPos0[1] *= body0_scale[1];
+  localPos0[2] *= body0_scale[2];
+  pxr::GfQuatf localRot0;
+  joint.GetLocalRot0Attr().Get(&localRot0);
+
+  auto relpose_quat = localRot0 * localRot1.GetConjugate();
+  relpose_quat.Normalize();
+  auto relpose_pos = localPos0 - relpose_quat.Transform(localPos1);
+
+  eq->data[0] = localPos1[0];
+  eq->data[1] = localPos1[1];
+  eq->data[2] = localPos1[2];
+  eq->data[3] = relpose_pos[0];
+  eq->data[4] = relpose_pos[1];
+  eq->data[5] = relpose_pos[2];
+  eq->data[6] = relpose_quat.GetReal();
+  eq->data[7] = relpose_quat.GetImaginary()[0];
+  eq->data[8] = relpose_quat.GetImaginary()[1];
+  eq->data[9] = relpose_quat.GetImaginary()[2];
+
+  if (prim.HasAPI<pxr::MjcPhysicsEqualityWeldAPI>()) {
+    // MjcPhysicsEqualityAPI is always automatically applied
+    // by MjcPhysicsEqualityWeldAPI.
+    pxr::MjcPhysicsEqualityAPI equality_api(prim);
+    auto solref_attr = equality_api.GetSolRefAttr();
+    if (solref_attr.HasAuthoredValue()) {
+      pxr::VtDoubleArray solref;
+      solref_attr.Get(&solref);
+      if (solref.size() == mjNREF) {
+        for (int i = 0; i < mjNREF; ++i) {
+          eq->solref[i] = solref[i];
+        }
+      } else {
+        mju_warning(
+            "solref attribute for weld equality %s has incorrect size "
+            "%zu, expected %d.",
+            prim.GetPath().GetAsString().c_str(), solref.size(), mjNREF);
+      }
+    }
+
+    auto solimp_attr = equality_api.GetSolImpAttr();
+    if (solimp_attr.HasAuthoredValue()) {
+      pxr::VtDoubleArray solimp;
+      solimp_attr.Get(&solimp);
+      if (solimp.size() == mjNIMP) {
+        for (int i = 0; i < mjNIMP; ++i) {
+          eq->solimp[i] = solimp[i];
+        }
+      } else {
+        mju_warning(
+            "solimp attribute for weld equality %s has incorrect size "
+            "%zu, expected %d.",
+            prim.GetPath().GetAsString().c_str(), solimp.size(), mjNIMP);
+      }
+    }
+
+    pxr::MjcPhysicsEqualityWeldAPI weld_api(prim);
+    auto torque_scale_attr = weld_api.GetTorqueScaleAttr();
+    if (torque_scale_attr.HasAuthoredValue()) {
+      float torque_scale;
+      torque_scale_attr.Get(&torque_scale);
+      eq->data[10] = torque_scale;
+    }
+  }
+  } else {
+    mju_warning("Constraint %s is not a supported constraint type, skipping.",
+                prim.GetPath().GetAsString().c_str());
+  }
+}
 void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
                           pxr::UsdGeomXformCache& xform_cache) {
-  pxr::UsdPhysicsJoint joint(prim);
-
   // A fixed joint means the bodies are welded.
   if (prim.IsA<pxr::UsdPhysicsFixedJoint>()) {
     // No joint needed for welded bodies.
     return;
   }
+
+  pxr::UsdPhysicsJoint joint(prim);
 
   mjtJoint type;
   if (prim.IsA<pxr::UsdPhysicsRevoluteJoint>()) {
@@ -1810,7 +2088,7 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
   mj_joint->type = type;
   mjs_setName(mj_joint->element, prim.GetPath().GetAsString().c_str());
 
-  mujoco::usd::SetUsdPrimPathUserValue(mj_joint->element, prim.GetPath());
+  SetUsdPrimPathUserValue(mj_joint->element, prim.GetPath());
 
   if (prim.IsA<pxr::UsdPhysicsRevoluteJoint>()) {
     pxr::UsdPhysicsRevoluteJoint revolute(prim);
@@ -1901,7 +2179,7 @@ void ParseMjcPhysicsSite(mjSpec* spec, const pxr::MjcPhysicsSiteAPI& site_api,
               site_api.GetPrim().GetPath().GetAsString().c_str());
   SetLocalPoseFromPrim(site_api.GetPrim(), parent_prim, site, xform_cache);
 
-  mujoco::usd::SetUsdPrimPathUserValue(site->element, prim.GetPath());
+  SetUsdPrimPathUserValue(site->element, prim.GetPath());
 
   auto group_attr = site_api.GetGroupAttr();
   if (group_attr.HasAuthoredValue()) {
@@ -1949,7 +2227,7 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
     // If no time samples, we create a single keyframe.
     mjsKey* key = mjs_addKey(spec);
 
-    mujoco::usd::SetUsdPrimPathUserValue(key->element, prim.GetPath());
+    SetUsdPrimPathUserValue(key->element, prim.GetPath());
 
     mjs_setName(key->element, prim.GetName().GetString().c_str());
     setKeyframeData(key, qpos_attr, &key->qpos);
@@ -1966,7 +2244,7 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
     for (double time : times) {
       mjsKey* key = mjs_addKey(spec);
 
-      mujoco::usd::SetUsdPrimPathUserValue(key->element, prim.GetPath());
+      SetUsdPrimPathUserValue(key->element, prim.GetPath());
 
       std::string key_name =
           prim.GetName().GetString() + "_" + std::to_string(keyframe_id++);
@@ -1995,7 +2273,12 @@ mjsBody* ParseUsdPhysicsRigidbody(
     ParseUsdPhysicsMassAPIForBody(body, pxr::UsdPhysicsMassAPI(prim));
   }
 
-  mujoco::usd::SetUsdPrimPathUserValue(body->element, prim.GetPath());
+  // The value is a pointer to a newly allocated SdfPath, which will be deleted
+  // when the mjsElement is deleted.
+  const pxr::SdfPath* usd_primpath = new pxr::SdfPath(prim.GetPath());
+  mjs_setUserValueWithCleanup(
+      body->element, kUsdPrimPathKey, usd_primpath,
+      [](const void* data) { delete static_cast<const pxr::SdfPath*>(data); });
 
   return body;
 }
@@ -2051,6 +2334,11 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
     free_joint->type = mjJNT_FREE;
   }
 
+  for (const auto& constraint_path : current_node->constraints) {
+    ParseConstraint(spec, stage->GetPrimAtPath(constraint_path),
+                          current_mj_body, caches.xform_cache);
+  }
+
   pxr::UsdPrim body_prim_for_xform =
       current_node->body_path.IsEmpty()
           ? stage->GetPseudoRoot()
@@ -2080,49 +2368,45 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
                          child_node.get(), caches);
   }
 }
-}  // namespace usd
-}  // namespace mujoco
 
-mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
+mjSpec* ParseStage(const pxr::UsdStageRefPtr stage) {
   mjSpec* spec = mj_makeSpec();
 
-  std::unique_ptr<mujoco::usd::Node> root =
-      mujoco::usd::BuildKinematicTree(stage);
+  std::unique_ptr<Node> root = BuildKinematicTree(stage);
 
   // First parse the physics scene and other root elements such as keyframes
   // and actuators.
   if (!root->physics_scene.IsEmpty()) {
-    mujoco::usd::ParseUsdPhysicsScene(
-        spec, pxr::UsdPhysicsScene::Get(stage, root->physics_scene));
+    ParseUsdPhysicsScene(spec,
+                         pxr::UsdPhysicsScene::Get(stage, root->physics_scene));
   } else {
     // If there is no physics scene we still need to infer the gravity vector
     // from the stage up axis and units per meter metadata.
-    mujoco::usd::SetGravityAttributes(spec, stage);
+    SetGravityAttributes(spec, stage);
   }
 
   if (!root->keyframes.empty()) {
     for (const auto& keyframe : root->keyframes) {
-      mujoco::usd::ParseMjcPhysicsKeyframe(
-          spec, pxr::MjcPhysicsKeyframe::Get(stage, keyframe));
+      ParseMjcPhysicsKeyframe(spec,
+                              pxr::MjcPhysicsKeyframe::Get(stage, keyframe));
     }
   }
 
   if (!root->actuators.empty()) {
     for (const auto& actuator : root->actuators) {
-      mujoco::usd::ParseMjcPhysicsActuator(
-          spec, pxr::MjcPhysicsActuator::Get(stage, actuator));
+      ParseMjcPhysicsActuator(spec,
+                              pxr::MjcPhysicsActuator::Get(stage, actuator));
     }
   }
 
   if (!root->tendons.empty()) {
     for (const auto& tendon : root->tendons) {
-      mujoco::usd::ParseMjcPhysicsTendon(
-          spec, pxr::MjcPhysicsTendon::Get(stage, tendon));
+      ParseMjcPhysicsTendon(spec, pxr::MjcPhysicsTendon::Get(stage, tendon));
     }
   }
 
   // Set of caches to use for all queries when parsing.
-  mujoco::usd::UsdCaches caches;
+  UsdCaches caches;
   // Then populate the kinematic tree.
   PopulateSpecFromTree(stage, spec, /*parent_mj_body=*/nullptr,
                        /*parent_node=*/nullptr, root.get(), caches);
@@ -2130,8 +2414,27 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
   return spec;
 }
 
-mjSpec* mj_parseUSD(const char* identifier, const mjVFS* vfs, char* error,
-                          int error_sz) {
-  auto stage = pxr::UsdStage::Open(identifier);
-  return mj_parseUSDStage(stage);
+namespace {
+// load 2D
+mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
+  auto stage = pxr::UsdStage::Open(resource->name);
+  return ParseStage(stage);
+}
+
+int CanDecode(const mjResource* resource) {
+  std::string_view name(resource->name);
+  return name.ends_with(".usd") || name.ends_with(".usda") ||
+         name.ends_with(".usdc") || name.ends_with(".usdz");
+}
+}  // namespace
+
+// clang-format off
+mjPLUGIN_LIB_INIT {
+  mjpDecoder decoder;
+  mjp_defaultDecoder(&decoder);
+  decoder.content_type = "model/usd";
+  decoder.extension = ".usd|.usda|.usdc|.usdz";
+  decoder.decode = Decode;
+  decoder.can_decode = CanDecode;
+  mjp_registerDecoder(&decoder);
 }

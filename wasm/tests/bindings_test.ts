@@ -17,7 +17,7 @@ import 'jasmine';
 import {MainModule, MjContact, MjContactVec, MjData, MjLROpt, MjModel,
 MjOption, MjsGeom, MjSolverStat, MjSpec, MjStatistic, MjTimerStat, MjvCamera,
 MjvFigure, MjvGeom, MjvGLCamera, MjvLight, MjvOption, MjvPerturb, MjvScene,
-MjWarningStat} from '../dist/mujoco_wasm.js';
+MjWarningStat, MjVFS, Uint8Buffer} from '../dist/mujoco_wasm.js';
 
 import loadMujoco from '../dist/mujoco_wasm.js'
 
@@ -45,17 +45,17 @@ const TEST_XML = `
       <geom name="mybox" type="box" size="0.1 0.1 0.1" mass="0.25"/>
       <freejoint name="myfree"/>
     </body>
-    <body>
+    <body name="myhinge-body" pos="0 0 1">
       <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
       <site pos="0 0 -1" name="mysite" type="sphere"/>
       <joint name="myhinge" type="hinge" axis="0 1 0" damping="1"/>
     </body>
-    <body>
+    <body name="myball-body" pos="2 0 1">
       <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
       <joint name="myball" type="ball"/>
     </body>
-    <body mocap="true" pos="42 0 42">
-      <geom type="sphere" size="0.1"/>
+    <body name="mocap-body" mocap="true" pos="42 0 42">
+      <geom name="mocap-sphere" type="sphere" size="0.1"/>
     </body>
   </worldbody>
   <actuator>
@@ -75,14 +75,14 @@ function norm(arr: number[]): number {
   return Math.sqrt(arr.reduce((acc, val) => acc + val * val, 0));
 }
 
-function expectArraysClose(arr1: TypedArray, arr2: TypedArray, precision = 1) {
+function expectArraysClose(arr1: any, arr2: TypedArray, precision = 1) {
   expect(arr1.length).toEqual(arr2.length);
   for (let i = 0; i < arr1.length; i++) {
     expect(arr1[i]).toBeCloseTo(arr2[i], precision);
   }
 }
 
-function expectArraysEqual(arr1: TypedArray, arr2: TypedArray) {
+function expectArraysEqual(arr1: any, arr2: TypedArray) {
   expect(arr1.length).toEqual(arr2.length);
   for (let i = 0; i < arr1.length; i++) {
     expect(arr1[i]).toEqual(arr2[i]);
@@ -692,8 +692,8 @@ describe('MuJoCo WASM Bindings', () => {
     expect(mujoco.get_mjRNDSTRING()).toEqual([
       ['Shadow', '1', 'S'], ['Wireframe', '0', 'W'], ['Reflection', '1', 'R'],
       ['Additive', '0', 'L'], ['Skybox', '1', 'K'], ['Fog', '0', 'G'],
-      ['Haze', '1', '/'], ['Segment', '0', ','], ['Id Color', '0', ''],
-      ['Cull Face', '1', '']
+      ['Haze', '1', '/'], ['Depth', '0', ''], ['Segment', '0', ','],
+      ['Id Color', '0', ''], ['Cull Face', '1', '']
     ]);
     expect(mujoco.get_mjFRAMESTRING().length)
         .toEqual(mujoco.mjtFrame.mjNFRAME.value);
@@ -900,7 +900,7 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_can_read_array
   it('should read an array from the model', () => {
     const expected =
-        new Float64Array([0, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0, 0, 42, 0, 42]);
+        new Float64Array([0, 0, 0, 0, 0, 0.1, 0, 0, 1, 2, 0, 1, 42, 0, 42]);
     const bodyPos = new Float64Array(model!.body_pos);
     expectArraysEqual(bodyPos, expected);
   });
@@ -1113,7 +1113,7 @@ describe('MuJoCo WASM Bindings', () => {
       mujoco.mj_stateSize(model!, invalidSig);
     })
         .toThrowError(
-            'MuJoCo Error: mj_stateSize: invalid state signature 8192 >= 2^mjNSTATE');
+            'MuJoCo Error: mj_stateSize: invalid state signature 16384 >= 2^mjNSTATE');
 
     const sig = mujoco.mjtState.mjSTATE_INTEGRATION.value;
     const size = mujoco.mj_stateSize(model!, sig);
@@ -1803,7 +1803,7 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 
-  it('should compile a spec from XML string', () => {
+  it('should compile a spec from XML string with no assets', () => {
     let spec = null;
     let model = null;
     try {
@@ -1826,4 +1826,735 @@ describe('MuJoCo WASM Bindings', () => {
       }
     }
   });
+
+  it('should compile a spec from XML with .obj asset', () => {
+    const xml = `
+    <mujoco>
+      <asset>
+        <mesh file="cube.obj"/>
+      </asset>
+      <worldbody>
+        <geom type="mesh" mesh="cube"/>
+      </worldbody>
+    </mujoco>`;
+
+    const cube1 = `
+    v -1 -1  1
+    v  1 -1  1
+    v -1  1  1
+    v  1  1  1
+    v -1  1 -1
+    v  1  1 -1
+    v -1 -1 -1
+    v  1 -1 -1`;
+
+    let spec: MjSpec|null = null;
+    let model: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+    try {
+      spec = mujoco.parseXMLString(xml);
+      assertExists(spec);
+
+      vfs = new mujoco.MjVFS();
+      vfs.addBuffer('cube.obj', new TextEncoder().encode(cube1));
+      assertExists(vfs);
+
+      model = mujoco.mj_compile(spec, vfs);
+      assertExists(model);
+      expect(model.nmesh).toBe(1);
+
+      const meshId =
+          mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MESH.value, 'cube');
+      expect(meshId).toBeGreaterThanOrEqual(0);
+    } finally {
+      spec?.delete();
+      vfs?.delete();
+      model?.delete();
+    }
+  });
+
+  it('should compile a spec from XML with 10 meshes and 10 textures', () => {
+    const assetsCount = 10;
+    let xml = `<mujoco>
+      <asset>`;
+    const cube1 = `
+    v -1 -1  1
+    v  1 -1  1
+    v -1  1  1
+    v  1  1  1
+    v -1  1 -1
+    v  1  1 -1
+    v -1 -1 -1
+    v  1 -1 -1`;
+    const dummyTex = 'dummy texture data';
+
+    for (let i = 0; i < assetsCount; i++) {
+      xml += `<mesh name="cube${i}" file="cube${i}.obj"/>`;
+      xml += `<texture name="tex${
+          i}" type="2d" builtin="checker" width="16" height="16"/>`;
+    }
+    xml += `</asset><worldbody>`;
+    for (let i = 0; i < assetsCount; i++) {
+      xml += `<geom type="mesh" mesh="cube${i}"/>`;
+    }
+    xml += `</worldbody></mujoco>`;
+
+    let spec: MjSpec|null = null;
+    let model: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+    try {
+      spec = mujoco.parseXMLString(xml);
+      assertExists(spec);
+
+      vfs = new mujoco.MjVFS();
+      assertExists(vfs);
+      for (let i = 0; i < assetsCount; i++) {
+        vfs.addBuffer(`cube${i}.obj`, new TextEncoder().encode(cube1));
+        vfs.addBuffer(`tex${i}.txt`, new TextEncoder().encode(dummyTex));
+      }
+
+      model = mujoco.mj_compile(spec, vfs);
+      assertExists(model);
+      expect(model.nmesh).toBe(assetsCount);
+      expect(model.ntex).toBe(assetsCount);
+
+      for (let i = 0; i < assetsCount; i++) {
+        const meshId = mujoco.mj_name2id(
+            model, mujoco.mjtObj.mjOBJ_MESH.value, `cube${i}`);
+        expect(meshId).toBe(i);
+        const tex = model.tex(`tex${i}`);
+        expect(tex).toBeDefined();
+        expect(tex!.name).toBe(`tex${i}`);
+      }
+    } finally {
+      spec?.delete();
+      vfs?.delete();
+      model?.delete();
+    }
+  });
+
+  describe('MjModel named access', () => {
+    // Corresponds to
+    // bindings_test.py:test_named_indexing_invalid_names_in_model
+    it('should throw an error for invalid geom names in model', () => {
+      expect(() => {
+        model!.geom('badgeom');
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid name 'badgeom' for geom. Valid names: ['mocap-sphere', 'mybox', 'myplane']`);
+    });
+
+    // Corresponds to
+    // bindings_test.py:test_named_indexing_invalid_index_in_model
+    it('should throw an error for invalid geom indices in model', () => {
+      const numGeoms = model!.ngeom;
+      expect(() => {
+        model!.geom(numGeoms);
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid index 3 for geom. Valid indices from 0 to 2`);
+
+      expect(() => {
+        model!.geom(-1);
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid index -1 for geom. Valid indices from 0 to 2`);
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_geom_size
+    it('should correctly access geom size using named indexing', () => {
+      const boxId =
+          mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_GEOM.value, 'mybox');
+      assertExists(boxId);
+
+      // Check that named indexing returns the same object as id indexing.
+      expect(model!.geom('mybox')).toEqual(model!.geom(boxId));
+      expect(model!.geom('mybox')!.size).toEqual(model!.geom(boxId)!.size);
+      expect(model!.geom('mybox')!.size.length).toEqual(3);
+
+      // Test that the indexer is returning a view into the underlying struct.
+      const sizeFromIndexer = model!.geom('mybox')!.size;
+      const originalGeomSize = new Float64Array(model!.geom_size);
+
+      model!.geom_size.set([7, 11, 13], boxId * 3);
+      expectArraysEqual(sizeFromIndexer, new Float64Array([7, 11, 13]));
+
+      model!.geom('mybox')!.size.set([5, 3, 2]);
+      expectArraysEqual(
+          model!.geom_size.slice(boxId * 3, boxId * 3 + 3),
+          new Float64Array([5, 3, 2]));
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_geom_quat
+    it('should correctly access geom quat using named indexing', () => {
+      const boxId =
+          mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_GEOM.value, 'mybox');
+      assertExists(boxId);
+
+      // Check that named indexing returns the same object as id indexing.
+      expect(model!.geom('mybox')).toEqual(model!.geom(boxId));
+      expect(model!.geom('mybox')!.quat).toEqual(model!.geom(boxId)!.quat);
+      expect(model!.geom('mybox')!.quat.length).toEqual(4);
+
+      // Test that the indexer is returning a view into the underlying struct.
+      const quatFromIndexer = model!.geom('mybox')!.quat;
+
+      model!.geom_quat.set([5, 10, 15, 20], boxId * 4);
+      expectArraysEqual(quatFromIndexer, new Float64Array([5, 10, 15, 20]));
+
+      model!.geom('mybox')!.quat.set([12, 9, 6, 3]);
+      expectArraysEqual(
+          model!.geom_quat.slice(boxId * 4, boxId * 4 + 4),
+          new Float64Array([12, 9, 6, 3]));
+    });
+
+    it('should support named access for Joints', () => {
+      const xml = `<mujoco model="Box falling">
+      <option viscosity="1"/>
+      <worldbody>
+        <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
+        <geom name="MyFloor" type="plane" size="1 1 0.1" rgba=".9 0 0 1" user="5 4 3 2 1"/>
+        <geom name="MyWall" type="plane" size="0.1 1 0.1" rgba="0 1 0 1" user="5 4 3"/>
+        <body pos="0 0 1" name="MyBox">
+          <joint type="free" name="root"/>
+          <geom name="MyBoxGeom" type="box" size=".1 .2 .3" rgba="0 .9 0 1"/>
+          <body pos=".1 0 0" name="MyHingeBody">
+            <joint frictionloss="0.4" type="hinge" name="hinge" axis="0 1 0"/>
+            <geom type="capsule" size=".05 .05" rgba="0 0 .9 1"/>
+          </body>
+        </body>
+      </worldbody>
+    </mujoco>`;
+      const tempXmlFilename = '/tmp/jnt.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      try {
+        assertExists(model);
+        const j0 = model.jnt('root');
+        expect(j0.id).toBe(0);
+        expect(j0.name).toBe('root');
+        expect(j0.type).toBe(mujoco.mjtJoint.mjJNT_FREE.value);
+        expect(j0.qposadr).toBe(0);
+        expect(j0.dofadr).toBe(0);
+        expect(j0.axis).toEqual(new Float64Array([0, 0, 1]));
+        expect(j0.type).toEqual(mujoco.mjtJoint.mjJNT_FREE.value);
+
+        const j0qposStart = model.jnt_qposadr[j0.id];
+        const j0qposEnd =
+            (j0.id < model.njnt - 1) ? model.jnt_qposadr[j0.id + 1] : model.nq;
+        const expectedJ0qpos = model.qpos0.slice(j0qposStart, j0qposEnd);
+        expectArraysEqual(
+            expectedJ0qpos, new Float64Array([0, 0, 1, 1, 0, 0, 0]));
+        expectArraysEqual(j0.qpos0, expectedJ0qpos);
+
+        const j0dofStart = model.jnt_dofadr[j0.id];
+        const j0dofEnd =
+            (j0.id < model.njnt - 1) ? model.jnt_dofadr[j0.id + 1] : model.nv;
+        const expectedJ0dof = model.dof_bodyid.slice(j0dofStart, j0dofEnd);
+        expectArraysEqual(expectedJ0dof, new Int32Array([1, 1, 1, 1, 1, 1]));
+        expectArraysEqual(j0.bodyid, expectedJ0dof);
+
+
+        const j1 = model.jnt('hinge');
+        expect(j1.id).toBe(1);
+        expect(j1.name).toBe('hinge');
+        expect(j1.type).toBe(mujoco.mjtJoint.mjJNT_HINGE.value);
+        expect(j1.qposadr).toBe(7);
+        expect(j1.dofadr).toBe(6);
+        expect(j1.axis).toEqual(new Float64Array([0, 1, 0]));
+        expect(j1.frictionloss).toEqual(new Float64Array([0.4]));
+
+        const j1qposStart = model.jnt_qposadr[j1.id];
+        const j1qposEnd =
+            (j1.id < model.njnt - 1) ? model.jnt_qposadr[j1.id + 1] : model.nq;
+        const expectedJ1qpos = model.qpos0.slice(j1qposStart, j1qposEnd);
+        expectArraysEqual(expectedJ1qpos, new Float64Array([0]));
+        expectArraysEqual(j1.qpos0, expectedJ1qpos);
+
+        const j1dofStart = model.jnt_dofadr[j1.id];
+        const j1dofEnd =
+            (j1.id < model.njnt - 1) ? model.jnt_dofadr[j1.id + 1] : model.nv;
+        const expectedJ1dof = model.dof_bodyid.slice(j1dofStart, j1dofEnd);
+        expectArraysEqual(expectedJ1dof, new Int32Array([2]));
+        expectArraysEqual(j1.bodyid, new Int32Array([2]));
+      } finally {
+        model?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+
+    it('should support named access for HFields', () => {
+      const xml = `<mujoco model="test_hfield">
+        <asset>
+          <hfield name="hf" nrow="2" ncol="3" size="1 2 0.1 0.2"/>
+        </asset>
+        <worldbody>
+          <geom type="hfield" hfield="hf"/>
+        </worldbody>
+      </mujoco>`;
+      const tempXmlFilename = '/tmp/hf.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      try {
+        assertExists(model);
+        const hf = model.hfield('hf');
+        expect(hf.id).toBe(0);
+        expect(hf.name).toBe('hf');
+        expect(hf.nrow).toBe(2);
+        expect(hf.ncol).toBe(3);
+        expectArraysClose(hf.size, new Float64Array([1, 2, 0.1, 0.2]));
+        const expectedDataLength =
+            model.hfield_nrow[hf.id] * model.hfield_ncol[hf.id];
+        expect(expectedDataLength).toBe(6);
+        expect(hf.data.length).toBe(expectedDataLength);
+      } finally {
+        model?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+
+    it('should support named access for Numeric', () => {
+      const xml = `<mujoco>
+        <custom>
+          <numeric name="n1" data="1 2 3"/>
+          <numeric name="n2" data="4 5 6 7"/>
+        </custom>
+      </mujoco>`;
+      const tempXmlFilename = '/tmp/num.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      try {
+        assertExists(model);
+        const n1 = model.numeric('n1');
+        const expectedN1data = model.numeric_data.slice(
+            model.numeric_adr[n1.id],
+            model.numeric_adr[n1.id] + model.numeric_size[n1.id]);
+        expect(n1.id).toBe(0);
+        expect(n1.name).toBe('n1');
+        expect(n1.size).toBe(3);
+        expect(expectedN1data).toEqual(new Float64Array([1, 2, 3]));
+        expectArraysClose(n1.data, expectedN1data);
+
+        const n2 = model.numeric('n2');
+        const expectedN2data = model.numeric_data.slice(
+            model.numeric_adr[n2.id],
+            model.numeric_adr[n2.id] + model.numeric_size[n2.id]);
+        expect(n2.id).toBe(1);
+        expect(n2.name).toBe('n2');
+        expect(n2.size).toBe(4);
+        expect(expectedN2data).toEqual(new Float64Array([4, 5, 6, 7]));
+        expectArraysClose(n2.data, expectedN2data);
+      } finally {
+        model?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+
+    it('should support named access for Texture', () => {
+      const xml = `<mujoco>
+        <asset>
+          <texture name="t1" type="2d" builtin="checker" width="10"
+          height="12"/>
+        </asset>
+      </mujoco>`;
+      const tempXmlFilename = '/tmp/tex.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      try {
+        assertExists(model);
+        const t1 = model.tex('t1');
+        const expectedData = model.tex_data.slice(
+            model.tex_adr[t1.id],
+            model.tex_adr[t1.id] +
+                model.tex_height[t1.id] * model.tex_width[t1.id] *
+                    model.tex_nchannel[t1.id]);
+
+        expect(t1.id).toBe(0);
+        expect(t1.name).toBe('t1');
+        expect(t1.type).toBe(mujoco.mjtTexture.mjTEXTURE_2D.value);
+        expect(t1.width).toBe(10);
+        expect(t1.height).toBe(12);
+        expect(t1.nchannel).toBe(3);
+        expect(t1.data.length).toBe(t1.width * t1.height * t1.nchannel);
+        expectArraysClose(t1.data, expectedData);
+      } finally {
+        model?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+
+    it('should support named access for Tuple', () => {
+      const xml = `<mujoco>
+        <worldbody>
+          <geom name="g1" type="sphere" size=".1"/>
+          <geom name="g2" type="box" size=".1 .1 .1"/>
+        </worldbody>
+        <custom>
+          <tuple name="tup1">
+            <element objtype="geom" objname="g1" prm="0.1"/>
+            <element objtype="geom" objname="g2" prm="0.2"/>
+          </tuple>
+        </custom>
+      </mujoco>`;
+      const tempXmlFilename = '/tmp/tup.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      try {
+        assertExists(model);
+        const t1 = model.tuple('tup1');
+        const expectedObjtype = model.tuple_objtype.slice(
+            model.tuple_adr[t1.id],
+            model.tuple_adr[t1.id] + model.tuple_size[t1.id]);
+        expect(t1.id).toBe(0);
+        expect(t1.name).toBe('tup1');
+        expect(t1.size).toBe(2);
+        expectArraysEqual(
+            expectedObjtype, new Int32Array([
+              mujoco.mjtObj.mjOBJ_GEOM.value, mujoco.mjtObj.mjOBJ_GEOM.value
+            ]));
+        expectArraysEqual(t1.objtype, expectedObjtype);
+      } finally {
+        model?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+  });
+
+  describe('MjData named access', () => {
+    it('should support named access for MjData', () => {
+      mujoco.mj_forward(model!, data!);
+
+      // Actuator
+      expect(model!.nu).toBe(1);
+      const actuator = data!.actuator(0);
+      expect(actuator.name).toBe('myactuator');
+      expect(actuator.velocity).toBe(0);
+      expect(actuator.force).toBe(0);
+      expectArraysClose(
+          actuator.moment, new Float64Array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+
+      // Body
+      expect(model!.nbody).toBe(5);
+      expect(data!.body('mybox').name).toBe('mybox');
+      expectArraysClose(
+          data!.body('mybox').xpos, new Float64Array([0, 0, 0.1]));
+      expect(data!.body('myhinge-body').name).toBe('myhinge-body');
+      expectArraysClose(
+          data!.body('myhinge-body').xpos, new Float64Array([0, 0, 1]));
+      expect(data!.body('myball-body').name).toBe('myball-body');
+      expectArraysClose(
+          data!.body('myball-body').xpos, new Float64Array([2, 0, 1]));
+      expect(data!.body('mocap-body').name).toBe('mocap-body');
+      expectArraysClose(
+          data!.body('mocap-body').xpos, new Float64Array([42, 0, 42]));
+
+      // Geom
+      expect(model!.ngeom).toBe(3);
+      expect(data!.geom('myplane').name).toBe('myplane');
+      expectArraysClose(
+          data!.geom('myplane').xpos, new Float64Array([0, 0, 0]));
+      expectArraysClose(
+          data!.geom('myplane').xmat,
+          new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+
+      expect(data!.geom('mybox').name).toBe('mybox');
+      expectArraysClose(
+          data!.geom('mybox').xpos, new Float64Array([0, 0, 0.1]));
+      expectArraysClose(
+          data!.geom('mybox').xmat,
+          new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+
+      expect(data!.geom('mocap-sphere').name).toBe('mocap-sphere');
+      expectArraysClose(
+          data!.geom('mocap-sphere').xpos, new Float64Array([42, 0, 42]));
+      expectArraysClose(
+          data!.geom('mocap-sphere').xmat,
+          new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+
+      // Joint
+      expect(model!.njnt).toBe(3);
+      const freeJnt = data!.jnt('myfree');
+      expect(freeJnt.name).toBe('myfree');
+      expectArraysClose(freeJnt.xanchor, new Float64Array([0, 0, 0.1]));
+      expectArraysClose(freeJnt.xaxis, new Float64Array([0, 0, 1]));
+
+      const hingeJnt = data!.jnt('myhinge');
+      expect(hingeJnt.name).toBe('myhinge');
+      expectArraysClose(hingeJnt.xanchor, new Float64Array([0, 0, 1]));
+      expectArraysClose(hingeJnt.xaxis, new Float64Array([0, 1, 0]));
+
+      const ballJnt = data!.jnt('myball');
+      expect(ballJnt.name).toBe('myball');
+      expectArraysClose(ballJnt.xanchor, new Float64Array([2, 0, 1]));
+      expectArraysClose(ballJnt.xaxis, new Float64Array([0, 0, 1]));
+
+      // Sensor
+      expect(model!.nsensor).toBe(2);
+      const jointvelSensor = data!.sensor('myjointvel');
+      expect(jointvelSensor.name).toBe('myjointvel');
+      expectArraysClose(jointvelSensor.data, new Float64Array([0]));
+
+      const accelSensor = data!.sensor('myaccelerometer');
+      expect(accelSensor.name).toBe('myaccelerometer');
+      expectArraysClose(accelSensor.data, new Float64Array([0, 0, 9.81]));
+
+      // Site
+      expect(model!.nsite).toBe(1);
+      const site = data!.site('mysite');
+      expect(site.name).toBe('mysite');
+      expectArraysClose(site.xpos, new Float64Array([0, 0, 0]));
+      expectArraysClose(
+          site.xmat, new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+    });
+
+    // Corresponds to bindings_test.py:test_indexer_name_id
+    it('should support named and indexed access for MjData geoms', () => {
+      const xml = `
+      <mujoco>
+        <worldbody>
+          <geom name="mygeom" size="1" pos="0 0 1"/>
+          <geom size="2" pos="0 0 2"/>
+          <geom size="3" pos="0 0 3"/>
+          <geom name="myothergeom" size="4" pos="0 0 4"/>
+          <geom size="5" pos="0 0 5"/>
+        </worldbody>
+      </mujoco>
+      `;
+      const tempXmlFilename = '/tmp/geom_idx.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      const data = new mujoco.MjData(model);
+      try {
+        assertExists(model);
+        assertExists(data);
+        mujoco.mj_forward(model, data);
+
+        expect(data.geom('mygeom').id).toBe(0);
+        expect(data.geom('myothergeom').id).toBe(3);
+        expect(data.geom(0).name).toBe('mygeom');
+        expect(data.geom(1).name).toBe('');
+        expect(data.geom(2).name).toBe('');
+        expect(data.geom(3).name).toBe('myothergeom');
+        expect(data.geom(4).name).toBe('');
+
+        expect(data.geom(0).xpos[2]).toBeCloseTo(1);
+        expect(data.geom(1).xpos[2]).toBeCloseTo(2);
+        expect(data.geom(2).xpos[2]).toBeCloseTo(3);
+        expect(data.geom(3).xpos[2]).toBeCloseTo(4);
+        expect(data.geom(4).xpos[2]).toBeCloseTo(5);
+      } finally {
+        model?.delete();
+        data?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_invalid_names_in_data
+    it('should throw an error for invalid geom names in data', () => {
+      expect(() => {
+        data!.geom('badgeom');
+      })
+          .toThrowError(
+              `MuJoCo Error: Invalid name 'badgeom' for geom. Valid names: ['mocap-sphere', 'mybox', 'myplane']`);
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_invalid_index_in_data
+    it('should throw an error for invalid geom indices in data', () => {
+      expect(() => {
+        data!.geom(3);
+      })
+          .toThrowError(
+              'MuJoCo Error: Invalid index 3 for geom. Valid indices from 0 to 2');
+      expect(() => {
+        data!.geom(-1);
+      })
+          .toThrowError(
+              'MuJoCo Error: Invalid index -1 for geom. Valid indices from 0 to 2');
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_actuator_ctrl
+    it('should support named access for Actuator ctrl', () => {
+      const actuatorId = mujoco.mj_name2id(
+          model!, mujoco.mjtObj.mjOBJ_ACTUATOR.value, 'myactuator');
+      assertExists(actuatorId);
+
+      const actuator = data!.actuator('myactuator');
+      expect(actuator).toEqual(data!.actuator(actuatorId));
+      expect(actuator.ctrl).toEqual(data!.actuator(actuatorId)!.ctrl);
+
+      // Test that the indexer is returning a view into the underlying
+      data!.ctrl[actuatorId] = 5;
+      expect(actuator.ctrl).toBe(5);
+      actuator.ctrl = 7;
+      expect(data!.ctrl[actuatorId]).toBe(7);
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_ragged_qpos
+    it('should support named access for Joint qpos', () => {
+      const balljointId =
+          mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_JOINT.value, 'myball');
+      assertExists(balljointId);
+
+      const ballJnt = data!.jnt('myball');
+      expect(ballJnt).toEqual(data!.jnt(balljointId));
+      expect(ballJnt.qpos).toEqual(data!.jnt(balljointId)!.qpos);
+
+      // Test that the indexer is returning a view into the underlying struct.
+      const qposFromIndexer = ballJnt.qpos;
+      const qposIdx = model!.jnt_qposadr[balljointId];
+      data!.qpos.set([4, 5, 6, 7], qposIdx);
+      expectArraysEqual(qposFromIndexer, new Float64Array([4, 5, 6, 7]));
+      ballJnt.qpos.set(new Float64Array([9, 8, 7, 6]))
+      expectArraysEqual(
+          data!.qpos.slice(qposIdx, qposIdx + 4),
+          new Float64Array([9, 8, 7, 6]));
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_ragged2d_cdof
+    it('should support named access for Joint cdof', () => {
+      const freejointId =
+          mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_JOINT.value, 'myfree');
+      assertExists(freejointId);
+      mujoco.mj_forward(model!, data!);
+
+      const freeJnt = data!.jnt('myfree');
+      expect(freeJnt).toEqual(data!.jnt(freejointId));
+      expect(freeJnt.cdof).toEqual(data!.jnt(freejointId)!.cdof);
+      expect(freeJnt.cdof.length).toBe(36);  // 6x6
+
+      // Test that the indexer is returning a view into the underlying
+      const cdofFromIndexer = freeJnt.cdof;
+      const dofIdx = model!.jnt_dofadr[freejointId];
+      const testArray = new Float64Array(36);
+      for (let i = 0; i < 36; i++) {
+        testArray[i] = i;
+      }
+      data!.cdof.set(testArray);
+      expectArraysEqual(freeJnt.cdof, testArray);
+      const expectedCdof = new Float64Array(36).fill(42);
+      freeJnt.cdof.set(expectedCdof);
+      expectArraysEqual(data!.cdof.slice(dofIdx, dofIdx + 36), expectedCdof);
+    });
+  });
+
+  it('should save model to buffer', () => {
+    assertExists(model);
+    const modelSize = mujoco.mj_sizeModel(model);
+    const buffer = new mujoco.Uint8Buffer(Number(modelSize));
+    try {
+      mujoco.mj_saveModel(model, null, buffer);
+      // Test the first 3 byte values of the buffer.
+      expect(buffer.GetView()[0]).toBe(49);
+      expect(buffer.GetView()[1]).toBe(212);
+      expect(buffer.GetView()[2]).toBe(0);
+    } finally {
+      buffer.delete();
+    }
+  });
+
+  it('should save model to file', () => {
+    assertExists(model);
+    const filename = '/tmp/test.mjb';
+    const modelSize = mujoco.mj_sizeModel(model);
+    const buffer = new mujoco.Uint8Buffer(Number(modelSize));
+    try {
+      mujoco.mj_saveModel(model, filename, null);
+      const fileContent =
+          (mujoco as any).FS.readFile(filename, {encoding: 'binary'});
+
+      mujoco.mj_saveModel(model, null, buffer);
+      const bufferContent = buffer.GetView();
+
+      expect(fileContent.length).toBe(bufferContent.length);
+      expect(fileContent).toEqual(bufferContent);
+    } finally {
+      buffer.delete();
+      unlinkXMLFile(filename);
+    }
+  });
+
+  it('should load and save a model with assets to binary', () => {
+    const xmlContent = `
+    <mujoco model="test_binary_save">
+      <asset>
+        <mesh file="cube.obj"/>
+      </asset>
+      <worldbody>
+        <geom type="mesh" mesh="cube"/>
+      </worldbody>
+    </mujoco>`;
+    const cube1 = `
+    v -1 -1  1
+    v  1 -1  1
+    v -1  1  1
+    v  1  1  1
+    v -1  1 -1
+    v  1  1 -1
+    v -1 -1 -1
+    v  1 -1 -1`;
+    const xmlFilename = '/tmp/binary_test.xml';
+    const objFilename = '/tmp/cube.obj';
+    const mjbFilename = '/tmp/binary_test.mjb';
+
+    writeXMLFile(xmlFilename, xmlContent);
+    writeXMLFile(objFilename, cube1);
+
+    let model: MjModel|null = null;
+    let binaryModel: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+
+    try {
+      model = mujoco.MjModel.mj_loadXML(xmlFilename);
+      assertExists(model);
+
+      mujoco.mj_saveModel(model, mjbFilename, null);
+
+      vfs = new mujoco.MjVFS();
+      vfs.addBuffer(objFilename, new TextEncoder().encode(cube1));
+      binaryModel = mujoco.MjModel.mj_loadBinary(mjbFilename, vfs);
+      assertExists(binaryModel);
+
+      expect(mujoco.mj_sizeModel(binaryModel))
+          .toEqual(mujoco.mj_sizeModel(model));
+      expect(binaryModel.nbody).toEqual(model!.nbody);
+      expect(binaryModel.nq).toEqual(model!.nq);
+      expect(binaryModel.nv).toEqual(model!.nv);
+      expect(binaryModel.njnt).toEqual(model!.njnt);
+      expect(binaryModel.nmesh).toEqual(model!.nmesh);
+    } finally {
+      model?.delete();
+      binaryModel?.delete();
+      vfs?.delete();
+      unlinkXMLFile(xmlFilename);
+      unlinkXMLFile(objFilename);
+      unlinkXMLFile(mjbFilename);
+    }
+  });
+
+  // Corresponds to bindings_test.py:test_mj_saveModel
+  it('should save and load a model from binary', () => {
+    const mjbFilename = '/tmp/saved_model.mjb';
+    let binaryModel: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+    try {
+      mujoco.mj_saveModel(model!, mjbFilename, null);
+      const bufSize = mujoco.mj_sizeModel(model!);
+
+      vfs = new mujoco.MjVFS();
+      binaryModel = mujoco.MjModel.mj_loadBinary(mjbFilename, vfs);
+      assertExists(binaryModel);
+
+      expect(mujoco.mj_sizeModel(binaryModel)).toEqual(bufSize);
+      expect(binaryModel.nbody).toEqual(model!.nbody);
+      expect(binaryModel.nq).toEqual(model!.nq);
+      expect(binaryModel.nv).toEqual(model!.nv);
+      expect(binaryModel.njnt).toEqual(model!.njnt);
+      expect(binaryModel.nmesh).toEqual(model!.nmesh);
+    } finally {
+      binaryModel?.delete();
+      vfs?.delete();
+      unlinkXMLFile(mjbFilename);
+    }
+  });
+
 });

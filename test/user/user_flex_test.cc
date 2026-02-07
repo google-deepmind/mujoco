@@ -786,5 +786,55 @@ TEST_F(UserFlexTest, LoadMSHASCII_dim_missing_in_xml) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserFlexTest, TrilinearUnusedVertices_Crash) {
+  // This XML defines 5 points but only uses 4 in the element.
+  // The last point (2 2 2) is unused.
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="direct"
+              point="0 0 0  1 0 0  0 1 0  0 0 1  2 2 2"
+              element="0 1 2 3"
+              dof="trilinear" dim="3">
+      <contact selfcollide="none"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, testing::NotNull()) << error.data();
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, MeshNodePinning) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="direct"
+              point="0 0 0  1 0 0  0 1 0  0 0 1  2 2 2"
+              element="0 1 2 3"
+              dof="trilinear" dim="3">
+      <contact selfcollide="none"/>
+      <pin id="0"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, testing::NotNull()) << error.data();
+
+  // Verify that node 0 (corner) is pinned
+  // Trilinear 3D has 8 nodes.
+  // If 0 are pinned, we get 8 bodies.
+  // If 1 is pinned, we get 7 bodies (created) + 1 existing (the parent).
+  // m->nbody should reflect this. Flex bodies are added to the model.
+  // Model has 1 world body + flex bodies.
+  EXPECT_EQ(m->nbody, 1 + 7);  // 1 world + 7 flex nodes (1 pinned)
+
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco

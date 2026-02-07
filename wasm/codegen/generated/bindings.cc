@@ -19,6 +19,7 @@
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -27,26 +28,79 @@
 #include <cstring>  // NOLINT
 #include <memory>
 #include <optional>  // NOLINT
+#include <sstream>
 #include <string>    // NOLINT
+#include <string_view>
 #include <vector>
 
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include <mujoco/mjspec.h>
 #include "engine/engine_util_errmem.h"
 #include "wasm/unpack.h"
+#include "python/mujoco/indexer_xmacro.h"
 
 namespace mujoco::wasm {
 
 using emscripten::enum_;
 using emscripten::function;
 using emscripten::val;
+using emscripten::typed_memory_view;
 using emscripten::return_value_policy::reference;
 using emscripten::return_value_policy::take_ownership;
 
+EMSCRIPTEN_DECLARE_VAL_TYPE(NumberOrString);
 EMSCRIPTEN_DECLARE_VAL_TYPE(NumberArray);
 EMSCRIPTEN_DECLARE_VAL_TYPE(String);
+EMSCRIPTEN_DECLARE_VAL_TYPE(StringOrNull);
+
+// Macro to define accessors for different MuJoCo object types within mjModel.
+// Each line calls X_ACCESSOR with the following arguments:
+// 1.  NAME: The object type name in uppercase (e.g., ACTUATOR).
+// 2.  Name: The object type name in CamelCase (e.g., Actuator).
+// 3.  OBJTYPE: The corresponding mjOBJ_* enum value (e.g., mjOBJ_ACTUATOR).
+// 4.  field: The name of the array field in mjModel (e.g., actuator).
+// 5.  nfield: The name of the count field in mjModel (e.g., nu).
+#define MJMODEL_ACCESSORS                                              \
+  X_ACCESSOR( ACTUATOR, Actuator, mjOBJ_ACTUATOR, actuator, nu       ) \
+  X_ACCESSOR( BODY,     Body,     mjOBJ_BODY,     body,     nbody    ) \
+  X_ACCESSOR( CAMERA,   Camera,   mjOBJ_CAMERA,   cam,      ncam     ) \
+  X_ACCESSOR( EQUALITY, Equality, mjOBJ_EQUALITY, eq,       neq      ) \
+  X_ACCESSOR( EXCLUDE,  Exclude,  mjOBJ_EXCLUDE,  exclude,  nexclude ) \
+  X_ACCESSOR( GEOM,     Geom,     mjOBJ_GEOM,     geom,     ngeom    ) \
+  X_ACCESSOR( HFIELD,   Hfield,   mjOBJ_HFIELD,   hfield,   nhfield  ) \
+  X_ACCESSOR( JOINT,    Joint,    mjOBJ_JOINT,    jnt,      njnt     ) \
+  X_ACCESSOR( LIGHT,    Light,    mjOBJ_LIGHT,    light,    nlight   ) \
+  X_ACCESSOR( MATERIAL, Material, mjOBJ_MATERIAL, mat,      nmat     ) \
+  X_ACCESSOR( MESH,     Mesh,     mjOBJ_MESH,     mesh,     nmesh    ) \
+  X_ACCESSOR( NUMERIC,  Numeric,  mjOBJ_NUMERIC,  numeric,  nnumeric ) \
+  X_ACCESSOR( PAIR,     Pair,     mjOBJ_PAIR,     pair,     npair    ) \
+  X_ACCESSOR( SENSOR,   Sensor,   mjOBJ_SENSOR,   sensor,   nsensor  ) \
+  X_ACCESSOR( SITE,     Site,     mjOBJ_SITE,     site,     nsite    ) \
+  X_ACCESSOR( SKIN,     Skin,     mjOBJ_SKIN,     skin,     nskin    ) \
+  X_ACCESSOR( TENDON,   Tendon,   mjOBJ_TENDON,   tendon,   ntendon  ) \
+  X_ACCESSOR( TEXTURE,  Texture,  mjOBJ_TEXTURE,  tex,      ntex     ) \
+  X_ACCESSOR( TUPLE,    Tuple,    mjOBJ_TUPLE,    tuple,    ntuple   ) \
+  X_ACCESSOR( KEYFRAME, Keyframe, mjOBJ_KEY,      key,      nkey     )
+
+// Macro to define accessors for different MuJoCo object types within mjData.
+// Each line calls X_ACCESSOR with the following arguments:
+// 1.  NAME: The object type name in uppercase (e.g., ACTUATOR).
+// 2.  Name: The object type name in CamelCase (e.g., Actuator).
+// 3.  OBJTYPE: The corresponding mjOBJ_* enum value (e.g., mjOBJ_ACTUATOR).
+// 4.  field: The name of the array field in mjData (e.g., actuator).
+// 5.  nfield: The name of the count field in mjModel (e.g., nu).
+#define MJDATA_ACCESSORS                                               \
+  X_ACCESSOR( ACTUATOR, Actuator, mjOBJ_ACTUATOR, actuator, nu       ) \
+  X_ACCESSOR( BODY,     Body,     mjOBJ_BODY,     body,     nbody    ) \
+  X_ACCESSOR( CAMERA,   Camera,   mjOBJ_CAMERA,   cam,      ncam     ) \
+  X_ACCESSOR( GEOM,     Geom,     mjOBJ_GEOM,     geom,     ngeom    ) \
+  X_ACCESSOR( JOINT,    Joint,    mjOBJ_JOINT,    jnt,      njnt     ) \
+  X_ACCESSOR( LIGHT,    Light,    mjOBJ_LIGHT,    light,    nlight   ) \
+  X_ACCESSOR( SENSOR,   Sensor,   mjOBJ_SENSOR,   sensor,   nsensor  ) \
+  X_ACCESSOR( SITE,     Site,     mjOBJ_SITE,     site,     nsite    ) \
+  X_ACCESSOR( TENDON,   Tendon,   mjOBJ_TENDON,   tendon,   ntendon  )
 
 // Raises an error if the given val is null or undefined.
 // A macro is used so that the error contains the name of the variable.
@@ -67,6 +121,51 @@ void ThrowMujocoErrorToJS(const char* msg) {
 }
 __attribute__((constructor)) void InitMuJoCoErrorHandler() {
   mju_user_error = ThrowMujocoErrorToJS;
+}
+
+// Generates a descriptive error message for when a key lookup fails.
+// The message includes the invalid name and a list of valid names of the
+// specified object type currently present in the model.
+//
+// Arguments:
+//   model: Pointer to the mjModel.
+//   objtype: The mjOBJ_* enum value representing the object type.
+//   count: The number of objects of the given type in the model.
+//   name: The invalid name that was looked up.
+//
+// Returns:
+//   A string containing the error message.
+std::string KeyErrorMessage(const mjModel* model, int objtype, int count,
+                            std::string_view name, std::string_view accessor_name) {
+  std::vector<std::string> valid_names;
+  valid_names.reserve(count);
+  for (int i = 0; i < count; ++i) {
+    const char* n = mj_id2name(model, objtype, i);
+    if (n) {
+      valid_names.push_back(n);
+    }
+  }
+  std::sort(valid_names.begin(), valid_names.end());
+
+  std::ostringstream message;
+  message << "Invalid name '" << name << "' for " << accessor_name
+          << ". Valid names: [";
+  for (size_t i = 0; i < valid_names.size(); ++i) {
+    message << "'" << valid_names[i] << "'";
+    if (i < valid_names.size() - 1) {
+      message << ", ";
+    }
+  }
+  message << "]";
+  return message.str();
+}
+
+std::string IndexErrorMessage(int index, int count,
+                              std::string_view accessor_name) {
+  std::ostringstream message;
+  message << "Invalid index " << index << " for " << accessor_name
+          << ". Valid indices from 0 to " << count - 1;
+  return message.str();
 }
 
 template <size_t N>
@@ -116,6 +215,213 @@ using mjVisualMap = decltype(::mjVisual::map);
 using mjVisualQuality = decltype(::mjVisual::quality);
 using mjVisualRgba = decltype(::mjVisual::rgba);
 using mjVisualScale = decltype(::mjVisual::scale);
+
+#undef MJ_M
+#define MJ_M(n) model_->n
+// The X macro expands to a member function within an MjModel...Accessor struct.
+// This function returns an emscripten::val, typically a typed memory view,
+// providing access to array data within the underlying mjModel. The size and
+// offset of the memory view are determined by the arguments:
+// - type: The C++ type of the array elements (e.g., mjtNum, int).
+// - prefix: The prefix of the field name in mjModel (e.g., jnt_, geom_).
+// - var: The name of the field being accessed (e.g., qposadr, size).
+// - dim0: Used to determine special indexing logic for dynamically sized arrays
+//         like joints (nq, nv), hfields, textures, numerics, and tuples.
+// - dim1: The fixed dimension of the array if not dynamically sized. If "1",
+//         a single element is returned. Otherwise, it's used as the stride
+//         for the typed memory view.
+#define X(type, prefix, var, dim0, dim1)                                                         \
+  emscripten::val get_##var() const {                                                            \
+    if constexpr (std::string_view(#dim0) == "nq") {                                             \
+      int start = model_->jnt_qposadr[id_];                                                      \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;            \
+      return val(typed_memory_view(end - start, model_->prefix##var + start));                   \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                                      \
+      int start = model_->jnt_dofadr[id_];                                                       \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;             \
+      return val(typed_memory_view(end - start, model_->prefix##var + start));                   \
+    } else if constexpr (std::string_view(#dim0) == "nhfielddata") {                             \
+      int start = model_->hfield_adr[id_];                                                       \
+      int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];                           \
+      return val(typed_memory_view(count, model_->hfield_data + start));                         \
+    } else if constexpr (std::string_view(#dim0) == "ntexdata") {                                \
+      int start = model_->tex_adr[id_];                                                          \
+      int count = model_->tex_height[id_] * model_->tex_width[id_] * model_->tex_nchannel[id_];  \
+      return val(typed_memory_view(count, model_->tex_data + start));                            \
+    } else if constexpr (std::string_view(#dim0) == "nnumericdata") {                            \
+      int start = model_->numeric_adr[id_];                                                      \
+      int count = model_->numeric_size[id_];                                                     \
+      return val(typed_memory_view(count, model_->numeric_data + start));                        \
+    } else if constexpr (std::string_view(#dim0) == "ntupledata") {                              \
+      int start = model_->tuple_adr[id_];                                                        \
+      int count = model_->tuple_size[id_];                                                       \
+      return val(typed_memory_view(count, model_->prefix##var + start));                         \
+    } else {                                                                                     \
+      if constexpr (std::string_view(#dim1) == "1") {                                            \
+        return val(model_->prefix##var[id_]);                                                    \
+      } else {                                                                                   \
+        return val(typed_memory_view(dim1, model_->prefix##var + id_ * dim1));                   \
+      }                                                                                          \
+    }                                                                                            \
+  }                                                                                              \
+  void set_##var(const emscripten::val& value) {                                                 \
+    if constexpr (std::string_view(#dim0) == "nq") {                                             \
+      int start = model_->jnt_qposadr[id_];                                                      \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;            \
+      val(typed_memory_view(end - start, model_->prefix##var + start))                           \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                                      \
+      int start = model_->jnt_dofadr[id_];                                                       \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;             \
+      val(typed_memory_view(end - start, model_->prefix##var + start))                           \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nhfielddata") {                             \
+      int start = model_->hfield_adr[id_];                                                       \
+      int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];                           \
+      val(typed_memory_view(count, model_->hfield_data + start))                                 \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "ntexdata") {                                \
+      int start = model_->tex_adr[id_];                                                          \
+      int count = model_->tex_height[id_] * model_->tex_width[id_] * model_->tex_nchannel[id_];  \
+      val(typed_memory_view(count, model_->tex_data + start))                                    \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nnumericdata") {                            \
+      int start = model_->numeric_adr[id_];                                                      \
+      int count = model_->numeric_size[id_];                                                     \
+      val(typed_memory_view(count, model_->numeric_data + start))                                \
+          .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "ntupledata") {                              \
+      int start = model_->tuple_adr[id_];                                                        \
+      int count = model_->tuple_size[id_];                                                       \
+      val(typed_memory_view(count, model_->prefix##var + start))                                 \
+          .call<void>("set", value);                                                             \
+    } else {                                                                                     \
+      if constexpr (std::string_view(#dim1) == "1") {                                            \
+        model_->prefix##var[id_] = value.as<type>();                                             \
+      } else {                                                                                   \
+        val(typed_memory_view(dim1, model_->prefix##var + id_ * dim1))                           \
+            .call<void>("set", value);                                                           \
+      }                                                                                          \
+    }                                                                                            \
+  }
+
+// Expands to a struct definition for each object type in MJMODEL_ACCESSORS.
+// Each struct, named `MjModel{Name}Accessor`, provides:
+// - A constructor taking an `mjModel*` and an integer `id`.
+// - An `id()` method to get the object's index.
+// - A `name()` method to get the object's name using `mj_id2name`.
+// - Member functions generated by the `MJMODEL_##NAME` macro, which in turn
+//   uses the `X` macro to define accessors for fields within `mjModel`.
+#define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                           \
+  struct MjModel##Name##Accessor {                                               \
+    MjModel##Name##Accessor(mjModel* model, int id) : model_(model), id_(id) {}  \
+                                                                                 \
+    int id() const { return id_; }                                               \
+    std::string name() const {                                                   \
+      const char* name = mj_id2name(model_, OBJTYPE, id_);                       \
+      return name ? name : "";                                                   \
+    }                                                                            \
+                                                                                 \
+    MJMODEL_##NAME                                                               \
+                                                                                 \
+   private:                                                                      \
+    mjModel* model_;                                                             \
+    int id_;                                                                     \
+  };
+MJMODEL_ACCESSORS
+#undef X_ACCESSOR
+
+// Expands to a struct definition for each object type in MJDATA_ACCESSORS.
+// Each struct, named `MjData{Name}Accessor`, provides:
+// - A constructor taking an `mjData*`, an `mjModel*`, and an integer `id`.
+// - An `id()` method to get the object's index.
+// - A `name()` method to get the object's name using `mj_id2name`.
+// - Member functions generated by the `MJDATA_##NAME` macro, which in turn
+//   uses the `X` macro to define accessors for fields within `mjData`.
+#undef MJ_M
+#define MJ_M(n) model_->n
+#undef X
+#define X(type, prefix, var, dim0, dim1)                                               \
+  emscripten::val get_##var() const {                                                  \
+    if constexpr (std::string_view(#dim0) == "nq") {                                   \
+      int start = model_->jnt_qposadr[id_];                                            \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;  \
+      return val(typed_memory_view(end - start, data_->prefix##var + start));          \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                            \
+      int start = model_->jnt_dofadr[id_];                                             \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;   \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        return val(typed_memory_view(end - start, data_->prefix##var + start));        \
+      } else {                                                                         \
+        return val(typed_memory_view(                                                  \
+            (end - start) * dim1, data_->prefix##var + start * dim1));                 \
+      }                                                                                \
+    } else if constexpr (std::string_view(#dim0) == "nsensordata") {                   \
+      int start = model_->sensor_adr[id_];                                             \
+      int count = model_->sensor_dim[id_];                                             \
+      return val(typed_memory_view(count, data_->sensordata + start));                 \
+    } else {                                                                           \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        return val(data_->prefix##var[id_]);                                           \
+      } else {                                                                         \
+        return val(typed_memory_view(dim1, data_->prefix##var + id_ * dim1));          \
+      }                                                                                \
+    }                                                                                  \
+  }                                                                                    \
+  void set_##var(const emscripten::val& value) {                                       \
+    if constexpr (std::string_view(#dim0) == "nq") {                                   \
+      int start = model_->jnt_qposadr[id_];                                            \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq;  \
+      val(typed_memory_view(end - start, data_->prefix##var + start))                  \
+          .call<void>("set", value);                                                   \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                            \
+      int start = model_->jnt_dofadr[id_];                                             \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;   \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        val(typed_memory_view(end - start, data_->prefix##var + start))                \
+            .call<void>("set", value);                                                 \
+      } else {                                                                         \
+        val(typed_memory_view((end - start) * dim1,                                    \
+                                          data_->prefix##var + start * dim1))          \
+            .call<void>("set", value);                                                 \
+      }                                                                                \
+    } else if constexpr (std::string_view(#dim0) == "nsensordata") {                   \
+      int start = model_->sensor_adr[id_];                                             \
+      int count = model_->sensor_dim[id_];                                             \
+      val(typed_memory_view(count, data_->sensordata + start))                         \
+          .call<void>("set", value);                                                   \
+    } else {                                                                           \
+      if constexpr (std::string_view(#dim1) == "1") {                                  \
+        data_->prefix##var[id_] = value.as<type>();                                    \
+      } else {                                                                         \
+        val(typed_memory_view(dim1, data_->prefix##var + id_ * dim1))                  \
+            .call<void>("set", value);                                                 \
+      }                                                                                \
+    }                                                                                  \
+  }
+
+#define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                                                     \
+  struct MjData##Name##Accessor {                                                                          \
+    MjData##Name##Accessor(mjData* data, mjModel* model, int id) : data_(data), model_(model), id_(id) {}  \
+                                                                                                           \
+    int id() const { return id_; }                                                                         \
+    std::string name() const {                                                                             \
+      const char* name = mj_id2name(model_, OBJTYPE, id_);                                                 \
+      return name ? name : "";                                                                             \
+    }                                                                                                      \
+                                                                                                           \
+    MJDATA_##NAME                                                                                          \
+                                                                                                           \
+   private:                                                                                                \
+    mjData* data_;                                                                                         \
+    mjModel* model_;                                                                                       \
+    int id_;                                                                                               \
+  };
+MJDATA_ACCESSORS
+#undef X_ACCESSOR
+
+#undef X
+#undef MJ_M
 
 struct MjContact {
   ~MjContact();
@@ -2047,6 +2353,9 @@ struct MjsFlex {
   void set_radius(double value) {
     ptr_->radius = value;
   }
+  emscripten::val size() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->size));
+  }
   mjtByte internal() const {
     return ptr_->internal;
   }
@@ -3129,11 +3438,20 @@ struct MjsCamera {
       *(ptr_->targetbody) = value;
     }
   }
-  int orthographic() const {
-    return ptr_->orthographic;
+  mjtProjection proj() const {
+    return ptr_->proj;
   }
-  void set_orthographic(int value) {
-    ptr_->orthographic = value;
+  void set_proj(mjtProjection value) {
+    ptr_->proj = value;
+  }
+  emscripten::val resolution() const {
+    return emscripten::val(emscripten::typed_memory_view(2, ptr_->resolution));
+  }
+  int output() const {
+    return ptr_->output;
+  }
+  void set_output(int value) {
+    ptr_->output = value;
   }
   double fovy() const {
     return ptr_->fovy;
@@ -3152,9 +3470,6 @@ struct MjsCamera {
   }
   emscripten::val sensor_size() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->sensor_size));
-  }
-  emscripten::val resolution() const {
-    return emscripten::val(emscripten::typed_memory_view(2, ptr_->resolution));
   }
   emscripten::val focal_length() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->focal_length));
@@ -3290,520 +3605,538 @@ struct MjModel {
   mjModel* get() const;
   void set(mjModel* ptr);
   int nq() const {
-    return ptr_->nq;
+    return static_cast<int>(ptr_->nq);
   }
   void set_nq(int value) {
-    ptr_->nq = value;
+    ptr_->nq = static_cast<mjtSize>(value);
   }
   int nv() const {
-    return ptr_->nv;
+    return static_cast<int>(ptr_->nv);
   }
   void set_nv(int value) {
-    ptr_->nv = value;
+    ptr_->nv = static_cast<mjtSize>(value);
   }
   int nu() const {
-    return ptr_->nu;
+    return static_cast<int>(ptr_->nu);
   }
   void set_nu(int value) {
-    ptr_->nu = value;
+    ptr_->nu = static_cast<mjtSize>(value);
   }
   int na() const {
-    return ptr_->na;
+    return static_cast<int>(ptr_->na);
   }
   void set_na(int value) {
-    ptr_->na = value;
+    ptr_->na = static_cast<mjtSize>(value);
   }
   int nbody() const {
-    return ptr_->nbody;
+    return static_cast<int>(ptr_->nbody);
   }
   void set_nbody(int value) {
-    ptr_->nbody = value;
+    ptr_->nbody = static_cast<mjtSize>(value);
   }
   int nbvh() const {
-    return ptr_->nbvh;
+    return static_cast<int>(ptr_->nbvh);
   }
   void set_nbvh(int value) {
-    ptr_->nbvh = value;
+    ptr_->nbvh = static_cast<mjtSize>(value);
   }
   int nbvhstatic() const {
-    return ptr_->nbvhstatic;
+    return static_cast<int>(ptr_->nbvhstatic);
   }
   void set_nbvhstatic(int value) {
-    ptr_->nbvhstatic = value;
+    ptr_->nbvhstatic = static_cast<mjtSize>(value);
   }
   int nbvhdynamic() const {
-    return ptr_->nbvhdynamic;
+    return static_cast<int>(ptr_->nbvhdynamic);
   }
   void set_nbvhdynamic(int value) {
-    ptr_->nbvhdynamic = value;
+    ptr_->nbvhdynamic = static_cast<mjtSize>(value);
   }
   int noct() const {
-    return ptr_->noct;
+    return static_cast<int>(ptr_->noct);
   }
   void set_noct(int value) {
-    ptr_->noct = value;
+    ptr_->noct = static_cast<mjtSize>(value);
   }
   int njnt() const {
-    return ptr_->njnt;
+    return static_cast<int>(ptr_->njnt);
   }
   void set_njnt(int value) {
-    ptr_->njnt = value;
+    ptr_->njnt = static_cast<mjtSize>(value);
   }
   int ntree() const {
-    return ptr_->ntree;
+    return static_cast<int>(ptr_->ntree);
   }
   void set_ntree(int value) {
-    ptr_->ntree = value;
+    ptr_->ntree = static_cast<mjtSize>(value);
   }
   int nM() const {
-    return ptr_->nM;
+    return static_cast<int>(ptr_->nM);
   }
   void set_nM(int value) {
-    ptr_->nM = value;
+    ptr_->nM = static_cast<mjtSize>(value);
   }
   int nB() const {
-    return ptr_->nB;
+    return static_cast<int>(ptr_->nB);
   }
   void set_nB(int value) {
-    ptr_->nB = value;
+    ptr_->nB = static_cast<mjtSize>(value);
   }
   int nC() const {
-    return ptr_->nC;
+    return static_cast<int>(ptr_->nC);
   }
   void set_nC(int value) {
-    ptr_->nC = value;
+    ptr_->nC = static_cast<mjtSize>(value);
   }
   int nD() const {
-    return ptr_->nD;
+    return static_cast<int>(ptr_->nD);
   }
   void set_nD(int value) {
-    ptr_->nD = value;
+    ptr_->nD = static_cast<mjtSize>(value);
   }
   int ngeom() const {
-    return ptr_->ngeom;
+    return static_cast<int>(ptr_->ngeom);
   }
   void set_ngeom(int value) {
-    ptr_->ngeom = value;
+    ptr_->ngeom = static_cast<mjtSize>(value);
   }
   int nsite() const {
-    return ptr_->nsite;
+    return static_cast<int>(ptr_->nsite);
   }
   void set_nsite(int value) {
-    ptr_->nsite = value;
+    ptr_->nsite = static_cast<mjtSize>(value);
   }
   int ncam() const {
-    return ptr_->ncam;
+    return static_cast<int>(ptr_->ncam);
   }
   void set_ncam(int value) {
-    ptr_->ncam = value;
+    ptr_->ncam = static_cast<mjtSize>(value);
   }
   int nlight() const {
-    return ptr_->nlight;
+    return static_cast<int>(ptr_->nlight);
   }
   void set_nlight(int value) {
-    ptr_->nlight = value;
+    ptr_->nlight = static_cast<mjtSize>(value);
   }
   int nflex() const {
-    return ptr_->nflex;
+    return static_cast<int>(ptr_->nflex);
   }
   void set_nflex(int value) {
-    ptr_->nflex = value;
+    ptr_->nflex = static_cast<mjtSize>(value);
   }
   int nflexnode() const {
-    return ptr_->nflexnode;
+    return static_cast<int>(ptr_->nflexnode);
   }
   void set_nflexnode(int value) {
-    ptr_->nflexnode = value;
+    ptr_->nflexnode = static_cast<mjtSize>(value);
   }
   int nflexvert() const {
-    return ptr_->nflexvert;
+    return static_cast<int>(ptr_->nflexvert);
   }
   void set_nflexvert(int value) {
-    ptr_->nflexvert = value;
+    ptr_->nflexvert = static_cast<mjtSize>(value);
   }
   int nflexedge() const {
-    return ptr_->nflexedge;
+    return static_cast<int>(ptr_->nflexedge);
   }
   void set_nflexedge(int value) {
-    ptr_->nflexedge = value;
+    ptr_->nflexedge = static_cast<mjtSize>(value);
   }
   int nflexelem() const {
-    return ptr_->nflexelem;
+    return static_cast<int>(ptr_->nflexelem);
   }
   void set_nflexelem(int value) {
-    ptr_->nflexelem = value;
+    ptr_->nflexelem = static_cast<mjtSize>(value);
   }
   int nflexelemdata() const {
-    return ptr_->nflexelemdata;
+    return static_cast<int>(ptr_->nflexelemdata);
   }
   void set_nflexelemdata(int value) {
-    ptr_->nflexelemdata = value;
+    ptr_->nflexelemdata = static_cast<mjtSize>(value);
   }
   int nflexelemedge() const {
-    return ptr_->nflexelemedge;
+    return static_cast<int>(ptr_->nflexelemedge);
   }
   void set_nflexelemedge(int value) {
-    ptr_->nflexelemedge = value;
+    ptr_->nflexelemedge = static_cast<mjtSize>(value);
   }
   int nflexshelldata() const {
-    return ptr_->nflexshelldata;
+    return static_cast<int>(ptr_->nflexshelldata);
   }
   void set_nflexshelldata(int value) {
-    ptr_->nflexshelldata = value;
+    ptr_->nflexshelldata = static_cast<mjtSize>(value);
   }
   int nflexevpair() const {
-    return ptr_->nflexevpair;
+    return static_cast<int>(ptr_->nflexevpair);
   }
   void set_nflexevpair(int value) {
-    ptr_->nflexevpair = value;
+    ptr_->nflexevpair = static_cast<mjtSize>(value);
   }
   int nflextexcoord() const {
-    return ptr_->nflextexcoord;
+    return static_cast<int>(ptr_->nflextexcoord);
   }
   void set_nflextexcoord(int value) {
-    ptr_->nflextexcoord = value;
+    ptr_->nflextexcoord = static_cast<mjtSize>(value);
+  }
+  int nJfe() const {
+    return static_cast<int>(ptr_->nJfe);
+  }
+  void set_nJfe(int value) {
+    ptr_->nJfe = static_cast<mjtSize>(value);
+  }
+  int nJfv() const {
+    return static_cast<int>(ptr_->nJfv);
+  }
+  void set_nJfv(int value) {
+    ptr_->nJfv = static_cast<mjtSize>(value);
   }
   int nmesh() const {
-    return ptr_->nmesh;
+    return static_cast<int>(ptr_->nmesh);
   }
   void set_nmesh(int value) {
-    ptr_->nmesh = value;
+    ptr_->nmesh = static_cast<mjtSize>(value);
   }
   int nmeshvert() const {
-    return ptr_->nmeshvert;
+    return static_cast<int>(ptr_->nmeshvert);
   }
   void set_nmeshvert(int value) {
-    ptr_->nmeshvert = value;
+    ptr_->nmeshvert = static_cast<mjtSize>(value);
   }
   int nmeshnormal() const {
-    return ptr_->nmeshnormal;
+    return static_cast<int>(ptr_->nmeshnormal);
   }
   void set_nmeshnormal(int value) {
-    ptr_->nmeshnormal = value;
+    ptr_->nmeshnormal = static_cast<mjtSize>(value);
   }
   int nmeshtexcoord() const {
-    return ptr_->nmeshtexcoord;
+    return static_cast<int>(ptr_->nmeshtexcoord);
   }
   void set_nmeshtexcoord(int value) {
-    ptr_->nmeshtexcoord = value;
+    ptr_->nmeshtexcoord = static_cast<mjtSize>(value);
   }
   int nmeshface() const {
-    return ptr_->nmeshface;
+    return static_cast<int>(ptr_->nmeshface);
   }
   void set_nmeshface(int value) {
-    ptr_->nmeshface = value;
+    ptr_->nmeshface = static_cast<mjtSize>(value);
   }
   int nmeshgraph() const {
-    return ptr_->nmeshgraph;
+    return static_cast<int>(ptr_->nmeshgraph);
   }
   void set_nmeshgraph(int value) {
-    ptr_->nmeshgraph = value;
+    ptr_->nmeshgraph = static_cast<mjtSize>(value);
   }
   int nmeshpoly() const {
-    return ptr_->nmeshpoly;
+    return static_cast<int>(ptr_->nmeshpoly);
   }
   void set_nmeshpoly(int value) {
-    ptr_->nmeshpoly = value;
+    ptr_->nmeshpoly = static_cast<mjtSize>(value);
   }
   int nmeshpolyvert() const {
-    return ptr_->nmeshpolyvert;
+    return static_cast<int>(ptr_->nmeshpolyvert);
   }
   void set_nmeshpolyvert(int value) {
-    ptr_->nmeshpolyvert = value;
+    ptr_->nmeshpolyvert = static_cast<mjtSize>(value);
   }
   int nmeshpolymap() const {
-    return ptr_->nmeshpolymap;
+    return static_cast<int>(ptr_->nmeshpolymap);
   }
   void set_nmeshpolymap(int value) {
-    ptr_->nmeshpolymap = value;
+    ptr_->nmeshpolymap = static_cast<mjtSize>(value);
   }
   int nskin() const {
-    return ptr_->nskin;
+    return static_cast<int>(ptr_->nskin);
   }
   void set_nskin(int value) {
-    ptr_->nskin = value;
+    ptr_->nskin = static_cast<mjtSize>(value);
   }
   int nskinvert() const {
-    return ptr_->nskinvert;
+    return static_cast<int>(ptr_->nskinvert);
   }
   void set_nskinvert(int value) {
-    ptr_->nskinvert = value;
+    ptr_->nskinvert = static_cast<mjtSize>(value);
   }
   int nskintexvert() const {
-    return ptr_->nskintexvert;
+    return static_cast<int>(ptr_->nskintexvert);
   }
   void set_nskintexvert(int value) {
-    ptr_->nskintexvert = value;
+    ptr_->nskintexvert = static_cast<mjtSize>(value);
   }
   int nskinface() const {
-    return ptr_->nskinface;
+    return static_cast<int>(ptr_->nskinface);
   }
   void set_nskinface(int value) {
-    ptr_->nskinface = value;
+    ptr_->nskinface = static_cast<mjtSize>(value);
   }
   int nskinbone() const {
-    return ptr_->nskinbone;
+    return static_cast<int>(ptr_->nskinbone);
   }
   void set_nskinbone(int value) {
-    ptr_->nskinbone = value;
+    ptr_->nskinbone = static_cast<mjtSize>(value);
   }
   int nskinbonevert() const {
-    return ptr_->nskinbonevert;
+    return static_cast<int>(ptr_->nskinbonevert);
   }
   void set_nskinbonevert(int value) {
-    ptr_->nskinbonevert = value;
+    ptr_->nskinbonevert = static_cast<mjtSize>(value);
   }
   int nhfield() const {
-    return ptr_->nhfield;
+    return static_cast<int>(ptr_->nhfield);
   }
   void set_nhfield(int value) {
-    ptr_->nhfield = value;
+    ptr_->nhfield = static_cast<mjtSize>(value);
   }
   int nhfielddata() const {
-    return ptr_->nhfielddata;
+    return static_cast<int>(ptr_->nhfielddata);
   }
   void set_nhfielddata(int value) {
-    ptr_->nhfielddata = value;
+    ptr_->nhfielddata = static_cast<mjtSize>(value);
   }
   int ntex() const {
-    return ptr_->ntex;
+    return static_cast<int>(ptr_->ntex);
   }
   void set_ntex(int value) {
-    ptr_->ntex = value;
+    ptr_->ntex = static_cast<mjtSize>(value);
   }
   int ntexdata() const {
-    return ptr_->ntexdata;
+    return static_cast<int>(ptr_->ntexdata);
   }
   void set_ntexdata(int value) {
-    ptr_->ntexdata = value;
+    ptr_->ntexdata = static_cast<mjtSize>(value);
   }
   int nmat() const {
-    return ptr_->nmat;
+    return static_cast<int>(ptr_->nmat);
   }
   void set_nmat(int value) {
-    ptr_->nmat = value;
+    ptr_->nmat = static_cast<mjtSize>(value);
   }
   int npair() const {
-    return ptr_->npair;
+    return static_cast<int>(ptr_->npair);
   }
   void set_npair(int value) {
-    ptr_->npair = value;
+    ptr_->npair = static_cast<mjtSize>(value);
   }
   int nexclude() const {
-    return ptr_->nexclude;
+    return static_cast<int>(ptr_->nexclude);
   }
   void set_nexclude(int value) {
-    ptr_->nexclude = value;
+    ptr_->nexclude = static_cast<mjtSize>(value);
   }
   int neq() const {
-    return ptr_->neq;
+    return static_cast<int>(ptr_->neq);
   }
   void set_neq(int value) {
-    ptr_->neq = value;
+    ptr_->neq = static_cast<mjtSize>(value);
   }
   int ntendon() const {
-    return ptr_->ntendon;
+    return static_cast<int>(ptr_->ntendon);
   }
   void set_ntendon(int value) {
-    ptr_->ntendon = value;
+    ptr_->ntendon = static_cast<mjtSize>(value);
   }
   int nwrap() const {
-    return ptr_->nwrap;
+    return static_cast<int>(ptr_->nwrap);
   }
   void set_nwrap(int value) {
-    ptr_->nwrap = value;
+    ptr_->nwrap = static_cast<mjtSize>(value);
   }
   int nsensor() const {
-    return ptr_->nsensor;
+    return static_cast<int>(ptr_->nsensor);
   }
   void set_nsensor(int value) {
-    ptr_->nsensor = value;
+    ptr_->nsensor = static_cast<mjtSize>(value);
   }
   int nnumeric() const {
-    return ptr_->nnumeric;
+    return static_cast<int>(ptr_->nnumeric);
   }
   void set_nnumeric(int value) {
-    ptr_->nnumeric = value;
+    ptr_->nnumeric = static_cast<mjtSize>(value);
   }
   int nnumericdata() const {
-    return ptr_->nnumericdata;
+    return static_cast<int>(ptr_->nnumericdata);
   }
   void set_nnumericdata(int value) {
-    ptr_->nnumericdata = value;
+    ptr_->nnumericdata = static_cast<mjtSize>(value);
   }
   int ntext() const {
-    return ptr_->ntext;
+    return static_cast<int>(ptr_->ntext);
   }
   void set_ntext(int value) {
-    ptr_->ntext = value;
+    ptr_->ntext = static_cast<mjtSize>(value);
   }
   int ntextdata() const {
-    return ptr_->ntextdata;
+    return static_cast<int>(ptr_->ntextdata);
   }
   void set_ntextdata(int value) {
-    ptr_->ntextdata = value;
+    ptr_->ntextdata = static_cast<mjtSize>(value);
   }
   int ntuple() const {
-    return ptr_->ntuple;
+    return static_cast<int>(ptr_->ntuple);
   }
   void set_ntuple(int value) {
-    ptr_->ntuple = value;
+    ptr_->ntuple = static_cast<mjtSize>(value);
   }
   int ntupledata() const {
-    return ptr_->ntupledata;
+    return static_cast<int>(ptr_->ntupledata);
   }
   void set_ntupledata(int value) {
-    ptr_->ntupledata = value;
+    ptr_->ntupledata = static_cast<mjtSize>(value);
   }
   int nkey() const {
-    return ptr_->nkey;
+    return static_cast<int>(ptr_->nkey);
   }
   void set_nkey(int value) {
-    ptr_->nkey = value;
+    ptr_->nkey = static_cast<mjtSize>(value);
   }
   int nmocap() const {
-    return ptr_->nmocap;
+    return static_cast<int>(ptr_->nmocap);
   }
   void set_nmocap(int value) {
-    ptr_->nmocap = value;
+    ptr_->nmocap = static_cast<mjtSize>(value);
   }
   int nplugin() const {
-    return ptr_->nplugin;
+    return static_cast<int>(ptr_->nplugin);
   }
   void set_nplugin(int value) {
-    ptr_->nplugin = value;
+    ptr_->nplugin = static_cast<mjtSize>(value);
   }
   int npluginattr() const {
-    return ptr_->npluginattr;
+    return static_cast<int>(ptr_->npluginattr);
   }
   void set_npluginattr(int value) {
-    ptr_->npluginattr = value;
+    ptr_->npluginattr = static_cast<mjtSize>(value);
   }
   int nuser_body() const {
-    return ptr_->nuser_body;
+    return static_cast<int>(ptr_->nuser_body);
   }
   void set_nuser_body(int value) {
-    ptr_->nuser_body = value;
+    ptr_->nuser_body = static_cast<mjtSize>(value);
   }
   int nuser_jnt() const {
-    return ptr_->nuser_jnt;
+    return static_cast<int>(ptr_->nuser_jnt);
   }
   void set_nuser_jnt(int value) {
-    ptr_->nuser_jnt = value;
+    ptr_->nuser_jnt = static_cast<mjtSize>(value);
   }
   int nuser_geom() const {
-    return ptr_->nuser_geom;
+    return static_cast<int>(ptr_->nuser_geom);
   }
   void set_nuser_geom(int value) {
-    ptr_->nuser_geom = value;
+    ptr_->nuser_geom = static_cast<mjtSize>(value);
   }
   int nuser_site() const {
-    return ptr_->nuser_site;
+    return static_cast<int>(ptr_->nuser_site);
   }
   void set_nuser_site(int value) {
-    ptr_->nuser_site = value;
+    ptr_->nuser_site = static_cast<mjtSize>(value);
   }
   int nuser_cam() const {
-    return ptr_->nuser_cam;
+    return static_cast<int>(ptr_->nuser_cam);
   }
   void set_nuser_cam(int value) {
-    ptr_->nuser_cam = value;
+    ptr_->nuser_cam = static_cast<mjtSize>(value);
   }
   int nuser_tendon() const {
-    return ptr_->nuser_tendon;
+    return static_cast<int>(ptr_->nuser_tendon);
   }
   void set_nuser_tendon(int value) {
-    ptr_->nuser_tendon = value;
+    ptr_->nuser_tendon = static_cast<mjtSize>(value);
   }
   int nuser_actuator() const {
-    return ptr_->nuser_actuator;
+    return static_cast<int>(ptr_->nuser_actuator);
   }
   void set_nuser_actuator(int value) {
-    ptr_->nuser_actuator = value;
+    ptr_->nuser_actuator = static_cast<mjtSize>(value);
   }
   int nuser_sensor() const {
-    return ptr_->nuser_sensor;
+    return static_cast<int>(ptr_->nuser_sensor);
   }
   void set_nuser_sensor(int value) {
-    ptr_->nuser_sensor = value;
+    ptr_->nuser_sensor = static_cast<mjtSize>(value);
   }
   int nnames() const {
-    return ptr_->nnames;
+    return static_cast<int>(ptr_->nnames);
   }
   void set_nnames(int value) {
-    ptr_->nnames = value;
+    ptr_->nnames = static_cast<mjtSize>(value);
   }
   int npaths() const {
-    return ptr_->npaths;
+    return static_cast<int>(ptr_->npaths);
   }
   void set_npaths(int value) {
-    ptr_->npaths = value;
+    ptr_->npaths = static_cast<mjtSize>(value);
   }
   int nnames_map() const {
-    return ptr_->nnames_map;
+    return static_cast<int>(ptr_->nnames_map);
   }
   void set_nnames_map(int value) {
-    ptr_->nnames_map = value;
+    ptr_->nnames_map = static_cast<mjtSize>(value);
   }
   int nJmom() const {
-    return ptr_->nJmom;
+    return static_cast<int>(ptr_->nJmom);
   }
   void set_nJmom(int value) {
-    ptr_->nJmom = value;
+    ptr_->nJmom = static_cast<mjtSize>(value);
   }
   int ngravcomp() const {
-    return ptr_->ngravcomp;
+    return static_cast<int>(ptr_->ngravcomp);
   }
   void set_ngravcomp(int value) {
-    ptr_->ngravcomp = value;
+    ptr_->ngravcomp = static_cast<mjtSize>(value);
   }
   int nemax() const {
-    return ptr_->nemax;
+    return static_cast<int>(ptr_->nemax);
   }
   void set_nemax(int value) {
-    ptr_->nemax = value;
+    ptr_->nemax = static_cast<mjtSize>(value);
   }
   int njmax() const {
-    return ptr_->njmax;
+    return static_cast<int>(ptr_->njmax);
   }
   void set_njmax(int value) {
-    ptr_->njmax = value;
+    ptr_->njmax = static_cast<mjtSize>(value);
   }
   int nconmax() const {
-    return ptr_->nconmax;
+    return static_cast<int>(ptr_->nconmax);
   }
   void set_nconmax(int value) {
-    ptr_->nconmax = value;
+    ptr_->nconmax = static_cast<mjtSize>(value);
   }
   int nuserdata() const {
-    return ptr_->nuserdata;
+    return static_cast<int>(ptr_->nuserdata);
   }
   void set_nuserdata(int value) {
-    ptr_->nuserdata = value;
+    ptr_->nuserdata = static_cast<mjtSize>(value);
   }
   int nsensordata() const {
-    return ptr_->nsensordata;
+    return static_cast<int>(ptr_->nsensordata);
   }
   void set_nsensordata(int value) {
-    ptr_->nsensordata = value;
+    ptr_->nsensordata = static_cast<mjtSize>(value);
   }
   int npluginstate() const {
-    return ptr_->npluginstate;
+    return static_cast<int>(ptr_->npluginstate);
   }
   void set_npluginstate(int value) {
-    ptr_->npluginstate = value;
+    ptr_->npluginstate = static_cast<mjtSize>(value);
   }
-  mjtSize narena() const {
-    return ptr_->narena;
+  int nhistory() const {
+    return static_cast<int>(ptr_->nhistory);
   }
-  void set_narena(mjtSize value) {
-    ptr_->narena = value;
+  void set_nhistory(int value) {
+    ptr_->nhistory = static_cast<mjtSize>(value);
   }
-  mjtSize nbuffer() const {
-    return ptr_->nbuffer;
+  int narena() const {
+    return static_cast<int>(ptr_->narena);
   }
-  void set_nbuffer(mjtSize value) {
-    ptr_->nbuffer = value;
+  void set_narena(int value) {
+    ptr_->narena = static_cast<mjtSize>(value);
+  }
+  int nbuffer() const {
+    return static_cast<int>(ptr_->nbuffer);
+  }
+  void set_nbuffer(int value) {
+    ptr_->nbuffer = static_cast<mjtSize>(value);
   }
   emscripten::val buffer() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nbuffer, static_cast<uint8_t*>(ptr_->buffer)));
@@ -4162,8 +4495,8 @@ struct MjModel {
   emscripten::val cam_mat0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam * 9, ptr_->cam_mat0));
   }
-  emscripten::val cam_orthographic() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_orthographic));
+  emscripten::val cam_projection() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_projection));
   }
   emscripten::val cam_fovy() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_fovy));
@@ -4173,6 +4506,9 @@ struct MjModel {
   }
   emscripten::val cam_resolution() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam * 2, ptr_->cam_resolution));
+  }
+  emscripten::val cam_output() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_output));
   }
   emscripten::val cam_sensorsize() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam * 2, ptr_->cam_sensorsize));
@@ -4351,6 +4687,15 @@ struct MjModel {
   emscripten::val flex_vertbodyid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertbodyid));
   }
+  emscripten::val flex_vertedgeadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertedgeadr));
+  }
+  emscripten::val flex_vertedgenum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertedgenum));
+  }
+  emscripten::val flex_vertedge() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * 2, ptr_->flex_vertedge));
+  }
   emscripten::val flex_edge() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * 2, ptr_->flex_edge));
   }
@@ -4381,6 +4726,9 @@ struct MjModel {
   emscripten::val flex_vert0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 3, ptr_->flex_vert0));
   }
+  emscripten::val flex_vertmetric() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 4, ptr_->flex_vertmetric));
+  }
   emscripten::val flex_node() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexnode * 3, ptr_->flex_node));
   }
@@ -4395,6 +4743,9 @@ struct MjModel {
   }
   emscripten::val flex_radius() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_radius));
+  }
+  emscripten::val flex_size() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 3, ptr_->flex_size));
   }
   emscripten::val flex_stiffness() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexelem * 21, ptr_->flex_stiffness));
@@ -4431,6 +4782,24 @@ struct MjModel {
   }
   emscripten::val flex_bvhnum() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_bvhnum));
+  }
+  emscripten::val flexedge_J_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge, ptr_->flexedge_J_rownnz));
+  }
+  emscripten::val flexedge_J_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge, ptr_->flexedge_J_rowadr));
+  }
+  emscripten::val flexedge_J_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nJfe, ptr_->flexedge_J_colind));
+  }
+  emscripten::val flexvert_J_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 2, ptr_->flexvert_J_rownnz));
+  }
+  emscripten::val flexvert_J_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 2, ptr_->flexvert_J_rowadr));
+  }
+  emscripten::val flexvert_J_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nJfv * 2, ptr_->flexvert_J_colind));
   }
   emscripten::val flex_rgba() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 4, ptr_->flex_rgba));
@@ -4840,6 +5209,15 @@ struct MjModel {
   emscripten::val actuator_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_group));
   }
+  emscripten::val actuator_history() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_history));
+  }
+  emscripten::val actuator_historyadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_historyadr));
+  }
+  emscripten::val actuator_delay() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_delay));
+  }
   emscripten::val actuator_ctrllimited() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_ctrllimited));
   }
@@ -4926,6 +5304,18 @@ struct MjModel {
   }
   emscripten::val sensor_noise() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor, ptr_->sensor_noise));
+  }
+  emscripten::val sensor_history() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor * 2, ptr_->sensor_history));
+  }
+  emscripten::val sensor_historyadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor, ptr_->sensor_historyadr));
+  }
+  emscripten::val sensor_delay() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor, ptr_->sensor_delay));
+  }
+  emscripten::val sensor_interval() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor * 2, ptr_->sensor_interval));
   }
   emscripten::val sensor_user() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nsensor * ptr_->nuser_sensor, ptr_->sensor_user));
@@ -5125,6 +5515,29 @@ struct MjModel {
   void set_signature(uint64_t value) {
     ptr_->signature = value;
   }
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)               \
+    MjModel##Name##Accessor accessor_name(const NumberOrString& val) const {   \
+      if (val.isString()) {                                                    \
+        int id = mj_name2id(ptr_, OBJTYPE, val.as<std::string>().c_str());     \
+        if (id == -1) {                                                        \
+          mju_error("%s", KeyErrorMessage(ptr_, OBJTYPE, ptr_->nfield, val.as<std::string>(), #accessor_name).c_str());  \
+        }                                                                      \
+        return MjModel##Name##Accessor(ptr_, id);                              \
+      } else if (val.isNumber()) {                                             \
+        int id = val.as<int>();                                                \
+        if (id < 0 || id >= ptr_->nfield) {                                    \
+          mju_error("%s", IndexErrorMessage(id, ptr_->nfield, #accessor_name).c_str());  \
+        }                                                                      \
+        return MjModel##Name##Accessor(ptr_, id);                              \
+      } else {                                                                 \
+        mju_error(#accessor_name "() argument must be a string or number");    \
+        return MjModel##Name##Accessor(nullptr, 0);                            \
+      }                                                                        \
+    }
+
+    MJMODEL_ACCESSORS
+  #undef X_ACCESSOR
 
  private:
   mjModel* ptr_;
@@ -5158,11 +5571,11 @@ struct MjSpec {
   void set_strippath(mjtByte value) {
     ptr_->strippath = value;
   }
-  mjtSize memory() const {
-    return ptr_->memory;
+  int memory() const {
+    return static_cast<int>(ptr_->memory);
   }
-  void set_memory(mjtSize value) {
-    ptr_->memory = value;
+  void set_memory(int value) {
+    ptr_->memory = static_cast<mjtSize>(value);
   }
   int nemax() const {
     return ptr_->nemax;
@@ -5242,11 +5655,11 @@ struct MjSpec {
   void set_nconmax(int value) {
     ptr_->nconmax = value;
   }
-  mjtSize nstack() const {
-    return ptr_->nstack;
+  int nstack() const {
+    return static_cast<int>(ptr_->nstack);
   }
-  void set_nstack(mjtSize value) {
-    ptr_->nstack = value;
+  void set_nstack(int value) {
+    ptr_->nstack = static_cast<mjtSize>(value);
   }
   mjString comment() const {
     return (ptr_ && ptr_->comment) ? *(ptr_->comment) : "";
@@ -5406,6 +5819,24 @@ struct MjsActuator {
   }
   void set_group(int value) {
     ptr_->group = value;
+  }
+  int nsample() const {
+    return ptr_->nsample;
+  }
+  void set_nsample(int value) {
+    ptr_->nsample = value;
+  }
+  int interp() const {
+    return ptr_->interp;
+  }
+  void set_interp(int value) {
+    ptr_->interp = value;
+  }
+  double delay() const {
+    return ptr_->delay;
+  }
+  void set_delay(double value) {
+    ptr_->delay = value;
   }
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);
@@ -5836,6 +6267,27 @@ struct MjsSensor {
   void set_noise(double value) {
     ptr_->noise = value;
   }
+  int nsample() const {
+    return ptr_->nsample;
+  }
+  void set_nsample(int value) {
+    ptr_->nsample = value;
+  }
+  int interp() const {
+    return ptr_->interp;
+  }
+  void set_interp(int value) {
+    ptr_->interp = value;
+  }
+  double delay() const {
+    return ptr_->delay;
+  }
+  void set_delay(double value) {
+    ptr_->delay = value;
+  }
+  emscripten::val interval() const {
+    return emscripten::val(emscripten::typed_memory_view(2, ptr_->interval));
+  }
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);
   }
@@ -5864,17 +6316,17 @@ struct MjData {
   std::unique_ptr<MjData> copy();
   mjData* get() const;
   void set(mjData* ptr);
-  mjtSize narena() const {
-    return ptr_->narena;
+  int narena() const {
+    return static_cast<int>(ptr_->narena);
   }
-  void set_narena(mjtSize value) {
-    ptr_->narena = value;
+  void set_narena(int value) {
+    ptr_->narena = static_cast<mjtSize>(value);
   }
-  mjtSize nbuffer() const {
-    return ptr_->nbuffer;
+  int nbuffer() const {
+    return static_cast<int>(ptr_->nbuffer);
   }
-  void set_nbuffer(mjtSize value) {
-    ptr_->nbuffer = value;
+  void set_nbuffer(int value) {
+    ptr_->nbuffer = static_cast<mjtSize>(value);
   }
   int nplugin() const {
     return ptr_->nplugin;
@@ -5900,20 +6352,20 @@ struct MjData {
   void set_parena(size_t value) {
     ptr_->parena = value;
   }
-  mjtSize maxuse_stack() const {
-    return ptr_->maxuse_stack;
+  int maxuse_stack() const {
+    return static_cast<int>(ptr_->maxuse_stack);
   }
-  void set_maxuse_stack(mjtSize value) {
-    ptr_->maxuse_stack = value;
+  void set_maxuse_stack(int value) {
+    ptr_->maxuse_stack = static_cast<mjtSize>(value);
   }
   emscripten::val maxuse_threadstack() const {
     return emscripten::val(emscripten::typed_memory_view(128, ptr_->maxuse_threadstack));
   }
-  mjtSize maxuse_arena() const {
-    return ptr_->maxuse_arena;
+  int maxuse_arena() const {
+    return static_cast<int>(ptr_->maxuse_arena);
   }
-  void set_maxuse_arena(mjtSize value) {
-    ptr_->maxuse_arena = value;
+  void set_maxuse_arena(int value) {
+    ptr_->maxuse_arena = static_cast<mjtSize>(value);
   }
   int maxuse_con() const {
     return ptr_->maxuse_con;
@@ -6014,6 +6466,30 @@ struct MjData {
   void set_nv_awake(int value) {
     ptr_->nv_awake = value;
   }
+  mjtByte flg_energypos() const {
+    return ptr_->flg_energypos;
+  }
+  void set_flg_energypos(mjtByte value) {
+    ptr_->flg_energypos = value;
+  }
+  mjtByte flg_energyvel() const {
+    return ptr_->flg_energyvel;
+  }
+  void set_flg_energyvel(mjtByte value) {
+    ptr_->flg_energyvel = value;
+  }
+  mjtByte flg_subtreevel() const {
+    return ptr_->flg_subtreevel;
+  }
+  void set_flg_subtreevel(mjtByte value) {
+    ptr_->flg_subtreevel = value;
+  }
+  mjtByte flg_rnepost() const {
+    return ptr_->flg_rnepost;
+  }
+  void set_flg_rnepost(mjtByte value) {
+    ptr_->flg_rnepost = value;
+  }
   mjtNum time() const {
     return ptr_->time;
   }
@@ -6037,6 +6513,9 @@ struct MjData {
   }
   emscripten::val act() const {
     return emscripten::val(emscripten::typed_memory_view(model->na, ptr_->act));
+  }
+  emscripten::val history() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nhistory, ptr_->history));
   }
   emscripten::val qacc_warmstart() const {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qacc_warmstart));
@@ -6143,20 +6622,17 @@ struct MjData {
   emscripten::val flexelem_aabb() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexelem * 6, ptr_->flexelem_aabb));
   }
-  emscripten::val flexedge_J_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_J_rownnz));
-  }
-  emscripten::val flexedge_J_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_J_rowadr));
-  }
-  emscripten::val flexedge_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge * model->nv, ptr_->flexedge_J_colind));
-  }
   emscripten::val flexedge_J() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge * model->nv, ptr_->flexedge_J));
+    return emscripten::val(emscripten::typed_memory_view(model->nJfe, ptr_->flexedge_J));
   }
   emscripten::val flexedge_length() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_length));
+  }
+  emscripten::val flexvert_J() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nJfv * 2, ptr_->flexvert_J));
+  }
+  emscripten::val flexvert_length() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflexvert * 2, ptr_->flexvert_length));
   }
   emscripten::val bvh_aabb_dyn() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbvhdynamic * 6, ptr_->bvh_aabb_dyn));
@@ -6519,6 +6995,28 @@ struct MjData {
   void set_signature(uint64_t value) {
     ptr_->signature = value;
   }
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)              \
+    MjData##Name##Accessor accessor_name(const NumberOrString& val) const {   \
+      if (val.isString()) {                                                   \
+        int id = mj_name2id(model, OBJTYPE, val.as<std::string>().c_str());   \
+        if (id == -1) {                                                       \
+          mju_error("%s", KeyErrorMessage(model, OBJTYPE, model->nfield, val.as<std::string>(), #accessor_name).c_str());  \
+        }                                                                     \
+        return MjData##Name##Accessor(ptr_, model, id);                       \
+      } else if (val.isNumber()) {                                            \
+        int id = val.as<int>();                                               \
+        if (id < 0 || id >= model->nfield) {                                  \
+          mju_error("%s", IndexErrorMessage(id, model->nfield, #accessor_name).c_str());  \
+        }                                                                     \
+        return MjData##Name##Accessor(ptr_, model, id);                       \
+      } else {                                                                \
+        mju_error(#accessor_name "() argument must be a string or number");   \
+        return MjData##Name##Accessor(nullptr, nullptr, 0);                   \
+      }                                                                       \
+    }
+    MJDATA_ACCESSORS
+  #undef X_ACCESSOR
 
  private:
   mjData* ptr_;
@@ -7523,7 +8021,7 @@ struct MjvScene {
   // skinvertadr field is handled manually in template file struct declaration
   // skinvertnum field is handled manually in template file struct declaration
   emscripten::val flags() const {
-    return emscripten::val(emscripten::typed_memory_view(10, ptr_->flags));
+    return emscripten::val(emscripten::typed_memory_view(11, ptr_->flags));
   }
   emscripten::val framergb() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->framergb));
@@ -7627,6 +8125,27 @@ struct MjvScene {
   mjModel *model;
   std::vector<MjvLight> lights;
   std::vector<MjvGLCamera> camera;
+};
+
+struct MjVFS {
+  MjVFS() : ptr_(new mjVFS) { mj_defaultVFS(ptr_); }
+  ~MjVFS() {
+    mj_deleteVFS(ptr_);
+  }
+  void AddBuffer(const std::string& name, const emscripten::val& buffer) {
+    std::vector<uint8_t> vec = emscripten::vecFromJSArray<uint8_t>(buffer);
+    int result = mj_addBufferVFS(ptr_, name.c_str(), vec.data(), vec.size());
+    if (result != 0) {
+      mju_error("Could not add buffer to VFS: %d", result);
+    }
+  }
+  void DeleteFile(const std::string& filename) {
+    mj_deleteFileVFS(ptr_, filename.c_str());
+  }
+  mjVFS* get() const { return ptr_; }
+
+ private:
+  mjVFS* ptr_;
 };
 
 MjModel::MjModel(mjModel* ptr)
@@ -7808,8 +8327,21 @@ std::unique_ptr<MjModel> mj_loadXML_wrapper(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
   if (!model) {
-    printf("Loading error: %s\n", error);
-    return nullptr;
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+void mj_saveModel_wrapper(const MjModel& m, const StringOrNull& filename, const val& buffer) {
+  UNPACK_NULLABLE_STRING(filename);
+  UNPACK_NULLABLE_VALUE(uint8_t, buffer);
+  mj_saveModel(m.get(), filename_.data(), buffer_.data(), static_cast<int>(buffer_.size()));
+}
+
+std::unique_ptr<MjModel> mj_loadModel_wrapper(std::string filename, const MjVFS& vfs) {
+  mjModel *model = mj_loadModel(filename.c_str(), vfs.get());
+  if (!model) {
+    mju_error("Failed to load from mjb");
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -7818,15 +8350,24 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   char error[1000];
   mjSpec *ptr = mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error));
   if (!ptr) {
-    printf("Could not create Spec from XML string: %s\n", error);
-    return nullptr;
+    mju_error("Could not create Spec from XML string: %s\n", error);
   }
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
 }
 
-std::unique_ptr<MjModel> mj_compile_wrapper(const MjSpec& spec) {
+std::unique_ptr<MjModel> mj_compile_wrapper_1(const MjSpec& spec) {
   mjSpec* spec_ptr = spec.get();
   mjModel* model = mj_compile(spec_ptr, nullptr);
+  if (!model || mjs_isWarning(spec_ptr)) {
+    mju_error("%s", mjs_getError(spec_ptr));
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> mj_compile_wrapper_2(const MjSpec& spec, const MjVFS& vfs) {
+  mjSpec* spec_ptr = spec.get();
+  mjVFS* vfs_ptr = vfs.get();
+  mjModel* model = mj_compile(spec_ptr, vfs_ptr);
   if (!model || mjs_isWarning(spec_ptr)) {
     mju_error("%s", mjs_getError(spec_ptr));
   }
@@ -8067,6 +8608,18 @@ void mj_implicit_wrapper(const MjModel& m, MjData& d) {
   mj_implicit(m.get(), d.get());
 }
 
+void mj_initCtrlHistory_wrapper(const MjModel& m, MjData& d, int id, const NumberArray& times, const NumberArray& values) {
+  UNPACK_NULLABLE_ARRAY(mjtNum, times);
+  UNPACK_ARRAY(mjtNum, values);
+  mj_initCtrlHistory(m.get(), d.get(), id, times_.data(), values_.data());
+}
+
+void mj_initSensorHistory_wrapper(const MjModel& m, MjData& d, int id, const NumberArray& times, const NumberArray& values, mjtNum phase) {
+  UNPACK_NULLABLE_ARRAY(mjtNum, times);
+  UNPACK_ARRAY(mjtNum, values);
+  mj_initSensorHistory(m.get(), d.get(), id, times_.data(), values_.data(), phase);
+}
+
 void mj_integratePos_wrapper(const MjModel& m, const val& qpos, const NumberArray& qvel, mjtNum dt) {
   UNPACK_VALUE(mjtNum, qpos);
   UNPACK_ARRAY(mjtNum, qvel);
@@ -8233,16 +8786,17 @@ void mj_mulM2_wrapper(const MjModel& m, const MjData& d, const val& res, const N
   mj_mulM2(m.get(), d.get(), res_.data(), vec_.data());
 }
 
-void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& dist, int nray, mjtNum cutoff) {
+void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& dist, const val& normal, int nray, mjtNum cutoff) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
-  UNPACK_VALUE(int, geomid);
+  UNPACK_NULLABLE_VALUE(int, geomid);
   UNPACK_VALUE(mjtNum, dist);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
   CHECK_SIZE(dist, nray);
   CHECK_SIZE(geomid, nray);
   CHECK_SIZE(vec, 3 * nray);
-  mj_multiRay(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), dist_.data(), nray, cutoff);
+  mj_multiRay(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), dist_.data(), normal_.data(), nray, cutoff);
 }
 
 int mj_name2id_wrapper(const MjModel& m, int type, const String& name) {
@@ -8307,24 +8861,39 @@ void mj_projectConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_projectConstraint(m.get(), d.get());
 }
 
-mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid) {
+mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
   UNPACK_NULLABLE_VALUE(int, geomid);
-  return mj_ray(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data());
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_ray(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), normal_.data());
 }
 
-mjtNum mj_rayHfield_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec) {
+mjtNum mj_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid, const NumberArray& pnt, const NumberArray& vec, const val& vertid, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  return mj_rayHfield(m.get(), d.get(), geomid, pnt_.data(), vec_.data());
+  UNPACK_NULLABLE_VALUE(int, vertid);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_rayFlex(m.get(), d.get(), flex_layer, flg_vert, flg_edge, flg_face, flg_skin, flexid, pnt_.data(), vec_.data(), vertid_.data(), normal_.data());
 }
 
-mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec) {
+mjtNum mj_rayHfield_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data());
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_rayHfield(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
+}
+
+mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec, const val& normal) {
+  UNPACK_ARRAY(mjtNum, pnt);
+  UNPACK_ARRAY(mjtNum, vec);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
+}
+
+mjtNum mj_readCtrl_wrapper(const MjModel& m, const MjData& d, int id, mjtNum time, int interp) {
+  return mj_readCtrl(m.get(), d.get(), id, time, interp);
 }
 
 void mj_referenceConstraint_wrapper(const MjModel& m, MjData& d) {
@@ -9830,20 +10399,14 @@ void mju_quatZ2Vec_wrapper(const val& quat, const NumberArray& vec) {
   mju_quatZ2Vec(quat_.data(), vec_.data());
 }
 
-mjtNum mju_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid, const NumberArray& pnt, const NumberArray& vec, const val& vertid) {
-  UNPACK_ARRAY(mjtNum, pnt);
-  UNPACK_ARRAY(mjtNum, vec);
-  UNPACK_NULLABLE_VALUE(int, vertid);
-  return mju_rayFlex(m.get(), d.get(), flex_layer, flg_vert, flg_edge, flg_face, flg_skin, flexid, pnt_.data(), vec_.data(), vertid_.data());
-}
-
-mjtNum mju_rayGeom_wrapper(const NumberArray& pos, const NumberArray& mat, const NumberArray& size, const NumberArray& pnt, const NumberArray& vec, int geomtype) {
+mjtNum mju_rayGeom_wrapper(const NumberArray& pos, const NumberArray& mat, const NumberArray& size, const NumberArray& pnt, const NumberArray& vec, int geomtype, const val& normal) {
   UNPACK_ARRAY(mjtNum, pos);
   UNPACK_ARRAY(mjtNum, mat);
   UNPACK_ARRAY(mjtNum, size);
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  return mju_rayGeom(pos_.data(), mat_.data(), size_.data(), pnt_.data(), vec_.data(), geomtype);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mju_rayGeom(pos_.data(), mat_.data(), size_.data(), pnt_.data(), vec_.data(), geomtype, normal_.data());
 }
 
 mjtNum mju_raySkin_wrapper(int nface, int nvert, const NumberArray& face, const NumberArray& vert, const NumberArray& pnt, const NumberArray& vec, const val& vertid) {
@@ -10191,6 +10754,13 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjCAMLIGHT_TRACKCOM", mjCAMLIGHT_TRACKCOM)
     .value("mjCAMLIGHT_TARGETBODY", mjCAMLIGHT_TARGETBODY)
     .value("mjCAMLIGHT_TARGETBODYCOM", mjCAMLIGHT_TARGETBODYCOM);
+  enum_<mjtCamOutBit>("mjtCamOutBit")
+    .value("mjCAMOUT_RGB", mjCAMOUT_RGB)
+    .value("mjCAMOUT_DEPTH", mjCAMOUT_DEPTH)
+    .value("mjCAMOUT_DIST", mjCAMOUT_DIST)
+    .value("mjCAMOUT_NORMAL", mjCAMOUT_NORMAL)
+    .value("mjCAMOUT_SEG", mjCAMOUT_SEG)
+    .value("mjNCAMOUT", mjNCAMOUT);
   enum_<mjtCamera>("mjtCamera")
     .value("mjCAMERA_FREE", mjCAMERA_FREE)
     .value("mjCAMERA_TRACKING", mjCAMERA_TRACKING)
@@ -10282,6 +10852,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjEQ_JOINT", mjEQ_JOINT)
     .value("mjEQ_TENDON", mjEQ_TENDON)
     .value("mjEQ_FLEX", mjEQ_FLEX)
+    .value("mjEQ_FLEXVERT", mjEQ_FLEXVERT)
     .value("mjEQ_DISTANCE", mjEQ_DISTANCE);
   enum_<mjtEvent>("mjtEvent")
     .value("mjEVENT_NONE", mjEVENT_NONE)
@@ -10503,6 +11074,17 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjPLUGIN_SENSOR", mjPLUGIN_SENSOR)
     .value("mjPLUGIN_PASSIVE", mjPLUGIN_PASSIVE)
     .value("mjPLUGIN_SDF", mjPLUGIN_SDF);
+  enum_<mjtProjection>("mjtProjection")
+    .value("mjPROJ_PERSPECTIVE", mjPROJ_PERSPECTIVE)
+    .value("mjPROJ_ORTHOGRAPHIC", mjPROJ_ORTHOGRAPHIC);
+  enum_<mjtRayDataField>("mjtRayDataField")
+    .value("mjRAYDATA_DIST", mjRAYDATA_DIST)
+    .value("mjRAYDATA_DIR", mjRAYDATA_DIR)
+    .value("mjRAYDATA_ORIGIN", mjRAYDATA_ORIGIN)
+    .value("mjRAYDATA_POINT", mjRAYDATA_POINT)
+    .value("mjRAYDATA_NORMAL", mjRAYDATA_NORMAL)
+    .value("mjRAYDATA_DEPTH", mjRAYDATA_DEPTH)
+    .value("mjNRAYDATA", mjNRAYDATA);
   enum_<mjtRndFlag>("mjtRndFlag")
     .value("mjRND_SHADOW", mjRND_SHADOW)
     .value("mjRND_WIREFRAME", mjRND_WIREFRAME)
@@ -10511,6 +11093,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjRND_SKYBOX", mjRND_SKYBOX)
     .value("mjRND_FOG", mjRND_FOG)
     .value("mjRND_HAZE", mjRND_HAZE)
+    .value("mjRND_DEPTH", mjRND_DEPTH)
     .value("mjRND_SEGMENT", mjRND_SEGMENT)
     .value("mjRND_IDCOLOR", mjRND_IDCOLOR)
     .value("mjRND_CULL_FACE", mjRND_CULL_FACE)
@@ -10605,6 +11188,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjSTATE_QPOS", mjSTATE_QPOS)
     .value("mjSTATE_QVEL", mjSTATE_QVEL)
     .value("mjSTATE_ACT", mjSTATE_ACT)
+    .value("mjSTATE_HISTORY", mjSTATE_HISTORY)
     .value("mjSTATE_WARMSTART", mjSTATE_WARMSTART)
     .value("mjSTATE_CTRL", mjSTATE_CTRL)
     .value("mjSTATE_QFRC_APPLIED", mjSTATE_QFRC_APPLIED)
@@ -10719,6 +11303,34 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjWRAP_SPHERE", mjWRAP_SPHERE)
     .value("mjWRAP_CYLINDER", mjWRAP_CYLINDER);
 
+  // Bindings for the MjModel accessor classes.
+  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::get_##var, &Accessor::set_##var)
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)        \
+    {                                                           \
+      using Accessor = MjModel##Name##Accessor;                 \
+      emscripten::class_<Accessor>("MjModel" #Name "Accessor")  \
+          .property("id", &Accessor::id)                        \
+          .property("name", &Accessor::name)                    \
+          MJMODEL_##NAME;                                       \
+    }
+    MJMODEL_ACCESSORS
+  #undef X
+  #undef X_ACCESSOR
+
+  // Bindings for the MjData accessor classes.
+  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::get_##var, &Accessor::set_##var)
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)       \
+    {                                                          \
+      using Accessor = MjData##Name##Accessor;                 \
+      emscripten::class_<Accessor>("MjData" #Name "Accessor")  \
+          .property("id", &Accessor::id)                       \
+          .property("name", &Accessor::name)                   \
+          MJDATA_##NAME;                                       \
+    }
+    MJDATA_ACCESSORS
+  #undef X
+  #undef X_ACCESSOR
+
   emscripten::class_<MjContact>("MjContact")
     .constructor<>()
     .function("copy", &MjContact::copy, take_ownership())
@@ -10744,6 +11356,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjData>("MjData")
     .constructor<MjModel *>()
     .constructor<const MjModel &, const MjData &>()
+    // Binds the functions on MjData that return accessors.
+      #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \
+        .function(#field_name, &MjData::field_name)
+        MJDATA_ACCESSORS
+      #undef X_ACCESSOR
     .property("M", &MjData::M)
     .property("act", &MjData::act)
     .property("act_dot", &MjData::act_dot)
@@ -10798,15 +11415,19 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("energy", &MjData::energy)
     .property("eq_active", &MjData::eq_active)
     .property("flexedge_J", &MjData::flexedge_J)
-    .property("flexedge_J_colind", &MjData::flexedge_J_colind)
-    .property("flexedge_J_rowadr", &MjData::flexedge_J_rowadr)
-    .property("flexedge_J_rownnz", &MjData::flexedge_J_rownnz)
     .property("flexedge_length", &MjData::flexedge_length)
     .property("flexedge_velocity", &MjData::flexedge_velocity)
     .property("flexelem_aabb", &MjData::flexelem_aabb)
+    .property("flexvert_J", &MjData::flexvert_J)
+    .property("flexvert_length", &MjData::flexvert_length)
     .property("flexvert_xpos", &MjData::flexvert_xpos)
+    .property("flg_energypos", &MjData::flg_energypos, &MjData::set_flg_energypos, reference())
+    .property("flg_energyvel", &MjData::flg_energyvel, &MjData::set_flg_energyvel, reference())
+    .property("flg_rnepost", &MjData::flg_rnepost, &MjData::set_flg_rnepost, reference())
+    .property("flg_subtreevel", &MjData::flg_subtreevel, &MjData::set_flg_subtreevel, reference())
     .property("geom_xmat", &MjData::geom_xmat)
     .property("geom_xpos", &MjData::geom_xpos)
+    .property("history", &MjData::history)
     .property("iLD", &MjData::iLD)
     .property("iLDiagInv", &MjData::iLDiagInv)
     .property("iM", &MjData::iM)
@@ -10955,7 +11576,13 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("uselimit", &MjLROpt::uselimit, &MjLROpt::set_uselimit, reference());
   emscripten::class_<MjModel>("MjModel")
     .class_function("mj_loadXML", &mj_loadXML_wrapper, take_ownership())
+    .class_function("mj_loadBinary", &mj_loadModel_wrapper, take_ownership())
     .constructor<const MjModel &>()
+    // Binds the functions on MjModel that return accessors.
+    #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \
+      .function(#field_name, &MjModel::field_name)
+      MJMODEL_ACCESSORS
+    #undef X_ACCESSOR
     .property("B_colind", &MjModel::B_colind)
     .property("B_rowadr", &MjModel::B_rowadr)
     .property("B_rownnz", &MjModel::B_rownnz)
@@ -10977,6 +11604,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actuator_cranklength", &MjModel::actuator_cranklength)
     .property("actuator_ctrllimited", &MjModel::actuator_ctrllimited)
     .property("actuator_ctrlrange", &MjModel::actuator_ctrlrange)
+    .property("actuator_delay", &MjModel::actuator_delay)
     .property("actuator_dynprm", &MjModel::actuator_dynprm)
     .property("actuator_dyntype", &MjModel::actuator_dyntype)
     .property("actuator_forcelimited", &MjModel::actuator_forcelimited)
@@ -10985,6 +11613,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actuator_gaintype", &MjModel::actuator_gaintype)
     .property("actuator_gear", &MjModel::actuator_gear)
     .property("actuator_group", &MjModel::actuator_group)
+    .property("actuator_history", &MjModel::actuator_history)
+    .property("actuator_historyadr", &MjModel::actuator_historyadr)
     .property("actuator_length0", &MjModel::actuator_length0)
     .property("actuator_lengthrange", &MjModel::actuator_lengthrange)
     .property("actuator_plugin", &MjModel::actuator_plugin)
@@ -11031,10 +11661,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("cam_ipd", &MjModel::cam_ipd)
     .property("cam_mat0", &MjModel::cam_mat0)
     .property("cam_mode", &MjModel::cam_mode)
-    .property("cam_orthographic", &MjModel::cam_orthographic)
+    .property("cam_output", &MjModel::cam_output)
     .property("cam_pos", &MjModel::cam_pos)
     .property("cam_pos0", &MjModel::cam_pos0)
     .property("cam_poscom0", &MjModel::cam_poscom0)
+    .property("cam_projection", &MjModel::cam_projection)
     .property("cam_quat", &MjModel::cam_quat)
     .property("cam_resolution", &MjModel::cam_resolution)
     .property("cam_sensorsize", &MjModel::cam_sensorsize)
@@ -11113,6 +11744,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_shell", &MjModel::flex_shell)
     .property("flex_shelldataadr", &MjModel::flex_shelldataadr)
     .property("flex_shellnum", &MjModel::flex_shellnum)
+    .property("flex_size", &MjModel::flex_size)
     .property("flex_solimp", &MjModel::flex_solimp)
     .property("flex_solmix", &MjModel::flex_solmix)
     .property("flex_solref", &MjModel::flex_solref)
@@ -11123,10 +11755,20 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_vert0", &MjModel::flex_vert0)
     .property("flex_vertadr", &MjModel::flex_vertadr)
     .property("flex_vertbodyid", &MjModel::flex_vertbodyid)
+    .property("flex_vertedge", &MjModel::flex_vertedge)
+    .property("flex_vertedgeadr", &MjModel::flex_vertedgeadr)
+    .property("flex_vertedgenum", &MjModel::flex_vertedgenum)
+    .property("flex_vertmetric", &MjModel::flex_vertmetric)
     .property("flex_vertnum", &MjModel::flex_vertnum)
+    .property("flexedge_J_colind", &MjModel::flexedge_J_colind)
+    .property("flexedge_J_rowadr", &MjModel::flexedge_J_rowadr)
+    .property("flexedge_J_rownnz", &MjModel::flexedge_J_rownnz)
     .property("flexedge_invweight0", &MjModel::flexedge_invweight0)
     .property("flexedge_length0", &MjModel::flexedge_length0)
     .property("flexedge_rigid", &MjModel::flexedge_rigid)
+    .property("flexvert_J_colind", &MjModel::flexvert_J_colind)
+    .property("flexvert_J_rowadr", &MjModel::flexvert_J_rowadr)
+    .property("flexvert_J_rownnz", &MjModel::flexvert_J_rownnz)
     .property("geom_aabb", &MjModel::geom_aabb)
     .property("geom_bodyid", &MjModel::geom_bodyid)
     .property("geom_conaffinity", &MjModel::geom_conaffinity)
@@ -11252,6 +11894,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("nB", &MjModel::nB, &MjModel::set_nB, reference())
     .property("nC", &MjModel::nC, &MjModel::set_nC, reference())
     .property("nD", &MjModel::nD, &MjModel::set_nD, reference())
+    .property("nJfe", &MjModel::nJfe, &MjModel::set_nJfe, reference())
+    .property("nJfv", &MjModel::nJfv, &MjModel::set_nJfv, reference())
     .property("nJmom", &MjModel::nJmom, &MjModel::set_nJmom, reference())
     .property("nM", &MjModel::nM, &MjModel::set_nM, reference())
     .property("na", &MjModel::na, &MjModel::set_na, reference())
@@ -11305,6 +11949,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("ngravcomp", &MjModel::ngravcomp, &MjModel::set_ngravcomp, reference())
     .property("nhfield", &MjModel::nhfield, &MjModel::set_nhfield, reference())
     .property("nhfielddata", &MjModel::nhfielddata, &MjModel::set_nhfielddata, reference())
+    .property("nhistory", &MjModel::nhistory, &MjModel::set_nhistory, reference())
     .property("njmax", &MjModel::njmax, &MjModel::set_njmax, reference())
     .property("njnt", &MjModel::njnt, &MjModel::set_njnt, reference())
     .property("nkey", &MjModel::nkey, &MjModel::set_nkey, reference())
@@ -11389,7 +12034,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("sensor_adr", &MjModel::sensor_adr)
     .property("sensor_cutoff", &MjModel::sensor_cutoff)
     .property("sensor_datatype", &MjModel::sensor_datatype)
+    .property("sensor_delay", &MjModel::sensor_delay)
     .property("sensor_dim", &MjModel::sensor_dim)
+    .property("sensor_history", &MjModel::sensor_history)
+    .property("sensor_historyadr", &MjModel::sensor_historyadr)
+    .property("sensor_interval", &MjModel::sensor_interval)
     .property("sensor_intprm", &MjModel::sensor_intprm)
     .property("sensor_needstage", &MjModel::sensor_needstage)
     .property("sensor_noise", &MjModel::sensor_noise)
@@ -11685,6 +12334,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("cranklength", &MjsActuator::cranklength, &MjsActuator::set_cranklength, reference())
     .property("ctrllimited", &MjsActuator::ctrllimited, &MjsActuator::set_ctrllimited, reference())
     .property("ctrlrange", &MjsActuator::ctrlrange)
+    .property("delay", &MjsActuator::delay, &MjsActuator::set_delay, reference())
     .property("dynprm", &MjsActuator::dynprm)
     .property("dyntype", &MjsActuator::dyntype, &MjsActuator::set_dyntype, reference())
     .property("element", &MjsActuator::element, reference())
@@ -11696,7 +12346,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("group", &MjsActuator::group, &MjsActuator::set_group, reference())
     .property("info", &MjsActuator::info, &MjsActuator::set_info, reference())
     .property("inheritrange", &MjsActuator::inheritrange, &MjsActuator::set_inheritrange, reference())
+    .property("interp", &MjsActuator::interp, &MjsActuator::set_interp, reference())
     .property("lengthrange", &MjsActuator::lengthrange)
+    .property("nsample", &MjsActuator::nsample, &MjsActuator::set_nsample, reference())
     .property("plugin", &MjsActuator::plugin, reference())
     .property("refsite", &MjsActuator::refsite, &MjsActuator::set_refsite, reference())
     .property("slidersite", &MjsActuator::slidersite, &MjsActuator::set_slidersite, reference())
@@ -11732,10 +12384,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("intrinsic", &MjsCamera::intrinsic)
     .property("ipd", &MjsCamera::ipd, &MjsCamera::set_ipd, reference())
     .property("mode", &MjsCamera::mode, &MjsCamera::set_mode, reference())
-    .property("orthographic", &MjsCamera::orthographic, &MjsCamera::set_orthographic, reference())
+    .property("output", &MjsCamera::output, &MjsCamera::set_output, reference())
     .property("pos", &MjsCamera::pos)
     .property("principal_length", &MjsCamera::principal_length)
     .property("principal_pixel", &MjsCamera::principal_pixel)
+    .property("proj", &MjsCamera::proj, &MjsCamera::set_proj, reference())
     .property("quat", &MjsCamera::quat)
     .property("resolution", &MjsCamera::resolution)
     .property("sensor_size", &MjsCamera::sensor_size)
@@ -11822,6 +12475,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("radius", &MjsFlex::radius, &MjsFlex::set_radius, reference())
     .property("rgba", &MjsFlex::rgba)
     .property("selfcollide", &MjsFlex::selfcollide, &MjsFlex::set_selfcollide, reference())
+    .property("size", &MjsFlex::size)
     .property("solimp", &MjsFlex::solimp)
     .property("solmix", &MjsFlex::solmix, &MjsFlex::set_solmix, reference())
     .property("solref", &MjsFlex::solref)
@@ -12000,12 +12654,16 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjsSensor>("MjsSensor")
     .property("cutoff", &MjsSensor::cutoff, &MjsSensor::set_cutoff, reference())
     .property("datatype", &MjsSensor::datatype, &MjsSensor::set_datatype, reference())
+    .property("delay", &MjsSensor::delay, &MjsSensor::set_delay, reference())
     .property("dim", &MjsSensor::dim, &MjsSensor::set_dim, reference())
     .property("element", &MjsSensor::element, reference())
     .property("info", &MjsSensor::info, &MjsSensor::set_info, reference())
+    .property("interp", &MjsSensor::interp, &MjsSensor::set_interp, reference())
+    .property("interval", &MjsSensor::interval)
     .property("intprm", &MjsSensor::intprm)
     .property("needstage", &MjsSensor::needstage, &MjsSensor::set_needstage, reference())
     .property("noise", &MjsSensor::noise, &MjsSensor::set_noise, reference())
+    .property("nsample", &MjsSensor::nsample, &MjsSensor::set_nsample, reference())
     .property("objname", &MjsSensor::objname, &MjsSensor::set_objname, reference())
     .property("objtype", &MjsSensor::objtype, &MjsSensor::set_objtype, reference())
     .property("plugin", &MjsSensor::plugin, reference())
@@ -12304,6 +12962,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::register_optional<MjsTuple>();
   emscripten::register_optional<MjsWrap>();
 
+  emscripten::class_<MjVFS>("MjVFS")
+      .constructor<>()
+      .function("addBuffer", &MjVFS::AddBuffer)
+      .function("deleteFile", &MjVFS::DeleteFile);
+
   function("mj_Euler", &mj_Euler_wrapper);
   function("mj_RungeKutta", &mj_RungeKutta_wrapper);
   function("mj_addContact", &mj_addContact_wrapper);
@@ -12318,7 +12981,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_comPos", &mj_comPos_wrapper);
   function("mj_comVel", &mj_comVel_wrapper);
   function("mj_compareFwdInv", &mj_compareFwdInv_wrapper);
-  function("mj_compile", &mj_compile_wrapper);
   function("mj_constraintUpdate", &mj_constraintUpdate_wrapper);
   function("mj_contactForce", &mj_contactForce_wrapper);
   function("mj_copyBack", &mj_copyBack_wrapper);
@@ -12348,6 +13010,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_getTotalmass", &mj_getTotalmass_wrapper);
   function("mj_id2name", &mj_id2name_wrapper);
   function("mj_implicit", &mj_implicit_wrapper);
+  function("mj_initCtrlHistory", &mj_initCtrlHistory_wrapper);
+  function("mj_initSensorHistory", &mj_initSensorHistory_wrapper);
   function("mj_integratePos", &mj_integratePos_wrapper);
   function("mj_invConstraint", &mj_invConstraint_wrapper);
   function("mj_invPosition", &mj_invPosition_wrapper);
@@ -12388,8 +13052,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_printScene", &mj_printScene_wrapper);
   function("mj_projectConstraint", &mj_projectConstraint_wrapper);
   function("mj_ray", &mj_ray_wrapper);
+  function("mj_rayFlex", &mj_rayFlex_wrapper);
   function("mj_rayHfield", &mj_rayHfield_wrapper);
   function("mj_rayMesh", &mj_rayMesh_wrapper);
+  function("mj_readCtrl", &mj_readCtrl_wrapper);
   function("mj_referenceConstraint", &mj_referenceConstraint_wrapper);
   function("mj_resetCallbacks", &mj_resetCallbacks);
   function("mj_resetData", &mj_resetData_wrapper);
@@ -12397,13 +13063,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_resetDataKeyframe", &mj_resetDataKeyframe_wrapper);
   function("mj_rne", &mj_rne_wrapper);
   function("mj_rnePostConstraint", &mj_rnePostConstraint_wrapper);
-  function("mj_saveLastXML", &mj_saveLastXML_wrapper);
   function("mj_sensorAcc", &mj_sensorAcc_wrapper);
   function("mj_sensorPos", &mj_sensorPos_wrapper);
   function("mj_sensorVel", &mj_sensorVel_wrapper);
   function("mj_setConst", &mj_setConst_wrapper);
   function("mj_setKeyframe", &mj_setKeyframe_wrapper);
-  function("mj_setLengthRange", &mj_setLengthRange_wrapper);
   function("mj_setState", &mj_setState_wrapper);
   function("mj_setTotalmass", &mj_setTotalmass_wrapper);
   function("mj_sizeModel", &mj_sizeModel_wrapper);
@@ -12621,7 +13285,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mju_quat2Vel", &mju_quat2Vel_wrapper);
   function("mju_quatIntegrate", &mju_quatIntegrate_wrapper);
   function("mju_quatZ2Vec", &mju_quatZ2Vec_wrapper);
-  function("mju_rayFlex", &mju_rayFlex_wrapper);
   function("mju_rayGeom", &mju_rayGeom_wrapper);
   function("mju_raySkin", &mju_raySkin_wrapper);
   function("mju_rotVecQuat", &mju_rotVecQuat_wrapper);
@@ -12680,9 +13343,15 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjv_updateCamera", &mjv_updateCamera_wrapper);
   function("mjv_updateScene", &mjv_updateScene_wrapper);
   function("mjv_updateSkin", &mjv_updateSkin_wrapper);
-
   function("parseXMLString", &parseXMLString_wrapper, take_ownership());
   function("error", &error_wrapper);
+  function("mj_saveModel", &mj_saveModel_wrapper);
+  function("mj_saveLastXML", &mj_saveLastXML_wrapper);
+  function("mj_setLengthRange", &mj_setLengthRange_wrapper);
+  // mj_compile is bound using two overloads to handle the optional MjVFS argument,
+  // as using std::optional<MjVFS> caused memory errors due to missing copy/move constructors.
+  function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&)>(&mj_compile_wrapper_1));
+  function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&, const MjVFS&)>(&mj_compile_wrapper_2));
 
   emscripten::class_<WasmBuffer<float>>("FloatBuffer")
       .constructor<int>()
@@ -12705,6 +13374,13 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
       .function("GetElementCount", &WasmBuffer<int>::GetElementCount)
       .function("GetView", &WasmBuffer<int>::GetView);
 
+  emscripten::class_<WasmBuffer<uint8_t>>("Uint8Buffer")
+      .constructor<int>()
+      .class_function("FromArray", &WasmBuffer<uint8_t>::FromArray)
+      .function("GetPointer", &WasmBuffer<uint8_t>::GetPointer)
+      .function("GetElementCount", &WasmBuffer<uint8_t>::GetElementCount)
+      .function("GetView", &WasmBuffer<uint8_t>::GetView);
+
   emscripten::register_vector<std::string>("mjStringVec");
   emscripten::register_vector<int>("mjIntVec");
   emscripten::register_vector<mjIntVec>("mjIntVecVec");
@@ -12721,8 +13397,12 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::register_vector<MjvGeom>("MjvGeomVec");
 
   // register_type() improves type information (val is mapped to any by default)
+  // NumberOrString is used in functions returning accessors, allowing users to
+  // get an accessor by name (string) or id (number).
+  emscripten::register_type<NumberOrString>("number|string");
   emscripten::register_type<NumberArray>("number[]");
   emscripten::register_type<String>("string");
+  emscripten::register_type<StringOrNull>("string|null");
 
   emscripten::constant("mjMAXCONPAIR", mjMAXCONPAIR);
   emscripten::constant("mjMAXIMP", mjMAXIMP);

@@ -51,6 +51,7 @@ extensions = [
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
     'sphinx_copybutton',
+    'sphinx_design',
     'sphinx_favicon',
     'sphinx_reredirects',
     'sphinx_toolbox.collapse',
@@ -76,6 +77,33 @@ autodoc_class_signature = 'separated'
 add_module_names = False
 toc_object_entries_show_parents = 'hide'
 default_role = 'literal'
+
+
+# Suppress warnings from docstrings with RST formatting issues
+def setup(app):
+  import logging
+
+  class SphinxWarningFilter(logging.Filter):
+
+    def filter(self, record):
+      msg = record.getMessage()
+      # e.g. qpos0: qpos values at default pose (*, nq)
+      if 'Inline emphasis start-string' in msg:
+        return False
+      # e.g. see `name` for details
+      if 'Inline interpreted text' in msg:
+        return False
+      # e.g. multi-line definition without trailing blank line
+      if 'Definition list ends without a blank line' in msg:
+        return False
+      # e.g. mjsactuator_ reference in C++ docstrings
+      if 'Unknown target name' in msg:
+        return False
+      return True
+
+  for handler in logging.getLogger('sphinx').handlers:
+    handler.addFilter(SphinxWarningFilter())
+
 
 # GitHub-related options
 github_username = 'google-deepmind'

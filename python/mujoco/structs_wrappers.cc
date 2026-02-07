@@ -60,9 +60,13 @@ namespace {
 // (dim0, dim1).
 #define X_ARRAY_SHAPE(dim0, dim1) XArrayShapeImpl(#dim1)((dim0), (dim1))
 
-std::vector<int> XArrayShapeImpl1D(int dim0, int dim1) { return {dim0}; }
+std::vector<mjtSize> XArrayShapeImpl1D(mjtSize dim0, mjtSize dim1) {
+  return {dim0};
+}
 
-std::vector<int> XArrayShapeImpl2D(int dim0, int dim1) { return {dim0, dim1}; }
+std::vector<mjtSize> XArrayShapeImpl2D(mjtSize dim0, mjtSize dim1) {
+  return {dim0, dim1};
+}
 
 constexpr auto XArrayShapeImpl(const std::string_view dim1_str) {
   if (dim1_str == "1") {

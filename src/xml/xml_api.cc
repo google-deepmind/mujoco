@@ -20,77 +20,17 @@
 #include <fstream>
 #include <functional>
 #include <memory>
-#include <mutex>
-#include <optional>
 #include <sstream>
 #include <string>
-#include <type_traits>
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
 #include "engine/engine_io.h"
 #include "user/user_resource.h"
 #include "xml/xml.h"
+#include "xml/xml_global.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_util.h"
-#if defined(mjUSEUSD)
-#include <mujoco/experimental/usd/usd.h>
-#include <pxr/usd/usd/stage.h>
-#endif
-
-//---------------------------------- Globals -------------------------------------------------------
-
-namespace {
-
-// global user model class
-class GlobalModel {
- public:
-  // deletes current model and takes ownership of model
-  void Set(mjSpec* spec = nullptr);
-
-  // writes XML to string
-  std::optional<std::string> ToXML(const mjModel* m, char* error,
-                                      int error_sz);
-
- private:
-  // using raw pointers as GlobalModel needs to be trivially destructible
-  std::mutex* mutex_ = new std::mutex();
-  mjSpec* spec_ = nullptr;
-};
-
-std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
-                                              int error_sz) {
-  std::lock_guard<std::mutex> lock(*mutex_);
-  if (!spec_) {
-    mjCopyError(error, "No XML model loaded", error_sz);
-    return std::nullopt;
-  }
-  std::string result = WriteXML(m, spec_, error, error_sz);
-  if (result.empty()) {
-    return std::nullopt;
-  }
-  return result;
-}
-
-void GlobalModel::Set(mjSpec* spec) {
-  std::lock_guard<std::mutex> lock(*mutex_);
-  if (spec_ != nullptr) {
-    mj_deleteSpec(spec_);
-  }
-  spec_ = spec;
-}
-
-
-// returns a single instance of the global model
-GlobalModel& GetGlobalModel() {
-  static GlobalModel global_model;
-
-  // global variables must be trivially destructible
-  static_assert(std::is_trivially_destructible_v<decltype(global_model)>);
-  return global_model;
-}
-
-}  // namespace
 
 //---------------------------------- Functions -----------------------------------------------------
 
@@ -125,40 +65,10 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
   }
 
   // clear old and assign new
-  GetGlobalModel().Set(spec.release());
+  SetGlobalXmlSpec(spec.release());
   return m;
 }
 
-#if defined(mjUSEUSD)
-//  parse USD file, compile it, and return low-level model.
-//  if vfs is not NULL, look up files in vfs before reading from disk
-//  error can be NULL; otherwise assumed to have size error_sz
-mjModel* mj_loadUSD(const char* filename, const mjVFS* vfs, char* error, int error_sz) {
-  auto stage = pxr::UsdStage::Open(filename);
-
-  if (stage == nullptr) {
-    mjCopyError(error, "Failed to load USD stage from file.", error_sz);
-    return nullptr;
-  }
-
-  // Parse USD into mjSpec.
-  std::unique_ptr<mjSpec, std::function<void(mjSpec*)> > spec(
-    mj_parseUSDStage(stage),
-    [](mjSpec* s) {
-      mj_deleteSpec(s);
-    });
-
-  // Compile new model.
-  mjModel* m = mj_compile(spec.get(), vfs);
-  if (!m) {
-    mjCopyError(error, mjs_getError(spec.get()), error_sz);
-    return nullptr;
-  }
-
-  GetGlobalModel().Set(spec.release());
-  return m;
-}
-#endif
 
 // update XML data structures with info from low-level model, save as MJCF
 //  returns 1 if successful, 0 otherwise
@@ -173,23 +83,23 @@ int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int erro
     }
   }
 
-  auto result = GetGlobalModel().ToXML(m, error, error_sz);
-  if (result.has_value()) {
-    fprintf(fp, "%s", result->c_str());
+  const std::string result = GetGlobalXmlSpec(m, error, error_sz);
+  if (!result.empty()) {
+    fprintf(fp, "%s", result.c_str());
   }
 
   if (fp != stdout) {
     fclose(fp);
   }
 
-  return result.has_value();
+  return !result.empty();
 }
 
 
 
 // free last XML
 void mj_freeLastXML(void) {
-  GetGlobalModel().Set();
+  SetGlobalXmlSpec();
 }
 
 

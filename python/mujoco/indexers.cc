@@ -261,7 +261,7 @@ MJDATA_VIEW_GROUPS
     if constexpr (std::string_view(#dim) == std::string_view("1")) { \
       return {};                                                     \
     } else {                                                         \
-      return {n};                                                    \
+      return {(int)n};                                               \
     }                                                                \
   }()                                                                \
   MUJOCO_DIAG_UNIGNORE_UNUSED_LAMBDA_CAPTURE

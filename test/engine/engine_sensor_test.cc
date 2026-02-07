@@ -24,6 +24,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_support.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_spatial.h"
 #include "test/fixture.h"
@@ -67,7 +68,7 @@ static vector<mjtNum> GetSensor(const mjModel* model,
 
 using SensorTest = MujocoTest;
 
-// --------------------- test sensor disableflag  ------------------------------
+// --------------------- test sensor disable flag ------------------------------
 
 TEST_F(SensorTest, DisableSensors) {
   constexpr char xml[] = R"(
@@ -1047,6 +1048,544 @@ TEST_F(SensorTest, InsideSite) {
     expected[i] = 1.0;
     EXPECT_EQ(AsVector(data->sensordata, model->nsensordata), expected);
   }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, RangefinderCamera) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="10 10 .1"/>
+      <body pos="0 0 2">
+        <camera name="persp" xyaxes="1 0 0 0 1 0" resolution="3 3" fovy="90"/>
+        <camera name="ortho" euler="0 45 0" resolution="3 3"
+          projection="orthographic" fovy="2"/>
+      </body>
+    </worldbody>
+
+    <sensor>
+      <rangefinder camera="persp" data="dist depth"/>
+      <rangefinder camera="ortho" data="dist dir origin point"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  // first sensor: data="dist depth" => (1+1)*9 = 18
+  // second sensor: data="dist dir origin point" => (1+3+3+3)*9 = 90
+  EXPECT_EQ(model->nsensordata, 108);
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  mjtNum tol = 1e-6;
+  mjtNum height = 2.0;
+  mjtNum fy = 1.5;
+  mjtNum offsets[3] = {-1.0, 0.0, 1.0};  // pixel center - principal point
+
+  // test 1: perspective camera - rays diverge, distance varies with angle
+  int adr0 = model->sensor_adr[0];
+  constexpr int stride0 = 2;  // dist(1) + depth(1)
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 3; col++) {
+      int idx = row * 3 + col;
+      mjtNum dx = offsets[col] / fy;
+      mjtNum dy = offsets[row] / fy;
+      mjtNum expected_dist = height * mju_sqrt(1 + dx*dx + dy*dy);
+      mjtNum dist = data->sensordata[adr0 + idx*stride0];
+      EXPECT_NEAR(dist, expected_dist, tol)
+          << "perspective dist pixel (" << row << ", " << col << ")";
+
+      // depth should equal camera height (2.0) for all pixels
+      mjtNum depth = data->sensordata[adr0 + idx*stride0 + 1];
+      EXPECT_NEAR(depth, height, tol)
+          << "perspective depth pixel (" << row << ", " << col << ")";
+    }
+  }
+
+  // test 2: orthographic camera distance - tilted 45 degrees around Y axis
+  mjtNum extent = 2.0;  // fovy for orthographic
+  mjtNum half_extent = extent / 2;
+  mjtNum fx = 1.5;  // width / 2 for 3x3 image
+  mjtNum cx = 1.5;  // principal point
+  mjtNum cos45 = mju_sqrt(0.5);
+  mjtNum sin45 = mju_sqrt(0.5);
+  int adr1 = model->sensor_adr[1];
+  constexpr int stride1 = 10;  // dist(1) + dir(3) + origin(3) + point(3)
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 3; col++) {
+      int idx = row * 3 + col;
+
+      // pixel offset in camera frame: matches mju_camPixelRay formula
+      mjtNum px_cam = (col + 0.5 - cx) / fx * half_extent;
+
+      // camera tilted 45 around Y: local +X maps to world (+cos45, 0, -sin45)
+      mjtNum origin_z = height - px_cam * sin45;
+
+      // ray hits z=0 plane: distance = origin_z / cos45
+      mjtNum expected_dist = origin_z / cos45;
+      mjtNum dist = data->sensordata[adr1 + idx*stride1];
+      EXPECT_NEAR(dist, expected_dist, tol)
+          << "orthographic dist pixel (" << row << ", " << col << ")";
+
+      // verify point = origin + dir * dist
+      mjtNum* dir = data->sensordata + adr1 + idx*stride1 + 1;
+      mjtNum* origin = data->sensordata + adr1 + idx*stride1 + 4;
+      mjtNum* point = data->sensordata + adr1 + idx*stride1 + 7;
+      mjtNum expected_point[3];
+      mju_addScl3(expected_point, origin, dir, dist);
+      EXPECT_NEAR(point[0], expected_point[0], tol)
+          << "ortho point[0] pixel (" << row << ", " << col << ")";
+      EXPECT_NEAR(point[1], expected_point[1], tol)
+          << "ortho point[1] pixel (" << row << ", " << col << ")";
+      EXPECT_NEAR(point[2], expected_point[2], tol)
+          << "ortho point[2] pixel (" << row << ", " << col << ")";
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, RFCamera) {
+  const string xml_path =
+      GetTestDataFilePath("engine/testdata/sensor/rfcamera.xml");
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  // both sensors have data="dist point normal" => (1+3+3)*16 = 112
+  ASSERT_EQ(model->nsensor, 2);
+  EXPECT_EQ(model->sensor_dim[0], 112);
+  EXPECT_EQ(model->sensor_dim[1], 112);
+
+  mjData* data = mj_makeData(model);
+  mj_step(model, data);
+
+  // check both sensors: dist, point, normal
+  constexpr int stride = 7;  // dist(1) + point(3) + normal(3)
+  for (int s = 0; s < 2; s++) {
+    int adr = model->sensor_adr[s];
+    for (int i = 0; i < 16; i++) {
+      mjtNum dist = data->sensordata[adr + i*stride];
+      mjtNum* point = data->sensordata + adr + i*stride + 1;
+      mjtNum* normal = data->sensordata + adr + i*stride + 4;
+
+      EXPECT_TRUE(dist > 0 || dist == -1) << "sensor " << s << " pixel " << i;
+
+      if (dist > 0) {
+        EXPECT_GT(mju_norm3(point), 0.0) << "sensor " << s << " point " << i;
+        EXPECT_NEAR(mju_norm3(normal), 1.0, 1e-6)
+            << "sensor " << s << " normal " << i;
+      } else {
+        EXPECT_NEAR(mju_norm3(point), 0.0, 1e-6)
+            << "sensor " << s << " point " << i;
+        EXPECT_NEAR(mju_norm3(normal), 0.0, 1e-6)
+            << "sensor " << s << " normal " << i;
+      }
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// ------------------------------- sensor delays -------------------------------
+
+TEST_F(SensorTest, SensorDelay) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="slide" delay="0.02" nsample="3"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // delay = 0.02 seconds, timestep = 0.01
+  // history = 3 (more than delay/timestep=2) to ensure buffer coverage
+  EXPECT_EQ(model->sensor_history[0], 3);
+  EXPECT_NEAR(model->sensor_delay[0], 0.02, 1e-10);
+
+  // Use different values to verify exact delay timing.
+  // With delay=0.02 and timestep=0.01, we expect 2-step delay:
+  // - At step N, sensordata should reflect qpos from step N-2.
+
+  // step 0: qpos=10, read from initial buffer
+  data->qpos[0] = 10.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 0.0, 1e-10) << "step 0";
+
+  // step 1: qpos=20, still reading initial buffer
+  data->qpos[0] = 20.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 0.0, 1e-10) << "step 1";
+
+  // step 2: qpos=30, read value from step 0 (delay=2 steps)
+  data->qpos[0] = 30.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 10.0, 1e-10) << "step 2";
+
+  // step 3: qpos=40, read value from step 1 (delay=2 steps)
+  data->qpos[0] = 40.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 20.0, 1e-10) << "step 3";
+
+  // step 4: qpos=50, read value from step 2 (delay=2 steps)
+  data->qpos[0] = 50.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 30.0, 1e-10) << "step 4";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Test sensor delay with linear interpolation (interp=1)
+// Uses delay = 1.5*timestep so interpolation is meaningful
+TEST_F(SensorTest, SensorDelayLinearInterp) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="slide" delay="0.015" nsample="3" interp="linear"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // delay = 0.015 seconds = 1.5*timestep, nsample=3, interp=1 (linear)
+  // With linear interpolation and 1.5*timestep delay, the read time falls
+  // exactly between two buffer samples, so we should get the average.
+  EXPECT_EQ(model->sensor_history[0], 3);
+  EXPECT_EQ(model->sensor_history[1], 1);  // interp=1 (linear)
+  EXPECT_NEAR(model->sensor_delay[0], 0.015, 1e-10);
+
+  // Set increasing qpos values: step i -> qpos = (i+1)*10
+  // Buffer has samples at times: -0.02, -0.01, 0 (initialized)
+  // After step 0 at time=0.01: buffer has times -0.01, 0, 0.01 with values 0, 0, 10
+  // Read at time 0.01 - 0.015 = -0.005: interpolate between t=-0.01 (val=0) and t=0 (val=0)
+  // Expected: 0 * 0.5 + 0 * 0.5 = 0
+
+  data->qpos[0] = 10.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 0.0, 1e-10) << "step 0";
+
+  // After step 1 at time=0.02: buffer has times 0, 0.01, 0.02 with values 0, 10, 20
+  // Read at time 0.02 - 0.015 = 0.005: interpolate between t=0 (val=0) and t=0.01 (val=10)
+  // Expected: 0 * 0.5 + 10 * 0.5 = 5
+
+  data->qpos[0] = 20.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 5.0, 1e-10) << "step 1";
+
+  // After step 2 at time=0.03: buffer has times 0.01, 0.02, 0.03 with values 10, 20, 30
+  // Read at 0.03 - 0.015 = 0.015: interpolate between t=0.01 (val=10) and t=0.02 (val=20)
+  // Expected: 10 * 0.5 + 20 * 0.5 = 15
+
+  data->qpos[0] = 30.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 15.0, 1e-10) << "step 2";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, SensorInterval) {
+  // This test uses the exact values from the documentation for interval:
+  // timestep=1, interval=2.5, producing times 0, 3, 5, 8, 10, 13, ...
+  // with interval="2.5 -1.5", producing times 1, 4, 6, 9, 11, 14, ...
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1" gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos name="default_phase" joint="slide" interval="2.5 0" nsample="10"/>
+      <jointpos name="offset_phase" joint="slide" interval="2.5 -1.5" nsample="10"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  int sensor0 = mj_name2id(model, mjOBJ_SENSOR, "default_phase");
+  int sensor1 = mj_name2id(model, mjOBJ_SENSOR, "offset_phase");
+  int adr0 = model->sensor_adr[sensor0];
+  int adr1 = model->sensor_adr[sensor1];
+
+  // Verify initial buffer timestamps (after mj_makeData/mj_resetData)
+  // With period=2.5, dt=1.0, nsample=10:
+  // sensor0 (phase = -period = -2.5): continuous times are -2.5, -5, -7.5, ...
+  //   rounded up to dt: -2, -5, -7, -10, -12, -15, -17, -20, -22, -25
+  // sensor1 (phase = -1.5): continuous times are -1.5, -4, -6.5, ...
+  //   rounded up to dt: -1, -4, -6, -9, -11, -14, -16, -19, -21, -24
+  int n0 = model->sensor_history[2*sensor0];
+  int n1 = model->sensor_history[2*sensor1];
+  mjtNum* buf0 = data->history + model->sensor_historyadr[sensor0];
+  mjtNum* buf1 = data->history + model->sensor_historyadr[sensor1];
+  mjtNum* times0 = buf0 + 2;
+  mjtNum* times1 = buf1 + 2;
+  mjtNum expected_times0[] = {-25, -22, -20, -17, -15, -12, -10, -7, -5, -2};
+  mjtNum expected_times1[] = {-24, -21, -19, -16, -14, -11, -9, -6, -4, -1};
+  for (int i = 0; i < n0; i++) {
+    EXPECT_NEAR(times0[i], expected_times0[i], 1e-10);
+  }
+  for (int i = 0; i < n1; i++) {
+    EXPECT_NEAR(times1[i], expected_times1[i], 1e-10);
+  }
+
+  // sensor0: interval="2.5 0" -> time_prev starts at -2.5
+  //   triggers at: 0, 3, 5, 8, 10, 13, ... (gaps: 3,2,3,2,3,...)
+  // sensor1: interval="2.5 -1.5" -> time_prev starts at -1.5
+  //   triggers at: 1, 4, 6, 9, 11, 14, ... (gaps: 3,2,3,2,3,...)
+
+  // Arrays tracking when each sensor triggers (1=triggers, 0=holds)
+  // Times:         0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
+  int triggers0[] = {1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0};
+  int triggers1[] = {0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1};
+
+  mjtNum value0 = 0, value1 = 0;
+  for (int t = 0; t < 15; t++) {
+    // set position to current time (so we can track when sensor was computed)
+    data->qpos[0] = t;
+    mj_step(model, data);
+
+    // update expected values based on trigger pattern
+    if (triggers0[t]) value0 = t;
+    if (triggers1[t]) value1 = t;
+
+    EXPECT_NEAR(data->sensordata[adr0], value0, 1e-10)
+        << "sensor0 at t=" << t;
+    EXPECT_NEAR(data->sensordata[adr1], value1, 1e-10)
+        << "sensor1 at t=" << t;
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, SensorDelayInterval) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="slide" delay="0.02" interval="0.03 0" nsample="5"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // Combined delay and interval
+  EXPECT_EQ(model->sensor_history[0], 5);
+  EXPECT_NEAR(model->sensor_delay[0], 0.02, 1e-10);
+  EXPECT_NEAR(model->sensor_interval[2*0], 0.03, 1e-10);
+
+  // Verify initial buffer timestamps (after mj_makeData/mj_resetData)
+  // With period=0.03, dt=0.01, nsample=5, phase=0 (means -period=-0.03):
+  // continuous times: -0.03, -0.06, -0.09, -0.12, -0.15
+  // rounded up to dt: -0.03, -0.06, -0.09, -0.12, -0.15 (multiples of dt)
+  int n = model->sensor_history[0];
+  mjtNum* buf = data->history + model->sensor_historyadr[0];
+  mjtNum* times = buf + 2;
+  mjtNum expected_times[] = {-0.15, -0.12, -0.09, -0.06, -0.03};
+  for (int i = 0; i < n; i++) {
+    EXPECT_NEAR(times[i], expected_times[i], 1e-10);
+  }
+
+  // set position
+  data->qpos[0] = 5.0;
+
+  // initial steps: reading from buffer (initially 0)
+  // With delay=0.02, interval=0.03:
+  // - At t=0, interval satisfied: compute 5.0, insert at t=0 (current time)
+  // - Reading happens at d->time - delay; at t=0.02, reads at t=0.00 (5.0)
+  for (int i = 0; i < 2; i++) {
+    mj_step(model, data);
+    // sensor reads delayed value (0.0 from initial buffer)
+    EXPECT_NEAR(data->sensordata[0], 0.0, 1e-10) << "step " << i;
+  }
+
+  // step 3 (i=2): reading at t=0.00 now returns the inserted value 5.0
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 5.0, 1e-10);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, SensorHistoryOnly) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="slide" nsample="5"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // history only, no delay or interval
+  EXPECT_EQ(model->sensor_history[0], 5);
+  EXPECT_NEAR(model->sensor_delay[0], 0.0, 1e-10);
+  EXPECT_NEAR(model->sensor_interval[0], 0.0, 1e-10);
+
+  // set position
+  data->qpos[0] = 3.0;
+
+  // without delay, sensordata reflects current value immediately
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 3.0, 1e-10);
+
+  // change position, check again
+  data->qpos[0] = 7.0;
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 7.0, 1e-10);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, SensorDelayMultiDim) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <ballangvel joint="ball" delay="0.02" nsample="2"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // ballangvel is 3D
+  EXPECT_EQ(model->sensor_dim[0], 3);
+  EXPECT_EQ(model->sensor_history[0], 2);
+
+  // set angular velocity
+  data->qvel[0] = 1.0;
+  data->qvel[1] = 2.0;
+  data->qvel[2] = 3.0;
+
+  // step: reading delayed value (initially 0)
+  mj_step(model, data);
+  EXPECT_NEAR(data->sensordata[0], 0.0, 1e-10);
+  EXPECT_NEAR(data->sensordata[1], 0.0, 1e-10);
+  EXPECT_NEAR(data->sensordata[2], 0.0, 1e-10);
+
+  // after delay, values should propagate
+  mj_step(model, data);
+  mj_step(model, data);
+  mj_step(model, data);
+  // angular velocity is affected by dynamics, just check the buffer works
+  EXPECT_THAT(AsVector(data->sensordata, 3), Not(ElementsAre(0.0, 0.0, 0.0)));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, ReadSensor) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="slide" nsample="5"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // step with different qpos values to populate buffer
+  // mj_advance inserts at current time, then time advances
+  data->qpos[0] = 1.0;
+  mj_step(model, data);  // inserts 1.0 at t=0, time -> 0.01
+
+  data->qpos[0] = 2.0;
+  mj_step(model, data);  // inserts 2.0 at t=0.01, time -> 0.02
+
+  data->qpos[0] = 3.0;
+  mj_step(model, data);  // inserts 3.0 at t=0.02, time -> 0.03
+
+  // now time=0.03, buffer has: [t=0: 1.0, t=0.01: 2.0, t=0.02: 3.0]
+
+  // read at different times from history
+  mjtNum result[1];
+  const mjtNum* ptr;
+
+  // read at t=0 -> returns 1.0
+  ptr = mj_readSensor(model, data, 0, 0.0, result, /*order=*/0);
+  EXPECT_NEAR(*ptr, 1.0, 1e-10);
+
+  // read at t=0.01 -> returns 2.0 (ZOH: exactly at insertion time)
+  ptr = mj_readSensor(model, data, 0, 0.01, result, /*order=*/0);
+  EXPECT_NEAR(*ptr, 2.0, 1e-10);
+
+  // read at t=0.02 -> returns 3.0
+  ptr = mj_readSensor(model, data, 0, 0.02, result, /*order=*/0);
+  EXPECT_NEAR(*ptr, 3.0, 1e-10);
 
   mj_deleteData(data);
   mj_deleteModel(model);

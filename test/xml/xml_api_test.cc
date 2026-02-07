@@ -115,6 +115,20 @@ TEST_F(SaveLastXmlTest, EmptyModel) {
   mj_deleteModel(model);
 }
 
+TEST_F(LoadXmlTest, NullFileFails) {
+  std::array<char, 1000> error;
+  mjSpec* spec = mj_parseXML(nullptr, nullptr, error.data(), error.size());
+  EXPECT_THAT(spec, IsNull()) << "Expected model loading to fail.";
+  EXPECT_THAT(error.data(), HasSubstr("filename argument required"));
+}
+
+TEST_F(LoadXmlTest, InvalidFileFails) {
+  std::array<char, 1000> error;
+  mjSpec* spec = mj_parseXML("invalid", nullptr, error.data(), error.size());
+  EXPECT_THAT(spec, IsNull()) << "Expected model loading to fail.";
+  EXPECT_THAT(error.data(), HasSubstr("Error opening file"));
+}
+
 TEST_F(MujocoTest, SaveXmlShortString) {
   std::array<char, 1000> error;
 

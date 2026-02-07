@@ -52,25 +52,8 @@ endif()
 
 if(EMSCRIPTEN)
   option(MUJOCO_BUILD_TESTS_WASM "Build tests for WASM bindings" ON)
-endif()
-
-# Option to provide a path to an existing USD build directory or to Houdini HFS directory.
-set(USD_DIR "" CACHE PATH "Path to an existing USD build directory.")
-set(HOUDINI_HFS_DIR "" CACHE PATH "Path to Houdini HFS directory to build USD plugins against.")
-if(USD_DIR)
-  if(EXISTS "${USD_DIR}")
-    # If the path is provided, set MUJOCO_WITH_USD to ON and add the path to CMAKE_PREFIX_PATH.
-    set(MUJOCO_WITH_USD ON CACHE BOOL "Build with OpenUSD" FORCE)
-    list(PREPEND CMAKE_PREFIX_PATH "${USD_DIR}")
-    message(STATUS "Using custom USD build directory: ${USD_DIR}")
-  else()
-    message(WARNING "Invalid path provided for USD_DIR: ${USD_DIR}")
-  endif()
-elseif(HOUDINI_HFS_DIR)
-  if(EXISTS "${HOUDINI_HFS_DIR}")
-    set(MUJOCO_WITH_USD ON CACHE BOOL "Build with OpenUSD" FORCE)
-    message(STATUS "Building Mujoco USD against Houdini HFS: ${HOUDINI_HFS_DIR}")
-  endif()
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -O3 -pthread -fexceptions")
 endif()
 
 if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
@@ -244,8 +227,26 @@ if(MUJOCO_BUILD_EXAMPLES)
 endif()
 
 if(MUJOCO_WITH_USD)
-  target_compile_definitions(mujoco PUBLIC mjUSEUSD)
+  include(third_party_deps/openusd)
+
+  get_filename_component(USD_INSTALL_ROOT "${pxr_DIR}/lib" ABSOLUTE)
+  install(
+    DIRECTORY ${USD_INSTALL_ROOT}/
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+
+  if(APPLE)
+    set_target_properties(mujoco PROPERTIES
+      BUILD_RPATH "${USD_INSTALL_ROOT}"
+      INSTALL_RPATH "@loader_path")
+  elseif(UNIX)
+    set_target_properties(mujoco PROPERTIES
+      BUILD_RPATH "${USD_INSTALL_ROOT}"
+      INSTALL_RPATH "$ORIGIN")
+  endif()
+
   add_subdirectory(src/experimental/usd)
+  add_subdirectory(plugin/usd_decoder)
 endif()
 
 if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)

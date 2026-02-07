@@ -152,6 +152,9 @@ void mj_fwdKinematics(const mjModel* m, mjData* d) {
 void mj_fwdPosition(const mjModel* m, mjData* d) {
   TM_START1;
 
+  // clear position-dependent flags for lazy evaluation
+  d->flg_energypos = 0;
+
   TM_START;
   mj_fwdKinematics(m, d);
 
@@ -218,13 +221,13 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 void mj_fwdVelocity(const mjModel* m, mjData* d) {
   TM_START;
 
-  // flexedge velocity: dense or sparse
-  if (mj_isSparse(m)) {
-    mju_mulMatVecSparse(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge,
-                        d->flexedge_J_rownnz, d->flexedge_J_rowadr, d->flexedge_J_colind, NULL);
-  } else {
-    mju_mulMatVec(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge, m->nv);
-  }
+  // clear velocity-dependent flags for lazy evaluation
+  d->flg_subtreevel = 0;
+  d->flg_energyvel = 0;
+
+  // flexedge velocity: always sparse
+  mju_mulMatVecSparse(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge,
+                      m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind, NULL);
 
   // tendon velocity: dense or sparse
   if (mj_isSparse(m)) {
@@ -317,10 +320,17 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   // any tendon transmission targets with force limits
   int tendon_frclimited = 0;
 
-  // local, clamped copy of ctrl
+  // local copy of ctrl
   mj_markStack(d);
   mjtNum *ctrl = mjSTACKALLOC(d, nu, mjtNum);
-  mju_copy(ctrl, d->ctrl, nu);
+
+  // read from ctrl or history buffer for delayed actuators
+  for (int i = 0; i < nu; i++) {
+    int interp = m->actuator_history[2*i+1];
+    ctrl[i] = m->actuator_delay[i] ? mj_readCtrl(m, d, i, d->time, interp) : d->ctrl[i];
+  }
+
+  // clamp local copy
   if (!mjDISABLED(mjDSBL_CLAMPCTRL)) {
     clampVec(ctrl, m->actuator_ctrlrange, m->actuator_ctrllimited, nu, NULL);
   }
@@ -843,14 +853,64 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 }
 
 
-//-------------------------- integrators  ----------------------------------------------------------
+//-------------------------- state advancement and integration  ------------------------------------
 
 // advance state and time given activation derivatives, acceleration, and optional velocity
 static void mj_advance(const mjModel* m, mjData* d,
                        const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
+  int nu = m->nu, nsensor = m->nsensor;
+
+  // advance history buffers
+  if (m->nhistory > 0) {
+    // advance ctrl history buffers
+    for (int i = 0; i < nu; i++) {
+      int nsample = m->actuator_history[2*i];
+      if (nsample == 0) continue;
+
+      // get history buffer pointer and insert ctrl at current time
+      mjtNum* buf = d->history + m->actuator_historyadr[i];
+      *mju_delayInsert(buf, nsample, /*dim=*/1, d->time) = d->ctrl[i];
+    }
+
+    // advance sensor history buffers
+    for (int i = 0; i < nsensor; i++) {
+      int nsample = m->sensor_history[2*i];
+      if (nsample == 0) continue;
+
+      // get history buffer parameters
+      int dim = m->sensor_dim[i];
+      mjtNum* buf = d->history + m->sensor_historyadr[i];
+      mjtNum delay = m->sensor_delay[i];
+      mjtNum interval = m->sensor_interval[2*i];
+
+      if (interval > 0) {
+        // interval mode: if condition is satisfied, compute; otherwise copy
+        mjtNum time_prev = buf[0];  // first slot stores previous sensor tick
+        if (time_prev + interval <= d->time) {
+          buf[0] += interval;  // advance by exact interval (continuous time)
+          mjtNum* slot = mju_delayInsert(buf, nsample, dim, d->time);
+          if (delay > 0) {
+            // have delay, compute sensor
+            mj_computeSensor(m, d, i, slot);
+          } else {
+            // no delay, copy from sensordata (already computed)
+            mju_copy(slot, d->sensordata + m->sensor_adr[i], dim);
+          }
+        }
+      } else if (delay > 0) {
+        // delay-only mode: always compute and insert
+        mjtNum* slot = mju_delayInsert(buf, nsample, dim, d->time);
+        mj_computeSensor(m, d, i, slot);
+      } else {
+        // history-only mode: copy from sensordata (already computed)
+        mjtNum* slot = mju_delayInsert(buf, nsample, dim, d->time);
+        mju_copy(slot, d->sensordata + m->sensor_adr[i], dim);
+      }
+    }
+  }
+
   // advance activations
   if (m->na && !mjDISABLED(mjDSBL_ACTUATION)) {
-    int nu = m->nu;
     for (int i=0; i < nu; i++) {
       int actadr = m->actuator_actadr[i];
       int actadr_end = actadr + m->actuator_actnum[i];
@@ -1177,36 +1237,6 @@ void mj_implicit(const mjModel* m, mjData* d) {
 }
 
 
-// return 1 if potential energy was computed by sensor, 0 otherwise
-static int energyPosSensor(const mjModel* m) {
-  if (mjDISABLED(mjDSBL_SENSOR)) {
-    return 0;
-  }
-
-  for (int i=0; i < m->nsensor; i++) {
-    if (m->sensor_type[i] == mjSENS_E_POTENTIAL) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-
-// return 1 if kinetic energy was computed by sensor, 0 otherwise
-static int energyVelSensor(const mjModel* m) {
-  if (mjDISABLED(mjDSBL_SENSOR)) {
-    return 0;
-  }
-
-  for (int i=0; i < m->nsensor; i++) {
-    if (m->sensor_type[i] == mjSENS_E_KINETIC) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-
 //-------------------------- top-level API ---------------------------------------------------------
 
 // forward dynamics with skip; skipstage is mjtStage
@@ -1217,13 +1247,11 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   if (skipstage < mjSTAGE_POS) {
     mj_fwdPosition(m, d);
 
-    int energyPos = 0;
     if (!skipsensor) {
       mj_sensorPos(m, d);
-      energyPos = energyPosSensor(m);
     }
 
-    if (!energyPos) {
+    if (!d->flg_energypos) {
       if (mjENABLED(mjENBL_ENERGY)) {
         mj_energyPos(m, d);
       } else {
@@ -1236,13 +1264,11 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   if (skipstage < mjSTAGE_VEL) {
     mj_fwdVelocity(m, d);
 
-    int energyVel = 0;
     if (!skipsensor) {
       mj_sensorVel(m, d);
-      energyVel = energyVelSensor(m);
     }
 
-    if (mjENABLED(mjENBL_ENERGY) && !energyVel) {
+    if (mjENABLED(mjENBL_ENERGY) && !d->flg_energyvel) {
       mj_energyVel(m, d);
     }
   }
@@ -1256,6 +1282,7 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
   mj_fwdAcceleration(m, d);
   mj_fwdConstraint(m, d);
   if (!skipsensor) {
+    d->flg_rnepost = 0;  // clear flag for lazy evaluation
     mj_sensorAcc(m, d);
   }
 
@@ -1314,18 +1341,21 @@ void mj_step1(const mjModel* m, mjData* d) {
   mj_checkVel(m, d);
   mj_fwdPosition(m, d);
   mj_sensorPos(m, d);
-  if (!energyPosSensor(m)) {
+
+  if (!d->flg_energypos) {
     if (mjENABLED(mjENBL_ENERGY)) {
       mj_energyPos(m, d);
     } else {
       d->energy[0] = d->energy[1] = 0;
     }
   }
+
   mj_fwdVelocity(m, d);
   mj_sensorVel(m, d);
-  if (mjENABLED(mjENBL_ENERGY) && !energyVelSensor(m)) {
+  if (mjENABLED(mjENBL_ENERGY) && !d->flg_energyvel) {
     mj_energyVel(m, d);
   }
+
   if (mjcb_control) {
     mjcb_control(m, d);
   }

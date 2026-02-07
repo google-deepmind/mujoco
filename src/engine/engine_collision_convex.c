@@ -57,8 +57,8 @@ static int mjc_penetration(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
   mjCCDStatus status;
 
   // set config
-  config.max_iterations = ccd->max_iterations,
-  config.tolerance = ccd->mpr_tolerance,
+  config.max_iterations = ccd->max_iterations;
+  config.tolerance = ccd->mpr_tolerance;
   config.max_contacts = 1;
   config.dist_cutoff = 0;  // no geom distances needed
   config.context = (void*)obj1->data;
@@ -1477,13 +1477,15 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
   int gid[2] = {g1, g2};
   mjtGeom type[2];
   for (int i=0; i < 2; i++) {
-    type[i] = m->geom_type[gid[i]];
+    if (gid[i] < 0) {
+      type[i] = mjGEOM_NONE;
+    } else {
+      type[i] = m->geom_type[gid[i]];
+    }
 
     // set to mjGEOM_NONE if type cannot be processed
-    if (type[i] != mjGEOM_SPHERE    &&
-        type[i] != mjGEOM_CAPSULE   &&
-        type[i] != mjGEOM_ELLIPSOID &&
-        type[i] != mjGEOM_CYLINDER) {
+    if (type[i] != mjGEOM_SPHERE && type[i] != mjGEOM_CAPSULE &&
+        type[i] != mjGEOM_ELLIPSOID && type[i] != mjGEOM_CYLINDER) {
       type[i] = mjGEOM_NONE;
     }
   }
@@ -1582,6 +1584,7 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
         nrm[2] = 0;
         processed[i] = 1;
         break;
+
       default:
         // do nothing: only sphere, capsule, ellipsoid and cylinder are processed
         break;
@@ -1630,7 +1633,23 @@ int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
   mjc_setCCDObjFlex(&obj2, f2, e2, -1);
 
   // find contacts
-  return mjc_CCDIteration(m, d, &obj1, &obj2, con, 1, margin);
+  int ncon = mjc_CCDIteration(m, d, &obj1, &obj2, con, 1, margin);
+
+  // fix normals for 2D flex
+  if (ncon && !mjDISABLED(mjDSBL_NATIVECCD)) {
+    // check if either object is a 2D flex
+    int isflex2d = 0;
+    if (f1 >= 0 && m->flex_dim[f1] == 2) isflex2d = 1;
+    if (f2 >= 0 && m->flex_dim[f2] == 2) isflex2d = 1;
+
+    if (isflex2d) {
+      for (int i = 0; i < ncon; i++) {
+        mjc_fixNormal(m, d, con + i, g1, -1);
+      }
+    }
+  }
+
+  return ncon;
 }
 
 

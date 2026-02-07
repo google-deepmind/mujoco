@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import ctypes
+from functools import reduce
 
 import warp as wp
 from warp._src.context import type_str
@@ -34,14 +35,23 @@ _registered_kernel_to_id = {}
 def jax_kernel(kernel, launch_dims=None, quiet=False):
     """Create a Jax primitive from a Warp kernel.
 
-    NOTE: This is an experimental feature under development.
+    .. deprecated:: 1.10.0
+        This version of ``jax_kernel()`` is deprecated for JAX >= 0.5.0 and is not supported
+        with JAX >= 0.8.0. Use :func:`warp.jax_experimental.ffi.jax_kernel` instead, which
+        is the default implementation as of Warp 1.10.
+
+    This implementation requires JAX version 0.4.25 - 0.7.x. For JAX 0.8.0 and later,
+    use the FFI-based implementation at :func:`warp.jax_experimental.ffi.jax_kernel`.
 
     Args:
         kernel: The Warp kernel to be wrapped.
-        launch_dims: Optional. Specify the kernel launch dimensions. If None,
+        launch_dims: Specify the kernel launch dimensions. If ``None``,
                      dimensions are inferred from the shape of the first argument.
                      This option when set will specify the output dimensions.
-        quiet: Optional. If True, suppress deprecation warnings with newer JAX versions.
+        quiet: If ``True``, suppress deprecation warnings with newer JAX versions.
+
+    Raises:
+        RuntimeError: If JAX version is < 0.4.25 or >= 0.8.0.
 
     Limitations:
         - All kernel arguments must be contiguous arrays.
@@ -49,8 +59,7 @@ def jax_kernel(kernel, launch_dims=None, quiet=False):
         - There must be at least one input argument and at least one output argument.
         - Only the CUDA backend is supported.
     """
-
-    import jax
+    import jax  # noqa: PLC0415
 
     # check if JAX version supports this
     if jax.__version_info__ < (0, 4, 25) or jax.__version_info__ >= (0, 8, 0):
@@ -139,13 +148,11 @@ def _warp_custom_callback(stream, buffers, opaque, opaque_len):
 
 
 def _create_jax_warp_primitive():
-    from functools import reduce
-
-    import jax
-    from jax._src.interpreters import batching
-    from jax.interpreters import mlir
-    from jax.interpreters.mlir import ir
-    from jaxlib.hlo_helpers import custom_call
+    import jax  # noqa: PLC0415
+    from jax._src.interpreters import batching  # noqa: PLC0415
+    from jax.interpreters import mlir  # noqa: PLC0415
+    from jax.interpreters.mlir import ir  # noqa: PLC0415
+    from jaxlib.hlo_helpers import custom_call  # noqa: PLC0415
 
     global _jax_warp_p
     global _cc_callback
@@ -154,7 +161,7 @@ def _create_jax_warp_primitive():
     # TODO add default implementation that calls the kernel via warp.
     try:
         # newer JAX versions
-        import jax.extend
+        import jax.extend  # noqa: PLC0415
 
         _jax_warp_p = jax.extend.core.Primitive("jax_warp")
     except (ImportError, AttributeError):
@@ -201,7 +208,7 @@ def _create_jax_warp_primitive():
             raise Exception(f"Argument {warp_arg.label} has too few non-matrix/vector dimensions")
         index_rest = len(actual_shape) - warp_arg.type.ndim + 1
         leading_size = reduce(lambda x, y: x * y, actual_shape[:index_rest])
-        return [leading_size] + actual_shape[index_rest:]
+        return [leading_size, *actual_shape[index_rest:]]
 
     # Infer array dimensions from input type.
     def infer_dimensions(warp_arg, actual_shape):

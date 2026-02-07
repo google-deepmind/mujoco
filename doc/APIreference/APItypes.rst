@@ -166,6 +166,16 @@ elements. These values are used in ``m->geom_type`` and ``m->site_type``.
 .. mujoco-include:: mjtGeom
 
 
+.. _mjtProjection:
+
+mjtProjection
+~~~~~~~~~~~~~
+
+Type of camera projection. Used in ``m->cam_projection``.
+
+.. mujoco-include:: mjtProjection
+
+
 .. _mjtCamLight:
 
 mjtCamLight

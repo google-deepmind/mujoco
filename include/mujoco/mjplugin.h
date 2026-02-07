@@ -27,6 +27,7 @@
 struct mjResource_ {
   char* name;                                   // name of resource (filename, etc)
   void* data;                                   // opaque data pointer
+  mjVFS* vfs;                                   // pointer to the VFS
   char timestamp[512];                          // timestamp of the resource
   const struct mjpResourceProvider* provider;   // pointer to the provider
 };
@@ -42,9 +43,11 @@ typedef int (*mjfReadResource)(mjResource* resource, const void** buffer);
 // callback for closing a resource (responsible for freeing any allocated memory)
 typedef void (*mjfCloseResource)(mjResource* resource);
 
-// callback for returning the directory of a resource
-// sets dir to directory string with ndir being size of directory string
-typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* ndir);
+// callback for mounting a resource (provider), returns zero on failure
+typedef int (*mjfMountResource)(mjResource* resource);
+
+// callback for unmounting a resource (provider), returns zero on failure
+typedef int (*mjfUnmountResource)(mjResource* resource);
 
 // callback for checking if the current resource was modified from the time
 // specified by the timestamp
@@ -59,7 +62,8 @@ struct mjpResourceProvider {
   mjfOpenResource open;             // opening callback
   mjfReadResource read;             // reading callback
   mjfCloseResource close;           // closing callback
-  mjfGetResourceDir getdir;         // get directory callback (optional)
+  mjfMountResource mount;           // mounting callback (optional)
+  mjfUnmountResource unmount;       // unmounting callback (optional)
   mjfResourceModified modified;     // resource modified callback (optional)
   void* data;                       // opaque data pointer (resource invariant)
 };
@@ -69,7 +73,7 @@ typedef struct mjpResourceProvider mjpResourceProvider;
 
 // function pointer types
 // return an mjSpec representing the decoded resource.
-typedef mjSpec* (*mjfDecode)(mjResource* resource);
+typedef mjSpec* (*mjfDecode)(mjResource* resource, const mjVFS* vfs);
 // return true if the given resource can be decoded.
 typedef int (*mjfCanDecode)(const mjResource* resource);
 

@@ -253,5 +253,109 @@ TEST_F(MjCollisionTest, PlaneInBody) {
   mj_deleteModel(m);
 }
 
+TEST_F(MjCollisionTest, PinchingSucceeds) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" gravity="0 0 -9.81"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="0 0 1"/>
+
+      <body name="gripper" pos="0 0 0.5">
+        <joint name="lift" type="slide" axis="0 0 1" damping="50"/>
+        <geom type="box" size="0.2 0.05 0.02" rgba="0.5 0.5 0.5 1"/> <!-- base -->
+
+        <body name="left_finger" pos="-0.1 0 -0.1">
+          <joint name="left_slide" type="slide" axis="1 0 0" damping="10"/>
+          <geom type="box" size="0.02 0.1 0.1" rgba="0.8 0.2 0.2 1"/>
+        </body>
+
+        <body name="right_finger" pos="0.1 0 -0.1">
+          <joint name="right_slide" type="slide" axis="-1 0 0" damping="10"/>
+          <geom type="box" size="0.02 0.1 0.1" rgba="0.8 0.2 0.2 1"/>
+        </body>
+      </body>
+
+      <flexcomp name="cloth" type="grid" dim="2" count="9 9 1" spacing="0.05 0.05 0.05"
+                pos="0 0 0.1" radius="0.01">
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+
+    <equality>
+      <joint joint1="right_slide" joint2="left_slide"/>
+    </equality>
+
+    <tendon>
+      <fixed name="grasp">
+        <joint joint="right_slide" coef="1"/>
+        <joint joint="left_slide" coef="1"/>
+      </fixed>
+    </tendon>
+
+    <actuator>
+      <position name="lift" joint="lift" kp="600" dampratio="1" ctrlrange="-1 1"/>
+      <position name="grasp" tendon="grasp" kp="200" dampratio="1" ctrlrange="0 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  int lift_id = mj_name2id(m, mjOBJ_ACTUATOR, "lift");
+  int grasp_id = mj_name2id(m, mjOBJ_ACTUATOR, "grasp");
+
+  // Phase 1: Lower gripper.
+  // The gripper base starts at z=0.5. The finger has length 0.2 (size 0.1),
+  // extending from z=0.4 to z=0.2 relative to base (center at -0.1).
+  // The cloth is at z=0.1. We need to lower the gripper so the fingertips
+  // reach the cloth. A lift value of -0.35 places the fingertips near z=0.05.
+
+  for (int i = 0; i < 1000; ++i) {
+    d->ctrl[lift_id] = -0.35;  // Lower
+    d->ctrl[grasp_id] = 0;     // Open
+    mj_step(m, d);
+  }
+
+  // Phase 2: Pinch
+  for (int i = 0; i < 1000; ++i) {
+    d->ctrl[lift_id] = -0.35;  // Hold height
+    d->ctrl[grasp_id] = 0.8;   // Close (max 1)
+    mj_step(m, d);
+  }
+
+  // Phase 3: Lift
+  for (int i = 0; i < 2000; ++i) {
+    d->ctrl[lift_id] = 0.5;   // Lift up
+    d->ctrl[grasp_id] = 0.8;  // Keep closed
+    mj_step(m, d);
+  }
+
+  // Check if cloth is lifted
+  // flex verts are in d->flexvert_xpos
+  // original z is ~0.1 (falling to floor ~0.0)
+  // gripper lifted to > 0.5 probably
+
+  // Find average Z of cloth
+  double avg_z = 0;
+  int nvert = m->flex_vertnum[0];
+  for (int i = 0; i < nvert; ++i) {
+    avg_z += d->flexvert_xpos[3 * i + 2];
+  }
+  avg_z /= nvert;
+
+  // If lifted, avg_z should be significantly > 0.1
+  // If failed (slipped), avg_z should be near 0 (floor)
+
+  // Specialized primitives (mjraw_BoxTriangle, mjraw_CapsuleTriangle) should
+  // enable stable pinching, so we expect the cloth to be lifted.
+  EXPECT_GT(avg_z, 0.2) << "Cloth slipped out of gripper!";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco

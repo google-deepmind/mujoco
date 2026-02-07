@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/usd/kinematic_tree.h"
+#include "kinematic_tree.h"
 
 #include <map>
 #include <memory>
@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
+#include <mujoco/experimental/usd/mjcPhysics/equalityJointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/keyframe.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/tendon.h>
@@ -33,9 +34,6 @@
 #include <pxr/usd/usdPhysics/joint.h>
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
 #include <pxr/usd/usdPhysics/scene.h>
-
-namespace mujoco {
-namespace usd {
 
 bool GetJointBodies(const pxr::UsdPhysicsJoint& joint, pxr::SdfPath* from,
                     pxr::SdfPath* to) {
@@ -215,11 +213,27 @@ std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
       return nullptr;
     }
 
+    // If we encounter a joint that does not participate in articulation, we
+    // should treat it as a constraint instead.
+    // For example, a weld constraint is represented by a fixed joint.
+    bool excluded_from_articulation;
+    joint.GetExcludeFromArticulationAttr().Get(&excluded_from_articulation);
+    if (excluded_from_articulation) {
+      extraction.nodes[to_idx]->constraints.push_back(joint.GetPath());
+      continue;
+    }
+
     children[from_idx][to_idx] = true;
     parent_joints[to_idx].push_back(joint.GetPath());
     // Now that we know all the bodies, we can assign joints to respective
     // nodes.
     extraction.nodes[to_idx]->joints.push_back(joint.GetPath());
+
+    // If the joint has MjcPhysicsEqualityJointAPI, also add it to constraints
+    // so that ParseConstraint is called to create the equality constraint.
+    if (joint.GetPrim().HasAPI<pxr::MjcPhysicsEqualityJointAPI>()) {
+      extraction.nodes[to_idx]->constraints.push_back(joint.GetPath());
+    }
   }
 
   // The world body is represented by an empty SdfPath.
@@ -274,6 +288,3 @@ std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
   }
   return world_root;
 }
-
-}  // namespace usd
-}  // namespace mujoco

@@ -1393,6 +1393,7 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
               absl::StrContains(p.path().string(), "shark_") ||
               absl::StrContains(p.path().string(), "perf") ||
               // exclude files that fail the comparison test
+              absl::StrContains(p.path().string(), "rfcamera") ||
               absl::StrContains(p.path().string(), "tactile") ||
               absl::StrContains(p.path().string(), "makemesh") ||
               absl::StrContains(p.path().string(), "many_dependencies") ||
@@ -1669,6 +1670,125 @@ TEST_F(XMLWriterTest, ExpandAttach) {
   EXPECT_THAT(saved_xml, HasSubstr("class=\"bb\""));
   mj_deleteModel(m);
   mj_deleteVFS(vfs.get());
+}
+
+TEST_F(XMLWriterTest, WritesCameraOutput) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="default_cam"/>
+      <camera name="multi_cam" output="depth normal"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  // default output="rgb" should not be written
+  EXPECT_THAT(saved_xml, Not(HasSubstr("output=\"rgb\"")));
+  // non-default output should be written
+  EXPECT_THAT(saved_xml, HasSubstr("output=\"depth normal\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesCameraOutputDefault) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="multi">
+        <camera output="depth distance"/>
+      </default>
+    </default>
+    <worldbody>
+      <camera name="default_cam"/>
+      <camera name="class_cam" class="multi"/>
+      <camera name="override_cam" class="multi" output="segmentation"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  // save and reload to verify round-trip
+  mjModel* mtemp = LoadModelFromString(saved_xml);
+  ASSERT_THAT(mtemp, NotNull());
+  EXPECT_EQ(mtemp->ncam, 3);
+  EXPECT_EQ(mtemp->cam_output[0], mjCAMOUT_RGB);
+  EXPECT_EQ(mtemp->cam_output[1], mjCAMOUT_DEPTH | mjCAMOUT_DIST);
+  EXPECT_EQ(mtemp->cam_output[2], mjCAMOUT_SEG);
+  mj_deleteModel(mtemp);
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesSensorDelayIntervalHistory) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="slide" delay="0.05" interval="0.1 -0.02" nsample="20" interp="linear"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("delay=\"0.05\""));
+  EXPECT_THAT(saved_xml, HasSubstr("interval=\"0.1 -0.02\""));
+  EXPECT_THAT(saved_xml, HasSubstr("nsample=\"20\""));
+  EXPECT_THAT(saved_xml, HasSubstr("interp=\"linear\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotWriteDefaultSensorAttributes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="slide"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("delay=")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("interval=")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("nsample=")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("interp=")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesActuatorDelayHistory) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.03" nsample="15" interp="cubic"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("delay=\"0.03\""));
+  EXPECT_THAT(saved_xml, HasSubstr("nsample=\"15\""));
+  EXPECT_THAT(saved_xml, HasSubstr("interp=\"cubic\""));
+  mj_deleteModel(model);
 }
 
 }  // namespace

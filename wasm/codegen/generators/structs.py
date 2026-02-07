@@ -20,8 +20,8 @@ import math
 from typing import Tuple, Union, cast
 
 from introspect import ast_nodes
-from introspect import structs as introspect_structs
 from introspect import functions as introspect_functions
+from introspect import structs as introspect_structs
 
 from wasm.codegen.generators import code_builder
 from wasm.codegen.generators import common
@@ -97,10 +97,21 @@ def _generate_field_data(
   ):
 
     builder = code_builder.CodeBuilder()
-    with builder.function(f"{f.type.name} {f.name}() const"):
-      builder.line(f"return ptr_->{f.name};")
-    with builder.function(f"void set_{f.name}({f.type.name} value)"):
-      builder.line(f"ptr_->{f.name} = value;")
+
+    # `mjtSize` is a 64-bit signed integer type and would be represented in
+    # JS/TS a `bigint` because it doesn't fit in the number primitive (a 64-bit
+    # float). By casting int, we avoid "TS2345: Argument of type 'bigint' is not
+    # assignable to parameter of type 'number'" errors.
+    if f.type.name == "mjtSize":
+      with builder.function(f"int {f.name}() const"):
+        builder.line(f"return static_cast<int>(ptr_->{f.name});")
+      with builder.function(f"void set_{f.name}(int value)"):
+        builder.line(f"ptr_->{f.name} = static_cast<mjtSize>(value);")
+    else:
+      with builder.function(f"{f.type.name} {f.name}() const"):
+        builder.line(f"return ptr_->{f.name};")
+      with builder.function(f"void set_{f.name}({f.type.name} value)"):
+        builder.line(f"ptr_->{f.name} = value;")
 
     return WrappedFieldData(
         declaration=builder.to_string(),
@@ -376,6 +387,57 @@ def build_struct_header(
         for line in field.declaration.splitlines():
           builder.line(line)
 
+    # accessors declarations
+    if w == "MjModel":
+      builder.line("""
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)               \\
+    MjModel##Name##Accessor accessor_name(const NumberOrString& val) const {   \\
+      if (val.isString()) {                                                    \\
+        int id = mj_name2id(ptr_, OBJTYPE, val.as<std::string>().c_str());     \\
+        if (id == -1) {                                                        \\
+          mju_error("%s", KeyErrorMessage(ptr_, OBJTYPE, ptr_->nfield, val.as<std::string>(), #accessor_name).c_str());  \\
+        }                                                                      \\
+        return MjModel##Name##Accessor(ptr_, id);                              \\
+      } else if (val.isNumber()) {                                             \\
+        int id = val.as<int>();                                                \\
+        if (id < 0 || id >= ptr_->nfield) {                                    \\
+          mju_error("%s", IndexErrorMessage(id, ptr_->nfield, #accessor_name).c_str());  \\
+        }                                                                      \\
+        return MjModel##Name##Accessor(ptr_, id);                              \\
+      } else {                                                                 \\
+        mju_error(#accessor_name "() argument must be a string or number");    \\
+        return MjModel##Name##Accessor(nullptr, 0);                            \\
+      }                                                                        \\
+    }
+
+    MJMODEL_ACCESSORS
+  #undef X_ACCESSOR""".lstrip())
+    elif w == "MjData":
+      builder.line("""
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)              \\
+    MjData##Name##Accessor accessor_name(const NumberOrString& val) const {   \\
+      if (val.isString()) {                                                   \\
+        int id = mj_name2id(model, OBJTYPE, val.as<std::string>().c_str());   \\
+        if (id == -1) {                                                       \\
+          mju_error("%s", KeyErrorMessage(model, OBJTYPE, model->nfield, val.as<std::string>(), #accessor_name).c_str());  \\
+        }                                                                     \\
+        return MjData##Name##Accessor(ptr_, model, id);                       \\
+      } else if (val.isNumber()) {                                            \\
+        int id = val.as<int>();                                               \\
+        if (id < 0 || id >= model->nfield) {                                  \\
+          mju_error("%s", IndexErrorMessage(id, model->nfield, #accessor_name).c_str());  \\
+        }                                                                     \\
+        return MjData##Name##Accessor(ptr_, model, id);                       \\
+      } else {                                                                \\
+        mju_error(#accessor_name "() argument must be a string or number");   \\
+        return MjData##Name##Accessor(nullptr, nullptr, 0);                   \\
+      }                                                                       \\
+    }
+    MJDATA_ACCESSORS
+  #undef X_ACCESSOR""".lstrip())
+
     # define private struct members
     builder.private()
     builder.line(f"{s}* ptr_;")
@@ -480,12 +542,28 @@ def _build_struct_bindings(
     if w == "MjData":
       builder.line(".constructor<MjModel *>()")
       builder.line(".constructor<const MjModel &, const MjData &>()")
+      builder.line("""
+    // Binds the functions on MjData that return accessors.
+    #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \\
+      .function(#field_name, &MjData::field_name)
+      MJDATA_ACCESSORS
+    #undef X_ACCESSOR""".lstrip())
     elif w == "MjModel":
-      w = common.wrapped_function_name(
+      f1 = common.wrapped_function_name(
           introspect_functions.FUNCTIONS["mj_loadXML"]
       )
-      builder.line(f'.class_function("mj_loadXML", &{w}, take_ownership())')
+      builder.line(f'.class_function("mj_loadXML", &{f1}, take_ownership())')
+      f2 = common.wrapped_function_name(
+          introspect_functions.FUNCTIONS["mj_loadModel"]
+      )
+      builder.line(f'.class_function("mj_loadBinary", &{f2}, take_ownership())')
       builder.line(".constructor<const MjModel &>()")
+      builder.line("""
+  // Binds the functions on MjModel that return accessors.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \\
+    .function(#field_name, &MjModel::field_name)
+    MJMODEL_ACCESSORS
+  #undef X_ACCESSOR""".lstrip())
     elif w == "MjSpec":
       builder.line(".constructor<const MjSpec &>()")
     elif w == "MjvScene":

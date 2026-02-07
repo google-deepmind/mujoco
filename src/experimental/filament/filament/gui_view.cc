@@ -125,6 +125,24 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
       mju_error("Texture not found: %lu", tex_id);
     }
     texture = iter->second;
+
+    if (pixels == nullptr) {
+      // A nullptr implies that the user wants to destroy the texture.
+      engine->destroy(texture);
+      textures_.erase(tex_id);
+      return 0;
+    } else if (texture->getWidth() != width || texture->getHeight() != height) {
+      // Recreate the texture if the dimensions have changed.
+      engine->destroy(texture);
+      texture = filament::Texture::Builder()
+                    .width(width)
+                    .height(height)
+                    .levels(1)
+                    .format(internal_format)
+                    .sampler(filament::Texture::Sampler::SAMPLER_2D)
+                    .build(*engine);
+      textures_[tex_id] = texture;
+    }
   }
 
   // Create a copy of the image to pass it to filament as we don't know the
@@ -189,7 +207,11 @@ void GuiView::DestroyTexture(ImTextureData* data) {
   }
 }
 
-bool GuiView::PrepareRenderable() {
+void GuiView::UpdateRenderable() {
+  if (!ImGui::GetCurrentContext()) {
+    return;
+  }
+
   // Prepare the imgui draw commands. We must call this function even if we do
   // not plan on rendering anything to ensure imgui state is updated.
   ImGui::Render();
@@ -199,6 +221,9 @@ bool GuiView::PrepareRenderable() {
   const ImVec2& size = io.DisplaySize;
   const ImVec2& scale = io.DisplayFramebufferScale;
   ImDrawData* commands = ImGui::GetDrawData();
+  if (!commands) {
+    return;
+  }
   commands->ScaleClipRects(scale);
 
   int num_elements = 0;
@@ -239,7 +264,12 @@ bool GuiView::PrepareRenderable() {
   }
 
   if (size.x == 0 || size.y == 0 || num_elements == 0) {
-    return false;
+    if (num_elements_ > 0) {
+      scene_->remove(renderable_);
+      rm.destroy(renderable_);
+    }
+    num_elements_ = 0;
+    return;
   }
 
   view_->setViewport(
@@ -321,7 +351,6 @@ bool GuiView::PrepareRenderable() {
       ++drawable_index;
     }
   }
-  return true;
 }
 
 filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
@@ -342,7 +371,9 @@ filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
   return instance;
 }
 
-filament::View* GuiView::PrepareRenderView() { return view_; }
+filament::View* GuiView::PrepareRenderView() {
+  return num_elements_ > 0 ? view_ : nullptr;
+}
 
 static ImVec2 ClipSpaceToWindowCoordinates(float x, float y) {
   const ImVec2& display_size = ImGui::GetIO().DisplaySize;

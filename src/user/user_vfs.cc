@@ -14,271 +14,483 @@
 
 #include "user/user_vfs.h"
 
+#include <sys/stat.h>
+#ifdef _WIN32
+#define stat _stat
+#endif
+
+#include <algorithm>
+#include <cctype>
 #include <cstddef>
-#include <cstring>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
+#include <cstring>
+#include <ctime>
+#include <functional>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include <mujoco/mujoco.h>
 #include "engine/engine_util_misc.h"
 #include "user/user_util.h"
 
 namespace {
 
-using mujoco::user::FilePath;
-using mujoco::user::FileToMemory;
-
-// internal struct for VFS files
-struct VFSFile {
-  FilePath filename;
-  std::vector<uint8_t> filedata;
-  std::size_t filesize;
-  uint64_t filestamp;
+// struct for holding the contents of a file
+struct ResourceFileData {
+  std::vector<uint8_t> contents;
+  time_t modified_time = 0;
+  bool is_read = false;
 };
 
-// internal container class for VFS
-class VFS {
- public:
-  // returns true if the file exists in the VFS
-  bool HasFile(const FilePath& filename) const;
+int OpenFile(const char* filename, mjResource* resource) {
+  struct stat file_stat;
+  if (stat(filename, &file_stat) == 0) {
+    ResourceFileData* data = new ResourceFileData();
+    resource->data = data;
 
-  // returns inserted mjuuVFSFile if the file was added successfully. This class
-  // assumes ownership of the buffer.
-  VFSFile* AddFile(const FilePath& filename, std::vector<uint8_t>&& buffer,
-                   uint64_t filestamp);
-
-  // returns the internal file struct for the given filename
-  const VFSFile* GetFile(const FilePath& filename) const;
-
-  // deletes file from VFS, return 0: success, -1: not found
-  int DeleteFile(const FilePath& filename);
-
- private:
-  std::unordered_map<std::string, VFSFile> files_;
-};
-
-// returns the internal VFS class pointer from the VFS C struct
-inline VFS* GetVFSImpl(const mjVFS* vfs) {
-  return vfs->impl_ ? static_cast<VFS*>(vfs->impl_) : nullptr;
-}
-
-// strip path prefix from filename and make lowercase
-FilePath StripPath(const char* filename) {
-  return FilePath(filename).StripPath().Lower();
-}
-
-// copies data into a buffer and produces a hash of the data
-uint64_t vfs_memcpy(std::vector<uint8_t>& dest, const void* src, size_t n) {
-  uint64_t hash = 0xcbf29ce484222325;  // magic number
-  uint64_t prime = 0x100000001b3;      // magic prime
-  const uint8_t* bytes = (uint8_t*) src;
-  for (size_t i = 0; i < n; i++) {
-    dest.push_back(bytes[i]);
-
-    // do FNV-1 hash
-    hash |= bytes[i];
-    hash *= prime;
+    data->modified_time = file_stat.st_mtime;
+    mju_encodeBase64(resource->timestamp, (uint8_t*)&file_stat.st_mtime,
+                     sizeof(time_t));
+    return 1;
   }
-  return hash;
-}
-
-// VFS hash function implemented using the FNV-1 hash
-uint64_t vfs_hash(const std::vector<uint8_t>& buffer) {
-  uint64_t hash = 0xcbf29ce484222325;  // magic number
-  uint64_t prime = 0x100000001b3;      // magic prime
-  const uint8_t* bytes = (uint8_t*) buffer.data();
-  std::size_t n = buffer.size();
-  for (std::size_t i = 0; i < n; i++) {
-    hash |= bytes[i];
-    hash *= prime;
-  }
-  return hash;
-}
-
-bool VFS::HasFile(const FilePath& filename) const {
-  return files_.find(filename.Str()) != files_.end();
-}
-
-VFSFile* VFS::AddFile(const FilePath& filename, std::vector<uint8_t>&& buffer,
-                      uint64_t filestamp) {
-  auto [it, inserted] = files_.insert({filename.Str(), VFSFile()});
-  if (!inserted) {
-    return nullptr;  // repeated name
-  }
-  it->second.filename = filename;
-  it->second.filedata = buffer;
-  it->second.filestamp = filestamp;
-  return &(it->second);
-}
-
-const VFSFile* VFS::GetFile(const FilePath& filename) const {
-  auto it = files_.find(filename.Str());
-  if (it == files_.end()) {
-    return nullptr;
-  }
-  return &it->second;
-}
-
-int VFS::DeleteFile(const FilePath& filename) {
-  auto it = files_.find(filename.Str());
-  if (it == files_.end()) {
-    return -1;
-  }
-  files_.erase(it);
   return 0;
 }
 
-// open callback for the VFS resource provider
-int Open(mjResource* resource) {
-  if (!resource || !resource->name || !resource->data) {
-    return 0;
+int ReadFile(const char* filename, mjResource* resource, const void** buffer) {
+  ResourceFileData* data = (ResourceFileData*)resource->data;
+  if (!data->is_read) {
+    data->contents = mujoco::user::FileToMemory(filename);
+    data->is_read = true;
   }
-
-  const mjVFS* vfs = (const mjVFS*) resource->data;
-  const VFS* cvfs = GetVFSImpl(vfs);
-  const VFSFile* file = cvfs->GetFile(StripPath(resource->name));
-  if (file == nullptr) {
-    file = cvfs->GetFile(FilePath(resource->name));
-    if (file == nullptr) {
-      return 0;
-    }
-  }
-
-  resource->data = (void*) file;
-  resource->timestamp[0] = '\0';
-  if (file->filestamp) {
-    mju_encodeBase64(resource->timestamp, (uint8_t*) &file->filestamp,
-                     sizeof(uint64_t));
-  }
-  return 1;
+  *buffer = data->contents.data();
+  return static_cast<int>(data->contents.size());
 }
 
-// read callback for the VFS resource provider
-int Read(mjResource* resource, const void** buffer) {
-  if (!resource || !resource->name || !resource->data) {
-    *buffer = nullptr;
-    return -1;
-  }
-
-  const VFSFile* file = static_cast<const VFSFile*>(resource->data);
-  if (file == nullptr) {
-    *buffer = nullptr;
-    return -1;
-  }
-
-  *buffer = file->filedata.data();
-  return file->filedata.size();
+void CloseFile(mjResource* resource) {
+  delete (ResourceFileData*)resource->data;
+  resource->data = nullptr;
 }
 
-// close callback for the VFS resource provider
-void Close(mjResource* resource) {
+int FileModified(const mjResource* resource, const char* timestamp) {
+  if (mju_isValidBase64(timestamp) != sizeof(time_t)) {
+    return 1;
+  }
+  time_t time;
+  mju_decodeBase64((uint8_t*)&time, timestamp);
+
+  ResourceFileData* data = (ResourceFileData*)resource->data;
+  const double diff = difftime(data->modified_time, time);
+
+  if (diff < 0) return -1;
+  if (diff > 0) return 1;
+  return 0;
 }
 
-// getdir callback for the VFS resource provider
-void GetDir(mjResource* resource, const char** dir, int* ndir) {
-  *dir = (resource) ? resource->name : nullptr;
-  *ndir = (resource) ? mjuu_dirnamelen(resource->name) : 0;
-}
-
-// modified callback for the VFS resource provider
-// return > 0 if modified and 0 if unmodified
-int Modified(const mjResource* resource, const char* timestamp) {
-  uint64_t filestamp;
-  if (mju_isValidBase64(timestamp) > sizeof(uint64_t)) {
-    return 2;  // error (assume modified)
+std::string StripPathAndLower(std::string path) {
+  std::size_t n = path.find_last_of("/\\");
+  if (n != std::string::npos) {
+    path = path.substr(n + 1);
   }
-
-  mju_decodeBase64((uint8_t*) &filestamp, timestamp);
-  if (!filestamp) return 3;  // no hash (assume modified)
-
-  if (resource) {
-    const VFSFile* file = static_cast<const VFSFile*>(resource->data);
-    if (file == nullptr) return 4;  // missing file (assume modified)
-    if (!file->filestamp) return 5;  // missing filestamp (assume modified)
-
-    if (file->filestamp == filestamp) {
-      return 0;  // unmodified
-    }
-  }
-  return 1;  // modified
+  std::transform(path.begin(), path.end(), path.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return path;
 }
 
 }  // namespace
 
-// initialize to empty (no deallocation)
+namespace mujoco::user {
+
+VFS::VFS(mjVFS* vfs) : self_(vfs) {
+  mjp_defaultResourceProvider(&default_provider_);
+  default_provider_.open = [](mjResource* res) {
+    return OpenFile(res->name, res);
+  };
+  default_provider_.read = [](mjResource* res, const void** buffer) {
+    return ReadFile(res->name, res, buffer);
+  };
+  default_provider_.close = [](mjResource* res) {
+    CloseFile(res);
+  };
+  default_provider_.modified = [](const mjResource* res, const char* time) {
+    return FileModified(res, time);
+  };
+
+  default_provider_.prefix = nullptr;
+  default_mount_.vfs = self_;
+  default_mount_.provider = &default_provider_;
+  default_mount_.data = nullptr;
+  default_mount_.name = nullptr;
+}
+
+VFS::~VFS() {
+  if (!open_resources_.empty()) {
+    mju_warning(
+        "VFS destroyed with %zu open resources. Resources will be invalidated.",
+        open_resources_.size());
+  }
+  for (auto& [ptr, res] : open_resources_) {
+    if (res->provider->close) {
+      res->provider->close(res.get());
+    }
+  }
+  open_resources_.clear();
+
+  for (auto& [path, res] : mounts_) {
+    if (res->provider->unmount) {
+      res->provider->unmount(res.get());
+    }
+  }
+  mounts_.clear();
+}
+
+mjResource* VFS::Open(const char* dir, const char* name) {
+  const std::string path = FilePath(dir, name).Str();
+
+  const mjResource* mount = FindMount(path);
+  if (!mount) {
+    MaybeSelfDestruct();
+    return nullptr;
+  }
+
+  ResourcePtr res = CreateResource(path.c_str(), mount->provider);
+
+  // Smuggle the mounted resource provider's mount-specific data pointer in the
+  // requested resource's data pointer. This allows the provider to access its
+  // own per-mount data without any intrusive changes to the provider interface.
+  res->data = mount->data;
+  const int result = mount->provider->open(res.get());
+  // If the data pointer was not modified, then that means the resource did not
+  // set its own data pointer. So, we need to set it back to nullptr.
+  if (res->data == mount->data) {
+    res->data = nullptr;
+  }
+
+  if (result == 0) {
+    res.reset();
+    MaybeSelfDestruct();
+    return nullptr;
+  }
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  mjResource* res_ptr = res.get();
+  open_resources_.emplace(res_ptr, std::move(res));
+  return res_ptr;
+}
+
+VFS::Status VFS::Mount(const FilePath& path,
+                       const mjpResourceProvider* provider) {
+  if (!provider) {
+    return kInvalidResourceProvider;
+  }
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (mounts_.contains(path.Str())) {
+      return kRepeatedName;
+    }
+  }
+
+  ResourcePtr res = CreateResource(path.c_str(), provider);
+  provider->mount(res.get());
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  mounts_.emplace(path.Str(), std::move(res));
+  return kSuccess;
+}
+
+VFS::Status VFS::Close(mjResource* res) {
+  VFS::Status status = kInvalidResource;
+  bool last_resource = false;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (auto it = open_resources_.find(res); it != open_resources_.end()) {
+      if (res->provider->close) {
+        res->provider->close(res);
+      }
+      open_resources_.erase(it);
+      last_resource = open_resources_.empty();
+      status = kSuccess;
+    }
+  }
+
+  if (status == kSuccess && last_resource) {
+    MaybeSelfDestruct();
+  }
+  return status;
+}
+
+VFS::Status VFS::Unmount(const FilePath& path) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (auto it = mounts_.find(path.Str()); it != mounts_.end()) {
+    if (it->second->provider->unmount) {
+      it->second->provider->unmount(it->second.get());
+    }
+    mounts_.erase(it);
+    return kSuccess;
+  }
+  return kInvalidResourceProvider;
+}
+
+int VFS::Read(mjResource* resource, const void** buffer) {
+  if (resource && resource->provider && resource->provider->read) {
+    return resource->provider->read(resource, buffer);
+  }
+  return kFailedToRead;
+}
+
+VFS::ResourcePtr VFS::CreateResource(std::string_view name,
+                                     const mjpResourceProvider* provider) {
+  mjResource* res = new mjResource();
+  res->vfs = self_;
+  res->provider = provider;
+  res->data = nullptr;
+  res->name = new char[name.size() + 1];
+  std::strncpy(res->name, name.data(), name.size());
+  res->name[name.size()] = 0;
+  res->timestamp[0] = 0;
+
+  return ResourcePtr(res, [](mjResource* ptr) {
+    if (ptr->data) {
+      // TODO: Make this an error eventually. For now, we continue to allow
+      // users to free their data pointers without resetting them to nullptr.
+      mju_warning(
+          "mjResource::data is not null; did you forget to close/unmount it?");
+    }
+    delete[] ptr->name;
+    delete ptr;
+  });
+}
+
+mjResource* VFS::FindMount(const std::string& fullpath) {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  std::string str = fullpath;
+  while (!str.empty()) {
+    auto it = mounts_.find(str);
+    if (it != mounts_.end()) {
+      return it->second.get();
+    }
+
+    std::size_t n = str.find_last_of("/\\");
+    if (n == std::string::npos) {
+      str = "";
+    } else {
+      str = str.substr(0, n);
+    }
+  }
+
+  const mjpResourceProvider* provider =
+      mjp_getResourceProvider(fullpath.c_str());
+  if (provider) {
+    if (auto it = mounts_.find(provider->prefix); it != mounts_.end()) {
+      return it->second.get();
+    }
+
+    ResourcePtr res = CreateResource(provider->prefix, provider);
+    mjResource* res_ptr = res.get();
+    mounts_.emplace(provider->prefix, std::move(res));
+    if (provider->mount) {
+      provider->mount(res_ptr);
+    }
+    return res_ptr;
+  }
+
+  // Legacy use-case: match on just the case-insensitive filename.
+  const std::string filename = StripPathAndLower(fullpath);
+  for (auto& [path, res] : mounts_) {
+    if (StripPathAndLower(path) == filename) {
+      return res.get();
+    }
+  }
+
+  return &default_mount_;
+}
+
+void VFS::MaybeSelfDestruct() {
+  if (destructor_) {
+    destructor_(self_);
+  }
+}
+
+void VFS::SetToSelfDestruct(std::function<void(mjVFS*)> destructor) {
+  destructor_ = std::move(destructor);
+}
+
+VFS* VFS::Upcast(mjVFS* vfs) {
+  return vfs ? static_cast<VFS*>(vfs->impl_) : nullptr;
+}
+
+const VFS* VFS::Upcast(const mjVFS* vfs) {
+  return vfs ? static_cast<const VFS*>(vfs->impl_) : nullptr;
+}
+
+}  // namespace mujoco::user
+
 void mj_defaultVFS(mjVFS* vfs) {
-  vfs->impl_ = new VFS();
+  if (vfs == nullptr) {
+    mju_error("mjVFS is null.");
+  } else {
+    vfs->impl_ = new mujoco::user::VFS(vfs);
+  }
 }
 
-// add file to VFS, return 0: success, 2: repeated name, -1: failed to load
-int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
-  VFS* cvfs = GetVFSImpl(vfs);
-
-  // make full name
-  const char* dir = directory != nullptr ? directory : "";
-  FilePath fullname = FilePath(dir, filename);
-
-  // strip path
-  FilePath newname = StripPath(filename);
-
-  // check beforehand for repeated name, to avoid reading file into memory
-  if (cvfs->HasFile(newname)) {
-    return 2;
-  }
-
-  // allocate and read
-  std::vector<uint8_t> buffer = FileToMemory(fullname.c_str());
-  if (buffer.empty()) {
-    return -1;
-  }
-
-  if (!cvfs->AddFile(newname, std::move(buffer), vfs_hash(buffer))) {
-    return 2;  // AddFile failed, SHOULD NOT OCCUR
-  }
-  return 0;
-}
-
-// add file from buffer into VFS
-int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer,
-                    int nbuffer) {
-  std::vector<uint8_t> inbuffer;
-  VFS* cvfs = GetVFSImpl(vfs);
-  VFSFile* file;
-  if (!(file = cvfs->AddFile(FilePath(name), std::move(inbuffer), 0))) {
-    return 2;  // AddFile failed, repeated name
-  }
-  try {
-    file->filedata.reserve(nbuffer);
-  } catch (...) {
-    cvfs->DeleteFile(file->filename);  // delete file on error
-    return -1;
-  }
-  file->filestamp = vfs_memcpy(file->filedata, buffer, nbuffer);
-  return 0;
-}
-
-// delete file from VFS, return 0: success, -1: not found in VFS
-int mj_deleteFileVFS(mjVFS* vfs, const char* filename) {
-  VFS* cvfs = GetVFSImpl(vfs);
-  if (cvfs->DeleteFile(StripPath(filename))) {
-    return cvfs->DeleteFile(FilePath(filename));
-  }
-  return 0;
-}
-
-// delete all files from VFS
 void mj_deleteVFS(mjVFS* vfs) {
   if (vfs) {
-    delete GetVFSImpl(vfs);
+    delete mujoco::user::VFS::Upcast(vfs);
+    vfs->impl_ = nullptr;
   }
 }
 
-const mjpResourceProvider* GetVfsResourceProvider() {
-  static mjpResourceProvider provider
-    = { nullptr, &Open, &Read, &Close, &GetDir, &Modified, nullptr };
-  return &provider;
+int mj_mountVFS(mjVFS* vfs, const char* filepath,
+                const mjpResourceProvider* provider) {
+  mujoco::user::VFS* impl = mujoco::user::VFS::Upcast(vfs);
+  if (impl == nullptr) {
+    mju_error("mjVFS is null.");
+    return mujoco::user::VFS::kInvalidVfs;
+  }
+
+  if (filepath == nullptr) {
+    return mujoco::user::VFS::kNotFound;
+  }
+  const mujoco::user::FilePath path(filepath);
+  const mujoco::user::VFS::Status status = impl->Mount(path, provider);
+  return static_cast<int>(status);
+}
+
+int mj_unmountVFS(mjVFS* vfs, const char* filename) {
+  mujoco::user::VFS* impl = mujoco::user::VFS::Upcast(vfs);
+  if (impl == nullptr) {
+    mju_error("mjVFS is null.");
+    return mujoco::user::VFS::kInvalidVfs;
+  }
+
+  if (filename == nullptr) {
+    return mujoco::user::VFS::kNotFound;
+  }
+  const mujoco::user::FilePath path(filename);
+  const mujoco::user::VFS::Status status = impl->Unmount(path);
+  return static_cast<int>(status);
+}
+
+namespace {
+
+// Custom provider for mj_addFileVFS and mj_addBufferVFS.
+class BufferProvider : public mjpResourceProvider {
+ public:
+  template <typename... Args>
+  static int Mount(mjVFS* vfs, Args&&... args) {
+    mujoco::user::VFS* impl = mujoco::user::VFS::Upcast(vfs);
+    if (impl == nullptr) {
+      mju_error("mjVFS is null.");
+      return -1;
+    }
+
+    BufferProvider* provider = new BufferProvider(std::forward<Args>(args)...);
+    provider->mount = [](mjResource* res) {
+      return static_cast<int>(mujoco::user::VFS::kSuccess);
+    };
+    provider->unmount = [](mjResource* res) {
+      delete (BufferProvider*)res->provider;
+      return static_cast<int>(mujoco::user::VFS::kSuccess);
+    };
+    provider->open = [](mjResource* res) {
+      BufferProvider* self = (BufferProvider*)res->provider;
+      mju_encodeBase64(res->timestamp, (std::uint8_t*)&self->hash_,
+                       sizeof(self->hash_));
+      return 1;
+    };
+    provider->read = [](mjResource* res, const void** out) {
+      BufferProvider* self = (BufferProvider*)res->provider;
+      *out = reinterpret_cast<void*>(self->contents_.data());
+      return static_cast<int>(self->contents_.size());
+    };
+    provider->close = [](mjResource* res) {
+      // no-op
+    };
+    provider->modified = [](const mjResource* res, const char* timestamp) {
+      const BufferProvider* self = (const BufferProvider*)res->provider;
+      if (mju_isValidBase64(timestamp) > sizeof(std::uint64_t)) {
+        return 1;
+      }
+      std::uint64_t test = 0;
+      mju_decodeBase64((std::uint8_t*)&test, timestamp);
+      if (self->hash_ != test) {
+        return 1;
+      }
+      return 0;
+    };
+
+    const mujoco::user::VFS::Status status =
+        impl->Mount(provider->path_, provider);
+    if (status != mujoco::user::VFS::kSuccess) {
+      delete provider;
+    }
+    return static_cast<int>(status);
+  }
+
+ private:
+  BufferProvider(const char* dir, const char* filename) {
+    mjp_defaultResourceProvider(this);
+
+    mujoco::user::FilePath file_path(dir ? dir : "", filename);
+    path_ = file_path.StripPath().Lower();
+    contents_ = mujoco::user::FileToMemory(file_path.c_str());
+
+    static constexpr std::uint64_t prime = 0x100000001b3;
+    hash_ = contents_.empty() ? 0 : 0xcbf29ce484222325;
+    for (const std::uint8_t& byte : contents_) {
+      hash_ |= byte;
+      hash_ *= prime;
+    }
+  }
+
+  BufferProvider(const char* name, const void* src, size_t n) {
+    mjp_defaultResourceProvider(this);
+    path_ = mujoco::user::FilePath(name);
+
+    static constexpr std::uint64_t prime = 0x100000001b3;
+    hash_ = n ? 0xcbf29ce484222325 : 0;
+
+    const std::uint8_t* src_bytes = static_cast<const std::uint8_t*>(src);
+    contents_.reserve(n);
+    for (size_t i = 0; i < n; i++) {
+      contents_.push_back(src_bytes[i]);
+      hash_ |= src_bytes[i];
+      hash_ *= prime;
+    }
+  }
+
+  mujoco::user::FilePath path_;
+  std::vector<std::uint8_t> contents_;
+  std::uint64_t hash_ = 0;
+};
+
+}  // namespace
+
+int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
+  // Opens the files and copies its contents into the BufferProvider, then
+  // mounts the provider at the given path.
+  return BufferProvider::Mount(vfs, directory, filename);
+}
+
+int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer,
+                    int nbuffer) {
+  // Copies the buffer into the BufferProvider and mounts it at the given path.
+  return BufferProvider::Mount(vfs, name, buffer, nbuffer);
+}
+
+int mj_deleteFileVFS(mjVFS* vfs, const char* filename) {
+  if (filename == nullptr) {
+    return mujoco::user::VFS::kNotFound;
+  }
+
+  if (mj_unmountVFS(vfs, filename) != 0) {
+    mujoco::user::FilePath path(filename);
+    return mj_unmountVFS(vfs, path.StripPath().Lower().c_str());
+  }
+  return mujoco::user::VFS::kSuccess;
 }

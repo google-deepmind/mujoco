@@ -29,6 +29,7 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <utils/Entity.h>
+#include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/buffer_util.h"
 #include "experimental/filament/filament/geom_util.h"
@@ -42,10 +43,6 @@ using filament::math::float2;
 using filament::math::float3;
 using filament::math::float4;
 using filament::math::mat4;
-
-// Planes with a 0-size dimension should be infinitely large. However, we
-// don't support that directly so we use a large but finite size instead.
-static constexpr float kInfinitePlaneFakeSize = 1000.0f;
 
 // An arbitrary scale factor for arrows.
 static constexpr float kArrowScale = 1.f / 6.f;
@@ -68,6 +65,19 @@ static constexpr int kArrow2TopCone = 1;
 static constexpr int kArrow2BottomCone = 2;
 static constexpr int kArrow2TopConeDisk = 3;
 static constexpr int kArrow2BottomConeDisk = 4;
+
+// Returns the tile size for infinite plane texture alignment.
+// This is duplicated from engine_vis_visualize.c (re-center infinite plane)
+// to ensure UV scaling matches the re-centering increments.
+static float GetPlaneTileSize(const mjModel* model, int matid,
+                              float texrepeat) {
+  if (matid >= 0 && texrepeat > 0) {
+    return 2.0f / texrepeat;
+  } else {
+    const float zfar = model->vis.map.zfar * model->stat.extent;
+    return 2.1f * zfar / (mjMAXPLANEGRID - 2);
+  }
+}
 
 Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
     : material_(object_mgr), renderables_(object_mgr->GetEngine()) {
@@ -161,7 +171,7 @@ void Drawable::Update(const mjModel* model, const mjvScene* scene,
   }
 
   SetTransform(geom);
-  UpdateMaterial(geom);
+  UpdateMaterial(geom, scene->flags[mjRND_IDCOLOR]);
 }
 
 void Drawable::AddMesh(int data_id) {
@@ -201,11 +211,6 @@ void Drawable::RemoveFromScene(filament::Scene* scene) {
 
 void Drawable::SetDrawMode(Material::DrawMode mode) {
   renderables_.SetMaterialInstance(material_.GetMaterialInstance(mode));
-}
-
-void Drawable::SetUseDistinctSegmentationColors(
-    bool use_distinct_segmentation_colors) {
-  use_distinct_segmentation_colors_ = use_distinct_segmentation_colors;
 }
 
 void Drawable::SetTransform(const mjvGeom& geom) {
@@ -305,23 +310,27 @@ void Drawable::SetTransform(const mjvGeom& geom) {
         entity_transform *=
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       }
-    } else if (geom.type == mjGEOM_PLANE) {
-      // A plane with 0-size in any dimension is considered to be an infinite
-      // plane, but we don't really support that so just scale it so that its
-      // very large.
-      if (size.x == 0 && size.y == 0) {
-        size = float3(kInfinitePlaneFakeSize, kInfinitePlaneFakeSize, size.z);
-      }
     }
-
-    if (geom.type != mjGEOM_MESH && geom.type != mjGEOM_HFIELD) {
+    if (geom.type == mjGEOM_PLANE) {
+      const bool is_infinite = !(size.x > 0 && size.y > 0);
+      if (is_infinite) {
+        // Infinite planes are scaled to match the tile size used by
+        // re-centering in engine_vis_visualize.c.
+        const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
+        entity_transform *=
+            mat4::scaling(float3{plane_scale, plane_scale, 1.0f});
+      } else {
+        // Regular planes are scaled by geom.size.
+        entity_transform *= mat4::scaling(float3{size.x, size.y, 1.0f});
+      }
+    } else if (geom.type != mjGEOM_MESH && geom.type != mjGEOM_HFIELD) {
       entity_transform *= mat4::scaling(size);
     }
     tm.setTransform(tm.getInstance(entity), entity_transform);
   }
 }
 
-void Drawable::UpdateMaterial(const mjvGeom& geom) {
+void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
   ObjectManager* object_mgr = material_.GetObjectManager();
   const mjModel* model = object_mgr->GetModel();
 
@@ -405,7 +414,6 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
   params.emissive = geom.emission;
   params.specular = geom.specular;
   params.glossiness = geom.shininess;
-  params.use_distinct_segmentation_colors = use_distinct_segmentation_colors_;
   if (geom.matid >= 0) {
     params.metallic = model->mat_metallic[geom.matid];
     params.roughness = model->mat_roughness[geom.matid];
@@ -414,8 +422,8 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
   }
 
   if (geom.segid >= 0) {
-    uint32_t segmentation_color = geom.segid;
-    if (use_distinct_segmentation_colors_) {
+    uint32_t segmentation_color = geom.segid + 1;
+    if (!use_segid_color) {
       constexpr double phi1 = 1.61803398874989484820;  // Cached Phi(1).
       constexpr double coef1 = 1.0 / phi1;
       const double index = static_cast<double>(geom.segid);
@@ -462,17 +470,29 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
           params.uv_scale.y *= geom.size[1];
         }
       }
-      if (geom.type == mjGEOM_PLANE) {
-        if (geom.size[0] == 0) {
-          params.uv_scale.x = kInfinitePlaneFakeSize;
-        }
-        if (geom.size[1] == 0) {
-          params.uv_scale.y = kInfinitePlaneFakeSize;
-        }
+      const bool is_infinite_plane =
+          geom.type == mjGEOM_PLANE && (geom.size[0] <= 0 || geom.size[1] <= 0);
+      if (is_infinite_plane) {
+        // Infinite planes are scaled to match the tile size used by
+        // re-centering in engine_vis_visualize.c.
+        const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
+        const float tile_size_x =
+            GetPlaneTileSize(model, geom.matid, params.tex_repeat.x);
+        const float tile_size_y =
+            GetPlaneTileSize(model, geom.matid, params.tex_repeat.y);
+        params.uv_scale.x = 2.0f * plane_scale / tile_size_x;
+        params.uv_scale.y = 2.0f * plane_scale / tile_size_y;
       }
 
+      // We want to do the equivalent of:
+      //   mjr_setf4(splane, 0.5 * scl.x,  0, 0, -0.5);
+      //   mjr_setf4(tplane, 0, -0.5 * scl.y, 0, -0.5);
+      //   glTexGenfv(GL_S, GL_OBJECT_PLANE, splane);
+      //   glTexGenfv(GL_T, GL_OBJECT_PLANE, tplane);
       params.uv_scale.x = 0.5f * params.uv_scale.x;
-      params.uv_scale.y = 0.5f * params.uv_scale.y;
+      params.uv_scale.y = -0.5f * params.uv_scale.y;
+      params.uv_offset.x = -0.5f;
+      params.uv_offset.y = -0.5f;
     } else {
       // For cube maps, if `tex_uniform` is true, then scale the texture so that
       // it covers a 1x1 area of world space rather than the area of the object.

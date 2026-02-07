@@ -12,17 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_USD_KINEMATIC_TREE_H_
-#define MUJOCO_SRC_EXPERIMENTAL_USD_KINEMATIC_TREE_H_
+#ifndef MUJOCO_PLUGIN_USD_DECODER_KINEMATIC_TREE_H_
+#define MUJOCO_PLUGIN_USD_DECODER_KINEMATIC_TREE_H_
 
 #include <memory>
 #include <vector>
 
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/usdPhysics/joint.h>
-
-namespace mujoco {
-namespace usd {
 
 // A struct to represent a node in the kinematic tree.
 // Using a struct with a vector of children preserves the order of bodies,
@@ -31,6 +28,7 @@ struct Node {
   pxr::SdfPath body_path;
   pxr::SdfPath physics_scene;
   std::vector<pxr::SdfPath> actuators;
+  std::vector<pxr::SdfPath> constraints;
   std::vector<pxr::SdfPath> joints;
   std::vector<pxr::SdfPath> visual_gprims;
   std::vector<pxr::SdfPath> colliders;
@@ -51,7 +49,4 @@ using JointVec = std::vector<pxr::UsdPhysicsJoint>;
 // Returns the root of the kinematic tree, or `nullptr` for invalid structures.
 std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage);
 
-}  // namespace usd
-}  // namespace mujoco
-
-#endif  // MUJOCO_SRC_EXPERIMENTAL_USD_KINEMATIC_TREE_H_
+#endif  // MUJOCO_PLUGIN_USD_DECODER_KINEMATIC_TREE_H_

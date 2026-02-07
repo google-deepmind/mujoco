@@ -56,20 +56,26 @@ class FilamentContext {
 
   double GetFrameRate() const;
 
+  void UpdateGui();
+
   FilamentContext(const FilamentContext&) = delete;
   FilamentContext& operator=(const FilamentContext&) = delete;
 
  private:
+  enum SwapChainType {
+    kWindowSwapChain,
+    kOffscreenSwapChain,
+  };
+
   void PrepareRenderTargets(int width, int height);
   void DestroyRenderTargets();
-
-  SceneView* GetSceneView(const mjvScene* scene);
 
   mjrFilamentConfig config_;
   mjrContext* context_ = nullptr;
   const mjModel* model_ = nullptr;
   filament::Engine* engine_ = nullptr;
-  filament::SwapChain* swap_chain_ = nullptr;
+  filament::SwapChain* window_swap_chain_ = nullptr;
+  filament::SwapChain* offscreen_swap_chain_ = nullptr;
   filament::Renderer* renderer_ = nullptr;
   filament::RenderTarget* color_target_ = nullptr;
   filament::RenderTarget* depth_target_ = nullptr;
@@ -77,8 +83,8 @@ class FilamentContext {
       nullptr, nullptr, nullptr};
 
   SceneView::DrawMode last_render_mode_ = SceneView::DrawMode::kNormal;
-  bool render_to_texture_ = false;
-  bool render_gui_ = false;
+  SwapChainType scene_swap_chain_target_ = kWindowSwapChain;
+  SwapChainType gui_swap_chain_target_ = kWindowSwapChain;
 
   std::unique_ptr<ObjectManager> object_manager_;
   std::unique_ptr<SceneView> scene_view_;

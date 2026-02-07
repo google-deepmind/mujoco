@@ -153,9 +153,9 @@ static void mixcolor(float rgba[4], const float ref[4], int flg1, int flg2) {
 }
 
 
-// a body is static if it is welded to the world and is not a mocap body
+// a body is static if it is welded to the world and is not a mocap body or descendant thereof
 static int bodycategory(const mjModel* m, int bodyid) {
-  if (m->body_weldid[bodyid] == 0 && m->body_mocapid[bodyid] == -1) {
+  if (m->body_weldid[bodyid] == 0 && m->body_mocapid[m->body_rootid[bodyid]] == -1) {
     return mjCAT_STATIC;
   } else {
     return mjCAT_DYNAMIC;
@@ -522,7 +522,7 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
     if (cid < 0 || cid >= m->ncam) {
       mjERROR("fixed camera id is outside valid range");
     }
-    orthographic = m->cam_orthographic[cid];
+    orthographic = m->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
     fovy = m->cam_fovy[cid];
 
     // if positive sensorsize, get sensorsize and intrinsic
@@ -539,21 +539,13 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
   const float znear = m->vis.map.znear * m->stat.extent;
 
   if (orthographic) {
-    if (zver) {
-      zver[0] = zver[1] = fovy / 2;
-    }
-    if (zhor) {
-      zhor[0] = zhor[1] = 0.0f;
-    }
+    if (zver) zver[0] = zver[1] = fovy / 2;
+    if (zhor) zhor[0] = zhor[1] = 0.0f;
   } else if (intrinsic) {
     getFrustum(zver, zhor, znear, intrinsic, sensorsize);
   } else {
-    if (zver) {
-      zver[0] = zver[1] = znear * mju_tan(fovy * mjPI/360.0);
-    }
-    if (zhor) {
-      zhor[0] = zhor[1] = 0.0f;
-    }
+    if (zver) zver[0] = zver[1] = znear * mju_tan(fovy * mjPI/360.0);
+    if (zhor) zhor[0] = zhor[1] = 0.0f;
   }
 
   if (zclip) {
@@ -2232,8 +2224,8 @@ static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, m
     float cam_rgba[4];
     f2f(cam_rgba, m->vis.rgba.camera, 4);
 
-    // draw frustum if sensorsize is defined
-    if (m->cam_sensorsize[2*i+1] > 0) {
+    // draw frustum if resolution larger than (1, 1)
+    if (m->cam_resolution[2*i] > 1 || m->cam_resolution[2*i+1] > 1) {
       // when drawing frustum, make camera translucent
       cam_rgba[3] = 0.3;
 
@@ -2244,9 +2236,22 @@ static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, m
       mjtNum znear = m->vis.map.znear * m->stat.extent;
       mjtNum zfar = m->vis.scale.frustum * scl;
       float zver[2], zhor[2];
+      int orthographic = m->cam_projection[i] == mjPROJ_ORTHOGRAPHIC;
 
       // get frustum
-      getFrustum(zver, zhor, znear, m->cam_intrinsic + 4*i, m->cam_sensorsize + 2*i);
+      if (orthographic) {
+        float aspect = (float)m->cam_resolution[2*i] / m->cam_resolution[2*i+1];
+        zver[0] = zver[1] = m->cam_fovy[i] / 2;
+        zhor[0] = zhor[1] = m->cam_fovy[i] * aspect / 2;
+      } else if (m->cam_sensorsize[2*i] && m->cam_sensorsize[2*i+1]) {
+        // intrinsic-based perspective camera
+        getFrustum(zver, zhor, znear, m->cam_intrinsic+4*i, m->cam_sensorsize+2*i);
+      } else {
+        // fovy-based perspective camera
+        float aspect = (float)m->cam_resolution[2*i] / m->cam_resolution[2*i+1];
+        zver[0] = zver[1] = znear * mju_tan(m->cam_fovy[i] * mjPI / 360.0);
+        zhor[0] = zhor[1] = zver[0] * aspect;
+      }
 
       // frustum frame to convert from planes to vertex representation
       mjtNum* cam_xpos = d->cam_xpos+3*i;
@@ -2266,11 +2271,15 @@ static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, m
       mju_addToScl3(vnear[2], y,  zver[1]);
       mju_addToScl3(vnear[3], y,  zver[1]);
 
-      // vertices of the far plane
-      zhor[0] *= zfar / znear;
-      zhor[1] *= zfar / znear;
-      zver[0] *= zfar / znear;
-      zver[1] *= zfar / znear;
+      // vertices of the far plane: scale for perspective, average(width, height) for orthographic
+      if (!orthographic) {
+        zhor[0] *= zfar / znear;
+        zhor[1] *= zfar / znear;
+        zver[0] *= zfar / znear;
+        zver[1] *= zfar / znear;
+      } else {
+        zfar = (zhor[0] + zver[0]) / 2;
+      }
       mju_addScl3(center, cam_xpos, z, -zfar);
       mju_addScl3(vfar[0], center, x, -zhor[0]);
       mju_addScl3(vfar[1], center, x,  zhor[1]);
@@ -2467,24 +2476,142 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
     return;
   }
 
+  const float scl = m->stat.meansize;
+  mjtNum framewidth = m->vis.scale.framewidth * scl;
+  mjtNum framelength = m->vis.scale.framelength * scl;
+
   for (int i=0; i < m->nsensor; i++) {
     if (m->sensor_type[i] == mjSENS_RANGEFINDER) {
-      // sensor data
-      mjtNum dst = d->sensordata[m->sensor_adr[i]];
-      int sid = m->sensor_objid[i];
+      int objid = m->sensor_objid[i];
+      int adr = m->sensor_adr[i];
 
-      // null output: nothing to render
-      if (dst < 0) {
-        continue;
+      // get dataspec and compute field offsets
+      int dataspec = m->sensor_intprm[i*mjNSENS];
+      int size = mju_raydataSize(dataspec);
+      int offset[mjNRAYDATA] = {0};
+      int increment = 0;
+      for (int j=0; j < mjNRAYDATA; j++) {
+        offset[j] = increment;
+        if (dataspec & (1 << j)) {
+          increment += mjRAYDATA_SIZE[j];
+        }
       }
 
-      // make ray
-      mjtNum* from = d->site_xpos+3*sid;
-      mjtNum to[3] = {from[0] + d->site_xmat[9*sid+2]*dst,
-                      from[1] + d->site_xmat[9*sid+5]*dst,
-                      from[2] + d->site_xmat[9*sid+8]*dst};
-      addConnector(scn, mjGEOM_LINE, 3, from, to, m->vis.rgba.rangefinder,
-                   i, mjCAT_DECOR, mjOBJ_SENSOR);
+      // site-attached rangefinder
+      if (m->sensor_objtype[i] == mjOBJ_SITE) {
+        const mjtNum* ptr = d->sensordata + adr;
+
+        // get distance (if present)
+        mjtNum dist = -1;
+        if (dataspec & (1 << mjRAYDATA_DIST)) {
+          dist = ptr[offset[mjRAYDATA_DIST]];
+        }
+
+        // get point and draw line if dist is valid
+        mjtNum point[3] = {0};
+        if (dist >= 0) {
+          mjtNum* origin = d->site_xpos + 3*objid;
+          point[0] = origin[0] + d->site_xmat[9*objid+2]*dist;
+          point[1] = origin[1] + d->site_xmat[9*objid+5]*dist;
+          point[2] = origin[2] + d->site_xmat[9*objid+8]*dist;
+          addConnector(scn, mjGEOM_LINE, 3, origin, point, m->vis.rgba.rangefinder,
+                       i, mjCAT_DECOR, mjOBJ_SENSOR);
+        }
+
+        // draw point if present and non-zero
+        if (dataspec & (1 << mjRAYDATA_POINT)) {
+          const mjtNum* point_data = ptr + offset[mjRAYDATA_POINT];
+          if (point_data[0] || point_data[1] || point_data[2]) {
+            mju_copy3(point, point_data);
+            mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_SENSOR);
+            if (thisgeom) {
+              thisgeom->type = mjGEOM_SPHERE;
+              thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = 1.5 * framewidth;
+              mju_n2f(thisgeom->pos, point, 3);
+              mju_n2f(thisgeom->mat, IDENTITY, 9);
+              f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
+              releaseGeom(&thisgeom, scn);
+            }
+          }
+        }
+
+        // draw normal if present and point is valid
+        int valid_point = dist >= 0 || point[0] || point[1] || point[2];
+        if (valid_point && (dataspec & (1 << mjRAYDATA_NORMAL))) {
+          const mjtNum* normal = ptr + offset[mjRAYDATA_NORMAL];
+          mjtNum to[3];
+          mju_addScl3(to, point, normal, 2*framelength);
+          addConnector(scn, mjGEOM_ARROW1, framewidth, point, to,
+                       m->vis.rgba.rangefinder, i, mjCAT_DECOR, mjOBJ_SENSOR);
+        }
+      }
+
+      // camera-attached rangefinder
+      else if (m->sensor_objtype[i] == mjOBJ_CAMERA) {
+        const int width = m->cam_resolution[2*objid];
+        const int height = m->cam_resolution[2*objid+1];
+        const mjtNum* cam_xpos = d->cam_xpos + 3*objid;
+        const mjtNum* cam_xmat = d->cam_xmat + 9*objid;
+        const int projection = m->cam_projection[objid];
+
+        // compute focal length in pixels using helper
+        mjtNum fx, fy, cx, cy, ortho_extent;
+        mju_camIntrinsics(m, objid, &fx, &fy, &cx, &cy, &ortho_extent);
+
+        // draw for each pixel
+        for (int row = 0; row < height; row++) {
+          for (int col = 0; col < width; col++) {
+            int idx = row*width + col;
+            const mjtNum* ptr = d->sensordata + adr + idx*size;
+
+            // get distance (if present)
+            mjtNum dist = -1;
+            if (dataspec & (1 << mjRAYDATA_DIST)) {
+              dist = ptr[offset[mjRAYDATA_DIST]];
+            }
+
+            // compute ray origin and direction
+            mjtNum origin[3], direction[3];
+            mju_camPixelRay(origin, direction, cam_xpos, cam_xmat,
+                            col, row, fx, fy, cx, cy, projection, ortho_extent);
+
+            // get point and draw line if dist is valid
+            mjtNum point[3] = {0};
+            if (dist >= 0) {
+              mju_addScl3(point, origin, direction, dist);
+              addConnector(scn, mjGEOM_LINE, 3, origin, point, m->vis.rgba.rangefinder,
+                           i, mjCAT_DECOR, mjOBJ_SENSOR);
+            }
+
+            // draw point if present and non-zero
+            if (dataspec & (1 << mjRAYDATA_POINT)) {
+              const mjtNum* point_data = ptr + offset[mjRAYDATA_POINT];
+              if (point_data[0] || point_data[1] || point_data[2]) {
+                mju_copy3(point, point_data);
+                mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_SENSOR);
+                if (thisgeom) {
+                  thisgeom->type = mjGEOM_SPHERE;
+                  thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = 1.3 * framewidth;
+                  mju_n2f(thisgeom->pos, point, 3);
+                  mju_n2f(thisgeom->mat, IDENTITY, 9);
+                  f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
+                  releaseGeom(&thisgeom, scn);
+                }
+              }
+            }
+
+            // draw normal if present and point is valid
+            int valid_point = dist >= 0 || point[0] || point[1] || point[2];
+            if (valid_point && (dataspec & (1 << mjRAYDATA_NORMAL))) {
+              const mjtNum* normal = ptr + offset[mjRAYDATA_NORMAL];
+              mjtNum to[3];
+              mju_addScl3(to, point, normal, 2*framelength);
+              addConnector(scn, mjGEOM_ARROW1, framewidth, point, to,
+                           m->vis.rgba.rangefinder, i, mjCAT_DECOR, mjOBJ_SENSOR);
+            }
+          }
+        }
+      }
     } else if (m->sensor_type[i] == mjSENS_GEOMFROMTO) {
       // sensor data
       mjtNum* fromto = d->sensordata + m->sensor_adr[i];
@@ -2763,7 +2890,7 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
       mjERROR("fixed camera id is outside valid range");
     }
     ipd = m->cam_ipd[cid];
-    orthographic = m->cam_orthographic[cid];
+    orthographic = m->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
     break;
 
   default:

@@ -376,6 +376,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   int issparse = mj_isSparse(m), nv = m->nv;
   int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL, *buf_ind = NULL;
   int flex_edgeadr, flex_edgenum;
+  int flex_vertadr, flex_vertnum;
   mjtNum cpos[6], pos[2][3], ref[2], dif, deriv;
   mjtNum quat[4], quat1[4], quat2[4], quat3[4], axis[3];
   mjtNum *jac[2], *jacdif, *data, *sparse_buf = NULL;
@@ -447,7 +448,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
       // compute Jacobian difference (opposite of contact: 0 - 1)
       NV = mj_jacDifPair(m, d, chain, body_id[1], body_id[0], pos[1], pos[0],
-                          jac[1], jac[0], jacdif, NULL, NULL, NULL);
+                          jac[1], jac[0], jacdif, NULL, NULL, NULL, issparse);
 
       // copy difference into jac[0]
       mju_copy(jac[0], jacdif, 3*NV);
@@ -483,7 +484,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       // compute error Jacobian (opposite of contact: 0 - 1)
       NV = mj_jacDifPair(m, d, chain, body_id[1], body_id[0], pos[1], pos[0],
                           jac[1], jac[0], jacdif,
-                          jac[1]+3*nv, jac[0]+3*nv, jacdif+3*nv);
+                          jac[1]+3*nv, jac[0]+3*nv, jacdif+3*nv, issparse);
 
       // copy difference into jac[0], compress translation:rotation if sparse
       mju_copy(jac[0], jacdif, 3*NV);
@@ -627,14 +628,44 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
         // add constraint: sparse or dense
         if (issparse) {
-          mj_addConstraint(m, d, d->flexedge_J+d->flexedge_J_rowadr[e], cpos, 0, 0,
-                            1, mjCNSTR_EQUALITY, i,
-                            d->flexedge_J_rownnz[e],
-                            d->flexedge_J_colind+d->flexedge_J_rowadr[e]);
+          mj_addConstraint(m, d, d->flexedge_J+m->flexedge_J_rowadr[e], cpos, 0, 0,
+                           1, mjCNSTR_EQUALITY, i,
+                           m->flexedge_J_rownnz[e],
+                           m->flexedge_J_colind+m->flexedge_J_rowadr[e]);
         } else {
-          mj_addConstraint(m, d, d->flexedge_J+e*nv, cpos, 0, 0,
-                            1, mjCNSTR_EQUALITY, i,
-                            0, NULL);
+          mju_zero(jac[0], nv);  // reuse first row of jac[0]
+          int rowadr = m->flexedge_J_rowadr[e];
+          int rownnz = m->flexedge_J_rownnz[e];
+          for (int k=0; k<rownnz; k++) {
+            jac[0][m->flexedge_J_colind[rowadr+k]] = d->flexedge_J[rowadr+k];
+          }
+          mj_addConstraint(m, d, jac[0], cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
+        }
+      }
+      break;
+
+    case mjEQ_FLEXVERT:
+      // add two constraints per vertex
+      flex_vertadr = m->flex_vertadr[id[0]];
+      flex_vertnum = m->flex_vertnum[id[0]];
+      for (int v=flex_vertadr; v < flex_vertadr+flex_vertnum; v++) {
+        for (int j=0; j < 2; j++) {
+          cpos[0] = d->flexvert_length[2*v+j];
+          int row = 2*v+j;
+          if (issparse) {
+            mj_addConstraint(m, d, d->flexvert_J + m->flexvert_J_rowadr[row],
+                             cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
+                             m->flexvert_J_rownnz[row],
+                             m->flexvert_J_colind + m->flexvert_J_rowadr[row]);
+          } else {
+            mju_zero(jac[0], nv);  // reuse first row of jac[0]
+            int rowadr = m->flexvert_J_rowadr[row];
+            int rownnz = m->flexvert_J_rownnz[row];
+            for (int k=0; k<rownnz; k++) {
+              jac[0][m->flexvert_J_colind[rowadr+k]] = d->flexvert_J[rowadr+k];
+            }
+            mj_addConstraint(m, d, jac[0], cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
+          }
         }
       }
       break;
@@ -891,10 +922,10 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
     // compute Jacobian differences
     if (dim > 3) {
       return mj_jacDifPair(m, d, chain, bid[0], bid[1], con->pos, con->pos,
-                           jac1p, jac2p, jacdifp, jac1r, jac2r, jacdifr);
+                           jac1p, jac2p, jacdifp, jac1r, jac2r, jacdifr, mj_isSparse(m));
     } else {
       return mj_jacDifPair(m, d, chain, bid[0], bid[1], con->pos, con->pos,
-                           jac1p, jac2p, jacdifp, NULL, NULL, NULL);
+                           jac1p, jac2p, jacdifp, NULL, NULL, NULL, mj_isSparse(m));
     }
   }
 
@@ -1134,8 +1165,23 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         i--;
         break;
 
+      case mjEQ_FLEXVERT:
+        // process all vertices for this flex
+        f = m->eq_obj1id[id];
+        int vertadr = m->flex_vertadr[f];
+        int vertnum = m->flex_vertnum[f];
+        for (int v=vertadr; v<vertadr+vertnum; v++) {
+          int bodyid = m->flex_vertbodyid[v];
+          dA[i++] = m->body_invweight0[2*bodyid];
+          dA[i++] = m->body_invweight0[2*bodyid];
+        }
+
+        // adjust constraint counter
+        i--;
+        break;
+
       default:
-        mjERROR("unknown constraint type type %d", d->efc_type[i]);    // SHOULD NOT OCCUR
+        mjERROR("unknown constraint type %d", d->efc_type[i]);    // SHOULD NOT OCCUR
       }
       break;
 
@@ -1601,7 +1647,7 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
   int nv = m->nv, neq = m->neq;
   int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL;
   int issparse = (nnz != NULL);
-  int flex_edgeadr, flex_edgenum;
+  int flex_edgeadr, flex_edgenum, flex_vertadr, flex_vertnum;
 
   // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax == 0) {
@@ -1724,14 +1770,30 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
       }
       break;
 
+    case mjEQ_FLEXVERT:
+      flex_vertadr = m->flex_vertadr[id[0]];
+      flex_vertnum = m->flex_vertnum[id[0]];
+      size = 2 * flex_vertnum;
+      if (nnz) {
+        for (int v=flex_vertadr; v < flex_vertadr+flex_vertnum; v++) {
+          NV += m->flexvert_J_rownnz[2*v+0];
+          NV += m->flexvert_J_rownnz[2*v+1];
+        }
+      }
+      break;
+
     default:
       // might occur in case of the now-removed distance equality constraint
-      mjERROR("unknown constraint type type %d", m->eq_type[i]);    // SHOULD NOT OCCUR
+      mjERROR("unknown constraint type %d", m->eq_type[i]);    // SHOULD NOT OCCUR
     }
 
     // accumulate counts; flex NV already accumulated
     ne += mj_addConstraintCount(m, size, NV);
-    nnze += (m->eq_type[i] == mjEQ_FLEX) ? NV : size*NV;
+    if (m->eq_type[i] == mjEQ_FLEX || m->eq_type[i] == mjEQ_FLEXVERT) {
+      nnze += NV;
+    } else {
+      nnze += size*NV;
+    }
   }
 
   if (nnz) {

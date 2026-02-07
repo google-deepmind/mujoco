@@ -1,0 +1,51 @@
+<mujoco model="rangefinder camera">
+  <asset>
+    <hfield name="hfield" nrow="5" ncol="5" size="2 2 .3 .1"
+            elevation=".7 .1 .4 .9 .0
+                       .3 .6 .2 .8 .5
+                       .1 .4 .7 .0 .9
+                       .2 .5 .8 .3 .6
+                       .4 .7 .1 .9 .2"/>
+    <mesh name="ss" builtin="supersphere" params="30 .2 .3" scale=".4 .42 .5"/>
+  </asset>
+
+  <visual>
+    <rgba frustum="1 1 0 0.15"/>
+  </visual>
+
+  <statistic meansize="0.17"/>
+
+  <worldbody>
+    <light pos="0 0 5"/>
+    <camera pos="0 -5.8 2.4" xyaxes="1 0 0 0 0.28 0.96"/>
+    <camera pos="-0.32 -3.23 2.92" xyaxes="1 0 0 0.05 0.5 0.85" fovy="60"/>
+
+
+    <!-- ground hfield -->
+    <geom type="hfield" hfield="hfield" rgba=".3 .4 .5 1" pos="0 0 -.3"/>
+
+    <!-- scattered objects for rays to hit -->
+    <geom type="sphere" pos="0 0 .4" size=".4" rgba="1 .3 .3 1"/>
+    <geom type="mesh" mesh="ss" pos="1 0.5 .35" rgba=".3 1 .3 1" euler="20 0 30"/>
+    <geom type="cylinder" pos="-0.8 0.8 .4" size=".4 .5" euler="0 40 0" rgba=".3 .3 1 1"/>
+    <geom type="capsule" pos="0.5 -0.7 -.2" size=".3 .5" zaxis="1 0.5 0" rgba="0 1 1 1"/>
+    <geom type="ellipsoid" pos="-0.5 -0.5 .2" size=".4 .3 .25" rgba="1 .3 1 1"/>
+
+    <!-- mocap body with perspective camera -->
+    <body pos="1 0 2" euler="0 20 90" mocap="true">
+      <geom type="box" pos="0 0 .3" size=".2 .2 .2"/>
+      <camera name="perspective" resolution="4 4" fovy="60"/>
+    </body>
+
+    <!-- mocap body with orthographic camera -->
+    <body pos="-1 0 2" euler="0 -20 -90" mocap="true">
+      <geom type="box" pos="0 0 .3" size=".2 .2 .2"/>
+      <camera name="orthographic" resolution="4 4" fovy="1.5" projection="orthographic"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <rangefinder camera="perspective" data="dist point normal"/>
+    <rangefinder camera="orthographic" data="dist point normal"/>
+  </sensor>
+</mujoco>

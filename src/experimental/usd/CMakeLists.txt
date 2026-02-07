@@ -13,12 +13,13 @@
 # limitations under the License.
 
 # --- Global Configuration ---
+
 # Plugin target names (used for library and plugInfo.json)
 set(MJCF_PLUGIN_TARGET_NAME usdMjcf)
 set(MJC_PHYSICS_PLUGIN_TARGET_NAME mjcPhysics)
 
 # Installation directory for USD plugins
-set(MJ_USD_INSTALL_DIR_LIB ${CMAKE_INSTALL_LIBDIR}/mujocoUsd)
+set(MJ_USD_INSTALL_DIR_LIB ${CMAKE_INSTALL_LIBDIR}/mujoco-usd-resources)
 
 # Common OpenUSD libraries
 set(OPENUSD_CORE_LIBS
@@ -41,7 +42,7 @@ function(configure_and_install_usd_plugin_info plugin_name source_subpath instal
   endif()
 
   set(PLUG_INFO_LIBRARY_PATH "../../${LIB_PREFIX}${plugin_name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
-  set(OUTPUT_DIR "${CMAKE_BINARY_DIR}/${install_base_dir}/resources/${plugin_name}")
+  set(OUTPUT_DIR "${CMAKE_BINARY_DIR}/${install_base_dir}/${plugin_name}")
   set(OUTPUT_FILE "${OUTPUT_DIR}/plugInfo.json")
 
   # Create the output directory if it doesn't exist
@@ -55,7 +56,7 @@ function(configure_and_install_usd_plugin_info plugin_name source_subpath instal
   )
 
   install(FILES "${OUTPUT_FILE}"
-    DESTINATION "${install_base_dir}/resources/${plugin_name}"
+    DESTINATION "${install_base_dir}/${plugin_name}"
   )
 endfunction()
 
@@ -82,6 +83,7 @@ function(configure_houdini_target target_name link_scope include_scope)
     ${PXR_LIB_PREFIX}usdShade
     ${PXR_LIB_PREFIX}usdLux
     ${PXR_LIB_PREFIX}usdGeom
+    ${PXR_LIB_PREFIX}usdImaging
     ${PXR_LIB_PREFIX}usdPhysics
     tbb
     hboost_${USD_MJCF_PYTHON_LIB_NUMBER}
@@ -101,56 +103,8 @@ function(configure_houdini_target target_name link_scope include_scope)
 endfunction()
 
 ## usdMjcf
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
-# The list of RPATHs:
-# 1. $ORIGIN: For libmjcPhysics.so (since it's in the same install dir)
-# 2. Path to OpenUSD libraries: Typically ${USD_DIR}/lib
-# 3. Path to MuJoCo library: Assuming it's in ${MUJOCO_INSTALL_DIR}/lib
-if(APPLE)
-    set(RPATH_LIST "@loader_path")
-    # Add OpenUSD lib to RPATH for macOS
-    if(DEFINED USD_DIR AND EXISTS "${USD_DIR}/lib")
-        list(APPEND RPATH_LIST "${USD_DIR}/lib")
-    endif()
-    # Add MuJoCo lib to RPATH for macOS
-    if(DEFINED MUJOCO_INSTALL_DIR AND EXISTS "${MUJOCO_INSTALL_DIR}/lib")
-        list(APPEND RPATH_LIST "${MUJOCO_INSTALL_DIR}/lib")
-    endif()
-
-    string(JOIN ":" CMAKE_INSTALL_RPATH "${RPATH_LIST}") # macOS uses colon for RPATH separator
-    message(STATUS "Final CMAKE_INSTALL_RPATH: ${CMAKE_INSTALL_RPATH}")
-elseif(UNIX)
-
-    # For adjacent libs.
-    set(RPATH_LIST "\$ORIGIN")
-
-    # Add OpenUSD library directory
-    if(DEFINED USD_DIR AND EXISTS "${USD_DIR}/lib")
-        list(APPEND RPATH_LIST "${USD_DIR}/lib")
-        message(STATUS "Adding OpenUSD lib to RPATH: ${USD_DIR}/lib")
-    else()
-        message(WARNING "USD_DIR is not defined or ${USD_DIR}/lib does not exist. OpenUSD libraries might not be found via RPATH.")
-    endif()
-
-    # Add MuJoCo library directory
-    if(DEFINED MUJOCO_INSTALL_DIR AND EXISTS "${MUJOCO_INSTALL_DIR}/lib")
-        list(APPEND RPATH_LIST "${MUJOCO_INSTALL_DIR}/lib")
-        message(STATUS "Adding MuJoCo lib to RPATH: ${MUJOCO_INSTALL_DIR}/lib")
-    elseif(DEFINED MUJOCO_INSTALL_DIR AND EXISTS "${MUJOCO_INSTALL_DIR}/bin")
-        list(APPEND RPATH_LIST "${MUJOCO_INSTALL_DIR}/bin")
-        message(STATUS "Adding MuJoCo bin to RPATH: ${MUJOCO_INSTALL_DIR}/bin")
-    endif()
-
-    # Set the final RPATH for installation
-    string(JOIN ";" CMAKE_INSTALL_RPATH "${RPATH_LIST}")
-    message(STATUS "Final CMAKE_INSTALL_RPATH: ${CMAKE_INSTALL_RPATH}")
-endif()
-
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
 add_library(${MJCF_PLUGIN_TARGET_NAME} SHARED)
-add_library(mujoco::usd::mjcf ALIAS ${MJCF_PLUGIN_TARGET_NAME})
 target_sources(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
   plugins/mjcf/mjcf_file_format.cc
   plugins/mjcf/mjcf_file_format.h
@@ -167,12 +121,15 @@ target_include_directories(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/plugins"
 )
 
-## mjcPhysics
+## ----- mjcPhysics -----
 
 add_library(${MJC_PHYSICS_PLUGIN_TARGET_NAME} SHARED)
 target_sources(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
   mjcPhysics/actuator.cpp
   mjcPhysics/collisionAPI.cpp
+  mjcPhysics/equalityAPI.cpp
+  mjcPhysics/equalityJointAPI.cpp
+  mjcPhysics/equalityWeldAPI.cpp
   mjcPhysics/imageableAPI.cpp
   mjcPhysics/jointAPI.cpp
   mjcPhysics/keyframe.cpp
@@ -191,15 +148,10 @@ target_include_directories(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../../include>
 )
 
-## mj_usd
+## ----- mujoco USD utils -----
 
 target_sources(mujoco PRIVATE
-  kinematic_tree.cc
-  kinematic_tree.h
   layer_sink.cc
-  material_parsing.cc
-  material_parsing.h
-  usd_to_mjspec.cc
   utils.cc
   writer.cc
 )
@@ -211,42 +163,42 @@ target_compile_options(
      PRIVATE -Wno-deprecated
 )
 
-if (USD_DIR)
-  find_package(pxr REQUIRED)
+# Configure RPATH for macOS and UNIX.
+if(APPLE)
+  set_target_properties(${MJCF_PLUGIN_TARGET_NAME} PROPERTIES
+    BUILD_RPATH "${USD_INSTALL_ROOT}"
+    INSTALL_RPATH "@loader_path")
 
-  target_link_libraries(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
-    ${OPENUSD_CORE_LIBS}
-  )
+  set_target_properties(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PROPERTIES
+    BUILD_RPATH "${USD_INSTALL_ROOT}"
+    INSTALL_RPATH "@loader_path")
+elseif(UNIX)
+  set_target_properties(${MJCF_PLUGIN_TARGET_NAME} PROPERTIES
+    BUILD_RPATH "${USD_INSTALL_ROOT}"
+    INSTALL_RPATH "$ORIGIN")
 
-  target_link_libraries(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
-    ${OPENUSD_CORE_LIBS}
-    mujoco
-    tinyxml2
-    ${MJC_PHYSICS_PLUGIN_TARGET_NAME}
-  )
-
-  target_link_libraries(mujoco PUBLIC
-    ${OPENUSD_CORE_LIBS}
-    ${MJC_PHYSICS_PLUGIN_TARGET_NAME}
-  )
-elseif (HOUDINI_HFS_DIR)
-  message(STATUS "Configuring for Houdini target...")
-
-  # In Houdini, the Houdini package we would typically use via find_package
-  # does not have all the USD dependencies that we need (namely UsdPhysics)
-  # so we need to manually link all the required libraries.
-  configure_houdini_target(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE PRIVATE)
-  configure_houdini_target(${MJCF_PLUGIN_TARGET_NAME} PRIVATE PRIVATE)
-
-  # Re-add inter-plugin dependencies after Houdini-specific linking
-  target_link_libraries(${MJCF_PLUGIN_TARGET_NAME} PRIVATE ${MJC_PHYSICS_PLUGIN_TARGET_NAME})
-
+  set_target_properties(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PROPERTIES
+    BUILD_RPATH "${USD_INSTALL_ROOT}"
+    INSTALL_RPATH "$ORIGIN")
 endif()
 
-## Installation
+target_link_libraries(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
+  ${OPENUSD_CORE_LIBS}
+)
 
-message(STATUS "Mujoco USD plugins will be installed to: ${CMAKE_INSTALL_PREFIX}/${MJ_USD_INSTALL_DIR_LIB}")
-message(STATUS "Make sure PXR_PLUGINPATH_NAME includes: ${CMAKE_INSTALL_PREFIX}/${MJ_USD_INSTALL_DIR_LIB}/*/resources")
+target_link_libraries(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
+  ${OPENUSD_CORE_LIBS}
+  mujoco
+  tinyxml2
+  ${MJC_PHYSICS_PLUGIN_TARGET_NAME}
+)
+
+target_link_libraries(mujoco PUBLIC
+  ${OPENUSD_CORE_LIBS}
+  ${MJC_PHYSICS_PLUGIN_TARGET_NAME}
+)
+
+## Installation
 
 # Generate and install plugInfo.json for each plugin
 configure_and_install_usd_plugin_info(
@@ -263,7 +215,7 @@ configure_and_install_usd_plugin_info(
 # Install specific resources that are not plugInfo.json (like generatedSchema.usda)
 install(FILES
   mjcPhysics/generatedSchema.usda
-  DESTINATION ${MJ_USD_INSTALL_DIR_LIB}/resources/mjcPhysics
+  DESTINATION ${MJ_USD_INSTALL_DIR_LIB}/mjcPhysics
 )
 
 # Install shared libraries
@@ -271,5 +223,5 @@ install(TARGETS
   ${MJCF_PLUGIN_TARGET_NAME}
   ${MJC_PHYSICS_PLUGIN_TARGET_NAME}
   EXPORT ${PROJECT_NAME}
-  LIBRARY DESTINATION ${MJ_USD_INSTALL_DIR_LIB}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )

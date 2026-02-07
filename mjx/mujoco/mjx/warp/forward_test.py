@@ -216,8 +216,11 @@ class StepTest(parameterized.TestCase):
           'pendula.xml',
       ),
       batch_size=(1, 7),
+      # NOTE: GraphMode.JAX is incompatible with MuJoCo Warp at the moment,
+      # even when setting graph_conditional=False.
+      graph_mode=('WARP',),
   )
-  def test_step(self, xml: str, batch_size: int):
+  def test_step(self, xml: str, batch_size: int, graph_mode: str):
     if not _FORCE_TEST:
       if not mjxw.WARP_INSTALLED:
         self.skipTest('Warp not installed.')
@@ -227,7 +230,9 @@ class StepTest(parameterized.TestCase):
     m = test_util.load_test_file(xml)
     m.opt.iterations = 10
     m.opt.ls_iterations = 10
-    mx = mjx.put_model(m, impl='warp')
+    mx = mjx.put_model(
+        m, impl='warp', graph_mode=getattr(mjxw.types.GraphMode, graph_mode)
+    )
 
     d = mujoco.MjData(m)
     worldids = jp.arange(batch_size)

@@ -342,7 +342,7 @@ static PickResult PickGeom(const mjModel* m, const mjData* d,
                            const mjvOption* vis_options) {
   PickResult result;
   result.dist = mj_ray(m, d, ray_pos, ray_dir, vis_options->geomgroup,
-                       vis_options->flags[mjVIS_STATIC], -1, &result.geom);
+                       vis_options->flags[mjVIS_STATIC], -1, &result.geom, nullptr);
   mju_addScl3(result.point, ray_pos, ray_dir, result.dist);
   result.body = m->geom_bodyid[result.geom];
   return result;
@@ -364,8 +364,8 @@ static PickResult PickFlex(const mjModel* m, const mjData* d,
   for (int i = 0; i < m->nflex; i++) {
     int vertid;
     const mjtNum test_dist =
-        mju_rayFlex(m, d, vis_options->flex_layer, flag_vert, flag_edge,
-                    flag_face, flag_skin, i, ray_pos, ray_dir, &vertid);
+        mj_rayFlex(m, d, vis_options->flex_layer, flag_vert, flag_edge,
+                   flag_face, flag_skin, i, ray_pos, ray_dir, &vertid, nullptr);
 
     if (test_dist < 0) {
       continue;

@@ -14,6 +14,9 @@
 
 #include "experimental/platform/window.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -21,13 +24,16 @@
 #include <SDL_error.h>
 #include <SDL_events.h>
 #include <SDL_hints.h>
+#include <SDL_render.h>
+#include <SDL_surface.h>
 #include <SDL_syswm.h>
 #include <SDL_version.h>
 #include <SDL_video.h>
 #include <backends/imgui_impl_sdl2.h>
 #include <imgui.h>
-#include "experimental/platform/helpers.h"
 #include <mujoco/mujoco.h>
+#include "experimental/platform/renderer_backend.h"
+#include "user/user_resource.h"
 
 // Because X11/Xlib.h defines Status.
 #ifdef Status
@@ -40,99 +46,132 @@ extern void* GetNativeWindowOsx(void* window);
 
 namespace mujoco::platform {
 
-static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn,
-                      bool load_fonts, bool build_fonts) {
+static void InitImGui(SDL_Window* window, float content_scale, bool load_fonts,
+                      bool build_fonts) {
   ImGui::CreateContext();
 
   ImGuiIO& io = ImGui::GetIO();
   io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   io.IniFilename = nullptr;
+  io.ConfigDpiScaleFonts = true;
+  io.ConfigDpiScaleViewports = true;
   ImGui::StyleColorsDark();
   ImGui_ImplSDL2_InitForOther(window);
 
+  ImGuiStyle& style = ImGui::GetStyle();
+  style.ScaleAllSizes(content_scale);
+  style.FontScaleDpi = content_scale;
+
   if (load_fonts) {
-    // Note: fonts are stored statically because they aren't actually loaded
-    // until the fonts are built.
+    mjResource* font = nullptr;
+    int size = 0;
+    void* data = nullptr;
+
     ImFontConfig main_cfg;
-    static auto main_font = load_asset_fn("OpenSans-Regular.ttf");
-    io.Fonts->AddFontFromMemoryTTF(main_font.data(), main_font.size(), 20.f,
-                                  &main_cfg);
+    main_cfg.FontDataOwnedByAtlas = false;
+    font =
+        mju_openResource("", "font:OpenSans-Regular.ttf", nullptr, nullptr, 0);
+    size = mju_readResource(font, const_cast<const void**>(&data));
+    io.Fonts->AddFontFromMemoryTTF(data, size, 20.f, &main_cfg);
 
     ImFontConfig icon_cfg;
+    icon_cfg.FontDataOwnedByAtlas = false;
     icon_cfg.MergeMode = true;
-    static auto icon_font = load_asset_fn("fontawesome-webfont.ttf");
+    font = mju_openResource("", "font:fontawesome-webfont.ttf", nullptr,
+                            nullptr, 0);
+    size = mju_readResource(font, const_cast<const void**>(&data));
     constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
-    io.Fonts->AddFontFromMemoryTTF(icon_font.data(), icon_font.size(), 14.f,
-                                  &icon_cfg, icon_ranges);
+    io.Fonts->AddFontFromMemoryTTF(data, size, 14.f, &icon_cfg, icon_ranges);
 
     if (build_fonts) {
       io.Fonts->Build();
     }
+
+    // Note: we purposefully do not "close" the font resources as ImGui may
+    // need them again to resize fonts.
   }
 }
 
-Window::Window(std::string_view title, int width, int height, Config config,
-               const LoadAssetFn& load_asset_fn)
+Window::Window(std::string_view title, int width, int height, Config config)
     : width_(width), height_(height), config_(config) {
-  SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "1");
-  SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-  SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16);
+  const RendererBackend renderer_backend = config_.renderer_backend;
+  if (renderer_backend == RendererBackend::FilamentOpenGlHeadless) {
+    config_.offscreen_mode = true;
+  }
+
+  if (config_.offscreen_mode) {
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
+    SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "0");
+  } else {
+    SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "1");
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16);
+  }
+
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
     mju_error("Error initializing SDL: %s", SDL_GetError());
   }
-
-  int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-
   if (!config_.enable_keyboard) {
     SDL_EventState(SDL_TEXTINPUT, SDL_DISABLE);
     SDL_EventState(SDL_KEYDOWN, SDL_DISABLE);
     SDL_EventState(SDL_KEYUP, SDL_DISABLE);
   }
 
-  RenderConfig render_config = config_.render_config;
-  if (render_config == kFilamentVulkan) {
+  int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+  if (renderer_backend == RendererBackend::FilamentVulkan) {
     window_flags |= SDL_WINDOW_VULKAN;
-  } else if (render_config == kFilamentWebGL) {
+  } else if (renderer_backend == RendererBackend::FilamentWebGl) {
     window_flags |= SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-  } else if (render_config == kClassicOpenGL || render_config == kFilamentOpenGL) {
+  } else if (renderer_backend == RendererBackend::ClassicOpenGl ||
+             renderer_backend == RendererBackend::FilamentOpenGl ||
+             renderer_backend == RendererBackend::FilamentOpenGlHeadless) {
     window_flags |= SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
   } else {
-    mju_error("Unsupported window config: %d", render_config);
+    mju_error("Unsupported window config: %d", renderer_backend);
   }
 
-  sdl_window_ =
-      SDL_CreateWindow(title.data(), SDL_WINDOWPOS_UNDEFINED,
-                       SDL_WINDOWPOS_UNDEFINED, width, height, window_flags);
+  const float content_scale = ImGui_ImplSDL2_GetContentScaleForDisplay(0);
+  sdl_window_ = SDL_CreateWindow(title.data(), SDL_WINDOWPOS_UNDEFINED,
+                                 SDL_WINDOWPOS_UNDEFINED, width,
+                                 height, window_flags);
   if (!sdl_window_) {
     mju_error("Error creating window: %s", SDL_GetError());
   }
 
-  InitImGui(sdl_window_, load_asset_fn, config.load_fonts,
-            (render_config != kClassicOpenGL));
+  InitImGui(sdl_window_, content_scale, config.load_fonts,
+            (renderer_backend != RendererBackend::ClassicOpenGl));
 
-  if (render_config == kFilamentWebGL || render_config == kClassicOpenGL) {
+  if (renderer_backend == RendererBackend::FilamentWebGl ||
+      (renderer_backend == RendererBackend::ClassicOpenGl &&
+       !config.offscreen_mode)) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);
     SDL_GL_MakeCurrent(sdl_window_, gl_context);
+  }
+
+  if (config_.offscreen_mode) {
+    sdl_renderer_ = SDL_CreateRenderer(sdl_window_, -1, SDL_RENDERER_SOFTWARE);
   }
 
   SDL_SysWMinfo wmi;
   SDL_VERSION(&wmi.version);
   SDL_GetWindowWMInfo(sdl_window_, &wmi);
 
-  #if defined(__linux__)
-    native_window_ = reinterpret_cast<void*>(wmi.info.x11.window);
-  #elif defined(__WIN32__)
-    native_window_ = reinterpret_cast<void*>(wmi.info.win.window);
-  #elif defined(__APPLE__)
-    native_window_ =
-        GetNativeWindowOsx(reinterpret_cast<void*>(wmi.info.cocoa.window));
-  #endif
+  if (!config_.offscreen_mode) {
+    #if defined(__linux__)
+      native_window_ = reinterpret_cast<void*>(wmi.info.x11.window);
+    #elif defined(__WIN32__)
+      native_window_ = reinterpret_cast<void*>(wmi.info.win.window);
+    #elif defined(__APPLE__)
+      native_window_ =
+          GetNativeWindowOsx(reinterpret_cast<void*>(wmi.info.cocoa.window));
+    #endif
+  }
 
   int drawable_width = width;
   int drawable_height = height;
@@ -147,6 +186,13 @@ Window::~Window() {
 
 void Window::SetTitle(std::string_view title) {
   SDL_SetWindowTitle(sdl_window_, title.data());
+}
+
+void Window::DisableWindowResizing() {
+  SDL_SetWindowResizable(sdl_window_, SDL_FALSE);
+}
+void Window::EnableWindowResizing() {
+  SDL_SetWindowResizable(sdl_window_, SDL_TRUE);
 }
 
 std::string Window::GetDropFile() {
@@ -192,12 +238,48 @@ void Window::EndFrame() {
   ImGui::EndFrame();
 }
 
-void Window::Present() {
-  // Filament (with the exception of WebGL) handles the swapchain internally.
-  if (config_.render_config != kFilamentVulkan
-     && config_.render_config != kFilamentOpenGL) {
+void Window::Present(std::span<const std::byte> pixels) {
+  if (config_.offscreen_mode) {
+    if (pixels.size() != width_ * height_ * 3) {
+      mju_error("Offscreen mode expects RGB buffer of size %d",
+                width_ * height_ * 3);
+    }
+
+    SDL_Surface* surface = SDL_GetWindowSurface(sdl_window_);
+    const unsigned char* src =
+        reinterpret_cast<const unsigned char*>(pixels.data());
+    unsigned char* dst =
+        static_cast<unsigned char*>(surface->pixels);
+
+    for (int i = 0; i < height_; ++i) {
+      for (int j = 0; j < width_; ++j) {
+        // Swap the RGB channels and add an alpha value of 1.0
+        dst[0] = src[2];
+        dst[1] = src[1];
+        dst[2] = src[0];
+        dst[3] = 0xff;
+        dst += 4;
+        src += 3;
+      }
+    }
+
+    if (config_.renderer_backend == RendererBackend::ClassicOpenGl) {
+      dst = static_cast<unsigned char*>(surface->pixels);
+      for (int r = 0; r < height_ / 2; ++r) {
+        unsigned char* top_row = &dst[4 * width_ * r];
+        unsigned char* bottom_row = &dst[4 * width_ * (height_ - 1 - r)];
+        std::swap_ranges(top_row, top_row + 4 * width_, bottom_row);
+      }
+    }
+
+    SDL_RenderPresent(sdl_renderer_);
+  } else if (config_.renderer_backend != RendererBackend::FilamentVulkan
+     && config_.renderer_backend != RendererBackend::FilamentOpenGl) {
     SDL_GL_SwapWindow(sdl_window_);
   }
 }
 
+bool Window::IsOffscreenMode() const {
+  return config_.offscreen_mode;
+}
 }  // namespace mujoco::platform

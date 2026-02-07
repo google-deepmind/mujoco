@@ -25,7 +25,7 @@ MJ_MAXIMP = mujoco.mjMAXIMP  # maximum constraint impedance
 MJ_MAXCONPAIR = mujoco.mjMAXCONPAIR
 MJ_MINMU = mujoco.mjMINMU  # minimum friction
 # maximum size (by number of edges) of an horizon in EPA algorithm
-MJ_MAX_EPAHORIZON = 12
+MJ_MAX_EPAHORIZON = 24
 # maximum average number of trianglarfaces EPA can insert at each iteration
 MJ_MAX_EPAFACES = 5
 
@@ -173,11 +173,13 @@ class EnableBit(enum.IntFlag):
   Attributes:
     ENERGY: energy computation
     INVDISCRETE: discrete-time inverse dynamics
+    MULTICCD: multiple contacts with CCD
   """
 
   ENERGY = mujoco.mjtEnableBit.mjENBL_ENERGY
   INVDISCRETE = mujoco.mjtEnableBit.mjENBL_INVDISCRETE
-  # unsupported: OVERRIDE, FWDINV, ISLAND, MULTICCD
+  MULTICCD = mujoco.mjtEnableBit.mjENBL_MULTICCD
+  # unsupported: OVERRIDE, FWDINV, ISLAND
 
 
 class TrnType(enum.IntEnum):

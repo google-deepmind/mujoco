@@ -45,9 +45,6 @@
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
 #include "tinyxml2.h"
-#ifdef mjUSEUSD
-#include <mujoco/experimental/usd/usd.h>
-#endif  // mjUSEUSD
 
 namespace {
 using std::string;
@@ -171,7 +168,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "type", "group", "pos", "quat", "material",
             "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "?", "orthographic", "fovy", "ipd", "resolution", "pos", "quat",
+        {"camera", "?", "projection", "fovy", "ipd", "resolution", "output", "pos", "quat",
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "focal", "focalpixel",
             "principal", "principalpixel", "sensorsize", "user"},
         {"light", "?", "pos", "dir", "bulbradius", "intensity", "range",
@@ -185,29 +182,29 @@ std::vector<const char*> MJCF[nMJCF] = {
             "frictionloss", "springlength", "width", "material",
             "margin", "stiffness", "damping", "rgba", "user"},
         {"general", "?", "ctrllimited", "forcelimited", "actlimited", "ctrlrange",
-            "forcerange", "actrange", "gear", "cranklength", "user", "group", "actdim",
+            "forcerange", "actrange", "gear", "cranklength", "user", "group", "nsample", "interp", "delay", "actdim",
             "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm", "actearly"},
         {"motor", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group"},
+            "gear", "cranklength", "user", "group", "nsample", "interp", "delay"},
         {"position", "?", "ctrllimited", "forcelimited", "ctrlrange", "inheritrange",
-            "forcerange", "gear", "cranklength", "user", "group", "kp", "kv", "dampratio", "timeconst"},
+            "forcerange", "gear", "cranklength", "user", "group", "nsample", "interp", "delay", "kp", "kv", "dampratio", "timeconst"},
         {"velocity", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group", "kv"},
+            "gear", "cranklength", "user", "group", "nsample", "interp", "delay", "kv"},
         {"intvelocity", "?", "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange", "inheritrange",
-            "gear", "cranklength", "user", "group",
+            "gear", "cranklength", "user", "group", "nsample", "interp", "delay",
             "kp", "kv", "dampratio"},
         {"damper", "?", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group", "kv"},
+            "gear", "cranklength", "user", "group", "nsample", "interp", "delay", "kv"},
         {"cylinder", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group",
+            "gear", "cranklength", "user", "group", "nsample", "interp", "delay",
             "timeconst", "area", "diameter", "bias"},
         {"muscle", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group",
+            "gear", "cranklength", "user", "group", "nsample", "interp", "delay",
             "timeconst", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "?", "forcelimited", "ctrlrange", "forcerange",
-            "gain", "user", "group"},
+            "gain", "user", "group", "nsample", "interp", "delay"},
     {">"},
 
     {"extension", "*"},
@@ -285,7 +282,7 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"attach", "*", "model", "body", "prefix"},
         {"site", "*",  "name", "class", "type", "group", "pos", "quat",
             "material", "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "*", "name", "class", "orthographic", "fovy", "ipd", "resolution", "pos",
+        {"camera", "*", "name", "class", "projection", "fovy", "ipd", "resolution", "output", "pos",
             "quat", "axisangle", "xyaxes", "zaxis", "euler", "mode", "target",
             "focal", "focalpixel", "principal", "principalpixel", "sensorsize", "user"},
         {"light", "*", "name", "class", "directional", "type", "castshadow", "active",
@@ -367,6 +364,8 @@ std::vector<const char*> MJCF[nMJCF] = {
             "active", "solref", "solimp"},
         {"flex", "*", "name", "class", "flex",
             "active", "solref", "solimp"},
+        {"flexvert", "*", "name", "class", "flex",
+            "active", "solref", "solimp"},
     {">"},
 
     {"tendon", "*"},
@@ -381,7 +380,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             {"pulley", "*", "divisor"},
         {">"},
         {"fixed", "*", "name", "class", "group", "limited", "actuatorfrclimited", "range",
-            "actuatorfrcrange","solreflimit", "solimplimit", "solreffriction", "solimpfriction",
+            "actuatorfrcrange", "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
             "frictionloss", "springlength", "margin", "stiffness", "damping", "armature", "user"},
         {"<"},
             {"joint", "*", "joint", "coef"},
@@ -390,51 +389,51 @@ std::vector<const char*> MJCF[nMJCF] = {
 
     {"actuator", "*"},
     {"<"},
-        {"general", "*", "name", "class", "group",
+        {"general", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "body", "actdim", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm",
             "actearly"},
-        {"motor", "*", "name", "class", "group",
+        {"motor", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite"},
-        {"position", "*", "name", "class", "group",
+        {"position", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "inheritrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp", "kv", "dampratio", "timeconst"},
-        {"velocity", "*", "name", "class", "group",
+        {"velocity", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"intvelocity", "*", "name", "class", "group",
+        {"intvelocity", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange", "inheritrange", "lengthrange",
             "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp", "kv", "dampratio"},
-        {"damper", "*", "name", "class", "group",
+        {"damper", "*", "name", "class", "group", "nsample", "interp", "delay",
             "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
-        {"cylinder", "*", "name", "class", "group",
+        {"cylinder", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "timeconst", "area", "diameter", "bias"},
-        {"muscle", "*",  "name", "class", "group",
+        {"muscle", "*",  "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
             "lengthrange", "gear", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite",
             "timeconst", "tausmooth", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
-        {"adhesion", "*", "name", "class", "group",
+        {"adhesion", "*", "name", "class", "group", "nsample", "interp", "delay",
             "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
-        {"plugin", "*", "name", "class",  "plugin", "instance", "group",
+        {"plugin", "*", "name", "class",  "plugin", "instance", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "joint", "jointinparent",
             "site", "actdim", "dyntype", "dynprm", "tendon", "cranksite", "slidersite", "user",
@@ -446,56 +445,56 @@ std::vector<const char*> MJCF[nMJCF] = {
 
     {"sensor", "*"},
     {"<"},
-        {"touch", "*", "name", "site", "cutoff", "noise", "user"},
-        {"accelerometer", "*", "name", "site", "cutoff", "noise", "user"},
-        {"velocimeter", "*", "name", "site", "cutoff", "noise", "user"},
-        {"gyro", "*", "name", "site", "cutoff", "noise", "user"},
-        {"force", "*", "name", "site", "cutoff", "noise", "user"},
-        {"torque", "*", "name", "site", "cutoff", "noise", "user"},
-        {"magnetometer", "*", "name", "site", "cutoff", "noise", "user"},
-        {"camprojection", "*", "name", "site", "camera", "cutoff", "noise", "user"},
-        {"rangefinder", "*", "name", "site", "cutoff", "noise", "user"},
-        {"jointpos", "*", "name", "joint", "cutoff", "noise", "user"},
-        {"jointvel", "*", "name", "joint", "cutoff", "noise", "user"},
-        {"tendonpos", "*", "name", "tendon", "cutoff", "noise", "user"},
-        {"tendonvel", "*", "name", "tendon", "cutoff", "noise", "user"},
-        {"actuatorpos", "*", "name", "actuator", "cutoff", "noise", "user"},
-        {"actuatorvel", "*", "name", "actuator", "cutoff", "noise", "user"},
-        {"actuatorfrc", "*", "name", "actuator", "cutoff", "noise", "user"},
-        {"jointactuatorfrc", "*", "name", "joint", "cutoff", "noise", "user"},
-        {"tendonactuatorfrc", "*", "name", "tendon", "cutoff", "noise", "user"},
-        {"ballquat", "*", "name", "joint", "cutoff", "noise", "user"},
-        {"ballangvel", "*", "name", "joint", "cutoff", "noise", "user"},
-        {"jointlimitpos", "*", "name", "joint", "cutoff", "noise", "user"},
-        {"jointlimitvel", "*", "name", "joint", "cutoff", "noise", "user"},
-        {"jointlimitfrc", "*", "name", "joint", "cutoff", "noise", "user"},
-        {"tendonlimitpos", "*", "name", "tendon", "cutoff", "noise", "user"},
-        {"tendonlimitvel", "*", "name", "tendon", "cutoff", "noise", "user"},
-        {"tendonlimitfrc", "*", "name", "tendon", "cutoff", "noise", "user"},
-        {"framepos", "*", "name", "objtype", "objname", "reftype", "refname", "cutoff", "noise", "user"},
-        {"framequat", "*", "name", "objtype", "objname", "reftype", "refname", "cutoff", "noise", "user"},
-        {"framexaxis", "*", "name", "objtype", "objname", "reftype", "refname", "cutoff", "noise", "user"},
-        {"frameyaxis", "*", "name", "objtype", "objname", "reftype", "refname", "cutoff", "noise", "user"},
-        {"framezaxis", "*", "name", "objtype", "objname", "reftype", "refname", "cutoff", "noise", "user"},
-        {"framelinvel", "*", "name", "objtype", "objname", "reftype", "refname", "cutoff", "noise", "user"},
-        {"frameangvel", "*", "name", "objtype", "objname", "reftype", "refname", "cutoff", "noise", "user"},
-        {"framelinacc", "*", "name", "objtype", "objname", "cutoff", "noise", "user"},
-        {"frameangacc", "*", "name", "objtype", "objname", "cutoff", "noise", "user"},
-        {"subtreecom", "*", "name", "body", "cutoff", "noise", "user"},
-        {"subtreelinvel", "*", "name", "body", "cutoff", "noise", "user"},
-        {"subtreeangmom", "*", "name", "body", "cutoff", "noise", "user"},
-        {"insidesite", "*", "name", "site", "objtype", "objname", "cutoff", "noise", "user"},
-        {"distance", "*", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
-        {"normal", "*", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
-        {"fromto", "*", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
+        {"touch", "*", "name", "site", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"accelerometer", "*", "name", "site", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"velocimeter", "*", "name", "site", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"gyro", "*", "name", "site", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"force", "*", "name", "site", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"torque", "*", "name", "site", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"magnetometer", "*", "name", "site", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"camprojection", "*", "name", "site", "camera", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"rangefinder", "*", "name", "site", "camera", "data", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"jointpos", "*", "name", "joint", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"jointvel", "*", "name", "joint", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"tendonpos", "*", "name", "tendon", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"tendonvel", "*", "name", "tendon", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"actuatorpos", "*", "name", "actuator", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"actuatorvel", "*", "name", "actuator", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"actuatorfrc", "*", "name", "actuator", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"jointactuatorfrc", "*", "name", "joint", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"tendonactuatorfrc", "*", "name", "tendon", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"ballquat", "*", "name", "joint", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"ballangvel", "*", "name", "joint", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"jointlimitpos", "*", "name", "joint", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"jointlimitvel", "*", "name", "joint", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"jointlimitfrc", "*", "name", "joint", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"tendonlimitpos", "*", "name", "tendon", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"tendonlimitvel", "*", "name", "tendon", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"tendonlimitfrc", "*", "name", "tendon", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"framepos", "*", "name", "objtype", "objname", "reftype", "refname", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"framequat", "*", "name", "objtype", "objname", "reftype", "refname", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"framexaxis", "*", "name", "objtype", "objname", "reftype", "refname", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"frameyaxis", "*", "name", "objtype", "objname", "reftype", "refname", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"framezaxis", "*", "name", "objtype", "objname", "reftype", "refname", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"framelinvel", "*", "name", "objtype", "objname", "reftype", "refname", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"frameangvel", "*", "name", "objtype", "objname", "reftype", "refname", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"framelinacc", "*", "name", "objtype", "objname", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"frameangacc", "*", "name", "objtype", "objname", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"subtreecom", "*", "name", "body", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"subtreelinvel", "*", "name", "body", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"subtreeangmom", "*", "name", "body", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"insidesite", "*", "name", "site", "objtype", "objname", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"distance", "*", "name", "geom1", "geom2", "body1", "body2", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"normal", "*", "name", "geom1", "geom2", "body1", "body2", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"fromto", "*", "name", "geom1", "geom2", "body1", "body2", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
         {"contact", "*", "name", "geom1", "geom2", "body1", "body2", "subtree1", "subtree2", "site",
-            "num", "data", "reduce", "cutoff", "noise", "user"},
-        {"e_potential", "*", "name", "cutoff", "noise", "user"},
-        {"e_kinetic", "*", "name", "cutoff", "noise", "user"},
-        {"clock", "*", "name", "cutoff", "noise", "user"},
+            "num", "data", "reduce", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"e_potential", "*", "name", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"e_kinetic", "*", "name", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"clock", "*", "name", "nsample", "interp", "delay", "interval", "cutoff", "noise", "user"},
+        {"tactile", "*", "name", "geom", "mesh", "nsample", "interp", "delay", "interval", "user"},
         {"user", "*", "name", "objtype", "objname", "datatype", "needstage",
             "dim", "cutoff", "noise", "user"},
-    {"tactile", "*", "name", "geom", "mesh", "user"},
         {"plugin", "*", "name", "plugin", "instance", "cutoff", "objtype", "objname", "reftype", "refname",
             "user"},
         {"<"},
@@ -590,6 +589,13 @@ const mjMap geom_map[mjNGEOMTYPES] = {
 };
 
 
+// projection type
+const int projection_sz = 2;
+const mjMap projection_map[projection_sz] = {
+  {"perspective",   mjPROJ_PERSPECTIVE},
+  {"orthographic",  mjPROJ_ORTHOGRAPHIC}
+};
+
 // camlight type
 const int camlight_sz = 5;
 const mjMap camlight_map[camlight_sz] = {
@@ -663,13 +669,14 @@ const mjMap solver_map[solver_sz] = {
 
 
 // constraint type
-const int equality_sz = 6;
+const int equality_sz = 7;
 const mjMap equality_map[equality_sz] = {
   {"connect",       mjEQ_CONNECT},
   {"weld",          mjEQ_WELD},
   {"joint",         mjEQ_JOINT},
   {"tendon",        mjEQ_TENDON},
   {"flex",          mjEQ_FLEX},
+  {"flexvert",      mjEQ_FLEXVERT},
   {"distance",      mjEQ_DISTANCE}
 };
 
@@ -744,6 +751,15 @@ const mjMap bias_map[bias_sz] = {
 };
 
 
+// interpolation type
+const int interp_sz = 3;
+const mjMap interp_map[interp_sz] = {
+  {"zoh",           0},
+  {"linear",        1},
+  {"cubic",         2}
+};
+
+
 // stage type
 const int stage_sz = 4;
 const mjMap stage_map[stage_sz] = {
@@ -775,6 +791,24 @@ const mjMap condata_map[mjNCONDATA] = {
   {"tangent",       mjCONDATA_TANGENT}
 };
 
+
+// rangefinder data type
+const mjMap raydata_map[mjNRAYDATA] = {
+  {"dist",          mjRAYDATA_DIST},
+  {"dir",           mjRAYDATA_DIR},
+  {"origin",        mjRAYDATA_ORIGIN},
+  {"point",         mjRAYDATA_POINT},
+  {"normal",        mjRAYDATA_NORMAL},
+  {"depth",         mjRAYDATA_DEPTH}
+};
+
+// camera output type
+const int camout_sz = mjNCAMOUT;
+const mjMap camout_map[mjNCAMOUT] = {{"rgb", mjCAMOUT_RGB},
+                                     {"depth", mjCAMOUT_DEPTH},
+                                     {"distance", mjCAMOUT_DIST},
+                                     {"normal", mjCAMOUT_NORMAL},
+                                     {"segmentation", mjCAMOUT_SEG}};
 
 // contact reduction type
 const int reduce_sz = 4;
@@ -892,6 +926,14 @@ const mjMap elastic2d_map[5] = {
   {"bend",          1},
   {"stretch",       2},
   {"both",          3},
+};
+
+
+// flex equality type
+const mjMap flexeq_map[3] = {
+  {"false",         0},
+  {"true",          1},
+  {"vert",          2},
 };
 
 
@@ -1926,28 +1968,30 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* camera) {
   ReadAlternative(elem, camera->alt);
   ReadAttr(elem, "ipd", 1, &camera->ipd, text);
 
-  if (MapValue(elem, "orthographic", &n, bool_map, 2)) {
-    camera->orthographic = (n == 1);
+  if (MapValue(elem, "projection", &n, projection_map, 2)) {
+    camera->proj = (mjtProjection)n;
   }
 
-  bool has_principal = ReadAttr(elem, "principalpixel", 2, camera->principal_pixel, text) ||
-                       ReadAttr(elem, "principal", 2, camera->principal_length, text);
-  bool has_focal = ReadAttr(elem, "focalpixel", 2, camera->focal_pixel, text) ||
-                   ReadAttr(elem, "focal", 2, camera->focal_length, text);
-  bool needs_sensorsize = has_principal || has_focal;
-  bool has_sensorsize = ReadAttr(elem, "sensorsize", 2, camera->sensor_size, text, needs_sensorsize);
-  bool has_fovy = ReadAttr(elem, "fovy", 1, &camera->fovy, text);
-  bool needs_resolution = has_focal || has_sensorsize;
-  ReadAttr(elem, "resolution", 2, camera->resolution, text, needs_resolution);
+  ReadAttr(elem, "principalpixel", 2, camera->principal_pixel, text);
+  ReadAttr(elem, "principal", 2, camera->principal_length, text);
+  ReadAttr(elem, "focalpixel", 2, camera->focal_pixel, text);
+  ReadAttr(elem, "focal", 2, camera->focal_length, text);
+  ReadAttr(elem, "resolution", 2, camera->resolution, text);
 
-  if (camera->resolution[0] < 0 || camera->resolution[1] < 0) {
-    throw mjXError(elem, "camera resolution cannot be negative");
+  // read output attribute as space-separated bitflags
+  std::vector<int> outvals(mjNCAMOUT);
+  int nout = MapValues(elem, "output", outvals.data(), camout_map, mjNCAMOUT);
+  if (nout) {
+    camera->output = 0;
+    for (int i = 0; i < nout; ++i) {
+      camera->output |= outvals[i];
+    }
   }
 
-  if (has_fovy && has_sensorsize) {
-    throw mjXError(
-            elem,
-            "either 'fovy' or 'sensorsize' attribute can be specified, not both");
+  bool sensorsize = ReadAttr(elem, "sensorsize", 2, camera->sensor_size, text);
+  bool fovy = ReadAttr(elem, "fovy", 1, &camera->fovy, text);
+  if (fovy && sensorsize) {
+    throw mjXError(elem, "either 'fovy' or 'sensorsize' attribute can be specified, not both");
   }
 
   // read userdata
@@ -2162,6 +2206,7 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
         break;
 
       case mjEQ_FLEX:
+      case mjEQ_FLEXVERT:
         ReadAttrTxt(elem, "flex", name1, true);
         break;
 
@@ -2249,6 +2294,9 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     }
   }
   ReadAttrInt(elem, "group", &actuator->group);
+  ReadAttrInt(elem, "nsample", &actuator->nsample);
+  MapValue(elem, "interp", &actuator->interp, interp_map, interp_sz);
+  ReadAttr(elem, "delay", 1, &actuator->delay, text);
   MapValue(elem, "ctrllimited", &actuator->ctrllimited, TFAuto_map, 3);
   MapValue(elem, "forcelimited", &actuator->forcelimited, TFAuto_map, 3);
   MapValue(elem, "actlimited", &actuator->actlimited, TFAuto_map, 3);
@@ -2720,9 +2768,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   // edge
   XMLElement* edge = FirstChildElement(elem, "edge");
   if (edge) {
-    if (MapValue(edge, "equality", &n, bool_map, 2)) {
-      fcomp.equality = (n == 1);
-    }
+    MapValue(edge, "equality", &fcomp.equality, flexeq_map, 3);
     ReadAttr(edge, "solref", mjNREF, fcomp.def.spec.equality->solref, text, false, false);
     ReadAttr(edge, "solimp", mjNIMP, fcomp.def.spec.equality->solimp, text, false, false);
     ReadAttr(edge, "stiffness", 1, &dflex.edgestiffness, text);
@@ -3419,21 +3465,11 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       ReadAttrTxt(elem, "content_type", content_type);
 
       // parse the child
-      mjSpec* child = nullptr;
       std::array<char, 1024> error;
       auto filename = modelfiledir_ + ReadAttrFile(elem, "file", vfs).value();
 
-#ifdef mjUSEUSD
-      if (content_type == "text/usd") {
-        child = mj_parseUSD(filename.c_str(), vfs, error.data(), error.size());
-      } else {
-#endif  // mjUSEUSD
-        child = mj_parse(filename.c_str(), content_type.c_str(), vfs,
+      mjSpec* child = mj_parse(filename.c_str(), content_type.c_str(), vfs,
                                error.data(), error.size());
-#ifdef mjUSEUSD
-      }
-#endif  // mjUSEUSD
-
       if (!child) {
         throw mjXError(elem, "could not parse model file with error: %s", error.data());
       }
@@ -4013,6 +4049,10 @@ void mjXReader::Sensor(XMLElement* section) {
     }
     ReadAttr(elem, "cutoff", 1, &sensor->cutoff, text);
     ReadAttr(elem, "noise", 1, &sensor->noise, text);
+    ReadAttrInt(elem, "nsample", &sensor->nsample);
+    MapValue(elem, "interp", &sensor->interp, interp_map, interp_sz);
+    ReadAttr(elem, "delay", 1, &sensor->delay, text);
+    ReadAttr(elem, "interval", 2, sensor->interval, text, /*required=*/false, /*exact=*/false);
     if (ReadVector(elem, "user", userdata, text)) {
       mjs_setDouble(sensor->userdata, userdata.data(), userdata.size());
     }
@@ -4054,8 +4094,34 @@ void mjXReader::Sensor(XMLElement* section) {
       sensor->reftype = mjOBJ_CAMERA;
     } else if (type == "rangefinder") {
       sensor->type = mjSENS_RANGEFINDER;
-      sensor->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", objname, true);
+      bool use_site = ReadAttrTxt(elem, "site", objname, false);
+      bool use_camera = ReadAttrTxt(elem, "camera", objname, false);
+      if (use_site == use_camera) {
+        throw mjXError(elem, "rangefinder requires exactly one of 'site' or 'camera'");
+      }
+      sensor->objtype = use_site ? mjOBJ_SITE : mjOBJ_CAMERA;
+
+      // process data specification (intprm[0])
+      int dataspec = 1 << mjRAYDATA_DIST;
+      std::vector<int> raydata(mjNRAYDATA);
+      int nkeys = MapValues(elem, "data", raydata.data(), raydata_map, mjNRAYDATA);
+      if (nkeys) {
+        dataspec = 1 << raydata[0];
+
+        // check ordering while adding bits to dataspec
+        for (int i = 1; i < nkeys; ++i) {
+          if (raydata[i] <= raydata[i-1]) {
+            std::string correct_order;
+            for (int j = 0; j < mjNRAYDATA; ++j) {
+              correct_order += raydata_map[j].key;
+              if (j < mjNRAYDATA - 1) correct_order += ", ";
+            }
+            throw mjXError(elem, "data attributes must be in order: %s", correct_order.c_str());
+          }
+          dataspec |= 1 << raydata[i];
+        }
+      }
+      sensor->intprm[0] = dataspec;
     }
 
     // sensors related to scalar joints, tendons, actuators

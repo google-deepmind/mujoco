@@ -535,11 +535,11 @@ def contact_params(
       max_geom_friction = wp.max(geom_friction[friction_id, g1], geom_friction[friction_id, g2])
 
     friction = vec5(
-      wp.max(MJ_MINMU, max_geom_friction[0]),
-      wp.max(MJ_MINMU, max_geom_friction[0]),
-      wp.max(MJ_MINMU, max_geom_friction[1]),
-      wp.max(MJ_MINMU, max_geom_friction[2]),
-      wp.max(MJ_MINMU, max_geom_friction[2]),
+      max_geom_friction[0],
+      max_geom_friction[0],
+      max_geom_friction[1],
+      max_geom_friction[2],
+      max_geom_friction[2],
     )
 
     if geom_solref[solref_id, g1][0] > 0.0 and geom_solref[solref_id, g2][0] > 0.0:
@@ -552,6 +552,14 @@ def contact_params(
     # geom priority is ignored
     margin = wp.max(geom_margin[margin_id, g1], geom_margin[margin_id, g2])
     gap = wp.max(geom_gap[gap_id, g1], geom_gap[gap_id, g2])
+
+  friction = vec5(
+    wp.max(MJ_MINMU, friction[0]),
+    wp.max(MJ_MINMU, friction[1]),
+    wp.max(MJ_MINMU, friction[2]),
+    wp.max(MJ_MINMU, friction[3]),
+    wp.max(MJ_MINMU, friction[4]),
+  )
 
   return geoms, margin, gap, condim, friction, solref, solreffriction, solimp
 
@@ -814,39 +822,41 @@ def capsule_capsule_wrapper(
     cap2_axis,
     cap2.size[0],  # radius2
     cap2.size[1],  # half_length2
+    margin,
   )
 
-  write_contact(
-    naconmax_in,
-    0,
-    dist,
-    pos,
-    make_frame(normal),
-    margin,
-    gap,
-    condim,
-    friction,
-    solref,
-    solreffriction,
-    solimp,
-    geoms,
-    pairid,
-    worldid,
-    contact_dist_out,
-    contact_pos_out,
-    contact_frame_out,
-    contact_includemargin_out,
-    contact_friction_out,
-    contact_solref_out,
-    contact_solreffriction_out,
-    contact_solimp_out,
-    contact_dim_out,
-    contact_geom_out,
-    contact_worldid_out,
-    contact_type_out,
-    contact_geomcollisionid_out,
-    nacon_out,
-  )
+  for i in range(2):
+    write_contact(
+      naconmax_in,
+      i,
+      dist[i],
+      wp.vec3(pos[i, 0], pos[i, 1], pos[i, 2]),
+      make_frame(wp.vec3(normal[i, 0], normal[i, 1], normal[i, 2])),
+      margin,
+      gap,
+      condim,
+      friction,
+      solref,
+      solreffriction,
+      solimp,
+      geoms,
+      pairid,
+      worldid,
+      contact_dist_out,
+      contact_pos_out,
+      contact_frame_out,
+      contact_includemargin_out,
+      contact_friction_out,
+      contact_solref_out,
+      contact_solreffriction_out,
+      contact_solimp_out,
+      contact_dim_out,
+      contact_geom_out,
+      contact_worldid_out,
+      contact_type_out,
+      contact_geomcollisionid_out,
+      nacon_out,
+    )
 
 
 @wp.func

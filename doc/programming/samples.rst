@@ -128,6 +128,9 @@ during model development. It is in one-to-one correspondence with the compiled m
 function :ref:`mj_printData` to create a text file which is in one-to-one correspondence
 with mjData, although this is not done by the code sample.
 
+If the input file is MJCF and the output file is empty, compilation is performed and timed twice to measure the impact
+of the compiler's :ref:`asset cache<Assetcache>`.
+
 .. _saBasic:
 
 `basic <https://github.com/google-deepmind/mujoco/blob/main/sample/basic.cc>`_

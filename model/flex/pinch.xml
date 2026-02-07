@@ -1,0 +1,41 @@
+<mujoco>
+  <include file="scene.xml"/>
+  <option timestep="0.002"/>
+  <worldbody>
+    <body name="gripper" pos="0 0 0.5">
+      <joint name="lift" type="slide" axis="0 0 1" damping="50"/>
+      <geom type="box" size="0.2 0.05 0.02" rgba="0.5 0.5 0.5 1"/> <!-- base -->
+
+      <body name="left_finger" pos="-0.1 0 -0.1">
+        <joint name="left_slide" type="slide" axis="1 0 0" damping="10"/>
+        <geom type="box" size="0.02 0.1 0.1" rgba="0.8 0.2 0.2 1"/>
+      </body>
+
+      <body name="right_finger" pos="0.1 0 -0.1">
+        <joint name="right_slide" type="slide" axis="-1 0 0" damping="10"/>
+        <geom type="box" size="0.02 0.1 0.1" rgba="0.8 0.2 0.2 1"/>
+      </body>
+    </body>
+
+    <flexcomp name="cloth" type="grid" dim="2" count="9 9 1" spacing="0.05 0.05 0.05"
+              pos="0 0 0.1" radius="0.01">
+      <edge equality="true"/>
+    </flexcomp>
+  </worldbody>
+
+  <equality>
+    <joint joint1="right_slide" joint2="left_slide"/>
+  </equality>
+
+  <tendon>
+    <fixed name="grasp">
+      <joint joint="right_slide" coef="1"/>
+      <joint joint="left_slide" coef="1"/>
+    </fixed>
+  </tendon>
+
+  <actuator>
+    <position name="lift" joint="lift" kp="600" dampratio="1" ctrlrange="-1 1"/>
+    <position name="grasp" tendon="grasp" kp="200" dampratio="1" ctrlrange="0 1"/>
+  </actuator>
+</mujoco>

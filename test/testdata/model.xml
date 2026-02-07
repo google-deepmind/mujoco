@@ -157,7 +157,7 @@
 
   <sensor>
     <framepos objtype="site" objname="wheel_0" reftype="site" refname="wheel_2"/>
-    <rangefinder site="rf"/>
+    <rangefinder site="rf" data="dist dir origin point normal depth"/>
     <gyro site="wheel_2"/>
     <touch site="wheel_1"/>
     <force site="knee"/>

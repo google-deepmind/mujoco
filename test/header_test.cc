@@ -16,8 +16,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 #include <utility>
 #include <vector>
+
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -29,6 +31,17 @@
 
 namespace mujoco {
 namespace {
+
+template <typename T, size_t N>
+struct ArrayOrScalar {
+  using type = T[N];
+};
+template <typename T>
+struct ArrayOrScalar<T, 1> {
+  using type = T;
+};
+template <typename T, size_t N>
+using ArrayOrScalarT = typename ArrayOrScalar<T, N>::type;
 
 // check that a vector of named pointers are ordered by address
 void CheckAddressOrdering(
@@ -121,12 +134,70 @@ TEST_F(HeaderTest, MjOptionVectorsOrdered) {
   CheckAddressOrdering(vectors, "MJOPTION_VECTORS");
 }
 
+TEST_F(HeaderTest, MjStatisticFields) {
+  mjStatistic s;
+  std::vector<std::pair<const void*, const char*>> fields;
+
+  // check that all X macros have the correct type and dim
+#define X(type, name, dim)                                                    \
+  static_assert(                                                              \
+      std::is_same_v<decltype(mjStatistic::name), ArrayOrScalarT<type, dim>>, \
+      "incorrect type for mjStatistic::" #name);                              \
+  MJSTATISTIC_FIELDS
+#undef X
+
+  // check that the ordering of X macros agrees with the struct fields
+#define X(type, name, dim) \
+  fields.push_back({static_cast<const void*>(&s.name), #name});
+  MJSTATISTIC_FIELDS
+#undef X
+
+  CheckAddressOrdering(fields, "MJSTATISTIC_FIELDS");
+
+  // check that MJSTATISTIC_FIELDS is a complete list of struct fields
+  struct ExpectedMjStatistic {
+#define X(type, name, dim) type name[dim];
+    MJSTATISTIC_FIELDS;
+#undef X
+  };
+  static_assert(sizeof(mjStatistic) == sizeof(ExpectedMjStatistic));
+}
+
+TEST_F(HeaderTest, MjVisualFields) {
+  mjVisual v;
+  std::vector<std::pair<const void*, const char*>> fields;
+
+  // check that all X macros have the correct type and dim
+#define X(substruct, type, name, dim)                                        \
+  static_assert(                                                             \
+      std::is_same_v<decltype(v.substruct.name), ArrayOrScalarT<type, dim>>, \
+      "incorrect type for mjVisual::" #substruct "::" #name);                \
+  MJVISUAL_FIELDS
+#undef X
+
+  // check that the ordering of X macros agrees with the struct fields
+#define X(substruct, type, name, dim) \
+  fields.push_back({static_cast<const void*>(&v.substruct.name), #name});
+  MJVISUAL_FIELDS
+#undef X
+
+  CheckAddressOrdering(fields, "MJVISUAL_FIELDS");
+
+  // check that MJVISUAL_FIELDS is a complete list of fields
+  struct ExpectedMjVisual {
+#define X(substruct, type, name, dim) type substruct##_##name[dim];
+    MJVISUAL_FIELDS;
+#undef X
+  };
+  static_assert(sizeof(mjVisual) == sizeof(ExpectedMjVisual));
+}
+
 TEST_F(HeaderTest, MjModelIntsOrdered) {
   mjModel m;
   std::vector<std::pair<const void*, const char*>> ints;
 
 #define X(name) ints.push_back({static_cast<const void*>(&m.name), #name});
-  MJMODEL_INTS
+  MJMODEL_SIZES
 #undef X
 
   CheckAddressOrdering(ints, "MJMODEL_INT");

@@ -1,4 +1,4 @@
-// Copyright 2025 DeepMind Technologies Limited
+// Copyright 2026 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_USD_MATERIAL_PARSING_H_
-#define MUJOCO_SRC_EXPERIMENTAL_USD_MATERIAL_PARSING_H_
 
-#include <pxr/usd/usdShade/material.h>
+#ifndef MUJOCO_SRC_XML_XML_GLOBAL_H_
+#define MUJOCO_SRC_XML_XML_GLOBAL_H_
+
+#include <string>
+
 #include <mujoco/mujoco.h>
 
-namespace mujoco {
-namespace usd {
-mjsMaterial* ParseMaterial(mjSpec* spec, const pxr::UsdShadeMaterial &material);
-}  // namespace usd
-}  // namespace mujoco
+MJAPI void SetGlobalXmlSpec(mjSpec* spec = nullptr);
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_USD_MATERIAL_PARSING_H_
+std::string GetGlobalXmlSpec(const mjModel* m, char* error, int error_sz);
+
+#endif  // MUJOCO_SRC_XML_XML_GLOBAL_H_

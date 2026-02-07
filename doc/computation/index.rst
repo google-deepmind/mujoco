@@ -184,16 +184,16 @@ mathematical notation.
      - inertia in joint space
      - ``mjData.qM``
    * - :math:`J(q)`
-     - :math:`\nq \times \nv`
+     - :math:`\nc \times \nv`
      - constraint
        Jacobian
      - ``mjData.efc_J``
    * - :math:`r(q)`
-     - :math:`\nq`
+     - :math:`\nc`
      - constraint residual
      - ``mjData.efc_pos``
    * - :math:`f(q, v,\tau)`
-     - :math:`\nq`
+     - :math:`\nc`
      - constraint force
      - ``mjData.efc_force``
 
@@ -599,126 +599,29 @@ Fast implicit-in-velocity (``implicitfast``)
      ``implicitfast`` yet conserves energy well under ``RK4``. Note that under ``implicit``, this model doesn't diverge
      but rather loses energy.
 
+
+.. Leave links below to sections that were previously here and have moved to the simulation chapter.
+.. _gePhysicsState:
+.. _geFullPhysics:
+.. _geInput:
+.. _geWarmstart:
+.. _geIntegrationState:
+.. _geSimulationState:
+
 .. _geState:
 
 The State
 ~~~~~~~~~
 
-To complete our description of the general framework we will now discuss the notion of *state*. MuJoCo has a compact,
-well-defined internal state which, together with the :ref:`deterministic computational pipeline<piReproducibility>`,
-means that operations like resetting the state and computing dynamics derivatives are also well-defined.
+To complete our description of the general framework we will quickly discuss the notion of *state*. MuJoCo has a
+compact, well-defined internal state which, together with the :ref:`deterministic pipeline<piReproducibility>`, means
+that operations like (re)setting the state and computing dynamics derivatives are also well-defined.
 
 The state is entirely encapsulated in the :ref:`mjData` struct and consists of several components. The components are
-enumerated in :ref:`mjtState` as bit flags, along with several common combinations, corresponding to the groupings
-below. Concatenated state vectors can be conveniently read from and written into :ref:`mjData` using :ref:`mj_getState`
-and :ref:`mj_setState`, respectively.
+enumerated in :ref:`mjtState` as bit flags. Concatenated state vectors can be conveniently read from and written into
+:ref:`mjData` using :ref:`mj_getState` and :ref:`mj_setState`, respectively.
 
-.. _gePhysicsState:
-
-Physics state
-^^^^^^^^^^^^^
-The *physics state* (:ref:`mjSTATE_PHYSICS<mjtState>`) contains the main quantities which are time-integrated during
-stepping. These are ``mjData.{qpos, qvel, act}``:
-
-Position: ``qpos``
-  The configuration in generalized coodinates, denoted above as :math:`q`.
-
-Velocity: ``qvel``
-  The generalized velocities, denoted above as :math:`v`.
-
-Actuator activation: ``act``
-  ``mjData.act`` contains the internal states of stateful actuators, denoted above as :math:`w`.
-
-.. _geFullPhysics:
-
-Full physics state
-^^^^^^^^^^^^^^^^^^
-
-The *full physics state* (:ref:`mjSTATE_FULLPHYSICS<mjtState>`) contains the physics state and two additional
-components:
-
-Time: ``time``
-  The simulation time is given by the scalar ``mjData.time``. Since physics is time-invariant, it is
-  excluded from the *physics state*; exceptions include time-dependent user callbacks and plugins (e.g., an open-loop
-  controller), in which case time should be included.
-
-Plugin state: ``plugin_state``
-  ``mjData.plugin_state`` are states declared by :ref:`engine plugins<exPlugin>`. Please see the :ref:`exPluginState`
-  section for more details.
-
-.. _geInput:
-
-User inputs
-^^^^^^^^^^^
-
-These input fields (:ref:`mjSTATE_USER<mjtState>`) are set by the user and affect the physics simulation, but are
-untouched by the simulator. All input fields except for MoCap poses default to 0.
-
-Control: ``ctrl``
-  Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
-  generalized forces directly (stateless actuators), or affect the actuator activations in ``mjData.act``, which then
-  produce forces.
-
-Auxiliary Controls: ``qfrc_applied`` and ``xfrc_applied``
-  | ``mjData.qfrc_applied`` are directly applied generalized forces.
-  | ``mjData.xfrc_applied`` are Cartesian wrenches applied to the CoM of individual bodies. This field is used for
-    example, by the :ref:`native viewer<saSimulate>` to apply mouse perturbations.
-  | Note that the effects of ``qfrc_applied`` and ``xfrc_applied`` can usually be recreated by appropriate actuator
-    definitions.
-
-MoCap poses: ``mocap_pos`` and ``mocap_quat``
-  ``mjData.mocap_pos`` and ``mjData.mocap_quat`` are special optional kinematic states :ref:`described here<CMocap>`,
-  which allow the user to set the positions and orientations of static bodies in real-time, for example when streaming
-  6D poses from a motion-capture device. The default values set by :ref:`mj_resetData` are the poses of the bodies at
-  the default configuration.
-
-Equality constraint toggle: ``eq_active``
-  ``mjData.eq_active`` is a byte-valued array that allows the user to toggle the state of equality constraints at
-  runtime. The initial value of this array is ``mjModel.eq_active0`` which can be set in XML using the
-  :ref:`active<equality-connect-active>` attribute of :ref:`equality constraints<coEquality>`.
-
-User data: ``userdata``
-  ``mjData.userdata`` acts as a user-defined memory space untouched by the engine. For example it can be used by
-  callbacks. This is described in more detail in the :ref:`Programming chapter<siSimulation>`.
-
-.. _geWarmstart:
-
-Warmstart acceleration
-^^^^^^^^^^^^^^^^^^^^^^
-
-``qacc_warmstart``
-  ``mjData.qacc_warmstart`` are accelerations used to warmstart the constraint solver, saved from the previous step.
-  When using a slowly-converging :ref:`constraint solver<Solver>` like PGS, these can speed up simulation by reducing
-  the number of iterations required for convergence. Note however that the default Newton solver converges so quickly
-  (usually 2-3 iterations), that warmstarts often have no effect on speed and can be disabled.
-
-  Different warmstarts have no perceptible effect on the dynamics but should be saved if perfect numerical
-  reproducibility is required when loading a non-initial state. Note that even though their effect on physics is
-  negligible, many physical systems will accumulate small differences  `exponentially
-  <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__ when time-stepping, quickly leading to divergent trajectories
-  for different warmstarts.
-
-.. _geIntegrationState:
-
-Integration state
-^^^^^^^^^^^^^^^^^
-
-The *integration state* (:ref:`mjSTATE_INTEGRATION<mjtState>`) is the union of all the above :ref:`mjData` fields and
-constitutes the entire set of inputs to the *forward dynamics*. In the case of *inverse dynamics*, ``mjData.qacc`` is
-also treated as an input variable. All other :ref:`mjData` fields are functions of the integration state.
-
-Note that the full integration state as given by :ref:`mjSTATE_INTEGRATION<mjtState>` is maximalist and includes fields
-which are often unused. If a small state size is desired, it might be sensible to avoid saving unused fields.
-In particular ``xfrc_applied`` can be quite large (``6 x nbody``) yet is often unused.
-
-.. _geSimulationState:
-
-Simulation state: ``mjData``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The *simulation state* is the entirety of the :ref:`mjData` struct and associated memory buffer. This state includes
-all derived quantities computed during dynamics computation. Because the :ref:`mjData` buffers are preallocated for the
-worst case, it is often significantly faster to recompute derived quantities from the *integration state* rather than
-using :ref:`mj_copyData`.
+More detail can be found in the :ref:`State and Control<siStateControl>` section in the Simulation chapter.
 
 .. _Constraint:
 
@@ -1671,6 +1574,144 @@ callbacks. This can be used to incorporate a general-purpose "triangle soup" col
 do not recommend such an approach. Pre-processing the geometry and representing it as a union of convex geoms takes some
 work, but it pays off at runtime and yields both faster and more stable simulation.
 
+.. _coPairwise:
+
+Pair-wise colliders
+^^^^^^^^^^^^^^^^^^^
+
+The table below provides information about the colliders used for different geom pairs. The second row in each cell
+lists the maximum number of contacts generated, possibly with ``multiccd`` enabled. For example, ``Mesh`` / ``Mesh``
+will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
+
+.. list-table::
+   :header-rows: 1
+   :stub-columns: 1
+   :widths: auto
+   :class: table-pairwise
+
+   * -
+     - Sphere
+     - Capsule
+     - Ellipsoid
+     - Cylinder
+     - Box
+     - Mesh
+     - SDF
+   * - Plane
+     - | primitive
+       | **1**
+     - | primitive
+       | **2**
+     - | primitive
+       | **1**
+     - | primitive
+       | **2**
+     - | primitive
+       | **4**
+     - | primitive
+       | **3**
+     - | primitive
+       | **1**
+   * - HField
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Sphere
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Capsule
+     -
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**, **4**
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**, **4**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Ellipsoid
+     -
+     -
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Cylinder
+     -
+     -
+     -
+     - | CCD
+       | **1**, **4**
+     - | CCD
+       | **1**, **4**
+     - | CCD
+       | **1**, **4**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Box
+     -
+     -
+     -
+     -
+     - | primitive
+       | **8**
+     - | CCD
+       | **1**, **4**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Mesh
+     -
+     -
+     -
+     -
+     -
+     - | CCD
+       | **1**, **4**
+     - | MeshSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - SDF
+     -
+     -
+     -
+     -
+     -
+     -
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+
 .. _Sleeping:
 
 Sleeping islands
@@ -1824,8 +1865,8 @@ Control callback
 
 Force/acceleration
 ''''''''''''''''''
-The stages below compute quantities that depend on :ref:`user inputs<geInput>`. Due to the sequential nature
-of the pipeline, the actual dependence is on the entire :ref:`integration state<geIntegrationState>`.
+The stages below compute quantities that depend on :ref:`user inputs<siInput>`. Due to the sequential nature
+of the pipeline, the actual dependence is on the entire :ref:`integration state<siIntegrationState>`.
 
 20. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
 21. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
@@ -1871,8 +1912,8 @@ MuJoCo's simulation pipeline is entirely deterministic and reproducible -- if a 
 saved and reloaded and :ref:`mj_step` called again, the resulting next state will be identical. However, there are some
 important caveats:
 
-- Save all the required :ref:`integration state<geIntegrationState>` components. In particular :ref:`warmstart
-  accelerations<geWarmstart>` have only a very small effect on the next state, but should be saved if bit-wise equality
+- Save all the required :ref:`integration state<siIntegrationState>` components. In particular :ref:`warmstart
+  accelerations<siWarmstart>` have only a very small effect on the next state, but should be saved if bit-wise equality
   is required.
 - Any numerical difference between states, no matter how small, will become significant upon integration, especially for
   systems with contact. Contact events have high `Lyapunov exponents

@@ -58,20 +58,28 @@ def axis_angle_to_quat(axis: wp.vec3, angle: float) -> wp.quat:
 
 @wp.func
 def quat_to_mat(quat: wp.quat) -> wp.mat33:
-  """Converts a quaternion into a 9-dimensional rotation matrix."""
-  vec = wp.vec4(quat[0], quat[1], quat[2], quat[3])
-  q = wp.outer(vec, vec)
+  """Converts a quaternion into 3x3 rotation matrix."""
+  q00 = quat[0] * quat[0]
+  q01 = quat[0] * quat[1]
+  q02 = quat[0] * quat[2]
+  q03 = quat[0] * quat[3]
+  q11 = quat[1] * quat[1]
+  q12 = quat[1] * quat[2]
+  q13 = quat[1] * quat[3]
+  q22 = quat[2] * quat[2]
+  q23 = quat[2] * quat[3]
+  q33 = quat[3] * quat[3]
 
   return wp.mat33(
-    q[0, 0] + q[1, 1] - q[2, 2] - q[3, 3],
-    2.0 * (q[1, 2] - q[0, 3]),
-    2.0 * (q[1, 3] + q[0, 2]),
-    2.0 * (q[1, 2] + q[0, 3]),
-    q[0, 0] - q[1, 1] + q[2, 2] - q[3, 3],
-    2.0 * (q[2, 3] - q[0, 1]),
-    2.0 * (q[1, 3] - q[0, 2]),
-    2.0 * (q[2, 3] + q[0, 1]),
-    q[0, 0] - q[1, 1] - q[2, 2] + q[3, 3],
+    q00 + q11 - q22 - q33,
+    2.0 * (q12 - q03),
+    2.0 * (q13 + q02),
+    2.0 * (q12 + q03),
+    q00 - q11 + q22 - q33,
+    2.0 * (q23 - q01),
+    2.0 * (q13 - q02),
+    2.0 * (q23 + q01),
+    q00 - q11 - q22 + q33,
   )
 
 

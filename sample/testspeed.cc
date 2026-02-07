@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cinttypes>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -283,7 +284,7 @@ int main(int argc, char** argv) {
               solver[m->opt.solver], solto6[m->opt.solver], iterations[0]/nstep);
   std::printf(" Contacts / step      : %.2f\n", static_cast<float>(contacts[0])/nstep);
   std::printf(" Constraints / step   : %.2f\n", static_cast<float>(constraints[0])/nstep);
-  std::printf(" Degrees of freedom   : %d\n", m->nv);
+  std::printf(" Degrees of freedom   : %" PRId64 "\n", m->nv);
   std::printf(" Dynamic memory usage : %.1f%% of %s\n\n",
               100 * d[0]->maxuse_arena / (double)(d[0]->narena),
               mju_writeNumBytes(d[0]->narena));

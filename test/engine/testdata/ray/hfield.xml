@@ -1,5 +1,4 @@
 <mujoco>
-
   <asset>
     <hfield name="hfield" nrow="5" ncol="5" size=".8 .8 .8 .3"
             elevation="1 0 1 1 0

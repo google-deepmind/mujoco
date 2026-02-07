@@ -50,6 +50,11 @@ def _is_cuda_gpu_device(device: jax.Device) -> bool:
   return device in jax.devices('cuda')
 
 
+def _check_warp_installed():
+  if not mjxw.WARP_INSTALLED:
+    raise RuntimeError('warp-lang is not installed. Cannot use WARP implementation of MJX.')
+
+
 def _resolve_impl(
     device: jax.Device,
 ) -> types.Impl:
@@ -119,10 +124,7 @@ def _check_impl_device_compatibility(
           'Warp implementation requires a CUDA GPU device, got '
           f'{device}.'
       )
-    if not mjxw.WARP_INSTALLED:
-      raise RuntimeError(
-          'Warp is not installed. Cannot use Warp implementation of MJX.'
-      )
+    _check_warp_installed()
 
   is_cpu_device = device.platform == 'cpu'
   if impl == types.Impl.C or impl == types.Impl.CPP:
@@ -178,7 +180,7 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
     return wp.types.warp_type_to_np_dtype[wp_dtype](wp_field)
 
   # warp arrays
-  if isinstance(wp_field, wp.types.array):
+  if isinstance(wp_field, wp.array):
     return wp_field.numpy()
 
   # static
@@ -191,7 +193,7 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
   # tuples
   if isinstance(wp_field, tuple) and len(wp_field) == 0:
     return ()
-  if isinstance(wp_field, tuple) and isinstance(wp_field[0], wp.types.array):
+  if isinstance(wp_field, tuple) and isinstance(wp_field[0], wp.array):
     return tuple(f.numpy() for f in wp_field)
   if isinstance(wp_field, tuple) and isinstance(
       wp_field[0], mjwp_types.TileSet
@@ -448,12 +450,10 @@ def _put_model_c(
 
 def _put_model_warp(
     m: mujoco.MjModel,
+    graph_mode: mjxw.types.GraphMode,
     device: Optional[jax.Device] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
-  if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('Warp not installed.')
-
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
     mw = mjwp.put_model(m)  # pylint: disable=undefined-variable
 
@@ -464,7 +464,10 @@ def _put_model_warp(
   option_keys = {f.name for f in mjxw.types.OptionWarp.fields()} - {
       f.name for f in types.Option.fields()
   }
+  # graph_mode is MJX-specific, not from mujoco.mjx.third_party.mujoco_warp.
+  option_keys = option_keys - {'graph_mode'}
   private_options = {k: getattr(mw.opt, k) for k in option_keys}
+  private_options['graph_mode'] = graph_mode
   fields['opt'] = _put_option(m.opt, types.Impl.WARP, private_options)
   fields['stat'] = _put_statistic(m.stat, types.Impl.WARP)
 
@@ -527,6 +530,7 @@ def put_model(
     m: mujoco.MjModel,
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
+    graph_mode: Optional[mjxw.types.GraphMode] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model.
 
@@ -534,12 +538,15 @@ def put_model(
     m: the model to put onto device
     device: which device to use - if unspecified picks the default device
     impl: implementation to use
+    graph_mode: CUDA graph capture mode (for Warp only). Use GraphMode enum from
+      warp._src.jax_experimental.ffi. GraphMode.WARP is the default mode.
 
   Returns:
     an mjx.Model placed on device
 
   Raises:
     ValueError: if impl is not supported
+    RuntimeError: if impl is WARP and warp-lang is not installed
   """
 
   impl, device = _resolve_impl_and_device(impl, device)
@@ -548,7 +555,9 @@ def put_model(
   elif impl == types.Impl.C:
     return _put_model_c(m, device)
   elif impl == types.Impl.WARP:
-    return _put_model_warp(m, device)
+    _check_warp_installed()
+    graph_mode = graph_mode or getattr(mjxw.types.GraphMode, 'WARP')
+    return _put_model_warp(m, graph_mode, device)
   elif impl == types.Impl.CPP:
     return _put_model_cpp(m, device)
   else:
@@ -562,6 +571,7 @@ def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
       'time': (float_,),
       'qvel': (m.nv, float_),
       'act': (m.na, float_),
+      'history': (m.nhistory, float_),
       'plugin_state': (m.npluginstate, float_),
       'qacc_warmstart': (m.nv, float_),
       'ctrl': (m.nu, float_),
@@ -754,10 +764,7 @@ def _make_data_c(
       'light_xdir': (m.nlight, 3, float_),
       'flexvert_xpos': (nflexvert, 3, float_),
       'flexelem_aabb': (nflexelem, 6, float_),
-      'flexedge_J_rownnz': (nflexedge, np.int32),
-      'flexedge_J_rowadr': (nflexedge, np.int32),
-      'flexedge_J_colind': (nflexedge, m.nv, np.int32),
-      'flexedge_J': (nflexedge, m.nv, float_),
+      'flexedge_J': (m.nJfe, float_),
       'flexedge_length': (nflexedge, float_),
       'ten_J_rownnz': (m.ntendon, np.int32),
       'ten_J_rowadr': (m.ntendon, np.int32),
@@ -864,15 +871,12 @@ def _make_data_warp(
         f' {type(m)}.'
     )
 
-  if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('Warp is not installed.')
-
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
     dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
 
   fields = _make_data_public_fields(m)
   for k in fields:
-    if k in {'userdata', 'plugin_state'}:
+    if k in {'userdata', 'plugin_state', 'history'}:
       continue
     if not hasattr(dw, k):
       raise ValueError(f'Public data field {k} not found in Warp data.')
@@ -910,6 +914,44 @@ def _make_data_warp(
   del dw, mw
 
   return data
+
+
+def _make_data_cpp(
+    m: Union[types.Model, mujoco.MjModel],
+    device: Optional[jax.Device] = None,
+) -> types.Data:
+  """Allocate and initialize Data for the CPP implementation."""
+  if isinstance(m, mujoco.MjModel):
+    mj_model = m
+  else:
+    # Get the underlying MjModel from the types.Model
+    m_impl = m._impl  # pylint: disable=protected-access
+    if not isinstance(m_impl, types.ModelCPP):
+      raise ValueError(f'Expected ModelCPP impl, got {type(m_impl)}')
+    mj_model = m_impl._model  # pylint: disable=protected-access
+
+  # Create the raw MuJoCo data
+  mj_data = mujoco.MjData(mj_model)
+
+  # Get the pointer address
+  addr = mj_data._address  # pytype: disable=attribute-error
+  pointer_lo = jp.array(addr & 0xFFFFFFFF, dtype=jp.uint32)
+  pointer_hi = jp.array(addr >> 32, dtype=jp.uint32)
+
+  fields = _put_data_public_fields(mj_data)
+
+  c_pointers_impl = types.DataCPP(
+      pointer_lo=pointer_lo,
+      pointer_hi=pointer_hi,
+      _data=[mj_data],
+  )
+
+  data = types.Data(
+      _impl=c_pointers_impl,
+      **fields,
+  )
+  data = jax.device_put(data, device=device)
+  return _strip_weak_type(data)
 
 
 def make_data(
@@ -965,7 +1007,10 @@ def make_data(
     return _make_data_jax(m, device)
   elif impl == types.Impl.C:
     return _make_data_c(m, device)
+  elif impl == types.Impl.CPP:
+    return _make_data_cpp(m, device)
   elif impl == types.Impl.WARP:
+    _check_warp_installed()
     naconmax = nconmax if naconmax is None else naconmax
     return _make_data_warp(m, device, naconmax, njmax)
 
@@ -1265,12 +1310,8 @@ def _put_data_cpp(
   def _copy_and_get_addr(unused_jax_array):
     # We use the input to the callback as a dummy dependency to ensure
     # io_callback runs for each element in the batch.
-    try:
-      new_d = mujoco.MjData(m)
-    except mujoco.FatalError as e:
-      raise ValueError('Failed to create new MjData') from e
-    mujoco.mj_copyState(m, d, new_d, int(mujoco.mjtState.mjSTATE_FULLPHYSICS))
-    mujoco.mj_forward(m, new_d)
+    new_d = mujoco.MjData(m)
+    mujoco.mj_copyData(new_d, m, d)
     data_list.append(new_d)
     addr = new_d._address
     # To ensure that we retain the full pointer even if jax.config.enable_x64 is
@@ -1586,6 +1627,58 @@ def _get_data_into(
     mujoco.mj_factorM(m, result_i)
 
 
+def _get_data_into_cpp(
+    result: Union[mujoco.MjData, List[mujoco.MjData]],
+    m: mujoco.MjModel,
+    d: types.Data,
+):
+  """Gets mjx.Data from CPP impl into an existing mujoco.MjData or list.
+
+  For the CPP implementation, the mjx.Data wraps underlying mujoco.MjData
+  objects that are stored in DataCPP._data. This function simply copies the
+  data from those underlying MjData objects to the result using mj_copyData.
+  """
+
+  batched = isinstance(result, list)
+  d = jax.device_get(d)
+  batch_size = d.qpos.shape[0] if batched else 1
+
+  d_impl = d._impl  # pylint: disable=protected-access
+  if not isinstance(d_impl, types.DataCPP):
+    raise ValueError(f'Expected DataCPP impl, got {type(d_impl)}')
+
+  mj_data_list = d_impl._data  # pylint: disable=protected-access
+
+  if batch_size > len(mj_data_list):
+    raise ValueError(
+        f'Batch size {batch_size} exceeds number of underlying MjData objects '
+        f'({len(mj_data_list)}). Cannot copy data.'
+    )
+
+  # Verify that the underlying MjData state matches the mjx.Data state
+  # Ideally we'd use mj_getState and get_state here but that requires an
+  # mjx.Model which we don't have access to in this function.
+  fields_to_check = ['qpos', 'qvel', 'act', 'mocap_pos', 'mocap_quat']
+  for i in range(batch_size):
+    d_i = jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
+    src_data = mj_data_list[i]
+
+    for field in fields_to_check:
+      mj_value = getattr(src_data, field)
+      mjx_value = np.asarray(getattr(d_i, field))
+      if not np.allclose(mj_value, mjx_value):
+        raise ValueError(
+            f'State mismatch at batch index {i}, field {field}: underlying '
+            'MjData does not match mjx.Data. The mjx.Data may have been '
+            'modified without updating the underlying MjData.'
+        )
+
+  for i in range(batch_size):
+    result_i = result[i] if batched else result
+    src_data = mj_data_list[i]
+    mujoco.mj_copyData(result_i, m, src_data)
+
+
 def get_data_into(
     result: Union[mujoco.MjData, List[mujoco.MjData]],
     m: mujoco.MjModel,
@@ -1603,6 +1696,9 @@ def get_data_into(
   if d.impl in (types.Impl.JAX, types.Impl.C):
     # TODO(stunya): Split out _get_data_into once codepaths diverge enough.
     return _get_data_into(result, m, d)
+
+  if d.impl == types.Impl.CPP:
+    return _get_data_into_cpp(result, m, d)
 
   if d.impl == types.Impl.WARP:
     return _get_data_into_warp(result, m, d)
@@ -1634,6 +1730,7 @@ _STATE_MAP = {
     mujoco.mjtState.mjSTATE_QPOS: 'qpos',
     mujoco.mjtState.mjSTATE_QVEL: 'qvel',
     mujoco.mjtState.mjSTATE_ACT: 'act',
+    mujoco.mjtState.mjSTATE_HISTORY: 'history',
     mujoco.mjtState.mjSTATE_WARMSTART: 'qacc_warmstart',
     mujoco.mjtState.mjSTATE_CTRL: 'ctrl',
     mujoco.mjtState.mjSTATE_QFRC_APPLIED: 'qfrc_applied',
@@ -1657,6 +1754,7 @@ def _state_elem_size(m: types.Model, state_enum: mujoco.mjtState) -> int:
       'qpos',
       'qvel',
       'act',
+      'history',
       'qacc_warmstart',
       'ctrl',
       'qfrc_applied',
@@ -1672,6 +1770,7 @@ def _state_elem_size(m: types.Model, state_enum: mujoco.mjtState) -> int:
             'qpos': 'nq',
             'qvel': 'nv',
             'act': 'na',
+            'history': 'nhistory',
             'qacc_warmstart': 'nv',
             'ctrl': 'nu',
             'qfrc_applied': 'nv',

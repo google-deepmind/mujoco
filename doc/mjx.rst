@@ -4,6 +4,11 @@
 MuJoCo XLA (MJX)
 ================
 
+.. toctree::
+    :hidden:
+
+    API <mjx_api.rst>
+
 Starting with version 3.0.0, MuJoCo includes MuJoCo XLA (MJX) under the
 `mjx <https://github.com/google-deepmind/mujoco/tree/main/mjx>`__ directory.  MJX allows MuJoCo to run on compute
 hardware supported by the `XLA <https://www.tensorflow.org/xla>`__ compiler via the

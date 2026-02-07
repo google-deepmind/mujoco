@@ -14,6 +14,7 @@
 
 #include "engine/engine_support.h"
 
+#include <inttypes.h>  // IWYU pragma: keep
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
@@ -112,6 +113,16 @@ const int mjCONDATA_SIZE[mjNCONDATA] = {
 };
 
 
+// size of ray data fields
+const int mjRAYDATA_SIZE[mjNRAYDATA] = {
+  1,  // mjRAYDATA_DIST
+  3,  // mjRAYDATA_DIR
+  3,  // mjRAYDATA_ORIGIN
+  3,  // mjRAYDATA_POINT
+  3,  // mjRAYDATA_NORMAL
+  1   // mjRAYDATA_DEPTH
+};
+
 //-------------------------- get/set state ---------------------------------------------------------
 
 // return size of a single state element
@@ -121,6 +132,7 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState sig) {
   case mjSTATE_QPOS:          return m->nq;
   case mjSTATE_QVEL:          return m->nv;
   case mjSTATE_ACT:           return m->na;
+  case mjSTATE_HISTORY:       return m->nhistory;
   case mjSTATE_WARMSTART:     return m->nv;
   case mjSTATE_CTRL:          return m->nu;
   case mjSTATE_QFRC_APPLIED:  return m->nv;
@@ -144,6 +156,7 @@ static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState sig)
   case mjSTATE_QPOS:          return d->qpos;
   case mjSTATE_QVEL:          return d->qvel;
   case mjSTATE_ACT:           return d->act;
+  case mjSTATE_HISTORY:       return d->history;
   case mjSTATE_WARMSTART:     return d->qacc_warmstart;
   case mjSTATE_CTRL:          return d->ctrl;
   case mjSTATE_QFRC_APPLIED:  return d->qfrc_applied;
@@ -333,7 +346,7 @@ void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig) {
 void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
   // check keyframe index
   if (k >= m->nkey) {
-    mjERROR("index must be smaller than %d (keyframes allocated in model)", m->nkey);
+    mjERROR("index must be smaller than %" PRId64 " (keyframes allocated in model)", m->nkey);
   }
   if (k < 0) {
     mjERROR("keyframe index cannot be negative");
@@ -608,7 +621,7 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
       vadr += 3;
       padr += 3;
 
-      // continute with rotations
+      // continue with rotations
       mjFALLTHROUGH;
 
     case mjJNT_BALL:
@@ -742,4 +755,166 @@ int mju_condataSize(int dataspec) {
     }
   }
   return size;
+}
+
+
+// return total size of data in a rangefinder sensor bitfield specification
+int mju_raydataSize(int dataspec) {
+  int size = 0;
+  for (int i=0; i < mjNRAYDATA; i++) {
+    if (dataspec & (1 << i)) {
+      size += mjRAYDATA_SIZE[i];
+    }
+  }
+  return size;
+}
+
+
+// compute camera pixel parameters from model, output are:
+//   pixel units: fx, fy (focal lengths), cx, cy (principal point)
+//   length units: extent
+void mju_camIntrinsics(const mjModel* m, int camid,
+                       mjtNum* fx, mjtNum* fy, mjtNum* cx, mjtNum* cy, mjtNum* extent) {
+  const int width = m->cam_resolution[2*camid];
+  const int height = m->cam_resolution[2*camid+1];
+  const float* sensorsize = m->cam_sensorsize + 2*camid;
+  const float* intrinsic = m->cam_intrinsic + 4*camid;
+  const mjtProjection projection = (mjtProjection)m->cam_projection[camid];
+
+  switch (projection) {
+  case mjPROJ_PERSPECTIVE:
+    if (sensorsize[0] && sensorsize[1]) {
+      // intrinsic-based perspective camera
+      *fx = intrinsic[0] / sensorsize[0] * width;
+      *fy = intrinsic[1] / sensorsize[1] * height;
+      *cx = intrinsic[2] / sensorsize[0] * width;
+      *cy = intrinsic[3] / sensorsize[1] * height;
+    } else {
+      // fovy-based perspective camera
+      *fx = *fy = 0.5 / mju_tan(m->cam_fovy[camid] * mjPI / 360.0) * height;
+      *cx = (mjtNum)width / 2.0;
+      *cy = (mjtNum)height / 2.0;
+    }
+    break;
+  case mjPROJ_ORTHOGRAPHIC:
+    // orthographic: normalize pixel offset to [-1, 1]
+    *fx = (mjtNum)width / 2.0;
+    *fy = (mjtNum)height / 2.0;
+    *cx = *fx;
+    *cy = *fy;
+    break;
+  }
+
+  // extent only used for orthographic cameras
+  *extent = m->cam_fovy[camid];
+}
+
+
+// read delayed ctrl value for actuator at given time
+mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp) {
+  // validate actuator id
+  if (id < 0 || id >= m->nu) {
+    mjERROR("invalid actuator id %d", id);
+    return 0;
+  }
+
+  // no delay: return current ctrl value
+  int nsample = m->actuator_history[2*id];
+  if (nsample == 0) {
+    return d->ctrl[id];
+  }
+
+  // resolve interpolation order: use model's interp if argument is -1
+  if (interp < 0) interp = m->actuator_history[2*id+1];
+
+  // get buffer pointer and read from history buffer
+  mjtNum delay = m->actuator_delay[id];
+  const mjtNum* buf = d->history + m->actuator_historyadr[id];
+  mjtNum res;
+  const mjtNum* ptr = mju_delayRead(buf, nsample, /*dim=*/1, &res, time - delay, interp);
+  return ptr ? *ptr : res;
+}
+
+
+// read sensor value from history buffer at given time
+const mjtNum* mj_readSensor(const mjModel* m, const mjData* d, int id, mjtNum time,
+                            mjtNum* result, int interp) {
+  // validate sensor id
+  if (id < 0 || id >= m->nsensor) {
+    mjERROR("invalid sensor id %d", id);
+    return NULL;
+  }
+
+  // no history: return current sensor value
+  int nsample = m->sensor_history[2*id];
+  if (nsample == 0) {
+    return d->sensordata + m->sensor_adr[id];
+  }
+
+  // resolve interpolation order: use model's interp if argument is -1
+  if (interp < 0) interp = m->sensor_history[2*id+1];
+
+  // get buffer pointer and read from history buffer
+  int dim = m->sensor_dim[id];
+  mjtNum delay = m->sensor_delay[id];
+  const mjtNum* buf = d->history + m->sensor_historyadr[id];
+  return mju_delayRead(buf, nsample, dim, result, time - delay, interp);
+}
+
+
+// initialize history buffer for actuator
+void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
+                        const mjtNum* times, const mjtNum* values) {
+  // validate actuator id
+  if (id < 0 || id >= m->nu) {
+    mjERROR("invalid actuator id %d", id);
+    return;
+  }
+
+  // check that actuator has a history buffer
+  int nsample = m->actuator_history[2*id];
+  if (nsample == 0) {
+    mjERROR("actuator %d has no history buffer", id);
+    return;
+  }
+
+  // get buffer pointer
+  mjtNum* buf = d->history + m->actuator_historyadr[id];
+
+  // if times is NULL, use existing buffer times
+  const mjtNum* buf_times = times ? times : buf + 2;
+
+  // get existing user value (preserve it)
+  mjtNum user = buf[0];
+
+  // initialize history buffer
+  mju_delayInit(buf, nsample, 1, buf_times, values, user);
+}
+
+
+// initialize history buffer for sensor
+void mj_initSensorHistory(const mjModel* m, mjData* d, int id,
+                          const mjtNum* times, const mjtNum* values, mjtNum phase) {
+  // validate sensor id
+  if (id < 0 || id >= m->nsensor) {
+    mjERROR("invalid sensor id %d", id);
+    return;
+  }
+
+  // check that sensor has a history buffer
+  int nsample = m->sensor_history[2*id];
+  if (nsample == 0) {
+    mjERROR("sensor %d has no history buffer", id);
+    return;
+  }
+
+  // get buffer pointer and dimension
+  mjtNum* buf = d->history + m->sensor_historyadr[id];
+  int dim = m->sensor_dim[id];
+
+  // if times is NULL, use existing buffer times
+  const mjtNum* buf_times = times ? times : buf + 2;
+
+  // initialize history buffer with provided phase
+  mju_delayInit(buf, nsample, dim, buf_times, values, phase);
 }

@@ -13,25 +13,28 @@ This chapter is the reference manual for the MJCF modeling language used in MuJo
 XML schema
 ~~~~~~~~~~
 
-The table below summarizes the XML elements and their attributes in MJCF. Note that all information in MJCF is entered
-through elements and attributes. Text content in elements is not used; if present, the parser ignores it.
-
+The dropdown below summarizes the XML elements and their attributes in MJCF. All information in MJCF is entered through
+elements and attributes. Text content in elements is not used; if present, the parser ignores it.
 
 .. only:: html
 
-   .. collapse:: Collapse schema table
-      :open:
+   The icons to the right of each element name have the following meaning:
 
-      The symbols in the second column of the table have the following meaning:
+   .. list-table::
+      :widths: 6 94
 
-      ====== ===================================================
-      **!**  required element, can appear only once
-      **?**  optional element, can appear only once
-      **\*** optional element, can appear many times
-      **R**  optional element, can appear many times recursively
-      ====== ===================================================
+      * - |!|
+        - required element, can appear only once
+      * - |@|
+        - optional element, can appear multiple times recursively
+      * - |?|
+        - optional element, can appear only once
+      * - |*|
+        - optional element, can appear multiple times (default case, no icon)
 
-      .. cssclass:: schema-small
+   |br|
+
+   .. container:: schema-small
 
       .. include:: XMLschema.rst
 
@@ -126,7 +129,7 @@ saving the XML. There are currently six meta-elements in MJCF:
 
 .. _frame:
 
-**frame** (R)
+**frame** |@|
 ^^^^^^^^^^^^^
 
 The frame meta-element is a pure coordinate transformation that can wrap any group of elements in the kinematic tree
@@ -173,7 +176,7 @@ in their direct children. The attributes of the frame meta-element are documente
 
 .. _replicate:
 
-**replicate** (R)
+**replicate** |@|
 ^^^^^^^^^^^^^^^^^
 
 The replicate element duplicates the enclosed kinematic tree elements with incremental translational and rotational
@@ -256,7 +259,7 @@ namespaced once by the innermost call of :ref:`mjs_attach`. See the limitations 
 
 .. _include:
 
-**include** (*)
+**include** |*|
 ^^^^^^^^^^^^^^^
 
 This element does not strictly belong to MJCF. Instead it is a meta-element, used to assemble multiple XML
@@ -281,7 +284,7 @@ how to use includes and how to modularize large files if desired.
 
 .. _mujoco:
 
-**mujoco** (!)
+**mujoco** |!|
 ~~~~~~~~~~~~~~
 
 The unique top-level element, identifying the XML file as an MJCF model file.
@@ -295,7 +298,7 @@ The unique top-level element, identifying the XML file as an MJCF model file.
 
 .. _option:
 
-**option** (*)
+**option** |*|
 ~~~~~~~~~~~~~~
 
 This element is in one-to-one correspondence with the low level structure mjOption contained in the field mjModel.opt of
@@ -492,7 +495,7 @@ adjust it properly through the XML.
 
 .. _option-flag:
 
-:el-prefix:`option/` |-| **flag** (?)
+:el-prefix:`option/` |-| **flag** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element sets the flags that enable and disable different parts of the simulation pipeline. The actual flags used at
@@ -540,7 +543,7 @@ from its default.
 
 .. _option-flag-damper:
 
-:at:`damping`: :at-val:`[disable, enable], "enable"`
+:at:`damper`: :at-val:`[disable, enable], "enable"`
    This flag disables passive joint and tendon dampers. If passive :ref:`spring <option-flag-spring>` forces are also
    disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by the
    :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
@@ -688,7 +691,7 @@ from its default.
 
 .. _compiler:
 
-**compiler** (*)
+**compiler** |*|
 ~~~~~~~~~~~~~~~~
 
 This element is used to set options for the built-in parser and compiler. After parsing and compilation it no longer
@@ -824,7 +827,7 @@ has any effect. The settings here are global and apply to the entire model.
 
 :at:`usethread`: :at-val:`[false, true], "true"`
    If this attribute is "true", the model compiler will run in multi-threaded mode. Currently multi-threading is used
-   for computing the length ranges of actuators and for parallel loading of meshes.
+   for computing the length ranges of actuators and for parallel loading and processing of meshes.
 
 .. _compiler-fusestatic:
 
@@ -879,7 +882,7 @@ has any effect. The settings here are global and apply to the entire model.
 
 .. _compiler-lengthrange:
 
-:el-prefix:`compiler/` |-| **lengthrange** (?)
+:el-prefix:`compiler/` |-| **lengthrange** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element controls the computation of actuator length ranges. For an overview of this functionality see :ref:`Length
@@ -973,7 +976,7 @@ disable length range computations altogether, include this element and set mode=
 
 .. _size:
 
-**size** (*)
+**size** |*|
 ~~~~~~~~~~~~
 
 This element specifies size parameters that cannot be inferred from the number of elements in the model. Unlike the
@@ -1070,7 +1073,7 @@ compilation.
 
 .. _statistic:
 
-**statistic** (*)
+**statistic** |*|
 ~~~~~~~~~~~~~~~~~
 
 This element is used to override model statistics computed by the compiler. These statistics are not only informational
@@ -1123,7 +1126,7 @@ parameters.
 
 .. _asset:
 
-**asset** (*)
+**asset** |*|
 ~~~~~~~~~~~~~
 
 This is a grouping element for defining assets. It does not have attributes. Assets are created in the model so that
@@ -1136,7 +1139,7 @@ file.
 
 .. _asset-mesh:
 
-:el-prefix:`asset/` |-| **mesh** (*)
+:el-prefix:`asset/` |-| **mesh** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a mesh asset, which can then be referenced from geoms. If the referencing geom type is
@@ -1460,7 +1463,7 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
 .. _mesh-plugin:
 
-:el-prefix:`mesh/` |-| **plugin** (?)
+:el-prefix:`mesh/` |-| **plugin** |?|
 '''''''''''''''''''''''''''''''''''''
 
 Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -1479,7 +1482,7 @@ Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 
 .. _asset-hfield:
 
-:el-prefix:`asset/` |-| **hfield** (*)
+:el-prefix:`asset/` |-| **hfield** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a height field asset, which can then be referenced from geoms with type "hfield". A height field,
@@ -1586,7 +1589,7 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 
 .. _asset-skin:
 
-:el-prefix:`asset/` |-| **skin** (*)
+:el-prefix:`asset/` |-| **skin** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. _asset-skin-name:
@@ -1606,7 +1609,7 @@ still be specified here but this functionality is now deprecated and will be rem
 
 .. _asset-texture:
 
-:el-prefix:`asset/` |-| **texture** (*)
+:el-prefix:`asset/` |-| **texture** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This element creates a texture asset, which is then referenced from a :ref:`material <asset-material>` asset, which
 is finally referenced from a model element that needs to be textured.
@@ -1836,7 +1839,7 @@ The custom MuJoCo format is assumed to be a binary file containing the following
 
 .. _asset-material:
 
-:el-prefix:`asset/` |-| **material** (*)
+:el-prefix:`asset/` |-| **material** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a material asset. It can be referenced from :ref:`skins <deformable-skin>`, :ref:`geoms <body-geom>`,
@@ -1945,7 +1948,7 @@ properties are grouped together.
 
 .. _material-layer:
 
-:el-prefix:`material/` |-| **layer** (?)
+:el-prefix:`material/` |-| **layer** |*|
 ''''''''''''''''''''''''''''''''''''''''
 
 If multiple textures are needed to specify the appearance of a material, the :ref:`texture <asset-material-texture>`
@@ -1999,7 +2002,7 @@ attribute and :el:`layer` child elements is an error.
 
 .. _asset-model:
 
-:el-prefix:`asset/` |-| **model** (*)
+:el-prefix:`asset/` |-| **model** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This element specifies other MJCF models which may be used for :ref:`attachment<body-attach>` in the current model.
 
@@ -2022,7 +2025,7 @@ This element specifies other MJCF models which may be used for :ref:`attachment<
 
 .. _body:
 
-**(world)body** (R)
+**(world)body** |@|
 ~~~~~~~~~~~~~~~~~~~
 
 This element is used to construct the :ref:`kinematic tree <CTree>` via nesting. The element :el:`worldbody` is used for
@@ -2117,7 +2120,7 @@ defined. Its body name is automatically defined as "world".
 
 .. _body-inertial:
 
-:el-prefix:`body/` |-| **inertial** (?)
+:el-prefix:`body/` |-| **inertial** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element specifies the mass and inertial properties of the body. If this element is not included in a given body,
@@ -2172,7 +2175,7 @@ axes of inertia of the body. Thus the inertia matrix is diagonal in this frame.
 
 .. _body-joint:
 
-:el-prefix:`body/` |-| **joint** (*)
+:el-prefix:`body/` |-| **joint** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a joint. As explained in :ref:`Kinematic tree <CTree>`, a joint creates motion degrees of freedom
@@ -2390,7 +2393,7 @@ rotations as unit quaternions.
 
 .. _body-freejoint:
 
-:el-prefix:`body/` |-| **freejoint** (*)
+:el-prefix:`body/` |-| **freejoint** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a free joint whose only attributes are :at:`name` and :at:`group`. The :el:`freejoint` element is
@@ -2434,7 +2437,7 @@ inherited*. If the XML model is saved, it will appear as a regular joint of type
 
 .. _body-geom:
 
-:el-prefix:`body/` |-| **geom** (*)
+:el-prefix:`body/` |-| **geom** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a geom, and attaches it rigidly to the body within which the geom is defined. Multiple geoms can
@@ -2809,7 +2812,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
 
 .. _geom-plugin:
 
-:el-prefix:`geom/` |-| **plugin** (?)
+:el-prefix:`geom/` |-| **plugin** |?|
 '''''''''''''''''''''''''''''''''''''
 
 Associate this geom with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -2827,7 +2830,7 @@ Associate this geom with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 
 .. _body-site:
 
-:el-prefix:`body/` |-| **site** (*)
+:el-prefix:`body/` |-| **site** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a site, which is a simplified and restricted kind of geom. A small subset of the geom attributes
@@ -2913,7 +2916,7 @@ tendons, constructing slider-crank transmissions for actuators.
 
 .. _body-camera:
 
-:el-prefix:`body/` |-| **camera** (*)
+:el-prefix:`body/` |-| **camera** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a camera, which moves with the body where it is defined. To create a fixed camera, define it in the
@@ -2961,11 +2964,11 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    When the camera mode is "targetbody" or "targetbodycom", this attribute becomes required. It specifies which body
    should be targeted by the camera. In all other modes this attribute is ignored.
 
-.. _body-camera-orthographic:
+.. _body-camera-projection:
 
-:at:`orthographic`: :at-val:`[false, true], "false"`
-   Whether the camera uses a perspective projection (the default) or an orthographic projection. Setting this attribute
-   changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
+:at:`projection`: :at-val:`[perspective, orthographic], "perspective"`
+   Whether the camera uses a perspective (the default) or orthographic projection. Setting this
+   attribute to "orthographic" changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
 
 .. _body-camera-fovy:
 
@@ -2981,37 +2984,43 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 :at:`resolution`: :at-val:`int(2), "1 1"`
    Resolution of the camera in pixels [width height]. Note that these values are not used for rendering since those
    dimensions are determined by the size of the rendering context. This attribute serves as a convenient
-   location to save the required resolution when creating a context.
+   location to save the required resolution. Setting either value larger than 1
+   enables frustum visualization when the :ref:`mjVIS_CAMERA<mjtVisFlag>` visualization flag is active.
 
-.. _body-camera-focal:
+.. _body-camera-output:
 
-:at:`focal`: :at-val:`real(2), "0 0"`
-   Focal length of the camera in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`.
-   See :ref:`CCamera` for details.
+:at:`output`: :at-val:`[rgb, depth, distance, normal, segmentation], "rgb"`
+   Types of output images supported by the camera.
 
-.. _body-camera-focalpixel:
+   - :at-val:`rgb`: RGB image.
+   - :at-val:`depth`: Depth image (distance from camera plane).
+   - :at-val:`distance`: Distance image (distance from camera origin).
+   - :at-val:`normal`: Surface normal image.
+   - :at-val:`segmentation`: Segmentation image.
 
-:at:`focalpixel`: :at-val:`int(2), "0 0"`
-   Focal length of the camera in pixel units. If both :at:`focal` and :at:`focalpixel` are specified, the former is
-   ignored.
-
-.. _body-camera-principal:
-
-:at:`principal`: :at-val:`real(2), "0 0"`
-   Offset of the principal point of the camera with respect to the camera center in length units. It is mutually
-   exclusive with :ref:`fovy <body-camera-fovy>`.
-
-.. _body-camera-principalpixel:
-
-:at:`principalpixel`: :at-val:`real(2), "0 0"`
-   Offset of the principal point of the camera with respect to the camera center in pixel units. If both
-   :at:`principal` and :at:`principalpixel` are specified, the former is ignored.
+   This attribute is not used for rendering, but serves as a convenient location to save the output types supported by
+   the camera. The :at:`output` attribute can contain multiple types, e.g. :at-val:`"rgb normal"`.
 
 .. _body-camera-sensorsize:
 
 :at:`sensorsize`: :at-val:`real(2), "0 0"`
-   Size of the camera sensor in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`. If
-   specified, :ref:`resolution <body-camera-resolution>` and :ref:`focal <body-camera-focal>` are required.
+   Size of the camera sensor in length units. When specified, all intrinsic attributes become active and :at:`fovy`
+   is ignored. The field-of-view is then computed automatically from the focal length and sensor size.
+
+.. _body-camera-focal:
+.. _body-camera-focalpixel:
+
+:at:`focal` / :at:`focalpixel`: :at-val:`real(2), "0 0"`
+   Focal length in physical length units or in pixels, respectively. If both are specified, the pixel
+   value is used and the length value is ignored.
+
+.. _body-camera-principal:
+.. _body-camera-principalpixel:
+
+:at:`principal` / :at:`principalpixel`: :at-val:`real(2), "0 0"`
+   Offset of the principal point (optical axis intersection with the image plane) from the image center. If both are
+   specified, the pixel value is used. At zero offset, the rendered image is centered on the camera's negative Z axis,
+   as in a standard pinhole camera model.
 
 .. _body-camera-ipd:
 
@@ -3048,7 +3057,7 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 
 .. _body-light:
 
-:el-prefix:`body/` |-| **light** (*)
+:el-prefix:`body/` |-| **light** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a light, which moves with the body where it is defined. To create a fixed light, define it in the
@@ -3189,7 +3198,7 @@ Attributes may be applied or ignored depending on the lighting model being used.
 
 .. _body-composite:
 
-:el-prefix:`body/` |-| **composite** (*)
+:el-prefix:`body/` |-| **composite** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is not a model element, but rather a macro which expands into multiple model elements representing a composite
@@ -3267,7 +3276,7 @@ cable, which produces an inextensible chain of bodies connected with ball joints
 
 .. _composite-joint:
 
-:el-prefix:`composite/` |-| **joint** (*)
+:el-prefix:`composite/` |-| **joint** |*|
 '''''''''''''''''''''''''''''''''''''''''
 
 Depending on the composite type, some joints are created automatically (e.g. the universal joints in rope) while other
@@ -3335,7 +3344,7 @@ joints should be created, as well as to adjust the attributes of both automatic 
 
 .. _composite-geom:
 
-:el-prefix:`composite/` |-| **geom** (?)
+:el-prefix:`composite/` |-| **geom** |?|
 ''''''''''''''''''''''''''''''''''''''''
 
 This sub-element adjusts the attributes of the geoms in the composite object. The default attributes are the same as in
@@ -3388,7 +3397,7 @@ joints and tendons have different sets of attributes, while all geoms in the com
 
 .. _composite-site:
 
-:el-prefix:`composite/` |-| **site** (?)
+:el-prefix:`composite/` |-| **site** |?|
 ''''''''''''''''''''''''''''''''''''''''
 
 This sub-element adjusts the attributes of the sites in the composite object. Otherwise it is the same as geom above.
@@ -3407,7 +3416,7 @@ This sub-element adjusts the attributes of the sites in the composite object. Ot
 
 .. _composite-skin:
 
-:el-prefix:`composite/` |-| **skin** (?)
+:el-prefix:`composite/` |-| **skin** |?|
 ''''''''''''''''''''''''''''''''''''''''
 
 If this element is included, the model compiler will generate a skinned mesh asset and attach it to the element bodies
@@ -3457,7 +3466,7 @@ automatically-generated skin.
 
 .. _composite-plugin:
 
-:el-prefix:`composite/` |-| **plugin** (?)
+:el-prefix:`composite/` |-| **plugin** |?|
 ''''''''''''''''''''''''''''''''''''''''''
 
 Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -3476,7 +3485,7 @@ Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plu
 
 .. _body-flexcomp:
 
-:el-prefix:`body/` |-| **flexcomp** (*)
+:el-prefix:`body/` |-| **flexcomp** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Similar to :el:`composite`, this element (new in MuJoCo 3.0) is not a model element, but rather a macro which expands
@@ -3773,7 +3782,7 @@ saving the XML:
 
 .. _flexcomp-contact:
 
-:el-prefix:`flexcomp/` |-| **contact** (*)
+:el-prefix:`flexcomp/` |-| **contact** |*|
 ''''''''''''''''''''''''''''''''''''''''''
 
 .. _flexcomp-contact-internal:
@@ -3801,7 +3810,7 @@ saving the XML:
 
 .. _flexcomp-edge:
 
-:el-prefix:`flexcomp/` |-| **edge** (*)
+:el-prefix:`flexcomp/` |-| **edge** |*|
 '''''''''''''''''''''''''''''''''''''''
 
 Each flex element has one edge in 1D (coinciding with the capsule element), three edges in 2D, and six edges in 3D. The
@@ -3810,9 +3819,10 @@ element is used to adjust the properties of all edges in the flex.
 
 .. _flexcomp-edge-equality:
 
-:at:`equality`: :at-val:`[true, false], "false"`
-   When enabled, an equality constraint of :ref:`type flex<equality-flex>` is added to the model, referencing the
-   automatically-generated flex by name.
+:at:`equality`: :at-val:`[false, true, vert], "false"`
+   The type of equality constraint applied to this edge. If **false**, no equality constraint is applied. If **true**,
+   then edge constraints are enforced. If **vert**, an averaged constraint is used, see
+   :ref:`flexvert<equality-flexvert>`.
 
 .. _flexcomp-edge-solref:
 .. _flexcomp-edge-solimp:
@@ -3829,7 +3839,7 @@ element is used to adjust the properties of all edges in the flex.
 
 .. _flexcomp-elasticity:
 
-:el-prefix:`flexcomp/` |-| **elasticity** (*)
+:el-prefix:`flexcomp/` |-| **elasticity** |*|
 '''''''''''''''''''''''''''''''''''''''''''''
 
 .. _flexcomp-elasticity-young:
@@ -3847,7 +3857,7 @@ element is used to adjust the properties of all edges in the flex.
 
 .. _flexcomp-pin:
 
-:el-prefix:`flexcomp/` |-| **pin** (*)
+:el-prefix:`flexcomp/` |-| **pin** |*|
 ''''''''''''''''''''''''''''''''''''''
 
 Each point is either pinned or not pinned. The effect of pinning was explained earlier. This element is used to specify
@@ -3880,7 +3890,7 @@ multiple times is allowed.
 
 .. _flexcomp-plugin:
 
-:el-prefix:`flexcomp/` |-| **plugin** (?)
+:el-prefix:`flexcomp/` |-| **plugin** |?|
 '''''''''''''''''''''''''''''''''''''''''
 
 Associate this flexcomp with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -3898,7 +3908,7 @@ Associate this flexcomp with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _body-plugin:
 
-:el-prefix:`body/` |-| **plugin** (?)
+:el-prefix:`body/` |-| **plugin** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -3916,7 +3926,7 @@ Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 
 .. _body-attach:
 
-:el-prefix:`body/` |-| **attach** (*)
+:el-prefix:`body/` |-| **attach** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The :el:`attach` element is used to insert a sub-tree of bodies from another model into this model's kinematic tree.
@@ -3951,7 +3961,7 @@ referenced or not).
 
 .. _body-frame:
 
-:el-prefix:`body/` |-| **frame** (*)
+:el-prefix:`body/` |-| **frame** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Frames specify a coordinate transformation which is applied to all child elements. They disappear during compilation
@@ -3991,7 +4001,7 @@ and the transformation they encode is accumulated in their direct children. See 
 
 .. _contact:
 
-**contact** (*)
+**contact** |*|
 ~~~~~~~~~~~~~~~
 
 This is a grouping element and does not have any attributes. It groups elements that are used to adjust the generation
@@ -4001,7 +4011,7 @@ thus the description here is brief.
 
 .. _contact-pair:
 
-:el-prefix:`contact/` |-| **pair** (*)
+:el-prefix:`contact/` |-| **pair** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a predefined geom pair which will be checked for collision. Unlike dynamically generated pairs
@@ -4081,7 +4091,7 @@ friction can only be created with this element.
 
 .. _contact-exclude:
 
-:el-prefix:`contact/` |-| **exclude** (*)
+:el-prefix:`contact/` |-| **exclude** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is used to exclude a pair of bodies from collision checking. Unlike all other contact-related elements
@@ -4106,7 +4116,7 @@ bodies. Collisions between any geom defined in the first body and any geom defin
 
 .. _deformable:
 
-**deformable** (*)
+**deformable** |*|
 ~~~~~~~~~~~~~~~~~~
 
 This is a grouping element and does not have any attributes. It groups elements that specify deformable objects, namely flexes and skins.
@@ -4114,7 +4124,7 @@ This is a grouping element and does not have any attributes. It groups elements 
 
 .. _deformable-flex:
 
-:el-prefix:`deformable/` |-| **flex** (*)
+:el-prefix:`deformable/` |-| **flex** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Flexible objects (or flexes) were added in MuJoCo 3.0. These are collections of massless stretchable geometric elements
@@ -4213,7 +4223,7 @@ cases, the user will specify a :el:`flexcomp` which will then automatically cons
 
 .. _flex-edge:
 
-:el-prefix:`flex/` |-| **edge** (?)
+:el-prefix:`flex/` |-| **edge** |?|
 '''''''''''''''''''''''''''''''''''
 
 This element adjusts the passive or constraint properties of all edges of the flex. A flex edge can have a damping
@@ -4236,7 +4246,7 @@ these mechanisms to be combined as desired.
 
 .. _flex-elasticity:
 
-:el-prefix:`flex/` |-| **elasticity** (?)
+:el-prefix:`flex/` |-| **elasticity** |?|
 '''''''''''''''''''''''''''''''''''''''''
 
 The elasticity model is a `Saint Venant-Kirchhoff
@@ -4279,7 +4289,7 @@ stress-strain relationship.. See also :ref:`deformable <CDeformable>` objects.
 
 .. _flex-contact:
 
-:el-prefix:`flex/` |-| **contact** (?)
+:el-prefix:`flex/` |-| **contact** |?|
 ''''''''''''''''''''''''''''''''''''''
 
 This element adjusts the contact properties of the flex. It is mostly identical to geom contact properties, with some
@@ -4355,7 +4365,7 @@ extensions specific to flexes.
 
 .. _deformable-skin:
 
-:el-prefix:`deformable/` |-| **skin** (*)
+:el-prefix:`deformable/` |-| **skin** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 These are deformable meshes whose vertex positions and normals are computed each time the model is rendered. MuJoCo
@@ -4473,7 +4483,7 @@ be clear from the above specification.
 
 .. _skin-bone:
 
-:el-prefix:`skin/` |-| **bone** (*)
+:el-prefix:`skin/` |-| **bone** |*|
 '''''''''''''''''''''''''''''''''''
 
 This element defines a bone of the skin. The bone is a regular MuJoCo body which is referenced by name here.
@@ -4513,7 +4523,7 @@ This element defines a bone of the skin. The bone is a regular MuJoCo body which
 
 .. _equality:
 
-**equality** (*)
+**equality** |*|
 ~~~~~~~~~~~~~~~~
 
 This is a grouping element for equality constraints. It does not have attributes. See the :ref:`Equality <coEquality>`
@@ -4523,7 +4533,7 @@ all equality constraint types, thus we document them only once, under the :ref:`
 
 .. _equality-connect:
 
-:el-prefix:`equality/` |-| **connect** (*)
+:el-prefix:`equality/` |-| **connect** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an equality constraint that connects two bodies at a point. The constraint effectively defines a
@@ -4598,7 +4608,7 @@ ball joint outside the kinematic tree. Connect constraints can be specified in o
 
 .. _equality-weld:
 
-:el-prefix:`equality/` |-| **weld** (*)
+:el-prefix:`equality/` |-| **weld** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a weld equality constraint. It attaches two bodies to each other, removing all relative degrees of
@@ -4685,7 +4695,7 @@ of the other body, without any joint elements in the child body. Weld constraint
 
 .. _equality-joint:
 
-:el-prefix:`equality/` |-| **joint** (*)
+:el-prefix:`equality/` |-| **joint** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element constrains the position or angle of one joint to be a quartic polynomial of another joint. Only scalar
@@ -4730,7 +4740,7 @@ joint types (slide and hinge) can be used.
 
 .. _equality-tendon:
 
-:el-prefix:`equality/` |-| **tendon** (*)
+:el-prefix:`equality/` |-| **tendon** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element constrains the length of one tendon to be a quartic polynomial of another tendon.
@@ -4768,7 +4778,7 @@ This element constrains the length of one tendon to be a quartic polynomial of a
 
 .. _equality-flex:
 
-:el-prefix:`equality/` |-| **flex** (*)
+:el-prefix:`equality/` |-| **flex** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element constrains the lengths of all edges of a specified flex to their respective lengths in the initial model
@@ -4791,9 +4801,34 @@ as there are edges in the specified flex.
    Name of the flex whose edges are being constrained.
 
 
+.. _equality-flexvert:
+
+:el-prefix:`equality/` |-| **flexvert** |*|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element constrains the trace and the derminant of the strain tensor to that of the identity matrix as in Chen, Kry,
+and Vouga, "Locking-free Simulation of Isometric Thin Plates", 2019. The strain tensor is computed per triangle and
+averaged over all triangles adjacent to a vertex. This reduces the number of constraints from 2T to 2V, freeing
+V degrees of freedom to avoid locking. It is only supported for dimension 2, i.e., cloth-like flexes.
+
+.. _equality-flexvert-name:
+.. _equality-flexvert-class:
+.. _equality-flexvert-active:
+.. _equality-flexvert-solref:
+.. _equality-flexvert-solimp:
+
+:at:`name`, :at:`class`, :at:`active`, :at:`solref`, :at:`solimp`
+   Same as in :ref:`connect <equality-connect>` element.
+
+.. _equality-flexvert-flex:
+
+:at:`flex`: :at-val:`string, required`
+   Name of the flex whose vertices are being constrained.
+
+
 .. _equality-distance:
 
-:el-prefix:`equality/` |-| **distance** (*)
+:el-prefix:`equality/` |-| **distance** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Distance equality constraints were removed in MuJoCo version 2.2.2. If you are using an earlier version, please switch
@@ -4802,7 +4837,7 @@ to the corresponding version of the documentation.
 
 .. _tendon:
 
-**tendon** (*)
+**tendon** |*|
 ~~~~~~~~~~~~~~
 
 Grouping element for tendon definitions. The attributes of fixed tendons are a subset of the attributes of spatial
@@ -4813,7 +4848,7 @@ can also represent different forms of mechanical coupling.
 
 .. _tendon-spatial:
 
-:el-prefix:`tendon/` |-| **spatial** (*)
+:el-prefix:`tendon/` |-| **spatial** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. figure:: images/XMLreference/tendon.png
@@ -4994,7 +5029,7 @@ length X, as in the clip on the right of `this example model
 
 .. _spatial-site:
 
-:el-prefix:`spatial/` |-| **site** (*)
+:el-prefix:`spatial/` |-| **site** |*|
 ''''''''''''''''''''''''''''''''''''''
 
 This attribute specifies a site that the tendon path has to pass through. Recall that sites are rigidly attached to
@@ -5008,7 +5043,7 @@ bodies.
 
 .. _spatial-geom:
 
-:el-prefix:`spatial/` |-| **geom** (*)
+:el-prefix:`spatial/` |-| **geom** |*|
 ''''''''''''''''''''''''''''''''''''''
 
 This element specifies a geom that acts as an obstacle for the tendon path. If the minimum-length path does not touch
@@ -5034,7 +5069,7 @@ constrained to pass through the geom instead of passing around it.
 
 .. _spatial-pulley:
 
-:el-prefix:`spatial/` |-| **pulley** (*)
+:el-prefix:`spatial/` |-| **pulley** |*|
 ''''''''''''''''''''''''''''''''''''''''
 
 This element starts a new branch in the tendon path. The branches are not required to be connected spatially. Similar to
@@ -5058,7 +5093,7 @@ illustrated the use of pulleys.
 
 .. _tendon-fixed:
 
-:el-prefix:`tendon/` |-| **fixed** (*)
+:el-prefix:`tendon/` |-| **fixed** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an abstract tendon whose length is defined as a linear combination of joint positions. Recall that
@@ -5114,7 +5149,7 @@ as above.
 
 .. _fixed-joint:
 
-:el-prefix:`fixed/` |-| **joint** (*)
+:el-prefix:`fixed/` |-| **joint** |*|
 '''''''''''''''''''''''''''''''''''''
 
 This element adds a joint to the computation of the fixed tendon length. The position or angle of each included joint is
@@ -5133,7 +5168,7 @@ multiplied by the corresponding coef value, and added up to obtain the tendon le
 
 .. _actuator:
 
-**actuator** (*)
+**actuator** |*|
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This is a grouping element for actuator definitions. Recall the discussion of MuJoCo's :ref:`Actuation model
@@ -5144,7 +5179,7 @@ under the :el:`general` actuator.
 
 .. _actuator-general:
 
-:el-prefix:`actuator/` |-| **general** (*)
+:el-prefix:`actuator/` |-| **general** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a general actuator, providing full access to all actuator components and allowing the user to
@@ -5166,6 +5201,37 @@ specify them independently.
 :at:`group`: :at-val:`int, "0"`
    Integer group to which the actuator belongs. This attribute can be used for custom tags. It is also used by the
    visualizer to enable and disable the rendering of entire groups of actuators.
+
+.. _actuator-general-nsample:
+
+:at:`nsample`: :at-val:`int, "0"`
+   If greater than 0, this attribute creates a time-indexed ring buffer with :at:`nsample` samples of this actuator's
+   ``ctrl`` history. During state advancement, the current control input is appended to the buffer with timestamp
+   ``time``, and the oldest sample is removed. Values in the history buffer can be read via :ref:`mj_readCtrl`.
+
+   A positive :at-val:`nsample` is required for :ref:`delay<actuator-general-delay>`.
+   See :ref:`Delays<CDelay>` for details.
+
+.. _actuator-general-interp:
+
+:at:`interp`: :at-val:`[zoh, linear, cubic], "zoh"`
+   The interpolation method used when reading from the history buffer. Corresponds to the ``interp`` argument in
+   :ref:`mj_readCtrl`.
+
+   - ``zoh``: Zero-order hold (piecewise constant).
+   - ``linear``: Piecewise linear interpolation.
+   - ``cubic``: Cubic spline interpolation (Catmull-Rom).
+
+   The :at:`interp` value is for advanced use-cases, see :ref:`Delays<CDelay>` for details.
+
+.. _actuator-general-delay:
+
+:at:`delay`: :at-val:`real, "0"`
+   If greater than 0, then during the forward dynamics, instead of reading the control input to the actuator from
+   ``mjData.ctrl``, the control input is read from the history buffer using :ref:`mj_readCtrl`.
+   Requires a history buffer (:ref:`nsample<actuator-general-nsample>` > 0).
+
+   In the most common case, ``delay = nsample * timestep``.
 
 .. _actuator-general-ctrllimited:
 
@@ -5407,7 +5473,7 @@ specify them independently.
 
 .. _actuator-motor:
 
-:el-prefix:`actuator/` |-| **motor** (*)
+:el-prefix:`actuator/` |-| **motor** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This and the next three elements are the :ref:`Actuator shortcuts <CActShortcuts>` discussed earlier. When a
@@ -5434,6 +5500,12 @@ This element does not have custom attributes. It only has common attributes, whi
 .. _actuator-motor-class:
 
 .. _actuator-motor-group:
+
+.. _actuator-motor-delay:
+
+.. _actuator-motor-nsample:
+
+.. _actuator-motor-interp:
 
 .. _actuator-motor-ctrllimited:
 
@@ -5467,9 +5539,9 @@ This element does not have custom attributes. It only has common attributes, whi
 
 
 .. |actuator/motor attrib list| replace::
-   :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
-   :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
-   :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
+   :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/motor attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5477,7 +5549,7 @@ This element does not have custom attributes. It only has common attributes, whi
 
 .. _actuator-position:
 
-:el-prefix:`actuator/` |-| **position** (*)
+:el-prefix:`actuator/` |-| **position** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a position servo with an optional first-order filter. The underlying :el:`general` attributes are
@@ -5499,6 +5571,12 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-position-class:
 
 .. _actuator-position-group:
+
+.. _actuator-position-delay:
+
+.. _actuator-position-nsample:
+
+.. _actuator-position-interp:
 
 .. _actuator-position-ctrllimited:
 
@@ -5531,9 +5609,9 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-position-user:
 
 .. |actuator/position attrib list| replace::
-   :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
-   :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
-   :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
+   :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/position attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5588,7 +5666,7 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-velocity:
 
-:el-prefix:`actuator/` |-| **velocity** (*)
+:el-prefix:`actuator/` |-| **velocity** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a velocity servo. Note that in order create a PD controller, one has to define two actuators: a
@@ -5612,6 +5690,12 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-velocity-class:
 
 .. _actuator-velocity-group:
+
+.. _actuator-velocity-delay:
+
+.. _actuator-velocity-nsample:
+
+.. _actuator-velocity-interp:
 
 .. _actuator-velocity-ctrllimited:
 
@@ -5644,9 +5728,9 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-velocity-user:
 
 .. |actuator/velocity attrib list| replace::
-   :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
-   :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
-   :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
+   :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/velocity attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5659,7 +5743,7 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-intvelocity:
 
-:el-prefix:`actuator/` |-| **intvelocity** (*)
+:el-prefix:`actuator/` |-| **intvelocity** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an integrated-velocity servo. For more information, see the
@@ -5682,6 +5766,12 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-intvelocity-class:
 
 .. _actuator-intvelocity-group:
+
+.. _actuator-intvelocity-delay:
+
+.. _actuator-intvelocity-nsample:
+
+.. _actuator-intvelocity-interp:
 
 .. _actuator-intvelocity-ctrllimited:
 
@@ -5716,9 +5806,9 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-intvelocity-user:
 
 .. |actuator/intvelocity attrib list| replace::
-   :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
-   :at:`actrange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
-   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
+   :at:`forcerange`, :at:`actrange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`,
+   :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/intvelocity attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5742,12 +5832,12 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-intvelocity-inheritrange:
 
 :at:`inheritrange`: :at-val:`real, "0"`
-   Identical to :ref:`position/inheritrange<actuator-position-inheritrange>`, but sets :at:`actrange` (which has the same
-   length semantics as the transmission target) rather than :at:`ctrlrange` (which has velocity semantics).
+   Identical to :ref:`position/inheritrange<actuator-position-inheritrange>`, but sets :at:`actrange` (which has the
+   same length semantics as the transmission target) rather than :at:`ctrlrange` (which has velocity semantics).
 
 .. _actuator-damper:
 
-:el-prefix:`actuator/` |-| **damper** (*)
+:el-prefix:`actuator/` |-| **damper** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity
@@ -5772,6 +5862,12 @@ This element has one custom attribute in addition to the common attributes:
 .. _actuator-damper-class:
 
 .. _actuator-damper-group:
+
+.. _actuator-damper-delay:
+
+.. _actuator-damper-nsample:
+
+.. _actuator-damper-interp:
 
 .. _actuator-damper-ctrllimited:
 
@@ -5803,9 +5899,10 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-damper-user:
 
-.. |actuator/damper attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`,
-   :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`,
-   :at:`jointinparent`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+.. |actuator/damper attrib list| replace::
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
+   :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/damper attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5818,7 +5915,7 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-cylinder:
 
-:el-prefix:`actuator/` |-| **cylinder** (*)
+:el-prefix:`actuator/` |-| **cylinder** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is suitable for modeling pneumatic or hydraulic cylinders. The underlying :el:`general` attributes are
@@ -5840,6 +5937,12 @@ This element has four custom attributes in addition to the common attributes:
 .. _actuator-cylinder-class:
 
 .. _actuator-cylinder-group:
+
+.. _actuator-cylinder-delay:
+
+.. _actuator-cylinder-nsample:
+
+.. _actuator-cylinder-interp:
 
 .. _actuator-cylinder-ctrllimited:
 
@@ -5872,9 +5975,9 @@ This element has four custom attributes in addition to the common attributes:
 .. _actuator-cylinder-user:
 
 .. |actuator/cylinder attrib list| replace::
-   :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
-   :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
-   :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
+   :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
 
 |actuator/cylinder attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5902,7 +6005,7 @@ This element has four custom attributes in addition to the common attributes:
 
 .. _actuator-muscle:
 
-:el-prefix:`actuator/` |-| **muscle** (*)
+:el-prefix:`actuator/` |-| **muscle** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is used to model a muscle actuator, as described in the :ref:`Muscles actuators <CMuscle>`
@@ -5924,6 +6027,12 @@ This element has nine custom attributes in addition to the common attributes:
 .. _actuator-muscle-class:
 
 .. _actuator-muscle-group:
+
+.. _actuator-muscle-delay:
+
+.. _actuator-muscle-nsample:
+
+.. _actuator-muscle-interp:
 
 .. _actuator-muscle-ctrllimited:
 
@@ -5953,9 +6062,9 @@ This element has nine custom attributes in addition to the common attributes:
 
 
 .. |actuator/muscle attrib list| replace::
-   :at:`name`, :at:`class`, :at:`group`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`,
-   :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`, :at:`cranksite`,
-   :at:`slidersite`, :at:`user`
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
+   :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
+   :at:`cranksite`, :at:`slidersite`, :at:`user`
 
 |actuator/muscle attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -6018,7 +6127,7 @@ This element has nine custom attributes in addition to the common attributes:
 
 .. _actuator-adhesion:
 
-:el-prefix:`actuator/` |-| **adhesion** (*)
+:el-prefix:`actuator/` |-| **adhesion** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ..  youtube:: BcHZ5BFeTmU
@@ -6055,6 +6164,12 @@ This element has a subset of the common attributes and two custom attributes.
 
 .. _actuator-adhesion-group:
 
+.. _actuator-adhesion-delay:
+
+.. _actuator-adhesion-nsample:
+
+.. _actuator-adhesion-interp:
+
 .. _actuator-adhesion-forcelimited:
 
 .. _actuator-adhesion-ctrlrange:
@@ -6063,7 +6178,7 @@ This element has a subset of the common attributes and two custom attributes.
 
 .. _actuator-adhesion-user:
 
-.. |actuator/adhesion attrib list| replace:: :at:`name`, :at:`class`, :at:`group`,
+.. |actuator/adhesion attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`delay`,
    :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`user`
 
 |actuator/adhesion attrib list|
@@ -6084,7 +6199,7 @@ This element has a subset of the common attributes and two custom attributes.
 
 .. _actuator-plugin:
 
-:el-prefix:`actuator/` |-| **plugin** (?)
+:el-prefix:`actuator/` |-| **plugin** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -6119,6 +6234,12 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 .. _actuator-plugin-class:
 
 .. _actuator-plugin-group:
+
+.. _actuator-plugin-delay:
+
+.. _actuator-plugin-nsample:
+
+.. _actuator-plugin-interp:
 
 .. _actuator-plugin-actlimited:
 
@@ -6156,10 +6277,11 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _actuator-plugin-actearly:
 
-.. |actuator/plugin attrib list| replace:: :at:`name`, :at:`class`, :at:`group`, :at:`actlimited`, :at:`ctrllimited`,
-   :at:`forcelimited`, :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`,
-   :at:`joint`, :at:`jointinparent`, :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`,
-   :at:`actdim`, :at:`dynprm`, :at:`actearly`
+.. |actuator/plugin attrib list| replace::
+   :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`actlimited`, :at:`ctrllimited`, :at:`forcelimited`,
+   :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`,
+   :at:`jointinparent`, :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`, :at:`actdim`,
+   :at:`dynprm`, :at:`actearly`
 
 |actuator/plugin attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -6167,7 +6289,7 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _sensor:
 
-**sensor** (*)
+**sensor** |*|
 ~~~~~~~~~~~~~~
 
 This is a grouping element for sensor definitions. It does not have attributes. The outputs of all sensors are
@@ -6183,7 +6305,7 @@ themselves are "features" that could be of interest to the user.
 
 .. _sensor-touch:
 
-:el-prefix:`sensor/` |-| **touch** (*)
+:el-prefix:`sensor/` |-| **touch** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a touch sensor. The active sensor zone is defined by a site. If a contact point falls within the
@@ -6199,9 +6321,17 @@ scalar. It is computed by adding up the (scalar) normal forces from all included
 
 .. _sensor-touch-cutoff:
 
+.. _sensor-touch-nsample:
+
+.. _sensor-touch-interp:
+
+.. _sensor-touch-interval:
+
+.. _sensor-touch-delay:
+
 .. _sensor-touch-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-touch-site:
@@ -6212,7 +6342,7 @@ scalar. It is computed by adding up the (scalar) normal forces from all included
 
 .. _sensor-accelerometer:
 
-:el-prefix:`sensor/` |-| **accelerometer** (*)
+:el-prefix:`sensor/` |-| **accelerometer** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a 3-axis accelerometer. The sensor is mounted at a site, and has the same position and orientation
@@ -6227,9 +6357,17 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-accelerometer-cutoff:
 
+.. _sensor-accelerometer-nsample:
+
+.. _sensor-accelerometer-interp:
+
+.. _sensor-accelerometer-interval:
+
+.. _sensor-accelerometer-delay:
+
 .. _sensor-accelerometer-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-accelerometer-site:
@@ -6240,7 +6378,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-velocimeter:
 
-:el-prefix:`sensor/` |-| **velocimeter** (*)
+:el-prefix:`sensor/` |-| **velocimeter** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a 3-axis velocimeter. The sensor is mounted at a site, and has the same position and orientation as
@@ -6252,9 +6390,17 @@ the site frame. This sensor outputs three numbers, which are the linear velocity
 
 .. _sensor-velocimeter-cutoff:
 
+.. _sensor-velocimeter-nsample:
+
+.. _sensor-velocimeter-interp:
+
+.. _sensor-velocimeter-interval:
+
+.. _sensor-velocimeter-delay:
+
 .. _sensor-velocimeter-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-velocimeter-site:
@@ -6265,7 +6411,7 @@ the site frame. This sensor outputs three numbers, which are the linear velocity
 
 .. _sensor-gyro:
 
-:el-prefix:`sensor/` |-| **gyro** (*)
+:el-prefix:`sensor/` |-| **gyro** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a 3-axis gyroscope. The sensor is mounted at a site, and has the same position and orientation as
@@ -6279,9 +6425,17 @@ simulate an inertial measurement unit (IMU).
 
 .. _sensor-gyro-cutoff:
 
+.. _sensor-gyro-nsample:
+
+.. _sensor-gyro-interp:
+
+.. _sensor-gyro-interval:
+
+.. _sensor-gyro-delay:
+
 .. _sensor-gyro-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-gyro-site:
@@ -6292,7 +6446,7 @@ simulate an inertial measurement unit (IMU).
 
 .. _sensor-force:
 
-:el-prefix:`sensor/` |-| **force** (*)
+:el-prefix:`sensor/` |-| **force** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a 3-axis force sensor. The sensor outputs three numbers, which are the interaction force between a
@@ -6309,9 +6463,17 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-force-cutoff:
 
+.. _sensor-force-nsample:
+
+.. _sensor-force-interp:
+
+.. _sensor-force-interval:
+
+.. _sensor-force-delay:
+
 .. _sensor-force-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-force-site:
@@ -6326,7 +6488,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-torque:
 
-:el-prefix:`sensor/` |-| **torque** (*)
+:el-prefix:`sensor/` |-| **torque** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a 3-axis torque sensor. This is similar to the :ref:`force <sensor-force>` sensor above, but
@@ -6340,9 +6502,17 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-torque-cutoff:
 
+.. _sensor-torque-nsample:
+
+.. _sensor-torque-interp:
+
+.. _sensor-torque-interval:
+
+.. _sensor-torque-delay:
+
 .. _sensor-torque-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-torque-site:
@@ -6354,7 +6524,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-magnetometer:
 
-:el-prefix:`sensor/` |-| **magnetometer** (*)
+:el-prefix:`sensor/` |-| **magnetometer** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a magnetometer. It measures the magnetic flux at the sensor site position, expressed in the sensor
@@ -6366,9 +6536,17 @@ site frame. The output is a 3D vector.
 
 .. _sensor-magnetometer-cutoff:
 
+.. _sensor-magnetometer-nsample:
+
+.. _sensor-magnetometer-interp:
+
+.. _sensor-magnetometer-interval:
+
+.. _sensor-magnetometer-delay:
+
 .. _sensor-magnetometer-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-magnetometer-site:
@@ -6378,15 +6556,57 @@ site frame. The output is a 3D vector.
 
 .. _sensor-rangefinder:
 
-:el-prefix:`sensor/` |-| **rangefinder** (*)
+:el-prefix:`sensor/` |-| **rangefinder** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a rangefinder. It measures the distance to the nearest geom surface, along the ray defined by the
-positive Z-axis of the sensor site. If the ray does not intersect any geom surface, the sensor output is -1. If the
-origin of the ray is inside a geom, the surface is still sensed (but not the inner volume). Geoms attached to the same
-body as the sensor site are excluded. Invisible geoms, defined as geoms whose rgba (or whose material rgba) has alpha=0,
-are also excluded. Note however that geoms made invisible in the visualizer by disabling their geom group are not
-excluded; this is because sensor calculations are independent of the visualizer.
+This element creates a rangefinder.
+
+- If associated with a :ref:`site<sensor-rangefinder-site>`, it measures the distance to the nearest geom surface, along
+  the ray defined by the positive Z-axis of the site.
+- If associated with a :ref:`camera<sensor-rangefinder-camera>`, it outputs one distance measurement for each pixel in
+  the camera image. Note that cameras face the :ref:`negative Z-axis<body-camera>` of their frame. The number of
+  measurements in this case is equal to product of the camera's width and height
+  :ref:`resolutions<body-camera-resolution>`.
+
+.. image:: images/XMLreference/rfcamera.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/rfcamera.xml
+
+If a ray does not intersect any geom surface, the sensor output is -1. If the origin of the ray is inside a geom, the
+surface is still detected. Geoms attached to the same body as the sensor site/camera are excluded. Invisible geoms,
+defined as geoms whose rgba (or whose material rgba) has alpha=0, are also excluded. Note however that geoms made
+invisible in the visualizer by disabling their geom group are not excluded; this is because sensor calculations are
+independent of the visualizer.
+
+The image on the right (click to see the model being visualized) shows two rangefinder sensors attached to a perspective and
+an orthographic camera, with frustums visualized. Both cameras have 4x4 resolution, for 16 rays each. The rangefinder
+sensors report :at:`data` = :at-val:`"dist point normal"` (see below), so we can see the rays (lines), the intersection
+points (spheres) and the surface normals (arrows).
+
+.. _sensor-rangefinder-data:
+
+:at:`data`: :at-val:`[dist, dir, origin, point, normal, depth], "dist"`
+   By default, the rangefinder outputs a distance measurement, as described above. However, it is also possible to
+   specify a set of output data fields. The :at:`data` attribute can contain **multiple sequential data types**, as long
+   as the relative order---as listed above---is maintained. For example, :at:`data` = :at-val:`"dist point normal"` will
+   return 7 numbers per ray, while :at:`data` = :at-val:`"point origin"` is an error because :at-val:`origin` must come
+   before :at-val:`point`.
+
+   - :at-val:`dist` **real(1)**: The distance from the ray origin to the nearest geom surface, -1 if no surface was hit.
+     If this data type is included, rays will be visualized as lines.
+   - :at-val:`dir` **real(3)**: Normalized direction of the ray, or (0, 0, 0) if no surface was hit.
+   - :at-val:`origin` **real(3)**: The point from which the ray emanates (global frame). For sites and perspective
+     cameras, this is the site/camera xpos. However for orthographic cameras, ray origins are spatially distributed
+     along the image plane.
+   - :at-val:`point` **real(3)**: The point where the ray intersects the nearest geom surface in the global frame, or
+     (0, 0, 0) if no surface was hit. If this data type is included, intersection points will be visualized as spheres.
+   - :at-val:`normal`: **real(3)**: The geom surface normal at the point where the ray intersects it, in the global
+     frame, or (0, 0, 0) if no surface was hit. Note that normals always point towards the outside of the geom surface,
+     regardless of the ray origin. If this data type is included along with either :at-val:`dist` or :at-val:`point`,
+     normals will be visualized as arrows at the intersection points.
+   - :at-val:`depth`: **real(1)**: The distance of the hit point from the camera plane, -1 if no surface was hit. Note
+     that this depth sematic corresponds to depth images in the computer graphics sense.
 
 .. _sensor-rangefinder-name:
 
@@ -6394,19 +6614,32 @@ excluded; this is because sensor calculations are independent of the visualizer.
 
 .. _sensor-rangefinder-cutoff:
 
+.. _sensor-rangefinder-nsample:
+
+.. _sensor-rangefinder-interp:
+
+.. _sensor-rangefinder-interval:
+
+.. _sensor-rangefinder-delay:
+
 .. _sensor-rangefinder-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-rangefinder-site:
 
-:at:`site`: :at-val:`string, required`
+:at:`site`: :at-val:`string, optional`
    The site where the sensor is attached.
+
+.. _sensor-rangefinder-camera:
+
+:at:`camera`: :at-val:`string, optional`
+   The camera where the sensor is attached.
 
 .. _sensor-camprojection:
 
-:el-prefix:`sensor/` |-| **camprojection** (*)
+:el-prefix:`sensor/` |-| **camprojection** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a camera projection sensor: the location of a target site, projected onto a camera image in pixel
@@ -6432,14 +6665,22 @@ z-coordinate indicates a location in front of/behind the camera plane, respectiv
 
 .. _sensor-camprojection-cutoff:
 
+.. _sensor-camprojection-nsample:
+
+.. _sensor-camprojection-interp:
+
+.. _sensor-camprojection-interval:
+
+.. _sensor-camprojection-delay:
+
 .. _sensor-camprojection-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointpos:
 
-:el-prefix:`sensor/` |-| **jointpos** (*)
+:el-prefix:`sensor/` |-| **jointpos** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This and the remaining sensor elements do not involve sensor-specific computations. Instead they copy into the array
@@ -6452,9 +6693,17 @@ attached to scalar joints (slide or hinge). Its output is scalar.
 
 .. _sensor-jointpos-cutoff:
 
+.. _sensor-jointpos-nsample:
+
+.. _sensor-jointpos-interp:
+
+.. _sensor-jointpos-interval:
+
+.. _sensor-jointpos-delay:
+
 .. _sensor-jointpos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointpos-joint:
@@ -6466,7 +6715,7 @@ attached to scalar joints (slide or hinge). Its output is scalar.
 
 .. _sensor-jointvel:
 
-:el-prefix:`sensor/` |-| **jointvel** (*)
+:el-prefix:`sensor/` |-| **jointvel** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a joint velocity sensor. It can be attached to scalar joints (slide or hinge). Its output is
@@ -6478,9 +6727,17 @@ scalar.
 
 .. _sensor-jointvel-cutoff:
 
+.. _sensor-jointvel-nsample:
+
+.. _sensor-jointvel-interp:
+
+.. _sensor-jointvel-interval:
+
+.. _sensor-jointvel-delay:
+
 .. _sensor-jointvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointvel-joint:
@@ -6492,7 +6749,7 @@ scalar.
 
 .. _sensor-tendonpos:
 
-:el-prefix:`sensor/` |-| **tendonpos** (*)
+:el-prefix:`sensor/` |-| **tendonpos** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a tendon length sensor. It can be attached to both spatial and fixed tendons. Its output is scalar.
@@ -6503,9 +6760,17 @@ This element creates a tendon length sensor. It can be attached to both spatial 
 
 .. _sensor-tendonpos-cutoff:
 
+.. _sensor-tendonpos-nsample:
+
+.. _sensor-tendonpos-interp:
+
+.. _sensor-tendonpos-interval:
+
+.. _sensor-tendonpos-delay:
+
 .. _sensor-tendonpos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonpos-tendon:
@@ -6516,7 +6781,7 @@ This element creates a tendon length sensor. It can be attached to both spatial 
 
 .. _sensor-tendonvel:
 
-:el-prefix:`sensor/` |-| **tendonvel** (*)
+:el-prefix:`sensor/` |-| **tendonvel** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a tendon velocity sensor. It can be attached to both spatial and fixed tendons. Its output is
@@ -6528,9 +6793,17 @@ scalar.
 
 .. _sensor-tendonvel-cutoff:
 
+.. _sensor-tendonvel-nsample:
+
+.. _sensor-tendonvel-interp:
+
+.. _sensor-tendonvel-interval:
+
+.. _sensor-tendonvel-delay:
+
 .. _sensor-tendonvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonvel-tendon:
@@ -6541,7 +6814,7 @@ scalar.
 
 .. _sensor-actuatorpos:
 
-:el-prefix:`sensor/` |-| **actuatorpos** (*)
+:el-prefix:`sensor/` |-| **actuatorpos** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an actuator length sensor. Recall that each actuator has a transmission which has length. This
@@ -6553,9 +6826,17 @@ sensor can be attached to any actuator. Its output is scalar.
 
 .. _sensor-actuatorpos-cutoff:
 
+.. _sensor-actuatorpos-nsample:
+
+.. _sensor-actuatorpos-interp:
+
+.. _sensor-actuatorpos-interval:
+
+.. _sensor-actuatorpos-delay:
+
 .. _sensor-actuatorpos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-actuatorpos-actuator:
@@ -6566,7 +6847,7 @@ sensor can be attached to any actuator. Its output is scalar.
 
 .. _sensor-actuatorvel:
 
-:el-prefix:`sensor/` |-| **actuatorvel** (*)
+:el-prefix:`sensor/` |-| **actuatorvel** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an actuator velocity sensor. This sensor can be attached to any actuator. Its output is scalar.
@@ -6577,9 +6858,17 @@ This element creates an actuator velocity sensor. This sensor can be attached to
 
 .. _sensor-actuatorvel-cutoff:
 
+.. _sensor-actuatorvel-nsample:
+
+.. _sensor-actuatorvel-interp:
+
+.. _sensor-actuatorvel-interval:
+
+.. _sensor-actuatorvel-delay:
+
 .. _sensor-actuatorvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-actuatorvel-actuator:
@@ -6590,7 +6879,7 @@ This element creates an actuator velocity sensor. This sensor can be attached to
 
 .. _sensor-actuatorfrc:
 
-:el-prefix:`sensor/` |-| **actuatorfrc** (*)
+:el-prefix:`sensor/` |-| **actuatorfrc** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an actuator force sensor. The quantity being sensed is the scalar actuator force, not the
@@ -6603,9 +6892,17 @@ arms determined by the transmission). This sensor can be attached to any actuato
 
 .. _sensor-actuatorfrc-cutoff:
 
+.. _sensor-actuatorfrc-nsample:
+
+.. _sensor-actuatorfrc-interp:
+
+.. _sensor-actuatorfrc-interval:
+
+.. _sensor-actuatorfrc-delay:
+
 .. _sensor-actuatorfrc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-actuatorfrc-actuator:
@@ -6616,7 +6913,7 @@ arms determined by the transmission). This sensor can be attached to any actuato
 
 .. _sensor-jointactuatorfrc:
 
-:el-prefix:`sensor/` |-| **jointactuatorfrc** (*)
+:el-prefix:`sensor/` |-| **jointactuatorfrc** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an actuator force sensor, measured at a joint. The quantity being sensed is the generalized force
@@ -6633,9 +6930,17 @@ joint or when a single actuator acts on multiple joints. See :ref:`CForceRange` 
 
 .. _sensor-jointactuatorfrc-cutoff:
 
+.. _sensor-jointactuatorfrc-nsample:
+
+.. _sensor-jointactuatorfrc-interp:
+
+.. _sensor-jointactuatorfrc-interval:
+
+.. _sensor-jointactuatorfrc-delay:
+
 .. _sensor-jointactuatorfrc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointactuatorfrc-joint:
@@ -6646,7 +6951,7 @@ joint or when a single actuator acts on multiple joints. See :ref:`CForceRange` 
 
 .. _sensor-tendonactuatorfrc:
 
-:el-prefix:`sensor/` |-| **tendonactuatorfrc** (*)
+:el-prefix:`sensor/` |-| **tendonactuatorfrc** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an actuator force sensor, measured at a tendon. The quantity being sensed is the total force
@@ -6660,9 +6965,17 @@ single tendon. See :ref:`CForceRange` for details.
 
 .. _sensor-tendonactuatorfrc-cutoff:
 
+.. _sensor-tendonactuatorfrc-nsample:
+
+.. _sensor-tendonactuatorfrc-interp:
+
+.. _sensor-tendonactuatorfrc-interval:
+
+.. _sensor-tendonactuatorfrc-delay:
+
 .. _sensor-tendonactuatorfrc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonactuatorfrc-tendon:
@@ -6673,7 +6986,7 @@ single tendon. See :ref:`CForceRange` for details.
 
 .. _sensor-ballquat:
 
-:el-prefix:`sensor/` |-| **ballquat** (*)
+:el-prefix:`sensor/` |-| **ballquat** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a quaternion sensor for a ball joints. It outputs 4 numbers corresponding to a unit quaternion.
@@ -6684,9 +6997,17 @@ This element creates a quaternion sensor for a ball joints. It outputs 4 numbers
 
 .. _sensor-ballquat-cutoff:
 
+.. _sensor-ballquat-nsample:
+
+.. _sensor-ballquat-interp:
+
+.. _sensor-ballquat-interval:
+
+.. _sensor-ballquat-delay:
+
 .. _sensor-ballquat-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-ballquat-joint:
@@ -6697,7 +7018,7 @@ This element creates a quaternion sensor for a ball joints. It outputs 4 numbers
 
 .. _sensor-ballangvel:
 
-:el-prefix:`sensor/` |-| **ballangvel** (*)
+:el-prefix:`sensor/` |-| **ballangvel** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a ball joint angular velocity sensor. It outputs 3 numbers corresponding to the angular velocity of
@@ -6710,9 +7031,17 @@ rotation takes place.
 
 .. _sensor-ballangvel-cutoff:
 
+.. _sensor-ballangvel-nsample:
+
+.. _sensor-ballangvel-interp:
+
+.. _sensor-ballangvel-interval:
+
+.. _sensor-ballangvel-delay:
+
 .. _sensor-ballangvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-ballangvel-joint:
@@ -6723,7 +7052,7 @@ rotation takes place.
 
 .. _sensor-jointlimitpos:
 
-:el-prefix:`sensor/` |-| **jointlimitpos** (*)
+:el-prefix:`sensor/` |-| **jointlimitpos** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a joint limit sensor for position.
@@ -6734,9 +7063,17 @@ This element creates a joint limit sensor for position.
 
 .. _sensor-jointlimitpos-cutoff:
 
+.. _sensor-jointlimitpos-nsample:
+
+.. _sensor-jointlimitpos-interp:
+
+.. _sensor-jointlimitpos-interval:
+
+.. _sensor-jointlimitpos-delay:
+
 .. _sensor-jointlimitpos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointlimitpos-joint:
@@ -6750,7 +7087,7 @@ This element creates a joint limit sensor for position.
 
 .. _sensor-jointlimitvel:
 
-:el-prefix:`sensor/` |-| **jointlimitvel** (*)
+:el-prefix:`sensor/` |-| **jointlimitvel** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a joint limit sensor for velocity.
@@ -6761,9 +7098,17 @@ This element creates a joint limit sensor for velocity.
 
 .. _sensor-jointlimitvel-cutoff:
 
+.. _sensor-jointlimitvel-nsample:
+
+.. _sensor-jointlimitvel-interp:
+
+.. _sensor-jointlimitvel-interval:
+
+.. _sensor-jointlimitvel-delay:
+
 .. _sensor-jointlimitvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointlimitvel-joint:
@@ -6775,7 +7120,7 @@ This element creates a joint limit sensor for velocity.
 
 .. _sensor-jointlimitfrc:
 
-:el-prefix:`sensor/` |-| **jointlimitfrc** (*)
+:el-prefix:`sensor/` |-| **jointlimitfrc** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a joint limit sensor for constraint force.
@@ -6786,9 +7131,17 @@ This element creates a joint limit sensor for constraint force.
 
 .. _sensor-jointlimitfrc-cutoff:
 
+.. _sensor-jointlimitfrc-nsample:
+
+.. _sensor-jointlimitfrc-interp:
+
+.. _sensor-jointlimitfrc-interval:
+
+.. _sensor-jointlimitfrc-delay:
+
 .. _sensor-jointlimitfrc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointlimitfrc-joint:
@@ -6800,7 +7153,7 @@ This element creates a joint limit sensor for constraint force.
 
 .. _sensor-tendonlimitpos:
 
-:el-prefix:`sensor/` |-| **tendonlimitpos** (*)
+:el-prefix:`sensor/` |-| **tendonlimitpos** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a tendon limit sensor for position.
@@ -6811,9 +7164,17 @@ This element creates a tendon limit sensor for position.
 
 .. _sensor-tendonlimitpos-cutoff:
 
+.. _sensor-tendonlimitpos-nsample:
+
+.. _sensor-tendonlimitpos-interp:
+
+.. _sensor-tendonlimitpos-interval:
+
+.. _sensor-tendonlimitpos-delay:
+
 .. _sensor-tendonlimitpos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonlimitpos-tendon:
@@ -6825,7 +7186,7 @@ This element creates a tendon limit sensor for position.
 
 .. _sensor-tendonlimitvel:
 
-:el-prefix:`sensor/` |-| **tendonlimitvel** (*)
+:el-prefix:`sensor/` |-| **tendonlimitvel** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a tendon limit sensor for velocity.
@@ -6836,9 +7197,17 @@ This element creates a tendon limit sensor for velocity.
 
 .. _sensor-tendonlimitvel-cutoff:
 
+.. _sensor-tendonlimitvel-nsample:
+
+.. _sensor-tendonlimitvel-interp:
+
+.. _sensor-tendonlimitvel-interval:
+
+.. _sensor-tendonlimitvel-delay:
+
 .. _sensor-tendonlimitvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonlimitvel-tendon:
@@ -6850,7 +7219,7 @@ This element creates a tendon limit sensor for velocity.
 
 .. _sensor-tendonlimitfrc:
 
-:el-prefix:`sensor/` |-| **tendonlimitfrc** (*)
+:el-prefix:`sensor/` |-| **tendonlimitfrc** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a tendon limit sensor for constraint force.
@@ -6861,9 +7230,17 @@ This element creates a tendon limit sensor for constraint force.
 
 .. _sensor-tendonlimitfrc-cutoff:
 
+.. _sensor-tendonlimitfrc-nsample:
+
+.. _sensor-tendonlimitfrc-interp:
+
+.. _sensor-tendonlimitfrc-interval:
+
+.. _sensor-tendonlimitfrc-delay:
+
 .. _sensor-tendonlimitfrc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonlimitfrc-tendon:
@@ -6875,7 +7252,7 @@ This element creates a tendon limit sensor for constraint force.
 
 .. _sensor-framepos:
 
-:el-prefix:`sensor/` |-| **framepos** (*)
+:el-prefix:`sensor/` |-| **framepos** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D position of the spatial frame of the object, in global coordinates or
@@ -6887,9 +7264,17 @@ optionally with respect to a given frame-of-reference.
 
 .. _sensor-framepos-cutoff:
 
+.. _sensor-framepos-nsample:
+
+.. _sensor-framepos-interp:
+
+.. _sensor-framepos-interval:
+
+.. _sensor-framepos-delay:
+
 .. _sensor-framepos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framepos-objtype:
@@ -6919,7 +7304,7 @@ optionally with respect to a given frame-of-reference.
 
 .. _sensor-framequat:
 
-:el-prefix:`sensor/` |-| **framequat** (*)
+:el-prefix:`sensor/` |-| **framequat** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the unit quaternion specifying the orientation of the spatial frame of the
@@ -6931,9 +7316,17 @@ object, in global coordinates.
 
 .. _sensor-framequat-cutoff:
 
+.. _sensor-framequat-nsample:
+
+.. _sensor-framequat-interp:
+
+.. _sensor-framequat-interval:
+
+.. _sensor-framequat-delay:
+
 .. _sensor-framequat-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framequat-objtype:
@@ -6959,7 +7352,7 @@ object, in global coordinates.
 
 .. _sensor-framexaxis:
 
-:el-prefix:`sensor/` |-| **framexaxis** (*)
+:el-prefix:`sensor/` |-| **framexaxis** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D unit vector corresponding to the X-axis of the spatial frame of the
@@ -6971,9 +7364,17 @@ object, in global coordinates.
 
 .. _sensor-framexaxis-cutoff:
 
+.. _sensor-framexaxis-nsample:
+
+.. _sensor-framexaxis-interp:
+
+.. _sensor-framexaxis-interval:
+
+.. _sensor-framexaxis-delay:
+
 .. _sensor-framexaxis-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framexaxis-objtype:
@@ -6999,7 +7400,7 @@ object, in global coordinates.
 
 .. _sensor-frameyaxis:
 
-:el-prefix:`sensor/` |-| **frameyaxis** (*)
+:el-prefix:`sensor/` |-| **frameyaxis** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D unit vector corresponding to the Y-axis of the spatial frame of the
@@ -7011,9 +7412,17 @@ object, in global coordinates.
 
 .. _sensor-frameyaxis-cutoff:
 
+.. _sensor-frameyaxis-nsample:
+
+.. _sensor-frameyaxis-interp:
+
+.. _sensor-frameyaxis-interval:
+
+.. _sensor-frameyaxis-delay:
+
 .. _sensor-frameyaxis-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-frameyaxis-objtype:
@@ -7039,7 +7448,7 @@ object, in global coordinates.
 
 .. _sensor-framezaxis:
 
-:el-prefix:`sensor/` |-| **framezaxis** (*)
+:el-prefix:`sensor/` |-| **framezaxis** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D unit vector corresponding to the Z-axis of the spatial frame of the
@@ -7051,9 +7460,17 @@ object, in global coordinates.
 
 .. _sensor-framezaxis-cutoff:
 
+.. _sensor-framezaxis-nsample:
+
+.. _sensor-framezaxis-interp:
+
+.. _sensor-framezaxis-interval:
+
+.. _sensor-framezaxis-delay:
+
 .. _sensor-framezaxis-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framezaxis-objtype:
@@ -7079,7 +7496,7 @@ object, in global coordinates.
 
 .. _sensor-framelinvel:
 
-:el-prefix:`sensor/` |-| **framelinvel** (*)
+:el-prefix:`sensor/` |-| **framelinvel** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D linear velocity of the spatial frame of the object, in global
@@ -7091,9 +7508,17 @@ coordinates.
 
 .. _sensor-framelinvel-cutoff:
 
+.. _sensor-framelinvel-nsample:
+
+.. _sensor-framelinvel-interp:
+
+.. _sensor-framelinvel-interval:
+
+.. _sensor-framelinvel-delay:
+
 .. _sensor-framelinvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framelinvel-objtype:
@@ -7119,7 +7544,7 @@ coordinates.
 
 .. _sensor-frameangvel:
 
-:el-prefix:`sensor/` |-| **frameangvel** (*)
+:el-prefix:`sensor/` |-| **frameangvel** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D angular velocity of the spatial frame of the object, in global
@@ -7131,9 +7556,17 @@ coordinates.
 
 .. _sensor-frameangvel-cutoff:
 
+.. _sensor-frameangvel-nsample:
+
+.. _sensor-frameangvel-interp:
+
+.. _sensor-frameangvel-interval:
+
+.. _sensor-frameangvel-delay:
+
 .. _sensor-frameangvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-frameangvel-objtype:
@@ -7159,7 +7592,7 @@ coordinates.
 
 .. _sensor-framelinacc:
 
-:el-prefix:`sensor/` |-| **framelinacc** (*)
+:el-prefix:`sensor/` |-| **framelinacc** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D linear acceleration of the spatial frame of the object, in global
@@ -7173,9 +7606,17 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-framelinacc-cutoff:
 
+.. _sensor-framelinacc-nsample:
+
+.. _sensor-framelinacc-interp:
+
+.. _sensor-framelinacc-interval:
+
+.. _sensor-framelinacc-delay:
+
 .. _sensor-framelinacc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framelinacc-objtype:
@@ -7191,7 +7632,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-frameangacc:
 
-:el-prefix:`sensor/` |-| **frameangacc** (*)
+:el-prefix:`sensor/` |-| **frameangacc** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D angular acceleration of the spatial frame of the object, in global
@@ -7205,9 +7646,17 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-frameangacc-cutoff:
 
+.. _sensor-frameangacc-nsample:
+
+.. _sensor-frameangacc-interp:
+
+.. _sensor-frameangacc-interval:
+
+.. _sensor-frameangacc-delay:
+
 .. _sensor-frameangacc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-frameangacc-objtype:
@@ -7223,7 +7672,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-subtreecom:
 
-:el-prefix:`sensor/` |-| **subtreecom** (*)
+:el-prefix:`sensor/` |-| **subtreecom** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the center of mass of the kinematic subtree rooted at a specified body, in
@@ -7235,9 +7684,17 @@ global coordinates.
 
 .. _sensor-subtreecom-cutoff:
 
+.. _sensor-subtreecom-nsample:
+
+.. _sensor-subtreecom-interp:
+
+.. _sensor-subtreecom-interval:
+
+.. _sensor-subtreecom-delay:
+
 .. _sensor-subtreecom-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-subtreecom-body:
@@ -7248,7 +7705,7 @@ global coordinates.
 
 .. _sensor-subtreelinvel:
 
-:el-prefix:`sensor/` |-| **subtreelinvel** (*)
+:el-prefix:`sensor/` |-| **subtreelinvel** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the linear velocity of the center of mass of the kinematic subtree rooted at a
@@ -7262,9 +7719,17 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 
 .. _sensor-subtreelinvel-cutoff:
 
+.. _sensor-subtreelinvel-nsample:
+
+.. _sensor-subtreelinvel-interp:
+
+.. _sensor-subtreelinvel-interval:
+
+.. _sensor-subtreelinvel-delay:
+
 .. _sensor-subtreelinvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-subtreelinvel-body:
@@ -7275,7 +7740,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 
 .. _sensor-subtreeangmom:
 
-:el-prefix:`sensor/` |-| **subtreeangmom** (*)
+:el-prefix:`sensor/` |-| **subtreeangmom** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the angular momentum around the center of mass of the kinematic subtree rooted
@@ -7289,9 +7754,17 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 
 .. _sensor-subtreeangmom-cutoff:
 
+.. _sensor-subtreeangmom-nsample:
+
+.. _sensor-subtreeangmom-interp:
+
+.. _sensor-subtreeangmom-interval:
+
+.. _sensor-subtreeangmom-delay:
+
 .. _sensor-subtreeangmom-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-subtreeangmom-body:
@@ -7302,7 +7775,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 
 .. _sensor-insidesite:
 
-:el-prefix:`sensor/` |-| **insidesite** (*)
+:el-prefix:`sensor/` |-| **insidesite** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This element creates a sensor that returns 1 if the given object is inside a site, 0 otherwise.
 It is useful for triggering events in surrounding environment logic.
@@ -7314,9 +7787,17 @@ See `example model <https://github.com/google-deepmind/mujoco/blob/main/test/eng
 
 .. _sensor-insidesite-cutoff:
 
+.. _sensor-insidesite-nsample:
+
+.. _sensor-insidesite-interp:
+
+.. _sensor-insidesite-interval:
+
+.. _sensor-insidesite-delay:
+
 .. _sensor-insidesite-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-insidesite-objtype:
@@ -7349,6 +7830,12 @@ smallest signed distance between the surfaces of two geoms using the narrow-phas
 computation is always performed, independently of the standard collision :ref:`selection and filtering<coSelection>`
 pipeline. These 3 sensors share some common properties:
 
+.. admonition:: different (correct) behavior under `nativeccd`
+   :class: note
+
+   As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
+   :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
+
 .. _collision-sensors-cutoff:
 
 :at:`cutoff`
@@ -7358,26 +7845,15 @@ pipeline. These 3 sensors share some common properties:
    to geom-geom penetration) will be reported by :ref:`sensor/distance<sensor-distance>`.
    In order to determine collision properties of non-penetrating geom pairs, a positive :at:`cutoff` is required.
 
-   .. admonition:: different (correct) behavior under `nativeccd`
-      :class: note
-
-      As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
-      :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
-
 :at:`geom1`, :at:`geom2`, :at:`body1`, :at:`body2`
    For all 3 collision sensor types, the two colliding geoms can be specified explicitly using the :at:`geom1` and
    :at:`geom2` attributes or implicitly, using :at:`body1`, :at:`body2`. In the latter case the sensor will iterate over
    all geoms of the specified body or bodies (mixed specification like :at:`geom1`, :at:`body2` are allowed), and
    select the collision with the smallest signed distance.
 
-sequential sensors
-   When multiple collision sensors are defined sequentially and have identical attributes (:at:`geom1`, :at:`body1`,
-   :at:`geom2`, :at:`body2`, :at:`cutoff`), for example when both distance and normal are queried for the same geom
-   pair, the collision functions will be called once for the whole sensor block, avoiding repeated computation.
-
 .. _sensor-distance:
 
-:el-prefix:`sensor/` |-| **distance** (*)
+:el-prefix:`sensor/` |-| **distance** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the smallest signed distance between the surfaces of two geoms.
@@ -7414,15 +7890,23 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-distance-noise:
 
+.. _sensor-distance-nsample:
+
+.. _sensor-distance-interp:
+
+.. _sensor-distance-interval:
+
+.. _sensor-distance-delay:
+
 .. _sensor-distance-user:
 
-:at:`name`, :at:`noise`, :at:`user`:
+:at:`name`, :at:`noise`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 
 .. _sensor-normal:
 
-:el-prefix:`sensor/` |-| **normal** (*)
+:el-prefix:`sensor/` |-| **normal** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the normal direction of the smallest signed distance between the surfaces of
@@ -7461,15 +7945,23 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-normal-noise:
 
+.. _sensor-normal-nsample:
+
+.. _sensor-normal-interp:
+
+.. _sensor-normal-interval:
+
+.. _sensor-normal-delay:
+
 .. _sensor-normal-user:
 
-:at:`name`, :at:`noise`, :at:`user`:
+:at:`name`, :at:`noise`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 
 .. _sensor-fromto:
 
-:el-prefix:`sensor/` |-| **fromto** (*)
+:el-prefix:`sensor/` |-| **fromto** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the segment defining the smallest signed distance between the surfaces of two
@@ -7509,15 +8001,23 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-fromto-noise:
 
+.. _sensor-fromto-nsample:
+
+.. _sensor-fromto-interp:
+
+.. _sensor-fromto-interval:
+
+.. _sensor-fromto-delay:
+
 .. _sensor-fromto-user:
 
-:at:`name`, :at:`noise`, :at:`user`:
+:at:`name`, :at:`noise`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 
 .. _sensor-contact:
 
-:el-prefix:`sensor/` |-| **contact** (*)
+:el-prefix:`sensor/` |-| **contact** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Motivation:** The array of contacts which occur during the main dynamics pipeline is inherently variable-sized. The
@@ -7651,16 +8151,24 @@ Extraction
 
 .. _sensor-contact-name:
 
+.. _sensor-contact-nsample:
+
+.. _sensor-contact-interp:
+
+.. _sensor-contact-interval:
+
+.. _sensor-contact-delay:
+
 .. _sensor-contact-user:
 
 .. _sensor-contact-noise:
 
-:at:`name`, :at:`noise`, :at:`user`:
+:at:`name`, :at:`noise`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 .. _sensor-tactile:
 
-:el-prefix:`sensor/` |-| **tactile** (*)
+:el-prefix:`sensor/` |-| **tactile** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. image:: images/XMLreference/tactile.png
    :align: right
@@ -7689,14 +8197,22 @@ contribute to the sensor output. The sensor can be visualized by enabling the vi
 
 .. _sensor-tactile-name:
 
+.. _sensor-tactile-nsample:
+
+.. _sensor-tactile-interp:
+
+.. _sensor-tactile-interval:
+
+.. _sensor-tactile-delay:
+
 .. _sensor-tactile-user:
 
-:at:`name`, :at:`user`:
+:at:`name`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 .. _sensor-e_potential:
 
-:el-prefix:`sensor/` |-| **e_potential** (*)
+:el-prefix:`sensor/` |-| **e_potential** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the potential energy.
@@ -7707,15 +8223,23 @@ This element creates sensor that returns the potential energy.
 
 .. _sensor-e_potential-cutoff:
 
+.. _sensor-e_potential-nsample:
+
+.. _sensor-e_potential-interp:
+
+.. _sensor-e_potential-interval:
+
+.. _sensor-e_potential-delay:
+
 .. _sensor-e_potential-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 
 .. _sensor-e_kinetic:
 
-:el-prefix:`sensor/` |-| **e_kinetic** (*)
+:el-prefix:`sensor/` |-| **e_kinetic** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the kinetic energy.
@@ -7726,15 +8250,23 @@ This element creates sensor that returns the kinetic energy.
 
 .. _sensor-e_kinetic-cutoff:
 
+.. _sensor-e_kinetic-nsample:
+
+.. _sensor-e_kinetic-interp:
+
+.. _sensor-e_kinetic-interval:
+
+.. _sensor-e_kinetic-delay:
+
 .. _sensor-e_kinetic-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 
 .. _sensor-clock:
 
-:el-prefix:`sensor/` |-| **clock** (*)
+:el-prefix:`sensor/` |-| **clock** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the simulation time.
@@ -7745,15 +8277,23 @@ This element creates sensor that returns the simulation time.
 
 .. _sensor-clock-cutoff:
 
+.. _sensor-clock-nsample:
+
+.. _sensor-clock-interp:
+
+.. _sensor-clock-interval:
+
+.. _sensor-clock-delay:
+
 .. _sensor-clock-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 
 .. _sensor-user:
 
-:el-prefix:`sensor/` |-| **user** (*)
+:el-prefix:`sensor/` |-| **user** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a user sensor. MuJoCo does not know how to compute the output of this sensor. Instead the user
@@ -7809,8 +8349,8 @@ If a user sensor is of :ref:`stage<sensor-user-needstage>` "vel" or "acc", then 
 
 .. _sensor-plugin:
 
-:el-prefix:`sensor/` |-| **plugin** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+:el-prefix:`sensor/` |-| **plugin** |?|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Ascociate this sensor with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
 
@@ -7847,7 +8387,7 @@ Ascociate this sensor with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin
 
 .. _keyframe:
 
-**keyframe** (*)
+**keyframe** |*|
 ~~~~~~~~~~~~~~~~
 
 This is a grouping element for keyframe definitions. It does not have attributes. Keyframes can be used to create a
@@ -7862,7 +8402,7 @@ in :ref:`simulate.cc <saSimulate>` the simulation state can be copied into a sel
 
 .. _keyframe-key:
 
-:el-prefix:`keyframe/` |-| **key** (*)
+:el-prefix:`keyframe/` |-| **key** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element sets the data for one of the keyframes. They are set in the order in which they appear here. If the number
@@ -7914,7 +8454,7 @@ be set to their values in the default configuration.
 
 .. _visual:
 
-**visual** (*)
+**visual** |*|
 ~~~~~~~~~~~~~~
 
 This element is in one-to-one correspondence with the low level structure mjVisual contained in the field mjModel.vis
@@ -7930,7 +8470,7 @@ coordinated visual settings corresponding to a "theme", and then include this fi
 
 .. _visual-global:
 
-:el-prefix:`visual/` |-| **global** (?)
+:el-prefix:`visual/` |-| **global** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 While all settings in mjVisual are global, the settings here could not be fit into any of the other subsections. So this
@@ -8027,7 +8567,7 @@ is effectively a miscellaneous subsection.
 
 .. _visual-quality:
 
-:el-prefix:`visual/` |-| **quality** (?)
+:el-prefix:`visual/` |-| **quality** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element specifies settings that affect the quality of the rendering. Larger values result in higher quality but
@@ -8079,7 +8619,7 @@ visualization should somehow be simplified.
 
 .. _visual-headlight:
 
-:el-prefix:`visual/` |-| **headlight** (?)
+:el-prefix:`visual/` |-| **headlight** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is used to adjust the properties of the headlight. There is always a built-in headlight, in addition to any
@@ -8112,7 +8652,7 @@ to be reduced.
 
 .. _visual-map:
 
-:el-prefix:`visual/` |-| **map** (?)
+:el-prefix:`visual/` |-| **map** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is used to specify scaling quantities that affect both the visualization and built-in mouse perturbations.
@@ -8206,7 +8746,7 @@ miscellaneous.
 
 .. _visual-scale:
 
-:el-prefix:`visual/` |-| **scale** (?)
+:el-prefix:`visual/` |-| **scale** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The settings in this element control the spatial extent of various decorative objects. In all cases, the rendered size
@@ -8306,7 +8846,7 @@ documented below.
 
 .. _visual-rgba:
 
-:el-prefix:`visual/` |-| **rgba** (?)
+:el-prefix:`visual/` |-| **rgba** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The settings in this element control the color and transparency (rgba) of various decorative objects. We will call this
@@ -8450,7 +8990,7 @@ disables the rendering of the corresponding object.
 
 .. _default:
 
-**default** (R)
+**default** |@|
 ~~~~~~~~~~~~~~~
 
 This element is used to create a new defaults class; see :ref:`CDefault` above. Defaults classes can be nested,
@@ -8472,7 +9012,7 @@ if omitted.
 
 .. _default-mesh-inertia:
 
-:el-prefix:`default/` |-| **mesh** (?)
+:el-prefix:`default/` |-| **mesh** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`mesh <asset-mesh>` element of the defaults class.
@@ -8501,7 +9041,7 @@ if omitted.
 
 .. _default-material-texuniform:
 
-:el-prefix:`default/` |-| **material** (?)
+:el-prefix:`default/` |-| **material** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`material <asset-material>` element of the defaults class.
@@ -8554,7 +9094,7 @@ if omitted.
 
 .. _default-joint-user:
 
-:el-prefix:`default/` |-| **joint** (?)
+:el-prefix:`default/` |-| **joint** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`joint <body-joint>` element of the defaults class.
@@ -8625,7 +9165,7 @@ if omitted.
 
 .. _default-geom-user:
 
-:el-prefix:`default/` |-| **geom** (?)
+:el-prefix:`default/` |-| **geom** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`geom <body-geom>` element of the defaults class.
@@ -8660,17 +9200,19 @@ if omitted.
 
 .. _default-site-user:
 
-:el-prefix:`default/` |-| **site** (?)
+:el-prefix:`default/` |-| **site** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`site <body-site>` element of the defaults class.
 | All site attributes are available here except: name, class.
 
-.. _default-camera-orthographic:
+.. _default-camera-projection:
 
 .. _default-camera-fovy:
 
 .. _default-camera-resolution:
+
+.. _default-camera-output:
 
 .. _default-camera-ipd:
 
@@ -8703,7 +9245,7 @@ if omitted.
 .. _default-camera:
 
 
-:el-prefix:`default/` |-| **camera** (?)
+:el-prefix:`default/` |-| **camera** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`camera <body-camera>` element of the defaults class.
@@ -8744,7 +9286,7 @@ if omitted.
 
 .. _default-light-mode:
 
-:el-prefix:`default/` |-| **light** (?)
+:el-prefix:`default/` |-| **light** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`light <body-light>` element of the defaults class.
@@ -8767,7 +9309,7 @@ if omitted.
 
 .. _default-pair-margin:
 
-:el-prefix:`default/` |-| **pair** (?)
+:el-prefix:`default/` |-| **pair** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`pair <contact-pair>` element of the defaults class.
@@ -8782,7 +9324,7 @@ if omitted.
 
 .. _default-equality-solimp:
 
-:el-prefix:`default/` |-| **equality** (?)
+:el-prefix:`default/` |-| **equality** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`equality <equality>` element of the defaults class. The actual
@@ -8829,7 +9371,7 @@ if omitted.
 
 .. _default-tendon-user:
 
-:el-prefix:`default/` |-| **tendon** (?)
+:el-prefix:`default/` |-| **tendon** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`tendon <tendon>` element of the defaults class. Similar to
@@ -8859,6 +9401,12 @@ if omitted.
 
 .. _default-general-group:
 
+.. _default-general-delay:
+
+.. _default-general-nsample:
+
+.. _default-general-interp:
+
 .. _default-general-actdim:
 
 .. _default-general-dyntype:
@@ -8875,7 +9423,7 @@ if omitted.
 
 .. _default-general-actearly:
 
-:el-prefix:`default/` |-| **general** (?)
+:el-prefix:`default/` |-| **general** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`general <actuator-general>` element of the defaults class.
@@ -8901,7 +9449,13 @@ if omitted.
 
 .. _default-motor-group:
 
-:el-prefix:`default/` |-| **motor** (?)
+.. _default-motor-delay:
+
+.. _default-motor-nsample:
+
+.. _default-motor-interp:
+
+:el-prefix:`default/` |-| **motor** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using
@@ -8931,6 +9485,12 @@ tendon, slidersite, cranksite.
 
 .. _default-position-group:
 
+.. _default-position-delay:
+
+.. _default-position-nsample:
+
+.. _default-position-interp:
+
 .. _default-position-kp:
 
 .. _default-position-kv:
@@ -8939,7 +9499,7 @@ tendon, slidersite, cranksite.
 
 .. _default-position-timeconst:
 
-:el-prefix:`default/` |-| **position** (?)
+:el-prefix:`default/` |-| **position** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`position <actuator-position>` attributes are available here except: name, class, joint, jointinparent, site,
@@ -8964,9 +9524,15 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-velocity-group:
 
+.. _default-velocity-delay:
+
+.. _default-velocity-nsample:
+
+.. _default-velocity-interp:
+
 .. _default-velocity-kv:
 
-:el-prefix:`default/` |-| **velocity** (?)
+:el-prefix:`default/` |-| **velocity** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`velocity <actuator-velocity>` attributes are available here except: name, class, joint, jointinparent, site,
@@ -8995,13 +9561,19 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-intvelocity-group:
 
+.. _default-intvelocity-delay:
+
+.. _default-intvelocity-nsample:
+
+.. _default-intvelocity-interp:
+
 .. _default-intvelocity-kp:
 
 .. _default-intvelocity-kv:
 
 .. _default-intvelocity-dampratio:
 
-:el-prefix:`default/` |-| **intvelocity** (?)
+:el-prefix:`default/` |-| **intvelocity** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`intvelocity <actuator-intvelocity>` attributes are available here except: name, class, joint, jointinparent,
@@ -9024,9 +9596,15 @@ site, refsite, tendon, slidersite, cranksite.
 
 .. _default-damper-group:
 
+.. _default-damper-delay:
+
+.. _default-damper-nsample:
+
+.. _default-damper-interp:
+
 .. _default-damper-kv:
 
-:el-prefix:`default/` |-| **damper** (?)
+:el-prefix:`default/` |-| **damper** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`damper <actuator-damper>` attributes are available here except: name, class, joint, jointinparent, site,
@@ -9051,6 +9629,12 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-cylinder-group:
 
+.. _default-cylinder-delay:
+
+.. _default-cylinder-nsample:
+
+.. _default-cylinder-interp:
+
 .. _default-cylinder-timeconst:
 
 .. _default-cylinder-area:
@@ -9059,7 +9643,7 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-cylinder-bias:
 
-:el-prefix:`default/` |-| **cylinder** (?)
+:el-prefix:`default/` |-| **cylinder** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`cylinder <actuator-cylinder>` attributes are available here except: name, class, joint, jointinparent, site,
@@ -9084,6 +9668,12 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-muscle-group:
 
+.. _default-muscle-delay:
+
+.. _default-muscle-nsample:
+
+.. _default-muscle-interp:
+
 .. _default-muscle-timeconst:
 
 .. _default-muscle-range:
@@ -9102,7 +9692,7 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-muscle-fvmax:
 
-:el-prefix:`default/` |-| **muscle** (?)
+:el-prefix:`default/` |-| **muscle** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`muscle <actuator-muscle>` attributes are available here except: name, class, joint, jointinparent, site,
@@ -9123,7 +9713,13 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-adhesion-group:
 
-:el-prefix:`default/` |-| **adhesion** (?)
+.. _default-adhesion-delay:
+
+.. _default-adhesion-nsample:
+
+.. _default-adhesion-interp:
+
+:el-prefix:`default/` |-| **adhesion** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`adhesion <actuator-adhesion>` attributes are available here except: name, class, body.
@@ -9131,7 +9727,7 @@ All :ref:`adhesion <actuator-adhesion>` attributes are available here except: na
 
 .. _custom:
 
-**custom** (*)
+**custom** |*|
 ~~~~~~~~~~~~~~
 
 This is a grouping element for custom numeric and text elements. It does not have attributes.
@@ -9139,7 +9735,7 @@ This is a grouping element for custom numeric and text elements. It does not hav
 
 .. _custom-numeric:
 
-:el-prefix:`custom/` |-| **numeric** (*)
+:el-prefix:`custom/` |-| **numeric** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a custom numeric array in mjModel.
@@ -9167,7 +9763,7 @@ This element creates a custom numeric array in mjModel.
 
 .. _custom-text:
 
-:el-prefix:`custom/` |-| **text** (*)
+:el-prefix:`custom/` |-| **text** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a custom text field in mjModel. It could be used to store keyword commands for user callbacks and
@@ -9186,7 +9782,7 @@ other custom computations.
 
 .. _custom-tuple:
 
-:el-prefix:`custom/` |-| **tuple** (*)
+:el-prefix:`custom/` |-| **tuple** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a custom tuple, which is a list of MuJoCo objects. The list is created by referencing the desired
@@ -9200,7 +9796,7 @@ objects by name.
 
 .. _tuple-element:
 
-:el-prefix:`tuple/` |-| **element** (*)
+:el-prefix:`tuple/` |-| **element** |*|
 '''''''''''''''''''''''''''''''''''''''
 
 This adds an element to the tuple.
@@ -9225,7 +9821,7 @@ This adds an element to the tuple.
 
 .. _extension:
 
-**extension** (*)
+**extension** |*|
 ~~~~~~~~~~~~~~~~~
 
 This is a grouping element for MuJoCo extensions. Extensions allow the user to extend MuJoCo's capabilities with custom
@@ -9234,7 +9830,7 @@ extension type are :ref:`exPlugin`.
 
 .. _extension-plugin:
 
-:el-prefix:`extension/` |-| **plugin** (*)
+:el-prefix:`extension/` |-| **plugin** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element specifies that an engine plugin is required in order to simulate this model.
@@ -9247,7 +9843,7 @@ See :ref:`exPlugin` for more details.
 
 .. _plugin-instance:
 
-:el-prefix:`plugin/` |-| **instance** (*)
+:el-prefix:`plugin/` |-| **instance** |*|
 '''''''''''''''''''''''''''''''''''''''''
 
 Declares a plugin instance. Explicit instances declaration is required when multiple elements are backed by the same
@@ -9263,7 +9859,7 @@ plugin, or when global plugin configuration is desired. See plugin :ref:`declara
 
 .. _instance-config:
 
-:el-prefix:`instance/` |-| **config** (*)
+:el-prefix:`instance/` |-| **config** |*|
 """""""""""""""""""""""""""""""""""""""""
 
 Configuration of a plugin instance. When implicitly declaring a plugin under a model element, configuration is

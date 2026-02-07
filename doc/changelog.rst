@@ -5,20 +5,106 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Ray-cast functions now optionally compute the surface normal at the ray intersection. This is a breaking change due
+     to the addition of the ``mjtNum normal[3]`` argument. The modified functions are :ref:`mj_ray`, :ref:`mj_multiRay`,
+     :ref:`mju_rayGeom`, :ref:`mj_rayFlex`, :ref:`mj_rayHfield` and :ref:`mj_rayMesh`.
+
+     **Migration:** In C/C++, pass ``NULL`` to the ``normal`` argument. In Python, in all functions except
+     :ref:`mj_multiRay`, it defaults to ``None``, so no action is required.
+
+   - ``mju_rayFlex`` has been renamed to :ref:`mj_rayFlex` for consistency with other functions that take
+     ``mjModel*`` and ``mjData*`` arguments.
+
+   - The ``mjModel.cam_orthographic`` field has been renamed to ``cam_projection``, with the semantic of a new enum type
+     :ref:`mjtProjection`. This will allow for more projection types in the future like fisheye cameras.
+     Relatedly, the ``camera/orthographic`` MJCF attribute for cameras has been renamed to
+     :ref:`camera/projection<body-camera-projection>` and now accepts the values ``orthographic`` and ``perspective``.
+
+     **Migration:** Replace ``orthographic = "false/true"`` with ``projection="perspective/orthographic"``,
+     respectively.
+
+   - Removed ``getdir`` from the ``mjpResourceProvider`` struct. All Resource Providers now use the same shared
+     implementation.
+
 General
 ^^^^^^^
+
+- Actuators and sensors now support arbitrary delays, see :ref:`Delays<CDelay>` for details. Adding
+  delays introduces a new ``mjData.history`` variable to the :ref:`Physics state<siPhysicsState>`.
+
+.. image:: images/changelog/poncho.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/model/flex/poncho.xml
+
+- Added new :ref:`flexvert<equality-flexvert>` equality constraints that enable cloth simulations with coarser meshes.
+  This adds a new option ``vert`` to flexcomp edge :ref:`equality<flexcomp-edge-equality>` and the new equality type
+  :ref:`flexvert<equality-flexvert>`.
+
+.. image:: images/XMLreference/rfcamera.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/rfcamera.xml
+
+- Camera frustum visualization is now triggered by setting :ref:`resolution<body-camera-resolution>` to values larger
+  than 1. Relatedly, frustum visualization also works for :ref:`orthographic<body-camera-projection>` cameras.
+- Rangefinder sensors can now be attached to a camera using the :ref:`ragefinder/camera<sensor-rangefinder-camera>`
+  attribute. In this case, the sensor will cast multiple ray, one for each pixel.
+- Rangefinder sensors can now now report various kinds of information besides ray distances, including surface normals.
+  See :ref:`rangefinder<sensor-rangefinder>` for details.
+- Cameras now have an :ref:`output<body-camera-output>` attribute, parsed into the ``mjModel.cam_output`` bitfield.
+  Unused by the renderer, it serves as a convenient location to store a camera's supported output types.
+- Added :ref:`mj_mountVFS` and :ref:`mj_unmountVFS` functions for mounting a custom VFS provider. Mounting Allows
+  providers to be used to open/read/close resources dynamically at arbitrary paths.
+- The optimization whereby sequential :ref:`collision sensors<collision-sensors>` with identical attributes shared
+  computation has been removed. This results in a (likely minor) performance regression for models which exploited
+  this optimization. To recover the performance, use the :ref:`fromto<sensor-fromto>` and compute the other values
+  manually. If ``from = fromto[0:3]`` and ``to = fromto[3:6]`` then ``distance = norm(to-from)`` and
+  ``normal = normalize(to-from)``.
 - Non-breaking ABI changes:
 
   - The type of the ``sig`` (signature) argument of :ref:`mj_stateSize` and related functions has been changed from
     ``unsigned int`` to ``int``. Before this change, invalid negative arguments passed to this function would result in
     a silent implicit cast, now negativity will trigger an error.
+  - Added a :ref:`depth<mjtRndFlag>` rendering flag.
+  - Allocating sizes in :ref:`mjModel` now use 64-bit rather than 32-bit integers to accommodate larger scenes.
+
+- :doc:`OpenUSD <OpenUSD/index>`:
+
+  - Parsing has been moved out of experimental into a mjpDecoder plugin. (documentation pending)
+  - OpenUSD can now be built with the
+    `third_party_deps/openusd <https://github.com/google-deepmind/mujoco/tree/main/cmake/third_party_deps/openusd>`__
+    CMake utility project.
+  - ``USD_DIR`` is no longer used by the MuJoCo CMake project, instead use ``pxr_DIR`` if you have a pre-built USD
+    library.
+  - Users no longer have to set ``PXR_PLUGINPATH_NAME`` environment variable, MuJoCo should load USD plugins
+    automatically.
+
 
 MJX
 ^^^
 - Added ``actuator_length``, ``cdof`` and ``cdof_dof`` fields to ``mjx.Data``.
+- Add ``graph_mode`` argument to ``put_model`` to support multiple Warp graph capture modes.
+
+Documentation
+^^^^^^^^^^^^^
+- General improvements to the :ref:`Programming/Simulation<Simulation>` chapter. Notably, the main discussion of
+  :ref:`state<siStateControl>` has been moved there, and the section on :ref:`mjModel changes<siChange>` has been
+  expanded.
+- The usability of the :ref:`MJCF schema<CSchema>` is improved with a collapsible dropdown menu with links to elements
+  and attributes.
+
 
 Bug fixes
 ^^^^^^^^^
+- Multi threaded mesh processing, enabled by the :ref:`usethread<compiler-usethread>` compiler flag (on by default), was
+  in fact disabled by the flag. Fixing this bug speeds up compilation of mesh-heavy models by (up to) the number of
+  available cores.
+- The ``vertid`` argument of :ref:`mj_rayFlex` and :ref:`mju_raySkin` was marked as nullable but was not; it is now
+  nullable.
 
 Version 3.4.0 (December 5, 2025)
 --------------------------------
@@ -792,7 +878,7 @@ General
    :width: 240px
 
 8. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
-   :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
+   ``camera/orthographic`` and :ref:`global/orthographic<visual-global-orthographic>`
    attributes, respectively.
 9. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
 10. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
@@ -1069,8 +1155,8 @@ Python bindings
 12. Improved the implementation of the :ref:`rollout<PyRollout>` module. Note the changes below are breaking, dependent
     code will require modification.
 
-    - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
-    - Allows user-defined control spec for any combination of :ref:`user input<geInput>` fields as controls.
+    - Uses :ref:`mjSTATE_FULLPHYSICS<siFullPhysics>` as state spec, enabling divergence detection by inspecting time.
+    - Allows user-defined control spec for any combination of :ref:`user input<siInput>` fields as controls.
     - Outputs are no longer squeezed and always have dim=3.
 13. The ``sync`` function for the :ref:`passive viewer<PyViewerPassive>` can now pick up changes to rendering flags in
     ``user_scn``, as requested in :issue:`1190`.

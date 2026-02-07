@@ -973,6 +973,48 @@ TEST_F(MujocoTest, ConvertSpringdamper) {
   EXPECT_THAT(str.data(), HasSubstr("damping"));
   EXPECT_THAT(str.data(), HasSubstr("stiffness"));
   mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// ------------- test history buffer computation -------------------------------
+
+using DelayBufferTest = MujocoTest;
+
+TEST_F(DelayBufferTest, ActuatorDelayBufferSizes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1"/>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt1"/>
+        <joint name="jnt2"/>
+        <joint name="jnt3"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt1"/>
+      <motor joint="jnt2" delay="3" nsample="3"/>
+      <motor joint="jnt3" delay="10" nsample="10"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  ASSERT_THAT(m, NotNull());
+  ASSERT_EQ(m->nu, 3);
+
+  // nhistory = (2+2*3) + (2+2*10) = 8 + 22 = 30
+  EXPECT_EQ(m->nhistory, 30);
+
+  // verify per-actuator delay and addresses
+  EXPECT_EQ(m->actuator_history[0], 0);
+  EXPECT_EQ(m->actuator_history[2], 3);
+  EXPECT_EQ(m->actuator_history[4], 10);
+  EXPECT_EQ(m->actuator_historyadr[0], -1);
+  EXPECT_EQ(m->actuator_historyadr[1], 0);
+  EXPECT_EQ(m->actuator_historyadr[2], 8);
+
+  mj_deleteModel(m);
 }
 
 }  // namespace

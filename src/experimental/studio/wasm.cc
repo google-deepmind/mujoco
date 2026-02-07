@@ -14,17 +14,17 @@
 
 // Main entry point for the Filament-based MuJoCo web app.
 
-#include <cstddef>
-#include <string>
-#include <string_view>
-#include <unordered_map>
-#include <vector>
-#include <utility>
-
 #include <emscripten.h>
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
 
+#include <filesystem>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+
+#include <mujoco/mujoco.h>
 #include "experimental/studio/app.h"
 
 // Global app instance. Lifetime is controlled by Init/Deinit calls which are
@@ -43,31 +43,25 @@ class AssetRegistry {
 
   // Registers asset contents with the given filename.
   void RegisterAsset(std::string filename, std::string contents) {
+    std::filesystem::path(filename).filename().string();
     assets_[filename] = std::move(contents);
   }
 
-  // Returns the contents of the given asset by name.
-  std::vector<std::byte> LoadAsset(std::string_view filename) {
-    if (auto it = assets_.find(std::string(filename)); it != assets_.end()) {
-      const std::byte* begin = reinterpret_cast<const std::byte*>(it->second.data());
-      const std::byte* end = begin + it->second.size();
-      return std::vector<std::byte>(begin, end);
-    }
-    return {};
+  const std::string& Get(std::string_view filename) const {
+    filename = filename.substr(filename.find_first_of(':') + 1);
+    static std::string empty;
+    auto it = assets_.find(std::string(filename));
+    return it != assets_.end() ? it->second : empty;
   }
 
  private:
   std::unordered_map<std::string, std::string> assets_;
 };
 
-static std::vector<std::byte> LoadAsset(std::string_view filename) {
-  return AssetRegistry::Instance().LoadAsset(filename);
-}
-
 // Javascript-facing function to register an asset.
 void RegisterAsset(std::string filename, std::string contents) {
   AssetRegistry::Instance().RegisterAsset(std::move(filename),
-                                        std::move(contents));
+                                          std::move(contents));
 }
 
 // Javascript-facing function to initialize the app.
@@ -76,22 +70,56 @@ void Init() {
   const int width = 100;
   const int height = 100;
   const std::string ini_path = "";
-  g_app = new mujoco::studio::App(width, height, ini_path, LoadAsset);
-  g_app->LoadModel("", mujoco::studio::App::ContentType::kModelXml);
+
+  mjpResourceProvider resource_provider;
+  mjp_defaultResourceProvider(&resource_provider);
+
+  resource_provider.open = [](mjResource* resource) {
+    AssetRegistry& r = AssetRegistry::Instance();
+    return static_cast<int>(r.Get(resource->name).size());
+  };
+  resource_provider.read = [](mjResource* resource, const void** buffer) {
+    AssetRegistry& r = AssetRegistry::Instance();
+    const std::string& contents = r.Get(resource->name);
+    *buffer = contents.data();
+    return static_cast<int>(contents.size());
+  };
+  resource_provider.close = [](mjResource* resource) {};
+
+  resource_provider.prefix = "font";
+  mjp_registerResourceProvider(&resource_provider);
+  resource_provider.prefix = "filament";
+  mjp_registerResourceProvider(&resource_provider);
+
+  g_app = new mujoco::studio::App({
+    .width = width,
+    .height = height,
+    .ini_path = ini_path,
+  });
+  g_app->InitEmptyModel();
 }
 
-// Javascript-facing function to load a model from a MJB file.
-void LoadMjb(const std::string& src) {
-  if (g_app) {
-    g_app->LoadModel(src, mujoco::studio::App::ContentType::kModelMjb);
+// Javascript-facing function to load a model from an uploaded file.
+void LoadFile(const std::string& filename, const std::string& data) {
+  if (!g_app) {
+    return;
   }
-}
 
-// Javascript-facing function to load a model from an XML file.
-void LoadXml(const std::string& src) {
-  if (g_app) {
-    g_app->LoadModel(src, mujoco::studio::App::ContentType::kModelXml);
+  std::string content_type;
+  if (filename.ends_with(".mjb")) {
+    content_type = "application/mjb";
+  } else if (filename.ends_with(".mjz")) {
+    content_type = "application/zip";
+  } else if (filename.ends_with(".zip")) {
+    content_type = "application/zip";
+  } else if (filename.ends_with(".xml")) {
+    content_type = "text/xml";
+  } else {
+    return;
   }
+
+  const auto ptr = reinterpret_cast<const std::byte*>(data.data());
+  g_app->LoadModelFromBuffer({ptr, ptr + data.size()}, content_type, filename);
 }
 
 // Javascript-facing function to render a single frame.
@@ -113,8 +141,7 @@ void Deinit() {
 EMSCRIPTEN_BINDINGS(studio_bindings) {
   emscripten::function("registerAsset", &RegisterAsset);
   emscripten::function("init", &Init);
-  emscripten::function("loadMjb", &LoadMjb);
-  emscripten::function("loadXml", &LoadXml);
+  emscripten::function("loadFile", &LoadFile);
   emscripten::function("renderFrame", &RenderFrame);
   emscripten::function("deinit", &Deinit);
 }

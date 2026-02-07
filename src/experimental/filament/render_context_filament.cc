@@ -15,11 +15,7 @@
 #include "experimental/filament/render_context_filament.h"
 
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
-#include <ios>
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
@@ -27,49 +23,18 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/filament_context.h"
 
+
 #if defined(TLS_FILAMENT_CONTEXT)
 static thread_local mujoco::FilamentContext* g_filament_context = nullptr;
 #else
 static mujoco::FilamentContext* g_filament_context = nullptr;
 #endif
 
-// Default asset loader to use when calling mjr_makeContext. This is only
-// intended for basic backwards compatibility with the existing mjr_makeContext
-// API. If this doesn't work as expected, you should be calling
-// mjr_makeFilamentContext instead and provide your own asset loading callbacks.
-// Returns 0 on success and non-zero to indicate an error.
-static int DefaultLoadAsset(const char* asset_filename, void* user_data,
-                             unsigned char** contents, uint64_t* out_size) {
-  std::filesystem::path full_path;
-  full_path.append("filament/assets/data");
-  full_path.append(asset_filename);
-
-  std::ifstream file(full_path, std::ios::binary);
-  if (!file) {
-    mju_error("File does not exist: %s", full_path.c_str());
-    return 1;
-  }
-
-  file.seekg(0, std::ios::end);
-  *out_size = static_cast<uint64_t>(file.tellg());
-  if (*out_size == 0) {
-    mju_error("File is empty: %s", full_path.c_str());
-    return 1;
-  }
-  file.seekg(0, std::ios::beg);
-
-  *contents = (unsigned char*)malloc(*out_size);
-  file.read((char*)*contents, *out_size);
-  file.close();
-  return 0;
-}
-
 static void CheckFilamentContext() {
   if (g_filament_context == nullptr) {
     mju_error("Missing context; did you call mjr_makeFilamentContext?");
   }
 }
-
 
 extern "C" {
 
@@ -93,7 +58,6 @@ void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
   mjr_freeContext(con);
   mjrFilamentConfig cfg;
   mjr_defaultFilamentConfig(&cfg);
-  cfg.load_asset = DefaultLoadAsset;
   mjr_makeFilamentContext(m, con, &cfg);
 }
 
@@ -147,6 +111,12 @@ uintptr_t mjr_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
 double mjr_getFrameRate(const mjrContext* con) {
   CheckFilamentContext();
   return g_filament_context->GetFrameRate();
+}
+
+void mjr_updateGui(const mjrContext* con) {
+  if (g_filament_context != nullptr) {
+    g_filament_context->UpdateGui();
+  }
 }
 
 }  // extern "C"

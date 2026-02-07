@@ -19,6 +19,8 @@
 #include <cstring>
 #include <ctime>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -68,11 +70,15 @@ void close_nop(mjResource* resource) {
 
 void close_str(mjResource* resource) {
   mju_free(resource->data);
+  resource->data = nullptr;
 }
 
 TEST_F(ResourceTest, RegisterProviderSuccess) {
   mjpResourceProvider provider = {
-    "my-prefix.123+45", open_nop, read_nop, close_nop
+      .prefix = "my-prefix.123+45",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   int count1 = mjp_resourceProviderCount();
@@ -85,16 +91,24 @@ TEST_F(ResourceTest, RegisterProviderSuccess) {
 
 TEST_F(ResourceTest, RegisterProviderMultipleSuccess) {
   mjpResourceProvider provider = {
-    "my-prefix.123+44", open_nop, read_nop, close_nop
+      .prefix = "my-prefix.123+44",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   mjpResourceProvider provider2 = {
-    "my-prefix.123+46", open_nop, read_nop, close_nop
+      .prefix = "my-prefix.123+46",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
-
   mjpResourceProvider provider3 = {
-    "my-prefix.123+41", open_nop, read_nop, close_nop
+      .prefix = "my-prefix.123+41",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   int count1 = mjp_resourceProviderCount();
@@ -111,7 +125,7 @@ TEST_F(ResourceTest, RegisterProviderMultipleSuccess) {
 
 TEST_F(ResourceTest, RegisterProviderMissingCallbacks) {
   mjpResourceProvider provider = {
-    "myprefix"
+      .prefix = "myprefix",
   };
 
   // install warning handler
@@ -130,7 +144,10 @@ TEST_F(ResourceTest, RegisterProviderMissingCallbacks) {
 
 TEST_F(ResourceTest, RegisterProviderMissingPrefix) {
   mjpResourceProvider provider = {
-    "", open_nop, read_nop, close_nop
+      .prefix = "",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   // install warning handler
@@ -149,7 +166,10 @@ TEST_F(ResourceTest, RegisterProviderMissingPrefix) {
 
 TEST_F(ResourceTest, RegisterProviderInvalidPrefix1) {
   mjpResourceProvider provider = {
-    "1invalid", open_nop, read_nop, close_nop
+      .prefix = "1invalid",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   // install warning handler
@@ -168,7 +188,10 @@ TEST_F(ResourceTest, RegisterProviderInvalidPrefix1) {
 
 TEST_F(ResourceTest, RegisterProviderInvalidPrefix2) {
   mjpResourceProvider provider = {
-    "invalid:", open_nop, read_nop, close_nop
+      .prefix = "invalid:",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   // install warning handler
@@ -187,11 +210,17 @@ TEST_F(ResourceTest, RegisterProviderInvalidPrefix2) {
 
 TEST_F(ResourceTest, RegisterProviderSame) {
   mjpResourceProvider provider = {
-    "prefix", open_nop, read_nop, close_nop
+      .prefix = "prefix",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   mjpResourceProvider provider2 = {
-    "prefix", open_nop, read_nop, close_nop
+      .prefix = "prefix",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   int i1 = mjp_registerResourceProvider(&provider);
@@ -206,11 +235,17 @@ TEST_F(ResourceTest, RegisterProviderSame) {
 
 TEST_F(ResourceTest, RegisterProviderSameCase) {
   mjpResourceProvider provider = {
-    "prefix", open_nop, read_nop, close_nop
+      .prefix = "prefix",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   mjpResourceProvider provider2 = {
-    "PREFIX", open_nop, read_nop, close_nop
+      .prefix = "PREFIX",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   int i1 = mjp_registerResourceProvider(&provider);
@@ -225,7 +260,10 @@ TEST_F(ResourceTest, RegisterProviderSameCase) {
 
 TEST_F(ResourceTest, GeneralTest) {
   mjpResourceProvider provider = {
-    "str", open_str, read_str, close_str
+      .prefix = "str",
+      .open = open_str,
+      .read = read_str,
+      .close = close_str,
   };
 
   // register resource provider
@@ -246,7 +284,10 @@ TEST_F(ResourceTest, GeneralTest) {
 
 TEST_F(ResourceTest, GeneralFailureTest) {
   mjpResourceProvider provider = {
-    "str", open_str, read_str, close_str
+      .prefix = "str",
+      .open = open_str,
+      .read = read_str,
+      .close = close_str,
   };
 
   // register resource provider
@@ -260,12 +301,15 @@ TEST_F(ResourceTest, GeneralFailureTest) {
                                           error.data(), error.size());
   ASSERT_THAT(resource, IsNull());
 
-  EXPECT_THAT(error.data(), HasSubstr("could not open"));
+  EXPECT_THAT(error.data(), HasSubstr("Error opening file"));
 }
 
 TEST_F(ResourceTest, NameWithValidPrefix) {
   mjpResourceProvider provider = {
-    "nop", open_nop, read_nop, close_nop
+      .prefix = "nop",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   // register resource provider
@@ -288,7 +332,10 @@ TEST_F(ResourceTest, NameWithValidPrefix) {
 
 TEST_F(ResourceTest, NameWithUpperCasePrefix) {
   mjpResourceProvider provider = {
-    "nop", open_nop, read_nop, close_nop,
+      .prefix = "nop",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   // register resource provider
@@ -311,7 +358,10 @@ TEST_F(ResourceTest, NameWithUpperCasePrefix) {
 
 TEST_F(ResourceTest, NameWithInvalidPrefix) {
   mjpResourceProvider provider = {
-    "nop", open_nop, read_nop, close_nop
+      .prefix = "nop",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
   };
 
   // register resource provider
@@ -329,6 +379,78 @@ TEST_F(ResourceTest, NameWithInvalidPrefix) {
   // open resource
   mjResource* resource = mju_openResource("", "nopfound", nullptr, nullptr, 0);
   ASSERT_THAT(resource, IsNull());
+}
+
+TEST_F(ResourceTest, GetResourceDir) {
+  const std::vector<std::pair<std::string, std::string>> cases = {
+    { "foo/bar/baz", "foo/bar/" },
+    { "foo/bar/", "foo/bar/" },
+    { "foo/bar", "foo/" },
+    { "/foo/bar", "/foo/" },
+    { "/foo", "/" },
+    { "/", "/" },
+    { "", "" },
+  };
+
+  const char* dir = nullptr;
+  int ndir = 0;
+
+  mjpResourceProvider provider;
+  provider.prefix = "provider";
+
+  for (const auto& [name, expected] : cases) {
+    mjResource resource;
+    resource.provider = nullptr;
+    resource.name = const_cast<char*>(name.c_str());
+    mju_getResourceDir(&resource, &dir, &ndir);
+    EXPECT_THAT(std::string(dir, ndir), expected);
+  }
+}
+
+TEST_F(ResourceTest, GetResourceDirProvider) {
+  const std::vector<std::pair<std::string, std::string>> cases = {
+    { "provider:/foo/bar", "provider:/foo/" },
+    { "provider:/foo/", "provider:/foo/" },
+    { "provider:foo/", "provider:foo/" },
+    { "provider:foo", "provider:" },
+    { "provider:/", "provider:/" },
+  };
+
+  const char* dir = nullptr;
+  int ndir = 0;
+
+  mjpResourceProvider provider;
+  provider.prefix = "provider";
+
+  for (const auto& [name, expected] : cases) {
+    mjResource resource;
+    resource.provider = &provider;
+    resource.name = const_cast<char*>(name.c_str());
+    mju_getResourceDir(&resource, &dir, &ndir);
+    EXPECT_THAT(std::string(dir, ndir), expected);
+  }
+}
+
+TEST_F(ResourceTest, GetResourceDirNullResource) {
+  const char* dir = nullptr;
+  int ndir = 0;
+
+  mju_getResourceDir(nullptr, &dir, &ndir);
+  EXPECT_THAT(dir, IsNull());
+  EXPECT_EQ(ndir, 0);
+}
+
+TEST_F(ResourceTest, GetResourceDirNullName) {
+  const char* dir = nullptr;
+  int ndir = 0;
+
+  mjResource resource;
+  resource.name = nullptr;
+  resource.provider = nullptr;
+
+  mju_getResourceDir(nullptr, &dir, &ndir);
+  EXPECT_THAT(dir, IsNull());
+  EXPECT_EQ(ndir, 0);
 }
 
 TEST_F(ResourceTest, OSFilesystemTimestamps) {

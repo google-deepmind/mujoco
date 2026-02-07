@@ -1944,6 +1944,24 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
                                vertxpos + 3*edata[2], m->flex_radius[f]);
   }
 
+  // box : triangle
+  else if (type == mjGEOM_BOX && dim == 2) {
+    const mjtNum* vertxpos = d->flexvert_xpos + 3 * m->flex_vertadr[f];
+    num = mjraw_BoxTriangle(con, margin, d->geom_xpos + 3 * g,
+                            d->geom_xmat + 9 * g, m->geom_size + 3 * g,
+                            vertxpos + 3 * edata[0], vertxpos + 3 * edata[1],
+                            vertxpos + 3 * edata[2], m->flex_radius[f]);
+  }
+
+  // capsule : triangle
+  else if (type == mjGEOM_CAPSULE && dim == 2) {
+    const mjtNum* vertxpos = d->flexvert_xpos + 3 * m->flex_vertadr[f];
+    num = mjraw_CapsuleTriangle(
+        con, margin, d->geom_xpos + 3 * g, d->geom_xmat + 9 * g,
+        m->geom_size + 3 * g, vertxpos + 3 * edata[0], vertxpos + 3 * edata[1],
+        vertxpos + 3 * edata[2], m->flex_radius[f]);
+  }
+
   // general geom : elem
   else {
     num = mjc_ConvexElem(m, d, con, g, -1, -1, -1, f, e, margin);

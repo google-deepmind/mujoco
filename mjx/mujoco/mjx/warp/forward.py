@@ -42,7 +42,6 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _forward_shim(
     # Model
@@ -1221,6 +1220,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'efc__type',
           'efc__vel',
       },
+      graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(
       d.qpos.shape[0],
@@ -1836,7 +1836,6 @@ _c = mjwarp.Contact(
 _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
-
 
 @ffi.format_args_for_warp
 def _step_shim(
@@ -3020,6 +3019,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'efc__type',
           'efc__vel',
       },
+      graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(
       d.qpos.shape[0],

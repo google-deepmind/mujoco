@@ -64,12 +64,17 @@ _SKIPPED_PLUGIN_FUNCTIONS: tuple[str, ...] = (
 # Functions that are bound as class methods
 _SKIPPED_CLASS_METHODS: tuple[str, ...] = (
     # go/keep-sorted start
+    "mj_addBufferVFS",
     "mj_copyData",
     "mj_copyModel",
     "mj_copySpec",
+    "mj_defaultVFS",
     "mj_deleteData",
+    "mj_deleteFileVFS",
     "mj_deleteModel",
     "mj_deleteSpec",
+    "mj_deleteVFS",
+    "mj_loadModel",
     "mj_loadXML",
     "mj_makeData",
     "mj_makeSpec",
@@ -113,11 +118,9 @@ _SKIPPED_ASSET_CACHE_FUNCTIONS: tuple[str, ...] = (
 # Omitted Virtual Filesystem (VFS) functions
 _SKIPPED_VFS_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
-    "mj_addBufferVFS",
     "mj_addFileVFS",
-    "mj_defaultVFS",
-    "mj_deleteFileVFS",
-    "mj_deleteVFS",
+    "mj_mountVFS",
+    "mj_unmountVFS",
     # go/keep-sorted end
 )
 
@@ -137,10 +140,8 @@ _SKIPPED_MEMORY_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_freeLastXML",
     "mj_freeStack",
-    "mj_loadModel",
     "mj_loadModelBuffer",
     "mj_markStack",
-    "mj_saveModel",
     "mj_stackAllocByte",
     "mj_stackAllocInt",
     "mj_stackAllocNum",
@@ -183,18 +184,8 @@ _SKIPPED_GETTERS_AND_SETTERS: tuple[str, ...] = (
 
 _SKIPPED_UTILITY_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
+    "mj_readSensor",
     "mju_getXMLDependencies",
-    # go/keep-sorted end
-)
-
-# Functions that require special wrappers.
-# These functions are not bound automatically but are written by hand instead.
-MANUAL_WRAPPER_FUNCTIONS: tuple[str, ...] = (
-    # go/keep-sorted start
-    "mj_compile",
-    "mj_saveLastXML",
-    "mj_setLengthRange",
-    "mju_error",
     # go/keep-sorted end
 )
 
@@ -232,12 +223,25 @@ SKIPPED_STRUCTS: tuple[str, ...] = (
     # go/keep-sorted end
 )
 
+# Functions that require special wrappers.
+# These functions are not bound automatically but are written by hand instead.
+MANUAL_WRAPPER_FUNCTIONS: tuple[str, ...] = (
+    # go/keep-sorted start
+    "mj_compile",
+    "mj_saveLastXML",
+    "mj_saveModel",
+    "mj_setLengthRange",
+    "mju_error",
+    # go/keep-sorted end
+)
+
 # Structs for which header generation is done manually.
 # mjvScene is included here because buffer sizes need to be calculated based on
 # introspect doc strings, which was considered a brittle unreliable solution in
 # the past.
 MANUAL_STRUCTS_HEADERS: tuple[str, ...] = (
     "mjvScene",
+    "mjVFS",
 )
 # Structs for which source code generation is done manually.
 MANUAL_STRUCTS_SOURCES: tuple[str, ...] = (

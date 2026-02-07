@@ -18,8 +18,6 @@ import inspect
 from typing import Callable, Optional
 
 import warp as wp
-from warp._src.context import Module
-from warp._src.context import get_module
 
 _STACK = None
 
@@ -127,7 +125,7 @@ def nested_kernel(
   f: Optional[Callable] = None,
   *,
   enable_backward: Optional[bool] = None,
-  module: Optional[Module] = None,
+  module: Optional[wp.Module] = None,
 ):
   """Decorator to register a Warp kernel from a Python function.
 
@@ -166,7 +164,7 @@ def nested_kernel(
   Args:
       f: The function to be registered as a kernel.
       enable_backward: If False, the backward pass will not be generated.
-      module: The :class:`warp.context.Module` to which the kernel belongs. Alternatively,
+      module: The :class:`warp.Module` to which the kernel belongs. Alternatively,
               if a string `"unique"` is provided, the kernel is assigned to a new module
               named after the kernel name and hash. If None, the module is inferred from
               the function's module.
@@ -182,7 +180,7 @@ def nested_kernel(
       qualname = func.__qualname__
       parts = [part for part in qualname.split(".") if part != "<locals>"]
       outer_functions = parts[:-1]
-      module_name = get_module(".".join([func.__module__] + outer_functions))
+      module_name = wp.get_module(".".join([func.__module__] + outer_functions))
     else:
       module_name = module
 
@@ -220,8 +218,7 @@ def cache_kernel(func):
 
 
 def check_toolkit_driver():
-  if wp._src.context.runtime is None:
-    wp._src.context.init()
+  wp.init()
   if wp.get_device().is_cuda:
-    if wp._src.context.runtime.toolkit_version < (12, 4) or wp._src.context.runtime.driver_version < (12, 4):
+    if not wp.is_conditional_graph_supported():
       RuntimeError("Minimum supported CUDA version: 12.4.")

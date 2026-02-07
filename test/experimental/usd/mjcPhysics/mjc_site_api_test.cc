@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <array>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
-#include <mujoco/experimental/usd/usd.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 #include <pxr/base/tf/token.h>
@@ -79,7 +79,9 @@ TEST_F(MjcSiteApiTest, TestApply) {
   auto box = pxr::UsdGeomCube::Define(stage, test_box_site_path);
   MjcPhysicsSiteAPI::Apply(box.GetPrim());
 
-  mjSpec* spec = mj_parseUSDStage(stage);
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parse(stage->GetRootLayer()->GetIdentifier().c_str(),
+                          "model/usd", nullptr, error.data(), error.size());
   mjModel* default_model = mj_compile(spec, nullptr);
   EXPECT_THAT(default_model, NotNull()) << mjs_getError(spec);
 

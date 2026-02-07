@@ -39,6 +39,9 @@ void mj_invPosition(const mjModel* m, mjData* d) {
   TM_START1;
   TM_START;
 
+  // clear flag for lazy evaluation
+  d->flg_energypos = 0;
+
   mj_kinematics(m, d);
   mj_comPos(m, d);
   mj_camlight(m, d);
@@ -191,7 +194,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
     if (!skipsensor) {
       mj_sensorPos(m, d);
     }
-    if (mjENABLED(mjENBL_ENERGY)) {
+    if (mjENABLED(mjENBL_ENERGY) && !d->flg_energypos) {
       mj_energyPos(m, d);
     }
   }
@@ -202,7 +205,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
     if (!skipsensor) {
       mj_sensorVel(m, d);
     }
-    if (mjENABLED(mjENBL_ENERGY)) {
+    if (mjENABLED(mjENBL_ENERGY) && !d->flg_energyvel) {
       mj_energyVel(m, d);
     }
   }
@@ -224,6 +227,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   mj_tendonBias(m, d, d->qfrc_inverse);
 
   if (!skipsensor) {
+    d->flg_rnepost = 0;  // clear flag for lazy evaluation
     mj_sensorAcc(m, d);
   }
 

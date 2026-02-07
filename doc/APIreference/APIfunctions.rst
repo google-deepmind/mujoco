@@ -9,6 +9,9 @@
 Functions
 =========
 
+.. tip::
+   Clicking on a function name below will take you to the source implementation in the GitHub repository.
+
 The main header `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`_ exposes a
 large number of functions. However the functions that most users are likely to need are a small fraction.
 
@@ -25,6 +28,7 @@ API function can be classified as:
    - :ref:`Ray casting<Raycollisions>`.
    - :ref:`Printing<Printing>` of various quantities.
    - :ref:`Virtual file system<Virtualfilesystem>`, used to load assets from memory.
+   - :ref:`Asset cache<Assetcache>`, used to speed up model compilation.
    - :ref:`Initialization<Initialization>` of data structures.
    - :ref:`Error and memory<Errorandmemory>`.
    - :ref:`Miscellaneous<Miscellaneous>` functions.

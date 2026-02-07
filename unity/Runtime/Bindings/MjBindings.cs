@@ -221,6 +221,10 @@ public enum mjtGeom : int{
   mjGEOM_TRIANGLE = 108,
   mjGEOM_NONE = 1001,
 }
+public enum mjtProjection : int{
+  mjPROJ_PERSPECTIVE = 0,
+  mjPROJ_ORTHOGRAPHIC = 1,
+}
 public enum mjtCamLight : int{
   mjCAMLIGHT_FIXED = 0,
   mjCAMLIGHT_TRACK = 1,
@@ -283,7 +287,8 @@ public enum mjtEq : int{
   mjEQ_JOINT = 2,
   mjEQ_TENDON = 3,
   mjEQ_FLEX = 4,
-  mjEQ_DISTANCE = 5,
+  mjEQ_FLEXVERT = 5,
+  mjEQ_DISTANCE = 6,
 }
 public enum mjtWrap : int{
   mjWRAP_NONE = 0,
@@ -426,6 +431,23 @@ public enum mjtConDataField : int{
   mjCONDATA_NORMAL = 5,
   mjCONDATA_TANGENT = 6,
   mjNCONDATA = 7,
+}
+public enum mjtRayDataField : int{
+  mjRAYDATA_DIST = 0,
+  mjRAYDATA_DIR = 1,
+  mjRAYDATA_ORIGIN = 2,
+  mjRAYDATA_POINT = 3,
+  mjRAYDATA_NORMAL = 4,
+  mjRAYDATA_DEPTH = 5,
+  mjNRAYDATA = 6,
+}
+public enum mjtCamOutBit : int{
+  mjCAMOUT_RGB = 1,
+  mjCAMOUT_DEPTH = 2,
+  mjCAMOUT_DIST = 4,
+  mjCAMOUT_NORMAL = 8,
+  mjCAMOUT_SEG = 16,
+  mjNCAMOUT = 5,
 }
 public enum mjtSameFrame : int{
   mjSAMEFRAME_NONE = 0,
@@ -678,10 +700,11 @@ public enum mjtRndFlag : int{
   mjRND_SKYBOX = 4,
   mjRND_FOG = 5,
   mjRND_HAZE = 6,
-  mjRND_SEGMENT = 7,
-  mjRND_IDCOLOR = 8,
-  mjRND_CULL_FACE = 9,
-  mjNRNDFLAG = 10,
+  mjRND_DEPTH = 7,
+  mjRND_SEGMENT = 8,
+  mjRND_IDCOLOR = 9,
+  mjRND_CULL_FACE = 10,
+  mjNRNDFLAG = 11,
 }
 public enum mjtStereo : int{
   mjSTEREO_NONE = 0,
@@ -4917,6 +4940,10 @@ public unsafe struct mjData_ {
   public int nbody_awake;
   public int nparent_awake;
   public int nv_awake;
+  public byte flg_energypos;
+  public byte flg_energyvel;
+  public byte flg_subtreevel;
+  public byte flg_rnepost;
   public double time;
   public fixed double energy[2];
   public void* buffer;
@@ -4924,6 +4951,7 @@ public unsafe struct mjData_ {
   public double* qpos;
   public double* qvel;
   public double* act;
+  public double* history;
   public double* qacc_warmstart;
   public double* plugin_state;
   public double* ctrl;
@@ -4959,11 +4987,10 @@ public unsafe struct mjData_ {
   public double* cinert;
   public double* flexvert_xpos;
   public double* flexelem_aabb;
-  public int* flexedge_J_rownnz;
-  public int* flexedge_J_rowadr;
-  public int* flexedge_J_colind;
   public double* flexedge_J;
   public double* flexedge_length;
+  public double* flexvert_J;
+  public double* flexvert_length;
   public double* bvh_aabb_dyn;
   public int* ten_wrapadr;
   public int* ten_wrapnum;
@@ -5265,90 +5292,93 @@ public unsafe struct mjStatistic_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjModel_ {
-  public int nq;
-  public int nv;
-  public int nu;
-  public int na;
-  public int nbody;
-  public int nbvh;
-  public int nbvhstatic;
-  public int nbvhdynamic;
-  public int noct;
-  public int njnt;
-  public int ntree;
-  public int nM;
-  public int nB;
-  public int nC;
-  public int nD;
-  public int ngeom;
-  public int nsite;
-  public int ncam;
-  public int nlight;
-  public int nflex;
-  public int nflexnode;
-  public int nflexvert;
-  public int nflexedge;
-  public int nflexelem;
-  public int nflexelemdata;
-  public int nflexelemedge;
-  public int nflexshelldata;
-  public int nflexevpair;
-  public int nflextexcoord;
-  public int nmesh;
-  public int nmeshvert;
-  public int nmeshnormal;
-  public int nmeshtexcoord;
-  public int nmeshface;
-  public int nmeshgraph;
-  public int nmeshpoly;
-  public int nmeshpolyvert;
-  public int nmeshpolymap;
-  public int nskin;
-  public int nskinvert;
-  public int nskintexvert;
-  public int nskinface;
-  public int nskinbone;
-  public int nskinbonevert;
-  public int nhfield;
-  public int nhfielddata;
-  public int ntex;
-  public int ntexdata;
-  public int nmat;
-  public int npair;
-  public int nexclude;
-  public int neq;
-  public int ntendon;
-  public int nwrap;
-  public int nsensor;
-  public int nnumeric;
-  public int nnumericdata;
-  public int ntext;
-  public int ntextdata;
-  public int ntuple;
-  public int ntupledata;
-  public int nkey;
-  public int nmocap;
-  public int nplugin;
-  public int npluginattr;
-  public int nuser_body;
-  public int nuser_jnt;
-  public int nuser_geom;
-  public int nuser_site;
-  public int nuser_cam;
-  public int nuser_tendon;
-  public int nuser_actuator;
-  public int nuser_sensor;
-  public int nnames;
-  public int npaths;
-  public int nnames_map;
-  public int nJmom;
-  public int ngravcomp;
-  public int nemax;
-  public int njmax;
-  public int nconmax;
-  public int nuserdata;
-  public int nsensordata;
-  public int npluginstate;
+  public Int64 nq;
+  public Int64 nv;
+  public Int64 nu;
+  public Int64 na;
+  public Int64 nbody;
+  public Int64 nbvh;
+  public Int64 nbvhstatic;
+  public Int64 nbvhdynamic;
+  public Int64 noct;
+  public Int64 njnt;
+  public Int64 ntree;
+  public Int64 nM;
+  public Int64 nB;
+  public Int64 nC;
+  public Int64 nD;
+  public Int64 ngeom;
+  public Int64 nsite;
+  public Int64 ncam;
+  public Int64 nlight;
+  public Int64 nflex;
+  public Int64 nflexnode;
+  public Int64 nflexvert;
+  public Int64 nflexedge;
+  public Int64 nflexelem;
+  public Int64 nflexelemdata;
+  public Int64 nflexelemedge;
+  public Int64 nflexshelldata;
+  public Int64 nflexevpair;
+  public Int64 nflextexcoord;
+  public Int64 nJfe;
+  public Int64 nJfv;
+  public Int64 nmesh;
+  public Int64 nmeshvert;
+  public Int64 nmeshnormal;
+  public Int64 nmeshtexcoord;
+  public Int64 nmeshface;
+  public Int64 nmeshgraph;
+  public Int64 nmeshpoly;
+  public Int64 nmeshpolyvert;
+  public Int64 nmeshpolymap;
+  public Int64 nskin;
+  public Int64 nskinvert;
+  public Int64 nskintexvert;
+  public Int64 nskinface;
+  public Int64 nskinbone;
+  public Int64 nskinbonevert;
+  public Int64 nhfield;
+  public Int64 nhfielddata;
+  public Int64 ntex;
+  public Int64 ntexdata;
+  public Int64 nmat;
+  public Int64 npair;
+  public Int64 nexclude;
+  public Int64 neq;
+  public Int64 ntendon;
+  public Int64 nwrap;
+  public Int64 nsensor;
+  public Int64 nnumeric;
+  public Int64 nnumericdata;
+  public Int64 ntext;
+  public Int64 ntextdata;
+  public Int64 ntuple;
+  public Int64 ntupledata;
+  public Int64 nkey;
+  public Int64 nmocap;
+  public Int64 nplugin;
+  public Int64 npluginattr;
+  public Int64 nuser_body;
+  public Int64 nuser_jnt;
+  public Int64 nuser_geom;
+  public Int64 nuser_site;
+  public Int64 nuser_cam;
+  public Int64 nuser_tendon;
+  public Int64 nuser_actuator;
+  public Int64 nuser_sensor;
+  public Int64 nnames;
+  public Int64 npaths;
+  public Int64 nnames_map;
+  public Int64 nJmom;
+  public Int64 ngravcomp;
+  public Int64 nemax;
+  public Int64 njmax;
+  public Int64 nconmax;
+  public Int64 nuserdata;
+  public Int64 nsensordata;
+  public Int64 npluginstate;
+  public Int64 nhistory;
   public Int64 narena;
   public Int64 nbuffer;
   public mjOption_ opt;
@@ -5473,10 +5503,11 @@ public unsafe struct mjModel_ {
   public double* cam_poscom0;
   public double* cam_pos0;
   public double* cam_mat0;
-  public int* cam_orthographic;
+  public int* cam_projection;
   public double* cam_fovy;
   public double* cam_ipd;
   public int* cam_resolution;
+  public int* cam_output;
   public float* cam_sensorsize;
   public float* cam_intrinsic;
   public double* cam_user;
@@ -5536,6 +5567,9 @@ public unsafe struct mjModel_ {
   public int* flex_texcoordadr;
   public int* flex_nodebodyid;
   public int* flex_vertbodyid;
+  public int* flex_vertedgeadr;
+  public int* flex_vertedgenum;
+  public int* flex_vertedge;
   public int* flex_edge;
   public int* flex_edgeflap;
   public int* flex_elem;
@@ -5546,23 +5580,31 @@ public unsafe struct mjModel_ {
   public int* flex_evpair;
   public double* flex_vert;
   public double* flex_vert0;
+  public double* flex_vertmetric;
   public double* flex_node;
   public double* flex_node0;
   public double* flexedge_length0;
   public double* flexedge_invweight0;
   public double* flex_radius;
+  public double* flex_size;
   public double* flex_stiffness;
   public double* flex_bending;
   public double* flex_damping;
   public double* flex_edgestiffness;
   public double* flex_edgedamping;
-  public byte* flex_edgeequality;
+  public int* flex_edgeequality;
   public byte* flex_rigid;
   public byte* flexedge_rigid;
   public byte* flex_centered;
   public byte* flex_flatskin;
   public int* flex_bvhadr;
   public int* flex_bvhnum;
+  public int* flexedge_J_rownnz;
+  public int* flexedge_J_rowadr;
+  public int* flexedge_J_colind;
+  public int* flexvert_J_rownnz;
+  public int* flexvert_J_rowadr;
+  public int* flexvert_J_colind;
   public float* flex_rgba;
   public float* flex_texcoord;
   public int* mesh_vertadr;
@@ -5699,6 +5741,9 @@ public unsafe struct mjModel_ {
   public int* actuator_actadr;
   public int* actuator_actnum;
   public int* actuator_group;
+  public int* actuator_history;
+  public int* actuator_historyadr;
+  public double* actuator_delay;
   public byte* actuator_ctrllimited;
   public byte* actuator_forcelimited;
   public byte* actuator_actlimited;
@@ -5728,6 +5773,10 @@ public unsafe struct mjModel_ {
   public int* sensor_adr;
   public double* sensor_cutoff;
   public double* sensor_noise;
+  public int* sensor_history;
+  public int* sensor_historyadr;
+  public double* sensor_delay;
+  public double* sensor_interval;
   public double* sensor_user;
   public int* sensor_plugin;
   public int* plugin;
@@ -6315,7 +6364,7 @@ public unsafe struct mjvScene_ {
   public fixed float rotate[4];
   public float scale;
   public int stereo;
-  public fixed byte flags[10];
+  public fixed byte flags[11];
   public int framewidth;
   public fixed float framergb[3];
   public int status;
@@ -6670,6 +6719,18 @@ public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* st
 public static unsafe extern void mj_copyState(mjModel_* m, mjData_* src, mjData_* dst, int sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double mj_readCtrl(mjModel_* m, mjData_* d, int id, double time, int interp);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern double* mj_readSensor(mjModel_* m, mjData_* d, int id, double time, double* result, int interp);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_initCtrlHistory(mjModel_* m, mjData_* d, int id, double* times, double* values);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_initSensorHistory(mjModel_* m, mjData_* d, int id, double* times, double* values, double phase);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_setKeyframe(mjModel_* m, mjData_* d, int k);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -6784,22 +6845,22 @@ public static unsafe extern int mj_version();
 public static unsafe extern string mj_versionString();
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_multiRay(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid, double* dist, int nray, double cutoff);
+public static unsafe extern double mj_ray(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid, double* normal);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mj_ray(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid);
+public static unsafe extern void mj_multiRay(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid, double* dist, double* normal, int nray, double cutoff);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mj_rayHfield(mjModel_* m, mjData_* d, int geomid, double* pnt, double* vec);
+public static unsafe extern double mj_rayHfield(mjModel_* m, mjData_* d, int geomid, double* pnt, double* vec, double* normal);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mj_rayMesh(mjModel_* m, mjData_* d, int geomid, double* pnt, double* vec);
+public static unsafe extern double mj_rayMesh(mjModel_* m, mjData_* d, int geomid, double* pnt, double* vec, double* normal);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mju_rayGeom(double* pos, double* mat, double* size, double* pnt, double* vec, int geomtype);
+public static unsafe extern double mju_rayGeom(double* pos, double* mat, double* size, double* pnt, double* vec, int geomtype, double* normal);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mju_rayFlex(mjModel_* m, mjData_* d, int flex_layer, byte flg_vert, byte flg_edge, byte flg_face, byte flg_skin, int flexid, double* pnt, double* vec, int* vertid);
+public static unsafe extern double mj_rayFlex(mjModel_* m, mjData_* d, int flex_layer, byte flg_vert, byte flg_edge, byte flg_face, byte flg_skin, int flexid, double* pnt, double* vec, int* vertid, double* normal);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_raySkin(int nface, int nvert, int* face, float* vert, double* pnt, double* vec, int* vertid);

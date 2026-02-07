@@ -1057,6 +1057,112 @@ class "MjcMaterialAPI"
     )
 }
 
+class "MjcEqualityAPI" (
+    customData = {
+        string className = "EqualityAPI"
+    }
+    doc = """Base API for equality constraints."""
+
+    inherits = </APISchemaBase>
+)
+{
+    rel mjc:target (
+      doc = "Secondary target of the equality constraint."
+    )
+
+    uniform double[] mjc:solref = [0.02, 1.0] (
+        customData = {
+            string apiName = "SolRef"
+        }
+        displayName = "SolRef"
+        doc = """Constraint solver parameter for equality constraint simulation."""
+    )
+
+    uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2.0] (
+        customData = {
+            string apiName = "SolImp"
+        }
+        displayName = "SolImp"
+        doc = """Constraint solver parameter for equality constraint simulation."""
+    )
+}
+
+class "MjcEqualityWeldAPI" (
+    customData = {
+        string className = "EqualityWeldAPI"
+    }
+    doc = """API providing extension attributes to represent equality/weld constraints."""
+
+    prepend apiSchemas = ["MjcEqualityAPI"]
+    inherits = </APISchemaBase>
+)
+{
+    uniform float mjc:torqueScale = 1.0 (
+        customData = {
+            string apiName = "TorqueScale"
+        }
+        displayName = "Torque Scale"
+        doc = """A constant that scales the angular residual (angular constraint violation). Notionally in units of torque/force = length. Intuitively this coefficient defines how much the weld “cares” about rotational displacements vs. translational displacements."""
+    )
+}
+
+class "MjcEqualityJointAPI" (
+    customData = {
+        string className = "EqualityJointAPI"
+    }
+    doc = """API providing extension attributes to represent equality/joint constraints.
+    This API is applied to a joint prim which acts as the constrained joint (joint1 in
+    MuJoCo terminology). The target relationship points to another joint prim which is
+    the reference joint (joint2 in MuJoCo terminology). The constrained joint's position
+    or angle is constrained to be a quartic polynomial of the reference joint's position
+    or angle. Only scalar joint types (slide and hinge) can be used."""
+
+    prepend apiSchemas = ["MjcEqualityAPI"]
+    inherits = </APISchemaBase>
+)
+{
+    uniform double mjc:coef0 = 0 (
+        customData = {
+            string apiName = "Coef0"
+        }
+        displayName = "Coefficient 0"
+        doc = """Constant coefficient a0 of the quartic polynomial. The constraint is:
+        y = y0 + a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4."""
+    )
+
+    uniform double mjc:coef1 = 1 (
+        customData = {
+            string apiName = "Coef1"
+        }
+        displayName = "Coefficient 1"
+        doc = """Linear coefficient a1 of the quartic polynomial."""
+    )
+
+    uniform double mjc:coef2 = 0 (
+        customData = {
+            string apiName = "Coef2"
+        }
+        displayName = "Coefficient 2"
+        doc = """Quadratic coefficient a2 of the quartic polynomial."""
+    )
+
+    uniform double mjc:coef3 = 0 (
+        customData = {
+            string apiName = "Coef3"
+        }
+        displayName = "Coefficient 3"
+        doc = """Cubic coefficient a3 of the quartic polynomial."""
+    )
+
+    uniform double mjc:coef4 = 0 (
+        customData = {
+            string apiName = "Coef4"
+        }
+        displayName = "Coefficient 4"
+        doc = """Quartic coefficient a4 of the quartic polynomial."""
+    )
+}
+
 class MjcTendon "MjcTendon"
 (
     customData = {
@@ -1077,11 +1183,15 @@ class MjcTendon "MjcTendon"
     )
 
     rel mjc:path (
-      doc = "For spatial tendons, this describes a list of sites and geoms the tendon wraps. For fixed tendons, this is instead a list of joints."
+      doc = "For spatial tendons, this describes a list of unique of sites and geoms the tendon wraps. For fixed tendons, this is instead a list of joints."
     )
 
     rel mjc:sideSites (
       doc = "For spatial tendons, a geom wrapped by the tendon may specify which side of the geom the tendon wraps around via a site prim. This is a list of sites that are used as side sites in mjc:path."
+    )
+
+    uniform int[] mjc:path:indices = [] (
+      doc = "This list represents the order in which the tendon wraps the sites in mjc:path."
     )
 
     uniform int[] mjc:sideSites:indices = [] (

@@ -40,6 +40,52 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.',  # pylint: disable=line-too-long
      )),
+    ('mj_mountVFS',
+     FunctionDecl(
+         name='mj_mountVFS',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='filepath',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='provider',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpResourceProvider', is_const=True),  # pylint: disable=line-too-long
+                 ),
+             ),
+         ),
+         doc='Mount a ResourceProvider to handle file operations under the given path; return 0: success, 2: repeated name, -1: invalid resource provider.',  # pylint: disable=line-too-long
+     )),
+    ('mj_unmountVFS',
+     FunctionDecl(
+         name='mj_unmountVFS',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Unmount a previously mounted ResourceProvider; return 0: success, -1: not found in VFS.',  # pylint: disable=line-too-long
+     )),
     ('mj_addFileVFS',
      FunctionDecl(
          name='mj_addFileVFS',
@@ -64,7 +110,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Add file to VFS, return 0: success, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
+         doc='Add file to VFS; return 0: success, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
      )),
     ('mj_addBufferVFS',
      FunctionDecl(
@@ -94,7 +140,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Add file to VFS from buffer, return 0: success, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
+         doc='Add file to VFS from buffer; return 0: success, 2: repeated name, -1: failed to load.',  # pylint: disable=line-too-long
      )),
     ('mj_deleteFileVFS',
      FunctionDecl(
@@ -114,7 +160,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Delete file from VFS, return 0: success, -1: not found in VFS.',
+         doc='Delete file from VFS; return 0: success, -1: not found in VFS.',
      )),
     ('mj_deleteVFS',
      FunctionDecl(
@@ -174,7 +220,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='size_t'),
              ),
          ),
-         doc='Set the capacity of the asset cache in bytes (0 to disable); returns the new capacity.',  # pylint: disable=line-too-long
+         doc='Set the capacity of the asset cache in bytes (0 to disable); return the new capacity.',  # pylint: disable=line-too-long
      )),
     ('mj_getCache',
      FunctionDecl(
@@ -231,7 +277,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Parse XML file in MJCF or URDF format, compile it, return low-level model. If vfs is not NULL, look up files in vfs before reading from disk. If error is not NULL, it must have size error_sz.',  # pylint: disable=line-too-long
+         doc='Parse XML file in MJCF or URDF format, compile it; return low-level model. If vfs is not NULL, look up files in vfs before reading from disk. If error is not NULL, it must have size error_sz.',  # pylint: disable=line-too-long
      )),
     ('mj_parseXML',
      FunctionDecl(
@@ -382,7 +428,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Copy real-valued arrays from model to spec, returns 1 on success.',  # pylint: disable=line-too-long
+         doc='Copy real-valued arrays from model to spec; return 1 on success.',
      )),
     ('mj_recompile',
      FunctionDecl(
@@ -415,7 +461,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Recompile spec to model, preserving the state, return 0 on success.',  # pylint: disable=line-too-long
+         doc='Recompile spec to model, preserving the state; return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mj_saveLastXML',
      FunctionDecl(
@@ -488,7 +534,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Save spec to XML string, return 0 on success, -1 on failure. If length of the output buffer is too small, returns the required size.',  # pylint: disable=line-too-long
+         doc='Save spec to XML string; return 0 on success, -1 on failure. If length of the output buffer is too small; return the required size.',  # pylint: disable=line-too-long
      )),
     ('mj_saveXML',
      FunctionDecl(
@@ -519,7 +565,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Save spec to XML file, return 0 on success, -1 otherwise.',
+         doc='Save spec to XML file; return 0 on success, -1 otherwise.',
      )),
     ('mju_getXMLDependencies',
      FunctionDecl(
@@ -1258,7 +1304,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Activate plugin. Returns 0 on success.',
+         doc='Activate plugin; return 0 on success.',
      )),
     ('mjs_setDeepCopy',
      FunctionDecl(
@@ -1276,7 +1322,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Turn deep copy on or off attach. Returns 0 on success.',
+         doc='Turn deep copy on or off attach; return 0 on success.',
      )),
     ('mj_printFormattedModel',
      FunctionDecl(
@@ -2590,6 +2636,156 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Copy state from src to dst.',
      )),
+    ('mj_readCtrl',
+     FunctionDecl(
+         name='mj_readCtrl',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='time',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='interp',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Read ctrl value for actuator at given time. Returns d->ctrl[id] if no history, otherwise reads from history buffer. interp: 0=zero-order-hold, 1=linear, 2=cubic spline.',  # pylint: disable=line-too-long
+     )),
+    ('mj_readSensor',
+     FunctionDecl(
+         name='mj_readSensor',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjtNum', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='time',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='result',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='interp',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Read sensor value from history buffer at given time. Returns pointer to sensordata (no history) or history buffer (exact match), or NULL if interpolation performed (writes to result). interp: 0=zero-order-hold, 1=linear, 2=cubic spline.',  # pylint: disable=line-too-long
+     )),
+    ('mj_initCtrlHistory',
+     FunctionDecl(
+         name='mj_initCtrlHistory',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='times',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='values',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Initialize history buffer for actuator; if times is NULL, uses existing buffer timestamps.',  # pylint: disable=line-too-long
+     )),
+    ('mj_initSensorHistory',
+     FunctionDecl(
+         name='mj_initSensorHistory',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='times',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='values',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='phase',
+                 type=ValueType(name='mjtNum'),
+             ),
+         ),
+         doc='Initialize history buffer for sensor; if times is NULL, uses existing buffer timestamps. phase sets the user slot (last computation time for interval sensors).',  # pylint: disable=line-too-long
+     )),
     ('mj_setKeyframe',
      FunctionDecl(
          name='mj_setKeyframe',
@@ -3122,7 +3318,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Get id of object with the specified mjtObj type and name, returns -1 if id not found.',  # pylint: disable=line-too-long
+         doc='Get id of object with the specified mjtObj type and name; return -1 if id not found.',  # pylint: disable=line-too-long
      )),
     ('mj_id2name',
      FunctionDecl(
@@ -3146,7 +3342,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Get name of object with the specified mjtObj type and id, returns NULL if name not found.',  # pylint: disable=line-too-long
+         doc='Get name of object with the specified mjtObj type and id; return NULL if name not found.',  # pylint: disable=line-too-long
      )),
     ('mj_fullM',
      FunctionDecl(
@@ -3454,7 +3650,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  nullable=True,
              ),
          ),
-         doc='Returns smallest signed distance between two geoms and optionally segment from geom1 to geom2.',  # pylint: disable=line-too-long
+         doc='Return smallest signed distance between two geoms and optionally segment from geom1 to geom2.',  # pylint: disable=line-too-long
      )),
     ('mj_contactForce',
      FunctionDecl(
@@ -3729,75 +3925,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          parameters=(),
          doc='Return the current version of MuJoCo as a null-terminated string.',  # pylint: disable=line-too-long
      )),
-    ('mj_multiRay',
-     FunctionDecl(
-         name='mj_multiRay',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='m',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjModel', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='d',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjData'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='pnt',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='vec',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='geomgroup',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtByte', is_const=True),
-                 ),
-                 nullable=True,
-             ),
-             FunctionParameterDecl(
-                 name='flg_static',
-                 type=ValueType(name='mjtByte'),
-             ),
-             FunctionParameterDecl(
-                 name='bodyexclude',
-                 type=ValueType(name='int'),
-             ),
-             FunctionParameterDecl(
-                 name='geomid',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='dist',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='nray',
-                 type=ValueType(name='int'),
-             ),
-             FunctionParameterDecl(
-                 name='cutoff',
-                 type=ValueType(name='mjtNum'),
-             ),
-         ),
-         doc='Intersect multiple rays emanating from a single point. Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.',  # pylint: disable=line-too-long
-     )),
     ('mj_ray',
      FunctionDecl(
          name='mj_ray',
@@ -3852,8 +3979,92 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
                  nullable=True,
              ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
          ),
-         doc='Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude. Return distance (x) to nearest surface, or -1 if no intersection and output geomid. geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.',  # pylint: disable=line-too-long
+         doc='Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude. Return distance (x) to nearest surface, or -1 if no intersection. geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.',  # pylint: disable=line-too-long
+     )),
+    ('mj_multiRay',
+     FunctionDecl(
+         name='mj_multiRay',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='pnt',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='geomgroup',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='flg_static',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='bodyexclude',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='geomid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='dist',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='nray',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='cutoff',
+                 type=ValueType(name='mjtNum'),
+             ),
+         ),
+         doc='Intersect multiple rays emanating from a single point, compute normals if given. Similar semantics to mj_ray, but vec, normal and dist are arrays. Geoms further than cutoff are ignored.',  # pylint: disable=line-too-long
      )),
     ('mj_rayHfield',
      FunctionDecl(
@@ -3890,8 +4101,16 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      extents=(3,),
                  ),
              ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
          ),
-         doc='Intersect ray with hfield, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
+         doc='Intersect ray with hfield; return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
      )),
     ('mj_rayMesh',
      FunctionDecl(
@@ -3928,8 +4147,16 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      extents=(3,),
                  ),
              ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
          ),
-         doc='Intersect ray with mesh, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
+         doc='Intersect ray with mesh; return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
      )),
     ('mju_rayGeom',
      FunctionDecl(
@@ -3975,12 +4202,20 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='geomtype',
                  type=ValueType(name='int'),
              ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
          ),
-         doc='Intersect ray with pure geom, return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
+         doc='Intersect ray with pure geom; return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
      )),
-    ('mju_rayFlex',
+    ('mj_rayFlex',
      FunctionDecl(
-         name='mju_rayFlex',
+         name='mj_rayFlex',
          return_type=ValueType(name='mjtNum'),
          parameters=(
              FunctionParameterDecl(
@@ -4041,8 +4276,16 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
                  nullable=True,
              ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
          ),
-         doc='Intersect ray with flex, return nearest distance or -1 if no intersection, and also output nearest vertex id.',  # pylint: disable=line-too-long
+         doc='Intersect ray with flex; return nearest distance or -1 if no intersection, and also output nearest vertex id and surface normal.',  # pylint: disable=line-too-long
      )),
     ('mju_raySkin',
      FunctionDecl(
@@ -4092,7 +4335,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  nullable=True,
              ),
          ),
-         doc='Intersect ray with skin, return nearest distance or -1 if no intersection, and also output nearest vertex id.',  # pylint: disable=line-too-long
+         doc='Intersect ray with skin; return nearest distance or -1 if no intersection, and also output nearest vertex id.',  # pylint: disable=line-too-long
      )),
     ('mjv_defaultCamera',
      FunctionDecl(
@@ -4641,7 +4884,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  nullable=True,
              ),
          ),
-         doc='Select geom, flex or skin with mouse, return bodyid; -1: none selected.',  # pylint: disable=line-too-long
+         doc='Select geom, flex or skin with mouse; return bodyid; -1: none selected.',  # pylint: disable=line-too-long
      )),
     ('mjv_defaultOption',
      FunctionDecl(
@@ -5880,7 +6123,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Handle UI event, return pointer to changed item, NULL if no change.',  # pylint: disable=line-too-long
+         doc='Handle UI event; return pointer to changed item, NULL if no change.',  # pylint: disable=line-too-long
      )),
     ('mjui_render',
      FunctionDecl(
@@ -6356,7 +6599,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Normalize vector, return length before normalization.',
+         doc='Normalize vector; return length before normalization.',
      )),
     ('mju_norm3',
      FunctionDecl(
@@ -6569,7 +6812,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Normalize vector, return length before normalization.',
+         doc='Normalize vector; return length before normalization.',
      )),
     ('mju_zero',
      FunctionDecl(
@@ -6885,7 +7128,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Normalize vector, return length before normalization.',
+         doc='Normalize vector; return length before normalization.',
      )),
     ('mju_norm',
      FunctionDecl(
@@ -7025,7 +7268,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc="Multiply square matrix with vectors on both sides: returns vec1' * mat * vec2.",  # pylint: disable=line-too-long
+         doc="Multiply square matrix with vectors on both sides: return vec1' * mat * vec2.",  # pylint: disable=line-too-long
      )),
     ('mju_transpose',
      FunctionDecl(
@@ -7341,7 +7584,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Convert matrix from dense to sparse.  nnz is size of res and colind, return 1 if too small, 0 otherwise.',  # pylint: disable=line-too-long
+         doc='Convert matrix from dense to sparse.  nnz is size of res and colind; return 1 if too small, 0 otherwise.',  # pylint: disable=line-too-long
      )),
     ('mju_sparse2dense',
      FunctionDecl(
@@ -7720,7 +7963,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion. Returns the number of iterations required to converge',  # pylint: disable=line-too-long
+         doc='Extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion. Return the number of iterations required to converge.',  # pylint: disable=line-too-long
      )),
     ('mju_euler2Quat',
      FunctionDecl(
@@ -7984,7 +8227,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
          ),
-         doc='Band-dense Cholesky decomposition.  Returns minimum value in the factorized diagonal, or 0 if rank-deficient.  mat has (ntotal-ndense) x nband + ndense x ntotal elements.  The first (ntotal-ndense) x nband store the band part, left of diagonal, inclusive.  The second ndense x ntotal store the band part as entire dense rows.  Add diagadd+diagmul*mat_ii to diagonal before factorization.',  # pylint: disable=line-too-long
+         doc='Band-dense Cholesky decomposition.  Return minimum value in the factorized diagonal, or 0 if rank-deficient.  mat has (ntotal-ndense) x nband + ndense x ntotal elements.  The first (ntotal-ndense) x nband store the band part, left of diagonal, inclusive.  The second ndense x ntotal store the band part as entire dense rows.  Add diagadd+diagmul*mat_ii to diagonal before factorization.',  # pylint: disable=line-too-long
      )),
     ('mju_cholSolveBand',
      FunctionDecl(
@@ -8253,7 +8496,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  nullable=True,
              ),
          ),
-         doc="minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper, return rank or -1 if failed   inputs:     n           - problem dimension     H           - SPD matrix                n*n     g           - bias vector               n     lower       - lower bounds              n     upper       - upper bounds              n     res         - solution warmstart        n   return value:     nfree <= n  - rank of unconstrained subspace, -1 if failure   outputs (required):     res         - solution                  n     R           - subspace Cholesky factor  nfree*nfree    allocated: n*(n+7)   outputs (optional):     index       - set of free dimensions    nfree          allocated: n   notes:     the initial value of res is used to warmstart the solver     R must have allocatd size n*(n+7), but only nfree*nfree values are used in output     index (if given) must have allocated size n, but only nfree values are used in output     only the lower triangles of H and R and are read from and written to, respectively     the convenience function mju_boxQPmalloc allocates the required data structures",  # pylint: disable=line-too-long
+         doc="minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper; return rank or -1 if failed   inputs:     n           - problem dimension     H           - SPD matrix                n*n     g           - bias vector               n     lower       - lower bounds              n     upper       - upper bounds              n     res         - solution warmstart        n   return value:     nfree <= n  - rank of unconstrained subspace, -1 if failure   outputs (required):     res         - solution                  n     R           - subspace Cholesky factor  nfree*nfree    allocated: n*(n+7)   outputs (optional):     index       - set of free dimensions    nfree          allocated: n   notes:     the initial value of res is used to warmstart the solver     R must have allocatd size n*(n+7), but only nfree*nfree values are used in output     index (if given) must have allocated size n, but only nfree values are used in output     only the lower triangles of H and R and are read from and written to, respectively     the convenience function mju_boxQPmalloc allocates the required data structures",  # pylint: disable=line-too-long
      )),
     ('mju_boxQPmalloc',
      FunctionDecl(
@@ -8496,7 +8739,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
          ),
-         doc='Integrate spring-damper analytically, return pos(dt).',
+         doc='Integrate spring-damper analytically; return pos(dt).',
      )),
     ('mju_min',
      FunctionDecl(
@@ -9268,7 +9511,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Globally register a resource provider in a thread-safe manner. The provider must have a prefix that is not a sub-prefix or super-prefix of any current registered providers.  This function returns a slot number > 0 on success.',  # pylint: disable=line-too-long
+         doc='Globally register a resource provider in a thread-safe manner. The provider must have a prefix that is not a sub-prefix or super-prefix of any current registered providers. Return a slot number >= 0 on success, -1 on failure.',  # pylint: disable=line-too-long
      )),
     ('mjp_resourceProviderCount',
      FunctionDecl(
@@ -9485,7 +9728,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Attach child to a parent, return the attached element if success or NULL otherwise.',  # pylint: disable=line-too-long
+         doc='Attach child to a parent; return the attached element if success or NULL otherwise.',  # pylint: disable=line-too-long
      )),
     ('mjs_addBody',
      FunctionDecl(
@@ -9508,7 +9751,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  nullable=True,
              ),
          ),
-         doc='Add child body to body, return child.',
+         doc='Add child body to body; return child.',
      )),
     ('mjs_addSite',
      FunctionDecl(
@@ -9531,7 +9774,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  nullable=True,
              ),
          ),
-         doc='Add site to body, return site spec.',
+         doc='Add site to body; return site spec.',
      )),
     ('mjs_addJoint',
      FunctionDecl(
@@ -9681,7 +9924,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Remove object corresponding to the given element, return 0 on success.',  # pylint: disable=line-too-long
+         doc='Remove object corresponding to the given element; return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mjs_addActuator',
      FunctionDecl(
@@ -10042,7 +10285,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Set actuator to motor, return error if any.',
+         doc='Set actuator to motor; return error if any.',
      )),
     ('mjs_setToPosition',
      FunctionDecl(
@@ -10087,7 +10330,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='double'),
              ),
          ),
-         doc='Set actuator to position, return error if any.',
+         doc='Set actuator to position; return error if any.',
      )),
     ('mjs_setToIntVelocity',
      FunctionDecl(
@@ -10132,7 +10375,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='double'),
              ),
          ),
-         doc='Set actuator to integrated velocity, return error if any.',
+         doc='Set actuator to integrated velocity; return error if any.',
      )),
     ('mjs_setToVelocity',
      FunctionDecl(
@@ -10152,7 +10395,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='double'),
              ),
          ),
-         doc='Set actuator to velocity servo, return error if any.',
+         doc='Set actuator to velocity servo; return error if any.',
      )),
     ('mjs_setToDamper',
      FunctionDecl(
@@ -10172,7 +10415,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='double'),
              ),
          ),
-         doc='Set actuator to activate damper, return error if any.',
+         doc='Set actuator to activate damper; return error if any.',
      )),
     ('mjs_setToCylinder',
      FunctionDecl(
@@ -10204,7 +10447,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='double'),
              ),
          ),
-         doc='Set actuator to hydraulic or pneumatic cylinder, return error if any.',  # pylint: disable=line-too-long
+         doc='Set actuator to hydraulic or pneumatic cylinder; return error if any.',  # pylint: disable=line-too-long
      )),
     ('mjs_setToMuscle',
      FunctionDecl(
@@ -10266,7 +10509,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='double'),
              ),
          ),
-         doc='Set actuator to muscle, return error if any.a',
+         doc='Set actuator to muscle; return error if any.a',
      )),
     ('mjs_setToAdhesion',
      FunctionDecl(
@@ -10286,7 +10529,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='double'),
              ),
          ),
-         doc='Set actuator to active adhesion, return error if any.',
+         doc='Set actuator to active adhesion; return error if any.',
      )),
     ('mjs_addMesh',
      FunctionDecl(
@@ -10810,7 +11053,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc="Set element's name, return 0 on success.",
+         doc="Set element's name; return 0 on success.",
      )),
     ('mjs_setBuffer',
      FunctionDecl(
@@ -11203,7 +11446,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc="Set element's enclosing frame, return 0 on success.",
+         doc="Set element's enclosing frame; return 0 on success.",
      )),
     ('mjs_resolveOrientation',
      FunctionDecl(
@@ -11236,7 +11479,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Resolve alternative orientations to quat, return error if any.',
+         doc='Resolve alternative orientations to quat; return error if any.',
      )),
     ('mjs_bodyToFrame',
      FunctionDecl(

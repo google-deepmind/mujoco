@@ -121,7 +121,6 @@ def _main(argv: Sequence[str]) -> None:
     mujoco.mj_resetDataKeyframe(mjm, mjd, keys[0])
   elif mjm.nkey > 0 and _KEYFRAME.value > -1:
     mujoco.mj_resetDataKeyframe(mjm, mjd, _KEYFRAME.value)
-  mujoco.mj_forward(mjm, mjd)
 
   if _ENGINE.value == EngineOptions.C:
     override_model(mjm, _OVERRIDE.value)

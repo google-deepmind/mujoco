@@ -4,6 +4,7 @@ sphinxcontrib-bibtex==2.6.3
 sphinxcontrib-katex==0.9.4
 sphinxcontrib-youtube==1.2.0
 sphinx-copybutton==0.5.2
+sphinx-design==0.6.1
 sphinx-favicon==1.0.1
 sphinx-reredirects==0.1.1
 sphinx-toolbox==3.8.2

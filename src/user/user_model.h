@@ -29,8 +29,8 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
 #include <mujoco/mjspec.h>
+#include <mujoco/mjtnum.h>
 #include "user/user_objects.h"
 
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
@@ -54,79 +54,82 @@ class mjCModel_ : public mjsElement {
   std::string suffix;
 
  protected:
-  bool compiled;      // already compiled flag
+  bool compiled;     // already compiled flag
 
   // sizes set from object list lengths
-  int nbody;     // number of bodies
-  int njnt;      // number of joints
-  int ngeom;     // number of geoms
-  int nsite;     // number of sites
-  int ncam;      // number of cameras
-  int nlight;    // number of lights
-  int nflex;     // number of flexes
-  int nmesh;     // number of meshes
-  int nskin;     // number of skins
-  int nhfield;   // number of height fields
-  int ntex;      // number of textures
-  int nmat;      // number of materials
-  int npair;     // number of geom pairs in pair array
-  int nexclude;  // number of excluded body pairs
-  int neq;       // number of equality constraints
-  int ntendon;   // number of tendons
-  int nsensor;   // number of sensors
-  int nnumeric;  // number of numeric fields
-  int ntext;     // number of text fields
-  int ntuple;    // number of tuple fields
-  int nmocap;    // number of mocap bodies
-  int nplugin;   // number of plugin instances
+  mjtSize nbody;     // number of bodies
+  mjtSize njnt;      // number of joints
+  mjtSize ngeom;     // number of geoms
+  mjtSize nsite;     // number of sites
+  mjtSize ncam;      // number of cameras
+  mjtSize nlight;    // number of lights
+  mjtSize nflex;     // number of flexes
+  mjtSize nmesh;     // number of meshes
+  mjtSize nskin;     // number of skins
+  mjtSize nhfield;   // number of height fields
+  mjtSize ntex;      // number of textures
+  mjtSize nmat;      // number of materials
+  mjtSize npair;     // number of geom pairs in pair array
+  mjtSize nexclude;  // number of excluded body pairs
+  mjtSize neq;       // number of equality constraints
+  mjtSize ntendon;   // number of tendons
+  mjtSize nsensor;   // number of sensors
+  mjtSize nnumeric;  // number of numeric fields
+  mjtSize ntext;     // number of text fields
+  mjtSize ntuple;    // number of tuple fields
+  mjtSize nmocap;    // number of mocap bodies
+  mjtSize nplugin;   // number of plugin instances
 
   // sizes computed by Compile
-  int nq;              // number of generalized coordinates = dim(qpos)
-  int nv;              // number of degrees of freedom = dim(qvel)
-  int nu;              // number of actuators/controls
-  int na;              // number of activation variables
-  int ntree;           // number of trees
-  int nbvh;            // number of total boundary volume hierarchies
-  int nbvhstatic;      // number of static boundary volume hierarchies
-  int nbvhdynamic;     // number of dynamic boundary volume hierarchies
-  int noct;            // number of total octree cells
-  int nflexnode;       // number of nodes in all flexes
-  int nflexvert;       // number of vertices in all flexes
-  int nflexedge;       // number of edges in all flexes
-  int nflexelem;       // number of elements in all flexes
-  int nflexelemdata;   // number of element vertex ids in all flexes
-  int nflexelemedge;   // number of element edges in all flexes
-  int nflexshelldata;  // number of shell fragment vertex ids in all flexes
-  int nflexevpair;     // number of element-vertex pairs in all flexes
-  int nflextexcoord;   // number of vertex texture coordinates in all flexes
-  int nmeshvert;       // number of vertices in all meshes
-  int nmeshnormal;     // number of normals in all meshes
-  int nmeshtexcoord;   // number of texture coordinates in all meshes
-  int nmeshface;       // number of triangular faces in all meshes
-  int nmeshpoly;       // number of polygon faces in all meshes
-  int nmeshgraph;      // number of ints in mesh auxiliary data
-  int nmeshpolyvert;   // number of vertices in all polygon faces
-  int nmeshpolymap;    // number of polygons in vertex map
-  int nskinvert;       // number of vertices in all skins
-  int nskintexvert;    // number of vertices with texcoord in all skins
-  int nskinface;       // number of faces in all skins
-  int nskinbone;       // number of bones in all skins
-  int nskinbonevert;   // number of vertices in all skins
-  int nhfielddata;     // number of data points in all hfields
-  int ntexdata;        // number of texture bytes
-  int nwrap;           // number of wrap objects in all tendon paths
-  int nsensordata;     // number of mjtNums in sensor data vector
-  int nnumericdata;    // number of mjtNums in all custom fields
-  int ntextdata;       // number of chars in all text fields, including 0
-  int ntupledata;      // number of objects in all tuple fields
-  int npluginattr;     // number of chars in all plugin config attributes
-  int nnames;          // number of chars in all names
-  int npaths;          // number of chars in all paths
-  int nM;              // number of non-zeros in sparse inertia matrix
-  int nB;              // number of non-zeros in sparse body-dof matrix
-  int nC;              // number of non-zeros in reduced sparse dof-dof matrix
-  int nD;              // number of non-zeros in sparse dof-dof matrix
-  int nJmom;           // number of non-zeros in sparse actuator_moment matrix
+  mjtSize nq;              // number of generalized coordinates = dim(qpos)
+  mjtSize nv;              // number of degrees of freedom = dim(qvel)
+  mjtSize nu;              // number of actuators/controls
+  mjtSize na;              // number of activation variables
+  mjtSize ntree;           // number of trees
+  mjtSize nbvh;            // number of total boundary volume hierarchies
+  mjtSize nbvhstatic;      // number of static boundary volume hierarchies
+  mjtSize nbvhdynamic;     // number of dynamic boundary volume hierarchies
+  mjtSize noct;            // number of total octree cells
+  mjtSize nflexnode;       // number of nodes in all flexes
+  mjtSize nflexvert;       // number of vertices in all flexes
+  mjtSize nflexedge;       // number of edges in all flexes
+  mjtSize nflexelem;       // number of elements in all flexes
+  mjtSize nflexelemdata;   // number of element vertex ids in all flexes
+  mjtSize nflexelemedge;   // number of element edges in all flexes
+  mjtSize nflexshelldata;  // number of shell fragment vertex ids in all flexes
+  mjtSize nflexevpair;     // number of element-vertex pairs in all flexes
+  mjtSize nflextexcoord;   // number of vertex texture coordinates in all flexes
+  mjtSize nJfe;            // number of non-zeros in sparse flex edge constraint Jacobian
+  mjtSize nJfv;            // number of non-zeros in sparse flex vertex constraint Jacobian
+  mjtSize nmeshvert;       // number of vertices in all meshes
+  mjtSize nmeshnormal;     // number of normals in all meshes
+  mjtSize nmeshtexcoord;   // number of texture coordinates in all meshes
+  mjtSize nmeshface;       // number of triangular faces in all meshes
+  mjtSize nmeshpoly;       // number of polygon faces in all meshes
+  mjtSize nmeshgraph;      // number of ints in mesh auxiliary data
+  mjtSize nmeshpolyvert;   // number of vertices in all polygon faces
+  mjtSize nmeshpolymap;    // number of polygons in vertex map
+  mjtSize nskinvert;       // number of vertices in all skins
+  mjtSize nskintexvert;    // number of vertices with texcoord in all skins
+  mjtSize nskinface;       // number of faces in all skins
+  mjtSize nskinbone;       // number of bones in all skins
+  mjtSize nskinbonevert;   // number of vertices in all skins
+  mjtSize nhfielddata;     // number of data points in all hfields
+  mjtSize ntexdata;        // number of texture bytes
+  mjtSize nwrap;           // number of wrap objects in all tendon paths
+  mjtSize nsensordata;     // number of mjtNums in sensor data vector
+  mjtSize nhistory;        // number of mjtNums in history buffer
+  mjtSize nnumericdata;    // number of mjtNums in all custom fields
+  mjtSize ntextdata;       // number of chars in all text fields, including 0
+  mjtSize ntupledata;      // number of objects in all tuple fields
+  mjtSize npluginattr;     // number of chars in all plugin config attributes
+  mjtSize nnames;          // number of chars in all names
+  mjtSize npaths;          // number of chars in all paths
+  mjtSize nM;              // number of non-zeros in sparse inertia matrix
+  mjtSize nB;              // number of non-zeros in sparse body-dof matrix
+  mjtSize nC;              // number of non-zeros in reduced sparse dof-dof matrix
+  mjtSize nD;              // number of non-zeros in sparse dof-dof matrix
+  mjtSize nJmom;           // number of non-zeros in sparse actuator_moment matrix
 
   // statistics, as computed by mj_setConst
   double meaninertia_auto;  // mean diagonal inertia, as computed by mj_setConst
@@ -294,9 +297,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   // clear objects allocated by Compile
   void Clear();
 
-  // multi-threaded mesh compilation
-  void CompileMeshes(const mjVFS* vfs);
-
   // delete material from object
   template <class T> void DeleteMaterial(std::vector<T*>& list,
                                          std::string_view name = "");
@@ -352,6 +352,8 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // compile phases
   void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
+  void CompileMeshesAndTextures(const mjVFS* vfs);
+
   void SetNuser();                      // set nuser fields
   void IndexAssets(bool discard);       // convert asset names into indices
   void CheckEmptyNames();               // check empty names

@@ -33,16 +33,6 @@ typedef enum mjtGraphicsApi_ {  // backend graphics API to use
 } mjtGraphicsApi;
 
 struct mjrFilamentConfig {
-  // "Loads" an asset, returning its contents in `out` and size in `out_size`.
-  // Returns 0 on success and non-zero to indicate an error. The caller must
-  // free `out`.
-  typedef int (*load_asset_fn)(const char* path, void* user_data,
-                              unsigned char** out, uint64_t* out_size);
-
-  // Used to load filament assets (e.g. materials, image-based lights, etc.).
-  load_asset_fn load_asset;
-  void* load_asset_user_data;
-
   // The native window handle into which we can render directly.
   void* native_window;
 
@@ -51,10 +41,6 @@ struct mjrFilamentConfig {
 
   // Whether or not to enable GUI rendering.
   bool enable_gui;
-
-  // Whether to remap segmentation IDs to distinct colors for visual display.
-  // This is only really useful for visualization purposes in studio.
-  bool use_distinct_segmentation_colors;
 };
 
 void mjr_defaultFilamentConfig(mjrFilamentConfig* config);
@@ -84,6 +70,8 @@ double mjr_getFrameRate(const mjrContext* con);
 uintptr_t mjr_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
                              int width, int height, int bpp,
                              const mjrContext* con);
+
+void mjr_updateGui(const mjrContext* con);
 
 #if defined(__cplusplus)
 }  // extern "C"

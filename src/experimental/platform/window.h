@@ -15,11 +15,15 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_WINDOW_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_WINDOW_H_
 
+#include <cstddef>
+#include <span>
 #include <string>
 #include <string_view>
 
-#include "experimental/platform/helpers.h"
+#include "experimental/platform/renderer_backend.h"
+
 #include <SDL_video.h>
+#include <SDL_render.h>
 
 namespace mujoco::platform {
 
@@ -29,22 +33,14 @@ namespace mujoco::platform {
 // handles events from the window.
 class Window {
  public:
-  // Configures the window for the specified rendering backend.
-  enum RenderConfig {
-    kClassicOpenGL,
-    kFilamentVulkan,
-    kFilamentOpenGL,
-    kFilamentWebGL,
-  };
-
   struct Config {
-    RenderConfig render_config = kClassicOpenGL;
+    RendererBackend renderer_backend = RendererBackend::ClassicOpenGl;
     bool enable_keyboard = true;
     bool load_fonts = true;
+    bool offscreen_mode = false;
   };
 
-  Window(std::string_view title, int width, int height, Config config,
-         const LoadAssetFn& load_asset_fn);
+  Window(std::string_view title, int width, int height, Config config);
   ~Window();
 
   Window(const Window&) = delete;
@@ -64,7 +60,7 @@ class Window {
   void EndFrame();
 
   // Swaps and presents the window buffer.
-  void Present();
+  void Present(std::span<const std::byte> pixels = {});
 
   // Sets the title of the window.
   void SetTitle(std::string_view title);
@@ -83,16 +79,28 @@ class Window {
   // the value will be cleared until the next time a file is dropped.
   std::string GetDropFile();
 
+  // Returns true if the window is in offscreen mode.
+  bool IsOffscreenMode() const;
+
+  // Enables window resizing.
+  void EnableWindowResizing();
+
+  // Disables window resizing.
+  void DisableWindowResizing();
+
   // Returns the handle to the underlying native window.
   void* GetNativeWindowHandle() { return native_window_; }
 
  private:
+  void InitOffscreenEglContext();
+
   int width_ = 0;
   int height_ = 0;
   float scale_ = 1.0f;
   Config config_;
   void* native_window_ = nullptr;
   SDL_Window* sdl_window_ = nullptr;
+  SDL_Renderer* sdl_renderer_ = nullptr;
   bool should_exit_ = false;
   std::string drop_file_;
 };

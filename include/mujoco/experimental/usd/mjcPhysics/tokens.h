@@ -195,6 +195,26 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuator
   const TfToken mjcBiasType;
+  /// \brief "mjc:coef0"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcCoef0;
+  /// \brief "mjc:coef1"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcCoef1;
+  /// \brief "mjc:coef2"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcCoef2;
+  /// \brief "mjc:coef3"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcCoef3;
+  /// \brief "mjc:coef4"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcCoef4;
   /// \brief "mjc:compiler:alignFree"
   ///
   /// MjcPhysicsSceneAPI
@@ -572,6 +592,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsTendon
   const TfToken mjcPathDivisors;
+  /// \brief "mjc:path:indices"
+  ///
+  /// MjcPhysicsTendon
+  const TfToken mjcPathIndices;
   /// \brief "mjc:path:segments"
   ///
   /// MjcPhysicsTendon
@@ -630,7 +654,7 @@ struct MjcPhysicsTokensType {
   const TfToken mjcSliderSite;
   /// \brief "mjc:solimp"
   ///
-  /// MjcPhysicsCollisionAPI
+  /// MjcPhysicsCollisionAPI, MjcPhysicsEqualityAPI
   const TfToken mjcSolimp;
   /// \brief "mjc:solimpfriction"
   ///
@@ -646,7 +670,7 @@ struct MjcPhysicsTokensType {
   const TfToken mjcSolmix;
   /// \brief "mjc:solref"
   ///
-  /// MjcPhysicsCollisionAPI
+  /// MjcPhysicsCollisionAPI, MjcPhysicsEqualityAPI
   const TfToken mjcSolref;
   /// \brief "mjc:solreffriction"
   ///
@@ -674,8 +698,12 @@ struct MjcPhysicsTokensType {
   const TfToken mjcStiffness;
   /// \brief "mjc:target"
   ///
-  /// MjcPhysicsActuator
+  /// MjcPhysicsActuator, MjcPhysicsEqualityAPI
   const TfToken mjcTarget;
+  /// \brief "mjc:torqueScale"
+  ///
+  /// MjcPhysicsEqualityWeldAPI
+  const TfToken mjcTorqueScale;
   /// \brief "mjc:torsionalfriction"
   ///
   /// MjcPhysicsMaterialAPI
@@ -760,6 +788,18 @@ struct MjcPhysicsTokensType {
   ///
   /// Schema identifier and family for MjcPhysicsCollisionAPI
   const TfToken MjcCollisionAPI;
+  /// \brief "MjcEqualityAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsEqualityAPI
+  const TfToken MjcEqualityAPI;
+  /// \brief "MjcEqualityJointAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsEqualityJointAPI
+  const TfToken MjcEqualityJointAPI;
+  /// \brief "MjcEqualityWeldAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsEqualityWeldAPI
+  const TfToken MjcEqualityWeldAPI;
   /// \brief "MjcImageableAPI"
   ///
   /// Schema identifier and family for MjcPhysicsImageableAPI

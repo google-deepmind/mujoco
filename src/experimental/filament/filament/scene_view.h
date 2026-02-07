@@ -55,10 +55,6 @@ class SceneView {
   // Updates the color grading options for the main render view.
   void SetColorGradingOptions(const ColorGradingOptions& opts);
 
-  // Updates whether to remap segmentation IDs to distinct colors when rendering
-  // segmentation. This is only really useful for visualization purposes.
-  void SetUseDistinctSegmentationColors(bool use_distinct_segmentation_colors);
-
   // Updates the environment light using the KTX image at the given path.
   void SetEnvironmentLight(std::string_view filename, float intensity);
 
@@ -104,7 +100,6 @@ class SceneView {
   ColorGradingOptions color_grading_options_;
   DrawMode active_mode_ = DrawMode::kNumDrawModes;
   float aspect_ratio_ = 1.0f;
-  bool use_distinct_segmentation_colors_ = false;
 };
 
 }  // namespace mujoco

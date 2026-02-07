@@ -295,8 +295,10 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(site.info, 'info')
 
     # Add camera.
-    cam = body.add_camera(orthographic=1, resolution=[10, 20])
-    self.assertEqual(cam.orthographic, 1)
+    cam = body.add_camera(
+        proj=mujoco.mjtProjection.mjPROJ_ORTHOGRAPHIC, resolution=[10, 20]
+    )
+    self.assertEqual(cam.proj, 1)
     np.testing.assert_array_equal(cam.resolution, [10, 20])
 
     # Add frame.
@@ -355,12 +357,8 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(light_in_frame.frame, framea0)
 
     # Invalid input for valid keyword argument.
-    with self.assertRaises(ValueError) as cm:
+    with self.assertRaises(TypeError):
       body.add_geom(pos='pos')
-    self.assertEqual(
-        str(cm.exception),
-        'pos should be a list/array.',
-    )
 
     with self.assertRaises(ValueError) as cm:
       body.add_geom(pos=[0, 1])
@@ -369,32 +367,15 @@ class SpecsTest(absltest.TestCase):
         'pos should be a list/array of size 3.',
     )
 
-    with self.assertRaises(ValueError) as cm:
+    with self.assertRaises(TypeError):
       body.add_geom(type='type')
-    self.assertEqual(
-        str(cm.exception),
-        'type is the wrong type.',
-    )
 
-    with self.assertRaises(ValueError) as cm:
+    with self.assertRaises(TypeError):
       body.add_geom(userdata='')
-    self.assertEqual(
-        str(cm.exception),
-        'userdata has the wrong type.',
-    )
 
     # Invalid keyword argument.
-    with self.assertRaises(TypeError) as cm:
+    with self.assertRaises(TypeError):
       body.add_geom(vel='vel')
-    self.assertEqual(
-        str(cm.exception),
-        'Invalid vel keyword argument. Valid options are: name, type, pos,'
-        ' quat, axisangle, xyaxes, zaxis, euler, fromto, size, contype,'
-        ' conaffinity, condim, priority, friction, solmix, solref, solimp,'
-        ' margin, gap, mass, density, typeinertia, fluid_ellipsoid,'
-        ' fluid_coefs, material, rgba, group, hfieldname, meshname, fitscale,'
-        ' userdata, plugin, info.',
-    )
 
     # Orientation keyword arguments.
     geom_axisangle = body.add_geom(axisangle=[1, 2, 3, 4])
@@ -462,13 +443,49 @@ class SpecsTest(absltest.TestCase):
       body.add_geom(axisangle=[1, 2, 3, 4], euler=[1, 2, 3])
     self.assertEqual(
         str(cm.exception),
-        'Only one of: axisangle, xyaxes, zaxis, oreuler can be set.',
+        'Only one of: axisangle, xyaxes, zaxis, or euler can be set.',
     )
     with self.assertRaises(ValueError) as cm:
       spec.worldbody.add_body(iaxisangle=[1, 2, 3, 4], ieuler=[1, 2, 3])
     self.assertEqual(
         str(cm.exception),
-        'Only one of: iaxisangle, ixyaxes, izaxis, orieuler can be set.',
+        'Only one of: iaxisangle, ixyaxes, izaxis, or ieuler can be set.',
+    )
+
+  def test_size_kwarg_variable_length(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+
+    geom_size1 = body.add_geom(size=[0.5])
+    np.testing.assert_array_equal(geom_size1.size, [0.5, 0, 0])
+
+    geom_size2 = body.add_geom(size=[0.5, 0.3])
+    np.testing.assert_array_equal(geom_size2.size, [0.5, 0.3, 0])
+
+    geom_size3 = body.add_geom(size=[0.5, 0.3, 0.1])
+    np.testing.assert_array_equal(geom_size3.size, [0.5, 0.3, 0.1])
+
+    site_size1 = body.add_site(size=[0.2])
+    np.testing.assert_array_equal(site_size1.size, [0.2, 0, 0])
+
+    site_size2 = body.add_site(size=[0.2, 0.1])
+    np.testing.assert_array_equal(site_size2.size, [0.2, 0.1, 0])
+
+    site_size3 = body.add_site(size=[0.2, 0.1, 0.05])
+    np.testing.assert_array_equal(site_size3.size, [0.2, 0.1, 0.05])
+
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(size=[])
+    self.assertEqual(
+        str(cm.exception),
+        'size should be a list/array of size 1, 2, or 3.',
+    )
+
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(size=[1, 2, 3, 4])
+    self.assertEqual(
+        str(cm.exception),
+        'size should be a list/array of size 1, 2, or 3.',
     )
 
   def test_load_xml(self):
@@ -497,6 +514,14 @@ class SpecsTest(absltest.TestCase):
 
     # Check that the state is the same.
     np.testing.assert_array_equal(state1, state2)
+
+  def test_parses_urdf(self):
+    file_path = epath.resource_path("mujoco") / "testdata" / "model.urdf"
+    filename = file_path.as_posix()
+
+    # Load from file.
+    spec1 = mujoco.MjSpec.from_file(filename)
+    self.assertIsNotNone(spec1)
 
   def test_make_mesh(self):
     spec = mujoco.MjSpec()
@@ -971,6 +996,23 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNotNone(model)
     self.assertEqual(model.nplugin, 0)
 
+  def testPluginAssignment(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    body.name = 'test_body'
+
+    plugin = spec.add_plugin(
+        name='test_instance', plugin_name='mujoco.elasticity.cable', active=True
+    )
+    plugin.config = {'twist': '1e2', 'bend': '4e1'}
+
+    # Assignment should copy active flag and names
+    body.plugin = plugin
+
+    self.assertTrue(body.plugin.active)
+    self.assertEqual(body.plugin.name, 'test_instance')
+    self.assertEqual(body.plugin.plugin_name, 'mujoco.elasticity.cable')
+
   def test_access_option_stat_visual(self):
     spec = mujoco.MjSpec.from_string("""
       <mujoco model="MuJoCo Model">
@@ -1013,22 +1055,43 @@ class SpecsTest(absltest.TestCase):
     material.textures[texture_index] = 'texture_name'
     self.assertEqual(material.textures[texture_index], 'texture_name')
 
-    # Assign a complete list
-    material.textures = ['', 'new_name', '', '', '']
+    # Assign a complete list (must be mjNTEXROLE = 10 elements)
+    material.textures = ['', 'new_name', '', '', '', '', '', '', '', '']
     self.assertEqual(material.textures[texture_index], 'new_name')
 
     # textures is iterable
     self.assertEqual('new_name', ''.join(material.textures))
 
-    # supports `len`
-    self.assertLen(material.textures, 5)
+    # supports `len` - should always be mjNTEXROLE (10)
+    self.assertLen(material.textures, mujoco.mjtTextureRole.mjNTEXROLE)
 
     # field checks for out-of-bound access on read and on write
     with self.assertRaises(IndexError):
-      material.textures[5] = 'x'
+      material.textures[10] = 'x'
 
     with self.assertRaises(IndexError):
       material.textures[-1] = 'x'
+
+  def test_textures(self):
+    """Tests that partial texture list assignment raises ValueError."""
+
+    spec = mujoco.MjSpec()
+    material = spec.add_material(name='mat')
+    texture = spec.add_texture(
+        name='tex', builtin=mujoco.mjtBuiltin.mjBUILTIN_FLAT, width=2, height=2
+    )
+
+    # Should raise ValueError for incorrect size (only 1 element instead of 10)
+    with self.assertRaises(ValueError) as cm:
+      material.textures = ['tex']
+    self.assertIn('must have exactly 10 elements', str(cm.exception))
+    self.assertIn('got 1', str(cm.exception))
+
+    # Should succeed with correct size (mjNTEXROLE = 10)
+    material.textures = ['tex', '', '', '', '', '', '', '', '', '']
+    spec.worldbody.add_geom(size=[0.1, 0.1, 0.1], material='mat')
+    model = spec.compile()
+    self.assertIsNotNone(model)
 
   def test_assign_texture(self):
     spec = mujoco.MjSpec()
@@ -1073,6 +1136,27 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.mesh('mesh'), mesh_name)
     self.assertIsNone(spec.texture('none'))
     self.assertIsNone(spec.mesh('none'))
+
+  def test_texture_gridlayout(self):
+    spec = mujoco.MjSpec()
+
+    texture = spec.add_texture(name='test', gridlayout='.U..LFRB.D..')
+    self.assertEqual(list(texture.gridlayout), list('.U..LFRB.D..'))
+
+    texture2 = spec.add_texture(name='test2', gridlayout=list('.U..LFRB.D..'))
+    self.assertEqual(list(texture2.gridlayout), list('.U..LFRB.D..'))
+
+    with self.assertRaises(ValueError) as cm:
+      spec.add_texture(name='test3', gridlayout='.U..')
+    self.assertIn('should have length 12', str(cm.exception))
+
+    with self.assertRaises(ValueError) as cm:
+      spec.add_texture(name='test4', gridlayout=['.', 'U', '.', '.'])
+    self.assertIn('should have length 12', str(cm.exception))
+
+    with self.assertRaises(ValueError) as cm:
+      spec.add_texture(name='test5', gridlayout=['..', 'U'] + ['.'] * 10)
+    self.assertIn('list elements must be single characters', str(cm.exception))
 
   def test_attach_units(self):
     child = mujoco.MjSpec()
@@ -1342,7 +1426,7 @@ class SpecsTest(absltest.TestCase):
   def test_actuator_shortname(self):
     spec = mujoco.MjSpec()
     actuator = spec.add_actuator(
-        gainprm=np.zeros((10, 1)),
+        gainprm=np.zeros((10,)),
         dyntype=mujoco.mjtDyn.mjDYN_FILTER,
         gaintype=mujoco.mjtGain.mjGAIN_AFFINE,
         biastype=mujoco.mjtBias.mjBIAS_AFFINE,
@@ -1659,6 +1743,127 @@ class SpecsTest(absltest.TestCase):
         string_spec = mujoco.MjSpec.from_string(xml_string, assets=assets)
         string_spec.compile()
         self.assertEqual(spec.to_xml(), string_spec.to_xml())
+
+  def test_rangefinder_sensor(self):
+    """Test rangefinder sensor with mjSpec, iterative model building."""
+    # Raydata field enum values for dataspec bitfield
+    rd = mujoco.mjtRayDataField
+    dist_val = int(rd.mjRAYDATA_DIST)
+    dir_val = int(rd.mjRAYDATA_DIR)
+    origin_val = int(rd.mjRAYDATA_ORIGIN)
+    point_val = int(rd.mjRAYDATA_POINT)
+    normal_val = int(rd.mjRAYDATA_NORMAL)
+    depth_val = int(rd.mjRAYDATA_DEPTH)
+
+    # Step 1: Create a rangefinder sensor attached to a site, no dataspec set.
+    # Note: site goes on a child body because rangefinder excludes the site's
+    # parent body from ray casting.
+    spec = mujoco.MjSpec()
+    sensor_body = spec.worldbody.add_body(name='sensor_body', pos=[0, 0, 1])
+    sensor_body.add_site(name='rf_site', zaxis=[0, 0, -1])
+    rf_sensor = spec.add_sensor(
+        name='rf',
+        type=mujoco.mjtSensor.mjSENS_RANGEFINDER,
+        objtype=mujoco.mjtObj.mjOBJ_SITE,
+        objname='rf_site',
+    )
+
+    # This should fail: data spec (intprm[0]) must be positive
+    with self.assertRaisesWithPredicateMatch(
+        ValueError,
+        lambda e: 'data spec (intprm[0]) must be positive' in str(e)
+    ):
+      spec.compile()
+
+    # Step 2: Set dataspec to just mjRAYDATA_DIST
+    rf_sensor.intprm[0] = 1 << dist_val
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    # With no geometry, the ray should miss: dist = -1
+    self.assertEqual(model.nsensordata, 1)
+    self.assertEqual(data.bind(rf_sensor).data[0], -1)
+
+    # Step 3: Add all raydata fields and check no-hit values
+    all_fields = (
+        (1 << dist_val) | (1 << dir_val) | (1 << origin_val) |
+        (1 << point_val) | (1 << normal_val) | (1 << depth_val)
+    )
+    rf_sensor.intprm[0] = all_fields
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    # Expected size: dist(1) + dir(3) + origin(3) + point(3) + normal(3) +
+    # depth(1) = 14
+    self.assertEqual(model.nsensordata, 14)
+
+    # No-hit values
+    sd = data.bind(rf_sensor).data
+    self.assertEqual(sd[0], -1)  # dist
+    np.testing.assert_allclose(sd[1:4], [0, 0, 0])  # dir
+    np.testing.assert_allclose(sd[4:7], [0, 0, 1])  # origin
+    np.testing.assert_allclose(sd[7:10], [0, 0, 0])  # point
+    np.testing.assert_allclose(sd[10:13], [0, 0, 0])  # normal
+    self.assertEqual(sd[13], -1)  # depth
+
+    # Step 4: Add a floor plane, now the ray should hit
+    spec.worldbody.add_geom(
+        name='floor',
+        type=mujoco.mjtGeom.mjGEOM_PLANE,
+        size=[10, 10, 0.1],
+    )
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    # Ray starts at z=1 pointing down, hits floor at z=0
+    # For site sensor, depth = dist
+    sd = data.bind(rf_sensor).data
+    self.assertAlmostEqual(sd[0], 1.0, places=6)  # dist
+    np.testing.assert_allclose(sd[1:4], [0, 0, -1], atol=1e-10)  # dir
+    np.testing.assert_allclose(sd[4:7], [0, 0, 1], atol=1e-10)  # origin
+    np.testing.assert_allclose(sd[7:10], [0, 0, 0], atol=1e-10)  # point
+    np.testing.assert_allclose(sd[10:13], [0, 0, 1], atol=1e-10)  # normal
+    self.assertAlmostEqual(sd[13], 1.0, places=6)  # depth
+
+    # Step 5: Add a camera-based rangefinder sensor
+    # Camera also on child body so it doesn't exclude the floor
+    cam_body = spec.worldbody.add_body(name='cam_body', pos=[0, 0, 2])
+    cam_body.add_camera(
+        name='rf_cam',
+        xyaxes=[1, 0, 0, 0, 1, 0],  # z=[0,0,1], looks along -z (down)
+        resolution=[3, 3],
+        fovy=90,
+    )
+    cam_sensor = spec.add_sensor(
+        name='rf_cam_sensor',
+        type=mujoco.mjtSensor.mjSENS_RANGEFINDER,
+        objtype=mujoco.mjtObj.mjOBJ_CAMERA,
+        objname='rf_cam',
+        intprm=[(1 << dist_val) | (1 << depth_val), 0, 0],
+    )
+
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    # Site sensor: 14 values, Camera sensor: (1+1)*9 = 18 values
+    self.assertEqual(model.nsensordata, 14 + 18)
+
+    # Check camera sensor data using bind
+    cam_sd = data.bind(cam_sensor).data
+    stride = 2  # dist + depth per pixel
+    center_pixel = 4  # center of 3x3 = row 1, col 1
+
+    # Center pixel: ray straight down from z=2 to z=0
+    self.assertAlmostEqual(cam_sd[center_pixel * stride], 2.0, places=6)
+    self.assertAlmostEqual(cam_sd[center_pixel * stride + 1], 2.0, places=6)
+
+    # Corner pixel: off-axis ray, dist > depth
+    self.assertGreater(cam_sd[0], cam_sd[1])  # dist > depth
+    self.assertAlmostEqual(cam_sd[1], 2.0, places=6)  # depth is still 2.0
 
 if __name__ == '__main__':
   absltest.main()
