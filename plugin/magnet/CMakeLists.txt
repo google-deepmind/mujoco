@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set(MUJOCO_MAGNET_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/../..
-                            ${CMAKE_CURRENT_SOURCE_DIR}/../../src
+set(MUJOCO_MAGNET_INCLUDE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src
 )
 
 set(MUJOCO_MAGNET_SRCS
@@ -27,15 +28,16 @@ target_sources(magnet PRIVATE ${MUJOCO_MAGNET_SRCS})
 target_include_directories(magnet PRIVATE ${MUJOCO_MAGNET_INCLUDE})
 target_link_libraries(magnet PRIVATE mujoco)
 target_compile_options(
-  magnet
-  PRIVATE ${AVX_COMPILE_OPTIONS}
-          ${MUJOCO_MACOS_COMPILE_OPTIONS}
-          ${EXTRA_COMPILE_OPTIONS}
-          ${MUJOCO_CXX_FLAGS}
+        magnet
+    PRIVATE
+        ${AVX_COMPILE_OPTIONS}
+        ${MUJOCO_MACOS_COMPILE_OPTIONS}
+        ${EXTRA_COMPILE_OPTIONS}
+        ${MUJOCO_CXX_FLAGS}
 )
 target_link_options(
-  magnet
-  PRIVATE
-  ${MUJOCO_MACOS_LINK_OPTIONS}
-  ${EXTRA_LINK_OPTIONS}
+        magnet
+    PRIVATE
+        ${MUJOCO_MACOS_LINK_OPTIONS}
+        ${EXTRA_LINK_OPTIONS}
 )

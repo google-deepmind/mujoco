@@ -1,4 +1,4 @@
-<mujoco model="rolling_ball">
+<mujoco model="plugin_example">
   <extension>
     <plugin plugin="mujoco.magnet"/>
   </extension>
@@ -22,12 +22,17 @@
     <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
 
+    <geom name="wall" type="box" pos="1 0 1" size="0.05 1 1" rgba="0.6 0.6 0.6 1"/>
+
+    <!-- The first instance of the plugin MUST define the magnetic field at the origin and the gradient -->
+    <plugin plugin="mujoco.magnet">
+      <config key="B0" value="0.01 0.01 0.01"/>
+      <config key="dB" value="0.01 0 0"/>
+    </plugin>
+
+    <!-- The following declarations only define the intrinsic parameters of the magnet -->
     <body name="disk" pos="0 0 1" quat="1 1 0 0">
       <plugin plugin="mujoco.magnet">
-        <!-- <config key="field_path" value="/home/jplayang/Downloads/Magnetic_Field_Map_Solenoid.txt"/> -->
-        <config key="B" value="0 0 0"/>
-        <config key="dB" value="0 0 0.01"/>
-        <config key="type" value="induced"/>
         <config key="mu_r" value="1000"/>
         <config key="V" value="7.7e-5"/>
         <config key="N" value="0.2 0.2 0.6"/>
@@ -36,17 +41,24 @@
       <joint type="free" damping="0.05"/>
     </body>
 
-    <body name="disk2" pos="0.3 0 1" quat="1 0 0 0">
+    <!-- Another magnet -->
+    <body name="disk2" pos="0.3 -0.1 1" quat="1 0 0 0">
       <plugin plugin="mujoco.magnet">
-        <!-- <config key="field_path" value="/home/jplayang/Downloads/Magnetic_Field_Map_Solenoid.txt"/> -->
-        <config key="B" value="0 0 0"/>
-        <config key="dB" value="0 0 0.01"/>
-        <config key="type" value="induced"/>
         <config key="mu_r" value="1000"/>
         <config key="V" value="7.7e-5"/>
         <config key="N" value="0.2 0.2 0.6"/>
       </plugin>
       <geom type="cylinder" size="0.035 0.01" rgba="0 0 1 0.2"/>
+      <joint type="free" damping="0.05"/>
+    </body>
+
+    <!-- An isotropic ball -->
+    <body name="ball" pos="0.3 0.2 1" quat="1 0 0 0">
+      <plugin plugin="mujoco.magnet">
+        <config key="mu_r" value="1000"/>
+        <config key="V" value="2.82e-3"/>
+      </plugin>
+      <geom type="sphere" size="0.03" rgba="1 0 0 0.2"/>
       <joint type="free" damping="0.05"/>
     </body>
   </worldbody>
