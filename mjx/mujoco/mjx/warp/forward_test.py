@@ -62,8 +62,6 @@ class ForwardTest(parameterized.TestCase):
     if not _FORCE_TEST:
       if not mjxw.WARP_INSTALLED:
         self.skipTest('Warp not installed.')
-      if not io.has_cuda_gpu_device():
-        self.skipTest('No CUDA GPU device available.')
 
     batch_size = 7
     m = test_util.load_test_file(xml)
@@ -95,8 +93,6 @@ class ForwardTest(parameterized.TestCase):
     if not _FORCE_TEST:
       if not mjxw.WARP_INSTALLED:
         self.skipTest('Warp not installed.')
-      if not io.has_cuda_gpu_device():
-        self.skipTest('No CUDA GPU device available.')
 
     m = test_util.load_test_file(xml)
     m.opt.iterations = 10
@@ -224,8 +220,6 @@ class StepTest(parameterized.TestCase):
     if not _FORCE_TEST:
       if not mjxw.WARP_INSTALLED:
         self.skipTest('Warp not installed.')
-      if not io.has_cuda_gpu_device():
-        self.skipTest('No CUDA GPU device available.')
 
     m = test_util.load_test_file(xml)
     m.opt.iterations = 10
@@ -269,8 +263,6 @@ class StepTest(parameterized.TestCase):
     if not _FORCE_TEST:
       if not mjxw.WARP_INSTALLED:
         self.skipTest('Warp not installed.')
-      if not io.has_cuda_gpu_device():
-        self.skipTest('No CUDA GPU device available.')
 
     xml = 'humanoid/humanoid.xml'
     batch_size = 7

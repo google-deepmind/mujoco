@@ -71,8 +71,6 @@ class CollisionTest(absltest.TestCase):
     if not _FORCE_TEST:
       if not mjxw.WARP_INSTALLED:
         self.skipTest('Warp not installed.')
-      if not io.has_cuda_gpu_device():
-        self.skipTest('No CUDA GPU device available.')
 
     m = mujoco.MjModel.from_xml_string(self._SPHERE_SPHERE)
     d = mujoco.MjData(m)
