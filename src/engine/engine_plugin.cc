@@ -35,6 +35,7 @@ extern "C" {
 #else
   #include <dirent.h>
   #include <dlfcn.h>
+  #include <sys/stat.h>
 #endif
 }
 
@@ -613,13 +614,14 @@ void mj_loadAllPluginLibraries(const char* directory,
 
   // go through each entry in the directory
   for (struct dirent* dp; (dp = readdir(dirp));) {
-    // only look at regular files (skip symlinks, pipes, directories, etc.)
-    if (dp->d_type == DT_REG) {
-      const std::string name(dp->d_name);
-      if (name.size() > dso_suffix.size() &&
-          name.substr(name.size() - dso_suffix.size()) == dso_suffix) {
-        // load the library
-        const std::string dso_path = directory + sep + name;
+    const std::string name(dp->d_name);
+    if (name.size() > dso_suffix.size() &&
+        name.substr(name.size() - dso_suffix.size()) == dso_suffix) {
+      const std::string dso_path = directory + sep + name;
+
+      // use stat to resolve symlinks and check that the target is a regular file
+      struct stat file_stat;
+      if (stat(dso_path.c_str(), &file_stat) == 0 && S_ISREG(file_stat.st_mode)) {
         load_dso_and_call_callback(name.c_str(), dso_path.c_str());
       }
     }
