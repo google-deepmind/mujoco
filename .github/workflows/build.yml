@@ -453,3 +453,14 @@ jobs:
         CHATMSG_JOB_ID: ${{ env.label }}
       if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
       run: bash ./.github/workflows/build_steps.sh notify_team_chat
+
+    - name: Stage WASM artifacts for publishing
+      run: |
+        cp wasm/dist/mujoco_wasm.js ./wasm/package/mujoco.js
+        cp wasm/dist/mujoco_wasm.wasm ./wasm/package/mujoco.wasm
+
+    - name: Publish package to NPM
+      working-directory: ./wasm/package
+      run: npm publish --ignore-scripts
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
