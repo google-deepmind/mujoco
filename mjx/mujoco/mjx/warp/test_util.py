@@ -41,7 +41,7 @@ def assert_attr_eq(a, b, attr):
 
 
 def make_data(
-    m: mujoco.MjModel, worldid: int, nconmax: int = 1_000, njmax: int = 100
+    m: mujoco.MjModel, worldid: int, nconmax: int = 1_000, njmax: int = 200
 ):
   """Make data for a given worldid using keyframes when available."""
   dx = mjx.make_data(m, impl='warp', nconmax=nconmax, njmax=njmax)
@@ -149,19 +149,20 @@ def _mjx_efc(dx, worldid: int):
   keys = np.arange(nefc)
   if not keys.size:
     empty = np.array([])
-    return 0, empty, empty, np.zeros((0, dx.qvel.shape[0])), empty, empty
-  efc_pos = select(dx._impl.efc__pos[:nefc])
-  efc_type = select(dx._impl.efc__type[:nefc])
-  efc_d = select(dx._impl.efc__D[:nefc])
+    return 0, empty, empty, np.zeros((0, dx.qvel.shape[-1])), empty, empty
+  efc_pos = select(dx._impl.efc__pos)[:nefc]
+  efc_type = select(dx._impl.efc__type)[:nefc]
+  efc_d = select(dx._impl.efc__D)[:nefc]
   keys_sorted = np.lexsort((-efc_pos, efc_type, efc_d))
   keys = keys[keys_sorted]
 
   nefc = len(keys)
   type_ = efc_type[keys]
   pos = efc_pos[keys]
-  j = select(dx._impl.efc__J[:nefc])[keys]
-  aref = select(dx._impl.efc__aref[:nefc])[keys]
-  d_ = select(dx._impl.efc__D[:nefc])[keys]
+  # MuJoCo Warp may pad efc_J for tiled ops.
+  j = select(dx._impl.efc__J)[:nefc][keys][:, :dx.qvel.shape[-1]]
+  aref = select(dx._impl.efc__aref)[:nefc][keys]
+  d_ = select(dx._impl.efc__D)[:nefc][keys]
   return nefc, type_, pos, j, aref, d_
 
 

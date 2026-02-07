@@ -67,6 +67,9 @@ MJAPI void mj_implicitSkip(const mjModel *m, mjData *d, int skipfactor);
 
 //-------------------------------- solver components -----------------------------------------------
 
+// all kinematics-like computations
+MJAPI void mj_fwdKinematics(const mjModel* m, mjData* d);
+
 // computations that depend only on qpos
 MJAPI void mj_fwdPosition(const mjModel* m, mjData* d);
 

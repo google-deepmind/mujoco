@@ -69,14 +69,14 @@ MJAPI void mjv_copyModel(mjModel* dest, const mjModel* src);
 // save model to binary file
 MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
 
-// load binary MJB
-mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
+// load model from binary buffer
+MJAPI mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
 
 // deallocate model
 MJAPI void mj_deleteModel(mjModel* m);
 
 // size of buffer needed to hold model
-MJAPI int mj_sizeModel(const mjModel* m);
+MJAPI mjtSize mj_sizeModel(const mjModel* m);
 
 // validate reference fields in a model; return null if valid, error message otherwise
 MJAPI const char* mj_validateReferences(const mjModel* m);

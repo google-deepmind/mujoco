@@ -42,8 +42,8 @@ _WP_KERNEL_CACHE_DIR = flags.DEFINE_string(
     None,
     'Path to the Warp kernel cache directory.',
 )
-_NCONMAX = flags.DEFINE_integer(
-    'nconmax',
+_NACONMAX = flags.DEFINE_integer(
+    'naconmax',
     None,
     'Maximum number of contacts to simulate, warp only.',
 )
@@ -91,11 +91,11 @@ def _main(argv: Sequence[str]) -> None:
   if _IMPL.value == 'warp':
     # TODO(btaba): use put_data.
     dx = mjx.make_data(
-        m, impl=_IMPL.value, nconmax=_NCONMAX.value, njmax=_NJMAX.value
+        m, impl=_IMPL.value, naconmax=_NACONMAX.value, njmax=_NJMAX.value
     )
   else:
     dx = mjx.put_data(
-        m, d, impl=_IMPL.value, nconmax=_NCONMAX.value, njmax=_NJMAX.value
+        m, d, impl=_IMPL.value, naconmax=_NACONMAX.value, njmax=_NJMAX.value
     )
 
   print(f'Default backend: {jax.default_backend()}')

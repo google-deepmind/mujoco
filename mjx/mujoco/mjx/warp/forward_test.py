@@ -101,6 +101,7 @@ class ForwardTest(parameterized.TestCase):
     m = test_util.load_test_file(xml)
     m.opt.iterations = 10
     m.opt.ls_iterations = 10
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
     mx = mjx.put_model(m, impl='warp')
 
     d = mujoco.MjData(m)
@@ -133,7 +134,7 @@ class ForwardTest(parameterized.TestCase):
       if m.nsite:
         tu.assert_attr_eq(dx, d, 'site_xpos')
         tu.assert_eq(dx.site_xmat, d.site_xmat.reshape((-1, 3, 3)), 'site_xmat')
-      tu.assert_attr_eq(dx._impl, d, 'cdof')
+      tu.assert_attr_eq(dx, d, 'cdof')
       tu.assert_attr_eq(dx._impl, d, 'cinert')
       tu.assert_attr_eq(dx, d, 'subtree_com')
       if m.nlight:
@@ -150,17 +151,15 @@ class ForwardTest(parameterized.TestCase):
       tu.assert_attr_eq(dx._impl, d, 'wrap_obj')
       tu.assert_attr_eq(dx._impl, d, 'crb')
 
-      if not mx.opt._impl.is_sparse:
-        qm = np.zeros((m.nv, m.nv))
-        mujoco.mj_fullM(m, qm, d.qM)
-      else:
-        qm = d.qM
-      tu.assert_eq(qm, dx._impl.qM, 'qM')
+      qm = np.zeros((m.nv, m.nv))
+      mujoco.mj_fullM(m, qm, d.qM)
+      # mjwarp adds padding to qM
+      tu.assert_eq(qm, dx._impl.qM[: m.nv, : m.nv], 'qM')
       # qLD is fused in a cholesky factorize and solve, and not written to.
 
       tu.assert_contact_eq(d, dx, worldid=i)
 
-      tu.assert_attr_eq(dx._impl, d, 'actuator_length')
+      tu.assert_attr_eq(dx, d, 'actuator_length')
       actuator_moment = np.zeros((m.nu, m.nv))
       mujoco.mju_sparse2dense(
           actuator_moment,
@@ -174,7 +173,7 @@ class ForwardTest(parameterized.TestCase):
       # fwd_velocity
       tu.assert_attr_eq(dx._impl, d, 'actuator_velocity')
       tu.assert_attr_eq(dx, d, 'cvel')
-      tu.assert_attr_eq(dx._impl, d, 'cdof_dot')
+      tu.assert_attr_eq(dx, d, 'cdof_dot')
       tu.assert_attr_eq(dx._impl, d, 'qfrc_spring')
       tu.assert_attr_eq(dx._impl, d, 'qfrc_damper')
       tu.assert_attr_eq(dx, d, 'qfrc_gravcomp')

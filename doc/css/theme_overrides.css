@@ -28,12 +28,32 @@ body[data-theme="dark"] {
   }
 }
 
+/* Make table shadows visible in dark theme. */
+body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
+  box-shadow: 0 0.2rem 0.5rem rgba(255, 255, 255, 0.15);
+}
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] table.docutils:not(.mjcf-attributes) {
+    box-shadow: 0 0.2rem 0.5rem rgba(255, 255, 255, 0.15);
+  }
+}
+
 .schema-small {
   font-size: 93%;
 }
 
 .caption-small {
   font-size: 85%;
+}
+
+.small-centered {
+  font-size: 93%;
+}
+
+.small-centered td, .small-centered th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  border: 2px solid var(--color-table-border) !important;
 }
 
 .sidebar-brand-text {
@@ -193,8 +213,13 @@ table.aligntop > tbody {
 
 
 /* Alternate row colors. */
-table.docutils:not(.mjcf-attributes) > tbody > tr.row-odd {
+table.docutils:not(.mjcf-attributes):not(.no-stripes) > tbody > tr.row-odd {
   background-color: var(--row-odd-background-color);
+}
+
+/* Disable alternating colors for tables with .no-stripes class */
+table.docutils.no-stripes > tbody > tr {
+  background-color: transparent !important;
 }
 
 /* MJCF attributes table. */

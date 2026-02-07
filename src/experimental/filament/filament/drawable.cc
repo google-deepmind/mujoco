@@ -16,6 +16,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <numbers>
 #include <utility>
 
 #include <filament/Material.h>
@@ -69,51 +70,79 @@ static constexpr int kArrow2TopConeDisk = 3;
 static constexpr int kArrow2BottomConeDisk = 4;
 
 Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
-    : material_(object_mgr),
-      renderables_(object_mgr->GetEngine()) {
-  if (geom.type == mjGEOM_MESH) {
-    AddMesh(geom.dataid);
-  } else if (geom.type == mjGEOM_HFIELD) {
-    AddHeightField(geom.dataid);
-  } else if (geom.type == mjGEOM_PLANE) {
-    AddShape(ObjectManager::kPlane);
-  } else if (geom.type == mjGEOM_SPHERE) {
-    AddShape(ObjectManager::kSphere);
-  } else if (geom.type == mjGEOM_ELLIPSOID) {
-    AddShape(ObjectManager::kSphere);
-  } else if (geom.type == mjGEOM_BOX) {
-    AddShape(ObjectManager::kBox);
-  } else if (geom.type == mjGEOM_CAPSULE) {
-    AddShape(ObjectManager::kTube);
-    AddShape(ObjectManager::kDome);
-    AddShape(ObjectManager::kDome);
-  } else if (geom.type == mjGEOM_CYLINDER) {
-    AddShape(ObjectManager::kTube);
-    AddShape(ObjectManager::kDisk);
-    AddShape(ObjectManager::kDisk);
-  } else if (geom.type == mjGEOM_ARROW) {
-    AddShape(ObjectManager::kTube);
-    AddShape(ObjectManager::kCone);
-    AddShape(ObjectManager::kDisk);
-  } else if (geom.type == mjGEOM_ARROW1) {
-    AddShape(ObjectManager::kTube);
-    AddShape(ObjectManager::kCone);
-    AddShape(ObjectManager::kDisk);
-    AddShape(ObjectManager::kDisk);
-  } else if (geom.type == mjGEOM_ARROW2) {
-    AddShape(ObjectManager::kTube);
-    AddShape(ObjectManager::kCone);
-    AddShape(ObjectManager::kCone);
-    AddShape(ObjectManager::kDisk);
-    AddShape(ObjectManager::kDisk);
-  } else if (geom.type == mjGEOM_LINE) {
-    AddShape(ObjectManager::kLine);
-  } else if (geom.type == mjGEOM_LINEBOX) {
-    AddShape(ObjectManager::kLineBox);
-  } else if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
-    // Flex and skin geometries are dynamically updated every frame.
-  } else {
-    mju_warning("Unsupported geom type: %d", geom.type);
+    : material_(object_mgr), renderables_(object_mgr->GetEngine()) {
+  if (geom.category == mjCAT_DECOR) {
+    renderables_.DisableShadows();
+  }
+
+  switch ((mjtGeom)geom.type) {
+    case mjGEOM_MESH:
+      AddMesh(geom.dataid);
+      break;
+    case mjGEOM_HFIELD:
+      AddHeightField(geom.dataid);
+      break;
+    case mjGEOM_PLANE:
+      AddShape(ObjectManager::kPlane);
+      break;
+    case mjGEOM_SPHERE:
+      AddShape(ObjectManager::kSphere);
+      break;
+    case mjGEOM_ELLIPSOID:
+      AddShape(ObjectManager::kSphere);
+      break;
+    case mjGEOM_BOX:
+      AddShape(ObjectManager::kBox);
+      break;
+    case mjGEOM_CAPSULE:
+      AddShape(ObjectManager::kTube);
+      AddShape(ObjectManager::kDome);
+      AddShape(ObjectManager::kDome);
+      break;
+    case mjGEOM_CYLINDER:
+      AddShape(ObjectManager::kTube);
+      AddShape(ObjectManager::kDisk);
+      AddShape(ObjectManager::kDisk);
+      break;
+    case mjGEOM_ARROW:
+      AddShape(ObjectManager::kTube);
+      AddShape(ObjectManager::kCone);
+      AddShape(ObjectManager::kDisk);
+      break;
+    case mjGEOM_ARROW1:
+      AddShape(ObjectManager::kTube);
+      AddShape(ObjectManager::kCone);
+      AddShape(ObjectManager::kDisk);
+      AddShape(ObjectManager::kDisk);
+      break;
+    case mjGEOM_ARROW2:
+      AddShape(ObjectManager::kTube);
+      AddShape(ObjectManager::kCone);
+      AddShape(ObjectManager::kCone);
+      AddShape(ObjectManager::kDisk);
+      AddShape(ObjectManager::kDisk);
+      break;
+    case mjGEOM_LINE:
+      AddShape(ObjectManager::kLine);
+      break;
+    case mjGEOM_LINEBOX:
+      AddShape(ObjectManager::kLineBox);
+      break;
+    case mjGEOM_TRIANGLE:
+      AddShape(ObjectManager::kTriangle);
+      break;
+    case mjGEOM_FLEX:
+    case mjGEOM_SKIN:
+      // Flex and skin geometries are dynamically updated every frame.
+      break;
+    case mjGEOM_NONE:
+    case mjGEOM_LABEL:
+      // Do nothing .
+      break;
+    case mjGEOM_SDF:
+    case mjNGEOMTYPES:
+      mju_warning("Unsupported geom type: %d", geom.type);
+      break;
   }
 }
 
@@ -174,6 +203,11 @@ void Drawable::SetDrawMode(Material::DrawMode mode) {
   renderables_.SetMaterialInstance(material_.GetMaterialInstance(mode));
 }
 
+void Drawable::SetUseDistinctSegmentationColors(
+    bool use_distinct_segmentation_colors) {
+  use_distinct_segmentation_colors_ = use_distinct_segmentation_colors;
+}
+
 void Drawable::SetTransform(const mjvGeom& geom) {
   // Flex and skin geometries are in global space.
   if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
@@ -201,7 +235,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
       } else if (j == kCylinderBottomDisk) {
         entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
       }
     } else if (geom.type == mjGEOM_CAPSULE) {
       // Capsules are a tube with two domes at the ends. We apply an inverse
@@ -213,7 +247,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
         entity_transform *= mat4::scaling(float3{1, 1, xz_size / size.z});
       } else if (j == kCapsuleBottomDome) {
         entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
         entity_transform *= mat4::scaling(float3{1, 1, xz_size / size.z});
       }
     } else if (geom.type == mjGEOM_ARROW) {
@@ -222,48 +256,48 @@ void Drawable::SetTransform(const mjvGeom& geom) {
       // disk is added to the base of the cone. This disk is rotated such that
       // its normal points outwards.
       entity_transform *= mat4::scaling(float3{1, 1, kArrowScale});
-      entity_transform *= mat4::translation(float3{0, 0, kArrowScale});
+      entity_transform *= mat4::translation(float3{0, 0, size.z});
       if (j == kArrow0Cone) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
         entity_transform *=
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       } else if (j == kArrow0ConeDisk) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
         entity_transform *=
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       } else if (j == kArrow0BottomDisk) {
         entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
       }
     } else if (geom.type == mjGEOM_ARROW1) {
       // An arrow1 is a tube with a cone at the end and a disk cap at the other
       // end.
       entity_transform *= mat4::scaling(float3{1, 1, kArrowScale});
-      entity_transform *= mat4::translation(float3{0, 0, kArrowScale});
+      entity_transform *= mat4::translation(float3{0, 0, size.z});
       if (j == kArrow1Cone) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
       } else if (j == kArrow1BottomDisk) {
         entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
       }
     } else if (geom.type == mjGEOM_ARROW2) {
       // An arrow2 is a tube with a cone at both ends.  Like the standard arrow,
       // an extra disk is added to the base of each cone.
       entity_transform *= mat4::scaling(float3{1, 1, kArrowScale});
-      entity_transform *= mat4::translation(float3{0, 0, kArrowScale});
+      entity_transform *= mat4::translation(float3{0, 0, size.z});
       if (j == kArrow2TopCone) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
         entity_transform *=
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       } else if (j == kArrow2BottomCone) {
         entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
         entity_transform *=
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       } else if (j == kArrow2TopConeDisk) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
         entity_transform *=
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       } else if (j == kArrow2BottomConeDisk) {
@@ -298,14 +332,19 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
     textures.emissive = object_mgr->GetTexture(geom.matid, mjTEXROLE_EMISSIVE);
     textures.orm = object_mgr->GetTexture(geom.matid, mjTEXROLE_ORM);
     textures.metallic = object_mgr->GetTexture(geom.matid, mjTEXROLE_METALLIC);
-    textures.roughness = object_mgr->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
-    textures.occlusion = object_mgr->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
+    textures.roughness =
+        object_mgr->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
+    textures.occlusion =
+        object_mgr->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
+    material_.UpdateTextures(textures);
   }
 
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
     material_.SetNormalMaterialType(ObjectManager::kUnlitLine);
   } else {
+    bool material_assigned = false;
     if (geom.matid >= 0) {
+      material_assigned = true;
       if (textures.orm) {
         material_.SetNormalMaterialType(ObjectManager::kPbrPacked);
       } else if (textures.metallic) {
@@ -316,48 +355,49 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
         material_.SetNormalMaterialType(ObjectManager::kPbr);
       } else if (model->mat_roughness[geom.matid] >= 0) {
         material_.SetNormalMaterialType(ObjectManager::kPbr);
+      } else {
+        material_assigned = false;
       }
     }
 
-    // Check to see if we're dealing with a mesh with texture coordinates.
-    // `data_id` is the id of the mesh in model (i.e. the geom has mesh geometry)
-    // and `mesh_texcoordadr` stores the address of the mesh uvs if it has them.
-    bool has_texcoords = false;
-    if ((geom.type == mjGEOM_MESH || geom.type == mjGEOM_SDF) &&
-        geom.dataid >= 0 && model->mesh_texcoordadr[geom.dataid / 2] >= 0) {
-      has_texcoords = true;
-    }
+    if (!material_assigned) {
+      // Check to see if we're dealing with a mesh with texture coordinates.
+      // `data_id` is the id of the mesh in model (i.e. the geom has mesh
+      // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if
+      // it has them.
+      bool has_texcoords = false;
+      if ((geom.type == mjGEOM_MESH || geom.type == mjGEOM_SDF) &&
+          geom.dataid >= 0 && model->mesh_texcoordadr[geom.dataid / 2] >= 0) {
+        has_texcoords = true;
+      }
 
-    if (textures.color == nullptr) {
-      if (geom.rgba[3] < 1.0f) {
-        material_.SetNormalMaterialType(ObjectManager::kPhongColorFade);
+      if (textures.color == nullptr) {
+        if (geom.rgba[3] < 1.0f) {
+          material_.SetNormalMaterialType(ObjectManager::kPhongColorFade);
+        } else {
+          material_.SetNormalMaterialType(ObjectManager::kPhongColor);
+        }
+      } else if (textures.color->getTarget() ==
+                filament::Texture::Sampler::SAMPLER_CUBEMAP) {
+        if (geom.rgba[3] < 1.0f) {
+          material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
+        } else {
+          material_.SetNormalMaterialType(ObjectManager::kPhongCube);
+        }
+      } else if (has_texcoords) {
+        if (geom.rgba[3] < 1.0f) {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2dUvFade);
+        } else {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2dUv);
+        }
       } else {
-        material_.SetNormalMaterialType(ObjectManager::kPhongColor);
-      }
-    } else if (textures.color->getTarget() ==
-              filament::Texture::Sampler::SAMPLER_CUBEMAP) {
-      if (geom.rgba[3] < 1.0f) {
-        material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
-      } else {
-        material_.SetNormalMaterialType(ObjectManager::kPhongCube);
-      }
-    } else if (has_texcoords) {
-      if (geom.rgba[3] < 1.0f) {
-        material_.SetNormalMaterialType(ObjectManager::kPhong2dUvFade);
-      } else {
-        material_.SetNormalMaterialType(ObjectManager::kPhong2dUv);
-      }
-    } else {
-      if (geom.rgba[3] < 1.0f) {
-        material_.SetNormalMaterialType(ObjectManager::kPhong2dFade);
-      } else {
-        material_.SetNormalMaterialType(ObjectManager::kPhong2d);
+        if (geom.rgba[3] < 1.0f) {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2dFade);
+        } else {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2d);
+        }
       }
     }
-  }
-
-  if (geom.matid >= 0) {
-    material_.UpdateTextures(textures);
   }
 
   Material::Params params;
@@ -365,6 +405,7 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
   params.emissive = geom.emission;
   params.specular = geom.specular;
   params.glossiness = geom.shininess;
+  params.use_distinct_segmentation_colors = use_distinct_segmentation_colors_;
   if (geom.matid >= 0) {
     params.metallic = model->mat_metallic[geom.matid];
     params.roughness = model->mat_roughness[geom.matid];
@@ -373,14 +414,18 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
   }
 
   if (geom.segid >= 0) {
-    constexpr double phi1 = 1.61803398874989484820;  // Cached Phi(1).
-    constexpr double coef1 = 1.0 / phi1;
-    const double index = static_cast<double>(geom.segid);
-    const double sample = std::fmod(0.5 + coef1 * index, 1.0);
-    uint32_t segmentation_color = 0x01000000 * sample;
-    const uint8_t red = (segmentation_color >> 16) & 0xff;
+    uint32_t segmentation_color = geom.segid;
+    if (use_distinct_segmentation_colors_) {
+      constexpr double phi1 = 1.61803398874989484820;  // Cached Phi(1).
+      constexpr double coef1 = 1.0 / phi1;
+      const double index = static_cast<double>(geom.segid);
+      const double sample = std::fmod(0.5 + coef1 * index, 1.0);
+      segmentation_color = 0x01000000 * sample;
+    }
+
+    const uint8_t red = (segmentation_color >> 0) & 0xff;
     const uint8_t green = (segmentation_color >> 8) & 0xff;
-    const uint8_t blue = (segmentation_color >> 0) & 0xff;
+    const uint8_t blue = (segmentation_color >> 16) & 0xff;
     params.segmentation_color.x = static_cast<float>(red) / 255.0f;
     params.segmentation_color.y = static_cast<float>(green) / 255.0f;
     params.segmentation_color.z = static_cast<float>(blue) / 255.0f;
@@ -401,7 +446,7 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
       params.uv_scale.x = params.tex_repeat.x;
       params.uv_scale.y = params.tex_repeat.y;
 
-      if (geom.dataid >= 0) {
+      if (geom.dataid >= 0 && geom.type != mjGEOM_PLANE) {
         if (geom.size[0] > mjMINVAL) {
           params.uv_scale.x /= geom.size[0];
         }
@@ -426,8 +471,8 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
         }
       }
 
-      params.uv_scale.x = 2 * params.uv_scale.x;
-      params.uv_scale.y = 2 * params.uv_scale.y;
+      params.uv_scale.x = 0.5f * params.uv_scale.x;
+      params.uv_scale.y = 0.5f * params.uv_scale.y;
     } else {
       // For cube maps, if `tex_uniform` is true, then scale the texture so that
       // it covers a 1x1 area of world space rather than the area of the object.

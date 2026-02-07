@@ -19,6 +19,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
+#include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -612,17 +613,26 @@ void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 // sparse reverse-order LU factorization, no fill-in (assuming tree topology)
 //   result: LU = L + U; original = (U+I) * L; scratch size is n
 void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
-                        const int* rownnz, const int* rowadr, const int* colind) {
+                        const int* rownnz, const int* rowadr, const int* colind,
+                        const int* index) {
   int* remaining = scratch;
 
   // set remaining = rownnz
-  mju_copyInt(remaining, rownnz, n);
+  if (index) {
+    for (int i=0; i < n; i++) {
+      remaining[i] = rownnz[index[i]];
+    }
+  } else {
+    mju_copyInt(remaining, rownnz, n);
+  }
 
   // diagonal elements (i,i)
-  for (int i=n-1; i >= 0; i--) {
+  for (int r=n-1; r >= 0; r--) {
+    int i = index ? index[r] : r;
+
     // get address of last remaining element of row i, adjust remaining counter
-    int ii = rowadr[i] + remaining[i] - 1;
-    remaining[i]--;
+    int ii = rowadr[i] + remaining[r] - 1;
+    remaining[r]--;
 
     // make sure ii is on diagonal
     if (colind[ii] != i) {
@@ -635,14 +645,16 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
     }
 
     // rows j above i
-    for (int j=i-1; j >= 0; j--) {
+    for (int c=r-1; c >= 0; c--) {
+      int j = index ? index[c] : c;
+
       // get address of last remaining element of row j
-      int ji = rowadr[j] + remaining[j] - 1;
+      int ji = rowadr[j] + remaining[c] - 1;
 
       // process row j if (j,i) is non-zero
       if (colind[ji] == i) {
         // adjust remaining counter
-        remaining[j]--;
+        remaining[c]--;
 
         // (j,i) = (j,i) / (i,i)
         LU[ji] = LU[ji] / LU[ii];
@@ -650,7 +662,7 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
 
         // (j,k) = (j,k) - (i,k) * (j,i) for k<i; handle incompatible sparsity
         int icnt = rowadr[i], jcnt = rowadr[j];
-        while (jcnt < rowadr[j]+remaining[j]) {
+        while (jcnt < rowadr[j]+remaining[c]) {
           // both non-zero
           if (colind[icnt] == colind[jcnt]) {
             // update LU, advance counters
@@ -670,7 +682,7 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
         }
 
         // make sure both rows fully processed
-        if (icnt != rowadr[i]+remaining[i] || jcnt != rowadr[j]+remaining[j]) {
+        if (icnt != rowadr[i]+remaining[r] || jcnt != rowadr[j]+remaining[c]) {
           mjERROR("row processing incomplete");
         }
       }
@@ -678,8 +690,9 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
   }
 
   // make sure remaining points to diagonal
-  for (int i=0; i < n; i++) {
-    if (remaining[i] < 0 || colind[rowadr[i]+remaining[i]] != i) {
+  for (int r=0; r < n; r++) {
+    int i = index ? index[r] : r;
+    if (remaining[r] < 0 || colind[rowadr[i]+remaining[r]] != i) {
       mjERROR("unexpected sparse matrix structure");
     }
   }
@@ -688,9 +701,12 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
 
 // solve mat*res=vec given LU factorization of mat
 void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
-                       const int* rownnz, const int* rowadr, const int* diag, const int* colind) {
+                       const int* rownnz, const int* rowadr, const int* diag, const int* colind,
+                       const int* index) {
   // solve (U+I)*res = vec
-  for (int i=n-1; i >= 0; i--) {
+  for (int k=n-1; k >= 0; k--) {
+    int i = index ? index[k] : k;
+
     // init: diagonal of (U+I) is 1
     res[i] = vec[i];
 
@@ -703,7 +719,9 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
   }
 
   //------------------ solve L*res(new) = res
-  for (int i=0; i < n; i++) {
+  for (int k=0; k < n; k++) {
+    int i = index ? index[k] : k;
+
     // res[i] -= sum_k<i res[k]*LU(i,k)
     int d = diag[i];
     int adr = rowadr[i];
@@ -734,8 +752,8 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
   for (iter=0; iter < 500; iter++) {
     // make quaternion matrix eigvec, compute D = eigvec'*mat*eigvec
     mju_quat2Mat(eigvec, quat);
-    mju_mulMatTMat3(tmp, eigvec, mat);
-    mju_mulMatMat3(D, tmp, eigvec);
+    mji_mulMatTMat3(tmp, eigvec, mat);
+    mji_mulMatMat3(D, tmp, eigvec);
 
     // assign eigenvalues
     eigval[0] = D[0];

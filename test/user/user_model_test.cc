@@ -45,9 +45,68 @@ static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
 
 // ----------------------------- test mjCModel  --------------------------------
 
-using UserCModelTest = MujocoTest;
+using UserModelTest = MujocoTest;
 
-TEST_F(UserCModelTest, RepeatedNames) {
+// clarify the semantic of body_rootid and body_weldid
+TEST_F(UserModelTest, WeldRootID) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="1">
+        <joint/>
+        <geom size="1"/>
+        <body name="2">
+          <joint/>
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="3">
+        <joint/>
+        <geom size="1"/>
+        <body name="4">
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="5">
+        <geom size="1"/>
+        <body name="6">
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="7" mocap="true">
+        <geom size="1"/>
+        <body name="8">
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="9" mocap="true">
+        <geom size="1"/>
+        <body name="10">
+          <joint/>
+          <geom size="1"/>
+        </body>
+      </body>
+     </worldbody>
+   </mujoco>
+   )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, NotNull());
+
+  EXPECT_THAT(AsVector(model->body_rootid, model->nbody),
+              ElementsAre(0, 1, 1, 3, 3, 5, 5, 7, 7, 9, 9));
+  EXPECT_THAT(AsVector(model->body_weldid, model->nbody),
+              ElementsAre(0, 1, 2, 3, 3, 0, 0, 0, 0, 0, 10));
+
+  mj_deleteModel(model);
+}
+
+TEST_F(UserModelTest, RepeatedNames) {
   static constexpr char xml[] = R"(
    <mujoco>
      <worldbody>
@@ -65,7 +124,7 @@ TEST_F(UserCModelTest, RepeatedNames) {
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'geom1' in geom"));
 }
 
-TEST_F(UserCModelTest, SameFrame) {
+TEST_F(UserModelTest, SameFrame) {
   static constexpr char xml[] = R"(
    <mujoco>
      <default>
@@ -116,7 +175,7 @@ TEST_F(UserCModelTest, SameFrame) {
   mj_deleteModel(model);
 }
 
-TEST_F(UserCModelTest, ActuatorSparsity) {
+TEST_F(UserModelTest, ActuatorSparsity) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -140,7 +199,7 @@ TEST_F(UserCModelTest, ActuatorSparsity) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserCModelTest, NestedZeroMassBodiesOK) {
+TEST_F(UserModelTest, NestedZeroMassBodiesOK) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -163,7 +222,7 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesOK) {
   mj_deleteModel(model);
 }
 
-TEST_F(UserCModelTest, NestedZeroMassBodiesWithJointOK) {
+TEST_F(UserModelTest, NestedZeroMassBodiesWithJointOK) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -190,7 +249,7 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesWithJointOK) {
   mj_deleteModel(model);
 }
 
-TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
+TEST_F(UserModelTest, NestedZeroMassBodiesFail) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -218,7 +277,7 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
   mj_deleteModel(model);
 }
 
-TEST_F(UserCModelTest, ConvexHullForCollisionMeshes) {
+TEST_F(UserModelTest, ConvexHullForCollisionMeshes) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -262,7 +321,7 @@ TEST_F(UserCModelTest, ConvexHullForCollisionMeshes) {
   mj_deleteModel(model);
 }
 
-TEST_F(UserCModelTest, ConvexHullForPairCollisionMeshes) {
+TEST_F(UserModelTest, ConvexHullForPairCollisionMeshes) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>

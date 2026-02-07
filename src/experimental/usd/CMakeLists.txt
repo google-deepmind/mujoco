@@ -22,7 +22,7 @@ set(MJ_USD_INSTALL_DIR_LIB ${CMAKE_INSTALL_LIBDIR}/mujocoUsd)
 
 # Common OpenUSD libraries
 set(OPENUSD_CORE_LIBS
-  usd ar kind tf gf vt usdShade usdLux usdGeom usdImaging usdPhysics
+  usd ar kind tf gf vt usdShade usdLux usdGeom usdPhysics
 )
 
 # We need to set the visibility to default until core type symbol visibility
@@ -82,7 +82,6 @@ function(configure_houdini_target target_name link_scope include_scope)
     ${PXR_LIB_PREFIX}usdShade
     ${PXR_LIB_PREFIX}usdLux
     ${PXR_LIB_PREFIX}usdGeom
-    ${PXR_LIB_PREFIX}usdImaging
     ${PXR_LIB_PREFIX}usdPhysics
     tbb
     hboost_${USD_MJCF_PYTHON_LIB_NUMBER}

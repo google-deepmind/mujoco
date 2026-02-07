@@ -3788,33 +3788,69 @@ void inline ComputeBending(double* bending, double* pos, const int v[4], double 
 // Gauss Legendre quadrature points in 1 dimension on the interval [a, b]
 void quadratureGaussLegendre(double* points, double* weights,
                              const int order, const double a, const double b) {
-  if (order > 2)
-    mju_error("Integration order > 2 not yet supported.");
+  if (order > 3)
+    mju_error("Integration order > 3 not yet supported.");
 
   // x is on [-1, 1], p on [a, b]
   double p0 = (a+b)/2.;
   double dpdx = (b-a)/2;
-  points[0] = -dpdx/sqrt(3) + p0;
-  points[1] =  dpdx/sqrt(3) + p0;
-  weights[0] = dpdx;
-  weights[1] = dpdx;
-}
 
-// evaluate 1-dimensional basis function
-double phi(const double s, const double component) {
-  if (component == 0) {
-    return 1-s;
+  if (order == 2) {
+    points[0] = -dpdx / sqrt(3) + p0;
+    points[1] =  dpdx / sqrt(3) + p0;
+    weights[0] = dpdx;
+    weights[1] = dpdx;
   } else {
-    return s;
+    points[0] = p0;
+    points[1] = -dpdx / sqrt(3. / 5.) + p0;
+    points[2] =  dpdx / sqrt(3. / 5.) + p0;
+    weights[0] = 8. / 9. * dpdx;
+    weights[1] = 5. / 9. * dpdx;
+    weights[2] = 5. / 9. * dpdx;
   }
 }
 
-// evaluate gradient fo 1-dimensional basis function
-double dphi(const double s, const double component) {
-  if (component == 0) {
-    return -1;
+// evaluate 1-dimensional basis function
+double phi(const double s, const int i, const int order) {
+  if (order == 1) {
+    return i == 0 ? 1 - s : s;
+  } else if (order == 2) {
+    switch (i) {
+      case 0:
+        return 2 * s * s - 3 * s + 1;
+      case 1:
+        return 4 * (s - s * s);
+      case 2:
+        return 2 * s * s - s;
+      default:
+        mjERROR("invalid index %d", i);
+        return 0;
+    }
   } else {
-    return 1;
+    mju_error("Order must be 1 or 2.");
+    return 0;
+  }
+}
+
+// evaluate gradient of 1-dimensional basis function
+double dphi(const double s, const int i, const int order) {
+  if (order == 1) {
+    return i == 0 ? -1 : 1;
+  } else if (order == 2) {
+    switch (i) {
+      case 0:
+        return 4 * s - 3;
+      case 1:
+        return 4 * (1 - 2 * s);
+      case 2:
+        return 4 * s - 1;
+      default:
+        mjERROR("invalid index %d, must be 0, 1, or 2", i);
+        return 0;
+    }
+  } else {
+    mju_error("Order must be 1 or 2.");
+    return 0;
   }
 }
 
@@ -3851,21 +3887,20 @@ double inline trace(const Matrix& tensor) {
 
 void inline ComputeLinearStiffness(std::vector<double>& K,
                                    const double* pos,
-                                   double E, double nu) {
-  // only linear elements are supported for now
-  int order = 2;
-  int n = pow(order, 3);
+                                   double E, double nu, int order) {
+  int nbasis = order + 1;
+  int n = pow(nbasis, 3);
   int ndof = 3*n;
 
   // compute quadrature points
-  std::vector<double> points(order);     // quadrature points
-  std::vector<double> weight(order);     // quadrature weights
-  quadratureGaussLegendre(points.data(), weight.data(), order, 0, 1);
+  std::vector<double> points(nbasis);     // quadrature points
+  std::vector<double> weight(nbasis);     // quadrature weights
+  quadratureGaussLegendre(points.data(), weight.data(), nbasis, 0, 1);
 
   // compute element transformation
-  double dx = (pos+12)[0] - pos[0];
-  double dy = (pos+ 6)[1] - pos[1];
-  double dz = (pos+ 3)[2] - pos[2];
+  double dx = (pos+3*(n-1))[0] - pos[0];
+  double dy = (pos+3*(n-1))[1] - pos[1];
+  double dz = (pos+3*(n-1))[2] - pos[2];
   double detJ = dx * dy * dz;
   double invJ[3] = {1.0 / dx, 1.0 / dy, 1.0 / dz};
 
@@ -3875,9 +3910,9 @@ void inline ComputeLinearStiffness(std::vector<double>& K,
   double mu = E / (2 * (1 + nu));
 
   // loop over quadrature points
-  for (int ps=0; ps < order; ps++) {
-    for (int pt=0; pt < order; pt++) {
-      for (int pu=0; pu < order; pu++) {
+  for (int ps=0; ps < nbasis; ps++) {
+    for (int pt=0; pt < nbasis; pt++) {
+      for (int pu=0; pu < nbasis; pu++) {
         double s = points[ps];
         double t = points[pt];
         double u = points[pu];
@@ -3885,13 +3920,13 @@ void inline ComputeLinearStiffness(std::vector<double>& K,
         int dof = 0;
 
         // cartesian product of basis functions
-        for (int bx=0; bx < order; bx++) {
-          for (int by=0; by < order; by++) {
-            for (int bz=0; bz < order; bz++) {
+        for (int bx=0; bx < nbasis; bx++) {
+          for (int by=0; by < nbasis; by++) {
+            for (int bz=0; bz < nbasis; bz++) {
               std::array<double, 3> gradient;
-              gradient[0] = dphi(s, bx) *  phi(t, by) *  phi(u, bz);
-              gradient[1] =  phi(s, bx) * dphi(t, by) *  phi(u, bz);
-              gradient[2] =  phi(s, bx) *  phi(t, by) * dphi(u, bz);
+              gradient[0] = dphi(s, bx, order) *  phi(t, by, order) *  phi(u, bz, order);
+              gradient[1] =  phi(s, bx, order) * dphi(t, by, order) *  phi(u, bz, order);
+              gradient[2] =  phi(s, bx, order) *  phi(t, by, order) * dphi(u, bz, order);
               F[dof++] = gradient;
             }
           }
@@ -4301,7 +4336,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       if (min_size > nelem) {
         throw mjCError(this, "Trilinear dofs are require at least %d elements", "", min_size);
       }
-      ComputeLinearStiffness(stiffness, nodexpos.data(), young, poisson);
+      ComputeLinearStiffness(stiffness, nodexpos.data(), young, poisson, order_);
     }
 
     // geometrically nonlinear elasticity

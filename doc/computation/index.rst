@@ -1380,25 +1380,28 @@ Constraint islands
    :width: 58%
    :align: right
 
-Consider the abstract graph defined by degrees of freedom (dofs) and constraints. A vertex is all the dofs in a single
-kinematic subtree; an edge is a constraint (a contact or equality) between two bodies belonging to different subtrees. A
-*constraint island* is a disjoint sub-graph which can be solved for independently, because constraint forces cannot
-propagate between islands. Constraint island discovery and construction ("islanding") invloves finding the disjoint
-subgraphs and reordering both the dofs and constraints to make them memory-contiguous. This amounts to a
-block-diagonalization of the constraint Jacobian :math:`J`, as illustrated in the figure. On the left is the monolithic
-Jacobian of size :math:`\nc \times \nv`, where we use the :ref:`corresponding <Framework>` size names from MuJoCo's data
-structures ``mjData.nefc`` and ``mjModel.nv``. On the right is the block-diagonalized Jacobian with 3 islands that can
-be solved indepenently. Note that islanding also identifies unconstrained dofs, so ``mjData.nidof``, the total number of
-dofs in all islands, might be smaller than ``mjModel.nv``. While islanding is not free (see implementation in
-`engine_island.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_island.c>`__), it is worth the
-effort:
+Consider the abstract graph defined by degrees of freedom (:ref:`DOFs<ElemDof>`) and constraints. A vertex is all the
+DOFs in a single kinematic :ref:`tree<ElemTree>`; an edge is a constraint (a contact, equality or tendon limit) between
+two bodies belonging to different trees. A *constraint island* is a disjoint sub-graph which can be solved for
+independently, because constraint forces cannot propagate between islands. Constraint island discovery and construction
+("islanding") involves finding these disjoint subgraphs and reordering both the DOFs and constraints to make them
+memory-contiguous. This amounts to a block-diagonalization of the constraint Jacobian :math:`J`, as illustrated in the
+figure. On the left is the monolithic Jacobian of size :math:`\nc \times \nv`, where we use the :ref:`corresponding
+<Framework>` size names from MuJoCo's data structures ``mjData.nefc`` and ``mjModel.nv``. On the right is the
+block-diagonalized Jacobian with 3 islands that can be solved independently. Note that islanding also identifies
+unconstrained DOFs, so ``mjData.nidof``, the total number of DOFs in all islands, might be smaller than ``mjModel.nv``.
+While islanding is not free (see implementation in `engine_island.c
+<https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_island.c>`__), it is worth the effort:
 
 - Different islands require different numbers of iterations to converge, and a monolithic solve would run for the
   number required by the slowest island.
-- Unconstrained dofs are completely untouched by the solver, which otherwise needs to discover that they are unaffected.
+- Unconstrained DOFs are completely untouched by the solver, which otherwise needs to discover that they are unaffected.
 - Solving separate islands can be multi-threaded.
 
-Islanding is not yet supported by the PGS solver.
+.. admonition:: Known issues
+   :class: note
+
+   Islanding is not yet supported by the PGS solver.
 
 
 .. _soParameters:
@@ -1668,6 +1671,54 @@ callbacks. This can be used to incorporate a general-purpose "triangle soup" col
 do not recommend such an approach. Pre-processing the geometry and representing it as a union of convex geoms takes some
 work, but it pays off at runtime and yields both faster and more stable simulation.
 
+.. _Sleeping:
+
+Sleeping islands
+----------------
+
+Sleeping is a performance optimization whereby movable elements of the simulation that are detected to be stationary are
+temporarily removed from the pipeline ("put to sleep"). This optimization is most useful when the model contains a large
+number of passive objects. The smallest unit which can be asleep or awake is a :ref:`kinematic tree<ElemTree>`, however
+trees are always put to sleep together with other trees to which they are connected by constraints, hence the term
+"sleeping :ref:`islands<soIsland>`".
+
+.. youtube:: vct493lGQ8Q
+   :align: right
+   :width: 50%
+
+The video on the right demonstrates several aspects of sleeping. First we show the `dominos
+<https://github.com/google-deepmind/mujoco/blob/main/model/sleep/dominos.xml>`__ model, which simulates a traditional
+"chain reaction" of falling domino bricks. All bricks except one are in a stable equilibrium and quickly go to sleep,
+but the first brick, which is unstable, remains awake and starts falling. Every time a contact is made between awake and
+sleeping bricks, the latter are woken automatically. After stabilizing on the ground, piles of bricks are put to sleep
+again and their associated contacts disappear. This sequence is repeated with island visualization enabled, which
+recolors geoms according to the first DOF of their island, using darker colors if asleep. At the end of the subclip,
+sleeping is toggled off and on, demonstrating the speed gain afforded by sleeping (lower right). The second subclip
+shows a variant of the `100 humanoids
+<https://github.com/google-deepmind/mujoco/blob/main/model/sleep/100_humanoids.xml>`__ model, where all humanoids are
+*initialized asleep*. Trees initialized as sleeping can be in any configuration, including floating in mid-air, deep
+penetration, etc. One humanoid is manually woken by direct user perturbation and then dragged around to wake any other
+humanoid that it touches.
+
+While the smooth dynamics benefit from sleeping, the largest speedup is due to the reduced number of contacts. Sleeping
+islands behave like static bodies for the purpose of collision detection: all contacts within an island and between the
+island and static bodies are skipped. In the case of static piles of objects, the number of skipped contacts can be
+high, leading to substantial speed gains. Contacts between sleeping islands and awake trees are allowed, and indeed are
+the main automatic trigger for waking, though manual waking is also supported. Because waking happens in the
+:ref:`position stage <piStages>` of the pipeline it is effectively instantaneous, and the woken island will behave
+exactly as if it was awake all along.
+
+Sleeping is off by default and enabled using the :ref:`sleep<option-flag-sleep>` flag. A detailed description of the
+sleeping mechanism is provided in the :ref:`Simulation chapter<siSleep>` but here we provide a brief overview.
+
+Sleeping can occur in one of two ways:
+
+- **Automatic:** A tree whose maximum velocity in absolute value is less than the
+  :ref:`tolerance <option-sleep_tolerance>` for :ref:`mjMINAWAKE <glNumeric>` time steps is marked as "ready to sleep".
+  If all trees in an island are ready to sleep, they are put to sleep during state advancement.
+- **Initialized asleep:** By setting the :ref:`body/sleep<body-sleep>` attribute of a tree root to "init", it is
+  marked as "initialized-asleep" and put to sleep during :ref:`mjData` initialization.
+
 .. _Pipeline:
 
 Simulation pipeline
@@ -1687,14 +1738,36 @@ contains the high-level forward dynamics pipeline.
 
 Top level
 ^^^^^^^^^
-- The top-level function :ref:`mj_step` invokes the entire sequence of computations below.
-- :ref:`mj_forward` invokes only stages **2-22**, computing the continuous-time forward dynamics, ending with the
+- The top-level function :ref:`mj_step` invokes the entire sequence of stages below **1-26**.
+- :ref:`mj_forward` invokes only stages **2-23**, computing the continuous-time forward dynamics, ending with the
   acceleration ``mjData.qacc``.
-- :ref:`mj_step1` invokes stages **1-18** and :ref:`mj_step2` invokes stages **19-25**, breaking :ref:`mj_step` into two
+- :ref:`mj_step1` invokes stages **1-19** and :ref:`mj_step2` invokes stages **20-26**, breaking :ref:`mj_step` into two
   distinct phases. This allows the user to write controllers that depend on quantities derived from the positions and
   velocities (but not forces, since those have not yet been computed). Note that the :ref:`mj_step1` → :ref:`mj_step2`
   pipeline does not support the Runge Kutta integrator.
 - :ref:`mj_fwdPosition` invokes stages **2-11**, the position-dependent part of the pipeline.
+
+.. the table below was created and is editable in tablesgenerator.com
+
+Schematic breakdown of the forward dynamic pipeline:
+
+.. table::
+   :class: small-centered no-stripes
+
+   +-------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------+
+   | top-level functions     |                                                    :ref:`mj_step`                                                                               |
+   |                         +----------------------------------------------------------------------------------------------------------------+--------------------------------+
+   |                         |                                   :ref:`mj_step1`                                                              |          :ref:`mj_step2`       |
+   |                         +----------------------------------------------------------------------------------------------------------------+--------------+-------+---------+
+   |                         |                                      :ref:`mj_forward`                                                                        |       |         |
+   +=========================+===+=============================================================+====+====================================+====+==============+=======+=========+
+   | component / description |   |             :ref:`fwdPosition<mj_fwdPosition>`              |    | :ref:`fwdVelocity<mj_fwdVelocity>` |    |              |       |         |
+   |                         +---+----------------------------------------+--------------------+----+------------------------------------+----+--------------+-------+---------+
+   |                         |   | :ref:`fwdKinematics<mj_fwdKinematics>` | inertia, collision |    |                                    |    | acceleration |       | advance |
+   +-------------------------+---+----------------------------------------+--------------------+----+------------------------------------+----+--------------+-------+---------+
+   | stage                   | 1 |         2-5                            |         6-11       | 12 |         13-18                      | 19 |    20-23     | 24,25 |     26  |
+   +-------------------------+---+----------------------------------------+--------------------+----+------------------------------------+----+--------------+-------+---------+
+
 
 .. _piStages:
 
@@ -1745,24 +1818,28 @@ dependence structure of the pipeline, the actual dependence is on both ``qpos`` 
 17. Compute the reference constraint acceleration: :ref:`mj_referenceConstraint`
 18. Compute the vector of Coriolis, centrifugal and gravitational forces: :ref:`mj_rne`
 
+Control callback
+''''''''''''''''
+19. Invoke the user-defined control callback if defined: :ref:`mjcb_control`
+
 Force/acceleration
 ''''''''''''''''''
 The stages below compute quantities that depend on :ref:`user inputs<geInput>`. Due to the sequential nature
 of the pipeline, the actual dependence is on the entire :ref:`integration state<geIntegrationState>`.
 
-19. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
-20. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
+20. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
+21. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
     :ref:`mj_fwdAcceleration`
-21. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
+22. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
     constraint forces. This yields the vector ``mjData.qacc`` which is the main output of forward dynamics:
     :ref:`mj_fwdConstraint`
-22. Compute sensor data that depends on force and acceleration if enabled
+23. Compute sensor data that depends on force and acceleration if enabled
     (if required by sensors, call :ref:`mj_rnePostConstraint`): :ref:`mj_sensorAcc`
-23. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
+24. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
     automatically reset and the corresponding warning is raised: :ref:`mj_checkAcc`
-24. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
+25. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
     dynamics. This is an optional step, and is performed only when enabled: :ref:`mj_compareFwdInv`
-25. Advance the simulation state by one time step, using the selected integrator. Note that the Runge-Kutta integrator
+26. Advance the simulation state by one time step, using the selected integrator. Note that the Runge-Kutta integrator
     repeats the above sequence three more times, except for the optional computations which are performed only once:
     one of :ref:`mj_Euler`, :ref:`mj_RungeKutta`, :ref:`mj_implicit`
 

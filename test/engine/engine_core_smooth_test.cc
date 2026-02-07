@@ -79,7 +79,7 @@ TEST_F(CoreSmoothTest, MjDataWorldBodyValuesAreInitialized) {
         EXPECT_THAT(values, ElementsAre(1, 0, 0, 0)) << #name;                \
       } else if constexpr (EndsWith(#name, "mat")) {                          \
         EXPECT_THAT(values, ElementsAre(1, 0, 0, 0, 1, 0, 0, 0, 1)) << #name; \
-      } else {                                                                \
+      } else if constexpr (std::string_view(#type) == "mjtNum") {             \
         EXPECT_THAT(values, Each(Eq(0))) << #name;                            \
       }                                                                       \
     }
@@ -742,7 +742,7 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   mj_solveLD_legacy(m, vec.data(), 1, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, 1,
-             m->M_rownnz, m->M_rowadr, m->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
@@ -777,7 +777,7 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
 
   mj_solveLD_legacy(m, vec.data(), n, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             m->M_rownnz, m->M_rowadr, m->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv*n; i++) {
@@ -815,7 +815,7 @@ TEST_F(CoreSmoothTest, SolveM2) {
 
   mj_solveM2(m, d, res.data(), vec.data(), sqrtInvD.data(), n);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             m->M_rownnz, m->M_rowadr, m->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
 
   // expect equality of dot(v, M^-1 * v) and dot(M^-1/2 * v, M^-1/2 * v)
   for (int i=0; i < n; i++) {
@@ -854,7 +854,7 @@ TEST_F(CoreSmoothTest, FactorIs) {
   vector<mjtNum> qLDiagInv(nv, 0);
 
   mj_factorI(qLD.data(), qLDiagInv.data(), nv,
-             m->M_rownnz, m->M_rowadr, m->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
 
   // expect outputs to match to floating point precision
   EXPECT_THAT(qLD, Pointwise(DoubleNear(1e-12), qLDexpected));

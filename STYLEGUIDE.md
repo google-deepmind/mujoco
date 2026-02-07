@@ -82,70 +82,70 @@ are required.
 
 #### Braces
 
-- MuJoCo uses
-[attached K&R braces](https://en.wikipedia.org/wiki/Indentation_style#Variant:_mandatory_braces),
-including for one-line blocks:
+-   MuJoCo uses
+    [attached K&R braces](https://en.wikipedia.org/wiki/Indentation_style#Variant:_mandatory_braces),
+    including for one-line blocks:
 
-  ```C
-  // transpose matrix
-  void mju_transpose(mjtNum* res, const mjtNum* mat, int nr, int nc) {
-    for (int i=0; i < nr; i++) {
-      for (int j=0; j < nc; j++) {
-        res[j*nr+i] = mat[i*nc+j];
+    ```c
+    // transpose matrix
+    void mju_transpose(mjtNum* res, const mjtNum* mat, int nr, int nc) {
+      for (int i=0; i < nr; i++) {
+        for (int j=0; j < nc; j++) {
+          res[j*nr+i] = mat[i*nc+j];
+        }
       }
     }
-  }
-  ```
+    ```
 
-- Brace-less single line statements are allowed outside of `engine/` code, for
-similar, repeated blocks, that do not contain flow control statements (`return`,
-`continue`, etc.). For an example of this exception, inspect the [`mjCModel`
-destructor](https://github.com/google-deepmind/mujoco/search?q=repo%3Adeepmind%2Fmujoco+filename%3Auser_model.cc).
+-   Brace-less single line statements are allowed with the exception of `return`
+    and `break` statements. For an example of this exception, inspect the
+    [`mjCModel` destructor](https://github.com/google-deepmind/mujoco/search?q=repo%3Adeepmind%2Fmujoco+filename%3Auser_model.cc).
 
-- Unattached braces are allowed in `if/else` blocks, when inserting a comment
-before the `else`:
+-   Unattached braces are allowed in `if/else` blocks, when inserting an
+    explanatory comment above the `else`:
 
-  ```C
-  // rotate vector by quaternion
-  void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]) {
-    // null quat: copy vec
-    if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
-      mju_copy3(res, vec);
+    ```c
+    // rotate vector by quaternion
+    void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]) {
+      // null quat: copy vec
+      if (quat[0] == 1 && quat[1] == 0 && quat[2] == 0 && quat[3] == 0) {
+        mju_copy3(res, vec);
+      }
+
+      // regular processing
+      else {
+        mjtNum mat[9];
+        mju_quat2Mat(mat, quat);
+        mju_mulMatVec3(res, mat, vec);
+      }
     }
-
-    // regular processing
-    else {
-      mjtNum mat[9];
-      mju_quat2Mat(mat, quat);
-      mju_mulMatVec3(res, mat, vec);
-    }
-  }
-  ```
+    ```
 
 #### Spacing
 
-- MuJoCo encourages judicious use of spacing around operators to promote
-readability. For example below, note the lack of spaces around the
-multiplication operator, and the aligning spaces in the second and fourth
-assignments:
+-   MuJoCo encourages judicious use of spacing around operators to promote
+    readability. For example below, note the lack of spaces around the
+    multiplication operator, and the aligning spaces in the second and fourth
+    assignments:
 
-  ```C
-  // time-derivative of quaternion, given 3D rotational velocity
-  void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]) {
-    res[0] = 0.5*(-vel[0]*quat[1] - vel[1]*quat[2] - vel[2]*quat[3]);
-    res[1] = 0.5*( vel[0]*quat[0] + vel[1]*quat[3] - vel[2]*quat[2]);
-    res[2] = 0.5*(-vel[0]*quat[3] + vel[1]*quat[0] + vel[2]*quat[1]);
-    res[3] = 0.5*( vel[0]*quat[2] - vel[1]*quat[1] + vel[2]*quat[0]);
-  }
-  ```
+    ```c
+    // time-derivative of quaternion, given 3D rotational velocity
+    void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]) {
+      res[0] = 0.5*(-vel[0]*quat[1] - vel[1]*quat[2] - vel[2]*quat[3]);
+      res[1] = 0.5*( vel[0]*quat[0] + vel[1]*quat[3] - vel[2]*quat[2]);
+      res[2] = 0.5*(-vel[0]*quat[3] + vel[1]*quat[0] + vel[2]*quat[1]);
+      res[3] = 0.5*( vel[0]*quat[2] - vel[1]*quat[1] + vel[2]*quat[0]);
+    }
+    ```
 
-- Spaces are required around comparison operators.
+-   Spaces are required around comparison operators.
 
-- Spaces are not allowed around operators in array subscripts `[]` or in
-  variable initialisation in `for` loops. For example, inspect the
-  `mju_transpose` implementation above.
+-   Spaces are not allowed around operators in array subscripts `[]` or in
+    variable initialisation in `for` loops. For example, inspect the
+    `mju_transpose` implementation above.
 
-- Two blank lines are required between function implementations in source files.
+-   Two blank lines are required between function implementations in source
+    files.
 
 #### Variable declarations
 

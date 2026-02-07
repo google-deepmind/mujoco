@@ -25,6 +25,7 @@ namespace mujoco {
 FilamentBuffers CreateLine(filament::Engine* engine, const mjModel* model);
 FilamentBuffers CreateBox(filament::Engine* engine, const mjModel* model);
 FilamentBuffers CreateLineBox(filament::Engine* engine, const mjModel* model);
+FilamentBuffers CreateTriangle(filament::Engine* engine, const mjModel* model);
 FilamentBuffers CreatePlane(filament::Engine* engine, const mjModel* model);
 FilamentBuffers CreateSphere(filament::Engine* engine, const mjModel* model);
 FilamentBuffers CreateTube(filament::Engine* engine, const mjModel* model);

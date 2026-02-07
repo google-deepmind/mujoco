@@ -2489,8 +2489,8 @@ void mjCBody::Compile(void) {
                      joints[0]->spec.type == mjJNT_FREE  &&  // it is a free joint AND
                      bodies.empty()                      &&  // no child bodies AND
                      (joints[0]->spec.align == 1 ||          // either joint.align="true"
-                      (joints[0]->spec.align == 2        &&  // or joint.align="auto"
-                       compiler->alignfree)));                  //  and compiler->align="true"
+                      (joints[0]->spec.align == 2        &&  // or (joint.align="auto"
+                       compiler->alignfree)));               //     and compiler->align="true")
 
   // free-joint alignment, phase 1 (this body + child geoms)
   double ipos_inverse[3], iquat_inverse[4];

@@ -321,15 +321,15 @@ XMLElement* NextSiblingElement(XMLElement* e, const char* name) {
 }
 
 // constructor
-mjXSchema::mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow) {
+mjXSchema::mjXSchema(std::vector<const char*> schema[], unsigned nrow) {
   // set name and type
   name_ = schema[0][0];
   type_ = schema[0][1][0];
 
   // set attributes
-  int nattr = atoi(schema[0][2]);
+  int nattr = schema[0].size() - 2;
   for (int i = 0; i < nattr; i++) {
-    attr_.emplace(schema[0][3 + i]);
+    attr_.emplace(schema[0][2 + i]);
   }
 
   // process sub-elements of complex element

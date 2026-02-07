@@ -16,14 +16,19 @@
 
 #include <algorithm>
 #include <array>
+#include <cfloat>
+#if defined(USE_CLASSIC_OPENGL)
+#include <chrono>
+#endif
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <functional>
-#include <limits>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -32,12 +37,13 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include "experimental/toolbox/helpers.h"
-#include "experimental/toolbox/imgui_widgets.h"
-#include "experimental/toolbox/interaction.h"
-#include "experimental/toolbox/physics.h"
-#include "experimental/toolbox/renderer.h"
-#include "experimental/toolbox/window.h"
+#include "experimental/platform/gui.h"
+#include "experimental/platform/helpers.h"
+#include "experimental/platform/imgui_widgets.h"
+#include "experimental/platform/interaction.h"
+#include "experimental/platform/renderer.h"
+#include "experimental/platform/step_control.h"
+#include "experimental/platform/window.h"
 
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
 #include "experimental/filament/render_context_filament.h"
@@ -49,24 +55,20 @@
 
 namespace mujoco::studio {
 
-// TO DO:
-// - sensor graph
-// - convergence profiler
-// - solver iteration profiler
-// - "passive" mode
-// - async physics
-
-static constexpr toolbox::Window::Config kWindowConfig = {
-#if defined(USE_FILAMENT_VULKAN)
-  .render_config = toolbox::Window::RenderConfig::kFilamentVulkan,
+static constexpr platform::Window::Config kWindowConfig = {
+#if defined(__EMSCRIPTEN__)
+    .render_config = platform::Window::RenderConfig::kFilamentWebGL,
+#elif defined(USE_FILAMENT_VULKAN)
+    .render_config = platform::Window::RenderConfig::kFilamentVulkan,
 #elif defined(USE_FILAMENT_OPENGL)
-  .render_config = toolbox::Window::RenderConfig::kFilamentOpenGL,
+    .render_config = platform::Window::RenderConfig::kFilamentOpenGL,
 #elif defined(USE_CLASSIC_OPENGL)
-  .render_config = toolbox::Window::RenderConfig::kClassicOpenGL,
+    .render_config = platform::Window::RenderConfig::kClassicOpenGL,
 #endif
-  .enable_keyboard = true,
+    .enable_keyboard = true,
 };
 
+static void ToggleFlag(mjtByte& flag) { flag = flag ? 0 : 1; }
 
 static void ToggleWindow(bool& window) {
   window = !window;
@@ -75,11 +77,33 @@ static void ToggleWindow(bool& window) {
 
 static void ShowPopup(bool& popup) { popup = true; }
 
-// FontAwesome icon codes.
-static constexpr const char* ICON_PLAY = "\xef\x81\x8b";
-static constexpr const char* ICON_PAUSE = "\xef\x81\x8c";
-static constexpr const char* ICON_DARKMODE = "\xef\x86\x86";
-static constexpr const char* ICON_LIGHTMODE = "\xef\x86\x85";
+static void SelectParentPerturb(const mjModel* model, mjvPerturb& perturb) {
+  if (perturb.select > 0) {
+    perturb.select = model->body_parentid[perturb.select];
+    perturb.flexselect = -1;
+    perturb.skinselect = -1;
+    if (perturb.select <= 0) {
+      perturb.active = 0;
+    }
+  }
+}
+
+static constexpr const char* ICON_PLAY = platform::ICON_FA_PLAY;
+static constexpr const char* ICON_PAUSE = platform::ICON_FA_PAUSE;
+static constexpr const char* ICON_COPY_CAMERA = platform::ICON_FA_COPY;
+static constexpr const char* ICON_UNLOAD_MODEL = platform::ICON_FA_EJECT;
+static constexpr const char* ICON_RELOAD_MODEL = platform::ICON_FA_REFRESH;
+static constexpr const char* ICON_LABEL = platform::ICON_FA_COMMENT;
+static constexpr const char* ICON_RESET_MODEL = platform::ICON_FA_UNDO;
+static constexpr const char* ICON_FRAME = platform::ICON_FA_ARROWS;
+static constexpr const char* ICON_CAMERA = platform::ICON_FA_CAMERA;
+static constexpr const char* ICON_DARKMODE = platform::ICON_FA_MOON;
+static constexpr const char* ICON_LIGHTMODE = platform::ICON_FA_SUN;
+static constexpr const char* ICON_CLASSICMODE = platform::ICON_FA_DIAMOND;
+static constexpr const char* ICON_PREV_FRAME = platform::ICON_FA_CARET_LEFT;
+static constexpr const char* ICON_NEXT_FRAME = platform::ICON_FA_CARET_RIGHT;
+static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
+static constexpr const char* ICON_SPEED = platform::ICON_FA_TACHOMETER;
 
 // UI labels for mjtLabel.
 static constexpr const char* kLabelNames[] = {
@@ -91,20 +115,22 @@ static constexpr const char* kLabelNames[] = {
 static constexpr const char* kFrameNames[] = {
     "None", "Body", "Geom", "Site", "Camera", "Light", "Contact", "World"};
 
-using toolbox::ImGui_FileDialog;
-using toolbox::ImGui_Input;
-using toolbox::ImGui_InputN;
-using toolbox::ImGui_IsChordJustPressed;
-using toolbox::ImGui_Slider;
-using toolbox::Toggle;
-using toolbox::ToggleBit;
-using toolbox::ToggleKind;
+// logarithmically spaced real-time slow-down coefficients (percent)
+// clang-format off
+static constexpr std::array<const char*, 31> kPercentRealTime = {
+"100.0 ", " 80.0 ", " 66.0 ", " 50.0 ", " 40.0 ", " 33.0 ", " 25.0 ", " 20.0 ", " 16.0 ", " 13.0 ",
+" 10.0 ", "  8.0 ", "  6.6 ", "  5.0 ", "  4.0 ", "  3.3 ", "  2.5 ", "  2.0 ", "  1.6 ", "  1.3 ",
+"  1.0 ", "  0.8 ", "  0.7 ", "  0.5 ", "  0.4 ", "  0.33", "  0.25", "  0.2 ", "  0.16", "  0.13",
+"  0.1 ",
+};
+// clang-format on
 
 App::App(int width, int height, std::string ini_path,
-         const toolbox::LoadAssetFn& load_asset_fn)
+         const platform::LoadAssetFn& load_asset_fn)
     : ini_path_(std::move(ini_path)), load_asset_fn_(load_asset_fn) {
-  window_ = std::make_unique<toolbox::Window>("MuJoCo Studio", width, height,
-                                              kWindowConfig, load_asset_fn);
+  window_ = std::make_unique<platform::Window>("MuJoCo Studio", width, height,
+                                               kWindowConfig, load_asset_fn);
+  ImPlot::CreateContext();
 
   auto make_context_fn = [&](const mjModel* m, mjrContext* con) {
 #if defined(USE_CLASSIC_OPENGL)
@@ -116,6 +142,7 @@ App::App(int width, int height, std::string ini_path,
     render_config.load_asset = &App::LoadAssetCallback;
     render_config.load_asset_user_data = this;
     render_config.enable_gui = true;
+    render_config.use_distinct_segmentation_colors = true;
 #if defined(USE_FILAMENT_OPENGL)
     render_config.graphics_api = mjGFX_OPENGL;
 #elif defined(USE_FILAMENT_VULKAN)
@@ -124,42 +151,214 @@ App::App(int width, int height, std::string ini_path,
     mjr_makeFilamentContext(m, con, &render_config);
 #endif
   };
-  renderer_ = std::make_unique<toolbox::Renderer>(make_context_fn);
-
-  physics_ = std::make_unique<toolbox::Physics>(
-      [this](std::string_view model_file) { this->OnModelLoaded(model_file); });
+  renderer_ = std::make_unique<platform::Renderer>(make_context_fn);
 
   mjv_defaultPerturb(&perturb_);
   mjv_defaultCamera(&camera_);
   mjv_defaultOption(&vis_options_);
 
-  LoadSettings();
-  ClearProfilerData();
+  profiler_.Clear();
 
 #ifdef USE_CLASSIC_OPENGL
   ImGui_ImplOpenGL3_Init();
 #endif
 }
 
-void App::LoadModel(std::string model_file) {
-  model_file_ = std::move(model_file);
-  physics_->LoadModel(model_file_);
+void App::ClearModel() {
+  if (model_) {
+    mj_deleteData(data_);
+    data_ = nullptr;
+    mj_deleteModel(model_);
+    model_ = nullptr;
+
+    if (spec_) {
+      mj_deleteSpec(spec_);
+      spec_ = nullptr;
+    }
+  }
+
+  step_control_.SetSpeed(100.f);
+  profiler_.Clear();
+  tmp_ = UiTempState();
+  error_ = "";
 }
 
-void App::OnModelLoaded(std::string_view model_file) {
-  renderer_->Init(Model());
-  tmp_ = UiTempState();
-  mjv_defaultOption(&vis_options_);
-  ClearProfilerData();
-  if (model_file.empty()) {
-    window_->SetTitle("MuJoCo Studio");
+void App::RequestModelLoad(std::string model_file) {
+  if (model_file.starts_with('[') || model_file.ends_with(']')) {
+    pending_load_ = "";
   } else {
-    window_->SetTitle("MuJoCo Studio : " + std::string(model_file));
+    pending_load_ = std::move(model_file);
+  }
+}
+
+void App::LoadModel(std::string data, ContentType type) {
+  // Delete the existing mjModel and mjData.
+  ClearModel();
+
+  if (!data.empty()) {
+    char err[1000] = "";
+    if (type == ContentType::kFilepath) {
+      // Store the file path as the model name. Note that we use this model name
+      // to perform reload operations.
+      model_name_ = std::move(data);
+      if (model_name_.ends_with(".mjb")) {
+        model_ = mj_loadModel(model_name_.c_str(), 0);
+      } else if (model_name_.ends_with(".xml")) {
+        spec_ = mj_parseXML(model_name_.c_str(), nullptr, err, sizeof(err));
+        if (spec_ && err[0] == 0) {
+          model_ = mj_compile(spec_, nullptr);
+        }
+      } else {
+        error_ = "Unknown model file type; expected .mjb or .xml.";
+      }
+    } else if (type == ContentType::kModelXml) {
+      model_name_ = "[xml]";
+      spec_ = mj_parseXMLString(data.c_str(), nullptr, err, sizeof(err));
+      if (spec_ && err[0] == 0) {
+        model_ = mj_compile(spec_, nullptr);
+      }
+    } else if (type == ContentType::kModelMjb) {
+      model_name_ = "[mjb]";
+      model_ = mj_loadModelBuffer(data.data(), data.size());
+    }
+
+    if (err[0]) {
+      error_ = err;
+    }
+  }
+
+  // If no mjModel was loaded, load an empty mjModel.
+  if (model_name_.empty() || model_ == nullptr) {
+    spec_ = mj_makeSpec();
+    model_ = mj_compile(spec_, 0);
+    model_name_ = "";
+  }
+  if (!model_) {
+    mju_error("Error loading model: %s", error_.c_str());
+  }
+
+  // Create the mjData for the mjModel.
+  data_ = mj_makeData(model_);
+  if (!data_) {
+    mju_error("Error making data for model: %s", error_.c_str());
+  }
+
+  // Reset/reinitialize everything that depends on the new mjModel.
+  renderer_->Init(model_);
+  const int state_size = mj_stateSize(model_, mjSTATE_INTEGRATION);
+  history_.Init(state_size);
+
+  // Initialize the speed based on the model's default real-time setting.
+  float min_error = FLT_MAX;
+  const float desired = mju_log(100 * model_->vis.global.realtime);
+  for (int i = 0; i < kPercentRealTime.size(); ++i) {
+    const float speed = std::stof(kPercentRealTime[i]);
+    const float error = mju_abs(mju_log(speed) - desired);
+    if (error < min_error) {
+      min_error = error;
+      SetSpeedIndex(i);
+    }
+  }
+
+  // Update the window title and update the file paths for saving files related
+  // to the loaded model.
+  std::string base_path = "/";
+  std::string model_name = "model";
+  if (!model_name_.empty() &&
+      (model_name_.ends_with(".xml") || model_name_.ends_with(".mjb"))) {
+    window_->SetTitle("MuJoCo Studio : " + model_name_);
+    tmp_.last_load_file = std::string(model_name_);
+    std::filesystem::path path(model_name_);
+    base_path = path.parent_path().string() + "/";
+    model_name = path.stem().string();
+  } else {
+    window_->SetTitle("MuJoCo Studio");
+    tmp_.last_load_file = base_path;
+  }
+
+  tmp_.last_save_mjb_file = base_path + model_name + "_saved.mjb";
+  tmp_.last_save_xml_file = base_path + model_name + "_saved.xml";
+  tmp_.last_print_model_file = base_path + model_name + "_MJMODEL.TXT";
+  tmp_.last_print_data_file = base_path + model_name + "_MJDATA.TXT";
+  tmp_.last_save_screenshot_file = base_path + "screenshot.webp";
+}
+
+bool App::IsModelLoaded() const { return !model_name_.empty(); }
+
+void App::ResetPhysics() {
+  mj_resetData(model_, data_);
+  mj_forward(model_, data_);
+  error_ = "";
+}
+
+void App::UpdatePhysics() {
+  if (pending_load_.has_value()) {
+    std::string model_file = std::move(pending_load_.value());
+    pending_load_.reset();
+    LoadModel(model_file, ContentType::kFilepath);
+  }
+  if (!IsModelLoaded()) {
+    return;
+  }
+
+  if (!step_control_.IsPaused()) {
+    mju_zero(data_->xfrc_applied, 6 * model_->nbody);
+    mjv_applyPerturbPose(model_, data_, &perturb_, 0);
+    mjv_applyPerturbForce(model_, data_, &perturb_);
+  } else {
+    mjv_applyPerturbPose(model_, data_, &perturb_, 1);
+  }
+
+  if (data_) {
+    for (int i = 0; i < mjNTIMER; i++) {
+      data_->timer[i].duration = 0;
+      data_->timer[i].number = 0;
+    }
+  }
+
+  bool stepped = false;
+
+  platform::StepControl::Status status = step_control_.Advance(model_, data_);
+  if (status == platform::StepControl::Status::kPaused) {
+    // do nothing
+  } else if (status == platform::StepControl::Status::kOk) {
+    stepped = true;
+    // If we are adding to the history we didn't have a divergence error
+    error_ = "";
+  } else if (status == platform::StepControl::Status::kAutoReset) {
+    ResetPhysics();
+  } else if (status == platform::StepControl::Status::kDiverged) {
+    stepped = true;
+    for (mjtWarning w : platform::StepControl::kDivergedWarnings) {
+      if (data_->warning[w].number > 0) {
+        error_ = mju_warningText(w, data_->warning[w].lastinfo);
+      }
+    }
+  }
+
+  if (stepped) {
+    profiler_.Update(model_, data_);
+    std::span<mjtNum> state = history_.AddToHistory();
+    if (!state.empty()) {
+      mj_getState(model_, data_, state.data(), mjSTATE_INTEGRATION);
+    }
+  }
+}
+
+void App::LoadHistory(int offset) {
+  std::span<mjtNum> state = history_.SetIndex(offset);
+  if (!state.empty()) {
+    // Pause simulation when entering history mode.
+    step_control_.Pause();
+
+    // Load the state into the data buffer.
+    mj_setState(model_, data_, state.data(), mjSTATE_INTEGRATION);
+    mj_forward(model_, data_);
   }
 }
 
 bool App::Update() {
-  const toolbox::Window::Status status = window_->NewFrame();
+  const platform::Window::Status status = window_->NewFrame();
 
 #ifdef USE_CLASSIC_OPENGL
   ImGui_ImplOpenGL3_NewFrame();
@@ -171,22 +370,16 @@ bool App::Update() {
   // Check to see if a model was dropped on the window.
   const std::string drop_file = window_->GetDropFile();
   if (!drop_file.empty()) {
-    LoadModel(drop_file);
+    RequestModelLoad(drop_file);
   }
 
   // Only update the simulation if a popup window is not open. Note that the
   // simulation itself will only update if it is not paused.
   if (!tmp_.modal_open) {
-    if (physics_->Update(&perturb_)) {
-      UpdateProfilerData();
-    }
+    UpdatePhysics();
   }
 
-  return status == toolbox::Window::Status::kRunning;
-}
-
-void App::Sync() {
-  renderer_->Sync(Model(), Data(), &perturb_, &camera_, &vis_options_);
+  return status == platform::Window::Status::kRunning;
 }
 
 void App::Render() {
@@ -194,7 +387,7 @@ void App::Render() {
   const float height = window_->GetHeight();
   const float scale = window_->GetScale();
 
-  renderer_->Render(Model(), Data(), &perturb_, &camera_, &vis_options_,
+  renderer_->Render(model_, data_, &perturb_, &camera_, &vis_options_,
                     width * scale, height * scale);
 
 #ifdef USE_CLASSIC_OPENGL
@@ -206,51 +399,154 @@ void App::Render() {
   window_->EndFrame();
   window_->Present();
 
-  if (Data()) {
+  if (data_) {
     for (int i = 0; i < mjNTIMER; i++) {
-      Data()->timer[i].duration = 0;
-      Data()->timer[i].number = 0;
+      data_->timer[i].duration = 0;
+      data_->timer[i].number = 0;
+    }
+  }
+
+#ifdef USE_CLASSIC_OPENGL
+  TimePoint now = std::chrono::steady_clock::now();
+  TimePoint::duration delta_time = now - last_fps_update_;
+  const double interval = std::chrono::duration<double>(delta_time).count();
+
+  ++frames_;
+  if (interval > 0.2) {  // only update FPS stat at most 5 times per second
+    last_fps_update_ = now;
+    fps_ = frames_ / interval;
+    frames_ = 0;
+  }
+#else
+  fps_ = mjr_getFrameRate(&renderer_->GetContext());
+#endif
+}
+
+void App::HandleMouseEvents() {
+  auto& io = ImGui::GetIO();
+  if (io.WantCaptureMouse) {
+    return;
+  }
+
+  if (!model_ || !data_) {
+    return;
+  }
+
+  // Normalize mouse positions and movement to display size.
+  const float mouse_x = io.MousePos.x / io.DisplaySize.x;
+  const float mouse_y = io.MousePos.y / io.DisplaySize.y;
+  const float mouse_dx = io.MouseDelta.x / io.DisplaySize.x;
+  const float mouse_dy = io.MouseDelta.y / io.DisplaySize.y;
+  const float mouse_scroll = io.MouseWheel / 50.0f;
+  const bool is_mouse_moving = (mouse_dx != 0.0f || mouse_dy != 0.0f);
+  const bool is_any_mouse_down = ImGui::IsMouseDown(ImGuiMouseButton_Left) ||
+                                 ImGui::IsMouseDown(ImGuiMouseButton_Right) ||
+                                 ImGui::IsMouseDown(ImGuiMouseButton_Middle);
+  const bool is_mouse_dragging = is_mouse_moving && is_any_mouse_down;
+
+  // If no mouse buttons are down, end any active perturbations.
+  if (!is_any_mouse_down) {
+    perturb_.active = 0;
+  }
+
+  // Handle perturbation mouse actions.
+  if (is_mouse_dragging && io.KeyCtrl) {
+    if (perturb_.select > 0) {
+      mjtMouse action = mjMOUSE_NONE;
+      if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        action = io.KeyShift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
+      } else if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+        action = io.KeyShift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
+      } else if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
+        action = mjMOUSE_ZOOM;
+      }
+      const mjtPertBit active =
+          action == mjMOUSE_MOVE_V ? mjPERT_TRANSLATE : mjPERT_ROTATE;
+      if (active != perturb_.active) {
+        platform::InitPerturb(model_, data_, &camera_, &perturb_, active);
+      }
+      platform::MovePerturb(model_, data_, &camera_, &perturb_, action,
+                            mouse_dx, mouse_dy);
+    }
+  }
+  // Handle camera movement actions.
+  else if (is_mouse_dragging) {
+    if (ui_.camera_idx == platform::kFreeCameraIdx) {
+      if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        MoveCamera(platform::CameraMotion::PAN_TILT, mouse_dx, mouse_dy);
+      }
+    } else {
+      if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        MoveCamera(platform::CameraMotion::ORBIT, mouse_dx, mouse_dy);
+      } else if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
+        MoveCamera(platform::CameraMotion::ZOOM, mouse_dx, mouse_dy);
+      }
+    }
+
+    // Right mouse movement is relative to the horizontal and vertical planes.
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Right) && io.KeyShift) {
+      MoveCamera(platform::CameraMotion::PLANAR_MOVE_H, mouse_dx, mouse_dy);
+    } else if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+      MoveCamera(platform::CameraMotion::PLANAR_MOVE_V, mouse_dx, mouse_dy);
+    }
+  }
+
+  // Mouse scroll zooms the camera towards/away from the lookat point.
+  // Ignored by user-centered free cameras which don't have a lookat point.
+  if (mouse_scroll != 0.0f && ui_.camera_idx != platform::kFreeCameraIdx) {
+    MoveCamera(platform::CameraMotion::ZOOM, 0, -mouse_scroll);
+  }
+
+  // Left double click.
+  if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+    platform::PickResult picked =
+        platform::Pick(model_, data_, &camera_, mouse_x, mouse_y,
+                       window_->GetAspectRatio(), &vis_options_);
+    if (picked.body >= 0) {
+      perturb_.select = picked.body;
+      perturb_.flexselect = picked.flex;
+      perturb_.skinselect = picked.skin;
+
+      // Compute the local position of the selected object in the world.
+      mjtNum tmp[3];
+      mju_sub3(tmp, picked.point, data_->xpos + 3 * picked.body);
+      mju_mulMatTVec(perturb_.localpos, data_->xmat + 9 * picked.body, tmp, 3,
+                     3);
+    } else {
+      perturb_.select = 0;
+      perturb_.flexselect = -1;
+      perturb_.skinselect = -1;
+    }
+  }
+
+  // Right double click.
+  if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
+    platform::PickResult picked =
+        platform::Pick(model_, data_, &camera_, mouse_x, mouse_y,
+                       window_->GetAspectRatio(), &vis_options_);
+    mju_copy3(camera_.lookat, picked.point);
+    if (picked.body > 0 && io.KeyCtrl) {
+      // Switch camera to tracking mode and track the selected body.
+      camera_.type = mjCAMERA_TRACKING;
+      camera_.trackbodyid = picked.body;
+      camera_.fixedcamid = -1;
+      ui_.camera_idx = platform::kTrackingCameraIdx;
     }
   }
 }
 
-void App::HandleMouseEvents() {
-  ::mujoco::toolbox::HandleMouseEvents(window_.get(), renderer_.get(),
-                                       physics_.get(), perturb_, vis_options_,
-                                       camera_, ui_.camera_idx);
-}
-
-void App::ChangeSpeed(int delta) {
-  if (delta == 0) {
-    return;
-  }
-
-  // logarithmically spaced real-time slow-down coefficients (percent)
-  // clang-format off
-  static constexpr std::array<float, 31> kPercentRealTime = {
-    100.0,  80.0,  66.00,  50.0,  40.0,  33.00,  25.00,  20.0,  16.00,  13.00,
-     10.0,   8.0,   6.60,   5.0,   4.0,   3.30,   2.50,   2.0,   1.60,   1.30,
-      1.0,    .8,    .66,    .5,    .4,    .33,    .25,    .2,    .16,    .13,
-       .1};
-  // clang-format on
-
-  tmp_.speed_index += delta;
-  tmp_.speed_index =
-      std::clamp<int>(tmp_.speed_index, 0, kPercentRealTime.size() - 1);
-
-  float speed = kPercentRealTime[tmp_.speed_index];
-  physics_->GetStepControl().SetSpeed(speed);
-}
-
 void App::HandleKeyboardEvents() {
+  using platform::ImGui_IsChordJustPressed;
   if (ImGui::GetIO().WantCaptureKeyboard) {
     return;
   }
 
   constexpr auto ImGuiMode_CtrlShift = ImGuiMod_Ctrl | ImGuiMod_Shift;
 
+  bool is_freecam_wasd = ui_.camera_idx == platform::kFreeCameraIdx;
+
   // Menu shortcuts.
-  if (ImGui_IsChordJustPressed(ImGuiKey_L | ImGuiMod_Ctrl)) {
+  if (ImGui_IsChordJustPressed(ImGuiKey_O | ImGuiMod_Ctrl)) {
     ShowPopup(tmp_.load_popup);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_S | ImGuiMode_CtrlShift)) {
     ShowPopup(tmp_.save_mjb_popup);
@@ -263,100 +559,190 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_P | ImGuiMod_Ctrl)) {
     ShowPopup(tmp_.save_screenshot_popup);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_C | ImGuiMod_Ctrl)) {
-    std::string keyframe = toolbox::KeyframeToString(Model(), Data(), false);
-    toolbox::MaybeSaveToClipboard(keyframe);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_R | ImGuiMod_Ctrl)) {
-    LoadModel(model_file_);
+    std::string keyframe = platform::KeyframeToString(model_, data_, false);
+    platform::MaybeSaveToClipboard(keyframe);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_L | ImGuiMod_Ctrl)) {
+    RequestModelLoad(model_name_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Q | ImGuiMod_Ctrl)) {
     tmp_.should_exit = true;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_A | ImGuiMod_Ctrl)) {
-    mjv_defaultFreeCamera(Model(), &camera_);
+    mjv_defaultFreeCamera(model_, &camera_);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab | ImGuiMod_Shift)) {
+    tmp_.inspector_panel = !tmp_.inspector_panel;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab)) {
+    tmp_.options_panel = !tmp_.options_panel;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Minus)) {
+    SetSpeedIndex(tmp_.speed_index + 1);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal)) {
+    SetSpeedIndex(tmp_.speed_index - 1);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftArrow)) {
+    if (step_control_.IsPaused()) {
+      LoadHistory(history_.GetIndex() - 1);
+    }
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_RightArrow)) {
+    if (step_control_.IsPaused()) {
+      if (history_.GetIndex() == 0) {
+        step_control_.RequestSingleStep();
+      } else {
+        LoadHistory(history_.GetIndex() + 1);
+      }
+    }
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Space)) {
+    step_control_.TogglePause();
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Backspace)) {
+    ResetPhysics();
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_PageUp)) {
+    SelectParentPerturb(model_, perturb_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
-    ToggleWindow(tmp_.info);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab | ImGuiMod_Shift)) {
-    tmp_.show_ui_rhs = !tmp_.show_ui_rhs;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab)) {
-    tmp_.show_ui_lhs = !tmp_.show_ui_lhs;
-  }
-
-  // Window toggles for non-classic UI.
-  if (!ui_.classic_ui) {
-    if (ImGui_IsChordJustPressed(ImGuiKey_S | ImGuiMod_Alt)) {
-      ToggleWindow(ui_.simulation);
-    } else if (ImGui_IsChordJustPressed(ImGuiKey_W | ImGuiMod_Alt)) {
-      ToggleWindow(ui_.watch);
-    } else if (ImGui_IsChordJustPressed(ImGuiKey_P | ImGuiMod_Alt)) {
-      ToggleWindow(ui_.physics);
-    } else if (ImGui_IsChordJustPressed(ImGuiKey_R | ImGuiMod_Alt)) {
-      ToggleWindow(ui_.rendering);
-    } else if (ImGui_IsChordJustPressed(ImGuiKey_V | ImGuiMod_Alt)) {
-      ToggleWindow(ui_.visualization);
-    } else if (ImGui_IsChordJustPressed(ImGuiKey_G | ImGuiMod_Alt)) {
-      ToggleWindow(ui_.groups);
-    } else if (ImGui_IsChordJustPressed(ImGuiKey_J | ImGuiMod_Alt)) {
-      ToggleWindow(ui_.joints);
-    } else if (ImGui_IsChordJustPressed(ImGuiKey_C | ImGuiMod_Alt)) {
-      ToggleWindow(ui_.controls);
+    ToggleWindow(tmp_.stats);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
+    vis_options_.frame = (vis_options_.frame + 1) % mjNFRAME;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
+    vis_options_.label = (vis_options_.label + 1) % mjNLABEL;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F9)) {
+    tmp_.chart_solver = !tmp_.chart_solver;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F10)) {
+    tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
+    tmp_.chart_dimensions = !tmp_.chart_dimensions;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_H)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONVEXHULL]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_X)) {
+    ToggleFlag(vis_options_.flags[mjVIS_TEXTURE]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_J)) {
+    ToggleFlag(vis_options_.flags[mjVIS_JOINT]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_Q)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CAMERA]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_U)) {
+    ToggleFlag(vis_options_.flags[mjVIS_ACTUATOR]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Comma)) {
+    ToggleFlag(vis_options_.flags[mjVIS_ACTIVATION]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Z)) {
+    ToggleFlag(vis_options_.flags[mjVIS_LIGHT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_V)) {
+    ToggleFlag(vis_options_.flags[mjVIS_TENDON]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Y)) {
+    ToggleFlag(vis_options_.flags[mjVIS_RANGEFINDER]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_E)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONSTRAINT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_I)) {
+    ToggleFlag(vis_options_.flags[mjVIS_INERTIA]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Apostrophe)) {
+    ToggleFlag(vis_options_.flags[mjVIS_SCLINERTIA]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_B)) {
+    ToggleFlag(vis_options_.flags[mjVIS_PERTFORCE]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_O)) {
+    ToggleFlag(vis_options_.flags[mjVIS_PERTOBJ]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_C)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONTACTPOINT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_N)) {
+    ToggleFlag(vis_options_.flags[mjVIS_ISLAND]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONTACTFORCE]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_P)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONTACTSPLIT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_T)) {
+    ToggleFlag(vis_options_.flags[mjVIS_TRANSPARENT]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_A)) {
+    ToggleFlag(vis_options_.flags[mjVIS_AUTOCONNECT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_M)) {
+    ToggleFlag(vis_options_.flags[mjVIS_COM]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_D)) {
+    ToggleFlag(vis_options_.flags[mjVIS_STATIC]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Semicolon)) {
+    ToggleFlag(vis_options_.flags[mjVIS_SKIN]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_GraveAccent)) {
+    ToggleFlag(vis_options_.flags[mjVIS_BODYBVH]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Backslash)) {
+    ToggleFlag(vis_options_.flags[mjVIS_MESHBVH]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_0 | ImGuiMod_Shift)) {
+    ToggleFlag(vis_options_.sitegroup[0]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_1 | ImGuiMod_Shift)) {
+    ToggleFlag(vis_options_.sitegroup[1]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_2 | ImGuiMod_Shift)) {
+    ToggleFlag(vis_options_.sitegroup[2]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_3 | ImGuiMod_Shift)) {
+    ToggleFlag(vis_options_.sitegroup[3]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_4 | ImGuiMod_Shift)) {
+    ToggleFlag(vis_options_.sitegroup[4]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_5 | ImGuiMod_Shift)) {
+    ToggleFlag(vis_options_.sitegroup[5]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_0)) {
+    ToggleFlag(vis_options_.geomgroup[0]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_1)) {
+    ToggleFlag(vis_options_.geomgroup[1]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_2)) {
+    ToggleFlag(vis_options_.geomgroup[2]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_3)) {
+    ToggleFlag(vis_options_.geomgroup[3]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_4)) {
+    ToggleFlag(vis_options_.geomgroup[4]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_5)) {
+    ToggleFlag(vis_options_.geomgroup[5]);
+  } else if (model_) {
+    if (ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
+      ui_.camera_idx =
+          platform::SetCamera(model_, &camera_, platform::kTumbleCameraIdx);
+    } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftBracket)) {
+      ui_.camera_idx =
+          platform::SetCamera(model_, &camera_, ui_.camera_idx - 1);
+    } else if (ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
+      ui_.camera_idx =
+          platform::SetCamera(model_, &camera_, ui_.camera_idx + 1);
     }
-  }
 
-  if (ImGui_IsChordJustPressed(ImGuiKey_Minus)) {
-    ChangeSpeed(1);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal)) {
-    ChangeSpeed(-1);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftArrow)) {
-    if (physics_->IsPaused()) {
-      physics_->LoadHistory(ui_.scrub_idx - 1);
-    }
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_RightArrow)) {
-    if (physics_->IsPaused()) {
-      if (ui_.scrub_idx == 0) {
-        physics_->RequestSingleStep();
+    // WASD camera controls for free camera.
+    if (is_freecam_wasd) {
+      bool moved = false;
+
+      // Move (dolly) forward/backward using W and S keys.
+      if (ImGui::IsKeyDown(ImGuiKey_W)) {
+        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, tmp_.cam_speed);
+        moved = true;
+      } else if (ImGui::IsKeyDown(ImGuiKey_S)) {
+        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, -tmp_.cam_speed);
+        moved = true;
+      }
+
+      // Strafe (truck) left/right using A and D keys.
+      if (ImGui::IsKeyDown(ImGuiKey_A)) {
+        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, -tmp_.cam_speed, 0);
+        moved = true;
+      } else if (ImGui::IsKeyDown(ImGuiKey_D)) {
+        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, tmp_.cam_speed, 0);
+        moved = true;
+      }
+
+      // Move (pedestal) up/down using Q and E keys.
+      if (ImGui::IsKeyDown(ImGuiKey_Q)) {
+        MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, tmp_.cam_speed);
+        moved = true;
+      } else if (ImGui::IsKeyDown(ImGuiKey_E)) {
+        MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, -tmp_.cam_speed);
+        moved = true;
+      }
+
+      if (moved) {
+        tmp_.cam_speed += 0.001f;
+
+        const float max_speed = ImGui::GetIO().KeyShift ? 0.1 : 0.01f;
+        if (tmp_.cam_speed > max_speed) {
+          tmp_.cam_speed = max_speed;
+        }
       } else {
-        physics_->LoadHistory(ui_.scrub_idx + 1);
+        tmp_.cam_speed = 0.001f;
       }
     }
   }
-
-  // Camera wasd controls.
-  if (!ui_.classic_ui) {
-    mjvScene& scene = renderer_->GetScene();
-    mjModel* model = Model();
-
-    // Move (dolly) forward/backward using W and S keys.
-    if (ImGui::IsKeyDown(ImGuiKey_W)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_H_REL, 0, 0.01, &scene, &camera_);
-    } else if (ImGui::IsKeyDown(ImGuiKey_S)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_H_REL, 0, -0.01, &scene, &camera_);
-    }
-
-    // Strafe (truck) left/right using A dna D keys.
-    if (ImGui::IsKeyDown(ImGuiKey_A)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_H_REL, -0.01, 0, &scene, &camera_);
-    } else if (ImGui::IsKeyDown(ImGuiKey_D)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_H_REL, 0.01, 0, &scene, &camera_);
-    }
-
-    // Move (pedestal) up/down using Q and E keys.
-    if (ImGui::IsKeyDown(ImGuiKey_Q)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_V_REL, 0, 0.01, &scene, &camera_);
-    } else if (ImGui::IsKeyDown(ImGuiKey_E)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_V_REL, 0, -0.01, &scene, &camera_);
-    }
-  }
-
-  ::mujoco::toolbox::HandleKeyboardEvents(
-      window_.get(), renderer_.get(), physics_.get(), perturb_, vis_options_,
-      camera_, ui_.camera_idx);
 }
 
 void App::LoadSettings() {
   if (!ini_path_.empty()) {
-    std::string settings = toolbox::LoadText(ini_path_);
+    std::string settings = platform::LoadText(ini_path_);
     if (!settings.empty()) {
-      ui_.FromDict(toolbox::ReadIniSection(settings, "[Simulate][Data]"));
+      ui_.FromDict(platform::ReadIniSection(settings, "[Studio][UX]"));
       ImGui::LoadIniSettingsFromMemory(settings.data(), settings.size());
     }
   }
@@ -365,291 +751,157 @@ void App::LoadSettings() {
 void App::SaveSettings() {
   if (!ini_path_.empty()) {
     std::string settings = ImGui::SaveIniSettingsToMemory();
-    toolbox::AppendIniSection(settings, "[Simulate][Data]", ui_.ToDict());
-    toolbox::SaveText(settings, ini_path_);
+    platform::AppendIniSection(settings, "[Studio][UX]", ui_.ToDict());
+    platform::SaveText(settings, ini_path_);
   }
 }
 
-void App::SetCamera(int idx) {
-  if (Model()) {
-    ui_.camera_idx = ::mujoco::toolbox::SetCamera(*Model(), camera_, idx);
-  }
-}
-
-void App::ClearProfilerData() {
-  constexpr int kProfilerMaxFrames = 200;
-  cpu_total_.clear();
-  cpu_collision_.clear();
-  cpu_prepare_.clear();
-  cpu_solve_.clear();
-  cpu_other_.clear();
-  dim_dof_.clear();
-  dim_body_.clear();
-  dim_constraint_.clear();
-  dim_sqrt_nnz_.clear();
-  dim_contact_.clear();
-  dim_iteration_.clear();
-
-  cpu_total_.resize(kProfilerMaxFrames, 0);
-  cpu_collision_.resize(kProfilerMaxFrames, 0);
-  cpu_prepare_.resize(kProfilerMaxFrames, 0);
-  cpu_solve_.resize(kProfilerMaxFrames, 0);
-  cpu_other_.resize(kProfilerMaxFrames, 0);
-  dim_dof_.resize(kProfilerMaxFrames, 0);
-  dim_body_.resize(kProfilerMaxFrames, 0);
-  dim_constraint_.resize(kProfilerMaxFrames, 0);
-  dim_sqrt_nnz_.resize(kProfilerMaxFrames, 0);
-  dim_contact_.resize(kProfilerMaxFrames, 0);
-  dim_iteration_.resize(kProfilerMaxFrames, 0);
-}
-
-void App::UpdateProfilerData() {
-  // CPU timers.
-  mjtNum total = Data()->timer[mjTIMER_STEP].duration;
-  mjtNum number = static_cast<mjtNum>(Data()->timer[mjTIMER_STEP].number);
-  if (number == 0.0) {
-    total = Data()->timer[mjTIMER_FORWARD].duration;
-    number = static_cast<mjtNum>(Data()->timer[mjTIMER_FORWARD].number);
-  }
-  if (number == 0.0) {
-    // This can happen if the simulation is paused.
+void App::SetSpeedIndex(int idx) {
+  if (idx == tmp_.speed_index || kPercentRealTime.empty()) {
     return;
   }
 
-  cpu_total_.erase(cpu_total_.begin());
-  cpu_total_.push_back(total / number);
-
-  mjtNum collision = Data()->timer[mjTIMER_POS_COLLISION].duration / number;
-  cpu_collision_.erase(cpu_collision_.begin());
-  cpu_collision_.push_back(collision);
-
-  mjtNum prepare = (Data()->timer[mjTIMER_POS_MAKE].duration / number) +
-                   (Data()->timer[mjTIMER_POS_PROJECT].duration / number);
-  cpu_prepare_.erase(cpu_prepare_.begin());
-  cpu_prepare_.push_back(prepare);
-
-  mjtNum solve = Data()->timer[mjTIMER_CONSTRAINT].duration / number;
-  cpu_solve_.erase(cpu_solve_.begin());
-  cpu_solve_.push_back(solve);
-
-  mjtNum other = total - collision - prepare - solve;
-  cpu_other_.erase(cpu_other_.begin());
-  cpu_other_.push_back(other);
-
-  // Dimensions.
-  mjtNum sqrt_nnz = 0;
-  int solver_niter = 0;
-  const int nisland = mjMAX(1, mjMIN(Data()->nisland, mjNISLAND));
-  for (int island = 0; island < nisland; island++) {
-    sqrt_nnz += mju_sqrt(Data()->solver_nnz[island]);
-    solver_niter += Data()->solver_niter[island];
-  }
-
-  dim_dof_.erase(dim_dof_.begin());
-  dim_dof_.push_back(Model()->nv);
-
-  dim_body_.erase(dim_body_.begin());
-  dim_body_.push_back(Model()->nbody);
-
-  dim_constraint_.erase(dim_constraint_.begin());
-  dim_constraint_.push_back(Data()->nefc);
-
-  dim_sqrt_nnz_.erase(dim_sqrt_nnz_.begin());
-  dim_sqrt_nnz_.push_back(sqrt_nnz);
-
-  dim_contact_.erase(dim_contact_.begin());
-  dim_contact_.push_back(Data()->ncon);
-
-  dim_iteration_.erase(dim_iteration_.begin());
-  dim_iteration_.push_back(static_cast<float>(solver_niter) / nisland);
+  tmp_.speed_index = std::clamp<int>(idx, 0, kPercentRealTime.size() - 1);
+  float speed = std::stof(kPercentRealTime[tmp_.speed_index]);
+  step_control_.SetSpeed(speed);
 }
 
-void App::BuildGuiWithWindows() {
-  if (!tmp_.show_ui_lhs) {
-    return;
-  }
-
-  if (ui_.simulation) {
-    if (ImGui::Begin("Simulation", &ui_.simulation)) {
-      SimulationGui();
-    }
-    ImGui::End();
-  }
-  if (ui_.physics) {
-    if (ImGui::Begin("Physics", &ui_.physics)) {
-      ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.5f);
-      PhysicsGui();
-      ImGui::PopItemWidth();
-    }
-    ImGui::End();
-  }
-  if (ui_.rendering) {
-    if (ImGui::Begin("Rendering", &ui_.rendering)) {
-      ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.5f);
-      RenderingGui();
-      ImGui::PopItemWidth();
-    }
-    ImGui::End();
-  }
-  if (ui_.visualization) {
-    if (ImGui::Begin("Visualization", &ui_.visualization)) {
-      ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.5f);
-      VisualizationGui();
-      ImGui::PopItemWidth();
-    }
-    ImGui::End();
-  }
-  if (ui_.groups) {
-    if (ImGui::Begin("Groups", &ui_.groups)) {
-      ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.5f);
-      GroupsGui();
-      ImGui::PopItemWidth();
-    }
-    ImGui::End();
-  }
-  if (ui_.joints) {
-    if (ImGui::Begin("Joints", &ui_.joints)) {
-      ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.5f);
-      JointsGui();
-      ImGui::PopItemWidth();
-    }
-    ImGui::End();
-  }
-  if (ui_.controls) {
-    if (ImGui::Begin("Controls", &ui_.controls)) {
-      ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.5f);
-      ControlsGui();
-      ImGui::PopItemWidth();
-    }
-    ImGui::End();
-  }
-  if (ui_.watch) {
-    if (ImGui::Begin("Watch", &ui_.watch)) {
-      WatchGui();
-    }
-    ImGui::End();
-  }
-  if (ui_.profiler) {
-    if (ImGui::Begin("Profiler", &ui_.profiler)) {
-      ProfilerGui();
-    }
-    ImGui::End();
-  }
-  if (ui_.sensor) {
-    if (ImGui::Begin("Sensor", &ui_.sensor)) {
-      SensorGui();
-    }
-    ImGui::End();
-  }
-}
-
-void Section(const char* name, ImGuiTreeNodeFlags flags,
-             std::function<void()> content, float indent_factor = 1.f) {
-  if (ImGui::TreeNodeEx(name, flags)) {
-    if (indent_factor > 0.f) {
-      ImGui::Unindent(indent_factor * ImGui::GetTreeNodeToLabelSpacing());
-    }
-    content();
-    if (indent_factor > 0.f) {
-      ImGui::Indent(indent_factor * ImGui::GetTreeNodeToLabelSpacing());
-    }
-    ImGui::TreePop();
-  }
-}
-
-void App::BuildGuiWithSections() {
-  // Pixel coordinates of the bottom of the menu bar (the last thing drawn)
-  float viewport_top = ImGui::GetMainViewport()->WorkPos.y;
-  float viewport_width = ImGui::GetMainViewport()->WorkSize.x;
-
-  ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar |
-                                  ImGuiWindowFlags_NoMove |
-                                  ImGuiWindowFlags_NoScrollbar;
-  ImGuiTreeNodeFlags section_flags =
-      ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
-
-  const float height = window_->GetHeight();
-  auto set_next_window_size_constraint = [height, viewport_top]() {
-    ImGui::SetNextWindowSizeConstraints(
-        ImVec2(250, height - viewport_top),
-        ImVec2(std::numeric_limits<float>::max(), height - viewport_top));
-  };
-
-  if (tmp_.show_ui_lhs) {
-    set_next_window_size_constraint();
-    ImGui::SetNextWindowPos(ImVec2(0, viewport_top), ImGuiCond_Always);
-
-    // Hide the triangular resize grip in the window corner. We do this rather
-    // then passing ImGuiWindowFlags_NoResize to the window because we still
-    // want the window to be resizable by dragging on the edge with the mouse.
-    struct ScopeStyle {
-      ScopeStyle() { ImGui::PushStyleColor(ImGuiCol_ResizeGrip, 0); }
-      ~ScopeStyle() { ImGui::PopStyleColor(); }
-    } style;
-
-    if (ImGui::Begin("LHS_UI", &tmp_.show_ui_lhs, window_flags)) {
-      ImGuiTreeNodeFlags sim_section_flags =
-          section_flags | ImGuiTreeNodeFlags_DefaultOpen;
-      Section("Simulation", sim_section_flags, [this] { SimulationGui(); });
-      Section("Physics", section_flags, [this] { PhysicsGui(); });
-      Section("Rendering", section_flags, [this] { RenderingGui(); });
-      Section("Visualization", section_flags, [this] { VisualizationGui(); });
-      Section("Groups", section_flags, [this] { GroupsGui(); });
-      Section("Watch", section_flags, [this] { WatchGui(); });
-
-      // Cache the size and position of the window before we end it
-      tmp_.size_ui_lhs[0] = ImGui::GetWindowSize().x;
-      tmp_.size_ui_lhs[1] = ImGui::GetWindowSize().y;
-      tmp_.pos_ui_lhs[0] = ImGui::GetWindowPos().x;
-      tmp_.pos_ui_lhs[1] = ImGui::GetWindowPos().y;
-    }
-    ImGui::End();
-  } else {
-    tmp_.size_ui_lhs[0] = 0;
-    tmp_.size_ui_lhs[1] = height - viewport_top;
-    tmp_.pos_ui_lhs[0] = 0;
-    tmp_.pos_ui_lhs[1] = viewport_top;
-  }
-
-  if (tmp_.show_ui_rhs) {
-    set_next_window_size_constraint();
-    ImGui::SetNextWindowPos(ImVec2(viewport_width, viewport_top),
-                            ImGuiCond_Always, ImVec2(1, 0));
-
-    if (ImGui::Begin("RHS_UI", &tmp_.show_ui_rhs, window_flags)) {
-      Section("Joints", section_flags, [this] { JointsGui(); });
-      Section("Controls", section_flags, [this] { ControlsGui(); });
-      Section("Sensor", section_flags, [this] { SensorGui(); });
-      Section("Profiler", section_flags, [this] { ProfilerGui(); });
-      Section("State", section_flags, [this] { StateGui(); }, .5f);
-
-      // Cache the size and position of the window before we end it
-      tmp_.size_ui_rhs[0] = ImGui::GetWindowSize().x;
-      tmp_.size_ui_rhs[1] = ImGui::GetWindowSize().y;
-      tmp_.pos_ui_rhs[0] = ImGui::GetWindowPos().x;
-      tmp_.pos_ui_rhs[1] = ImGui::GetWindowPos().y;
-    }
-    ImGui::End();
-  } else {
-    tmp_.size_ui_rhs[0] = 0;
-    tmp_.size_ui_rhs[1] = height - viewport_top;
-    tmp_.pos_ui_rhs[0] = viewport_width;
-    tmp_.pos_ui_rhs[1] = viewport_top;
-  }
+void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx,
+                     mjtNum reldy) {
+  platform::MoveCamera(model_, data_, &camera_, motion, reldx, reldy);
 }
 
 void App::BuildGui() {
-  if (!ui_.classic_ui) {
-    const int dock_flags = ImGuiDockNodeFlags_PassthruCentralNode |
-                           ImGuiDockNodeFlags_NoDockingOverCentralNode;
-    ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), dock_flags);
-  }
+  SetupTheme(ui_.theme);
+  const ImVec4 workspace_rect = platform::ConfigureDockingLayout();
+
+  // Place charts in bottom right corner of the workspace.
+  const ImVec2 chart_size(250, 250);
+  const ImVec2 chart_pos(workspace_rect.x + workspace_rect.z - chart_size.x,
+                         workspace_rect.y + workspace_rect.w - chart_size.y);
 
   MainMenuGui();
+
+  if (ImGui::Begin("ToolBar")) {
+    ToolBarGui();
+  }
+  ImGui::End();
+
+  {
+    platform::ScopedStyle style;
+    style.Var(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
+    style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+    style.Var(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    if (ImGui::Begin("StatusBar")) {
+      StatusBarGui();
+    }
+    ImGui::End();
+  }
+
+  if (tmp_.options_panel) {
+    if (ImGui::Begin("Options", &tmp_.options_panel)) {
+      ModelOptionsGui();
+    }
+    ImGui::End();
+  }
+
+  if (tmp_.inspector_panel) {
+    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
+      DataInspectorGui();
+    }
+    ImGui::End();
+
+    bool explorer_is_open = false;
+    if (ImGui::Begin("Explorer", &tmp_.inspector_panel)) {
+      explorer_is_open = true;
+      SpecExplorerGui();
+    }
+    ImGui::End();
+
+    if (explorer_is_open && tmp_.element != nullptr) {
+      if (ImGui::Begin("Properties")) {
+        PropertiesGui();
+      }
+      ImGui::End();
+    }
+  }
+
+  if (tmp_.chart_cpu_time) {
+    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Cpu Time", &tmp_.chart_cpu_time)) {
+      profiler_.CpuTimeGraph();
+    }
+    ImGui::End();
+  }
+
+  if (tmp_.chart_dimensions) {
+    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Dimensions", &tmp_.chart_dimensions)) {
+      profiler_.DimensionsGraph();
+    }
+    ImGui::End();
+  }
+
+  if (tmp_.chart_solver) {
+    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
+      platform::CountsGui(model_, data_);
+      platform::ConvergenceGui(model_, data_);
+    }
+    ImGui::End();
+  }
+
+  if (tmp_.help) {
+    platform::ScopedStyle style;
+    style.Var(ImGuiStyleVar_Alpha, 0.6f);
+    ImGui::SetNextWindowPos(ImVec2(workspace_rect.x, workspace_rect.y),
+                            ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(400, 0), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Help", &tmp_.help)) {
+      HelpGui();
+    }
+    ImGui::End();
+  }
+
+  if (tmp_.stats) {
+    platform::ScopedStyle style;
+    style.Var(ImGuiStyleVar_Alpha, 0.6f);
+    if (ImGui::Begin("Stats", &tmp_.stats)) {
+      platform::StatsGui(model_, data_, step_control_.IsPaused(), fps_);
+    }
+    ImGui::End();
+  }
+
+  // Display a drag-and-drop message if no model is loaded.
+  if (!IsModelLoaded()) {
+    const char* text = "Load model file or drag-and-drop model file here.";
+
+    const float width = window_->GetWidth();
+    const float height = window_->GetHeight();
+    const ImVec2 text_size = ImGui::CalcTextSize(text);
+
+    ImGui::SetNextWindowPos(ImVec2((width - text_size.x) / 2, height / 2),
+                            ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(text_size.x + 10, text_size.y + 10),
+                             ImGuiCond_Always);
+    const ImGuiWindowFlags kOverlayFlags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
+        ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoDocking;
+    if (ImGui::Begin("##Overlay", 0, kOverlayFlags)) {
+      ImGui::Text("%s", text);
+    }
+    ImGui::End();
+  }
+
   FileDialogGui();
 
   if (tmp_.imgui_demo) {
     ImGui::ShowDemoWindow();
+  }
+  if (tmp_.implot_demo) {
     ImPlot::ShowDemoWindow();
   }
   if (tmp_.style_editor) {
@@ -659,408 +911,227 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  if (model_file_.empty()) {
-    const float width = window_->GetWidth();
-    const float height = window_->GetHeight();
-
-    const int overlay_flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground;
-    ImGui::SetNextWindowPos(ImVec2(0, height / 2), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(width, height / 2), ImGuiCond_Always);
-    if (ImGui::Begin("##Overlay", 0, overlay_flags)) {
-      const char* text = "Load model file or drag-and-drop model file here.";
-      const auto text_size = ImGui::CalcTextSize(text);
-
-      ImGui::SetCursorPos(ImVec2((width - text_size.x) / 2, 0.0f));
-      ImGui::Text("%s", text);
-    }
-    ImGui::End();
-  }
-
-  if (ui_.classic_ui) {
-    BuildGuiWithSections();
-  } else {
-    BuildGuiWithWindows();
-  }
-
-  struct ScopeOverlayStyle {
-    ScopeOverlayStyle(bool dark_mode) {
-      ImColor color = dark_mode ? IM_COL32_BLACK : IM_COL32_WHITE;
-      color.Value.w = dark_mode ? .5f : .1f;
-
-      ImGui::PushStyleColor(ImGuiCol_WindowBg, (ImU32)color);
-      ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32_WHITE);
-      ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
-    }
-    ~ScopeOverlayStyle() {
-      ImGui::PopStyleColor(2);
-      ImGui::PopStyleVar();
-    }
-
-    const float margin_px = 5;
-    ImGuiWindowFlags window_flags =
-        ImGuiWindowFlags_NoTitleBar   // No title bar
-        | ImGuiWindowFlags_NoMove     // No window moving
-        | ImGuiWindowFlags_NoResize   // No window resizing
-        | ImGuiWindowFlags_NoInputs;  // User can click through the window
-  };
-
-  // Draw the paused overlay
-  if (physics_->IsPaused()) {
-    ScopeOverlayStyle style(ui_.dark_mode);
-    ImVec2 pivot_pos;
-    pivot_pos.x = ImGui::GetMainViewport()->WorkPos.x +
-                  ImGui::GetMainViewport()->WorkSize.x * 0.5f;
-    pivot_pos.y = ImGui::GetMainViewport()->WorkPos.y + style.margin_px;
-    ImVec2 pivot(.5f, .0f);  // Top middle
-    ImGui::SetNextWindowPos(pivot_pos, ImGuiCond_Always, pivot);
-    if (ImGui::Begin("##PausedOverlay", nullptr,
-                     style.window_flags | ImGuiWindowFlags_AlwaysAutoResize)) {
-      ImGui::TextUnformatted("Paused");
-    }
-    ImGui::End();
-  }
-
-  // Draw the percent real-time simulation speed overlay
-  {
-    float desired_realtime = physics_->GetStepControl().GetSpeed();
-    float measured_realtime = physics_->GetStepControl().GetSpeedMeasured();
-    float realtime_offset = mju_abs(measured_realtime - desired_realtime);
-
-    // If running, check for misalignment of more than 10%
-    bool misaligned =
-        !physics_->IsPaused() && realtime_offset > 0.1 * desired_realtime;
-
-    if (desired_realtime != 100.0 || misaligned) {
-      ScopeOverlayStyle style(ui_.dark_mode);
-      ImVec2 pivot_pos;
-      pivot_pos.x = tmp_.pos_ui_lhs[0] + tmp_.size_ui_lhs[0] + style.margin_px;
-      pivot_pos.y = tmp_.pos_ui_lhs[1] + style.margin_px;
-      ImGui::SetNextWindowPos(pivot_pos, ImGuiCond_Always);
-      if (ImGui::Begin(
-              "##RealTime", nullptr,
-              style.window_flags | ImGuiWindowFlags_AlwaysAutoResize)) {
-        if (misaligned) {
-          ImGui::Text("%g%% (%-4.1f%%)", desired_realtime, measured_realtime);
-        } else {
-          ImGui::Text("%g%%", desired_realtime);
-        }
-      }
-      ImGui::End();
-    }
-  }
-
-  // Draw the simulation error overlay
-  if (!physics_->GetError().empty()) {
-    ScopeOverlayStyle style(ui_.dark_mode);
-    ImVec2 pivot_pos;
-    pivot_pos.x = tmp_.pos_ui_lhs[0] + tmp_.size_ui_lhs[0] + style.margin_px;
-    pivot_pos.y = ImGui::GetMainViewport()->WorkPos.y +
-                  ImGui::GetMainViewport()->WorkSize.y - style.margin_px;
-    ImVec2 pivot(0.f, 1.f);  // Bottom left
-    ImGui::SetNextWindowPos(pivot_pos, ImGuiCond_Always, pivot);
-    if (ImGui::Begin("##SimError", nullptr,
-                     style.window_flags | ImGuiWindowFlags_AlwaysAutoResize)) {
-      ImGui::Text("%s", std::string(physics_->GetError()).c_str());
-    }
-    ImGui::End();
-  }
-
-  if (tmp_.help) {
-    ScopeOverlayStyle style(ui_.dark_mode);
-    ImGui::SetNextWindowPos(
-        ImVec2(tmp_.pos_ui_lhs[0] + tmp_.size_ui_lhs[0] + style.margin_px,
-               tmp_.pos_ui_lhs[1] + style.margin_px),
-        ImGuiCond_Always);
-    // TODO: Make the width scale with the content/font size
-    ImGui::SetNextWindowSize(ImVec2(350, 0), ImGuiCond_Always);
-    if (ImGui::Begin("Help", &tmp_.help, style.window_flags)) {
-      HelpGui();
-    }
-    ImGui::End();
-  }
-  if (tmp_.info) {
-    ScopeOverlayStyle style(ui_.dark_mode);
-    ImGui::SetNextWindowPos(
-        ImVec2(tmp_.pos_ui_lhs[0] + tmp_.size_ui_lhs[0] + style.margin_px,
-               tmp_.pos_ui_lhs[1] + tmp_.size_ui_lhs[1] - style.margin_px),
-        ImGuiCond_Always, ImVec2(0, 1));
-    // TODO: Make the width scale with the content/font size
-    ImGui::SetNextWindowSize(ImVec2(190, 0), ImGuiCond_Always);
-    if (ImGui::Begin("Info", &tmp_.info, style.window_flags)) {
-      InfoGui();
-    }
-    ImGui::End();
-  }
-
   ImGuiIO& io = ImGui::GetIO();
+  if (tmp_.first_frame) {
+    LoadSettings();
+    tmp_.first_frame = false;
+  }
   if (io.WantSaveIniSettings) {
     SaveSettings();
     io.WantSaveIniSettings = false;
   }
 }
 
-void App::MainMenuGui() {
-  if (ImGui::BeginMainMenuBar()) {
-    // Add a button to toggle light/dark mode.
-    // TODO: Move this to the right side of the menu bar.
-    {
-      struct ScopeStyle {
-        ScopeStyle() {
-          ImColor button_color = ImGui::GetStyle().Colors[ImGuiCol_Button];
-          button_color.Value.w = 0.0f;
-
-          ImGui::PushStyleColor(ImGuiCol_Button, (ImU32)button_color);
-          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImU32)button_color);
-          ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImU32)button_color);
-          ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 2));
-          ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0);
-        }
-        ~ScopeStyle() {
-          ImGui::PopStyleColor(3);
-          ImGui::PopStyleVar(2);
-        }
-      } style;
-
-      if (ImGui::Button(ui_.dark_mode ? ICON_DARKMODE : ICON_LIGHTMODE,
-                        ImVec2(ImGui::GetFontSize(), ImGui::GetFontSize()))) {
-        ui_.dark_mode = !ui_.dark_mode;
-        if (ui_.dark_mode) {
-          ImGui::StyleColorsDark();
-        } else {
-          ImGui::StyleColorsLight();
-        }
-      }
-    }
-
-    if (ImGui::BeginMenu("File")) {
-      if (ImGui::MenuItem("Load Model", "Ctrl+L")) {
-        ShowPopup(tmp_.load_popup);
-      }
-      ImGui::Separator();
-      if (ImGui::MenuItem("Save XML", "Ctrl+S")) {
-        ShowPopup(tmp_.save_xml_popup);
-      }
-      if (ImGui::MenuItem("Save MJB", "Ctrl+Shift+S")) {
-        ShowPopup(tmp_.save_mjb_popup);
-      }
-      if (ImGui::MenuItem("Save Screenshot", "Ctrl+P")) {
-        ShowPopup(tmp_.save_screenshot_popup);
-      }
-      ImGui::Separator();
-      if (ImGui::MenuItem("Print Model", "Ctrl+M")) {
-        ShowPopup(tmp_.print_model_popup);
-      }
-      if (ImGui::MenuItem("Print Data", "Ctrl+D")) {
-        ShowPopup(tmp_.print_data_popup);
-      }
-      ImGui::Separator();
-      if (ImGui::MenuItem("Unload", "Ctrl+U")) {
-        LoadModel("");
-      }
-      ImGui::Separator();
-      if (ImGui::MenuItem("Quit", "Ctrl+Q")) {
-        tmp_.should_exit = true;
-      }
-      ImGui::EndMenu();
-    }
-    if (!model_file_.empty()) {
-      if (ImGui::BeginMenu("Simulation")) {
-        if (ImGui::MenuItem("Pause", "Space", physics_->IsPaused())) {
-          physics_->TogglePause();
-        }
-        if (ImGui::MenuItem("Reset", "Backspace")) {
-          physics_->Reset();
-        }
-        if (ImGui::MenuItem("Reload", "Ctrl+R")) {
-          LoadModel(model_file_);
-        }
-        ImGui::EndMenu();
-      }
-      if (ImGui::BeginMenu("View")) {
-        if (ImGui::MenuItem("Save Config")) {
-          SaveSettings();
-        }
-        if (ImGui::MenuItem("Reset Config")) {
-          toolbox::SaveText("\n\n", ini_path_);
-          LoadSettings();
-        }
-        ImGui::Separator();
-
-        if (ui_.classic_ui) {
-          if (ImGui::MenuItem(
-                  tmp_.show_ui_lhs ? "Hide Left UI" : "Show Left UI", "Tab")) {
-            tmp_.show_ui_lhs = !tmp_.show_ui_lhs;
-          }
-          if (ImGui::MenuItem(
-                  tmp_.show_ui_rhs ? "Hide Right UI" : "Show Right UI",
-                  "Shift+Tab")) {
-            tmp_.show_ui_rhs = !tmp_.show_ui_rhs;
-          }
-        } else {
-          if (ImGui::MenuItem(tmp_.show_ui_lhs ? "Hide UI" : "Show UI",
-                              "Tab")) {
-            tmp_.show_ui_lhs = !tmp_.show_ui_lhs;
-            tmp_.show_ui_rhs = !tmp_.show_ui_rhs;
-          }
-        }
-
-        // Developer option to toggle between dockable window UI and sections UI
-        if (ImGui::MenuItem("Classic UI", "", ui_.classic_ui)) {
-          ui_.classic_ui = !ui_.classic_ui;
-        }
-
-        if (!ui_.classic_ui) {
-          ImGui::Separator();
-          if (ImGui::MenuItem("Simulation", "Alt+S", ui_.simulation)) {
-            ToggleWindow(ui_.simulation);
-          }
-          if (ImGui::MenuItem("Physics", "Alt+P", ui_.physics)) {
-            ToggleWindow(ui_.physics);
-          }
-          if (ImGui::MenuItem("Rendering", "Alt+R", ui_.rendering)) {
-            ToggleWindow(ui_.rendering);
-          }
-          if (ImGui::MenuItem("Visualization", "Alt+V", ui_.visualization)) {
-            ToggleWindow(ui_.visualization);
-          }
-          if (ImGui::MenuItem("Groups", "Alt+G", ui_.groups)) {
-            ToggleWindow(ui_.groups);
-          }
-          if (ImGui::MenuItem("Joints", "Alt+J", ui_.joints)) {
-            ToggleWindow(ui_.joints);
-          }
-          if (ImGui::MenuItem("Controls", "Alt+C", ui_.controls)) {
-            ToggleWindow(ui_.controls);
-          }
-          if (ImGui::MenuItem("Watch", "Alt+W", ui_.watch)) {
-            ToggleWindow(ui_.watch);
-          }
-          if (ImGui::MenuItem("Profiler", "", ui_.profiler)) {
-            ToggleWindow(ui_.profiler);
-            ClearProfilerData();
-          }
-          if (ImGui::MenuItem("Sensor", "", ui_.sensor)) {
-            ToggleWindow(ui_.sensor);
-          }
-        }
-        ImGui::EndMenu();
-      }
-    }
-    if (ImGui::BeginMenu("Help")) {
-      if (ImGui::MenuItem("Help", "F1", tmp_.help)) {
-        ToggleWindow(tmp_.help);
-      }
-      if (ImGui::MenuItem("Info", "F2", tmp_.info)) {
-        ToggleWindow(tmp_.info);
-      }
-      ImGui::Separator();
-      if (ImGui::MenuItem("Style Editor", "", tmp_.style_editor)) {
-        tmp_.style_editor = !tmp_.style_editor;
-      }
-      ImGui::Separator();
-      if (ImGui::MenuItem("ImGui Demo")) {
-        tmp_.imgui_demo = !tmp_.imgui_demo;
-      }
-      ImGui::EndMenu();
-    }
-    ImGui::EndMainMenuBar();
+void App::SetupTheme(platform::GuiTheme theme) {
+  if (!tmp_.style_editor) {
+    platform::SetupTheme(theme);
+    ui_.theme = theme;
+    ImGui::GetIO().WantSaveIniSettings = true;
   }
 }
 
-void App::FileDialogGui() {
-  ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-  ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+void App::ModelOptionsGui() {
+  const float min_width = GetExpectedLabelWidth();
+  const ImGuiChildFlags child_flags =
+      ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
+  const ImGuiTreeNodeFlags node_flags =
+      ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
-  if (tmp_.load_popup) {
-    ImGui::OpenPopup("LoadModel");
-    tmp_.load_popup = false;
-    tmp_.filename[0] = 0;
+  ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
+  if (ImGui::TreeNodeEx("Physics Settings", node_flags)) {
+    platform::PhysicsGui(model_, min_width);
+    ImGui::TreePop();
   }
-  if (tmp_.save_xml_popup) {
-    ImGui::OpenPopup("SaveXML");
-    tmp_.save_xml_popup = false;
-    tmp_.filename[0] = 0;
+  ImGui::EndChild();
+
+  ImGui::BeginChild("RenderingGui", {0, 0}, child_flags);
+  if (ImGui::TreeNodeEx("Rendering Settings", node_flags)) {
+    platform::RenderingGui(model_, &vis_options_, renderer_->GetRenderFlags(),
+                           min_width);
+    ImGui::TreePop();
   }
-  if (tmp_.save_mjb_popup) {
-    ImGui::OpenPopup("SaveMJB");
-    tmp_.save_mjb_popup = false;
-    tmp_.filename[0] = 0;
+  ImGui::EndChild();
+
+  ImGui::BeginChild("GroupsGui", {0, 0}, child_flags);
+  if (ImGui::TreeNodeEx("Visibility Groups", node_flags)) {
+    platform::GroupsGui(model_, &vis_options_, min_width);
+    ImGui::TreePop();
   }
-  if (tmp_.save_screenshot_popup) {
-    ImGui::OpenPopup("SaveWebp");
-    tmp_.save_screenshot_popup = false;
-    tmp_.filename[0] = 0;
+  ImGui::EndChild();
+
+  ImGui::BeginChild("VisualizationGui", {0, 0}, child_flags);
+  if (ImGui::TreeNodeEx("Visualization", node_flags)) {
+    platform::VisualizationGui(model_, &vis_options_, &camera_, min_width);
+    ImGui::TreePop();
   }
-  if (tmp_.print_model_popup) {
-    ImGui::OpenPopup("PrintModel");
-    tmp_.print_model_popup = false;
-    tmp_.filename[0] = 0;
-  }
-  if (tmp_.print_data_popup) {
-    ImGui::OpenPopup("PrintData");
-    tmp_.print_data_popup = false;
-    tmp_.filename[0] = 0;
+  ImGui::EndChild();
+}
+
+void App::DataInspectorGui() {
+  if (data_ == nullptr) {
+    ImGui::Text("No mjData loaded.");
+    return;
   }
 
-  tmp_.modal_open =
-      ImGui::IsPopupOpen("SaveXML") || ImGui::IsPopupOpen("SaveMJB") ||
-      ImGui::IsPopupOpen("SaveWebp") || ImGui::IsPopupOpen("PrintModel") ||
-      ImGui::IsPopupOpen("PrintData");
+  const float min_width = GetExpectedLabelWidth();
+  const ImGuiChildFlags child_flags =
+      ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
+  const ImGuiTreeNodeFlags node_flags =
+      ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
-  if (ImGui::BeginPopupModal("LoadModel", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      LoadModel(tmp_.filename);
-    }
-    ImGui::EndPopup();
+  ImGui::BeginChild("NoiseGui", {0, 0}, child_flags);
+  if (ImGui::TreeNodeEx("Noise", node_flags)) {
+    float noise_scale = 0;
+    float noise_rate = 0;
+    step_control_.GetNoiseParameters(noise_scale, noise_rate);
+    platform::NoiseGui(model_, data_, noise_scale, noise_rate);
+    step_control_.SetNoiseParameters(noise_scale, noise_rate);
+    ImGui::TreePop();
   }
-  if (ImGui::BeginPopupModal("SaveXML", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      char err[1000] = "";
-      mj_saveLastXML(tmp_.filename, Model(), err, 1000);
-    }
-    ImGui::EndPopup();
+  ImGui::EndChild();
+
+  ImGui::BeginChild("JointsGui", {0, 0}, child_flags);
+  if (ImGui::TreeNodeEx("Joints", node_flags)) {
+    platform::JointsGui(model_, data_, &vis_options_);
+    ImGui::TreePop();
   }
-  if (ImGui::BeginPopupModal("SaveMJB", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      mj_saveModel(Model(), tmp_.filename, nullptr, 0);
-    }
-    ImGui::EndPopup();
+  ImGui::EndChild();
+
+  ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
+  if (ImGui::TreeNodeEx("Controls", node_flags)) {
+    platform::ControlsGui(model_, data_, &vis_options_);
+    ImGui::TreePop();
   }
-  if (ImGui::BeginPopupModal("SaveWebp", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      renderer_->SaveScreenshot(tmp_.filename, window_->GetWidth(),
-                                window_->GetHeight());
-    }
-    ImGui::EndPopup();
+  ImGui::EndChild();
+
+  ImGui::BeginChild("SensorGui", {0, 0}, child_flags);
+  if (ImGui::TreeNodeEx("Sensor", node_flags)) {
+    platform::SensorGui(model_, data_);
+    ImGui::TreePop();
   }
-  if (ImGui::BeginPopupModal("PrintModel", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      mj_printModel(Model(), tmp_.filename);
-    }
-    ImGui::EndPopup();
+  ImGui::EndChild();
+
+  ImGui::BeginChild("WatchGui", {0, 0}, child_flags);
+  if (ImGui::TreeNodeEx("Watch", node_flags)) {
+    platform::WatchGui(model_, data_, ui_.watch_field, sizeof(ui_.watch_field),
+                       ui_.watch_index);
+    ImGui::TreePop();
   }
-  if (ImGui::BeginPopupModal("PrintData", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      mj_printData(Model(), Data(), tmp_.filename);
-    }
-    ImGui::EndPopup();
+  ImGui::EndChild();
+
+  ImGui::BeginChild("StateGui", {0, 0}, child_flags);
+  if (ImGui::TreeNodeEx("State", node_flags)) {
+    platform::StateGui(model_, data_, tmp_.state, tmp_.state_sig, min_width);
+    ImGui::TreePop();
+  }
+  ImGui::EndChild();
+}
+
+void DisplayElementTree(mjsElement* element) {
+  const mjString* name = mjs_getName(element);
+  if (name->empty()) {
+    ImGui::Text("(unnamed)");
+  } else {
+    ImGui::Text("%s", name->c_str());
   }
 }
 
-struct ScopeGreyText {
-  ScopeGreyText(bool dark_mode) {
-    const float v = dark_mode ? .6f : .9f;
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(v, v, v, 1.f));
+void App::SpecExplorerGui() {
+  if (spec_ == nullptr) {
+    ImGui::Text("No mjSpec loaded.");
+    return;
   }
-  ~ScopeGreyText() { ImGui::PopStyleColor(); }
-};
+
+  const ImGuiTreeNodeFlags flags =
+      ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
+
+  auto display_group = [this](mjtObj type, const std::string& prefix) {
+    mjsElement* element = mjs_firstElement(spec_, type);
+    while (element) {
+      const int id = mjs_getId(element);
+
+      const mjString* name = mjs_getName(element);
+      std::string label = *name;
+      if (label.empty()) {
+        label = "(" + prefix + " " + std::to_string(id) + ")";
+      }
+
+      if (ImGui::Selectable(label.c_str(), false)) {
+        tmp_.element = element;
+        tmp_.element_id = id;
+      }
+
+      element = mjs_nextElement(spec_, element);
+    }
+  };
+
+  if (ImGui::TreeNodeEx("Bodies", flags)) {
+    // We don't use `display_group` here because we do additional selection
+    // logic tied to the `perturb_` field.
+    mjsElement* element = mjs_firstElement(spec_, mjOBJ_BODY);
+    while (element) {
+      const int id = mjs_getId(element);
+
+      const mjString* name = mjs_getName(element);
+      std::string label = *name;
+      if (label.empty()) {
+        label = "(Body " + std::to_string(id) + ")";
+      }
+
+      if (ImGui::Selectable(label.c_str(), (id == perturb_.select),
+                            ImGuiSelectableFlags_AllowDoubleClick)) {
+        tmp_.element = element;
+        tmp_.element_id = id;
+      }
+      if (ImGui::IsItemHovered() &&
+          ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        perturb_.select = id;
+      }
+
+      element = mjs_nextElement(spec_, element);
+    }
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNodeEx("Joints", flags)) {
+    display_group(mjOBJ_JOINT, "Joint");
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNodeEx("Sites", flags)) {
+    display_group(mjOBJ_SITE, "Site");
+    ImGui::TreePop();
+  }
+}
+
+void App::PropertiesGui() {
+  if (tmp_.element == nullptr) {
+    ImGui::Text("No element selected.");
+    return;
+  }
+
+  switch (tmp_.element->elemtype) {
+    case mjOBJ_BODY:
+      ImGui::Text("Body");
+      ImGui::Separator();
+      platform::BodyPropertiesGui(model_, data_, tmp_.element, tmp_.element_id);
+      break;
+    case mjOBJ_JOINT:
+      ImGui::Text("Joint");
+      ImGui::Separator();
+      platform::JointPropertiesGui(model_, data_, tmp_.element,
+                                   tmp_.element_id);
+      break;
+    case mjOBJ_SITE:
+      ImGui::Text("Site");
+      ImGui::Separator();
+      platform::SitePropertiesGui(model_, data_, tmp_.element, tmp_.element_id);
+      break;
+    default:
+      // ignore other types
+      break;
+  }
+}
 
 void App::HelpGui() {
   ImGui::Columns(4);
@@ -1069,28 +1140,25 @@ void App::HelpGui() {
   ImGui::SetColumnWidth(2, ImGui::GetWindowWidth() * 0.4f);
   ImGui::SetColumnWidth(3, ImGui::GetWindowWidth() * 0.1f);
 
-  {
-    ScopeGreyText style(ui_.dark_mode);
-    ImGui::Text("Help");
-    ImGui::Text("Info");
-    ImGui::Text("Cycle Frames");
-    ImGui::Text("Cycle Labels");
-    ImGui::Text("Free Camera");
-    ImGui::Text("Toggle Pause");
-    ImGui::Text("Reset Sim");
-    ImGui::Text("Show/Hide UI");
-    ImGui::Text("Speed Up");
-    ImGui::Text("Speed Down");
-    ImGui::Text("Prev Camera");
-    ImGui::Text("Next Camera");
-    ImGui::Text("Step Back");
-    ImGui::Text("Step Forward");
-    ImGui::Text("Select Parent");
-    ImGui::Text("Align Camera");
-    ImGui::Text("Copy Keyframe");
-    ImGui::Text("Geom Group");
-    ImGui::Text("Site Group");
-  }
+  ImGui::Text("Help");
+  ImGui::Text("Stats");
+  ImGui::Text("Cycle Frames");
+  ImGui::Text("Cycle Labels");
+  ImGui::Text("Free Camera");
+  ImGui::Text("Toggle Pause");
+  ImGui::Text("Reset Sim");
+  ImGui::Text("Show/Hide UI");
+  ImGui::Text("Speed Up");
+  ImGui::Text("Speed Down");
+  ImGui::Text("Prev Camera");
+  ImGui::Text("Next Camera");
+  ImGui::Text("Step Back");
+  ImGui::Text("Step Forward");
+  ImGui::Text("Select Parent");
+  ImGui::Text("Align Camera");
+  ImGui::Text("Copy Keyframe");
+  ImGui::Text("Geom Group");
+  ImGui::Text("Site Group");
 
   ImGui::NextColumn();
   ImGui::Text("F1");
@@ -1114,33 +1182,30 @@ void App::HelpGui() {
   ImGui::Text("Sh+0-5");
 
   ImGui::NextColumn();
-  {
-    ScopeGreyText style(ui_.dark_mode);
-    ImGui::Text("Activation");
-    ImGui::Text("Auto Connect");
-    ImGui::Text("Body Tree");
-    ImGui::Text("Mesh Tree");
-    ImGui::Text("Scale Inertia");
-    ImGui::Text("Skin");
-    ImGui::Text("Actuator");
-    ImGui::Text("Camera");
-    ImGui::Text("Center of Mass");
-    ImGui::Text("Contact Force");
-    ImGui::Text("Contact Point");
-    ImGui::Text("Contact Split");
-    ImGui::Text("Convex Hull");
-    ImGui::Text("Equality");
-    ImGui::Text("Island");
-    ImGui::Text("Joint");
-    ImGui::Text("Light");
-    ImGui::Text("Perturb Force");
-    ImGui::Text("Perturb Object");
-    ImGui::Text("Range Finder");
-    ImGui::Text("Static Body");
-    ImGui::Text("Tendon");
-    ImGui::Text("Texture");
-    ImGui::Text("Transparent");
-  }
+  ImGui::Text("Activation");
+  ImGui::Text("Auto Connect");
+  ImGui::Text("Body Tree");
+  ImGui::Text("Mesh Tree");
+  ImGui::Text("Scale Inertia");
+  ImGui::Text("Skin");
+  ImGui::Text("Actuator");
+  ImGui::Text("Camera");
+  ImGui::Text("Center of Mass");
+  ImGui::Text("Contact Force");
+  ImGui::Text("Contact Point");
+  ImGui::Text("Contact Split");
+  ImGui::Text("Convex Hull");
+  ImGui::Text("Constraint");
+  ImGui::Text("Island");
+  ImGui::Text("Joint");
+  ImGui::Text("Light");
+  ImGui::Text("Perturb Force");
+  ImGui::Text("Perturb Object");
+  ImGui::Text("Range Finder");
+  ImGui::Text("Static Body");
+  ImGui::Text("Tendon");
+  ImGui::Text("Texture");
+  ImGui::Text("Transparent");
 
   ImGui::NextColumn();
   ImGui::Text(",");
@@ -1150,13 +1215,13 @@ void App::HelpGui() {
   ImGui::Text("\"");
   ImGui::Text(";");
   ImGui::Text("U");
-  ImGui::Text("Q");
+  ImGui::Text("L");
   ImGui::Text("M");
   ImGui::Text("F");
   ImGui::Text("C");
   ImGui::Text("P");
   ImGui::Text("H");
-  ImGui::Text("E");
+  ImGui::Text("N");
   ImGui::Text("I");
   ImGui::Text("J");
   ImGui::Text("Z");
@@ -1171,704 +1236,529 @@ void App::HelpGui() {
   ImGui::Columns();
 }
 
-void App::SimulationGui() {
-  float margin = ImGui::GetStyle().ItemSpacing.x;
-  float indent = ImGui::GetStyle().IndentSpacing;
-  float window_width = ImGui::GetWindowWidth();
-  float play_offset_x = (ui_.classic_ui ? 1.f : 2.f) * margin;
-  if (ImGui::Button(physics_->IsPaused() ? ICON_PLAY : ICON_PAUSE,
-                    ImVec2(window_width - play_offset_x, 40))) {
-    physics_->TogglePause();
-  }
+void App::ToolBarGui() {
+  if (ImGui::BeginTable("##ToolBarTable", 2)) {
+    platform::ScopedStyle style;
+    const ImColor red(220, 40, 40, 255);
+    const ImColor green(40, 180, 40, 255);
+    const ImColor yellow(250, 230, 10, 255);
+    const int combo_flags = ImGuiComboFlags_NoArrowButton;
 
-  if (ImGui::TreeNodeEx("History")) {
-    ImGui::PushItemWidth(window_width - 2 * margin - 2 * indent);
-    const int max_history =
-        std::min<int>(physics_->GetStepCount(), physics_->GetHistorySize());
-    if (ImGui::SliderInt("##ScrubIndex", &ui_.scrub_idx, -max_history, 0)) {
-      physics_->LoadHistory(ui_.scrub_idx);
-    }
-    ImGui::PopItemWidth();
-    ImGui::TreePop();
-  }
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 520);
 
-  if (ImGui::TreeNodeEx("Keyframes")) {
-    ImGui::SliderInt("Key", &ui_.key_idx, 0, Model()->nkey);
-    if (ImGui::Button("Load")) {
-      mj_resetDataKeyframe(Model(), Data(), ui_.key_idx);
-      mj_forward(Model(), Data());
-    }
+    ImGui::TableNextColumn();
+    ImGui::Text("%s", " ");
+
+    // Unload button.
     ImGui::SameLine();
-    if (ImGui::Button("Save")) {
-      mj_setKeyframe(Model(), Data(), ui_.key_idx);
+    style.Color(ImGuiCol_ButtonHovered, red);
+    if (ImGui::Button(ICON_UNLOAD_MODEL, ImVec2(48, 32))) {
+      RequestModelLoad("");
     }
-    if (ImGui::Button("Copy to Clipboard")) {
-      std::string keyframe = toolbox::KeyframeToString(Model(), Data(), false);
-      toolbox::MaybeSaveToClipboard(keyframe);
+    ImGui::SetItemTooltip("%s", "Unload");
+    style.Reset();
+
+    // Reload button.
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_RELOAD_MODEL, ImVec2(48, 32))) {
+      RequestModelLoad(model_name_);
     }
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Noise")) {
-    float noise_scale, noise_rate;
-    physics_->GetStepControl().GetNoiseParameters(noise_scale, noise_rate);
-    ImGui::SliderFloat("Scale", &noise_scale, 0, 1);
-    ImGui::SliderFloat("Rate", &noise_rate, 0, 4);
-    physics_->GetStepControl().SetNoiseParameters(noise_scale, noise_rate);
-    ImGui::TreePop();
-  }
-}
+    ImGui::SetItemTooltip("%s", "Reload");
 
-void App::SensorGui() {}
-
-void App::StateGui() {
-  // State component names and tooltips.
-  static constexpr const char* name_and_tooltip[][2] = {
-      {"TIME", "Time"},
-      {"QPOS", "Position"},
-      {"QVEL", "Velocity"},
-      {"ACT", "Actuator activation"},
-      {"WARMSTART", "Acceleration used for warmstart"},
-      {"CTRL", "Control"},
-      {"QFRC_APPLIED", "Applied generalized force"},
-      {"XFRC_APPLIED", "Applied Cartesian force/torque"},
-      {"EQ_ACTIVE", "Enable/disable constraints"},
-      {"MOCAP_POS", "Positions of mocap bodies"},
-      {"MOCAP_QUAT", "Orientations of mocap bodies"},
-      {"USERDATA", "User data"},
-      {"PLUGIN", "Plugin state"},
-  };
-
-  int prev_state_sig = tmp_.state_sig;
-
-  // State component checkboxes.
-  if (ImGui::BeginTable("##StateSignature", 2)) {
-    for (int i = 0; i < mjNSTATE; ++i) {
-      ImGui::TableNextColumn();
-      bool checked = tmp_.state_sig & (1 << i);
-      ImGui::Checkbox(name_and_tooltip[i][0], &checked);
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("%s", name_and_tooltip[i][1]);
-      }
-      tmp_.state_sig =
-          checked ? (tmp_.state_sig | (1 << i)) : (tmp_.state_sig & ~(1 << i));
+    // Reset button.
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_RESET_MODEL, ImVec2(48, 32))) {
+      ResetPhysics();
     }
-    ImGui::EndTable();
-  }
+    ImGui::SetItemTooltip("%s", "Reset");
 
-  // Buttons to select commonly used state signatures.
-  const ImVec2 button_size(ImGui::CalcTextSize("Full Physics").x +
-                               2 * ImGui::GetStyle().FramePadding.x,
-                           0);
-  const int button_columns =
-      (ImGui::GetContentRegionAvail().x + ImGui::GetStyle().ItemSpacing.x) /
-      (button_size.x + ImGui::GetStyle().ItemSpacing.x);
-
-  if (ImGui::BeginTable("##CommonSignatures", button_columns,
-                        ImGuiTableFlags_None, ImVec2(0, 0))) {
-    for (int i = 0; i < button_columns; ++i) {
-      ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthFixed,
-                              button_size.x);
+    // Play/pause button.
+    ImGui::SameLine();
+    const bool paused = step_control_.IsPaused();
+    style.Color(ImGuiCol_Button, paused ? yellow : green);
+    if (ImGui::Button(paused ? ICON_PLAY : ICON_PAUSE, ImVec2(120, 32))) {
+      step_control_.TogglePause();
     }
-    ImGui::TableNextColumn();
-    if (ImGui::Button("Physics", button_size)) {
-      tmp_.state_sig =
-          (tmp_.state_sig == mjSTATE_PHYSICS) ? 0 : mjSTATE_PHYSICS;
-    }
-    ImGui::TableNextColumn();
-    if (ImGui::Button("Full Physics", button_size)) {
-      tmp_.state_sig =
-          (tmp_.state_sig == mjSTATE_FULLPHYSICS) ? 0 : mjSTATE_FULLPHYSICS;
-    }
-    ImGui::TableNextColumn();
-    if (ImGui::Button("User", button_size)) {
-      tmp_.state_sig = (tmp_.state_sig == mjSTATE_USER) ? 0 : mjSTATE_USER;
-    }
-    ImGui::TableNextColumn();
-    if (ImGui::Button("Integration", button_size)) {
-      tmp_.state_sig =
-          (tmp_.state_sig == mjSTATE_INTEGRATION) ? 0 : mjSTATE_INTEGRATION;
-    }
-    ImGui::EndTable();
-  }
+    ImGui::SetItemTooltip("%s", paused ? "Play" : "Pause");
+    style.Reset();
 
-  if (tmp_.state_sig != prev_state_sig) {
-    const int size = mj_stateSize(Model(), tmp_.state_sig);
-    tmp_.state.resize(size);
-  }
+    ImGui::SameLine();
+    ImGui::Text("%s", " |");
 
-  if (tmp_.state.empty()) {
-    // The state size is 0, let the user know why.
-    ImGui::Separator();
-    ImGui::BeginDisabled();
-    ImGui::TextWrapped(
-        tmp_.state_sig == 0
-            ? "State array is empty because no state components are selected."
-            : "State array is empty because the selected state components do "
-              "not exist in the model.");
-    ImGui::EndDisabled();
-  } else {
-    mj_getState(Model(), Data(), tmp_.state.data(), tmp_.state_sig);
-    bool changed = false;
+    // Speed selection.
+    ImGui::SameLine();
+    ImGui::Text("%s", ICON_SPEED);
+    ImGui::SetItemTooltip("%s", "Playback Speed");
 
-    if (ImGui::BeginTable(
-            "State", 3,
-            ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter |
-                ImGuiTableFlags_BordersV | ImGuiTableFlags_Resizable |
-                ImGuiTableFlags_ScrollY,
-            ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 20))) {
-      ImGui::TableSetupColumn("Index");
-      ImGui::TableSetupColumn("Name");
-      ImGui::TableSetupColumn("Value");
-      ImGui::TableSetupScrollFreeze(0, 1);
-      ImGui::TableHeadersRow();
-
-      ImGuiListClipper clipper;
-      clipper.Begin(tmp_.state.size());
-      while (clipper.Step()) {
-        int global = 0;
-        for (int i = 0; i < mjNSTATE; ++i) {
-          if (tmp_.state_sig & (1 << i)) {
-            for (int local = 0; local < mj_stateSize(Model(), (1 << i));
-                 ++local, ++global) {
-              if (global < clipper.DisplayStart) {
-                continue;
-              }
-              if (global >= clipper.DisplayEnd) {
-                break;
-              }
-              ImGui::TableNextRow();
-
-              ImGui::TableNextColumn();
-              ImGui::Text("%d", global);
-
-              ImGui::TableNextColumn();
-              ImGui::Text("%s[%d]", name_and_tooltip[i][0], local);
-
-              ImGui::TableNextColumn();
-              float value = tmp_.state[global];
-              ImGui::PushItemWidth(-std::numeric_limits<float>::min());
-              ImGui::PushID(global);
-              if (ImGui::DragFloat("##value", &value, 0.01f, 0, 0, "%.3f")) {
-                changed = true;
-              }
-              ImGui::PopID();
-              ImGui::PopItemWidth();
-              tmp_.state[global] = value;
-            }
-          }
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(50);
+    if (ImGui::BeginCombo("##Speed", kPercentRealTime[tmp_.speed_index],
+                          combo_flags)) {
+      for (int n = 0; n < kPercentRealTime.size(); n++) {
+        if (ImGui::Selectable(kPercentRealTime[n], (tmp_.speed_index == n))) {
+          SetSpeedIndex(n);
         }
       }
-      ImGui::EndTable();
+      ImGui::EndCombo();
     }
+    ImGui::SetItemTooltip("%s", "Playback Speed");
 
-    if (changed) {
-      mj_setState(Model(), Data(), tmp_.state.data(), tmp_.state_sig);
-    }
-  }
-}
-
-void App::ProfilerGui() {
-  const int plot_flags = 0;
-
-  if (ImPlot::BeginPlot("CPU Time", ImVec2(-1, 0), plot_flags)) {
-    ImPlot::SetupAxis(ImAxis_X1, "frame", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxis(ImAxis_Y1, "msec", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.2f");
-    ImPlot::SetupLegend(ImPlotLocation_NorthEast);
-    ImPlot::SetupFinish();
-
-    ImPlot::PlotLine("total", cpu_total_.data(), cpu_total_.size(), 1,
-                     -(int)cpu_total_.size());
-    ImPlot::PlotLine("prepare", cpu_prepare_.data(), cpu_prepare_.size(), 1,
-                     -(int)cpu_prepare_.size());
-    ImPlot::PlotLine("solve", cpu_solve_.data(), cpu_solve_.size(), 1,
-                     -(int)cpu_solve_.size());
-    ImPlot::PlotLine("collision", cpu_collision_.data(), cpu_collision_.size(),
-                     1, -(int)cpu_collision_.size());
-    ImPlot::PlotLine("other", cpu_other_.data(), cpu_other_.size(), 1,
-                     -(int)cpu_other_.size());
-    ImPlot::EndPlot();
-  }
-
-  if (ImPlot::BeginPlot("Dimensions", ImVec2(-1, 0), plot_flags)) {
-    ImPlot::SetupAxis(ImAxis_X1, "frame", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxis(ImAxis_Y1, "count", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0f");
-    ImPlot::SetupLegend(ImPlotLocation_NorthEast);
-    ImPlot::SetupFinish();
-
-    ImPlot::PlotLine("dof", dim_dof_.data(), dim_dof_.size(), 1,
-                     -(int)dim_dof_.size());
-    ImPlot::PlotLine("body", dim_body_.data(), dim_body_.size(), 1,
-                     -(int)dim_body_.size());
-    ImPlot::PlotLine("constraint", dim_constraint_.data(),
-                     dim_constraint_.size(), 1, -(int)dim_constraint_.size());
-    ImPlot::PlotLine("sqrt(nnz)", dim_sqrt_nnz_.data(), dim_sqrt_nnz_.size(), 1,
-                     -(int)dim_sqrt_nnz_.size());
-    ImPlot::PlotLine("contact", dim_contact_.data(), dim_contact_.size(), 1,
-                     -(int)dim_contact_.size());
-    ImPlot::PlotLine("iteration", dim_iteration_.data(), dim_iteration_.size(),
-                     1, -(int)dim_iteration_.size());
-    ImPlot::EndPlot();
-  }
-}
-
-void App::InfoGui() {
-  const int num_islands = std::clamp(Data()->nisland, 1, mjNISLAND);
-
-  // compute solver error (maximum over islands)
-  mjtNum solver_err = 0;
-  int solver_iter = 0;
-  for (int i = 0; i < num_islands; i++) {
-    solver_iter += Data()->solver_niter[i];
-
-    mjtNum solerr_i = 0;
-    if (Data()->solver_niter[i]) {
-      const int ind = mjMIN(Data()->solver_niter[i], mjNSOLVER) - 1;
-      const mjSolverStat* stat = Data()->solver + i * mjNSOLVER + ind;
-      solerr_i = mju_min(stat->improvement, stat->gradient);
-      if (solerr_i == 0) {
-        solerr_i = mju_max(stat->improvement, stat->gradient);
-      }
-    }
-    solver_err = mju_max(solver_err, solerr_i);
-  }
-  solver_err = mju_log10(mju_max(mjMINVAL, solver_err));
-
-  auto type = physics_->IsPaused() ? mjTIMER_FORWARD : mjTIMER_STEP;
-  auto cpu =
-      Data()->timer[type].duration / mjMAX(1, Data()->timer[type].number);
-  auto mempct = 100 * Data()->maxuse_arena / (double)(Data()->narena);
-  auto memlimit = mju_writeNumBytes(Data()->narena);
-
-  ImGui::Columns(2);
-  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.4f);
-  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.6f);
-
-  {
-    ScopeGreyText style(ui_.dark_mode);
-    ImGui::Text("Time");
-    ImGui::Text("Size");
-    ImGui::Text("CPU");
-    ImGui::Text("Solver");
-    ImGui::Text("FPS");
-    ImGui::Text("Memory");
-    if (Model()->opt.enableflags & mjENBL_ENERGY) {
-      ImGui::Text("Energy");
-    }
-    if (Model()->opt.enableflags & mjENBL_FWDINV) {
-      ImGui::Text("FwdInv");
-    }
-    if (!(Model()->opt.disableflags & mjDSBL_ISLAND)) {
-      ImGui::Text("Islands");
-    }
-  }
-
-  ImGui::NextColumn();
-  ImGui::Text("%-9.3f", Data()->time);
-  ImGui::Text("%d (%d con)", Data()->nefc, Data()->ncon);
-  ImGui::Text("%.3f", cpu);
-  ImGui::Text("%.1f (%d it)", solver_err, solver_iter);
-  ImGui::Text("%0.1f", renderer_->GetFrameRate());
-  ImGui::Text("%.1f%% of %s", mempct, memlimit);
-  if (Model()->opt.enableflags & mjENBL_ENERGY) {
-    ImGui::Text("%.3f", Data()->energy[0] + Data()->energy[1]);
-  }
-  if (Model()->opt.enableflags & mjENBL_FWDINV) {
-    ImGui::Text("%.1f %.1f",
-                mju_log10(mju_max(mjMINVAL, Data()->solver_fwdinv[0])),
-                mju_log10(mju_max(mjMINVAL, Data()->solver_fwdinv[1])));
-  }
-  if (!(Model()->opt.disableflags & mjDSBL_ISLAND)) {
-    ImGui::Text("%d", Data()->nisland);
-  }
-  ImGui::Columns();
-}
-
-void App::WatchGui() {
-  ImGui::InputText("Field", ui_.watch_field, sizeof(ui_.watch_field));
-  ImGui::InputInt("Index", &ui_.watch_index);
-  const mjtNum* value = static_cast<const mjtNum*>(
-      toolbox::GetValue(Model(), Data(), ui_.watch_field, ui_.watch_index));
-  if (value) {
-    ImGui::Text("%0.3f", *(const mjtNum*)value);
-  } else {
-    ImGui::Text("Invalid field/index!");
-  }
-}
-
-void App::PhysicsGui() {
-  auto& opt = Model()->opt;
-
-  const char* opts0[] = {"Euler", "RK4", "implicit", "implicitfast"};
-  ImGui::Combo("Integrator", &opt.integrator, opts0, IM_ARRAYSIZE(opts0));
-
-  const char* opts1[] = {"Pyramidal", "Elliptic"};
-  ImGui::Combo("Cone", &opt.cone, opts1, IM_ARRAYSIZE(opts1));
-
-  const char* opts2[] = {"Dense", "Sparse", "Auto"};
-  ImGui::Combo("Jacobian", &opt.jacobian, opts2, IM_ARRAYSIZE(opts2));
-
-  const char* opts3[] = {"PGS", "CG", "Newton"};
-  ImGui::Combo("Solver", &opt.solver, opts3, IM_ARRAYSIZE(opts3));
-
-  if (ImGui::TreeNodeEx("Algorithmic Parameters",
-                        ImGuiTreeNodeFlags_DefaultOpen)) {
-    float w = ImGui::GetWindowWidth() * .6f;
-    ImGui_Input("Timestep", &opt.timestep, {0, 1, 0.01, 0.1, w});
-    ImGui_Input("Iterations", &opt.iterations, {0, 1000, 1, 10, w});
-    ImGui_Input("Tolerance", &opt.tolerance, {0, 1, 1e-7, 1e-6, w});
-    ImGui_Input("LS Iter", &opt.ls_iterations, {0, 100, 1, 0.1, w});
-    ImGui_Input("LS Tol", &opt.ls_tolerance, {0, 0.1, 0.01, 0.1, w});
-    ImGui_Input("Noslip Iter", &opt.noslip_iterations, {0, 1000, 1, 100, w});
-    ImGui_Input("Noslip Tol", &opt.noslip_tolerance, {0, 1, 0.01, 0.1, w});
-    ImGui_Input("CCD Iter", &opt.ccd_iterations, {0, 1000, 1, 100, w});
-    ImGui_Input("CCD Tol", &opt.ccd_tolerance, {0, 1, 0.01, 0.1, w});
-    ImGui_Input("SDF Iter", &opt.sdf_iterations, {1, 20, 1, 10, w});
-    ImGui_Input("SDF Init", &opt.sdf_initpoints, {1, 100, 1, 10, w});
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Physical Parameters")) {
-    float w = ImGui::GetWindowWidth() * .6f;
-    ImGui_InputN("Gravity", opt.gravity, 3, {.width = w});
-    ImGui_InputN("Wind", opt.wind, 3, {.width = w});
-    ImGui_InputN("Magnetic", opt.magnetic, 3, {.width = w});
-    ImGui_Input("Density", &opt.density, {.min = .1, .max = 1, .width = w});
-    ImGui_Input("Viscosity", &opt.viscosity, {.min = .1, .max = 1, .width = w});
-    ImGui_Input("Imp Ratio", &opt.impratio, {.min = .1, .max = 1, .width = w});
-    ImGui::TreePop();
-  };
-  if (ImGui::TreeNodeEx("Contact Override")) {
-    float w = ImGui::GetWindowWidth() * .6f;
-    ImGui_Input("Margin", &opt.o_margin, {.min = 0.1, .max = 1, .width = w});
-    ImGui_InputN("Sol Imp", opt.o_solimp, 5, {.width = w, .format = "%0.1f"});
-    ImGui_InputN("Sol Ref", opt.o_solref, 2, {.width = w, .format = "%0.1f"});
-    ImGui_InputN("Friction", opt.o_friction, 5, {.width = w, .format = "%.1f"});
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Disable Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
-    for (int i = 0; i < mjNDISABLE; ++i) {
-      ToggleBit(mjDISABLESTRING[i], opt.disableflags, 1 << i);
-      if (i % 2 == 0 && i != mjNDISABLE - 1) {
-        ImGui::SameLine();
-      }
-    }
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Enable Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
-    for (int i = 0; i < mjNENABLE; ++i) {
-      ToggleBit(mjENABLESTRING[i], opt.enableflags, 1 << i);
-      if (i % 2 == 0 && i != mjNENABLE - 1) {
-        ImGui::SameLine();
-      }
-    }
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Actuator Group Disable")) {
-    ToggleBit("Act Group 0", opt.disableactuator, 1 << 0);
+    // Camera selection.
+    std::vector<const char*> cameras = GetCameraNames();
+    ImGui::TableNextColumn();
+    ImGui::Text("%s", ICON_CAMERA);
+    ImGui::SetItemTooltip("%s", "Camera");
     ImGui::SameLine();
-    ToggleBit("Act Group 1", opt.disableactuator, 1 << 1);
-    ToggleBit("Act Group 2", opt.disableactuator, 1 << 2);
-    ImGui::SameLine();
-    ToggleBit("Act Group 3", opt.disableactuator, 1 << 3);
-    ToggleBit("Act Group 4", opt.disableactuator, 1 << 4);
-    ImGui::SameLine();
-    ToggleBit("Act Group 5", opt.disableactuator, 1 << 5);
-    ImGui::TreePop();
-  };
-}
-
-void App::VisualizationGui() {
-  auto& vis = Model()->vis;
-  auto& stat = Model()->stat;
-  if (ImGui::TreeNodeEx("Headlight")) {
-    Toggle("Active", vis.headlight.active, ToggleKind::kSlider);
-    // TODO: These are not working
-    ImGui::ColorEdit3("Ambient", vis.headlight.ambient);
-    ImGui::ColorEdit3("Diffuse", vis.headlight.diffuse);
-    ImGui::ColorEdit3("Specular", vis.headlight.specular);
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Free Camera")) {
-    Toggle("Orthographic", vis.global.orthographic, ToggleKind::kSlider);
-    ImGui_Input("FOV", &vis.global.fovy, {.format = "%0.2f"});
-    ImGui_InputN("Center", stat.center, 3, {.format = "%0.2f"});
-    ImGui_Input("Azimuth", &vis.global.azimuth, {.format = "%0.2f"});
-    ImGui_Input("Elevation", &vis.global.elevation, {.format = "%0.2f"});
-    if (ImGui::Button("Align")) {
-      mjv_defaultFreeCamera(Model(), &camera_);
+    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
+    int camera_idx = ui_.camera_idx - platform::kTumbleCameraIdx;
+    if (ImGui::BeginCombo("##Camera", cameras[camera_idx], combo_flags)) {
+      for (int n = 0; n < cameras.size(); n++) {
+        if (ImGui::Selectable(cameras[n], (camera_idx == n))) {
+          ui_.camera_idx = ::mujoco::platform::SetCamera(
+              model_, &camera_, camera_idx + platform::kTumbleCameraIdx);
+        }
+      }
+      ImGui::EndCombo();
     }
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Global")) {
-    ImGui_Input("Extent", &stat.extent);
-    const char* opts[] = {"Box", "Ellipsoid"};
-    ImGui::SliderInt("Inertia", &vis.global.ellipsoidinertia, 0, 1,
-                     opts[vis.global.ellipsoidinertia]);
-    Toggle("BVH active", vis.global.bvactive);
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Map")) {
-    ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.3f);
-    ImGui_Input("Stiffness", &vis.map.stiffness);
-    ImGui_Input("Rot stiffness", &vis.map.stiffnessrot);
-    ImGui_Input("Force", &vis.map.force);
-    ImGui_Input("Torque", &vis.map.torque);
-    ImGui_Input("Alpha", &vis.map.alpha);
-    ImGui_Input("Fog start", &vis.map.fogstart);
-    ImGui_Input("Fog end", &vis.map.fogend);
-    ImGui_Input("Z near", &vis.map.znear);
-    ImGui_Input("Z far", &vis.map.zfar);
-    ImGui_Input("Haze", &vis.map.haze);
-    ImGui_Input("Shadow clip", &vis.map.shadowclip);
-    ImGui_Input("Shadow scale", &vis.map.shadowscale);
-    ImGui::PopItemWidth();
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Scale")) {
-    ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.3f);
-    ImGui_Input("All (meansize)", &stat.meansize, {.format = "%0.3f"});
-    ImGui_Input("Force width", &vis.scale.forcewidth);
-    ImGui_Input("Contact width", &vis.scale.contactwidth);
-    ImGui_Input("Contact height", &vis.scale.contactheight);
-    ImGui_Input("Connect", &vis.scale.connect);
-    ImGui_Input("Com", &vis.scale.com);
-    ImGui_Input("Camera", &vis.scale.camera);
-    ImGui_Input("Light", &vis.scale.light);
-    ImGui_Input("Select point", &vis.scale.selectpoint);
-    ImGui_Input("Joint length", &vis.scale.jointlength);
-    ImGui_Input("Joint width", &vis.scale.jointwidth);
-    ImGui_Input("Actuator length", &vis.scale.actuatorlength);
-    ImGui_Input("Actuator width", &vis.scale.actuatorwidth);
-    ImGui_Input("Frame length", &vis.scale.framelength);
-    ImGui_Input("Frame width", &vis.scale.framewidth);
-    ImGui_Input("Constraint", &vis.scale.constraint);
-    ImGui_Input("Slider-crank", &vis.scale.slidercrank);
-    ImGui::PopItemWidth();
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Colors")) {
-    ImGui::ColorEdit4("fog", vis.rgba.fog);
-    ImGui::ColorEdit4("haze", vis.rgba.haze);
-    ImGui::ColorEdit4("force", vis.rgba.force);
-    ImGui::ColorEdit4("inertia", vis.rgba.inertia);
-    ImGui::ColorEdit4("joint", vis.rgba.joint);
-    ImGui::ColorEdit4("actuator", vis.rgba.actuator);
-    ImGui::ColorEdit4("actnegative", vis.rgba.actuatornegative);
-    ImGui::ColorEdit4("actpositive", vis.rgba.actuatorpositive);
-    ImGui::ColorEdit4("com", vis.rgba.com);
-    ImGui::ColorEdit4("camera", vis.rgba.camera);
-    ImGui::ColorEdit4("light", vis.rgba.light);
-    ImGui::ColorEdit4("selectpoint", vis.rgba.selectpoint);
-    ImGui::ColorEdit4("connect", vis.rgba.connect);
-    ImGui::ColorEdit4("contactpoint", vis.rgba.contactpoint);
-    ImGui::ColorEdit4("contactforce", vis.rgba.contactforce);
-    ImGui::ColorEdit4("contactfriction", vis.rgba.contactfriction);
-    ImGui::ColorEdit4("contacttorque", vis.rgba.contacttorque);
-    ImGui::ColorEdit4("contactgap", vis.rgba.contactgap);
-    ImGui::ColorEdit4("rangefinder", vis.rgba.rangefinder);
-    ImGui::ColorEdit4("constraint", vis.rgba.constraint);
-    ImGui::ColorEdit4("slidercrank", vis.rgba.slidercrank);
-    ImGui::ColorEdit4("crankbroken", vis.rgba.crankbroken);
-    ImGui::ColorEdit4("frustum", vis.rgba.frustum);
-    ImGui::ColorEdit4("bv", vis.rgba.bv);
-    ImGui::ColorEdit4("bvactive", vis.rgba.bvactive);
-    ImGui::TreePop();
+    ImGui::SetItemTooltip("%s", "Camera");
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_COPY_CAMERA)) {
+      std::string camera_string = platform::CameraToString(data_, &camera_);
+      platform::MaybeSaveToClipboard(camera_string);
+    }
+    ImGui::SetItemTooltip("%s", "Copy Camera");
+
+    ImGui::SameLine();
+    ImGui::Text("%s", " |");
+
+    // Label selection.
+    ImGui::SameLine();
+    ImGui::Text("%s", ICON_LABEL);
+    ImGui::SetItemTooltip("%s", "Label");
+
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
+    if (ImGui::BeginCombo("##Label", kLabelNames[vis_options_.label],
+                          combo_flags)) {
+      for (int n = 0; n < IM_ARRAYSIZE(kLabelNames); n++) {
+        if (ImGui::Selectable(kLabelNames[n], (vis_options_.label == n))) {
+          vis_options_.label = n;
+        }
+      }
+      ImGui::EndCombo();
+    }
+    ImGui::SetItemTooltip("%s", "Label");
+
+    ImGui::SameLine();
+    ImGui::Text("%s", " |");
+
+    // Frame selection.
+    ImGui::SameLine();
+    ImGui::Text("%s", ICON_FRAME);
+    ImGui::SetItemTooltip("%s", "Frame");
+
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
+    if (ImGui::BeginCombo("##Frame", kFrameNames[vis_options_.frame],
+                          combo_flags)) {
+      for (int n = 0; n < IM_ARRAYSIZE(kFrameNames); n++) {
+        if (ImGui::Selectable(kFrameNames[n], (vis_options_.frame == n))) {
+          vis_options_.frame = n;
+        }
+      }
+      ImGui::EndCombo();
+    }
+    ImGui::SetItemTooltip("%s", "Frame");
+
+    ImGui::SameLine();
+    ImGui::Text("%s", " |");
+
+    // Style selection.
+    ImGui::SameLine();
+    switch (ui_.theme) {
+      case platform::GuiTheme::kLight:
+        if (ImGui::Button(ICON_LIGHTMODE)) {
+          SetupTheme(platform::GuiTheme::kDark);
+        }
+        ImGui::SetItemTooltip("%s", "Switch to Dark Mode");
+        break;
+      case platform::GuiTheme::kDark:
+        if (ImGui::Button(ICON_DARKMODE)) {
+          SetupTheme(platform::GuiTheme::kClassic);
+        }
+        ImGui::SetItemTooltip("%s", "Switch to Classic Mode");
+        break;
+      case platform::GuiTheme::kClassic:
+        if (ImGui::Button(ICON_CLASSICMODE)) {
+          SetupTheme(platform::GuiTheme::kLight);
+        }
+        ImGui::SetItemTooltip("%s", "Switch to Light Mode");
+        break;
+    }
+
+    ImGui::EndTable();
   }
 }
 
-void App::RenderingGui() {
-  mjvScene& scene = renderer_->GetScene();
+void App::StatusBarGui() {
+  if (ImGui::BeginTable("##StatusBarTable", 2)) {
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 520);
 
-  // Generate a list of camera names dynamically.
-  std::vector<const char*> camera_names;
-  camera_names.push_back("Free");
-  camera_names.push_back("Tracking");
-  for (int i = 0; i < Model()->ncam; i++) {
-    if (Model()->names[Model()->name_camadr[i]]) {
-      camera_names.push_back(Model()->names + Model()->name_camadr[i]);
+    ImGui::TableNextColumn();
+
+    if (!IsModelLoaded()) {
+      ImGui::Text("Not loaded");
+    } else if (model_ == nullptr) {
+      ImGui::Text("Not loaded");
+    } else if (step_control_.IsPaused()) {
+      ImGui::Text("Paused");
     } else {
-      camera_names.push_back("(Unnamed)");
+      const float desired_realtime = step_control_.GetSpeed();
+      const float measured_realtime = step_control_.GetSpeedMeasured();
+      const float realtime_offset =
+          mju_abs(measured_realtime - desired_realtime);
+      const bool misaligned = realtime_offset > 0.1 * desired_realtime;
+      if (misaligned) {
+        ImGui::Text("Running: %g%% (%-4.1f%%)", desired_realtime,
+                    measured_realtime);
+      } else {
+        ImGui::Text("Running: %g%%", desired_realtime);
+      }
     }
+
+    if (!error_.empty()) {
+      ImGui::SameLine();
+      ImGui::Text(" | Error: %s", error_.c_str());
+    }
+
+    ImGui::TableNextColumn();
+    ImGui::Text("%s", " |");
+
+    // Frame scrubber.
+    platform::ScopedStyle style;
+
+    style.Var(ImGuiStyleVar_FrameBorderSize, 0);
+    style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_PREV_FRAME)) {
+      LoadHistory(history_.GetIndex() - 1);
+    }
+    ImGui::SetItemTooltip("%s", "Previous Frame");
+
+    style.Reset();
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(450);
+    int index = history_.GetIndex();
+    if (ImGui::SliderInt("##ScrubIndex", &index, 1 - history_.Size(), 0)) {
+      LoadHistory(index);
+    }
+
+    style.Var(ImGuiStyleVar_FrameBorderSize, 0);
+    style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_NEXT_FRAME)) {
+      if (history_.GetIndex() == 0) {
+        step_control_.RequestSingleStep();
+      } else {
+        LoadHistory(history_.GetIndex() + 1);
+      }
+    }
+    ImGui::SetItemTooltip("%s", "Next Frame");
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_CURR_FRAME)) {
+      LoadHistory(0);
+    }
+    ImGui::SetItemTooltip("%s", "Current Frame");
+
+    ImGui::EndTable();
+  }
+}
+
+void App::MainMenuGui() {
+  if (ImGui::BeginMainMenuBar()) {
+    if (ImGui::BeginMenu("File")) {
+      if (ImGui::MenuItem("Open Model File", "Ctrl+O")) {
+        ShowPopup(tmp_.load_popup);
+      }
+      ImGui::Separator();
+      if (ImGui::MenuItem("Save XML", "Ctrl+S")) {
+        ShowPopup(tmp_.save_xml_popup);
+      }
+      if (ImGui::MenuItem("Save MJB", "Ctrl+Shift+S")) {
+        ShowPopup(tmp_.save_mjb_popup);
+      }
+      if (ImGui::MenuItem("Save Screenshot", "Ctrl+P")) {
+        ShowPopup(tmp_.save_screenshot_popup);
+      }
+      ImGui::Separator();
+      if (ImGui::MenuItem("Print Model", "Ctrl+M")) {
+        ShowPopup(tmp_.print_model_popup);
+      }
+      if (ImGui::MenuItem("Print Data", "Ctrl+D")) {
+        ShowPopup(tmp_.print_data_popup);
+      }
+      ImGui::Separator();
+      if (ImGui::MenuItem("Unload", "Ctrl+U")) {
+        RequestModelLoad("");
+      }
+      ImGui::Separator();
+      if (ImGui::MenuItem("Quit", "Ctrl+Q")) {
+        tmp_.should_exit = true;
+      }
+      ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Simulation")) {
+      if (ImGui::MenuItem("Pause", "Space", step_control_.IsPaused())) {
+        step_control_.TogglePause();
+      }
+      if (ImGui::MenuItem("Reset", "Backspace")) {
+        ResetPhysics();
+      }
+      if (ImGui::MenuItem("Reload", "Ctrl+L")) {
+        RequestModelLoad(model_name_);
+      }
+      ImGui::Separator();
+      if (ImGui::BeginMenu("Keyframes")) {
+        ImGui::SetNextItemWidth(200);
+        ImGui::SliderInt("##Key", &ui_.key_idx, 0, model_->nkey);
+        if (ImGui::MenuItem("Load")) {
+          mj_resetDataKeyframe(model_, data_, ui_.key_idx);
+          mj_forward(model_, data_);
+        }
+        if (ImGui::MenuItem("Save")) {
+          mj_setKeyframe(model_, data_, ui_.key_idx);
+        }
+        if (ImGui::MenuItem("Copy")) {
+          std::string str = platform::KeyframeToString(model_, data_, false);
+          platform::MaybeSaveToClipboard(str);
+        }
+        ImGui::EndMenu();
+      }
+
+      ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("View")) {
+      if (ImGui::MenuItem("Save Config")) {
+        SaveSettings();
+      }
+      if (ImGui::MenuItem("Reset Config")) {
+        platform::SaveText("\n\n", ini_path_);
+        LoadSettings();
+      }
+      ImGui::Separator();
+
+      if (ImGui::MenuItem(tmp_.options_panel ? "Hide Options" : "Show Left UI",
+                          "Tab")) {
+        tmp_.options_panel = !tmp_.options_panel;
+      }
+      if (ImGui::MenuItem(
+              tmp_.inspector_panel ? "Hide Inspector" : "Show Right UI",
+              "Shift+Tab")) {
+        tmp_.inspector_panel = !tmp_.inspector_panel;
+      }
+      ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Charts")) {
+      if (ImGui::MenuItem("Solver", "F9")) {
+        tmp_.chart_solver = !tmp_.chart_solver;
+      }
+      if (ImGui::MenuItem("CPU Time", "F10")) {
+        tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
+      }
+      if (ImGui::MenuItem("Dimensions", "F11")) {
+        tmp_.chart_dimensions = !tmp_.chart_dimensions;
+      }
+      ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Help")) {
+      if (ImGui::MenuItem("Help", "F1", tmp_.help)) {
+        ToggleWindow(tmp_.help);
+      }
+      if (ImGui::MenuItem("Stats", "F2", tmp_.stats)) {
+        ToggleWindow(tmp_.stats);
+      }
+      ImGui::Separator();
+      if (ImGui::MenuItem("Style Editor", "", tmp_.style_editor)) {
+        tmp_.style_editor = !tmp_.style_editor;
+      }
+      ImGui::Separator();
+      if (ImGui::MenuItem("ImGui Demo")) {
+        tmp_.imgui_demo = !tmp_.imgui_demo;
+      }
+      if (ImGui::MenuItem("ImPlot Demo")) {
+        tmp_.implot_demo = !tmp_.implot_demo;
+      }
+      ImGui::EndMenu();
+    }
+    ImGui::EndMainMenuBar();
+  }
+}
+
+void App::FileDialogGui() {
+  ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+  ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+  if (tmp_.load_popup) {
+    ImGui::OpenPopup("LoadModel");
+    tmp_.load_popup = false;
+    strncpy(tmp_.filename, tmp_.last_load_file.c_str(),
+            tmp_.last_load_file.size());
+    tmp_.filename[tmp_.last_load_file.size()] = 0;
+  }
+  if (tmp_.save_xml_popup) {
+    ImGui::OpenPopup("SaveXML");
+    tmp_.save_xml_popup = false;
+    strncpy(tmp_.filename, tmp_.last_save_xml_file.c_str(),
+            tmp_.last_save_xml_file.size());
+    tmp_.filename[tmp_.last_save_xml_file.size()] = 0;
+  }
+  if (tmp_.save_mjb_popup) {
+    ImGui::OpenPopup("SaveMJB");
+    tmp_.save_mjb_popup = false;
+    strncpy(tmp_.filename, tmp_.last_save_mjb_file.c_str(),
+            tmp_.last_save_mjb_file.size());
+    tmp_.filename[tmp_.last_save_mjb_file.size()] = 0;
+  }
+  if (tmp_.save_screenshot_popup) {
+    ImGui::OpenPopup("SaveWebp");
+    tmp_.save_screenshot_popup = false;
+    strncpy(tmp_.filename, tmp_.last_save_screenshot_file.c_str(),
+            tmp_.last_save_screenshot_file.size());
+    tmp_.filename[tmp_.last_save_screenshot_file.size()] = 0;
+  }
+  if (tmp_.print_model_popup) {
+    ImGui::OpenPopup("PrintModel");
+    tmp_.print_model_popup = false;
+    strncpy(tmp_.filename, tmp_.last_print_model_file.c_str(),
+            tmp_.last_print_model_file.size());
+    tmp_.filename[tmp_.last_print_model_file.size()] = 0;
+  }
+  if (tmp_.print_data_popup) {
+    ImGui::OpenPopup("PrintData");
+    tmp_.print_data_popup = false;
+    strncpy(tmp_.filename, tmp_.last_print_data_file.c_str(),
+            tmp_.last_print_data_file.size());
+    tmp_.filename[tmp_.last_print_data_file.size()] = 0;
   }
 
-  ImGui::Combo("Label", &vis_options_.label, kLabelNames,
-               IM_ARRAYSIZE(kLabelNames));
-  ImGui::Combo("Frame", &vis_options_.frame, kFrameNames,
-               IM_ARRAYSIZE(kFrameNames));
-  if (ImGui::Combo("Camera", &ui_.camera_idx, camera_names.data(),
-                   camera_names.size())) {
-    SetCamera(ui_.camera_idx);
+  tmp_.modal_open =
+      ImGui::IsPopupOpen("LoadModel") || ImGui::IsPopupOpen("SaveXML") ||
+      ImGui::IsPopupOpen("SaveMJB") || ImGui::IsPopupOpen("SaveWebp") ||
+      ImGui::IsPopupOpen("PrintModel") || ImGui::IsPopupOpen("PrintData");
+
+  if (ImGui::BeginPopupModal("LoadModel", NULL,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+      RequestModelLoad(tmp_.filename);
+      tmp_.last_load_file = tmp_.filename;
+    }
+    ImGui::EndPopup();
   }
-  if (ImGui::Button("Copy Camera")) {
-    std::string camera_string = toolbox::CameraToString(&scene);
-    toolbox::MaybeSaveToClipboard(camera_string);
+  if (ImGui::BeginPopupModal("SaveXML", NULL,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+      char err[1000] = "";
+      mj_saveLastXML(tmp_.filename, model_, err, 1000);
+      tmp_.last_save_xml_file = tmp_.filename;
+    }
+    ImGui::EndPopup();
   }
+  if (ImGui::BeginPopupModal("SaveMJB", NULL,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+      mj_saveModel(model_, tmp_.filename, nullptr, 0);
+      tmp_.last_save_mjb_file = tmp_.filename;
+    }
+    ImGui::EndPopup();
+  }
+  if (ImGui::BeginPopupModal("SaveWebp", NULL,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+      renderer_->SaveScreenshot(tmp_.filename, window_->GetWidth(),
+                                window_->GetHeight());
+      tmp_.last_save_screenshot_file = tmp_.filename;
+    }
+    ImGui::EndPopup();
+  }
+  if (ImGui::BeginPopupModal("PrintModel", NULL,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+      mj_printModel(model_, tmp_.filename);
+      tmp_.last_print_model_file = tmp_.filename;
+    }
+    ImGui::EndPopup();
+  }
+  if (ImGui::BeginPopupModal("PrintData", NULL,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+      mj_printData(model_, data_, tmp_.filename);
+      tmp_.last_print_data_file = tmp_.filename;
+    }
+    ImGui::EndPopup();
+  }
+}
 
-  ImGui::SliderInt("Tree depth", &vis_options_.bvh_depth, 0, 20);
-  ImGui::SliderInt("Flex layer", &vis_options_.flex_layer, 0, 10);
-
-  if (ImGui::TreeNodeEx("Model Elements", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
+float App::GetExpectedLabelWidth() {
+  // Find the longest label which we'll use to set the minimum toggle button
+  // width. This isn't perfect because we may have labels that are longer, but
+  // it's a good enough approximation.
+  if (tmp_.expected_label_width == 0) {
+    int longest = 0;
+    const char* longest_label = "";
     for (int i = 0; i < mjNVISFLAG; ++i) {
-      Toggle(mjVISSTRING[i][0], vis_options_.flags[i]);
-      if (i % 2 == 0 && i != mjNVISFLAG - 1) {
-        ImGui::SameLine();
+      int length = static_cast<int>(strlen(mjVISSTRING[i][0]));
+      if (length > longest) {
+        longest_label = mjVISSTRING[i][0];
+        longest = length;
       }
     }
-    ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-    ImGui::TreePop();
+    // Pad the width a bit to account for how the labels will be displayed
+    // (e.g. as button labels or besides checkboxes).
+    tmp_.expected_label_width = ImGui::CalcTextSize(longest_label).x + 16;
   }
+  return tmp_.expected_label_width;
+}
 
-  if (ImGui::TreeNodeEx("Render Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
+std::vector<const char*> App::GetCameraNames() {
+  if (tmp_.camera_names.empty()) {
+    tmp_.camera_names.reserve(model_->ncam + 3);
 
-    for (int i = 0; i < mjNRNDFLAG; ++i) {
-      Toggle(mjRNDSTRING[i][0], scene.flags[i]);
-      if (i % 2 == 0 && i != mjNRNDFLAG - 1) {
-        ImGui::SameLine();
+    tmp_.camera_names.push_back("Free: tumble");
+    tmp_.camera_names.push_back("Free: wasd");
+    tmp_.camera_names.push_back("Tracking (-1)");
+    for (int i = 0; i < model_->ncam; i++) {
+      if (model_->names[model_->name_camadr[i]]) {
+        tmp_.camera_names.push_back(model_->names + model_->name_camadr[i]);
+      } else {
+        tmp_.camera_names.push_back("Unnamed");
       }
     }
-
-    ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-    ImGui::TreePop();
-  }
-}
-
-void App::GroupsGui() {
-  auto GroupGui = [](const char* name, mjtByte* group) {
-    if (ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_DefaultOpen)) {
-      ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
-      for (int i = 0; i < 6; ++i) {
-        char label[64];
-        std::snprintf(label, sizeof(label), "%s %d", name, i);
-
-        Toggle(label, group[i]);
-
-        if (i % 2 == 0) ImGui::SameLine();
-      }
-
-      ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-      ImGui::TreePop();
-    }
-  };
-
-  GroupGui("Geoms", vis_options_.geomgroup);
-  GroupGui("Sites", vis_options_.sitegroup);
-  GroupGui("Joints", vis_options_.jointgroup);
-  GroupGui("Tendons", vis_options_.tendongroup);
-  GroupGui("Actuators", vis_options_.actuatorgroup);
-  GroupGui("Flexes", vis_options_.flexgroup);
-  GroupGui("Skins", vis_options_.skingroup);
-}
-
-void App::JointsGui() {
-  char name[100];
-  for (int i = 0; i < Model()->njnt; ++i) {
-    if (Model()->jnt_type[i] != mjJNT_HINGE &&
-        Model()->jnt_type[i] != mjJNT_SLIDE) {
-      continue;
-    }
-    const int group = std::clamp(Model()->jnt_group[i], 0, mjNGROUP - 1);
-    if (!vis_options_.jointgroup[group]) {
-      continue;
-    }
-
-    const char* jnt_name = Model()->names + Model()->name_jntadr[i];
-    if (*jnt_name) {
-      std::snprintf(name, sizeof(name), "%s", jnt_name);
-    } else {
-      std::snprintf(name, sizeof(name), "joint %d", i);
-    }
-
-    double min = -1.0;
-    double max = 1.0;
-    if (Model()->jnt_limited[i]) {
-      min = Model()->jnt_range[2 * i + 0];
-      max = Model()->jnt_range[2 * i + 1];
-    } else if (Model()->jnt_type[i] == mjJNT_SLIDE) {
-      min = -1.0;
-      max = 1.0;
-    } else {
-      min = -3.1416;
-      max = 3.1416;
-    }
-
-    const int data_adr = Model()->jnt_qposadr[i];
-    ImGui_Slider(name, &Data()->qpos[data_adr], min, max);
-  }
-}
-
-void App::ControlsGui() {
-  if (ImGui::Button("Clear All")) {
-    mju_zero(Data()->ctrl, Model()->nu);
   }
 
-  char name[100];
-  for (int i = 0; i < Model()->nu; i++) {
-    int group = std::clamp(Model()->actuator_group[i], 0, mjNGROUP - 1);
-    if (!vis_options_.actuatorgroup[group]) {
-      continue;
-    }
-    if (group >= 0 && group <= 30 &&
-        Model()->opt.disableactuator & (1 << group)) {
-      continue;
-    }
+  // Update tracking camera name as this can change over time.
+  tmp_.camera_names[2] =
+      "Tracking (" + std::to_string(camera_.trackbodyid) + ")";
 
-    const char* ctrl_name = Model()->names + Model()->name_actuatoradr[i];
-    if (*ctrl_name) {
-      std::snprintf(name, sizeof(name), "%s", ctrl_name);
-    } else {
-      std::snprintf(name, sizeof(name), "control %d", i);
-    }
-
-    double min = -1.0;
-    double max = 1.0;
-    if (!Model()->actuator_ctrllimited[i]) {
-      min = Model()->actuator_ctrlrange[2 * i + 0];
-      max = Model()->actuator_ctrlrange[2 * i + 1];
-    }
-    ImGui_Slider(name, &Data()->ctrl[i], min, max);
+  std::vector<const char*> names;
+  names.reserve(tmp_.camera_names.size());
+  for (const auto& name : tmp_.camera_names) {
+    names.push_back(name.c_str());
   }
+  return names;
 }
 
 App::UiState::Dict App::UiState::ToDict() const {
   return {
-      {"Simulation", simulation ? "1" : "0"},
-      {"Physics", physics ? "1" : "0"},
-      {"Rendering", rendering ? "1" : "0"},
-      {"Watch", watch ? "1" : "0"},
-      {"Visualization", visualization ? "1" : "0"},
-      {"Groups", groups ? "1" : "0"},
-      {"Joints", joints ? "1" : "0"},
-      {"Controls", controls ? "1" : "0"},
-      {"Profiler", profiler ? "1" : "0"},
-      {"Sensor", sensor ? "1" : "0"},
+    {"theme", std::to_string(static_cast<int>(theme))},
   };
 }
 
 void App::UiState::FromDict(const Dict& dict) {
-  auto read_bool = [&](const char* key, bool& value) {
-    auto iter = dict.find(key);
-    if (iter != dict.end()) {
-      value = iter->second == "1";
-    }
-  };
-
   *this = UiState();
-
-  read_bool("Simulation", simulation);
-  read_bool("Physics", physics);
-  read_bool("Rendering", rendering);
-  read_bool("Watch", watch);
-  read_bool("Visualization", visualization);
-  read_bool("Groups", groups);
-  read_bool("Joints", joints);
-  read_bool("Controls", controls);
-  read_bool("Profiler", profiler);
-  read_bool("Sensor", sensor);
+  theme = ReadIniValue(dict, "theme", theme);
 }
 
 int App::LoadAssetCallback(const char* path, void* user_data,

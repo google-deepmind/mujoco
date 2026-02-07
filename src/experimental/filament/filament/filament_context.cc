@@ -33,6 +33,7 @@
 #include <filament/Texture.h>
 #include <filament/View.h>
 #include <math/vec4.h>
+#include <utils/FixedCapacityVector.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
@@ -88,7 +89,7 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
   filament::Renderer::ClearOptions opts;
   opts.clear = true;
   opts.discard = true;
-  opts.clearColor = {0.1, 0.1, 0.1, 1};
+  opts.clearColor = {0, 0, 0, 1};
   renderer_->setClearOptions(opts);
 
   // Copy parameters from model to context.
@@ -114,7 +115,10 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
     }
   }
 
-  scene_view_ = std::make_unique<SceneView>(engine_, object_manager_.get());
+  scene_view_ = std::make_unique<SceneView>(
+      engine_, object_manager_.get());
+  scene_view_->SetUseDistinctSegmentationColors(
+      config_.use_distinct_segmentation_colors);
   if (config_.enable_gui) {
     gui_view_ = std::make_unique<GuiView>(engine_, object_manager_.get());
   }
@@ -141,7 +145,7 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
 
   // Draw the GUI. We do this after processing the scene in case there are any
   // label elements in the scene.
-  if (gui_view_) {
+  if (gui_view_ && !render_to_texture_) {
     DrawGui(scene_view_.get());
 
     // Prepare the filament Renderable that contains the GUI draw commands. We
@@ -150,13 +154,18 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
     render_gui_ = gui_view_->PrepareRenderable();
   }
 
-  // Render the frame if we're not rendering to a texture.s
+  last_render_mode_ = scene->flags[mjRND_SEGMENT]
+                                 ? SceneView::DrawMode::kSegmentation
+                                 : SceneView::DrawMode::kNormal;
+  // Render the frame if we're not rendering to a texture.
   if (!render_to_texture_) {
-    SceneView::DrawMode mode = scene->flags[mjRND_SEGMENT]
-                                   ? SceneView::DrawMode::kSegmentation
-                                   : SceneView::DrawMode::kNormal;
+    filament::View* view = scene_view_->PrepareRenderView(last_render_mode_);
 
-    filament::View* view = scene_view_->PrepareRenderView(mode);
+    #ifndef __EMSCRIPTEN__
+    // Wait until previous frame is completed before requesting a new frame.
+    engine_->flushAndWait();
+    #endif
+
     if (renderer_->beginFrame(swap_chain_)) {
       renderer_->render(view);
       if (render_gui_) {
@@ -255,7 +264,7 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (rgb) {
     filament::View* view =
-        scene_view_->PrepareRenderView(SceneView::DrawMode::kNormal);
+        scene_view_->PrepareRenderView(last_render_mode_);
     if (renderer_->beginFrame(swap_chain_)) {
       // We need to disable msaa in order to render to texture.
       auto options = view->getMultiSampleAntiAliasingOptions();
@@ -264,14 +273,14 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
       });
       view->setRenderTarget(color_target_);
       renderer_->render(view);
+
+      const size_t num_bytes = viewport.width * viewport.height * 3;
+      ReadColorPixels(renderer_, color_target_, viewport, rgb, num_bytes);
+
       view->setRenderTarget(nullptr);
       view->setMultiSampleAntiAliasingOptions(options);
       renderer_->endFrame();
     }
-
-    engine_->flushAndWait();
-    const size_t num_bytes = viewport.width * viewport.height * 3;
-    ReadColorPixels(renderer_, color_target_, viewport, rgb, num_bytes);
   }
 
   if (depth) {
@@ -280,16 +289,17 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     if (renderer_->beginFrame(swap_chain_)) {
       view->setRenderTarget(depth_target_);
       renderer_->render(view);
+
+      const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
+      ReadDepthPixels(renderer_, depth_target_, viewport, depth, num_bytes);
+
       view->setRenderTarget(nullptr);
       renderer_->endFrame();
     }
-
-    engine_->flushAndWait();
-    const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
-    ReadDepthPixels(renderer_, depth_target_, viewport, depth, num_bytes);
   }
 
   if (rgb || depth) {
+    // Wait for rendering and copy back to buffer to complete.
     engine_->flushAndWait();
   }
 }
@@ -306,8 +316,23 @@ void FilamentContext::UploadHeightField(const mjModel* model, int id) {
   object_manager_->UploadHeightField(model, id);
 }
 
-void FilamentContext::UploadFont(const uint8_t* pixels, int width, int height,
-                                 int id) {
-  object_manager_->UploadFont(pixels, width, height, id);
+uintptr_t FilamentContext::UploadGuiImage(uintptr_t tex_id,
+                                          const uint8_t* pixels, int width,
+                                          int height, int bpp) {
+  if (gui_view_) {
+    return gui_view_->UploadImage(tex_id, pixels, width, height, bpp);
+  }
+  return 0;
 }
+
+double FilamentContext::GetFrameRate() const {
+  utils::FixedCapacityVector<filament::Renderer::FrameInfo> frame_info =
+      renderer_->getFrameInfoHistory(1);
+  if (frame_info.empty()) {
+    return 0;
+  }
+  const int64_t ns = frame_info[0].denoisedGpuFrameDuration;
+  return 1.0e9 / static_cast<double>(ns);
+}
+
 }  // namespace mujoco

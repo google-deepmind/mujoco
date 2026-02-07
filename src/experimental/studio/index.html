@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>MuJoCo Studio!</title>
+  </head>
+  <body style="margin: 0; overflow: hidden">
+    <div style="position: absolute; top: 3px; right: 3px; z-index: 1;">
+      <button id="uploadButton">Upload Model</button>
+      <input type="file" id="fileInput" accept=".xml,.mjb" style="display: none;">
+    </div>
+    <canvas
+      class="emscripten"
+      id="canvas"
+      oncontextmenu="event.preventDefault()"
+      style="width: 100vw; height: 100vh; display: block"
+    ></canvas>
+    <script>
+      var Module = {
+        preRun: [],
+        postRun: [],
+        locateFile: function(path) {
+          const baseURL = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"));
+          return baseURL + "/bin/" + path;
+        },
+        print: console.log,
+        printErr: text => {
+          console.error(text + "\n" + new Error().stack);
+        },
+        canvas: (() => {
+          const canvas = document.getElementById("canvas");
+          // As a default initial behavior, pop up an alert when webgl context is lost. To make your
+          // application robust, you may want to override this behavior before shipping!
+          // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+          canvas.addEventListener(
+            "webglcontextlost",
+            e => {
+              alert("WebGL context lost. You will need to reload the page.");
+              e.preventDefault();
+            },
+            false,
+          );
+          return canvas;
+        })(),
+        setStatus(text) {},
+        totalDependencies: 0,
+        monitorRunDependencies(left) {},
+        onRuntimeInitialized: () => {
+          // Define assets to prefetch. These paths are relative to the wasm_binary/ directory.
+          const assetsToPrefetch = [
+            "ibl.ktx",
+            "pbr.filamat",
+            "pbr_packed.filamat",
+            "phong_2d.filamat",
+            "phong_2d_uv.filamat",
+            "phong_color.filamat",
+            "phong_cube.filamat",
+            "unlit_line.filamat",
+            "unlit_ui.filamat",
+            "phong_2d_fade.filamat",
+            "phong_2d_uv_fade.filamat",
+            "phong_color_fade.filamat",
+            "phong_cube_fade.filamat",
+            "unlit_depth.filamat",
+            "unlit_segmentation.filamat",
+            "OpenSans-Regular.ttf",
+            "fontawesome-webfont.ttf",
+          ];
+
+          const assetPromises = assetsToPrefetch.map(async (relativePath) => {
+            const assetUrl = Module.locateFile(relativePath);
+            try {
+              const response = await fetch(assetUrl);
+              if (!response.ok) {
+                throw new Error(`Failed to fetch ${assetUrl}: ${response.statusText}`);
+              }
+              const buffer = await response.arrayBuffer();
+              const filename = relativePath.substring(relativePath.lastIndexOf('/') + 1);
+              Module.registerAsset(filename, new Uint8Array(buffer));
+              console.log(`Registered asset: ${filename}`);
+            } catch (error) {
+              console.error(`Error prefetching asset ${assetUrl}:`, error);
+              throw error; // Re-throw to be caught by Promise.all
+            }
+          });
+
+          Promise.all(assetPromises)
+            .then(() => {
+              try {
+                Module.init();
+                requestAnimationFrame(Module.animate);
+              } catch (error) {
+                console.error('Failed to initialize app.', error);
+              }
+            })
+            .catch((error) => {
+              console.error('Failed to prefetch one or more assets.', error);
+            });
+        },
+        animate: () => {
+          try {
+            Module.renderFrame();
+          } catch (error) {
+            console.error('Update error:', error);
+          }
+          requestAnimationFrame(Module.animate);
+        },
+      };
+      // Ensure the canvas is resized when the window is resized.
+      window.addEventListener("resize", function () {
+        Module.canvas.style.width = window.innerWidth + "px";
+        Module.canvas.style.height = window.innerHeight + "px";
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const uploadButton = document.getElementById('uploadButton');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadButton.addEventListener('click', () => {
+          fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (event) => {
+          const file = event.target.files[0];
+          if (!file) {
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const buffer = e.target.result;
+            try {
+              if (file.name.endsWith('.mjb')) {
+                Module.loadMjb(buffer);
+              } else if (file.name.endsWith('.xml')) {
+                Module.loadXml(buffer);
+              } else {
+                console.error('Unsupported file type:', file.name);
+              }
+              console.log('Model loaded from file:', file.name);
+            } catch (error) {
+              console.error('Failed to load model from file:', error);
+            }
+          };
+          reader.onerror = (e) => {
+            console.error('Error reading file:', e);
+          };
+          reader.readAsArrayBuffer(file); // Reads as text, suitable for XML.
+        });
+      });
+    </script>
+    <script async src="/bin/wasm.js"></script>
+  </body>
+</html>

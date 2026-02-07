@@ -16,6 +16,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <optional>
@@ -213,6 +214,7 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
 
   // Components
+  Def<traits::mj_fwdKinematics>(pymodule);
   Def<traits::mj_fwdPosition>(pymodule);
   Def<traits::mj_fwdVelocity>(pymodule);
   Def<traits::mj_fwdActuation>(pymodule);
@@ -264,27 +266,24 @@ PYBIND11_MODULE(_functions, pymodule) {
             m, d, x.data(), y.data(), y.rows());
       });
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_solveM2, "n")(
-      pymodule,
-      [](const raw::MjModel* m, raw::MjData* d, Eigen::Ref<EigenArrayXX> x,
-         Eigen::Ref<const EigenArrayXX> y, Eigen::Ref<const EigenArrayXX> sqrtInvD) {
+      pymodule, [](const raw::MjModel* m, raw::MjData* d,
+                   Eigen::Ref<EigenArrayXX> x, Eigen::Ref<const EigenArrayXX> y,
+                   Eigen::Ref<const EigenArrayXX> sqrtInvD) {
         if (x.rows() != y.rows()) {
           throw py::type_error(
               "the first dimension of x and y should be of the same size");
         }
         if (x.cols() != m->nv) {
-          throw py::type_error(
-              "the last dimension of x should be of size nv");
+          throw py::type_error("the last dimension of x should be of size nv");
         }
         if (y.cols() != m->nv) {
-          throw py::type_error(
-              "the last dimension of y should be of size nv");
+          throw py::type_error("the last dimension of y should be of size nv");
         }
         if (sqrtInvD.size() != m->nv) {
-          throw py::type_error(
-              "the size of sqrtInvD should be nv");
+          throw py::type_error("the size of sqrtInvD should be nv");
         }
-        return InterceptMjErrors(::mj_solveM2)(
-            m, d, x.data(), y.data(), sqrtInvD.data(), y.rows());
+        return InterceptMjErrors(::mj_solveM2)(m, d, x.data(), y.data(),
+                                               sqrtInvD.data(), y.rows());
       });
   Def<traits::mj_comVel>(pymodule);
   Def<traits::mj_passive>(pymodule);
@@ -352,6 +351,7 @@ PYBIND11_MODULE(_functions, pymodule) {
         }
         return InterceptMjErrors(::mj_setState)(m, d, state.data(), sig);
       });
+  Def<traits::mj_copyState>(pymodule);
   Def<traits::mj_setKeyframe>(pymodule);
   Def<traits::mj_addContact>(pymodule);
   Def<traits::mj_isPyramidal>(pymodule);
@@ -742,6 +742,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjv_makeLights>(pymodule);
   Def<traits::mjv_updateCamera>(pymodule);
   Def<traits::mjv_updateSkin>(pymodule);
+  Def<traits::mjv_cameraFrame>(pymodule);
+  Def<traits::mjv_cameraFrustum>(pymodule);
 
   // UI framework
   // Skipped: entire section (can add this if there's demand)
@@ -1533,6 +1535,11 @@ PYBIND11_MODULE(_functions, pymodule) {
 #undef X
         };
 
+        char error_msg[128];
+        error_msg[0] = '\0';
+        const char* error_msg_fmt =
+            "Insufficient arena memory, currently allocated memory=\"%s\". "
+            "Increase using <size memory=\"X\"/>.";
         cleanup(data, nJ);
         data->ncon = ncon;
         data->nefc = nefc;
@@ -1542,7 +1549,9 @@ PYBIND11_MODULE(_functions, pymodule) {
                 data, ncon * sizeof(raw::MjContact), alignof(raw::MjContact)));
         if (!data->contact) {
           cleanup(data, nJ);
-          throw FatalError("insufficient arena memory available");
+          std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,
+                        mju_writeNumBytes(data->narena));
+          throw FatalError(error_msg);
         }
 
 #undef MJ_M
@@ -1553,8 +1562,10 @@ PYBIND11_MODULE(_functions, pymodule) {
   data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
       data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
   if (!data->name) {                                                      \
-    cleanup(data, nJ);                                                        \
-    throw FatalError("insufficient arena memory available");              \
+    cleanup(data, nJ);                                                    \
+    std::snprintf(error_msg, sizeof(error_msg), error_msg_fmt,            \
+                  mju_writeNumBytes(data->narena));                       \
+    throw FatalError(error_msg);                                          \
   }
 
         MJDATA_ARENA_POINTERS_SOLVER

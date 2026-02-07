@@ -531,9 +531,11 @@ TEST_F(PluginTest, RecompileCompare) {
       if (p.path().extension() == ext) {
         std::string xml = p.path().string();
 
-        // if file is meant to fail, skip it
+        // if file is meant to fail or model is too slow to load, skip it
         if (absl::StrContains(p.path().string(), "malformed_") ||
+            absl::StrContains(p.path().string(), "_fail") ||
             absl::StrContains(p.path().string(), "touch_grid") ||
+            absl::StrContains(p.path().string(), "perf") ||
             absl::StrContains(p.path().string(), "cow")) {
           continue;
         }

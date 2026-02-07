@@ -99,7 +99,7 @@ def plane_ellipsoid(plane: GeomInfo, ellipsoid: GeomInfo) -> Collision:
 
 @collider(ncon=3)
 def plane_cylinder(plane: GeomInfo, cylinder: GeomInfo) -> Collision:
-  """Calculates one contact between an cylinder and a plane."""
+  """Calculates three contacts between a cylinder and a plane."""
   n = plane.mat[:, 2]
   axis = cylinder.mat[:, 2]
 

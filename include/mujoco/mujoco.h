@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 338
+#define mjVERSION_HEADER 341
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -123,6 +123,11 @@ MJAPI mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, i
 // Nullable: vfs, error
 MJAPI mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz);
 
+// Parse spec from a file.
+// Nullable: vfs, error
+MJAPI mjSpec* mj_parse(const char* filename, const char* content_type,
+                       const mjVFS* vfs, char* error, int error_sz);
+
 // Compile spec to model.
 // Nullable: vfs
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
@@ -207,11 +212,14 @@ MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, in
 // Nullable: vfs
 MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
 
+// Load model from memory buffer.
+MJAPI mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
+
 // Free memory allocation in model.
 MJAPI void mj_deleteModel(mjModel* m);
 
 // Return size of buffer needed to hold model.
-MJAPI int mj_sizeModel(const mjModel* m);
+MJAPI mjtSize mj_sizeModel(const mjModel* m);
 
 // Allocate mjData corresponding to given model.
 // If the model buffer is unallocated the initial configuration will not be set.
@@ -322,6 +330,9 @@ MJAPI void mj_printFormattedScene(const mjvScene* s, const char* filename,
 
 
 //---------------------------------- Components ----------------------------------------------------
+
+// Run all kinematics-like computations (kinematics, comPos, camlight, flex, tendon).
+MJAPI void mj_fwdKinematics(const mjModel* m, mjData* d);
 
 // Run position-dependent computations.
 MJAPI void mj_fwdPosition(const mjModel* m, mjData* d);
@@ -460,17 +471,20 @@ MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
 //---------------------------------- Support -------------------------------------------------------
 
 // Return size of state signature.
-MJAPI int mj_stateSize(const mjModel* m, unsigned int sig);
+MJAPI int mj_stateSize(const mjModel* m, int sig);
 
 // Get state.
-MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
+MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, int sig);
 
 // Extract a subset of components from a state previously obtained via mj_getState.
-MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
-                           mjtNum* dst, unsigned int dstsig);
+MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, int srcsig,
+                           mjtNum* dst, int dstsig);
 
 // Set state.
-MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
+MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig);
+
+// Copy state from src to dst.
+MJAPI void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig);
 
 // Copy current state to the k-th model keyframe.
 MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);
@@ -614,14 +628,15 @@ MJAPI const char* mj_versionString(void);
 
 // Intersect multiple rays emanating from a single point.
 // Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
-MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+// Nullable: geomgroup
+MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                        const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                        int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
 
 // Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude.
 // Return distance (x) to nearest surface, or -1 if no intersection and output geomid.
 // geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.
-// Nullable: geomid
+// Nullable: geomgroup, geomid
 MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                     int geomid[1]);
@@ -643,7 +658,7 @@ MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum 
 // Nullable: vertid
 MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
                          mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
-                         const mjtNum* pnt, const mjtNum* vec, int vertid[1]);
+                         const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
 
 // Intersect ray with skin, return nearest distance or -1 if no intersection,
 // and also output nearest vertex id.
@@ -766,6 +781,16 @@ MJAPI void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, m
 
 // Update skins.
 MJAPI void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn);
+
+// Compute camera position and forward, up, and right vectors.
+// Nullable: headpos, forward, up, right
+MJAPI void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum right[3],
+                           const mjData* d, const mjvCamera* cam);
+
+// Compute camera frustum: vertical, horizontal, and clip planes.
+// Nullable: zver, zhor, zclip
+MJAPI void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  const mjModel* m,
+                             const mjvCamera* cam);
 
 
 //---------------------------------- OpenGL rendering ----------------------------------------------
@@ -1449,6 +1474,17 @@ MJAPI const mjpResourceProvider* mjp_getResourceProvider(const char* resource_na
 // If invalid slot number, return NULL.
 MJAPI const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 
+// Globally register a decoder. This function is thread-safe.
+// If an identical mjpDecoder is already registered, this function does nothing.
+// If a non-identical mjpDecoder with the same name is already registered, an mju_error is raised.
+MJAPI void mjp_registerDecoder(const mjpDecoder* decoder);
+
+// Set default resource decoder definition.
+MJAPI void mjp_defaultDecoder(mjpDecoder* decoder);
+
+// Return the resource provider with the prefix that matches against the resource name.
+// If no match, return NULL.
+MJAPI const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
 
 //---------------------------------- Threads -------------------------------------------------------
 

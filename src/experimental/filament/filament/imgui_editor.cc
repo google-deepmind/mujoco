@@ -20,6 +20,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include <imgui.h>
 #include <filament/ColorGrading.h>
@@ -96,6 +97,10 @@ struct UiOpts {
   std::optional<T> fstep;
 };
 
+// This is a workaround to fix compilation on gcc <= 12 and clang <= 16
+template <typename T>
+struct dependent_false : std::false_type {};
+
 template <typename T>
 bool Ui(std::string_view label, T* value, UiOpts<T> opts = {}) {
   bool changed = false;
@@ -134,7 +139,7 @@ bool Ui(std::string_view label, T* value, UiOpts<T> opts = {}) {
   } else if constexpr (std::is_same_v<T, float4>) {
     changed = ImGui::InputFloat4(label.data(), &value->x);
   } else {
-    static_assert(false, "Unsupported type");
+    static_assert(dependent_false<T>::value, "Unsupported type");
   }
   return changed;
 }

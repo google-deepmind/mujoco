@@ -15,6 +15,7 @@
 #include <math.h>
 
 #include "engine/engine_collision_primitive.h"
+#include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
 
 // hard-clamp vector to range [-limit(i), +limit(i)]
@@ -43,14 +44,14 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
   mjtNum pos[3];
   mjtNum dist, closest;
 
-  mju_sub3(tmp, pos1, pos2);
-  mju_mulMatTVec3(center, mat2, tmp);
+  mji_sub3(tmp, pos1, pos2);
+  mji_mulMatTVec3(center, mat2, tmp);
 
-  mju_copy(clamped, center, 3);
+  mji_copy3(clamped, center);
   mju_clampVec(clamped, size2, 3);
 
-  mju_copy(deepest, center, 3);
-  mju_sub3(tmp, clamped, center);
+  mji_copy3(deepest, center);
+  mji_sub3(tmp, clamped, center);
   dist = mju_normalize3(tmp);
 
   if (dist - size1[0] > margin)
@@ -70,20 +71,20 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
     mjtNum nearest[3] = {0};
     nearest[k / 2] = (k % 2 ? -1 : 1);
 
-    mju_copy3(pos, center);
-    mju_addToScl3(pos, nearest, (size1[0] - closest) / 2);
-    mju_mulMatVec3(con[0].frame, mat2, nearest);
+    mji_copy3(pos, center);
+    mji_addToScl3(pos, nearest, (size1[0] - closest) / 2);
+    mji_mulMatVec3(con[0].frame, mat2, nearest);
     dist = -closest;
   } else {
-    mju_addToScl3(deepest, tmp, size1[0]);
+    mji_addToScl3(deepest, tmp, size1[0]);
     mju_zero3(pos);
-    mju_addToScl3(pos, clamped, 0.5);
-    mju_addToScl3(pos, deepest, 0.5);
-    mju_mulMatVec3(con[0].frame, mat2, tmp);
+    mji_addToScl3(pos, clamped, 0.5);
+    mji_addToScl3(pos, deepest, 0.5);
+    mji_mulMatVec3(con[0].frame, mat2, tmp);
   }
 
-  mju_mulMatVec3(tmp, mat2, pos);
-  mju_add3(con[0].pos, tmp, pos2);
+  mji_mulMatVec3(tmp, mat2, pos);
+  mji_add3(con[0].pos, tmp, pos2);
   con[0].dist = dist - size1[0];
   mju_zero3(con[0].frame + 3);
 
@@ -147,15 +148,15 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
   halflength = size1[1];
   secondpos = -4;  // initialize to no 2nd contact (valid values are between -1 and 1)
 
-  mju_sub3(tmp1, pos1, pos2);       // bring capsule to box-local frame (center's box is at (0,0,0))
-  mju_mulMatTVec3(pos, mat2, tmp1);  // and axis parralel to world
+  mji_sub3(tmp1, pos1, pos2);       // bring capsule to box-local frame (center's box is at (0,0,0))
+  mji_mulMatTVec3(pos, mat2, tmp1);  // and axis parralel to world
 
   tmp1[0] = mat1[2];  // capsule's axis
   tmp1[1] = mat1[5];
   tmp1[2] = mat1[8];
 
-  mju_mulMatTVec3(axis, mat2, tmp1);      // do the same for the capsule axis
-  mju_scl3(halfaxis, axis, halflength);  // scale to get actual capsule half-axis
+  mji_mulMatTVec3(axis, mat2, tmp1);      // do the same for the capsule axis
+  mji_scl3(halfaxis, axis, halflength);  // scale to get actual capsule half-axis
 
   axisdir = 0;
   if (halfaxis[0] > 0)
@@ -177,9 +178,9 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
 
   // test to see if maybe the a face of the box is closest to the capsule
   for (i = -1; i <= 1; i += 2) {
-    mju_copy3(tmp1, pos);
-    mju_addToScl3(tmp1, halfaxis, i);
-    mju_copy3(tmp2, tmp1);
+    mji_copy3(tmp1, pos);
+    mji_addToScl3(tmp1, halfaxis, i);
+    mji_copy3(tmp2, tmp1);
 
     for (c1 = 0, j = 0, c2 = -1; j < 3; j++) {
       if (tmp1[j] < -size2[j]) {
@@ -196,7 +197,7 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
     if (c1 > 1)
       continue;
 
-    mju_subFrom3(tmp1, tmp2);
+    mji_subFrom3(tmp1, tmp2);
     dist = mju_dot3(tmp1, tmp1);
 
     if (dist < bestdist) {
@@ -225,7 +226,7 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
 
         // find closest point between capsule and the edge
 
-        mju_sub3(dif, tmp3, pos);
+        mji_sub3(dif, tmp3, pos);
 
         ma = size2[j] * size2[j];
         mb = -size2[j] * halfaxis[j];
@@ -275,9 +276,9 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
             x1 = -1, s1 = 0;
         }
 
-        mju_sub3(dif, tmp3, pos);
+        mji_sub3(dif, tmp3, pos);
 
-        mju_addToScl3(dif, halfaxis, -x2);
+        mji_addToScl3(dif, halfaxis, -x2);
         dif[j] += size2[j] * x1;
 
         tmp1[2] = mju_dot3(dif, dif);
@@ -546,8 +547,8 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
 
     secondpos = 2;
 
-    mju_copy3(tmp1, pos);
-    mju_addToScl3(tmp1, halfaxis, -mul);
+    mji_copy3(tmp1, pos);
+    mji_addToScl3(tmp1, halfaxis, -mul);
 
     for (i = 0; i < 3; i++) {
       if (i != clface) {
@@ -570,7 +571,7 @@ skip:
 
   // create sphere in original orientation at first contact point
   mju_copy3(tmp1, pos);
-  mju_addToScl3(tmp1, halfaxis, bestsegmentpos);
+  mji_addToScl3(tmp1, halfaxis, bestsegmentpos);
   mju_mulMatVec3(tmp2, mat2, tmp1);
   mju_addTo3(tmp2, pos2);
 
@@ -580,7 +581,7 @@ skip:
 
   if (secondpos > -3) {  // secondpos was modified
     mju_copy3(tmp1, pos);
-    mju_addToScl3(tmp1, halfaxis, secondpos + bestsegmentpos);  // note the summation
+    mji_addToScl3(tmp1, halfaxis, secondpos + bestsegmentpos);  // note the summation
     mju_mulMatVec3(tmp2, mat2, tmp1);
     mju_addTo3(tmp2, pos2);
     n += mjraw_SphereBox(con + n, margin, tmp2, mat1, size1, pos2, mat2, size2);
@@ -626,11 +627,11 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   code = -1;
   margin2 = margin * margin;
 
-  mju_sub3(tmp1, pos2, pos1);
-  mju_mulMatTVec3(pos21, mat1, tmp1);
+  mji_sub3(tmp1, pos2, pos1);
+  mji_mulMatTVec3(pos21, mat1, tmp1);
 
-  mju_sub3(tmp1, pos1, pos2);
-  mju_mulMatTVec3(pos12, mat2, tmp1);
+  mji_sub3(tmp1, pos1, pos2);
+  mji_mulMatTVec3(pos12, mat2, tmp1);
 
   mju_mulMatTMat3(rot, mat1, mat2);
   mju_transpose(rott, rot, 3, 3);
@@ -640,8 +641,8 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   for (i = 0; i < 9; i++)
     rottabs[i] = mju_abs(rott[i]);
 
-  mju_mulMatVec3(plen2, rotabs, size2);
-  mju_mulMatTVec3(plen1, rotabs, size1);
+  mji_mulMatVec3(plen2, rotabs, size2);
+  mji_mulMatTVec3(plen1, rotabs, size1);
 
   for (i = 0, penetration = margin; i < 3; i++)
     penetration += size1[i] * 3 + size2[i] * 3;
@@ -716,7 +717,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
               cle2 += 1 << k;
 
         code = 12 + i * 3 + j;
-        mju_copy3(clnorm, tmp2);
+        mji_copy3(clnorm, tmp2);
         in = c2 < 0;
       }
 
@@ -792,9 +793,9 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
 }
 #define rotmatx(matres, matin)        \
 {                                     \
-  mju_scl3(matres+0, matin+i0*3, f0); \
-  mju_scl3(matres+3, matin+i1*3, f1); \
-  mju_scl3(matres+6, matin+i2*3, f2); \
+  mji_scl3(matres+0, matin+i0*3, f0); \
+  mji_scl3(matres+3, matin+i1*3, f1); \
+  mji_scl3(matres+6, matin+i2*3, f2); \
 }
 
   if (q2) {
@@ -806,7 +807,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
     rotaxis(p, pos12);
     rotaxis(tmp1, size2);
 
-    mju_copy3(s, size1);
+    mji_copy3(s, size1);
   } else {
     // mju_mulMatMat(r,rotmore,rot,3,3,3);
 
@@ -818,7 +819,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
     rotaxis(p, pos21);
     rotaxis(tmp1, size1);
 
-    mju_copy3(s, size2);
+    mji_copy3(s, size2);
   }
 
   mju_transpose(rt, r, 3, 3);
@@ -831,40 +832,40 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   hz = ss[2];
   p[2] -= hz;
 
-  mju_copy3(lp, p);
+  mji_copy3(lp, p);
 
   for (clcorner = 0, i = 0; i < 3; i++)
     if (r[6 + i] < 0)
       clcorner += 1 << i;
 
-  mju_addToScl3(lp, rt + 0, s[0] * ((clcorner & 1) ? 1 : -1));
-  mju_addToScl3(lp, rt + 3, s[1] * ((clcorner & 2) ? 1 : -1));
-  mju_addToScl3(lp, rt + 6, s[2] * ((clcorner & 4) ? 1 : -1));
+  mji_addToScl3(lp, rt + 0, s[0] * ((clcorner & 1) ? 1 : -1));
+  mji_addToScl3(lp, rt + 3, s[1] * ((clcorner & 2) ? 1 : -1));
+  mji_addToScl3(lp, rt + 6, s[2] * ((clcorner & 4) ? 1 : -1));
 
   m = k = 0;
-  mju_copy3(pts[m++], lp);
+  mji_copy3(pts[m++], lp);
 
   for (i = 0; i < 3; i++)
     if (mju_abs(r[6 + i]) < 0.5)
       mju_scl3(pts[m++], rt + 3 * i, s[i] * ((clcorner & (1 << i)) ? -2 : 2));
 
-  mju_add3(pts[3], pts[0], pts[1]);
-  mju_add3(pts[4], pts[0], pts[2]);
-  mju_add3(pts[5], pts[3], pts[2]);
+  mji_add3(pts[3], pts[0], pts[1]);
+  mji_add3(pts[4], pts[0], pts[2]);
+  mji_add3(pts[5], pts[3], pts[2]);
 
   if (m > 1)
   {
-    mju_copy3(lines[k] + 0, pts[0]);
-    mju_copy3(lines[k++] + 3, pts[1]);
+    mji_copy3(lines[k] + 0, pts[0]);
+    mji_copy3(lines[k++] + 3, pts[1]);
   }
   if (m > 2)
   {
-    mju_copy3(lines[k] + 0, pts[0]);
-    mju_copy3(lines[k++] + 3, pts[2]);
-    mju_copy3(lines[k] + 0, pts[3]);
-    mju_copy3(lines[k++] + 3, pts[2]);
-    mju_copy3(lines[k] + 0, pts[4]);
-    mju_copy3(lines[k++] + 3, pts[1]);
+    mji_copy3(lines[k] + 0, pts[0]);
+    mji_copy3(lines[k++] + 3, pts[2]);
+    mji_copy3(lines[k] + 0, pts[3]);
+    mji_copy3(lines[k++] + 3, pts[2]);
+    mji_copy3(lines[k] + 0, pts[4]);
+    mji_copy3(lines[k++] + 3, pts[1]);
   }
 
   for (i = 0; i < k; i++) {
@@ -884,8 +885,8 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
           if (mju_abs(c2) > ss[1 - q])
             continue;
 
-          mju_copy3(points[n], lines[i]);
-          mju_addToScl3(points[n++], lines[i] + 3, c1);
+          mji_copy3(points[n], lines[i]);
+          mji_addToScl3(points[n++], lines[i] + 3, c1);
         }
       }
     }
@@ -920,7 +921,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   }
 
   for (i = 0; i < (1 << (m - 1)); i++) {
-    mju_copy3(tmp1, pts[i == 0 ? 0 : i + 2]);
+    mji_copy3(tmp1, pts[i == 0 ? 0 : i + 2]);
 
 
     if (i)
@@ -930,18 +931,17 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
       if (tmp1[1] <= -ly || tmp1[1] >= ly)
         continue;
 
-    mju_copy3(points[n++], tmp1);
+    mji_copy3(points[n++], tmp1);
   }
 
 
   m = n;
   n = 0;
 
-  for (i = 0; i < m; i++)
-  {
+  for (i = 0; i < m; i++) {
     if (points[i][2] > margin)
       continue;
-    mju_copy3(points[n], points[i]);
+    if (n != i) mji_copy3(points[n], points[i]);
 
     depth[n] = points[n][2];
     points[n][2] *= 0.5;
@@ -957,7 +957,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   tmp2[1] = (q2 ? -1 : 1) * r[5];
   tmp2[2] = (q2 ? -1 : 1) * r[8];
 
-  mju_copy3(con[0].frame, tmp2);
+  mji_copy3(con[0].frame, tmp2);
   mju_zero3(con[0].frame + 3);
 
 
@@ -965,14 +965,14 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
 
   for (i = 0; i < n; i++)
   {
-    con[i].dist = points[i][2];
+    con[i].dist = 2 * points[i][2];
     points[i][2] += hz;
 
-    mju_mulMatVec3(tmp2, r, points[i]);
-    mju_add3(con[i].pos, tmp2, p);
+    mji_mulMatVec3(tmp2, r, points[i]);
+    mji_add3(con[i].pos, tmp2, p);
 
     if (i)
-      mju_copy(con[i].frame, con[0].frame, 6);
+      mji_copy6(con[i].frame, con[0].frame);
   }
 
 
@@ -1078,7 +1078,7 @@ edgeedge:
   // mju_mulMatMat(r,rotmore,rot,3,3,3);
   rotmatx(r, rot);
 
-  mju_mulMatTVec3(tmp1, rotmore, size1);
+  mji_mulMatTVec3(tmp1, rotmore, size1);
   for (i = 0; i < 3; i++)
     s[i] = mju_abs(tmp1[i]);
 
@@ -1092,29 +1092,29 @@ edgeedge:
 
 
   n = 0;
-  mju_copy3(points[n], p);
-  mju_addToScl3(points[n], rt + 3 * ax1, size2[ax1] * ((cle2 & (1 << ax1)) ? 1 : -1));
-  mju_addToScl3(points[n], rt + 3 * ax2, size2[ax2] * ((cle2 & (1 << ax2)) ? 1 : -1));
-  mju_copy3(points[n + 1], points[n]);
-  mju_addToScl3(points[n], rt + 3 * q2, size2[q2]);
+  mji_copy3(points[n], p);
+  mji_addToScl3(points[n], rt + 3 * ax1, size2[ax1] * ((cle2 & (1 << ax1)) ? 1 : -1));
+  mji_addToScl3(points[n], rt + 3 * ax2, size2[ax2] * ((cle2 & (1 << ax2)) ? 1 : -1));
+  mji_copy3(points[n + 1], points[n]);
+  mji_addToScl3(points[n], rt + 3 * q2, size2[q2]);
   n = 1;
-  mju_addToScl3(points[n], rt + 3 * q2, -size2[q2]);
+  mji_addToScl3(points[n], rt + 3 * q2, -size2[q2]);
   n = 2;
 
 
-  mju_copy3(points[n], p);
-  mju_addToScl3(points[n], rt + 3 * ax1, size2[ax1] * ((cle2 & (1 << ax1)) ? -1 : 1));
-  mju_addToScl3(points[n], rt + 3 * ax2, size2[ax2] * ((cle2 & (1 << ax2)) ? 1 : -1));
-  mju_copy3(points[n + 1], points[n]);
-  mju_addToScl3(points[n], rt + 3 * q2, size2[q2]);
+  mji_copy3(points[n], p);
+  mji_addToScl3(points[n], rt + 3 * ax1, size2[ax1] * ((cle2 & (1 << ax1)) ? -1 : 1));
+  mji_addToScl3(points[n], rt + 3 * ax2, size2[ax2] * ((cle2 & (1 << ax2)) ? 1 : -1));
+  mji_copy3(points[n + 1], points[n]);
+  mji_addToScl3(points[n], rt + 3 * q2, size2[q2]);
   n = 3;
-  mju_addToScl3(points[n], rt + 3 * q2, -size2[q2]);
+  mji_addToScl3(points[n], rt + 3 * q2, -size2[q2]);
   n = 4;
 
 
-  mju_copy3(axi[0], points[0]);
-  mju_sub3(axi[1], points[1], points[0]);
-  mju_sub3(axi[2], points[2], points[0]);
+  mji_copy3(axi[0], points[0]);
+  mji_sub3(axi[1], points[1], points[0]);
+  mji_sub3(axi[2], points[2], points[0]);
 
 
   if (mju_abs(rnorm[2]) < mjMINVAL)
@@ -1127,9 +1127,9 @@ edgeedge:
   {
     c1 = -points[i][2] * (1 / rnorm[2]);
 
-    mju_copy3(pu[i], points[i]);
+    mji_copy3(pu[i], points[i]);
 
-    mju_addToScl3(points[i], rnorm, c1);
+    mji_addToScl3(points[i], rnorm, c1);
 
     // ppts[i][0]=points[i][0];
     // ppts[i][1]=points[i][1];
@@ -1138,9 +1138,9 @@ edgeedge:
   }
 
 
-  mju_copy3(pts[0], points[0]);
-  mju_sub3(pts[1], points[1], points[0]);
-  mju_sub3(pts[2], points[2], points[0]);
+  mji_copy3(pts[0], points[0]);
+  mji_sub3(pts[1], points[1], points[0]);
+  mji_sub3(pts[2], points[2], points[0]);
 
   m = 3;
   k = 0;
@@ -1148,26 +1148,26 @@ edgeedge:
 
 
   if (m > 1) {
-    mju_copy3(lines[k] + 0, pts[0]);
-    mju_copy3(lines[k] + 3, pts[1]);
-    mju_copy3(linesu[k] + 0, axi[0]);
-    mju_copy3(linesu[k++] + 3, axi[1]);
+    mji_copy3(lines[k] + 0, pts[0]);
+    mji_copy3(lines[k] + 3, pts[1]);
+    mji_copy3(linesu[k] + 0, axi[0]);
+    mji_copy3(linesu[k++] + 3, axi[1]);
   }
   if (m > 2) {
-    mju_copy3(lines[k] + 0, pts[0]);
-    mju_copy3(lines[k] + 3, pts[2]);
-    mju_copy3(linesu[k] + 0, axi[0]);
-    mju_copy3(linesu[k++] + 3, axi[2]);
+    mji_copy3(lines[k] + 0, pts[0]);
+    mji_copy3(lines[k] + 3, pts[2]);
+    mji_copy3(linesu[k] + 0, axi[0]);
+    mji_copy3(linesu[k++] + 3, axi[2]);
 
-    mju_add3(lines[k] + 0, pts[0], pts[1]);
-    mju_copy3(lines[k] + 3, pts[2]);
-    mju_add3(linesu[k] + 0, axi[0], axi[1]);
-    mju_copy3(linesu[k++] + 3, axi[2]);
+    mji_add3(lines[k] + 0, pts[0], pts[1]);
+    mji_copy3(lines[k] + 3, pts[2]);
+    mji_add3(linesu[k] + 0, axi[0], axi[1]);
+    mji_copy3(linesu[k++] + 3, axi[2]);
 
-    mju_add3(lines[k] + 0, pts[0], pts[2]);
-    mju_copy3(lines[k] + 3, pts[1]);
-    mju_add3(linesu[k] + 0, axi[0], axi[2]);
-    mju_copy3(linesu[k++] + 3, axi[1]);
+    mji_add3(lines[k] + 0, pts[0], pts[2]);
+    mji_copy3(lines[k] + 3, pts[1]);
+    mji_add3(linesu[k] + 0, axi[0], axi[2]);
+    mji_copy3(linesu[k++] + 3, axi[1]);
   }
 
   for (i = 0; i < k; i++) {
@@ -1191,8 +1191,8 @@ edgeedge:
             if ((linesu[i][2] + linesu[i][5]*c1)*innorm > margin)
               continue;
 
-            mju_scl3(points[n], linesu[i], 0.5);
-            mju_addToScl3(points[n], linesu[i] + 3, 0.5 * c1);
+            mji_scl3(points[n], linesu[i], 0.5);
+            mji_addToScl3(points[n], linesu[i] + 3, 0.5 * c1);
             points[n][0 + q] += 0.5 * l;
             points[n][1 - q] += 0.5 * c2;
             depth[n] = points[n][2] * innorm * 2;
@@ -1240,22 +1240,22 @@ edgeedge:
         v = 1;
 
 
-      mju_scl3(tmp1, pu[0], 1 - u - v);
-      mju_addToScl3(tmp1, pu[1], u);
-      mju_addToScl3(tmp1, pu[2], v);
+      mji_scl3(tmp1, pu[0], 1 - u - v);
+      mji_addToScl3(tmp1, pu[1], u);
+      mji_addToScl3(tmp1, pu[2], v);
 
       points[n][0] = llx;
       points[n][1] = lly;
       points[n][2] = 0;
 
-      mju_sub3(tmp2, points[n], tmp1);
+      mji_sub3(tmp2, points[n], tmp1);
 
       c1 = mju_dot3(tmp2, tmp2);
       if (tmp1[2] > 0)
         if (c1 > margin2)
           continue;
 
-      mju_add3(points[n], points[n], tmp1);
+      mji_addTo3(points[n], tmp1);
       mju_scl3(points[n], points[n], 0.5);
 
       depth[n] = sqrt(c1) * (tmp1[2] < 0 ? -1 : 1);
@@ -1305,8 +1305,8 @@ edgeedge:
         else if (ppts2[i][j] > s[j])
           tmp1[j] = +s[j] * 0.5;
       }
-      mju_addToScl3(tmp1, pu[i], 0.5);
-      mju_copy3(points[n], tmp1);
+      mji_addToScl3(tmp1, pu[i], 0.5);
+      mji_copy3(points[n], tmp1);
 
       depth[n] = sqrt(c1) * (pu[i][2] < 0 ? -1 : 1);
       n++;
@@ -1315,9 +1315,9 @@ edgeedge:
 
   mju_mulMatMatT3(r, mat1, rotmore);
 
-  mju_mulMatVec3(tmp1, r, rnorm);
+  mji_mulMatVec3(tmp1, r, rnorm);
 
-  mju_scl3(con[0].frame, tmp1, in ? -1 : 1);
+  mji_scl3(con[0].frame, tmp1, in ? -1 : 1);
   mju_zero3(con[0].frame + 3);
 
 
@@ -1325,11 +1325,11 @@ edgeedge:
     con[i].dist = depth[i];
     points[i][2] += hz;
 
-    mju_mulMatVec3(tmp2, r, points[i]);
+    mji_mulMatVec3(tmp2, r, points[i]);
 
-    mju_add3(con[i].pos, tmp2, pos1);
+    mji_add3(con[i].pos, tmp2, pos1);
 
-    mju_copy(con[i].frame, con[0].frame, 6);
+    mji_copy6(con[i].frame, con[0].frame);
   }
 
   return n;

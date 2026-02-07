@@ -42,6 +42,7 @@ public const double mjMAXIMP = 0.9999;
 public const int mjMAXCONPAIR = 50;
 public const int mjMAXTREEDEPTH = 50;
 public const int mjMAXFLEXNODES = 27;
+public const int mjMINAWAKE = 10;
 public const int mjNEQDATA = 11;
 public const int mjNDYN = 10;
 public const int mjNGAIN = 10;
@@ -111,7 +112,7 @@ public const int mjMAXLINEPNT = 1001;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 338;
+public const int mjVERSION_HEADER = 341;
 
 
 // ------------------------------------Enums------------------------------------
@@ -189,7 +190,8 @@ public enum mjtEnableBit : int{
   mjENBL_FWDINV = 4,
   mjENBL_INVDISCRETE = 8,
   mjENBL_MULTICCD = 16,
-  mjNENABLE = 5,
+  mjENBL_SLEEP = 32,
+  mjNENABLE = 6,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -431,6 +433,14 @@ public enum mjtSameFrame : int{
   mjSAMEFRAME_INERTIA = 2,
   mjSAMEFRAME_BODYROT = 3,
   mjSAMEFRAME_INERTIAROT = 4,
+}
+public enum mjtSleepPolicy : int{
+  mjSLEEP_AUTO = 0,
+  mjSLEEP_AUTO_NEVER = 1,
+  mjSLEEP_AUTO_ALLOWED = 2,
+  mjSLEEP_NEVER = 3,
+  mjSLEEP_ALLOWED = 4,
+  mjSLEEP_INIT = 5,
 }
 public enum mjtLRMode : int{
   mjLRMODE_NONE = 0,
@@ -730,142 +740,142 @@ public unsafe struct mjSolverStat_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjData_ {
-  public UInt64 narena;
-  public UInt64 nbuffer;
+  public Int64 narena;
+  public Int64 nbuffer;
   public int nplugin;
   public UIntPtr pstack;
   public UIntPtr pbase;
   public UIntPtr parena;
-  public UInt64 maxuse_stack;
-  public UInt64 maxuse_threadstack0;
-  public UInt64 maxuse_threadstack1;
-  public UInt64 maxuse_threadstack2;
-  public UInt64 maxuse_threadstack3;
-  public UInt64 maxuse_threadstack4;
-  public UInt64 maxuse_threadstack5;
-  public UInt64 maxuse_threadstack6;
-  public UInt64 maxuse_threadstack7;
-  public UInt64 maxuse_threadstack8;
-  public UInt64 maxuse_threadstack9;
-  public UInt64 maxuse_threadstack10;
-  public UInt64 maxuse_threadstack11;
-  public UInt64 maxuse_threadstack12;
-  public UInt64 maxuse_threadstack13;
-  public UInt64 maxuse_threadstack14;
-  public UInt64 maxuse_threadstack15;
-  public UInt64 maxuse_threadstack16;
-  public UInt64 maxuse_threadstack17;
-  public UInt64 maxuse_threadstack18;
-  public UInt64 maxuse_threadstack19;
-  public UInt64 maxuse_threadstack20;
-  public UInt64 maxuse_threadstack21;
-  public UInt64 maxuse_threadstack22;
-  public UInt64 maxuse_threadstack23;
-  public UInt64 maxuse_threadstack24;
-  public UInt64 maxuse_threadstack25;
-  public UInt64 maxuse_threadstack26;
-  public UInt64 maxuse_threadstack27;
-  public UInt64 maxuse_threadstack28;
-  public UInt64 maxuse_threadstack29;
-  public UInt64 maxuse_threadstack30;
-  public UInt64 maxuse_threadstack31;
-  public UInt64 maxuse_threadstack32;
-  public UInt64 maxuse_threadstack33;
-  public UInt64 maxuse_threadstack34;
-  public UInt64 maxuse_threadstack35;
-  public UInt64 maxuse_threadstack36;
-  public UInt64 maxuse_threadstack37;
-  public UInt64 maxuse_threadstack38;
-  public UInt64 maxuse_threadstack39;
-  public UInt64 maxuse_threadstack40;
-  public UInt64 maxuse_threadstack41;
-  public UInt64 maxuse_threadstack42;
-  public UInt64 maxuse_threadstack43;
-  public UInt64 maxuse_threadstack44;
-  public UInt64 maxuse_threadstack45;
-  public UInt64 maxuse_threadstack46;
-  public UInt64 maxuse_threadstack47;
-  public UInt64 maxuse_threadstack48;
-  public UInt64 maxuse_threadstack49;
-  public UInt64 maxuse_threadstack50;
-  public UInt64 maxuse_threadstack51;
-  public UInt64 maxuse_threadstack52;
-  public UInt64 maxuse_threadstack53;
-  public UInt64 maxuse_threadstack54;
-  public UInt64 maxuse_threadstack55;
-  public UInt64 maxuse_threadstack56;
-  public UInt64 maxuse_threadstack57;
-  public UInt64 maxuse_threadstack58;
-  public UInt64 maxuse_threadstack59;
-  public UInt64 maxuse_threadstack60;
-  public UInt64 maxuse_threadstack61;
-  public UInt64 maxuse_threadstack62;
-  public UInt64 maxuse_threadstack63;
-  public UInt64 maxuse_threadstack64;
-  public UInt64 maxuse_threadstack65;
-  public UInt64 maxuse_threadstack66;
-  public UInt64 maxuse_threadstack67;
-  public UInt64 maxuse_threadstack68;
-  public UInt64 maxuse_threadstack69;
-  public UInt64 maxuse_threadstack70;
-  public UInt64 maxuse_threadstack71;
-  public UInt64 maxuse_threadstack72;
-  public UInt64 maxuse_threadstack73;
-  public UInt64 maxuse_threadstack74;
-  public UInt64 maxuse_threadstack75;
-  public UInt64 maxuse_threadstack76;
-  public UInt64 maxuse_threadstack77;
-  public UInt64 maxuse_threadstack78;
-  public UInt64 maxuse_threadstack79;
-  public UInt64 maxuse_threadstack80;
-  public UInt64 maxuse_threadstack81;
-  public UInt64 maxuse_threadstack82;
-  public UInt64 maxuse_threadstack83;
-  public UInt64 maxuse_threadstack84;
-  public UInt64 maxuse_threadstack85;
-  public UInt64 maxuse_threadstack86;
-  public UInt64 maxuse_threadstack87;
-  public UInt64 maxuse_threadstack88;
-  public UInt64 maxuse_threadstack89;
-  public UInt64 maxuse_threadstack90;
-  public UInt64 maxuse_threadstack91;
-  public UInt64 maxuse_threadstack92;
-  public UInt64 maxuse_threadstack93;
-  public UInt64 maxuse_threadstack94;
-  public UInt64 maxuse_threadstack95;
-  public UInt64 maxuse_threadstack96;
-  public UInt64 maxuse_threadstack97;
-  public UInt64 maxuse_threadstack98;
-  public UInt64 maxuse_threadstack99;
-  public UInt64 maxuse_threadstack100;
-  public UInt64 maxuse_threadstack101;
-  public UInt64 maxuse_threadstack102;
-  public UInt64 maxuse_threadstack103;
-  public UInt64 maxuse_threadstack104;
-  public UInt64 maxuse_threadstack105;
-  public UInt64 maxuse_threadstack106;
-  public UInt64 maxuse_threadstack107;
-  public UInt64 maxuse_threadstack108;
-  public UInt64 maxuse_threadstack109;
-  public UInt64 maxuse_threadstack110;
-  public UInt64 maxuse_threadstack111;
-  public UInt64 maxuse_threadstack112;
-  public UInt64 maxuse_threadstack113;
-  public UInt64 maxuse_threadstack114;
-  public UInt64 maxuse_threadstack115;
-  public UInt64 maxuse_threadstack116;
-  public UInt64 maxuse_threadstack117;
-  public UInt64 maxuse_threadstack118;
-  public UInt64 maxuse_threadstack119;
-  public UInt64 maxuse_threadstack120;
-  public UInt64 maxuse_threadstack121;
-  public UInt64 maxuse_threadstack122;
-  public UInt64 maxuse_threadstack123;
-  public UInt64 maxuse_threadstack124;
-  public UInt64 maxuse_threadstack125;
-  public UInt64 maxuse_threadstack126;
-  public UInt64 maxuse_threadstack127;
-  public UInt64 maxuse_arena;
+  public Int64 maxuse_stack;
+  public Int64 maxuse_threadstack0;
+  public Int64 maxuse_threadstack1;
+  public Int64 maxuse_threadstack2;
+  public Int64 maxuse_threadstack3;
+  public Int64 maxuse_threadstack4;
+  public Int64 maxuse_threadstack5;
+  public Int64 maxuse_threadstack6;
+  public Int64 maxuse_threadstack7;
+  public Int64 maxuse_threadstack8;
+  public Int64 maxuse_threadstack9;
+  public Int64 maxuse_threadstack10;
+  public Int64 maxuse_threadstack11;
+  public Int64 maxuse_threadstack12;
+  public Int64 maxuse_threadstack13;
+  public Int64 maxuse_threadstack14;
+  public Int64 maxuse_threadstack15;
+  public Int64 maxuse_threadstack16;
+  public Int64 maxuse_threadstack17;
+  public Int64 maxuse_threadstack18;
+  public Int64 maxuse_threadstack19;
+  public Int64 maxuse_threadstack20;
+  public Int64 maxuse_threadstack21;
+  public Int64 maxuse_threadstack22;
+  public Int64 maxuse_threadstack23;
+  public Int64 maxuse_threadstack24;
+  public Int64 maxuse_threadstack25;
+  public Int64 maxuse_threadstack26;
+  public Int64 maxuse_threadstack27;
+  public Int64 maxuse_threadstack28;
+  public Int64 maxuse_threadstack29;
+  public Int64 maxuse_threadstack30;
+  public Int64 maxuse_threadstack31;
+  public Int64 maxuse_threadstack32;
+  public Int64 maxuse_threadstack33;
+  public Int64 maxuse_threadstack34;
+  public Int64 maxuse_threadstack35;
+  public Int64 maxuse_threadstack36;
+  public Int64 maxuse_threadstack37;
+  public Int64 maxuse_threadstack38;
+  public Int64 maxuse_threadstack39;
+  public Int64 maxuse_threadstack40;
+  public Int64 maxuse_threadstack41;
+  public Int64 maxuse_threadstack42;
+  public Int64 maxuse_threadstack43;
+  public Int64 maxuse_threadstack44;
+  public Int64 maxuse_threadstack45;
+  public Int64 maxuse_threadstack46;
+  public Int64 maxuse_threadstack47;
+  public Int64 maxuse_threadstack48;
+  public Int64 maxuse_threadstack49;
+  public Int64 maxuse_threadstack50;
+  public Int64 maxuse_threadstack51;
+  public Int64 maxuse_threadstack52;
+  public Int64 maxuse_threadstack53;
+  public Int64 maxuse_threadstack54;
+  public Int64 maxuse_threadstack55;
+  public Int64 maxuse_threadstack56;
+  public Int64 maxuse_threadstack57;
+  public Int64 maxuse_threadstack58;
+  public Int64 maxuse_threadstack59;
+  public Int64 maxuse_threadstack60;
+  public Int64 maxuse_threadstack61;
+  public Int64 maxuse_threadstack62;
+  public Int64 maxuse_threadstack63;
+  public Int64 maxuse_threadstack64;
+  public Int64 maxuse_threadstack65;
+  public Int64 maxuse_threadstack66;
+  public Int64 maxuse_threadstack67;
+  public Int64 maxuse_threadstack68;
+  public Int64 maxuse_threadstack69;
+  public Int64 maxuse_threadstack70;
+  public Int64 maxuse_threadstack71;
+  public Int64 maxuse_threadstack72;
+  public Int64 maxuse_threadstack73;
+  public Int64 maxuse_threadstack74;
+  public Int64 maxuse_threadstack75;
+  public Int64 maxuse_threadstack76;
+  public Int64 maxuse_threadstack77;
+  public Int64 maxuse_threadstack78;
+  public Int64 maxuse_threadstack79;
+  public Int64 maxuse_threadstack80;
+  public Int64 maxuse_threadstack81;
+  public Int64 maxuse_threadstack82;
+  public Int64 maxuse_threadstack83;
+  public Int64 maxuse_threadstack84;
+  public Int64 maxuse_threadstack85;
+  public Int64 maxuse_threadstack86;
+  public Int64 maxuse_threadstack87;
+  public Int64 maxuse_threadstack88;
+  public Int64 maxuse_threadstack89;
+  public Int64 maxuse_threadstack90;
+  public Int64 maxuse_threadstack91;
+  public Int64 maxuse_threadstack92;
+  public Int64 maxuse_threadstack93;
+  public Int64 maxuse_threadstack94;
+  public Int64 maxuse_threadstack95;
+  public Int64 maxuse_threadstack96;
+  public Int64 maxuse_threadstack97;
+  public Int64 maxuse_threadstack98;
+  public Int64 maxuse_threadstack99;
+  public Int64 maxuse_threadstack100;
+  public Int64 maxuse_threadstack101;
+  public Int64 maxuse_threadstack102;
+  public Int64 maxuse_threadstack103;
+  public Int64 maxuse_threadstack104;
+  public Int64 maxuse_threadstack105;
+  public Int64 maxuse_threadstack106;
+  public Int64 maxuse_threadstack107;
+  public Int64 maxuse_threadstack108;
+  public Int64 maxuse_threadstack109;
+  public Int64 maxuse_threadstack110;
+  public Int64 maxuse_threadstack111;
+  public Int64 maxuse_threadstack112;
+  public Int64 maxuse_threadstack113;
+  public Int64 maxuse_threadstack114;
+  public Int64 maxuse_threadstack115;
+  public Int64 maxuse_threadstack116;
+  public Int64 maxuse_threadstack117;
+  public Int64 maxuse_threadstack118;
+  public Int64 maxuse_threadstack119;
+  public Int64 maxuse_threadstack120;
+  public Int64 maxuse_threadstack121;
+  public Int64 maxuse_threadstack122;
+  public Int64 maxuse_threadstack123;
+  public Int64 maxuse_threadstack124;
+  public Int64 maxuse_threadstack125;
+  public Int64 maxuse_threadstack126;
+  public Int64 maxuse_threadstack127;
+  public Int64 maxuse_arena;
   public int maxuse_con;
   public int maxuse_efc;
   public mjSolverStat_ solver0;
@@ -4903,6 +4913,10 @@ public unsafe struct mjData_ {
   public int nA;
   public int nisland;
   public int nidof;
+  public int ntree_awake;
+  public int nbody_awake;
+  public int nparent_awake;
+  public int nv_awake;
   public double time;
   public fixed double energy[2];
   public void* buffer;
@@ -4922,6 +4936,7 @@ public unsafe struct mjData_ {
   public double* act_dot;
   public double* userdata;
   public double* sensordata;
+  public int* tree_asleep;
   public int* plugin;
   public UIntPtr* plugin_data;
   public double* xpos;
@@ -4970,6 +4985,11 @@ public unsafe struct mjData_ {
   public double* qLD;
   public double* qLDiagInv;
   public byte* bvh_active;
+  public int* tree_awake;
+  public int* body_awake;
+  public int* body_awake_ind;
+  public int* parent_awake_ind;
+  public int* dof_awake_ind;
   public double* flexedge_velocity;
   public double* ten_velocity;
   public double* actuator_velocity;
@@ -5012,6 +5032,10 @@ public unsafe struct mjData_ {
   public double* efc_D;
   public double* efc_R;
   public int* tendon_efcadr;
+  public int* tree_island;
+  public int* island_ntree;
+  public int* island_itreeadr;
+  public int* map_itree2tree;
   public int* dof_island;
   public int* island_nv;
   public int* island_idofadr;
@@ -5094,6 +5118,7 @@ public unsafe struct mjOption_ {
   public double ls_tolerance;
   public double noslip_tolerance;
   public double ccd_tolerance;
+  public double sleep_tolerance;
   public fixed double gravity[3];
   public fixed double wind[3];
   public fixed double magnetic[3];
@@ -5324,8 +5349,8 @@ public unsafe struct mjModel_ {
   public int nuserdata;
   public int nsensordata;
   public int npluginstate;
-  public UInt64 narena;
-  public UInt64 nbuffer;
+  public Int64 narena;
+  public Int64 nbuffer;
   public mjOption_ opt;
   public mjVisual_ vis;
   public mjStatistic_ stat;
@@ -5399,6 +5424,12 @@ public unsafe struct mjModel_ {
   public double* dof_damping;
   public double* dof_invweight0;
   public double* dof_M0;
+  public double* dof_length;
+  public int* tree_bodyadr;
+  public int* tree_bodynum;
+  public int* tree_dofadr;
+  public int* tree_dofnum;
+  public int* tree_sleep_policy;
   public int* geom_type;
   public int* geom_contype;
   public int* geom_conaffinity;
@@ -5636,6 +5667,8 @@ public unsafe struct mjModel_ {
   public int* tendon_num;
   public int* tendon_matid;
   public int* tendon_group;
+  public int* tendon_treenum;
+  public int* tendon_treeid;
   public byte* tendon_limited;
   public byte* tendon_actfrclimited;
   public double* tendon_width;
@@ -6412,10 +6445,13 @@ public static unsafe extern void mj_saveModel(mjModel_* m, [MarshalAs(UnmanagedT
 public static unsafe extern mjModel_* mj_loadModel([MarshalAs(UnmanagedType.LPStr)]string filename, void* vfs);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern mjModel_* mj_loadModelBuffer(void* buffer, int buffer_sz);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteModel(mjModel_* m);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_sizeModel(mjModel_* m);
+public static unsafe extern Int64 mj_sizeModel(mjModel_* m);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjData_* mj_makeData(mjModel_* m);
@@ -6488,6 +6524,9 @@ public static unsafe extern void mj_printScene(mjvScene_* s, [MarshalAs(Unmanage
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_printFormattedScene(mjvScene_* s, [MarshalAs(UnmanagedType.LPStr)]string filename, [MarshalAs(UnmanagedType.LPStr)]string float_format);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_fwdKinematics(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_fwdPosition(mjModel_* m, mjData_* d);
@@ -6616,16 +6655,19 @@ public static unsafe extern void mj_referenceConstraint(mjModel_* m, mjData_* d)
 public static unsafe extern void mj_constraintUpdate(mjModel_* m, mjData_* d, double* jar, double* cost, int flg_coneHessian);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_stateSize(mjModel_* m, uint sig);
+public static unsafe extern int mj_stateSize(mjModel_* m, int sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_getState(mjModel_* m, mjData_* d, double* state, uint sig);
+public static unsafe extern void mj_getState(mjModel_* m, mjData_* d, double* state, int sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_extractState(mjModel_* m, double* src, uint srcsig, double* dst, uint dstsig);
+public static unsafe extern void mj_extractState(mjModel_* m, double* src, int srcsig, double* dst, int dstsig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* state, uint sig);
+public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* state, int sig);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_copyState(mjModel_* m, mjData_* src, mjData_* dst, int sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_setKeyframe(mjModel_* m, mjData_* d, int k);
@@ -6851,6 +6893,12 @@ public static unsafe extern void mjv_updateCamera(mjModel_* m, mjData_* d, mjvCa
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_updateSkin(mjModel_* m, mjData_* d, mjvScene_* scn);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_cameraFrame(double* headpos, double* forward, double* up, double* right, mjData_* d, mjvCamera_* cam);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_cameraFrustum(float* zver, float* zhor, float* zclip, mjModel_* m, mjvCamera_* cam);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_defaultContext(mjrContext_* con);

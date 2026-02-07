@@ -26,10 +26,13 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
+#include "engine/engine_core_smooth.h"
+#include "engine/engine_forward.h"
 #include "engine/engine_init.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -668,8 +671,8 @@ void mj_deleteModel(mjModel* m) {
 
 
 // size of buffer needed to hold model
-int mj_sizeModel(const mjModel* m) {
-  int size = (
+mjtSize mj_sizeModel(const mjModel* m) {
+  mjtSize size = (
     sizeof(int)*(NHEADER+getnint())
     + sizeof(mjtSize)*getnbuffer()
     + sizeof(mjOption)
@@ -941,7 +944,7 @@ void mj_makeDofDofMaps(int nv, int nM, int nC, int nD,
 
   // make mapM2M
   for (int i=0; i < nM; i++) M[i] = i;
-  for (int i=0; i < nC; i++) mapM2M[i] = -1;
+  mju_fillInt(mapM2M, -1, nC);
   copyM2Sparse(nv, dof_Madr, dof_simplenum, dof_parentid, M_rownnz,
                M_rowadr, M, mapM2M, /*reduced=*/1, /*upper=*/0, scratch);
 
@@ -1085,6 +1088,11 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
 
   // clear nplugin (overwritten by _initPlugin)
   d->nplugin = 0;
+
+  // set awake array sizes to default (all awake)
+  d->ntree_awake = m->ntree;
+  d->nbody_awake = d->nparent_awake = m->nbody;
+  d->nv_awake = m->nv;
 
   // copy pointer if allocated here
   if (allocate) {
@@ -1361,6 +1369,76 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
     mju_copy(d->qpos, m->qpos0, m->nq);
   }
 
+  static int kAwake = -(1+mjMINAWAKE);  // tree_asleep value for fully awake tree
+
+  // set all trees to awake
+  mju_fillInt(d->tree_asleep, kAwake, m->ntree);
+
+  // sleep enabled: handle static bodies and trees marked as mjSLEEP_INIT
+  if (mjENABLED(mjENBL_SLEEP)) {
+    // count trees initialized as asleep
+    int num_asleep_init = 0;
+    for (int i=0; i < m->ntree; i++) {
+      num_asleep_init += (m->tree_sleep_policy[i] == mjSLEEP_INIT);
+    }
+
+    // update sleep arrays, treat static bodies as awake
+    mj_updateSleepInit(m, d, /*flg_staticawake*/ 1);
+
+    // partial mj_fwdPosition, functions that update STATIC values
+    if (!num_asleep_init) {
+      mj_kinematics(m, d);
+      mj_comPos(m, d);
+      mj_camlight(m, d);
+      mj_tendon(m, d);
+    }
+
+    // if any trees initialized as sleeping call entire mj_forward, put them to sleep
+    else {
+      mj_forward(m, d);
+
+      // mark asleep-init trees as ready to sleep
+      for (int i=0; i < m->ntree; i++) {
+        int init = m->tree_sleep_policy[i] == mjSLEEP_INIT;
+        d->tree_asleep[i] = init ? -1 : kAwake;
+      }
+
+      int nslept = mj_sleep(m, d);
+
+      // raise error if any failed to sleep
+      if (nslept != num_asleep_init) {
+        // find root body of the first tree that could not be slept
+        int root = -1;
+        for (int i=0; i < m->ntree; i++) {
+          if (m->tree_sleep_policy[i] == mjSLEEP_INIT && d->tree_asleep[i] < 0) {
+            root = m->tree_bodyadr[i];
+            break;
+          }
+        }
+
+        // free all memory held by d just before aborting
+        mj_deleteData(d);
+
+        // raise error and abort
+        const char* hasname = mj_id2name(m, mjOBJ_BODY, root);
+        const char* name = hasname ? hasname : "";
+        mjERROR("%d trees were marked as sleep='init' but only %d could be slept.\n"
+                "Body '%s' (id=%d) is the root of the first tree that could not be slept.",
+                num_asleep_init, nslept, name, root);
+      }
+
+      // clear arrays to avoid MSAN errors upon mid-step wake
+      mju_zero(d->qacc_smooth, m->nv);
+      mju_zero(d->qfrc_smooth, m->nv);
+
+      // clear arena
+      mj_clearEfc(d);
+    }
+  }
+
+  // update sleep arrays and counters
+  mj_updateSleep(m, d);
+
   // set mocap_pos/quat = body_pos/quat for mocap bodies
   if (m->body_mocapid) {
     for (int i=0; i < m->nbody; i++) {
@@ -1606,6 +1684,8 @@ const char* mj_validateReferences(const mjModel* m) {
   X(dof_jntid,          nv,             njnt          , 0                      ) \
   X(dof_parentid,       nv,             nv            , 0                      ) \
   X(dof_Madr,           nv,             nM            , 0                      ) \
+  X(tree_bodyadr,       ntree,          nbody         , m->tree_bodynum        ) \
+  X(tree_dofadr,        ntree,          nv            , m->tree_dofnum         ) \
   X(geom_bodyid,        ngeom,          nbody         , 0                      ) \
   X(geom_matid,         ngeom,          nmat          , 0                      ) \
   X(site_bodyid,        nsite,          nbody         , 0                      ) \
@@ -1653,6 +1733,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(plugin_attradr,     nplugin,        npluginattr   , 0                      ) \
   X(tendon_adr,         ntendon,        nwrap         , m->tendon_num          ) \
   X(tendon_matid,       ntendon,        nmat          , 0                      ) \
+  X(tendon_treeid,      ntendon*2,      ntree         , 0                      ) \
   X(numeric_adr,        nnumeric,       nnumericdata  , m->numeric_size        ) \
   X(text_adr,           ntext,          ntextdata     , m->text_size           ) \
   X(tuple_adr,          ntuple,         ntupledata    , m->tuple_size          ) \

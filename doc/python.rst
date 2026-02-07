@@ -654,6 +654,17 @@ The :ref:`mjsMesh` object includes convenience methods for model creation with n
    mesh = spec.add_mesh(name='prism')
    mesh.make_cone(nedge=5, radius=1)
 
+Texture editing
+^^^^^^^^^^^^^^^
+The :ref:`mjsTexture` buffer option stores the texture bytes in the ``data`` attribute. This attribute can be read and
+modified, for example:
+
+.. code-block:: python
+
+  texture = spec.add_texture(name='texture', height=1, width=3, nchannel=3)
+  texture.data = bytes([255, 0, 0, 0, 255, 0, 0, 0, 255])  # Assign red, green and blue pixels.
+  texture.data[1] = 255  # Change the first pixel to yellow.
+
 .. _PyMJCF:
 
 Relationship to ``PyMJCF`` and ``bind``

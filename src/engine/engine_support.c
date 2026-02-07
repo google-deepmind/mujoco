@@ -26,6 +26,7 @@
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -41,8 +42,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 338
-#define mjVERSIONSTRING "3.3.8"
+ #define mjVERSION 341
+#define mjVERSIONSTRING "3.4.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -74,7 +75,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Energy",
   "Fwdinv",
   "InvDiscrete",
-  "MultiCCD"
+  "MultiCCD",
+  "Sleep"
 };
 
 
@@ -163,9 +165,15 @@ static inline const mjtNum* mj_stateElemConstPtr(const mjModel* m, const mjData*
 
 
 // get size of state signature
-int mj_stateSize(const mjModel* m, unsigned int sig) {
+int mj_stateSize(const mjModel* m, int sig) {
+  if (sig < 0) {
+    mjERROR("invalid state signature %d < 0", sig);
+    return 0;
+  }
+
   if (sig >= (1<<mjNSTATE)) {
-    mjERROR("invalid state signature %u >= 2^mjNSTATE", sig);
+    mjERROR("invalid state signature %d >= 2^mjNSTATE", sig);
+    return 0;
   }
 
   int size = 0;
@@ -181,9 +189,15 @@ int mj_stateSize(const mjModel* m, unsigned int sig) {
 
 
 // get state
-void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig) {
+void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, int sig) {
+  if (sig < 0) {
+    mjERROR("invalid state signature %d < 0", sig);
+    return;
+  }
+
   if (sig >= (1<<mjNSTATE)) {
-    mjERROR("invalid state signature %u >= 2^mjNSTATE", sig);
+    mjERROR("invalid state signature %d >= 2^mjNSTATE", sig);
+    return;
   }
 
   int adr = 0;
@@ -212,8 +226,17 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int 
 
 
 // extract a sub-state from a state
-void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
-                     mjtNum* dst, unsigned int dstsig) {
+void mj_extractState(const mjModel* m, const mjtNum* src, int srcsig, mjtNum* dst, int dstsig) {
+  if (srcsig < 0) {
+    mjERROR("invalid srcsig %d < 0", srcsig);
+    return;
+  }
+
+  if (srcsig >= (1<<mjNSTATE)) {
+    mjERROR("invalid srcsig %d >= 2^mjNSTATE", srcsig);
+    return;
+  }
+
   if ((srcsig & dstsig) != dstsig) {
     mjERROR("dstsig is not a subset of srcsig");
     return;
@@ -234,9 +257,15 @@ void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
 
 
 // set state
-void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig) {
+void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig) {
+  if (sig < 0) {
+    mjERROR("invalid state signature %d < 0", sig);
+    return;
+  }
+
   if (sig >= (1<<mjNSTATE)) {
-    mjERROR("invalid state signature %u >= 2^mjNSTATE", sig);
+    mjERROR("invalid state signature %d >= 2^mjNSTATE", sig);
+    return;
   }
 
   int adr = 0;
@@ -258,6 +287,42 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int 
         mjtNum* ptr = mj_stateElemPtr(m, d, element);
         mju_copy(ptr, state + adr, size);
         adr += size;
+      }
+    }
+  }
+}
+
+
+// copy state from src to dst
+void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig) {
+  if (sig < 0) {
+    mjERROR("invalid state signature %d < 0", sig);
+    return;
+  }
+
+  if (sig >= (1<<mjNSTATE)) {
+    mjERROR("invalid state signature %d >= 2^mjNSTATE", sig);
+    return;
+  }
+
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & sig) {
+      int size = mj_stateElemSize(m, element);
+
+      // special handling of eq_active (mjtByte)
+      if (element == mjSTATE_EQ_ACTIVE) {
+        int neq = m->neq;
+        for (int j=0; j < neq; j++) {
+          dst->eq_active[j] = src->eq_active[j];
+        }
+      }
+
+      // regular state components (mjtNum)
+      else {
+        mjtNum* dst_ptr = mj_stateElemPtr(m, dst, element);
+        const mjtNum* src_ptr = mj_stateElemConstPtr(m, src, element);
+        mju_copy(dst_ptr, src_ptr, size);
       }
     }
   }
@@ -425,9 +490,18 @@ void mj_applyFT(const mjModel* m, mjData* d,
 
 // accumulate xfrc_applied in qfrc
 void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc) {
-  for (int i=1; i < m->nbody; i++) {
-    if (!mju_isZero(d->xfrc_applied+6*i, 6)) {
-      mj_applyFT(m, d, d->xfrc_applied+6*i, d->xfrc_applied+6*i+3, d->xipos+3*i, i, qfrc);
+  int nbody = m->nbody;
+  const mjtNum *xfrc = d->xfrc_applied;
+
+  // quick return if identically zero (efficient memcmp implementation)
+  if (mju_isZeroByte((const unsigned char*)(xfrc+6), 6*(nbody-1)*sizeof(mjtNum))) {
+    return;
+  }
+
+  // some non-zero wrenches, apply them
+  for (int i=1; i < nbody; i++) {
+    if (!mju_isZero(xfrc+6*i, 6)) {
+      mj_applyFT(m, d, xfrc+6*i, xfrc+6*i+3, d->xipos+3*i, i, qfrc);
     }
   }
 }
@@ -551,37 +625,48 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
 }
 
 
-// integrate qpos with given qvel
-void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt) {
-  // loop over joints
-  for (int j=0; j < m->njnt; j++) {
-    // get addresses in qpos and qvel
-    int padr = m->jnt_qposadr[j];
-    int vadr = m->jnt_dofadr[j];
+// integrate qpos with given qvel for given body indices
+void mj_integratePosInd(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt,
+                        const int* index, int nbody) {
+  for (int b=1; b < nbody; b++) {
+    int k = index ? index[b] : b;
+    int start = m->body_jntadr[k];
+    int end = start + m->body_jntnum[k];
+    for (int j=start; j < end; j++) {
+      // get addresses in qpos and qvel
+      int padr = m->jnt_qposadr[j];
+      int vadr = m->jnt_dofadr[j];
 
-    switch ((mjtJoint) m->jnt_type[j]) {
-    case mjJNT_FREE:
-      // position update
-      for (int i=0; i < 3; i++) {
-        qpos[padr+i] += dt * qvel[vadr+i];
+      switch ((mjtJoint) m->jnt_type[j]) {
+      case mjJNT_FREE:
+        // position update
+        for (int i=0; i < 3; i++) {
+          qpos[padr+i] += dt * qvel[vadr+i];
+        }
+        padr += 3;
+        vadr += 3;
+
+        // continue with rotation update
+        mjFALLTHROUGH;
+
+      case mjJNT_BALL:
+        // quaternion update
+        mju_quatIntegrate(qpos+padr, qvel+vadr, dt);
+        break;
+
+      case mjJNT_HINGE:
+      case mjJNT_SLIDE:
+        // scalar update: same for rotation and translation
+        qpos[padr] += dt * qvel[vadr];
       }
-      padr += 3;
-      vadr += 3;
-
-      // continue with rotation update
-      mjFALLTHROUGH;
-
-    case mjJNT_BALL:
-      // quaternion update
-      mju_quatIntegrate(qpos+padr, qvel+vadr, dt);
-      break;
-
-    case mjJNT_HINGE:
-    case mjJNT_SLIDE:
-      // scalar update: same for rotation and translation
-      qpos[padr] += dt * qvel[vadr];
     }
   }
+}
+
+
+// integrate qpos with given qvel
+void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt) {
+  mj_integratePosInd(m, qpos, qvel, dt, NULL, m->nbody);
 }
 
 

@@ -23,6 +23,7 @@
 #               [LIBRARY_NAME [name]]
 #               [GIT_REPO [repo]]
 #               [GIT_TAG [tag]]
+#               [CUSTOM_CMAKE [path]]
 #               [PATCH_COMMAND [cmd] [args]]
 #               [TARGETS [targets]]
 #               [EXCLUDE_FROM_ALL])
@@ -42,6 +43,9 @@
 #    ``USE_SYSTEM_PACKAGE`` is ``ON``.
 #  - ``GIT_TAG`` tag reference when fetching the library from the git
 #    repository. Ignored if ``USE_SYSTEM_PACKAGE`` is ``ON``.
+#  - ``CUSTOM_CMAKE`` path to a custom CMakeLists.txt file to be used when
+#    fetching the library from the git repository. Ignored if
+#    ``USE_SYSTEM_PACKAGE`` is ``ON``.
 #  - ``PATCH_COMMAND`` Specifies a custom command to patch the sources after an
 #    update. See https://cmake.org/cmake/help/latest/module/ExternalProject.html#command:externalproject_add
 #    for details on the parameter.
@@ -70,6 +74,7 @@ if(NOT COMMAND FindOrFetch)
         LIBRARY_NAME
         GIT_REPO
         GIT_TAG
+        CUSTOM_CMAKE
     )
     set(multi_value_args PATCH_COMMAND TARGETS)
     cmake_parse_arguments(
@@ -121,6 +126,12 @@ if(NOT COMMAND FindOrFetch)
           FetchContent_GetProperties(${_ARGS_LIBRARY_NAME})
           if(NOT ${${_ARGS_LIBRARY_NAME}_POPULATED})
             FetchContent_Populate(${_ARGS_LIBRARY_NAME})
+            if(NOT "${_ARGS_CUSTOM_CMAKE}" STREQUAL "")
+              file(COPY
+                "${_ARGS_CUSTOM_CMAKE}"
+                DESTINATION "${${_ARGS_LIBRARY_NAME}_SOURCE_DIR}"
+              )
+            endif()
             add_subdirectory(
               ${${_ARGS_LIBRARY_NAME}_SOURCE_DIR} ${${_ARGS_LIBRARY_NAME}_BINARY_DIR}
               EXCLUDE_FROM_ALL
@@ -156,6 +167,8 @@ endif()
 #  - ``PACKAGE_NAME`` name of the package.
 #  - ``GIT_REPO`` git repository to fetch the library from.
 #  - ``GIT_TAG`` tag reference when fetching the library from the git repo.
+#  - ``CUSTOM_CMAKE`` path to a custom CMakeLists.txt file to be used when
+#    fetching the library from the git repository.
 #  - ``PATCH_COMMAND`` Specifies a custom command to patch the sources after an
 #    update. See https://cmake.org/cmake/help/latest/module/ExternalProject.html#command:externalproject_add
 #    for details on the parameter.
@@ -170,7 +183,7 @@ if(NOT COMMAND FetchPackage)
     cmake_parse_arguments(
       _ARGS
       "EXCLUDE_FROM_ALL"
-      "PACKAGE_NAME;GIT_REPO;GIT_TAG"
+      "PACKAGE_NAME;GIT_REPO;GIT_TAG;CUSTOM_CMAKE"
       "PATCH_COMMAND;TARGETS"
       ${ARGN}
     )
@@ -183,6 +196,7 @@ if(NOT COMMAND FetchPackage)
       LIBRARY_NAME ${_ARGS_PACKAGE_NAME}
       GIT_REPO ${_ARGS_GIT_REPO}
       GIT_TAG ${_ARGS_GIT_TAG}
+      CUSTOM_CMAKE ${_ARGS_CUSTOM_CMAKE}
       PATCH_COMMAND ${_ARGS_PATCH_COMMAND}
       TARGETS ${_ARGS_TARGETS}
       USE_SYSTEM_PACKAGE OFF

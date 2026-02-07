@@ -151,6 +151,9 @@ MJAPI void mju_zeroInt(int* res, int n);
 // copy int vector vec into res
 MJAPI void mju_copyInt(int* res, const int* vec, int n);
 
+// fill int vector with val
+void mju_fillInt(int* res, int val, int n);
+
 // standard normal random number generator (optional second number)
 MJAPI mjtNum mju_standardNormal(mjtNum* num2);
 

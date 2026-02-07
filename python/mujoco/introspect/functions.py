@@ -301,6 +301,46 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Parse spec from XML string.',
      )),
+    ('mj_parse',
+     FunctionDecl(
+         name='mj_parse',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjSpec'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='content_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error_sz',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Parse spec from a file.',
+     )),
     ('mj_compile',
      FunctionDecl(
          name='mj_compile',
@@ -799,6 +839,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Load model from binary MJB file. If vfs is not NULL, look up file in vfs before reading from disk.',  # pylint: disable=line-too-long
      )),
+    ('mj_loadModelBuffer',
+     FunctionDecl(
+         name='mj_loadModelBuffer',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjModel'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='buffer',
+                 type=PointerType(
+                     inner_type=ValueType(name='void', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='buffer_sz',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Load model from memory buffer.',
+     )),
     ('mj_deleteModel',
      FunctionDecl(
          name='mj_deleteModel',
@@ -816,7 +876,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_sizeModel',
      FunctionDecl(
          name='mj_sizeModel',
-         return_type=ValueType(name='int'),
+         return_type=ValueType(name='mjtSize'),
          parameters=(
              FunctionParameterDecl(
                  name='m',
@@ -1457,6 +1517,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Print scene to text file, specifying format. float_format must be a valid printf-style format string for a single float value.',  # pylint: disable=line-too-long
+     )),
+    ('mj_fwdKinematics',
+     FunctionDecl(
+         name='mj_fwdKinematics',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Run all kinematics-like computations (kinematics, comPos, camlight, flex, tendon).',  # pylint: disable=line-too-long
      )),
     ('mj_fwdPosition',
      FunctionDecl(
@@ -2381,7 +2461,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='sig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Return size of state signature.',
@@ -2411,7 +2491,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='sig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Get state.',
@@ -2435,7 +2515,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='srcsig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
              FunctionParameterDecl(
                  name='dst',
@@ -2445,7 +2525,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='dstsig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Extract a subset of components from a state previously obtained via mj_getState.',  # pylint: disable=line-too-long
@@ -2475,10 +2555,40 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='sig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Set state.',
+     )),
+    ('mj_copyState',
+     FunctionDecl(
+         name='mj_copyState',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='src',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='dst',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='sig',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Copy state from src to dst.',
      )),
     ('mj_setKeyframe',
      FunctionDecl(
@@ -3645,8 +3755,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='vec',
-                 type=PointerType(
+                 type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
                  ),
              ),
              FunctionParameterDecl(
@@ -3654,6 +3765,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte', is_const=True),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='flg_static',
@@ -3722,6 +3834,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte', is_const=True),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='flg_static',
@@ -3908,14 +4021,16 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='pnt',
-                 type=PointerType(
+                 type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
                  ),
              ),
              FunctionParameterDecl(
                  name='vec',
-                 type=PointerType(
+                 type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
                  ),
              ),
              FunctionParameterDecl(
@@ -4888,6 +5003,102 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Update skins.',
+     )),
+    ('mjv_cameraFrame',
+     FunctionDecl(
+         name='mjv_cameraFrame',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='headpos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='forward',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='up',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='right',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='cam',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvCamera', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Compute camera position and forward, up, and right vectors.',
+     )),
+    ('mjv_cameraFrustum',
+     FunctionDecl(
+         name='mjv_cameraFrustum',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='zver',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='zhor',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='zclip',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='cam',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvCamera', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Compute camera frustum: vertical, horizontal, and clip planes.',
      )),
     ('mjr_defaultContext',
      FunctionDecl(
@@ -9095,6 +9306,56 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Look up a resource provider by slot number returned by mjp_registerResourceProvider. If invalid slot number, return NULL.',  # pylint: disable=line-too-long
+     )),
+    ('mjp_registerDecoder',
+     FunctionDecl(
+         name='mjp_registerDecoder',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='decoder',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpDecoder', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Globally register a decoder. This function is thread-safe. If an identical mjpDecoder is already registered, this function does nothing. If a non-identical mjpDecoder with the same name is already registered, an mju_error is raised.',  # pylint: disable=line-too-long
+     )),
+    ('mjp_defaultDecoder',
+     FunctionDecl(
+         name='mjp_defaultDecoder',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='decoder',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpDecoder'),
+                 ),
+             ),
+         ),
+         doc='Set default resource decoder definition.',
+     )),
+    ('mjp_findDecoder',
+     FunctionDecl(
+         name='mjp_findDecoder',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjpDecoder', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='content_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Return the resource provider with the prefix that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
      )),
     ('mju_threadPoolCreate',
      FunctionDecl(

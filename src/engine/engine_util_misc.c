@@ -1394,6 +1394,12 @@ void mju_copyInt(int* res, const int* vec, int n) {
   memcpy(res, vec, n*sizeof(int));
 }
 
+// fill int vector with val
+void mju_fillInt(int* res, int val, int n) {
+  for (int i = 0; i < n; i++) {
+    res[i] = val;
+  }
+}
 
 // standard normal random number generator (optional second number)
 mjtNum mju_standardNormal(mjtNum* num2) {
@@ -1521,9 +1527,7 @@ void mju_lower2SymMap(int* map, int nr,
 
   // default all map entries to "no source"
   int nnz = res_rowadr[nr-1] + res_rownnz[nr-1];
-  for (int i = 0; i < nnz; i++) {
-    map[i] = -1;
-  }
+  mju_fillInt(map, -1, nnz);
 
   // initialize per-row cursor
   for (int i = 0; i < nr; i++) {

@@ -18,9 +18,11 @@
 #include <vector>
 
 #include <mujoco/experimental/usd/utils.h>
+#include "experimental/usd/plugins/mjcf/mujoco_to_usd.h"
 #include <mujoco/mujoco.h>
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/usd/common.h>
+#include <pxr/usd/usd/stage.h>
 
 namespace mujoco {
 namespace usd {
@@ -30,10 +32,19 @@ namespace usd {
 // API.
 Writer::Writer(pxr::UsdStageRefPtr stage, mjSpec* spec, mjModel_* model)
     : stage_(stage), spec_(spec), model_(model) {
+  WriteSpecsWithoutUSDOriginToLayer();
   BuildMjUsdMapping();
 }
 
 Writer::~Writer() = default;
+
+void Writer::WriteSpecsWithoutUSDOriginToLayer() {
+  // The user may have constructed the spec from sources other than USD.
+  // In this case, we will write write all those spec elements to a new layer in
+  // the stage. This allows us to keep the same writing API for a simulation regardless
+  // of how a spec was produced.
+  mujoco::usd::WriteSpecToData(spec_, stage_->GetEditTarget().GetLayer(), true);
+}
 
 void Writer::BuildMjUsdMapping() {
   body_id_to_path_.assign(model_->nbody, pxr::SdfPath());

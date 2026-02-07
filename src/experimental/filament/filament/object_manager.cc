@@ -77,6 +77,7 @@ ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine,
   shapes_[kTube] = CreateTube(engine_, model_);
   shapes_[kPlane] = CreatePlane(engine_, model_);
   shapes_[kSphere] = CreateSphere(engine_, model_);
+  shapes_[kTriangle] = CreateTriangle(engine_, model_);
 
   auto LoadMaterial = [this](const char* filename) {
     Asset asset(filename, config_);
@@ -120,8 +121,8 @@ ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine,
   fallback_orm_ = Create2dTexture(engine_, 1, 1, 3, orm_data, false);
 
   fallback_textures_[mjTEXROLE_USER] = fallback_black_;
-  fallback_textures_[mjTEXROLE_RGB] = fallback_black_;
-  fallback_textures_[mjTEXROLE_OCCLUSION] = fallback_black_;
+  fallback_textures_[mjTEXROLE_RGB] = fallback_white_;
+  fallback_textures_[mjTEXROLE_OCCLUSION] = fallback_white_;
   fallback_textures_[mjTEXROLE_ROUGHNESS] = fallback_white_;
   fallback_textures_[mjTEXROLE_METALLIC] = fallback_black_;
   fallback_textures_[mjTEXROLE_NORMAL] = fallback_normal_;
@@ -157,9 +158,6 @@ ObjectManager::~ObjectManager() {
   engine_->destroy(fallback_black_);
   engine_->destroy(fallback_normal_);
   engine_->destroy(fallback_orm_);
-  for (auto& iter : fonts_) {
-    engine_->destroy(iter.second);
-  }
 }
 
 void ObjectManager::UploadMesh(const mjModel* model, int id) {
@@ -243,14 +241,6 @@ void ObjectManager::UploadHeightField(const mjModel* model, int id) {
       CreateIndexBuffer(engine_, model, id, MeshType::kHeightField);
 }
 
-void ObjectManager::UploadFont(const uint8_t* pixels, int width, int height,
-                               int id) {
-  if (auto iter = fonts_.find(id); iter != fonts_.end()) {
-    engine_->destroy(iter->second);
-  }
-  fonts_[id] = Create2dTexture(engine_, width, height, 4, pixels, false);
-}
-
 filament::Material* ObjectManager::GetMaterial(MaterialType type) const {
   if (type < 0 || type >= kNumMaterials) {
     mju_error("Invalid material type: %d", type);
@@ -283,11 +273,6 @@ const FilamentBuffers* ObjectManager::GetShapeBuffer(ShapeType shape) const {
     mju_error("Invalid shape type: %d", shape);
   }
   return &shapes_[shape];
-}
-
-const filament::Texture* ObjectManager::GetFont(int font_id) const {
-  auto it = fonts_.find(font_id);
-  return it != fonts_.end() ? it->second : nullptr;
 }
 
 const filament::Texture* ObjectManager::GetTexture(int tex_id) const {
@@ -354,11 +339,6 @@ filament::IndirectLight* ObjectManager::LoadFallbackIndirectLight(
   filament::math::float3 spherical_harmonics[9];
   filament::Texture* tex =
       CreateKtxTexture(engine_, asset.payload, asset.size, spherical_harmonics);
-  // TODO: Revisit this to make it this work in WebGL
-  #ifndef __EMSCRIPTEN__
-  tex->generateMipmaps(*engine_);
-  #endif
-
   return CreateIndirectLight(tex, &spherical_harmonics, intensity);
 }
 

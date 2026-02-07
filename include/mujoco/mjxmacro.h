@@ -26,6 +26,7 @@
     X( mjtNum,  ls_tolerance     )  \
     X( mjtNum,  noslip_tolerance )  \
     X( mjtNum,  ccd_tolerance    )  \
+    X( mjtNum,  sleep_tolerance  )  \
     X( mjtNum,  density          )  \
     X( mjtNum,  viscosity        )  \
     X( mjtNum,  o_margin         )
@@ -243,7 +244,15 @@
     X   ( mjtNum,  dof_armature,          nv,            1                    ) \
     X   ( mjtNum,  dof_damping,           nv,            1                    ) \
     X   ( mjtNum,  dof_invweight0,        nv,            1                    ) \
-    X   ( mjtNum,  dof_M0,                nv,            1                    )
+    X   ( mjtNum,  dof_M0,                nv,            1                    ) \
+    X   ( mjtNum,  dof_length,            nv,            1                    )
+
+#define MJMODEL_POINTERS_TREE                                                   \
+    X   ( int,     tree_bodyadr,          ntree,         1                    ) \
+    X   ( int,     tree_bodynum,          ntree,         1                    ) \
+    X   ( int,     tree_dofadr,           ntree,         1                    ) \
+    X   ( int,     tree_dofnum,           ntree,         1                    ) \
+    X   ( int,     tree_sleep_policy,     ntree,         1                    )
 
 #define MJMODEL_POINTERS_GEOM                                                   \
     X   ( int,     geom_type,             ngeom,         1                    ) \
@@ -509,6 +518,8 @@
     X   ( int,     tendon_num,            ntendon,       1                    ) \
     X   ( int,     tendon_matid,          ntendon,       1                    ) \
     X   ( int,     tendon_group,          ntendon,       1                    ) \
+    X   ( int,     tendon_treenum,        ntendon,       1                    ) \
+    X   ( int,     tendon_treeid,         ntendon,       2                    ) \
     X   ( mjtByte, tendon_limited,        ntendon,       1                    ) \
     X   ( mjtByte, tendon_actfrclimited,  ntendon,       1                    ) \
     X   ( mjtNum,  tendon_width,          ntendon,       1                    ) \
@@ -586,6 +597,7 @@
     X   ( mjtNum,  oct_coeff,             noct,          8                    ) \
     MJMODEL_POINTERS_JOINT                                                      \
     MJMODEL_POINTERS_DOF                                                        \
+    MJMODEL_POINTERS_TREE                                                       \
     MJMODEL_POINTERS_GEOM                                                       \
     MJMODEL_POINTERS_SITE                                                       \
     MJMODEL_POINTERS_CAMERA                                                     \
@@ -694,6 +706,7 @@
     X   ( mjtNum,    act_dot,           na,          1           ) \
     X   ( mjtNum,    userdata,          nuserdata,   1           ) \
     X   ( mjtNum,    sensordata,        nsensordata, 1           ) \
+    X   ( int,       tree_asleep,       ntree,       1           ) \
     X   ( int,       plugin,            nplugin,     1           ) \
     X   ( uintptr_t, plugin_data,       nplugin,     1           ) \
     X   ( mjtNum,    xpos,              nbody,       3           ) \
@@ -742,6 +755,11 @@
     XNV ( mjtNum,    qLD,               nC,          1           ) \
     X   ( mjtNum,    qLDiagInv,         nv,          1           ) \
     X   ( mjtByte,   bvh_active,        nbvh,        1           ) \
+    X   ( int,       tree_awake,        ntree,       1           ) \
+    X   ( int,       body_awake,        nbody,       1           ) \
+    X   ( int,       body_awake_ind,    nbody,       1           ) \
+    X   ( int,       parent_awake_ind,  nbody,       1           ) \
+    X   ( int,       dof_awake_ind,     nv,          1           ) \
     X   ( mjtNum,    flexedge_velocity, nflexedge,   1           ) \
     X   ( mjtNum,    ten_velocity,      ntendon,     1           ) \
     X   ( mjtNum,    actuator_velocity, nu,          1           ) \
@@ -810,6 +828,10 @@
 
 // array fields of mjData that are used for constraint islands
 #define MJDATA_ARENA_POINTERS_ISLAND                     \
+    X  ( int,     tree_island,       MJ_M(ntree),    1 ) \
+    X  ( int,     island_ntree,      MJ_D(nisland),  1 ) \
+    X  ( int,     island_itreeadr,   MJ_D(nisland),  1 ) \
+    X  ( int,     map_itree2tree,    MJ_M(ntree),    1 ) \
     X  ( int,     dof_island,        MJ_M(nv),       1 ) \
     X  ( int,     island_nv,         MJ_D(nisland),  1 ) \
     X  ( int,     island_idofadr,    MJ_D(nisland),  1 ) \
@@ -876,6 +898,10 @@
     X( int,       nA                 ) \
     X( int,       nisland            ) \
     X( int,       nidof              ) \
+    X( int,       ntree_awake        ) \
+    X( int,       nbody_awake        ) \
+    X( int,       nparent_awake      ) \
+    X( int,       nv_awake           ) \
     X( mjtNum,    time               ) \
     X( uintptr_t, threadpool         )
 

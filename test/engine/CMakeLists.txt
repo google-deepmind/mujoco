@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mujoco_test(engine_collision_box_test)
+mujoco_test(engine_collision_box_test ADDITIONAL_LINK_LIBRARIES ccd)
 
 mujoco_test(engine_collision_convex_test)
 
@@ -47,9 +47,17 @@ mujoco_test(engine_passive_test)
 
 mujoco_test(engine_print_test)
 
-mujoco_test(engine_ray_test)
+mujoco_test(
+  engine_ray_test
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:sdf_plugin>")
 
 mujoco_test(engine_sensor_test)
+
+mujoco_test(engine_setconst_test)
+
+mujoco_test(engine_sleep_test)
 
 mujoco_test(engine_solver_test)
 

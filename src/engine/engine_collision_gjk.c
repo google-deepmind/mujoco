@@ -22,6 +22,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_collision_convex.h"
+#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 
@@ -1268,30 +1269,22 @@ static void horizon(Polytope* pt, Face* face) {
 }
 
 
-// recover witness points from EPA polytope
-static void epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3]) {
+// recover witness points from EPA polytope, return signed distance between witness points
+static mjtNum epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3]) {
   // compute affine coordinates for witness points on plane defined by face
   mjtNum lambda[3];
-  mjtNum* v1 = pt->verts[face->verts[0]].vert;
-  mjtNum* v2 = pt->verts[face->verts[1]].vert;
-  mjtNum* v3 = pt->verts[face->verts[2]].vert;
-  triAffineCoord(lambda, v1, v2, v3, face->v);
+  Vertex* v1 = pt->verts + face->verts[0];
+  Vertex* v2 = pt->verts + face->verts[1];
+  Vertex* v3 = pt->verts + face->verts[2];
+  triAffineCoord(lambda, v1->vert, v2->vert, v3->vert, face->v);
 
-  // face on geom 1
-  v1 = pt->verts[face->verts[0]].vert1;
-  v2 = pt->verts[face->verts[1]].vert1;
-  v3 = pt->verts[face->verts[2]].vert1;
-  x1[0] = v1[0]*lambda[0] + v2[0]*lambda[1] + v3[0]*lambda[2];
-  x1[1] = v1[1]*lambda[0] + v2[1]*lambda[1] + v3[1]*lambda[2];
-  x1[2] = v1[2]*lambda[0] + v2[2]*lambda[1] + v3[2]*lambda[2];
+  // witness point on geom 1
+  lincomb(x1, lambda, 3, v1->vert1, v2->vert1, v3->vert1, NULL);
 
-  // face on geom 2
-  v1 = pt->verts[face->verts[0]].vert2;
-  v2 = pt->verts[face->verts[1]].vert2;
-  v3 = pt->verts[face->verts[2]].vert2;
-  x2[0] = v1[0]*lambda[0] + v2[0]*lambda[1] + v3[0]*lambda[2];
-  x2[1] = v1[1]*lambda[0] + v2[1]*lambda[1] + v3[1]*lambda[2];
-  x2[2] = v1[2]*lambda[0] + v2[2]*lambda[1] + v3[2]*lambda[2];
+  // witness point on geom 2
+  lincomb(x2, lambda, 3, v1->vert2, v2->vert2, v3->vert2, NULL);
+
+  return -mju_sqrt(face->dist2);
 }
 
 
@@ -1433,9 +1426,8 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 
   status->epa_iterations = k;
   if (face) {
-    epaWitness(pt, face, status->x1, status->x2);
+    status->dist = epaWitness(pt, face, status->x1, status->x2);
     status->nx = 1;
-    status->dist = -mju_sqrt(face->dist2);
   } else {
     status->nx = 0;
     status->dist = 0;
@@ -2216,11 +2208,11 @@ static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) 
 mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   // pre-allocate static memory for low iterations
   void* buffer = NULL;
-  static _Thread_local Vertex vert_data[5 + mjMAX_EPA_ITERATIONS];
-  static _Thread_local Face face_data[6 * mjMAX_EPA_ITERATIONS];
-  static _Thread_local Face* map_data[6 * mjMAX_EPA_ITERATIONS];
-  static _Thread_local int index_data[6 + mjMAX_EPA_ITERATIONS];
-  static _Thread_local int edge_data[6 + mjMAX_EPA_ITERATIONS];
+  static mjTHREADLOCAL Vertex vert_data[5 + mjMAX_EPA_ITERATIONS];
+  static mjTHREADLOCAL Face face_data[6 * mjMAX_EPA_ITERATIONS];
+  static mjTHREADLOCAL Face* map_data[6 * mjMAX_EPA_ITERATIONS];
+  static mjTHREADLOCAL int index_data[6 + mjMAX_EPA_ITERATIONS];
+  static mjTHREADLOCAL int edge_data[6 + mjMAX_EPA_ITERATIONS];
 
   // setup
   obj1->center(status->x1, obj1);

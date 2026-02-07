@@ -48,6 +48,17 @@ Parse spec from XML string.
 
 *Nullable:* ``vfs``, ``error``
 
+.. _mj_parse:
+
+`mj_parse <#mj_parse>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_parse
+
+Parse spec from a file.
+
+*Nullable:* ``vfs``, ``error``
+
 .. _mj_compile:
 
 `mj_compile <#mj_compile>`__
@@ -279,6 +290,15 @@ is not a subset of the bits set in ``srcsig``.
 
 Copy concatenated state components specified by ``sig`` from  ``state`` into ``d``. The bits of the integer
 ``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
+
+.. _mj_copyState:
+
+`mj_copyState <#mj_copyState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_copyState
+
+Copy state from src to dst.
 
 .. _mj_setKeyframe:
 
@@ -694,6 +714,15 @@ Components
 
 These are components of the simulation pipeline, called internally from :ref:`mj_step`, :ref:`mj_forward` and
 :ref:`mj_inverse`. It is unlikely that the user will need to call them.
+
+.. _mj_fwdKinematics:
+
+`mj_fwdKinematics <#mj_fwdKinematics>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_fwdKinematics
+
+Run all kinematics-like computations (kinematics, comPos, camlight, flex, tendon).
 
 .. _mj_fwdPosition:
 
@@ -1132,6 +1161,8 @@ Intersect multiple rays emanating from a single point.
 
 Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
 
+*Nullable:* ``geomgroup``
+
 .. _mj_ray:
 
 `mj_ray <#mj_ray>`__
@@ -1150,7 +1181,7 @@ If flg_static is 0, static geoms will be excluded.
 
 bodyexclude=-1 can be used to indicate that all bodies are included.
 
-*Nullable:* ``geomid``
+*Nullable:* ``geomgroup``, ``geomid``
 
 .. _mj_rayHfield:
 
@@ -1443,6 +1474,15 @@ Load model from binary MJB file.
 If vfs is not NULL, look up file in vfs before reading from disk.
 
 *Nullable:* ``vfs``
+
+.. _mj_loadModelBuffer:
+
+`mj_loadModelBuffer <#mj_loadModelBuffer>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_loadModelBuffer
+
+Load model from memory buffer.
 
 .. _mj_deleteModel:
 
@@ -2329,6 +2369,28 @@ Update camera.
 
 Update skins.
 
+.. _mjv_cameraFrame:
+
+`mjv_cameraFrame <#mjv_cameraFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_cameraFrame
+
+Compute camera position and forward, up, and right vectors.
+
+*Nullable:* ``headpos``, ``forward``, ``up``, ``right``
+
+.. _mjv_cameraFrustum:
+
+`mjv_cameraFrustum <#mjv_cameraFrustum>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_cameraFrustum
+
+Compute camera frustum: vertical, horizontal, and clip planes.
+
+*Nullable:* ``zver``, ``zhor``, ``zclip``
+
 .. _OpenGLrendering:
 
 OpenGL rendering
@@ -2925,6 +2987,39 @@ If no match, return NULL.
 Look up a resource provider by slot number returned by mjp_registerResourceProvider.
 
 If invalid slot number, return NULL.
+
+.. _mjp_registerDecoder:
+
+`mjp_registerDecoder <#mjp_registerDecoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_registerDecoder
+
+Globally register a decoder. This function is thread-safe.
+
+If an identical mjpDecoder is already registered, this function does nothing.
+
+If a non-identical mjpDecoder with the same name is already registered, an mju_error is raised.
+
+.. _mjp_defaultDecoder:
+
+`mjp_defaultDecoder <#mjp_defaultDecoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_defaultDecoder
+
+Set default resource decoder definition.
+
+.. _mjp_findDecoder:
+
+`mjp_findDecoder <#mjp_findDecoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_findDecoder
+
+Return the resource provider with the prefix that matches against the resource name.
+
+If no match, return NULL.
 
 .. _Thread:
 

@@ -71,7 +71,7 @@ def collider(ncon: int):
           infos[i] = hfield_info.replace(pos=infos[i].pos, mat=infos[i].mat)
           in_axes[i] = hfield_info.replace(pos=0, mat=0, data=None)
           fn = functools.partial(fn, subgrid_size=key.subgrid_size)
-      dist, pos, frame = jax.vmap(fn, in_axes=in_axes)(*infos)
+      dist, pos, frame = jax.vmap(fn, in_axes=in_axes)(*infos)  # pytype: disable=wrong-keyword-args
       if ncon > 1:
         return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
       return dist, pos, frame

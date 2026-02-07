@@ -47,8 +47,22 @@ target_compile_definitions(${MUJOCO_STUDIO_TARGET_NAME}
         -D${MUJOCO_STUDIO_RENDER_CONFIG}
 )
 
+if (WIN32)
+    target_compile_definitions(${MUJOCO_STUDIO_TARGET_NAME}
+        PRIVATE
+        -D_USE_MATH_DEFINES
+    )
+    set_target_properties(${MUJOCO_STUDIO_TARGET_NAME}
+        PROPERTIES
+            VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+    )
+endif()
+
 include(third_party_deps/dear_imgui)
 include(third_party_deps/implot)
+include(third_party_deps/opensans)
+include(third_party_deps/font_awesome)
+
 target_link_libraries(${MUJOCO_STUDIO_TARGET_NAME}
     PRIVATE
         ${MUJOCO_STUDIO_RENDER_DEPS}
@@ -58,7 +72,28 @@ target_link_libraries(${MUJOCO_STUDIO_TARGET_NAME}
         dear_imgui_SDL2
         implot
         mujoco::mujoco
-        mujoco::toolbox
+        mujoco::platform
+)
+
+file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
+
+add_custom_command(
+    TARGET ${MUJOCO_STUDIO_TARGET_NAME}
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+        -E copy
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/opensans-src/fonts/ttf/OpenSans-Regular.ttf
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+    COMMENT "Copying OpenSans-Regular.ttf assets to build directory"
+)
+add_custom_command(
+    TARGET ${MUJOCO_STUDIO_TARGET_NAME}
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+        -E copy
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/font_awesome-src/fonts/fontawesome-webfont.ttf
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+    COMMENT "Copying fontawesome-webfont.ttf to build directory"
 )
 
 # Filament backend requires additional files to be copied into an "assets" folder.
@@ -67,7 +102,7 @@ if(MUJOCO_USE_FILAMENT)
         TARGET ${MUJOCO_STUDIO_TARGET_NAME}
         POST_BUILD
         COMMAND ${CMAKE_COMMAND}
-            -E create_symlink
+            -E copy_directory
                 ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/experimental/filament/assets
                 ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
         COMMENT "Copying Filament assets to build directory"

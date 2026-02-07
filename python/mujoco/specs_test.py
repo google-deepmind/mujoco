@@ -1036,6 +1036,31 @@ class SpecsTest(absltest.TestCase):
     texture.data = np.zeros((2, 2, 3), dtype=np.uint8).tobytes()
     spec.compile()
 
+  def test_read_texture(self):
+    spec = mujoco.MjSpec()
+    texture = spec.add_texture(name='texture', height=1, width=2, nchannel=3)
+    texture.data = bytes([1, 2, 3, 4, 5, 6])
+    read_bytes = texture.data
+    self.assertEqual(read_bytes, bytes([1, 2, 3, 4, 5, 6]))
+
+  def test_modify_texture(self):
+    # Assign red, green and blue pixels, then make the first pixel yellow.
+    spec = mujoco.MjSpec()
+    texture = spec.add_texture(name='texture', height=1, width=3, nchannel=3)
+    texture.data = bytes([255, 0, 0, 0, 255, 0, 0, 0, 255])
+    data_array = bytearray(texture.data)
+    data_array[1] = 255
+    texture.data = bytes(data_array)
+    self.assertEqual(
+        texture.data, bytes([255, 255, 0, 0, 255, 0, 0, 0, 255])
+    )
+
+    # Assigning values outside the range [0, 255] should raise an error.
+    with self.assertRaises(ValueError):
+      data_array[0] = 256
+    with self.assertRaises(ValueError):
+      data_array[0] = -1
+
   def test_find_unnamed_asset(self):
     spec = mujoco.MjSpec()
     texture_file = spec.add_texture(file='file.png')
@@ -1095,7 +1120,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
     self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['path/cube2-child2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path//cube2-child2.obj'], 'cube2_content')
 
     # Attach another spec to site (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
@@ -1115,7 +1140,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
     self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['path/cube2-child2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path//cube2-child2.obj'], 'cube2_content')
     self.assertEqual(parent.assets['path/child3-cube3.obj'], 'cube3_content')
 
     # Fail to attach to a site that does not exist.
@@ -1176,7 +1201,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
     self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['path/cube2-child.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path//cube2-child.obj'], 'cube2_content')
 
     # Attach another spec to frame (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
@@ -1266,6 +1291,8 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(mj_model.bind(joints).qposadr, [7, 8])
     np.testing.assert_array_equal(mj_data.bind([]).qpos, [])
     np.testing.assert_array_equal(mj_model.bind([]).qposadr, [])
+    mj_data.bind(joints).qpos = np.array([1, 2])
+    np.testing.assert_array_equal(mj_data.bind(joints).qpos, [1, 2])
     with self.assertRaisesRegex(
         AttributeError, "object has no attribute 'invalid'"
     ):
@@ -1612,6 +1639,26 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(wrap_joint1.coef, 1.0)
     self.assertEqual(wrap_joint2.type, mujoco.mjtWrap.mjWRAP_JOINT)
     self.assertEqual(wrap_joint2.coef, 2.0)
+
+  def test_from_zip(self):
+    """Tests that the assets are correctly parsed from a zip file."""
+    model_path_root = (
+        epath.resource_path("mujoco") / "testdata" / "MJCF_Root.zip"
+    )
+    model_path_no_root = (
+        epath.resource_path("mujoco") / "testdata" / "MJCF_NoRoot.zip"
+    )
+    filenames = [model_path_root.as_posix(), model_path_no_root.as_posix()]
+
+    for filename in filenames:
+      with self.subTest(filename):
+        spec = mujoco.MjSpec.from_zip(filename)
+        spec.compile()
+        assets = spec.assets
+        xml_string = spec.to_xml()
+        string_spec = mujoco.MjSpec.from_string(xml_string, assets=assets)
+        string_spec.compile()
+        self.assertEqual(spec.to_xml(), string_spec.to_xml())
 
 if __name__ == '__main__':
   absltest.main()

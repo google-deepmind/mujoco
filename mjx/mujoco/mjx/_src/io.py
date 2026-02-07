@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import warnings
 
 import jax
+import jax.experimental
 from jax import numpy as jp
 from jax.extend import backend
 import mujoco
@@ -82,7 +83,7 @@ def _resolve_device(
     logging.debug('Picking default device: %s.', device_0)
     return device_0
 
-  if impl == types.Impl.C:
+  if impl == types.Impl.C or impl == types.Impl.CPP:
     cpu_0 = jax.devices('cpu')[0]
     logging.debug('Picking default device: %s', cpu_0)
     return cpu_0
@@ -124,7 +125,7 @@ def _check_impl_device_compatibility(
       )
 
   is_cpu_device = device.platform == 'cpu'
-  if impl == types.Impl.C:
+  if impl == types.Impl.C or impl == types.Impl.CPP:
     if not is_cpu_device:
       raise AssertionError(
           f'C implementation requires a CPU device, got {device}.'
@@ -489,6 +490,39 @@ def _put_model_warp(
   return _strip_weak_type(model)
 
 
+def _put_model_cpp(
+    m: mujoco.MjModel,
+    device: Optional[jax.Device] = None,
+) -> types.Model:
+  """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
+
+  mj_field_names = {f.name for f in types.Model.fields() if f.name != '_impl'}
+  fields = {f: getattr(m, f) for f in mj_field_names}
+  fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
+  fields['opt'] = _put_option(m.opt, impl=types.Impl.C)
+  fields['stat'] = _put_statistic(m.stat, impl=types.Impl.C)
+
+  # get the pointer address
+  # we use a 0-d array
+  addr = m._address  # pytype: disable=attribute-error
+  # To ensure that we retain the full pointer even if jax.config.enable_x64 is
+  # set to True, we store the pointer as two 32-bit values. In the FFI call,
+  # we combine the two values into a single pointer value.
+  pointer_lo = jp.array(addr & 0xFFFFFFFF, dtype=jp.uint32)
+  pointer_hi = jp.array(addr >> 32, dtype=jp.uint32)
+  c_pointers_impl = types.ModelCPP(
+      pointer_lo=pointer_lo,
+      pointer_hi=pointer_hi,
+      _model=m,
+  )
+
+  model = types.Model(
+      **{k: copy.copy(v) for k, v in fields.items()}, _impl=c_pointers_impl
+  )
+  model = jax.device_put(model, device=device)
+  return _strip_weak_type(model)
+
+
 def put_model(
     m: mujoco.MjModel,
     device: Optional[jax.Device] = None,
@@ -515,6 +549,8 @@ def put_model(
     return _put_model_c(m, device)
   elif impl == types.Impl.WARP:
     return _put_model_warp(m, device)
+  elif impl == types.Impl.CPP:
+    return _put_model_cpp(m, device)
   else:
     raise ValueError(f'Unsupported implementation: {impl}')
 
@@ -552,6 +588,7 @@ def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
       'cam_xmat': (m.ncam, 3, 3, float_),
       'subtree_com': (m.nbody, 3, float_),
       'actuator_force': (m.nu, float_),
+      'actuator_length': (m.nu, float_),
       'qfrc_bias': (m.nv, float_),
       'qfrc_gravcomp': (m.nv, float_),
       'qfrc_fluid': (m.nv, float_),
@@ -562,6 +599,8 @@ def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
       'qfrc_constraint': (m.nv, float_),
       'qfrc_inverse': (m.nv, float_),
       'cvel': (m.nbody, 6, float_),
+      'cdof': (m.nv, 6, float_),
+      'cdof_dot': (m.nv, 6, float_),
       'ten_length': (m.ntendon, float_),
   }
   zero_fields = {
@@ -602,14 +641,14 @@ def _make_data_jax(
     device: Optional[jax.Device] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the JAX implementation."""
-  dim = collision_driver.make_condim(m)
+  dim = collision_driver.make_condim(m, impl=types.Impl.JAX)
   efc_type = constraint.make_efc_type(m, dim)
   ne, nf, nl, nc = constraint.counts(efc_type)
   ncon, nefc = dim.size, ne + nf + nl + nc
   efc_address = constraint.make_efc_address(m, dim, efc_type)
 
   float_ = jp.zeros(1, float).dtype
-  int_ = jp.zeros(1, int).dtype
+  int_ = np.int32
   contact = _make_data_contact_jax(dim, efc_address)
 
   if m.opt.cone == types.ConeType.ELLIPTIC and np.any(contact.dim == 1):
@@ -619,14 +658,12 @@ def _make_data_jax(
 
   zero_impl_fields = {
       'solver_niter': (int_,),
-      'cdof': (m.nv, 6, float_),
       'cinert': (m.nbody, 10, float_),
       'ten_wrapadr': (m.ntendon, np.int32),
       'ten_wrapnum': (m.ntendon, np.int32),
       'ten_J': (m.ntendon, m.nv, float_),
       'wrap_obj': (m.nwrap, 2, np.int32),
       'wrap_xpos': (m.nwrap, 6, float_),
-      'actuator_length': (m.nu, float_),
       'actuator_moment': (m.nu, m.nv, float_),
       'crb': (m.nbody, 10, float_),
       'qM': (m.nM, float_) if support.is_sparse(m) else (m.nv, m.nv, float_),
@@ -635,7 +672,6 @@ def _make_data_jax(
       'qLDiagInv': (m.nv, float_) if support.is_sparse(m) else (0, float_),
       'ten_velocity': (m.ntendon, float_),
       'actuator_velocity': (m.nu, float_),
-      'cdof_dot': (m.nv, 6, float_),
       'cacc': (m.nbody, 6, float_),
       'cfrc_int': (m.nbody, 6, float_),
       'cfrc_ext': (m.nbody, 6, float_),
@@ -692,7 +728,7 @@ def _make_data_c(
   # TODO(stunya): The C implementation should not use static dimensions, and
   # the backend implementation details should be kept hidden from JAX
   # altogether.
-  dim = collision_driver.make_condim(m)
+  dim = collision_driver.make_condim(m, impl=types.Impl.C)
   efc_type = constraint.make_efc_type(m, dim)
   efc_address = constraint.make_efc_address(m, dim, efc_type)
   ne, nf, nl, nc = constraint.counts(efc_type)
@@ -713,7 +749,6 @@ def _make_data_c(
   nbvhdynamic = get(m, 'nbvhdynamic')
   zero_impl_fields = {
       'solver_niter': (int_,),
-      'cdof': (m.nv, 6, float_),
       'cinert': (m.nbody, 10, float_),
       'light_xpos': (m.nlight, 3, float_),
       'light_xdir': (m.nlight, 3, float_),
@@ -732,13 +767,20 @@ def _make_data_c(
       'ten_wrapnum': (m.ntendon, np.int32),
       'wrap_obj': (m.nwrap, 2, np.int32),
       'wrap_xpos': (m.nwrap, 6, float_),
-      'actuator_length': (m.nu, float_),
       'moment_rownnz': (m.nu, np.int32),
       'moment_rowadr': (m.nu, np.int32),
       'moment_colind': (m.nJmom, np.int32),
       'actuator_moment': (m.nJmom, float_),
       'bvh_aabb_dyn': (nbvhdynamic, 6, float_),
       'bvh_active': (nbvh, np.uint8),
+      'tree_asleep': (m.ntree, int_),
+      'tree_awake': (m.ntree, int_),
+      'body_awake': (m.nbody, int_),
+      'body_awake_ind': (m.nbody, int_),
+      'parent_awake_ind': (m.nbody, int_),
+      'dof_awake_ind': (m.nv, int_),
+      'tree_island': (m.ntree, int_),
+      'map_itree2tree': (m.ntree, int_),
       'flexedge_velocity': (nflexedge, float_),
       'crb': (m.nbody, 10, float_),
       'qM': (m.nM, float_),
@@ -754,7 +796,6 @@ def _make_data_c(
       'qLU': (m.nD, float_),
       'qfrc_spring': (m.nv, float_),
       'qfrc_damper': (m.nv, float_),
-      'cdof_dot': (m.nv, 6, float_),
       'cacc': (m.nbody, 6, float_),
       'cfrc_int': (m.nbody, 6, float_),
       'cfrc_ext': (m.nbody, 6, float_),
@@ -813,7 +854,7 @@ def _get_nested_attr(obj: Any, attr_name: str, split: str) -> Any:
 def _make_data_warp(
     m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
-    nconmax: Optional[int] = None,
+    naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the Warp implementation."""
@@ -827,7 +868,7 @@ def _make_data_warp(
     raise RuntimeError('Warp is not installed.')
 
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=nconmax, njmax=njmax)  # pylint: disable=undefined-variable
+    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
 
   fields = _make_data_public_fields(m)
   for k in fields:
@@ -862,7 +903,7 @@ def _make_data_warp(
     # TODO(robotics-simulation): remove this warmup compilation once warp
     # stops unloading modules during XLA graph capture for tile kernels.
     # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=nconmax, njmax=njmax)
+    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)
     mw = mjwp.put_model(m)
     _ = mjwp.step(mw, dw)
     # pylint: enable=undefined-variable
@@ -877,6 +918,7 @@ def make_data(
     impl: Optional[Union[str, types.Impl]] = None,
     _full_compat: bool = False,  # pylint: disable=invalid-name
     nconmax: Optional[int] = None,
+    naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data.
@@ -890,6 +932,10 @@ def make_data(
       `nconmax` argument to set the upper bound for the number of contacts
       across all worlds. In MuJoCo Warp, the analgous field is called
       `naconmax`.
+    naconmax: maximum number of contacts to allocate for warp across all worlds
+      Since the number of worlds is **not** pre-defined in JAX, we use the
+      `naconmax` argument to set the upper bound for the number of contacts
+      across all worlds, rather than the `nconmax` argument from MuJoCo Warp.
     njmax: maximum number of constraints to allocate for warp across all worlds
 
   Returns:
@@ -898,7 +944,15 @@ def make_data(
   Raises:
     ValueError: if the model's impl does not match the make_data impl
     NotImplementedError: if the impl is not implemented yet
+    DeprecationWarning: if nconmax is used
   """
+  if nconmax is not None:
+    warnings.warn(
+        'nconmax will be deprecated in mujoco-mjx>=3.5. Use naconmax instead.',
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
   impl, device = _resolve_impl_and_device(impl, device)
 
   if isinstance(m, types.Model) and m.impl != impl:
@@ -912,7 +966,8 @@ def make_data(
   elif impl == types.Impl.C:
     return _make_data_c(m, device)
   elif impl == types.Impl.WARP:
-    return _make_data_warp(m, device, nconmax, njmax)
+    naconmax = nconmax if naconmax is None else naconmax
+    return _make_data_warp(m, device, naconmax, njmax)
 
   raise NotImplementedError(
       f'make_data for implementation "{impl}" not implemented yet.'
@@ -972,7 +1027,7 @@ def _put_data_jax(
     m: mujoco.MjModel, d: mujoco.MjData, device: Optional[jax.Device] = None
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
-  dim = collision_driver.make_condim(m)
+  dim = collision_driver.make_condim(m, impl=types.Impl.JAX)
   efc_type = constraint.make_efc_type(m, dim)
   efc_address = constraint.make_efc_address(m, dim, efc_type)
   ne, nf, nl, nc = constraint.counts(efc_type)
@@ -1099,7 +1154,7 @@ def _put_data_c(
   """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
   # TODO(stunya): ncon, nefc should potentially be jax.Array, and contact/efc
   # should not be materialized in JAX.
-  dim = collision_driver.make_condim(m)
+  dim = collision_driver.make_condim(m, impl=types.Impl.C)
   efc_type = constraint.make_efc_type(m, dim)
   efc_address = constraint.make_efc_address(m, dim, efc_type)
   ne, nf, nl, nc = constraint.counts(efc_type)
@@ -1197,13 +1252,71 @@ def _put_data_c(
   return _strip_weak_type(data)
 
 
+def _put_data_cpp(
+    m: mujoco.MjModel,
+    d: mujoco.MjData,
+    device: Optional[jax.Device] = None,
+    dummy_arg_for_batching: Optional[jax.Array] = None,
+) -> types.Data:
+  """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
+
+  data_list = []
+
+  def _copy_and_get_addr(unused_jax_array):
+    # We use the input to the callback as a dummy dependency to ensure
+    # io_callback runs for each element in the batch.
+    try:
+      new_d = mujoco.MjData(m)
+    except mujoco.FatalError as e:
+      raise ValueError('Failed to create new MjData') from e
+    mujoco.mj_copyState(m, d, new_d, int(mujoco.mjtState.mjSTATE_FULLPHYSICS))
+    mujoco.mj_forward(m, new_d)
+    data_list.append(new_d)
+    addr = new_d._address
+    # To ensure that we retain the full pointer even if jax.config.enable_x64 is
+    # set to True, we store the pointer as two 32-bit values. In the FFI call,
+    # we combine the two values into a single pointer value.
+    return (
+        np.array(addr & 0xFFFFFFFF, dtype=np.uint32),
+        np.array(addr >> 32, dtype=np.uint32),
+    )
+
+  # Pass a dummy dependency to ensure io_callback runs across the batch.
+  pointer_lo, pointer_hi = jax.experimental.io_callback(
+      _copy_and_get_addr,
+      (
+          jax.ShapeDtypeStruct((), jp.uint32),
+          jax.ShapeDtypeStruct((), jp.uint32),
+      ),
+      dummy_arg_for_batching,
+  )
+
+  new_d = data_list[0]
+  fields = _put_data_public_fields(new_d)
+
+  c_pointers_impl = types.DataCPP(
+      pointer_lo=pointer_lo,
+      pointer_hi=pointer_hi,
+      _data=data_list,
+  )
+
+  data = types.Data(
+      _impl=c_pointers_impl,
+      **fields,
+  )
+  data = jax.device_put(data, device=device)
+  return _strip_weak_type(data)
+
+
 def put_data(
     m: mujoco.MjModel,
     d: mujoco.MjData,
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
-    nconmax: int = -1,
-    njmax: int = -1,
+    nconmax: Optional[int] = None,
+    naconmax: Optional[int] = None,
+    njmax: Optional[int] = None,
+    dummy_arg_for_batching: Optional[jax.Array] = None,
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data.
 
@@ -1213,17 +1326,35 @@ def put_data(
     device: which device to use - if unspecified picks the default device
     impl: implementation to use ('jax', 'warp')
     nconmax: maximum number of contacts to allocate for warp
+    naconmax: maximum number of contacts to allocate for warp across all worlds
+      Since the number of worlds is **not** pre-defined in JAX, we use the
+      `naconmax` argument to set the upper bound for the number of contacts
+      across all worlds, rather than the `nconmax` argument from MuJoCo Warp.
     njmax: maximum number of constraints to allocate for warp
+    dummy_arg_for_batching: dummy argument to use for batching in cpp
+      implementation
 
   Returns:
     an mjx.Data placed on device
+    DeprecationWarning: if nconmax is used
   """
-  del nconmax, njmax
+  del njmax
+  if nconmax is not None:
+    warnings.warn(
+        'nconmax will be deprecated in mujoco-mjx>=3.5. Use naconmax instead.',
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
   impl, device = _resolve_impl_and_device(impl, device)
   if impl == types.Impl.JAX:
     return _put_data_jax(m, d, device)
   elif impl == types.Impl.C:
     return _put_data_c(m, d, device)
+  elif impl == types.Impl.CPP:
+    return _put_data_cpp(
+        m, d, device, dummy_arg_for_batching=dummy_arg_for_batching
+    )
 
   # TODO(robotics-team): implement put_data_warp
 

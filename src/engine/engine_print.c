@@ -14,6 +14,7 @@
 
 #include "engine/engine_print.h"
 
+#include <inttypes.h>  // IWYU pragma: keep
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -41,7 +42,7 @@
 #define FLOAT_FORMAT "% -9.2g"
 #define FLOAT_FORMAT_MAX_LEN 20
 #define INT_FORMAT " %d"
-#define SIZE_T_FORMAT " %zu"
+#define SIZE_FORMAT " %" PRId64
 #define NAME_FORMAT "%-21s"
 
 
@@ -80,7 +81,7 @@ static void printArr(FILE* fp, const char* name, const float* data, int n, const
 
 // print 2D array of mjtNum into file
 static void printArray2d(const char* str, int nr, int nc, const mjtNum* data, FILE* fp,
-                       const char* float_format) {
+                         const char* float_format) {
   if (!data) {
     return;
   }
@@ -349,12 +350,8 @@ static const char* memorySize(size_t nbytes) {
 
   if (nbytes < k) {
     snprintf(message, sizeof(message), "%5zu bytes", nbytes);
-  } else if (nbytes < k*k) {
-    snprintf(message, sizeof(message), "%5.1f KB", (double)nbytes / k);
-  } else if (nbytes < k*k*k) {
-    snprintf(message, sizeof(message), "%5.1f MB", (double)nbytes / (k*k));
   } else {
-    snprintf(message, sizeof(message), "%5.1f GB", (double)nbytes / (k*k*k));
+    snprintf(message, sizeof(message), "%7.0f KB", (double)nbytes / (k));
   }
 
   return message;
@@ -364,13 +361,20 @@ static const char* memorySize(size_t nbytes) {
 // return memory footprint of all significant mesh-related arrays
 static size_t sizeMesh(const mjModel* m) {
   size_t nbytes = 0;
-  nbytes += sizeof(float) * 3*m->nmeshvert;        // mesh_vert
-  nbytes += sizeof(float) * 3*m->nmeshnormal;      // mesh_normal
-  nbytes += sizeof(float) * 2*m->nmeshtexcoord;    // mesh_texcoord
-  nbytes += sizeof(int)   * 3*m->nmeshface;        // mesh_face
-  nbytes += sizeof(int)   * 3*m->nmeshface;        // mesh_facenormal
-  nbytes += sizeof(int)   * 3*m->nmeshface;        // mesh_facetexcoord
-  nbytes += sizeof(int)   * m->nmeshgraph;         // mesh_graph
+  nbytes += sizeof(float)  * 3*m->nmeshvert;      // mesh_vert
+  nbytes += sizeof(float)  * 3*m->nmeshnormal;    // mesh_normal
+  nbytes += sizeof(float)  * 2*m->nmeshtexcoord;  // mesh_texcoord
+  nbytes += sizeof(int)    * 3*m->nmeshface;      // mesh_face
+  nbytes += sizeof(int)    * 3*m->nmeshface;      // mesh_facenormal
+  nbytes += sizeof(int)    * 3*m->nmeshface;      // mesh_facetexcoord
+  nbytes += sizeof(int)    * m->nmeshgraph;       // mesh_graph
+  nbytes += sizeof(mjtNum) * 3*m->nmeshpoly;      // mesh_polynormal
+  nbytes += sizeof(int)    * m->nmeshpoly;        // mesh_polyvertadr
+  nbytes += sizeof(int)    * m->nmeshpoly;        // mesh_polyvertnum
+  nbytes += sizeof(int)    * m->nmeshpolyvert;    // mesh_polyvert
+  nbytes += sizeof(int)    * m->nmeshvert;        // mesh_polymapadr
+  nbytes += sizeof(int)    * m->nmeshvert;        // mesh_polymapnum
+  nbytes += sizeof(int)    * m->nmeshpolymap;     // mesh_polymap
   return nbytes;
 }
 
@@ -388,6 +392,21 @@ static size_t sizeSkin(const mjModel* m) {
   nbytes += sizeof(int)   * m->nskinbone;          // skin_bonebodyid
   nbytes += sizeof(int)   * m->nskinbonevert;      // skin_bonevertid
   nbytes += sizeof(float) * m->nskinbonevert;      // skin_bonevertweight
+  return nbytes;
+}
+
+
+// return memory footprint of all BVH-related arrays
+static size_t sizeBVH(const mjModel* m) {
+  size_t nbytes = 0;
+  nbytes += sizeof(int)    * m->nbvh;               // bvh_depth
+  nbytes += sizeof(int)    * 2*m->nbvh;             // bvh_child
+  nbytes += sizeof(int)    * m->nbvh;               // bvh_nodeid
+  nbytes += sizeof(mjtNum) * 6*m->nbvhstatic;       // bvh_aabb
+  nbytes += sizeof(int)    * m->noct;               // oct_depth
+  nbytes += sizeof(int)    * 8*m->noct;             // oct_child
+  nbytes += sizeof(mjtNum) * 6*m->noct;             // oct_aabb
+  nbytes += sizeof(mjtNum) * 8*m->noct;             // oct_coeff
   return nbytes;
 }
 
@@ -504,16 +523,18 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   // memory footprint
   fprintf(fp, "MEMORY\n");
-  fprintf(fp, "  total         %s\n", memorySize(mj_sizeModel(m)));
-  if (m->nmesh) {
-    fprintf(fp, "  meshes        %s\n", memorySize(sizeMesh(m)));
-  }
-  if (m->ntex) {
-    fprintf(fp, "  textures      %s\n", memorySize(m->ntexdata));
-  }
-  if (m->nskin) {
-    fprintf(fp, "  skins         %s\n", memorySize(sizeSkin(m)));
-  }
+  size_t sz_total = mj_sizeModel(m);
+  size_t sz_mesh = m->nmesh ? sizeMesh(m) : 0;
+  size_t sz_bvh = (m->nbvh || m->noct) ? sizeBVH(m) : 0;
+  size_t sz_tex = m->ntex ? m->ntexdata : 0;
+  size_t sz_skin = m->nskin ? sizeSkin(m) : 0;
+  size_t sz_other = sz_total - sz_mesh - sz_bvh - sz_tex - sz_skin;
+  fprintf(fp, "  total       %s\n", memorySize(sz_total));
+  if (sz_mesh)  fprintf(fp, "  meshes      %s\n", memorySize(sz_mesh));
+  if (sz_bvh)   fprintf(fp, "  bvhs        %s\n", memorySize(sz_bvh));
+  if (sz_tex)   fprintf(fp, "  textures    %s\n", memorySize(sz_tex));
+  if (sz_skin)  fprintf(fp, "  skins       %s\n", memorySize(sz_skin));
+  if (sz_other) fprintf(fp, "  other       %s\n", memorySize(sz_other));
   fprintf(fp, "\n");
 
 
@@ -523,7 +544,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->name) {                                  \
     const char* format = _Generic(                \
         m->name,                                  \
-        size_t : SIZE_T_FORMAT,                   \
+        mjtSize : SIZE_FORMAT,                    \
         default : INT_FORMAT);                    \
     fprintf(fp, NAME_FORMAT, "  " #name);         \
     fprintf(fp, format, m->name);                 \
@@ -664,6 +685,14 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     MJMODEL_POINTERS_DOF
   }
   if (m->nv) fprintf(fp, "\n");
+
+  // trees
+  object_class = &m->ntree;
+  for (int i=0; i < m->ntree; i++) {
+    fprintf(fp, "\nTREE %d:\n", i);
+    MJMODEL_POINTERS_TREE
+  }
+  if (m->ntree) fprintf(fp, "\n");
 
   // geoms
   object_class = &m->ngeom;
@@ -1101,11 +1130,11 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
 #endif
 
   fprintf(fp, "MEMORY\n");
-  fprintf(fp, "  total           %s\n",   memorySize(sizeof(mjData) + d->nbuffer + d->narena));
-  fprintf(fp, "  struct          %s\n",   memorySize(sizeof(mjData)));
-  fprintf(fp, "  buffer          %s\n",   memorySize(d->nbuffer));
+  fprintf(fp, "  total         %s\n",   memorySize(sizeof(mjData) + d->nbuffer + d->narena));
+  fprintf(fp, "  struct        %s\n",   memorySize(sizeof(mjData)));
+  fprintf(fp, "  buffer        %s\n",   memorySize(d->nbuffer));
   double arena_percent = 100 * d->maxuse_arena/(double)(d->narena);
-  fprintf(fp, "  arena           %s, used %.1f%%\n\n", memorySize(d->narena), arena_percent);
+  fprintf(fp, "  arena         %s, used %.1f%%\n\n", memorySize(d->narena), arena_percent);
 
   // ---------------------------------- print mjData fields
 
@@ -1118,7 +1147,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     const char* format = _Generic(                                            \
         d->name,                                                              \
         int : INT_FORMAT,                                                     \
-        size_t : SIZE_T_FORMAT,                                               \
+        mjtSize : SIZE_FORMAT,                                                \
         default : NULL);                                                      \
     if (format) {                                                             \
       fprintf(fp, "  ");                                                      \
@@ -1227,6 +1256,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printArray2d("ACT_DOT", m->na, 1, d->act_dot, fp, float_format);
   printArray2d("USERDATA", m->nuserdata, 1, d->userdata, fp, float_format);
   printArray2d("SENSOR", m->nsensordata, 1, d->sensordata, fp, float_format);
+  printArray2dInt("TREE_ASLEEP", m->ntree, 1, d->tree_asleep, fp);
 
   printArray2d("XPOS", m->nbody, 3, d->xpos, fp, float_format);
   printArray2d("XQUAT", m->nbody, 4, d->xquat, fp, float_format);
@@ -1312,6 +1342,13 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     printArray2d("QHDIAGINV", m->nv, 1, d->qHDiagInv, fp, float_format);
   }
 
+  // computed sleep state
+  printArray2dInt("TREE_AWAKE", 1, m->ntree, d->tree_awake, fp);
+  printArray2dInt("BODY_AWAKE", 1, m->nbody, d->body_awake, fp);
+  printArray2dInt("BODY_AWAKE_IND", 1, d->nbody_awake, d->body_awake_ind, fp);
+  printArray2dInt("PARENT_AWAKE_IND", 1, d->nparent_awake, d->parent_awake_ind, fp);
+  printArray2dInt("DOF_AWAKE_IND", 1, d->nv_awake, d->dof_awake_ind, fp);
+
   // print qDeriv
   if (!mju_isZero(d->qDeriv, m->nD)) {
     printSparse("QDERIV", d->qDeriv, m->nv, m->D_rownnz, m->D_rowadr, m->D_colind,
@@ -1324,7 +1361,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   }
 
   // contact
-  fprintf(fp, "CONTACT\n");
+  if (d->ncon) fprintf(fp, "CONTACT\n");
   for (int i=0; i < d->ncon; i++) {
     fprintf(fp, "  %d:\n     dim           %d\n", i, d->contact[i].dim);
     int g1 = d->contact[i].geom[0];
@@ -1454,6 +1491,11 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printArray2d("CFRC_EXT", m->nbody, 6, d->cfrc_ext, fp, float_format);
 
   if (d->nisland) {
+    printArray2dInt("TREE_ISLAND", 1, m->ntree, d->tree_island, fp);
+    printArray2dInt("ISLAND_NTREE", 1, d->nisland, d->island_ntree, fp);
+    printArray2dInt("ISLAND_ITREEADR", 1, d->nisland, d->island_itreeadr, fp);
+    printArray2dInt("MAP_ITREE2TREE", 1, m->ntree, d->map_itree2tree, fp);
+
     fprintf(fp, NAME_FORMAT, "DOF_ISLAND");
     for (int i = 0; i < m->nv; i++) {
       fprintf(fp, " %d", d->dof_island[i]);
