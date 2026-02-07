@@ -450,16 +450,19 @@ target_link_libraries(
           structs_header
 )
 
-mujoco_pybind11_module(_simulate simulate.cc)
-target_link_libraries(
-  _simulate
-  PRIVATE mujoco
-          mujoco::libmujoco_simulate
-          glfw
-          errors_header
-          raw
-          structs_header
-)
+if (MUJOCO_BUILD_SIMULATE AND TARGET mujoco::libmujoco_simulate)
+  mujoco_pybind11_module(_simulate simulate.cc)
+  target_link_libraries(
+    _simulate
+    PRIVATE mujoco
+            mujoco::libmujoco_simulate
+            glfw
+            errors_header
+            raw
+            structs_header
+  )
+endif()
+
 
 set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_callbacks>"
@@ -469,11 +472,14 @@ set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_functions>"
     "$<TARGET_FILE:_render>"
     "$<TARGET_FILE:_rollout>"
-    "$<TARGET_FILE:_simulate>"
     "$<TARGET_FILE:_specs>"
     "$<TARGET_FILE:_structs>"
     "$<TARGET_FILE:mujoco>"
 )
+
+if (MUJOCO_BUILD_SIMULATE AND TARGET _simulate)
+  list(APPEND LIBRARIES_FOR_WHEEL "$<TARGET_FILE:_simulate>")
+endif()
 
 if(APPLE)
   add_executable(mjpython mjpython/mjpython.mm)
@@ -505,11 +511,13 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
     _functions
     _render
     _rollout
-    _simulate
     _specs
     _structs
     mujoco
   )
+  if (MUJOCO_BUILD_SIMULATE AND TARGET _simulate)
+    add_dependencies(wheel _simulate)
+  endif()
   if(APPLE)
     add_dependencies(wheel mjpython)
   endif()
