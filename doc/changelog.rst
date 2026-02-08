@@ -5,6 +5,47 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+Significant new features
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Actuators and sensors now support arbitrary delays via history buffers, and sensors values can be computed at
+  intervals larger than the simulation timestep. Using a delay or interval introduces a new ``mjData.history`` variable
+  to the :ref:`Physics state<siPhysicsState>`. See :ref:`Delays<CDelay>` for details.
+
+.. image:: images/changelog/poncho.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/model/flex/poncho.xml
+
+- Added new :ref:`flexvert<equality-flexvert>` equality constraints that enable cloth simulations with coarser meshes.
+  This adds a new option ``vert`` to flexcomp edge :ref:`equality<flexcomp-edge-equality>` and the new equality type
+  :ref:`flexvert<equality-flexvert>`.
+
+.. container:: custom-clear
+
+   .. raw:: html
+
+      <div style="clear: both;"></div>
+
+.. image:: images/XMLreference/rfcamera.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/rfcamera.xml
+
+- Rangefinder sensors can now be attached to a camera using the :ref:`ragefinder/camera<sensor-rangefinder-camera>`
+  attribute. In this case, the sensor will cast multiple ray, one for each pixel.
+- :ref:`Rangefinders<sensor-rangefinder>` can now report various kinds of information besides ray distances,
+  including surface normals.
+
+.. container:: custom-clear
+
+   .. raw:: html
+
+      <div style="clear: both;"></div>
+
+General
+^^^^^^^
+
 .. admonition:: Breaking API changes
    :class: attention
 
@@ -29,31 +70,8 @@ Upcoming version (not yet released)
    - Removed ``getdir`` from the ``mjpResourceProvider`` struct. All Resource Providers now use the same shared
      implementation.
 
-General
-^^^^^^^
-
-- Actuators and sensors now support arbitrary delays, see :ref:`Delays<CDelay>` for details. Adding
-  delays introduces a new ``mjData.history`` variable to the :ref:`Physics state<siPhysicsState>`.
-
-.. image:: images/changelog/poncho.png
-   :width: 45%
-   :align: right
-   :target: https://github.com/google-deepmind/mujoco/blob/main/model/flex/poncho.xml
-
-- Added new :ref:`flexvert<equality-flexvert>` equality constraints that enable cloth simulations with coarser meshes.
-  This adds a new option ``vert`` to flexcomp edge :ref:`equality<flexcomp-edge-equality>` and the new equality type
-  :ref:`flexvert<equality-flexvert>`.
-
-.. image:: images/XMLreference/rfcamera.png
-   :width: 45%
-   :align: right
-   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/rfcamera.xml
-
 - Camera frustum visualization is now triggered by setting :ref:`resolution<body-camera-resolution>` to values larger
   than 1. Relatedly, frustum visualization also works for :ref:`orthographic<body-camera-projection>` cameras.
-- Rangefinder sensors can now be attached to a camera using the :ref:`ragefinder/camera<sensor-rangefinder-camera>`
-  attribute. In this case, the sensor will cast multiple ray, one for each pixel.
-- Rangefinder sensors can now now report various kinds of information besides ray distances, including surface normals.
   See :ref:`rangefinder<sensor-rangefinder>` for details.
 - Cameras now have an :ref:`output<body-camera-output>` attribute, parsed into the ``mjModel.cam_output`` bitfield.
   Unused by the renderer, it serves as a convenient location to store a camera's supported output types.
