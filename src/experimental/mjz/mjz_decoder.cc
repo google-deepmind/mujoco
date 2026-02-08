@@ -72,6 +72,19 @@ class ZipArchiveProvider : public mjpResourceProvider {
       files_[stat.m_filename] = FileInfo{i, size, {}};
     }
 
+    // Look for the root XML model in the archive. First look for an XML file
+    // with the same name as the archive itself. Failing that, look for an XML
+    // file with the same name including the parent directory.
+    const std::filesystem::path path(name_);
+    root_model_ = (path / path.stem()).string() + ".xml";
+    if (!Contains(root_model_)) {
+      root_model_ = (path / path.parent_path() / path.stem()).string() + ".xml";
+      if (!Contains(root_model_)) {
+        SetError(error, error_sz, "Zip error: no root XML file found.");
+        return;
+      }
+    }
+
     // Setup mjpResourceProvider callbacks.
     mount = [](mjResource* resource) {
       return 0;
@@ -106,10 +119,7 @@ class ZipArchiveProvider : public mjpResourceProvider {
 
   // Returns the path to the root XML model in the archive.
   std::string GetRootModelPath() const {
-    // Assumes the root has the same name as the archive itself, but with a .xml
-    // extension.
-    const std::filesystem::path path(name_);
-    return (path / path.stem()).string() + ".xml";
+    return root_model_;
   }
 
   // Returns true if the archive contains a file with the given name/path.
@@ -154,6 +164,7 @@ class ZipArchiveProvider : public mjpResourceProvider {
   };
 
   std::string name_;
+  std::string root_model_;
   mz_zip_archive archive_;
   std::vector<char> buffer_;
   std::unordered_map<std::string, FileInfo> files_;
