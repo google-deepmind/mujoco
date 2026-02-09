@@ -1,6 +1,6 @@
 # Magnetic plugin
 
-## PID
+## Introduction
 
 The `mujoco.magnet` plugin implements magnetic forces and torques for induced magnets.
 
