@@ -792,6 +792,10 @@ struct MjcPhysicsTokensType {
   ///
   /// Schema identifier and family for MjcPhysicsEqualityAPI
   const TfToken MjcEqualityAPI;
+  /// \brief "MjcEqualityConnectAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsEqualityConnectAPI
+  const TfToken MjcEqualityConnectAPI;
   /// \brief "MjcEqualityJointAPI"
   ///
   /// Schema identifier and family for MjcPhysicsEqualityJointAPI

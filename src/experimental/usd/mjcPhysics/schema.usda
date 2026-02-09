@@ -1087,6 +1087,16 @@ class "MjcEqualityAPI" (
     )
 }
 
+class "MjcEqualityConnectAPI" (
+    customData = {
+        string className = "EqualityConnectAPI"
+    }
+    doc = """API providing extension attributes to represent equality/connect constraints."""
+
+    prepend apiSchemas = ["MjcEqualityAPI"]
+    inherits = </APISchemaBase>
+){}
+
 class "MjcEqualityWeldAPI" (
     customData = {
         string className = "EqualityWeldAPI"

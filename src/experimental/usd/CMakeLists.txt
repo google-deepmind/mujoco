@@ -128,6 +128,7 @@ target_sources(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
   mjcPhysics/actuator.cpp
   mjcPhysics/collisionAPI.cpp
   mjcPhysics/equalityAPI.cpp
+  mjcPhysics/equalityConnectAPI.cpp
   mjcPhysics/equalityJointAPI.cpp
   mjcPhysics/equalityWeldAPI.cpp
   mjcPhysics/imageableAPI.cpp

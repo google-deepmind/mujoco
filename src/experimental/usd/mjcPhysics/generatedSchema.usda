@@ -567,6 +567,13 @@ class "MjcEqualityAPI" (
     )
 }
 
+class "MjcEqualityConnectAPI" (
+    apiSchemas = ["MjcEqualityAPI"]
+    doc = "API providing extension attributes to represent equality/connect constraints."
+)
+{
+}
+
 class "MjcEqualityWeldAPI" (
     apiSchemas = ["MjcEqualityAPI"]
     doc = "API providing extension attributes to represent equality/weld constraints."
