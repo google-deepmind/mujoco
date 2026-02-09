@@ -215,7 +215,9 @@ install_python_bindings() {
 test_python_bindings() {
     echo "Testing Python bindings..."
     source ${TMPDIR}/venv/bin/activate &&
-    pytest -v --pyargs mujoco
+    # TODO(kevinzakka): Add sysid tests to CI once sysid dependencies are installed in the CI environment.
+    MUJOCO_PATH=$(python -c "import mujoco; print(mujoco.__path__[0])") &&
+    pytest -v --pyargs mujoco --ignore="${MUJOCO_PATH}/sysid/tests"
 }
 
 
