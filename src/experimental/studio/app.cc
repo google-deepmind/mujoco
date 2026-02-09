@@ -145,14 +145,8 @@ void App::InitEmptyModel() {
 }
 
 void App::LoadModelFromFile(const std::string& filepath) {
-
   const std::string resolved_file =
       platform::ResolveFile(filepath, search_paths_);
-  if (resolved_file.empty()) {
-    SetLoadError("File not found: " + filepath);
-    return;
-  }
-
   model_holder_ = platform::ModelHolder::FromFile(resolved_file);
   if (model_holder_->ok()) {
     OnModelLoaded(filepath, kModelFromFile);

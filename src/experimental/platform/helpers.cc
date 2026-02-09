@@ -84,7 +84,7 @@ std::string ResolveFile(const std::string& filename,
       }
     }
   }
-  return "";
+  return filename;
 }
 
 void SaveToWebp(int width, int height, const std::byte* data,
