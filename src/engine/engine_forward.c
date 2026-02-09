@@ -1171,9 +1171,24 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
   }
 
-  // IMPLICIT
-  if (m->opt.integrator == mjINT_IMPLICIT) {
-    if (!skipfactor) {
+  // check for flex_interp
+  int has_flex_interp = 0;
+  for (int f = 0; f < m->nflex; f++) {
+    if (m->flex_interp[f]) {
+      has_flex_interp = 1;
+      break;
+    }
+  }
+
+  // flex: data structures for reduced dense factorization
+  mjtNum* H_flex = NULL;
+  int* flex_dof_indices = NULL;
+  int nflexdofs = 0;
+
+  // factorization
+  if (!skipfactor) {
+    // implicit
+    if (m->opt.integrator == mjINT_IMPLICIT) {
       // compute analytical derivative qDeriv
       mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
@@ -1182,20 +1197,10 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
 
       // set qLU = M - dt*qDeriv
       mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, nD);
-
-      // factorize qLU
-      int* scratch = mjSTACKALLOC(d, nv, int);
-      mju_factorLUSparse(d->qLU, nv, scratch, m->D_rownnz, m->D_rowadr, m->D_colind, dof_awake_ind);
     }
 
-    // solve for qacc: (M - dt*qDeriv) * qacc = qfrc
-    mju_solveLUSparse(qacc, d->qLU, qfrc, nv, m->D_rownnz, m->D_rowadr, m->D_diag, m->D_colind,
-                      dof_awake_ind);
-  }
-
-  // IMPLICITFAST
-  else if (m->opt.integrator == mjINT_IMPLICITFAST) {
-    if (!skipfactor) {
+    // implicitfast
+    else if (m->opt.integrator == mjINT_IMPLICITFAST) {
       // compute analytical derivative qDeriv; skip rne derivative
       mjd_smooth_vel(m, d, /* flg_bias = */ 0);
 
@@ -1204,22 +1209,129 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
 
       // set qH = M - dt*qDeriv
       mju_addScl(d->qH, d->M, d->qH, -m->opt.timestep, nC);
-
-      // factorize in-place
-      mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+    } else {
+      mjERROR("integrator must be implicit or implicitfast");
     }
 
-    // solve for qacc: (M - dt*qDeriv) * qacc = qfrc
+    // flex: reduced dense factorization
+    if (has_flex_interp && !sleep_filter) {
+      // identify flex DOFs
+      for (int f=0; f < m->nflex; f++) {
+        if (m->flex_interp[f]) {
+          int nodenum = m->flex_nodenum[f];
+          int nodeadr = m->flex_nodeadr[f];
+          for (int n=0; n<nodenum; n++) {
+            int b = m->flex_nodebodyid[nodeadr + n];
+            nflexdofs += m->body_dofnum[b];
+          }
+        }
+      }
+
+      // allocations
+      if (nflexdofs > 0) {
+        flex_dof_indices = mjSTACKALLOC(d, nflexdofs, int);
+        int* global2local = mjSTACKALLOC(d, nv, int);
+        mju_fillInt(global2local, -1, nv);
+
+        int cnt = 0;
+        for (int f=0; f < m->nflex; f++) {
+          if (m->flex_interp[f]) {
+            int nodenum = m->flex_nodenum[f];
+            int nodeadr = m->flex_nodeadr[f];
+            for (int n=0; n<nodenum; n++) {
+              int b = m->flex_nodebodyid[nodeadr + n];
+              int dofnum = m->body_dofnum[b];
+              int dofadr = m->body_dofadr[b];
+              for (int j=0; j < dofnum; j++) {
+                flex_dof_indices[cnt] = dofadr + j;
+                global2local[dofadr + j] = cnt;
+                cnt++;
+              }
+            }
+          }
+        }
+
+        // build H_flex (dense) from qLU (implicit) or qH (implicitfast)
+        H_flex = mjSTACKALLOC(d, nflexdofs*nflexdofs, mjtNum);
+        mju_zero(H_flex, nflexdofs*nflexdofs);
+
+        const int* rownnz = (m->opt.integrator == mjINT_IMPLICIT) ? m->D_rownnz : m->M_rownnz;
+        const int* rowadr = (m->opt.integrator == mjINT_IMPLICIT) ? m->D_rowadr : m->M_rowadr;
+        const int* colind = (m->opt.integrator == mjINT_IMPLICIT) ? m->D_colind : m->M_colind;
+        const mjtNum* source = (m->opt.integrator == mjINT_IMPLICIT) ? d->qLU : d->qH;
+
+        for (int i=0; i < nflexdofs; i++) {
+          int row = flex_dof_indices[i];
+          int start = rowadr[row];
+          int end = start + rownnz[row];
+          for (int k=start; k < end; k++) {
+            int col = colind[k];
+            int local_j = global2local[col];
+            if (local_j >= 0) {
+              H_flex[i*nflexdofs + local_j] = source[k];
+            }
+          }
+        }
+
+        // add stiffness to H_flex
+        mjtNum h = m->opt.timestep;
+        mjd_flexInterp_addH(m, d, H_flex, flex_dof_indices, nflexdofs, h);
+
+        // factor H_flex
+        mju_cholFactor(H_flex, nflexdofs, mjMINVAL);
+      }
+    }
+
+    // standard factorization (implicit / implicitfast)
+    if (m->opt.integrator == mjINT_IMPLICIT) {
+      int* scratch = mjSTACKALLOC(d, nv, int);
+      mju_factorLUSparse(d->qLU, nv, scratch, m->D_rownnz, m->D_rowadr, m->D_colind, dof_awake_ind);
+    } else {
+      mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+    }
+  }
+
+  // solve
+  // standard sparse solve
+  if (m->opt.integrator == mjINT_IMPLICIT) {
+    mju_solveLUSparse(qacc, d->qLU, qfrc, nv, m->D_rownnz, m->D_rowadr, m->D_diag, m->D_colind,
+                      dof_awake_ind);
+  } else {
+    // implicitfast
     if (sleep_filter) {
       mju_copyInd(qacc, qfrc, dof_awake_ind, nv);
     } else {
       mju_copy(qacc, qfrc, nv);
     }
-    mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1,
-               m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+    mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+  }
 
-  } else {
-    mjERROR("integrator must be implicit or implicitfast");
+  // flex: reduced dense solve
+  if (H_flex) {
+    // compute qfrc_flex
+    mjtNum* qfrc_flex = mjSTACKALLOC(d, nflexdofs, mjtNum);
+    mjtNum* res = mjSTACKALLOC(d, nv, mjtNum);
+
+    mjtNum h = m->opt.timestep;
+    mjtNum damp = (m->nflex > 0 && m->flex_damping) ? m->flex_damping[0] : 0;
+    mjtNum scl = h * h + h * damp;
+    mjtNum factor = (scl > mjMINVAL) ? (h/scl) : 0;
+
+    // velocity correction: -h * K * v
+    mju_zero(res, nv);
+    mjd_flexInterp_mulKD(m, d, res, d->qvel, h);  // returns -scl * K * v
+
+    for (int i=0; i < nflexdofs; i++) {
+      int global_dof = flex_dof_indices[i];
+      qfrc_flex[i] = qfrc[global_dof] + res[global_dof] * factor;
+    }
+
+    // solve H_flex * qacc_flex = qfrc_flex
+    // reuse qfrc_flex as result buffer (qacc_flex)
+    mju_cholSolve(qfrc_flex, H_flex, qfrc_flex, nflexdofs);
+
+    // overwrite flex DOFs with reduced dense solution
+    mju_scatter(qacc, qfrc_flex, flex_dof_indices, nflexdofs);
   }
 
   // advance state and time

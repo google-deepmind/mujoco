@@ -14,6 +14,9 @@
 
 // Tests for engine/engine_derivative.c.
 
+#include "src/engine/engine_derivative.h"
+
+#include <cstddef>
 #include <random>
 #include <string>
 #include <vector>
@@ -23,7 +26,6 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_core_smooth.h"
-#include "src/engine/engine_derivative.h"
 #include "src/engine/engine_derivative_fd.h"
 #include "src/engine/engine_forward.h"
 #include "src/engine/engine_io.h"
@@ -1076,6 +1078,315 @@ TEST_F(DerivativeTest, quatIntegrate) {
       EXPECT_THAT(AsVector(DhFD, 3), Pointwise(DoubleNear(eps), Dh));
     }
   }
+}
+
+// Utility: Rotate flex grid
+void RotateFlexGrid(mjModel* model, mjData* data, const char* flex_name,
+                    double angle) {
+  int flex_id = mj_name2id(model, mjOBJ_FLEX, flex_name);
+  ASSERT_NE(flex_id, -1);
+  int node_adr = model->flex_nodeadr[flex_id];
+  int* node_bodies = model->flex_nodebodyid + node_adr;
+  int nodenum = model->flex_nodenum[flex_id];
+
+  // Make deterministic quaternion for rotation inside helper
+  mjtNum quat[4] = {1, 0, 0, 0};
+  if (angle != 0) {
+    mjtNum vel[3] = {1, 1, 1};
+    mju_normalize3(vel);
+    mju_quatIntegrate(quat, vel, angle);
+  }
+
+  // reset first to get initial positions
+  mj_resetData(model, data);
+  mj_forward(model, data);  // Compute initial xpos
+
+  // Update qpos
+  for (int i = 0; i < nodenum; i++) {
+    int bodyid = node_bodies[i];
+
+    // Only process nodes with valid bodies (FlexInterpDamping assumes this)
+    if (bodyid >= 0) {
+      mjtNum xpos0[3];
+      mju_copy3(xpos0, data->xpos + 3 * bodyid);  // Initial absolute position
+
+      mjtNum xpos_new[3];
+      mju_rotVecQuat(xpos_new, xpos0, quat);  // Rotate absolute position
+
+      mjtNum delta[3];
+      mju_sub3(delta, xpos_new, xpos0);
+
+      // Find the qpos address for this node/body
+      int jnt = model->body_jntadr[bodyid];
+      if (jnt >= 0) {
+        int qadr = model->jnt_qposadr[jnt];
+        mju_addTo3(data->qpos + qadr, delta);
+      }
+    }
+  }
+}
+
+// compare analytic and fin-diff d_qfrc_passive/d_qvel for flex interp
+// Combined test for verify mjd_flexInterp_mulK (stiffness) and damping
+TEST_F(DerivativeTest, FlexInterpDerivatives) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicit"/>
+    <worldbody>
+      <flexcomp name="flex" type="grid" count="3 3 3" spacing="0.1 0.2 0.3"
+                radius=".01" dim="3" mass="1" dof="trilinear">
+        <contact selfcollide="none"/>
+        <elasticity young="1e4" poisson="0.3" damping="50"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  int nD = model->nD;
+  int nv = model->nv;
+  ASSERT_EQ(model->nq, 24);  // 8 corners * 3 dofs
+
+  mjData* data = mj_makeData(model);
+
+  // iterate over rotations
+  for (mjtNum angle : {0.0, 0.5, 1.0, mjPI / 2, mjPI, 2.0 * mjPI}) {
+    RotateFlexGrid(model, data, "flex", angle);
+    mj_forward(model, data);
+
+    // part 1: stiffness verification
+    {
+      std::vector<mjtNum> vec(nv);
+      std::vector<mjtNum> res(nv);
+      mju_zero(vec.data(), nv);
+      // use deterministic random perturbation to verify full stiffness matrix
+      // behavior
+      for (int i = 0; i < nv; i++) {
+        vec[i] = mju_Halton(i, 2) - 0.5;
+      }
+
+      // use addH to compute K * vec
+      // addH adds (h^2*K + h*D) to H
+      // if we set h=1, damping=0, we get K added to H
+      mjtNum save_damping = model->flex_damping[0];
+      model->flex_damping[0] = 0;
+
+      std::vector<mjtNum> H(nv * nv, 0);
+      std::vector<int> dof_indices(nv);
+      for (int i = 0; i < nv; i++) dof_indices[i] = i;
+
+      // assemble K into H
+      mjd_flexInterp_addH(model, data, H.data(), dof_indices.data(), nv, 1.0);
+
+      // restore damping
+      model->flex_damping[0] = save_damping;
+
+      // compute res = K * vec
+      mju_mulMatVec(res.data(), H.data(), vec.data(), nv, nv);
+
+      // finite difference of mj_passive for stiffness
+      double eps = 1e-6;
+      mjData* data_perturbed = mj_copyData(NULL, model, data);
+
+      // apply perturbation
+      mju_addToScl(data_perturbed->qpos, vec.data(), eps, nv);
+
+      // recompute geometry/passive
+      mj_forward(model, data_perturbed);
+
+      // compute FD estimate of K * vec
+      // qfrc_passive = -dV/dq => d(qfrc)/dq = -K
+      // (qfrc_new - qfrc)/eps ~= -K * vec
+      std::vector<mjtNum> fd_res(nv);
+      for (int i = 0; i < nv; ++i) {
+        fd_res[i] =
+            -(data_perturbed->qfrc_passive[i] - data->qfrc_passive[i]) / eps;
+      }
+
+      // compare analytical result (H*vec) with FD result
+      for (int i = 0; i < nv; ++i) {
+        EXPECT_NEAR(res[i], fd_res[i], 5e-3)
+            << "Stiffness Mismatch at DOF " << i;
+      }
+
+      mj_deleteData(data_perturbed);
+
+      // check symmetry: K[i,j] == K[j,i]
+      std::vector<mjtNum>& K_full = H;
+      mjtNum max_asymmetry = 0;
+      for (int i = 0; i < nv; i++) {
+        for (int j = 0; j < i; j++) {
+          mjtNum diff = mju_abs(K_full[i * nv + j] - K_full[j * nv + i]);
+          max_asymmetry = mju_max(max_asymmetry, diff);
+        }
+      }
+      EXPECT_LT(max_asymmetry, 1e-10)
+          << "K matrix is not symmetric at angle " << angle;
+
+      // check positive semi-definiteness: v^T * K * v >= 0
+      for (int trial = 0; trial < 5; trial++) {
+        std::vector<mjtNum> v(nv);
+        for (int i = 0; i < nv; i++) {
+          v[i] = mju_Halton(i + trial * nv, 3) - 0.5;
+        }
+        mjtNum vKv = 0;
+        for (int i = 0; i < nv; i++) {
+          for (int j = 0; j < nv; j++) {
+            vKv += v[i] * K_full[i * nv + j] * v[j];
+          }
+        }
+        EXPECT_GE(vKv, -1e-8) << "K matrix is not PSD at angle " << angle;
+      }
+    }
+
+    // part 2: damping verification
+    {
+      // set velocity non-zero to test damping
+      data->qvel[0] = 1.0;
+
+      mj_forward(model, data);
+
+      // get analytic derivatives (without Flex Damping currently)
+      std::vector<mjtNum> qDerivAnalytic(nD);
+      mju_zero(data->qDeriv, nD);
+      mjd_passive_vel(model, data);
+      mju_copy(qDerivAnalytic.data(), data->qDeriv, nD);
+
+      // finite-difference derivatives
+      std::vector<mjtNum> qDerivFD(nD);
+      mju_zero(data->qDeriv, nD);
+      mjtNum eps = 1e-6;
+
+      mjd_passive_velFD(model, data, eps);
+      mju_copy(qDerivFD.data(), data->qDeriv, nD);
+
+      // check that we have non-zero damping (FD should find it)
+      EXPECT_GT(mju_norm(qDerivFD.data(), nD), 1e-3);
+
+      // compute expected flex damping using mjd_flexInterp_addH
+      // D = 4*H(0.5) - H(1)
+      vector<int> dof_indices(nv);
+      for (int i = 0; i < nv; i++) dof_indices[i] = i;
+
+      vector<mjtNum> H1(nv * nv, 0);
+      mjd_flexInterp_addH(model, data, H1.data(), dof_indices.data(), nv, 1.0);
+
+      vector<mjtNum> H2(nv * nv, 0);
+      mjd_flexInterp_addH(model, data, H2.data(), dof_indices.data(), nv, 0.5);
+
+      vector<mjtNum> D(nv * nv);
+      for (int i = 0; i < nv * nv; i++) {
+        D[i] = 4.0 * H2[i] - H1[i];
+      }
+
+      // subtract D from qDerivAnalytic using sparse indexing
+      // d(force)/d(vel) = -D
+      for (int i = 0; i < nv; i++) {
+        int rownnz = model->D_rownnz[i];
+        int rowadr = model->D_rowadr[i];
+        for (int k = 0; k < rownnz; k++) {
+          int index = rowadr + k;
+          int j = model->D_colind[index];
+          qDerivAnalytic[index] -= D[i * nv + j];
+        }
+      }
+
+      // expect FD and corrected analytic derivatives to match
+      mjtNum tol = 1e-4;
+      EXPECT_THAT(qDerivAnalytic, Pointwise(DoubleNear(tol), qDerivFD))
+          << "Damping Mismatch at angle: " << angle;
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Test Jacobian under deformation to highlight approximation error
+TEST_F(DerivativeTest, FlexInterpDerivativesDeformed) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicit"/>
+    <worldbody>
+      <flexcomp name="flex" type="grid" count="3 3 3" spacing="0.1 0.2 0.3"
+                radius=".01" dim="3" mass="1" dof="trilinear">
+        <contact selfcollide="none"/>
+        <elasticity young="1e4" poisson="0.3" damping="0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  int nv = model->nv;
+
+  mjData* data = mj_makeData(model);
+
+  // Apply rotation
+  RotateFlexGrid(model, data, "flex", 1.0);  // 1 radian rotation
+
+  // Apply deformation (stretch along X)
+  // qpos is initialized by RotateFlexGrid.
+  // Add a random perturbation to qpos that represents deformation.
+  // We use a deterministic sequence to ensure reproducibility.
+  std::vector<mjtNum> deformation(nv);
+  for (int i = 0; i < nv; i++) {
+    // Large deformation to make sure terms are significant
+    deformation[i] = (mju_Halton(i, 3) - 0.5) * 0.2;
+  }
+  mju_addTo(data->qpos, deformation.data(), nv);
+
+  mj_forward(model, data);
+
+  // 1. Compute Analytic Jacobian (Approximate)
+  // We use mjd_flexInterp_addH to get K_approx
+  std::vector<mjtNum> H_approx(nv * nv, 0);
+  std::vector<int> dof_indices(nv);
+  for (int i = 0; i < nv; i++) dof_indices[i] = i;
+
+  // h=1, damping=0 => adds K to H
+  mjd_flexInterp_addH(model, data, H_approx.data(), dof_indices.data(), nv,
+                      1.0);
+
+  // 2. Compute Finite Difference Jacobian (Ground Truth)
+  // qfrc_passive = -dV/dq
+  // d(qfrc)/dq = -K_true
+  std::vector<mjtNum> K_true(nv * nv, 0);
+  mjtNum eps = 1e-6;
+
+  for (int i = 0; i < nv; i++) {
+    mjData* data_p = mj_copyData(NULL, model, data);
+    data_p->qpos[i] += eps;
+    mj_forward(model, data_p);
+
+    for (int j = 0; j < nv; j++) {
+      // d(force_j)/d(q_i)
+      mjtNum df = data_p->qfrc_passive[j] - data->qfrc_passive[j];
+      // K_true[j, i] = -df/eps
+      K_true[j * nv + i] = -df / eps;
+    }
+    mj_deleteData(data_p);
+  }
+
+  // 3. Compare and check for significant mismatch
+  mjtNum max_error = 0;
+  for (int i = 0; i < nv * nv; i++) {
+    max_error = mju_max(max_error, mju_abs(H_approx[i] - K_true[i]));
+  }
+
+  // We expect significant error because of deformation + rotation.
+  // The missing term (geometric stiffness) is proportional to stress.
+  // We assert that the error is relatively large to confirm the approximation
+  // exists.
+  EXPECT_GT(max_error, 1e-3)
+      << "Jacobian approximation should differ from FD when deformed";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 }  // namespace

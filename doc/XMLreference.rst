@@ -3575,7 +3575,7 @@ saving the XML:
 
 .. _body-flexcomp-dof:
 
-:at:`dof`: :at-val:`[full, radial, trilinear], "full"`
+:at:`dof`: :at-val:`[full, radial, trilinear, quadratic], "full"`
    The parametrization of the flex's degrees of freedom (dofs). See the video on the right illustrating the
    different parametrizations with deformable spheres. The three models in the video are respectively
    `sphere_full <https://github.com/google-deepmind/mujoco/blob/main/model/flex/sphere_full.xml>`__,

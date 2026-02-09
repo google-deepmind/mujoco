@@ -43,6 +43,15 @@ MJAPI void mjd_passive_vel(const mjModel* m, mjData* d);
 // subtract (d qfrc_bias / d qvel) from qDeriv (dense version)
 MJAPI void mjd_rne_vel_dense(const mjModel* m, mjData* d);
 
+// derivative of flex_interp generalized force w.r.t position: res = (d qfrc_flexinterp / d qpos) * vec
+//  res and vec are vectors of size m->nv
+MJAPI void mjd_flexInterp_mulKD(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, mjtNum h);
+
+// assemble flex stiffness matrix H_flex: H += h*h*K + h*D
+//  H is a dense matrix of size ndof x ndof, dof_indices maps local rows/cols to global DOFs
+MJAPI void mjd_flexInterp_addH(const mjModel* m, mjData* d, mjtNum* H, const int* dof_indices, int ndof, mjtNum h);
+
+
 #ifdef __cplusplus
 }
 #endif
