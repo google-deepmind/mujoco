@@ -1,32 +1,37 @@
-# Actuator plugins
+# Magnetic plugin
 
 ## PID
 
-The `mujoco.pid` actuator plugin implements a configurable [PID controller](https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller):
+The `mujoco.magnet` plugin implements magnetic forces and torques for induced magnets.
 
-$$f(t) = K_\text{p} e(t) + K_\text{i} \int_0^t e(\tau) \mathrm{d}\tau + K_\text{d} \frac{\mathrm{d}e(t)}{\mathrm{d}t},$$
-where $e(t) = u(t) - \ell(t)$ is the difference between the control $u$ and the actuator length $\ell$.
+Given a magnetic field at the origin $B_0$, and a constant gradient $\Delta B $, the plugin defines de magnetic field at any point in the simulation.
+
+To define the induced magnets, the user must provide the relative permeability $\mu_r$, the volume of the magnet $V$, and optionally the diamagnetization factors $N$.
 
 You can use it like:
 
 ```xml
 <mujoco>
   <extension>
-    <plugin plugin="mujoco.pid">
-      <instance name="pid">
-        <config key="kp" value="40.0"/>
-        <config key="ki" value="40"/>
-        <config key="kd" value="4"/>
-        <config key="slewmax" value="3" />
-        <config key="imax" value="1"/>
-      </instance>
-    </plugin>
+    <plugin plugin="mujoco.magnet"/>
   </extension>
 
   <worldbody>
+    <!-- The first instance of the plugin MUST define the magnetic field -->
+    <plugin plugin="mujoco.magnet">
+      <config key="B0" value="0.01 0.01 0.01"/>
+      <config key="dB" value="0.01 0 0"/>
+    </plugin>
+
+    <!-- We define the magnets in the scene -->
     <body>
-      <joint name="j" type="slide" axis="0 0 1" />
-      <geom size="0.01" mass="1"/>
+      <geom type="cylinder" size="0.035 0.01" rgba="0 0 1 0.2"/>
+      <joint type="free" damping="0.05"/>
+      <plugin plugin="mujoco.magnet">
+        <config key="mu_r" value="1000"/>
+        <config key="V" value="7.7e-5"/>
+        <config key="N" value="0.2 0.2 0.6"/>
+      </plugin>
     </body>
   </worldbody>
 
@@ -36,12 +41,90 @@ You can use it like:
 </mujoco>
 ```
 
-The available options are:
+## Parameters
 
-|Attribute | Default | Meaning |
-|----------|---------|---------|
-|`kp` | 0 | **P** gain for the controller. |
-|`ki` | 0 | **I** gain for the controller.<p/>If nonzero, one activation variable will be added to `mjData.act`, containing the current I term (in units of force). |
-|`kd` | 0 | **D** gain for the controller. |
-|`imax` | Optional | If specified, the force produced by the I term will be clipped to the range `[-imax, imax]`. |
-|`slewmax` | Optional | The maximum rate at which the setpoint for the PID controller can change.<p/>If a bigger change is requested between two timesteps, it will be clipped to the range `[ctrl - slewmax * dt, ctrl + slewmax * dt]`<p/>If specified, one activation variable will be added to `mjData.act` containing the previous value of `ctrl`. |
+* [Optional] `B0`: The magnetic field at the origin in the inertial frame. Defaults to zero.
+* [Optional] `dB`: The diagonal of the matrix to define the gradient of the magnetic field in the inertial frame. Defaults to zero.
+* [Mandatory] `mu_r`: The relative permeability of the magnet.
+* [Mandatory] `V`: The volume of the magnet.
+* [Optional] `N`: The diagonal of the matrix to define the diamagnetization factors of the magnet in the magnet frame. Defaults to isotropic.
+
+## Formulation
+
+The magnetic field can be defined in the following way:
+
+$$
+\begin{equation}
+\vec{M} = \chi \vec{H}
+\quad
+\vec{B} = \mu \vec{H}
+\end{equation}
+$$
+
+$$
+\begin{equation}
+\vec{B} = \mu_0 (\vec{H} + \vec{M}) = \mu_0 (1 + \chi) \vec{H}
+\end{equation}
+$$
+
+Where the magnetization $\vec{M}$ is proportional to the magnetic field strength $\vec{H}$ and the magnetic flux $\vec{B}$. This linearity is given by the susceptibility $\chi$ and the absolute permeability of the material itself $\mu$.
+
+From here we can get the following relationship:
+
+$$
+\begin{equation}
+\mu = \mu_0 (1 + \chi)
+\quad
+\mu_r = \frac{\mu}{\mu_0}
+\quad
+\chi = \mu_r - 1
+\end{equation}
+$$
+
+Where $\mu_0$ is the absolute permeability of free space.
+
+If the material is anisotropic (meaning that it gets magnetized differently depending on the orientation), then we need to add demagnetizing factors into the formulation. These demagnetizing factors are taken into account when computing the susceptibility of the material. In this case we'll consider this the apparent susceptibility $\chi_{app}$. Unless otherwise specified, the material will be considered isotropic, which means the demagnetizing factors are all equal in every axis.
+
+$$
+\begin{equation}
+\chi_{app} = \frac{\chi}{1 + \chi N}
+\end{equation}
+$$
+
+Including $V$ and $\mu_0$ we can obtain the full magnetic polarizability tensor $\alpha$ in the body frame $B$.
+
+$$
+\begin{equation}
+_{B}\alpha = \frac{V}{\mu_0}   {}_{B}\chi_{app}
+\end{equation}
+$$
+
+Now we rotate this tensor following tensor rotation math to express it in the inertial frame $I$ so that we can obtain results in the inertial frame
+
+$$
+\begin{equation}
+_{I}\alpha = {}_{I}R_F {}_{F}\alpha {}_{I}R_F^T
+\end{equation}
+$$
+
+Finally we compute the magnetic moment of our object with this new factor.
+
+$$
+\begin{equation}
+{}_I m = {}_{I}\alpha {}_I\vec{B}_F
+\end{equation}
+$$
+
+Which applied to equations for force and torque for magnets shown ahead, yields the correspondent force and torque in the inertial frame which we can then apply to the body.
+
+$$
+\begin{equation}
+F = \nabla B \cdot m
+\end{equation}
+$$
+
+$$
+\begin{equation}
+\tau = m \times{B}
+\end{equation}
+$$
