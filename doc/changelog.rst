@@ -123,6 +123,8 @@ Bug fixes
   available cores.
 - The ``vertid`` argument of :ref:`mj_rayFlex` and :ref:`mju_raySkin` was marked as nullable but was not; it is now
   nullable.
+- Fixed :ref:`gravcomp<body-gravcomp>` being ignored for bodies with no joints nested inside jointed parent bodies
+  (:issue:`3066`, reported by :github:user:`Alex108306`).
 
 Version 3.4.0 (December 5, 2025)
 --------------------------------

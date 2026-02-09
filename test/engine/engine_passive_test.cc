@@ -73,6 +73,35 @@ TEST_F(PassiveTest, DisableFlags) {
   mj_deleteModel(m);
 }
 
+TEST_F(PassiveTest, GravcompNestedBody) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10"/>
+    <worldbody>
+      <body pos="0 0 2">
+        <freejoint/>
+        <body gravcomp="1.2">
+          <geom size="0.2" mass="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  mj_forward(m, d);
+
+  EXPECT_GT(d->qacc[2], 0);
+  EXPECT_NEAR(d->qacc[2], 2.0, 0.1);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 // ------------------------ ellipsoid fluid model ------------------------------
 
 using EllipsoidFluidTest = MujocoTest;

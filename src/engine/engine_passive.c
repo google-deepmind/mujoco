@@ -668,34 +668,13 @@ void mj_passive(const mjModel* m, mjData* d) {
   }
 
   if (has_gravcomp) {
-    int nbody = sleep_filter ? d->nbody_awake : m->nbody;
-    for (int b=0; b < nbody; b++) {
-      int i = sleep_filter ? d->body_awake_ind[b] : b;
+    int ndof = sleep_filter ? d->nv_awake : nv;
+    for (int v=0; v < ndof; v++) {
+      int dof = sleep_filter ? d->dof_awake_ind[v] : v;
 
-      // skip if no joints
-      int jntnum = m->body_jntnum[i];
-      if (!jntnum) continue;
-
-      // skip if no gravity compensation
-      if (!m->body_gravcomp[i]) continue;
-
-      int start = m->body_jntadr[i];
-      int end = start + jntnum;
-      for (int j=start; j < end; j++) {
-        // skip if gravity compensation added via actuators
-        if (m->jnt_actgravcomp[j]) {
-          continue;
-        }
-
-        // get number of dofs for this joint
-        const int jnt_dofnum[4] = {6, 3, 1, 1};
-        int dofnum = jnt_dofnum[m->jnt_type[j]];
-
-        // add gravity compensation force
-        int dofadr = m->jnt_dofadr[j];
-        for (int k=0; k < dofnum; k++) {
-          d->qfrc_passive[dofadr+k] += d->qfrc_gravcomp[dofadr+k];
-        }
+      // add gravity compensation force unless added via actuators
+      if (!m->jnt_actgravcomp[m->dof_jntid[dof]]) {
+        d->qfrc_passive[dof] += d->qfrc_gravcomp[dof];
       }
     }
   }
