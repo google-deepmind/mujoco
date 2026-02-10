@@ -1551,6 +1551,77 @@ Get the internal asset cache used by the compiler.
 
 Clear the asset cache.
 
+.. _Resources:
+
+Resources
+^^^^^^^^^
+
+Resources are the interface between :ref:`resource providers <exProvider>` and MuJoCo model compilation code.
+These functions provide the means to query the resource provider and obtain resources.
+.. _mju_openResource:
+
+`mju_openResource <#mju_openResource>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_openResource
+
+Open a resource; if the name doesn't have a prefix matching a registered resource provider,
+then the OS filesystem is used.
+
+*Nullable:* ``dir``, ``vfs``, ``error``
+
+.. _mju_closeResource:
+
+`mju_closeResource <#mju_closeResource>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_closeResource
+
+Close a resource; no-op if resource is NULL.
+
+.. _mju_readResource:
+
+`mju_readResource <#mju_readResource>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_readResource
+
+Set buffer to bytes read from the resource and return number of bytes in buffer;
+return negative value if error.
+
+.. _mju_getResourceDir:
+
+`mju_getResourceDir <#mju_getResourceDir>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_getResourceDir
+
+For a resource with a name partitioned as {dir}{filename}, get the dir and ndir pointers.
+
+.. _mju_isModifiedResource:
+
+`mju_isModifiedResource <#mju_isModifiedResource>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_isModifiedResource
+
+Compare resource timestamp to provided timestamp.
+
+Return 0 if timestamps match, >0 if resource is newer, <0 if resource is older.
+
+.. _mju_decodeResource:
+
+`mju_decodeResource <#mju_decodeResource>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_decodeResource
+
+Find the decoder for a resource and return the decoded spec.
+
+The caller takes ownership of the spec and is responsible for cleaning it up.
+
+*Nullable:* ``vfs``
+
 .. _Initialization:
 
 Initialization

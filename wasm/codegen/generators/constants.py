@@ -185,7 +185,13 @@ _SKIPPED_GETTERS_AND_SETTERS: tuple[str, ...] = (
 _SKIPPED_UTILITY_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_readSensor",
+    "mju_closeResource",
+    "mju_decodeResource",
+    "mju_getResourceDir",
     "mju_getXMLDependencies",
+    "mju_isModifiedResource",
+    "mju_openResource",
+    "mju_readResource",
     # go/keep-sorted end
 )
 

@@ -3579,6 +3579,14 @@ const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 void mjp_registerDecoder(const mjpDecoder* decoder);
 void mjp_defaultDecoder(mjpDecoder* decoder);
 const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
+mjResource* mju_openResource(const char* dir, const char* name,
+                             const mjVFS* vfs, char* error, size_t nerror);
+void mju_closeResource(mjResource* resource);
+int mju_readResource(mjResource* resource, const void** buffer);
+void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
+int mju_isModifiedResource(const mjResource* resource, const char* timestamp);
+mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
+                           const mjVFS* vfs);
 mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
 void mju_bindThreadPool(mjData* d, void* thread_pool);
 void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);

@@ -816,3 +816,8 @@ Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:
 All outputs are optional.
 
 *Nullable:* ``Dquat``, ``Dvel``, ``Dscale``
+
+.. _Resources:
+
+Resources are the interface between :ref:`resource providers <exProvider>` and MuJoCo model compilation code.
+These functions provide the means to query the resource provider and obtain resources.

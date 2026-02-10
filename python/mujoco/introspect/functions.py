@@ -9600,6 +9600,160 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Return the resource provider with the prefix that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
      )),
+    ('mju_openResource',
+     FunctionDecl(
+         name='mju_openResource',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjResource'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dir',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='nerror',
+                 type=ValueType(name='size_t'),
+             ),
+         ),
+         doc="Open a resource; if the name doesn't have a prefix matching a registered resource provider, then the OS filesystem is used.",  # pylint: disable=line-too-long
+     )),
+    ('mju_closeResource',
+     FunctionDecl(
+         name='mju_closeResource',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource'),
+                 ),
+             ),
+         ),
+         doc='Close a resource; no-op if resource is NULL.',
+     )),
+    ('mju_readResource',
+     FunctionDecl(
+         name='mju_readResource',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='buffer',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='void', is_const=True),
+                     ),
+                 ),
+             ),
+         ),
+         doc='Set buffer to bytes read from the resource and return number of bytes in buffer; return negative value if error.',  # pylint: disable=line-too-long
+     )),
+    ('mju_getResourceDir',
+     FunctionDecl(
+         name='mju_getResourceDir',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='dir',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='char', is_const=True),
+                     ),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ndir',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+         ),
+         doc='For a resource with a name partitioned as {dir}{filename}, get the dir and ndir pointers.',  # pylint: disable=line-too-long
+     )),
+    ('mju_isModifiedResource',
+     FunctionDecl(
+         name='mju_isModifiedResource',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='timestamp',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Compare resource timestamp to provided timestamp. Return 0 if timestamps match, >0 if resource is newer, <0 if resource is older.',  # pylint: disable=line-too-long
+     )),
+    ('mju_decodeResource',
+     FunctionDecl(
+         name='mju_decodeResource',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjSpec'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='content_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Find the decoder for a resource and return the decoded spec. The caller takes ownership of the spec and is responsible for cleaning it up.',  # pylint: disable=line-too-long
+     )),
     ('mju_threadPoolCreate',
      FunctionDecl(
          name='mju_threadPoolCreate',
