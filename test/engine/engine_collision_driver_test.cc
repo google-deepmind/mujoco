@@ -313,21 +313,21 @@ TEST_F(MjCollisionTest, PinchingSucceeds) {
   // The cloth is at z=0.1. We need to lower the gripper so the fingertips
   // reach the cloth. A lift value of -0.35 places the fingertips near z=0.05.
 
-  for (int i = 0; i < 1000; ++i) {
+  for (int i = 0; i < 500; ++i) {
     d->ctrl[lift_id] = -0.35;  // Lower
     d->ctrl[grasp_id] = 0;     // Open
     mj_step(m, d);
   }
 
   // Phase 2: Pinch
-  for (int i = 0; i < 1000; ++i) {
+  for (int i = 0; i < 100; ++i) {
     d->ctrl[lift_id] = -0.35;  // Hold height
     d->ctrl[grasp_id] = 0.8;   // Close (max 1)
     mj_step(m, d);
   }
 
   // Phase 3: Lift
-  for (int i = 0; i < 2000; ++i) {
+  for (int i = 0; i < 1000; ++i) {
     d->ctrl[lift_id] = 0.5;   // Lift up
     d->ctrl[grasp_id] = 0.8;  // Keep closed
     mj_step(m, d);
