@@ -1,0 +1,204 @@
+<style>
+  .cov-and-corr {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 2rem;
+    justify-content: flex-start;
+    margin-bottom: 1rem;
+  }
+
+  /* Container for a single matrix (covariance or correlation) */
+  .cov-matrix-container {
+    border: 1px solid var(--border-color);
+    padding: 1rem;
+    border-radius: 5px;
+    background-color: var(--card-bg);
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.05);
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .cov-matrix-container h4 {
+    margin-top: 0;
+    margin-bottom: 0.8rem;
+    text-align: left;
+    color: var(--heading-color);
+    font-weight: 600;
+    font-size: 1.1rem;
+  }
+
+  .cov-matrix-container p.explanation {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 1rem;
+    max-width: 600px;
+    line-height: 1.4;
+    text-align: left;
+  }
+
+  .cov-matrix-container p.explanation strong {
+    color: var(--text-color);
+  }
+
+  table.cov {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    text-wrap: nowrap;
+    margin-left: 0;
+  }
+
+  table.cov tbody tr td {
+    padding: 0 4px;
+    text-align: left;
+    border-top: 1px solid var(--border-color);
+    vertical-align: middle;
+    /* Ensure text is readable on colored backgrounds - might need text shadow or specific color logic in python generation */
+  }
+
+  table.cov thead,
+  table.cov thead th {
+    background-color: var(--bg-color);
+    /* Very light grey header background */
+    color: var(--heading-color);
+    font-weight: 600;
+    border-top: none;
+    border-bottom: 2px solid var(--border-color);
+    /* Keep a stronger bottom border for header */
+    text-align: right;
+  }
+
+  /* Body row styles */
+  table.cov tbody tr {
+    background-color: var(--card-bg);
+  }
+
+  table.cov {
+    border-collapse: collapse;
+    margin: auto;
+    margin-bottom: 1rem;
+  }
+
+  table.cov th,
+  table.cov td {
+    border: 1px solid var(--border-color);
+    padding: 0 4px;
+    /* Very compact */
+    text-align: center;
+    font-size: 0.9em;
+  }
+
+  /* Row Headers (first cell in each body row) */
+  table.cov tbody th {
+    background-color: var(--bg-color);
+    font-weight: bold;
+    text-align: left;
+    padding-left: 10px;
+    position: sticky;
+    /* Keep row headers visible */
+    left: 0;
+    z-index: 1;
+    color: var(--heading-color);
+  }
+
+  /* Top-left corner cell */
+  table.cov thead th:first-child {
+    background-color: var(--border-color);
+    /* Slightly darker than bg-color */
+    z-index: 3;
+    /* Ensure it's above row/col headers */
+    position: sticky;
+    left: 0;
+    /* Also sticky */
+  }
+
+  table.cov td span {
+    display: inline-block;
+    min-width: 100%;
+  }
+
+  table.cov td.blank {
+    border: 0;
+    background-color: var(--card-bg);
+  }
+</style>
+<div class="cov-and-corr">
+  {% if message %}
+  <div class="cov-matrix-container" style="width: 100%;">
+    <h4>Covariance & Correlation</h4>
+    <p class="explanation" style="color: var(--text-color);">
+      {{ message }}
+    </p>
+  </div>
+  {% else %}
+  <div class="cov-matrix-container">
+    <h4>Covariance Matrix</h4>
+    <table class="cov">
+      <tbody>
+        {% for row in covariance_data %}
+        {% set outer_loop = loop %}
+        <tr>
+          <th>{{dim_names[outer_loop.index0] }}</th>
+          {% for cell in row %}
+          {%if loop.index0 <= outer_loop.index0 %} <td
+            style="background-color: {{ cell.bgcolor }}; color: {{ cell.textcolor }};" title="{{ cell.value }}" {%if
+            outer_loop.index0==loop.index0 %}class="diag" {% endif %}>
+            <span>
+              {{ "%.1e" | format(cell.value) }}
+            </span>
+            </td>
+            {% else %}
+            <td class="blank" />
+            {% endif %}
+            {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="explanation">
+      The covariance matrix shows how pairs of parameters vary together.
+      The diagonal elements (Variance) show the variance of each parameter (how much it varies on its own).
+      Larger positive values indicate the parameter estimate is less certain.
+      The off-diagonal elements (Covariance) show the covariance between pairs of parameters, better viewed in the
+      normalized correlation matrix.
+    </p>
+  </div> {# End cov-matrix-container for covariance #}
+
+  <div class="cov-matrix-container">
+    <h4>Correlation Matrix</h4>
+    <table class="cov">
+      <tbody>
+        {% for row in correlation_data %}
+        {% set outer_loop = loop %}
+        <tr>
+          <th>{{ dim_names[outer_loop.index0] }}</th>
+          {% for cell in row %}
+          {%if loop.index0 <= outer_loop.index0 %} <td
+            style="background-color: {{ cell.bgcolor }}; color: {{ cell.textcolor }};" title="{{ cell.value }}" {%if
+            outer_loop.index0==loop.index0 %}class="diag" {% endif %}>
+            <span>
+              {{ "%.2f" | format(cell.value) }}
+            </span>
+            </td>
+            {% else %}
+            <td class="blank" />
+            {% endif %}
+            {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="explanation">
+      The correlation matrix is a normalized version of the covariance matrix.
+      Values range from -1 to +1.
+      The diagonal elements are always 1, representing perfect correlation of a parameter with itself.
+      Off-diagonal elements (Correlation Coefficient) show the linear correlation between pairs of parameters.
+      +1 indicates perfect positive correlation, -1 indicates perfect negative correlation, and 0 indicates no linear
+      correlation.
+      Values close to +1 or -1 suggests that the parameters are highly dependent. Thus, if their variance is also high,
+      their confidence intervals will be large.
+    </p>
+  </div>
+  {% endif %}
+</div>
