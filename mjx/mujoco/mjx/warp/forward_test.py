@@ -218,7 +218,7 @@ class StepTest(parameterized.TestCase):
       batch_size=(1, 7),
       # NOTE: GraphMode.JAX is incompatible with MuJoCo Warp at the moment,
       # even when setting graph_conditional=False.
-      graph_mode=('WARP',),
+      graph_mode=('WARP', 'WARP_STAGED'),
   )
   def test_step(self, xml: str, batch_size: int, graph_mode: str):
     if not _FORCE_TEST:

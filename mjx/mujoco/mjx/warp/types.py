@@ -23,7 +23,6 @@ from jax import tree_util
 from jax.interpreters import batching
 from mujoco.mjx._src import dataclasses as mjx_dataclasses
 import numpy as np
-
 if typing.TYPE_CHECKING:
   GraphMode = int
 else:
@@ -44,6 +43,7 @@ class TileSet:
     adr: address of each tile in the set
     size: size of all the tiles in this set
   """
+
   adr: np.ndarray
   size: int
 
