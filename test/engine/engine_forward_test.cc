@@ -1756,5 +1756,66 @@ TEST_F(ForwardTest, FlexDampingRigidMotion) {
   mj_deleteModel(model);
 }
 
+// verify that implicit integrator respects parent-flex coupling
+TEST_F(ForwardTest, FlexParentCoupling) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicit" timestep="0.01"/>
+    <worldbody>
+      <body name="parent" pos="0 0 0">
+        <freejoint/>
+        <geom size=".1" mass="0.1"/>
+        <flexcomp name="flex" type="grid" count="3 3 3" spacing="1 1 1"
+                  radius=".01" dim="3" mass="100" dof="trilinear" pos="1 1 1">
+          <contact selfcollide="none"/>
+          <elasticity young="1e4" poisson="0.3" damping="50"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // set state: parent moving, flex deformed
+  // this ensures both H_fp (coupling) and qacc_parent are non-trivial
+  // Run with Euler (timestep 1e-6)
+  model->opt.timestep = 1e-6;
+  model->opt.integrator = mjINT_EULER;
+  mj_resetData(model, data);
+  data->qvel[0] = 1.0;
+  data->qpos[7] += 0.01;
+  data->qfrc_applied[0] = 10000.0;  // Apply large force to parent
+  mj_step(model, data);             // Step integrates
+  std::vector<mjtNum> qvel_euler(model->nv);
+  mju_copy(qvel_euler.data(), data->qvel, model->nv);
+
+  // Run with Implicit (timestep 1e-6)
+  model->opt.integrator = mjINT_IMPLICIT;
+  mj_resetData(model, data);
+  data->qvel[0] = 1.0;
+  data->qpos[7] += 0.01;
+  data->qfrc_applied[0] = 10000.0;
+  mj_step(model, data);  // Step integrates
+  std::vector<mjtNum> qvel_implicit(model->nv);
+  mju_copy(qvel_implicit.data(), data->qvel, model->nv);
+
+  // Check agreement
+  double max_diff = 0;
+  for (int i = 0; i < model->nv; ++i) {
+    double diff = mju_abs(qvel_euler[i] - qvel_implicit[i]);
+    if (diff > max_diff) max_diff = diff;
+  }
+
+  EXPECT_LT(max_diff, 2e-5)
+      << "Implicit integrator should match Euler at small timestep";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

@@ -1184,6 +1184,10 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   mjtNum* H_flex = NULL;
   int* flex_dof_indices = NULL;
   int nflexdofs = 0;
+  int ncoupling = 0;
+  mjtNum* coupling_val = NULL;
+  int* coupling_row = NULL;
+  int* coupling_col = NULL;
 
   // factorization
   if (!skipfactor) {
@@ -1220,7 +1224,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
         if (m->flex_interp[f]) {
           int nodenum = m->flex_nodenum[f];
           int nodeadr = m->flex_nodeadr[f];
-          for (int n=0; n<nodenum; n++) {
+          for (int n=0; n < nodenum; n++) {
             int b = m->flex_nodebodyid[nodeadr + n];
             nflexdofs += m->body_dofnum[b];
           }
@@ -1238,7 +1242,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
           if (m->flex_interp[f]) {
             int nodenum = m->flex_nodenum[f];
             int nodeadr = m->flex_nodeadr[f];
-            for (int n=0; n<nodenum; n++) {
+            for (int n=0; n < nodenum; n++) {
               int b = m->flex_nodebodyid[nodeadr + n];
               int dofnum = m->body_dofnum[b];
               int dofadr = m->body_dofadr[b];
@@ -1251,15 +1255,35 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
           }
         }
 
-        // build H_flex (dense) from qLU (implicit) or qH (implicitfast)
-        H_flex = mjSTACKALLOC(d, nflexdofs*nflexdofs, mjtNum);
-        mju_zero(H_flex, nflexdofs*nflexdofs);
-
         const int* rownnz = (m->opt.integrator == mjINT_IMPLICIT) ? m->D_rownnz : m->M_rownnz;
         const int* rowadr = (m->opt.integrator == mjINT_IMPLICIT) ? m->D_rowadr : m->M_rowadr;
         const int* colind = (m->opt.integrator == mjINT_IMPLICIT) ? m->D_colind : m->M_colind;
         const mjtNum* source = (m->opt.integrator == mjINT_IMPLICIT) ? d->qLU : d->qH;
 
+        // count coupling terms (off-diagonal: flex row, non-flex col)
+        for (int i=0; i < nflexdofs; i++) {
+          int row = flex_dof_indices[i];
+          int start = rowadr[row];
+          int end = start + rownnz[row];
+          for (int k=start; k < end; k++) {
+            if (global2local[colind[k]] < 0) {
+              ncoupling++;
+            }
+          }
+        }
+
+        // allocate coupling storage
+        if (ncoupling > 0) {
+          coupling_val = mjSTACKALLOC(d, ncoupling, mjtNum);
+          coupling_row = mjSTACKALLOC(d, ncoupling, int);
+          coupling_col = mjSTACKALLOC(d, ncoupling, int);
+        }
+
+        // build H_flex (dense) from qLU (implicit) or qH (implicitfast)
+        H_flex = mjSTACKALLOC(d, nflexdofs*nflexdofs, mjtNum);
+        mju_zero(H_flex, nflexdofs*nflexdofs);
+
+        int coup_cnt = 0;
         for (int i=0; i < nflexdofs; i++) {
           int row = flex_dof_indices[i];
           int start = rowadr[row];
@@ -1269,6 +1293,11 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
             int local_j = global2local[col];
             if (local_j >= 0) {
               H_flex[i*nflexdofs + local_j] = source[k];
+            } else if (coup_cnt < ncoupling) {
+              coupling_val[coup_cnt] = source[k];
+              coupling_row[coup_cnt] = i;  // local flex index
+              coupling_col[coup_cnt] = col;  // global parent index
+              coup_cnt++;
             }
           }
         }
@@ -1324,6 +1353,13 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     for (int i=0; i < nflexdofs; i++) {
       int global_dof = flex_dof_indices[i];
       qfrc_flex[i] = qfrc[global_dof] + res[global_dof] * factor;
+    }
+
+    // apply coupling correction: qfrc_flex -= H_coupling * qacc_parent
+    if (ncoupling > 0) {
+      for (int k=0; k < ncoupling; k++) {
+        qfrc_flex[coupling_row[k]] -= coupling_val[k] * qacc[coupling_col[k]];
+      }
     }
 
     // solve H_flex * qacc_flex = qfrc_flex
