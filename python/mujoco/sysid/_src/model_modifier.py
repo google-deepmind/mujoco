@@ -111,7 +111,12 @@ def is_position_actuator(actuator) -> bool:
 def get_actuator_pd_gains(
     model: mujoco.MjModel, actuator_name: str
 ) -> tuple[float, float]:
-  """Return the (P, D) gains of a position actuator."""
+  """Return the (P, D) gains of a position actuator.
+
+  Args:
+    model: MuJoCo model.
+    actuator_name: Name of the actuator.
+  """
   actuator_id = mujoco.mj_name2id(
       model, mujoco.mjtObj.mjOBJ_ACTUATOR.value, actuator_name
   )
@@ -128,7 +133,13 @@ def apply_pgain(
     actuator_name: str,
     value: float | np.ndarray,
 ) -> mujoco.MjSpec:
-  """Set the proportional gain for a position actuator."""
+  """Set the proportional gain for a position actuator.
+
+  Args:
+    spec: MuJoCo model specification.
+    actuator_name: Name of the actuator.
+    value: Proportional gain value.
+  """
   # TODO(b/0): assert scalar
   actuator = _get_obj_or_raise(spec, "actuator", actuator_name)
   assert isinstance(actuator, mujoco.MjsActuator)
@@ -144,7 +155,13 @@ def apply_dgain(
     actuator_name: str,
     value: float | np.ndarray,
 ) -> mujoco.MjSpec:
-  """Set the derivative gain for a position actuator."""
+  """Set the derivative gain for a position actuator.
+
+  Args:
+    spec: MuJoCo model specification.
+    actuator_name: Name of the actuator.
+    value: Derivative gain value.
+  """
   # TODO(b/0): assert scalar
   actuator = _get_obj_or_raise(spec, "actuator", actuator_name)
   assert isinstance(actuator, mujoco.MjsActuator)
@@ -159,7 +176,13 @@ def apply_pdgain(
     actuator_name: str,
     value: np.ndarray,
 ) -> mujoco.MjSpec:
-  """Set both proportional and derivative gains for a position actuator."""
+  """Set both proportional and derivative gains for a position actuator.
+
+  Args:
+    spec: MuJoCo model specification.
+    actuator_name: Name of the actuator.
+    value: 2-element array ``[P_gain, D_gain]``.
+  """
   if value.size != 2:
     raise ValueError(f"pdgain must be a 2-element array, got {value.size}.")
   apply_pgain(spec, actuator_name, value[0])
@@ -174,7 +197,16 @@ def apply_body_mass_ipos(
     ipos: np.ndarray | None = None,
     rot_inertia_scale: bool = False,
 ) -> mujoco.MjSpec:
-  """Apply mass and center-of-mass position to a body."""
+  """Apply mass and center-of-mass position to a body.
+
+  Args:
+    spec: MuJoCo model specification.
+    body_name: Name of the body.
+    mass: Optional new mass value.
+    ipos: Optional new center-of-mass position.
+    rot_inertia_scale: If True, scale rotational inertia proportionally to
+      mass change.
+  """
   # TODO(b/0): assert mass and ipos shapes
   body = _infer_inertial(spec, body_name)
   mass_original = body.mass
@@ -200,7 +232,18 @@ def scale_body_inertia(
 
 
 def pi_from_theta(theta: np.ndarray) -> np.ndarray:
-  """Convert base parameters θ to inertial parameters π."""
+  """Convert base parameters θ to inertial parameters π.
+
+  Args:
+    theta: 10-D array [alpha, d1, d2, d3, s12, s23, s13, t1, t2, t3] where:
+      alpha: Scale parameter (log of U[3,3])
+      [d1, d2, d3]: Log of diagonal elements
+      [s12, s23, s13]: Shear parameters from upper triangle
+      [t1, t2, t3]: Translation parameters from last column
+
+  Returns:
+    10-D array π = [m, hx, hy, hz, Ixx, Iyy, Izz, Ixy, Iyz, Ixz].
+  """
   alpha, d1, d2, d3, s12, s23, s13, t1, t2, t3 = theta
   exp_alpha = np.exp(alpha)
   exp_d1 = np.exp(d1)
@@ -361,7 +404,13 @@ def apply_body_theta_inertia(
     body_name: str,
     theta: np.ndarray,
 ) -> mujoco.MjSpec:
-  """Apply base-parameter inertia θ to a body in the spec."""
+  """Apply base-parameter inertia θ to a body in the spec.
+
+  Args:
+    spec: MuJoCo model specification.
+    body_name: Name of the body.
+    theta: 10-element array [alpha, d1, d2, d3, s12, s23, s13, t1, t2, t3].
+  """
   if theta.size != 10:
     raise ValueError(f"theta must be a 10-element array, got {theta.size}.")
   pi = pi_from_theta(theta)
@@ -392,7 +441,13 @@ def apply_body_theta_inertia(
 
 
 def apply_body_inertia(spec: mujoco.MjSpec, name: str, param: Parameter):
-  """Apply inertia parameters to a body based on the parameter type."""
+  """Apply inertia parameters to a body based on the parameter type.
+
+  Args:
+    spec: MuJoCo model specification.
+    name: Name of the body.
+    param: Parameter with an ``inertia_type`` attribute.
+  """
   if not hasattr(param, "inertia_type"):
     raise ValueError(
         f"Parameter {param.name} does not have inertia_type attribute."

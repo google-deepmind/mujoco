@@ -51,7 +51,12 @@ class SignalTransform:
     self.normalize = normalize
 
   def delay(self, pattern: str, param: parameter.Parameter) -> None:
-    """Register a delay for sensors matching *pattern* (fnmatch)."""
+    """Register a delay for sensors matching *pattern* (fnmatch).
+
+    Args:
+      pattern: fnmatch pattern matched against sensor names.
+      param: Parameter whose ``.value`` is the delay in seconds.
+    """
     self._delays.append((pattern, param.name, param))
 
   def gain(
@@ -79,7 +84,13 @@ class SignalTransform:
       param: parameter.Parameter,
       target: str = "both",
   ) -> None:
-    """Register an additive bias for sensors matching *pattern*."""
+    """Register an additive bias for sensors matching *pattern*.
+
+    Args:
+      pattern: fnmatch pattern matched against sensor names.
+      param: Parameter whose ``.value`` is the additive bias.
+      target: One of ``"predicted"``, ``"measured"``, or ``"both"``.
+    """
     if target not in ("predicted", "measured", "both"):
       raise ValueError(
           f"target must be 'predicted', 'measured', or 'both', got {target!r}"
@@ -87,11 +98,19 @@ class SignalTransform:
     self._biases.append((pattern, param.name, target))
 
   def enable_sensors(self, sensor_names: list[str]) -> None:
-    """Only include these sensors in the returned residual/timeseries."""
+    """Only include these sensors in the returned residual/timeseries.
+
+    Args:
+      sensor_names: Sensor names to keep in the output.
+    """
     self._enabled_sensors = list(sensor_names)
 
   def set_sensor_weights(self, weights: Mapping[str, float]) -> None:
-    """Set per-sensor weights for the weighted diff."""
+    """Set per-sensor weights for the weighted diff.
+
+    Args:
+      weights: Mapping from sensor name to weight.
+    """
     self._sensor_weights = weights
 
   # Private methods.

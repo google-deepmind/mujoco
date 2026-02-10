@@ -329,3 +329,125 @@ def test_from_custom():
   assert "b" in ts.signal_mapping
   assert ts.signal_mapping["a"][1].size == 1
   assert ts.signal_mapping["b"][1].size == 2
+
+
+# ---------------------------------------------------------------------------
+# compute_all_state_mappings correctness tests
+# ---------------------------------------------------------------------------
+
+
+def _verify_state_mapping(model):
+  """Set known qpos/qvel values and verify mappings recover them correctly."""
+  qpos_map, qvel_map, act_map, _ = TimeSeries.compute_all_state_mappings(model)
+
+  data = mujoco.MjData(model)
+  # Fill with distinct values so misalignment is detectable.
+  data.qpos[:] = 100 + np.arange(model.nq)
+  data.qvel[:] = 200 + np.arange(model.nv)
+
+  state = np.empty(
+      mujoco.mj_stateSize(
+          model, mujoco.mjtState.mjSTATE_FULLPHYSICS.value
+      )
+  )
+  mujoco.mj_getState(
+      model, data, state, mujoco.mjtState.mjSTATE_FULLPHYSICS.value
+  )
+  # Strip the leading time element (mjSTATE_FULLPHYSICS includes time).
+  state_no_time = state[1:]
+
+  # Verify every qpos mapping entry.
+  for name, (sig_type, indices) in qpos_map.items():
+    assert sig_type == SignalType.MjStateQPos
+    values = state_no_time[indices]
+    # All qpos values should be in [100, 100+nq).
+    assert np.all(values >= 100) and np.all(values < 100 + model.nq), (
+        f"{name}: got {values}"
+    )
+
+  # Verify every qvel mapping entry.
+  for name, (sig_type, indices) in qvel_map.items():
+    assert sig_type == SignalType.MjStateQVel
+    values = state_no_time[indices]
+    # All qvel values should be in [200, 200+nv).
+    assert np.all(values >= 200) and np.all(values < 200 + model.nv), (
+        f"{name}: got {values}"
+    )
+
+  # Verify total coverage.
+  all_qpos_indices = np.concatenate([v[1] for v in qpos_map.values()])
+  all_qvel_indices = np.concatenate([v[1] for v in qvel_map.values()])
+  assert len(all_qpos_indices) == model.nq
+  assert len(all_qvel_indices) == model.nv
+  assert len(np.unique(all_qpos_indices)) == model.nq, "Duplicate qpos indices"
+  assert len(np.unique(all_qvel_indices)) == model.nv, "Duplicate qvel indices"
+
+
+def test_state_mapping_hinge_only():
+  """All-hinge model: qposadr == dofadr, so mapping is straightforward."""
+  xml = """
+  <mujoco>
+    <worldbody>
+      <body><joint name="j1" type="hinge"/><geom size="0.1" mass="1"/>
+        <body><joint name="j2" type="hinge"/><geom size="0.1" mass="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  """
+  _verify_state_mapping(mujoco.MjModel.from_xml_string(xml))
+
+
+def test_state_mapping_free_plus_hinge():
+  """Free body + hinge joints: jnt_qposadr != jnt_dofadr for the hinges."""
+  xml = """
+  <mujoco>
+    <worldbody>
+      <body name="box" pos="0 0 1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1"/>
+      </body>
+      <body>
+        <joint name="h1" type="hinge"/><geom size="0.1" mass="1"/>
+        <body>
+          <joint name="h2" type="hinge"/><geom size="0.1" mass="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  """
+  _verify_state_mapping(mujoco.MjModel.from_xml_string(xml))
+
+
+def test_state_mapping_two_free_bodies():
+  """Two free bodies: body_dofadr != jnt_qposadr for the second body."""
+  xml = """
+  <mujoco>
+    <worldbody>
+      <body name="a" pos="0 0 1">
+        <freejoint/><geom type="box" size=".1 .1 .1"/>
+      </body>
+      <body name="b" pos="1 0 1">
+        <freejoint/><geom type="box" size=".1 .1 .1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  """
+  _verify_state_mapping(mujoco.MjModel.from_xml_string(xml))
+
+
+def test_state_mapping_ball_plus_hinge():
+  """Ball joint + hinge: ball takes 4 qpos / 3 qvel, offsetting the hinge."""
+  xml = """
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/><geom size="0.1" mass="1"/>
+        <body>
+          <joint name="h" type="hinge"/><geom size="0.1" mass="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  """
+  _verify_state_mapping(mujoco.MjModel.from_xml_string(xml))

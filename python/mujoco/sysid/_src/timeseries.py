@@ -220,22 +220,26 @@ class TimeSeries:
     nq = model.nq
     nv = model.nv
 
-    # Bodies
+    # Bodies with free joints, named by body rather than joint.
     for body_id in range(model.nbody):
       b = model.body(body_id)
       body_name = b.name
-      start_index = model.body_dofadr[body_id]
+      dof_adr = model.body_dofadr[body_id]
 
-      if start_index >= 0 and b.dofnum[0] == 6:
-        qpos_indices = np.arange(start_index, start_index + 7)
+      if dof_adr >= 0 and b.dofnum[0] == 6:
+        # Use the body's first joint qposadr for qpos. Free joints have
+        # 7 qpos elements but only 6 dofs, so dofadr and qposadr diverge
+        # for subsequent entries.
+        first_jnt = model.body_jntadr[body_id]
+        qpos_adr = model.jnt_qposadr[first_jnt]
+        qpos_indices = np.arange(qpos_adr, qpos_adr + 7)
         qpos_map[f"{body_name}_qpos"] = (SignalType.MjStateQPos, qpos_indices)
-        qvel_indices = np.arange(start_index + nq, start_index + nq + 6)
+        qvel_indices = np.arange(dof_adr + nq, dof_adr + nq + 6)
         qvel_map[f"{body_name}_qvel"] = (SignalType.MjStateQVel, qvel_indices)
 
-    # Joints
+    # Joints, excluding free joints which are handled above.
     for jnt_id in range(model.njnt):
       jnt_name = model.joint(jnt_id).name
-      start_index = model.jnt_qposadr[jnt_id]
       jnt_type = model.jnt_type[jnt_id]
 
       qpos_width = 1
@@ -246,9 +250,11 @@ class TimeSeries:
       elif jnt_type == mujoco.mjtJoint.mjJNT_FREE:
         continue
 
-      qpos_indices = np.arange(start_index, start_index + qpos_width)
+      qpos_adr = model.jnt_qposadr[jnt_id]
+      qpos_indices = np.arange(qpos_adr, qpos_adr + qpos_width)
       qpos_map[f"{jnt_name}_qpos"] = (SignalType.MjStateQPos, qpos_indices)
-      qvel_indices = np.arange(start_index + nq, start_index + nq + qvel_width)
+      dof_adr = model.jnt_dofadr[jnt_id]
+      qvel_indices = np.arange(dof_adr + nq, dof_adr + nq + qvel_width)
       qvel_map[f"{jnt_name}_qvel"] = (SignalType.MjStateQVel, qvel_indices)
 
     # Actuators
@@ -445,7 +451,11 @@ class TimeSeries:
     return cls(times=times, data=data, signal_mapping=signal_mapping)
 
   def get_indices(self, obs_name: str) -> tuple[SignalType, np.ndarray]:
-    """Look up the signal type and column indices for a named observation."""
+    """Look up the signal type and column indices for a named observation.
+
+    Args:
+      obs_name: Name of the observation signal.
+    """
     assert self.signal_mapping is not None
     if obs_name not in self.signal_mapping:
       raise ValueError(
@@ -462,7 +472,14 @@ class TimeSeries:
           str, tuple[SignalType, np.ndarray | list[int] | int]
       ],
   ) -> TimeSeries:
-    """Construct a TimeSeries, normalising index entries to ``np.ndarray``."""
+    """Construct a TimeSeries, normalizing index entries to ``np.ndarray``.
+
+    Args:
+      times: 1-D timestamp array.
+      data: Data array with first axis corresponding to time.
+      signal_mapping: Dict mapping signal names to ``(type, indices)`` tuples.
+        Index entries are coerced to ``np.ndarray``.
+    """
     normalized: SignalMappingType = {}
     for key in signal_mapping:
       signal_type, indices = signal_mapping[key]
@@ -560,7 +577,11 @@ class TimeSeries:
     )
 
   def save_to_csv(self, path: str | pathlib.Path) -> None:
-    """Save the time series data to a CSV file."""
+    """Save the time series data to a CSV file.
+
+    Args:
+      path: Path where the CSV file will be written.
+    """
     np.savetxt(
         path,
         np.concatenate([self.times[:, None], self.data], axis=1),

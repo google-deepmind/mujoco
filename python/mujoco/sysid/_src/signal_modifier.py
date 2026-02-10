@@ -68,7 +68,13 @@ def apply_bias(
     sensor_name: str,
     bias: parameter.Parameter,
 ) -> timeseries.TimeSeries:
-  """Apply a bias to a sensor in a timeseries."""
+  """Apply a bias to a sensor in a timeseries.
+
+  Args:
+    ts: Input timeseries.
+    sensor_name: Name of the sensor to modify.
+    bias: Parameter whose ``.value`` is added to the sensor columns.
+  """
   indices = ts.get_indices(sensor_name)[1]
   data_out = ts.data.copy()
   data_out[..., indices] += bias.value
@@ -80,7 +86,13 @@ def apply_gain(
     sensor_name: str,
     gain: parameter.Parameter,
 ) -> timeseries.TimeSeries:
-  """Apply a gain to a sensor in a timeseries."""
+  """Apply a gain to a sensor in a timeseries.
+
+  Args:
+    ts: Input timeseries.
+    sensor_name: Name of the sensor to modify.
+    gain: Parameter whose ``.value`` multiplies the sensor columns.
+  """
   indices = ts.get_indices(sensor_name)[1]
   data_out = ts.data.copy()
   data_out[..., indices] *= gain.value
@@ -92,7 +104,13 @@ def apply_delay(
     sensor_name: str,
     delay: parameter.Parameter,
 ) -> timeseries.TimeSeries:
-  """Apply a delay to a sensor in a timeseries."""
+  """Apply a delay to a sensor in a timeseries.
+
+  Args:
+    ts: Input timeseries.
+    sensor_name: Name of the sensor to delay.
+    delay: Parameter whose ``.value`` is the delay in seconds.
+  """
   indices = ts.get_indices(sensor_name)[1]
 
   ts_sensor = timeseries.TimeSeries(
@@ -205,7 +223,15 @@ def apply_resample_and_delay(
     sensor_delays: dict[str, float] | None = None,
     predicted_data: bool = True,
 ) -> timeseries.TimeSeries:
-  """Resample a timeseries and apply per-sensor delays."""
+  """Resample a timeseries and apply per-sensor delays.
+
+  Args:
+    ts: Input timeseries to resample.
+    times: Target timestamps.
+    default_delay: Default delay applied to all columns.
+    sensor_delays: Optional per-sensor delay overrides.
+    predicted_data: If True, negate delays (shift predicted to match measured).
+  """
   delays = _build_per_column_delays(
       ts, default_delay, sensor_delays, predicted_data
   )
@@ -234,7 +260,13 @@ def prepare_sensor_weights(
     n_sensors: int,
     model: mujoco.MjModel,
 ) -> np.ndarray:
-  """Prepare sensor weights array from a dict or numpy array."""
+  """Prepare sensor weights array from a dict or numpy array.
+
+  Args:
+    sensor_weights: Mapping from sensor name to weight, or a flat array.
+    n_sensors: Total number of sensor columns.
+    model: MuJoCo model for resolving sensor names to indices.
+  """
   if isinstance(sensor_weights, np.ndarray):
     if sensor_weights.ndim != 1 or sensor_weights.shape[0] != n_sensors:
       raise ValueError(
@@ -284,5 +316,10 @@ def normalize_residual(
     residual: np.ndarray,
     measured_data: np.ndarray,
 ) -> np.ndarray:
-  """Normalize the residual by the standard deviation of the measured data."""
+  """Normalize the residual by the standard deviation of the measured data.
+
+  Args:
+    residual: Residual array, shape ``(n_timesteps, n_sensors)``.
+    measured_data: Measured data array, same shape as *residual*.
+  """
   return residual / (np.linalg.norm(measured_data, axis=0) / np.sqrt(2))

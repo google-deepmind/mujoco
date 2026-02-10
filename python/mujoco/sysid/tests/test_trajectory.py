@@ -132,6 +132,51 @@ def test_create_initial_state_wrong_qpos(box_model):
     create_initial_state(box_model, np.zeros(999))
 
 
+def test_create_initial_state_with_names():
+  """Named mapping places qpos/qvel into correct slots for a subset of joints."""
+  xml = """
+  <mujoco>
+    <worldbody>
+      <body name="box" pos="0 0 1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1"/>
+      </body>
+      <body>
+        <joint name="h1" type="hinge"/>
+        <geom size="0.1" mass="1"/>
+        <body>
+          <joint name="h2" type="hinge"/>
+          <geom size="0.1" mass="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  """
+  model = mujoco.MjModel.from_xml_string(xml)
+  data = mujoco.MjData(model)
+
+  # Map only the two hinge joints by name, leaving the free body at defaults.
+  qpos_subset = np.array([1.1, 2.2])
+  qvel_subset = np.array([3.3, 4.4])
+  state = create_initial_state(
+      model, qpos_subset, qvel_subset,
+      qpos_names=["h1_qpos", "h2_qpos"],
+      qvel_names=["h1_qvel", "h2_qvel"],
+  )
+
+  # Unpack the state to verify values ended up in the right slots.
+  mujoco.mj_setState(
+      model, data, state, mujoco.mjtState.mjSTATE_FULLPHYSICS.value
+  )
+  # Free body qpos (indices 0-6) should be at model defaults.
+  # Hinge joints at qposadr 7 and 8.
+  np.testing.assert_allclose(data.qpos[7], 1.1)
+  np.testing.assert_allclose(data.qpos[8], 2.2)
+  # Hinge joints at dofadr 6 and 7.
+  np.testing.assert_allclose(data.qvel[6], 3.3)
+  np.testing.assert_allclose(data.qvel[7], 4.4)
+
+
 def test_split(sample_trajectory):
   """A long trajectory can be split into smaller chunks for batched optimization."""
   traj, *_ = sample_trajectory

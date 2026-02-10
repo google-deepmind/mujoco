@@ -15,13 +15,10 @@
 """Default report generation for system identification results."""
 
 from collections.abc import Sequence
-import os
 import pathlib
 
-import matplotlib.pyplot as plt
 from mujoco.sysid._src import model_modifier
 from mujoco.sysid._src import parameter
-from mujoco.sysid._src import plotting
 from mujoco.sysid._src.optimize import calculate_intervals
 from mujoco.sysid._src.residual import BuildModelFn
 from mujoco.sysid._src.trajectory import ModelSequences
@@ -91,7 +88,7 @@ def default_report(
     generate_video_from_trajectories(
         initial_params=initial_params,
         opt_params=opt_params,
-        build_model=build_model,
+        _build_model=build_model,
         trajectories=all_trajectories,
         model_spec=model_spec_to_render,
         output_filepath=video_all_path,
@@ -103,7 +100,7 @@ def default_report(
     generate_video_from_trajectories(
         initial_params=initial_params,
         opt_params=opt_params,
-        build_model=build_model,
+        _build_model=build_model,
         trajectories=all_trajectories,
         model_spec=model_spec_to_render,
         output_filepath=video_init_path,
@@ -116,7 +113,7 @@ def default_report(
     generate_video_from_trajectories(
         initial_params=initial_params,
         opt_params=opt_params,
-        build_model=build_model,
+        _build_model=build_model,
         trajectories=all_trajectories,
         model_spec=model_spec_to_render,
         output_filepath=video_opt_path,
@@ -292,105 +289,3 @@ def default_report(
   if save_path:
     rb.save(save_path / "report.html")
   return rb
-
-
-# TODO(nimrod): Consider deleting this function, given we can export plots from
-#  plotly either on the web or with fig.write_image.
-def default_report_matplotlib(
-    experiment_results_folder: os.PathLike[str],
-    models_sequences: Sequence[ModelSequences],
-    params: parameter.ParameterDict,
-    sysid_residual,
-    x0: np.ndarray,
-    opt_result: scipy_optimize.OptimizeResult,
-    build_model: BuildModelFn | None = model_modifier.apply_param_modifiers,
-):
-  """Outputs PNG plots to the experiment results folder."""
-  experiment_results_folder = pathlib.Path(experiment_results_folder)
-  if not experiment_results_folder.exists():
-    experiment_results_folder.mkdir(parents=True, exist_ok=True)
-
-  x_hat = opt_result.x
-  params.update_from_vector(x_hat)
-
-  # Save the ID'd models out
-  assert build_model is not None
-  model_hat = None
-  for model_sequences in models_sequences:
-    model_hat = build_model(params, model_sequences.spec)
-  assert model_hat is not None
-
-  # Get predictions for initial solution.
-  params.update_from_vector(x0)
-  names = [
-      f"{model_sequences.name}\n{sequence}"
-      for model_sequences in models_sequences
-      for sequence in model_sequences.sequence_name
-  ]
-  _, pred0s, record0s = sysid_residual(x0, return_pred_all=True)
-
-  for name, pred0, record0 in zip(names, pred0s, record0s, strict=True):
-    plotting.plot_sensor_comparison(
-        model_hat,
-        predicted_times=pred0[0].times,
-        predicted_data=pred0[0].data,
-        real_times=record0[0].times,
-        real_data=record0[0].data,
-        title_prefix=f"x0 {name}",
-        size_factor=0.5,
-    )
-    name_fig = name.replace("/", " ")
-    name_fig = name_fig.replace("\n", " ")
-    plt.savefig(os.path.join(experiment_results_folder, f"x0 {name_fig}.png"))
-
-  residuals_star, preds_star, records_star = sysid_residual(
-      x_hat, return_pred_all=True
-  )
-  for name, pred, record, _ in zip(
-      names, preds_star, records_star, pred0s, strict=True
-  ):
-    plotting.plot_sensor_comparison(
-        model_hat,
-        predicted_times=pred[0].times,
-        predicted_data=pred[0].data,
-        real_times=record[0].times,
-        real_data=record[0].data,
-        title_prefix=f"x* {name}",
-        size_factor=0.5,
-    )
-    name_fig = name.replace("/", " ")
-    name_fig = name_fig.replace("\n", " ")
-    plt.savefig(experiment_results_folder / f"xstar {name_fig}.png")
-
-  # Add diagnostic optimization trace plots.
-  if "extras" in opt_result:
-    # Objective value over iterations.
-    objective = opt_result.extras["objective"]
-    plotting.plot_objective(objective)
-    plt.savefig(experiment_results_folder / "loss.png", dpi=300)
-
-    # Candidate parameter values over iterations.
-    candidate = opt_result.extras["candidate"]
-
-    # Candidate parameter values over iterations.
-    # Candidate heatmap over iterations.
-    plotting.plot_candidate_heatmap(
-        candidate,
-        param_names=params.get_non_frozen_parameter_names(),
-        bounds=params.get_bounds(),
-    )
-    plt.savefig(experiment_results_folder / "candidate_heatmap.png", dpi=300)
-
-    plotting.plot_candidate(
-        candidate,
-        bounds=params.get_bounds(),
-        param_names=params.get_non_frozen_parameter_names(),
-    )
-    plt.savefig(experiment_results_folder / "candidate.png", dpi=300)
-
-  _, intervals = calculate_intervals(residuals_star, opt_result.jac)
-  plotting.parameter_confidence(
-      all_exp_names=["trial"], all_params=[params], all_intervals=[intervals]
-  )
-  #   plotting.parameter_confidence(["trial"], [params], [x_hat], [intervals])
-  plt.savefig(experiment_results_folder / "params.png")

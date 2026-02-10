@@ -105,6 +105,11 @@ class Parameter:
     return self.nominal.flatten()
 
   def update_from_vector(self, vector: np.ndarray) -> None:
+    """Update the current value from a flat vector.
+
+    Args:
+      vector: Flat array of length ``self.size``.
+    """
     vector_array = np.atleast_1d(vector)
     if len(vector_array) != self.size:
       raise ValueError(
@@ -125,7 +130,11 @@ class Parameter:
     self.value = self.nominal.copy()
 
   def sample(self, rng: np.random.Generator | None = None) -> np.ndarray:
-    """Sample a random value uniformly within bounds."""
+    """Sample a random value uniformly within bounds.
+
+    Args:
+      rng: Optional numpy random generator. Uses default if None.
+    """
     if rng is None:
       rng = np.random.default_rng()
     return rng.uniform(self.min_value.flatten(), self.max_value.flatten())
@@ -197,7 +206,7 @@ class ParameterDict:
   """An ordered collection of :class:`Parameter` objects.
 
   Behaves like a ``dict[str, Parameter]`` with convenience methods for
-  vectorised access (``as_vector`` / ``update_from_vector``), serialisation,
+  vectorized access (``as_vector`` / ``update_from_vector``), serialization,
   and tabular comparison of parameter estimates.
 
   Frozen parameters are silently skipped by vector/bounds methods so that the
@@ -271,7 +280,12 @@ class ParameterDict:
     return np.concatenate(vectors) if vectors else np.array([])
 
   def update_from_vector(self, vector: np.ndarray) -> None:
-    """Update all non-frozen parameters from a flat vector."""
+    """Update all non-frozen parameters from a flat vector.
+
+    Args:
+      vector: Flat array whose length equals the total size of non-frozen
+        parameters.
+    """
     start = 0
     for param in self.parameters.values():
       if not param.frozen:
@@ -333,14 +347,22 @@ class ParameterDict:
       param.reset()
 
   def sample(self, rng: np.random.Generator | None = None) -> np.ndarray:
-    """Sample parameter values within bounds for non-frozen parameters."""
+    """Sample parameter values within bounds for non-frozen parameters.
+
+    Args:
+      rng: Optional numpy random generator. Uses default if None.
+    """
     if rng is None:
       rng = np.random.default_rng()
     lower_bounds, upper_bounds = self.get_bounds()
     return rng.uniform(lower_bounds, upper_bounds)
 
   def randomize(self, rng: np.random.Generator | None = None) -> None:
-    """Randomize parameter values for non-frozen parameters."""
+    """Randomize parameter values for non-frozen parameters.
+
+    Args:
+      rng: Optional numpy random generator. Uses default if None.
+    """
     for param in self.parameters.values():
       if not param.frozen:
         param.value = param.sample(rng)

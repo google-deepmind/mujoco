@@ -44,7 +44,7 @@ def _scipy_least_squares(
 
   jac_arg: str | Callable[..., Any]
   if use_mujoco_jac:
-    # This is the default step sized for finite difference used in
+    # This is the default step size for finite difference used in
     # scipy's least_squares and mujoco's minimize finite difference
     # https://github.com/scipy/scipy/blob/91e18f3bd355477b
     # 8b7747ec82d70ac98ffd2422/scipy/optimize/_numdiff.py#L404
@@ -143,6 +143,7 @@ def optimize(
     initial_params: parameter.ParameterDict,
     residual_fn: Callable[..., Any],
     optimizer: Literal["scipy", "mujoco", "scipy_parallel_fd"] = "mujoco",
+    verbose: bool = True,
     **optimizer_kwargs,
 ) -> tuple[parameter.ParameterDict, scipy_optimize.OptimizeResult]:
   """Run nonlinear least-squares optimization on the residual.
@@ -153,11 +154,12 @@ def optimize(
       returned by :func:`build_residual_fn`.
     optimizer: Backend — ``"mujoco"`` (default), ``"scipy"``, or
       ``"scipy_parallel_fd"`` (scipy with MuJoCo finite-difference Jacobian).
+    verbose: If True, log parameter comparison table after optimization.
     **optimizer_kwargs: Forwarded to the backend (e.g. ``max_iters``,
       ``verbose``, ``loss``).
 
   Returns:
-    ``(opt_params, opt_result)`` — the optimised ParameterDict and a
+    ``(opt_params, opt_result)`` — the optimized ParameterDict and a
     ``scipy.optimize.OptimizeResult`` with at least ``x``, ``jac``, ``grad``.
   """
   x0 = initial_params.as_vector()
@@ -187,6 +189,16 @@ def optimize(
 
   opt_params.update_from_vector(opt_result.x)
 
+  if verbose:
+    logging.info(
+        "\n%s",
+        opt_params.compare_parameters(
+            initial_params.as_vector(),
+            opt_params.as_vector(),
+            measured_params=initial_params.as_nominal_vector(),
+        ),
+    )
+
   return opt_params, opt_result
 
 
@@ -197,7 +209,20 @@ def calculate_intervals(
     lambda_zero_thresh=1e-15,
     v_zero_thresh=1e-8,
 ):
-  """Calculate confidence intervals from the Jacobian at the optimum."""
+  """Calculate confidence intervals from the Jacobian at the optimum.
+
+  Args:
+    residuals_star: List of residual arrays at the optimum.
+    J: Jacobian matrix at the optimum, shape ``(n_residuals, n_params)``.
+    alpha: Significance level for the confidence intervals.
+    lambda_zero_thresh: Threshold below which eigenvalues are treated as zero.
+    v_zero_thresh: Threshold below which eigenvector elements are treated as
+      zero.
+
+  Returns:
+    ``(Sigma_X, intervals)`` — the parameter covariance matrix and the
+    half-width confidence intervals for each parameter.
+  """
   if J is None or J.size == 0:
     return np.empty((0, 0)), np.empty((0,))
 
