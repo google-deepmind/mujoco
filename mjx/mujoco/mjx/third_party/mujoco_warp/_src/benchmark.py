@@ -16,7 +16,7 @@
 """Utilities for benchmarking MuJoCo Warp."""
 
 import time
-from typing import Callable, Optional, Tuple
+from typing import Callable, Tuple
 
 import numpy as np
 import warp as wp
@@ -24,6 +24,7 @@ import warp as wp
 from mujoco.mjx.third_party.mujoco_warp._src import warp_util
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
+from mujoco.mjx.third_party.mujoco_warp._src.types import RenderContext
 from mujoco.mjx.third_party.mujoco_warp._src.util_misc import halton
 
 
@@ -87,10 +88,11 @@ def benchmark(
   m: Model,
   d: Data,
   nstep: int,
-  ctrls: Optional[np.ndarray] = None,
+  ctrls: np.ndarray | None = None,
   event_trace: bool = False,
   measure_alloc: bool = False,
   measure_solver_niter: bool = False,
+  render_context: RenderContext | None = None,
 ) -> Tuple[float, float, dict, list, list, list, int]:
   """Benchmark a function of Model and Data.
 
@@ -103,6 +105,7 @@ def benchmark(
     event_trace: If True, time routines decorated with @event_scope.
     measure_alloc: If True, record number of contacts and constraints.
     measure_solver_niter: If True, record the number of solver iterations.
+    render_context: The render context to use for rendering.
 
   Returns:
     - Time to JIT fn.
@@ -120,8 +123,14 @@ def benchmark(
   with warp_util.EventTracer(enabled=event_trace) as tracer:
     # capture the whole function as a CUDA graph
     jit_beg = time.perf_counter()
-    with wp.ScopedCapture() as capture:
-      fn(m, d)
+
+    if render_context is not None:
+      with wp.ScopedCapture() as capture:
+        fn(m, d, render_context)
+    else:
+      with wp.ScopedCapture() as capture:
+        fn(m, d)
+
     jit_end = time.perf_counter()
     jit_duration = jit_end - jit_beg
 

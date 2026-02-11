@@ -42,10 +42,13 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _kinematics_shim(
     # Model
     nworld: int,
+    body_branch_start: wp.array(dtype=int),
+    body_branches: wp.array(dtype=int),
     body_ipos: wp.array2d(dtype=wp.vec3),
     body_iquat: wp.array2d(dtype=wp.quat),
     body_jntadr: wp.array(dtype=int),
@@ -55,7 +58,6 @@ def _kinematics_shim(
     body_pos: wp.array2d(dtype=wp.vec3),
     body_quat: wp.array2d(dtype=wp.quat),
     body_rootid: wp.array(dtype=int),
-    body_tree: tuple[wp.array(dtype=int), ...],
     body_weldid: wp.array(dtype=int),
     geom_bodyid: wp.array(dtype=int),
     geom_pos: wp.array2d(dtype=wp.vec3),
@@ -64,6 +66,8 @@ def _kinematics_shim(
     jnt_pos: wp.array2d(dtype=wp.vec3),
     jnt_qposadr: wp.array(dtype=int),
     jnt_type: wp.array(dtype=int),
+    nbody: int,
+    nbranch: int,
     ngeom: int,
     nsite: int,
     qpos0: wp.array2d(dtype=float),
@@ -90,6 +94,8 @@ def _kinematics_shim(
   _m.opt = _o
   _d.efc = _e
   _d.contact = _c
+  _m.body_branch_start = body_branch_start
+  _m.body_branches = body_branches
   _m.body_ipos = body_ipos
   _m.body_iquat = body_iquat
   _m.body_jntadr = body_jntadr
@@ -99,7 +105,6 @@ def _kinematics_shim(
   _m.body_pos = body_pos
   _m.body_quat = body_quat
   _m.body_rootid = body_rootid
-  _m.body_tree = body_tree
   _m.body_weldid = body_weldid
   _m.geom_bodyid = geom_bodyid
   _m.geom_pos = geom_pos
@@ -108,6 +113,8 @@ def _kinematics_shim(
   _m.jnt_pos = jnt_pos
   _m.jnt_qposadr = jnt_qposadr
   _m.jnt_type = jnt_type
+  _m.nbody = nbody
+  _m.nbranch = nbranch
   _m.ngeom = ngeom
   _m.nsite = nsite
   _m.qpos0 = qpos0
@@ -208,6 +215,8 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
   )
   out = jf(
       d.qpos.shape[0],
+      m._impl.body_branch_start,
+      m._impl.body_branches,
       m.body_ipos,
       m.body_iquat,
       m.body_jntadr,
@@ -217,7 +226,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       m.body_pos,
       m.body_quat,
       m.body_rootid,
-      m._impl.body_tree,
       m.body_weldid,
       m.geom_bodyid,
       m.geom_pos,
@@ -226,6 +234,8 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       m.jnt_pos,
       m.jnt_qposadr,
       m.jnt_type,
+      m.nbody,
+      m._impl.nbranch,
       m.ngeom,
       m.nsite,
       m.qpos0,

@@ -871,10 +871,10 @@ class Model(PyTreeNode):
   cam_poscom0: jax.Array
   cam_pos0: jax.Array
   cam_mat0: jax.Array
-  cam_fovy: np.ndarray
+  cam_fovy: jax.Array
   cam_resolution: np.ndarray
   cam_sensorsize: np.ndarray
-  cam_intrinsic: np.ndarray
+  cam_intrinsic: jax.Array
   light_mode: np.ndarray
   light_type: jax.Array
   light_castshadow: jax.Array
