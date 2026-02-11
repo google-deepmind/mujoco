@@ -17,14 +17,13 @@ across threads.
 **You provide:**
 - One or more `ModelSequences` each bundling a single `MjSpec` with one or
   more sequences of measured data. All will be optimized jointly.
-- A `ParameterDict` defining differentiable `Parameter`'s with bounds.
-- Callbacks to apply `Parameter`'s to an `MjSpec` (individually or jointly)
+- A `ParameterDict` defining differentiable `Parameter`s with bounds.
+- Callbacks to apply `Parameter`s to an `MjSpec` (individually or jointly)
 - (optional) Functions (`build_model`, `custom_rollout`, `modify_residual`)
-  that override the default residual function behaviour.
+  that override the default residual function behavior.
 
 **The framework:**
-- `build_residual_fn` which composes user code in `ModelSequences` and overrides
-- Optimizes (`optimize`) the residual function returned by `build_residual_fn`
+- Composes user code into a residual function (`build_residual_fn`).
 - Optimizes parameters via batched parallel rollouts (`optimize`).
 - Saves results and generates an HTML report (`save_results`, `default_report`).
 
@@ -34,7 +33,7 @@ You can optimize any parameter that differentiably modifies the final
 residuals. Common use cases include:
 
 **Physics parameters** settable on `MjSpec`. Most parameters in MjSpec
-can be easily set directly by the user provided callbacks:
+can be easily set directly by user-provided callbacks:
 
 | Target | Approach |
 |---|---|
@@ -42,7 +41,7 @@ can be easily set directly by the user provided callbacks:
 | Joint damping | `spec.joint("j1").damping = p.value[0]` |
 
 Convenience functions are provided for common system identification
-parameterizations that cannot be trivially appled to an MjSpec:
+parameterizations that cannot be trivially applied to an MjSpec:
 
 | Target | Approach |
 |---|---|
@@ -58,7 +57,7 @@ guaranteeing physical consistency without singularities.
 **Measurement parameters** such as sensor delays, gains, and biases are
 properties of the measurement system, not the physics model. The library
 provides utilities for applying these corrections to the residual after
-rollout, they are functionally complete but their API is not yet final.
+rollout. They are functionally complete but their API is not yet final.
 
 ## Example
 
