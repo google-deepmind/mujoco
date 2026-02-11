@@ -91,7 +91,7 @@ def _hfield_filter(
   r2 = geom_rbound[rbound_id, g2]
 
   # TODO(team): margin?
-  margin = wp.max(geom_margin[margin_id, g1], geom_margin[margin_id, g2])
+  margin = geom_margin[margin_id, g1] + geom_margin[margin_id, g2]
 
   # box-sphere test: horizontal plane
   for i in range(2):

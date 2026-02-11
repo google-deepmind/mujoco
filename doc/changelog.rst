@@ -77,6 +77,9 @@ General
 
    - Removed ``getdir`` from the ``mjpResourceProvider`` struct. All Resource Providers now use the same shared
      implementation.
+   - When combining the ``margin`` and ``gap`` :ref:`parameters<CContact>` of two geoms to obtain the parameters
+     of a contact, the respective values are now **summed** rather than than taking the maximum. This allows geom
+     margins to be a proper "inflation" of the geom.
 
 - Camera frustum visualization is now triggered by setting :ref:`resolution<body-camera-resolution>` to values larger
   than 1. Relatedly, frustum visualization also works for :ref:`orthographic<body-camera-projection>` cameras.

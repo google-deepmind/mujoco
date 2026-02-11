@@ -552,8 +552,8 @@ def contact_params(
     solreffriction = wp.vec2(0.0, 0.0)
     solimp = mix * geom_solimp[solimp_id, g1] + (1.0 - mix) * geom_solimp[solimp_id, g2]
     # geom priority is ignored
-    margin = wp.max(geom_margin[margin_id, g1], geom_margin[margin_id, g2])
-    gap = wp.max(geom_gap[gap_id, g1], geom_gap[gap_id, g2])
+    margin = geom_margin[margin_id, g1] + geom_margin[margin_id, g2]
+    gap = geom_gap[gap_id, g1] + geom_gap[gap_id, g2]
 
   friction = vec5(
     wp.max(MJ_MINMU, friction[0]),

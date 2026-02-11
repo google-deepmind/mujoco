@@ -689,8 +689,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
     if (isbody1 && isbody2) {
       // both are leaves
       if (isleaf1 && isleaf2) {
-        mjtNum maxmargin = mju_max(m->geom_margin[nodeid1], m->geom_margin[nodeid2]);
-        mjtNum margin = mj_assignMargin(m, maxmargin);
+        mjtNum margin = mj_assignMargin(m, m->geom_margin[nodeid1] + m->geom_margin[nodeid2]);
 
         if (!mj_filterSphere(m, d, nodeid1, nodeid2, margin)) {
           if (mj_collideOBB(m->geom_aabb + 6*nodeid1, m->geom_aabb + 6*nodeid2,
@@ -708,8 +707,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
       }
 
       // if no intersection at intermediate levels, stop
-      mjtNum maxmargin = mju_max(m->body_margin[bf1], m->body_margin[bf2]);
-      mjtNum margin = mj_assignMargin(m, maxmargin);
+      mjtNum margin = mj_assignMargin(m, m->body_margin[bf1] + m->body_margin[bf2]);
       if (!mj_collideOBB(bvh1 + 6*node1, bvh2 + 6*node2,
                          d->xipos + 3*bf1, d->ximat + 9*bf1,
                          d->xipos + 3*bf2, d->ximat + 9*bf2,
@@ -722,8 +720,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
     else if (isbody1 && !isbody2) {
       // both are leaves
       if (isleaf1 && isleaf2) {
-        mjtNum maxmargin = mju_max(m->geom_margin[nodeid1], m->flex_margin[f2]);
-        mjtNum margin = mj_assignMargin(m, maxmargin);
+        mjtNum margin = mj_assignMargin(m, m->geom_margin[nodeid1] + m->flex_margin[f2]);
 
         if (!filterBitmask(m->geom_contype[nodeid1], m->geom_conaffinity[nodeid1],
                            m->flex_contype[f2], m->flex_conaffinity[f2]) &&
@@ -747,8 +744,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
       }
 
       // if no intersection at intermediate levels, stop
-      mjtNum maxmargin = mju_max(m->body_margin[bf1], m->flex_margin[f2]);
-      mjtNum margin = mj_assignMargin(m, maxmargin);
+      mjtNum margin = mj_assignMargin(m, m->body_margin[bf1] + m->flex_margin[f2]);
       if (!mj_collideOBB(bvh1 + 6*node1, bvh2 + 6*node2,
                          d->xipos + 3*bf1, d->ximat + 9*bf1,
                          NULL, NULL,
@@ -776,8 +772,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
       }
 
       // if no intersection at intermediate levels, stop
-      mjtNum maxmargin = mju_max(m->flex_margin[f1], m->flex_margin[f2]);
-      mjtNum margin = mj_assignMargin(m, maxmargin);
+      mjtNum margin = mj_assignMargin(m, m->flex_margin[f1] + m->flex_margin[f2]);
       if (filterBox(bvh1 + 6*node1, bvh2 + 6*node2, margin)) {
         continue;
       }
@@ -1330,8 +1325,8 @@ static void mj_contactParam(const mjModel* m, int* condim, mjtNum* gap,
   const mjtNum* solimp2 =   (f2 < 0) ? m->geom_solimp+g2*mjNIMP : m->flex_solimp+f2*mjNIMP;
   const mjtNum* friction2 = (f2 < 0) ? m->geom_friction+g2*3    : m->flex_friction+f2*3;
 
-  // gap: max
-  *gap = mju_max(gap1, gap2);
+  // gap: add
+  *gap = gap1 + gap2;
 
   // different priority: copy from item with higher priority
   if (priority1 > priority2) {
@@ -1513,7 +1508,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
 
   // set margin: dynamic or pair
   if (ipair < 0) {
-    margin = mj_assignMargin(m, mju_max(m->geom_margin[g1], m->geom_margin[g2]));
+    margin = mj_assignMargin(m, m->geom_margin[g1] + m->geom_margin[g2]);
   } else {
     margin = mj_assignMargin(m, m->pair_margin[ipair]);
   }
@@ -1668,7 +1663,7 @@ void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
   mjtNum nrm[3] = {mat[2], mat[5], mat[8]};
 
   // prepare contact parameters (same for all vertices)
-  mjtNum margin = mj_assignMargin(m, mju_max(m->geom_margin[g], m->flex_margin[f]));
+  mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
   int condim;
   int flex_vertnum = m->flex_vertnum[f];
   mjtNum gap, solref[mjNREF], solimp[mjNIMP], friction[5];
@@ -1869,7 +1864,7 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
 
 // test a geom and an elem for collision, add to contact list
 void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
-  mjtNum margin = mj_assignMargin(m, mju_max(m->geom_margin[g], m->flex_margin[f]));
+  mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
   int dim = m->flex_dim[f], type = m->geom_type[g];
   int num;
 
@@ -2005,7 +2000,7 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
 
 // test two elems for collision, add to contact list
 void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2) {
-  mjtNum margin = mj_assignMargin(m, mju_max(m->flex_margin[f1], m->flex_margin[f2]));
+  mjtNum margin = mj_assignMargin(m, m->flex_margin[f1] + m->flex_margin[f2]);
   int dim1 = m->flex_dim[f1], dim2 = m->flex_dim[f2];
   int num;
 

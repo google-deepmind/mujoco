@@ -357,5 +357,38 @@ TEST_F(MjCollisionTest, PinchingSucceeds) {
   mj_deleteModel(m);
 }
 
+TEST_F(MjCollisionTest, MarginSumming) {
+  // Two spheres with size 0.1, placed 0.21 apart (distance of 0.01).
+  // With margin summing, margin1 + margin2 = 0.00999 + 0.00999 = 0.01998 > 0.01
+  // so a contact should be generated.
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom name="sphere1" type="sphere" size=".1" margin="0.00999"/>
+        <joint type="slide" axis="1 0 0"/>
+      </body>
+      <body pos=".21 0 0">
+        <geom name="sphere2" type="sphere" size=".1" margin="0.00999"/>
+        <joint type="slide" axis="1 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  mj_fwdPosition(m, d);
+
+  // With margin summing, we expect 1 contact
+  EXPECT_EQ(d->ncon, 1);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco

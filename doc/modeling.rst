@@ -490,7 +490,7 @@ are as follows:
    an individual geom. This is why MuJoCo does not allow anisotropic friction in the individual geom specifications, but
    only in the explicit contact pair specifications.
 **margin**, **gap**
-   The maximum of the two geom margins (or gaps respectively) is used. The geom priority is ignored here, because the
+   The sum of the two geom margins (or gaps respectively) is used. The geom priority is ignored here, because the
    margin and gap are distance properties and a one-sided specification makes little sense.
 
 .. _solmixing:
