@@ -93,7 +93,11 @@ void Renderer::Render(const mjModel* model, mjData* data,
 
   mjvCamera default_cam;
   if (camera == nullptr) {
-    mjv_defaultCamera(&default_cam);
+    if (model) {
+      mjv_defaultFreeCamera(model, &default_cam);
+    } else {
+      mjv_defaultCamera(&default_cam);
+    }
     camera = &default_cam;
   }
   mjvOption default_opt;
