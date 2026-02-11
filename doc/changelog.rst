@@ -126,6 +126,8 @@ Documentation
 
 Bug fixes
 ^^^^^^^^^
+- Fixed a bug in :ref:`implicit integrator<geIntegrators>` derivatives where actuator velocity derivatives were
+  incorrectly computed when the force was clamped by :ref:`forcerange<actuator-general-forcerange>`.
 - Fixed a bug in :ref:`implicit integrator<geIntegrators>` derivatives where actuator velocity derivatives did not
   account for the :ref:`actearly<actuator-general-actearly>` flag.
 - Multi threaded mesh processing, enabled by the :ref:`usethread<compiler-usethread>` compiler flag (on by default), was

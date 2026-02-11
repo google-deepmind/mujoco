@@ -1080,6 +1080,94 @@ TEST_F(DerivativeTest, quatIntegrate) {
   }
 }
 
+// implicit integration is better than Euler with active forcerange clamping
+TEST_F(DerivativeTest, ForcerangeClampedDerivative) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.01" integrator="implicitfast"/>
+
+    <worldbody>
+      <geom name="plane" type="plane" size="2 2 0.1"/>
+      <light pos="0 0 3"/>
+      <body name="1" pos="0 0 1">
+        <joint name="1" type="slide" axis="1 0 0"/>
+        <geom type="sphere" size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <position joint="1" kp="10000" kv="1000" forcerange="-10 10"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+
+  mjtNum dt_small = 1e-4;
+  mjtNum dt_large = 1e-2;
+  mjtNum duration = 1.0;
+
+  mjData* d_gt = mj_makeData(m);
+  mjData* d_implicit = mj_makeData(m);
+  mjData* d_euler = mj_makeData(m);
+
+  mj_resetData(m, d_gt);
+  mj_resetData(m, d_implicit);
+  mj_resetData(m, d_euler);
+
+  d_gt->ctrl[0] = 0.5;
+  d_implicit->ctrl[0] = 0.5;
+  d_euler->ctrl[0] = 0.5;
+
+  mjtNum error_implicit = 0;
+  mjtNum error_euler = 0;
+  int nsteps_large = static_cast<int>(duration / dt_large);
+  int substeps = static_cast<int>(dt_large / dt_small);
+
+  m->opt.timestep = dt_large;
+
+  m->opt.integrator = mjINT_IMPLICITFAST;
+  mj_resetData(m, d_gt);
+  d_gt->ctrl[0] = 0.5;
+  m->opt.timestep = dt_small;
+  m->opt.integrator = mjINT_EULER;
+
+  for (int i = 0; i < nsteps_large; i++) {
+    // ground truth: small steps with Euler
+    m->opt.integrator = mjINT_EULER;
+    m->opt.timestep = dt_small;
+    for (int j = 0; j < substeps; j++) {
+      mj_step(m, d_gt);
+    }
+
+    // euler at large timestep
+    m->opt.timestep = dt_large;
+    mj_step(m, d_euler);
+
+    // implicitfast at large timestep
+    m->opt.integrator = mjINT_IMPLICITFAST;
+    mj_step(m, d_implicit);
+
+    // accumulate errors
+    mjtNum diff_implicit = d_gt->qpos[0] - d_implicit->qpos[0];
+    mjtNum diff_euler = d_gt->qpos[0] - d_euler->qpos[0];
+    error_implicit += diff_implicit * diff_implicit;
+    error_euler += diff_euler * diff_euler;
+  }
+
+  // expect implicitfast to be more accurate than Euler
+  EXPECT_LT(error_implicit, error_euler)
+      << "implicitfast should be more accurate than Euler at large timestep "
+      << "when forcerange derivatives are correctly handled";
+
+  mj_deleteData(d_euler);
+  mj_deleteData(d_implicit);
+  mj_deleteData(d_gt);
+  mj_deleteModel(m);
+}
+
 // implicit derivatives should use next activation when actearly is set
 TEST_F(DerivativeTest, ActearlyDerivative) {
   static constexpr char xml[] = R"(

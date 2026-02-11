@@ -1089,6 +1089,15 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       continue;
     }
 
+    // skip if force is clamped by forcerange
+    if (m->actuator_forcelimited[i]) {
+      mjtNum force = d->actuator_force[i];
+      mjtNum* range = m->actuator_forcerange + 2*i;
+      if (force <= range[0] || force >= range[1]) {
+        continue;
+      }
+    }
+
     mjtNum bias_vel = 0, gain_vel = 0;
 
     // affine bias
