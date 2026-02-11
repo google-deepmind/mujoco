@@ -8,6 +8,10 @@ Upcoming version (not yet released)
 Significant new features
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
+- Added new System Identification toolbox (Python), see
+  `README <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sysid/README.md>`__ for details.
+  Contribution by :github:user:`kevinzakka`, :github:user:`aftersomemath`, :github:user:`jonathanembleyriches`,
+  :github:user:`qiayuanl`, :github:user:`spjardim` and :github:user:`gizemozd`.
 - Actuators and sensors now support arbitrary delays via history buffers, and sensors values can be computed at
   intervals larger than the simulation timestep. Using a delay or interval introduces a new ``mjData.history`` variable
   to the :ref:`Physics state<siPhysicsState>`. See :ref:`Delays<CDelay>` for details.
