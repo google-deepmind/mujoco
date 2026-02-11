@@ -768,8 +768,8 @@ def _make_data_c(
       'flexedge_length': (nflexedge, float_),
       'ten_J_rownnz': (m.ntendon, np.int32),
       'ten_J_rowadr': (m.ntendon, np.int32),
-      'ten_J_colind': (m.nJten, np.int32),
-      'ten_J': (m.nJten, float_),
+      'ten_J_colind': (m.ntendon, m.nv, np.int32),
+      'ten_J': (m.ntendon, m.nv, float_),
       'ten_wrapadr': (m.ntendon, np.int32),
       'ten_wrapnum': (m.ntendon, np.int32),
       'wrap_obj': (m.nwrap, 2, np.int32),
@@ -1099,7 +1099,7 @@ def _put_data_jax(
   # MJX does not support islanding, so only transfer the first solver_niter
   impl_fields['solver_niter'] = impl_fields['solver_niter'][0]
 
-  # convert sparse actuator_moment to dense matrix
+  # convert sparse representation of actuator_moment to dense matrix
   moment = np.zeros((m.nu, m.nv))
   mujoco.mju_sparse2dense(
       moment,
@@ -1109,22 +1109,6 @@ def _put_data_jax(
       d.moment_colind,
   )
   impl_fields['actuator_moment'] = moment
-
-  # convert ten_J to dense matrix
-  if mujoco.mj_isSparse(m):
-    ten_J = np.zeros((m.ntendon, m.nv))
-    mujoco.mju_sparse2dense(
-        ten_J,
-        d.ten_J,
-        d.ten_J_rownnz,
-        d.ten_J_rowadr,
-        d.ten_J_colind,
-    )
-  elif m.ntendon:
-    ten_J = d.ten_J.reshape((m.ntendon, m.nv))
-  else:
-    ten_J = np.zeros((m.ntendon, m.nv))
-  impl_fields['ten_J'] = ten_J
 
   contact, contact_map = _put_contact(d.contact, dim, efc_address)
 
@@ -1582,29 +1566,6 @@ def _get_data_into(
         result_i.moment_rowadr[:] = moment_rowadr
         result_i.moment_colind[:] = moment_colind
         result_i.actuator_moment[:] = actuator_moment
-        continue
-
-      # MuJoCo ten_J is sparse, MJX uses a dense representation.
-      if field.name == 'ten_J':
-        ten_j_rownnz = np.zeros(m.ntendon, dtype=np.int32)
-        ten_j_rowadr = np.zeros(m.ntendon, dtype=np.int32)
-        ten_j_colind = np.zeros(m.nJten, dtype=np.int32)
-        ten_j = np.zeros(m.nJten)
-        if m.ntendon:
-          if d_i.impl == types.Impl.JAX:
-            mujoco.mju_dense2sparse(
-                ten_j,
-                d_i._impl.ten_J,
-                ten_j_rownnz,
-                ten_j_rowadr,
-                ten_j_colind,
-            )
-          else:
-            ten_j = d_i._impl.ten_J
-        result_i.ten_J_rownnz[:] = ten_j_rownnz
-        result_i.ten_J_rowadr[:] = ten_j_rowadr
-        result_i.ten_J_colind[:] = ten_j_colind
-        result_i.ten_J[:] = ten_j
         continue
 
       if hasattr(d_i._impl, field.name):

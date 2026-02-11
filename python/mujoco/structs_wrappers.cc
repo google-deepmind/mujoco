@@ -747,6 +747,7 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
 
   // Write buffer and arena contents
   {
+    MJDATA_POINTERS_PREAMBLE((this->model_->get()))
 
 #define X(type, name, nr, nc)    \
   WriteBytes(output, ptr_->name, \
@@ -826,6 +827,7 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
 
   // Read buffer and arena contents
   {
+    MJDATA_POINTERS_PREAMBLE((&m))
 
 #define X(type, name, nr, nc) \
   ReadBytes(input, d->name, sizeof(type) * (m.nr) * (nc));
