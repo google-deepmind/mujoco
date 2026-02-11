@@ -1117,9 +1117,15 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       if (m->actuator_dyntype[i] == mjDYN_NONE) {
         bias_vel += gain_vel * d->ctrl[i];
       } else {
-        int act_first = m->actuator_actadr[i];
-        int act_last = act_first + m->actuator_actnum[i] - 1;
-        bias_vel += gain_vel * d->act[act_last];
+        int act_adr = m->actuator_actadr[i] + m->actuator_actnum[i] - 1;
+        mjtNum act = d->act[act_adr];
+
+        // use next activation if actearly is set (matching forward pass)
+        if (m->actuator_actearly[i]) {
+          act = mj_nextActivation(m, d, i, act_adr, d->act_dot[act_adr]);
+        }
+
+        bias_vel += gain_vel * act;
       }
     }
 

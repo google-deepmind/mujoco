@@ -704,6 +704,34 @@ int mj_actuatorDisabled(const mjModel* m, int i) {
   }
 }
 
+
+// returns the next activation given current act_dot, after clamping
+mjtNum mj_nextActivation(const mjModel* m, const mjData* d,
+                         int actuator_id, int act_adr, mjtNum act_dot) {
+  mjtNum act = d->act[act_adr];
+
+  if (m->actuator_dyntype[actuator_id] == mjDYN_FILTEREXACT) {
+    // exact filter integration
+    // act_dot(0) = (ctrl-act(0)) / tau
+    // act(h) = act(0) + (ctrl-act(0)) (1 - exp(-h / tau))
+    //        = act(0) + act_dot(0) * tau * (1 - exp(-h / tau))
+    mjtNum tau = mju_max(mjMINVAL, m->actuator_dynprm[actuator_id*mjNDYN]);
+    act = act + act_dot * tau * (1 - mju_exp(-m->opt.timestep / tau));
+  } else {
+    // Euler integration
+    act = act + act_dot * m->opt.timestep;
+  }
+
+  // clamp to actrange
+  if (m->actuator_actlimited[actuator_id]) {
+    mjtNum* actrange = m->actuator_actrange + 2*actuator_id;
+    act = mju_clip(act, actrange[0], actrange[1]);
+  }
+
+  return act;
+}
+
+
 // sum all body masses
 mjtNum mj_getTotalmass(const mjModel* m) {
   mjtNum res = 0;

@@ -106,6 +106,10 @@ MJAPI void mj_normalizeQuat(const mjModel* m, mjtNum* qpos);
 // return 1 if actuator i is disabled, 0 otherwise
 MJAPI int mj_actuatorDisabled(const mjModel* m, int i);
 
+// returns the next activation given current act_dot, after clamping
+mjtNum mj_nextActivation(const mjModel* m, const mjData* d,
+                         int actuator_id, int act_adr, mjtNum act_dot);
+
 // sum all body masses
 MJAPI mjtNum mj_getTotalmass(const mjModel* m);
 

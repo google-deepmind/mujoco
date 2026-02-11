@@ -260,32 +260,6 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 }
 
 
-// returns the next act given the current act_dot, after clamping
-static mjtNum nextActivation(const mjModel* m, const mjData* d,
-                             int actuator_id, int act_adr, mjtNum act_dot) {
-  mjtNum act = d->act[act_adr];
-
-  if (m->actuator_dyntype[actuator_id] == mjDYN_FILTEREXACT) {
-    // exact filter integration
-    // act_dot(0) = (ctrl-act(0)) / tau
-    // act(h) = act(0) + (ctrl-act(0)) (1 - exp(-h / tau))
-    //        = act(0) + act_dot(0) * tau * (1 - exp(-h / tau))
-    mjtNum tau = mju_max(mjMINVAL, m->actuator_dynprm[actuator_id * mjNDYN]);
-    act = act + act_dot * tau * (1 - mju_exp(-m->opt.timestep / tau));
-  } else {
-    // Euler integration
-    act = act + act_dot * m->opt.timestep;
-  }
-
-  // clamp to actrange
-  if (m->actuator_actlimited[actuator_id]) {
-    mjtNum* actrange = m->actuator_actrange + 2 * actuator_id;
-    act = mju_clip(act, actrange[0], actrange[1]);
-  }
-
-  return act;
-}
-
 
 // clamp vector to range
 static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, int n,
@@ -474,7 +448,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
       mjtNum act;
       if (m->actuator_actearly[i]) {
-        act = nextActivation(m, d, i, act_adr, d->act_dot[act_adr]);
+        act = mj_nextActivation(m, d, i, act_adr, d->act_dot[act_adr]);
       } else {
         act = d->act[act_adr];
       }
@@ -916,7 +890,7 @@ static void mj_advance(const mjModel* m, mjData* d,
       int actadr_end = actadr + m->actuator_actnum[i];
       for (int j=actadr; j < actadr_end; j++) {
         // if disabled, set act_dot to 0
-        d->act[j] = nextActivation(m, d, i, j, mj_actuatorDisabled(m, i) ? 0 : act_dot[j]);
+        d->act[j] = mj_nextActivation(m, d, i, j, mj_actuatorDisabled(m, i) ? 0 : act_dot[j]);
       }
     }
   }

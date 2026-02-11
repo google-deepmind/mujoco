@@ -1080,6 +1080,69 @@ TEST_F(DerivativeTest, quatIntegrate) {
   }
 }
 
+// implicit derivatives should use next activation when actearly is set
+TEST_F(DerivativeTest, ActearlyDerivative) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1" integrator="implicitfast"/>
+
+    <worldbody>
+      <body>
+        <joint name="early" type="slide"/>
+        <geom type="sphere" size="0.1" mass="1"/>
+      </body>
+      <body pos="1 0 0">
+        <joint name="late" type="slide"/>
+        <geom type="sphere" size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <general joint="early" dyntype="integrator" gaintype="affine"
+               gainprm="1 0 1" actearly="true"/>
+      <general joint="late" dyntype="integrator" gaintype="affine"
+               gainprm="1 0 1" actearly="false"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // set identical ctrl with zero initial activation
+  d->ctrl[0] = 1.0;
+  d->ctrl[1] = 1.0;
+  d->act[0] = 0.0;
+  d->act[1] = 0.0;
+
+  // step computes derivatives during implicit integration
+  mj_step(m, d);
+
+  // both should have same act_dot
+  EXPECT_EQ(d->act_dot[0], d->act_dot[1]);
+
+  // with actearly=true and nonzero act_dot, derivative should differ
+  // because actearly uses next activation: act + act_dot*dt
+  // for our model: next_act = 0 + 1*1 = 1, current_act = 0
+  // derivative adds gain_vel * act to qDeriv diagonal
+  // for independent bodies, D is diagonal, so diag[i] is at D_rowadr[i]
+  int diag0 = m->D_rowadr[0];  // first joint's diagonal
+  int diag1 = m->D_rowadr[1];  // second joint's diagonal
+  EXPECT_NE(d->qDeriv[diag0], d->qDeriv[diag1])
+      << "actearly=true should use next activation in derivative";
+
+  // verify specific values: gain_vel=1, next_act=1, current_act=0
+  EXPECT_NEAR(d->qDeriv[diag0], 1.0, 1e-10)
+      << "actearly=true should use next_act=1";
+  EXPECT_NEAR(d->qDeriv[diag1], 0.0, 1e-10)
+      << "actearly=false should use current_act=0";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 // Utility: Rotate flex grid
 void RotateFlexGrid(mjModel* model, mjData* data, const char* flex_name,
                     double angle) {

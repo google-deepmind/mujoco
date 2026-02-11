@@ -122,6 +122,8 @@ Documentation
 
 Bug fixes
 ^^^^^^^^^
+- Fixed a bug in :ref:`implicit integrator<geIntegrators>` derivatives where actuator velocity derivatives did not
+  account for the :ref:`actearly<actuator-general-actearly>` flag.
 - Multi threaded mesh processing, enabled by the :ref:`usethread<compiler-usethread>` compiler flag (on by default), was
   in fact disabled by the flag. Fixing this bug speeds up compilation of mesh-heavy models by (up to) the number of
   available cores.
