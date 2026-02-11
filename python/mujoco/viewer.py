@@ -27,9 +27,10 @@ from typing import Callable, List, Optional, Tuple, Union
 import weakref
 
 import glfw
+import numpy as np
+
 import mujoco
 from mujoco import _simulate
-import numpy as np
 
 if not glfw._glfw:  # pylint: disable=protected-access
   raise RuntimeError('GLFW dynamic library handle is not available')
@@ -116,8 +117,11 @@ class Handle:
     return None
 
   def set_figures(
-      self, viewports_figures: Union[Tuple[mujoco.MjrRect, mujoco.MjvFigure],
-                                   List[Tuple[mujoco.MjrRect, mujoco.MjvFigure]]]
+      self,
+      viewports_figures: Union[
+          Tuple[mujoco.MjrRect, mujoco.MjvFigure],
+          List[Tuple[mujoco.MjrRect, mujoco.MjvFigure]],
+      ],
   ):
     """Overlay figures on the viewer.
 
@@ -138,8 +142,15 @@ class Handle:
     if sim is not None:
       sim.clear_figures()
 
-  def set_texts(self, texts: Union[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]],
-                                            List[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]]]):
+  def set_texts(
+      self,
+      texts: Union[
+          Tuple[Optional[int], Optional[int], Optional[str], Optional[str]],
+          List[
+              Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]
+          ],
+      ],
+  ):
     """Overlay text on the viewer.
 
     Args:
@@ -158,12 +169,15 @@ class Handle:
       # Convert None values to empty strings
       default_font = mujoco.mjtFontScale.mjFONTSCALE_150
       default_gridpos = mujoco.mjtGridPos.mjGRID_TOPLEFT
-      processed_texts = [(
-                        default_font if font is None else font,
-                        default_gridpos if gridpos is None else gridpos,
-                         "" if text1 is None else text1,
-                         "" if text2 is None else text2)
-                        for font, gridpos, text1, text2 in texts]
+      processed_texts = [
+          (
+              default_font if font is None else font,
+              default_gridpos if gridpos is None else gridpos,
+              '' if text1 is None else text1,
+              '' if text2 is None else text2,
+          )
+          for font, gridpos, text1, text2 in texts
+      ]
 
       sim.set_texts(processed_texts)
 
@@ -173,8 +187,11 @@ class Handle:
       sim.clear_texts()
 
   def set_images(
-      self, viewports_images: Union[Tuple[mujoco.MjrRect, np.ndarray],
-                                  List[Tuple[mujoco.MjrRect, np.ndarray]]]
+      self,
+      viewports_images: Union[
+          Tuple[mujoco.MjrRect, np.ndarray],
+          List[Tuple[mujoco.MjrRect, np.ndarray]],
+      ],
   ):
     """Overlay images on the viewer.
 
@@ -194,7 +211,10 @@ class Handle:
         targ_shape = (viewport.height, viewport.width)
         # Check if image is already the correct shape
         if image.shape[:2] != targ_shape:
-          raise ValueError(f"Image shape {image.shape[:2]} does not match target shape {targ_shape}")
+          raise ValueError(
+              f'Image shape {image.shape[:2]} does not match target shape'
+              f' {targ_shape}'
+          )
         flipped = np.flip(image, axis=0)
         contiguous = np.ascontiguousarray(flipped)
         processed_images.append((viewport, contiguous))
@@ -268,6 +288,9 @@ class _MjPythonBase(metaclass=abc.ABCMeta):
       data: mujoco.MjData,
       handle_return: Optional['queue.Queue[Handle]'],
       key_callback: Optional[KeyCallbackType],
+      show_left_ui: bool = True,
+      show_right_ui: bool = True,
+      handle_keyboard: bool = True,
   ):
     pass
 
@@ -455,6 +478,7 @@ def _launch_internal(
     key_callback: Optional[KeyCallbackType] = None,
     show_left_ui: bool = True,
     show_right_ui: bool = True,
+    handle_keyboard: bool = True,
 ) -> None:
   """Internal API, so that the public API has more readable type annotations."""
   if model is None and data is not None:
@@ -490,6 +514,7 @@ def _launch_internal(
 
   simulate.ui0_enable = show_left_ui
   simulate.ui1_enable = show_right_ui
+  simulate.keyboard_ui = handle_keyboard
 
   # Initialize GLFW if not using mjpython.
   if _MJPYTHON is None:
@@ -535,6 +560,7 @@ def launch(
     loader: Optional[LoaderType] = None,
     show_left_ui: bool = True,
     show_right_ui: bool = True,
+    handle_keyboard: bool = True,
 ) -> None:
   """Launches the Simulate GUI."""
   _launch_internal(
@@ -544,6 +570,7 @@ def launch(
       loader=loader,
       show_left_ui=show_left_ui,
       show_right_ui=show_right_ui,
+      handle_keyboard=handle_keyboard,
   )
 
 
@@ -559,8 +586,23 @@ def launch_passive(
     key_callback: Optional[KeyCallbackType] = None,
     show_left_ui: bool = True,
     show_right_ui: bool = True,
+    handle_keyboard: bool = True,
 ) -> Handle:
-  """Launches a passive Simulate GUI without blocking the running thread."""
+  """Launches a passive Simulate GUI without blocking the running thread.
+
+  Args:
+    model: The MuJoCo model.
+    data: The MuJoCo data.
+    key_callback: Optional callback for custom key handling.
+    show_left_ui: Whether to show the left UI panel.
+    show_right_ui: Whether to show the right UI panel.
+    handle_keyboard: Whether to handle keyboard shortcuts. Set to False to
+      disable built-in keyboard shortcuts (e.g., 'W' for wireframe toggle).
+      This is useful when using keyboard input for robot teleoperation.
+
+  Returns:
+    A Handle for interacting with the viewer.
+  """
   if not isinstance(model, mujoco.MjModel):
     raise ValueError(f'`model` is not a mujoco.MjModel: got {model!r}')
   if not isinstance(data, mujoco.MjData):
@@ -581,6 +623,7 @@ def launch_passive(
             key_callback=key_callback,
             show_left_ui=show_left_ui,
             show_right_ui=show_right_ui,
+            handle_keyboard=handle_keyboard,
         ),
     )
     thread.daemon = True
@@ -598,6 +641,7 @@ def launch_passive(
         key_callback,
         show_left_ui,
         show_right_ui,
+        handle_keyboard,
     )
 
   return handle_return.get()
