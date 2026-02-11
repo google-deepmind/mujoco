@@ -3621,7 +3621,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='tex_adr',
                  type=PointerType(
-                     inner_type=ValueType(name='int'),
+                     inner_type=ValueType(name='mjtSize'),
                  ),
                  doc='start address in tex_data',
                  array_extent=('ntex',),

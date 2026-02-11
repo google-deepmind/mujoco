@@ -16,6 +16,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <string>
@@ -907,6 +908,31 @@ TEST_F(XMLReaderTest, LargeTextureTest) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
 
   EXPECT_THAT(model, NotNull());
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, LargeTextureAddressTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <asset>
+    <!--
+      Test that tex_adr can correctly index into a texture buffer larger than
+      what a 32-bit signed integer can represent.
+      The first texture has size 6*10923*10923*3 > 2^31-1 bytes.
+      tex_adr[1] should correctly point beyond this offset.
+    -->
+    <texture name="tex0" builtin="gradient" width="10923" height="2"/>
+    <texture name="tex1" builtin="flat" width="2" height="2"/>
+  </asset>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->ntex, 2);
+  EXPECT_GT(model->tex_adr[1], INT32_MAX);
   mj_deleteModel(model);
 }
 

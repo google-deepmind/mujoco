@@ -2163,9 +2163,10 @@ describe('MuJoCo WASM Bindings', () => {
       try {
         assertExists(model);
         const t1 = model.tex('t1');
+        const texAdr = Number(model.tex_adr[t1.id]);
         const expectedData = model.tex_data.slice(
-            model.tex_adr[t1.id],
-            model.tex_adr[t1.id] +
+            texAdr,
+            texAdr +
                 model.tex_height[t1.id] * model.tex_width[t1.id] *
                     model.tex_nchannel[t1.id]);
 
