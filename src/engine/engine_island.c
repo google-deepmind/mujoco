@@ -280,74 +280,49 @@ static int treeFirst(const mjModel* m, const mjData* d, int tree[2], int i) {
 }
 
 
-// add 0 edges, 1 self-edge or 2 flipped edges to array, increment treenedge
-//   return current number of edges
-static int addEdge(int* treenedge, int* edge, int nedge, int tree1, int tree2, int nedge_max) {
-  // handle the static tree
+// add 0 edges, 1 self-edge or 2 flipped edges to array
+//   increment rownnz using tree_tree to de-dupe; return number of edges added
+static int addEdge(int* rownnz, int* edge, mjtByte* tree_tree, int ntree, int tree1, int tree2) {
   if (tree1 == -1 && tree2 == -1) {
     mjERROR("self-edge of the static tree");  // SHOULD NOT OCCUR
     return 0;
   }
+
+  // handle static trees (treat as self-edge)
   if (tree1 == -1) tree1 = tree2;
   if (tree2 == -1) tree2 = tree1;
 
-  // previous edge
-  int p1 = nedge ? edge[2*nedge - 2] : -1;
-  int p2 = nedge ? edge[2*nedge - 1] : -1;
-
-  // === self edge
-  if (tree1 == tree2) {
-    // same as previous edge, return
-    if (nedge && tree1 == p1 && tree1 == p2) {
-      return nedge;
-    }
-
-    // check size
-    if (nedge >= nedge_max) {
-      mjERROR("edge array too small");
-      return 0;
-    }
-
-    // add tree1-tree1 self-edge
-    edge[2*nedge + 0] = tree1;
-    edge[2*nedge + 1] = tree1;
-    treenedge[tree1]++;
-    return nedge + 1;
-  }
-
-  // === non-self edge
-  if (nedge && ((tree1 == p1 && tree2 == p2) || (tree1 == p2 && tree2 == p1))) {
-    // same as previous edge, return
-    return nedge;
-  }
-
-  // check size
-  if (nedge + 2 > nedge_max) {
-    mjERROR("edge array too small");
+  // skip if edge already present
+  if (tree_tree[tree1*ntree + tree2]) {
     return 0;
   }
 
-  // add tree1-tree2 and tree2-tree1
-  edge[2*nedge + 0] = tree1;
-  edge[2*nedge + 1] = tree2;
-  edge[2*nedge + 2] = tree2;
-  edge[2*nedge + 3] = tree1;
-  treenedge[tree1]++;
-  treenedge[tree2]++;
-  return nedge + 2;
+  // add edge
+  tree_tree[tree1*ntree + tree2] = 1;
+  edge[tree1*ntree + rownnz[tree1]++] = tree2;
+
+  // add flipped edge (off-diagonal)
+  if (tree1 != tree2) {
+    tree_tree[tree2*ntree + tree1] = 1;
+    edge[tree2*ntree + rownnz[tree2]++] = tree1;
+    return 2;
+  }
+
+  return 1;
 }
 
 
-// find tree-tree edges, increment treenedge counters, return total number of edges
-static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edge, int nedge_max) {
+// find tree-tree edges (column indices), increment row nonzeros, return total number of edges
+static int findEdges(const mjModel* m, const mjData* d,
+                     int* rownnz, int* colind, mjtByte* tree_tree, int ntree) {
   int nefc = d->nefc;
+  int nnz = 0;
   int efc_type = -1;
   int efc_id = -1;
 
-  // clear treenedge
-  mju_zeroInt(treenedge, m->ntree);
+  // clear row nonzeros
+  mju_zeroInt(rownnz, ntree);
 
-  int nedge = 0;
   for (int i=0; i < nefc; i++) {
     // row i is still in the same constraint: skip it,
     if (efc_type == d->efc_type[i] && efc_id == d->efc_id[i]) {
@@ -366,34 +341,29 @@ static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edg
     int tree1 = tree[0];
     int tree2 = tree[1];
 
-    // no more edges to find, add and continue
+    // simple constraint (no more edges), add edge and continue
     if (index == -1) {
-      nedge = addEdge(treenedge, edge, nedge, tree1, tree2 == -1 ? tree1 : tree2, nedge_max);
+      nnz += addEdge(rownnz, colind, tree_tree, ntree, tree1, tree2);
       continue;
     }
 
-    // possibly more edges, scan Jacobian row
-    else {
-      tree2 = treeNext(m, d, tree1, i, &index);
+    // add first edge
+    tree2 = treeNext(m, d, tree1, i, &index);
+    nnz += addEdge(rownnz, colind, tree_tree, ntree, tree1, tree2);
 
-      if (tree2 == -1) {
-        // 1 tree found: add self-edge
-        nedge = addEdge(treenedge, edge, nedge, tree1, tree1, nedge_max);
-      } else {
-        // 2 trees found: add edge, keep scanning and adding until no more trees
-        nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
-        int tree3 = treeNext(m, d, tree2, i, &index);
-        while (tree3 > -1 && tree3 != tree2) {
-          tree1 = tree2;
-          tree2 = tree3;
-          nedge = addEdge(treenedge, edge, nedge, tree1, tree2, nedge_max);
-          tree3 = treeNext(m, d, tree2, i, &index);
-        }
+    // possibly more edges, scan Jacobian row
+    if (tree2 != -1) {
+      int tree3 = treeNext(m, d, tree2, i, &index);
+      while (tree3 > -1 && tree3 != tree2) {
+        tree1 = tree2;
+        tree2 = tree3;
+        nnz += addEdge(rownnz, colind, tree_tree, ntree, tree1, tree2);
+        tree3 = treeNext(m, d, tree2, i, &index);
       }
     }
   }
 
-  return nedge;
+  return nnz;
 }
 
 
@@ -402,9 +372,9 @@ static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edg
 // discover islands:
 //   nisland, island_idofadr, dof_island, dof_islandnext, island_efcadr, efc_island, efc_islandnext
 void mj_island(const mjModel* m, mjData* d) {
-  int nv = m->nv, nefc = d->nefc, ntree = m->ntree, nJ = d->nJ;
+  int nv = m->nv, nefc = d->nefc, ntree = m->ntree;
 
-  // no constraints: quick return
+  // no constraints or islands disabled: quick return
   if (mjDISABLED(mjDSBL_ISLAND) || !nefc) {
     d->nisland = d->nidof = 0;
     return;
@@ -412,33 +382,25 @@ void mj_island(const mjModel* m, mjData* d) {
 
   mj_markStack(d);
 
-  // allocate edge array, nJ is an upper bound
-  int* edge = mjSTACKALLOC(d, 2*nJ, int);
+  // dense tree-tree adjacency matrix
+  int ntree2 = ntree * ntree;
+  mjtByte* tree_tree = mjSTACKALLOC(d, ntree2, mjtByte);
+  memset(tree_tree, 0, ntree2);
 
-  // get tree-tree edges and rownnz counts from efc arrays
-  int* rownnz = mjSTACKALLOC(d, ntree, int);  // number of edges per tree
-  int nedge = findEdges(m, d, rownnz, edge, nJ);
-
-  // compute starting address of tree's column indices while resetting rownnz
+  // CSR representation of tree-tree adjacency matrix (uncompressed)
+  int* colind = mjSTACKALLOC(d, ntree2, int);
+  int* rownnz = mjSTACKALLOC(d, ntree, int);
   int* rowadr = mjSTACKALLOC(d, ntree, int);
-  rowadr[0] = 0;
-  for (int r=1; r < ntree; r++) {
-    rowadr[r] = rowadr[r-1] + rownnz[r-1];
-    rownnz[r-1] = 0;
+  for (int r=0; r < ntree; r++) {
+    rowadr[r] = r * ntree;
   }
-  rownnz[ntree-1] = 0;
 
-  // copy column indices: list each tree's neighbors
-  int* colind = mjSTACKALLOC(d, nedge, int);
-  for (int e=0; e < nedge; e++) {
-    int row = edge[2*e];
-    int col = edge[2*e + 1];
-    colind[rowadr[row] + rownnz[row]++] = col;
-  }
+  // compute tree-tree adjacency matrix: fill rownnz and colind
+  int nnz = findEdges(m, d, rownnz, colind, tree_tree, ntree);
 
   // discover islands
-  int* tree_island = mjSTACKALLOC(d, ntree, int);  // id of island assigned to tree
-  int* stack = mjSTACKALLOC(d, nedge, int);
+  int* tree_island = mjSTACKALLOC(d, ntree, int);
+  int* stack = mjSTACKALLOC(d, nnz, int);
   d->nisland = mj_floodFill(tree_island, ntree, rownnz, rowadr, colind, stack);
 
   // no islands found: quick return
