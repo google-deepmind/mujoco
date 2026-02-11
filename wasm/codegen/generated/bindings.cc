@@ -4078,6 +4078,12 @@ struct MjModel {
   void set_nJmom(int value) {
     ptr_->nJmom = static_cast<mjtSize>(value);
   }
+  int nJten() const {
+    return static_cast<int>(ptr_->nJten);
+  }
+  void set_nJten(int value) {
+    ptr_->nJten = static_cast<mjtSize>(value);
+  }
   int ngravcomp() const {
     return static_cast<int>(ptr_->ngravcomp);
   }
@@ -6650,10 +6656,10 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_J_rowadr));
   }
   emscripten::val ten_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon * model->nv, ptr_->ten_J_colind));
+    return emscripten::val(emscripten::typed_memory_view(model->nJten, ptr_->ten_J_colind));
   }
   emscripten::val ten_J() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon * model->nv, ptr_->ten_J));
+    return emscripten::val(emscripten::typed_memory_view(model->nJten, ptr_->ten_J));
   }
   emscripten::val ten_length() const {
     return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_length));
@@ -11897,6 +11903,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("nJfe", &MjModel::nJfe, &MjModel::set_nJfe, reference())
     .property("nJfv", &MjModel::nJfv, &MjModel::set_nJfv, reference())
     .property("nJmom", &MjModel::nJmom, &MjModel::set_nJmom, reference())
+    .property("nJten", &MjModel::nJten, &MjModel::set_nJten, reference())
     .property("nM", &MjModel::nM, &MjModel::set_nM, reference())
     .property("na", &MjModel::na, &MjModel::set_na, reference())
     .property("name_actuatoradr", &MjModel::name_actuatoradr)

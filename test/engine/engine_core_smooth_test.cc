@@ -73,7 +73,6 @@ TEST_F(CoreSmoothTest, MjDataWorldBodyValuesAreInitialized) {
   mj_rnePostConstraint(model, data);
 
   {
-    MJDATA_POINTERS_PREAMBLE(model)
 #define X(type, name, d0, d1)                                                 \
     if constexpr (std::string_view(#d0) == "nbody") {                         \
       absl::Span<type> values(data->name, model->d0 * d1);                    \

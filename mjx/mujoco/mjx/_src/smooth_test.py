@@ -121,7 +121,9 @@ class SmoothTest(absltest.TestCase):
     mujoco.mj_forward(m, d)
     # tendon
     dx = jax.jit(mjx.tendon)(mx, mjx.put_data(m, d))
-    _assert_attr_eq(d, dx._impl, 'ten_J')
+    # with dense jacobian mode, d.ten_J is already dense (ntendon*nv,), just reshape
+    ten_J = d.ten_J.reshape((m.ntendon, m.nv))
+    _assert_eq(ten_J, dx._impl.ten_J, 'ten_J')
     _assert_attr_eq(d, dx, 'ten_length')
     # transmission
     dx = jax.jit(mjx.transmission)(mx, dx)
@@ -395,7 +397,20 @@ class TendonTest(parameterized.TestCase):
     dx = jax.jit(mjx.forward)(mx, dx)
 
     _assert_eq(d.ten_length, dx.ten_length, 'ten_length')
-    _assert_eq(d.ten_J, dx._impl.ten_J, 'ten_J')
+    # convert ten_J for comparison based on jacobian mode
+    if mujoco.mj_isSparse(m):
+      ten_J = np.zeros((m.ntendon, m.nv))
+      mujoco.mju_sparse2dense(
+          ten_J,
+          d.ten_J,
+          d.ten_J_rownnz,
+          d.ten_J_rowadr,
+          d.ten_J_colind,
+      )
+    else:
+      # dense mode: just reshape
+      ten_J = d.ten_J.reshape((m.ntendon, m.nv))
+    _assert_eq(ten_J, dx._impl.ten_J, 'ten_J')
     _assert_eq(d.ten_wrapnum, dx._impl.ten_wrapnum, 'ten_wrapnum')
     _assert_eq(d.ten_wrapadr, dx._impl.ten_wrapadr, 'ten_wrapadr')
     _assert_eq(d.wrap_obj, dx._impl.wrap_obj, 'wrap_obj')

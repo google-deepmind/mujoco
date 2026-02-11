@@ -240,6 +240,7 @@
     X( npaths )             \
     X( nnames_map )         \
     X( nJmom )              \
+    X( nJten )              \
     X( ngravcomp )          \
     X( nemax )              \
     X( njmax )              \
@@ -798,11 +799,6 @@
 
 //-------------------------------- mjData ----------------------------------------------------------
 
-// define symbols needed in MJDATA_POINTERS (corresponding to number of columns)
-#define MJDATA_POINTERS_PREAMBLE( m ) \
-    int nv = m->nv;
-
-
 // pointer fields of mjData
 // XNV means that the field is not required to construct mjvScene
 // (by default we define XNV to be the same as X)
@@ -855,8 +851,8 @@
     X   ( int,       ten_wrapnum,       ntendon,     1           ) \
     X   ( int,       ten_J_rownnz,      ntendon,     1           ) \
     X   ( int,       ten_J_rowadr,      ntendon,     1           ) \
-    X   ( int,       ten_J_colind,      ntendon,     MJ_M(nv)    ) \
-    X   ( mjtNum,    ten_J,             ntendon,     MJ_M(nv)    ) \
+    X   ( int,       ten_J_colind,      nJten,       1           ) \
+    X   ( mjtNum,    ten_J,             nJten,       1           ) \
     X   ( mjtNum,    ten_length,        ntendon,     1           ) \
     X   ( int,       wrap_obj,          nwrap,       2           ) \
     X   ( mjtNum,    wrap_xpos,         nwrap,       6           ) \

@@ -754,6 +754,7 @@ struct mjModel_ {
   // sizes set after mjModel construction
   mjtSize nnames_map;             // number of slots in the names hash map
   mjtSize nJmom;                  // number of non-zeros in sparse actuator_moment matrix
+  mjtSize nJten;                  // number of non-zeros in sparse ten_J matrix
   mjtSize ngravcomp;              // number of bodies with nonzero gravcomp
   mjtSize nemax;                  // number of potential equality-constraint rows
   mjtSize njmax;                  // number of available rows in constraint Jacobian (legacy)

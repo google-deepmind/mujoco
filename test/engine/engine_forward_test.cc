@@ -725,7 +725,6 @@ TEST_F(ForwardTest, NormalizeQuats) {
   mj_step(model, data_n);
 
   // expect everything to match
-  MJDATA_POINTERS_PREAMBLE(model)
   #define X(type, name, nr, nc)                                 \
     for (int i = 0; i < model->nr; i++)                         \
       for (int j = 0; j < nc; j++)                              \

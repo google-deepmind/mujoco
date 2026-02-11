@@ -130,6 +130,7 @@ class mjCModel_ : public mjsElement {
   mjtSize nC;              // number of non-zeros in reduced sparse dof-dof matrix
   mjtSize nD;              // number of non-zeros in sparse dof-dof matrix
   mjtSize nJmom;           // number of non-zeros in sparse actuator_moment matrix
+  mjtSize nJten;           // number of non-zeros in sparse ten_J matrix
 
   // statistics, as computed by mj_setConst
   double meaninertia_auto;  // mean diagonal inertia, as computed by mj_setConst
@@ -368,6 +369,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void FinalizeSimple(mjModel* m);      // finalize simple bodies/dofs including tendon information
   void CopyPlugins(mjModel*);           // copy plugin data
   int CountNJmom(const mjModel* m);     // compute number of non-zeros in actuator_moment matrix
+  int CountNJten(const mjModel* m);     // compute number of non-zeros in ten_J matrix
 
   // remove plugins that are not referenced by any object
   void RemovePlugins();

@@ -291,8 +291,8 @@ struct mjData_ {
   int*    ten_wrapnum;       // number of wrap points in path                    (ntendon x 1)
   int*    ten_J_rownnz;      // number of non-zeros in Jacobian row              (ntendon x 1)
   int*    ten_J_rowadr;      // row start address in colind array                (ntendon x 1)
-  int*    ten_J_colind;      // column indices in sparse Jacobian                (ntendon x nv)
-  mjtNum* ten_J;             // tendon Jacobian                                  (ntendon x nv)
+  int*    ten_J_colind;      // column indices in sparse Jacobian                (nJten x 1)
+  mjtNum* ten_J;             // tendon Jacobian                                  (nJten x 1)
   mjtNum* ten_length;        // tendon lengths                                   (ntendon x 1)
   int*    wrap_obj;          // geom id; -1: site; -2: pulley                    (nwrap x 2)
   mjtNum* wrap_xpos;         // Cartesian 3D points in all paths                 (nwrap x 6)
@@ -1096,6 +1096,7 @@ struct mjModel_ {
   // sizes set after mjModel construction
   mjtSize nnames_map;             // number of slots in the names hash map
   mjtSize nJmom;                  // number of non-zeros in sparse actuator_moment matrix
+  mjtSize nJten;                  // number of non-zeros in sparse ten_J matrix
   mjtSize ngravcomp;              // number of bodies with nonzero gravcomp
   mjtSize nemax;                  // number of potential equality-constraint rows
   mjtSize njmax;                  // number of available rows in constraint Jacobian (legacy)

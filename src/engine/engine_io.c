@@ -224,7 +224,7 @@ void mj_makeModel(mjModel** dest,
   // CHECK SIZE PARAMETERS
   {
     // dummy variables for MJMODEL_SIZES set after mjModel construction
-    int nnames_map=0, nJmom=0, ngravcomp=0, nemax=0, njmax=0, nconmax=0;
+    int nnames_map = 0, nJmom = 0, nJten = 0, ngravcomp = 0, nemax = 0, njmax = 0, nconmax=0;
     int nuserdata=0, nsensordata=0, npluginstate=0, nhistory=0, narena=0, nbuffer=0;
 
     // sizes must be non-negative and fit in int, except for the byte arrays texdata and textdata
@@ -240,10 +240,10 @@ void mj_makeModel(mjModel** dest,
         return;                                                                       \
       }
     MJMODEL_SIZES
-    #undef X
+#undef X
 
     // suppress unused variable warnings
-    (void)nnames_map; (void)nJmom; (void)ngravcomp; (void)nemax; (void)njmax; (void)nconmax;
+    (void)nnames_map; (void)nJmom; (void)nJten; (void)ngravcomp; (void)nemax; (void)njmax; (void)nconmax;
     (void)nuserdata; (void)nsensordata; (void)npluginstate; (void)nhistory; (void)narena;
     (void)nbuffer;
   }
@@ -964,9 +964,6 @@ void mj_makeDofDofMaps(int nv, int nM, int nC, int nD,
 static void mj_setPtrData(const mjModel* m, mjData* d) {
   char* ptr = (char*)d->buffer;
 
-  // prepare symbols needed by xmacro
-  MJDATA_POINTERS_PREAMBLE(m);
-
   // assign pointers with padding
 #define X(type, name, nr, nc)                             \
   d->name = (type*)(ptr + SKIP((intptr_t)ptr));           \
@@ -1046,9 +1043,6 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
   if (!d) {
     mjERROR("could not allocate mjData");
   }
-
-  // prepare symbols needed by xmacro
-  MJDATA_POINTERS_PREAMBLE(m);
 
   // compute buffer size
   d->nbuffer = 0;
@@ -1160,7 +1154,6 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
 
   // copy buffer
   {
-    MJDATA_POINTERS_PREAMBLE(m)
     if (flg_all) {
       #define X(type, name, nr, nc)  \
         memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*(m->nr)*nc);
@@ -1346,7 +1339,6 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 #ifdef ADDRESS_SANITIZER
   {
     #define X(type, name, nr, nc) memset(d->name, (int)debug_value, sizeof(type)*(m->nr)*(nc));
-    MJDATA_POINTERS_PREAMBLE(m)
     MJDATA_POINTERS
     #undef X
   }

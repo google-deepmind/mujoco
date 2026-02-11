@@ -5371,6 +5371,7 @@ public unsafe struct mjModel_ {
   public Int64 npaths;
   public Int64 nnames_map;
   public Int64 nJmom;
+  public Int64 nJten;
   public Int64 ngravcomp;
   public Int64 nemax;
   public Int64 njmax;
