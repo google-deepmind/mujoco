@@ -412,12 +412,12 @@ void mj_island(const mjModel* m, mjData* d) {
 
   mj_markStack(d);
 
-  // allocate edge array, nJ is an upper bound
-  int* edge = mjSTACKALLOC(d, 2*nJ, int);
+  // allocate edge array, 2*nJ is an upper bound
+  int* edge = mjSTACKALLOC(d, 4*nJ, int);
 
   // get tree-tree edges and rownnz counts from efc arrays
   int* rownnz = mjSTACKALLOC(d, ntree, int);  // number of edges per tree
-  int nedge = findEdges(m, d, rownnz, edge, nJ);
+  int nedge = findEdges(m, d, rownnz, edge, 2*nJ);
 
   // compute starting address of tree's column indices while resetting rownnz
   int* rowadr = mjSTACKALLOC(d, ntree, int);
