@@ -302,12 +302,23 @@ class SystemTrajectory:
         height=height,
     )
 
+def _map_states(from_array, to_array, from_names, to_mapping, map_offset):
+  i = 0
+  for name in from_names:
+    _, indices = to_mapping[name]
+    width = indices.shape[0]
+    to_array[indices - map_offset] = from_array[i:i+width]
+    i += width
+  return to_array
 
 def create_initial_state(
     model: mujoco.MjModel,
     qpos: np.ndarray,
     qvel: np.ndarray | None = None,
     act: np.ndarray | None = None,
+    qpos_names: Sequence[str] | None = None,
+    qvel_names: Sequence[str] | None = None,
+    act_names: Sequence[str] | None = None,
 ) -> np.ndarray:
   """Build a ``mjSTATE_FULLPHYSICS`` initial-state vector from components.
 
@@ -316,14 +327,53 @@ def create_initial_state(
     qpos: Joint positions, shape ``(nq,)``.
     qvel: Joint velocities, shape ``(nv,)``.  Defaults to zero.
     act: Actuator activations, shape ``(na,)``.  Defaults to zero.
+    qpos_names: Names to map elements of qpos to specific MuJoCo states.
+      If None, assumes qpos is in MuJoCo's order.
+    qvel_names: Names to map elements of qvel to specific MuJoCo states.
+      If None, assumes qvel is in MuJoCo's order.
+    act_names: Actuator names to map elements of act to specific MuJoCo
+      actuators. If None, assumes act is in MuJoCo's order.
 
   Returns:
     Flat state vector suitable for ``mujoco.rollout``.
   """
   data = mujoco.MjData(model)
-  initial_state = np.empty((
-      mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS.value),
-  ))
+
+  if qpos_names is not None and len(qpos_names) != qpos.shape[0]:
+    raise ValueError(
+      f"Expected qpos to have shape {len(qpos_names)}, got {qpos.shape[0]}"
+    )
+  if qvel is None and qvel_names is not None:
+    raise ValueError("Expected qvel to not be None when qvel_names is not None")
+  if qvel_names is not None and qvel is not None and len(qvel_names) != qvel.shape[0]:
+    raise ValueError(
+        f"Expected qvel to have shape {len(qvel_names)}, got {qvel.shape[0]}"
+    )
+  if act_names is not None:
+    if act is None:
+      raise ValueError("Expected act to not be None when act_names is not None")
+    if len(act_names) != act.shape[0]:
+      raise ValueError(
+          f"Expected act to have shape {len(act_names)}, got {act.shape[0]}"
+      )
+
+  if (qpos_names is not None
+      or qvel_names is not None
+      or act_names is not None):
+    qpos_map, qvel_map, act_map, _ = timeseries.TimeSeries.compute_all_state_mappings(model)
+    if qpos_names is not None:
+      qpos = _map_states(qpos, np.copy(data.qpos), qpos_names, qpos_map, 0)
+    if qvel_names is not None:
+      indices_offset = data.qpos.shape[0]
+      qvel = _map_states(
+          qvel, np.copy(data.qvel), qvel_names, qvel_map, indices_offset
+      )
+    if act_names is not None:
+      indices_offset = data.qpos.shape[0] + data.qvel.shape[0]
+      act = _map_states(
+          act, np.copy(data.act), act_names, act_map, indices_offset
+      )
+
   if qpos.shape[0] != model.nq:
     raise ValueError(
         f"Expected qpos to have shape {model.nq}, got {qpos.shape[0]}."
@@ -341,6 +391,10 @@ def create_initial_state(
           f"Expected act to have shape {model.na}, got {act.shape[0]}."
       )
     data.act[:] = act
+
+  initial_state = np.empty((
+      mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS.value),
+  ))
   mujoco.mj_getState(
       model, data, initial_state, mujoco.mjtState.mjSTATE_FULLPHYSICS.value
   )
@@ -433,7 +487,14 @@ class ModelSequences:
 def timeseries2array(
     control_signal: timeseries.TimeSeries | Sequence[timeseries.TimeSeries],
 ) -> tuple[np.ndarray, np.ndarray]:
-  """Convert control TimeSeries to stacked arrays, dropping the last step."""
+  """Convert control TimeSeries to stacked arrays, dropping the last step.
+
+  Args:
+    control_signal: Control TimeSeries or sequence of TimeSeries.
+
+  Returns:
+    ``(control_array, control_times)`` with the last time step removed.
+  """
   if isinstance(control_signal, timeseries.TimeSeries):
     control = control_signal.data
     control_times = control_signal.times
@@ -457,7 +518,11 @@ def timeseries2array(
 def sequence2array(
     initial_states: np.ndarray | Sequence[np.ndarray],
 ) -> np.ndarray:
-  """Stack a sequence of initial-state vectors into a single array."""
+  """Stack a sequence of initial-state vectors into a single array.
+
+  Args:
+    initial_states: Single state array or sequence of state arrays.
+  """
   if isinstance(initial_states, np.ndarray):
     return initial_states
   return np.stack(initial_states, axis=0)
@@ -474,12 +539,28 @@ def arrays2traj(
     state_mapping: timeseries.SignalMappingType,
     ctrl_mapping: timeseries.SignalMappingType,
 ) -> Sequence[SystemTrajectory]:
-  """Convert raw rollout arrays into a list of SystemTrajectory objects."""
+  """Convert raw rollout arrays into a list of SystemTrajectory objects.
+
+  Args:
+    models: Single model or sequence of models (one per batch element).
+    initial_states: Initial state array(s).
+    control: Control array, shape ``(nbatch, nsteps, nu)``.
+    control_times: Control timestamps, shape ``(nbatch, nsteps)``.
+    state: State array, shape ``(nbatch, nsteps, nstate)``.
+    sensordata: Sensor data array, shape ``(nbatch, nsteps, nsensordata)``.
+    signal_mapping: Signal mapping for sensor data.
+    state_mapping: Signal mapping for state data.
+    ctrl_mapping: Signal mapping for control data.
+  """
   nbatch = state.shape[0]
-  # TODO(kevin): When is np.tile necessary?
+  # TODO(kevin): When is np.tile/atleast_2d/etc necessary?
   # initial_states = np.tile(initial_states, (nbatch, 1))
   # control = np.tile(control, (nbatch, 1, 1))
   # control_times = np.tile(control_times, (nbatch, 1))
+  initial_states = np.atleast_2d(initial_states)
+  if control.ndim == 2:
+    control = control[np.newaxis, :, :]
+  control_times = np.atleast_2d(control_times)
 
   if isinstance(models, mujoco.MjModel):
     models_list = [models] * nbatch

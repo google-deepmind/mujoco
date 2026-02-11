@@ -35,7 +35,16 @@ def save_results(
     opt_result: scipy_optimize.OptimizeResult,
     residual_fn,
 ):
-  """Save optimization results and confidence intervals to disk."""
+  """Save optimization results and confidence intervals to disk.
+
+  Args:
+    experiment_results_folder: Directory where results are written.
+    models_sequences: Model/sequence groups; identified XMLs are saved here.
+    initial_params: Parameters before optimization.
+    opt_params: Parameters after optimization.
+    opt_result: Scipy OptimizeResult from the optimizer.
+    residual_fn: Residual function used to compute confidence intervals.
+  """
   experiment_results_folder = pathlib.Path(experiment_results_folder)
   if not experiment_results_folder.exists():
     experiment_results_folder.mkdir(parents=True, exist_ok=True)
@@ -70,13 +79,3 @@ def save_results(
     model_sequences.spec.to_file(
         (experiment_results_folder / f"{model_sequences.name}.xml").as_posix()
     )
-
-  # Log nominal compared to initial.
-  x0 = initial_params.as_vector()
-  x_nominal = initial_params.as_nominal_vector()
-  logging.info(
-      "Initial Parameters\n%s",
-      initial_params.compare_parameters(
-          x0, opt_result.x, measured_params=x_nominal
-      ),
-  )
