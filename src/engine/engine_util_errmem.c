@@ -207,8 +207,10 @@ void* mju_malloc(size_t size) {
   // default allocator
   else {
     // pad size to multiple of 64
-    if ((size%64)) {
-      size += 64 - (size%64);
+    if (size == 0) {
+      size = 64;
+    } else if ((size % 64)) {
+      size += 64 - (size % 64);
     }
 
     // allocate
