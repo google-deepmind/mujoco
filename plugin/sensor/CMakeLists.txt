@@ -48,6 +48,6 @@ set_target_properties(sensor PROPERTIES
 
 install(TARGETS sensor
   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin"
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/mujoco_plugin"
+  LIBRARY DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}/mujoco_plugin"
 )

@@ -57,6 +57,6 @@ set_target_properties(sdf_plugin PROPERTIES
 
 install(TARGETS sdf_plugin
   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin"
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/mujoco_plugin"
+  LIBRARY DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}/mujoco_plugin"
 )
