@@ -11,8 +11,7 @@ MuJoCo Warp (MJWarp)
 
 MuJoCo Warp (MJWarp) is an implementation of MuJoCo written in `Warp <https://nvidia.github.io/warp/>`__ and optimized
 for `NVIDIA <https://nvidia.com>`__ hardware and parallel simulation. MJWarp lives in the
-`google-deepmind/mujoco_warp <https://github.com/google-deepmind/mujoco_warp>`__ GitHub repository and is currently in
-beta.
+`google-deepmind/mujoco_warp <https://github.com/google-deepmind/mujoco_warp>`__ GitHub repository.
 
 MJWarp is developed and maintained as a joint effort by `NVIDIA <https://nvidia.com>`__ and
 `Google DeepMind <https://deepmind.google/>`__.
