@@ -216,14 +216,19 @@ buffer at ``time - actuator_delay[id]`` using the requested interpolation order:
 - ``interp = 2``: Cubic Spline (Catmull-Rom)
 - ``interp = -1``: Use the actuator's :ref:`interp<actuator-general-interp>` value.
 
-In all three cases, constant extrapolation outside of buffer bounds.
-See :ref:`Delays<CDelay>` for details.
+Constant extrapolation is used outside of buffer bounds.
+
+Note that the subtraction of the delay changes the semantic of the ``time`` argument from "time at which values were
+pushed into the delay buffer" to "time at which values come out of the delay buffer". See :ref:`Delays<CDelay>` for
+details.
 
 .. _mj_readSensor:
 
 Read a sensor value at a given time, taking delays into account. If no history buffer exists, return a pointer to the
 sensor's slice of ``mjData.sensordata``. If a history buffer exists (:ref:`nsample<sensor-nsample>` > 0), read from the
-history buffer at ``time - sensor_delay[id]``. See :ref:`Delays<CDelay>` for details.
+history buffer at ``time - sensor_delay[id]``. Note that the subtraction of the delay changes the semantic of the
+``time`` argument from "time at which values were pushed into the delay buffer" to "time at which values come out of the
+delay buffer". See :ref:`Delays<CDelay>` for details.
 
 **Return value semantics:**
 
@@ -241,7 +246,7 @@ history buffer at ``time - sensor_delay[id]``. See :ref:`Delays<CDelay>` for det
 - ``interp = 2``: Cubic Spline (Catmull-Rom)
 - ``interp = -1``: Use the value in :ref:`interp<sensor-interp>`
 
-In all three cases, constant extrapolation outside of buffer bounds.
+Constant extrapolation is used outside of buffer bounds.
 
 
 **Usage:**
