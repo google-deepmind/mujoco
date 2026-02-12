@@ -327,5 +327,65 @@ class RenderJaxTest(absltest.TestCase):
         )
 
 
+    def test_step_and_render(self):
+        """Tests combined physics step + render."""
+        _skip_if_no_gpu(self)
+        import functools
+        import mujoco.mjx as mjx
+        from mujoco.mjx.warp import test_util as tu
+
+        mjm, m_warp, d_warp, _ = _create_scene()
+        mx = mjx.put_model(mjm, impl='warp')
+
+        # Create batched MJX data with _NWORLDS worlds
+        keys = jnp.arange(_NWORLDS)
+        dx = jax.vmap(functools.partial(tu.make_data, mjm))(keys)
+
+        step_and_render, info = render_jax.create_step_and_render_fn(
+            mx, mjm, m_warp, d_warp,
+            cam_res=(_RENDER_WIDTH, _RENDER_HEIGHT),
+        )
+
+        # Test inside jax.jit
+        @jax.jit
+        def run_one_step(mx, dx):
+            dx, rgb = step_and_render(mx, dx)
+            return dx, rgb
+
+        dx_new, rgb = run_one_step(mx, dx)
+        jax.block_until_ready(rgb)
+        self.assertEqual(rgb.shape, info['rgb_shape'])
+
+    def test_step_and_render_with_depth(self):
+        """Tests combined physics step + render with depth output."""
+        _skip_if_no_gpu(self)
+        import functools
+        import mujoco.mjx as mjx
+        from mujoco.mjx.warp import test_util as tu
+
+        mjm, m_warp, d_warp, _ = _create_scene()
+        mx = mjx.put_model(mjm, impl='warp')
+
+        keys = jnp.arange(_NWORLDS)
+        dx = jax.vmap(functools.partial(tu.make_data, mjm))(keys)
+
+        step_and_render, info = render_jax.create_step_and_render_fn(
+            mx, mjm, m_warp, d_warp,
+            cam_res=(_RENDER_WIDTH, _RENDER_HEIGHT),
+            render_depth=True,
+        )
+
+        @jax.jit
+        def run_one_step(mx, dx):
+            dx, rgb, depth = step_and_render(mx, dx)
+            return dx, rgb, depth
+
+        dx_new, rgb, depth = run_one_step(mx, dx)
+        jax.block_until_ready(rgb)
+        self.assertEqual(rgb.shape, info['rgb_shape'])
+        self.assertIsNotNone(info['depth_shape'])
+        self.assertEqual(depth.shape, info['depth_shape'])
+
+
 if __name__ == '__main__':
     absltest.main()

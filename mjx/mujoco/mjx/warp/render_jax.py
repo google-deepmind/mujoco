@@ -273,3 +273,68 @@ def unpack_grayscale(
     gray = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
     nworld = rgb_packed.shape[0]
     return gray.reshape(nworld, height, width, 1)
+
+
+def create_step_and_render_fn(
+    mx,
+    mjm: mujoco.MjModel,
+    m_warp,
+    d_warp,
+    cam_res: tuple[int, int] = (32, 32),
+    render_depth: bool = False,
+    use_textures: bool = False,
+    use_shadows: bool = False,
+    graph_mode: GraphMode = GraphMode.NONE,
+) -> tuple[Callable, dict]:
+    """Create a function that steps MJX physics and renders in one call.
+
+    Designed for use inside jax.lax.scan training loops where you need
+    both physics and vision at each timestep.
+
+    Args:
+        mx: MJX model (from mjx.put_model with impl='warp').
+        mjm: MuJoCo model (host).
+        m_warp: mujoco_warp Model on device.
+        d_warp: mujoco_warp Data on device.
+        cam_res: Render resolution (width, height).
+        render_depth: Whether to output depth.
+        use_textures: Whether to use textures.
+        use_shadows: Whether to use shadows.
+        graph_mode: CUDA graph capture mode.
+
+    Returns:
+        Tuple of (step_and_render_fn, info) where step_and_render_fn has
+        signature: step_and_render_fn(mx, dx) -> (dx_new, rgb_packed)
+        When render_depth=True: step_and_render_fn(mx, dx) -> (dx_new, rgb, depth)
+    """
+    import mujoco.mjx as mjx
+
+    render_fn, info = create_mjx_render_fn(
+        mjm, m_warp, d_warp,
+        cam_res=cam_res,
+        render_depth=render_depth,
+        use_textures=use_textures,
+        use_shadows=use_shadows,
+        graph_mode=graph_mode,
+    )
+
+    if render_depth:
+        def step_and_render(mx, dx):
+            dx = mjx.step(mx, dx)
+            rgb, depth = render_fn(
+                dx.geom_xpos, dx.geom_xmat,
+                dx.cam_xpos, dx.cam_xmat,
+                dx._impl.light_xpos, dx._impl.light_xdir,
+            )
+            return dx, rgb, depth
+    else:
+        def step_and_render(mx, dx):
+            dx = mjx.step(mx, dx)
+            rgb = render_fn(
+                dx.geom_xpos, dx.geom_xmat,
+                dx.cam_xpos, dx.cam_xmat,
+                dx._impl.light_xpos, dx._impl.light_xdir,
+            )
+            return dx, rgb
+
+    return step_and_render, info
