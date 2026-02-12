@@ -114,18 +114,25 @@ def create_mjx_render_fn(
     mjwarp.forward(m, d)
 
     # Create render context.
-    # Note: render_depth and render_rgb are passed as lists to avoid an
-    # upstream bug where bool values cause issues in create_render_context.
     if enabled_geom_groups is None:
         enabled_geom_groups = [0, 1, 2]
+
+    # Determine the number of active cameras so we can expand bool flags
+    # into per-camera lists. The upstream create_render_context has a bug
+    # where `if render_depth` skips expansion when render_depth is False,
+    # and `[True]` (list of 1) doesn't match ncam for multi-camera models.
+    if cam_active is not None:
+        _ncam = sum(cam_active)
+    else:
+        _ncam = mjm.ncam
 
     rc = mjwarp.create_render_context(
         mjm,
         m,
         d,
         cam_res=cam_res,
-        render_rgb=[True],
-        render_depth=[render_depth],
+        render_rgb=[True] * _ncam,
+        render_depth=[render_depth] * _ncam,
         use_textures=use_textures,
         use_shadows=use_shadows,
         enabled_geom_groups=enabled_geom_groups,
