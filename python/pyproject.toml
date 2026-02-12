@@ -59,6 +59,7 @@ mujoco = [
     "testdata/*.usda",
     "testdata/*.zip",
     "testdata/*.urdf",
+    "sysid/report/templates/*.html",
 ]
 
 [project.optional-dependencies]
