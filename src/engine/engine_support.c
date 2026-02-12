@@ -43,7 +43,7 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 350
+ #define mjVERSION 3005000
 #define mjVERSIONSTRING "3.5.0"
 
 // names of disable flags

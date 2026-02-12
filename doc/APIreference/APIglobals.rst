@@ -527,11 +527,12 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - Maximum number of UI rectangles.
        Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjVERSION_HEADER``
-     - 350
-     - The version of the MuJoCo headers; changes with every release. This is an integer equal to 100x the software
-       version, so 210 corresponds to version 2.1. Defined in  mujoco.h. The API function :ref:`mj_version` returns a
-       number with the same meaning but for the compiled library.
-
+     - 3005000
+     - The version of the MuJoCo headers. This is an integer calculated from the version string "S.M.P"
+       using the formula ``(S * 1e6) + (M * 1e3) + P``. For example, version 4.2.1 is represented as 4002001.
+       Defined in mujoco.h. The API function :ref:`mj_version` returns a number with the same meaning
+       but for the compiled library. See
+       `VERSIONING.md <https://github.com/google-deepmind/mujoco/blob/main/VERSIONING.md>`__ for details.
 
 .. _Macros:
 
