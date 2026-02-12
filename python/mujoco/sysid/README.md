@@ -1,5 +1,7 @@
 # System Identification Toolbox
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.png)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mujoco/sysid/sysid.ipynb)
+
 Given a MuJoCo model and recorded sensor data, find parameters
 that make simulation match reality. By default, the library uses
 nonlinear least-squares with box constraints to minimize the difference

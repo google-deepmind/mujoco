@@ -10,8 +10,13 @@ Significant new features
 
 - Added new System Identification toolbox (Python), see
   `README <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sysid/README.md>`__ for details.
+  A Colab notebook demonstrating the toolbox is available here: |sysid_colab|
   Contribution by :github:user:`kevinzakka`, :github:user:`aftersomemath`, :github:user:`jonathanembleyriches`,
   :github:user:`qiayuanl`, :github:user:`spjardim` and :github:user:`gizemozd`.
+
+.. |sysid_colab| image:: https://colab.research.google.com/assets/colab-badge.png
+                 :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mujoco/sysid/sysid.ipynb
+
 - Actuators and sensors now support arbitrary delays via history buffers, and sensors values can be computed at
   intervals larger than the simulation timestep. Using a delay or interval introduces a new ``mjData.history`` variable
   to the :ref:`Physics state<siPhysicsState>`. See :ref:`Delays<CDelay>` for details.
