@@ -129,6 +129,13 @@ ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine,
   fallback_textures_[mjTEXROLE_ORM] = fallback_orm_;
 
   fallback_indirect_light_ = LoadFallbackIndirectLight("ibl.ktx", 1.0f);
+
+  specular_multiplier_ = ReadElement(
+      model_, "filament.phong.specular_multiplier", specular_multiplier_);
+  shininess_multiplier_ = ReadElement(
+      model_, "filament.phong.shininess_multiplier", shininess_multiplier_);
+  emissive_multiplier_ = ReadElement(
+      model_, "filament.phong.emissive_multiplier", emissive_multiplier_);
 }
 
 ObjectManager::~ObjectManager() {
