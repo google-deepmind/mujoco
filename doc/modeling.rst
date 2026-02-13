@@ -1185,7 +1185,7 @@ allowing the user to inspect the contents of the history buffer at any time, inc
 
 **Sensor Modes**
 
-Sensors support both :ref:`delay<sensor-delay>` and :ref:`interval<sensor-interval>` attributes.
+Sensors support both :ref:`delay<sensor-delay>` and :ref:`interval/period<sensor-interval>` attributes.
 The combination determines behavior:
 
 .. list-table::
@@ -1193,7 +1193,7 @@ The combination determines behavior:
    :widths: 10 10 80
 
    * - delay
-     - interval
+     - period
      - Write / Read behavior
    * - = 0
      - = 0
@@ -1203,10 +1203,10 @@ The combination determines behavior:
      - Delayed: computed every step, ``sensordata`` contains delayed reading (read from buffer)
    * - = 0
      - > 0
-     - Periodic: computed on interval, ``sensordata`` contains last computed value (no delay)
+     - Periodic: computed on period, ``sensordata`` contains last computed value (no delay)
    * - > 0
      - > 0
-     - Periodic + Delayed: computed on interval, ``sensordata`` contains delayed reading (read from buffer)
+     - Periodic + Delayed: computed on period, ``sensordata`` contains delayed reading (read from buffer)
 
 **Initialization**
 
