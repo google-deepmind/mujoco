@@ -26,15 +26,17 @@ import jax.numpy as jnp
 import jax.tree_util
 import mujoco
 from mujoco import mjx
-from mujoco.mjx.warp import io
+from mujoco.mjx._src import render_util
 from mujoco.mjx._src import test_util
 from mujoco.mjx.warp import collision_driver as wp_collision
 from mujoco.mjx.warp import forward as wp_forward
+from mujoco.mjx.warp import io
 from mujoco.mjx.warp import smooth as wp_smooth
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 import numpy as np
 import warp as wp
 from mujoco.mjx.third_party.warp._src.jax_experimental import ffi as warp_ffi
+
 
 _MODELFILE = flags.DEFINE_string(
     'modelfile',
@@ -150,6 +152,11 @@ def benchmark(
         enabled_geom_groups=[0, 1, 2],
     )
 
+  def render_fn(mx, d, rc):
+    d = mjx.refit_bvh(mx, d, rc)
+    pixels, _ = mjx.render(mx, d, rc)
+    return render_util.get_rgb(rc, pixels, 0), d
+
   @jax_jit
   def unroll(d):
     def fn(carry, _):
@@ -158,10 +165,8 @@ def benchmark(
       d = step_fn(mx, d)
 
       if render:
-        d = mjx.refit_bvh(mx, d, rc)
-        pixels = mjx.render(mx, d, rc)
-        leaves = jax.tree_util.tree_leaves(pixels)
-        accum += sum(x[0, 0] for x in leaves if x.size > 0) if leaves else 0.0
+        rgb, d = jax.vmap(render_fn, in_axes=(None, 0, None))(mx, d, rc)
+        accum += rgb[0, 0, 0, 0]
 
       return (d, accum), None
 

@@ -27,7 +27,6 @@ import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import bvh
 from mujoco.mjx._src import forward
-from mujoco.mjx._src import io
 from mujoco.mjx._src import render
 from mujoco.mjx._src import render_util
 from mujoco.mjx._src import test_util
@@ -47,10 +46,13 @@ _NWORLD = flags.DEFINE_integer(
 _WIDTH = flags.DEFINE_integer('width', 512, 'image width')
 _HEIGHT = flags.DEFINE_integer('height', 512, 'image height')
 _CAMERA_ID = flags.DEFINE_integer(
-    'camera_id', 1, 'camera id to visualize'
+    'camera_id', 0, 'camera id to visualize'
 )
 _OUTPUT_DIR = flags.DEFINE_string(
     'output_dir', '/tmp/visualize_render', 'output directory'
+)
+_RANDOMIZE_QPOS = flags.DEFINE_boolean(
+    'randomize_qpos', False, 'randomize initial qpos'
 )
 _USE_TEXTURES = flags.DEFINE_boolean(
     'use_textures', True, 'enable textures'
@@ -130,9 +132,13 @@ def _main(_: Sequence[str]):
     dx = mjx.make_data(m, impl='warp')
     rng = jax.random.PRNGKey(worldid)
     qpos0 = jp.array(m.qpos0)
-    qpos = qpos0 + jax.random.uniform(
-        rng, (m.nq,), minval=-0.2, maxval=0.05
-    )
+    qpos = qpos0
+    if _RANDOMIZE_QPOS.value:
+      # TODO(robotics-team): consider integrating velocity if there are free
+      # joints.
+      qpos = qpos0 + jax.random.uniform(
+          rng, (m.nq,), minval=-0.2, maxval=0.05
+      )
     return dx.replace(qpos=qpos)
 
   print('initializing data...')
@@ -171,9 +177,9 @@ def _main(_: Sequence[str]):
   rgb_packed = out_batch[0]
   print(f'  rgb shape: {rgb_packed.shape}\n')
 
-  rgb = render_util.get_rgb(
-      rc, rgb_packed, _CAMERA_ID.value
-  )
+  rgb = jax.vmap(
+      render_util.get_rgb, in_axes=(None, 0, None)
+  )(rc, rgb_packed, _CAMERA_ID.value)
 
   single_path = os.path.join(
       _OUTPUT_DIR.value, f'camera_{_CAMERA_ID.value}.png'

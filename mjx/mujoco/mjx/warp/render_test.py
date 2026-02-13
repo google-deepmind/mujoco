@@ -21,12 +21,13 @@ import jax
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
-from mujoco.mjx._src import io
 from mujoco.mjx._src import forward
+from mujoco.mjx._src import io
 import mujoco.mjx.warp as mjxw
 from mujoco.mjx.warp import test_util as tu
 from mujoco.mjx.warp import warp as wp  # pylint: disable=g-importing-member
 import numpy as np
+
 
 _FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
 
@@ -91,12 +92,8 @@ class RenderTest(parameterized.TestCase):
         enabled_geom_groups=[0, 1, 2],
     )
 
-    dx_batch = jax.jit(
-        jax.vmap(mjx.refit_bvh, in_axes=(None, 0, None))
-    )(mx, dx_batch, rc)
-    out_batch = jax.jit(
-        jax.vmap(mjx.render, in_axes=(None, 0, None))
-    )(mx, dx_batch, rc)
+    dx_batch = jax.jit(mjx.refit_bvh)(mx, dx_batch, rc)
+    out_batch = jax.jit(mjx.render)(mx, dx_batch, rc)
 
     rgb = np.asarray(out_batch[0])
     depth = np.asarray(out_batch[1])

@@ -16,6 +16,7 @@
 """DO NOT EDIT. This file is auto-generated."""
 
 import dataclasses
+import functools
 import jax
 from mujoco.mjx._src import types
 from mujoco.mjx.warp import ffi
@@ -223,7 +224,6 @@ def _collision_shim(
   _d.naconmax = naconmax
   _d.ncollision = ncollision
   _d.nworld = nworld
-
   mjwarp.collision(_m, _d)
 
 
@@ -405,6 +405,6 @@ def collision(m: types.Model, d: types.Data):
 
 @collision.def_vmap
 @ffi.marshal_custom_vmap
-def collision_vmap(unused_axis_size, is_batched, m, d):
+def collision_vmap(unused_axis_size, is_batched, m: types.Model, d: types.Data):
   d = collision(m, d)
   return d, is_batched[1]

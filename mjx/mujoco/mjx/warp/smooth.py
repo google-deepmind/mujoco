@@ -16,6 +16,7 @@
 """DO NOT EDIT. This file is auto-generated."""
 
 import dataclasses
+import functools
 import jax
 from mujoco.mjx._src import types
 from mujoco.mjx.warp import ffi
@@ -137,7 +138,6 @@ def _kinematics_shim(
   _d.xpos = xpos
   _d.xquat = xquat
   _d.nworld = nworld
-
   mjwarp.kinematics(_m, _d)
 
 
@@ -283,7 +283,9 @@ def kinematics(m: types.Model, d: types.Data):
 
 @kinematics.def_vmap
 @ffi.marshal_custom_vmap
-def kinematics_vmap(unused_axis_size, is_batched, m, d):
+def kinematics_vmap(
+    unused_axis_size, is_batched, m: types.Model, d: types.Data
+):
   d = kinematics(m, d)
   return d, is_batched[1]
 
@@ -369,7 +371,6 @@ def _tendon_shim(
   _d.wrap_obj = wrap_obj
   _d.wrap_xpos = wrap_xpos
   _d.nworld = nworld
-
   mjwarp.tendon(_m, _d)
 
 
@@ -465,6 +466,6 @@ def tendon(m: types.Model, d: types.Data):
 
 @tendon.def_vmap
 @ffi.marshal_custom_vmap
-def tendon_vmap(unused_axis_size, is_batched, m, d):
+def tendon_vmap(unused_axis_size, is_batched, m: types.Model, d: types.Data):
   d = tendon(m, d)
   return d, is_batched[1]

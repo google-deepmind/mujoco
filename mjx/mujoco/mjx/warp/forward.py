@@ -16,6 +16,7 @@
 """DO NOT EDIT. This file is auto-generated."""
 
 import dataclasses
+import functools
 import jax
 from mujoco.mjx._src import types
 from mujoco.mjx.warp import ffi
@@ -909,7 +910,6 @@ def _forward_shim(
   _d.xpos = xpos
   _d.xquat = xquat
   _d.nworld = nworld
-
   mjwarp.forward(_m, _d)
 
 
@@ -1815,7 +1815,7 @@ def forward(m: types.Model, d: types.Data):
 
 @forward.def_vmap
 @ffi.marshal_custom_vmap
-def forward_vmap(unused_axis_size, is_batched, m, d):
+def forward_vmap(unused_axis_size, is_batched, m: types.Model, d: types.Data):
   d = forward(m, d)
   return d, is_batched[1]
 
@@ -2689,7 +2689,6 @@ def _step_shim(
   _d.xpos = xpos
   _d.xquat = xquat
   _d.nworld = nworld
-
   mjwarp.step(_m, _d)
 
 
@@ -3613,6 +3612,6 @@ def step(m: types.Model, d: types.Data):
 
 @step.def_vmap
 @ffi.marshal_custom_vmap
-def step_vmap(unused_axis_size, is_batched, m, d):
+def step_vmap(unused_axis_size, is_batched, m: types.Model, d: types.Data):
   d = step(m, d)
   return d, is_batched[1]

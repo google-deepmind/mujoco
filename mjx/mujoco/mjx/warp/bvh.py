@@ -16,6 +16,7 @@
 """DO NOT EDIT. This file is auto-generated."""
 
 import dataclasses
+import functools
 import jax
 from mujoco.mjx._src import types
 from mujoco.mjx.warp import ffi
@@ -88,7 +89,6 @@ def _refit_bvh_shim(
   _d.geom_xpos = geom_xpos
   _d.nworld = nworld
   render_context = _MJX_RENDER_CONTEXT_BUFFERS[rc_id]
-
   dummy.zero_()
   mjwarp.refit_bvh(_m, _d, render_context)
 
@@ -134,6 +134,12 @@ def refit_bvh(m: types.Model, d: types.Data, ctx: RenderContext):
 
 @refit_bvh.def_vmap
 @ffi.marshal_custom_vmap
-def refit_bvh_vmap(unused_axis_size, is_batched, m, d, ctx: RenderContext):
+def refit_bvh_vmap(
+    unused_axis_size,
+    is_batched,
+    m: types.Model,
+    d: types.Data,
+    ctx: RenderContext,
+):
   d = refit_bvh(m, d, ctx)
   return d, is_batched[1]
