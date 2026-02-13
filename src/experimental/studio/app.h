@@ -123,6 +123,9 @@ class App {
 
     // Controls.
     bool perturb_active = false;
+    // Time at which viscous pause was activated, for the green→yellow button
+    // color animation.
+    double viscous_pause_time = 0;
     int speed_index = 0;
     float cam_speed = 0.0f;
 

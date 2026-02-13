@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -32,8 +33,8 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include "experimental/platform/gui.h"
 #include "experimental/platform/file_dialog.h"
+#include "experimental/platform/gui.h"
 #include "experimental/platform/helpers.h"
 #include "experimental/platform/imgui_widgets.h"
 #include "experimental/platform/interaction.h"
@@ -45,6 +46,8 @@
 #include "experimental/platform/window.h"
 
 namespace mujoco::studio {
+
+using PauseState = platform::StepControl::PauseState;
 
 static void ToggleFlag(mjtByte& flag) { flag = flag ? 0 : 1; }
 
@@ -66,6 +69,7 @@ static void SelectParentPerturb(const mjModel* model, mjvPerturb& perturb) {
 
 static constexpr const char* ICON_PLAY = platform::ICON_FA_PLAY;
 static constexpr const char* ICON_PAUSE = platform::ICON_FA_PAUSE;
+static constexpr const char* ICON_VISCOUS_PAUSE = platform::ICON_FA_MAGIC;
 static constexpr const char* ICON_COPY_CAMERA = platform::ICON_FA_COPY;
 static constexpr const char* ICON_UNLOAD_MODEL = platform::ICON_FA_EJECT;
 static constexpr const char* ICON_RELOAD_MODEL = platform::ICON_FA_REFRESH;
@@ -101,8 +105,7 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 };
 // clang-format on
 
-App::App(Config config)
-    : ini_path_(std::move(config.ini_path)) {
+App::App(Config config) : ini_path_(std::move(config.ini_path)) {
   platform::Window::Config window_config;
   window_config.renderer_backend = platform::Renderer::GetBackend();
   window_config.offscreen_mode = config.offscreen_mode;
@@ -173,11 +176,11 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   model_path_ = std::move(filename);
 
   if (model_kind_ == kEmptyModel) {
-    step_control_.Unpause();
+    step_control_.SetPauseState(PauseState::kUnpaused);
   }
   model_kind_ = model_kind;
   if (model_kind_ == kEmptyModel) {
-    step_control_.Pause();
+    step_control_.SetPauseState(PauseState::kNormalPaused);
   }
 
   // Reset/reinitialize everything that depends on the new mjModel.
@@ -251,7 +254,7 @@ void App::UpdatePhysics() {
   });
 
   if (!stepped) {
-    if (!step_control_.IsPaused()) {
+    if (step_control_.GetPauseState() != PauseState::kNormalPaused) {
       mju_zero(data()->xfrc_applied, 6 * model()->nbody);
       mjv_applyPerturbPose(model(), data(), &perturb_, 0);
       mjv_applyPerturbForce(model(), data(), &perturb_);
@@ -299,7 +302,7 @@ void App::LoadHistory(int offset) {
   std::span<mjtNum> state = history_.SetIndex(offset);
   if (!state.empty()) {
     // Pause simulation when entering history mode.
-    step_control_.Pause();
+    step_control_.SetPauseState(PauseState::kNormalPaused);
 
     // Load the state into the data buffer.
     mj_setState(model(), data(), state.data(), mjSTATE_INTEGRATION);
@@ -540,19 +543,32 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal)) {
     SetSpeedIndex(tmp_.speed_index - 1);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftArrow)) {
-    if (step_control_.IsPaused()) {
+    if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
       LoadHistory(history_.GetIndex() - 1);
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_RightArrow)) {
-    if (step_control_.IsPaused()) {
+    if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
       if (history_.GetIndex() == 0) {
         step_control_.RequestSingleStep();
       } else {
         LoadHistory(history_.GetIndex() + 1);
       }
     }
+  } else if (ImGui_IsChordJustPressed(ImGuiMod_Ctrl | ImGuiKey_Space)) {
+    if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
+      step_control_.SetPauseState(PauseState::kUnpaused, model());
+    } else {
+      step_control_.SetPauseState(PauseState::kViscousPaused, model());
+      tmp_.viscous_pause_time = ImGui::GetTime();
+    }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Space)) {
-    step_control_.TogglePause();
+    if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
+      step_control_.SetPauseState(PauseState::kNormalPaused, model());
+    } else if (step_control_.GetPauseState() == PauseState::kUnpaused) {
+      step_control_.SetPauseState(PauseState::kNormalPaused);
+    } else {
+      step_control_.SetPauseState(PauseState::kUnpaused);
+    }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Backspace)) {
     ResetPhysics();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_PageUp)) {
@@ -854,14 +870,16 @@ void App::BuildGui() {
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
     if (ImGui::Begin("Stats", &tmp_.stats)) {
       const float fps = renderer_->GetFps();
-      platform::StatsGui(model(), data(), step_control_.IsPaused(), fps);
+      platform::StatsGui(
+          model(), data(),
+          step_control_.GetPauseState() == PauseState::kNormalPaused, fps);
     }
     ImGui::End();
   }
 
   // Display a drag-and-drop message if no model is loaded.
   if (model_kind_ == kEmptyModel) {
-    #ifndef __EMSCRIPTEN__
+#ifndef __EMSCRIPTEN__
     const char* text = "Load model file or drag-and-drop model file here.";
 
     const float width = window_->GetWidth() * ImGui::GetWindowDpiScale();
@@ -881,7 +899,7 @@ void App::BuildGui() {
       ImGui::Text("%s", text);
     }
     ImGui::End();
-    #endif  // !__EMSCRIPTEN__
+#endif  // !__EMSCRIPTEN__
   }
 
   FileDialogGui();
@@ -1159,6 +1177,7 @@ void App::HelpGui() {
   ImGui::Text("Toggle Fullscreen");
   ImGui::Text("Free Camera");
   ImGui::Text("Toggle Pause");
+  ImGui::Text("Toggle Visc Pause");
   ImGui::Text("Reset Sim");
   ImGui::Text("Toggle Left UI");
   ImGui::Text("Toggle Right UI");
@@ -1184,6 +1203,7 @@ void App::HelpGui() {
   ImGui::Text("F11");
   ImGui::Text("Esc");
   ImGui::Text("Spc");
+  ImGui::Text("Ctrl+Spc");
   ImGui::Text("Bksp");
   ImGui::Text("Tab");
   ImGui::Text("Sh+Tab");
@@ -1265,7 +1285,7 @@ void App::ToolBarGui() {
     const float scale = ImGui::GetWindowDpiScale();
     const float right_width = 520.f * scale;
     const ImVec2 button_size(48.f * scale, 32.f * scale);
-    const ImVec2 play_button_size(120.f * scale, 32.f * scale);
+    const ImVec2 play_button_size(80.f * scale, 32.f * scale);
 
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, right_width);
@@ -1273,21 +1293,35 @@ void App::ToolBarGui() {
     ImGui::TableNextColumn();
     ImGui::Text("%s", " ");
 
-    // Unload button.
-    ImGui::SameLine();
-    style.Color(ImGuiCol_ButtonHovered, red);
-    if (ImGui::Button(ICON_UNLOAD_MODEL, button_size)) {
-      InitEmptyModel();
-    }
-    ImGui::SetItemTooltip("%s", "Unload");
-    style.Reset();
+    // Combined (Unload, Reload) widget
+    {
+      style.Var(ImGuiStyleVar_FrameRounding, 2.0f);
 
-    // Reload button.
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_RELOAD_MODEL, button_size)) {
-      RequestModelReload();
+      // Unload button.
+      ImGui::SameLine();
+      {
+        const ImColor a = red;
+        const ImColor h(a.Value.x, a.Value.y, a.Value.z, a.Value.w * 0.6f);
+        style.Color(ImGuiCol_ButtonHovered, h);
+        style.Color(ImGuiCol_ButtonActive, a);
+
+        if (ImGui::Button(ICON_UNLOAD_MODEL, button_size)) {
+          InitEmptyModel();
+        }
+        ImGui::SetItemTooltip("%s", "Unload");
+        style.Reset();
+      }
+
+      // Reload button.
+      ImGui::SameLine(0, 0);
+      if (ImGui::Button(ICON_RELOAD_MODEL, button_size)) {
+        RequestModelReload();
+      }
+      ImGui::SetItemTooltip("%s", "Reload");
     }
-    ImGui::SetItemTooltip("%s", "Reload");
+
+    ImGui::SameLine(0, 0);
+    ImGui::Text(" ");
 
     // Reset button.
     ImGui::SameLine();
@@ -1296,15 +1330,54 @@ void App::ToolBarGui() {
     }
     ImGui::SetItemTooltip("%s", "Reset");
 
-    // Play/pause button.
-    ImGui::SameLine();
-    const bool paused = step_control_.IsPaused();
-    style.Color(ImGuiCol_Button, paused ? yellow : green);
-    if (ImGui::Button(paused ? ICON_PLAY : ICON_PAUSE, play_button_size)) {
-      step_control_.TogglePause();
+    ImGui::SameLine(0, 0);
+    ImGui::Text(" ");
+
+    // Combined (Normal Pause, Viscous Pause, Play) widget
+    {
+      style.Var(ImGuiStyleVar_FrameRounding, 2.0f);
+
+      // Normal pause button.
+      ImGui::SameLine();
+      ImColor paused_color = yellow;
+      bool paused = step_control_.GetPauseState() == PauseState::kNormalPaused;
+      if (platform::ImGui_ColorButton(ICON_PAUSE, paused, paused_color,
+                                      button_size)) {
+        if (!paused) {
+          step_control_.SetPauseState(PauseState::kNormalPaused, model());
+        }
+      }
+      ImGui::SetItemTooltip("%s", "Pause");
+
+      // Viscous pause button.
+      ImGui::SameLine(0, 0);
+      ImColor vpaused_color = green;
+      float t = 0.f;
+      bool vpaused =
+          step_control_.GetPauseState() == PauseState::kViscousPaused;
+      if (vpaused) {
+        t = ImGui::GetTime() - tmp_.viscous_pause_time;
+        t = std::sqrt(std::min(t / 0.75f, 1.0f));
+        vpaused_color = ImColor(ImLerp(green.Value, yellow.Value, t));
+      }
+      if (platform::ImGui_ColorButton(ICON_VISCOUS_PAUSE, vpaused,
+                                      vpaused_color, button_size,
+                                      t < 1.0f ? 1.0f : 0.5f)) {
+        if (!vpaused) {
+          step_control_.SetPauseState(PauseState::kViscousPaused, model());
+          tmp_.viscous_pause_time = ImGui::GetTime();
+        }
+      }
+      ImGui::SetItemTooltip("%s", "Viscous Pause");
+
+      // Play button.
+      ImGui::SameLine(0, 0);
+      if (platform::ImGui_ColorButton(
+              ICON_PLAY, step_control_.GetPauseState() == PauseState::kUnpaused,
+              green, button_size, 0.6f)) {
+        step_control_.SetPauseState(PauseState::kUnpaused, model());
+      }
     }
-    ImGui::SetItemTooltip("%s", paused ? "Play" : "Pause");
-    style.Reset();
 
     ImGui::SameLine();
     ImGui::Text("%s", " |");
@@ -1433,7 +1506,10 @@ void App::StatusBarGui() {
 
     if (!has_model()) {
       ImGui::Text("No model loaded");
-    } else if (step_control_.IsPaused()) {
+    } else if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
+      ImGui::Text("Viscous Pause");
+      ImGui::SetItemTooltip("Zero gravity, high viscosity, no spring forces");
+    } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
       ImGui::Text("Paused");
     } else {
       const float desired_realtime = step_control_.GetSpeed();
@@ -1504,7 +1580,7 @@ void App::StatusBarGui() {
 void App::MainMenuGui() {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
-      #ifndef __EMSCRIPTEN__
+#ifndef __EMSCRIPTEN__
       if (ImGui::MenuItem("Open Model File", "Ctrl+O")) {
         tmp_.file_dialog = UiTempState::FileDialog_Load;
       }
@@ -1526,22 +1602,28 @@ void App::MainMenuGui() {
         tmp_.file_dialog = UiTempState::FileDialog_PrintData;
       }
       ImGui::Separator();
-      #endif  // !__EMSCRIPTEN__
+#endif  // !__EMSCRIPTEN__
       if (ImGui::MenuItem("Unload", "Ctrl+U")) {
         InitEmptyModel();
       }
-      #ifndef __EMSCRIPTEN__
+#ifndef __EMSCRIPTEN__
       ImGui::Separator();
       if (ImGui::MenuItem("Quit", "Ctrl+Q")) {
         tmp_.should_exit = true;
       }
-      #endif  // !__EMSCRIPTEN__
+#endif  // !__EMSCRIPTEN__
       ImGui::EndMenu();
     }
 
     if (ImGui::BeginMenu("Simulation")) {
-      if (ImGui::MenuItem("Pause", "Space", step_control_.IsPaused())) {
-        step_control_.TogglePause();
+      if (ImGui::MenuItem(
+              "Pause", "Space",
+              step_control_.GetPauseState() == PauseState::kNormalPaused)) {
+        if (step_control_.GetPauseState() != PauseState::kNormalPaused) {
+          step_control_.SetPauseState(PauseState::kNormalPaused);
+        } else {
+          step_control_.SetPauseState(PauseState::kUnpaused, model());
+        }
       }
       if (ImGui::MenuItem("Reset", "Backspace")) {
         ResetPhysics();

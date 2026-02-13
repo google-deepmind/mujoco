@@ -13,10 +13,12 @@
 // limitations under the License.
 
 #include "experimental/platform/step_control.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <ratio>
+
 #include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
@@ -28,17 +30,11 @@ static mjtNum Timer() {
   return Milliseconds(Clock::now() - start).count();
 }
 
-StepControl::StepControl() {
-  mjcb_time = Timer;
-}
+StepControl::StepControl() { mjcb_time = Timer; }
 
-float StepControl::GetSpeedMeasured() const {
-  return speed_measured_;
-}
+float StepControl::GetSpeedMeasured() const { return speed_measured_; }
 
-float StepControl::GetSpeed() const {
-  return speed_;
-}
+float StepControl::GetSpeed() const { return speed_; }
 
 void StepControl::SetSpeed(float speed_percent_real_time) {
   speed_ = std::clamp(speed_percent_real_time, .1f, 100.f);
@@ -59,12 +55,34 @@ void StepControl::SetNoiseParameters(float ctrl_noise_scale,
   ctrl_noise_rate_ = ctrl_noise_rate;
 }
 
-StepControl::Status StepControl::Advance(const mjModel* m, mjData* d) {
+void StepControl::SetPauseState(PauseState state, mjModel* m) {
+  if (pause_state_ == PauseState::kViscousPaused &&
+      state != PauseState::kViscousPaused && m) {
+    mju_copy3(m->opt.gravity, saved_gravity_);
+    m->opt.viscosity = saved_viscosity_;
+    m->opt.disableflags = saved_disableflags_;
+  }
+
+  if (state == PauseState::kViscousPaused &&
+      pause_state_ != PauseState::kViscousPaused && m) {
+    mju_copy3(saved_gravity_, m->opt.gravity);
+    saved_viscosity_ = m->opt.viscosity;
+    saved_disableflags_ = m->opt.disableflags;
+    mju_zero3(m->opt.gravity);
+    m->opt.viscosity = 10;
+    m->opt.disableflags |= mjDSBL_SPRING;
+  }
+
+  pause_state_ = state;
+}
+
+StepControl::Status StepControl::Advance(mjModel* m, mjData* d) {
   if (!m) {
     return Status::kOk;
   }
 
-  if (paused_) {
+
+  if (pause_state_ == PauseState::kNormalPaused) {
     // When we eventually unpause, we need to make sure we sync to immediately
     // and step once. Without this we could step many times before rendering
     // resulting in a noticeable delay before the simulation restarts
@@ -151,7 +169,7 @@ StepControl::Status StepControl::Advance(const mjModel* m, mjData* d) {
       for (mjtWarning w : kDivergedWarnings) {
         if (d->warning[w].number > 0) {
           // Stop stepping if the simulation diverged.
-          paused_ = true;
+          pause_state_ = PauseState::kNormalPaused;
           return Status::kDiverged;
         }
       }
@@ -179,7 +197,7 @@ void StepControl::InjectNoise(const mjModel* m, mjData* d) {
 
   // convert rate and scale to discrete time (Ornstein–Uhlenbeck)
   mjtNum rate = mju_exp(-m->opt.timestep / ctrl_noise_rate_);
-  mjtNum scale = ctrl_noise_std_ * mju_sqrt(1-rate*rate);
+  mjtNum scale = ctrl_noise_std_ * mju_sqrt(1 - rate * rate);
 
   for (int i = 0; i < m->nu; i++) {
     mjtNum bottom = 0;
@@ -187,14 +205,14 @@ void StepControl::InjectNoise(const mjModel* m, mjData* d) {
     mjtNum midpoint = 0;
     mjtNum halfrange = 1;
     if (m->actuator_ctrllimited[i]) {
-      bottom = m->actuator_ctrlrange[2*i];
-      top = m->actuator_ctrlrange[2*i+1];
-      midpoint =  0.5 * (top + bottom);  // target of exponential decay
+      bottom = m->actuator_ctrlrange[2 * i];
+      top = m->actuator_ctrlrange[2 * i + 1];
+      midpoint = 0.5 * (top + bottom);   // target of exponential decay
       halfrange = 0.5 * (top - bottom);  // scales noise
     }
 
     // exponential convergence to midpoint at ctrl_noise_rate
-    d->ctrl[i] = rate * d->ctrl[i] + (1-rate) * midpoint;
+    d->ctrl[i] = rate * d->ctrl[i] + (1 - rate) * midpoint;
 
     // add noise
     d->ctrl[i] += scale * halfrange * mju_standardNormal(nullptr);

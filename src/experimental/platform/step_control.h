@@ -36,6 +36,10 @@ class StepControl {
     // Simulation was not stepped because it is paused.
     kPaused,
 
+    // Simulation is viscously paused (stepping with zero gravity, high
+    // viscosity, and no spring forces).
+    kViscousPaused,
+
     // Simulation diverged with autoreset enabled.
     kAutoReset,
 
@@ -49,7 +53,7 @@ class StepControl {
       mjWARN_BADQACC, mjWARN_BADQVEL, mjWARN_BADQPOS};
 
   // Steps physics forward, respecting speed settings and refresh budget.
-  Status Advance(const mjModel* m, mjData* d);
+  Status Advance(mjModel* m, mjData* d);
 
   // Ensures the next call to Advance() will synchronize time and step once.
   void ForceSync();
@@ -63,13 +67,14 @@ class StepControl {
   void GetNoiseParameters(float& noise_scale, float& noise_rate) const;
   void SetNoiseParameters(float noise_scale, float noise_rate);
 
-  // Returns true if the simulation is paused.
-  bool IsPaused() { return paused_; }
+  enum class PauseState { kUnpaused, kNormalPaused, kViscousPaused };
 
-  // Pauses/unpauses the simulation.
-  void Pause() { paused_ = true; }
-  void Unpause() { paused_ = false; }
-  void TogglePause() { paused_ = !paused_; }
+  // Sets the pause state of the simulation.
+  // m must be non-null for viscous pausing.
+  void SetPauseState(PauseState state, mjModel* m = nullptr);
+
+  // Gets the current pause state of the simulation.
+  PauseState GetPauseState() const { return pause_state_; }
 
   // If the simulation is paused, will perform a single step on the next
   // Advance() call.
@@ -104,8 +109,12 @@ class StepControl {
   // Maximum mis-alignment before re-sync (simulation seconds)
   double sync_misalign_ = .1;
 
-  // Whether or not the simulation is paused.
-  bool paused_ = false;
+  PauseState pause_state_ = PauseState::kUnpaused;
+
+  // Viscous pause state variables
+  mjtNum saved_gravity_[3] = {0};
+  mjtNum saved_viscosity_ = 0;
+  int saved_disableflags_ = 0;
 
   // Perform only a single step on the next call to Advance() if the simulation
   // is paused.

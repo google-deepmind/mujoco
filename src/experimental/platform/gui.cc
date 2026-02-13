@@ -627,7 +627,7 @@ void PhysicsGui(mjModel* model, float min_width) {
     ImGui_InputN("Wind", opt.wind, 3);
     ImGui_InputN("Magnetic", opt.magnetic, 3);
     ImGui_Input("Density", &opt.density, {.min = .1, .max = 1});
-    ImGui_Input("Viscosity", &opt.viscosity, {.min = .1, .max = 1});
+    ImGui_Input("Viscosity", &opt.viscosity, {.min = .1, .max = 10});
     ImGui_Input("Imp Ratio", &opt.impratio, {.min = .1, .max = 1});
     ImGui::TreePop();
   };
