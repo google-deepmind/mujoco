@@ -16,18 +16,14 @@
 
 import dataclasses
 import functools
-import threading
+
 import jax
-import mujoco
 from mujoco.mjx._src import types
 from mujoco.mjx.warp import ffi
 from mujoco.mjx.warp import mujoco_warp as mjwarp
+from mujoco.mjx.warp.io import _MJX_RENDER_CONTEXT_BUFFERS
 from mujoco.mjx.warp.types import RenderContext
 import warp as wp
-
-_MJX_RENDER_CONTEXT_BUFFERS = {}
-_MJX_RENDER_CONTEXT_LOCK = threading.Lock()
-_MJX_RENDER_CONTEXT_COUNTER = 0
 
 
 _m = mjwarp.Model(
@@ -90,8 +86,8 @@ def _render_shim(
     flexvert_xpos: wp.array2d(dtype=wp.vec3),
     # Registry
     rc_id: int,
-    rgb: wp.array3d(dtype=wp.uint32),
-    depth: wp.array3d(dtype=wp.float32),
+    rgb: wp.array2d(dtype=wp.uint32),
+    depth: wp.array2d(dtype=wp.float32),
 ):
   _m.stat = _s
   _m.opt = _o
@@ -136,25 +132,17 @@ def _render_shim(
   _d.nworld = cam_xpos.shape[0]
 
   render_context = _MJX_RENDER_CONTEXT_BUFFERS[rc_id]
+  render_context.rgb_data = rgb
+  render_context.depth_data = depth
   mjwarp.render(_m, _d, render_context)
-
-  wp.copy(rgb, render_context.rgb_data)
-  wp.copy(depth, render_context.depth_data)
 
 
 def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
   render_ctx = _MJX_RENDER_CONTEXT_BUFFERS[ctx.key]
 
-  nrender = render_ctx.nrender
-
-  nworld = d.qpos.shape[0]
-  # get width, height from cam_res
-  width = int(render_ctx.cam_res.numpy()[0][0])
-  height = int(render_ctx.cam_res.numpy()[0][1])
-
   output_dims = {
-      'rgb': (nworld, nrender, height * width),
-      'depth': (nworld, nrender, height * width),
+      'rgb': render_ctx.rgb_data_shape,
+      'depth': render_ctx.depth_data_shape,
   }
 
   jf = ffi.jax_callable_variadic_tuple(
@@ -214,50 +202,3 @@ def render(m: types.Model, d: types.Data, ctx: RenderContext):
 def render_vmap(unused_axis_size, is_batched, m, d, ctx):
   out = render(m, d, ctx)
   return out, [True, True]
-
-
-def create_render_context(
-    mjm: mujoco.MjModel,
-    nworld: int,
-    cam_res: list[tuple[int, int]] | tuple[int, int] | None = None,
-    render_rgb: list[bool] | bool | None = None,
-    render_depth: list[bool] | bool | None = None,
-    use_textures: bool = True,
-    use_shadows: bool = False,
-    enabled_geom_groups: list[int] = [0, 1, 2],
-    cam_active: list[bool] | None = None,
-    flex_render_smooth: bool = True,
-):
-  from mujoco.mjx.warp import mujoco_warp as mjw
-
-  # NOTE: MuJoCo Warp render context expects a Warp Model and Data.
-  # We create them here but throw them away right after. Preferably,
-  # the render context should only rely on mujoco.MjModel so we
-  # do not have to pay the cost of creating dummy Warp Model and Data.
-  # Some assumptions may be violated if the downstream render context
-  # builder holds onto the memory of m and d. The API on the MuJoCo
-  # Warp side needs to be cleaned up.
-  m = mjw.put_model(mjm)
-  d = mjw.make_data(mjm, nworld=nworld)
-  mjw.forward(m, d)
-
-  rc = mjw.create_render_context(
-      mjm=mjm,
-      m=m,
-      d=d,
-      cam_res=cam_res,
-      use_textures=use_textures,
-      use_shadows=use_shadows,
-      render_rgb=render_rgb,
-      render_depth=render_depth,
-      enabled_geom_groups=enabled_geom_groups,
-      cam_active=cam_active,
-      flex_render_smooth=flex_render_smooth,
-  )
-
-  global _MJX_RENDER_CONTEXT_COUNTER
-  with _MJX_RENDER_CONTEXT_LOCK:
-    _MJX_RENDER_CONTEXT_COUNTER += 1
-    key = _MJX_RENDER_CONTEXT_COUNTER
-    _MJX_RENDER_CONTEXT_BUFFERS[key] = rc
-  return RenderContext(key, _owner=True)

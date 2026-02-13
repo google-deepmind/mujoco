@@ -26,7 +26,7 @@ import jax.numpy as jnp
 import jax.tree_util
 import mujoco
 from mujoco import mjx
-from mujoco.mjx._src import io
+from mujoco.mjx.warp import io
 from mujoco.mjx._src import test_util
 from mujoco.mjx.warp import collision_driver as wp_collision
 from mujoco.mjx.warp import forward as wp_forward
@@ -161,7 +161,7 @@ def benchmark(
         d = mjx.refit_bvh(mx, d, rc)
         pixels = mjx.render(mx, d, rc)
         leaves = jax.tree_util.tree_leaves(pixels)
-        accum += sum(x[0, 0, 0] for x in leaves) if leaves else 0.0
+        accum += sum(x[0, 0] for x in leaves if x.size > 0) if leaves else 0.0
 
       return (d, accum), None
 

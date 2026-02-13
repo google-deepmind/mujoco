@@ -909,6 +909,7 @@ def _forward_shim(
   _d.xpos = xpos
   _d.xquat = xquat
   _d.nworld = nworld
+
   mjwarp.forward(_m, _d)
 
 
@@ -1012,7 +1013,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       num_outputs=92,
       output_dims=output_dims,
       vmap_method=None,
-      in_out_argnames={
+      in_out_argnames=set([
           'act_dot',
           'actuator_force',
           'actuator_length',
@@ -1105,8 +1106,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'efc__state',
           'efc__type',
           'efc__vel',
-      },
-      stage_in_argnames={
+      ]),
+      stage_in_argnames=set([
           'act',
           'act_dot',
           'actuator_acc0',
@@ -1242,8 +1243,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'xmat',
           'xpos',
           'xquat',
-      },
-      stage_out_argnames={
+      ]),
+      stage_out_argnames=set([
           'act_dot',
           'actuator_force',
           'actuator_length',
@@ -1276,7 +1277,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'xmat',
           'xpos',
           'xquat',
-      },
+      ]),
       graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(
@@ -2688,6 +2689,7 @@ def _step_shim(
   _d.xpos = xpos
   _d.xquat = xquat
   _d.nworld = nworld
+
   mjwarp.step(_m, _d)
 
 
@@ -2795,7 +2797,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       num_outputs=96,
       output_dims=output_dims,
       vmap_method=None,
-      in_out_argnames={
+      in_out_argnames=set([
           'act',
           'act_dot',
           'actuator_force',
@@ -2892,8 +2894,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'efc__state',
           'efc__type',
           'efc__vel',
-      },
-      stage_in_argnames={
+      ]),
+      stage_in_argnames=set([
           'act',
           'act_dot',
           'actuator_acc0',
@@ -3029,8 +3031,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'xmat',
           'xpos',
           'xquat',
-      },
-      stage_out_argnames={
+      ]),
+      stage_out_argnames=set([
           'act',
           'act_dot',
           'actuator_force',
@@ -3067,7 +3069,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'xmat',
           'xpos',
           'xquat',
-      },
+      ]),
       graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(

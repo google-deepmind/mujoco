@@ -14,30 +14,40 @@
 # ==============================================================================
 """JAX render utilities for unpacking render output from MuJoCo Warp."""
 
+import typing
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 
 
 def get_rgb(
+    rc: Any,
     rgb_data: jax.Array,
     cam_id: int,
-    width: int,
-    height: int,
 ) -> jax.Array:
   """Unpack uint32 ABGR pixel data into float32 RGB.
 
   Args:
-    rgb_data: Packed render output, shape (nworld, ncam, H*W)
+    rc: The RenderContext handle.
+    rgb_data: Packed render output, shape (nworld, total_pixels)
       as uint32.
     cam_id: Camera index to extract.
-    width: Image width.
-    height: Image height.
 
   Returns:
     Float32 RGB array with shape (nworld, H, W, 3), values
     in [0, 1].
   """
-  packed = rgb_data[:, cam_id]
+  import mujoco.mjx.warp.render as mjxw_render  # pylint: disable=g-import-not-at-top
+  warp_rc = mjxw_render._MJX_RENDER_CONTEXT_BUFFERS[rc.key]
+  rgb_adr = int(warp_rc.rgb_adr.numpy()[cam_id])
+  width = int(warp_rc.cam_res.numpy()[cam_id][0])
+  height = int(warp_rc.cam_res.numpy()[cam_id][1])
+
+  packed = jax.lax.dynamic_slice_in_dim(
+      rgb_data, rgb_adr, width * height, axis=1
+  )
+
   r = (packed & 0xFF).astype(jnp.float32) / 255.0
   g = ((packed >> 8) & 0xFF).astype(jnp.float32) / 255.0
   b = ((packed >> 16) & 0xFF).astype(jnp.float32) / 255.0
@@ -47,27 +57,35 @@ def get_rgb(
 
 
 def get_depth(
+    rc: Any,
     depth_data: jax.Array,
     cam_id: int,
-    width: int,
-    height: int,
     depth_scale: float,
 ) -> jax.Array:
   """Extract and normalize depth data for a camera.
 
   Args:
-    depth_data: Raw depth output, shape (nworld, ncam, H*W)
+    rc: The RenderContext handle.
+    depth_data: Raw depth output, shape (nworld, total_pixels)
       as float32.
     cam_id: Camera index to extract.
-    width: Image width.
-    height: Image height.
     depth_scale: Scale factor for normalizing depth values.
 
   Returns:
     Float32 depth array with shape (nworld, H, W), clamped
     to [0, 1].
   """
-  raw = depth_data[:, cam_id]
+  import mujoco.mjx.warp.render as mjxw_render  # pylint: disable=g-import-not-at-top
+  warp_rc = mjxw_render._MJX_RENDER_CONTEXT_BUFFERS[rc.key]
+  depth_adr = int(warp_rc.depth_adr.numpy()[cam_id])
+  width = int(warp_rc.cam_res.numpy()[cam_id][0])
+  height = int(warp_rc.cam_res.numpy()[cam_id][1])
+
+  raw = jax.lax.dynamic_slice_in_dim(
+      depth_data, depth_adr, width * height, axis=1
+  )
+
   nworld = depth_data.shape[0]
   depth = jnp.clip(raw / depth_scale, 0.0, 1.0)
   return depth.reshape(nworld, height, width)
+

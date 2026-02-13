@@ -137,6 +137,7 @@ def _kinematics_shim(
   _d.xpos = xpos
   _d.xquat = xquat
   _d.nworld = nworld
+
   mjwarp.kinematics(_m, _d)
 
 
@@ -159,7 +160,7 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       num_outputs=11,
       output_dims=output_dims,
       vmap_method=None,
-      in_out_argnames={
+      in_out_argnames=set([
           'geom_xmat',
           'geom_xpos',
           'site_xmat',
@@ -171,8 +172,8 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
           'xmat',
           'xpos',
           'xquat',
-      },
-      stage_in_argnames={
+      ]),
+      stage_in_argnames=set([
           'body_ipos',
           'body_iquat',
           'body_pos',
@@ -198,8 +199,8 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
           'xmat',
           'xpos',
           'xquat',
-      },
-      stage_out_argnames={
+      ]),
+      stage_out_argnames=set([
           'geom_xmat',
           'geom_xpos',
           'site_xmat',
@@ -211,7 +212,7 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
           'xmat',
           'xpos',
           'xquat',
-      },
+      ]),
       graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(
@@ -368,6 +369,7 @@ def _tendon_shim(
   _d.wrap_obj = wrap_obj
   _d.wrap_xpos = wrap_xpos
   _d.nworld = nworld
+
   mjwarp.tendon(_m, _d)
 
 
@@ -385,15 +387,15 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       num_outputs=6,
       output_dims=output_dims,
       vmap_method=None,
-      in_out_argnames={
+      in_out_argnames=set([
           'ten_J',
           'ten_length',
           'ten_wrapadr',
           'ten_wrapnum',
           'wrap_obj',
           'wrap_xpos',
-      },
-      stage_in_argnames={
+      ]),
+      stage_in_argnames=set([
           'cdof',
           'geom_size',
           'geom_xmat',
@@ -402,8 +404,8 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
           'site_xpos',
           'subtree_com',
           'ten_length',
-      },
-      stage_out_argnames={'ten_length'},
+      ]),
+      stage_out_argnames=set(['ten_length']),
       graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(

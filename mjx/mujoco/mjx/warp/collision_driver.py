@@ -223,6 +223,7 @@ def _collision_shim(
   _d.naconmax = naconmax
   _d.ncollision = ncollision
   _d.nworld = nworld
+
   mjwarp.collision(_m, _d)
 
 
@@ -249,7 +250,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       num_outputs=15,
       output_dims=output_dims,
       vmap_method=None,
-      in_out_argnames={
+      in_out_argnames=set([
           'nacon',
           'ncollision',
           'contact__dim',
@@ -265,8 +266,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'contact__solreffriction',
           'contact__type',
           'contact__worldid',
-      },
-      stage_in_argnames={
+      ]),
+      stage_in_argnames=set([
           'geom_aabb',
           'geom_friction',
           'geom_gap',
@@ -285,8 +286,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'pair_solimp',
           'pair_solref',
           'pair_solreffriction',
-      },
-      stage_out_argnames={},
+      ]),
+      stage_out_argnames=set([]),
       graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(

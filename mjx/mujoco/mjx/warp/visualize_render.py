@@ -31,6 +31,7 @@ from mujoco.mjx._src import io
 from mujoco.mjx._src import render
 from mujoco.mjx._src import render_util
 from mujoco.mjx._src import test_util
+from mujoco.mjx.warp import io
 import numpy as np
 import warp as wp
 
@@ -171,7 +172,7 @@ def _main(_: Sequence[str]):
   print(f'  rgb shape: {rgb_packed.shape}\n')
 
   rgb = render_util.get_rgb(
-      rgb_packed, _CAMERA_ID.value, _WIDTH.value, _HEIGHT.value
+      rc, rgb_packed, _CAMERA_ID.value
   )
 
   single_path = os.path.join(
