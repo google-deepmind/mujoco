@@ -863,6 +863,7 @@ def _make_data_warp(
     device: Optional[jax.Device] = None,
     naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
+    naccdmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the Warp implementation."""
   if not isinstance(m, mujoco.MjModel):
@@ -872,7 +873,7 @@ def _make_data_warp(
     )
 
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
+    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax, naccdmax=naccdmax)  # pylint: disable=undefined-variable
 
   fields = _make_data_public_fields(m)
   for k in fields:
@@ -907,7 +908,7 @@ def _make_data_warp(
     # TODO(robotics-simulation): remove this warmup compilation once warp
     # stops unloading modules during XLA graph capture for tile kernels.
     # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)
+    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax, naccdmax=naccdmax)
     mw = mjwp.put_model(m)
     _ = mjwp.step(mw, dw)
     # pylint: enable=undefined-variable
@@ -962,6 +963,7 @@ def make_data(
     nconmax: Optional[int] = None,
     naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
+    naccdmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data.
 
@@ -978,7 +980,8 @@ def make_data(
       Since the number of worlds is **not** pre-defined in JAX, we use the
       `naconmax` argument to set the upper bound for the number of contacts
       across all worlds, rather than the `nconmax` argument from MuJoCo Warp.
-    njmax: maximum number of constraints to allocate for warp across all worlds
+    njmax: maximum number of constraints to allocate for warp across all worlds.
+    naccdmax: maximum number of CCD contacts. Defaults to naconmax.
 
   Returns:
     an initialized mjx.Data placed on device
@@ -1012,7 +1015,7 @@ def make_data(
   elif impl == types.Impl.WARP:
     _check_warp_installed()
     naconmax = nconmax if naconmax is None else naconmax
-    return _make_data_warp(m, device, naconmax, njmax)
+    return _make_data_warp(m, device, naconmax, njmax, naccdmax)
 
   raise NotImplementedError(
       f'make_data for implementation "{impl}" not implemented yet.'
