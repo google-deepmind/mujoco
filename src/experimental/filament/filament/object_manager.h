@@ -133,7 +133,7 @@ class ObjectManager {
   filament::Texture* fallback_normal_ = nullptr;
   filament::Texture* fallback_orm_ = nullptr;
   filament::IndirectLight* fallback_indirect_light_ = nullptr;
-  float specular_multiplier_ = 0.6f;
+  float specular_multiplier_ = 0.2f;
   float shininess_multiplier_ = 0.1f;
   float emissive_multiplier_ = 0.3f;
 };

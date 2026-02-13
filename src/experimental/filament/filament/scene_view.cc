@@ -166,6 +166,16 @@ SceneView::SceneView(filament::Engine* engine, ObjectManager* object_mgr)
       m, "filament.fog.inScatteringSize", fog_opts.inScatteringSize);
   views_[kNormalIndex]->setFogOptions(fog_opts);
 
+  fallback_head_light_intensity_ =
+      ReadElement(m, "filament.fallback.head_light_intensity",
+                  fallback_head_light_intensity_);
+  fallback_scene_light_intensity_ =
+      ReadElement(m, "filament.fallback.scene_light_intensity",
+                  fallback_scene_light_intensity_);
+  fallback_environment_light_intensity_ =
+      ReadElement(m, "filament.fallback.environment_light_intensity",
+                  fallback_environment_light_intensity_);
+
   // Create an empty/black indirect light to ensure that the skybox is oriented
   // to respect mujoco's Z-up convention.
   scene_->setIndirectLight(
@@ -313,18 +323,12 @@ void SceneView::PrepareLights() {
   // dealing with a "classic renderer" scene. In this case, let's add a
   // default environment light and set the light intensity ourselves.
   if (total_light_intensity == 0.0f) {
-    // Headlight is not required for Filament and often confusing, disable it by
-    // default.
-    constexpr float kHeadlightIntensityCandela = 0.f;
-    constexpr float kTotalSceneLightIntensityCandela = 100'000.f;
-    constexpr float kFallbackEnvironmentLightIntensityCandela = 10'000.f;
-
-    SetFallbackEnvironmentLight(kFallbackEnvironmentLightIntensityCandela);
-    const float intensity = kTotalSceneLightIntensityCandela / lights_.size();
+    SetFallbackEnvironmentLight(fallback_environment_light_intensity_);
+    const float intensity = fallback_scene_light_intensity_ / lights_.size();
     for (auto& light : lights_) {
       if (light) {
-        light->SetIntensity(light->IsHeadlight() ? kHeadlightIntensityCandela
-                                                : intensity);
+        light->SetIntensity(
+            light->IsHeadlight() ? fallback_head_light_intensity_ : intensity);
       }
     }
   }

@@ -100,6 +100,9 @@ class SceneView {
   ColorGradingOptions color_grading_options_;
   DrawMode active_mode_ = DrawMode::kNumDrawModes;
   float aspect_ratio_ = 1.0f;
+  float fallback_head_light_intensity_ = 0.f;
+  float fallback_scene_light_intensity_ = 80'000.f;
+  float fallback_environment_light_intensity_ = 5'000.f;
 };
 
 }  // namespace mujoco
