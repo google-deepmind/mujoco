@@ -2263,7 +2263,7 @@ void mjCBody::AccumulateInertia(const mjsBody* other, mjsBody* result) {
   };
   double iquat[2][4] = {
     {result->iquat[0], result->iquat[1], result->iquat[2], result->iquat[3]},
-    {other->iquat[0], other->iquat[1], other->iquat[2], other->iquat[3]}
+    {other_iquat[0], other_iquat[1], other_iquat[2], other_iquat[3]}
   };
 
   // compute total mass
