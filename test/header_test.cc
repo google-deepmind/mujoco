@@ -344,25 +344,29 @@ TEST_F(HeaderTest, MjVisualFields) {
   static_assert(alignof(mjVisual) == alignof(ExpectedMjVisual));
 
   static_assert(sizeof(mjVisual::global) == sizeof(ExpectedMjVisual::global));
-  static_assert(alignof(mjVisual::global) == alignof(ExpectedMjVisual::global));
+  static_assert(alignof(decltype(mjVisual::global)) ==
+                alignof(decltype(ExpectedMjVisual::global)));
 
   static_assert(sizeof(mjVisual::quality) == sizeof(ExpectedMjVisual::quality));
-  static_assert(alignof(mjVisual::quality) ==
-                alignof(ExpectedMjVisual::quality));
+  static_assert(alignof(decltype(mjVisual::quality)) ==
+                alignof(decltype(ExpectedMjVisual::quality)));
 
   static_assert(sizeof(mjVisual::headlight) ==
                 sizeof(ExpectedMjVisual::headlight));
-  static_assert(alignof(mjVisual::headlight) ==
-                alignof(ExpectedMjVisual::headlight));
+  static_assert(alignof(decltype(mjVisual::headlight)) ==
+                alignof(decltype(ExpectedMjVisual::headlight)));
 
   static_assert(sizeof(mjVisual::map) == sizeof(ExpectedMjVisual::map));
-  static_assert(alignof(mjVisual::map) == alignof(ExpectedMjVisual::map));
+  static_assert(alignof(decltype(mjVisual::map)) ==
+                alignof(decltype(ExpectedMjVisual::map)));
 
   static_assert(sizeof(mjVisual::scale) == sizeof(ExpectedMjVisual::scale));
-  static_assert(alignof(mjVisual::scale) == alignof(ExpectedMjVisual::scale));
+  static_assert(alignof(decltype(mjVisual::scale)) ==
+                alignof(decltype(ExpectedMjVisual::scale)));
 
   static_assert(sizeof(mjVisual::rgba) == sizeof(ExpectedMjVisual::rgba));
-  static_assert(alignof(mjVisual::rgba) == alignof(ExpectedMjVisual::rgba));
+  static_assert(alignof(decltype(mjVisual::rgba)) ==
+                alignof(decltype(ExpectedMjVisual::rgba)));
 }
 
 TEST_F(HeaderTest, MjModelIntsOrdered) {
