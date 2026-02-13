@@ -567,6 +567,13 @@ class "MjcEqualityAPI" (
     )
 }
 
+class "MjcEqualityConnectAPI" (
+    apiSchemas = ["MjcEqualityAPI"]
+    doc = "API providing extension attributes to represent equality/connect constraints."
+)
+{
+}
+
 class "MjcEqualityWeldAPI" (
     apiSchemas = ["MjcEqualityAPI"]
     doc = "API providing extension attributes to represent equality/weld constraints."
@@ -588,16 +595,26 @@ class "MjcEqualityJointAPI" (
     or angle. Only scalar joint types (slide and hinge) can be used."""
 )
 {
-    uniform double[] mjc:polycoef = [0, 1, 0, 0, 0] (
-        displayName = "Polynomial Coefficients"
-        doc = """Coefficients a0 through a4 of the quartic polynomial. If the joint values
-        of the constrained joint and reference joint are respectively y and x, and their
-        reference positions (corresponding to the joint values in the initial model
-        configuration) are y0 and x0, the constraint is:
-        y = y0 + a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4.
-        Omitting the target joint (joint2) is equivalent to setting x = x0, in which case
-        the constraint is y = y0 + a0. The default [0, 1, 0, 0, 0] creates a simple 1:1
-        mimic constraint where y tracks x with the same offset from their references."""
+    uniform double mjc:coef0 = 0 (
+        displayName = "Coefficient 0"
+        doc = """Constant coefficient a0 of the quartic polynomial. The constraint is:
+        y = y0 + a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4."""
+    )
+    uniform double mjc:coef1 = 1 (
+        displayName = "Coefficient 1"
+        doc = "Linear coefficient a1 of the quartic polynomial."
+    )
+    uniform double mjc:coef2 = 0 (
+        displayName = "Coefficient 2"
+        doc = "Quadratic coefficient a2 of the quartic polynomial."
+    )
+    uniform double mjc:coef3 = 0 (
+        displayName = "Coefficient 3"
+        doc = "Cubic coefficient a3 of the quartic polynomial."
+    )
+    uniform double mjc:coef4 = 0 (
+        displayName = "Coefficient 4"
+        doc = "Quartic coefficient a4 of the quartic polynomial."
     )
 }
 

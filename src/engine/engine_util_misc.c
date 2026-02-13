@@ -910,6 +910,215 @@ size_t mju_decodeBase64(uint8_t* buf, const char* s) {
 }
 
 
+//------------------------------ history buffers ---------------------------------------------------
+
+// convert logical index (0=oldest, n-1=newest) to physical index
+// cursor points to the newest element (logical index n-1)
+static inline int historyPhysicalIndex(int cursor, int n, int logical) {
+  return (cursor + 1 + logical) % n;
+}
+
+
+// find logical index i such that times[i-1] < t <= times[i], using circular binary search
+// returns 0 if t <= times[oldest], n if t > times[newest]
+// cursor points to the newest element (logical index n-1)
+static int historyFindIndex(const mjtNum* times, int n, int cursor, mjtNum t) {
+  // get oldest and newest timestamps
+  int oldest_phys = historyPhysicalIndex(cursor, n, 0);
+  int newest_phys = historyPhysicalIndex(cursor, n, n-1);
+  mjtNum t_oldest = times[oldest_phys];
+  mjtNum t_newest = times[newest_phys];
+
+  // before or at first element
+  if (t <= t_oldest) {
+    return 0;
+  }
+
+  // after last element
+  if (t > t_newest) {
+    return n;
+  }
+
+  // circular binary search: find smallest logical i such that times[phys(i)] >= t
+  int lo = 0;
+  int hi = n - 1;
+  while (hi - lo > 1) {
+    int mid = (lo + hi) / 2;
+    int mid_phys = historyPhysicalIndex(cursor, n, mid);
+    if (times[mid_phys] < t) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  return hi;
+}
+
+
+// initialize history buffer with given times and values; times must be strictly increasing
+// buffer layout: [user(1), cursor(1), times(n), values(n*dim)]
+void mju_historyInit(mjtNum* buf, int n, int dim, const mjtNum* times, const mjtNum* values,
+                     mjtNum user) {
+  // check strict monotonicity of times
+  for (int i = 0; i < n-1; i++) {
+    if (times[i+1] - times[i] < mjMINVAL) {
+      mjERROR("times must be strictly increasing, got times[%d]=%g >= times[%d]=%g",
+              i, times[i], i+1, times[i+1]);
+    }
+  }
+
+  // buf layout: [user(1), cursor(1), times(n), values(n*dim)]
+  buf[0] = user;           // user value
+  buf[1] = (mjtNum)(n-1);  // cursor points to newest (logical index n-1 = physical index n-1)
+
+  mjtNum* buf_times = buf + 2;
+  mjtNum* buf_values = buf + 2 + n;
+
+  if (times != buf_times) mju_copy(buf_times, times, n);
+  if (values) mju_copy(buf_values, values, n*dim);
+}
+
+
+// find insertion slot for time t, maintaining sorted order
+// if t matches an existing timestamp, returns pointer to that slot
+// if a new sample is inserted, the oldest sample is dropped
+// returns pointer to value slot where caller should write dim values
+mjtNum* mju_historyInsert(mjtNum* buf, int n, int dim, mjtNum t) {
+  int cursor = (int)buf[1];
+  mjtNum* times = buf + 2;
+  mjtNum* values = buf + 2 + n;
+
+  // find logical insertion index: times[i-1] < t <= times[i]
+  int i = historyFindIndex(times, n, cursor, t);
+
+  // exact match at logical i: return pointer to existing slot
+  if (i < n) {
+    int phys_i = historyPhysicalIndex(cursor, n, i);
+    if (mju_abs(t - times[phys_i]) < mjMINVAL) {
+      return values + phys_i*dim;
+    }
+  }
+
+  // logical i == 0: new sample is older than oldest, replace oldest slot
+  if (i == 0) {
+    int oldest_phys = historyPhysicalIndex(cursor, n, 0);
+    times[oldest_phys] = t;
+    return values + oldest_phys*dim;
+  }
+
+  // logical i == n: new sample is newer than newest, advance cursor and write
+  if (i == n) {
+    cursor = (cursor + 1) % n;
+    buf[1] = (mjtNum)cursor;
+
+    // cursor now points to the new newest slot (which was the old oldest)
+    times[cursor] = t;
+    return values + cursor*dim;
+  }
+
+  // 0 < i < n: out-of-order insertion, shift [1, i-1] left (dropping 0), insert at i-1
+  for (int j = 0; j < i-1; j++) {
+    int src_phys = historyPhysicalIndex(cursor, n, j+1);
+    int dst_phys = historyPhysicalIndex(cursor, n, j);
+    times[dst_phys] = times[src_phys];
+    mju_copy(values + dst_phys*dim, values + src_phys*dim, dim);
+  }
+  int insert_phys = historyPhysicalIndex(cursor, n, i-1);
+  times[insert_phys] = t;
+  return values + insert_phys*dim;
+}
+
+
+// read vector value at time t; interp: 0=zero-order-hold, 1=linear, 2=cubic spline
+// returns pointer to sample in buffer on exact match or ZOH (res untouched)
+// returns NULL and writes interpolated result to res on interpolation
+const mjtNum* mju_historyRead(const mjtNum* buf, int n, int dim, mjtNum* res, mjtNum t, int interp) {
+  int cursor = (int)buf[1];
+  const mjtNum* times = buf + 2;
+  const mjtNum* values = buf + 2 + n;
+
+  int oldest_phys = historyPhysicalIndex(cursor, n, 0);
+  int newest_phys = historyPhysicalIndex(cursor, n, n-1);
+  mjtNum t_oldest = times[oldest_phys];
+  mjtNum t_newest = times[newest_phys];
+
+  // extrapolate before oldest: return pointer to oldest value
+  if (t <= t_oldest + mjMINVAL) {
+    return values + oldest_phys*dim;
+  }
+
+  // extrapolate after newest: return pointer to newest value
+  if (t >= t_newest - mjMINVAL) {
+    return values + newest_phys*dim;
+  }
+
+  // find bracketing logical index: times[i-1] < t <= times[i]
+  int i = historyFindIndex(times, n, cursor, t);
+  int phys_i = historyPhysicalIndex(cursor, n, i);
+
+  // check for exact match at i
+  if (mju_abs(t - times[phys_i]) < mjMINVAL) {
+    return values + phys_i*dim;
+  }
+
+  // lo = i-1, hi = i (we know i > 0 because t > t_oldest)
+  int phys_lo = historyPhysicalIndex(cursor, n, i-1);
+  int phys_hi = phys_i;
+
+  // zero-order hold: return pointer to lo (most recent sample <= t)
+  if (interp == 0) {
+    return values + phys_lo*dim;
+  }
+
+  mjtNum dt = times[phys_hi] - times[phys_lo];
+  mjtNum alpha = (t - times[phys_lo]) / dt;
+
+  // piecewise linear interpolation
+  if (interp == 1) {
+    for (int d = 0; d < dim; d++) {
+      res[d] = values[phys_lo*dim+d] + alpha * (values[phys_hi*dim+d] - values[phys_lo*dim+d]);
+    }
+  }
+
+  // cubic spline interpolation
+  else {
+    // Hermite basis functions
+    mjtNum alpha2 = alpha * alpha;
+    mjtNum alpha3 = alpha2 * alpha;
+    mjtNum h00 = 2*alpha3 - 3*alpha2 + 1;
+    mjtNum h10 = alpha3 - 2*alpha2 + alpha;
+    mjtNum h01 = -2*alpha3 + 3*alpha2;
+    mjtNum h11 = alpha3 - alpha2;
+
+    for (int d = 0; d < dim; d++) {
+      // finite differenced catmull-rom slopes, 0 at endpoints (constant extrapolation)
+
+      mjtNum m_lo = 0;
+      if (i > 1) {
+        int phys_lo_prev = historyPhysicalIndex(cursor, n, i-2);
+        mjtNum dt_lo = times[phys_hi] - times[phys_lo_prev];
+        m_lo = (values[phys_hi*dim+d] - values[phys_lo_prev*dim+d]) / dt_lo;
+      }
+
+      mjtNum m_hi = 0;
+      if (i < n - 1) {
+        int phys_hi_next = historyPhysicalIndex(cursor, n, i+1);
+        mjtNum dt_hi = times[phys_hi_next] - times[phys_lo];
+        m_hi = (values[phys_hi_next*dim+d] - values[phys_lo*dim+d]) / dt_hi;
+      }
+
+      res[d] = h00 * values[phys_lo*dim+d] +
+               h10 * dt * m_lo +
+               h01 * values[phys_hi*dim+d] +
+               h11 * dt * m_hi;
+    }
+  }
+
+  return NULL;
+}
+
+
 //------------------------------ miscellaneous -----------------------------------------------------
 
 // convert contact force to pyramid representation

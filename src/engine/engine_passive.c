@@ -58,6 +58,62 @@ static void inline GradSquaredLengths(mjtNum gradient[6][2][3],
   }
 }
 
+// compute interpolated flex state: xpos, vel, quat
+//  f: flex index
+//  xpos: (output) 3*nodenum
+//  vel: (output) 3*nodenum, can be NULL
+//  quat: (output) 4, rotation from global to local
+void mj_flexInterpState(const mjModel* m, mjData* d, int f,
+                        mjtNum* xpos, mjtNum* vel, mjtNum* quat) {
+  int nodenum = m->flex_nodenum[f];
+  int nstart = m->flex_nodeadr[f];
+  int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+  mjtNum com[3] = {0};
+
+  // compute positions
+  if (m->flex_centered[f]) {
+    for (int i=0; i < nodenum; i++) {
+      mji_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+      if (vel) {
+        mji_copy3(vel + 3*i, d->qvel + m->body_dofadr[bodyid[i]]);
+      }
+    }
+  } else {
+    mjtNum screw[6];
+    for (int i=0; i < nodenum; i++) {
+      mji_mulMatVec3(xpos + 3*i, d->xmat + 9*bodyid[i], m->flex_node + 3*(i+nstart));
+      mji_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+      if (vel) {
+        mj_objectVelocity(m, d, mjOBJ_BODY, bodyid[i], screw, 0);
+        mji_copy3(vel + 3*i, screw + 3);
+      }
+    }
+  }
+
+  // compute center of mass
+  for (int i = 0; i < nodenum; i++) {
+    mji_addToScl3(com, xpos+3*i, 1.0/nodenum);
+  }
+
+  // compute the Jacobian at the center of mass
+  mjtNum mat[9] = {0};
+  mjtNum p[3] = {.5, .5, .5};
+  mju_defGradient(mat, p, xpos, m->flex_interp[f]);
+
+  // find rotation
+  mju_mat2Rot(quat, mat);
+  mju_negQuat(quat, quat);
+
+  // rotate vertices to quat and add reference center of mass
+  for (int i = 0; i < nodenum; i++) {
+    mju_rotVecQuat(xpos+3*i, xpos+3*i, quat);
+    mji_addTo3(xpos+3*i, p);
+    if (vel) {
+      mju_rotVecQuat(vel+3*i, vel+3*i, quat);
+    }
+  }
+}
+
 // spring and damper forces
 static void mj_springdamper(const mjModel* m, mjData* d) {
   int nv = m->nv, ntendon = m->ntendon;
@@ -217,55 +273,17 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     }
 
     if (m->flex_interp[f]) {
-      mjtNum xpos[3*mjMAXFLEXNODES], displ[3*mjMAXFLEXNODES], vel[3*mjMAXFLEXNODES];
-      mjtNum frc[3*mjMAXFLEXNODES], dmp[3*mjMAXFLEXNODES];
-      mjtNum com[3] = {0};
+      mj_markStack(d);
+      mjtNum* xpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+      mjtNum* displ = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+      mjtNum* vel = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+      mjtNum* frc = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+      mjtNum* dmp = mjSTACKALLOC(d, 3*nodenum, mjtNum);
       mjtNum* xpos0 = m->flex_node0 + 3*m->flex_nodeadr[f];
       int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
-      int nstart = m->flex_nodeadr[f];
 
-      // compute positions
-      if (m->flex_centered[f]) {
-        for (int i=0; i < nodenum; i++) {
-          mji_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
-          mji_copy3(vel + 3*i, d->qvel + m->body_dofadr[bodyid[i]]);
-        }
-      } else {
-        mjtNum screw[6];
-        for (int i=0; i < nodenum; i++) {
-          mji_mulMatVec3(xpos + 3*i, d->xmat + 9*bodyid[i], m->flex_node + 3*(i+nstart));
-          mji_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
-          mj_objectVelocity(m, d, mjOBJ_BODY, bodyid[i], screw, 0);
-          mji_copy3(vel + 3*i, screw + 3);
-        }
-      }
-
-      // compute center of mass
-      for (int i = 0; i < nodenum; i++) {
-        mji_addToScl3(com, xpos+3*i, 1.0/nodenum);
-      }
-
-      // re-center positions using center of mass
-      for (int i = 0; i < nodenum; i++) {
-        mji_addToScl3(xpos+3*i, com, -1);
-      }
-
-      // compute the Jacobian at the center of mass
-      mjtNum mat[9] = {0};
-      mjtNum p[3] = {.5, .5, .5};
-      mju_defGradient(mat, p, xpos, m->flex_interp[f]);
-
-      // find rotation
       mjtNum quat[4] = {1, 0, 0, 0};
-      mju_mat2Rot(quat, mat);
-      mju_negQuat(quat, quat);
-
-      // rotate vertices to quat and add reference center of mass
-      for (int i = 0; i < nodenum; i++) {
-        mju_rotVecQuat(xpos+3*i, xpos+3*i, quat);
-        mji_addTo3(xpos+3*i, p);
-        mju_rotVecQuat(vel+3*i, vel+3*i, quat);
-      }
+      mj_flexInterpState(m, d, f, xpos, vel, quat);
 
       // compute displacement
       for (int i = 0; i < nodenum; i++) {
@@ -293,6 +311,8 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
           if (has_damping) mj_applyFT(m, d, qdmp, 0, xpos+3*i, bodyid[i], d->qfrc_damper);
         }
       }
+
+      mj_freeStack(d);
 
       // do not continue with the rest of the flex passive forces
       continue;
@@ -668,34 +688,13 @@ void mj_passive(const mjModel* m, mjData* d) {
   }
 
   if (has_gravcomp) {
-    int nbody = sleep_filter ? d->nbody_awake : m->nbody;
-    for (int b=0; b < nbody; b++) {
-      int i = sleep_filter ? d->body_awake_ind[b] : b;
+    int ndof = sleep_filter ? d->nv_awake : nv;
+    for (int v=0; v < ndof; v++) {
+      int dof = sleep_filter ? d->dof_awake_ind[v] : v;
 
-      // skip if no joints
-      int jntnum = m->body_jntnum[i];
-      if (!jntnum) continue;
-
-      // skip if no gravity compensation
-      if (!m->body_gravcomp[i]) continue;
-
-      int start = m->body_jntadr[i];
-      int end = start + jntnum;
-      for (int j=start; j < end; j++) {
-        // skip if gravity compensation added via actuators
-        if (m->jnt_actgravcomp[j]) {
-          continue;
-        }
-
-        // get number of dofs for this joint
-        const int jnt_dofnum[4] = {6, 3, 1, 1};
-        int dofnum = jnt_dofnum[m->jnt_type[j]];
-
-        // add gravity compensation force
-        int dofadr = m->jnt_dofadr[j];
-        for (int k=0; k < dofnum; k++) {
-          d->qfrc_passive[dofadr+k] += d->qfrc_gravcomp[dofadr+k];
-        }
+      // add gravity compensation force unless added via actuators
+      if (!m->jnt_actgravcomp[m->dof_jntid[dof]]) {
+        d->qfrc_passive[dof] += d->qfrc_gravcomp[dof];
       }
     }
   }

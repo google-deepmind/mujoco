@@ -18,6 +18,7 @@ from typing import Any, Tuple
 import warp as wp
 
 MJ_MINVAL = 1e-15
+MJ_MAXVAL = 1e10
 
 
 wp.set_module_options({"enable_backward": False})
@@ -411,13 +412,13 @@ def plane_box(
     margin: Collision tolerance.
 
   Returns:
-    - Vector of contact distances (wp.inf for unpopulated contacts).
+    - Vector of contact distances (MJ_MAXVAL for unpopulated contacts).
     - Matrix of contact positions (one per row).
     - Contact normal vector.
   """
   center_dist = wp.dot(box_pos - plane_pos, plane_normal)
 
-  dist = vec8f(wp.inf)
+  dist = vec8f(MJ_MAXVAL)
   pos = mat83f()
 
   # test all corners, pick bottom 4
@@ -540,7 +541,7 @@ def plane_cylinder(
     - Matrix of contact normal vectors (one per row).
   """
   # Initialize output matrices
-  contact_dist = wp.vec4(wp.inf)
+  contact_dist = wp.vec4(MJ_MAXVAL)
   contact_pos = mat43f()
   contact_count = 0
 
@@ -666,14 +667,14 @@ def box_box(
     margin: Collision tolerance.
 
   Returns:
-    - Vector of contact distances (wp.inf for unpopulated contacts).
+    - Vector of contact distances (MJ_MAXVAL for unpopulated contacts).
     - Matrix of contact positions (one per row).
     - Matrix of contact normal vectors (one per row).
   """
   # Initialize output matrices
   contact_dist = vec8f()
   for i in range(8):
-    contact_dist[i] = wp.inf
+    contact_dist[i] = MJ_MAXVAL
   contact_pos = mat83f()
   contact_normals = mat83f()
   contact_count = 0
@@ -1176,7 +1177,7 @@ def capsule_box(
     box_size: Half-extents of the box along each axis.
 
   Returns:
-    - Vector of contact distances (wp.inf for unpopulated contacts).
+    - Vector of contact distances (MJ_MAXVAL for unpopulated contacts).
     - Matrix of contact positions (one per row).
     - Matrix of contact normal vectors (one per row).
   """
@@ -1348,7 +1349,7 @@ def capsule_box(
     c1 = wp.where((ee2 > 0) == w_neg, 1, 2)
 
   if cltype == -4:  # invalid type
-    return wp.vec2(wp.inf), mat23f(), mat23f()
+    return wp.vec2(MJ_MAXVAL), mat23f(), mat23f()
 
   if cltype >= 0 and cltype // 3 != 1:  # closest to a corner of the box
     c1 = axisdir ^ clcorner
@@ -1479,7 +1480,7 @@ def capsule_box(
     # collide with sphere using core function
     dist2, pos2, normal2 = sphere_box(s2_pos_g, capsule_radius, box_pos, box_rot, box_size)
   else:
-    dist2 = wp.inf
+    dist2 = MJ_MAXVAL
     pos2 = wp.vec3()
     normal2 = wp.vec3()
 

@@ -28,6 +28,10 @@ extern "C" {
 // all passive forces
 MJAPI void mj_passive(const mjModel* m, mjData* d);
 
+// compute interpolated flex state: xpos, vel, quat
+MJAPI void mj_flexInterpState(const mjModel* m, mjData* d, int f,
+                              mjtNum* xpos, mjtNum* vel, mjtNum* quat);
+
 
 //------------------------- fluid models -----------------------------------------------------------
 

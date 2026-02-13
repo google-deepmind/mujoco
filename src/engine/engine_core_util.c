@@ -56,12 +56,8 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2) {
   int da1, da2, NV = 0;
 
   // skip fixed bodies
-  while (b1 && !m->body_dofnum[b1]) {
-    b1 = m->body_parentid[b1];
-  }
-  while (b2 && !m->body_dofnum[b2]) {
-    b2 = m->body_parentid[b2];
-  }
+  b1 = m->body_weldid[b1];
+  b2 = m->body_weldid[b2];
 
   // neither body is movable: empty chain
   if (b1 == 0 && b2 == 0) {
@@ -105,7 +101,8 @@ int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2) {
   }
 
   // init
-  int n1 = m->body_dofnum[b1], n2 = m->body_dofnum[b2];
+  int n1 = m->body_dofnum[b1];
+  int n2 = m->body_dofnum[b2];
 
   // both fixed: nothing to do
   if (n1 == 0 && n2 == 0) {
@@ -140,9 +137,7 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
   // general case
   else {
     // skip fixed bodies
-    while (body && !m->body_dofnum[body]) {
-      body = m->body_parentid[body];
-    }
+    body = m->body_weldid[body];
 
     // not movable: empty chain
     if (body == 0) {
@@ -189,9 +184,7 @@ void mj_jac(const mjModel* m, const mjData* d,
   }
 
   // skip fixed bodies
-  while (body && !m->body_dofnum[body]) {
-    body = m->body_parentid[body];
-  }
+  body = m->body_weldid[body];
 
   // no movable body found: nothing to do
   if (!body) {
@@ -320,9 +313,7 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
   mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
 
   // skip fixed bodies
-  while (body && !m->body_dofnum[body]) {
-    body = m->body_parentid[body];
-  }
+  body = m->body_weldid[body];
 
   // no movable body found: nothing to do
   if (!body) {
@@ -601,9 +592,7 @@ void mj_jacDot(const mjModel* m, const mjData* d,
   }
 
   // skip fixed bodies
-  while (body && !m->body_dofnum[body]) {
-    body = m->body_parentid[body];
-  }
+  body = m->body_weldid[body];
 
   // no movable body found: nothing to do
   if (!body) {

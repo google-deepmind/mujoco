@@ -77,14 +77,58 @@ const TfType& MjcPhysicsEqualityJointAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
-UsdAttribute MjcPhysicsEqualityJointAPI::GetPolycoefAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPolycoef);
+UsdAttribute MjcPhysicsEqualityJointAPI::GetCoef0Attr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCoef0);
 }
 
-UsdAttribute MjcPhysicsEqualityJointAPI::CreatePolycoefAttr(
+UsdAttribute MjcPhysicsEqualityJointAPI::CreateCoef0Attr(
     VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPolycoef, SdfValueTypeNames->DoubleArray,
+      MjcPhysicsTokens->mjcCoef0, SdfValueTypeNames->Double,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsEqualityJointAPI::GetCoef1Attr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCoef1);
+}
+
+UsdAttribute MjcPhysicsEqualityJointAPI::CreateCoef1Attr(
+    VtValue const& defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCoef1, SdfValueTypeNames->Double,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsEqualityJointAPI::GetCoef2Attr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCoef2);
+}
+
+UsdAttribute MjcPhysicsEqualityJointAPI::CreateCoef2Attr(
+    VtValue const& defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCoef2, SdfValueTypeNames->Double,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsEqualityJointAPI::GetCoef3Attr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCoef3);
+}
+
+UsdAttribute MjcPhysicsEqualityJointAPI::CreateCoef3Attr(
+    VtValue const& defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCoef3, SdfValueTypeNames->Double,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsEqualityJointAPI::GetCoef4Attr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCoef4);
+}
+
+UsdAttribute MjcPhysicsEqualityJointAPI::CreateCoef4Attr(
+    VtValue const& defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCoef4, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
@@ -103,7 +147,9 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 const TfTokenVector& MjcPhysicsEqualityJointAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
-      MjcPhysicsTokens->mjcPolycoef,
+      MjcPhysicsTokens->mjcCoef0, MjcPhysicsTokens->mjcCoef1,
+      MjcPhysicsTokens->mjcCoef2, MjcPhysicsTokens->mjcCoef3,
+      MjcPhysicsTokens->mjcCoef4,
   };
   static TfTokenVector allNames = _ConcatenateAttributeNames(
       UsdAPISchemaBase::GetSchemaAttributeNames(true), localNames);

@@ -1720,5 +1720,76 @@ TEST_F(XMLWriterTest, WritesCameraOutputDefault) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLWriterTest, WritesSensorDelayIntervalHistory) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="slide" delay="0.05" interval="0.1 -0.02" nsample="20" interp="linear"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("delay=\"0.05\""));
+  EXPECT_THAT(saved_xml, HasSubstr("interval=\"0.1 -0.02\""));
+  EXPECT_THAT(saved_xml, HasSubstr("nsample=\"20\""));
+  EXPECT_THAT(saved_xml, HasSubstr("interp=\"linear\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, DoesNotWriteDefaultSensorAttributes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="slide"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, Not(HasSubstr("delay=")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("interval=")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("nsample=")));
+  EXPECT_THAT(saved_xml, Not(HasSubstr("interp=")));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesActuatorDelayHistory) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.03" nsample="15" interp="cubic"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  EXPECT_THAT(saved_xml, HasSubstr("delay=\"0.03\""));
+  EXPECT_THAT(saved_xml, HasSubstr("nsample=\"15\""));
+  EXPECT_THAT(saved_xml, HasSubstr("interp=\"cubic\""));
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

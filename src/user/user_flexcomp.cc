@@ -204,8 +204,9 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   if (pingridrange.size()%(2*dflex->dim)) {
     return comperr(error, "Pin grid range number of must be multiple of 2*dim", error_sz);
   }
-  if (type != mjFCOMPTYPE_GRID && !(pingrid.empty() && pingridrange.empty())) {
-    return comperr(error, "Pin grid(range) can only be used with grid type", error_sz);
+  if (type != mjFCOMPTYPE_GRID && !(pingrid.empty() && pingridrange.empty()) &&
+      doftype != mjFCOMPDOF_TRILINEAR && doftype != mjFCOMPDOF_QUADRATIC) {
+    return comperr(error, "Pin grid(range) can only be used with grid or interpolated", error_sz);
   }
   if (dflex->dim == 1 && !(pingrid.empty() && pingridrange.empty())) {
     return comperr(error, "Pin grid(range) cannot be used with dim=1", error_sz);
@@ -267,7 +268,13 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   }
 
   // construct pinned array
-  pinned = vector<bool>(npnt, rigid);
+  int nnode = 0;
+  if (doftype == mjFCOMPDOF_TRILINEAR) {
+    nnode = 8;
+  } else if (doftype == mjFCOMPDOF_QUADRATIC) {
+    nnode = 27;
+  }
+  pinned = vector<bool>(std::max(npnt, nnode), rigid);
 
   // handle pins if user did not specify rigid
   if (!rigid) {
@@ -299,8 +306,14 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
     // process pingrid
     for (int i=0; i < (int)pingrid.size(); i+=dflex->dim) {
       // check range
+      int count_check[3] = {count[0], count[1], count[2]};
+      if (type != mjFCOMPTYPE_GRID && (doftype == mjFCOMPDOF_TRILINEAR ||
+                                       doftype == mjFCOMPDOF_QUADRATIC)) {
+        int dim = (doftype == mjFCOMPDOF_TRILINEAR) ? 2 : 3;
+        count_check[0] = count_check[1] = count_check[2] = dim;
+      }
       for (int k=0; k < dflex->dim; k++) {
-        if (pingrid[i+k] < 0 || pingrid[i+k] >= count[k]) {
+        if (pingrid[i+k] < 0 || pingrid[i+k] >= count_check[k]) {
           return comperr(error, "pingrid out of range", error_sz);
         }
       }
@@ -392,6 +405,35 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
       for (int i=0; i < (int)element.size(); i++) {
         element[i] += reindex[element[i]];
       }
+
+      // compact point, texcoord, pinned arrays
+      int new_npnt = 0;
+      for (int i=0; i < npnt; i++) {
+        if (used[i]) {
+          point[3*new_npnt+0] = point[3*i+0];
+          point[3*new_npnt+1] = point[3*i+1];
+          point[3*new_npnt+2] = point[3*i+2];
+
+          if (!texcoord.empty()) {
+            texcoord[2*new_npnt+0] = texcoord[2*i+0];
+            texcoord[2*new_npnt+1] = texcoord[2*i+1];
+          }
+
+          pinned[new_npnt] = pinned[i];
+          new_npnt++;
+        }
+      }
+
+      // resize arrays
+      point.resize(3*new_npnt);
+      if (!texcoord.empty()) {
+        texcoord.resize(2*new_npnt);
+      }
+      pinned.resize(std::max(new_npnt, nnode));
+      used.assign(new_npnt, true);
+
+      // update count
+      npnt = new_npnt;
     }
   }
 

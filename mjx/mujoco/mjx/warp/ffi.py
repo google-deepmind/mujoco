@@ -101,6 +101,8 @@ def jax_callable_variadic_tuple(
     vmap_method: Optional[str] = None,
     output_dims: Optional[dict[str, tuple[int, ...]]] = None,
     in_out_argnames: Optional[Sequence[str]] = None,
+    stage_in_argnames: Optional[Sequence[str]] = None,
+    stage_out_argnames: Optional[Sequence[str]] = None,
 ):
   """Wraps a JAX callable to support variadic tuples and dataclasses."""
 
@@ -130,6 +132,8 @@ def jax_callable_variadic_tuple(
         vmap_method=vmap_method,
         output_dims=output_dims,
         in_out_argnames=in_out_argnames,
+        stage_in_argnames=stage_in_argnames,
+        stage_out_argnames=stage_out_argnames,
     )
 
     flat_args, in_tree = jax.tree.flatten(args)

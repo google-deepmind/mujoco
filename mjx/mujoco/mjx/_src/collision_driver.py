@@ -283,8 +283,8 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
       ))
     if geom1.size > 0 and geom2.size > 0:
       # other contacts get their params from geom fields
-      margin = jp.maximum(m.geom_margin[geom1], m.geom_margin[geom2])
-      gap = jp.maximum(m.geom_gap[geom1], m.geom_gap[geom2])
+      margin = m.geom_margin[geom1] + m.geom_margin[geom2]
+      gap = m.geom_gap[geom1] + m.geom_gap[geom2]
       solmix1, solmix2 = m.geom_solmix[geom1], m.geom_solmix[geom2]
       mix = solmix1 / (solmix1 + solmix2)
       mix = jp.where((solmix1 < eps) & (solmix2 < eps), 0.5, mix)

@@ -117,8 +117,8 @@ mjSpec* mju_decodeResource(mjResource* resource, const char* content_type, const
     decoder = mjp_findDecoder(resource, mjuu_extToContentType(resource->name).c_str());
   }
   if (!decoder) {
-    mju_error("Could not find decoder for resource '%s'", resource->name);
+    mju_warning("Could not find decoder for resource '%s'", resource->name);
+    return nullptr;
   }
-
   return decoder->decode(resource, vfs);
 }

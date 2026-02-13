@@ -4036,6 +4036,9 @@ void mjCFlex::NameSpace(const mjCModel* m) {
   for (auto& name : spec_nodebody_) {
     name = m->prefix + name + m->suffix;
   }
+  if (!spec_material_.empty() && model != m) {
+    spec_material_ = m->prefix + spec_material_ + m->suffix;
+  }
 }
 
 
@@ -4137,6 +4140,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     nvert = (int)vert_.size()/3;
     if (vertbody_.size() == 1) {
       rigid = true;
+    } else if (vertbody_.size() != nvert) {
+      throw mjCError(this, "vertbody size must be 1 or nvert");
     }
   }
   if (nvert < dim+1) {

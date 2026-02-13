@@ -120,6 +120,51 @@ static void printArray2dInt(const char* str, int nr, int nc, const int* data, FI
 }
 
 
+// print history buffer with semantic labels
+static void printDelayBuffer(const char* name, const mjtNum* buf, int nhistory, int dim,
+                             FILE* fp, const char* float_format) {
+  if (!buf || nhistory <= 0) {
+    return;
+  }
+  fprintf(fp, "  %s:\n", name);
+
+  // user value (first slot)
+  fprintf(fp, "    phase  = ");
+  fprintf(fp, float_format, buf[0]);
+  fprintf(fp, "\n");
+
+  // cursor (second slot, stored as mjtNum but is an integer)
+  fprintf(fp, "    cursor =  %d\n", (int)buf[1]);
+
+  // timestamps
+  const mjtNum* times = buf + 2;
+  fprintf(fp, "    times  = ");
+  for (int i = 0; i < nhistory; i++) {
+    fprintf(fp, float_format, times[i]);
+  }
+  fprintf(fp, "\n");
+
+  // values
+  const mjtNum* values = times + nhistory;
+  if (dim == 1) {
+    fprintf(fp, "    values = ");
+    for (int i = 0; i < nhistory; i++) {
+      fprintf(fp, float_format, values[i]);
+    }
+    fprintf(fp, "\n");
+  } else {
+    fprintf(fp, "    values:\n");
+    for (int i = 0; i < nhistory; i++) {
+      fprintf(fp, "      [%d] =", i);
+      for (int j = 0; j < dim; j++) {
+        fprintf(fp, float_format, values[i*dim + j]);
+      }
+      fprintf(fp, "\n");
+    }
+  }
+}
+
+
 // print sparse matrix
 static void printSparse(const char* str, const mjtNum* mat, int nr,
                         const int* rownnz, const int* rowadr,
@@ -1241,6 +1286,36 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printArray2d("QPOS", m->nq, 1, d->qpos, fp, float_format);
   printArray2d("QVEL", m->nv, 1, d->qvel, fp, float_format);
   printArray2d("ACT", m->na, 1, d->act, fp, float_format);
+
+  // print history buffers with semantic structure
+  if (m->nhistory) {
+    fprintf(fp, "DELAY\n");
+
+    // actuator history buffers
+    for (int i = 0; i < m->nu; i++) {
+      int adr = m->actuator_historyadr[i];
+      if (adr >= 0) {
+        char name[100];
+        const char* actuator_name = mj_id2name(m, mjOBJ_ACTUATOR, i);
+        snprintf(name, sizeof(name), "actuator %d '%s'", i, actuator_name ? actuator_name : "");
+        printDelayBuffer(name, d->history + adr, m->actuator_history[2*i], 1, fp, float_format);
+      }
+    }
+
+    // sensor history buffers
+    for (int i = 0; i < m->nsensor; i++) {
+      int adr = m->sensor_historyadr[i];
+      if (adr >= 0) {
+        char name[100];
+        const char* sensor_name = mj_id2name(m, mjOBJ_SENSOR, i);
+        snprintf(name, sizeof(name), "sensor %d  '%s'", i, sensor_name ? sensor_name : "");
+        printDelayBuffer(name, d->history + adr, m->sensor_history[2*i], m->sensor_dim[i],
+                         fp, float_format);
+      }
+    }
+
+    fprintf(fp, "\n");
+  }
   printArray2d("QACC_WARMSTART", m->nv, 1, d->qacc_warmstart, fp, float_format);
   printArray2d("CTRL", m->nu, 1, d->ctrl, fp, float_format);
   printArray2d("QFRC_APPLIED", m->nv, 1, d->qfrc_applied, fp, float_format);

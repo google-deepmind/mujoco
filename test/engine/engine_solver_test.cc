@@ -57,15 +57,15 @@ TEST_F(SolverTest, IslandsEquivalent) {
   mjData* data_noisland = mj_makeData(model);
 
   // Below are 3 tolerances associated with 3 different iteration counts,
-  // they are only moderately tight, 10x higher than x86-64 failure on Linux,
-  // i.e. in that case the test fails with rtol smaller than {5e-3, 5e-4, 5e-5}.
+  // they are only moderately tight, 12x higher than x86-64 failure on Linux,
+  // i.e. in that case the test fails with rtol smaller than {6e-3, 6e-4, 6e-5}.
   // The point of this test is to show that CG convergence is actually not very
   // precise, simply changing whether islands are used changes the solution by
   // quite a lot, even at high iteration count and zero {ls_}tolerance.
   // Increasing the iteration count higher than 60 does not improve convergence.
   constexpr int kNumTol = 3;
   mjtNum maxiter[kNumTol] = {30,   40,   60};
-  mjtNum rtol[kNumTol] =    {5e-2, 5e-3, 5e-4};
+  mjtNum rtol[kNumTol] =    {6e-2, 6e-3, 6e-4};
 
   for (int i = 0; i < kNumTol; ++i) {
     model->opt.iterations = maxiter[i];

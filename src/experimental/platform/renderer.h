@@ -17,15 +17,39 @@
 
 #include <chrono>
 #include <cstddef>
+#include <memory>
 #include <ratio>
 #include <span>
 
 #include <mujoco/mujoco.h>
+#include "experimental/platform/renderer_backend.h"
+
 
 namespace mujoco::platform {
 
-// Renders the mujoco simulation and the imgui state into the active window
-// using the filament rendering backend.
+// Renders the mujoco simulation and the imgui state.
+//
+// The Renderer is built around a specific backend configuration
+// (see renderer_backend.h).
+//
+// Currently we support two rendering engines: the Classic MuJoCo OpenGL
+// renderer and a Filament-based renderer.
+//
+// The Classic renderer is implemented using the OpenGL 2.0 fixed function
+// pipeline. It assumes that the caller has correctly initialized the OpenGL
+// context (e.g. using EGL).
+//
+// The Filament renderer is a modern physically-based renderer that supports
+// OpenGL 3.0, Vulkan, and WebGL (as well as other graphics libraries). Unlike
+// the Classic renderer, the Filament engine itself will manage its graphics
+// context. If rendering to a window surface (e.g. x11), it requires a pointer
+// to the native window to do so.
+//
+// For OpenGL, two different Filament configurations are available: normal and
+// headless. Normal rendering assumes that we will be rendering to an x11
+// window and therefore will use a x11-based context. Headless assumes that we
+// will be rendering to a texture and will use an EGL context. Vulkan and WebGL
+// have no need for such a distinction.
 class Renderer {
  public:
   using Clock = std::chrono::steady_clock;
@@ -33,7 +57,7 @@ class Renderer {
   using Seconds = std::chrono::duration<double>;
   using Milliseconds = std::chrono::duration<double, std::milli>;
 
-  explicit Renderer(void* native_window);
+  explicit Renderer(void* native_window = nullptr);
   ~Renderer();
 
   Renderer(const Renderer&) = delete;
@@ -66,6 +90,10 @@ class Renderer {
   // Returns the current frame rate.
   double GetFps();
 
+  // Returns the statically-defined backend for which this renderer is
+  // configured.
+  static RendererBackend GetBackend();
+
  private:
   // Resets the renderer; no rendering will occur until Init() is called again.
   void Deinit();
@@ -73,6 +101,7 @@ class Renderer {
   void UpdateFps();
 
   void* native_window_ = nullptr;
+  std::shared_ptr<void> graphics_api_context_ = nullptr;
   mjrContext render_context_;
   mjvScene scene_;
   bool initialized_ = false;

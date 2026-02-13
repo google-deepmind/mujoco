@@ -32,6 +32,9 @@ MJ_MAX_EPAFACES = 5
 TILE_SIZE_JTDAJ_SPARSE = 16
 TILE_SIZE_JTDAJ_DENSE = 16
 
+# TODO(team): remove after mjwarp depends on warp-lang >= 1.12 in pyproject.toml
+TEXTURE_DTYPE = wp.Texture2D if hasattr(wp, "Texture2D") else int
+
 
 # TODO(team): add check that all wp.launch_tiled 'block_dim' settings are configurable
 @dataclasses.dataclass
@@ -61,9 +64,9 @@ class BlockDim:
   update_gradient_cholesky_blocked: int = 32
   update_gradient_JTDAJ_sparse: int = 64
   update_gradient_JTDAJ_dense: int = 96
-  linesearch_iterative: int = 64
-  # support
-  mul_m_dense: int = 32
+  linesearch_iterative: int = 32
+  # derivative
+  qderiv_actuator_dense: int = 32
 
 
 class BroadphaseType(enum.IntEnum):
@@ -112,6 +115,23 @@ class CamLightType(enum.IntEnum):
   TRACKCOM = mujoco.mjtCamLight.mjCAMLIGHT_TRACKCOM
   TARGETBODY = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODY
   TARGETBODYCOM = mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODYCOM
+
+
+class ProjectionType(enum.IntEnum):
+  """Type of camera projection.
+
+  Attributes:
+    PERSPECTIVE: perspective projection
+    ORTHOGRAPHIC: orthographic projection
+  """
+
+  # TODO(team): remove after mjwarp depends on mujoco > 3.4.0 in pyproject.toml
+  if hasattr(mujoco, "mjtProjection"):
+    PERSPECTIVE = mujoco.mjtProjection.mjPROJ_PERSPECTIVE
+    ORTHOGRAPHIC = mujoco.mjtProjection.mjPROJ_ORTHOGRAPHIC
+  else:
+    PERSPECTIVE = 0
+    ORTHOGRAPHIC = 1
 
 
 class DataType(enum.IntFlag):
@@ -164,7 +184,8 @@ class DisableBit(enum.IntFlag):
   REFSAFE = mujoco.mjtDisableBit.mjDSBL_REFSAFE
   SENSOR = mujoco.mjtDisableBit.mjDSBL_SENSOR
   EULERDAMP = mujoco.mjtDisableBit.mjDSBL_EULERDAMP
-  # unsupported: MIDPHASE, AUTORESET, NATIVECCD, ISLAND
+  NATIVECCD = mujoco.mjtDisableBit.mjDSBL_NATIVECCD
+  # unsupported: MIDPHASE, AUTORESET, ISLAND
 
 
 class EnableBit(enum.IntFlag):
@@ -319,6 +340,20 @@ class GeomType(enum.IntEnum):
   MESH = mujoco.mjtGeom.mjGEOM_MESH
   SDF = mujoco.mjtGeom.mjGEOM_SDF
   # unsupported: NGEOMTYPES, ARROW*, LINE, SKIN, LABEL, NONE
+
+
+class CollisionType(enum.IntEnum):
+  """Type of narrowphase collision.
+
+  Attributes:
+    PRIMITIVE: primitive collision
+    CONVEX: convex collision (CCD)
+    SDF: sdf collision
+  """
+
+  PRIMITIVE = 0
+  CONVEX = 1
+  SDF = 2
 
 
 class SolverType(enum.IntEnum):
@@ -665,10 +700,8 @@ class Option:
 
   warp only fields:
     impratio_invsqrt: ratio of friction-to-normal contact impedance (stored as inverse square root)
-    is_sparse: whether to use sparse representations
     ls_parallel: evaluate engine solver step sizes in parallel
     ls_parallel_min_step: minimum step size for solver linesearch
-    has_fluid: True if wind, density, or viscosity are non-zero at put_model time
     broadphase: broadphase type (BroadphaseType)
     broadphase_filter: broadphase filter bitflag (BroadphaseFilter)
     graph_conditional: flag to use cuda graph conditional
@@ -700,10 +733,8 @@ class Option:
   sdf_iterations: int
   # warp only fields:
   impratio_invsqrt: array("*", float)
-  is_sparse: bool
   ls_parallel: bool
   ls_parallel_min_step: float
-  has_fluid: bool
   broadphase: BroadphaseType
   broadphase_filter: BroadphaseFilter
   graph_conditional: bool
@@ -716,10 +747,10 @@ class Statistic:
   """Model statistics (in qpos0).
 
   Attributes:
-    meaninertia: mean diagonal inertia
+    meaninertia: mean diagonal inertia (per-world)
   """
 
-  meaninertia: float
+  meaninertia: array("*", float)
 
 
 @dataclasses.dataclass
@@ -749,6 +780,7 @@ class Model:
     nbody: number of bodies
     noct: number of total octree cells in all meshes
     njnt: number of joints
+    ntree: number of kinematic trees
     nM: number of non-zeros in sparse inertia matrix
     nC: number of non-zeros in sparse body-dof matrix
     ngeom: number of geoms
@@ -794,6 +826,7 @@ class Model:
     body_jntadr: start addr of joints; -1: no joints         (nbody,)
     body_dofnum: number of motion degrees of freedom         (nbody,)
     body_dofadr: start addr of dofs; -1: no dofs             (nbody,)
+    body_treeid: id of body's tree; -1: static               (nbody,)
     body_geomnum: number of geoms                            (nbody,)
     body_geomadr: start addr of geoms; -1: no geoms          (nbody,)
     body_pos: position offset rel. to parent body            (*, nbody, 3)
@@ -828,6 +861,7 @@ class Model:
     dof_bodyid: id of dof's body                             (nv,)
     dof_jntid: id of dof's joint                             (nv,)
     dof_parentid: id of dof's parent; -1: none               (nv,)
+    dof_treeid: id of dof's tree                             (nv,)
     dof_Madr: dof address in M-diagonal                      (nv,)
     dof_solref: constraint solver reference: frictionloss    (*, nv, NREF)
     dof_solimp: constraint solver impedance: frictionloss    (*, nv, NIMP)
@@ -835,6 +869,9 @@ class Model:
     dof_armature: dof armature inertia/mass                  (*, nv)
     dof_damping: damping coefficient                         (*, nv)
     dof_invweight0: diag. inverse inertia in qpos0           (*, nv)
+    tree_bodynum: number of bodies in tree (incl. root)      (ntree,)
+    tree_dofadr: start address of tree's dofs                (ntree,)
+    tree_dofnum: number of dofs in tree                      (ntree,)
     geom_type: geometric type (GeomType)                     (ngeom,)
     geom_contype: geom contact type                          (ngeom,)
     geom_conaffinity: geom contact affinity                  (ngeom,)
@@ -870,10 +907,11 @@ class Model:
     cam_poscom0: global position rel. to sub-com in qpos0    (*, ncam, 3)
     cam_pos0: global position rel. to body in qpos0          (*, ncam, 3)
     cam_mat0: global orientation in qpos0                    (*, ncam, 3, 3)
-    cam_fovy: y field-of-view (ortho ? len : deg)            (ncam,)
+    cam_projection: projection type (ProjectionType)         (ncam,)
+    cam_fovy: y field-of-view (ortho ? len : deg)            (*, ncam)
     cam_resolution: resolution: pixels [width, height]       (ncam, 2)
     cam_sensorsize: sensor size: length [width, height]      (ncam, 2)
-    cam_intrinsic: [focal length; principal point]           (ncam, 4)
+    cam_intrinsic: [focal length; principal point]           (*, ncam, 4)
     light_mode: light tracking mode (CamLightType)           (nlight,)
     light_bodyid: id of light's body                         (nlight,)
     light_targetbodyid: id of targeted body; -1: none        (nlight,)
@@ -903,6 +941,9 @@ class Model:
     flex_stiffness: finite element stiffness matrix          (nflexelem, 21)
     flex_bending: bending stiffness                          (nflexedge, 17)
     flex_damping: Rayleigh's damping coefficient             (nflex,)
+    flexedge_J_rownnz: number of nonzeros in Jacobian row    (nflexedge,)
+    flexedge_J_rowadr: row start address in colind array     (nflexedge,)
+    flexedge_J_colind: column indices in sparse Jacobian     (nJfe,)
     mesh_vertadr: first vertex address                       (nmesh,)
     mesh_vertnum: number of vertices                         (nmesh,)
     mesh_faceadr: first face address                         (nmesh,)
@@ -927,7 +968,7 @@ class Model:
     hfield_ncol: number of columns in grid                   (nhfield,)
     hfield_adr: start address in hfield_data                 (nhfield,)
     hfield_data: elevation data                              (nhfielddata,)
-    mat_texid: texture id for rendering                      (nmat, mjNTEXROLE)
+    mat_texid: texture id for rendering                      (*, nmat, mjNTEXROLE)
     mat_texrepeat: texture repeat for rendering              (*, nmat, 2)
     mat_rgba: rgba                                           (*, nmat, 4)
     pair_dim: contact dimensionality                         (npair,)
@@ -1008,6 +1049,7 @@ class Model:
     mapM2M: index mapping from M (legacy) to M (CSR)         (nC)
 
   warp only fields:
+    nbranch: number of branches (leaf-to-root paths)
     nv_pad: number of degrees of freedom + padding
     nacttrnbody: number of actuators with body transmission
     nsensorcollision: number of unique collisions for
@@ -1019,9 +1061,13 @@ class Model:
     nmaxpyramid: maximum number of pyramid directions
     nmaxpolygon: maximum number of verts per polygon
     nmaxmeshdeg: maximum number of polygons per vert
+    is_sparse: whether to use sparse representations
+    has_fluid: True if wind, density, or viscosity are non-zero at put_model time
     has_sdf_geom: whether the model contains SDF geoms
     block_dim: block dim options
     body_tree: list of body ids by tree level
+    body_branches: flattened body ids for all branches
+    body_branch_start: start index in body_branches for each branch   (nbranch + 1,)
     mocap_bodyid: id of body for mocap                       (nmocap,)
     body_fluid_ellipsoid: does body use ellipsoid fluid      (nbody,)
     jnt_limited_slide_hinge_adr: limited/slide/hinge jntadr
@@ -1085,9 +1131,9 @@ class Model:
     qLD_updates: tuple of index triples for sparse factorization
     qM_fullm_i: sparse mass matrix addressing
     qM_fullm_j: sparse mass matrix addressing
-    qM_mulm_i: sparse matmul addressing
-    qM_mulm_j: sparse matmul addressing
-    qM_madr_ij: sparse matmul addressing
+    qM_mulm_rowadr: sparse matmul row pointers
+    qM_mulm_col: sparse matmul column indices
+    qM_mulm_madr: sparse matmul matrix addresses
   """
 
   nq: int
@@ -1097,6 +1143,7 @@ class Model:
   nbody: int
   noct: int
   njnt: int
+  ntree: int
   nM: int
   nC: int
   ngeom: int
@@ -1142,6 +1189,7 @@ class Model:
   body_jntadr: array("nbody", int)
   body_dofnum: array("nbody", int)
   body_dofadr: array("nbody", int)
+  body_treeid: array("nbody", int)
   body_geomnum: array("nbody", int)
   body_geomadr: array("nbody", int)
   body_pos: array("*", "nbody", wp.vec3)
@@ -1176,6 +1224,7 @@ class Model:
   dof_bodyid: array("nv", int)
   dof_jntid: array("nv", int)
   dof_parentid: array("nv", int)
+  dof_treeid: array("nv", int)
   dof_Madr: array("nv", int)
   dof_solref: array("*", "nv", wp.vec2)
   dof_solimp: array("*", "nv", vec5)
@@ -1183,6 +1232,9 @@ class Model:
   dof_armature: array("*", "nv", float)
   dof_damping: array("*", "nv", float)
   dof_invweight0: array("*", "nv", float)
+  tree_bodynum: array("ntree", int)
+  tree_dofadr: array("ntree", int)
+  tree_dofnum: array("ntree", int)
   geom_type: array("ngeom", int)
   geom_contype: array("ngeom", int)
   geom_conaffinity: array("ngeom", int)
@@ -1218,10 +1270,11 @@ class Model:
   cam_poscom0: array("*", "ncam", wp.vec3)
   cam_pos0: array("*", "ncam", wp.vec3)
   cam_mat0: array("*", "ncam", wp.mat33)
-  cam_fovy: array("ncam", float)
+  cam_projection: array("ncam", int)
+  cam_fovy: array("*", "ncam", float)
   cam_resolution: array("ncam", wp.vec2i)
   cam_sensorsize: array("ncam", wp.vec2)
-  cam_intrinsic: array("ncam", wp.vec4)
+  cam_intrinsic: array("*", "ncam", wp.vec4)
   light_mode: array("nlight", int)
   light_bodyid: array("nlight", int)
   light_targetbodyid: array("nlight", int)
@@ -1251,6 +1304,9 @@ class Model:
   flex_stiffness: array("nflexelem", 21, float)
   flex_bending: array("nflexedge", 17, float)
   flex_damping: array("nflex", float)
+  flexedge_J_rownnz: array("nflexedge", int)
+  flexedge_J_rowadr: array("nflexedge", int)
+  flexedge_J_colind: wp.array(dtype=int)
   mesh_vertadr: array("nmesh", int)
   mesh_vertnum: array("nmesh", int)
   mesh_faceadr: array("nmesh", int)
@@ -1275,7 +1331,7 @@ class Model:
   hfield_ncol: array("nhfield", int)
   hfield_adr: array("nhfield", int)
   hfield_data: array("nhfielddata", float)
-  mat_texid: array("nmat", 10, int)
+  mat_texid: array("*", "nmat", 10, int)
   mat_texrepeat: array("*", "nmat", wp.vec2)
   mat_rgba: array("*", "nmat", wp.vec4)
   pair_dim: array("npair", int)
@@ -1355,6 +1411,7 @@ class Model:
   M_colind: array("nC", int)
   mapM2M: array("nC", int)
   # warp only fields:
+  nbranch: int
   nv_pad: int
   nacttrnbody: int
   nsensorcollision: int
@@ -1365,9 +1422,13 @@ class Model:
   nmaxpyramid: int
   nmaxpolygon: int
   nmaxmeshdeg: int
+  is_sparse: bool
+  has_fluid: bool
   has_sdf_geom: bool
   block_dim: BlockDim
   body_tree: tuple[wp.array(dtype=int), ...]
+  body_branches: wp.array(dtype=int)
+  body_branch_start: wp.array(dtype=int)
   mocap_bodyid: array("nmocap", int)
   body_fluid_ellipsoid: array("nbody", bool)
   jnt_limited_slide_hinge_adr: wp.array(dtype=int)
@@ -1422,9 +1483,10 @@ class Model:
   qLD_updates: tuple[wp.array(dtype=wp.vec3i), ...]
   qM_fullm_i: wp.array(dtype=int)
   qM_fullm_j: wp.array(dtype=int)
-  qM_mulm_i: wp.array(dtype=int)
-  qM_mulm_j: wp.array(dtype=int)
-  qM_madr_ij: wp.array(dtype=int)
+  # Gather-based sparse mul_m indices (thread per DOF, no atomics)
+  qM_mulm_rowadr: wp.array(dtype=int)  # start address for each row [nv+1]
+  qM_mulm_col: wp.array(dtype=int)  # column index to gather from
+  qM_mulm_madr: wp.array(dtype=int)  # matrix address to read
 
 
 class ContactType(enum.IntFlag):
@@ -1492,26 +1554,9 @@ class Constraint:
     aref: reference pseudo-acceleration               (nworld, njmax)
     frictionloss: frictionloss (friction)             (nworld, njmax)
     force: constraint force in constraint space       (nworld, njmax)
-    Jaref: Jac*qacc - aref                            (nworld, njmax)
-    Ma: M*qacc                                        (nworld, nv)
-    grad: gradient of master cost                     (nworld, nv_pad)
-    grad_dot: dot(grad, grad)                         (nworld,)
-    Mgrad: M / grad                                   (nworld, nv_pad)
-    search: linesearch vector                         (nworld, nv)
-    search_dot: dot(search, search)                   (nworld,)
-    gauss: Gauss Cost                                 (nworld,)
-    cost: constraint + Gauss cost                     (nworld,)
-    prev_cost: cost from previous iter                (nworld,)
     state: constraint state                           (nworld, njmax_pad)
-    mv: qM @ search                                   (nworld, nv)
-    jv: efc_J @ search                                (nworld, njmax)
-    quad: quadratic cost coefficients                 (nworld, njmax, 3)
-    quad_gauss: quadratic cost Gauss coefficients     (nworld, 3)
-    alpha: line search step size                      (nworld,)
-    prev_grad: previous grad                          (nworld, nv)
-    prev_Mgrad: previous Mgrad                        (nworld, nv)
-    beta: Polak-Ribiere beta                          (nworld,)
-    done: solver done                                 (nworld,)
+  warp only fields:
+    Ma: M*qacc                                        (nworld, nv)
   """
 
   type: array("nworld", "njmax", int)
@@ -1524,26 +1569,8 @@ class Constraint:
   aref: array("nworld", "njmax", float)
   frictionloss: array("nworld", "njmax", float)
   force: array("nworld", "njmax", float)
-  Jaref: array("nworld", "njmax", float)
-  Ma: array("nworld", "nv", float)
-  grad: array("nworld", "nv_pad", float)
-  grad_dot: array("nworld", float)
-  Mgrad: array("nworld", "nv_pad", float)
-  search: array("nworld", "nv", float)
-  search_dot: array("nworld", float)
-  gauss: array("nworld", float)
-  cost: array("nworld", float)
-  prev_cost: array("nworld", float)
   state: array("nworld", "njmax_pad", int)
-  mv: array("nworld", "nv", float)
-  jv: array("nworld", "njmax", float)
-  quad: array("nworld", "njmax", wp.vec3)
-  quad_gauss: array("nworld", wp.vec3)
-  alpha: array("nworld", float)
-  prev_grad: array("nworld", "nv", float)
-  prev_Mgrad: array("nworld", "nv", float)
-  beta: array("nworld", float)
-  done: array("nworld", bool)
+  Ma: array("nworld", "nv", float)
 
 
 @dataclasses.dataclass
@@ -1590,7 +1617,7 @@ class Data:
     cdof: com-based motion axis of each dof (rot:lin)           (nworld, nv, 6)
     cinert: com-based body inertia and mass                     (nworld, nbody, 10)
     flexvert_xpos: cartesian flex vertex positions              (nworld, nflexvert, 3)
-    flexedge_J: edge length Jacobian                            (nworld, nflexedge, nv)
+    flexedge_J: edge length Jacobian                            (nworld, 1, nflexedge*6)
     flexedge_length: flex edge lengths                          (nworld, nflexedge, 1)
     ten_wrapadr: start address of tendon's path                 (nworld, ntendon)
     ten_wrapnum: number of wrap points in path                  (nworld, ntendon)
@@ -1606,7 +1633,7 @@ class Data:
     qLD: L'*D*L factorization of M                              (nworld, nv, nv) if dense
                                                                 (nworld, 1, nC) if sparse
     qLDiagInv: 1/diag(D)                                        (nworld, nv)
-    flexedge_velocity: flex edge velocities                     (nworld, nflexedge,)
+    flexedge_velocity: flex edge velocities                     (nworld, nflexedge)
     ten_velocity: tendon velocities                             (nworld, ntendon)
     actuator_velocity: actuator velocities                      (nworld, nu)
     cvel: com-based velocity (rot:lin)                          (nworld, nbody, 6)
@@ -1636,18 +1663,9 @@ class Data:
   warp only fields:
     nworld: number of worlds
     naconmax: maximum number of contacts (shared across all worlds)
+    naccdmax: maximum number of contacts for CCD (all worlds)
     njmax: maximum number of constraints per world
     nacon: number of detected contacts (across all worlds)      (1,)
-    ne_connect: number of equality connect constraints          (nworld,)
-    ne_weld: number of equality weld constraints                (nworld,)
-    ne_jnt: number of equality joint constraints                (nworld,)
-    ne_ten: number of equality tendon constraints               (nworld,)
-    ne_flex: number of flex edge equality constraints           (nworld,)
-    nsolving: number of unconverged worlds                      (1,)
-    subtree_bodyvel: subtree body velocity (ang, vel)           (nworld, nbody, 6)
-    collision_pair: collision pairs from broadphase             (naconmax, 2)
-    collision_pairid: ids from broadphase                       (naconmax, 2)
-    collision_worldid: collision world ids from broadphase      (naconmax,)
     ncollision: collision count from broadphase                 (1,)
   """
 
@@ -1690,7 +1708,7 @@ class Data:
   cdof: array("nworld", "nv", wp.spatial_vector)
   cinert: array("nworld", "nbody", vec10)
   flexvert_xpos: array("nworld", "nflexvert", wp.vec3)
-  flexedge_J: array("nworld", "nflexedge", "nv", float)
+  flexedge_J: wp.array3d(dtype=float)
   flexedge_length: array("nworld", "nflexedge", float)
   ten_wrapadr: array("nworld", "ntendon", int)
   ten_wrapnum: array("nworld", "ntendon", int)
@@ -1732,18 +1750,131 @@ class Data:
   # warp only fields:
   nworld: int
   naconmax: int
+  naccdmax: int
   njmax: int
   nacon: array(1, int)
-  ne_connect: array("nworld", int)
-  ne_weld: array("nworld", int)
-  ne_jnt: array("nworld", int)
-  ne_ten: array("nworld", int)
-  ne_flex: array("nworld", int)
-  nsolving: array(1, int)
-  subtree_bodyvel: array("nworld", "nbody", wp.spatial_vector)
-
-  # warp only: collision driver
-  collision_pair: array("naconmax", wp.vec2i)
-  collision_pairid: array("naconmax", wp.vec2i)
-  collision_worldid: array("naconmax", int)
   ncollision: array(1, int)
+
+
+@dataclasses.dataclass
+class CollisionContext:
+  """Collision driver intermediate arrays.
+
+  Attributes:
+    collision_pair: collision pairs from broadphase             (naconmax, 2)
+    collision_pairid: ids from broadphase                       (naconmax, 2)
+    collision_worldid: collision world ids from broadphase      (naconmax,)
+  """
+
+  collision_pair: wp.array
+  collision_pairid: wp.array
+  collision_worldid: wp.array
+
+
+@dataclasses.dataclass
+class RenderContext:
+  """Context for rendering.
+
+  Attributes:
+    nrender: number of actively rendering cameras
+    cam_res: camera resolution for actively rendering cameras
+    cam_id_map: camera id map
+    use_textures: whether to use textures
+    use_shadows: whether to use shadows
+    bvh_ngeom: number of geometries in the BVH
+    enabled_geom_ids: enabled geometry ids
+    mesh_registry: mesh BVH id to warp mesh mapping
+    mesh_bvh_id: mesh BVH ids
+    mesh_bounds_size: mesh bounds size
+    mesh_texcoord: mesh texture coordinates
+    mesh_texcoord_offsets: mesh texture coordinate offsets
+    mesh_facetexcoord: mesh face texture coordinates
+    textures: textures
+    textures_registry: texture registry
+    hfield_registry: hfield BVH id to warp mesh mapping
+    hfield_bvh_id: hfield BVH ids
+    hfield_bounds_size: hfield bounds size
+    flex_mesh: flex mesh
+    flex_rgba: flex rgba
+    flex_bvh_id: flex BVH id
+    flex_face_point: flex face points
+    flex_faceadr: flex face addresses
+    flex_nface: number of flex faces
+    flex_nwork: total flex work items for refit
+    flex_group_root: flex group roots
+    flex_elemdataadr: flex element data addresses
+    flex_shell: flex shell data
+    flex_shelldataadr: flex shell data addresses
+    flex_radius: flex radius
+    flex_workadr: flex work item addresses for refit
+    flex_worknum: flex work item counts for refit
+    flex_render_smooth: whether to render flex meshes smoothly
+    bvh: scene BVH
+    bvh_id: scene BVH id
+    lower: lower bounds
+    upper: upper bounds
+    group: groups
+    group_root: group roots
+    ray: rays
+    rgb_data: RGB data
+    rgb_adr: RGB addresses
+    rgb_size: per-camera RGB buffer sizes
+    depth_data: depth data
+    depth_adr: depth addresses
+    depth_size: per-camera depth buffer sizes
+    render_rgb: per-camera RGB render flags
+    render_depth: per-camera depth render flags
+    znear: near plane distance
+    total_rays: total number of rays
+  """
+
+  nrender: int
+  cam_res: array("ncam", wp.vec2i)
+  cam_id_map: array("ncam", int)
+  use_textures: bool
+  use_shadows: bool
+  background_color: wp.uint32
+  bvh_ngeom: int
+  enabled_geom_ids: array("*", int)
+  mesh_registry: dict
+  mesh_bvh_id: array("nmesh", wp.uint64)
+  mesh_bounds_size: array("nmesh", wp.vec3)
+  mesh_texcoord: array("*", wp.vec2)
+  mesh_texcoord_offsets: array("nmesh", int)
+  mesh_facetexcoord: array("nmeshface", wp.vec3i)
+  # TODO(team): remove after mjwarp depends on warp-lang >= 1.12 in pyproject.toml
+  textures: array("*", TEXTURE_DTYPE)
+  textures_registry: list[TEXTURE_DTYPE]
+  hfield_registry: dict
+  hfield_bvh_id: array("nhfield", wp.uint64)
+  hfield_bounds_size: array("nhfield", wp.vec3)
+  flex_mesh: wp.Mesh
+  flex_rgba: array("nflex", wp.vec4)
+  flex_bvh_id: wp.uint64
+  flex_face_point: array("*", wp.vec3)
+  flex_faceadr: array("nflex", int)
+  flex_nface: int
+  flex_nwork: int
+  flex_group_root: array("nworld", int)
+  flex_elemdataadr: array("nflex", int)
+  flex_shell: array("*", int)
+  flex_shelldataadr: array("nflex", int)
+  flex_radius: array("nflex", float)
+  flex_workadr: array("nflex", int)
+  flex_worknum: array("nflex", int)
+  flex_render_smooth: bool
+  bvh: wp.Bvh
+  bvh_id: wp.uint64
+  lower: array("*", wp.vec3)
+  upper: array("*", wp.vec3)
+  group: array("*", int)
+  group_root: array("*", int)
+  ray: array("*", wp.vec3)
+  rgb_data: array("*", wp.uint32)
+  rgb_adr: array("ncam", int)
+  depth_data: array("*", wp.float32)
+  depth_adr: array("ncam", int)
+  render_rgb: array("ncam", bool)
+  render_depth: array("ncam", bool)
+  znear: float
+  total_rays: int

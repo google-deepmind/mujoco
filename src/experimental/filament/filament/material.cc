@@ -24,11 +24,6 @@
 
 namespace mujoco {
 
-// Various tweakable parameters for mapping mujoco values onto filament.
-static constexpr float kSpecularMultiplier = 0.6f;
-static constexpr float kShininessMultiplier = 0.1f;
-static constexpr float kEmissiveMultiplier = 0.3f;
-
 Material::Material(ObjectManager* object_mgr) : object_mgr_(object_mgr) {
   instances_[kDepth] =
       object_mgr->GetMaterial(ObjectManager::kUnlitDepth)->createInstance();
@@ -88,16 +83,16 @@ void Material::UpdateMaterialInstances() {
                            params_.color);
   }
   if (material->hasParameter("EmissiveFactor")) {
-    instance->setParameter("EmissiveFactor",
-                           params_.emissive * kEmissiveMultiplier);
+    const float multiplier = object_mgr_->GetEmissiveMultiplier();
+    instance->setParameter("EmissiveFactor", params_.emissive * multiplier);
   }
   if (material->hasParameter("SpecularFactor")) {
-    instance->setParameter("SpecularFactor",
-                           params_.specular * kSpecularMultiplier);
+    const float multiplier = object_mgr_->GetSpecularMultiplier();
+    instance->setParameter("SpecularFactor", params_.specular * multiplier);
   }
   if (material->hasParameter("GlossinessFactor")) {
-    instance->setParameter("GlossinessFactor",
-                           params_.glossiness * kShininessMultiplier);
+    const float multiplier = object_mgr_->GetShininessMultiplier();
+    instance->setParameter("GlossinessFactor", params_.glossiness * multiplier);
   }
   if (material->hasParameter("MetallicFactor")) {
     instance->setParameter("MetallicFactor",

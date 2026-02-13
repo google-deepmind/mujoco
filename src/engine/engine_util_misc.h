@@ -75,7 +75,7 @@ MJAPI mjtNum mju_evalBasis(const mjtNum x[3], int i, int order);
 // interpolate a function at x with given interpolation coefficients and order n
 MJAPI void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, int order);
 
-// ----------------------------- Base64 -----------------------------------------------------------
+// ----------------------------- Base64 ------------------------------------------------------------
 
 // encode data as Base64 into buf (including padding and null char)
 // returns number of chars written in buf: 4 * [(ndata + 2) / 3] + 1
@@ -89,7 +89,31 @@ MJAPI size_t mju_isValidBase64(const char* s);
 // returns number of bytes decoded (upper limit of 3 * (strlen(s) / 4))
 MJAPI size_t mju_decodeBase64(uint8_t* buf, const char* s);
 
-//------------------------------ miscellaneous ----------------------------------------------------
+//------------------------------ history buffers ---------------------------------------------------
+
+// buffer layout: [user(1), cursor(1), times(n), values(n*dim)]
+// - user: 1 mjtNum reserved for user data (ignored by these functions)
+// - cursor: 1 mjtNum for circular buffer index (integer stored as mjtNum)
+// - times: n timestamps, contiguous at buf[2..n+1]
+// - values: n*dim values, contiguous at buf[n+2..n+2+n*dim-1]
+// total buffer size: 2 + n*(1 + dim)
+
+// initialize history buffer with given times and values; times must be strictly increasing
+// values is size n x dim
+MJAPI void mju_historyInit(mjtNum* buf, int n, int dim, const mjtNum* times,
+                           const mjtNum* values, mjtNum user);
+
+// find insertion slot for sample at time t, maintaining sorted order
+// returns pointer to value slot (size dim) where caller should write
+MJAPI mjtNum* mju_historyInsert(mjtNum* buf, int n, int dim, mjtNum t);
+
+// read vector value at time t; interp: 0=zero-order-hold, 1=linear, 2=cubic spline
+// returns pointer to sample in buffer on exact match (res untouched)
+// returns NULL and writes interpolated result to res otherwise
+MJAPI const mjtNum* mju_historyRead(const mjtNum* buf, int n, int dim,
+                                    mjtNum* res, mjtNum t, int interp);
+
+//------------------------------ miscellaneous -----------------------------------------------------
 
 // convert contact force to pyramid representation
 MJAPI void mju_encodePyramid(mjtNum* pyramid, const mjtNum* force,

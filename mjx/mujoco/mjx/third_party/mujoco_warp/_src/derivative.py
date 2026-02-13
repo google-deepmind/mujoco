@@ -25,7 +25,6 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import TileSet
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec10f
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
-from mujoco.mjx.third_party.mujoco_warp._src.warp_util import nested_kernel
 
 wp.set_module_options({"enable_backward": False})
 
@@ -80,12 +79,12 @@ def _qderiv_actuator_passive_vel(
 
 @cache_kernel
 def _qderiv_actuator_passive_actuation_dense(tile: TileSet, nu: int):
-  @nested_kernel(module="unique", enable_backward=False)
+  @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
-    vel_in: wp.array3d(dtype=float),
     actuator_moment_in: wp.array3d(dtype=float),
     # In:
+    vel_in: wp.array3d(dtype=float),
     adr: wp.array(dtype=int),
     # Out:
     qDeriv_out: wp.array3d(dtype=float),
@@ -140,8 +139,8 @@ def _qderiv_actuator_passive(
   # Model:
   opt_timestep: wp.array(dtype=float),
   opt_disableflags: int,
-  opt_is_sparse: bool,
   dof_damping: wp.array2d(dtype=float),
+  is_sparse: bool,
   # Data in:
   qM_in: wp.array3d(dtype=float),
   # In:
@@ -156,7 +155,7 @@ def _qderiv_actuator_passive(
   dofiid = qMi[elemid]
   dofjid = qMj[elemid]
 
-  if opt_is_sparse:
+  if is_sparse:
     qderiv = qDeriv_in[worldid, 0, elemid]
   else:
     qderiv = qDeriv_in[worldid, dofiid, dofjid]
@@ -166,7 +165,7 @@ def _qderiv_actuator_passive(
 
   qderiv *= opt_timestep[worldid % opt_timestep.shape[0]]
 
-  if opt_is_sparse:
+  if is_sparse:
     qDeriv_out[worldid, 0, elemid] = qM_in[worldid, 0, elemid] - qderiv
   else:
     qM = qM_in[worldid, dofiid, dofjid] - qderiv
@@ -181,8 +180,8 @@ def _qderiv_tendon_damping(
   # Model:
   ntendon: int,
   opt_timestep: wp.array(dtype=float),
-  opt_is_sparse: bool,
   tendon_damping: wp.array2d(dtype=float),
+  is_sparse: bool,
   # Data in:
   ten_J_in: wp.array3d(dtype=float),
   # In:
@@ -202,7 +201,7 @@ def _qderiv_tendon_damping(
 
   qderiv *= opt_timestep[worldid % opt_timestep.shape[0]]
 
-  if opt_is_sparse:
+  if is_sparse:
     qDeriv_out[worldid, 0, elemid] -= qderiv
   else:
     qDeriv_out[worldid, dofiid, dofjid] -= qderiv
@@ -245,7 +244,7 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d(dtype=float)):
         ],
         outputs=[vel],
       )
-      if m.opt.is_sparse:
+      if m.is_sparse:
         wp.launch(
           _qderiv_actuator_passive_actuation_sparse,
           dim=(d.nworld, qMi.size),
@@ -258,9 +257,9 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d(dtype=float)):
           wp.launch_tiled(
             _qderiv_actuator_passive_actuation_dense(tile, m.nu),
             dim=(d.nworld, tile.adr.size),
-            inputs=[vel_3d, d.actuator_moment, tile.adr],
+            inputs=[d.actuator_moment, vel_3d, tile.adr],
             outputs=[out],
-            block_dim=m.block_dim.mul_m_dense,
+            block_dim=m.block_dim.qderiv_actuator_dense,
           )
     wp.launch(
       _qderiv_actuator_passive,
@@ -268,8 +267,8 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d(dtype=float)):
       inputs=[
         m.opt.timestep,
         m.opt.disableflags,
-        m.opt.is_sparse,
         m.dof_damping,
+        m.is_sparse,
         d.qM,
         qMi,
         qMj,
@@ -285,7 +284,7 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d(dtype=float)):
     wp.launch(
       _qderiv_tendon_damping,
       dim=(d.nworld, qMi.size),
-      inputs=[m.ntendon, m.opt.timestep, m.opt.is_sparse, m.tendon_damping, d.ten_J, qMi, qMj],
+      inputs=[m.ntendon, m.opt.timestep, m.tendon_damping, m.is_sparse, d.ten_J, qMi, qMj],
       outputs=[out],
     )
 

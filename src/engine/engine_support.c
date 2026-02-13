@@ -43,8 +43,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 341
-#define mjVERSIONSTRING "3.4.1"
+ #define mjVERSION 3005001
+#define mjVERSIONSTRING "3.5.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -132,6 +132,7 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState sig) {
   case mjSTATE_QPOS:          return m->nq;
   case mjSTATE_QVEL:          return m->nv;
   case mjSTATE_ACT:           return m->na;
+  case mjSTATE_HISTORY:       return m->nhistory;
   case mjSTATE_WARMSTART:     return m->nv;
   case mjSTATE_CTRL:          return m->nu;
   case mjSTATE_QFRC_APPLIED:  return m->nv;
@@ -155,6 +156,7 @@ static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState sig)
   case mjSTATE_QPOS:          return d->qpos;
   case mjSTATE_QVEL:          return d->qvel;
   case mjSTATE_ACT:           return d->act;
+  case mjSTATE_HISTORY:       return d->history;
   case mjSTATE_WARMSTART:     return d->qacc_warmstart;
   case mjSTATE_CTRL:          return d->ctrl;
   case mjSTATE_QFRC_APPLIED:  return d->qfrc_applied;
@@ -619,7 +621,7 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
       vadr += 3;
       padr += 3;
 
-      // continute with rotations
+      // continue with rotations
       mjFALLTHROUGH;
 
     case mjJNT_BALL:
@@ -701,6 +703,34 @@ int mj_actuatorDisabled(const mjModel* m, int i) {
     return m->opt.disableactuator & (1 << group) ? 1 : 0;
   }
 }
+
+
+// returns the next activation given current act_dot, after clamping
+mjtNum mj_nextActivation(const mjModel* m, const mjData* d,
+                         int actuator_id, int act_adr, mjtNum act_dot) {
+  mjtNum act = d->act[act_adr];
+
+  if (m->actuator_dyntype[actuator_id] == mjDYN_FILTEREXACT) {
+    // exact filter integration
+    // act_dot(0) = (ctrl-act(0)) / tau
+    // act(h) = act(0) + (ctrl-act(0)) (1 - exp(-h / tau))
+    //        = act(0) + act_dot(0) * tau * (1 - exp(-h / tau))
+    mjtNum tau = mju_max(mjMINVAL, m->actuator_dynprm[actuator_id*mjNDYN]);
+    act = act + act_dot * tau * (1 - mju_exp(-m->opt.timestep / tau));
+  } else {
+    // Euler integration
+    act = act + act_dot * m->opt.timestep;
+  }
+
+  // clamp to actrange
+  if (m->actuator_actlimited[actuator_id]) {
+    mjtNum* actrange = m->actuator_actrange + 2*actuator_id;
+    act = mju_clip(act, actrange[0], actrange[1]);
+  }
+
+  return act;
+}
+
 
 // sum all body masses
 mjtNum mj_getTotalmass(const mjModel* m) {
@@ -805,4 +835,114 @@ void mju_camIntrinsics(const mjModel* m, int camid,
 
   // extent only used for orthographic cameras
   *extent = m->cam_fovy[camid];
+}
+
+
+// read delayed ctrl value for actuator at given time
+mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp) {
+  // validate actuator id
+  if (id < 0 || id >= m->nu) {
+    mjERROR("invalid actuator id %d", id);
+    return 0;
+  }
+
+  // no delay: return current ctrl value
+  int nsample = m->actuator_history[2*id];
+  if (nsample == 0) {
+    return d->ctrl[id];
+  }
+
+  // resolve interpolation order: use model's interp if argument is -1
+  if (interp < 0) interp = m->actuator_history[2*id+1];
+
+  // get buffer pointer and read from history buffer
+  mjtNum delay = m->actuator_delay[id];
+  const mjtNum* buf = d->history + m->actuator_historyadr[id];
+  mjtNum res;
+  const mjtNum* ptr = mju_historyRead(buf, nsample, /*dim=*/1, &res, time - delay, interp);
+  return ptr ? *ptr : res;
+}
+
+
+// read sensor value from history buffer at given time
+const mjtNum* mj_readSensor(const mjModel* m, const mjData* d, int id, mjtNum time,
+                            mjtNum* result, int interp) {
+  // validate sensor id
+  if (id < 0 || id >= m->nsensor) {
+    mjERROR("invalid sensor id %d", id);
+    return NULL;
+  }
+
+  // no history: return current sensor value
+  int nsample = m->sensor_history[2*id];
+  if (nsample == 0) {
+    return d->sensordata + m->sensor_adr[id];
+  }
+
+  // resolve interpolation order: use model's interp if argument is -1
+  if (interp < 0) interp = m->sensor_history[2*id+1];
+
+  // get buffer pointer and read from history buffer
+  int dim = m->sensor_dim[id];
+  mjtNum delay = m->sensor_delay[id];
+  const mjtNum* buf = d->history + m->sensor_historyadr[id];
+  return mju_historyRead(buf, nsample, dim, result, time - delay, interp);
+}
+
+
+// initialize history buffer for actuator
+void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
+                        const mjtNum* times, const mjtNum* values) {
+  // validate actuator id
+  if (id < 0 || id >= m->nu) {
+    mjERROR("invalid actuator id %d", id);
+    return;
+  }
+
+  // check that actuator has a history buffer
+  int nsample = m->actuator_history[2*id];
+  if (nsample == 0) {
+    mjERROR("actuator %d has no history buffer", id);
+    return;
+  }
+
+  // get buffer pointer
+  mjtNum* buf = d->history + m->actuator_historyadr[id];
+
+  // if times is NULL, use existing buffer times
+  const mjtNum* buf_times = times ? times : buf + 2;
+
+  // get existing user value (preserve it)
+  mjtNum user = buf[0];
+
+  // initialize history buffer
+  mju_historyInit(buf, nsample, 1, buf_times, values, user);
+}
+
+
+// initialize history buffer for sensor
+void mj_initSensorHistory(const mjModel* m, mjData* d, int id,
+                          const mjtNum* times, const mjtNum* values, mjtNum phase) {
+  // validate sensor id
+  if (id < 0 || id >= m->nsensor) {
+    mjERROR("invalid sensor id %d", id);
+    return;
+  }
+
+  // check that sensor has a history buffer
+  int nsample = m->sensor_history[2*id];
+  if (nsample == 0) {
+    mjERROR("sensor %d has no history buffer", id);
+    return;
+  }
+
+  // get buffer pointer and dimension
+  mjtNum* buf = d->history + m->sensor_historyadr[id];
+  int dim = m->sensor_dim[id];
+
+  // if times is NULL, use existing buffer times
+  const mjtNum* buf_times = times ? times : buf + 2;
+
+  // initialize history buffer with provided phase
+  mju_historyInit(buf, nsample, dim, buf_times, values, phase);
 }

@@ -113,10 +113,8 @@ def _collision_shim(
     opt__sdf_initpoints: int,
     opt__sdf_iterations: int,
     # Data
+    naccdmax: int,
     naconmax: int,
-    collision_pair: wp.array(dtype=wp.vec2i),
-    collision_pairid: wp.array(dtype=wp.vec2i),
-    collision_worldid: wp.array(dtype=int),
     geom_xmat: wp.array2d(dtype=wp.mat33),
     geom_xpos: wp.array2d(dtype=wp.vec3),
     nacon: wp.array(dtype=int),
@@ -204,9 +202,6 @@ def _collision_shim(
   _m.pair_solreffriction = pair_solreffriction
   _m.plugin = plugin
   _m.plugin_attr = plugin_attr
-  _d.collision_pair = collision_pair
-  _d.collision_pairid = collision_pairid
-  _d.collision_worldid = collision_worldid
   _d.contact.dim = contact__dim
   _d.contact.dist = contact__dist
   _d.contact.frame = contact__frame
@@ -222,6 +217,7 @@ def _collision_shim(
   _d.contact.worldid = contact__worldid
   _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
+  _d.naccdmax = naccdmax
   _d.nacon = nacon
   _d.naconmax = naconmax
   _d.ncollision = ncollision
@@ -231,11 +227,6 @@ def _collision_shim(
 
 def _collision_jax_impl(m: types.Model, d: types.Data):
   output_dims = {
-      'collision_pair': d._impl.collision_pair.shape,
-      'collision_pairid': d._impl.collision_pairid.shape,
-      'collision_worldid': d._impl.collision_worldid.shape,
-      'geom_xmat': d.geom_xmat.shape,
-      'geom_xpos': d.geom_xpos.shape,
       'nacon': d._impl.nacon.shape,
       'ncollision': d._impl.ncollision.shape,
       'contact__dim': d._impl.contact__dim.shape,
@@ -254,15 +245,10 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _collision_shim,
-      num_outputs=20,
+      num_outputs=15,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames={
-          'collision_pair',
-          'collision_pairid',
-          'collision_worldid',
-          'geom_xmat',
-          'geom_xpos',
           'nacon',
           'ncollision',
           'contact__dim',
@@ -279,6 +265,28 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'contact__type',
           'contact__worldid',
       },
+      stage_in_argnames={
+          'geom_aabb',
+          'geom_friction',
+          'geom_gap',
+          'geom_margin',
+          'geom_rbound',
+          'geom_size',
+          'geom_solimp',
+          'geom_solmix',
+          'geom_solref',
+          'geom_xmat',
+          'geom_xpos',
+          'hfield_data',
+          'pair_friction',
+          'pair_gap',
+          'pair_margin',
+          'pair_solimp',
+          'pair_solref',
+          'pair_solreffriction',
+      },
+      stage_out_argnames={},
+      graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(
       d.qpos.shape[0],
@@ -347,10 +355,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.opt.enableflags,
       m.opt._impl.sdf_initpoints,
       m.opt._impl.sdf_iterations,
+      d._impl.naccdmax,
       d._impl.naconmax,
-      d._impl.collision_pair,
-      d._impl.collision_pairid,
-      d._impl.collision_worldid,
       d.geom_xmat,
       d.geom_xpos,
       d._impl.nacon,
@@ -370,26 +376,21 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       d._impl.contact__worldid,
   )
   d = d.tree_replace({
-      '_impl.collision_pair': out[0],
-      '_impl.collision_pairid': out[1],
-      '_impl.collision_worldid': out[2],
-      'geom_xmat': out[3],
-      'geom_xpos': out[4],
-      '_impl.nacon': out[5],
-      '_impl.ncollision': out[6],
-      '_impl.contact__dim': out[7],
-      '_impl.contact__dist': out[8],
-      '_impl.contact__frame': out[9],
-      '_impl.contact__friction': out[10],
-      '_impl.contact__geom': out[11],
-      '_impl.contact__geomcollisionid': out[12],
-      '_impl.contact__includemargin': out[13],
-      '_impl.contact__pos': out[14],
-      '_impl.contact__solimp': out[15],
-      '_impl.contact__solref': out[16],
-      '_impl.contact__solreffriction': out[17],
-      '_impl.contact__type': out[18],
-      '_impl.contact__worldid': out[19],
+      '_impl.nacon': out[0],
+      '_impl.ncollision': out[1],
+      '_impl.contact__dim': out[2],
+      '_impl.contact__dist': out[3],
+      '_impl.contact__frame': out[4],
+      '_impl.contact__friction': out[5],
+      '_impl.contact__geom': out[6],
+      '_impl.contact__geomcollisionid': out[7],
+      '_impl.contact__includemargin': out[8],
+      '_impl.contact__pos': out[9],
+      '_impl.contact__solimp': out[10],
+      '_impl.contact__solref': out[11],
+      '_impl.contact__solreffriction': out[12],
+      '_impl.contact__type': out[13],
+      '_impl.contact__worldid': out[14],
   })
   return d
 

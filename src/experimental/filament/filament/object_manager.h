@@ -104,6 +104,10 @@ class ObjectManager {
   filament::IndirectLight* LoadFallbackIndirectLight(std::string_view filename,
                                                      float intensity);
 
+  float GetSpecularMultiplier() const { return specular_multiplier_; }
+  float GetShininessMultiplier() const { return shininess_multiplier_; }
+  float GetEmissiveMultiplier() const { return emissive_multiplier_; }
+
   const mjModel* GetModel() const { return model_; }
 
   ObjectManager(const ObjectManager&) = delete;
@@ -129,6 +133,9 @@ class ObjectManager {
   filament::Texture* fallback_normal_ = nullptr;
   filament::Texture* fallback_orm_ = nullptr;
   filament::IndirectLight* fallback_indirect_light_ = nullptr;
+  float specular_multiplier_ = 0.6f;
+  float shininess_multiplier_ = 0.1f;
+  float emissive_multiplier_ = 0.3f;
 };
 
 }  // namespace mujoco

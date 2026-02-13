@@ -16,6 +16,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <string>
@@ -907,6 +908,31 @@ TEST_F(XMLReaderTest, LargeTextureTest) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
 
   EXPECT_THAT(model, NotNull());
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, LargeTextureAddressTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <asset>
+    <!--
+      Test that tex_adr can correctly index into a texture buffer larger than
+      what a 32-bit signed integer can represent.
+      The first texture has size 6*10923*10923*3 > 2^31-1 bytes.
+      tex_adr[1] should correctly point beyond this offset.
+    -->
+    <texture name="tex0" builtin="gradient" width="10923" height="2"/>
+    <texture name="tex1" builtin="flat" width="2" height="2"/>
+  </asset>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->ntex, 2);
+  EXPECT_GT(model->tex_adr[1], INT32_MAX);
   mj_deleteModel(model);
 }
 
@@ -3265,6 +3291,96 @@ TEST_F(XMLReaderTest, CameraOutputDefault) {
   EXPECT_EQ(model->cam_output[1], mjCAMOUT_DEPTH | mjCAMOUT_DIST);
   EXPECT_EQ(model->cam_output[2], mjCAMOUT_NORMAL);
   mj_deleteModel(model);
+}
+
+// ------------- test delay attribute parsing ----------------------------------
+
+TEST_F(ActuatorParseTest, ActuatorDelayParsed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1"/>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt1"/>
+        <joint name="jnt2"/>
+        <joint name="jnt3"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt1"/>
+      <motor joint="jnt2" delay="3" nsample="3" interp="zoh"/>
+      <motor joint="jnt3" delay="10" nsample="10" interp="cubic"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  ASSERT_EQ(model->nu, 3);
+  // actuator_history[2*i] = nsample, actuator_history[2*i+1] = interp
+  EXPECT_EQ(model->actuator_history[0], 0);   // jnt1 nsample
+  EXPECT_EQ(model->actuator_history[1], 0);   // jnt1 interp (no buffer, default 0)
+  EXPECT_EQ(model->actuator_history[2], 3);   // jnt2 nsample
+  EXPECT_EQ(model->actuator_history[3], 0);   // jnt2 interp (ZOH)
+  EXPECT_EQ(model->actuator_history[4], 10);  // jnt3 nsample
+  EXPECT_EQ(model->actuator_history[5], 2);   // jnt3 interp (cubic)
+  EXPECT_EQ(model->actuator_historyadr[0], -1);
+  EXPECT_EQ(model->actuator_historyadr[1], 0);
+  EXPECT_EQ(model->actuator_historyadr[2], 8);  // 2+2*3 = 8
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, ActuatorDelayDefault) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="1"/>
+    <default>
+      <motor delay="5" nsample="5"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt1"/>
+        <joint name="jnt2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt1"/>
+      <motor joint="jnt2" delay="0" nsample="0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  ASSERT_EQ(model->nu, 2);
+  EXPECT_EQ(model->actuator_history[0], 5);
+  EXPECT_EQ(model->actuator_history[2], 0);
+  EXPECT_EQ(model->actuator_historyadr[0], 0);
+  EXPECT_EQ(model->actuator_historyadr[1], -1);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, ActuatorDelayRequiresHistory) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" delay="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("setting delay > 0 without a history buffer"));
 }
 
 }  // namespace

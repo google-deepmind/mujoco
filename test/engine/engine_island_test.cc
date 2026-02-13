@@ -555,5 +555,52 @@ TEST_F(IslandTest, IslandEfcElliptic) {
   mj_deleteModel(model);
 }
 
+TEST_F(IslandTest, EqualityConstraintOfTendons) {
+  static const char xml[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="b1">
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint name="j1" type="slide" axis="1 0 0"/>
+    </body>
+    <body name="b2">
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint name="j2" type="slide" axis="1 0 0"/>
+    </body>
+    <body name="b3">
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint name="j3" type="slide" axis="1 0 0"/>
+    </body>
+    <body name="b4">
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint name="j4" type="slide" axis="1 0 0"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <fixed name="t12">
+      <joint joint="j1" coef="1"/>
+      <joint joint="j2" coef="1"/>
+    </fixed>
+    <fixed name="t34">
+      <joint joint="j3" coef="1"/>
+      <joint joint="j4" coef="1"/>
+    </fixed>
+  </tendon>
+
+  <equality>
+    <tendon name="eq" tendon1="t12" tendon2="t34"/>
+  </equality>
+</mujoco>
+)";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

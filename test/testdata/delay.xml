@@ -1,0 +1,20 @@
+<mujoco>
+  <option timestep="0.01"/>
+
+  <worldbody>
+    <body name="body">
+      <joint name="slide" type="slide"/>
+      <geom size=".1"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="motor0" joint="slide" delay="0.05" nsample="6"/>
+  </actuator>
+
+  <sensor>
+    <jointpos name="jointpos0" joint="slide" delay="0.025" interp="linear" nsample="4"/>
+    <jointpos name="jointpos1" joint="slide" interval="0.025" nsample="3"/>
+    <framepos name="framepos0" objtype="body" objname="body" nsample="5"/>
+  </sensor>
+</mujoco>

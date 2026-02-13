@@ -50,6 +50,11 @@ def _is_cuda_gpu_device(device: jax.Device) -> bool:
   return device in jax.devices('cuda')
 
 
+def _check_warp_installed():
+  if not mjxw.WARP_INSTALLED:
+    raise RuntimeError('warp-lang is not installed. Cannot use WARP implementation of MJX.')
+
+
 def _resolve_impl(
     device: jax.Device,
 ) -> types.Impl:
@@ -119,10 +124,7 @@ def _check_impl_device_compatibility(
           'Warp implementation requires a CUDA GPU device, got '
           f'{device}.'
       )
-    if not mjxw.WARP_INSTALLED:
-      raise RuntimeError(
-          'Warp is not installed. Cannot use Warp implementation of MJX.'
-      )
+    _check_warp_installed()
 
   is_cpu_device = device.platform == 'cpu'
   if impl == types.Impl.C or impl == types.Impl.CPP:
@@ -448,12 +450,10 @@ def _put_model_c(
 
 def _put_model_warp(
     m: mujoco.MjModel,
+    graph_mode: mjxw.types.GraphMode,
     device: Optional[jax.Device] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
-  if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('Warp not installed.')
-
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
     mw = mjwp.put_model(m)  # pylint: disable=undefined-variable
 
@@ -464,7 +464,10 @@ def _put_model_warp(
   option_keys = {f.name for f in mjxw.types.OptionWarp.fields()} - {
       f.name for f in types.Option.fields()
   }
+  # graph_mode is MJX-specific, not from mujoco.mjx.third_party.mujoco_warp.
+  option_keys = option_keys - {'graph_mode'}
   private_options = {k: getattr(mw.opt, k) for k in option_keys}
+  private_options['graph_mode'] = graph_mode
   fields['opt'] = _put_option(m.opt, types.Impl.WARP, private_options)
   fields['stat'] = _put_statistic(m.stat, types.Impl.WARP)
 
@@ -527,6 +530,7 @@ def put_model(
     m: mujoco.MjModel,
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
+    graph_mode: Optional[mjxw.types.GraphMode] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model.
 
@@ -534,12 +538,15 @@ def put_model(
     m: the model to put onto device
     device: which device to use - if unspecified picks the default device
     impl: implementation to use
+    graph_mode: CUDA graph capture mode (for Warp only). Use GraphMode enum from
+      warp._src.jax_experimental.ffi. GraphMode.WARP is the default mode.
 
   Returns:
     an mjx.Model placed on device
 
   Raises:
     ValueError: if impl is not supported
+    RuntimeError: if impl is WARP and warp-lang is not installed
   """
 
   impl, device = _resolve_impl_and_device(impl, device)
@@ -548,7 +555,9 @@ def put_model(
   elif impl == types.Impl.C:
     return _put_model_c(m, device)
   elif impl == types.Impl.WARP:
-    return _put_model_warp(m, device)
+    _check_warp_installed()
+    graph_mode = graph_mode or getattr(mjxw.types.GraphMode, 'WARP')
+    return _put_model_warp(m, graph_mode, device)
   elif impl == types.Impl.CPP:
     return _put_model_cpp(m, device)
   else:
@@ -562,6 +571,7 @@ def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
       'time': (float_,),
       'qvel': (m.nv, float_),
       'act': (m.na, float_),
+      'history': (m.nhistory, float_),
       'plugin_state': (m.npluginstate, float_),
       'qacc_warmstart': (m.nv, float_),
       'ctrl': (m.nu, float_),
@@ -861,15 +871,12 @@ def _make_data_warp(
         f' {type(m)}.'
     )
 
-  if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('Warp is not installed.')
-
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
     dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
 
   fields = _make_data_public_fields(m)
   for k in fields:
-    if k in {'userdata', 'plugin_state'}:
+    if k in {'userdata', 'plugin_state', 'history'}:
       continue
     if not hasattr(dw, k):
       raise ValueError(f'Public data field {k} not found in Warp data.')
@@ -1003,6 +1010,7 @@ def make_data(
   elif impl == types.Impl.CPP:
     return _make_data_cpp(m, device)
   elif impl == types.Impl.WARP:
+    _check_warp_installed()
     naconmax = nconmax if naconmax is None else naconmax
     return _make_data_warp(m, device, naconmax, njmax)
 
@@ -1652,18 +1660,24 @@ def _get_data_into_cpp(
   # mjx.Model which we don't have access to in this function.
   fields_to_check = ['qpos', 'qvel', 'act', 'mocap_pos', 'mocap_quat']
   for i in range(batch_size):
-    d_i = jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
+    d_i: types.Data = jax.tree_util.tree_map(
+        lambda x, i=i: x[i], d) if batched else d
     src_data = mj_data_list[i]
 
+    needs_syncing = False
     for field in fields_to_check:
       mj_value = getattr(src_data, field)
       mjx_value = np.asarray(getattr(d_i, field))
       if not np.allclose(mj_value, mjx_value):
-        raise ValueError(
-            f'State mismatch at batch index {i}, field {field}: underlying '
-            'MjData does not match mjx.Data. The mjx.Data may have been '
-            'modified without updating the underlying MjData.'
-        )
+        needs_syncing = True
+        break
+    if needs_syncing:
+      src_data.qpos[:] = d_i.qpos
+      src_data.qvel[:] = d_i.qvel
+      src_data.act[:] = d_i.act
+      src_data.mocap_pos[:] = d_i.mocap_pos
+      src_data.mocap_quat[:] = d_i.mocap_quat
+      mujoco.mj_kinematics(m, src_data)
 
   for i in range(batch_size):
     result_i = result[i] if batched else result
@@ -1722,6 +1736,7 @@ _STATE_MAP = {
     mujoco.mjtState.mjSTATE_QPOS: 'qpos',
     mujoco.mjtState.mjSTATE_QVEL: 'qvel',
     mujoco.mjtState.mjSTATE_ACT: 'act',
+    mujoco.mjtState.mjSTATE_HISTORY: 'history',
     mujoco.mjtState.mjSTATE_WARMSTART: 'qacc_warmstart',
     mujoco.mjtState.mjSTATE_CTRL: 'ctrl',
     mujoco.mjtState.mjSTATE_QFRC_APPLIED: 'qfrc_applied',
@@ -1745,6 +1760,7 @@ def _state_elem_size(m: types.Model, state_enum: mujoco.mjtState) -> int:
       'qpos',
       'qvel',
       'act',
+      'history',
       'qacc_warmstart',
       'ctrl',
       'qfrc_applied',
@@ -1760,6 +1776,7 @@ def _state_elem_size(m: types.Model, state_enum: mujoco.mjtState) -> int:
             'qpos': 'nq',
             'qvel': 'nv',
             'act': 'na',
+            'history': 'nhistory',
             'qacc_warmstart': 'nv',
             'ctrl': 'nu',
             'qfrc_applied': 'nv',

@@ -2237,6 +2237,15 @@
                :ref:`group<actuator-general-group>`
 
             .. grid-item::
+               :ref:`nsample<actuator-general-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-general-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-general-delay>`
+
+            .. grid-item::
                :ref:`ctrllimited<actuator-general-ctrllimited>`
 
             .. grid-item::
@@ -2330,6 +2339,15 @@
                :ref:`group<actuator-motor-group>`
 
             .. grid-item::
+               :ref:`nsample<actuator-motor-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-motor-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-motor-delay>`
+
+            .. grid-item::
                :ref:`ctrllimited<actuator-motor-ctrllimited>`
 
             .. grid-item::
@@ -2388,6 +2406,15 @@
 
             .. grid-item::
                :ref:`group<actuator-position-group>`
+
+            .. grid-item::
+               :ref:`nsample<actuator-position-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-position-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-position-delay>`
 
             .. grid-item::
                :ref:`ctrllimited<actuator-position-ctrllimited>`
@@ -2465,6 +2492,15 @@
                :ref:`group<actuator-velocity-group>`
 
             .. grid-item::
+               :ref:`nsample<actuator-velocity-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-velocity-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-velocity-delay>`
+
+            .. grid-item::
                :ref:`ctrllimited<actuator-velocity-ctrllimited>`
 
             .. grid-item::
@@ -2526,6 +2562,15 @@
 
             .. grid-item::
                :ref:`group<actuator-intvelocity-group>`
+
+            .. grid-item::
+               :ref:`nsample<actuator-intvelocity-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-intvelocity-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-intvelocity-delay>`
 
             .. grid-item::
                :ref:`ctrllimited<actuator-intvelocity-ctrllimited>`
@@ -2603,6 +2648,15 @@
                :ref:`group<actuator-damper-group>`
 
             .. grid-item::
+               :ref:`nsample<actuator-damper-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-damper-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-damper-delay>`
+
+            .. grid-item::
                :ref:`forcelimited<actuator-damper-forcelimited>`
 
             .. grid-item::
@@ -2661,6 +2715,15 @@
 
             .. grid-item::
                :ref:`group<actuator-cylinder-group>`
+
+            .. grid-item::
+               :ref:`nsample<actuator-cylinder-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-cylinder-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-cylinder-delay>`
 
             .. grid-item::
                :ref:`ctrllimited<actuator-cylinder-ctrllimited>`
@@ -2733,6 +2796,15 @@
 
             .. grid-item::
                :ref:`group<actuator-muscle-group>`
+
+            .. grid-item::
+               :ref:`nsample<actuator-muscle-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-muscle-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-muscle-delay>`
 
             .. grid-item::
                :ref:`ctrllimited<actuator-muscle-ctrllimited>`
@@ -2819,6 +2891,15 @@
                :ref:`group<actuator-adhesion-group>`
 
             .. grid-item::
+               :ref:`nsample<actuator-adhesion-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-adhesion-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-adhesion-delay>`
+
+            .. grid-item::
                :ref:`forcelimited<actuator-adhesion-forcelimited>`
 
             .. grid-item::
@@ -2856,6 +2937,15 @@
 
             .. grid-item::
                :ref:`group<actuator-plugin-group>`
+
+            .. grid-item::
+               :ref:`nsample<actuator-plugin-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-plugin-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-plugin-delay>`
 
             .. grid-item::
                :ref:`ctrllimited<actuator-plugin-ctrllimited>`
@@ -2945,6 +3035,18 @@
                :ref:`site<sensor-touch-site>`
 
             .. grid-item::
+               :ref:`nsample<sensor-touch-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-touch-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-touch-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-touch-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-touch-cutoff>`
 
             .. grid-item::
@@ -2964,6 +3066,18 @@
 
             .. grid-item::
                :ref:`site<sensor-accelerometer-site>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-accelerometer-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-accelerometer-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-accelerometer-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-accelerometer-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-accelerometer-cutoff>`
@@ -2987,6 +3101,18 @@
                :ref:`site<sensor-velocimeter-site>`
 
             .. grid-item::
+               :ref:`nsample<sensor-velocimeter-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-velocimeter-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-velocimeter-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-velocimeter-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-velocimeter-cutoff>`
 
             .. grid-item::
@@ -3006,6 +3132,18 @@
 
             .. grid-item::
                :ref:`site<sensor-gyro-site>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-gyro-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-gyro-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-gyro-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-gyro-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-gyro-cutoff>`
@@ -3029,6 +3167,18 @@
                :ref:`site<sensor-force-site>`
 
             .. grid-item::
+               :ref:`nsample<sensor-force-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-force-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-force-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-force-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-force-cutoff>`
 
             .. grid-item::
@@ -3050,6 +3200,18 @@
                :ref:`site<sensor-torque-site>`
 
             .. grid-item::
+               :ref:`nsample<sensor-torque-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-torque-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-torque-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-torque-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-torque-cutoff>`
 
             .. grid-item::
@@ -3069,6 +3231,18 @@
 
             .. grid-item::
                :ref:`site<sensor-magnetometer-site>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-magnetometer-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-magnetometer-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-magnetometer-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-magnetometer-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-magnetometer-cutoff>`
@@ -3093,6 +3267,18 @@
 
             .. grid-item::
                :ref:`camera<sensor-camprojection-camera>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-camprojection-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-camprojection-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-camprojection-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-camprojection-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-camprojection-cutoff>`
@@ -3122,6 +3308,18 @@
                :ref:`data<sensor-rangefinder-data>`
 
             .. grid-item::
+               :ref:`nsample<sensor-rangefinder-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-rangefinder-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-rangefinder-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-rangefinder-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-rangefinder-cutoff>`
 
             .. grid-item::
@@ -3141,6 +3339,18 @@
 
             .. grid-item::
                :ref:`joint<sensor-jointpos-joint>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-jointpos-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-jointpos-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-jointpos-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-jointpos-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-jointpos-cutoff>`
@@ -3164,6 +3374,18 @@
                :ref:`joint<sensor-jointvel-joint>`
 
             .. grid-item::
+               :ref:`nsample<sensor-jointvel-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-jointvel-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-jointvel-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-jointvel-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-jointvel-cutoff>`
 
             .. grid-item::
@@ -3183,6 +3405,18 @@
 
             .. grid-item::
                :ref:`tendon<sensor-tendonpos-tendon>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-tendonpos-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-tendonpos-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-tendonpos-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-tendonpos-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-tendonpos-cutoff>`
@@ -3206,6 +3440,18 @@
                :ref:`tendon<sensor-tendonvel-tendon>`
 
             .. grid-item::
+               :ref:`nsample<sensor-tendonvel-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-tendonvel-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-tendonvel-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-tendonvel-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-tendonvel-cutoff>`
 
             .. grid-item::
@@ -3225,6 +3471,18 @@
 
             .. grid-item::
                :ref:`actuator<sensor-actuatorpos-actuator>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-actuatorpos-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-actuatorpos-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-actuatorpos-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-actuatorpos-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-actuatorpos-cutoff>`
@@ -3248,6 +3506,18 @@
                :ref:`actuator<sensor-actuatorvel-actuator>`
 
             .. grid-item::
+               :ref:`nsample<sensor-actuatorvel-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-actuatorvel-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-actuatorvel-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-actuatorvel-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-actuatorvel-cutoff>`
 
             .. grid-item::
@@ -3267,6 +3537,18 @@
 
             .. grid-item::
                :ref:`actuator<sensor-actuatorfrc-actuator>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-actuatorfrc-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-actuatorfrc-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-actuatorfrc-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-actuatorfrc-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-actuatorfrc-cutoff>`
@@ -3290,6 +3572,18 @@
                :ref:`joint<sensor-jointactuatorfrc-joint>`
 
             .. grid-item::
+               :ref:`nsample<sensor-jointactuatorfrc-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-jointactuatorfrc-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-jointactuatorfrc-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-jointactuatorfrc-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-jointactuatorfrc-cutoff>`
 
             .. grid-item::
@@ -3309,6 +3603,18 @@
 
             .. grid-item::
                :ref:`tendon<sensor-tendonactuatorfrc-tendon>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-tendonactuatorfrc-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-tendonactuatorfrc-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-tendonactuatorfrc-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-tendonactuatorfrc-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-tendonactuatorfrc-cutoff>`
@@ -3332,6 +3638,18 @@
                :ref:`joint<sensor-ballquat-joint>`
 
             .. grid-item::
+               :ref:`nsample<sensor-ballquat-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-ballquat-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-ballquat-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-ballquat-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-ballquat-cutoff>`
 
             .. grid-item::
@@ -3351,6 +3669,18 @@
 
             .. grid-item::
                :ref:`joint<sensor-ballangvel-joint>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-ballangvel-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-ballangvel-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-ballangvel-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-ballangvel-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-ballangvel-cutoff>`
@@ -3374,6 +3704,18 @@
                :ref:`joint<sensor-jointlimitpos-joint>`
 
             .. grid-item::
+               :ref:`nsample<sensor-jointlimitpos-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-jointlimitpos-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-jointlimitpos-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-jointlimitpos-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-jointlimitpos-cutoff>`
 
             .. grid-item::
@@ -3393,6 +3735,18 @@
 
             .. grid-item::
                :ref:`joint<sensor-jointlimitvel-joint>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-jointlimitvel-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-jointlimitvel-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-jointlimitvel-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-jointlimitvel-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-jointlimitvel-cutoff>`
@@ -3416,6 +3770,18 @@
                :ref:`joint<sensor-jointlimitfrc-joint>`
 
             .. grid-item::
+               :ref:`nsample<sensor-jointlimitfrc-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-jointlimitfrc-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-jointlimitfrc-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-jointlimitfrc-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-jointlimitfrc-cutoff>`
 
             .. grid-item::
@@ -3435,6 +3801,18 @@
 
             .. grid-item::
                :ref:`tendon<sensor-tendonlimitpos-tendon>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-tendonlimitpos-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-tendonlimitpos-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-tendonlimitpos-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-tendonlimitpos-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-tendonlimitpos-cutoff>`
@@ -3458,6 +3836,18 @@
                :ref:`tendon<sensor-tendonlimitvel-tendon>`
 
             .. grid-item::
+               :ref:`nsample<sensor-tendonlimitvel-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-tendonlimitvel-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-tendonlimitvel-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-tendonlimitvel-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-tendonlimitvel-cutoff>`
 
             .. grid-item::
@@ -3477,6 +3867,18 @@
 
             .. grid-item::
                :ref:`tendon<sensor-tendonlimitfrc-tendon>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-tendonlimitfrc-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-tendonlimitfrc-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-tendonlimitfrc-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-tendonlimitfrc-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-tendonlimitfrc-cutoff>`
@@ -3509,6 +3911,18 @@
                :ref:`refname<sensor-framepos-refname>`
 
             .. grid-item::
+               :ref:`nsample<sensor-framepos-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-framepos-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-framepos-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-framepos-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-framepos-cutoff>`
 
             .. grid-item::
@@ -3537,6 +3951,18 @@
 
             .. grid-item::
                :ref:`refname<sensor-framequat-refname>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-framequat-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-framequat-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-framequat-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-framequat-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-framequat-cutoff>`
@@ -3569,6 +3995,18 @@
                :ref:`refname<sensor-framexaxis-refname>`
 
             .. grid-item::
+               :ref:`nsample<sensor-framexaxis-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-framexaxis-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-framexaxis-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-framexaxis-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-framexaxis-cutoff>`
 
             .. grid-item::
@@ -3597,6 +4035,18 @@
 
             .. grid-item::
                :ref:`refname<sensor-frameyaxis-refname>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-frameyaxis-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-frameyaxis-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-frameyaxis-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-frameyaxis-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-frameyaxis-cutoff>`
@@ -3629,6 +4079,18 @@
                :ref:`refname<sensor-framezaxis-refname>`
 
             .. grid-item::
+               :ref:`nsample<sensor-framezaxis-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-framezaxis-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-framezaxis-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-framezaxis-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-framezaxis-cutoff>`
 
             .. grid-item::
@@ -3657,6 +4119,18 @@
 
             .. grid-item::
                :ref:`refname<sensor-framelinvel-refname>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-framelinvel-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-framelinvel-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-framelinvel-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-framelinvel-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-framelinvel-cutoff>`
@@ -3689,6 +4163,18 @@
                :ref:`refname<sensor-frameangvel-refname>`
 
             .. grid-item::
+               :ref:`nsample<sensor-frameangvel-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-frameangvel-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-frameangvel-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-frameangvel-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-frameangvel-cutoff>`
 
             .. grid-item::
@@ -3711,6 +4197,18 @@
 
             .. grid-item::
                :ref:`objname<sensor-framelinacc-objname>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-framelinacc-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-framelinacc-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-framelinacc-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-framelinacc-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-framelinacc-cutoff>`
@@ -3737,6 +4235,18 @@
                :ref:`objname<sensor-frameangacc-objname>`
 
             .. grid-item::
+               :ref:`nsample<sensor-frameangacc-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-frameangacc-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-frameangacc-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-frameangacc-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-frameangacc-cutoff>`
 
             .. grid-item::
@@ -3756,6 +4266,18 @@
 
             .. grid-item::
                :ref:`body<sensor-subtreecom-body>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-subtreecom-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-subtreecom-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-subtreecom-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-subtreecom-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-subtreecom-cutoff>`
@@ -3779,6 +4301,18 @@
                :ref:`body<sensor-subtreelinvel-body>`
 
             .. grid-item::
+               :ref:`nsample<sensor-subtreelinvel-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-subtreelinvel-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-subtreelinvel-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-subtreelinvel-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-subtreelinvel-cutoff>`
 
             .. grid-item::
@@ -3798,6 +4332,18 @@
 
             .. grid-item::
                :ref:`body<sensor-subtreeangmom-body>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-subtreeangmom-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-subtreeangmom-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-subtreeangmom-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-subtreeangmom-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-subtreeangmom-cutoff>`
@@ -3825,6 +4371,18 @@
 
             .. grid-item::
                :ref:`objname<sensor-insidesite-objname>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-insidesite-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-insidesite-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-insidesite-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-insidesite-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-insidesite-cutoff>`
@@ -3857,6 +4415,18 @@
                :ref:`body2<sensor-distance-body2>`
 
             .. grid-item::
+               :ref:`nsample<sensor-distance-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-distance-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-distance-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-distance-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-distance-cutoff>`
 
             .. grid-item::
@@ -3887,6 +4457,18 @@
                :ref:`body2<sensor-normal-body2>`
 
             .. grid-item::
+               :ref:`nsample<sensor-normal-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-normal-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-normal-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-normal-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-normal-cutoff>`
 
             .. grid-item::
@@ -3915,6 +4497,18 @@
 
             .. grid-item::
                :ref:`body2<sensor-fromto-body2>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-fromto-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-fromto-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-fromto-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-fromto-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-fromto-cutoff>`
@@ -3965,6 +4559,18 @@
                :ref:`reduce<sensor-contact-reduce>`
 
             .. grid-item::
+               :ref:`nsample<sensor-contact-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-contact-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-contact-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-contact-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-contact-cutoff>`
 
             .. grid-item::
@@ -3981,6 +4587,18 @@
 
             .. grid-item::
                :ref:`name<sensor-e_potential-name>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-e_potential-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-e_potential-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-e_potential-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-e_potential-interval>`
 
             .. grid-item::
                :ref:`cutoff<sensor-e_potential-cutoff>`
@@ -4001,6 +4619,18 @@
                :ref:`name<sensor-e_kinetic-name>`
 
             .. grid-item::
+               :ref:`nsample<sensor-e_kinetic-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-e_kinetic-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-e_kinetic-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-e_kinetic-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-e_kinetic-cutoff>`
 
             .. grid-item::
@@ -4019,6 +4649,18 @@
                :ref:`name<sensor-clock-name>`
 
             .. grid-item::
+               :ref:`nsample<sensor-clock-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-clock-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-clock-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-clock-interval>`
+
+            .. grid-item::
                :ref:`cutoff<sensor-clock-cutoff>`
 
             .. grid-item::
@@ -4026,6 +4668,36 @@
 
             .. grid-item::
                :ref:`user<sensor-clock-user>`
+
+
+      .. dropdown:: :ref:`tactile<sensor-tactile>` |*|
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`name<sensor-tactile-name>`
+
+            .. grid-item::
+               :ref:`geom<sensor-tactile-geom>`
+
+            .. grid-item::
+               :ref:`mesh<sensor-tactile-mesh>`
+
+            .. grid-item::
+               :ref:`nsample<sensor-tactile-nsample>`
+
+            .. grid-item::
+               :ref:`interp<sensor-tactile-interp>`
+
+            .. grid-item::
+               :ref:`delay<sensor-tactile-delay>`
+
+            .. grid-item::
+               :ref:`interval<sensor-tactile-interval>`
+
+            .. grid-item::
+               :ref:`user<sensor-tactile-user>`
 
 
       .. dropdown:: :ref:`user<sensor-user>` |*|
@@ -4059,24 +4731,6 @@
 
             .. grid-item::
                :ref:`user<sensor-user-user>`
-
-
-      .. dropdown:: :ref:`tactile<sensor-tactile>` |*|
-
-         .. grid:: 2 3 4 4
-            :gutter: 0
-
-            .. grid-item::
-               :ref:`name<sensor-tactile-name>`
-
-            .. grid-item::
-               :ref:`geom<sensor-tactile-geom>`
-
-            .. grid-item::
-               :ref:`mesh<sensor-tactile-mesh>`
-
-            .. grid-item::
-               :ref:`user<sensor-tactile-user>`
 
 
       .. dropdown:: :ref:`plugin<sensor-plugin>` |*|
@@ -4961,6 +5615,15 @@
                :ref:`group<default-general-group>`
 
             .. grid-item::
+               :ref:`nsample<default-general-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-general-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-general-delay>`
+
+            .. grid-item::
                :ref:`actdim<default-general-actdim>`
 
             .. grid-item::
@@ -5014,6 +5677,15 @@
             .. grid-item::
                :ref:`group<default-motor-group>`
 
+            .. grid-item::
+               :ref:`nsample<default-motor-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-motor-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-motor-delay>`
+
 
       .. dropdown:: :ref:`position<default-position>` :octicon:`dot`
 
@@ -5046,6 +5718,15 @@
 
             .. grid-item::
                :ref:`group<default-position-group>`
+
+            .. grid-item::
+               :ref:`nsample<default-position-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-position-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-position-delay>`
 
             .. grid-item::
                :ref:`kp<default-position-kp>`
@@ -5090,6 +5771,15 @@
                :ref:`group<default-velocity-group>`
 
             .. grid-item::
+               :ref:`nsample<default-velocity-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-velocity-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-velocity-delay>`
+
+            .. grid-item::
                :ref:`kv<default-velocity-kv>`
 
 
@@ -5129,6 +5819,15 @@
                :ref:`group<default-intvelocity-group>`
 
             .. grid-item::
+               :ref:`nsample<default-intvelocity-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-intvelocity-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-intvelocity-delay>`
+
+            .. grid-item::
                :ref:`kp<default-intvelocity-kp>`
 
             .. grid-item::
@@ -5165,6 +5864,15 @@
                :ref:`group<default-damper-group>`
 
             .. grid-item::
+               :ref:`nsample<default-damper-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-damper-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-damper-delay>`
+
+            .. grid-item::
                :ref:`kv<default-damper-kv>`
 
 
@@ -5196,6 +5904,15 @@
 
             .. grid-item::
                :ref:`group<default-cylinder-group>`
+
+            .. grid-item::
+               :ref:`nsample<default-cylinder-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-cylinder-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-cylinder-delay>`
 
             .. grid-item::
                :ref:`timeconst<default-cylinder-timeconst>`
@@ -5238,6 +5955,15 @@
 
             .. grid-item::
                :ref:`group<default-muscle-group>`
+
+            .. grid-item::
+               :ref:`nsample<default-muscle-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-muscle-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-muscle-delay>`
 
             .. grid-item::
                :ref:`timeconst<default-muscle-timeconst>`
@@ -5289,6 +6015,15 @@
 
             .. grid-item::
                :ref:`group<default-adhesion-group>`
+
+            .. grid-item::
+               :ref:`nsample<default-adhesion-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-adhesion-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-adhesion-delay>`
 
 
    .. dropdown:: :ref:`custom<custom>` |*|

@@ -18,42 +18,52 @@
 #include <span>
 
 #include <mujoco/mujoco.h>
+#include "experimental/platform/renderer_backend.h"
 
-#if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
-#include "experimental/filament/render_context_filament.h"
-#include "experimental/platform/plugin.h"
-#elif defined(USE_CLASSIC_OPENGL)
+#if defined(MUJOCO_RENDERER_CLASSIC_OPENGL)
 #include <imgui.h>
 #include <backends/imgui_impl_opengl3.h>
+#include "experimental/platform/egl_utils.h"
 #else
-#error No rendering mode defined.
+#include "experimental/filament/render_context_filament.h"
+#include "experimental/platform/plugin.h"
 #endif
 
 namespace mujoco::platform {
 
 Renderer::Renderer(void* native_window) : native_window_(native_window) {
-#ifdef USE_CLASSIC_OPENGL
-  ImGui_ImplOpenGL3_Init();
+#ifdef MUJOCO_RENDERER_CLASSIC_OPENGL
+  if (native_window == nullptr) {
+    graphics_api_context_ = CreateEglContext();
+  }
+  if (ImGui::GetCurrentContext()) {
+    ImGui_ImplOpenGL3_Init();
+  }
 #endif
 }
 
-Renderer::~Renderer() { Deinit(); }
+Renderer::~Renderer() {
+  Deinit();
+  graphics_api_context_.reset();
+}
 
 void Renderer::Init(const mjModel* model) {
   Deinit();
   if (model) {
     mjr_defaultContext(&render_context_);
 
-#if defined(USE_CLASSIC_OPENGL)
+#if defined(MUJOCO_RENDERER_CLASSIC_OPENGL)
     mjr_makeContext(model, &render_context_, mjFONTSCALE_150);
 #else
     mjrFilamentConfig render_config;
     mjr_defaultFilamentConfig(&render_config);
     render_config.native_window = native_window_;
     render_config.enable_gui = true;
-#if defined(USE_FILAMENT_OPENGL)
+#if defined(MUJOCO_RENDERER_FILAMENT_OPENGL)
     render_config.graphics_api = mjGFX_OPENGL;
-#elif defined(USE_FILAMENT_VULKAN)
+#elif defined(MUJOCO_RENDERER_FILAMENT_OPENGL_HEADLESS)
+    render_config.graphics_api = mjGFX_OPENGL;
+#elif defined(MUJOCO_RENDERER_FILAMENT_VULKAN)
     render_config.graphics_api = mjGFX_VULKAN;
 #endif
     mjr_makeFilamentContext(model, &render_context_, &render_config);
@@ -81,6 +91,21 @@ void Renderer::Render(const mjModel* model, mjData* data,
     return;
   }
 
+  mjvCamera default_cam;
+  if (camera == nullptr) {
+    if (model) {
+      mjv_defaultFreeCamera(model, &default_cam);
+    } else {
+      mjv_defaultCamera(&default_cam);
+    }
+    camera = &default_cam;
+  }
+  mjvOption default_opt;
+  if (vis_option == nullptr) {
+    mjv_defaultOption(&default_opt);
+    vis_option = &default_opt;
+  }
+
   mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
                   &scene_);
 
@@ -92,7 +117,7 @@ void Renderer::Render(const mjModel* model, mjData* data,
                 width * height * 3);
     }
 
-    #ifdef USE_CLASSIC_OPENGL
+    #ifdef MUJOCO_RENDERER_CLASSIC_OPENGL
       mjr_resizeOffscreen(width, height, &render_context_);
       mjr_setBuffer(mjFB_OFFSCREEN, &render_context_);
     #else
@@ -108,10 +133,12 @@ void Renderer::Render(const mjModel* model, mjData* data,
 
   // The filament backend knows how to renders the ImGui draw data. For the
   // classic backend, we need to render the ImGui draw data ourselves.
-  #ifdef USE_CLASSIC_OPENGL
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+  #ifdef MUJOCO_RENDERER_CLASSIC_OPENGL
+    if (ImGui::GetCurrentContext()) {
+      ImGui_ImplOpenGL3_NewFrame();
+      ImGui::Render();
+      ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
   #endif
 
   if (render_to_texture) {
@@ -141,7 +168,7 @@ void Renderer::RenderToTexture(const mjModel* model, mjData* data,
 
 int Renderer::UploadImage(int texture_id, const std::byte* pixels, int width,
                           int height, int bpp) {
-#if defined(USE_CLASSIC_OPENGL)
+#if defined(MUJOCO_RENDERER_CLASSIC_OPENGL)
   return 0;
 #else
   return mjr_uploadGuiImage(texture_id,
@@ -153,7 +180,7 @@ int Renderer::UploadImage(int texture_id, const std::byte* pixels, int width,
 double Renderer::GetFps() { return fps_; }
 
 void Renderer::UpdateFps() {
-#ifdef USE_CLASSIC_OPENGL
+#ifdef MUJOCO_RENDERER_CLASSIC_OPENGL
   TimePoint now = std::chrono::steady_clock::now();
   TimePoint::duration delta_time = now - last_fps_update_;
   const double interval = std::chrono::duration<double>(delta_time).count();
@@ -168,9 +195,24 @@ void Renderer::UpdateFps() {
 #endif
 }
 
+RendererBackend Renderer::GetBackend() {
+#if defined(MUJOCO_RENDERER_FILAMENT_OPENGL_HEADLESS)
+  return RendererBackend::FilamentOpenGlHeadless;
+#elif defined(MUJOCO_RENDERER_FILAMENT_OPENGL)
+  return RendererBackend::FilamentOpenGl;
+#elif defined(MUJOCO_RENDERER_FILAMENT_VULKAN)
+  return RendererBackend::FilamentVulkan;
+#elif defined(MUJOCO_RENDERER_FILAMENT_WEBGL)
+  return RendererBackend::FilamentWebGl;
+#elif defined(MUJOCO_RENDERER_CLASSIC_OPENGL)
+  return RendererBackend::ClassicOpenGl;
+#else
+  #error "Unsupported renderer backend."
+#endif
+}
 }  // namespace mujoco::platform
 
-#if !defined(USE_CLASSIC_OPENGL)
+#if !defined(MUJOCO_RENDERER_CLASSIC_OPENGL)
 mjPLUGIN_LIB_INIT {
   mujoco::platform::GuiPlugin plugin;
   plugin.name = "Filament";

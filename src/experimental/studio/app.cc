@@ -37,25 +37,14 @@
 #include "experimental/platform/helpers.h"
 #include "experimental/platform/imgui_widgets.h"
 #include "experimental/platform/interaction.h"
+#include "experimental/platform/model_holder.h"
 #include "experimental/platform/picture_gui.h"
 #include "experimental/platform/plugin.h"
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
-#include "user/user_resource.h"
 
 namespace mujoco::studio {
-
-static constexpr platform::Window::RenderConfig kRenderConfig =
-#if defined(__EMSCRIPTEN__)
-  platform::Window::RenderConfig::kFilamentWebGL;
-#elif defined(USE_FILAMENT_VULKAN)
-  platform::Window::RenderConfig::kFilamentVulkan;
-#elif defined(USE_FILAMENT_OPENGL)
-  platform::Window::RenderConfig::kFilamentOpenGL;
-#elif defined(USE_CLASSIC_OPENGL)
-  platform::Window::RenderConfig::kClassicOpenGL;
-#endif
 
 static void ToggleFlag(mjtByte& flag) { flag = flag ? 0 : 1; }
 
@@ -115,7 +104,7 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 App::App(Config config)
     : ini_path_(std::move(config.ini_path)) {
   platform::Window::Config window_config;
-  window_config.render_config = kRenderConfig;
+  window_config.renderer_backend = platform::Renderer::GetBackend();
   window_config.offscreen_mode = config.offscreen_mode;
   window_ = std::make_unique<platform::Window>("MuJoCo Studio", config.width,
                                                config.height, window_config);
@@ -131,20 +120,8 @@ App::App(Config config)
 }
 
 void App::ClearModel() {
-  if (model_) {
-    mj_deleteData(data_);
-    data_ = nullptr;
-    mj_deleteModel(model_);
-    model_ = nullptr;
-
-    if (spec_) {
-      mj_deleteSpec(spec_);
-      spec_ = nullptr;
-    }
-  }
-
+  model_holder_.reset();
   window_->SetTitle("MuJoCo Studio");
-
   step_control_.SetSpeed(100.f);
   profiler_.Clear();
   tmp_ = UiTempState();
@@ -163,133 +140,55 @@ void App::RequestModelReload() {
 }
 
 void App::InitEmptyModel() {
-  mjSpec* spec = mj_makeSpec();
-  mjModel* model = mj_compile(spec, nullptr);
-  InitModel(model, spec, nullptr, "", kEmptyModel);
+  model_holder_ = platform::ModelHolder::FromSpec(mj_makeSpec());
+  OnModelLoaded("", kEmptyModel);
 }
 
 void App::LoadModelFromFile(const std::string& filepath) {
-  mjModel* model = nullptr;
-  mjSpec* spec = nullptr;
-  mjVFS vfs;
-  mj_defaultVFS(&vfs);
-
   const std::string resolved_file =
       platform::ResolveFile(filepath, search_paths_);
-
-  if (resolved_file.empty()) {
-    SetLoadError("File not found: " + filepath);
-    return;
-  }
-
-  char err[1000] = "";
-  if (resolved_file.ends_with(".mjb")) {
-    model = mj_loadModel(resolved_file.c_str(), &vfs);
+  model_holder_ = platform::ModelHolder::FromFile(resolved_file);
+  if (model_holder_->ok()) {
+    OnModelLoaded(filepath, kModelFromFile);
+    UpdateFilePaths(resolved_file);
+    window_->SetTitle("MuJoCo Studio : " + filepath);
   } else {
-    spec = mj_parse(resolved_file.c_str(), nullptr, &vfs, err, sizeof(err));
+    SetLoadError(std::string(model_holder_->error()));
   }
-  if (err[0]) {
-    SetLoadError(err);
-    return;
-  }
-
-  InitModel(model, spec, &vfs, filepath, kModelFromFile);
-  UpdateFilePaths(resolved_file);
-  window_->SetTitle("MuJoCo Studio : " + filepath);
-
-  mj_deleteVFS(&vfs);
 }
-
-struct BufferProvider : public mjpResourceProvider {
-  BufferProvider(std::span<const std::byte> buffer) : buffer(buffer) {
-    mjp_defaultResourceProvider(this);
-    open = [](mjResource* resource) {
-      return 1;
-    };
-    read = [](mjResource* resource, const void** buffer) {
-      BufferProvider* self = (BufferProvider*)resource->provider;
-      *buffer = self->buffer.data();
-      return static_cast<int>(self->buffer.size());
-    };
-    close = [](mjResource* resource) {};
-  }
-  std::span<const std::byte> buffer;
-};
 
 void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
                               std::string_view content_type,
                               std::string_view filename) {
-  mjModel* model = nullptr;
-  mjSpec* spec = nullptr;
-
-  mjVFS vfs;
-  mj_defaultVFS(&vfs);
-
-  char err[1000] = "";
-  if (content_type == "text/xml") {
-    const char* ptr = reinterpret_cast<const char*>(buffer.data());
-    spec = mj_parseXMLString(ptr, nullptr, err, sizeof(err));
-  } else if (content_type == "application/mjb") {
-    model = mj_loadModelBuffer(buffer.data(), buffer.size());
-  } else if (content_type == "application/zip") {
-    BufferProvider provider(buffer);
-    mjResource resource;
-    memset(&resource, 0, sizeof(mjResource));
-    resource.vfs = &vfs;
-    resource.provider = &provider;
-    resource.name = (char*)filename.data();
-    spec = mju_decodeResource(&resource, content_type.data(), &vfs);
+  model_holder_ =
+      platform::ModelHolder::FromBuffer(buffer, content_type, filename);
+  if (model_holder_->ok()) {
+    OnModelLoaded(std::string(filename), kModelFromFile);
   } else {
-    SetLoadError(
-        "Unknown content type; expected text/xml or application/mjb");
-    return;
+    SetLoadError(std::string(model_holder_->error()));
   }
-  if (err[0]) {
-    SetLoadError(err);
-    return;
-  }
-
-  InitModel(model, spec, &vfs, std::string(filename), kModelFromBuffer);
-
-  mj_deleteVFS(&vfs);
 }
 
-void App::InitModel(mjModel* model, mjSpec* spec, mjVFS* vfs,
-                    std::string filename, ModelKind model_kind) {
-  ClearModel();
-
+void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   model_path_ = std::move(filename);
+
+  if (model_kind_ == kEmptyModel) {
+    step_control_.Unpause();
+  }
   model_kind_ = model_kind;
-
-  spec_ = spec;
-  model_ = model;
-
-  // If we have a spec but not a model, we need to compile the model from the spec.
-  if (spec_ && !model_) {
-    model_ = mj_compile(spec_, vfs);
-    if (!model_) {
-      SetLoadError("Error compiling model from spec.");
-      return;
-    }
-  }
-
-  if (!model_) {
-    mju_error("Error making data for model: %s", model_path_.c_str());
-  }
-
-  data_ = mj_makeData(model_);
-  if (!data_) {
-    mju_error("Error making data for model: %s", model_path_.c_str());
+  if (model_kind_ == kEmptyModel) {
+    step_control_.Pause();
   }
 
   // Reset/reinitialize everything that depends on the new mjModel.
-  renderer_->Init(model_);
-  const int state_size = mj_stateSize(model_, mjSTATE_INTEGRATION);
+  mjModel* model = model_holder_->model();
+  renderer_->Init(model);
+  const int state_size = mj_stateSize(model, mjSTATE_INTEGRATION);
   history_.Init(state_size);
 
   // Initialize the speed based on the model's default real-time setting.
   float min_error = FLT_MAX;
-  const float desired = mju_log(100 * model_->vis.global.realtime);
+  const float desired = mju_log(100 * model->vis.global.realtime);
   for (int i = 0; i < kPercentRealTime.size(); ++i) {
     const float speed = std::stof(kPercentRealTime[i]);
     const float error = mju_abs(mju_log(speed) - desired);
@@ -332,20 +231,20 @@ void App::SetLoadError(std::string error) {
 }
 
 void App::ResetPhysics() {
-  mj_resetData(model_, data_);
-  mj_forward(model_, data_);
+  mj_resetData(model(), data());
+  mj_forward(model(), data());
   step_error_ = "";
 }
 
 void App::UpdatePhysics() {
-  if (model_ == nullptr) {
+  if (!has_model()) {
     return;
   }
 
   bool stepped = false;
   platform::ForEachModelPlugin([&](platform::ModelPlugin* plugin) {
     if (plugin->do_update) {
-      if (plugin->do_update(plugin, model_, data_)) {
+      if (plugin->do_update(plugin, model(), data())) {
         stepped = true;
       }
     }
@@ -353,21 +252,22 @@ void App::UpdatePhysics() {
 
   if (!stepped) {
     if (!step_control_.IsPaused()) {
-      mju_zero(data_->xfrc_applied, 6 * model_->nbody);
-      mjv_applyPerturbPose(model_, data_, &perturb_, 0);
-      mjv_applyPerturbForce(model_, data_, &perturb_);
+      mju_zero(data()->xfrc_applied, 6 * model()->nbody);
+      mjv_applyPerturbPose(model(), data(), &perturb_, 0);
+      mjv_applyPerturbForce(model(), data(), &perturb_);
     } else {
-      mjv_applyPerturbPose(model_, data_, &perturb_, 1);
+      mjv_applyPerturbPose(model(), data(), &perturb_, 1);
     }
 
-    if (data_) {
+    if (has_data()) {
       for (int i = 0; i < mjNTIMER; i++) {
-        data_->timer[i].duration = 0;
-        data_->timer[i].number = 0;
+        data()->timer[i].duration = 0;
+        data()->timer[i].number = 0;
       }
     }
 
-    platform::StepControl::Status status = step_control_.Advance(model_, data_);
+    platform::StepControl::Status status =
+        step_control_.Advance(model(), data());
     if (status == platform::StepControl::Status::kPaused) {
       // do nothing
     } else if (status == platform::StepControl::Status::kOk) {
@@ -379,18 +279,18 @@ void App::UpdatePhysics() {
     } else if (status == platform::StepControl::Status::kDiverged) {
       stepped = true;
       for (mjtWarning w : platform::StepControl::kDivergedWarnings) {
-        if (data_->warning[w].number > 0) {
-          step_error_ = mju_warningText(w, data_->warning[w].lastinfo);
+        if (data()->warning[w].number > 0) {
+          step_error_ = mju_warningText(w, data()->warning[w].lastinfo);
         }
       }
     }
   }
 
   if (stepped) {
-    profiler_.Update(model_, data_);
+    profiler_.Update(model(), data());
     std::span<mjtNum> state = history_.AddToHistory();
     if (!state.empty()) {
-      mj_getState(model_, data_, state.data(), mjSTATE_INTEGRATION);
+      mj_getState(model(), data(), state.data(), mjSTATE_INTEGRATION);
     }
   }
 }
@@ -402,8 +302,8 @@ void App::LoadHistory(int offset) {
     step_control_.Pause();
 
     // Load the state into the data buffer.
-    mj_setState(model_, data_, state.data(), mjSTATE_INTEGRATION);
-    mj_forward(model_, data_);
+    mj_setState(model(), data(), state.data(), mjSTATE_INTEGRATION);
+    mj_forward(model(), data());
   }
 }
 
@@ -435,16 +335,16 @@ void App::Render() {
   } else {
     pixels_.clear();
   }
-  renderer_->Render(model_, data_, &perturb_, &camera_, &vis_options_,
+  renderer_->Render(model(), data(), &perturb_, &camera_, &vis_options_,
                     width * scale, height * scale, pixels_);
 
   window_->EndFrame();
   window_->Present(pixels_);
 
-  if (data_) {
+  if (has_data()) {
     for (int i = 0; i < mjNTIMER; i++) {
-      data_->timer[i].duration = 0;
-      data_->timer[i].number = 0;
+      data()->timer[i].duration = 0;
+      data()->timer[i].number = 0;
     }
   }
 }
@@ -492,7 +392,7 @@ void App::HandleMouseEvents() {
     return;
   }
 
-  if (!model_ || !data_) {
+  if (!has_model() || !has_data()) {
     return;
   }
 
@@ -527,9 +427,9 @@ void App::HandleMouseEvents() {
       const mjtPertBit active =
           action == mjMOUSE_MOVE_V ? mjPERT_TRANSLATE : mjPERT_ROTATE;
       if (active != perturb_.active) {
-        platform::InitPerturb(model_, data_, &camera_, &perturb_, active);
+        platform::InitPerturb(model(), data(), &camera_, &perturb_, active);
       }
-      platform::MovePerturb(model_, data_, &camera_, &perturb_, action,
+      platform::MovePerturb(model(), data(), &camera_, &perturb_, action,
                             mouse_dx, mouse_dy);
     }
   }
@@ -564,7 +464,7 @@ void App::HandleMouseEvents() {
   // Left double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
     platform::PickResult picked =
-        platform::Pick(model_, data_, &camera_, mouse_x, mouse_y,
+        platform::Pick(model(), data(), &camera_, mouse_x, mouse_y,
                        window_->GetAspectRatio(), &vis_options_);
     if (picked.body >= 0) {
       perturb_.select = picked.body;
@@ -573,8 +473,8 @@ void App::HandleMouseEvents() {
 
       // Compute the local position of the selected object in the world.
       mjtNum tmp[3];
-      mju_sub3(tmp, picked.point, data_->xpos + 3 * picked.body);
-      mju_mulMatTVec(perturb_.localpos, data_->xmat + 9 * picked.body, tmp, 3,
+      mju_sub3(tmp, picked.point, data()->xpos + 3 * picked.body);
+      mju_mulMatTVec(perturb_.localpos, data()->xmat + 9 * picked.body, tmp, 3,
                      3);
     } else {
       perturb_.select = 0;
@@ -586,7 +486,7 @@ void App::HandleMouseEvents() {
   // Right double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
     platform::PickResult picked =
-        platform::Pick(model_, data_, &camera_, mouse_x, mouse_y,
+        platform::Pick(model(), data(), &camera_, mouse_x, mouse_y,
                        window_->GetAspectRatio(), &vis_options_);
     mju_copy3(camera_.lookat, picked.point);
     if (picked.body > 0 && io.KeyCtrl) {
@@ -623,14 +523,14 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_P | ImGuiMod_Ctrl)) {
     tmp_.file_dialog = UiTempState::FileDialog_SaveScreenshot;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_C | ImGuiMod_Ctrl)) {
-    std::string keyframe = platform::KeyframeToString(model_, data_, false);
+    std::string keyframe = platform::KeyframeToString(model(), data(), false);
     platform::MaybeSaveToClipboard(keyframe);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_L | ImGuiMod_Ctrl)) {
     RequestModelReload();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Q | ImGuiMod_Ctrl)) {
     tmp_.should_exit = true;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_A | ImGuiMod_Ctrl)) {
-    mjv_defaultFreeCamera(model_, &camera_);
+    mjv_defaultFreeCamera(model(), &camera_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab | ImGuiMod_Shift)) {
     tmp_.inspector_panel = !tmp_.inspector_panel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab)) {
@@ -656,7 +556,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Backspace)) {
     ResetPhysics();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_PageUp)) {
-    SelectParentPerturb(model_, perturb_);
+    SelectParentPerturb(model(), perturb_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
@@ -745,16 +645,16 @@ void App::HandleKeyboardEvents() {
     ToggleFlag(vis_options_.geomgroup[4]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_5)) {
     ToggleFlag(vis_options_.geomgroup[5]);
-  } else if (model_) {
+  } else if (has_model()) {
     if (ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
       ui_.camera_idx =
-          platform::SetCamera(model_, &camera_, platform::kTumbleCameraIdx);
+          platform::SetCamera(model(), &camera_, platform::kTumbleCameraIdx);
     } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftBracket)) {
       ui_.camera_idx =
-          platform::SetCamera(model_, &camera_, ui_.camera_idx - 1);
+          platform::SetCamera(model(), &camera_, ui_.camera_idx - 1);
     } else if (ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
       ui_.camera_idx =
-          platform::SetCamera(model_, &camera_, ui_.camera_idx + 1);
+          platform::SetCamera(model(), &camera_, ui_.camera_idx + 1);
     }
 
     // WASD camera controls for free camera.
@@ -848,7 +748,7 @@ void App::SetSpeedIndex(int idx) {
 
 void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx,
                      mjtNum reldy) {
-  platform::MoveCamera(model_, data_, &camera_, motion, reldx, reldy);
+  platform::MoveCamera(model(), data(), &camera_, motion, reldx, reldy);
 }
 
 void App::BuildGui() {
@@ -924,15 +824,15 @@ void App::BuildGui() {
     ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
-      platform::CountsGui(model_, data_);
-      platform::ConvergenceGui(model_, data_);
+      platform::CountsGui(model(), data());
+      platform::ConvergenceGui(model(), data());
     }
     ImGui::End();
   }
 
   if (tmp_.picture_in_picture) {
     if (ImGui::Begin("Picture-in-Picture", &tmp_.picture_in_picture)) {
-      PipGui(model_, data_, window_.get(), renderer_.get(), &tmp_.pips);
+      PipGui(model(), data(), window_.get(), renderer_.get(), &tmp_.pips);
     }
     ImGui::End();
   }
@@ -954,7 +854,7 @@ void App::BuildGui() {
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
     if (ImGui::Begin("Stats", &tmp_.stats)) {
       const float fps = renderer_->GetFps();
-      platform::StatsGui(model_, data_, step_control_.IsPaused(), fps);
+      platform::StatsGui(model(), data(), step_control_.IsPaused(), fps);
     }
     ImGui::End();
   }
@@ -1047,14 +947,14 @@ void App::ModelOptionsGui() {
 
   ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Physics Settings", node_flags)) {
-    platform::PhysicsGui(model_, min_width);
+    platform::PhysicsGui(model(), min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("RenderingGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Rendering Settings", node_flags)) {
-    platform::RenderingGui(model_, &vis_options_, renderer_->GetRenderFlags(),
+    platform::RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
                            min_width);
     ImGui::TreePop();
   }
@@ -1062,21 +962,21 @@ void App::ModelOptionsGui() {
 
   ImGui::BeginChild("GroupsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Visibility Groups", node_flags)) {
-    platform::GroupsGui(model_, &vis_options_, min_width);
+    platform::GroupsGui(model(), &vis_options_, min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("VisualizationGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Visualization", node_flags)) {
-    platform::VisualizationGui(model_, &vis_options_, &camera_, min_width);
+    platform::VisualizationGui(model(), &vis_options_, &camera_, min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 }
 
 void App::DataInspectorGui() {
-  if (data_ == nullptr) {
+  if (!has_data()) {
     ImGui::Text("No mjData loaded.");
     return;
   }
@@ -1092,7 +992,7 @@ void App::DataInspectorGui() {
     float noise_scale = 0;
     float noise_rate = 0;
     step_control_.GetNoiseParameters(noise_scale, noise_rate);
-    platform::NoiseGui(model_, data_, noise_scale, noise_rate);
+    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
     step_control_.SetNoiseParameters(noise_scale, noise_rate);
     ImGui::TreePop();
   }
@@ -1100,36 +1000,36 @@ void App::DataInspectorGui() {
 
   ImGui::BeginChild("JointsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Joints", node_flags)) {
-    platform::JointsGui(model_, data_, &vis_options_);
+    platform::JointsGui(model(), data(), &vis_options_);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Controls", node_flags)) {
-    platform::ControlsGui(model_, data_, &vis_options_);
+    platform::ControlsGui(model(), data(), &vis_options_);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("SensorGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Sensor", node_flags)) {
-    platform::SensorGui(model_, data_);
+    platform::SensorGui(model(), data());
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("WatchGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Watch", node_flags)) {
-    platform::WatchGui(model_, data_, ui_.watch_field, sizeof(ui_.watch_field),
-                       ui_.watch_index);
+    platform::WatchGui(model(), data(), ui_.watch_field,
+                       sizeof(ui_.watch_field), ui_.watch_index);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("StateGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("State", node_flags)) {
-    platform::StateGui(model_, data_, tmp_.state, tmp_.state_sig, min_width);
+    platform::StateGui(model(), data(), tmp_.state, tmp_.state_sig, min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
@@ -1145,7 +1045,7 @@ void DisplayElementTree(mjsElement* element) {
 }
 
 void App::SpecExplorerGui() {
-  if (spec_ == nullptr) {
+  if (!has_spec()) {
     ImGui::Text("No mjSpec loaded.");
     return;
   }
@@ -1154,7 +1054,7 @@ void App::SpecExplorerGui() {
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   auto display_group = [this](mjtObj type, const std::string& prefix) {
-    mjsElement* element = mjs_firstElement(spec_, type);
+    mjsElement* element = mjs_firstElement(spec(), type);
     while (element) {
       const int id = mjs_getId(element);
 
@@ -1169,14 +1069,14 @@ void App::SpecExplorerGui() {
         tmp_.element_id = id;
       }
 
-      element = mjs_nextElement(spec_, element);
+      element = mjs_nextElement(spec(), element);
     }
   };
 
   if (ImGui::TreeNodeEx("Bodies", flags)) {
     // We don't use `display_group` here because we do additional selection
     // logic tied to the `perturb_` field.
-    mjsElement* element = mjs_firstElement(spec_, mjOBJ_BODY);
+    mjsElement* element = mjs_firstElement(spec(), mjOBJ_BODY);
     while (element) {
       const int id = mjs_getId(element);
 
@@ -1196,7 +1096,7 @@ void App::SpecExplorerGui() {
         perturb_.select = id;
       }
 
-      element = mjs_nextElement(spec_, element);
+      element = mjs_nextElement(spec(), element);
     }
     ImGui::TreePop();
   }
@@ -1222,18 +1122,20 @@ void App::PropertiesGui() {
     case mjOBJ_BODY:
       ImGui::Text("Body");
       ImGui::Separator();
-      platform::BodyPropertiesGui(model_, data_, tmp_.element, tmp_.element_id);
+      platform::BodyPropertiesGui(model(), data(), tmp_.element,
+                                  tmp_.element_id);
       break;
     case mjOBJ_JOINT:
       ImGui::Text("Joint");
       ImGui::Separator();
-      platform::JointPropertiesGui(model_, data_, tmp_.element,
+      platform::JointPropertiesGui(model(), data(), tmp_.element,
                                    tmp_.element_id);
       break;
     case mjOBJ_SITE:
       ImGui::Text("Site");
       ImGui::Separator();
-      platform::SitePropertiesGui(model_, data_, tmp_.element, tmp_.element_id);
+      platform::SitePropertiesGui(model(), data(), tmp_.element,
+                                  tmp_.element_id);
       break;
     default:
       // ignore other types
@@ -1436,8 +1338,8 @@ void App::ToolBarGui() {
     if (ImGui::BeginCombo("##Camera", cameras[camera_idx], combo_flags)) {
       for (int n = 0; n < cameras.size(); n++) {
         if (ImGui::Selectable(cameras[n], (camera_idx == n))) {
-          ui_.camera_idx = platform::SetCamera(
-              model_, &camera_, n + platform::kTumbleCameraIdx);
+          ui_.camera_idx = platform::SetCamera(model(), &camera_,
+                                               n + platform::kTumbleCameraIdx);
         }
       }
       ImGui::EndCombo();
@@ -1445,7 +1347,7 @@ void App::ToolBarGui() {
     ImGui::SetItemTooltip("%s", "Camera");
     ImGui::SameLine();
     if (ImGui::Button(ICON_COPY_CAMERA)) {
-      std::string camera_string = platform::CameraToString(data_, &camera_);
+      std::string camera_string = platform::CameraToString(data(), &camera_);
       platform::MaybeSaveToClipboard(camera_string);
     }
     ImGui::SetItemTooltip("%s", "Copy Camera");
@@ -1529,7 +1431,7 @@ void App::StatusBarGui() {
 
     ImGui::TableNextColumn();
 
-    if (model_ == nullptr) {
+    if (!has_model()) {
       ImGui::Text("No model loaded");
     } else if (step_control_.IsPaused()) {
       ImGui::Text("Paused");
@@ -1650,16 +1552,16 @@ void App::MainMenuGui() {
       ImGui::Separator();
       if (ImGui::BeginMenu("Keyframes")) {
         ImGui::SetNextItemWidth(200);
-        ImGui::SliderInt("##Key", &ui_.key_idx, 0, model_->nkey);
+        ImGui::SliderInt("##Key", &ui_.key_idx, 0, model()->nkey);
         if (ImGui::MenuItem("Load")) {
-          mj_resetDataKeyframe(model_, data_, ui_.key_idx);
-          mj_forward(model_, data_);
+          mj_resetDataKeyframe(model(), data(), ui_.key_idx);
+          mj_forward(model(), data());
         }
         if (ImGui::MenuItem("Save")) {
-          mj_setKeyframe(model_, data_, ui_.key_idx);
+          mj_setKeyframe(model(), data(), ui_.key_idx);
         }
         if (ImGui::MenuItem("Copy")) {
-          std::string str = platform::KeyframeToString(model_, data_, false);
+          std::string str = platform::KeyframeToString(model(), data(), false);
           platform::MaybeSaveToClipboard(str);
         }
         ImGui::EndMenu();
@@ -1744,7 +1646,10 @@ void App::FileDialogGui() {
   ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
   if (ImGui::BeginPopupModal("FileDialog", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    const platform::DialogResult res = platform::OpenFileDialog(tmp_.filename);
+    const platform::DialogResult res =
+        tmp_.file_dialog == UiTempState::FileDialog_Load
+            ? platform::OpenFileDialog(tmp_.filename)
+            : platform::SaveFileDialog(tmp_.filename);
 
     if (res.status == platform::DialogResult::kAccepted) {
       tmp_.last_path[tmp_.file_dialog] = res.path;
@@ -1753,25 +1658,25 @@ void App::FileDialogGui() {
           RequestModelLoad(res.path);
           break;
         case UiTempState::FileDialog_SaveXml:
-          mj_saveLastXML(res.path.c_str(), model_, nullptr, 0);
+          mj_saveLastXML(res.path.c_str(), model(), nullptr, 0);
           break;
         case UiTempState::FileDialog_SaveMjb:
-          mj_saveModel(model_, res.path.c_str(), nullptr, 0);
+          mj_saveModel(model(), res.path.c_str(), nullptr, 0);
           break;
         case UiTempState::FileDialog_SaveScreenshot: {
           const int width = window_->GetWidth();
           const int height = window_->GetHeight();
           std::vector<std::byte> buffer(width * height * 3);
-          renderer_->RenderToTexture(model_, data_, &camera_, width, height,
+          renderer_->RenderToTexture(model(), data(), &camera_, width, height,
                                      buffer.data());
           platform::SaveToWebp(width, height, buffer.data(), res.path);
           break;
         }
         case UiTempState::FileDialog_PrintModel:
-          mj_printModel(model_, res.path.c_str());
+          mj_printModel(model(), res.path.c_str());
           break;
         case UiTempState::FileDialog_PrintData:
-          mj_printData(model_, data_, res.path.c_str());
+          mj_printData(model(), data(), res.path.c_str());
           break;
         default:
           break;
@@ -1790,7 +1695,8 @@ void App::FileDialogGui() {
     ImGui::EndPopup();
   }
 
-  if (!ImGui::IsPopupOpen("FileDialog")) {
+  if (!ImGui::IsPopupOpen("FileDialog") &&
+      tmp_.file_dialog != UiTempState::FileDialog_None) {
     const std::string& src = tmp_.last_path[tmp_.file_dialog];
     strncpy(tmp_.filename, src.c_str(), src.size());
     tmp_.filename[src.size()] = 0;
@@ -1822,14 +1728,14 @@ float App::GetExpectedLabelWidth() {
 
 std::vector<const char*> App::GetCameraNames() {
   if (tmp_.camera_names.empty()) {
-    tmp_.camera_names.reserve(model_->ncam + 3);
+    tmp_.camera_names.reserve(model()->ncam + 3);
 
     tmp_.camera_names.push_back("Free: tumble");
     tmp_.camera_names.push_back("Free: wasd");
     tmp_.camera_names.push_back("Tracking (-1)");
-    for (int i = 0; i < model_->ncam; i++) {
-      if (model_->names[model_->name_camadr[i]]) {
-        tmp_.camera_names.push_back(model_->names + model_->name_camadr[i]);
+    for (int i = 0; i < model()->ncam; i++) {
+      if (model()->names[model()->name_camadr[i]]) {
+        tmp_.camera_names.push_back(model()->names + model()->name_camadr[i]);
       } else {
         tmp_.camera_names.push_back("Unnamed");
       }

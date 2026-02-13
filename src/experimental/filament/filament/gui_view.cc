@@ -208,6 +208,10 @@ void GuiView::DestroyTexture(ImTextureData* data) {
 }
 
 void GuiView::UpdateRenderable() {
+  if (!ImGui::GetCurrentContext()) {
+    return;
+  }
+
   // Prepare the imgui draw commands. We must call this function even if we do
   // not plan on rendering anything to ensure imgui state is updated.
   ImGui::Render();

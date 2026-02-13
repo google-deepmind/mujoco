@@ -626,6 +626,66 @@ TEST_F(SensorTest, OjbtypeParsedButNotRequired) {
   mj_deleteModel(model);
 }
 
+TEST_F(SensorTest, NegativeIntervalError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="j" interval="-1"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("negative interval"));
+}
+
+TEST_F(SensorTest, PositivePhaseError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="j" interval="0.1 0.05"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("positive phase"));
+}
+
+TEST_F(SensorTest, DelayWithoutHistoryError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="j" delay="0.1"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("delay > 0 without a history buffer"));
+}
+
 // ------------- test capsule inertias -----------------------------------------
 
 static const char* const kCapsuleInertiaPath =

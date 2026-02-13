@@ -57,6 +57,8 @@ struct {
   CPYTHON_FN(PyGILState_Ensure);
   CPYTHON_FN(PyGILState_Release);
   CPYTHON_FN(PyRun_SimpleStringFlags);
+  CPYTHON_FN(PyStatus_Exception);
+  CPYTHON_FN(Py_ExitStatusException);
   CPYTHON_FN(Py_FinalizeEx);
   CPYTHON_FN(Py_InitializeFromConfig);
   CPYTHON_FN(Py_RunMain);
@@ -65,7 +67,7 @@ struct {
 #undef CPYTHON_FN
 } cpython;
 
-std::atomic_bool py_initialized = false;
+std::atomic_bool py_initialized;
 
 struct Args {
   int argc;
@@ -80,8 +82,20 @@ void* mjpython_pymain(void* vargs) {
   // Initialize the Python interpreter.
   PyConfig config;
   cpython.PyConfig_InitPythonConfig(&config);
-  cpython.PyConfig_SetBytesArgv(&config, args->argc, args->argv);
-  cpython.Py_InitializeFromConfig(&config);
+  {
+    PyStatus status = cpython.PyConfig_SetBytesArgv(&config, args->argc, args->argv);
+    if (cpython.PyStatus_Exception(status)) {
+      // Calls exit() which aborts the entire process.
+      cpython.Py_ExitStatusException(status);
+    }
+  }
+  {
+    PyStatus status = cpython.Py_InitializeFromConfig(&config);
+    if (cpython.PyStatus_Exception(status)) {
+      // Calls exit() which aborts the entire process.
+      cpython.Py_ExitStatusException(status);
+    }
+  }
   cpython.PyConfig_Clear(&config);
 
   // Set up the condition variable to pass control back to the macOS main thread.
@@ -205,6 +219,7 @@ _mjpython_init()
 }  // namespace
 
 int main(int argc, char** argv) {
+  py_initialized.store(false);
   const char* libpython_path = getenv("MJPYTHON_LIBPYTHON");
   if (!libpython_path || !libpython_path[0]) {
     std::cerr << "This binary must be launched via the mjpython.py script.\n";

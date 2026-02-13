@@ -63,6 +63,100 @@
     X( o_friction,      5       )
 
 
+//-------------------------------- mjStatistic -----------------------------------------------------
+
+// fields of mjStatistic
+#define MJSTATISTIC_FIELDS       \
+    X( mjtNum, meaninertia, 1 )  \
+    X( mjtNum, meanmass,    1 )  \
+    X( mjtNum, meansize,    1 )  \
+    X( mjtNum, extent,      1 )  \
+    X( mjtNum, center,      3 )
+
+
+//-------------------------------- mjVisual --------------------------------------------------------
+
+// fields of mjVisual
+#define MJVISUAL_FIELDS                         \
+    X( global,    int,   cameraid,         1 )  \
+    X( global,    int,   orthographic,     1 )  \
+    X( global,    float, fovy,             1 )  \
+    X( global,    float, ipd,              1 )  \
+    X( global,    float, azimuth,          1 )  \
+    X( global,    float, elevation,        1 )  \
+    X( global,    float, linewidth,        1 )  \
+    X( global,    float, glow,             1 )  \
+    X( global,    float, realtime,         1 )  \
+    X( global,    int,   offwidth,         1 )  \
+    X( global,    int,   offheight,        1 )  \
+    X( global,    int,   ellipsoidinertia, 1 )  \
+    X( global,    int,   bvactive,         1 )  \
+    X( quality,   int,   shadowsize,       1 )  \
+    X( quality,   int,   offsamples,       1 )  \
+    X( quality,   int,   numslices,        1 )  \
+    X( quality,   int,   numstacks,        1 )  \
+    X( quality,   int,   numquads,         1 )  \
+    X( headlight, float, ambient,          3 )  \
+    X( headlight, float, diffuse,          3 )  \
+    X( headlight, float, specular,         3 )  \
+    X( headlight, int,   active,           1 )  \
+    X( map,       float, stiffness,        1 )  \
+    X( map,       float, stiffnessrot,     1 )  \
+    X( map,       float, force,            1 )  \
+    X( map,       float, torque,           1 )  \
+    X( map,       float, alpha,            1 )  \
+    X( map,       float, fogstart,         1 )  \
+    X( map,       float, fogend,           1 )  \
+    X( map,       float, znear,            1 )  \
+    X( map,       float, zfar,             1 )  \
+    X( map,       float, haze,             1 )  \
+    X( map,       float, shadowclip,       1 )  \
+    X( map,       float, shadowscale,      1 )  \
+    X( map,       float, actuatortendon,   1 )  \
+    X( scale,     float, forcewidth,       1 )  \
+    X( scale,     float, contactwidth,     1 )  \
+    X( scale,     float, contactheight,    1 )  \
+    X( scale,     float, connect,          1 )  \
+    X( scale,     float, com,              1 )  \
+    X( scale,     float, camera,           1 )  \
+    X( scale,     float, light,            1 )  \
+    X( scale,     float, selectpoint,      1 )  \
+    X( scale,     float, jointlength,      1 )  \
+    X( scale,     float, jointwidth,       1 )  \
+    X( scale,     float, actuatorlength,   1 )  \
+    X( scale,     float, actuatorwidth,    1 )  \
+    X( scale,     float, framelength,      1 )  \
+    X( scale,     float, framewidth,       1 )  \
+    X( scale,     float, constraint,       1 )  \
+    X( scale,     float, slidercrank,      1 )  \
+    X( scale,     float, frustum,          1 )  \
+    X( rgba,      float, fog,              4 )  \
+    X( rgba,      float, haze,             4 )  \
+    X( rgba,      float, force,            4 )  \
+    X( rgba,      float, inertia,          4 )  \
+    X( rgba,      float, joint,            4 )  \
+    X( rgba,      float, actuator,         4 )  \
+    X( rgba,      float, actuatornegative, 4 )  \
+    X( rgba,      float, actuatorpositive, 4 )  \
+    X( rgba,      float, com,              4 )  \
+    X( rgba,      float, camera,           4 )  \
+    X( rgba,      float, light,            4 )  \
+    X( rgba,      float, selectpoint,      4 )  \
+    X( rgba,      float, connect,          4 )  \
+    X( rgba,      float, contactpoint,     4 )  \
+    X( rgba,      float, contactforce,     4 )  \
+    X( rgba,      float, contactfriction,  4 )  \
+    X( rgba,      float, contacttorque,    4 )  \
+    X( rgba,      float, contactgap,       4 )  \
+    X( rgba,      float, rangefinder,      4 )  \
+    X( rgba,      float, constraint,       4 )  \
+    X( rgba,      float, slidercrank,      4 )  \
+    X( rgba,      float, crankbroken,      4 )  \
+    X( rgba,      float, frustum,          4 )  \
+    X( rgba,      float, bv,               4 )  \
+    X( rgba,      float, bvactive,         4 )
+
+
 //-------------------------------- mjModel ---------------------------------------------------------
 
 // size fields of mjModel
@@ -153,6 +247,7 @@
     X( nuserdata )          \
     X( nsensordata )        \
     X( npluginstate )       \
+    X( nhistory )           \
     X( narena )             \
     X( nbuffer )
 
@@ -486,7 +581,7 @@
     X   ( int,     tex_height,            ntex,          1                    ) \
     X   ( int,     tex_width,             ntex,          1                    ) \
     X   ( int,     tex_nchannel,          ntex,          1                    ) \
-    X   ( int,     tex_adr,               ntex,          1                    ) \
+    X   ( mjtSize, tex_adr,               ntex,          1                    ) \
     XNV ( mjtByte, tex_data,              ntexdata,      1                    ) \
     X   ( int,     tex_pathadr,           ntex,          1                    )
 
@@ -563,6 +658,9 @@
     X   ( int,     actuator_actadr,       nu,            1                    ) \
     X   ( int,     actuator_actnum,       nu,            1                    ) \
     X   ( int,     actuator_group,        nu,            1                    ) \
+    X   ( int,     actuator_history,      nu,            2                    ) \
+    X   ( int,     actuator_historyadr,   nu,            1                    ) \
+    X   ( mjtNum,  actuator_delay,        nu,            1                    ) \
     X   ( mjtByte, actuator_ctrllimited,  nu,            1                    ) \
     X   ( mjtByte, actuator_forcelimited, nu,            1                    ) \
     X   ( mjtByte, actuator_actlimited,   nu,            1                    ) \
@@ -594,6 +692,10 @@
     X   ( int,     sensor_adr,            nsensor,       1                    ) \
     X   ( mjtNum,  sensor_cutoff,         nsensor,       1                    ) \
     X   ( mjtNum,  sensor_noise,          nsensor,       1                    ) \
+    X   ( int,     sensor_history,        nsensor,       2                    ) \
+    X   ( int,     sensor_historyadr,     nsensor,       1                    ) \
+    X   ( mjtNum,  sensor_delay,          nsensor,       1                    ) \
+    X   ( mjtNum,  sensor_interval,       nsensor,       2                    ) \
     X   ( mjtNum,  sensor_user,           nsensor,       MJ_M(nuser_sensor)   ) \
     X   ( int,     sensor_plugin,         nsensor,       1                    )
 
@@ -708,6 +810,7 @@
     X   ( mjtNum,    qpos,              nq,          1           ) \
     X   ( mjtNum,    qvel,              nv,          1           ) \
     X   ( mjtNum,    act,               na,          1           ) \
+    X   ( mjtNum,    history,           nhistory,    1           ) \
     X   ( mjtNum,    qacc_warmstart,    nv,          1           ) \
     X   ( mjtNum,    plugin_state,      npluginstate, 1          ) \
     X   ( mjtNum,    ctrl,              nu,          1           ) \

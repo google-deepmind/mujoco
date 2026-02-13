@@ -29,8 +29,8 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
 #include <mujoco/mjspec.h>
+#include <mujoco/mjtnum.h>
 #include "user/user_objects.h"
 
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
@@ -118,6 +118,7 @@ class mjCModel_ : public mjsElement {
   mjtSize ntexdata;        // number of texture bytes
   mjtSize nwrap;           // number of wrap objects in all tendon paths
   mjtSize nsensordata;     // number of mjtNums in sensor data vector
+  mjtSize nhistory;        // number of mjtNums in history buffer
   mjtSize nnumericdata;    // number of mjtNums in all custom fields
   mjtSize ntextdata;       // number of chars in all text fields, including 0
   mjtSize ntupledata;      // number of objects in all tuple fields
@@ -296,9 +297,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   // clear objects allocated by Compile
   void Clear();
 
-  // multi-threaded mesh compilation
-  void CompileMeshes(const mjVFS* vfs);
-
   // delete material from object
   template <class T> void DeleteMaterial(std::vector<T*>& list,
                                          std::string_view name = "");
@@ -354,6 +352,8 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // compile phases
   void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
+  void CompileMeshesAndTextures(const mjVFS* vfs);
+
   void SetNuser();                      // set nuser fields
   void IndexAssets(bool discard);       // convert asset names into indices
   void CheckEmptyNames();               // check empty names

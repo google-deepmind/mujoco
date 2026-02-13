@@ -14,8 +14,6 @@
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/wasm/dist")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -O3 -fexceptions")
-
 set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/wasm)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -33,12 +31,11 @@ if(NOT MUJOCO_WASM_FILES)
     message(FATAL_ERROR "No source files found in codegen/generated/")
 endif()
 
-add_compile_options(-pthread)
-add_compile_options(-fexceptions)
-
 # Set Emscripten linker flags
 set(EMCC_LINKER_FLAGS
     "--bind"
+    "-pthread"
+    "-s PTHREAD_POOL_SIZE=navigator.hardwareConcurrency"
     "-s ASSERTIONS=1"
     "-s ALLOW_MEMORY_GROWTH=1"
     "-s EXPORT_ES6=1"

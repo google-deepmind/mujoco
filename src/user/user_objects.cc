@@ -6960,6 +6960,17 @@ void mjCActuator::Compile(void) {
       throw mjCError(this, "plugin '%s' does not support actuators", pplugin->name);
     }
   }
+
+  // validate delay
+  if (delay > 0 && nsample <= 0) {
+    throw mjCError(this, "setting delay > 0 without a history buffer");
+  }
+
+  // nsample is limited to 2^24 because the cursor is stored as an mjtNum, which may be a float
+  // single-precision floats can represent all integers up to 2^24 exactly
+  if (nsample > 16777216) {
+    throw mjCError(this, "at most 2^24 samples in history buffer, got %d", nullptr, nsample);
+  }
 }
 
 
@@ -7289,6 +7300,31 @@ void mjCSensor::Compile(void) {
   // require non-negative cutoff
   if (cutoff < 0) {
     throw mjCError(this, "negative cutoff in sensor");
+  }
+
+  // require non-negative interval
+  if (interval[0] < 0) {
+    throw mjCError(this, "negative interval in sensor");
+  }
+
+  // require non-positive phase
+  if (interval[1] > 0) {
+    throw mjCError(this, "positive phase in sensor");
+  }
+
+  // require phase > -period (values outside this are equivalent modulo period)
+  if (interval[0] > 0 && interval[1] <= -interval[0]) {
+    throw mjCError(this, "phase must be greater than -period in sensor");
+  }
+
+  // require nsample for delay
+  if (delay > 0 && nsample <= 0) {
+    throw mjCError(this, "setting delay > 0 without a history buffer");
+  }
+
+  // validate nsample size (max 2^24)
+  if (nsample > 16777216) {
+    throw mjCError(this, "at most 2^24 samples in sensor history buffer, got %d", nullptr, nsample);
   }
 
   // Find referenced object

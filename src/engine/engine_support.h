@@ -106,6 +106,10 @@ MJAPI void mj_normalizeQuat(const mjModel* m, mjtNum* qpos);
 // return 1 if actuator i is disabled, 0 otherwise
 MJAPI int mj_actuatorDisabled(const mjModel* m, int i);
 
+// returns the next activation given current act_dot, after clamping
+mjtNum mj_nextActivation(const mjModel* m, const mjData* d,
+                         int actuator_id, int act_adr, mjtNum act_dot);
+
 // sum all body masses
 MJAPI mjtNum mj_getTotalmass(const mjModel* m);
 
@@ -129,6 +133,29 @@ int mju_raydataSize(int dataspec);
 void mju_camIntrinsics(const mjModel* m, int camid,
                        mjtNum* fx, mjtNum* fy, mjtNum* cx, mjtNum* cy,
                        mjtNum* ortho_extent);
+
+// read ctrl value for actuator at given time
+// returns d->ctrl[id] if no history, otherwise reads from history buffer
+// interp: 0=zero-order-hold, 1=linear, 2=cubic spline
+MJAPI mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp);
+
+// read sensor value from history buffer at given time
+// returns pointer to sensordata (no history) or history buffer (exact match),
+// or NULL if interpolation performed (writes to result)
+// interp: 0=zero-order-hold, 1=linear, 2=cubic spline
+MJAPI const mjtNum* mj_readSensor(const mjModel* m, const mjData* d, int id, mjtNum time,
+                                  mjtNum* result, int interp);
+
+// initialize history buffer for actuator with given values
+// if times is NULL, uses existing buffer timestamps
+MJAPI void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
+                              const mjtNum* times, const mjtNum* values);
+
+// initialize history buffer for sensor with given values
+// if times is NULL, uses existing buffer timestamps
+// phase sets the user slot (last computation time for interval sensors)
+MJAPI void mj_initSensorHistory(const mjModel* m, mjData* d, int id,
+                                const mjtNum* times, const mjtNum* values, mjtNum phase);
 
 #ifdef __cplusplus
 }

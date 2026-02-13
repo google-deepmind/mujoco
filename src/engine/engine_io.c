@@ -224,8 +224,8 @@ void mj_makeModel(mjModel** dest,
   // CHECK SIZE PARAMETERS
   {
     // dummy variables for MJMODEL_SIZES set after mjModel construction
-    int nnames_map=0, nJmom=0, ngravcomp=0, nemax=0, njmax=0;
-    int nconmax=0, nuserdata=0, nsensordata=0, npluginstate=0, narena=0, nbuffer=0;
+    int nnames_map=0, nJmom=0, ngravcomp=0, nemax=0, njmax=0, nconmax=0;
+    int nuserdata=0, nsensordata=0, npluginstate=0, nhistory=0, narena=0, nbuffer=0;
 
     // sizes must be non-negative and fit in int, except for the byte arrays texdata and textdata
     #define X(name)                                                                   \
@@ -243,8 +243,9 @@ void mj_makeModel(mjModel** dest,
     #undef X
 
     // suppress unused variable warnings
-    (void)nnames_map; (void)nJmom; (void)ngravcomp; (void)nemax; (void)njmax;
-    (void)nconmax; (void)nuserdata; (void)nsensordata; (void)npluginstate; (void)narena; (void)nbuffer;
+    (void)nnames_map; (void)nJmom; (void)ngravcomp; (void)nemax; (void)njmax; (void)nconmax;
+    (void)nuserdata; (void)nsensordata; (void)npluginstate; (void)nhistory; (void)narena;
+    (void)nbuffer;
   }
 
   // nbody should always be positive
@@ -1262,6 +1263,12 @@ mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
 // clear data, set defaults
 static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
+  // error early if history buffers cannot be initialized
+  mjtNum dt = m->opt.timestep;
+  if (m->nhistory && dt <= 0) {
+    mjERROR("history buffers require positive timestep, got %g", dt);
+  }
+
   //------------------------------ save plugin state and data
   mjtNum* plugin_state;
   uintptr_t* plugindata;
@@ -1366,6 +1373,58 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->userdata, m->nuserdata);
   mju_zero(d->mocap_pos, 3*m->nmocap);
   mju_zero(d->mocap_quat, 4*m->nmocap);
+
+  // initialize ctrl history buffers: timestamps at [-n*dt, ..., -dt]
+  for (int i = 0; i < m->nu; i++) {
+    int n = m->actuator_history[2*i];
+    if (n > 0) {
+      mjtNum* buf = d->history + m->actuator_historyadr[i];
+      buf[0] = 0;          // user slot
+      buf[1] = n - 1;      // cursor: newest at logical index n-1
+      mjtNum* times = buf + 2;
+      for (int j = 0; j < n; j++) {
+        times[j] = -(n-j)*dt;
+      }
+
+      // clear values
+      mjtNum* values = buf + 2 + n;
+      mju_zero(values, n);
+    }
+  }
+
+  // initialize sensor history buffers
+  for (int i = 0; i < m->nsensor; i++) {
+    int n = m->sensor_history[2*i];
+    if (n > 0) {
+      int dim = m->sensor_dim[i];
+      mjtNum period = m->sensor_interval[2*i];
+      mjtNum phase = m->sensor_interval[2*i+1];
+      mjtNum* buf = d->history + m->sensor_historyadr[i];
+
+      // user slot: last compute time (phase=0 means -period, i.e. first compute at t=0)
+      buf[0] = (period > 0) ? (phase == 0 ? -period : phase) : -dt;
+      buf[1] = n - 1;  // cursor: newest at logical index n-1
+
+      mjtNum* times = buf + 2;
+      if (period > 0) {
+        // samples spaced at period intervals, rounded up to dt grid
+        mjtNum t0 = (phase == 0) ? -period : phase;
+        for (int j = 0; j < n; j++) {
+          mjtNum continuous_t = t0 - (n-1-j)*period;
+          times[j] = mju_ceil(continuous_t / dt) * dt;
+        }
+      } else {
+        // no period: timestamps at [-n*dt, ..., -dt]
+        for (int j = 0; j < n; j++) {
+          times[j] = -(n-j)*dt;
+        }
+      }
+
+      // clear values
+      mjtNum* values = buf + 2 + n;
+      mju_zero(values, n*dim);
+    }
+  }
 
   // zero out qM, special case because scattering from M skips simple body off-diagonals
   mju_zero(d->qM, m->nM);

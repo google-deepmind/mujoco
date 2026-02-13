@@ -195,6 +195,26 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuator
   const TfToken mjcBiasType;
+  /// \brief "mjc:coef0"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcCoef0;
+  /// \brief "mjc:coef1"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcCoef1;
+  /// \brief "mjc:coef2"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcCoef2;
+  /// \brief "mjc:coef3"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcCoef3;
+  /// \brief "mjc:coef4"
+  ///
+  /// MjcPhysicsEqualityJointAPI
+  const TfToken mjcCoef4;
   /// \brief "mjc:compiler:alignFree"
   ///
   /// MjcPhysicsSceneAPI
@@ -580,10 +600,6 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsTendon
   const TfToken mjcPathSegments;
-  /// \brief "mjc:polycoef"
-  ///
-  /// MjcPhysicsEqualityJointAPI
-  const TfToken mjcPolycoef;
   /// \brief "mjc:priority"
   ///
   /// MjcPhysicsCollisionAPI
@@ -776,6 +792,10 @@ struct MjcPhysicsTokensType {
   ///
   /// Schema identifier and family for MjcPhysicsEqualityAPI
   const TfToken MjcEqualityAPI;
+  /// \brief "MjcEqualityConnectAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsEqualityConnectAPI
+  const TfToken MjcEqualityConnectAPI;
   /// \brief "MjcEqualityJointAPI"
   ///
   /// Schema identifier and family for MjcPhysicsEqualityJointAPI

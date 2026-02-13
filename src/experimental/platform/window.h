@@ -20,10 +20,8 @@
 #include <string>
 #include <string_view>
 
-#if __has_include("third_party/GL/gl/include/EGL/egl.h")
-#define MUJOCO_STUDIO_EGL_SUPPORTED 1
-#include "third_party/GL/gl/include/EGL/egl.h"
-#endif
+#include "experimental/platform/renderer_backend.h"
+
 #include <SDL_video.h>
 #include <SDL_render.h>
 
@@ -35,16 +33,8 @@ namespace mujoco::platform {
 // handles events from the window.
 class Window {
  public:
-  // Configures the window for the specified rendering backend.
-  enum RenderConfig {
-    kClassicOpenGL,
-    kFilamentVulkan,
-    kFilamentOpenGL,
-    kFilamentWebGL,
-  };
-
   struct Config {
-    RenderConfig render_config = kClassicOpenGL;
+    RendererBackend renderer_backend = RendererBackend::ClassicOpenGl;
     bool enable_keyboard = true;
     bool load_fonts = true;
     bool offscreen_mode = false;
@@ -113,10 +103,6 @@ class Window {
   SDL_Renderer* sdl_renderer_ = nullptr;
   bool should_exit_ = false;
   std::string drop_file_;
-  #ifdef MUJOCO_STUDIO_EGL_SUPPORTED
-  EGLDisplay egl_display_ = EGL_NO_DISPLAY;
-  EGLContext egl_context_ = EGL_NO_CONTEXT;
-  #endif
 };
 
 }  // namespace mujoco::platform

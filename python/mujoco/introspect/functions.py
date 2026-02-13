@@ -2636,6 +2636,156 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Copy state from src to dst.',
      )),
+    ('mj_readCtrl',
+     FunctionDecl(
+         name='mj_readCtrl',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='time',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='interp',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Read ctrl value for actuator at given time. Returns d->ctrl[id] if no history, otherwise reads from history buffer. interp: 0=zero-order-hold, 1=linear, 2=cubic spline.',  # pylint: disable=line-too-long
+     )),
+    ('mj_readSensor',
+     FunctionDecl(
+         name='mj_readSensor',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjtNum', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='time',
+                 type=ValueType(name='mjtNum'),
+             ),
+             FunctionParameterDecl(
+                 name='result',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='interp',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Read sensor value from history buffer at given time. Returns pointer to sensordata (no history) or history buffer (exact match), or NULL if interpolation performed (writes to result). interp: 0=zero-order-hold, 1=linear, 2=cubic spline.',  # pylint: disable=line-too-long
+     )),
+    ('mj_initCtrlHistory',
+     FunctionDecl(
+         name='mj_initCtrlHistory',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='times',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='values',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Initialize history buffer for actuator; if times is NULL, uses existing buffer timestamps.',  # pylint: disable=line-too-long
+     )),
+    ('mj_initSensorHistory',
+     FunctionDecl(
+         name='mj_initSensorHistory',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='times',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='values',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='phase',
+                 type=ValueType(name='mjtNum'),
+             ),
+         ),
+         doc='Initialize history buffer for sensor; if times is NULL, uses existing buffer timestamps. phase sets the user slot (last computation time for interval sensors).',  # pylint: disable=line-too-long
+     )),
     ('mj_setKeyframe',
      FunctionDecl(
          name='mj_setKeyframe',
@@ -9449,6 +9599,160 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Return the resource provider with the prefix that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
+     )),
+    ('mju_openResource',
+     FunctionDecl(
+         name='mju_openResource',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjResource'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dir',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='nerror',
+                 type=ValueType(name='size_t'),
+             ),
+         ),
+         doc="Open a resource; if the name doesn't have a prefix matching a registered resource provider, then the OS filesystem is used.",  # pylint: disable=line-too-long
+     )),
+    ('mju_closeResource',
+     FunctionDecl(
+         name='mju_closeResource',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource'),
+                 ),
+             ),
+         ),
+         doc='Close a resource; no-op if resource is NULL.',
+     )),
+    ('mju_readResource',
+     FunctionDecl(
+         name='mju_readResource',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='buffer',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='void', is_const=True),
+                     ),
+                 ),
+             ),
+         ),
+         doc='Set buffer to bytes read from the resource and return number of bytes in buffer; return negative value if error.',  # pylint: disable=line-too-long
+     )),
+    ('mju_getResourceDir',
+     FunctionDecl(
+         name='mju_getResourceDir',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='dir',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='char', is_const=True),
+                     ),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='ndir',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+             ),
+         ),
+         doc='For a resource with a name partitioned as {dir}{filename}, get the dir and ndir pointers.',  # pylint: disable=line-too-long
+     )),
+    ('mju_isModifiedResource',
+     FunctionDecl(
+         name='mju_isModifiedResource',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='timestamp',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Compare resource timestamp to provided timestamp. Return 0 if timestamps match, >0 if resource is newer, <0 if resource is older.',  # pylint: disable=line-too-long
+     )),
+    ('mju_decodeResource',
+     FunctionDecl(
+         name='mju_decodeResource',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjSpec'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='content_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Find the decoder for a resource and return the decoded spec. The caller takes ownership of the spec and is responsible for cleaning it up.',  # pylint: disable=line-too-long
      )),
     ('mju_threadPoolCreate',
      FunctionDecl(

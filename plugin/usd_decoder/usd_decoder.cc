@@ -26,6 +26,7 @@
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/equalityAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/equalityConnectAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/equalityJointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/equalityWeldAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/imageableAPI.h>
@@ -1829,6 +1830,42 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
   }
 }
 
+void ParseMjcEqualityAPISolverParams(
+    mjsEquality* eq, const pxr::MjcPhysicsEqualityAPI& equality_api,
+    const pxr::UsdPrim& prim) {
+  auto solref_attr = equality_api.GetSolRefAttr();
+  if (solref_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solref;
+    solref_attr.Get(&solref);
+    if (solref.size() == mjNREF) {
+      for (int i = 0; i < mjNREF; ++i) {
+        eq->solref[i] = solref[i];
+      }
+    } else {
+      mju_warning(
+          "solref attribute for equality %s has incorrect size "
+          "%zu, expected %d.",
+          prim.GetPath().GetAsString().c_str(), solref.size(), mjNREF);
+    }
+  }
+
+  auto solimp_attr = equality_api.GetSolImpAttr();
+  if (solimp_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solimp;
+    solimp_attr.Get(&solimp);
+    if (solimp.size() == mjNIMP) {
+      for (int i = 0; i < mjNIMP; ++i) {
+        eq->solimp[i] = solimp[i];
+      }
+    } else {
+      mju_warning(
+          "solimp attribute for equality %s has incorrect size "
+          "%zu, expected %d.",
+          prim.GetPath().GetAsString().c_str(), solimp.size(), mjNIMP);
+    }
+  }
+}
+
 void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
                           pxr::UsdGeomXformCache& xform_cache) {
   if (prim.HasAPI<pxr::MjcPhysicsEqualityJointAPI>()) {
@@ -1854,46 +1891,14 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     }
     // If no target, name2 remains empty, meaning joint1 is fixed to a constant.
 
-    // Parse polycoef attribute for the quartic polynomial coefficients.
-    auto polycoef_attr = eq_joint_api.GetPolycoefAttr();
-    if (polycoef_attr.HasAuthoredValue()) {
-      pxr::VtDoubleArray polycoef;
-      polycoef_attr.Get(&polycoef);
-      size_t num_coefs = std::min(polycoef.size(), static_cast<size_t>(5));
-      for (size_t i = 0; i < num_coefs; ++i) {
-        eq->data[i] = polycoef[i];
-      }
-    } else {
-      // Default polycoef [0, 1, 0, 0, 0] for 1:1 mimic.
-      eq->data[0] = 0;
-      eq->data[1] = 1;
-      eq->data[2] = 0;
-      eq->data[3] = 0;
-      eq->data[4] = 0;
-    }
+    // Parse individual coefficient attributes for the quartic polynomial.
+    eq_joint_api.GetCoef0Attr().Get(&eq->data[0]);
+    eq_joint_api.GetCoef1Attr().Get(&eq->data[1]);
+    eq_joint_api.GetCoef2Attr().Get(&eq->data[2]);
+    eq_joint_api.GetCoef3Attr().Get(&eq->data[3]);
+    eq_joint_api.GetCoef4Attr().Get(&eq->data[4]);
 
-    // Parse solver parameters from MjcEqualityAPI.
-    auto solref_attr = equality_api.GetSolRefAttr();
-    if (solref_attr.HasAuthoredValue()) {
-      pxr::VtDoubleArray solref;
-      solref_attr.Get(&solref);
-      if (solref.size() == mjNREF) {
-        for (int i = 0; i < mjNREF; ++i) {
-          eq->solref[i] = solref[i];
-        }
-      }
-    }
-
-    auto solimp_attr = equality_api.GetSolImpAttr();
-    if (solimp_attr.HasAuthoredValue()) {
-      pxr::VtDoubleArray solimp;
-      solimp_attr.Get(&solimp);
-      if (solimp.size() == mjNIMP) {
-        for (int i = 0; i < mjNIMP; ++i) {
-          eq->solimp[i] = solimp[i];
-        }
-      }
-    }
+    ParseMjcEqualityAPISolverParams(eq, equality_api, prim);
   } else if (prim.IsA<pxr::UsdPhysicsFixedJoint>()) {
     // Handle fixed joints as weld constraints.
     pxr::UsdPhysicsJoint joint(prim);
@@ -2024,41 +2029,13 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
   eq->data[8] = relpose_quat.GetImaginary()[1];
   eq->data[9] = relpose_quat.GetImaginary()[2];
 
-  if (prim.HasAPI<pxr::MjcPhysicsEqualityWeldAPI>()) {
-    // MjcPhysicsEqualityAPI is always automatically applied
-    // by MjcPhysicsEqualityWeldAPI.
+  if (prim.HasAPI<pxr::MjcPhysicsEqualityConnectAPI>()) {
+    eq->type = mjEQ_CONNECT;
     pxr::MjcPhysicsEqualityAPI equality_api(prim);
-    auto solref_attr = equality_api.GetSolRefAttr();
-    if (solref_attr.HasAuthoredValue()) {
-      pxr::VtDoubleArray solref;
-      solref_attr.Get(&solref);
-      if (solref.size() == mjNREF) {
-        for (int i = 0; i < mjNREF; ++i) {
-          eq->solref[i] = solref[i];
-        }
-      } else {
-        mju_warning(
-            "solref attribute for weld equality %s has incorrect size "
-            "%zu, expected %d.",
-            prim.GetPath().GetAsString().c_str(), solref.size(), mjNREF);
-      }
-    }
-
-    auto solimp_attr = equality_api.GetSolImpAttr();
-    if (solimp_attr.HasAuthoredValue()) {
-      pxr::VtDoubleArray solimp;
-      solimp_attr.Get(&solimp);
-      if (solimp.size() == mjNIMP) {
-        for (int i = 0; i < mjNIMP; ++i) {
-          eq->solimp[i] = solimp[i];
-        }
-      } else {
-        mju_warning(
-            "solimp attribute for weld equality %s has incorrect size "
-            "%zu, expected %d.",
-            prim.GetPath().GetAsString().c_str(), solimp.size(), mjNIMP);
-      }
-    }
+    ParseMjcEqualityAPISolverParams(eq, equality_api, prim);
+  } else if (prim.HasAPI<pxr::MjcPhysicsEqualityWeldAPI>()) {
+    pxr::MjcPhysicsEqualityAPI equality_api(prim);
+    ParseMjcEqualityAPISolverParams(eq, equality_api, prim);
 
     pxr::MjcPhysicsEqualityWeldAPI weld_api(prim);
     auto torque_scale_attr = weld_api.GetTorqueScaleAttr();

@@ -32,8 +32,10 @@ from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive_core import sph
 from mujoco.mjx.third_party.mujoco_warp._src.math import make_frame
 from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
 from mujoco.mjx.third_party.mujoco_warp._src.math import upper_trid_index
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINMU
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import CollisionContext
 from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
@@ -43,7 +45,6 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import mat63
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
-from mujoco.mjx.third_party.mujoco_warp._src.warp_util import nested_kernel
 
 wp.set_module_options({"enable_backward": False})
 
@@ -173,13 +174,13 @@ def plane_convex(plane_normal: wp.vec3, plane_pos: wp.vec3, convex: Geom) -> Tup
     convex: Convex geometry object containing position, rotation, and mesh data.
 
   Returns:
-    - Vector of contact distances (wp.inf for unpopulated contacts).
+    - Vector of contact distances (MJ_MAXVAL for unpopulated contacts).
     - Matrix of contact positions (one per row).
     - Matrix of contact normal vectors (one per row).
   """
   _HUGE_VAL = 1e6
 
-  contact_dist = wp.vec4(wp.inf)
+  contact_dist = wp.vec4(MJ_MAXVAL)
   contact_pos = mat43()
   contact_count = int(0)
 
@@ -426,12 +427,12 @@ def write_contact(
   contact_type_out: wp.array(dtype=int),
   contact_geomcollisionid_out: wp.array(dtype=int),
   nacon_out: wp.array(dtype=int),
-):
+) -> int:
   active = dist_in < margin_in
 
   # skip contact and no collision sensor
   if (pairid_in[0] == -2 or not active) and pairid_in[1] == -1:
-    return
+    return 0
 
   contact_type = 0
 
@@ -457,6 +458,8 @@ def write_contact(
     contact_solimp_out[cid] = solimp_in
     contact_type_out[cid] = contact_type
     contact_geomcollisionid_out[cid] = id_
+    return int(active)
+  return 0
 
 
 @wp.func
@@ -477,10 +480,9 @@ def contact_params(
   pair_margin: wp.array2d(dtype=float),
   pair_gap: wp.array2d(dtype=float),
   pair_friction: wp.array2d(dtype=vec5),
-  # Data in:
+  # In:
   collision_pair_in: wp.array(dtype=wp.vec2i),
   collision_pairid_in: wp.array(dtype=wp.vec2i),
-  # In:
   cid: int,
   worldid: int,
 ):
@@ -550,8 +552,8 @@ def contact_params(
     solreffriction = wp.vec2(0.0, 0.0)
     solimp = mix * geom_solimp[solimp_id, g1] + (1.0 - mix) * geom_solimp[solimp_id, g2]
     # geom priority is ignored
-    margin = wp.max(geom_margin[margin_id, g1], geom_margin[margin_id, g2])
-    gap = wp.max(geom_gap[gap_id, g1], geom_gap[gap_id, g2])
+    margin = geom_margin[margin_id, g1] + geom_margin[margin_id, g2]
+    gap = geom_gap[gap_id, g1] + geom_gap[gap_id, g2]
 
   friction = vec5(
     wp.max(MJ_MINMU, friction[0]),
@@ -1540,6 +1542,7 @@ def box_box_wrapper(
     )
 
 
+# Map of supported primitive collision functions
 _PRIMITIVE_COLLISIONS = {
   (GeomType.PLANE, GeomType.SPHERE): plane_sphere_wrapper,
   (GeomType.PLANE, GeomType.CAPSULE): plane_capsule_wrapper,
@@ -1557,23 +1560,9 @@ _PRIMITIVE_COLLISIONS = {
 }
 
 
-# TODO(team): _check_collisions shared utility
-def _check_primitive_collisions():
-  prev_idx = -1
-  for types in _PRIMITIVE_COLLISIONS.keys():
-    idx = upper_trid_index(len(GeomType), types[0].value, types[1].value)
-    if types[1] < types[0] or idx <= prev_idx:
-      return False
-    prev_idx = idx
-  return True
-
-
-assert _check_primitive_collisions(), "_PRIMITIVE_COLLISIONS is in invalid order"
-
-
 @cache_kernel
 def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func):
-  @nested_kernel(module="unique", enable_backward=False)
+  @wp.kernel(module="unique", enable_backward=False)
   def primitive_narrowphase(
     # Model:
     geom_type: wp.array(dtype=int),
@@ -1612,10 +1601,11 @@ def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func
     geom_xpos_in: wp.array2d(dtype=wp.vec3),
     geom_xmat_in: wp.array2d(dtype=wp.mat33),
     naconmax_in: int,
+    ncollision_in: wp.array(dtype=int),
+    # In:
     collision_pair_in: wp.array(dtype=wp.vec2i),
     collision_pairid_in: wp.array(dtype=wp.vec2i),
     collision_worldid_in: wp.array(dtype=int),
-    ncollision_in: wp.array(dtype=int),
     # Data out:
     contact_dist_out: wp.array(dtype=float),
     contact_pos_out: wp.array(dtype=wp.vec3),
@@ -1730,7 +1720,7 @@ _PRIMITIVE_COLLISION_FUNC = []
 
 
 @event_scope
-def primitive_narrowphase(m: Model, d: Data):
+def primitive_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_table: list[tuple[GeomType, GeomType]]):
   """Runs collision detection on primitive geom pairs discovered during broadphase.
 
   This function processes collision pairs involving primitive shapes that were
@@ -1749,6 +1739,8 @@ def primitive_narrowphase(m: Model, d: Data):
   # for pair types without collisions, as well as updating the launch dimensions.
 
   for types, func in _PRIMITIVE_COLLISIONS.items():
+    if types not in collision_table:
+      continue
     idx = upper_trid_index(len(GeomType), types[0].value, types[1].value)
     if m.geom_pair_type_count[idx] and types not in _PRIMITIVE_COLLISION_TYPES:
       _PRIMITIVE_COLLISION_TYPES.append(types)
@@ -1793,10 +1785,10 @@ def primitive_narrowphase(m: Model, d: Data):
       d.geom_xpos,
       d.geom_xmat,
       d.naconmax,
-      d.collision_pair,
-      d.collision_pairid,
-      d.collision_worldid,
       d.ncollision,
+      ctx.collision_pair,
+      ctx.collision_pairid,
+      ctx.collision_worldid,
     ],
     outputs=[
       d.contact.dist,

@@ -42,10 +42,13 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _kinematics_shim(
     # Model
     nworld: int,
+    body_branch_start: wp.array(dtype=int),
+    body_branches: wp.array(dtype=int),
     body_ipos: wp.array2d(dtype=wp.vec3),
     body_iquat: wp.array2d(dtype=wp.quat),
     body_jntadr: wp.array(dtype=int),
@@ -55,7 +58,6 @@ def _kinematics_shim(
     body_pos: wp.array2d(dtype=wp.vec3),
     body_quat: wp.array2d(dtype=wp.quat),
     body_rootid: wp.array(dtype=int),
-    body_tree: tuple[wp.array(dtype=int), ...],
     body_weldid: wp.array(dtype=int),
     geom_bodyid: wp.array(dtype=int),
     geom_pos: wp.array2d(dtype=wp.vec3),
@@ -64,6 +66,8 @@ def _kinematics_shim(
     jnt_pos: wp.array2d(dtype=wp.vec3),
     jnt_qposadr: wp.array(dtype=int),
     jnt_type: wp.array(dtype=int),
+    nbody: int,
+    nbranch: int,
     ngeom: int,
     nsite: int,
     qpos0: wp.array2d(dtype=float),
@@ -90,6 +94,8 @@ def _kinematics_shim(
   _m.opt = _o
   _d.efc = _e
   _d.contact = _c
+  _m.body_branch_start = body_branch_start
+  _m.body_branches = body_branches
   _m.body_ipos = body_ipos
   _m.body_iquat = body_iquat
   _m.body_jntadr = body_jntadr
@@ -99,7 +105,6 @@ def _kinematics_shim(
   _m.body_pos = body_pos
   _m.body_quat = body_quat
   _m.body_rootid = body_rootid
-  _m.body_tree = body_tree
   _m.body_weldid = body_weldid
   _m.geom_bodyid = geom_bodyid
   _m.geom_pos = geom_pos
@@ -108,6 +113,8 @@ def _kinematics_shim(
   _m.jnt_pos = jnt_pos
   _m.jnt_qposadr = jnt_qposadr
   _m.jnt_type = jnt_type
+  _m.nbody = nbody
+  _m.nbranch = nbranch
   _m.ngeom = ngeom
   _m.nsite = nsite
   _m.qpos0 = qpos0
@@ -136,9 +143,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
   output_dims = {
       'geom_xmat': d.geom_xmat.shape,
       'geom_xpos': d.geom_xpos.shape,
-      'mocap_pos': d.mocap_pos.shape,
-      'mocap_quat': d.mocap_quat.shape,
-      'qpos': d.qpos.shape,
       'site_xmat': d.site_xmat.shape,
       'site_xpos': d.site_xpos.shape,
       'xanchor': d.xanchor.shape,
@@ -151,15 +155,12 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _kinematics_shim,
-      num_outputs=14,
+      num_outputs=11,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames={
           'geom_xmat',
           'geom_xpos',
-          'mocap_pos',
-          'mocap_quat',
-          'qpos',
           'site_xmat',
           'site_xpos',
           'xanchor',
@@ -170,9 +171,52 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
           'xpos',
           'xquat',
       },
+      stage_in_argnames={
+          'body_ipos',
+          'body_iquat',
+          'body_pos',
+          'body_quat',
+          'geom_pos',
+          'geom_quat',
+          'geom_xmat',
+          'geom_xpos',
+          'jnt_axis',
+          'jnt_pos',
+          'mocap_pos',
+          'mocap_quat',
+          'qpos',
+          'qpos0',
+          'site_pos',
+          'site_quat',
+          'site_xmat',
+          'site_xpos',
+          'xanchor',
+          'xaxis',
+          'ximat',
+          'xipos',
+          'xmat',
+          'xpos',
+          'xquat',
+      },
+      stage_out_argnames={
+          'geom_xmat',
+          'geom_xpos',
+          'site_xmat',
+          'site_xpos',
+          'xanchor',
+          'xaxis',
+          'ximat',
+          'xipos',
+          'xmat',
+          'xpos',
+          'xquat',
+      },
+      graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(
       d.qpos.shape[0],
+      m._impl.body_branch_start,
+      m._impl.body_branches,
       m.body_ipos,
       m.body_iquat,
       m.body_jntadr,
@@ -182,7 +226,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       m.body_pos,
       m.body_quat,
       m.body_rootid,
-      m._impl.body_tree,
       m.body_weldid,
       m.geom_bodyid,
       m.geom_pos,
@@ -191,6 +234,8 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       m.jnt_pos,
       m.jnt_qposadr,
       m.jnt_type,
+      m.nbody,
+      m._impl.nbranch,
       m.ngeom,
       m.nsite,
       m.qpos0,
@@ -215,18 +260,15 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
   d = d.tree_replace({
       'geom_xmat': out[0],
       'geom_xpos': out[1],
-      'mocap_pos': out[2],
-      'mocap_quat': out[3],
-      'qpos': out[4],
-      'site_xmat': out[5],
-      'site_xpos': out[6],
-      'xanchor': out[7],
-      'xaxis': out[8],
-      'ximat': out[9],
-      'xipos': out[10],
-      'xmat': out[11],
-      'xpos': out[12],
-      'xquat': out[13],
+      'site_xmat': out[2],
+      'site_xpos': out[3],
+      'xanchor': out[4],
+      'xaxis': out[5],
+      'ximat': out[6],
+      'xipos': out[7],
+      'xmat': out[8],
+      'xpos': out[9],
+      'xquat': out[10],
   })
   return d
 
@@ -241,25 +283,6 @@ def kinematics_vmap(unused_axis_size, is_batched, m, d):
   d = kinematics(m, d)
   return d, is_batched[1]
 
-
-_m = mjwarp.Model(
-    **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
-)
-_d = mjwarp.Data(
-    **{f.name: None for f in dataclasses.fields(mjwarp.Data) if f.init}
-)
-_o = mjwarp.Option(
-    **{f.name: None for f in dataclasses.fields(mjwarp.Option) if f.init}
-)
-_s = mjwarp.Statistic(
-    **{f.name: None for f in dataclasses.fields(mjwarp.Statistic) if f.init}
-)
-_c = mjwarp.Contact(
-    **{f.name: None for f in dataclasses.fields(mjwarp.Contact) if f.init}
-)
-_e = mjwarp.Constraint(
-    **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
-)
 
 @ffi.format_args_for_warp
 def _tendon_shim(
@@ -347,12 +370,6 @@ def _tendon_shim(
 
 def _tendon_jax_impl(m: types.Model, d: types.Data):
   output_dims = {
-      'cdof': d.cdof.shape,
-      'geom_xmat': d.geom_xmat.shape,
-      'geom_xpos': d.geom_xpos.shape,
-      'qpos': d.qpos.shape,
-      'site_xpos': d.site_xpos.shape,
-      'subtree_com': d.subtree_com.shape,
       'ten_J': d._impl.ten_J.shape,
       'ten_length': d.ten_length.shape,
       'ten_wrapadr': d._impl.ten_wrapadr.shape,
@@ -362,16 +379,10 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _tendon_shim,
-      num_outputs=12,
+      num_outputs=6,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames={
-          'cdof',
-          'geom_xmat',
-          'geom_xpos',
-          'qpos',
-          'site_xpos',
-          'subtree_com',
           'ten_J',
           'ten_length',
           'ten_wrapadr',
@@ -379,6 +390,18 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
           'wrap_obj',
           'wrap_xpos',
       },
+      stage_in_argnames={
+          'cdof',
+          'geom_size',
+          'geom_xmat',
+          'geom_xpos',
+          'qpos',
+          'site_xpos',
+          'subtree_com',
+          'ten_length',
+      },
+      stage_out_argnames={'ten_length'},
+      graph_mode=m.opt._impl.graph_mode,
   )
   out = jf(
       d.qpos.shape[0],
@@ -419,18 +442,12 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       d._impl.wrap_xpos,
   )
   d = d.tree_replace({
-      'cdof': out[0],
-      'geom_xmat': out[1],
-      'geom_xpos': out[2],
-      'qpos': out[3],
-      'site_xpos': out[4],
-      'subtree_com': out[5],
-      '_impl.ten_J': out[6],
-      'ten_length': out[7],
-      '_impl.ten_wrapadr': out[8],
-      '_impl.ten_wrapnum': out[9],
-      '_impl.wrap_obj': out[10],
-      '_impl.wrap_xpos': out[11],
+      '_impl.ten_J': out[0],
+      'ten_length': out[1],
+      '_impl.ten_wrapadr': out[2],
+      '_impl.ten_wrapnum': out[3],
+      '_impl.wrap_obj': out[4],
+      '_impl.wrap_xpos': out[5],
   })
   return d
 

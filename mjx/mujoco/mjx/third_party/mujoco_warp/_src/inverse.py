@@ -99,7 +99,7 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d(dtype=float)):
       outputs=[qfrc],
     )
   elif m.opt.integrator == IntegratorType.IMPLICITFAST:
-    if m.opt.is_sparse:
+    if m.is_sparse:
       qDeriv = wp.empty((d.nworld, 1, m.nM), dtype=float)
     else:
       qDeriv = wp.empty((d.nworld, m.nv, m.nv), dtype=float)
@@ -120,10 +120,8 @@ def inv_constraint(m: Model, d: Data):
     d.qfrc_constraint.zero_()
     return
 
-  # update
-  h = wp.empty((d.nworld, 0, 0), dtype=float)  # not used
-  hfactor = wp.empty((d.nworld, 0, 0), dtype=float)  # not used
-  solver.create_context(m, d, h, hfactor, grad=False)
+  ctx = solver.create_inverse_context(m, d)
+  solver.init_context(m, d, ctx, grad=False)
 
 
 def inverse(m: Model, d: Data):

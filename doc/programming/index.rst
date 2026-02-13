@@ -191,7 +191,7 @@ Versions and compatibility
 
 MuJoCo has been used extensively since 2010 and is quite mature (even though our version numbering scheme is quite
 conservative). Nevertheless it remains under active development, and we have many exciting ideas for new features and
-are also making changes based on user feedback. This leads to unavoidable changes in both the modeling language in the
+are also making changes based on user feedback. This leads to unavoidable changes in both the modeling language and the
 API. While we encourage users to upgrade to the latest version, we recognize that this is not always feasible,
 especially when other developers release software that relies on MuJoCo. Therefore we have introduced simple
 mechanisms to help avoid version conflicts, as follows.
@@ -206,13 +206,14 @@ the symbol :ref:`mjVERSION_HEADER <glNumeric>` and the library provides the func
 .. code-block:: C
 
    // recommended version check
-   if (mjVERSION_HEADER!=mj_version())
+   if (mjVERSION_HEADER != mj_version())
      complain();
 
 Note that only the main header defines this symbol. We assume that the collection of headers released with each software
 version will stay together and will not be mixed between versions. To avoid complications with floating-point
-comparisons, the above symbol and function use integers that are 100x the version number, so for example in software
-version 2.1 the symbol mjVERSION_HEADER is defined as 210.
+comparisons, the above symbol and function use integers rather than floating-point numbers. See
+`VERSIONING.md <https://github.com/google-deepmind/mujoco/blob/main/VERSIONING.md>`__ for the encoding formula and
+version semantics.
 
 .. _inNaming:
 
