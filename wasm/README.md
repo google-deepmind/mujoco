@@ -15,8 +15,8 @@ TypeScript.
 > section. Also note that development has primarily taken place on Linux using
 > Google Chrome. If you're working on a different OS or browser, you may
 > encounter some rough edges. We have successfully tested the bindings on MacOS
-> in CI but as of November 13th 2025 Windows in untested (the instructions here
-> have worked on one Windows 11 machine but have failed on other machines)._
+> in CI but as of November 13th 2025, Windows support remains experimental
+> (installation succeeded on one Windows 11 machine but failed on others)._
 
 ## Prerequisites
 
