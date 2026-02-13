@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Run benchmarks."""
+"""Run benchmarks for MJX-Warp."""
 
 import functools
 import os
@@ -23,8 +23,10 @@ from absl import app
 from absl import flags
 import jax
 import jax.numpy as jnp
+import jax.tree_util
 import mujoco
 from mujoco import mjx
+from mujoco.mjx._src import io
 from mujoco.mjx._src import test_util
 from mujoco.mjx.warp import collision_driver as wp_collision
 from mujoco.mjx.warp import forward as wp_forward
@@ -64,6 +66,20 @@ _BENCHMARK = flags.DEFINE_enum(
     ['jax_warp', 'jax', 'warp'],
     'Which benchmark to run.',
 )
+# Render flags
+_RENDER_WIDTH = flags.DEFINE_integer('render_width', 64, 'render width')
+_RENDER_HEIGHT = flags.DEFINE_integer('render_height', 64, 'render height')
+_RENDER_RGB = flags.DEFINE_boolean('render_rgb', False, 'render RGB image')
+_RENDER_DEPTH = flags.DEFINE_boolean(
+    'render_depth', False, 'render depth image'
+)
+_RENDER_USE_TEXTURES = flags.DEFINE_boolean(
+    'render_textures', True, 'use textures'
+)
+_RENDER_USE_SHADOWS = flags.DEFINE_boolean(
+    'render_shadows', False, 'use shadows'
+)
+
 _COMPILER_OPTIONS = {'xla_gpu_graph_min_graph_size': 1}
 jax_jit = functools.partial(jax.jit, compiler_options=_COMPILER_OPTIONS)
 
@@ -101,6 +117,7 @@ def benchmark(
     nstep: int = 1000,
     nenv: int = 8192,
     unroll_steps: int = 4,
+    render: bool = False,
 ) -> Tuple[float, float, int]:
   """Benchmark a model."""
 
@@ -119,13 +136,39 @@ def benchmark(
 
   jax.block_until_ready(d)
 
+  rc = None
+  if render:
+    ncam = max(1, m.ncam)
+    rc = io.create_render_context(
+        mjm=m,
+        nworld=nenv,
+        cam_res=(_RENDER_WIDTH.value, _RENDER_HEIGHT.value),
+        use_textures=_RENDER_USE_TEXTURES.value,
+        use_shadows=_RENDER_USE_SHADOWS.value,
+        render_rgb=[_RENDER_RGB.value] * ncam,
+        render_depth=[_RENDER_DEPTH.value] * ncam,
+        enabled_geom_groups=[0, 1, 2],
+    )
+
   @jax_jit
   def unroll(d):
-    def fn(d, _):
+    def fn(carry, _):
+      d, accum = carry
       d = d.replace(qpos=d.qpos + 0 * d.qpos)
-      return step_fn(mx, d), None
+      d = step_fn(mx, d)
 
-    return jax.lax.scan(fn, d, None, length=nstep, unroll=unroll_steps)
+      if render:
+        d = mjx.refit_bvh(mx, d, rc)
+        pixels = mjx.render(mx, d, rc)
+        leaves = jax.tree_util.tree_leaves(pixels)
+        accum += sum(x[0, 0, 0] for x in leaves) if leaves else 0.0
+
+      return (d, accum), None
+
+    (d_final, accum_final), _ = jax.lax.scan(
+        fn, (d, jnp.array(0.0)), None, length=nstep, unroll=unroll_steps
+    )
+    return d_final, accum_final
 
   jit_time, run_time = _measure(unroll, d)
   steps = nstep * nenv
@@ -147,6 +190,7 @@ def benchmark_raw_warp(
     nenv: int = 8192,
     unroll_steps: int = 4,
     function: str = 'kinematics',
+    render: bool = False,
 ):
   """Benchmarks raw warp."""
   del unroll_steps
@@ -178,8 +222,27 @@ def benchmark_raw_warp(
   else:
     raise NotImplementedError(f'{function} not implemented in speed test.')
 
+  ncam = max(1, m.ncam)
+  rc = None
+  if render:
+    mjwarp.forward(mw, dw)
+    rc = mjwarp.create_render_context(
+        m, mw, dw,
+        (_RENDER_WIDTH.value, _RENDER_HEIGHT.value),
+        [_RENDER_RGB.value] * ncam,
+        [_RENDER_DEPTH.value] * ncam,
+        _RENDER_USE_TEXTURES.value,
+        _RENDER_USE_SHADOWS.value,
+    )
+
+  def run_fn(m, d):
+    fn(m, d)
+    if render:
+      mjwarp.refit_bvh(m, d, rc)
+      mjwarp.render(m, d, rc)
+
   start = time.time()
-  graph = _compile_fn(fn, mw, dw)
+  graph = _compile_fn(run_fn, mw, dw)
   jit_time = time.time() - start
 
   start = time.time()
@@ -241,17 +304,27 @@ def _main(_: Sequence[str]):
   print(f' timestep             : {m.opt.timestep}')
   print(f' unroll               : {unroll}')
   print(f' benchmark            : {benchmark_type}')
-  print(f' graph_mode           : {_GRAPH_MODE.value}\n')
+  print(f' graph_mode           : {_GRAPH_MODE.value}')
+  is_render = _RENDER_DEPTH.value or _RENDER_RGB.value
+  if is_render:
+    print(
+        f' render resolution    : {_RENDER_WIDTH.value}x{_RENDER_HEIGHT.value}'
+    )
+    print(f' textures             : {_RENDER_USE_TEXTURES.value}')
+    print(f' shadows              : {_RENDER_USE_SHADOWS.value}')
+  print()
 
   if benchmark_type == 'jax_warp':
-    jit_time, run_time, steps = benchmark(m, mw, func_warp, nstep, nenv, unroll)
+    jit_time, run_time, steps = benchmark(
+        m, mw, func_warp, nstep, nenv, unroll, is_render
+    )
     print(f' JAX WARP FFI (GraphMode: {_GRAPH_MODE.value}):')
   elif benchmark_type == 'jax':
     jit_time, run_time, steps = benchmark(m, mx, func_jax, nstep, nenv, unroll)
     print(' Pure JAX:')
   elif benchmark_type == 'warp':
     jit_time, run_time, steps = benchmark_raw_warp(
-        m, nstep, nenv, unroll, function=function_
+        m, nstep, nenv, unroll, function=function_, render=is_render
     )
     print(' Pure WARP:')
   else:

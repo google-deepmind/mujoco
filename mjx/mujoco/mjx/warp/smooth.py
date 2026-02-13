@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited
+# Copyright 2026 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
+
 import dataclasses
 import jax
 from mujoco.mjx._src import types
@@ -277,6 +278,8 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def kinematics(m: types.Model, d: types.Data):
   return _kinematics_jax_impl(m, d)
+
+
 @kinematics.def_vmap
 @ffi.marshal_custom_vmap
 def kinematics_vmap(unused_axis_size, is_batched, m, d):
@@ -456,6 +459,8 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def tendon(m: types.Model, d: types.Data):
   return _tendon_jax_impl(m, d)
+
+
 @tendon.def_vmap
 @ffi.marshal_custom_vmap
 def tendon_vmap(unused_axis_size, is_batched, m, d):

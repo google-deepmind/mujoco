@@ -917,7 +917,7 @@ class Model(PyTreeNode):
   tex_adr: np.ndarray
   tex_data: np.ndarray
   mat_rgba: jax.Array
-  mat_texid: np.ndarray
+  mat_texid: jax.Array
   pair_dim: np.ndarray
   pair_geom1: np.ndarray
   pair_geom2: np.ndarray

@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited
+# Copyright 2026 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
+
 import dataclasses
 import jax
 from mujoco.mjx._src import types
@@ -399,6 +400,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def collision(m: types.Model, d: types.Data):
   return _collision_jax_impl(m, d)
+
+
 @collision.def_vmap
 @ffi.marshal_custom_vmap
 def collision_vmap(unused_axis_size, is_batched, m, d):

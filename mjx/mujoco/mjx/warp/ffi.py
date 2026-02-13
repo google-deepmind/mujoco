@@ -252,11 +252,11 @@ def _squeeze_dim(leaf_expanded: Any, leaf: Any) -> Any:
   return leaf_expanded
 
 
-def marshal_jax_warp_callable(func, raw_output: bool = False):
+def marshal_jax_warp_callable(func, skip_output_dim_reshape: bool = False):
   """Marshal fields into a MuJoCo Warp function."""
 
   @functools.wraps(func)
-  def wrapper(m, d):
+  def wrapper(m, d, *extra_args):
     # Expand dims for Warp implicit vmap before calling into the FFI wrapped
     # function.
     m_expanded = jax.tree.map_with_path(
@@ -271,9 +271,9 @@ def marshal_jax_warp_callable(func, raw_output: bool = False):
         ),
         d,
     )
-    d_expanded_result = func(m_expanded, d_expanded)
+    d_expanded_result = func(m_expanded, d_expanded, *extra_args)
 
-    if raw_output:
+    if skip_output_dim_reshape:
       return d_expanded_result
     d_result = jax.tree.map(_squeeze_dim, d_expanded_result, d)
     return d_result
@@ -360,11 +360,11 @@ def _check_leading_dim(
     )
 
 
-def marshal_custom_vmap(vmap_func, raw_output: bool = False):
+def marshal_custom_vmap(vmap_func, skip_output_dim_reshape: bool = False):
   """Marshal fields for a custom vmap into an MuJoCo Warp function."""
 
   @functools.wraps(vmap_func)
-  def wrapper(axis_size, is_batched, m, d):
+  def wrapper(axis_size, is_batched, m, d, *extra_args):
     # Vmappable data fields may not have been broadcasted if vmap_func is called
     # within a vmap trace. Since data fields are read/write in warp, we need to
     # explicitly broadcast them here.
@@ -395,9 +395,9 @@ def marshal_custom_vmap(vmap_func, raw_output: bool = False):
         d_broadcast,
     )
     d_broadcast_flat_result, out_batched = vmap_func(
-        axis_size, is_batched, m_flat, d_broadcast_flat
+        axis_size, is_batched, m_flat, d_broadcast_flat, *extra_args
     )
-    if raw_output:
+    if skip_output_dim_reshape:
       return d_broadcast_flat_result, out_batched
 
     # Explicitly mark MuJoCo Warp data fields as batched after vmapping is done.

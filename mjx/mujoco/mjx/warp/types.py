@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited
+# Copyright 2026 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,8 +13,10 @@
 # limitations under the License.
 # ==============================================================================
 """MJX Warp types.
+
 DO NOT EDIT. This file is auto-generated.
 """
+
 import dataclasses
 import typing
 from typing import Tuple
@@ -23,6 +25,7 @@ from jax import tree_util
 from jax.interpreters import batching
 from mujoco.mjx._src import dataclasses as mjx_dataclasses
 import numpy as np
+
 if typing.TYPE_CHECKING:
   GraphMode = int
 else:
@@ -31,6 +34,7 @@ else:
   except ImportError:
     GraphMode = int
 PyTreeNode = mjx_dataclasses.PyTreeNode
+
 
 @dataclasses.dataclass(frozen=True)
 @tree_util.register_pytree_node_class
@@ -64,6 +68,7 @@ class BlockDim:
 
   TODO(team): experimental and may be removed
   """
+
   actuator_velocity: int
   cholesky_factorize: int
   cholesky_factorize_solve: int
@@ -91,12 +96,48 @@ class BlockDim:
     return cls(*children)
 
 
+@dataclasses.dataclass(frozen=True)
+@tree_util.register_pytree_node_class
+class RenderContext:
+  """Render context handle with automatic cleanup.
+
+  The key is static (aux_data) so JAX doesn't trace it, allowing the Warp FFI
+  to receive a concrete int value. Only the original instance (_owner=True)
+  cleans up on deletion; JAX copies have _owner=False.
+  """
+
+  key: int
+  _owner: bool = True
+
+  def tree_flatten(self):
+    return ((), (self.key, False))
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del children
+    key, owner = aux_data
+    return cls(key, owner)
+
+  def __del__(self):
+    if not self._owner:
+      return
+    lock = globals().get('_MJX_RENDER_CONTEXT_LOCK')
+    buffers = globals().get('_MJX_RENDER_CONTEXT_BUFFERS')
+    if lock is None or buffers is None:
+      return
+    with lock:
+      buffers.pop(self.key, None)
+
+
 class StatisticWarp(PyTreeNode):
   """Derived fields from Statistic."""
+
   meaninertia: jax.Array
+
 
 class OptionWarp(PyTreeNode):
   """Derived fields from Option."""
+
   broadphase: int
   broadphase_filter: int
   ccd_iterations: int
@@ -111,8 +152,10 @@ class OptionWarp(PyTreeNode):
   sdf_initpoints: int
   sdf_iterations: int
 
+
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
+
   M_colind: np.ndarray
   M_rowadr: np.ndarray
   M_rownnz: np.ndarray
@@ -245,8 +288,10 @@ class ModelWarp(PyTreeNode):
   wrap_site_adr: np.ndarray
   wrap_site_pair_adr: np.ndarray
 
+
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
+
   actuator_moment: jax.Array
   actuator_velocity: jax.Array
   cacc: jax.Array
@@ -312,6 +357,8 @@ class DataWarp(PyTreeNode):
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   shape = property(lambda self: self.cacc.shape)
+
+
 DATA_NON_VMAP = {
     'contact__dim',
     'contact__dist',
@@ -334,6 +381,7 @@ DATA_NON_VMAP = {
     'njmax',
     'nworld',
 }
+
 
 def _to_elt(cont, _, d, axis):
   return DataWarp(**{

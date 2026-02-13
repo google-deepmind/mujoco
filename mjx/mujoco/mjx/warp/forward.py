@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited
+# Copyright 2026 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
+
 import dataclasses
 import jax
 from mujoco.mjx._src import types
@@ -1809,6 +1810,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def forward(m: types.Model, d: types.Data):
   return _forward_jax_impl(m, d)
+
+
 @forward.def_vmap
 @ffi.marshal_custom_vmap
 def forward_vmap(unused_axis_size, is_batched, m, d):
@@ -3604,6 +3607,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def step(m: types.Model, d: types.Data):
   return _step_jax_impl(m, d)
+
+
 @step.def_vmap
 @ffi.marshal_custom_vmap
 def step_vmap(unused_axis_size, is_batched, m, d):

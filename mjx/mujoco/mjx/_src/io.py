@@ -17,7 +17,7 @@
 import copy
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import warnings
 
 import jax
@@ -52,7 +52,9 @@ def _is_cuda_gpu_device(device: jax.Device) -> bool:
 
 def _check_warp_installed():
   if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('warp-lang is not installed. Cannot use WARP implementation of MJX.')
+    raise RuntimeError(
+        'warp-lang is not installed. Cannot use WARP implementation of MJX.'
+    )
 
 
 def _resolve_impl(
@@ -121,8 +123,7 @@ def _check_impl_device_compatibility(
   if impl == types.Impl.WARP:
     if not _is_cuda_gpu_device(device):
       raise AssertionError(
-          'Warp implementation requires a CUDA GPU device, got '
-          f'{device}.'
+          f'Warp implementation requires a CUDA GPU device, got {device}.'
       )
     _check_warp_installed()
 
@@ -999,8 +1000,7 @@ def make_data(
 
   if isinstance(m, types.Model) and m.impl != impl:
     raise ValueError(
-        f'Model impl {m.impl} does not match make_data '
-        f'implementation {impl}.'
+        f'Model impl {m.impl} does not match make_data implementation {impl}.'
     )
 
   if impl == types.Impl.JAX:
@@ -1546,8 +1546,7 @@ def _get_data_into(
       all_fields = types.Data.fields() + types.DataC.fields()
     else:
       raise NotImplementedError(
-          f'get_data_into for implementation "{d.impl}" not implemented'
-          ' yet.'
+          f'get_data_into for implementation "{d.impl}" not implemented yet.'
       )
 
     for field in all_fields:
@@ -1699,8 +1698,9 @@ def _get_data_into_cpp(
   # mjx.Model which we don't have access to in this function.
   fields_to_check = ['qpos', 'qvel', 'act', 'mocap_pos', 'mocap_quat']
   for i in range(batch_size):
-    d_i: types.Data = jax.tree_util.tree_map(
-        lambda x, i=i: x[i], d) if batched else d
+    d_i: types.Data = (
+        jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
+    )
     src_data = mj_data_list[i]
 
     needs_syncing = False
@@ -1939,3 +1939,26 @@ def set_state(
       offset += size
 
   return d.replace(**updates)
+
+
+def create_render_context(
+    mjm: mujoco.MjModel,
+    nworld: int,
+    **kwargs,
+):
+  """Creates a render context.
+
+  Args:
+    mjm: the MuJoCo model
+    nworld: number of worlds to render. We must hardcode the nworld
+      because Warp creates arrays of size nworld that are not exposed
+      to JAX. Thus we cannot use JAX transforms like vmap with the
+      render context.
+    **kwargs: forwarded to the render context constructor.
+
+  Returns:
+    Render context object that is JAX compatible.
+  """
+  _check_warp_installed()
+  from mujoco.mjx.warp import render as mjxw_render  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+  return mjxw_render.create_render_context(mjm, nworld=nworld, **kwargs)
