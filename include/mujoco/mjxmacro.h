@@ -18,143 +18,142 @@
 
 //-------------------------------- mjOption --------------------------------------------------------
 
-// scalar fields of mjOption
-#define MJOPTION_FLOATS             \
-    X( mjtNum,  timestep         )  \
-    X( mjtNum,  impratio         )  \
-    X( mjtNum,  tolerance        )  \
-    X( mjtNum,  ls_tolerance     )  \
-    X( mjtNum,  noslip_tolerance )  \
-    X( mjtNum,  ccd_tolerance    )  \
-    X( mjtNum,  sleep_tolerance  )  \
-    X( mjtNum,  density          )  \
-    X( mjtNum,  viscosity        )  \
-    X( mjtNum,  o_margin         )
-
-
-#define MJOPTION_INTS               \
-    X( int,     integrator        ) \
-    X( int,     cone              ) \
-    X( int,     jacobian          ) \
-    X( int,     solver            ) \
-    X( int,     iterations        ) \
-    X( int,     ls_iterations     ) \
-    X( int,     noslip_iterations ) \
-    X( int,     ccd_iterations    ) \
-    X( int,     disableflags      ) \
-    X( int,     enableflags       ) \
-    X( int,     disableactuator   ) \
-    X( int,     sdf_initpoints    ) \
-    X( int,     sdf_iterations    )
-
-
-#define MJOPTION_SCALARS            \
-    MJOPTION_FLOATS                 \
-    MJOPTION_INTS
-
-
-// vector fields of mjOption
-#define MJOPTION_VECTORS            \
-    X( gravity,         3       )   \
-    X( wind,            3       )   \
-    X( magnetic,        3       )   \
-    X( o_solref,        mjNREF  )   \
-    X( o_solimp,        mjNIMP  )   \
-    X( o_friction,      5       )
+// fields of mjOption
+// XVEC means that a field is a vector (i.e. size > 1)
+#define MJOPTION_FIELDS                        \
+    X   ( mjtNum, timestep,          1      )  \
+    X   ( mjtNum, impratio,          1      )  \
+    X   ( mjtNum, tolerance,         1      )  \
+    X   ( mjtNum, ls_tolerance,      1      )  \
+    X   ( mjtNum, noslip_tolerance,  1      )  \
+    X   ( mjtNum, ccd_tolerance,     1      )  \
+    X   ( mjtNum, sleep_tolerance,   1      )  \
+    XVEC( mjtNum, gravity,           3      )  \
+    XVEC( mjtNum, wind,              3      )  \
+    XVEC( mjtNum, magnetic,          3      )  \
+    X   ( mjtNum, density,           1      )  \
+    X   ( mjtNum, viscosity,         1      )  \
+    X   ( mjtNum, o_margin,          1      )  \
+    XVEC( mjtNum, o_solref,          mjNREF )  \
+    XVEC( mjtNum, o_solimp,          mjNIMP )  \
+    XVEC( mjtNum, o_friction,        5      )  \
+    X   ( int,    integrator,        1      )  \
+    X   ( int,    cone,              1      )  \
+    X   ( int,    jacobian,          1      )  \
+    X   ( int,    solver,            1      )  \
+    X   ( int,    iterations,        1      )  \
+    X   ( int,    ls_iterations,     1      )  \
+    X   ( int,    noslip_iterations, 1      )  \
+    X   ( int,    ccd_iterations,    1      )  \
+    X   ( int,    disableflags,      1      )  \
+    X   ( int,    enableflags,       1      )  \
+    X   ( int,    disableactuator,   1      )  \
+    X   ( int,    sdf_initpoints,    1      )  \
+    X   ( int,    sdf_iterations,    1      )
 
 
 //-------------------------------- mjStatistic -----------------------------------------------------
 
 // fields of mjStatistic
-#define MJSTATISTIC_FIELDS       \
-    X( mjtNum, meaninertia, 1 )  \
-    X( mjtNum, meanmass,    1 )  \
-    X( mjtNum, meansize,    1 )  \
-    X( mjtNum, extent,      1 )  \
-    X( mjtNum, center,      3 )
+#define MJSTATISTIC_FIELDS  \
+    X   ( meaninertia, 1 )  \
+    X   ( meanmass,    1 )  \
+    X   ( meansize,    1 )  \
+    X   ( extent,      1 )  \
+    XVEC( center,      3 )
 
 
 //-------------------------------- mjVisual --------------------------------------------------------
 
 // fields of mjVisual
-#define MJVISUAL_FIELDS                         \
-    X( global,    int,   cameraid,         1 )  \
-    X( global,    int,   orthographic,     1 )  \
-    X( global,    float, fovy,             1 )  \
-    X( global,    float, ipd,              1 )  \
-    X( global,    float, azimuth,          1 )  \
-    X( global,    float, elevation,        1 )  \
-    X( global,    float, linewidth,        1 )  \
-    X( global,    float, glow,             1 )  \
-    X( global,    float, realtime,         1 )  \
-    X( global,    int,   offwidth,         1 )  \
-    X( global,    int,   offheight,        1 )  \
-    X( global,    int,   ellipsoidinertia, 1 )  \
-    X( global,    int,   bvactive,         1 )  \
-    X( quality,   int,   shadowsize,       1 )  \
-    X( quality,   int,   offsamples,       1 )  \
-    X( quality,   int,   numslices,        1 )  \
-    X( quality,   int,   numstacks,        1 )  \
-    X( quality,   int,   numquads,         1 )  \
-    X( headlight, float, ambient,          3 )  \
-    X( headlight, float, diffuse,          3 )  \
-    X( headlight, float, specular,         3 )  \
-    X( headlight, int,   active,           1 )  \
-    X( map,       float, stiffness,        1 )  \
-    X( map,       float, stiffnessrot,     1 )  \
-    X( map,       float, force,            1 )  \
-    X( map,       float, torque,           1 )  \
-    X( map,       float, alpha,            1 )  \
-    X( map,       float, fogstart,         1 )  \
-    X( map,       float, fogend,           1 )  \
-    X( map,       float, znear,            1 )  \
-    X( map,       float, zfar,             1 )  \
-    X( map,       float, haze,             1 )  \
-    X( map,       float, shadowclip,       1 )  \
-    X( map,       float, shadowscale,      1 )  \
-    X( map,       float, actuatortendon,   1 )  \
-    X( scale,     float, forcewidth,       1 )  \
-    X( scale,     float, contactwidth,     1 )  \
-    X( scale,     float, contactheight,    1 )  \
-    X( scale,     float, connect,          1 )  \
-    X( scale,     float, com,              1 )  \
-    X( scale,     float, camera,           1 )  \
-    X( scale,     float, light,            1 )  \
-    X( scale,     float, selectpoint,      1 )  \
-    X( scale,     float, jointlength,      1 )  \
-    X( scale,     float, jointwidth,       1 )  \
-    X( scale,     float, actuatorlength,   1 )  \
-    X( scale,     float, actuatorwidth,    1 )  \
-    X( scale,     float, framelength,      1 )  \
-    X( scale,     float, framewidth,       1 )  \
-    X( scale,     float, constraint,       1 )  \
-    X( scale,     float, slidercrank,      1 )  \
-    X( scale,     float, frustum,          1 )  \
-    X( rgba,      float, fog,              4 )  \
-    X( rgba,      float, haze,             4 )  \
-    X( rgba,      float, force,            4 )  \
-    X( rgba,      float, inertia,          4 )  \
-    X( rgba,      float, joint,            4 )  \
-    X( rgba,      float, actuator,         4 )  \
-    X( rgba,      float, actuatornegative, 4 )  \
-    X( rgba,      float, actuatorpositive, 4 )  \
-    X( rgba,      float, com,              4 )  \
-    X( rgba,      float, camera,           4 )  \
-    X( rgba,      float, light,            4 )  \
-    X( rgba,      float, selectpoint,      4 )  \
-    X( rgba,      float, connect,          4 )  \
-    X( rgba,      float, contactpoint,     4 )  \
-    X( rgba,      float, contactforce,     4 )  \
-    X( rgba,      float, contactfriction,  4 )  \
-    X( rgba,      float, contacttorque,    4 )  \
-    X( rgba,      float, contactgap,       4 )  \
-    X( rgba,      float, rangefinder,      4 )  \
-    X( rgba,      float, constraint,       4 )  \
-    X( rgba,      float, slidercrank,      4 )  \
-    X( rgba,      float, crankbroken,      4 )  \
-    X( rgba,      float, frustum,          4 )  \
-    X( rgba,      float, bv,               4 )  \
-    X( rgba,      float, bvactive,         4 )
+#define MJVISUAL_GLOBAL_FIELDS    \
+    X( int,   cameraid         )  \
+    X( int,   orthographic     )  \
+    X( float, fovy             )  \
+    X( float, ipd              )  \
+    X( float, azimuth          )  \
+    X( float, elevation        )  \
+    X( float, linewidth        )  \
+    X( float, glow             )  \
+    X( float, realtime         )  \
+    X( int,   offwidth         )  \
+    X( int,   offheight        )  \
+    X( int,   ellipsoidinertia )  \
+    X( int,   bvactive         )
+
+#define MJVISUAL_QUALITY_FIELDS  \
+    X( shadowsize )              \
+    X( offsamples )              \
+    X( numslices  )              \
+    X( numstacks  )              \
+    X( numquads   )
+
+#define MJVISUAL_HEADLIGHT_FIELDS       \
+    XVEC( float, ambient,          3 )  \
+    XVEC( float, diffuse,          3 )  \
+    XVEC( float, specular,         3 )  \
+    X   ( int,   active,           1 )
+
+#define MJVISUAL_MAP_FIELDS  \
+    X( stiffness      )      \
+    X( stiffnessrot   )      \
+    X( force          )      \
+    X( torque         )      \
+    X( alpha          )      \
+    X( fogstart       )      \
+    X( fogend         )      \
+    X( znear          )      \
+    X( zfar           )      \
+    X( haze           )      \
+    X( shadowclip     )      \
+    X( shadowscale    )      \
+    X( actuatortendon )
+
+#define MJVISUAL_SCALE_FIELDS     \
+    X( forcewidth     )           \
+    X( contactwidth   )           \
+    X( contactheight  )           \
+    X( connect        )           \
+    X( com            )           \
+    X( camera         )           \
+    X( light          )           \
+    X( selectpoint    )           \
+    X( jointlength    )           \
+    X( jointwidth     )           \
+    X( actuatorlength )           \
+    X( actuatorwidth  )           \
+    X( framelength    )           \
+    X( framewidth     )           \
+    X( constraint     )           \
+    X( slidercrank    )           \
+    X( frustum        )
+
+#define MJVISUAL_RGBA_FIELDS  \
+    X( fog              )     \
+    X( haze             )     \
+    X( force            )     \
+    X( inertia          )     \
+    X( joint            )     \
+    X( actuator         )     \
+    X( actuatornegative )     \
+    X( actuatorpositive )     \
+    X( com              )     \
+    X( camera           )     \
+    X( light            )     \
+    X( selectpoint      )     \
+    X( connect          )     \
+    X( contactpoint     )     \
+    X( contactforce     )     \
+    X( contactfriction  )     \
+    X( contacttorque    )     \
+    X( contactgap       )     \
+    X( rangefinder      )     \
+    X( constraint       )     \
+    X( slidercrank      )     \
+    X( crankbroken      )     \
+    X( frustum          )     \
+    X( bv               )     \
+    X( bvactive         )
 
 
 //-------------------------------- mjModel ---------------------------------------------------------

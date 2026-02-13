@@ -217,11 +217,13 @@ class MjWrapper<raw::MjOption> : public WrapperBase<raw::MjOption> {
   MjWrapper(raw::MjOption* ptr, pybind11::handle owner);
   ~MjWrapper() = default;
 
-  #define X(var, dim)                                            \
+  #define X(type, var, dim)
+  #define XVEC(type, var, dim)                                   \
     py_array_or_tuple_t<                                         \
         std::remove_all_extents_t<decltype(raw::MjOption::var)>> \
         var;
-  MJOPTION_VECTORS
+  MJOPTION_FIELDS
+  #undef XVEC
   #undef X
 };
 
@@ -241,13 +243,13 @@ class MjWrapper<raw::MjVisualHeadlight>
   MjWrapper(raw::MjVisualHeadlight* ptr, pybind11::handle owner);
   ~MjWrapper() = default;
 
-  #define X(var)                                                          \
+  #define X(type, var, dim)
+  #define XVEC(type, var, dim)                                            \
     py_array_or_tuple_t<                                                  \
         std::remove_all_extents_t<decltype(raw::MjVisualHeadlight::var)>> \
-        var
-  X(ambient);
-  X(diffuse);
-  X(specular);
+        var;
+  MJVISUAL_HEADLIGHT_FIELDS
+  #undef XVEC
   #undef X
 };
 
@@ -268,32 +270,8 @@ class MjWrapper<raw::MjVisualRgba> : public WrapperBase<raw::MjVisualRgba> {
   #define X(var)                                                     \
     py_array_or_tuple_t<                                             \
         std::remove_all_extents_t<decltype(raw::MjVisualRgba::var)>> \
-        var
-  X(fog);
-  X(haze);
-  X(force);
-  X(inertia);
-  X(joint);
-  X(actuator);
-  X(actuatornegative);
-  X(actuatorpositive);
-  X(com);
-  X(camera);
-  X(light);
-  X(selectpoint);
-  X(connect);
-  X(contactpoint);
-  X(contactforce);
-  X(contactfriction);
-  X(contacttorque);
-  X(contactgap);
-  X(rangefinder);
-  X(constraint);
-  X(slidercrank);
-  X(crankbroken);
-  X(frustum);
-  X(bv);
-  X(bvactive);
+        var;
+  MJVISUAL_RGBA_FIELDS
   #undef X
 };
 
@@ -330,11 +308,13 @@ class MjWrapper<raw::MjStatistic> : public WrapperBase<raw::MjStatistic> {
   MjWrapper(raw::MjStatistic* ptr, pybind11::handle owner);
   ~MjWrapper() = default;
 
-  #define X(var)                                                    \
+  #define X(var, dim)
+  #define XVEC(var, dim)                                            \
     py_array_or_tuple_t<                                            \
         std::remove_all_extents_t<decltype(raw::MjStatistic::var)>> \
-        var
-  X(center);
+        var;
+  MJSTATISTIC_FIELDS
+  #undef XVEC
   #undef X
 };
 

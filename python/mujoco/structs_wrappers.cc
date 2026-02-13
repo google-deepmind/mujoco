@@ -83,16 +83,20 @@ inline std::size_t NConMax(const mjData* d) {
 }  // namespace
 
 // ==================== MJOPTION ===============================================
-#define X(var, dim) , var(InitPyArray(std::array{dim}, ptr_->var, owner_))
+#define X(type, var, dim)
+#define XVEC(type, var, dim) \
+  , var(InitPyArray(std::array{dim}, ptr_->var, owner_))
 MjOptionWrapper::MjWrapper()
     : WrapperBase([]() {
         raw::MjOption* const opt = new raw::MjOption;
         mj_defaultOption(opt);
         return opt;
-      }()) MJOPTION_VECTORS {}
+      }()) MJOPTION_FIELDS {}
 
 MjOptionWrapper::MjWrapper(raw::MjOption* ptr, py::handle owner)
-    : WrapperBase(ptr, owner) MJOPTION_VECTORS {}
+    : WrapperBase(ptr, owner) MJOPTION_FIELDS {}
+
+#undef XVEC
 #undef X
 
 MjOptionWrapper::MjWrapper(const MjOptionWrapper& other) : MjOptionWrapper() {

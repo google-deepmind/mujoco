@@ -274,19 +274,16 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
   MJMODEL_POINTERS
 #undef X
 
-  // compare scalars in mjOption
-  #define X(type, name)                                            \
+  // compare fields in mjOption
+  #define X(type, name, n)                                         \
     dif = Compare(m1->opt.name, m2->opt.name);                     \
     if (dif > maxdif) {maxdif = dif; field = #name;}
-    MJOPTION_SCALARS
-  #undef X
-
-  // compare arrays in mjOption
-  #define X(name, n)                                             \
+  #define XVEC(type, name, n)                                    \
     for (int c=0; c < n; c++) {                                  \
       dif = Compare(m1->opt.name[c], m2->opt.name[c]);           \
       if (dif > maxdif) {maxdif = dif; field = #name;} }
-    MJOPTION_VECTORS
+    MJOPTION_FIELDS
+  #undef XVEC
   #undef X
 
   // Return largest difference and field name

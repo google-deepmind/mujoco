@@ -24,6 +24,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
@@ -600,33 +601,111 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 #undef X
   fprintf(fp, "\n");
 
-  // scalar options
+  // options
   fprintf(fp, "OPTION\n");
-#define X( type, name )                           \
-  fprintf(fp, NAME_FORMAT, "  " #name);           \
-  fprintf(fp, float_format, m->opt.name);         \
+#define X(type, name, sz)                                             \
+  fprintf(fp, NAME_FORMAT, "  " #name);                               \
+  {                                                                   \
+    const char* format =                                              \
+        _Generic(m->opt.name, mjtNum: float_format, int: INT_FORMAT); \
+    fprintf(fp, format, m->opt.name);                                 \
+  }                                                                   \
+  fprintf(fp, "\n");
+#define XVEC(type, name, sz)                                             \
+  fprintf(fp, NAME_FORMAT, "  " #name);                                  \
+  {                                                                      \
+    const char* format =                                                 \
+        _Generic(m->opt.name[0], mjtNum: float_format, int: INT_FORMAT); \
+    for (int i = 0; i < sz; i++) {                                       \
+      fprintf(fp, format, m->opt.name[i]);                               \
+    }                                                                    \
+  }                                                                      \
   fprintf(fp, "\n");
 
-  MJOPTION_FLOATS
+  MJOPTION_FIELDS
+#undef XVEC
 #undef X
-
-#define X( type, name )                           \
-  fprintf(fp, NAME_FORMAT, "  " #name);           \
-  fprintf(fp, INT_FORMAT "\n", m->opt.name);
-
-  MJOPTION_INTS
-#undef X
-
-  // vector options
-#define X( name, sz )                             \
-  fprintf(fp, NAME_FORMAT, "  " #name);           \
-  for (int i=0; i < sz; i++) {                    \
-    fprintf(fp, float_format, m->opt.name[i]);    \
-    fprintf(fp, " ");                             \
-  }                                               \
   fprintf(fp, "\n");
 
-  MJOPTION_VECTORS
+  // visual
+  fprintf(fp, "VISUAL\n");
+
+  fprintf(fp, "  GLOBAL\n");
+#define X(type, name)                                                       \
+  fprintf(fp, NAME_FORMAT, "    " #name);                                   \
+  {                                                                         \
+    const char* format =                                                    \
+        _Generic(m->vis.global.name, float: float_format, int: INT_FORMAT); \
+    fprintf(fp, format, m->vis.global.name);                                \
+  }                                                                         \
+  fprintf(fp, "\n");
+
+  MJVISUAL_GLOBAL_FIELDS
+#undef X
+
+  fprintf(fp, "  QUALITY\n");
+#define X(name)                                  \
+  fprintf(fp, NAME_FORMAT, "    " #name);        \
+  fprintf(fp, INT_FORMAT, m->vis.quality.name);  \
+  fprintf(fp, "\n");
+
+  MJVISUAL_QUALITY_FIELDS
+#undef X
+
+  fprintf(fp, "  HEADLIGHT\n");
+#define X(type, name, sz)                                                      \
+  fprintf(fp, NAME_FORMAT, "    " #name);                                      \
+  {                                                                            \
+    const char* format =                                                       \
+        _Generic(m->vis.headlight.name, float: float_format, int: INT_FORMAT); \
+    fprintf(fp, format, m->vis.headlight.name);                                \
+  }                                                                            \
+  fprintf(fp, "\n");
+#define XVEC(type, name, sz)                                \
+  fprintf(fp, NAME_FORMAT, "    " #name);                   \
+  {                                                         \
+    const char* format = _Generic(                          \
+        m->vis.headlight.name[0],                           \
+        float: float_format,                                \
+        int: INT_FORMAT);                                   \
+    for (int i = 0; i < sz; i++) {                          \
+      fprintf(fp, format, m->vis.headlight.name[i]);        \
+    }                                                       \
+  }                                                         \
+  fprintf(fp, "\n");
+  MJVISUAL_HEADLIGHT_FIELDS
+#undef XVEC
+#undef X
+
+  fprintf(fp, "  MAP\n");
+#define X(name)                                \
+  fprintf(fp, NAME_FORMAT, "    " #name);      \
+  fprintf(fp, float_format, m->vis.map.name);  \
+  fprintf(fp, "\n");
+
+  MJVISUAL_MAP_FIELDS
+#undef X
+
+  fprintf(fp, "  SCALE\n");
+#define X(name)                                  \
+  fprintf(fp, NAME_FORMAT, "    " #name);        \
+  fprintf(fp, float_format, m->vis.scale.name);  \
+  fprintf(fp, "\n");
+
+  MJVISUAL_SCALE_FIELDS
+#undef X
+
+  fprintf(fp, "  RGBA\n");
+#define X(name)                                       \
+  fprintf(fp, NAME_FORMAT, "    " #name);             \
+  {                                                   \
+    for (int i = 0; i < 4; i++) {                     \
+      fprintf(fp, float_format, m->vis.rgba.name[i]); \
+    }                                                 \
+  }                                                   \
+  fprintf(fp, "\n");
+
+  MJVISUAL_RGBA_FIELDS
 #undef X
   fprintf(fp, "\n");
 
@@ -637,23 +716,20 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   // statistics
   fprintf(fp, "STATISTIC\n");
-  fprintf(fp, NAME_FORMAT, "  meaninertia");
-  fprintf(fp, float_format, m->stat.meaninertia);
+#define X(name, sz)                                             \
+  fprintf(fp, NAME_FORMAT, "  " #name);                         \
+  {                                                             \
+    for (int i = 0; i < sz; i++) {                              \
+      fprintf(fp, float_format, ((mjtNum*)(&m->stat.name))[i]); \
+    }                                                           \
+  }                                                             \
   fprintf(fp, "\n");
-  fprintf(fp, NAME_FORMAT, "  meanmass");
-  fprintf(fp, float_format, m->stat.meanmass);
+#define XVEC X
+
+  MJSTATISTIC_FIELDS
+#undef XVEC
+#undef X
   fprintf(fp, "\n");
-  fprintf(fp, NAME_FORMAT, "  meansize");
-  fprintf(fp, float_format, m->stat.meansize);
-  fprintf(fp, "\n");
-  fprintf(fp, NAME_FORMAT, "  extent");
-  fprintf(fp, float_format, m->stat.extent);
-  fprintf(fp, "\n");
-  fprintf(fp, NAME_FORMAT, "  center");
-  fprintf(fp, float_format, m->stat.center[0]);
-  fprintf(fp, float_format, m->stat.center[1]);
-  fprintf(fp, float_format, m->stat.center[2]);
-  fprintf(fp, "\n\n");
 
   // qpos0
   fprintf(fp, NAME_FORMAT, "qpos0");

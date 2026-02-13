@@ -24,6 +24,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
@@ -110,86 +111,258 @@ TEST_F(HeaderTest, EnumsAreInts) {
   EXPECT_EQ(sizeof(mjtStereo),          sizeof(int));
 }
 
-TEST_F(HeaderTest, MjOptionFloatsOrdered) {
+TEST_F(HeaderTest, MjOptionFields) {
   mjOption o;
-  std::vector<std::pair<const void*, const char*>> floats;
+  std::vector<std::pair<const void*, const char*>> fields;
 
-#define X(type, name) \
-  floats.push_back({static_cast<const void*>(&o.name), #name});
-  MJOPTION_FLOATS
+  // check that all X macros have the correct type and dim
+#define XIMPL(type, name, dim)                                             \
+  static_assert(                                                           \
+      std::is_same_v<decltype(mjOption::name), ArrayOrScalarT<type, dim>>, \
+      "incorrect type for mjOption::" #name);
+#define X(type, name, dim) \
+  static_assert(dim == 1, "use XVEC for non-scalar fields"); \
+  XIMPL(type, name, dim)
+#define XVEC(type, name, dim) \
+  static_assert(dim > 1, "use X for scalar fields"); \
+  XIMPL(type, name, dim)
+
+  MJOPTION_FIELDS
+
+#undef XVEC
+#undef X
+#undef XIMPL
+
+  // check that the ordering of X macros agrees with the struct fields
+#define X(type, name, dim) \
+  fields.push_back({static_cast<const void*>(&o.name), #name});
+#define XVEC X
+  MJOPTION_FIELDS
+#undef XVEC
 #undef X
 
-  CheckAddressOrdering(floats, "MJOPTION_FLOATS");
-}
+  CheckAddressOrdering(fields, "MJOPTION_FIELDS");
 
-TEST_F(HeaderTest, MjOptionVectorsOrdered) {
-  mjOption o;
-  std::vector<std::pair<const void*, const char*>> vectors;
-
-#define X(name, dim) \
-  vectors.push_back({static_cast<const void*>(&o.name), #name});
-  MJOPTION_VECTORS
+  // check that MJOPTION_FIELDS is a complete list of struct fields
+  struct ExpectedMjOption {
+#define XVEC(type, name, dim) type name[dim];
+#define X XVEC
+    MJOPTION_FIELDS
 #undef X
-
-  CheckAddressOrdering(vectors, "MJOPTION_VECTORS");
+#undef XVEC
+  };
+  static_assert(sizeof(mjOption) == sizeof(ExpectedMjOption));
+  static_assert(alignof(mjOption) == alignof(ExpectedMjOption));
 }
 
 TEST_F(HeaderTest, MjStatisticFields) {
   mjStatistic s;
   std::vector<std::pair<const void*, const char*>> fields;
 
+  // All fields in mjStatistic are expected to be of type mjtNum.
+  using ScalarType = mjtNum;
+
   // check that all X macros have the correct type and dim
-#define X(type, name, dim)                                                    \
-  static_assert(                                                              \
-      std::is_same_v<decltype(mjStatistic::name), ArrayOrScalarT<type, dim>>, \
-      "incorrect type for mjStatistic::" #name);                              \
+#define XIMPL(name, dim)                                         \
+  static_assert(std::is_same_v<decltype(mjStatistic::name),      \
+                               ArrayOrScalarT<ScalarType, dim>>, \
+                "incorrect type for mjStatistic::" #name);
+#define X(name, dim)                                         \
+  static_assert(dim == 1, "use XVEC for non-scalar fields"); \
+  XIMPL(name, dim)
+#define XVEC(name, dim)                                      \
+  static_assert(dim > 1, "use X for scalar fields");         \
+  XIMPL(name, dim)
+
   MJSTATISTIC_FIELDS
+
+#undef XVEC
 #undef X
+#undef XIMPL
 
   // check that the ordering of X macros agrees with the struct fields
-#define X(type, name, dim) \
+#define X(name, dim) \
   fields.push_back({static_cast<const void*>(&s.name), #name});
+#define XVEC X
   MJSTATISTIC_FIELDS
+#undef XVEC
 #undef X
 
   CheckAddressOrdering(fields, "MJSTATISTIC_FIELDS");
 
   // check that MJSTATISTIC_FIELDS is a complete list of struct fields
   struct ExpectedMjStatistic {
-#define X(type, name, dim) type name[dim];
+#define XVEC(name, dim) ScalarType name[dim];
+#define X XVEC
     MJSTATISTIC_FIELDS;
+#undef XVEC
 #undef X
   };
   static_assert(sizeof(mjStatistic) == sizeof(ExpectedMjStatistic));
+  static_assert(alignof(mjStatistic) == alignof(ExpectedMjStatistic));
 }
 
 TEST_F(HeaderTest, MjVisualFields) {
   mjVisual v;
   std::vector<std::pair<const void*, const char*>> fields;
 
+  // All member fields in quality, map, scale, and rgba have the same type.
+  using QualityMemberType = int;
+  using MapMemberType = float;
+  using ScaleMemberType = float;
+  using RgbaMemberType = float[4];
+
   // check that all X macros have the correct type and dim
-#define X(substruct, type, name, dim)                                        \
+#define X(type, name)                                      \
+  static_assert(                                           \
+      std::is_same_v<decltype(v.global.name), type>,       \
+      "incorrect type for mjVisual::global::" #name);
+
+  MJVISUAL_GLOBAL_FIELDS
+
+#undef X
+
+#define X(name)                                                     \
+  static_assert(                                                    \
+      std::is_same_v<decltype(v.quality.name), QualityMemberType>,  \
+      "incorrect type for mjVisual::quality::" #name);
+
+  MJVISUAL_QUALITY_FIELDS
+
+#undef X
+
+#define XIMPL(type, name, dim)                                               \
   static_assert(                                                             \
-      std::is_same_v<decltype(v.substruct.name), ArrayOrScalarT<type, dim>>, \
-      "incorrect type for mjVisual::" #substruct "::" #name);                \
-  MJVISUAL_FIELDS
+      std::is_same_v<decltype(v.headlight.name), ArrayOrScalarT<type, dim>>, \
+      "incorrect type for mjVisual::headlight::" #name);
+#define X(type, name, dim)                                   \
+  static_assert(dim == 1, "use XVEC for non-scalar fields"); \
+  XIMPL(type, name, dim)
+#define XVEC(type, name, dim)                                                \
+  static_assert(dim > 1, "use X for scalar fields");                      \
+  XIMPL(type, name, dim)
+
+  MJVISUAL_HEADLIGHT_FIELDS
+
+#undef X
+#undef XVEC
+
+#define X(name)                                            \
+  static_assert(                                           \
+      std::is_same_v<decltype(v.map.name), MapMemberType>, \
+      "incorrect type for mjVisual::map::" #name);
+
+  MJVISUAL_MAP_FIELDS
+
+#undef X
+
+#define X(name)                                                \
+  static_assert(                                               \
+      std::is_same_v<decltype(v.scale.name), ScaleMemberType>, \
+      "incorrect type for mjVisual::scale::" #name);
+
+  MJVISUAL_SCALE_FIELDS
+
+#undef X
+
+#define X(name)                                              \
+  static_assert(                                             \
+      std::is_same_v<decltype(v.rgba.name), RgbaMemberType>, \
+      "incorrect type for mjVisual::rgba::" #name);
+
+  MJVISUAL_RGBA_FIELDS
+
 #undef X
 
   // check that the ordering of X macros agrees with the struct fields
-#define X(substruct, type, name, dim) \
-  fields.push_back({static_cast<const void*>(&v.substruct.name), #name});
-  MJVISUAL_FIELDS
+#define X(type, name) \
+  fields.push_back({static_cast<const void*>(&v.global.name), #name});
+  MJVISUAL_GLOBAL_FIELDS
+#undef X
+#define X(name) \
+  fields.push_back({static_cast<const void*>(&v.quality.name), #name});
+  MJVISUAL_QUALITY_FIELDS
+#undef X
+#define X(type, name, dim) \
+  fields.push_back({static_cast<const void*>(&v.headlight.name), #name});
+#define XVEC X
+  MJVISUAL_HEADLIGHT_FIELDS
+#undef XVEC
+#undef X
+#define X(name) \
+  fields.push_back({static_cast<const void*>(&v.map.name), #name});
+  MJVISUAL_MAP_FIELDS
+#undef X
+#define X(name) \
+  fields.push_back({static_cast<const void*>(&v.scale.name), #name});
+  MJVISUAL_SCALE_FIELDS
+#undef X
+#define X(name) \
+  fields.push_back({static_cast<const void*>(&v.rgba.name), #name});
+  MJVISUAL_RGBA_FIELDS
 #undef X
 
   CheckAddressOrdering(fields, "MJVISUAL_FIELDS");
 
   // check that MJVISUAL_FIELDS is a complete list of fields
   struct ExpectedMjVisual {
-#define X(substruct, type, name, dim) type substruct##_##name[dim];
-    MJVISUAL_FIELDS;
+    struct {
+#define X(type, name) type name;
+    MJVISUAL_GLOBAL_FIELDS;
 #undef X
+    } global;
+    struct {
+#define X(name) QualityMemberType name;
+      MJVISUAL_QUALITY_FIELDS;
+#undef X
+    } quality;
+    struct {
+#define X(type, name, dim) type name[dim];
+#define XVEC X
+      MJVISUAL_HEADLIGHT_FIELDS;
+#undef XVEC
+#undef X
+    } headlight;
+    struct {
+#define X(name) MapMemberType name;
+      MJVISUAL_MAP_FIELDS;
+#undef X
+    } map;
+    struct {
+#define X(name) ScaleMemberType name;
+      MJVISUAL_SCALE_FIELDS;
+#undef X
+    } scale;
+    struct {
+#define X(name) RgbaMemberType name;
+      MJVISUAL_RGBA_FIELDS;
+#undef X
+    } rgba;
   };
+
   static_assert(sizeof(mjVisual) == sizeof(ExpectedMjVisual));
+  static_assert(alignof(mjVisual) == alignof(ExpectedMjVisual));
+
+  static_assert(sizeof(mjVisual::global) == sizeof(ExpectedMjVisual::global));
+  static_assert(alignof(mjVisual::global) == alignof(ExpectedMjVisual::global));
+
+  static_assert(sizeof(mjVisual::quality) == sizeof(ExpectedMjVisual::quality));
+  static_assert(alignof(mjVisual::quality) ==
+                alignof(ExpectedMjVisual::quality));
+
+  static_assert(sizeof(mjVisual::headlight) ==
+                sizeof(ExpectedMjVisual::headlight));
+  static_assert(alignof(mjVisual::headlight) ==
+                alignof(ExpectedMjVisual::headlight));
+
+  static_assert(sizeof(mjVisual::map) == sizeof(ExpectedMjVisual::map));
+  static_assert(alignof(mjVisual::map) == alignof(ExpectedMjVisual::map));
+
+  static_assert(sizeof(mjVisual::scale) == sizeof(ExpectedMjVisual::scale));
+  static_assert(alignof(mjVisual::scale) == alignof(ExpectedMjVisual::scale));
+
+  static_assert(sizeof(mjVisual::rgba) == sizeof(ExpectedMjVisual::rgba));
+  static_assert(alignof(mjVisual::rgba) == alignof(ExpectedMjVisual::rgba));
 }
 
 TEST_F(HeaderTest, MjModelIntsOrdered) {

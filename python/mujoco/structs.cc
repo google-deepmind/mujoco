@@ -103,50 +103,53 @@ PYBIND11_MODULE(_structs, m) {
   });
   mjOption.def_property_readonly_static("_all_fields", [](py::object) {
     std::vector<std::string> fields;
-#define X(dtype, name) fields.push_back(#name);
-    MJOPTION_FLOATS
-#undef X
-#define X(name, dim0) fields.push_back(#name);
-    MJOPTION_VECTORS
-#undef X
-#define X(dtype, name) fields.push_back(#name);
-    MJOPTION_INTS
+#define X(type, var, dim) fields.push_back(#var);
+#define XVEC X
+    MJOPTION_FIELDS
+#undef XVEC
 #undef X
     return py::tuple(py::cast(fields));
   });
   DefineStructFunctions(mjOption);
 
-#define X(type, var)                                               \
+#define X(type, var, dim)                                          \
   mjOption.def_property(                                           \
       #var, [](const MjOptionWrapper& c) { return c.get()->var; }, \
       [](MjOptionWrapper& c, type rhs) { c.get()->var = rhs; });
-  MJOPTION_SCALARS
-#undef X
-
-#define X(var, dim) DefinePyArray(mjOption, #var, &MjOptionWrapper::var);
-  MJOPTION_VECTORS
+#define XVEC(type, var, dim) \
+  DefinePyArray(mjOption, #var, &MjOptionWrapper::var);
+  MJOPTION_FIELDS
+#undef XVEC
 #undef X
 
   mjOption.def_property_readonly_static("_float_fields", [](py::object) {
     std::vector<std::string> field_names;
-#define X(type, var) field_names.push_back(#var);
-    MJOPTION_FLOATS
+#define X(type, var, dim) \
+  if constexpr (std::is_floating_point_v<type>) field_names.push_back(#var);
+#define XVEC(type, var, dim)
+    MJOPTION_FIELDS
+#undef XVEC
 #undef X
     return py::tuple(py::cast(field_names));
   });
 
   mjOption.def_property_readonly_static("_int_fields", [](py::object) {
     std::vector<std::string> field_names;
-#define X(type, var) field_names.push_back(#var);
-    MJOPTION_INTS
+#define X(type, var, dim) \
+  if constexpr (std::is_integral_v<type>) field_names.push_back(#var);
+#define XVEC(type, var, dim)
+    MJOPTION_FIELDS
+#undef XVEC
 #undef X
     return py::tuple(py::cast(field_names));
   });
 
   mjOption.def_property_readonly_static("_floatarray_fields", [](py::object) {
     std::vector<std::string> field_names;
-#define X(var, sz) field_names.push_back(#var);
-    MJOPTION_VECTORS
+#define X(type, var, dim)
+#define XVEC(type, var, dim) field_names.push_back(#var);
+    MJOPTION_FIELDS
+#undef XVEC
 #undef X
     return py::tuple(py::cast(field_names));
   });
@@ -192,20 +195,9 @@ PYBIND11_MODULE(_structs, m) {
                        return raw::MjVisualGlobal(other);
                      });
   DefineStructFunctions(mjVisualGlobal);
-#define X(var) mjVisualGlobal.def_readwrite(#var, &raw::MjVisualGlobal::var)
-  X(cameraid);
-  X(orthographic);
-  X(fovy);
-  X(ipd);
-  X(azimuth);
-  X(elevation);
-  X(linewidth);
-  X(glow);
-  X(realtime);
-  X(offwidth);
-  X(offheight);
-  X(ellipsoidinertia);
-  X(bvactive);
+#define X(type, var) \
+  mjVisualGlobal.def_readwrite(#var, &raw::MjVisualGlobal::var);
+  MJVISUAL_GLOBAL_FIELDS
 #undef X
 
   py::class_<raw::MjVisualQuality> mjVisualQuality(mjVisual, "Quality");
@@ -217,12 +209,8 @@ PYBIND11_MODULE(_structs, m) {
                         return raw::MjVisualQuality(other);
                       });
   DefineStructFunctions(mjVisualQuality);
-#define X(var) mjVisualQuality.def_readwrite(#var, &raw::MjVisualQuality::var)
-  X(shadowsize);
-  X(offsamples);
-  X(numslices);
-  X(numstacks);
-  X(numquads);
+#define X(var) mjVisualQuality.def_readwrite(#var, &raw::MjVisualQuality::var);
+  MJVISUAL_QUALITY_FIELDS
 #undef X
 
   py::class_<MjVisualHeadlightWrapper> mjVisualHeadlight(mjVisual, "Headlight");
@@ -234,18 +222,17 @@ PYBIND11_MODULE(_structs, m) {
                           return MjVisualHeadlightWrapper(other);
                         });
   DefineStructFunctions(mjVisualHeadlight);
-#define X(var) \
-  DefinePyArray(mjVisualHeadlight, #var, &MjVisualHeadlightWrapper::var)
-  X(ambient);
-  X(diffuse);
-  X(specular);
-#undef X
-  mjVisualHeadlight.def_property(
-      "active",
-      [](const MjVisualHeadlightWrapper& c) { return c.get()->active; },
-      [](MjVisualHeadlightWrapper& c, int rhs) {
-        return c.get()->active = rhs;
+#define X(type, var, dim)                                                   \
+  mjVisualHeadlight.def_property(                                           \
+      #var, [](const MjVisualHeadlightWrapper& c) { return c.get()->var; }, \
+      [](MjVisualHeadlightWrapper& c, type rhs) {                           \
+        return c.get()->var = rhs;                                          \
       });
+#define XVEC(type, var, dim) \
+  DefinePyArray(mjVisualHeadlight, #var, &MjVisualHeadlightWrapper::var);
+  MJVISUAL_HEADLIGHT_FIELDS
+#undef XVEC
+#undef X
 
   py::class_<raw::MjVisualMap> mjVisualMap(mjVisual, "Map");
   mjVisualMap.def("__copy__", [](const raw::MjVisualMap& other) {
@@ -255,20 +242,8 @@ PYBIND11_MODULE(_structs, m) {
     return raw::MjVisualMap(other);
   });
   DefineStructFunctions(mjVisualMap);
-#define X(var) mjVisualMap.def_readwrite(#var, &raw::MjVisualMap::var)
-  X(stiffness);
-  X(stiffnessrot);
-  X(force);
-  X(torque);
-  X(alpha);
-  X(fogstart);
-  X(fogend);
-  X(znear);
-  X(zfar);
-  X(haze);
-  X(shadowclip);
-  X(shadowscale);
-  X(actuatortendon);
+#define X(var) mjVisualMap.def_readwrite(#var, &raw::MjVisualMap::var);
+  MJVISUAL_MAP_FIELDS
 #undef X
 
   py::class_<raw::MjVisualScale> mjVisualScale(mjVisual, "Scale");
@@ -280,24 +255,8 @@ PYBIND11_MODULE(_structs, m) {
                       return raw::MjVisualScale(other);
                     });
   DefineStructFunctions(mjVisualScale);
-#define X(var) mjVisualScale.def_readwrite(#var, &raw::MjVisualScale::var)
-  X(forcewidth);
-  X(contactwidth);
-  X(contactheight);
-  X(connect);
-  X(com);
-  X(camera);
-  X(light);
-  X(selectpoint);
-  X(jointlength);
-  X(jointwidth);
-  X(actuatorlength);
-  X(actuatorwidth);
-  X(framelength);
-  X(framewidth);
-  X(constraint);
-  X(slidercrank);
-  X(frustum);
+#define X(var) mjVisualScale.def_readwrite(#var, &raw::MjVisualScale::var);
+  MJVISUAL_SCALE_FIELDS
 #undef X
 
   py::class_<MjVisualRgbaWrapper> mjVisualRgba(mjVisual, "Rgba");
@@ -309,32 +268,8 @@ PYBIND11_MODULE(_structs, m) {
                      return MjVisualRgbaWrapper(other);
                    });
   DefineStructFunctions(mjVisualRgba);
-#define X(var) DefinePyArray(mjVisualRgba, #var, &MjVisualRgbaWrapper::var)
-  X(fog);
-  X(haze);
-  X(force);
-  X(inertia);
-  X(joint);
-  X(actuator);
-  X(actuatornegative);
-  X(actuatorpositive);
-  X(com);
-  X(camera);
-  X(light);
-  X(selectpoint);
-  X(connect);
-  X(contactpoint);
-  X(contactforce);
-  X(contactfriction);
-  X(contacttorque);
-  X(contactgap);
-  X(rangefinder);
-  X(constraint);
-  X(slidercrank);
-  X(crankbroken);
-  X(frustum);
-  X(bv);
-  X(bvactive);
+#define X(var) DefinePyArray(mjVisualRgba, #var, &MjVisualRgbaWrapper::var);
+  MJVISUAL_RGBA_FIELDS
 #undef X
 
 #define X(var)                    \
@@ -927,20 +862,18 @@ This is useful for example when the MJB is not available as a file on disk.)"));
                   });
   DefineStructFunctions(mjStatistic);
 
-#define X(var)                                                         \
+#define X(var, dim)                                                    \
   mjStatistic.def_property(                                            \
       #var, [](const MjStatisticWrapper& c) { return c.get()->var; },  \
       [](MjStatisticWrapper& c, decltype(raw::MjStatistic::var) rhs) { \
         c.get()->var = rhs;                                            \
-      })
-  X(meaninertia);
-  X(meanmass);
-  X(meansize);
-  X(extent);
-#undef X
+      });
+#define XVEC(var, dim) \
+  DefinePyArray(mjStatistic, #var, &MjStatisticWrapper::var);
 
-#define X(var) DefinePyArray(mjStatistic, #var, &MjStatisticWrapper::var)
-  X(center);
+  MJSTATISTIC_FIELDS
+
+#undef XVEC
 #undef X
 
   // ==================== MJLROPT ==============================================
