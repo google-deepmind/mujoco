@@ -54,7 +54,7 @@ set(MUJOCO_DEP_VERSION_gtest
 )
 
 set(MUJOCO_DEP_VERSION_benchmark
-    5f7d66929fb66869d96dfcbacf0d8a586b33766d
+    5c55f5d4f45a1b09c5d98aa63a671993ebd42c69
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 
@@ -339,9 +339,7 @@ if(MUJOCO_BUILD_TESTS)
         "sed"
         "-i"
         "-e"
-        "s/-std=c++11/-std=c++14/g"
-        "-e"
-        "s/HAVE_CXX_FLAG_STD_CXX11/HAVE_CXX_FLAG_STD_CXX14/g"
+        "s/-Wformat=2/-Wformat/g"
         "${CMAKE_BINARY_DIR}/_deps/benchmark-src/CMakeLists.txt"
     )
   endif()
