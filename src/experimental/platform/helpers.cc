@@ -100,7 +100,6 @@ void SaveToWebp(int width, int height, const std::byte* data,
 
 const void* GetValue(const mjModel* model, const mjData* data,
                      const char* field, int index) {
-  MJDATA_POINTERS_PREAMBLE(model);
 #define X(TYPE, NAME, NR, NC)                                        \
   if (!std::strcmp(#NAME, field) && !std::strcmp(#TYPE, "mjtNum")) { \
     if (index >= 0 && index < model->NR * NC) {                      \

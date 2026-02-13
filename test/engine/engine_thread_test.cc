@@ -71,7 +71,6 @@ TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
 
   // compare the mjData's.
   {
-    MJDATA_POINTERS_PREAMBLE((model))
     #define X(type, name, nr, nc)                                     \
         EXPECT_EQ(std::memcmp(data->name, data_threaded->name,        \
                               sizeof(type)*(model->nr)*(nc)),         \
@@ -127,7 +126,6 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
 
   // compare the mjData's.
   {
-    MJDATA_POINTERS_PREAMBLE((model))
     #define X(type, name, nr, nc)                                     \
         EXPECT_EQ(std::memcmp(data->name, data_threaded->name,        \
                               sizeof(type)*(model->nr)*(nc)),         \

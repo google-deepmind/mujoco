@@ -3226,7 +3226,16 @@ int mjCModel::CountNJmom(const mjModel* m) {
   return count;
 }
 
+// compute non-zeros in ten_J matrix
+int mjCModel::CountNJten(const mjModel* m) {
+  int nv = m->nv;
+  int ntendon = m->ntendon;
 
+  // conservative upper bound: each tendon can have at most nv non-zeros
+  // TODO(taylorhowell): compute tighter bound
+  int count = ntendon * nv;
+  return count;
+}
 
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
@@ -5036,6 +5045,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // compute non-zeros in actuator_moment
   m->nJmom = nJmom = CountNJmom(m);
+
+  // compute non-zeros in ten_J
+  m->nJten = nJten = CountNJten(m);
 
   // scale mass
   if (compiler.settotalmass > 0) {

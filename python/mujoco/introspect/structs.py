@@ -1243,6 +1243,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in sparse actuator_moment matrix',
              ),
              StructFieldDecl(
+                 name='nJten',
+                 type=ValueType(name='mjtSize'),
+                 doc='number of non-zeros in sparse ten_J matrix',
+             ),
+             StructFieldDecl(
                  name='ngravcomp',
                  type=ValueType(name='mjtSize'),
                  doc='number of bodies with nonzero gravcomp',
@@ -5829,7 +5834,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='column indices in sparse Jacobian',
-                 array_extent=('ntendon', 'nv'),
+                 array_extent=('nJten',),
              ),
              StructFieldDecl(
                  name='ten_J',
@@ -5837,7 +5842,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='tendon Jacobian',
-                 array_extent=('ntendon', 'nv'),
+                 array_extent=('nJten',),
              ),
              StructFieldDecl(
                  name='ten_length',

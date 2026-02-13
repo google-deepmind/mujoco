@@ -722,6 +722,7 @@ class Model(PyTreeNode):
     nC: number of non-zeros in C matrix
     nD: number of non-zeros in D matrix
     nJmom: number of non-zeros in Jacobian momentum matrix
+    nJten: number of non-zeros in sparse tendon Jacobian
     ngravcomp: number of bodies with nonzero gravcomp
     nuserdata: number of elements in userdata
     nsensordata: number of elements in sensor data vector
@@ -772,6 +773,7 @@ class Model(PyTreeNode):
   nC: int  # pylint:disable=invalid-name
   nD: int  # pylint:disable=invalid-name
   nJmom: int  # pylint:disable=invalid-name
+  nJten: int  # pylint:disable=invalid-name
   ngravcomp: int
   nuserdata: int
   nsensordata: int
