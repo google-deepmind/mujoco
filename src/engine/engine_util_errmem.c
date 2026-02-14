@@ -49,10 +49,10 @@ static inline void mju_alignedFree(void* ptr) {
 //------------------------- default user handlers --------------------------------------------------
 
 // define and clear handlers
-void (*mju_user_error) (const char*) = 0;
-void (*mju_user_warning) (const char*) = 0;
-void* (*mju_user_malloc) (size_t) = 0;
-void (*mju_user_free) (void*) = 0;
+MJAPI void (*mju_user_error) (const char*) = 0;
+MJAPI void (*mju_user_warning) (const char*) = 0;
+MJAPI void* (*mju_user_malloc) (size_t) = 0;
+MJAPI void (*mju_user_free) (void*) = 0;
 
 
 // restore default processing
