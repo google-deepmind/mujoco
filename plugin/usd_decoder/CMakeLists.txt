@@ -43,8 +43,14 @@ target_link_options(usd_decoder_plugin PRIVATE
 
 # Install to mujoco_plugin directory in bin location so that it is picked up by simulate
 # on startup.
+set_target_properties(usd_decoder_plugin PROPERTIES
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/mujoco_plugin"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/mujoco_plugin"
+)
+
 install(
   TARGETS usd_decoder_plugin
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin"
   LIBRARY DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin"
 )
 
