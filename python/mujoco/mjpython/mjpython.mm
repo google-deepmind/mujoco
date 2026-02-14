@@ -50,6 +50,7 @@ constexpr rlim_t kThreadStackSize = 0x1000000;
 struct {
 #define CPYTHON_FN(fname) decltype(&::fname) fname
 
+  // LINT.IfChange(CPYTHON_FN)
   // go/keep-sorted start
   CPYTHON_FN(PyConfig_Clear);
   CPYTHON_FN(PyConfig_InitPythonConfig);
@@ -63,6 +64,7 @@ struct {
   CPYTHON_FN(Py_InitializeFromConfig);
   CPYTHON_FN(Py_RunMain);
   // go/keep-sorted end
+  // LINT.ThenChange(:CPYTHON_INITFN)
 
 #undef CPYTHON_FN
 } cpython;
@@ -272,6 +274,7 @@ int main(int argc, char** argv) {
     }                                                                                    \
   }
 
+  // LINT.IfChange(CPYTHON_INITFN)
   // go/keep-sorted start
   CPYTHON_INITFN(PyConfig_Clear);
   CPYTHON_INITFN(PyConfig_InitPythonConfig);
@@ -279,10 +282,13 @@ int main(int argc, char** argv) {
   CPYTHON_INITFN(PyGILState_Ensure);
   CPYTHON_INITFN(PyGILState_Release);
   CPYTHON_INITFN(PyRun_SimpleStringFlags);
+  CPYTHON_INITFN(PyStatus_Exception);
+  CPYTHON_INITFN(Py_ExitStatusException);
   CPYTHON_INITFN(Py_FinalizeEx);
   CPYTHON_INITFN(Py_InitializeFromConfig);
   CPYTHON_INITFN(Py_RunMain);
   // go/keep-sorted end
+  // LINT.ThenChange(:CPYTHON_FN)
 
 #undef CPYTHON_INITFN
 
