@@ -23,16 +23,12 @@ function(get_mujoco_extra_link_options OUTPUT_VAR)
     set(EXTRA_LINK_OPTIONS)
 
     if(WIN32)
-      set(EXTRA_LINK_OPTIONS ${EXTRA_LINK_OPTIONS} -Wl,/STACK:16777216)
       set(CMAKE_REQUIRED_FLAGS "-fuse-ld=lld-link")
-      check_c_source_compiles("int main() {}" SUPPORTS_LLD)
-      if(SUPPORTS_LLD)
-        set(EXTRA_LINK_OPTIONS
-            ${EXTRA_LINK_OPTIONS}
-            -fuse-ld=lld-link
-            -Wl,/OPT:REF
-            -Wl,/OPT:ICF
-        )
+      check_c_source_compiles("int main() {}" SUPPORTS_LLD_LINK)
+      if(SUPPORTS_LLD_LINK)
+        set(EXTRA_LINK_OPTIONS ${EXTRA_LINK_OPTIONS} -fuse-ld=lld-link -Wl,/STACK:16777216 -Wl,/OPT:REF -Wl,/OPT:ICF)
+      else()
+        set(EXTRA_LINK_OPTIONS ${EXTRA_LINK_OPTIONS} -Wl,--stack,16777216)
       endif()
     else()
       set(CMAKE_REQUIRED_FLAGS "-fuse-ld=lld")

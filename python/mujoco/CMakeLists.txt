@@ -51,6 +51,8 @@ endif()
 
 include(MujocoLinkOptions)
 get_mujoco_extra_link_options(EXTRA_LINK_OPTIONS)
+list(FILTER EXTRA_LINK_OPTIONS EXCLUDE REGEX "STACK")
+list(FILTER EXTRA_LINK_OPTIONS EXCLUDE REGEX "stack")
 add_link_options(${EXTRA_LINK_OPTIONS})
 
 include(MujocoMacOS)
