@@ -39,6 +39,7 @@ public class MujocoBinaryRetriever {
                 "/Applications/MuJoCo.app/Contents/Frameworks" +
                 "/mujoco.framework/Versions/Current/libmujoco.3.5.1.dylib",
                 mujocoPath + "/mujoco.dylib");
+            GenerateMetaFile(mujocoPath + "/mujoco.dylib");
             AssetDatabase.Refresh();
           }
         } else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
@@ -47,6 +48,7 @@ public class MujocoBinaryRetriever {
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
                 "/.mujoco/mujoco-3.5.1/lib/libmujoco.so.3.5.1",
                 mujocoPath + "/libmujoco.so");
+            GenerateMetaFile(mujocoPath + "/libmujoco.so");
             AssetDatabase.Refresh();
           }
         } else {
@@ -55,11 +57,38 @@ public class MujocoBinaryRetriever {
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
                 "\\MuJoCo\\bin\\mujoco.dll",
                 mujocoPath + "\\mujoco.dll");
+            GenerateMetaFile(mujocoPath + "\\mujoco.dll");
             AssetDatabase.Refresh();
           }
         }
       }
     }
+  }
+  
+  static void GenerateMetaFile(string filePath) {
+    string metaFileName = filePath + ".meta";
+
+    // Check if .meta file exists.
+    if (File.Exists(metaFileName)) {
+      Debug.Log("Meta file for " + filePath + " already exists.");
+      return;
+    }
+
+    // Create a uuid
+    var uuidN = Guid.NewGuid().ToString("N");
+
+    // Write content to .meta
+    using (StreamWriter writer = File.CreateText(metaFileName)) {
+      writer.WriteLine("fileFormatVersion: 2");
+      writer.WriteLine("guid: " + (uuidN.ToString()));
+      writer.WriteLine("DefaultImporter:");
+      writer.WriteLine("  externalObjects: {}");
+      writer.WriteLine("  userData: ");
+      writer.WriteLine("  assetBundleName: ");
+      writer.WriteLine("  assetBundleVariant: ");
+    }
+
+    Debug.Log("MuJoCo library successfully imported to " + filePath);
   }
 }
 }
