@@ -4190,6 +4190,8 @@ void mjCModel::FuseReindex(mjCBody* body) {
   makelistid(joints_, body->joints);
   makelistid(geoms_, body->geoms);
   makelistid(sites_, body->sites);
+  makelistid(cameras_, body->cameras);
+  makelistid(lights_, body->lights);
 
   // process children recursively
   for (int i=0; i < body->bodies.size(); i++) {
@@ -4317,10 +4319,25 @@ void mjCModel::FuseStatic(void) {
       mju_error("Internal error: FuseStatic: body not found");
     }
 
-    //------------- assign geoms and sites to parent, change frames
+    //------------- assign geoms, sites, cameras, lights to parent, change frames
 
     ReassignChild(par->geoms, body->geoms, par, body);
     ReassignChild(par->sites, body->sites, par, body);
+    ReassignChild(par->cameras, body->cameras, par, body);
+
+    // lights have dir instead of quat, so handle separately
+    for (int j=0; j < body->lights.size(); j++) {
+      body->lights[j]->body = par;
+      par->lights.push_back(body->lights[j]);
+
+      // transform pos into parent frame
+      double qunit[4] = {1, 0, 0, 0};
+      changeframe(body->lights[j]->pos, qunit, body->pos, body->quat);
+
+      // rotate dir into parent frame
+      mjuu_rotVecQuat(body->lights[j]->dir, body->lights[j]->dir, body->quat);
+    }
+    body->lights.clear();
 
     //------------- remove from global body list, reduce global counts
 
@@ -4352,6 +4369,8 @@ void mjCModel::FuseStatic(void) {
     joints_.clear();
     geoms_.clear();
     sites_.clear();
+    cameras_.clear();
+    lights_.clear();
     FuseReindex(bodies_[0]);
 
     // recompute parent contype, conaffinity, and margin

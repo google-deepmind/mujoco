@@ -668,6 +668,53 @@ TEST_F(FuseStaticTest, FuseStaticForceSensorReferencedBody) {
   mj_deleteModel(m);
 }
 
+TEST_F(FuseStaticTest, FuseStaticCameraInBody) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+    <worldbody>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5"/>
+        <body pos="1 0 0">
+          <site name="site1"/>
+          <camera name="cam1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 2) << "Static body should be fused";
+  EXPECT_EQ(m->ncam, 1);
+  mj_deleteModel(m);
+}
+
+TEST_F(FuseStaticTest, FuseStaticLightInBody) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+    <worldbody>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5"/>
+        <body pos="1 0 0">
+          <light name="light1" dir="0 0 -1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 2) << "Static body should be fused";
+  EXPECT_EQ(m->nlight, 1);
+  mj_deleteModel(m);
+}
+
 // ------------- test discardvisual --------------------------------------------
 
 using DiscardVisualTest = MujocoTest;
