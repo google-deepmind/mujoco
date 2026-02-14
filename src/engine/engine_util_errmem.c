@@ -207,16 +207,18 @@ void* mju_malloc(size_t size) {
   // default allocator
   else {
     // pad size to multiple of 64
-    if ((size%64)) {
-      size += 64 - (size%64);
+    if (size > 0 && (size % 64)) {
+      size += 64 - (size % 64);
     }
 
     // allocate
-    ptr = mju_alignedMalloc(size, 64);
+    if (size > 0) {
+      ptr = mju_alignedMalloc(size, 64);
+    }
   }
 
   // error if null pointer
-  if (!ptr) {
+  if (!ptr && size > 0) {
     mju_error("Could not allocate memory");
   }
 
