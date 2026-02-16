@@ -1781,6 +1781,10 @@ class SpecsTest(absltest.TestCase):
         self.assertEqual(z.read(texture_filename), f.read())
       self.assertIn('test_model.xml', z.namelist())
 
+  def test_to_zip_includes_assets_from_references(self):
+    spec = mujoco.MjSpec.from_file("test/user/testdata/cube.xml")
+    spec.to_zip("/tmp/cube.zip")
+
   def test_rangefinder_sensor(self):
     """Test rangefinder sensor with mjSpec, iterative model building."""
     # Raydata field enum values for dataspec bitfield
