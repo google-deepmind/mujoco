@@ -17,6 +17,7 @@
 import ctypes
 import ctypes.util
 import os
+from pathlib import Path
 import platform
 import subprocess
 from typing import Any, IO, Union, Sequence
@@ -108,9 +109,8 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
   files_to_zip = spec.assets
   files_to_zip[spec.modelname + '.xml'] = spec.to_xml()
   if isinstance(file, str):
-    directory = os.path.dirname(file)
-    os.makedirs(directory, exist_ok=True)
-    file = open(file, 'wb')
+    file = Path(file)
+    file.parent.mkdir(parents=True, exist_ok=True)
   with zipfile.ZipFile(file, 'w') as zip_file:
     for filename, contents in files_to_zip.items():
       zip_info = zipfile.ZipInfo(filename)
