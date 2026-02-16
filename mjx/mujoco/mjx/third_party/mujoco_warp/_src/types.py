@@ -682,11 +682,11 @@ class Option:
     tolerance: main solver tolerance
     ls_tolerance: CG/Newton linesearch tolerance
     ccd_tolerance: convex collision detection tolerance
-    density: density of medium
-    viscosity: viscosity of medium
     gravity: gravitational acceleration
     wind: wind (for lift, drag, and viscosity)
     magnetic: global magnetic flux
+    density: density of medium
+    viscosity: viscosity of medium
     integrator: integration mode (IntegratorType)
     cone: type of friction cone (ConeType)
     solver: solver algorithm (SolverType)
@@ -716,11 +716,11 @@ class Option:
   tolerance: array("*", float)
   ls_tolerance: array("*", float)
   ccd_tolerance: array("*", float)
-  density: array("*", float)
-  viscosity: array("*", float)
   gravity: array("*", wp.vec3)
   wind: array("*", wp.vec3)
   magnetic: array("*", wp.vec3)
+  density: array("*", float)
+  viscosity: array("*", float)
   integrator: int
   cone: int
   solver: int
