@@ -108,30 +108,42 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
   """
   files_to_zip = spec.assets
 
-  def _add_files(elements):
+  strip_path = bool(spec.strippath)
+  model_dir = spec.modelfiledir
+
+  def _resolve_path(filename: str, compiler_dir: str) -> Path:
+    if strip_path:
+      filename = os.path.basename(filename)
+
+    path = Path(filename)
+
+    if path.is_absolute():
+      return path
+
+    if compiler_dir and Path(compiler_dir).is_absolute():
+      return Path(compiler_dir) / path
+
+    base_dir = Path(model_dir) if model_dir else Path.cwd()
+    if compiler_dir:
+      return base_dir / compiler_dir / path
+
+    return base_dir / path
+
+  def _add_files(elements, compiler_dir: str):
     for element in elements:
-      if element.file in files_to_zip:
-        # TODO(hartikainen): What should we do in this case?
-        raise ValueError(f'Asset file {element.file} is already included in the zip file.')
+      if element.file and element.file not in files_to_zip:
+        file_path = _resolve_path(element.file, compiler_dir)
+        if file_path.exists():
+          files_to_zip[element.file] = file_path.read_bytes()
 
-      file = Path(element.file)
-
-      if not file.exists():
-        raise FileNotFoundError(f'Asset file {element.file} not found.')
-      if not file.is_file():
-        raise ValueError(f'Asset file {element.file} is not a file.')
-
-      files_to_zip[element.file] = file.read_bytes()
-
-  _add_files(spec.meshes)
-  _add_files(spec.textures)
-  _add_files(spec.skins)
-  _add_files(spec.hfields)
+  _add_files(spec.meshes, spec.compiler.meshdir)
+  _add_files(spec.textures, spec.compiler.texturedir)
+  _add_files(spec.skins, spec.compiler.meshdir)
+  _add_files(spec.hfields, spec.compiler.meshdir)
 
   files_to_zip[spec.modelname + '.xml'] = spec.to_xml()
   if isinstance(file, str):
-    file = Path(file)
-    file.parent.mkdir(parents=True, exist_ok=True)
+    Path(file).parent.mkdir(parents=True, exist_ok=True)
   with zipfile.ZipFile(file, 'w') as zip_file:
     for filename, contents in files_to_zip.items():
       zip_info = zipfile.ZipInfo(filename)

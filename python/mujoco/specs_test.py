@@ -18,6 +18,7 @@ import gc
 import inspect
 import math
 import os
+from pathlib import Path
 import textwrap
 import typing
 import zipfile  # pylint: disable=unused-import
@@ -1781,9 +1782,21 @@ class SpecsTest(absltest.TestCase):
         self.assertEqual(z.read(texture_filename), f.read())
       self.assertIn('test_model.xml', z.namelist())
 
+    spec1 = mujoco.MjSpec.from_zip(zip_filename)
+    model = spec1.compile()
+
   def test_to_zip_includes_assets_from_references(self):
-    spec = mujoco.MjSpec.from_file("test/user/testdata/cube.xml")
-    spec.to_zip("/tmp/cube.zip")
+    temp_dir = self.create_tempdir()
+    temp_dir_path = epath.Path(temp_dir.full_path)
+
+    zip_path = temp_dir_path / "cube.zip"
+    mesh_model_path = epath.resource_path("mujoco") / "testdata" / "msh.xml"
+
+    spec0 = mujoco.MjSpec.from_file(mesh_model_path.as_posix())
+    spec0.to_zip(zip_path.as_posix())
+
+    spec1 = mujoco.MjSpec.from_zip(zip_path.as_posix())
+    model = spec1.compile()
 
   def test_rangefinder_sensor(self):
     """Test rangefinder sensor with mjSpec, iterative model building."""
