@@ -1,4 +1,4 @@
-# Copyright 2022 DeepMind Technologies Limited
+# Copyright 2026 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Wrapper around mujoco.rendering.classic.gl_context for backwards compatibility."""
 
-
-try:
-  from mujoco.rendering.classic.gl_context import *  # pytype: disable=import-error
-except ImportError:
-  pass
+# Empty.
