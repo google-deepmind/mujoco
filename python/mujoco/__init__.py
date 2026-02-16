@@ -107,6 +107,27 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
     file: The path to the file to save to or the file object to write to.
   """
   files_to_zip = spec.assets
+
+  def _add_files(elements):
+    for element in elements:
+      if element.file in files_to_zip:
+        # TODO(hartikainen): What should we do in this case?
+        raise ValueError(f'Asset file {element.file} is already included in the zip file.')
+
+      file = Path(element.file)
+
+      if not file.exists():
+        raise FileNotFoundError(f'Asset file {element.file} not found.')
+      if not file.is_file():
+        raise ValueError(f'Asset file {element.file} is not a file.')
+
+      files_to_zip[element.file] = file.read_bytes()
+
+  _add_files(spec.meshes)
+  _add_files(spec.textures)
+  _add_files(spec.skins)
+  _add_files(spec.hfields)
+
   files_to_zip[spec.modelname + '.xml'] = spec.to_xml()
   if isinstance(file, str):
     file = Path(file)
