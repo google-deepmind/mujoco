@@ -15,6 +15,7 @@
 #include <array>
 #include <cstdio>
 #include <string>
+#include <utility>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -284,6 +285,29 @@ TEST_F(UserVfsTest, Timestamps) {
 
   mju_closeResource(resource);
   mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserVfsTest, MoveVfsAfterOpenResource) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
+  std::string buffer = "<mujoco/>";
+  mj_addBufferVFS(&vfs, "model", static_cast<const void*>(buffer.c_str()),
+                  buffer.size());
+
+  mjResource* resource = mju_openResource("", "model", &vfs, nullptr, 0);
+  ASSERT_THAT(resource, NotNull());
+
+  // Move the public mjVFS object after resources have been opened.
+  mjVFS moved = std::move(vfs);
+
+  const void* out = nullptr;
+  const int size = mju_readResource(resource, &out);
+  EXPECT_GT(size, 0);
+  EXPECT_THAT(out, NotNull());
+
+  mju_closeResource(resource);
+  mj_deleteVFS(&moved);
 }
 
 TEST_F(UserVfsTest, MountUnmount) {
