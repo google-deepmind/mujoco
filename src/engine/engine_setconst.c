@@ -589,9 +589,12 @@ static void set0(mjModel* m, mjData* d) {
   mj_setM0(m, d);
 
   // save flex_rigid, temporarily make all flexes non-rigid
-  mjtByte* rigid = mju_malloc(m->nflex);
-  memcpy(rigid, m->flex_rigid, m->nflex);
-  memset(m->flex_rigid, 0, m->nflex);
+  mjtByte* rigid = NULL;
+  if (m->nflex) {
+    rigid = mjSTACKALLOC(d, m->nflex, mjtByte);
+    memcpy(rigid, m->flex_rigid, m->nflex);
+    memset(m->flex_rigid, 0, m->nflex);
+  }
 
   // run remaining computations
   mj_tendon(m, d);
@@ -601,8 +604,9 @@ static void set0(mjModel* m, mjData* d) {
   mj_transmission(m, d);
 
   // restore flex rigidity
-  memcpy(m->flex_rigid, rigid, m->nflex);
-  mju_free(rigid);
+  if (m->nflex) {
+    memcpy(m->flex_rigid, rigid, m->nflex);
+  }
 
   // restore camera and light mode
   for (int i=0; i < m->ncam; i++) {
