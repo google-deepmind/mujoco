@@ -24,6 +24,7 @@
 #include <cstring>
 #include <filesystem>
 #include <memory>
+#include <random>
 #include <span>
 #include <string>
 #include <string_view>
@@ -106,7 +107,8 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 };
 // clang-format on
 
-App::App(Config config) : ini_path_(std::move(config.ini_path)) {
+App::App(Config config)
+    : rng_(std::random_device()()), ini_path_(std::move(config.ini_path)) {
   platform::Window::Config window_config;
   window_config.renderer_backend = platform::Renderer::GetBackend();
   window_config.offscreen_mode = config.offscreen_mode;
@@ -702,6 +704,61 @@ void App::HandleKeyboardEvents() {
     ToggleFlag(vis_options_.geomgroup[4]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_5)) {
     ToggleFlag(vis_options_.geomgroup[5]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Enter | ImGuiMode_CtrlShift)) {
+    if (has_spec()) {
+      spec_op_ = [this]() {
+        mjsBody* world = mjs_findBody(spec(), "world");
+        if (!world) return;
+        mjsBody* body = mjs_addBody(world, nullptr);
+        if (!body) return;
+        mjsJoint* joint = mjs_addJoint(body, nullptr);
+        if (!joint) return;
+        mjsGeom* geom = mjs_addGeom(body, nullptr);
+        if (!geom) return;
+
+        // Set body position slightly in front of the camera.
+        mjtNum pos[3];
+        mjtNum dir[3];
+        mjtNum up[3];
+        mjv_cameraFrame(pos, dir, up, nullptr, data(), &camera_);
+
+        static int counter = 0;
+        std::string name = "projectile" + std::to_string(counter++);
+        mjs_setName(body->element, name.c_str());
+
+        body->mass = 10.0;
+        body->pos[0] = pos[0] + dir[0] * 0.2;
+        body->pos[1] = pos[1] + dir[1] * 0.2;
+        body->pos[2] = pos[2] + dir[2] * 0.2;
+        geom->type = mjGEOM_BOX;
+        geom->size[0] = 0.13365;
+        geom->size[1] = 0.13365;
+        geom->size[2] = 0.13365;
+        geom->rgba[0] = std::uniform_real_distribution<float>(0.3f, 1.0f)(rng_);
+        geom->rgba[1] = std::uniform_real_distribution<float>(0.3f, 1.0f)(rng_);
+        geom->rgba[2] = std::uniform_real_distribution<float>(0.3f, 1.0f)(rng_);
+        geom->rgba[3] = 1.0;
+
+        joint->type = mjJNT_FREE;
+
+        Recompile();
+
+        // Give the newly added body a velocity in the direction of the camera.
+        int bodyid = mj_name2id(model(), mjOBJ_BODY, name.c_str());
+        if (bodyid >= 0) {
+          int jntid = model()->body_jntadr[bodyid];
+          if (jntid >= 0 && model()->jnt_type[jntid] == mjJNT_FREE) {
+            int qveladr = model()->jnt_dofadr[jntid];
+            if (qveladr >= 0) {
+              mjtNum speed = 10.0;  // Magnitude of the initial velocity.
+              data()->qvel[qveladr + 0] = dir[0] * speed + up[0];
+              data()->qvel[qveladr + 1] = dir[1] * speed + up[1];
+              data()->qvel[qveladr + 2] = dir[2] * speed + up[2];
+            }
+          }
+        }
+      };
+    }
   } else if (has_model()) {
     if (ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
       ui_.camera_idx =
