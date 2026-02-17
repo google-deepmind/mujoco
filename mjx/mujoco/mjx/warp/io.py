@@ -30,23 +30,7 @@ def create_render_context(
     nworld: int,
     **kwargs,
 ):
-  # NOTE: MuJoCo Warp render context expects a Warp Model and Data.
-  # We create them here but throw them away right after. Preferably,
-  # the render context should only rely on mujoco.MjModel so we
-  # do not have to pay the cost of creating dummy Warp Model and Data.
-  # Some assumptions may be violated if the downstream render context
-  # builder holds onto the memory of m and d. The API on the MuJoCo
-  # Warp side needs to be cleaned up.
-  m = mjw.put_model(mjm)
-  d = mjw.make_data(mjm, nworld=nworld)
-  mjw.forward(m, d)
-
-  rc = mjw.create_render_context(
-      mjm=mjm,
-      m=m,
-      d=d,
-      **kwargs,
-  )
+  rc = mjw.create_render_context(mjm=mjm, nworld=nworld, **kwargs)
   rc.rgb_data_shape = rc.rgb_data.shape
   rc.depth_data_shape = rc.depth_data.shape
   rc.rgb_data = None

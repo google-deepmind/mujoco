@@ -1781,6 +1781,7 @@ class RenderContext:
     cam_id_map: camera id map
     use_textures: whether to use textures
     use_shadows: whether to use shadows
+    use_precomputed_rays: whether to use precomputed rays
     bvh_ngeom: number of geometries in the BVH
     enabled_geom_ids: enabled geometry ids
     mesh_registry: mesh BVH id to warp mesh mapping
@@ -1834,6 +1835,7 @@ class RenderContext:
   use_textures: bool
   use_shadows: bool
   background_color: wp.uint32
+  use_precomputed_rays: bool
   bvh_ngeom: int
   enabled_geom_ids: array("*", int)
   mesh_registry: dict

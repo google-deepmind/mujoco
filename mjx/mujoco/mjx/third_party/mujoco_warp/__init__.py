@@ -60,6 +60,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.passive import passive as passive
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray as ray
 from mujoco.mjx.third_party.mujoco_warp._src.ray import rays as rays
 from mujoco.mjx.third_party.mujoco_warp._src.render import render as render
+from mujoco.mjx.third_party.mujoco_warp._src.render_util import get_depth as get_depth
+from mujoco.mjx.third_party.mujoco_warp._src.render_util import get_rgb as get_rgb
 from mujoco.mjx.third_party.mujoco_warp._src.sensor import energy_pos as energy_pos
 from mujoco.mjx.third_party.mujoco_warp._src.sensor import energy_vel as energy_vel
 from mujoco.mjx.third_party.mujoco_warp._src.sensor import sensor_acc as sensor_acc

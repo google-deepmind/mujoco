@@ -17,6 +17,7 @@ import mujoco
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src.types import ProjectionType
+from mujoco.mjx.third_party.mujoco_warp._src.types import RenderContext
 
 wp.set_module_options({"enable_backward": False})
 
@@ -128,3 +129,80 @@ def compute_ray(
 def pack_rgba_to_uint32(r: float, g: float, b: float, a: float) -> wp.uint32:
   """Pack RGBA values into a single uint32 for efficient memory access."""
   return wp.uint32((int(a) << int(24)) | (int(r) << int(16)) | (int(g) << int(8)) | int(b))
+
+
+@wp.kernel
+def unpack_rgb_kernel(
+  # In:
+  packed: wp.array2d(dtype=wp.uint32),
+  rgb_adr: wp.array(dtype=int),
+  camera_index: int,
+  # Out:
+  rgb_out: wp.array3d(dtype=wp.vec3),
+):
+  """Unpack ABGR uint32 packed pixel data into separate R, G, and B channels."""
+  worldid, pixelid = wp.tid()
+
+  xid = pixelid % rgb_out.shape[2]
+  yid = pixelid // rgb_out.shape[2]
+
+  rgb_adr_offset = rgb_adr[camera_index]
+  val = packed[worldid, rgb_adr_offset + pixelid]
+  b = wp.float32(val & wp.uint32(0xFF)) * wp.static(1.0 / 255.0)
+  g = wp.float32((val >> wp.uint32(8)) & wp.uint32(0xFF)) * wp.static(1.0 / 255.0)
+  r = wp.float32((val >> wp.uint32(16)) & wp.uint32(0xFF)) * wp.static(1.0 / 255.0)
+  rgb_out[worldid, yid, xid] = wp.vec3(r, g, b)
+
+
+@wp.kernel
+def extract_depth_kernel(
+  # In:
+  depth_data: wp.array2d(dtype=float),
+  depth_adr: wp.array(dtype=int),
+  camera_index: int,
+  depth_scale: float,
+  # Out:
+  depth_out: wp.array3d(dtype=float),
+):
+  """Extract the depth data from the render context buffers for a given camera index."""
+  worldid, pixelid = wp.tid()
+  xid = pixelid % depth_out.shape[2]
+  yid = pixelid // depth_out.shape[2]
+
+  depth_adr_offset = depth_adr[camera_index]
+  val = depth_data[worldid, depth_adr_offset + pixelid]
+  depth_out[worldid, yid, xid] = wp.clamp(val / depth_scale, 0.0, 1.0)
+
+
+def get_rgb(rc: RenderContext, camera_index: int, rgb_out: wp.array3d(dtype=wp.vec3)):
+  """Get the RGB data output from the render context buffers for a given camera index.
+
+  Args:
+    rc: The render context on device.
+    camera_index: The index of the camera to get the RGB data for.
+    rgb_out: The output array to store the RGB data in, with shape (nworld, height, width).
+  """
+  wp.launch(
+    unpack_rgb_kernel,
+    dim=(rgb_out.shape[0], rgb_out.shape[1] * rgb_out.shape[2]),
+    inputs=[rc.rgb_data, rc.rgb_adr, camera_index],
+    outputs=[rgb_out],
+  )
+
+
+def get_depth(rc: RenderContext, camera_index: int, depth_scale: float, depth_out: wp.array3d(dtype=float)):
+  """Get the depth data output from the render context buffers for a given camera index.
+
+  Args:
+    rc: The render context on device.
+    camera_index: The index of the camera to get the depth data for.
+    depth_scale: The scale factor to apply to the depth data.
+    depth_out: The output array to store the scaled and clamped depth data in
+      with shape (nworld, height, width).
+  """
+  wp.launch(
+    extract_depth_kernel,
+    dim=(depth_out.shape[0], depth_out.shape[1] * depth_out.shape[2]),
+    inputs=[rc.depth_data, rc.depth_adr, camera_index, depth_scale],
+    outputs=[depth_out],
+  )

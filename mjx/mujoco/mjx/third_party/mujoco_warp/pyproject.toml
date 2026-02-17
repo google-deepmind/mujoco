@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="mujoco-warp"
-version = "0.0.2"
+version = "3.5.0"
 # TODO(team): create a distribution list
 authors = [
     {name = "Newton Developers", email = "mujoco@deepmind.com"},

@@ -24,6 +24,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import Geom
 from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import contact_params
 from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import geom_collision_pair
 from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import write_contact
+from mujoco.mjx.third_party.mujoco_warp._src.io import BLEEDING_EDGE_MUJOCO
 from mujoco.mjx.third_party.mujoco_warp._src.math import make_frame
 from mujoco.mjx.third_party.mujoco_warp._src.math import upper_trid_index
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAX_EPAFACES
@@ -91,7 +92,10 @@ def _hfield_filter(
   r2 = geom_rbound[rbound_id, g2]
 
   # TODO(team): margin?
-  margin = geom_margin[margin_id, g1] + geom_margin[margin_id, g2]
+  if BLEEDING_EDGE_MUJOCO:
+    margin = geom_margin[margin_id, g1] + geom_margin[margin_id, g2]
+  else:
+    margin = wp.max(geom_margin[margin_id, g1], geom_margin[margin_id, g2])
 
   # box-sphere test: horizontal plane
   for i in range(2):

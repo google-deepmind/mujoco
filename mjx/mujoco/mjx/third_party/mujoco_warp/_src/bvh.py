@@ -179,7 +179,6 @@ def _compute_bvh_bounds(
   # Data in:
   geom_xpos_in: wp.array2d(dtype=wp.vec3),
   geom_xmat_in: wp.array2d(dtype=wp.mat33),
-  nworld_in: int,
   # In:
   bvh_ngeom: int,
   enabled_geom_ids: wp.array(dtype=int),
@@ -235,18 +234,23 @@ def compute_bvh_group_roots(
   group_root_out[tid] = root
 
 
-def build_scene_bvh(m: Model, d: Data, rc: RenderContext):
+def build_scene_bvh(mjm: mujoco.MjModel, mjd: mujoco.MjData, rc: RenderContext, nworld: int):
   """Build a global BVH for all geometries in all worlds."""
+  geom_type = wp.array(mjm.geom_type, dtype=int)
+  geom_dataid = wp.array(mjm.geom_dataid, dtype=int)
+  geom_size = wp.array(np.tile(mjm.geom_size[np.newaxis, :, :], (nworld, 1, 1)), dtype=wp.vec3)
+  geom_xpos = wp.array(np.tile(mjd.geom_xpos[np.newaxis, :, :], (nworld, 1, 1)), dtype=wp.vec3)
+  geom_xmat = wp.array(np.tile(mjd.geom_xmat.reshape(mjm.ngeom, 3, 3)[np.newaxis, :, :, :], (nworld, 1, 1, 1)), dtype=wp.mat33)
+
   wp.launch(
     kernel=_compute_bvh_bounds,
-    dim=(d.nworld, rc.bvh_ngeom),
+    dim=(nworld, rc.bvh_ngeom),
     inputs=[
-      m.geom_type,
-      m.geom_dataid,
-      m.geom_size,
-      d.geom_xpos,
-      d.geom_xmat,
-      d.nworld,
+      geom_type,
+      geom_dataid,
+      geom_size,
+      geom_xpos,
+      geom_xmat,
       rc.bvh_ngeom,
       rc.enabled_geom_ids,
       rc.mesh_bounds_size,
@@ -265,7 +269,7 @@ def build_scene_bvh(m: Model, d: Data, rc: RenderContext):
 
   wp.launch(
     kernel=compute_bvh_group_roots,
-    dim=d.nworld,
+    dim=nworld,
     inputs=[bvh.id],
     outputs=[rc.group_root],
   )
@@ -281,7 +285,6 @@ def refit_scene_bvh(m: Model, d: Data, rc: RenderContext):
       m.geom_size,
       d.geom_xpos,
       d.geom_xmat,
-      d.nworld,
       rc.bvh_ngeom,
       rc.enabled_geom_ids,
       rc.mesh_bounds_size,
@@ -847,13 +850,18 @@ def _update_flex_face_points(
 
 
 def build_flex_bvh(
-  mjm: mujoco.MjModel, m: Model, d: Data, constructor: str = "sah", leaf_size: int = 2
+  mjm: mujoco.MjModel, mjd: mujoco.MjData, nworld: int, constructor: str = "sah", leaf_size: int = 2
 ) -> tuple[wp.Mesh, wp.array, wp.array, wp.array, wp.array, wp.array, int]:
   """Create a Warp mesh BVH from flex data."""
   if (mjm.flex_dim == 1).any():
     raise ValueError("1D Flex objects are not currently supported.")
 
   nflex = mjm.nflex
+  nflexvert = mjm.nflexvert
+  nflexelemdata = len(mjm.flex_elem)
+
+  flex_elem = wp.array(mjm.flex_elem, dtype=int)
+  flexvert_xpos = wp.array(np.tile(mjd.flexvert_xpos[np.newaxis, :, :], (nworld, 1, 1)), dtype=wp.vec3)
 
   flex_faceadr = [0]
   for f in range(nflex):
@@ -865,23 +873,23 @@ def build_flex_bvh(
   nface = int(flex_faceadr[-1])
   flex_faceadr = flex_faceadr[:-1]
 
-  face_point = wp.zeros(nface * 3 * d.nworld, dtype=wp.vec3)
-  face_index = wp.zeros(nface * 3 * d.nworld, dtype=wp.int32)
-  group = wp.zeros(nface * d.nworld, dtype=int)
+  face_point = wp.empty(nface * 3 * nworld, dtype=wp.vec3)
+  face_index = wp.empty(nface * 3 * nworld, dtype=wp.int32)
+  group = wp.empty(nface * nworld, dtype=int)
 
-  flexvert_norm = wp.zeros(d.flexvert_xpos.shape, dtype=wp.vec3)
+  flexvert_norm = wp.zeros((nworld, nflexvert), dtype=wp.vec3)
   flex_shell = wp.array(mjm.flex_shell, dtype=int)
 
   wp.launch(
     kernel=accumulate_flex_vertex_normals,
-    dim=(d.nworld, m.nflexelemdata // 3),
-    inputs=[m.flex_elem, d.flexvert_xpos],
+    dim=(nworld, nflexelemdata // 3),
+    inputs=[flex_elem, flexvert_xpos],
     outputs=[flexvert_norm],
   )
 
   wp.launch(
     kernel=normalize_vertex_normals,
-    dim=(d.nworld, m.nflexvert),
+    dim=(nworld, nflexvert),
     inputs=[flexvert_norm],
   )
 
@@ -896,10 +904,10 @@ def build_flex_bvh(
     if dim == 2:
       wp.launch(
         kernel=_build_flex_2d_elements,
-        dim=(d.nworld, nelem),
+        dim=(nworld, nelem),
         inputs=[
-          m.flex_elem,
-          d.flexvert_xpos,
+          flex_elem,
+          flexvert_xpos,
           flexvert_norm,
           elem_adr,
           vert_adr,
@@ -912,9 +920,9 @@ def build_flex_bvh(
 
       wp.launch(
         kernel=_build_flex_2d_sides,
-        dim=(d.nworld, nshell),
+        dim=(nworld, nshell),
         inputs=[
-          d.flexvert_xpos,
+          flexvert_xpos,
           flexvert_norm,
           flex_shell,
           shell_adr,
@@ -928,9 +936,9 @@ def build_flex_bvh(
     elif dim == 3:
       wp.launch(
         kernel=_build_flex_3d_shells,
-        dim=(d.nworld, nshell),
+        dim=(nworld, nshell),
         inputs=[
-          d.flexvert_xpos,
+          flexvert_xpos,
           flex_shell,
           shell_adr,
           vert_adr,
@@ -948,10 +956,10 @@ def build_flex_bvh(
     bvh_leaf_size=leaf_size,
   )
 
-  group_root = wp.zeros(d.nworld, dtype=int)
+  group_root = wp.empty(nworld, dtype=int)
   wp.launch(
     kernel=compute_bvh_group_roots,
-    dim=d.nworld,
+    dim=nworld,
     inputs=[flex_mesh.id],
     outputs=[group_root],
   )
