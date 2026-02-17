@@ -175,22 +175,39 @@ def _main(_: Sequence[str]):
   )(mx, dx_batch, rc)
 
   rgb_packed = out_batch[0]
-  print(f'  rgb shape: {rgb_packed.shape}\n')
+  depth_packed = out_batch[1]
+  print(f'  rgb shape:   {rgb_packed.shape}')
+  print(f'  depth shape: {depth_packed.shape}\n')
 
   rgb = jax.vmap(
       render_util.get_rgb, in_axes=(None, 0, None)
   )(rc, rgb_packed, _CAMERA_ID.value)
+
+  depth = jax.vmap(
+      render_util.get_depth, in_axes=(None, 0, None, None)
+  )(rc, depth_packed, _CAMERA_ID.value, 10.0)
 
   single_path = os.path.join(
       _OUTPUT_DIR.value, f'camera_{_CAMERA_ID.value}.png'
   )
   _save_single(rgb, single_path)
 
+  depth_rgb = np.repeat(np.asarray(depth)[..., None], 3, axis=-1)
+  depth_single_path = os.path.join(
+      _OUTPUT_DIR.value, f'depth_{_CAMERA_ID.value}.png'
+  )
+  _save_single(depth_rgb, depth_single_path)
+
   if _NWORLD.value > 1:
     tiled_path = os.path.join(
         _OUTPUT_DIR.value, f'tiled_{_CAMERA_ID.value}.png'
     )
     _save_tiled(rgb, tiled_path)
+
+    depth_tiled_path = os.path.join(
+        _OUTPUT_DIR.value, f'depth_tiled_{_CAMERA_ID.value}.png'
+    )
+    _save_tiled(depth_rgb, depth_tiled_path)
 
   print('\ndone.')
 
