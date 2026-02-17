@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -170,6 +171,9 @@ class App {
   // Clears the currently loaded model and all associated state.
   void ClearModel();
 
+  // Recompiles the spec, updating the model and data.
+  void Recompile();
+
   // Updates the currently loaded model to the given model. If model is null,
   // then compile the spec to a model.
   void OnModelLoaded(std::string filename, ModelKind model_kind);
@@ -207,6 +211,8 @@ class App {
   void SpecExplorerGui();
   void PropertiesGui();
 
+  void SpecDeleteSelectedElement();
+
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
 
@@ -216,7 +222,6 @@ class App {
   bool has_spec() const { return model_holder_ && model_holder_->spec(); }
   bool has_model() const { return model_holder_ && model_holder_->model(); }
   bool has_data() const { return model_holder_ && model_holder_->data(); }
-
 
   std::string ini_path_;
   std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
@@ -229,6 +234,8 @@ class App {
   std::unique_ptr<platform::Window> window_;
   std::unique_ptr<platform::Renderer> renderer_;
   std::unique_ptr<platform::ModelHolder> model_holder_;
+  std::function<void()> spec_op_;
+
   platform::StepControl step_control_;
   platform::SimProfiler profiler_;
   platform::SimHistory history_;

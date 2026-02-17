@@ -84,6 +84,7 @@ static constexpr const char* ICON_PREV_FRAME = platform::ICON_FA_CARET_LEFT;
 static constexpr const char* ICON_NEXT_FRAME = platform::ICON_FA_CARET_RIGHT;
 static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
 static constexpr const char* ICON_SPEED = platform::ICON_FA_TACHOMETER;
+static constexpr const char* ICON_DELETE = platform::ICON_FA_TRASH_CAN;
 
 // UI labels for mjtLabel.
 static constexpr const char* kLabelNames[] = {
@@ -130,6 +131,13 @@ void App::ClearModel() {
   tmp_ = UiTempState();
   load_error_ = "";
   step_error_ = "";
+}
+
+void App::Recompile() {
+  mj_recompile(model_holder_->spec(), model_holder_->vfs(),
+               model_holder_->model(), model_holder_->data());
+  const int state_size = mj_stateSize(model(), mjSTATE_INTEGRATION);
+  history_.Init(state_size);
 }
 
 void App::RequestModelLoad(std::string model_file) {
@@ -365,6 +373,11 @@ void App::ProcessPendingLoads() {
     }
   }
 
+  if (spec_op_) {
+    spec_op_();
+    spec_op_ = nullptr;
+  }
+
   // Check plugins to see if we need to load a new model.
   platform::ForEachModelPlugin([&](platform::ModelPlugin* plugin) {
     if (plugin->get_model_to_load) {
@@ -380,6 +393,19 @@ void App::ProcessPendingLoads() {
       }
     }
   });
+}
+
+void App::SpecDeleteSelectedElement() {
+  spec_op_ = [this]() {
+    mjs_delete(spec(), tmp_.element);
+    if (tmp_.element->elemtype == mjOBJ_BODY &&
+        perturb_.select == tmp_.element_id) {
+      mjv_defaultPerturb(&perturb_);
+    }
+    tmp_.element = nullptr;
+    tmp_.element_id = -1;
+    Recompile();
+  };
 }
 
 void App::HandleWindowEvents() {
@@ -474,15 +500,28 @@ void App::HandleMouseEvents() {
       perturb_.flexselect = picked.flex;
       perturb_.skinselect = picked.skin;
 
+      // Select the corresponding element in the spec.
+      tmp_.element = nullptr;
+      tmp_.element_id = -1;
+      if (has_spec()) {
+        mjsElement* element = mjs_firstElement(spec(), mjOBJ_BODY);
+        while (element) {
+          if (mjs_getId(element) == picked.body) {
+            tmp_.element = element;
+            tmp_.element_id = picked.body;
+            break;
+          }
+          element = mjs_nextElement(spec(), element);
+        }
+      }
+
       // Compute the local position of the selected object in the world.
       mjtNum tmp[3];
       mju_sub3(tmp, picked.point, data()->xpos + 3 * picked.body);
       mju_mulMatTVec(perturb_.localpos, data()->xmat + 9 * picked.body, tmp, 3,
                      3);
     } else {
-      perturb_.select = 0;
-      perturb_.flexselect = -1;
-      perturb_.skinselect = -1;
+      mjv_defaultPerturb(&perturb_);
     }
   }
 
@@ -571,6 +610,8 @@ void App::HandleKeyboardEvents() {
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Backspace)) {
     ResetPhysics();
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Delete)) {
+    SpecDeleteSelectedElement();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_PageUp)) {
     SelectParentPerturb(model(), perturb_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
@@ -1082,7 +1123,8 @@ void App::SpecExplorerGui() {
         label = "(" + prefix + " " + std::to_string(id) + ")";
       }
 
-      if (ImGui::Selectable(label.c_str(), false)) {
+      const bool selected = (tmp_.element == element);
+      if (ImGui::Selectable(label.c_str(), selected)) {
         tmp_.element = element;
         tmp_.element_id = id;
       }
@@ -1092,41 +1134,23 @@ void App::SpecExplorerGui() {
   };
 
   if (ImGui::TreeNodeEx("Bodies", flags)) {
-    // We don't use `display_group` here because we do additional selection
-    // logic tied to the `perturb_` field.
-    mjsElement* element = mjs_firstElement(spec(), mjOBJ_BODY);
-    while (element) {
-      const int id = mjs_getId(element);
-
-      const mjString* name = mjs_getName(element);
-      std::string label = *name;
-      if (label.empty()) {
-        label = "(Body " + std::to_string(id) + ")";
-      }
-
-      if (ImGui::Selectable(label.c_str(), (id == perturb_.select),
-                            ImGuiSelectableFlags_AllowDoubleClick)) {
-        tmp_.element = element;
-        tmp_.element_id = id;
-      }
-      if (ImGui::IsItemHovered() &&
-          ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        perturb_.select = id;
-      }
-
-      element = mjs_nextElement(spec(), element);
-    }
+    display_group(mjOBJ_BODY, "Body");
     ImGui::TreePop();
   }
-
   if (ImGui::TreeNodeEx("Joints", flags)) {
     display_group(mjOBJ_JOINT, "Joint");
     ImGui::TreePop();
   }
-
   if (ImGui::TreeNodeEx("Sites", flags)) {
     display_group(mjOBJ_SITE, "Site");
     ImGui::TreePop();
+  }
+
+  // If we selected a body, then select the same body for the perturb object.
+  if (tmp_.element && tmp_.element->elemtype == mjOBJ_BODY &&
+      perturb_.select != tmp_.element_id) {
+    mjv_defaultPerturb(&perturb_);
+    perturb_.select = tmp_.element_id;
   }
 }
 
@@ -1136,22 +1160,31 @@ void App::PropertiesGui() {
     return;
   }
 
+  if (ImGui::BeginTable("##PropertiesHeader", 2)) {
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 20);
+    ImGui::TableNextColumn();
+    ImGui::Text("%s", mju_type2Str(tmp_.element->elemtype));
+    ImGui::TableNextColumn();
+    if (tmp_.element->elemtype == mjOBJ_BODY) {
+      if (ImGui::SmallButton(ICON_DELETE)) {
+        SpecDeleteSelectedElement();
+      }
+    }
+    ImGui::EndTable();
+  }
+  ImGui::Separator();
+
   switch (tmp_.element->elemtype) {
     case mjOBJ_BODY:
-      ImGui::Text("Body");
-      ImGui::Separator();
       platform::BodyPropertiesGui(model(), data(), tmp_.element,
                                   tmp_.element_id);
       break;
     case mjOBJ_JOINT:
-      ImGui::Text("Joint");
-      ImGui::Separator();
       platform::JointPropertiesGui(model(), data(), tmp_.element,
                                    tmp_.element_id);
       break;
     case mjOBJ_SITE:
-      ImGui::Text("Site");
-      ImGui::Separator();
       platform::SitePropertiesGui(model(), data(), tmp_.element,
                                   tmp_.element_id);
       break;
