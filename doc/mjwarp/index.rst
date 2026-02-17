@@ -28,8 +28,6 @@ notebook <https://colab.research.google.com/github/google-deepmind/mujoco_warp/b
 When To Use MJWarp?
 ===================
 
-.. TODO(robotics-simulation): batch renderer
-
 High throughput
 ---------------
 
@@ -455,6 +453,100 @@ subset of fields.
    :class: note
 
    Heterogeneous worlds, for example: per-world meshes or number of degrees of freedom, are not currently available.
+
+Batch Rendering
+===============
+
+MJWarp includes a **high-throughput** GPU batch renderer designed for simultaneous rendering of cameras across many parallel
+simulation worlds. The renderer uses ray-tracing to render MuJoCo scenes using Warp's BVH API.
+
+Key features:
+
+- **Mesh rendering with textures**: BVH-accelerated mesh rendering with full texture support.
+- **Heightfield rendering**: Optimized rendering of MuJoCo heightfields is supported.
+- **Flex rendering**: Initial prototype for rendering 2D and 3D flex objects (Currently only supporting 2D and 3D flex objects).
+- **Lighting and shadows**: Dynamic lighting with configurable shadows, domain-randomizable from ``Model`` fields.
+- **Heterogeneous multi-camera**: Supports multiple cameras per world; each camera can have a different resolution, fov, and output mode.
+- **Domain Randomization**: Domain randomization is supported by randomizing the various fields related to rendering.
+- **BVH-accelerated ray/rays API**: Raycasting is also accelerated by the BVH API utilized by the renderer, allowing for high throughput raycast sensors.
+
+Basic Usage
+----------
+
+All BVH accelerated rendering or raycasting requires a ``RenderContext``. The ``RenderContext`` holds the BVH structures, rendering specific fields,
+and output buffers.
+
+.. code-block:: python
+
+    rc = mjw.create_render_context(
+        mjm,
+        nworld=1,
+        cam_res=(256, 256),           # Override camera resolution (or per-camera list)
+        render_rgb=True,              # Enable RGB output (or per-camera list)
+        render_depth=True,            # Enable depth output (or per-camera list)
+        use_textures=True,            # Apply material textures
+        use_shadows=False,            # Enable shadow casting (slower)
+        enabled_geom_groups=[0, 1],   # Only render geoms in groups 0 and 1
+        cam_active=[True, False],     # Selectively enable/disable cameras
+        flex_render_smooth=True,      # Smooth shading for soft bodies
+    )
+
+In the ``RenderContext``, you can customize each camera in the scene. Each setting can be applied globally or per-camera.
+The ``RenderContext`` also has the ability to read from the MuJoCo spec that allows for camera customization:
+
+.. code-block:: xml
+
+    <camera name="front_camera" pos="3 0 2" xyaxes="0 1 0 -0.6 0 0.8" resolution="64 64" output="rgb depth"/>
+
+To render all cameras, users must first call ``refit_bvh`` to update the BVH trees, and then call ``render`` which will render all cameras
+that are meant to be rendered into the output buffers.
+
+.. code-block:: python
+
+    mjw.refit_bvh(m, d, rc)
+    mjw.render(m, d, rc)
+
+The result can be accessed through output buffers. The output buffers are linear with a shape of ``(nworld, pixels)``.
+We provide ``rgb_adr`` and ``depth_adr`` for users to correctly access camera data. RGB data is packed into a ``uint32``
+and needs to be unpacked for downstream use. To facilitate all of this, we provide two helper functions in the
+public API: ``get_rgb`` and ``get_depth``.
+
+.. code-block:: python
+
+    nworld = 1
+    cam_index = 0
+    resolution = rc.cam_res.numpy()[cam_index]
+    rgb_data = wp.zeros((nworld, resolution[1], resolution[0]), dtype=wp.vec3)
+    mjw.get_rgb(rc, rgb_data=rgb_data, cam_id=cam_index)
+
+A complete example can be found in the
+`tutorial
+notebook <https://colab.research.google.com/github/google-deepmind/mujoco_warp/blob/main/notebooks/tutorial.ipynb>`__.
+
+Benchmarks
+----------
+
+Rendering can be benchmarked from the CLI using ``testspeed``:
+
+.. code-block:: shell
+
+    mjwarp-testspeed benchmarks/primitives.xml --function=render
+
+For benchmark results across a variety of scenes, see the
+`released benchmarks <https://github.com/google-deepmind/mujoco_warp/pull/1113>`__.
+
+Limitations
+-----------
+
+- **Visual meshes vs primitives**: Where possible, users should use primitives over visual meshes. 
+  Mesh rendering is costly and scales with mesh complexity. For vision-based learning, especially for 
+  non-sim2real usage, it is recommended to use the primitives of roughly the same shape as the original 
+  mesh.
+- **Flex rendering**: Flex rendering is currently in a prototype state, limited to 2D and 3D flex objects. Performance and features
+  will continue to improve over time.
+- **Higher resolution / more cameras**: The renderer currently scales linearly with resolution and number of cameras, 
+  as it scales with the total number of rays that need to be raycast. Higher resolutions or more cameras will lead to 
+  lower throughput. Improving high resolution rendering performance is on the roadmap. 
 
 .. _mjwFAQ:
 
