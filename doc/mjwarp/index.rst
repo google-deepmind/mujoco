@@ -457,24 +457,24 @@ subset of fields.
 Batch Rendering
 ===============
 
-MJWarp includes a **high-throughput** GPU batch renderer designed for simultaneous rendering of cameras across many parallel
-simulation worlds. The renderer uses ray-tracing to render MuJoCo scenes using Warp's BVH API.
+MJWarp provides a high-throughput ray-tracing batch renderer built 
+on `Warp's accelerated BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__ for rendering 
+worlds with multiple cameras in parallel on device.
 
 Key features:
 
 - **Mesh rendering with textures**: BVH-accelerated mesh rendering with full texture support.
-- **Heightfield rendering**: Optimized rendering of MuJoCo heightfields is supported.
-- **Flex rendering**: Initial prototype for rendering 2D and 3D flex objects (Currently only supporting 2D and 3D flex objects).
-- **Lighting and shadows**: Dynamic lighting with configurable shadows, domain-randomizable from ``Model`` fields.
-- **Heterogeneous multi-camera**: Supports multiple cameras per world; each camera can have a different resolution, fov, and output mode.
-- **Domain Randomization**: Domain randomization is supported by randomizing the various fields related to rendering.
-- **BVH-accelerated ray/rays API**: Raycasting is also accelerated by the BVH API utilized by the renderer, allowing for high throughput raycast sensors.
+- **Heightfield rendering**: Optimized rendering for heightfields.
+- **Flex rendering**: Render 2D and 3D :ref:`flex<deformable-flex>` objects.
+- **Lighting and shadows**: Dynamic lighting with configurable shadows; domain randomizable: `light_active`, `light_type`, `light_castshadow`, `light_xpos`, `light_xdir`. 
+- **Heterogeneous multi-camera**: Multiple cameras per world and each camera can have a different resolution (`cam_resolution`), field of view (`cam_fovy`, `cam_sensorsize`, `cam_intrinsic`), and output mode (`cam_output`).
+- **Domain Randomization**: Per-world :class:`mjw.Model <mujoco_warp.Model>` fields (see :ref:`Batched Model Fields <mjwBatch>` above): `geom_matid`, `geom_size`, `geom_rgba`, `mat_texid`, `mat_texrepeat`, `mat_rgba`.
+- **BVH-accelerated ray/rays API**: Ray casting: Accelerated :func:`mjw.ray <mujoco_warp.ray>`, :func:`mjw.rays <mujoco_warp.rays>`, and :ref:`rangefinder sensors <sensor-rangefinder>` via `Warp's BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__.
 
 Basic Usage
 ----------
 
-All BVH accelerated rendering or raycasting requires a ``RenderContext``. The ``RenderContext`` holds the BVH structures, rendering specific fields,
-and output buffers.
+Rendering or raycasting requires a :class:`mjw.RenderContext <mujoco_warp.RenderContext>` which contains BVH structures and rendering and output buffers.
 
 .. code-block:: python
 
@@ -491,25 +491,27 @@ and output buffers.
         flex_render_smooth=True,      # Smooth shading for soft bodies
     )
 
-In the ``RenderContext``, you can customize each camera in the scene. Each setting can be applied globally or per-camera.
-The ``RenderContext`` also has the ability to read from the MuJoCo spec that allows for camera customization:
+Each :class:`mjw.RenderContext <mujoco_warp.RenderContext>` parameter can be applied globally or per camera.
+Additionally, values for :class:`mjw.RenderContext <mujoco_warp.RenderContext>` parameters can be parsed from XML:
 
 .. code-block:: xml
 
     <camera name="front_camera" pos="3 0 2" xyaxes="0 1 0 -0.6 0 0.8" resolution="64 64" output="rgb depth"/>
 
-To render all cameras, users must first call ``refit_bvh`` to update the BVH trees, and then call ``render`` which will render all cameras
-that are meant to be rendered into the output buffers.
+or set via :ref:`mjSpec <mjspec>` for camera customization.
+
+To render, first call :func:`mjw.refit_bvh <mujoco_warp.refit_bvh>` to update the BVH trees,
+followed by :func:`mjw.render <mujoco_warp.render>` to write to output buffers.
 
 .. code-block:: python
 
     mjw.refit_bvh(m, d, rc)
     mjw.render(m, d, rc)
 
-The result can be accessed through output buffers. The output buffers are linear with a shape of ``(nworld, pixels)``.
-We provide ``rgb_adr`` and ``depth_adr`` for users to correctly access camera data. RGB data is packed into a ``uint32``
-and needs to be unpacked for downstream use. To facilitate all of this, we provide two helper functions in the
-public API: ``get_rgb`` and ``get_depth``.
+The output buffers contain stacked pixels for all cameras with shape `(nworld, npixel)` and RGB data is 
+packed into one `unit32` variable. `RenderContext.rgb_adr` and `RenderContext.depth_adr` provide per-camera indexing. 
+For convenience, :func:`mjw.get_rgb <mujoco_warp.get_rgb>` and :func:`mjw.get_depth <mujoco_warp.get_depth>` 
+provide per-camera batched post-processing.
 
 .. code-block:: python
 
@@ -526,7 +528,7 @@ notebook <https://colab.research.google.com/github/google-deepmind/mujoco_warp/b
 Benchmarks
 ----------
 
-Rendering can be benchmarked from the CLI using ``testspeed``:
+Rendering can be benchmarked using `testspeed`_:
 
 .. code-block:: shell
 
@@ -535,18 +537,13 @@ Rendering can be benchmarked from the CLI using ``testspeed``:
 For benchmark results across a variety of scenes, see the
 `released benchmarks <https://github.com/google-deepmind/mujoco_warp/pull/1113>`__.
 
-Limitations
+Notes
 -----------
 
-- **Visual meshes vs primitives**: Where possible, users should use primitives over visual meshes. 
-  Mesh rendering is costly and scales with mesh complexity. For vision-based learning, especially for 
-  non-sim2real usage, it is recommended to use the primitives of roughly the same shape as the original 
-  mesh.
-- **Flex rendering**: Flex rendering is currently in a prototype state, limited to 2D and 3D flex objects. Performance and features
-  will continue to improve over time.
-- **Higher resolution / more cameras**: The renderer currently scales linearly with resolution and number of cameras, 
-  as it scales with the total number of rays that need to be raycast. Higher resolutions or more cameras will lead to 
-  lower throughput. Improving high resolution rendering performance is on the roadmap. 
+- **Meshes**: Rendering computation scales with mesh complexity. A primitive is expected to have better
+  performance (i.e., higher throughput) compared to a similar sized :ref:`mesh<body-geom-mesh>` or :ref:`heightfield <body-geom-hfield>`.
+- **Flex**: Currently limited to 2D and 3D :ref:`flex<deformable-flex>` objects. Performance is expected to improved as this feature is further developed.
+- **Scaling**: Rendering scales linearly with resolution (total number of pixels) and number of cameras.
 
 .. _mjwFAQ:
 
