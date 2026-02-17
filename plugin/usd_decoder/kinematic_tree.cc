@@ -55,7 +55,12 @@ bool GetJointBodies(const pxr::UsdPhysicsJoint& joint, pxr::SdfPath* from,
                 joint.GetPath().GetAsString().c_str());
     return false;
   }
-  *to = body1_paths[0];
+  // body1 pointing to the default prim means it's attached to the worldbody.
+  if (body1_paths[0] == default_prim_path) {
+    *to = pxr::SdfPath();
+  } else {
+    *to = body1_paths[0];
+  }
 
   pxr::SdfPathVector body0_paths;
   joint.GetBody0Rel().GetTargets(&body0_paths);
@@ -205,8 +210,24 @@ std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
       continue;
     }
 
-    int from_idx = body_index[from];
-    int to_idx = body_index[to];
+    // Check if this is a constraint (not participating in kinematic tree).
+    bool excluded_from_articulation = false;
+    joint.GetExcludeFromArticulationAttr().Get(&excluded_from_articulation);
+
+    // Check if bodies exist in body_index (don't use [] which inserts defaults)
+    auto from_it = body_index.find(from);
+    auto to_it = body_index.find(to);
+
+    if (from_it == body_index.end() || to_it == body_index.end()) {
+      // For constraint joints (e.g., site-based welds), body0/body1 may point
+      // to sites which aren't in body_index. Add these to the world node.
+      if (excluded_from_articulation) {
+        extraction.nodes[0]->constraints.push_back(joint.GetPath());
+      }
+      continue;
+    }
+    int from_idx = from_it->second;
+    int to_idx = to_it->second;
     if (from_idx == to_idx) {
       mju_error("Cycle detected: self referencing joint at node %s",
                 to.GetString().c_str());
@@ -216,8 +237,6 @@ std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
     // If we encounter a joint that does not participate in articulation, we
     // should treat it as a constraint instead.
     // For example, a weld constraint is represented by a fixed joint.
-    bool excluded_from_articulation;
-    joint.GetExcludeFromArticulationAttr().Get(&excluded_from_articulation);
     if (excluded_from_articulation) {
       extraction.nodes[to_idx]->constraints.push_back(joint.GetPath());
       continue;

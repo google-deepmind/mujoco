@@ -75,6 +75,7 @@
 #include <pxr/usd/usdPhysics/revoluteJoint.h>
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
 #include <pxr/usd/usdPhysics/scene.h>
+#include <pxr/usd/usdPhysics/sphericalJoint.h>
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
 
@@ -1899,8 +1900,9 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     eq_joint_api.GetCoef4Attr().Get(&eq->data[4]);
 
     ParseMjcEqualityAPISolverParams(eq, equality_api, prim);
-  } else if (prim.IsA<pxr::UsdPhysicsFixedJoint>()) {
-    // Handle fixed joints as weld constraints.
+  } else if (prim.IsA<pxr::UsdPhysicsFixedJoint>() ||
+             prim.IsA<pxr::UsdPhysicsSphericalJoint>()) {
+    // Handle fixed joints as weld constraints, spherical joints as connect constraints
     pxr::UsdPhysicsJoint joint(prim);
     // A fixed joint means the bodies are welded.
     pxr::UsdRelationship body0_rel = joint.GetBody0Rel();
@@ -1915,6 +1917,16 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     if (!targets1.empty()) body1_path = targets1[0];
 
     auto stage = prim.GetStage();
+
+    // Get the default prim path to identify the world body.
+    pxr::SdfPath default_prim_path;
+    if (stage->GetDefaultPrim().IsValid()) {
+      default_prim_path = stage->GetDefaultPrim().GetPath();
+    }
+
+    // Map default prim to world body (empty path means world in MuJoCo).
+    bool body0_is_world = body0_path.IsEmpty() || body0_path == default_prim_path;
+    bool body1_is_world = body1_path.IsEmpty() || body1_path == default_prim_path;
 
     auto body0_prim = stage->GetPrimAtPath(body0_path);
     auto body1_prim = stage->GetPrimAtPath(body1_path);
@@ -1946,8 +1958,9 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
       mjs_setString(eq->name2, body1_path.GetAsString().c_str());
       eq->objtype = mjOBJ_SITE;
     } else {
-      mjs_setString(eq->name1, body0_path.GetAsString().c_str());
-      mjs_setString(eq->name2, body1_path.GetAsString().c_str());
+      // For body welds, use "world" for the world body, otherwise use the USD path.
+      mjs_setString(eq->name1, body0_is_world ? "world" : body0_path.GetAsString().c_str());
+      mjs_setString(eq->name2, body1_is_world ? "world" : body1_path.GetAsString().c_str());
       eq->objtype = mjOBJ_BODY;
     }
 
