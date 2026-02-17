@@ -970,6 +970,26 @@ class SpecsTest(absltest.TestCase):
     ):
       spec.add_material().name = 'yellow'
 
+  def test_duplicate_name_error_when_adding_specs_with_kwargs(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(name='body')
+    body.add_geom(
+        type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.1, 1, 1], name='dup'
+    )
+    with self.assertRaisesRegex(
+        ValueError, "Error: repeated name 'dup' in geom"
+    ):
+      body.add_geom(
+          type=mujoco.mjtGeom.mjGEOM_BOX, size=[1, 0.1, 1], name='dup'
+      )
+
+    spec2 = mujoco.MjSpec()
+    spec2.add_material(name='yellow')
+    with self.assertRaisesRegex(
+        ValueError, "Error: repeated name 'yellow' in material"
+    ):
+      spec2.add_material(name='yellow')
+
   def test_delete_unused_plugin(self):
     spec = mujoco.MjSpec.from_string("""
       <mujoco model="MuJoCo Model">

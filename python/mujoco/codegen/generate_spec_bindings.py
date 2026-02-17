@@ -841,7 +841,9 @@ def generate_add() -> None:
           code += """\n
           auto set_name = [](raw::MjsElement* el, const std::optional<std::string>& name) {
             if (name.has_value()) {
-              mjs_setName(el, name->c_str());
+              if (mjs_setName(el, name->c_str())) {
+                throw pybind11::value_error(mjs_getError(mjs_getSpec(el)));
+              }
             }
           };
           """
