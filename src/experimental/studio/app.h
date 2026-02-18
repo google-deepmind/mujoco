@@ -232,6 +232,7 @@ class App {
   std::string load_error_;
   std::string step_error_;
   std::optional<std::string> pending_load_;
+  bool preserve_camera_on_load_ = false;
   ModelKind model_kind_ = kEmptyModel;
 
   std::unique_ptr<platform::Window> window_;

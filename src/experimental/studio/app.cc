@@ -149,6 +149,7 @@ void App::RequestModelLoad(std::string model_file) {
 void App::RequestModelReload() {
   if (model_kind_ == kModelFromFile) {
     pending_load_ = model_path_;
+    preserve_camera_on_load_ = true;
   }
 }
 
@@ -198,6 +199,16 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   renderer_->Init(model);
   const int state_size = mj_stateSize(model, mjSTATE_INTEGRATION);
   history_.Init(state_size);
+
+  if (!preserve_camera_on_load_) {
+    const int model_cam = model->vis.global.cameraid;
+    if (model_cam >= 0 && model_cam < model->ncam) {
+      ui_.camera_idx = platform::SetCamera(model, &camera_, model_cam);
+    } else {
+      mjv_defaultFreeCamera(model, &camera_);
+    }
+  }
+  preserve_camera_on_load_ = false;
 
   // Initialize the speed based on the model's default real-time setting.
   float min_error = FLT_MAX;
