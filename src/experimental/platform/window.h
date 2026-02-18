@@ -35,7 +35,6 @@ class Window {
  public:
   struct Config {
     RendererBackend renderer_backend = RendererBackend::ClassicOpenGl;
-    bool enable_keyboard = true;
     bool load_fonts = true;
     bool offscreen_mode = false;
   };

@@ -112,11 +112,6 @@ Window::Window(std::string_view title, int width, int height, Config config)
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
     mju_error("Error initializing SDL: %s", SDL_GetError());
   }
-  if (!config_.enable_keyboard) {
-    SDL_EventState(SDL_TEXTINPUT, SDL_DISABLE);
-    SDL_EventState(SDL_KEYDOWN, SDL_DISABLE);
-    SDL_EventState(SDL_KEYUP, SDL_DISABLE);
-  }
 
   int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
   if (renderer_backend == RendererBackend::FilamentVulkan) {
