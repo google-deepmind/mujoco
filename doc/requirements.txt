@@ -13,6 +13,6 @@ pandoc==1.1.0
 pygments==2.19.2
 jq==1.8.0
 Jinja2==3.1.6
-wheel==0.45.1
+wheel==0.46.2
 # see https://github.com/aws/aws-sam-cli/issues/3661 regarding markupsafe
 markupsafe==2.0.1
