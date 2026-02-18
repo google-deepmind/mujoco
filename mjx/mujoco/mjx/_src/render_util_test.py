@@ -58,9 +58,7 @@ class RenderUtilTest(absltest.TestCase):
         'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
         {0: warp_rc},
     ):
-      rgb = jax.jit(render_util.get_rgb, static_argnums=(0, 2))(
-          rc, rgb_data, 0
-      )
+      rgb = jax.jit(render_util.get_rgb, static_argnums=(0, 1))(rc, 0, rgb_data)
 
     self.assertEqual(rgb.shape, (height, width, 3))
 
@@ -68,18 +66,16 @@ class RenderUtilTest(absltest.TestCase):
     nworld, width, height = 3, 4, 4
     warp_rc = _fake_render_context(1, width, height)
     rc = mock.MagicMock(key=0)
-    rgb_data = jnp.zeros(
-        (nworld, width * height), dtype=jnp.uint32
-    )
+    rgb_data = jnp.zeros((nworld, width * height), dtype=jnp.uint32)
 
     with mock.patch.dict(
         'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
         {0: warp_rc},
     ):
       rgb = jax.jit(
-          jax.vmap(render_util.get_rgb, in_axes=(None, 0, None)),
-          static_argnums=(0, 2),
-      )(rc, rgb_data, 0)
+          jax.vmap(render_util.get_rgb, in_axes=(None, None, 0)),
+          static_argnums=(0, 1),
+      )(rc, 0, rgb_data)
 
     self.assertEqual(rgb.shape, (nworld, height, width, 3))
 
@@ -93,9 +89,9 @@ class RenderUtilTest(absltest.TestCase):
         'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
         {0: warp_rc},
     ):
-      depth = jax.jit(
-          render_util.get_depth, static_argnums=(0, 2, 3)
-      )(rc, depth_data, 0, 5.0)
+      depth = jax.jit(render_util.get_depth, static_argnums=(0, 1, 3))(
+          rc, 0, depth_data, 5.0
+      )
 
     self.assertEqual(depth.shape, (height, width))
 
@@ -103,18 +99,16 @@ class RenderUtilTest(absltest.TestCase):
     nworld, width, height = 3, 4, 4
     warp_rc = _fake_render_context(1, width, height)
     rc = mock.MagicMock(key=0)
-    depth_data = jnp.zeros(
-        (nworld, width * height), dtype=jnp.float32
-    )
+    depth_data = jnp.zeros((nworld, width * height), dtype=jnp.float32)
 
     with mock.patch.dict(
         'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
         {0: warp_rc},
     ):
       depth = jax.jit(
-          jax.vmap(render_util.get_depth, in_axes=(None, 0, None, None)),
-          static_argnums=(0, 2, 3),
-      )(rc, depth_data, 0, 5.0)
+          jax.vmap(render_util.get_depth, in_axes=(None, None, 0, None)),
+          static_argnums=(0, 1, 3),
+      )(rc, 0, depth_data, 5.0)
 
     self.assertEqual(depth.shape, (nworld, height, width))
 

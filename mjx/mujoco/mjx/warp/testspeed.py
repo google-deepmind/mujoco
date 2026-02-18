@@ -155,7 +155,7 @@ def benchmark(
   def render_fn(mx, d, rc):
     d = mjx.refit_bvh(mx, d, rc)
     pixels, _ = mjx.render(mx, d, rc)
-    return render_util.get_rgb(rc, pixels, 0), d
+    return render_util.get_rgb(rc, 0, pixels), d
 
   @jax_jit
   def unroll(d):
@@ -232,7 +232,9 @@ def benchmark_raw_warp(
   if render:
     mjwarp.forward(mw, dw)
     rc = mjwarp.create_render_context(
-        m, mw, dw,
+        m,
+        mw,
+        dw,
         (_RENDER_WIDTH.value, _RENDER_HEIGHT.value),
         [_RENDER_RGB.value] * ncam,
         [_RENDER_DEPTH.value] * ncam,
