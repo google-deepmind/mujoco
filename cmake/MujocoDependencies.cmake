@@ -59,7 +59,7 @@ set(MUJOCO_DEP_VERSION_benchmark
 )
 
 set(MUJOCO_DEP_VERSION_TriangleMeshDistance
-    2cb643de1436e1ba8e2be49b07ec5491ac604457
+    566c9486533082fe7d9a3ffae15799bc5c125528
     CACHE STRING "Version of `TriangleMeshDistance` to be fetched."
 )
 
@@ -211,18 +211,21 @@ if(NOT TARGET trianglemeshdistance)
 
   FetchContent_GetProperties(trianglemeshdistance)
   if(NOT trianglemeshdistance_POPULATED)
-    FetchContent_Populate(trianglemeshdistance)
-    # Patch the source code to silence a warning/error related to a loop variable creating a copy.
-    # Since this is a header only library this fix is less intrusive than disabling the warning for
-    # any target including the header.
-    set(TMD_HEADER ${trianglemeshdistance_SOURCE_DIR}/TriangleMeshDistance/include/tmd/TriangleMeshDistance.h)
-    file(READ ${TMD_HEADER} TMD_CONTENT)
-    string(REPLACE
-      "for (const auto edge_count : edges_count) {"
-      "for (const auto& edge_count : edges_count) {"
-      TMD_CONTENT "${TMD_CONTENT}")
-    file(WRITE ${TMD_HEADER} "${TMD_CONTENT}")
-    include_directories(${trianglemeshdistance_SOURCE_DIR})
+    findorfetch(
+      USE_SYSTEM_PACKAGE
+      OFF
+      PACKAGE_NAME
+      trianglemeshdistance
+      LIBRARY_NAME
+      trianglemeshdistance
+      GIT_REPO
+      https://github.com/InteractiveComputerGraphics/TriangleMeshDistance.git
+      GIT_TAG
+      ${MUJOCO_DEP_VERSION_TriangleMeshDistance}
+      TARGETS
+      trianglemeshdistance
+      EXCLUDE_FROM_ALL
+    )
   endif()
 endif()
 
