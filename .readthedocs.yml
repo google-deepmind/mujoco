@@ -3,9 +3,11 @@
 
 version: 2
 
-# TODO(robotics-simulation): pdf format fails to build on readthedocs
-# formats:
-#   - pdf
+# Enable downloadable documentation formats
+formats:
+  - pdf
+  - htmlzip
+  - epub
 
 build:
   os: ubuntu-24.04
