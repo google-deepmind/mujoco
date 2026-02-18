@@ -744,6 +744,22 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d_2.contact.frame.shape, (1, 9))
     np.testing.assert_allclose(d_2.contact.frame, d.contact.frame)
 
+  def test_get_data_into_warp(self):
+    """Test get_data_into for impl='warp'."""
+
+    # TODO(taylorhowell): After put_data supports impl='warp' update test above
+    # and remove this test.
+    if not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp is not installed.')
+    if not mjx_io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device.')
+
+    m = mujoco.MjModel.from_xml_string('<mujoco></mujoco>')
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m, impl='warp')
+    dx = mjx.make_data(m, impl='warp')
+    mjx.get_data_into(d, mx, dx)
+
   @parameterized.parameters('jax', 'c')
   def test_get_data_into_wrong_shape(self, impl):
     """Tests that get_data_into throwsif input and output shapes don't match."""

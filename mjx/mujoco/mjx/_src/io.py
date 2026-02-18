@@ -1486,10 +1486,11 @@ def _get_data_into_warp(
       if field.name in (
           'actuator_moment',
           'contact',
-          'efc_J',
           'qM',
           'qLD',
           'qLDiagInv',
+          'ten_J',
+          'flexedge_J',
       ):
         continue
       if field.name.startswith('efc_'):
