@@ -696,7 +696,9 @@ using StateTest = MujocoTest;
 
 TEST_F(StateTest, GetSetStateStepEqual) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   // make distribution using seed
@@ -848,7 +850,9 @@ TEST_F(StateTest, CopyState) {
 
 TEST_F(StateTest, ExtractState) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   // make distribution using seed
