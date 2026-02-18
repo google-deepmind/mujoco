@@ -218,6 +218,8 @@ General
    2. Remove ``_full_compat`` from ``mjx.put_data`` and ``mjx.put_model``.
    3. ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1. ``nconmax`` will be deprecated
       in favor of ``naconmax`` in a future release.
+   4. The ``Simulate::InjectNoise`` method needs to set the target of exponential decay to a value from key_ctrl if a valid key is provided as input, else -1.
+
 
 
 3. Joint decorators and spatial tendons which have limits defined and whose current value (angle or length) exceeds the
