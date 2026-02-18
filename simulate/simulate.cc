@@ -2271,20 +2271,22 @@ void Simulate::LoadOnRenderThread() {
   ncam_ = this->m_->ncam;
   nkey_ = this->m_->nkey;
   body_parentid_.resize(this->m_->nbody);
-  std::memcpy(body_parentid_.data(), this->m_->body_parentid,
-              sizeof(this->m_->body_parentid[0]) * this->m_->nbody);
+  if (this->m_->nbody) {
+    std::memcpy(body_parentid_.data(), this->m_->body_parentid,
+                sizeof(this->m_->body_parentid[0]) * this->m_->nbody);
+  }
 
   jnt_type_.resize(this->m_->njnt);
-  std::memcpy(jnt_type_.data(), this->m_->jnt_type,
-              sizeof(this->m_->jnt_type[0]) * this->m_->njnt);
-
   jnt_group_.resize(this->m_->njnt);
-  std::memcpy(jnt_group_.data(), this->m_->jnt_group,
-              sizeof(this->m_->jnt_group[0]) * this->m_->njnt);
-
   jnt_qposadr_.resize(this->m_->njnt);
-  std::memcpy(jnt_qposadr_.data(), this->m_->jnt_qposadr,
-              sizeof(this->m_->jnt_qposadr[0]) * this->m_->njnt);
+  if (this->m_->njnt > 0) {
+    std::memcpy(jnt_type_.data(), this->m_->jnt_type,
+                sizeof(this->m_->jnt_type[0]) * this->m_->njnt);
+    std::memcpy(jnt_group_.data(), this->m_->jnt_group,
+                sizeof(this->m_->jnt_group[0]) * this->m_->njnt);
+    std::memcpy(jnt_qposadr_.data(), this->m_->jnt_qposadr,
+                sizeof(this->m_->jnt_qposadr[0]) * this->m_->njnt);
+  }
 
   jnt_range_.clear();
   jnt_range_.reserve(this->m_->njnt);
@@ -2304,8 +2306,10 @@ void Simulate::LoadOnRenderThread() {
   }
 
   actuator_group_.resize(this->m_->nu);
-  std::memcpy(actuator_group_.data(), this->m_->actuator_group,
-              sizeof(this->m_->actuator_group[0]) * this->m_->nu);
+  if (this->m_->nu) {
+    std::memcpy(actuator_group_.data(), this->m_->actuator_group,
+                sizeof(this->m_->actuator_group[0]) * this->m_->nu);
+  }
 
   actuator_ctrlrange_.clear();
   actuator_ctrlrange_.reserve(this->m_->nu);
@@ -2331,15 +2335,21 @@ void Simulate::LoadOnRenderThread() {
   }
 
   qpos_.resize(this->m_->nq);
-  std::memcpy(qpos_.data(), this->d_->qpos, sizeof(this->d_->qpos[0]) * this->m_->nq);
+  if (this->m_->nq) {
+    std::memcpy(qpos_.data(), this->d_->qpos, sizeof(this->d_->qpos[0]) * this->m_->nq);
+  }
   qpos_prev_ = qpos_;
 
   ctrl_.resize(this->m_->nu);
-  std::memcpy(ctrl_.data(), this->d_->ctrl, sizeof(this->d_->ctrl[0]) * this->m_->nu);
+  if (this->m_->nu) {
+    std::memcpy(ctrl_.data(), this->d_->ctrl, sizeof(this->d_->ctrl[0]) * this->m_->nu);
+  }
   ctrl_prev_ = ctrl_;
 
   eq_active_.resize(this->m_->neq);
-  std::memcpy(eq_active_.data(), this->d_->eq_active, sizeof(this->d_->eq_active[0]) * this->m_->neq);
+  if (this->m_->neq) {
+    std::memcpy(eq_active_.data(), this->d_->eq_active, sizeof(this->d_->eq_active[0]) * this->m_->neq);
+  }
   eq_active_prev_ = eq_active_;
 
   // allocate history buffer: smaller of {2000 states, 100 MB}
