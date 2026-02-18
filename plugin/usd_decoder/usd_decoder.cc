@@ -1831,6 +1831,12 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
   }
 }
 
+void ParseJointEnabled(mjsEquality* eq, const pxr::UsdPhysicsJoint& joint) {
+  bool jointEnabled = true;
+  joint.GetJointEnabledAttr().Get(&jointEnabled);
+  eq->active = jointEnabled ? 1 : 0;
+}
+
 void ParseMjcEqualityAPISolverParams(
     mjsEquality* eq, const pxr::MjcPhysicsEqualityAPI& equality_api,
     const pxr::UsdPrim& prim) {
@@ -1898,6 +1904,9 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     eq_joint_api.GetCoef2Attr().Get(&eq->data[2]);
     eq_joint_api.GetCoef3Attr().Get(&eq->data[3]);
     eq_joint_api.GetCoef4Attr().Get(&eq->data[4]);
+
+    pxr::UsdPhysicsJoint joint(prim);
+    ParseJointEnabled(eq, joint);
 
     ParseMjcEqualityAPISolverParams(eq, equality_api, prim);
   } else if (prim.IsA<pxr::UsdPhysicsFixedJoint>() ||
@@ -2041,6 +2050,8 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
   eq->data[7] = relpose_quat.GetImaginary()[0];
   eq->data[8] = relpose_quat.GetImaginary()[1];
   eq->data[9] = relpose_quat.GetImaginary()[2];
+
+  ParseJointEnabled(eq, joint);
 
   if (prim.HasAPI<pxr::MjcPhysicsEqualityConnectAPI>()) {
     eq->type = mjEQ_CONNECT;
