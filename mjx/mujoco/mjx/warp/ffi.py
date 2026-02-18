@@ -252,7 +252,7 @@ def _squeeze_dim(leaf_expanded: Any, leaf: Any) -> Any:
   return leaf_expanded
 
 
-def marshal_jax_warp_callable(func, skip_output_dim_reshape: bool = False):
+def marshal_jax_warp_callable(func, tree_map_output: bool = False):
   """Marshal fields into a MuJoCo Warp function."""
 
   @functools.wraps(func)
@@ -273,7 +273,7 @@ def marshal_jax_warp_callable(func, skip_output_dim_reshape: bool = False):
     )
     d_expanded_result = func(m_expanded, d_expanded, *extra_args)
 
-    if skip_output_dim_reshape:
+    if tree_map_output:
       return d_expanded_result
     d_result = jax.tree.map(_squeeze_dim, d_expanded_result, d)
     return d_result
@@ -360,7 +360,10 @@ def _check_leading_dim(
     )
 
 
-def marshal_custom_vmap(vmap_func, skip_output_dim_reshape: bool = False):
+def marshal_custom_vmap(
+    vmap_func,
+    tree_map_output: bool = False,
+):
   """Marshal fields for a custom vmap into an MuJoCo Warp function."""
 
   @functools.wraps(vmap_func)
@@ -397,8 +400,11 @@ def marshal_custom_vmap(vmap_func, skip_output_dim_reshape: bool = False):
     d_broadcast_flat_result, out_batched = vmap_func(
         axis_size, is_batched, m_flat, d_broadcast_flat, *extra_args
     )
-    if skip_output_dim_reshape:
-      return d_broadcast_flat_result, out_batched
+    if tree_map_output:
+      out = jax.tree.map(
+          lambda x: x.reshape(axis_size, -1), d_broadcast_flat_result
+      )
+      return out, out_batched
 
     # Explicitly mark MuJoCo Warp data fields as batched after vmapping is done.
     out_batched = jax.tree.map_with_path(

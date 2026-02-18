@@ -179,13 +179,13 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
 
 
 @jax.custom_batching.custom_vmap
-@functools.partial(ffi.marshal_jax_warp_callable, skip_output_dim_reshape=True)
+@functools.partial(ffi.marshal_jax_warp_callable, tree_map_output=True)
 def render(m: types.Model, d: types.Data, ctx: RenderContext):
   return _render_jax_impl(m, d, ctx)
 
 
 @render.def_vmap
-@functools.partial(ffi.marshal_custom_vmap, skip_output_dim_reshape=True)
+@functools.partial(ffi.marshal_custom_vmap, tree_map_output=True)
 def render_vmap(
     unused_axis_size,
     is_batched,
