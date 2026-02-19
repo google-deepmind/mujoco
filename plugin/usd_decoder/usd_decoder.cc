@@ -2391,7 +2391,7 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
   for (const auto& child_node : current_node->children) {
     PopulateSpecFromTree(stage, spec, current_mj_body, current_node,
                          child_node.get(), caches);
-  }  
+  }
 }
 
 mjSpec* ParseStage(const pxr::UsdStageRefPtr stage) {
