@@ -88,7 +88,7 @@ def _refit_bvh_shim(
   _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
   _d.nworld = nworld
-  render_context = _MJX_RENDER_CONTEXT_BUFFERS[rc_id]
+  render_context = _MJX_RENDER_CONTEXT_BUFFERS[(rc_id, wp.get_device().ordinal)]
   dummy.zero_()
   mjwarp.refit_bvh(_m, _d, render_context)
 

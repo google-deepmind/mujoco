@@ -110,14 +110,14 @@ def _render_shim(
   _d.light_xdir = light_xdir
   _d.light_xpos = light_xpos
   _d.nworld = nworld
-  render_context = _MJX_RENDER_CONTEXT_BUFFERS[rc_id]
+  render_context = _MJX_RENDER_CONTEXT_BUFFERS[(rc_id, wp.get_device().ordinal)]
   render_context.rgb_data = rgb
   render_context.depth_data = depth
   mjwarp.render(_m, _d, render_context)
 
 
 def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
-  render_ctx = _MJX_RENDER_CONTEXT_BUFFERS[ctx.key]
+  render_ctx = _MJX_RENDER_CONTEXT_BUFFERS[(ctx.key, None)]
   output_dims = {
       'rgb': render_ctx.rgb_data_shape,
       'depth': render_ctx.depth_data_shape,

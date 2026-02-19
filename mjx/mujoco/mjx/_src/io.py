@@ -1943,6 +1943,7 @@ def set_state(
 def create_render_context(
     mjm: mujoco.MjModel,
     nworld: int,
+    devices: Optional[Sequence[str]] = None,
     **kwargs,
 ):
   """Creates a render context.
@@ -1953,6 +1954,9 @@ def create_render_context(
       because Warp creates arrays of size nworld that are not exposed
       to JAX. Thus we cannot use JAX transforms like vmap with the
       render context.
+    devices: optional list of device names (e.g. ['cuda:0', 'cuda:1']).
+      If provided, rendering workloads are sharded across these devices.
+      By default, devices is None and the default device from wp.get_device(None) is used.
     **kwargs: forwarded to the render context constructor.
 
   Returns:
@@ -1960,4 +1964,6 @@ def create_render_context(
   """
   _check_warp_installed()
   from mujoco.mjx.warp import io as mjxw_io  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-  return mjxw_io.create_render_context(mjm, nworld=nworld, **kwargs)
+  return mjxw_io.create_render_context(
+      mjm, nworld=nworld, devices=devices, **kwargs
+  )

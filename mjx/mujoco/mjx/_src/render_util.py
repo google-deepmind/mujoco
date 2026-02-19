@@ -44,7 +44,7 @@ def get_rgb(
   else:
     raise RuntimeError('Warp not installed.')
 
-  warp_rc = mjxw_render._MJX_RENDER_CONTEXT_BUFFERS[rc.key]
+  warp_rc = mjxw_render._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]
   rgb_adr = int(warp_rc.rgb_adr.numpy()[cam_id])
   width = int(warp_rc.cam_res.numpy()[cam_id][0])
   height = int(warp_rc.cam_res.numpy()[cam_id][1])
@@ -84,7 +84,7 @@ def get_depth(
     import mujoco.mjx.warp.render as mjxw_render  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
   else:
     raise RuntimeError('Warp not installed.')
-  warp_rc = mjxw_render._MJX_RENDER_CONTEXT_BUFFERS[rc.key]
+  warp_rc = mjxw_render._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]
   depth_adr = int(warp_rc.depth_adr.numpy()[cam_id])
   width = int(warp_rc.cam_res.numpy()[cam_id][0])
   height = int(warp_rc.cam_res.numpy()[cam_id][1])
