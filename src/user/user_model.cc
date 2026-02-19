@@ -3231,9 +3231,45 @@ int mjCModel::CountNJten(const mjModel* m) {
   int nv = m->nv;
   int ntendon = m->ntendon;
 
-  // conservative upper bound: each tendon can have at most nv non-zeros
-  // TODO(taylorhowell): compute tighter bound
-  int count = ntendon * nv;
+  std::vector<bool> dof_bitmap(nv, false);
+  int count = 0;
+  for (int i = 0; i < ntendon; i++) {
+    int adr = m->tendon_adr[i];
+    int num = m->tendon_num[i];
+
+    if (m->wrap_type[adr] == mjWRAP_JOINT) {
+      count += num;
+      continue;
+    }
+
+    std::fill(dof_bitmap.begin(), dof_bitmap.end(), false);
+    for (int j = 0; j < num; j++) {
+      int type = m->wrap_type[adr + j];
+      int bodyid = -1;
+      if (type == mjWRAP_SITE) {
+        bodyid = m->site_bodyid[m->wrap_objid[adr + j]];
+      } else if (type == mjWRAP_SPHERE || type == mjWRAP_CYLINDER) {
+        bodyid = m->geom_bodyid[m->wrap_objid[adr + j]];
+      }
+      if (bodyid > 0) {
+        int bid = bodyid;
+        while (bid > 0) {
+          int bdofadr = m->body_dofadr[bid];
+          int bdofnum = m->body_dofnum[bid];
+          for (int k = 0; k < bdofnum; k++) {
+            dof_bitmap[bdofadr + k] = true;
+          }
+          bid = m->body_parentid[bid];
+        }
+      }
+    }
+
+    // only count unique dofs
+    for (int j = 0; j < nv; j++) {
+      count += dof_bitmap[j];
+    }
+  }
+
   return count;
 }
 
