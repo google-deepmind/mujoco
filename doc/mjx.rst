@@ -207,6 +207,8 @@ excessive graph captures in the JAX-Warp FFI layer.
      - 0.65M
 
 
+.. _MjxWarpBatchRendering:
+
 MJX-Warp Batch Rendering
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -218,9 +220,9 @@ Note that the number of parallel worlds (``nworld``) is fixed when creating the 
 
 .. code-block:: python
 
-    from mujoco.mjx import io
+    from mujoco.mjx import create_render_context
 
-    rc = io.create_render_context(
+    rc = create_render_context(
         mjm=m,
         nworld=nworld,
         cam_res=(width, height),
@@ -247,12 +249,33 @@ volume hierarchy (BVH) and executing the raycaster:
         pixels, _ = mjx.render(mx, d, rc)
 
         # 3. Extract the RGB tensor for the first camera (index 0)
-        rgb = get_rgb(rc, pixels, 0)
+        rgb = get_rgb(rc, 0, pixels)
 
         # CAVEAT: Always return or use the updated `d` in your computation graph.
         # Otherwise, JAX's dead-code elimination will optimize away the refit_bvh call!
         return rgb, d
 
+Multi-GPU rendering with ``pmap``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To render across multiple GPUs, create a render context **per device** by passing ``devices`` to
+:func:`create_render_context <mujoco.mjx.create_render_context>`.
+
+.. code-block:: python
+
+    ndevices = jax.local_device_count()
+    nworld_per_device = nworld // ndevices
+
+    # Create one render context for all devices
+    rc = create_render_context(
+        mjm=m,
+        nworld=nworld_per_device,
+        devices=[f'cuda:{i}' for i in range(ndevices)],
+        cam_res=(width, height),
+    )
+
+Then use ``jax.pmap`` to parallelize the rendering across devices. See the complete example in
+`visualize_render.py <https://github.com/google-deepmind/mujoco/blob/main/mjx/mujoco/mjx/warp/visualize_render.py>`__.
 
 .. _MjxJAX:
 
