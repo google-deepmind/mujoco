@@ -56,6 +56,13 @@ class ModelHolder {
   // Returns the error message if the model failed to load.
   std::string_view error() const { return error_; }
 
+  // Releases ownership of the underlying MuJoCo structures. Callers are now
+  // responsible for calling the appropriate `mj_delete*` function on these
+  // objects.
+  mjSpec* ReleaseSpec();
+  mjData* ReleaseData();
+  mjModel* ReleaseModel();
+
  private:
   ModelHolder() = default;
   void InitFromSpec(mjSpec* spec);

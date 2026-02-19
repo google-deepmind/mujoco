@@ -137,4 +137,22 @@ void ModelHolder::SetLoadError(std::string_view error) {
   error_[sizeof(error_) - 1] = 0;
 }
 
+mjSpec* ModelHolder::ReleaseSpec() {
+  mjSpec* spec = spec_;
+  spec_ = nullptr;
+  return spec;
+}
+
+mjData* ModelHolder::ReleaseData() {
+  mjData* data = data_;
+  data_ = nullptr;
+  return data;
+}
+
+mjModel* ModelHolder::ReleaseModel() {
+  mjModel* model = model_;
+  model_ = nullptr;
+  return model;
+}
+
 }  // namespace mujoco::platform
