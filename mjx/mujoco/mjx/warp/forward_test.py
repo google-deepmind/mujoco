@@ -149,7 +149,14 @@ class ForwardTest(parameterized.TestCase):
         tu.assert_attr_eq(dx, d, 'cam_xpos')
         tu.assert_eq(dx.cam_xmat, d.cam_xmat.reshape((-1, 3, 3)), 'cam_xmat')
       tu.assert_attr_eq(dx, d, 'ten_length')
-      ten_J = d.ten_J.reshape((m.ntendon, m.nv))
+      ten_J = np.zeros((m.ntendon, m.nv))
+      mujoco.mju_sparse2dense(
+          ten_J,
+          d.ten_J,
+          d.ten_J_rownnz,
+          d.ten_J_rowadr,
+          d.ten_J_colind,
+      )
       tu.assert_eq(dx._impl.ten_J, ten_J, 'ten_J')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapadr')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapnum')

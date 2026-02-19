@@ -253,15 +253,11 @@ TEST_F(CoreSmoothTest, TendonArmature) {
     // add tendon inertias to M2 using outer product
     for (int j=0; j < m->ntendon; j++) {
       // get tendon Jacobian
-      if (mj_isSparse(m)) {
-        int rowadr = d->ten_J_rowadr[j];
-        int* rownnz = d->ten_J_rownnz + j;
-        int zero = 0;
-        mju_sparse2dense(ten_J.data(), d->ten_J + rowadr, 1, nv,
-                         rownnz, &zero, d->ten_J_colind + rowadr);
-      } else {
-        mju_copy(ten_J.data(), d->ten_J + j*nv, nv);
-      }
+      int rowadr = d->ten_J_rowadr[j];
+      int* rownnz = d->ten_J_rownnz + j;
+      int zero = 0;
+      mju_sparse2dense(ten_J.data(), d->ten_J + rowadr, 1, nv,
+                       rownnz, &zero, d->ten_J_colind + rowadr);
 
       // get tendon inertia only, using outer product
       mju_mulMatMat(ten_M.data(), ten_J.data(), ten_J.data(), nv, 1, nv);

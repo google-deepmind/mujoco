@@ -119,7 +119,6 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
   int nv = m->nv, ntendon = m->ntendon;
   int has_spring = !mjDISABLED(mjDSBL_SPRING);
   int has_damping = !mjDISABLED(mjDSBL_DAMPER);
-  int issparse = mj_isSparse(m);
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
   int nbody = sleep_filter ? d->nbody_awake : m->nbody;
 
@@ -472,20 +471,15 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     // compute damper linear force along tendon
     mjtNum frc_damper = -damping * d->ten_velocity[i];
 
-    // transform to joint torque, add to qfrc_{spring, damper}: dense or sparse
-    if (issparse) {
-      if (frc_spring || frc_damper) {
-        int end = d->ten_J_rowadr[i] + d->ten_J_rownnz[i];
-        for (int j=d->ten_J_rowadr[i]; j < end; j++) {
-          int k = d->ten_J_colind[j];
-          mjtNum J = d->ten_J[j];
-          d->qfrc_spring[k] += J * frc_spring;
-          d->qfrc_damper[k] += J * frc_damper;
-        }
+    // transform to joint torque, add to qfrc_{spring, damper}
+    if (frc_spring || frc_damper) {
+      int end = d->ten_J_rowadr[i] + d->ten_J_rownnz[i];
+      for (int j=d->ten_J_rowadr[i]; j < end; j++) {
+        int k = d->ten_J_colind[j];
+        mjtNum J = d->ten_J[j];
+        d->qfrc_spring[k] += J * frc_spring;
+        d->qfrc_damper[k] += J * frc_damper;
       }
-    } else {
-      if (frc_spring) mju_addToScl(d->qfrc_spring, d->ten_J+i*nv, frc_spring, nv);
-      if (frc_damper) mju_addToScl(d->qfrc_damper, d->ten_J+i*nv, frc_damper, nv);
     }
   }
 }

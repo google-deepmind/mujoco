@@ -1441,16 +1441,12 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printArray2d("FLEXEDGE_LENGTH", m->nflexedge, 1, d->flexedge_length, fp, float_format);
 
   printArray2d("TEN_LENGTH", m->ntendon, 1, d->ten_length, fp, float_format);
-  if (!mj_isSparse(m)) {
-    printArray2d("TEN_MOMENT", m->ntendon, m->nv, d->ten_J, fp, float_format);
-  } else {
-    mj_printSparsity("TEN_J: tendon moments", m->ntendon, m->nv, d->ten_J_rowadr, NULL,
-                     d->ten_J_rownnz, NULL, d->ten_J_colind, fp);
-    printArray2dInt("TEN_J_ROWNNZ", m->ntendon, 1, d->ten_J_rownnz, fp);
-    printArray2dInt("TEN_J_ROWADR", m->ntendon, 1, d->ten_J_rowadr, fp);
-    printSparse("TEN_J", d->ten_J, m->ntendon, d->ten_J_rownnz,
-                d->ten_J_rowadr, d->ten_J_colind, fp, float_format);
-  }
+  mj_printSparsity("TEN_J: tendon moments", m->ntendon, m->nv, d->ten_J_rowadr, NULL,
+                   d->ten_J_rownnz, NULL, d->ten_J_colind, fp);
+  printArray2dInt("TEN_J_ROWNNZ", m->ntendon, 1, d->ten_J_rownnz, fp);
+  printArray2dInt("TEN_J_ROWADR", m->ntendon, 1, d->ten_J_rowadr, fp);
+  printSparse("TEN_J", d->ten_J, m->ntendon, d->ten_J_rownnz,
+              d->ten_J_rowadr, d->ten_J_colind, fp, float_format);
   for (int i=0; i < m->ntendon; i++) {
     fprintf(fp, "TENDON %d: %d wrap points\n", i, d->ten_wrapnum[i]);
     for (int j=0; j < d->ten_wrapnum[i]; j++) {

@@ -1111,7 +1111,7 @@ def _put_data_jax(
   impl_fields['actuator_moment'] = moment
 
   # convert ten_J to dense matrix
-  if mujoco.mj_isSparse(m):
+  if m.ntendon:
     ten_J = np.zeros((m.ntendon, m.nv))
     mujoco.mju_sparse2dense(
         ten_J,
@@ -1120,8 +1120,6 @@ def _put_data_jax(
         d.ten_J_rowadr,
         d.ten_J_colind,
     )
-  elif m.ntendon:
-    ten_J = d.ten_J.reshape((m.ntendon, m.nv))
   else:
     ten_J = np.zeros((m.ntendon, m.nv))
   impl_fields['ten_J'] = ten_J

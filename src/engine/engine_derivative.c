@@ -1775,12 +1775,8 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
       continue;
     }
 
-    // add sparse or dense
-    if (mj_isSparse(m)) {
-      addJTBJSparse(m, d, d->ten_J, &B, 1, i, d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
-    } else {
-      addJTBJ(m, d, d->ten_J+i*nv, &B, 1);
-    }
+    // add sparse
+    addJTBJSparse(m, d, d->ten_J, &B, 1, i, d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
   }
 }
 

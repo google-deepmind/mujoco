@@ -904,7 +904,7 @@ void mj_flex(const mjModel* m, mjData* d) {
 
 // compute tendon lengths and moments
 void mj_tendon(const mjModel* m, mjData* d) {
-  int issparse = mj_isSparse(m), nv = m->nv, nten = m->ntendon;
+  int nv = m->nv, nten = m->ntendon;
   int *rownnz = d->ten_J_rownnz, *rowadr = d->ten_J_rowadr, *colind = d->ten_J_colind;
   mjtNum *L = d->ten_length, *J = d->ten_J;
 
@@ -913,28 +913,22 @@ void mj_tendon(const mjModel* m, mjData* d) {
   }
 
   // allocate stack arrays
-  int *chain = NULL, *buf_ind = NULL;
-  mjtNum *jac1, *jac2, *jacdif, *tmp, *sparse_buf = NULL;
+  int *chain, *buf_ind;
+  mjtNum *jac1, *jac2, *jacdif, *tmp, *sparse_buf;
   mj_markStack(d);
   jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
   jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
   tmp = mjSTACKALLOC(d, nv, mjtNum);
-  if (issparse) {
-    chain = mjSTACKALLOC(d, nv, int);
-    buf_ind = mjSTACKALLOC(d, nv, int);
-    sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
-  }
+  chain = mjSTACKALLOC(d, nv, int);
+  buf_ind = mjSTACKALLOC(d, nv, int);
+  sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
 
   // clear results
   mju_zero(L, nten);
 
-  // clear Jacobian: sparse or dense
-  if (issparse) {
-    mju_zeroInt(rownnz, nten);
-  } else {
-    mju_zero(J, nten*nv);
-  }
+  // clear Jacobian
+  mju_zeroInt(rownnz, nten);
 
   // sleep filtering
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
@@ -954,9 +948,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
     int tendon_num = m->tendon_num[i];
 
     // sparse Jacobian row init
-    if (issparse) {
-      rowadr[i] = (i > 0 ? rowadr[i-1] + rownnz[i-1] : 0);
-    }
+    rowadr[i] = (i > 0 ? rowadr[i-1] + rownnz[i-1] : 0);
 
     // process fixed tendon
     if (m->wrap_type[adr] == mjWRAP_JOINT) {
@@ -969,17 +961,10 @@ void mj_tendon(const mjModel* m, mjData* d) {
         L[i] += m->wrap_prm[adr+j] * d->qpos[m->jnt_qposadr[k]];
 
         // add to moment
-        if (issparse) {
-          rownnz[i] = mju_combineSparse(J+rowadr[i], &m->wrap_prm[adr+j], 1, 1,
-                                        rownnz[i], 1,
-                                        colind+rowadr[i], &m->jnt_dofadr[k],
-                                        sparse_buf, buf_ind);
-        }
-
-        // add to moment: dense
-        else {
-          J[i*nv + m->jnt_dofadr[k]] = m->wrap_prm[adr+j];
-        }
+        rownnz[i] = mju_combineSparse(J+rowadr[i], &m->wrap_prm[adr+j], 1, 1,
+                                      rownnz[i], 1,
+                                      colind+rowadr[i], &m->jnt_dofadr[k],
+                                      sparse_buf, buf_ind);
       }
 
       continue;
@@ -1060,40 +1045,23 @@ void mj_tendon(const mjModel* m, mjData* d) {
           mji_sub3(dif, wpnt+3*k+3, wpnt+3*k);
           mju_normalize3(dif);
 
-          // sparse
-          if (issparse) {
-            // get endpoint Jacobians, subtract
-            int NV = mj_jacDifPair(m, d, chain,
-                                   wbody[k], wbody[k+1], wpnt+3*k, wpnt+3*k+3,
-                                   jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1);
+          // get endpoint Jacobians, subtract
+          int NV = mj_jacDifPair(m, d, chain,
+                                 wbody[k], wbody[k+1], wpnt+3*k, wpnt+3*k+3,
+                                 jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1);
 
-            // no dofs: skip
-            if (!NV) {
-              continue;
-            }
-
-            // apply chain rule to compute tendon Jacobian
-            mju_mulMatTVec(tmp, jacdif, dif, 3, NV);
-
-            // add to existing
-            rownnz[i] = mju_combineSparse(J+rowadr[i], tmp, 1, 1/divisor,
-                                          rownnz[i], NV, colind+rowadr[i],
-                                          chain, sparse_buf, buf_ind);
+          // no dofs: skip
+          if (!NV) {
+            continue;
           }
 
-          // dense
-          else {
-            // get endpoint Jacobians, subtract
-            mj_jac(m, d, jac1, 0, wpnt+3*k, wbody[k]);
-            mj_jac(m, d, jac2, 0, wpnt+3*k+3, wbody[k+1]);
-            mju_sub(jacdif, jac2, jac1, 3*nv);
+          // apply chain rule to compute tendon Jacobian
+          mju_mulMatTVec(tmp, jacdif, dif, 3, NV);
 
-            // apply chain rule to compute tendon Jacobian
-            mju_mulMatTVec(tmp, jacdif, dif, 3, nv);
-
-            // add to existing
-            mju_addToScl(J + i*nv, tmp, 1/divisor, nv);
-          }
+          // add to existing
+          rownnz[i] = mju_combineSparse(J+rowadr[i], tmp, 1, 1/divisor,
+                                        rownnz[i], NV, colind+rowadr[i],
+                                        chain, sparse_buf, buf_ind);
         }
       }
 
@@ -1449,28 +1417,14 @@ void mj_transmission(const mjModel* m, mjData* d) {
     case mjTRN_TENDON:                  // tendon
       length[i] = d->ten_length[id]*gear[0];
 
-      // moment: sparse or dense
-      if (issparse) {
-        // sparsity
+      // moment
+      {
         int ten_J_rownnz = d->ten_J_rownnz[id];
         int ten_J_rowadr = d->ten_J_rowadr[id];
         rownnz[i] = ten_J_rownnz;
         mju_copyInt(colind + adr, d->ten_J_colind + ten_J_rowadr, ten_J_rownnz);
 
         mju_scl(moment + adr, d->ten_J + ten_J_rowadr, gear[0], ten_J_rownnz);
-      } else {
-        mju_scl(moment+adr, d->ten_J + id*nv, gear[0], nv);
-
-        // sparsity (compress)
-        nnz = 0;
-        for (int j = 0; j < nv; j++) {
-          if (moment[adr+j]) {
-            moment[adr+nnz] = moment[adr+j];
-            colind[adr+nnz] = j;
-            nnz++;
-          }
-        }
-        rownnz[i] = nnz;
       }
       break;
 
@@ -1743,7 +1697,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
 // add tendon armature to M
 void mj_tendonArmature(const mjModel* m, mjData* d) {
-  int nv = m->nv, ntendon = m->ntendon, issparse = mj_isSparse(m);
+  int nv = m->nv, ntendon = m->ntendon;
   const int* M_rownnz = m->M_rownnz;
   const int* M_rowadr = m->M_rowadr;
   const int* M_colind = m->M_colind;
@@ -1762,47 +1716,25 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
       continue;
     }
 
-    // dense
-    if (!issparse) {
-      // M += armature * ten_J' * ten_J
-      mjtNum* ten_J = d->ten_J + nv*k;
-      for (int i=0; i < nv; i++) {
-        mjtNum ten_J_i = ten_J[i];
-        if (!ten_J_i) {
-          continue;
-        }
+    // get sparse info for tendon k
+    int J_rowadr = d->ten_J_rowadr[k];
+    int J_rownnz = d->ten_J_rownnz[k];
+    const int* J_colind = d->ten_J_colind + J_rowadr;
+    mjtNum* ten_J = d->ten_J + J_rowadr;
 
-        // M[i,:] += armature * ten_J[i] * ten_J
-        int start = M_rowadr[i];
-        int end = start + M_rownnz[i];
-        for (int adr = start; adr < end; adr++) {
-          d->M[adr] += armature * ten_J_i * ten_J[M_colind[adr]];
-        }
+    // M += armature * ten_J' * ten_J
+    for (int j=0; j < J_rownnz; j++) {
+      mjtNum ten_J_i = ten_J[j];
+      if (!ten_J_i) {
+        continue;
       }
-    }
 
-    // sparse
-    else {
-      // get sparse info for tendon k
-      int J_rowadr = d->ten_J_rowadr[k];
-      int J_rownnz = d->ten_J_rownnz[k];
-      const int* J_colind = d->ten_J_colind + J_rowadr;
-      mjtNum* ten_J = d->ten_J + J_rowadr;
-
-      // M += armature * ten_J' * ten_J
-      for (int j=0; j < J_rownnz; j++) {
-        mjtNum ten_J_i = ten_J[j];
-        if (!ten_J_i) {
-          continue;
-        }
-
-        // M[i,:] += armature * ten_J[i] * ten_J
-        int i = J_colind[j];
-        int M_adr = M_rowadr[i];
-        mju_addToSclSparseInc(d->M + M_adr, ten_J,
-                              M_rownnz[i], M_colind + M_adr,
-                              J_rownnz, J_colind, armature * ten_J_i);
-      }
+      // M[i,:] += armature * ten_J[i] * ten_J
+      int i = J_colind[j];
+      int M_adr = M_rowadr[i];
+      mju_addToSclSparseInc(d->M + M_adr, ten_J,
+                            M_rownnz[i], M_colind + M_adr,
+                            J_rownnz, J_colind, armature * ten_J_i);
     }
   }
 }
@@ -2686,7 +2618,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 // add bias force due to tendon armature
 void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
-  int ntendon = m->ntendon, nv = m->nv, issparse = mj_isSparse(m);
+  int ntendon = m->ntendon, nv = m->nv;
   mjtNum* ten_Jdot = NULL;
   mj_markStack(d);
 
@@ -2716,20 +2648,13 @@ void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
     mjtNum coef = armature * mju_dot(ten_Jdot, d->qvel, nv);
 
     if (coef) {
-      // dense
-      if (!issparse) {
-        mju_addToScl(qfrc, d->ten_J + nv*i, coef, nv);
-      }
-
       // sparse
-      else {
-        int nnz = d->ten_J_rownnz[i];
-        int adr = d->ten_J_rowadr[i];
-        const int* colind = d->ten_J_colind + adr;
-        const mjtNum* ten_J = d->ten_J + adr;
-        for (int j=0; j < nnz; j++) {
-          qfrc[colind[j]] += coef * ten_J[j];
-        }
+      int nnz = d->ten_J_rownnz[i];
+      int adr = d->ten_J_rowadr[i];
+      const int* colind = d->ten_J_colind + adr;
+      const mjtNum* ten_J = d->ten_J + adr;
+      for (int j=0; j < nnz; j++) {
+        qfrc[colind[j]] += coef * ten_J[j];
       }
     }
   }

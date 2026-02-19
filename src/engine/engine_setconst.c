@@ -756,16 +756,7 @@ static void set0(mjModel* m, mjData* d) {
 
     // compute tendon_invweight0
     for (int i=0; i < m->ntendon; i++) {
-      // make dense vector into tmp
-      if (mj_isSparse(m)) {
-        mju_zero(tmp, nv);
-        int end = d->ten_J_rowadr[i] + d->ten_J_rownnz[i];
-        for (int j=d->ten_J_rowadr[i]; j < end; j++) {
-          tmp[d->ten_J_colind[j]] = d->ten_J[j];
-        }
-      } else {
-        mju_copy(tmp, d->ten_J+i*nv, nv);
-      }
+      mju_sparse2dense(tmp, d->ten_J, 1, nv, d->ten_J_rownnz+i, d->ten_J_rowadr+i, d->ten_J_colind);
 
       // solve into tmp+nv
       mj_solveM(m, d, tmp+nv, tmp, 1);
