@@ -467,7 +467,7 @@ subset of fields.
 Batch Rendering
 ===============
 
-MJWarp provides a high-throughput ray tracing batch renderer built on
+MJWarp provides a batch renderer for high-throughput ray tracing built on
 `Warp's accelerated BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__ for
 rendering worlds with multiple cameras in parallel.
 
@@ -560,7 +560,7 @@ Notes
   :ref:`heightfield <body-geom-hfield>`.
 - **Flex**: Currently limited to 2D and 3D :ref:`flex<deformable-flex>` objects. Performance is expected to improve as
   this feature is further developed.
-- **Scaling**: Rendering scales linearly with resolution (total pixel count) and camera count (parallel structure).
+- **Scaling**: Rendering scales linearly with resolution (total pixel count) and camera count.
 
 .. _mjwFAQ:
 
