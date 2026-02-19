@@ -7,6 +7,9 @@
     "lib": "lib",
     "test": "tests"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "test": "node --loader ts-node/esm --trace-warnings tests/run_tests.mjs",
     "benchmark": "node --loader ts-node/esm --trace-warnings tests/run_benchmarks.mjs",
