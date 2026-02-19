@@ -2027,7 +2027,15 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
   localPos0[2] *= body0_scale[2];
   pxr::GfQuatf localRot0;
   joint.GetLocalRot0Attr().Get(&localRot0);
-  
+
+  pxr::GfVec3f localPos1;
+  joint.GetLocalPos1Attr().Get(&localPos1);
+  localPos1[0] *= body1_scale[0];
+  localPos1[1] *= body1_scale[1];
+  localPos1[2] *= body1_scale[2];
+  pxr::GfQuatf localRot1;
+  joint.GetLocalRot1Attr().Get(&localRot1);
+
   ParseJointEnabled(eq, joint);
 
   if (prim.HasAPI<pxr::MjcPhysicsEqualityConnectAPI>()) {
@@ -2048,14 +2056,6 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     ParseMjcEqualityAPISolverParams(eq, equality_api, prim);
   } else if (prim.HasAPI<pxr::MjcPhysicsEqualityWeldAPI>()) {
     // In weld equalities, anchor is in the local frame of body1
-    pxr::GfVec3f localPos1;
-    joint.GetLocalPos1Attr().Get(&localPos1);
-    localPos1[0] *= body1_scale[0];
-    localPos1[1] *= body1_scale[1];
-    localPos1[2] *= body1_scale[2];
-    pxr::GfQuatf localRot1;
-    joint.GetLocalRot1Attr().Get(&localRot1);
-  
     auto relpose_quat = localRot0 * localRot1.GetConjugate();
     relpose_quat.Normalize();
     auto relpose_pos = localPos0 - relpose_quat.Transform(localPos1);
