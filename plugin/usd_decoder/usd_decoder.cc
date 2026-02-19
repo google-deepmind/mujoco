@@ -2020,14 +2020,6 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     }
     }
 
-  pxr::GfVec3f localPos1;
-  joint.GetLocalPos1Attr().Get(&localPos1);
-  localPos1[0] *= body1_scale[0];
-  localPos1[1] *= body1_scale[1];
-  localPos1[2] *= body1_scale[2];
-  pxr::GfQuatf localRot1;
-  joint.GetLocalRot1Attr().Get(&localRot1);
-
   pxr::GfVec3f localPos0;
   joint.GetLocalPos0Attr().Get(&localPos0);
   localPos0[0] *= body0_scale[0];
@@ -2035,29 +2027,50 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
   localPos0[2] *= body0_scale[2];
   pxr::GfQuatf localRot0;
   joint.GetLocalRot0Attr().Get(&localRot0);
-
-  auto relpose_quat = localRot0 * localRot1.GetConjugate();
-  relpose_quat.Normalize();
-  auto relpose_pos = localPos0 - relpose_quat.Transform(localPos1);
-
-  eq->data[0] = localPos1[0];
-  eq->data[1] = localPos1[1];
-  eq->data[2] = localPos1[2];
-  eq->data[3] = relpose_pos[0];
-  eq->data[4] = relpose_pos[1];
-  eq->data[5] = relpose_pos[2];
-  eq->data[6] = relpose_quat.GetReal();
-  eq->data[7] = relpose_quat.GetImaginary()[0];
-  eq->data[8] = relpose_quat.GetImaginary()[1];
-  eq->data[9] = relpose_quat.GetImaginary()[2];
-
+  
   ParseJointEnabled(eq, joint);
 
   if (prim.HasAPI<pxr::MjcPhysicsEqualityConnectAPI>()) {
+    // In connect equalities, anchor is in the local frame of body0
+    eq->data[0] = localPos0[0];
+    eq->data[1] = localPos0[1];
+    eq->data[2] = localPos0[2];
+    eq->data[3] = 0.0;
+    eq->data[4] = 0.0;
+    eq->data[5] = 0.0;
+    eq->data[6] = 0.0;
+    eq->data[7] = 0.0;
+    eq->data[8] = 0.0;
+    eq->data[9] = 0.0;
+    
     eq->type = mjEQ_CONNECT;
     pxr::MjcPhysicsEqualityAPI equality_api(prim);
     ParseMjcEqualityAPISolverParams(eq, equality_api, prim);
   } else if (prim.HasAPI<pxr::MjcPhysicsEqualityWeldAPI>()) {
+    // In weld equalities, anchor is in the local frame of body1
+    pxr::GfVec3f localPos1;
+    joint.GetLocalPos1Attr().Get(&localPos1);
+    localPos1[0] *= body1_scale[0];
+    localPos1[1] *= body1_scale[1];
+    localPos1[2] *= body1_scale[2];
+    pxr::GfQuatf localRot1;
+    joint.GetLocalRot1Attr().Get(&localRot1);
+  
+    auto relpose_quat = localRot0 * localRot1.GetConjugate();
+    relpose_quat.Normalize();
+    auto relpose_pos = localPos0 - relpose_quat.Transform(localPos1);
+  
+    eq->data[0] = localPos1[0];
+    eq->data[1] = localPos1[1];
+    eq->data[2] = localPos1[2];
+    eq->data[3] = relpose_pos[0];
+    eq->data[4] = relpose_pos[1];
+    eq->data[5] = relpose_pos[2];
+    eq->data[6] = relpose_quat.GetReal();
+    eq->data[7] = relpose_quat.GetImaginary()[0];
+    eq->data[8] = relpose_quat.GetImaginary()[1];
+    eq->data[9] = relpose_quat.GetImaginary()[2];
+  
     pxr::MjcPhysicsEqualityAPI equality_api(prim);
     ParseMjcEqualityAPISolverParams(eq, equality_api, prim);
 
@@ -2378,7 +2391,7 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
   for (const auto& child_node : current_node->children) {
     PopulateSpecFromTree(stage, spec, current_mj_body, current_node,
                          child_node.get(), caches);
-  }
+  }  
 }
 
 mjSpec* ParseStage(const pxr::UsdStageRefPtr stage) {
