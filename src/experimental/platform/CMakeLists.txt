@@ -50,7 +50,6 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         interaction.h
         model_holder.cc
         model_holder.h
-        object_launcher_plugin.cc
         picture_gui.h
         picture_gui.cc
         plugin.cc
@@ -67,6 +66,13 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         window.cc
         window.h
 )
+
+if(NOT WINDOWS)
+  target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
+      PUBLIC
+          object_launcher_plugin.cc
+  )
+endif()
 
 if(APPLE)
     set_source_files_properties(window_osx.mm PROPERTIES
