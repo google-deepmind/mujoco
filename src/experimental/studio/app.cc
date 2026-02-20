@@ -25,7 +25,6 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
-#include <random>
 #include <span>
 #include <string>
 #include <string_view>
@@ -108,8 +107,7 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 };
 // clang-format on
 
-App::App(Config config)
-    : rng_(std::random_device()()), ini_path_(std::move(config.ini_path)) {
+App::App(Config config) : ini_path_(std::move(config.ini_path)) {
   platform::Window::Config window_config;
   window_config.renderer_backend = platform::Renderer::GetBackend();
   window_config.offscreen_mode = config.offscreen_mode;
@@ -221,10 +219,6 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
       min_error = error;
       SetSpeedIndex(i);
     }
-  }
-if (spec_op_) {
-    spec_op_();
-    spec_op_ = nullptr;
   }
 
   platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
@@ -390,6 +384,23 @@ void App::ProcessPendingLoads() {
       LoadModelFromFile(load_data);
     }
   }
+
+  if (spec_op_) {
+    spec_op_();
+    spec_op_ = nullptr;
+  }
+
+  // Allow plugins to edit the spec as well.
+  platform::ForEachPlugin<platform::SpecEditorPlugin>([&](auto* plugin) {
+    if (plugin->pre_compile) {
+      if (plugin->pre_compile(plugin, spec(), model(), data(), &camera_)) {
+        Recompile();
+        if (plugin->post_compile) {
+          plugin->post_compile(plugin, spec(), model(), data());
+        }
+      };
+    }
+  });
 
   // Check plugins to see if we need to load a new model.
   platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
@@ -715,60 +726,65 @@ void App::HandleKeyboardEvents() {
     ToggleFlag(vis_options_.geomgroup[4]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_5)) {
     ToggleFlag(vis_options_.geomgroup[5]);
-  } else if (has_model()) {
-    if (ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
-      ui_.camera_idx =
-          platform::SetCamera(model(), &camera_, platform::kTumbleCameraIdx);
-    } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftBracket)) {
-      ui_.camera_idx =
-          platform::SetCamera(model(), &camera_, ui_.camera_idx - 1);
-    } else if (ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
-      ui_.camera_idx =
-          platform::SetCamera(model(), &camera_, ui_.camera_idx + 1);
+  } else if (has_model() && ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
+    ui_.camera_idx =
+        platform::SetCamera(model(), &camera_, platform::kTumbleCameraIdx);
+  } else if (has_model() && ImGui_IsChordJustPressed(ImGuiKey_LeftBracket)) {
+    ui_.camera_idx = platform::SetCamera(model(), &camera_, ui_.camera_idx - 1);
+  } else if (has_model() && ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
+    ui_.camera_idx = platform::SetCamera(model(), &camera_, ui_.camera_idx + 1);
+  // WASD camera controls for free camera.
+  } else if (is_freecam_wasd &&
+             (ImGui::IsKeyDown(ImGuiKey_W) || ImGui::IsKeyDown(ImGuiKey_S) ||
+              ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsKeyDown(ImGuiKey_D) ||
+              ImGui::IsKeyDown(ImGuiKey_Q) || ImGui::IsKeyDown(ImGuiKey_E))) {
+    bool moved = false;
+
+    // Move (dolly) forward/backward using W and S keys.
+    if (ImGui::IsKeyDown(ImGuiKey_W)) {
+      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, tmp_.cam_speed);
+      moved = true;
+    } else if (ImGui::IsKeyDown(ImGuiKey_S)) {
+      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, -tmp_.cam_speed);
+      moved = true;
     }
 
-    // WASD camera controls for free camera.
-    if (is_freecam_wasd) {
-      bool moved = false;
+    // Strafe (truck) left/right using A and D keys.
+    if (ImGui::IsKeyDown(ImGuiKey_A)) {
+      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, -tmp_.cam_speed, 0);
+      moved = true;
+    } else if (ImGui::IsKeyDown(ImGuiKey_D)) {
+      MoveCamera(platform::CameraMotion::TRUCK_DOLLY, tmp_.cam_speed, 0);
+      moved = true;
+    }
 
-      // Move (dolly) forward/backward using W and S keys.
-      if (ImGui::IsKeyDown(ImGuiKey_W)) {
-        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, tmp_.cam_speed);
-        moved = true;
-      } else if (ImGui::IsKeyDown(ImGuiKey_S)) {
-        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, -tmp_.cam_speed);
-        moved = true;
+    // Move (pedestal) up/down using Q and E keys.
+    if (ImGui::IsKeyDown(ImGuiKey_Q)) {
+      MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, tmp_.cam_speed);
+      moved = true;
+    } else if (ImGui::IsKeyDown(ImGuiKey_E)) {
+      MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, -tmp_.cam_speed);
+      moved = true;
+    }
+
+    if (moved) {
+      tmp_.cam_speed += 0.001f;
+
+      const float max_speed = ImGui::GetIO().KeyShift ? 0.1 : 0.01f;
+      if (tmp_.cam_speed > max_speed) {
+        tmp_.cam_speed = max_speed;
       }
-
-      // Strafe (truck) left/right using A and D keys.
-      if (ImGui::IsKeyDown(ImGuiKey_A)) {
-        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, -tmp_.cam_speed, 0);
-        moved = true;
-      } else if (ImGui::IsKeyDown(ImGuiKey_D)) {
-        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, tmp_.cam_speed, 0);
-        moved = true;
-      }
-
-      // Move (pedestal) up/down using Q and E keys.
-      if (ImGui::IsKeyDown(ImGuiKey_Q)) {
-        MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, tmp_.cam_speed);
-        moved = true;
-      } else if (ImGui::IsKeyDown(ImGuiKey_E)) {
-        MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, -tmp_.cam_speed);
-        moved = true;
-      }
-
-      if (moved) {
-        tmp_.cam_speed += 0.001f;
-
-        const float max_speed = ImGui::GetIO().KeyShift ? 0.1 : 0.01f;
-        if (tmp_.cam_speed > max_speed) {
-          tmp_.cam_speed = max_speed;
+    } else {
+      tmp_.cam_speed = 0.001f;
+    }
+  } else {
+    platform::ForEachPlugin<platform::KeyHandlerPlugin>([&](auto* plugin) {
+      if (plugin->key_chord && plugin->on_key_pressed) {
+        if (ImGui_IsChordJustPressed(plugin->key_chord)) {
+          plugin->on_key_pressed(plugin);
         }
-      } else {
-        tmp_.cam_speed = 0.001f;
       }
-    }
+    });
   }
 }
 

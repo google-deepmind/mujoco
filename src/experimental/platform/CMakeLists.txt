@@ -50,6 +50,7 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         interaction.h
         model_holder.cc
         model_holder.h
+        object_launcher_plugin.cc
         picture_gui.h
         picture_gui.cc
         plugin.cc

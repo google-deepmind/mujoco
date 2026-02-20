@@ -22,6 +22,8 @@
 
 using GuiPlugin = mujoco::platform::GuiPlugin;
 using ModelPlugin = mujoco::platform::ModelPlugin;
+using KeyHandlerPlugin = mujoco::platform::KeyHandlerPlugin;
+using SpecEditorPlugin = mujoco::platform::SpecEditorPlugin;
 
 namespace mujoco::platform {
 
@@ -71,3 +73,5 @@ void ForEachPlugin(const std::function<void(T*)>& fn) {
 
 MUJOCO_SPECIALIZE_PLUGIN(GuiPlugin, "gui plugin");
 MUJOCO_SPECIALIZE_PLUGIN(ModelPlugin, "model plugin");
+MUJOCO_SPECIALIZE_PLUGIN(KeyHandlerPlugin, "key handler plugin");
+MUJOCO_SPECIALIZE_PLUGIN(SpecEditorPlugin, "spec editor plugin");

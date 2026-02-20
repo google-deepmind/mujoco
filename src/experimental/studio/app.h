@@ -19,7 +19,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <random>
 #include <span>
 #include <string>
 #include <string_view>
@@ -223,8 +222,6 @@ class App {
   bool has_spec() const { return model_holder_ && model_holder_->spec(); }
   bool has_model() const { return model_holder_ && model_holder_->model(); }
   bool has_data() const { return model_holder_ && model_holder_->data(); }
-
-  std::mt19937 rng_;
 
   std::string ini_path_;
   std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.

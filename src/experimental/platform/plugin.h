@@ -82,6 +82,45 @@ struct ModelPlugin final {
   void* data = nullptr;
 };
 
+// Plugin for handling custom keyboard events.
+struct KeyHandlerPlugin final {
+  using OnKeyPressedFn = void (*)(KeyHandlerPlugin* self);
+
+  // The name of the plugin; must be unique.
+  const char* name = "";
+
+  // The ImGui key codes for the key combination that triggers the plugin.
+  int key_chord = 0;
+
+  // The function to be called when the above key combination is pressed.
+  OnKeyPressedFn on_key_pressed = nullptr;
+
+  // Optional data pointer.
+  void* data = nullptr;
+};
+
+// Plugin for editing the mjSpec.
+struct SpecEditorPlugin final {
+  using PreCompileFn = bool (*)(SpecEditorPlugin* self, mjSpec* spec,
+                                const mjModel* model, const mjData* data,
+                                const mjvCamera* camera);
+  using PostCompileFn = void (*)(SpecEditorPlugin* self, const mjSpec* spec,
+                                 const mjModel* model, mjData* data);
+
+  // The name of the plugin; must be unique.
+  const char* name = "";
+
+  // Callback that edits the spec. If it returns true, then the spec will be
+  // recompiled and `post_compile` will be called with the result.
+  PreCompileFn pre_compile = nullptr;
+
+  // Callback that is called after the spec has been recompiled.
+  PostCompileFn post_compile = nullptr;
+
+  // Optional data pointer.
+  void* data = nullptr;
+};
+
 }  // namespace mujoco::platform
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_PLUGIN_H_
