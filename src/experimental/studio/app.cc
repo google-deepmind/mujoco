@@ -24,7 +24,6 @@
 #include <cstring>
 #include <filesystem>
 #include <memory>
-#include <random>
 #include <span>
 #include <string>
 #include <string_view>
@@ -78,14 +77,13 @@ static constexpr const char* ICON_LABEL = platform::ICON_FA_COMMENT;
 static constexpr const char* ICON_RESET_MODEL = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_FRAME = platform::ICON_FA_ARROWS;
 static constexpr const char* ICON_CAMERA = platform::ICON_FA_CAMERA;
-static constexpr const char* ICON_DARKMODE = platform::ICON_FA_MOON;
-static constexpr const char* ICON_LIGHTMODE = platform::ICON_FA_SUN;
-static constexpr const char* ICON_CLASSICMODE = platform::ICON_FA_DIAMOND;
+static constexpr const char* ICON_DARKMODE = platform::ICON_FA_CIRCLE;
+static constexpr const char* ICON_LIGHTMODE = platform::ICON_FA_CIRCLE_O;
+static constexpr const char* ICON_CLASSICMODE = platform::ICON_FA_ADJUST;
 static constexpr const char* ICON_PREV_FRAME = platform::ICON_FA_CARET_LEFT;
 static constexpr const char* ICON_NEXT_FRAME = platform::ICON_FA_CARET_RIGHT;
 static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
 static constexpr const char* ICON_SPEED = platform::ICON_FA_TACHOMETER;
-static constexpr const char* ICON_DELETE = platform::ICON_FA_TRASH_CAN;
 
 // UI labels for mjtLabel.
 static constexpr const char* kLabelNames[] = {
@@ -107,8 +105,7 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 };
 // clang-format on
 
-App::App(Config config)
-    : rng_(std::random_device()()), ini_path_(std::move(config.ini_path)) {
+App::App(Config config) : ini_path_(std::move(config.ini_path)) {
   platform::Window::Config window_config;
   window_config.renderer_backend = platform::Renderer::GetBackend();
   window_config.offscreen_mode = config.offscreen_mode;
@@ -135,13 +132,6 @@ void App::ClearModel() {
   step_error_ = "";
 }
 
-void App::Recompile() {
-  mj_recompile(model_holder_->spec(), model_holder_->vfs(),
-               model_holder_->model(), model_holder_->data());
-  const int state_size = mj_stateSize(model(), mjSTATE_INTEGRATION);
-  history_.Init(state_size);
-}
-
 void App::RequestModelLoad(std::string model_file) {
   pending_load_ = std::move(model_file);
 }
@@ -149,7 +139,6 @@ void App::RequestModelLoad(std::string model_file) {
 void App::RequestModelReload() {
   if (model_kind_ == kModelFromFile) {
     pending_load_ = model_path_;
-    preserve_camera_on_load_ = true;
   }
 }
 
@@ -199,16 +188,6 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   renderer_->Init(model);
   const int state_size = mj_stateSize(model, mjSTATE_INTEGRATION);
   history_.Init(state_size);
-
-  if (!preserve_camera_on_load_) {
-    const int model_cam = model->vis.global.cameraid;
-    if (model_cam >= 0 && model_cam < model->ncam) {
-      ui_.camera_idx = platform::SetCamera(model, &camera_, model_cam);
-    } else {
-      mjv_defaultFreeCamera(model, &camera_);
-    }
-  }
-  preserve_camera_on_load_ = false;
 
   // Initialize the speed based on the model's default real-time setting.
   float min_error = FLT_MAX;
@@ -386,11 +365,6 @@ void App::ProcessPendingLoads() {
     }
   }
 
-  if (spec_op_) {
-    spec_op_();
-    spec_op_ = nullptr;
-  }
-
   // Check plugins to see if we need to load a new model.
   platform::ForEachModelPlugin([&](platform::ModelPlugin* plugin) {
     if (plugin->get_model_to_load) {
@@ -406,19 +380,6 @@ void App::ProcessPendingLoads() {
       }
     }
   });
-}
-
-void App::SpecDeleteSelectedElement() {
-  spec_op_ = [this]() {
-    mjs_delete(spec(), tmp_.element);
-    if (tmp_.element->elemtype == mjOBJ_BODY &&
-        perturb_.select == tmp_.element_id) {
-      mjv_defaultPerturb(&perturb_);
-    }
-    tmp_.element = nullptr;
-    tmp_.element_id = -1;
-    Recompile();
-  };
 }
 
 void App::HandleWindowEvents() {
@@ -513,28 +474,15 @@ void App::HandleMouseEvents() {
       perturb_.flexselect = picked.flex;
       perturb_.skinselect = picked.skin;
 
-      // Select the corresponding element in the spec.
-      tmp_.element = nullptr;
-      tmp_.element_id = -1;
-      if (has_spec()) {
-        mjsElement* element = mjs_firstElement(spec(), mjOBJ_BODY);
-        while (element) {
-          if (mjs_getId(element) == picked.body) {
-            tmp_.element = element;
-            tmp_.element_id = picked.body;
-            break;
-          }
-          element = mjs_nextElement(spec(), element);
-        }
-      }
-
       // Compute the local position of the selected object in the world.
       mjtNum tmp[3];
       mju_sub3(tmp, picked.point, data()->xpos + 3 * picked.body);
       mju_mulMatTVec(perturb_.localpos, data()->xmat + 9 * picked.body, tmp, 3,
                      3);
     } else {
-      mjv_defaultPerturb(&perturb_);
+      perturb_.select = 0;
+      perturb_.flexselect = -1;
+      perturb_.skinselect = -1;
     }
   }
 
@@ -623,8 +571,6 @@ void App::HandleKeyboardEvents() {
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Backspace)) {
     ResetPhysics();
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Delete)) {
-    SpecDeleteSelectedElement();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_PageUp)) {
     SelectParentPerturb(model(), perturb_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
@@ -715,61 +661,6 @@ void App::HandleKeyboardEvents() {
     ToggleFlag(vis_options_.geomgroup[4]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_5)) {
     ToggleFlag(vis_options_.geomgroup[5]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Enter | ImGuiMode_CtrlShift)) {
-    if (has_spec()) {
-      spec_op_ = [this]() {
-        mjsBody* world = mjs_findBody(spec(), "world");
-        if (!world) return;
-        mjsBody* body = mjs_addBody(world, nullptr);
-        if (!body) return;
-        mjsJoint* joint = mjs_addJoint(body, nullptr);
-        if (!joint) return;
-        mjsGeom* geom = mjs_addGeom(body, nullptr);
-        if (!geom) return;
-
-        // Set body position slightly in front of the camera.
-        mjtNum pos[3];
-        mjtNum dir[3];
-        mjtNum up[3];
-        mjv_cameraFrame(pos, dir, up, nullptr, data(), &camera_);
-
-        static int counter = 0;
-        std::string name = "projectile" + std::to_string(counter++);
-        mjs_setName(body->element, name.c_str());
-
-        body->mass = 10.0;
-        body->pos[0] = pos[0] + dir[0] * 0.2;
-        body->pos[1] = pos[1] + dir[1] * 0.2;
-        body->pos[2] = pos[2] + dir[2] * 0.2;
-        geom->type = mjGEOM_BOX;
-        geom->size[0] = 0.13365;
-        geom->size[1] = 0.13365;
-        geom->size[2] = 0.13365;
-        geom->rgba[0] = std::uniform_real_distribution<float>(0.3f, 1.0f)(rng_);
-        geom->rgba[1] = std::uniform_real_distribution<float>(0.3f, 1.0f)(rng_);
-        geom->rgba[2] = std::uniform_real_distribution<float>(0.3f, 1.0f)(rng_);
-        geom->rgba[3] = 1.0;
-
-        joint->type = mjJNT_FREE;
-
-        Recompile();
-
-        // Give the newly added body a velocity in the direction of the camera.
-        int bodyid = mj_name2id(model(), mjOBJ_BODY, name.c_str());
-        if (bodyid >= 0) {
-          int jntid = model()->body_jntadr[bodyid];
-          if (jntid >= 0 && model()->jnt_type[jntid] == mjJNT_FREE) {
-            int qveladr = model()->jnt_dofadr[jntid];
-            if (qveladr >= 0) {
-              mjtNum speed = 10.0;  // Magnitude of the initial velocity.
-              data()->qvel[qveladr + 0] = dir[0] * speed + up[0];
-              data()->qvel[qveladr + 1] = dir[1] * speed + up[1];
-              data()->qvel[qveladr + 2] = dir[2] * speed + up[2];
-            }
-          }
-        }
-      };
-    }
   } else if (has_model()) {
     if (ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
       ui_.camera_idx =
@@ -891,10 +782,16 @@ void App::BuildGui() {
 
   MainMenuGui();
 
-  if (ImGui::Begin("ToolBar")) {
-    ToolBarGui();
+  {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    if (ImGui::Begin("ToolBar")) {
+      ImGui::PopStyleVar();
+      ToolBarGui();
+    } else {
+      ImGui::PopStyleVar();
+    }
+    ImGui::End();
   }
-  ImGui::End();
 
   {
     platform::ScopedStyle style;
@@ -1191,8 +1088,7 @@ void App::SpecExplorerGui() {
         label = "(" + prefix + " " + std::to_string(id) + ")";
       }
 
-      const bool selected = (tmp_.element == element);
-      if (ImGui::Selectable(label.c_str(), selected)) {
+      if (ImGui::Selectable(label.c_str(), false)) {
         tmp_.element = element;
         tmp_.element_id = id;
       }
@@ -1202,23 +1098,41 @@ void App::SpecExplorerGui() {
   };
 
   if (ImGui::TreeNodeEx("Bodies", flags)) {
-    display_group(mjOBJ_BODY, "Body");
+    // We don't use `display_group` here because we do additional selection
+    // logic tied to the `perturb_` field.
+    mjsElement* element = mjs_firstElement(spec(), mjOBJ_BODY);
+    while (element) {
+      const int id = mjs_getId(element);
+
+      const mjString* name = mjs_getName(element);
+      std::string label = *name;
+      if (label.empty()) {
+        label = "(Body " + std::to_string(id) + ")";
+      }
+
+      if (ImGui::Selectable(label.c_str(), (id == perturb_.select),
+                            ImGuiSelectableFlags_AllowDoubleClick)) {
+        tmp_.element = element;
+        tmp_.element_id = id;
+      }
+      if (ImGui::IsItemHovered() &&
+          ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        perturb_.select = id;
+      }
+
+      element = mjs_nextElement(spec(), element);
+    }
     ImGui::TreePop();
   }
+
   if (ImGui::TreeNodeEx("Joints", flags)) {
     display_group(mjOBJ_JOINT, "Joint");
     ImGui::TreePop();
   }
+
   if (ImGui::TreeNodeEx("Sites", flags)) {
     display_group(mjOBJ_SITE, "Site");
     ImGui::TreePop();
-  }
-
-  // If we selected a body, then select the same body for the perturb object.
-  if (tmp_.element && tmp_.element->elemtype == mjOBJ_BODY &&
-      perturb_.select != tmp_.element_id) {
-    mjv_defaultPerturb(&perturb_);
-    perturb_.select = tmp_.element_id;
   }
 }
 
@@ -1228,31 +1142,22 @@ void App::PropertiesGui() {
     return;
   }
 
-  if (ImGui::BeginTable("##PropertiesHeader", 2)) {
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 20);
-    ImGui::TableNextColumn();
-    ImGui::Text("%s", mju_type2Str(tmp_.element->elemtype));
-    ImGui::TableNextColumn();
-    if (tmp_.element->elemtype == mjOBJ_BODY) {
-      if (ImGui::SmallButton(ICON_DELETE)) {
-        SpecDeleteSelectedElement();
-      }
-    }
-    ImGui::EndTable();
-  }
-  ImGui::Separator();
-
   switch (tmp_.element->elemtype) {
     case mjOBJ_BODY:
+      ImGui::Text("Body");
+      ImGui::Separator();
       platform::BodyPropertiesGui(model(), data(), tmp_.element,
                                   tmp_.element_id);
       break;
     case mjOBJ_JOINT:
+      ImGui::Text("Joint");
+      ImGui::Separator();
       platform::JointPropertiesGui(model(), data(), tmp_.element,
                                    tmp_.element_id);
       break;
     case mjOBJ_SITE:
+      ImGui::Text("Site");
+      ImGui::Separator();
       platform::SitePropertiesGui(model(), data(), tmp_.element,
                                   tmp_.element_id);
       break;
@@ -1375,6 +1280,18 @@ void App::HelpGui() {
   ImGui::Columns();
 }
 
+struct SpeedStatus {
+  bool misaligned;
+  float measured;
+};
+
+static SpeedStatus IsSpeedMisaligned(
+    const platform::StepControl& step_control) {
+  const float desired = step_control.GetSpeed();
+  const float measured = step_control.GetSpeedMeasured();
+  return {std::abs(measured - desired) > 0.1f * desired, measured};
+}
+
 void App::ToolBarGui() {
   if (ImGui::BeginTable("##ToolBarTable", 2)) {
     platform::ScopedStyle style;
@@ -1384,22 +1301,30 @@ void App::ToolBarGui() {
     const int combo_flags = ImGuiComboFlags_NoArrowButton;
 
     const float scale = ImGui::GetWindowDpiScale();
-    const float right_width = 520.f * scale;
     const ImVec2 button_size(48.f * scale, 32.f * scale);
     const ImVec2 play_button_size(80.f * scale, 32.f * scale);
+
+    const float label_width = GetExpectedLabelWidth();
+    const float copy_btn_width = ImGui::CalcTextSize(ICON_COPY_CAMERA).x +
+                                 ImGui::GetStyle().FramePadding.x * 2;
+    const float theme_width = ImGui::CalcTextSize(ICON_LIGHTMODE).x +
+                              ImGui::GetStyle().FramePadding.x * 2;
+    const float sp = ImGui::GetStyle().ItemSpacing.x;
+    const float right_width = label_width + sp + label_width + sp +
+                              label_width + sp + copy_btn_width + sp +
+                              theme_width;
+    const float separator_width = .2f * button_size.x;
 
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, right_width);
 
     ImGui::TableNextColumn();
-    ImGui::Text("%s", " ");
 
     // Combined (Unload, Reload) widget
     {
       style.Var(ImGuiStyleVar_FrameRounding, 2.0f);
 
       // Unload button.
-      ImGui::SameLine();
       {
         const ImColor a = red;
         const ImColor h(a.Value.x, a.Value.y, a.Value.z, a.Value.w * 0.6f);
@@ -1421,25 +1346,19 @@ void App::ToolBarGui() {
       ImGui::SetItemTooltip("%s", "Reload");
     }
 
-    ImGui::SameLine(0, 0);
-    ImGui::Text(" ");
-
     // Reset button.
-    ImGui::SameLine();
+    ImGui::SameLine(0, separator_width);
     if (ImGui::Button(ICON_RESET_MODEL, button_size)) {
       ResetPhysics();
     }
     ImGui::SetItemTooltip("%s", "Reset");
-
-    ImGui::SameLine(0, 0);
-    ImGui::Text(" ");
 
     // Combined (Normal Pause, Viscous Pause, Play) widget
     {
       style.Var(ImGuiStyleVar_FrameRounding, 2.0f);
 
       // Normal pause button.
-      ImGui::SameLine();
+      ImGui::SameLine(0, separator_width);
       ImColor paused_color = yellow;
       bool paused = step_control_.GetPauseState() == PauseState::kNormalPaused;
       if (platform::ImGui_ColorButton(ICON_PAUSE, paused, paused_color,
@@ -1480,18 +1399,23 @@ void App::ToolBarGui() {
       }
     }
 
-    ImGui::SameLine();
-    ImGui::Text("%s", " |");
-
     // Speed selection.
     ImGui::SameLine();
-    ImGui::Text("%s", ICON_SPEED);
-    ImGui::SetItemTooltip("%s", "Playback Speed");
-
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(50.0f * scale);
-    if (ImGui::BeginCombo("##Speed", kPercentRealTime[tmp_.speed_index],
-                          combo_flags)) {
+    float pad_y = (button_size.y - ImGui::GetFontSize()) * 0.5f;
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                        ImVec2(ImGui::GetStyle().FramePadding.x + 5.f, pad_y));
+    const auto [misaligned, measured] = IsSpeedMisaligned(step_control_);
+    char speed_preview[64];
+    if (misaligned) {
+      snprintf(speed_preview, sizeof(speed_preview), "%s%s (%-4.1f%%)",
+               ICON_SPEED, kPercentRealTime[tmp_.speed_index], measured);
+    } else {
+      snprintf(speed_preview, sizeof(speed_preview), "%s%s", ICON_SPEED,
+               kPercentRealTime[tmp_.speed_index]);
+    }
+    ImGui::SetNextItemWidth(ImGui::CalcTextSize(speed_preview).x +
+                            ImGui::GetStyle().FramePadding.x * 2);
+    if (ImGui::BeginCombo("##Speed", speed_preview, combo_flags)) {
       for (int n = 0; n < kPercentRealTime.size(); n++) {
         if (ImGui::Selectable(kPercentRealTime[n], (tmp_.speed_index == n))) {
           SetSpeedIndex(n);
@@ -1499,17 +1423,30 @@ void App::ToolBarGui() {
       }
       ImGui::EndCombo();
     }
-    ImGui::SetItemTooltip("%s", "Playback Speed");
+    ImGui::PopStyleVar();
+    if (misaligned) {
+      ImGui::SetItemTooltip("%s", "Desired Speed (Measured Speed)");
+    } else {
+      ImGui::SetItemTooltip("%s", "Desired Speed");
+    }
+
+    ImGui::TableNextColumn();
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
+                         (button_size.y - ImGui::GetFrameHeight()) * 0.5f);
 
     // Camera selection.
-    std::vector<const char*> cameras = GetCameraNames();
-    ImGui::TableNextColumn();
-    ImGui::Text("%s", ICON_CAMERA);
-    ImGui::SetItemTooltip("%s", "Camera");
-    ImGui::SameLine();
+    if (ImGui::Button(ICON_COPY_CAMERA)) {
+      std::string camera_string = platform::CameraToString(data(), &camera_);
+      platform::MaybeSaveToClipboard(camera_string);
+    }
+    ImGui::SetItemTooltip("%s", "Copy Camera");
+    ImGui::SameLine(0, 0);
     ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     int camera_idx = ui_.camera_idx - platform::kTumbleCameraIdx;
-    if (ImGui::BeginCombo("##Camera", cameras[camera_idx], combo_flags)) {
+    std::vector<const char*> cameras = GetCameraNames();
+    std::string camera_preview =
+        std::string(ICON_CAMERA) + " " + cameras[camera_idx];
+    if (ImGui::BeginCombo("##Camera", camera_preview.c_str(), combo_flags)) {
       for (int n = 0; n < cameras.size(); n++) {
         if (ImGui::Selectable(cameras[n], (camera_idx == n))) {
           ui_.camera_idx = platform::SetCamera(model(), &camera_,
@@ -1519,25 +1456,13 @@ void App::ToolBarGui() {
       ImGui::EndCombo();
     }
     ImGui::SetItemTooltip("%s", "Camera");
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_COPY_CAMERA)) {
-      std::string camera_string = platform::CameraToString(data(), &camera_);
-      platform::MaybeSaveToClipboard(camera_string);
-    }
-    ImGui::SetItemTooltip("%s", "Copy Camera");
-
-    ImGui::SameLine();
-    ImGui::Text("%s", " |");
 
     // Label selection.
     ImGui::SameLine();
-    ImGui::Text("%s", ICON_LABEL);
-    ImGui::SetItemTooltip("%s", "Label");
-
-    ImGui::SameLine();
     ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-    if (ImGui::BeginCombo("##Label", kLabelNames[vis_options_.label],
-                          combo_flags)) {
+    std::string label_preview =
+        std::string(ICON_LABEL) + " " + kLabelNames[vis_options_.label];
+    if (ImGui::BeginCombo("##Label", label_preview.c_str(), combo_flags)) {
       for (int n = 0; n < IM_ARRAYSIZE(kLabelNames); n++) {
         if (ImGui::Selectable(kLabelNames[n], (vis_options_.label == n))) {
           vis_options_.label = n;
@@ -1547,18 +1472,12 @@ void App::ToolBarGui() {
     }
     ImGui::SetItemTooltip("%s", "Label");
 
-    ImGui::SameLine();
-    ImGui::Text("%s", " |");
-
     // Frame selection.
     ImGui::SameLine();
-    ImGui::Text("%s", ICON_FRAME);
-    ImGui::SetItemTooltip("%s", "Frame");
-
-    ImGui::SameLine();
     ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-    if (ImGui::BeginCombo("##Frame", kFrameNames[vis_options_.frame],
-                          combo_flags)) {
+    std::string frame_preview =
+        std::string(ICON_FRAME) + " " + kFrameNames[vis_options_.frame];
+    if (ImGui::BeginCombo("##Frame", frame_preview.c_str(), combo_flags)) {
       for (int n = 0; n < IM_ARRAYSIZE(kFrameNames); n++) {
         if (ImGui::Selectable(kFrameNames[n], (vis_options_.frame == n))) {
           vis_options_.frame = n;
@@ -1568,31 +1487,31 @@ void App::ToolBarGui() {
     }
     ImGui::SetItemTooltip("%s", "Frame");
 
+    // Theme selection.
     ImGui::SameLine();
-    ImGui::Text("%s", " |");
-
-    // Style selection.
-    ImGui::SameLine();
-    switch (ui_.theme) {
-      case platform::GuiTheme::kLight:
-        if (ImGui::Button(ICON_LIGHTMODE)) {
-          SetupTheme(platform::GuiTheme::kDark);
+    const char* theme_icons[] = {ICON_LIGHTMODE, ICON_DARKMODE,
+                                 ICON_CLASSICMODE};
+    const char* theme_tooltips[] = {"Light Mode", "Dark Mode", "Classic Mode"};
+    const platform::GuiTheme theme_values[] = {
+        platform::GuiTheme::kLight,
+        platform::GuiTheme::kDark,
+        platform::GuiTheme::kClassic,
+    };
+    int theme_idx = static_cast<int>(ui_.theme);
+    ImGui::SetNextItemWidth(ImGui::CalcTextSize(theme_icons[0]).x +
+                            ImGui::GetStyle().FramePadding.x * 2);
+    if (ImGui::BeginCombo("##Theme", theme_icons[theme_idx], combo_flags)) {
+      for (int n = 0; n < IM_ARRAYSIZE(theme_icons); n++) {
+        if (ImGui::Selectable(theme_icons[n], (theme_idx == n))) {
+          SetupTheme(theme_values[n]);
         }
-        ImGui::SetItemTooltip("%s", "Switch to Dark Mode");
-        break;
-      case platform::GuiTheme::kDark:
-        if (ImGui::Button(ICON_DARKMODE)) {
-          SetupTheme(platform::GuiTheme::kClassic);
+        if (ImGui::IsItemHovered()) {
+          ImGui::SetTooltip("%s", theme_tooltips[n]);
         }
-        ImGui::SetItemTooltip("%s", "Switch to Classic Mode");
-        break;
-      case platform::GuiTheme::kClassic:
-        if (ImGui::Button(ICON_CLASSICMODE)) {
-          SetupTheme(platform::GuiTheme::kLight);
-        }
-        ImGui::SetItemTooltip("%s", "Switch to Light Mode");
-        break;
+      }
+      ImGui::EndCombo();
     }
+    ImGui::SetItemTooltip("%s", "Theme");
 
     ImGui::EndTable();
   }
@@ -1613,17 +1532,7 @@ void App::StatusBarGui() {
     } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
       ImGui::Text("Paused");
     } else {
-      const float desired_realtime = step_control_.GetSpeed();
-      const float measured_realtime = step_control_.GetSpeedMeasured();
-      const float realtime_offset =
-          mju_abs(measured_realtime - desired_realtime);
-      const bool misaligned = realtime_offset > 0.1 * desired_realtime;
-      if (misaligned) {
-        ImGui::Text("Running: %g%% (%-4.1f%%)", desired_realtime,
-                    measured_realtime);
-      } else {
-        ImGui::Text("Running: %g%%", desired_realtime);
-      }
+      ImGui::Text("Running");
     }
 
     if (!step_error_.empty()) {

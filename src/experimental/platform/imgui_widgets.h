@@ -28,11 +28,14 @@
 namespace mujoco::platform {
 
 // FontAwesome icon codes.
+static constexpr const char ICON_FA_ADJUST[] = "\xEF\x81\x82";
 static constexpr const char ICON_FA_ARROWS[] = "\xEF\x81\x87";
 static constexpr const char ICON_FA_CAMERA[] = "\xEF\x80\xBD";
 static constexpr const char ICON_FA_CARET_LEFT[] = "\xEF\x83\x99";
 static constexpr const char ICON_FA_CARET_RIGHT[] = "\xEF\x83\x9A";
 static constexpr const char ICON_FA_CHECK_SQUARE_O[] = "\xEF\x81\x9D";
+static constexpr const char ICON_FA_CIRCLE[] = "\xEF\x84\x91";
+static constexpr const char ICON_FA_CIRCLE_O[] = "\xEF\x84\x8C";
 static constexpr const char ICON_FA_COMMENT[] = "\xEF\x83\xA5";
 static constexpr const char ICON_FA_COPY[] = "\xEF\x83\x85";
 static constexpr const char ICON_FA_DIAMOND[] = "\xEF\x88\x99";
