@@ -434,6 +434,7 @@ class FfiCallable:
         stage_out_argnames,
         graph_cache_max,
         module_preload_mode,
+        has_side_effect=False,
     ):
         self.func = func
         self.name = generate_unique_name(func)
@@ -442,6 +443,7 @@ class FfiCallable:
         self.graph_mode = graph_mode
         self.output_dims = output_dims
         self.module_preload_mode = module_preload_mode
+        self.has_side_effect = has_side_effect
         self.first_array_arg = None
         self.call_id = 0
         self.call_descriptors = {}
@@ -613,7 +615,7 @@ class FfiCallable:
             out_types,
             vmap_method=vmap_method,
             input_output_aliases=self.input_output_aliases,
-            # has_side_effect=True,  # force this function to execute even if outputs aren't used
+            has_side_effect=self.has_side_effect,
         )
 
         # preload on the specified devices
@@ -1379,6 +1381,7 @@ def jax_callable(
     stage_out_argnames=None,
     graph_cache_max: int | None = None,
     module_preload_mode: ModulePreloadMode = ModulePreloadMode.CURRENT_DEVICE,
+    has_side_effect: bool = False,
 ):
     """Create a JAX callback from an annotated Python function.
 
@@ -1449,6 +1452,7 @@ def jax_callable(
                 stage_out_argnames,
                 graph_cache_max,
                 module_preload_mode,
+                has_side_effect,
             )
             _FFI_CALLABLE_REGISTRY[key] = callable
         else:

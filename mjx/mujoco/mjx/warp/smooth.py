@@ -214,6 +214,7 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
           'xquat',
       ]),
       graph_mode=m.opt._impl.graph_mode,
+      has_side_effect=False,
   )
   out = jf(
       d.qpos.shape[0],
@@ -408,6 +409,7 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       ]),
       stage_out_argnames=set(['ten_length']),
       graph_mode=m.opt._impl.graph_mode,
+      has_side_effect=False,
   )
   out = jf(
       d.qpos.shape[0],

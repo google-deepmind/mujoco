@@ -289,6 +289,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       ]),
       stage_out_argnames=set([]),
       graph_mode=m.opt._impl.graph_mode,
+      has_side_effect=False,
   )
   out = jf(
       d.qpos.shape[0],
