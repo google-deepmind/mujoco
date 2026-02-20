@@ -158,10 +158,11 @@ target_include_directories(
 target_compile_options(qhullstatic_r PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
 target_link_options(qhullstatic_r PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
+option(MUJOCO_USE_SYSTEM_TINYXML2 "Use the system's tinyxml2" OFF)
 set(tinyxml2_BUILD_TESTING OFF)
 findorfetch(
   USE_SYSTEM_PACKAGE
-  OFF
+  ${MUJOCO_USE_SYSTEM_TINYXML2}
   PACKAGE_NAME
   tinyxml2
   LIBRARY_NAME
@@ -174,8 +175,12 @@ findorfetch(
   tinyxml2
   EXCLUDE_FROM_ALL
 )
-target_compile_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
-target_link_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+if(MUJOCO_USE_SYSTEM_TINYXML2)
+  add_library(tinyxml2 ALIAS tinyxml2::tinyxml2)
+else()
+  target_compile_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+  target_link_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+endif()
 
 # update cmake_minimum_required version for compatibility with newer version of cmake
 if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
