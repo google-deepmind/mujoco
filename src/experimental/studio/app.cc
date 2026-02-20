@@ -24,6 +24,7 @@
 #include <cstring>
 #include <filesystem>
 #include <memory>
+#include <random>
 #include <span>
 #include <string>
 #include <string_view>
@@ -84,6 +85,7 @@ static constexpr const char* ICON_PREV_FRAME = platform::ICON_FA_CARET_LEFT;
 static constexpr const char* ICON_NEXT_FRAME = platform::ICON_FA_CARET_RIGHT;
 static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
 static constexpr const char* ICON_SPEED = platform::ICON_FA_TACHOMETER;
+static constexpr const char* ICON_DELETE = platform::ICON_FA_TRASH_CAN;
 
 // UI labels for mjtLabel.
 static constexpr const char* kLabelNames[] = {
@@ -105,7 +107,8 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 };
 // clang-format on
 
-App::App(Config config) : ini_path_(std::move(config.ini_path)) {
+App::App(Config config)
+    : rng_(std::random_device()()), ini_path_(std::move(config.ini_path)) {
   platform::Window::Config window_config;
   window_config.renderer_backend = platform::Renderer::GetBackend();
   window_config.offscreen_mode = config.offscreen_mode;
@@ -132,6 +135,13 @@ void App::ClearModel() {
   step_error_ = "";
 }
 
+void App::Recompile() {
+  mj_recompile(model_holder_->spec(), model_holder_->vfs(),
+               model_holder_->model(), model_holder_->data());
+  const int state_size = mj_stateSize(model(), mjSTATE_INTEGRATION);
+  history_.Init(state_size);
+}
+
 void App::RequestModelLoad(std::string model_file) {
   pending_load_ = std::move(model_file);
 }
@@ -139,6 +149,7 @@ void App::RequestModelLoad(std::string model_file) {
 void App::RequestModelReload() {
   if (model_kind_ == kModelFromFile) {
     pending_load_ = model_path_;
+    preserve_camera_on_load_ = true;
   }
 }
 
@@ -189,6 +200,16 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   const int state_size = mj_stateSize(model, mjSTATE_INTEGRATION);
   history_.Init(state_size);
 
+  if (!preserve_camera_on_load_) {
+    const int model_cam = model->vis.global.cameraid;
+    if (model_cam >= 0 && model_cam < model->ncam) {
+      ui_.camera_idx = platform::SetCamera(model, &camera_, model_cam);
+    } else {
+      mjv_defaultFreeCamera(model, &camera_);
+    }
+  }
+  preserve_camera_on_load_ = false;
+
   // Initialize the speed based on the model's default real-time setting.
   float min_error = FLT_MAX;
   const float desired = mju_log(100 * model->vis.global.realtime);
@@ -199,6 +220,10 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
       min_error = error;
       SetSpeedIndex(i);
     }
+  }
+if (spec_op_) {
+    spec_op_();
+    spec_op_ = nullptr;
   }
 
   platform::ForEachModelPlugin([&](platform::ModelPlugin* plugin) {
@@ -382,6 +407,19 @@ void App::ProcessPendingLoads() {
   });
 }
 
+void App::SpecDeleteSelectedElement() {
+  spec_op_ = [this]() {
+    mjs_delete(spec(), tmp_.element);
+    if (tmp_.element->elemtype == mjOBJ_BODY &&
+        perturb_.select == tmp_.element_id) {
+      mjv_defaultPerturb(&perturb_);
+    }
+    tmp_.element = nullptr;
+    tmp_.element_id = -1;
+    Recompile();
+  };
+}
+
 void App::HandleWindowEvents() {
   const std::string drop_file = window_->GetDropFile();
   if (!drop_file.empty()) {
@@ -474,15 +512,28 @@ void App::HandleMouseEvents() {
       perturb_.flexselect = picked.flex;
       perturb_.skinselect = picked.skin;
 
+      // Select the corresponding element in the spec.
+      tmp_.element = nullptr;
+      tmp_.element_id = -1;
+      if (has_spec()) {
+        mjsElement* element = mjs_firstElement(spec(), mjOBJ_BODY);
+        while (element) {
+          if (mjs_getId(element) == picked.body) {
+            tmp_.element = element;
+            tmp_.element_id = picked.body;
+            break;
+          }
+          element = mjs_nextElement(spec(), element);
+        }
+      }
+
       // Compute the local position of the selected object in the world.
       mjtNum tmp[3];
       mju_sub3(tmp, picked.point, data()->xpos + 3 * picked.body);
       mju_mulMatTVec(perturb_.localpos, data()->xmat + 9 * picked.body, tmp, 3,
                      3);
     } else {
-      perturb_.select = 0;
-      perturb_.flexselect = -1;
-      perturb_.skinselect = -1;
+      mjv_defaultPerturb(&perturb_);
     }
   }
 
@@ -571,6 +622,8 @@ void App::HandleKeyboardEvents() {
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Backspace)) {
     ResetPhysics();
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Delete)) {
+    SpecDeleteSelectedElement();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_PageUp)) {
     SelectParentPerturb(model(), perturb_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
@@ -1088,7 +1141,8 @@ void App::SpecExplorerGui() {
         label = "(" + prefix + " " + std::to_string(id) + ")";
       }
 
-      if (ImGui::Selectable(label.c_str(), false)) {
+      const bool selected = (tmp_.element == element);
+      if (ImGui::Selectable(label.c_str(), selected)) {
         tmp_.element = element;
         tmp_.element_id = id;
       }
@@ -1098,30 +1152,7 @@ void App::SpecExplorerGui() {
   };
 
   if (ImGui::TreeNodeEx("Bodies", flags)) {
-    // We don't use `display_group` here because we do additional selection
-    // logic tied to the `perturb_` field.
-    mjsElement* element = mjs_firstElement(spec(), mjOBJ_BODY);
-    while (element) {
-      const int id = mjs_getId(element);
-
-      const mjString* name = mjs_getName(element);
-      std::string label = *name;
-      if (label.empty()) {
-        label = "(Body " + std::to_string(id) + ")";
-      }
-
-      if (ImGui::Selectable(label.c_str(), (id == perturb_.select),
-                            ImGuiSelectableFlags_AllowDoubleClick)) {
-        tmp_.element = element;
-        tmp_.element_id = id;
-      }
-      if (ImGui::IsItemHovered() &&
-          ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        perturb_.select = id;
-      }
-
-      element = mjs_nextElement(spec(), element);
-    }
+    display_group(mjOBJ_BODY, "Body");
     ImGui::TreePop();
   }
 
@@ -1134,6 +1165,13 @@ void App::SpecExplorerGui() {
     display_group(mjOBJ_SITE, "Site");
     ImGui::TreePop();
   }
+
+  // If we selected a body, then select the same body for the perturb object.
+  if (tmp_.element && tmp_.element->elemtype == mjOBJ_BODY &&
+      perturb_.select != tmp_.element_id) {
+    mjv_defaultPerturb(&perturb_);
+    perturb_.select = tmp_.element_id;
+  }
 }
 
 void App::PropertiesGui() {
@@ -1142,22 +1180,31 @@ void App::PropertiesGui() {
     return;
   }
 
+  if (ImGui::BeginTable("##PropertiesHeader", 2)) {
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 20);
+    ImGui::TableNextColumn();
+    ImGui::Text("%s", mju_type2Str(tmp_.element->elemtype));
+    ImGui::TableNextColumn();
+    if (tmp_.element->elemtype == mjOBJ_BODY) {
+      if (ImGui::SmallButton(ICON_DELETE)) {
+        SpecDeleteSelectedElement();
+      }
+    }
+    ImGui::EndTable();
+  }
+  ImGui::Separator();
+
   switch (tmp_.element->elemtype) {
     case mjOBJ_BODY:
-      ImGui::Text("Body");
-      ImGui::Separator();
       platform::BodyPropertiesGui(model(), data(), tmp_.element,
                                   tmp_.element_id);
       break;
     case mjOBJ_JOINT:
-      ImGui::Text("Joint");
-      ImGui::Separator();
       platform::JointPropertiesGui(model(), data(), tmp_.element,
                                    tmp_.element_id);
       break;
     case mjOBJ_SITE:
-      ImGui::Text("Site");
-      ImGui::Separator();
       platform::SitePropertiesGui(model(), data(), tmp_.element,
                                   tmp_.element_id);
       break;
