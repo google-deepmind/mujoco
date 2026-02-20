@@ -227,7 +227,7 @@ if (spec_op_) {
     spec_op_ = nullptr;
   }
 
-  platform::ForEachModelPlugin([&](platform::ModelPlugin* plugin) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
     if (plugin->post_model_loaded) {
       plugin->post_model_loaded(plugin, model_path_.c_str());
     }
@@ -271,7 +271,7 @@ void App::UpdatePhysics() {
   }
 
   bool stepped = false;
-  platform::ForEachModelPlugin([&](platform::ModelPlugin* plugin) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
     if (plugin->do_update) {
       if (plugin->do_update(plugin, model(), data())) {
         stepped = true;
@@ -392,7 +392,7 @@ void App::ProcessPendingLoads() {
   }
 
   // Check plugins to see if we need to load a new model.
-  platform::ForEachModelPlugin([&](platform::ModelPlugin* plugin) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
     if (plugin->get_model_to_load) {
       char model_name[1000] = "";
       char content_type[1000] = "";
@@ -781,7 +781,7 @@ void App::LoadSettings() {
 
       platform::KeyValues plugin_names =
           platform::ReadIniSection(settings, "[Studio][Plugins]");
-      platform::ForEachGuiPlugin([&](platform::GuiPlugin* plugin) {
+      platform::ForEachPlugin<platform::GuiPlugin>([&](auto* plugin) {
         auto it = plugin_names.find(plugin->name);
         if (it != plugin_names.end()) {
           plugin->active = std::stoi(it->second) != 0;
@@ -797,7 +797,7 @@ void App::SaveSettings() {
     platform::AppendIniSection(settings, "[Studio][UX]", ui_.ToDict());
 
     platform::KeyValues plugin_names;
-    platform::ForEachGuiPlugin([&](platform::GuiPlugin* plugin) {
+    platform::ForEachPlugin<platform::GuiPlugin>([&](auto* plugin) {
       plugin_names[plugin->name] = std::to_string((int)plugin->active);
     });
     platform::AppendIniSection(settings, "[Studio][Plugins]", plugin_names);
@@ -977,7 +977,7 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  platform::ForEachGuiPlugin([](platform::GuiPlugin* plugin) {
+  platform::ForEachPlugin<platform::GuiPlugin>([](auto* plugin) {
     if (!plugin->update) {
       return;
     }

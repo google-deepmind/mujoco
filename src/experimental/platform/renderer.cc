@@ -219,6 +219,6 @@ mjPLUGIN_LIB_INIT {
   plugin.update = [](mujoco::platform::GuiPlugin* self) {
     mjr_updateGui(nullptr);
   };
-  mujoco::platform::RegisterGuiPlugin(&plugin);
+  mujoco::platform::RegisterPlugin(plugin);
 }
 #endif
