@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <random>
 #include <span>
@@ -1130,7 +1131,8 @@ void App::SpecExplorerGui() {
   const ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
-  auto display_group = [this](mjtObj type, const std::string& prefix) {
+  auto display_group = [this](mjtObj type, const std::string& prefix,
+                              std::function<void()> delete_callback = {}) {
     mjsElement* element = mjs_firstElement(spec(), type);
     while (element) {
       const int id = mjs_getId(element);
@@ -1142,9 +1144,20 @@ void App::SpecExplorerGui() {
       }
 
       const bool selected = (tmp_.element == element);
-      if (ImGui::Selectable(label.c_str(), selected)) {
+      if (ImGui::Selectable(label.c_str(), selected,
+                            ImGuiSelectableFlags_AllowOverlap)) {
         tmp_.element = element;
         tmp_.element_id = id;
+      }
+
+      if (selected && delete_callback) {
+        // Right-align the delete button.
+        const float button_width = ImGui::CalcTextSize(ICON_DELETE).x +
+                                   ImGui::GetStyle().FramePadding.x * 2.0f;
+        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - button_width);
+        if (ImGui::SmallButton(ICON_DELETE)) {
+          delete_callback();
+        }
       }
 
       element = mjs_nextElement(spec(), element);
@@ -1152,7 +1165,7 @@ void App::SpecExplorerGui() {
   };
 
   if (ImGui::TreeNodeEx("Bodies", flags)) {
-    display_group(mjOBJ_BODY, "Body");
+    display_group(mjOBJ_BODY, "Body", [this] { SpecDeleteSelectedElement(); });
     ImGui::TreePop();
   }
 
