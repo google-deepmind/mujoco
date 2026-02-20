@@ -27,6 +27,7 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_derivative.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_inverse.h"
 #include "engine/engine_island.h"
 #include "engine/engine_macro.h"
@@ -1189,14 +1190,38 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
 
     // flex: reduced dense factorization
     if (has_flex_interp && !sleep_filter) {
+      // temporary allocations for body chain
+      int* chain_dofs = mjSTACKALLOC(d, nv, int);
+      int* seen_dof = mjSTACKALLOC(d, nv, int);
+      mju_fillInt(seen_dof, 0, nv);
+
       // identify flex DOFs
+      // For pinned nodes (body_dofnum==0): use bodyChain to include parent DOFs
+      // For regular flex nodes: use body_dofadr for one-way coupling
       for (int f=0; f < m->nflex; f++) {
         if (m->flex_interp[f]) {
           int nodenum = m->flex_nodenum[f];
           int nodeadr = m->flex_nodeadr[f];
           for (int n=0; n < nodenum; n++) {
             int b = m->flex_nodebodyid[nodeadr + n];
-            nflexdofs += m->body_dofnum[b];
+            int chain_nnz;
+            if (m->body_dofnum[b] == 0) {
+              // Pinned node: use bodyChain to get parent DOFs
+              chain_nnz = mj_bodyChain(m, b, chain_dofs);
+            } else {
+              // Regular flex node: use body's own DOFs only
+              chain_nnz = m->body_dofnum[b];
+              for (int j = 0; j < chain_nnz; j++) {
+                chain_dofs[j] = m->body_dofadr[b] + j;
+              }
+            }
+            for (int i=0; i < chain_nnz; i++) {
+              int dof = chain_dofs[i];
+              if (!seen_dof[dof]) {
+                seen_dof[dof] = 1;
+                nflexdofs++;
+              }
+            }
           }
         }
       }
@@ -1207,19 +1232,34 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
         int* global2local = mjSTACKALLOC(d, nv, int);
         mju_fillInt(global2local, -1, nv);
 
+        // collect unique DOFs in order
         int cnt = 0;
+        mju_fillInt(seen_dof, 0, nv);
         for (int f=0; f < m->nflex; f++) {
           if (m->flex_interp[f]) {
             int nodenum = m->flex_nodenum[f];
             int nodeadr = m->flex_nodeadr[f];
             for (int n=0; n < nodenum; n++) {
               int b = m->flex_nodebodyid[nodeadr + n];
-              int dofnum = m->body_dofnum[b];
-              int dofadr = m->body_dofadr[b];
-              for (int j=0; j < dofnum; j++) {
-                flex_dof_indices[cnt] = dofadr + j;
-                global2local[dofadr + j] = cnt;
-                cnt++;
+              int chain_nnz;
+              if (m->body_dofnum[b] == 0) {
+                // Pinned node: use bodyChain to get parent DOFs
+                chain_nnz = mj_bodyChain(m, b, chain_dofs);
+              } else {
+                // Regular flex node: use body's own DOFs only
+                chain_nnz = m->body_dofnum[b];
+                for (int j = 0; j < chain_nnz; j++) {
+                  chain_dofs[j] = m->body_dofadr[b] + j;
+                }
+              }
+              for (int i=0; i < chain_nnz; i++) {
+                int dof = chain_dofs[i];
+                if (!seen_dof[dof]) {
+                  seen_dof[dof] = 1;
+                  flex_dof_indices[cnt] = dof;
+                  global2local[dof] = cnt;
+                  cnt++;
+                }
               }
             }
           }
