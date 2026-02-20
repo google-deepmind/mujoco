@@ -87,24 +87,25 @@ via Warp - if this feature is important to you, please chime in on this issue
 Installation
 ============
 
-The beta version of MuJoCo Warp is installed from GitHub. Please note that the beta version of MuJoCo Warp does not
-support all versions of MuJoCo, Warp, CUDA, NVIDIA drivers, etc.
+**From PyPI:**
+
+.. code-block:: shell
+
+    pip install mujoco-warp
+
+**From source:**
 
 .. code-block:: shell
 
     git clone https://github.com/google-deepmind/mujoco_warp.git
     cd mujoco_warp
-    python3 -m venv env
-    source env/bin/activate
-    pip install --upgrade pip
-    pip install uv
-    uv pip install -e .[dev,cuda]
+    uv sync --all-extras
 
-Test the Installation
+To make sure everything is working:
 
 .. code-block:: shell
 
-    pytest
+    uv run pytest -n 8
 
 .. _MJW_Usage:
 
