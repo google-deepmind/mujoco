@@ -467,9 +467,9 @@ subset of fields.
 Batch Rendering
 ===============
 
-MJWarp provides a high-throughput ray-tracing batch renderer built on
+MJWarp provides a batch renderer for high-throughput ray tracing built on
 `Warp's accelerated BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__ for
-rendering worlds with multiple cameras in parallel on device.
+rendering worlds with multiple cameras in parallel.
 
 Key features:
 
@@ -490,8 +490,8 @@ Key features:
 Basic Usage
 ----------
 
-Rendering or raycasting requires a :class:`mjw.RenderContext <mujoco_warp.RenderContext>` which contains BVH structures
-and rendering and output buffers.
+Rendering or raycasting requires a :class:`mjw.RenderContext <mujoco_warp.RenderContext>` which contains BVH structures,
+rendering specific fields, and output buffers.
 
 .. code-block:: python
 
@@ -526,9 +526,9 @@ followed by :func:`mjw.render <mujoco_warp.render>` to write to output buffers.
     mjw.render(m, d, rc)
 
 The output buffers contain stacked pixels for all cameras with shape `(nworld, npixel)` and RGB data is
-packed into one `unit32` variable. `RenderContext.rgb_adr` and `RenderContext.depth_adr` provide per-camera indexing.
+packed into one `uint32` variable. `RenderContext.rgb_adr` and `RenderContext.depth_adr` provide per-camera indexing.
 For convenience, :func:`mjw.get_rgb <mujoco_warp.get_rgb>` and :func:`mjw.get_depth <mujoco_warp.get_depth>`
-provide per-camera batched post-processing.
+return processed and reshaped RGB and depth data for a given camera batched for all worlds.
 
 .. code-block:: python
 
@@ -555,12 +555,12 @@ For benchmark results across a variety of scenes, see the
 Notes
 -----
 
-- **Meshes**: Rendering computation scales with mesh complexity. A primitive is expected to have better
-  performance (i.e., higher throughput) compared to a similar sized :ref:`mesh<body-geom-mesh>` or
-  :ref:`heightfield <body-geom-hfield>`.
-- **Flex**: Currently limited to 2D and 3D :ref:`flex<deformable-flex>` objects. Performance is expected to improved as
+- **Meshes**: Rendering computation scales with mesh complexity, specifically the number of vertices and faces. A
+  primitive is expected to have better performance (i.e., higher throughput) compared to a similar-sized
+  :ref:`mesh<body-geom-mesh>` or :ref:`heightfield <body-geom-hfield>`.
+- **Flex**: Currently limited to 2D and 3D :ref:`flex<deformable-flex>` objects. Performance is expected to improve as
   this feature is further developed.
-- **Scaling**: Rendering scales linearly with resolution (total number of pixels) and number of cameras.
+- **Scaling**: Rendering scales linearly with resolution (total pixel count) and camera count.
 
 .. _mjwFAQ:
 
