@@ -6267,7 +6267,7 @@ void mjCTendon::ResolveReferences(const mjCModel* m) {
     try {
       // look for wrapped element with namespace
       path[i]->name = prefix + pname + suffix;
-      path[i]->sidesite = prefix + psidesite + suffix;
+      path[i]->sidesite = psidesite.empty() ? psidesite : prefix + psidesite + suffix;
       path[i]->ResolveReferences(m);
     } catch(mjCError) {
       // remove namespace from wrap names
