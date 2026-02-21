@@ -2263,7 +2263,8 @@ rotations as unit quaternions.
 .. _body-joint-solimpfriction:
 
 :at:`solreffriction`, :at:`solimpfriction`
-   Constraint solver parameters for simulating dry friction. See :ref:`CSolver`.
+   Constraint solver parameters for simulating dry friction.
+   See also :ref:`Friction<CSolverFriction>`.
 
 .. _body-joint-stiffness:
 
@@ -4074,7 +4075,7 @@ friction can only be created with this element.
 
    Note that as with other :at:`solreffriction` attributes, the constraint violation is identically 0. Therefore, when
    using positive semantics :at:`solreffriction[1]` is ignored, while for negative semantics :at:`solreffriction[0]` is
-   ignored. See :ref:`CSolver` for more details.
+   ignored. See :ref:`Friction<CSolverFriction>` for more details.
 
 .. _contact-pair-margin:
 
@@ -4936,7 +4937,8 @@ length X, as in the clip on the right of `this example model
 .. _tendon-spatial-solimpfriction:
 
 :at:`solreffriction`, :at:`solimpfriction`
-   Constraint solver parameters for simulating dry friction in the tendon. See :ref:`CSolver`.
+   Constraint solver parameters for simulating dry friction in the tendon.
+   See also :ref:`Friction<CSolverFriction>`.
 
 .. _tendon-spatial-margin:
 

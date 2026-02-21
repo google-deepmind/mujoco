@@ -274,7 +274,8 @@ experiment interactively with parameter settings or implement continuation metho
 Here we focus on a single scalar constraint. Using slightly different notation from the Computation chapter, let
 :math:`\ac` denote the acceleration, :math:`v` the velocity, :math:`r` the position or residual (defined as 0 in
 friction dimensions), :math:`k` and :math:`b` the stiffness and damping of the virtual spring used to define the
-reference acceleration :math:`\ar = -b v - k r`. Let :math:`d` be the constraint impedance, and :math:`\au` the
+reference acceleration :math:`\ar = -b v - k r` (see :eq:`eq:aref`).
+Let :math:`d` be the constraint impedance, and :math:`\au` the
 acceleration in the absence of constraint force. Our earlier analysis revealed that the dynamics in constraint space are
 approximately
 
@@ -344,8 +345,7 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
    constraint becomes active; for contacts this margin is :ref:`margin<body-geom-margin>`-:ref:`gap<body-geom-gap>`.
    Limit and contact constraints are active when :math:`r < 0` (penetration).
 
-   For friction loss or friction dimensions of elliptic cones, the violation :math:`r` is identically zero, so
-   only :math:`d(0)` affects these constraints, all other :at:`solimp` values are ignored.
+   For frictional constraints, see :ref:`Friction<CSolverFriction>`.
 
    .. _solimp0:
 
@@ -385,25 +385,27 @@ There are two formats for this attribute, determined by the sign of the numbers.
 specification is considered to be in the :math:`(\text{timeconst}, \text{dampratio})` format. If negative it is in the
 "direct" :math:`(-\text{stiffness}, -\text{damping})` format.
 
-Frictional constraints whose residual is identically 0 have first-order dynamics and the mass-spring-damper analysis
-below does not apply. In this case the time constant is the rate of exponential decay of the constraint velocity,
-and the damping ratio is ignored. Equivalently, in the direct format, the :math:`\text{stiffness}` is ignored.
+For frictional constraints, the mass-spring-damper analysis below does not directly apply;
+see :ref:`Friction<CSolverFriction>`.
 
 **solref :** real(2), "0.02 1"
    We first describe the default, positive-value format where the two numbers are
    :math:`(\text{timeconst}, \text{dampratio})`.
 
+   .. _soRefScaling:
+
    The idea here is to re-parameterize the model in terms of the time constant and damping ratio of a mass-spring-damper
-   system. By "time constant" we mean the inverse of the natural frequency times the damping ratio. In this case we use
-   a mass-spring-damper model to compute :math:`k, b` after suitable scaling. Note that the effective stiffness
-   :math:`d(r) \cdot k` and damping :math:`d(r) \cdot b` are scaled by the impedance :math:`d(r)` which is a function of
-   the distance :math:`r`. Thus we cannot always achieve the specified mass-spring-damper properties, unless we
-   completely undo the scaling by :math:`d`. But the latter is undesirable because it would ruin the interpolating
-   property, in particular the limit :math:`d=0` would no longer disable the constraint. Instead we scale the stiffness
-   and damping so that the damping ratio remains constant, while the time constant increases when :math:`d(r)` gets
-   smaller. The scaling formulas are
+   system. By "time constant" we mean the inverse of the natural frequency times the damping ratio. Now recall that the
+   products :math:`d \cdot k` and :math:`d \cdot b` in :eq:`eq:constraint` are the effective stiffness and damping in
+   constraint space. Because the impedance :math:`d(r)` varies with the
+   position residual :math:`r`, we cannot achieve constant mass-spring-damper properties; completely undoing the scaling
+   by :math:`d` is undesirable because the limit :math:`d = 0` would no longer disable the constraint. Instead, we
+   absorb one factor of :math:`d(r)` into :math:`k` (but not into :math:`b`), so that the damping ratio remains constant
+   while the time constant scales with :math:`d(r)`. The formulas are
 
    .. math::
+      :label: eq:solref_standard
+
       \begin{aligned}
       b &= 2 / (d_\text{width}\cdot \text{timeconst}) \\
       k &= d(r) / (d_\text{width}^2 \cdot \text{timeconst}^2 \cdot \text{dampratio}^2) \\
@@ -414,7 +416,7 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    can go unstable. This is enforced internally, unless the :ref:`refsafe<option-flag-refsafe>` attribute of :ref:`flag
    <option-flag>` is set to false. The :math:`\text{dampratio}` parameter would normally be set to 1, corresponding to
    critical damping. Smaller values result in under-damped or bouncy constraints, while larger values result in
-   over-damped constraints. Combining the above formula with :eq:`eq:constraint`, we can derive the following result.
+   over-damped constraints. Combining :eq:`eq:solref_standard` with :eq:`eq:constraint`, we can derive the following
    If the reference acceleration is given using the positive number format and the impedance is constant
    :math:`d = d_0 = d_\text{width}`, then the penetration depth at rest is
 
@@ -427,12 +429,14 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    interact. The scaling formulas are
 
    .. math::
+      :label: eq:solref_direct
+
       \begin{aligned}
       b &= \text{damping} / d_\text{width} \\
       k &= \text{stiffness} \cdot d(r) / d_\text{width}^2 \\
       \end{aligned}
 
-   Similarly to the above derivation, if the reference acceleration is given using the negative number format and the
+   Similarly to the derivation following :eq:`eq:solref_standard`, if the reference acceleration is given using the
    impedance is constant, then the penetration depth at rest is
 
    .. math::
@@ -448,6 +452,24 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
 
    A :math:`\text{dampratio}` of 1 in the positive-value format is equivalent to
    :math:`\text{damping} = 2 \sqrt{ \text{stiffness} }` in the direct format.
+
+.. _CSolverFriction:
+
+Friction
+^^^^^^^^
+
+Friction loss constraints (in joints and tendons) and friction dimensions of elliptic contact cones have zero position
+violation: :math:`r \equiv 0`. This simplifies the constraint model (see also :ref:`soParameters`):
+
+- The **impedance** is always :math:`d_0` (:at:`solimp[0]`), since :math:`d(r)` is evaluated at :math:`r=0`.
+  The sigmoid shape parameters (:math:`\text{width}`, :math:`\text{midpoint}`, :math:`\text{power}`) have no effect.
+- The dynamics are **first-order** (exponential decay of constraint velocity, no spring): the stiffness :math:`k` is
+  always 0.
+- In the standard :at:`solref` format, the time constant controls exponential velocity decay. The damping ratio is
+  ignored (it only appears in the :math:`k` formula).
+- In the direct :at:`solref` format, the damping (second value) is used but the stiffness (first value) is ignored.
+- :math:`d_\text{width}` (:at:`solimp[1]`) still affects the damping :math:`b` as a scaling denominator
+  (:eq:`eq:solref_standard`, :eq:`eq:solref_direct`), even though it does not affect the impedance.
 
 .. _CContact:
 

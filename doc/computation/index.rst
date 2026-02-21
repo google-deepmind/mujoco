@@ -1335,6 +1335,8 @@ It is a vector with dimensionality :math:`\nq` satisfying :math:`0<d<1` element-
 the diagonal elements of the regularizer as
 
 .. math::
+   :label: eq:impedance_R
+
    R_{ii} = \frac{1-d_i}{d_i} \hat{A}_{ii}
 
 Note that we are not using the diagonal of the actual :math:`A` matrix, but an approximation to it. This is because we
@@ -1354,17 +1356,22 @@ Next we explain how the reference acceleration is computed. As already mentioned
 parameterized by *damping* and *stiffness* coefficients element-wise:
 
 .. math::
+   :label: eq:aref
+
    \ari = -b_i (J v)_i - k_i r_i
 
-Recall that :math:`r` is the position residual (which is zero for friction loss and friction dimensions of elliptic
-cones), while :math:`J v` is the joint velocity projected in constraint space; the indexing notation refers to one
-component of the projected velocity vector.
+Recall that :math:`r` is the position residual, while :math:`J v` is the joint velocity projected in constraint space;
+the indexing notation refers to one component of the projected velocity vector. For friction loss and friction
+dimensions of elliptic cones, :math:`r \equiv 0` and therefore :math:`k=0`, so the reference acceleration reduces to
+pure damping: :math:`\ari = -b_i (J v)_i`. More detail is given in the :ref:`Friction<CSolverFriction>` section of the
+Modeling chapter.
 
-To summarize, the user specifies the vectors of impedance coefficients :math:`0<d<1`, damping coefficients :math:`b > 0`
-and stiffness coefficients :math:`k > 0`. The quantities :math:`R, \ar` are then computed by MuJoCo as shown above, and
-the selected optimization algorithm is applied to solve problem :eq:`eq:dual`. As explained in the :ref:`solver
-parameters <CSolver>` section of the Modeling chapter, MuJoCo offers additional automation for setting :math:`d, b, k`
-so as to achieve critical damping, or model a soft contact layer by varying :math:`d` with distance.
+To summarize, the constraint behavior is determined by three per-constraint quantities: impedance :math:`0<d<1`, damping
+:math:`b > 0` and stiffness :math:`k \geq 0`. These are computed from the :at:`solimp` and :at:`solref` attributes as
+described in the :ref:`solver parameters <soRefScaling>` section of the Modeling chapter, which also offers additional
+automation (e.g., achieving critical damping, or varying :math:`d` with distance to model a soft contact layer). The
+quantities :math:`R, \ar` are then computed from :eq:`eq:impedance_R` and :eq:`eq:aref`, and the selected optimization
+algorithm is applied to solve problem :eq:`eq:dual`.
 
 .. _soCones:
 
