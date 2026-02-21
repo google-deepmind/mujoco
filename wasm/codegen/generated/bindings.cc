@@ -8486,6 +8486,7 @@ void mj_constraintUpdate_wrapper(const MjModel& m, MjData& d, const NumberArray&
 void mj_contactForce_wrapper(const MjModel& m, const MjData& d, int id, const val& result) {
   UNPACK_VALUE(mjtNum, result);
   mj_contactForce(m.get(), d.get(), id, result_.data());
+  result_.writeBack();
 }
 
 int mj_copyBack_wrapper(MjSpec& s, const MjModel& m) {
