@@ -909,9 +909,10 @@ static constexpr char xml_child[] = R"(
         <frame name="cframe">
           <body name="body">
             <joint type="hinge" name="hinge"/>
-            <geom class="cylinder" material="material"/>
+            <geom name="cylinder" class="cylinder" material="material"/>
             <light mode="targetbody" target="targetbody"/>
             <site name="site" material="material"/>
+            <site name="othersite" material="material"/>
             <body name="targetbody"/>
             <body/>
           </body>
@@ -933,6 +934,11 @@ static constexpr char xml_child[] = R"(
       <fixed name="fixed">
         <joint joint="hinge" coef="2"/>
       </fixed>
+      <spatial name="spatial">
+        <site site="site"/>
+        <geom geom="cylinder"/>
+        <site site="othersite"/>
+      </spatial>
     </tendon>
 
     <actuator>
@@ -976,9 +982,10 @@ TEST_F(MujocoTest, AttachSame) {
     <worldbody>
       <body name="body">
         <joint type="hinge" name="hinge"/>
-        <geom class="cylinder" material="material"/>
+        <geom name="cylinder" class="cylinder" material="material"/>
         <light mode="targetbody" target="targetbody"/>
         <site name="site" material="material"/>
+        <site name="othersite" material="material"/>
         <body name="targetbody"/>
         <body/>
       </body>
@@ -989,9 +996,10 @@ TEST_F(MujocoTest, AttachSame) {
       <frame name="frame" pos=".1 0 0" euler="0 90 0">
         <body name="attached-body-1">
           <joint type="hinge" name="attached-hinge-1"/>
-          <geom class="cylinder" material="material"/>
+          <geom name="attached-cylinder-1" class="cylinder" material="material"/>
           <light mode="targetbody" target="attached-targetbody-1"/>
           <site name="attached-site-1" material="material"/>
+          <site name="attached-othersite-1" material="material"/>
           <body name="attached-targetbody-1"/>
           <body/>
         </body>
@@ -1008,9 +1016,19 @@ TEST_F(MujocoTest, AttachSame) {
       <fixed name="fixed">
         <joint joint="hinge" coef="2"/>
       </fixed>
+      <spatial name="spatial">
+        <site site="site"/>
+        <geom geom="cylinder"/>
+        <site site="othersite"/>
+      </spatial>
       <fixed name="attached-fixed-1">
         <joint joint="attached-hinge-1" coef="2"/>
       </fixed>
+      <spatial name="attached-spatial-1">
+        <site site="attached-site-1"/>
+        <geom geom="attached-cylinder-1"/>
+        <site site="attached-othersite-1"/>
+      </spatial>
     </tendon>
 
     <actuator>
@@ -1132,9 +1150,10 @@ TEST_F(MujocoTest, AttachDifferent) {
         <frame name="frame" pos=".1 0 0" euler="0 90 0">
           <body name="attached-body-1">
             <joint type="hinge" name="attached-hinge-1"/>
-            <geom class="attached-cylinder-1" material="attached-material-1"/>
+            <geom name="attached-cylinder-1" class="attached-cylinder-1" material="attached-material-1"/>
             <light mode="targetbody" target="attached-targetbody-1"/>
             <site name="attached-site-1" material="attached-material-1"/>
+            <site name="attached-othersite-1" material="attached-material-1"/>
             <body name="attached-targetbody-1"/>
             <body/>
           </body>
@@ -1150,6 +1169,11 @@ TEST_F(MujocoTest, AttachDifferent) {
       <fixed name="attached-fixed-1">
         <joint joint="attached-hinge-1" coef="2"/>
       </fixed>
+      <spatial name="attached-spatial-1">
+        <site site="attached-site-1"/>
+        <geom geom="attached-cylinder-1"/>
+        <site site="attached-othersite-1"/>
+      </spatial>
     </tendon>
 
     <actuator>
@@ -1271,9 +1295,10 @@ TEST_F(MujocoTest, AttachFrame) {
           <frame name="cframe">
             <body name="attached-body-1">
               <joint type="hinge" name="attached-hinge-1"/>
-              <geom class="attached-cylinder-1" material="attached-material-1"/>
+              <geom name="attached-cylinder-1" class="attached-cylinder-1" material="attached-material-1"/>
               <light mode="targetbody" target="attached-targetbody-1"/>
               <site name="attached-site-1" material="attached-material-1"/>
+              <site name="attached-othersite-1" material="attached-material-1"/>
               <body name="attached-targetbody-1"/>
               <body/>
             </body>
@@ -1290,6 +1315,11 @@ TEST_F(MujocoTest, AttachFrame) {
       <fixed name="attached-fixed-1">
         <joint joint="attached-hinge-1" coef="2"/>
       </fixed>
+      <spatial name="attached-spatial-1">
+        <site site="attached-site-1"/>
+        <geom geom="attached-cylinder-1"/>
+        <site site="attached-othersite-1"/>
+      </spatial>
     </tendon>
 
     <actuator>
