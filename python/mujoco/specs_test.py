@@ -18,6 +18,7 @@ import gc
 import inspect
 import math
 import os
+from pathlib import Path
 import textwrap
 import typing
 import zipfile  # pylint: disable=unused-import
@@ -1763,6 +1764,59 @@ class SpecsTest(absltest.TestCase):
         string_spec = mujoco.MjSpec.from_string(xml_string, assets=assets)
         string_spec.compile()
         self.assertEqual(spec.to_xml(), string_spec.to_xml())
+
+  def test_to_zip_includes_assets(self):
+    testdata_path = epath.resource_path("mujoco") / "testdata"
+    asset_filename = 'abdomen_1_body.msh'
+    texture_filename = 'checkerboard.png'
+
+    temp_dir = self.create_tempdir()
+
+    import shutil
+    shutil.copy(testdata_path / asset_filename, temp_dir.full_path)
+    shutil.copy(testdata_path / texture_filename, temp_dir.full_path)
+
+    cwd = os.getcwd()
+    self.addCleanup(os.chdir, cwd)
+    os.chdir(temp_dir.full_path)
+
+    spec = mujoco.MjSpec()
+    spec.modelname = 'test_model'
+    mesh = spec.add_mesh()
+    mesh.name = 'test_mesh'
+    mesh.file = asset_filename
+
+    texture = spec.add_texture()
+    texture.file = texture_filename
+    texture.type = mujoco.mjtTexture.mjTEXTURE_2D
+
+    zip_filename = 'model.zip'
+    spec.to_zip(zip_filename)
+
+    with zipfile.ZipFile(zip_filename, 'r') as z:
+      self.assertIn(asset_filename, z.namelist())
+      with open(asset_filename, 'rb') as f:
+        self.assertEqual(z.read(asset_filename), f.read())
+      self.assertIn(texture_filename, z.namelist())
+      with open(texture_filename, 'rb') as f:
+        self.assertEqual(z.read(texture_filename), f.read())
+      self.assertIn('test_model.xml', z.namelist())
+
+    spec1 = mujoco.MjSpec.from_zip(zip_filename)
+    model = spec1.compile()
+
+  def test_to_zip_includes_assets_from_references(self):
+    temp_dir = self.create_tempdir()
+    temp_dir_path = epath.Path(temp_dir.full_path)
+
+    zip_path = temp_dir_path / "cube.zip"
+    mesh_model_path = epath.resource_path("mujoco") / "testdata" / "msh.xml"
+
+    spec0 = mujoco.MjSpec.from_file(mesh_model_path.as_posix())
+    spec0.to_zip(zip_path.as_posix())
+
+    spec1 = mujoco.MjSpec.from_zip(zip_path.as_posix())
+    model = spec1.compile()
 
   def test_rangefinder_sensor(self):
     """Test rangefinder sensor with mjSpec, iterative model building."""

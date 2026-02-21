@@ -17,6 +17,7 @@
 import ctypes
 import ctypes.util
 import os
+from pathlib import Path
 import platform
 import subprocess
 from typing import Any, IO, Union, Sequence
@@ -106,11 +107,43 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
     file: The path to the file to save to or the file object to write to.
   """
   files_to_zip = spec.assets
+
+  strip_path = bool(spec.strippath)
+  model_dir = spec.modelfiledir
+
+  def _resolve_path(filename: str, compiler_dir: str) -> Path:
+    if strip_path:
+      filename = os.path.basename(filename)
+
+    path = Path(filename)
+
+    if path.is_absolute():
+      return path
+
+    if compiler_dir and Path(compiler_dir).is_absolute():
+      return Path(compiler_dir) / path
+
+    base_dir = Path(model_dir) if model_dir else Path.cwd()
+    if compiler_dir:
+      return base_dir / compiler_dir / path
+
+    return base_dir / path
+
+  def _add_files(elements, compiler_dir: str):
+    for element in elements:
+      if element.file and element.file not in files_to_zip:
+        file_path = _resolve_path(element.file, compiler_dir)
+        if file_path.exists():
+          files_to_zip[element.file] = file_path.read_bytes()
+
+  _add_files(spec.meshes, spec.compiler.meshdir)
+  _add_files(spec.textures, spec.compiler.texturedir)
+  _add_files(spec.skins, spec.compiler.meshdir)
+  _add_files(spec.hfields, spec.compiler.meshdir)
+
   files_to_zip[spec.modelname + '.xml'] = spec.to_xml()
   if isinstance(file, str):
-    directory = os.path.dirname(file)
-    os.makedirs(directory, exist_ok=True)
-    file = open(file, 'wb')
+    Path(file).parent.mkdir(parents=True, exist_ok=True)
   with zipfile.ZipFile(file, 'w') as zip_file:
     for filename, contents in files_to_zip.items():
       zip_info = zipfile.ZipInfo(filename)
