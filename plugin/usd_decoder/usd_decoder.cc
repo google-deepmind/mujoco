@@ -2250,12 +2250,8 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
 }
 
 void ParseUsdFilteredPairsAPI(mjSpec* spec, const pxr::UsdPrim& prim) {
-  if (!prim.HasAPI<pxr::UsdPhysicsFilteredPairsAPI>()) {
-    return;
-  }
-  auto filtered_pairs_api = pxr::UsdPhysicsFilteredPairsAPI(prim);
   pxr::SdfPathVector filtered_bodies;
-  filtered_pairs_api.GetFilteredPairsRel().GetTargets(&filtered_bodies);
+  pxr::UsdPhysicsFilteredPairsAPI(prim).GetFilteredPairsRel().GetTargets(&filtered_bodies);
   for (const auto& filtered_body : filtered_bodies) {
     mjsExclude* exclude = mjs_addExclude(spec);
     mjs_setString(exclude->bodyname1, prim.GetPath().GetAsString().c_str());
@@ -2283,7 +2279,9 @@ mjsBody* ParseUsdPhysicsRigidbody(
       body->element, kUsdPrimPathKey, usd_primpath,
       [](const void* data) { delete static_cast<const pxr::SdfPath*>(data); });
 
-  ParseUsdFilteredPairsAPI(spec, prim);
+  if (prim.HasAPI<pxr::UsdPhysicsFilteredPairsAPI>()) {
+    ParseUsdFilteredPairsAPI(spec, prim);
+  }
 
   return body;
 }
