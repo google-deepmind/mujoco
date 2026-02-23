@@ -16,9 +16,12 @@
 #define MUJOCO_TEST_FIXTURE_H_
 
 #include <csetjmp>
+#include <cstdio>  // IWYU pragma: keep
+#include <cstdlib>  // IWYU pragma: keep
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <mutex>  // IWYU pragma: keep
 #include <string>
 #include <string_view>
 #include <vector>
@@ -54,6 +57,21 @@ class MujocoErrorTestGuard {
 // trigger a test failure.
 class MujocoTest : public ::testing::Test {
  public:
+  MujocoTest() {
+    static std::once_flag flag;
+    std::call_once(flag, []() {
+      const char* plugin_dir = std::getenv("MUJOCO_PLUGIN_DIR");
+      if (plugin_dir) {
+        mj_loadAllPluginLibraries(
+          plugin_dir, +[](const char* filename, int first, int count) {
+            std::printf("Plugins registered by library '%s':\n", filename);
+            for (int i = first; i < first + count; ++i) {
+              std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
+            }
+          });
+      }
+    });
+  }
   ~MujocoTest() { mj_freeLastXML(); }
 
  private:
@@ -183,20 +201,6 @@ class MockFilesystem {
   std::string dir_;  // current directory
 };
 
-// Installs all plugins
-class PluginTest : public MujocoTest {
- public:
-  // load plugin library
-  PluginTest() : MujocoTest() {
-    mj_loadAllPluginLibraries(
-      std::string(std::getenv("MUJOCO_PLUGIN_DIR")).c_str(), +[](const char* filename, int first, int count) {
-        std::printf("Plugins registered by library '%s':\n", filename);
-        for (int i = first; i < first + count; ++i) {
-          std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
-        }
-      });
-  }
-};
 
 }  // namespace mujoco
 #endif  // MUJOCO_TEST_FIXTURE_H_

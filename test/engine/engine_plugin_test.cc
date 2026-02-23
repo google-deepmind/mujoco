@@ -376,10 +376,10 @@ int RegisterNoAttributePlugin() {
   return mjp_registerPlugin(&plugin);
 }
 
-class EnginePluginTest : public PluginTest {
+class EnginePluginTest : public MujocoTest {
  public:
   // register all plugins
-  EnginePluginTest() : PluginTest() {
+  EnginePluginTest() : MujocoTest() {
     RegisterSensorPlugin();
 
     for (int i = 1; i <= kNumFakePlugins; ++i) {
@@ -466,7 +466,7 @@ TEST_F(MujocoTest, EmptyPluginDisallowed) {
   mj_deleteModel(m);
 }
 
-TEST_F(PluginTest, FirstPartyPlugins) {
+TEST_F(MujocoTest, FirstPartyPlugins) {
   EXPECT_THAT(mjp_pluginCount(), kNumTruePlugins);
 }
 

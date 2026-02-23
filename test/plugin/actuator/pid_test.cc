@@ -29,7 +29,7 @@
 namespace mujoco {
 namespace {
 
-using PidTest = PluginTest;
+using PidTest = MujocoTest;
 using ::testing::DoubleNear;
 using ::testing::HasSubstr;
 using ::testing::IsNull;

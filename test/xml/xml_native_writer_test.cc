@@ -44,7 +44,7 @@ using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::NotNull;
 
-using XMLWriterTest = PluginTest;
+using XMLWriterTest = MujocoTest;
 
 static const char* const kNonRgbTextureXMLPath =
     "xml/testdata/hfield_png_nonrgb.xml";
