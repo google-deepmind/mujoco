@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#define NOMINMAX
+#endif
+
 #include "mjcf/mjcf_file_format.h"
 
 #include <array>
