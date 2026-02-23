@@ -489,7 +489,7 @@ Key features:
   `Warp's BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__.
 
 Basic Usage
-----------
+-----------
 
 Rendering or raycasting requires a :class:`mjw.RenderContext <mujoco_warp.RenderContext>` which contains BVH structures,
 rendering specific fields, and output buffers.
