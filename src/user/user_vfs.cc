@@ -16,7 +16,9 @@
 
 #include <sys/stat.h>
 #ifdef _WIN32
+#ifndef stat
 #define stat _stat
+#endif
 #endif
 
 #include <algorithm>
