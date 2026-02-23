@@ -15,7 +15,7 @@
 #include "user/user_vfs.h"
 
 #include <sys/stat.h>
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
 #define stat _stat
 #endif
 
