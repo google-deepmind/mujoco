@@ -903,17 +903,6 @@ def _make_data_warp(
 
   data = jax.device_put(data, device=device)
 
-  with wp.ScopedDevice('cuda:0'):  # pylint: disable=undefined-variable
-    # Warm-up the warp kernel cache.
-    # TODO(robotics-simulation): remove this warmup compilation once warp
-    # stops unloading modules during XLA graph capture for tile kernels.
-    # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)
-    mw = mjwp.put_model(m)
-    _ = mjwp.step(mw, dw)
-    # pylint: enable=undefined-variable
-  del dw, mw
-
   return data
 
 
@@ -1363,6 +1352,44 @@ def _put_data_cpp(
   return _strip_weak_type(data)
 
 
+def _put_data_warp(
+    m: mujoco.MjModel,
+    d: mujoco.MjData,
+    device: Optional[jax.Device] = None,
+    naconmax: Optional[int] = None,
+    njmax: Optional[int] = None,
+) -> types.Data:
+  """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
+
+  with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
+    dw = mjwp.put_data(m, d, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
+
+  fields = _put_data_public_fields(d)
+  for k in fields:
+    if not hasattr(dw, k):
+      continue
+    field = _wp_to_np_type(getattr(dw, k))
+    if mjxw.types._BATCH_DIM['Data'][k]:  # pylint: disable=protected-access
+      field = field.reshape(field.shape[1:])
+    fields[k] = field
+
+  impl_fields = {}
+  for k in mjxw.types.DataWarp.__annotations__.keys():
+    field = _get_nested_attr(dw, k, split='__')
+    field = _wp_to_np_type(field)
+    if mjxw.types._BATCH_DIM['Data'][k]:  # pylint: disable=protected-access
+      field = field.reshape(field.shape[1:])
+    impl_fields[k] = field
+
+  data = types.Data(
+      **fields,
+      _impl=mjxw.types.DataWarp(**impl_fields),
+  )
+
+  data = jax.device_put(data, device=device)
+  return data
+
+
 def put_data(
     m: mujoco.MjModel,
     d: mujoco.MjData,
@@ -1393,7 +1420,6 @@ def put_data(
     an mjx.Data placed on device
     DeprecationWarning: if nconmax is used
   """
-  del njmax
   if nconmax is not None:
     warnings.warn(
         'nconmax will be deprecated in mujoco-mjx>=3.5. Use naconmax instead.',
@@ -1410,8 +1436,10 @@ def put_data(
     return _put_data_cpp(
         m, d, device, dummy_arg_for_batching=dummy_arg_for_batching
     )
-
-  # TODO(robotics-team): implement put_data_warp
+  elif impl == types.Impl.WARP:
+    _check_warp_installed()
+    naconmax = nconmax if naconmax is None else naconmax
+    return _put_data_warp(m, d, device, naconmax, njmax)
 
   raise NotImplementedError(
       f'put_data for implementation "{impl}" not implemented yet.'

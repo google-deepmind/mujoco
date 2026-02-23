@@ -494,9 +494,15 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d._impl.contact__dist.shape[0], 9)
     self.assertEqual(d._impl.efc__pos.shape[0], 23)
 
-  @parameterized.parameters('jax', 'c', 'cpp')
+  @parameterized.parameters('jax', 'c', 'cpp', 'warp')
   def test_put_data(self, impl: str):
     """Test that put_data puts the correct data for dense and sparse."""
+    if impl == 'warp':
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp is not installed.')
+      if not mjx_io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device.')
+
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d, 2)
@@ -517,6 +523,15 @@ class DataIOTest(parameterized.TestCase):
         )
     )
 
+    # xmat, ximat, geom_xmat are all shape transformed
+    np.testing.assert_allclose(dx.xmat.reshape((-1, 9)), d.xmat)
+    np.testing.assert_allclose(dx.ximat.reshape((-1, 9)), d.ximat)
+    np.testing.assert_allclose(dx.geom_xmat.reshape((-1, 9)), d.geom_xmat)
+    np.testing.assert_allclose(dx.site_xmat.reshape((-1, 9)), d.site_xmat)
+
+    # tendon length is correct
+    np.testing.assert_allclose(dx.ten_length, d.ten_length)
+
     if impl == 'jax':
       # check that qM is transformed properly
       qm = np.zeros((m.nv, m.nv), dtype=np.float64)
@@ -530,6 +545,21 @@ class DataIOTest(parameterized.TestCase):
       self.assertTrue(hasattr(dx._impl, 'pointer_lo'))
       self.assertTrue(hasattr(dx._impl, 'pointer_hi'))
       return  # cpp does not populate other fields in _impl
+    elif impl == 'warp':
+      qm = np.zeros((m.nv, m.nv), dtype=np.float64)
+      mujoco.mj_fullM(m, qm, d.qM)
+      np.testing.assert_allclose(dx._impl.qM, qm)
+      # TODO(taylorhowell): test efc__J
+      np.testing.assert_allclose(dx._impl.efc__aref[:3], d.efc_aref[:3])
+
+    # tendon impl data is correct
+    np.testing.assert_equal(dx._impl.ten_wrapadr, np.zeros((1,)))
+    np.testing.assert_equal(dx._impl.ten_wrapnum, np.zeros((1,)))
+    np.testing.assert_equal(dx._impl.wrap_obj, np.zeros((2, 2)))
+    np.testing.assert_equal(dx._impl.wrap_xpos, np.zeros((2, 6)))
+
+    if impl == 'warp':
+      return
 
     # 4 contacts, 2 for each capsule against the plane
     self.assertEqual(dx._impl.contact.dist.shape, (4,))
@@ -541,23 +571,6 @@ class DataIOTest(parameterized.TestCase):
         dx._impl.contact.frame[0].reshape(9), d.contact.frame[0]
     )
     np.testing.assert_allclose(dx._impl.contact.frame[1:], 0)
-
-    # xmat, ximat, geom_xmat are all shape transformed
-    self.assertEqual(dx.xmat.shape, (3, 3, 3))
-    self.assertEqual(dx.ximat.shape, (3, 3, 3))
-    self.assertEqual(dx.geom_xmat.shape, (3, 3, 3))
-    self.assertEqual(dx.site_xmat.shape, (1, 3, 3))
-    np.testing.assert_allclose(dx.xmat.reshape((3, 9)), d.xmat)
-    np.testing.assert_allclose(dx.ximat.reshape((3, 9)), d.ximat)
-    np.testing.assert_allclose(dx.geom_xmat.reshape((3, 9)), d.geom_xmat)
-    np.testing.assert_allclose(dx.site_xmat.reshape((1, 9)), d.site_xmat)
-
-    # tendon data is correct
-    np.testing.assert_allclose(dx.ten_length, d.ten_length)
-    np.testing.assert_equal(dx._impl.ten_wrapadr, np.zeros((1,)))
-    np.testing.assert_equal(dx._impl.ten_wrapnum, np.zeros((1,)))
-    np.testing.assert_equal(dx._impl.wrap_obj, np.zeros((2, 2)))
-    np.testing.assert_equal(dx._impl.wrap_xpos, np.zeros((2, 6)))
 
     # efc_ are also shape transformed and padded
     self.assertEqual(dx._impl.efc_J.shape, (45, 8))  # nefc, nv
@@ -583,7 +596,9 @@ class DataIOTest(parameterized.TestCase):
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d, 2)
     dx_sparse = mjx.put_data(m, d, impl=impl)
-    np.testing.assert_allclose(dx_sparse._impl.efc_J, dx._impl.efc_J, atol=1e-8)
+    np.testing.assert_allclose(
+        dx_sparse._impl.efc_J, dx._impl.efc_J, atol=1e-8
+    )
 
     # check sparse mass matrices are correct
     np.testing.assert_allclose(dx_sparse._impl.qM, d.qM, atol=1e-8)
@@ -603,6 +618,31 @@ class DataIOTest(parameterized.TestCase):
       np.testing.assert_allclose(dx_from_dense._impl.qM, qm, atol=1e-8)
     elif impl == 'c':
       np.testing.assert_allclose(dx_from_dense._impl.qM, d.qM, atol=1e-8)
+
+  def test_put_data_warp_ndim(self):
+    """Tests that put_data produces expected dimensions for Warp fields."""
+    if not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp is not installed.')
+    if not mjx_io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device.')
+
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 2)
+    dx = mjx.put_data(m, d, impl='warp')
+
+    def check_ndim(path, x):
+      k = _get_name_from_path(path)
+      if k not in mjxw_types._NDIM['Data']:
+        return
+      is_batched = mjxw_types._BATCH_DIM['Data'][k]
+      expected_ndim = mjxw_types._NDIM['Data'][k] - is_batched
+      if not hasattr(x, 'ndim'):
+        return
+      msg = f'Field {k} has ndim {x.ndim} but expected {expected_ndim}'
+      self.assertEqual(x.ndim, expected_ndim, msg)
+
+    _ = jax.tree.map_with_path(check_ndim, dx)
 
   @parameterized.parameters(
       ('jax', False), ('jax', True), ('c', False), ('c', True)
