@@ -67,6 +67,7 @@
 #include <pxr/usd/usdGeom/tokens.h>
 #include <pxr/usd/usdGeom/xformCache.h>
 #include <pxr/usd/usdPhysics/collisionAPI.h>
+#include <pxr/usd/usdPhysics/filteredPairsAPI.h>
 #include <pxr/usd/usdPhysics/fixedJoint.h>
 #include <pxr/usd/usdPhysics/joint.h>
 #include <pxr/usd/usdPhysics/massAPI.h>
@@ -2248,6 +2249,20 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
   }
 }
 
+void ParseUsdFilteredPairsAPI(mjSpec* spec, const pxr::UsdPrim& prim) {
+  if (!prim.HasAPI<pxr::UsdPhysicsFilteredPairsAPI>()) {
+    return;
+  }
+  auto filtered_pairs_api = pxr::UsdPhysicsFilteredPairsAPI(prim);
+  pxr::SdfPathVector filtered_bodies;
+  filtered_pairs_api.GetFilteredPairsRel().GetTargets(&filtered_bodies);
+  for (const auto& filtered_body : filtered_bodies) {
+    mjsExclude* exclude = mjs_addExclude(spec);
+    mjs_setString(exclude->bodyname1, prim.GetPath().GetAsString().c_str());
+    mjs_setString(exclude->bodyname2, filtered_body.GetAsString().c_str());
+  }
+}
+
 mjsBody* ParseUsdPhysicsRigidbody(
     mjSpec* spec, const pxr::UsdPhysicsRigidBodyAPI& rigidbody_api,
     const pxr::UsdPrim& parent_prim, mjsBody* parent,
@@ -2267,6 +2282,8 @@ mjsBody* ParseUsdPhysicsRigidbody(
   mjs_setUserValueWithCleanup(
       body->element, kUsdPrimPathKey, usd_primpath,
       [](const void* data) { delete static_cast<const pxr::SdfPath*>(data); });
+
+  ParseUsdFilteredPairsAPI(spec, prim);
 
   return body;
 }
