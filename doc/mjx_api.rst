@@ -7,6 +7,7 @@ MJX API
   :special-members: False
   :private-members: False
   :exclude-members:
+      Any,
       __init__,
       __format__,
       __new__,
