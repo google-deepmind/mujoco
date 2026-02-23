@@ -42,13 +42,9 @@ jobs:
 
     - name: Prepare README for dist
       run: |
-        if [ -f wasm/README.npm.md ]; then
-          mkdir -p wasm/dist
-          cp wasm/README.npm.md wasm/dist/README.md
-          echo "Copied wasm/README.npm.md -> wasm/dist/README.md"
-        else
-          echo "No wasm/README.npm.md found; skipping README copy"
-        fi
+        mkdir -p wasm/dist
+        cp wasm/README.md wasm/dist/README.md
+
 
     - name: Sync version with tag (dist)
       run: |
