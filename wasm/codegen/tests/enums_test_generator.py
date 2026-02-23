@@ -26,8 +26,8 @@ def generate_typescript_enum_tests():
   output = textwrap.dedent("""\
     import 'jasmine';
 
-    import { MainModule } from "../dist/mujoco_wasm"
-    import loadMujoco from "../dist/mujoco_wasm.js"
+    import { MainModule } from "../dist/mujoco"
+    import loadMujoco from "../dist/mujoco.js"
 
     let mujoco: MainModule;
 

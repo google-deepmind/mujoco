@@ -1,5 +1,5 @@
 {
-  "name": "mujoco_wasm",
+  "name": "mujoco",
   "version": "0.0.0",
   "description": "MuJoCo WASM bindings",
   "repository": {
@@ -23,13 +23,13 @@
     "javascript",
     "typescript"
   ],
-  "main": "mujoco_wasm.js",
-  "types": "mujoco_wasm.d.ts",
+  "main": "mujoco.js",
+  "types": "mujoco.d.ts",
   "files": [
-    "mujoco_wasm.js",
-    "mujoco_wasm.d.ts",
-    "mujoco_wasm.wasm",
-    "mujoco_wasm.wasm.map",
+    "mujoco.js",
+    "mujoco.d.ts",
+    "mujoco.wasm",
+    "mujoco.wasm.map",
     "README.md"
   ],
   "author": "Google DeepMind",

@@ -6,13 +6,13 @@ Official WebAssembly (WASM) bindings for the MuJoCo physics engine, compiled fro
 
 ## Install
 ```sh
-npm install mujoco_wasm
+npm install mujoco
 ```
 
 ## Quick start (ESM / TypeScript)
 
 ```ts
-import loadMujoco from 'mujoco_wasm';
+import loadMujoco from 'mujoco';
 
 const mujoco = await loadMujoco();
 
@@ -190,8 +190,7 @@ This will return a javascript array representation of the values in MuJoCo `mjFR
 ## Notes
 The package is ESM (`type: module`) and ships TypeScript types.
 
-Ensure your bundler or dev server serves the `.wasm` asset from
-`node_modules/mujoco_wasm/` at runtime.
+Ensure your bundler or dev server serves the `.wasm` asset at runtime.
 
 ### Development
 For detailed build instructions see the repository [README](https://github.com/google-deepmind/mujoco/tree/main/wasm#mujoco-javascript-bindings) (Emscripten toolchain, Embind bindings, producing the .wasm artifact, and targets for Node and browser).

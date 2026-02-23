@@ -1,5 +1,5 @@
 {
-  "name": "mujoco_wasm",
+  "name": "mujoco",
   "version": "1.0.0-alpha.1",
   "description": "MuJoCo JavaScript Bindings",
   "directories": {

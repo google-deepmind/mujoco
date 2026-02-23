@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { MainModule, MjData, MjModel } from "../../dist/mujoco_wasm"
-import loadMujoco from "../../dist/mujoco_wasm.js"
+import { MainModule, MjData, MjModel } from "../../dist/mujoco"
+import loadMujoco from "../../dist/mujoco.js"
 
 declare function loadMujoco(): Promise<MainModule>;
 

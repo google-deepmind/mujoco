@@ -17,9 +17,9 @@ import 'jasmine';
 import {MainModule, MjContact, MjContactVec, MjData, MjLROpt, MjModel,
 MjOption, MjsGeom, MjSolverStat, MjSpec, MjStatistic, MjTimerStat, MjvCamera,
 MjvFigure, MjvGeom, MjvGLCamera, MjvLight, MjvOption, MjvPerturb, MjvScene,
-MjWarningStat, MjVFS, Uint8Buffer} from '../dist/mujoco_wasm.js';
+MjWarningStat, MjVFS, Uint8Buffer} from '../dist/mujoco.js';
 
-import loadMujoco from '../dist/mujoco_wasm.js'
+import loadMujoco from '../dist/mujoco.js'
 
 function assertExists<T>(value: T | null | undefined, message?: string):
 asserts value is T {
