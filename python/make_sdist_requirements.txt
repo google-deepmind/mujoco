@@ -11,8 +11,6 @@ setuptools==78.1.1 \
 # Transitive dependencies of build
 colorama==0.4.6; platform_system == 'Windows' \
     --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
-importlib-metadata==8.5.0; python_version == '3.9' \
-    --hash=sha256:45e54197d28b7a7f1559e60b95e7c567032b602131fbd588f1497f47880aa68b
 packaging==24.2 \
     --hash=sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759
 pyproject_hooks==1.2.0 \
