@@ -10,6 +10,11 @@ MJX
 
 - Add batch rendering support for MJX-Warp. See the :ref:`MJX-Warp batch rendering<MjxWarpBatchRendering>` section for details.
 
+Bug fixes
+^^^^^^^^^
+
+- Fixed a bug where :ref:`mjs_attach` silently dropped spatial tendons with wrapping geometries that had no
+  ``sidesite`` attribute (:issue:`3119`, reported by :github:user:`tomstewart89`).
 
 Version 3.5.0 (February 12, 2026)
 ---------------------------------

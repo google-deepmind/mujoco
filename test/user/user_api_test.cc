@@ -1079,6 +1079,133 @@ TEST_F(MujocoTest, AttachSame) {
   mj_deleteModel(m_expected);
 }
 
+TEST_F(MujocoTest, AttachSpatialTendonWithoutSidesite) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent_body">
+        <geom size="0.1" type="sphere"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="child_body">
+        <geom name="wrap_geom" size="0.05" type="sphere"/>
+        <site name="site_A" pos="0 0 0.1"/>
+        <site name="site_B" pos="0 0 -0.1"/>
+        <site name="side_site" pos="0.05 0 0"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial name="tendon_with_sidesite">
+        <site site="site_A"/>
+        <geom geom="wrap_geom" sidesite="side_site"/>
+        <site site="site_B"/>
+      </spatial>
+      <spatial name="tendon_without_sidesite">
+        <site site="site_A"/>
+        <geom geom="wrap_geom"/>
+        <site site="site_B"/>
+      </spatial>
+    </tendon>
+  </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  mjsBody* parent_body = mjs_findBody(parent, "parent_body");
+  ASSERT_THAT(parent_body, NotNull());
+  mjsSite* attach_site = mjs_addSite(parent_body, 0);
+  mjs_setName(attach_site->element, "attach_site");
+
+  mjs_attach(attach_site->element,
+             mjs_findBody(child, "child_body")->element, "", "_child");
+
+  EXPECT_THAT(mjs_findElement(parent, mjOBJ_TENDON,
+                              "tendon_with_sidesite_child"), NotNull());
+  EXPECT_THAT(mjs_findElement(parent, mjOBJ_TENDON,
+                              "tendon_without_sidesite_child"), NotNull());
+
+  mjModel* model = mj_compile(parent, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+  EXPECT_EQ(model->ntendon, 2);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+}
+
+TEST_F(MujocoTest, AttachSpatialTendonGitHubIssue3119) {
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent_body">
+        <geom size="0.1" type="sphere"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="child_body">
+        <geom name="wrap_geom" size="0.05" type="sphere"/>
+        <site name="site_A" pos="0 0 0.1"/>
+        <site name="site_B" pos="0 0 -0.1"/>
+        <site name="side_site" pos="0.05 0 0"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial name="tendon_with_sidesite">
+        <site site="site_A"/>
+        <geom geom="wrap_geom" sidesite="side_site"/>
+        <site site="site_B"/>
+      </spatial>
+      <spatial name="tendon_without_sidesite">
+        <site site="site_A"/>
+        <geom geom="wrap_geom"/>
+        <site site="site_B"/>
+      </spatial>
+    </tendon>
+  </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* parent_spec =
+      mj_parseXMLString(parent_xml, 0, er.data(), er.size());
+  ASSERT_THAT(parent_spec, NotNull()) << er.data();
+  mjSpec* child_spec =
+      mj_parseXMLString(child_xml, 0, er.data(), er.size());
+  ASSERT_THAT(child_spec, NotNull()) << er.data();
+
+  mjsBody* parent_body = mjs_findBody(parent_spec, "parent_body");
+  ASSERT_THAT(parent_body, NotNull());
+  mjsSite* attach_site = mjs_addSite(parent_body, 0);
+  mjs_setName(attach_site->element, "attach_site");
+
+  mjs_attach(attach_site->element,
+             mjs_findBody(child_spec, "child_body")->element,
+             "", "_child");
+
+  EXPECT_THAT(mjs_findElement(parent_spec, mjOBJ_TENDON,
+                              "tendon_with_sidesite_child"), NotNull());
+  EXPECT_THAT(mjs_findElement(parent_spec, mjOBJ_TENDON,
+                              "tendon_without_sidesite_child"), NotNull());
+
+  mjModel* model = mj_compile(parent_spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(parent_spec);
+  EXPECT_EQ(model->ntendon, 2);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(parent_spec);
+  mj_deleteSpec(child_spec);
+}
+
 TEST_F(MujocoTest, AttachDifferent) {
   std::array<char, 1000> er;
   mjtNum tol = 0;
