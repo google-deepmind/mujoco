@@ -17,8 +17,13 @@ include(CheckCSourceCompiles)
 # Gets the appropriate linker options for building MuJoCo, based on features available on the
 # linker.
 function(get_mujoco_extra_link_options OUTPUT_VAR)
+  if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(MINGW TRUE)
+  else()
+    set(MINGW FALSE)
+  endif()
   if(MSVC)
-    set(EXTRA_LINK_OPTIONS /OPT:REF /OPT:ICF=5 /STACK:16777216)
+    set(EXTRA_LINK_OPTIONS /OPT:REF /OPT:ICF=5)
   else()
     set(EXTRA_LINK_OPTIONS)
 
@@ -55,6 +60,12 @@ function(get_mujoco_extra_link_options OUTPUT_VAR)
         endif()
       endif()
     endif()
+  endif()
+
+  if(MSVC)
+    list(APPEND EXTRA_LINK_OPTIONS /STACK:16777216)
+  elseif(MINGW)
+    list(APPEND EXTRA_LINK_OPTIONS -Wl,--stack,16777216)
   endif()
 
   set("${OUTPUT_VAR}"
