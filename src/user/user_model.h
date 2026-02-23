@@ -368,6 +368,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CopyTree(mjModel*);              // copy objects inside kinematic tree
   void FinalizeSimple(mjModel* m);      // finalize simple bodies/dofs including tendon information
   void CopyPlugins(mjModel*);           // copy plugin data
+  int CountTendonDofs(const mjModel* m, // compute number of dofs for a given tendon
+                      int id);
   int CountNJmom(const mjModel* m);     // compute number of non-zeros in actuator_moment matrix
   int CountNJten(const mjModel* m);     // compute number of non-zeros in ten_J matrix
 

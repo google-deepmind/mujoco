@@ -3171,7 +3171,46 @@ void mjCModel::CopyPlugins(mjModel* m) {
 
 
 
-// compute non-zeros in actuator_moment matrix
+// compute number of dofs for a given tendon
+int mjCModel::CountTendonDofs(const mjModel* m, int id) {
+  std::vector<bool> dof_used(m->nv, false);
+  int nv = m->nv;
+  int adr = m->tendon_adr[id];
+  int num = m->tendon_num[id];
+
+  if (m->wrap_type[adr] == mjWRAP_JOINT) {
+    return num;
+  }
+
+  std::fill(dof_used.begin(), dof_used.end(), false);
+  for (int j = 0; j < num; j++) {
+    int type = m->wrap_type[adr + j];
+    int bodyid = -1;
+    if (type == mjWRAP_SITE) {
+      bodyid = m->site_bodyid[m->wrap_objid[adr + j]];
+    } else if (type == mjWRAP_SPHERE || type == mjWRAP_CYLINDER) {
+      bodyid = m->geom_bodyid[m->wrap_objid[adr + j]];
+    }
+    if (bodyid > 0) {
+      int bid = bodyid;
+      while (bid > 0) {
+        int bdofadr = m->body_dofadr[bid];
+        int bdofnum = m->body_dofnum[bid];
+        for (int k = 0; k < bdofnum; k++) {
+          dof_used[bdofadr + k] = true;
+        }
+        bid = m->body_parentid[bid];
+      }
+    }
+  }
+
+  int count = 0;
+  for (int j = 0; j < nv; j++) {
+    count += dof_used[j];
+  }
+  return count;
+}
+
 int mjCModel::CountNJmom(const mjModel* m) {
   int nu = m->nu;
   int nv = m->nv;
@@ -3206,7 +3245,7 @@ int mjCModel::CountNJmom(const mjModel* m) {
         break;
 
       case mjTRN_TENDON:
-        count += nv;
+        count += CountTendonDofs(m, id);
         break;
 
       case mjTRN_SITE:
@@ -3228,46 +3267,11 @@ int mjCModel::CountNJmom(const mjModel* m) {
 
 // compute non-zeros in ten_J matrix
 int mjCModel::CountNJten(const mjModel* m) {
-  int nv = m->nv;
   int ntendon = m->ntendon;
 
-  std::vector<bool> dof_bitmap(nv, false);
   int count = 0;
   for (int i = 0; i < ntendon; i++) {
-    int adr = m->tendon_adr[i];
-    int num = m->tendon_num[i];
-
-    if (m->wrap_type[adr] == mjWRAP_JOINT) {
-      count += num;
-      continue;
-    }
-
-    std::fill(dof_bitmap.begin(), dof_bitmap.end(), false);
-    for (int j = 0; j < num; j++) {
-      int type = m->wrap_type[adr + j];
-      int bodyid = -1;
-      if (type == mjWRAP_SITE) {
-        bodyid = m->site_bodyid[m->wrap_objid[adr + j]];
-      } else if (type == mjWRAP_SPHERE || type == mjWRAP_CYLINDER) {
-        bodyid = m->geom_bodyid[m->wrap_objid[adr + j]];
-      }
-      if (bodyid > 0) {
-        int bid = bodyid;
-        while (bid > 0) {
-          int bdofadr = m->body_dofadr[bid];
-          int bdofnum = m->body_dofnum[bid];
-          for (int k = 0; k < bdofnum; k++) {
-            dof_bitmap[bdofadr + k] = true;
-          }
-          bid = m->body_parentid[bid];
-        }
-      }
-    }
-
-    // only count unique dofs
-    for (int j = 0; j < nv; j++) {
-      count += dof_bitmap[j];
-    }
+    count += CountTendonDofs(m, i);
   }
 
   return count;
