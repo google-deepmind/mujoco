@@ -110,6 +110,9 @@ write your application in C++ and compile it using Emscripten, you may want to
 copy a subset of the `EMSCRIPTEN_BINDINGS` from `bindings.cc` into your
 application’s source file.
 
+The package is ESM (`type: module`) and ships TypeScript types.
+Ensure your bundler or dev server serves the `.wasm` asset at runtime.
+
 ### Named Access
 
 The bindings support named access methods, similar to the Python bindings,
@@ -299,11 +302,6 @@ mujoco.get_mjFRAMESTRING()
 ```
 
 This will return a javascript array representation of the values in MuJoCo `mjFRAMESTRING`.
-
-### About assets
-The package is ESM (`type: module`) and ships TypeScript types.
-
-Ensure your bundler or dev server serves the `.wasm` asset at runtime.
 
 ## Development
 
