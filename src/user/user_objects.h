@@ -992,6 +992,9 @@ class mjCFlex_ : public mjCBase {
   std::vector<int> spec_elem_;
   std::vector<float> spec_texcoord_;
   std::vector<int> spec_elemtexcoord_;
+
+  // caching
+  std::vector<double> cached_stiffness_;   // cached stiffness matrix
 };
 
 class mjCFlex: public mjCFlex_, private mjsFlex {
@@ -1040,6 +1043,11 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   std::vector<double> node0_;             // node Cartesian positions
 
   int order_ = 0;                         // interpolation order
+
+  // stiffness caching
+  std::string ComputeStiffnessCacheKey() const;
+  bool LoadCachedStiffness();
+  void CacheStiffness();
 };
 
 
