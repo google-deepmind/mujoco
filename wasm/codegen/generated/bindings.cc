@@ -8329,9 +8329,18 @@ MjSpec::~MjSpec() {
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
-std::unique_ptr<MjModel> mj_loadXML_wrapper(std::string filename) {
+std::unique_ptr<MjModel> mj_loadXML_wrapper_1(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> mj_loadXML_wrapper_2(std::string filename, const MjVFS& vfs) {
+  char error[1000];
+  mjModel *model = mj_loadXML(filename.c_str(), vfs.get(), error, sizeof(error));
   if (!model) {
     mju_error("Loading error: %s\n", error);
   }
@@ -11581,8 +11590,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("useexisting", &MjLROpt::useexisting, &MjLROpt::set_useexisting, reference())
     .property("uselimit", &MjLROpt::uselimit, &MjLROpt::set_uselimit, reference());
   emscripten::class_<MjModel>("MjModel")
-    .class_function("mj_loadXML", &mj_loadXML_wrapper, take_ownership())
-    .class_function("mj_loadBinary", &mj_loadModel_wrapper, take_ownership())
+    .class_function("mj_loadXML", emscripten::select_overload<std::unique_ptr<MjModel>(std::string)>(&mj_loadXML_wrapper_1))
+    .class_function("mj_loadXML", emscripten::select_overload<std::unique_ptr<MjModel>(std::string, const MjVFS&)>(&mj_loadXML_wrapper_2))
+    .class_function("mj_loadModel", &mj_loadModel_wrapper)
     .constructor<const MjModel &>()
     // Binds the functions on MjModel that return accessors.
     #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \
