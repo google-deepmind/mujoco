@@ -28,38 +28,8 @@ jobs:
 
     - name: Build WASM bindings
       run: bash ./.github/workflows/build_steps.sh build_test_wasm
-
-    - name: Prepare clean package manifest in dist
-      run: |
-        if [ -f wasm/package.npm.json ]; then
-          mkdir -p wasm/dist
-          cp wasm/package.npm.json wasm/dist/package.json
-          echo "Copied wasm/package.npm.json -> wasm/dist/package.json"
-        else
-          echo "No wasm/package.npm.json found; aborting"
-          exit 1
-        fi
-
-    - name: Prepare README for dist
-      run: |
-        mkdir -p wasm/dist
-        cp wasm/README.md wasm/dist/README.md
-
-
-    - name: Sync version with tag (dist)
-      run: |
-        VERSION=${GITHUB_REF#refs/tags/}
-        echo "Setting package version to: ${VERSION}"
-        npm --prefix wasm/dist version "${VERSION}" --no-git-tag-version
-
-    - name: Configure npm auth
+    - name: Package WASM bindings
       env:
         NPM_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-      run: |
-        echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-
-    - name: Preview package (dist)
-      run: npm pack --dry-run ./wasm/dist
-
-    - name: Publish package (dist)
-      run: npm publish ./wasm/dist --access public
+        GITHUB_REF: ${{ github.ref }}
+      run: bash ./.github/workflows/build_steps.sh package_wasm
