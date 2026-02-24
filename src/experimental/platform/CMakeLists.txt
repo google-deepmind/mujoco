@@ -42,6 +42,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         file_dialog.h
         gui.cc
         gui.h
+        gui_spec.cc
+        gui_spec.h
         helpers.cc
         helpers.h
         imgui_widgets.cc

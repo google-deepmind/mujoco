@@ -91,6 +91,12 @@ class App {
     kModelFromBuffer,
   };
 
+  enum class SpecPropertiesMode {
+    kSpec,
+    kModel,
+    kData,
+  };
+
   // UI state that is persisted across application runs
   struct UiState {
     char watch_field[1000] = "qpos";
@@ -136,6 +142,7 @@ class App {
     std::vector<std::string> speed_names;
 
     // Spec Properties.
+    SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;
     mjsElement* element = nullptr;
     int element_id = -1;
 
@@ -209,9 +216,10 @@ class App {
   void ModelOptionsGui();
   void DataInspectorGui();
   void SpecExplorerGui();
-  void PropertiesGui();
+  void SpecPropertiesGui();
 
-  void SpecDeleteSelectedElement();
+  void SpecSelectElement(mjsElement* element);
+  void SpecDeleteElement(mjsElement* element);
 
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
@@ -228,6 +236,7 @@ class App {
   std::string model_path_;
   std::string load_error_;
   std::string step_error_;
+  std::string edit_error_;
   std::optional<std::string> pending_load_;
   bool preserve_camera_on_load_ = false;
   ModelKind model_kind_ = kEmptyModel;

@@ -36,6 +36,7 @@
 #include <mujoco/mujoco.h>
 #include "experimental/platform/file_dialog.h"
 #include "experimental/platform/gui.h"
+#include "experimental/platform/gui_spec.h"
 #include "experimental/platform/helpers.h"
 #include "experimental/platform/imgui_widgets.h"
 #include "experimental/platform/interaction.h"
@@ -132,6 +133,7 @@ void App::ClearModel() {
   tmp_ = UiTempState();
   load_error_ = "";
   step_error_ = "";
+  edit_error_ = "";
 }
 
 void App::Recompile() {
@@ -257,6 +259,7 @@ void App::ResetPhysics() {
   mj_resetData(model(), data());
   mj_forward(model(), data());
   step_error_ = "";
+  edit_error_ = "";
 }
 
 void App::UpdatePhysics() {
@@ -419,15 +422,42 @@ void App::ProcessPendingLoads() {
   });
 }
 
-void App::SpecDeleteSelectedElement() {
-  spec_op_ = [this]() {
-    mjs_delete(spec(), tmp_.element);
-    if (tmp_.element->elemtype == mjOBJ_BODY &&
-        perturb_.select == tmp_.element_id) {
-      mjv_defaultPerturb(&perturb_);
-    }
-    tmp_.element = nullptr;
+void App::SpecSelectElement(mjsElement* element) {
+  tmp_.element = element;
+  if (tmp_.element == nullptr) {
     tmp_.element_id = -1;
+  } else {
+    tmp_.element_id = mjs_getId(tmp_.element);
+
+    // If we selected a body, then select the same body for perturb.
+    if (tmp_.element->elemtype == mjOBJ_BODY &&
+        perturb_.select != tmp_.element_id) {
+      mjv_defaultPerturb(&perturb_);
+      perturb_.select = tmp_.element_id;
+    }
+  }
+}
+
+void App::SpecDeleteElement(mjsElement* element) {
+  if (element == nullptr) {
+    return;
+  }
+  // Only bodies can be deleted for now...
+  if (element->elemtype != mjOBJ_BODY) {
+    edit_error_ = "WARNING: Only bodies can be deleted (for now...)";
+    return;
+  }
+  spec_op_ = [this, element]() {
+    mjs_delete(spec(), element);
+    if (tmp_.element == element) {
+      tmp_.element = nullptr;
+      tmp_.element_id = -1;
+    }
+    if (element->elemtype == mjOBJ_BODY) {
+      if (perturb_.select == mjs_getId(element)) {
+        mjv_defaultPerturb(&perturb_);
+      }
+    }
     Recompile();
   };
 }
@@ -635,7 +665,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Backspace)) {
     ResetPhysics();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Delete)) {
-    SpecDeleteSelectedElement();
+    SpecDeleteElement(tmp_.element);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_PageUp)) {
     SelectParentPerturb(model(), perturb_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
@@ -896,7 +926,7 @@ void App::BuildGui() {
 
     if (explorer_is_open && tmp_.element != nullptr) {
       if (ImGui::Begin("Properties")) {
-        PropertiesGui();
+        SpecPropertiesGui();
       }
       ImGui::End();
     }
@@ -1129,117 +1159,62 @@ void App::DataInspectorGui() {
   ImGui::EndChild();
 }
 
-void DisplayElementTree(mjsElement* element) {
-  const mjString* name = mjs_getName(element);
-  if (name->empty()) {
-    ImGui::Text("(unnamed)");
-  } else {
-    ImGui::Text("%s", name->c_str());
-  }
-}
-
 void App::SpecExplorerGui() {
   if (!has_spec()) {
     ImGui::Text("No mjSpec loaded.");
     return;
   }
 
-  const ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
+  auto on_delete = [this](mjsElement* element) { SpecDeleteElement(element); };
 
-  auto display_group = [this](mjtObj type, const std::string& prefix,
-                              std::function<void()> delete_callback = {}) {
-    mjsElement* element = mjs_firstElement(spec(), type);
-    while (element) {
-      const int id = mjs_getId(element);
-
-      const mjString* name = mjs_getName(element);
-      std::string label = *name;
-      if (label.empty()) {
-        label = "(" + prefix + " " + std::to_string(id) + ")";
-      }
-
-      const bool selected = (tmp_.element == element);
-      if (ImGui::Selectable(label.c_str(), selected,
-                            ImGuiSelectableFlags_AllowOverlap)) {
-        tmp_.element = element;
-        tmp_.element_id = id;
-      }
-
-      if (selected && delete_callback) {
-        // Right-align the delete button.
-        const float button_width = ImGui::CalcTextSize(ICON_DELETE).x +
-                                   ImGui::GetStyle().FramePadding.x * 2.0f;
-        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - button_width);
-        if (ImGui::SmallButton(ICON_DELETE)) {
-          delete_callback();
-        }
-      }
-
-      element = mjs_nextElement(spec(), element);
-    }
-  };
-
-  if (ImGui::TreeNodeEx("Bodies", flags)) {
-    display_group(mjOBJ_BODY, "Body", [this] { SpecDeleteSelectedElement(); });
-    ImGui::TreePop();
-  }
-
-  if (ImGui::TreeNodeEx("Joints", flags)) {
-    display_group(mjOBJ_JOINT, "Joint");
-    ImGui::TreePop();
-  }
-
-  if (ImGui::TreeNodeEx("Sites", flags)) {
-    display_group(mjOBJ_SITE, "Site");
-    ImGui::TreePop();
-  }
-
-  // If we selected a body, then select the same body for the perturb object.
-  if (tmp_.element && tmp_.element->elemtype == mjOBJ_BODY &&
-      perturb_.select != tmp_.element_id) {
-    mjv_defaultPerturb(&perturb_);
-    perturb_.select = tmp_.element_id;
+  mjsElement* element = tmp_.element;
+  platform::SpecExplorerGui(&element, spec(), on_delete);
+  if (element != tmp_.element) {
+    SpecSelectElement(element);
   }
 }
 
-void App::PropertiesGui() {
-  if (tmp_.element == nullptr) {
-    ImGui::Text("No element selected.");
-    return;
-  }
+void App::SpecPropertiesGui() {
+  platform::ScopedStyle style;
 
-  if (ImGui::BeginTable("##PropertiesHeader", 2)) {
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 20);
-    ImGui::TableNextColumn();
-    ImGui::Text("%s", mju_type2Str(tmp_.element->elemtype));
-    ImGui::TableNextColumn();
-    if (tmp_.element->elemtype == mjOBJ_BODY) {
-      if (ImGui::SmallButton(ICON_DELETE)) {
-        SpecDeleteSelectedElement();
-      }
-    }
-    ImGui::EndTable();
+  ImGui::Text("%s", mju_type2Str(tmp_.element->elemtype));
+  ImGui::SameLine();
+  ImGui::Text("(%d)", tmp_.element_id);
+
+  ImGui::SameLine(120);
+  if (tmp_.spec_prop_mode == SpecPropertiesMode::kSpec) {
+    style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
   }
+  if (ImGui::SmallButton("S")) {
+    tmp_.spec_prop_mode = SpecPropertiesMode::kSpec;
+  }
+  ImGui::SetItemTooltip("Spec");
+  style.Reset();
+  ImGui::SameLine();
+  if (tmp_.spec_prop_mode == SpecPropertiesMode::kModel) {
+    style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
+  }
+  if (ImGui::SmallButton("M")) {
+    tmp_.spec_prop_mode = SpecPropertiesMode::kModel;
+  }
+  ImGui::SetItemTooltip("Model");
+  style.Reset();
+  ImGui::SameLine();
+  if (tmp_.spec_prop_mode == SpecPropertiesMode::kData) {
+    style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
+  }
+  if (ImGui::SmallButton("D")) {
+    tmp_.spec_prop_mode = SpecPropertiesMode::kData;
+  }
+  ImGui::SetItemTooltip("Data");
+  style.Reset();
   ImGui::Separator();
-
-  switch (tmp_.element->elemtype) {
-    case mjOBJ_BODY:
-      platform::BodyPropertiesGui(model(), data(), tmp_.element,
-                                  tmp_.element_id);
-      break;
-    case mjOBJ_JOINT:
-      platform::JointPropertiesGui(model(), data(), tmp_.element,
-                                   tmp_.element_id);
-      break;
-    case mjOBJ_SITE:
-      platform::SitePropertiesGui(model(), data(), tmp_.element,
-                                  tmp_.element_id);
-      break;
-    default:
-      // ignore other types
-      break;
+  if (tmp_.spec_prop_mode == SpecPropertiesMode::kSpec) {
+    platform::ElementSpecGui(spec(), tmp_.element);
+  } else if (tmp_.spec_prop_mode == SpecPropertiesMode::kModel) {
+    platform::ElementModelGui(model(), tmp_.element);
+  } else {
+    platform::ElementDataGui(data(), tmp_.element);
   }
 }
 
@@ -1617,6 +1592,9 @@ void App::StatusBarGui() {
     } else if (!load_error_.empty()) {
       ImGui::SameLine();
       ImGui::Text(" | Load Error: %s", load_error_.c_str());
+    } else if (!edit_error_.empty()) {
+      ImGui::SameLine();
+      ImGui::Text(" | Edit Error: %s", edit_error_.c_str());
     }
 
     ImGui::TableNextColumn();

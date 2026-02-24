@@ -15,11 +15,13 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_IMGUI_WIDGETS_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_IMGUI_WIDGETS_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -112,6 +114,12 @@ struct ScopedStyle {
     return *this;
   }
 
+  ScopedStyle& Color(ImGuiCol col, ImGuiCol col2) {
+    ImGui::PushStyleColor(col, CurrentColor(col2));
+    ++num_colors;
+    return *this;
+  }
+
   ScopedStyle& Var(ImGuiStyleVar var, float value) {
     ImGui::PushStyleVar(var, value);
     ++num_vars;
@@ -124,6 +132,10 @@ struct ScopedStyle {
     return *this;
   }
 
+  ImVec4 CurrentColor(ImGuiCol col) {
+    return ImGui::GetStyle().Colors[col];
+  }
+
   void Reset() {
     ImGui::PopStyleVar(num_vars);
     ImGui::PopStyleColor(num_colors);
@@ -133,6 +145,74 @@ struct ScopedStyle {
 
   int num_colors = 0;
   int num_vars = 0;
+};
+
+// Helper for displaying rows of key/value pairs in an ImGui table.
+//
+// Designed specifically to be used to display mjSpec, mjModel, and mjData
+// values.
+//
+// To add a value to the table, call the operator() function with the label,
+// the value, and (optionally) the dimensionality of the value (e.g. for vectors
+// and matrices). To support generic code, even scalar values should be passed
+// to operator() with n = 1.
+class ImGui_DataTable {
+ public:
+  // Starts the table (i.e. ImGui::BeginTable()) with two columns of the
+  // specified widths.
+  ImGui_DataTable(float w1 = 0.25f, float w2 = 0.75f);
+
+  // Ends the table (e.g. ImGui::EndTable().
+  ~ImGui_DataTable();
+
+  ImGui_DataTable(const ImGui_DataTable& other) = delete;
+  ImGui_DataTable& operator=(const ImGui_DataTable& other) = delete;
+
+  // Sets the offset into an array of values (e.g. for pointers in mjModel and
+  // mjData). This is only used for the display functions that take a pointer.
+  void SetArrayIndex(int index);
+
+  // Sets the prefix that will be removed from all labels. Note: that we simply
+  // remove the first N characters of the label without actually comparing
+  // against this prefix.
+  void SetPrefix(const char* prefix);
+
+  // Displays a labelled value in the table.
+  void operator()(const char* label, const uintptr_t* ptr, int n);
+  void operator()(const char* label, const char* ptr, int n);
+  void operator()(const char* label, const mjtByte* ptr, int n);
+  void operator()(const char* label, const mjtSize* ptr, int n);
+  void operator()(const char* label, const int* ptr, int n);
+  void operator()(const char* label, const float* ptr, int n);
+  void operator()(const char* label, const double* ptr, int n);
+
+  // Displays a single scalar value in the table. Assumes n == 1. This should
+  // only be used for mjSpec objects and, therefore, will ignore the array index
+  // if set.
+  void operator()(const char* label, const mjtByte& val, int n);
+  void operator()(const char* label, const mjtSize& val, int n);
+  void operator()(const char* label, const int& val, int n);
+  void operator()(const char* label, const float& val, int n);
+  void operator()(const char* label, const double& val, int n);
+
+  // Overloads for C++ container types. Assumes its only used for mjSpec objects
+  // and, therefore, will ignore the array index if set.
+  void operator()(const char* label, const std::string* ptr, int n);
+  void operator()(const char* label, const std::vector<int>* ptr, int n);
+  void operator()(const char* label, const std::vector<double>* ptr, int n);
+  void operator()(const char* label, const std::vector<std::string>* ptr, int n);
+
+ private:
+  template <typename T>
+  void Numeric(const char* label, const T* ptr, int n);
+
+  template <typename T>
+  void Scalar(const char* label, const T& value, int n);
+
+  void MakeLabel(const char* label, int index = 0, int total = 1);
+
+  int prefix_ = 0;
+  int index_ = 0;
 };
 
 // ImGui Slider that supports both float and double types.
