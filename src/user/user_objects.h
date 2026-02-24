@@ -301,6 +301,10 @@ class mjCOctree : public mjCOctree_ {
     face_.clear();
   }
   void AddCoeff(int n, int v, double coeff) { node_[n].coeff[v] = coeff; }
+  double Coeff(int n, int v) const { return node_[n].coeff[v]; }
+
+  // compute SDF coefficients at octree vertices using triangle mesh distance
+  void ComputeSdfCoeffs(const double* vert, int nvert, const int* face, int nface);
 
  private:
   void Make(std::vector<Triangle>& elements);

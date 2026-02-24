@@ -47,6 +47,7 @@
 #include "user/user_model.h"
 #include "user/user_resource.h"
 #include "user/user_util.h"
+#include <TriangleMeshDistance/include/tmd/TriangleMeshDistance.h>
 
 namespace {
 namespace mju = ::mujoco::util;
@@ -618,6 +619,59 @@ void mjCOctree::CreateOctree(const double aamm[6]) {
   std::unordered_map<Point, int> vert_map;
   MakeOctree(elements_ptrs, box, vert_map);
   MarkHangingNodes();
+}
+
+
+// compute SDF coefficients at octree vertices using triangle mesh distance
+void mjCOctree::ComputeSdfCoeffs(const double* vert, int nvert,
+                                  const int* face, int nface) {
+  tmd::TriangleMeshDistance sdf(vert, static_cast<size_t>(nvert),
+                                face, static_cast<size_t>(nface));
+
+  std::vector<double> coeffs(NumVerts());
+  std::vector<bool> processed(NumVerts(), false);
+  std::deque<int> queue;
+
+  if (NumNodes() > 0) {
+    queue.push_back(0);
+  }
+
+  while (!queue.empty()) {
+    int node_idx = queue.front();
+    queue.pop_front();
+
+    // compute SDF coefficients at the 8 vertices of the octree node
+    for (int j = 0; j < 8; ++j) {
+      int vert_id = VertId(node_idx, j);
+      if (processed[vert_id]) {
+        continue;
+      }
+      if (Hang(vert_id).empty()) {
+        coeffs[vert_id] = sdf.signed_distance(Vert(vert_id)).distance;
+      } else {
+        double sum_coeff = 0;
+        for (int dep_id : Hang(vert_id)) {
+          sum_coeff += coeffs[dep_id];
+        }
+        coeffs[vert_id] = sum_coeff / Hang(vert_id).size();
+      }
+      processed[vert_id] = true;
+    }
+
+    // add children to the queue
+    for (int child_idx : Children(node_idx)) {
+      if (child_idx != -1) {
+        queue.push_back(child_idx);
+      }
+    }
+  }
+
+  // copy coefficients to the octree nodes
+  for (int i = 0; i < NumNodes(); ++i) {
+    for (int j = 0; j < 8; j++) {
+      AddCoeff(i, j, coeffs[VertId(i, j)]);
+    }
+  }
 }
 
 
