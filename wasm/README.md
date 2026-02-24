@@ -134,9 +134,9 @@ Use the generated `.delete()` method on wrapped instances to destroy the
 underlying C++ object:
 
 ```typescript
-   const obj = new Module.MyClass(...);
-   // ... use obj ...
-   obj.delete(); // free the C++ memory
+const obj = new Module.MyClass(...);
+// ... use obj ...
+obj.delete(); // free the C++ memory
 ```
 
 Be careful to call `.delete()` exactly once per created object (double-delete

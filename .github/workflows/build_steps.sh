@@ -231,21 +231,18 @@ build_test_wasm() {
 }
 
 package_wasm() {
-    mkdir -p wasm/dist
+    echo "Publishing WASM bindings..."
     cp wasm/package.npm.json wasm/dist/package.json
     cp wasm/README.md wasm/dist/README.md || true
 
     VERSION=${GITHUB_REF#refs/tags/}
     npm --prefix wasm/dist version "${VERSION}" --no-git-tag-version
-
     if [ -z "${NPM_TOKEN}" ]; then
         echo "NPM_TOKEN is not set or is invalid; aborting publish"
         exit 1
     fi
     echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-
     npm pack --dry-run ./wasm/dist
-
     npm publish ./wasm/dist --access public
 }
 

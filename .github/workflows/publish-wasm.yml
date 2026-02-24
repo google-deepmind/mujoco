@@ -28,6 +28,7 @@ jobs:
 
     - name: Build WASM bindings
       run: bash ./.github/workflows/build_steps.sh build_test_wasm
+
     - name: Package WASM bindings
       env:
         NPM_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
