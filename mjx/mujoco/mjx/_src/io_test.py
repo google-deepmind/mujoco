@@ -768,9 +768,10 @@ class DataIOTest(parameterized.TestCase):
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d, 2)
-    dx = mjx.put_data(m, d, impl=impl)
+    keepalive = {} if impl == 'cpp' else None
+    dx = mjx.put_data(m, d, impl=impl, keepalive_refs=keepalive)
     d_2 = mujoco.MjData(m)
-    mjx.get_data_into(d_2, m, dx)
+    mjx.get_data_into(d_2, m, dx, keepalive_refs=keepalive)
 
     # check a few fields
     np.testing.assert_allclose(d_2.qpos, d.qpos)
@@ -931,12 +932,11 @@ class DataIOTest(parameterized.TestCase):
     )
 
     self.assertEqual(vmjx_data.qpos.shape, (2, m.nq))
-    self.assertEqual(len(vmjx_data._impl._data), 2)
-    # check that the data pointers in fact point to different datas
-    self.assertNotEqual(
-        vmjx_data._impl._data[0]._address,
-        vmjx_data._impl._data[1]._address,
-    )
+    lo = vmjx_data._impl.pointer_lo
+    hi = vmjx_data._impl.pointer_hi
+    addr0 = int(lo[0]) | (int(hi[0]) << 32)
+    addr1 = int(lo[1]) | (int(hi[1]) << 32)
+    self.assertNotEqual(addr0, addr1)
 
 
 # Test cases for `_resolve_impl_and_device` where the device is
@@ -1265,12 +1265,11 @@ class StateIOTest(parameterized.TestCase):
     )
 
     self.assertEqual(vmjx_data.qpos.shape, (2, m.nq))
-    self.assertEqual(len(vmjx_data._impl._data), 2)
-    # check that the data pointers in fact point to different datas
-    self.assertNotEqual(
-        vmjx_data._impl._data[0]._address,
-        vmjx_data._impl._data[1]._address,
-    )
+    lo = vmjx_data._impl.pointer_lo
+    hi = vmjx_data._impl.pointer_hi
+    addr0 = int(lo[0]) | (int(hi[0]) << 32)
+    addr1 = int(lo[1]) | (int(hi[1]) << 32)
+    self.assertNotEqual(addr0, addr1)
 
   def test_get_set_state(self):
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)

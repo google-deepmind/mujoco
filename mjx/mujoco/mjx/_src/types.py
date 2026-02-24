@@ -538,7 +538,6 @@ class ModelCPP(PyTreeNode):
   # we combine the two values into a single pointer value.
   pointer_lo: jax.Array
   pointer_hi: jax.Array
-  _model: mujoco.MjModel
 
 
 class DataCPP(PyTreeNode):
@@ -548,7 +547,6 @@ class DataCPP(PyTreeNode):
   # we combine the two values into a single pointer value.
   pointer_lo: jax.Array
   pointer_hi: jax.Array
-  _data: list[Any] = dataclasses.field(default_factory=list, repr=False)
 
 
 class ModelC(PyTreeNode):
