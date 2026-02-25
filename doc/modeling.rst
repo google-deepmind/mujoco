@@ -301,7 +301,7 @@ We begin by explaining the constraint impedance :math:`d`.
    at rest. Impedance is set using the :at:`solimp` attribute.
 
 Recall that :math:`d` must lie between 0 and 1; internally MuJoCo clamps it to the range [:ref:`mjMINIMP mjMAXIMP
-<glNumeric>`] which is currently set to [0.0001 0.9999]. It causes the solver to interpolate between the unforced
+<glNumericEngine>`] which is currently set to [0.0001 0.9999]. It causes the solver to interpolate between the unforced
 acceleration :math:`\au` and reference acceleration :math:`\ar`. The user can set :math:`d` to a constant, or
 take advantage of its interpolating property and make it position-dependent, i.e., a function of the constraint
 violation :math:`r`. Position-dependent impedance can be used to model soft contact layers around objects, or define

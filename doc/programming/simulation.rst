@@ -1098,7 +1098,7 @@ implementation details.
 
 The high level sleep state of :ref:`trees<ElemTree>` is described by ``mjData.tree_asleep`` (though see caveat below). A
 negative value means a tree is awake, non-negative means asleep. Maximally awake trees are given the value - |-| (1 |-|
-+ |-| :ref:`mjMINAWAKE<glNumeric>`), and for every timestep where their velocity falls below the sleep :ref:`tolerance
++ |-| :ref:`mjMINAWAKE<glNumericEngine>`), and for every timestep where their velocity falls below the sleep :ref:`tolerance
 <option-sleep_tolerance>`, this integer is incremented, up to -1, which means "ready to sleep". If all trees in an
 island are ready to sleep, they are put to sleep during state advancement and their associated values in ``tree_asleep``
 are set to a (non-negative) index cycle: the "sleeping island". If any tree in the island is woken, all are woken.
@@ -1213,7 +1213,7 @@ Notes
 **Provisional choices**
   Some implementation choices are provisional and subject to change.
 
-  A concrete example is the decision to hard-code the value of :ref:`mjMINAWAKE<glNumeric>` instead of exposing it to
+  A concrete example is the decision to hard-code the value of :ref:`mjMINAWAKE<glNumericEngine>` instead of exposing it to
   the user as a runtime option. This was done for two reasons. First, in our experiments, we've found that changing this
   value is equivalent to changing the :ref:`sleep_tolerance<option-sleep_tolerance>`, which is the more useful knob.
   Second, one could argue for a time-to-sleep semantic that is in units of time rather than an integer number of

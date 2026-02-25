@@ -1249,7 +1249,7 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    transformations in ``mjModel.mesh_{pos, quat, scale}``.
 #. Construct the convex hull if specified;
 #. Find the centroid of all triangle faces, and construct the union-of-pyramids representation. Triangles whose area is
-   too small (below the :ref:`mjMINVAL <glNumeric>` value of 1E-14) result in compile error;
+   too small (below the :ref:`mjMINVAL <glNumericEngine>` value of 1E-14) result in compile error;
 #. Compute the center of mass and inertia matrix of the union-of-pyramids. Use eigenvalue decomposition to find the
    principal axes of inertia. Center and align the mesh, saving the translational and rotational offsets for subsequent
    geom-related computations.
@@ -1518,7 +1518,7 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
   and other geoms (except for planes and other height fields which are not supported) are computed by first selecting
   the sub-grid of prisms that could collide with the geom based on its bounding box, and then using the general convex
   collider. The number of possible contacts between a height field and a geom is limited to 50
-  (:ref:`mjMAXCONPAIR <glNumeric>`); any contacts beyond that are discarded. To avoid penetration due to discarded
+  (:ref:`mjMAXCONPAIR <glNumericEngine>`); any contacts beyond that are discarded. To avoid penetration due to discarded
   contacts, the spatial features of the height field should be large compared to the geoms it collides with.
 
 .. _asset-hfield-name:

@@ -1463,8 +1463,8 @@ General
        Each row of length ``mjNSOLVER`` contains separate solver statistics for each constraint island.
        If the solver does not use islands, only row 0 is filled.
 
-       - The new constant :ref:`mjNISLAND<glNumeric>` was set to 20.
-       - :ref:`mjNSOLVER<glNumeric>` was reduced from 1000 to 200.
+       - The new constant :ref:`mjNISLAND<glNumericSizes>` was set to 20.
+       - :ref:`mjNSOLVER<glNumericSizes>` was reduced from 1000 to 200.
        - Added :ref:`mjData.solver_nisland<mjData>`: the number of islands for which the solver ran.
        - Renamed ``mjData.solver_iter`` to ``solver_niter``. Both this member and ``mjData.solver_nnz`` are now integer
          vectors of length ``mjNISLAND``.

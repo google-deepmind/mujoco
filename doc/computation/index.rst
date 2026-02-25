@@ -1621,17 +1621,17 @@ will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
        | **1**
    * - HField
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldSDF
        | :ref:`sdf_initpoints <option-sdf_initpoints>`
    * - Sphere
@@ -1762,7 +1762,7 @@ sleeping mechanism is provided in the :ref:`Simulation chapter<siSleep>` but her
 Sleeping can occur in one of two ways:
 
 - **Automatic:** A tree whose maximum velocity in absolute value is less than the
-  :ref:`tolerance <option-sleep_tolerance>` for :ref:`mjMINAWAKE <glNumeric>` time steps is marked as "ready to sleep".
+  :ref:`tolerance <option-sleep_tolerance>` for :ref:`mjMINAWAKE <glNumericEngine>` time steps is marked as "ready to sleep".
   If all trees in an island are ready to sleep, they are put to sleep during state advancement.
 - **Initialized asleep:** By setting the :ref:`body/sleep<body-sleep>` attribute of a tree root to "init", it is
   marked as "initialized-asleep" and put to sleep during :ref:`mjData` initialization.
