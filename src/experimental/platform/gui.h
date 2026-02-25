@@ -116,14 +116,6 @@ void CountsGui(const mjModel* model, mjData* data);
 // FPS needs to be tracked by the caller and passed here to be displayed.
 void StatsGui(const mjModel* model, const mjData* data, bool paused, float fps);
 
-// UX for displaying properties of various mjSpec elements.
-void BodyPropertiesGui(const mjModel* model, const mjData* data,
-                       mjsElement* element, int id);
-void JointPropertiesGui(const mjModel* model, const mjData* data,
-                        mjsElement* element, int id);
-void SitePropertiesGui(const mjModel* model, const mjData* data,
-                       mjsElement* element, int id);
-
 }  // namespace mujoco::platform
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GUI_H_

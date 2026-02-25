@@ -282,6 +282,93 @@ static void setFixed(mjModel* m, mjData* d) {
   mj_freeStack(d);
 }
 
+// compute tendon Jacobian sparsity
+static void makeTendonSparse(mjModel* m) {
+  int ntendon = m->ntendon;
+  int* rownnz = m->ten_J_rownnz;
+  int* rowadr = m->ten_J_rowadr;
+  int* colind = m->ten_J_colind;
+
+  if (!ntendon) {
+    return;
+  }
+
+  // clear
+  mju_zeroInt(rownnz, ntendon);
+  mju_zeroInt(rowadr, ntendon);
+
+  // compute rownnz, rowadr, and colind for each tendon
+  for (int i = 0; i < ntendon; i++) {
+    rowadr[i] = (i > 0 ? rowadr[i-1] + rownnz[i-1] : 0);
+    int adr = m->tendon_adr[i];
+    int num = m->tendon_num[i];
+
+    // joint tendon: each wrap object is a joint, colind is its dofadr
+    if (m->wrap_type[adr] == mjWRAP_JOINT) {
+      for (int j = 0; j < num; j++) {
+        colind[rowadr[i] + j] = m->jnt_dofadr[m->wrap_objid[adr + j]];
+      }
+      rownnz[i] = num;
+    } else {
+      // spatial tendon: collect used dofs from wrap object bodies
+      int nnz = 0;
+      for (int j = 0; j < num; j++) {
+        int type = m->wrap_type[adr + j];
+
+        // get body id from site or geom wrap object
+        int bodyid = -1;
+        if (type == mjWRAP_SITE) {
+          bodyid = m->site_bodyid[m->wrap_objid[adr + j]];
+        } else if (type == mjWRAP_SPHERE || type == mjWRAP_CYLINDER) {
+          bodyid = m->geom_bodyid[m->wrap_objid[adr + j]];
+        }
+
+        // walk up the body tree, collecting used dofs
+        if (bodyid > 0) {
+          int bid = bodyid;
+          while (bid > 0) {
+            int bdofadr = m->body_dofadr[bid];
+            int bdofnum = m->body_dofnum[bid];
+            for (int k = 0; k < bdofnum; k++) {
+              int dof = bdofadr + k;
+
+              // check if dof already in colind
+              int found = 0;
+              for (int l = 0; l < nnz; l++) {
+                if (colind[rowadr[i] + l] == dof) {
+                  found = 1;
+                  break;
+                }
+              }
+
+              // append new dof
+              if (!found) {
+                colind[rowadr[i] + nnz] = dof;
+                nnz++;
+              }
+            }
+            bid = m->body_parentid[bid];
+          }
+        }
+      }
+      rownnz[i] = nnz;
+    }
+
+    // sort colind for this tendon
+    int nnz = rownnz[i];
+    for (int j = 0; j < nnz - 1; j++) {
+      for (int k = j + 1; k < nnz; k++) {
+        // swap out-of-order entries
+        if (colind[rowadr[i] + k] < colind[rowadr[i] + j]) {
+          int tmp = colind[rowadr[i] + j];
+          colind[rowadr[i] + j] = colind[rowadr[i] + k];
+          colind[rowadr[i] + k] = tmp;
+        }
+      }
+    }
+  }
+}
+
 // compute flex sparsity: flexedge_J_{rowadr,rownnz,colind} and flexvert_J_{rowadr,rownnz}
 static void makeFlexSparse(mjModel* m, mjData* d) {
   int nv = m->nv;
@@ -552,6 +639,7 @@ static void mj_alignFlex(mjModel* m, mjData* d) {
 
 // set quantities that depend on qpos0
 static void set0(mjModel* m, mjData* d) {
+  makeTendonSparse(m);
   makeFlexSparse(m, d);
   mj_alignFlex(m, d);
   int nv = m->nv;
@@ -756,16 +844,7 @@ static void set0(mjModel* m, mjData* d) {
 
     // compute tendon_invweight0
     for (int i=0; i < m->ntendon; i++) {
-      // make dense vector into tmp
-      if (mj_isSparse(m)) {
-        mju_zero(tmp, nv);
-        int end = d->ten_J_rowadr[i] + d->ten_J_rownnz[i];
-        for (int j=d->ten_J_rowadr[i]; j < end; j++) {
-          tmp[d->ten_J_colind[j]] = d->ten_J[j];
-        }
-      } else {
-        mju_copy(tmp, d->ten_J+i*nv, nv);
-      }
+      mju_sparse2dense(tmp, d->ten_J, 1, nv, m->ten_J_rownnz+i, m->ten_J_rowadr+i, m->ten_J_colind);
 
       // solve into tmp+nv
       mj_solveM(m, d, tmp+nv, tmp, 1);

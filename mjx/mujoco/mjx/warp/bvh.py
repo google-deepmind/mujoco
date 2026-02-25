@@ -88,7 +88,7 @@ def _refit_bvh_shim(
   _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
   _d.nworld = nworld
-  render_context = _MJX_RENDER_CONTEXT_BUFFERS[rc_id]
+  render_context = _MJX_RENDER_CONTEXT_BUFFERS[(rc_id, wp.get_device().ordinal)]
   dummy.zero_()
   mjwarp.refit_bvh(_m, _d, render_context)
 
@@ -104,6 +104,7 @@ def _refit_bvh_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
       stage_in_argnames=set(['geom_size', 'geom_xmat', 'geom_xpos']),
       stage_out_argnames=set([]),
       graph_mode=m.opt._impl.graph_mode,
+      has_side_effect=True,
   )
   out = jf(
       d.qpos.shape[0],
@@ -122,7 +123,7 @@ def _refit_bvh_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
       d.geom_xpos,
       ctx.key,
   )
-  d = d.tree_replace({'time': d.time + out[0]})
+  d = d.tree_replace({})
   return d
 
 

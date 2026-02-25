@@ -199,6 +199,48 @@ TEST_F(UserModelTest, ActuatorSparsity) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserModelTest, FixedTendonSparsity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size=".1"/>
+        <joint name="0"/>
+      </body>
+      <body pos="1 0 0">
+        <geom size=".1"/>
+        <joint name="1"/>
+      </body>
+      <body pos="2 0 0">
+        <geom size=".1"/>
+        <joint name="2"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <fixed>
+        <joint coef="3" joint="2"/>
+        <joint coef="2" joint="1"/>
+        <joint coef="1" joint="0"/>
+      </fixed>
+    </tendon>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  ASSERT_THAT(m, NotNull());
+
+  EXPECT_EQ(m->nJten, 3);
+  EXPECT_EQ(m->ten_J_rownnz[0], 3);
+  EXPECT_EQ(m->ten_J_rowadr[0], 0);
+  EXPECT_EQ(m->wrap_type[m->tendon_adr[0]], mjWRAP_JOINT);
+
+  int rowadr = m->ten_J_rowadr[0];
+  int* colind = m->ten_J_colind + rowadr;
+  EXPECT_THAT(std::vector<int>(colind, colind + 3), ElementsAre(0, 1, 2));
+
+  mj_deleteModel(m);
+}
+
 TEST_F(UserModelTest, NestedZeroMassBodiesOK) {
   static constexpr char xml[] = R"(
   <mujoco>

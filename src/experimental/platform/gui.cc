@@ -470,7 +470,7 @@ void StateGui(const mjModel* model, mjData* data, std::vector<mjtNum>& state,
             ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 20))) {
       ImGui::TableSetupColumn("Index");
       ImGui::TableSetupColumn("Name");
-      ImGui::TableSetupColumn("Value");
+      ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
       ImGui::TableSetupScrollFreeze(0, 1);
       ImGui::TableHeadersRow();
 
@@ -1105,113 +1105,6 @@ void StatsGui(const mjModel* model, const mjData* data, bool paused,
     ImGui::Text("%d", data->nisland);
   }
   ImGui::Columns();
-}
-
-void BodyPropertiesGui(const mjModel* model, const mjData* data,
-                       mjsElement* element, int id) {
-  const mjsBody* body = mjs_asBody(element);
-
-  ImGui::Columns(2);
-  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.4f);
-  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.6f);
-
-  std::string name = *mjs_getName(body->element);
-  if (name.empty()) {
-    name = "(Body " + std::to_string(id) + ")";
-  }
-
-  ImGui::Columns(2);
-  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.3f);
-  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.7f);
-
-  ImGui::Text("Name");
-  ImGui::Text("xpos[0]");
-  ImGui::Text("xpos[1]");
-  ImGui::Text("xpos[2]");
-  ImGui::Text("xquat[0]");
-  ImGui::Text("xquat[1]");
-  ImGui::Text("xquat[2]");
-  ImGui::Text("xquat[3]");
-  ImGui::Text("mass");
-
-  ImGui::NextColumn();
-  ImGui::Text("%s", name.c_str());
-  ImGui::Text("%f", data->xpos[3*id+0]);
-  ImGui::Text("%f", data->xpos[3*id+1]);
-  ImGui::Text("%f", data->xpos[3*id+2]);
-  ImGui::Text("%f", data->xquat[4*id+0]);
-  ImGui::Text("%f", data->xquat[4*id+1]);
-  ImGui::Text("%f", data->xquat[4*id+2]);
-  ImGui::Text("%f", data->xquat[4*id+3]);
-  ImGui::Text("%f", model->body_mass[id]);
-}
-
-void JointPropertiesGui(const mjModel* model, const mjData* data,
-                        mjsElement* element, int id) {
-  const mjsJoint* joint = mjs_asJoint(element);
-
-  ImGui::Columns(2);
-  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.4f);
-  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.6f);
-
-  std::string name = *mjs_getName(joint->element);
-  if (name.empty()) {
-    name = "(Joint " + std::to_string(id) + ")";
-  }
-
-  ImGui::Columns(2);
-  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.3f);
-  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.7f);
-  ImGui::Text("Name");
-
-  ImGui::NextColumn();
-  ImGui::Text("%s", name.c_str());
-}
-
-void SitePropertiesGui(const mjModel* model, const mjData* data,
-                      mjsElement* element, int id) {
-  const mjsSite* site = mjs_asSite(element);
-
-  ImGui::Columns(2);
-  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.4f);
-  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.6f);
-
-  std::string name = *mjs_getName(site->element);
-  if (name.empty()) {
-    name = "(Joint " + std::to_string(id) + ")";
-  }
-
-  ImGui::Columns(2);
-  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.3f);
-  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.7f);
-  ImGui::Text("Name");
-  ImGui::Text("site_xpos[0]");
-  ImGui::Text("site_xpos[1]");
-  ImGui::Text("site_xpos[2]");
-  ImGui::Text("site_xmat[0]");
-  ImGui::Text("site_xmat[1]");
-  ImGui::Text("site_xmat[2]");
-  ImGui::Text("site_xmat[3]");
-  ImGui::Text("site_xmat[4]");
-  ImGui::Text("site_xmat[5]");
-  ImGui::Text("site_xmat[6]");
-  ImGui::Text("site_xmat[7]");
-  ImGui::Text("site_xmat[8]");
-
-  ImGui::NextColumn();
-  ImGui::Text("%s", name.c_str());
-  ImGui::Text("%f", data->site_xpos[3*id+0]);
-  ImGui::Text("%f", data->site_xpos[3*id+1]);
-  ImGui::Text("%f", data->site_xpos[3*id+2]);
-  ImGui::Text("%f", data->site_xmat[4*id+0]);
-  ImGui::Text("%f", data->site_xmat[4*id+1]);
-  ImGui::Text("%f", data->site_xmat[4*id+2]);
-  ImGui::Text("%f", data->site_xmat[4*id+3]);
-  ImGui::Text("%f", data->site_xmat[4*id+4]);
-  ImGui::Text("%f", data->site_xmat[4*id+5]);
-  ImGui::Text("%f", data->site_xmat[4*id+6]);
-  ImGui::Text("%f", data->site_xmat[4*id+7]);
-  ImGui::Text("%f", data->site_xmat[4*id+8]);
 }
 
 }  // namespace mujoco::platform

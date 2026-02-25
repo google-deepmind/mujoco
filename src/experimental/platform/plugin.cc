@@ -12,89 +12,66 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "experimental/platform/plugin.h"
+
 #include <functional>
 #include <string_view>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/plugin.h"
 #include "engine/engine_global_table.h"
+
+using GuiPlugin = mujoco::platform::GuiPlugin;
+using ModelPlugin = mujoco::platform::ModelPlugin;
+using KeyHandlerPlugin = mujoco::platform::KeyHandlerPlugin;
+using SpecEditorPlugin = mujoco::platform::SpecEditorPlugin;
 
 namespace mujoco::platform {
 
-void RegisterGuiPlugin(const GuiPlugin* plugin) {
-  if (plugin->name == nullptr || plugin->name[0] == '\0') {
+template <typename T>
+void RegisterPlugin(T plugin) {
+  if (plugin.name == nullptr || plugin.name[0] == '\0') {
     mju_error("Plugin name must not be empty or null.");
   }
-  GlobalTable<GuiPlugin>::GetSingleton().AppendIfUnique(*plugin);
+  GlobalTable<T>::GetSingleton().AppendIfUnique(plugin);
 }
 
-void ForEachGuiPlugin(const std::function<void(GuiPlugin*)>& fn) {
-  auto& table = GlobalTable<GuiPlugin>::GetSingleton();
+template <typename T>
+void ForEachPlugin(const std::function<void(T*)>& fn) {
+  auto& table = mujoco::GlobalTable<T>::GetSingleton();
   for (int i = 0; i < table.count(); ++i) {
-    const GuiPlugin* plugin = table.GetAtSlot(i);
-    fn(const_cast<GuiPlugin*>(plugin));
-  }
-}
-
-void RegisterModelPlugin(const ModelPlugin* plugin) {
-  if (plugin->name == nullptr || plugin->name[0] == '\0') {
-    mju_error("Plugin name must not be empty or null.");
-  }
-  GlobalTable<ModelPlugin>::GetSingleton().AppendIfUnique(*plugin);
-}
-
-void ForEachModelPlugin(const std::function<void(ModelPlugin*)>& fn) {
-  auto& table = GlobalTable<ModelPlugin>::GetSingleton();
-  for (int i = 0; i < table.count(); ++i) {
-    const ModelPlugin* plugin = table.GetAtSlot(i);
-    fn(const_cast<ModelPlugin*>(plugin));
+    const T* plugin = table.GetAtSlot(i);
+    fn(const_cast<T*>(plugin));
   }
 }
 
 }  // namespace mujoco::platform
 
-using mujoco::GlobalTable;
-using GuiPlugin = mujoco::platform::GuiPlugin;
-using ModelPlugin = mujoco::platform::ModelPlugin;
+#define MUJOCO_SPECIALIZE_PLUGIN(PLUGIN, NAME)                                 \
+  template <>                                                                  \
+  const char* mujoco::GlobalTable<PLUGIN>::HumanReadableTypeName() {           \
+    return NAME;                                                               \
+  }                                                                            \
+  template <>                                                                  \
+  std::string_view mujoco::GlobalTable<PLUGIN>::ObjectKey(const PLUGIN& p) {   \
+    return std::string_view(p.name);                                           \
+  }                                                                            \
+  template <>                                                                  \
+  bool mujoco::GlobalTable<PLUGIN>::ObjectEqual(const PLUGIN& p1,              \
+                                                const PLUGIN& p2) {            \
+    return CaseInsensitiveEqual(p1.name, p2.name);                             \
+  }                                                                            \
+  template <>                                                                  \
+  bool mujoco::GlobalTable<PLUGIN>::CopyObject(PLUGIN& dst, const PLUGIN& src, \
+                                               ErrorMessage& err) {            \
+    dst = src;                                                                 \
+    return true;                                                               \
+  }                                                                            \
+  namespace mujoco::platform {                                                 \
+  template void RegisterPlugin<PLUGIN>(PLUGIN plugin);                         \
+  template void ForEachPlugin<PLUGIN>(const std::function<void(PLUGIN*)>& fn); \
+  }
 
-template <>
-const char* GlobalTable<GuiPlugin>::HumanReadableTypeName() {
-  return "gui plugin";
-}
-
-template <>
-std::string_view GlobalTable<GuiPlugin>::ObjectKey(const GuiPlugin& plugin) {
-  return std::string_view(plugin.name);
-}
-
-template <>
-bool GlobalTable<GuiPlugin>::ObjectEqual(const GuiPlugin& p1, const GuiPlugin& p2) {
-  return CaseInsensitiveEqual(p1.name, p2.name);
-}
-
-template <>
-bool GlobalTable<GuiPlugin>::CopyObject(GuiPlugin& dst, const GuiPlugin& src, ErrorMessage& err) {
-  dst = src;
-  return true;
-}
-
-template <>
-const char* GlobalTable<ModelPlugin>::HumanReadableTypeName() {
-  return "model plugin";
-}
-
-template <>
-std::string_view GlobalTable<ModelPlugin>::ObjectKey(const ModelPlugin& plugin) {
-  return std::string_view(plugin.name);
-}
-
-template <>
-bool GlobalTable<ModelPlugin>::ObjectEqual(const ModelPlugin& p1, const ModelPlugin& p2) {
-  return CaseInsensitiveEqual(p1.name, p2.name);
-}
-
-template <>
-bool GlobalTable<ModelPlugin>::CopyObject(ModelPlugin& dst, const ModelPlugin& src, ErrorMessage& err) {
-  dst = src;
-  return true;
-}
+MUJOCO_SPECIALIZE_PLUGIN(GuiPlugin, "gui plugin");
+MUJOCO_SPECIALIZE_PLUGIN(ModelPlugin, "model plugin");
+MUJOCO_SPECIALIZE_PLUGIN(KeyHandlerPlugin, "key handler plugin");
+MUJOCO_SPECIALIZE_PLUGIN(SpecEditorPlugin, "spec editor plugin");

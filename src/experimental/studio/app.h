@@ -19,7 +19,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <random>
 #include <span>
 #include <string>
 #include <string_view>
@@ -92,6 +91,12 @@ class App {
     kModelFromBuffer,
   };
 
+  enum class SpecPropertiesMode {
+    kSpec,
+    kModel,
+    kData,
+  };
+
   // UI state that is persisted across application runs
   struct UiState {
     char watch_field[1000] = "qpos";
@@ -137,6 +142,7 @@ class App {
     std::vector<std::string> speed_names;
 
     // Spec Properties.
+    SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;
     mjsElement* element = nullptr;
     int element_id = -1;
 
@@ -210,9 +216,10 @@ class App {
   void ModelOptionsGui();
   void DataInspectorGui();
   void SpecExplorerGui();
-  void PropertiesGui();
+  void SpecPropertiesGui();
 
-  void SpecDeleteSelectedElement();
+  void SpecSelectElement(mjsElement* element);
+  void SpecDeleteElement(mjsElement* element);
 
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
@@ -224,13 +231,12 @@ class App {
   bool has_model() const { return model_holder_ && model_holder_->model(); }
   bool has_data() const { return model_holder_ && model_holder_->data(); }
 
-  std::mt19937 rng_;
-
   std::string ini_path_;
   std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
   std::string model_path_;
   std::string load_error_;
   std::string step_error_;
+  std::string edit_error_;
   std::optional<std::string> pending_load_;
   bool preserve_camera_on_load_ = false;
   ModelKind model_kind_ = kEmptyModel;

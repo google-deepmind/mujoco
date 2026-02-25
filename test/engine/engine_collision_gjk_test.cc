@@ -1373,7 +1373,7 @@ TEST_F(MjGjkTest, BoxMesh) {
   std::vector<mjtNum> dir, pos;
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g2, g1, 0, 1000);
-
+  EXPECT_EQ(model->nmeshpoly, 7);
   EXPECT_EQ(ncons, 4);
   mj_deleteData(data);
   mj_deleteModel(model);

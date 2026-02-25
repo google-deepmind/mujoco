@@ -2,6 +2,20 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+MJX
+^^^
+
+- Add batch rendering support for MJX-Warp. See the :ref:`MJX-Warp batch rendering<MjxWarpBatchRendering>` section for details.
+
+Bug fixes
+^^^^^^^^^
+
+- Fixed a bug where :ref:`mjs_attach` silently dropped spatial tendons with wrapping geometries that had no
+  ``sidesite`` attribute (:issue:`3119`, reported by :github:user:`tomstewart89`).
+
 Version 3.5.0 (February 12, 2026)
 ---------------------------------
 
@@ -1449,8 +1463,8 @@ General
        Each row of length ``mjNSOLVER`` contains separate solver statistics for each constraint island.
        If the solver does not use islands, only row 0 is filled.
 
-       - The new constant :ref:`mjNISLAND<glNumeric>` was set to 20.
-       - :ref:`mjNSOLVER<glNumeric>` was reduced from 1000 to 200.
+       - The new constant :ref:`mjNISLAND<glNumericSizes>` was set to 20.
+       - :ref:`mjNSOLVER<glNumericSizes>` was reduced from 1000 to 200.
        - Added :ref:`mjData.solver_nisland<mjData>`: the number of islands for which the solver ran.
        - Renamed ``mjData.solver_iter`` to ``solver_niter``. Both this member and ``mjData.solver_nnz`` are now integer
          vectors of length ``mjNISLAND``.

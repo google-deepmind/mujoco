@@ -567,18 +567,17 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
           // copy Jacobian: sparse or dense
           if (issparse) {
-            // add first or second chain
             if (j == 0) {
-              NV = d->ten_J_rownnz[id[j]];
-              mju_copyInt(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV);
-              mju_copy(jac[j], d->ten_J+d->ten_J_rowadr[id[j]], NV);
+              NV = m->ten_J_rownnz[id[j]];
+              mju_copyInt(chain, m->ten_J_colind+m->ten_J_rowadr[id[j]], NV);
+              mju_copy(jac[j], d->ten_J+m->ten_J_rowadr[id[j]], NV);
             } else {
-              NV2 = d->ten_J_rownnz[id[j]];
-              mju_copyInt(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2);
-              mju_copy(jac[j], d->ten_J+d->ten_J_rowadr[id[j]], NV2);
+              NV2 = m->ten_J_rownnz[id[j]];
+              mju_copyInt(chain2, m->ten_J_colind+m->ten_J_rowadr[id[j]], NV2);
+              mju_copy(jac[j], d->ten_J+m->ten_J_rowadr[id[j]], NV2);
             }
           } else {
-            mju_copy(jac[j], d->ten_J+id[j]*nv, nv);
+            mju_sparse2dense(jac[j], d->ten_J, 1, nv, m->ten_J_rownnz+id[j], m->ten_J_rowadr+id[j], m->ten_J_colind);
           }
         }
       }
@@ -737,11 +736,17 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
     if (m->tendon_frictionloss[i] > 0) {
       int efcadr = d->nefc;
       // add constraint
-      mj_addConstraint(m, d, d->ten_J + (issparse ? d->ten_J_rowadr[i] : i*nv),
-                       0, 0, m->tendon_frictionloss[i],
-                       1, mjCNSTR_FRICTION_TENDON, i,
-                       issparse ? d->ten_J_rownnz[i] : 0,
-                       issparse ? d->ten_J_colind+d->ten_J_rowadr[i] : NULL);
+      if (issparse) {
+        mj_addConstraint(m, d, d->ten_J + m->ten_J_rowadr[i],
+                         0, 0, m->tendon_frictionloss[i],
+                         1, mjCNSTR_FRICTION_TENDON, i,
+                         m->ten_J_rownnz[i],
+                         m->ten_J_colind+m->ten_J_rowadr[i]);
+      } else {
+        mju_sparse2dense(jac, d->ten_J, 1, nv, m->ten_J_rownnz+i, m->ten_J_rowadr+i, m->ten_J_colind);
+        mj_addConstraint(m, d, jac, 0, 0, m->tendon_frictionloss[i],
+                         1, mjCNSTR_FRICTION_TENDON, i, 0, NULL);
+      }
       // set tendon_efcadr
       if (d->tendon_efcadr[i] == -1) {
         d->tendon_efcadr[i] = efcadr;
@@ -877,19 +882,20 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
 
         // detect tendon limit
         if (dist < margin) {
-          // prepare Jacobian: sparse or dense
-          if (issparse) {
-            mju_scl(jac, d->ten_J+d->ten_J_rowadr[i], -side, d->ten_J_rownnz[i]);
-          } else {
-            mju_scl(jac, d->ten_J+i*nv, -side, nv);
-          }
-
-          // add constraint
+          // prepare Jacobian
           int efcadr = d->nefc;
-          mj_addConstraint(m, d, jac, &dist, &margin, 0,
-                           1, mjCNSTR_LIMIT_TENDON, i,
-                           issparse ? d->ten_J_rownnz[i] : 0,
-                           issparse ? d->ten_J_colind+d->ten_J_rowadr[i] : NULL);
+          if (issparse) {
+            mju_scl(jac, d->ten_J+m->ten_J_rowadr[i], -side, m->ten_J_rownnz[i]);
+            mj_addConstraint(m, d, jac, &dist, &margin, 0,
+                             1, mjCNSTR_LIMIT_TENDON, i,
+                             m->ten_J_rownnz[i],
+                             m->ten_J_colind+m->ten_J_rowadr[i]);
+          } else {
+            mju_sparse2dense(jac, d->ten_J, 1, nv, m->ten_J_rownnz+i, m->ten_J_rowadr+i, m->ten_J_colind);
+            mju_scl(jac, jac, -side, nv);
+            mj_addConstraint(m, d, jac, &dist, &margin, 0,
+                             1, mjCNSTR_LIMIT_TENDON, i, 0, NULL);
+          }
           // set tendon_efcadr
           if (d->tendon_efcadr[i] == -1) {
             d->tendon_efcadr[i] = efcadr;
@@ -1732,11 +1738,11 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
           }
         } else {
           if (!j) {
-            NV = d->ten_J_rownnz[id[j]];
-            mju_copyInt(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV);
+            NV = m->ten_J_rownnz[id[j]];
+            mju_copyInt(chain, m->ten_J_colind+m->ten_J_rowadr[id[j]], NV);
           } else {
-            NV2 = d->ten_J_rownnz[id[j]];
-            mju_copyInt(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2);
+            NV2 = m->ten_J_rownnz[id[j]];
+            mju_copyInt(chain2, m->ten_J_colind+m->ten_J_rowadr[id[j]], NV2);
           }
         }
       }
@@ -1834,8 +1840,8 @@ static int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
 
   for (int i=0; i < ntendon; i++) {
     if (m->tendon_frictionloss[i] > 0) {
-      nf += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
-      if (nnz) *nnz += d->ten_J_rownnz[i];
+      nf += mj_addConstraintCount(m, 1, m->ten_J_rownnz[i]);
+      if (nnz) *nnz += m->ten_J_rownnz[i];
     }
   }
 
@@ -1902,8 +1908,8 @@ static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
   for (int i=0; i < ntendon; i++) {
     int count = tendonLimit(m, d->ten_length, i);
     for (int j = 0; j < count; j++) {
-      nl += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
-      if (nnz) *nnz += d->ten_J_rownnz[i];
+      nl += mj_addConstraintCount(m, 1, m->ten_J_rownnz[i]);
+      if (nnz) *nnz += m->ten_J_rownnz[i];
     }
   }
 

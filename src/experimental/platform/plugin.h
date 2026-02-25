@@ -20,10 +20,16 @@
 
 namespace mujoco::platform {
 
-// Important: Do not inherit from these plugin structs. They are copied by value
-// and therefore any derived classes will be sliced. We assume plugins are
-// effectively globals and so any pointers will be valid for the lifetime
-// of the process.
+// Registers plugins with the global registry. The plugins must have a
+// case-insensitive unique name for the plugin type. Note that plugins are
+// copied by value, so do not use inheritance.
+template <typename T>
+void RegisterPlugin(T plugin);
+
+// Executes the given function for each registered plugin of type T.
+template <typename T>
+void ForEachPlugin(const std::function<void(T*)>& fn);
+
 
 // Plugin for processing custom UI windows. The plugin will be listed in the
 // "Plugins" main menu and, when selected, an ImGui window will be opened with
@@ -47,8 +53,9 @@ struct GuiPlugin final {
   void* data = nullptr;
 };
 
+// Plugin for loading and updating models.
 struct ModelPlugin final {
-  using GetModelToLoadFn = const char* (*)(ModelPlugin * self, int* size,
+  using GetModelToLoadFn = const char* (*)(ModelPlugin* self, int* size,
                                            char* content_type,
                                            int content_type_size,
                                            char* model_name,
@@ -75,19 +82,44 @@ struct ModelPlugin final {
   void* data = nullptr;
 };
 
-// Registers a plugin with a global registry. The plugin must have a
-// case-insensitive unique name.
-void RegisterGuiPlugin(const GuiPlugin* plugin);
+// Plugin for handling custom keyboard events.
+struct KeyHandlerPlugin final {
+  using OnKeyPressedFn = void (*)(KeyHandlerPlugin* self);
 
-// Executes the given function for each registered plugin.
-void ForEachGuiPlugin(const std::function<void(GuiPlugin*)>& fn);
+  // The name of the plugin; must be unique.
+  const char* name = "";
 
-// Registers a plugin with a global registry. The plugin must have a
-// case-insensitive unique name.
-void RegisterModelPlugin(const ModelPlugin* plugin);
+  // The ImGui key codes for the key combination that triggers the plugin.
+  int key_chord = 0;
 
-// Executes the given function for each registered plugin.
-void ForEachModelPlugin(const std::function<void(ModelPlugin*)>& fn);
+  // The function to be called when the above key combination is pressed.
+  OnKeyPressedFn on_key_pressed = nullptr;
+
+  // Optional data pointer.
+  void* data = nullptr;
+};
+
+// Plugin for editing the mjSpec.
+struct SpecEditorPlugin final {
+  using PreCompileFn = bool (*)(SpecEditorPlugin* self, mjSpec* spec,
+                                const mjModel* model, const mjData* data,
+                                const mjvCamera* camera);
+  using PostCompileFn = void (*)(SpecEditorPlugin* self, const mjSpec* spec,
+                                 const mjModel* model, mjData* data);
+
+  // The name of the plugin; must be unique.
+  const char* name = "";
+
+  // Callback that edits the spec. If it returns true, then the spec will be
+  // recompiled and `post_compile` will be called with the result.
+  PreCompileFn pre_compile = nullptr;
+
+  // Callback that is called after the spec has been recompiled.
+  PostCompileFn post_compile = nullptr;
+
+  // Optional data pointer.
+  void* data = nullptr;
+};
 
 }  // namespace mujoco::platform
 

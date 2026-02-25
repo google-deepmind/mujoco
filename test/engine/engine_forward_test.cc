@@ -17,6 +17,7 @@
 #include "src/engine/engine_forward.h"
 #include "src/engine/engine_derivative.h"
 
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
@@ -1814,6 +1815,69 @@ TEST_F(ForwardTest, FlexParentCoupling) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+
+TEST_F(ForwardTest, TrilinearPinnedParentWithFreejoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <option integrator="implicitfast"/>
+  <worldbody>
+    <body>
+      <joint type="free"/>
+      <geom type="box" size="0.13 0.18 0.036" pos="0 0 0.036"/>
+      <body name="parent">
+        <flexcomp name="test" type="grid"
+                  count="3 3 3" spacing=".1 .02 .1" radius="0.001"
+                  pos="0 0 0.1" dof="trilinear" xyaxes="0 1 0 0 0 1" mass="10" dim="3">
+          <contact selfcollide="none"/>
+          <elasticity young="1e5" poisson="0.3" damping="0.1"/>
+          <pin id="0 2 4 6"/>
+        </flexcomp>
+      </body>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+
+  int parent_id = mj_name2id(m, mjOBJ_BODY, "parent");
+  ASSERT_GT(parent_id, 0);
+
+  EXPECT_EQ(m->nflexnode, 8);
+  EXPECT_EQ(m->body_dofnum[parent_id], 0) << "parent body should have 0 DOFs";
+
+  int freejoint_body = m->body_parentid[parent_id];
+  EXPECT_EQ(m->body_dofnum[freejoint_body], 6) << "freejoint body has 6 DOFs";
+
+  mj_resetData(m, d);
+  mj_forward(m, d);
+
+  for (int i = 0; i < 500; i++) {
+    mj_step(m, d);
+
+    ASSERT_FALSE(mju_isBad(d->qpos[0]))
+        << "Simulation became unstable at step " << i;
+    ASSERT_FALSE(mju_isBad(d->qvel[0]))
+        << "Velocity became unstable at step " << i;
+
+    for (int j = 0; j < m->nq; j++) {
+      ASSERT_LT(mju_abs(d->qpos[j]), 100.0)
+          << "Position exploded at step " << i << ", qpos[" << j
+          << "]=" << d->qpos[j];
+    }
+    for (int j = 0; j < m->nv; j++) {
+      ASSERT_LT(mju_abs(d->qvel[j]), 1000.0)
+          << "Velocity exploded at step " << i << ", qvel[" << j
+          << "]=" << d->qvel[j];
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 }  // namespace

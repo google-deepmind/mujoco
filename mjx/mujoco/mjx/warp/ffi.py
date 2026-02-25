@@ -103,6 +103,7 @@ def jax_callable_variadic_tuple(
     in_out_argnames: Optional[Sequence[str]] = None,
     stage_in_argnames: Optional[Sequence[str]] = None,
     stage_out_argnames: Optional[Sequence[str]] = None,
+    has_side_effect: bool = False,
 ):
   """Wraps a JAX callable to support variadic tuples and dataclasses."""
 
@@ -134,6 +135,7 @@ def jax_callable_variadic_tuple(
         in_out_argnames=in_out_argnames,
         stage_in_argnames=stage_in_argnames,
         stage_out_argnames=stage_out_argnames,
+        has_side_effect=has_side_effect,
     )
 
     flat_args, in_tree = jax.tree.flatten(args)

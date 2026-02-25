@@ -56,7 +56,7 @@ void Renderer::Init(const mjModel* model) {
     mjr_makeContext(model, &render_context_, mjFONTSCALE_150);
 #else
     mjrFilamentConfig render_config;
-    mjr_defaultFilamentConfig(&render_config);
+    mjrf_defaultFilamentConfig(&render_config);
     render_config.native_window = native_window_;
     render_config.enable_gui = true;
 #if defined(MUJOCO_RENDERER_FILAMENT_OPENGL)
@@ -66,7 +66,7 @@ void Renderer::Init(const mjModel* model) {
 #elif defined(MUJOCO_RENDERER_FILAMENT_VULKAN)
     render_config.graphics_api = mjGFX_VULKAN;
 #endif
-    mjr_makeFilamentContext(model, &render_context_, &render_config);
+    mjrf_makeFilamentContext(model, &render_context_, &render_config);
 #endif
 
     mjv_defaultScene(&scene_);
@@ -171,9 +171,9 @@ int Renderer::UploadImage(int texture_id, const std::byte* pixels, int width,
 #if defined(MUJOCO_RENDERER_CLASSIC_OPENGL)
   return 0;
 #else
-  return mjr_uploadGuiImage(texture_id,
-                            reinterpret_cast<const unsigned char*>(pixels),
-                            width, height, bpp, &render_context_);
+  return mjrf_uploadGuiImage(texture_id,
+                             reinterpret_cast<const unsigned char*>(pixels),
+                             width, height, bpp, &render_context_);
 #endif
 }
 
@@ -191,7 +191,7 @@ void Renderer::UpdateFps() {
     frames_ = 0;
   }
 #else
-  fps_ = mjr_getFrameRate(&render_context_);
+  fps_ = mjrf_getFrameRate(&render_context_);
 #endif
 }
 
@@ -217,8 +217,8 @@ mjPLUGIN_LIB_INIT {
   mujoco::platform::GuiPlugin plugin;
   plugin.name = "Filament";
   plugin.update = [](mujoco::platform::GuiPlugin* self) {
-    mjr_updateGui(nullptr);
+    mjrf_updateGui(nullptr);
   };
-  mujoco::platform::RegisterGuiPlugin(&plugin);
+  mujoco::platform::RegisterPlugin(plugin);
 }
 #endif

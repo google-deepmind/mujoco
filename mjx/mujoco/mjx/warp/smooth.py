@@ -44,6 +44,7 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _kinematics_shim(
     # Model
@@ -213,6 +214,7 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
           'xquat',
       ]),
       graph_mode=m.opt._impl.graph_mode,
+      has_side_effect=False,
   )
   out = jf(
       d.qpos.shape[0],
@@ -407,6 +409,7 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       ]),
       stage_out_argnames=set(['ten_length']),
       graph_mode=m.opt._impl.graph_mode,
+      has_side_effect=False,
   )
   out = jf(
       d.qpos.shape[0],

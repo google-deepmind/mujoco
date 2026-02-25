@@ -62,11 +62,22 @@ def check_jax_version():
 
 
 class GraphMode(IntEnum):
-    NONE = 0  # don't capture a graph
-    JAX = 1  # let JAX capture a graph
-    WARP = 2  # let Warp capture a graph
-    WARP_STAGED = 3  # use Warp graph with staging buffers, copy inside of the graph
-    WARP_STAGED_EX = 4  # use Warp graph with staging buffers, copy outside of the graph
+    """CUDA graph capture modes for :func:`warp.jax_experimental.jax_callable`.
+
+    These modes control whether JAX or Warp captures a CUDA graph, and whether
+    staging buffers are used when capturing with Warp.
+    """
+
+    NONE = 0
+    """Disable graph capture. Use when operations are not CUDA-graph compatible (for example, host synchronization)."""
+    JAX = 1
+    """Let JAX capture the graph so the callable can be used as a subgraph within a larger JAX capture."""
+    WARP = 2
+    """Let Warp capture the graph and replay it for matching buffer addresses."""
+    WARP_STAGED = 3
+    """Capture a Warp graph using staging buffers and insert memcpy nodes inside the graph."""
+    WARP_STAGED_EX = 4
+    """Capture a Warp graph using staging buffers and perform memcpy outside the graph."""
 
 
 class ModulePreloadMode(IntEnum):
@@ -434,6 +445,7 @@ class FfiCallable:
         stage_out_argnames,
         graph_cache_max,
         module_preload_mode,
+        has_side_effect=False,
     ):
         self.func = func
         self.name = generate_unique_name(func)
@@ -442,6 +454,7 @@ class FfiCallable:
         self.graph_mode = graph_mode
         self.output_dims = output_dims
         self.module_preload_mode = module_preload_mode
+        self.has_side_effect = has_side_effect
         self.first_array_arg = None
         self.call_id = 0
         self.call_descriptors = {}
@@ -613,7 +626,7 @@ class FfiCallable:
             out_types,
             vmap_method=vmap_method,
             input_output_aliases=self.input_output_aliases,
-            # has_side_effect=True,  # force this function to execute even if outputs aren't used
+            has_side_effect=self.has_side_effect,
         )
 
         # preload on the specified devices
@@ -680,12 +693,13 @@ class FfiCallable:
                 assert num_outputs == self.num_outputs
 
                 cuda_stream = get_stream_from_callframe(call_frame.contents)
+                device_ordinal = get_device_ordinal_from_callframe(call_frame.contents)
 
                 if self.graph_mode == GraphMode.WARP:
                     # check if we already captured an identical call
                     ip = [inputs[i].contents.data for i in self.array_input_indices]
                     op = [outputs[i].contents.data for i in self.array_output_indices]
-                    capture_key = hash((call_id, *ip, *op))
+                    capture_key = hash((device_ordinal, call_id, *ip, *op))
                     capture = self.captures.get(capture_key)
 
                     # launch existing graph
@@ -1379,6 +1393,7 @@ def jax_callable(
     stage_out_argnames=None,
     graph_cache_max: int | None = None,
     module_preload_mode: ModulePreloadMode = ModulePreloadMode.CURRENT_DEVICE,
+    has_side_effect: bool = False,
 ):
     """Create a JAX callback from an annotated Python function.
 
@@ -1449,6 +1464,7 @@ def jax_callable(
                 stage_out_argnames,
                 graph_cache_max,
                 module_preload_mode,
+                has_side_effect,
             )
             _FFI_CALLABLE_REGISTRY[key] = callable
         else:

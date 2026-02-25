@@ -952,13 +952,12 @@ def put_data(
 
   d.flexedge_J = wp.array(np.tile(mjd.flexedge_J.reshape(-1), (nworld, 1)).reshape((nworld, 1, -1)), dtype=float)
 
-  if mujoco.mj_isSparse(mjm):
+  if mjm.ntendon:
     ten_J = np.zeros((mjm.ntendon, mjm.nv))
-    mujoco.mju_sparse2dense(ten_J, mjd.ten_J.reshape(-1), mjd.ten_J_rownnz, mjd.ten_J_rowadr, mjd.ten_J_colind.reshape(-1))
+    mujoco.mju_sparse2dense(ten_J, mjd.ten_J.reshape(-1), mjm.ten_J_rownnz, mjm.ten_J_rowadr, mjm.ten_J_colind.reshape(-1))
     d.ten_J = wp.array(np.full((nworld, mjm.ntendon, mjm.nv), ten_J), dtype=float)
   else:
-    ten_J = mjd.ten_J.reshape((mjm.ntendon, mjm.nv))
-    d.ten_J = wp.array(np.full((nworld, mjm.ntendon, mjm.nv), ten_J), dtype=float)
+    d.ten_J = wp.array(np.full((nworld, mjm.ntendon, mjm.nv), 0.0), dtype=float)
 
   # TODO(taylorhowell): sparse actuator_moment
   actuator_moment = np.zeros((mjm.nu, mjm.nv))
@@ -1169,9 +1168,9 @@ def get_data_into(
     mujoco.mju_dense2sparse(
         result.ten_J,
         ten_J,
-        result.ten_J_rownnz,
-        result.ten_J_rowadr,
-        result.ten_J_colind,
+        mjm.ten_J_rownnz,
+        mjm.ten_J_rowadr,
+        mjm.ten_J_colind,
     )
   else:
     result.ten_J[:] = d.ten_J.numpy()[world_id]

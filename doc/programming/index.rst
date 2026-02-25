@@ -200,7 +200,7 @@ The situation is more subtle if existing code was developed with a certain versi
 compiled and linked with a different version. If the definitions of the API functions used in that code have changed,
 either the compiler or the linker will generate errors. But even if the function definitions have not changed, it may
 still be a good idea to assert that the software version is the same. To this end, the main header (mujoco.h) defines
-the symbol :ref:`mjVERSION_HEADER <glNumeric>` and the library provides the function
+the symbol :ref:`mjVERSION_HEADER <glNumericVersion>` and the library provides the function
 :ref:`mj_version`. Thus the header and library versions can be compared with:
 
 .. code-block:: C

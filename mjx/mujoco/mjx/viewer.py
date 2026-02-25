@@ -88,15 +88,9 @@ def _main(argv: Sequence[str]) -> None:
     m = mujoco.MjModel.from_xml_path(_MODEL_PATH.value)
   d = mujoco.MjData(m)
   mx = mjx.put_model(m, impl=_IMPL.value)
-  if _IMPL.value == 'warp':
-    # TODO(btaba): use put_data.
-    dx = mjx.make_data(
-        m, impl=_IMPL.value, naconmax=_NACONMAX.value, njmax=_NJMAX.value
-    )
-  else:
-    dx = mjx.put_data(
-        m, d, impl=_IMPL.value, naconmax=_NACONMAX.value, njmax=_NJMAX.value
-    )
+  dx = mjx.put_data(
+      m, d, impl=_IMPL.value, naconmax=_NACONMAX.value, njmax=_NJMAX.value
+  )
 
   print(f'Default backend: {jax.default_backend()}')
   step_fn = mjx.step

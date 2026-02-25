@@ -26,7 +26,7 @@
 namespace mujoco {
 namespace {
 
-using ElasticityTest = PluginTest;
+using ElasticityTest = MujocoTest;
 
 
 // -------------------------------- cable -----------------------------------

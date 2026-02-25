@@ -3934,6 +3934,12 @@ struct MjModel {
   void set_ntendon(int value) {
     ptr_->ntendon = static_cast<mjtSize>(value);
   }
+  int nJten() const {
+    return static_cast<int>(ptr_->nJten);
+  }
+  void set_nJten(int value) {
+    ptr_->nJten = static_cast<mjtSize>(value);
+  }
   int nwrap() const {
     return static_cast<int>(ptr_->nwrap);
   }
@@ -4077,12 +4083,6 @@ struct MjModel {
   }
   void set_nJmom(int value) {
     ptr_->nJmom = static_cast<mjtSize>(value);
-  }
-  int nJten() const {
-    return static_cast<int>(ptr_->nJten);
-  }
-  void set_nJten(int value) {
-    ptr_->nJten = static_cast<mjtSize>(value);
   }
   int ngravcomp() const {
     return static_cast<int>(ptr_->ngravcomp);
@@ -5124,6 +5124,15 @@ struct MjModel {
   }
   emscripten::val tendon_treeid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon * 2, ptr_->tendon_treeid));
+  }
+  emscripten::val ten_J_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->ten_J_rownnz));
+  }
+  emscripten::val ten_J_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->ten_J_rowadr));
+  }
+  emscripten::val ten_J_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nJten, ptr_->ten_J_colind));
   }
   emscripten::val tendon_limited() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_limited));
@@ -6648,15 +6657,6 @@ struct MjData {
   }
   emscripten::val ten_wrapnum() const {
     return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_wrapnum));
-  }
-  emscripten::val ten_J_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_J_rownnz));
-  }
-  emscripten::val ten_J_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_J_rowadr));
-  }
-  emscripten::val ten_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nJten, ptr_->ten_J_colind));
   }
   emscripten::val ten_J() const {
     return emscripten::val(emscripten::typed_memory_view(model->nJten, ptr_->ten_J));
@@ -8329,9 +8329,18 @@ MjSpec::~MjSpec() {
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
-std::unique_ptr<MjModel> mj_loadXML_wrapper(std::string filename) {
+std::unique_ptr<MjModel> mj_loadXML_wrapper_1(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> mj_loadXML_wrapper_2(std::string filename, const MjVFS& vfs) {
+  char error[1000];
+  mjModel *model = mj_loadXML(filename.c_str(), vfs.get(), error, sizeof(error));
   if (!model) {
     mju_error("Loading error: %s\n", error);
   }
@@ -11541,9 +11550,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("subtree_com", &MjData::subtree_com)
     .property("subtree_linvel", &MjData::subtree_linvel)
     .property("ten_J", &MjData::ten_J)
-    .property("ten_J_colind", &MjData::ten_J_colind)
-    .property("ten_J_rowadr", &MjData::ten_J_rowadr)
-    .property("ten_J_rownnz", &MjData::ten_J_rownnz)
     .property("ten_length", &MjData::ten_length)
     .property("ten_velocity", &MjData::ten_velocity)
     .property("ten_wrapadr", &MjData::ten_wrapadr)
@@ -11581,8 +11587,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("useexisting", &MjLROpt::useexisting, &MjLROpt::set_useexisting, reference())
     .property("uselimit", &MjLROpt::uselimit, &MjLROpt::set_uselimit, reference());
   emscripten::class_<MjModel>("MjModel")
-    .class_function("mj_loadXML", &mj_loadXML_wrapper, take_ownership())
-    .class_function("mj_loadBinary", &mj_loadModel_wrapper, take_ownership())
+    .class_function("mj_loadXML", emscripten::select_overload<std::unique_ptr<MjModel>(std::string)>(&mj_loadXML_wrapper_1))
+    .class_function("mj_loadXML", emscripten::select_overload<std::unique_ptr<MjModel>(std::string, const MjVFS&)>(&mj_loadXML_wrapper_2))
+    .class_function("mj_loadModel", &mj_loadModel_wrapper)
     .constructor<const MjModel &>()
     // Binds the functions on MjModel that return accessors.
     #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \
@@ -12090,6 +12097,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("skin_vertadr", &MjModel::skin_vertadr)
     .property("skin_vertnum", &MjModel::skin_vertnum)
     .property("stat", &MjModel::stat, reference())
+    .property("ten_J_colind", &MjModel::ten_J_colind)
+    .property("ten_J_rowadr", &MjModel::ten_J_rowadr)
+    .property("ten_J_rownnz", &MjModel::ten_J_rownnz)
     .property("tendon_actfrclimited", &MjModel::tendon_actfrclimited)
     .property("tendon_actfrcrange", &MjModel::tendon_actfrcrange)
     .property("tendon_adr", &MjModel::tendon_adr)

@@ -82,7 +82,7 @@ using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::NotNull;
 using ::testing::Pointwise;
-using RayTest = PluginTest;
+using RayTest = MujocoTest;
 
 TEST_F(RayTest, NoExclusions) {
   char error[1024];

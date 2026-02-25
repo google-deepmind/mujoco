@@ -1252,7 +1252,7 @@ Intersect ray ``pnt+x*vec, x >= 0`` with geoms.
 - If ``normal`` is not NULL, write the surface normal at the intersection point. The normal always points **out of the
   geometry**, regardless of the ray's direction (i.e., including rays hitting the surface from the inside).
 - Exclude geoms in body with id ``bodyexclude``, use -1 to include all bodies.
-- ``geomgroup`` is an array of length :ref:`mjNGROUP<glNumeric>`, where 1 means the group should be included. Pass
+- ``geomgroup`` is an array of length :ref:`mjNGROUP<glNumericVisualization>`, where 1 means the group should be included. Pass
   NULL to skip geom group exclusion.
 - If ``flg_static`` is 0, static geoms will be excluded.
 
@@ -2911,7 +2911,7 @@ each corresponding to one item. The last (unused) item has its type set to -1, t
 after the end of the last used section. There is also another version of this function
 (:ref:`mjui_addToSection<mjui_addToSection>`) which adds items to a specified section instead of adding them at the end
 of the UI. Keep in mind that there is a maximum preallocated number of sections and items per section, given by
-:ref:`mjMAXUISECT<glNumeric>` and :ref:`mjMAXUIITEM<glNumeric>`. Exceeding these maxima results in low-level errors.
+:ref:`mjMAXUISECT<glNumericUI>` and :ref:`mjMAXUIITEM<glNumericUI>`. Exceeding these maxima results in low-level errors.
 
 .. _mjui_addToSection:
 

@@ -14,9 +14,13 @@
 
 #include "experimental/platform/imgui_widgets.h"
 
+#include <cstdint>
+#include <cstring>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
+#include <vector>
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
@@ -55,6 +59,228 @@ KeyValues ReadIniSection(const std::string& contents,
     }
   }
   return key_values;
+}
+
+ImGui_DataTable::ImGui_DataTable(float w1, float w2) {
+  ImGui::BeginTable("##PropertiesTable", 2);
+  const float width = ImGui::GetContentRegionAvail().x;
+  ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w1);
+  ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w2);
+}
+ImGui_DataTable::~ImGui_DataTable() { ImGui::EndTable(); }
+
+void ImGui_DataTable::SetArrayIndex(int index) { index_ = index; }
+
+void ImGui_DataTable::SetPrefix(const char* prefix) {
+  prefix_ = strlen(prefix);
+}
+
+void ImGui_DataTable::operator()(const char* label, const uintptr_t* ptr,
+                                 int n) {
+  for (int i = 0; i < n; ++i) {
+    MakeLabel(label, i, n);
+    ImGui::Text("(%s)", &ptr[index_ + i] ? "[ptr]" : "null");
+  }
+}
+
+void ImGui_DataTable::operator()(const char* label, const char* ptr, int n) {
+  if (n == 1) {
+    MakeLabel(label);
+    ImGui::Text("%s", &ptr[index_]);
+  } else {
+    mju_error("char cannot be converted to a vector");
+  }
+}
+
+void ImGui_DataTable::operator()(const char* label, const mjtByte* ptr, int n) {
+  for (int i = 0; i < n; ++i) {
+    MakeLabel(label, i, n);
+    ImGui::Text("%s", ptr[index_ + i] ? "true" : "false");
+  }
+}
+
+void ImGui_DataTable::operator()(const char* label, const mjtByte& val, int n) {
+  MakeLabel(label, 0, 1);
+  ImGui::Text("%s", val ? "true" : "false");
+}
+
+void ImGui_DataTable::operator()(const char* label, const mjtSize* ptr, int n) {
+  Numeric(label, ptr, n);
+}
+
+void ImGui_DataTable::operator()(const char* label, const int* ptr, int n) {
+  Numeric(label, ptr, n);
+}
+
+void ImGui_DataTable::operator()(const char* label, const float* ptr, int n) {
+  Numeric(label, ptr, n);
+}
+
+void ImGui_DataTable::operator()(const char* label, const double* ptr, int n) {
+  Numeric(label, ptr, n);
+}
+
+void ImGui_DataTable::operator()(const char* label, const mjtSize& val, int n) {
+  Scalar(label, val, n);
+}
+
+void ImGui_DataTable::operator()(const char* label, const int& val, int n) {
+  Scalar(label, val, n);
+}
+
+void ImGui_DataTable::operator()(const char* label, const float& val, int n) {
+  Scalar(label, val, n);
+}
+
+void ImGui_DataTable::operator()(const char* label, const double& val, int n) {
+  Scalar(label, val, n);
+}
+
+void ImGui_DataTable::operator()(const char* label, const std::string* ptr,
+                                 int n) {
+  for (int i = 0; i < n; ++i) {
+    MakeLabel(label, i, n);
+    ImGui::Text("%s", ptr[i].c_str());
+  }
+}
+
+void ImGui_DataTable::operator()(const char* label,
+                                 const std::vector<std::string>* ptr, int n) {
+  if (n == 1) {
+    for (int i = 0; i < ptr->size(); ++i) {
+      MakeLabel(label, i, ptr->size());
+      ImGui::Text("%s", ptr->at(i).c_str());
+    }
+  } else {
+    mju_error("data type is vector; cannot also be an array");
+  }
+}
+
+void ImGui_DataTable::operator()(const char* label, const std::vector<int>* ptr,
+                                 int n) {
+  if (n == 1) {
+    const int size = ptr->size();
+    if (size == 0) {
+      (*this)(label, "[empty]", 1);
+    } else {
+      std::string tmp = "[" + std::to_string(size) + " values]";
+      (*this)(label, tmp.c_str(), 1);
+    }
+  } else {
+    mju_error("data type is vector; cannot also be an array");
+  }
+}
+
+void ImGui_DataTable::operator()(const char* label,
+                                 const std::vector<double>* ptr, int n) {
+  if (n == 1) {
+    const int size = ptr->size();
+    if (size == 0) {
+      (*this)(label, "[empty]", 1);
+    } else {
+      std::string tmp = "[" + std::to_string(size) + " values]";
+      (*this)(label, tmp.c_str(), 1);
+    }
+  } else {
+    mju_error("data type is vector; cannot also be an array");
+  }
+}
+
+template <typename T>
+void ImGui_DataTable::Scalar(const char* label, const T& value, int n) {
+  if (n == 1) {
+    Numeric(label, &value, n);
+  } else {
+    mju_error("scalar cannot be converted to a vector");
+  }
+}
+
+template <typename T>
+void ImGui_DataTable::Numeric(const char* label, const T* ptr, int n) {
+  const T* addr = ptr + index_ * n;
+
+  using U = std::conditional_t<std::is_floating_point_v<T>, float, int>;
+
+  // special treatment for NaNs.
+  if constexpr (std::is_same_v<U, float>) {
+    if (*addr != *addr) {
+      MakeLabel(label);
+      ImGui::Text("nan");
+      return;
+    }
+  }
+
+  constexpr const char* fmt1 =
+      std::is_floating_point_v<U> ? "%f" : "%d";
+  constexpr const char* fmt2 =
+      std::is_floating_point_v<U> ? "%f  %f" : "%d  %d";
+  constexpr const char* fmt3 =
+      std::is_floating_point_v<U> ? "%f  %f  %f" : "%d  %d  %d";
+  constexpr const char* fmt4 =
+      std::is_floating_point_v<U> ? "%f  %f  %f  %f" : "%d  %d  %d  %d";
+
+  auto text1 = [&](int offset) {
+    ImGui::Text(fmt1, (U)(addr[offset]));
+  };
+  auto text2 = [&](int offset) {
+    ImGui::Text(fmt2, (U)(addr[offset + 0]), (U)(addr[offset + 1]));
+  };
+  auto text3 = [&](int offset) {
+    ImGui::Text(fmt3, (U)(addr[offset + 0]), (U)(addr[offset + 1]),
+                (U)(addr[offset + 2]));
+  };
+  auto text4 = [&](int offset) {
+    ImGui::Text(fmt4, (U)(addr[offset + 0]), (U)(addr[offset + 1]),
+                (U)(addr[offset + 2]), (U)(addr[offset + 3]));
+  };
+
+  if (n == 1) {
+    MakeLabel(label);
+    text1(0);
+  } else if (n == 2) {
+    MakeLabel(label);
+    text2(0);
+  } else if (n == 3) {
+    MakeLabel(label);
+    text3(0);
+  } else if (n == 4) {
+    MakeLabel(label);
+    text4(0);
+  } else if (n == 6) {
+    MakeLabel(label);
+    text3(0);
+    ImGui::TableNextColumn();
+    ImGui::TableNextColumn();
+    text3(3);
+  } else if (n == 9) {
+    MakeLabel(label);
+    text3(0);
+    ImGui::TableNextColumn();
+    ImGui::TableNextColumn();
+    text3(3);
+    ImGui::TableNextColumn();
+    ImGui::TableNextColumn();
+    text3(6);
+  } else {
+    for (int i = 0; i < n; ++i) {
+      MakeLabel(label, i, n);
+      text1(i);
+    }
+  }
+}
+
+void ImGui_DataTable::MakeLabel(const char* label, int index, int total) {
+  if (total == 1) {
+    ImGui::TableNextColumn();
+    ImGui::Text("%s", &label[prefix_]);
+    ImGui::TableNextColumn();
+  } else {
+    const std::string tmp =
+        std::string(&label[prefix_]) + "[" + std::to_string(index) + "]";
+    ImGui::TableNextColumn();
+    ImGui::Text("%s", tmp.c_str());
+    ImGui::TableNextColumn();
+  }
 }
 
 bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max) {

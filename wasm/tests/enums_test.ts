@@ -40,6 +40,10 @@ describe('Enums', () => {
     expect(mujoco.mjtGeom).toBeDefined();
   });
 
+  it('mjtProjection should exist', () => {
+    expect(mujoco.mjtProjection).toBeDefined();
+  });
+
   it('mjtCamLight should exist', () => {
     expect(mujoco.mjtCamLight).toBeDefined();
   });
@@ -118,6 +122,14 @@ describe('Enums', () => {
 
   it('mjtConDataField should exist', () => {
     expect(mujoco.mjtConDataField).toBeDefined();
+  });
+
+  it('mjtRayDataField should exist', () => {
+    expect(mujoco.mjtRayDataField).toBeDefined();
+  });
+
+  it('mjtCamOutBit should exist', () => {
+    expect(mujoco.mjtCamOutBit).toBeDefined();
   });
 
   it('mjtSameFrame should exist', () => {

@@ -111,11 +111,6 @@ class StepControl {
 
   PauseState pause_state_ = PauseState::kUnpaused;
 
-  // Viscous pause state variables
-  mjtNum saved_gravity_[3] = {0};
-  mjtNum saved_viscosity_ = 0;
-  int saved_disableflags_ = 0;
-
   // Perform only a single step on the next call to Advance() if the simulation
   // is paused.
   bool single_step_ = false;

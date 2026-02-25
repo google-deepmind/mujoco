@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <optional>
 #include <ratio>
 
 #include <mujoco/mujoco.h>
@@ -29,6 +30,33 @@ static mjtNum Timer() {
   static Clock::time_point start = Clock::now();
   return Milliseconds(Clock::now() - start).count();
 }
+
+// Updates key viscous pause parameters restores them when done.
+struct ViscousPauseState {
+  ViscousPauseState(mjModel* model) : model(model) {
+    if (model) {
+      mju_copy3(gravity, model->opt.gravity);
+      viscosity = model->opt.viscosity;
+      disableflags = model->opt.disableflags;
+      mju_zero3(model->opt.gravity);
+      model->opt.viscosity = 10;
+      model->opt.disableflags |= mjDSBL_SPRING;
+    }
+  }
+
+  ~ViscousPauseState() {
+    if (model) {
+      mju_copy3(model->opt.gravity, gravity);
+      model->opt.viscosity = viscosity;
+      model->opt.disableflags = disableflags;
+    }
+  }
+  mjModel* model;
+  mjtNum gravity[3];
+  mjtNum viscosity;
+  int disableflags;
+};
+
 
 StepControl::StepControl() { mjcb_time = Timer; }
 
@@ -56,23 +84,6 @@ void StepControl::SetNoiseParameters(float ctrl_noise_scale,
 }
 
 void StepControl::SetPauseState(PauseState state, mjModel* m) {
-  if (pause_state_ == PauseState::kViscousPaused &&
-      state != PauseState::kViscousPaused && m) {
-    mju_copy3(m->opt.gravity, saved_gravity_);
-    m->opt.viscosity = saved_viscosity_;
-    m->opt.disableflags = saved_disableflags_;
-  }
-
-  if (state == PauseState::kViscousPaused &&
-      pause_state_ != PauseState::kViscousPaused && m) {
-    mju_copy3(saved_gravity_, m->opt.gravity);
-    saved_viscosity_ = m->opt.viscosity;
-    saved_disableflags_ = m->opt.disableflags;
-    mju_zero3(m->opt.gravity);
-    m->opt.viscosity = 10;
-    m->opt.disableflags |= mjDSBL_SPRING;
-  }
-
   pause_state_ = state;
 }
 
@@ -81,6 +92,10 @@ StepControl::Status StepControl::Advance(mjModel* m, mjData* d) {
     return Status::kOk;
   }
 
+  std::optional<ViscousPauseState> viscous_pause_state;
+  if (m && pause_state_ == PauseState::kViscousPaused) {
+    viscous_pause_state.emplace(m);
+  }
 
   if (pause_state_ == PauseState::kNormalPaused) {
     // When we eventually unpause, we need to make sure we sync to immediately

@@ -56,7 +56,7 @@ class RenderUtilTest(absltest.TestCase):
 
     with mock.patch.dict(
         'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
-        {0: warp_rc},
+        {(0, None): warp_rc},
     ):
       rgb = jax.jit(render_util.get_rgb, static_argnums=(0, 1))(rc, 0, rgb_data)
 
@@ -70,7 +70,7 @@ class RenderUtilTest(absltest.TestCase):
 
     with mock.patch.dict(
         'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
-        {0: warp_rc},
+        {(0, None): warp_rc},
     ):
       rgb = jax.jit(
           jax.vmap(render_util.get_rgb, in_axes=(None, None, 0)),
@@ -87,7 +87,7 @@ class RenderUtilTest(absltest.TestCase):
 
     with mock.patch.dict(
         'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
-        {0: warp_rc},
+        {(0, None): warp_rc},
     ):
       depth = jax.jit(render_util.get_depth, static_argnums=(0, 1, 3))(
           rc, 0, depth_data, 5.0
@@ -103,7 +103,7 @@ class RenderUtilTest(absltest.TestCase):
 
     with mock.patch.dict(
         'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
-        {0: warp_rc},
+        {(0, None): warp_rc},
     ):
       depth = jax.jit(
           jax.vmap(render_util.get_depth, in_axes=(None, None, 0, None)),

@@ -25,10 +25,12 @@
 #include <deque>
 #include <functional>
 #include <limits>
+#include <map>
 #include <memory>
 #include <new>
 #include <optional>
 #include <random>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -374,6 +376,7 @@ void mjCBoundingVolumeHierarchy::RemoveInactiveVolumes(int nmax) {
   bvleaf_.erase(bvleaf_.begin() + nmax, bvleaf_.end());
 }
 
+
 const mjCBoundingVolume*
 mjCBoundingVolumeHierarchy::AddBoundingVolume(int id, int contype, int conaffinity,
                                               const double* pos, const double* quat,
@@ -552,6 +555,7 @@ void mjCOctree::CopyLevel(int* level) const {
   }
 }
 
+
 void mjCOctree::CopyChild(int* child) const {
   for (int i = 0; i < node_.size(); ++i) {
     for (int j = 0; j < 8; ++j) {
@@ -559,6 +563,7 @@ void mjCOctree::CopyChild(int* child) const {
     }
   }
 }
+
 
 void mjCOctree::CopyAabb(mjtNum* aabb) const {
   for (int i = 0; i < node_.size(); ++i) {
@@ -571,6 +576,7 @@ void mjCOctree::CopyAabb(mjtNum* aabb) const {
   }
 }
 
+
 void mjCOctree::CopyCoeff(mjtNum* coeff) const {
   for (int i = 0; i < node_.size(); ++i) {
     for (int j = 0; j < 8; ++j) {
@@ -578,6 +584,7 @@ void mjCOctree::CopyCoeff(mjtNum* coeff) const {
     }
   }
 }
+
 
 void mjCOctree::SetFace(const std::vector<double>& vert, const std::vector<int>& face) {
   for (int i = 0; i < face.size(); i += 3) {
@@ -621,12 +628,302 @@ void mjCOctree::CreateOctree(const double aamm[6]) {
 }
 
 
+namespace {
+
+double pointBoxDistSq(const double* p, const mjtNum* aabb) {
+  double dist_sq = 0;
+  for (int i = 0; i < 3; ++i) {
+    double lo = aabb[i] - aabb[i + 3];
+    double hi = aabb[i] + aabb[i + 3];
+    if (p[i] < lo) {
+      dist_sq += (lo - p[i]) * (lo - p[i]);
+    } else if (p[i] > hi) {
+      dist_sq += (p[i] - hi) * (p[i] - hi);
+    }
+  }
+  return dist_sq;
+}
+
+
+// compute squared distance between point p and triangle (v0, v1, v2),
+// and return barycentric coordinates (u,v) of the closest point
+double pointTriDistSqWithUV(const double* p, const double* v0, const double* v1,
+                            const double* v2, double& out_u, double& out_v) {
+  double ab[3] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+  double ac[3] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+  double ap[3] = {p[0] - v0[0], p[1] - v0[1], p[2] - v0[2]};
+
+  // the closest point on the triangle is determined by partitioning space into Voronoi regions
+  double d1 = ab[0]*ap[0] + ab[1]*ap[1] + ab[2]*ap[2];
+  double d2 = ac[0]*ap[0] + ac[1]*ap[1] + ac[2]*ap[2];
+
+  // region A (vertex v0)
+  if (d1 <= 0 && d2 <= 0) {
+    out_u = 0; out_v = 0;
+    return ap[0]*ap[0] + ap[1]*ap[1] + ap[2]*ap[2];
+  }
+
+  double bp[3] = {p[0] - v1[0], p[1] - v1[1], p[2] - v1[2]};
+  double d3 = ab[0]*bp[0] + ab[1]*bp[1] + ab[2]*bp[2];
+  double d4 = ac[0]*bp[0] + ac[1]*bp[1] + ac[2]*bp[2];
+
+  // region B (vertex v1)
+  if (d3 >= 0 && d4 <= d3) {
+    out_u = 1; out_v = 0;
+    return bp[0]*bp[0] + bp[1]*bp[1] + bp[2]*bp[2];
+  }
+
+  // region AB (edge v0-v1)
+  double vc = d1*d4 - d3*d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) {
+    double u = d1 / (d1 - d3);
+    out_u = u; out_v = 0;
+    double closest[3] = {v0[0] + u*ab[0], v0[1] + u*ab[1], v0[2] + u*ab[2]};
+    return (p[0]-closest[0])*(p[0]-closest[0]) +
+           (p[1]-closest[1])*(p[1]-closest[1]) +
+           (p[2]-closest[2])*(p[2]-closest[2]);
+  }
+
+  double cp[3] = {p[0] - v2[0], p[1] - v2[1], p[2] - v2[2]};
+  double d5 = ab[0]*cp[0] + ab[1]*cp[1] + ab[2]*cp[2];
+  double d6 = ac[0]*cp[0] + ac[1]*cp[1] + ac[2]*cp[2];
+
+  // region C (vertex v2)
+  if (d6 >= 0 && d5 <= d6) {
+    out_u = 0; out_v = 1;
+    return cp[0]*cp[0] + cp[1]*cp[1] + cp[2]*cp[2];
+  }
+
+  // region AC (edge v0-v2)
+  double vb = d5*d2 - d1*d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) {
+    double v = d2 / (d2 - d6);
+    out_u = 0; out_v = v;
+    double closest[3] = {v0[0] + v*ac[0], v0[1] + v*ac[1], v0[2] + v*ac[2]};
+    return (p[0]-closest[0])*(p[0]-closest[0]) +
+           (p[1]-closest[1])*(p[1]-closest[1]) +
+           (p[2]-closest[2])*(p[2]-closest[2]);
+  }
+
+  // region BC (edge v1-v2)
+  double va = d3*d6 - d5*d4;
+  if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) {
+    double w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+    out_u = 1 - w; out_v = w;
+    double bc[3] = {v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]};
+    double closest[3] = {v1[0] + w*bc[0], v1[1] + w*bc[1], v1[2] + w*bc[2]};
+    return (p[0]-closest[0])*(p[0]-closest[0]) +
+           (p[1]-closest[1])*(p[1]-closest[1]) +
+           (p[2]-closest[2])*(p[2]-closest[2]);
+  }
+
+  // region ABC (inside triangle)
+  double denom = 1.0 / (va + vb + vc);
+  double u = vb * denom;
+  double v = vc * denom;
+  out_u = u; out_v = v;
+  double closest[3] = {v0[0] + u*ab[0] + v*ac[0],
+                       v0[1] + u*ab[1] + v*ac[1],
+                       v0[2] + u*ab[2] + v*ac[2]};
+  return (p[0]-closest[0])*(p[0]-closest[0]) +
+         (p[1]-closest[1])*(p[1]-closest[1]) +
+         (p[2]-closest[2])*(p[2]-closest[2]);
+}
+
+
+// query BVH for closest face to point p, return distance, face index and barycentric coordinates
+void queryClosestBVHWithFace(const mjtNum* bvh, const int* child, const int* nodeid,
+                             const double* vert, const int* face, int node_idx,
+                             const double* p, double& best_dist_sq,
+                             int& best_face, double& best_u, double& best_v) {
+  const mjtNum* aabb = &bvh[node_idx * 6];
+  if (pointBoxDistSq(p, aabb) >= best_dist_sq) return;
+
+  int left = child[node_idx * 2];
+  int right = child[node_idx * 2 + 1];
+
+  if (left == -1 && right == -1) {
+    int fi = nodeid[node_idx];
+    if (fi >= 0) {
+      const double* v0 = vert + face[fi * 3 + 0] * 3;
+      const double* v1 = vert + face[fi * 3 + 1] * 3;
+      const double* v2 = vert + face[fi * 3 + 2] * 3;
+      double u, v;
+      double dist_sq = pointTriDistSqWithUV(p, v0, v1, v2, u, v);
+      if (dist_sq < best_dist_sq) {
+        best_dist_sq = dist_sq;
+        best_face = fi;
+        best_u = u;
+        best_v = v;
+      }
+    }
+    return;
+  }
+
+  if (left >= 0) {
+    queryClosestBVHWithFace(bvh, child, nodeid, vert, face, left, p,
+                            best_dist_sq, best_face, best_u, best_v);
+  }
+  if (right >= 0) {
+    queryClosestBVHWithFace(bvh, child, nodeid, vert, face, right, p,
+                            best_dist_sq, best_face, best_u, best_v);
+  }
+}
+
+
+double querySignedDistance(const mjtNum* bvh, const int* child, const int* nodeid,
+                           int nbvh, const double* point,
+                           const double* vert, const int* face) {
+  if (nbvh == 0) {
+    return 0;
+  }
+
+  double best_dist_sq = 1e20;
+  int best_face = -1;
+  double best_u = 0, best_v = 0;
+  queryClosestBVHWithFace(bvh, child, nodeid, vert, face, 0, point,
+                          best_dist_sq, best_face, best_u, best_v);
+  double dist = std::sqrt(best_dist_sq);
+
+  double sign = 1.0;
+  if (best_face >= 0) {
+    const double* v0 = vert + face[best_face * 3 + 0] * 3;
+    const double* v1 = vert + face[best_face * 3 + 1] * 3;
+    const double* v2 = vert + face[best_face * 3 + 2] * 3;
+
+    double e1[3] = {v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]};
+    double e2[3] = {v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]};
+    double normal[3] = {
+      e1[1]*e2[2] - e1[2]*e2[1],
+      e1[2]*e2[0] - e1[0]*e2[2],
+      e1[0]*e2[1] - e1[1]*e2[0]
+    };
+
+    double closest[3] = {
+      v0[0] + best_u*(v1[0]-v0[0]) + best_v*(v2[0]-v0[0]),
+      v0[1] + best_u*(v1[1]-v0[1]) + best_v*(v2[1]-v0[1]),
+      v0[2] + best_u*(v1[2]-v0[2]) + best_v*(v2[2]-v0[2])
+    };
+
+    double u[3] = {point[0]-closest[0], point[1]-closest[1], point[2]-closest[2]};
+    double dot = u[0]*normal[0] + u[1]*normal[1] + u[2]*normal[2];
+    double normal_len = mjuu_normvec(normal, 3);
+    double eps = 1e-12 * normal_len * dist;
+    sign = (dot > eps) ? 1.0 : -1.0;
+  }
+
+  return sign * dist;
+}
+
+}  // namespace
+
+
+double mjCBoundingVolumeHierarchy::QuerySignedDistance(
+    const double* point, const double* vert, const int* face) const {
+  return querySignedDistance(bvh_.data(), child_.data(), nodeid_.data(),
+                             nbvh_, point, vert, face);
+}
+
+
+void mjCOctree::ComputeSdfCoeffs(const double* vert, int nvert, const int* face, int nface,
+                                 const mjCBoundingVolumeHierarchy& tree) {
+  std::vector<double> coeffs(nvert_, 0.0);
+  std::vector<bool> processed(nvert_, false);
+  std::deque<int> queue;
+
+  if (NumNodes() > 0) {
+    queue.push_back(0);
+  }
+
+  while (!queue.empty()) {
+    int node_idx = queue.front();
+    queue.pop_front();
+
+    // compute SDF coefficients at the 8 vertices of the octree node
+    for (int j = 0; j < 8; ++j) {
+      int vert_id = VertId(node_idx, j);
+      if (processed[vert_id]) {
+        continue;
+      }
+      if (Hang(vert_id).empty()) {
+        // transform from octree frame (body inertial) back to mesh frame
+        double p_mesh[3];
+        mjuu_rotVecQuat(p_mesh, Vert(vert_id), iquat_);
+        p_mesh[0] += ipos_[0];
+        p_mesh[1] += ipos_[1];
+        p_mesh[2] += ipos_[2];
+
+        coeffs[vert_id] = tree.QuerySignedDistance(p_mesh, vert, face);
+      } else {
+        // hanging node: interpolate from parents
+        double sum_coeff = 0;
+        for (int dep_id : Hang(vert_id)) {
+          sum_coeff += coeffs[dep_id];
+        }
+        coeffs[vert_id] = sum_coeff / Hang(vert_id).size();
+      }
+      processed[vert_id] = true;
+    }
+
+    // add children to the queue
+    for (int child_idx : Children(node_idx)) {
+      if (child_idx != -1) {
+        queue.push_back(child_idx);
+      }
+    }
+  }
+
+  // optional Laplacian smoothing (smooths octree level transitions)
+  if (smoothing_iterations_ > 0) {
+    // build vertex neighbor graph from octree connectivity
+    std::vector<std::set<int>> neighbors(nvert_);
+    for (int i = 0; i < NumNodes(); ++i) {
+      static const int edges[12][2] = {
+        {0, 1}, {2, 3}, {4, 5}, {6, 7},
+        {0, 2}, {1, 3}, {4, 6}, {5, 7},
+        {0, 4}, {1, 5}, {2, 6}, {3, 7}
+      };
+      for (const auto& edge : edges) {
+        int v0 = VertId(i, edge[0]);
+        int v1 = VertId(i, edge[1]);
+        neighbors[v0].insert(v1);
+        neighbors[v1].insert(v0);
+      }
+    }
+
+    // apply Laplacian smoothing
+    const double alpha = 0.2;
+    std::vector<double> sdf_new(nvert_);
+    for (int iter = 0; iter < smoothing_iterations_; ++iter) {
+      for (int i = 0; i < nvert_; ++i) {
+        if (neighbors[i].empty()) {
+          sdf_new[i] = coeffs[i];
+        } else {
+          double avg = 0;
+          for (int j : neighbors[i]) avg += coeffs[j];
+          avg /= neighbors[i].size();
+          sdf_new[i] = (1 - alpha) * coeffs[i] + alpha * avg;
+        }
+      }
+      std::swap(coeffs, sdf_new);
+    }
+  }
+
+  // copy coefficients to the octree nodes
+  for (int i = 0; i < NumNodes(); ++i) {
+    for (int j = 0; j < 8; j++) {
+      AddCoeff(i, j, coeffs[VertId(i, j)]);
+    }
+  }
+}
+
+
 static double dot2(const double* a, const double* b) {
   return a[0] * b[0] + a[1] * b[1];
 }
 
 
-// From M. Schwarz and H.-P. Seidel, "Fast Parallel Surface and Solid Voxelization on GPUs".
+// from M. Schwarz and H.-P. Seidel, "Fast Parallel Surface and Solid Voxelization on GPUs".
 static bool boxTriangle(const Triangle& v, const double aamm[6]) {
   // bounding box tests
   for (int i = 0; i < 3; i++) {
@@ -6267,12 +6564,16 @@ void mjCTendon::ResolveReferences(const mjCModel* m) {
     try {
       // look for wrapped element with namespace
       path[i]->name = prefix + pname + suffix;
-      path[i]->sidesite = prefix + psidesite + suffix;
+      if (!psidesite.empty()) {
+        path[i]->sidesite = prefix + psidesite + suffix;
+      }
       path[i]->ResolveReferences(m);
     } catch(mjCError) {
       // remove namespace from wrap names
       path[i]->name = pname;
-      path[i]->sidesite = psidesite;
+      if (!psidesite.empty()) {
+        path[i]->sidesite = psidesite;
+      }
       path[i]->ResolveReferences(m);
       nfailure++;
     }

@@ -126,7 +126,11 @@ class RenderContext:
     if lock is None or buffers is None:
       return
     with lock:
-      buffers.pop(self.key, None)
+      keys_to_remove = [
+          k for k in buffers.keys() if isinstance(k, tuple) and k[0] == self.key
+      ]
+      for k in keys_to_remove:
+        buffers.pop(k, None)
 
 
 class StatisticWarp(PyTreeNode):

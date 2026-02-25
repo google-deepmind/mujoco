@@ -1584,6 +1584,7 @@ void UiEvent(mjuiState* state) {
 
     // rendering section
     else if (it && it->sectionid==SECT_RENDERING) {
+
       // only update the camera when the camera itself changed
       if (it->pdata == &sim->camera) {
         if (sim->camera==0) {
@@ -1603,6 +1604,7 @@ void UiEvent(mjuiState* state) {
           sim->cam.fixedcamid = sim->camera - 2;
         }
       }
+
       // copy camera spec to clipboard (as MJCF element)
       if (it->itemid == 3) {
         CopyCamera(sim);

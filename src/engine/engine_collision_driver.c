@@ -259,6 +259,78 @@ static inline int contactcompare(const mjContact* c1, const mjContact* c2, void*
 mjSORT(contactSort, mjContact, contactcompare);
 
 
+// filter flex contacts based on distance
+static void filterFlexContacts(mjData* d, int ncon_before) {
+  int n = d->ncon - ncon_before;
+  if (n <= mjMAXCONPAIR) {
+    return;
+  }
+
+  mjContact* contacts = d->contact + ncon_before;
+
+  mj_markStack(d);
+  mjtByte* selected = mjSTACKALLOC(d, n, mjtByte);
+  mjtNum* min_dist = mjSTACKALLOC(d, n, mjtNum);
+  memset(selected, 0, n);
+
+  for (int i = 0; i < n; i++) {
+    min_dist[i] = mjMAXVAL;
+  }
+
+  // start with the deepest penetrating contact
+  int nselected = 0;
+  int best = 0;
+  mjtNum bestdist = -contacts[0].dist;
+  for (int i = 1; i < n; i++) {
+    if (-contacts[i].dist > bestdist) {
+      bestdist = -contacts[i].dist;
+      best = i;
+    }
+  }
+
+  while (nselected < mjMAXCONPAIR && best >= 0) {
+    selected[best] = 1;
+    mjtNum* bestpos = contacts[best].pos;
+
+    int nextbest = -1;
+    mjtNum nextbestdist = -1;
+    for (int i = 0; i < n; i++) {
+      if (selected[i]) continue;
+
+      mjtNum dx = contacts[i].pos[0] - bestpos[0];
+      mjtNum dy = contacts[i].pos[1] - bestpos[1];
+      mjtNum dz = contacts[i].pos[2] - bestpos[2];
+      mjtNum d2 = dx*dx + dy*dy + dz*dz;
+      if (d2 < min_dist[i]) {
+        min_dist[i] = d2;
+      }
+      if (min_dist[i] > nextbestdist) {
+        nextbestdist = min_dist[i];
+        nextbest = i;
+      }
+    }
+
+    if (nselected < mjMAXCONPAIR - 1) {
+      mjContact temp = contacts[nselected];
+      contacts[nselected] = contacts[best];
+      contacts[best] = temp;
+
+      if (nextbest == nselected) {
+        nextbest = best;
+      }
+    }
+
+    nselected++;
+    best = nextbest;
+  }
+
+  mj_freeStack(d);
+
+  d->ncon = ncon_before + nselected;
+  resetArena(d);
+}
+
+
 
 // main collision function
 void mj_collision(const mjModel* m, mjData* d) {
@@ -362,6 +434,12 @@ void mj_collision(const mjModel* m, mjData* d) {
       mj_collideTree(m, d, bf1, bf2, merged, startadr, pairadr);
       int ncon_after = d->ncon;
 
+      // filter flex contacts (limit per geom-flex or flex-flex pair)
+      if (bf1 >= nbody || bf2 >= nbody) {
+        filterFlexContacts(d, ncon_before);
+        ncon_after = d->ncon;
+      }
+
       // sort contacts
       int n = ncon_after - ncon_before;
       if (n > 1) {
@@ -400,15 +478,19 @@ void mj_collision(const mjModel* m, mjData* d) {
 
           // plane special processing
           if (m->geom_type[g] == mjGEOM_PLANE) {
+            int ncon_before = d->ncon;
             mj_collidePlaneFlex(m, d, g, f);
+            filterFlexContacts(d, ncon_before);
             continue;
           }
 
           // collide geom with flex elements
+          int ncon_before = d->ncon;
           int elemnum = m->flex_elemnum[f];
           for (int e=0; e < elemnum; e++) {
             mj_collideGeomElem(m, d, g, f, e);
           }
+          filterFlexContacts(d, ncon_before);
         }
       }
 
@@ -418,11 +500,13 @@ void mj_collision(const mjModel* m, mjData* d) {
         int f2 = bf2 - nbody;
 
         // collide elements of two flexes
+        int ncon_before = d->ncon;
         for (int e1=0; e1 < m->flex_elemnum[f1]; e1++) {
           for (int e2=0; e2 < m->flex_elemnum[f2]; e2++) {
             mj_collideElems(m, d, f1, e1, f2, e2);
           }
         }
+        filterFlexContacts(d, ncon_before);
       }
     }
   }
@@ -439,11 +523,15 @@ void mj_collision(const mjModel* m, mjData* d) {
     if (!m->flex_rigid[f] && (m->flex_contype[f] & m->flex_conaffinity[f])) {
       // internal collisions
       if (m->flex_internal[f]) {
+        int ncon_before = d->ncon;
         mj_collideFlexInternal(m, d, f);
+        filterFlexContacts(d, ncon_before);
       }
 
       // active element collisions
       if (m->flex_selfcollide[f] != mjFLEXSELF_NONE) {
+        int ncon_before = d->ncon;
+
         // element-element: midphase
         if (!mjDISABLED(mjDSBL_MIDPHASE) &&
             m->flex_selfcollide[f] != mjFLEXSELF_NARROW &&
@@ -470,6 +558,8 @@ void mj_collision(const mjModel* m, mjData* d) {
             }
           }
         }
+
+        filterFlexContacts(d, ncon_before);
       }
     }
   }

@@ -456,6 +456,46 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserFlexTest, StiffnessCacheDiffersByGeometry) {
+  std::array<char, 1024> error;
+
+  // Create two flexes with same material but different bounding boxes
+  static constexpr char xml_small[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 3 3" spacing="1 1 1" dim="3" dof="trilinear">
+      <contact selfcollide="none" internal="false"/>
+      <elasticity young="1" poisson="0.3"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_large[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 3 3" spacing="2 2 2" dim="3" dof="trilinear">
+      <contact selfcollide="none" internal="false"/>
+      <elasticity young="1" poisson="0.3"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+
+  mjModel* m_small = LoadModelFromString(xml_small, error.data(), error.size());
+  ASSERT_THAT(m_small, NotNull()) << error.data();
+
+  mjModel* m_large = LoadModelFromString(xml_large, error.data(), error.size());
+  ASSERT_THAT(m_large, NotNull()) << error.data();
+
+  // Same number of nodes but different stiffness due to different geometry
+  EXPECT_EQ(m_small->nflexnode, m_large->nflexnode);
+  EXPECT_NE(m_small->flex_stiffness[0], m_large->flex_stiffness[0]);
+
+  mj_deleteModel(m_small);
+  mj_deleteModel(m_large);
+}
+
 TEST_F(UserFlexTest, LoadTexture) {
   const std::string xml_path =
       GetTestDataFilePath("user/testdata/textured_torus_flex.xml");

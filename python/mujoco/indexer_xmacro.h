@@ -259,7 +259,10 @@
   X( mjtNum,  tendon, _length0,      ntendon, 1                  ) \
   X( mjtNum,  tendon, _invweight0,   ntendon, 1                  ) \
   X( mjtNum,  tendon, _user,         ntendon, MJ_M(nuser_tendon) ) \
-  X( float,   tendon, _rgba,         ntendon, 4                  )
+  X( float,   tendon, _rgba,         ntendon, 4                  ) \
+  X( int,     ten_,   J_rownnz,      ntendon, 1                  ) \
+  X( int,     ten_,   J_rowadr,      ntendon, 1                  ) \
+  X( int,     ten_,   J_colind,      ntendon, MJ_M(nv)           )
 
 #define MJMODEL_TEXTURE                   \
   X( int,     tex_, type,     ntex,     1 ) \
@@ -402,11 +405,7 @@
 #define MJDATA_TENDON                            \
   X( int, ten_,    wrapadr , ntendon, 1        ) \
   X( int, ten_,    wrapnum , ntendon, 1        ) \
-  X( int, ten_,    J_rownnz, ntendon, 1        ) \
-  X( int, ten_,    J_rowadr, ntendon, 1        ) \
-  X( int, ten_,    J_colind, ntendon, MJ_M(nv) ) \
   X( mjtNum, ten_, length  , ntendon, 1        ) \
-  X( mjtNum, ten_, J       , ntendon, MJ_M(nv) ) \
   X( mjtNum, ten_, velocity, ntendon, 1        )
 
 #define MJDATA_VIEW_GROUPS                                           \

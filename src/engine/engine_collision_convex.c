@@ -45,44 +45,76 @@ static void ccd_free(void* data, void* buffer) {
   mj_freeStack((mjData*)data);
 }
 
-// call libccd or nativeccd to recover penetration info
-static int mjc_penetration(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
-                           const ccd_t* ccd, ccd_real_t* depth, ccd_vec3_t* dir, ccd_vec3_t* pos) {
-  // fallback to MPR
-  if (mjDISABLED(mjDSBL_NATIVECCD)) {
-    return ccdMPRPenetration(obj1, obj2, ccd, depth, dir, pos);
+// ccd prism first dir
+static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t *vec) {
+  ccdVec3Set(vec, 0, 0, 1);
+}
+
+// wrapper around libccd; returns number of collisions found
+static int libccd_wrapper(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* dist,
+                          mjtNum dir[3], mjtNum pos[3]) {
+  ccd_t ccd;
+  CCD_INIT(&ccd);
+  ccd.mpr_tolerance = m->opt.ccd_tolerance;
+  ccd.epa_tolerance = m->opt.ccd_tolerance;  // use MPR tolerance for EPA
+  ccd.max_iterations = m->opt.ccd_iterations;
+  ccd.support1 = mjccd_support;
+  ccd.support2 = mjccd_support;
+  ccd.center1 = mjccd_center;
+  ccd.center2 = mjccd_center;
+  if (obj1->geom_type == mjGEOM_HFIELD) {
+    ccd.first_dir = prism_firstdir;
+  }
+  if (obj2->geom_type == mjGEOM_HFIELD) {
+    ccd.first_dir = prism_firstdir;
   }
 
+  ccd_real_t ccd_depth;
+  ccd_vec3_t ccd_dir, ccd_pos;
+  int ret = ccdMPRPenetration(obj1, obj2, &ccd, &ccd_depth, &ccd_dir, &ccd_pos);
+  *dist = -ccd_depth;
+  mji_copy3(dir, ccd_dir.v);
+  mji_copy3(pos, ccd_pos.v);
+  if (ret == 0 && dir[0] == 0 && dir[1] == 0 && dir[2] == 0) {
+    return 0;
+  }
+  return ret == 0;
+}
+
+
+// find penetration info between two geoms; returns number of collisions found
+static int mjc_penetration(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* dist,
+                           mjtNum dir[3], mjtNum pos[3]) {
+  if (mjDISABLED(mjDSBL_NATIVECCD)) {
+    return libccd_wrapper(m, obj1, obj2, dist, dir, pos);
+  }
+
+  // nativeccd
   mjCCDConfig config;
   mjCCDStatus status;
+  mjtNum d;  // distance returned by mjc_ccd
 
   // set config
-  config.max_iterations = ccd->max_iterations;
-  config.tolerance = ccd->mpr_tolerance;
+  config.max_iterations = m->opt.ccd_iterations;
+  config.tolerance = m->opt.ccd_tolerance;
   config.max_contacts = 1;
   config.dist_cutoff = 0;  // no geom distances needed
   config.context = (void*)obj1->data;
   config.alloc = ccd_allocate;
   config.free = ccd_free;
 
-  mjtNum dist = mjc_ccd(&config, &status, obj1, obj2);
-  if (dist < 0) {
-    if (depth) *depth = -dist;
-    if (dir) {
-      mju_sub3(dir->v, status.x1, status.x2);
-      mju_normalize3(dir->v);
-    }
-    if (pos) {
-      pos->v[0] = 0.5 * (status.x1[0] + status.x2[0]);
-      pos->v[1] = 0.5 * (status.x1[1] + status.x2[1]);
-      pos->v[2] = 0.5 * (status.x1[2] + status.x2[2]);
-    }
-    return 0;
+  if ((d = mjc_ccd(&config, &status, obj1, obj2)) < 0) {
+    *dist = d;
+
+    mju_sub3(dir, status.x1, status.x2);
+    mju_normalize3(dir);
+
+    pos[0] = 0.5 * (status.x1[0] + status.x2[0]);
+    pos[1] = 0.5 * (status.x1[1] + status.x2[1]);
+    pos[2] = 0.5 * (status.x1[2] + status.x2[2]);
+    return 1;
   }
-  if (depth) *depth = 0;
-  if (dir) mju_zero3(dir->v);
-  if (pos) mju_zero3(dir->v);
-  return 1;
+  return 0;
 }
 
 
@@ -98,37 +130,32 @@ void mjc_center(mjtNum res[3], const mjCCDObj *obj) {
   int e = obj->elem;
   int v = obj->vert;
 
+  if (obj->geom_type == mjGEOM_HFIELD) {
+    mju_zero3(res);
+    for (int i=0; i < 6; i++) {
+      mji_addTo3(res, obj->prism[i]);
+     }
+    mju_scl3(res, res, 1.0/6.0);
+    return;
+  }
+
   // return geom position
   if (g >= 0) {
     mji_copy3(res, obj->data->geom_xpos + 3*g);
+    return;
   }
 
   // return flex element position
-  else if (e >= 0) {
+  if (e >= 0) {
     mji_copy3(res, obj->data->flexelem_aabb + 6*(obj->model->flex_elemadr[f]+e));
+    return;
   }
 
   // return flex vertex position
-  else {
+  if (f >= 0) {
     mji_copy3(res, obj->data->flexvert_xpos + 3*(obj->model->flex_vertadr[f]+v));
+    return;
   }
-}
-
-
-// prism center function
-static void mjc_prism_center(mjtNum res[3], const mjCCDObj* obj) {
-  // compute mean
-  mju_zero3(res);
-  for (int i=0; i < 6; i++) {
-    mji_addTo3(res, obj->prism[i]);
-  }
-  mju_scl3(res, res, 1.0/6.0);
-}
-
-
-// ccd prism center function
-static void mjccd_prism_center(const void *obj, ccd_vec3_t *center) {
-  mjc_prism_center(center->v, (const mjCCDObj*) obj);
 }
 
 // ------------------------------------ Support functions -----------------------------------------
@@ -681,6 +708,10 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
     }
     break;
 
+  case mjGEOM_HFIELD:
+    mjc_prism_support(res, obj, dir);
+    return;
+
   default:
     mjERROR("ccd support function is undefined for geom type %d", m->geom_type[g]);
   }
@@ -695,12 +726,6 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
   // add geom position
   mji_addTo3(res, d->geom_xpos+3*g);
-}
-
-
-// libccd prism support function
-static void mjccd_prism_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec) {
-  mjc_prism_support(vec->v, (mjCCDObj*) obj, dir->v);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -747,7 +772,7 @@ void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjt
       obj->support = mjc_boxSupport;
       break;
     case mjGEOM_HFIELD:
-      obj->center = mjc_prism_center;
+      obj->center = mjc_center;
       obj->support = mjc_prism_support;
 
       int hid = m->geom_dataid[g];
@@ -1140,11 +1165,6 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
 
 //----------------------------  heightfield collisions ---------------------------------------------
 
-// ccd prism first dir
-static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t *vec) {
-  ccdVec3Set(vec, 0, 0, 1);
-}
-
 
 // add vertex to prism
 static inline void addVert(mjCCDObj* obj, mjtNum x, mjtNum y, mjtNum z) {
@@ -1289,16 +1309,6 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   rmin = mjMAX(0, rmin);
   rmax = mjMIN(nrow-1, rmax);
 
-  // CCD collision testing
-
-  ccd_t ccd;
-  mjc_initCCD(&ccd, m);
-  ccd.first_dir = prism_firstdir;
-  ccd.center1 = mjccd_prism_center;
-  ccd.center2 = mjccd_center;
-  ccd.support1 = mjccd_prism_support;
-  ccd.support2 = mjccd_support;
-
   // geom margin needed for actual collision test
   obj2.margin = margin;
 
@@ -1325,14 +1335,12 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
         }
 
         // run penetration function, save contact
-        ccd_vec3_t dirccd, vecccd;
-        ccd_real_t depth;
-        if (mjc_penetration(m, &obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0
-            && !ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
+        mjtNum dist;
+        if (mjc_penetration(m, &obj1, &obj2, &dist, dir, pos)) {
           // fill in contact data, transform to global coordinates
-          con[ncon].dist = -depth;
-          mji_mulMatVec3(con[ncon].frame, mat1, dirccd.v);
-          mji_mulMatVec3(con[ncon].pos, mat1, vecccd.v);
+          con[ncon].dist = dist;
+          mji_mulMatVec3(con[ncon].frame, mat1, dir);
+          mji_mulMatVec3(con[ncon].pos, mat1, pos);
           mji_addTo3(con[ncon].pos, pos1);
           mju_zero3(con[ncon].frame+3);
 
@@ -1660,7 +1668,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   mjtNum xmin, xmax, ymin, ymax, zmin, zmax;
   int dr[2], cnt, rmin, rmax, cmin, cmax;
   mjCCDObj obj1;
-  obj1.center = mjc_prism_center;
+  obj1.center = mjc_center;
   obj1.support = mjc_prism_support;
 
   // get hfield info
@@ -1682,13 +1690,9 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   mjtNum* ecenter = d->flexelem_aabb + 6*(m->flex_elemadr[f]+e);
 
   // ccd-related
-  ccd_vec3_t dirccd, vecccd;
-  ccd_real_t depth;
   mjCCDObj obj2;
   mjc_initCCDObj(&obj2, m, d, -1, margin);
   mjc_setCCDObjFlex(&obj2, f, e, -1);
-  ccd_t ccd;
-
   //------------------------------------- AABB computation, box-box test
 
   // save elem vertices, transform to hfield frame
@@ -1743,18 +1747,6 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
 
   //------------------------------------- collision testing
 
-  // init ccd structure
-  CCD_INIT(&ccd);
-  ccd.first_dir = prism_firstdir;
-  ccd.center1 = mjccd_prism_center;
-  ccd.center2 = mjccd_center;
-  ccd.support1 = mjccd_prism_support;
-  ccd.support2 = mjccd_support;
-
-  // set ccd parameters
-  ccd.max_iterations = m->opt.ccd_iterations;
-  ccd.mpr_tolerance = m->opt.ccd_tolerance;
-
   // compute real-valued grid step, and triangulation direction
   dx = (2.0*hsize[0]) / (ncol-1);
   dy = (2.0*hsize[1]) / (nrow-1);
@@ -1782,23 +1774,22 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
           }
 
           // run ccd, save contact
-          if (mjc_penetration(m, &obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0) {
-            if (!ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
-              // fill in contact data, transform to global coordinates
-              con[cnt].dist = -depth;
-              mji_mulMatVec3(con[cnt].frame, hmat, dirccd.v);
-              mji_mulMatVec3(con[cnt].pos, hmat, vecccd.v);
-              mji_addTo3(con[cnt].pos, hpos);
-              mju_zero3(con[cnt].frame+3);
+          mjtNum dist, dir[3], pos[3];
+          if (mjc_penetration(m, &obj1, &obj2, &dist, dir, pos)) {
+            // fill in contact data, transform to global coordinates
+            con[cnt].dist = dist;
+            mji_mulMatVec3(con[cnt].frame, hmat, dir);
+            mji_mulMatVec3(con[cnt].pos, hmat, pos);
+            mji_addTo3(con[cnt].pos, hpos);
+            mju_zero3(con[cnt].frame+3);
 
-              // count, stop if max number reached
-              cnt++;
-              if (cnt >= mjMAXCONPAIR) {
-                r = rmax+1;
-                c = cmax+1;
-                k = 3;
-                break;
-              }
+            // count, stop if max number reached
+            cnt++;
+            if (cnt >= mjMAXCONPAIR) {
+              r = rmax+1;
+              c = cmax+1;
+              k = 3;
+              break;
             }
           }
         }
