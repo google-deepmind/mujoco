@@ -14,7 +14,7 @@
 
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
-import loadMujoco from "../dist/mujoco_wasm.js"
+import loadMujoco from "../dist/mujoco.js"
 
 declare function loadMujoco(): Promise<MainModule>;
 

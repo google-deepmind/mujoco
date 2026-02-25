@@ -14,8 +14,8 @@
 
 import 'jasmine';
 
-import { MainModule } from "../dist/mujoco_wasm"
-import loadMujoco from "../dist/mujoco_wasm.js"
+import { MainModule } from "../dist/mujoco"
+import loadMujoco from "../dist/mujoco.js"
 
 let mujoco: MainModule;
 
@@ -38,6 +38,10 @@ describe('Enums', () => {
 
   it('mjtGeom should exist', () => {
     expect(mujoco.mjtGeom).toBeDefined();
+  });
+
+  it('mjtProjection should exist', () => {
+    expect(mujoco.mjtProjection).toBeDefined();
   });
 
   it('mjtCamLight should exist', () => {
@@ -118,6 +122,14 @@ describe('Enums', () => {
 
   it('mjtConDataField should exist', () => {
     expect(mujoco.mjtConDataField).toBeDefined();
+  });
+
+  it('mjtRayDataField should exist', () => {
+    expect(mujoco.mjtRayDataField).toBeDefined();
+  });
+
+  it('mjtCamOutBit should exist', () => {
+    expect(mujoco.mjtCamOutBit).toBeDefined();
   });
 
   it('mjtSameFrame should exist', () => {
