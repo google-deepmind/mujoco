@@ -1591,5 +1591,40 @@ TEST_F(SensorTest, ReadSensor) {
   mj_deleteModel(model);
 }
 
+// mj_sensorAcc returns correct accelerometer after mj_step1 (issue #3133)
+TEST_F(SensorTest, AccelerometerAfterStep1) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="10 10 0.1"/>
+      <body pos="0 0 0.1">
+        <freejoint/>
+        <geom type="box" size="0.1 0.1 0.1" mass="10"/>
+        <site name="imu"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <accelerometer site="imu"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  // settle the simulation with split-step loop
+  for (int i = 0; i < 100; i++) {
+    mj_step1(model, data);
+    mj_step2(model, data);
+  }
+
+  // call mj_step1 + mj_sensorAcc, expect gravity reading (~9.81 m/s^2)
+  mj_step1(model, data);
+  mj_sensorAcc(model, data);
+  EXPECT_NEAR(data->sensordata[2], 9.81, 1e-2);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco
