@@ -101,6 +101,7 @@ copy_plugins_posix() {
     mkdir -p ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libactuator.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libelasticity.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
+    cp lib/libobj_decoder.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libsensor.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libsdf_plugin.* ${TMPDIR}/mujoco_install/mujoco_plugin
 }
@@ -111,6 +112,7 @@ copy_plugins_window() {
     mkdir -p ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp bin/Release/actuator.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp bin/Release/elasticity.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
+    cp bin/Release/obj_decoder.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp bin/Release/sensor.dll ${TMPDIR}/mujoco_install/mujoco_plugin
 }
 

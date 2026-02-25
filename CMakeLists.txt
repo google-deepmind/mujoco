@@ -113,6 +113,7 @@ add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/thread)
+add_subdirectory(plugin/obj_decoder)
 
 if(MUJOCO_USE_FILAMENT AND NOT EMSCRIPTEN)
   # Note that, by default, the "src/render" and "src/ui" code is added directly
