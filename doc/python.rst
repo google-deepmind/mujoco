@@ -922,7 +922,7 @@ custom cameras and lights. The constructor arguments of a ``USDExporter`` instan
 - ``model``: An MjModel instance. The USD exporter reads relevant information from the model including details about
   cameras, lights, textures, and object geometries.
 
-- ``max_geom``: Maximum number of geoms in a scene, required when instatiating the internal .
+- ``max_geom``: Maximum number of geoms in a scene, required when instantiating the internal .
   `mjvScene <https://mujoco.readthedocs.io/en/stable/APIreference/APItypes.html#mjvscene>`__.
 
 - ``output_directory``: Name of the directory under which the exported USD file and all relevant

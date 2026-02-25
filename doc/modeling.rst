@@ -495,7 +495,7 @@ are as follows:
    in mjData.contact actually has all 5 of them, even if condim is less than 6 and not all coefficients are used. In
    contrast, geoms have only 3 friction coefficients: tangential (same for both axes), torsional, rolling (same for both
    axes). Each of these 3D vectors of friction coefficients is expanded into a 5D vector of friction coefficients by
-   replicating the tangetial and rolling components. See the :ref:`Contact<coContact>` section in the Computation
+   replicating the tangential and rolling components. See the :ref:`Contact<coContact>` section in the Computation
    chapter for an intuitive description of the semantics of tangential, torsional and rolling coefficients.
 
    The contact friction coefficients are then computed according to the following rule: if one of the two geoms has
@@ -1113,7 +1113,7 @@ Here we describe the XML attributes common to all sensor types, so as to avoid r
 :at:`noise`: :at-val:`real, "0"`
    The standard deviation of the noise model of this sensor. In versions prior to 3.1.4, this would lead to noise being
    added to the sensors. In release 3.1.4 this feature was removed, see :doc:`3.1.4 changelog <changelog>` for a
-   detailed justification. As of subsequent versions, this attrbute serves as a convenient location for saving standard
+   detailed justification. As of subsequent versions, this attribute serves as a convenient location for saving standard
    deviation information for later use.
 
 .. _sensor-cutoff:
@@ -1454,7 +1454,7 @@ that applies to all edges of a given flex, which permits large time steps, or a 
 where each element is in a constant stress state, which is equivalent to piecewise linear finite elements and achieves
 improved realism and accuracy. The edge-based model could be seen as a "lumped" stiffness model, where the correct
 coupling of deformation modes (e.g. shear and volumetric) is averaged in a single quantity. The continuum model enables
-instead to specify shear and volumetic stiffnesses separately using the `Poisson's ratio
+instead to specify shear and volumetric stiffnesses separately using the `Poisson's ratio
 <https://en.wikipedia.org/wiki/Poisson%27s_ratio>`__ of the material. For more details, see the `Saint Venant-Kirchhoff
 <https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ hyperelastic model.
 
@@ -1631,7 +1631,7 @@ perfectly (and much better than a spring-damper would) because the constraints a
 large forces without destabilizing the simulation. But if the hand is forced to make contact with the table for example
 (right plot) it cannot simultaneously respect the contact constraint and track the mocap body. This is because the
 mocap body is free to go through the table. So which constraint wins? That depends on the softness of the weld
-constraint realtive to the contact constraint. The corresponding :at:`solref` and :at:`solimp` parameters need to be
+constraint relative to the contact constraint. The corresponding :at:`solref` and :at:`solimp` parameters need to be
 adjusted so as to achieve the desired trade-off. See the Modular Prosthetic Limb (MPL) hand model available on the
 MuJoCo Forum for an example; the plots below are generated with that model.
 
@@ -1735,7 +1735,7 @@ dedicated section :ref:`therein<MjxPerformance>`.
 
    - Reduce the number of checked collisions using the
      :ref:`contype<body-geom-contype>` / :ref:`conaffinity<body-geom-conaffinity>` mechanism described in the
-     :ref:`Collison detection<Collision>` section.
+     :ref:`Collision detection<Collision>` section.
    - Modify collision geometries, replacing expensive collision tests (e.g. mesh-mesh) with cheaper primitive-primitive
      collisions. As a rule of thumb, collisions which have custom pair functions in the collision table at the top of
      `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__
@@ -1766,7 +1766,7 @@ better visualize and understand the contact configuration and resulting forces.
 **Slip-preventing contact forces are outside the friction cone**
   This implies that the physics cannot prevent slip, even in principle. This occurs when:
 
-  a. *The normal force is too small.* Ensure that the maximum force that can be applied by the gripper mutiplied by
+  a. *The normal force is too small.* Ensure that the maximum force that can be applied by the gripper multiplied by
      the sliding friction coefficient is significantly greater than the weight of the object.
   b. *The sliding friction coefficient is too low.* Increase the sliding :ref:`friction<body-geom-friction>`
      coefficient.
@@ -1774,7 +1774,7 @@ better visualize and understand the contact configuration and resulting forces.
      4 or 6 and choose appropriate friction coefficients.
      **condim 4** enables torsional friction, preventing rotation around the normal.
      **condim 6** also enables rolling friction, preventing rotation around the tangential directions.
-     See the :ref:`Contact<coContact>` section for details and the specifc semantics of these coefficients.
+     See the :ref:`Contact<coContact>` section for details and the specific semantics of these coefficients.
 
 **The geometry does not support the required forces or torques**
   This is a common real-world problem, solved by improved design of grippers and handles.
@@ -1790,7 +1790,7 @@ better visualize and understand the contact configuration and resulting forces.
   High-frequency, low-amplitude vibrations are also a real-world problem in many industrial settings, but unlike in
   simulation, in the real world they are audible. Such vibration is often caused by controllers with very
   high gains and sometimes by stick-slip feedback from contacts or joints, resonating with the eigen-modes of the
-  mechanism. The easist way to diagnose such vibration is to visualize contact forces in
+  mechanism. The easiest way to diagnose such vibration is to visualize contact forces in
   :ref:`simulate<saSimulate>`. The solution is usually to reduce the :ref:`timestep<option-timestep>` and/or add
   some :ref:`armature<body-joint-armature>` to the relevant joints. Another reason for vibration is feedback from
   explicit damping. Use the implicit or implicitfast integrators, as documented in the

@@ -1005,7 +1005,7 @@ compilation.
    This attribute specifies the maximum number of contacts that will be generated at runtime.  If the number of active
    contacts is about to exceed this value, the extra contacts are discarded and a warning is generated.  This is a
    deprecated legacy attribute which prior to version 2.3.0 affected memory allocation. It is kept for backwards
-   compatibillity and debugging purposes.
+   compatibility and debugging purposes.
 
 .. _size-nstack:
 
@@ -1992,7 +1992,7 @@ attribute and :el:`layer` child elements is an error.
         - opacity (alpha channel)
       * - :at:`emissive`
         - 4
-        - RGB light emmision intensity, exposure weight in 4th channel
+        - RGB light emission intensity, exposure weight in 4th channel
       * - :at:`orm`
         - 3
         - packed 3 channel [occlusion, roughness, metallic]
@@ -3676,7 +3676,7 @@ saving the XML:
 
    **direct** allows the user to specify the point and element data of the flexcomp directly in the XML. Note that
    flexcomp will still generate moving bodies automatically, as well as automate other settings; so it still provides
-   convenience compared to specifing the corresponding flex directly.
+   convenience compared to specifying the corresponding flex directly.
 
 .. _body-flexcomp-count:
 
@@ -3869,7 +3869,7 @@ multiple times is allowed.
 .. _flexcomp-pin-id:
 
 :at:`id`: :at-val:`int(n), required`
-   Zero-based ids of points to pin. When the points are automatically-generaged, the user needs to understand their
+   Zero-based ids of points to pin. When the points are automatically-generated, the user needs to understand their
    layout in order to decide which points to pin. This can be done by first creating a flexcomp without any pins,
    loading it in the simulator, and showing the body labels.
 
@@ -4455,7 +4455,7 @@ be clear from the above specification.
 .. _deformable-skin-face:
 
 :at:`face`: :at-val:`int(3*nface), optional`
-   Trinagular skin faces. Each face is a triple of vertex indices, which are integers between zero and nvert-1.
+   Triangular skin faces. Each face is a triple of vertex indices, which are integers between zero and nvert-1.
 
 .. _deformable-skin-inflate:
 
@@ -6608,7 +6608,7 @@ points (spheres) and the surface normals (arrows).
      regardless of the ray origin. If this data type is included along with either :at-val:`dist` or :at-val:`point`,
      normals will be visualized as arrows at the intersection points.
    - :at-val:`depth`: **real(1)**: The distance of the hit point from the camera plane, -1 if no surface was hit. Note
-     that this depth sematic corresponds to depth images in the computer graphics sense.
+     that this depth semantic corresponds to depth images in the computer graphics sense.
 
 .. _sensor-rangefinder-name:
 
@@ -7864,7 +7864,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 .. _sensor-distance-cutoff:
 
 :at:`cutoff`
-   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
+   See :ref:`collision-sensors` for the semantics of this attribute, which is different than for other sensor categories.
    If no collision is detected, the distance sensor returns the :at:`cutoff` value, so in this case
    :at:`cutoff` acts as a maximum clipping value, in addition to the special semantics.
 
@@ -7919,7 +7919,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 .. _sensor-normal-cutoff:
 
 :at:`cutoff`
-   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
+   See :ref:`collision-sensors` for the semantics of this attribute, which is different than for other sensor categories.
    If no collision is detected, the :ref:`normal<sensor-normal>` sensor returns (0, 0, 0), otherwise it returns a
    normalized direction vector. For this sensor, :at:`cutoff` does not lead to any clamping.
 
@@ -7975,7 +7975,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 .. _sensor-fromto-cutoff:
 
 :at:`cutoff`
-   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
+   See :ref:`collision-sensors` for the semantics of this attribute, which is different than for other sensor categories.
    If no collision is detected, the :ref:`fromto<sensor-fromto>` sensor returns 6 zeros.
    For this sensor, :at:`cutoff` does not lead to any clamping.
 

@@ -1502,21 +1502,21 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
         KBIP[4*(i+j)] = 0;
       }
 
-      // standard: K = 1 / (dmax^2 * timeconst^2 * dampratio^2)
+      // standard: K = 1 / (d_width^2 * timeconst^2 * dampratio^2)
       else if (ref[0] > 0)
         KBIP[4*(i+j)] = 1 / mju_max(mjMINVAL, solimp[1]*solimp[1] * ref[0]*ref[0] * ref[1]*ref[1]);
 
-      // direct: K = -solref[0] / dmax^2
+      // direct: K = -solref[0] / d_width^2
       else {
         KBIP[4*(i+j)] = -ref[0] / mju_max(mjMINVAL, solimp[1]*solimp[1]);
       }
 
-      // standard: B = 2 / (dmax*timeconst)
+      // standard: B = 2 / (d_width*timeconst)
       if (ref[1] > 0) {
         KBIP[4*(i+j)+1] = 2 / mju_max(mjMINVAL, solimp[1]*ref[0]);
       }
 
-      // direct: B = -solref[1] / dmax
+      // direct: B = -solref[1] / d_width
       else {
         KBIP[4*(i+j)+1] = -ref[1] / mju_max(mjMINVAL, solimp[1]);
       }

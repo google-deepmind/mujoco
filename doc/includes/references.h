@@ -571,7 +571,7 @@ typedef enum mjtTextureRole_ {    // role of texture map in rendering
   mjTEXROLE_ROUGHNESS,            // roughness
   mjTEXROLE_METALLIC,             // metallic
   mjTEXROLE_NORMAL,               // normal (bump) map
-  mjTEXROLE_OPACITY,              // transperancy
+  mjTEXROLE_OPACITY,              // opacity
   mjTEXROLE_EMISSIVE,             // light emission
   mjTEXROLE_RGBA,                 // base color, opacity
   mjTEXROLE_ORM,                  // occlusion, roughness, metallic

@@ -267,7 +267,7 @@ The *physics state* (:ref:`mjSTATE_PHYSICS<mjtState>`) contains the main quantit
 stepping. These are ``mjData.{qpos, qvel, act, history}``:
 
 Position: ``qpos``
-  The configuration in generalized coodinates, denoted in the :ref:`Numerical Integration<geIntegration>` section as
+  The configuration in generalized coordinates, denoted in the :ref:`Numerical Integration<geIntegration>` section as
   :math:`q`.
 
 Velocity: ``qvel``
@@ -322,7 +322,7 @@ Control: ``ctrl``
   Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
   generalized forces directly (stateless actuators), or affect the actuator activations in ``mjData.act``, which then
   produce forces. Note that while all actuators produce forces, the semantics of ``ctrl`` and ``act`` depend on the
-  specifc parameters of the :ref:`actuation model<geActuation>`.
+  specific parameters of the :ref:`actuation model<geActuation>`.
 
 Auxiliary Controls: ``qfrc_applied`` and ``xfrc_applied``
   | ``mjData.qfrc_applied`` are directly applied generalized forces.
