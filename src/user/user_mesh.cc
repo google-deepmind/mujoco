@@ -779,7 +779,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
 
     // compute sdf coefficients
     if (!plugin.active) {
-      octree_.ComputeSdfCoeffs(vert_.data(), nvert(), face_.data(), nface());
+      octree_.ComputeSdfCoeffs(vert_.data(), nvert(), face_.data(), nface(), tree_);
     }
   }
 

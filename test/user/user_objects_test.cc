@@ -2682,5 +2682,150 @@ TEST_F(UserObjectsTest, ZeroMass) {
   mj_deleteModel(model);
 }
 
+
+// ------------- test Octree SDF computation -----------------------------------
+
+using OctreeSDFTest = MujocoTest;
+
+TEST_F(OctreeSDFTest, SphereSDF) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="sphere" builtin="supersphere" params="16 1 1"/>
+    </asset>
+    <worldbody>
+      <geom name="sdf_sphere" type="sdf" mesh="sphere"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  EXPECT_GT(model->nmesh, 0);
+  EXPECT_EQ(model->geom_type[0], mjGEOM_SDF);
+
+  int geom_id = 0;
+  int mesh_id = model->geom_dataid[geom_id];
+  mjSDF sdf;
+  const mjpPlugin* null_plugin = nullptr;
+  sdf.plugin = &null_plugin;
+  sdf.id = &mesh_id;
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.geomtype = (mjtGeom*)(model->geom_type + geom_id);
+
+  // Analytic SDF for unit sphere: distance = |p| - 1
+  auto analyticSdf = [](const mjtNum* p) -> double {
+    return mju_sqrt(p[0]*p[0] + p[1]*p[1] + p[2]*p[2]) - 1.0;
+  };
+
+  int sign_errors = 0;
+  int total_points = 0;
+  double sum_sq_error = 0.0;
+
+  // Test grid of points
+  for (double x = -2.0; x <= 2.0; x += 0.5) {
+    for (double y = -2.0; y <= 2.0; y += 0.5) {
+      for (double z = -2.0; z <= 2.0; z += 0.5) {
+        mjtNum p[3] = {x, y, z};
+        double sdf_dist = mjc_distance(model, data, &sdf, p);
+        double gt_dist = analyticSdf(p);
+
+        if ((sdf_dist < 0) != (gt_dist < 0)) {
+          sign_errors++;
+        }
+
+        double error = sdf_dist - gt_dist;
+        sum_sq_error += error * error;
+        total_points++;
+      }
+    }
+  }
+
+  double rmse = mju_sqrt(sum_sq_error / total_points);
+
+  EXPECT_LT(sign_errors, total_points / 200)
+      << "No more than 0.5% of points should have sign errors";
+  EXPECT_LT(rmse, 0.11) << "RMSE should be less than 0.11";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(OctreeSDFTest, TorusSDF) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="torus" builtin="supertorus" params="16 0.3 1 1"/>
+    </asset>
+    <worldbody>
+      <geom name="sdf_torus" type="sdf" mesh="torus"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  EXPECT_GT(model->nmesh, 0);
+  EXPECT_EQ(model->geom_type[0], mjGEOM_SDF);
+
+  int geom_id = 0;
+  int mesh_id = model->geom_dataid[geom_id];
+  mjSDF sdf;
+  const mjpPlugin* null_plugin = nullptr;
+  sdf.plugin = &null_plugin;
+  sdf.id = &mesh_id;
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.geomtype = (mjtGeom*)(model->geom_type + geom_id);
+
+  // Analytic SDF for torus: distance = |p_proj| - r, where p_proj is
+  // projection of p onto circle of radius R, and r is minor radius.
+  // R=1, r=0.3
+  auto analyticSdf = [](const mjtNum* p) -> double {
+    double xy = mju_sqrt(p[0]*p[0] + p[1]*p[1]);
+    double vec[2] = {xy - 1.0, p[2]};
+    return mju_sqrt(vec[0]*vec[0] + vec[1]*vec[1]) - 0.3;
+  };
+
+  int sign_errors = 0;
+  int total_points = 0;
+  double sum_sq_error = 0.0;
+
+  // Test grid of points
+  for (double x = -2.0; x <= 2.0; x += 0.5) {
+    for (double y = -2.0; y <= 2.0; y += 0.5) {
+      for (double z = -2.0; z <= 2.0; z += 0.5) {
+        mjtNum p[3] = {x, y, z};
+        double sdf_dist = mjc_distance(model, data, &sdf, p);
+        double gt_dist = analyticSdf(p);
+
+        if ((sdf_dist < 0) != (gt_dist < 0)) {
+          sign_errors++;
+        }
+
+        double error = sdf_dist - gt_dist;
+        sum_sq_error += error * error;
+        total_points++;
+      }
+    }
+  }
+
+  double rmse = mju_sqrt(sum_sq_error / total_points);
+
+  EXPECT_LT(sign_errors, total_points / 20)
+      << "No more than 5% of points should have sign errors";
+  EXPECT_LT(rmse, 0.52) << "RMSE should be close to 0.516";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco
