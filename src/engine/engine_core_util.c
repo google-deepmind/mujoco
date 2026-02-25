@@ -52,7 +52,7 @@ int mj_isPyramidal(const mjModel* m) {
 //-------------------------- sparse chains ---------------------------------------------------------
 
 // merge dof chains for two bodies
-int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2) {
+int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcommon) {
   int da1, da2, NV = 0;
 
   // skip fixed bodies
@@ -70,11 +70,15 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2) {
 
   // merge chains
   while (da1 >= 0 || da2 >= 0) {
-    chain[NV] = mjMAX(da1, da2);
-    if (da1 == chain[NV]) {
+    int da = mjMAX(da1, da2);
+    if (flg_skipcommon && da1 == da && da2 == da) {
+      break;
+    }
+    chain[NV] = da;
+    if (da1 == da) {
       da1 = m->dof_parentid[da1];
     }
-    if (da2 == chain[NV]) {
+    if (da2 == da) {
       da2 = m->dof_parentid[da2];
     }
     NV++;
@@ -443,7 +447,7 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
     if (issimple) {
       NV = mj_mergeChainSimple(m, chain, b1, b2);
     } else {
-      NV = mj_mergeChain(m, chain, b1, b2);
+      NV = mj_mergeChain(m, chain, b1, b2, 0);
     }
   }
 

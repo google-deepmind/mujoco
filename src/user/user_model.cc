@@ -44,6 +44,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
 #include "engine/engine_name.h"
@@ -3271,9 +3272,13 @@ int mjCModel::CountNJmom(const mjModel* m) {
             break;
         }
         break;
-      // TODO(taylorhowell): improve upper bounds
       case mjTRN_SLIDERCRANK:
-        count += nv;
+        {
+          int id_slider = m->actuator_trnid[2 * i + 1];
+          std::vector<int> chain(m->nv);
+          count += mj_mergeChain(m, chain.data(), m->site_bodyid[id],
+                                 m->site_bodyid[id_slider], 0);
+        }
         break;
 
       case mjTRN_TENDON:
@@ -3281,7 +3286,13 @@ int mjCModel::CountNJmom(const mjModel* m) {
         break;
 
       case mjTRN_SITE:
-        count += nv;
+        {
+          int refid = m->actuator_trnid[2 * i + 1];
+          int ref_body = refid >= 0 ? m->site_bodyid[refid] : 0;
+          std::vector<int> chain(m->nv);
+          count += mj_mergeChain(m, chain.data(), m->site_bodyid[id],
+                                 ref_body, /*flg_skipcommon=*/1);
+        }
         break;
 
       case mjTRN_BODY:

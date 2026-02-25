@@ -1598,7 +1598,7 @@ static int mj_jacDifPairCount(const mjModel* m, int* chain,
     if (m->body_simple[b1] && m->body_simple[b2]) {
       return mj_mergeChainSimple(m, chain, b1, b2);
     }
-    return mj_mergeChain(m, chain, b1, b2);
+    return mj_mergeChain(m, chain, b1, b2, 0);
   }
 
   return m->nv;

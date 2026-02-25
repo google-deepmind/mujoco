@@ -36,7 +36,7 @@ MJAPI int mj_isSparse(const mjModel* m);
 //-------------------------- sparse chains ---------------------------------------------------------
 
 // merge dof chains for two bodies
-int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2);
+int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcommon);
 
 // merge dof chains for two simple bodies
 int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2);
