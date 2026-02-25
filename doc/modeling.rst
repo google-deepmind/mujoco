@@ -1712,7 +1712,7 @@ dedicated section :ref:`therein<MjxPerformance>`.
 1. :ref:`Timestep<option-timestep>`: Try to increase the simulation timestep. As explained at the end of the
    :ref:`Numerical Integration<geIntegration>` section, the timestep is the single most important parameter in any
    model. The default value is chosen for stability rather than efficiency, and can often be increased. At some point,
-   increasing it further will cause diveregence, so the optimal timestep is the largest timestep at which divergence
+   increasing it further will cause divergence, so the optimal timestep is the largest timestep at which divergence
    never happens or is very rare. The actual value is model-dependent.
 2. :ref:`Integrator<option-integrator>`: Choose your integrator according to the recommendations at the end of the
    :ref:`Numerical Integration<geIntegration>` section. The default recommended choice is the ``implicitfast``
