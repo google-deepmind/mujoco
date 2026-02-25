@@ -79,6 +79,9 @@ T ReadElement(const mjModel* model, const char* name, T default_value = T()) {
   } else if constexpr (std::is_arithmetic_v<T>) {
     const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
     return static_cast<T>(*ptr);
+  } else if constexpr (std::is_enum_v<T>) {
+    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
+    return static_cast<T>(static_cast<int>(*ptr));
   } else if constexpr (std::is_same_v<T, filament::math::float2>) {
     const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
     if (model->numeric_size[id] != 2) mju_error("Invalid numeric size.");

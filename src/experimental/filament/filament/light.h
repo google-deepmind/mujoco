@@ -43,6 +43,8 @@ class Light {
     float spot_cone_angle = 180.f;
     // The radius of the bulb used for soft shadows.
     float bulbradius = 0.0f;
+    // The size of the shadow map.
+    int shadow_map_size = 2048;
     // Whether or not the light is a headlight.
     bool headlight = false;
   };
