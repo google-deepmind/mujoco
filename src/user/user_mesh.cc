@@ -2691,17 +2691,17 @@ class MeshPolygon {
  public:
   // constructors (need starting face)
   MeshPolygon(const double v1[3], const double v2[3], const double v3[3],
-              int v1i, int v2i, int v3i);
+              int v1i, int v2i, int v3i, double theta, double phi);
   MeshPolygon() = delete;
   MeshPolygon(const MeshPolygon&) = delete;
   MeshPolygon& operator=(const MeshPolygon&) = delete;
+  MeshPolygon(MeshPolygon&&) = default;
+  MeshPolygon& operator=(MeshPolygon&&) = default;
 
-  void InsertFace(int v1, int v2, int v3);          // insert a face into the polygon
-  std::vector<std::vector<int>> Paths() const;      // return trace of the polygons
-  const double* Normal() const { return normal_; }  // return the normal of the polygon
-
-  // return the ith component of the normal of the polygon
-  double Normal(int i) const { return normal_[i]; }
+  void InsertFace(int v1, int v2, int v3);           // insert a face into the polygon
+  std::vector<std::vector<int>> Paths() const;       // return trace of the polygons
+  const double* Normal() const { return normal_; }   // return the normal of the polygon
+  double Normal(int i) const { return normal_[i]; }  // return the i-th component of the normal
 
  private:
   std::vector<std::pair<int, int>> edges_;
@@ -2714,40 +2714,46 @@ class MeshPolygon {
   void CombineIslands(int& island1, int& island2);
 };
 
+bool MeshPolygonKey(std::pair<double, double>& angles, const double v1[3], const double v2[3],
+                    const double v3[3], double angle_tol) {
+  double diff12[3] = {v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]};
+  double diff13[3] = {v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]};
+  double normal[3], norm;
 
-
-MeshPolygon::MeshPolygon(const double v1[3], const double v2[3], const double v3[3],
-                         int v1i, int v2i, int v3i) {
-  mjuu_makenormal(normal_, v1, v2, v3);
-  edges_ = {{v1i, v2i}, {v2i, v3i}, {v3i, v1i}};
-  nisland_ = 1;
-  islands_ = {0, 0, 0};
-}
-
-
-
-// comparison operator for std::set
-bool PolygonCmp(const MeshPolygon& p1, const MeshPolygon& p2)  {
-  const double* n1 = p1.Normal();
-  const double* n2 = p2.Normal();
-  double dot3 = n1[0] * n2[0] + n1[1] * n2[1] + n1[2] * n2[2];
-
-  // TODO(kylebayes): The tolerance should be a parameter set the user, as it should be optimized
-  // from mesh to mesh.
-  if (dot3 > 0.99999872) {
+  mjuu_crossvec(normal, diff12, diff13);
+  if ((norm = std::sqrt(mjuu_dot3(normal, normal))) < mjMINVAL) {
     return false;
   }
 
-  if (std::abs(n1[0] - n2[0]) > mjMINVAL) {
-    return n1[0] > n2[0];
+  // atan2 is sensitive to sign of 0.0, adding 0.0 to enforcing only positive 0.0
+  normal[0] = (normal[0] / norm) + 0.0;
+  normal[1] = (normal[1] / norm) + 0.0;
+  normal[2] = (normal[2] / norm) + 0.0;
+  double rtheta = 0.0, rphi = 0.0;
+
+  // clamp normal to be in valid range for acos
+  if (std::abs(normal[2]) > 1.0 - 1e-7) {
+    if (normal[2] < 0) rphi = std::round(mjPI / angle_tol);
+    angles = std::make_pair(rtheta, rphi);
+    return true;
   }
-  if (std::abs(n1[1] - n2[1]) > mjMINVAL) {
-    return n1[1] > n2[1];
-  }
-  if (std::abs(n1[2] - n2[2]) > mjMINVAL) {
-    return n1[2] > n2[2];
-  }
-  return false;
+  // rounded azimuthal and polar angles
+  rtheta = std::round(std::atan2(normal[1], normal[0]) / angle_tol);
+  rphi = std::round(std::acos(normal[2]) / angle_tol);
+  angles = std::make_pair(rtheta, rphi);
+  return true;
+}
+
+
+MeshPolygon::MeshPolygon(const double v1[3], const double v2[3], const double v3[3],
+                         int v1i, int v2i, int v3i, double theta, double phi) {
+  normal_[0] = std::cos(theta) * std::sin(phi);
+  normal_[1] = std::sin(theta) * std::sin(phi);
+  normal_[2] = std::cos(phi);
+
+  edges_ = {{v1i, v2i}, {v2i, v3i}, {v3i, v1i}};
+  nisland_ = 1;
+  islands_ = {0, 0, 0};
 }
 
 
@@ -2846,8 +2852,8 @@ void MeshPolygon::InsertFace(int v1, int v2, int v3) {
 
 
 // return the transverse vertices of the polygon, multiple paths possible if not connected
-std::vector<std::vector<int> > MeshPolygon::Paths() const {
-  std::vector<std::vector<int> > paths;
+std::vector<std::vector<int>> MeshPolygon::Paths() const {
+  std::vector<std::vector<int>> paths;
   // shortcut if polygon is just a triangular face
   if (edges_.size() == 3) {
     return {{edges_[0].first, edges_[1].first, edges_[2].first}};
@@ -2899,9 +2905,20 @@ std::vector<std::vector<int> > MeshPolygon::Paths() const {
 
 
 
+// hash function for std::pair
+struct PairHash {
+  template <class T1, class T2>
+  std::size_t operator() (const std::pair<T1, T2>& pair) const {
+    return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
+  }
+};
+
+
+
 // merge coplanar mesh triangular faces into polygonal sides to represent the geometry of the mesh
 void mjCMesh::MakePolygons() {
-  std::set<MeshPolygon, decltype(PolygonCmp)*> polygons(PolygonCmp);
+  constexpr double kAngleTol = 0.01;
+  std::unordered_map<std::pair<double, double>, MeshPolygon, PairHash> mesh_polygons;
   polygons_.clear();
   polygon_normals_.clear();
   polygon_map_.clear();
@@ -2923,22 +2940,30 @@ void mjCMesh::MakePolygons() {
 
   // process each face
   for (int i = 0; i < nfaces; i++) {
-    double* v1 = &vert_[3*faces[3*i + 0]];
-    double* v2 = &vert_[3*faces[3*i + 1]];
-    double* v3 = &vert_[3*faces[3*i + 2]];
+    int vi1 = faces[3*i + 0];
+    int vi2 = faces[3*i + 1];
+    int vi3 = faces[3*i + 2];
+    double* v1 = &vert_[3*vi1];
+    double* v2 = &vert_[3*vi2];
+    double* v3 = &vert_[3*vi3];
 
-    MeshPolygon face(v1, v2, v3, faces[3*i + 0], faces[3*i + 1], faces[3*i + 2]);
-    auto it = polygons.find(face);
-    if (it == polygons.end()) {
-      polygons.emplace(v1, v2, v3, faces[3*i + 0], faces[3*i + 1], faces[3*i + 2]);
+    std::pair<double, double> key;
+    if (!MeshPolygonKey(key, v1, v2, v3, kAngleTol)) {
+      continue;
+    }
+    auto it = mesh_polygons.find(key);
+    if (it == mesh_polygons.end()) {
+      double theta = kAngleTol * key.first;
+      double phi = kAngleTol * key.second;
+      mesh_polygons.emplace(key, MeshPolygon(v1, v2, v3, vi1, vi2, vi3, theta, phi));
     } else {
-      MeshPolygon& p = const_cast<MeshPolygon&>(*it);
-      p.InsertFace(faces[3*i + 0], faces[3*i + 1], faces[3*i + 2]);
+      it->second.InsertFace(vi1, vi2, vi3);
     }
   }
 
-  for (const auto& polygon : polygons) {
-    std::vector<std::vector<int> > paths = polygon.Paths();
+  for (const auto& pair : mesh_polygons) {
+    const MeshPolygon& polygon = pair.second;
+    std::vector<std::vector<int>> paths = polygon.Paths();
 
     // separate the polygons if they were grouped together
     for (const auto& path : paths) {
@@ -3387,15 +3412,6 @@ void mjCSkin::LoadSKN(mjResource* resource) {
 
 
 //-------------------------- nonlinear elasticity --------------------------------------------------
-
-// hash function for std::pair
-struct PairHash
-{
-  template <class T1, class T2>
-  std::size_t operator() (const std::pair<T1, T2>& pair) const {
-    return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
-  }
-};
 
 // simplex connectivity
 constexpr int eledge[3][6][2] = {{{ 0,  1}, {-1, -1}, {-1, -1},

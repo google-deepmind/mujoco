@@ -238,16 +238,12 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
   MJMODEL_POINTERS_PREAMBLE(m1);
 
 // compare ints, exclude nbuffer because it hides the actual difference
-// TODO(kylebayes): re-enable poly comparisons.
-#define X(name)                                               \
-  if constexpr (std::string_view(#name) != "nbuffer" &&       \
-                std::string_view(#name) != "nmeshpolymap" &&  \
-                std::string_view(#name) != "nmeshpolyvert" && \
-                std::string_view(#name) != "nmeshpoly") {     \
-    if (m1->name != m2->name) {                               \
-      maxdif = std::abs((long)m1->name - (long)m2->name);     \
-      field = #name;                                          \
-    }                                                         \
+#define X(name)                                           \
+  if constexpr (std::string_view(#name) != "nbuffer") {   \
+    if (m1->name != m2->name) {                           \
+      maxdif = std::abs((long)m1->name - (long)m2->name); \
+      field = #name;                                      \
+    }                                                     \
   }
   MJMODEL_SIZES
 #undef X
