@@ -61,143 +61,65 @@ KeyValues ReadIniSection(const std::string& contents,
   return key_values;
 }
 
-ImGui_DataTable::ImGui_DataTable(float w1, float w2) {
+ImGui_DataPtrTable::ImGui_DataPtrTable(float w1, float w2) {
   ImGui::BeginTable("##PropertiesTable", 2);
   const float width = ImGui::GetContentRegionAvail().x;
   ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w1);
   ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w2);
 }
-ImGui_DataTable::~ImGui_DataTable() { ImGui::EndTable(); }
+ImGui_DataPtrTable::~ImGui_DataPtrTable() { ImGui::EndTable(); }
 
-void ImGui_DataTable::SetArrayIndex(int index) { index_ = index; }
-
-void ImGui_DataTable::SetPrefix(const char* prefix) {
+void ImGui_DataPtrTable::SetPrefix(const char* prefix) {
   prefix_ = strlen(prefix);
 }
 
-void ImGui_DataTable::operator()(const char* label, const uintptr_t* ptr,
-                                 int n) {
+void ImGui_DataPtrTable::DataPtr(const char* label, const uintptr_t* ptr,
+                                 int index, int n) {
   for (int i = 0; i < n; ++i) {
     MakeLabel(label, i, n);
-    ImGui::Text("(%s)", &ptr[index_ + i] ? "[ptr]" : "null");
+    ImGui::Text("(%s)", &ptr[index + i] ? "[ptr]" : "null");
   }
 }
 
-void ImGui_DataTable::operator()(const char* label, const char* ptr, int n) {
-  if (n == 1) {
-    MakeLabel(label);
-    ImGui::Text("%s", &ptr[index_]);
-  } else {
-    mju_error("char cannot be converted to a vector");
-  }
+void ImGui_DataPtrTable::DataPtr(const char* label, const char* ptr, int index,
+                              int n) {
+  MakeLabel(label);
+  ScopedStyle style;
+  style.Color(ImGuiCol_Text, ImColor(255, 0, 0, 255));
+  ImGui::Text("%s", "(char not implemented, please report bug)");
 }
 
-void ImGui_DataTable::operator()(const char* label, const mjtByte* ptr, int n) {
+void ImGui_DataPtrTable::DataPtr(const char* label, const mjtByte* ptr, int index,
+                              int n) {
   for (int i = 0; i < n; ++i) {
     MakeLabel(label, i, n);
-    ImGui::Text("%s", ptr[index_ + i] ? "true" : "false");
+    ImGui::Text("%s", ptr[index + i] ? "true" : "false");
   }
 }
 
-void ImGui_DataTable::operator()(const char* label, const mjtByte& val, int n) {
-  MakeLabel(label, 0, 1);
-  ImGui::Text("%s", val ? "true" : "false");
+void ImGui_DataPtrTable::DataPtr(const char* label, const mjtSize* ptr, int index,
+                              int n) {
+  Numeric(label, ptr, index, n);
 }
 
-void ImGui_DataTable::operator()(const char* label, const mjtSize* ptr, int n) {
-  Numeric(label, ptr, n);
+void ImGui_DataPtrTable::DataPtr(const char* label, const int* ptr, int index,
+                              int n) {
+  Numeric(label, ptr, index, n);
 }
 
-void ImGui_DataTable::operator()(const char* label, const int* ptr, int n) {
-  Numeric(label, ptr, n);
+void ImGui_DataPtrTable::DataPtr(const char* label, const float* ptr, int index,
+                              int n) {
+  Numeric(label, ptr, index, n);
 }
 
-void ImGui_DataTable::operator()(const char* label, const float* ptr, int n) {
-  Numeric(label, ptr, n);
-}
-
-void ImGui_DataTable::operator()(const char* label, const double* ptr, int n) {
-  Numeric(label, ptr, n);
-}
-
-void ImGui_DataTable::operator()(const char* label, const mjtSize& val, int n) {
-  Scalar(label, val, n);
-}
-
-void ImGui_DataTable::operator()(const char* label, const int& val, int n) {
-  Scalar(label, val, n);
-}
-
-void ImGui_DataTable::operator()(const char* label, const float& val, int n) {
-  Scalar(label, val, n);
-}
-
-void ImGui_DataTable::operator()(const char* label, const double& val, int n) {
-  Scalar(label, val, n);
-}
-
-void ImGui_DataTable::operator()(const char* label, const std::string* ptr,
-                                 int n) {
-  for (int i = 0; i < n; ++i) {
-    MakeLabel(label, i, n);
-    ImGui::Text("%s", ptr[i].c_str());
-  }
-}
-
-void ImGui_DataTable::operator()(const char* label,
-                                 const std::vector<std::string>* ptr, int n) {
-  if (n == 1) {
-    for (int i = 0; i < ptr->size(); ++i) {
-      MakeLabel(label, i, ptr->size());
-      ImGui::Text("%s", ptr->at(i).c_str());
-    }
-  } else {
-    mju_error("data type is vector; cannot also be an array");
-  }
-}
-
-void ImGui_DataTable::operator()(const char* label, const std::vector<int>* ptr,
-                                 int n) {
-  if (n == 1) {
-    const int size = ptr->size();
-    if (size == 0) {
-      (*this)(label, "[empty]", 1);
-    } else {
-      std::string tmp = "[" + std::to_string(size) + " values]";
-      (*this)(label, tmp.c_str(), 1);
-    }
-  } else {
-    mju_error("data type is vector; cannot also be an array");
-  }
-}
-
-void ImGui_DataTable::operator()(const char* label,
-                                 const std::vector<double>* ptr, int n) {
-  if (n == 1) {
-    const int size = ptr->size();
-    if (size == 0) {
-      (*this)(label, "[empty]", 1);
-    } else {
-      std::string tmp = "[" + std::to_string(size) + " values]";
-      (*this)(label, tmp.c_str(), 1);
-    }
-  } else {
-    mju_error("data type is vector; cannot also be an array");
-  }
+void ImGui_DataPtrTable::DataPtr(const char* label, const double* ptr, int index,
+                              int n) {
+  Numeric(label, ptr, index, n);
 }
 
 template <typename T>
-void ImGui_DataTable::Scalar(const char* label, const T& value, int n) {
-  if (n == 1) {
-    Numeric(label, &value, n);
-  } else {
-    mju_error("scalar cannot be converted to a vector");
-  }
-}
-
-template <typename T>
-void ImGui_DataTable::Numeric(const char* label, const T* ptr, int n) {
-  const T* addr = ptr + index_ * n;
+void ImGui_DataPtrTable::Numeric(const char* label, const T* ptr, int index, int n) {
+  const T* addr = ptr + index * n;
 
   using U = std::conditional_t<std::is_floating_point_v<T>, float, int>;
 
@@ -269,7 +191,7 @@ void ImGui_DataTable::Numeric(const char* label, const T* ptr, int n) {
   }
 }
 
-void ImGui_DataTable::MakeLabel(const char* label, int index, int total) {
+void ImGui_DataPtrTable::MakeLabel(const char* label, int index, int total) {
   if (total == 1) {
     ImGui::TableNextColumn();
     ImGui::Text("%s", &label[prefix_]);
@@ -280,6 +202,101 @@ void ImGui_DataTable::MakeLabel(const char* label, int index, int total) {
     ImGui::TableNextColumn();
     ImGui::Text("%s", tmp.c_str());
     ImGui::TableNextColumn();
+  }
+}
+
+void ImGui_SpecElementTable::operator()(const char* label, mjtByte& val,
+                                        const char* tooltip) {
+  MakeLabel(label);
+  ImGui::SetItemTooltip("%s", tooltip);
+  ImGui::Text("%s", val ? "true" : "false");
+}
+
+void ImGui_SpecElementTable::operator()(const char* label, mjtSize& val,
+                                        const char* tooltip) {
+  Scalar(label, val, tooltip);
+}
+
+void ImGui_SpecElementTable::operator()(const char* label, int& val,
+                                        const char* tooltip) {
+  Scalar(label, val, tooltip);
+}
+
+void ImGui_SpecElementTable::operator()(const char* label, float& val,
+                                        const char* tooltip) {
+  Scalar(label, val, tooltip);
+}
+
+void ImGui_SpecElementTable::operator()(const char* label, double& val,
+                                        const char* tooltip) {
+  Scalar(label, val, tooltip);
+}
+
+void ImGui_SpecElementTable::operator()(const char* label, std::string* ptr,
+                                        const char* tooltip) {
+  MakeLabel(label);
+  ImGui::SetItemTooltip("%s", tooltip);
+  ImGui::Text("%s", ptr ? ptr->c_str() : "");
+}
+
+void ImGui_SpecElementTable::operator()(const char* label,
+                                        std::vector<int>* ptr,
+                                        const char* tooltip) {
+  MakeLabel(label);
+  ImGui::SetItemTooltip("%s", tooltip);
+  if (ptr == nullptr || ptr->empty()) {
+    ImGui::Text("[empty]");
+  } else {
+    ImGui::Text("[%zu values]", ptr->size());
+  }
+}
+
+void ImGui_SpecElementTable::operator()(const char* label,
+                                        std::vector<double>* ptr,
+                                        const char* tooltip) {
+  MakeLabel(label);
+  ImGui::SetItemTooltip("%s", tooltip);
+  if (ptr == nullptr || ptr->empty()) {
+    ImGui::Text("[empty]");
+  } else {
+    ImGui::Text("[%zu values]", ptr->size());
+  }
+}
+
+void ImGui_SpecElementTable::operator()(const char* label,
+                                        std::vector<std::string>* ptr,
+                                        const char* tooltip) {
+  for (int i = 0; i < ptr->size(); ++i) {
+    MakeLabel(label, i, ptr->size());
+    ImGui::SetItemTooltip("%s", tooltip);
+    ImGui::Text("%s", ptr->at(i).c_str());
+  }
+}
+
+void ImGui_SpecElementTable::operator()(const char* name, double (&quat)[4],
+                                        const char* alt,
+                                        mjsOrientation& orientation,
+                                        const char* tooltip) {
+  auto alt_name = [&](const char* label) {
+    return std::string(alt) + "." + label;
+  };
+
+  switch (orientation.type) {
+    case mjORIENTATION_QUAT:
+      (*this)(name, quat, tooltip);
+      break;
+    case mjORIENTATION_AXISANGLE:
+      (*this)(alt_name("axisangle").c_str(), orientation.axisangle, tooltip);
+      break;
+    case mjORIENTATION_XYAXES:
+      (*this)(alt_name("xyaxes").c_str(), orientation.xyaxes, tooltip);
+      break;
+    case mjORIENTATION_ZAXIS:
+      (*this)(alt_name("zaxis").c_str(), orientation.zaxis, tooltip);
+      break;
+    case mjORIENTATION_EULER:
+      (*this)(alt_name("euler").c_str(), orientation.euler, tooltip);
+      break;
   }
 }
 

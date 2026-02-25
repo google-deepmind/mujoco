@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_IMGUI_WIDGETS_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_IMGUI_WIDGETS_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -26,6 +27,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/enum_utils.h"
 
 namespace mujoco::platform {
 
@@ -148,72 +150,136 @@ struct ScopedStyle {
 };
 
 // Helper for displaying rows of key/value pairs in an ImGui table.
-//
-// Designed specifically to be used to display mjSpec, mjModel, and mjData
-// values.
-//
-// To add a value to the table, call the operator() function with the label,
-// the value, and (optionally) the dimensionality of the value (e.g. for vectors
-// and matrices). To support generic code, even scalar values should be passed
-// to operator() with n = 1.
-class ImGui_DataTable {
+class ImGui_DataPtrTable {
  public:
   // Starts the table (i.e. ImGui::BeginTable()) with two columns of the
   // specified widths.
-  ImGui_DataTable(float w1 = 0.25f, float w2 = 0.75f);
+  ImGui_DataPtrTable(float w1 = 0.25f, float w2 = 0.75f);
 
   // Ends the table (e.g. ImGui::EndTable().
-  ~ImGui_DataTable();
+  ~ImGui_DataPtrTable();
 
-  ImGui_DataTable(const ImGui_DataTable& other) = delete;
-  ImGui_DataTable& operator=(const ImGui_DataTable& other) = delete;
+  ImGui_DataPtrTable(const ImGui_DataPtrTable& other) = delete;
+  ImGui_DataPtrTable& operator=(const ImGui_DataPtrTable& other) = delete;
 
-  // Sets the offset into an array of values (e.g. for pointers in mjModel and
-  // mjData). This is only used for the display functions that take a pointer.
-  void SetArrayIndex(int index);
+  // Displays a labelled value in the table. These functions are intended
+  // specifically for displaying data from mjModel and mjData which store data
+  // in contiguous arrays. Each value to be displayed is at a given
+  // index into the array (based on the object's ID) and then has a
+  // dimensionality of n.
+  void DataPtr(const char* label, const char* ptr, int index, int n);
+  void DataPtr(const char* label, const mjtByte* ptr, int index, int n);
+  void DataPtr(const char* label, const mjtSize* ptr, int index, int n);
+  void DataPtr(const char* label, const int* ptr, int index, int n);
+  void DataPtr(const char* label, const float* ptr, int index, int n);
+  void DataPtr(const char* label, const double* ptr, int index, int n);
+  void DataPtr(const char* label, const uintptr_t* ptr, int index, int n);
 
   // Sets the prefix that will be removed from all labels. Note: that we simply
   // remove the first N characters of the label without actually comparing
-  // against this prefix.
+  // against this prefix. This works well with mjModel and mjData because
+  // data belonging to a given object type has a common prefix (e.g. all joints
+  // properties are prefixed with "jnt_").
   void SetPrefix(const char* prefix);
 
-  // Displays a labelled value in the table.
-  void operator()(const char* label, const uintptr_t* ptr, int n);
-  void operator()(const char* label, const char* ptr, int n);
-  void operator()(const char* label, const mjtByte* ptr, int n);
-  void operator()(const char* label, const mjtSize* ptr, int n);
-  void operator()(const char* label, const int* ptr, int n);
-  void operator()(const char* label, const float* ptr, int n);
-  void operator()(const char* label, const double* ptr, int n);
-
-  // Displays a single scalar value in the table. Assumes n == 1. This should
-  // only be used for mjSpec objects and, therefore, will ignore the array index
-  // if set.
-  void operator()(const char* label, const mjtByte& val, int n);
-  void operator()(const char* label, const mjtSize& val, int n);
-  void operator()(const char* label, const int& val, int n);
-  void operator()(const char* label, const float& val, int n);
-  void operator()(const char* label, const double& val, int n);
-
-  // Overloads for C++ container types. Assumes its only used for mjSpec objects
-  // and, therefore, will ignore the array index if set.
-  void operator()(const char* label, const std::string* ptr, int n);
-  void operator()(const char* label, const std::vector<int>* ptr, int n);
-  void operator()(const char* label, const std::vector<double>* ptr, int n);
-  void operator()(const char* label, const std::vector<std::string>* ptr, int n);
-
- private:
+ protected:
   template <typename T>
-  void Numeric(const char* label, const T* ptr, int n);
-
-  template <typename T>
-  void Scalar(const char* label, const T& value, int n);
-
+  void Numeric(const char* label, const T* ptr, int index, int n);
   void MakeLabel(const char* label, int index = 0, int total = 1);
 
   int prefix_ = 0;
-  int index_ = 0;
 };
+
+// Helper for displaying mjSpec elements in an ImGui table.
+class ImGui_SpecElementTable : public ImGui_DataPtrTable {
+ public:
+  // Scalar values used by mjSpec elements.
+  void operator()(const char* label, mjtByte& val, const char* tooltip);
+  void operator()(const char* label, mjtSize& val, const char* tooltip);
+  void operator()(const char* label, int& val, const char* tooltip);
+  void operator()(const char* label, float& val, const char* tooltip);
+  void operator()(const char* label, double& val, const char* tooltip);
+
+  // C++ container values used by mjSpec elements.
+  void operator()(const char* label, std::string* ptr, const char* tooltip);
+  void operator()(const char* label, std::vector<int>* ptr,
+                  const char* tooltip);
+  void operator()(const char* label, std::vector<double>* ptr,
+                  const char* tooltip);
+  void operator()(const char* label, std::vector<std::string>* ptr,
+                  const char* tooltip);
+
+  // C-style array values used by mjSpec elements.
+  template <std::size_t N>
+  void operator()(const char* label, char (&val)[N], const char* tooltip) {
+    MakeLabel(label);
+    ImGui::SetItemTooltip("%s", tooltip);
+    ImGui::Text("%s", std::string(val, N).c_str());
+  }
+  template <std::size_t N>
+  void operator()(const char* label, mjtByte (&val)[N], const char* tooltip) {
+    for (int i = 0; i < N; ++i) {
+      MakeLabel(label, i, N);
+      ImGui::SetItemTooltip("%s", tooltip);
+      ImGui::Text("%s", val[i] ? "true" : "false");
+    }
+  }
+  template <std::size_t N>
+  void operator()(const char* label, int (&val)[N], const char* tooltip) {
+    Vector(label, val, N, tooltip);
+  }
+  template <std::size_t N>
+  void operator()(const char* label, float (&val)[N], const char* tooltip) {
+    Vector(label, val, N, tooltip);
+  }
+  template <std::size_t N>
+  void operator()(const char* label, double (&val)[N], const char* tooltip) {
+    Vector(label, val, N, tooltip);
+  }
+
+  // Special handling for treating enum values as integers.
+  template <typename T, typename U=std::enable_if_t<std::is_enum_v<T>, T>>
+  void operator()(const char* label, T& val, const char* tooltip) {
+    auto v = enum_utils::enum_to_string(val);
+    MakeLabel(label);
+    ImGui::SetItemTooltip("%s", tooltip);
+    ImGui::Text("%s", v.data());
+  }
+
+  // Special handling for quaternion/orientation pairs.
+  void operator()(const char* name, double (&quat)[4], const char* alt,
+                  mjsOrientation& orientation, const char* tooltip);
+
+ private:
+  template <typename T>
+  void Scalar(const char* label, T& val, const char* tooltip) {
+    MakeLabel(label);
+    ImGui::SetItemTooltip("%s", tooltip);
+    if constexpr (std::is_enum_v<T>) {
+      ImGui::Text("%d", (int)val);
+    } else if constexpr (std::is_integral_v<T>) {
+      ImGui::Text("%d", (int)val);
+    } else if constexpr (std::is_floating_point_v<T>) {
+      ImGui::Text("%f", (float)val);
+    }
+  }
+
+  template <typename T>
+  void Vector(const char* label, T* ptr, int n, const char* tooltip) {
+    for (int i = 0; i < n; ++i) {
+      MakeLabel(label, i, n);
+      ImGui::SetItemTooltip("%s", tooltip);
+      if constexpr (std::is_enum_v<T>) {
+        ImGui::Text("%d", (int)ptr[i]);
+      } else if constexpr (std::is_integral_v<T>) {
+        ImGui::Text("%d", (int)ptr[i]);
+      } else if constexpr (std::is_floating_point_v<T>) {
+        ImGui::Text("%f", (float)ptr[i]);
+      }
+    }
+  }
+};
+
 
 // ImGui Slider that supports both float and double types.
 bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max);
