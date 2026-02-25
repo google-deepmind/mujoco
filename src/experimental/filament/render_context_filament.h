@@ -26,6 +26,9 @@
 extern "C" {
 #endif
 
+// IMPORTANT: This API should still be considered experimental and is likely
+// change frequently.
+
 typedef enum mjtGraphicsApi_ {  // backend graphics API to use
   mjGFX_DEFAULT        = 0,     // default based on platform
   mjGFX_OPENGL,                 // OpenGL (desktop)
@@ -43,35 +46,37 @@ struct mjrFilamentConfig {
   bool enable_gui;
 };
 
-void mjr_defaultFilamentConfig(mjrFilamentConfig* config);
+void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);
 
-void mjr_makeFilamentContext(const mjModel* m, mjrContext* con,
-                             const mjrFilamentConfig* config);
+void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,
+                              const mjrFilamentConfig* config);
 
-MJAPI void mjr_defaultContext(mjrContext* con);
+void mjrf_defaultContext(mjrContext* con);
 
-MJAPI void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale);
+void mjrf_makeContext(const mjModel* m, mjrContext* con, int fontscale);
 
-MJAPI void mjr_freeContext(mjrContext* con);
+void mjrf_freeContext(mjrContext* con);
 
-MJAPI void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con);
+void mjrf_render(mjrRect viewport, mjvScene* scn, const mjrContext* con);
 
-MJAPI void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid);
+void mjrf_uploadMesh(const mjModel* m, const mjrContext* con, int meshid);
 
-MJAPI void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid);
+void mjrf_uploadTexture(const mjModel* m, const mjrContext* con, int texid);
 
-MJAPI void mjr_setBuffer(int framebuffer, mjrContext* con);
+void mjrf_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid);
 
-MJAPI void mjr_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
-                          const mjrContext* con);
+void mjrf_setBuffer(int framebuffer, mjrContext* con);
 
-double mjr_getFrameRate(const mjrContext* con);
+void mjrf_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
+                     const mjrContext* con);
 
-uintptr_t mjr_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
-                             int width, int height, int bpp,
-                             const mjrContext* con);
+double mjrf_getFrameRate(const mjrContext* con);
 
-void mjr_updateGui(const mjrContext* con);
+uintptr_t mjrf_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
+                              int width, int height, int bpp,
+                              const mjrContext* con);
+
+void mjrf_updateGui(const mjrContext* con);
 
 #if defined(__cplusplus)
 }  // extern "C"

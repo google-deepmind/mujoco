@@ -32,17 +32,17 @@ static mujoco::FilamentContext* g_filament_context = nullptr;
 
 static void CheckFilamentContext() {
   if (g_filament_context == nullptr) {
-    mju_error("Missing context; did you call mjr_makeFilamentContext?");
+    mju_error("Missing context; did you call mjrf_makeFilamentContext?");
   }
 }
 
 extern "C" {
 
-void mjr_defaultFilamentConfig(mjrFilamentConfig* config) {
+void mjrf_defaultFilamentConfig(mjrFilamentConfig* config) {
   memset(config, 0, sizeof(mjrFilamentConfig));
 }
 
-void mjr_makeFilamentContext(const mjModel* m, mjrContext* con,
+void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,
                              const mjrFilamentConfig* config) {
   // TODO: Support multiple contexts and multiple threads. For now, we'll just
   // assume a single, global context.
@@ -52,16 +52,18 @@ void mjr_makeFilamentContext(const mjModel* m, mjrContext* con,
   g_filament_context = new mujoco::FilamentContext(config, m, con);
 }
 
-void mjr_defaultContext(mjrContext* con) { memset(con, 0, sizeof(mjrContext)); }
-
-void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
-  mjr_freeContext(con);
-  mjrFilamentConfig cfg;
-  mjr_defaultFilamentConfig(&cfg);
-  mjr_makeFilamentContext(m, con, &cfg);
+void mjrf_defaultContext(mjrContext* con) {
+  memset(con, 0, sizeof(mjrContext));
 }
 
-void mjr_freeContext(mjrContext* con) {
+void mjrf_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
+  mjr_freeContext(con);
+  mjrFilamentConfig cfg;
+  mjrf_defaultFilamentConfig(&cfg);
+  mjrf_makeFilamentContext(m, con, &cfg);
+}
+
+void mjrf_freeContext(mjrContext* con) {
   // mjr_freeContext may be called multiple times.
   if (g_filament_context) {
     delete g_filament_context;
@@ -70,50 +72,50 @@ void mjr_freeContext(mjrContext* con) {
   mjr_defaultContext(con);
 }
 
-void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
+void mjrf_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   CheckFilamentContext();
   g_filament_context->Render(viewport, scn, con);
 }
 
-void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
+void mjrf_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
   CheckFilamentContext();
   g_filament_context->UploadMesh(m, meshid);
 }
 
-void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
+void mjrf_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
   CheckFilamentContext();
   g_filament_context->UploadTexture(m, texid);
 }
 
-void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
+void mjrf_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
   CheckFilamentContext();
   g_filament_context->UploadHeightField(m, hfieldid);
 }
 
-void mjr_setBuffer(int framebuffer, mjrContext* con) {
+void mjrf_setBuffer(int framebuffer, mjrContext* con) {
   CheckFilamentContext();
   g_filament_context->SetFrameBuffer(framebuffer);
 }
 
-void mjr_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
+void mjrf_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
                           const mjrContext* con) {
   CheckFilamentContext();
   g_filament_context->ReadPixels(viewport, rgb, depth);
 }
 
-uintptr_t mjr_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
+uintptr_t mjrf_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
                              int width, int height, int bpp,
                              const mjrContext* con) {
   CheckFilamentContext();
   return g_filament_context->UploadGuiImage(tex_id, pixels, width, height, bpp);
 }
 
-double mjr_getFrameRate(const mjrContext* con) {
+double mjrf_getFrameRate(const mjrContext* con) {
   CheckFilamentContext();
   return g_filament_context->GetFrameRate();
 }
 
-void mjr_updateGui(const mjrContext* con) {
+void mjrf_updateGui(const mjrContext* con) {
   if (g_filament_context != nullptr) {
     g_filament_context->UpdateGui();
   }

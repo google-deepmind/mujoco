@@ -21,7 +21,7 @@ target_compile_definitions(${MUJOCO_FILAMENT_TARGET_NAME} PRIVATE MJ_STATIC)
 
 target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
     PUBLIC
-        stubs.cc
+        mjr_compat.cc
         render_context_filament.h
         render_context_filament.cc
         filament/buffer_util.cc

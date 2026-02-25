@@ -13,8 +13,49 @@
 // limitations under the License.
 
 #include <mujoco/mujoco.h>
+#include "experimental/filament/render_context_filament.h"
+
+// This library implements the entirety of mujoco's mjr API. You can link this
+// library with your application (instead of the "classic" mujoco renderer) to
+// use the same APIs but with Filament rendering instead.
+//
+// However, you should consider using filament's mjrf API directly as it will
+// provide you with access to more features and optimizations.
 
 extern "C" {
+
+// mjr functions that are supported by the filament renderer.
+
+void mjr_defaultContext(mjrContext* con) {
+  mjrf_defaultContext(con);
+}
+void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
+  mjrf_makeContext(m, con, fontscale);
+}
+void mjr_freeContext(mjrContext* con) {
+  mjrf_freeContext(con);
+}
+void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
+  mjrf_render(viewport, scn, con);
+}
+void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
+  mjrf_uploadMesh(m, con, meshid);
+}
+void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
+  mjrf_uploadTexture(m, con, texid);
+}
+void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
+  mjrf_uploadHField(m, con, hfieldid);
+}
+void mjr_setBuffer(int framebuffer, mjrContext* con) {
+  mjrf_setBuffer(framebuffer, con);
+}
+void mjr_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
+                          const mjrContext* con) {
+  mjrf_readPixels(rgb, depth, viewport, con);
+}
+
+// mjr functions that are NOT supported by the filament renderer.
 
 void mjr_setAux(int index, const mjrContext* con) {
   mju_error("mjr_setAux not implemented.");
