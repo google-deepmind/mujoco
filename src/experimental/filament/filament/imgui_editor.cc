@@ -640,6 +640,8 @@ void DrawLightGui(filament::LightManager& lm,
     changed |= Ui("# Cascades", &opts.shadowCascades);
     changed |= Ui("Constant Bias", &opts.constantBias);
     changed |= Ui("Normal Bias", &opts.normalBias);
+    changed |= Ui("EL VSM Enabled", &opts.vsm.elvsm);
+    changed |= Ui("VSM Blur Width", &opts.vsm.blurWidth);
     if (changed) {
       lm.setShadowOptions(li, opts);
     }
