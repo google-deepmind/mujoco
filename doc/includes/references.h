@@ -289,9 +289,6 @@ struct mjData_ {
   // computed by mj_fwdPosition/mj_tendon
   int*    ten_wrapadr;       // start address of tendon's path                   (ntendon x 1)
   int*    ten_wrapnum;       // number of wrap points in path                    (ntendon x 1)
-  int*    ten_J_rownnz;      // number of non-zeros in Jacobian row              (ntendon x 1)
-  int*    ten_J_rowadr;      // row start address in colind array                (ntendon x 1)
-  int*    ten_J_colind;      // column indices in sparse Jacobian                (nJten x 1)
   mjtNum* ten_J;             // tendon Jacobian                                  (nJten x 1)
   mjtNum* ten_length;        // tendon lengths                                   (ntendon x 1)
   int*    wrap_obj;          // geom id; -1: site; -2: pulley                    (nwrap x 2)
@@ -1070,6 +1067,7 @@ struct mjModel_ {
   mjtSize nexclude;               // number of excluded geom pairs
   mjtSize neq;                    // number of equality constraints
   mjtSize ntendon;                // number of tendons
+  mjtSize nJten;                  // number of non-zeros in sparse ten_J matrix
   mjtSize nwrap;                  // number of wrap objects in all tendon paths
   mjtSize nsensor;                // number of sensors
   mjtSize nnumeric;               // number of numeric custom fields
@@ -1096,7 +1094,6 @@ struct mjModel_ {
   // sizes set after mjModel construction
   mjtSize nnames_map;             // number of slots in the names hash map
   mjtSize nJmom;                  // number of non-zeros in sparse actuator_moment matrix
-  mjtSize nJten;                  // number of non-zeros in sparse ten_J matrix
   mjtSize ngravcomp;              // number of bodies with nonzero gravcomp
   mjtSize nemax;                  // number of potential equality-constraint rows
   mjtSize njmax;                  // number of available rows in constraint Jacobian (legacy)
@@ -1490,6 +1487,9 @@ struct mjModel_ {
   int*      tendon_group;         // group for visibility                     (ntendon x 1)
   int*      tendon_treenum;       // number of trees along tendon's path      (ntendon x 1)
   int*      tendon_treeid;        // first two trees along tendon's path      (ntendon x 2)
+  int*      ten_J_rownnz;         // number of non-zeros in Jacobian row      (ntendon x 1)
+  int*      ten_J_rowadr;         // row start address in colind array        (ntendon x 1)
+  int*      ten_J_colind;         // column indices in sparse Jacobian        (nJten x 1)
   mjtByte*  tendon_limited;       // does tendon have length limits           (ntendon x 1)
   mjtByte*  tendon_actfrclimited; // does tendon have actuator force limits   (ntendon x 1)
   mjtNum*   tendon_width;         // width for rendering                      (ntendon x 1)

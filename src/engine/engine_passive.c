@@ -473,9 +473,9 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
     // transform to joint torque, add to qfrc_{spring, damper}
     if (frc_spring || frc_damper) {
-      int end = d->ten_J_rowadr[i] + d->ten_J_rownnz[i];
-      for (int j=d->ten_J_rowadr[i]; j < end; j++) {
-        int k = d->ten_J_colind[j];
+      int end = m->ten_J_rowadr[i] + m->ten_J_rownnz[i];
+      for (int j=m->ten_J_rowadr[i]; j < end; j++) {
+        int k = m->ten_J_colind[j];
         mjtNum J = d->ten_J[j];
         d->qfrc_spring[k] += J * frc_spring;
         d->qfrc_damper[k] += J * frc_damper;

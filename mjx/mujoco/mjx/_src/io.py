@@ -1129,9 +1129,9 @@ def _put_data_jax(
     mujoco.mju_sparse2dense(
         ten_J,
         d.ten_J,
-        d.ten_J_rownnz,
-        d.ten_J_rowadr,
-        d.ten_J_colind,
+        m.ten_J_rownnz,
+        m.ten_J_rowadr,
+        m.ten_J_colind,
     )
   else:
     ten_J = np.zeros((m.ntendon, m.nv))
@@ -1251,6 +1251,9 @@ def _put_data_c(
       for f in types.DataC.fields()
       if hasattr(d, f.name)
   }
+  for f in types.DataC.fields():
+    if not hasattr(d, f.name) and hasattr(m, f.name):
+      impl_fields[f.name] = getattr(m, f.name)
 
   # TODO(stunya): support islanding via C impl.
   impl_fields['solver_niter'] = impl_fields['solver_niter'][0]
@@ -1662,9 +1665,6 @@ def _get_data_into(
             )
           else:
             ten_j = d_i._impl.ten_J
-        result_i.ten_J_rownnz[:] = ten_j_rownnz
-        result_i.ten_J_rowadr[:] = ten_j_rowadr
-        result_i.ten_J_colind[:] = ten_j_colind
         result_i.ten_J[:] = ten_j
         continue
 

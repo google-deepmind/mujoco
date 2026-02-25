@@ -232,7 +232,7 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 
   // tendon velocity: always sparse
   mju_mulMatVecSparse(d->ten_velocity, d->ten_J, d->qvel, m->ntendon,
-                      d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind, NULL);
+                      m->ten_J_rownnz, m->ten_J_rowadr, m->ten_J_colind, NULL);
 
   // actuator velocity: always sparse
   if (!mjDISABLED(mjDSBL_ACTUATION)) {

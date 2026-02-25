@@ -125,9 +125,9 @@ class SmoothTest(absltest.TestCase):
     mujoco.mju_sparse2dense(
         ten_J,
         d.ten_J,
-        d.ten_J_rownnz,
-        d.ten_J_rowadr,
-        d.ten_J_colind,
+        m.ten_J_rownnz,
+        m.ten_J_rowadr,
+        m.ten_J_colind,
     )
     _assert_eq(ten_J, dx._impl.ten_J, 'ten_J')
     _assert_attr_eq(d, dx, 'ten_length')
@@ -407,9 +407,9 @@ class TendonTest(parameterized.TestCase):
     mujoco.mju_sparse2dense(
         ten_J,
         d.ten_J,
-        d.ten_J_rownnz,
-        d.ten_J_rowadr,
-        d.ten_J_colind,
+        m.ten_J_rownnz,
+        m.ten_J_rowadr,
+        m.ten_J_colind,
     )
     _assert_eq(ten_J, dx._impl.ten_J, 'ten_J')
     _assert_eq(d.ten_wrapnum, dx._impl.ten_wrapnum, 'ten_wrapnum')

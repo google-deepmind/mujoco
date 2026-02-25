@@ -907,6 +907,7 @@ void mjCModel::ComputeSparseSizes() {
   // no dofs, quick return
   if (nv == 0) {
     nM = nD = nB = nC = 0;
+    nJten = 0;
     return;
   }
 
@@ -1084,6 +1085,37 @@ void mjCModel::ComputeSparseSizes() {
     }
   }
   nC = nOD + nv;
+
+  nJten = 0;
+  if (nv > 0) {
+    std::vector<bool> dof_bitmap(nv, false);
+    for (const auto* tendon : tendons_) {
+      if (!tendon->path.empty() &&
+          tendon->path[0]->Type() == mjWRAP_JOINT) {
+        nJten += tendon->path.size();
+        continue;
+      }
+
+      std::fill(dof_bitmap.begin(), dof_bitmap.end(), false);
+      for (const auto* wrap : tendon->path) {
+        int bodyid = GetBodyIdFromWrap(wrap);
+        if (bodyid > 0) {
+          mjCBody* b = bodies_[bodyid];
+          while (b && b->id > 0) {
+            for (const auto* jnt : b->joints) {
+              for (int k = 0; k < jnt->nv(); k++) {
+                dof_bitmap[jnt->dofadr_ + k] = true;
+              }
+            }
+            b = b->GetParent();
+          }
+        }
+      }
+      for (int j = 0; j < nv; j++) {
+        nJten += dof_bitmap[j];
+      }
+    }
+  }
 }
 
 
@@ -5073,7 +5105,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, nmeshpoly,
                nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert, nskinface, nskinbone,
                nskinbonevert, nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
-               neq, ntendon, nwrap, nsensor, nnumeric, nnumericdata, ntext, ntextdata,
+               neq, ntendon, nJten, nwrap, nsensor, nnumeric, nnumericdata, ntext, ntextdata,
                ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
                nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
                nuser_tendon, nuser_actuator, nuser_sensor, nnames, npaths);
@@ -5105,8 +5137,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // compute non-zeros in actuator_moment
   m->nJmom = nJmom = CountNJmom(m);
 
-  // compute non-zeros in ten_J
-  m->nJten = nJten = CountNJten(m);
 
   // scale mass
   if (compiler.settotalmass > 0) {

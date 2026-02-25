@@ -905,7 +905,7 @@ void mj_flex(const mjModel* m, mjData* d) {
 // compute tendon lengths and moments
 void mj_tendon(const mjModel* m, mjData* d) {
   int nv = m->nv, nten = m->ntendon;
-  int *rownnz = d->ten_J_rownnz, *rowadr = d->ten_J_rowadr, *colind = d->ten_J_colind;
+  const int *rownnz = m->ten_J_rownnz, *rowadr = m->ten_J_rowadr, *colind = m->ten_J_colind;
   mjtNum *L = d->ten_length, *J = d->ten_J;
 
   if (!nten) {
@@ -913,22 +913,20 @@ void mj_tendon(const mjModel* m, mjData* d) {
   }
 
   // allocate stack arrays
-  int *chain, *buf_ind;
-  mjtNum *jac1, *jac2, *jacdif, *tmp, *sparse_buf;
+  int *chain;
+  mjtNum *jac1, *jac2, *jacdif, *tmp;
   mj_markStack(d);
   jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
   jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
   tmp = mjSTACKALLOC(d, nv, mjtNum);
   chain = mjSTACKALLOC(d, nv, int);
-  buf_ind = mjSTACKALLOC(d, nv, int);
-  sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
 
   // clear results
   mju_zero(L, nten);
 
   // clear Jacobian
-  mju_zeroInt(rownnz, nten);
+  mju_zero(J, m->nJten);
 
   // sleep filtering
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
@@ -947,9 +945,6 @@ void mj_tendon(const mjModel* m, mjData* d) {
     d->ten_wrapnum[i] = 0;
     int tendon_num = m->tendon_num[i];
 
-    // sparse Jacobian row init
-    rowadr[i] = (i > 0 ? rowadr[i-1] + rownnz[i-1] : 0);
-
     // process fixed tendon
     if (m->wrap_type[adr] == mjWRAP_JOINT) {
       // process all defined joints
@@ -960,11 +955,10 @@ void mj_tendon(const mjModel* m, mjData* d) {
         // add to length
         L[i] += m->wrap_prm[adr+j] * d->qpos[m->jnt_qposadr[k]];
 
-        // add to moment
-        rownnz[i] = mju_combineSparse(J+rowadr[i], &m->wrap_prm[adr+j], 1, 1,
-                                      rownnz[i], 1,
-                                      colind+rowadr[i], &m->jnt_dofadr[k],
-                                      sparse_buf, buf_ind);
+        mjtNum coef = 1;
+        int dofadr = m->jnt_dofadr[k];
+        mju_combineSparseInc(J + rowadr[i], &coef, m->nv, 1, m->wrap_prm[adr+j],
+                             rownnz[i], 1, colind + rowadr[i], &dofadr);
       }
 
       continue;
@@ -1059,9 +1053,9 @@ void mj_tendon(const mjModel* m, mjData* d) {
           mju_mulMatTVec(tmp, jacdif, dif, 3, NV);
 
           // add to existing
-          rownnz[i] = mju_combineSparse(J+rowadr[i], tmp, 1, 1/divisor,
-                                        rownnz[i], NV, colind+rowadr[i],
-                                        chain, sparse_buf, buf_ind);
+          mju_combineSparseInc(J+rowadr[i], tmp, nv, 1, 1/divisor,
+                              rownnz[i], NV, colind+rowadr[i],
+                              chain);
         }
       }
 
@@ -1419,10 +1413,10 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
       // moment
       {
-        int ten_J_rownnz = d->ten_J_rownnz[id];
-        int ten_J_rowadr = d->ten_J_rowadr[id];
+        int ten_J_rownnz = m->ten_J_rownnz[id];
+        int ten_J_rowadr = m->ten_J_rowadr[id];
         rownnz[i] = ten_J_rownnz;
-        mju_copyInt(colind + adr, d->ten_J_colind + ten_J_rowadr, ten_J_rownnz);
+        mju_copyInt(colind + adr, m->ten_J_colind + ten_J_rowadr, ten_J_rownnz);
 
         mju_scl(moment + adr, d->ten_J + ten_J_rowadr, gear[0], ten_J_rownnz);
       }
@@ -1717,9 +1711,9 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
     }
 
     // get sparse info for tendon k
-    int J_rowadr = d->ten_J_rowadr[k];
-    int J_rownnz = d->ten_J_rownnz[k];
-    const int* J_colind = d->ten_J_colind + J_rowadr;
+    int J_rowadr = m->ten_J_rowadr[k];
+    int J_rownnz = m->ten_J_rownnz[k];
+    const int* J_colind = m->ten_J_colind + J_rowadr;
     mjtNum* ten_J = d->ten_J + J_rowadr;
 
     // M += armature * ten_J' * ten_J
@@ -2649,9 +2643,9 @@ void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
 
     if (coef) {
       // sparse
-      int nnz = d->ten_J_rownnz[i];
-      int adr = d->ten_J_rowadr[i];
-      const int* colind = d->ten_J_colind + adr;
+      int nnz = m->ten_J_rownnz[i];
+      int adr = m->ten_J_rowadr[i];
+      const int* colind = m->ten_J_colind + adr;
       const mjtNum* ten_J = d->ten_J + adr;
       for (int j=0; j < nnz; j++) {
         qfrc[colind[j]] += coef * ten_J[j];

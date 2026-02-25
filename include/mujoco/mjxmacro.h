@@ -215,6 +215,7 @@
     X( nexclude )           \
     X( neq )                \
     X( ntendon )            \
+    X( nJten )              \
     X( nwrap )              \
     X( nsensor )            \
     X( nnumeric )           \
@@ -239,7 +240,6 @@
     X( npaths )             \
     X( nnames_map )         \
     X( nJmom )              \
-    X( nJten )              \
     X( ngravcomp )          \
     X( nemax )              \
     X( njmax )              \
@@ -629,6 +629,9 @@
     X   ( int,     tendon_group,          ntendon,       1                    ) \
     X   ( int,     tendon_treenum,        ntendon,       1                    ) \
     X   ( int,     tendon_treeid,         ntendon,       2                    ) \
+    X   ( int,     ten_J_rownnz,          ntendon,       1                    ) \
+    X   ( int,     ten_J_rowadr,          ntendon,       1                    ) \
+    X   ( int,     ten_J_colind,          nJten,         1                    ) \
     X   ( mjtByte, tendon_limited,        ntendon,       1                    ) \
     X   ( mjtByte, tendon_actfrclimited,  ntendon,       1                    ) \
     X   ( mjtNum,  tendon_width,          ntendon,       1                    ) \
@@ -848,9 +851,6 @@
     X   ( mjtNum,    bvh_aabb_dyn,      nbvhdynamic, 6           ) \
     X   ( int,       ten_wrapadr,       ntendon,     1           ) \
     X   ( int,       ten_wrapnum,       ntendon,     1           ) \
-    X   ( int,       ten_J_rownnz,      ntendon,     1           ) \
-    X   ( int,       ten_J_rowadr,      ntendon,     1           ) \
-    X   ( int,       ten_J_colind,      nJten,       1           ) \
     X   ( mjtNum,    ten_J,             nJten,       1           ) \
     X   ( mjtNum,    ten_length,        ntendon,     1           ) \
     X   ( int,       wrap_obj,          nwrap,       2           ) \

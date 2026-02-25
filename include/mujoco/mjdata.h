@@ -323,9 +323,6 @@ struct mjData_ {
   // computed by mj_fwdPosition/mj_tendon
   int*    ten_wrapadr;       // start address of tendon's path                   (ntendon x 1)
   int*    ten_wrapnum;       // number of wrap points in path                    (ntendon x 1)
-  int*    ten_J_rownnz;      // number of non-zeros in Jacobian row              (ntendon x 1)
-  int*    ten_J_rowadr;      // row start address in colind array                (ntendon x 1)
-  int*    ten_J_colind;      // column indices in sparse Jacobian                (nJten x 1)
   mjtNum* ten_J;             // tendon Jacobian                                  (nJten x 1)
   mjtNum* ten_length;        // tendon lengths                                   (ntendon x 1)
   int*    wrap_obj;          // geom id; -1: site; -2: pulley                    (nwrap x 2)

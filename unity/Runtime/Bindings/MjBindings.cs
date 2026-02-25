@@ -4994,9 +4994,6 @@ public unsafe struct mjData_ {
   public double* bvh_aabb_dyn;
   public int* ten_wrapadr;
   public int* ten_wrapnum;
-  public int* ten_J_rownnz;
-  public int* ten_J_rowadr;
-  public int* ten_J_colind;
   public double* ten_J;
   public double* ten_length;
   public int* wrap_obj;
@@ -5347,6 +5344,7 @@ public unsafe struct mjModel_ {
   public Int64 nexclude;
   public Int64 neq;
   public Int64 ntendon;
+  public Int64 nJten;
   public Int64 nwrap;
   public Int64 nsensor;
   public Int64 nnumeric;
@@ -5371,7 +5369,6 @@ public unsafe struct mjModel_ {
   public Int64 npaths;
   public Int64 nnames_map;
   public Int64 nJmom;
-  public Int64 nJten;
   public Int64 ngravcomp;
   public Int64 nemax;
   public Int64 njmax;
@@ -5712,6 +5709,9 @@ public unsafe struct mjModel_ {
   public int* tendon_group;
   public int* tendon_treenum;
   public int* tendon_treeid;
+  public int* ten_J_rownnz;
+  public int* ten_J_rowadr;
+  public int* ten_J_colind;
   public byte* tendon_limited;
   public byte* tendon_actfrclimited;
   public double* tendon_width;

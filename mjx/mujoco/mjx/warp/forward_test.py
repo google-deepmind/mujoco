@@ -153,9 +153,9 @@ class ForwardTest(parameterized.TestCase):
       mujoco.mju_sparse2dense(
           ten_J,
           d.ten_J,
-          d.ten_J_rownnz,
-          d.ten_J_rowadr,
-          d.ten_J_colind,
+          m.ten_J_rownnz,
+          m.ten_J_rowadr,
+          m.ten_J_colind,
       )
       tu.assert_eq(dx._impl.ten_J, ten_J, 'ten_J')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapadr')
