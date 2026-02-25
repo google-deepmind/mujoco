@@ -1777,6 +1777,9 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("ImPlot Demo")) {
         tmp_.implot_demo = !tmp_.implot_demo;
       }
+      ImGui::Separator();
+      std::string version = "Version " + std::string(mj_versionString());
+      ImGui::MenuItem(version.c_str());
       ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();
