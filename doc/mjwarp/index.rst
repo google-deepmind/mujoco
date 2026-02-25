@@ -489,7 +489,7 @@ Key features:
   `Warp's BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__.
 
 Basic Usage
------------
+----------
 
 Rendering or raycasting requires a :class:`mjw.RenderContext <mujoco_warp.RenderContext>` which contains BVH structures,
 rendering specific fields, and output buffers.
@@ -825,3 +825,80 @@ Additional MJWarp-only options are available:
 
   A new :ref:`graph capture <mjwGC>` may be necessary after modifying an :class:`mjw.Option <mujoco_warp.Option>` field
   in order for the updated setting to take effect.
+
+SDF plugins
+-----------
+
+SDF collisions support plugins. The following example for
+`plugin/sdf/bowl.xml <https://github.com/google-deepmind/mujoco/blob/main/model/plugin/sdf/bowl.xml>`__ illustrates how to implement the
+SDF plugin implementation in `bowl.cc <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/bowl.cc>`__:
+
+.. code-block:: python
+
+  import mujoco_warp as mjw
+  import warp as wp
+
+  # distance function
+  @wp.func
+  def bowl(p: wp.vec3, attr: wp.vec3) -> float:
+    """Signed distance function for a bowl shape.
+
+    attr[0] = height
+    attr[1] = radius
+    attr[2] = thickness
+    """
+    height = attr[0]
+    radius = attr[1]
+    thick = attr[2]
+    width = wp.sqrt(radius * radius - height * height)
+
+    # q = (norm_xy(p), p.z)
+    q0 = wp.sqrt(p[0] * p[0] + p[1] * p[1])
+    q1 = p[2]
+
+    # qdiff = q - (width, height)
+    qdiff0 = q0 - width
+    qdiff1 = q1 - height
+
+    if height * q0 < width * q1:
+      dist = wp.sqrt(qdiff0 * qdiff0 + qdiff1 * qdiff1)
+    else:
+      q_norm = wp.sqrt(q0 * q0 + q1 * q1)
+      dist = wp.abs(q_norm - radius)
+
+    return dist - thick
+
+
+  # gradient of distance function
+  @wp.func
+  def bowl_sdf_grad(p: wp.vec3, attr: wp.vec3) -> wp.vec3:
+    """Gradient of bowl SDF via finite differences."""
+    eps = float(1e-6)
+    f0 = bowl(p, attr)
+
+    px = wp.vec3(p[0] + eps, p[1], p[2])
+    py = wp.vec3(p[0], p[1] + eps, p[2])
+    pz = wp.vec3(p[0], p[1], p[2] + eps)
+
+    grad = wp.vec3(
+      (bowl(px, attr) - f0) / eps,
+      (bowl(py, attr) - f0) / eps,
+      (bowl(pz, attr) - f0) / eps,
+    )
+    return grad
+
+
+  # register the bowl SDF plugin
+  @wp.func
+  def user_sdf(p: wp.vec3, attr: wp.vec3, sdf_type: int) -> float:
+    return bowl(p, attr)
+
+
+  @wp.func
+  def user_sdf_grad(p: wp.vec3, attr: wp.vec3, sdf_type: int) -> wp.vec3:
+    return bowl_sdf_grad(p, attr)
+
+
+  # override the module-level hooks
+  mjw._src.collision_sdf.user_sdf = user_sdf
+  mjw._src.collision_sdf.user_sdf_grad = user_sdf_grad
