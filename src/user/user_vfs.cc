@@ -130,8 +130,8 @@ VFS::VFS(mjVFS* vfs) : self_(vfs) {
 VFS::~VFS() {
   if (!open_resources_.empty()) {
     mju_warning(
-        "VFS destroyed with %zu open resources. Resources will be invalidated.",
-        open_resources_.size());
+        "VFS destroyed with %llu open resources. Resources will be invalidated.",
+        (unsigned long long)open_resources_.size());
   }
   for (auto& [ptr, res] : open_resources_) {
     if (res->provider->close) {
