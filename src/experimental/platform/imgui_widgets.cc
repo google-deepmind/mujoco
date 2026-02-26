@@ -62,12 +62,17 @@ KeyValues ReadIniSection(const std::string& contents,
 }
 
 ImGui_DataPtrTable::ImGui_DataPtrTable(float w1, float w2) {
-  ImGui::BeginTable("##PropertiesTable", 2);
+  ImGui::BeginTable("##PropertiesTable", 2,
+                    ImGuiTableFlags_RowBg);
   const float width = ImGui::GetContentRegionAvail().x;
   ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w1);
   ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, width * w2);
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3.0f, 0.0f));
 }
-ImGui_DataPtrTable::~ImGui_DataPtrTable() { ImGui::EndTable(); }
+ImGui_DataPtrTable::~ImGui_DataPtrTable() {
+  ImGui::PopStyleVar();
+  ImGui::EndTable();
+}
 
 void ImGui_DataPtrTable::SetPrefix(const char* prefix) {
   prefix_ = strlen(prefix);
@@ -206,44 +211,50 @@ void ImGui_DataPtrTable::MakeLabel(const char* label, int index, int total) {
 }
 
 void ImGui_SpecElementTable::operator()(const char* label, mjtByte& val,
+                                        const mjtByte& ref,
                                         const char* tooltip) {
-  MakeLabel(label);
-  ImGui::SetItemTooltip("%s", tooltip);
-  ImGui::Text("%s", val ? "true" : "false");
+  Label(label, tooltip);
+  Input(val, ref);
 }
 
 void ImGui_SpecElementTable::operator()(const char* label, mjtSize& val,
+                                        const mjtSize& ref,
                                         const char* tooltip) {
-  Scalar(label, val, tooltip);
+  Label(label, tooltip);
+  Input(val, ref);
 }
 
 void ImGui_SpecElementTable::operator()(const char* label, int& val,
-                                        const char* tooltip) {
-  Scalar(label, val, tooltip);
+                                        const int& ref, const char* tooltip) {
+  Label(label, tooltip);
+  Input(val, ref);
 }
 
 void ImGui_SpecElementTable::operator()(const char* label, float& val,
-                                        const char* tooltip) {
-  Scalar(label, val, tooltip);
+                                        const float& ref, const char* tooltip) {
+  Label(label, tooltip);
+  Input(val, ref);
 }
 
 void ImGui_SpecElementTable::operator()(const char* label, double& val,
+                                        const double& ref,
                                         const char* tooltip) {
-  Scalar(label, val, tooltip);
+  Label(label, tooltip);
+  Input(val, ref);
 }
 
 void ImGui_SpecElementTable::operator()(const char* label, std::string* ptr,
+                                        const std::string* ref,
                                         const char* tooltip) {
-  MakeLabel(label);
-  ImGui::SetItemTooltip("%s", tooltip);
-  ImGui::Text("%s", ptr ? ptr->c_str() : "");
+  Label(label, tooltip);
+  Input(*ptr, *ref);
 }
 
 void ImGui_SpecElementTable::operator()(const char* label,
                                         std::vector<int>* ptr,
+                                        const std::vector<int>* ref,
                                         const char* tooltip) {
-  MakeLabel(label);
-  ImGui::SetItemTooltip("%s", tooltip);
+  Label(label, tooltip);
   if (ptr == nullptr || ptr->empty()) {
     ImGui::Text("[empty]");
   } else {
@@ -253,9 +264,9 @@ void ImGui_SpecElementTable::operator()(const char* label,
 
 void ImGui_SpecElementTable::operator()(const char* label,
                                         std::vector<double>* ptr,
+                                        const std::vector<double>* ref,
                                         const char* tooltip) {
-  MakeLabel(label);
-  ImGui::SetItemTooltip("%s", tooltip);
+  Label(label, tooltip);
   if (ptr == nullptr || ptr->empty()) {
     ImGui::Text("[empty]");
   } else {
@@ -265,39 +276,47 @@ void ImGui_SpecElementTable::operator()(const char* label,
 
 void ImGui_SpecElementTable::operator()(const char* label,
                                         std::vector<std::string>* ptr,
+                                        const std::vector<std::string>* ref,
                                         const char* tooltip) {
   for (int i = 0; i < ptr->size(); ++i) {
-    MakeLabel(label, i, ptr->size());
-    ImGui::SetItemTooltip("%s", tooltip);
-    ImGui::Text("%s", ptr->at(i).c_str());
+    Label(label, tooltip, i, ptr->size());
+    Input(ptr->at(i));
   }
 }
 
-void ImGui_SpecElementTable::operator()(const char* name, double (&quat)[4],
-                                        const char* alt,
-                                        mjsOrientation& orientation,
+void ImGui_SpecElementTable::operator()(const char* name, const char* alt_name,
+                                        double (&quat)[4],
+                                        const double (&ref_quat)[4],
+                                        mjsOrientation& alt,
+                                        const mjsOrientation& ref_alt,
                                         const char* tooltip) {
-  auto alt_name = [&](const char* label) {
-    return std::string(alt) + "." + label;
+  auto aname = [&](const char* label) {
+    return std::string(alt_name) + "." + label;
   };
 
-  switch (orientation.type) {
+  switch (alt.type) {
     case mjORIENTATION_QUAT:
-      (*this)(name, quat, tooltip);
+      (*this)(name, quat, ref_quat, tooltip);
       break;
     case mjORIENTATION_AXISANGLE:
-      (*this)(alt_name("axisangle").c_str(), orientation.axisangle, tooltip);
+      (*this)(aname("axisangle").c_str(), alt.axisangle, ref_alt.axisangle, tooltip);
       break;
     case mjORIENTATION_XYAXES:
-      (*this)(alt_name("xyaxes").c_str(), orientation.xyaxes, tooltip);
+      (*this)(aname("xyaxes").c_str(), alt.xyaxes, ref_alt.xyaxes, tooltip);
       break;
     case mjORIENTATION_ZAXIS:
-      (*this)(alt_name("zaxis").c_str(), orientation.zaxis, tooltip);
+      (*this)(aname("zaxis").c_str(), alt.zaxis, ref_alt.zaxis, tooltip);
       break;
     case mjORIENTATION_EULER:
-      (*this)(alt_name("euler").c_str(), orientation.euler, tooltip);
+      (*this)(aname("euler").c_str(), alt.euler, ref_alt.euler, tooltip);
       break;
   }
+}
+
+void ImGui_SpecElementTable::Label(const char* label, const char* tooltip,
+                                   int i, int n) {
+  MakeLabel(label, i, n);
+  ImGui::SetItemTooltip("%s", tooltip);
 }
 
 bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
@@ -307,6 +326,53 @@ bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
     *value = f;
   }
   return res;
+}
+
+
+bool ImGui_BeginHSplit(const char* id, float* height, bool* open) {
+  const ImVec2 region = ImGui::GetContentRegionAvail();
+  if (*height < 0) {
+    *height = region.y / 2;
+  }
+  // If the split is closed, use the full region height.
+  const float h = *open ? *height : region.y;
+  return ImGui::BeginChild(id, ImVec2(0, h), 0);
+}
+
+bool ImGui_HSplit(const char* id, float* height, bool* open) {
+  // End the parent child.
+  ImGui::EndChild();
+
+  const ImVec2 region = ImGui::GetContentRegionAvail();
+  if (*open) {
+    // Just to make the splitter bar centered.
+    ImGui::InvisibleButton("##empty", ImVec2(10.0f, 8.0f));
+
+    // The splitter bar; drag to change the height.
+    ImGui::SameLine();
+    ImGui::Button(id, ImVec2(region.x - 30.0f, 8.0f));
+    if (ImGui::IsItemActive()) {
+      *height += ImGui::GetIO().MouseDelta.y;
+      if (*height < 0) *height = 0;
+    }
+
+    // The collapse button.
+    ImGui::SameLine();
+    if (ImGui::Button("x", ImVec2(10.0f, 8.0f))) {
+      *open = false;
+    }
+  }
+  if (*open) {
+    return ImGui::BeginChild(id, ImVec2(region.x, 0), 1);
+  } else {
+    return false;
+  }
+}
+
+void ImGui_EndHSplit(bool open) {
+  if (open) {
+    ImGui::EndChild();
+  }
 }
 
 void MaybeSaveToClipboard(const std::string& contents) {

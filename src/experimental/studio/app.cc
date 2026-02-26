@@ -67,6 +67,7 @@ static void SelectParentPerturb(const mjModel* model, mjvPerturb& perturb) {
       perturb.active = 0;
     }
   }
+  // TODO: update selected element!
 }
 
 static constexpr const char* ICON_PLAY = platform::ICON_FA_PLAY;
@@ -86,7 +87,9 @@ static constexpr const char* ICON_PREV_FRAME = platform::ICON_FA_CARET_LEFT;
 static constexpr const char* ICON_NEXT_FRAME = platform::ICON_FA_CARET_RIGHT;
 static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
 static constexpr const char* ICON_SPEED = platform::ICON_FA_TACHOMETER;
-static constexpr const char* ICON_DELETE = platform::ICON_FA_TRASH_CAN;
+static constexpr const char* ICON_RELOAD_SPEC = platform::ICON_FA_REFRESH;
+static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
+static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
 // UI labels for mjtLabel.
 static constexpr const char* kLabelNames[] = {
@@ -200,6 +203,9 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   renderer_->Init(model);
   const int state_size = mj_stateSize(model, mjSTATE_INTEGRATION);
   history_.Init(state_size);
+
+  // Create a copy of the spec for editing.
+  CopyLoadedSpecForEditing();
 
   if (!preserve_camera_on_load_) {
     const int model_cam = model->vis.global.cameraid;
@@ -422,44 +428,54 @@ void App::ProcessPendingLoads() {
   });
 }
 
-void App::SpecSelectElement(mjsElement* element) {
-  tmp_.element = element;
-  if (tmp_.element == nullptr) {
-    tmp_.element_id = -1;
-  } else {
-    tmp_.element_id = mjs_getId(tmp_.element);
+void App::CopyLoadedSpecForEditing() {
+  if (scratch_spec_ != nullptr) {
+    mj_deleteSpec(scratch_spec_);
+    scratch_spec_ = nullptr;
+  }
 
-    // If we selected a body, then select the same body for perturb.
-    if (tmp_.element->elemtype == mjOBJ_BODY &&
-        perturb_.select != tmp_.element_id) {
-      mjv_defaultPerturb(&perturb_);
-      perturb_.select = tmp_.element_id;
-    }
-  }
-}
+  scratch_spec_modified_ = false;
+  tmp_.curr_edit_element = nullptr;
 
-void App::SpecDeleteElement(mjsElement* element) {
-  if (element == nullptr) {
-    return;
-  }
-  // Only bodies can be deleted for now...
-  if (element->elemtype != mjOBJ_BODY) {
-    edit_error_ = "WARNING: Only bodies can be deleted (for now...)";
-    return;
-  }
-  spec_op_ = [this, element]() {
-    mjs_delete(spec(), element);
-    if (tmp_.element == element) {
-      tmp_.element = nullptr;
-      tmp_.element_id = -1;
-    }
-    if (element->elemtype == mjOBJ_BODY) {
-      if (perturb_.select == mjs_getId(element)) {
-        mjv_defaultPerturb(&perturb_);
+  if (has_spec()) {
+    scratch_spec_ = mj_copySpec(spec());
+
+    auto add_ref_elements = [&](mjtObj type) {
+      mjsElement* elem = mjs_firstElement(spec(), type);
+      mjsElement* scratch = mjs_firstElement(scratch_spec_, type);
+      while (elem != nullptr && scratch != nullptr) {
+        scratch_to_spec_[scratch] = elem;
+        spec_to_scratch_[elem] = scratch;
+        elem = mjs_nextElement(spec(), elem);
+        scratch = mjs_nextElement(scratch_spec_, scratch);
       }
-    }
-    Recompile();
-  };
+    };
+    add_ref_elements(mjOBJ_BODY);
+    add_ref_elements(mjOBJ_XBODY);
+    add_ref_elements(mjOBJ_JOINT);
+    add_ref_elements(mjOBJ_DOF);
+    add_ref_elements(mjOBJ_GEOM);
+    add_ref_elements(mjOBJ_SITE);
+    add_ref_elements(mjOBJ_CAMERA);
+    add_ref_elements(mjOBJ_LIGHT);
+    add_ref_elements(mjOBJ_FLEX);
+    add_ref_elements(mjOBJ_MESH);
+    add_ref_elements(mjOBJ_SKIN);
+    add_ref_elements(mjOBJ_HFIELD);
+    add_ref_elements(mjOBJ_TEXTURE);
+    add_ref_elements(mjOBJ_MATERIAL);
+    add_ref_elements(mjOBJ_PAIR);
+    add_ref_elements(mjOBJ_EXCLUDE);
+    add_ref_elements(mjOBJ_EQUALITY);
+    add_ref_elements(mjOBJ_TENDON);
+    add_ref_elements(mjOBJ_ACTUATOR);
+    add_ref_elements(mjOBJ_SENSOR);
+    add_ref_elements(mjOBJ_NUMERIC);
+    add_ref_elements(mjOBJ_TEXT);
+    add_ref_elements(mjOBJ_TUPLE);
+    add_ref_elements(mjOBJ_KEY);
+    add_ref_elements(mjOBJ_PLUGIN);
+  }
 }
 
 void App::HandleWindowEvents() {
@@ -555,14 +571,12 @@ void App::HandleMouseEvents() {
       perturb_.skinselect = picked.skin;
 
       // Select the corresponding element in the spec.
-      tmp_.element = nullptr;
-      tmp_.element_id = -1;
+      tmp_.curr_element = nullptr;
       if (has_spec()) {
         mjsElement* element = mjs_firstElement(spec(), mjOBJ_BODY);
         while (element) {
           if (mjs_getId(element) == picked.body) {
-            tmp_.element = element;
-            tmp_.element_id = picked.body;
+            tmp_.curr_element = element;
             break;
           }
           element = mjs_nextElement(spec(), element);
@@ -665,7 +679,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Backspace)) {
     ResetPhysics();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Delete)) {
-    SpecDeleteElement(tmp_.element);
+    // TODO: SpecDeleteElement(tmp_.curr_element);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_PageUp)) {
     SelectParentPerturb(model(), perturb_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
@@ -917,19 +931,15 @@ void App::BuildGui() {
     }
     ImGui::End();
 
-    bool explorer_is_open = false;
     if (ImGui::Begin("Explorer", &tmp_.inspector_panel)) {
-      explorer_is_open = true;
       SpecExplorerGui();
     }
     ImGui::End();
 
-    if (explorer_is_open && tmp_.element != nullptr) {
-      if (ImGui::Begin("Properties")) {
-        SpecPropertiesGui();
-      }
-      ImGui::End();
+    if (ImGui::Begin("Editor", &tmp_.inspector_panel)) {
+      SpecEditorGui();
     }
+    ImGui::End();
   }
 
   if (tmp_.chart_performance) {
@@ -1165,56 +1175,196 @@ void App::SpecExplorerGui() {
     return;
   }
 
-  auto on_delete = [this](mjsElement* element) { SpecDeleteElement(element); };
-
-  mjsElement* element = tmp_.element;
-  platform::SpecExplorerGui(&element, spec(), on_delete);
-  if (element != tmp_.element) {
-    SpecSelectElement(element);
+  // Initialize the split height.
+  const ImVec2 region = ImGui::GetContentRegionAvail();
+  if (tmp_.explorer_split < 0) {
+    tmp_.explorer_split = region.y * 0.7f;
   }
+  tmp_.explorer_split = std::clamp(tmp_.explorer_split, 20.f, region.y - 40.f);
+
+  mjsElement* element = tmp_.curr_element;
+  bool open = element != nullptr;
+  if (platform::ImGui_BeginHSplit("SpecExplorerTree",
+                                  &tmp_.explorer_split, &open)) {
+    platform::SpecTreeGui(&element, spec(), SpecEditMode::kPlay);
+
+    if (element != tmp_.curr_element) {
+      tmp_.curr_element = element;
+
+      // A different element was selected, so select it for perturb.
+      if (element) {
+        open = true;
+        const int element_id = mjs_getId(element);
+        if (element->elemtype == mjOBJ_BODY && perturb_.select != element_id) {
+          mjv_defaultPerturb(&perturb_);
+          perturb_.select = element_id;
+        }
+      }
+    }
+
+    if (platform::ImGui_HSplit("SpecExplorerProperties",
+                               &tmp_.explorer_split, &open)) {
+      platform::ScopedStyle style;
+
+      ImGui::Text("%s", mju_type2Str(tmp_.curr_element->elemtype));
+      ImGui::SameLine();
+      ImGui::Text("(%d)", mjs_getId(tmp_.curr_element));
+      ImGui::SameLine(ImGui::GetContentRegionAvail().x - 100.0f);
+
+      if (tmp_.spec_prop_mode == SpecPropertiesMode::kSpec) {
+        style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
+      }
+      style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+      if (ImGui::Button("S", ImVec2(24.0f, 20.0f))) {
+        tmp_.spec_prop_mode = SpecPropertiesMode::kSpec;
+      }
+      ImGui::SetItemTooltip("Spec");
+      style.Reset();
+
+      ImGui::SameLine();
+
+      if (tmp_.spec_prop_mode == SpecPropertiesMode::kModel) {
+        style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
+      }
+      style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+      if (ImGui::Button("M", ImVec2(24.0f, 20.0f))) {
+        tmp_.spec_prop_mode = SpecPropertiesMode::kModel;
+      }
+      ImGui::SetItemTooltip("Model");
+      style.Reset();
+
+      ImGui::SameLine();
+
+      if (tmp_.spec_prop_mode == SpecPropertiesMode::kData) {
+        style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
+      }
+      style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+      if (ImGui::Button("D", ImVec2(24.0f, 20.0f))) {
+        tmp_.spec_prop_mode = SpecPropertiesMode::kData;
+      }
+      ImGui::SetItemTooltip("Data");
+      style.Reset();
+      ImGui::Separator();
+
+      if (tmp_.spec_prop_mode == SpecPropertiesMode::kSpec) {
+        platform::ElementSpecGui(element, element, SpecEditMode::kPlay);
+      } else if (tmp_.spec_prop_mode == SpecPropertiesMode::kModel) {
+        platform::ElementModelGui(model(), tmp_.curr_element);
+      } else {
+        platform::ElementDataGui(data(), tmp_.curr_element);
+      }
+    }
+    if (!open) {
+      tmp_.curr_element = nullptr;
+    }
+  }
+  platform::ImGui_EndHSplit(open);
 }
 
-void App::SpecPropertiesGui() {
-  platform::ScopedStyle style;
+void App::SpecEditorGui() {
+  if (ImGui::BeginChild("SpecEditor", ImVec2(-1, 36))) {
+    if (ImGui::BeginTable("##SpecEditorHeader", 3)) {
+      ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+      ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 30.0f);
 
-  ImGui::Text("%s", mju_type2Str(tmp_.element->elemtype));
-  ImGui::SameLine();
-  ImGui::Text("(%d)", tmp_.element_id);
+      ImGui::TableNextColumn();
+      if (ImGui::Button(ICON_RELOAD_SPEC)) {
+        CopyLoadedSpecForEditing();
+      }
+      ImGui::BeginDisabled(true);
+      ImGui::SameLine();
+      if (ImGui::Button(ICON_UNDO_SPEC)) {
+        // TODO...
+      }
+      ImGui::SameLine();
+      if (ImGui::Button(ICON_REDO_SPEC)) {
+        // TODO...
+      }
+      ImGui::EndDisabled();
 
-  ImGui::SameLine(120);
-  if (tmp_.spec_prop_mode == SpecPropertiesMode::kSpec) {
-    style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
+      ImGui::TableNextColumn();
+      ImGui::PushStyleColor(ImGuiCol_Button, ImColor(40, 180, 40, 255).Value);
+      if (ImGui::Button("Compile and Reload", ImVec2(-1, 0))) {
+        spec_op_ = [this]() {
+          model_holder_ = platform::ModelHolder::FromSpec(scratch_spec_);
+          scratch_spec_ = nullptr;
+          OnModelLoaded(model_name_, model_kind_);
+        };
+      }
+      ImGui::PopStyleColor();
+
+      ImGui::TableNextColumn();
+      if (ImGui::Button(" + ")) {
+        ImGui::OpenPopupOnItemClick("SpecAddElement", 0);
+      }
+      if (ImGui::BeginPopupContextItem("SpecAddElement")) {
+        auto option = [&](const char* label, auto fn) {
+          if (ImGui::Selectable(label)) {
+            tmp_.curr_edit_element = fn()->element;
+            mjs_setName(tmp_.curr_edit_element,
+                        platform::ElementName(tmp_.curr_edit_element).c_str());
+            scratch_spec_modified_ = true;
+          }
+        };
+        option("Actuator", [&]() { return mjs_addActuator(scratch_spec_, 0); });
+        option("Equality", [&]() { return mjs_addEquality(scratch_spec_, 0); });
+        option("Exclude", [&]() { return mjs_addExclude(scratch_spec_); });
+        option("Flex", [&]() { return mjs_addFlex(scratch_spec_); });
+        option("Height Field", [&]() { return mjs_addHField(scratch_spec_); });
+        option("Key", [&]() { return mjs_addKey(scratch_spec_); });
+        option("Material", [&]() { return mjs_addMaterial(scratch_spec_, 0); });
+        option("Mesh", [&]() { return mjs_addMesh(scratch_spec_, 0); });
+        option("Numeric", [&]() { return mjs_addNumeric(scratch_spec_); });
+        option("Pair", [&]() { return mjs_addPair(scratch_spec_, 0); });
+        option("Sensor", [&]() { return mjs_addSensor(scratch_spec_); });
+        option("Skin", [&]() { return mjs_addSkin(scratch_spec_); });
+        option("Tendon", [&]() { return mjs_addTendon(scratch_spec_, 0); });
+        option("Text", [&]() { return mjs_addText(scratch_spec_); });
+        option("Texture", [&]() { return mjs_addTexture(scratch_spec_); });
+        option("Tuple", [&]() { return mjs_addTuple(scratch_spec_); });
+        ImGui::EndPopup();
+      }
+
+      ImGui::EndTable();
+    }
   }
-  if (ImGui::SmallButton("S")) {
-    tmp_.spec_prop_mode = SpecPropertiesMode::kSpec;
+  ImGui::EndChild();
+
+  // Initialize the split height.
+  const ImVec2 region = ImGui::GetContentRegionAvail();
+  if (tmp_.editor_split < 0) {
+    tmp_.editor_split = region.y * 0.7f;
   }
-  ImGui::SetItemTooltip("Spec");
-  style.Reset();
-  ImGui::SameLine();
-  if (tmp_.spec_prop_mode == SpecPropertiesMode::kModel) {
-    style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
-  }
-  if (ImGui::SmallButton("M")) {
-    tmp_.spec_prop_mode = SpecPropertiesMode::kModel;
-  }
-  ImGui::SetItemTooltip("Model");
-  style.Reset();
-  ImGui::SameLine();
-  if (tmp_.spec_prop_mode == SpecPropertiesMode::kData) {
-    style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
-  }
-  if (ImGui::SmallButton("D")) {
-    tmp_.spec_prop_mode = SpecPropertiesMode::kData;
-  }
-  ImGui::SetItemTooltip("Data");
-  style.Reset();
-  ImGui::Separator();
-  if (tmp_.spec_prop_mode == SpecPropertiesMode::kSpec) {
-    platform::ElementSpecGui(spec(), tmp_.element);
-  } else if (tmp_.spec_prop_mode == SpecPropertiesMode::kModel) {
-    platform::ElementModelGui(model(), tmp_.element);
-  } else {
-    platform::ElementDataGui(data(), tmp_.element);
+  tmp_.editor_split = std::clamp(tmp_.editor_split, 20.0f, region.y - 40.0f);
+
+  bool open = tmp_.curr_edit_element != nullptr;
+  if (platform::ImGui_BeginHSplit("SpecEditorTree", &tmp_.editor_split,
+                                  &open)) {
+    if (platform::SpecTreeGui(&tmp_.curr_edit_element, scratch_spec_,
+                              SpecEditMode::kEdit)) {
+      scratch_spec_modified_ = true;
+    }
+    open = tmp_.curr_edit_element != nullptr;
+
+    if (platform::ImGui_HSplit("SpecEditorProperties", &tmp_.editor_split,
+                               &open)) {
+      ImGui::Text("%s", mju_type2Str(tmp_.curr_edit_element->elemtype));
+      ImGui::SameLine();
+      ImGui::Text("(%d)", mjs_getId(tmp_.curr_edit_element));
+      ImGui::Separator();
+
+      mjsElement* ref = scratch_to_spec_[tmp_.curr_edit_element];
+      if (platform::ElementSpecGui(tmp_.curr_edit_element, ref,
+                                   SpecEditMode::kEdit)) {
+        scratch_spec_modified_ = true;
+      }
+    }
+    platform::ImGui_EndHSplit(open);
+
+    if (!open) {
+      tmp_.curr_edit_element = nullptr;
+    }
   }
 }
 
@@ -1725,12 +1875,12 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
-      if (ImGui::MenuItem(tmp_.options_panel ? "Hide Options" : "Show Left UI",
+      if (ImGui::MenuItem(tmp_.options_panel ? "Hide Options" : "Show Options",
                           "Tab")) {
         tmp_.options_panel = !tmp_.options_panel;
       }
       if (ImGui::MenuItem(
-              tmp_.inspector_panel ? "Hide Inspector" : "Show Right UI",
+              tmp_.inspector_panel ? "Hide Inspector" : "Show Inspector",
               "Shift+Tab")) {
         tmp_.inspector_panel = !tmp_.inspector_panel;
       }

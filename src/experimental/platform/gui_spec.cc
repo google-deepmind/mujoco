@@ -63,7 +63,7 @@ static int GetElementIndexInSpec(mjsElement* element) {
 // Returns a name for the element; either the element has a name, or we
 // construct a unique name from the element's id (using mjs_getId) or index
 // (using GetElementIndexInSpec).
-static std::string ElementName(mjsElement* element) {
+std::string ElementName(mjsElement* element) {
   const mjString* name = mjs_getName(element);
   std::string label = *name;
   if (label.empty()) {
@@ -77,22 +77,51 @@ static std::string ElementName(mjsElement* element) {
   return label;
 }
 
-static void AddDeleteButton(mjsElement* element,
-                            const SpecElementCallbackFn& on_delete) {
-  if (on_delete) {
-    // Right-align the delete button.
-    const float button_width = ImGui::CalcTextSize(ICON_FA_TRASH_CAN).x +
-                               ImGui::GetStyle().FramePadding.x * 2.0f;
-    ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - button_width);
-    if (ImGui::SmallButton(ICON_FA_TRASH_CAN)) {
-      on_delete(element);
-    }
+static bool AddDeleteButton(mjsElement* element) {
+  // Right-align the delete button.
+  const float button_width = ImGui::CalcTextSize(ICON_FA_TRASH_CAN).x +
+                             ImGui::GetStyle().FramePadding.x * 2.0f;
+  ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - button_width);
+  if (ImGui::SmallButton(ICON_FA_TRASH_CAN)) {
+    mjs_delete(mjs_getSpec(element), element);
+    return true;
   }
+  return false;
 }
 
-static void SelectableElement(mjsElement* element,
+static bool AddBodyAddChildButton(mjsElement* element, mjsElement** selected_element) {
+  // Right-align the add button.
+  const float button_width = ImGui::CalcTextSize(ICON_FA_TRASH_CAN).x +
+                             ImGui::CalcTextSize(ICON_FA_PLUS).x +
+                             ImGui::GetStyle().FramePadding.x * 4.0f;
+  ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - button_width);
+  if (ImGui::SmallButton(ICON_FA_PLUS)) {
+    ImGui::OpenPopupOnItemClick("BodyAddChild", 0);
+  }
+  bool modified = false;
+  if (ImGui::BeginPopupContextItem("BodyAddChild")) {
+    mjsBody* body = mjs_asBody(element);
+    auto option = [&](const char* label, auto fn) {
+      if (ImGui::Selectable(label)) {
+        *selected_element = fn()->element;
+        mjs_setName(*selected_element, ElementName(*selected_element).c_str());
+        modified = true;
+      }
+    };
+    option("Camera", [&]() { return mjs_addCamera(body, nullptr); });
+    option("Frame", [&]() { return mjs_addFrame(body, nullptr); });
+    option("Geom", [&]() { return mjs_addGeom(body, nullptr); });
+    option("Joint", [&]() { return mjs_addJoint(body, nullptr); });
+    option("Light", [&]() { return mjs_addLight(body, nullptr); });
+    option("Site", [&]() { return mjs_addSite(body, nullptr); });
+    ImGui::EndPopup();
+  }
+  return modified;
+}
+
+static bool SelectableElement(mjsElement* element,
                               mjsElement** selected_element,
-                              const SpecElementCallbackFn& on_delete) {
+                              SpecEditMode mode) {
   constexpr ImGuiSelectableFlags flags = ImGuiSelectableFlags_AllowOverlap;
 
   const std::string name = ElementName(element);
@@ -100,51 +129,63 @@ static void SelectableElement(mjsElement* element,
   if (ImGui::Selectable(name.c_str(), selected, flags)) {
     *selected_element = element;
   }
-  if (selected) {
-    AddDeleteButton(element, on_delete);
+
+  bool modified = false;
+  if (selected && mode == SpecEditMode::kEdit) {
+    if (AddDeleteButton(element)) {
+      *selected_element = nullptr;
+      modified = true;
+    }
   }
+  return modified;
 }
 
-static void BodyChildrenGui(const char* heading, mjtObj type,
+static bool BodyChildrenGui(const char* heading, mjtObj type,
                             mjsElement** element, mjsBody* body,
-                            const SpecElementCallbackFn& on_delete) {
+                            SpecEditMode mode) {
   mjsElement* iter = mjs_firstChild(body, type, 0);
   if (!iter) {
-    return;
+    return false;
   }
 
+  bool modified = false;
   constexpr ImGuiTreeNodeFlags tree_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DrawLinesFull;
   if (ImGui::TreeNodeEx(heading, tree_flags)) {
     while (iter) {
-      SelectableElement(iter, element, on_delete);
-      iter = mjs_nextChild(body, iter, 0);
+      mjsElement* next = mjs_nextChild(body, iter, 0);
+      modified |= SelectableElement(iter, element, mode);
+      iter = next;
     }
     ImGui::TreePop();
   }
+  return modified;
 }
 
-static void ElementListGui(const char* heading, mjtObj type,
+static bool ElementListGui(const char* heading, mjtObj type,
                            mjsElement** element, mjSpec* spec,
-                           const SpecElementCallbackFn& on_delete) {
+                           SpecEditMode mode) {
   mjsElement* iter = mjs_firstElement(spec, type);
   if (!iter) {
-    return;
+    return false;
   }
 
+  bool modified = false;
   constexpr ImGuiTreeNodeFlags tree_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
   if (ImGui::TreeNodeEx(heading, tree_flags)) {
     while (iter) {
-      SelectableElement(iter, element, on_delete);
-      iter = mjs_nextElement(spec, iter);
+      mjsElement* next = mjs_nextElement(spec, iter);
+      modified |= SelectableElement(iter, element, mode);
+      iter = next;
     }
     ImGui::TreePop();
   }
+  return modified;
 }
 
-static void BodyTreeGuiRecursive(mjsElement** element, mjsBody* body,
-                                 const SpecElementCallbackFn& on_delete) {
+static bool BodyTreeGuiRecursive(mjsElement** element, mjsBody* body,
+                                 SpecEditMode mode) {
   const std::string label = ElementName(body->element);
 
   ImGui::PushID(body);
@@ -157,52 +198,61 @@ static void BodyTreeGuiRecursive(mjsElement** element, mjsBody* body,
     flags |= ImGuiTreeNodeFlags_Selected;
   }
 
+  bool modified = false;
   const bool tree_open = ImGui::TreeNodeEx(label.c_str(), flags);
   if (ImGui::IsItemClicked()) {
     *element = body->element;
   }
-  if (*element == body->element) {
-    AddDeleteButton(body->element, on_delete);
+  if (*element == body->element && mode == SpecEditMode::kEdit) {
+    modified |= AddBodyAddChildButton(body->element, element);
+    modified |= AddDeleteButton(body->element);
   }
 
   if (tree_open) {
     mjsElement* iter = mjs_firstChild(body, mjOBJ_BODY, 0);
     while (iter) {
-      BodyTreeGuiRecursive(element, mjs_asBody(iter), on_delete);
-      iter = mjs_nextChild(body, iter, 0);
+      mjsElement* next = mjs_nextChild(body, iter, 0);
+      modified |= BodyTreeGuiRecursive(element, mjs_asBody(iter), mode);
+      iter = next;
     }
 
-    BodyChildrenGui("Frames", mjOBJ_FRAME, element, body, on_delete);
-    BodyChildrenGui("Sites", mjOBJ_SITE, element, body, on_delete);
-    BodyChildrenGui("Joints", mjOBJ_JOINT, element, body, on_delete);
-    BodyChildrenGui("Geoms", mjOBJ_GEOM, element, body, on_delete);
-    BodyChildrenGui("Lights", mjOBJ_LIGHT, element, body, on_delete);
-    BodyChildrenGui("Cameras", mjOBJ_CAMERA, element, body, on_delete);
+    modified |= BodyChildrenGui("Frames", mjOBJ_FRAME, element, body, mode);
+    modified |= BodyChildrenGui("Sites", mjOBJ_SITE, element, body, mode);
+    modified |= BodyChildrenGui("Joints", mjOBJ_JOINT, element, body, mode);
+    modified |= BodyChildrenGui("Geoms", mjOBJ_GEOM, element, body, mode);
+    modified |= BodyChildrenGui("Lights", mjOBJ_LIGHT, element, body, mode);
+    modified |= BodyChildrenGui("Cameras", mjOBJ_CAMERA, element, body, mode);
 
     ImGui::TreePop();
   }
 
   ImGui::PopID();
+  return modified;
 }
 
-void SpecExplorerGui(mjsElement** element, mjSpec* spec,
-                     const SpecElementCallbackFn& on_delete) {
+bool SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditMode mode) {
+  bool modified = false;
   const ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
+
+  ScopedStyle style;
+  style.Var(ImGuiStyleVar_ItemSpacing, ImVec2(4, 2));
+  style.Var(ImGuiStyleVar_FramePadding, ImVec2(4, 0));
+  style.Color(ImGuiCol_Border, ImGuiCol_WindowBg);
 
   if (ImGui::TreeNodeEx("Body Tree", flags)) {
     mjsElement* root = mjs_firstElement(spec, mjOBJ_BODY);
     if (root) {
       mjsBody* body = mjs_asBody(root);
       if (body) {
-        BodyTreeGuiRecursive(element, body, on_delete);
+        modified |= BodyTreeGuiRecursive(element, body, mode);
       }
     }
     ImGui::TreePop();
   }
 
   auto list = [&](const char* heading, mjtObj type) {
-    ElementListGui(heading, type, element, spec, on_delete);
+    modified |= ElementListGui(heading, type, element, spec, mode);
   };
 
   ImGui::PushID(spec);
@@ -235,412 +285,447 @@ void SpecExplorerGui(mjsElement** element, mjSpec* spec,
   }
 
   ImGui::PopID();
+  return modified;
 }
 
-void ElementSpecGui(const mjSpec* spec, mjsElement* element) {
+bool ElementSpecGui(mjsElement* element, mjsElement* ref_element,
+                    SpecEditMode mode) {
   if (element == nullptr) {
-    return;
+    return false;
+  }
+  if (ref_element == nullptr) {
+    ref_element = element;
   }
 
-  ImGui_SpecElementTable table;
+  #define FIELD(NAME, TIP) table(#NAME, elem->NAME, ref->NAME, TIP);
+  #define QFIELD(NAME, ALT, TIP) table(#NAME, #ALT, elem->NAME, ref->NAME, elem->ALT, ref->ALT, TIP);
+
+  ImGui_SpecElementTable table(mode == SpecEditMode::kPlay);
   switch (element->elemtype) {
     case mjOBJ_BODY: {
-      mjsBody* body = mjs_asBody(element);
-      table("childclass", body->childclass, "childclass name");
-      table("pos", body->pos, "frame position");
-      table("quat", body->quat, "alt", body->alt, "frame orientation");
-      table("ipos", body->ipos, "inertial frame position");
-      table("iquat", body->iquat, "ialt", body->ialt, "inertial frame orientation");
-      table("mass", body->mass, "mass");
-      table("inertia", body->inertia, "diagonal inertia (in i-frame)");
-      table("fullinertia", body->fullinertia, "non-axis-aligned inertia matrix");
-      table("mocap", body->mocap, "is this a mocap body");
-      table("gravcomp", body->gravcomp, "gravity compensation");
-      table("explicitinertial", body->explicitinertial, "whether to save the body with explicit inertial clause");
-      table("sleep", body->sleep, "sleep policy");
-      table("info", body->info, "message appended to compiler errors");
+      mjsBody* elem = mjs_asBody(element);
+      mjsBody* ref = mjs_asBody(ref_element);
+      FIELD(childclass, "childclass name");
+      FIELD(pos, "frame position");
+      QFIELD(quat, alt, "frame orientation");
+      FIELD(ipos, "inertial frame position");
+      QFIELD(iquat, ialt, "inertial frame orientation");
+      FIELD(mass, "mass");
+      FIELD(inertia, "diagonal inertia (in i-frame)");
+      FIELD(fullinertia, "non-axis-aligned inertia matrix");
+      FIELD(mocap, "is this a mocap body");
+      FIELD(gravcomp, "gravity compensation");
+      FIELD(explicitinertial, "whether to save the body with explicit inertial clause");
+      FIELD(sleep, "sleep policy");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_JOINT: {
-      mjsJoint* joint = mjs_asJoint(element);
-      table("pos", joint->pos, "anchor position");
-      table("axis", joint->axis, "joint axis");
-      table("ref", joint->ref, "value at reference configuration: qpos0");
-      table("align", joint->align, "align free joint with body com (mjtAlignFree)");
-      table("stiffness", joint->stiffness, "stiffness coefficient");
-      table("springref", joint->springref, "spring reference value: qpos_spring");
-      table("springdamper", joint->springdamper, "timeconst, dampratio");
-      table("limited", joint->limited, "does joint have limits (mjtLimited)");
-      table("range", joint->range, "joint limits");
-      table("margin", joint->margin, "margin value for joint limit detection");
-      table("solref_limit", joint->solref_limit, "solver reference: joint limits");
-      table("solimp_limit", joint->solimp_limit, "solver impedance: joint limits");
-      table("actfrclimited", joint->actfrclimited, "are actuator forces on joint limited (mjtLimited)");
-      table("actfrcrange", joint->actfrcrange, "actuator force limits");
-      table("armature", joint->armature, "armature inertia (mass for slider)");
-      table("damping", joint->damping, "damping coefficient");
-      table("frictionloss", joint->frictionloss, "friction loss");
-      table("solref_friction", joint->solref_friction, "solver reference: dof friction");
-      table("solimp_friction", joint->solimp_friction, "solver impedance: dof friction");
-      table("group", joint->group, "group");
-      table("actgravcomp", joint->actgravcomp, "is gravcomp force applied via actuators");
-      table("info", joint->info, "message appended to compiler errors");
+      mjsJoint* elem = mjs_asJoint(element);
+      mjsJoint* ref = mjs_asJoint(ref_element);
+      FIELD(pos, "anchor position");
+      FIELD(axis, "joint axis");
+      FIELD(ref, "value at reference configuration: qpos0");
+      FIELD(align, "align free joint with body com (mjtAlignFree)");
+      FIELD(stiffness, "stiffness coefficient");
+      FIELD(springref, "spring reference value: qpos_spring");
+      FIELD(springdamper, "timeconst, dampratio");
+      FIELD(limited, "does joint have limits (mjtLimited)");
+      FIELD(range, "joint limits");
+      FIELD(margin, "margin value for joint limit detection");
+      FIELD(solref_limit, "solver reference: joint limits");
+      FIELD(solimp_limit, "solver impedance: joint limits");
+      FIELD(actfrclimited, "are actuator forces on joint limited (mjtLimited)");
+      FIELD(actfrcrange, "actuator force limits");
+      FIELD(armature, "armature inertia (mass for slider)");
+      FIELD(damping, "damping coefficient");
+      FIELD(frictionloss, "friction loss");
+      FIELD(solref_friction, "solver reference: dof friction");
+      FIELD(solimp_friction, "solver impedance: dof friction");
+      FIELD(group, "group");
+      FIELD(actgravcomp, "is gravcomp force applied via actuators");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_ACTUATOR: {
-      mjsActuator* actuator = mjs_asActuator(element);
-      table("gaintype", actuator->gaintype, "gain type");
-      table("gainprm", actuator->gainprm, "gain parameters");
-      table("biastype", actuator->biastype, "bias type");
-      table("biasprm", actuator->biasprm, "bias parameters");
-      table("dyntype", actuator->dyntype, "dynamics type");
-      table("dynprm", actuator->dynprm, "dynamics parameters");
-      table("actdim", actuator->actdim, "number of activation variables");
-      table("actearly", actuator->actearly, "apply next activations to qfrc");
-      table("trntype", actuator->trntype, "transmission type");
-      table("gear", actuator->gear, "length and transmitted force scaling");
-      table("target", actuator->target, "name of transmission target");
-      table("refsite", actuator->refsite, "reference site, for site transmission");
-      table("slidersite", actuator->slidersite, "site defining cylinder, for slider-crank");
-      table("cranklength", actuator->cranklength, "crank length, for slider-crank");
-      table("lengthrange", actuator->lengthrange, "transmission length range");
-      table("inheritrange", actuator->inheritrange, "automatic range setting for position and intvelocity");
-      table("ctrllimited", actuator->ctrllimited, "are control limits defined (mjtLimited)");
-      table("ctrlrange", actuator->ctrlrange, "control range");
-      table("forcelimited", actuator->forcelimited, "are force limits defined (mjtLimited)");
-      table("forcerange", actuator->forcerange, "force range");
-      table("actlimited", actuator->actlimited, "are activation limits defined (mjtLimited)");
-      table("actrange", actuator->actrange, "activation range");
-      table("group", actuator->group, "group");
-      table("nsample", actuator->nsample, "number of samples in history buffer");
-      table("interp", actuator->interp, "interpolation order (0=ZOH, 1=linear, 2=cubic)");
-      table("delay", actuator->delay, "delay time in seconds; 0: no delay");
-      table("info", actuator->info, "message appended to compiler errors");
+      mjsActuator* elem = mjs_asActuator(element);
+      mjsActuator* ref = mjs_asActuator(ref_element);
+      FIELD(gaintype, "gain type");
+      FIELD(gainprm, "gain parameters");
+      FIELD(biastype, "bias type");
+      FIELD(biasprm, "bias parameters");
+      FIELD(dyntype, "dynamics type");
+      FIELD(dynprm, "dynamics parameters");
+      FIELD(actdim, "number of activation variables");
+      FIELD(actearly, "apply next activations to qfrc");
+      FIELD(trntype, "transmission type");
+      FIELD(gear, "length and transmitted force scaling");
+      FIELD(target, "name of transmission target");
+      FIELD(refsite, "reference site, for site transmission");
+      FIELD(slidersite, "site defining cylinder, for slider-crank");
+      FIELD(cranklength, "crank length, for slider-crank");
+      FIELD(lengthrange, "transmission length range");
+      FIELD(inheritrange, "automatic range setting for position and intvelocity");
+      FIELD(ctrllimited, "are control limits defined (mjtLimited)");
+      FIELD(ctrlrange, "control range");
+      FIELD(forcelimited, "are force limits defined (mjtLimited)");
+      FIELD(forcerange, "force range");
+      FIELD(actlimited, "are activation limits defined (mjtLimited)");
+      FIELD(actrange, "activation range");
+      FIELD(group, "group");
+      FIELD(nsample, "number of samples in history buffer");
+      FIELD(interp, "interpolation order (0=ZOH, 1=linear, 2=cubic)");
+      FIELD(delay, "delay time in seconds; 0: no delay");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_SENSOR: {
-      mjsSensor* sensor = mjs_asSensor(element);
-      table("type", sensor->type, "type of sensor");
-      table("objtype", sensor->objtype, "type of sensorized object");
-      table("objname", sensor->objname, "name of sensorized object");
-      table("reftype", sensor->reftype, "type of referenced object");
-      table("refname", sensor->refname, "name of referenced object");
-      table("intprm", sensor->intprm, "integer parameters");
-      table("datatype", sensor->datatype, "data type for sensor measurement");
-      table("needstage", sensor->needstage, "compute stage needed to simulate sensor");
-      table("dim", sensor->dim, "number of scalar outputs");
-      table("cutoff", sensor->cutoff, "cutoff for real and positive datatypes");
-      table("noise", sensor->noise, "noise stdev");
-      table("nsample", sensor->nsample, "number of samples in history buffer");
-      table("interp", sensor->interp, "interpolation order (0=ZOH, 1=linear, 2=cubic)");
-      table("delay", sensor->delay, "delay time in seconds");
-      table("interval", sensor->interval, "[period, time_prev] in seconds");
-      table("info", sensor->info, "message appended to compiler errors");
+      mjsSensor* elem = mjs_asSensor(element);
+      mjsSensor* ref = mjs_asSensor(ref_element);
+      FIELD(type, "type of sensor");
+      FIELD(objtype, "type of sensorized object");
+      FIELD(objname, "name of sensorized object");
+      FIELD(reftype, "type of referenced object");
+      FIELD(refname, "name of referenced object");
+      FIELD(intprm, "integer parameters");
+      FIELD(datatype, "data type for sensor measurement");
+      FIELD(needstage, "compute stage needed to simulate sensor");
+      FIELD(dim, "number of scalar outputs");
+      FIELD(cutoff, "cutoff for real and positive datatypes");
+      FIELD(noise, "noise stdev");
+      FIELD(nsample, "number of samples in history buffer");
+      FIELD(interp, "interpolation order (0=ZOH, 1=linear, 2=cubic)");
+      FIELD(delay, "delay time in seconds");
+      FIELD(interval, "[period, time_prev] in seconds");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_SITE: {
-      mjsSite* site = mjs_asSite(element);
-      table("pos", site->pos, "position");
-      table("quat", site->quat, "alt", site->alt, "orientation");
-      table("fromto", site->fromto, "alternative for capsule, cylinder, box, ellipsoid");
-      table("size", site->size, "geom size");
-      table("type", site->type, "geom type");
-      table("material", site->material, "name of material");
-      table("group", site->group, "group");
-      table("rgba", site->rgba, "rgba when material is omitted");
-      table("info", site->info, "message appended to compiler errors");
+      mjsSite* elem = mjs_asSite(element);
+      mjsSite* ref = mjs_asSite(ref_element);
+      FIELD(pos, "position");
+      QFIELD(quat, alt, "orientation");
+      FIELD(fromto, "alternative for capsule, cylinder, box, ellipsoid");
+      FIELD(size, "geom size");
+      FIELD(type, "geom type");
+      FIELD(material, "name of material");
+      FIELD(group, "group");
+      FIELD(rgba, "rgba when material is omitted");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_FRAME: {
-      mjsFrame* frame = mjs_asFrame(element);
-      table("childclass", frame->childclass, "childclass name");
-      table("pos", frame->pos, "position");
-      table("quat", frame->quat, "alt", frame->alt, "orientation");
-      table("info", frame->info, "message appended to compiler errors");
+      mjsFrame* elem = mjs_asFrame(element);
+      mjsFrame* ref = mjs_asFrame(ref_element);
+      FIELD(childclass, "childclass name");
+      FIELD(pos, "position");
+      QFIELD(quat, alt, "orientation");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_GEOM: {
-      mjsGeom* geom = mjs_asGeom(element);
-      table("type", geom->type, "geom type");
-      table("pos", geom->pos, "position");
-      table("quat", geom->quat, "alt", geom->alt, "orientation");
-      table("fromto", geom->fromto, "alternative for capsule, cylinder, box, ellipsoid");
-      table("size", geom->size, "type-specific size");
-      table("contype", geom->contype, "contact type");
-      table("conaffinity", geom->conaffinity, "contact affinity");
-      table("condim", geom->condim, "contact dimensionality");
-      table("priority", geom->priority, "contact priority");
-      table("friction", geom->friction, "one-sided friction coefficients: slide, roll, spin");
-      table("solmix", geom->solmix, "solver mixing for contact pairs");
-      table("solref", geom->solref, "solver reference");
-      table("solimp", geom->solimp, "solver impedance");
-      table("margin", geom->margin, "margin for contact detection");
-      table("gap", geom->gap, "include in solver if dist < margin-gap");
-      table("mass", geom->mass, "used to compute density");
-      table("density", geom->density, "used to compute mass and inertia from volume or surface");
-      table("typeinertia", geom->typeinertia, "selects between surface and volume inertia");
-      table("fluid_ellipsoid", geom->fluid_ellipsoid, "whether ellipsoid-fluid model is active");
-      table("fluid_coefs", geom->fluid_coefs, "ellipsoid-fluid interaction coefs");
-      table("material", geom->material, "name of material");
-      table("rgba", geom->rgba, "rgba when material is omitted");
-      table("group", geom->group, "group");
-      table("hfieldname", geom->hfieldname, "heightfield attached to geom");
-      table("meshname", geom->meshname, "mesh attached to geom");
-      table("fitscale", geom->fitscale, "scale mesh uniformly");
-      table("info", geom->info, "message appended to compiler errors");
+      mjsGeom* elem = mjs_asGeom(element);
+      mjsGeom* ref = mjs_asGeom(ref_element);
+      FIELD(type, "geom type");
+      FIELD(pos, "position");
+      QFIELD(quat, alt, "orientation");
+      FIELD(fromto, "alternative for capsule, cylinder, box, ellipsoid");
+      FIELD(size, "type-specific size");
+      FIELD(contype, "contact type");
+      FIELD(conaffinity, "contact affinity");
+      FIELD(condim, "contact dimensionality");
+      FIELD(priority, "contact priority");
+      FIELD(friction, "one-sided friction coefficients: slide, roll, spin");
+      FIELD(solmix, "solver mixing for contact pairs");
+      FIELD(solref, "solver reference");
+      FIELD(solimp, "solver impedance");
+      FIELD(margin, "margin for contact detection");
+      FIELD(gap, "include in solver if dist < margin-gap");
+      FIELD(mass, "used to compute density");
+      FIELD(density, "used to compute mass and inertia from volume or surface");
+      FIELD(typeinertia, "selects between surface and volume inertia");
+      FIELD(fluid_ellipsoid, "whether ellipsoid-fluid model is active");
+      FIELD(fluid_coefs, "ellipsoid-fluid interaction coefs");
+      FIELD(material, "name of material");
+      FIELD(rgba, "rgba when material is omitted");
+      FIELD(group, "group");
+      FIELD(hfieldname, "heightfield attached to geom");
+      FIELD(meshname, "mesh attached to geom");
+      FIELD(fitscale, "scale mesh uniformly");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_LIGHT: {
-      mjsLight* light = mjs_asLight(element);
-      table("pos", light->pos, "position");
-      table("dir", light->dir, "direction");
-      table("mode", light->mode, "tracking mode");
-      table("targetbody", light->targetbody, "target body for targeting");
-      table("active", light->active, "is light active");
-      table("type", light->type, "type of light");
-      table("texture", light->texture, "texture name for image lights");
-      table("castshadow", light->castshadow, "does light cast shadows");
-      table("bulbradius", light->bulbradius, "bulb radius, for soft shadows");
-      table("intensity", light->intensity, "intensity, in candelas");
-      table("range", light->range, "range of effectiveness");
-      table("attenuation", light->attenuation, "OpenGL attenuation (quadratic model)");
-      table("cutoff", light->cutoff, "OpenGL cutoff");
-      table("exponent", light->exponent, "OpenGL exponent");
-      table("ambient", light->ambient, "ambient color");
-      table("diffuse", light->diffuse, "diffuse color");
-      table("specular", light->specular, "specular color");
-      table("info", light->info, "message appended to compiler errorsx");
+      mjsLight* elem = mjs_asLight(element);
+      mjsLight* ref = mjs_asLight(ref_element);
+      FIELD(pos, "position");
+      FIELD(dir, "direction");
+      FIELD(mode, "tracking mode");
+      FIELD(targetbody, "target body for targeting");
+      FIELD(active, "is light active");
+      FIELD(type, "type of light");
+      FIELD(texture, "texture name for image lights");
+      FIELD(castshadow, "does light cast shadows");
+      FIELD(bulbradius, "bulb radius, for soft shadows");
+      FIELD(intensity, "intensity, in candelas");
+      FIELD(range, "range of effectiveness");
+      FIELD(attenuation, "OpenGL attenuation (quadratic model)");
+      FIELD(cutoff, "OpenGL cutoff");
+      FIELD(exponent, "OpenGL exponent");
+      FIELD(ambient, "ambient color");
+      FIELD(diffuse, "diffuse color");
+      FIELD(specular, "specular color");
+      FIELD(info, "message appended to compiler errorsx");
       break;
     }
     case mjOBJ_CAMERA: {
-      mjsCamera* camera = mjs_asCamera(element);
-      table("pos", camera->pos, "position");
-      table("quat", camera->quat, "alt", camera->alt, "orientation");
-      table("mode", camera->mode, "tracking mode");
-      table("targetbody", camera->targetbody, "target body for tracking/targeting");
-      table("proj", camera->proj, "camera projection type");
-      table("resolution", camera->resolution, "resolution (pixel)");
-      table("output", camera->output, "bit flags for output type");
-      table("fovy", camera->fovy, "y-field of view");
-      table("ipd", camera->ipd, "inter-pupillary distance");
-      table("intrinsic", camera->intrinsic, "camera intrinsics (length)");
-      table("sensor_size", camera->sensor_size, "sensor size (length)");
-      table("focal_length", camera->focal_length, "focal length (length)");
-      table("focal_pixel", camera->focal_pixel, "focal length (pixel)");
-      table("principal_length", camera->principal_length, "principal point (length)");
-      table("principal_pixel", camera->principal_pixel, "principal point (pixel)");
-      table("info", camera->info, "message appended to compiler errors");
+      mjsCamera* elem = mjs_asCamera(element);
+      mjsCamera* ref = mjs_asCamera(ref_element);
+      FIELD(pos, "position");
+      QFIELD(quat, alt, "orientation");
+      FIELD(mode, "tracking mode");
+      FIELD(targetbody, "target body for tracking/targeting");
+      FIELD(proj, "camera projection type");
+      FIELD(resolution, "resolution (pixel)");
+      FIELD(output, "bit flags for output type");
+      FIELD(fovy, "y-field of view");
+      FIELD(ipd, "inter-pupillary distance");
+      FIELD(intrinsic, "camera intrinsics (length)");
+      FIELD(sensor_size, "sensor size (length)");
+      FIELD(focal_length, "focal length (length)");
+      FIELD(focal_pixel, "focal length (pixel)");
+      FIELD(principal_length, "principal point (length)");
+      FIELD(principal_pixel, "principal point (pixel)");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_MESH: {
-      mjsMesh* mesh = mjs_asMesh(element);
-      table("content_type", mesh->content_type, "content type of file");
-      table("file", mesh->file, "mesh file");
-      table("refpos", mesh->refpos, "reference position");
-      table("refquat", mesh->refquat, "reference orientation");
-      table("scale", mesh->scale, "rescale mesh");
-      table("inertia", mesh->inertia, "inertia type (convex, legacy, exact, shell)");
-      table("smoothnormal", mesh->smoothnormal, "do not exclude large-angle faces from normals");
-      table("needsdf", mesh->needsdf, "compute sdf from mesh");
-      table("maxhullvert", mesh->maxhullvert, "maximum vertex count for the convex hull");
-      table("material", mesh->material, "name of material");
-      table("info", mesh->info, "message appended to compiler errors");
+      mjsMesh* elem = mjs_asMesh(element);
+      mjsMesh* ref = mjs_asMesh(ref_element);
+      FIELD(content_type, "content type of file");
+      FIELD(file, "mesh file");
+      FIELD(refpos, "reference position");
+      FIELD(refquat, "reference orientation");
+      FIELD(scale, "rescale mesh");
+      FIELD(inertia, "inertia type (convex, legacy, exact, shell)");
+      FIELD(smoothnormal, "do not exclude large-angle faces from normals");
+      FIELD(needsdf, "compute sdf from mesh");
+      FIELD(maxhullvert, "maximum vertex count for the convex hull");
+      FIELD(material, "name of material");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_HFIELD: {
-      mjsHField* hfield = mjs_asHField(element);
-      table("content_type", hfield->content_type, "content type of file");
-      table("file", hfield->file, "file: (nrow, ncol, [elevation data])");
-      table("size", hfield->size, "hfield size (ignore referencing geom size)");
-      table("nrow", hfield->nrow, "number of rows");
-      table("ncol", hfield->ncol, "number of columns");
-      table("info", hfield->info, "message appended to compiler errors");
+      mjsHField* elem = mjs_asHField(element);
+      mjsHField* ref = mjs_asHField(ref_element);
+      FIELD(content_type, "content type of file");
+      FIELD(file, "file: (nrow, ncol, [elevation data])");
+      FIELD(size, "hfield size (ignore referencing geom size)");
+      FIELD(nrow, "number of rows");
+      FIELD(ncol, "number of columns");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_SKIN: {
-      mjsSkin* skin = mjs_asSkin(element);
-      table("file", skin->file, "skin file");
-      table("material", skin->material, "name of material used for rendering");
-      table("rgba", skin->rgba, "rgba when material is omitted");
-      table("inflate", skin->inflate, "inflate in normal direction");
-      table("group", skin->group, "group for visualization");
-      table("info", skin->info, "message appended to compiler errors");
+      mjsSkin* elem = mjs_asSkin(element);
+      mjsSkin* ref = mjs_asSkin(ref_element);
+      FIELD(file, "skin file");
+      FIELD(material, "name of material used for rendering");
+      FIELD(rgba, "rgba when material is omitted");
+      FIELD(inflate, "inflate in normal direction");
+      FIELD(group, "group for visualization");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_FLEX: {
-      mjsFlex* flex = mjs_asFlex(element);
-      table("contype", flex->contype, "contact type");
-      table("conaffinity", flex->conaffinity, "contact affinity");
-      table("condim", flex->condim, "contact dimensionality");
-      table("priority", flex->priority, "contact priority");
-      table("friction", flex->friction, "one-sided friction coefficients: slide, roll, spin");
-      table("solmix", flex->solmix, "solver mixing for contact pairs");
-      table("solref", flex->solref, "solver reference");
-      table("solimp", flex->solimp, "solver impedance");
-      table("margin", flex->margin, "margin for contact detection");
-      table("gap", flex->gap, "include in solver if dist<margin-gap");
-      table("dim", flex->dim, "element dimensionality");
-      table("radius", flex->radius, "radius around primitive element");
-      table("size", flex->size, "vertex bounding box half sizes in qpos0");
-      table("internal", flex->internal, "enable internal collisions");
-      table("flatskin", flex->flatskin, "render flex skin with flat shading");
-      table("selfcollide", flex->selfcollide, "mode for flex self collision");
-      table("vertcollide", flex->vertcollide, "mode for vertex collision");
-      table("passive", flex->passive, "mode for passive collisions");
-      table("activelayers", flex->activelayers, "number of active element layers in 3D");
-      table("group", flex->group, "group for visualization");
-      table("edgestiffness", flex->edgestiffness, "edge stiffness");
-      table("edgedamping", flex->edgedamping, "edge damping");
-      table("rgba", flex->rgba, "rgba when material is omitted");
-      table("material", flex->material, "name of material used for rendering");
-      table("young", flex->young, "Young's modulus");
-      table("poisson", flex->poisson, "Poisson's ratio");
-      table("damping", flex->damping, "Rayleigh's damping");
-      table("thickness", flex->thickness, "thickness (2D only)");
-      table("elastic2d", flex->elastic2d, "2D passive forces; 0: none, 1: bending, 2: stretching, 3: both");
-      table("info", flex->info, "message appended to compiler errors");
+      mjsFlex* elem = mjs_asFlex(element);
+      mjsFlex* ref = mjs_asFlex(ref_element);
+      FIELD(contype, "contact type");
+      FIELD(conaffinity, "contact affinity");
+      FIELD(condim, "contact dimensionality");
+      FIELD(priority, "contact priority");
+      FIELD(friction, "one-sided friction coefficients: slide, roll, spin");
+      FIELD(solmix, "solver mixing for contact pairs");
+      FIELD(solref, "solver reference");
+      FIELD(solimp, "solver impedance");
+      FIELD(margin, "margin for contact detection");
+      FIELD(gap, "include in solver if dist<margin-gap");
+      FIELD(dim, "element dimensionality");
+      FIELD(radius, "radius around primitive element");
+      FIELD(size, "vertex bounding box half sizes in qpos0");
+      FIELD(internal, "enable internal collisions");
+      FIELD(flatskin, "render flex skin with flat shading");
+      FIELD(selfcollide, "mode for flex self collision");
+      FIELD(vertcollide, "mode for vertex collision");
+      FIELD(passive, "mode for passive collisions");
+      FIELD(activelayers, "number of active element layers in 3D");
+      FIELD(group, "group for visualization");
+      FIELD(edgestiffness, "edge stiffness");
+      FIELD(edgedamping, "edge damping");
+      FIELD(rgba, "rgba when material is omitted");
+      FIELD(material, "name of material used for rendering");
+      FIELD(young, "Young's modulus");
+      FIELD(poisson, "Poisson's ratio");
+      FIELD(damping, "Rayleigh's damping");
+      FIELD(thickness, "thickness (2D only)");
+      FIELD(elastic2d, "2D passive forces; 0: none, 1: bending, 2: stretching, 3: both");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_TENDON: {
-      mjsTendon* tendon = mjs_asTendon(element);
-      table("stiffness", tendon->stiffness, "stiffness coefficient");
-      table("springlength", tendon->springlength, "spring resting length; {-1, -1}: use qpos_spring");
-      table("damping", tendon->damping, "damping coefficient");
-      table("frictionloss", tendon->frictionloss, "friction loss");
-      table("solref_friction", tendon->solref_friction, "solver reference: tendon friction");
-      table("solimp_friction", tendon->solimp_friction, "solver impedance: tendon friction");
-      table("armature", tendon->armature, "inertia associated with tendon velocity");
-      table("limited", tendon->limited, "does tendon have limits (mjtLimited)");
-      table("actfrclimited", tendon->actfrclimited, "does tendon have actuator force limits");
-      table("range", tendon->range, "length limits");
-      table("actfrcrange", tendon->actfrcrange, "actuator force limits");
-      table("margin", tendon->margin, "margin value for tendon limit detection");
-      table("solref_limit", tendon->solref_limit, "solver reference: tendon limits");
-      table("solimp_limit", tendon->solimp_limit, "solver impedance: tendon limits");
-      table("material", tendon->material, "name of material for rendering");
-      table("width", tendon->width, "width for rendering");
-      table("rgba", tendon->rgba, "rgba when material is omitted");
-      table("group", tendon->group, "group");
-      table("info", tendon->info, "message appended to errors");
+      mjsTendon* elem = mjs_asTendon(element);
+      mjsTendon* ref = mjs_asTendon(ref_element);
+      FIELD(stiffness, "stiffness coefficient");
+      FIELD(springlength, "spring resting length; {-1, -1}: use qpos_spring");
+      FIELD(damping, "damping coefficient");
+      FIELD(frictionloss, "friction loss");
+      FIELD(solref_friction, "solver reference: tendon friction");
+      FIELD(solimp_friction, "solver impedance: tendon friction");
+      FIELD(armature, "inertia associated with tendon velocity");
+      FIELD(limited, "does tendon have limits (mjtLimited)");
+      FIELD(actfrclimited, "does tendon have actuator force limits");
+      FIELD(range, "length limits");
+      FIELD(actfrcrange, "actuator force limits");
+      FIELD(margin, "margin value for tendon limit detection");
+      FIELD(solref_limit, "solver reference: tendon limits");
+      FIELD(solimp_limit, "solver impedance: tendon limits");
+      FIELD(material, "name of material for rendering");
+      FIELD(width, "width for rendering");
+      FIELD(rgba, "rgba when material is omitted");
+      FIELD(group, "group");
+      FIELD(info, "message appended to errors");
       break;
     }
     case mjOBJ_TEXTURE: {
-      mjsTexture* texture = mjs_asTexture(element);
-      table("type", texture->type, "texture type");
-      table("colorspace", texture->colorspace, "colorspace");
-      table("builtin", texture->builtin, "builtin type (mjtBuiltin)");
-      table("mark", texture->mark, "mark type (mjtMark)");
-      table("rgb1", texture->rgb1, "first color for builtin");
-      table("rgb2", texture->rgb2, "second color for builtin");
-      table("markrgb", texture->markrgb, "mark color");
-      table("random", texture->random, "probability of random dots");
-      table("height", texture->height, "height in pixels (square for cube and skybox)");
-      table("width", texture->width, "width in pixels");
-      table("nchannel", texture->nchannel, "number of channels");
-      table("content_type", texture->content_type, "content type of file");
-      table("file", texture->file, "png file to load; use for all sides of cube");
-      table("gridsize", texture->gridsize, "size of grid for composite file; (1,1)-repeat");
-      table("gridlayout", texture->gridlayout, "row-major: L,R,F,B,U,D for faces; . for unused");
-      table("cubefiles", texture->cubefiles, "different file for each side of the cube");
-      table("hflip", texture->hflip, "horizontal flip");
-      table("vflip", texture->vflip, "vertical flip");
-      table("info", texture->info, "message appended to compiler errors");
+      mjsTexture* elem = mjs_asTexture(element);
+      mjsTexture* ref = mjs_asTexture(ref_element);
+      FIELD(type, "texture type");
+      FIELD(colorspace, "colorspace");
+      FIELD(builtin, "builtin type (mjtBuiltin)");
+      FIELD(mark, "mark type (mjtMark)");
+      FIELD(rgb1, "first color for builtin");
+      FIELD(rgb2, "second color for builtin");
+      FIELD(markrgb, "mark color");
+      FIELD(random, "probability of random dots");
+      FIELD(height, "height in pixels (square for cube and skybox)");
+      FIELD(width, "width in pixels");
+      FIELD(nchannel, "number of channels");
+      FIELD(content_type, "content type of file");
+      FIELD(file, "png file to load; use for all sides of cube");
+      FIELD(gridsize, "size of grid for composite file; (1,1)-repeat");
+      FIELD(gridlayout, "row-major: L,R,F,B,U,D for faces; . for unused");
+      FIELD(cubefiles, "different file for each side of the cube");
+      FIELD(hflip, "horizontal flip");
+      FIELD(vflip, "vertical flip");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_MATERIAL: {
-      mjsMaterial* material = mjs_asMaterial(element);
-      table("textures", material->textures, "names of textures (empty: none)");
-      table("texuniform", material->texuniform, "make texture cube uniform");
-      table("texrepeat", material->texrepeat, "texture repetition for 2D mapping");
-      table("emission", material->emission, "emission");
-      table("specular", material->specular, "specular");
-      table("shininess", material->shininess, "shininess");
-      table("reflectance", material->reflectance, "reflectance");
-      table("metallic", material->metallic, "metallic");
-      table("roughness", material->roughness, "roughness");
-      table("rgba", material->rgba, "rgba");
-      table("info", material->info, "message appended to compiler errors");
+      mjsMaterial* elem = mjs_asMaterial(element);
+      mjsMaterial* ref = mjs_asMaterial(ref_element);
+      FIELD(textures, "names of textures (empty: none)");
+      FIELD(texuniform, "make texture cube uniform");
+      FIELD(texrepeat, "texture repetition for 2D mapping");
+      FIELD(emission, "emission");
+      FIELD(specular, "specular");
+      FIELD(shininess, "shininess");
+      FIELD(reflectance, "reflectance");
+      FIELD(metallic, "metallic");
+      FIELD(roughness, "roughness");
+      FIELD(rgba, "rgba");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_PAIR: {
-      mjsPair* pair = mjs_asPair(element);
-      table("geomname1", pair->geomname1, "name of geom 1");
-      table("geomname2", pair->geomname2, "name of geom 2");
-      table("condim", pair->condim, "contact dimensionality");
-      table("solref", pair->solref, "solver reference, normal direction");
-      table("solreffriction", pair->solreffriction, "solver reference, frictional directions");
-      table("solimp", pair->solimp, "solver impedance");
-      table("margin", pair->margin, "margin for contact detection");
-      table("gap", pair->gap, "include in solver if dist<margin-gap");
-      table("friction", pair->friction, "full contact friction");
-      table("info", pair->info, "message appended to errors");
+      mjsPair* elem = mjs_asPair(element);
+      mjsPair* ref = mjs_asPair(ref_element);
+      FIELD(geomname1, "name of geom 1");
+      FIELD(geomname2, "name of geom 2");
+      FIELD(condim, "contact dimensionality");
+      FIELD(solref, "solver reference, normal direction");
+      FIELD(solreffriction, "solver reference, frictional directions");
+      FIELD(solimp, "solver impedance");
+      FIELD(margin, "margin for contact detection");
+      FIELD(gap, "include in solver if dist<margin-gap");
+      FIELD(friction, "full contact friction");
+      FIELD(info, "message appended to errors");
       break;
     }
     case mjOBJ_EQUALITY: {
-      mjsEquality* equality = mjs_asEquality(element);
-      table("type", equality->type, "constraint type");
-      table("data", equality->data, "type-dependent data");
-      table("active", equality->active, "is equality initially active");
-      table("name1", equality->name1, "name of object 1");
-      table("name2", equality->name2, "name of object 2");
-      table("objtype", equality->objtype, "type of both objects");
-      table("solref", equality->solref, "solver reference");
-      table("solimp", equality->solimp, "solver impedance");
-      table("info", equality->info, "message appended to errors");
+      mjsEquality* elem = mjs_asEquality(element);
+      mjsEquality* ref = mjs_asEquality(ref_element);
+      FIELD(type, "constraint type");
+      FIELD(data, "type-dependent data");
+      FIELD(active, "is equality initially active");
+      FIELD(name1, "name of object 1");
+      FIELD(name2, "name of object 2");
+      FIELD(objtype, "type of both objects");
+      FIELD(solref, "solver reference");
+      FIELD(solimp, "solver impedance");
+      FIELD(info, "message appended to errors");
       break;
     }
     case mjOBJ_EXCLUDE: {
-      mjsExclude* exclude = mjs_asExclude(element);
-      table("bodyname1", exclude->bodyname1, "name of geom 1");
-      table("bodyname2", exclude->bodyname2, "name of geom 2");
-      table("info", exclude->info, "message appended to errors");
+      mjsExclude* elem = mjs_asExclude(element);
+      mjsExclude* ref = mjs_asExclude(ref_element);
+      FIELD(bodyname1, "name of geom 1");
+      FIELD(bodyname2, "name of geom 2");
+      FIELD(info, "message appended to errors");
       break;
     }
     case mjOBJ_NUMERIC: {
-      mjsNumeric* numeric = mjs_asNumeric(element);
-      table("data", numeric->data, "initialization data");
-      table("size", numeric->size, "array size, can be bigger than data size");
-      table("info", numeric->info, "message appended to errors");
+      mjsNumeric* elem = mjs_asNumeric(element);
+      mjsNumeric* ref = mjs_asNumeric(ref_element);
+      FIELD(data, "initialization data");
+      FIELD(size, "array size, can be bigger than data size");
+      FIELD(info, "message appended to errors");
       break;
     }
     case mjOBJ_TEXT: {
-      mjsText* text = mjs_asText(element);
-      table("data", text->data, "text string");
-      table("info", text->info, "message appended to compiler errors");
+      mjsText* elem = mjs_asText(element);
+      mjsText* ref = mjs_asText(ref_element);
+      FIELD(data, "text string");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_TUPLE: {
-      mjsTuple* tuple = mjs_asTuple(element);
-      table("objtype", tuple->objtype, "object types");
-      table("objname", tuple->objname, "object names");
-      table("objprm", tuple->objprm, "object parameters");
-      table("info", tuple->info, "message appended to compiler errors");
+      mjsTuple* elem = mjs_asTuple(element);
+      mjsTuple* ref = mjs_asTuple(ref_element);
+      FIELD(objtype, "object types");
+      FIELD(objname, "object names");
+      FIELD(objprm, "object parameters");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_KEY: {
-      mjsKey* key = mjs_asKey(element);
-      table("time", key->time, "time");
-      table("qpos", key->qpos, "qpos");
-      table("qvel", key->qvel, "qvel");
-      table("act", key->act, "act");
-      table("mpos", key->mpos, "mocap pos");
-      table("mquat", key->mquat, "mocap quat");
-      table("ctrl", key->ctrl, "ctrl");
-      table("info", key->info, "message appended to compiler errors");
+      mjsKey* elem = mjs_asKey(element);
+      mjsKey* ref = mjs_asKey(ref_element);
+      FIELD(time, "time");
+      FIELD(qpos, "qpos");
+      FIELD(qvel, "qvel");
+      FIELD(act, "act");
+      FIELD(mpos, "mocap pos");
+      FIELD(mquat, "mocap quat");
+      FIELD(ctrl, "ctrl");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     case mjOBJ_PLUGIN: {
-      mjsPlugin* plugin = mjs_asPlugin(element);
-      table("name", plugin->name, "instance name");
-      table("plugin_name", plugin->plugin_name, "plugin name");
-      table("active", plugin->active, "is the plugin active");
-      table("info", plugin->info, "message appended to compiler errors");
+      mjsPlugin* elem = mjs_asPlugin(element);
+      mjsPlugin* ref = mjs_asPlugin(ref_element);
+      FIELD(name, "instance name");
+      FIELD(plugin_name, "plugin name");
+      FIELD(active, "is the plugin active");
+      FIELD(info, "message appended to compiler errors");
       break;
     }
     default:
       // ignore other types
       break;
   }
+
+  #undef FIELD
+  return table.WasModified();
 }
 
 void ElementModelGui(const mjModel* model, mjsElement* element) {

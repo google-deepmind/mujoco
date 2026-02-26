@@ -26,6 +26,7 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include "third_party/dear_imgui/misc/cpp/imgui_stdlib.h"
 #include <mujoco/mujoco.h>
 #include "experimental/platform/enum_utils.h"
 
@@ -38,18 +39,20 @@ static constexpr const char ICON_FA_CAMERA[] = "\xEF\x80\xBD";
 static constexpr const char ICON_FA_CARET_LEFT[] = "\xEF\x83\x99";
 static constexpr const char ICON_FA_CARET_RIGHT[] = "\xEF\x83\x9A";
 static constexpr const char ICON_FA_CHECK_SQUARE_O[] = "\xEF\x81\x9D";
-static constexpr const char ICON_FA_CIRCLE[] = "\xEF\x84\x91";
 static constexpr const char ICON_FA_CIRCLE_O[] = "\xEF\x84\x8C";
+static constexpr const char ICON_FA_CIRCLE[] = "\xEF\x84\x91";
 static constexpr const char ICON_FA_COMMENT[] = "\xEF\x83\xA5";
 static constexpr const char ICON_FA_COPY[] = "\xEF\x83\x85";
 static constexpr const char ICON_FA_DIAMOND[] = "\xEF\x88\x99";
 static constexpr const char ICON_FA_EJECT[] = "\xEF\x81\x92";
 static constexpr const char ICON_FA_FAST_FORWARD[] = "\xEF\x81\x90";
-static constexpr const char ICON_FA_MOON[] = "\xEF\x86\x86";
 static constexpr const char ICON_FA_MAGIC[] = "\xEF\x83\x90";
+static constexpr const char ICON_FA_MOON[] = "\xEF\x86\x86";
 static constexpr const char ICON_FA_PAUSE[] = "\xEF\x81\x8C";
 static constexpr const char ICON_FA_PLAY[] = "\xEF\x81\x8B";
+static constexpr const char ICON_FA_PLUS[] = "\xEF\x81\xA7";
 static constexpr const char ICON_FA_REFRESH[] = "\xEF\x80\xA1";
+static constexpr const char ICON_FA_REPEAT[] = "\xEF\x80\x9E";
 static constexpr const char ICON_FA_SQUARE_O[] = "\xEF\x87\x9B";
 static constexpr const char ICON_FA_SUN[] = "\xEF\x86\x85";
 static constexpr const char ICON_FA_TACHOMETER[] = "\xEF\x83\xA4";
@@ -61,6 +64,9 @@ using KeyValues = std::unordered_map<std::string, std::string>;
 // This is a workaround to fix compilation on gcc <= 12 and clang <= 16
 template <typename T>
 struct dependent_false : std::false_type {};
+
+template <typename T>
+bool ImGui_Checkbox(const char* name, T& value);
 
 // Appends key/value pairs to an Ini file.
 void AppendIniSection(std::string& ini, const std::string& section,
@@ -193,93 +199,209 @@ class ImGui_DataPtrTable {
 // Helper for displaying mjSpec elements in an ImGui table.
 class ImGui_SpecElementTable : public ImGui_DataPtrTable {
  public:
+  explicit ImGui_SpecElementTable(bool read_only = true)
+      : read_only_(read_only) {
+  }
+
   // Scalar values used by mjSpec elements.
-  void operator()(const char* label, mjtByte& val, const char* tooltip);
-  void operator()(const char* label, mjtSize& val, const char* tooltip);
-  void operator()(const char* label, int& val, const char* tooltip);
-  void operator()(const char* label, float& val, const char* tooltip);
-  void operator()(const char* label, double& val, const char* tooltip);
+  void operator()(const char* label, mjtByte& val, const mjtByte& ref,
+                  const char* tooltip);
+  void operator()(const char* label, mjtSize& val, const mjtSize& ref,
+                  const char* tooltip);
+  void operator()(const char* label, int& val, const int& ref,
+                  const char* tooltip);
+  void operator()(const char* label, float& val, const float& ref,
+                  const char* tooltip);
+  void operator()(const char* label, double& val, const double& ref,
+                  const char* tooltip);
 
   // C++ container values used by mjSpec elements.
-  void operator()(const char* label, std::string* ptr, const char* tooltip);
+  void operator()(const char* label, std::string* ptr, const std::string* ref,
+                  const char* tooltip);
   void operator()(const char* label, std::vector<int>* ptr,
-                  const char* tooltip);
+                  const std::vector<int>* ref, const char* tooltip);
   void operator()(const char* label, std::vector<double>* ptr,
-                  const char* tooltip);
+                  const std::vector<double>* ref, const char* tooltip);
   void operator()(const char* label, std::vector<std::string>* ptr,
-                  const char* tooltip);
+                  const std::vector<std::string>* ref, const char* tooltip);
 
   // C-style array values used by mjSpec elements.
   template <std::size_t N>
-  void operator()(const char* label, char (&val)[N], const char* tooltip) {
-    MakeLabel(label);
-    ImGui::SetItemTooltip("%s", tooltip);
-    ImGui::Text("%s", std::string(val, N).c_str());
-  }
-  template <std::size_t N>
-  void operator()(const char* label, mjtByte (&val)[N], const char* tooltip) {
+  void operator()(const char* label, int (&val)[N], const int (&ref)[N],
+                  const char* tooltip) {
     for (int i = 0; i < N; ++i) {
-      MakeLabel(label, i, N);
-      ImGui::SetItemTooltip("%s", tooltip);
-      ImGui::Text("%s", val[i] ? "true" : "false");
+      Label(label, tooltip, i, N);
+      Input(val[i], ref[i]);
     }
   }
   template <std::size_t N>
-  void operator()(const char* label, int (&val)[N], const char* tooltip) {
-    Vector(label, val, N, tooltip);
+  void operator()(const char* label, float (&val)[N], const float (&ref)[N],
+                  const char* tooltip) {
+    for (int i = 0; i < N; ++i) {
+      Label(label, tooltip, i, N);
+      Input(val[i], ref[i]);
+    }
   }
   template <std::size_t N>
-  void operator()(const char* label, float (&val)[N], const char* tooltip) {
-    Vector(label, val, N, tooltip);
+  void operator()(const char* label, double (&val)[N], const double (&ref)[N],
+                  const char* tooltip) {
+    for (int i = 0; i < N; ++i) {
+      Label(label, tooltip, i, N);
+      Input(val[i], ref[i]);
+    }
   }
+
+  // Special handling for fixed-length character arrays.
   template <std::size_t N>
-  void operator()(const char* label, double (&val)[N], const char* tooltip) {
-    Vector(label, val, N, tooltip);
+  void operator()(const char* label, char (&val)[N], const char (&ref)[N],
+                  const char* tooltip) {
+    Label(label, tooltip);
+
+    char buf[N + 1];
+    strncpy(buf, val, N);
+    buf[N] = 0;
+    if (read_only_) {
+      ImGui::Text("%s", buf);
+    } else {
+      ImGui::PushID(&val);
+      if (ImGui::InputText("##", buf, N + 1)) {
+        strncpy(val, buf, N);
+        modified_ = true;
+      }
+      ImGui::PopID();
+    }
   }
 
   // Special handling for treating enum values as integers.
   template <typename T, typename U=std::enable_if_t<std::is_enum_v<T>, T>>
-  void operator()(const char* label, T& val, const char* tooltip) {
-    auto v = enum_utils::enum_to_string(val);
-    MakeLabel(label);
-    ImGui::SetItemTooltip("%s", tooltip);
-    ImGui::Text("%s", v.data());
+  void operator()(const char* label, T& val, const T& ref, const char* tooltip) {
+    Label(label, tooltip);
+    Input(val, ref);
   }
 
   // Special handling for quaternion/orientation pairs.
-  void operator()(const char* name, double (&quat)[4], const char* alt,
-                  mjsOrientation& orientation, const char* tooltip);
+  void operator()(const char* name, const char* alt_name, double (&quat)[4],
+                  const double (&ref_quat)[4], mjsOrientation& alt,
+                  const mjsOrientation& ref_alt, const char* tooltip);
+
+  // Returns true if any value in the table was modified.
+  bool WasModified() const { return modified_; }
 
  private:
-  template <typename T>
-  void Scalar(const char* label, T& val, const char* tooltip) {
-    MakeLabel(label);
-    ImGui::SetItemTooltip("%s", tooltip);
-    if constexpr (std::is_enum_v<T>) {
-      ImGui::Text("%d", (int)val);
-    } else if constexpr (std::is_integral_v<T>) {
-      ImGui::Text("%d", (int)val);
-    } else if constexpr (std::is_floating_point_v<T>) {
-      ImGui::Text("%f", (float)val);
-    }
-  }
+  void Label(const char* label, const char* tooltip, int i = 0, int n = 1);
 
   template <typename T>
-  void Vector(const char* label, T* ptr, int n, const char* tooltip) {
-    for (int i = 0; i < n; ++i) {
-      MakeLabel(label, i, n);
-      ImGui::SetItemTooltip("%s", tooltip);
-      if constexpr (std::is_enum_v<T>) {
-        ImGui::Text("%d", (int)ptr[i]);
-      } else if constexpr (std::is_integral_v<T>) {
-        ImGui::Text("%d", (int)ptr[i]);
-      } else if constexpr (std::is_floating_point_v<T>) {
-        ImGui::Text("%f", (float)ptr[i]);
+  void Input(T& val, const T& ref = T()) {
+    ScopedStyle style;
+    if (!read_only_ && val != ref) {
+      constexpr ImVec4 kModifiedColor = ImVec4(1.0f, 0.6f, 0.2f, 1.0f);
+      style.Color(ImGuiCol_Text, kModifiedColor);
+    }
+
+    ImGui::PushID(&val);
+    ImGui::SetNextItemWidth(-1.0f);
+    if constexpr (std::is_same_v<T, mjtByte>) {
+      if (read_only_) {
+        ImGui::Text("%s", val ? "true" : "false");
+      } else {
+        const int flags = ImGuiComboFlags_NoArrowButton;
+        if (ImGui::BeginCombo("##", val ? "true" : "false", flags)) {
+          if (ImGui::Selectable("true", val != 0)) {
+            val = 1;
+            modified_ = true;
+          }
+          if (ImGui::Selectable("false", val == 0)) {
+            val = 0;
+            modified_ = true;
+          }
+          ImGui::EndCombo();
+        }
+      }
+    } else if constexpr (std::is_enum_v<T>) {
+      const std::string preview(enum_utils::enum_to_string(val));
+      if (read_only_) {
+        ImGui::Text("%s", preview.c_str());
+      } else {
+        const int flags = ImGuiComboFlags_NoArrowButton;
+        if (ImGui::BeginCombo("##", preview.c_str(), flags)) {
+          for (const auto& [v, n] : enum_utils::entries_v<T>) {
+            if (ImGui::Selectable(std::string(n).c_str(), val == v)) {
+              val = v;
+              modified_ = true;
+            }
+          }
+          ImGui::EndCombo();
+        }
+      }
+    } else if constexpr (std::is_same_v<T, int>) {
+      if (read_only_) {
+        ImGui::Text("%d", val);
+      } else {
+        if (ImGui::InputInt("##", &val)) {
+          modified_ = true;
+        }
+      }
+    } else if constexpr (std::is_same_v<T, float>) {
+      if (read_only_) {
+        ImGui::Text("%f", val);
+      } else {
+        if (ImGui::InputFloat("##", &val)) {
+          modified_ = true;
+        }
+      }
+    } else if constexpr (std::is_same_v<T, double>) {
+      if (read_only_) {
+        ImGui::Text("%f", val);
+      } else {
+        if (ImGui::InputDouble("##", &val)) {
+          modified_ = true;
+        }
+      }
+    } else if constexpr (std::is_same_v<T, int64_t>) {
+      if (read_only_) {
+        ImGui::Text("%lld", val);
+      } else {
+        if (ImGui::InputScalarN("##", ImGuiDataType_S64, &val, 1)) {
+          modified_ = true;
+        }
+      }
+    } else if constexpr (std::is_same_v<T, std::string>) {
+      if (read_only_) {
+        ImGui::Text("%s", val.c_str());
+      } else {
+        if (ImGui::InputText("##", &val)) {
+          modified_ = true;
+        }
       }
     }
+
+    if (!read_only_) {
+      if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+        val = ref;
+        modified_ = true;
+      }
+    }
+
+    ImGui::PopID();
   }
+
+  bool modified_ = false;
+  bool read_only_ = false;
 };
 
+// ImGui horizontal splitter. `height` is the height of the upper pane.
+// `open` is whether the bottom pane is open.  Usage is:
+//
+//   if (ImGui_BeginHSplit("top", &height, &open)) {
+//     // Contents of the upper pane.
+//     if (ImGui_HSplit("bottom", &height, &open)) {
+//       // Contents of the bottom pane.
+//     }
+//     ImGui_EndHSplit(open);
+//   }
+bool ImGui_BeginHSplit(const char* id, float* height, bool* open);
+bool ImGui_HSplit(const char* id, float* height, bool* open);
+void ImGui_EndHSplit(bool open);
 
 // ImGui Slider that supports both float and double types.
 bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max);

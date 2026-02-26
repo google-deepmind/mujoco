@@ -246,6 +246,7 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::DockBuilderDockWindow("Dockspace", main);
     ImGui::DockBuilderDockWindow("Options", options);
     ImGui::DockBuilderDockWindow("Explorer", inspector);
+    ImGui::DockBuilderDockWindow("Editor", inspector);
     ImGui::DockBuilderDockWindow("Inspector", inspector);
     ImGui::DockBuilderDockWindow("Properties", properties);
     ImGui::DockBuilderDockWindow("Stats", stats);

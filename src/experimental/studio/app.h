@@ -27,6 +27,7 @@
 
 #include <mujoco/mujoco.h>
 #include "experimental/platform/gui.h"
+#include "experimental/platform/gui_spec.h"
 #include "experimental/platform/interaction.h"
 #include "experimental/platform/model_holder.h"
 #include "experimental/platform/picture_gui.h"
@@ -84,6 +85,8 @@ class App {
   void Render();
 
  private:
+  using SpecEditMode = platform::SpecEditMode;
+
   // The kind of model that is currently loaded.
   enum ModelKind {
     kEmptyModel,
@@ -127,6 +130,8 @@ class App {
     bool style_editor = false;
     bool imgui_demo = false;
     bool implot_demo = false;
+    float editor_split = -1;
+    float explorer_split = -1;
 
     // Controls.
     bool perturb_active = false;
@@ -141,10 +146,10 @@ class App {
     std::vector<std::string> camera_names;
     std::vector<std::string> speed_names;
 
-    // Spec Properties.
+    // Spec editing.
     SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;
-    mjsElement* element = nullptr;
-    int element_id = -1;
+    mjsElement* curr_element = nullptr;
+    mjsElement* curr_edit_element = nullptr;
 
     // State.
     int state_sig = 0;
@@ -216,13 +221,11 @@ class App {
   void ModelOptionsGui();
   void DataInspectorGui();
   void SpecExplorerGui();
-  void SpecPropertiesGui();
-
-  void SpecSelectElement(mjsElement* element);
-  void SpecDeleteElement(mjsElement* element);
+  void SpecEditorGui();
 
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
+  void CopyLoadedSpecForEditing();
 
   mjSpec* spec() { return model_holder_->spec(); }
   mjModel* model() { return model_holder_->model(); }
@@ -244,6 +247,17 @@ class App {
   std::unique_ptr<platform::Window> window_;
   std::unique_ptr<platform::Renderer> renderer_;
   std::unique_ptr<platform::ModelHolder> model_holder_;
+
+  // Spec editing. We keep a separate copy of the loaded spec that we can edit.
+  // Once we're done editing, we will (re)compile the spec and update the
+  // active model and data.
+  mjSpec* scratch_spec_ = nullptr;
+  // Whether or not the scratch spec differs from the loaded spec.
+  bool scratch_spec_modified_ = false;
+  // We keep a mapping of the elements between the loaded spec and the scratch
+  // spec.
+  std::unordered_map<mjsElement*, mjsElement*> spec_to_scratch_;
+  std::unordered_map<mjsElement*, mjsElement*> scratch_to_spec_;
   std::function<void()> spec_op_;
 
   platform::StepControl step_control_;
