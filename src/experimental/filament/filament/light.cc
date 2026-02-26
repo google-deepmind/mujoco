@@ -72,6 +72,11 @@ Light::Light(ObjectManager* object_mgr, const Params& params)
       type == filament::LightManager::Type::DIRECTIONAL ? 4 : 1;
   opts.shadowBulbRadius = params.bulbradius;
   opts.mapSize = params.shadow_map_size;
+  if (params.vsm_blur_width > 0.0f) {
+    opts.vsm.elvsm = true;
+    opts.vsm.blurWidth = params.vsm_blur_width;
+  }
+
   builder.shadowOptions(opts);
 
   entity_ = utils::EntityManager::get().create();

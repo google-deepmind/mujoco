@@ -134,6 +134,8 @@ SceneView::SceneView(filament::Engine* engine, ObjectManager* object_mgr)
 
   default_shadow_map_size_ = ReadElement(
       m, "filament.shadows.map_size", default_shadow_map_size_);
+  default_vsm_blur_width_ = ReadElement(
+      m, "filament.shadows.vsm_blur_width", default_vsm_blur_width_);
 
   auto shadow_type = views_[kNormalIndex]->getShadowType();
   shadow_type = ReadElement(m, "filament.shadows.type", shadow_type);
@@ -298,6 +300,7 @@ void SceneView::PrepareLights() {
       params.range = model->light_range[i];
       params.intensity = model->light_intensity[i];
       params.shadow_map_size = default_shadow_map_size_;
+      params.vsm_blur_width = default_vsm_blur_width_;
       if (params.type == mjLIGHT_SPOT) {
         params.spot_cone_angle = model->light_cutoff[i];
       }
