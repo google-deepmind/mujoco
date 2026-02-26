@@ -1287,9 +1287,15 @@ void App::SpecEditorGui() {
       ImGui::PushStyleColor(ImGuiCol_Button, ImColor(40, 180, 40, 255).Value);
       if (ImGui::Button("Compile and Reload", ImVec2(-1, 0))) {
         spec_op_ = [this]() {
-          model_holder_ = platform::ModelHolder::FromSpec(scratch_spec_);
-          scratch_spec_ = nullptr;
-          OnModelLoaded(model_name_, model_kind_);
+          auto tmp_holder = platform::ModelHolder::FromSpec(scratch_spec_);
+          if (tmp_holder->ok()) {
+            model_holder_ = std::move(tmp_holder);
+            scratch_spec_ = nullptr;
+            OnModelLoaded(model_name_, model_kind_);
+          } else {
+            scratch_spec_ = tmp_holder->ReleaseSpec();
+            load_error_ = std::move(tmp_holder->error());
+          }
         };
       }
       ImGui::PopStyleColor();

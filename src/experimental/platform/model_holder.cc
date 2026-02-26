@@ -78,7 +78,7 @@ void ModelHolder::PostInit() {
   if (spec_ && !model_) {
     model_ = mj_compile(spec_, &vfs_);
     if (!model_) {
-      SetLoadError("Error compiling model from spec.");
+      SetLoadError(mjs_getError(spec_));
       return;
     }
   }
