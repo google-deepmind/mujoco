@@ -22,12 +22,17 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjtnum.h>
 #include "engine/engine_collision_primitive.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
-#include "engine/engine_ray.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
+
+
+#define MAXSDFFACE 1300
+#define MAXMESHPNT 500
 
 
 //---------------------------- interpolated sdf -------------------------------------------
@@ -277,23 +282,6 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
     } else {
       return oct_distance(m, x, i);
     }
-
-  case mjGEOM_MESH:
-    if (m->mesh_octnum[i]) {
-      return oct_distance(m, x, i);
-    } else {
-      mju_mulMatVec3(a, d->geom_xmat + 9 * i, x);
-      mju_addTo3(a, d->geom_xpos + 3 * i);
-      mjtNum dir[3] = {-a[0], -a[1], -a[2]};
-      mjtNum r = mju_norm3(dir);
-      mjtNum dist = mj_rayMesh(m, d, i, a, dir, NULL);
-      if (dist > r) {
-        mju_scl3(dir, dir, -1);
-        return -mj_rayMesh(m, d, i, a, dir, NULL);
-      }
-      return dist;
-    }
-
   default:
     mjERROR("sdf collisions not available for geom type %d", type);
     return 0;
@@ -405,22 +393,6 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
       oct_gradient(m, gradient, x, i);
     }
     break;
-
-  case mjGEOM_MESH:
-    if (m->mesh_octnum[i]) {
-      oct_gradient(m, gradient, x, i);
-    } else {
-      mju_mulMatVec3(a, d->geom_xmat+9*i, x);
-      mju_addTo3(a, d->geom_xpos+3*i);
-      mjtNum dir[3] = {-a[0], -a[1], -a[2]};
-      mjtNum r = mju_norm3(dir);
-      mjtNum dist = mj_rayMesh(m, d, i, a, dir, NULL);
-      gradient[0] = dist > r ? 1 : -1;
-      gradient[1] = dist > r ? 1 : -1;
-      gradient[2] = dist > r ? 1 : -1;
-    }
-    break;
-
   default:
     mjERROR("sdf collisions not available for geom type %d", type);
   }
@@ -544,6 +516,23 @@ static void mapPose(const mjtNum xpos1[3], const mjtNum xquat1[4],
 
 //---------------------------- narrow phase -----------------------------------------------
 
+// comparison function for contact sorting
+static inline int distcmp(int* i, int* j, void* context) {
+  mjtNum d1 = ((mjtNum*)context)[*i];
+  mjtNum d2 = ((mjtNum*)context)[*j];
+
+  if (d1 < d2) {
+    return -1;
+  } else if (d1 == d2) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+
+// define distSort function for contact sorting
+mjSORT(distSort, int, distcmp);
+
 // check if the collision point already exists
 static int isknown(const mjtNum* points, const mjtNum x[3], int cnt) {
   for (int i = 0; i < cnt; i++) {
@@ -584,6 +573,35 @@ static int addContact(mjtNum* points, mjContact* con, const mjtNum x[3],
   return cnt+1;
 }
 
+// finds minimum of Frank-Wolfe objective
+static mjtNum stepFrankWolfe(mjtNum x[3], const mjtNum* corners, int ncorners,
+                             const mjModel* m, const mjSDF* sdf, mjData* d) {
+  for (int step=0; step < m->opt.sdf_iterations; step++) {
+    mjtNum best = mjMAXVAL, fun, s[3], grad[3];
+
+    // evaluate gradient
+    mjc_gradient(m, d, sdf, grad, x);
+
+    // evaluate all corners
+    for (int i=0; i < ncorners; i++) {
+      // compute sdf
+      fun = mju_dot3(corners + 3*i, grad);
+
+      // save argmin
+      if (fun < best) {
+        best = fun;
+        mju_copy3(s, corners + 3*i);
+      }
+    }
+
+    // update collision point
+    mju_subFrom3(s, x);
+    mju_addToScl3(x, s, 2. / (step+2.));
+  }
+
+  // compute distance
+  return mjc_distance(m, d, sdf, x);
+}
 
 // finds minimum using gradient descent
 static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
@@ -633,6 +651,165 @@ static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
   return dist;
 }
 
+//---------------------------- bounding box vs sdf -------------------------------------------------
+
+// stricter triangle collision
+static int triangleIntersect(const mjtNum triangle[9], const mjModel* m,
+                             const mjSDF* sdf, mjData* d) {
+  mjtNum edges[6];
+  mjtNum normal[3], center[3];
+  mjtNum v[9], cross[9], p[3];
+  mjtNum kDistanceScl = 10.;
+  mjtNum kMinHeight = 0.1;  // minimum tetrahedron height to avoid degeneracy
+
+  // triangle normal
+  mju_sub3(edges+0, triangle+3, triangle);
+  mju_sub3(edges+3, triangle+6, triangle);
+  mju_cross(normal, edges, edges+3);
+  mju_normalize3(normal);
+
+  // triangle centroid
+  mju_scl3(p, triangle, 1./3.);
+  mju_addToScl3(p, triangle+3, 1./3.);
+  mju_addToScl3(p, triangle+6, 1./3.);
+
+  // SDF distance at centroid
+  mjtNum dist_at_centroid = mjc_distance(m, d, sdf, p);
+
+  // compute h = offset for fourth point
+  mjtNum h = -dist_at_centroid/kDistanceScl;
+
+  // if |h| is too small, we'd create a degenerate (nearly-flat) tetrahedron
+  // whose circumsphere would be gigantic; fall back to simpler triangle check
+  if (mju_abs(h) < kMinHeight) {
+    // simple check: circumcircle of triangle
+    // compute triangle circumradius
+    mjtNum a = mju_dist3(triangle, triangle+3);
+    mjtNum b = mju_dist3(triangle+3, triangle+6);
+    mjtNum c = mju_dist3(triangle+6, triangle);
+    mjtNum s = (a + b + c) / 2.0;
+    mjtNum area = mju_sqrt(s * (s-a) * (s-b) * (s-c));
+    mjtNum circumradius = (a * b * c) / (4.0 * mju_max(area, mjMINVAL));
+
+    // check if centroid is within circumradius of the SDF
+    return dist_at_centroid < circumradius;
+  }
+
+  // fourth point: triangle centroid pushed along normal
+  mju_addToScl3(p, normal, -h);
+
+  // circumsphere center (of tetrahedron formed by triangle + fourth point)
+  mju_sub3(v+0, triangle+0, p);
+  mju_sub3(v+3, triangle+3, p);
+  mju_sub3(v+6, triangle+6, p);
+  mju_cross(cross+0, v+3, v+6);
+  mju_cross(cross+3, v+6, v+0);
+  mju_cross(cross+6, v+0, v+3);
+  mju_scl3(center, cross, mju_dot3(v, v));
+  mju_addToScl3(center, cross+3, mju_dot3(v+3, v+3));
+  mju_addToScl3(center, cross+6, mju_dot3(v+6, v+6));
+
+  mjtNum denom = 2.*mju_dot3(v, cross);
+  if (mju_abs(denom) < mjMINVAL) {
+    // degenerate: fall back to simple distance check
+    return dist_at_centroid < mju_norm3(edges);
+  }
+  mju_scl3(center, center, 1./denom);
+
+  // circumsphere radius
+  mjtNum r = mju_sqrt(mju_dot3(center, center));
+
+  // coordinate change
+  mju_addTo3(center, p);
+
+  return mjc_distance(m, d, sdf, center) < r;
+}
+
+// intersect with circumsphere of bounding box
+static int boxIntersect(const mjtNum bvh[6], const mjtNum offset[3],
+                        const mjtNum rotation[9], const mjModel* m,
+                        const mjSDF* s, mjData* d) {
+  mjtNum candidate[3];
+  mjtNum r = mju_norm3(bvh+3);
+
+  mju_mulMatVec3(candidate, rotation, bvh);
+  mju_addTo3(candidate, offset);
+
+  // check if inside the bounding box
+  return mjc_distance(m, d, s, candidate) < r;
+}
+
+//---------------------------- mesh vs sdf broad phase --------------------------------------------
+
+// tree vs sdf binary search
+static void collideBVH(const mjModel* m, mjData* d, int g,
+                       const mjtNum offset[3], const mjtNum rotation[9],
+                       int* faces, int* npoints, int* n0,
+                       const mjSDF* sdf) {
+  const int bvhadr = m->mesh_bvhadr[m->geom_dataid[g]];
+
+  // mesh has no BVH tree
+  if (bvhadr < 0) {
+    return;
+  }
+
+  const int* faceid = m->bvh_nodeid + bvhadr;
+  const mjtNum* bvh = m->bvh_aabb + 6*bvhadr;
+  const int* child = m->bvh_child + 2*bvhadr;
+  mjtByte* bvh_active = m->vis.global.bvactive ? d->bvh_active + bvhadr : NULL;
+
+  mj_markStack(d);
+  // TODO(quaglino): Store bvh max depths to make this bound tighter.
+  int max_stack = m->mesh_bvhnum[m->geom_dataid[g]];
+  struct CollideTreeArgs_ {
+    int node;
+  };
+  typedef struct CollideTreeArgs_ CollideTreeArgs;
+  CollideTreeArgs* stack = mjSTACKALLOC(d, max_stack, CollideTreeArgs);
+  int nstack = 0;
+  stack[nstack].node = 0;
+  nstack++;
+
+  while (nstack) {
+    (*n0)++;
+
+    // pop from stack
+    nstack--;
+    int node = stack[nstack].node;
+
+    // node1 is a leaf
+    if (faceid[node] != -1) {
+      if (boxIntersect(bvh+6*node, offset, rotation, m, sdf, d)) {
+        faces[*npoints] = faceid[node];
+        if (++(*npoints) == MAXSDFFACE) {
+          mju_warning("mjc_MeshSDF: too many bounding volumes, some contacts may be missed");
+          mj_freeStack(d);
+          return;
+        }
+        if (bvh_active) bvh_active[node] = 1;
+      }
+      continue;
+    }
+
+    // if no intersection at intermediate levels, stop
+    if (!boxIntersect(bvh+6*node, offset, rotation, m, sdf, d)) {
+      continue;
+    }
+
+    if (bvh_active) bvh_active[node] = 1;
+
+    // recursive call
+    for (int i=0; i < 2; i++) {
+      if (child[2*node+i] != -1) {
+        if (nstack >= max_stack) mjERROR("BVH stack depth exceeded.");
+        stack[nstack].node = child[2*node+i];
+        nstack++;
+      }
+    }
+  }
+
+  mj_freeStack(d);
+}
 
 //------------------------------ collision functions -----------------------------------------------
 
@@ -645,9 +822,105 @@ int mjc_HFieldSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int
 
 // collision between a mesh and a signed distance field
 int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
-  return mjc_SDF(m, d, con, g1, g2, margin);
-}
+  mjGETINFO;
 
+  mjtNum offset[3], rotation[9], corners[9], x[3], depth;
+  mjtNum points[3*MAXSDFFACE], dist[MAXMESHPNT], candidate[3*MAXMESHPNT];
+  int vertadr = m->mesh_vertadr[m->geom_dataid[g1]];
+  int faceadr = m->mesh_faceadr[m->geom_dataid[g1]];
+  int cnt=0, npoints=0, ncandidate=0, n0=0, faces[MAXSDFFACE]={-1}, index[MAXMESHPNT];
+
+  // get sdf plugin
+  int instance = m->geom_plugin[g2];
+  const mjpPlugin* sdf_ptr = instance == -1 ? NULL : mjc_getSDF(m, g2);
+  instance = instance == -1 ? m->geom_dataid[g2] : instance;
+  mjtGeom geomtype = mjGEOM_SDF;
+
+  // copy into data
+  mjSDF sdf;
+  sdf.id = &instance;
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.plugin = &sdf_ptr;
+  sdf.geomtype = &geomtype;
+
+  // compute transformation from g1 to g2
+  mjtNum sdf_quat[4], quat1[4];
+  mju_mat2Quat(quat1, mat1);
+  mju_mat2Quat(sdf_quat, mat2);
+  mapPose(pos1, quat1, pos2, sdf_quat, offset, rotation);
+
+  // binary tree search
+  collideBVH(m, (mjData*)d, g1, offset, rotation, faces, &npoints, &n0, &sdf);
+
+  // Frank-Wolfe algorithm
+  for (int i=0; i < npoints; i++) {
+    int face = faceadr + faces[i];
+    for (int v=0; v < 3; v++) {
+      mjtNum vec[3] = {
+        m->mesh_vert[3*(vertadr+m->mesh_face[3*face+v])+0],
+        m->mesh_vert[3*(vertadr+m->mesh_face[3*face+v])+1],
+        m->mesh_vert[3*(vertadr+m->mesh_face[3*face+v])+2],
+      };
+
+      // transform local 1 (mesh) to local 2 (sdf)
+      mju_mulMatVec3(corners+3*v, rotation, vec);
+      mju_addTo3(corners+3*v, offset);
+    }
+
+    // stricter culling
+    if (!triangleIntersect(corners, m, &sdf, (mjData*)d)) {
+      continue;
+    }
+
+    // number of starting points per face
+    int nstartpts = mju_max(1, m->opt.sdf_initpoints);
+
+    for (int sp = 0; sp < nstartpts; sp++) {
+      // SHOULD NOT OCCUR
+      if (ncandidate == MAXMESHPNT) break;
+
+      // generate barycentric coordinates using Halton sequence
+      // map unit square to barycentric simplex
+      mjtNum u = mju_Halton(sp + 1, 2);
+      mjtNum v = mju_Halton(sp + 1, 3);
+      if (u + v > 1) {
+        u = 1 - u;
+        v = 1 - v;
+      }
+      mjtNum b0 = 1 - u - v;
+      mjtNum b1 = u;
+      mjtNum b2 = v;
+
+      // starting point using barycentric coordinates
+      x[0] = b0*corners[0] + b1*corners[3] + b2*corners[6];
+      x[1] = b0*corners[1] + b1*corners[4] + b2*corners[7];
+      x[2] = b0*corners[2] + b1*corners[5] + b2*corners[8];
+
+      depth = stepFrankWolfe(x, corners, 3, m, &sdf, (mjData*)d);
+
+      // store candidate if there is penetration
+      if (depth < 0) {
+        mju_copy3(candidate + 3*ncandidate, x);
+        index[ncandidate] = ncandidate;
+        dist[ncandidate++] = depth;
+      }
+    }
+  }
+
+  // sort contacts using depth
+  if (ncandidate > 1) {
+    int buf[MAXMESHPNT];
+    distSort(index, buf, ncandidate, dist);
+  }
+
+  // add only the first mjMAXCONPAIR pairs
+  for (int i=0; i < mju_min(ncandidate, mjMAXCONPAIR); i++) {
+    cnt = addContact(points, con, candidate + 3*index[i], pos2, sdf_quat,
+                     dist[index[i]], cnt, m, &sdf, (mjData*)d);
+  }
+
+  return cnt;
+}
 
 // collision between two SDFs
 int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
