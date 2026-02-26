@@ -14,7 +14,6 @@
 # ==============================================================================
 """Tests for msh2obj.py."""
 
-
 from absl.testing import absltest
 from etils import epath
 import mujoco

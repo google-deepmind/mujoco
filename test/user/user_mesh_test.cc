@@ -71,9 +71,6 @@ static const char* const kMalformedFaceOBJPath =
 static const char* const kCubeSkinPath =
     "user/testdata/cube_skin.xml";
 
-static const char* const kNoDecoderForMeshErrorMsh =
-    "no decoder found for mesh";
-
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
@@ -113,7 +110,7 @@ TEST_F(MjCMeshTest, UnknownMeshFormat) {
         LoadModelFromString(xml.c_str(), error.data(), error.size(), &vfs);
     ASSERT_THAT(model, testing::IsNull())
         << "Should fail to load a mesh named: " << name;
-    EXPECT_THAT(error.data(), HasSubstr(kNoDecoderForMeshErrorMsh));
+    EXPECT_THAT(error.data(), HasSubstr("unknown or unsupported mesh file: "));
     EXPECT_THAT(error.data(), HasSubstr(name));
   }
 
@@ -303,7 +300,7 @@ TEST_F(MjCMeshTest, LoadMSHWithContentTypeError) {
   // should error with unknown file type
   mjModel* model = LoadModelFromString(xml, error, error_sz, &vfs);
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr(kNoDecoderForMeshErrorMsh));
+  EXPECT_THAT(error, HasSubstr("unsupported mesh type: 'model/unknown'"));
   mj_deleteVFS(&vfs);
 }
 
@@ -330,7 +327,7 @@ TEST_F(MjCMeshTest, LoadMSHWithInvalidContentType) {
   // should error with unknown file type
   mjModel* model = LoadModelFromString(xml, error, error_sz, &vfs);
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr(kNoDecoderForMeshErrorMsh));
+  EXPECT_THAT(error, HasSubstr("invalid content type: 'model'"));
   mj_deleteVFS(&vfs);
 }
 

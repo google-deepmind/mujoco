@@ -612,7 +612,10 @@ void mjCMesh::ProcessVertices(const std::vector<float>& vert, bool remove_repeat
   }
 }
 
-
+bool mjCMesh::IsObj(std::string_view filename, std::string_view ct) {
+  std::string asset_type = GetAssetContentType(filename, ct);
+  return asset_type == "model/obj";
+}
 
 bool mjCMesh::IsSTL(std::string_view filename, std::string_view ct) {
   std::string asset_type = GetAssetContentType(filename, ct);
@@ -624,7 +627,9 @@ bool mjCMesh::IsMSH(std::string_view filename, std::string_view ct) {
   return asset_type == "model/vnd.mujoco.msh";
 }
 
-
+bool mjCMesh::IsObj() const {
+  return content_type_ == "model/obj";
+}
 
 bool mjCMesh::IsSTL() const {
   return content_type_ == "model/stl";
@@ -634,62 +639,28 @@ bool mjCMesh::IsMSH() const {
   return content_type_ == "model/vnd.mujoco.msh";
 }
 
-// load mesh using decoder plugin
-void mjCMesh::LoadFromDecoder(mjResource* resource, bool remove_repeated) {
-  const mjpDecoder* decoder = mjp_findDecoder(resource, content_type_.c_str());
-  if (!decoder) {
-    throw mjCError(this, "no decoder found for mesh file '%s'", resource->name);
-  }
-  mjSpec* mesh_spec = decoder->decode(resource, nullptr);
-  if (!mesh_spec) {
-    throw mjCError(this, "decoder failed for mesh file '%s'", resource->name);
-  }
-  mjsElement* elem = mjs_firstElement(mesh_spec, mjOBJ_MESH);
-  if (elem) {
-    mjsMesh* src_mesh = mjs_asMesh(elem);
-    if (src_mesh) {
-      normal_.assign(src_mesh->usernormal->begin(), src_mesh->usernormal->end());
-      texcoord_.assign(src_mesh->usertexcoord->begin(), src_mesh->usertexcoord->end());
-      face_.assign(src_mesh->userface->begin(), src_mesh->userface->end());
-      facenormal_.assign(src_mesh->userfacenormal->begin(), src_mesh->userfacenormal->end());
-      facetexcoord_.assign(src_mesh->userfacetexcoord->begin(), src_mesh->userfacetexcoord->end());
-
-      // correct winding order for left-handed coordinate systems
-      bool righthand = scale[0] * scale[1] * scale[2] > 0;
-      if (!righthand) {
-        for (size_t i = 0; i < face_.size(); i += 3) {
-          std::swap(face_[i + 1], face_[i + 2]);
-        }
-        for (size_t i = 0; i < facenormal_.size(); i += 3) {
-          std::swap(facenormal_[i + 1], facenormal_[i + 2]);
-        }
-        for (size_t i = 0; i < facetexcoord_.size(); i += 3) {
-          std::swap(facetexcoord_[i + 1], facetexcoord_[i + 2]);
-        }
-      }
-
-      std::vector<float> vert(src_mesh->uservert->begin(), src_mesh->uservert->end());
-      mj_deleteSpec(mesh_spec);
-      ProcessVertices(vert, remove_repeated);
-      return;
-    }
-  }
-  mj_deleteSpec(mesh_spec);
-}
 
 
 // load mesh from resource; throw error on failure
 void mjCMesh::LoadFromResource(mjResource* resource, bool remove_repeated) {
   // set content type from resource name
   std::string asset_type = GetAssetContentType(resource->name, content_type_);
+  if (asset_type.empty()) {
+    if (!content_type_.empty()) {
+      throw mjCError(this, "invalid content type: '%s'", content_type_.c_str());
+    }
+    throw mjCError(this, "unknown or unsupported mesh file: '%s'", resource->name);
+  }
   content_type_ = asset_type;
 
   if (IsSTL()) {
     LoadSTL(resource);
+  } else if (IsObj()) {
+    LoadOBJ(resource, remove_repeated);
   } else if (IsMSH()) {
     LoadMSH(resource, remove_repeated);
   } else {
-    LoadFromDecoder(resource, remove_repeated);
+    throw mjCError(this, "unsupported mesh type: '%s'", asset_type.c_str());
   }
 }
 
@@ -1036,6 +1007,83 @@ void mjCMesh::FitGeom(mjCGeom* geom, double center[3]) {
   geom->size[1] *= geom->fitscale;
   geom->size[2] *= geom->fitscale;
 }
+
+
+
+// load OBJ mesh
+void mjCMesh::LoadOBJ(mjResource* resource, bool remove_repeated) {
+  tinyobj::ObjReader objReader;
+  const void* bytes = nullptr;
+
+  int buffer_sz = mju_readResource(resource, &bytes);
+  if (buffer_sz < 0) {
+    throw mjCError(this, "could not read OBJ file '%s'", resource->name);
+  }
+
+  // TODO(etom): support .mtl files?
+  const char* buffer = (const char*) bytes;
+  objReader.ParseFromString(std::string(buffer, buffer_sz), std::string());
+
+  if (!objReader.Valid()) {
+    throw mjCError(this, "could not parse OBJ file '%s'", resource->name);
+  }
+
+  const auto& attrib = objReader.GetAttrib();
+  normal_ = attrib.normals;
+  texcoord_ = attrib.texcoords;
+  facenormal_.clear();
+  facetexcoord_.clear();
+
+  if (!objReader.GetShapes().empty()) {
+    const auto& mesh = objReader.GetShapes()[0].mesh;
+    bool righthand = scale[0] * scale[1] * scale[2] > 0;
+
+    // iterate over mesh faces
+    std::vector<tinyobj::index_t> face_indices;
+    for (int face = 0, idx = 0; idx < mesh.indices.size();) {
+      int nfacevert = mesh.num_face_vertices[face];
+      if (nfacevert < 3 || nfacevert > 4) {
+        throw mjCError(
+            this, "only tri or quad meshes are supported for OBJ (file '%s')",
+            resource->name);
+      }
+
+      face_indices.push_back(mesh.indices[idx]);
+      face_indices.push_back(mesh.indices[idx + (righthand == 1 ? 1 : 2)]);
+      face_indices.push_back(mesh.indices[idx + (righthand == 1 ? 2 : 1)]);
+
+      if (nfacevert == 4) {
+        face_indices.push_back(mesh.indices[idx]);
+        face_indices.push_back(mesh.indices[idx + (righthand == 1 ? 2 : 3)]);
+        face_indices.push_back(mesh.indices[idx + (righthand == 1 ? 3 : 2)]);
+      }
+      idx += nfacevert;
+      ++face;
+    }
+
+    // for each vertex, store index, normal, and texcoord
+    for (const auto& mesh_index : face_indices) {
+      face_.push_back(mesh_index.vertex_index);
+
+      if (!normal_.empty()) {
+        facenormal_.push_back(mesh_index.normal_index);
+      }
+
+      if (!texcoord_.empty()) {
+        facetexcoord_.push_back(mesh_index.texcoord_index);
+      }
+    }
+  }
+
+  // flip the second texcoord
+  for (int i=0; i < texcoord_.size()/2; i++) {
+    texcoord_[2*i+1] = 1-texcoord_[2*i+1];
+  }
+
+  // copy vertex data
+  ProcessVertices(attrib.vertices, remove_repeated);
+}
+
 
 
 // load mesh from cached asset, return true on success
@@ -1728,7 +1776,7 @@ void mjCMesh::CheckInitialMesh() const {
 
   // check texcoord size if no face texcoord indices are given
   if (!texcoord_.empty() && texcoord_.size() != 2 * nvert() &&
-      facetexcoord_.empty() && content_type_ != "model/obj") {
+      facetexcoord_.empty() && !IsObj()) {
     throw mjCError(this,
         "texcoord must be 2*nv if face texcoord indices are not provided in an OBJ file");
   }
