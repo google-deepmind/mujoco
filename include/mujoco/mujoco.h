@@ -46,7 +46,15 @@ MJAPI extern void  (*mju_user_error)(const char*);
 MJAPI extern void  (*mju_user_warning)(const char*);
 MJAPI extern void* (*mju_user_malloc)(size_t);
 MJAPI extern void  (*mju_user_free)(void*);
-
+// Accessor functions for user handlers (Windows DLL export compatibility)
+MJAPI void  (*mju_getUserError(void))(const char*);
+MJAPI void  mju_setUserError(void (*handler)(const char*));
+MJAPI void  (*mju_getUserWarning(void))(const char*);
+MJAPI void  mju_setUserWarning(void (*handler)(const char*));
+MJAPI void* (*mju_getUserMalloc(void))(size_t);
+MJAPI void  mju_setUserMalloc(void* (*handler)(size_t));
+MJAPI void  (*mju_getUserFree(void))(void*);
+MJAPI void  mju_setUserFree(void (*handler)(void*));
 
 // callbacks extending computation pipeline
 MJAPI extern mjfGeneric  mjcb_passive;
@@ -57,7 +65,23 @@ MJAPI extern mjfTime     mjcb_time;
 MJAPI extern mjfAct      mjcb_act_dyn;
 MJAPI extern mjfAct      mjcb_act_gain;
 MJAPI extern mjfAct      mjcb_act_bias;
-
+// Accessor functions for callbacks (Windows DLL export compatibility)
+MJAPI mjfGeneric mju_getCallbackPassive(void);
+MJAPI void mju_setCallbackPassive(mjfGeneric handler);
+MJAPI mjfGeneric mju_getCallbackControl(void);
+MJAPI void mju_setCallbackControl(mjfGeneric handler);
+MJAPI mjfConFilt mju_getCallbackContactFilter(void);
+MJAPI void mju_setCallbackContactFilter(mjfConFilt handler);
+MJAPI mjfSensor mju_getCallbackSensor(void);
+MJAPI void mju_setCallbackSensor(mjfSensor handler);
+MJAPI mjfTime mju_getCallbackTime(void);
+MJAPI void mju_setCallbackTime(mjfTime handler);
+MJAPI mjfAct mju_getCallbackActDyn(void);
+MJAPI void mju_setCallbackActDyn(mjfAct handler);
+MJAPI mjfAct mju_getCallbackActGain(void);
+MJAPI void mju_setCallbackActGain(mjfAct handler);
+MJAPI mjfAct mju_getCallbackActBias(void);
+MJAPI void mju_setCallbackActBias(mjfAct handler);
 
 // collision function table
 MJAPI extern mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES];
