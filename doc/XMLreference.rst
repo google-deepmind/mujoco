@@ -4654,9 +4654,11 @@ of the other body, without any joint elements in the child body. Weld constraint
 .. _equality-weld-relpose:
 
 :at:`relpose`: :at-val:`real(7), "0 1 0 0 0 0 0"`
-   This attribute specifies the relative pose (3D position followed by 4D quaternion orientation) of body2 relative to
-   body1. If the quaternion part (i.e., last 4 components of the vector) are all zeros, as in the default setting, this
-   attribute is ignored and the relative pose is the one corresponding to the model reference pose in qpos0. The unusual
+   This attribute specifies the relative pose (3D position followed by 4D quaternion orientation) of the anchor point
+   relative to body1. The position part (first 3 components) gives the anchor coordinates in the local frame of body1,
+   and the quaternion part (last 4 components) gives the relative orientation of body2 relative to body1. If the
+   quaternion part (i.e., last 4 components of the vector) are all zeros, as in the default setting, this attribute is
+   ignored and the relative pose is the one corresponding to the model reference pose in qpos0. The unusual
    default is because all equality constraint types share the same default for their numeric parameters.
 
 .. _equality-weld-anchor:
