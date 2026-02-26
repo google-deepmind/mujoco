@@ -1530,6 +1530,7 @@ void mj_step2(const mjModel* m, mjData* d) {
   mj_fwdActuation(m, d);
   mj_fwdAcceleration(m, d);
   mj_fwdConstraint(m, d);
+  d->flg_rnepost = 0;  // clear flag for lazy evaluation
   mj_sensorAcc(m, d);
   mj_checkAcc(m, d);
 
