@@ -26,7 +26,15 @@ import mujoco.mjx.warp as mjxw
 def render(m: Model, d: Data, ctx: Any) -> Data:
   """Render."""
   if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
+    import mujoco.mjx.warp.render_context as mjxw_rc  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
     from mujoco.mjx.warp import render as mjxw_render  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+
+    if not isinstance(ctx, mjxw_rc.RenderContextPytree):
+      raise TypeError(
+          f'Expected RenderContextPytree, got {type(ctx).__name__}.'
+          ' Use rc.pytree() to get the JAX-compatible handle.'
+      )
+
     return mjxw_render.render(m, d, ctx)
 
   raise NotImplementedError('render only implemented for MuJoCo Warp.')

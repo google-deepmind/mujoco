@@ -14,14 +14,13 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
-
 import dataclasses
 import functools
 import jax
 from mujoco.mjx._src import types
 from mujoco.mjx.warp import ffi
-from mujoco.mjx.warp.io import _MJX_RENDER_CONTEXT_BUFFERS
-from mujoco.mjx.warp.types import RenderContext
+from mujoco.mjx.warp.render_context import _MJX_RENDER_CONTEXT_BUFFERS
+from mujoco.mjx.warp.render_context import RenderContextPytree
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 import warp as wp
@@ -45,7 +44,6 @@ _c = mjwarp.Contact(
 _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
-
 
 @ffi.format_args_for_warp
 def _refit_bvh_shim(
@@ -93,7 +91,9 @@ def _refit_bvh_shim(
   mjwarp.refit_bvh(_m, _d, render_context)
 
 
-def _refit_bvh_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
+def _refit_bvh_jax_impl(
+    m: types.Model, d: types.Data, ctx: RenderContextPytree
+):
   output_dims = {'dummy': (d.qpos.shape[0],)}
   jf = ffi.jax_callable_variadic_tuple(
       _refit_bvh_shim,
@@ -129,7 +129,7 @@ def _refit_bvh_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
 
 @jax.custom_batching.custom_vmap
 @ffi.marshal_jax_warp_callable
-def refit_bvh(m: types.Model, d: types.Data, ctx: RenderContext):
+def refit_bvh(m: types.Model, d: types.Data, ctx: RenderContextPytree):
   return _refit_bvh_jax_impl(m, d, ctx)
 
 
@@ -140,7 +140,7 @@ def refit_bvh_vmap(
     is_batched,
     m: types.Model,
     d: types.Data,
-    ctx: RenderContext,
+    ctx: RenderContextPytree,
 ):
   d = refit_bvh(m, d, ctx)
   return d, is_batched[1]

@@ -21,6 +21,7 @@ import jax.numpy as jnp
 from mujoco.mjx._src import io
 from mujoco.mjx._src import render_util
 import mujoco.mjx.warp as mjxw
+from mujoco.mjx.warp.render_context import RenderContextPytree
 import numpy as np
 
 _FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
@@ -51,11 +52,11 @@ class RenderUtilTest(absltest.TestCase):
   def test_get_rgb(self):
     width, height = 4, 4
     warp_rc = _fake_render_context(1, width, height)
-    rc = mock.MagicMock(key=0)
+    rc = mock.MagicMock(spec=RenderContextPytree, key=0)
     rgb_data = jnp.zeros((width * height,), dtype=jnp.uint32)
 
     with mock.patch.dict(
-        'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
+        'mujoco.mjx.warp.render_context._MJX_RENDER_CONTEXT_BUFFERS',
         {(0, None): warp_rc},
     ):
       rgb = jax.jit(render_util.get_rgb, static_argnums=(0, 1))(rc, 0, rgb_data)
@@ -65,11 +66,11 @@ class RenderUtilTest(absltest.TestCase):
   def test_get_rgb_vmap(self):
     nworld, width, height = 3, 4, 4
     warp_rc = _fake_render_context(1, width, height)
-    rc = mock.MagicMock(key=0)
+    rc = mock.MagicMock(spec=RenderContextPytree, key=0)
     rgb_data = jnp.zeros((nworld, width * height), dtype=jnp.uint32)
 
     with mock.patch.dict(
-        'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
+        'mujoco.mjx.warp.render_context._MJX_RENDER_CONTEXT_BUFFERS',
         {(0, None): warp_rc},
     ):
       rgb = jax.jit(
@@ -82,11 +83,11 @@ class RenderUtilTest(absltest.TestCase):
   def test_get_depth(self):
     width, height = 4, 4
     warp_rc = _fake_render_context(1, width, height)
-    rc = mock.MagicMock(key=0)
+    rc = mock.MagicMock(spec=RenderContextPytree, key=0)
     depth_data = jnp.zeros((width * height,), dtype=jnp.float32)
 
     with mock.patch.dict(
-        'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
+        'mujoco.mjx.warp.render_context._MJX_RENDER_CONTEXT_BUFFERS',
         {(0, None): warp_rc},
     ):
       depth = jax.jit(render_util.get_depth, static_argnums=(0, 1, 3))(
@@ -98,11 +99,11 @@ class RenderUtilTest(absltest.TestCase):
   def test_get_depth_vmap(self):
     nworld, width, height = 3, 4, 4
     warp_rc = _fake_render_context(1, width, height)
-    rc = mock.MagicMock(key=0)
+    rc = mock.MagicMock(spec=RenderContextPytree, key=0)
     depth_data = jnp.zeros((nworld, width * height), dtype=jnp.float32)
 
     with mock.patch.dict(
-        'mujoco.mjx.warp.render._MJX_RENDER_CONTEXT_BUFFERS',
+        'mujoco.mjx.warp.render_context._MJX_RENDER_CONTEXT_BUFFERS',
         {(0, None): warp_rc},
     ):
       depth = jax.jit(

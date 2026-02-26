@@ -14,22 +14,25 @@
 # ==============================================================================
 """JAX render utilities for unpacking render output from MuJoCo Warp."""
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
 import mujoco.mjx.warp as mjxw
 
+if TYPE_CHECKING:
+  from mujoco.mjx.warp.render_context import RenderContextPytree
+
 
 def get_rgb(
-    rc: Any,
+    rc: 'RenderContextPytree',
     cam_id: int,
     rgb_data: jax.Array,
 ) -> jax.Array:
   """Unpack uint32 ABGR pixel data into float32 RGB.
 
   Args:
-    rc: The RenderContext handle.
+    rc: RenderContext or RenderContextPytree (both have .key).
     cam_id: Camera index to extract.
     rgb_data: Packed render output, shape (total_pixels,) as uint32.
 
@@ -39,12 +42,18 @@ def get_rgb(
   Raises:
     RuntimeError: If Warp is not installed.
   """
-  if mjxw.WARP_INSTALLED:
-    import mujoco.mjx.warp.render as mjxw_render  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-  else:
+  if not mjxw.WARP_INSTALLED:
     raise RuntimeError('Warp not installed.')
 
-  warp_rc = mjxw_render._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]
+  import mujoco.mjx.warp.render_context as mjxw_rc  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+
+  if not isinstance(rc, mjxw_rc.RenderContextPytree):
+    raise TypeError(
+        f'Expected RenderContextPytree, got {type(rc).__name__}.'
+        ' Use rc.pytree() to get the JAX-compatible handle.'
+    )
+
+  warp_rc = mjxw_rc._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]  # pylint: disable=protected-access
   rgb_adr = int(warp_rc.rgb_adr.numpy()[cam_id])
   width = int(warp_rc.cam_res.numpy()[cam_id][0])
   height = int(warp_rc.cam_res.numpy()[cam_id][1])
@@ -61,7 +70,7 @@ def get_rgb(
 
 
 def get_depth(
-    rc: Any,
+    rc: 'RenderContextPytree',
     cam_id: int,
     depth_data: jax.Array,
     depth_scale: float,
@@ -69,7 +78,7 @@ def get_depth(
   """Extract and normalize depth data for a camera.
 
   Args:
-    rc: The RenderContext handle.
+    rc: RenderContext or RenderContextPytree (both have .key).
     cam_id: Camera index to extract.
     depth_data: Raw depth output, shape (total_pixels,) as float32.
     depth_scale: Scale factor for normalizing depth values.
@@ -80,11 +89,18 @@ def get_depth(
   Raises:
     RuntimeError: If Warp is not installed.
   """
-  if mjxw.WARP_INSTALLED:
-    import mujoco.mjx.warp.render as mjxw_render  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-  else:
+  if not mjxw.WARP_INSTALLED:
     raise RuntimeError('Warp not installed.')
-  warp_rc = mjxw_render._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]
+
+  import mujoco.mjx.warp.render_context as mjxw_rc  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+
+  if not isinstance(rc, mjxw_rc.RenderContextPytree):
+    raise TypeError(
+        f'Expected RenderContextPytree, got {type(rc).__name__}.'
+        ' Use rc.pytree() to get the JAX-compatible handle.'
+    )
+
+  warp_rc = mjxw_rc._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]  # pylint: disable=protected-access
   depth_adr = int(warp_rc.depth_adr.numpy()[cam_id])
   width = int(warp_rc.cam_res.numpy()[cam_id][0])
   height = int(warp_rc.cam_res.numpy()[cam_id][1])

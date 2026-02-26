@@ -215,8 +215,11 @@ MJX-Warp Batch Rendering
 MJX-Warp includes a hardware-accelerated batch renderer for generating pixel observations (such as RGB and depth)
 across multiple parallel environments.
 
-To use the batch renderer, you must first create a specialized render context that allocates the necessary buffers.
-Note that the number of parallel worlds (``nworld``) is fixed when creating the context:
+To use the batch renderer, you must first create a render context that allocates the necessary buffers.
+Note that the number of parallel worlds (``nworld``) is fixed when creating the context.
+``create_render_context`` returns a render context object that provides direct access to buffer
+metadata (camera resolution, addresses, etc.). Call ``.pytree()`` to obtain the lightweight JAX
+pytree that should be passed into ``jit``/``vmap``-compiled functions:
 
 .. code-block:: python
 
@@ -233,6 +236,10 @@ Note that the number of parallel worlds (``nworld``) is fixed when creating the 
         enabled_geom_groups=[0, 1, 2],
     )
 
+Hold a reference to ``rc`` for the lifetime of your program and pass ``rc.pytree()`` to
+downstream JAX functions.  The pytree is a lightweight handle that refers back to the
+context via an internal registry.
+
 Once the context is created, you can render images within a compiled JAX function. This involves updating the bounding
 volume hierarchy (BVH) and executing the raycaster:
 
@@ -241,19 +248,19 @@ volume hierarchy (BVH) and executing the raycaster:
     from mujoco.mjx import get_rgb
 
     @jax.jit
-    def render_fn(mx, d, rc):
+    def render_fn(mx, d, rc_pytree):
         # 1. Update the BVH for the current scene state
-        d = mjx.refit_bvh(mx, d, rc)
+        d = mjx.refit_bvh(mx, d, rc_pytree)
 
         # 2. Render all configured cameras
-        pixels, _ = mjx.render(mx, d, rc)
+        pixels, _ = mjx.render(mx, d, rc_pytree)
 
         # 3. Extract the RGB tensor for the first camera (index 0)
-        rgb = get_rgb(rc, 0, pixels)
+        rgb = get_rgb(rc_pytree, 0, pixels)
 
-        # CAVEAT: Always return or use the updated `d` in your computation graph.
-        # Otherwise, JAX's dead-code elimination will optimize away the refit_bvh call!
         return rgb, d
+
+    rgb, d = render_fn(mx, d, rc.pytree())
 
 Multi-GPU rendering with ``pmap``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
