@@ -26,7 +26,7 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
-#include "third_party/dear_imgui/misc/cpp/imgui_stdlib.h"
+#include <misc/cpp/imgui_stdlib.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/enum_utils.h"
 

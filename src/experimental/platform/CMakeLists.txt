@@ -112,6 +112,7 @@ include(third_party_deps/libwebp)
 target_link_libraries(${MUJOCO_PLATFORM_TARGET_NAME}
     dear_imgui
     dear_imgui_SDL2
+    dear_imgui_stdlib
     implot
     webp
     SDL2::SDL2-static
