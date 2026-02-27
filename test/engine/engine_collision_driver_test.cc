@@ -56,7 +56,9 @@ TEST_F(MjCollisionTest, AllCollisions) {
   static const char* const kModelFilePath =
       "engine/testdata/collisions.xml";
   const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // mjCOL_ALL is the default
@@ -87,7 +89,9 @@ TEST_F(MjCollisionTest, ZeroedHessian) {
   static const char* const kModelFilePath =
       "engine/testdata/collisions.xml";
   const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   mj_fwdPosition(model, data);

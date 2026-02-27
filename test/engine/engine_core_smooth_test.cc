@@ -404,8 +404,9 @@ TEST_F(CoreSmoothTest, TendonInertiaEquivalent) {
 // test that bodies hanging on connects lead to expected force sensor readings
 void TestConnect(const char* const filepath) {
   const std::string xml_path = GetTestDataFilePath(filepath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
   // settle physics:
   for (int i=0; i < 1000; i++) {
@@ -459,8 +460,9 @@ TEST_F(CoreSmoothTest, RnePostConnectMultipleConstraints) {
 // test that bodies attached with welds lead to expected force sensor readings
 void TestWeld(const char* const filepath) {
   const std::string xml_path = GetTestDataFilePath(filepath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
   // settle physics:
   for (int i=0; i < 1000; i++) {
@@ -546,7 +548,9 @@ TEST_F(CoreSmoothTest, EqualityBodySite) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/equality_site_body_compare.xml");
 
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   // simulate, get sensordata
@@ -582,8 +586,9 @@ TEST_F(CoreSmoothTest, EqualityBodySite) {
 TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
   constexpr char kRefsitePath[] = "engine/testdata/actuation/refsite.xml";
   const std::string xml_path = GetTestDataFilePath(kRefsitePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   // set pose target in ctrl (3 positions, 3 rotations)
@@ -625,8 +630,9 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
 TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
   constexpr char kRefsitePath[] = "engine/testdata/actuation/refsite_free.xml";
   const std::string xml_path = GetTestDataFilePath(kRefsitePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   data->ctrl[0] = 1;
