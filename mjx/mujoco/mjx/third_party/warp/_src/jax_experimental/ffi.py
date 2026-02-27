@@ -695,6 +695,8 @@ class FfiCallable:
                 cuda_stream = get_stream_from_callframe(call_frame.contents)
                 device_ordinal = get_device_ordinal_from_callframe(call_frame.contents)
 
+                device_ordinal = get_device_ordinal_from_callframe(call_frame.contents)
+
                 if self.graph_mode == GraphMode.WARP:
                     # check if we already captured an identical call
                     ip = [inputs[i].contents.data for i in self.array_input_indices]
