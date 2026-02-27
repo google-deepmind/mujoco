@@ -32,7 +32,7 @@ def get_rgb(
   """Unpack uint32 ABGR pixel data into float32 RGB.
 
   Args:
-    rc: RenderContext or RenderContextPytree (both have .key).
+    rc: RenderContextPytree.
     cam_id: Camera index to extract.
     rgb_data: Packed render output, shape (total_pixels,) as uint32.
 
@@ -78,7 +78,7 @@ def get_depth(
   """Extract and normalize depth data for a camera.
 
   Args:
-    rc: RenderContext or RenderContextPytree (both have .key).
+    rc: RenderContextPytree.
     cam_id: Camera index to extract.
     depth_data: Raw depth output, shape (total_pixels,) as float32.
     depth_scale: Scale factor for normalizing depth values.

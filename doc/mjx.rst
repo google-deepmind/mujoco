@@ -262,6 +262,14 @@ volume hierarchy (BVH) and executing the raycaster:
 
     rgb, d = render_fn(mx, d, rc.pytree())
 
+.. WARNING::
+   The batch dimension ``nworld`` is fixed when the render context is created via
+   :func:`~mujoco.mjx.create_render_context` since the underlying Warp render context allocates
+   buffers for ``nworld`` environments that are not visible to JAX. :func:`~mujoco.mjx.render`
+   will always return outputs with a leading batch dimension of size ``nworld``. Because of this,
+   there is a known issue where :func:`~mujoco.mjx.render` does not play nice with a
+   ``jax.vmap(jax.lax.scan)``.
+
 Multi-GPU rendering with ``pmap``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
