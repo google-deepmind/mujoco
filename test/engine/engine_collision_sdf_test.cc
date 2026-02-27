@@ -81,5 +81,71 @@ TEST_F(SdfTest, SdfPrimitive) {
   mj_deleteModel(model);
 }
 
+static constexpr char kFlexSdfModel[] = R"(
+<mujoco>
+  <extension>
+    <plugin plugin="mujoco.sdf.torus">
+      <instance name="torus">
+        <config key="radius1" value="0.35"/>
+        <config key="radius2" value="0.15"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <asset>
+    <mesh name="torus">
+      <plugin instance="torus"/>
+    </mesh>
+  </asset>
+
+  <worldbody>
+    <body pos="0 0 -0.3">
+      <geom type="sdf" mesh="torus">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+    <body name="flex">
+      <flexcomp name="test" type="grid" count="3 3 1" spacing=".2 .2 .2" dim="2">
+        <elasticity young="1e4"/>
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+TEST_F(SdfTest, FlexSdfCollision) {
+  char error[1024];
+  mjModel* model = LoadModelFromString(kFlexSdfModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  // check there is at least one flex
+  ASSERT_GT(model->nflex, 0);
+
+  // simulate for a few steps to let flex fall onto torus
+  for (int i = 0; i < 100; i++) {
+    mj_step(model, data);
+  }
+
+  // should have contacts between flex and SDF
+  EXPECT_GT(data->ncon, 0) << "Expected flex-SDF contacts";
+
+  // check that contacts involve the flex
+  bool has_flex_contact = false;
+  for (int i = 0; i < data->ncon; i++) {
+    if (data->contact[i].flex[0] >= 0 || data->contact[i].flex[1] >= 0) {
+      has_flex_contact = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_flex_contact) << "Expected at least one flex contact";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco
+

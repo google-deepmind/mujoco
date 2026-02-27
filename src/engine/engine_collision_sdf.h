@@ -44,6 +44,10 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
 // collision between two signed distance fields
 int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin);
 
+// collision between entire flex and SDF geom (batched processing)
+int mjc_FlexSDF(const mjModel* m, mjData* d, mjContact* con,
+                int g, int f, mjtNum margin);
+
 #ifdef __cplusplus
 }
 #endif

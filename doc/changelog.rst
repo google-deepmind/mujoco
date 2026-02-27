@@ -5,6 +5,11 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+
+- Flexes now support collisions with SDF geoms.
+
 MJX
 ^^^
 

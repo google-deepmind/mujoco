@@ -484,6 +484,14 @@ void mj_collision(const mjModel* m, mjData* d) {
             continue;
           }
 
+          // SDF special processing
+          if (m->geom_type[g] == mjGEOM_SDF) {
+            int ncon_before = d->ncon;
+            mj_collideSdfFlex(m, d, g, f);
+            filterFlexContacts(d, ncon_before);
+            continue;
+          }
+
           // collide geom with flex elements
           int ncon_before = d->ncon;
           int elemnum = m->flex_elemnum[f];
@@ -754,6 +762,15 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
     }
   }
 
+  // for body:flex, if body has SDFs, call mj_collideSdfFlex directly
+  if (isbody1 && !isbody2) {
+    for (int i=m->body_geomadr[bf1]; i < m->body_geomadr[bf1]+m->body_geomnum[bf1]; i++) {
+      if (m->geom_type[i] == mjGEOM_SDF) {
+        mj_collideSdfFlex(m, d, i, f2);
+      }
+    }
+  }
+
   // collide trees
   while (nstack) {
     // pop from stack
@@ -820,8 +837,9 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
                             d->geom_xpos + 3*nodeid1, d->geom_xmat + 9*nodeid1,
                             NULL, NULL,
                             margin, NULL, NULL, &initialize)) {
-            // collide unless geom is plane (plane:flex handled separately)
-            if (m->geom_type[nodeid1] != mjGEOM_PLANE) {
+            // collide unless geom is plane or SDF (handled separately)
+            if (m->geom_type[nodeid1] != mjGEOM_PLANE &&
+                m->geom_type[nodeid1] != mjGEOM_SDF) {
               mj_collideGeomElem(m, d, nodeid1, f2, nodeid2);
             }
             if (mark_active) {
@@ -1797,6 +1815,54 @@ void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
       return;
     }
   }
+}
+
+
+// test an SDF geom and a flex for collision, add to contact list
+void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
+  // only support dim==2 (triangular elements)
+  if (m->flex_dim[f] != 2) {
+    return;
+  }
+
+  // prepare contact parameters (same for all contacts)
+  mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
+  int condim;
+  mjtNum gap, solref[mjNREF], solimp[mjNIMP], friction[5];
+  mjtNum solreffriction[mjNREF] = {0};
+  mj_contactParam(m, &condim, &gap, solref, solimp, friction, g, -1, -1, f);
+
+  // allocate temporary contact array on stack (zero-initialized)
+  mj_markStack(d);
+  mjContact* con = mjSTACKALLOC(d, mjMAXCONPAIR, mjContact);
+  memset(con, 0, mjMAXCONPAIR * sizeof(mjContact));
+
+  // call batched flex-SDF collision
+  int num = mjc_FlexSDF(m, d, con, g, f, margin);
+
+  // add contacts to mjData
+  for (int i = 0; i < num; i++) {
+    // set contact ids
+    con[i].geom[0] = g;
+    con[i].geom[1] = -1;
+    con[i].flex[0] = -1;
+    con[i].flex[1] = f;
+    con[i].elem[0] = -1;
+    // con[i].elem[1] already set by mjc_FlexSDF with actual element index
+    con[i].vert[0] = -1;
+    con[i].vert[1] = -1;
+
+    // set remaining contact parameters
+    mj_setContact(m, con + i, condim, margin-gap, solref, solreffriction, solimp, friction);
+
+    // add to mjData, abort if too many contacts
+    if (mj_addContact(m, d, con + i)) {
+      mj_freeStack(d);
+      return;
+    }
+  }
+
+  mj_freeStack(d);
 }
 
 

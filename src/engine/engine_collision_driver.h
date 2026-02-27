@@ -55,6 +55,9 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2);
 // test a plane geom and a flex for collision, add to contact list
 void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f);
 
+// test an SDF geom and a flex for collision, add to contact list
+void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f);
+
 // test for internal flex collisions, add to contact list
 void mj_collideFlexInternal(const mjModel* m, mjData* d, int f);
 
