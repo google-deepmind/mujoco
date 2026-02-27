@@ -31,8 +31,6 @@
 #include "engine/engine_util_spatial.h"
 
 
-#define MAXSDFFACE 1300
-#define MAXMESHPNT 500
 
 
 //---------------------------- interpolated sdf -------------------------------------------
@@ -516,23 +514,6 @@ static void mapPose(const mjtNum xpos1[3], const mjtNum xquat1[4],
 
 //---------------------------- narrow phase -----------------------------------------------
 
-// comparison function for contact sorting
-static inline int distcmp(int* i, int* j, void* context) {
-  mjtNum d1 = ((mjtNum*)context)[*i];
-  mjtNum d2 = ((mjtNum*)context)[*j];
-
-  if (d1 < d2) {
-    return -1;
-  } else if (d1 == d2) {
-    return 0;
-  } else {
-    return 1;
-  }
-}
-
-// define distSort function for contact sorting
-mjSORT(distSort, int, distcmp);
-
 // check if the collision point already exists
 static int isknown(const mjtNum* points, const mjtNum x[3], int cnt) {
   for (int i = 0; i < cnt; i++) {
@@ -739,13 +720,82 @@ static int boxIntersect(const mjtNum bvh[6], const mjtNum offset[3],
   return mjc_distance(m, d, s, candidate) < r;
 }
 
-//---------------------------- mesh vs sdf broad phase --------------------------------------------
+// Context for inline face processing during BVH traversal
+typedef struct {
+  const mjModel* m;
+  mjData* d;
+  const mjSDF* sdf;
+  const mjtNum* offset;
+  const mjtNum* rotation;
+  int vertadr;
+  int faceadr;
+  int nstartpts;
+  mjtNum* candidate;
+  mjtNum* dist;
+  int* ncandidate;
+} MeshSDFContext;
 
-// tree vs sdf binary search
-static void collideBVH(const mjModel* m, mjData* d, int g,
-                       const mjtNum offset[3], const mjtNum rotation[9],
-                       int* faces, int* npoints, int* n0,
-                       const mjSDF* sdf) {
+// process a single mesh face inline during BVH traversal
+static void processOneFace(int faceid, mjtByte* bvh_active, int node,
+                           MeshSDFContext* ctx) {
+  mjtNum corners[9], x[3], depth;
+  const mjModel* m = ctx->m;
+  mjData* d = ctx->d;
+  int face = ctx->faceadr + faceid;
+
+  // transform triangle vertices to SDF local coordinates
+  for (int v = 0; v < 3; v++) {
+    mjtNum vec[3] = {
+      m->mesh_vert[3*(ctx->vertadr + m->mesh_face[3*face+v]) + 0],
+      m->mesh_vert[3*(ctx->vertadr + m->mesh_face[3*face+v]) + 1],
+      m->mesh_vert[3*(ctx->vertadr + m->mesh_face[3*face+v]) + 2],
+    };
+    mju_mulMatVec3(corners + 3*v, ctx->rotation, vec);
+    mju_addTo3(corners + 3*v, ctx->offset);
+  }
+
+  // stricter culling using triangle circumsphere
+  if (!triangleIntersect(corners, m, ctx->sdf, d)) {
+    return;
+  }
+
+  if (bvh_active) bvh_active[node] = 1;
+
+  // sample multiple starting points using Halton sequence
+  for (int sp = 0; sp < ctx->nstartpts; sp++) {
+    if (*(ctx->ncandidate) >= mjMAXCONPAIR) break;
+
+    // barycentric coordinates from Halton sequence
+    mjtNum u = mju_Halton(sp + 1, 2);
+    mjtNum v = mju_Halton(sp + 1, 3);
+    if (u + v > 1) {
+      u = 1 - u;
+      v = 1 - v;
+    }
+    mjtNum b0 = 1 - u - v;
+    mjtNum b1 = u;
+    mjtNum b2 = v;
+
+    // starting point
+    x[0] = b0*corners[0] + b1*corners[3] + b2*corners[6];
+    x[1] = b0*corners[1] + b1*corners[4] + b2*corners[7];
+    x[2] = b0*corners[2] + b1*corners[5] + b2*corners[8];
+
+    depth = stepFrankWolfe(x, corners, 3, m, ctx->sdf, d);
+
+    // store candidate if penetration
+    if (depth < 0) {
+      int nc = *(ctx->ncandidate);
+      mju_copy3(ctx->candidate + 3*nc, x);
+      ctx->dist[nc] = depth;
+      (*(ctx->ncandidate))++;
+    }
+  }
+}
+
+// tree vs sdf binary search with inline face processing
+static void collideBVHInline(const mjModel* m, mjData* d, int g,
+                             MeshSDFContext* ctx) {
   const int bvhadr = m->mesh_bvhadr[m->geom_dataid[g]];
 
   // mesh has no BVH tree
@@ -759,7 +809,6 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
   mjtByte* bvh_active = m->vis.global.bvactive ? d->bvh_active + bvhadr : NULL;
 
   mj_markStack(d);
-  // TODO(quaglino): Store bvh max depths to make this bound tighter.
   int max_stack = m->mesh_bvhnum[m->geom_dataid[g]];
   struct CollideTreeArgs_ {
     int node;
@@ -771,35 +820,26 @@ static void collideBVH(const mjModel* m, mjData* d, int g,
   nstack++;
 
   while (nstack) {
-    (*n0)++;
-
-    // pop from stack
     nstack--;
     int node = stack[nstack].node;
 
-    // node1 is a leaf
+    // leaf node: process face inline
     if (faceid[node] != -1) {
-      if (boxIntersect(bvh+6*node, offset, rotation, m, sdf, d)) {
-        faces[*npoints] = faceid[node];
-        if (++(*npoints) == MAXSDFFACE) {
-          mju_warning("mjc_MeshSDF: too many bounding volumes, some contacts may be missed");
-          mj_freeStack(d);
-          return;
-        }
-        if (bvh_active) bvh_active[node] = 1;
+      if (boxIntersect(bvh + 6*node, ctx->offset, ctx->rotation, m, ctx->sdf, d)) {
+        processOneFace(faceid[node], bvh_active, node, ctx);
       }
       continue;
     }
 
-    // if no intersection at intermediate levels, stop
-    if (!boxIntersect(bvh+6*node, offset, rotation, m, sdf, d)) {
+    // intermediate node: check bounding box
+    if (!boxIntersect(bvh + 6*node, ctx->offset, ctx->rotation, m, ctx->sdf, d)) {
       continue;
     }
 
     if (bvh_active) bvh_active[node] = 1;
 
-    // recursive call
-    for (int i=0; i < 2; i++) {
+    // push children
+    for (int i = 0; i < 2; i++) {
       if (child[2*node+i] != -1) {
         if (nstack >= max_stack) mjERROR("BVH stack depth exceeded.");
         stack[nstack].node = child[2*node+i];
@@ -824,11 +864,9 @@ int mjc_HFieldSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int
 int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO;
 
-  mjtNum offset[3], rotation[9], corners[9], x[3], depth;
-  mjtNum points[3*MAXSDFFACE], dist[MAXMESHPNT], candidate[3*MAXMESHPNT];
-  int vertadr = m->mesh_vertadr[m->geom_dataid[g1]];
-  int faceadr = m->mesh_faceadr[m->geom_dataid[g1]];
-  int cnt=0, npoints=0, ncandidate=0, n0=0, faces[MAXSDFFACE]={-1}, index[MAXMESHPNT];
+  mjtNum offset[3], rotation[9];
+  mjtNum points[3*mjMAXCONPAIR], dist[mjMAXCONPAIR], candidate[3*mjMAXCONPAIR];
+  int cnt = 0, ncandidate = 0;
 
   // get sdf plugin
   int instance = m->geom_plugin[g2];
@@ -849,74 +887,79 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
   mju_mat2Quat(sdf_quat, mat2);
   mapPose(pos1, quat1, pos2, sdf_quat, offset, rotation);
 
-  // binary tree search
-  collideBVH(m, (mjData*)d, g1, offset, rotation, faces, &npoints, &n0, &sdf);
+  // set up context for inline BVH processing
+  MeshSDFContext ctx;
+  ctx.m = m;
+  ctx.d = (mjData*)d;
+  ctx.sdf = &sdf;
+  ctx.offset = offset;
+  ctx.rotation = rotation;
+  ctx.vertadr = m->mesh_vertadr[m->geom_dataid[g1]];
+  ctx.faceadr = m->mesh_faceadr[m->geom_dataid[g1]];
+  ctx.nstartpts = mju_max(1, m->opt.sdf_initpoints);
+  ctx.candidate = candidate;
+  ctx.dist = dist;
+  ctx.ncandidate = &ncandidate;
 
-  // Frank-Wolfe algorithm
-  for (int i=0; i < npoints; i++) {
-    int face = faceadr + faces[i];
-    for (int v=0; v < 3; v++) {
-      mjtNum vec[3] = {
-        m->mesh_vert[3*(vertadr+m->mesh_face[3*face+v])+0],
-        m->mesh_vert[3*(vertadr+m->mesh_face[3*face+v])+1],
-        m->mesh_vert[3*(vertadr+m->mesh_face[3*face+v])+2],
-      };
+  // binary tree search with inline face processing
+  collideBVHInline(m, (mjData*)d, g1, &ctx);
 
-      // transform local 1 (mesh) to local 2 (sdf)
-      mju_mulMatVec3(corners+3*v, rotation, vec);
-      mju_addTo3(corners+3*v, offset);
+  // if few candidates, add them all directly
+  if (ncandidate <= mjMAXCONPAIR) {
+    for (int i = 0; i < ncandidate; i++) {
+      cnt = addContact(points, con, candidate + 3*i, pos2, sdf_quat,
+                       dist[i], cnt, m, &sdf, (mjData*)d);
     }
+    return cnt;
+  }
 
-    // stricter culling
-    if (!triangleIntersect(corners, m, &sdf, (mjData*)d)) {
-      continue;
-    }
+  // farthest point sampling (FPS) for spatial coverage
+  mjtByte selected[mjMAXCONPAIR] = {0};
+  mjtNum min_dist2[mjMAXCONPAIR];
+  for (int i = 0; i < ncandidate; i++) {
+    min_dist2[i] = mjMAXVAL;
+  }
 
-    // number of starting points per face
-    int nstartpts = mju_max(1, m->opt.sdf_initpoints);
-
-    for (int sp = 0; sp < nstartpts; sp++) {
-      // SHOULD NOT OCCUR
-      if (ncandidate == MAXMESHPNT) break;
-
-      // generate barycentric coordinates using Halton sequence
-      // map unit square to barycentric simplex
-      mjtNum u = mju_Halton(sp + 1, 2);
-      mjtNum v = mju_Halton(sp + 1, 3);
-      if (u + v > 1) {
-        u = 1 - u;
-        v = 1 - v;
-      }
-      mjtNum b0 = 1 - u - v;
-      mjtNum b1 = u;
-      mjtNum b2 = v;
-
-      // starting point using barycentric coordinates
-      x[0] = b0*corners[0] + b1*corners[3] + b2*corners[6];
-      x[1] = b0*corners[1] + b1*corners[4] + b2*corners[7];
-      x[2] = b0*corners[2] + b1*corners[5] + b2*corners[8];
-
-      depth = stepFrankWolfe(x, corners, 3, m, &sdf, (mjData*)d);
-
-      // store candidate if there is penetration
-      if (depth < 0) {
-        mju_copy3(candidate + 3*ncandidate, x);
-        index[ncandidate] = ncandidate;
-        dist[ncandidate++] = depth;
-      }
+  // start with deepest penetrating contact
+  int best = 0;
+  mjtNum bestval = -dist[0];
+  for (int i = 1; i < ncandidate; i++) {
+    if (-dist[i] > bestval) {
+      bestval = -dist[i];
+      best = i;
     }
   }
 
-  // sort contacts using depth
-  if (ncandidate > 1) {
-    int buf[MAXMESHPNT];
-    distSort(index, buf, ncandidate, dist);
-  }
+  // iteratively select contacts using FPS
+  int nselected = 0;
+  while (nselected < mjMAXCONPAIR && best >= 0) {
+    selected[best] = 1;
+    mjtNum* bestpos = candidate + 3*best;
 
-  // add only the first mjMAXCONPAIR pairs
-  for (int i=0; i < mju_min(ncandidate, mjMAXCONPAIR); i++) {
-    cnt = addContact(points, con, candidate + 3*index[i], pos2, sdf_quat,
-                     dist[index[i]], cnt, m, &sdf, (mjData*)d);
+    // add the selected contact
+    cnt = addContact(points, con, bestpos, pos2, sdf_quat,
+                     dist[best], cnt, m, &sdf, (mjData*)d);
+    nselected++;
+
+    // find next farthest point
+    int nextbest = -1;
+    mjtNum nextbestdist = -1;
+    for (int i = 0; i < ncandidate; i++) {
+      if (selected[i]) continue;
+
+      mjtNum dx = candidate[3*i+0] - bestpos[0];
+      mjtNum dy = candidate[3*i+1] - bestpos[1];
+      mjtNum dz = candidate[3*i+2] - bestpos[2];
+      mjtNum d2 = dx*dx + dy*dy + dz*dz;
+      if (d2 < min_dist2[i]) {
+        min_dist2[i] = d2;
+      }
+      if (min_dist2[i] > nextbestdist) {
+        nextbestdist = min_dist2[i];
+        nextbest = i;
+      }
+    }
+    best = nextbest;
   }
 
   return cnt;
