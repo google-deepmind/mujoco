@@ -107,14 +107,20 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
   """
   files_to_zip = spec.assets
   files_to_zip[spec.modelname + '.xml'] = spec.to_xml()
+  opened = False
   if isinstance(file, str):
     directory = os.path.dirname(file)
     os.makedirs(directory, exist_ok=True)
     file = open(file, 'wb')
-  with zipfile.ZipFile(file, 'w') as zip_file:
-    for filename, contents in files_to_zip.items():
-      zip_info = zipfile.ZipInfo(filename)
-      zip_file.writestr(zip_info, contents)
+    opened = True
+  try:
+    with zipfile.ZipFile(file, 'w') as zip_file:
+      for filename, contents in files_to_zip.items():
+        zip_info = zipfile.ZipInfo(filename)
+        zip_file.writestr(zip_info, contents)
+  finally:
+    if opened:
+      file.close()
 
 
 def from_zip(file: Union[str, IO[bytes]]) -> _specs.MjSpec:
@@ -127,20 +133,26 @@ def from_zip(file: Union[str, IO[bytes]]) -> _specs.MjSpec:
   """
   assets = {}
   xml_string = None
+  opened = False
   if isinstance(file, str):
     file = open(file, 'rb')
-  if not zipfile.is_zipfile(file):
-    raise ValueError(f'File {file} is not a zip file.')
-  with zipfile.ZipFile(file, 'r') as zip_file:
-    xml_dir = None
-    for zip_info in zip_file.infolist():
-      if not zip_info.filename.endswith(os.path.sep):
-        with zip_file.open(zip_info.filename) as f:
-          if zip_info.filename.endswith('.xml'):
-            xml_string = f.read()
-            xml_dir = os.path.dirname(zip_info.filename)
-          else:
-            assets[zip_info.filename] = f.read()
+    opened = True
+  try:
+    if not zipfile.is_zipfile(file):
+      raise ValueError(f'File {file} is not a zip file.')
+    with zipfile.ZipFile(file, 'r') as zip_file:
+      xml_dir = None
+      for zip_info in zip_file.infolist():
+        if not zip_info.filename.endswith(os.path.sep):
+          with zip_file.open(zip_info.filename) as f:
+            if zip_info.filename.endswith('.xml'):
+              xml_string = f.read()
+              xml_dir = os.path.dirname(zip_info.filename)
+            else:
+              assets[zip_info.filename] = f.read()
+  finally:
+    if opened:
+      file.close()
 
   if not xml_string:
     raise ValueError('No XML file found in zip file.')
