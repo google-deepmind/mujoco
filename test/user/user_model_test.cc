@@ -1106,5 +1106,86 @@ TEST_F(DelayBufferTest, ActuatorDelayBufferSizes) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserModelTest, KeyframeValidationChecks) {
+  static constexpr char xml[] = R"(
+    <mujoco>
+      <worldbody>
+        <body>
+          <joint axis="0 1 0"/>
+          <geom type="box" size="0.1 0.1 0.1"/>
+        </body>
+      </worldbody>
+
+      <keyframe>
+        <!-- Including an invalid keyframe -->
+        <key name="test" qpos="0 1"/>
+      </keyframe>
+    </mujoco>
+  )";
+
+  std::array<char, 1024> err;
+
+  // model is not compiled, so no errors are expected
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  EXPECT_THAT(spec, NotNull()) << err.data();
+
+  // expect failure after compiling the model, validate the message
+  mjModel* model = mj_compile(spec, 0);
+  const char* spec_error = mjs_getError(spec);
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(spec_error, HasSubstr("expected 1, got 2"));
+}
+
+TEST_F(UserModelTest, ReplicateWithKeyframeInIncludedFile) {
+  static constexpr char robot_xml[] = R"(
+    <mujoco model="robot">
+      <worldbody>
+        <body name="arm">
+          <joint name="j1" type="hinge" axis="0 0 1"/>
+          <geom type="box" size="0.1 0.1 0.1"/>
+          <body name="replicate_body">
+            <replicate count="2" sep="-">
+              <site name="s"/>
+            </replicate>
+          </body>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+
+  static constexpr char scene_xml[] = R"(
+    <mujoco model="scene">
+      <include file="robot.xml"/>
+      <worldbody>
+        <body name="cube" pos="0 0 1">
+          <freejoint/>
+          <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+          <geom type="box" size="0.1 0.1 0.1"/>
+        </body>
+      </worldbody>
+      <keyframe>
+        <key name="test" qpos="0 0 0 1 1 0 0 0"/>
+      </keyframe>
+    </mujoco>
+  )";
+
+  std::array<char, 1024> err;
+
+  // add both files to VFS to test parsing the include + replicate
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "robot.xml", robot_xml, sizeof(robot_xml) - 1);
+  mj_addBufferVFS(&vfs, "scene.xml", scene_xml, sizeof(scene_xml) - 1);
+
+  // load scene, expect success with correct keyframe size
+  mjModel* m = mj_loadXML("scene.xml", &vfs, err.data(), err.size());
+  ASSERT_THAT(m, NotNull()) << err.data();
+  EXPECT_EQ(m->nq, 8);
+  EXPECT_GE(m->nkey, 1);
+
+  mj_deleteModel(m);
+  mj_deleteVFS(&vfs);
+}
+
 }  // namespace
 }  // namespace mujoco
