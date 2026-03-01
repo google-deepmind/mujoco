@@ -234,6 +234,8 @@ def _put_option(
   for i in range(mujoco.mjtEnableBit.mjNENABLE):
     if o.enableflags & 2**i and 2 ** i not in set(types.EnableBit):
       raise NotImplementedError(f'{mujoco.mjtEnableBit(2**i)}')
+  if o.enableflags & types.EnableBit.ENERGY and impl == types.Impl.JAX:
+    raise NotImplementedError('ENERGY enable flag not implemented for JAX backend.')
 
   fields = {
       f.name: getattr(o, f.name, None)
