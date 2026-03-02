@@ -112,8 +112,9 @@ static int mjc_penetration(mjCCDObj* obj1, mjCCDObj* obj2, mjContact* con, int n
     int nwitness = status.nx;
     for (int i = 0; i < nwitness; i++, con++) {
       con->dist = margin + dist;
-      mji_add3(con->pos, status.x1 + 3*i, status.x2 + 3*i);
-      mji_scl3(con->pos, con->pos, 0.5);
+      con->pos[0] = 0.5*(status.x1[3*i + 0] + status.x2[3*i + 0]);
+      con->pos[1] = 0.5*(status.x1[3*i + 1] + status.x2[3*i + 1]);
+      con->pos[2] = 0.5*(status.x1[3*i + 2] + status.x2[3*i + 2]);
       mji_sub3(con->frame, status.x1 + 3*i, status.x2 + 3*i);
       mju_normalize3(con->frame);
       mji_zero3(con->frame + 3);
