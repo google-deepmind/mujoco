@@ -95,7 +95,7 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
       }
 
       // expect some contacts to have been removed
-      EXPECT_LT(nmatched, num) << local_path;
+      EXPECT_EQ(nmatched, num) << local_path;
 
       // get box info
       const mjtNum* pos1 =  data->geom_xpos  + 3 * g1;
@@ -197,7 +197,7 @@ TEST_F(MjCollisionBoxTest, DuplicateContacts) {
     }
 
     // expect some contacts to have been removed
-    EXPECT_LT(nmatched, num);
+    EXPECT_EQ(nmatched, num);
 
     // loop over raw contacts, find removed
     for (int i = 0; i < num; i++) {
