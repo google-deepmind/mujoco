@@ -902,3 +902,72 @@ SDF plugin implementation in `bowl.cc <https://github.com/google-deepmind/mujoco
   # override the module-level hooks
   mjw._src.collision_sdf.user_sdf = user_sdf
   mjw._src.collision_sdf.user_sdf_grad = user_sdf_grad
+
+Physics callbacks
+-----------------
+
+MuJoCo provides global `physics callbacks <https://mujoco.readthedocs.io/en/latest/APIreference/APIglobals.html#physics-callbacks>`__
+that allow users to inject custom logic into the simulation pipeline. MJWarp supports a similar mechanism, but callbacks
+are Python functions set per-model on the :class:`mjw.Model <mujoco_warp.Model>` instance via ``Model.callback`` rather than as global
+function pointers.
+
+The following callbacks are available:
+
+.. list-table::
+   :width: 90%
+   :align: left
+   :widths: 3 5
+   :header-rows: 1
+
+   * - Callback
+     - Description
+   * - ``control``
+     - Custom control laws, writes to ``Data.ctrl``
+   * - ``passive``
+     - Custom passive forces, writes to ``Data.qfrc_passive``
+   * - ``act_dyn``
+     - Custom actuator dynamics, writes to ``Data.act_dot``
+   * - ``act_gain``
+     - Custom actuator gains, writes to ``Data.actuator_force``
+   * - ``act_bias``
+     - Custom actuator biases, writes to ``Data.actuator_force``
+   * - ``sensor``
+     - Custom sensors, writes to ``Data.sensordata``; receives an additional ``stage`` argument
+   * - ``contactfilter``
+     - Custom contact filtering, writes to ``Data.contact``
+
+.. code-block:: python
+
+  import mujoco
+  import mujoco_warp as mjw
+  import warp as wp
+
+  _MJCF = r"""
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size=".1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="hinge"/>
+    </actuator>
+  </mujoco>
+  """
+
+  @wp.kernel
+  def _ctrl_callback(ctrl_out: wp.array2d(dtype=float)):
+    worldid = wp.tid()
+    ctrl_out[worldid, 0] = 2.0
+
+  def ctrl_callback(m, d):
+    wp.launch(_ctrl_callback, dim=(d.nworld,), outputs=[d.ctrl])
+
+  mjm = mujoco.MjModel.from_xml_string(_MJCF)
+  m = mjw.put_model(mjm)
+  d = mjw.make_data(mjm)
+
+  m.callback.control = ctrl_callback
+  mjw.step(m, d)
+  assert d.ctrl.numpy()[0, 0] == 2.0
