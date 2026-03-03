@@ -1722,7 +1722,11 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   ParseDisplayColorAndOpacity(gprim, geom);
   SetLocalPoseFromPrim(gprim, body_prim, geom, caches.xform_cache);
   if (!MaybeParseGeomPrimitive(gprim, geom, caches.xform_cache)) {
-    ParseUsdMesh(spec, gprim, geom, caches.xform_cache);
+    mjsMesh* mesh = ParseUsdMesh(spec, gprim, geom, caches.xform_cache);
+    if (mesh != nullptr && gprim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>()) {
+    ParseMjcPhysicsMeshCollisionAPI(mesh,
+                                    pxr::MjcPhysicsMeshCollisionAPI(gprim));
+    }
   }
 
   pxr::UsdShadeMaterial bound_material =
