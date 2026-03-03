@@ -60,6 +60,6 @@ set_target_properties(mujoco_wasm PROPERTIES
     OUTPUT_NAME "mujoco"
 )
 
-target_link_libraries(mujoco_wasm ccd lodepng mujoco tinyxml2 qhullstatic_r)
+target_link_libraries(mujoco_wasm ccd lodepng mujoco tinyxml2 qhullstatic_r obj_decoder)
 
 install(TARGETS mujoco_wasm DESTINATION ${DIVISIBLE_INSTALL_BIN_DIR})

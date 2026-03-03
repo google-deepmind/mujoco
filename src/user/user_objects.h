@@ -22,6 +22,7 @@
 #include <array>
 #include <deque>
 #include <functional>
+#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -34,10 +35,6 @@
 #include <mujoco/mjtnum.h>
 #include "user/user_cache.h"
 #include "user/user_util.h"
-#include <tiny_obj_loader.h>
-
-using face_vertices_type =
-    decltype(tinyobj::mesh_t::num_face_vertices)::value_type;
 
 // forward declarations of all mjC/X classes
 class mjCError;
@@ -1241,11 +1238,11 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   // load from OBJ, STL, or MSH file; throws mjCError on failure
   void LoadFromResource(mjResource* resource, bool remove_repeated = false);
 
-  static bool IsObj(std::string_view filename, std::string_view ct = "");
+
   static bool IsSTL(std::string_view filename, std::string_view ct = "");
   static bool IsMSH(std::string_view filename, std::string_view ct = "");
 
-  bool IsObj() const;
+
   bool IsSTL() const;
   bool IsMSH() const;
 
@@ -1262,7 +1259,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void ProcessVertices(const std::vector<float>& vert, bool remove_repeated = false);
 
 
-  void LoadOBJ(mjResource* resource, bool remove_repeated);  // load mesh in wavefront OBJ format
+  void LoadFromDecoder(mjResource* resource, bool remove_repeated);  // load mesh using decoder plugin
   void LoadSTL(mjResource* resource);                        // load mesh in STL BIN format
   void LoadMSH(mjResource* resource, bool remove_repeated);  // load mesh in MSH BIN format
 
