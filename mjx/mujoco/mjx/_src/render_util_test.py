@@ -94,7 +94,7 @@ class RenderUtilTest(absltest.TestCase):
           rc, 0, depth_data, 5.0
       )
 
-    self.assertEqual(depth.shape, (height, width))
+    self.assertEqual(depth.shape, (height, width, 1))
 
   def test_get_depth_vmap(self):
     nworld, width, height = 3, 4, 4
@@ -111,7 +111,7 @@ class RenderUtilTest(absltest.TestCase):
           static_argnums=(0, 1, 3),
       )(rc, 0, depth_data, 5.0)
 
-    self.assertEqual(depth.shape, (nworld, height, width))
+    self.assertEqual(depth.shape, (nworld, height, width, 1))
 
 
 if __name__ == '__main__':

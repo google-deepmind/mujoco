@@ -110,4 +110,4 @@ def get_depth(
   )
 
   depth = jnp.clip(raw / depth_scale, 0.0, 1.0)
-  return depth.reshape(height, width)
+  return depth.reshape(height, width, 1)
