@@ -1,0 +1,36 @@
+name: publish-wasm
+
+on:
+  push:
+    tags:
+      - '[0-9]*.[0-9]*.[0-9]*'
+
+jobs:
+  publish:
+    name: Publish MuJoCo WASM package
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js for WASM bindings
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Prepare Linux
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
+
+    - name: Install NPM Dependencies for WASM bindings
+      run: bash ./.github/workflows/build_steps.sh npm_ci
+
+    - name: Setup Emscripten for WASM bindings
+      run: bash ./.github/workflows/build_steps.sh setup_emsdk
+
+    - name: Build WASM bindings
+      run: bash ./.github/workflows/build_steps.sh build_test_wasm
+
+    - name: Package WASM bindings
+      env:
+        NPM_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+        GITHUB_REF: ${{ github.ref }}
+      run: bash ./.github/workflows/build_steps.sh package_wasm
