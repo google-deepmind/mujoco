@@ -247,6 +247,11 @@ class SimulateWrapper {
     if (simulate_) {
       py::gil_scoped_release no_gil;
       while (atomic.load() != expected) {
+        // If the viewer is exiting, stop waiting. The render loop will
+        // never consume the pending request once it has set exitrequest.
+        if (simulate_->exitrequest.load()) {
+          return true;
+        }
         // TODO(robotics-simulation): replace with `atomic.wait(expected)` when
         // we migrate python bindings to C++20 (we may need to drop GCC 10).
         std::this_thread::yield();
