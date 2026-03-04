@@ -15,31 +15,24 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GUI_SPEC_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GUI_SPEC_H_
 
-#include <string>
-
 #include <mujoco/mujoco.h>
+#include "experimental/platform/spec_editor.h"
 
 namespace mujoco::platform {
 
-// The mode of the spec visualizer.
-enum class SpecEditMode {
-  kPlay,
-  kEdit,
-};
-
-// Returns the name of the given element.
-std::string ElementName(mjsElement* element);
-
 // Displaying the mjSpec as a tree. `element` is the currently selected
-// element and will be updated if a new element is selected. The function
-// returns true if the spec was modified in any way.
-bool SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditMode mode);
+// element and will be updated if a new element is selected. The `editor` is
+// optional; if provided, it will allow the user to modify the spec (e.g.
+// add/delete elements) on the assumption that `element` and `spec` were
+// obtained from the editor.
+void SpecTreeGui(mjsElement** element, mjSpec* spec,
+                 SpecEditor* editor = nullptr);
 
-// Displays the properties of the given element in the table. Returns true if
-// any value in the element was changed. The `ref_element` is used to highlight
-// when a value differs from a reference element.
-bool ElementSpecGui(mjsElement* element, mjsElement* ref_element,
-                    SpecEditMode mode);
+// Displays the properties of the given element in the table. If `editor` is
+// provided, the user will be able to modify the properties of the element,
+// updating the editor of any changes on the assumption that `element` was
+// obtained from the editor.
+void ElementSpecGui(mjsElement* element, SpecEditor* editor = nullptr);
 
 // Displays a (read-only) data table of the mjData values that correspond to the
 // given element.

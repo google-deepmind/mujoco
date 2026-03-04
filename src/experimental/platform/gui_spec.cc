@@ -21,6 +21,7 @@
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/imgui_widgets.h"
+#include "experimental/platform/spec_editor.h"
 
 // Define the mujoco X macros to add fields to the ImGui_DataTable.
 // We limit the fields to the ones with a matching element by comparing the
@@ -63,7 +64,7 @@ static int GetElementIndexInSpec(mjsElement* element) {
 // Returns a name for the element; either the element has a name, or we
 // construct a unique name from the element's id (using mjs_getId) or index
 // (using GetElementIndexInSpec).
-std::string ElementName(mjsElement* element) {
+static std::string GetElementName(mjsElement* element) {
   const mjString* name = mjs_getName(element);
   std::string label = *name;
   if (label.empty()) {
@@ -77,118 +78,105 @@ std::string ElementName(mjsElement* element) {
   return label;
 }
 
-static bool AddDeleteButton(mjsElement* element) {
-  // Right-align the delete button.
-  const float button_width = ImGui::CalcTextSize(ICON_FA_TRASH_CAN).x +
-                             ImGui::GetStyle().FramePadding.x * 2.0f;
-  ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - button_width);
+static void AddEditorButtons(mjsElement* element, mjsElement** selected_element,
+                             SpecEditor& editor) {
+  // Right-align the buttons.
+  float x = ImGui::GetWindowContentRegionMax().x;
+  x -= ImGui::GetStyle().FramePadding.x * 2;
+  x -= ImGui::CalcTextSize(ICON_FA_TRASH_CAN).x;
+  if (element->elemtype == mjOBJ_BODY) {
+    x -= ImGui::GetStyle().FramePadding.x * 2;
+    x -= ImGui::CalcTextSize(ICON_FA_PLUS).x;
+  }
+  ImGui::SameLine(x);
+  if (element->elemtype == mjOBJ_BODY) {
+    if (ImGui::SmallButton(ICON_FA_PLUS)) {
+      ImGui::OpenPopupOnItemClick("BodyAddChild", 0);
+    }
+    ImGui::SameLine();
+  }
   if (ImGui::SmallButton(ICON_FA_TRASH_CAN)) {
-    mjs_delete(mjs_getSpec(element), element);
-    return true;
+    editor.DeleteActiveElement();
+    *selected_element = nullptr;
   }
-  return false;
-}
 
-static bool AddBodyAddChildButton(mjsElement* element, mjsElement** selected_element) {
-  // Right-align the add button.
-  const float button_width = ImGui::CalcTextSize(ICON_FA_TRASH_CAN).x +
-                             ImGui::CalcTextSize(ICON_FA_PLUS).x +
-                             ImGui::GetStyle().FramePadding.x * 4.0f;
-  ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - button_width);
-  if (ImGui::SmallButton(ICON_FA_PLUS)) {
-    ImGui::OpenPopupOnItemClick("BodyAddChild", 0);
-  }
-  bool modified = false;
   if (ImGui::BeginPopupContextItem("BodyAddChild")) {
     mjsBody* body = mjs_asBody(element);
-    auto option = [&](const char* label, auto fn) {
+    auto option = [&](const char* label, mjtObj type) {
       if (ImGui::Selectable(label)) {
-        *selected_element = fn()->element;
-        mjs_setName(*selected_element, ElementName(*selected_element).c_str());
-        modified = true;
+        *selected_element = editor.AddBodyElement(body, type);
       }
     };
-    option("Camera", [&]() { return mjs_addCamera(body, nullptr); });
-    option("Frame", [&]() { return mjs_addFrame(body, nullptr); });
-    option("Geom", [&]() { return mjs_addGeom(body, nullptr); });
-    option("Joint", [&]() { return mjs_addJoint(body, nullptr); });
-    option("Light", [&]() { return mjs_addLight(body, nullptr); });
-    option("Site", [&]() { return mjs_addSite(body, nullptr); });
+    option("Camera", mjOBJ_CAMERA);
+    option("Frame", mjOBJ_FRAME);
+    option("Geom", mjOBJ_GEOM);
+    option("Joint", mjOBJ_JOINT);
+    option("Light", mjOBJ_LIGHT);
+    option("Site", mjOBJ_SITE);
     ImGui::EndPopup();
   }
-  return modified;
 }
 
-static bool SelectableElement(mjsElement* element,
+static void SelectableElement(mjsElement* element,
                               mjsElement** selected_element,
-                              SpecEditMode mode) {
+                              SpecEditor* editor) {
   constexpr ImGuiSelectableFlags flags = ImGuiSelectableFlags_AllowOverlap;
 
-  const std::string name = ElementName(element);
+  const std::string name = GetElementName(element);
   const bool selected = (element == *selected_element);
   if (ImGui::Selectable(name.c_str(), selected, flags)) {
     *selected_element = element;
   }
-
-  bool modified = false;
-  if (selected && mode == SpecEditMode::kEdit) {
-    if (AddDeleteButton(element)) {
-      *selected_element = nullptr;
-      modified = true;
-    }
+  if (selected && editor) {
+    AddEditorButtons(element, selected_element, *editor);
   }
-  return modified;
 }
 
-static bool BodyChildrenGui(const char* heading, mjtObj type,
+static void BodyChildrenGui(const char* heading, mjtObj type,
                             mjsElement** element, mjsBody* body,
-                            SpecEditMode mode) {
+                            SpecEditor* editor) {
   mjsElement* iter = mjs_firstChild(body, type, 0);
   if (!iter) {
-    return false;
+    return;
   }
 
-  bool modified = false;
   constexpr ImGuiTreeNodeFlags tree_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DrawLinesFull;
   if (ImGui::TreeNodeEx(heading, tree_flags)) {
     while (iter) {
       mjsElement* next = mjs_nextChild(body, iter, 0);
-      modified |= SelectableElement(iter, element, mode);
+      SelectableElement(iter, element, editor);
       iter = next;
     }
     ImGui::TreePop();
   }
-  return modified;
 }
 
-static bool ElementListGui(const char* heading, mjtObj type,
+static void ElementListGui(const char* heading, mjtObj type,
                            mjsElement** element, mjSpec* spec,
-                           SpecEditMode mode) {
+                           SpecEditor* editor) {
   mjsElement* iter = mjs_firstElement(spec, type);
   if (!iter) {
-    return false;
+    return;
   }
 
-  bool modified = false;
   constexpr ImGuiTreeNodeFlags tree_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
   if (ImGui::TreeNodeEx(heading, tree_flags)) {
     while (iter) {
       mjsElement* next = mjs_nextElement(spec, iter);
-      modified |= SelectableElement(iter, element, mode);
+      SelectableElement(iter, element, editor);
       iter = next;
     }
     ImGui::TreePop();
   }
-  return modified;
 }
 
-static bool BodyTreeGuiRecursive(mjsElement** element, mjsBody* body,
-                                 SpecEditMode mode) {
-  const std::string label = ElementName(body->element);
+static void BodyTreeGuiRecursive(mjsElement** element, mjsBody* body,
+                                 SpecEditor* editor) {
+  const std::string label = GetElementName(body->element);
 
-  ImGui::PushID(body);
+  ImGui::PushID(label.c_str());
 
   ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed |
@@ -198,40 +186,34 @@ static bool BodyTreeGuiRecursive(mjsElement** element, mjsBody* body,
     flags |= ImGuiTreeNodeFlags_Selected;
   }
 
-  bool modified = false;
   const bool tree_open = ImGui::TreeNodeEx(label.c_str(), flags);
   if (ImGui::IsItemClicked()) {
     *element = body->element;
   }
-  if (*element == body->element && mode == SpecEditMode::kEdit) {
-    modified |= AddBodyAddChildButton(body->element, element);
-    modified |= AddDeleteButton(body->element);
+  if (editor && *element == body->element) {
+    AddEditorButtons(body->element, element, *editor);
   }
 
   if (tree_open) {
     mjsElement* iter = mjs_firstChild(body, mjOBJ_BODY, 0);
     while (iter) {
       mjsElement* next = mjs_nextChild(body, iter, 0);
-      modified |= BodyTreeGuiRecursive(element, mjs_asBody(iter), mode);
+      BodyTreeGuiRecursive(element, mjs_asBody(iter), editor);
       iter = next;
     }
 
-    modified |= BodyChildrenGui("Frames", mjOBJ_FRAME, element, body, mode);
-    modified |= BodyChildrenGui("Sites", mjOBJ_SITE, element, body, mode);
-    modified |= BodyChildrenGui("Joints", mjOBJ_JOINT, element, body, mode);
-    modified |= BodyChildrenGui("Geoms", mjOBJ_GEOM, element, body, mode);
-    modified |= BodyChildrenGui("Lights", mjOBJ_LIGHT, element, body, mode);
-    modified |= BodyChildrenGui("Cameras", mjOBJ_CAMERA, element, body, mode);
-
+    BodyChildrenGui("Frames", mjOBJ_FRAME, element, body, editor);
+    BodyChildrenGui("Sites", mjOBJ_SITE, element, body, editor);
+    BodyChildrenGui("Joints", mjOBJ_JOINT, element, body, editor);
+    BodyChildrenGui("Geoms", mjOBJ_GEOM, element, body, editor);
+    BodyChildrenGui("Lights", mjOBJ_LIGHT, element, body, editor);
+    BodyChildrenGui("Cameras", mjOBJ_CAMERA, element, body, editor);
     ImGui::TreePop();
   }
-
   ImGui::PopID();
-  return modified;
 }
 
-bool SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditMode mode) {
-  bool modified = false;
+void SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditor* editor) {
   const ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
@@ -245,17 +227,17 @@ bool SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditMode mode) {
     if (root) {
       mjsBody* body = mjs_asBody(root);
       if (body) {
-        modified |= BodyTreeGuiRecursive(element, body, mode);
+        BodyTreeGuiRecursive(element, body, editor);
       }
     }
     ImGui::TreePop();
   }
 
   auto list = [&](const char* heading, mjtObj type) {
-    modified |= ElementListGui(heading, type, element, spec, mode);
+    ElementListGui(heading, type, element, spec, editor);
   };
 
-  ImGui::PushID(spec);
+  ImGui::PushID("$spec$");
 
   // Non-tree elements.
   if (ImGui::TreeNodeEx("Elements", flags)) {
@@ -285,22 +267,20 @@ bool SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditMode mode) {
   }
 
   ImGui::PopID();
-  return modified;
 }
 
-bool ElementSpecGui(mjsElement* element, mjsElement* ref_element,
-                    SpecEditMode mode) {
+void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
   if (element == nullptr) {
-    return false;
+    return;
   }
-  if (ref_element == nullptr) {
-    ref_element = element;
-  }
+
+  // if editor, assert that element == editor->GetActiveElement();
+  mjsElement* ref_element = editor ? editor->GetRefElement() : element;
 
   #define FIELD(NAME, TIP) table(#NAME, elem->NAME, ref->NAME, TIP);
   #define QFIELD(NAME, ALT, TIP) table(#NAME, #ALT, elem->NAME, ref->NAME, elem->ALT, ref->ALT, TIP);
 
-  ImGui_SpecElementTable table(mode == SpecEditMode::kPlay);
+  ImGui_SpecElementTable table(editor == nullptr);
   switch (element->elemtype) {
     case mjOBJ_BODY: {
       mjsBody* elem = mjs_asBody(element);
@@ -725,7 +705,10 @@ bool ElementSpecGui(mjsElement* element, mjsElement* ref_element,
   }
 
   #undef FIELD
-  return table.WasModified();
+
+  if (editor && table.WasModified()) {
+    editor->CommitChanges(element);
+  }
 }
 
 void ElementModelGui(const mjModel* model, mjsElement* element) {

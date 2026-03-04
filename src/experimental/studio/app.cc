@@ -171,6 +171,7 @@ void App::RequestModelReload() {
 void App::InitEmptyModel() {
   model_holder_ = platform::ModelHolder::FromSpec(mj_makeSpec());
   OnModelLoaded("", kEmptyModel);
+  spec_editor_.Reset(*spec());
 }
 
 void App::LoadModelFromFile(const std::string& filepath) {
@@ -179,6 +180,7 @@ void App::LoadModelFromFile(const std::string& filepath) {
   model_holder_ = platform::ModelHolder::FromFile(resolved_file);
   if (model_holder_->ok()) {
     OnModelLoaded(filepath, kModelFromFile);
+    spec_editor_.Reset(*spec());
     UpdateFilePaths(resolved_file);
     window_->SetTitle("MuJoCo Studio : " + filepath);
   } else {
@@ -196,6 +198,7 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
   } else {
     SetLoadError(std::string(model_holder_->error()));
   }
+  spec_editor_.Reset(*spec());
 }
 
 void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
@@ -214,9 +217,6 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   renderer_->Init(model);
   const int state_size = mj_stateSize(model, mjSTATE_INTEGRATION);
   history_.Init(state_size);
-
-  // Create a copy of the spec for editing.
-  CopyLoadedSpecForEditing();
 
   if (!preserve_camera_on_load_) {
     const int model_cam = model->vis.global.cameraid;
@@ -404,9 +404,9 @@ void App::ProcessPendingLoads() {
     }
   }
 
-  if (spec_op_) {
-    spec_op_();
-    spec_op_ = nullptr;
+  if (pending_op_) {
+    pending_op_();
+    pending_op_ = nullptr;
   }
 
   // Allow plugins to edit the spec as well.
@@ -436,56 +436,6 @@ void App::ProcessPendingLoads() {
       }
     }
   });
-}
-
-void App::CopyLoadedSpecForEditing() {
-  if (scratch_spec_ != nullptr) {
-    mj_deleteSpec(scratch_spec_);
-    scratch_spec_ = nullptr;
-  }
-
-  scratch_spec_modified_ = false;
-  tmp_.curr_edit_element = nullptr;
-
-  if (has_spec()) {
-    scratch_spec_ = mj_copySpec(spec());
-
-    auto add_ref_elements = [&](mjtObj type) {
-      mjsElement* elem = mjs_firstElement(spec(), type);
-      mjsElement* scratch = mjs_firstElement(scratch_spec_, type);
-      while (elem != nullptr && scratch != nullptr) {
-        scratch_to_spec_[scratch] = elem;
-        spec_to_scratch_[elem] = scratch;
-        elem = mjs_nextElement(spec(), elem);
-        scratch = mjs_nextElement(scratch_spec_, scratch);
-      }
-    };
-    add_ref_elements(mjOBJ_BODY);
-    add_ref_elements(mjOBJ_XBODY);
-    add_ref_elements(mjOBJ_JOINT);
-    add_ref_elements(mjOBJ_DOF);
-    add_ref_elements(mjOBJ_GEOM);
-    add_ref_elements(mjOBJ_SITE);
-    add_ref_elements(mjOBJ_CAMERA);
-    add_ref_elements(mjOBJ_LIGHT);
-    add_ref_elements(mjOBJ_FLEX);
-    add_ref_elements(mjOBJ_MESH);
-    add_ref_elements(mjOBJ_SKIN);
-    add_ref_elements(mjOBJ_HFIELD);
-    add_ref_elements(mjOBJ_TEXTURE);
-    add_ref_elements(mjOBJ_MATERIAL);
-    add_ref_elements(mjOBJ_PAIR);
-    add_ref_elements(mjOBJ_EXCLUDE);
-    add_ref_elements(mjOBJ_EQUALITY);
-    add_ref_elements(mjOBJ_TENDON);
-    add_ref_elements(mjOBJ_ACTUATOR);
-    add_ref_elements(mjOBJ_SENSOR);
-    add_ref_elements(mjOBJ_NUMERIC);
-    add_ref_elements(mjOBJ_TEXT);
-    add_ref_elements(mjOBJ_TUPLE);
-    add_ref_elements(mjOBJ_KEY);
-    add_ref_elements(mjOBJ_PLUGIN);
-  }
 }
 
 void App::HandleWindowEvents() {
@@ -1196,7 +1146,7 @@ void App::SpecExplorerGui() {
   bool open = element != nullptr;
   if (platform::ImGui_BeginHSplit("SpecExplorerTree",
                                   &tmp_.explorer_split, &open)) {
-    platform::SpecTreeGui(&element, spec(), SpecEditMode::kPlay);
+    platform::SpecTreeGui(&element, spec());
 
     if (element != tmp_.curr_element) {
       tmp_.curr_element = element;
@@ -1214,50 +1164,34 @@ void App::SpecExplorerGui() {
 
     if (platform::ImGui_HSplit("SpecExplorerProperties",
                                &tmp_.explorer_split, &open)) {
-      platform::ScopedStyle style;
-
       ImGui::Text("%s", mju_type2Str(tmp_.curr_element->elemtype));
       ImGui::SameLine();
       ImGui::Text("(%d)", mjs_getId(tmp_.curr_element));
       ImGui::SameLine(ImGui::GetContentRegionAvail().x - 100.0f);
 
-      if (tmp_.spec_prop_mode == SpecPropertiesMode::kSpec) {
-        style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
-      }
-      style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-      if (ImGui::Button("S", ImVec2(24.0f, 20.0f))) {
-        tmp_.spec_prop_mode = SpecPropertiesMode::kSpec;
-      }
-      ImGui::SetItemTooltip("Spec");
-      style.Reset();
+      auto mode_button = [&](const char* label, const char* tooltip,
+                             SpecPropertiesMode mode) {
+        platform::ScopedStyle style;
+        style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+        if (tmp_.spec_prop_mode == mode) {
+          style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
+        }
+        if (ImGui::Button(label, ImVec2(24.0f, 20.0f))) {
+          tmp_.spec_prop_mode = mode;
+        }
+        ImGui::SetItemTooltip("%s", tooltip);
+      };
 
+      mode_button("S", "Spec", SpecPropertiesMode::kSpec);
       ImGui::SameLine();
-
-      if (tmp_.spec_prop_mode == SpecPropertiesMode::kModel) {
-        style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
-      }
-      style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-      if (ImGui::Button("M", ImVec2(24.0f, 20.0f))) {
-        tmp_.spec_prop_mode = SpecPropertiesMode::kModel;
-      }
-      ImGui::SetItemTooltip("Model");
-      style.Reset();
-
+      mode_button("M", "Model", SpecPropertiesMode::kModel);
       ImGui::SameLine();
+      mode_button("D", "Data", SpecPropertiesMode::kData);
 
-      if (tmp_.spec_prop_mode == SpecPropertiesMode::kData) {
-        style.Color(ImGuiCol_Button, ImGuiCol_ButtonActive);
-      }
-      style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-      if (ImGui::Button("D", ImVec2(24.0f, 20.0f))) {
-        tmp_.spec_prop_mode = SpecPropertiesMode::kData;
-      }
-      ImGui::SetItemTooltip("Data");
-      style.Reset();
       ImGui::Separator();
 
       if (tmp_.spec_prop_mode == SpecPropertiesMode::kSpec) {
-        platform::ElementSpecGui(element, element, SpecEditMode::kPlay);
+        platform::ElementSpecGui(element);
       } else if (tmp_.spec_prop_mode == SpecPropertiesMode::kModel) {
         platform::ElementModelGui(model(), tmp_.curr_element);
       } else {
@@ -1274,36 +1208,32 @@ void App::SpecExplorerGui() {
 void App::SpecEditorGui() {
   if (ImGui::BeginChild("SpecEditor", ImVec2(-1, 36))) {
     if (ImGui::BeginTable("##SpecEditorHeader", 3)) {
-      ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+      ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 50.0f);
       ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
       ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 30.0f);
 
       ImGui::TableNextColumn();
-      if (ImGui::Button(ICON_RELOAD_SPEC)) {
-        CopyLoadedSpecForEditing();
-      }
-      ImGui::BeginDisabled(true);
-      ImGui::SameLine();
+      ImGui::BeginDisabled(!spec_editor_.CanUndo());
       if (ImGui::Button(ICON_UNDO_SPEC)) {
-        // TODO...
+        spec_editor_.Undo();
       }
+      ImGui::EndDisabled();
       ImGui::SameLine();
+      ImGui::BeginDisabled(!spec_editor_.CanRedo());
       if (ImGui::Button(ICON_REDO_SPEC)) {
-        // TODO...
+        spec_editor_.Redo();
       }
       ImGui::EndDisabled();
 
       ImGui::TableNextColumn();
       ImGui::PushStyleColor(ImGuiCol_Button, ImColor(40, 180, 40, 255).Value);
       if (ImGui::Button("Compile and Reload", ImVec2(-1, 0))) {
-        spec_op_ = [this]() {
-          auto tmp_holder = platform::ModelHolder::FromSpec(scratch_spec_);
+        pending_op_ = [this]() {
+          auto tmp_holder = spec_editor_.Compile();
           if (tmp_holder->ok()) {
             model_holder_ = std::move(tmp_holder);
-            scratch_spec_ = nullptr;
             OnModelLoaded(model_name_, model_kind_);
           } else {
-            scratch_spec_ = tmp_holder->ReleaseSpec();
             load_error_ = std::move(tmp_holder->error());
           }
         };
@@ -1315,30 +1245,29 @@ void App::SpecEditorGui() {
         ImGui::OpenPopupOnItemClick("SpecAddElement", 0);
       }
       if (ImGui::BeginPopupContextItem("SpecAddElement")) {
-        auto option = [&](const char* label, auto fn) {
+        auto option = [&](const char* label, mjtObj type) {
           if (ImGui::Selectable(label)) {
-            tmp_.curr_edit_element = fn()->element;
-            mjs_setName(tmp_.curr_edit_element,
-                        platform::ElementName(tmp_.curr_edit_element).c_str());
-            scratch_spec_modified_ = true;
+            mjsElement* element = spec_editor_.AddElement(type);
+            spec_editor_.SetActiveElement(element);
           }
         };
-        option("Actuator", [&]() { return mjs_addActuator(scratch_spec_, 0); });
-        option("Equality", [&]() { return mjs_addEquality(scratch_spec_, 0); });
-        option("Exclude", [&]() { return mjs_addExclude(scratch_spec_); });
-        option("Flex", [&]() { return mjs_addFlex(scratch_spec_); });
-        option("Height Field", [&]() { return mjs_addHField(scratch_spec_); });
-        option("Key", [&]() { return mjs_addKey(scratch_spec_); });
-        option("Material", [&]() { return mjs_addMaterial(scratch_spec_, 0); });
-        option("Mesh", [&]() { return mjs_addMesh(scratch_spec_, 0); });
-        option("Numeric", [&]() { return mjs_addNumeric(scratch_spec_); });
-        option("Pair", [&]() { return mjs_addPair(scratch_spec_, 0); });
-        option("Sensor", [&]() { return mjs_addSensor(scratch_spec_); });
-        option("Skin", [&]() { return mjs_addSkin(scratch_spec_); });
-        option("Tendon", [&]() { return mjs_addTendon(scratch_spec_, 0); });
-        option("Text", [&]() { return mjs_addText(scratch_spec_); });
-        option("Texture", [&]() { return mjs_addTexture(scratch_spec_); });
-        option("Tuple", [&]() { return mjs_addTuple(scratch_spec_); });
+
+        option("Actuator", mjOBJ_ACTUATOR);
+        option("Equality", mjOBJ_EQUALITY);
+        option("Exclude", mjOBJ_EXCLUDE);
+        option("Flex", mjOBJ_FLEX);
+        option("Height Field", mjOBJ_HFIELD);
+        option("Key", mjOBJ_KEY);
+        option("Material", mjOBJ_MATERIAL);
+        option("Mesh", mjOBJ_MESH);
+        option("Numeric", mjOBJ_NUMERIC);
+        option("Pair", mjOBJ_PAIR);
+        option("Sensor", mjOBJ_SENSOR);
+        option("Skin", mjOBJ_SKIN);
+        option("Tendon", mjOBJ_TENDON);
+        option("Text", mjOBJ_TEXT);
+        option("Texture", mjOBJ_TEXTURE);
+        option("Tuple", mjOBJ_TUPLE);
         ImGui::EndPopup();
       }
 
@@ -1354,32 +1283,28 @@ void App::SpecEditorGui() {
   }
   tmp_.editor_split = std::clamp(tmp_.editor_split, 20.0f, region.y - 40.0f);
 
-  bool open = tmp_.curr_edit_element != nullptr;
+  mjsElement* element = spec_editor_.GetActiveElement();
+
+  bool open = element != nullptr;
   if (platform::ImGui_BeginHSplit("SpecEditorTree", &tmp_.editor_split,
                                   &open)) {
-    if (platform::SpecTreeGui(&tmp_.curr_edit_element, scratch_spec_,
-                              SpecEditMode::kEdit)) {
-      scratch_spec_modified_ = true;
-    }
-    open = tmp_.curr_edit_element != nullptr;
+    platform::SpecTreeGui(&element, spec_editor_.GetActiveSpec(),
+                          &spec_editor_);
+    open = element != nullptr;
+    spec_editor_.SetActiveElement(element);
 
     if (platform::ImGui_HSplit("SpecEditorProperties", &tmp_.editor_split,
                                &open)) {
-      ImGui::Text("%s", mju_type2Str(tmp_.curr_edit_element->elemtype));
+      ImGui::Text("%s", mju_type2Str(element->elemtype));
       ImGui::SameLine();
-      ImGui::Text("(%d)", mjs_getId(tmp_.curr_edit_element));
+      ImGui::Text("(%d)", mjs_getId(element));
       ImGui::Separator();
 
-      mjsElement* ref = scratch_to_spec_[tmp_.curr_edit_element];
-      if (platform::ElementSpecGui(tmp_.curr_edit_element, ref,
-                                   SpecEditMode::kEdit)) {
-        scratch_spec_modified_ = true;
-      }
+      platform::ElementSpecGui(element, &spec_editor_);
     }
     platform::ImGui_EndHSplit(open);
-
     if (!open) {
-      tmp_.curr_edit_element = nullptr;
+      spec_editor_.SetActiveElement(nullptr);
     }
   }
 }
@@ -1939,7 +1864,7 @@ void App::MainMenuGui() {
           mode = platform::GraphicsMode::FilamentVulkan;
         }
         if (mode.has_value()) {
-          spec_op_ = [=, this]() {
+          pending_op_ = [=, this]() {
             const int width = window_->GetWidth();
             const int height = window_->GetHeight();
             SwitchGraphicsMode(width, height, *mode);

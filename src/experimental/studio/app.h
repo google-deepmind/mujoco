@@ -35,6 +35,7 @@
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/sim_history.h"
 #include "experimental/platform/sim_profiler.h"
+#include "experimental/platform/spec_editor.h"
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
 
@@ -84,8 +85,6 @@ class App {
   void Render();
 
  private:
-  using SpecEditMode = platform::SpecEditMode;
-
   // The kind of model that is currently loaded.
   enum ModelKind {
     kEmptyModel,
@@ -148,7 +147,6 @@ class App {
     // Spec editing.
     SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;
     mjsElement* curr_element = nullptr;
-    mjsElement* curr_edit_element = nullptr;
 
     // State.
     int state_sig = 0;
@@ -226,7 +224,6 @@ class App {
 
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
-  void CopyLoadedSpecForEditing();
 
   mjSpec* spec() { return model_holder_->spec(); }
   mjModel* model() { return model_holder_->model(); }
@@ -241,7 +238,9 @@ class App {
   std::string load_error_;
   std::string step_error_;
   std::string edit_error_;
+
   std::optional<std::string> pending_load_;
+  std::function<void()> pending_op_;
   bool preserve_camera_on_load_ = false;
   ModelKind model_kind_ = kEmptyModel;
   platform::GraphicsMode gfx_mode_ = platform::GraphicsMode::FilamentVulkan;
@@ -250,21 +249,10 @@ class App {
   std::unique_ptr<platform::Renderer> renderer_;
   std::unique_ptr<platform::ModelHolder> model_holder_;
 
-  // Spec editing. We keep a separate copy of the loaded spec that we can edit.
-  // Once we're done editing, we will (re)compile the spec and update the
-  // active model and data.
-  mjSpec* scratch_spec_ = nullptr;
-  // Whether or not the scratch spec differs from the loaded spec.
-  bool scratch_spec_modified_ = false;
-  // We keep a mapping of the elements between the loaded spec and the scratch
-  // spec.
-  std::unordered_map<mjsElement*, mjsElement*> spec_to_scratch_;
-  std::unordered_map<mjsElement*, mjsElement*> scratch_to_spec_;
-  std::function<void()> spec_op_;
-
   platform::StepControl step_control_;
   platform::SimProfiler profiler_;
   platform::SimHistory history_;
+  platform::SpecEditor spec_editor_;
   std::vector<std::string> search_paths_;
   std::vector<std::byte> pixels_;
 
