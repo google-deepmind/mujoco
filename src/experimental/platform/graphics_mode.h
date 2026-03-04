@@ -12,22 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RENDERER_BACKEND_H_
-#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RENDERER_BACKEND_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GRAPHICS_MODE_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GRAPHICS_MODE_H_
 
 namespace mujoco::platform {
 
-// Describes the configuration of the renderer backend.
-//
-// This is generally a combination of two things. The first describes the
-// high-level rendering engine that sits behind the MuJoCo API (e.g.
-// mjr_render). The second describes the low-level graphics engine that is
-// powering the rendering (e.g. OpenGL, Vulkan, etc.).
-//
-// More details about the backends can be found in renderer.h.
-enum class RendererBackend {
+// Describes the configuration of the graphics and rendering systems.
+enum class GraphicsMode {
   // The classic MuJoCo OpenGL renderer.
   ClassicOpenGl,
+
+  // The classic MuJoCo OpenGL renderer.
+  ClassicOpenGlHeadless,
 
   // The Filament-based renderer running on OpenGL.
   FilamentOpenGl,
@@ -42,6 +38,13 @@ enum class RendererBackend {
   FilamentOpenGlHeadless,
 };
 
+bool IsClassic(GraphicsMode gfx_mode);
+bool IsFilament(GraphicsMode gfx_mode);
+bool IsOpenGl(GraphicsMode gfx_mode);
+bool IsVulkan(GraphicsMode gfx_mode);
+bool IsWebGl(GraphicsMode gfx_mode);
+bool IsHeadless(GraphicsMode gfx_mode);
+
 }  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RENDERER_BACKEND_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GRAPHICS_MODE_H_

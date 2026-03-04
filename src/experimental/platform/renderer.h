@@ -17,13 +17,13 @@
 
 #include <chrono>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <ratio>
 #include <span>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/renderer_backend.h"
-
+#include "experimental/platform/graphics_mode.h"
 
 namespace mujoco::platform {
 
@@ -57,7 +57,8 @@ class Renderer {
   using Seconds = std::chrono::duration<double>;
   using Milliseconds = std::chrono::duration<double, std::milli>;
 
-  explicit Renderer(void* native_window = nullptr);
+  explicit Renderer(void* native_window = nullptr,
+                    GraphicsMode gfx_mode = GraphicsMode::FilamentVulkan);
   ~Renderer();
 
   Renderer(const Renderer&) = delete;
@@ -90,10 +91,6 @@ class Renderer {
   // Returns the current frame rate.
   double GetFps();
 
-  // Returns the statically-defined backend for which this renderer is
-  // configured.
-  static RendererBackend GetBackend();
-
  private:
   // Resets the renderer; no rendering will occur until Init() is called again.
   void Deinit();
@@ -101,7 +98,11 @@ class Renderer {
   void UpdateFps();
 
   void* native_window_ = nullptr;
+  GraphicsMode gfx_ = GraphicsMode::FilamentVulkan;
   std::shared_ptr<void> graphics_api_context_ = nullptr;
+  std::function<void(mjrRect, mjvScene*)> render_;
+  std::function<void(int)> set_buffer_;
+  std::function<void(unsigned char*, mjrRect)> read_pixels_;
   mjrContext render_context_;
   mjvScene scene_;
   bool initialized_ = false;

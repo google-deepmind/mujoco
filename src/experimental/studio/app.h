@@ -26,6 +26,7 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
+#include "experimental/platform/graphics_mode.h"
 #include "experimental/platform/gui.h"
 #include "experimental/platform/gui_spec.h"
 #include "experimental/platform/interaction.h"
@@ -51,10 +52,8 @@ class App {
     // The path to the ini file containing the user settings.
     std::string ini_path;
 
-    // By default, we render directly to the window surface. However, in some
-    // cases, we may want to render to an (offscreen) texture and blit the
-    // texture to the window surface.
-    bool offscreen_mode = false;
+    // The graphics configuration used for initializing the window.
+    platform::GraphicsMode gfx_mode = platform::GraphicsMode::FilamentVulkan;
   };
 
   explicit App(Config config);
@@ -190,6 +189,8 @@ class App {
   // then compile the spec to a model.
   void OnModelLoaded(std::string filename, ModelKind model_kind);
 
+  void SwitchGraphicsMode(int width, int height, platform::GraphicsMode mode);
+
   void SetLoadError(std::string error);
   void UpdateFilePaths(const std::string& resolved_path);
 
@@ -243,6 +244,7 @@ class App {
   std::optional<std::string> pending_load_;
   bool preserve_camera_on_load_ = false;
   ModelKind model_kind_ = kEmptyModel;
+  platform::GraphicsMode gfx_mode_ = platform::GraphicsMode::FilamentVulkan;
 
   std::unique_ptr<platform::Window> window_;
   std::unique_ptr<platform::Renderer> renderer_;

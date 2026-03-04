@@ -32,8 +32,9 @@
 #include <backends/imgui_impl_sdl2.h>
 #include <imgui.h>
 #include <mujoco/mujoco.h>
-#include "experimental/platform/renderer_backend.h"
+#include "experimental/platform/graphics_mode.h"
 #include "user/user_resource.h"
+
 
 // Because X11/Xlib.h defines Status.
 #ifdef Status
@@ -95,12 +96,7 @@ static void InitImGui(SDL_Window* window, float content_scale, bool load_fonts,
 
 Window::Window(std::string_view title, int width, int height, Config config)
     : width_(width), height_(height), config_(config) {
-  const RendererBackend renderer_backend = config_.renderer_backend;
-  if (renderer_backend == RendererBackend::FilamentOpenGlHeadless) {
-    config_.offscreen_mode = true;
-  }
-
-  if (config_.offscreen_mode) {
+  if (IsHeadless(config_.gfx_mode)) {
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
     SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "0");
   } else {
@@ -114,21 +110,19 @@ Window::Window(std::string_view title, int width, int height, Config config)
   }
 
   int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-  if (renderer_backend == RendererBackend::FilamentVulkan) {
+  if (IsVulkan(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_VULKAN;
-  } else if (renderer_backend == RendererBackend::FilamentWebGl) {
+  } else if (IsWebGl(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-  } else if (renderer_backend == RendererBackend::ClassicOpenGl ||
-             renderer_backend == RendererBackend::FilamentOpenGl ||
-             renderer_backend == RendererBackend::FilamentOpenGlHeadless) {
+  } else if (IsOpenGl(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
   } else {
-    mju_error("Unsupported window config: %d", renderer_backend);
+    mju_error("Unsupported window config: %d", config_.gfx_mode);
   }
 
   const float content_scale = ImGui_ImplSDL2_GetContentScaleForDisplay(0);
@@ -140,24 +134,29 @@ Window::Window(std::string_view title, int width, int height, Config config)
   }
 
   InitImGui(sdl_window_, content_scale, config.load_fonts,
-            (renderer_backend != RendererBackend::ClassicOpenGl));
+            (config_.gfx_mode != GraphicsMode::ClassicOpenGl &&
+             config_.gfx_mode != GraphicsMode::ClassicOpenGlHeadless));
 
-  if (renderer_backend == RendererBackend::FilamentWebGl ||
-      (renderer_backend == RendererBackend::ClassicOpenGl &&
-       !config.offscreen_mode)) {
+  // Filament (except WebGL) manages its own swap chain including when to swap.
+  // In all other cases, we'll use SDL to manage the swap chain.
+  if (config_.gfx_mode == GraphicsMode::FilamentWebGl ||
+      config_.gfx_mode == GraphicsMode::ClassicOpenGl ||
+      config_.gfx_mode == GraphicsMode::ClassicOpenGlHeadless) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);
     SDL_GL_MakeCurrent(sdl_window_, gl_context);
   }
 
-  if (config_.offscreen_mode) {
+  // In headless mode, we'll render to a texture and then blit the texture onto
+  // the window surface. In this case, we'll use SDL's software renderer to
+  // perform the blitting. Since we're in charge of the window, we don't need
+  // to get the native window handle for the renderer.
+  if (IsHeadless(config_.gfx_mode)) {
     sdl_renderer_ = SDL_CreateRenderer(sdl_window_, -1, SDL_RENDERER_SOFTWARE);
-  }
+  } else {
+    SDL_SysWMinfo wmi;
+    SDL_VERSION(&wmi.version);
+    SDL_GetWindowWMInfo(sdl_window_, &wmi);
 
-  SDL_SysWMinfo wmi;
-  SDL_VERSION(&wmi.version);
-  SDL_GetWindowWMInfo(sdl_window_, &wmi);
-
-  if (!config_.offscreen_mode) {
     #if defined(__linux__)
       native_window_ = reinterpret_cast<void*>(wmi.info.x11.window);
     #elif defined(__WIN32__)
@@ -175,6 +174,7 @@ Window::Window(std::string_view title, int width, int height, Config config)
 }
 
 Window::~Window() {
+  ImGui_ImplSDL2_Shutdown();
   SDL_DestroyWindow(sdl_window_);
   SDL_Quit();
 }
@@ -234,7 +234,9 @@ void Window::EndFrame() {
 }
 
 void Window::Present(std::span<const std::byte> pixels) {
-  if (config_.offscreen_mode) {
+  // In headless mode, we assume the caller has renderered the scene to an RGB
+  // buffer of size width_ * height_ * 3.
+  if (IsHeadless(config_.gfx_mode)) {
     if (pixels.size() != width_ * height_ * 3) {
       mju_error("Offscreen mode expects RGB buffer of size %d",
                 width_ * height_ * 3);
@@ -258,7 +260,9 @@ void Window::Present(std::span<const std::byte> pixels) {
       }
     }
 
-    if (config_.renderer_backend == RendererBackend::ClassicOpenGl) {
+    // Flip the image vertically because the classic renderer uses a bottom-left
+    // coordinate system while SDL assumes a top-left coordinate system.
+    if (config_.gfx_mode == GraphicsMode::ClassicOpenGlHeadless) {
       dst = static_cast<unsigned char*>(surface->pixels);
       for (int r = 0; r < height_ / 2; ++r) {
         unsigned char* top_row = &dst[4 * width_ * r];
@@ -268,13 +272,14 @@ void Window::Present(std::span<const std::byte> pixels) {
     }
 
     SDL_RenderPresent(sdl_renderer_);
-  } else if (config_.renderer_backend != RendererBackend::FilamentVulkan
-     && config_.renderer_backend != RendererBackend::FilamentOpenGl) {
+  } else if (config_.gfx_mode != GraphicsMode::FilamentVulkan
+     && config_.gfx_mode != GraphicsMode::FilamentOpenGl) {
     SDL_GL_SwapWindow(sdl_window_);
   }
 }
 
-bool Window::IsOffscreenMode() const {
-  return config_.offscreen_mode;
+GraphicsMode Window::GetGraphicsMode() const {
+  return config_.gfx_mode;
 }
+
 }  // namespace mujoco::platform

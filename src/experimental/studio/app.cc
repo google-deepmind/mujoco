@@ -25,6 +25,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -35,6 +36,7 @@
 #include <implot.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/file_dialog.h"
+#include "experimental/platform/graphics_mode.h"
 #include "experimental/platform/gui.h"
 #include "experimental/platform/gui_spec.h"
 #include "experimental/platform/helpers.h"
@@ -111,14 +113,9 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 };
 // clang-format on
 
-App::App(Config config) : ini_path_(std::move(config.ini_path)) {
-  platform::Window::Config window_config;
-  window_config.renderer_backend = platform::Renderer::GetBackend();
-  window_config.offscreen_mode = config.offscreen_mode;
-  window_ = std::make_unique<platform::Window>("MuJoCo Studio", config.width,
-                                               config.height, window_config);
-  renderer_ =
-      std::make_unique<platform::Renderer>(window_->GetNativeWindowHandle());
+App::App(Config config)
+    : ini_path_(std::move(config.ini_path)), gfx_mode_(config.gfx_mode) {
+  SwitchGraphicsMode(config.width, config.height, config.gfx_mode);
 
   ImPlot::CreateContext();
   mjv_defaultPerturb(&perturb_);
@@ -126,6 +123,20 @@ App::App(Config config) : ini_path_(std::move(config.ini_path)) {
   mjv_defaultOption(&vis_options_);
 
   profiler_.Clear();
+}
+
+void App::SwitchGraphicsMode(int width, int height,
+                             platform::GraphicsMode mode) {
+  renderer_.reset();
+  window_.reset();
+  gfx_mode_ = mode;
+
+  platform::Window::Config window_config;
+  window_config.gfx_mode = gfx_mode_;
+  window_ = std::make_unique<platform::Window>("MuJoCo Studio", width, height,
+                                               window_config);
+  renderer_ = std::make_unique<platform::Renderer>(
+      window_->GetNativeWindowHandle(), gfx_mode_);
 }
 
 void App::ClearModel() {
@@ -361,8 +372,7 @@ void App::Render() {
   const float width = window_->GetWidth();
   const float height = window_->GetHeight();
   const float scale = window_->GetScale();
-
-  if (window_->IsOffscreenMode()) {
+  if (IsHeadless(window_->GetGraphicsMode())) {
     pixels_.resize(width * height * 3);
   } else {
     pixels_.clear();
@@ -615,14 +625,14 @@ void App::HandleKeyboardEvents() {
     return;
   }
 
-  constexpr auto ImGuiMode_CtrlShift = ImGuiMod_Ctrl | ImGuiMod_Shift;
+  constexpr auto ImGuiMod_CtrlShift = ImGuiMod_Ctrl | ImGuiMod_Shift;
 
   bool is_freecam_wasd = ui_.camera_idx == platform::kFreeCameraIdx;
 
   // Menu shortcuts.
   if (ImGui_IsChordJustPressed(ImGuiKey_O | ImGuiMod_Ctrl)) {
     tmp_.file_dialog = UiTempState::FileDialog_Load;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_S | ImGuiMode_CtrlShift)) {
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_S | ImGuiMod_CtrlShift)) {
     tmp_.file_dialog = UiTempState::FileDialog_SaveMjb;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_S | ImGuiMod_Ctrl)) {
     tmp_.file_dialog = UiTempState::FileDialog_SaveXml;
@@ -1898,6 +1908,51 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("Picture-in-Picture")) {
         tmp_.picture_in_picture = !tmp_.picture_in_picture;
       }
+      ImGui::Separator();
+
+
+      if (ImGui::BeginMenu("Graphics Mode (Experimental)")) {
+        std::optional<platform::GraphicsMode> mode;
+        if (ImGui::MenuItem(
+                "Classic OpenGL", nullptr,
+                gfx_mode_ == platform::GraphicsMode::ClassicOpenGl)) {
+          mode = platform::GraphicsMode::ClassicOpenGl;
+        }
+        if (ImGui::MenuItem(
+                "Classic OpenGL Headless", nullptr,
+                gfx_mode_ == platform::GraphicsMode::ClassicOpenGlHeadless)) {
+          mode = platform::GraphicsMode::ClassicOpenGlHeadless;
+        }
+        if (ImGui::MenuItem(
+                "Filament OpenGL", nullptr,
+                gfx_mode_ == platform::GraphicsMode::FilamentOpenGl)) {
+          mode = platform::GraphicsMode::FilamentOpenGl;
+        }
+        if (ImGui::MenuItem(
+                "Filament OpenGL Headless", nullptr,
+                gfx_mode_ == platform::GraphicsMode::FilamentOpenGlHeadless)) {
+          mode = platform::GraphicsMode::FilamentOpenGlHeadless;
+        }
+        if (ImGui::MenuItem(
+                "Filament Vulkan", nullptr,
+                gfx_mode_ == platform::GraphicsMode::FilamentVulkan)) {
+          mode = platform::GraphicsMode::FilamentVulkan;
+        }
+        if (mode.has_value()) {
+          spec_op_ = [=, this]() {
+            const int width = window_->GetWidth();
+            const int height = window_->GetHeight();
+            SwitchGraphicsMode(width, height, *mode);
+            // TODO: figure out why ImGui doesn't work unless we do this twice.
+            if (IsClassic(*mode)) {
+              SwitchGraphicsMode(width, height, *mode);
+            }
+            renderer_->Init(model());
+          };
+        }
+        ImGui::EndMenu();
+      }
+
       ImGui::EndMenu();
     }
 

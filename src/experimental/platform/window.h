@@ -20,10 +20,9 @@
 #include <string>
 #include <string_view>
 
-#include "experimental/platform/renderer_backend.h"
-
 #include <SDL_video.h>
 #include <SDL_render.h>
+#include "experimental/platform/graphics_mode.h"
 
 namespace mujoco::platform {
 
@@ -34,9 +33,8 @@ namespace mujoco::platform {
 class Window {
  public:
   struct Config {
-    RendererBackend renderer_backend = RendererBackend::ClassicOpenGl;
+    GraphicsMode gfx_mode = GraphicsMode::FilamentVulkan;
     bool load_fonts = true;
-    bool offscreen_mode = false;
   };
 
   Window(std::string_view title, int width, int height, Config config);
@@ -78,8 +76,8 @@ class Window {
   // the value will be cleared until the next time a file is dropped.
   std::string GetDropFile();
 
-  // Returns true if the window is in offscreen mode.
-  bool IsOffscreenMode() const;
+  // Returns the graphics configuration of the window.
+  GraphicsMode GetGraphicsMode() const;
 
   // Enables window resizing.
   void EnableWindowResizing();

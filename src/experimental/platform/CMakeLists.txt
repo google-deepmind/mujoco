@@ -41,6 +41,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         egl_utils.h
         enum_utils.h
         file_dialog.h
+        graphics_mode.cc
+        graphics_mode.h
         gui.cc
         gui.h
         gui_spec.cc
@@ -59,7 +61,6 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         plugin.h
         renderer.cc
         renderer.h
-        renderer_backend.h
         sim_history.cc
         sim_history.h
         sim_profiler.cc

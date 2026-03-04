@@ -25,6 +25,7 @@
 #include <utility>
 
 #include <mujoco/mujoco.h>
+#include "experimental/platform/graphics_mode.h"
 #include "experimental/studio/app.h"
 
 // Global app instance. Lifetime is controlled by Init/Deinit calls which are
@@ -95,6 +96,7 @@ void Init() {
     .width = width,
     .height = height,
     .ini_path = ini_path,
+    .gfx_mode = mujoco::platform::GraphicsMode::FilamentWebGl,
   });
   g_app->InitEmptyModel();
 }

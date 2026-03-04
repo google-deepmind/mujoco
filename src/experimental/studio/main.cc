@@ -26,12 +26,13 @@
 
 #include <absl/flags/flag.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/graphics_mode.h"
 #include "experimental/studio/app.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");
 ABSL_FLAG(int, window_height, 720, "Window height");
 ABSL_FLAG(std::string, model_file, "", "MuJoCo model file.");
-ABSL_FLAG(bool, offscreen_mode, false, "Offscreen mode");
+ABSL_FLAG(std::string, gfx, "", "Graphics API");
 
 std::string Resolve(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
@@ -99,14 +100,31 @@ int main(int argc, char** argv, char** envp) {
   resource_provider.prefix = "filament";
   mjp_registerResourceProvider(&resource_provider);
 
+  std::string gfx = absl::GetFlag(FLAGS_gfx);
+
+  mujoco::platform::GraphicsMode gfx_mode =
+      mujoco::platform::GraphicsMode::FilamentVulkan;
+  if (gfx == "classic") {
+    gfx_mode = mujoco::platform::GraphicsMode::ClassicOpenGl;
+  } else if (gfx == "classic_headless") {
+    gfx_mode = mujoco::platform::GraphicsMode::ClassicOpenGlHeadless;
+  } else if (gfx == "opengl") {
+    gfx_mode = mujoco::platform::GraphicsMode::FilamentOpenGl;
+  } else if (gfx == "opengl_headless") {
+    gfx_mode = mujoco::platform::GraphicsMode::FilamentOpenGlHeadless;
+  } else if (gfx == "vulkan" || gfx.empty()) {
+    gfx_mode = mujoco::platform::GraphicsMode::FilamentVulkan;
+  } else {
+    mju_error("Unsupported graphics API: %s", gfx.c_str());
+  }
+
   const int width = absl::GetFlag(FLAGS_window_width);
   const int height = absl::GetFlag(FLAGS_window_height);
-  const bool offscreen_mode = absl::GetFlag(FLAGS_offscreen_mode);
   mujoco::studio::App app({
     .width = width,
     .height = height,
     .ini_path = ini_path,
-    .offscreen_mode = offscreen_mode,
+    .gfx_mode = gfx_mode,
   });
 
   // If the model file is not specified, try to load it from the first argument
