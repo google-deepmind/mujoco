@@ -62,7 +62,6 @@ if [[ "$do_configure" == true ]]; then
         "-DUSE_STATIC_LIBCXX=OFF"
         "-DBUILD_SHARED_LIB=OFF"
         "-DMUJOCO_USE_FILAMENT=ON"
-        "-DMUJOCO_USE_FILAMENT_VULKAN=OFF"
         "-DMUJOCO_BUILD_EXAMPLES=OFF"
         "-DMUJOCO_BUILD_SIMULATE=OFF"
         "-DMUJOCO_BUILD_TESTS=OFF"

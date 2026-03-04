@@ -381,20 +381,12 @@ jobs:
       if: ${{ runner.os == 'Linux' }}
       run: bash ./.github/workflows/build_steps.sh prepare_linux
 
-    - name: Configure Studio with legacy OpenGL rendering
-      env:
-        CMAKE_ARGS: ${{ matrix.cmake_args }}
-      run: bash ./.github/workflows/build_steps.sh configure_studio_legacy_opengl
-
-    - name: Build Studio with legacy OpenGL rendering
-      run: bash ./.github/workflows/build_steps.sh build_studio
-
-    - name: Configure Studio with Filament rendering
+    - name: Configure Studio
       env:
         CMAKE_ARGS: ${{ matrix.cmake_args }}
       run: bash ./.github/workflows/build_steps.sh configure_studio
 
-    - name: Build Studio with Filament rendering
+    - name: Build Studio
       run: bash ./.github/workflows/build_steps.sh build_studio
 
     - name: Notify team chat

@@ -25,6 +25,7 @@
 #include <vector>
 
 #include <absl/flags/flag.h>
+#include <absl/flags/parse.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/graphics_mode.h"
 #include "experimental/studio/app.h"
@@ -73,6 +74,7 @@ class FileResource {
 };
 
 int main(int argc, char** argv, char** envp) {
+  absl::ParseCommandLine(argc, argv);
 
   const char* home = getenv("HOME");
   const std::string ini_path = std::string(home ? home : ".") + "/.mujoco.ini";
