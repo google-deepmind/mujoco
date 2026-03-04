@@ -160,7 +160,8 @@ configure_studio() {
         -DMUJOCO_BUILD_TESTS=OFF \
         -DMUJOCO_TEST_PYTHON_UTIL=OFF \
         -DMUJOCO_WITH_USD=OFF \
-        -DMUJOCO_USE_FILAMENT=ON
+        -DMUJOCO_USE_FILAMENT=ON \
+        ${CMAKE_ARGS}
     echo "Configuring Studio... DONE"
 }
 
