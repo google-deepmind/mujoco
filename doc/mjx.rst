@@ -104,8 +104,8 @@ bottlenecks exhibited in MJX-JAX around contacts and constraints.
 Note that unlike MJX-JAX, MJX-Warp does not support automatic differentiation and has no immediate plans to
 support auto-diff.
 
-MJX-Warp Basic Usage
-~~~~~~~~~~~~~~~~~~~~
+Basic Usage
+~~~~~~~~~~~
 
 We create model and data by passing ``impl='warp'`` to the ``mjx.put_model`` and ``mjx.make_data`` functions:
 
@@ -122,8 +122,8 @@ Notice that we pass two extra arguments to ``mjx.make_data``:
   should be tuned by loading them in the :ref:`viewer <MJW_Cli>` and increasing the values accordingly as overflows
   occur. Scale ``naconmax`` by the number of environments you'll eventually need in a ``jax.vmap``!
 
-MJX-Warp Contacts
-~~~~~~~~~~~~~~~~~
+Contacts
+~~~~~~~~
 
 Since JAX and Warp diverge in their implementations of contact buffers, contacts were moved from
 ``mjx.Data.contact`` to private ``mjx.Data._impl`` in MuJoCo 3.3.5. We encourage users to read out contacts solely through
@@ -134,8 +134,8 @@ For more details and examples of using MJX-Warp in the wild, see the announcemen
 
 .. _MjxWarpGraphModes:
 
-MJX-Warp Graph Modes
-~~~~~~~~~~~~~~~~~~~~
+Graph Modes
+~~~~~~~~~~~
 
 The ``mjx.put_model`` function accepts a ``graph_mode`` argument to configure the CUDA graph capture behavior,
 exposed by the ``mjx.warp.GraphMode`` enum. When called from JAX, CUDA graphs are captured by the Warp
@@ -209,8 +209,8 @@ excessive graph captures in the JAX-Warp FFI layer.
 
 .. _MjxWarpBatchRendering:
 
-MJX-Warp Batch Rendering
-~~~~~~~~~~~~~~~~~~~~~~~~
+Batch Rendering
+~~~~~~~~~~~~~~~
 
 MJX-Warp includes a hardware-accelerated batch renderer for generating pixel observations (such as RGB and depth)
 across multiple parallel environments.
@@ -270,8 +270,8 @@ volume hierarchy (BVH) and executing the raycaster:
    there is a known issue where :func:`~mujoco.mjx.render` does not play nice with a
    ``jax.vmap(jax.lax.scan)``.
 
-Multi-GPU rendering with ``pmap``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Multi-GPU with ``pmap``
+^^^^^^^^^^^^^^^^^^^^^^^
 
 To render across multiple GPUs, create a render context **per device** by passing ``devices`` to
 :func:`create_render_context <mujoco.mjx.create_render_context>`.
@@ -532,8 +532,8 @@ Performance Tuning
 
 .. _MjxPerformanceWarp:
 
-MJX-Warp Performance Tuning
----------------------------
+MJX-Warp
+--------
 
 :ref:`MJX-Warp <MjxWarp>` mitigates performance issues around scaling the number of contacts and constraints from
 :ref:`MJX-JAX <MjxSharpBits>`. MJX-Warp also fully supports mesh collisions. See the section on MuJoCo Warp
@@ -541,8 +541,8 @@ performance tuning `here <https://mujoco.readthedocs.io/en/stable/mjwarp/index.h
 
 .. _MjxPerformanceJAX:
 
-MJX-JAX Performance Tuning
---------------------------
+MJX-JAX
+-------
 
 .. note::
 
@@ -588,8 +588,8 @@ Broadphase
   `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__ environment
   makes use of these parameters.
 
-MJX-JAX GPU performance
------------------------
+GPU performance
+~~~~~~~~~~~~~~~
 
 The following environment variables should be set:
 
