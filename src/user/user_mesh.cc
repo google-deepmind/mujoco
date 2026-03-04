@@ -470,10 +470,10 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
   if (szgraph_) {
     mesh->graph_ = (int*)mju_malloc(szgraph_*sizeof(int));
     std::copy(graph_, graph_ + szgraph_, mesh->graph_);
+    mesh->polygons_ = polygons_;
+    mesh->polygon_normals_ = polygon_normals_;
+    mesh->polygon_map_ = polygon_map_;
   }
-  mesh->polygons_ = polygons_;
-  mesh->polygon_normals_ = polygon_normals_;
-  mesh->polygon_map_ = polygon_map_;
   mesh->surface_ = surface_;
   mesh->volume_ = volume_;
   mesh->material_ = material_;
@@ -502,7 +502,7 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
                      + (sizeof(int) * szgraph_)
                      + (sizeof(int) * npolygonvert())
                      + (sizeof(double) * polygon_normals_.size())
-                     + (sizeof(int) * npolygonmap())
+                     + (sizeof(int) * (szgraph_ ? npolygonmap() : 0))
                      + (sizeof(double) * 18)
                      + (sizeof(int) * ncenter)
                      + tree_.Size()
@@ -1083,9 +1083,13 @@ bool mjCMesh::LoadCachedMesh(mjCCache *cache, const mjResource* resource) {
       }
     }
 
-    polygons_ = mesh->polygons_;
-    polygon_normals_ = mesh->polygon_normals_;
-    polygon_map_ = mesh->polygon_map_;
+    if (szgraph_) {
+      polygons_ = mesh->polygons_;
+      polygon_normals_ = mesh->polygon_normals_;
+      polygon_map_ = mesh->polygon_map_;
+    } else {
+      polygon_map_.resize(nvert());
+    }
     surface_ = mesh->surface_;
     volume_ = mesh->volume_;
     std::copy(mesh->boxsz_, mesh->boxsz_ + 3, boxsz_);
@@ -1346,7 +1350,8 @@ double mjCMesh::ComputeSurfaceArea(double CoM[3], const double facecen[3]) const
 void mjCMesh::ApplyTransformations() {
   // translate
   if (refpos[0] != 0 || refpos[1] != 0 || refpos[2] != 0) {
-    for (int i = 0; i < nvert(); i++) {
+    int nv = nvert();
+    for (int i = 0; i < nv; i++) {
       vert_[3*i + 0] -= refpos[0];
       vert_[3*i + 1] -= refpos[1];
       vert_[3*i + 2] -= refpos[2];
@@ -1503,7 +1508,11 @@ void mjCMesh::Process() {
     }
   }
 
-  MakePolygons();
+  if (szgraph_) {
+    MakePolygons();
+  } else {
+    polygon_map_.resize(nvert());
+  }
 
   // user offset, rotation, scaling
   ApplyTransformations();
@@ -1687,7 +1696,8 @@ void mjCMesh::Rotate(double quat[4]) {
   double neg[4] = {quat[0], -quat[1], -quat[2], -quat[3]};
   double mat[9];
   mjuu_quat2mat(mat, neg);
-  for (int i = 0; i < nvert(); i++) {
+  int nv = nvert();
+  for (int i = 0; i < nv; i++) {
     mjuu_mulvecmat(&vert_[3*i], &vert_[3*i], mat);
 
     // axis-aligned bounding box
@@ -1709,6 +1719,9 @@ void mjCMesh::Rotate(double quat[4]) {
     }
   }
 }
+
+
+
 void mjCMesh::CheckInitialMesh() const {
   if (vert_.size() < 12) {
     throw mjCError(this, "at least 4 vertices required");
@@ -1739,8 +1752,9 @@ void mjCMesh::CheckInitialMesh() const {
   }
 
   // check vertices exist
-  for (int i = 0; i < face_.size(); i++) {
-    if (face_[i] >= nvert() || face_[i] < 0) {
+  int nv = nvert(), nf = face_.size();
+  for (int i = 0; i < nf; i++) {
+    if (face_[i] >= nv || face_[i] < 0) {
       throw mjCError(this, "in face %d, vertex index %d does not exist",
                      nullptr, i / 3, face_[i]);
     }
@@ -2874,21 +2888,11 @@ void mjCMesh::MakePolygons() {
   polygons_.clear();
   polygon_normals_.clear();
   polygon_map_.clear();
+  polygon_map_.resize(nvert());
 
-  // initialize polygon map
-  for (int i = 0; i < nvert(); i++) {
-    polygon_map_.push_back(std::vector<int>());
-  }
-
-  // use graph data if available
-  int *faces, nfaces;
-  if (graph_) {
-    nfaces = graph_[1];
-    faces = GraphFaces();
-  } else {
-    nfaces = nface();
-    faces = face_.data();
-  }
+  // we need a convex mesh, so we use graph faces
+  int *faces = GraphFaces();
+  int nfaces = graph_[1];
 
   // process each face
   for (int i = 0; i < nfaces; i++) {

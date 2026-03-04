@@ -2062,6 +2062,15 @@ static inline int simplexDim(int* v1i, int* v2i, int* v3i, mjtNum** v1, mjtNum**
 // recover multiple contacts from EPA polytope
 static void multicontact(Polytope* pt, Face* face, mjCCDStatus* status,
                          mjCCDObj* obj1, mjCCDObj* obj2) {
+  const int* polynum = obj1->model->mesh_polynum;
+  const int* geom_dataid = obj1->model->geom_dataid;
+  if (obj1->geom_type == mjGEOM_MESH && !polynum[geom_dataid[obj1->geom]]) {
+    return;
+  }
+  if (obj2->geom_type == mjGEOM_MESH && !polynum[geom_dataid[obj2->geom]]) {
+    return;
+  }
+
   mjtNum face1[mjMAX_POLYVERT * 3], face2[mjMAX_POLYVERT * 3], endverts[mjMAX_POLYVERT * 3];
   // get vertices of faces from EPA
   int v11i = pt->verts[face->verts[0]].index1;
