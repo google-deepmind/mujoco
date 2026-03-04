@@ -8197,7 +8197,7 @@ contribute to the sensor output. The sensor can be visualized by enabling the vi
 .. _sensor-tactile-mesh:
 
 :at:`mesh`: :at-val:`string, required`
-   Name of the mesh to associate the tactile sensor with. The mesh will be created by the sensor.
+   Name of the mesh to associate the tactile sensor with.
 
 .. _sensor-tactile-name:
 
