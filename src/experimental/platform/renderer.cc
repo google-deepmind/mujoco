@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cstddef>
 #include <span>
+#include <utility>
 
 #include <mujoco/mujoco.h>
 
@@ -31,11 +32,24 @@
 
 namespace mujoco::platform {
 
+static void FlipImage(unsigned char* pixels, int width, int height, int bpp) {
+  const int row_size = width * bpp;
+  for (int i = 0; i < height / 2; ++i) {
+    unsigned char* top_row = pixels + i * row_size;
+    unsigned char* bottom_row = pixels + (height - 1 - i) * row_size;
+    for (int j = 0; j < row_size; ++j) {
+      std::swap(top_row[j], bottom_row[j]);
+    }
+  }
+}
+
 Renderer::Renderer(void* native_window, GraphicsMode gfx)
     : native_window_(native_window), gfx_(gfx) {
   if (IsClassic(gfx_)) {
     if (native_window == nullptr) {
-      // graphics_api_context_ = CreateEglContext();
+      #ifndef __EMSCRIPTEN__
+        graphics_api_context_ = CreateEglContext();
+      #endif  // __EMSCRIPTEN__
     }
     if (ImGui::GetCurrentContext()) {
       ImGui_ImplOpenGL3_Init();
@@ -165,6 +179,9 @@ void Renderer::Render(const mjModel* model, mjData* data,
   if (render_to_texture) {
     unsigned char* ptr = reinterpret_cast<unsigned char*>(pixels.data());
     read_pixels_(ptr, viewport);
+    if (IsClassic(gfx_)) {
+      FlipImage(ptr, width, height, 3);
+    }
   }
 
   UpdateFps();
@@ -182,7 +199,12 @@ void Renderer::RenderToTexture(const mjModel* model, mjData* data,
 
   set_buffer_(mjFB_OFFSCREEN);
   render_(viewport, &scene_);
-  read_pixels_((unsigned char*)output, viewport);
+
+  unsigned char* ptr = reinterpret_cast<unsigned char*>(output);
+  read_pixels_(ptr, viewport);
+  if (IsClassic(gfx_)) {
+    FlipImage(ptr, width, height, 3);
+  }
 }
 
 int Renderer::UploadImage(int texture_id, const std::byte* pixels, int width,

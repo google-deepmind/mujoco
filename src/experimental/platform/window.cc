@@ -140,8 +140,7 @@ Window::Window(std::string_view title, int width, int height, Config config)
   // Filament (except WebGL) manages its own swap chain including when to swap.
   // In all other cases, we'll use SDL to manage the swap chain.
   if (config_.gfx_mode == GraphicsMode::FilamentWebGl ||
-      config_.gfx_mode == GraphicsMode::ClassicOpenGl ||
-      config_.gfx_mode == GraphicsMode::ClassicOpenGlHeadless) {
+      config_.gfx_mode == GraphicsMode::ClassicOpenGl) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);
     SDL_GL_MakeCurrent(sdl_window_, gl_context);
   }
@@ -257,17 +256,6 @@ void Window::Present(std::span<const std::byte> pixels) {
         dst[3] = 0xff;
         dst += 4;
         src += 3;
-      }
-    }
-
-    // Flip the image vertically because the classic renderer uses a bottom-left
-    // coordinate system while SDL assumes a top-left coordinate system.
-    if (config_.gfx_mode == GraphicsMode::ClassicOpenGlHeadless) {
-      dst = static_cast<unsigned char*>(surface->pixels);
-      for (int r = 0; r < height_ / 2; ++r) {
-        unsigned char* top_row = &dst[4 * width_ * r];
-        unsigned char* bottom_row = &dst[4 * width_ * (height_ - 1 - r)];
-        std::swap_ranges(top_row, top_row + 4 * width_, bottom_row);
       }
     }
 
