@@ -48,6 +48,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         sim_history.h
         sim_profiler.cc
         sim_profiler.h
+        spec_editor.cc
+        spec_editor.h
         step_control.cc
         step_control.h
         window.cc
