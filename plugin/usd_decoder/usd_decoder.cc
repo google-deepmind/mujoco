@@ -1724,8 +1724,8 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   if (!MaybeParseGeomPrimitive(gprim, geom, caches.xform_cache)) {
     mjsMesh* mesh = ParseUsdMesh(spec, gprim, geom, caches.xform_cache);
     if (mesh != nullptr && gprim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>()) {
-    ParseMjcPhysicsMeshCollisionAPI(mesh,
-                                    pxr::MjcPhysicsMeshCollisionAPI(gprim));
+      ParseMjcPhysicsMeshCollisionAPI(mesh,
+                                      pxr::MjcPhysicsMeshCollisionAPI(gprim));
     }
   }
 
