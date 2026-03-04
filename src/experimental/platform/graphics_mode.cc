@@ -14,6 +14,9 @@
 
 #include "experimental/platform/graphics_mode.h"
 
+#include <string_view>
+#include <mujoco/mujoco.h>
+
 namespace mujoco::platform {
 
 bool IsClassic(GraphicsMode gfx_mode) {
@@ -46,6 +49,28 @@ bool IsWebGl(GraphicsMode gfx_mode) {
 bool IsHeadless(GraphicsMode gfx_mode) {
   return gfx_mode == GraphicsMode::ClassicOpenGlHeadless ||
          gfx_mode == GraphicsMode::FilamentOpenGlHeadless;
+}
+
+GraphicsMode GraphicsModeFromString(std::string_view str,
+                                    GraphicsMode default_mode) {
+  if (str == "classic") {
+    return GraphicsMode::ClassicOpenGl;
+  } else if (str == "classic_headless") {
+    return GraphicsMode::ClassicOpenGlHeadless;
+  } else if (str == "opengl") {
+    return GraphicsMode::FilamentOpenGl;
+  } else if (str == "vulkan") {
+    return GraphicsMode::FilamentVulkan;
+  } else if (str == "webgl") {
+    return GraphicsMode::FilamentWebGl;
+  } else if (str == "opengl_headless") {
+    return GraphicsMode::FilamentOpenGlHeadless;
+  } else if (str.empty()) {
+    return default_mode;
+  } else {
+    mju_error("Unsupported graphics mode: %s", str.data());
+    return default_mode;
+  }
 }
 
 }  // namespace mujoco::platform

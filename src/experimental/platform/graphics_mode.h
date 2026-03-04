@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GRAPHICS_MODE_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GRAPHICS_MODE_H_
 
+#include <string_view>
+
 namespace mujoco::platform {
 
 // Describes the configuration of the graphics and rendering systems.
@@ -44,6 +46,9 @@ bool IsOpenGl(GraphicsMode gfx_mode);
 bool IsVulkan(GraphicsMode gfx_mode);
 bool IsWebGl(GraphicsMode gfx_mode);
 bool IsHeadless(GraphicsMode gfx_mode);
+
+GraphicsMode GraphicsModeFromString(std::string_view str,
+                                    GraphicsMode default_mode);
 
 }  // namespace mujoco::platform
 

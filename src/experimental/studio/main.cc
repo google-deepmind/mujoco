@@ -105,20 +105,8 @@ int main(int argc, char** argv, char** envp) {
   std::string gfx = absl::GetFlag(FLAGS_gfx);
 
   mujoco::platform::GraphicsMode gfx_mode =
-      mujoco::platform::GraphicsMode::FilamentVulkan;
-  if (gfx == "classic") {
-    gfx_mode = mujoco::platform::GraphicsMode::ClassicOpenGl;
-  } else if (gfx == "classic_headless") {
-    gfx_mode = mujoco::platform::GraphicsMode::ClassicOpenGlHeadless;
-  } else if (gfx == "opengl") {
-    gfx_mode = mujoco::platform::GraphicsMode::FilamentOpenGl;
-  } else if (gfx == "opengl_headless") {
-    gfx_mode = mujoco::platform::GraphicsMode::FilamentOpenGlHeadless;
-  } else if (gfx == "vulkan" || gfx.empty()) {
-    gfx_mode = mujoco::platform::GraphicsMode::FilamentVulkan;
-  } else {
-    mju_error("Unsupported graphics API: %s", gfx.c_str());
-  }
+      mujoco::platform::GraphicsModeFromString(
+          gfx, mujoco::platform::GraphicsMode::FilamentVulkan);
 
   const int width = absl::GetFlag(FLAGS_window_width);
   const int height = absl::GetFlag(FLAGS_window_height);
