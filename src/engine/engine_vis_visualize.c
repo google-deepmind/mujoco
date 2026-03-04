@@ -2910,8 +2910,8 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     scn->camera[view].orthographic = orthographic;
 
     // set symmetric frustum using intrinsic camera matrix
-    scn->camera[view].frustum_top = zver[1];
-    scn->camera[view].frustum_bottom = -zver[0];
+    scn->camera[view].frustum_top = zver[0];
+    scn->camera[view].frustum_bottom = -zver[1];
     scn->camera[view].frustum_center = (zhor[1] - zhor[0]) / 2;
     scn->camera[view].frustum_width = (zhor[1] + zhor[0]) / 2;
     scn->camera[view].frustum_near = zclip[0];
