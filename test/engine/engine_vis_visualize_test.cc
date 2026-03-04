@@ -108,5 +108,51 @@ TEST_F(MjvSceneTest, UpdateSceneGeomsExhausted) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjvSceneTest, PrincipalPointFrustumSign) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="cam" pos="0 0 1" zaxis="0 0 1"
+              sensorsize="0.01 0.01" focal="0.01 0.01"
+              principal="0 0.002"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  InitSceneObjects(model);
+
+  // point camera at the fixed cam
+  cam_.type = mjCAMERA_FIXED;
+  cam_.fixedcamid = 0;
+  mjv_updateCamera(model, data, &cam_, &scn_);
+
+  float top = scn_.camera[0].frustum_top;
+  float bottom = scn_.camera[0].frustum_bottom;
+
+  // with cy > 0 the principal point is above center, so the frustum should
+  // extend further downward than upward: |bottom| > top
+  EXPECT_GT(-bottom, top);
+
+  // verify exact values against the pinhole model
+  float znear = model->vis.map.znear * model->stat.extent;
+  float cy = model->cam_intrinsic[3];
+  float fy = model->cam_intrinsic[1];
+  float sh = model->cam_sensorsize[1];
+  float half = znear / fy * (sh / 2);
+  float offset = znear / fy * cy;
+
+  EXPECT_FLOAT_EQ(top, half - offset);
+  EXPECT_FLOAT_EQ(bottom, -(half + offset));
+
+  mj_deleteData(data);
+  FreeSceneObjects();
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco
