@@ -400,7 +400,21 @@ py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
   raw::MjModel* m = static_cast<raw::MjModel*>(mju_malloc(sizeof(mjModel)));
   m->buffer = nullptr;
   raw::MjData* d = mj_copyData(nullptr, old_m.get(), old_d.get());
-  if (mj_recompile(spec, nullptr, m, d)) {
+
+  bool compile_failed = false;
+
+  {
+    // Release GIL before calling mj_recompile which may spawn threads
+    py::gil_scoped_release no_gil;
+    if (mj_recompile(spec, nullptr, m, d)) {
+      compile_failed = true;
+    }
+  }
+
+  if (compile_failed) {
+    mju_free(m);
+    mj_deleteData(d);
+    
     throw py::value_error(mjs_getError(spec));
   }
 
