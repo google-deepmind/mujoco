@@ -1626,5 +1626,67 @@ TEST_F(SensorTest, AccelerometerAfterStep1) {
   mj_deleteModel(model);
 }
 
+// Test tactile sensor reads non-zero values when contacts occur
+TEST_F(SensorTest, TactileSkipTangents) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag multiccd="enable"/>
+    </option>
+    <asset>
+      <mesh name="sensor_mesh" builtin="sphere" params="0"/>
+    </asset>
+    <worldbody>
+      <body pos="0 0 1">
+        <freejoint/>
+        <geom name="sensor_geom" type="mesh" mesh="sensor_mesh"/>
+      </body>
+      <body>
+        <geom type="box" size=".7 .7 .3"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <tactile geom="sensor_geom" mesh="sensor_mesh"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  ASSERT_GT(model->nsensordata, 0) << "No sensor data allocated";
+  mjData* data = mj_makeData(model);
+
+  // Use mj_forward to compute collisions and sensors at t=0
+  mj_forward(model, data);
+
+  // Verify initial state
+  EXPECT_EQ(data->time, 0.0);
+  EXPECT_GT(data->ncon, 0) << "No contacts generated";
+
+  // Tactile sensor layout: [normal_forces..., tang1_forces..., tang2_forces...]
+  int ntaxel = model->nsensordata / 3;
+  ASSERT_EQ(model->nsensordata % 3, 0) << "Sensor dim should be divisible by 3";
+
+  // No tangents, so tangent components should be zero
+  for (int i = ntaxel; i < model->nsensordata; i++) {
+    EXPECT_EQ(data->sensordata[i], 0.0)
+        << "Tangent component at index " << i << " should be 0";
+  }
+
+  // Normal force components: verify count, sign, and magnitude ~-0.8
+  int nonzero_count = 0;
+  for (int i = 0; i < ntaxel; i++) {
+    if (data->sensordata[i] != 0) {
+      nonzero_count++;
+      EXPECT_NEAR(data->sensordata[i], -0.8, 0.1)
+          << "Normal force at taxel " << i;
+    }
+  }
+  EXPECT_EQ(nonzero_count, 2) << "Expected 2 taxels in contact";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

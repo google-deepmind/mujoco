@@ -1157,6 +1157,11 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
         int node = 0;
         float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
         float* mesh_normal = m->mesh_normal + 3*m->mesh_normaladr[mesh_id];
+
+        // check if mesh has frame or normal
+        int has_frame = (m->mesh_normalnum[mesh_id] == 3 * m->mesh_vertnum[mesh_id]);
+        int normal_stride = has_frame ? 9 : 3;
+
         for (int j = 0; j < ncon; j++) {
           // position in site frame
           mjtNum pos[3] = {mesh_vert[3*j + 0], mesh_vert[3*j + 1], mesh_vert[3*j + 2]};
@@ -1196,23 +1201,37 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
               d->subtree_com + 3 * m->body_rootid[body], NULL);
           mju_sub3(vel_rel, vel_sensor+3, vel_other+3);
 
-          mjtNum normal[3] = {mesh_normal[9*j + 0], mesh_normal[9*j + 1], mesh_normal[9*j + 2]};
-          mjtNum tang1[3] =  {mesh_normal[9*j + 3], mesh_normal[9*j + 4], mesh_normal[9*j + 5]};
-          mjtNum tang2[3] =  {mesh_normal[9*j + 6], mesh_normal[9*j + 7], mesh_normal[9*j + 8]};
-
-          // get contact force/torque, rotate into node frame
+          // get normal
+          mjtNum normal[3] = {mesh_normal[normal_stride*j + 0],
+                              mesh_normal[normal_stride*j + 1],
+                              mesh_normal[normal_stride*j + 2]};
           mju_rotVecQuat(normal, normal, m->mesh_quat + 4 * mesh_id);
-          mju_rotVecQuat(tang1, tang1, m->mesh_quat + 4 * mesh_id);
-          mju_rotVecQuat(tang2, tang2, m->mesh_quat + 4 * mesh_id);
+
+          // get contact force/torque
           mjtNum force[3];
           mjtNum kMaxDepth = 0.05;
           mjtNum pressure = depth / mju_max(kMaxDepth - depth, mjMINVAL);
           mju_scl3(force, normal, pressure);
 
-          // one row of mat^T * force
+          // normal force
           forcesT[0*ncon + node] = mju_dot3(force, normal);
-          forcesT[1*ncon + node] = mju_abs(mju_dot3(vel_rel, tang1));
-          forcesT[2*ncon + node] = mju_abs(mju_dot3(vel_rel, tang2));
+
+          // tangent forces (require tangent frame)
+          if (has_frame) {
+            mjtNum tang1[3] = {mesh_normal[normal_stride*j + 3],
+                               mesh_normal[normal_stride*j + 4],
+                               mesh_normal[normal_stride*j + 5]};
+            mjtNum tang2[3] = {mesh_normal[normal_stride*j + 6],
+                               mesh_normal[normal_stride*j + 7],
+                               mesh_normal[normal_stride*j + 8]};
+            mju_rotVecQuat(tang1, tang1, m->mesh_quat + 4 * mesh_id);
+            mju_rotVecQuat(tang2, tang2, m->mesh_quat + 4 * mesh_id);
+            forcesT[1*ncon + node] = mju_abs(mju_dot3(vel_rel, tang1));
+            forcesT[2*ncon + node] = mju_abs(mju_dot3(vel_rel, tang2));
+          } else {
+            forcesT[1*ncon + node] = 0;
+            forcesT[2*ncon + node] = 0;
+          }
           node++;
         }
       }
