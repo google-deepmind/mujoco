@@ -914,7 +914,7 @@ void ControlsGui(const mjModel* model, const mjData* data,
 
     double min = -1.0;
     double max = 1.0;
-    if (!model->actuator_ctrllimited[i]) {
+    if (model->actuator_ctrllimited[i]) {
       min = model->actuator_ctrlrange[2 * i + 0];
       max = model->actuator_ctrlrange[2 * i + 1];
     }
