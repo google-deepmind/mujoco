@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_RENDER_RENDER_CONTEXT_H_
-#define MUJOCO_SRC_RENDER_RENDER_CONTEXT_H_
+#ifndef MUJOCO_SRC_RENDER_CLASSIC_RENDER_CONTEXT_H_
+#define MUJOCO_SRC_RENDER_CLASSIC_RENDER_CONTEXT_H_
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
@@ -69,4 +69,4 @@ MJAPI void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldi
 }
 #endif
 
-#endif  // MUJOCO_SRC_RENDER_RENDER_CONTEXT_H_
+#endif  // MUJOCO_SRC_RENDER_CLASSIC_RENDER_CONTEXT_H_

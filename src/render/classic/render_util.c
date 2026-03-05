@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "render/render_util.h"
+#include "render/classic/render_util.h"
 
 #include <math.h>
 #include <string.h>
 
 #include <mujoco/mujoco.h>
-#include "render/glad/glad.h"
+#include "render/classic/glad/glad.h"
 
 //----------------------------- utility ------------------------------------------------------------
 

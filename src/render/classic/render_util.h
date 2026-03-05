@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_MUJOCO_SRC_RENDER_RENDER_UTIL_
-#define THIRD_PARTY_MUJOCO_SRC_RENDER_RENDER_UTIL_
+#ifndef THIRD_PARTY_MUJOCO_SRC_RENDER_CLASSIC_RENDER_UTIL_
+#define THIRD_PARTY_MUJOCO_SRC_RENDER_CLASSIC_RENDER_UTIL_
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjrender.h>
@@ -70,4 +70,4 @@ MJAPI int mjr_findRect(int x, int y, int nrect, const mjrRect* rect);
 #if defined(__cplusplus)
 }
 #endif
-#endif  // THIRD_PARTY_MUJOCO_SRC_RENDER_RENDER_UTIL_
+#endif  // THIRD_PARTY_MUJOCO_SRC_RENDER_CLASSIC_RENDER_UTIL_

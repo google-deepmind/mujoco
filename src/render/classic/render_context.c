@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "render/render_context.h"
+#include "render/classic/render_context.h"
 
 #include <inttypes.h>  // IWYU pragma: keep
 #include <math.h>
@@ -23,28 +23,28 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "render/render_util.h"
-#include "render/glad/glad.h"
+#include "render/classic/render_util.h"
+#include "render/classic/glad/glad.h"
 
 // bitmap font definitions
-#include "render/font/normal50.inc"
-#include "render/font/normal100.inc"
-#include "render/font/normal150.inc"
-#include "render/font/normal200.inc"
-#include "render/font/normal250.inc"
-#include "render/font/normal300.inc"
-#include "render/font/back50.inc"
-#include "render/font/back100.inc"
-#include "render/font/back150.inc"
-#include "render/font/back200.inc"
-#include "render/font/back250.inc"
-#include "render/font/back300.inc"
-#include "render/font/big50.inc"
-#include "render/font/big100.inc"
-#include "render/font/big150.inc"
-#include "render/font/big200.inc"
-#include "render/font/big250.inc"
-#include "render/font/big300.inc"
+#include "render/classic/font/normal50.inc"
+#include "render/classic/font/normal100.inc"
+#include "render/classic/font/normal150.inc"
+#include "render/classic/font/normal200.inc"
+#include "render/classic/font/normal250.inc"
+#include "render/classic/font/normal300.inc"
+#include "render/classic/font/back50.inc"
+#include "render/classic/font/back100.inc"
+#include "render/classic/font/back150.inc"
+#include "render/classic/font/back200.inc"
+#include "render/classic/font/back250.inc"
+#include "render/classic/font/back300.inc"
+#include "render/classic/font/big50.inc"
+#include "render/classic/font/big100.inc"
+#include "render/classic/font/big150.inc"
+#include "render/classic/font/big200.inc"
+#include "render/classic/font/big250.inc"
+#include "render/classic/font/big300.inc"
 
 
 

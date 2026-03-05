@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "render/render_gl3.h"
+#include "render/classic/render_gl3.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -24,10 +24,10 @@
 #include <mujoco/mujoco.h>
 #include "engine/engine_sort.h"
 #include "engine/engine_vis_init.h"
-#include "render/render_context.h"
-#include "render/render_gl2.h"
-#include "render/render_util.h"
-#include "render/glad/glad.h"
+#include "render/classic/render_context.h"
+#include "render/classic/render_gl2.h"
+#include "render/classic/render_util.h"
+#include "render/classic/glad/glad.h"
 
 
 //----------------------------- low-level 3D rendering ---------------------------------------------

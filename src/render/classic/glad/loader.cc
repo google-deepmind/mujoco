@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "render/glad/glad.h"
+#include "render/classic/glad/glad.h"
 
 extern "C" {
 

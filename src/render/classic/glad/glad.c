@@ -53,7 +53,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "engine/engine_util_errmem.h"
-#include "render/glad/glad.h"
+#include "render/classic/glad/glad.h"
 
 static void* mjGlad_get_proc(const char *namez);
 

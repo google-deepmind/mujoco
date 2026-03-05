@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_MUJOCO_SRC_RENDER_RENDER_GL2_
-#define THIRD_PARTY_MUJOCO_SRC_RENDER_RENDER_GL2_
+#ifndef THIRD_PARTY_MUJOCO_SRC_RENDER_CLASSIC_RENDER_GL2_
+#define THIRD_PARTY_MUJOCO_SRC_RENDER_CLASSIC_RENDER_GL2_
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjrender.h>
@@ -81,4 +81,4 @@ MJAPI void mjr_figure(mjrRect viewport, mjvFigure* fig, const mjrContext* con);
 #if defined(__cplusplus)
 }
 #endif
-#endif  // THIRD_PARTY_MUJOCO_SRC_RENDER_RENDER_GL2_
+#endif  // THIRD_PARTY_MUJOCO_SRC_RENDER_CLASSIC_RENDER_GL2_

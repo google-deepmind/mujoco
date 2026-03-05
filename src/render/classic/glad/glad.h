@@ -39,8 +39,8 @@
 // Online:
 //     https://glad.dav1d.de/#profile=compatibility&language=c&specification=gl&loader=on&api=gl%3D1.5&extensions=GL_ARB_clip_control&extensions=GL_ARB_depth_buffer_float&extensions=GL_ARB_framebuffer_object&extensions=GL_ARB_seamless_cube_map&extensions=GL_ARB_vertex_buffer_object&extensions=GL_EXT_texture_sRGB&extensions=GL_KHR_debug
 
-#ifndef MUJOCO_SRC_RENDER_GLAD_GLAD_H_
-#define MUJOCO_SRC_RENDER_GLAD_GLAD_H_
+#ifndef MUJOCO_SRC_RENDER_CLASSIC_GLAD_GLAD_H_
+#define MUJOCO_SRC_RENDER_CLASSIC_GLAD_GLAD_H_
 
 #ifdef __gl_h_
 #error OpenGL header already included, remove this include, glad already provides it
@@ -2707,4 +2707,4 @@ GLAPI PFNGLGETPOINTERVKHRPROC mjGlad_glGetPointervKHR;
 }
 #endif
 
-#endif  // MUJOCO_SRC_RENDER_GLAD_GLAD_H_
+#endif  // MUJOCO_SRC_RENDER_CLASSIC_GLAD_GLAD_H_

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "render/render_gl2.h"
+#include "render/classic/render_gl2.h"
 
 #include <math.h>
 #include <string.h>
@@ -21,7 +21,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_array_safety.h"
-#include "render/glad/glad.h"
+#include "render/classic/glad/glad.h"
 
 #define STRING_BUFSIZE 100
 

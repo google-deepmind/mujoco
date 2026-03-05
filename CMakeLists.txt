@@ -116,7 +116,7 @@ add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/thread)
 if(NOT EMSCRIPTEN AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT)
-  add_subdirectory(src/render)
+  add_subdirectory(src/render/classic)
   add_subdirectory(src/ui)
 endif()
 
