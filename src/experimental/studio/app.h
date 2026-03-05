@@ -251,7 +251,7 @@ class App {
 
   platform::StepControl step_control_;
   platform::SimProfiler profiler_;
-  platform::SimHistory history_;
+  platform::SimHistory sim_history_;
   platform::SpecEditor spec_editor_;
   std::vector<std::string> search_paths_;
   std::vector<std::byte> pixels_;

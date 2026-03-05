@@ -154,7 +154,7 @@ void App::Recompile() {
   mj_recompile(model_holder_->spec(), model_holder_->vfs(),
                model_holder_->model(), model_holder_->data());
   const int state_size = mj_stateSize(model(), mjSTATE_INTEGRATION);
-  history_.Init(state_size);
+  sim_history_.Init(state_size);
 }
 
 void App::RequestModelLoad(std::string model_file) {
@@ -216,7 +216,7 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   mjModel* model = model_holder_->model();
   renderer_->Init(model);
   const int state_size = mj_stateSize(model, mjSTATE_INTEGRATION);
-  history_.Init(state_size);
+  sim_history_.Init(state_size);
 
   if (!preserve_camera_on_load_) {
     const int model_cam = model->vis.global.cameraid;
@@ -331,7 +331,7 @@ void App::UpdatePhysics() {
 
   if (stepped) {
     profiler_.Update(model(), data());
-    std::span<mjtNum> state = history_.AddToHistory();
+    std::span<mjtNum> state = sim_history_.AddToHistory();
     if (!state.empty()) {
       mj_getState(model(), data(), state.data(), mjSTATE_INTEGRATION);
     }
@@ -339,7 +339,7 @@ void App::UpdatePhysics() {
 }
 
 void App::LoadHistory(int offset) {
-  std::span<mjtNum> state = history_.SetIndex(offset);
+  std::span<mjtNum> state = sim_history_.SetIndex(offset);
   if (!state.empty()) {
     // Pause simulation when entering history mode.
     step_control_.SetPauseState(PauseState::kNormalPaused);
@@ -611,14 +611,14 @@ void App::HandleKeyboardEvents() {
     SetSpeedIndex(tmp_.speed_index - 1);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftArrow)) {
     if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
-      LoadHistory(history_.GetIndex() - 1);
+      LoadHistory(sim_history_.GetIndex() - 1);
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_RightArrow)) {
     if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
-      if (history_.GetIndex() == 0) {
+      if (sim_history_.GetIndex() == 0) {
         step_control_.RequestSingleStep();
       } else {
-        LoadHistory(history_.GetIndex() + 1);
+        LoadHistory(sim_history_.GetIndex() + 1);
       }
     }
   } else if (ImGui_IsChordJustPressed(ImGuiMod_Ctrl | ImGuiKey_Space)) {
@@ -1698,15 +1698,15 @@ void App::StatusBarGui() {
     style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
     ImGui::SameLine();
     if (ImGui::Button(ICON_PREV_FRAME)) {
-      LoadHistory(history_.GetIndex() - 1);
+      LoadHistory(sim_history_.GetIndex() - 1);
     }
     ImGui::SetItemTooltip("%s", "Previous Frame");
 
     style.Reset();
     ImGui::SameLine();
     ImGui::SetNextItemWidth(450);
-    int index = history_.GetIndex();
-    if (ImGui::SliderInt("##ScrubIndex", &index, 1 - history_.Size(), 0)) {
+    int index = sim_history_.GetIndex();
+    if (ImGui::SliderInt("##ScrubIndex", &index, 1 - sim_history_.Size(), 0)) {
       LoadHistory(index);
     }
 
@@ -1714,10 +1714,10 @@ void App::StatusBarGui() {
     style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
     ImGui::SameLine();
     if (ImGui::Button(ICON_NEXT_FRAME)) {
-      if (history_.GetIndex() == 0) {
+      if (sim_history_.GetIndex() == 0) {
         step_control_.RequestSingleStep();
       } else {
-        LoadHistory(history_.GetIndex() + 1);
+        LoadHistory(sim_history_.GetIndex() + 1);
       }
     }
     ImGui::SetItemTooltip("%s", "Next Frame");
