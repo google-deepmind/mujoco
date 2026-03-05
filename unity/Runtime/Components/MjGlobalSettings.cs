@@ -327,7 +327,7 @@ public class MjGlobalSettings : MonoBehaviour {
   public static MjGlobalSettings Instance {
     get {
      if (_instance == null) {
-        var instances = FindObjectsOfType<MjGlobalSettings>();
+        var instances = FindObjectsByType<MjGlobalSettings>(FindObjectsSortMode.None);
         if (instances.Length > 1) {
           throw new InvalidOperationException(
               "Only one MjGlobalSettings instance is allowed - please resolve manually.");
