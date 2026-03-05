@@ -105,7 +105,9 @@ std::string StripPathAndLower(std::string path) {
 
 namespace mujoco::user {
 
-VFS::VFS(mjVFS* vfs) : self_(vfs) {
+VFS::VFS(mjVFS* vfs) : owner_(vfs) {
+  stable_vfs_.impl_ = this;
+
   mjp_defaultResourceProvider(&default_provider_);
   default_provider_.open = [](mjResource* res) {
     return OpenFile(res->name, res);
@@ -121,7 +123,7 @@ VFS::VFS(mjVFS* vfs) : self_(vfs) {
   };
 
   default_provider_.prefix = nullptr;
-  default_mount_.vfs = self_;
+  default_mount_.vfs = &stable_vfs_;
   default_mount_.provider = &default_provider_;
   default_mount_.data = nullptr;
   default_mount_.name = nullptr;
@@ -245,7 +247,7 @@ int VFS::Read(mjResource* resource, const void** buffer) {
 VFS::ResourcePtr VFS::CreateResource(std::string_view name,
                                      const mjpResourceProvider* provider) {
   mjResource* res = new mjResource();
-  res->vfs = self_;
+  res->vfs = &stable_vfs_;
   res->provider = provider;
   res->data = nullptr;
   res->name = new char[name.size() + 1];
@@ -312,8 +314,12 @@ mjResource* VFS::FindMount(const std::string& fullpath) {
 
 void VFS::MaybeSelfDestruct() {
   if (destructor_) {
-    destructor_(self_);
+    destructor_(owner_);
   }
+}
+
+void VFS::Bind(mjVFS* vfs) {
+  owner_ = vfs;
 }
 
 void VFS::SetToSelfDestruct(std::function<void(mjVFS*)> destructor) {
@@ -321,11 +327,18 @@ void VFS::SetToSelfDestruct(std::function<void(mjVFS*)> destructor) {
 }
 
 VFS* VFS::Upcast(mjVFS* vfs) {
-  return vfs ? static_cast<VFS*>(vfs->impl_) : nullptr;
+  if (!vfs) {
+    return nullptr;
+  }
+  VFS* impl = static_cast<VFS*>(vfs->impl_);
+  if (impl) {
+    impl->Bind(vfs);
+  }
+  return impl;
 }
 
 const VFS* VFS::Upcast(const mjVFS* vfs) {
-  return vfs ? static_cast<const VFS*>(vfs->impl_) : nullptr;
+  return Upcast(const_cast<mjVFS*>(vfs));
 }
 
 }  // namespace mujoco::user

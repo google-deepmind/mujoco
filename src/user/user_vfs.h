@@ -117,7 +117,12 @@ class VFS {
   // that `this` will be invalidated after this call.
   void MaybeSelfDestruct();
 
-  mjVFS* self_;
+  // Rebinds the current public mjVFS pointer to this implementation.
+  // This supports scenarios where the public mjVFS struct is moved.
+  void Bind(mjVFS* vfs);
+
+  mjVFS stable_vfs_;
+  mjVFS* owner_;
   std::mutex mutex_;  // Protects open_resources_ and mounts_.
   std::unordered_map<mjResource*, ResourcePtr> open_resources_;
   std::unordered_map<std::string, ResourcePtr> mounts_;
