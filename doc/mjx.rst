@@ -453,13 +453,13 @@ The following table compares feature support between MJX-Warp and MJX-JAX compar
      - All
      - ``JOINT``, ``JOINTINPARENT``, ``SITE``, ``TENDON``
    * - :ref:`Actuator Dynamics <mjtDyn>`
-     - All except ``USER``
+     - All
      - ``NONE``, ``INTEGRATOR``, ``FILTER``, ``FILTEREXACT``, ``MUSCLE``
    * - :ref:`Actuator Gain <mjtGain>`
-     - All except ``USER``
+     - All
      - ``FIXED``, ``AFFINE``, ``MUSCLE``
    * - :ref:`Actuator Bias <mjtBias>`
-     - All except ``USER``
+     - All
      - ``NONE``, ``AFFINE``, ``MUSCLE``
    * - :ref:`Geom <mjtGeom>`
      - All
@@ -494,7 +494,7 @@ The following table compares feature support between MJX-Warp and MJX-JAX compar
      - All
      - :ref:`Fixed <tendon-fixed>`, :ref:`Spatial <tendon-spatial>`
    * - :ref:`Sensors <mjtSensor>`
-     - All except ``PLUGIN``, ``USER``
+     - All except ``PLUGIN``
      - See notes below [2]_
    * - Flex
      - ``VERTCOLLIDE``, ``ELASTICITY``
