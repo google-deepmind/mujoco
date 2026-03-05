@@ -16,6 +16,7 @@
 
 #include <sys/stat.h>
 #ifdef _WIN32
+#include <windows.h>
 #define stat _stat
 #endif
 
@@ -47,9 +48,29 @@ struct ResourceFileData {
   bool is_read = false;
 };
 
+// stat with UTF-8 path support on Windows
+int mju_stat(const char* filename, struct stat* file_stat) {
+#ifdef _WIN32
+  int wlen = MultiByteToWideChar(CP_UTF8, 0, filename, -1, NULL, 0);
+  if (wlen == 0) {
+    return -1;
+  }
+  wchar_t* wfilename = (wchar_t*)malloc(wlen * sizeof(wchar_t));
+  if (!wfilename) {
+    return -1;
+  }
+  MultiByteToWideChar(CP_UTF8, 0, filename, -1, wfilename, wlen);
+  int result = _wstat(wfilename, file_stat);
+  free(wfilename);
+  return result;
+#else
+  return stat(filename, file_stat);
+#endif
+}
+
 int OpenFile(const char* filename, mjResource* resource) {
   struct stat file_stat;
-  if (stat(filename, &file_stat) == 0) {
+  if (mju_stat(filename, &file_stat) == 0) {
     ResourceFileData* data = new ResourceFileData();
     resource->data = data;
 
