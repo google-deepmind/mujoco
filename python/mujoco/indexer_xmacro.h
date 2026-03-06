@@ -269,7 +269,7 @@
   X( int,     tex_, height,   ntex,     1 ) \
   X( int,     tex_, width,    ntex,     1 ) \
   X( int,     tex_, nchannel, ntex,     1 ) \
-  X( int,     tex_, adr,      ntex,     1 ) \
+  X( mjtSize, tex_, adr,      ntex,     1 ) \
   X( mjtByte, tex_, data,     ntexdata, 1 )
 
 #define MJMODEL_TUPLE                         \
