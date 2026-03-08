@@ -2849,7 +2849,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
 
   // make flexcomp
   char error[200];
-  bool res = fcomp.Make(body, error, 200);
+  bool res = fcomp.Make(body, error, 200, vfs);
 
   // throw error
   if (!res) {

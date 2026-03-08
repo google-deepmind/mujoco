@@ -15,6 +15,7 @@
 // Tests for user/user_model.cc.
 
 #include <array>
+#include <cstdio>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -874,6 +875,48 @@ TEST_F(UserFlexTest, MeshNodePinning) {
   EXPECT_EQ(m->nbody, 1 + 7);  // 1 world + 7 flex nodes (1 pinned)
 
   mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshLoadsFromVFS) {
+  // read cube.stl from testdata into a buffer
+  const std::string stl_path =
+      GetTestDataFilePath("user/testdata/cube.stl");
+  FILE* f = fopen(stl_path.c_str(), "rb");
+  ASSERT_THAT(f, NotNull()) << "Could not open " << stl_path;
+  fseek(f, 0, SEEK_END);
+  long stl_size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  std::string stl_data(stl_size, '\0');
+  fread(stl_data.data(), 1, stl_size, f);
+  fclose(f);
+
+  // add the STL data to a VFS
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "cube.stl", stl_data.data(), stl_size);
+
+  // XML that uses flexcomp type="mesh" referencing the VFS file
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="flex_body" pos="0 0 1">
+        <flexcomp name="flex_object" type="mesh" file="cube.stl" rigid="true">
+          <contact contype="1" conaffinity="1"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // cleanup
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  mj_deleteData(d);
+  mj_deleteModel(m);
+  mj_deleteVFS(&vfs);
 }
 
 }  // namespace
