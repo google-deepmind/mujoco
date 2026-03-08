@@ -8,7 +8,18 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The tendon Jacobian ``ten_J`` is now always sparse. The fields  ``ten_J_rownnz``, ``ten_J_rowadr``, and
+     ``ten_J_colind`` have been moved from :ref:`mjData` to :ref:`mjModel` and are no longer computed at run time by
+     ``mj_tendon`` but at compile time.
+
 - Flexes now support collisions with SDF geoms.
+- Improved memory requirements for ``ten_J`` and ``ten_J_colind`` by reducing the upper bound for the number
+  of non-zeros ``nJten``.
+- Improved memory requirements for ``actuator_moment`` and ``moment_colind`` by reducing the upper bound for the number
+  of non-zeros ``nJmom``.
 
 MJX
 ^^^
