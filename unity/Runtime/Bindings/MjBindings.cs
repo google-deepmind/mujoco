@@ -1,4 +1,4 @@
-// Copyright 2022 DeepMind Technologies Limited
+// Copyright 2026 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 // limitations under the License.
 // ==============================================================================
 // THIS FILE IS AUTO-GENERATED
-
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -112,56 +111,14 @@ public const int mjMAXLINEPNT = 1001;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 3005001;
+// copybara:strip_begin
+public const int mjVERSION_HEADER = 9009009;
+/* copybara:strip_end_and_replace
+public const int mjVERSION_HEADER = __COPYBARA_MUJOCO_VERSION_NUMERIC__;
+*/
 
 
 // ------------------------------------Enums------------------------------------
-public enum mjtConstraint : int{
-  mjCNSTR_EQUALITY = 0,
-  mjCNSTR_FRICTION_DOF = 1,
-  mjCNSTR_FRICTION_TENDON = 2,
-  mjCNSTR_LIMIT_JOINT = 3,
-  mjCNSTR_LIMIT_TENDON = 4,
-  mjCNSTR_CONTACT_FRICTIONLESS = 5,
-  mjCNSTR_CONTACT_PYRAMIDAL = 6,
-  mjCNSTR_CONTACT_ELLIPTIC = 7,
-}
-public enum mjtConstraintState : int{
-  mjCNSTRSTATE_SATISFIED = 0,
-  mjCNSTRSTATE_QUADRATIC = 1,
-  mjCNSTRSTATE_LINEARNEG = 2,
-  mjCNSTRSTATE_LINEARPOS = 3,
-  mjCNSTRSTATE_CONE = 4,
-}
-public enum mjtWarning : int{
-  mjWARN_INERTIA = 0,
-  mjWARN_CONTACTFULL = 1,
-  mjWARN_CNSTRFULL = 2,
-  mjWARN_VGEOMFULL = 3,
-  mjWARN_BADQPOS = 4,
-  mjWARN_BADQVEL = 5,
-  mjWARN_BADQACC = 6,
-  mjWARN_BADCTRL = 7,
-  mjNWARNING = 8,
-}
-public enum mjtTimer : int{
-  mjTIMER_STEP = 0,
-  mjTIMER_FORWARD = 1,
-  mjTIMER_INVERSE = 2,
-  mjTIMER_POSITION = 3,
-  mjTIMER_VELOCITY = 4,
-  mjTIMER_ACTUATION = 5,
-  mjTIMER_CONSTRAINT = 6,
-  mjTIMER_ADVANCE = 7,
-  mjTIMER_POS_KINEMATICS = 8,
-  mjTIMER_POS_INERTIA = 9,
-  mjTIMER_POS_COLLISION = 10,
-  mjTIMER_POS_MAKE = 11,
-  mjTIMER_POS_PROJECT = 12,
-  mjTIMER_COL_BROAD = 13,
-  mjTIMER_COL_NARROW = 14,
-  mjNTIMER = 15,
-}
 public enum mjtDisableBit : int{
   mjDSBL_CONSTRAINT = 1,
   mjDSBL_EQUALITY = 2,
@@ -483,42 +440,82 @@ public enum mjtSDFType : int{
   mjSDFTYPE_MIDSURFACE = 2,
   mjSDFTYPE_COLLISION = 3,
 }
-public enum mjtPluginCapabilityBit : int{
-  mjPLUGIN_ACTUATOR = 1,
-  mjPLUGIN_SENSOR = 2,
-  mjPLUGIN_PASSIVE = 4,
-  mjPLUGIN_SDF = 8,
+public enum mjtTaskStatus : int{
+  mjTASK_NEW = 0,
+  mjTASK_QUEUED = 1,
+  mjTASK_COMPLETED = 2,
 }
-public enum mjtGridPos : int{
-  mjGRID_TOPLEFT = 0,
-  mjGRID_TOPRIGHT = 1,
-  mjGRID_BOTTOMLEFT = 2,
-  mjGRID_BOTTOMRIGHT = 3,
-  mjGRID_TOP = 4,
-  mjGRID_BOTTOM = 5,
-  mjGRID_LEFT = 6,
-  mjGRID_RIGHT = 7,
+public enum mjtState : int{
+  mjSTATE_TIME = 1,
+  mjSTATE_QPOS = 2,
+  mjSTATE_QVEL = 4,
+  mjSTATE_ACT = 8,
+  mjSTATE_HISTORY = 16,
+  mjSTATE_WARMSTART = 32,
+  mjSTATE_CTRL = 64,
+  mjSTATE_QFRC_APPLIED = 128,
+  mjSTATE_XFRC_APPLIED = 256,
+  mjSTATE_EQ_ACTIVE = 512,
+  mjSTATE_MOCAP_POS = 1024,
+  mjSTATE_MOCAP_QUAT = 2048,
+  mjSTATE_USERDATA = 4096,
+  mjSTATE_PLUGIN = 8192,
+  mjNSTATE = 14,
+  mjSTATE_PHYSICS = 30,
+  mjSTATE_FULLPHYSICS = 8223,
+  mjSTATE_USER = 8128,
+  mjSTATE_INTEGRATION = 16383,
 }
-public enum mjtFramebuffer : int{
-  mjFB_WINDOW = 0,
-  mjFB_OFFSCREEN = 1,
+public enum mjtConstraint : int{
+  mjCNSTR_EQUALITY = 0,
+  mjCNSTR_FRICTION_DOF = 1,
+  mjCNSTR_FRICTION_TENDON = 2,
+  mjCNSTR_LIMIT_JOINT = 3,
+  mjCNSTR_LIMIT_TENDON = 4,
+  mjCNSTR_CONTACT_FRICTIONLESS = 5,
+  mjCNSTR_CONTACT_PYRAMIDAL = 6,
+  mjCNSTR_CONTACT_ELLIPTIC = 7,
 }
-public enum mjtDepthMap : int{
-  mjDEPTH_ZERONEAR = 0,
-  mjDEPTH_ZEROFAR = 1,
+public enum mjtConstraintState : int{
+  mjCNSTRSTATE_SATISFIED = 0,
+  mjCNSTRSTATE_QUADRATIC = 1,
+  mjCNSTRSTATE_LINEARNEG = 2,
+  mjCNSTRSTATE_LINEARPOS = 3,
+  mjCNSTRSTATE_CONE = 4,
 }
-public enum mjtFontScale : int{
-  mjFONTSCALE_50 = 50,
-  mjFONTSCALE_100 = 100,
-  mjFONTSCALE_150 = 150,
-  mjFONTSCALE_200 = 200,
-  mjFONTSCALE_250 = 250,
-  mjFONTSCALE_300 = 300,
+public enum mjtWarning : int{
+  mjWARN_INERTIA = 0,
+  mjWARN_CONTACTFULL = 1,
+  mjWARN_CNSTRFULL = 2,
+  mjWARN_VGEOMFULL = 3,
+  mjWARN_BADQPOS = 4,
+  mjWARN_BADQVEL = 5,
+  mjWARN_BADQACC = 6,
+  mjWARN_BADCTRL = 7,
+  mjNWARNING = 8,
 }
-public enum mjtFont : int{
-  mjFONT_NORMAL = 0,
-  mjFONT_SHADOW = 1,
-  mjFONT_BIG = 2,
+public enum mjtTimer : int{
+  mjTIMER_STEP = 0,
+  mjTIMER_FORWARD = 1,
+  mjTIMER_INVERSE = 2,
+  mjTIMER_POSITION = 3,
+  mjTIMER_VELOCITY = 4,
+  mjTIMER_ACTUATION = 5,
+  mjTIMER_CONSTRAINT = 6,
+  mjTIMER_ADVANCE = 7,
+  mjTIMER_POS_KINEMATICS = 8,
+  mjTIMER_POS_INERTIA = 9,
+  mjTIMER_POS_COLLISION = 10,
+  mjTIMER_POS_MAKE = 11,
+  mjTIMER_POS_PROJECT = 12,
+  mjTIMER_COL_BROAD = 13,
+  mjTIMER_COL_NARROW = 14,
+  mjNTIMER = 15,
+}
+public enum mjtSleepState : int{
+  mjS_STATIC = -1,
+  mjS_ASLEEP = 0,
+  mjS_AWAKE = 1,
 }
 public enum mjtGeomInertia : int{
   mjINERTIA_VOLUME = 0,
@@ -573,33 +570,6 @@ public enum mjtOrientation : int{
   mjORIENTATION_XYAXES = 2,
   mjORIENTATION_ZAXIS = 3,
   mjORIENTATION_EULER = 4,
-}
-public enum mjtTaskStatus : int{
-  mjTASK_NEW = 0,
-  mjTASK_QUEUED = 1,
-  mjTASK_COMPLETED = 2,
-}
-public enum mjtButton : int{
-  mjBUTTON_NONE = 0,
-  mjBUTTON_LEFT = 1,
-  mjBUTTON_RIGHT = 2,
-  mjBUTTON_MIDDLE = 3,
-}
-public enum mjtEvent : int{
-  mjEVENT_NONE = 0,
-  mjEVENT_MOVE = 1,
-  mjEVENT_PRESS = 2,
-  mjEVENT_RELEASE = 3,
-  mjEVENT_SCROLL = 4,
-  mjEVENT_KEY = 5,
-  mjEVENT_RESIZE = 6,
-  mjEVENT_REDRAW = 7,
-  mjEVENT_FILESDROP = 8,
-}
-public enum mjtSection : int{
-  mjSECT_CLOSED = 0,
-  mjSECT_OPEN = 1,
-  mjSECT_FIXED = 2,
 }
 public enum mjtCatBit : int{
   mjCAT_STATIC = 1,
@@ -711,9 +681,816 @@ public enum mjtStereo : int{
   mjSTEREO_QUADBUFFERED = 1,
   mjSTEREO_SIDEBYSIDE = 2,
 }
+public enum mjtPluginCapabilityBit : int{
+  mjPLUGIN_ACTUATOR = 1,
+  mjPLUGIN_SENSOR = 2,
+  mjPLUGIN_PASSIVE = 4,
+  mjPLUGIN_SDF = 8,
+}
+public enum mjtGridPos : int{
+  mjGRID_TOPLEFT = 0,
+  mjGRID_TOPRIGHT = 1,
+  mjGRID_BOTTOMLEFT = 2,
+  mjGRID_BOTTOMRIGHT = 3,
+  mjGRID_TOP = 4,
+  mjGRID_BOTTOM = 5,
+  mjGRID_LEFT = 6,
+  mjGRID_RIGHT = 7,
+}
+public enum mjtFramebuffer : int{
+  mjFB_WINDOW = 0,
+  mjFB_OFFSCREEN = 1,
+}
+public enum mjtDepthMap : int{
+  mjDEPTH_ZERONEAR = 0,
+  mjDEPTH_ZEROFAR = 1,
+}
+public enum mjtFontScale : int{
+  mjFONTSCALE_50 = 50,
+  mjFONTSCALE_100 = 100,
+  mjFONTSCALE_150 = 150,
+  mjFONTSCALE_200 = 200,
+  mjFONTSCALE_250 = 250,
+  mjFONTSCALE_300 = 300,
+}
+public enum mjtFont : int{
+  mjFONT_NORMAL = 0,
+  mjFONT_SHADOW = 1,
+  mjFONT_BIG = 2,
+}
+public enum mjtButton : int{
+  mjBUTTON_NONE = 0,
+  mjBUTTON_LEFT = 1,
+  mjBUTTON_RIGHT = 2,
+  mjBUTTON_MIDDLE = 3,
+}
+public enum mjtEvent : int{
+  mjEVENT_NONE = 0,
+  mjEVENT_MOVE = 1,
+  mjEVENT_PRESS = 2,
+  mjEVENT_RELEASE = 3,
+  mjEVENT_SCROLL = 4,
+  mjEVENT_KEY = 5,
+  mjEVENT_RESIZE = 6,
+  mjEVENT_REDRAW = 7,
+  mjEVENT_FILESDROP = 8,
+}
+public enum mjtItem : int{
+  mjITEM_END = -2,
+  mjITEM_SECTION = -1,
+  mjITEM_SEPARATOR = 0,
+  mjITEM_STATIC = 1,
+  mjITEM_BUTTON = 2,
+  mjITEM_CHECKINT = 3,
+  mjITEM_CHECKBYTE = 4,
+  mjITEM_RADIO = 5,
+  mjITEM_RADIOLINE = 6,
+  mjITEM_SELECT = 7,
+  mjITEM_SLIDERINT = 8,
+  mjITEM_SLIDERNUM = 9,
+  mjITEM_EDITINT = 10,
+  mjITEM_EDITNUM = 11,
+  mjITEM_EDITFLOAT = 12,
+  mjITEM_EDITTXT = 13,
+  mjNITEM = 14,
+}
+public enum mjtSection : int{
+  mjSECT_CLOSED = 0,
+  mjSECT_OPEN = 1,
+  mjSECT_FIXED = 2,
+}
 
-// -----------------------------struct declarations-----------------------------
+// -------------------------------struct declarations---------------------------
 
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjLROpt_ {
+  public int mode;
+  public int useexisting;
+  public int uselimit;
+  public double accel;
+  public double maxforce;
+  public double timeconst;
+  public double timestep;
+  public double inttotal;
+  public double interval;
+  public double tolrange;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjCache_ {
+  public void* impl_;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjOption_ {
+  public double timestep;
+  public double impratio;
+  public double tolerance;
+  public double ls_tolerance;
+  public double noslip_tolerance;
+  public double ccd_tolerance;
+  public double sleep_tolerance;
+  public fixed double gravity[3];
+  public fixed double wind[3];
+  public fixed double magnetic[3];
+  public double density;
+  public double viscosity;
+  public double o_margin;
+  public fixed double o_solref[2];
+  public fixed double o_solimp[5];
+  public fixed double o_friction[5];
+  public int integrator;
+  public int cone;
+  public int jacobian;
+  public int solver;
+  public int iterations;
+  public int ls_iterations;
+  public int noslip_iterations;
+  public int ccd_iterations;
+  public int disableflags;
+  public int enableflags;
+  public int disableactuator;
+  public int sdf_initpoints;
+  public int sdf_iterations;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct global {
+  public int cameraid;
+  public int orthographic;
+  public float fovy;
+  public float ipd;
+  public float azimuth;
+  public float elevation;
+  public float linewidth;
+  public float glow;
+  public float realtime;
+  public int offwidth;
+  public int offheight;
+  public int ellipsoidinertia;
+  public int bvactive;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct quality {
+  public int shadowsize;
+  public int offsamples;
+  public int numslices;
+  public int numstacks;
+  public int numquads;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct headlight {
+  public fixed float ambient[3];
+  public fixed float diffuse[3];
+  public fixed float specular[3];
+  public int active;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct map {
+  public float stiffness;
+  public float stiffnessrot;
+  public float force;
+  public float torque;
+  public float alpha;
+  public float fogstart;
+  public float fogend;
+  public float znear;
+  public float zfar;
+  public float haze;
+  public float shadowclip;
+  public float shadowscale;
+  public float actuatortendon;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct scale {
+  public float forcewidth;
+  public float contactwidth;
+  public float contactheight;
+  public float connect;
+  public float com;
+  public float camera;
+  public float light;
+  public float selectpoint;
+  public float jointlength;
+  public float jointwidth;
+  public float actuatorlength;
+  public float actuatorwidth;
+  public float framelength;
+  public float framewidth;
+  public float constraint;
+  public float slidercrank;
+  public float frustum;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct rgba {
+  public fixed float fog[4];
+  public fixed float haze[4];
+  public fixed float force[4];
+  public fixed float inertia[4];
+  public fixed float joint[4];
+  public fixed float actuator[4];
+  public fixed float actuatornegative[4];
+  public fixed float actuatorpositive[4];
+  public fixed float com[4];
+  public fixed float camera[4];
+  public fixed float light[4];
+  public fixed float selectpoint[4];
+  public fixed float connect[4];
+  public fixed float contactpoint[4];
+  public fixed float contactforce[4];
+  public fixed float contactfriction[4];
+  public fixed float contacttorque[4];
+  public fixed float contactgap[4];
+  public fixed float rangefinder[4];
+  public fixed float constraint[4];
+  public fixed float slidercrank[4];
+  public fixed float crankbroken[4];
+  public fixed float frustum[4];
+  public fixed float bv[4];
+  public fixed float bvactive[4];
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjVisual_ {
+  public global global;
+  public quality quality;
+  public headlight headlight;
+  public map map;
+  public scale scale;
+  public rgba rgba;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjStatistic_ {
+  public double meaninertia;
+  public double meanmass;
+  public double meansize;
+  public double extent;
+  public fixed double center[3];
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjModel_ {
+  public Int64 nq;
+  public Int64 nv;
+  public Int64 nu;
+  public Int64 na;
+  public Int64 nbody;
+  public Int64 nbvh;
+  public Int64 nbvhstatic;
+  public Int64 nbvhdynamic;
+  public Int64 noct;
+  public Int64 njnt;
+  public Int64 ntree;
+  public Int64 nM;
+  public Int64 nB;
+  public Int64 nC;
+  public Int64 nD;
+  public Int64 ngeom;
+  public Int64 nsite;
+  public Int64 ncam;
+  public Int64 nlight;
+  public Int64 nflex;
+  public Int64 nflexnode;
+  public Int64 nflexvert;
+  public Int64 nflexedge;
+  public Int64 nflexelem;
+  public Int64 nflexelemdata;
+  public Int64 nflexelemedge;
+  public Int64 nflexshelldata;
+  public Int64 nflexevpair;
+  public Int64 nflextexcoord;
+  public Int64 nJfe;
+  public Int64 nJfv;
+  public Int64 nmesh;
+  public Int64 nmeshvert;
+  public Int64 nmeshnormal;
+  public Int64 nmeshtexcoord;
+  public Int64 nmeshface;
+  public Int64 nmeshgraph;
+  public Int64 nmeshpoly;
+  public Int64 nmeshpolyvert;
+  public Int64 nmeshpolymap;
+  public Int64 nskin;
+  public Int64 nskinvert;
+  public Int64 nskintexvert;
+  public Int64 nskinface;
+  public Int64 nskinbone;
+  public Int64 nskinbonevert;
+  public Int64 nhfield;
+  public Int64 nhfielddata;
+  public Int64 ntex;
+  public Int64 ntexdata;
+  public Int64 nmat;
+  public Int64 npair;
+  public Int64 nexclude;
+  public Int64 neq;
+  public Int64 ntendon;
+  public Int64 nJten;
+  public Int64 nwrap;
+  public Int64 nsensor;
+  public Int64 nnumeric;
+  public Int64 nnumericdata;
+  public Int64 ntext;
+  public Int64 ntextdata;
+  public Int64 ntuple;
+  public Int64 ntupledata;
+  public Int64 nkey;
+  public Int64 nmocap;
+  public Int64 nplugin;
+  public Int64 npluginattr;
+  public Int64 nuser_body;
+  public Int64 nuser_jnt;
+  public Int64 nuser_geom;
+  public Int64 nuser_site;
+  public Int64 nuser_cam;
+  public Int64 nuser_tendon;
+  public Int64 nuser_actuator;
+  public Int64 nuser_sensor;
+  public Int64 nnames;
+  public Int64 npaths;
+  public Int64 nnames_map;
+  public Int64 nJmom;
+  public Int64 ngravcomp;
+  public Int64 nemax;
+  public Int64 njmax;
+  public Int64 nconmax;
+  public Int64 nuserdata;
+  public Int64 nsensordata;
+  public Int64 npluginstate;
+  public Int64 nhistory;
+  public Int64 narena;
+  public Int64 nbuffer;
+  public mjOption_ opt;
+  public mjVisual_ vis;
+  public mjStatistic_ stat;
+  public void* buffer;
+  public double* qpos0;
+  public double* qpos_spring;
+  public int* body_parentid;
+  public int* body_rootid;
+  public int* body_weldid;
+  public int* body_mocapid;
+  public int* body_jntnum;
+  public int* body_jntadr;
+  public int* body_dofnum;
+  public int* body_dofadr;
+  public int* body_treeid;
+  public int* body_geomnum;
+  public int* body_geomadr;
+  public byte* body_simple;
+  public byte* body_sameframe;
+  public double* body_pos;
+  public double* body_quat;
+  public double* body_ipos;
+  public double* body_iquat;
+  public double* body_mass;
+  public double* body_subtreemass;
+  public double* body_inertia;
+  public double* body_invweight0;
+  public double* body_gravcomp;
+  public double* body_margin;
+  public double* body_user;
+  public int* body_plugin;
+  public int* body_contype;
+  public int* body_conaffinity;
+  public int* body_bvhadr;
+  public int* body_bvhnum;
+  public int* bvh_depth;
+  public int* bvh_child;
+  public int* bvh_nodeid;
+  public double* bvh_aabb;
+  public int* oct_depth;
+  public int* oct_child;
+  public double* oct_aabb;
+  public double* oct_coeff;
+  public int* jnt_type;
+  public int* jnt_qposadr;
+  public int* jnt_dofadr;
+  public int* jnt_bodyid;
+  public int* jnt_group;
+  public byte* jnt_limited;
+  public byte* jnt_actfrclimited;
+  public byte* jnt_actgravcomp;
+  public double* jnt_solref;
+  public double* jnt_solimp;
+  public double* jnt_pos;
+  public double* jnt_axis;
+  public double* jnt_stiffness;
+  public double* jnt_range;
+  public double* jnt_actfrcrange;
+  public double* jnt_margin;
+  public double* jnt_user;
+  public int* dof_bodyid;
+  public int* dof_jntid;
+  public int* dof_parentid;
+  public int* dof_treeid;
+  public int* dof_Madr;
+  public int* dof_simplenum;
+  public double* dof_solref;
+  public double* dof_solimp;
+  public double* dof_frictionloss;
+  public double* dof_armature;
+  public double* dof_damping;
+  public double* dof_invweight0;
+  public double* dof_M0;
+  public double* dof_length;
+  public int* tree_bodyadr;
+  public int* tree_bodynum;
+  public int* tree_dofadr;
+  public int* tree_dofnum;
+  public int* tree_sleep_policy;
+  public int* geom_type;
+  public int* geom_contype;
+  public int* geom_conaffinity;
+  public int* geom_condim;
+  public int* geom_bodyid;
+  public int* geom_dataid;
+  public int* geom_matid;
+  public int* geom_group;
+  public int* geom_priority;
+  public int* geom_plugin;
+  public byte* geom_sameframe;
+  public double* geom_solmix;
+  public double* geom_solref;
+  public double* geom_solimp;
+  public double* geom_size;
+  public double* geom_aabb;
+  public double* geom_rbound;
+  public double* geom_pos;
+  public double* geom_quat;
+  public double* geom_friction;
+  public double* geom_margin;
+  public double* geom_gap;
+  public double* geom_fluid;
+  public double* geom_user;
+  public float* geom_rgba;
+  public int* site_type;
+  public int* site_bodyid;
+  public int* site_matid;
+  public int* site_group;
+  public byte* site_sameframe;
+  public double* site_size;
+  public double* site_pos;
+  public double* site_quat;
+  public double* site_user;
+  public float* site_rgba;
+  public int* cam_mode;
+  public int* cam_bodyid;
+  public int* cam_targetbodyid;
+  public double* cam_pos;
+  public double* cam_quat;
+  public double* cam_poscom0;
+  public double* cam_pos0;
+  public double* cam_mat0;
+  public int* cam_projection;
+  public double* cam_fovy;
+  public double* cam_ipd;
+  public int* cam_resolution;
+  public int* cam_output;
+  public float* cam_sensorsize;
+  public float* cam_intrinsic;
+  public double* cam_user;
+  public int* light_mode;
+  public int* light_bodyid;
+  public int* light_targetbodyid;
+  public int* light_type;
+  public int* light_texid;
+  public byte* light_castshadow;
+  public float* light_bulbradius;
+  public float* light_intensity;
+  public float* light_range;
+  public byte* light_active;
+  public double* light_pos;
+  public double* light_dir;
+  public double* light_poscom0;
+  public double* light_pos0;
+  public double* light_dir0;
+  public float* light_attenuation;
+  public float* light_cutoff;
+  public float* light_exponent;
+  public float* light_ambient;
+  public float* light_diffuse;
+  public float* light_specular;
+  public int* flex_contype;
+  public int* flex_conaffinity;
+  public int* flex_condim;
+  public int* flex_priority;
+  public double* flex_solmix;
+  public double* flex_solref;
+  public double* flex_solimp;
+  public double* flex_friction;
+  public double* flex_margin;
+  public double* flex_gap;
+  public byte* flex_internal;
+  public int* flex_selfcollide;
+  public int* flex_activelayers;
+  public int* flex_passive;
+  public int* flex_dim;
+  public int* flex_matid;
+  public int* flex_group;
+  public int* flex_interp;
+  public int* flex_nodeadr;
+  public int* flex_nodenum;
+  public int* flex_vertadr;
+  public int* flex_vertnum;
+  public int* flex_edgeadr;
+  public int* flex_edgenum;
+  public int* flex_elemadr;
+  public int* flex_elemnum;
+  public int* flex_elemdataadr;
+  public int* flex_elemedgeadr;
+  public int* flex_shellnum;
+  public int* flex_shelldataadr;
+  public int* flex_evpairadr;
+  public int* flex_evpairnum;
+  public int* flex_texcoordadr;
+  public int* flex_nodebodyid;
+  public int* flex_vertbodyid;
+  public int* flex_vertedgeadr;
+  public int* flex_vertedgenum;
+  public int* flex_vertedge;
+  public int* flex_edge;
+  public int* flex_edgeflap;
+  public int* flex_elem;
+  public int* flex_elemtexcoord;
+  public int* flex_elemedge;
+  public int* flex_elemlayer;
+  public int* flex_shell;
+  public int* flex_evpair;
+  public double* flex_vert;
+  public double* flex_vert0;
+  public double* flex_vertmetric;
+  public double* flex_node;
+  public double* flex_node0;
+  public double* flexedge_length0;
+  public double* flexedge_invweight0;
+  public double* flex_radius;
+  public double* flex_size;
+  public double* flex_stiffness;
+  public double* flex_bending;
+  public double* flex_damping;
+  public double* flex_edgestiffness;
+  public double* flex_edgedamping;
+  public int* flex_edgeequality;
+  public byte* flex_rigid;
+  public byte* flexedge_rigid;
+  public byte* flex_centered;
+  public byte* flex_flatskin;
+  public int* flex_bvhadr;
+  public int* flex_bvhnum;
+  public int* flexedge_J_rownnz;
+  public int* flexedge_J_rowadr;
+  public int* flexedge_J_colind;
+  public int* flexvert_J_rownnz;
+  public int* flexvert_J_rowadr;
+  public int* flexvert_J_colind;
+  public float* flex_rgba;
+  public float* flex_texcoord;
+  public int* mesh_vertadr;
+  public int* mesh_vertnum;
+  public int* mesh_faceadr;
+  public int* mesh_facenum;
+  public int* mesh_bvhadr;
+  public int* mesh_bvhnum;
+  public int* mesh_octadr;
+  public int* mesh_octnum;
+  public int* mesh_normaladr;
+  public int* mesh_normalnum;
+  public int* mesh_texcoordadr;
+  public int* mesh_texcoordnum;
+  public int* mesh_graphadr;
+  public float* mesh_vert;
+  public float* mesh_normal;
+  public float* mesh_texcoord;
+  public int* mesh_face;
+  public int* mesh_facenormal;
+  public int* mesh_facetexcoord;
+  public int* mesh_graph;
+  public double* mesh_scale;
+  public double* mesh_pos;
+  public double* mesh_quat;
+  public int* mesh_pathadr;
+  public int* mesh_polynum;
+  public int* mesh_polyadr;
+  public double* mesh_polynormal;
+  public int* mesh_polyvertadr;
+  public int* mesh_polyvertnum;
+  public int* mesh_polyvert;
+  public int* mesh_polymapadr;
+  public int* mesh_polymapnum;
+  public int* mesh_polymap;
+  public int* skin_matid;
+  public int* skin_group;
+  public float* skin_rgba;
+  public float* skin_inflate;
+  public int* skin_vertadr;
+  public int* skin_vertnum;
+  public int* skin_texcoordadr;
+  public int* skin_faceadr;
+  public int* skin_facenum;
+  public int* skin_boneadr;
+  public int* skin_bonenum;
+  public float* skin_vert;
+  public float* skin_texcoord;
+  public int* skin_face;
+  public int* skin_bonevertadr;
+  public int* skin_bonevertnum;
+  public float* skin_bonebindpos;
+  public float* skin_bonebindquat;
+  public int* skin_bonebodyid;
+  public int* skin_bonevertid;
+  public float* skin_bonevertweight;
+  public int* skin_pathadr;
+  public double* hfield_size;
+  public int* hfield_nrow;
+  public int* hfield_ncol;
+  public int* hfield_adr;
+  public float* hfield_data;
+  public int* hfield_pathadr;
+  public int* tex_type;
+  public int* tex_colorspace;
+  public int* tex_height;
+  public int* tex_width;
+  public int* tex_nchannel;
+  public Int64* tex_adr;
+  public byte* tex_data;
+  public int* tex_pathadr;
+  public int* mat_texid;
+  public byte* mat_texuniform;
+  public float* mat_texrepeat;
+  public float* mat_emission;
+  public float* mat_specular;
+  public float* mat_shininess;
+  public float* mat_reflectance;
+  public float* mat_metallic;
+  public float* mat_roughness;
+  public float* mat_rgba;
+  public int* pair_dim;
+  public int* pair_geom1;
+  public int* pair_geom2;
+  public int* pair_signature;
+  public double* pair_solref;
+  public double* pair_solreffriction;
+  public double* pair_solimp;
+  public double* pair_margin;
+  public double* pair_gap;
+  public double* pair_friction;
+  public int* exclude_signature;
+  public int* eq_type;
+  public int* eq_obj1id;
+  public int* eq_obj2id;
+  public int* eq_objtype;
+  public byte* eq_active0;
+  public double* eq_solref;
+  public double* eq_solimp;
+  public double* eq_data;
+  public int* tendon_adr;
+  public int* tendon_num;
+  public int* tendon_matid;
+  public int* tendon_group;
+  public int* tendon_treenum;
+  public int* tendon_treeid;
+  public int* ten_J_rownnz;
+  public int* ten_J_rowadr;
+  public int* ten_J_colind;
+  public byte* tendon_limited;
+  public byte* tendon_actfrclimited;
+  public double* tendon_width;
+  public double* tendon_solref_lim;
+  public double* tendon_solimp_lim;
+  public double* tendon_solref_fri;
+  public double* tendon_solimp_fri;
+  public double* tendon_range;
+  public double* tendon_actfrcrange;
+  public double* tendon_margin;
+  public double* tendon_stiffness;
+  public double* tendon_damping;
+  public double* tendon_armature;
+  public double* tendon_frictionloss;
+  public double* tendon_lengthspring;
+  public double* tendon_length0;
+  public double* tendon_invweight0;
+  public double* tendon_user;
+  public float* tendon_rgba;
+  public int* wrap_type;
+  public int* wrap_objid;
+  public double* wrap_prm;
+  public int* actuator_trntype;
+  public int* actuator_dyntype;
+  public int* actuator_gaintype;
+  public int* actuator_biastype;
+  public int* actuator_trnid;
+  public int* actuator_actadr;
+  public int* actuator_actnum;
+  public int* actuator_group;
+  public int* actuator_history;
+  public int* actuator_historyadr;
+  public double* actuator_delay;
+  public byte* actuator_ctrllimited;
+  public byte* actuator_forcelimited;
+  public byte* actuator_actlimited;
+  public double* actuator_dynprm;
+  public double* actuator_gainprm;
+  public double* actuator_biasprm;
+  public byte* actuator_actearly;
+  public double* actuator_ctrlrange;
+  public double* actuator_forcerange;
+  public double* actuator_actrange;
+  public double* actuator_gear;
+  public double* actuator_cranklength;
+  public double* actuator_acc0;
+  public double* actuator_length0;
+  public double* actuator_lengthrange;
+  public double* actuator_user;
+  public int* actuator_plugin;
+  public int* sensor_type;
+  public int* sensor_datatype;
+  public int* sensor_needstage;
+  public int* sensor_objtype;
+  public int* sensor_objid;
+  public int* sensor_reftype;
+  public int* sensor_refid;
+  public int* sensor_intprm;
+  public int* sensor_dim;
+  public int* sensor_adr;
+  public double* sensor_cutoff;
+  public double* sensor_noise;
+  public int* sensor_history;
+  public int* sensor_historyadr;
+  public double* sensor_delay;
+  public double* sensor_interval;
+  public double* sensor_user;
+  public int* sensor_plugin;
+  public int* plugin;
+  public int* plugin_stateadr;
+  public int* plugin_statenum;
+  public char* plugin_attr;
+  public int* plugin_attradr;
+  public int* numeric_adr;
+  public int* numeric_size;
+  public double* numeric_data;
+  public int* text_adr;
+  public int* text_size;
+  public char* text_data;
+  public int* tuple_adr;
+  public int* tuple_size;
+  public int* tuple_objtype;
+  public int* tuple_objid;
+  public double* tuple_objprm;
+  public double* key_time;
+  public double* key_qpos;
+  public double* key_qvel;
+  public double* key_act;
+  public double* key_mpos;
+  public double* key_mquat;
+  public double* key_ctrl;
+  public int* name_bodyadr;
+  public int* name_jntadr;
+  public int* name_geomadr;
+  public int* name_siteadr;
+  public int* name_camadr;
+  public int* name_lightadr;
+  public int* name_flexadr;
+  public int* name_meshadr;
+  public int* name_skinadr;
+  public int* name_hfieldadr;
+  public int* name_texadr;
+  public int* name_matadr;
+  public int* name_pairadr;
+  public int* name_excludeadr;
+  public int* name_eqadr;
+  public int* name_tendonadr;
+  public int* name_actuatoradr;
+  public int* name_sensoradr;
+  public int* name_numericadr;
+  public int* name_textadr;
+  public int* name_tupleadr;
+  public int* name_keyadr;
+  public int* name_pluginadr;
+  public char* names;
+  public int* names_map;
+  public char* paths;
+  public int* B_rownnz;
+  public int* B_rowadr;
+  public int* B_colind;
+  public int* M_rownnz;
+  public int* M_rowadr;
+  public int* M_colind;
+  public int* mapM2M;
+  public int* D_rownnz;
+  public int* D_rowadr;
+  public int* D_diag;
+  public int* D_colind;
+  public int* mapM2D;
+  public int* mapD2M;
+  public UInt64 signature;
+}
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjContact_ {
@@ -5110,815 +5887,6 @@ public unsafe struct mjData_ {
 }
 
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjLROpt_ {
-  public int mode;
-  public int useexisting;
-  public int uselimit;
-  public double accel;
-  public double maxforce;
-  public double timeconst;
-  public double timestep;
-  public double inttotal;
-  public double interval;
-  public double tolrange;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjCache_ {
-  public void* impl_;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct _mjVFS
-{
-  public void* impl_;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjOption_ {
-  public double timestep;
-  public double impratio;
-  public double tolerance;
-  public double ls_tolerance;
-  public double noslip_tolerance;
-  public double ccd_tolerance;
-  public double sleep_tolerance;
-  public fixed double gravity[3];
-  public fixed double wind[3];
-  public fixed double magnetic[3];
-  public double density;
-  public double viscosity;
-  public double o_margin;
-  public fixed double o_solref[2];
-  public fixed double o_solimp[5];
-  public fixed double o_friction[5];
-  public int integrator;
-  public int cone;
-  public int jacobian;
-  public int solver;
-  public int iterations;
-  public int ls_iterations;
-  public int noslip_iterations;
-  public int ccd_iterations;
-  public int disableflags;
-  public int enableflags;
-  public int disableactuator;
-  public int sdf_initpoints;
-  public int sdf_iterations;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct global {
-  public int cameraid;
-  public int orthographic;
-  public float fovy;
-  public float ipd;
-  public float azimuth;
-  public float elevation;
-  public float linewidth;
-  public float glow;
-  public float realtime;
-  public int offwidth;
-  public int offheight;
-  public int ellipsoidinertia;
-  public int bvactive;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct quality {
-  public int shadowsize;
-  public int offsamples;
-  public int numslices;
-  public int numstacks;
-  public int numquads;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct headlight {
-  public fixed float ambient[3];
-  public fixed float diffuse[3];
-  public fixed float specular[3];
-  public int active;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct map {
-  public float stiffness;
-  public float stiffnessrot;
-  public float force;
-  public float torque;
-  public float alpha;
-  public float fogstart;
-  public float fogend;
-  public float znear;
-  public float zfar;
-  public float haze;
-  public float shadowclip;
-  public float shadowscale;
-  public float actuatortendon;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct scale {
-  public float forcewidth;
-  public float contactwidth;
-  public float contactheight;
-  public float connect;
-  public float com;
-  public float camera;
-  public float light;
-  public float selectpoint;
-  public float jointlength;
-  public float jointwidth;
-  public float actuatorlength;
-  public float actuatorwidth;
-  public float framelength;
-  public float framewidth;
-  public float constraint;
-  public float slidercrank;
-  public float frustum;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct rgba {
-  public fixed float fog[4];
-  public fixed float haze[4];
-  public fixed float force[4];
-  public fixed float inertia[4];
-  public fixed float joint[4];
-  public fixed float actuator[4];
-  public fixed float actuatornegative[4];
-  public fixed float actuatorpositive[4];
-  public fixed float com[4];
-  public fixed float camera[4];
-  public fixed float light[4];
-  public fixed float selectpoint[4];
-  public fixed float connect[4];
-  public fixed float contactpoint[4];
-  public fixed float contactforce[4];
-  public fixed float contactfriction[4];
-  public fixed float contacttorque[4];
-  public fixed float contactgap[4];
-  public fixed float rangefinder[4];
-  public fixed float constraint[4];
-  public fixed float slidercrank[4];
-  public fixed float crankbroken[4];
-  public fixed float frustum[4];
-  public fixed float bv[4];
-  public fixed float bvactive[4];
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjVisual_ {
-  public global global;
-  public quality quality;
-  public headlight headlight;
-  public map map;
-  public scale scale;
-  public rgba rgba;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjStatistic_ {
-  public double meaninertia;
-  public double meanmass;
-  public double meansize;
-  public double extent;
-  public fixed double center[3];
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjModel_ {
-  public Int64 nq;
-  public Int64 nv;
-  public Int64 nu;
-  public Int64 na;
-  public Int64 nbody;
-  public Int64 nbvh;
-  public Int64 nbvhstatic;
-  public Int64 nbvhdynamic;
-  public Int64 noct;
-  public Int64 njnt;
-  public Int64 ntree;
-  public Int64 nM;
-  public Int64 nB;
-  public Int64 nC;
-  public Int64 nD;
-  public Int64 ngeom;
-  public Int64 nsite;
-  public Int64 ncam;
-  public Int64 nlight;
-  public Int64 nflex;
-  public Int64 nflexnode;
-  public Int64 nflexvert;
-  public Int64 nflexedge;
-  public Int64 nflexelem;
-  public Int64 nflexelemdata;
-  public Int64 nflexelemedge;
-  public Int64 nflexshelldata;
-  public Int64 nflexevpair;
-  public Int64 nflextexcoord;
-  public Int64 nJfe;
-  public Int64 nJfv;
-  public Int64 nmesh;
-  public Int64 nmeshvert;
-  public Int64 nmeshnormal;
-  public Int64 nmeshtexcoord;
-  public Int64 nmeshface;
-  public Int64 nmeshgraph;
-  public Int64 nmeshpoly;
-  public Int64 nmeshpolyvert;
-  public Int64 nmeshpolymap;
-  public Int64 nskin;
-  public Int64 nskinvert;
-  public Int64 nskintexvert;
-  public Int64 nskinface;
-  public Int64 nskinbone;
-  public Int64 nskinbonevert;
-  public Int64 nhfield;
-  public Int64 nhfielddata;
-  public Int64 ntex;
-  public Int64 ntexdata;
-  public Int64 nmat;
-  public Int64 npair;
-  public Int64 nexclude;
-  public Int64 neq;
-  public Int64 ntendon;
-  public Int64 nJten;
-  public Int64 nwrap;
-  public Int64 nsensor;
-  public Int64 nnumeric;
-  public Int64 nnumericdata;
-  public Int64 ntext;
-  public Int64 ntextdata;
-  public Int64 ntuple;
-  public Int64 ntupledata;
-  public Int64 nkey;
-  public Int64 nmocap;
-  public Int64 nplugin;
-  public Int64 npluginattr;
-  public Int64 nuser_body;
-  public Int64 nuser_jnt;
-  public Int64 nuser_geom;
-  public Int64 nuser_site;
-  public Int64 nuser_cam;
-  public Int64 nuser_tendon;
-  public Int64 nuser_actuator;
-  public Int64 nuser_sensor;
-  public Int64 nnames;
-  public Int64 npaths;
-  public Int64 nnames_map;
-  public Int64 nJmom;
-  public Int64 ngravcomp;
-  public Int64 nemax;
-  public Int64 njmax;
-  public Int64 nconmax;
-  public Int64 nuserdata;
-  public Int64 nsensordata;
-  public Int64 npluginstate;
-  public Int64 nhistory;
-  public Int64 narena;
-  public Int64 nbuffer;
-  public mjOption_ opt;
-  public mjVisual_ vis;
-  public mjStatistic_ stat;
-  public void* buffer;
-  public double* qpos0;
-  public double* qpos_spring;
-  public int* body_parentid;
-  public int* body_rootid;
-  public int* body_weldid;
-  public int* body_mocapid;
-  public int* body_jntnum;
-  public int* body_jntadr;
-  public int* body_dofnum;
-  public int* body_dofadr;
-  public int* body_treeid;
-  public int* body_geomnum;
-  public int* body_geomadr;
-  public byte* body_simple;
-  public byte* body_sameframe;
-  public double* body_pos;
-  public double* body_quat;
-  public double* body_ipos;
-  public double* body_iquat;
-  public double* body_mass;
-  public double* body_subtreemass;
-  public double* body_inertia;
-  public double* body_invweight0;
-  public double* body_gravcomp;
-  public double* body_margin;
-  public double* body_user;
-  public int* body_plugin;
-  public int* body_contype;
-  public int* body_conaffinity;
-  public int* body_bvhadr;
-  public int* body_bvhnum;
-  public int* bvh_depth;
-  public int* bvh_child;
-  public int* bvh_nodeid;
-  public double* bvh_aabb;
-  public int* oct_depth;
-  public int* oct_child;
-  public double* oct_aabb;
-  public double* oct_coeff;
-  public int* jnt_type;
-  public int* jnt_qposadr;
-  public int* jnt_dofadr;
-  public int* jnt_bodyid;
-  public int* jnt_group;
-  public byte* jnt_limited;
-  public byte* jnt_actfrclimited;
-  public byte* jnt_actgravcomp;
-  public double* jnt_solref;
-  public double* jnt_solimp;
-  public double* jnt_pos;
-  public double* jnt_axis;
-  public double* jnt_stiffness;
-  public double* jnt_range;
-  public double* jnt_actfrcrange;
-  public double* jnt_margin;
-  public double* jnt_user;
-  public int* dof_bodyid;
-  public int* dof_jntid;
-  public int* dof_parentid;
-  public int* dof_treeid;
-  public int* dof_Madr;
-  public int* dof_simplenum;
-  public double* dof_solref;
-  public double* dof_solimp;
-  public double* dof_frictionloss;
-  public double* dof_armature;
-  public double* dof_damping;
-  public double* dof_invweight0;
-  public double* dof_M0;
-  public double* dof_length;
-  public int* tree_bodyadr;
-  public int* tree_bodynum;
-  public int* tree_dofadr;
-  public int* tree_dofnum;
-  public int* tree_sleep_policy;
-  public int* geom_type;
-  public int* geom_contype;
-  public int* geom_conaffinity;
-  public int* geom_condim;
-  public int* geom_bodyid;
-  public int* geom_dataid;
-  public int* geom_matid;
-  public int* geom_group;
-  public int* geom_priority;
-  public int* geom_plugin;
-  public byte* geom_sameframe;
-  public double* geom_solmix;
-  public double* geom_solref;
-  public double* geom_solimp;
-  public double* geom_size;
-  public double* geom_aabb;
-  public double* geom_rbound;
-  public double* geom_pos;
-  public double* geom_quat;
-  public double* geom_friction;
-  public double* geom_margin;
-  public double* geom_gap;
-  public double* geom_fluid;
-  public double* geom_user;
-  public float* geom_rgba;
-  public int* site_type;
-  public int* site_bodyid;
-  public int* site_matid;
-  public int* site_group;
-  public byte* site_sameframe;
-  public double* site_size;
-  public double* site_pos;
-  public double* site_quat;
-  public double* site_user;
-  public float* site_rgba;
-  public int* cam_mode;
-  public int* cam_bodyid;
-  public int* cam_targetbodyid;
-  public double* cam_pos;
-  public double* cam_quat;
-  public double* cam_poscom0;
-  public double* cam_pos0;
-  public double* cam_mat0;
-  public int* cam_projection;
-  public double* cam_fovy;
-  public double* cam_ipd;
-  public int* cam_resolution;
-  public int* cam_output;
-  public float* cam_sensorsize;
-  public float* cam_intrinsic;
-  public double* cam_user;
-  public int* light_mode;
-  public int* light_bodyid;
-  public int* light_targetbodyid;
-  public int* light_type;
-  public int* light_texid;
-  public byte* light_castshadow;
-  public float* light_bulbradius;
-  public float* light_intensity;
-  public float* light_range;
-  public byte* light_active;
-  public double* light_pos;
-  public double* light_dir;
-  public double* light_poscom0;
-  public double* light_pos0;
-  public double* light_dir0;
-  public float* light_attenuation;
-  public float* light_cutoff;
-  public float* light_exponent;
-  public float* light_ambient;
-  public float* light_diffuse;
-  public float* light_specular;
-  public int* flex_contype;
-  public int* flex_conaffinity;
-  public int* flex_condim;
-  public int* flex_priority;
-  public double* flex_solmix;
-  public double* flex_solref;
-  public double* flex_solimp;
-  public double* flex_friction;
-  public double* flex_margin;
-  public double* flex_gap;
-  public byte* flex_internal;
-  public int* flex_selfcollide;
-  public int* flex_activelayers;
-  public int* flex_passive;
-  public int* flex_dim;
-  public int* flex_matid;
-  public int* flex_group;
-  public int* flex_interp;
-  public int* flex_nodeadr;
-  public int* flex_nodenum;
-  public int* flex_vertadr;
-  public int* flex_vertnum;
-  public int* flex_edgeadr;
-  public int* flex_edgenum;
-  public int* flex_elemadr;
-  public int* flex_elemnum;
-  public int* flex_elemdataadr;
-  public int* flex_elemedgeadr;
-  public int* flex_shellnum;
-  public int* flex_shelldataadr;
-  public int* flex_evpairadr;
-  public int* flex_evpairnum;
-  public int* flex_texcoordadr;
-  public int* flex_nodebodyid;
-  public int* flex_vertbodyid;
-  public int* flex_vertedgeadr;
-  public int* flex_vertedgenum;
-  public int* flex_vertedge;
-  public int* flex_edge;
-  public int* flex_edgeflap;
-  public int* flex_elem;
-  public int* flex_elemtexcoord;
-  public int* flex_elemedge;
-  public int* flex_elemlayer;
-  public int* flex_shell;
-  public int* flex_evpair;
-  public double* flex_vert;
-  public double* flex_vert0;
-  public double* flex_vertmetric;
-  public double* flex_node;
-  public double* flex_node0;
-  public double* flexedge_length0;
-  public double* flexedge_invweight0;
-  public double* flex_radius;
-  public double* flex_size;
-  public double* flex_stiffness;
-  public double* flex_bending;
-  public double* flex_damping;
-  public double* flex_edgestiffness;
-  public double* flex_edgedamping;
-  public int* flex_edgeequality;
-  public byte* flex_rigid;
-  public byte* flexedge_rigid;
-  public byte* flex_centered;
-  public byte* flex_flatskin;
-  public int* flex_bvhadr;
-  public int* flex_bvhnum;
-  public int* flexedge_J_rownnz;
-  public int* flexedge_J_rowadr;
-  public int* flexedge_J_colind;
-  public int* flexvert_J_rownnz;
-  public int* flexvert_J_rowadr;
-  public int* flexvert_J_colind;
-  public float* flex_rgba;
-  public float* flex_texcoord;
-  public int* mesh_vertadr;
-  public int* mesh_vertnum;
-  public int* mesh_faceadr;
-  public int* mesh_facenum;
-  public int* mesh_bvhadr;
-  public int* mesh_bvhnum;
-  public int* mesh_octadr;
-  public int* mesh_octnum;
-  public int* mesh_normaladr;
-  public int* mesh_normalnum;
-  public int* mesh_texcoordadr;
-  public int* mesh_texcoordnum;
-  public int* mesh_graphadr;
-  public float* mesh_vert;
-  public float* mesh_normal;
-  public float* mesh_texcoord;
-  public int* mesh_face;
-  public int* mesh_facenormal;
-  public int* mesh_facetexcoord;
-  public int* mesh_graph;
-  public double* mesh_scale;
-  public double* mesh_pos;
-  public double* mesh_quat;
-  public int* mesh_pathadr;
-  public int* mesh_polynum;
-  public int* mesh_polyadr;
-  public double* mesh_polynormal;
-  public int* mesh_polyvertadr;
-  public int* mesh_polyvertnum;
-  public int* mesh_polyvert;
-  public int* mesh_polymapadr;
-  public int* mesh_polymapnum;
-  public int* mesh_polymap;
-  public int* skin_matid;
-  public int* skin_group;
-  public float* skin_rgba;
-  public float* skin_inflate;
-  public int* skin_vertadr;
-  public int* skin_vertnum;
-  public int* skin_texcoordadr;
-  public int* skin_faceadr;
-  public int* skin_facenum;
-  public int* skin_boneadr;
-  public int* skin_bonenum;
-  public float* skin_vert;
-  public float* skin_texcoord;
-  public int* skin_face;
-  public int* skin_bonevertadr;
-  public int* skin_bonevertnum;
-  public float* skin_bonebindpos;
-  public float* skin_bonebindquat;
-  public int* skin_bonebodyid;
-  public int* skin_bonevertid;
-  public float* skin_bonevertweight;
-  public int* skin_pathadr;
-  public double* hfield_size;
-  public int* hfield_nrow;
-  public int* hfield_ncol;
-  public int* hfield_adr;
-  public float* hfield_data;
-  public int* hfield_pathadr;
-  public int* tex_type;
-  public int* tex_colorspace;
-  public int* tex_height;
-  public int* tex_width;
-  public int* tex_nchannel;
-  public Int64* tex_adr;
-  public byte* tex_data;
-  public int* tex_pathadr;
-  public int* mat_texid;
-  public byte* mat_texuniform;
-  public float* mat_texrepeat;
-  public float* mat_emission;
-  public float* mat_specular;
-  public float* mat_shininess;
-  public float* mat_reflectance;
-  public float* mat_metallic;
-  public float* mat_roughness;
-  public float* mat_rgba;
-  public int* pair_dim;
-  public int* pair_geom1;
-  public int* pair_geom2;
-  public int* pair_signature;
-  public double* pair_solref;
-  public double* pair_solreffriction;
-  public double* pair_solimp;
-  public double* pair_margin;
-  public double* pair_gap;
-  public double* pair_friction;
-  public int* exclude_signature;
-  public int* eq_type;
-  public int* eq_obj1id;
-  public int* eq_obj2id;
-  public int* eq_objtype;
-  public byte* eq_active0;
-  public double* eq_solref;
-  public double* eq_solimp;
-  public double* eq_data;
-  public int* tendon_adr;
-  public int* tendon_num;
-  public int* tendon_matid;
-  public int* tendon_group;
-  public int* tendon_treenum;
-  public int* tendon_treeid;
-  public int* ten_J_rownnz;
-  public int* ten_J_rowadr;
-  public int* ten_J_colind;
-  public byte* tendon_limited;
-  public byte* tendon_actfrclimited;
-  public double* tendon_width;
-  public double* tendon_solref_lim;
-  public double* tendon_solimp_lim;
-  public double* tendon_solref_fri;
-  public double* tendon_solimp_fri;
-  public double* tendon_range;
-  public double* tendon_actfrcrange;
-  public double* tendon_margin;
-  public double* tendon_stiffness;
-  public double* tendon_damping;
-  public double* tendon_armature;
-  public double* tendon_frictionloss;
-  public double* tendon_lengthspring;
-  public double* tendon_length0;
-  public double* tendon_invweight0;
-  public double* tendon_user;
-  public float* tendon_rgba;
-  public int* wrap_type;
-  public int* wrap_objid;
-  public double* wrap_prm;
-  public int* actuator_trntype;
-  public int* actuator_dyntype;
-  public int* actuator_gaintype;
-  public int* actuator_biastype;
-  public int* actuator_trnid;
-  public int* actuator_actadr;
-  public int* actuator_actnum;
-  public int* actuator_group;
-  public int* actuator_history;
-  public int* actuator_historyadr;
-  public double* actuator_delay;
-  public byte* actuator_ctrllimited;
-  public byte* actuator_forcelimited;
-  public byte* actuator_actlimited;
-  public double* actuator_dynprm;
-  public double* actuator_gainprm;
-  public double* actuator_biasprm;
-  public byte* actuator_actearly;
-  public double* actuator_ctrlrange;
-  public double* actuator_forcerange;
-  public double* actuator_actrange;
-  public double* actuator_gear;
-  public double* actuator_cranklength;
-  public double* actuator_acc0;
-  public double* actuator_length0;
-  public double* actuator_lengthrange;
-  public double* actuator_user;
-  public int* actuator_plugin;
-  public int* sensor_type;
-  public int* sensor_datatype;
-  public int* sensor_needstage;
-  public int* sensor_objtype;
-  public int* sensor_objid;
-  public int* sensor_reftype;
-  public int* sensor_refid;
-  public int* sensor_intprm;
-  public int* sensor_dim;
-  public int* sensor_adr;
-  public double* sensor_cutoff;
-  public double* sensor_noise;
-  public int* sensor_history;
-  public int* sensor_historyadr;
-  public double* sensor_delay;
-  public double* sensor_interval;
-  public double* sensor_user;
-  public int* sensor_plugin;
-  public int* plugin;
-  public int* plugin_stateadr;
-  public int* plugin_statenum;
-  public char* plugin_attr;
-  public int* plugin_attradr;
-  public int* numeric_adr;
-  public int* numeric_size;
-  public double* numeric_data;
-  public int* text_adr;
-  public int* text_size;
-  public char* text_data;
-  public int* tuple_adr;
-  public int* tuple_size;
-  public int* tuple_objtype;
-  public int* tuple_objid;
-  public double* tuple_objprm;
-  public double* key_time;
-  public double* key_qpos;
-  public double* key_qvel;
-  public double* key_act;
-  public double* key_mpos;
-  public double* key_mquat;
-  public double* key_ctrl;
-  public int* name_bodyadr;
-  public int* name_jntadr;
-  public int* name_geomadr;
-  public int* name_siteadr;
-  public int* name_camadr;
-  public int* name_lightadr;
-  public int* name_flexadr;
-  public int* name_meshadr;
-  public int* name_skinadr;
-  public int* name_hfieldadr;
-  public int* name_texadr;
-  public int* name_matadr;
-  public int* name_pairadr;
-  public int* name_excludeadr;
-  public int* name_eqadr;
-  public int* name_tendonadr;
-  public int* name_actuatoradr;
-  public int* name_sensoradr;
-  public int* name_numericadr;
-  public int* name_textadr;
-  public int* name_tupleadr;
-  public int* name_keyadr;
-  public int* name_pluginadr;
-  public char* names;
-  public int* names_map;
-  public char* paths;
-  public int* B_rownnz;
-  public int* B_rowadr;
-  public int* B_colind;
-  public int* M_rownnz;
-  public int* M_rowadr;
-  public int* M_colind;
-  public int* mapM2M;
-  public int* D_rownnz;
-  public int* D_rowadr;
-  public int* D_diag;
-  public int* D_colind;
-  public int* mapM2D;
-  public int* mapD2M;
-  public UInt64 signature;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjrRect_ {
-  public int left;
-  public int bottom;
-  public int width;
-  public int height;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjrContext_ {
-  public float lineWidth;
-  public float shadowClip;
-  public float shadowScale;
-  public float fogStart;
-  public float fogEnd;
-  public fixed float fogRGBA[4];
-  public int shadowSize;
-  public int offWidth;
-  public int offHeight;
-  public int offSamples;
-  public int fontScale;
-  public fixed int auxWidth[10];
-  public fixed int auxHeight[10];
-  public fixed int auxSamples[10];
-  public uint offFBO;
-  public uint offFBO_r;
-  public uint offColor;
-  public uint offColor_r;
-  public uint offDepthStencil;
-  public uint offDepthStencil_r;
-  public uint shadowFBO;
-  public uint shadowTex;
-  public fixed uint auxFBO[10];
-  public fixed uint auxFBO_r[10];
-  public fixed uint auxColor[10];
-  public fixed uint auxColor_r[10];
-  public fixed int mat_texid[10000];
-  public fixed int mat_texuniform[1000];
-  public fixed float mat_texrepeat[2000];
-  public int ntexture;
-  public fixed int textureType[1000];
-  public fixed uint texture[1000];
-  public uint basePlane;
-  public uint baseMesh;
-  public uint baseHField;
-  public uint baseBuiltin;
-  public uint baseFontNormal;
-  public uint baseFontShadow;
-  public uint baseFontBig;
-  public int rangePlane;
-  public int rangeMesh;
-  public int rangeHField;
-  public int rangeBuiltin;
-  public int rangeFont;
-  public int nskin;
-  public uint* skinvertVBO;
-  public uint* skinnormalVBO;
-  public uint* skintexcoordVBO;
-  public uint* skinfaceVBO;
-  public fixed int charWidth[127];
-  public fixed int charWidthBig[127];
-  public int charHeight;
-  public int charHeightBig;
-  public int glInitialized;
-  public int windowAvailable;
-  public int windowSamples;
-  public int windowStereo;
-  public int windowDoublebuffer;
-  public int currentBuffer;
-  public int readPixelFormat;
-  public int readDepthMap;
-}
-
-[StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjsCompiler_ {
   public byte autolimits;
   public double boundmass;
@@ -5927,7 +5895,7 @@ public unsafe struct mjsCompiler_ {
   public byte balanceinertia;
   public byte fitaabb;
   public byte degree;
-  public fixed sbyte eulerseq[3];
+  public fixed char eulerseq[3];
   public byte discardvisual;
   public byte usethread;
   public byte fusestatic;
@@ -5938,193 +5906,6 @@ public unsafe struct mjsCompiler_ {
   public mjLROpt_ LRopt;
   public void* meshdir;
   public void* texturedir;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjuiState_ {
-  public int nrect;
-  public mjrRect_ rect0;
-  public mjrRect_ rect1;
-  public mjrRect_ rect2;
-  public mjrRect_ rect3;
-  public mjrRect_ rect4;
-  public mjrRect_ rect5;
-  public mjrRect_ rect6;
-  public mjrRect_ rect7;
-  public mjrRect_ rect8;
-  public mjrRect_ rect9;
-  public mjrRect_ rect10;
-  public mjrRect_ rect11;
-  public mjrRect_ rect12;
-  public mjrRect_ rect13;
-  public mjrRect_ rect14;
-  public mjrRect_ rect15;
-  public mjrRect_ rect16;
-  public mjrRect_ rect17;
-  public mjrRect_ rect18;
-  public mjrRect_ rect19;
-  public mjrRect_ rect20;
-  public mjrRect_ rect21;
-  public mjrRect_ rect22;
-  public mjrRect_ rect23;
-  public mjrRect_ rect24;
-  public void* userdata;
-  public int type;
-  public int left;
-  public int right;
-  public int middle;
-  public int doubleclick;
-  public int button;
-  public double buttontime;
-  public double x;
-  public double y;
-  public double dx;
-  public double dy;
-  public double sx;
-  public double sy;
-  public int control;
-  public int shift;
-  public int alt;
-  public int key;
-  public double keytime;
-  public int mouserect;
-  public int dragrect;
-  public int dragbutton;
-  public int dropcount;
-  public char** droppaths;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjuiThemeSpacing_ {
-  public int total;
-  public int scroll;
-  public int label;
-  public int section;
-  public int cornersect;
-  public int cornersep;
-  public int itemside;
-  public int itemmid;
-  public int itemver;
-  public int texthor;
-  public int textver;
-  public int linescroll;
-  public int samples;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjuiThemeColor_ {
-  public fixed float master[3];
-  public fixed float thumb[3];
-  public fixed float secttitle[3];
-  public fixed float secttitle2[3];
-  public fixed float secttitleuncheck[3];
-  public fixed float secttitleuncheck2[3];
-  public fixed float secttitlecheck[3];
-  public fixed float secttitlecheck2[3];
-  public fixed float sectfont[3];
-  public fixed float sectsymbol[3];
-  public fixed float sectpane[3];
-  public fixed float separator[3];
-  public fixed float separator2[3];
-  public fixed float shortcut[3];
-  public fixed float fontactive[3];
-  public fixed float fontinactive[3];
-  public fixed float decorinactive[3];
-  public fixed float decorinactive2[3];
-  public fixed float button[3];
-  public fixed float check[3];
-  public fixed float radio[3];
-  public fixed float select[3];
-  public fixed float select2[3];
-  public fixed float slider[3];
-  public fixed float slider2[3];
-  public fixed float edit[3];
-  public fixed float edit2[3];
-  public fixed float cursor[3];
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjuiItemSingle_ {
-  public int modifier;
-  public int shortcut;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjuiItemMulti_ {
-  public int nelem;
-  public fixed sbyte name[35 * 40];
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjuiItemSlider_ {
-  public fixed double range[2];
-  public double divisions;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjuiItemEdit_ {
-  public int nelem;
-  public fixed double range[7 * 2];
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjuiSection_ {
-  public fixed sbyte name[40];
-  public int state;
-  public int modifier;
-  public int shortcut;
-  public int checkbox;
-  public int nitem;
-  public mjrRect_ rtitle;
-  public mjrRect_ rcontent;
-  public int lastclick;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjUI_ {
-  public mjuiThemeSpacing_ spacing;
-  public mjuiThemeColor_ color;
-  public mjfItemEnable predicate;
-  public void* userdata;
-  public int rectid;
-  public int auxid;
-  public int radiocol;
-  public int width;
-  public int height;
-  public int maxheight;
-  public int scroll;
-  public int mousesect;
-  public int mouseitem;
-  public int mousehelp;
-  public int mouseclicks;
-  public int mousesectcheck;
-  public int editsect;
-  public int edititem;
-  public int editcursor;
-  public int editscroll;
-  public fixed sbyte edittext[300];
-  public mjuiItem_* editchanged;
-  public int nsect;
-  public mjuiSection_ sect0;
-  public mjuiSection_ sect1;
-  public mjuiSection_ sect2;
-  public mjuiSection_ sect3;
-  public mjuiSection_ sect4;
-  public mjuiSection_ sect5;
-  public mjuiSection_ sect6;
-  public mjuiSection_ sect7;
-  public mjuiSection_ sect8;
-  public mjuiSection_ sect9;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public unsafe struct mjuiDef_ {
-  public int type;
-  public fixed sbyte name[40];
-  public int state;
-  public void* pdata;
-  public fixed sbyte other[300];
-  public int otherint;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -6186,7 +5967,7 @@ public unsafe struct mjvGeom_ {
   public float specular;
   public float shininess;
   public float reflectance;
-  public fixed sbyte label[100];
+  public fixed char label[100];
   public float camdist;
   public float modelrbound;
   public byte transparent;
@@ -6389,12 +6170,12 @@ public unsafe struct mjvFigure_ {
   public fixed float textrgb[3];
   public fixed float linergb[100 * 3];
   public fixed float range[2 * 2];
-  public fixed sbyte xformat[20];
-  public fixed sbyte yformat[20];
-  public fixed sbyte minwidth[20];
-  public fixed sbyte title[1000];
-  public fixed sbyte xlabel[100];
-  public fixed sbyte linename[100 * 100];
+  public fixed char xformat[20];
+  public fixed char yformat[20];
+  public fixed char minwidth[20];
+  public fixed char title[1000];
+  public fixed char xlabel[100];
+  public fixed char linename[100 * 100];
   public int legendoffset;
   public int subplot;
   public fixed int highlight[2];
@@ -6406,9 +6187,477 @@ public unsafe struct mjvFigure_ {
   public fixed int yaxispixel[2];
   public fixed float xaxisdata[2];
   public fixed float yaxisdata[2];
-}public struct mjuiItem_ {}public struct mjfItemEnable {}
+}
 
-// ----------------------------Function declarations----------------------------
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjrRect_ {
+  public int left;
+  public int bottom;
+  public int width;
+  public int height;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjrContext_ {
+  public float lineWidth;
+  public float shadowClip;
+  public float shadowScale;
+  public float fogStart;
+  public float fogEnd;
+  public fixed float fogRGBA[4];
+  public int shadowSize;
+  public int offWidth;
+  public int offHeight;
+  public int offSamples;
+  public int fontScale;
+  public fixed int auxWidth[10];
+  public fixed int auxHeight[10];
+  public fixed int auxSamples[10];
+  public uint offFBO;
+  public uint offFBO_r;
+  public uint offColor;
+  public uint offColor_r;
+  public uint offDepthStencil;
+  public uint offDepthStencil_r;
+  public uint shadowFBO;
+  public uint shadowTex;
+  public fixed uint auxFBO[10];
+  public fixed uint auxFBO_r[10];
+  public fixed uint auxColor[10];
+  public fixed uint auxColor_r[10];
+  public fixed int mat_texid[10000];
+  public fixed int mat_texuniform[1000];
+  public fixed float mat_texrepeat[2000];
+  public int ntexture;
+  public fixed int textureType[1000];
+  public fixed uint texture[1000];
+  public uint basePlane;
+  public uint baseMesh;
+  public uint baseHField;
+  public uint baseBuiltin;
+  public uint baseFontNormal;
+  public uint baseFontShadow;
+  public uint baseFontBig;
+  public int rangePlane;
+  public int rangeMesh;
+  public int rangeHField;
+  public int rangeBuiltin;
+  public int rangeFont;
+  public int nskin;
+  public uint* skinvertVBO;
+  public uint* skinnormalVBO;
+  public uint* skintexcoordVBO;
+  public uint* skinfaceVBO;
+  public fixed int charWidth[127];
+  public fixed int charWidthBig[127];
+  public int charHeight;
+  public int charHeightBig;
+  public int glInitialized;
+  public int windowAvailable;
+  public int windowSamples;
+  public int windowStereo;
+  public int windowDoublebuffer;
+  public int currentBuffer;
+  public int readPixelFormat;
+  public int readDepthMap;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjuiState_ {
+  public int nrect;
+  public mjrRect_ rect0;
+  public mjrRect_ rect1;
+  public mjrRect_ rect2;
+  public mjrRect_ rect3;
+  public mjrRect_ rect4;
+  public mjrRect_ rect5;
+  public mjrRect_ rect6;
+  public mjrRect_ rect7;
+  public mjrRect_ rect8;
+  public mjrRect_ rect9;
+  public mjrRect_ rect10;
+  public mjrRect_ rect11;
+  public mjrRect_ rect12;
+  public mjrRect_ rect13;
+  public mjrRect_ rect14;
+  public mjrRect_ rect15;
+  public mjrRect_ rect16;
+  public mjrRect_ rect17;
+  public mjrRect_ rect18;
+  public mjrRect_ rect19;
+  public mjrRect_ rect20;
+  public mjrRect_ rect21;
+  public mjrRect_ rect22;
+  public mjrRect_ rect23;
+  public mjrRect_ rect24;
+  public void* userdata;
+  public int type;
+  public int left;
+  public int right;
+  public int middle;
+  public int doubleclick;
+  public int button;
+  public double buttontime;
+  public double x;
+  public double y;
+  public double dx;
+  public double dy;
+  public double sx;
+  public double sy;
+  public int control;
+  public int shift;
+  public int alt;
+  public int key;
+  public double keytime;
+  public int mouserect;
+  public int dragrect;
+  public int dragbutton;
+  public int dropcount;
+  public char** droppaths;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjuiThemeSpacing_ {
+  public int total;
+  public int scroll;
+  public int label;
+  public int section;
+  public int cornersect;
+  public int cornersep;
+  public int itemside;
+  public int itemmid;
+  public int itemver;
+  public int texthor;
+  public int textver;
+  public int linescroll;
+  public int samples;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjuiThemeColor_ {
+  public fixed float master[3];
+  public fixed float thumb[3];
+  public fixed float secttitle[3];
+  public fixed float secttitle2[3];
+  public fixed float secttitleuncheck[3];
+  public fixed float secttitleuncheck2[3];
+  public fixed float secttitlecheck[3];
+  public fixed float secttitlecheck2[3];
+  public fixed float sectfont[3];
+  public fixed float sectsymbol[3];
+  public fixed float sectpane[3];
+  public fixed float separator[3];
+  public fixed float separator2[3];
+  public fixed float shortcut[3];
+  public fixed float fontactive[3];
+  public fixed float fontinactive[3];
+  public fixed float decorinactive[3];
+  public fixed float decorinactive2[3];
+  public fixed float button[3];
+  public fixed float check[3];
+  public fixed float radio[3];
+  public fixed float select[3];
+  public fixed float select2[3];
+  public fixed float slider[3];
+  public fixed float slider2[3];
+  public fixed float edit[3];
+  public fixed float edit2[3];
+  public fixed float cursor[3];
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjuiItem_ {
+  public int type;
+  public fixed char name[40];
+  public int state;
+  public void* pdata;
+  public int sectionid;
+  public int itemid;
+  public int userid;
+  public mjuiItemSingle_ single;
+  public mjuiItemMulti_ multi;
+  public mjuiItemSlider_ slider;
+  public mjuiItemEdit_ edit;
+  public mjrRect_ rect;
+  public int skip;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjuiSection_ {
+  public fixed char name[40];
+  public int state;
+  public int modifier;
+  public int shortcut;
+  public int checkbox;
+  public int nitem;
+  public mjuiItem_ item0;
+  public mjuiItem_ item1;
+  public mjuiItem_ item2;
+  public mjuiItem_ item3;
+  public mjuiItem_ item4;
+  public mjuiItem_ item5;
+  public mjuiItem_ item6;
+  public mjuiItem_ item7;
+  public mjuiItem_ item8;
+  public mjuiItem_ item9;
+  public mjuiItem_ item10;
+  public mjuiItem_ item11;
+  public mjuiItem_ item12;
+  public mjuiItem_ item13;
+  public mjuiItem_ item14;
+  public mjuiItem_ item15;
+  public mjuiItem_ item16;
+  public mjuiItem_ item17;
+  public mjuiItem_ item18;
+  public mjuiItem_ item19;
+  public mjuiItem_ item20;
+  public mjuiItem_ item21;
+  public mjuiItem_ item22;
+  public mjuiItem_ item23;
+  public mjuiItem_ item24;
+  public mjuiItem_ item25;
+  public mjuiItem_ item26;
+  public mjuiItem_ item27;
+  public mjuiItem_ item28;
+  public mjuiItem_ item29;
+  public mjuiItem_ item30;
+  public mjuiItem_ item31;
+  public mjuiItem_ item32;
+  public mjuiItem_ item33;
+  public mjuiItem_ item34;
+  public mjuiItem_ item35;
+  public mjuiItem_ item36;
+  public mjuiItem_ item37;
+  public mjuiItem_ item38;
+  public mjuiItem_ item39;
+  public mjuiItem_ item40;
+  public mjuiItem_ item41;
+  public mjuiItem_ item42;
+  public mjuiItem_ item43;
+  public mjuiItem_ item44;
+  public mjuiItem_ item45;
+  public mjuiItem_ item46;
+  public mjuiItem_ item47;
+  public mjuiItem_ item48;
+  public mjuiItem_ item49;
+  public mjuiItem_ item50;
+  public mjuiItem_ item51;
+  public mjuiItem_ item52;
+  public mjuiItem_ item53;
+  public mjuiItem_ item54;
+  public mjuiItem_ item55;
+  public mjuiItem_ item56;
+  public mjuiItem_ item57;
+  public mjuiItem_ item58;
+  public mjuiItem_ item59;
+  public mjuiItem_ item60;
+  public mjuiItem_ item61;
+  public mjuiItem_ item62;
+  public mjuiItem_ item63;
+  public mjuiItem_ item64;
+  public mjuiItem_ item65;
+  public mjuiItem_ item66;
+  public mjuiItem_ item67;
+  public mjuiItem_ item68;
+  public mjuiItem_ item69;
+  public mjuiItem_ item70;
+  public mjuiItem_ item71;
+  public mjuiItem_ item72;
+  public mjuiItem_ item73;
+  public mjuiItem_ item74;
+  public mjuiItem_ item75;
+  public mjuiItem_ item76;
+  public mjuiItem_ item77;
+  public mjuiItem_ item78;
+  public mjuiItem_ item79;
+  public mjuiItem_ item80;
+  public mjuiItem_ item81;
+  public mjuiItem_ item82;
+  public mjuiItem_ item83;
+  public mjuiItem_ item84;
+  public mjuiItem_ item85;
+  public mjuiItem_ item86;
+  public mjuiItem_ item87;
+  public mjuiItem_ item88;
+  public mjuiItem_ item89;
+  public mjuiItem_ item90;
+  public mjuiItem_ item91;
+  public mjuiItem_ item92;
+  public mjuiItem_ item93;
+  public mjuiItem_ item94;
+  public mjuiItem_ item95;
+  public mjuiItem_ item96;
+  public mjuiItem_ item97;
+  public mjuiItem_ item98;
+  public mjuiItem_ item99;
+  public mjuiItem_ item100;
+  public mjuiItem_ item101;
+  public mjuiItem_ item102;
+  public mjuiItem_ item103;
+  public mjuiItem_ item104;
+  public mjuiItem_ item105;
+  public mjuiItem_ item106;
+  public mjuiItem_ item107;
+  public mjuiItem_ item108;
+  public mjuiItem_ item109;
+  public mjuiItem_ item110;
+  public mjuiItem_ item111;
+  public mjuiItem_ item112;
+  public mjuiItem_ item113;
+  public mjuiItem_ item114;
+  public mjuiItem_ item115;
+  public mjuiItem_ item116;
+  public mjuiItem_ item117;
+  public mjuiItem_ item118;
+  public mjuiItem_ item119;
+  public mjuiItem_ item120;
+  public mjuiItem_ item121;
+  public mjuiItem_ item122;
+  public mjuiItem_ item123;
+  public mjuiItem_ item124;
+  public mjuiItem_ item125;
+  public mjuiItem_ item126;
+  public mjuiItem_ item127;
+  public mjuiItem_ item128;
+  public mjuiItem_ item129;
+  public mjuiItem_ item130;
+  public mjuiItem_ item131;
+  public mjuiItem_ item132;
+  public mjuiItem_ item133;
+  public mjuiItem_ item134;
+  public mjuiItem_ item135;
+  public mjuiItem_ item136;
+  public mjuiItem_ item137;
+  public mjuiItem_ item138;
+  public mjuiItem_ item139;
+  public mjuiItem_ item140;
+  public mjuiItem_ item141;
+  public mjuiItem_ item142;
+  public mjuiItem_ item143;
+  public mjuiItem_ item144;
+  public mjuiItem_ item145;
+  public mjuiItem_ item146;
+  public mjuiItem_ item147;
+  public mjuiItem_ item148;
+  public mjuiItem_ item149;
+  public mjuiItem_ item150;
+  public mjuiItem_ item151;
+  public mjuiItem_ item152;
+  public mjuiItem_ item153;
+  public mjuiItem_ item154;
+  public mjuiItem_ item155;
+  public mjuiItem_ item156;
+  public mjuiItem_ item157;
+  public mjuiItem_ item158;
+  public mjuiItem_ item159;
+  public mjuiItem_ item160;
+  public mjuiItem_ item161;
+  public mjuiItem_ item162;
+  public mjuiItem_ item163;
+  public mjuiItem_ item164;
+  public mjuiItem_ item165;
+  public mjuiItem_ item166;
+  public mjuiItem_ item167;
+  public mjuiItem_ item168;
+  public mjuiItem_ item169;
+  public mjuiItem_ item170;
+  public mjuiItem_ item171;
+  public mjuiItem_ item172;
+  public mjuiItem_ item173;
+  public mjuiItem_ item174;
+  public mjuiItem_ item175;
+  public mjuiItem_ item176;
+  public mjuiItem_ item177;
+  public mjuiItem_ item178;
+  public mjuiItem_ item179;
+  public mjuiItem_ item180;
+  public mjuiItem_ item181;
+  public mjuiItem_ item182;
+  public mjuiItem_ item183;
+  public mjuiItem_ item184;
+  public mjuiItem_ item185;
+  public mjuiItem_ item186;
+  public mjuiItem_ item187;
+  public mjuiItem_ item188;
+  public mjuiItem_ item189;
+  public mjuiItem_ item190;
+  public mjuiItem_ item191;
+  public mjuiItem_ item192;
+  public mjuiItem_ item193;
+  public mjuiItem_ item194;
+  public mjuiItem_ item195;
+  public mjuiItem_ item196;
+  public mjuiItem_ item197;
+  public mjuiItem_ item198;
+  public mjuiItem_ item199;
+  public mjrRect_ rtitle;
+  public mjrRect_ rcontent;
+  public int lastclick;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjUI_ {
+  public mjuiThemeSpacing_ spacing;
+  public mjuiThemeColor_ color;
+  public IntPtr predicate;
+  public void* userdata;
+  public int rectid;
+  public int auxid;
+  public int radiocol;
+  public int width;
+  public int height;
+  public int maxheight;
+  public int scroll;
+  public int mousesect;
+  public int mouseitem;
+  public int mousehelp;
+  public int mouseclicks;
+  public int mousesectcheck;
+  public int editsect;
+  public int edititem;
+  public int editcursor;
+  public int editscroll;
+  public fixed char edittext[300];
+  public mjuiItem_* editchanged;
+  public int nsect;
+  public mjuiSection_ sect0;
+  public mjuiSection_ sect1;
+  public mjuiSection_ sect2;
+  public mjuiSection_ sect3;
+  public mjuiSection_ sect4;
+  public mjuiSection_ sect5;
+  public mjuiSection_ sect6;
+  public mjuiSection_ sect7;
+  public mjuiSection_ sect8;
+  public mjuiSection_ sect9;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjuiDef_ {
+  public int type;
+  public fixed char name[40];
+  public int state;
+  public void* pdata;
+  public fixed char other[300];
+  public int otherint;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct _mjVFS {}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjuiItemSingle_ {}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjuiItemMulti_ {}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjuiItemSlider_ {}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjuiItemEdit_ {}
+
+// ------------------------------Function declarations--------------------------
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_defaultVFS(void* vfs);
@@ -6912,7 +7161,7 @@ public static unsafe extern void mjv_applyPerturbPose(mjModel_* m, mjData_* d, m
 public static unsafe extern void mjv_applyPerturbForce(mjModel_* m, mjData_* d, mjvPerturb_* pert);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern mjvGLCamera_* mjv_averageCamera(mjvGLCamera_* cam1, mjvGLCamera_* cam2);
+public static unsafe extern mjvGLCamera_ mjv_averageCamera(mjvGLCamera_* cam1, mjvGLCamera_* cam2);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern int mjv_select(mjModel_* m, mjData_* d, mjvOption_* vopt, double aspectratio, double relx, double rely, mjvScene_* scn, double* selpnt, int* geomid, int* flexid, int* skinid);
@@ -6996,40 +7245,40 @@ public static unsafe extern void mjr_restoreBuffer(mjrContext_* con);
 public static unsafe extern void mjr_setBuffer(int framebuffer, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjr_readPixels(byte* rgb, float* depth, mjrRect_* viewport, mjrContext_* con);
+public static unsafe extern void mjr_readPixels(byte* rgb, float* depth, mjrRect_ viewport, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjr_drawPixels(byte* rgb, float* depth, mjrRect_* viewport, mjrContext_* con);
+public static unsafe extern void mjr_drawPixels(byte* rgb, float* depth, mjrRect_ viewport, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjr_blitBuffer(mjrRect_* src, mjrRect_* dst, int flg_color, int flg_depth, mjrContext_* con);
+public static unsafe extern void mjr_blitBuffer(mjrRect_ src, mjrRect_ dst, int flg_color, int flg_depth, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_setAux(int index, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjr_blitAux(int index, mjrRect_* src, int left, int bottom, mjrContext_* con);
+public static unsafe extern void mjr_blitAux(int index, mjrRect_ src, int left, int bottom, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_text(int font, [MarshalAs(UnmanagedType.LPStr)]string txt, mjrContext_* con, float x, float y, float r, float g, float b);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjr_overlay(int font, int gridpos, mjrRect_* viewport, [MarshalAs(UnmanagedType.LPStr)]string overlay, [MarshalAs(UnmanagedType.LPStr)]string overlay2, mjrContext_* con);
+public static unsafe extern void mjr_overlay(int font, int gridpos, mjrRect_ viewport, [MarshalAs(UnmanagedType.LPStr)]string overlay, [MarshalAs(UnmanagedType.LPStr)]string overlay2, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern mjrRect_* mjr_maxViewport(mjrContext_* con);
+public static unsafe extern mjrRect_ mjr_maxViewport(mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjr_rectangle(mjrRect_* viewport, float r, float g, float b, float a);
+public static unsafe extern void mjr_rectangle(mjrRect_ viewport, float r, float g, float b, float a);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjr_label(mjrRect_* viewport, int font, [MarshalAs(UnmanagedType.LPStr)]string txt, float r, float g, float b, float a, float rt, float gt, float bt, mjrContext_* con);
+public static unsafe extern void mjr_label(mjrRect_ viewport, int font, [MarshalAs(UnmanagedType.LPStr)]string txt, float r, float g, float b, float a, float rt, float gt, float bt, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjr_figure(mjrRect_* viewport, mjvFigure_* fig, mjrContext_* con);
+public static unsafe extern void mjr_figure(mjrRect_ viewport, mjvFigure_* fig, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mjr_render(mjrRect_* viewport, mjvScene_* scn, mjrContext_* con);
+public static unsafe extern void mjr_render(mjrRect_ viewport, mjvScene_* scn, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_finish();
@@ -7041,10 +7290,10 @@ public static unsafe extern int mjr_getError();
 public static unsafe extern int mjr_findRect(int x, int y, int nrect, mjrRect_* rect);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern mjuiThemeSpacing_* mjui_themeSpacing(int ind);
+public static unsafe extern mjuiThemeSpacing_ mjui_themeSpacing(int ind);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern mjuiThemeColor_* mjui_themeColor(int ind);
+public static unsafe extern mjuiThemeColor_ mjui_themeColor(int ind);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjui_add(mjUI_* ui, mjuiDef_* def);
@@ -7065,10 +7314,16 @@ public static unsafe extern mjuiItem_* mjui_event(mjUI_* ui, mjuiState_* state, 
 public static unsafe extern void mjui_render(mjUI_* ui, mjuiState_* state, mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_error([MarshalAs(UnmanagedType.LPStr)]string msg);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_error_i([MarshalAs(UnmanagedType.LPStr)]string msg, int i);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_error_s([MarshalAs(UnmanagedType.LPStr)]string msg, [MarshalAs(UnmanagedType.LPStr)]string text);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_warning([MarshalAs(UnmanagedType.LPStr)]string msg);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_warning_i([MarshalAs(UnmanagedType.LPStr)]string msg, int i);
