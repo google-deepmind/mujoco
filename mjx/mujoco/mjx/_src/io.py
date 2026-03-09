@@ -872,6 +872,7 @@ def _make_data_warp(
     m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
     naconmax: Optional[int] = None,
+    naccdmax: Optional[int] = None,
     njmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the Warp implementation."""
@@ -882,7 +883,7 @@ def _make_data_warp(
     )
 
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
+    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, naccdmax=naccdmax, njmax=njmax)  # pylint: disable=undefined-variable
 
   fields = _make_data_public_fields(m)
   for k in fields:
@@ -971,6 +972,7 @@ def make_data(
     _full_compat: bool = False,  # pylint: disable=invalid-name
     nconmax: Optional[int] = None,
     naconmax: Optional[int] = None,
+    naccdmax: Optional[int] = None,
     njmax: Optional[int] = None,
     keepalive_refs: Optional[Dict[int, Any]] = None,
 ) -> types.Data:
@@ -989,6 +991,10 @@ def make_data(
       Since the number of worlds is **not** pre-defined in JAX, we use the
       `naconmax` argument to set the upper bound for the number of contacts
       across all worlds, rather than the `nconmax` argument from MuJoCo Warp.
+    naccdmax: maximum number of contacts for GJK collision detection across all
+      worlds. Since the number of worlds is **not** pre-defined in JAX, we use the
+      `naccdmax` argument to set the upper bound for the number of contacts
+      across all worlds, rather than the `nccdmax` argument from MuJoCo Warp.
     njmax: maximum number of constraints to allocate for warp across all worlds
     keepalive_refs: optional dict to store references to underlying MuJoCo
       objects, preventing them from being garbage collected. Required for CPP
@@ -1025,7 +1031,7 @@ def make_data(
   elif impl == types.Impl.WARP:
     _check_warp_installed()
     naconmax = nconmax if naconmax is None else naconmax
-    return _make_data_warp(m, device, naconmax, njmax)
+    return _make_data_warp(m, device, naconmax, naccdmax, njmax)
 
   raise NotImplementedError(
       f'make_data for implementation "{impl}" not implemented yet.'

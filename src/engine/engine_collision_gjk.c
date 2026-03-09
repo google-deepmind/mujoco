@@ -180,21 +180,26 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum x_k[3];                           // the kth approximation point in Minkowski difference
   mjtNum lambda[4] = {1, 0, 0, 0};         // barycentric coordinates for x_k
   mjtNum cutoff2 = status->dist_cutoff * status->dist_cutoff;
+  mjtNum tol2 = status->tolerance * status->tolerance;
 
   // if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
-  mjtNum epsilon = discreteGeoms(obj1, obj2) ? 0 : 0.5 * status->tolerance * status->tolerance;
+  mjtNum epsilon = discreteGeoms(obj1, obj2) ? 0 : 0.5 * tol2;
+
+  // tolerance on squared norm of x_k
+  mjtNum min_norm2 = discreteGeoms(obj1, obj2) ? mjMINVAL2 : tol2;
   mjtNum x_norm;
 
   // set initial guess
   sub3(x_k, x1_k, x2_k);
 
   for (; k < kmax; k++) {
-    // compute the kth support point
-    x_norm = dot3(x_k, x_k);
-    if (x_norm < mjMINVAL2) {
+    // in tolerance for geoms to be in contact
+    if ((x_norm = dot3(x_k, x_k)) < min_norm2) {
       break;
     }
     x_norm = mju_sqrt(x_norm);
+
+    // compute the kth support point
     gjkSupport(simplex + n, obj1, obj2, x_k, x_norm);
     mjtNum *s_k = simplex[n].vert;
 

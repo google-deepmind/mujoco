@@ -971,3 +971,18 @@ The following callbacks are available:
   m.callback.control = ctrl_callback
   mjw.step(m, d)
   assert d.ctrl.numpy()[0, 0] == 2.0
+
+Box-box collisions
+------------------
+
+By default, box-box collisions use the general-purpose convex collision pipeline (GJK/EPA). A specialized primitive
+collider based on
+`engine_collision_box.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_box.c>`__
+is available by setting the ``NATIVECCD`` disable flag:
+
+.. code-block:: python
+
+   m.opt.disableflags |= mjw.DisableBit.NATIVECCD
+
+The specialized collider generates up to 8 contact points, compared to up to 4 for the convex pipeline, and may improve
+contact stability for tasks involving box stacking or manipulation.

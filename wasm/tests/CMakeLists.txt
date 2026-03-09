@@ -53,6 +53,6 @@ add_executable(mujoco_wasm_benchmark ${MUJOCO_WASM_FILES})
 
 set_target_properties(mujoco_wasm_benchmark PROPERTIES LINK_FLAGS "${EMCC_LINKER_FLAGS_STR}")
 
-target_link_libraries(mujoco_wasm_benchmark ccd lodepng mujoco tinyxml2 qhullstatic_r obj_decoder)
+target_link_libraries(mujoco_wasm_benchmark ccd lodepng mujoco tinyxml2 qhullstatic_r obj_decoder stl_decoder)
 
 install(TARGETS mujoco_wasm_benchmark DESTINATION ${DIVISIBLE_INSTALL_BIN_DIR})

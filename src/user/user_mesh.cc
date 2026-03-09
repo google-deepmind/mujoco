@@ -614,10 +614,6 @@ void mjCMesh::ProcessVertices(const std::vector<float>& vert, bool remove_repeat
 
 
 
-bool mjCMesh::IsSTL(std::string_view filename, std::string_view ct) {
-  std::string asset_type = GetAssetContentType(filename, ct);
-  return asset_type == "model/stl";
-}
 
 bool mjCMesh::IsMSH(std::string_view filename, std::string_view ct) {
   std::string asset_type = GetAssetContentType(filename, ct);
@@ -626,9 +622,6 @@ bool mjCMesh::IsMSH(std::string_view filename, std::string_view ct) {
 
 
 
-bool mjCMesh::IsSTL() const {
-  return content_type_ == "model/stl";
-}
 
 bool mjCMesh::IsMSH() const {
   return content_type_ == "model/vnd.mujoco.msh";
@@ -684,9 +677,7 @@ void mjCMesh::LoadFromResource(mjResource* resource, bool remove_repeated) {
   std::string asset_type = GetAssetContentType(resource->name, content_type_);
   content_type_ = asset_type;
 
-  if (IsSTL()) {
-    LoadSTL(resource);
-  } else if (IsMSH()) {
+  if (IsMSH()) {
     LoadMSH(resource, remove_repeated);
   } else {
     LoadFromDecoder(resource, remove_repeated);
@@ -1114,77 +1105,6 @@ bool mjCMesh::LoadCachedMesh(mjCCache *cache, const mjResource* resource) {
 }
 
 
-
-// load STL binary mesh
-void mjCMesh::LoadSTL(mjResource* resource) {
-  bool righthand = scale[0] * scale[1] * scale[2] > 0;
-
-  // get file data in buffer
-  char* buffer = 0;
-  int buffer_sz = mju_readResource(resource, (const void**)&buffer);
-
-  // still not found
-  if (buffer_sz < 0) {
-    throw mjCError(this, "could not read STL file '%s'", resource->name);
-  } else if (!buffer_sz) {
-    throw mjCError(this, "STL file '%s' is empty", resource->name);
-  }
-
-  // make sure there is enough data for header
-  if (buffer_sz < 84) {
-    throw mjCError(this, "invalid header in STL file '%s'", resource->name);
-  }
-
-  // get number of triangles, check bounds
-  int nfaces = 0;
-  ReadFromBuffer(&nfaces, buffer + 80);
-  if (nfaces < 1 || nfaces > 200000) {
-    throw mjCError(this,
-                   "number of faces should be between 1 and 200000 in STL file '%s';"
-                   " perhaps this is an ASCII file?", resource->name);
-  }
-
-  // check remaining buffer size
-  if (nfaces*50 != buffer_sz-84) {
-    throw mjCError(this,
-                   "STL file '%s' has wrong size; perhaps this is an ASCII file?",
-                   resource->name);
-  }
-
-  // assign stl data pointer
-  const char* stl = buffer + 84;
-
-  // allocate face and vertex data
-  face_.assign(3*nfaces, 0);
-  std::vector<float> vert;
-
-  // add vertices and faces, including repeated for now
-  for (int i=0; i < nfaces; i++) {
-    for (int j=0; j < 3; j++) {
-      // read vertex coordinates
-      float v[3];
-      ReadFromBuffer(&v, stl + 50*i + 12*(j + 1));
-
-      // check if vertex can be cast to an int safely
-      if (fabs(v[0]) > pow(2, 30) || fabs(v[1]) > pow(2, 30) || fabs(v[2]) > pow(2, 30)) {
-        throw mjCError(this, "vertex in STL file '%s' exceed maximum bounds", resource->name);
-      }
-
-      // add vertex address in face; change order if scale makes it lefthanded
-      if (righthand || j == 0) {
-        face_[3*i + j] = vert.size() / 3;
-      } else {
-        face_[3*i + 3 - j] = vert.size() / 3;
-      }
-
-      // add vertex data
-      vert.push_back(v[0]);
-      vert.push_back(v[1]);
-      vert.push_back(v[2]);
-    }
-  }
-  ProcessVertices(vert, true);
-}
 
 
 

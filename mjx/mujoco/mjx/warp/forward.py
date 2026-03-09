@@ -213,6 +213,7 @@ def _forward_shim(
     mesh_graphadr: wp.array(dtype=int),
     mesh_normal: wp.array(dtype=wp.vec3),
     mesh_normaladr: wp.array(dtype=int),
+    mesh_normalnum: wp.array(dtype=int),
     mesh_polyadr: wp.array(dtype=int),
     mesh_polymap: wp.array(dtype=int),
     mesh_polymapadr: wp.array(dtype=int),
@@ -646,6 +647,7 @@ def _forward_shim(
   _m.mesh_graphadr = mesh_graphadr
   _m.mesh_normal = mesh_normal
   _m.mesh_normaladr = mesh_normaladr
+  _m.mesh_normalnum = mesh_normalnum
   _m.mesh_polyadr = mesh_polyadr
   _m.mesh_polymap = mesh_polymap
   _m.mesh_polymapadr = mesh_polymapadr
@@ -1447,6 +1449,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.mesh_graphadr,
       m.mesh_normal,
       m.mesh_normaladr,
+      m.mesh_normalnum,
       m._impl.mesh_polyadr,
       m._impl.mesh_polymap,
       m._impl.mesh_polymapadr,
@@ -1989,6 +1992,7 @@ def _step_shim(
     mesh_graphadr: wp.array(dtype=int),
     mesh_normal: wp.array(dtype=wp.vec3),
     mesh_normaladr: wp.array(dtype=int),
+    mesh_normalnum: wp.array(dtype=int),
     mesh_polyadr: wp.array(dtype=int),
     mesh_polymap: wp.array(dtype=int),
     mesh_polymapadr: wp.array(dtype=int),
@@ -2424,6 +2428,7 @@ def _step_shim(
   _m.mesh_graphadr = mesh_graphadr
   _m.mesh_normal = mesh_normal
   _m.mesh_normaladr = mesh_normaladr
+  _m.mesh_normalnum = mesh_normalnum
   _m.mesh_polyadr = mesh_polyadr
   _m.mesh_polymap = mesh_polymap
   _m.mesh_polymapadr = mesh_polymapadr
@@ -3239,6 +3244,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.mesh_graphadr,
       m.mesh_normal,
       m.mesh_normaladr,
+      m.mesh_normalnum,
       m._impl.mesh_polyadr,
       m._impl.mesh_polymap,
       m._impl.mesh_polymapadr,
