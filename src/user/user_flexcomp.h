@@ -53,13 +53,15 @@ typedef enum _mjtDof {
 class mjCFlexcomp {
  public:
   mjCFlexcomp(void);
-  bool Make(mjsBody* body, char* error, int error_sz);
+  bool Make(mjsBody* body, char* error, int error_sz, const mjVFS* vfs = nullptr);
 
   bool MakeGrid(char* error, int error_sz);
   bool MakeBox(char* error, int error_sz, int dim, bool open = true);
   bool MakeSquare(char* error, int error_sz);
-  bool MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz);
-  bool MakeGMSH(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz);
+  bool MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz,
+                const mjVFS* vfs = nullptr);
+  bool MakeGMSH(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz,
+                const mjVFS* vfs = nullptr);
   void LoadGMSH(mjCModel* model, mjResource* resource);
   void LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
                   int elemend, int elembegin);
