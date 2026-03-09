@@ -16,7 +16,7 @@
 #define MUJOCO_INCLUDE_MJSAN_H_
 
 // Include asan interface header, or provide stubs for poison/unpoison macros when not using asan.
-#ifdef ADDRESS_SANITIZER
+#if defined(ADDRESS_SANITIZER) || defined(__SANITIZE_ADDRESS__)
   #include <sanitizer/asan_interface.h>
 #elif defined(_MSC_VER)
   #define ASAN_POISON_MEMORY_REGION(addr, size)
@@ -31,20 +31,22 @@
 // into mark/free into the same function, this instrumentation requires that the compiler retains
 // separate mark/free calls for each original callee. The memory-clobbered asm blocks act as a
 // barrier to prevent mark/free calls from being combined under optimization.
-#ifdef ADDRESS_SANITIZER
+#if defined(ADDRESS_SANITIZER) || defined(__SANITIZE_ADDRESS__)
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void mj__markStack(mjData*) __attribute__((noinline));
-static inline void mj_markStack(mjData* d) __attribute__((always_inline)) {
+static void mj_markStack(mjData* d) __attribute__((always_inline));
+static inline void mj_markStack(mjData* d)  {
   asm volatile("" ::: "memory");
   mj__markStack(d);
   asm volatile("" ::: "memory");
 }
 
 void mj__freeStack(mjData*) __attribute__((noinline));
-static inline void mj_freeStack(mjData* d) __attribute__((always_inline)) {
+static void mj_freeStack(mjData* d) __attribute__((always_inline));
+static inline void mj_freeStack(mjData* d) {
   asm volatile("" ::: "memory");
   mj__freeStack(d);
   asm volatile("" ::: "memory");
@@ -53,6 +55,6 @@ static inline void mj_freeStack(mjData* d) __attribute__((always_inline)) {
 #ifdef __cplusplus
 }
 #endif  // __cplusplus
-#endif  // ADDRESS_SANITIZER
+#endif  // defined(ADDRESS_SANITIZER) || defined(__SANITIZE_ADDRESS__)
 
 #endif  // MUJOCO_INCLUDE_MJSAN_H_
