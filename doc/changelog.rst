@@ -15,6 +15,8 @@ General
      ``ten_J_colind`` have been moved from :ref:`mjData` to :ref:`mjModel` and are no longer computed at run time by
      ``mj_tendon`` but at compile time.
 
+- Added a new ``strain`` :ref:`equality constraint<flexcomp-edge-equality>` type for trilinear and quadratic
+  :ref:`dofs<body-flexcomp-dof>`.
 - Flexes now support collisions with SDF geoms.
 - Improved memory requirements for ``ten_J`` and ``ten_J_colind`` by reducing the upper bound for the number
   of non-zeros ``nJten``.

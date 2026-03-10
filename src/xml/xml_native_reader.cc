@@ -366,6 +366,8 @@ std::vector<const char*> MJCF[nMJCF] = {
             "active", "solref", "solimp"},
         {"flexvert", "*", "name", "class", "flex",
             "active", "solref", "solimp"},
+        {"flexstrain", "*", "name", "class", "flex",
+            "active", "solref", "solimp"},
     {">"},
 
     {"tendon", "*"},
@@ -669,7 +671,7 @@ const mjMap solver_map[solver_sz] = {
 
 
 // constraint type
-const int equality_sz = 7;
+const int equality_sz = 8;
 const mjMap equality_map[equality_sz] = {
   {"connect",       mjEQ_CONNECT},
   {"weld",          mjEQ_WELD},
@@ -677,6 +679,7 @@ const mjMap equality_map[equality_sz] = {
   {"tendon",        mjEQ_TENDON},
   {"flex",          mjEQ_FLEX},
   {"flexvert",      mjEQ_FLEXVERT},
+  {"flexstrain",    mjEQ_FLEXSTRAIN},
   {"distance",      mjEQ_DISTANCE}
 };
 
@@ -930,10 +933,11 @@ const mjMap elastic2d_map[5] = {
 
 
 // flex equality type
-const mjMap flexeq_map[3] = {
+const mjMap flexeq_map[4] = {
   {"false",         0},
   {"true",          1},
   {"vert",          2},
+  {"strain",        3},
 };
 
 
@@ -2207,6 +2211,7 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
 
       case mjEQ_FLEX:
       case mjEQ_FLEXVERT:
+      case mjEQ_FLEXSTRAIN:
         ReadAttrTxt(elem, "flex", name1, true);
         break;
 
@@ -2768,7 +2773,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   // edge
   XMLElement* edge = FirstChildElement(elem, "edge");
   if (edge) {
-    MapValue(edge, "equality", &fcomp.equality, flexeq_map, 3);
+    MapValue(edge, "equality", &fcomp.equality, flexeq_map, 4);
     ReadAttr(edge, "solref", mjNREF, fcomp.def.spec.equality->solref, text, false, false);
     ReadAttr(edge, "solimp", mjNIMP, fcomp.def.spec.equality->solimp, text, false, false);
     ReadAttr(edge, "stiffness", 1, &dflex.edgestiffness, text);
@@ -2788,6 +2793,9 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   // check errors
   if (dflex.elastic2d >= 2 && fcomp.equality) {
     throw mjXError(elem, "elasticity and edge constraints cannot both be present");
+  }
+  if (fcomp.equality == 3 && dflex.young > 0) {
+    throw mjXError(elem, "strain constraint and elasticity (young) cannot both be present");
   }
 
   // contact

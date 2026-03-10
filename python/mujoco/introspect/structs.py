@@ -2980,7 +2980,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='0: none, 1: edges, 2: vertices',
+                 doc='0:none, 1:edges, 2:vertices, 3:strain',
                  array_extent=('nflex',),
              ),
              StructFieldDecl(

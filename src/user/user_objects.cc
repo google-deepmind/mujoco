@@ -6292,7 +6292,7 @@ void mjCEquality::ResolveReferences(const mjCModel* m) {
     object_type = mjOBJ_JOINT;
   } else if (type == mjEQ_TENDON) {
     object_type = mjOBJ_TENDON;
-  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT) {
+  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
     object_type = mjOBJ_FLEX;
   } else {
     throw mjCError(this, "invalid type in equality constraint");
@@ -6349,7 +6349,8 @@ void mjCEquality::Compile(void) {
   ResolveReferences(model);
 
   // make sure flex is not rigid
-  if ((type == mjEQ_FLEX || type == mjEQ_FLEXVERT) && model->Flexes()[obj1id]->rigid) {
+  if ((type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) &&
+      model->Flexes()[obj1id]->rigid) {
     throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
   }
 }

@@ -3876,6 +3876,7 @@ void mjCFlex::PointToLocal() {
 
 
 void mjCFlex::NameSpace(const mjCModel* m) {
+  mjCBase::NameSpace(m);
   for (auto& name : spec_vertbody_) {
     name = m->prefix + name + m->suffix;
   }

@@ -2573,6 +2573,19 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       i += 2*m->flex_vertnum[k];
       break;
 
+    case mjEQ_FLEXSTRAIN: {
+      // increment with 3 invariants × ngauss Gauss points
+      k = m->eq_obj1id[id];
+      int order = m->flex_interp[k];
+      int nodenum = m->flex_nodenum[k];
+      if (order && nodenum) {
+        int nquad = order + 1;
+        int ngauss = nquad * nquad * nquad;
+        i += 3 * ngauss;
+      }
+      break;
+    }
+
     default:
       mjERROR("unknown constraint type type %d", m->eq_type[id]);    // SHOULD NOT OCCUR
     }

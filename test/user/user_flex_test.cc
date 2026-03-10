@@ -15,7 +15,7 @@
 // Tests for user/user_model.cc.
 
 #include <array>
-#include <cstdio>
+#include <memory>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -917,6 +917,73 @@ TEST_F(UserFlexTest, FlexcompMeshLoadsFromVFS) {
   mj_deleteData(d);
   mj_deleteModel(m);
   mj_deleteVFS(&vfs);
+}
+
+// Test that flex constraints are preserved when attaching a model
+TEST_F(UserFlexTest, FlexAttachConstraintPreserved) {
+  // Child model with flex and strain constraint
+  static constexpr char flex_xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="flex_parent">
+      <flexcomp name="test" type="box"
+                spacing=".1 .1 .1" radius="0.001"
+                dof="trilinear" mass="1" dim="3">
+        <contact selfcollide="none"/>
+        <edge equality="strain"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+
+  // Parent model that attaches the flex model
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+  <asset>
+    <model name="flex" file="flex.xml"/>
+  </asset>
+  <worldbody>
+    <frame pos="0 0 0.3">
+      <attach model="flex" prefix="flex_"/>
+    </frame>
+  </worldbody>
+  </mujoco>
+  )";
+
+  // Set up VFS with both XML files
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "flex.xml", flex_xml, sizeof(flex_xml));
+
+  // First verify the standalone flex model has constraints
+  std::array<char, 1024> error;
+  mjModel* m_standalone =
+      LoadModelFromString(flex_xml, error.data(), error.size(), vfs.get());
+  ASSERT_THAT(m_standalone, NotNull()) << error.data();
+  mjData* d_standalone = mj_makeData(m_standalone);
+  mj_forward(m_standalone, d_standalone);
+  int standalone_neq = m_standalone->neq;
+  EXPECT_GT(standalone_neq, 0) << "Standalone flex should have constraints";
+  mj_deleteData(d_standalone);
+  mj_deleteModel(m_standalone);
+
+  // Now load the parent model which attaches the flex
+  mjModel* m_attached =
+      LoadModelFromString(parent_xml, error.data(), error.size(), vfs.get());
+  ASSERT_THAT(m_attached, NotNull()) << error.data();
+  mjData* d_attached = mj_makeData(m_attached);
+  mj_forward(m_attached, d_attached);
+
+  // THE BUG: flex constraints disappear when attached
+  EXPECT_GT(m_attached->neq, 0)
+      << "Attached flex should preserve strain constraints";
+  EXPECT_EQ(m_attached->neq, standalone_neq)
+      << "Attached flex should have same number of constraints as standalone";
+
+  mj_deleteData(d_attached);
+  mj_deleteModel(m_attached);
+  mj_deleteVFS(vfs.get());
 }
 
 }  // namespace

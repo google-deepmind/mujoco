@@ -609,6 +609,7 @@ typedef enum mjtEq_ {             // type of equality constraint
   mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
   mjEQ_FLEX,                      // fix all edge lengths of a flex
   mjEQ_FLEXVERT,                  // fix all vertex lengths of a flex
+  mjEQ_FLEXSTRAIN,                // fix strain invariants of a trilinear flex
   mjEQ_DISTANCE                   // unsupported, will cause an error if used
 } mjtEq;
 typedef enum mjtWrap_ {           // type of tendon wrap object
@@ -1350,7 +1351,7 @@ struct mjModel_ {
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
-  int*      flex_edgeequality;    // 0: none, 1: edges, 2: vertices           (nflex x 1)
+  int*      flex_edgeequality;    // 0:none, 1:edges, 2:vertices, 3:strain    (nflex x 1)
   mjtByte*  flex_rigid;           // are all vertices in the same body        (nflex x 1)
   mjtByte*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
   mjtByte*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)

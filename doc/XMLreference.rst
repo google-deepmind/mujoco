@@ -3614,7 +3614,9 @@ saving the XML:
      for the entire flex, independent of the number of vertices. The positions of the vertices are updated using
      quadratic interpolation over the bounding box. While this option requires more degrees of freedom than trilinear
      flexes, it enables curved deformation modes, while the only modes achievable for trilinear flexes are
-     strech/compression and shear.
+     strech/compression and shear. To understand the difference between the two parametrizations, see `a trilinear cube
+     <https://github.com/google-deepmind/mujoco/blob/main/model/flex/trilinear.xml>`__ and `a quadratic cube
+     <https://github.com/google-deepmind/mujoco/blob/main/model/flex/quadratic.xml>`__.
 
    Note that a higher interpolation order generally requires a smaller time step for stability, although usually not as
    large as with the "full" option and a fine mesh.
@@ -3820,10 +3822,12 @@ element is used to adjust the properties of all edges in the flex.
 
 .. _flexcomp-edge-equality:
 
-:at:`equality`: :at-val:`[false, true, vert], "false"`
-   The type of equality constraint applied to this edge. If **false**, no equality constraint is applied. If **true**,
-   then edge constraints are enforced. If **vert**, an averaged constraint is used, see
-   :ref:`flexvert<equality-flexvert>`.
+:at:`equality`: :at-val:`[false, true, vert, strain], "false"`
+   The type of equality constraint applied to this edge. If :at-val:`false`, no equality constraint is applied. If
+   :at-val:`true`, then edge constraints are enforced. If :at-val:`vert`, an averaged constraint is used, see
+   :ref:`flexvert<equality-flexvert>`. if :at-val:`strain`, then a constraint is added to enforce that the invariants of
+   the strain tensor do not change; this is only equality constraint type supported for trilinear and quadratic
+   :ref:`dofs<body-flexcomp-dof>` elements and :ref:`here<equality-flexstrain>`.
 
 .. _flexcomp-edge-solref:
 .. _flexcomp-edge-solimp:
@@ -4254,7 +4258,8 @@ The elasticity model is a `Saint Venant-Kirchhoff
 <https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ model discretized with
 piecewise linear finite elements, intended to simulate the compression or elongation of hyperelastic materials subjected
 to large displacements (finite rotations) and small strains, since it uses a nonlinear strain-displacement but a linear
-stress-strain relationship.. See also :ref:`deformable <CDeformable>` objects.
+stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and `this model
+<https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__.
 
 .. _flex-elasticity-young:
 
@@ -4787,7 +4792,8 @@ This element constrains the length of one tendon to be a quartic polynomial of a
 This element constrains the lengths of all edges of a specified flex to their respective lengths in the initial model
 configuration. In this way the edges are used to maintain the shape of the deformable entity. Note that all other
 equality constraint types add a fixed number of scalar constraints, while this element adds as many scalar constraints
-as there are edges in the specified flex.
+as there are edges in the specified flex. See `this model
+<https://github.com/google-deepmind/mujoco/blob/main/model/flex/plate.xml>`__ for an example.
 
 .. _equality-flex-name:
 .. _equality-flex-class:
@@ -4811,8 +4817,9 @@ as there are edges in the specified flex.
 
 This element constrains the trace and the derminant of the strain tensor to that of the identity matrix as in Chen, Kry,
 and Vouga, "Locking-free Simulation of Isometric Thin Plates", 2019. The strain tensor is computed per triangle and
-averaged over all triangles adjacent to a vertex. This reduces the number of constraints from 2T to 2V, freeing
-V degrees of freedom to avoid locking. It is only supported for dimension 2, i.e., cloth-like flexes.
+averaged over all triangles adjacent to a vertex. This reduces the number of constraints from 2T to 2V, freeing V
+degrees of freedom to avoid locking. It is only supported for dimension 2, i.e., cloth-like flexes. See `this model
+<https://github.com/google-deepmind/mujoco/blob/main/model/flex/poncho.xml>`__ for an example.
 
 .. _equality-flexvert-name:
 .. _equality-flexvert-class:
@@ -4827,6 +4834,32 @@ V degrees of freedom to avoid locking. It is only supported for dimension 2, i.e
 
 :at:`flex`: :at-val:`string, required`
    Name of the flex whose vertices are being constrained.
+
+
+.. _equality-flexstrain:
+
+:el-prefix:`equality/` |-| **flexstrain** |*|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element constrains the strain invariants of a trilinear or quadratic flex to their initial values. Specifically, it
+enforces that the trace and determinant of the deformation gradient remain constant, preserving volume and preventing
+excessive stretching. This constraint type is only supported for dimension 3 trilinear flexes (i.e., volumetric
+deformable bodies using trilinear interpolation). See `this model
+<https://github.com/google-deepmind/mujoco/blob/main/model/flex/strain.xml>`__ for an example.
+
+.. _equality-flexstrain-name:
+.. _equality-flexstrain-class:
+.. _equality-flexstrain-active:
+.. _equality-flexstrain-solref:
+.. _equality-flexstrain-solimp:
+
+:at:`name`, :at:`class`, :at:`active`, :at:`solref`, :at:`solimp`
+   Same as in :ref:`connect <equality-connect>` element.
+
+.. _equality-flexstrain-flex:
+
+:at:`flex`: :at-val:`string, required`
+   Name of the flex whose strain invariants are being constrained.
 
 
 .. _equality-distance:

@@ -3533,6 +3533,10 @@ void mjCModel::CopyObjects(mjModel* m) {
           m->flex_edgeequality[i] = 2;
           break;
         }
+        if (equalities_[k]->type == mjEQ_FLEXSTRAIN) {
+          m->flex_edgeequality[i] = 3;
+          break;
+        }
       }
     }
 

@@ -644,7 +644,14 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
   if (equality) {
     mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
     mjs_setDefault(pe->element, &model->Default()->spec);
-    pe->type = equality == 1 ? mjEQ_FLEX : mjEQ_FLEXVERT;
+    // equality 1=edge(mjEQ_FLEX), 2=vert(mjEQ_FLEXVERT), 3=strain(mjEQ_FLEXSTRAIN)
+    if (equality == 1) {
+      pe->type = mjEQ_FLEX;
+    } else if (equality == 2) {
+      pe->type = mjEQ_FLEXVERT;
+    } else if (equality == 3) {
+      pe->type = mjEQ_FLEXSTRAIN;
+    }
     pe->active = true;
     mjs_setString(pe->name1, name.c_str());
   }

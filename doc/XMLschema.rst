@@ -2045,6 +2045,30 @@
                :ref:`solimp<equality-flexvert-solimp>`
 
 
+      .. dropdown:: :ref:`flexstrain<equality-flexstrain>` |*|
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`name<equality-flexstrain-name>`
+
+            .. grid-item::
+               :ref:`class<equality-flexstrain-class>`
+
+            .. grid-item::
+               :ref:`flex<equality-flexstrain-flex>`
+
+            .. grid-item::
+               :ref:`active<equality-flexstrain-active>`
+
+            .. grid-item::
+               :ref:`solref<equality-flexstrain-solref>`
+
+            .. grid-item::
+               :ref:`solimp<equality-flexstrain-solimp>`
+
+
    .. dropdown:: :ref:`tendon<tendon>` |*|
 
 

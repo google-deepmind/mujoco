@@ -711,6 +711,7 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
 
       case mjEQ_FLEX:
       case mjEQ_FLEXVERT:
+      case mjEQ_FLEXSTRAIN:
         WriteAttrTxt(elem, "flex", mjs_getString(equality->name1));
         break;
 
