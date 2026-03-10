@@ -1188,6 +1188,36 @@ class SpecsTest(absltest.TestCase):
     model = parent.compile()
     np.testing.assert_almost_equal(model.body_quat[1], [1, 0, 0, 0])
 
+  def test_compiler_from_element(self):
+    child = mujoco.MjSpec()
+    child.meshdir = '/child/meshes'
+    child.texturedir = '/child/textures'
+    child_body = child.worldbody.add_body()
+    child_geom = child_body.add_geom()
+    child_geom.size[0] = 1
+    child_site = child_body.add_site()
+
+    parent = mujoco.MjSpec()
+    parent.meshdir = '/parent/meshes'
+    parent.texturedir = '/parent/textures'
+    parent_geom = parent.worldbody.add_geom()
+    parent_geom.size[0] = 1
+    parent_site = parent.worldbody.add_site()
+
+    self.assertEqual(parent_geom.compiler.meshdir, '/parent/meshes')
+    self.assertEqual(parent_geom.compiler.texturedir, '/parent/textures')
+    self.assertEqual(child_geom.compiler.meshdir, '/child/meshes')
+    self.assertEqual(child_site.compiler.meshdir, '/child/meshes')
+
+    frame = parent.worldbody.add_frame()
+    frame.attach_body(child_body, prefix='child-')
+
+    self.assertEqual(parent_geom.compiler.meshdir, '/parent/meshes')
+    self.assertEqual(parent_site.compiler.meshdir, '/parent/meshes')
+    self.assertEqual(child_geom.compiler.meshdir, '/child/meshes')
+    self.assertEqual(child_geom.compiler.texturedir, '/child/textures')
+    self.assertEqual(child_site.compiler.meshdir, '/child/meshes')
+
   def test_attach_to_site(self):
     parent = mujoco.MjSpec()
     parent.assets = {'path/cube.obj': 'cube_content'}

@@ -947,6 +947,24 @@ def generate_name() -> None:
     print(code)
 
 
+def generate_compiler() -> None:
+  """Generate compiler property for all spec element types."""
+  for key, _, _, _, _ in SPECS:
+    elem = key.removeprefix('mjs')
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      {key}.def_property_readonly("compiler",
+      [](raw::{titlecase}& self) -> raw::MjsCompiler& {{
+        ::mjsCompiler* compiler = mjs_getCompiler(self.element);
+        if (!compiler) {{
+          throw pybind11::value_error("Element is not attached to a spec.");
+        }}
+        return *compiler;
+      }}, py::return_value_policy::reference_internal);
+    """
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
@@ -956,6 +974,7 @@ def main(argv: Sequence[str]) -> None:
   generate_signature()
   generate_id()
   generate_name()
+  generate_compiler()
 
 
 if __name__ == '__main__':

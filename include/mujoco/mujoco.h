@@ -1734,6 +1734,9 @@ MJAPI int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, in
 // Get spec from body.
 MJAPI mjSpec* mjs_getSpec(mjsElement* element);
 
+// Get compiler associated with element's origin spec.
+MJAPI mjsCompiler* mjs_getCompiler(mjsElement* element);
+
 // Find spec (model asset) by name.
 MJAPI mjSpec* mjs_findSpec(mjSpec* spec, const char* name);
 

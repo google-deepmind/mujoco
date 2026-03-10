@@ -1074,6 +1074,12 @@ mjSpec* mjs_getSpec(mjsElement* element) {
 
 
 
+mjsCompiler* mjs_getCompiler(mjsElement* element) {
+  return static_cast<mjCBase*>(element)->compiler;
+}
+
+
+
 // find spec (model asset) by name
 mjSpec* mjs_findSpec(mjSpec* s, const char* name) {
   mjCModel* model = static_cast<mjCModel*>(s->element);

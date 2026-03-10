@@ -9668,6 +9668,14 @@ std::optional<MjsElement> mjs_firstElement_wrapper(MjSpec& s, mjtObj type) {
   return MjsElement(result);
 }
 
+std::optional<MjsCompiler> mjs_getCompiler_wrapper(MjsElement& element) {
+  mjsCompiler* result = mjs_getCompiler(element.get());
+  if (result == nullptr) {
+    return std::nullopt;
+  }
+  return MjsCompiler(result);
+}
+
 std::optional<MjsDefault> mjs_getDefault_wrapper(MjsElement& element) {
   mjsDefault* result = mjs_getDefault(element.get());
   if (result == nullptr) {
@@ -13191,6 +13199,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_findSpec", &mjs_findSpec_wrapper);
   function("mjs_firstChild", &mjs_firstChild_wrapper);
   function("mjs_firstElement", &mjs_firstElement_wrapper);
+  function("mjs_getCompiler", &mjs_getCompiler_wrapper);
   function("mjs_getDefault", &mjs_getDefault_wrapper);
   function("mjs_getError", &mjs_getError_wrapper);
   function("mjs_getFrame", &mjs_getFrame_wrapper);

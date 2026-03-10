@@ -4580,6 +4580,15 @@ Find and get utilities
 
 Get spec from body.
 
+.. _mjs_getCompiler:
+
+`mjs_getCompiler <#mjs_getCompiler>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getCompiler
+
+Get compiler associated with element's origin spec.
+
 .. _mjs_findSpec:
 
 `mjs_findSpec <#mjs_findSpec>`__
