@@ -278,6 +278,14 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
     } else {
       return oct_distance(m, x, i);
     }
+
+  case mjGEOM_MESH:
+    if (m->mesh_octadr[i] == -1) {
+      mjERROR("sdf queries require needsdf=\"true\" on mesh %d", i);
+      return 0;
+    }
+    return oct_distance(m, x, i);
+
   default:
     mjERROR("sdf collisions not available for geom type %d", type);
     return 0;
@@ -389,6 +397,15 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
       oct_gradient(m, gradient, x, i);
     }
     break;
+
+  case mjGEOM_MESH:
+    if (m->mesh_octadr[i] == -1) {
+      mjERROR("sdf queries require needsdf=\"true\" on mesh %d", i);
+      return;
+    }
+    oct_gradient(m, gradient, x, i);
+    break;
+
   default:
     mjERROR("sdf collisions not available for geom type %d", type);
   }
