@@ -1052,14 +1052,22 @@ const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double t
 
 
 // Set to adhesion actuator.
-const char* mjs_setToAdhesion(mjsActuator* actuator, double gain) {
+const char* mjs_setToAdhesion(mjsActuator* actuator, double gain,
+                              double timeconst) {
   actuator->gainprm[0] = gain;
   actuator->ctrllimited = 1;
   actuator->gaintype = mjGAIN_FIXED;
   actuator->biastype = mjBIAS_NONE;
 
+  if (timeconst > 0) {
+    actuator->dynprm[0] = timeconst;
+    actuator->dyntype = mjDYN_FILTER;
+  }
+
   if (gain < 0)
     return "adhesion gain cannot be negative";
+  if (timeconst < 0)
+    return "adhesion timeconst cannot be negative";
   if (actuator->ctrlrange[0] < 0 || actuator->ctrlrange[1] < 0)
     return "adhesion control range cannot be negative";
   return "";

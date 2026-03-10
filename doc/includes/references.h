@@ -3634,7 +3634,8 @@ const char* mjs_setToCylinder(mjsActuator* actuator, double timeconst,
 const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double tausmooth,
                             double range[2], double force, double scale, double lmin,
                             double lmax, double vmax, double fpmax, double fvmax);
-const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
+const char* mjs_setToAdhesion(mjsActuator* actuator, double gain,
+                              double timeconst = 0);
 mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* def);
 mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);

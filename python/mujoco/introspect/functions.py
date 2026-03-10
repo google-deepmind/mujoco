@@ -10682,6 +10682,10 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='gain',
                  type=ValueType(name='double'),
              ),
+             FunctionParameterDecl(
+                 name='timeconst',
+                 type=ValueType(name='double'),
+             ),
          ),
          doc='Set actuator to active adhesion; return error if any.',
      )),

@@ -3002,6 +3002,82 @@ TEST_F(ActuatorParseTest, AdhesionInheritsFromGeneral) {
   mj_deleteModel(model);
 }
 
+// adhesion actuator with timeconst sets dyntype to filter
+TEST_F(ActuatorParseTest, AdhesionTimeconst) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <geom name="sphere" size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <adhesion name="adhere" body="sphere" gain="100" ctrlrange="0 1"
+                timeconst="0.03"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // expect dyntype to be filter
+  EXPECT_EQ(model->actuator_dyntype[0], mjDYN_FILTER);
+  // expect dynprm[0] to be the timeconst value
+  EXPECT_EQ(model->actuator_dynprm[0], 0.03);
+  // expect gain was set correctly
+  EXPECT_EQ(model->actuator_gainprm[0], 100);
+  mj_deleteModel(model);
+}
+
+// adhesion actuator without timeconst has no dynamics
+TEST_F(ActuatorParseTest, AdhesionNoTimeconst) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <geom name="sphere" size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <adhesion name="adhere" body="sphere" gain="50" ctrlrange="0 1"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // expect dyntype to remain none
+  EXPECT_EQ(model->actuator_dyntype[0], mjDYN_NONE);
+  // expect gain was set correctly
+  EXPECT_EQ(model->actuator_gainprm[0], 50);
+  mj_deleteModel(model);
+}
+
+// adhesion actuator rejects negative timeconst
+TEST_F(ActuatorParseTest, AdhesionNegativeTimeconst) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <geom name="sphere" size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <adhesion name="adhere" body="sphere" gain="100" ctrlrange="0 1"
+                timeconst="-1"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+}
+
 TEST_F(ActuatorParseTest, ActdimDefaultsPropagate) {
   static constexpr char xml[] = R"(
   <mujoco>

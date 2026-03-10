@@ -190,7 +190,8 @@ MJAPI const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], do
                                   double lmax, double vmax, double fpmax, double fvmax);
 
 // Set actuator to adhesion, return error on failure.
-MJAPI const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
+MJAPI const char* mjs_setToAdhesion(mjsActuator* actuator, double gain,
+                                    double timeconst);
 
 //---------------------------------- Add assets ----------------------------------------------------
 

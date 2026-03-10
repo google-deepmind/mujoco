@@ -204,7 +204,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "timeconst", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "?", "forcelimited", "ctrlrange", "forcerange",
-            "gain", "user", "group", "nsample", "interp", "delay"},
+            "gain", "timeconst", "user", "group", "nsample", "interp", "delay"},
     {">"},
 
     {"extension", "*"},
@@ -432,7 +432,8 @@ std::vector<const char*> MJCF[nMJCF] = {
             "timeconst", "tausmooth", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "*", "name", "class", "group", "nsample", "interp", "delay",
-            "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
+            "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain",
+            "timeconst"},
         {"plugin", "*", "name", "class",  "plugin", "instance", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "cranklength", "joint", "jointinparent",
@@ -2481,9 +2482,11 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
   // adhesion
   else if (type == "adhesion") {
     double gain = actuator->gainprm[0];
+    double timeconst = 0;
     ReadAttr(elem, "gain", 1, &gain, text);
     ReadAttr(elem, "ctrlrange", 2, actuator->ctrlrange, text);
-    err = mjs_setToAdhesion(actuator, gain);
+    ReadAttr(elem, "timeconst", 1, &timeconst, text);
+    err = mjs_setToAdhesion(actuator, gain, timeconst);
   }
 
   else if (type == "plugin") {
