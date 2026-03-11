@@ -1,5 +1,5 @@
 {
-  "name": "mujoco",
+  "name": "@mujoco/mujoco",
   "version": "0.0.0",
   "description": "MuJoCo WASM bindings",
   "repository": {
