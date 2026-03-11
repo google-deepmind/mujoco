@@ -1185,7 +1185,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, 
   }
 
   // copy vertices
-  point = mesh.Vert();
+  point.assign(mesh.Vert().begin(), mesh.Vert().end());
 
   if (mesh.HasTexcoord()) {
     texcoord = mesh.Texcoord();
