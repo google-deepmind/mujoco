@@ -647,19 +647,6 @@ void mjCMesh::LoadFromDecoder(mjResource* resource, bool remove_repeated) {
       facenormal_.assign(src_mesh->userfacenormal->begin(), src_mesh->userfacenormal->end());
       facetexcoord_.assign(src_mesh->userfacetexcoord->begin(), src_mesh->userfacetexcoord->end());
 
-      // correct winding order for left-handed coordinate systems
-      bool righthand = scale[0] * scale[1] * scale[2] > 0;
-      if (!righthand) {
-        for (size_t i = 0; i < face_.size(); i += 3) {
-          std::swap(face_[i + 1], face_[i + 2]);
-        }
-        for (size_t i = 0; i < facenormal_.size(); i += 3) {
-          std::swap(facenormal_[i + 1], facenormal_[i + 2]);
-        }
-        for (size_t i = 0; i < facetexcoord_.size(); i += 3) {
-          std::swap(facetexcoord_[i + 1], facetexcoord_[i + 2]);
-        }
-      }
 
       std::vector<float> vert(src_mesh->uservert->begin(), src_mesh->uservert->end());
       mj_deleteSpec(mesh_spec);
@@ -1432,6 +1419,20 @@ void mjCMesh::Process() {
     MakePolygons();
   } else {
     polygon_map_.resize(nvert());
+  }
+
+  // correct winding order for left-handed coordinate systems
+  bool righthand = scale[0] * scale[1] * scale[2] > 0;
+  if (!righthand) {
+    for (size_t i = 0; i < face_.size(); i += 3) {
+      std::swap(face_[i + 1], face_[i + 2]);
+    }
+    for (size_t i = 0; i < facenormal_.size(); i += 3) {
+      std::swap(facenormal_[i + 1], facenormal_[i + 2]);
+    }
+    for (size_t i = 0; i < facetexcoord_.size(); i += 3) {
+      std::swap(facetexcoord_[i + 1], facetexcoord_[i + 2]);
+    }
   }
 
   // user offset, rotation, scaling
