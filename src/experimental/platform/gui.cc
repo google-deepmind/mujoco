@@ -534,11 +534,12 @@ void StateGui(const mjModel* model, mjData* data, std::vector<mjtNum>& state,
 
   ImGui::Unindent(0.5f * ImGui::GetTreeNodeToLabelSpacing());
   // State component names and tooltips.
-  static constexpr const char* name_and_tooltip[][2] = {
+  static constexpr const char* name_and_tooltip[mjNSTATE][2] = {
       {"TIME", "Time"},
       {"QPOS", "Position"},
       {"QVEL", "Velocity"},
       {"ACT", "Actuator activation"},
+      {"HISTORY", "History buffers (control, sensor)"},
       {"WARMSTART", "Acceleration used for warmstart"},
       {"CTRL", "Control"},
       {"QFRC_APPLIED", "Applied generalized force"},
