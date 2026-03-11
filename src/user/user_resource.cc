@@ -44,9 +44,9 @@ mjResource* mju_openResource(const char* dir, const char* name,
   if (non_const_vfs == nullptr) {
     mjVFS* local_vfs = (mjVFS*)mju_malloc(sizeof(mjVFS));
     mj_defaultVFS(local_vfs);
-    mujoco::user::VFS::Upcast(local_vfs)->SetToSelfDestruct([](mjVFS* ptr) {
-      mj_deleteVFS(ptr);
-      mju_free(ptr);
+    mujoco::user::VFS::Upcast(local_vfs)->SetToSelfDestruct([=]() {
+      mj_deleteVFS(local_vfs);
+      mju_free(local_vfs);
     });
 
     non_const_vfs = local_vfs;
