@@ -216,6 +216,8 @@ Benchmark an environment with _`testspeed`
 
     mjwarp-testspeed benchmark/humanoid/humanoid.xml
 
+.. _mjwViewer:
+
 Interactive environment simulation with MJWarp
 
 .. code-block:: shell
@@ -489,7 +491,7 @@ Key features:
   `Warp's BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__.
 
 Basic Usage
-----------
+-----------
 
 Rendering or raycasting requires a :class:`mjw.RenderContext <mujoco_warp.RenderContext>` which contains BVH structures,
 rendering specific fields, and output buffers.

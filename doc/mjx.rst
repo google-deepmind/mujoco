@@ -119,7 +119,7 @@ Notice that we pass two extra arguments to ``mjx.make_data``:
 
 * ``naconmax`` defines the maximum number of contacts for all worlds combined.
 * ``njmax`` defines the maximum number of constraints per world. If you are developing a new scene, these parameters
-  should be tuned by loading them in the :ref:`viewer <MJW_Cli>` and increasing the values accordingly as overflows
+  should be tuned by loading them in the :ref:`viewer <mjwViewer>` and increasing the values accordingly as overflows
   occur. Scale ``naconmax`` by the number of environments you'll eventually need in a ``jax.vmap``!
 
 Contacts
