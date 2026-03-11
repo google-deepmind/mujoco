@@ -5,10 +5,21 @@ on:
     tags:
       - '[0-9]*.[0-9]*.[0-9]*'
 
+  workflow_dispatch:
+    inputs:
+      tag_version:
+        description: 'Release tag version to deploy'
+        required: true
+        default: '0.0.0'
+
 jobs:
   publish:
     name: Publish MuJoCo WASM package
     runs-on: ubuntu-24.04
+
+    env:
+      VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_version || github.ref_name }}
+
     steps:
     - uses: actions/checkout@v3
 
@@ -32,5 +43,5 @@ jobs:
     - name: Package WASM bindings
       env:
         NPM_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-        GITHUB_REF: ${{ github.ref }}
+        VERSION: ${{ env.VERSION }}
       run: bash ./.github/workflows/build_steps.sh package_wasm
