@@ -4,7 +4,7 @@
   "description": "MuJoCo WASM bindings",
   "repository": {
     "type": "git",
-    "url": "https://github.com/google-deepmind/mujoco.git",
+    "url": "git+https://github.com/google-deepmind/mujoco.git",
     "directory": "wasm"
   },
   "homepage": "https://github.com/google-deepmind/mujoco/tree/main/wasm",
