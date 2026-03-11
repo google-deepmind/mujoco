@@ -26,6 +26,7 @@
 #include <implot.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/helpers.h"
+#include "experimental/platform/interaction.h"
 #include "experimental/platform/imgui_widgets.h"
 
 namespace mujoco::platform {
@@ -41,70 +42,70 @@ void SetupTheme(GuiTheme theme) {
   ImVec4* c = s.Colors;
   if (theme == GuiTheme::kDark) {
     ImGui::StyleColorsDark(&s);
-    c[ImGuiCol_Text]                   = ImVec4(1.00, 1.00, 1.00, 1.00);
-    c[ImGuiCol_TextDisabled]           = ImVec4(0.40, 0.40, 0.40, 1.00);
-    c[ImGuiCol_ChildBg]                = ImVec4(0.25, 0.25, 0.25, 1.00);
-    c[ImGuiCol_WindowBg]               = ImVec4(0.25, 0.25, 0.25, 1.00);
-    c[ImGuiCol_PopupBg]                = ImVec4(0.25, 0.25, 0.25, 1.00);
-    c[ImGuiCol_Border]                 = ImVec4(0.12, 0.12, 0.12, 0.71);
-    c[ImGuiCol_BorderShadow]           = ImVec4(1.00, 1.00, 1.00, 0.06);
-    c[ImGuiCol_FrameBg]                = ImVec4(0.42, 0.42, 0.42, 0.54);
-    c[ImGuiCol_FrameBgHovered]         = ImVec4(0.42, 0.42, 0.42, 0.40);
-    c[ImGuiCol_FrameBgActive]          = ImVec4(0.56, 0.56, 0.56, 0.67);
-    c[ImGuiCol_TitleBg]                = ImVec4(0.19, 0.19, 0.19, 1.00);
-    c[ImGuiCol_TitleBgActive]          = ImVec4(0.22, 0.22, 0.22, 1.00);
-    c[ImGuiCol_TitleBgCollapsed]       = ImVec4(0.17, 0.17, 0.17, 0.90);
-    c[ImGuiCol_MenuBarBg]              = ImVec4(0.34, 0.34, 0.34, 1.00);
-    c[ImGuiCol_ScrollbarBg]            = ImVec4(0.24, 0.24, 0.24, 0.53);
-    c[ImGuiCol_ScrollbarGrab]          = ImVec4(0.41, 0.41, 0.41, 1.00);
-    c[ImGuiCol_ScrollbarGrabHovered]   = ImVec4(0.52, 0.52, 0.52, 1.00);
-    c[ImGuiCol_ScrollbarGrabActive]    = ImVec4(0.76, 0.76, 0.76, 1.00);
-    c[ImGuiCol_CheckMark]              = ImVec4(0.65, 0.65, 0.65, 1.00);
-    c[ImGuiCol_SliderGrab]             = ImVec4(0.52, 0.52, 0.52, 1.00);
-    c[ImGuiCol_SliderGrabActive]       = ImVec4(0.64, 0.64, 0.64, 1.00);
-    c[ImGuiCol_Button]                 = ImVec4(0.54, 0.54, 0.54, 0.35);
-    c[ImGuiCol_ButtonHovered]          = ImVec4(0.52, 0.52, 0.52, 0.59);
-    c[ImGuiCol_ButtonActive]           = ImVec4(0.76, 0.76, 0.76, 1.00);
-    c[ImGuiCol_Header]                 = ImVec4(0.38, 0.38, 0.38, 1.00);
-    c[ImGuiCol_HeaderHovered]          = ImVec4(0.47, 0.47, 0.47, 1.00);
-    c[ImGuiCol_HeaderActive]           = ImVec4(0.76, 0.76, 0.76, 0.77);
-    c[ImGuiCol_Separator]              = ImVec4(0.00, 0.00, 0.00, 0.18);
-    c[ImGuiCol_SeparatorHovered]       = ImVec4(0.70, 0.67, 0.60, 0.29);
-    c[ImGuiCol_SeparatorActive]        = ImVec4(0.70, 0.67, 0.60, 0.67);
-    c[ImGuiCol_ResizeGrip]             = ImVec4(0.26, 0.59, 0.98, 0.25);
-    c[ImGuiCol_ResizeGripHovered]      = ImVec4(0.26, 0.59, 0.98, 0.67);
-    c[ImGuiCol_ResizeGripActive]       = ImVec4(0.26, 0.59, 0.98, 0.95);
-    c[ImGuiCol_PlotLines]              = ImVec4(0.61, 0.61, 0.61, 1.00);
-    c[ImGuiCol_PlotLinesHovered]       = ImVec4(1.00, 0.43, 0.35, 1.00);
-    c[ImGuiCol_PlotHistogram]          = ImVec4(0.90, 0.70, 0.00, 1.00);
-    c[ImGuiCol_PlotHistogramHovered]   = ImVec4(1.00, 0.60, 0.00, 1.00);
-    c[ImGuiCol_TextSelectedBg]         = ImVec4(0.73, 0.73, 0.73, 0.35);
-    c[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.80, 0.80, 0.80, 0.35);
-    c[ImGuiCol_DragDropTarget]         = ImVec4(1.00, 1.00, 0.00, 0.90);
-    c[ImGuiCol_NavHighlight]           = ImVec4(0.26, 0.59, 0.98, 1.00);
-    c[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00, 1.00, 1.00, 0.70);
-    c[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80, 0.80, 0.80, 0.20);
-    c[ImGuiCol_DockingEmptyBg]         = ImVec4(0.38, 0.38, 0.38, 1.00);
-    c[ImGuiCol_Tab]                    = ImVec4(0.25, 0.25, 0.25, 1.00);
-    c[ImGuiCol_TabHovered]             = ImVec4(0.40, 0.40, 0.40, 1.00);
-    c[ImGuiCol_TabActive]              = ImVec4(0.33, 0.33, 0.33, 1.00);
-    c[ImGuiCol_TabUnfocused]           = ImVec4(0.25, 0.25, 0.25, 1.00);
-    c[ImGuiCol_TabUnfocusedActive]     = ImVec4(0.33, 0.33, 0.33, 1.00);
-    c[ImGuiCol_DockingPreview]         = ImVec4(0.85, 0.85, 0.85, 0.28);
+    c[ImGuiCol_Text] = ImVec4(1.00, 1.00, 1.00, 1.00);
+    c[ImGuiCol_TextDisabled] = ImVec4(0.40, 0.40, 0.40, 1.00);
+    c[ImGuiCol_ChildBg] = ImVec4(0.25, 0.25, 0.25, 1.00);
+    c[ImGuiCol_WindowBg] = ImVec4(0.25, 0.25, 0.25, 1.00);
+    c[ImGuiCol_PopupBg] = ImVec4(0.25, 0.25, 0.25, 1.00);
+    c[ImGuiCol_Border] = ImVec4(0.12, 0.12, 0.12, 0.71);
+    c[ImGuiCol_BorderShadow] = ImVec4(1.00, 1.00, 1.00, 0.06);
+    c[ImGuiCol_FrameBg] = ImVec4(0.42, 0.42, 0.42, 0.54);
+    c[ImGuiCol_FrameBgHovered] = ImVec4(0.42, 0.42, 0.42, 0.40);
+    c[ImGuiCol_FrameBgActive] = ImVec4(0.56, 0.56, 0.56, 0.67);
+    c[ImGuiCol_TitleBg] = ImVec4(0.19, 0.19, 0.19, 1.00);
+    c[ImGuiCol_TitleBgActive] = ImVec4(0.22, 0.22, 0.22, 1.00);
+    c[ImGuiCol_TitleBgCollapsed] = ImVec4(0.17, 0.17, 0.17, 0.90);
+    c[ImGuiCol_MenuBarBg] = ImVec4(0.34, 0.34, 0.34, 1.00);
+    c[ImGuiCol_ScrollbarBg] = ImVec4(0.24, 0.24, 0.24, 0.53);
+    c[ImGuiCol_ScrollbarGrab] = ImVec4(0.41, 0.41, 0.41, 1.00);
+    c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.52, 0.52, 0.52, 1.00);
+    c[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.76, 0.76, 0.76, 1.00);
+    c[ImGuiCol_CheckMark] = ImVec4(0.65, 0.65, 0.65, 1.00);
+    c[ImGuiCol_SliderGrab] = ImVec4(0.52, 0.52, 0.52, 1.00);
+    c[ImGuiCol_SliderGrabActive] = ImVec4(0.64, 0.64, 0.64, 1.00);
+    c[ImGuiCol_Button] = ImVec4(0.54, 0.54, 0.54, 0.35);
+    c[ImGuiCol_ButtonHovered] = ImVec4(0.52, 0.52, 0.52, 0.59);
+    c[ImGuiCol_ButtonActive] = ImVec4(0.76, 0.76, 0.76, 1.00);
+    c[ImGuiCol_Header] = ImVec4(0.38, 0.38, 0.38, 1.00);
+    c[ImGuiCol_HeaderHovered] = ImVec4(0.47, 0.47, 0.47, 1.00);
+    c[ImGuiCol_HeaderActive] = ImVec4(0.76, 0.76, 0.76, 0.77);
+    c[ImGuiCol_Separator] = ImVec4(0.00, 0.00, 0.00, 0.18);
+    c[ImGuiCol_SeparatorHovered] = ImVec4(0.70, 0.67, 0.60, 0.29);
+    c[ImGuiCol_SeparatorActive] = ImVec4(0.70, 0.67, 0.60, 0.67);
+    c[ImGuiCol_ResizeGrip] = ImVec4(0.26, 0.59, 0.98, 0.25);
+    c[ImGuiCol_ResizeGripHovered] = ImVec4(0.26, 0.59, 0.98, 0.67);
+    c[ImGuiCol_ResizeGripActive] = ImVec4(0.26, 0.59, 0.98, 0.95);
+    c[ImGuiCol_PlotLines] = ImVec4(0.61, 0.61, 0.61, 1.00);
+    c[ImGuiCol_PlotLinesHovered] = ImVec4(1.00, 0.43, 0.35, 1.00);
+    c[ImGuiCol_PlotHistogram] = ImVec4(0.90, 0.70, 0.00, 1.00);
+    c[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00, 0.60, 0.00, 1.00);
+    c[ImGuiCol_TextSelectedBg] = ImVec4(0.73, 0.73, 0.73, 0.35);
+    c[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80, 0.80, 0.80, 0.35);
+    c[ImGuiCol_DragDropTarget] = ImVec4(1.00, 1.00, 0.00, 0.90);
+    c[ImGuiCol_NavHighlight] = ImVec4(0.26, 0.59, 0.98, 1.00);
+    c[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00, 1.00, 1.00, 0.70);
+    c[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80, 0.80, 0.80, 0.20);
+    c[ImGuiCol_DockingEmptyBg] = ImVec4(0.38, 0.38, 0.38, 1.00);
+    c[ImGuiCol_Tab] = ImVec4(0.25, 0.25, 0.25, 1.00);
+    c[ImGuiCol_TabHovered] = ImVec4(0.40, 0.40, 0.40, 1.00);
+    c[ImGuiCol_TabActive] = ImVec4(0.33, 0.33, 0.33, 1.00);
+    c[ImGuiCol_TabUnfocused] = ImVec4(0.25, 0.25, 0.25, 1.00);
+    c[ImGuiCol_TabUnfocusedActive] = ImVec4(0.33, 0.33, 0.33, 1.00);
+    c[ImGuiCol_DockingPreview] = ImVec4(0.85, 0.85, 0.85, 0.28);
     c[ImGuiCol_WindowBg].w = 1.0f;
   } else if (theme == GuiTheme::kLight) {
     ImGui::StyleColorsLight(&s);
-    ImVec4 white       = ImVec4(1.00, 1.00, 1.00, 1.00);
+    ImVec4 white = ImVec4(1.00, 1.00, 1.00, 1.00);
     ImVec4 transparent = ImVec4(0.00, 0.00, 0.00, 0.00);
-    ImVec4 dark        = ImVec4(0.00, 0.00, 0.00, 0.20);
-    ImVec4 darker      = ImVec4(0.00, 0.00, 0.00, 0.50);
-    ImVec4 background  = ImVec4(0.95, 0.95, 0.95, 1.00);
-    ImVec4 text        = ImVec4(0.10, 0.10, 0.10, 1.00);
-    ImVec4 border      = ImVec4(0.60, 0.60, 0.60, 1.00);
-    ImVec4 grab        = ImVec4(0.69, 0.69, 0.69, 1.00);
-    ImVec4 header      = ImVec4(0.86, 0.86, 0.86, 1.00);
-    ImVec4 active      = ImVec4(0.00, 0.47, 0.84, 1.00);
-    ImVec4 hover       = ImVec4(0.00, 0.47, 0.84, 0.20);
+    ImVec4 dark = ImVec4(0.00, 0.00, 0.00, 0.20);
+    ImVec4 darker = ImVec4(0.00, 0.00, 0.00, 0.50);
+    ImVec4 background = ImVec4(0.95, 0.95, 0.95, 1.00);
+    ImVec4 text = ImVec4(0.10, 0.10, 0.10, 1.00);
+    ImVec4 border = ImVec4(0.60, 0.60, 0.60, 1.00);
+    ImVec4 grab = ImVec4(0.69, 0.69, 0.69, 1.00);
+    ImVec4 header = ImVec4(0.86, 0.86, 0.86, 1.00);
+    ImVec4 active = ImVec4(0.00, 0.47, 0.84, 1.00);
+    ImVec4 hover = ImVec4(0.00, 0.47, 0.84, 0.20);
 
     c[ImGuiCol_Text] = text;
     c[ImGuiCol_WindowBg] = background;
@@ -129,46 +130,46 @@ void SetupTheme(GuiTheme theme) {
     c[ImGuiCol_ScrollbarGrab] = grab;
     c[ImGuiCol_ScrollbarGrabHovered] = dark;
     c[ImGuiCol_ScrollbarGrabActive] = darker;
-  } else  {
+  } else {
     ImGui::StyleColorsDark(&s);
-    ImVec4 black         = ImVec4(0.00, 0.00, 0.00, 1.0);
-    ImVec4 window        = ImVec4(0.25, 0.25, 0.25, 1.0);
-    ImVec4 font_active   = ImVec4(1.00, 1.00, 1.00, 1.0);
+    ImVec4 black = ImVec4(0.00, 0.00, 0.00, 1.0);
+    ImVec4 window = ImVec4(0.25, 0.25, 0.25, 1.0);
+    ImVec4 font_active = ImVec4(1.00, 1.00, 1.00, 1.0);
     ImVec4 font_inactive = ImVec4(0.50, 0.50, 0.50, 1.0);
-    ImVec4 thumb         = ImVec4(0.12, 0.12, 0.12, 1.0);
-    ImVec4 section       = ImVec4(0.40, 0.15, 0.15, 1.0);
-    ImVec4 button        = ImVec4(0.60, 0.40, 0.40, 1.0);
-    ImVec4 check         = ImVec4(0.40, 0.40, 0.70, 1.0);
-    ImVec4 frame         = ImVec4(0.40, 0.30, 0.40, 1.0);
-    ImVec4 slider        = ImVec4(0.60, 0.40, 0.60, 1.0);
+    ImVec4 thumb = ImVec4(0.12, 0.12, 0.12, 1.0);
+    ImVec4 section = ImVec4(0.40, 0.15, 0.15, 1.0);
+    ImVec4 button = ImVec4(0.60, 0.40, 0.40, 1.0);
+    ImVec4 check = ImVec4(0.40, 0.40, 0.70, 1.0);
+    ImVec4 frame = ImVec4(0.40, 0.30, 0.40, 1.0);
+    ImVec4 slider = ImVec4(0.60, 0.40, 0.60, 1.0);
 
-    c[ImGuiCol_WindowBg]               = window;
-    c[ImGuiCol_ChildBg]                = black;
-    c[ImGuiCol_PopupBg]                = window;
-    c[ImGuiCol_Text]                   = font_active;
-    c[ImGuiCol_TextDisabled]           = font_inactive;
-    c[ImGuiCol_CheckMark]              = font_active;
-    c[ImGuiCol_Header]                 = section;
-    c[ImGuiCol_HeaderHovered]          = section;
-    c[ImGuiCol_HeaderActive]           = section;
-    c[ImGuiCol_TitleBgActive]          = window;
-    c[ImGuiCol_ScrollbarBg]            = window;
-    c[ImGuiCol_ScrollbarGrab]          = thumb;
-    c[ImGuiCol_ScrollbarGrabHovered]   = thumb;
-    c[ImGuiCol_ScrollbarGrabActive]    = thumb;
-    c[ImGuiCol_FrameBg]                = frame;
-    c[ImGuiCol_FrameBgHovered]         = frame;
-    c[ImGuiCol_FrameBgActive]          = frame;
-    c[ImGuiCol_SliderGrab]             = slider;
-    c[ImGuiCol_SliderGrabActive]       = slider;
-    c[ImGuiCol_Button]                 = window;
-    c[ImGuiCol_ButtonHovered]          = button;
-    c[ImGuiCol_ButtonActive]           = button;
-    c[ImGuiCol_Tab]                    = window;
-    c[ImGuiCol_TabHovered]             = check;
-    c[ImGuiCol_TabSelected]            = check;
-    c[ImGuiCol_TabDimmed]              = window;
-    c[ImGuiCol_TabDimmedSelected]      = check;
+    c[ImGuiCol_WindowBg] = window;
+    c[ImGuiCol_ChildBg] = black;
+    c[ImGuiCol_PopupBg] = window;
+    c[ImGuiCol_Text] = font_active;
+    c[ImGuiCol_TextDisabled] = font_inactive;
+    c[ImGuiCol_CheckMark] = font_active;
+    c[ImGuiCol_Header] = section;
+    c[ImGuiCol_HeaderHovered] = section;
+    c[ImGuiCol_HeaderActive] = section;
+    c[ImGuiCol_TitleBgActive] = window;
+    c[ImGuiCol_ScrollbarBg] = window;
+    c[ImGuiCol_ScrollbarGrab] = thumb;
+    c[ImGuiCol_ScrollbarGrabHovered] = thumb;
+    c[ImGuiCol_ScrollbarGrabActive] = thumb;
+    c[ImGuiCol_FrameBg] = frame;
+    c[ImGuiCol_FrameBgHovered] = frame;
+    c[ImGuiCol_FrameBgActive] = frame;
+    c[ImGuiCol_SliderGrab] = slider;
+    c[ImGuiCol_SliderGrabActive] = slider;
+    c[ImGuiCol_Button] = window;
+    c[ImGuiCol_ButtonHovered] = button;
+    c[ImGuiCol_ButtonActive] = button;
+    c[ImGuiCol_Tab] = window;
+    c[ImGuiCol_TabHovered] = check;
+    c[ImGuiCol_TabSelected] = check;
+    c[ImGuiCol_TabDimmed] = window;
+    c[ImGuiCol_TabDimmedSelected] = check;
   }
 
   int hspacing = 4;
@@ -207,14 +208,11 @@ ImVec4 ConfigureDockingLayout() {
   const float kToolsBarHeight = 48.f * scale;
   const float kStatusBarHeight = 32.f * scale;
 
-  const ImVec2 dockspace_pos{
-      viewport->WorkPos.x,
-      viewport->WorkPos.y + kToolsBarHeight
-  };
+  const ImVec2 dockspace_pos{viewport->WorkPos.x,
+                             viewport->WorkPos.y + kToolsBarHeight};
   const ImVec2 dockspace_size{
       viewport->WorkSize.x,
-      viewport->WorkSize.y - kToolsBarHeight - kStatusBarHeight
-  };
+      viewport->WorkSize.y - kToolsBarHeight - kStatusBarHeight};
 
   ImGuiID root = ImGui::GetID("Root");
   const bool first_time = (ImGui::DockBuilderGetNode(root) == nullptr);
@@ -228,16 +226,16 @@ ImVec4 ConfigureDockingLayout() {
     ImGuiID main = root;
 
     ImGuiID options = 0;
-    ImGui::DockBuilderSplitNode(main, ImGuiDir_Left, kOptionsRelWidth,
-                                &options, &main);
+    ImGui::DockBuilderSplitNode(main, ImGuiDir_Left, kOptionsRelWidth, &options,
+                                &main);
 
     ImGuiID inspector = 0;
     ImGui::DockBuilderSplitNode(main, ImGuiDir_Right, kInspectorRelWidth,
                                 &inspector, &main);
 
     ImGuiID stats = 0;
-    ImGui::DockBuilderSplitNode(options, ImGuiDir_Down, kStatsRelHeight,
-                                &stats, &options);
+    ImGui::DockBuilderSplitNode(options, ImGuiDir_Down, kStatsRelHeight, &stats,
+                                &options);
 
     ImGuiID properties = 0;
     ImGui::DockBuilderSplitNode(inspector, ImGuiDir_Down, kStatsRelHeight,
@@ -265,11 +263,10 @@ ImVec4 ConfigureDockingLayout() {
       ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBringToFrontOnFocus |
       ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
 
-  const ImGuiWindowFlags kFixedFlags = ImGuiWindowFlags_NoTitleBar |
-                                       ImGuiWindowFlags_NoMove |
-                                       ImGuiWindowFlags_NoResize |
-                                       ImGuiWindowFlags_NoScrollbar |
-                                       ImGuiWindowFlags_NoDocking;
+  const ImGuiWindowFlags kFixedFlags =
+      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+      ImGuiWindowFlags_NoDocking;
 
   // Main workspace area in which we can dock other windows.
   {
@@ -292,7 +289,8 @@ ImVec4 ConfigureDockingLayout() {
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kToolsBarHeight), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kToolsBarHeight),
+                             ImGuiCond_Always);
     ImGui::Begin("ToolBar", nullptr, kFixedFlags);
     ImGui::End();
   }
@@ -302,8 +300,10 @@ ImVec4 ConfigureDockingLayout() {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::SetNextWindowPos(ImVec2(0, viewport->Size.y - kStatusBarHeight), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kStatusBarHeight), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(0, viewport->Size.y - kStatusBarHeight),
+                            ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kStatusBarHeight),
+                             ImGuiCond_Always);
     ImGui::Begin("StatusBar", nullptr, kFixedFlags);
     ImGui::End();
   }
@@ -315,6 +315,148 @@ ImVec4 ConfigureDockingLayout() {
   const float workspace_w = dockspace_size.x - settings_width - inspector_width;
   const float workspace_h = dockspace_size.y;
   return ImVec4(workspace_x, workspace_y, workspace_w, workspace_h);
+}
+
+bool ThemeSelectGui(GuiTheme* theme) {
+  static constexpr const char* ICON_DARKMODE = ICON_FA_CIRCLE;
+  static constexpr const char* ICON_LIGHTMODE = ICON_FA_CIRCLE_O;
+  static constexpr const char* ICON_CLASSICMODE = ICON_FA_ADJUST;
+  const char* theme_icons[] = {ICON_LIGHTMODE, ICON_DARKMODE, ICON_CLASSICMODE};
+  const char* theme_tooltips[] = {"Light Mode", "Dark Mode", "Classic Mode"};
+  const GuiTheme theme_values[] = {
+      GuiTheme::kLight,
+      GuiTheme::kDark,
+      GuiTheme::kClassic,
+  };
+
+  bool changed = false;
+
+  int theme_idx = static_cast<int>(*theme);
+  ImGui::SetNextItemWidth(ImGui::CalcTextSize(theme_icons[0]).x +
+                          ImGui::GetStyle().FramePadding.x * 2);
+  if (ImGui::BeginCombo("##Theme", theme_icons[theme_idx],
+                        ImGuiComboFlags_NoArrowButton)) {
+    for (int n = 0; n < IM_ARRAYSIZE(theme_icons); n++) {
+      if (ImGui::Selectable(theme_icons[n], (theme_idx == n))) {
+        *theme = theme_values[n];
+        changed = true;
+      }
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("%s", theme_tooltips[n]);
+      }
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("%s", "Theme");
+
+  return changed;
+}
+
+bool LabelSelectionGui(mjvOption* opts) {
+  static constexpr const char* ICON_LABEL = ICON_FA_COMMENT;
+  static constexpr const char* kLabelNames[] = {
+      "None",      "Body",    "Joint",    "Geom",       "Site",  "Camera",
+      "Light",     "Tendon",  "Actuator", "Constraint", "Flex",  "Skin",
+      "Selection", "Sel Pnt", "Contact",  "Force",      "Island"};
+
+  bool changed = false;
+  const std::string label_preview =
+      std::string(ICON_LABEL) + " " + kLabelNames[opts->label];
+  if (ImGui::BeginCombo("##Label", label_preview.c_str(),
+                        ImGuiComboFlags_NoArrowButton)) {
+    for (int n = 0; n < IM_ARRAYSIZE(kLabelNames); n++) {
+      if (ImGui::Selectable(kLabelNames[n], (opts->label == n))) {
+        changed = true;
+        opts->label = n;
+      }
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("%s", "Label");
+  return changed;
+}
+
+bool FrameSelectionGui(mjvOption* opts) {
+  static constexpr const char* ICON_FRAME = ICON_FA_ARROWS;
+  static constexpr const char* kFrameNames[] = {
+      "None", "Body", "Geom", "Site", "Camera", "Light", "Contact", "World"};
+
+  bool changed = false;
+  const std::string frame_preview =
+      std::string(ICON_FRAME) + " " + kFrameNames[opts->frame];
+  if (ImGui::BeginCombo("##Frame", frame_preview.c_str(),
+                        ImGuiComboFlags_NoArrowButton)) {
+    for (int n = 0; n < IM_ARRAYSIZE(kFrameNames); n++) {
+      if (ImGui::Selectable(kFrameNames[n], (opts->frame == n))) {
+        opts->frame = n;
+        changed = true;
+      }
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("%s", "Frame");
+  return changed;
+}
+
+static std::string GetCameraName(const mjModel* model, const mjvCamera& camera,
+                                 int index) {
+  static constexpr char kCameraTumbleName[] = "Free: tumble";
+  static constexpr char kCameraWasdName[] = "Free: wasd";
+  static constexpr char kCameraUnnamedName[] = "Unnamed";
+
+  if (index == kTumbleCameraIdx) {
+    return kCameraTumbleName;
+  } else if (index == kFreeCameraIdx) {
+    return kCameraWasdName;
+  } else if (index == kTrackingCameraIdx) {
+    return "Tracking (" + std::to_string(camera.trackbodyid) + ")";
+  } else if (model->names[model->name_camadr[index]]) {
+    return std::string(model->names + model->name_camadr[index]);
+  } else {
+    return kCameraUnnamedName;
+  }
+}
+
+bool CameraSelectionGui(const mjModel* model, mjData* data, mjvCamera& camera,
+                        int& index) {
+  static constexpr const char* ICON_CAMERA = ICON_FA_CAMERA;
+
+  auto select = [&](int type, int idx) {
+    if (ImGui::Selectable(GetCameraName(model, camera, type).c_str(),
+            (type == idx))) {
+      return true;
+    }
+    return false;
+  };
+
+  bool changed = false;
+
+  const std::string preview =
+      std::string(ICON_CAMERA) + " " + GetCameraName(model, camera, index);
+  if (ImGui::BeginCombo("##Camera", preview.c_str(),
+                        ImGuiComboFlags_NoArrowButton)) {
+    if (select(kTumbleCameraIdx, index)) {
+      index = SetCamera(model, &camera, kTumbleCameraIdx);
+      changed = true;
+    }
+    if (select(kFreeCameraIdx, index)) {
+      index = SetCamera(model, &camera, kFreeCameraIdx);
+      changed = true;
+    }
+    if (select(kTrackingCameraIdx, index)) {
+      index = SetCamera(model, &camera, kTrackingCameraIdx);
+      changed = true;
+    }
+    for (int cam = 0; cam < model->ncam; cam++) {
+      if (select(cam, index)) {
+        index = SetCamera(model, &camera, cam);
+        changed = true;
+      }
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("%s", "Camera");
+  return changed;
 }
 
 void SensorGui(const mjModel* model, const mjData* data) {
@@ -935,36 +1077,49 @@ void ConvergenceGui(const mjModel* model, mjData* data) {
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
     ImPlot::SetupFinish();
 
-    const int nisland = data->nefc ? mjMAX(1, mjMIN(data->nisland, mjNISLAND)) : 0;
+    const int nisland =
+        data->nefc ? mjMAX(1, mjMIN(data->nisland, mjNISLAND)) : 0;
     for (int k = 0; k < nisland; k++) {
       mjSolverStat* stats = data->solver + k * mjNSOLVER;
       const int npoints =
           mjMIN(mjMIN(data->solver_niter[k], mjNSOLVER), mjMAXLINEPNT);
 
-      ImPlot::PlotLineG("improvement", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = mju_log10(mju_max(mjMINVAL, stats[i].improvement));
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
+      ImPlot::PlotLineG(
+          "improvement",
+          +[](int i, void* user_data) {
+            const mjSolverStat* stats =
+                static_cast<const mjSolverStat*>(user_data);
+            const float x = static_cast<float>(i);
+            const float y = mju_log10(mju_max(mjMINVAL, stats[i].improvement));
+            return ImPlotPoint{x, y};
+          },
+          stats, npoints);
 
       if (model->opt.solver == mjSOL_PGS) {
         continue;
       }
 
-      ImPlot::PlotLineG("gradient", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = mju_log10(mju_max(mjMINVAL, stats[i].gradient));
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
+      ImPlot::PlotLineG(
+          "gradient",
+          +[](int i, void* user_data) {
+            const mjSolverStat* stats =
+                static_cast<const mjSolverStat*>(user_data);
+            const float x = static_cast<float>(i);
+            const float y = mju_log10(mju_max(mjMINVAL, stats[i].gradient));
+            return ImPlotPoint{x, y};
+          },
+          stats, npoints);
 
-      ImPlot::PlotLineG("lineslope", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = mju_log10(mju_max(mjMINVAL, stats[i].lineslope));
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
+      ImPlot::PlotLineG(
+          "lineslope",
+          +[](int i, void* user_data) {
+            const mjSolverStat* stats =
+                static_cast<const mjSolverStat*>(user_data);
+            const float x = static_cast<float>(i);
+            const float y = mju_log10(mju_max(mjMINVAL, stats[i].lineslope));
+            return ImPlotPoint{x, y};
+          },
+          stats, npoints);
     }
 
     ImPlot::PopStyleVar();
@@ -982,56 +1137,76 @@ void CountsGui(const mjModel* model, mjData* data) {
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
     ImPlot::SetupFinish();
 
-    const int nisland = data->nefc ? mjMAX(1, mjMIN(data->nisland, mjNISLAND)) : 0;
+    const int nisland =
+        data->nefc ? mjMAX(1, mjMIN(data->nisland, mjNISLAND)) : 0;
     for (int k = 0; k < nisland; k++) {
       const int npoints =
           mjMIN(mjMIN(data->solver_niter[k], mjNSOLVER), mjMAXLINEPNT);
 
-      mjSolverStat* stats = data->solver + k*mjNSOLVER;
+      mjSolverStat* stats = data->solver + k * mjNSOLVER;
 
       int nefc = nisland == 1 ? data->nefc : data->island_nefc[k];
 
-      ImPlot::PlotLineG("total", +[](int i, void* user_data) {
-        const float x = static_cast<float>(i);
-        const float y = *(static_cast<int*>(user_data));
-        return ImPlotPoint{x, y};
-      }, &nefc, npoints);
+      ImPlot::PlotLineG(
+          "total",
+          +[](int i, void* user_data) {
+            const float x = static_cast<float>(i);
+            const float y = *(static_cast<int*>(user_data));
+            return ImPlotPoint{x, y};
+          },
+          &nefc, npoints);
 
-      ImPlot::PlotLineG("active", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = stats[i].nactive;
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
+      ImPlot::PlotLineG(
+          "active",
+          +[](int i, void* user_data) {
+            const mjSolverStat* stats =
+                static_cast<const mjSolverStat*>(user_data);
+            const float x = static_cast<float>(i);
+            const float y = stats[i].nactive;
+            return ImPlotPoint{x, y};
+          },
+          stats, npoints);
 
-      ImPlot::PlotLineG("changed", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = stats[i].nchange;
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
+      ImPlot::PlotLineG(
+          "changed",
+          +[](int i, void* user_data) {
+            const mjSolverStat* stats =
+                static_cast<const mjSolverStat*>(user_data);
+            const float x = static_cast<float>(i);
+            const float y = stats[i].nchange;
+            return ImPlotPoint{x, y};
+          },
+          stats, npoints);
 
       if (model->opt.solver == mjSOL_PGS) {
         continue;
       }
 
-      ImPlot::PlotLineG("evals", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = stats[i].neval;
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
+      ImPlot::PlotLineG(
+          "evals",
+          +[](int i, void* user_data) {
+            const mjSolverStat* stats =
+                static_cast<const mjSolverStat*>(user_data);
+            const float x = static_cast<float>(i);
+            const float y = stats[i].neval;
+            return ImPlotPoint{x, y};
+          },
+          stats, npoints);
 
       if (model->opt.solver == mjSOL_CG) {
         continue;
       }
 
-      ImPlot::PlotLineG("updates", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = stats[i].nupdate;
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
+      ImPlot::PlotLineG(
+          "updates",
+          +[](int i, void* user_data) {
+            const mjSolverStat* stats =
+                static_cast<const mjSolverStat*>(user_data);
+            const float x = static_cast<float>(i);
+            const float y = stats[i].nupdate;
+            return ImPlotPoint{x, y};
+          },
+          stats, npoints);
     }
 
     ImPlot::PopStyleVar();

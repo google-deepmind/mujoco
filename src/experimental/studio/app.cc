@@ -78,13 +78,7 @@ static constexpr const char* ICON_VISCOUS_PAUSE = platform::ICON_FA_MAGIC;
 static constexpr const char* ICON_COPY_CAMERA = platform::ICON_FA_COPY;
 static constexpr const char* ICON_UNLOAD_MODEL = platform::ICON_FA_EJECT;
 static constexpr const char* ICON_RELOAD_MODEL = platform::ICON_FA_REFRESH;
-static constexpr const char* ICON_LABEL = platform::ICON_FA_COMMENT;
 static constexpr const char* ICON_RESET_MODEL = platform::ICON_FA_UNDO;
-static constexpr const char* ICON_FRAME = platform::ICON_FA_ARROWS;
-static constexpr const char* ICON_CAMERA = platform::ICON_FA_CAMERA;
-static constexpr const char* ICON_DARKMODE = platform::ICON_FA_CIRCLE;
-static constexpr const char* ICON_LIGHTMODE = platform::ICON_FA_CIRCLE_O;
-static constexpr const char* ICON_CLASSICMODE = platform::ICON_FA_ADJUST;
 static constexpr const char* ICON_PREV_FRAME = platform::ICON_FA_CARET_LEFT;
 static constexpr const char* ICON_NEXT_FRAME = platform::ICON_FA_CARET_RIGHT;
 static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
@@ -92,16 +86,6 @@ static constexpr const char* ICON_SPEED = platform::ICON_FA_TACHOMETER;
 static constexpr const char* ICON_RELOAD_SPEC = platform::ICON_FA_REFRESH;
 static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
-
-// UI labels for mjtLabel.
-static constexpr const char* kLabelNames[] = {
-    "None",      "Body",    "Joint",    "Geom",       "Site",  "Camera",
-    "Light",     "Tendon",  "Actuator", "Constraint", "Flex",  "Skin",
-    "Selection", "Sel Pnt", "Contact",  "Force",      "Island"};
-
-// UI labels for mjtFrame.
-static constexpr const char* kFrameNames[] = {
-    "None", "Body", "Geom", "Site", "Camera", "Light", "Contact", "World"};
 
 // logarithmically spaced real-time slow-down coefficients (percent)
 // clang-format off
@@ -846,7 +830,10 @@ void App::BuildGui() {
     return;
   }
 
-  SetupTheme(ui_.theme);
+  if (!tmp_.style_editor) {
+    platform::SetupTheme(ui_.theme);
+  }
+
   const ImVec4 workspace_rect = platform::ConfigureDockingLayout();
 
   // Place charts in bottom right corner of the workspace.
@@ -1021,14 +1008,6 @@ void App::BuildGui() {
   if (io.WantSaveIniSettings) {
     SaveSettings();
     io.WantSaveIniSettings = false;
-  }
-}
-
-void App::SetupTheme(platform::GuiTheme theme) {
-  if (!tmp_.style_editor) {
-    platform::SetupTheme(theme);
-    ui_.theme = theme;
-    ImGui::GetIO().WantSaveIniSettings = true;
   }
 }
 
@@ -1449,7 +1428,7 @@ void App::ToolBarGui() {
     const float label_width = GetExpectedLabelWidth();
     const float copy_btn_width = ImGui::CalcTextSize(ICON_COPY_CAMERA).x +
                                  ImGui::GetStyle().FramePadding.x * 2;
-    const float theme_width = ImGui::CalcTextSize(ICON_LIGHTMODE).x +
+    const float theme_width = ImGui::CalcTextSize(platform::ICON_FA_CIRCLE_O).x +
                               ImGui::GetStyle().FramePadding.x * 2;
     const float sp = ImGui::GetStyle().ItemSpacing.x;
     const float right_width = label_width + sp + label_width + sp +
@@ -1576,84 +1555,30 @@ void App::ToolBarGui() {
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
                          (button_size.y - ImGui::GetFrameHeight()) * 0.5f);
 
-    // Camera selection.
     if (ImGui::Button(ICON_COPY_CAMERA)) {
       std::string camera_string = platform::CameraToString(data(), &camera_);
       platform::MaybeSaveToClipboard(camera_string);
     }
     ImGui::SetItemTooltip("%s", "Copy Camera");
+
     ImGui::SameLine(0, 0);
     ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-    int camera_idx = ui_.camera_idx - platform::kTumbleCameraIdx;
-    std::vector<const char*> cameras = GetCameraNames();
-    std::string camera_preview =
-        std::string(ICON_CAMERA) + " " + cameras[camera_idx];
-    if (ImGui::BeginCombo("##Camera", camera_preview.c_str(), combo_flags)) {
-      for (int n = 0; n < cameras.size(); n++) {
-        if (ImGui::Selectable(cameras[n], (camera_idx == n))) {
-          ui_.camera_idx = platform::SetCamera(model(), &camera_,
-                                               n + platform::kTumbleCameraIdx);
-        }
-      }
-      ImGui::EndCombo();
-    }
-    ImGui::SetItemTooltip("%s", "Camera");
+    platform::CameraSelectionGui(model(), data(), camera_, ui_.camera_idx);
 
-    // Label selection.
     ImGui::SameLine();
     ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-    std::string label_preview =
-        std::string(ICON_LABEL) + " " + kLabelNames[vis_options_.label];
-    if (ImGui::BeginCombo("##Label", label_preview.c_str(), combo_flags)) {
-      for (int n = 0; n < IM_ARRAYSIZE(kLabelNames); n++) {
-        if (ImGui::Selectable(kLabelNames[n], (vis_options_.label == n))) {
-          vis_options_.label = n;
-        }
-      }
-      ImGui::EndCombo();
-    }
-    ImGui::SetItemTooltip("%s", "Label");
+    platform::LabelSelectionGui(&vis_options_);
 
-    // Frame selection.
     ImGui::SameLine();
     ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-    std::string frame_preview =
-        std::string(ICON_FRAME) + " " + kFrameNames[vis_options_.frame];
-    if (ImGui::BeginCombo("##Frame", frame_preview.c_str(), combo_flags)) {
-      for (int n = 0; n < IM_ARRAYSIZE(kFrameNames); n++) {
-        if (ImGui::Selectable(kFrameNames[n], (vis_options_.frame == n))) {
-          vis_options_.frame = n;
-        }
-      }
-      ImGui::EndCombo();
-    }
-    ImGui::SetItemTooltip("%s", "Frame");
+    platform::FrameSelectionGui(&vis_options_);
 
-    // Theme selection.
     ImGui::SameLine();
-    const char* theme_icons[] = {ICON_LIGHTMODE, ICON_DARKMODE,
-                                 ICON_CLASSICMODE};
-    const char* theme_tooltips[] = {"Light Mode", "Dark Mode", "Classic Mode"};
-    const platform::GuiTheme theme_values[] = {
-        platform::GuiTheme::kLight,
-        platform::GuiTheme::kDark,
-        platform::GuiTheme::kClassic,
-    };
-    int theme_idx = static_cast<int>(ui_.theme);
-    ImGui::SetNextItemWidth(ImGui::CalcTextSize(theme_icons[0]).x +
-                            ImGui::GetStyle().FramePadding.x * 2);
-    if (ImGui::BeginCombo("##Theme", theme_icons[theme_idx], combo_flags)) {
-      for (int n = 0; n < IM_ARRAYSIZE(theme_icons); n++) {
-        if (ImGui::Selectable(theme_icons[n], (theme_idx == n))) {
-          SetupTheme(theme_values[n]);
-        }
-        if (ImGui::IsItemHovered()) {
-          ImGui::SetTooltip("%s", theme_tooltips[n]);
-        }
-      }
-      ImGui::EndCombo();
+    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
+    if (platform::ThemeSelectGui(&ui_.theme)) {
+      platform::SetupTheme(ui_.theme);
+      ImGui::GetIO().WantSaveIniSettings = true;
     }
-    ImGui::SetItemTooltip("%s", "Theme");
 
     ImGui::EndTable();
   }
@@ -2009,34 +1934,6 @@ float App::GetExpectedLabelWidth() {
     tmp_.expected_label_width = ImGui::CalcTextSize(longest_label).x + 16;
   }
   return tmp_.expected_label_width;
-}
-
-std::vector<const char*> App::GetCameraNames() {
-  if (tmp_.camera_names.empty()) {
-    tmp_.camera_names.reserve(model()->ncam + 3);
-
-    tmp_.camera_names.push_back("Free: tumble");
-    tmp_.camera_names.push_back("Free: wasd");
-    tmp_.camera_names.push_back("Tracking (-1)");
-    for (int i = 0; i < model()->ncam; i++) {
-      if (model()->names[model()->name_camadr[i]]) {
-        tmp_.camera_names.push_back(model()->names + model()->name_camadr[i]);
-      } else {
-        tmp_.camera_names.push_back("Unnamed");
-      }
-    }
-  }
-
-  // Update tracking camera name as this can change over time.
-  tmp_.camera_names[2] =
-      "Tracking (" + std::to_string(camera_.trackbodyid) + ")";
-
-  std::vector<const char*> names;
-  names.reserve(tmp_.camera_names.size());
-  for (const auto& name : tmp_.camera_names) {
-    names.push_back(name.c_str());
-  }
-  return names;
 }
 
 App::UiState::Dict App::UiState::ToDict() const {

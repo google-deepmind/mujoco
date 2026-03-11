@@ -223,7 +223,6 @@ class App {
   void SpecEditorGui();
 
   float GetExpectedLabelWidth();
-  std::vector<const char*> GetCameraNames();
 
   mjSpec* spec() { return model_holder_->spec(); }
   mjModel* model() { return model_holder_->model(); }
