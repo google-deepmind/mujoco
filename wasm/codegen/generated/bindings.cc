@@ -8599,7 +8599,7 @@ void mj_fwdVelocity_wrapper(const MjModel& m, MjData& d) {
   mj_fwdVelocity(m.get(), d.get());
 }
 
-mjtNum mj_geomDistance_wrapper(const MjModel& m, const MjData& d, int geom1, int geom2, mjtNum distmax, const val& fromto) {
+mjtNum mj_geomDistance_wrapper(const MjModel& m, MjData& d, int geom1, int geom2, mjtNum distmax, const val& fromto) {
   UNPACK_NULLABLE_VALUE(mjtNum, fromto);
   CHECK_SIZE(fromto, 6);
   return mj_geomDistance(m.get(), d.get(), geom1, geom2, distmax, fromto_.data());

@@ -663,7 +663,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_contactForce>(pymodule);
   Def<traits::mj_geomDistance>(
       pymodule,
-      [](const raw::MjModel* m, const raw::MjData* d,
+      [](const raw::MjModel* m, raw::MjData* d,
          int geom1, int geom2, mjtNum distmax,
          std::optional<Eigen::Ref<EigenArrayXX>> fromto) {
         if (fromto.has_value() && fromto->size() != 6) {

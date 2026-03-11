@@ -86,8 +86,8 @@ void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc);
 //-------------------------- miscellaneous ---------------------------------------------------------
 
 // returns the smallest distance between two geoms
-MJAPI mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2,
-                             mjtNum distmax, mjtNum fromto[6]);
+MJAPI mjtNum mj_geomDistance(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum distmax,
+                             mjtNum fromto[6]);
 
 // compute velocity by finite-differencing two positions
 MJAPI void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
