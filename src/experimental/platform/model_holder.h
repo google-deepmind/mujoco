@@ -64,7 +64,7 @@ class ModelHolder {
   mjModel* ReleaseModel();
 
  private:
-  ModelHolder() = default;
+  ModelHolder();
   void InitFromSpec(mjSpec* spec);
   void InitFromFile(std::string_view filepath);
   void InitFromBuffer(std::span<const std::byte> buffer,
