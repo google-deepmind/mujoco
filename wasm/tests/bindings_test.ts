@@ -2603,4 +2603,56 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 
+  it('should load a model from an XML string', () => {
+    let model: MjModel|null = null;
+    try {
+      model = mujoco.from_xml_string(TEST_XML);
+      assertExists(model);
+      expect(model.nbody).toBe(5);
+      expect(model.ngeom).toBe(3);
+    } finally {
+      model?.delete();
+    }
+  });
+
+  it('should load a model from an XML string with VFS', () => {
+    const xml = `
+    <mujoco>
+      <asset>
+        <mesh file="cube.obj"/>
+      </asset>
+      <worldbody>
+        <geom type="mesh" mesh="cube"/>
+      </worldbody>
+    </mujoco>`;
+
+    const cube1 = `
+    v -1 -1  1
+    v  1 -1  1
+    v -1  1  1
+    v  1  1  1
+    v -1  1 -1
+    v  1  1 -1
+    v -1 -1 -1
+    v  1 -1 -1`;
+
+    let model: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+    try {
+      vfs = new mujoco.MjVFS();
+      vfs.addBuffer('cube.obj', new TextEncoder().encode(cube1));
+      assertExists(vfs);
+
+      model = mujoco.from_xml_string(xml, vfs);
+      assertExists(model);
+      expect(model.nmesh).toBe(1);
+
+      const meshId =
+          mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MESH.value, 'cube');
+      expect(meshId).toBeGreaterThanOrEqual(0);
+    } finally {
+      model?.delete();
+      vfs?.delete();
+    }
+  });
 });

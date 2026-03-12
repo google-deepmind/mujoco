@@ -307,7 +307,7 @@ The function `mjv_updateScene` populates an `mjvScene` object with information
 from `mjModel` and `mjData`.
 ```typescript
 // Create instances of the necessary structs.
-const model = mujoco.MjModel.loadFromXML(xmlContent);
+const model = mujoco.MjModel.from_xml_string(xmlContent);
 const data = new mujoco.MjData(model);
 const scene = new mujoco.MjvScene(model, 1000);
 const option = new mujoco.MjvOption();
