@@ -223,6 +223,7 @@ package_wasm() {
     cp wasm/README.md wasm/dist/README.md
     VERSION="${VERSION:-${GITHUB_REF#refs/tags/}}"
     npm --prefix wasm/dist version "${VERSION}" --no-git-tag-version
+    npm pack --dry-run ./wasm/dist
     npm publish ./wasm/dist --access public --provenance
 }
 
