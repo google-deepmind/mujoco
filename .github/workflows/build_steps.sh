@@ -221,14 +221,9 @@ package_wasm() {
     echo "Publishing WASM bindings..."
     cp wasm/package.npm.json wasm/dist/package.json
     cp wasm/README.md wasm/dist/README.md
-
     VERSION="${VERSION:-${GITHUB_REF#refs/tags/}}"
     npm --prefix wasm/dist version "${VERSION}" --no-git-tag-version
-
-    echo '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' > ~/.npmrc
-
-    npm pack --dry-run ./wasm/dist
-    npm publish ./wasm/dist --access public
+    npm publish ./wasm/dist --access public --provenance
 }
 
 
