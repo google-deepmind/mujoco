@@ -30,7 +30,7 @@ jobs:
     - name: Setup Node.js for WASM bindings
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '24.x'
 
     - name: Prepare Linux
       run: bash ./.github/workflows/build_steps.sh prepare_linux
@@ -46,6 +46,5 @@ jobs:
 
     - name: Package WASM bindings
       env:
-        NPM_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         VERSION: ${{ env.VERSION }}
       run: bash ./.github/workflows/build_steps.sh package_wasm
