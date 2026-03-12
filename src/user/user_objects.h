@@ -299,8 +299,11 @@ class mjCOctree : public mjCOctree_ {
            sizeof(Point) * vert_.size();
   }
   void Clear() {
+    nnode_ = 0;
+    nvert_ = 0;
     node_.clear();
-    face_.clear();
+    vert_.clear();
+    hang_.clear();
   }
   void AddCoeff(int n, int v, double coeff) { node_[n].coeff[v] = coeff; }
   double Coeff(int n, int v) const { return node_[n].coeff[v]; }
@@ -1071,7 +1074,7 @@ class mjCMesh_ : public mjCBase {
   std::string content_type_ = "";                // content type of file
   std::string file_;                             // mesh file
   mjResource* resource_ = nullptr;               // resource for mesh file
-  std::vector<double> vert_;                      // vertex data
+  std::vector<float> vert_;                      // vertex data
   std::vector<float> normal_;                    // normal data
   std::vector<float> texcoord_;                  // texcoord data
   std::vector<int> face_;                        // vertex indices
@@ -1156,8 +1159,8 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const double* Refquat() const { return refquat; }
   const double* Scale() const { return scale; }
   bool SmoothNormal() const { return smoothnormal; }
-  const std::vector<double>& Vert() const { return vert_; }
-  double Vert(int i) const { return vert_[i]; }
+  const std::vector<float>& Vert() const { return vert_; }
+  float Vert(int i) const { return vert_[i]; }
   const std::vector<float>& UserVert() const { return spec_vert_; }
   const std::vector<float>& UserNormal() const { return spec_normal_; }
   const std::vector<float>& Texcoord() const { return texcoord_; }
@@ -1233,7 +1236,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void CopyPolygonNormals(mjtNum* arr);
 
   // sets properties of a bounding volume given a face id
-  void SetBoundingVolume(int faceid);
+  void SetBoundingVolume(int faceid, const double* dvert);
 
   // load from OBJ, STL, or MSH file; throws mjCError on failure
   void LoadFromResource(mjResource* resource, bool remove_repeated = false);
@@ -1264,22 +1267,22 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void LoadMSH(mjResource* resource, bool remove_repeated);  // load mesh in MSH BIN format
 
   void LoadSDF();                               // generate mesh using marching cubes
-  void MakeGraph();                             // make graph of convex hull
+  void MakeGraph(const double* dvert);          // make graph of convex hull
   void CopyGraph();                             // copy graph into face data
-  void MakeNormal();                            // compute vertex normals
-  void MakeCenter();                            // compute face circumcircle data
+  void MakeNormal(const double* dvert);         // compute vertex normals
+  void MakeCenter(const double* dvert);         // compute face circumcircle data
   void Process();                               // compute inertial properties
-  void ApplyTransformations();                  // apply user transformations
-  double ComputeFaceCentroid(double[3]) const;  // compute centroid of all faces
+  void ApplyTransformations(double* dvert);      // apply user transformations
+  double ComputeFaceCentroid(double[3], const double* dvert) const;
   void CheckInitialMesh() const;                // check if initial mesh is valid
   void CopyPlugin();
-  void Rotate(double quat[4]);                      // rotate mesh by quaternion
+  void Rotate(double quat[4], double* dvert);       // rotate mesh by quaternion
   void Transform(double pos[3], double quat[4]);    // transform mesh by position and quaternion
-  void MakePolygons();                              // compute the polygon sides of the mesh
-  void MakePolygonNormals();                        // compute the normals of the polygons
+  void MakePolygons(const double* dvert);            // compute the polygon sides of the mesh
+  void MakePolygonNormals(const double* dvert);     // compute the normals of the polygons
 
   // computes the inertia matrix of the mesh given the type of inertia
-  double ComputeInertia(double inert[6], const double CoM[3]) const;
+  double ComputeInertia(double inert[6], const double CoM[3], const double* dvert) const;
 
   int* GraphFaces() const {
     return graph_ + 2 + 3*(graph_[0] + graph_[1]);
@@ -1295,9 +1298,8 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   std::vector<std::vector<int>> polygon_map_;   // map from vertex to polygon
 
   // compute the volume and center-of-mass of the mesh given the face centroid
-  double ComputeVolume(double CoM[3], const double facecen[3]) const;
-  // compute the surface area and center-of-mass of the mesh given the face centroid
-  double ComputeSurfaceArea(double CoM[3], const double facecen[3]) const;
+  double ComputeVolume(double CoM[3], const double facecen[3], const double* dvert) const;
+  double ComputeSurfaceArea(double CoM[3], const double facecen[3], const double* dvert) const;
 };
 
 

@@ -93,27 +93,28 @@ static void AddEditorButtons(mjsElement* element, mjsElement** selected_element,
     if (ImGui::SmallButton(ICON_FA_PLUS)) {
       ImGui::OpenPopupOnItemClick("BodyAddChild", 0);
     }
+
+    if (ImGui::BeginPopupContextItem("BodyAddChild")) {
+      mjsBody* body = mjs_asBody(element);
+      auto option = [&](const char* label, mjtObj type) {
+        if (ImGui::Selectable(label)) {
+          *selected_element = editor.AddBodyElement(body, type);
+        }
+      };
+      option("Camera", mjOBJ_CAMERA);
+      option("Frame", mjOBJ_FRAME);
+      option("Geom", mjOBJ_GEOM);
+      option("Joint", mjOBJ_JOINT);
+      option("Light", mjOBJ_LIGHT);
+      option("Site", mjOBJ_SITE);
+      ImGui::EndPopup();
+    }
+
     ImGui::SameLine();
   }
   if (ImGui::SmallButton(ICON_FA_TRASH_CAN)) {
     editor.DeleteActiveElement();
     *selected_element = nullptr;
-  }
-
-  if (ImGui::BeginPopupContextItem("BodyAddChild")) {
-    mjsBody* body = mjs_asBody(element);
-    auto option = [&](const char* label, mjtObj type) {
-      if (ImGui::Selectable(label)) {
-        *selected_element = editor.AddBodyElement(body, type);
-      }
-    };
-    option("Camera", mjOBJ_CAMERA);
-    option("Frame", mjOBJ_FRAME);
-    option("Geom", mjOBJ_GEOM);
-    option("Joint", mjOBJ_JOINT);
-    option("Light", mjOBJ_LIGHT);
-    option("Site", mjOBJ_SITE);
-    ImGui::EndPopup();
   }
 }
 

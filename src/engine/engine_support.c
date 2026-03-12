@@ -43,8 +43,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 3006000
-#define mjVERSIONSTRING "3.6.0"
+ #define mjVERSION 3007000
+#define mjVERSIONSTRING "3.7.0"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -524,7 +524,7 @@ void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc) {
 //-------------------------- miscellaneous ---------------------------------------------------------
 
 // returns the smallest distance between two geoms (using nativeccd)
-static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int g2,
+static mjtNum mj_geomDistanceCCD(const mjModel* m, mjData* d, int g1, int g2,
                                  mjtNum distmax, mjtNum fromto[6]) {
   mjCCDConfig config;
   mjCCDStatus status;
@@ -553,7 +553,7 @@ static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int 
 
 
 // returns the smallest distance between two geoms
-mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, mjtNum distmax,
+mjtNum mj_geomDistance(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum distmax,
                        mjtNum fromto[6]) {
   mjContact con[mjMAXCONPAIR];
   mjtNum dist = distmax;

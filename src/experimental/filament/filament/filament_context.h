@@ -89,6 +89,8 @@ class FilamentContext {
   std::unique_ptr<ObjectManager> object_manager_;
   std::unique_ptr<SceneView> scene_view_;
   std::unique_ptr<GuiView> gui_view_;
+  int window_width_ = 0;
+  int window_height_ = 0;
 };
 
 }  // namespace mujoco

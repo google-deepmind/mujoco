@@ -492,7 +492,7 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
 
   // calculate estimated size of mesh
   std::size_t size = sizeof(mjCMesh)
-                     + (sizeof(double) * vert_.size())
+                     + (sizeof(float) * vert_.size())
                      + (sizeof(float) * normal_.size())
                      + (sizeof(float) * texcoord_.size())
                      + (sizeof(int) * face_.size())
@@ -538,7 +538,7 @@ struct VertexKey {
 
 
 
-// convert vertices to double precision and remove repeated vertices if requested
+// process and remove repeated vertices if requested
 void mjCMesh::ProcessVertices(const std::vector<float>& vert, bool remove_repeated) {
   vert_.clear();
   int nvert = vert.size();
@@ -647,19 +647,6 @@ void mjCMesh::LoadFromDecoder(mjResource* resource, bool remove_repeated) {
       facenormal_.assign(src_mesh->userfacenormal->begin(), src_mesh->userfacenormal->end());
       facetexcoord_.assign(src_mesh->userfacetexcoord->begin(), src_mesh->userfacetexcoord->end());
 
-      // correct winding order for left-handed coordinate systems
-      bool righthand = scale[0] * scale[1] * scale[2] > 0;
-      if (!righthand) {
-        for (size_t i = 0; i < face_.size(); i += 3) {
-          std::swap(face_[i + 1], face_[i + 2]);
-        }
-        for (size_t i = 0; i < facenormal_.size(); i += 3) {
-          std::swap(facenormal_[i + 1], facenormal_[i + 2]);
-        }
-        for (size_t i = 0; i < facetexcoord_.size(); i += 3) {
-          std::swap(facetexcoord_[i + 1], facetexcoord_[i + 2]);
-        }
-      }
 
       std::vector<float> vert(src_mesh->uservert->begin(), src_mesh->uservert->end());
       mj_deleteSpec(mesh_spec);
@@ -788,24 +775,24 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
   // compute mesh properties
   if (!fromCache) {
     Process();
-  }
 
-  // make octree
-  if (!needsdf) {
-    octree_.Clear();  // this occurs when a non-SDF mesh is loaded from a cached SDF mesh
-  } else if (octree_.NumNodes() == 0) {
-    octree_.SetFace(vert_, face_);
-    octree_.CreateOctree(aamm_);
-
-    // compute sdf coefficients
-    if (!plugin.active) {
-      octree_.ComputeSdfCoeffs(vert_.data(), nvert(), face_.data(), nface(), tree_);
+    if (!file_.empty()) {
+      CacheMesh(cache, resource_);
     }
-  }
-
-  // cache mesh
-  if (!fromCache && !file_.empty()) {
-    CacheMesh(cache, resource_);
+  } else {
+    // When a mesh is loaded from the cache, has no octree but needs one,
+    // we need to compute it here. If inversely it has an octree but we *do not*
+    // need one, we clear it.
+    if (!needsdf) {
+      octree_.Clear();
+    } else if (octree_.NumNodes() == 0) {
+      std::vector<double> dvert(vert_.begin(), vert_.end());
+      octree_.SetFace(dvert, face_);
+      octree_.CreateOctree(aamm_);
+      if (!plugin.active) {
+        octree_.ComputeSdfCoeffs(dvert.data(), nvert(), face_.data(), nface(), tree_);
+      }
+    }
   }
 
   // close resource
@@ -818,18 +805,18 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
 
 
 // get bounding volume
-void mjCMesh::SetBoundingVolume(int faceid) {
+void mjCMesh::SetBoundingVolume(int faceid, const double* dvert) {
   constexpr double kMaxVal = std::numeric_limits<double>::max();
   double face_aamm[6] = {kMaxVal, kMaxVal, kMaxVal, -kMaxVal, -kMaxVal, -kMaxVal};
 
   for (int j = 0; j < 3; j++) {
     int vertid = face_[3*faceid + j];
-    face_aamm[0] = std::min(face_aamm[0], vert_[3*vertid + 0]);
-    face_aamm[1] = std::min(face_aamm[1], vert_[3*vertid + 1]);
-    face_aamm[2] = std::min(face_aamm[2], vert_[3*vertid + 2]);
-    face_aamm[3] = std::max(face_aamm[3], vert_[3*vertid + 0]);
-    face_aamm[4] = std::max(face_aamm[4], vert_[3*vertid + 1]);
-    face_aamm[5] = std::max(face_aamm[5], vert_[3*vertid + 2]);
+    face_aamm[0] = std::min(face_aamm[0], dvert[3*vertid + 0]);
+    face_aamm[1] = std::min(face_aamm[1], dvert[3*vertid + 1]);
+    face_aamm[2] = std::min(face_aamm[2], dvert[3*vertid + 2]);
+    face_aamm[3] = std::max(face_aamm[3], dvert[3*vertid + 0]);
+    face_aamm[4] = std::max(face_aamm[4], dvert[3*vertid + 1]);
+    face_aamm[5] = std::max(face_aamm[5], dvert[3*vertid + 2]);
   }
 
   face_aabb_.push_back(.5 * (face_aamm[0] + face_aamm[3]));
@@ -864,9 +851,7 @@ bool mjCMesh::HasTexcoord() const {
 
 
 void mjCMesh::CopyVert(float* arr) const {
-  for (int i = 0; i < vert_.size(); ++i) {
-    arr[i] = (float)vert_[i];
-  }
+  std::copy(vert_.begin(), vert_.end(), arr);
 }
 
 
@@ -1200,16 +1185,15 @@ void mjCMesh::LoadMSH(mjResource* resource, bool remove_repeated) {
 
 
 // compute the volume and center-of-mass of the mesh given the face centroid
-double mjCMesh::ComputeVolume(double CoM[3], const double facecen[3]) const {
+double mjCMesh::ComputeVolume(double CoM[3], const double facecen[3], const double* dvert) const {
   double normal[3], center[3], total_volume = 0;
   CoM[0] = CoM[1] = CoM[2] = 0;
   int nf = (inertia == mjMESH_INERTIA_CONVEX) ? graph_[1] : nface();
   const int* f = (inertia == mjMESH_INERTIA_CONVEX) ? GraphFaces() : face_.data();
 
   for (int i = 0; i < nf; i++) {
-    // get area, normal and center
-    double area = triangle(normal, center, &vert_[3*f[3*i]], &vert_[3*f[3*i + 1]],
-                           &vert_[3*f[3*i + 2]]);
+    double area = triangle(normal, center, &dvert[3*f[3*i]], &dvert[3*f[3*i + 1]],
+                           &dvert[3*f[3*i + 2]]);
 
     // compute and add volume
     double vec[3] = {center[0] - facecen[0], center[1] - facecen[1], center[2] - facecen[2]};
@@ -1239,14 +1223,13 @@ double mjCMesh::ComputeVolume(double CoM[3], const double facecen[3]) const {
 
 
 // compute the surface area and center-of-mass of the mesh given the face centroid
-double mjCMesh::ComputeSurfaceArea(double CoM[3], const double facecen[3]) const {
+double mjCMesh::ComputeSurfaceArea(double CoM[3], const double facecen[3], const double* dvert) const {
   double surface = 0;
   CoM[0] = CoM[1] = CoM[2] = 0;
   for (int i = 0; i < nface(); i++) {
-    // get area and center
     double area, center[3];
-    area = triangle(nullptr, center, &vert_[3*face_[3*i]],
-                    &vert_[3*face_[3*i + 1]], &vert_[3*face_[3*i + 2]]);
+    area = triangle(nullptr, center, &dvert[3*face_[3*i]],
+                    &dvert[3*face_[3*i + 1]], &dvert[3*face_[3*i + 2]]);
 
     // add pyramid com
     surface += area;
@@ -1267,28 +1250,24 @@ double mjCMesh::ComputeSurfaceArea(double CoM[3], const double facecen[3]) const
 
 
 // apply transformations
-void mjCMesh::ApplyTransformations() {
-  // translate
+void mjCMesh::ApplyTransformations(double* dvert) {
   if (refpos[0] != 0 || refpos[1] != 0 || refpos[2] != 0) {
     int nv = nvert();
     for (int i = 0; i < nv; i++) {
-      vert_[3*i + 0] -= refpos[0];
-      vert_[3*i + 1] -= refpos[1];
-      vert_[3*i + 2] -= refpos[2];
+      dvert[3*i + 0] -= refpos[0];
+      dvert[3*i + 1] -= refpos[1];
+      dvert[3*i + 2] -= refpos[2];
     }
   }
 
-  // rotate
   if (refquat[0] != 1 || refquat[1] != 0 || refquat[2] != 0 || refquat[3] != 0) {
-    // prepare rotation
     double quat[4] = {refquat[0], refquat[1], refquat[2], refquat[3]};
     double mat[9];
     mjuu_normvec(quat, 4);
     mjuu_quat2mat(mat, quat);
 
-    // process vertices
     for (int i = 0; i < nvert(); i++) {
-      mjuu_mulvecmatT(&vert_[3*i], &vert_[3*i], mat);
+      mjuu_mulvecmatT(&dvert[3*i], &dvert[3*i], mat);
     }
 
     // process normals
@@ -1304,9 +1283,9 @@ void mjCMesh::ApplyTransformations() {
   // scale
   if (scale[0] != 1 || scale[1] != 1 || scale[2] != 1) {
     for (int i = 0; i < nvert(); i++) {
-      vert_[3*i + 0] *= scale[0];
-      vert_[3*i + 1] *= scale[1];
-      vert_[3*i + 2] *= scale[2];
+      dvert[3*i + 0] *= scale[0];
+      dvert[3*i + 1] *= scale[1];
+      dvert[3*i + 2] *= scale[2];
     }
 
     for (int i = 0; i < nnormal(); i++) {
@@ -1338,14 +1317,13 @@ void mjCMesh::ApplyTransformations() {
 
 
 // find centroid of faces, return total area
-double mjCMesh::ComputeFaceCentroid(double facecen[3]) const {
+double mjCMesh::ComputeFaceCentroid(double facecen[3], const double* dvert) const {
   double total_area = 0;
 
   for (int i = 0; i < nface(); i++) {
-    // get area and center
     double area, center[3];
-    area = triangle(nullptr, center, &vert_[3*face_[3*i]],
-                    &vert_[3*face_[3*i + 1]], &vert_[3*face_[3*i + 2]]);
+    area = triangle(nullptr, center, &dvert[3*face_[3*i]],
+                    &dvert[3*face_[3*i + 1]], &dvert[3*face_[3*i + 2]]);
 
     // accumulate
     facecen[0] += area * center[0];
@@ -1366,13 +1344,15 @@ double mjCMesh::ComputeFaceCentroid(double facecen[3]) const {
 
 
 void mjCMesh::Process() {
+  std::vector<double> dvert(vert_.begin(), vert_.end());
+
   // create half-edge structure (if mesh was in XML)
   if (halfedge_.empty()) {
     for (int i = 0; i < nface(); i++) {
       int v0 = face_[3*i + 0];
       int v1 = face_[3*i + 1];
       int v2 = face_[3*i + 2];
-      if (triangle(nullptr, nullptr, &vert_[3*v0], &vert_[3*v1], &vert_[3*v2]) > sqrt(mjMINVAL)) {
+      if (triangle(nullptr, nullptr, &dvert[3*v0], &dvert[3*v1], &dvert[3*v2]) > sqrt(mjMINVAL)) {
         halfedge_.push_back({v0, v1});
         halfedge_.push_back({v1, v2});
         halfedge_.push_back({v2, v0});
@@ -1396,7 +1376,7 @@ void mjCMesh::Process() {
 
   // make graph describing convex hull
   if (needhull_ || face_.empty()) {
-    MakeGraph();
+    MakeGraph(dvert.data());
   }
 
   // no faces: copy from convex hull
@@ -1406,7 +1386,7 @@ void mjCMesh::Process() {
 
   // no normals: make
   if (normal_.empty()) {
-    MakeNormal();
+    MakeNormal(dvert.data());
   }
 
   // check facenormal size
@@ -1429,17 +1409,31 @@ void mjCMesh::Process() {
   }
 
   if (szgraph_) {
-    MakePolygons();
+    MakePolygons(dvert.data());
   } else {
     polygon_map_.resize(nvert());
   }
 
+  // correct winding order for left-handed coordinate systems
+  bool righthand = scale[0] * scale[1] * scale[2] > 0;
+  if (!righthand) {
+    for (size_t i = 0; i < face_.size(); i += 3) {
+      std::swap(face_[i + 1], face_[i + 2]);
+    }
+    for (size_t i = 0; i < facenormal_.size(); i += 3) {
+      std::swap(facenormal_[i + 1], facenormal_[i + 2]);
+    }
+    for (size_t i = 0; i < facetexcoord_.size(); i += 3) {
+      std::swap(facetexcoord_[i + 1], facetexcoord_[i + 2]);
+    }
+  }
+
   // user offset, rotation, scaling
-  ApplyTransformations();
+  ApplyTransformations(dvert.data());
 
   // find centroid of faces
   double facecen[3] = {0, 0, 0};
-  if (ComputeFaceCentroid(facecen) < mjMINVAL) {
+  if (ComputeFaceCentroid(facecen, dvert.data()) < mjMINVAL) {
     throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
   }
 
@@ -1450,12 +1444,12 @@ void mjCMesh::Process() {
 
   // compute CoM and volume/area
   if (inertia == mjMESH_INERTIA_SHELL) {
-    surface_ = ComputeSurfaceArea(CoM, facecen);
+    surface_ = ComputeSurfaceArea(CoM, facecen, dvert.data());
     if (surface_ < mjMINVAL) {
       throw mjCError(this, "mesh surface area is too small: %s", name.c_str());
     }
   } else {
-    if ((volume_ = ComputeVolume(CoM, facecen)) < mjMINVAL) {
+    if ((volume_ = ComputeVolume(CoM, facecen, dvert.data())) < mjMINVAL) {
       if (volume_ < 0) {
         throw mjCError(this, "mesh volume is negative (misoriented triangles): %s", name.c_str());
       } else {
@@ -1466,7 +1460,7 @@ void mjCMesh::Process() {
   }
 
   // compute inertia
-  double total_volume = ComputeInertia(inert, CoM);
+  double total_volume = ComputeInertia(inert, CoM, dvert.data());
   if (inertia == mjMESH_INERTIA_SHELL) {
     surface_ = total_volume;
   } else {
@@ -1510,11 +1504,11 @@ void mjCMesh::Process() {
 
   // transform CoM to origin
   for (int i=0; i < nvert(); i++) {
-    vert_[3*i + 0] -= CoM[0];
-    vert_[3*i + 1] -= CoM[1];
-    vert_[3*i + 2] -= CoM[2];
+    dvert[3*i + 0] -= CoM[0];
+    dvert[3*i + 1] -= CoM[1];
+    dvert[3*i + 2] -= CoM[2];
   }
-  Rotate(quattmp);
+  Rotate(quattmp, dvert.data());
 
   // save the pos and quat that was used to transform the mesh
   mjuu_copyvec(pos_, CoM, 3);
@@ -1524,11 +1518,11 @@ void mjCMesh::Process() {
 
   // no radii: make
   if (!center_) {
-    MakeCenter();
+    MakeCenter(dvert.data());
   }
 
   // recompute polygon normals
-  MakePolygonNormals();
+  MakePolygonNormals(dvert.data());
 
   // make bounding volume hierarchy
   if (tree_.Bvh().empty()) {
@@ -1536,16 +1530,31 @@ void mjCMesh::Process() {
     face_aabb_.reserve(3*face_.size());
     tree_.AllocateBoundingVolumes(nface());
     for (int i = 0; i < nface(); i++) {
-      SetBoundingVolume(i);
+      SetBoundingVolume(i, dvert.data());
     }
     tree_.CreateBVH();
+  }
+
+  // make octree
+  if (needsdf) {
+    octree_.SetFace(dvert, face_);
+    octree_.CreateOctree(aamm_);
+
+    if (!plugin.active) {
+      octree_.ComputeSdfCoeffs(dvert.data(), nvert(), face_.data(), nface(), tree_);
+    }
+  }
+
+  // narrow back to float
+  for (int i = 0; i < (int)dvert.size(); i++) {
+    vert_[i] = (float)dvert[i];
   }
 }
 
 
 
 // compute abstract (unitless) inertia, recompute area / volume
-double mjCMesh::ComputeInertia(double inert[6], const double CoM[3]) const {
+double mjCMesh::ComputeInertia(double inert[6], const double CoM[3], const double* dvert) const {
   double total_volume = 0;
 
   // copy vertices to avoid modifying the original mesh
@@ -1554,9 +1563,9 @@ double mjCMesh::ComputeInertia(double inert[6], const double CoM[3]) const {
 
   // translate vertices to origin in order to compute inertia
   for (int i =  0; i < nvert(); i++) {
-    vert_centered.push_back(vert_[3*i + 0] - CoM[0]);
-    vert_centered.push_back(vert_[3*i + 1] - CoM[1]);
-    vert_centered.push_back(vert_[3*i + 2] - CoM[2]);
+    vert_centered.push_back(dvert[3*i + 0] - CoM[0]);
+    vert_centered.push_back(dvert[3*i + 1] - CoM[1]);
+    vert_centered.push_back(dvert[3*i + 2] - CoM[2]);
   }
 
   // accumulate products of inertia, recompute volume
@@ -1611,22 +1620,20 @@ double mjCMesh::ComputeInertia(double inert[6], const double CoM[3]) const {
 
 
 
-void mjCMesh::Rotate(double quat[4]) {
-  // rotate vertices and normals of mesh by quaternion
+void mjCMesh::Rotate(double quat[4], double* dvert) {
   double neg[4] = {quat[0], -quat[1], -quat[2], -quat[3]};
   double mat[9];
   mjuu_quat2mat(mat, neg);
   int nv = nvert();
   for (int i = 0; i < nv; i++) {
-    mjuu_mulvecmat(&vert_[3*i], &vert_[3*i], mat);
+    mjuu_mulvecmat(&dvert[3*i], &dvert[3*i], mat);
 
-    // axis-aligned bounding box
-    aamm_[0] = std::min(aamm_[0], vert_[3*i + 0]);
-    aamm_[3] = std::max(aamm_[3], vert_[3*i + 0]);
-    aamm_[1] = std::min(aamm_[1], vert_[3*i + 1]);
-    aamm_[4] = std::max(aamm_[4], vert_[3*i + 1]);
-    aamm_[2] = std::min(aamm_[2], vert_[3*i + 2]);
-    aamm_[5] = std::max(aamm_[5], vert_[3*i + 2]);
+    aamm_[0] = std::min(aamm_[0], dvert[3*i + 0]);
+    aamm_[3] = std::max(aamm_[3], dvert[3*i + 0]);
+    aamm_[1] = std::min(aamm_[1], dvert[3*i + 1]);
+    aamm_[4] = std::max(aamm_[4], dvert[3*i + 1]);
+    aamm_[2] = std::min(aamm_[2], dvert[3*i + 2]);
+    aamm_[5] = std::max(aamm_[5], dvert[3*i + 2]);
   }
 
   for (int i=0; i < nnormal(); i++) {
@@ -1698,7 +1705,7 @@ double mjCMesh::GetVolumeRef() const {
 
 
 // make graph describing convex hull
-void mjCMesh::MakeGraph() {
+void mjCMesh::MakeGraph(const double* dvert) {
   int adr, ok, curlong, totlong, exitcode;
   facetT* facet, **facetp;
   vertexT* vertex, *vertex1, **vertex1p;
@@ -1727,7 +1734,7 @@ void mjCMesh::MakeGraph() {
   if (!exitcode) {
     // actual init
     qh_initflags(qh, const_cast<char*>(qhopt.c_str()));
-    qh_init_B(qh, vert_.data(), nvert(), 3, qh_False);
+    qh_init_B(qh, const_cast<double*>(dvert), nvert(), 3, qh_False);
 
     // construct convex hull
     qh_qhull(qh);
@@ -2402,7 +2409,7 @@ void mjCMesh::MakeCone(int nedge, double radius) {
 
 
 // compute vertex normals
-void mjCMesh::MakeNormal() {
+void mjCMesh::MakeNormal(const double* dvert) {
   // only if normal data is missing
   if (!normal_.empty()) {
     return;
@@ -2426,8 +2433,8 @@ void mjCMesh::MakeNormal() {
     // get triangle edges
     double vec01[3], vec02[3];
     for (int j=0; j < 3; j++) {
-      vec01[j] = vert_[3*vertid[1]+j] - vert_[3*vertid[0]+j];
-      vec02[j] = vert_[3*vertid[2]+j] - vert_[3*vertid[0]+j];
+      vec01[j] = dvert[3*vertid[1]+j] - dvert[3*vertid[0]+j];
+      vec02[j] = dvert[3*vertid[2]+j] - dvert[3*vertid[0]+j];
     }
 
     // compute face normal
@@ -2461,8 +2468,8 @@ void mjCMesh::MakeNormal() {
       // get triangle edges
       double vec01[3], vec02[3];
       for (int j=0; j < 3; j++) {
-        vec01[j] = vert_[3*vertid[1]+j] - vert_[3*vertid[0]+j];
-        vec02[j] = vert_[3*vertid[2]+j] - vert_[3*vertid[0]+j];
+        vec01[j] = dvert[3*vertid[1]+j] - dvert[3*vertid[0]+j];
+        vec02[j] = dvert[3*vertid[2]+j] - dvert[3*vertid[0]+j];
       }
 
       // compute face normal
@@ -2514,7 +2521,7 @@ void mjCMesh::MakeNormal() {
 
 
 // compute face circumradii
-void mjCMesh::MakeCenter() {
+void mjCMesh::MakeCenter(const double* dvert) {
   if (center_) {
     return;
   }
@@ -2530,8 +2537,8 @@ void mjCMesh::MakeCenter() {
     // get triangle edges
     double a[3], b[3];
     for (int j=0; j < 3; j++) {
-      a[j] = vert_[3*vertid[0]+j] - vert_[3*vertid[2]+j];
-      b[j] = vert_[3*vertid[1]+j] - vert_[3*vertid[2]+j];
+      a[j] = dvert[3*vertid[0]+j] - dvert[3*vertid[2]+j];
+      b[j] = dvert[3*vertid[1]+j] - dvert[3*vertid[2]+j];
     }
 
     // compute face normal
@@ -2550,20 +2557,20 @@ void mjCMesh::MakeCenter() {
       norm_a_2 * b[2] - norm_b_2 * a[2]
     };
     mjuu_crossvec(res, vec, nrm);
-    center_[3*i+0] = res[0]/(2*area*area) + vert_[3*vertid[2]+0];
-    center_[3*i+1] = res[1]/(2*area*area) + vert_[3*vertid[2]+1];
-    center_[3*i+2] = res[2]/(2*area*area) + vert_[3*vertid[2]+2];
+    center_[3*i+0] = res[0]/(2*area*area) + dvert[3*vertid[2]+0];
+    center_[3*i+1] = res[1]/(2*area*area) + dvert[3*vertid[2]+1];
+    center_[3*i+2] = res[2]/(2*area*area) + dvert[3*vertid[2]+2];
   }
 }
 
 
 
 // compute the normals of the polygons
-void mjCMesh::MakePolygonNormals() {
+void mjCMesh::MakePolygonNormals(const double* dvert) {
   for (int i = 0; i < polygons_.size(); ++i) {
     double n[3];
-    mjuu_makenormal(n, &vert_[3*polygons_[i][0]], &vert_[3*polygons_[i][1]],
-                    &vert_[3*polygons_[i][2]]);
+    mjuu_makenormal(n, &dvert[3*polygons_[i][0]], &dvert[3*polygons_[i][1]],
+                    &dvert[3*polygons_[i][2]]);
     polygon_normals_[3*i + 0] = n[0];
     polygon_normals_[3*i + 1] = n[1];
     polygon_normals_[3*i + 2] = n[2];
@@ -2802,7 +2809,7 @@ struct PairHash {
 
 
 // merge coplanar mesh triangular faces into polygonal sides to represent the geometry of the mesh
-void mjCMesh::MakePolygons() {
+void mjCMesh::MakePolygons(const double* dvert) {
   constexpr double kAngleTol = 0.01;
   std::unordered_map<std::pair<double, double>, MeshPolygon, PairHash> mesh_polygons;
   polygons_.clear();
@@ -2819,9 +2826,9 @@ void mjCMesh::MakePolygons() {
     int vi1 = faces[3*i + 0];
     int vi2 = faces[3*i + 1];
     int vi3 = faces[3*i + 2];
-    double* v1 = &vert_[3*vi1];
-    double* v2 = &vert_[3*vi2];
-    double* v3 = &vert_[3*vi3];
+    const double* v1 = &dvert[3*vi1];
+    const double* v2 = &dvert[3*vi2];
+    const double* v3 = &dvert[3*vi3];
 
     std::pair<double, double> key;
     if (!MeshPolygonKey(key, v1, v2, v3, kAngleTol)) {

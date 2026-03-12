@@ -96,7 +96,7 @@ class VFS {
   // This is useful for when you want to create a temporary VFS instance with
   // a lifetime tied to a single mjResource to be opened. The `destructor`
   // should be set to `delete this` and any other cleanup that needs to happen.
-  void SetToSelfDestruct(std::function<void(mjVFS*)> destructor);
+  void SetToSelfDestruct(std::function<void()> destructor);
 
   // Converts the public C-API pointer to the internal C++ class.
   static VFS* Upcast(mjVFS* vfs);
@@ -117,13 +117,13 @@ class VFS {
   // that `this` will be invalidated after this call.
   void MaybeSelfDestruct();
 
-  mjVFS* self_;
+  mjVFS wrapped_vfs_;
   std::mutex mutex_;  // Protects open_resources_ and mounts_.
   std::unordered_map<mjResource*, ResourcePtr> open_resources_;
   std::unordered_map<std::string, ResourcePtr> mounts_;
   mjResource default_mount_;
   mjpResourceProvider default_provider_;
-  std::function<void(mjVFS*)> destructor_;
+  std::function<void()> destructor_;
 };
 
 }  // namespace mujoco::user

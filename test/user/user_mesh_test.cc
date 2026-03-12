@@ -1086,6 +1086,71 @@ TEST_F(MjCMeshTest, MeshScale) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh" scale="-1 1 1" inertia="exact"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1  0 3 2  1 3 0  1 2 3" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, NegativeScaleUserMeshMatchesPositiveScale) {
+  static constexpr char pos_xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="pos_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1  0 3 2  1 3 0  1 2 3" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="pos_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char neg_xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="neg_mesh" scale="-1 1 1"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1  0 3 2  1 3 0  1 2 3" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="neg_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* pos_model = LoadModelFromString(pos_xml, error, sizeof(error));
+  ASSERT_THAT(pos_model, NotNull()) << error;
+
+  mjModel* neg_model = LoadModelFromString(neg_xml, error, sizeof(error));
+  ASSERT_THAT(neg_model, NotNull()) << error;
+
+  ASSERT_EQ(pos_model->nmeshface, neg_model->nmeshface);
+
+  for (int i = 0; i < pos_model->nmeshface; i++) {
+    EXPECT_EQ(pos_model->mesh_face[3*i + 0], neg_model->mesh_face[3*i + 0]);
+    EXPECT_EQ(pos_model->mesh_face[3*i + 1], neg_model->mesh_face[3*i + 2]);
+    EXPECT_EQ(pos_model->mesh_face[3*i + 2], neg_model->mesh_face[3*i + 1]);
+  }
+
+  mj_deleteModel(pos_model);
+  mj_deleteModel(neg_model);
+}
+
 TEST_F(MjCMeshTest, ShellInertiaTest) {
   static constexpr char xml[] = R"(
   <mujoco>

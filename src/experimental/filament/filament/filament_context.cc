@@ -140,6 +140,19 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
     mju_error("Unexpected context.");
   }
 
+  // If we're rendering to the window, and the window size has changed, we need
+  // to reacquire the swap chain.
+  if (scene_swap_chain_target_ == kWindowSwapChain &&
+      (viewport.width != window_width_ || viewport.height != window_height_)) {
+    if (window_width_ != 0 && window_height_ != 0) {
+      engine_->flushAndWait();
+      engine_->destroy(window_swap_chain_);
+      window_swap_chain_ = engine_->createSwapChain(config_.native_window);
+    }
+    window_width_ = viewport.width;
+    window_height_ = viewport.height;
+  }
+
   scene_view_->SetViewport(viewport);
   scene_view_->UpdateScene(con, scene);
   // Update the UX renderable entity after processing the scene in case there

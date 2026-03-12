@@ -307,7 +307,7 @@ The function `mjv_updateScene` populates an `mjvScene` object with information
 from `mjModel` and `mjData`.
 ```typescript
 // Create instances of the necessary structs.
-const model = mujoco.MjModel.loadFromXML(xmlContent);
+const model = mujoco.MjModel.from_xml_string(xmlContent);
 const data = new mujoco.MjData(model);
 const scene = new mujoco.MjvScene(model, 1000);
 const option = new mujoco.MjvOption();
@@ -348,22 +348,30 @@ mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL.value
 ```
 
 ### Constants
-Scalar constants will be accessed the same way they are on python, simply:
+Scalar constants can be accessed as properties:
 
 ```javascript
 mujoco.mjNEQDATA
 ```
 
-Due to Embind limitations, more complex constants that are not scalar, but are
-represented in more dimensions are exposed as functions. E.g. to use
-`mujoco.mjFRAMESTRING` you will need to call a function:
+Non-scalar constants like `mjFRAMESTRING` are also accessed as properties, and
+return JavaScript arrays:
 
 ```javascript
-mujoco.get_mjFRAMESTRING()
+mujoco.mjFRAMESTRING
 ```
 
 This will return a javascript array representation of the values in MuJoCo
 `mjFRAMESTRING`.
+
+> [!NOTE]
+> You will notice constants like `mjFRAMESTRING` are typed as `any`. This is
+> because they are bound using `emscripten::val::array()` in C++, and Embind
+> maps `emscripten::val` to `any` in TypeScript definition files. While
+> `EMSCRIPTEN_DECLARE_VAL_TYPE(StringArray)` could be used to define
+> `StringArray` as an alias for `emscripten::val` and hint to Embind how to
+> handle conversions in function signatures or when using `.as()` it does not
+> change how `emscripten::constant` infers types for properties.
 
 ## Development
 

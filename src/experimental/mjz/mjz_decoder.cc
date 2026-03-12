@@ -74,11 +74,11 @@ class ZipArchiveProvider : public mjpResourceProvider {
 
     // Look for the root XML model in the archive. First look for an XML file
     // with the same name as the archive itself. Failing that, look for an XML
-    // file with the same name including the parent directory.
+    // file within a subdirectory with the same name as the archive.
     const std::filesystem::path path(name_);
     root_model_ = (path / path.stem()).string() + ".xml";
     if (!Contains(root_model_)) {
-      root_model_ = (path / path.parent_path() / path.stem()).string() + ".xml";
+      root_model_ = (path / path.stem() / path.stem()).string() + ".xml";
       if (!Contains(root_model_)) {
         SetError(error, error_sz, "Zip error: no root XML file found.");
         return;

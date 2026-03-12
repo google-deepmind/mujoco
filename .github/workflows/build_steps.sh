@@ -222,7 +222,7 @@ package_wasm() {
     cp wasm/package.npm.json wasm/dist/package.json
     cp wasm/README.md wasm/dist/README.md
 
-    VERSION=${GITHUB_REF#refs/tags/}
+    VERSION="${VERSION:-${GITHUB_REF#refs/tags/}}"
     npm --prefix wasm/dist version "${VERSION}" --no-git-tag-version
 
     echo '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' > ~/.npmrc

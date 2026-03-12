@@ -3626,7 +3626,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='d',
                  type=PointerType(
-                     inner_type=ValueType(name='mjData', is_const=True),
+                     inner_type=ValueType(name='mjData'),
                  ),
              ),
              FunctionParameterDecl(

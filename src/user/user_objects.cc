@@ -587,6 +587,7 @@ void mjCOctree::CopyCoeff(mjtNum* coeff) const {
 
 
 void mjCOctree::SetFace(const std::vector<double>& vert, const std::vector<int>& face) {
+  face_.reserve(face.size()/3);
   for (int i = 0; i < face.size(); i += 3) {
     std::array<double, 3> v0 = {vert[3*face[i+0]], vert[3*face[i+0]+1], vert[3*face[i+0]+2]};
     std::array<double, 3> v1 = {vert[3*face[i+1]], vert[3*face[i+1]+1], vert[3*face[i+1]+2]};
@@ -613,6 +614,8 @@ void mjCOctree::Make(std::vector<Triangle>& elements) {
 
 
 void mjCOctree::CreateOctree(const double aamm[6]) {
+  Clear();
+
   double aabb[6] = {(aamm[0] + aamm[3]) / 2, (aamm[1] + aamm[4]) / 2, (aamm[2] + aamm[5]) / 2,
                     (aamm[3] - aamm[0]) / 2, (aamm[4] - aamm[1]) / 2, (aamm[5] - aamm[2]) / 2};
   double box[6] = {aabb[0] - 1.1 * aabb[3], aabb[1] - 1.1 * aabb[4], aabb[2] - 1.1 * aabb[5],
