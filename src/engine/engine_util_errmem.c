@@ -24,13 +24,58 @@
 #include <unistd.h>
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include "engine/engine_array_safety.h"
 #include "engine/engine_macro.h"
 
 //------------------------- cross-platform aligned malloc/free -------------------------------------
 
+#ifdef _WIN32
+
+// virtualalloc has 64KB min alloc granularity
+#define MJU_LARGE_ALLOC_THRESHOLD (1 << 16)
+
+static LONG CALLBACK mju_commitHandler(EXCEPTION_POINTERS* ep) {
+  if (ep->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
+    void* fault_addr = (void*)ep->ExceptionRecord->ExceptionInformation[1];
+    MEMORY_BASIC_INFORMATION mbi;
+    if (VirtualQuery(fault_addr, &mbi, sizeof(mbi)) != 0 &&
+        mbi.State == MEM_RESERVE) {
+      // commit just the faulting page
+      if (VirtualAlloc(fault_addr, 1, MEM_COMMIT, PAGE_READWRITE)) {
+        return EXCEPTION_CONTINUE_EXECUTION;
+      }
+    }
+  }
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
+// register handler once, thread-safe bc of InitOnce
+static INIT_ONCE mju_veh_init_once = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK mju_initVEH(INIT_ONCE* initOnce, void* param, void** ctx) {
+  AddVectoredExceptionHandler(1, mju_commitHandler);
+  return TRUE;
+}
+
+static void mju_ensureVEH(void) {
+  InitOnceExecuteOnce(&mju_veh_init_once, mju_initVEH, NULL, NULL);
+}
+
+#endif  // _WIN32
+
+
 static inline void* mju_alignedMalloc(size_t size, size_t align) {
 #ifdef _WIN32
+  if (size >= MJU_LARGE_ALLOC_THRESHOLD) {
+    // install lazy-commit handler
+    mju_ensureVEH();
+    // MEM_RESERVE only: reserves virtual address space without commit charge
+    return VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_READWRITE);
+  }
   return _aligned_malloc(size, align);
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
   return aligned_alloc(align, size);
@@ -39,7 +84,13 @@ static inline void* mju_alignedMalloc(size_t size, size_t align) {
 
 static inline void mju_alignedFree(void* ptr) {
 #ifdef _WIN32
-  _aligned_free(ptr);
+  // determine which allocator owns this pointer
+  MEMORY_BASIC_INFORMATION mbi;
+  if (VirtualQuery(ptr, &mbi, sizeof(mbi)) != 0 && mbi.AllocationBase == ptr) {
+    VirtualFree(ptr, 0, MEM_RELEASE);
+  } else {
+    _aligned_free(ptr);
+  }
 #else
   free(ptr);
 #endif
