@@ -40,12 +40,18 @@
 
 static LONG CALLBACK mju_commitHandler(EXCEPTION_POINTERS* ep) {
   if (ep->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
+    ULONG_PTR access_type = ep->ExceptionRecord->ExceptionInformation[0];
     void* fault_addr = (void*)ep->ExceptionRecord->ExceptionInformation[1];
     MEMORY_BASIC_INFORMATION mbi;
-    if (VirtualQuery(fault_addr, &mbi, sizeof(mbi)) != 0 &&
-        mbi.State == MEM_RESERVE) {
+    if (VirtualQuery(fault_addr, &mbi, sizeof(mbi)) != 0) {
       // commit just the faulting page
-      if (VirtualAlloc(fault_addr, 1, MEM_COMMIT, PAGE_READWRITE)) {
+      if (mbi.State == MEM_RESERVE) {
+        if (VirtualAlloc(fault_addr, 1, MEM_COMMIT, PAGE_READWRITE)) {
+          return EXCEPTION_CONTINUE_EXECUTION;
+        }
+      }
+
+      if (mbi.State == MEM_COMMIT && (mbi.Protect & PAGE_READWRITE) && access_type != 8) {
         return EXCEPTION_CONTINUE_EXECUTION;
       }
     }
