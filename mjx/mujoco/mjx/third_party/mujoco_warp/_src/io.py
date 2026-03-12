@@ -2321,7 +2321,7 @@ def create_render_context(
 
   cam_res_arr = wp.array(active_cam_res, dtype=wp.vec2i)
 
-  if render_rgb and isinstance(render_rgb, bool):
+  if isinstance(render_rgb, bool):
     render_rgb = [render_rgb] * ncam
   elif render_rgb is None:
     # TODO: remove after mjwarp depends on mujoco >= 3.4.1 in pyproject.toml
@@ -2330,7 +2330,7 @@ def create_render_context(
     else:
       render_rgb = [True] * ncam
 
-  if render_depth and isinstance(render_depth, bool):
+  if isinstance(render_depth, bool):
     render_depth = [render_depth] * ncam
   elif render_depth is None:
     # TODO: remove after mjwarp depends on mujoco >= 3.4.1 in pyproject.toml
