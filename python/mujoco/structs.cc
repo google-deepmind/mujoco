@@ -898,6 +898,27 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(tolrange);
 #undef X
 
+
+  // ==================== MJRRECT ==============================================
+  py::class_<raw::MjrRect> mjrRect(m, "MjrRect");
+  mjrRect.def(py::init([](int left, int bottom, int width, int height) {
+                return raw::MjrRect{left, bottom, width, height};
+              }),
+              py::arg("left"), py::arg("bottom"), py::arg("width"),
+              py::arg("height"));
+  mjrRect.def("__copy__",
+              [](const raw::MjrRect& other) { return raw::MjrRect(other); });
+  mjrRect.def("__deepcopy__", [](const raw::MjrRect& other, py::dict) {
+    return raw::MjrRect(other);
+  });
+  DefineStructFunctions(mjrRect);
+#define X(var) mjrRect.def_readwrite(#var, &raw::MjrRect::var)
+  X(left);
+  X(bottom);
+  X(width);
+  X(height);
+#undef X
+
   // ==================== MJVPERTURB ===========================================
   py::class_<MjvPerturbWrapper> mjvPerturb(m, "MjvPerturb");
   mjvPerturb.def(py::init<>());
