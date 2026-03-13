@@ -582,7 +582,7 @@ void mj_loadAllPluginLibraries(const char* directory,
   // define platform-specific strings
 #if defined(_WIN32) || defined(__CYGWIN__)
   const std::string sep = "\\";
-  WIN32_FIND_DATAA find_data;
+  WIN32_FIND_DATAA find_data{};
   HANDLE hfile = FindFirstFileA(
       (directory + sep + "*.dll").c_str(), &find_data);
   if (!hfile) {
