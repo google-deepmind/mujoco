@@ -18,7 +18,21 @@ TypeScript.
 > in CI but as of November 13th 2025, Windows support remains experimental
 > (installation succeeded on one Windows 11 machine but failed on others)._
 
-## Prerequisites
+## Installation
+The easiest way to use the MuJoCo JavaScript bindings is to install the
+`@mujoco/mujoco` package from npm:
+
+```sh
+npm install @mujoco/mujoco
+```
+
+This package is ESM (`type: module`) and includes the pre-compiled WebAssembly
+module, JavaScript bindings, and TypeScript declarations. Ensure your bundler or
+dev server serves the `.wasm` asset at runtime.
+
+## Build from source
+
+### Prerequisites
 
 > [!NOTE]
 > Run all the commands in this README from the top-level directory.
@@ -69,12 +83,8 @@ TypeScript.
 > browser as a platform, see the
 > [Porting](https://emscripten.org/docs/porting/index.html#porting) section._
 
-## User Guide
-
-### Bindings Generation
-
 The [`bindings.cc`](codegen/generated/bindings.cc) file is compiled to generate
-to `.wasm` WebAssembly file, `.js` JavaScript import, and `.d.ts` TypeScript
+the `.wasm` WebAssembly file, `.js` JavaScript import, and `.d.ts` TypeScript
 declaration file. These are the files you'll use to call MuJoCo from JavaScript.
 To generate them ensure the npm and Emscripten SDK prerequisites are set up and
 then run the following:
@@ -110,9 +120,7 @@ write your application in C++ and compile it using Emscripten, you may want to
 copy a subset of the `EMSCRIPTEN_BINDINGS` from `bindings.cc` into your
 application’s source file.
 
-The package is ESM (`type: module`) and ships TypeScript types.
-Ensure your bundler or dev server serves the `.wasm` asset at runtime.
-
+## User Guide
 ### Named Access
 
 The bindings support named access methods, similar to the Python bindings,
