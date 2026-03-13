@@ -868,8 +868,7 @@ static int maxContacts(const mjCCDObj* obj1, const mjCCDObj* obj2) {
 
 
 // multi-point convex-convex collision, using libccd
-int mjc_Convex(const mjModel* m, const mjData* d,
-               mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_Convex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   // init ccd objects
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, margin);
@@ -998,8 +997,7 @@ static int addplanemesh(mjContact* con, const float vertex[3],
 
 
 // plane-convex collision, using libccd
-int mjc_PlaneConvex(const mjModel* m, const mjData* d,
-                    mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_PlaneConvex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
   mjtNum dist, dif[3], normal[3] = {mat1[2], mat1[5], mat1[8]};
   ccd_vec3_t dir, vec;
@@ -1136,8 +1134,7 @@ static inline void addPrismVert(mjCCDObj* obj, int r, int c, int i, mjtNum dx, m
 
 
 // entry point for heightfield collisions
-int mjc_ConvexHField(const mjModel* m, const mjData* d,
-                     mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_ConvexHField(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   // hfield frame
   const mjtNum* pos1 = d->geom_xpos + 3*g1;
   const mjtNum* mat1 = d->geom_xmat + 9*g1;
@@ -1565,8 +1562,8 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 //----------------------------  flex collisions ---------------------------------------------
 
 // geom-elem or elem-elem or vert-elem convex collision using ccd
-int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
-                   int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin) {
+int mjc_ConvexElem(const mjModel* m, mjData* d, mjContact* con, int g1, int f1, int e1, int v1,
+                   int f2, int e2, mjtNum margin) {
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, margin);
   mjc_initCCDObj(&obj2, m, d, -1, margin);
@@ -1595,8 +1592,8 @@ int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
 
 
 // test a height field and a flex element for collision
-int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
-                   int g, int f, int e, mjtNum margin) {
+int mjc_HFieldElem(const mjModel* m, mjData* d, mjContact* con, int g, int f, int e,
+                   mjtNum margin) {
   mjtNum vec[3], dx, dy;
   mjtNum xmin, xmax, ymin, ymax, zmin, zmax;
   int dr[2], cnt, rmin, rmax, cmin, cmax;

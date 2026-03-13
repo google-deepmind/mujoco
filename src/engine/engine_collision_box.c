@@ -94,9 +94,7 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
 
 
 // sphere : box
-int mjc_SphereBox(const mjModel* m, const mjData* d, mjContact* con,
-                  int g1, int g2, mjtNum margin)
-{
+int mjc_SphereBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO;
 
   return mjraw_SphereBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
@@ -593,9 +591,7 @@ skip:
 
 
 // capsule : box
-int mjc_CapsuleBox(const mjModel* m, const mjData* d, mjContact* con,
-                   int g1, int g2, mjtNum margin)
-{
+int mjc_CapsuleBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
   return mjraw_CapsuleBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
@@ -1342,7 +1338,7 @@ edgeedge:
 
 
 // box : box
-int mjc_BoxBox(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_BoxBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   int num = _boxbox(m, d, con, g1, g2, margin);
 
   // use dim field to mark: -1: bad, 0: good
