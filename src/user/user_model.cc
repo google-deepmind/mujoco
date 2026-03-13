@@ -2510,17 +2510,12 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
       err[i][0] = 0;
     }
 
-    // launch threads
-    std::vector<std::thread> th;
-    th.reserve(nthread);
+    // launch threads and wait for them to finish
+    mujoco::user::ThreadPool pool(nthread);
     for (int i=0; i < nthread; i++) {
-      th.emplace_back(LRfunc, &arg[i]);
+      pool.Schedule([&arg, i]() { LRfunc(&arg[i]); });
     }
-
-    // wait for threads to finish
-    for (int i=0; i < nthread; i++) {
-      th[i].join();
-    }
+    pool.WaitCount(nthread);
 
     // free mjData allocated here
     for (int i=1; i < nthread; i++) {
