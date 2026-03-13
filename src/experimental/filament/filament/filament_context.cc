@@ -118,9 +118,7 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
   }
 
   scene_view_ = std::make_unique<SceneView>(engine_, object_manager_.get());
-  if (config_.enable_gui) {
-    gui_view_ = std::make_unique<GuiView>(engine_, object_manager_.get());
-  }
+  gui_view_ = std::make_unique<GuiView>(engine_, object_manager_.get());
 }
 
 FilamentContext::~FilamentContext() {

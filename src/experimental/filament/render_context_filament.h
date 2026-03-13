@@ -41,9 +41,6 @@ struct mjrFilamentConfig {
 
   // The backend graphics API to use.
   int graphics_api;
-
-  // Whether or not to enable GUI rendering.
-  bool enable_gui;
 };
 
 void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);
