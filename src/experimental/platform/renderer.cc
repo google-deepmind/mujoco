@@ -23,9 +23,9 @@
 
 #include <imgui.h>
 #include <backends/imgui_impl_opengl3.h>
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__APPLE__)
 #include "experimental/platform/egl_utils.h"
-#endif  // __EMSCRIPTEN__
+#endif
 #include "experimental/filament/render_context_filament.h"
 #include "experimental/platform/graphics_mode.h"
 #include "experimental/platform/plugin.h"
@@ -47,9 +47,9 @@ Renderer::Renderer(void* native_window, GraphicsMode gfx)
     : native_window_(native_window), gfx_(gfx) {
   if (IsClassic(gfx_)) {
     if (native_window == nullptr) {
-      #ifndef __EMSCRIPTEN__
+      #if !defined(__EMSCRIPTEN__) && !defined(__APPLE__)
         graphics_api_context_ = CreateEglContext();
-      #endif  // __EMSCRIPTEN__
+      #endif
     }
     if (ImGui::GetCurrentContext()) {
       ImGui_ImplOpenGL3_Init();
