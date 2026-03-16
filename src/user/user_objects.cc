@@ -6445,8 +6445,9 @@ void mjCTendon::CopyFromSpec() {
   material_ = spec_material_;
   userdata_ = spec_userdata_;
 
-  // clear precompiled
+  // propagate model pointer to wraps and clear precompiled
   for (int i=0; i < path.size(); i++) {
+    path[i]->model = model;
     if (path[i]->Type() == mjWRAP_CYLINDER) {
       path[i]->spec.type = mjWRAP_SPHERE;
     }
