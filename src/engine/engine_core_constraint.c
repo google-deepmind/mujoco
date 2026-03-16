@@ -1006,23 +1006,37 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 }
 
 
+// return number of constraint non-zeros, handle dense and dof-less cases
+static inline int mj_addConstraintCount(const mjModel* m, int size, int NV) {
+  // over count for dense allocation
+  if (!mj_isSparse(m)) {
+    return m->nv ? size : 0;
+  }
+  return mjMAX(0, NV) ? size : 0;
+}
+
+
 // frictional dofs and tendons
-void mj_instantiateFriction(const mjModel* m, mjData* d) {
+// count_only: count constraints and Jacobian nonzeros without instantiating
+static int mj_instantiateFriction(const mjModel* m, mjData* d, int count_only, int* nnz) {
   int nv = m->nv, issparse = mj_isSparse(m);
-  mjtNum* jac;
+  int nf = 0;
+  mjtNum* jac = NULL;
 
   // disabled: return
   if (mjDISABLED(mjDSBL_FRICTIONLOSS)) {
-    return;
+    return 0;
   }
 
   // sleep filtering
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
-  mj_markStack(d);
+  if (!count_only) {
+    mj_markStack(d);
 
-  // allocate Jacobian
-  jac = mjSTACKALLOC(d, nv, mjtNum);
+    // allocate Jacobian
+    jac = mjSTACKALLOC(d, nv, mjtNum);
+  }
 
   // find frictional dofs
   for (int i=0; i < nv; i++) {
@@ -1036,66 +1050,84 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
       continue;
     }
 
-    // prepare Jacobian: sparse or dense
-    if (issparse) {
-      jac[0] = 1;
+    if (count_only) {
+      nf += mj_addConstraintCount(m, 1, 1);
+      if (nnz) *nnz += 1;
     } else {
-      mju_zero(jac, nv);
-      jac[i] = 1;
-    }
+      // prepare Jacobian: sparse or dense
+      if (issparse) {
+        jac[0] = 1;
+      } else {
+        mju_zero(jac, nv);
+        jac[i] = 1;
+      }
 
-    // add constraint
-    mj_addConstraint(m, d, jac, 0, 0, m->dof_frictionloss[i],
-                      1, mjCNSTR_FRICTION_DOF, i,
-                      issparse ? 1 : 0,
-                      issparse ? &i : NULL);
+      // add constraint
+      mj_addConstraint(m, d, jac, 0, 0, m->dof_frictionloss[i],
+                        1, mjCNSTR_FRICTION_DOF, i,
+                        issparse ? 1 : 0,
+                        issparse ? &i : NULL);
+    }
   }
 
   // find frictional tendons
   for (int i=0; i < m->ntendon; i++) {
     if (m->tendon_frictionloss[i] > 0) {
-      int efcadr = d->nefc;
-      // add constraint
-      if (issparse) {
-        mj_addConstraint(m, d, d->ten_J + m->ten_J_rowadr[i],
-                         0, 0, m->tendon_frictionloss[i],
-                         1, mjCNSTR_FRICTION_TENDON, i,
-                         m->ten_J_rownnz[i],
-                         m->ten_J_colind+m->ten_J_rowadr[i]);
+      if (count_only) {
+        nf += mj_addConstraintCount(m, 1, m->ten_J_rownnz[i]);
+        if (nnz) *nnz += m->ten_J_rownnz[i];
       } else {
-        mju_sparse2dense(jac, d->ten_J, 1, nv, m->ten_J_rownnz+i, m->ten_J_rowadr+i, m->ten_J_colind);
-        mj_addConstraint(m, d, jac, 0, 0, m->tendon_frictionloss[i],
-                         1, mjCNSTR_FRICTION_TENDON, i, 0, NULL);
-      }
-      // set tendon_efcadr
-      if (d->tendon_efcadr[i] == -1) {
-        d->tendon_efcadr[i] = efcadr;
+        int efcadr = d->nefc;
+        // add constraint
+        if (issparse) {
+          mj_addConstraint(m, d, d->ten_J + m->ten_J_rowadr[i],
+                           0, 0, m->tendon_frictionloss[i],
+                           1, mjCNSTR_FRICTION_TENDON, i,
+                           m->ten_J_rownnz[i],
+                           m->ten_J_colind+m->ten_J_rowadr[i]);
+        } else {
+          mju_sparse2dense(jac, d->ten_J, 1, nv, m->ten_J_rownnz+i, m->ten_J_rowadr+i, m->ten_J_colind);
+          mj_addConstraint(m, d, jac, 0, 0, m->tendon_frictionloss[i],
+                           1, mjCNSTR_FRICTION_TENDON, i, 0, NULL);
+        }
+        // set tendon_efcadr
+        if (d->tendon_efcadr[i] == -1) {
+          d->tendon_efcadr[i] = efcadr;
+        }
       }
     }
   }
 
-  mj_freeStack(d);
+  if (!count_only) {
+    mj_freeStack(d);
+  }
+
+  return nf;
 }
 
 
 // joint and tendon limits
-void mj_instantiateLimit(const mjModel* m, mjData* d) {
+// count_only: count constraints and Jacobian nonzeros without instantiating
+static int mj_instantiateLimit(const mjModel* m, mjData* d, int count_only, int* nnz) {
   int nv = m->nv, issparse = mj_isSparse(m);
+  int nl = 0;
   mjtNum margin, value, dist, angleAxis[3];
-  mjtNum *jac;
+  mjtNum *jac = NULL;
 
   // disabled: return
   if (mjDISABLED(mjDSBL_LIMIT)) {
-    return;
+    return 0;
   }
 
   // sleep filtering
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
-  mj_markStack(d);
+  if (!count_only) {
+    mj_markStack(d);
 
-  // allocate Jacobian
-  jac = mjSTACKALLOC(d, nv, mjtNum);
+    // allocate Jacobian
+    jac = mjSTACKALLOC(d, nv, mjtNum);
+  }
 
   // find joint limits
   for (int i=0; i < m->njnt; i++) {
@@ -1124,19 +1156,24 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
 
         // detect joint limit
         if (dist < margin) {
-          // prepare Jacobian: sparse or dense
-          if (issparse) {
-            jac[0] = -(mjtNum)side;
+          if (count_only) {
+            nl += mj_addConstraintCount(m, 1, 1);
+            if (nnz) *nnz += 1;
           } else {
-            mju_zero(jac, nv);
-            jac[m->jnt_dofadr[i]] = -(mjtNum)side;
-          }
+            // prepare Jacobian: sparse or dense
+            if (issparse) {
+              jac[0] = -(mjtNum)side;
+            } else {
+              mju_zero(jac, nv);
+              jac[m->jnt_dofadr[i]] = -(mjtNum)side;
+            }
 
-          // add constraint
-          mj_addConstraint(m, d, jac, &dist, &margin, 0,
-                           1, mjCNSTR_LIMIT_JOINT, i,
-                           issparse ? 1 : 0,
-                           issparse ? m->jnt_dofadr+i : NULL);
+            // add constraint
+            mj_addConstraint(m, d, jac, &dist, &margin, 0,
+                             1, mjCNSTR_LIMIT_JOINT, i,
+                             issparse ? 1 : 0,
+                             issparse ? m->jnt_dofadr+i : NULL);
+          }
         }
       }
     }
@@ -1157,8 +1194,13 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
 
       // detect joint limit
       if (dist < margin) {
+        if (count_only) {
+          nl += mj_addConstraintCount(m, 1, 3);
+          if (nnz) *nnz += 3;
+        }
+
         // sparse
-        if (issparse) {
+        else if (issparse) {
           // prepare dof index array
           int chain[3] = {
             m->jnt_dofadr[i] + 0,
@@ -1190,18 +1232,25 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
 
   // find tendon limits
   for (int i=0; i < m->ntendon; i++) {
-    if (m->tendon_limited[i]) {
-      // get value = length, margin
-      value = d->ten_length[i];
-      margin = m->tendon_margin[i];
+    if (!m->tendon_limited[i]) {
+      continue;
+    }
 
-      // process lower and upper limits
-      for (int side=-1; side <= 1; side+=2) {
-        // compute distance (negative: penetration)
-        dist = side * (m->tendon_range[2*i+(side+1)/2] - value);
+    // get value = length, margin
+    value = d->ten_length[i];
+    margin = m->tendon_margin[i];
 
-        // detect tendon limit
-        if (dist < margin) {
+    // process lower and upper limits
+    for (int side=-1; side <= 1; side+=2) {
+      // compute distance (negative: penetration)
+      dist = side * (m->tendon_range[2*i+(side+1)/2] - value);
+
+      // detect tendon limit
+      if (dist < margin) {
+        if (count_only) {
+          nl += mj_addConstraintCount(m, 1, m->ten_J_rownnz[i]);
+          if (nnz) *nnz += m->ten_J_rownnz[i];
+        } else {
           // prepare Jacobian
           int efcadr = d->nefc;
           if (issparse) {
@@ -1225,7 +1274,11 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
     }
   }
 
-  mj_freeStack(d);
+  if (!count_only) {
+    mj_freeStack(d);
+  }
+
+  return nl;
 }
 
 
@@ -1958,17 +2011,6 @@ static int mj_jacSumCount(const mjModel* m, mjData* d, int* chain,
   return NV;
 }
 
-
-// return number of constraint non-zeros, handle dense and dof-less cases
-static inline int mj_addConstraintCount(const mjModel* m, int size, int NV) {
-  // over count for dense allocation
-  if (!mj_isSparse(m)) {
-    return m->nv ? size : 0;
-  }
-  return mjMAX(0, NV) ? size : 0;
-}
-
-
 // count equality constraints, count Jacobian nonzeros if nnz is not NULL
 static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
   int ne = 0, nnze = 0;
@@ -2162,112 +2204,6 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
 }
 
 
-// count frictional constraints, count Jacobian nonzeros if nnz is not NULL
-static int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
-  int nf = 0;
-  int nv = m->nv, ntendon = m->ntendon;
-
-  if (mjDISABLED(mjDSBL_FRICTIONLOSS)) {
-    return 0;
-  }
-
-  // sleep filtering
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
-
-  for (int i=0; i < nv; i++) {
-    // no friction loss: skip
-    if (!m->dof_frictionloss[i]) {
-      continue;
-    }
-
-    // sleeping tree: skip
-    if (sleep_filter && !d->tree_awake[m->dof_treeid[i]]) {
-      continue;
-    }
-
-    nf += mj_addConstraintCount(m, 1, 1);
-    if (nnz) *nnz += 1;
-  }
-
-  for (int i=0; i < ntendon; i++) {
-    if (m->tendon_frictionloss[i] > 0) {
-      nf += mj_addConstraintCount(m, 1, m->ten_J_rownnz[i]);
-      if (nnz) *nnz += m->ten_J_rownnz[i];
-    }
-  }
-
-  return nf;
-}
-
-
-// count limit constraints, count Jacobian nonzeros if nnz is not NULL
-static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
-  int nl = 0;
-  int ntendon = m->ntendon;
-  int side;
-  mjtNum margin, value, dist;
-
-  // disabled: return
-  if (mjDISABLED(mjDSBL_LIMIT)) {
-    return 0;
-  }
-
-  // sleep filtering
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
-
-  for (int i=0; i < m->njnt; i++) {
-    if (!m->jnt_limited[i]) {
-      continue;
-    }
-
-    // sleeping tree: skip
-    if (sleep_filter && !d->tree_awake[m->dof_treeid[m->jnt_dofadr[i]]]) {
-      continue;
-    }
-
-    margin = m->jnt_margin[i];
-
-    // SLIDE and HINGE joint limits can be bilateral, check both sides
-    if (m->jnt_type[i] == mjJNT_SLIDE || m->jnt_type[i] == mjJNT_HINGE) {
-      value = d->qpos[m->jnt_qposadr[i]];
-      for (side=-1; side <= 1; side+=2) {
-        dist = side * (m->jnt_range[2*i+(side+1)/2] - value);
-        if (dist < margin) {
-          nl += mj_addConstraintCount(m, 1, 1);
-          if (nnz) *nnz += 1;
-        }
-      }
-    }
-
-    // BALL joint limits are always unilateral
-    else if (m->jnt_type[i] == mjJNT_BALL) {
-      mjtNum angleAxis[3];
-      int adr = m->jnt_qposadr[i];
-      mjtNum quat[4] = {d->qpos[adr], d->qpos[adr+1], d->qpos[adr+2], d->qpos[adr+3]};
-      mju_normalize4(quat);
-      mju_quat2Vel(angleAxis, quat, 1);
-      value = mju_normalize3(angleAxis);
-      dist = mju_max(m->jnt_range[2*i], m->jnt_range[2*i+1]) - value;
-      if (dist < margin) {
-        nl += mj_addConstraintCount(m, 1, 3);
-        if (nnz) *nnz += 3;
-      }
-    }
-  }
-
-  // tendon limits
-  for (int i=0; i < ntendon; i++) {
-    int count = tendonLimit(m, d->ten_length, i);
-    for (int j = 0; j < count; j++) {
-      nl += mj_addConstraintCount(m, 1, m->ten_J_rownnz[i]);
-      if (nnz) *nnz += m->ten_J_rownnz[i];
-    }
-  }
-
-  return nl;
-}
-
-
 // count contact constraints, count Jacobian nonzeros if nnz is not NULL
 static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   int nnzc = 0, nc = 0;
@@ -2408,8 +2344,8 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   // precount sizes for constraint Jacobian matrices
   int *nnz = mj_isSparse(m) ? &(d->nJ) : NULL;
   int ne_allocated = mj_ne(m, d, nnz);
-  int nf_allocated = mj_nf(m, d, nnz);
-  int nl_allocated = mj_nl(m, d, nnz);
+  int nf_allocated = mj_instantiateFriction(m, d, 1, nnz);
+  int nl_allocated = mj_instantiateLimit(m, d, 1, nnz);
   int nefc_allocated = ne_allocated + nf_allocated + nl_allocated + mj_nc(m, d, nnz);
   if (!mj_isSparse(m)) {
     d->nJ = nefc_allocated * m->nv;
@@ -2427,8 +2363,8 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   // reset nefc for the instantiation functions, instantiate all elements of Jacobian
   d->nefc = 0;
   mj_instantiateEquality(m, d);
-  mj_instantiateFriction(m, d);
-  mj_instantiateLimit(m, d);
+  mj_instantiateFriction(m, d, 0, NULL);
+  mj_instantiateLimit(m, d, 0, NULL);
   mj_instantiateContact(m, d);
 
   // check sparse allocation
