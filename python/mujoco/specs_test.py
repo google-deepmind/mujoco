@@ -1423,6 +1423,12 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(mj_model.bind(joint_box).qposadr, 7)
     np.testing.assert_array_equal(mj_data.bind(joints).qpos, [0, 0])
     np.testing.assert_array_equal(mj_model.bind(joints).qposadr, [7, 8])
+    np.testing.assert_array_equal(
+        mj_model.bind(spec.geoms[0:1]).size, mj_model.geom_size[0:1]
+    )
+    np.testing.assert_array_equal(
+        mj_data.bind(spec.geoms[0:1]).xpos, mj_data.geom_xpos[0:1]
+    )
     np.testing.assert_array_equal(mj_data.bind([]).qpos, [])
     np.testing.assert_array_equal(mj_model.bind([]).qposadr, [])
     mj_data.bind(joints).qpos = np.array([1, 2])
