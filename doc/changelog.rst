@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Bug fixes
+^^^^^^^^^
+- Compiler now correctly accounts for negative scaling when loading user specified mesh data.
+
+
 Version 3.6.0 (March 10, 2026)
 ------------------------------
 
