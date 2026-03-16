@@ -209,7 +209,7 @@ static void shape_gradients(
 
 // compute dStrain/dNodePosition for volumetric invariants (I1 or J-1)
 // dSdx: output array of size 3*nodenum
-static void volumetric_dSdx(int invariant_type, int nodenum, const mjtNum grad[8][3],
+static void volumetric_dSdx(int invariant_type, int nodenum, mjtNum grad[][3],
                             const mjtNum* F, const mjtNum* Fref_inv, mjtNum* dSdx) {
   mju_zero(dSdx, 3*nodenum);
 
@@ -261,7 +261,7 @@ static void volumetric_dSdx(int invariant_type, int nodenum, const mjtNum grad[8
 
 // compute dStrain/dNodePosition for general strain invariants
 // dSdx: output array of size 3*nodenum
-static void invariant_dSdx(int nodenum, const mjtNum grad[][3], const mjtNum* F,
+static void invariant_dSdx(int nodenum, mjtNum grad[][3], const mjtNum* F,
                            const mjtNum* Fref_inv, const mjtNum* dSdE, mjtNum* dSdx) {
   mju_zero(dSdx, 3*nodenum);
 
@@ -1039,7 +1039,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
           }
 
           // compute dS/dx for all nodes
-          invariant_dSdx(nodenum, (const mjtNum(*)[3])grad, F, Fref_inv, dSdE, dSdx);
+          invariant_dSdx(nodenum, grad, F, Fref_inv, dSdE, dSdx);
           strain_jacobian(nodenum, nv, dSdx, node_jac, strain_jac);
 
           // add constraint
