@@ -17,8 +17,12 @@
 
 // Define ADDRESS_SANITIZER if implied by other macros.
 #if !defined(ADDRESS_SANITIZER)
-  #if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer))
+  #if defined(__SANITIZE_ADDRESS__)
     #define ADDRESS_SANITIZER
+  #elif defined(__has_feature)
+    #if __has_feature(address_sanitizer)
+      #define ADDRESS_SANITIZER
+    #endif
   #endif
 #endif
 
