@@ -631,7 +631,7 @@ Yes. Warp's ``wp.ScopedDevice`` enables multi-GPU computation
 Please see the
 `Warp documentation <https://nvidia.github.io/modules/devices.html#example-using-wp-scopeddevice-with-multiple-gpus>`__
 for details and
-`mjlab distributed training <https://github.com/mujocolab/mjlab/tree/main/docs/api/distributed_training.md>`__ for a
+`mjlab distributed training <https://mujocolab.github.io/mjlab/main/source/training/distributed_training.html>`__ for a
 reinforcement learning example.
 
 **Is MJWarp on GPU deterministic?**
