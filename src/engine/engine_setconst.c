@@ -211,7 +211,9 @@ static void setFixed(mjModel* m, mjData* d) {
     }
 
     // tendon spans 2 trees and has no stiffness or damping: skip
-    if (treenum == 2 && m->tendon_stiffness[i] == 0 && m->tendon_damping[i] == 0) {
+    if (treenum == 2 &&
+        m->tendon_stiffness[i] == 0 && mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY) &&
+        m->tendon_damping[i] == 0   && mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY)) {
       continue;
     }
 

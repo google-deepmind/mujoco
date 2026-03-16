@@ -818,6 +818,7 @@ class Model(PyTreeNode):
   jnt_pos: jax.Array
   jnt_axis: jax.Array
   jnt_stiffness: jax.Array
+  jnt_stiffnesspoly: jax.Array
   jnt_range: jax.Array
   jnt_actfrcrange: jax.Array
   jnt_margin: jax.Array
@@ -832,6 +833,7 @@ class Model(PyTreeNode):
   dof_frictionloss: jax.Array
   dof_armature: jax.Array
   dof_damping: jax.Array
+  dof_dampingpoly: jax.Array
   dof_invweight0: jax.Array
   dof_M0: jax.Array  # pylint:disable=invalid-name
   geom_type: np.ndarray
@@ -947,7 +949,9 @@ class Model(PyTreeNode):
   tendon_actfrcrange: jax.Array
   tendon_margin: jax.Array
   tendon_stiffness: jax.Array
+  tendon_stiffnesspoly: jax.Array
   tendon_damping: jax.Array
+  tendon_dampingpoly: jax.Array
   tendon_armature: jax.Array
   tendon_frictionloss: jax.Array
   tendon_lengthspring: jax.Array

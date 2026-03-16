@@ -2571,11 +2571,8 @@ struct MjsJoint {
   void set_align(int value) {
     ptr_->align = value;
   }
-  double stiffness() const {
-    return ptr_->stiffness;
-  }
-  void set_stiffness(double value) {
-    ptr_->stiffness = value;
+  emscripten::val stiffness() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->stiffness));
   }
   double springref() const {
     return ptr_->springref;
@@ -2622,11 +2619,8 @@ struct MjsJoint {
   void set_armature(double value) {
     ptr_->armature = value;
   }
-  double damping() const {
-    return ptr_->damping;
-  }
-  void set_damping(double value) {
-    ptr_->damping = value;
+  emscripten::val damping() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->damping));
   }
   double frictionloss() const {
     return ptr_->frictionloss;
@@ -3110,20 +3104,14 @@ struct MjsTendon {
   explicit MjsTendon(mjsTendon *ptr);
   mjsTendon* get() const;
   void set(mjsTendon* ptr);
-  double stiffness() const {
-    return ptr_->stiffness;
-  }
-  void set_stiffness(double value) {
-    ptr_->stiffness = value;
+  emscripten::val stiffness() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->stiffness));
   }
   emscripten::val springlength() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->springlength));
   }
-  double damping() const {
-    return ptr_->damping;
-  }
-  void set_damping(double value) {
-    ptr_->damping = value;
+  emscripten::val damping() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->damping));
   }
   double frictionloss() const {
     return ptr_->frictionloss;
@@ -4304,6 +4292,9 @@ struct MjModel {
   emscripten::val jnt_stiffness() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_stiffness));
   }
+  emscripten::val jnt_stiffnesspoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt * mjNPOLY, ptr_->jnt_stiffnesspoly));
+  }
   emscripten::val jnt_range() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt * 2, ptr_->jnt_range));
   }
@@ -4348,6 +4339,9 @@ struct MjModel {
   }
   emscripten::val dof_damping() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nv, ptr_->dof_damping));
+  }
+  emscripten::val dof_dampingpoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nv * mjNPOLY, ptr_->dof_dampingpoly));
   }
   emscripten::val dof_invweight0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nv, ptr_->dof_invweight0));
@@ -5168,8 +5162,14 @@ struct MjModel {
   emscripten::val tendon_stiffness() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_stiffness));
   }
+  emscripten::val tendon_stiffnesspoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon * mjNPOLY, ptr_->tendon_stiffnesspoly));
+  }
   emscripten::val tendon_damping() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_damping));
+  }
+  emscripten::val tendon_dampingpoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon * mjNPOLY, ptr_->tendon_dampingpoly));
   }
   emscripten::val tendon_armature() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_armature));
@@ -11739,6 +11739,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("dof_armature", &MjModel::dof_armature)
     .property("dof_bodyid", &MjModel::dof_bodyid)
     .property("dof_damping", &MjModel::dof_damping)
+    .property("dof_dampingpoly", &MjModel::dof_dampingpoly)
     .property("dof_frictionloss", &MjModel::dof_frictionloss)
     .property("dof_invweight0", &MjModel::dof_invweight0)
     .property("dof_jntid", &MjModel::dof_jntid)
@@ -11878,6 +11879,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("jnt_solimp", &MjModel::jnt_solimp)
     .property("jnt_solref", &MjModel::jnt_solref)
     .property("jnt_stiffness", &MjModel::jnt_stiffness)
+    .property("jnt_stiffnesspoly", &MjModel::jnt_stiffnesspoly)
     .property("jnt_type", &MjModel::jnt_type)
     .property("jnt_user", &MjModel::jnt_user)
     .property("key_act", &MjModel::key_act)
@@ -12155,6 +12157,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("tendon_adr", &MjModel::tendon_adr)
     .property("tendon_armature", &MjModel::tendon_armature)
     .property("tendon_damping", &MjModel::tendon_damping)
+    .property("tendon_dampingpoly", &MjModel::tendon_dampingpoly)
     .property("tendon_frictionloss", &MjModel::tendon_frictionloss)
     .property("tendon_group", &MjModel::tendon_group)
     .property("tendon_invweight0", &MjModel::tendon_invweight0)
@@ -12171,6 +12174,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("tendon_solref_fri", &MjModel::tendon_solref_fri)
     .property("tendon_solref_lim", &MjModel::tendon_solref_lim)
     .property("tendon_stiffness", &MjModel::tendon_stiffness)
+    .property("tendon_stiffnesspoly", &MjModel::tendon_stiffnesspoly)
     .property("tendon_treeid", &MjModel::tendon_treeid)
     .property("tendon_treenum", &MjModel::tendon_treenum)
     .property("tendon_user", &MjModel::tendon_user)
@@ -12607,7 +12611,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("align", &MjsJoint::align, &MjsJoint::set_align, reference())
     .property("armature", &MjsJoint::armature, &MjsJoint::set_armature, reference())
     .property("axis", &MjsJoint::axis)
-    .property("damping", &MjsJoint::damping, &MjsJoint::set_damping, reference())
+    .property("damping", &MjsJoint::damping)
     .property("element", &MjsJoint::element, reference())
     .property("frictionloss", &MjsJoint::frictionloss, &MjsJoint::set_frictionloss, reference())
     .property("group", &MjsJoint::group, &MjsJoint::set_group, reference())
@@ -12623,7 +12627,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("solref_limit", &MjsJoint::solref_limit)
     .property("springdamper", &MjsJoint::springdamper)
     .property("springref", &MjsJoint::springref, &MjsJoint::set_springref, reference())
-    .property("stiffness", &MjsJoint::stiffness, &MjsJoint::set_stiffness, reference())
+    .property("stiffness", &MjsJoint::stiffness)
     .property("type", &MjsJoint::type, &MjsJoint::set_type, reference())
     .property("userdata", &MjsJoint::userdata, reference());
   emscripten::class_<MjsKey>("MjsKey")
@@ -12771,7 +12775,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actfrclimited", &MjsTendon::actfrclimited, &MjsTendon::set_actfrclimited, reference())
     .property("actfrcrange", &MjsTendon::actfrcrange)
     .property("armature", &MjsTendon::armature, &MjsTendon::set_armature, reference())
-    .property("damping", &MjsTendon::damping, &MjsTendon::set_damping, reference())
+    .property("damping", &MjsTendon::damping)
     .property("element", &MjsTendon::element, reference())
     .property("frictionloss", &MjsTendon::frictionloss, &MjsTendon::set_frictionloss, reference())
     .property("group", &MjsTendon::group, &MjsTendon::set_group, reference())
@@ -12786,7 +12790,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("solref_friction", &MjsTendon::solref_friction)
     .property("solref_limit", &MjsTendon::solref_limit)
     .property("springlength", &MjsTendon::springlength)
-    .property("stiffness", &MjsTendon::stiffness, &MjsTendon::set_stiffness, reference())
+    .property("stiffness", &MjsTendon::stiffness)
     .property("userdata", &MjsTendon::userdata, reference())
     .property("width", &MjsTendon::width, &MjsTendon::set_width, reference());
   emscripten::class_<MjsText>("MjsText")

@@ -102,6 +102,142 @@ TEST_F(PassiveTest, GravcompNestedBody) {
   mj_deleteModel(m);
 }
 
+TEST_F(PassiveTest, PolyStiffnessSlide) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" stiffness="10 5 1"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <keyframe>
+      <key qpos="2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+
+  mj_forward(m, d);
+  EXPECT_FLOAT_EQ(d->qfrc_spring[0], -48);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(PassiveTest, PolyStiffnessAntiSymmetric) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" stiffness="10 5 1"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <keyframe>
+      <key qpos="-2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+
+  mj_forward(m, d);
+  EXPECT_FLOAT_EQ(d->qfrc_spring[0], 8);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(PassiveTest, PolyStiffnessTendon) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" name="j"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <fixed>
+        <joint joint="j" coef="1"/>
+      </fixed>
+    </tendon>
+
+    <keyframe>
+      <key qpos="2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+
+  m->tendon_stiffness[0] = 10;
+  m->tendon_stiffnesspoly[0] = 5;
+  m->tendon_stiffnesspoly[1] = 1;
+
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+
+  mj_forward(m, d);
+  EXPECT_FLOAT_EQ(d->qfrc_spring[0], -48);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(PassiveTest, PolyStiffnessEnergy) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.0001">
+      <flag energy="enable"/>
+    </option>
+
+    <worldbody>
+      <body>
+        <joint type="slide" stiffness="10 5 1"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <keyframe>
+      <key qpos="2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+
+  mj_forward(m, d);
+  mjtNum total_energy = d->energy[0] + d->energy[1];
+
+  for (int i = 0; i < 100; i++) {
+    mj_step(m, d);
+    EXPECT_NEAR(d->energy[0] + d->energy[1], total_energy, 0.002);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 // ------------------------ ellipsoid fluid model ------------------------------
 
 using EllipsoidFluidTest = MujocoTest;
@@ -470,6 +606,241 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
         energy/volume, 3*scale*scale, std::numeric_limits<float>::epsilon());
     }
   }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(PassiveTest, PolynomialStiffnessJoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" stiffness="2 3 4"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qpos="0.5"/>
+    </keyframe>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+  mj_forward(m, d);
+
+  mjtNum x = 0.5;
+  mjtNum a = 2, b = 3, c = 4;
+  mjtNum expected = -(a + b * x + c * x * x) * x;
+  EXPECT_NEAR(d->qfrc_spring[0], expected, 1e-12);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(PassiveTest, PolynomialStiffnessNegativeDisplacement) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" stiffness="2 3 4"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qpos="-0.5"/>
+    </keyframe>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+  mj_forward(m, d);
+
+  mjtNum x = -0.5;
+  mjtNum a = 2, b = 3, c = 4;
+  mjtNum expected = -(a + b * x + c * x * x) * x;
+  EXPECT_NEAR(d->qfrc_spring[0], expected, 1e-12);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(PassiveTest, PolyStiffnessFixedTendon) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" name="j"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <fixed stiffness="10 5 1">
+        <joint joint="j" coef="1"/>
+      </fixed>
+    </tendon>
+
+    <keyframe>
+      <key qpos="2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+
+  mj_forward(m, d);
+
+  mjtNum x = d->ten_length[0] - m->tendon_lengthspring[1];
+  mjtNum expected = -(10 + 5*x + 1*x*x) * x;
+  EXPECT_NEAR(d->qfrc_spring[0], expected, 1e-12);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(PassiveTest, PolyStiffnessSpatialTendon) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="s0"/>
+      <body>
+        <joint type="slide" name="j"/>
+        <geom size="1" mass="1"/>
+        <site name="s1"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <spatial stiffness="10 5 1">
+        <site site="s0"/>
+        <site site="s1"/>
+      </spatial>
+    </tendon>
+
+    <keyframe>
+      <key qpos="2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+
+  mj_forward(m, d);
+
+  mjtNum x = d->ten_length[0] - m->tendon_lengthspring[1];
+  mjtNum expected = -x * (10 + 5*x + 1*x*x);
+  EXPECT_NEAR(d->qfrc_spring[0], expected, 1e-12);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+
+
+TEST_F(PassiveTest, PolynomialDampingJoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" damping="2 3 4"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="0.5"/>
+    </keyframe>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+  mj_forward(m, d);
+
+  mjtNum v = 0.5;
+  mjtNum a = 2, b = 3, c = 4;
+  mjtNum expected = -(a * v + b * v * mju_abs(v) + c * v * v * v);
+  EXPECT_NEAR(d->qfrc_damper[0], expected, 1e-12);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(PassiveTest, PolynomialDampingNegativeVelocity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" damping="2 3 4"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="-0.5"/>
+    </keyframe>
+  </mujoco>
+  )";
+  mjModel* m = LoadModelFromString(xml);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+  mj_forward(m, d);
+
+  mjtNum v = -0.5;
+  mjtNum a = 2, b = 3, c = 4;
+  mjtNum expected = -(a * v + b * v * mju_abs(v) + c * v * v * v);
+  EXPECT_NEAR(d->qfrc_damper[0], expected, 1e-12);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(PassiveTest, PolynomialDampingTendon) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" name="j"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <fixed damping="10 5 1">
+        <joint joint="j" coef="1"/>
+      </fixed>
+    </tendon>
+
+    <keyframe>
+      <key qvel="2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+
+  mj_forward(m, d);
+
+  mjtNum v = d->ten_velocity[0];
+  mjtNum expected = -(10*v + 5*v*mju_abs(v) + 1*v*v*v);
+  EXPECT_NEAR(d->qfrc_damper[0], expected, 1e-12);
 
   mj_deleteData(d);
   mj_deleteModel(m);

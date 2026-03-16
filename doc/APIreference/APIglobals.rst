@@ -492,6 +492,11 @@ to change.
      - 10
      - The maximal number of real-valued parameters used to define the bias of each actuator.
        Determines the size of ``mjModel.actuator_biasprm``.
+   * - ``mjNPOLY``
+     - 2
+     - The number of nonlinear polynomial coefficients for joint and tendon stiffness and damping.
+       Determines the size of ``mjModel.{jnt,tendon}_{stiffness,damping}poly``. See
+       :ref:`polynomial forces<gePolynomial>`.
    * - ``mjNFLUID``
      - 12
      - The number of per-geom fluid interaction parameters required by the ellipsoidal model.

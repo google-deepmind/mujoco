@@ -265,7 +265,7 @@ typedef struct mjsJoint_ {         // joint specification
   int align;                       // align free joint with body com (mjtAlignFree)
 
   // stiffness
-  double stiffness;                // stiffness coefficient
+  double stiffness[mjNPOLY+1];     // stiffness coefficients
   double springref;                // spring reference value: qpos_spring
   double springdamper[2];          // timeconst, dampratio
 
@@ -280,7 +280,7 @@ typedef struct mjsJoint_ {         // joint specification
 
   // dof properties
   double armature;                 // armature inertia (mass for slider)
-  double damping;                  // damping coefficient
+  double damping[mjNPOLY+1];       // damping coefficients
   double frictionloss;             // friction loss
   mjtNum solref_friction[mjNREF];  // solver reference: dof friction
   mjtNum solimp_friction[mjNIMP];  // solver impedance: dof friction
@@ -627,9 +627,9 @@ typedef struct mjsTendon_ {        // tendon specification
   mjsElement* element;             // element type
 
   // stiffness, damping, friction, armature
-  double stiffness;                // stiffness coefficient
+  double stiffness[mjNPOLY+1];     // stiffness coefficients
   double springlength[2];          // spring resting length; {-1, -1}: use qpos_spring
-  double damping;                  // damping coefficient
+  double damping[mjNPOLY+1];       // damping coefficients
   double frictionloss;             // friction loss
   mjtNum solref_friction[mjNREF];  // solver reference: tendon friction
   mjtNum solimp_friction[mjNIMP];  // solver impedance: tendon friction

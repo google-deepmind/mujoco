@@ -1637,7 +1637,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 // position-dependent energy (potential)
 void mj_energyPos(const mjModel* m, mjData* d) {
   int padr;
-  mjtNum dif[3], quat[4], stiffness;
+  mjtNum dif[3], quat[4], stiffness, x;
 
   // init potential energy:  -sum_i body(i).mass * mju_dot(body(i).pos, gravity)
   d->energy[0] = 0;
@@ -1659,7 +1659,8 @@ void mj_energyPos(const mjModel* m, mjData* d) {
       int jnt_end = jnt_start + m->body_jntnum[b];
       for (int j=jnt_start; j < jnt_end; j++) {
         stiffness = m->jnt_stiffness[j];
-        if (stiffness == 0) {
+        const mjtNum* poly = m->jnt_stiffnesspoly + mjNPOLY*j;
+        if (stiffness == 0 && mju_isZero(poly, mjNPOLY)) {
           continue;
         }
         padr = m->jnt_qposadr[j];
@@ -1667,8 +1668,8 @@ void mj_energyPos(const mjModel* m, mjData* d) {
         switch ((mjtJoint) m->jnt_type[j]) {
         case mjJNT_FREE:
           mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
-          d->energy[0] += 0.5 * stiffness * mju_dot3(dif, dif);
-
+          x = mju_norm3(dif);
+          d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
           // continue with rotations
           padr += 3;
           mjFALLTHROUGH;
@@ -1678,14 +1679,15 @@ void mj_energyPos(const mjModel* m, mjData* d) {
           mju_copy4(quat, d->qpos+padr);
           mju_normalize4(quat);
           mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
-          d->energy[0] += 0.5 * stiffness * mju_dot3(dif, dif);
+          x = mju_norm3(dif);
+          d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
+
           break;
 
         case mjJNT_SLIDE:
         case mjJNT_HINGE:
-          d->energy[0] += 0.5 * stiffness *
-                          (d->qpos[padr] - m->qpos_spring[padr]) *
-                          (d->qpos[padr] - m->qpos_spring[padr]);
+          x = d->qpos[padr] - m->qpos_spring[padr];
+          d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
           break;
         }
       }
@@ -1695,25 +1697,22 @@ void mj_energyPos(const mjModel* m, mjData* d) {
   // add tendon-level springs
   if (!mjDISABLED(mjDSBL_SPRING)) {
     for (int i=0; i < m->ntendon; i++) {
-    // skip sleeping or static tendon
-    if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, i) != mjS_AWAKE) {
-      continue;
-    }
-
-      stiffness = m->tendon_stiffness[i];
-      mjtNum length = d->ten_length[i];
-      mjtNum displacement = 0;
-
-      // compute spring displacement
-      mjtNum lower = m->tendon_lengthspring[2*i];
-      mjtNum upper = m->tendon_lengthspring[2*i+1];
-      if (length > upper) {
-        displacement = upper - length;
-      } else if (length < lower) {
-        displacement = lower - length;
+      // skip sleeping or static tendon
+      if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, i) != mjS_AWAKE) {
+        continue;
       }
 
-      d->energy[0] += 0.5*stiffness*displacement*displacement;
+      stiffness = m->tendon_stiffness[i];
+      const mjtNum* poly = m->tendon_stiffnesspoly + mjNPOLY*i;
+      mjtNum length = d->ten_length[i];
+
+      // compute spring displacement x
+      mjtNum lower = m->tendon_lengthspring[2*i];
+      mjtNum upper = m->tendon_lengthspring[2*i+1];
+      x = (length > upper) ? length - upper : (length < lower) ? length - lower : 0;
+
+      // add potential energy
+      d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
     }
   }
 

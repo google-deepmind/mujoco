@@ -423,6 +423,59 @@ MuJoCo can compute three types of passive forces:
 - Gravity compensation forces. See the body :ref:`gravcomp<body-gravcomp>` attribute for details.
 - Fluid forces exerted by the surrounding medium. See the :doc:`Fluid forces <fluid>` chapter for details.
 
+.. _gePolynomial:
+
+Polynomial forces
+^^^^^^^^^^^^^^^^^
+
+Nonlinear stiffness (:ref:`joints<body-joint-stiffness>`, :ref:`tendons<tendon-spatial-stiffness>`) and
+damping (:ref:`joints<body-joint-damping>`, :ref:`tendons<tendon-spatial-damping>`) are defined by polynomials
+:math:`f` of order :ref:`mjNPOLY + 1<glNumericSizes>`. The actual force applied to the system is :math:`-f`, meaning
+that sign-preserving functions yield a restorative (stiffness) or dissipative (damping) force.
+
+The stiffness polynomial takes the standard form (where :math:`x` is displacement):
+
+.. math::
+   f(x) = a x + b x^2 + c x^3 + \dots
+
+The damping polynomial takes the anti-symmetrized form (where :math:`v` is velocity):
+
+.. math::
+   f(v) = a v + b v |v| + c v^3 + \dots
+
+**Anti-symmetrization**
+  The damping polynomial uses anti-symmetrized even-powered monomials (e.g., :math:`v^2 \rightarrow v|v|`) so that the
+  function is odd: :math:`f(-v) = -f(v)`. This guarantees the force reverses direction with velocity. This formulation
+  is also physically motivated, as some natural forms of damping (like fluid drag) display an anti-symmetric quadratic
+  profile.
+
+  In contrast, asymmetric (or rather, non-anti-symmetric) stiffness profiles are physically common (e.g., biological
+  fascia), making the standard polynomial form and its Taylor-series convenience more appropriate.
+
+**Sign-preservation**
+  In both cases, sensible choices of coefficients often satisfy the **sign-preservation** condition
+  :math:`z \cdot f(z) \geq 0`. This condition is equivalent to requiring that the integral of :math:`f` (Potential
+  Energy for stiffness and Dissipation for damping) is globally convex with a minimum at the origin.
+
+  - For stiffness, violations of the condition create repulsive forces and/or multiple equilibria.
+  - For damping, violations create non-dissipative forces that inject mechanical energy into the system.
+
+  The sign-preservation condition is not enforced by the compiler; it is the user's responsibility to ensure it is
+  satisfied. The analytical conditions on the coefficients for orders up to 3 are:
+
+  .. math::
+     \begin{aligned}
+      \textrm{Standard:} \qquad & a \geq 0, \qquad c \geq 0, \qquad b^2 \leq 4 a c \\
+      \textrm{Anti-symmetrized:} \qquad & a \geq 0, \qquad c \geq 0, \qquad b < 0 \implies b^2 \leq 4 a c
+     \end{aligned}
+
+**mjModel fields**
+  Although MJCF accepts the coefficients as a single array (as does the :ref:`mjs layer<mjsJoint>`),
+  the linear coefficient in ``mjModel`` is stored separately from the higher-order ones.
+  For example, if :ref:`joint/stiffness<body-joint-stiffness>` = "a b c",
+  then ``jnt_stiffness[i] = a``, ``jnt_stiffnesspoly[i*mjNPOLY] = b`` and ``jnt_stiffnesspoly[i*mjNPOLY + 1] = c``.
+  A future breaking change of the C-API may unify the linear and higher-order coefficients into a single array.
+
 .. _geIntegration:
 
 Numerical integration

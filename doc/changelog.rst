@@ -5,10 +5,35 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+
+.. youtube:: aKa3ZlEF9_Y
+   :align: right
+   :width: 35%
+
+- Stiffness in :ref:`joints<body-joint-stiffness>` and :ref:`tendons<tendon-spatial-stiffness>` and damping in
+  :ref:`joints<body-joint-damping>` and :ref:`tendons<tendon-spatial-damping>` now support nonlinear polynomial
+  :ref:`force profiles<gePolynomial>`. New ``mjModel`` arrays (``jnt_stiffnesspoly``, ``tendon_stiffnesspoly``,
+  ``dof_dampingpoly``, ``tendon_dampingpoly``) hold higher-order coefficients. The existing scalar arrays
+  (``jnt_stiffness``, ``dof_damping``, etc.) continue to hold the linear coefficient and are unchanged.
+  The polynomial order is defined by the new constant :ref:`mjNPOLY<glNumericSizes>`. A future breaking C-API change
+  may unify the linear and higher-order coefficients into a single array.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The ``mjs`` layer fields ``stiffness`` and ``damping`` in :ref:`mjsJoint` and :ref:`mjsTendon` have
+     been widened from ``mjtNum`` scalars to ``mjtNum[mjNPOLY+1]`` arrays. The first element is the linear coefficient
+     (previously the scalar), and subsequent elements are the higher-order :ref:`polynomial<gePolynomial>` coefficients.
+
+     **Migration:** Replace assignments like ``joint.stiffness = val`` with ``joint.stiffness[0] = val``.
+
+
 Bug fixes
 ^^^^^^^^^
-- Compiler now correctly accounts for negative scaling when loading user specified mesh data.
 
+- The compiler now correctly accounts for negative scaling when loading user specified mesh data.
 
 Version 3.6.0 (March 10, 2026)
 ------------------------------
@@ -195,7 +220,8 @@ Version 3.4.0 (December 5, 2025)
 General
 ^^^^^^^
 
-.. youtube:: vct493lGQ8Q
+.. youtube:: aKa3ZlEF9_Y
+   :aspect: 2:1
    :align: right
    :width: 35%
 

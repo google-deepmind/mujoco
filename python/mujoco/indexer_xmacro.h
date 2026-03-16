@@ -15,7 +15,7 @@
 #ifndef MUJOCO_PYTHON_INDEXER_XMACRO_H_
 #define MUJOCO_PYTHON_INDEXER_XMACRO_H_
 
-#include <mujoco/mjxmacro.h>
+#include <mujoco/mjxmacro.h>  // IWYU pragma: keep
 
 #define MJMODEL_ACTUATOR                                          \
   X( int,     actuator_, trntype,      nu, 1                    ) \
@@ -132,6 +132,7 @@
   X( mjtNum,  jnt_, pos,          njnt, 3               ) \
   X( mjtNum,  jnt_, axis,         njnt, 3               ) \
   X( mjtNum,  jnt_, stiffness,    njnt, 1               ) \
+  X( mjtNum,  jnt_, stiffnesspoly, njnt, mjNPOLY        ) \
   X( mjtNum,  jnt_, range,        njnt, 2               ) \
   X( mjtNum,  jnt_, margin,       njnt, 1               ) \
   X( mjtNum,  jnt_, user,         njnt, MJ_M(nuser_jnt) ) \
@@ -145,6 +146,7 @@
   X( mjtNum,  dof_, frictionloss, nv,   1               ) \
   X( mjtNum,  dof_, armature,     nv,   1               ) \
   X( mjtNum,  dof_, damping,      nv,   1               ) \
+  X( mjtNum,  dof_, dampingpoly,  nv,   mjNPOLY         ) \
   X( mjtNum,  dof_, invweight0,   nv,   1               ) \
   X( mjtNum,  dof_, M0,           nv,   1               )
 
@@ -253,7 +255,9 @@
   X( mjtNum,  tendon, _range,        ntendon, 2                  ) \
   X( mjtNum,  tendon, _margin,       ntendon, 1                  ) \
   X( mjtNum,  tendon, _stiffness,    ntendon, 1                  ) \
+  X( mjtNum,  tendon, _stiffnesspoly, ntendon, mjNPOLY           ) \
   X( mjtNum,  tendon, _damping,      ntendon, 1                  ) \
+  X( mjtNum,  tendon, _dampingpoly,  ntendon, mjNPOLY            ) \
   X( mjtNum,  tendon, _frictionloss, ntendon, 1                  ) \
   X( mjtNum,  tendon, _lengthspring, ntendon, 1                  ) \
   X( mjtNum,  tendon, _length0,      ntendon, 1                  ) \

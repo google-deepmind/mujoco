@@ -92,7 +92,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     dof_damping = 0;
     if (!mjDISABLED(mjDSBL_EULERDAMP)) {
       for (int i=0; i < nv; i++) {
-        if (m->dof_damping[i] > 0) {
+        if (m->dof_damping[i] > 0 || !mju_isZero(m->dof_dampingpoly + mjNPOLY*i, mjNPOLY)) {
           dof_damping = 1;
           break;
         }
@@ -108,7 +108,10 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     // set qfrc = (M + h*diag(B)) * qacc
     mj_mulM(m, d, qfrc, qacc);
     for (int i=0; i < nv; i++) {
-      qfrc[i] += m->opt.timestep * m->dof_damping[i] * d->qacc[i];
+      mjtNum v = d->qvel[i];
+      const mjtNum* poly = m->dof_dampingpoly + mjNPOLY*i;
+      mjtNum damp_deriv = mjd_xPolyForce(m->dof_damping[i], poly, v, mjNPOLY, 1);
+      qfrc[i] += m->opt.timestep * damp_deriv * d->qacc[i];
     }
     break;
 

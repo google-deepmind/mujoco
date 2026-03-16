@@ -953,7 +953,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   if (!mjDISABLED(mjDSBL_EULERDAMP) && !mjDISABLED(mjDSBL_DAMPER)) {
     for (int v=0; v < nv; v++) {
       int i = sleep_filter ? dof_awake_ind[v] : v;
-      if (m->dof_damping[i] > 0) {
+      if (m->dof_damping[i] > 0 || !mju_isZero(m->dof_dampingpoly + mjNPOLY*i, mjNPOLY)) {
         dof_damping = 1;
         break;
       }
@@ -982,7 +982,10 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
       // qH += h*diag(B)
       for (int v=0; v < nv; v++) {
         int i = sleep_filter ? dof_awake_ind[v] : v;
-        d->qH[m->M_rowadr[i] + m->M_rownnz[i] - 1] += m->opt.timestep * m->dof_damping[i];
+        mjtNum qv = d->qvel[i];
+        const mjtNum* poly = m->dof_dampingpoly + mjNPOLY*i;
+        mjtNum damp_deriv = mjd_xPolyForce(m->dof_damping[i], poly, qv, mjNPOLY, 1);
+        d->qH[m->M_rowadr[i] + m->M_rownnz[i] - 1] += m->opt.timestep * damp_deriv;
       }
 
       // factorize in-place

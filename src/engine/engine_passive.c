@@ -130,9 +130,9 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       int jnt_end = jnt_start + m->body_jntnum[i];
       for (int j=jnt_start; j < jnt_end; j++) {
         mjtNum stiffness = m->jnt_stiffness[j];
+        const mjtNum* spoly = m->jnt_stiffnesspoly + mjNPOLY*j;
 
-        // disabled : nothing to do
-        if (stiffness == 0) {
+        if (stiffness == 0 && mju_isZero(spoly, mjNPOLY)) {
           continue;
         }
 
@@ -142,9 +142,13 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
         switch ((mjtJoint) m->jnt_type[j]) {
         case mjJNT_FREE:
           // apply force
-          d->qfrc_spring[dadr+0] = -stiffness*(d->qpos[padr+0] - m->qpos_spring[padr+0]);
-          d->qfrc_spring[dadr+1] = -stiffness*(d->qpos[padr+1] - m->qpos_spring[padr+1]);
-          d->qfrc_spring[dadr+2] = -stiffness*(d->qpos[padr+2] - m->qpos_spring[padr+2]);
+          {
+            mjtNum dif[3];
+            mji_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
+            mjtNum r = mju_norm3(dif);
+            mjtNum k = mju_polyForce(stiffness, spoly, r, mjNPOLY, 0);
+            mji_addToScl3(d->qfrc_spring + dadr, dif, -k);
+          }
 
           // continue with rotations
           dadr += 3;
@@ -158,18 +162,21 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
             mji_copy4(quat, d->qpos+padr);
             mju_normalize4(quat);
             mji_subQuat(dif, quat, m->qpos_spring + padr);
+            mjtNum r = mju_norm3(dif);
+            mjtNum k = mju_polyForce(stiffness, spoly, r, mjNPOLY, 0);
 
             // apply torque
-            d->qfrc_spring[dadr+0] = -stiffness*dif[0];
-            d->qfrc_spring[dadr+1] = -stiffness*dif[1];
-            d->qfrc_spring[dadr+2] = -stiffness*dif[2];
+            mji_addToScl3(d->qfrc_spring + dadr, dif, -k);
           }
           break;
 
         case mjJNT_SLIDE:
         case mjJNT_HINGE:
-          // apply force or torque
-          d->qfrc_spring[dadr] = -stiffness*(d->qpos[padr] - m->qpos_spring[padr]);
+          {
+            // apply force or torque
+            mjtNum x = d->qpos[padr] - m->qpos_spring[padr];
+            d->qfrc_spring[dadr] = -x * mju_polyForce(stiffness, spoly, x, mjNPOLY, 0);
+          }
           break;
         }
       }
@@ -182,8 +189,10 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     for (int j = 0; j < nv_awake; j++) {
       int i = sleep_filter ? d->dof_awake_ind[j] : j;
       mjtNum damping = m->dof_damping[i];
-      if (damping != 0) {
-        d->qfrc_damper[i] = -damping*d->qvel[i];
+      const mjtNum* poly = m->dof_dampingpoly + mjNPOLY*i;
+      if (damping != 0 || !mju_isZero(poly, mjNPOLY)) {
+        mjtNum v = d->qvel[i];
+        d->qfrc_damper[i] = -v * mju_polyForce(damping, poly, v, mjNPOLY, 1);
       }
     }
   }
@@ -341,7 +350,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       mjtNum gradient[6][2][3];
       GradSquaredLengths(gradient, xpos, vert, edges[dim-2], nedge);
 
-      // we add generalized Rayleigh damping as decribed in Section 5.2 of
+      // we add generalized Rayleigh damping as described in Section 5.2 of
       // Kharevych et al., "Geometric, Variational Integrators for Computer
       // Animation" http://multires.caltech.edu/pubs/DiscreteLagrangian.pdf
 
@@ -450,10 +459,13 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     }
 
     mjtNum stiffness = m->tendon_stiffness[i] * has_spring;
+    const mjtNum* spoly = m->tendon_stiffnesspoly + mjNPOLY*i;
     mjtNum damping = m->tendon_damping[i] * has_damping;
+    const mjtNum* dpoly = m->tendon_dampingpoly + mjNPOLY*i;
 
     // disabled : nothing to do
-    if (stiffness == 0 && damping == 0) {
+    if (stiffness == 0 && mju_isZero(spoly, mjNPOLY) &&
+        damping == 0   && mju_isZero(dpoly, mjNPOLY)) {
       continue;
     }
 
@@ -461,15 +473,12 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     mjtNum length = d->ten_length[i];
     mjtNum lower = m->tendon_lengthspring[2*i];
     mjtNum upper = m->tendon_lengthspring[2*i+1];
-    mjtNum frc_spring = 0;
-    if (length > upper) {
-      frc_spring = stiffness * (upper - length);
-    } else if (length < lower) {
-      frc_spring = stiffness * (lower - length);
-    }
+    mjtNum x = (length > upper) ? length - upper : (length < lower) ? length - lower : 0;
+    mjtNum frc_spring = has_spring ? -x * mju_polyForce(stiffness, spoly, x, mjNPOLY, 0) : 0;
 
-    // compute damper linear force along tendon
-    mjtNum frc_damper = -damping * d->ten_velocity[i];
+    // compute damper force along tendon
+    mjtNum v = d->ten_velocity[i];
+    mjtNum frc_damper = has_damping ? -v * mju_polyForce(damping, dpoly, v, mjNPOLY, 1) : 0;
 
     // transform to joint torque, add to qfrc_{spring, damper}
     if (frc_spring || frc_damper) {

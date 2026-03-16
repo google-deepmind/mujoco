@@ -395,7 +395,12 @@ void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
             true);
   WriteAttr(elem, "solimpfriction", mjNIMP, joint->solimp_friction, def->Joint().solimp_friction,
             true);
-  WriteAttr(elem, "stiffness", 1, &joint->stiffness, &def->Joint().stiffness);
+  {
+    int nstiff = 1+mjNPOLY;
+    while (nstiff > 1 && joint->stiffness[nstiff-1] == 0
+                      && def->Joint().stiffness[nstiff-1] == 0) nstiff--;
+    WriteAttr(elem, "stiffness", nstiff, joint->stiffness, def->Joint().stiffness);
+  }
   if (joint->type != mjJNT_FREE) {
     WriteAttrKey(elem, "limited", TFAuto_map, 3, joint->limited, def->Joint().limited);
   }
@@ -408,7 +413,12 @@ void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
   WriteAttr(elem, "actuatorfrcrange", 2, joint->actfrcrange, def->Joint().actfrcrange);
   WriteAttr(elem, "margin", 1, &joint->margin, &def->Joint().margin);
   WriteAttr(elem, "armature", 1, &joint->armature, &def->Joint().armature);
-  WriteAttr(elem, "damping", 1, &joint->damping, &def->Joint().damping);
+  {
+    int ndamp = 1+mjNPOLY;
+    while (ndamp > 1 && joint->damping[ndamp-1] == 0
+                     && def->Joint().damping[ndamp-1] == 0) ndamp--;
+    WriteAttr(elem, "damping", ndamp, joint->damping, def->Joint().damping);
+  }
   WriteAttr(elem, "frictionloss", 1, &joint->frictionloss, &def->Joint().frictionloss);
 
   // userdata
@@ -753,8 +763,18 @@ void mjXWriter::OneTendon(XMLElement* elem, const mjCTendon* tendon, mjCDef* def
   WriteAttr(elem, "range", 2, tendon->range, def->Tendon().range);
   WriteAttr(elem, "actuatorfrcrange", 2, tendon->actfrcrange, def->Tendon().actfrcrange);
   WriteAttr(elem, "margin", 1, &tendon->margin, &def->Tendon().margin);
-  WriteAttr(elem, "stiffness", 1, &tendon->stiffness, &def->Tendon().stiffness);
-  WriteAttr(elem, "damping", 1, &tendon->damping, &def->Tendon().damping);
+  {
+    int nstiff = 1+mjNPOLY;
+    while (nstiff > 1 && tendon->stiffness[nstiff-1] == 0
+                      && def->Tendon().stiffness[nstiff-1] == 0) nstiff--;
+    WriteAttr(elem, "stiffness", nstiff, tendon->stiffness, def->Tendon().stiffness);
+  }
+  {
+    int ndamp = 1+mjNPOLY;
+    while (ndamp > 1 && tendon->damping[ndamp-1] == 0
+                     && def->Tendon().damping[ndamp-1] == 0) ndamp--;
+    WriteAttr(elem, "damping", ndamp, tendon->damping, def->Tendon().damping);
+  }
   WriteAttr(elem, "armature", 1, &tendon->armature, &def->Tendon().armature);
   WriteAttr(elem, "frictionloss", 1, &tendon->frictionloss, &def->Tendon().frictionloss);
   if (tendon->springlength[0] != tendon->springlength[1] ||

@@ -2268,9 +2268,14 @@ rotations as unit quaternions.
 
 .. _body-joint-stiffness:
 
-:at:`stiffness`: :at-val:`real, "0"`
-   Joint stiffness. If this value is positive, a spring will be created with equilibrium position given by springref
-   below. The spring force is computed along with the other passive forces.
+:at:`stiffness`: :at-val:`real, "0 0 0"`
+   Joint stiffness coefficients :math:`a, b, c`. A positive :math:`a` produces the standard restorative linear spring
+   force :math:`f = -a x`, where :math:`x` is the joint displacement from equilibrium given by
+   :ref:`springref<body-joint-springref>`.
+
+   If the optional second and third components are set, they define a nonlinear
+   polynomial spring force :math:`f(x) = -(a x + b x^2 + c x^3)`.
+   See :ref:`Polynomial forces<gePolynomial>` for details.
 
 .. _body-joint-range:
 
@@ -2373,11 +2378,17 @@ rotations as unit quaternions.
 
 .. _body-joint-damping:
 
-:at:`damping`: :at-val:`real, "0"`
-   Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the
-   constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this
-   simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles
+:at:`damping`: :at-val:`real, "0 0 0"`
+   Damping coefficients :math:`a, b, c`.
+   A positive :math:`a` produces the standard dissipative linear damping force :math:`f(v) = -a v`,
+   where :math:`v` is the joint velocity. Despite its simplicity,
+   larger damping values can make numerical integrators unstable, which is why our Euler integrator handles
    damping implicitly. See :ref:`Integration <geIntegration>` in the Computation chapter.
+
+   If the optional second and third components are set, they define a nonlinear polynomial damping force
+   :math:`f(v) = -(a v + b v |v| + c v^3)`.
+   Note the anti-symmetrization of the quadratic term, ensuring that the force is an odd function of
+   velocity. See :ref:`Polynomial forces<gePolynomial>` for details.
 
 .. _body-joint-frictionloss:
 
@@ -5025,15 +5036,32 @@ length X, as in the clip on the right of `this example model
 
 .. _tendon-spatial-stiffness:
 
-:at:`stiffness`: :at-val:`real, "0"`
-   Stiffness coefficient. A positive value generates a spring force (linear in position) acting along the tendon.
+.. youtube:: aKa3ZlEF9_Y
+   :aspect: 2:1
+   :align: right
+   :width: 35%
+
+:at:`stiffness`: :at-val:`real, "0 0 0"`
+   Tendon stiffness coefficients :math:`a, b, c`. A positive :math:`a` generates a linear spring force
+   :math:`f(x) = -a x`, acting along the tendon. Here :math:`x` is the tendon displacement
+   defined by :ref:`springlength<tendon-spatial-springlength>`.
+
+   If the optional second and third components are set, they define a nonlinear polynomial spring force
+   :math:`f(x) = -(a x + b x^2 + c x^3)`. See :ref:`Polynomial forces<gePolynomial>` for details.
+
+   The clip on the right is of
+   `this model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/passive/poly_stiffness.xml>`__.
 
 .. _tendon-spatial-damping:
 
-:at:`damping`: :at-val:`real, "0"`
-   Damping coefficient. A positive value generates a damping force (linear in velocity) acting along the tendon. Unlike
-   joint damping which is integrated implicitly by the Euler method, tendon damping is not integrated implicitly, thus
-   joint damping should be used if possible.
+:at:`damping`: :at-val:`real, "0 0 0"`
+   Damping coefficients :math:`a, b, c`.
+   A positive :math:`a` produces the standard dissipative linear damping force :math:`f(v) = -a v`.
+
+   If the optional second and third components are set, they define a nonlinear polynomial damping force
+   :math:`f(v) = -(a v + b v |v| + c v^3)`.
+   Note the anti-symmetrization of the quadratic term, ensuring that the force is an odd function of
+   velocity. See :ref:`Polynomial forces<gePolynomial>` for details.
 
 .. image:: images/XMLreference/tendon_armature.gif
    :width: 30%

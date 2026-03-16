@@ -538,6 +538,44 @@ TEST_F(SensorTest, KineticEnergy) {
   mj_deleteModel(model);
 }
 
+TEST_F(SensorTest, PolyStiffnessEnergy) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.0001">
+      <flag energy="enable"/>
+    </option>
+
+    <worldbody>
+      <body>
+        <joint type="slide" stiffness="10 5 1"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <keyframe>
+      <key qpos="2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+
+  mj_forward(m, d);
+  mjtNum total_energy = d->energy[0] + d->energy[1];
+
+  for (int i = 0; i < 100; i++) {
+    mj_step(m, d);
+    EXPECT_NEAR(d->energy[0] + d->energy[1], total_energy, 0.002);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 // test clock sensor
 TEST_F(SensorTest, Clock) {
   constexpr char xml[] = R"(

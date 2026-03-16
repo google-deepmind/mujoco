@@ -1884,6 +1884,53 @@ char* mju_strncpy(char *dst, const char *src, int n) {
 }
 
 
+// polynomial force coefficient: force = -x * mju_polyForce(...)
+//   flg_odd=0: linear + poly[0]*x   + poly[1]*x^2 + ...
+//   flg_odd=1: linear + poly[0]*|x| + poly[1]*x^2 + ...  (p is even, p*x is odd)
+mjtNum mju_polyForce(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd) {
+  x = flg_odd ? mju_abs(x) : x;
+  mjtNum res = linear;
+
+  mjtNum xpow = 1;
+  for (int i=0; i < n; i++) {
+    xpow *= x;
+    res += poly[i] * xpow;
+  }
+
+  return res;
+}
+
+
+// derivative of (x * mju_polyForce) w.r.t. x
+mjtNum mjd_xPolyForce(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd) {
+  x = flg_odd ? mju_abs(x) : x;
+  mjtNum res = linear;
+
+  mjtNum xpow = 1;
+  for (int i=0; i < n; i++) {
+    xpow *= x;
+    res += (i+2) * poly[i] * xpow;
+  }
+
+  return res;
+}
+
+
+// potential energy: integral from 0 to x of mju_polyForce(t) * t dt
+mjtNum mju_polyPotential(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd) {
+  x = flg_odd ? mju_abs(x) : x;
+  mjtNum res = 0.5 * linear * (x * x);
+
+  mjtNum xpow = x;
+  for (int i=0; i < n; i++) {
+    xpow *= x;
+    res += poly[i] / (i+3) * (xpow * x);
+  }
+
+  return res;
+}
+
+
 // sigmoid function over 0<=x<=1 using quintic polynomial
 mjtNum mju_sigmoid(mjtNum x) {
   // fast return

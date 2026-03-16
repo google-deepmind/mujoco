@@ -1815,14 +1815,18 @@ void mjXReader::OneJoint(XMLElement* elem, mjsJoint* joint) {
   ReadAttr(elem, "pos", 3, joint->pos, text);
   ReadAttr(elem, "axis", 3, joint->axis, text);
   ReadAttr(elem, "springdamper", 2, joint->springdamper, text);
-  ReadAttr(elem, "stiffness", 1, &joint->stiffness, text);
+
+  ReadAttr(elem, "stiffness", 1+mjNPOLY, joint->stiffness, text, false, false);
+
   ReadAttr(elem, "range", 2, joint->range, text);
   ReadAttr(elem, "actuatorfrcrange", 2, joint->actfrcrange, text);
   ReadAttr(elem, "margin", 1, &joint->margin, text);
   ReadAttr(elem, "ref", 1, &joint->ref, text);
   ReadAttr(elem, "springref", 1, &joint->springref, text);
   ReadAttr(elem, "armature", 1, &joint->armature, text);
-  ReadAttr(elem, "damping", 1, &joint->damping, text);
+
+  ReadAttr(elem, "damping", 1+mjNPOLY, joint->damping, text, false, false);
+
   ReadAttr(elem, "frictionloss", 1, &joint->frictionloss, text);
   if (MapValue(elem, "actuatorgravcomp", &n, bool_map, 2)) {
     joint->actgravcomp = (n == 1);
@@ -2267,8 +2271,11 @@ void mjXReader::OneTendon(XMLElement* elem, mjsTendon* tendon) {
   ReadAttr(elem, "range", 2, tendon->range, text);
   ReadAttr(elem, "actuatorfrcrange", 2, tendon->actfrcrange, text);
   ReadAttr(elem, "margin", 1, &tendon->margin, text);
-  ReadAttr(elem, "stiffness", 1, &tendon->stiffness, text);
-  ReadAttr(elem, "damping", 1, &tendon->damping, text);
+
+  ReadAttr(elem, "stiffness", 1+mjNPOLY, tendon->stiffness, text, false, false);
+
+  ReadAttr(elem, "damping", 1+mjNPOLY, tendon->damping, text, false, false);
+
   ReadAttr(elem, "armature", 1, &tendon->armature, text);
   ReadAttr(elem, "frictionloss", 1, &tendon->frictionloss, text);
   // read springlength, either one or two values; if one, copy to second value
@@ -2679,11 +2686,11 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsFrame* frame, c
              "solreffriction", mjNREF, djoint.solref_friction, text, false, false);
     ReadAttr(ejnt,
              "solimpfriction", mjNIMP, djoint.solimp_friction, text, false, false);
-    ReadAttr(ejnt, "stiffness", 1, &djoint.stiffness, text);
+    ReadAttr(ejnt, "stiffness", 1, djoint.stiffness, text);
     ReadAttr(ejnt, "range", 2, djoint.range, text);
     ReadAttr(ejnt, "margin", 1, &djoint.margin, text);
     ReadAttr(ejnt, "armature", 1, &djoint.armature, text);
-    ReadAttr(ejnt, "damping", 1, &djoint.damping, text);
+    ReadAttr(ejnt, "damping", 1, djoint.damping, text);
     ReadAttr(ejnt, "frictionloss", 1, &djoint.frictionloss, text);
 
     // advance

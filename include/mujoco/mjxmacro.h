@@ -323,6 +323,7 @@
     X   ( mjtNum,  jnt_pos,               njnt,          3                    ) \
     X   ( mjtNum,  jnt_axis,              njnt,          3                    ) \
     X   ( mjtNum,  jnt_stiffness,         njnt,          1                    ) \
+    X   ( mjtNum,  jnt_stiffnesspoly,     njnt,          mjNPOLY              ) \
     X   ( mjtNum,  jnt_range,             njnt,          2                    ) \
     X   ( mjtNum,  jnt_actfrcrange,       njnt,          2                    ) \
     X   ( mjtNum,  jnt_margin,            njnt,          1                    ) \
@@ -340,6 +341,7 @@
     X   ( mjtNum,  dof_frictionloss,      nv,            1                    ) \
     X   ( mjtNum,  dof_armature,          nv,            1                    ) \
     X   ( mjtNum,  dof_damping,           nv,            1                    ) \
+    X   ( mjtNum,  dof_dampingpoly,       nv,            mjNPOLY              ) \
     X   ( mjtNum,  dof_invweight0,        nv,            1                    ) \
     X   ( mjtNum,  dof_M0,                nv,            1                    ) \
     X   ( mjtNum,  dof_length,            nv,            1                    )
@@ -643,7 +645,9 @@
     X   ( mjtNum,  tendon_actfrcrange,    ntendon,       2                    ) \
     X   ( mjtNum,  tendon_margin,         ntendon,       1                    ) \
     X   ( mjtNum,  tendon_stiffness,      ntendon,       1                    ) \
+    X   ( mjtNum,  tendon_stiffnesspoly,  ntendon,       mjNPOLY              ) \
     X   ( mjtNum,  tendon_damping,        ntendon,       1                    ) \
+    X   ( mjtNum,  tendon_dampingpoly,    ntendon,       mjNPOLY              ) \
     X   ( mjtNum,  tendon_armature,       ntendon,       1                    ) \
     X   ( mjtNum,  tendon_frictionloss,   ntendon,       1                    ) \
     X   ( mjtNum,  tendon_lengthspring,   ntendon,       2                    ) \

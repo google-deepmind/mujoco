@@ -42,6 +42,7 @@
 #define mjNFLUID        12        // number of fluid interaction parameters
 #define mjNREF          2         // number of solver reference parameters
 #define mjNIMP          5         // number of solver impedance parameters
+#define mjNPOLY         2         // number of high-order polynomial coefficients
 #define mjNSENS         3         // number of sensor parameters
 #define mjNSOLVER       200       // size of one mjData.solver array
 #define mjNISLAND       20        // number of mjData.solver arrays
@@ -840,7 +841,8 @@ struct mjModel_ {
   mjtNum*   jnt_solimp;           // constraint solver impedance: limit       (njnt x mjNIMP)
   mjtNum*   jnt_pos;              // local anchor position                    (njnt x 3)
   mjtNum*   jnt_axis;             // local joint axis                         (njnt x 3)
-  mjtNum*   jnt_stiffness;        // stiffness coefficient                    (njnt x 1)
+  mjtNum*   jnt_stiffness;        // linear stiffness coefficient             (njnt x 1)
+  mjtNum*   jnt_stiffnesspoly;    // high-order stiffness coefficients        (njnt x mjNPOLY)
   mjtNum*   jnt_range;            // joint limits                             (njnt x 2)
   mjtNum*   jnt_actfrcrange;      // range of total actuator force            (njnt x 2)
   mjtNum*   jnt_margin;           // min distance for limit detection         (njnt x 1)
@@ -857,7 +859,8 @@ struct mjModel_ {
   mjtNum*   dof_solimp;           // constraint solver impedance:frictionloss (nv x mjNIMP)
   mjtNum*   dof_frictionloss;     // dof friction loss                        (nv x 1)
   mjtNum*   dof_armature;         // dof armature inertia/mass                (nv x 1)
-  mjtNum*   dof_damping;          // damping coefficient                      (nv x 1)
+  mjtNum*   dof_damping;          // linear damping coefficient               (nv x 1)
+  mjtNum*   dof_dampingpoly;      // high-order damping coefficients          (nv x mjNPOLY)
   mjtNum*   dof_invweight0;       // diag. inverse inertia in qpos0           (nv x 1)
   mjtNum*   dof_M0;               // diag. inertia in qpos0                   (nv x 1)
   mjtNum*   dof_length;           // linear: 1; angular: approx. length scale (nv x 1)
@@ -1162,8 +1165,10 @@ struct mjModel_ {
   mjtNum*   tendon_range;         // tendon length limits                     (ntendon x 2)
   mjtNum*   tendon_actfrcrange;   // range of total actuator force            (ntendon x 2)
   mjtNum*   tendon_margin;        // min distance for limit detection         (ntendon x 1)
-  mjtNum*   tendon_stiffness;     // stiffness coefficient                    (ntendon x 1)
-  mjtNum*   tendon_damping;       // damping coefficient                      (ntendon x 1)
+  mjtNum*   tendon_stiffness;     // linear stiffness coefficient             (ntendon x 1)
+  mjtNum*   tendon_stiffnesspoly; // high-order stiffness coefficients        (ntendon x mjNPOLY)
+  mjtNum*   tendon_damping;       // linear damping coefficient               (ntendon x 1)
+  mjtNum*   tendon_dampingpoly;   // high-order damping coefficients          (ntendon x mjNPOLY)
   mjtNum*   tendon_armature;      // inertia associated with tendon velocity  (ntendon x 1)
   mjtNum*   tendon_frictionloss;  // loss due to friction                     (ntendon x 1)
   mjtNum*   tendon_lengthspring;  // spring resting length range              (ntendon x 2)

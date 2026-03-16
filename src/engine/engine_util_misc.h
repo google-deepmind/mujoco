@@ -239,6 +239,17 @@ MJAPI mjtNum mju_Halton(int index, int base);
 // call strncpy, then set dst[n-1] = 0
 MJAPI char* mju_strncpy(char *dst, const char *src, int n);
 
+// polynomial force coefficient: force = -mju_polyForce(...) * x
+//   flg_odd=0: linear + poly[0]*x   + poly[1]*x^2 + ...
+//   flg_odd=1: linear + poly[0]*|x| + poly[1]*x^2 + ...
+MJAPI mjtNum mju_polyForce(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd);
+
+// derivative of (mju_polyForce * x) w.r.t. x
+MJAPI mjtNum mjd_xPolyForce(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd);
+
+// potential energy: integral from 0 to x of mju_polyForce * t dt
+MJAPI mjtNum mju_polyPotential(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd);
+
 // sigmoid function over 0<=x<=1 using quintic polynomial
 MJAPI mjtNum mju_sigmoid(mjtNum x);
 

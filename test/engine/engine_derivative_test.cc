@@ -1168,6 +1168,73 @@ TEST_F(DerivativeTest, ForcerangeClampedDerivative) {
   mj_deleteModel(m);
 }
 
+TEST_F(DerivativeTest, NonlinearDampingDerivative) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide" damping="2 3 4"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <keyframe>
+      <key qvel="3"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+
+  mjtNum dt_small = 1e-4;
+  mjtNum dt_large = 1e-2;
+  mjtNum duration = 1.0;
+
+  mjData* d_gt = mj_makeData(m);
+  mjData* d_enabled = mj_makeData(m);
+  mjData* d_disabled = mj_makeData(m);
+
+  mj_resetDataKeyframe(m, d_gt, 0);
+  mj_resetDataKeyframe(m, d_enabled, 0);
+  mj_resetDataKeyframe(m, d_disabled, 0);
+
+  m->opt.integrator = mjINT_EULER;
+  mjtNum error_enabled = 0;
+  mjtNum error_disabled = 0;
+  int nsteps_large = static_cast<int>(duration / dt_large);
+  int substeps = static_cast<int>(dt_large / dt_small);
+
+  for (int i = 0; i < nsteps_large; i++) {
+    m->opt.timestep = dt_small;
+    m->opt.disableflags |= mjDSBL_EULERDAMP;  // disable implicit damping
+    for (int j = 0; j < substeps; j++) {
+      mj_step(m, d_gt);
+    }
+
+    m->opt.timestep = dt_large;
+    mj_step(m, d_disabled);
+
+    m->opt.disableflags &= ~mjDSBL_EULERDAMP;  // enable implicit damping
+    mj_step(m, d_enabled);
+
+    mjtNum diff_enabled = d_gt->qvel[0] - d_enabled->qvel[0];
+    mjtNum diff_disabled = d_gt->qvel[0] - d_disabled->qvel[0];
+    error_enabled += diff_enabled * diff_enabled;
+    error_disabled += diff_disabled * diff_disabled;
+  }
+
+  EXPECT_LT(error_enabled, error_disabled)
+      << "Euler with implicit damping should be more accurate than without "
+      << "when nonlinear damping derivatives are correctly handled";
+
+  mj_deleteData(d_disabled);
+  mj_deleteData(d_enabled);
+  mj_deleteData(d_gt);
+  mj_deleteModel(m);
+}
+
 // implicit derivatives should use next activation when actearly is set
 TEST_F(DerivativeTest, ActearlyDerivative) {
   static constexpr char xml[] = R"(

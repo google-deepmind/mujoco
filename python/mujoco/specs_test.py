@@ -169,7 +169,7 @@ class SpecsTest(absltest.TestCase):
 
     # Add tendon.
     tendon = spec.add_tendon(stiffness=2, springlength=[0.1, 0.2])
-    self.assertEqual(tendon.stiffness, 2)
+    np.testing.assert_array_equal(tendon.stiffness, [2, 0, 0])
     np.testing.assert_array_equal(tendon.springlength, [0.1, 0.2])
 
     # Add actuator.
@@ -478,14 +478,14 @@ class SpecsTest(absltest.TestCase):
       body.add_geom(size=[])
     self.assertEqual(
         str(cm.exception),
-        'size should be a list/array of size 1, 2, or 3.',
+        'size should be a list/array of size 1 to 3.',
     )
 
     with self.assertRaises(ValueError) as cm:
       body.add_geom(size=[1, 2, 3, 4])
     self.assertEqual(
         str(cm.exception),
-        'size should be a list/array of size 1, 2, or 3.',
+        'size should be a list/array of size 1 to 3.',
     )
 
   def test_load_xml(self):

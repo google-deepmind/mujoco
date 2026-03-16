@@ -50,6 +50,7 @@ public const int mjNBIAS = 10;
 public const int mjNFLUID = 12;
 public const int mjNREF = 2;
 public const int mjNIMP = 5;
+public const int mjNPOLY = 2;
 public const int mjNSENS = 3;
 public const int mjNSOLVER = 200;
 public const int mjNISLAND = 20;
@@ -5437,6 +5438,7 @@ public unsafe struct mjModel_ {
   public double* jnt_pos;
   public double* jnt_axis;
   public double* jnt_stiffness;
+  public double* jnt_stiffnesspoly;
   public double* jnt_range;
   public double* jnt_actfrcrange;
   public double* jnt_margin;
@@ -5452,6 +5454,7 @@ public unsafe struct mjModel_ {
   public double* dof_frictionloss;
   public double* dof_armature;
   public double* dof_damping;
+  public double* dof_dampingpoly;
   public double* dof_invweight0;
   public double* dof_M0;
   public double* dof_length;
@@ -5725,7 +5728,9 @@ public unsafe struct mjModel_ {
   public double* tendon_actfrcrange;
   public double* tendon_margin;
   public double* tendon_stiffness;
+  public double* tendon_stiffnesspoly;
   public double* tendon_damping;
+  public double* tendon_dampingpoly;
   public double* tendon_armature;
   public double* tendon_frictionloss;
   public double* tendon_lengthspring;

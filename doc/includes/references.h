@@ -1179,7 +1179,8 @@ struct mjModel_ {
   mjtNum*   jnt_solimp;           // constraint solver impedance: limit       (njnt x mjNIMP)
   mjtNum*   jnt_pos;              // local anchor position                    (njnt x 3)
   mjtNum*   jnt_axis;             // local joint axis                         (njnt x 3)
-  mjtNum*   jnt_stiffness;        // stiffness coefficient                    (njnt x 1)
+  mjtNum*   jnt_stiffness;        // linear stiffness coefficient             (njnt x 1)
+  mjtNum*   jnt_stiffnesspoly;    // high-order stiffness coefficients        (njnt x mjNPOLY)
   mjtNum*   jnt_range;            // joint limits                             (njnt x 2)
   mjtNum*   jnt_actfrcrange;      // range of total actuator force            (njnt x 2)
   mjtNum*   jnt_margin;           // min distance for limit detection         (njnt x 1)
@@ -1196,7 +1197,8 @@ struct mjModel_ {
   mjtNum*   dof_solimp;           // constraint solver impedance:frictionloss (nv x mjNIMP)
   mjtNum*   dof_frictionloss;     // dof friction loss                        (nv x 1)
   mjtNum*   dof_armature;         // dof armature inertia/mass                (nv x 1)
-  mjtNum*   dof_damping;          // damping coefficient                      (nv x 1)
+  mjtNum*   dof_damping;          // linear damping coefficient               (nv x 1)
+  mjtNum*   dof_dampingpoly;      // high-order damping coefficients          (nv x mjNPOLY)
   mjtNum*   dof_invweight0;       // diag. inverse inertia in qpos0           (nv x 1)
   mjtNum*   dof_M0;               // diag. inertia in qpos0                   (nv x 1)
   mjtNum*   dof_length;           // linear: 1; angular: approx. length scale (nv x 1)
@@ -1501,8 +1503,10 @@ struct mjModel_ {
   mjtNum*   tendon_range;         // tendon length limits                     (ntendon x 2)
   mjtNum*   tendon_actfrcrange;   // range of total actuator force            (ntendon x 2)
   mjtNum*   tendon_margin;        // min distance for limit detection         (ntendon x 1)
-  mjtNum*   tendon_stiffness;     // stiffness coefficient                    (ntendon x 1)
-  mjtNum*   tendon_damping;       // damping coefficient                      (ntendon x 1)
+  mjtNum*   tendon_stiffness;     // linear stiffness coefficient             (ntendon x 1)
+  mjtNum*   tendon_stiffnesspoly; // high-order stiffness coefficients        (ntendon x mjNPOLY)
+  mjtNum*   tendon_damping;       // linear damping coefficient               (ntendon x 1)
+  mjtNum*   tendon_dampingpoly;   // high-order damping coefficients          (ntendon x mjNPOLY)
   mjtNum*   tendon_armature;      // inertia associated with tendon velocity  (ntendon x 1)
   mjtNum*   tendon_frictionloss;  // loss due to friction                     (ntendon x 1)
   mjtNum*   tendon_lengthspring;  // spring resting length range              (ntendon x 2)
@@ -2057,7 +2061,7 @@ typedef struct mjsJoint_ {         // joint specification
   int align;                       // align free joint with body com (mjtAlignFree)
 
   // stiffness
-  double stiffness;                // stiffness coefficient
+  double stiffness[mjNPOLY+1];     // stiffness coefficients
   double springref;                // spring reference value: qpos_spring
   double springdamper[2];          // timeconst, dampratio
 
@@ -2072,7 +2076,7 @@ typedef struct mjsJoint_ {         // joint specification
 
   // dof properties
   double armature;                 // armature inertia (mass for slider)
-  double damping;                  // damping coefficient
+  double damping[mjNPOLY+1];       // damping coefficients
   double frictionloss;             // friction loss
   mjtNum solref_friction[mjNREF];  // solver reference: dof friction
   mjtNum solimp_friction[mjNIMP];  // solver impedance: dof friction
@@ -2390,9 +2394,9 @@ typedef struct mjsTendon_ {        // tendon specification
   mjsElement* element;             // element type
 
   // stiffness, damping, friction, armature
-  double stiffness;                // stiffness coefficient
+  double stiffness[mjNPOLY+1];     // stiffness coefficients
   double springlength[2];          // spring resting length; {-1, -1}: use qpos_spring
-  double damping;                  // damping coefficient
+  double damping[mjNPOLY+1];       // damping coefficients
   double frictionloss;             // friction loss
   mjtNum solref_friction[mjNREF];  // solver reference: tendon friction
   mjtNum solimp_friction[mjNIMP];  // solver impedance: tendon friction

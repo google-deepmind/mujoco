@@ -1665,6 +1665,7 @@ TEST_F(ForwardTest, FlexTrilinearInstability) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
+
 // Verify that flex damping does not affect rigid body motion
 TEST_F(ForwardTest, FlexDampingRigidMotion) {
   constexpr char xml[] = R"(
