@@ -2579,14 +2579,14 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       break;
 
     case mjEQ_FLEXSTRAIN: {
-      // increment with 3 invariants × ngauss Gauss points
+      // increment: trilinear uses 2 center (I1,J-1) + 3*ngauss shear, quadratic uses 6*ngauss
       k = m->eq_obj1id[id];
       int order = m->flex_interp[k];
       int nodenum = m->flex_nodenum[k];
       if (order && nodenum) {
         int nquad = order + 1;
         int ngauss = nquad * nquad * nquad;
-        i += 3 * ngauss;
+        i += (order == 1) ? (2 + 3 * ngauss) : (6 * ngauss);
       }
       break;
     }

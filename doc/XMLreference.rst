@@ -4841,10 +4841,12 @@ degrees of freedom to avoid locking. It is only supported for dimension 2, i.e.,
 :el-prefix:`equality/` |-| **flexstrain** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element constrains the strain invariants of a trilinear or quadratic flex to their initial values. Specifically, it
-enforces that the trace and determinant of the deformation gradient remain constant, preserving volume and preventing
-excessive stretching. This constraint type is only supported for dimension 3 trilinear flexes (i.e., volumetric
-deformable bodies using trilinear interpolation). See `this model
+This element constrains the strain of a trilinear or quadratic flex to its initial values. For trilinear elements,
+a B-bar formulation is used to prevent volumetric locking: the trace of strain (I₁) and volume ratio (J-1 = det(F)-1)
+are constrained at the element center, while the three off-diagonal shear components (E₁₂, E₁₃, E₂₃) are constrained
+at each of the 8 Gauss points, giving 26 constraints per element. For quadratic elements, all 6 strain components
+(3 invariants + 3 shear) are constrained at each of the 27 Gauss points, giving 162 constraints per element. This
+constraint type is only supported for dimension 3 flexes with trilinear or quadratic interpolation. See `this model
 <https://github.com/google-deepmind/mujoco/blob/main/model/flex/strain.xml>`__ for an example.
 
 .. _equality-flexstrain-name:
@@ -4859,7 +4861,7 @@ deformable bodies using trilinear interpolation). See `this model
 .. _equality-flexstrain-flex:
 
 :at:`flex`: :at-val:`string, required`
-   Name of the flex whose strain invariants are being constrained.
+   Name of the flex whose strain is being constrained.
 
 
 .. _equality-distance:
