@@ -58,6 +58,13 @@
   #define mjUNLIKELY(x) (x)
 #endif
 
+// Define ADDRESS_SANITIZER if implied by other macros.
+#if !defined(ADDRESS_SANITIZER)
+  #if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer))
+    #define ADDRESS_SANITIZER
+  #endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

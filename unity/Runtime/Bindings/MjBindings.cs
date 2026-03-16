@@ -60,6 +60,7 @@ public const int mjNAUX = 10;
 public const int mjMAXTEXTURE = 1000;
 public const int mjMAXMATERIAL = 1000;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSAN_H_ = true;
+public const bool ADDRESS_SANITIZER = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSPEC_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
 public const int mjMAXTHREAD = 128;

@@ -15,6 +15,13 @@
 #ifndef MUJOCO_INCLUDE_MJSAN_H_
 #define MUJOCO_INCLUDE_MJSAN_H_
 
+// Define ADDRESS_SANITIZER if implied by other macros.
+#if !defined(ADDRESS_SANITIZER)
+  #if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer))
+    #define ADDRESS_SANITIZER
+  #endif
+#endif
+
 // Include asan interface header, or provide stubs for poison/unpoison macros when not using asan.
 #ifdef ADDRESS_SANITIZER
   #include <sanitizer/asan_interface.h>
