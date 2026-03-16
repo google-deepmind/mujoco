@@ -456,6 +456,11 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
     return 0;
   }
 
+  // count-only mode
+  if (!jacdifp && !jacdifr && !jac1p && !jac1r) {
+    return NV;
+  }
+
   // sparse case
   if (issparse) {
     // simple: fast processing

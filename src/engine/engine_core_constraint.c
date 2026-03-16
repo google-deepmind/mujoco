@@ -1927,24 +1927,6 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
 
 //------------------------------------- constraint counting ----------------------------------------
 
-// count the non-zero columns in the Jacobian difference of two bodies
-static int mj_jacDifPairCount(const mjModel* m, int* chain,
-                              int b1, int b2, int issparse) {
-  if (!m->nv) {
-    return 0;
-  }
-
-  if (issparse) {
-    if (m->body_simple[b1] && m->body_simple[b2]) {
-      return mj_mergeChainSimple(m, chain, b1, b2);
-    }
-    return mj_mergeChain(m, chain, b1, b2, 0);
-  }
-
-  return m->nv;
-}
-
-
 // count the non-zero columns of the Jacobian returned by mj_jacSum
 static int mj_jacSumCount(const mjModel* m, mjData* d, int* chain,
                           int n, const int* body) {
@@ -2042,7 +2024,8 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         id[1] = m->site_bodyid[id[1]];
       }
 
-      NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
+      NV = mj_jacDifPair(m, NULL, chain, id[1], id[0], NULL, NULL,
+                         NULL, NULL, NULL, NULL, NULL, NULL, issparse);
       break;
 
     case mjEQ_WELD:
@@ -2057,7 +2040,8 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         id[1] = m->site_bodyid[id[1]];
       }
 
-      NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
+      NV = mj_jacDifPair(m, NULL, chain, id[1], id[0], NULL, NULL,
+                         NULL, NULL, NULL, NULL, NULL, NULL, issparse);
       break;
 
     case mjEQ_JOINT:
@@ -2111,7 +2095,8 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         if (nnz) {
           int b1 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e]];
           int b2 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e+1]];
-          NV += mj_jacDifPairCount(m, chain, b1, b2, issparse);
+          NV += mj_jacDifPair(m, NULL, chain, b1, b2, NULL, NULL,
+                              NULL, NULL, NULL, NULL, NULL, NULL, issparse);
         }
       }
       break;
