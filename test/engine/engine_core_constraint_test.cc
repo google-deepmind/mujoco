@@ -134,7 +134,8 @@ TEST_F(CoreConstraintTest, WeldRotJacobian) {
 
   // rotational Jacobian difference
   mj_jacDifPair(model, data, NULL, 2, 1, point, point,
-                NULL, NULL, NULL, jac0, jac1, jacdif, mj_isSparse(model));
+                NULL, NULL, NULL, jac0, jac1, jacdif, mj_isSparse(model),
+                /*flg_skipcommon=*/0);
 
   // formula: 0.5 * neg(quat2) * (jac1-jac2) * quat1
   mjtNum axis[3], quat3[4], quat4[4];
@@ -716,8 +717,8 @@ TEST_F(CoreConstraintTest, StrainConstraintNoPinning) {
   // Rotate by 45 degrees around Z axis via quaternion
   mjtNum angle = 0.785398;  // 45 degrees
   d->qpos[3] = mju_cos(angle/2);  // w
-  d->qpos[4] = 0;                  // x
-  d->qpos[5] = 0;                  // y
+  d->qpos[4] = 0;                 // x
+  d->qpos[5] = 0;                 // y
   d->qpos[6] = mju_sin(angle/2);  // z
   mj_forward(m, d);
 
@@ -742,6 +743,45 @@ TEST_F(CoreConstraintTest, StrainConstraintNoPinning) {
   mj_deleteData(d);
   mj_deleteModel(m);
 }
+
+TEST_F(CoreConstraintTest, ContactSharedDofJacobian) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option jacobian="sparse"/>
+    <worldbody>
+      <body pos="0 0 0.5">
+        <joint type="slide" axis="0 0 1"/>
+        <geom size="0.01"/>
+        <body pos="0 0.04 0">
+          <joint type="slide" axis="0 1 0"/>
+          <geom type="sphere" size="0.05" condim="1"/>
+        </body>
+        <body pos="0 -0.04 0">
+          <joint type="slide" axis="0 1 0"/>
+          <geom type="sphere" size="0.05" condim="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  ASSERT_EQ(model->nv, 3);
+  ASSERT_TRUE(mj_isSparse(model));
+  mjData* data = mj_makeData(model);
+
+  mj_forward(model, data);
+
+  ASSERT_EQ(data->ncon, 1);
+  ASSERT_GE(data->nefc, 1);
+
+  EXPECT_EQ(data->efc_J_rownnz[0], 2);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 
 }  // namespace
 }  // namespace mujoco

@@ -78,7 +78,7 @@ MJAPI void mj_jacPointAxis(const mjModel* m, mjData* d,
 // compute 3/6-by-nv sparse Jacobian of global point attached to given body
 void mj_jacSparse(const mjModel* m, const mjData* d,
                   mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
-                  int NV, const int* chain);
+                  int NV, const int* chain, int flg_skipcommon);
 
 // sparse Jacobian difference for simple body contacts
 void mj_jacSparseSimple(const mjModel* m, const mjData* d,
@@ -89,7 +89,8 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
 MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
                         int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
                         mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
-                        mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr, int issparse);
+                        mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr,
+                        int issparse, int flg_skipcommon);
 
 // dense or sparse weighted sum of multiple body Jacobians at same point
 int mj_jacSum(const mjModel* m, mjData* d, int* chain,

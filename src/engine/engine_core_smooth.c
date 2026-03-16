@@ -709,7 +709,8 @@ void mj_flex(const mjModel* m, mjData* d) {
 
       // get endpoint Jacobians, subtract
       int NV = mj_jacDifPair(m, d, chain, b1, b2, pos1, pos2,
-                              jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1);
+                              jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1,
+                              /*skipcommon=*/0);
 
       // no dofs: skip
       if (!NV) {
@@ -853,9 +854,11 @@ void mj_flex(const mjModel* m, mjData* d) {
           int b1 = m->flex_vertbodyid[vbase+v1];
           int b2 = m->flex_vertbodyid[vbase+v2];
           int NV1 = mj_bodyChain(m, b1, chain1);
-          mj_jacSparse(m, d, jac1, NULL, d->flexvert_xpos + 3*(vbase+v1), b1, NV1, chain1);
+          mj_jacSparse(m, d, jac1, NULL, d->flexvert_xpos + 3*(vbase+v1), b1, NV1, chain1,
+                       /*flg_skipcommon=*/0);
           int NV2 = mj_bodyChain(m, b2, chain2);
-          mj_jacSparse(m, d, jac2, NULL, d->flexvert_xpos + 3*(vbase+v2), b2, NV2, chain2);
+          mj_jacSparse(m, d, jac2, NULL, d->flexvert_xpos + 3*(vbase+v2), b2, NV2, chain2,
+                       /*flg_skipcommon=*/0);
 
           // accumulate dense Jacobians for vertex v
           mju_mulMatTVec(J_local, jac1, dI1dy1, 3, NV1);
@@ -1042,7 +1045,8 @@ void mj_tendon(const mjModel* m, mjData* d) {
           // get endpoint Jacobians, subtract
           int NV = mj_jacDifPair(m, d, chain,
                                  wbody[k], wbody[k+1], wpnt+3*k, wpnt+3*k+3,
-                                 jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1);
+                                 jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1,
+                                 /*skipcommon=*/0);
 
           // no dofs: skip
           if (!NV) {
@@ -1638,7 +1642,8 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
             // get Jacobian difference
             int NV = mj_jacDifPair(m, d, chain, b1, b2, con->pos, con->pos,
-                                   jac1p, jac2p, jacdifp, NULL, NULL, NULL, issparse);
+                                   jac1p, jac2p, jacdifp, NULL, NULL, NULL, issparse,
+                                   /*flg_skipcommon=*/0);
 
             // project Jacobian along the normal of the contact frame
             mju_mulMatMat(jac, con->frame, jacdifp, 1, 3, NV);

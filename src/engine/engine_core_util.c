@@ -303,7 +303,7 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
 // compute 3/6-by-nv sparse Jacobian of global point attached to given body
 void mj_jacSparse(const mjModel* m, const mjData* d,
                   mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
-                  int NV, const int* chain) {
+                  int NV, const int* chain, int flg_skipcommon) {
   // clear jacobians
   if (jacp) {
     mju_zero(jacp, 3*NV);
@@ -337,8 +337,12 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
       ci--;
     }
 
-    // make sure we found it; SHOULD NOT OCCUR
+    // dof not in chain: skip if shared dofs are excluded, otherwise SHOULD NOT OCCUR
     if (ci < 0 || chain[ci] != da) {
+      if (flg_skipcommon) {
+        da = m->dof_parentid[da];
+        continue;
+      }
       mjERROR("dof index %d not found in chain", da);
     }
 
@@ -433,7 +437,8 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
 int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
                   int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
                   mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
-                  mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr, int issparse) {
+                  mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr,
+                  int issparse, int flg_skipcommon) {
   int issimple = (m->body_simple[b1] && m->body_simple[b2]);
   int NV = m->nv;
 
@@ -447,7 +452,7 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
     if (issimple) {
       NV = mj_mergeChainSimple(m, chain, b1, b2);
     } else {
-      NV = mj_mergeChain(m, chain, b1, b2, 0);
+      NV = mj_mergeChain(m, chain, b1, b2, flg_skipcommon);
     }
   }
 
@@ -477,8 +482,8 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
     // regular processing
     else {
       // Jacobians
-      mj_jacSparse(m, d, jac1p, jac1r, pos1, b1, NV, chain);
-      mj_jacSparse(m, d, jac2p, jac2r, pos2, b2, NV, chain);
+      mj_jacSparse(m, d, jac1p, jac1r, pos1, b1, NV, chain, flg_skipcommon);
+      mj_jacSparse(m, d, jac2p, jac2r, pos2, b2, NV, chain, flg_skipcommon);
 
       // differences
       if (jacdifp) {
@@ -535,7 +540,7 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
       if (m->body_simple[body[0]]) {
         mj_jacSparseSimple(m, d, jacp, jacr, point, body[0], 1, NV, 0);
       } else {
-        mj_jacSparse(m, d, jacp, jacr, point, body[0], NV, chain);
+        mj_jacSparse(m, d, jacp, jacr, point, body[0], NV, chain, /*flg_skipcommon=*/0);
       }
 
       // apply weight
@@ -552,7 +557,7 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
       if (m->body_simple[body[i]]) {
         mj_jacSparseSimple(m, d, jp, jr, point, body[i], 1, bodyNV, 0);
       } else {
-        mj_jacSparse(m, d, jp, jr, point, body[i], bodyNV, bodychain);
+        mj_jacSparse(m, d, jp, jr, point, body[i], bodyNV, bodychain, /*flg_skipcommon=*/0);
       }
 
       // combine sparse matrices

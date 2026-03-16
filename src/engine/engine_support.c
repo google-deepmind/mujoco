@@ -464,7 +464,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
     // construct chain and sparse Jacobians
     int* chain = mjSTACKALLOC(d, nv, int);
     int NV = mj_bodyChain(m, body, chain);
-    mj_jacSparse(m, d, jacp, jacr, point, body, NV, chain);
+    mj_jacSparse(m, d, jacp, jacr, point, body, NV, chain, /*flg_skipcommon=*/0);
 
     // compute J'*f and accumulate
     if (force) {

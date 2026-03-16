@@ -434,7 +434,7 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
 
       // get sparsity
       int NV = mj_jacDifPair(m, d, chain, b1, b2, dummy_pos, dummy_pos, NULL,
-                             NULL, NULL, NULL, NULL, NULL, /*issparse=*/1);
+                             NULL, NULL, NULL, NULL, NULL, /*issparse=*/1, /*skipcommon=*/0);
 
       // copy sparsity info
       rownnz[ebase + e] = NV;
