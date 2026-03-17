@@ -349,8 +349,8 @@ def make_condim(
     m: Union[Model, mujoco.MjModel], impl: Impl = Impl.JAX
 ) -> np.ndarray:
   """Returns the dims of the contacts for a Model."""
-  if impl not in (Impl.JAX, Impl.C):
-    raise ValueError('make_condim only supports JAX and C backends.')
+  if impl != Impl.JAX:
+    raise ValueError('make_condim only supports JAX backend.')
 
   if isinstance(m, mujoco.MjModel):
     sdf_initpoints = m.opt.sdf_initpoints
@@ -389,8 +389,6 @@ def make_condim(
       func = _COLLISION_FUNC.get(k.types, None)
       if func is not None:
         ncon = func.ncon  # pytype: disable=attribute-error
-      elif impl == Impl.C:
-        ncon = _MAX_NCON
       else:
         raise ValueError(
             f'Collision function not found for geom types {k.types[0]},',
