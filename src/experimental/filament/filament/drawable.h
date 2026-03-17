@@ -15,13 +15,11 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_DRAWABLE_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_DRAWABLE_H_
 
-#include <cstdint>
-
 #include <filament/Engine.h>
 #include <filament/Scene.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
-#include "experimental/filament/filament/buffer_util.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderables.h"
@@ -63,7 +61,8 @@ class Drawable {
   void SetTransform(const mjvGeom& geom);
 
   // Updates the material parameters of the drawable for rendering.
-  void UpdateMaterial(const mjvGeom& geom, bool use_segid_color);
+  void UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
+                      const mjtNum* headpos);
 
   Material material_;
   Renderables renderables_;

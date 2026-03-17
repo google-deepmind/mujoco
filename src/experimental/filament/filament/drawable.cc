@@ -79,6 +79,12 @@ static float GetPlaneTileSize(const mjModel* model, int matid,
   }
 }
 
+static bool IsBehind(const mjtNum* headpos, const float* pos, const float* mat) {
+  return ((headpos[0] - pos[0]) * mat[2] +
+          (headpos[1] - pos[1]) * mat[5] +
+          (headpos[2] - pos[2]) * mat[8] < 0.0f);
+}
+
 Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
     : material_(object_mgr), renderables_(object_mgr->GetEngine()) {
   if (geom.category == mjCAT_DECOR) {
@@ -170,8 +176,11 @@ void Drawable::Update(const mjModel* model, const mjvScene* scene,
     }
   }
 
+  mjtNum head_pos[3];
+  mjv_cameraInModel(head_pos, nullptr, nullptr, scene);
+
   SetTransform(geom);
-  UpdateMaterial(geom, scene->flags[mjRND_IDCOLOR]);
+  UpdateMaterial(geom, scene->flags[mjRND_IDCOLOR], head_pos);
 }
 
 void Drawable::AddMesh(int data_id) {
@@ -330,9 +339,15 @@ void Drawable::SetTransform(const mjvGeom& geom) {
   }
 }
 
-void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
+void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
+                              const mjtNum* headpos) {
   ObjectManager* object_mgr = material_.GetObjectManager();
   const mjModel* model = object_mgr->GetModel();
+
+  float4 color = ReadFloat4(geom.rgba);
+  if (geom.type == mjGEOM_PLANE && IsBehind(headpos, geom.pos, geom.mat)) {
+    color[3] *= 0.3;
+  }
 
   Material::Textures textures;
   if (geom.matid >= 0) {
@@ -381,26 +396,26 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
       }
 
       if (textures.color == nullptr) {
-        if (geom.rgba[3] < 1.0f) {
+        if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhongColorFade);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhongColor);
         }
       } else if (textures.color->getTarget() ==
                 filament::Texture::Sampler::SAMPLER_CUBEMAP) {
-        if (geom.rgba[3] < 1.0f) {
+        if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhongCube);
         }
       } else if (has_texcoords) {
-        if (geom.rgba[3] < 1.0f) {
+        if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhong2dUvFade);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhong2dUv);
         }
       } else {
-        if (geom.rgba[3] < 1.0f) {
+        if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhong2dFade);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhong2d);
@@ -410,7 +425,7 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
   }
 
   Material::Params params;
-  params.color = ReadFloat4(geom.rgba);
+  params.color = color;
   params.emissive = geom.emission;
   params.specular = geom.specular;
   params.glossiness = geom.shininess;
