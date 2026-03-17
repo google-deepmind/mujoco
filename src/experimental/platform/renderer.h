@@ -57,8 +57,7 @@ class Renderer {
   using Seconds = std::chrono::duration<double>;
   using Milliseconds = std::chrono::duration<double, std::milli>;
 
-  explicit Renderer(void* native_window = nullptr,
-                    GraphicsMode gfx_mode = GraphicsMode::FilamentVulkan);
+  Renderer(void* native_window, GraphicsMode gfx_mode);
   ~Renderer();
 
   Renderer(const Renderer&) = delete;
