@@ -34,6 +34,7 @@
 #include <filament/View.h>
 #include <math/vec4.h>
 #include <utils/FixedCapacityVector.h>
+#include <utils/compiler.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
@@ -143,7 +144,9 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
   if (scene_swap_chain_target_ == kWindowSwapChain &&
       (viewport.width != window_width_ || viewport.height != window_height_)) {
     if (window_width_ != 0 && window_height_ != 0) {
-      engine_->flushAndWait();
+      if constexpr (UTILS_HAS_THREADING) {
+        engine_->flushAndWait();
+      }
       engine_->destroy(window_swap_chain_);
       window_swap_chain_ = engine_->createSwapChain(config_.native_window);
     }
@@ -171,10 +174,10 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
 
   // Render the frame if we're not rendering to a texture.
   if (scene_swap_chain_target_ == kWindowSwapChain) {
-    #ifndef __EMSCRIPTEN__
+    if constexpr (UTILS_HAS_THREADING) {
       // Wait until previous frame is completed before requesting a new frame.
       engine_->flushAndWait();
-    #endif
+    }
 
     if (renderer_->beginFrame(window_swap_chain_)) {
       filament::View* fview = scene_view_->PrepareRenderView(last_render_mode_);
@@ -190,9 +193,9 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
       renderer_->endFrame();
     }
 
-    #ifdef __EMSCRIPTEN__
+    if constexpr (!UTILS_HAS_THREADING) {
       engine_->execute();
-    #endif
+    }
   }
 }
 
@@ -342,8 +345,10 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
   }
 
   if (rgb || depth) {
-    // Wait for rendering and copy back to buffer to complete.
-    engine_->flushAndWait();
+    if constexpr (UTILS_HAS_THREADING) {
+      // Wait for rendering to copy back to buffer to complete.
+      engine_->flushAndWait();
+    }
   }
 }
 
