@@ -28,14 +28,16 @@ bool IsFilament(GraphicsMode gfx_mode) {
   return gfx_mode == GraphicsMode::FilamentOpenGl ||
          gfx_mode == GraphicsMode::FilamentVulkan ||
          gfx_mode == GraphicsMode::FilamentWebGl ||
-         gfx_mode == GraphicsMode::FilamentOpenGlHeadless;
+         gfx_mode == GraphicsMode::FilamentOpenGlHeadless ||
+         gfx_mode == GraphicsMode::FilamentOpenGlSoftware;
 }
 
 bool IsOpenGl(GraphicsMode gfx_mode) {
   return gfx_mode == GraphicsMode::ClassicOpenGl ||
          gfx_mode == GraphicsMode::ClassicOpenGlHeadless ||
          gfx_mode == GraphicsMode::FilamentOpenGl ||
-         gfx_mode == GraphicsMode::FilamentOpenGlHeadless;
+         gfx_mode == GraphicsMode::FilamentOpenGlHeadless ||
+         gfx_mode == GraphicsMode::FilamentOpenGlSoftware;
 }
 
 bool IsVulkan(GraphicsMode gfx_mode) {
@@ -48,7 +50,12 @@ bool IsWebGl(GraphicsMode gfx_mode) {
 
 bool IsHeadless(GraphicsMode gfx_mode) {
   return gfx_mode == GraphicsMode::ClassicOpenGlHeadless ||
-         gfx_mode == GraphicsMode::FilamentOpenGlHeadless;
+         gfx_mode == GraphicsMode::FilamentOpenGlHeadless ||
+         gfx_mode == GraphicsMode::FilamentOpenGlSoftware;
+}
+
+bool IsSoftware(GraphicsMode gfx_mode) {
+  return gfx_mode == GraphicsMode::FilamentOpenGlSoftware;
 }
 
 GraphicsMode GraphicsModeFromString(std::string_view str,
@@ -65,6 +72,8 @@ GraphicsMode GraphicsModeFromString(std::string_view str,
     return GraphicsMode::FilamentWebGl;
   } else if (str == "opengl_headless") {
     return GraphicsMode::FilamentOpenGlHeadless;
+  } else if (str == "opengl_software") {
+    return GraphicsMode::FilamentOpenGlSoftware;
   } else if (str.empty()) {
     return default_mode;
   } else {

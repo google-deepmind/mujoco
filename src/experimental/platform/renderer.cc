@@ -88,6 +88,7 @@ void Renderer::Init(const mjModel* model) {
       mjrFilamentConfig render_config;
       mjrf_defaultFilamentConfig(&render_config);
       render_config.native_window = native_window_;
+      render_config.force_software_rendering = IsSoftware(gfx_);
       render_config.graphics_api =
           IsOpenGl(gfx_) || IsWebGl(gfx_) ? mjGFX_OPENGL : mjGFX_VULKAN;
       mjrf_makeFilamentContext(model, &render_context_, &render_config);

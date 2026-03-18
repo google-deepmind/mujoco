@@ -38,6 +38,9 @@ enum class GraphicsMode {
 
   // Similar to FilamentOpenGl, but assumes "headless" rendering.
   FilamentOpenGlHeadless,
+
+  // Similar to FilamentOpenGl, but forces software rendering.
+  FilamentOpenGlSoftware,
 };
 
 bool IsClassic(GraphicsMode gfx_mode);
@@ -46,6 +49,7 @@ bool IsOpenGl(GraphicsMode gfx_mode);
 bool IsVulkan(GraphicsMode gfx_mode);
 bool IsWebGl(GraphicsMode gfx_mode);
 bool IsHeadless(GraphicsMode gfx_mode);
+bool IsSoftware(GraphicsMode gfx_mode);
 
 GraphicsMode GraphicsModeFromString(std::string_view str,
                                     GraphicsMode default_mode);

@@ -1761,6 +1761,7 @@ void App::MainMenuGui() {
       ImGui::Separator();
 
 
+      #ifdef __linux__
       if (ImGui::BeginMenu("Graphics Mode (Experimental)")) {
         std::optional<platform::GraphicsMode> mode;
         if (ImGui::MenuItem(
@@ -1784,6 +1785,11 @@ void App::MainMenuGui() {
           mode = platform::GraphicsMode::FilamentOpenGlHeadless;
         }
         if (ImGui::MenuItem(
+                "Filament OpenGL Software", nullptr,
+                gfx_mode_ == platform::GraphicsMode::FilamentOpenGlSoftware)) {
+          mode = platform::GraphicsMode::FilamentOpenGlSoftware;
+        }
+        if (ImGui::MenuItem(
                 "Filament Vulkan", nullptr,
                 gfx_mode_ == platform::GraphicsMode::FilamentVulkan)) {
           mode = platform::GraphicsMode::FilamentVulkan;
@@ -1802,6 +1808,7 @@ void App::MainMenuGui() {
         }
         ImGui::EndMenu();
       }
+      #endif  // __linux__
 
       ImGui::EndMenu();
     }
