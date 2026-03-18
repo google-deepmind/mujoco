@@ -19,6 +19,7 @@ TypeScript.
 > (installation succeeded on one Windows 11 machine but failed on others)._
 
 ## Installation
+
 The easiest way to use the MuJoCo JavaScript bindings is to install the
 `@mujoco/mujoco` package from npm:
 
@@ -29,6 +30,36 @@ npm install @mujoco/mujoco
 This package is ESM (`type: module`) and includes the pre-compiled WebAssembly
 module, JavaScript bindings, and TypeScript declarations. Ensure your bundler or
 dev server serves the `.wasm` asset at runtime.
+
+### Threading Models
+
+The `@mujoco/mujoco` package includes two distinct builds of the engine to
+support different browser environments and performance needs.
+
+#### 1. Single-Threaded (Default)
+
+The standard single-threaded version is located at the root of the package. It
+is compatible with all modern browsers and does not require special security
+headers.
+```typescript
+import loadMujoco from '@mujoco/mujoco';
+```
+
+#### 2. Multi-Threaded (MT)
+
+The multi-threaded version is located in the `/mt` subfolder. It utilizes Web
+Workers and `SharedArrayBuffer` to parallelize physics computations.
+```typeScript
+import loadMujoco from '@mujoco/mujoco/mt';
+```
+
+> [!CAUTION]
+> Due to the use of `SharedArrayBuffer`, browsers require Cross-Origin Isolation
+> to enable multi-threading. Your web server must send the following HTTP
+> headers:
+>    - `Cross-Origin-Opener-Policy: same-origin`
+>    - `Cross-Origin-Embedder-Policy: require-corp`
+> If these headers are missing, the module will fail to initialize.
 
 ## Build from source
 
@@ -97,6 +128,14 @@ This command will generate the following folders under the project root:
 
 - `build`: contains MuJoCo compiled using Emscripten.
 - `wasm/dist`: contains the WebAssembly module, `.js` and `.d.ts` files.
+
+The assets inside those folders are compiled and prepared to run as
+single-threaded. If you need to operate with a multi-threaded version of the
+module make sure to pass the `-DMUJOCO_WASM_THREADS=ON` flag like:
+
+```sh
+emcmake cmake -B build -DMUJOCO_WASM_THREADS=ON && cmake --build build
+```
 
 ### Example Application
 
