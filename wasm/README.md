@@ -59,6 +59,7 @@ import loadMujoco from '@mujoco/mujoco/mt';
 > headers:
 >    - `Cross-Origin-Opener-Policy: same-origin`
 >    - `Cross-Origin-Embedder-Policy: require-corp`
+>
 > If these headers are missing, the module will fail to initialize.
 
 ## Build from source
