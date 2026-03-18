@@ -51,12 +51,19 @@ static inline void lincomb(mjtNum res[3], const mjtNum* coef, int n, const mjtNu
 
 // one face in a polytope
 typedef struct {
-  int verts[3];      // indices of the three vertices of the face in the polytope
+  int verts;         // indices of the three vertices of the face in the polytope
   int adj[3];        // adjacent faces, one for each edge: [v1,v2], [v2,v3], [v3,v1]
   mjtNum v[3];       // projection of the origin on face, can be used as face normal
   mjtNum dist2;      // squared norm of v; negative if deleted
   int index;         // index in map; -1: not in map, -2: deleted from polytope
 } Face;
+
+// return int[3] with lower 30 bits split between three int
+#define EPA_VERT_EXPAND(n)                     \
+  { (n) & 0x3FF,                               \
+    (n) >> 10 & 0x3FF,                         \
+    (n) >> 20 & 0x3FF }
+
 
 // polytope used in the Expanding Polytope Algorithm (EPA)
 typedef struct {
@@ -1188,9 +1195,7 @@ static inline int maxFaces(Polytope* pt) {
 static inline mjtNum attachFace(Polytope* pt, int v1, int v2, int v3,
                                 int adj1, int adj2, int adj3) {
   Face* face = &pt->faces[pt->nfaces++];
-  face->verts[0] = v1;
-  face->verts[1] = v2;
-  face->verts[2] = v3;
+  face->verts = v1 + (v2 << 10) + (v3 << 20);
 
   // adjacent faces
   face->adj[0] = adj1;
@@ -1218,8 +1223,9 @@ static inline void addEdge(Polytope* pt, int index, int edge) {
 
 // get edge index where vertex lies
 static inline int getEdge(Face* face, int vertex) {
-  if (face->verts[0] == vertex) return 0;
-  if (face->verts[1] == vertex) return 1;
+  int verts[3] = EPA_VERT_EXPAND(face->verts);
+  if (verts[0] == vertex) return 0;
+  if (verts[1] == vertex) return 1;
   return 2;
 }
 
@@ -1228,6 +1234,7 @@ static inline int getEdge(Face* face, int vertex) {
 static int horizonRec(Polytope* pt, Face* face, int e) {
     // v is visible from w so it is deleted and adjacent faces are checked
     if (dot3(face->v, pt->horizon.w) - face->dist2 > mjMINVAL) {
+      int verts[3] = EPA_VERT_EXPAND(face->verts);
       deleteFace(pt, face);
 
       // recursively search the adjacent faces on the next two edges
@@ -1235,7 +1242,7 @@ static int horizonRec(Polytope* pt, Face* face, int e) {
         int i = (e + k) % 3;
         Face* adjFace = &pt->faces[face->adj[i]];
         if (adjFace->index > -2) {
-          int adjEdge = getEdge(adjFace, face->verts[(i + 1) % 3]);
+          int adjEdge = getEdge(adjFace, verts[(i + 1) % 3]);
           if (!horizonRec(pt, adjFace, adjEdge)) {
             addEdge(pt, face->adj[i], adjEdge);
           }
@@ -1250,24 +1257,25 @@ static int horizonRec(Polytope* pt, Face* face, int e) {
 // create horizon given the face as starting point
 static void horizon(Polytope* pt, Face* face) {
   deleteFace(pt, face);
+  int verts[3] = EPA_VERT_EXPAND(face->verts);
 
   // first edge
   Face* adjFace = &pt->faces[face->adj[0]];
-  int adjEdge = getEdge(adjFace, face->verts[1]);
+  int adjEdge = getEdge(adjFace, verts[1]);
   if (!horizonRec(pt, adjFace, adjEdge)) {
     addEdge(pt, face->adj[0], adjEdge);
   }
 
   // second edge
   adjFace = &pt->faces[face->adj[1]];
-  adjEdge = getEdge(adjFace, face->verts[2]);
+  adjEdge = getEdge(adjFace, verts[2]);
   if (adjFace->index > -2 && !horizonRec(pt, adjFace, adjEdge)) {
     addEdge(pt, face->adj[1], adjEdge);
   }
 
   // third edge
   adjFace = &pt->faces[face->adj[2]];
-  adjEdge = getEdge(adjFace, face->verts[0]);
+  adjEdge = getEdge(adjFace, verts[0]);
   if (adjFace->index > -2 && !horizonRec(pt, adjFace, adjEdge)) {
     addEdge(pt, face->adj[2], adjEdge);
   }
@@ -1278,9 +1286,10 @@ static void horizon(Polytope* pt, Face* face) {
 static mjtNum epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3]) {
   // compute affine coordinates for witness points on plane defined by face
   mjtNum lambda[3];
-  Vertex* v1 = pt->verts + face->verts[0];
-  Vertex* v2 = pt->verts + face->verts[1];
-  Vertex* v3 = pt->verts + face->verts[2];
+  int verts[3] = EPA_VERT_EXPAND(face->verts);
+  Vertex* v1 = pt->verts + verts[0];
+  Vertex* v2 = pt->verts + verts[1];
+  Vertex* v3 = pt->verts + verts[2];
   triAffineCoord(lambda, v1->vert, v2->vert, v3->vert, face->v);
 
   // witness point on geom 1
@@ -1306,7 +1315,7 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
     tolerance = mjMINVAL;
   }
 
-  int k, kmax = status->max_iterations;
+  int k, kmax = status->max_iterations < 1000 ? status->max_iterations : 1000;
   for (k = 0; k < kmax; k++) {
     pface = face;
 
@@ -1376,12 +1385,13 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
     }
 
     // attach first face
-    int horIndex = pt->horizon.indices[0], horEdge = pt->horizon.edges[0];
-    Face* horFace = &pt->faces[horIndex];
-    int v1 = horFace->verts[horEdge],
-        v2 = horFace->verts[(horEdge + 1) % 3];
-    horFace->adj[horEdge] = nfaces;
-    mjtNum dist2 = attachFace(pt, wi, v2, v1, nfaces + nedges - 1, horIndex, nfaces + 1);
+    int hznIndex = pt->horizon.indices[0], hznEdge = pt->horizon.edges[0];
+    Face* hznFace = &pt->faces[hznIndex];
+    int hznVerts[3] = EPA_VERT_EXPAND(hznFace->verts);
+    int v1 = hznVerts[hznEdge],
+        v2 = hznVerts[(hznEdge + 1) % 3];
+    hznFace->adj[hznEdge] = nfaces;
+    mjtNum dist2 = attachFace(pt, wi, v2, v1, nfaces + nedges - 1, hznIndex, nfaces + 1);
 
     // unrecoverable numerical issue
     if (dist2 == 0) {
@@ -1401,12 +1411,13 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
       int cur = nfaces + i;                  // index of attached face
       int next = nfaces + (i + 1) % nedges;  // index of next face
 
-      horIndex = pt->horizon.indices[i], horEdge = pt->horizon.edges[i];
-      horFace = &pt->faces[horIndex];
-      v1 = horFace->verts[horEdge];
-      v2 = horFace->verts[(horEdge + 1) % 3];
-      horFace->adj[horEdge] = cur;
-      dist2 = attachFace(pt, wi, v2, v1, cur - 1, horIndex, next);
+      hznIndex = pt->horizon.indices[i], hznEdge = pt->horizon.edges[i];
+      hznFace = &pt->faces[hznIndex];
+      int hznVerts2[3] = EPA_VERT_EXPAND(hznFace->verts);
+      v1 = hznVerts2[hznEdge];
+      v2 = hznVerts2[(hznEdge + 1) % 3];
+      hznFace->adj[hznEdge] = cur;
+      dist2 = attachFace(pt, wi, v2, v1, cur - 1, hznIndex, next);
 
       // unrecoverable numerical issue
       if (dist2 == 0) {
@@ -2078,18 +2089,19 @@ static void multicontact(Polytope* pt, Face* face, mjCCDStatus* status,
 
   mjtNum face1[mjMAX_POLYVERT * 3], face2[mjMAX_POLYVERT * 3], endverts[mjMAX_POLYVERT * 3];
   // get vertices of faces from EPA
-  int v11i = pt->verts[face->verts[0]].index1;
-  int v12i = pt->verts[face->verts[1]].index1;
-  int v13i = pt->verts[face->verts[2]].index1;
-  int v21i = pt->verts[face->verts[0]].index2;
-  int v22i = pt->verts[face->verts[1]].index2;
-  int v23i = pt->verts[face->verts[2]].index2;
-  mjtNum* v11 = pt->verts[face->verts[0]].vert1;
-  mjtNum* v12 = pt->verts[face->verts[1]].vert1;
-  mjtNum* v13 = pt->verts[face->verts[2]].vert1;
-  mjtNum* v21 = pt->verts[face->verts[0]].vert2;
-  mjtNum* v22 = pt->verts[face->verts[1]].vert2;
-  mjtNum* v23 = pt->verts[face->verts[2]].vert2;
+  int verts[3] = EPA_VERT_EXPAND(face->verts);
+  int v11i = pt->verts[verts[0]].index1;
+  int v12i = pt->verts[verts[1]].index1;
+  int v13i = pt->verts[verts[2]].index1;
+  int v21i = pt->verts[verts[0]].index2;
+  int v22i = pt->verts[verts[1]].index2;
+  int v23i = pt->verts[verts[2]].index2;
+  mjtNum* v11 = pt->verts[verts[0]].vert1;
+  mjtNum* v12 = pt->verts[verts[1]].vert1;
+  mjtNum* v13 = pt->verts[verts[2]].vert1;
+  mjtNum* v21 = pt->verts[verts[0]].vert2;
+  mjtNum* v22 = pt->verts[verts[1]].vert2;
+  mjtNum* v23 = pt->verts[verts[2]].vert2;
 
   // get dimensions of features of geoms 1 and 2
   int nface1 = simplexDim(&v11i, &v12i, &v13i, &v11, &v12, &v13);
@@ -2147,7 +2159,7 @@ static void multicontact(Polytope* pt, Face* face, mjCCDStatus* status,
 
   // recover geom1 matching edge or face
   if (edgecon1) {
-    copy3(face1, pt->verts[face->verts[0]].vert1);
+    copy3(face1, pt->verts[verts[0]].vert1);
     copy3(face1 + 3, endverts + 3*i);
     nface1 = 2;
   } else {
@@ -2162,7 +2174,7 @@ static void multicontact(Polytope* pt, Face* face, mjCCDStatus* status,
 
   // recover geom2 matching edge or face
   if (edgecon2) {
-    copy3(face2, pt->verts[face->verts[0]].vert2);
+    copy3(face2, pt->verts[verts[0]].vert2);
     copy3(face2 + 3, endverts + 3*i);
     nface2 = 2;
   } else {
@@ -2369,3 +2381,5 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
   }
   return status->dist;
 }
+
+#undef EPA_VERT_EXPAND
