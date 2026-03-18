@@ -220,10 +220,7 @@ build_test_wasm() {
 
     echo "Moving Multi-Thread version under mt subfolder..."
     mkdir -p wasm/dist/mt
-    mv wasm/dist/mujoco.js wasm/dist/mt/
-    mv wasm/dist/mujoco.wasm wasm/dist/mt/
-    mv wasm/dist/mujoco.d.ts wasm/dist/mt/
-    mv wasm/dist/mujoco.wasm.map wasm/dist/mt/
+    mv wasm/dist/mujoco.* wasm/dist/mt/
 
     echo "Building Single-Threaded version..."
     emcmake cmake -B build_wasm_st \
