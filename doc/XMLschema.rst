@@ -1565,9 +1565,6 @@
                   :ref:`activelayers<flexcomp-contact-activelayers>`
 
                .. grid-item::
-                  :ref:`vertcollide<flexcomp-contact-vertcollide>`
-
-               .. grid-item::
                   :ref:`passive<flexcomp-contact-passive>`
 
 
@@ -1704,9 +1701,6 @@
 
                .. grid-item::
                   :ref:`activelayers<flex-contact-activelayers>`
-
-               .. grid-item::
-                  :ref:`vertcollide<flex-contact-vertcollide>`
 
                .. grid-item::
                   :ref:`passive<flex-contact-passive>`

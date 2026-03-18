@@ -318,7 +318,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             {"elasticity", "?", "young", "poisson", "damping", "thickness", "elastic2d"},
             {"contact", "?",  "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers", "vertcollide", "passive"},
+                "internal", "selfcollide", "activelayers", "passive"},
             {"pin", "*", "id", "range", "grid", "gridrange"},
             {"plugin", "*", "plugin", "instance"},
             {"<"},
@@ -334,7 +334,7 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"<"},
             {"contact", "?",  "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers", "vertcollide", "passive"},
+                "internal", "selfcollide", "activelayers", "passive"},
             {"edge", "?", "stiffness", "damping"},
             {"elasticity", "?", "young", "poisson", "damping", "thickness", "elastic2d"},
         {">"},
@@ -1519,9 +1519,6 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
       flex->internal = (n == 1);
     }
     MapValue(cont, "selfcollide", &flex->selfcollide, flexself_map, 5);
-    if (MapValue(cont, "vertcollide", &flex->vertcollide, bool_map, 2)) {
-      flex->vertcollide = (n == 1);
-    }
     if (MapValue(cont, "passive", &flex->passive, bool_map, 2)) {
       flex->passive = (n == 1);
     }
@@ -2822,9 +2819,6 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
       dflex.internal = (n == 1);
     }
     MapValue(cont, "selfcollide", &dflex.selfcollide, flexself_map, 5);
-    if (MapValue(cont, "vertcollide", &n, bool_map, 2)) {
-      dflex.vertcollide = (n == 1);
-    }
     if (MapValue(cont, "passive", &n, bool_map, 2)) {
       dflex.passive = (n == 1);
     }

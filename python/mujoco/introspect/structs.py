@@ -8120,11 +8120,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='mode for flex self collision',
              ),
              StructFieldDecl(
-                 name='vertcollide',
-                 type=ValueType(name='int'),
-                 doc='mode for vertex collision',
-             ),
-             StructFieldDecl(
                  name='passive',
                  type=ValueType(name='int'),
                  doc='mode for passive collisions',

@@ -537,7 +537,6 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(internal, "enable internal collisions");
       FIELD(flatskin, "render flex skin with flat shading");
       FIELD(selfcollide, "mode for flex self collision");
-      FIELD(vertcollide, "mode for vertex collision");
       FIELD(passive, "mode for passive collisions");
       FIELD(activelayers, "number of active element layers in 3D");
       FIELD(group, "group for visualization");

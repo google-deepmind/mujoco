@@ -2375,12 +2375,6 @@ struct MjsFlex {
   void set_selfcollide(int value) {
     ptr_->selfcollide = value;
   }
-  int vertcollide() const {
-    return ptr_->vertcollide;
-  }
-  void set_vertcollide(int value) {
-    ptr_->vertcollide = value;
-  }
   int passive() const {
     return ptr_->passive;
   }
@@ -12554,7 +12548,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("thickness", &MjsFlex::thickness, &MjsFlex::set_thickness, reference())
     .property("vert", &MjsFlex::vert, reference())
     .property("vertbody", &MjsFlex::vertbody, reference())
-    .property("vertcollide", &MjsFlex::vertcollide, &MjsFlex::set_vertcollide, reference())
     .property("young", &MjsFlex::young, &MjsFlex::set_young, reference());
   emscripten::class_<MjsFrame>("MjsFrame")
     .property("alt", &MjsFrame::alt, reference())
