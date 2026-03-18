@@ -462,10 +462,288 @@ Certain fields are safe to modify directly without compilation, enabling on-devi
 `GitHub issue 893 <https://github.com/google-deepmind/mujoco_warp/issues/893>`__ tracks adding on-device updates for a
 subset of fields.
 
-.. admonition:: Heterogeneous worlds
-   :class: note
+Per-world meshes
+----------------
 
-   Heterogeneous worlds, for example: per-world meshes or number of degrees of freedom, are not currently available.
+Per-world meshes enable heterogeneous worlds where different worlds simulate different meshes. The workflow
+is:
+
+1. Create an :ref:`mjSpec` with **all** mesh assets and the **maximum** number of geom slots needed across variants.
+2. Compile each variant by mutating the spec and calling ``spec.compile()``.
+3. Compile a **base** model and create :class:`mjw.Model <mujoco_warp.Model>` from it.
+4. Override the relevant :class:`mjw.Model <mujoco_warp.Model>` fields with per-world arrays built from the compiled
+   variants.
+
+**Example 1 — Geom-level** randomization (1 body, 1 geom, 2 mesh assets):
+
+The base scene includes all mesh assets. The geom references one mesh (``mesh_a``); a second mesh
+(``mesh_b``) is available for per-world substitution.
+
+.. code-block:: xml
+
+  <mujoco>
+    <asset>
+      <mesh name="mesh_a" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+      <mesh name="mesh_b" vertex="0 0 0 2 0 0 0 2 0 0 0 2"/>
+    </asset>
+    <worldbody>
+      <body pos="0 0 1">
+        <freejoint/>
+        <geom name="obj" type="mesh" mesh="mesh_a"/>
+      </body>
+    </worldbody>
+  </mujoco>
+
+.. code-block:: python
+
+  nworld = 4
+
+  # base spec: 1 body with 1 mesh geom, all mesh assets
+  spec = mujoco.MjSpec()
+  mesh_a = spec.add_mesh()
+  mesh_a.name = "mesh_a"
+  mesh_a.uservert = [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]
+
+  mesh_b = spec.add_mesh()
+  mesh_b.name = "mesh_b"
+  mesh_b.uservert = [0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2]
+
+  body = spec.worldbody.add_body()
+  body.pos = [0, 0, 1]
+  body.add_freejoint()
+  geom = body.add_geom()
+  geom.name = "obj"
+  geom.type = mujoco.mjtGeom.mjGEOM_MESH
+  geom.meshname = "mesh_a"
+
+  # compile each variant
+  geom.meshname = "mesh_a"
+  mjm_a = spec.compile()
+  geom.meshname = "mesh_b"
+  mjm_b = spec.compile()
+
+  # restore and compile base
+  geom.meshname = "mesh_a"
+  mjm = spec.compile()
+
+  m = mjw.put_model(mjm)
+  d = mjw.make_data(mjm, nworld=nworld)
+
+  # build per-world arrays: worlds 0-1 use mesh_a, worlds 2-3 use mesh_b
+  geom_id = mujoco.mj_name2id(mjm, mujoco.mjtObj.mjOBJ_GEOM, "obj")
+  variants = [mjm_a, mjm_b]
+  assignment = [0, 0, 1, 1]  # variant index per world
+
+  # build per-world arrays
+  dataid = np.tile(mjm.geom_dataid, (nworld, 1))
+  geom_size = np.zeros((nworld, mjm.ngeom, 3))
+  geom_aabb = np.zeros((nworld, mjm.ngeom, 2, 3))
+  geom_rbound = np.zeros((nworld, mjm.ngeom))
+  geom_pos = np.zeros((nworld, mjm.ngeom, 3))
+  body_mass = np.zeros((nworld, mjm.nbody))
+  body_subtreemass = np.zeros((nworld, mjm.nbody))
+  body_inertia = np.zeros((nworld, mjm.nbody, 3))
+  body_invweight0 = np.zeros((nworld, mjm.nbody, 2))
+  body_ipos = np.zeros((nworld, mjm.nbody, 3))
+  body_iquat = np.zeros((nworld, mjm.nbody, 4))
+
+  for w in range(nworld):
+    ref = variants[assignment[w]]
+    dataid[w, geom_id] = ref.geom_dataid[geom_id]
+    geom_size[w] = ref.geom_size
+    geom_aabb[w] = ref.geom_aabb.reshape(mjm.ngeom, 2, 3)
+    geom_rbound[w] = ref.geom_rbound
+    geom_pos[w] = ref.geom_pos
+    body_mass[w] = ref.body_mass
+    body_subtreemass[w] = ref.body_subtreemass
+    body_inertia[w] = ref.body_inertia
+    body_invweight0[w] = ref.body_invweight0
+    body_ipos[w] = ref.body_ipos
+    body_iquat[w] = ref.body_iquat
+
+  m.geom_dataid = wp.array(dataid, dtype=int)
+  m.geom_size = wp.array(geom_size, dtype=wp.vec3)
+  m.geom_aabb = wp.array(geom_aabb, dtype=wp.vec3)
+  m.geom_rbound = wp.array(geom_rbound, dtype=float)
+  m.geom_pos = wp.array(geom_pos, dtype=wp.vec3)
+  m.body_mass = wp.array(body_mass, dtype=float)
+  m.body_subtreemass = wp.array(body_subtreemass, dtype=float)
+  m.body_inertia = wp.array(body_inertia, dtype=wp.vec3)
+  m.body_invweight0 = wp.array(body_invweight0, dtype=wp.vec2)
+  m.body_ipos = wp.array(body_ipos, dtype=wp.vec3)
+  m.body_iquat = wp.array(body_iquat, dtype=wp.quat)
+
+**Example 2 — Body-level** randomization (1 body, 1 or 2 geoms, 3 mesh assets):
+
+.. admonition:: Maximum geom count
+   :class: important
+
+   For body-level randomization, the base ``mjModel`` provided to ``mjw.put_model`` should specify the **maximum number
+   of geoms** required across all variants. Geom slots that are unused in a particular variant can be disabled
+   (e.g., ``contype=0``, ``conaffinity=0``, ``dataid=-1``), but they should still be present as part of the body in the
+   base model.
+
+.. code-block:: xml
+
+  <mujoco>
+    <asset>
+      <mesh name="mA" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+      <mesh name="mB" vertex="0 0 0 2 0 0 0 2 0 0 0 2"/>
+      <mesh name="mC" vertex="0 0 0 3 0 0 0 3 0 0 0 3"/>
+    </asset>
+    <worldbody>
+      <body name="obj" pos="0 0 1">
+        <freejoint/>
+        <geom name="obj_0" type="mesh" mesh="mA"/>
+        <geom name="obj_1" size=".001" contype="0" conaffinity="0" mass="0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+
+.. code-block:: python
+
+  nworld = 6
+
+  # base spec: body with 2 geom slots (max across variants), all mesh assets
+  spec = mujoco.MjSpec()
+  for name, scale in [("mA", 1), ("mB", 2), ("mC", 3)]:
+    mesh = spec.add_mesh()
+    mesh.name = name
+    mesh.uservert = [0, 0, 0, scale, 0, 0, 0, scale, 0, 0, 0, scale]
+
+  body = spec.worldbody.add_body()
+  body.name = "obj"
+  body.pos = [0, 0, 1]
+  body.add_freejoint()
+
+  g0 = body.add_geom()
+  g0.name = "obj_0"
+  g0.type = mujoco.mjtGeom.mjGEOM_MESH
+  g0.meshname = "mA"
+
+  # null geom slot: disabled collision, no mesh
+  g1 = body.add_geom()
+  g1.name = "obj_1"
+  g1.size = [0.001, 0, 0]
+  g1.contype = 0
+  g1.conaffinity = 0
+  g1.mass = 0
+
+  # variant A: 1 geom (mesh mA), g1 stays null
+  mjm_a = spec.compile()
+
+  # variant B: 2 geoms (mesh mB + mC)
+  g0.meshname = "mB"
+  g1.type = mujoco.mjtGeom.mjGEOM_MESH
+  g1.meshname = "mC"
+  g1.contype = 1
+  g1.conaffinity = 1
+  mjm_b = spec.compile()
+
+  # restore base and compile
+  g0.meshname = "mA"
+  g1.type = mujoco.mjtGeom.mjGEOM_SPHERE
+  g1.contype = 0
+  g1.conaffinity = 0
+  mjm = spec.compile()
+
+  m = mjw.put_model(mjm)
+  d = mjw.make_data(mjm, nworld=nworld)
+
+  # worlds 0-2: variant A (1 active geom), worlds 3-5: variant B (2 active geoms)
+  variants = [mjm_a, mjm_b]
+  assignment = [0, 0, 0, 1, 1, 1]
+
+  geom0_id = mujoco.mj_name2id(mjm, mujoco.mjtObj.mjOBJ_GEOM, "obj_0")
+  geom1_id = mujoco.mj_name2id(mjm, mujoco.mjtObj.mjOBJ_GEOM, "obj_1")
+  body_id = mjm.geom_bodyid[geom0_id]
+
+  # build per-world arrays
+  dataid = np.tile(mjm.geom_dataid, (nworld, 1))
+  geom_size = np.zeros((nworld, mjm.ngeom, 3))
+  geom_rbound = np.zeros((nworld, mjm.ngeom))
+  geom_aabb = np.zeros((nworld, mjm.ngeom, 2, 3))
+  geom_pos = np.zeros((nworld, mjm.ngeom, 3))
+  body_mass = np.zeros((nworld, mjm.nbody))
+  body_subtreemass = np.zeros((nworld, mjm.nbody))
+  body_inertia = np.zeros((nworld, mjm.nbody, 3))
+  body_invweight0 = np.zeros((nworld, mjm.nbody, 2))
+  body_ipos = np.zeros((nworld, mjm.nbody, 3))
+  body_iquat = np.zeros((nworld, mjm.nbody, 4))
+
+  for w in range(nworld):
+    ref = variants[assignment[w]]
+    dataid[w] = ref.geom_dataid
+    # disable unused geom slot for variant A
+    if assignment[w] == 0:
+      dataid[w, geom1_id] = -1
+    geom_size[w] = ref.geom_size
+    geom_rbound[w] = ref.geom_rbound
+    geom_aabb[w] = ref.geom_aabb.reshape(mjm.ngeom, 2, 3)
+    geom_pos[w] = ref.geom_pos
+    body_mass[w] = ref.body_mass
+    body_subtreemass[w] = ref.body_subtreemass
+    body_inertia[w] = ref.body_inertia
+    body_invweight0[w] = ref.body_invweight0
+    body_ipos[w] = ref.body_ipos
+    body_iquat[w] = ref.body_iquat
+
+  m.geom_dataid = wp.array(dataid, dtype=int)
+  m.geom_size = wp.array(geom_size, dtype=wp.vec3)
+  m.geom_rbound = wp.array(geom_rbound, dtype=float)
+  m.geom_aabb = wp.array(geom_aabb, dtype=wp.vec3)
+  m.geom_pos = wp.array(geom_pos, dtype=wp.vec3)
+  m.body_mass = wp.array(body_mass, dtype=float)
+  m.body_subtreemass = wp.array(body_subtreemass, dtype=float)
+  m.body_inertia = wp.array(body_inertia, dtype=wp.vec3)
+  m.body_invweight0 = wp.array(body_invweight0, dtype=wp.vec2)
+  m.body_ipos = wp.array(body_ipos, dtype=wp.vec3)
+  m.body_iquat = wp.array(body_iquat, dtype=wp.quat)
+
+**Batched fields** — fields that must be overridden for per-world meshes:
+
+.. list-table::
+   :width: 90%
+   :align: left
+   :widths: 3 2 3
+   :header-rows: 1
+
+   * - Field
+     - dtype
+     - Shape
+   * - ``geom_dataid``
+     - ``int``
+     - ``(nworld, ngeom)``
+   * - ``geom_size``
+     - ``wp.vec3``
+     - ``(nworld, ngeom)``
+   * - ``geom_aabb``
+     - ``wp.vec3``
+     - ``(nworld, ngeom, 2)``
+   * - ``geom_rbound``
+     - ``float``
+     - ``(nworld, ngeom)``
+   * - ``geom_pos``
+     - ``wp.vec3``
+     - ``(nworld, ngeom)``
+   * - ``body_mass``
+     - ``float``
+     - ``(nworld, nbody)``
+   * - ``body_subtreemass``
+     - ``float``
+     - ``(nworld, nbody)``
+   * - ``body_inertia``
+     - ``wp.vec3``
+     - ``(nworld, nbody)``
+   * - ``body_invweight0``
+     - ``wp.vec2``
+     - ``(nworld, nbody)``
+   * - ``body_ipos``
+     - ``wp.vec3``
+     - ``(nworld, nbody)``
+   * - ``body_iquat``
+     - ``wp.quat``
+     - ``(nworld, nbody)``
 
 Batch Rendering
 ===============
