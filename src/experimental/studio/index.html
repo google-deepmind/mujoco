@@ -97,9 +97,9 @@
               console.error('Failed to prefetch one or more assets.', error);
             });
         },
-        animate: () => {
+        animate: async () => {
           try {
-            Module.renderFrame();
+            await Module.renderFrame();
           } catch (error) {
             console.error('Update error:', error);
           }

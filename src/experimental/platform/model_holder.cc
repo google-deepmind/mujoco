@@ -80,6 +80,10 @@ ModelHolder::~ModelHolder() {
 
 void ModelHolder::PostInit() {
   if (spec_ && !model_) {
+#ifdef __EMSCRIPTEN__
+    // Disable threaded compilation on WASM since pthreads are not available.
+    spec_->compiler.usethread = 0;
+#endif
     model_ = mj_compile(spec_, &vfs_);
     if (!model_) {
       SetLoadError(mjs_getError(spec_));
