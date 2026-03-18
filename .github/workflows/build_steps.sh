@@ -211,8 +211,26 @@ build_test_wasm() {
     source emsdk/emsdk_env.sh
     export PATH="$(pwd)/node_modules/.bin:$PATH"
 
-    emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF $WASM_CMAKE_ARGS
-    cmake --build build_wasm
+    echo "Building Multi-Threaded version..."
+    emcmake cmake -B build_wasm_mt \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
+        -DMUJOCO_WASM_THREADS=ON \
+        $WASM_CMAKE_ARGS
+    cmake --build build_wasm_mt --parallel $(nproc)
+
+    echo "Moving Multi-Thread version under mt subfolder..."
+    mkdir -p wasm/dist/mt
+    mv wasm/dist/mujoco.js wasm/dist/mt/
+    mv wasm/dist/mujoco.wasm wasm/dist/mt/
+    mv wasm/dist/mujoco.d.ts wasm/dist/mt/
+    mv wasm/dist/mujoco.wasm.map wasm/dist/mt/
+
+    echo "Building Single-Threaded version..."
+    emcmake cmake -B build_wasm_st \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
+        -DMUJOCO_WASM_THREADS=OFF \
+        $WASM_CMAKE_ARGS
+    cmake --build build_wasm_st --parallel $(nproc)
 
     npm run test --prefix ./wasm
 }
