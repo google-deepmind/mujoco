@@ -187,6 +187,12 @@ int main(int argc, char** argv) {
   nthread = mjMAX(1, mjMIN(maxthread, nthread));
   npoolthread = mjMAX(1, mjMIN(maxthread, npoolthread));
 
+  // load plugins from MUJOCO_PLUGIN_DIR if set
+  const char* plugin_dir = std::getenv("MUJOCO_PLUGIN_DIR");
+  if (plugin_dir) {
+    mj_loadAllPluginLibraries(plugin_dir, nullptr);
+  }
+
   // get filename, determine file type
   std::string filename(argv[1]);
   bool binary = (filename.find(".mjb") != std::string::npos);  // NOLINT
