@@ -21,9 +21,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import DynType
 from mujoco.mjx.third_party.mujoco_warp._src.types import GainType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
-from mujoco.mjx.third_party.mujoco_warp._src.types import TileSet
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec10f
-from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False})
@@ -96,55 +94,22 @@ def _nonzero_mask(x: float) -> float:
   return 0.0
 
 
-@cache_kernel
-def _qderiv_actuator_passive_actuation_dense(tile: TileSet, nu: int):
-  @wp.kernel(module="unique", enable_backward=False)
-  def kernel(
-    # Data in:
-    actuator_moment_in: wp.array3d(dtype=float),
-    qM_in: wp.array3d(dtype=float),
-    # In:
-    vel_in: wp.array3d(dtype=float),
-    adr: wp.array(dtype=int),
-    # Out:
-    qDeriv_out: wp.array3d(dtype=float),
-  ):
-    worldid, nodeid = wp.tid()
-    TILE_SIZE = wp.static(tile.size)
-    NU = wp.static(nu)
-
-    dofid = adr[nodeid]
-    vel_tile = wp.tile_load(vel_in[worldid], shape=(NU, 1), bounds_check=False)
-    moment_tile = wp.tile_load(actuator_moment_in[worldid], shape=(NU, TILE_SIZE), offset=(0, dofid), bounds_check=False)
-    moment_weighted = wp.tile_map(wp.mul, wp.tile_broadcast(vel_tile, shape=(NU, TILE_SIZE)), moment_tile)
-    qderiv_tile = wp.tile_matmul(wp.tile_transpose(moment_tile), moment_weighted)
-
-    # Mask out cross-terms for DOF pairs that are structurally zero in M
-    # (e.g., sibling DOFs coupled only through tendons).  Without this,
-    # stale actuation values at sibling positions make A = M - dt*qDeriv
-    # non-positive-definite, causing the tiled Cholesky to produce NaN.
-    # Dropping these terms matches MuJoCo CPU's implicitfast approximation.
-    qM_tile = wp.tile_load(qM_in[worldid], shape=(TILE_SIZE, TILE_SIZE), offset=(dofid, dofid), bounds_check=False)
-    mask_tile = wp.tile_map(_nonzero_mask, qM_tile)
-    qderiv_tile = wp.tile_map(wp.mul, qderiv_tile, mask_tile)
-
-    wp.tile_store(qDeriv_out[worldid], qderiv_tile, offset=(dofid, dofid), bounds_check=False)
-
-  return kernel
-
-
 @wp.kernel
 def _qderiv_actuator_passive_actuation_sparse(
-  # Model:
-  nu: int,
-  # Data in:
-  actuator_moment_in: wp.array3d(dtype=float),
-  # In:
-  vel_in: wp.array2d(dtype=float),
-  qMi: wp.array(dtype=int),
-  qMj: wp.array(dtype=int),
-  # Out:
-  qDeriv_out: wp.array3d(dtype=float),
+    # Model:
+    nu: int,
+    is_sparse: bool,
+    # Data in:
+    moment_rownnz_in: wp.array2d(dtype=int),
+    moment_rowadr_in: wp.array2d(dtype=int),
+    moment_colind_in: wp.array2d(dtype=int),
+    actuator_moment_in: wp.array2d(dtype=float),
+    # In:
+    vel_in: wp.array2d(dtype=float),
+    qMi: wp.array(dtype=int),
+    qMj: wp.array(dtype=int),
+    # Out:
+    qDeriv_out: wp.array3d(dtype=float),
 ):
   worldid, elemid = wp.tid()
 
@@ -156,12 +121,33 @@ def _qderiv_actuator_passive_actuation_sparse(
     if vel == 0.0:
       continue
 
-    moment_i = actuator_moment_in[worldid, actid, dofiid]
-    moment_j = actuator_moment_in[worldid, actid, dofjid]
+    # TODO(team): restructure sparse version for better parallelism?
+    moment_i = float(0.0)
+    moment_j = float(0.0)
+
+    rownnz = moment_rownnz_in[worldid, actid]
+    rowadr = moment_rowadr_in[worldid, actid]
+    for i in range(rownnz):
+      sparseid = rowadr + i
+      colind = moment_colind_in[worldid, sparseid]
+      if colind == dofiid:
+        moment_i = actuator_moment_in[worldid, sparseid]
+      if colind == dofjid:
+        moment_j = actuator_moment_in[worldid, sparseid]
+      if moment_i != 0.0 and moment_j != 0.0:
+        break
+
+    if moment_i == 0 and moment_j == 0:
+      continue
 
     qderiv_contrib += moment_i * moment_j * vel
 
-  qDeriv_out[worldid, 0, elemid] = qderiv_contrib
+  if is_sparse:
+    qDeriv_out[worldid, 0, elemid] = qderiv_contrib
+  else:
+    qDeriv_out[worldid, dofiid, dofjid] = qderiv_contrib
+    if dofiid != dofjid:
+      qDeriv_out[worldid, dofjid, dofiid] = qderiv_contrib
 
 
 @wp.kernel
@@ -277,23 +263,22 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d(dtype=float)):
         ],
         outputs=[vel],
       )
-      if m.is_sparse:
-        wp.launch(
+      wp.launch(
           _qderiv_actuator_passive_actuation_sparse,
           dim=(d.nworld, qMi.size),
-          inputs=[m.nu, d.actuator_moment, vel, qMi, qMj],
+          inputs=[
+              m.nu,
+              m.is_sparse,
+              d.moment_rownnz,
+              d.moment_rowadr,
+              d.moment_colind,
+              d.actuator_moment,
+              vel,
+              qMi,
+              qMj,
+          ],
           outputs=[out],
-        )
-      else:
-        vel_3d = vel.reshape(vel.shape + (1,))
-        for tile in m.qM_tiles:
-          wp.launch_tiled(
-            _qderiv_actuator_passive_actuation_dense(tile, m.nu),
-            dim=(d.nworld, tile.adr.size),
-            inputs=[d.actuator_moment, d.qM, vel_3d, tile.adr],
-            outputs=[out],
-            block_dim=m.block_dim.qderiv_actuator_dense,
-          )
+      )
     wp.launch(
       _qderiv_actuator_passive,
       dim=(d.nworld, qMi.size),

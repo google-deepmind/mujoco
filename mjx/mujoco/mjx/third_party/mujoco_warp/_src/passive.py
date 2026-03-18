@@ -265,28 +265,28 @@ def _gravity_force(
 
 @wp.kernel
 def _fluid_force(
-  # Model:
-  opt_density: wp.array(dtype=float),
-  opt_viscosity: wp.array(dtype=float),
-  opt_wind: wp.array(dtype=wp.vec3),
-  body_rootid: wp.array(dtype=int),
-  body_geomnum: wp.array(dtype=int),
-  body_geomadr: wp.array(dtype=int),
-  body_mass: wp.array2d(dtype=float),
-  body_inertia: wp.array2d(dtype=wp.vec3),
-  geom_type: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
-  geom_fluid: wp.array2d(dtype=float),
-  body_fluid_ellipsoid: wp.array(dtype=bool),
-  # Data in:
-  xipos_in: wp.array2d(dtype=wp.vec3),
-  ximat_in: wp.array2d(dtype=wp.mat33),
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cvel_in: wp.array2d(dtype=wp.spatial_vector),
-  # Out:
-  fluid_applied_out: wp.array2d(dtype=wp.spatial_vector),
+    # Model:
+    opt_wind: wp.array(dtype=wp.vec3),
+    opt_density: wp.array(dtype=float),
+    opt_viscosity: wp.array(dtype=float),
+    body_rootid: wp.array(dtype=int),
+    body_geomnum: wp.array(dtype=int),
+    body_geomadr: wp.array(dtype=int),
+    body_mass: wp.array2d(dtype=float),
+    body_inertia: wp.array2d(dtype=wp.vec3),
+    geom_type: wp.array(dtype=int),
+    geom_size: wp.array2d(dtype=wp.vec3),
+    geom_fluid: wp.array2d(dtype=float),
+    body_fluid_ellipsoid: wp.array(dtype=bool),
+    # Data in:
+    xipos_in: wp.array2d(dtype=wp.vec3),
+    ximat_in: wp.array2d(dtype=wp.mat33),
+    geom_xpos_in: wp.array2d(dtype=wp.vec3),
+    geom_xmat_in: wp.array2d(dtype=wp.mat33),
+    subtree_com_in: wp.array2d(dtype=wp.vec3),
+    cvel_in: wp.array2d(dtype=wp.spatial_vector),
+    # Out:
+    fluid_applied_out: wp.array2d(dtype=wp.spatial_vector),
 ):
   """Computes body-space fluid forces for both inertia-box and ellipsoid models."""
   worldid, bodyid = wp.tid()
@@ -495,29 +495,29 @@ def _fluid(m: Model, d: Data):
   fluid_applied = wp.empty((d.nworld, m.nbody), dtype=wp.spatial_vector)
 
   wp.launch(
-    _fluid_force,
-    dim=(d.nworld, m.nbody),
-    inputs=[
-      m.opt.density,
-      m.opt.viscosity,
-      m.opt.wind,
-      m.body_rootid,
-      m.body_geomnum,
-      m.body_geomadr,
-      m.body_mass,
-      m.body_inertia,
-      m.geom_type,
-      m.geom_size,
-      m.geom_fluid,
-      m.body_fluid_ellipsoid,
-      d.xipos,
-      d.ximat,
-      d.geom_xpos,
-      d.geom_xmat,
-      d.subtree_com,
-      d.cvel,
-    ],
-    outputs=[fluid_applied],
+      _fluid_force,
+      dim=(d.nworld, m.nbody),
+      inputs=[
+          m.opt.wind,
+          m.opt.density,
+          m.opt.viscosity,
+          m.body_rootid,
+          m.body_geomnum,
+          m.body_geomadr,
+          m.body_mass,
+          m.body_inertia,
+          m.geom_type,
+          m.geom_size,
+          m.geom_fluid,
+          m.body_fluid_ellipsoid,
+          d.xipos,
+          d.ximat,
+          d.geom_xpos,
+          d.geom_xmat,
+          d.subtree_com,
+          d.cvel,
+      ],
+      outputs=[fluid_applied],
   )
 
   support.apply_ft(m, d, fluid_applied, d.qfrc_fluid, False)
@@ -846,3 +846,6 @@ def passive(m: Model, d: Data):
       d.qfrc_passive,
     ],
   )
+
+  if m.callback.passive:
+    m.callback.passive(m, d)

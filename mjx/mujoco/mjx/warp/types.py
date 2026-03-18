@@ -25,11 +25,20 @@ from mujoco.mjx._src import dataclasses as mjx_dataclasses
 import numpy as np
 if typing.TYPE_CHECKING:
   GraphMode = int
+
+  @dataclasses.dataclass
+  class Callback:
+    pass
+
 else:
   try:
     from warp._src.jax_experimental.ffi import GraphMode
+    from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
+
+    Callback = mjwp_types.Callback
   except ImportError:
     GraphMode = int
+    Callback = None
 PyTreeNode = mjx_dataclasses.PyTreeNode
 
 @dataclasses.dataclass(frozen=True)
@@ -43,7 +52,6 @@ class TileSet:
     adr: address of each tile in the set
     size: size of all the tiles in this set
   """
-
   adr: np.ndarray
   size: int
 
@@ -122,6 +130,7 @@ class ModelWarp(PyTreeNode):
   body_branches: np.ndarray
   body_fluid_ellipsoid: np.ndarray
   body_tree: Tuple[np.ndarray, ...]
+  callback: Callback
   cam_projection: np.ndarray
   collision_sensor_adr: np.ndarray
   dof_tri_col: np.ndarray
@@ -174,6 +183,7 @@ class ModelWarp(PyTreeNode):
   mesh_polyvertadr: np.ndarray
   mesh_polyvertnum: np.ndarray
   mocap_bodyid: np.ndarray
+  nJfe: int
   nacttrnbody: int
   nbranch: int
   nflex: int
@@ -270,6 +280,9 @@ class DataWarp(PyTreeNode):
   crb: jax.Array
   efc__D: jax.Array
   efc__J: jax.Array
+  efc__J_colind: jax.Array
+  efc__J_rowadr: jax.Array
+  efc__J_rownnz: jax.Array
   efc__Ma: jax.Array
   efc__aref: jax.Array
   efc__force: jax.Array
@@ -287,6 +300,9 @@ class DataWarp(PyTreeNode):
   flexvert_xpos: jax.Array
   light_xdir: jax.Array
   light_xpos: jax.Array
+  moment_colind: jax.Array
+  moment_rowadr: jax.Array
+  moment_rownnz: jax.Array
   naccdmax: int
   nacon: jax.Array
   naconmax: int
@@ -294,7 +310,9 @@ class DataWarp(PyTreeNode):
   ne: jax.Array
   nefc: jax.Array
   nf: jax.Array
+  nisland: jax.Array
   njmax: int
+  njmax_pad: int
   nl: jax.Array
   nworld: int
   qLD: jax.Array
@@ -309,6 +327,7 @@ class DataWarp(PyTreeNode):
   ten_velocity: jax.Array
   ten_wrapadr: jax.Array
   ten_wrapnum: jax.Array
+  tree_island: jax.Array
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   shape = property(lambda self: self.cacc.shape)
@@ -332,6 +351,7 @@ DATA_NON_VMAP = {
     'naconmax',
     'ncollision',
     'njmax',
+    'njmax_pad',
     'nworld',
 }
 
@@ -365,7 +385,7 @@ _NDIM = {
         'act_dot': 2,
         'actuator_force': 2,
         'actuator_length': 2,
-        'actuator_moment': 3,
+        'actuator_moment': 2,
         'actuator_velocity': 2,
         'cacc': 3,
         'cam_xmat': 4,
@@ -394,6 +414,9 @@ _NDIM = {
         'cvel': 3,
         'efc__D': 2,
         'efc__J': 3,
+        'efc__J_colind': 3,
+        'efc__J_rowadr': 2,
+        'efc__J_rownnz': 2,
         'efc__Ma': 2,
         'efc__aref': 2,
         'efc__force': 2,
@@ -406,7 +429,7 @@ _NDIM = {
         'efc__vel': 2,
         'energy': 2,
         'eq_active': 2,
-        'flexedge_J': 3,
+        'flexedge_J': 2,
         'flexedge_length': 2,
         'flexedge_velocity': 2,
         'flexvert_xpos': 3,
@@ -416,6 +439,9 @@ _NDIM = {
         'light_xpos': 3,
         'mocap_pos': 3,
         'mocap_quat': 3,
+        'moment_colind': 2,
+        'moment_rowadr': 2,
+        'moment_rownnz': 2,
         'naccdmax': 0,
         'nacon': 1,
         'naconmax': 0,
@@ -423,7 +449,9 @@ _NDIM = {
         'ne': 1,
         'nefc': 1,
         'nf': 1,
+        'nisland': 1,
         'njmax': 0,
+        'njmax_pad': 0,
         'nl': 1,
         'nworld': 0,
         'qLD': 3,
@@ -458,6 +486,7 @@ _NDIM = {
         'ten_wrapadr': 2,
         'ten_wrapnum': 2,
         'time': 1,
+        'tree_island': 2,
         'wrap_obj': 3,
         'wrap_xpos': 3,
         'xanchor': 3,
@@ -473,7 +502,7 @@ _NDIM = {
         'M_colind': 1,
         'M_rowadr': 1,
         'M_rownnz': 1,
-        'actuator_acc0': 1,
+        'actuator_acc0': 2,
         'actuator_actadr': 1,
         'actuator_actearly': 1,
         'actuator_actlimited': 1,
@@ -481,7 +510,7 @@ _NDIM = {
         'actuator_actrange': 3,
         'actuator_biasprm': 3,
         'actuator_biastype': 1,
-        'actuator_cranklength': 1,
+        'actuator_cranklength': 2,
         'actuator_ctrllimited': 1,
         'actuator_ctrlrange': 3,
         'actuator_dynprm': 3,
@@ -491,7 +520,7 @@ _NDIM = {
         'actuator_gainprm': 3,
         'actuator_gaintype': 1,
         'actuator_gear': 3,
-        'actuator_lengthrange': 2,
+        'actuator_lengthrange': 3,
         'actuator_trnid': 2,
         'actuator_trntype': 1,
         'actuator_trntype_body_adr': 1,
@@ -670,6 +699,7 @@ _NDIM = {
         'mesh_normal': 2,
         'mesh_normaladr': 1,
         'mesh_normalnum': 1,
+        'mesh_octadr': 1,
         'mesh_polyadr': 1,
         'mesh_polymap': 1,
         'mesh_polymapadr': 1,
@@ -685,6 +715,8 @@ _NDIM = {
         'mesh_vertnum': 1,
         'mocap_bodyid': 1,
         'nC': 0,
+        'nJfe': 0,
+        'nJmom': 0,
         'nM': 0,
         'na': 0,
         'nacttrnbody': 0,
@@ -924,6 +956,9 @@ _BATCH_DIM = {
         'cvel': True,
         'efc__D': True,
         'efc__J': True,
+        'efc__J_colind': True,
+        'efc__J_rowadr': True,
+        'efc__J_rownnz': True,
         'efc__Ma': True,
         'efc__aref': True,
         'efc__force': True,
@@ -946,6 +981,9 @@ _BATCH_DIM = {
         'light_xpos': True,
         'mocap_pos': True,
         'mocap_quat': True,
+        'moment_colind': True,
+        'moment_rowadr': True,
+        'moment_rownnz': True,
         'naccdmax': False,
         'nacon': False,
         'naconmax': False,
@@ -953,7 +991,9 @@ _BATCH_DIM = {
         'ne': True,
         'nefc': True,
         'nf': True,
+        'nisland': True,
         'njmax': False,
+        'njmax_pad': False,
         'nl': True,
         'nworld': False,
         'qLD': True,
@@ -988,6 +1028,7 @@ _BATCH_DIM = {
         'ten_wrapadr': True,
         'ten_wrapnum': True,
         'time': True,
+        'tree_island': True,
         'wrap_obj': True,
         'wrap_xpos': True,
         'xanchor': True,
@@ -1003,7 +1044,7 @@ _BATCH_DIM = {
         'M_colind': False,
         'M_rowadr': False,
         'M_rownnz': False,
-        'actuator_acc0': False,
+        'actuator_acc0': True,
         'actuator_actadr': False,
         'actuator_actearly': False,
         'actuator_actlimited': False,
@@ -1011,7 +1052,7 @@ _BATCH_DIM = {
         'actuator_actrange': True,
         'actuator_biasprm': True,
         'actuator_biastype': False,
-        'actuator_cranklength': False,
+        'actuator_cranklength': True,
         'actuator_ctrllimited': False,
         'actuator_ctrlrange': True,
         'actuator_dynprm': True,
@@ -1021,7 +1062,7 @@ _BATCH_DIM = {
         'actuator_gainprm': True,
         'actuator_gaintype': False,
         'actuator_gear': True,
-        'actuator_lengthrange': False,
+        'actuator_lengthrange': True,
         'actuator_trnid': False,
         'actuator_trntype': False,
         'actuator_trntype_body_adr': False,
@@ -1200,6 +1241,7 @@ _BATCH_DIM = {
         'mesh_normal': False,
         'mesh_normaladr': False,
         'mesh_normalnum': False,
+        'mesh_octadr': False,
         'mesh_polyadr': False,
         'mesh_polymap': False,
         'mesh_polymapadr': False,
@@ -1215,6 +1257,8 @@ _BATCH_DIM = {
         'mesh_vertnum': False,
         'mocap_bodyid': False,
         'nC': False,
+        'nJfe': False,
+        'nJmom': False,
         'nM': False,
         'na': False,
         'nacttrnbody': False,

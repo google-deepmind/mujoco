@@ -205,6 +205,9 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
     )
   if isinstance(wp_field, mjwp_types.BlockDim):
     return mjxw.types.BlockDim(**wp_field.__dict__)
+  if isinstance(wp_field, mjwp_types.Callback):
+    return wp_field
+
   if isinstance(wp_field, tuple) and is_static(wp_field[0]):
     return wp_field
 

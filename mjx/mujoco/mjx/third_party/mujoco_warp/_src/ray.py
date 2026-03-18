@@ -66,19 +66,19 @@ def _ray_eliminate(
 ) -> bool:
   """Eliminate ray."""
   bodyid = geom_bodyid[geomid]
-  matid = geom_matid[geomid]
+  matid = geom_matid[geomid]  # kernel_analyzer: ignore
 
   # body exclusion
   if bodyid == bodyexclude:
     return True
 
   # invisible geom exclusion
-  if matid < 0 and geom_rgba[geomid][3] == 0.0:
+  if matid < 0 and geom_rgba[geomid][3] == 0.0:  # kernel_analyzer: ignore
     return True
 
   # invisible material exclusion
   if matid >= 0:
-    if mat_rgba[matid][3] == 0.0:
+    if mat_rgba[matid][3] == 0.0:  # kernel_analyzer: ignore
       return True
 
   # static exclusion

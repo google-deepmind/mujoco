@@ -848,9 +848,9 @@ class Model(PyTreeNode):
   actuator_forcerange: jax.Array
   actuator_actrange: jax.Array
   actuator_gear: jax.Array
-  actuator_cranklength: np.ndarray
+  actuator_cranklength: jax.Array
   actuator_acc0: jax.Array
-  actuator_lengthrange: np.ndarray
+  actuator_lengthrange: jax.Array
   sensor_type: np.ndarray
   sensor_datatype: np.ndarray
   sensor_needstage: np.ndarray

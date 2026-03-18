@@ -215,7 +215,8 @@ def _compute_bvh_bounds(
     lower_bound, upper_bound = _compute_box_bounds(pos, rot, size)
   elif type == GeomType.HFIELD:
     size = hfield_bounds_size[geom_dataid[geom_id]]
-    lower_bound, upper_bound = _compute_box_bounds(pos, rot, size)
+    hfield_center = pos + rot[:, 2] * size[2]
+    lower_bound, upper_bound = _compute_box_bounds(hfield_center, rot, size)
 
   lower_out[world_id * bvh_ngeom + geom_local_id] = lower_bound
   upper_out[world_id * bvh_ngeom + geom_local_id] = upper_bound

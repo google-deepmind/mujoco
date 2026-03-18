@@ -42,6 +42,9 @@ _c = mjwarp.Contact(
 _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
+_cb = mjwp_types.Callback(
+    **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
+)
 
 @ffi.format_args_for_warp
 def _kinematics_shim(
@@ -92,6 +95,7 @@ def _kinematics_shim(
 ):
   _m.stat = _s
   _m.opt = _o
+  _m.callback = _cb
   _d.efc = _e
   _d.contact = _c
   _m.body_branch_start = body_branch_start
@@ -332,6 +336,7 @@ def _tendon_shim(
 ):
   _m.stat = _s
   _m.opt = _o
+  _m.callback = _cb
   _d.efc = _e
   _d.contact = _c
   _m.body_parentid = body_parentid

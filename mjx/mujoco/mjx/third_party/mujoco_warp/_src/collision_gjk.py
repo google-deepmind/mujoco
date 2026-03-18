@@ -16,12 +16,11 @@
 import math
 from typing import Tuple
 
-import warp as wp
-
-from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import Geom
+from mujoco.mjx.third_party.mujoco_warp._src.collision_core import Geom
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat43
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat63
+import warp as wp
 
 # TODO(team): improve compile time to enable backward pass
 wp.set_module_options({"enable_backward": False})
@@ -581,14 +580,13 @@ def gjk(
   simplex_index1 = wp.vec4i()
   simplex_index2 = wp.vec4i()
   n = int(0)
-  cnt = int(1)
   coordinates = wp.vec4()  # barycentric coordinates
   epsilon = wp.where(is_discrete, 0.0, 0.5 * tolerance * tolerance)
 
   # set initial guess
   x_k = x1_0 - x2_0
 
-  for _ in range(gjk_iterations):
+  for k in range(gjk_iterations):
     xnorm = wp.dot(x_k, x_k)
     # TODO(kbayes): determine new constant here
     if xnorm < 1e-12:
@@ -665,10 +663,12 @@ def gjk(
     if n == 4:
       break
 
-    cnt += 1
-
-  if cnt == gjk_iterations:
-    wp.printf("Warning: opt.ccd_iterations, currently set to %d, needs to be increased.\n", gjk_iterations)
+    if k == gjk_iterations - 1:
+      wp.printf(
+          "Warning: opt.ccd_iterations, currently set to %d, needs to be"
+          " increased.\n",
+          gjk_iterations,
+      )
 
   result = GJKResult()
 
@@ -1220,14 +1220,13 @@ def _epa(
   idx = int(-1)
   pidx = int(-1)
   epsilon = wp.where(is_discrete, 1e-15, tolerance)
-  cnt = int(1)
   nvalid = pt.nface  # number of potential faces for expanding the polytope
 
   # the face vertices are encoded in 10-bits that index the vertex array,
   # so iterations must be cap to limit the number of generated vertices
   # (one new vertex per iteration)
   epa_iterations = wp.min(epa_iterations, 1000)
-  for _ in range(epa_iterations):
+  for k in range(epa_iterations):
     pidx = idx
     idx = int(-1)
     lower2 = float(FLOAT_MAX)
@@ -1325,10 +1324,13 @@ def _epa(
 
     # clear horizon
     pt.nhorizon = 0
-    cnt += 1
 
-  if cnt == epa_iterations:
-    wp.printf("Warning: opt.ccd_iterations, currently set to %d, needs to be increased.\n", gjk_iterations)
+    if k == epa_iterations - 1:
+      wp.printf(
+          "Warning: opt.ccd_iterations, currently set to %d, needs to be"
+          " increased.\n",
+          gjk_iterations,
+      )
 
   # return from valid face
   if idx > -1:

@@ -181,7 +181,15 @@ class ForwardTest(parameterized.TestCase):
           d.moment_rowadr,
           d.moment_colind,
       )
-      tu.assert_eq(dx._impl.actuator_moment, actuator_moment, 'actuator_moment')
+      warp_actuator_moment = np.zeros((m.nu, m.nv))
+      mujoco.mju_sparse2dense(
+          warp_actuator_moment,
+          np.asarray(dx._impl.actuator_moment),
+          np.asarray(dx._impl.moment_rownnz),
+          np.asarray(dx._impl.moment_rowadr),
+          np.asarray(dx._impl.moment_colind),
+      )
+      tu.assert_eq(warp_actuator_moment, actuator_moment, 'actuator_moment')
 
       # fwd_velocity
       tu.assert_attr_eq(dx._impl, d, 'actuator_velocity')

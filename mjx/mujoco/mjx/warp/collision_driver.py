@@ -42,6 +42,10 @@ _c = mjwarp.Contact(
 _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
+_cb = mjwp_types.Callback(
+    **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
+)
+
 
 @ffi.format_args_for_warp
 def _collision_shim(
@@ -73,6 +77,7 @@ def _collision_shim(
     mesh_faceadr: wp.array(dtype=int),
     mesh_graph: wp.array(dtype=int),
     mesh_graphadr: wp.array(dtype=int),
+    mesh_octadr: wp.array(dtype=int),
     mesh_polyadr: wp.array(dtype=int),
     mesh_polymap: wp.array(dtype=int),
     mesh_polymapadr: wp.array(dtype=int),
@@ -135,6 +140,7 @@ def _collision_shim(
 ):
   _m.stat = _s
   _m.opt = _o
+  _m.callback = _cb
   _d.efc = _e
   _d.contact = _c
   _m.block_dim = block_dim
@@ -163,6 +169,7 @@ def _collision_shim(
   _m.mesh_faceadr = mesh_faceadr
   _m.mesh_graph = mesh_graph
   _m.mesh_graphadr = mesh_graphadr
+  _m.mesh_octadr = mesh_octadr
   _m.mesh_polyadr = mesh_polyadr
   _m.mesh_polymap = mesh_polymap
   _m.mesh_polymapadr = mesh_polymapadr
@@ -317,6 +324,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.mesh_faceadr,
       m.mesh_graph,
       m.mesh_graphadr,
+      m.mesh_octadr,
       m._impl.mesh_polyadr,
       m._impl.mesh_polymap,
       m._impl.mesh_polymapadr,
