@@ -51,6 +51,7 @@ set(EMCC_LINKER_FLAGS
 if(MUJOCO_WASM_THREADS)
     list(APPEND EMCC_LINKER_FLAGS
         "-pthread"
+        "-s PTHREAD_POOL_SIZE=navigator.hardwareConcurrency"
     )
     add_definitions(-DMUJOCO_WASM_THREADS)
 endif()
