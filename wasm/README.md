@@ -53,7 +53,7 @@ Workers and `SharedArrayBuffer` to parallelize physics computations.
 import loadMujoco from '@mujoco/mujoco/mt';
 ```
 
-> [!CAUTION]
+> [!NOTE]
 > Due to the use of `SharedArrayBuffer`, browsers require Cross-Origin Isolation
 > to enable multi-threading. Your web server must send the following HTTP
 > headers:
