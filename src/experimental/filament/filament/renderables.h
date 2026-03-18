@@ -73,20 +73,31 @@ class Renderables {
   // Sets the material instance for all managed entities.
   void SetMaterialInstance(filament::MaterialInstance* material_instance);
 
+  // If true, forces all entities to be rendered as lines.
+  void SetWireframe(bool wireframe);
+
   // Returns the filament Engine managing the entities in this collection.
   filament::Engine* GetEngine() { return engine_; }
 
  private:
   utils::Entity CreateEntity(const FilamentBuffers& buffers);
   void UpdateEntity(utils::Entity entity, const FilamentBuffers& buffers);
-  void UpdateBuffers(int index, std::optional<FilamentBuffers> buffers);
+  void UpdateBuffers(int index, FilamentBuffers buffers, bool owned);
+
+  // Tracks whether of not the filament buffers should be destroyed by this
+  // class.
+  struct OwnedBuffers {
+    bool owned = false;
+    FilamentBuffers buffers;
+  };
 
   filament::Engine* engine_ = nullptr;
   filament::Scene* assigned_scene_ = nullptr;
   filament::MaterialInstance* material_instance_ = nullptr;
   std::vector<utils::Entity> entities_;
-  std::vector<std::optional<FilamentBuffers>> owned_buffers_;
+  std::vector<OwnedBuffers> owned_buffers_;
   bool visible_ = true;
+  bool wireframe_ = false;
   bool cast_shadows_ = true;
 };
 

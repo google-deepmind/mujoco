@@ -49,7 +49,10 @@ void Renderables::RemoveLast() {
   em.destroy(entity);
   entities_.pop_back();
 
-  UpdateBuffers(owned_buffers_.size() - 1, std::nullopt);
+  if (owned_buffers_.back().owned) {
+    engine_->destroy(owned_buffers_.back().buffers.vertex_buffer);
+    engine_->destroy(owned_buffers_.back().buffers.index_buffer);
+  }
   owned_buffers_.pop_back();
 }
 
@@ -59,7 +62,7 @@ void Renderables::Update(int index, const FilamentBuffers& buffers) {
   }
   utils::Entity& entity = entities_[index];
   UpdateEntity(entity, buffers);
-  UpdateBuffers(index, std::nullopt);
+  UpdateBuffers(index, buffers, false);
 }
 
 void Renderables::Update(int index, FilamentBuffers&& buffers) {
@@ -68,19 +71,19 @@ void Renderables::Update(int index, FilamentBuffers&& buffers) {
   }
   utils::Entity& entity = entities_[index];
   UpdateEntity(entity, buffers);
-  UpdateBuffers(index, buffers);
+  UpdateBuffers(index, buffers, true);
 }
 
 void Renderables::Append(const FilamentBuffers& buffers) {
   utils::Entity entity = CreateEntity(buffers);
   entities_.push_back(entity);
-  owned_buffers_.push_back(std::nullopt);
+  owned_buffers_.push_back({.owned = false, .buffers = buffers});
 }
 
 void Renderables::Append(FilamentBuffers&& buffers) {
   utils::Entity entity = CreateEntity(buffers);
   entities_.push_back(entity);
-  owned_buffers_.push_back(buffers);
+  owned_buffers_.push_back({.owned = true, .buffers = buffers});
 }
 
 utils::Entity Renderables::CreateEntity(const FilamentBuffers& buffers) {
@@ -129,16 +132,16 @@ void Renderables::UpdateEntity(utils::Entity entity,
                    buffers.index_buffer->getIndexCount());
 }
 
-void Renderables::UpdateBuffers(int index,
-                                std::optional<FilamentBuffers> buffers) {
+void Renderables::UpdateBuffers(int index, FilamentBuffers buffers, bool owned) {
   if (index < 0 || index >= owned_buffers_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
-  if (owned_buffers_[index].has_value()) {
-    engine_->destroy(owned_buffers_[index]->vertex_buffer);
-    engine_->destroy(owned_buffers_[index]->index_buffer);
+  if (owned_buffers_[index].owned) {
+    engine_->destroy(owned_buffers_[index].buffers.vertex_buffer);
+    engine_->destroy(owned_buffers_[index].buffers.index_buffer);
   }
-  owned_buffers_[index] = buffers;
+  owned_buffers_[index].buffers = buffers;
+  owned_buffers_[index].owned = owned;
 }
 
 void Renderables::AddToScene(filament::Scene* scene) {
@@ -196,6 +199,27 @@ void Renderables::Show() {
     visible_ = true;
   }
 }
+
+void Renderables::SetWireframe(bool wireframe) {
+  static constexpr auto kWireframeType =
+      filament::RenderableManager::PrimitiveType::LINES;
+
+  if (wireframe == wireframe_) {
+    return;
+  }
+  wireframe_ = wireframe;
+
+  filament::RenderableManager& rm = engine_->getRenderableManager();
+  for (int i = 0; i < entities_.size(); ++i) {
+    utils::Entity& entity = entities_[i];
+    FilamentBuffers& buffers = owned_buffers_[i].buffers;
+    rm.setGeometryAt(rm.getInstance(entity), 0,
+                     wireframe ? kWireframeType : buffers.type,
+                     buffers.vertex_buffer, buffers.index_buffer, 0,
+                     buffers.index_buffer->getIndexCount());
+  }
+}
+
 
 void Renderables::DisableShadows() {
   filament::RenderableManager& rm = engine_->getRenderableManager();

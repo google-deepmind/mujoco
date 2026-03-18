@@ -181,6 +181,7 @@ void Drawable::Update(const mjModel* model, const mjvScene* scene,
 
   SetTransform(geom);
   UpdateMaterial(geom, scene->flags[mjRND_IDCOLOR], head_pos);
+  renderables_.SetWireframe(scene->flags[mjRND_WIREFRAME]);
 }
 
 void Drawable::AddMesh(int data_id) {
