@@ -51,7 +51,6 @@ class Drawable {
   // beginFrame/endFrame.
   void SetDrawMode(Material::DrawMode mode);
 
-
  private:
   void AddMesh(int data_id);
   void AddHeightField(int hfield_id);
