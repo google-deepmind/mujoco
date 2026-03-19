@@ -223,11 +223,15 @@ class FfiKernel:
 
         # register the callback
         FFI_CCALLFUNC = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.POINTER(XLA_FFI_CallFrame))
-        self.callback_func = FFI_CCALLFUNC(lambda call_frame: self.ffi_callback(call_frame))
-        ffi_ccall_address = ctypes.cast(self.callback_func, ctypes.c_void_p)
-        ffi_capsule = jax.ffi.pycapsule(ffi_ccall_address.value)
-        jax.ffi.register_ffi_target(self.name, ffi_capsule, platform="CUDA")
-        jax.ffi.register_ffi_target(self.name, ffi_capsule, platform="Host")
+        self.callback_func_cuda = FFI_CCALLFUNC(lambda call_frame: self.ffi_callback(call_frame, platform="CUDA"))
+        ffi_ccall_address_cuda = ctypes.cast(self.callback_func_cuda, ctypes.c_void_p)
+        ffi_capsule_cuda = jax.ffi.pycapsule(ffi_ccall_address_cuda.value)
+        jax.ffi.register_ffi_target(self.name, ffi_capsule_cuda, platform="CUDA")
+
+        self.callback_func_host = FFI_CCALLFUNC(lambda call_frame: self.ffi_callback(call_frame, platform="Host"))
+        ffi_ccall_address_host = ctypes.cast(self.callback_func_host, ctypes.c_void_p)
+        ffi_capsule_host = jax.ffi.pycapsule(ffi_ccall_address_host.value)
+        jax.ffi.register_ffi_target(self.name, ffi_capsule_host, platform="Host")
 
     def __call__(self, *args, output_dims=None, launch_dims=None, vmap_method=None):
         num_inputs = len(args)
@@ -329,8 +333,7 @@ class FfiKernel:
                     # ignore unsupported devices like TPUs
                     pass
                 # we only support CUDA devices for now
-                # TODO(hartikainen): Should this be `dev.is_cuda or dev.is_cpu`?
-                if dev.is_cuda:
+                if dev.is_cuda or dev.is_cpu:
                     self.kernel.module.load(dev)
 
         # save launch data to be retrieved by callback
@@ -342,7 +345,7 @@ class FfiKernel:
 
         return call(*args, launch_id=launch_id)
 
-    def ffi_callback(self, call_frame):
+    def ffi_callback(self, call_frame, platform="CUDA"):
         try:
             # On the first call, XLA runtime will query the API version and traits
             # metadata using the |extension| field. Let us respond to that query
@@ -354,8 +357,8 @@ class FfiKernel:
                     metadata_ext = ctypes.cast(extension, ctypes.POINTER(XLA_FFI_Metadata_Extension))
                     metadata_ext.contents.metadata.contents.api_version.major_version = 0
                     metadata_ext.contents.metadata.contents.api_version.minor_version = 1
-                    # Turn on CUDA graphs for this handler if CUDA is available.
-                    if wp.is_cuda_available():
+                    # Turn on CUDA graphs for this handler if on CUDA platform.
+                    if platform == "CUDA":
                         metadata_ext.contents.metadata.contents.traits = (
                             XLA_FFI_Handler_TraitsBits.COMMAND_BUFFER_COMPATIBLE
                         )
@@ -438,7 +441,7 @@ class FfiKernel:
                 kernel_params[0] = ctypes.addressof(launch_bounds)
 
                 # get device and stream
-                if wp.is_cuda_available():
+                if platform == "CUDA":
                     device = wp.get_cuda_device(get_device_ordinal_from_callframe(call_frame.contents))
                     stream = get_stream_from_callframe(call_frame.contents)
                 else:
@@ -621,11 +624,15 @@ class FfiCallable:
 
         # register the callback
         FFI_CCALLFUNC = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.POINTER(XLA_FFI_CallFrame))
-        self.callback_func = FFI_CCALLFUNC(lambda call_frame: self.ffi_callback(call_frame))
-        ffi_ccall_address = ctypes.cast(self.callback_func, ctypes.c_void_p)
-        ffi_capsule = jax.ffi.pycapsule(ffi_ccall_address.value)
-        jax.ffi.register_ffi_target(self.name, ffi_capsule, platform="CUDA")
-        jax.ffi.register_ffi_target(self.name, ffi_capsule, platform="Host")
+        self.callback_func_cuda = FFI_CCALLFUNC(lambda call_frame: self.ffi_callback(call_frame, platform="CUDA"))
+        ffi_ccall_address_cuda = ctypes.cast(self.callback_func_cuda, ctypes.c_void_p)
+        ffi_capsule_cuda = jax.ffi.pycapsule(ffi_ccall_address_cuda.value)
+        jax.ffi.register_ffi_target(self.name, ffi_capsule_cuda, platform="CUDA")
+
+        self.callback_func_host = FFI_CCALLFUNC(lambda call_frame: self.ffi_callback(call_frame, platform="Host"))
+        ffi_ccall_address_host = ctypes.cast(self.callback_func_host, ctypes.c_void_p)
+        ffi_capsule_host = jax.ffi.pycapsule(ffi_ccall_address_host.value)
+        jax.ffi.register_ffi_target(self.name, ffi_capsule_host, platform="Host")
 
     def __call__(self, *args, output_dims=None, vmap_method=None):
         num_inputs = len(args)
@@ -717,8 +724,7 @@ class FfiCallable:
                     # ignore unsupported devices like TPUs
                     pass
                 # we only support CUDA devices for now
-                # TODO(hartikainen): Should this be `dev.is_cuda or dev.is_cpu`?
-                if dev.is_cuda:
+                if dev.is_cuda or dev.is_cpu:
                     module.load(dev)
 
         # save call data to be retrieved by callback
@@ -727,7 +733,7 @@ class FfiCallable:
         self.call_id += 1
         return call(*args, call_id=call_id)
 
-    def ffi_callback(self, call_frame):
+    def ffi_callback(self, call_frame, platform="CUDA"):
         try:
             # On the first call, XLA runtime will query the API version and traits
             # metadata using the |extension| field. Let us respond to that query
@@ -739,8 +745,8 @@ class FfiCallable:
                     metadata_ext = ctypes.cast(extension, ctypes.POINTER(XLA_FFI_Metadata_Extension))
                     metadata_ext.contents.metadata.contents.api_version.major_version = 0
                     metadata_ext.contents.metadata.contents.api_version.minor_version = 1
-                    # Turn on CUDA graphs for this handler if CUDA is available.
-                    if self.graph_mode is GraphMode.JAX and wp.is_cuda_available():
+                    # Turn on CUDA graphs for this handler if on CUDA platform.
+                    if self.graph_mode is GraphMode.JAX and platform == "CUDA":
                         metadata_ext.contents.metadata.contents.traits = (
                             XLA_FFI_Handler_TraitsBits.COMMAND_BUFFER_COMPATIBLE
                         )
@@ -767,7 +773,7 @@ class FfiCallable:
                 assert num_inputs == self.num_inputs
                 assert num_outputs == self.num_outputs
 
-                if wp.is_cuda_available():
+                if platform == "CUDA":
                     cuda_stream = get_stream_from_callframe(call_frame.contents)
                     device_ordinal = get_device_ordinal_from_callframe(call_frame.contents)
                 else:
@@ -876,7 +882,7 @@ class FfiCallable:
                         # early out
                         return
 
-                if wp.is_cuda_available():
+                if platform == "CUDA":
                     device = wp.get_cuda_device(device_ordinal)
                     stream = wp.Stream(device, cuda_stream=cuda_stream)
                 else:
@@ -1657,7 +1663,7 @@ def register_ffi_callback(name: str, func: Callable, graph_compatible: bool = Tr
 
     # TODO check that the name is not already registered
 
-    def ffi_callback(call_frame):
+    def ffi_callback(call_frame, platform="CUDA"):
         try:
             extension = call_frame.contents.extension_start
             # On the first call, XLA runtime will query the API version and traits
@@ -1669,7 +1675,7 @@ def register_ffi_callback(name: str, func: Callable, graph_compatible: bool = Tr
                     metadata_ext = ctypes.cast(extension, ctypes.POINTER(XLA_FFI_Metadata_Extension))
                     metadata_ext.contents.metadata.contents.api_version.major_version = 0
                     metadata_ext.contents.metadata.contents.api_version.minor_version = 1
-                    if graph_compatible and wp.is_cuda_available():
+                    if graph_compatible and platform == "CUDA":
                         # Turn on CUDA graphs for this handler.
                         metadata_ext.contents.metadata.contents.traits = (
                             XLA_FFI_Handler_TraitsBits.COMMAND_BUFFER_COMPATIBLE
@@ -1702,13 +1708,19 @@ def register_ffi_callback(name: str, func: Callable, graph_compatible: bool = Tr
         return None
 
     FFI_CCALLFUNC = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.POINTER(XLA_FFI_CallFrame))
-    callback_func = FFI_CCALLFUNC(ffi_callback)
+    callback_func_cuda = FFI_CCALLFUNC(lambda call_frame: ffi_callback(call_frame, platform="CUDA"))
+    callback_func_host = FFI_CCALLFUNC(lambda call_frame: ffi_callback(call_frame, platform="Host"))
     with _FFI_REGISTRY_LOCK:
-        _FFI_CALLBACK_REGISTRY[name] = callback_func
-    ffi_ccall_address = ctypes.cast(callback_func, ctypes.c_void_p)
-    ffi_capsule = jax.ffi.pycapsule(ffi_ccall_address.value)
-    jax.ffi.register_ffi_target(name, ffi_capsule, platform="CUDA")
-    jax.ffi.register_ffi_target(name, ffi_capsule, platform="Host")
+        _FFI_CALLBACK_REGISTRY[f"{name}_cuda"] = callback_func_cuda
+        _FFI_CALLBACK_REGISTRY[f"{name}_host"] = callback_func_host
+
+    ffi_ccall_address_cuda = ctypes.cast(callback_func_cuda, ctypes.c_void_p)
+    ffi_capsule_cuda = jax.ffi.pycapsule(ffi_ccall_address_cuda.value)
+    jax.ffi.register_ffi_target(name, ffi_capsule_cuda, platform="CUDA")
+
+    ffi_ccall_address_host = ctypes.cast(callback_func_host, ctypes.c_void_p)
+    ffi_capsule_host = jax.ffi.pycapsule(ffi_ccall_address_host.value)
+    jax.ffi.register_ffi_target(name, ffi_capsule_host, platform="Host")
 
 
 ###############################################################################
