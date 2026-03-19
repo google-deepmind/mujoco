@@ -331,8 +331,6 @@ class ModelIOTest(parameterized.TestCase):
     """Tests that put_model accepts graph_mode parameter."""
     if not mjxw.WARP_INSTALLED:
       self.skipTest('Warp not installed.')
-    if not mjx_io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
 
     if mode is None:
       graph_mode = None
@@ -479,8 +477,6 @@ class DataIOTest(parameterized.TestCase):
     if impl == 'warp':
       if not mjxw.WARP_INSTALLED:
         self.skipTest('Warp is not installed.')
-      if not mjx_io.has_cuda_gpu_device():
-        self.skipTest('No CUDA GPU device.')
 
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
     d = mujoco.MjData(m)
@@ -598,8 +594,6 @@ class DataIOTest(parameterized.TestCase):
     """Tests that put_data produces expected dimensions for Warp fields."""
     if not mjxw.WARP_INSTALLED:
       self.skipTest('Warp is not installed.')
-    if not mjx_io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device.')
 
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
     d = mujoco.MjData(m)
@@ -764,8 +758,6 @@ class DataIOTest(parameterized.TestCase):
     # and remove this test.
     if not mjxw.WARP_INSTALLED:
       self.skipTest('Warp is not installed.')
-    if not mjx_io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device.')
 
     m = mujoco.MjModel.from_xml_string('<mujoco></mujoco>')
     d = mujoco.MjData(m)
