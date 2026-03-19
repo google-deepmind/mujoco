@@ -778,7 +778,8 @@ FilamentBuffers CreateLine(filament::Engine* engine, const mjModel* model) {
 }
 
 FilamentBuffers CreatePlane(filament::Engine* engine, const mjModel* model) {
-  return CreateFromBuilder(engine, PlaneBuilder(mjMAXPLANEGRID));
+  const int num_quads = model->vis.quality.numquads;
+  return CreateFromBuilder(engine, PlaneBuilder(num_quads));
 }
 
 FilamentBuffers CreateTriangle(filament::Engine* engine, const mjModel* model) {
