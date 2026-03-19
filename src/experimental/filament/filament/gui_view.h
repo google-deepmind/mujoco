@@ -44,8 +44,8 @@ class GuiView {
   // correctly synced.
   void UpdateRenderable();
 
-  // Returns the filament::View used to render the UX scene.
-  filament::View* PrepareRenderView();
+  void Render(filament::Renderer* renderer,
+              filament::RenderTarget* target = nullptr);
 
   // Uploads texture to be used with ImGui's Image and ImageButton functions.
   uintptr_t UploadImage(uintptr_t tex_id, const uint8_t* pixels, int width,

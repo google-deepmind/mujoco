@@ -23,6 +23,7 @@
 #include <imgui.h>
 #include <filament/Engine.h>
 #include <filament/RenderableManager.h>
+#include <filament/Renderer.h>
 #include <filament/TextureSampler.h>
 #include <filament/Viewport.h>
 #include <math/vec4.h>
@@ -371,8 +372,15 @@ filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
   return instance;
 }
 
-filament::View* GuiView::PrepareRenderView() {
-  return num_elements_ > 0 ? view_ : nullptr;
+void GuiView::Render(filament::Renderer* renderer,
+                     filament::RenderTarget* target) {
+  if (num_elements_ == 0) {
+    return;
+  }
+
+  view_->setRenderTarget(target);
+  renderer->render(view_);
+  view_->setRenderTarget(nullptr);
 }
 
 static ImVec2 ClipSpaceToWindowCoordinates(float x, float y) {

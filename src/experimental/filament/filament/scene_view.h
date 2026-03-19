@@ -67,8 +67,8 @@ class SceneView {
 
   using DrawMode = Material::DrawMode;
 
-  // Prepares and returns the filament View for the given draw mode.
-  filament::View* PrepareRenderView(DrawMode mode);
+  void Render(filament::Renderer* renderer, DrawMode draw_mode,
+              filament::RenderTarget* target = nullptr);
 
   // Accessors.
   filament::Engine* GetEngine() const;
@@ -79,6 +79,9 @@ class SceneView {
   SceneView& operator=(const SceneView&) = delete;
 
  private:
+  // Prepares and returns the filament View for the given draw mode.
+  filament::View* PrepareRenderView(DrawMode mode);
+
   void UpdateCamera(const mjvGLCamera* cameras);
 
   void PrepareLights();

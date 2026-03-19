@@ -26,6 +26,7 @@
 #include <filament/Material.h>
 #include <filament/Options.h>
 #include <filament/RenderableManager.h>
+#include <filament/Renderer.h>
 #include <filament/Skybox.h>
 #include <filament/TransformManager.h>
 #include <filament/View.h>
@@ -202,6 +203,26 @@ SceneView::~SceneView() {
     engine_->destroy(view);
   }
   engine_->destroy(scene_);
+}
+
+void SceneView::Render(filament::Renderer* renderer, DrawMode draw_mode,
+                       filament::RenderTarget* target) {
+  filament::View* view = PrepareRenderView(draw_mode);
+  filament::MultiSampleAntiAliasingOptions options =
+      view->getMultiSampleAntiAliasingOptions();
+
+  if (target) {
+    // We need to disable msaa in order to render to texture.
+    view->setMultiSampleAntiAliasingOptions({.enabled = false});
+  }
+
+  view->setRenderTarget(target);
+  renderer->render(view);
+  view->setRenderTarget(nullptr);
+
+  if (target) {
+    view->setMultiSampleAntiAliasingOptions(options);
+  }
 }
 
 filament::View* SceneView::PrepareRenderView(DrawMode mode) {

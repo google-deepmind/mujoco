@@ -180,14 +180,10 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
     }
 
     if (renderer_->beginFrame(window_swap_chain_)) {
-      filament::View* fview = scene_view_->PrepareRenderView(last_render_mode_);
-      renderer_->render(fview);
+      scene_view_->Render(renderer_, last_render_mode_);
 
-      if (gui_swap_chain_target_ == kWindowSwapChain) {
-        fview = gui_view_ ? gui_view_->PrepareRenderView() : nullptr;
-        if (fview) {
-          renderer_->render(fview);
-        }
+      if (gui_view_ && gui_swap_chain_target_ == kWindowSwapChain) {
+        gui_view_->Render(renderer_);
       }
 
       renderer_->endFrame();
@@ -299,27 +295,11 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (rgb) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
-      filament::View* fview =
-          scene_view_->PrepareRenderView(last_render_mode_);
-
-      // We need to disable msaa in order to render to texture.
-      auto options = fview->getMultiSampleAntiAliasingOptions();
-      fview->setMultiSampleAntiAliasingOptions({
-          .enabled = false,
-      });
-      fview->setRenderTarget(color_target_);
-      renderer_->render(fview);
-      fview->setRenderTarget(nullptr);
-      fview->setMultiSampleAntiAliasingOptions(options);
+      scene_view_->Render(renderer_, last_render_mode_, color_target_);
 
       // Render the GUI to the texture as well if requested.
-      if (gui_swap_chain_target_ == kOffscreenSwapChain) {
-        fview = gui_view_ ? gui_view_->PrepareRenderView() : nullptr;
-        if (fview) {
-          fview->setRenderTarget(color_target_);
-          renderer_->render(fview);
-          fview->setRenderTarget(nullptr);
-        }
+      if (gui_view_ && gui_swap_chain_target_ == kOffscreenSwapChain) {
+        gui_view_->Render(renderer_, color_target_);
       }
 
       const size_t num_bytes = viewport.width * viewport.height * 3;
@@ -331,11 +311,8 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (depth) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
-      filament::View* fview =
-          scene_view_->PrepareRenderView(SceneView::DrawMode::kDepth);
-      fview->setRenderTarget(depth_target_);
-      renderer_->render(fview);
-      fview->setRenderTarget(nullptr);
+      scene_view_->Render(renderer_, SceneView::DrawMode::kDepth,
+                          depth_target_);
 
       const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
       ReadDepthPixels(renderer_, depth_target_, viewport, depth, num_bytes);
