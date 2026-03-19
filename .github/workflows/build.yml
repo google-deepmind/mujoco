@@ -183,6 +183,14 @@ jobs:
         CMAKE_ARGS: ${{ matrix.cmake_args }}
       run: bash ./.github/workflows/build_steps.sh configure_mujoco
 
+    - name: Upload CMake Configure Log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: cmake-configure-log-${{ matrix.label }}
+        path: build/CMakeFiles/CMakeConfigureLog.yaml
+        retention-days: 5
+
     - name: Build MuJoCo
       working-directory: build
       env:
