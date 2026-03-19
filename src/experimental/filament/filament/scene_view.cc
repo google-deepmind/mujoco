@@ -368,6 +368,8 @@ void SceneView::PrepareLights() {
 }
 
 void SceneView::UpdateScene(const mjrContext* context, const mjvScene* scene) {
+  views_[kNormalIndex]->setShadowingEnabled(scene->flags[mjRND_SHADOW]);
+
   mjtNum hpos[3], hfwd[3];
   float headpos[3], gazedir[3];
   mjv_cameraInModel(hpos, hfwd, nullptr, scene);
