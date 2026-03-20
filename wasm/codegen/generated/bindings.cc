@@ -4259,6 +4259,9 @@ struct MjModel {
   emscripten::val jnt_bodyid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_bodyid));
   }
+  emscripten::val jnt_actuatorid() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_actuatorid));
+  }
   emscripten::val jnt_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_group));
   }
@@ -5105,6 +5108,9 @@ struct MjModel {
   emscripten::val tendon_matid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_matid));
   }
+  emscripten::val tendon_actuatorid() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_actuatorid));
+  }
   emscripten::val tendon_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_group));
   }
@@ -5209,6 +5215,15 @@ struct MjModel {
   }
   emscripten::val actuator_trnid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_trnid));
+  }
+  emscripten::val actuator_damping() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_damping));
+  }
+  emscripten::val actuator_dampingpoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * mjNPOLY, ptr_->actuator_dampingpoly));
+  }
+  emscripten::val actuator_armature() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_armature));
   }
   emscripten::val actuator_actadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_actadr));
@@ -5796,6 +5811,15 @@ struct MjsActuator {
   }
   void set_inheritrange(double value) {
     ptr_->inheritrange = value;
+  }
+  emscripten::val damping() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->damping));
+  }
+  double armature() const {
+    return ptr_->armature;
+  }
+  void set_armature(double value) {
+    ptr_->armature = value;
   }
   int ctrllimited() const {
     return ptr_->ctrllimited;
@@ -11656,11 +11680,14 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actuator_actlimited", &MjModel::actuator_actlimited)
     .property("actuator_actnum", &MjModel::actuator_actnum)
     .property("actuator_actrange", &MjModel::actuator_actrange)
+    .property("actuator_armature", &MjModel::actuator_armature)
     .property("actuator_biasprm", &MjModel::actuator_biasprm)
     .property("actuator_biastype", &MjModel::actuator_biastype)
     .property("actuator_cranklength", &MjModel::actuator_cranklength)
     .property("actuator_ctrllimited", &MjModel::actuator_ctrllimited)
     .property("actuator_ctrlrange", &MjModel::actuator_ctrlrange)
+    .property("actuator_damping", &MjModel::actuator_damping)
+    .property("actuator_dampingpoly", &MjModel::actuator_dampingpoly)
     .property("actuator_delay", &MjModel::actuator_delay)
     .property("actuator_dynprm", &MjModel::actuator_dynprm)
     .property("actuator_dyntype", &MjModel::actuator_dyntype)
@@ -11861,6 +11888,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("jnt_actfrclimited", &MjModel::jnt_actfrclimited)
     .property("jnt_actfrcrange", &MjModel::jnt_actfrcrange)
     .property("jnt_actgravcomp", &MjModel::jnt_actgravcomp)
+    .property("jnt_actuatorid", &MjModel::jnt_actuatorid)
     .property("jnt_axis", &MjModel::jnt_axis)
     .property("jnt_bodyid", &MjModel::jnt_bodyid)
     .property("jnt_dofadr", &MjModel::jnt_dofadr)
@@ -12148,6 +12176,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("ten_J_rownnz", &MjModel::ten_J_rownnz)
     .property("tendon_actfrclimited", &MjModel::tendon_actfrclimited)
     .property("tendon_actfrcrange", &MjModel::tendon_actfrcrange)
+    .property("tendon_actuatorid", &MjModel::tendon_actuatorid)
     .property("tendon_adr", &MjModel::tendon_adr)
     .property("tendon_armature", &MjModel::tendon_armature)
     .property("tendon_damping", &MjModel::tendon_damping)
@@ -12394,11 +12423,13 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actearly", &MjsActuator::actearly, &MjsActuator::set_actearly, reference())
     .property("actlimited", &MjsActuator::actlimited, &MjsActuator::set_actlimited, reference())
     .property("actrange", &MjsActuator::actrange)
+    .property("armature", &MjsActuator::armature, &MjsActuator::set_armature, reference())
     .property("biasprm", &MjsActuator::biasprm)
     .property("biastype", &MjsActuator::biastype, &MjsActuator::set_biastype, reference())
     .property("cranklength", &MjsActuator::cranklength, &MjsActuator::set_cranklength, reference())
     .property("ctrllimited", &MjsActuator::ctrllimited, &MjsActuator::set_ctrllimited, reference())
     .property("ctrlrange", &MjsActuator::ctrlrange)
+    .property("damping", &MjsActuator::damping)
     .property("delay", &MjsActuator::delay, &MjsActuator::set_delay, reference())
     .property("dynprm", &MjsActuator::dynprm)
     .property("dyntype", &MjsActuator::dyntype, &MjsActuator::set_dyntype, reference())

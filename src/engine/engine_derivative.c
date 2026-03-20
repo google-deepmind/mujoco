@@ -1734,9 +1734,11 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
   for (int j = 0; j < nv_awake; j++) {
     int i = sleep_filter ? d->dof_awake_ind[j] : j;
     mjtNum v = d->qvel[i];
-    const mjtNum* poly = m->dof_dampingpoly + mjNPOLY*i;
+    mjtNum poly[mjNPOLY];
+    mju_copy(poly, m->dof_dampingpoly + mjNPOLY*i, mjNPOLY);
+    mjtNum damping = m->dof_damping[i] + mj_actuatorDamping(m, mjOBJ_JOINT, m->dof_jntid[i], poly);
     int adr = m->D_rowadr[i] + m->D_diag[i];
-    d->qDeriv[adr] -= mjd_xPolyForce(m->dof_damping[i], poly, v, mjNPOLY, 1);
+    d->qDeriv[adr] -= mjd_xPolyForce(damping, poly, v, mjNPOLY, 1);
   }
 
   // flex edge damping
@@ -1775,7 +1777,10 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
     }
 
     mjtNum v = d->ten_velocity[i];
-    mjtNum B = -mjd_xPolyForce(m->tendon_damping[i], m->tendon_dampingpoly+mjNPOLY*i, v, mjNPOLY, 1);
+    mjtNum poly[mjNPOLY];
+    mju_copy(poly, m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY);
+    mjtNum damping = m->tendon_damping[i] + mj_actuatorDamping(m, mjOBJ_TENDON, i, poly);
+    mjtNum B = -mjd_xPolyForce(damping, poly, v, mjNPOLY, 1);
 
     if (!B) {
       continue;

@@ -1712,7 +1712,7 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
       continue;
     }
 
-    mjtNum armature = m->tendon_armature[k];
+    mjtNum armature = m->tendon_armature[k] + mj_actuatorArmature(m, mjOBJ_TENDON, k);
     if (!armature) {
       continue;
     }
@@ -1803,7 +1803,7 @@ void mj_crb(const mjModel* m, mjData* d) {
 
     // init M(i,i) with armature inertia
     int Madr_ij = adr + rownnz[i] - 1;
-    M[Madr_ij] = dof_armature[i];
+    M[Madr_ij] = dof_armature[i] + mj_actuatorArmature(m, mjOBJ_JOINT, m->dof_jntid[i]);
 
     // precompute buf = crb_body_i * cdof_i
     mjtNum buf[6];
@@ -2643,7 +2643,7 @@ void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
       continue;
     }
 
-    mjtNum armature = m->tendon_armature[i];
+    mjtNum armature = m->tendon_armature[i] + mj_actuatorArmature(m, mjOBJ_TENDON, i);
 
     // no armature: skip
     if (!armature) {

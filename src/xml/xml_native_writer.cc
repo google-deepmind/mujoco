@@ -857,6 +857,13 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
   WriteAttr(elem, "actrange", 2, actuator->actrange, def->Actuator().actrange);
   WriteAttr(elem, "lengthrange", 2, actuator->lengthrange, def->Actuator().lengthrange);
   WriteAttr(elem, "gear", 6, actuator->gear, def->Actuator().gear);
+  {
+    int ndamp = 1+mjNPOLY;
+    while (ndamp > 1 && actuator->damping[ndamp-1] == 0
+                     && def->Actuator().damping[ndamp-1] == 0) ndamp--;
+    WriteAttr(elem, "damping", ndamp, actuator->damping, def->Actuator().damping);
+  }
+  WriteAttr(elem, "armature", 1, &actuator->armature, &def->Actuator().armature);
   WriteAttr(elem, "cranklength", 1, &actuator->cranklength, &def->Actuator().cranklength);
   WriteAttrKey(elem, "actearly", bool_map, 2, actuator->actearly,
                def->Actuator().actearly);

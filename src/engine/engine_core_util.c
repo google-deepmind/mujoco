@@ -693,9 +693,9 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
 
     // save the inertia matrix of b-th body
     mjtNum inertia[9] = {0};
-    inertia[0] = m->body_inertia[3*b];   // inertia(1,1)
-    inertia[4] = m->body_inertia[3*b+1]; // inertia(2,2)
-    inertia[8] = m->body_inertia[3*b+2]; // inertia(3,3)
+    inertia[0] = m->body_inertia[3*b+0];  // inertia(1,1)
+    inertia[4] = m->body_inertia[3*b+1];  // inertia(2,2)
+    inertia[8] = m->body_inertia[3*b+2];  // inertia(3,3)
 
     // term1 = body angular momentum about self COM in world frame
     mjtNum tmp1[9], tmp2[9];
@@ -939,6 +939,109 @@ int tendonLimit(const mjModel* m, const mjtNum* ten_length, int i) {
   }
 
   return nl;
+}
+
+
+// return actuator damping contribution to joint or tendon
+mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjNPOLY]) {
+  if (type != mjOBJ_TENDON && type != mjOBJ_JOINT) {
+    mjERROR("only joint and tendon objects can inherit damping from actuators");
+    return 0;
+  }
+
+  // get actuator id
+  int actuatorid = type == mjOBJ_JOINT ? m->jnt_actuatorid[id] : m->tendon_actuatorid[id];
+
+  if (actuatorid == -1) {
+    return 0;
+  }
+
+  mjtNum damping = 0;
+
+  // single actuator contributes damping
+  if (actuatorid >= 0) {
+    mjtNum gear2 = m->actuator_gear[6*actuatorid] * m->actuator_gear[6*actuatorid];
+    damping = m->actuator_damping[actuatorid] * gear2;
+    for (int k = 0; k < mjNPOLY; k++) {
+      poly[k] += m->actuator_dampingpoly[mjNPOLY*actuatorid+k] * gear2;
+    }
+  }
+
+  // actuatorid < -1: scan all actuators for contributions
+  else {
+    for (int k = 0; k < m->nu; k++) {
+      // skip actuators that don't actuate the given joint/tendon
+      if (m->actuator_trnid[2*k] != id) {
+        continue;
+      }
+      if (type == mjOBJ_JOINT &&
+          m->actuator_trntype[k] != mjTRN_JOINT &&
+          m->actuator_trntype[k] != mjTRN_JOINTINPARENT) {
+        continue;
+      }
+      if (type == mjOBJ_TENDON && m->actuator_trntype[k] != mjTRN_TENDON) {
+        continue;
+      }
+
+      // accumulate damping contribution
+      mjtNum gear2 = m->actuator_gear[6*k] * m->actuator_gear[6*k];
+      damping += m->actuator_damping[k] * gear2;
+      for (int j = 0; j < mjNPOLY; j++) {
+        poly[j] += m->actuator_dampingpoly[mjNPOLY*k+j] * gear2;
+      }
+    }
+  }
+
+  return damping;
+}
+
+
+// return actuator armature contribution to joint or tendon
+mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id) {
+  if (type != mjOBJ_TENDON && type != mjOBJ_JOINT) {
+    mjERROR("only joint and tendon objects can inherit armature from actuators");
+    return 0;
+  }
+
+  // get actuator id
+  int actuatorid = type == mjOBJ_JOINT ? m->jnt_actuatorid[id] : m->tendon_actuatorid[id];
+
+  // no actuator contribution
+  if (actuatorid == -1) {
+    return 0;
+  }
+
+  mjtNum armature = 0;
+
+  // single actuator contributes armature
+  if (actuatorid >= 0) {
+    mjtNum gear2 = m->actuator_gear[6*actuatorid] * m->actuator_gear[6*actuatorid];
+    armature = m->actuator_armature[actuatorid] * gear2;
+  }
+
+  // actuatorid < -1: scan all actuators for contributions
+  else {
+    for (int k = 0; k < m->nu; k++) {
+      // skip actuators that don't actuate the given joint/tendon
+      if (m->actuator_trnid[2*k] != id) {
+        continue;
+      }
+      if (type == mjOBJ_JOINT &&
+          m->actuator_trntype[k] != mjTRN_JOINT &&
+          m->actuator_trntype[k] != mjTRN_JOINTINPARENT) {
+        continue;
+      }
+      if (type == mjOBJ_TENDON && m->actuator_trntype[k] != mjTRN_TENDON) {
+        continue;
+      }
+
+      // accumulate armature contribution
+      mjtNum gear2 = m->actuator_gear[6*k] * m->actuator_gear[6*k];
+      armature += m->actuator_armature[k] * gear2;
+    }
+  }
+
+  return armature;
 }
 
 

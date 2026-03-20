@@ -3871,6 +3871,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_actearly[i] = pac->actearly;
     m->actuator_cranklength[i] = (mjtNum)pac->cranklength;
     mjuu_copyvec(m->actuator_gear + 6*i, pac->gear, 6);
+    m->actuator_damping[i] = (mjtNum)pac->damping[0];
+    mjuu_copyvec(m->actuator_dampingpoly + mjNPOLY*i, pac->damping + 1, mjNPOLY);
+    m->actuator_armature[i] = (mjtNum)pac->armature;
     mjuu_copyvec(m->actuator_dynprm + mjNDYN*i, pac->dynprm, mjNDYN);
     mjuu_copyvec(m->actuator_gainprm + mjNGAIN*i, pac->gainprm, mjNGAIN);
     mjuu_copyvec(m->actuator_biasprm + mjNBIAS*i, pac->biasprm, mjNBIAS);
@@ -5712,6 +5715,9 @@ bool mjCModel::CopyBack(const mjModel* m) {
     mjuu_copyvec(pa->actrange, m->actuator_actrange+2*i, 2);
     mjuu_copyvec(pa->lengthrange, m->actuator_lengthrange+2*i, 2);
     mjuu_copyvec(pa->gear, m->actuator_gear+6*i, 6);
+    pa->damping[0] = (double)m->actuator_damping[i];
+    mjuu_copyvec(pa->damping + 1, m->actuator_dampingpoly + mjNPOLY*i, mjNPOLY);
+    pa->armature = (double)m->actuator_armature[i];
     pa->cranklength = (double)m->actuator_cranklength[i];
 
     if (nuser_actuator) {

@@ -1072,6 +1072,7 @@ public unsafe struct mjModel_ {
   public int* jnt_qposadr;
   public int* jnt_dofadr;
   public int* jnt_bodyid;
+  public int* jnt_actuatorid;
   public int* jnt_group;
   public byte* jnt_limited;
   public byte* jnt_actfrclimited;
@@ -1354,6 +1355,7 @@ public unsafe struct mjModel_ {
   public int* tendon_adr;
   public int* tendon_num;
   public int* tendon_matid;
+  public int* tendon_actuatorid;
   public int* tendon_group;
   public int* tendon_treenum;
   public int* tendon_treeid;
@@ -1389,6 +1391,9 @@ public unsafe struct mjModel_ {
   public int* actuator_gaintype;
   public int* actuator_biastype;
   public int* actuator_trnid;
+  public double* actuator_damping;
+  public double* actuator_dampingpoly;
+  public double* actuator_armature;
   public int* actuator_actadr;
   public int* actuator_actnum;
   public int* actuator_group;

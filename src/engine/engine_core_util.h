@@ -129,6 +129,12 @@ MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum res
 // count the number of length limit violations for tendon i (0, 1 or 2)
 int tendonLimit(const mjModel* m, const mjtNum* ten_length, int i);
 
+// return actuator damping contribution to joint or tendon
+MJAPI mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjNPOLY]);
+
+// return actuator armature contribution to joint or tendon
+MJAPI mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id);
+
 // high-level warning function: count warnings in mjData, print only the first time
 MJAPI void mj_warning(mjData* d, int warning, int info);
 

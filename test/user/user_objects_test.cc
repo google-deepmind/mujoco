@@ -2841,5 +2841,51 @@ TEST_F(OctreeSDFTest, TorusSDF) {
   mj_deleteModel(model);
 }
 
+// ------------- test actuator damping/armature validation ---------------------
+
+using ActuatorTransmissionTest = MujocoTest;
+
+TEST_F(ActuatorTransmissionTest, DampingRejectsSiteTransmission) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide"/>
+        <geom size="1"/>
+        <site name="s"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general site="s" damping="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("damping requires joint or tendon"));
+}
+
+TEST_F(ActuatorTransmissionTest, ArmatureRejectsSiteTransmission) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide"/>
+        <geom size="1"/>
+        <site name="s"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general site="s" armature="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("armature requires joint or tendon"));
+}
+
 }  // namespace
 }  // namespace mujoco

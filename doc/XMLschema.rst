@@ -2288,6 +2288,12 @@
                :ref:`gear<actuator-general-gear>`
 
             .. grid-item::
+               :ref:`damping<actuator-general-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-general-armature>`
+
+            .. grid-item::
                :ref:`cranklength<actuator-general-cranklength>`
 
             .. grid-item::
@@ -2384,6 +2390,12 @@
                :ref:`gear<actuator-motor-gear>`
 
             .. grid-item::
+               :ref:`damping<actuator-motor-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-motor-armature>`
+
+            .. grid-item::
                :ref:`cranklength<actuator-motor-cranklength>`
 
             .. grid-item::
@@ -2454,6 +2466,12 @@
 
             .. grid-item::
                :ref:`gear<actuator-position-gear>`
+
+            .. grid-item::
+               :ref:`damping<actuator-position-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-position-armature>`
 
             .. grid-item::
                :ref:`cranklength<actuator-position-cranklength>`
@@ -2537,6 +2555,12 @@
                :ref:`gear<actuator-velocity-gear>`
 
             .. grid-item::
+               :ref:`damping<actuator-velocity-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-velocity-armature>`
+
+            .. grid-item::
                :ref:`cranklength<actuator-velocity-cranklength>`
 
             .. grid-item::
@@ -2615,6 +2639,12 @@
                :ref:`gear<actuator-intvelocity-gear>`
 
             .. grid-item::
+               :ref:`damping<actuator-intvelocity-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-intvelocity-armature>`
+
+            .. grid-item::
                :ref:`cranklength<actuator-intvelocity-cranklength>`
 
             .. grid-item::
@@ -2690,6 +2720,12 @@
                :ref:`gear<actuator-damper-gear>`
 
             .. grid-item::
+               :ref:`damping<actuator-damper-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-damper-armature>`
+
+            .. grid-item::
                :ref:`cranklength<actuator-damper-cranklength>`
 
             .. grid-item::
@@ -2760,6 +2796,12 @@
 
             .. grid-item::
                :ref:`gear<actuator-cylinder-gear>`
+
+            .. grid-item::
+               :ref:`damping<actuator-cylinder-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-cylinder-armature>`
 
             .. grid-item::
                :ref:`cranklength<actuator-cylinder-cranklength>`
@@ -2841,6 +2883,12 @@
 
             .. grid-item::
                :ref:`gear<actuator-muscle-gear>`
+
+            .. grid-item::
+               :ref:`damping<actuator-muscle-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-muscle-armature>`
 
             .. grid-item::
                :ref:`cranklength<actuator-muscle-cranklength>`
@@ -2988,6 +3036,12 @@
 
             .. grid-item::
                :ref:`gear<actuator-plugin-gear>`
+
+            .. grid-item::
+               :ref:`damping<actuator-plugin-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-plugin-armature>`
 
             .. grid-item::
                :ref:`cranklength<actuator-plugin-cranklength>`
@@ -5624,6 +5678,12 @@
                :ref:`gear<default-general-gear>`
 
             .. grid-item::
+               :ref:`damping<default-general-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-general-armature>`
+
+            .. grid-item::
                :ref:`cranklength<default-general-cranklength>`
 
             .. grid-item::
@@ -5687,6 +5747,12 @@
                :ref:`gear<default-motor-gear>`
 
             .. grid-item::
+               :ref:`damping<default-motor-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-motor-armature>`
+
+            .. grid-item::
                :ref:`cranklength<default-motor-cranklength>`
 
             .. grid-item::
@@ -5727,6 +5793,12 @@
 
             .. grid-item::
                :ref:`gear<default-position-gear>`
+
+            .. grid-item::
+               :ref:`damping<default-position-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-position-armature>`
 
             .. grid-item::
                :ref:`cranklength<default-position-cranklength>`
@@ -5780,6 +5852,12 @@
                :ref:`gear<default-velocity-gear>`
 
             .. grid-item::
+               :ref:`damping<default-velocity-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-velocity-armature>`
+
+            .. grid-item::
                :ref:`cranklength<default-velocity-cranklength>`
 
             .. grid-item::
@@ -5828,6 +5906,12 @@
                :ref:`gear<default-intvelocity-gear>`
 
             .. grid-item::
+               :ref:`damping<default-intvelocity-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-intvelocity-armature>`
+
+            .. grid-item::
                :ref:`cranklength<default-intvelocity-cranklength>`
 
             .. grid-item::
@@ -5873,6 +5957,12 @@
                :ref:`gear<default-damper-gear>`
 
             .. grid-item::
+               :ref:`damping<default-damper-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-damper-armature>`
+
+            .. grid-item::
                :ref:`cranklength<default-damper-cranklength>`
 
             .. grid-item::
@@ -5913,6 +6003,12 @@
 
             .. grid-item::
                :ref:`gear<default-cylinder-gear>`
+
+            .. grid-item::
+               :ref:`damping<default-cylinder-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-cylinder-armature>`
 
             .. grid-item::
                :ref:`cranklength<default-cylinder-cranklength>`
@@ -5964,6 +6060,12 @@
 
             .. grid-item::
                :ref:`gear<default-muscle-gear>`
+
+            .. grid-item::
+               :ref:`damping<default-muscle-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-muscle-armature>`
 
             .. grid-item::
                :ref:`cranklength<default-muscle-cranklength>`

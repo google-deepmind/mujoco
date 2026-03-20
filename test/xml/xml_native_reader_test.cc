@@ -3383,6 +3383,30 @@ TEST_F(ActuatorParseTest, ActuatorDelayRequiresHistory) {
   EXPECT_THAT(error.data(),
               HasSubstr("setting delay > 0 without a history buffer"));
 }
+TEST_F(ActuatorParseTest, DampingArmatureDefaultsPropagate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <motor damping="3" armature="0.5"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_damping[0], 3);
+  EXPECT_EQ(model->actuator_armature[0], 0.5);
+  mj_deleteModel(model);
+}
 
 }  // namespace
 }  // namespace mujoco

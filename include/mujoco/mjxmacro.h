@@ -314,6 +314,7 @@
     X   ( int,     jnt_qposadr,           njnt,          1                    ) \
     X   ( int,     jnt_dofadr,            njnt,          1                    ) \
     X   ( int,     jnt_bodyid,            njnt,          1                    ) \
+    X   ( int,     jnt_actuatorid,        njnt,          1                    ) \
     X   ( int,     jnt_group,             njnt,          1                    ) \
     X   ( mjtByte, jnt_limited,           njnt,          1                    ) \
     X   ( mjtByte, jnt_actfrclimited,     njnt,          1                    ) \
@@ -628,6 +629,7 @@
     X   ( int,     tendon_adr,            ntendon,       1                    ) \
     X   ( int,     tendon_num,            ntendon,       1                    ) \
     X   ( int,     tendon_matid,          ntendon,       1                    ) \
+    X   ( int,     tendon_actuatorid,     ntendon,       1                    ) \
     X   ( int,     tendon_group,          ntendon,       1                    ) \
     X   ( int,     tendon_treenum,        ntendon,       1                    ) \
     X   ( int,     tendon_treeid,         ntendon,       2                    ) \
@@ -662,6 +664,9 @@
     X   ( int,     actuator_gaintype,     nu,            1                    ) \
     X   ( int,     actuator_biastype,     nu,            1                    ) \
     X   ( int,     actuator_trnid,        nu,            2                    ) \
+    X   ( mjtNum,  actuator_damping,      nu,            1                    ) \
+    X   ( mjtNum,  actuator_dampingpoly,  nu,            mjNPOLY              ) \
+    X   ( mjtNum,  actuator_armature,     nu,            1                    ) \
     X   ( int,     actuator_actadr,       nu,            1                    ) \
     X   ( int,     actuator_actnum,       nu,            1                    ) \
     X   ( int,     actuator_group,        nu,            1                    ) \

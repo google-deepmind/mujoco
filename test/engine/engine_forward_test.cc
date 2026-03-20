@@ -32,6 +32,7 @@
 #include <mujoco/mjxmacro.h>
 #include "src/cc/array_safety.h"
 #include "src/engine/engine_callback.h"
+#include "src/engine/engine_core_util.h"
 #include "src/engine/engine_io.h"
 #include "test/fixture.h"
 
@@ -1860,6 +1861,486 @@ TEST_F(ForwardTest, TrilinearPinnedParentWithFreejoint) {
           << "]=" << d->qvel[j];
     }
   }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// -------------------- actuator damping and armature --------------------------
+
+using ActuatorDampingTest = MujocoTest;
+
+TEST_F(ActuatorDampingTest, SingleActuatorJointDamping) {
+  // actuator damping=3 with gear=2 should produce same force as
+  // joint damping=12 (3*2^2=12)
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="2" damping="3"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_joint[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"
+               damping="12"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1, NotNull()) << error;
+  mjData* d1 = mj_makeData(m1);
+
+  mjModel* m2 = LoadModelFromString(xml_joint, error, sizeof(error));
+  ASSERT_THAT(m2, NotNull()) << error;
+  mjData* d2 = mj_makeData(m2);
+
+  mj_resetDataKeyframe(m1, d1, 0);
+  mj_forward(m1, d1);
+
+  mj_resetDataKeyframe(m2, d2, 0);
+  mj_forward(m2, d2);
+
+  EXPECT_EQ(d1->qfrc_passive[0], d2->qfrc_passive[0]);
+
+  mj_deleteData(d1);
+  mj_deleteModel(m1);
+  mj_deleteData(d2);
+  mj_deleteModel(m2);
+}
+
+TEST_F(ActuatorDampingTest, SingleActuatorTendonDamping) {
+  // actuator damping through tendon transmission
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed name="ten">
+        <joint joint="jnt" coef="1"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <motor tendon="ten" gear="2" damping="3"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_tendon[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed name="ten" damping="12">
+        <joint joint="jnt" coef="1"/>
+      </fixed>
+    </tendon>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1, NotNull()) << error;
+  mjData* d1 = mj_makeData(m1);
+
+  mjModel* m2 = LoadModelFromString(xml_tendon, error, sizeof(error));
+  ASSERT_THAT(m2, NotNull()) << error;
+  mjData* d2 = mj_makeData(m2);
+
+  mj_resetDataKeyframe(m1, d1, 0);
+  mj_forward(m1, d1);
+
+  mj_resetDataKeyframe(m2, d2, 0);
+  mj_forward(m2, d2);
+
+  EXPECT_EQ(d1->qfrc_passive[0], d2->qfrc_passive[0]);
+
+  mj_deleteData(d1);
+  mj_deleteModel(m1);
+  mj_deleteData(d2);
+  mj_deleteModel(m2);
+}
+
+TEST_F(ActuatorDampingTest, SingleActuatorArmature) {
+  // actuator armature=0.5 with gear=3 should equal
+  // joint armature=4.5 (0.5*3^2=4.5)
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="3" armature="0.5"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_joint[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"
+               armature="4.5"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1, NotNull()) << error;
+  mjData* d1 = mj_makeData(m1);
+
+  mjModel* m2 = LoadModelFromString(xml_joint, error, sizeof(error));
+  ASSERT_THAT(m2, NotNull()) << error;
+  mjData* d2 = mj_makeData(m2);
+
+  mj_resetDataKeyframe(m1, d1, 0);
+  mj_forward(m1, d1);
+
+  mj_resetDataKeyframe(m2, d2, 0);
+  mj_forward(m2, d2);
+
+  EXPECT_EQ(d1->qacc[0], d2->qacc[0]);
+
+  mj_deleteData(d1);
+  mj_deleteModel(m1);
+  mj_deleteData(d2);
+  mj_deleteModel(m2);
+}
+
+TEST_F(ActuatorDampingTest, MultipleActuatorsAccumulate) {
+  // two actuators: damping=2 gear=3, damping=1 gear=4
+  // equivalent joint damping: 2*9 + 1*16 = 34
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="3" damping="2"/>
+      <motor joint="jnt" gear="4" damping="1"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_joint[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"
+               damping="34"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1, NotNull()) << error;
+  mjData* d1 = mj_makeData(m1);
+
+  mjModel* m2 = LoadModelFromString(xml_joint, error, sizeof(error));
+  ASSERT_THAT(m2, NotNull()) << error;
+  mjData* d2 = mj_makeData(m2);
+
+  mj_resetDataKeyframe(m1, d1, 0);
+  mj_forward(m1, d1);
+
+  mj_resetDataKeyframe(m2, d2, 0);
+  mj_forward(m2, d2);
+
+  EXPECT_EQ(d1->qfrc_passive[0], d2->qfrc_passive[0]);
+
+  mj_deleteData(d1);
+  mj_deleteModel(m1);
+  mj_deleteData(d2);
+  mj_deleteModel(m2);
+}
+
+TEST_F(ActuatorDampingTest, DampingSimulationEquivalence) {
+  // actuator damping=5 gear=2 should match joint damping=20 over time
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="2" damping="5"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_joint[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="0 0 1"
+               damping="20"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1, NotNull()) << error;
+  mjData* d1 = mj_makeData(m1);
+
+  mjModel* m2 = LoadModelFromString(xml_joint, error, sizeof(error));
+  ASSERT_THAT(m2, NotNull()) << error;
+  mjData* d2 = mj_makeData(m2);
+
+  mj_resetDataKeyframe(m1, d1, 0);
+  mj_resetDataKeyframe(m2, d2, 0);
+  for (int i = 0; i < 100; i++) {
+    mj_step(m1, d1);
+    mj_step(m2, d2);
+  }
+
+  EXPECT_MJTNUM_EQ(d1->qpos[0], d2->qpos[0]);
+  EXPECT_MJTNUM_EQ(d1->qvel[0], d2->qvel[0]);
+
+  mj_deleteData(d1);
+  mj_deleteModel(m1);
+  mj_deleteData(d2);
+  mj_deleteModel(m2);
+}
+
+TEST_F(ActuatorDampingTest, ArmatureSimulationEquivalence) {
+  // actuator armature=2 gear=3 should match joint armature=18 over time
+  static constexpr char xml_actuator[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="0 0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="3" armature="2"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_joint[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10"/>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="0 0 1"
+               armature="18"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qvel="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m1 = LoadModelFromString(xml_actuator, error, sizeof(error));
+  ASSERT_THAT(m1, NotNull()) << error;
+  mjData* d1 = mj_makeData(m1);
+
+  mjModel* m2 = LoadModelFromString(xml_joint, error, sizeof(error));
+  ASSERT_THAT(m2, NotNull()) << error;
+  mjData* d2 = mj_makeData(m2);
+
+  mj_resetDataKeyframe(m1, d1, 0);
+  mj_resetDataKeyframe(m2, d2, 0);
+  for (int i = 0; i < 100; i++) {
+    mj_step(m1, d1);
+    mj_step(m2, d2);
+  }
+
+  EXPECT_MJTNUM_EQ(d1->qpos[0], d2->qpos[0]);
+  EXPECT_MJTNUM_EQ(d1->qvel[0], d2->qvel[0]);
+
+  mj_deleteData(d1);
+  mj_deleteModel(m1);
+  mj_deleteData(d2);
+  mj_deleteModel(m2);
+}
+
+TEST_F(ActuatorDampingTest, UtilityFunctionValues) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="5" damping="7" armature="3"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+
+  mjtNum poly[mjNPOLY] = {0};
+  EXPECT_EQ(mj_actuatorDamping(m, mjOBJ_JOINT, 0, poly), 175);
+  EXPECT_EQ(mj_actuatorArmature(m, mjOBJ_JOINT, 0), 75);
+
+  mj_deleteModel(m);
+}
+
+
+TEST_F(ActuatorDampingTest, NonlinearDamping) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt" gear="3" damping="2 0.5 0.1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+
+  // linear damping: 2 * gear^2 = 18
+  mjtNum poly0[mjNPOLY] = {0};
+  EXPECT_EQ(mj_actuatorDamping(m, mjOBJ_JOINT, 0, poly0), 18);
+
+  // poly coefficients scaled by gear^2
+  mjtNum poly[mjNPOLY] = {0};
+  mj_actuatorDamping(m, mjOBJ_JOINT, 0, poly);
+  EXPECT_MJTNUM_EQ(poly[0], 0.5 * 9);  // 4.5
+  EXPECT_MJTNUM_EQ(poly[1], 0.1 * 9);  // 0.9
+
+  mj_deleteModel(m);
+}
+
+TEST_F(ActuatorDampingTest, DampingVsKvGearScaling) {
+  // Single model with two parallel bodies: one using kv, one using damping.
+  // Both produce the same joint-space damping force:
+  //   kv:      qfrc_actuator contribution = -kv * gear^2 * qvel
+  //   damping: qfrc_passive  contribution = -damping * gear^2 * qvel
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="implicitfast"/>
+    <worldbody>
+      <body name="kv_body">
+        <joint name="jnt_kv" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+      <body name="damp_body" pos="5 0 0">
+        <joint name="jnt_damp" type="slide" axis="1 0 0"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt_kv" kp="0" kv="5" gear="3"/>
+      <position joint="jnt_damp" kp="0" damping="5" gear="3"/>
+    </actuator>
+    <keyframe>
+      <key qvel="1 1"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // check forces at initial state
+  mj_resetDataKeyframe(m, d, 0);
+  mj_forward(m, d);
+
+  // kv force arrives via qfrc_actuator, damping via qfrc_passive
+  mjtNum frc_kv = d->qfrc_actuator[0];
+  mjtNum frc_damp = d->qfrc_passive[1];
+  EXPECT_NEAR(frc_kv, frc_damp, MjTol(1e-12, 1e-5));
+
+  // expected force = -5 * 3^2 * 1 = -45
+  EXPECT_NEAR(frc_damp, -45, MjTol(1e-12, 1e-5));
+
+  // simulate and check trajectory equivalence
+  mj_resetDataKeyframe(m, d, 0);
+  for (int i = 0; i < 100; i++) {
+    mj_step(m, d);
+  }
+
+  EXPECT_NEAR(d->qpos[0], d->qpos[1], MjTol(1e-12, 1e-5))
+      << "position trajectory mismatch";
+  EXPECT_NEAR(d->qvel[0], d->qvel[1], MjTol(1e-12, 1e-5))
+      << "velocity trajectory mismatch";
 
   mj_deleteData(d);
   mj_deleteModel(m);

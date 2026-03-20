@@ -54,7 +54,8 @@ static void mj_setM0(mjModel* m, mjData* d) {
     mju_mulInertVec(buf, crb+10*m->dof_bodyid[i], d->cdof+6*i);
 
     // dof_M0(i) = armature inertia + cdof_i * (crb_body_i * cdof_i)
-    m->dof_M0[i] = m->dof_armature[i] + mju_dot(d->cdof+6*i, buf, 6);
+    mjtNum armature = m->dof_armature[i] + mj_actuatorArmature(m, mjOBJ_JOINT, m->dof_jntid[i]);
+    m->dof_M0[i] = armature + mju_dot(d->cdof+6*i, buf, 6);
   }
 }
 
@@ -102,6 +103,48 @@ static void setFixed(mjModel* m, mjData* d) {
   }
   m->ngravcomp = ngravcomp;
 
+  // set jnt_actuatorid and tendon_actuatorid
+  mju_fillInt(m->jnt_actuatorid, -1, m->njnt);
+  mju_fillInt(m->tendon_actuatorid, -1, m->ntendon);
+  for (int i=0; i < m->nu; i++) {
+    // skip actuator with no damping and no armature
+    if (m->actuator_damping[i] == 0 &&
+        mju_isZero(m->actuator_dampingpoly+mjNPOLY*i, mjNPOLY) &&
+        m->actuator_armature[i] == 0) {
+      continue;
+    }
+
+    // joint or jointinparent transmission
+    if (m->actuator_trntype[i] == mjTRN_JOINT ||
+        m->actuator_trntype[i] == mjTRN_JOINTINPARENT) {
+      int jntid = m->actuator_trnid[2*i];
+
+      // first actuator: set id to i
+      if (m->jnt_actuatorid[jntid] == -1) {
+        m->jnt_actuatorid[jntid] = i;
+      }
+
+      // multiple actuators acting on single transmission: use -2 sentinel
+      else {
+        m->jnt_actuatorid[jntid] = -2;
+      }
+    }
+
+    // tendon transmission
+    else if (m->actuator_trntype[i] == mjTRN_TENDON) {
+      int tenid = m->actuator_trnid[2*i];
+
+      // first actuator: set id to i
+      if (m->tendon_actuatorid[tenid] == -1) {
+        m->tendon_actuatorid[tenid] = i;
+      }
+
+      // multiple actuators acting on single transmission: use -2 sentinel
+      else {
+        m->tendon_actuatorid[tenid] = -2;
+      }
+    }
+  }
 
   // ----- tree related (body_treeid and dof_treeid already computed)
 
@@ -213,7 +256,8 @@ static void setFixed(mjModel* m, mjData* d) {
     // tendon spans 2 trees and has no stiffness or damping: skip
     if (treenum == 2 &&
         m->tendon_stiffness[i] == 0 && mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY) &&
-        m->tendon_damping[i] == 0   && mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY)) {
+        m->tendon_damping[i] == 0   && mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY) &&
+        m->tendon_actuatorid[i] == -1) {
       continue;
     }
 

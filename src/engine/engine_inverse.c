@@ -23,6 +23,7 @@
 #include "engine/engine_collision_driver.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_derivative.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_macro.h"
@@ -92,7 +93,9 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     dof_damping = 0;
     if (!mjDISABLED(mjDSBL_EULERDAMP)) {
       for (int i=0; i < nv; i++) {
-        if (m->dof_damping[i] > 0 || !mju_isZero(m->dof_dampingpoly + mjNPOLY*i, mjNPOLY)) {
+        if (m->dof_damping[i] > 0 ||
+            !mju_isZero(m->dof_dampingpoly + mjNPOLY*i, mjNPOLY) ||
+            m->jnt_actuatorid[m->dof_jntid[i]] != -1) {
           dof_damping = 1;
           break;
         }
@@ -109,8 +112,11 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     mj_mulM(m, d, qfrc, qacc);
     for (int i=0; i < nv; i++) {
       mjtNum v = d->qvel[i];
-      const mjtNum* poly = m->dof_dampingpoly + mjNPOLY*i;
-      mjtNum damp_deriv = mjd_xPolyForce(m->dof_damping[i], poly, v, mjNPOLY, 1);
+      mjtNum poly[mjNPOLY];
+      mju_copy(poly, m->dof_dampingpoly + mjNPOLY*i, mjNPOLY);
+      mjtNum damping = m->dof_damping[i]
+                       + mj_actuatorDamping(m, mjOBJ_JOINT, m->dof_jntid[i], poly);
+      mjtNum damp_deriv = mjd_xPolyForce(damping, poly, v, mjNPOLY, 1);
       qfrc[i] += m->opt.timestep * damp_deriv * d->qacc[i];
     }
     break;

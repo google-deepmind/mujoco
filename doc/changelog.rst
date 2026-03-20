@@ -8,6 +8,11 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
+- Actuators with joint or tendon transmissions can now contribute
+  :ref:`damping<actuator-general-damping>` and :ref:`armature<actuator-general-armature>` to their transmission target.
+  These are applied during the passive force and inertia computations, respectively, and are scaled by gear\ :sup:`2`
+  ("reflected" damping/inertia).
+
 .. youtube:: aKa3ZlEF9_Y
    :align: right
    :width: 35%

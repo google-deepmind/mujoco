@@ -7126,6 +7126,27 @@ void mjCActuator::Compile(void) {
   // find transmission target in object arrays
   ResolveReferences(model);
 
+  // check damping/armature only valid for joint and tendon transmission
+  bool has_damping = false;
+  for (int i = 0; i < mjNPOLY+1; i++) {
+    if (damping[i] != 0) {
+      has_damping = true;
+      break;
+    }
+  }
+  if (has_damping &&
+      trntype != mjTRN_JOINT && trntype != mjTRN_JOINTINPARENT && trntype != mjTRN_TENDON) {
+    throw mjCError(this,
+                   "damping requires joint or tendon transmission in actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+  if (armature != 0 &&
+      trntype != mjTRN_JOINT && trntype != mjTRN_JOINTINPARENT && trntype != mjTRN_TENDON) {
+    throw mjCError(this,
+                   "armature requires joint or tendon transmission in actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+
   // handle inheritrange
   if (gaintype == mjGAIN_FIXED && biastype == mjBIAS_AFFINE &&
       gainprm[0] == -biasprm[1] && inheritrange > 0) {
