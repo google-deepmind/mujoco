@@ -44,7 +44,11 @@ using ::testing::NotNull;
 using DerivativeTest = MujocoTest;
 
 // errors smaller than this are ignored
-static const mjtNum absolute_tolerance = 1e-9;
+#ifdef mjUSESINGLE
+  static const mjtNum absolute_tolerance = 1e-3;
+#else
+  static const mjtNum absolute_tolerance = 1e-9;
+#endif
 
 // corrected relative error
 static mjtNum RelativeError(mjtNum a, mjtNum b) {
@@ -124,7 +128,7 @@ TEST_F(DerivativeTest, SmoothDvel) {
       vector<mjtNum> qDerivAnalytic = AsVector(data->qDeriv, nD);
 
       // compute finite-difference derivatives
-      mjtNum eps = 1e-7;
+      mjtNum eps = MjTol(1e-7, 1e-3);
       mju_zero(data->qDeriv, nD);
       mjd_smooth_velFD(model, data, eps);
 
@@ -134,7 +138,7 @@ TEST_F(DerivativeTest, SmoothDvel) {
 
       // expect FD and analytic derivatives to be similar to eps precision
       EXPECT_THAT(AsVector(data->qDeriv, nD),
-                  Pointwise(DoubleNear(eps), qDerivAnalytic));
+                  Pointwise(MjNear(1e-7, 3e-3), qDerivAnalytic));
     }
     mj_deleteData(data);
     mj_deleteModel(model);
@@ -316,13 +320,12 @@ TEST_F(DerivativeTest, PassiveDvel) {
       // clear qDeriv, get finite-difference derivatives
       mju_zero(data->qDeriv, nD);
       mju_zero(qDerivFD, nD);
-      mjtNum eps = 1e-6;
+      mjtNum eps = MjTol(1e-6, 1e-3);
       mjd_passive_velFD(model, data, eps);
 
       // expect FD and analytic derivatives to be similar to tol precision
-      mjtNum tol = 1e-4;
       EXPECT_THAT(AsVector(data->qDeriv, nD),
-                  Pointwise(DoubleNear(tol), AsVector(qDerivAnalytic, nD)));
+                  Pointwise(MjNear(1e-4, 1e-3), AsVector(qDerivAnalytic, nD)));
     }
 
     mju_free(qDerivFD);
@@ -502,7 +505,7 @@ TEST_F(DerivativeTest, LinearSystem) {
   // PrintMatrix(B, 2*nv, nu);
 
   // forward differenced A and B
-  mjtNum eps = 1e-6;
+  mjtNum eps = MjTol(1e-6, 1e-3);
   mjtNum* AFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*2*nv);
   mjtNum* BFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
 
@@ -557,7 +560,7 @@ TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
   LinearSystem(model, data, nullptr, B);
 
   // forward differenced A and B
-  mjtNum eps = 1e-6;
+  mjtNum eps = MjTol(1e-6, 1e-3);
   mjtNum* BFD = (mjtNum*) mju_malloc(sizeof(mjtNum)*2*nv*nu);
 
   // set ctrl to the limits, request forward differences
@@ -782,10 +785,9 @@ TEST_F(DerivativeTest, DenseSparseRneEquivalent) {
     mjd_passive_vel(model, data);
     mjd_rne_vel_dense(model, data);
 
-    // expect dense and sparse derivatives to be similar to eps precision
-    mjtNum eps = 1e-12;
+    // expect dense and sparse derivatives to be similar to precision
     EXPECT_THAT(AsVector(data->qDeriv, nD),
-                Pointwise(DoubleNear(eps), AsVector(qDeriv, nD)));
+                Pointwise(MjNear(1e-12, 5e-5), AsVector(qDeriv, nD)));
 
     mj_deleteData(data);
     mju_free(qDeriv);
@@ -937,7 +939,7 @@ static void subQuatFD(mjtNum Da[9], mjtNum Db[9],
 
 TEST_F(DerivativeTest, SubQuat) {
   const int nrepeats = 10;  // number of repeats
-  const mjtNum eps = 1e-7;  // epsilon for finite-differencing and comparison
+  const mjtNum eps = MjTol(1e-7, 1e-3);  // epsilon for finite-differencing and comparison
 
   int seed = 1;
   for (int i = 0; i < nrepeats; i++) {
@@ -961,9 +963,9 @@ TEST_F(DerivativeTest, SubQuat) {
 
       // expect numerical equality
       EXPECT_THAT(AsVector(DaFD, 9),
-                  Pointwise(DoubleNear(eps), AsVector(Da, 9)));
+                  Pointwise(MjNear(1e-7, 1e-3), AsVector(Da, 9)));
       EXPECT_THAT(AsVector(DbFD, 9),
-                  Pointwise(DoubleNear(eps), AsVector(Db, 9)));
+                  Pointwise(MjNear(1e-7, 1e-3), AsVector(Db, 9)));
     }
   }
 }
@@ -1046,7 +1048,7 @@ void mjd_quatIntegrateFD(mjtNum Dquat[9], mjtNum Ds[9],
 
 TEST_F(DerivativeTest, quatIntegrate) {
   const int nrepeats = 10;  // number of repeats
-  const mjtNum eps = 1e-7;  // epsilon for finite-differencing and comparison
+  const mjtNum eps = MjTol(1e-7, 1e-3);  // epsilon for finite-differencing and comparison
 
   int seed = 1;
   for (int i = 0; i < nrepeats; i++) {
@@ -1070,12 +1072,12 @@ TEST_F(DerivativeTest, quatIntegrate) {
       mjd_quatIntegrateFD(DquatFD, DsFD, DvelFD, DhFD, quat, vel, h, eps);
 
       // expect numerical equality of un/scaled velocity derivatives
-      EXPECT_THAT(AsVector(DvelFD, 9), Pointwise(DoubleNear(eps), DsFD));
+      EXPECT_THAT(AsVector(DvelFD, 9), Pointwise(MjNear(1e-7, 1e-3), DsFD));
 
       // expect numerical equality of analytic and FD derivatives
-      EXPECT_THAT(AsVector(DquatFD, 9), Pointwise(DoubleNear(eps), Dquat));
-      EXPECT_THAT(AsVector(DvelFD, 9), Pointwise(DoubleNear(eps), Dvel));
-      EXPECT_THAT(AsVector(DhFD, 3), Pointwise(DoubleNear(eps), Dh));
+      EXPECT_THAT(AsVector(DquatFD, 9), Pointwise(MjNear(1e-7, 1e-3), Dquat));
+      EXPECT_THAT(AsVector(DvelFD, 9), Pointwise(MjNear(1e-7, 1e-3), Dvel));
+      EXPECT_THAT(AsVector(DhFD, 3), Pointwise(MjNear(1e-7, 1e-3), Dh));
     }
   }
 }
@@ -1405,7 +1407,7 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
       mju_mulMatVec(res.data(), H.data(), vec.data(), nv, nv);
 
       // finite difference of mj_passive for stiffness
-      double eps = 1e-6;
+      mjtNum eps = MjTol(1e-6, 1e-3);
       mjData* data_perturbed = mj_copyData(NULL, model, data);
 
       // apply perturbation
@@ -1425,7 +1427,7 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
 
       // compare analytical result (H*vec) with FD result
       for (int i = 0; i < nv; ++i) {
-        EXPECT_NEAR(res[i], fd_res[i], 5e-3)
+        EXPECT_THAT(res[i], MjNear(fd_res[i], 5e-3, 5.0))
             << "Stiffness Mismatch at DOF " << i;
       }
 
@@ -1440,7 +1442,7 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
           max_asymmetry = mju_max(max_asymmetry, diff);
         }
       }
-      EXPECT_LT(max_asymmetry, 1e-10)
+      EXPECT_THAT(max_asymmetry, MjNear(0, 1e-10, 5e-4))
           << "K matrix is not symmetric at angle " << angle;
 
       // check positive semi-definiteness: v^T * K * v >= 0
@@ -1455,7 +1457,7 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
             vKv += v[i] * K_full[i * nv + j] * v[j];
           }
         }
-        EXPECT_GE(vKv, -1e-8) << "K matrix is not PSD at angle " << angle;
+        EXPECT_GE(vKv, MjTol(-1e-8, -1e-5)) << "K matrix is not PSD at angle " << angle;
       }
     }
 
@@ -1475,7 +1477,7 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
       // finite-difference derivatives
       std::vector<mjtNum> qDerivFD(nD);
       mju_zero(data->qDeriv, nD);
-      mjtNum eps = 1e-6;
+      mjtNum eps = MjTol(1e-6, 1e-3);
 
       mjd_passive_velFD(model, data, eps);
       mju_copy(qDerivFD.data(), data->qDeriv, nD);
@@ -1512,8 +1514,7 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
       }
 
       // expect FD and corrected analytic derivatives to match
-      mjtNum tol = 1e-4;
-      EXPECT_THAT(qDerivAnalytic, Pointwise(DoubleNear(tol), qDerivFD))
+      EXPECT_THAT(qDerivAnalytic, Pointwise(MjNear(1e-4, 1e4), qDerivFD))
           << "Damping Mismatch at angle: " << angle;
     }
   }

@@ -1182,9 +1182,9 @@ TEST_F(XMLReaderTest, TendonArmature) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, NotNull()) << error.data();
   EXPECT_EQ(m->ntendon, 3);
-  EXPECT_FLOAT_EQ(m->tendon_armature[0], 1.5);
-  EXPECT_FLOAT_EQ(m->tendon_armature[1], 2.5);
-  EXPECT_FLOAT_EQ(m->tendon_armature[2], 0);
+  EXPECT_MJTNUM_EQ(m->tendon_armature[0], 1.5);
+  EXPECT_MJTNUM_EQ(m->tendon_armature[1], 2.5);
+  EXPECT_MJTNUM_EQ(m->tendon_armature[2], 0);
   mj_deleteModel(m);
 }
 
@@ -1378,18 +1378,19 @@ TEST_F(XMLReaderTest, ParseReplicate) {
 
   // check body positions
   mjtNum pos[2] = {0, 0};
+  constexpr mjtNum tol = MjTol(1e-8, 1e-3);
   for (int i = 1; i < 102; ++i) {
     mjtNum theta = (i-1) * 1.8 * mjPI / 180;
-    EXPECT_NEAR(m->body_pos[3*i+0], pos[0] + sin(theta), 1e-8) << i;
-    EXPECT_NEAR(m->body_pos[3*i+1], pos[1] - cos(theta), 1e-8) << i;
-    EXPECT_NEAR(m->body_pos[3*i+2], (i-1) * .1, 1e-8);
+    EXPECT_NEAR(m->body_pos[3*i+0], pos[0] + sin(theta), tol) << i;
+    EXPECT_NEAR(m->body_pos[3*i+1], pos[1] - cos(theta), tol) << i;
+    EXPECT_NEAR(m->body_pos[3*i+2], (i-1) * .1, tol);
     pos[0] += 3 * cos(theta);
     pos[1] += 3 * sin(theta);
   }
 
   // check that the final pose is correct
   int n = m->nbody-1;
-  EXPECT_NEAR(m->body_quat[4*n+0], 0, 1e-8);
+  EXPECT_NEAR(m->body_quat[4*n+0], 0, tol);
   EXPECT_EQ(m->body_quat[4*n+1], 0);
   EXPECT_EQ(m->body_quat[4*n+2], 0);
   EXPECT_EQ(m->body_quat[4*n+3], 1);
@@ -2319,7 +2320,7 @@ TEST_F(HfieldParsingTest, NoData) {
   EXPECT_EQ(model->hfield_size[0], 0.5);
   EXPECT_EQ(model->hfield_size[1], 0.5);
   EXPECT_EQ(model->hfield_size[2], 1);
-  EXPECT_EQ(model->hfield_size[3], 0.1);
+  EXPECT_MJTNUM_EQ(model->hfield_size[3], 0.1);
   mj_deleteModel(model);
 }
 
@@ -2360,7 +2361,7 @@ TEST_F(HfieldParsingTest, HasData) {
   EXPECT_EQ(model->hfield_size[0], 0.5);
   EXPECT_EQ(model->hfield_size[1], 0.5);
   EXPECT_EQ(model->hfield_size[2], 1);
-  EXPECT_EQ(model->hfield_size[3], 0.1);
+  EXPECT_MJTNUM_EQ(model->hfield_size[3], 0.1);
 
   // offset (minimum) and scaling (maximum) from normalizing operation
   float offset = 1.0;
@@ -2809,10 +2810,10 @@ TEST_F(ActuatorParseTest, IntvelocityCheckEquivalence) {
   EXPECT_DOUBLE_EQ(model->actuator_biasprm[mjNBIAS + 1], -2.5);
   EXPECT_DOUBLE_EQ(model->actuator_biasprm[mjNBIAS + 2], 0.0);
   // same actrange
-  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 0], -1.57);
-  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 1], 1.57);
-  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 2], -1.57);
-  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 3], 1.57);
+  EXPECT_MJTNUM_EQ(model->actuator_actrange[0 + 0], -1.57);
+  EXPECT_MJTNUM_EQ(model->actuator_actrange[0 + 1], 1.57);
+  EXPECT_MJTNUM_EQ(model->actuator_actrange[0 + 2], -1.57);
+  EXPECT_MJTNUM_EQ(model->actuator_actrange[0 + 3], 1.57);
   mj_deleteModel(model);
 }
 
@@ -3047,7 +3048,7 @@ TEST_F(ActuatorParseTest, MusclesParseSmoothdyn) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(model->actuator_dynprm[2], 0.0);
-  EXPECT_EQ(model->actuator_dynprm[mjNDYN + 2], 0.4);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[mjNDYN + 2], 0.4);
   mj_deleteModel(model);
 }
 

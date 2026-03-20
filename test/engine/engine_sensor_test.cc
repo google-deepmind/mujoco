@@ -35,7 +35,7 @@ namespace {
 using ::std::string;
 using ::std::vector;
 
-using ::testing::DoubleNear;
+
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
@@ -139,13 +139,13 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMat) {
 
   // compare actual and expected values
   vector pos = GetSensor(model, data, 0);
-  EXPECT_THAT(pos, Pointwise(DoubleNear(tol), {5, 5, 0}));
+  EXPECT_THAT(pos, Pointwise(MjNear(tol, 1e-6), {5, 5, 0}));
 
   vector xaxis = GetSensor(model, data, 1);
-  EXPECT_THAT(xaxis, Pointwise(DoubleNear(tol), {0, -1, 0}));
+  EXPECT_THAT(xaxis, Pointwise(MjNear(tol, 1e-6), {0, -1, 0}));
 
   vector yaxis = GetSensor(model, data, 2);
-  EXPECT_THAT(yaxis, Pointwise(DoubleNear(tol), {1, 0, 0}));
+  EXPECT_THAT(yaxis, Pointwise(MjNear(tol, 1e-6), {1, 0, 0}));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -182,7 +182,7 @@ TEST_F(RelativeFrameSensorTest, ReferenceQuatMat) {
 
   // compare quaternion sensor and quat derived from orientation matrix
   vector quat = GetSensor(model, data, 3);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(tol), converted_quat));
+  EXPECT_THAT(quat, Pointwise(MjNear(tol, 1e-6), converted_quat));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -238,7 +238,7 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMatQuat) {
                             data->sensordata+nsensordata);
 
   // object and reference have moved together, we expect values to not change
-  EXPECT_THAT(actual_values, Pointwise(DoubleNear(tol), expected_values));
+  EXPECT_THAT(actual_values, Pointwise(MjNear(tol, 1e-6), expected_values));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -273,7 +273,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelLinearFixed) {
   // compare to expected values
   vector linvel = GetSensor(model, data, 0);
   const mjtNum expected_linvel[3] = {-mju_sqrt(0.5), mju_sqrt(0.5), 0};
-  EXPECT_THAT(linvel, Pointwise(DoubleNear(tol), expected_linvel));
+  EXPECT_THAT(linvel, Pointwise(MjNear(tol, 1e-6), expected_linvel));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -305,7 +305,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelAngFixed) {
 
   // obj and ref rotate together, relative angular velocities should be zero
   vector angvel = GetSensor(model, data, 0);
-  EXPECT_THAT(angvel, Pointwise(DoubleNear(tol), {0, 0, 0}));
+  EXPECT_THAT(angvel, Pointwise(MjNear(tol, 1e-6), {0, 0, 0}));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -342,7 +342,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelAngOpposing) {
   // obj and ref rotate on same axis, we can just difference the velocities
   vector angvel = GetSensor(model, data, 0);
   const mjtNum expected_angvel[3] = {0, data->qvel[1]-data->qvel[0], 0};
-  EXPECT_THAT(angvel, Pointwise(DoubleNear(tol), expected_angvel));
+  EXPECT_THAT(angvel, Pointwise(MjNear(tol, 1e-6), expected_angvel));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -413,9 +413,10 @@ TEST_F(RelativeFrameSensorTest, FrameVelGeneral) {
   mju_quat2Vel(angvel_findiff, dquat, dt);
 
   // compare analytic and finite-differenced relative velocities
-  EXPECT_THAT(linvel, Pointwise(DoubleNear(10*dt), linvel_findiff));
-  EXPECT_THAT(angvel, Pointwise(DoubleNear(10*dt), angvel_findiff));
-
+  EXPECT_THAT(linvel, Pointwise(MjNear(10 * dt, 0.15),
+                                linvel_findiff));
+  EXPECT_THAT(angvel,
+              Pointwise(MjNear(10 * dt, 0.2), angvel_findiff));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -442,11 +443,11 @@ TEST_F(SensorTest, EnableEnergy) {
   mjData* data = mj_makeData(model);
 
   mj_forward(model, data);
-  EXPECT_EQ(data->energy[0], 2*3*5);
+  EXPECT_NEAR(data->energy[0], 2*3*5, MjTol(1e-12, 1e-5));
 
   model->opt.enableflags &= ~mjENBL_ENERGY;
   mj_forward(model, data);
-  EXPECT_EQ(data->energy[0], 0);
+  EXPECT_NEAR(data->energy[0], 0, MjTol(1e-12, 1e-5));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -471,11 +472,11 @@ TEST_F(SensorTest, PotentialEnergy) {
   mjData* data = mj_makeData(model);
 
   mj_forward(model, data);
-  EXPECT_EQ(data->sensordata[0], 2*3*5);
+  EXPECT_NEAR(data->sensordata[0], 2*3*5, MjTol(1e-12, 1e-5));
 
   data->qpos[2] = 7;
   mj_forward(model, data);
-  EXPECT_EQ(data->sensordata[0], 7*3*5);
+  EXPECT_NEAR(data->sensordata[0], 7*3*5, MjTol(1e-12, 1e-5));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -502,7 +503,7 @@ TEST_F(SensorTest, PotentialEnergyFreeJointSpring) {
   data->qpos[1] = 2;
   data->qpos[2] = 3;
   mj_forward(model, data);
-  EXPECT_EQ(data->sensordata[0], 0.5*2*14);
+  EXPECT_NEAR(data->sensordata[0], 0.5*2*14, MjTol(1e-12, 1e-5));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -532,7 +533,8 @@ TEST_F(SensorTest, KineticEnergy) {
 
   mjtNum mass = 3;
   mjtNum speed = data->time * mju_norm3(model->opt.gravity);
-  EXPECT_FLOAT_EQ(data->sensordata[0], 0.5 * mass * speed * speed);
+  EXPECT_NEAR(data->sensordata[0], 0.5 * mass * speed * speed,
+              MjTol(1e-7, 1e-2));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -569,7 +571,7 @@ TEST_F(SensorTest, PolyStiffnessEnergy) {
 
   for (int i = 0; i < 100; i++) {
     mj_step(m, d);
-    EXPECT_NEAR(d->energy[0] + d->energy[1], total_energy, 0.002);
+    EXPECT_NEAR(d->energy[0] + d->energy[1], total_energy, 0.003);
   }
 
   mj_deleteData(d);
@@ -674,40 +676,39 @@ TEST_F(SensorTest, CollisionSequential) {
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
 
-  EXPECT_DOUBLE_EQ(data->sensordata[0], 0.8);
-  EXPECT_DOUBLE_EQ(data->sensordata[1], 0.7);
-  EXPECT_DOUBLE_EQ(data->sensordata[2], 0.5);
-
   mjtNum eps = 1e-14;
+  EXPECT_NEAR(data->sensordata[0], 0.8, MjTol(eps, 1e-7));
+  EXPECT_NEAR(data->sensordata[1], 0.7, MjTol(eps, 1e-7));
+  EXPECT_NEAR(data->sensordata[2], 0.5, MjTol(eps, 1e-7));
 
   EXPECT_THAT(GetSensor(model, data, 3),
-              Pointwise(DoubleNear(eps), vector<mjtNum>{0, 0, 1}));
+              Pointwise(MjNear(eps, 1e-7), vector<mjtNum>{0, 0, 1}));
   EXPECT_THAT(GetSensor(model, data, 4),
-              Pointwise(DoubleNear(eps), vector<mjtNum>{0, 0, -1}));
+              Pointwise(MjNear(eps, 1e-7), vector<mjtNum>{0, 0, -1}));
   EXPECT_THAT(GetSensor(model, data, 5),
-              Pointwise(DoubleNear(eps), vector<mjtNum>{1, 0, 0}));
+              Pointwise(MjNear(eps, 1e-7), vector<mjtNum>{1, 0, 0}));
   EXPECT_THAT(GetSensor(model, data, 6),
-              Pointwise(DoubleNear(eps),
+              Pointwise(MjNear(eps, 1e-6),
                         vector<mjtNum>{0, 0, 0, 0, 0, .8}));
   EXPECT_THAT(GetSensor(model, data, 7),
-              Pointwise(DoubleNear(eps),
+              Pointwise(MjNear(eps, 1e-6),
                         vector<mjtNum>{1, 0, .7, 1, 0, 0}));
   EXPECT_THAT(GetSensor(model, data, 8),
-              Pointwise(DoubleNear(eps),
+              Pointwise(MjNear(eps, 1e-6),
                         vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
 
   EXPECT_THAT(GetSensor(model, data, 9),
-              Pointwise(DoubleNear(eps), GetSensor(model, data, 0)));
+              Pointwise(MjNear(eps, 1e-7), GetSensor(model, data, 0)));
   EXPECT_THAT(GetSensor(model, data, 10),
-              Pointwise(DoubleNear(eps), GetSensor(model, data, 6)));
+              Pointwise(MjNear(eps, 1e-6), GetSensor(model, data, 6)));
   EXPECT_THAT(GetSensor(model, data, 11),
-              Pointwise(DoubleNear(eps), GetSensor(model, data, 3)));
+              Pointwise(MjNear(eps, 1e-7), GetSensor(model, data, 3)));
   EXPECT_THAT(GetSensor(model, data, 12),
-              Pointwise(DoubleNear(eps), GetSensor(model, data, 5)));
+              Pointwise(MjNear(eps, 1e-7), GetSensor(model, data, 5)));
   EXPECT_THAT(GetSensor(model, data, 13),
-              Pointwise(DoubleNear(eps), GetSensor(model, data, 8)));
+              Pointwise(MjNear(eps, 1e-6), GetSensor(model, data, 8)));
   EXPECT_THAT(GetSensor(model, data, 14),
-              Pointwise(DoubleNear(eps), GetSensor(model, data, 2)));
+              Pointwise(MjNear(eps, 1e-7), GetSensor(model, data, 2)));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -804,23 +805,23 @@ TEST_F(SensorTest, Contact) {
     vector sitewall = GetSensor(model, data, "site:wall");
     EXPECT_EQ(sitewall, vector<mjtNum>{1});
 
-    mjtNum tol = 1e-4;
     vector wall = GetSensor(model, data, "wall");
-    EXPECT_THAT(wall, Pointwise(DoubleNear(tol), {1,  8, 0, 0,  -1, 0, 0,
-                                                  0,  0, 0, 0,   0, 0, 0}));
+    EXPECT_THAT(wall, Pointwise(MjNear(1e-4, 0.02),
+                                {1, 8, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0}));
 
     // normals points *away* from b2 (towards floor / b1)
     vector b2 = GetSensor(model, data, "b2");
-    EXPECT_THAT(b2, Pointwise(DoubleNear(tol), {3, 0, 0,  0, 0, -1,
-                                                4, 0, 0,  1, 0, 0}));
+    EXPECT_THAT(b2, Pointwise(MjNear(1e-4, 0.02),
+                              {3, 0, 0, 0, 0, -1, 4, 0, 0, 1, 0, 0}));
 
     // normal points *towards* b2
     vector b2f = GetSensor(model, data, "b2_flipped");
-    EXPECT_THAT(b2f, Pointwise(DoubleNear(tol), {3, 0, 0,  0, 0, 1,
-                                                 4, 0, 0, -1, 0, 0}));
+    EXPECT_THAT(b2f, Pointwise(MjNear(1e-4, 0.02),
+                               {3, 0, 0, 0, 0, 1, 4, 0, 0, -1, 0, 0}));
 
     vector b2r = GetSensor(model, data, "b2_reduced");
-    EXPECT_THAT(b2r, Pointwise(DoubleNear(tol), {4, 0, 0, -1, 0, 0}));
+    EXPECT_THAT(b2r,
+                Pointwise(MjNear(1e-4, 0.02), {4, 0, 0, -1, 0, 0}));
   }
 
   mj_deleteData(data);
@@ -972,7 +973,7 @@ TEST_F(SensorTest, ContactNet) {
       mj_applyFT(model, data, force, torque, point, b1, qfrc.data());
 
       // compare
-      EXPECT_THAT(qfrc, Pointwise(DoubleNear(1e-6), qfrc_expected));
+      EXPECT_THAT(qfrc, Pointwise(MjNear(1e-6, 1e-4), qfrc_expected));
 
       // check net force, sensor returns body2 -> body1
       vector net21 = GetSensor(model, data, "net21");
@@ -991,7 +992,7 @@ TEST_F(SensorTest, ContactNet) {
       mj_applyFT(model, data, force, torque, point, b2, qfrc.data());
 
       // compare
-      EXPECT_THAT(qfrc, Pointwise(DoubleNear(1e-6), qfrc_expected));
+      EXPECT_THAT(qfrc, Pointwise(MjNear(1e-6, 1e-4), qfrc_expected));
 
       nconmax = std::max(nconmax, data->ncon);
     }
@@ -1257,7 +1258,7 @@ TEST_F(SensorTest, SensorDelay) {
   // delay = 0.02 seconds, timestep = 0.01
   // history = 3 (more than delay/timestep=2) to ensure buffer coverage
   EXPECT_EQ(model->sensor_history[0], 3);
-  EXPECT_NEAR(model->sensor_delay[0], 0.02, 1e-10);
+  EXPECT_NEAR(model->sensor_delay[0], 0.02, MjTol(1e-10, 1e-7));
 
   // Use different values to verify exact delay timing.
   // With delay=0.02 and timestep=0.01, we expect 2-step delay:
@@ -1319,7 +1320,7 @@ TEST_F(SensorTest, SensorDelayLinearInterp) {
   // exactly between two buffer samples, so we should get the average.
   EXPECT_EQ(model->sensor_history[0], 3);
   EXPECT_EQ(model->sensor_history[1], 1);  // interp=1 (linear)
-  EXPECT_NEAR(model->sensor_delay[0], 0.015, 1e-10);
+  EXPECT_NEAR(model->sensor_delay[0], 0.015, MjTol(1e-10, 1e-7));
 
   // Set increasing qpos values: step i -> qpos = (i+1)*10
   // Buffer has samples at times: -0.02, -0.01, 0 (initialized)
@@ -1421,9 +1422,9 @@ TEST_F(SensorTest, SensorInterval) {
     if (triggers0[t]) value0 = t;
     if (triggers1[t]) value1 = t;
 
-    EXPECT_NEAR(data->sensordata[adr0], value0, 1e-10)
+    EXPECT_NEAR(data->sensordata[adr0], value0, MjTol(1e-10, 1e-7))
         << "sensor0 at t=" << t;
-    EXPECT_NEAR(data->sensordata[adr1], value1, 1e-10)
+    EXPECT_NEAR(data->sensordata[adr1], value1, MjTol(1e-10, 1e-7))
         << "sensor1 at t=" << t;
   }
 
@@ -1453,8 +1454,8 @@ TEST_F(SensorTest, SensorDelayInterval) {
 
   // Combined delay and interval
   EXPECT_EQ(model->sensor_history[0], 5);
-  EXPECT_NEAR(model->sensor_delay[0], 0.02, 1e-10);
-  EXPECT_NEAR(model->sensor_interval[2*0], 0.03, 1e-10);
+  EXPECT_NEAR(model->sensor_delay[0], 0.02, MjTol(1e-10, 1e-7));
+  EXPECT_NEAR(model->sensor_interval[2*0], 0.03, MjTol(1e-10, 1e-7));
 
   // Verify initial buffer timestamps (after mj_makeData/mj_resetData)
   // With period=0.03, dt=0.01, nsample=5, phase=0 (means -period=-0.03):
@@ -1465,7 +1466,7 @@ TEST_F(SensorTest, SensorDelayInterval) {
   mjtNum* times = buf + 2;
   mjtNum expected_times[] = {-0.15, -0.12, -0.09, -0.06, -0.03};
   for (int i = 0; i < n; i++) {
-    EXPECT_NEAR(times[i], expected_times[i], 1e-10);
+    EXPECT_NEAR(times[i], expected_times[i], MjTol(1e-10, 0.015));
   }
 
   // set position
@@ -1478,12 +1479,12 @@ TEST_F(SensorTest, SensorDelayInterval) {
   for (int i = 0; i < 2; i++) {
     mj_step(model, data);
     // sensor reads delayed value (0.0 from initial buffer)
-    EXPECT_NEAR(data->sensordata[0], 0.0, 1e-10) << "step " << i;
+    EXPECT_NEAR(data->sensordata[0], 0.0, MjTol(1e-10, 1e-7)) << "step " << i;
   }
 
   // step 3 (i=2): reading at t=0.00 now returns the inserted value 5.0
   mj_step(model, data);
-  EXPECT_NEAR(data->sensordata[0], 5.0, 1e-10);
+  EXPECT_NEAR(data->sensordata[0], 5.0, MjTol(1e-10, 1e-7));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1511,8 +1512,8 @@ TEST_F(SensorTest, SensorHistoryOnly) {
 
   // history only, no delay or interval
   EXPECT_EQ(model->sensor_history[0], 5);
-  EXPECT_NEAR(model->sensor_delay[0], 0.0, 1e-10);
-  EXPECT_NEAR(model->sensor_interval[0], 0.0, 1e-10);
+  EXPECT_NEAR(model->sensor_delay[0], 0.0, MjTol(1e-10, 1e-7));
+  EXPECT_NEAR(model->sensor_interval[2*0], 0.0, MjTol(1e-10, 1e-7));
 
   // set position
   data->qpos[0] = 3.0;

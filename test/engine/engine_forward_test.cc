@@ -44,6 +44,19 @@ namespace {
 
 static const char* const kEnergyConservingPendulumPath =
     "engine/testdata/derivative/energy_conserving_pendulum.xml";
+
+// helper for precision-aware checks in macros (e.g. MJDATA_POINTERS)
+template <typename T>
+void ExpectNear(T a, T b) {
+  EXPECT_EQ(a, b);
+}
+
+template <>
+void ExpectNear<mjtNum>(mjtNum a, mjtNum b) {
+  EXPECT_EQ(a, b);
+}
+
+
 static const char* const kDampedActuatorsPath =
     "engine/testdata/derivative/damped_actuators.xml";
 static const char* const kJointForceClamp =
@@ -52,7 +65,7 @@ static const char* const kTendonForceClamp =
     "engine/testdata/actuation/tendon_force_clamp.xml";
 
 using ::testing::Pointwise;
-using ::testing::DoubleNear;
+
 using ::testing::Ne;
 using ::testing::HasSubstr;
 using ::testing::NotNull;
@@ -100,7 +113,7 @@ TEST_P(ParametrizedForwardTest, ActLimited) {
     EXPECT_GT(data->act[0], -1);
     // after 99 steps we hit the upper bound
     if (i < 99) EXPECT_LT(data->act[0], 1);
-    if (i >= 99) EXPECT_EQ(data->act[0], 1);
+    if (i >= 99) EXPECT_NEAR(data->act[0], 1, MjTol(0, 5e-6));
   }
 
   data->ctrl[0] = -1.0;
@@ -111,7 +124,9 @@ TEST_P(ParametrizedForwardTest, ActLimited) {
     EXPECT_LT(data->act[0], model->actuator_actrange[1]);
     // after 199 steps we hit the lower bound
     if (i < 199) EXPECT_GT(data->act[0], model->actuator_actrange[0]);
-    if (i >= 199) EXPECT_EQ(data->act[0], model->actuator_actrange[0]);
+    if (i >= 199) {
+      EXPECT_NEAR(data->act[0], model->actuator_actrange[0], MjTol(0.0, 5e-6));
+    }
   }
 
   mj_deleteData(data);
@@ -256,7 +271,7 @@ TEST_F(ImplicitIntegratorTest, EulerDampDisable) {
     qacc_fd[i] = (data->qvel[i] - qvel[i]) / model->opt.timestep;
   }
   // expect finite-differenced qacc to match to high precision
-  EXPECT_THAT(qacc_fd, Pointwise(DoubleNear(1e-14), qacc));
+  EXPECT_THAT(qacc_fd, Pointwise(MjNear(1e-14, 1e-6), qacc));
 
   // reach the same initial state
   mj_resetData(model, data);
@@ -372,11 +387,13 @@ TEST_F(ImplicitIntegratorTest, EulerImplicitEquivalent) {
   }
 
   // expect qpos vectors to be numerically different
+#ifndef mjUSESINGLE
   EXPECT_THAT(AsVector(data->qpos, model->nq), Pointwise(Ne(), qposEuler));
+#endif
 
   // expect qpos vectors to be similar to high precision
   EXPECT_THAT(AsVector(data->qpos, model->nq),
-              Pointwise(DoubleNear(1e-14), qposEuler));
+              Pointwise(MjNear(1e-14, 1e-6), qposEuler));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -393,8 +410,10 @@ TEST_F(ImplicitIntegratorTest, JointActuatorEquivalent) {
     mj_step(model, data);
   }
   // expect corresponding joint values to be significantly different
+#ifndef mjUSESINGLE
   EXPECT_GT(fabs(data->qpos[0]-data->qpos[2]), 1e-4);
   EXPECT_GT(fabs(data->qpos[1]-data->qpos[3]), 1e-4);
+#endif
 
   // reset, take 10 steps with implicit
   mj_resetData(model, data);
@@ -404,8 +423,8 @@ TEST_F(ImplicitIntegratorTest, JointActuatorEquivalent) {
   }
 
   // expect corresponding joint values to be insignificantly different
-  EXPECT_LT(fabs(data->qpos[0]-data->qpos[2]), 1e-16);
-  EXPECT_LT(fabs(data->qpos[1]-data->qpos[3]), 1e-16);
+  EXPECT_LT(fabs(data->qpos[0]-data->qpos[2]), MjTol(1e-16, 1e-6));
+  EXPECT_LT(fabs(data->qpos[1]-data->qpos[3]), MjTol(1e-16, 1e-6));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -671,6 +690,9 @@ TEST_F(ForwardTest, eq_active) {
 
 // test that normalized and denormalized quats give the same result
 TEST_F(ForwardTest, NormalizeQuats) {
+#ifdef mjUSESINGLE
+  GTEST_SKIP() << "Skipping in float32: exact mjData comparison infeasible.";
+#endif
   static constexpr char xml[] = R"(
   <mujoco>
     <option integrator="implicit">
@@ -729,7 +751,7 @@ TEST_F(ForwardTest, NormalizeQuats) {
   #define X(type, name, nr, nc)                                 \
     for (int i = 0; i < model->nr; i++)                         \
       for (int j = 0; j < nc; j++)                              \
-        EXPECT_EQ(data_n->name[i*nc+j], data_u->name[i*nc+j]);
+        ExpectNear(data_n->name[i*nc+j], data_u->name[i*nc+j]);
   MJDATA_POINTERS;
   #undef X
 
@@ -759,7 +781,7 @@ TEST_F(ForwardTest, NormalizeQuats) {
   #define X(type, name, nr, nc)                                 \
     for (int i = 0; i < model->nr; i++)                         \
       for (int j = 0; j < nc; j++)                              \
-        EXPECT_EQ(data_n->name[i*nc+j], data_u->name[i*nc+j]);
+        ExpectNear(data_n->name[i*nc+j], data_u->name[i*nc+j]);
   MJDATA_POINTERS;
   #undef X
 
@@ -791,8 +813,8 @@ TEST_F(ForwardTest, MocapQuats) {
 
   // expect mocap_quat to be normalized (by the compiler)
   for (int i = 0; i < 4; i++) {
-    EXPECT_EQ(data->mocap_quat[i], 0.5);
-    EXPECT_EQ(data->xquat[4+i], 0.5);
+    EXPECT_NEAR(data->mocap_quat[i], 0.5, MjTol(0, 1e-6));
+    EXPECT_NEAR(data->xquat[4+i], 0.5, MjTol(0, 1e-6));
   }
 
   // write denormalized quats to mocap_quat, call forward again
@@ -803,8 +825,8 @@ TEST_F(ForwardTest, MocapQuats) {
 
   // expect mocap_quat to remain denormalized, but xquat to be normalized
   for (int i = 0; i < 4; i++) {
-    EXPECT_EQ(data->mocap_quat[i], 1);
-    EXPECT_EQ(data->xquat[4+i], 0.5);
+    EXPECT_NEAR(data->mocap_quat[i], 1, MjTol(0, 1e-6));
+    EXPECT_NEAR(data->xquat[4+i], 0.5, MjTol(0, 1e-6));
   }
 
   mj_deleteData(data);
@@ -957,8 +979,8 @@ TEST_F(ActuatorTest, ActuatorForceClamping) {
   mj_forward(model, data);
 
   // expect clamping as specified in the model
-  EXPECT_EQ(data->actuator_force[0], 1);
-  EXPECT_EQ(data->qfrc_actuator[0], 0.4);
+  EXPECT_NEAR(data->actuator_force[0], 1, MjTol(0, 1e-6));
+  EXPECT_NEAR(data->qfrc_actuator[0], 0.4, MjTol(0, 1e-6));
 
   // simulate for 2 seconds to gain velocity
   while (data->time < 2) {
@@ -968,7 +990,7 @@ TEST_F(ActuatorTest, ActuatorForceClamping) {
   // activate damper, expect force to be clamped at lower bound
   data->ctrl[1] = 1;
   mj_forward(model, data);
-  EXPECT_EQ(data->qfrc_actuator[0], -0.4);
+  EXPECT_NEAR(data->qfrc_actuator[0], -0.4, MjTol(0, 1e-6));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1117,9 +1139,9 @@ TEST_F(ActuatorTest, DampRatioTendon) {
   // expect first and second fingers to move together
   double tol  = 1e-10;
   EXPECT_THAT(AsVector(data->qpos, 4),
-              Pointwise(DoubleNear(tol), AsVector(data->qpos + 4, 4)));
+              Pointwise(MjNear(tol, tol), AsVector(data->qpos + 4, 4)));
   EXPECT_THAT(AsVector(data->qvel, 4),
-              Pointwise(DoubleNear(tol), AsVector(data->qvel + 4, 4)));
+              Pointwise(MjNear(tol, tol), AsVector(data->qvel + 4, 4)));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1232,7 +1254,7 @@ TEST_F(FilterExactTest, TimestepIndependent) {
   }
   mjtNum large_timestep_act = data->act[0];
 
-  EXPECT_THAT(small_timestep_act, DoubleNear(large_timestep_act, 1e-14))
+  EXPECT_NEAR(small_timestep_act, large_timestep_act, MjTol(1e-14, 1e-6))
       << "exact integration should be independent of timestep to machine "
          "precision.";
 
@@ -1313,8 +1335,7 @@ TEST_F(ActEarlyTest, RemovesOneStepDelay) {
     mj_step(model, data);
     for (int j = 0; j < model->nu / 2; j++) {
       // this is true for torque actuators
-      EXPECT_THAT(last_qfrc[2 * j],
-                  DoubleNear(data->qfrc_actuator[2 * j + 1], 1e-3))
+      EXPECT_NEAR(last_qfrc[2 * j], data->qfrc_actuator[2 * j + 1], MjTol(1e-3, 1e-1))
           << "there should be a 1 step delay between qfrc for "
           << mj_id2name(model, mjOBJ_ACTUATOR, 2 * j);
     }
@@ -1549,7 +1570,7 @@ TEST_F(ForwardTest, ActuatorDelayLinearInterp) {
   // delay = 0.015 seconds = 1.5*timestep, nsample=3, interp=1 (linear)
   EXPECT_EQ(model->actuator_history[0], 3);
   EXPECT_EQ(model->actuator_history[1], 1);  // interp=1 (linear)
-  EXPECT_NEAR(model->actuator_delay[0], 0.015, 1e-10);
+  EXPECT_NEAR(model->actuator_delay[0], 0.015, MjTol(1e-10, 5e-6));
 
   // Set increasing ctrl values
   // Buffer has samples at times: -0.02, -0.01, 0 with values 0, 0, 0
@@ -1559,7 +1580,7 @@ TEST_F(ForwardTest, ActuatorDelayLinearInterp) {
 
   data->ctrl[0] = 10.0;
   mj_step(model, data);
-  EXPECT_NEAR(data->actuator_force[0], 0.0, 1e-10) << "step 0";
+  EXPECT_NEAR(data->actuator_force[0], 0.0, MjTol(1e-10, 5e-6)) << "step 0";
 
   // After step 1 at time=0.02: buffer has times 0, 0.01, 0.02 with values 0, 10, 20
   // Read at time 0.02 - 0.015 = 0.005: interpolate between t=0 (val=0) and t=0.01 (val=10)
@@ -1567,7 +1588,7 @@ TEST_F(ForwardTest, ActuatorDelayLinearInterp) {
 
   data->ctrl[0] = 20.0;
   mj_step(model, data);
-  EXPECT_NEAR(data->actuator_force[0], 5.0, 1e-10) << "step 1";
+  EXPECT_NEAR(data->actuator_force[0], 5.0, MjTol(1e-10, 5e-6)) << "step 1";
 
   // After step 2 at time=0.03: buffer has times 0.01, 0.02, 0.03 with values 10, 20, 30
   // Read at 0.03 - 0.015 = 0.015: interpolate between t=0.01 (val=10) and t=0.02 (val=20)
@@ -1575,7 +1596,7 @@ TEST_F(ForwardTest, ActuatorDelayLinearInterp) {
 
   data->ctrl[0] = 30.0;
   mj_step(model, data);
-  EXPECT_NEAR(data->actuator_force[0], 15.0, 1e-10) << "step 2";
+  EXPECT_NEAR(data->actuator_force[0], 15.0, MjTol(1e-10, 5e-6)) << "step 2";
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1774,7 +1795,7 @@ TEST_F(ForwardTest, FlexParentCoupling) {
     if (diff > max_diff) max_diff = diff;
   }
 
-  EXPECT_LT(max_diff, 2e-5)
+  EXPECT_LT(max_diff, MjTol(2e-5, 5e-3))
       << "Implicit integrator should match Euler at small timestep";
 
   mj_deleteData(data);

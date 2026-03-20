@@ -27,7 +27,6 @@ namespace mujoco {
 namespace {
 
 using ::std::string;
-using ::testing::DoubleNear;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -457,20 +456,20 @@ TEST_F(SetConstTest, DofLength) {
   EXPECT_EQ(model->dof_length[0], 1);
 
   // B2: Hinge
-  EXPECT_THAT(model->dof_length[1], DoubleNear(3, tol));
+  EXPECT_NEAR(model->dof_length[1], 3, tol);
 
   // B3: Ball
-  EXPECT_THAT(model->dof_length[2], DoubleNear(4, tol));
-  EXPECT_THAT(model->dof_length[3], DoubleNear(4, tol));
-  EXPECT_THAT(model->dof_length[4], DoubleNear(4, tol));
+  EXPECT_NEAR(model->dof_length[2], 4, tol);
+  EXPECT_NEAR(model->dof_length[3], 4, tol);
+  EXPECT_NEAR(model->dof_length[4], 4, tol);
 
   // B4: Free
   EXPECT_EQ(model->dof_length[5], 1);
   EXPECT_EQ(model->dof_length[6], 1);
   EXPECT_EQ(model->dof_length[7], 1);
-  EXPECT_THAT(model->dof_length[8], DoubleNear(5, tol));
-  EXPECT_THAT(model->dof_length[9], DoubleNear(5, tol));
-  EXPECT_THAT(model->dof_length[10], DoubleNear(5, tol));
+  EXPECT_NEAR(model->dof_length[8], 5, tol);
+  EXPECT_NEAR(model->dof_length[9], 5, tol);
+  EXPECT_NEAR(model->dof_length[10], 5, tol);
 
   mj_deleteModel(model);
 }

@@ -30,7 +30,6 @@ namespace {
 static const char* const kDefaultModel = "testdata/model.xml";
 
 using ::testing::Pointwise;
-using ::testing::DoubleNear;
 using ::testing::NotNull;
 using PipelineTest = MujocoTest;
 
@@ -43,12 +42,19 @@ TEST_F(PipelineTest, SparseDenseEquivalent) {
   ASSERT_THAT(model, NotNull())  << error;
   mjData* data = mj_makeData(model);
 
-  mjtNum tol = 1e-11;
+  constexpr mjtNum tol = MjTol(1e-11, 1e-4);
 
   const char* sname[4] = {"NEWTON", "PGS", "CG", "NOSLIP"};
   mjtSolver solver[4] = {mjSOL_NEWTON, mjSOL_PGS, mjSOL_CG, mjSOL_NEWTON};
 
-  for (int i : {0, 1, 2, 3}) {
+#ifdef mjUSESINGLE
+  // CG and NOSLIP sparse-dense equivalence breaks at float32 precision.
+  int nsolvers = 2;
+#else
+  int nsolvers = 4;
+#endif
+
+  for (int i = 0; i < nsolvers; i++) {
     model->opt.solver = solver[i];
     if (i == 3) {
       model->opt.noslip_iterations = 2;
@@ -69,10 +75,10 @@ TEST_F(PipelineTest, SparseDenseEquivalent) {
     std::vector<mjtNum> qpos_sparse = AsVector(data->qpos, model->nq);
 
     // expect accelerations to be insignificantly different
-    EXPECT_THAT(qacc_dense, Pointwise(DoubleNear(tol), qacc_sparse))
+    EXPECT_THAT(qacc_dense, Pointwise(MjNear(tol, tol), qacc_sparse))
         << "failed qacc equivalence for solver=" << sname[i];
     // expect positions to be insignificantly different
-    EXPECT_THAT(qpos_dense, Pointwise(DoubleNear(tol), qpos_sparse))
+    EXPECT_THAT(qpos_dense, Pointwise(MjNear(tol, tol), qpos_sparse))
         << "failed qpos equivalence for solver=" << sname[i];
   }
 

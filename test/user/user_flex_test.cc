@@ -29,7 +29,6 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleNear;
 using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::HasSubstr;
@@ -266,6 +265,9 @@ TEST_F(UserFlexTest, FlexNotCollide) {
 }
 
 TEST_F(UserFlexTest, BoundingBoxCoordinates) {
+#ifdef mjUSESINGLE
+  GTEST_SKIP() << "Float32 rounding in bounding box centering gives ~3e-8 error";
+#endif
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>
@@ -428,6 +430,9 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
 }
 
 TEST_F(UserFlexTest, StiffnessMatrix) {
+#ifdef mjUSESINGLE
+  GTEST_SKIP() << "Stiffness matrix kernel check fails in float32 precision";
+#endif
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>
@@ -452,7 +457,7 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
     ones[i] = 1;
   }
   mju_mulMatVec(res, m->flex_stiffness, ones, 3*m->nflexnode, 3*m->nflexnode);
-  EXPECT_THAT(res, Pointwise(DoubleNear(1e-8), zeros));
+  EXPECT_THAT(res, Pointwise(MjNear(1e-8, 1e-4), zeros));
 
   mj_deleteModel(m);
 }

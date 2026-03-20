@@ -31,10 +31,9 @@
 namespace mujoco {
 namespace {
 
-constexpr double kInertiaTol = 1e-6;
+constexpr double kInertiaTol = MjTol(1e-6, 1e-6);
 
 using std::string;
-using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
@@ -385,10 +384,10 @@ TEST_F(KeyframeTest, CheckValues) {
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   ASSERT_THAT(model, NotNull());
   EXPECT_EQ(model->nkey, 7);
-  EXPECT_EQ(model->key_time[0 * 1], 0.1);
-  EXPECT_EQ(model->key_qpos[1 * model->nq], 0.2);
-  EXPECT_EQ(model->key_qvel[2 * model->nv], 0.3);
-  EXPECT_EQ(model->key_act[3 * model->na], 0.4);
+  EXPECT_MJTNUM_EQ(model->key_time[0 * 1], 0.1);
+  EXPECT_MJTNUM_EQ(model->key_qpos[1 * model->nq], 0.2);
+  EXPECT_MJTNUM_EQ(model->key_qvel[2 * model->nv], 0.3);
+  EXPECT_MJTNUM_EQ(model->key_act[3 * model->na], 0.4);
   EXPECT_THAT(AsVector(model->key_ctrl + 4 * model->nu, model->nu),
               ElementsAre(0.5, 0.6));
   EXPECT_THAT(AsVector(model->key_mpos + 3 * model->nmocap * 5, 3),
@@ -405,20 +404,20 @@ TEST_F(KeyframeTest, ResetDataKeyframe) {
   mjData* data = mj_makeData(model);
 
   mj_resetDataKeyframe(model, data, 0);
-  EXPECT_EQ(data->time, 0.1);
+  EXPECT_MJTNUM_EQ(data->time, 0.1);
 
   mj_resetDataKeyframe(model, data, 1);
-  EXPECT_EQ(data->qpos[0], 0.2);
+  EXPECT_MJTNUM_EQ(data->qpos[0], 0.2);
 
   mj_resetDataKeyframe(model, data, 2);
-  EXPECT_EQ(data->qvel[0], 0.3);
+  EXPECT_MJTNUM_EQ(data->qvel[0], 0.3);
 
   mj_resetDataKeyframe(model, data, 3);
-  EXPECT_EQ(data->act[0], 0.4);
+  EXPECT_MJTNUM_EQ(data->act[0], 0.4);
 
   mj_resetDataKeyframe(model, data, 4);
-  EXPECT_EQ(data->ctrl[0], 0.5);
-  EXPECT_EQ(data->ctrl[1], 0.6);
+  EXPECT_MJTNUM_EQ(data->ctrl[0], 0.5);
+  EXPECT_MJTNUM_EQ(data->ctrl[1], 0.6);
 
   mj_resetDataKeyframe(model, data, 5);
   EXPECT_THAT(AsVector(data->mocap_pos, 3), ElementsAre(.1, .2, .3));
@@ -750,6 +749,9 @@ TEST_F(MjCGeomTest, CapsuleInertiaX) {
 }
 
 TEST_F(MjCGeomTest, ShellInertiaSphere) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which vanish in float32 precision";
+  }
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -793,7 +795,7 @@ TEST_F(MjCGeomTest, ShellInertiaSphere) {
 
   mjtNum mass3 = m->body_mass[3];
   mjtNum mass4 = m->body_mass[4];
-  EXPECT_FLOAT_EQ(mass4 - mass3, m->body_mass[2]);
+  EXPECT_MJTNUM_EQ(mass4 - mass3, m->body_mass[2]);
 
   // compute approximate shell inertia by subtracting inertias of massive bodies
   // with small radius difference
@@ -809,6 +811,9 @@ TEST_F(MjCGeomTest, ShellInertiaSphere) {
 }
 
 TEST_F(MjCGeomTest, ShellInertiaCapsule) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which vanish in float32 precision";
+  }
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -890,6 +895,9 @@ TEST_F(MjCGeomTest, ShellInertiaCapsule) {
 }
 
 TEST_F(MjCGeomTest, ShellInertiaCylinder) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which vanish in float32 precision";
+  }
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -965,6 +973,9 @@ TEST_F(MjCGeomTest, ShellInertiaCylinder) {
 }
 
 TEST_F(MjCGeomTest, ShellInertiaEllipsoid) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which vanish in float32 precision";
+  }
   // test special case of ellipsoid with dimensions: a = b = c
   // TODO(taylorhowell): add test for ellipsoid with dimensions: a != b != c
   static constexpr char xml[] = R"(
@@ -1028,6 +1039,9 @@ TEST_F(MjCGeomTest, ShellInertiaEllipsoid) {
 }
 
 TEST_F(MjCGeomTest, ShellInertiaBox) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which vanish in float32 precision";
+  }
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -1247,16 +1261,16 @@ TEST_F(MjCJointTest, AlignFree) {
   mj_forward(m_u, d_u);
 
   // expect x-frames (sensors) to match to very high precision
-  double eps = 1e-10;
+  double eps = MjTol(1e-10, 1e-6);
   EXPECT_THAT(
       AsVector(d->sensordata, m->nsensordata),
-      Pointwise(DoubleNear(eps), AsVector(d_u->sensordata, m->nsensordata)));
+      Pointwise(MjNear(eps, eps), AsVector(d_u->sensordata, m->nsensordata)));
 
   // no frame sensors for lights, test separately
   EXPECT_THAT(AsVector(d->light_xpos, 3),
-              Pointwise(DoubleNear(eps), AsVector(d_u->light_xpos, 3)));
+              Pointwise(MjNear(eps, eps), AsVector(d_u->light_xpos, 3)));
   EXPECT_THAT(AsVector(d->light_xdir, 3),
-              Pointwise(DoubleNear(eps), AsVector(d_u->light_xdir, 3)));
+              Pointwise(MjNear(eps, eps), AsVector(d_u->light_xdir, 3)));
 
   // reduce timestep to 0.1ms and use RK4, simulate for 1 second
   m->opt.timestep = m_u->opt.timestep = 1e-4;
@@ -1275,14 +1289,14 @@ TEST_F(MjCJointTest, AlignFree) {
   mj_freeStack(d);
 
   // expect x-frames to match to reasonable precision
-  eps = 1e-5;
+  eps = MjTol(1e-5, 1e-2);
   EXPECT_THAT(
       AsVector(d->sensordata, m->nsensordata),
-      Pointwise(DoubleNear(eps), AsVector(d_u->sensordata, m->nsensordata)));
+      Pointwise(MjNear(eps, eps), AsVector(d_u->sensordata, m->nsensordata)));
   EXPECT_THAT(AsVector(d->light_xpos, 3),
-              Pointwise(DoubleNear(eps), AsVector(d_u->light_xpos, 3)));
+              Pointwise(MjNear(eps, eps), AsVector(d_u->light_xpos, 3)));
   EXPECT_THAT(AsVector(d->light_xdir, 3),
-              Pointwise(DoubleNear(eps), AsVector(d_u->light_xdir, 3)));
+              Pointwise(MjNear(eps, eps), AsVector(d_u->light_xdir, 3)));
 
   mj_deleteData(d_u);
   mj_deleteData(d);
@@ -1618,8 +1632,8 @@ TEST_F(InheritrangeTest, WorksForDegrees) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
-  EXPECT_DOUBLE_EQ(model->actuator_ctrlrange[0], mjPI / 2);
-  EXPECT_DOUBLE_EQ(model->actuator_ctrlrange[1], mjPI);
+  EXPECT_MJTNUM_EQ(model->actuator_ctrlrange[0], mjPI / 2);
+  EXPECT_MJTNUM_EQ(model->actuator_ctrlrange[1], mjPI);
 
   mj_deleteModel(model);
 }
@@ -2191,8 +2205,8 @@ TEST_F(SpringrangeTest, DefaultsPropagate) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
-  EXPECT_EQ(model->tendon_lengthspring[0], .2);
-  EXPECT_EQ(model->tendon_lengthspring[1], .5);
+  EXPECT_MJTNUM_EQ(model->tendon_lengthspring[0], .2);
+  EXPECT_MJTNUM_EQ(model->tendon_lengthspring[1], .5);
   mj_deleteModel(model);
 }
 
@@ -2262,7 +2276,7 @@ TEST_F(UserObjectsTest, Frame) {
     </worldbody>
   </mujoco>
   )";
-  constexpr mjtNum eps = 1e-14;
+  const mjtNum eps = MjTol(1e-14, 1e-5);
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, testing::NotNull()) << error.data();
@@ -2331,7 +2345,7 @@ TEST_F(UserObjectsTest, FrameTransformsLight) {
   EXPECT_THAT(m, NotNull()) << error.data();
   EXPECT_EQ(m->nlight, 1);
 
-  constexpr mjtNum eps = 1e-14;
+  const mjtNum eps = MjTol(1e-14, 1e-5);
   EXPECT_NEAR(m->light_pos[0], -mju_sqrt(.5), eps);
   EXPECT_NEAR(m->light_pos[1], 0, eps);
   EXPECT_NEAR(m->light_pos[2], 1 + mju_sqrt(.5), eps);
@@ -2628,7 +2642,7 @@ TEST_F(UserObjectsTest, Inertial) {
   const mjtNum euler[3] = {3, 4, 5};
   mju_euler2Quat(quat, euler, "xyz");
   EXPECT_THAT(AsVector(m->body_iquat + 4, 4),
-              Pointwise(DoubleNear(1e-8), AsVector(quat, 4)));
+              Pointwise(MjNear(1e-8, 1e-6), AsVector(quat, 4)));
 
   EXPECT_EQ(m->body_mass[2], 2);
   EXPECT_THAT(AsVector(m->body_ipos + 6, 3), ElementsAre(1, 2, 3));
@@ -2730,7 +2744,7 @@ TEST_F(OctreeSDFTest, SphereSDF) {
   for (double x = -2.0; x <= 2.0; x += 0.5) {
     for (double y = -2.0; y <= 2.0; y += 0.5) {
       for (double z = -2.0; z <= 2.0; z += 0.5) {
-        mjtNum p[3] = {x, y, z};
+        mjtNum p[3] = {(mjtNum)x, (mjtNum)y, (mjtNum)z};
         double sdf_dist = mjc_distance(model, data, &sdf, p);
         double gt_dist = analyticSdf(p);
 
@@ -2799,9 +2813,9 @@ TEST_F(OctreeSDFTest, TorusSDF) {
   double sum_sq_error = 0.0;
 
   // Test grid of points
-  for (double x = -2.0; x <= 2.0; x += 0.5) {
-    for (double y = -2.0; y <= 2.0; y += 0.5) {
-      for (double z = -2.0; z <= 2.0; z += 0.5) {
+  for (mjtNum x = -2.0; x <= 2.0; x += 0.5) {
+    for (mjtNum y = -2.0; y <= 2.0; y += 0.5) {
+      for (mjtNum z = -2.0; z <= 2.0; z += 0.5) {
         mjtNum p[3] = {x, y, z};
         double sdf_dist = mjc_distance(model, data, &sdf, p);
         double gt_dist = analyticSdf(p);

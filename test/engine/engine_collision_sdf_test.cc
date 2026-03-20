@@ -59,7 +59,8 @@ TEST_F(SdfTest, SdfPrimitive) {
   mjtNum gradient[3], dist[kgeoms][kpoints] = {
     {0, 0, 0, 0, 1, 1},  // plane
     {-1, 0, 0, mju_sqrt(2)-1, mju_sqrt(2)-1, mju_sqrt(3)-1},  // sphere
-    {-.1, .9, .9, mju_sqrt(2)-.1, .9, mju_sqrt(2)-.1},  // capsule
+    {(mjtNum)-.1, (mjtNum).9, (mjtNum).9,
+     mju_sqrt(2)-(mjtNum).1, (mjtNum).9, mju_sqrt(2)-(mjtNum).1},  // capsule
     {-1, 0, 0, mju_sqrt(2)-1, 0, mju_sqrt(2)-1},  // cylinder
     {-mju_sqrt(3), 0, 0, 0, 0, 0},  // box
   };
@@ -72,7 +73,8 @@ TEST_F(SdfTest, SdfPrimitive) {
     sdf.type = mjSDFTYPE_SINGLE;
     sdf.geomtype = (mjtGeom*)(model->geom_type+i);
     for (int j = 0; j < kpoints; j++) {
-      EXPECT_NEAR(mjc_distance(model, data, &sdf, points[j]), dist[i][j], 1e-9);
+      EXPECT_NEAR(mjc_distance(model, data, &sdf, points[j]), dist[i][j],
+                  MjTol(1e-9, 5e-7));
       mjc_gradient(model, data, &sdf, gradient, points[j]);
     }
   }

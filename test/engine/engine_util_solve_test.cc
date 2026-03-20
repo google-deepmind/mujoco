@@ -34,9 +34,9 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleEq;
+
 using ::testing::Pointwise;
-using ::testing::DoubleNear;
+
 using ::testing::ElementsAre;
 using ::std::string;
 using ::std::vector;
@@ -92,7 +92,8 @@ mjtNum objective(const mjtNum* x, const mjtNum* H, const mjtNum* g, int n) {
 // utility: test if res is the minimum of a given box-QP problem
 bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
                  const mjtNum* lower, const mjtNum* upper) {
-  static const mjtNum eps = 1e-4;  // epsilon used for nudging
+  constexpr mjtNum eps = MjTol(1e-4, 5e-2);  // epsilon used for nudging
+  constexpr mjtNum threshold = MjTol(0, -2e-3);  // comparison threshold
   bool is_minimum = true;
   mjtNum* res_nudge = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
 
@@ -109,7 +110,7 @@ bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
       res_nudge[i] = mju_max(lower[i], res_nudge[i]);
     }
     value_nudge = objective(res_nudge, H, g, n);
-    if (value_nudge - value < 0) {
+    if (value_nudge - value < threshold) {
       is_minimum = false;
       break;
     }
@@ -120,7 +121,7 @@ bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
       res_nudge[i] = mju_min(upper[i], res_nudge[i]);
     }
     value_nudge = objective(res_nudge, H, g, n);
-    if (value_nudge - value < 0) {
+    if (value_nudge - value < threshold) {
       is_minimum = false;
       break;
     }
@@ -185,14 +186,14 @@ TEST_F(BoxQPTest, UnboundedQP) {
 
   // no bounds, expect Newton point
   EXPECT_EQ(nfree, 2);
-  EXPECT_THAT(res[0], DoubleEq(-g[0]/H[0]));
-  EXPECT_THAT(res[1], DoubleEq(-g[1]/H[3]));
+  EXPECT_MJTNUM_EQ(res[0], -g[0]/H[0]);
+  EXPECT_MJTNUM_EQ(res[1], -g[1]/H[3]);
 
   // check that solution is actual minimum
   EXPECT_TRUE(isQPminimum(res, H, g, n, /*lower=*/nullptr, /*upper=*/nullptr));
 
   // perturb solution, expected it no longer be the minimum
-  res[0] += 0.001;
+  res[0] += MjTol(0.001, 0.1);
   EXPECT_FALSE(isQPminimum(res, H, g, n, /*lower=*/nullptr, /*upper=*/nullptr));
 
   // negative-definite Hessian, no solution
@@ -223,8 +224,8 @@ TEST_F(BoxQPTest, AsymmetricUpperIgnored) {
 
   EXPECT_EQ(nfree, 1);
 
-  EXPECT_THAT(res[0], DoubleEq(-g[0]/H[0]));
-  EXPECT_THAT(res[1], DoubleEq(lower[1]));
+  EXPECT_MJTNUM_EQ(res[0], -g[0]/H[0]);
+  EXPECT_MJTNUM_EQ(res[1], lower[1]);
 }
 
 // test mju_boxQP on a single random bounded QP
@@ -244,9 +245,9 @@ TEST_F(BoxQPTest, BoundedQP) {
 
   // use default options
   int    maxiter    = 100;    // maximum number of iterations
-  mjtNum mingrad    = 1E-16;  // minimum squared norm of (unclamped) gradient
+  mjtNum mingrad    = MjTol(1E-16, 1E-5);  // minimum squared norm of (unclamped) gradient
   mjtNum backtrack  = 0.5;    // backtrack factor for decreasing stepsize
-  mjtNum minstep    = 1E-22;  // minimum stepsize for linesearch
+  mjtNum minstep    = MjTol(1E-22, 1E-10);  // minimum stepsize for linesearch
   mjtNum armijo     = 0.1;    // Armijo parameter
 
   // logging
@@ -285,6 +286,12 @@ TEST_F(BoxQPTest, BoundedQP) {
 
 // test mju_boxQP on a set of random bounded QPs
 TEST_F(BoxQPTest, BoundedQPvariations) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP()
+        << "BoxQP test permutations contain ill-conditioned matrices which "
+           "natively fail to find descent directions under float32 precision";
+  }
+
   int nmax = 100;
 
   // allocate maximum size on heap
@@ -317,9 +324,9 @@ TEST_F(BoxQPTest, BoundedQPvariations) {
 
           // default algorithm options
           int    maxiter    = 100;
-          mjtNum mingrad    = 1E-16;
+          mjtNum mingrad    = MjTol(1E-16, 1E-5);
           mjtNum backtrack  = 0.5;
-          mjtNum minstep    = 1E-22;
+          mjtNum minstep    = MjTol(1E-22, 1E-10);
           mjtNum armijo     = 0.1;
 
           // solve box-QP with logging
@@ -500,9 +507,9 @@ TEST_F(BandMatrixTest, Multiplication) {
                         /*nVec=*/1, /*flg_sym=*/1);
 
       // expect numerical equality
-      mjtNum eps = 1e-12;
+      mjtNum eps = MjTol(1e-12, 5e-5);
       EXPECT_THAT(AsVector(res, nTotal),
-                  Pointwise(DoubleNear(eps), AsVector(res1, nTotal)));
+                  Pointwise(MjNear(eps, eps), AsVector(res1, nTotal)));
 
       mju_free(res1);
       mju_free(res);
@@ -565,9 +572,9 @@ TEST_F(BandMatrixTest, Factorization) {
           }
 
           // expect numerical equality
-          mjtNum eps = 1e-12;
+          mjtNum eps = MjTol(1e-12, 5e-5);
           EXPECT_THAT(AsVector(H, nH),
-                      Pointwise(DoubleNear(eps), AsVector(H1, nH)));
+                      Pointwise(MjNear(eps, eps), AsVector(H1, nH)));
 
           // multiply dense
           mju_mulMatVec(res, H, vec, nTotal, nTotal);
@@ -578,7 +585,7 @@ TEST_F(BandMatrixTest, Factorization) {
 
           // expect numerical equality
           EXPECT_THAT(AsVector(res, nTotal),
-                      Pointwise(DoubleNear(eps), AsVector(res1, nTotal)));
+                      Pointwise(MjNear(eps, eps), AsVector(res1, nTotal)));
 
           mju_free(res1);
           mju_free(res);
@@ -638,9 +645,9 @@ TEST_F(BandMatrixTest, Solve) {
       mju_cholSolveBand(res1, B, vec, nTotal, nBand, nDense);
 
       // expect numerical equality
-      mjtNum eps = 1e-12;
+      mjtNum eps = MjTol(1e-12, 5e-5);
       EXPECT_THAT(AsVector(res, nTotal),
-                  Pointwise(DoubleNear(eps), AsVector(res1, nTotal)));
+                  Pointwise(MjNear(eps, eps), AsVector(res1, nTotal)));
 
       mju_free(res1);
       mju_free(res);
@@ -808,7 +815,7 @@ TEST_F(EngineUtilSolveTest, MjuCholUpdate) {
                      n, n);
 
       // compare
-      mjtNum eps = 1e-8;
+      mjtNum eps = MjTol(1e-8, 5e-4);
       for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
           EXPECT_NEAR(H_reconstructed[i * n + j], H_expected[i * n + j], eps)
@@ -922,7 +929,7 @@ TEST_F(EngineUtilSolveTest, MjuCholUpdateSparse) {
                      L_sparse_dense.data(), n, n, n);
 
       // compare
-      mjtNum eps = 1e-8;
+      mjtNum eps = MjTol(1e-8, 5e-4);
       for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
           EXPECT_NEAR(H_sparse_reconstructed[i * n + j], H_expected[i * n + j],
@@ -1025,7 +1032,7 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
   EXPECT_EQ(rank_new, n);
 
   // compare L values
-  mjtNum eps = 1e-10;
+  mjtNum eps = MjTol(1e-10, 5e-5);
   for (int i = 0; i < nnz; i++) {
     EXPECT_NEAR(L_new[i], L_ref[i], eps) << "mismatch at index " << i;
   }

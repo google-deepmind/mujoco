@@ -31,7 +31,6 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
@@ -168,8 +167,8 @@ TEST_F(UserModelTest, SameFrame) {
 
   // expect them to be equal
   constexpr double eps = 1e-6;
-  EXPECT_THAT(geom_xpos, Pointwise(DoubleNear(eps), geom_xpos2));
-  EXPECT_THAT(geom_xmat, Pointwise(DoubleNear(eps), geom_xmat2));
+  EXPECT_THAT(geom_xpos, Pointwise(MjNear(eps, eps), geom_xpos2));
+  EXPECT_THAT(geom_xmat, Pointwise(MjNear(eps, eps), geom_xmat2));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -606,7 +605,7 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
   mj_step(m_fuse, d_fuse);
   mj_step(m_no_fuse, d_no_fuse);
 
-  EXPECT_THAT(d_fuse->qvel[0], DoubleNear(d_no_fuse->qvel[0], 2e-17))
+  EXPECT_NEAR(d_fuse->qvel[0], d_no_fuse->qvel[0], MjTol(2e-17, 1e-8))
       << "Velocity should be the same after 1 step";
   EXPECT_NE(d_fuse->qvel[0], 0);
 
@@ -887,9 +886,8 @@ TEST_F(LengthRangeTest, LengthRangeThreading) {
   EXPECT_THAT(model1, NotNull()) << error;
 
   // model is such that the lengthrange for first actuator is [1, sqrt(5)]
-  EXPECT_THAT(model1->actuator_lengthrange[0], DoubleNear(1.0, 1e-3));
-  EXPECT_THAT(model1->actuator_lengthrange[1],
-              DoubleNear(std::sqrt(5.0), 1e-3));
+  EXPECT_NEAR(model1->actuator_lengthrange[0], 1.0, 1e-3);
+  EXPECT_NEAR(model1->actuator_lengthrange[1], std::sqrt(5.0), 1e-3);
 
   // recompile without threads
   ASSERT_EQ(spec->compiler.usethread, 1);

@@ -30,7 +30,6 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::Pointwise;
 
@@ -122,7 +121,7 @@ TEST_F(RotVecQuatTest, TestEquivalence) {
       {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {-0.5, 1, -0.5}, {1.22, -2.33, 3.44}};
   // List of angles to rotate by, in degrees
   mjtNum angles[6] = {0.0, 1e-8, 31, 47, 181, 271};
-  static const mjtNum eps = 1e-15;
+  static constexpr mjtNum eps = MjTol(1e-15, 1e-5);
   for (auto vec : vecs) {
     // Unit-normalize the vector
     mju_normalize3(vec);
@@ -163,38 +162,38 @@ TEST_F(Euler2QuatTest, BadSeqLength) {
 
 TEST_F(Euler2QuatTest, Euler2Quat) {
   mjtNum quat[4] = {0};
-  mjtNum tol = 1e-14;
+  mjtNum tol = MjTol(1e-14, 1e-6);
 
   char seq[] = "xyz";
   mjtNum euler[3] = {mjPI, 0, 0};
   mjtNum expected[4] = {0, 1, 0, 0};
   mju_euler2Quat(quat, euler, seq);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected));
+  EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected));
 
   euler[1] = mjPI;
   mjtNum expected2[4] = {0, 0, 0, 1};
   mju_euler2Quat(quat, euler, seq);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected2));
+  EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected2));
 
   char seq2[] = "XYZ";
   mjtNum expected3[4] = {0, 0, 0, -1};
   mju_euler2Quat(quat, euler, seq2);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected3));
+  EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected3));
 
   mjtNum euler2[3] = {2*mjPI, 2*mjPI, 2*mjPI};
   mjtNum expected4[4] = {-1, 0, 0, 0};
   mju_euler2Quat(quat, euler2, seq);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected4));
+  EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected4));
   mju_euler2Quat(quat, euler2, seq2);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected4));
+  EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected4));
 
   mjtNum euler3[3] = {mjPI/2, mjPI/2, mjPI/2};
   mjtNum expected5[4] = {0, mju_sqrt(.5), 0, mju_sqrt(.5)};
   mju_euler2Quat(quat, euler3, seq);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected5));
+  EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected5));
   mju_euler2Quat(quat, euler3, seq2);
   mjtNum expected6[4] = {mju_sqrt(.5), 0, mju_sqrt(.5), 0};
-  EXPECT_THAT(quat, Pointwise(DoubleNear(tol), expected6));
+  EXPECT_THAT(quat, Pointwise(MjNear(tol, tol), expected6));
 }
 
 using Mat2RotTest = MujocoTest;
@@ -219,8 +218,9 @@ TEST_F(Mat2RotTest, RotationFromArbitraryMatrix) {
   // calculate rotational part of the matrix
   mjtNum quat[4] = {1, 0, 0, 0};
   int niter = mju_mat2Rot(quat, mat);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(1e-8), target));
-  EXPECT_LE(niter, 150);
+  EXPECT_THAT(quat, Pointwise(MjNear(1e-8, 1e-6), target));
+  int max_iter = static_cast<int>(MjTol(150, 500));
+  EXPECT_LE(niter, max_iter);
 }
 
 TEST_F(Mat2RotTest, IdentityFromRandomRotation) {
@@ -244,7 +244,7 @@ TEST_F(Mat2RotTest, IdentityFromRandomRotation) {
     mju_normalize4(quat);
     EXPECT_LE(mju_mat2Rot(quat, mat), 40);
     mju_quat2Mat(res, quat);
-    EXPECT_THAT(res, Pointwise(DoubleNear(1e-6), mat));
+    EXPECT_THAT(res, Pointwise(MjNear(1e-6, 1e-6), mat));
   }
 }
 
@@ -252,13 +252,13 @@ TEST_F(Mat2RotTest, SpecialCases) {
   mjtNum eye[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
   mjtNum quat[4] = {1, 0, 0, 0};
   EXPECT_EQ(mju_mat2Rot(quat, eye), 0);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(1e-8), {1, 0, 0, 0}));
+  EXPECT_THAT(quat, Pointwise(MjNear(1e-8, 1e-8), {1, 0, 0, 0}));
   mjtNum zero[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
   EXPECT_EQ(mju_mat2Rot(quat, zero), 0);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(1e-8), {1, 0, 0, 0}));
+  EXPECT_THAT(quat, Pointwise(MjNear(1e-8, 1e-4), {1, 0, 0, 0}));
   mjtNum ones[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
   EXPECT_EQ(mju_mat2Rot(quat, ones), 0);
-  EXPECT_THAT(quat, Pointwise(DoubleNear(1e-8), {1, 0, 0, 0}));
+  EXPECT_THAT(quat, Pointwise(MjNear(1e-8, 1e-4), {1, 0, 0, 0}));
 }
 
 }  // namespace

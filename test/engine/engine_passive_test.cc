@@ -55,15 +55,15 @@ TEST_F(PassiveTest, DisableFlags) {
   mj_resetDataKeyframe(m, d, 0);
 
   mj_forward(m, d);
-  EXPECT_FLOAT_EQ(d->qacc[0], 11);
+  EXPECT_MJTNUM_EQ(d->qacc[0], 11);
 
   m->opt.disableflags = mjDSBL_DAMPER;
   mj_forward(m, d);
-  EXPECT_FLOAT_EQ(d->qacc[0], 10);
+  EXPECT_MJTNUM_EQ(d->qacc[0], 10);
 
   m->opt.disableflags = mjDSBL_SPRING;
   mj_forward(m, d);
-  EXPECT_FLOAT_EQ(d->qacc[0], 1);
+  EXPECT_MJTNUM_EQ(d->qacc[0], 1);
 
   m->opt.disableflags = mjDSBL_SPRING | mjDSBL_DAMPER;
   mj_forward(m, d);
@@ -125,7 +125,7 @@ TEST_F(PassiveTest, PolyStiffnessSlide) {
   mj_resetDataKeyframe(m, d, 0);
 
   mj_forward(m, d);
-  EXPECT_FLOAT_EQ(d->qfrc_spring[0], -48);
+  EXPECT_MJTNUM_EQ(d->qfrc_spring[0], -48);
 
   mj_deleteData(d);
   mj_deleteModel(m);
@@ -154,7 +154,7 @@ TEST_F(PassiveTest, PolyStiffnessAntiSymmetric) {
   mj_resetDataKeyframe(m, d, 0);
 
   mj_forward(m, d);
-  EXPECT_FLOAT_EQ(d->qfrc_spring[0], 8);
+  EXPECT_MJTNUM_EQ(d->qfrc_spring[0], 8);
 
   mj_deleteData(d);
   mj_deleteModel(m);
@@ -194,7 +194,7 @@ TEST_F(PassiveTest, PolyStiffnessTendon) {
   mj_resetDataKeyframe(m, d, 0);
 
   mj_forward(m, d);
-  EXPECT_FLOAT_EQ(d->qfrc_spring[0], -48);
+  EXPECT_MJTNUM_EQ(d->qfrc_spring[0], -48);
 
   mj_deleteData(d);
   mj_deleteModel(m);
@@ -296,7 +296,8 @@ TEST_F(EllipsoidFluidTest, GeomsEquivalentToBodies) {
   d1->qpos[5] = 0.5;
   d1->qpos[6] = 0.5;
 
-  const mjtNum tol = 1e-14;  // tolerance for floating point numbers
+  // tolerance for floating point numbers
+  constexpr mjtNum tol = MjTol(1e-14, 1e-5);
 
   EXPECT_EQ(m1->nv, m2->nv);
 
@@ -551,8 +552,8 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
           energy += metric[21*t+idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
-      EXPECT_NEAR(
-        4*energy/volume, 2*scale*scale, std::numeric_limits<float>::epsilon());
+      constexpr mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-5);
+      EXPECT_NEAR(4*energy/volume, 2*scale*scale, tol);
     }
   }
 
@@ -602,8 +603,8 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
           energy += metric[21*t+idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
-      EXPECT_NEAR(
-        energy/volume, 3*scale*scale, std::numeric_limits<float>::epsilon());
+      constexpr mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-4);
+      EXPECT_NEAR(energy/volume, 3*scale*scale, tol);
     }
   }
 
