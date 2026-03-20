@@ -189,6 +189,7 @@ class Simulate {
   int font = 0;
   int ui0_enable = 1;
   int ui1_enable = 1;
+  int keyboard_ui = 1;  // enable keyboard shortcuts
   int help = 0;
   int info = 0;
   int profiler = 0;
