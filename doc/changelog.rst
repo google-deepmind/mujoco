@@ -34,8 +34,8 @@ General
 
      **Migration:** Replace assignments like ``joint.stiffness = val`` with ``joint.stiffness[0] = val``.
 
-   - The ``vertcollide`` field in :ref:`mjsContact` has been deprecated since the next release of :doc:`MuJoCo Warp <mjwarp/index>`
-     will support native flex collisions.
+   - The ``vertcollide`` field in :ref:`mjsFlex` has been removed. It is no longer required since
+     :doc:`MuJoCo Warp <mjwarp/index>` supports native flex collisions.
 
 
 Bug fixes
