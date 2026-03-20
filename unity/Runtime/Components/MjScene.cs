@@ -393,9 +393,24 @@ public class MjScene : MonoBehaviour {
             (component is MjInertial) ||
             (component is MjBaseJoint) ||
             (component is MjGeom) ||
-            (component is MjSite)),
+            (component is MjSite)||
+            (component is MjPluginTag)),
         worldMjcf);
 
+    //MuJoCo plug-ins have some hierarchical structure too.
+    var extensionObjects = components.Where(component =>
+        (component is MjPlugin) ||
+        (component is MjPluginInstance) ||
+        (component is MjPluginConfig)).ToList();
+    if (extensionObjects.Count > 0) {
+      var extensionMjcf = (XmlElement)MjRoot.AppendChild(doc.CreateElement("extension"));
+      BuildHierarchicalMjcf(doc, extensionObjects, extensionMjcf);
+    }
+
+    if (MjCustom.InstanceExists) {
+      MjCustom.Instance.GenerateCustomMjcf(doc);
+    }
+    
     // Non-hierarchical sections:
     MjRoot.AppendChild(GenerateMjcfSection(
         doc, components.Where(component => component is MjExclude), "contact"));
@@ -403,7 +418,11 @@ public class MjScene : MonoBehaviour {
     MjRoot.AppendChild(GenerateMjcfSection(
         doc, components.Where(component => component is MjBaseTendon), "tendon"));
 
+    //MuJoCo skins would also be applicable, but we skip them since they are purely visual.
     MjRoot.AppendChild(GenerateMjcfSection(
+        doc, components.Where(component => component is MjFlexDeformable), "deformable"));
+
+      MjRoot.AppendChild(GenerateMjcfSection(
         doc, components.Where(component => component is MjBaseConstraint), "equality"));
 
     MjRoot.AppendChild(
