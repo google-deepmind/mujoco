@@ -37,10 +37,11 @@ extern "C" {
 
 // internal object type for convex collision detection
 struct _mjCCDObj {
-  const mjModel* model;
-  const mjData* data;
   int geom;
   int geom_type;
+  mjtNum size[4];
+  mjtNum pos[3];
+  mjtNum mat[9];
   int vertindex;
   int meshindex;
   int flex;
@@ -48,15 +49,44 @@ struct _mjCCDObj {
   int vert;
   mjtNum margin;
   mjtNum rotate[4];
+  union {
+    // mesh data from mjModel
+    struct {
+      int nvert;
+      int mesh_polynum;
+      const float* vert;
+      const int* mpolymapadr;
+      const int* mpolymapnum;
+      const int* polymap;
+      const int* polyvertadr;
+      const int* polyvertnum;
+      const int* polyvert;
+      const mjtNum* polynormal;
+      const int*graph;
+    } mesh;
+
+    // hfield prism data
+    struct {
+      mjtNum prism[6][3];
+      const float* hfield_data;
+      int hfield_nrow;
+      int hfield_ncol;
+    } hfield;
+
+    // flex data from mjModel and mjData
+    struct {
+      const int* elem;
+      const int* dim;
+      const mjtNum* aabb;
+      const int* elemadr;
+      const int* elemdataadr;
+      const mjtNum* vert_xpos;
+      const int* vertadr;
+      const mjtNum* xradius;
+    } flex;
+  } data;
   void (*center)(mjtNum res[3], const struct _mjCCDObj* obj);
   void (*support)(mjtNum res[3], struct _mjCCDObj* obj, const mjtNum dir[3]);
-
-  // for hfield
-  mjtNum prism[6][3];
-  const mjtNum* size;
-  const float* hfield_data;
-  int hfield_nrow;
-  int hfield_ncol;
 };
 typedef struct _mjCCDObj mjCCDObj;
 
