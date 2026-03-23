@@ -529,6 +529,9 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
   }
 
   if (fp) {
+    if (ferror(fp)) {
+      mju_warning("Error writing to file '%s'", filename);
+    }
     fclose(fp);
   }
 }
