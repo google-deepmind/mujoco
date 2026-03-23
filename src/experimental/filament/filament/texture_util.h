@@ -39,18 +39,6 @@ filament::Texture* CreateKtxTexture(
     filament::Engine* engine, const uint8_t* data, int size,
     filament::math::float3* spherical_harmonics_out);
 
-enum RenderTargetTextureType {
-  kRenderTargetColor,
-  kRenderTargetDepth,
-  kRenderTargetDepthColor,
-  kNumRenderTargetTextureTypes,
-};
-
-// Creates a filament RenderTargetTexture for the given target type.
-filament::Texture* CreateRenderTargetTexture(filament::Engine* engine,
-                                             int width, int height,
-                                             RenderTargetTextureType type);
-
 }  // namespace mujoco
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_TEXTURE_UTIL_H_

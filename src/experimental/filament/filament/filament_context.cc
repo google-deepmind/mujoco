@@ -43,7 +43,7 @@
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/scene_view.h"
-#include "experimental/filament/filament/texture_util.h"
+#include "experimental/filament/filament/render_target_util.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -219,43 +219,18 @@ void FilamentContext::SetFrameBuffer(int framebuffer) {
 }
 
 void FilamentContext::PrepareRenderTargets(int width, int height) {
-  for (int i = 0; i < kNumRenderTargetTextureTypes; ++i) {
-    target_textures_[i] = CreateRenderTargetTexture(
-        engine_, width, height, static_cast<RenderTargetTextureType>(i));
-  }
+  color_target_ = std::make_unique<RenderTargetAndTextures>(
+      engine_, kRenderTargetColor, kRenderTargetDepth);
+  color_target_->Prepare(width, height);
 
-  // Render target for color pass.
-  filament::RenderTarget::Builder color_target_builder;
-  color_target_builder.texture(filament::RenderTarget::AttachmentPoint::COLOR0,
-                               target_textures_[kRenderTargetColor]);
-  color_target_builder.texture(filament::RenderTarget::AttachmentPoint::DEPTH,
-                               target_textures_[kRenderTargetDepth]);
-  color_target_ = color_target_builder.build(*engine_);
-
-  // Render target for depth pass.
-  filament::RenderTarget::Builder depth_target_builder;
-  depth_target_builder.texture(filament::RenderTarget::AttachmentPoint::COLOR0,
-                               target_textures_[kRenderTargetDepthColor]);
-  depth_target_builder.texture(filament::RenderTarget::AttachmentPoint::DEPTH,
-                               target_textures_[kRenderTargetDepth]);
-  depth_target_ = depth_target_builder.build(*engine_);
+  depth_target_ = std::make_unique<RenderTargetAndTextures>(
+      engine_, kRenderTargetDepthColor, kRenderTargetDepth);
+  depth_target_->Prepare(width, height);
 }
 
 void FilamentContext::DestroyRenderTargets() {
-  if (depth_target_) {
-    engine_->destroy(depth_target_);
-    depth_target_ = nullptr;
-  }
-  if (color_target_) {
-    engine_->destroy(color_target_);
-    color_target_ = nullptr;
-  }
-  for (int i = 0; i < kNumRenderTargetTextureTypes; ++i) {
-    if (target_textures_[i]) {
-      engine_->destroy(target_textures_[i]);
-      target_textures_[i] = nullptr;
-    }
-  }
+  depth_target_.reset();
+  color_target_.reset();
 }
 
 static void ReadColorPixels(filament::Renderer* renderer,
@@ -295,15 +270,17 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (rgb) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
-      scene_view_->Render(renderer_, last_render_mode_, color_target_);
+      scene_view_->Render(renderer_, last_render_mode_,
+                          color_target_->GetRenderTarget());
 
       // Render the GUI to the texture as well if requested.
       if (gui_view_ && gui_swap_chain_target_ == kOffscreenSwapChain) {
-        gui_view_->Render(renderer_, color_target_);
+        gui_view_->Render(renderer_, color_target_->GetRenderTarget());
       }
 
       const size_t num_bytes = viewport.width * viewport.height * 3;
-      ReadColorPixels(renderer_, color_target_, viewport, rgb, num_bytes);
+      ReadColorPixels(renderer_, color_target_->GetRenderTarget(), viewport,
+                      rgb, num_bytes);
 
       renderer_->endFrame();
     }
@@ -312,10 +289,11 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
   if (depth) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
       scene_view_->Render(renderer_, SceneView::DrawMode::kDepth,
-                          depth_target_);
+                          depth_target_->GetRenderTarget());
 
       const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
-      ReadDepthPixels(renderer_, depth_target_, viewport, depth, num_bytes);
+      ReadDepthPixels(renderer_, depth_target_->GetRenderTarget(), viewport,
+                      depth, num_bytes);
 
       renderer_->endFrame();
     }

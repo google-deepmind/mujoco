@@ -48,6 +48,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/model_util.h
         filament/object_manager.cc
         filament/object_manager.h
+        filament/render_target_util.cc
+        filament/render_target_util.h
         filament/renderables.cc
         filament/renderables.h
         filament/scene_view.cc

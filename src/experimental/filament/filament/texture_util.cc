@@ -178,33 +178,4 @@ filament::Texture* CreateKtxTexture(
   const bool is_srgb = false;
   return ktxreader::Ktx1Reader::createTexture(engine, bundle, is_srgb);
 }
-
-filament::Texture* CreateRenderTargetTexture(filament::Engine* engine,
-                                             int width, int height,
-                                             RenderTargetTextureType type) {
-  filament::Texture::Builder builder;
-  builder.width(width);
-  builder.height(height);
-  switch (type) {
-    case kRenderTargetColor:
-      builder.usage(filament::Texture::Usage::COLOR_ATTACHMENT |
-                    filament::Texture::Usage::BLIT_SRC);
-      builder.format(filament::Texture::InternalFormat::RGB8);
-      break;
-    case kRenderTargetDepth:
-      builder.usage(filament::Texture::Usage::DEPTH_ATTACHMENT |
-                    filament::Texture::Usage::SAMPLEABLE);
-      builder.format(filament::Texture::InternalFormat::DEPTH32F);
-      break;
-    case kRenderTargetDepthColor:
-      builder.usage(filament::Texture::Usage::COLOR_ATTACHMENT |
-                    filament::Texture::Usage::BLIT_SRC);
-      builder.format(filament::Texture::InternalFormat::R32F);
-      break;
-    default:
-      mju_error("Unknown type: %d", static_cast<int>(type));
-  }
-  return builder.build(*engine);
-}
-
 }  // namespace mujoco
