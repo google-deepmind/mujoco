@@ -952,6 +952,34 @@ class SpecsTest(absltest.TestCase):
       ):
         s.compile()
 
+  def test_geom_and_mesh_plugin(self):
+    """Test that geom.plugin and mesh.plugin are accessible."""
+    spec = mujoco.MjSpec()
+
+    # Verify mesh has plugin attribute
+    mesh = spec.add_mesh(name='test_mesh')
+    self.assertTrue(hasattr(mesh, 'plugin'))
+
+    # Verify geom has plugin attribute
+    body = spec.worldbody.add_body()
+    geom = body.add_geom()
+    self.assertTrue(hasattr(geom, 'plugin'))
+
+    # Verify we can access and modify plugin properties
+    spec.activate_plugin('mujoco.sdf.torus')
+    plugin = spec.add_plugin(name='inst', plugin_name='mujoco.sdf.torus')
+
+    # Assign plugin to geom
+    geom.plugin = plugin
+    self.assertEqual(geom.plugin.name, 'inst')
+    self.assertEqual(geom.plugin.plugin_name, 'mujoco.sdf.torus')
+
+    # Assign plugin to mesh
+    mesh.plugin = plugin
+    self.assertEqual(mesh.plugin.name, 'inst')
+    self.assertEqual(mesh.plugin.plugin_name, 'mujoco.sdf.torus')
+
+
   def test_duplicate_name_error(self):
     main_xml = """
     <mujoco>
