@@ -991,5 +991,22 @@ TEST_F(UserFlexTest, FlexAttachConstraintPreserved) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(UserFlexTest, FlexNoConstraintsWarning) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="4 4 1" spacing=".2 .2 .2"
+              dim="2" radius=".1"/>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_THAT(error.data(),
+              HasSubstr("no equality constraints or passive forces"));
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco

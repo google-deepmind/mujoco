@@ -3538,6 +3538,12 @@ void mjCModel::CopyObjects(mjModel* m) {
       }
     }
 
+    if (!pfl->rigid && m->flex_edgeequality[i] == 0 &&
+        !pfl->edgestiffness && !pfl->edgedamping && !pfl->damping) {
+      mju_warning("flex '%s' is not rigid and has no equality constraints "
+                  "or passive forces", pfl->name.c_str());
+    }
+
     // copy bvh data (flex aabb computed dynamically in mjData)
     if (pfl->tree.Nbvh()) {
       memcpy(m->bvh_child + 2*bvh_adr, pfl->tree.Child().data(), 2*pfl->tree.Nbvh()*sizeof(int));
