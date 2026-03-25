@@ -206,8 +206,9 @@ mjPLUGIN_LIB_INIT {
     if (size <= 0) {
       return nullptr;
     }
+    char error[1024];
     return ParseZipBuffer(buffer, size, resource->name, const_cast<mjVFS*>(vfs),
-                          nullptr, 0);
+                          error, sizeof(error));
   };
   mjp_registerDecoder(&decoder);
 }
