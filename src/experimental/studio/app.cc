@@ -166,7 +166,13 @@ void App::LoadModelFromFile(const std::string& filepath) {
     OnModelLoaded(filepath, kModelFromFile);
     spec_editor_.Reset(*spec());
     UpdateFilePaths(resolved_file);
-    window_->SetTitle("MuJoCo Studio : " + filepath);
+    if (model() && model()->names) {
+      // Assumes the first string in the model is the name of the model itself.
+      window_->SetTitle("MuJoCo Studio : " + std::string(model()->names));
+    } else {
+      window_->SetTitle("MuJoCo Studio : " +
+                        std::filesystem::path(filepath).stem().string());
+    }
   } else {
     SetLoadError(std::string(model_holder_->error()));
   }
