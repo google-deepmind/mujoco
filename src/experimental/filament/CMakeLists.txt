@@ -43,6 +43,7 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/light.h
         filament/material.cc
         filament/material.h
+        filament/math_util.cc
         filament/math_util.h
         filament/model_util.cc
         filament/model_util.h

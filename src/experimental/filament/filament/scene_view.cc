@@ -15,6 +15,7 @@
 #include "experimental/filament/filament/scene_view.h"
 
 #include <array>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -25,8 +26,9 @@
 #include <filament/LightManager.h>
 #include <filament/Material.h>
 #include <filament/Options.h>
-#include <filament/RenderableManager.h>
 #include <filament/Renderer.h>
+#include <filament/RenderableManager.h>
+#include <filament/RenderTarget.h>
 #include <filament/Skybox.h>
 #include <filament/TransformManager.h>
 #include <filament/View.h>
@@ -36,6 +38,7 @@
 #include <math/scalar.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
+#include <math/TVecHelpers.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
@@ -45,11 +48,13 @@
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/render_target_util.h"
 
 namespace mujoco {
 
 using filament::math::float3;
 using filament::math::float4;
+using filament::math::mat3;
 using filament::math::mat4;
 
 static constexpr int kNormalIndex =
@@ -82,16 +87,49 @@ filament::ColorGrading::Builder ToBuilder(const ColorGradingOptions& opts) {
       .curves(opts.shadow_gamma, opts.mid_point, opts.highlight_scale);
 }
 
+// Sets up the `reflection_camera`'s projection matrix so that it is a
+// reflection of the `src_camera` across the plane defined by the
+// `surface_xform`. The generated projection is an oblique projection so that
+// the texture can be applied directly to the plane with screenspace uvs.
+static void SetupReflectionCamera(const mat4& surface_xform,
+                                  const filament::Camera* src_camera,
+                                  filament::Camera* reflection_camera,
+                                  float near = 0.01f, float far = 100.0f) {
+  const mat4 src_model_matrix = src_camera->getModelMatrix();
+  const mat4 src_view_matrix = src_camera->getViewMatrix();
+  const mat4 src_projection = src_camera->getProjectionMatrix();
+
+  reflection_camera->setModelMatrix(ToReflectionMatrix(surface_xform) *
+                                    src_model_matrix);
+
+  const float3 normal = surface_xform[2].xyz;
+  const float3 view_pos = (src_view_matrix * surface_xform[3]).xyz;
+  const float3 view_normal = (src_view_matrix * float4(normal, 0.0f)).xyz;
+
+  const float3 plane_normal_camera = view_normal;
+  const float plane_dist_camera = -dot(plane_normal_camera, view_pos);
+  const float4 oblique_plane(plane_normal_camera, plane_dist_camera);
+  const mat4 oblique = CalculateObliqueProjection(src_projection, oblique_plane);
+  reflection_camera->setCustomProjection(oblique, near, far);
+}
+
 SceneView::SceneView(filament::Engine* engine, ObjectManager* object_mgr)
     : object_mgr_(object_mgr), engine_(engine) {
   scene_ = engine_->createScene();
   camera_ = engine_->createCamera(utils::EntityManager::get().create());
+  reflect_camera_ = engine_->createCamera(utils::EntityManager::get().create());
 
   for (auto& view : views_) {
     view = engine_->createView();
     view->setScene(scene_);
     view->setCamera(camera_);
   }
+
+  reflect_view_ = engine_->createView();
+  reflect_view_->setScene(scene_);
+  reflect_view_->setCamera(reflect_camera_);
+  reflect_view_->setShadowingEnabled(false);
+  reflect_view_->setPostProcessingEnabled(false);
 
   const mjModel* m = object_mgr_->GetModel();
 
@@ -197,6 +235,11 @@ SceneView::SceneView(filament::Engine* engine, ObjectManager* object_mgr)
 SceneView::~SceneView() {
   lights_.clear();
   drawables_.clear();
+  reflect_targets_.clear();
+
+  engine_->destroyCameraComponent(reflect_camera_->getEntity());
+  engine_->destroy(reflect_view_);
+
   engine_->destroyCameraComponent(camera_->getEntity());
   engine_->destroy(views_[kNormalIndex]->getColorGrading());
   for (auto& view : views_) {
@@ -216,6 +259,25 @@ void SceneView::Render(filament::Renderer* renderer, DrawMode draw_mode,
     view->setMultiSampleAntiAliasingOptions({.enabled = false});
   }
 
+  // Render reflection passes.
+  if (draw_mode == DrawMode::kNormal) {
+    for (size_t i = 0; i < reflectives_.size(); ++i) {
+      Drawable* drawable = reflectives_[i];
+
+      SetupReflectionCamera(drawable->GetTransform(), camera_, reflect_camera_);
+
+      // Hide reflective surface from its own reflection pass.
+      drawable->SetLayerMask(0x00);
+
+      // Render the reflection to its render target.
+      reflect_view_->setRenderTarget(reflect_targets_[i]->GetRenderTarget());
+      renderer->render(reflect_view_);
+
+      // Unhide the reflective surface.
+      drawable->SetLayerMask(0x01);
+    }
+  }
+
   view->setRenderTarget(target);
   renderer->render(view);
   view->setRenderTarget(nullptr);
@@ -233,10 +295,12 @@ filament::View* SceneView::PrepareRenderView(DrawMode mode) {
 }
 
 void SceneView::SetViewport(mjrRect viewport) {
+  auto filament_viewport = ReadViewport(viewport);
   aspect_ratio_ = (float)viewport.width / (float)viewport.height;
   for (auto& view : views_) {
-    view->setViewport(ReadViewport(viewport));
+    view->setViewport(filament_viewport);
   }
+  reflect_view_->setViewport(filament_viewport);
 }
 
 void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
@@ -382,6 +446,7 @@ void SceneView::UpdateScene(const mjrContext* context, const mjvScene* scene) {
     iter->RemoveFromScene(scene_);
   }
   drawables_.clear();
+  reflectives_.clear();
   for (int i = 0; i < scene->ngeom; ++i) {
     const mjvGeom* geom = scene->geoms + i;
 
@@ -394,6 +459,9 @@ void SceneView::UpdateScene(const mjrContext* context, const mjvScene* scene) {
     auto drawable = std::make_unique<Drawable>(object_mgr_, *geom);
     drawable->AddToScene(scene_);
     drawable->Update(object_mgr_->GetModel(), scene, *geom);
+    if (drawable->IsReflective()) {
+      AddReflectiveDrawable(drawable.get());
+    }
     drawables_.push_back(std::move(drawable));
   }
 
@@ -431,6 +499,24 @@ void SceneView::UpdateScene(const mjrContext* context, const mjvScene* scene) {
   } else {
     lights_.back()->Disable();
   }
+}
+
+void SceneView::AddReflectiveDrawable(Drawable* drawable) {
+  const int index = reflectives_.size();
+  reflectives_.push_back(drawable);
+
+  // Ensure we have the same number of render targets as we do reflective
+  // drawables.
+  while (reflect_targets_.size() < reflectives_.size()) {
+    reflect_targets_.push_back(std::make_unique<RenderTargetAndTextures>(
+        engine_, kRenderTargetReflectionColor, kRenderTargetDepth));
+  }
+
+  // Prepare a render target for the reflective drawable.
+  auto viewport = reflect_view_->getViewport();
+  auto& target = reflect_targets_[index];
+  target->Prepare(viewport.width, viewport.height);
+  drawable->UpdateReflectionTexture(target->GetColorTexture());
 }
 
 filament::Engine* SceneView::GetEngine() const { return engine_; }

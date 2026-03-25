@@ -46,6 +46,7 @@ class Material {
     const filament::Texture* occlusion = nullptr;
     const filament::Texture* orm = nullptr;
     const filament::Texture* emissive = nullptr;
+    const filament::Texture* reflection = nullptr;
   };
 
   // The parameters that can be applied to the drawable's material.
@@ -60,6 +61,7 @@ class Material {
     float metallic = -1.0f;
     float roughness = -1.0f;
     float emissive = -1.0f;
+    float reflectance = 0.0f;
     bool tex_uniform = false;
   };
 
@@ -77,6 +79,10 @@ class Material {
 
   // Updates the material textures of the drawable for rendering.
   void UpdateTextures(const Textures& textures);
+
+  // Update the reflection texture. We do this separately since the reflection
+  // texture needs to be rendered before it can be applied to the material.
+  void UpdateReflectionTexture(const filament::Texture* tex);
 
   // Returns the material instance assigned to the draw mode.
   filament::MaterialInstance* GetMaterialInstance(DrawMode mode) {

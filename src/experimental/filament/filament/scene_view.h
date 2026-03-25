@@ -36,6 +36,7 @@
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/render_target_util.h"
 
 namespace mujoco {
 
@@ -86,6 +87,9 @@ class SceneView {
 
   void PrepareLights();
 
+  // Registers the given drawable as a reflective surface.
+  void AddReflectiveDrawable(Drawable* drawable);
+
   // Converts a point in world space to clip space, eg. in the range [-1,-1, 0]
   // to [1, 1, 1]. Returns std::nullopt if the point is behind the camera.
   std::optional<filament::math::float3> ClipFromWorld(
@@ -108,6 +112,17 @@ class SceneView {
   float fallback_head_light_intensity_ = 0.f;
   float fallback_scene_light_intensity_ = 80'000.f;
   float fallback_environment_light_intensity_ = 5'000.f;
+
+  // Custom view and camera for reflective surfaces.
+  filament::View* reflect_view_ = nullptr;
+  filament::Camera* reflect_camera_ = nullptr;
+
+  // The list of drawables that are reflective.
+  std::vector<Drawable*> reflectives_;
+
+  // Each reflective drawable has its own render target which is used to render
+  // the reflected image.
+  std::vector<std::unique_ptr<RenderTargetAndTextures>> reflect_targets_;
 };
 
 }  // namespace mujoco

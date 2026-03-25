@@ -15,8 +15,10 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_DRAWABLE_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_DRAWABLE_H_
 
+#include <cstdint>
 #include <filament/Engine.h>
 #include <filament/Scene.h>
+#include <math/mat4.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
@@ -46,10 +48,25 @@ class Drawable {
   // transform, material, etc.) of the geom.
   void Update(const mjModel* model, const mjvScene* scene, const mjvGeom& geom);
 
+  // Returns the transform of the drawable.
+  const filament::math::mat4& GetTransform() const { return transform_; }
+
   // Swaps the MaterialInstance that will be used to render the Drawable (e.g.
   // normal, depth, segmentation, etc.). This must be called before the filament
   // beginFrame/endFrame.
   void SetDrawMode(Material::DrawMode mode);
+
+  // Sets the layer mask for all managed entities. This can be used to show
+  // or hide the drawable from specific passes. The default layer mask is 0x01.
+  void SetLayerMask(std::uint8_t mask);
+
+  // Returns true if the drawable is reflective.
+  bool IsReflective() const { return reflective_; }
+
+  // Sets the reflection texture for the drawable. We have a separate setter
+  // because we need to render the reflection texture before it can be applied
+  // to the material.
+  void UpdateReflectionTexture(const filament::Texture* tex);
 
  private:
   void AddMesh(int data_id);
@@ -61,10 +78,12 @@ class Drawable {
 
   // Updates the material parameters of the drawable for rendering.
   void UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
-                      const mjtNum* headpos);
+                      bool enable_reflection, const mjtNum* headpos);
 
   Material material_;
   Renderables renderables_;
+  bool reflective_ = false;
+  filament::math::mat4 transform_;
 };
 
 }  // namespace mujoco

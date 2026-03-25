@@ -181,7 +181,8 @@ void Drawable::Update(const mjModel* model, const mjvScene* scene,
   mjv_cameraInModel(head_pos, nullptr, nullptr, scene);
 
   SetTransform(geom);
-  UpdateMaterial(geom, scene->flags[mjRND_IDCOLOR], head_pos);
+  UpdateMaterial(geom, scene->flags[mjRND_IDCOLOR],
+                 scene->flags[mjRND_REFLECTION], head_pos);
   renderables_.SetWireframe(scene->flags[mjRND_WIREFRAME]);
 }
 
@@ -224,13 +225,21 @@ void Drawable::SetDrawMode(Material::DrawMode mode) {
   renderables_.SetMaterialInstance(material_.GetMaterialInstance(mode));
 }
 
+void Drawable::UpdateReflectionTexture(const filament::Texture* tex) {
+  material_.UpdateReflectionTexture(tex);
+}
+
+void Drawable::SetLayerMask(std::uint8_t mask) {
+  renderables_.SetLayerMask(mask);
+}
+
 void Drawable::SetTransform(const mjvGeom& geom) {
   // Flex and skin geometries are in global space.
   if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
     return;
   }
 
-  const mat4 transform(ReadMat3(geom.mat), ReadFloat3(geom.pos));
+  transform_ = mat4(ReadMat3(geom.mat), ReadFloat3(geom.pos));
 
   float3 size = ReadFloat3(geom.size);
   filament::TransformManager& tm =
@@ -239,7 +248,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
     const utils::Entity& entity = renderables_[j];
 
     // Update object transform.
-    mat4 entity_transform = transform;
+    mat4 entity_transform = transform_;
 
     // Some built-in drawables are composed of multiple entities. For example,
     // capsules are a combination of a open tube and two dome end caps.
@@ -342,7 +351,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
 }
 
 void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
-                              const mjtNum* headpos) {
+                              bool enable_reflection, const mjtNum* headpos) {
   ObjectManager* object_mgr = material_.GetObjectManager();
   const mjModel* model = object_mgr->GetModel();
 
@@ -351,8 +360,11 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
     if (IsBehind(headpos, geom.pos, geom.mat)) {
       color[3] *= 0.3;
       renderables_.SetReceiveShadows(false);
+      reflective_ = false;
     } else {
       renderables_.SetReceiveShadows(true);
+      reflective_ =
+          enable_reflection && geom.reflectance > 0 && color.a == 1.0f;
     }
   }
 
@@ -405,6 +417,8 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
       if (textures.color == nullptr) {
         if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhongColorFade);
+        } else if (reflective_) {
+          material_.SetNormalMaterialType(ObjectManager::kPhongColorReflect);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhongColor);
         }
@@ -412,18 +426,24 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
                 filament::Texture::Sampler::SAMPLER_CUBEMAP) {
         if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
+        } else if (reflective_) {
+          material_.SetNormalMaterialType(ObjectManager::kPhongCubeReflect);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhongCube);
         }
       } else if (has_texcoords) {
         if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhong2dUvFade);
+        } else if (reflective_) {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2dUvReflect);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhong2dUv);
         }
       } else {
         if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhong2dFade);
+        } else if (reflective_) {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2dReflect);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhong2d);
         }
@@ -433,6 +453,7 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
 
   Material::Params params;
   params.color = color;
+  params.reflectance = geom.reflectance;
   params.emissive = geom.emission;
   params.specular = geom.specular;
   params.glossiness = geom.shininess;

@@ -71,6 +71,11 @@ void Material::UpdateTextures(const Textures& textures) {
   UpdateMaterialInstances();
 }
 
+void Material::UpdateReflectionTexture(const filament::Texture* tex) {
+  textures_.reflection = tex;
+  UpdateMaterialInstances();
+}
+
 void Material::UpdateMaterialInstances() {
   filament::MaterialInstance* instance = instances_[DrawMode::kNormal];
   if (instance == nullptr) {
@@ -107,6 +112,9 @@ void Material::UpdateMaterialInstances() {
   }
   if (material->hasParameter("UvOffset")) {
     instance->setParameter("UvOffset", params_.uv_offset);
+  }
+  if (material->hasParameter("Reflectance")) {
+    instance->setParameter("Reflectance", params_.reflectance);
   }
 
   if (instances_[DrawMode::kSegmentation]) {
@@ -177,6 +185,14 @@ void Material::UpdateMaterialInstances() {
     } else {
       auto* fallback = object_mgr_->GetFallbackTexture(mjTEXROLE_EMISSIVE);
       instance->setParameter("Emissive", fallback, sampler);
+    }
+  }
+  if (material->hasParameter("Reflection")) {
+    if (textures_.reflection) {
+      instance->setParameter("Reflection", textures_.reflection, sampler);
+    } else {
+      auto* fallback = object_mgr_->GetFallbackTexture(mjTEXROLE_USER);
+      instance->setParameter("Reflection", fallback, sampler);
     }
   }
 }
