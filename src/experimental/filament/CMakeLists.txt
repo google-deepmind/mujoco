@@ -102,12 +102,16 @@ set(MATERIAL_FILES
     pbr_packed.mat
     phong_2d_fade.mat
     phong_2d.mat
+    phong_2d_reflect.mat
     phong_2d_uv_fade.mat
     phong_2d_uv.mat
+    phong_2d_uv_reflect.mat
     phong_color_fade.mat
     phong_color.mat
+    phong_color_reflect.mat
     phong_cube_fade.mat
     phong_cube.mat
+    phong_cube_reflect.mat
     unlit_depth.mat
     unlit_line.mat
     unlit_segmentation.mat

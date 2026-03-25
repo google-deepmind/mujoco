@@ -89,12 +89,16 @@ ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine,
   materials_[kPbrPacked] = LoadMaterial("pbr_packed.filamat");
   materials_[kPhong2d] = LoadMaterial("phong_2d.filamat");
   materials_[kPhong2dFade] = LoadMaterial("phong_2d_fade.filamat");
+  materials_[kPhong2dReflect] = LoadMaterial("phong_2d_reflect.filamat");
   materials_[kPhong2dUv] = LoadMaterial("phong_2d_uv.filamat");
   materials_[kPhong2dUvFade] = LoadMaterial("phong_2d_uv_fade.filamat");
+  materials_[kPhong2dUvReflect] = LoadMaterial("phong_2d_uv_reflect.filamat");
   materials_[kPhongColor] = LoadMaterial("phong_color.filamat");
   materials_[kPhongColorFade] = LoadMaterial("phong_color_fade.filamat");
+  materials_[kPhongColorReflect] = LoadMaterial("phong_color_reflect.filamat");
   materials_[kPhongCube] = LoadMaterial("phong_cube.filamat");
   materials_[kPhongCubeFade] = LoadMaterial("phong_cube_fade.filamat");
+  materials_[kPhongCubeReflect] = LoadMaterial("phong_cube_reflect.filamat");
   materials_[kUnlitSegmentation] = LoadMaterial("unlit_segmentation.filamat");
   materials_[kUnlitLine] = LoadMaterial("unlit_line.filamat");
   materials_[kUnlitDepth] = LoadMaterial("unlit_depth.filamat");

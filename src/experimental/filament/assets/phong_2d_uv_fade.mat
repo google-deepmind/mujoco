@@ -13,7 +13,7 @@
 // limitations under the License.
 
 material {
-    name : phong_2d_uv,
+    name : phong_2d_uv_fade,
     shadingModel : specularGlossiness,
     culling : none,
     flipUV : false,

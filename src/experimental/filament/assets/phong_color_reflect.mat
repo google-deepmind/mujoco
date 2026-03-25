@@ -13,40 +13,31 @@
 // limitations under the License.
 
 material {
-    name : phong_2d_fade,
+    name : phong_color_reflect,
     shadingModel : specularGlossiness,
-    culling : none,
-    flipUV : false,
-    blending: fade,
+    culling: none,
     parameters : [
         { type : float4, name : BaseColorFactor },
         { type : float, name : SpecularFactor },
         { type : float, name : GlossinessFactor },
         { type : float, name : EmissiveFactor },
-        { type : float3, name : UvScale },
-        { type : float3, name : UvOffset },
-        { type : sampler2d, name : BaseColor }
-    ],
-    variables : [
-         vertex_pos
+        { type : float, name : Reflectance },
+        { type : sampler2d, name : Reflection }
     ]
-}
-
-vertex {
-  void materialVertex(inout MaterialVertexInputs material) {
-    material.vertex_pos = getPosition();
-  }
 }
 
 fragment {
   void material(inout MaterialInputs material) {
-    vec2 uv = variable_vertex_pos.xy * materialParams.UvScale.xy + materialParams.UvOffset.xy;
+    vec2 screen_uv = gl_FragCoord.xy * getResolution().zw;
 
     prepareMaterial(material);
     material.baseColor     = materialParams.BaseColorFactor;
-    material.baseColor     *= texture(materialParams_BaseColor, uv);
     material.specularColor = vec3(materialParams.SpecularFactor);
     material.glossiness    = materialParams.GlossinessFactor;
     material.emissive      = vec4(materialParams.EmissiveFactor);
+
+    // Apply reflection.
+    vec4 reflection = texture(materialParams_Reflection, screen_uv);
+    material.baseColor.rgb = mix(material.baseColor.rgb, reflection.rgb, materialParams.Reflectance);
   }
 }
