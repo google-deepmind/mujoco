@@ -97,8 +97,8 @@ typedef int (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
 struct mjpEncoder {
   const char* content_type;
   const char* extension;
-  mjfEncode encode;
-  mjfCloseResource close_resource;
+  mjfEncode encode;  //  Function to encode an mjSpec and mjModel to a mjResource.
+  mjfCloseResource close_resource;  // Function to close/free the resource.
 };
 typedef struct mjpEncoder mjpEncoder;
 
