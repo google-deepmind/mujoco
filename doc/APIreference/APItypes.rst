@@ -1580,6 +1580,29 @@ used for opening and reading resources.
 
 .. mujoco-include:: mjpResourceProvider
 
+.. _mjpDecoder:
+
+mjpDecoder
+~~~~~~~~~~~~~~~~~~~
+
+This data structure defines a decoder. It contains a set of callbacks used for decoding :ref:`mjResource`
+into :ref:`mjSpec`.
+
+.. mujoco-include:: mjpDecoder
+
+.. _mjpEncoder:
+
+mjpEncoder
+~~~~~~~~~~~~~~~~~~~
+
+This data structure defines an encoder. It contains a set of callbacks used for encoding of :ref:`mjSpec` and
+:ref:`mjModel` into :ref:`mjResource`.
+
+.. mujoco-include:: mjpEncoder
+
+
+
+
 .. _tyFunction:
 
 Function types
@@ -1756,6 +1779,48 @@ mjfResourceModified
 This callback is for checking if a resource was modified since it was last read.
 Returns positive value if the resource was modified since last open, 0 if resource was not modified,
 and negative value if inconclusive.
+
+.. _mjfDecode:
+
+mjfDecode
+~~~~~~~~~
+
+.. code-block:: C
+
+   typedef mjSpec* (*mjfDecode)(mjResource* resource, const mjVFS* vfs);
+
+
+This callback is given an opened resource, and is responsible for decoding it into a :ref:`mjSpec`.
+Ownership of the resource and the returned spec is responsibility of the caller.
+When decoding fails, the callback should return NULL.
+
+.. _mjfCanDecode:
+
+mjfCanDecode
+~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef int (*mjfCanDecode)(const mjResource* resource);
+
+
+This callback is given an opened resource, and is responsible for returning true if the resource can
+be decoded by the :ref:`mjpDecoder<mjpDecoder>`.
+
+.. _mjfEncode:
+
+mjfEncode
+~~~~~~~~~
+
+.. code-block:: C
+
+   typedef int (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
+                            mjResource* resource);
+
+
+This callback populates the :ref:`mjResource<mjResource>` `data` member with bytes representing the
+given spec in the format associated with the owning plugin. This may be called with the associated
+compiled :ref:`mjModel`.
 
 
 .. _tyNotes:

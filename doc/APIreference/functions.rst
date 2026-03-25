@@ -59,6 +59,19 @@ Parse spec from a file.
 
 *Nullable:* ``vfs``, ``error``
 
+.. _mj_encode:
+
+`mj_encode <#mj_encode>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_encode
+
+Encode spec/model to a file using a registered encoder.
+
+Returns the number of bytes written on success, -1 on failure.
+
+*Nullable:* ``m``, ``vfs``, ``error``
+
 .. _mj_compile:
 
 `mj_compile <#mj_compile>`__
@@ -3252,6 +3265,39 @@ Set default resource decoder definition.
 .. mujoco-include:: mjp_findDecoder
 
 Return the resource provider with the prefix that matches against the resource name.
+
+If no match, return NULL.
+
+.. _mjp_registerEncoder:
+
+`mjp_registerEncoder <#mjp_registerEncoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_registerEncoder
+
+Globally register an encoder. This function is thread-safe.
+
+If an identical mjpEncoder is already registered, this function does nothing.
+
+If a non-identical mjpEncoder with the same name is already registered, an mju_error is raised.
+
+.. _mjp_defaultEncoder:
+
+`mjp_defaultEncoder <#mjp_defaultEncoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_defaultEncoder
+
+Set default resource encoder definition.
+
+.. _mjp_findEncoder:
+
+`mjp_findEncoder <#mjp_findEncoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_findEncoder
+
+Return the encoder that matches against the content type or filename extension.
 
 If no match, return NULL.
 

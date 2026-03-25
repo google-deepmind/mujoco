@@ -1686,6 +1686,13 @@ struct mjpDecoder {
   // for cleaning it up
 };
 typedef struct mjpDecoder mjpDecoder;
+struct mjpEncoder {
+  const char* content_type;
+  const char* extension;
+  mjfEncode encode;
+  mjfCloseResource close_resource;
+};
+typedef struct mjpEncoder mjpEncoder;
 typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,       // actuator forces
   mjPLUGIN_SENSOR   = 1<<1,       // sensor measurements
@@ -3155,6 +3162,9 @@ mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int err
 mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz);
 mjSpec* mj_parse(const char* filename, const char* content_type,
                  const mjVFS* vfs, char* error, int error_sz);
+int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
+              const char* content_type, const mjVFS* vfs, char* error,
+              int error_sz);
 mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 int mj_copyBack(mjSpec* s, const mjModel* m);
 int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
@@ -3591,6 +3601,9 @@ const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 void mjp_registerDecoder(const mjpDecoder* decoder);
 void mjp_defaultDecoder(mjpDecoder* decoder);
 const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
+void mjp_registerEncoder(const mjpEncoder* encoder);
+void mjp_defaultEncoder(mjpEncoder* encoder);
+const mjpEncoder* mjp_findEncoder(const char* filename, const char* content_type);
 mjResource* mju_openResource(const char* dir, const char* name,
                              const mjVFS* vfs, char* error, size_t nerror);
 void mju_closeResource(mjResource* resource);

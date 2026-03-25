@@ -25,6 +25,10 @@ General
   The polynomial order is defined by the new constant :ref:`mjNPOLY<glNumericSizes>`. A future breaking C-API change
   may unify the linear and higher-order coefficients into a single array.
 
+- Introduced :ref:`mjpEncoder`, the counterpart to :ref:`mjpDecoder` for encoding of :ref:`mjSpec` and :ref:`mjModel` into :ref:`mjResource`.
+
+  - Added :ref:`mj_encode`, :ref:`mjp_registerEncoder`, :ref:`mjp_defaultEncoder`, and :ref:`mjp_findEncoder`.
+
 .. admonition:: Breaking API changes
    :class: attention
 

@@ -209,6 +209,7 @@ _OPAQUE_STRUCTS = [
     'mjTask',
     'mjThreadPool',
     'mjpDecoder',
+    'mjpEncoder',
     'mjpResourceProvider',
     'mjsElement',
     'mjString',

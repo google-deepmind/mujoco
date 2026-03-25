@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iterator>
@@ -134,6 +136,57 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
     }
   }
   return spec;
+}
+
+// encode spec/model to file
+int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
+              const char* content_type, const mjVFS* vfs, char* error,
+              int error_sz) {
+  const mjpEncoder* encoder = mjp_findEncoder(filename, content_type);
+  if (!encoder) {
+    if (error) {
+      strncpy(error, "no encoder found", error_sz);
+      error[error_sz - 1] = '\0';
+    }
+    return -1;
+  }
+
+  mjResource resource;
+  memset(&resource, 0, sizeof(resource));
+  resource.name = const_cast<char*>(filename);
+
+  const int nbytes = encoder->encode(s, m, vfs, &resource);
+  if (nbytes < 0 || !resource.data) {
+    if (error) {
+      strncpy(error, "encoder failed", error_sz);
+      error[error_sz - 1] = '\0';
+    }
+    return -1;
+  }
+
+  FILE* fp = fopen(filename, "wb");
+  if (!fp) {
+    std::free(resource.data);
+    if (error) {
+      strncpy(error, "could not open file for writing", error_sz);
+      error[error_sz - 1] = '\0';
+    }
+    return -1;
+  }
+
+  const std::size_t written = fwrite(resource.data, 1, nbytes, fp);
+  fclose(fp);
+  encoder->close_resource(&resource);
+
+  if (static_cast<int>(written) != nbytes) {
+    if (error) {
+      strncpy(error, "failed to write all bytes to file", error_sz);
+      error[error_sz - 1] = '\0';
+    }
+    return -1;
+  }
+
+  return nbytes;
 }
 
 // compile model
