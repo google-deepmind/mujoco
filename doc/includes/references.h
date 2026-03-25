@@ -1689,8 +1689,8 @@ typedef struct mjpDecoder mjpDecoder;
 struct mjpEncoder {
   const char* content_type;
   const char* extension;
-  mjfEncode encode;
-  mjfCloseResource close_resource;
+  mjfEncode encode;  //  Function to encode an mjSpec and mjModel to a mjResource.
+  mjfCloseResource close_resource;  // Function to close/free the resource.
 };
 typedef struct mjpEncoder mjpEncoder;
 typedef enum mjtPluginCapabilityBit_ {
