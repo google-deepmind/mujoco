@@ -17,15 +17,6 @@
 #include <memory>
 
 #include <backend/Platform.h>
-
-#ifdef __linux__
-#include <backend/platforms/PlatformEGL.h>
-#include <backend/platforms/PlatformEGLHeadless.h>  // IWYU pragma: keep
-#include <backend/platforms/PlatformGLX.h>
-#include <backend/platforms/VulkanPlatformLinux.h>
-#include "third_party/filament/libs/bluegl/include/bluegl/BlueGL.h"
-#endif
-
 #include <filament/Engine.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/render_context_filament.h"
@@ -58,21 +49,6 @@ static filament::Engine::Backend ResolveBackend(int graphics_api) {
 FilamentPlatformSetup CreateFilamentPlatform(const mjrFilamentConfig& config) {
   FilamentPlatformSetup setup;
   setup.backend = ResolveBackend(config.graphics_api);
-
-#ifdef __linux__
-  if (setup.backend == filament::Engine::Backend::OPENGL) {
-    if (config.native_window == nullptr) {
-      setup.platform = std::make_unique<filament::backend::PlatformEGLHeadless>();
-      setup.disable_parallel_shader_compile = true;
-    } else {
-      setup.platform = std::make_unique<filament::backend::PlatformGLX>();
-    }
-  } else {
-    setup.platform = std::make_unique<filament::backend::VulkanPlatformLinux>();
-  }
-#endif
   return setup;
 }
-
-
 }  // namespace mujoco
