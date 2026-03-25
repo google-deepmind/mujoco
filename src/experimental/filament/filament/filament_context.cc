@@ -38,6 +38,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/filament_platform_factory.h"
 #include "experimental/filament/filament/gui_view.h"
 #include "experimental/filament/filament/imgui_editor.h"
 #include "experimental/filament/filament/object_manager.h"
@@ -51,31 +52,20 @@ namespace mujoco {
 FilamentContext::FilamentContext(const mjrFilamentConfig* config,
                                  const mjModel* model, mjrContext* con)
     : config_(*config), context_(con), model_(model) {
-#if defined( __EMSCRIPTEN__)
-  filament::Engine::Backend backend = filament::Engine::Backend::OPENGL;
-#else
-  filament::Engine::Backend backend = filament::Engine::Backend::VULKAN;
-#endif
+  FilamentPlatformSetup setup = CreateFilamentPlatform(config_);
+  platform_ = std::move(setup.platform);
 
-  switch (config_.graphics_api) {
-    case mjGFX_DEFAULT:
-      // Use the default based on the platform above.
-      break;
-    case mjGFX_OPENGL:
-      backend = filament::Engine::Backend::OPENGL;
-      break;
-    case mjGFX_VULKAN:
-      backend = filament::Engine::Backend::VULKAN;
-      break;
-    default:
-      mju_error("Unsupported graphics API: %d", config_.graphics_api);
-  }
+  filament::Engine::Builder engine_builder;
+  engine_builder.backend(setup.backend);
+  engine_builder.platform(platform_.get());
+  engine_builder.feature("backend.disable_parallel_shader_compile",
+                         setup.disable_parallel_shader_compile);
+  engine_ = engine_builder.build();
+
+  renderer_ = engine_->createRenderer();
 
   const int width = model_->vis.global.offwidth;
   const int height = model_->vis.global.offheight;
-
-  engine_ = filament::Engine::create(backend);
-  renderer_ = engine_->createRenderer();
   #ifdef __EMSCRIPTEN__
     window_swap_chain_ = engine_->createSwapChain(nullptr);
   #else
