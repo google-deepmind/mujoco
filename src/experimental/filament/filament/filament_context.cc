@@ -77,7 +77,7 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
   #endif
 
   offscreen_swap_chain_ = engine_->createSwapChain(width, height);
-  object_manager_ = std::make_unique<ObjectManager>(model, engine_, config);
+  object_manager_ = std::make_unique<ObjectManager>(model, engine_);
 
   // Set clear options.
   filament::Renderer::ClearOptions opts;

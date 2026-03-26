@@ -64,9 +64,8 @@ struct Asset {
 
 }  // namespace
 
-ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine,
-                             const mjrFilamentConfig* config)
-    : model_(model), engine_(engine), config_(config) {
+ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine)
+    : model_(model), engine_(engine) {
   shapes_[kLine] = CreateLine(engine_, model_);
   shapes_[kBox] = CreateBox(engine_, model_);
   shapes_[kLineBox] = CreateLineBox(engine_, model_);

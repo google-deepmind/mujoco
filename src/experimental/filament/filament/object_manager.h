@@ -34,8 +34,7 @@ namespace mujoco {
 // Creates and owns various filament objects based on the data in a mjrContext.
 class ObjectManager {
  public:
-  ObjectManager(const mjModel* model, filament::Engine* engine,
-                const mjrFilamentConfig* config);
+  ObjectManager(const mjModel* model, filament::Engine* engine);
   ~ObjectManager();
 
   enum MaterialType {
@@ -120,7 +119,6 @@ class ObjectManager {
  private:
   const mjModel* model_ = nullptr;
   filament::Engine* engine_ = nullptr;
-  const mjrFilamentConfig* config_;
 
   std::array<FilamentBuffers, kNumShapes> shapes_;
   std::array<filament::Material*, kNumMaterials> materials_;
