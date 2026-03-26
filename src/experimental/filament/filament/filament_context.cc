@@ -123,12 +123,7 @@ FilamentContext::~FilamentContext() {
   filament::Engine::destroy(engine_);
 }
 
-void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
-                             const mjrContext* con) {
-  if (con != context_) {
-    mju_error("Unexpected context.");
-  }
-
+void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
   // If we're rendering to the window, and the window size has changed, we need
   // to reacquire the swap chain.
   if (scene_swap_chain_target_ == kWindowSwapChain &&
@@ -145,7 +140,7 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
   }
 
   scene_view_->SetViewport(viewport);
-  scene_view_->UpdateScene(con, scene);
+  scene_view_->UpdateScene(scene);
   // Update the UX renderable entity after processing the scene in case there
   // are any elements in the scene which generate UX draw calls (e.g. labels).
   if (gui_view_ && gui_swap_chain_target_ == scene_swap_chain_target_) {

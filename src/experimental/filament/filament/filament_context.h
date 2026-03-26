@@ -39,8 +39,7 @@ class FilamentContext {
                   mjrContext* con);
   ~FilamentContext();
 
-  void Render(const mjrRect& viewport, const mjvScene* scene,
-              const mjrContext* con);
+  void Render(const mjrRect& viewport, const mjvScene* scene);
 
   void SetFrameBuffer(int framebuffer);
 

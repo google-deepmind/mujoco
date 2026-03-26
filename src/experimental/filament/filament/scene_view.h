@@ -64,7 +64,7 @@ class SceneView {
 
   // Updates the Entities in the filament Scene to match the current mjvScene
   // state.
-  void UpdateScene(const mjrContext* context, const mjvScene* scene);
+  void UpdateScene(const mjvScene* scene);
 
   using DrawMode = Material::DrawMode;
 

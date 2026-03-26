@@ -74,7 +74,7 @@ void mjrf_freeContext(mjrContext* con) {
 
 void mjrf_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   CheckFilamentContext();
-  g_filament_context->Render(viewport, scn, con);
+  g_filament_context->Render(viewport, scn);
 }
 
 void mjrf_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {

@@ -431,7 +431,7 @@ void SceneView::PrepareLights() {
   }
 }
 
-void SceneView::UpdateScene(const mjrContext* context, const mjvScene* scene) {
+void SceneView::UpdateScene(const mjvScene* scene) {
   views_[kNormalIndex]->setShadowingEnabled(scene->flags[mjRND_SHADOW]);
 
   mjtNum hpos[3], hfwd[3];
