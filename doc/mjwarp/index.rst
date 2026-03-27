@@ -478,7 +478,7 @@ Key features:
 
 - **Mesh rendering with textures**: BVH-accelerated mesh rendering with full texture support.
 - **Heightfield rendering**: Optimized rendering for heightfields.
-- **Flex rendering**: Render 2D and 3D :ref:`flex<deformable-flex>` objects.
+- **Flex rendering**: Render :ref:`flex<deformable-flex>` objects.
 - **Lighting and shadows**: Dynamic lighting with configurable shadows; domain randomizable: `light_active`,
   `light_type`, `light_castshadow`, `light_xpos`, `light_xdir`.
 - **Heterogeneous multi-camera**: Multiple cameras per world and each camera can have a different resolution
@@ -561,8 +561,6 @@ Notes
 - **Meshes**: Rendering computation scales with mesh complexity, specifically the number of vertices and faces. A
   primitive is expected to have better performance (i.e., higher throughput) compared to a similar-sized
   :ref:`mesh<body-geom-mesh>` or :ref:`heightfield <body-geom-hfield>`.
-- **Flex**: Currently limited to 2D and 3D :ref:`flex<deformable-flex>` objects. Performance is expected to improve as
-  this feature is further developed.
 - **Scaling**: Rendering scales linearly with resolution (total pixel count) and camera count.
 
 .. _mjwFAQ:
