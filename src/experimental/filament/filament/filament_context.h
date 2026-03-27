@@ -35,8 +35,7 @@ namespace mujoco {
 // Manages the filament renderer that is exposed via the mjr functions.
 class FilamentContext {
  public:
-  FilamentContext(const mjrFilamentConfig* config, const mjModel* model,
-                  mjrContext* con);
+  FilamentContext(const mjrFilamentConfig* config, const mjModel* model);
   ~FilamentContext();
 
   void Render(const mjrRect& viewport, const mjvScene* scene);
@@ -71,7 +70,6 @@ class FilamentContext {
   void DestroyRenderTargets();
 
   mjrFilamentConfig config_;
-  mjrContext* context_ = nullptr;
   const mjModel* model_ = nullptr;
 
   filament::Engine* engine_ = nullptr;

@@ -50,8 +50,8 @@
 namespace mujoco {
 
 FilamentContext::FilamentContext(const mjrFilamentConfig* config,
-                                 const mjModel* model, mjrContext* con)
-    : config_(*config), context_(con), model_(model) {
+                                 const mjModel* model)
+    : config_(*config), model_(model) {
   FilamentPlatformSetup setup = CreateFilamentPlatform(config_);
   platform_ = std::move(setup.platform);
 
@@ -86,27 +86,6 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
   opts.clearColor = ReadElement(model_, "filament.clearColor",
                                 filament::math::float4(0, 0, 0, 1));
   renderer_->setClearOptions(opts);
-
-  // Copy parameters from model to context.
-  context_->shadowClip = model_->stat.extent * model_->vis.map.shadowclip;
-  context_->shadowScale = model_->vis.map.shadowscale;
-  context_->offWidth = model_->vis.global.offwidth;
-  context_->offHeight = model_->vis.global.offheight;
-  context_->offSamples = model_->vis.quality.offsamples;
-  context_->fogStart =
-      (float)(model_->stat.extent * model_->vis.map.fogstart);
-  context_->fogEnd = (float)(model_->stat.extent * model_->vis.map.fogend);
-  context_->fogRGBA[0] = model_->vis.rgba.fog[0];
-  context_->fogRGBA[1] = model_->vis.rgba.fog[1];
-  context_->fogRGBA[2] = model_->vis.rgba.fog[2];
-  context_->fogRGBA[3] = model_->vis.rgba.fog[3];
-  context_->lineWidth = model_->vis.global.linewidth;
-  context_->shadowSize = model_->vis.quality.shadowsize;
-  context_->readPixelFormat = 0x1907;  // 0x1907 = GL_RGB;
-  context_->ntexture = model_->ntex;
-  for (int i = 0; i < model_->ntex; ++i) {
-    context_->textureType[i] = model_->tex_type[i];
-  }
 
   scene_view_ = std::make_unique<SceneView>(engine_, object_manager_.get());
   gui_view_ = std::make_unique<GuiView>(engine_, object_manager_.get());

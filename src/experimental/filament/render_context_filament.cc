@@ -49,7 +49,7 @@ void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,
   if (g_filament_context != nullptr) {
     mju_error("Context already exists!");
   }
-  g_filament_context = new mujoco::FilamentContext(config, m, con);
+  g_filament_context = new mujoco::FilamentContext(config, m);
 }
 
 void mjrf_defaultContext(mjrContext* con) {
