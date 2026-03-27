@@ -88,7 +88,8 @@ FilamentContext::~FilamentContext() {
 void FilamentContext::Init(const mjModel* model) {
   object_manager_ = std::make_unique<ObjectManager>(model, engine_);
   scene_view_ = std::make_unique<SceneView>(engine_, object_manager_.get());
-  gui_view_ = std::make_unique<GuiView>(engine_, object_manager_.get());
+  gui_view_ = std::make_unique<GuiView>(
+      engine_, object_manager_->GetMaterial(ObjectManager::kUnlitUi));
 
   // Set clear options.
   filament::Renderer::ClearOptions opts;

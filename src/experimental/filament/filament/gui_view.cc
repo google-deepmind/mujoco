@@ -31,7 +31,6 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/buffer_util.h"
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/vertex_util.h"
 
 namespace mujoco {
@@ -41,8 +40,8 @@ using filament::math::float4;
 static constexpr auto kTriangles =
     filament::RenderableManager::PrimitiveType::TRIANGLES;
 
-GuiView::GuiView(filament::Engine* engine, ObjectManager* object_mgr)
-    : object_mgr_(object_mgr), engine_(engine) {
+GuiView::GuiView(filament::Engine* engine, filament::Material* ui_material)
+    : engine_(engine), material_(ui_material) {
   auto& em = utils::EntityManager::get();
   scene_ = engine_->createScene();
   camera_ = engine_->createCamera(em.create());
@@ -51,8 +50,6 @@ GuiView::GuiView(filament::Engine* engine, ObjectManager* object_mgr)
   view_->setScene(scene_);
   view_->setCamera(camera_);
   view_->setPostProcessingEnabled(false);
-
-  material_ = object_mgr_->GetMaterial(ObjectManager::kUnlitUi);
 }
 
 GuiView::~GuiView() {
@@ -107,8 +104,6 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   const auto texture_format = bpp == 4 ? filament::Texture::Format::RGBA
                                        : filament::Texture::Format::RGB;
 
-  filament::Engine* engine = object_mgr_->GetEngine();
-
   filament::Texture* texture = nullptr;
   if (tex_id == 0) {
     texture = filament::Texture::Builder()
@@ -117,7 +112,7 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
                   .levels(1)
                   .format(internal_format)
                   .sampler(filament::Texture::Sampler::SAMPLER_2D)
-                  .build(*engine);
+                  .build(*engine_);
     tex_id = textures_.size() + 1;
     textures_[tex_id] = texture;
   } else {
@@ -129,19 +124,19 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
 
     if (pixels == nullptr) {
       // A nullptr implies that the user wants to destroy the texture.
-      engine->destroy(texture);
+      engine_->destroy(texture);
       textures_.erase(tex_id);
       return 0;
     } else if (texture->getWidth() != width || texture->getHeight() != height) {
       // Recreate the texture if the dimensions have changed.
-      engine->destroy(texture);
+      engine_->destroy(texture);
       texture = filament::Texture::Builder()
                     .width(width)
                     .height(height)
                     .levels(1)
                     .format(internal_format)
                     .sampler(filament::Texture::Sampler::SAMPLER_2D)
-                    .build(*engine);
+                    .build(*engine_);
       textures_[tex_id] = texture;
     }
   }
@@ -158,12 +153,11 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   filament::Texture::PixelBufferDescriptor pb(bytes, num_bytes, texture_format,
                                               filament::Texture::Type::UBYTE,
                                               callback);
-  texture->setImage(*engine, 0, std::move(pb));
+  texture->setImage(*engine_, 0, std::move(pb));
   return tex_id;
 }
 
 void GuiView::CreateTexture(ImTextureData* data) {
-  filament::Engine* engine = object_mgr_->GetEngine();
   if (data->Format != ImTextureFormat_RGBA32) {
     mju_error("Unsupported texture format.");
   }
@@ -175,7 +169,7 @@ void GuiView::CreateTexture(ImTextureData* data) {
           .levels(1)
           .format(filament::Texture::InternalFormat::RGBA8)
           .sampler(filament::Texture::Sampler::SAMPLER_2D)
-          .build(*engine);
+          .build(*engine_);
 
   const uintptr_t tex_id = textures_.size() + 1;
   textures_[tex_id] = texture;
@@ -194,14 +188,14 @@ void GuiView::UpdateTexture(ImTextureData* data) {
   }
 
   filament::Texture* texture = iter->second;
-  texture->setImage(*object_mgr_->GetEngine(), 0, std::move(pb));
+  texture->setImage(*engine_, 0, std::move(pb));
   data->SetStatus(ImTextureStatus_OK);
 }
 
 void GuiView::DestroyTexture(ImTextureData* data) {
   auto iter = textures_.find(data->TexID);
   if (iter != textures_.end()) {
-    object_mgr_->GetEngine()->destroy(iter->second);
+    engine_->destroy(iter->second);
     textures_.erase(data->TexID);
     data->SetTexID(ImTextureID_Invalid);
     data->SetStatus(ImTextureStatus_Destroyed);

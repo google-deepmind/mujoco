@@ -29,14 +29,13 @@
 #include <filament/View.h>
 #include <mujoco/mjrender.h>
 #include "experimental/filament/filament/buffer_util.h"
-#include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
 // A filament::View that contains a filament::Scene used for rendering the GUI.
 class GuiView {
  public:
-  GuiView(filament::Engine* engine, ObjectManager* object_mgr);
+  GuiView(filament::Engine* engine, filament::Material* ui_material);
   ~GuiView();
 
   // Prepares the UX scene renderable using data from the current ImGui state.
@@ -64,7 +63,6 @@ class GuiView {
   // Clears the filament::Scene of the UX renderable and releases all buffers.
   void ResetRenderable();
 
-  ObjectManager* object_mgr_ = nullptr;
   filament::Engine* engine_ = nullptr;
   filament::Scene* scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
