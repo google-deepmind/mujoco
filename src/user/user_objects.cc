@@ -5265,6 +5265,7 @@ void mjCTexture::LoadKTX(mjResource* resource, std::vector<std::byte>& image,
 
   w = buffer_sz;
   h = 1;
+  nchannel = 1;
   is_srgb = false;
 
   image.resize(buffer_sz);
