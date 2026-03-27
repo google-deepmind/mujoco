@@ -390,7 +390,7 @@ void SceneView::PrepareLights() {
         params.spot_cone_angle = model->light_cutoff[i];
       }
 
-      auto light_obj = std::make_unique<Light>(object_mgr_, params);
+      auto light_obj = std::make_unique<Light>(engine_, params);
 #ifndef __EMSCRIPTEN__
       // TODO(b/458045799): Re-enable when lights work on glinux and chromebook.
       light_obj->AddToScene(scene_);
@@ -408,7 +408,7 @@ void SceneView::PrepareLights() {
     params.type = mjLIGHT_DIRECTIONAL;
     params.castshadow = 0;
     params.intensity = 0;
-    auto light_obj = std::make_unique<Light>(object_mgr_, params);
+    auto light_obj = std::make_unique<Light>(engine_, params);
 #ifndef __EMSCRIPTEN__
     // TODO(b/458045799): Re-enable when lights work on glinux and chromebook.
     light_obj->AddToScene(scene_);
