@@ -49,9 +49,8 @@
 
 namespace mujoco {
 
-FilamentContext::FilamentContext(const mjrFilamentConfig* config,
-                                 const mjModel* model)
-    : config_(*config), model_(model) {
+FilamentContext::FilamentContext(const mjrFilamentConfig* config)
+    : config_(*config) {
   FilamentPlatformSetup setup = CreateFilamentPlatform(config_);
   platform_ = std::move(setup.platform);
 
@@ -63,32 +62,16 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
   engine_ = engine_builder.build();
 
   renderer_ = engine_->createRenderer();
-
-  const int width = model_->vis.global.offwidth;
-  const int height = model_->vis.global.offheight;
   #ifdef __EMSCRIPTEN__
     window_swap_chain_ = engine_->createSwapChain(nullptr);
   #else
   if (config_.native_window) {
     window_swap_chain_ = engine_->createSwapChain(config_.native_window);
   } else {
-    window_swap_chain_ = engine_->createSwapChain(width, height);
+    window_swap_chain_ = engine_->createSwapChain(config_.width, config_.height);
   }
   #endif
-
-  offscreen_swap_chain_ = engine_->createSwapChain(width, height);
-  object_manager_ = std::make_unique<ObjectManager>(model, engine_);
-
-  // Set clear options.
-  filament::Renderer::ClearOptions opts;
-  opts.clear = true;
-  opts.discard = true;
-  opts.clearColor = ReadElement(model_, "filament.clearColor",
-                                filament::math::float4(0, 0, 0, 1));
-  renderer_->setClearOptions(opts);
-
-  scene_view_ = std::make_unique<SceneView>(engine_, object_manager_.get());
-  gui_view_ = std::make_unique<GuiView>(engine_, object_manager_.get());
+  offscreen_swap_chain_ = engine_->createSwapChain(config_.width, config_.height);
 }
 
 FilamentContext::~FilamentContext() {
@@ -100,6 +83,20 @@ FilamentContext::~FilamentContext() {
   engine_->destroy(window_swap_chain_);
   engine_->destroy(offscreen_swap_chain_);
   filament::Engine::destroy(engine_);
+}
+
+void FilamentContext::Init(const mjModel* model) {
+  object_manager_ = std::make_unique<ObjectManager>(model, engine_);
+  scene_view_ = std::make_unique<SceneView>(engine_, object_manager_.get());
+  gui_view_ = std::make_unique<GuiView>(engine_, object_manager_.get());
+
+  // Set clear options.
+  filament::Renderer::ClearOptions opts;
+  opts.clear = true;
+  opts.discard = true;
+  opts.clearColor = ReadElement(model, "filament.clearColor",
+                                filament::math::float4(0, 0, 0, 1));
+  renderer_->setClearOptions(opts);
 }
 
 void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
