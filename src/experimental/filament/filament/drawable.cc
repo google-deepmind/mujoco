@@ -546,6 +546,12 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
       }
     }
   }
+
+  // Apply material multipliers from the model.
+  params.emissive *= object_mgr->GetEmissiveMultiplier();
+  params.specular *= object_mgr->GetSpecularMultiplier();
+  params.glossiness *= object_mgr->GetShininessMultiplier();
+
   material_.UpdateParams(params);
 }
 }  // namespace mujoco

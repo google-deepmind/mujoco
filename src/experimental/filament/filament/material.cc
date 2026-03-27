@@ -88,16 +88,13 @@ void Material::UpdateMaterialInstances() {
                            params_.color);
   }
   if (material->hasParameter("EmissiveFactor")) {
-    const float multiplier = object_mgr_->GetEmissiveMultiplier();
-    instance->setParameter("EmissiveFactor", params_.emissive * multiplier);
+    instance->setParameter("EmissiveFactor", params_.emissive);
   }
   if (material->hasParameter("SpecularFactor")) {
-    const float multiplier = object_mgr_->GetSpecularMultiplier();
-    instance->setParameter("SpecularFactor", params_.specular * multiplier);
+    instance->setParameter("SpecularFactor", params_.specular);
   }
   if (material->hasParameter("GlossinessFactor")) {
-    const float multiplier = object_mgr_->GetShininessMultiplier();
-    instance->setParameter("GlossinessFactor", params_.glossiness * multiplier);
+    instance->setParameter("GlossinessFactor", params_.glossiness);
   }
   if (material->hasParameter("MetallicFactor")) {
     instance->setParameter("MetallicFactor",
