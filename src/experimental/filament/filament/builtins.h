@@ -16,22 +16,21 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_BUILTINS_H_
 
 #include <filament/Engine.h>
-#include <mujoco/mjmodel.h>
 #include "experimental/filament/filament/buffer_util.h"
 
 // Generates buffers for built-in shapes.
 namespace mujoco {
 
-FilamentBuffers CreateLine(filament::Engine* engine, const mjModel* model);
-FilamentBuffers CreateBox(filament::Engine* engine, const mjModel* model);
-FilamentBuffers CreateLineBox(filament::Engine* engine, const mjModel* model);
-FilamentBuffers CreateTriangle(filament::Engine* engine, const mjModel* model);
-FilamentBuffers CreatePlane(filament::Engine* engine, const mjModel* model);
-FilamentBuffers CreateSphere(filament::Engine* engine, const mjModel* model);
-FilamentBuffers CreateTube(filament::Engine* engine, const mjModel* model);
-FilamentBuffers CreateDisk(filament::Engine* engine, const mjModel* model);
-FilamentBuffers CreateDome(filament::Engine* engine, const mjModel* model);
-FilamentBuffers CreateCone(filament::Engine* engine, const mjModel* model);
+FilamentBuffers CreateLine(filament::Engine* engine);
+FilamentBuffers CreatePlane(filament::Engine* engine, int nquad);
+FilamentBuffers CreateTriangle(filament::Engine* engine);
+FilamentBuffers CreateBox(filament::Engine* engine, int nquad);
+FilamentBuffers CreateLineBox(filament::Engine* engine);
+FilamentBuffers CreateSphere(filament::Engine* engine, int nstack, int nslice);
+FilamentBuffers CreateTube(filament::Engine* engine, int nstack, int nslice);
+FilamentBuffers CreateDisk(filament::Engine* engine, int nslice);
+FilamentBuffers CreateDome(filament::Engine* engine, int nstack, int nslice);
+FilamentBuffers CreateCone(filament::Engine* engine, int nstack, int nslice);
 
 }  // namespace mujoco
 

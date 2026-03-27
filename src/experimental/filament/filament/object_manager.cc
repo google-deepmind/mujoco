@@ -66,16 +66,20 @@ struct Asset {
 
 ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine)
     : model_(model), engine_(engine) {
-  shapes_[kLine] = CreateLine(engine_, model_);
-  shapes_[kBox] = CreateBox(engine_, model_);
-  shapes_[kLineBox] = CreateLineBox(engine_, model_);
-  shapes_[kCone] = CreateCone(engine_, model_);
-  shapes_[kDisk] = CreateDisk(engine_, model_);
-  shapes_[kDome] = CreateDome(engine_, model_);
-  shapes_[kTube] = CreateTube(engine_, model_);
-  shapes_[kPlane] = CreatePlane(engine_, model_);
-  shapes_[kSphere] = CreateSphere(engine_, model_);
-  shapes_[kTriangle] = CreateTriangle(engine_, model_);
+  const int nquad = model->vis.quality.numquads;
+  const int nstack = model->vis.quality.numstacks;
+  const int nslice = model->vis.quality.numslices;
+
+  shapes_[kLine] = CreateLine(engine_);
+  shapes_[kBox] = CreateBox(engine_, nquad);
+  shapes_[kLineBox] = CreateLineBox(engine_);
+  shapes_[kCone] = CreateCone(engine_, nstack, nslice);
+  shapes_[kDisk] = CreateDisk(engine_, nslice);
+  shapes_[kDome] = CreateDome(engine_, nstack / 2, nslice);
+  shapes_[kTube] = CreateTube(engine_, nstack, nslice);
+  shapes_[kPlane] = CreatePlane(engine_, nquad);
+  shapes_[kSphere] = CreateSphere(engine_, nstack, nslice);
+  shapes_[kTriangle] = CreateTriangle(engine_);
 
   auto LoadMaterial = [this](std::string_view filename) {
     Asset asset(filename);

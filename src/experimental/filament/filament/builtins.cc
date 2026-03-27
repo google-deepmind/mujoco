@@ -24,8 +24,6 @@
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
-#include <mujoco/mjmodel.h>
-#include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/buffer_util.h"
 #include "experimental/filament/filament/vertex_util.h"
@@ -773,55 +771,44 @@ FilamentBuffers CreateFromBuilder(filament::Engine* engine, const T& builder) {
   return {ib, vb, builder.GetBounds(), T::kPrimitiveType};
 }
 
-FilamentBuffers CreateLine(filament::Engine* engine, const mjModel* model) {
+FilamentBuffers CreateLine(filament::Engine* engine) {
   return CreateFromBuilder(engine, LineBuilder());
 }
 
-FilamentBuffers CreatePlane(filament::Engine* engine, const mjModel* model) {
-  const int num_quads = model->vis.quality.numquads;
-  return CreateFromBuilder(engine, PlaneBuilder(num_quads));
+FilamentBuffers CreatePlane(filament::Engine* engine, int nquad) {
+  return CreateFromBuilder(engine, PlaneBuilder(nquad));
 }
 
-FilamentBuffers CreateTriangle(filament::Engine* engine, const mjModel* model) {
+FilamentBuffers CreateTriangle(filament::Engine* engine) {
   return CreateFromBuilder(engine, TriangleBuilder());
 }
 
-FilamentBuffers CreateBox(filament::Engine* engine, const mjModel* model) {
-  const int num_quads = model->vis.quality.numquads;
-  return CreateFromBuilder(engine, BoxBuilder(num_quads));
+FilamentBuffers CreateBox(filament::Engine* engine, int nquad) {
+  return CreateFromBuilder(engine, BoxBuilder(nquad));
 }
 
-FilamentBuffers CreateLineBox(filament::Engine* engine, const mjModel* model) {
+FilamentBuffers CreateLineBox(filament::Engine* engine) {
   return CreateFromBuilder(engine, LineBoxBuilder());
 }
 
-FilamentBuffers CreateSphere(filament::Engine* engine, const mjModel* model) {
-  const int num_stacks = model->vis.quality.numstacks;
-  const int num_slices = model->vis.quality.numslices;
-  return CreateFromBuilder(engine, SphereBuilder(num_stacks, num_slices));
+FilamentBuffers CreateSphere(filament::Engine* engine, int nstack, int nslice) {
+  return CreateFromBuilder(engine, SphereBuilder(nstack, nslice));
 }
 
-FilamentBuffers CreateTube(filament::Engine* engine, const mjModel* model) {
-  const int num_stacks = model->vis.quality.numstacks;
-  const int num_slices = model->vis.quality.numslices;
-  return CreateFromBuilder(engine, TubeBuilder(num_stacks, num_slices));
+FilamentBuffers CreateTube(filament::Engine* engine, int nstack, int nslice) {
+  return CreateFromBuilder(engine, TubeBuilder(nstack, nslice));
 }
 
-FilamentBuffers CreateDisk(filament::Engine* engine, const mjModel* model) {
-  const int num_slices = model->vis.quality.numslices;
-  return CreateFromBuilder(engine, DiskBuilder(num_slices));
+FilamentBuffers CreateDisk(filament::Engine* engine, int nslice) {
+  return CreateFromBuilder(engine, DiskBuilder(nslice));
 }
 
-FilamentBuffers CreateDome(filament::Engine* engine, const mjModel* model) {
-  const int num_stacks = model->vis.quality.numstacks / 2;
-  const int num_slices = model->vis.quality.numslices;
-  return CreateFromBuilder(engine, DomeBuilder(num_stacks, num_slices));
+FilamentBuffers CreateDome(filament::Engine* engine, int nstack, int nslice) {
+  return CreateFromBuilder(engine, DomeBuilder(nstack, nslice));
 }
 
-FilamentBuffers CreateCone(filament::Engine* engine, const mjModel* model) {
-  const int num_stacks = model->vis.quality.numstacks;
-  const int num_slices = model->vis.quality.numslices;
-  return CreateFromBuilder(engine, ConeBuilder(num_stacks, num_slices));
+FilamentBuffers CreateCone(filament::Engine* engine, int nstack, int nslice) {
+  return CreateFromBuilder(engine, ConeBuilder(nstack, nslice));
 }
 
 }  // namespace mujoco
