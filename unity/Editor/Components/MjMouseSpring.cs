@@ -31,13 +31,17 @@ namespace Mujoco {
 
     private Color _translucentRed = new Color(1, 0, 0, 0.1f);
 
+    /*  Since Unity 6 this leads to errors and warning due to acessing GUI functions.
+     TODO: investigate whether hotcontrol is released automatically on disable, and if not,
+     whether we can release appropriately in OnGUI (e.g. simply checking enabled status?)
+
     public void OnDisable() {
       // If we're still the hot control at this stage, we need to release.
       int uniqueID = GUIUtility.GetControlID(FocusType.Passive);
       if (GUIUtility.hotControl == uniqueID) {
         GUIUtility.hotControl = 0;
       }
-    }
+    }*/
 
     private void SetDragOriginAndDragPlane(Vector3 planeOrigin, Vector3 normal) {
       normal[1] = 0;
