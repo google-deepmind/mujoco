@@ -182,17 +182,39 @@ struct mjSDF_ {
 };
 typedef struct mjSDF_ mjSDF;
 
-#if defined(__has_attribute) && __has_attribute(constructor)
-    #define mjPLUGIN_LIB_INIT                                                                 \
-      static void _mjplugin_init(void) __attribute__((constructor));                          \
-      static void _mjplugin_init(void)
+#if defined(__has_attribute)
+
+  #if __has_attribute(constructor)
+    #define mjPLUGIN_LIB_INIT __attribute__((constructor)) static void _mjplugin_init(void)
+  #endif  // __has_attribute(constructor)
+
 #elif defined(_MSC_VER)
-    #pragma section(".CRT$XCU", read)
-    #define mjPLUGIN_LIB_INIT                                                                 \
-      static void _mjplugin_init(void);                                                       \
-      __pragma(warning(suppress: 4189)) __declspec(allocate(".CRT$XCU")) static void (*_mjplugin_init_ptr)(void) = _mjplugin_init; \
-      static void _mjplugin_init(void)
-#endif
+
+  #ifndef mjDLLMAIN
+    #define mjDLLMAIN DllMain
+  #endif
+
+  #if !defined(mjEXTERNC)
+    #if defined(__cplusplus)
+      #define mjEXTERNC extern "C"
+    #else
+      #define mjEXTERNC
+    #endif  // defined(__cplusplus)
+  #endif  // !defined(mjEXTERNC)
+
+  // NOLINTBEGIN(runtime/int)
+  #define mjPLUGIN_LIB_INIT                                                                 \
+    static void _mjplugin_dllmain(void);                                                    \
+    mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
+      if (reason == 1) {                                                                    \
+        _mjplugin_dllmain();                                                                \
+      }                                                                                     \
+      return 1;                                                                             \
+    }                                                                                       \
+    static void _mjplugin_dllmain(void)
+  // NOLINTEND(runtime/int)
+
+#endif  // defined(_MSC_VER)
 
 // function pointer type for mj_loadAllPluginLibraries callback
 typedef void (*mjfPluginLibraryLoadCallback)(const char* filename, int first, int count);
