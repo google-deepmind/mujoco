@@ -87,7 +87,7 @@ TEST_F(SolverTest, IslandsEquivalent) {
       mjtNum worst_scale = 1.0;
       mjtNum worst_expected = 0;
       mjtNum worst_actual = 0;
-      std::string worst_time = "";
+      mjtNum worst_time = 0;
       int worst_dof = -1;
 
       while (data_noisland->time < .1) {
@@ -112,7 +112,7 @@ TEST_F(SolverTest, IslandsEquivalent) {
             worst_scale = scale;
             worst_expected = data_island->qacc[j];
             worst_actual = data_noisland->qacc[j];
-            worst_time = std::to_string(data_noisland->time);
+            worst_time = data_noisland->time;
             worst_dof = j;
           }
         }
