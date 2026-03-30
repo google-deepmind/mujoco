@@ -379,6 +379,26 @@ Types of data fields returned by contact sensors.
 .. mujoco-include:: mjtConDataField
 
 
+.. _mjtRayDataField:
+
+mjtRayDataField
+~~~~~~~~~~~~~~~
+
+Data fields returned by rangefinder sensors.
+
+.. mujoco-include:: mjtRayDataField
+
+
+.. _mjtCamOutBit:
+
+mjtCamOutBit
+~~~~~~~~~~~~
+
+Camera output type bitflags. These are used in ``m->cam_output``.
+
+.. mujoco-include:: mjtCamOutBit
+
+
 .. _mjtSameFrame:
 
 mjtSameFrame
@@ -399,6 +419,16 @@ Sleep policy associated with a tree. The compiler automatically chooses between 
 can override this choice. Only the user can set the ``INIT`` policy (initialized as asleep).
 
 .. mujoco-include:: mjtSleepPolicy
+
+
+.. _mjtLRMode:
+
+mjtLRMode
+~~~~~~~~~
+
+Mode for actuator length range computation. Used in ``mjLROpt.mode``.
+
+.. mujoco-include:: mjtLRMode
 
 
 .. _mjtFlexSelf:
@@ -779,6 +809,24 @@ Type of orientation specifier.
 
 .. mujoco-include:: mjtOrientation
 
+.. _mjtMeshInertia:
+
+mjtMeshInertia
+~~~~~~~~~~~~~~
+
+Type of mesh inertia computation.
+
+.. mujoco-include:: mjtMeshInertia
+
+.. _mjtMeshBuiltin:
+
+mjtMeshBuiltin
+~~~~~~~~~~~~~~
+
+Type of built-in procedural mesh.
+
+.. mujoco-include:: mjtMeshBuiltin
+
 
 .. _tyPluginEnums:
 
@@ -919,6 +967,24 @@ Options for configuring the automatic :ref:`actuator length-range computation<CL
 
 .. mujoco-include:: mjLROpt
 
+.. _mjCache:
+
+mjCache
+~~~~~~~
+
+Asset cache used by the compiler to avoid repeated slow recompilation. See :ref:`Asset cache<Assetcache>`.
+
+.. mujoco-include:: mjCache
+
+.. _mjtTaskStatus:
+
+mjtTaskStatus
+~~~~~~~~~~~~~
+
+Status values for :ref:`mjTask`.
+
+.. mujoco-include:: mjtTaskStatus
+
 .. _mjTask:
 
 mjTask
@@ -926,6 +992,7 @@ mjTask
 
 This is a representation of a task to be run asynchronously inside of an :ref:`mjThreadPool` . It is created in the
 :ref:`mju_threadPoolEnqueue` method of the :ref:`mjThreadPool`  and is used to join the task at completion.
+The ``status`` field uses values from :ref:`mjtTaskStatus`.
 
 .. mujoco-include:: mjTask
 
@@ -1569,6 +1636,16 @@ This structure contains the definition of a single engine plugin. It mostly cont
 triggered by the compiler and the engine during various phases of the computation pipeline.
 
 .. mujoco-include:: mjpPlugin
+
+.. _mjSDF:
+
+mjSDF
+~~~~~
+
+Data structure used by the :ref:`Signed Distance Functions<Signeddistancefunction>` API for computing distances and
+gradients between SDF geoms.
+
+.. mujoco-include:: mjSDF
 
 .. _mjpResourceProvider:
 

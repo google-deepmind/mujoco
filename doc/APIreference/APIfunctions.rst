@@ -42,6 +42,7 @@ API function can be classified as:
 
 - **Threads, Plugins, Derivatives**
    - :ref:`Derivatives<Derivatives-api>`.
+   - :ref:`Signed Distance Functions<Signeddistancefunction>`.
    - :ref:`Thread<Thread>` |-| -related functions.
    - :ref:`Plugin<Plugins-api>` |-| -related functions.
 
@@ -57,6 +58,7 @@ API function can be classified as:
    - :ref:`Attachment<Attachment>`.
    - :ref:`Tree elements<AddTreeElements>`.
    - :ref:`Non-tree elements<AddNonTreeElements>`.
+   - :ref:`Set actuator parameters<Setactuatorparameters>`.
    - :ref:`Assets<AddAssets>`.
    - :ref:`Find and get utilities<FindAndGetUtilities>`.
    - :ref:`Attribute setters<AttributeSetters>`.

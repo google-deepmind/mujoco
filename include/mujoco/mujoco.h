@@ -1418,7 +1418,7 @@ MJAPI char* mju_strncpy(char *dst, const char *src, int n);
 MJAPI mjtNum mju_sigmoid(mjtNum x);
 
 
-//---------------------------------- Signed Distance Function --------------------------------------
+//---------------------------------- Signed Distance Functions -------------------------------------
 
 // get sdf from geom id
 MJAPI const mjpPlugin* mjc_getSDF(const mjModel* m, int id);
