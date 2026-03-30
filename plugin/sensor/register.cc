@@ -17,7 +17,7 @@
 
 namespace mujoco::plugin::sensor {
 
-mjPLUGIN_LIB_INIT {
+mjPLUGIN_LIB_INIT(sensor) {
   TouchGrid::RegisterPlugin();
 }
 

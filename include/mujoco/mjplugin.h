@@ -182,21 +182,36 @@ struct mjSDF_ {
 };
 typedef struct mjSDF_ mjSDF;
 
-#if defined(__has_attribute) && __has_attribute(constructor)
-    #define mjPLUGIN_LIB_INIT                                                                 \
-      static void _mjplugin_init(void) __attribute__((constructor));                          \
-      static void _mjplugin_init(void)
+#if defined(__GNUC__) || defined(__clang__)
+    // GCC and Clang (including clang-cl)
+    #define mjPLUGIN_LIB_INIT(n) \
+        static void _mj_init_##n(void) __attribute__((constructor)); \
+        static void _mj_init_##n(void)
 #elif defined(_MSC_VER)
+    #define m_STR(x) #x
+    #define m_XSTR(x) m_STR(x)
+
+    // On x86, symbols are decorated with a leading underscore.
+    // On x64, they are not.
+    #ifdef _M_IX86
+        #define LINKER_NAME "__mj_ptr_"
+    #else
+        #define LINKER_NAME "_mj_ptr_"
+    #endif
+
     #pragma section(".CRT$XCU", read)
 
-    #define mjPLUGIN_LIB_INIT \
-      static void __cdecl _mj_init_##__COUNTER__(void); \
-      /* The 'used' attribute for the linker */ \
-      __declspec(allocate(".CRT$XCU")) \
-      static void (__cdecl * _mj_ptr_##__COUNTER__)(void) = _mj_init_##__COUNTER__; \
-      /* This pragma prevents the linker from optimizing this specific pointer away */ \
-      __pragma(comment(linker, "/include:" "_mj_ptr_" #__COUNTER__)) \
-      static void __cdecl _mj_init_##__COUNTER__(void)
+    #define mjPLUGIN_LIB_INIT(n) \
+        static void __cdecl _mj_init_##n(void); \
+        /* We use extern "C" to prevent C++ name mangling */ \
+        extern "C" __declspec(allocate(".CRT$XCU")) \
+        void (__cdecl * _mj_ptr_##n)(void) = _mj_init_##n; \
+        /* Force the linker to include the pointer symbol */ \
+        __pragma(comment(linker, "/include:" LINKER_NAME #n)) \
+        static void __cdecl _mj_init_##n(void)
+
+#else
+    #error "Unknown compiler: Plugin registration not supported."
 #endif
 
 // function pointer type for mj_loadAllPluginLibraries callback
