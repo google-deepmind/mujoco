@@ -188,10 +188,15 @@ typedef struct mjSDF_ mjSDF;
       static void _mjplugin_init(void)
 #elif defined(_MSC_VER)
     #pragma section(".CRT$XCU", read)
-    #define mjPLUGIN_LIB_INIT                                                                 \
-      static void _mjplugin_init(void);                                                       \
-      __pragma(warning(suppress: 4189)) __declspec(allocate(".CRT$XCU")) static void (*_mjplugin_init_ptr)(void) = _mjplugin_init; \
-      static void _mjplugin_init(void)
+
+    #define mjPLUGIN_LIB_INIT \
+      static void __cdecl _mj_init_##__COUNTER__(void); \
+      /* The 'used' attribute for the linker */ \
+      __declspec(allocate(".CRT$XCU")) \
+      static void (__cdecl * _mj_ptr_##__COUNTER__)(void) = _mj_init_##__COUNTER__; \
+      /* This pragma prevents the linker from optimizing this specific pointer away */ \
+      __pragma(comment(linker, "/include:" "_mj_ptr_" #__COUNTER__)) \
+      static void __cdecl _mj_init_##__COUNTER__(void)
 #endif
 
 // function pointer type for mj_loadAllPluginLibraries callback
