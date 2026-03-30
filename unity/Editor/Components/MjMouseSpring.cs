@@ -26,22 +26,18 @@ namespace Mujoco {
   public class MjMouseSpring : Editor {
     private bool _lastShiftKeyState = false;
 
+    private int _controlID = -1;
     private Plane _mouseDragPlane;
     private Vector3 _mouseDragCurrentPoint = Vector3.negativeInfinity;
 
     private Color _translucentRed = new Color(1, 0, 0, 0.1f);
 
-    /*  Since Unity 6 this leads to errors and warning due to acessing GUI functions.
-     TODO: investigate whether hotcontrol is released automatically on disable, and if not,
-     whether we can release appropriately in OnGUI (e.g. simply checking enabled status?)
-
     public void OnDisable() {
       // If we're still the hot control at this stage, we need to release.
-      int uniqueID = GUIUtility.GetControlID(FocusType.Passive);
-      if (GUIUtility.hotControl == uniqueID) {
+      if (GUIUtility.hotControl == _controlID) {
         GUIUtility.hotControl = 0;
       }
-    }*/
+    }
 
     private void SetDragOriginAndDragPlane(Vector3 planeOrigin, Vector3 normal) {
       normal[1] = 0;
@@ -90,6 +86,7 @@ namespace Mujoco {
 
       // Cache the hot control to determine whether we're currently capturing mouse input.
       int uniqueID = GUIUtility.GetControlID(FocusType.Passive);
+      _controlID = uniqueID;
 
       // Mouse spring is active if the control key is held down and the user is dragging the
       // left mouse button, or if we're already in the process of capturing mouse input.
