@@ -301,7 +301,7 @@ def _next_activation(m: Model, d: Data, act_dot: jax.Array) -> jax.Array:
 
   def fn(dyntype, dynprm, act, act_dot, actrange):
     if dyntype == DynType.FILTEREXACT:
-      tau = jp.clip(dynprm[0], a_min=mujoco.mjMINVAL)
+      tau = jp.clip(dynprm[0], min=mujoco.mjMINVAL)
       act = act + act_dot * tau * (1 - jp.exp(-m.opt.timestep / tau))
     else:
       act = act + act_dot * m.opt.timestep
