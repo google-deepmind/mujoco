@@ -62,6 +62,12 @@ setup_emsdk() {
     git clone https://github.com/emscripten-core/emsdk.git
     ./emsdk/emsdk install 4.0.10
     ./emsdk/emsdk activate 4.0.10
+    # Force installing emscripten's typescript dependencies. This is a
+    # workaround for the github update to a newer typescript, which gives an
+    # error on the deprecated `--outFile` flag.
+    pushd emsdk/upstream/emscripten
+    npm i
+    popd
 }
 
 
