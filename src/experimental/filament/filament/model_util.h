@@ -17,6 +17,7 @@
 
 #include <string_view>
 
+#include <filament/Box.h>
 #include <filament/Engine.h>
 #include <filament/IndexBuffer.h>
 #include <filament/Texture.h>
@@ -45,7 +46,8 @@ enum class TextureType {
 // Generates a filament VertexBuffer for a given mesh in the mjModel.
 filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
                                            const mjModel* model, int id,
-                                           MeshType mesh_type);
+                                           MeshType mesh_type,
+                                           filament::Box* bounds);
 
 // Generates a filament IndexBuffer for a given mesh in the mjModel.
 filament::IndexBuffer* CreateIndexBuffer(filament::Engine* engine,
