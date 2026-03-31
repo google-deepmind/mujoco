@@ -46,6 +46,7 @@
 #include "experimental/filament/filament/gui_view.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/math_util.h"
+#include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/render_target_util.h"
@@ -113,37 +114,38 @@ static void SetupReflectionCamera(const mat4& surface_xform,
   reflection_camera->setCustomProjection(oblique, near, far);
 }
 
-SceneView::SceneView(filament::Engine* engine, ObjectManager* object_mgr)
-    : object_mgr_(object_mgr), engine_(engine) {
-  scene_ = engine_->createScene();
-  camera_ = engine_->createCamera(utils::EntityManager::get().create());
-  reflect_camera_ = engine_->createCamera(utils::EntityManager::get().create());
+SceneView::SceneView(ObjectManager* object_mgr, const mjModel* model)
+    : object_mgr_(object_mgr) {
+  filament::Engine* engine = object_mgr_->GetEngine();
+  model_objects_ = std::make_unique<ModelObjects>(model, engine);
+
+  scene_ = engine->createScene();
+  camera_ = engine->createCamera(utils::EntityManager::get().create());
+  reflect_camera_ = engine->createCamera(utils::EntityManager::get().create());
 
   for (auto& view : views_) {
-    view = engine_->createView();
+    view = engine->createView();
     view->setScene(scene_);
     view->setCamera(camera_);
   }
 
-  reflect_view_ = engine_->createView();
+  reflect_view_ = engine->createView();
   reflect_view_->setScene(scene_);
   reflect_view_->setCamera(reflect_camera_);
   reflect_view_->setShadowingEnabled(false);
   reflect_view_->setPostProcessingEnabled(false);
 
-  const mjModel* m = object_mgr_->GetModel();
-
   // Configure options for the normal view.
   auto& cg = color_grading_options_;
-  cg.exposure = ReadElement(m, "filament.out.exposure", cg.exposure);
-  cg.contrast = ReadElement(m, "filament.out.contrast", cg.contrast);
-  cg.vibrance = ReadElement(m, "filament.out.vibrance", cg.vibrance);
-  cg.saturation = ReadElement(m, "filament.out.saturation", cg.saturation);
-  cg.temperature = ReadElement(m, "filament.out.temperature", cg.temperature);
-  cg.tint = ReadElement(m, "filament.out.tint", cg.tint);
+  cg.exposure = ReadElement(model, "filament.out.exposure", cg.exposure);
+  cg.contrast = ReadElement(model, "filament.out.contrast", cg.contrast);
+  cg.vibrance = ReadElement(model, "filament.out.vibrance", cg.vibrance);
+  cg.saturation = ReadElement(model, "filament.out.saturation", cg.saturation);
+  cg.temperature = ReadElement(model, "filament.out.temperature", cg.temperature);
+  cg.tint = ReadElement(model, "filament.out.tint", cg.tint);
 
   auto tone_mapping =
-      ReadElement<std::string_view>(m, "filament.out.tone_mapping");
+      ReadElement<std::string_view>(model, "filament.out.tone_mapping");
   if (tone_mapping == "aces") {
     cg.tone_mapper = ToneMapperType::kACES;
   } else if (tone_mapping == "aces_legacy") {
@@ -158,9 +160,9 @@ SceneView::SceneView(filament::Engine* engine, ObjectManager* object_mgr)
   SetColorGradingOptions(cg);
 
   auto ao = views_[kNormalIndex]->getAmbientOcclusionOptions();
-  ao.enabled = ReadElement(m, "filament.ao.enabled", true);
-  ao.bentNormals = ReadElement(m, "filament.ao.bent_normals", false);
-  ao.ssct.enabled = ReadElement(m, "filament.ao.ssct", ao.ssct.enabled);
+  ao.enabled = ReadElement(model, "filament.ao.enabled", true);
+  ao.bentNormals = ReadElement(model, "filament.ao.bent_normals", false);
+  ao.ssct.enabled = ReadElement(model, "filament.ao.ssct", ao.ssct.enabled);
   ao.quality = filament::QualityLevel::ULTRA;
   ao.lowPassFilter = filament::QualityLevel::ULTRA;
   ao.upsampling = filament::QualityLevel::ULTRA;
@@ -168,16 +170,16 @@ SceneView::SceneView(filament::Engine* engine, ObjectManager* object_mgr)
   views_[kNormalIndex]->setAmbientOcclusionOptions(ao);
 
   auto msaa = views_[kNormalIndex]->getMultiSampleAntiAliasingOptions();
-  msaa.enabled = ReadElement(m, "filament.msaa.enabled", true);
+  msaa.enabled = ReadElement(model, "filament.msaa.enabled", true);
   views_[kNormalIndex]->setMultiSampleAntiAliasingOptions(msaa);
 
   default_shadow_map_size_ = ReadElement(
-      m, "filament.shadows.map_size", default_shadow_map_size_);
+      model, "filament.shadows.map_size", default_shadow_map_size_);
   default_vsm_blur_width_ = ReadElement(
-      m, "filament.shadows.vsm_blur_width", default_vsm_blur_width_);
+      model, "filament.shadows.vsm_blur_width", default_vsm_blur_width_);
 
   auto shadow_type = views_[kNormalIndex]->getShadowType();
-  shadow_type = ReadElement(m, "filament.shadows.type", shadow_type);
+  shadow_type = ReadElement(model, "filament.shadows.type", shadow_type);
   views_[kNormalIndex]->setShadowType(shadow_type);
 
   // Disable post processing for the depth and segmentation views to preserve
@@ -190,44 +192,44 @@ SceneView::SceneView(filament::Engine* engine, ObjectManager* object_mgr)
   auto& tm = engine->getTransformManager();
   tm.create(fog);
   auto rotation_axis = ReadElement(
-      m, "filament.fog.rotation_axis", float3{-1, 0, 0});
+      model, "filament.fog.rotation_axis", float3{-1, 0, 0});
   tm.setTransform(tm.getInstance(fog),
                   mat4::rotation(filament::math::f::PI / 2, rotation_axis));
 
   auto fog_opts = views_[kNormalIndex]->getFogOptions();
-  fog_opts.enabled = ReadElement(m, "filament.fog.enabled", fog_opts.enabled);
-  fog_opts.color = ReadElement(m, "filament.fog.color", fog_opts.color);
+  fog_opts.enabled =
+      ReadElement(model, "filament.fog.enabled", fog_opts.enabled);
+  fog_opts.color = ReadElement(model, "filament.fog.color", fog_opts.color);
   fog_opts.distance = ReadElement(
-      m, "filament.fog.distance", fog_opts.distance);
+      model, "filament.fog.distance", fog_opts.distance);
   fog_opts.density = ReadElement(
-      m, "filament.fog.density", fog_opts.density);
+      model, "filament.fog.density", fog_opts.density);
   fog_opts.cutOffDistance = ReadElement(
-      m, "filament.fog.cutOffDistance", fog_opts.cutOffDistance);
+      model, "filament.fog.cutOffDistance", fog_opts.cutOffDistance);
   fog_opts.maximumOpacity = ReadElement(
-      m, "filament.fog.maximumOpacity", fog_opts.maximumOpacity);
-  fog_opts.height = ReadElement(m, "filament.fog.height", fog_opts.height);
+      model, "filament.fog.maximumOpacity", fog_opts.maximumOpacity);
+  fog_opts.height = ReadElement(model, "filament.fog.height", fog_opts.height);
   fog_opts.heightFalloff = ReadElement(
-      m, "filament.fog.heightFalloff", fog_opts.heightFalloff);
+      model, "filament.fog.heightFalloff", fog_opts.heightFalloff);
   fog_opts.inScatteringStart = ReadElement(
-      m, "filament.fog.inScatteringStart", fog_opts.inScatteringStart);
+      model, "filament.fog.inScatteringStart", fog_opts.inScatteringStart);
   fog_opts.inScatteringSize = ReadElement(
-      m, "filament.fog.inScatteringSize", fog_opts.inScatteringSize);
+      model, "filament.fog.inScatteringSize", fog_opts.inScatteringSize);
   views_[kNormalIndex]->setFogOptions(fog_opts);
 
   fallback_head_light_intensity_ =
-      ReadElement(m, "filament.fallback.head_light_intensity",
+      ReadElement(model, "filament.fallback.head_light_intensity",
                   fallback_head_light_intensity_);
   fallback_scene_light_intensity_ =
-      ReadElement(m, "filament.fallback.scene_light_intensity",
+      ReadElement(model, "filament.fallback.scene_light_intensity",
                   fallback_scene_light_intensity_);
   fallback_environment_light_intensity_ =
-      ReadElement(m, "filament.fallback.environment_light_intensity",
+      ReadElement(model, "filament.fallback.environment_light_intensity",
                   fallback_environment_light_intensity_);
 
   // Create an empty/black indirect light to ensure that the skybox is oriented
   // to respect mujoco's Z-up convention.
-  scene_->setIndirectLight(
-      object_mgr_->CreateIndirectLight(nullptr, nullptr, 100000));
+  scene_->setIndirectLight(model_objects_->CreateIndirectLight(-1, 100000));
 
   PrepareLights();
 }
@@ -237,15 +239,16 @@ SceneView::~SceneView() {
   drawables_.clear();
   reflect_targets_.clear();
 
-  engine_->destroyCameraComponent(reflect_camera_->getEntity());
-  engine_->destroy(reflect_view_);
+  filament::Engine* engine = object_mgr_->GetEngine();
+  engine->destroyCameraComponent(reflect_camera_->getEntity());
+  engine->destroy(reflect_view_);
 
-  engine_->destroyCameraComponent(camera_->getEntity());
-  engine_->destroy(views_[kNormalIndex]->getColorGrading());
+  engine->destroyCameraComponent(camera_->getEntity());
+  engine->destroy(views_[kNormalIndex]->getColorGrading());
   for (auto& view : views_) {
-    engine_->destroy(view);
+    engine->destroy(view);
   }
-  engine_->destroy(scene_);
+  engine->destroy(scene_);
 }
 
 void SceneView::Render(filament::Renderer* renderer, DrawMode draw_mode,
@@ -304,22 +307,23 @@ void SceneView::SetViewport(mjrRect viewport) {
 }
 
 void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
+  filament::Engine* engine = object_mgr_->GetEngine();
+
   auto tone_mapper = CreateToneMapper(opts.tone_mapper);
   auto color_grading = ToBuilder(color_grading_options_)
                            .toneMapper(tone_mapper.get())
-                           .build(*engine_);
+                           .build(*engine);
   views_[kNormalIndex]->setColorGrading(color_grading);
-  engine_->destroy(color_grading_);
+  engine->destroy(color_grading_);
   color_grading_ = color_grading;
   color_grading_options_ = opts;
 }
 
 void SceneView::SetEnvironmentLight(std::string_view filename,
                                     float intensity) {
-  auto* ibl = object_mgr_->LoadFallbackIndirectLight(filename, intensity);
-  if (ibl) {
-    scene_->setIndirectLight(ibl);
-  }
+  scene_->setIndirectLight(nullptr);
+  object_mgr_->LoadFallbackIndirectLight(filename, intensity);
+  scene_->setIndirectLight(object_mgr_->GetFallbackIndirectLight());
 }
 
 void SceneView::SetFallbackEnvironmentLight(float intensity) {
@@ -357,8 +361,9 @@ std::optional<float3> SceneView::ClipFromWorld(const float3& pos) const{
 }
 
 void SceneView::PrepareLights() {
-  const mjModel* model = object_mgr_->GetModel();
-  filament::Skybox* skybox = object_mgr_->CreateSkybox();
+  filament::Engine* engine = object_mgr_->GetEngine();
+  const mjModel* model = model_objects_->GetModel();
+  filament::Skybox* skybox = model_objects_->CreateSkybox();
   if (skybox) {
     scene_->setSkybox(skybox);
   }
@@ -369,7 +374,7 @@ void SceneView::PrepareLights() {
     total_light_intensity += model->light_intensity[i];
 
     if (model->light_type[i] == mjLIGHT_IMAGE) {
-      auto* indirect_light = object_mgr_->CreateIndirectLight(
+      auto* indirect_light = model_objects_->CreateIndirectLight(
           model->light_texid[i], model->light_intensity[i]);
       if (indirect_light) {
         scene_->setIndirectLight(indirect_light);
@@ -390,7 +395,7 @@ void SceneView::PrepareLights() {
         params.spot_cone_angle = model->light_cutoff[i];
       }
 
-      auto light_obj = std::make_unique<Light>(engine_, params);
+      auto light_obj = std::make_unique<Light>(engine, params);
 #ifndef __EMSCRIPTEN__
       // TODO(b/458045799): Re-enable when lights work on glinux and chromebook.
       light_obj->AddToScene(scene_);
@@ -408,7 +413,7 @@ void SceneView::PrepareLights() {
     params.type = mjLIGHT_DIRECTIONAL;
     params.castshadow = 0;
     params.intensity = 0;
-    auto light_obj = std::make_unique<Light>(engine_, params);
+    auto light_obj = std::make_unique<Light>(engine, params);
 #ifndef __EMSCRIPTEN__
     // TODO(b/458045799): Re-enable when lights work on glinux and chromebook.
     light_obj->AddToScene(scene_);
@@ -456,9 +461,10 @@ void SceneView::UpdateScene(const mjvScene* scene) {
       }
     }
 
-    auto drawable = std::make_unique<Drawable>(object_mgr_, *geom);
+    auto drawable =
+        std::make_unique<Drawable>(object_mgr_, model_objects_.get(), *geom);
     drawable->AddToScene(scene_);
-    drawable->Update(object_mgr_->GetModel(), scene, *geom);
+    drawable->Update(model_objects_->GetModel(), scene, *geom);
     if (drawable->IsReflective()) {
       AddReflectiveDrawable(drawable.get());
     }
@@ -507,9 +513,10 @@ void SceneView::AddReflectiveDrawable(Drawable* drawable) {
 
   // Ensure we have the same number of render targets as we do reflective
   // drawables.
+  filament::Engine* engine = object_mgr_->GetEngine();
   while (reflect_targets_.size() < reflectives_.size()) {
     reflect_targets_.push_back(std::make_unique<RenderTargetAndTextures>(
-        engine_, kRenderTargetReflectionColor, kRenderTargetDepth));
+        engine, kRenderTargetReflectionColor, kRenderTargetDepth));
   }
 
   // Prepare a render target for the reflective drawable.
@@ -519,7 +526,21 @@ void SceneView::AddReflectiveDrawable(Drawable* drawable) {
   drawable->UpdateReflectionTexture(target->GetColorTexture());
 }
 
-filament::Engine* SceneView::GetEngine() const { return engine_; }
+void SceneView::UploadMesh(const mjModel* model, int id) {
+  model_objects_->UploadMesh(model, id);
+}
+
+void SceneView::UploadTexture(const mjModel* model, int id) {
+  model_objects_->UploadTexture(model, id);
+}
+
+void SceneView::UploadHeightField(const mjModel* model, int id) {
+  model_objects_->UploadHeightField(model, id);
+}
+
+filament::Engine* SceneView::GetEngine() const {
+  return object_mgr_->GetEngine();
+}
 
 filament::View* SceneView::GetDefaultRenderView() {
   return views_[kNormalIndex];

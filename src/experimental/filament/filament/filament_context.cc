@@ -41,10 +41,10 @@
 #include "experimental/filament/filament/filament_platform_factory.h"
 #include "experimental/filament/filament/gui_view.h"
 #include "experimental/filament/filament/imgui_editor.h"
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/model_util.h"
-#include "experimental/filament/filament/scene_view.h"
+#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/render_target_util.h"
+#include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -72,6 +72,8 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config)
   }
   #endif
   offscreen_swap_chain_ = engine_->createSwapChain(config_.width, config_.height);
+
+  object_manager_ = std::make_unique<ObjectManager>(engine_);
 }
 
 FilamentContext::~FilamentContext() {
@@ -86,8 +88,7 @@ FilamentContext::~FilamentContext() {
 }
 
 void FilamentContext::Init(const mjModel* model) {
-  object_manager_ = std::make_unique<ObjectManager>(model, engine_);
-  scene_view_ = std::make_unique<SceneView>(engine_, object_manager_.get());
+  scene_view_ = std::make_unique<SceneView>(object_manager_.get(), model);
   gui_view_ = std::make_unique<GuiView>(
       engine_, object_manager_->GetMaterial(ObjectManager::kUnlitUi));
 
@@ -270,15 +271,24 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 }
 
 void FilamentContext::UploadMesh(const mjModel* model, int id) {
-  object_manager_->UploadMesh(model, id);
+  if (!scene_view_) {
+    mju_error("SceneView is not initialized.");
+  }
+  scene_view_->UploadMesh(model, id);
 }
 
 void FilamentContext::UploadTexture(const mjModel* model, int id) {
-  object_manager_->UploadTexture(model, id);
+  if (!scene_view_) {
+    mju_error("SceneView is not initialized.");
+  }
+  scene_view_->UploadTexture(model, id);
 }
 
 void FilamentContext::UploadHeightField(const mjModel* model, int id) {
-  object_manager_->UploadHeightField(model, id);
+  if (!scene_view_) {
+    mju_error("SceneView is not initialized.");
+  }
+  scene_view_->UploadHeightField(model, id);
 }
 
 uintptr_t FilamentContext::UploadGuiImage(uintptr_t tex_id,

@@ -31,10 +31,12 @@
 #include <math/vec3.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
 #include "experimental/filament/filament/drawable.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/render_target_util.h"
 
@@ -47,7 +49,7 @@ namespace mujoco {
 // different rendering modes (e.g. normal, depth, segmentation, etc.)
 class SceneView {
  public:
-  SceneView(filament::Engine* engine, ObjectManager* object_mgr);
+  SceneView(ObjectManager* object_mgr, const mjModel* model);
   ~SceneView();
 
   // Updates all views to render into the given viewport.
@@ -70,6 +72,10 @@ class SceneView {
 
   void Render(filament::Renderer* renderer, DrawMode draw_mode,
               filament::RenderTarget* target = nullptr);
+
+  void UploadMesh(const mjModel* model, int id);
+  void UploadTexture(const mjModel* model, int id);
+  void UploadHeightField(const mjModel* model, int id);
 
   // Accessors.
   filament::Engine* GetEngine() const;
@@ -96,12 +102,12 @@ class SceneView {
       const filament::math::float3& pos) const;
 
   ObjectManager* object_mgr_ = nullptr;
-  filament::Engine* engine_ = nullptr;
   filament::Scene* scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;
   std::vector<std::unique_ptr<Light>> lights_;
   std::vector<std::unique_ptr<Drawable>> drawables_;
+  std::unique_ptr<ModelObjects> model_objects_;
   std::array<filament::View*, DrawMode::kNumDrawModes> views_;
   filament::math::mat4 clip_from_world_;
   ColorGradingOptions color_grading_options_;
