@@ -87,7 +87,7 @@ class LineBuilder {
   }
 
   filament::Box GetBounds() const {
-    return {{-0.001, -0.001, 0}, {0.001, 0.001, 1}};
+    return filament::Box().set({-0.001, -0.001, 0}, {0.001, 0.001, 1});
   }
 };
 
@@ -137,7 +137,9 @@ class PlaneBuilder {
     }
   }
 
-  filament::Box GetBounds() const { return {{-1, -1, -0.001}, {1, 1, 0.001}}; }
+  filament::Box GetBounds() const {
+    return filament::Box().set({-1, -1, -0.001}, {1, 1, 0.001});
+  }
 
  private:
   int num_quads_per_axis_;
@@ -174,7 +176,9 @@ class TriangleBuilder {
     ptr[2] = 2;
   }
 
-  filament::Box GetBounds() const { return {{-1, -1, -0.001}, {1, 1, 0.001}}; }
+  filament::Box GetBounds() const {
+    return filament::Box().set({-1, -1, -0.001}, {1, 1, 0.001});
+  }
 
  private:
   float4 orientation_;
@@ -239,7 +243,9 @@ class LineBoxBuilder {
     ptr[23] = 5;
   }
 
-  filament::Box GetBounds() const { return {{-1, -1, -1}, {1, 1, 1}}; }
+  filament::Box GetBounds() const {
+    return filament::Box().set({-1, -1, -1}, {1, 1, 1});
+  }
 };
 
 class BoxBuilder {
@@ -305,7 +311,9 @@ class BoxBuilder {
     }
   }
 
-  filament::Box GetBounds() const { return {{-1, -1, -1}, {1, 1, 1}}; }
+  filament::Box GetBounds() const {
+    return filament::Box().set({-1, -1, -1}, {1, 1, 1});
+  }
 
  private:
   template <typename F>
@@ -378,7 +386,9 @@ class TubeBuilder {
     }
   }
 
-  filament::Box GetBounds() const { return {{-1, -1, -1}, {1, 1, 1}}; }
+  filament::Box GetBounds() const {
+    return filament::Box().set({-1, -1, -1}, {1, 1, 1});
+  }
 
  private:
   int num_stacks_;
@@ -461,7 +471,9 @@ class ConeBuilder {
     }
   }
 
-  filament::Box GetBounds() const { return {{-1, -1, 0}, {1, 1, 1}}; }
+  filament::Box GetBounds() const {
+    return filament::Box().set({-1, -1, 0}, {1, 1, 1});
+  }
 
  private:
   static VertexType MakeVert(float theta, float radius) {
@@ -520,7 +532,9 @@ class DiskBuilder {
     }
   }
 
-  filament::Box GetBounds() const { return {{-1, -1, -0.001}, {1, 1, 0.001}}; }
+  filament::Box GetBounds() const {
+    return filament::Box().set({-1, -1, -0.001}, {1, 1, 0.001});
+  }
 
  private:
   int num_slices_;
@@ -625,7 +639,9 @@ class SphereBuilder {
     }
   }
 
-  filament::Box GetBounds() const { return {{-1, -1, -1}, {1, 1, 1}}; }
+  filament::Box GetBounds() const {
+    return filament::Box().set({-1, -1, -1}, {1, 1, 1});
+  }
 
  private:
   static VertexType MakeVert(float x, float y, float z) {
@@ -726,7 +742,9 @@ class DomeBuilder {
     }
   }
 
-  filament::Box GetBounds() const { return {{-1, -1, 0}, {1, 1, 1}}; }
+  filament::Box GetBounds() const {
+    return filament::Box().set({-1, -1, 0}, {1, 1, 1});
+  }
 
  private:
   static VertexType MakeVert(float x, float y, float z) {

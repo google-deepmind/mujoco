@@ -15,10 +15,12 @@
 #include "experimental/filament/filament/model_util.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 
+#include <filament/Box.h>
 #include <filament/Engine.h>
 #include <filament/IndexBuffer.h>
 #include <filament/Texture.h>
@@ -48,11 +50,20 @@ static bool UseFaceNormal(const float3& face_normal,
   // clang-format on
 }
 
+static void UpdateBounds(const float3& v, float3* vmin, float3* vmax) {
+  vmin->x = std::min(vmin->x, v.x);
+  vmin->y = std::min(vmin->y, v.y);
+  vmin->z = std::min(vmin->z, v.z);
+  vmax->x = std::max(vmax->x, v.x);
+  vmax->y = std::max(vmax->y, v.y);
+  vmax->z = std::max(vmax->z, v.z);
+}
+
 template <typename T>
 static void FillConvexHullBuffer(T* ptr, std::size_t num, const mjModel* model,
-                                int meshid) {
+                                 int meshid, float3* vmin, float3* vmax) {
   const int numvert = model->mesh_graph[model->mesh_graphadr[meshid]];
-  const int numface = model->mesh_graph[model->mesh_graphadr[meshid]+1];
+  const int numface = model->mesh_graph[model->mesh_graphadr[meshid] + 1];
 
   const int vertadr = model->mesh_vertadr[meshid];
   const float* vertices = model->mesh_vert + (3 * vertadr);
@@ -65,12 +76,17 @@ static void FillConvexHullBuffer(T* ptr, std::size_t num, const mjModel* model,
   }
 
   for (int face = 0; face < numface; ++face) {
-    int j = model->mesh_graphadr[meshid] + 2 + 3*numvert + 3*numface + 3*face;
+    int j =
+        model->mesh_graphadr[meshid] + 2 + 3 * numvert + 3 * numface + 3 * face;
 
     const float3 p1 = ReadFloat3(vertices, model->mesh_graph[j + 0]);
     const float3 p2 = ReadFloat3(vertices, model->mesh_graph[j + 1]);
     const float3 p3 = ReadFloat3(vertices, model->mesh_graph[j + 2]);
     const float4 orientation = CalculateOrientation(p1, p2, p3);
+
+    UpdateBounds(p1, vmin, vmax);
+    UpdateBounds(p2, vmin, vmax);
+    UpdateBounds(p3, vmin, vmax);
 
     ptr->position = p1;
     ptr->orientation = orientation;
@@ -97,7 +113,7 @@ static void FillConvexHullBuffer(T* ptr, std::size_t num, const mjModel* model,
 
 template <typename T>
 static void FillMeshBuffer(T* ptr, std::size_t num, const mjModel* model,
-                          int meshid) {
+                           int meshid, float3* vmin, float3* vmax) {
   const int faceadr = model->mesh_faceadr[meshid];
   const int facenum = model->mesh_facenum[meshid];
   if (num != facenum * 3) {
@@ -118,8 +134,12 @@ static void FillMeshBuffer(T* ptr, std::size_t num, const mjModel* model,
     const float3 p1 = ReadFloat3(vertices, model->mesh_face[face + 0]);
     const float3 p2 = ReadFloat3(vertices, model->mesh_face[face + 1]);
     const float3 p3 = ReadFloat3(vertices, model->mesh_face[face + 2]);
-    const float3 face_normal = CalculateNormal(p1, p2, p3);
 
+    UpdateBounds(p1, vmin, vmax);
+    UpdateBounds(p2, vmin, vmax);
+    UpdateBounds(p3, vmin, vmax);
+
+    const float3 face_normal = CalculateNormal(p1, p2, p3);
     const float3 n1 = ReadFloat3(normals, model->mesh_facenormal[face + 0]);
     const float3 n2 = ReadFloat3(normals, model->mesh_facenormal[face + 1]);
     const float3 n3 = ReadFloat3(normals, model->mesh_facenormal[face + 2]);
@@ -160,7 +180,8 @@ static void FillMeshBuffer(T* ptr, std::size_t num, const mjModel* model,
 }
 
 static void FillHeightFieldBuffer(VertexNoUv* ptr, std::size_t num,
-                                  const mjModel* model, int hfieldid) {
+                                  const mjModel* model, int hfieldid,
+                                  float3* vmin, float3* vmax) {
   int count = 0;
   auto append_tri = [&](float3 a, float3 b, float3 c) {
     float4 orientation = CalculateOrientation(a, b, c);
@@ -173,6 +194,10 @@ static void FillHeightFieldBuffer(VertexNoUv* ptr, std::size_t num,
     ptr[count].position = c;
     ptr[count].orientation = orientation;
     ++count;
+
+    UpdateBounds(a, vmin, vmax);
+    UpdateBounds(b, vmin, vmax);
+    UpdateBounds(c, vmin, vmax);
   };
   auto append_quad = [&](float3 a, float3 b, float3 c, float3 d) {
     append_tri(a, b, d);
@@ -186,7 +211,7 @@ static void FillHeightFieldBuffer(VertexNoUv* ptr, std::size_t num,
   const float width = 0.5f * (ncol - 1);
   float sz[4];
   for (int i = 0; i < 4; ++i) {
-    sz[i] = static_cast<float>(model->hfield_size[4 * hfieldid  + i]);
+    sz[i] = static_cast<float>(model->hfield_size[4 * hfieldid + i]);
   }
 
   auto get_pos = [=](int r, int c) {
@@ -254,8 +279,8 @@ static void FillHeightFieldBuffer(VertexNoUv* ptr, std::size_t num,
   }
   // Build the right edge.
   for (int row = 0; row < nrow - 1; ++row) {
-    const float3 a = get_pos(row + 1, ncol-1);
-    const float3 b = get_pos(row, ncol-1);
+    const float3 a = get_pos(row + 1, ncol - 1);
+    const float3 b = get_pos(row, ncol - 1);
     const float3 c = {b.x, b.y, -sz[3]};
     const float3 d = {a.x, a.y, -sz[3]};
     append_quad(a, b, c, d);
@@ -270,8 +295,8 @@ static void FillHeightFieldBuffer(VertexNoUv* ptr, std::size_t num,
   }
   // Build the back edge.
   for (int col = 0; col < ncol - 1; ++col) {
-    const float3 a = get_pos(nrow-1, col + 1);
-    const float3 b = get_pos(nrow-1, col);
+    const float3 a = get_pos(nrow - 1, col + 1);
+    const float3 b = get_pos(nrow - 1, col);
     const float3 c = {b.x, b.y, -sz[3]};
     const float3 d = {a.x, a.y, -sz[3]};
     append_quad(a, b, c, d);
@@ -286,9 +311,7 @@ static void FillHeightFieldBuffer(VertexNoUv* ptr, std::size_t num,
       const float x1 = sz[0] * ((col + 1) / base_width - 1.0f);
       const float y0 = sz[1] * ((row + 0) / base_height - 1.0f);
       const float y1 = sz[1] * ((row + 1) / base_height - 1.0f);
-      append_quad({x0, y0, -sz[3]},
-                  {x0, y1, -sz[3]},
-                  {x1, y1, -sz[3]},
+      append_quad({x0, y0, -sz[3]}, {x0, y1, -sz[3]}, {x1, y1, -sz[3]},
                   {x1, y0, -sz[3]});
     }
   }
@@ -305,7 +328,7 @@ static int CalculateHeightFieldVertexCount(const mjModel* model, int hfieldid) {
   // we need. But, in general...
 
   // We use 4 triangles (i.e. 12 vertices) per quad.
-  const int surface_count = 12 * (nrow-1) * (ncol-1);
+  const int surface_count = 12 * (nrow - 1) * (ncol - 1);
   // We use 1 quad (i.e. 6 vertices) per edge element. We double this because
   // we have two edges per dimension (e.g. left/right and front/back).
   const int edge_count = (12 * (nrow - 1)) + (12 * (ncol - 1));
@@ -322,17 +345,23 @@ template <typename T, typename FillFn>
 static filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
                                                   const mjModel* model, int id,
                                                   int vertex_count,
-                                                  FillFn fill_fn) {
-  return CreateVertexBuffer<T>(
+                                                  FillFn fill_fn,
+                                                  filament::Box* bounds) {
+  float3 vmin = {FLT_MAX, FLT_MAX, FLT_MAX};
+  float3 vmax = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+  filament::VertexBuffer* buffer = CreateVertexBuffer<T>(
       engine, vertex_count, [&](std::byte* buffer, std::size_t num_bytes) {
         auto* ptr = reinterpret_cast<T*>(buffer);
-        fill_fn(ptr, num_bytes / sizeof(T), model, id);
+        fill_fn(ptr, num_bytes / sizeof(T), model, id, &vmin, &vmax);
       });
+  bounds->set(vmin, vmax);
+  return buffer;
 }
 
 filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
                                            const mjModel* model, int id,
-                                           MeshType mesh_type) {
+                                           MeshType mesh_type,
+                                           filament::Box* bounds) {
   if (id < 0) {
     mju_error("Invalid mesh index %d", id);
     return nullptr;
@@ -376,11 +405,13 @@ filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
     switch (mesh_type) {
       case MeshType::kNormal:
         return CreateVertexBuffer<VertexType>(engine, model, id, vertex_count,
-                                              FillMeshBuffer<VertexType>);
+                                              FillMeshBuffer<VertexType>,
+                                              bounds);
         break;
       case MeshType::kConvexHull:
         return CreateVertexBuffer<VertexType>(engine, model, id, vertex_count,
-                                              FillConvexHullBuffer<VertexType>);
+                                              FillConvexHullBuffer<VertexType>,
+                                              bounds);
         break;
       case MeshType::kHeightField:
         mju_error("Height fields do not support UV coordinates.");
@@ -391,15 +422,17 @@ filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
     switch (mesh_type) {
       case MeshType::kNormal:
         return CreateVertexBuffer<VertexType>(engine, model, id, vertex_count,
-                                              FillMeshBuffer<VertexType>);
+                                              FillMeshBuffer<VertexType>,
+                                              bounds);
         break;
       case MeshType::kConvexHull:
         return CreateVertexBuffer<VertexType>(engine, model, id, vertex_count,
-                                              FillConvexHullBuffer<VertexType>);
+                                              FillConvexHullBuffer<VertexType>,
+                                              bounds);
         break;
       case MeshType::kHeightField:
         return CreateVertexBuffer<VertexType>(engine, model, id, vertex_count,
-                                              FillHeightFieldBuffer);
+                                              FillHeightFieldBuffer, bounds);
         break;
     }
   }

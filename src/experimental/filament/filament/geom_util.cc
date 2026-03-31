@@ -14,18 +14,24 @@
 
 #include "experimental/filament/filament/geom_util.h"
 
+#include <cfloat>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <span>
 
 #include <filament/Engine.h>
+#include <filament/IndexBuffer.h>
+#include <filament/VertexBuffer.h>
+#include <math/vec3.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/buffer_util.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/vertex_util.h"
 
 namespace mujoco {
+
+using filament::math::float3;
 
 static std::span<const float> GetPositions(const mjModel* model,
                                            const mjvScene* scene,
@@ -102,11 +108,15 @@ template <typename T>
 static void FillVertices(std::byte* buffer, std::size_t len,
                          std::span<const float> positions,
                          std::span<const float> normals,
-                         std::span<const float> uvs) {
+                         std::span<const float> uvs,
+                         float3* vmin,
+                         float3* vmax) {
   const int num_vertices = len / sizeof(T);
   T* ptr = reinterpret_cast<T*>(buffer);
   for (int i = 0; i < num_vertices; ++i) {
     ptr->position = ReadFloat3(positions.data(), i);
+    *vmin = min(*vmin, ptr->position);
+    *vmax = max(*vmax, ptr->position);
     ptr->orientation = CalculateOrientation(ReadFloat3(normals.data(), i));
     if constexpr (T::kHasUv) {
       ptr->uv.x = uvs[i * 2];
@@ -118,18 +128,21 @@ static void FillVertices(std::byte* buffer, std::size_t len,
 
 static filament::VertexBuffer* BuildVertexBuffer(
     filament::Engine* engine, std::span<const float> positions,
-    std::span<const float> normals, std::span<const float> uvs) {
+    std::span<const float> normals, std::span<const float> uvs, float3* vmin,
+    float3* vmax) {
   const int num_vertices = positions.size() / 3;
   if (uvs.data() != nullptr) {
     using VertexType = VertexWithUv;
     auto fill = [&](std::byte* buffer, std::size_t len) {
-      FillVertices<VertexType>(buffer, len, positions, normals, uvs);
+      FillVertices<VertexType>(buffer, len, positions, normals, uvs, vmin,
+                               vmax);
     };
     return CreateVertexBuffer<VertexType>(engine, num_vertices, fill);
   } else {
     using VertexType = VertexNoUv;
     auto fill = [&](std::byte* buffer, std::size_t len) {
-      FillVertices<VertexType>(buffer, len, positions, normals, uvs);
+      FillVertices<VertexType>(buffer, len, positions, normals, uvs, vmin,
+                               vmax);
     };
     return CreateVertexBuffer<VertexType>(engine, num_vertices, fill);
   }
@@ -163,8 +176,12 @@ FilamentBuffers CreateGeomBuffers(filament::Engine* engine,
   }
 
   FilamentBuffers buffers;
-  buffers.vertex_buffer = BuildVertexBuffer(engine, positions, normals, uvs);
+  float3 vmin = {FLT_MAX, FLT_MAX, FLT_MAX};
+  float3 vmax = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+  buffers.vertex_buffer =
+      BuildVertexBuffer(engine, positions, normals, uvs, &vmin, &vmax);
   buffers.index_buffer = BuildIndexBuffer(engine, indices, num_indices);
+  buffers.bounds.emplace().set(vmin, vmax);
   return buffers;
 }
 

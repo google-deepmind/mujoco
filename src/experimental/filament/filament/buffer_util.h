@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <type_traits>
 #include <backend/BufferDescriptor.h>
 #include <filament/Box.h>
@@ -33,7 +34,7 @@ namespace mujoco {
 struct FilamentBuffers {
   filament::IndexBuffer* index_buffer = nullptr;
   filament::VertexBuffer* vertex_buffer = nullptr;
-  filament::Box bounds = {{-1, -1, -1}, {1, 1, 1}};
+  std::optional<filament::Box> bounds = std::nullopt;
   filament::RenderableManager::PrimitiveType type =
       filament::RenderableManager::PrimitiveType::TRIANGLES;
 };

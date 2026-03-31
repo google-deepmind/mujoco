@@ -105,13 +105,16 @@ utils::Entity Renderables::CreateEntity(const FilamentBuffers& buffers) {
   if (material_instance_) {
     builder.material(0, material_instance_);
   }
-  builder.boundingBox(buffers.bounds)
-      .culling(false)
-      .castShadows(cast_shadows_)
-      .receiveShadows(receive_shadows_)
-      .layerMask(0xff, layer_mask_)
-      .priority(priority_)
-      .screenSpaceContactShadows(true);
+  if (buffers.bounds.has_value()) {
+    builder.boundingBox(buffers.bounds.value());
+  } else {
+    builder.culling(false);
+  }
+  builder.castShadows(cast_shadows_);
+  builder.receiveShadows(receive_shadows_);
+  builder.layerMask(0xff, layer_mask_);
+  builder.priority(priority_);
+  builder.screenSpaceContactShadows(true);;
 
   builder.build(*engine_, entity);
   if (assigned_scene_) {

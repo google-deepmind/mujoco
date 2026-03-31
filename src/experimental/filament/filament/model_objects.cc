@@ -103,15 +103,16 @@ void ModelObjects::UploadMesh(const mjModel* model, int id) {
   }
 
   FilamentBuffers& buffers = meshes_[id];
-  buffers.vertex_buffer =
-      CreateVertexBuffer(engine_, model, id, MeshType::kNormal);
+  buffers.vertex_buffer = CreateVertexBuffer(
+      engine_, model, id, MeshType::kNormal, &buffers.bounds.emplace());
   buffers.index_buffer =
       CreateIndexBuffer(engine_, model, id, MeshType::kNormal);
 
   if (model->mesh_graphadr[id] >= 0) {
     FilamentBuffers& hull_buffers = convex_hulls_[id];
     hull_buffers.vertex_buffer =
-        CreateVertexBuffer(engine_, model, id, MeshType::kConvexHull);
+        CreateVertexBuffer(engine_, model, id, MeshType::kConvexHull,
+                           &hull_buffers.bounds.emplace());
     hull_buffers.index_buffer =
         CreateIndexBuffer(engine_, model, id, MeshType::kConvexHull);
   }
@@ -160,8 +161,8 @@ void ModelObjects::UploadHeightField(const mjModel* model, int id) {
   }
 
   FilamentBuffers& buffers = height_fields_[id];
-  buffers.vertex_buffer =
-      CreateVertexBuffer(engine_, model, id, MeshType::kHeightField);
+  buffers.vertex_buffer = CreateVertexBuffer(
+      engine_, model, id, MeshType::kHeightField, &buffers.bounds.emplace());
   buffers.index_buffer =
       CreateIndexBuffer(engine_, model, id, MeshType::kHeightField);
 }
