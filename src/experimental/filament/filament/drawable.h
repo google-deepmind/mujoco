@@ -23,6 +23,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 #include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderables.h"
 
@@ -31,7 +32,8 @@ namespace mujoco {
 // Manages the filament Entities and MaterialInstances for a single mjvGeom.
 class Drawable {
  public:
-  Drawable(ObjectManager* object_mgr, const mjvGeom& geom);
+  Drawable(ObjectManager* object_mgr, ModelObjects* model_objects,
+           const mjvGeom& geom);
   ~Drawable() noexcept = default;
 
   Drawable(const Drawable&) = delete;
@@ -71,7 +73,7 @@ class Drawable {
  private:
   void AddMesh(int data_id);
   void AddHeightField(int hfield_id);
-  void AddShape(ObjectManager::ShapeType shape_type);
+  void AddShape(ModelObjects::ShapeType shape_type);
 
   // Updates the transform of the drawable for rendering.
   void SetTransform(const mjvGeom& geom);
@@ -81,6 +83,7 @@ class Drawable {
                       bool enable_reflection, const mjtNum* headpos);
 
   Material material_;
+  ModelObjects* model_objs_ = nullptr;
   Renderables renderables_;
   bool reflective_ = false;
   filament::math::mat4 transform_;

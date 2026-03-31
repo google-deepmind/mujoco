@@ -16,25 +16,19 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_OBJECT_MANAGER_H_
 
 #include <array>
-#include <cstdint>
 #include <string_view>
-#include <unordered_map>
-#include <vector>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
 #include <filament/Skybox.h>
-#include <math/vec3.h>
-#include <mujoco/mjmodel.h>
-#include "experimental/filament/filament/buffer_util.h"
-#include "experimental/filament/render_context_filament.h"
+#include <mujoco/mujoco.h>
 
 namespace mujoco {
 
 // Creates and owns various filament objects based on the data in a mjrContext.
 class ObjectManager {
  public:
-  ObjectManager(const mjModel* model, filament::Engine* engine);
+  ObjectManager(filament::Engine* engine);
   ~ObjectManager();
 
   enum MaterialType {
@@ -59,85 +53,34 @@ class ObjectManager {
     kNumMaterials,
   };
 
-  enum ShapeType {
-    kLine,
-    kLineBox,
-    kPlane,
-    kTriangle,
-    kBox,
-    kSphere,
-    kCone,
-    kDisk,
-    kDome,
-    kTube,
-    kNumShapes,
-  };
-
-  using SphericalHarmonics = filament::math::float3[9];
-
-  void UploadMesh(const mjModel* model, int id);
-
-  void UploadTexture(const mjModel* model, int id);
-
-  void UploadHeightField(const mjModel* model, int id);
-
-  // Returns the filament engine used by the ObjectManager to create filament
-  // objects.
+  // Returns the filament Engine that owns the assets.
   filament::Engine* GetEngine() const { return engine_; }
 
+  // Returns the Material of the given type.
   filament::Material* GetMaterial(MaterialType type) const;
 
-  // Returns the cached instance of a filament object created from the mjModel.
-  const FilamentBuffers* GetMeshBuffer(int data_id) const;
-  const FilamentBuffers* GetShapeBuffer(ShapeType shape) const;
-  const FilamentBuffers* GetHeightFieldBuffer(int hfield_id) const;
-  const filament::Texture* GetTexture(int tex_id) const;
-  const filament::Texture* GetTexture(int mat_id, int role) const;
-  const filament::Texture* GetTextureWithFallback(int mat_id, int role) const;
-  const filament::Texture* GetFallbackTexture(int role) const;
+  // Returns the fallback Texture with the given role.
+  const filament::Texture* GetFallbackTexture(mjtTextureRole role) const;
+
+  // Returns the fallback IndirectLight.
   filament::IndirectLight* GetFallbackIndirectLight();
 
-  // Creates and returns a new instance of a filament object. The objects are
-  // owned by the ObjectManager and will be deleted in the destructor.
-  filament::Skybox* CreateSkybox();
-  filament::IndirectLight* CreateIndirectLight(
-      filament::Texture* texture, SphericalHarmonics* spherical_harmonics,
-      float intensity);
-  filament::IndirectLight* CreateIndirectLight(int tex_id, float intensity);
-  filament::IndirectLight* LoadFallbackIndirectLight(std::string_view filename,
-                                                     float intensity);
-
-  float GetSpecularMultiplier() const { return specular_multiplier_; }
-  float GetShininessMultiplier() const { return shininess_multiplier_; }
-  float GetEmissiveMultiplier() const { return emissive_multiplier_; }
-
-  const mjModel* GetModel() const { return model_; }
+  // Loads an indirect light from a file, setting it to the fallback.
+  void LoadFallbackIndirectLight(std::string_view filename, float intensity);
 
   ObjectManager(const ObjectManager&) = delete;
   ObjectManager& operator=(const ObjectManager&) = delete;
 
  private:
-  const mjModel* model_ = nullptr;
   filament::Engine* engine_ = nullptr;
-
-  std::array<FilamentBuffers, kNumShapes> shapes_;
   std::array<filament::Material*, kNumMaterials> materials_;
-  std::vector<filament::Skybox*> skyboxes_;
-  std::vector<filament::IndirectLight*> indirect_lights_;
-  std::unordered_map<int, FilamentBuffers> meshes_;
-  std::unordered_map<int, FilamentBuffers> convex_hulls_;
-  std::unordered_map<int, FilamentBuffers> height_fields_;
-  std::unordered_map<int, filament::Texture*> textures_;
-  std::unordered_map<int, SphericalHarmonics> spherical_harmonics_;
-  std::unordered_map<int, filament::Texture*> fallback_textures_;
+  std::array<filament::Texture*, mjNTEXROLE> fallback_textures_;
   filament::Texture* fallback_white_ = nullptr;
   filament::Texture* fallback_black_ = nullptr;
   filament::Texture* fallback_normal_ = nullptr;
   filament::Texture* fallback_orm_ = nullptr;
+  filament::Texture* fallback_indirect_light_texture_ = nullptr;
   filament::IndirectLight* fallback_indirect_light_ = nullptr;
-  float specular_multiplier_ = 0.2f;
-  float shininess_multiplier_ = 0.1f;
-  float emissive_multiplier_ = 0.3f;
 };
 
 }  // namespace mujoco

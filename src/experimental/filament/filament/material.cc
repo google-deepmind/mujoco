@@ -26,7 +26,7 @@ namespace mujoco {
 
 Material::Material(ObjectManager* object_mgr) : object_mgr_(object_mgr) {
   instances_[kDepth] =
-      object_mgr->GetMaterial(ObjectManager::kUnlitDepth)->createInstance();
+      object_mgr_->GetMaterial(ObjectManager::kUnlitDepth)->createInstance();
   instances_[kSegmentation] =
       object_mgr_->GetMaterial(ObjectManager::kUnlitSegmentation)
           ->createInstance();

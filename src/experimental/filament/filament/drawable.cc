@@ -35,6 +35,7 @@
 #include "experimental/filament/filament/geom_util.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
+#include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
@@ -85,8 +86,11 @@ static bool IsBehind(const mjtNum* headpos, const float* pos, const float* mat) 
           (headpos[2] - pos[2]) * mat[8] < 0.0f);
 }
 
-Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
-    : material_(object_mgr), renderables_(object_mgr->GetEngine()) {
+Drawable::Drawable(ObjectManager* object_mgr, ModelObjects* model_objects,
+                   const mjvGeom& geom)
+    : material_(object_mgr),
+      model_objs_(model_objects),
+      renderables_(object_mgr->GetEngine()) {
   if (geom.category == mjCAT_DECOR) {
     renderables_.SetCastShadows(false);
     renderables_.SetReceiveShadows(false);
@@ -100,53 +104,53 @@ Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
       AddHeightField(geom.dataid);
       break;
     case mjGEOM_PLANE:
-      AddShape(ObjectManager::kPlane);
+      AddShape(ModelObjects::kPlane);
       break;
     case mjGEOM_SPHERE:
-      AddShape(ObjectManager::kSphere);
+      AddShape(ModelObjects::kSphere);
       break;
     case mjGEOM_ELLIPSOID:
-      AddShape(ObjectManager::kSphere);
+      AddShape(ModelObjects::kSphere);
       break;
     case mjGEOM_BOX:
-      AddShape(ObjectManager::kBox);
+      AddShape(ModelObjects::kBox);
       break;
     case mjGEOM_CAPSULE:
-      AddShape(ObjectManager::kTube);
-      AddShape(ObjectManager::kDome);
-      AddShape(ObjectManager::kDome);
+      AddShape(ModelObjects::kTube);
+      AddShape(ModelObjects::kDome);
+      AddShape(ModelObjects::kDome);
       break;
     case mjGEOM_CYLINDER:
-      AddShape(ObjectManager::kTube);
-      AddShape(ObjectManager::kDisk);
-      AddShape(ObjectManager::kDisk);
+      AddShape(ModelObjects::kTube);
+      AddShape(ModelObjects::kDisk);
+      AddShape(ModelObjects::kDisk);
       break;
     case mjGEOM_ARROW:
-      AddShape(ObjectManager::kTube);
-      AddShape(ObjectManager::kCone);
-      AddShape(ObjectManager::kDisk);
+      AddShape(ModelObjects::kTube);
+      AddShape(ModelObjects::kCone);
+      AddShape(ModelObjects::kDisk);
       break;
     case mjGEOM_ARROW1:
-      AddShape(ObjectManager::kTube);
-      AddShape(ObjectManager::kCone);
-      AddShape(ObjectManager::kDisk);
-      AddShape(ObjectManager::kDisk);
+      AddShape(ModelObjects::kTube);
+      AddShape(ModelObjects::kCone);
+      AddShape(ModelObjects::kDisk);
+      AddShape(ModelObjects::kDisk);
       break;
     case mjGEOM_ARROW2:
-      AddShape(ObjectManager::kTube);
-      AddShape(ObjectManager::kCone);
-      AddShape(ObjectManager::kCone);
-      AddShape(ObjectManager::kDisk);
-      AddShape(ObjectManager::kDisk);
+      AddShape(ModelObjects::kTube);
+      AddShape(ModelObjects::kCone);
+      AddShape(ModelObjects::kCone);
+      AddShape(ModelObjects::kDisk);
+      AddShape(ModelObjects::kDisk);
       break;
     case mjGEOM_LINE:
-      AddShape(ObjectManager::kLine);
+      AddShape(ModelObjects::kLine);
       break;
     case mjGEOM_LINEBOX:
-      AddShape(ObjectManager::kLineBox);
+      AddShape(ModelObjects::kLineBox);
       break;
     case mjGEOM_TRIANGLE:
-      AddShape(ObjectManager::kTriangle);
+      AddShape(ModelObjects::kTriangle);
       break;
     case mjGEOM_FLEX:
     case mjGEOM_SKIN:
@@ -187,8 +191,7 @@ void Drawable::Update(const mjModel* model, const mjvScene* scene,
 }
 
 void Drawable::AddMesh(int data_id) {
-  ObjectManager* object_mgr = material_.GetObjectManager();
-  const FilamentBuffers* buffers = object_mgr->GetMeshBuffer(data_id);
+  const FilamentBuffers* buffers = model_objs_->GetMeshBuffer(data_id);
   if (buffers == nullptr) {
     mju_error("Unknown mesh %d", data_id);
   }
@@ -196,17 +199,15 @@ void Drawable::AddMesh(int data_id) {
 }
 
 void Drawable::AddHeightField(int hfield_id) {
-  ObjectManager* object_mgr = material_.GetObjectManager();
-  const FilamentBuffers* buffers = object_mgr->GetHeightFieldBuffer(hfield_id);
+  const FilamentBuffers* buffers = model_objs_->GetHeightFieldBuffer(hfield_id);
   if (buffers == nullptr) {
     mju_error("Unknown height field %d", hfield_id);
   }
   renderables_.Append(*buffers);
 }
 
-void Drawable::AddShape(ObjectManager::ShapeType shape_type) {
-  ObjectManager* object_mgr = material_.GetObjectManager();
-  const FilamentBuffers* buffers = object_mgr->GetShapeBuffer(shape_type);
+void Drawable::AddShape(ModelObjects::ShapeType shape_type) {
+  const FilamentBuffers* buffers = model_objs_->GetShapeBuffer(shape_type);
   if (buffers == nullptr) {
     mju_error("Unknown shape %d", shape_type);
   }
@@ -352,8 +353,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
 
 void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
                               bool enable_reflection, const mjtNum* headpos) {
-  ObjectManager* object_mgr = material_.GetObjectManager();
-  const mjModel* model = object_mgr->GetModel();
+  const mjModel* model = model_objs_->GetModel();
 
   float4 color = ReadFloat4(geom.rgba);
   if (geom.type == mjGEOM_PLANE) {
@@ -370,15 +370,15 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
 
   Material::Textures textures;
   if (geom.matid >= 0) {
-    textures.color = object_mgr->GetTexture(geom.matid, mjTEXROLE_RGB);
-    textures.normal = object_mgr->GetTexture(geom.matid, mjTEXROLE_NORMAL);
-    textures.emissive = object_mgr->GetTexture(geom.matid, mjTEXROLE_EMISSIVE);
-    textures.orm = object_mgr->GetTexture(geom.matid, mjTEXROLE_ORM);
-    textures.metallic = object_mgr->GetTexture(geom.matid, mjTEXROLE_METALLIC);
+    textures.color = model_objs_->GetTexture(geom.matid, mjTEXROLE_RGB);
+    textures.normal = model_objs_->GetTexture(geom.matid, mjTEXROLE_NORMAL);
+    textures.emissive = model_objs_->GetTexture(geom.matid, mjTEXROLE_EMISSIVE);
+    textures.orm = model_objs_->GetTexture(geom.matid, mjTEXROLE_ORM);
+    textures.metallic = model_objs_->GetTexture(geom.matid, mjTEXROLE_METALLIC);
     textures.roughness =
-        object_mgr->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
+        model_objs_->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
     textures.occlusion =
-        object_mgr->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
+        model_objs_->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
     material_.UpdateTextures(textures);
   }
 
@@ -548,9 +548,9 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
   }
 
   // Apply material multipliers from the model.
-  params.emissive *= object_mgr->GetEmissiveMultiplier();
-  params.specular *= object_mgr->GetSpecularMultiplier();
-  params.glossiness *= object_mgr->GetShininessMultiplier();
+  params.emissive *= model_objs_->GetEmissiveMultiplier();
+  params.specular *= model_objs_->GetSpecularMultiplier();
+  params.glossiness *= model_objs_->GetShininessMultiplier();
 
   material_.UpdateParams(params);
 }

@@ -89,10 +89,6 @@ class Material {
     return instances_[mode];
   }
 
-  // Returns the ObjectManager owning the Materials which are used to create
-  // the MaterialInstances.
-  ObjectManager* GetObjectManager() { return object_mgr_; }
-
  private:
   // Updates the material instances based on the currently set parameters and
   // textures.
