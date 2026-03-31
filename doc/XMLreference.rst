@@ -6273,14 +6273,16 @@ applying the adhesive force. In the video above, such inactive contacts are blue
 An adhesion actuator's length is always 0. :at:`ctrlrange` is required and must also be nonnegative (no repulsive forces
 are allowed). The underlying :el:`general` attributes are set as follows:
 
-=========== ======= =========== ========
-Attribute   Setting Attribute   Setting
-=========== ======= =========== ========
-dyntype     none    dynprm      1 0 0
-gaintype    fixed   gainprm     gain 0 0
-biastype    none    biasprm     0 0 0
-trntype     body    ctrllimited true
-=========== ======= =========== ========
+============ ============= =========== ========
+Attribute    Setting       Attribute   Setting
+============ ============= =========== ========
+dyntype      none/filter   dynprm      1 0 0
+gaintype     fixed         gainprm     gain 0 0
+biastype     none          biasprm     0 0 0
+trntype      body          ctrllimited true
+============ ============= =========== ========
+
+If :at:`timeconst` is nonzero, :at:`dyntype` is set to ``filter`` and :at:`dynprm` to ``timeconst 0 0``.
 
 This element has a subset of the common attributes and two custom attributes.
 
@@ -6321,6 +6323,13 @@ This element has a subset of the common attributes and two custom attributes.
    Gain of the adhesion actuator, in units of force. The total adhesion force applied by the actuator is the control
    value multiplied by the gain. This force is distributed equally between all the contacts involving geoms belonging
    to the target body.
+
+.. _actuator-adhesion-timeconst:
+
+:at:`timeconst`: :at-val:`real, "0"`
+   Time constant for a first-order filter dynamics on the actuator activation. If positive, the actuator's
+   :at:`dyntype` is set to ``filter`` and the control signal is low-pass filtered with this time constant. If 0
+   (default), no filter dynamics are applied.
 
 
 .. _actuator-plugin:
@@ -9870,6 +9879,8 @@ refsite, tendon, slidersite, cranksite.
 .. _default-adhesion-forcerange:
 
 .. _default-adhesion-gain:
+
+.. _default-adhesion-timeconst:
 
 .. _default-adhesion-user:
 

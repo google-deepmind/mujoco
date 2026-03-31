@@ -9868,8 +9868,8 @@ int mjs_setName_wrapper(MjsElement& element, const String& name) {
   return mjs_setName(element.get(), name.as<const std::string>().data());
 }
 
-std::string mjs_setToAdhesion_wrapper(MjsActuator& actuator, double gain) {
-  return std::string(mjs_setToAdhesion(actuator.get(), gain));
+std::string mjs_setToAdhesion_wrapper(MjsActuator& actuator, double gain, double timeconst) {
+  return std::string(mjs_setToAdhesion(actuator.get(), gain, timeconst));
 }
 
 std::string mjs_setToCylinder_wrapper(MjsActuator& actuator, double timeconst, double bias, double area, double diameter) {

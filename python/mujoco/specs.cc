@@ -1296,13 +1296,13 @@ PYBIND11_MODULE(_specs, m) {
       py::arg("vmax") = -1, py::arg("fpmax") = -1, py::arg("fvmax") = -1);
   mjsActuator.def(
       "set_to_adhesion",
-      [](raw::MjsActuator* self, double gain) {
-        std::string err = mjs_setToAdhesion(self, gain);
+      [](raw::MjsActuator* self, double gain, double timeconst) {
+        std::string err = mjs_setToAdhesion(self, gain, timeconst);
         if (!err.empty()) {
           throw pybind11::value_error(err);
         }
       },
-      py::arg("gain"));
+      py::arg("gain"), py::arg("timeconst") = 0);
 
   // ============================= MJSTENDONPATH ===============================
   // helper struct for tendon path indexing
