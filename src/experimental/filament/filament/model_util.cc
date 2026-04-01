@@ -486,23 +486,4 @@ filament::IndexBuffer* CreateIndexBuffer(filament::Engine* engine,
                                        FillSequence<uint16_t>);
   }
 }
-
-filament::Texture* CreateTexture(filament::Engine* engine, const mjModel* model,
-                                 int id, TextureType texture_type) {
-  if (id < 0 || id >= model->ntex) {
-    mju_error("Invalid texture index %d", id);
-  }
-
-  const int width = model->tex_width[id];
-  const int height = model->tex_height[id];
-  const bool is_srgb = model->tex_colorspace[id] == mjCOLORSPACE_SRGB;
-  const int num_channels = model->tex_nchannel[id];
-  const mjtByte* data = model->tex_data + model->tex_adr[id];
-  filament::Texture* texture =
-      texture_type == TextureType::kNormal2d
-          ? Create2dTexture(engine, width, height, num_channels, data, is_srgb)
-          : CreateCubeTexture(engine, width, height, num_channels, data,
-                              is_srgb);
-  return texture;
-}
 }  // namespace mujoco

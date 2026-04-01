@@ -26,7 +26,6 @@
 #include <math/vec3.h>
 #include <mujoco/mujoco.h>
 
-
 namespace mujoco {
 
 static filament::Texture::Format GetTextureFormat(int num_channels) {
@@ -168,6 +167,40 @@ filament::Texture* CreateCubeTexture(filament::Engine* engine, int width,
   return texture;
 }
 
+filament::Texture* CreateRenderTargetTexture(
+    filament::Engine* engine, int width, int height,
+    RenderTargetTextureType type) {
+  filament::Texture::Builder builder;
+  builder.width(width);
+  builder.height(height);
+  switch (type) {
+    case RenderTargetTextureType::kColor:
+      builder.usage(filament::Texture::Usage::COLOR_ATTACHMENT |
+                    filament::Texture::Usage::BLIT_SRC);
+      builder.format(filament::Texture::InternalFormat::RGB8);
+      break;
+    case RenderTargetTextureType::kDepth:
+      builder.usage(filament::Texture::Usage::DEPTH_ATTACHMENT |
+                    filament::Texture::Usage::SAMPLEABLE);
+      builder.format(filament::Texture::InternalFormat::DEPTH32F);
+      break;
+    case RenderTargetTextureType::kDepthColor:
+      builder.usage(filament::Texture::Usage::COLOR_ATTACHMENT |
+                    filament::Texture::Usage::BLIT_SRC);
+      builder.format(filament::Texture::InternalFormat::R32F);
+      break;
+    case RenderTargetTextureType::kReflectionColor:
+      builder.usage(filament::Texture::Usage::COLOR_ATTACHMENT |
+                    filament::Texture::Usage::BLIT_SRC |
+                    filament::Texture::Usage::SAMPLEABLE);
+      builder.format(filament::Texture::InternalFormat::RGBA8);
+      break;
+    default:
+      mju_error("Unknown type: %d", static_cast<int>(type));
+  }
+  return builder.build(*engine);
+}
+
 filament::Texture* CreateKtxTexture(
     filament::Engine* engine, const uint8_t* data, int size,
     filament::math::float3* spherical_harmonics_out) {
@@ -177,5 +210,24 @@ filament::Texture* CreateKtxTexture(
   }
   const bool is_srgb = false;
   return ktxreader::Ktx1Reader::createTexture(engine, bundle, is_srgb);
+}
+
+filament::Texture* CreateTexture(filament::Engine* engine, const mjModel* model,
+                                 int id, TextureType texture_type) {
+  if (id < 0 || id >= model->ntex) {
+    mju_error("Invalid texture index %d", id);
+  }
+
+  const int width = model->tex_width[id];
+  const int height = model->tex_height[id];
+  const bool is_srgb = model->tex_colorspace[id] == mjCOLORSPACE_SRGB;
+  const int num_channels = model->tex_nchannel[id];
+  const mjtByte* data = model->tex_data + model->tex_adr[id];
+  filament::Texture* texture =
+      texture_type == TextureType::kNormal2d
+          ? Create2dTexture(engine, width, height, num_channels, data, is_srgb)
+          : CreateCubeTexture(engine, width, height, num_channels, data,
+                              is_srgb);
+  return texture;
 }
 }  // namespace mujoco
