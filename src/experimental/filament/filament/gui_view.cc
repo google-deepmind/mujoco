@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -31,6 +32,7 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/texture_util.h"
 #include "experimental/filament/filament/vertex_util.h"
 
 namespace mujoco {
@@ -67,9 +69,7 @@ GuiView::~GuiView() {
   for (auto& instance : instances_) {
     engine_->destroy(instance);
   }
-  for (auto& texture : textures_) {
-    engine_->destroy(texture.second);
-  }
+  textures_.clear();
   engine_->destroyCameraComponent(camera_->getEntity());
   engine_->destroy(view_);
   engine_->destroy(scene_);
@@ -98,62 +98,52 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
     mju_error("Unsupported image bpp. Got %d, wanted 3 or 4", bpp);
   }
 
-  const auto internal_format =
-      bpp == 4 ? filament::Texture::InternalFormat::RGBA8
-               : filament::Texture::InternalFormat::RGB8;
-  const auto texture_format = bpp == 4 ? filament::Texture::Format::RGBA
-                                       : filament::Texture::Format::RGB;
-
-  filament::Texture* texture = nullptr;
-  if (tex_id == 0) {
-    texture = filament::Texture::Builder()
-                  .width(width)
-                  .height(height)
-                  .levels(1)
-                  .format(internal_format)
-                  .sampler(filament::Texture::Sampler::SAMPLER_2D)
-                  .build(*engine_);
-    tex_id = textures_.size() + 1;
-    textures_[tex_id] = texture;
-  } else {
-    auto iter = textures_.find(tex_id);
-    if (iter == textures_.end()) {
-      mju_error("Texture not found: %lu", tex_id);
-    }
-    texture = iter->second;
-
-    if (pixels == nullptr) {
-      // A nullptr implies that the user wants to destroy the texture.
-      engine_->destroy(texture);
+  if (pixels == nullptr) {
+    // If the pixels are nullptr, we destroy the texture.
+    if (tex_id != 0) {
       textures_.erase(tex_id);
-      return 0;
-    } else if (texture->getWidth() != width || texture->getHeight() != height) {
-      // Recreate the texture if the dimensions have changed.
-      engine_->destroy(texture);
-      texture = filament::Texture::Builder()
-                    .width(width)
-                    .height(height)
-                    .levels(1)
-                    .format(internal_format)
-                    .sampler(filament::Texture::Sampler::SAMPLER_2D)
-                    .build(*engine_);
-      textures_[tex_id] = texture;
     }
+    return 0;
+  }
+
+  // Assign a new texture ID.
+  if (tex_id == 0) {
+    tex_id = textures_.size() + 1;
+  }
+
+  std::unique_ptr<Texture>& texture = textures_[tex_id];
+
+  // If the texture does not exist or the dimensions have changed, we create a
+  // new texture.
+  if (texture == nullptr || texture->GetWidth() != width ||
+      texture->GetHeight() != height) {
+    TextureConfig config;
+    DefaultTextureConfig(&config);
+    config.width = width;
+    config.height = height;
+    config.target = mjTEXTURE_2D;
+    config.format = bpp == 4 ? mjPIXEL_FORMAT_RGBA8 : mjPIXEL_FORMAT_RGB8;
+    config.color_space = mjCOLORSPACE_LINEAR;
+    texture = std::make_unique<Texture>(engine_, config);
   }
 
   // Create a copy of the image to pass it to filament as we don't know the
   // lifetime of the data.
-  const int num_bytes = width * height * bpp;
+  const size_t num_bytes = width * height * bpp;
   std::byte* bytes = new std::byte[num_bytes];
-  std::memcpy(bytes, pixels, num_bytes);
-  const auto callback = [](void* buffer, size_t size, void* user) {
-    auto* ptr = reinterpret_cast<std::byte*>(user);
-    delete[] ptr;
+  const auto callback = +[](void* user) {
+    delete[] reinterpret_cast<std::byte*>(user);
   };
-  filament::Texture::PixelBufferDescriptor pb(bytes, num_bytes, texture_format,
-                                              filament::Texture::Type::UBYTE,
-                                              callback);
-  texture->setImage(*engine_, 0, std::move(pb));
+
+  TextureData texture_data;
+  DefaultTextureData(&texture_data);
+  texture_data.bytes = bytes;
+  texture_data.nbytes = num_bytes;
+  texture_data.user_data = bytes;
+  texture_data.release_callback = callback;
+
+  std::memcpy(bytes, pixels, num_bytes);
+  texture->Upload(texture_data);
   return tex_id;
 }
 
@@ -162,40 +152,39 @@ void GuiView::CreateTexture(ImTextureData* data) {
     mju_error("Unsupported texture format.");
   }
 
-  filament::Texture* texture =
-      filament::Texture::Builder()
-          .width(data->Width)
-          .height(data->Height)
-          .levels(1)
-          .format(filament::Texture::InternalFormat::RGBA8)
-          .sampler(filament::Texture::Sampler::SAMPLER_2D)
-          .build(*engine_);
+  TextureConfig config;
+  DefaultTextureConfig(&config);
+  config.width = data->Width;
+  config.height = data->Height;
+  config.target = mjTEXTURE_2D;
+  config.format = mjPIXEL_FORMAT_RGBA8;
+  config.color_space = mjCOLORSPACE_LINEAR;
 
   const uintptr_t tex_id = textures_.size() + 1;
-  textures_[tex_id] = texture;
+  textures_[tex_id] = std::make_unique<Texture>(engine_, config);
   data->SetTexID((ImTextureID)tex_id);
   UpdateTexture(data);
 }
 
 void GuiView::UpdateTexture(ImTextureData* data) {
-  const int size = data->Width * data->Height * 4;
-  filament::Texture::PixelBufferDescriptor pb(data->GetPixels(), size,
-                                              filament::Texture::Format::RGBA,
-                                              filament::Texture::Type::UBYTE);
   auto iter = textures_.find(data->TexID);
   if (iter == textures_.end()) {
     mju_error("Texture not found: %llu", data->TexID);
   }
 
-  filament::Texture* texture = iter->second;
-  texture->setImage(*engine_, 0, std::move(pb));
+  TextureData texture_data;
+  DefaultTextureData(&texture_data);
+  texture_data.bytes = data->GetPixels();
+  texture_data.nbytes = data->Width * data->Height * 4;
+  texture_data.user_data = nullptr;
+  texture_data.release_callback = nullptr;
+  iter->second->Upload(texture_data);
   data->SetStatus(ImTextureStatus_OK);
 }
 
 void GuiView::DestroyTexture(ImTextureData* data) {
   auto iter = textures_.find(data->TexID);
   if (iter != textures_.end()) {
-    engine_->destroy(iter->second);
     textures_.erase(data->TexID);
     data->SetTexID(ImTextureID_Invalid);
     data->SetStatus(ImTextureStatus_Destroyed);
@@ -361,7 +350,8 @@ filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
   }
 
   filament::MaterialInstance* instance = instances_[index];
-  instance->setParameter("glyph", iter->second, filament::TextureSampler());
+  instance->setParameter("glyph", iter->second->GetFilamentTexture(),
+                         filament::TextureSampler());
   instance->setScissor(rect.left, rect.bottom, rect.width, rect.height);
   return instance;
 }
