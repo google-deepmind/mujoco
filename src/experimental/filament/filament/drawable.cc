@@ -37,6 +37,7 @@
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/texture_util.h"
 
 namespace mujoco {
 
@@ -226,7 +227,7 @@ void Drawable::SetDrawMode(Material::DrawMode mode) {
   renderables_.SetMaterialInstance(material_.GetMaterialInstance(mode));
 }
 
-void Drawable::UpdateReflectionTexture(const filament::Texture* tex) {
+void Drawable::UpdateReflectionTexture(const Texture* tex) {
   material_.UpdateReflectionTexture(tex);
 }
 
@@ -422,7 +423,7 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhongColor);
         }
-      } else if (textures.color->getTarget() ==
+      } else if (textures.color->GetFilamentTexture()->getTarget() ==
                 filament::Texture::Sampler::SAMPLER_CUBEMAP) {
         if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
@@ -490,7 +491,8 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
   // the programmatic UVs.
 
   if (textures.color) {
-    if (textures.color->getTarget() == filament::Texture::Sampler::SAMPLER_2D) {
+    if (textures.color->GetFilamentTexture()->getTarget() ==
+        filament::Texture::Sampler::SAMPLER_2D) {
       // For 2D textures, `tex_repeat` specifies how many times the texture
       // image is repeated. The `tex_uniform` flag determines if the repetition
       // is applied at in object space (false) or in world space (true).

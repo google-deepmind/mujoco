@@ -15,6 +15,7 @@
 #include "experimental/filament/filament/model_objects.h"
 
 #include <array>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -80,9 +81,7 @@ ModelObjects::~ModelObjects() {
     engine_->destroy(iter.vertex_buffer);
     engine_->destroy(iter.index_buffer);
   }
-  for (auto& iter : textures_) {
-    engine_->destroy(iter.second);
-  }
+  textures_.clear();
 }
 
 void ModelObjects::UploadMesh(const mjModel* model, int id) {
@@ -126,25 +125,30 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
     mju_error("Invalid texture index: %d", id);
   }
 
-  if (auto iter = textures_.find(id); iter != textures_.end()) {
-    engine_->destroy(iter->second);
-  }
+  const int width = model->tex_width[id];
+  const int height = model->tex_height[id];
+  const int num_channels = model->tex_nchannel[id];
+  const int tex_type = model->tex_type[id];
+  const mjtByte* data = model->tex_data + model->tex_adr[id];
+  const mjtColorSpace color_space = (mjtColorSpace)model->tex_colorspace[id];
 
-  const int texture_type = model->tex_type[id];
-  if (model->tex_height[id] == 1) {
-    const mjtByte* bytes = model->tex_data + model->tex_adr[id];
-    const int num_bytes = model->tex_width[id];
-    textures_[id] =
-        CreateKtxTexture(engine_, bytes, num_bytes, spherical_harmonics_[id]);
-  } else if (texture_type == mjTEXTURE_2D) {
-    textures_[id] = CreateTexture(engine_, model, id, TextureType::kNormal2d);
-  } else if (texture_type == mjTEXTURE_CUBE) {
-    textures_[id] = CreateTexture(engine_, model, id, TextureType::kCube);
-  } else if (texture_type == mjTEXTURE_SKYBOX) {
-    textures_[id] = CreateTexture(engine_, model, id, TextureType::kCube);
-  } else {
-    mju_error("Unsupported: Texture type: %d", texture_type);
-  }
+  const TextureType type = [&] {
+    if (height == 1) {
+      return TextureType::kKtx;
+    } else if (tex_type == mjTEXTURE_2D) {
+      return TextureType::kNormal2d;
+    } else if (tex_type == mjTEXTURE_CUBE) {
+      return TextureType::kCube;
+    } else if (tex_type == mjTEXTURE_SKYBOX) {
+      return TextureType::kCube;
+    } else {
+      mju_error("Unsupported texture type: %d", tex_type);
+      return TextureType::kNormal2d;
+    }
+  }();
+
+  textures_[id] = std::make_unique<Texture>(engine_, type, color_space, width,
+                                            height, num_channels, data);
 }
 
 void ModelObjects::UploadHeightField(const mjModel* model, int id) {
@@ -194,12 +198,12 @@ const FilamentBuffers* ModelObjects::GetShapeBuffer(ShapeType shape) const {
   return &shapes_[shape];
 }
 
-const filament::Texture* ModelObjects::GetTexture(int tex_id) const {
+const Texture* ModelObjects::GetTexture(int tex_id) const {
   auto it = textures_.find(tex_id);
-  return it != textures_.end() ? it->second : nullptr;
+  return it != textures_.end() ? it->second.get() : nullptr;
 }
 
-const filament::Texture* ModelObjects::GetTexture(int mat_id, int role) const {
+const Texture* ModelObjects::GetTexture(int mat_id, int role) const {
   if (mat_id < 0 || mat_id >= model_->nmat || role < 0 || role >= mjNTEXROLE) {
     return nullptr;
   }
@@ -210,15 +214,11 @@ const filament::Texture* ModelObjects::GetTexture(int mat_id, int role) const {
 filament::IndirectLight* ModelObjects::CreateIndirectLight(int tex_id,
                                                            float intensity) {
   filament::Texture* texture = nullptr;
+  const Texture::SphericalHarmonics* spherical_harmonics = nullptr;
   auto texture_iter = textures_.find(tex_id);
   if (texture_iter != textures_.end()) {
-    texture = texture_iter->second;
-  }
-
-  SphericalHarmonics* spherical_harmonics = nullptr;
-  auto sh_iter = spherical_harmonics_.find(tex_id);
-  if (sh_iter != spherical_harmonics_.end()) {
-    spherical_harmonics = &sh_iter->second;
+    texture = texture_iter->second->GetFilamentTexture();
+    spherical_harmonics = texture_iter->second->GetSphericalHarmonics();
   }
 
   filament::IndirectLight::Builder builder;
@@ -240,7 +240,7 @@ filament::Skybox* ModelObjects::CreateSkybox() {
   for (auto& iter : textures_) {
     const int texture_type = model_->tex_type[iter.first];
     if (texture_type == mjTEXTURE_SKYBOX) {
-      skybox_texture = iter.second;
+      skybox_texture = iter.second->GetFilamentTexture();
       break;
     }
   }

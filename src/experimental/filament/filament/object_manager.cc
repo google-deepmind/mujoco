@@ -15,6 +15,7 @@
 #include "experimental/filament/filament/object_manager.h"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -86,22 +87,27 @@ ObjectManager::ObjectManager(filament::Engine* engine)
   materials_[kUnlitUi] = LoadMaterial("unlit_ui.filamat");
 
   static uint8_t black_rgb[3] = {0, 0, 0};
-  fallback_black_ = Create2dTexture(engine_, 1, 1, 3, black_rgb, false);
+  fallback_black_ = std::make_unique<Texture>(
+      engine_, TextureType::kNormal2d, mjCOLORSPACE_LINEAR, 1, 1, 3, black_rgb);
   static uint8_t white_rgb[3] = {255, 255, 255};
-  fallback_white_ = Create2dTexture(engine_, 1, 1, 3, white_rgb, false);
+  fallback_white_ = std::make_unique<Texture>(
+      engine_, TextureType::kNormal2d, mjCOLORSPACE_LINEAR, 1, 1, 3, white_rgb);
   static uint8_t normal_data[3] = {128, 128, 255};
-  fallback_normal_ = Create2dTexture(engine_, 1, 1, 3, normal_data, false);
+  fallback_normal_ =
+      std::make_unique<Texture>(engine_, TextureType::kNormal2d,
+                                mjCOLORSPACE_LINEAR, 1, 1, 3, normal_data);
   static uint8_t orm_data[3] = {0, 255, 0};
-  fallback_orm_ = Create2dTexture(engine_, 1, 1, 3, orm_data, false);
+  fallback_orm_ = std::make_unique<Texture>(
+      engine_, TextureType::kNormal2d, mjCOLORSPACE_LINEAR, 1, 1, 3, orm_data);
 
-  fallback_textures_[mjTEXROLE_USER] = fallback_black_;
-  fallback_textures_[mjTEXROLE_RGB] = fallback_white_;
-  fallback_textures_[mjTEXROLE_OCCLUSION] = fallback_white_;
-  fallback_textures_[mjTEXROLE_ROUGHNESS] = fallback_white_;
-  fallback_textures_[mjTEXROLE_METALLIC] = fallback_black_;
-  fallback_textures_[mjTEXROLE_NORMAL] = fallback_normal_;
-  fallback_textures_[mjTEXROLE_EMISSIVE] = fallback_black_;
-  fallback_textures_[mjTEXROLE_ORM] = fallback_orm_;
+  fallback_textures_[mjTEXROLE_USER] = fallback_black_.get();
+  fallback_textures_[mjTEXROLE_RGB] = fallback_white_.get();
+  fallback_textures_[mjTEXROLE_OCCLUSION] = fallback_white_.get();
+  fallback_textures_[mjTEXROLE_ROUGHNESS] = fallback_white_.get();
+  fallback_textures_[mjTEXROLE_METALLIC] = fallback_black_.get();
+  fallback_textures_[mjTEXROLE_NORMAL] = fallback_normal_.get();
+  fallback_textures_[mjTEXROLE_EMISSIVE] = fallback_black_.get();
+  fallback_textures_[mjTEXROLE_ORM] = fallback_orm_.get();
 
   LoadFallbackIndirectLight("ibl.ktx", 1.0f);
 }
@@ -110,17 +116,10 @@ ObjectManager::~ObjectManager() {
   if (fallback_indirect_light_) {
     engine_->destroy(fallback_indirect_light_);
   }
-  if (fallback_indirect_light_texture_) {
-    engine_->destroy(fallback_indirect_light_texture_);
-  }
+  fallback_indirect_light_texture_.reset();
   for (auto& iter : materials_) {
     engine_->destroy(iter);
   }
-  // fallback_textures_ maps to these textures.
-  engine_->destroy(fallback_white_);
-  engine_->destroy(fallback_black_);
-  engine_->destroy(fallback_normal_);
-  engine_->destroy(fallback_orm_);
 }
 
 filament::Material* ObjectManager::GetMaterial(MaterialType type) const {
@@ -130,7 +129,7 @@ filament::Material* ObjectManager::GetMaterial(MaterialType type) const {
   return materials_[type];
 }
 
-const filament::Texture* ObjectManager::GetFallbackTexture(
+const Texture* ObjectManager::GetFallbackTexture(
     mjtTextureRole role) const {
   if (role < 0 || role >= mjNTEXROLE) {
     mju_error("Invalid texture role: %d", role);
@@ -144,10 +143,7 @@ filament::IndirectLight* ObjectManager::GetFallbackIndirectLight() {
 
 void ObjectManager::LoadFallbackIndirectLight(
     std::string_view filename, float intensity) {
-  if (fallback_indirect_light_texture_ != nullptr) {
-    engine_->destroy(fallback_indirect_light_texture_);
-    fallback_indirect_light_texture_ = nullptr;
-  }
+  fallback_indirect_light_texture_.reset();
   if (fallback_indirect_light_ != nullptr) {
     engine_->destroy(fallback_indirect_light_);
     fallback_indirect_light_ = nullptr;
@@ -158,18 +154,22 @@ void ObjectManager::LoadFallbackIndirectLight(
     return;
   }
 
-  filament::math::float3 spherical_harmonics[9];
-  fallback_indirect_light_texture_ =
-      CreateKtxTexture(engine_, reinterpret_cast<const uint8_t*>(asset.payload),
-                       asset.size, spherical_harmonics);
+  fallback_indirect_light_texture_ = std::make_unique<Texture>(
+      engine_, TextureType::kKtx, mjCOLORSPACE_AUTO, asset.size, 1, 1,
+      reinterpret_cast<const uint8_t*>(asset.payload));
   if (fallback_indirect_light_texture_ == nullptr) {
     return;
   }
 
+  const Texture::SphericalHarmonics* spherical_harmonics =
+      fallback_indirect_light_texture_->GetSphericalHarmonics();
+
   // Build the indirect light.
   filament::IndirectLight::Builder builder;
-  builder.reflections(fallback_indirect_light_texture_);
-  builder.irradiance(3, spherical_harmonics);
+  builder.reflections(fallback_indirect_light_texture_->GetFilamentTexture());
+  if (spherical_harmonics) {
+    builder.irradiance(3, *spherical_harmonics);
+  }
   builder.intensity(intensity);
   // Rotate the light to match mujoco's Z-up convention.
   builder.rotation(filament::math::mat3f::rotation(
