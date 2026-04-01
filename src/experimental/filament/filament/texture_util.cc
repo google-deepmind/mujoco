@@ -27,61 +27,124 @@
 
 namespace mujoco {
 
-static filament::Texture::Format GetTextureFormat(int num_channels) {
-  switch (num_channels) {
-    case 1:
+static constexpr int kNumFacesPerCube = 6;
+
+static bool IsCompressed(const TextureConfig& config) {
+  return config.format == mjPIXEL_FORMAT_KTX;
+}
+
+static bool IsCubeMap(const TextureConfig& config) {
+  return config.target == mjTEXTURE_CUBE || config.target == mjTEXTURE_SKYBOX;
+}
+
+static int GetFaceHeight(const TextureConfig& config) {
+  int face_height = config.height;
+  if (config.width != config.height) {
+    if (config.width * kNumFacesPerCube != config.height) {
+      mju_error("Cube maps must contain 6 square images.");
+    }
+    face_height = config.height / kNumFacesPerCube;
+  }
+  if (config.width != face_height) {
+    mju_error("Cube map faces must be square.");
+  }
+  return face_height;
+}
+
+static int GetNumChannels(const TextureConfig& config) {
+  switch (config.format) {
+    case mjPIXEL_FORMAT_R8:
+      return 1;
+    case mjPIXEL_FORMAT_RGB8:
+      return 3;
+    case mjPIXEL_FORMAT_RGBA8:
+      return 4;
+    default:
+      mju_error("Unsupported format: %d", (int)config.format);
+      return 0;
+  }
+}
+
+static filament::Texture::Format GetTextureFormat(const TextureConfig& config) {
+  switch (config.format) {
+    case mjPIXEL_FORMAT_R8:
       return filament::Texture::Format::R;
-    case 3:
+    case mjPIXEL_FORMAT_RGB8:
       return filament::Texture::Format::RGB;
-    case 4:
+    case mjPIXEL_FORMAT_RGBA8:
       return filament::Texture::Format::RGBA;
     default:
-      mju_error("Unsupported number of channels: %d", num_channels);
+      mju_error("Unsupported format: %d", (int)config.format);
       return filament::Texture::Format::UNUSED;
     }
 }
 
 static filament::Texture::InternalFormat GetTextureInternalFormat(
-    int num_channels, bool is_srgb) {
-  if (is_srgb) {
-    switch (num_channels) {
-      case 3:
+    const TextureConfig& config) {
+  if (config.color_space == mjCOLORSPACE_SRGB) {
+    switch (config.format) {
+      case mjPIXEL_FORMAT_RGB8:
         return filament::Texture::InternalFormat::SRGB8;
-      case 4:
+      case mjPIXEL_FORMAT_RGBA8:
         return filament::Texture::InternalFormat::SRGB8_A8;
       default:
-        mju_error("Unsupported number of channels: %d", num_channels);
+        mju_error("Unsupported format: %d", (int)config.format);
         return filament::Texture::InternalFormat::UNUSED;
     }
   } else {
-    switch (num_channels) {
-      case 1:
+    switch (config.format) {
+      case mjPIXEL_FORMAT_R8:
         return filament::Texture::InternalFormat::R8;
-      case 3:
+      case mjPIXEL_FORMAT_RGB8:
         return filament::Texture::InternalFormat::RGB8;
-      case 4:
+      case mjPIXEL_FORMAT_RGBA8:
         return filament::Texture::InternalFormat::RGBA8;
       default:
-        mju_error("Unsupported number of channels: %d", num_channels);
+        mju_error("Unsupported format: %d", (int)config.format);
         return filament::Texture::InternalFormat::UNUSED;
     }
   }
 }
 
-Texture::Texture(filament::Engine* engine, TextureType texture_type,
-                 mjtColorSpace color_space, int width, int height,
-                 int num_channels, const uint8_t* data)
-    : engine_(engine) {
-  const bool is_srgb = color_space == mjCOLORSPACE_SRGB;
-  if (texture_type == TextureType::kCube) {
-    CreateCubeTexture(width, height, num_channels, data, is_srgb);
-  } else if (texture_type == TextureType::kNormal2d) {
-    Create2dTexture(width, height, num_channels, data, is_srgb);
-  } else if (texture_type == TextureType::kKtx) {
-    CreateKtxTexture(data, width * height * num_channels);
-  } else {
-    mju_error("Unsupported texture type: %d", static_cast<int>(texture_type));
+void DefaultTextureData(TextureData* data) {
+  std::memset(data, 0, sizeof(TextureData));
+}
+
+void DefaultTextureConfig(TextureConfig* config) {
+  std::memset(config, 0, sizeof(TextureConfig));
+}
+
+Texture::Texture(filament::Engine* engine, const TextureConfig& config)
+    : engine_(engine), config_(config) {
+  if (IsCompressed(config_)) {
+    // We defer creation of compressed textures until Upload() is called. In
+    // the meantime, we don't really know anything about the texture (e.g.
+    // width, height, etc.).
+    return;
   }
+
+  filament::Texture::Builder builder;
+  builder.width(config_.width);
+  builder.height(config_.height);
+  builder.format(GetTextureInternalFormat(config_));
+
+  if (IsCubeMap(config_)) {
+    if (config_.format != mjPIXEL_FORMAT_RGB8) {
+      mju_error("Only support RGB cubemaps.");
+      return;
+    }
+    builder.height(GetFaceHeight(config_));
+    builder.sampler(filament::Texture::Sampler::SAMPLER_CUBEMAP);
+  } else {
+    builder.sampler(filament::Texture::Sampler::SAMPLER_2D);
+  }
+
+  if (config_.color_space != mjCOLORSPACE_SRGB) {
+    builder.usage(filament::Texture::Usage::GEN_MIPMAPPABLE |
+                  filament::Texture::Usage::SAMPLEABLE |
+                  filament::Texture::Usage::UPLOADABLE);
+  }
+  texture_ = builder.build(*engine_);
 }
 
 Texture::Texture(filament::Engine* engine, RenderTargetTextureType type,
@@ -117,111 +180,90 @@ Texture::Texture(filament::Engine* engine, RenderTargetTextureType type,
   texture_ = builder.build(*engine);
 }
 
-void Texture::Create2dTexture(int width, int height, int num_channels,
-                              const uint8_t* data, bool is_srgb) {
-  if (num_channels != 1 && num_channels != 3 && num_channels != 4) {
-    mju_error("Unsupported number of channels: %d", num_channels);
-    return;
-  }
-
-  filament::Texture::Builder builder;
-  builder.width(width);
-  builder.height(height);
-  builder.format(GetTextureInternalFormat(num_channels, is_srgb));
-  builder.sampler(filament::Texture::Sampler::SAMPLER_2D);
-  if (!is_srgb) {
-    builder.usage(filament::Texture::Usage::GEN_MIPMAPPABLE |
-                  filament::Texture::Usage::SAMPLEABLE |
-                  filament::Texture::Usage::UPLOADABLE);
-  }
-  texture_ = builder.build(*engine_);
-
-  if (data) {
-    const size_t num_bytes = width * height * sizeof(uint8_t) * num_channels;
-    const filament::Texture::Format format = GetTextureFormat(num_channels);
-    texture_->setImage(
-        *engine_, 0,
-        filament::Texture::PixelBufferDescriptor(
-            data, num_bytes, format, filament::Texture::Type::UBYTE));
-    if (!is_srgb) {
-      texture_->generateMipmaps(*engine_);
-    }
-  }
-}
-
-void Texture::CreateCubeTexture(int width, int height, int num_channels,
-                                const uint8_t* data, bool is_srgb) {
-  if (num_channels != 3) {
-    mju_error("Only support RGB cubemaps.");
-    return;
-  }
-
-  const int kNumFacesPerCube = 6;
-
-  int face_height = height;
-  if (width != height) {
-    if (width * kNumFacesPerCube != height) {
-      mju_error("Cube maps must contain 6 square images.");
-    }
-    face_height = height / kNumFacesPerCube;
-  }
-  if (width != face_height) {
-    mju_error("Cube map faces must be square.");
-  }
-
-  filament::Texture::Builder builder;
-  builder.width(width);
-  builder.height(face_height);
-  builder.format(GetTextureInternalFormat(num_channels, is_srgb));
-  builder.sampler(filament::Texture::Sampler::SAMPLER_CUBEMAP);
-  if (!is_srgb) {
-    builder.usage(filament::Texture::Usage::GEN_MIPMAPPABLE |
-                  filament::Texture::Usage::SAMPLEABLE |
-                  filament::Texture::Usage::UPLOADABLE);
-  }
-  texture_ = builder.build(*engine_);
-
-  const int face_size = width * face_height * num_channels;
-  const int num_bytes = face_size * kNumFacesPerCube;
-
-  uint8_t* buffer = new uint8_t[num_bytes];
-  auto callback = +[](void* buffer, size_t size, void* user) {
-    delete [] reinterpret_cast<uint8_t*>(buffer);
-  };
-
-  filament::Texture::FaceOffsets offsets(face_size);
-  if (width == height) {
-    // Copy the image to all the faces.
-    for (int i = 0; i < kNumFacesPerCube; ++i) {
-      std::memcpy(buffer + (i * face_size), data, face_size);
-    }
-  } else {
-    // Use the cubemap as is.
-    std::memcpy(buffer, data, num_bytes);
-  }
-
-  if (data) {
-    filament::Texture::PixelBufferDescriptor desc(
-        buffer, num_bytes, filament::Texture::Format::RGB,
-        filament::Texture::Type::UBYTE, callback);
-    texture_->setImage(*engine_, 0, std::move(desc), offsets);
-    if (!is_srgb) {
-      texture_->generateMipmaps(*engine_);
-    }
-  }
-}
-
-void Texture::CreateKtxTexture(const uint8_t* data, int size) {
-  image::Ktx1Bundle* bundle = new image::Ktx1Bundle(data, size);
-  has_spherical_harmonics_ = true;
-  bundle->getSphericalHarmonics(spherical_harmonics_);
-  const bool is_srgb = false;
-  texture_ = ktxreader::Ktx1Reader::createTexture(engine_, bundle, is_srgb);
-}
-
 Texture::~Texture() {
+  ReleaseData();
   if (texture_) {
     engine_->destroy(texture_);
+  }
+}
+
+void Texture::Upload(const TextureData& data) {
+  user_data_ = data.user_data;
+  release_callback_ = data.release_callback;
+
+  if (data.bytes == nullptr || data.nbytes == 0) {
+    ReleaseData();
+    return;
+  }
+
+  if (config_.format == mjPIXEL_FORMAT_KTX) {
+    image::Ktx1Bundle* bundle = new image::Ktx1Bundle(
+        reinterpret_cast<const uint8_t*>(data.bytes), data.nbytes);
+    has_spherical_harmonics_ = true;
+    bundle->getSphericalHarmonics(spherical_harmonics_);
+    const bool is_srgb = false;
+    texture_ = ktxreader::Ktx1Reader::createTexture(engine_, bundle, is_srgb);
+    config_.width = texture_->getWidth();
+    config_.height = texture_->getHeight();
+    ReleaseData();
+    return;
+  }
+
+  const int num_channels = GetNumChannels(config_);
+  const filament::Texture::Type type = filament::Texture::Type::UBYTE;
+  const filament::Texture::Format format = GetTextureFormat(config_);
+
+  if (!IsCubeMap(config_)) {
+    if (config_.width * config_.height * num_channels != data.nbytes) {
+      mju_error("Texture size does not match data size.");
+    }
+
+    auto callback = +[](void* buffer, size_t size, void* user) {
+      reinterpret_cast<Texture*>(user)->ReleaseData();
+    };
+    filament::Texture::PixelBufferDescriptor desc(data.bytes, data.nbytes,
+                                                  format, type, callback, this);
+    texture_->setImage(*engine_, 0, std::move(desc));
+  } else {
+    const int face_size = config_.width * GetFaceHeight(config_) * num_channels;
+    const int num_bytes = face_size * kNumFacesPerCube;
+    filament::Texture::FaceOffsets offsets(face_size);
+
+    if (config_.width == config_.height) {
+      uint8_t* copy = new uint8_t[num_bytes];
+      auto release_callback = +[](void* buffer, size_t size, void* user) {
+        delete [] reinterpret_cast<uint8_t*>(buffer);
+      };
+      for (int i = 0; i < kNumFacesPerCube; ++i) {
+        std::memcpy(copy + (i * face_size), data.bytes, face_size);
+      }
+      filament::Texture::PixelBufferDescriptor desc(copy, num_bytes, format,
+                                                    type, release_callback);
+      texture_->setImage(*engine_, 0, std::move(desc), offsets);
+      ReleaseData();
+    } else {
+      if (num_bytes != data.nbytes) {
+        mju_error("Texture size does not match data size.");
+      }
+      auto callback = +[](void* buffer, size_t size, void* user) {
+        reinterpret_cast<Texture*>(user)->ReleaseData();
+      };
+      filament::Texture::PixelBufferDescriptor desc(
+          data.bytes, data.nbytes, format, type, callback, this);
+      texture_->setImage(*engine_, 0, std::move(desc), offsets);
+    }
+  }
+
+  if (config_.color_space != mjCOLORSPACE_SRGB) {
+    texture_->generateMipmaps(*engine_);
+  }
+}
+
+void Texture::ReleaseData() {
+  if (release_callback_) {
+    release_callback_(user_data_);
+    release_callback_ = nullptr;
+    user_data_ = nullptr;
   }
 }
 
