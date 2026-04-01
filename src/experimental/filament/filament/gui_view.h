@@ -30,7 +30,7 @@
 #include <filament/View.h>
 #include <mujoco/mjrender.h>
 #include "experimental/filament/filament/buffer_util.h"
-#include "experimental/filament/filament/texture_util.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 

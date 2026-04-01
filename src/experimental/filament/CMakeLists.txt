@@ -59,8 +59,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/renderables.h
         filament/scene_view.cc
         filament/scene_view.h
-        filament/texture_util.cc
-        filament/texture_util.h
+        filament/texture.cc
+        filament/texture.h
         filament/vertex_util.cc
         filament/vertex_util.h
 )

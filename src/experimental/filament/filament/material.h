@@ -21,7 +21,7 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/texture_util.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 

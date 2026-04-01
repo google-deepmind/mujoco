@@ -21,7 +21,7 @@
 #include <filament/TextureSampler.h>
 #include <mujoco/mjmodel.h>
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/texture_util.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
