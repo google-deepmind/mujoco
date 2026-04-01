@@ -37,9 +37,7 @@ def _parse_version(version_str: str) -> tuple[tuple[int, int | str], ...]:
   """
   # Split on both '.' and '-'
   parts = re.split(r"[.\-]", version_str)
-  return tuple(
-      [(0, int(p)) if p.isdigit() else (-1, p) for p in parts] + [(0, 0)]
-  )
+  return tuple([(0, int(p)) if p.isdigit() else (-1, p) for p in parts] + [(0, 0)])
 
 
 def check_version(spec: str) -> bool:
@@ -65,9 +63,7 @@ def check_version(spec: str) -> bool:
   """
   match = re.match(r"^([a-zA-Z0-9_\-]+)(>=|<=|>|<|==|!=)(.+)$", spec)
   if not match:
-    raise ValueError(
-        f"Invalid version spec '{spec}'. Expected format: 'package>=version'"
-    )
+    raise ValueError(f"Invalid version spec '{spec}'. Expected format: 'package>=version'")
   package_name, op, version_str = match.groups()
 
   required_version = _parse_version(version_str)
@@ -87,11 +83,11 @@ def check_version(spec: str) -> bool:
   installed_version = _parse_version(installed_str)
 
   ops = {
-      ">=": operator.ge,
-      "<=": operator.le,
-      ">": operator.gt,
-      "<": operator.lt,
-      "==": operator.eq,
-      "!=": operator.ne,
+    ">=": operator.ge,
+    "<=": operator.le,
+    ">": operator.gt,
+    "<": operator.lt,
+    "==": operator.eq,
+    "!=": operator.ne,
   }
   return ops[op](installed_version, required_version)

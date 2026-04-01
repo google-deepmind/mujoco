@@ -15,12 +15,17 @@
 
 from typing import Any, Tuple
 
+import warp as wp
+
 from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import ray
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import get_sdf_params
 from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import sdf
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXCONPAIR
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConstraintType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
@@ -28,9 +33,6 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DataType
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
-from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXCONPAIR
-from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
-from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import SensorType
@@ -40,10 +42,10 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec6
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec8
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec8i
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec_pluginattr
 from mujoco.mjx.third_party.mujoco_warp._src.util_misc import inside_geom
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
-import warp as wp
 
 wp.set_module_options({"enable_backward": False})
 
@@ -2081,16 +2083,16 @@ def _transform_spatial(vec: wp.spatial_vector, dif: wp.vec3) -> wp.vec3:
 
 @wp.kernel
 def _preprocess_tactile_contacts(
-    # Model:
-    body_weldid: wp.array(dtype=int),
-    geom_bodyid: wp.array(dtype=int),
-    # Data in:
-    contact_geom_in: wp.array(dtype=wp.vec2i),
-    contact_worldid_in: wp.array(dtype=int),
-    nacon_in: wp.array(dtype=int),
-    # Out:
-    weld_geom_count_out: wp.array2d(dtype=int),
-    weld_geom_list_out: wp.array3d(dtype=int),
+  # Model:
+  body_weldid: wp.array(dtype=int),
+  geom_bodyid: wp.array(dtype=int),
+  # Data in:
+  contact_geom_in: wp.array(dtype=wp.vec2i),
+  contact_worldid_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
+  # Out:
+  weld_geom_count_out: wp.array2d(dtype=int),
+  weld_geom_list_out: wp.array3d(dtype=int),
 ):
   conid = wp.tid()
   ncon = nacon_in[0]
@@ -2118,42 +2120,43 @@ def _preprocess_tactile_contacts(
 
 @wp.kernel
 def _sensor_tactile(
-    # Model:
-    body_rootid: wp.array(dtype=int),
-    body_weldid: wp.array(dtype=int),
-    oct_child: wp.array(dtype=vec8i),
-    oct_aabb: wp.array2d(dtype=wp.vec3),
-    oct_coeff: wp.array(dtype=vec8),
-    geom_type: wp.array(dtype=int),
-    geom_bodyid: wp.array(dtype=int),
-    geom_size: wp.array2d(dtype=wp.vec3),
-    mesh_vertadr: wp.array(dtype=int),
-    mesh_vertnum: wp.array(dtype=int),
-    mesh_octadr: wp.array(dtype=int),
-    mesh_normaladr: wp.array(dtype=int),
-    mesh_normalnum: wp.array(dtype=int),
-    mesh_vert: wp.array(dtype=wp.vec3),
-    mesh_normal: wp.array(dtype=wp.vec3),
-    mesh_quat: wp.array(dtype=wp.quat),
-    sensor_objid: wp.array(dtype=int),
-    sensor_refid: wp.array(dtype=int),
-    sensor_dim: wp.array(dtype=int),
-    sensor_adr: wp.array(dtype=int),
-    plugin: wp.array(dtype=int),
-    plugin_attr: wp.array(dtype=wp.vec3f),
-    geom_plugin_index: wp.array(dtype=int),
-    taxel_vertadr: wp.array(dtype=int),
-    taxel_sensorid: wp.array(dtype=int),
-    # Data in:
-    geom_xpos_in: wp.array2d(dtype=wp.vec3),
-    geom_xmat_in: wp.array2d(dtype=wp.mat33),
-    subtree_com_in: wp.array2d(dtype=wp.vec3),
-    cvel_in: wp.array2d(dtype=wp.spatial_vector),
-    # In:
-    weld_geom_count_in: wp.array2d(dtype=int),
-    weld_geom_list_in: wp.array3d(dtype=int),
-    # Data out:
-    sensordata_out: wp.array2d(dtype=float),
+  # Model:
+  body_rootid: wp.array(dtype=int),
+  body_weldid: wp.array(dtype=int),
+  oct_child: wp.array(dtype=vec8i),
+  oct_aabb: wp.array2d(dtype=wp.vec3),
+  oct_coeff: wp.array(dtype=vec8),
+  geom_type: wp.array(dtype=int),
+  geom_bodyid: wp.array(dtype=int),
+  geom_dataid: wp.array(dtype=int),
+  geom_size: wp.array2d(dtype=wp.vec3),
+  mesh_vertadr: wp.array(dtype=int),
+  mesh_vertnum: wp.array(dtype=int),
+  mesh_octadr: wp.array(dtype=int),
+  mesh_normaladr: wp.array(dtype=int),
+  mesh_normalnum: wp.array(dtype=int),
+  mesh_vert: wp.array(dtype=wp.vec3),
+  mesh_normal: wp.array(dtype=wp.vec3),
+  mesh_quat: wp.array(dtype=wp.quat),
+  sensor_objid: wp.array(dtype=int),
+  sensor_refid: wp.array(dtype=int),
+  sensor_dim: wp.array(dtype=int),
+  sensor_adr: wp.array(dtype=int),
+  plugin: wp.array(dtype=int),
+  plugin_attr: wp.array(dtype=vec_pluginattr),
+  geom_plugin_index: wp.array(dtype=int),
+  taxel_vertadr: wp.array(dtype=int),
+  taxel_sensorid: wp.array(dtype=int),
+  # Data in:
+  geom_xpos_in: wp.array2d(dtype=wp.vec3),
+  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  subtree_com_in: wp.array2d(dtype=wp.vec3),
+  cvel_in: wp.array2d(dtype=wp.spatial_vector),
+  # In:
+  weld_geom_count_in: wp.array2d(dtype=int),
+  weld_geom_list_in: wp.array3d(dtype=int),
+  # Data out:
+  sensordata_out: wp.array2d(dtype=float),
 ):
   worldid, taxelid = wp.tid()
 
@@ -2211,40 +2214,25 @@ def _sensor_tactile(
     contact_type = geom_type[geom]
 
     plugin_attributes, plugin_index, volume_data, mesh_data = get_sdf_params(
-        oct_child,
-        oct_aabb,
-        oct_coeff,
-        mesh_octadr,
-        plugin,
-        plugin_attr,
-        contact_type,
-        geom_size[worldid % geom_size.shape[0], geom],
-        plugin_id,
-        mesh_id,
+      oct_child,
+      oct_aabb,
+      oct_coeff,
+      mesh_octadr,
+      plugin,
+      plugin_attr,
+      contact_type,
+      geom_size[worldid % geom_size.shape[0], geom],
+      plugin_id,
+      geom_dataid[geom],
     )
 
-    depth = wp.min(
-        sdf(
-            contact_type,
-            lpos,
-            plugin_attributes,
-            plugin_index,
-            volume_data,
-            mesh_data,
-        ),
-        0.0,
-    )
+    depth = wp.min(sdf(contact_type, lpos, plugin_attributes, plugin_index, volume_data, mesh_data), 0.0)
     if depth >= 0.0:
       continue
 
-    vel_sensor = _transform_spatial(
-        cvel_in[worldid, parent_weld],
-        xpos - subtree_com_in[worldid, body_rootid[parent_weld]],
-    )
+    vel_sensor = _transform_spatial(cvel_in[worldid, parent_weld], xpos - subtree_com_in[worldid, body_rootid[parent_weld]])
     vel_other = _transform_spatial(
-        cvel_in[worldid, body],
-        geom_xpos_in[worldid, geom]
-        - subtree_com_in[worldid, body_rootid[body]],
+      cvel_in[worldid, body], geom_xpos_in[worldid, geom] - subtree_com_in[worldid, body_rootid[body]]
     )
     vel_rel = vel_sensor - vel_other
 
@@ -2259,24 +2247,9 @@ def _sensor_tactile(
       forceT[2] = wp.abs(wp.dot(vel_rel, tang2))
 
     dim = sensor_dim[sensor_id] // 3
-    wp.atomic_add(
-        sensordata_out,
-        worldid,
-        sensor_adr[sensor_id] + 0 * dim + vertid,
-        forceT[0],
-    )
-    wp.atomic_add(
-        sensordata_out,
-        worldid,
-        sensor_adr[sensor_id] + 1 * dim + vertid,
-        forceT[1],
-    )
-    wp.atomic_add(
-        sensordata_out,
-        worldid,
-        sensor_adr[sensor_id] + 2 * dim + vertid,
-        forceT[2],
-    )
+    wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 0 * dim + vertid, forceT[0])
+    wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 1 * dim + vertid, forceT[1])
+    wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 2 * dim + vertid, forceT[2])
 
 
 @wp.func
@@ -2507,60 +2480,61 @@ def sensor_acc(m: Model, d: Data):
   weld_geom_count = wp.zeros((d.nworld, m.nbody), dtype=int)
   weld_geom_list = wp.full((d.nworld, m.nbody, MJ_MAXCONPAIR), -1, dtype=int)
   wp.launch(
-      _preprocess_tactile_contacts,
-      dim=d.naconmax,
-      inputs=[
-          m.body_weldid,
-          m.geom_bodyid,
-          d.contact.geom,
-          d.contact.worldid,
-          d.nacon,
-      ],
-      outputs=[
-          weld_geom_count,
-          weld_geom_list,
-      ],
+    _preprocess_tactile_contacts,
+    dim=d.naconmax,
+    inputs=[
+      m.body_weldid,
+      m.geom_bodyid,
+      d.contact.geom,
+      d.contact.worldid,
+      d.nacon,
+    ],
+    outputs=[
+      weld_geom_count,
+      weld_geom_list,
+    ],
   )
 
   wp.launch(
-      _sensor_tactile,
-      dim=(d.nworld, m.nsensortaxel),
-      inputs=[
-          m.body_rootid,
-          m.body_weldid,
-          m.oct_child,
-          m.oct_aabb,
-          m.oct_coeff,
-          m.geom_type,
-          m.geom_bodyid,
-          m.geom_size,
-          m.mesh_vertadr,
-          m.mesh_vertnum,
-          m.mesh_octadr,
-          m.mesh_normaladr,
-          m.mesh_normalnum,
-          m.mesh_vert,
-          m.mesh_normal,
-          m.mesh_quat,
-          m.sensor_objid,
-          m.sensor_refid,
-          m.sensor_dim,
-          m.sensor_adr,
-          m.plugin,
-          m.plugin_attr,
-          m.geom_plugin_index,
-          m.taxel_vertadr,
-          m.taxel_sensorid,
-          d.geom_xpos,
-          d.geom_xmat,
-          d.subtree_com,
-          d.cvel,
-          weld_geom_count,
-          weld_geom_list,
-      ],
-      outputs=[
-          d.sensordata,
-      ],
+    _sensor_tactile,
+    dim=(d.nworld, m.nsensortaxel),
+    inputs=[
+      m.body_rootid,
+      m.body_weldid,
+      m.oct_child,
+      m.oct_aabb,
+      m.oct_coeff,
+      m.geom_type,
+      m.geom_bodyid,
+      m.geom_dataid,
+      m.geom_size,
+      m.mesh_vertadr,
+      m.mesh_vertnum,
+      m.mesh_octadr,
+      m.mesh_normaladr,
+      m.mesh_normalnum,
+      m.mesh_vert,
+      m.mesh_normal,
+      m.mesh_quat,
+      m.sensor_objid,
+      m.sensor_refid,
+      m.sensor_dim,
+      m.sensor_adr,
+      m.plugin,
+      m.plugin_attr,
+      m.geom_plugin_index,
+      m.taxel_vertadr,
+      m.taxel_sensorid,
+      d.geom_xpos,
+      d.geom_xmat,
+      d.subtree_com,
+      d.cvel,
+      weld_geom_count,
+      weld_geom_list,
+    ],
+    outputs=[
+      d.sensordata,
+    ],
   )
 
   sensor_contact_nmatch = wp.empty((d.nworld, m.nsensorcontact), dtype=int)
@@ -2882,12 +2856,12 @@ def energy_pos(m: Model, d: Data):
   wp.launch(_energy_pos_zero, dim=d.nworld, outputs=[d.energy])
 
   # init potential energy: -sum_i(body_i.mass * dot(gravity, body_i.pos))
-  if not m.opt.disableflags & DisableBit.GRAVITY:
+  if not (m.opt.disableflags & DisableBit.GRAVITY):
     wp.launch(
       _energy_pos_gravity, dim=(d.nworld, m.nbody - 1), inputs=[m.opt.gravity, m.body_mass, d.xipos], outputs=[d.energy]
     )
 
-  if not m.opt.disableflags & DisableBit.SPRING:
+  if not (m.opt.disableflags & DisableBit.SPRING):
     # add joint-level springs
     wp.launch(
       _energy_pos_passive_joint,

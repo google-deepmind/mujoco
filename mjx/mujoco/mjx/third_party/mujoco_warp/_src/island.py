@@ -13,12 +13,13 @@
 # limitations under the License.
 # ==============================================================================
 
+import warp as wp
+
 from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConstraintType
 from mujoco.mjx.third_party.mujoco_warp._src.types import EqType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
-import warp as wp
 
 
 @wp.kernel
@@ -180,17 +181,17 @@ def tree_edges(m: types.Model, d: types.Data, tree_tree: wp.array3d(dtype=int)):
 
 @wp.kernel
 def _flood_fill(
-    # Model:
-    ntree: int,
-    # In:
-    tree_tree_in: wp.array3d(dtype=int),
-    labels_in: wp.array2d(dtype=int),
-    stack_in: wp.array2d(dtype=int),
-    # Data out:
-    nisland_out: wp.array(dtype=int),
-    tree_island_out: wp.array2d(dtype=int),
-    # Out:
-    stack_out: wp.array2d(dtype=int),
+  # Model:
+  ntree: int,
+  # In:
+  tree_tree_in: wp.array3d(dtype=int),
+  labels_in: wp.array2d(dtype=int),
+  stack_in: wp.array2d(dtype=int),
+  # Data out:
+  nisland_out: wp.array(dtype=int),
+  tree_island_out: wp.array2d(dtype=int),
+  # Out:
+  stack_out: wp.array2d(dtype=int),
 ):
   """DFS flood fill to discover islands using tree_tree matrix."""
   worldid = wp.tid()
@@ -257,8 +258,8 @@ def island(m: types.Model, d: types.Data):
   stack_scratch = wp.empty((d.nworld, m.ntree * m.ntree), dtype=int)
 
   wp.launch(
-      _flood_fill,
-      dim=d.nworld,
-      inputs=[m.ntree, tree_tree, d.tree_island, stack_scratch],
-      outputs=[d.nisland, d.tree_island, stack_scratch],
+    _flood_fill,
+    dim=d.nworld,
+    inputs=[m.ntree, tree_tree, d.tree_island, stack_scratch],
+    outputs=[d.nisland, d.tree_island, stack_scratch],
   )

@@ -297,17 +297,20 @@ def kinematics_vmap(
 def _tendon_shim(
     # Model
     nworld: int,
+    body_dofadr: wp.array(dtype=int),
+    body_dofnum: wp.array(dtype=int),
     body_parentid: wp.array(dtype=int),
     body_rootid: wp.array(dtype=int),
-    dof_bodyid: wp.array(dtype=int),
     geom_bodyid: wp.array(dtype=int),
     geom_size: wp.array2d(dtype=wp.vec3),
     jnt_dofadr: wp.array(dtype=int),
     jnt_qposadr: wp.array(dtype=int),
     ntendon: int,
-    nv: int,
     nwrap: int,
     site_bodyid: wp.array(dtype=int),
+    ten_J_colind: wp.array(dtype=int),
+    ten_J_rowadr: wp.array(dtype=int),
+    ten_J_rownnz: wp.array(dtype=int),
     tendon_adr: wp.array(dtype=int),
     tendon_geom_adr: wp.array(dtype=int),
     tendon_jnt_adr: wp.array(dtype=int),
@@ -327,7 +330,7 @@ def _tendon_shim(
     qpos: wp.array2d(dtype=float),
     site_xpos: wp.array2d(dtype=wp.vec3),
     subtree_com: wp.array2d(dtype=wp.vec3),
-    ten_J: wp.array3d(dtype=float),
+    ten_J: wp.array2d(dtype=float),
     ten_length: wp.array2d(dtype=float),
     ten_wrapadr: wp.array2d(dtype=int),
     ten_wrapnum: wp.array2d(dtype=int),
@@ -339,17 +342,20 @@ def _tendon_shim(
   _m.callback = _cb
   _d.efc = _e
   _d.contact = _c
+  _m.body_dofadr = body_dofadr
+  _m.body_dofnum = body_dofnum
   _m.body_parentid = body_parentid
   _m.body_rootid = body_rootid
-  _m.dof_bodyid = dof_bodyid
   _m.geom_bodyid = geom_bodyid
   _m.geom_size = geom_size
   _m.jnt_dofadr = jnt_dofadr
   _m.jnt_qposadr = jnt_qposadr
   _m.ntendon = ntendon
-  _m.nv = nv
   _m.nwrap = nwrap
   _m.site_bodyid = site_bodyid
+  _m.ten_J_colind = ten_J_colind
+  _m.ten_J_rowadr = ten_J_rowadr
+  _m.ten_J_rownnz = ten_J_rownnz
   _m.tendon_adr = tendon_adr
   _m.tendon_geom_adr = tendon_geom_adr
   _m.tendon_jnt_adr = tendon_jnt_adr
@@ -416,17 +422,20 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
   )
   out = jf(
       d.qpos.shape[0],
+      m.body_dofadr,
+      m.body_dofnum,
       m.body_parentid,
       m.body_rootid,
-      m.dof_bodyid,
       m.geom_bodyid,
       m.geom_size,
       m.jnt_dofadr,
       m.jnt_qposadr,
       m.ntendon,
-      m.nv,
       m.nwrap,
       m.site_bodyid,
+      m._impl.ten_J_colind,
+      m._impl.ten_J_rowadr,
+      m._impl.ten_J_rownnz,
       m.tendon_adr,
       m._impl.tendon_geom_adr,
       m._impl.tendon_jnt_adr,

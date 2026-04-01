@@ -16,11 +16,12 @@
 import math
 from typing import Tuple
 
+import warp as wp
+
 from mujoco.mjx.third_party.mujoco_warp._src.collision_core import Geom
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat43
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat63
-import warp as wp
 
 # TODO(team): improve compile time to enable backward pass
 wp.set_module_options({"enable_backward": False})
@@ -581,16 +582,19 @@ def gjk(
   simplex_index2 = wp.vec4i()
   n = int(0)
   coordinates = wp.vec4()  # barycentric coordinates
-  epsilon = wp.where(is_discrete, 0.0, 0.5 * tolerance * tolerance)
+  tol2 = tolerance * tolerance
+  epsilon = wp.where(is_discrete, 0.0, 0.5 * tol2)
 
   # set initial guess
   x_k = x1_0 - x2_0
+  xnorm_old = FLOAT_MAX
 
-  for k in range(gjk_iterations):
+  for _ in range(gjk_iterations):
     xnorm = wp.dot(x_k, x_k)
     # TODO(kbayes): determine new constant here
-    if xnorm < 1e-12:
+    if xnorm < tol2 or wp.abs(xnorm_old - xnorm) < tol2:
       break
+    xnorm_old = xnorm
     dir_neg = x_k / wp.sqrt(xnorm)
 
     # compute kth support point in geom1
@@ -662,13 +666,6 @@ def gjk(
     # we have a tetrahedron containing the origin so return early
     if n == 4:
       break
-
-    if k == gjk_iterations - 1:
-      wp.printf(
-          "Warning: opt.ccd_iterations, currently set to %d, needs to be"
-          " increased.\n",
-          gjk_iterations,
-      )
 
   result = GJKResult()
 
@@ -1205,7 +1202,6 @@ def _is_invalid_face(face: int) -> bool:
 def _epa(
   # In:
   tolerance: float,
-  gjk_iterations: int,
   epa_iterations: int,
   pt: Polytope,
   geom1: Geom,
@@ -1226,7 +1222,7 @@ def _epa(
   # so iterations must be cap to limit the number of generated vertices
   # (one new vertex per iteration)
   epa_iterations = wp.min(epa_iterations, 1000)
-  for k in range(epa_iterations):
+  for _ in range(epa_iterations):
     pidx = idx
     idx = int(-1)
     lower2 = float(FLOAT_MAX)
@@ -1324,13 +1320,6 @@ def _epa(
 
     # clear horizon
     pt.nhorizon = 0
-
-    if k == epa_iterations - 1:
-      wp.printf(
-          "Warning: opt.ccd_iterations, currently set to %d, needs to be"
-          " increased.\n",
-          gjk_iterations,
-      )
 
   # return from valid face
   if idx > -1:
@@ -2347,7 +2336,7 @@ def ccd(
   if pt.status:
     return result.dist, 1, result.x1, result.x2, -1
 
-  dist, x1, x2, idx = _epa(tolerance, gjk_iterations, epa_iterations, pt, geom1, geom2, geomtype1, geomtype2, is_discrete)
+  dist, x1, x2, idx = _epa(tolerance, epa_iterations, pt, geom1, geom2, geomtype1, geomtype2, is_discrete)
   if idx == -1:
     return FLOAT_MAX, 0, wp.vec3(), wp.vec3(), -1
 

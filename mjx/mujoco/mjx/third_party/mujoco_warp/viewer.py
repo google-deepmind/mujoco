@@ -18,7 +18,7 @@
 Usage: mjwarp-viewer <mjcf XML path> [flags]
 
 Example:
-  mjwarp-viewer benchmark/humanoid/humanoid.xml -o "opt.solver=cg"
+  mjwarp-viewer benchmarks/humanoid/humanoid.xml -o "opt.solver=cg"
 """
 
 import copy
@@ -56,6 +56,7 @@ _CLEAR_WARP_CACHE = flags.DEFINE_bool("clear_warp_cache", False, "Clear warp cac
 _ENGINE = flags.DEFINE_enum_class("engine", EngineOptions.WARP, EngineOptions, "Simulation engine")
 _NCONMAX = flags.DEFINE_integer("nconmax", None, "Maximum number of contacts.")
 _NJMAX = flags.DEFINE_integer("njmax", None, "Maximum number of constraints per world.")
+_NJMAX_NNZ = flags.DEFINE_integer("njmax_nnz", None, "Maximum number of non-zeros in constraint Jacobian.")
 _NCCDMAX = flags.DEFINE_integer("nccdmax", None, "Maximum number of CCD contacts per world.")
 _OVERRIDE = flags.DEFINE_multi_string("override", [], "Model overrides (notation: foo.bar = baz)", short_name="o")
 _KEYFRAME = flags.DEFINE_integer("keyframe", 0, "keyframe to initialize simulation.")
@@ -149,7 +150,7 @@ def _main(argv: Sequence[str]) -> None:
     override_model(mjm, _OVERRIDE.value)
     m = mjw.put_model(mjm)
     override_model(m, _OVERRIDE.value)
-    d = mjw.put_data(mjm, mjd, nconmax=_NCONMAX.value, njmax=_NJMAX.value, nccdmax=_NCCDMAX.value)
+    d = mjw.put_data(mjm, mjd, nconmax=_NCONMAX.value, njmax=_NJMAX.value, njmax_nnz=_NJMAX_NNZ.value, nccdmax=_NCCDMAX.value)
     graph = _compile_step(m, d) if wp.get_device().is_cuda else None
     if graph is None:
       mjw.step(m, d)  # warmup step
