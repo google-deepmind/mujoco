@@ -40,30 +40,43 @@ enum class RenderTargetTextureType {
   kReflectionColor,
 };
 
-// Creates a filament Texture for the given 2D texture.
-filament::Texture* Create2dTexture(filament::Engine* engine, int width,
-                                   int height, int num_channels,
-                                   const uint8_t* data, bool is_srgb);
+class Texture {
+ public:
+  // Creates a texture with the given data.
+  Texture(filament::Engine* engine, TextureType texture_type,
+          mjtColorSpace color_space, int width, int height, int num_channels,
+          const uint8_t* data);
 
-// Creates a filament Texture for the given cube texture.
-filament::Texture* CreateCubeTexture(filament::Engine* engine, int width,
-                                     int height, int num_channels,
-                                     const uint8_t* data, bool is_srgb);
+  // Creates a texture for use with a render target.
+  Texture(filament::Engine* engine, RenderTargetTextureType type, int width,
+          int height);
 
-// Creates a filament Texture for the given KTX payload.
-filament::Texture* CreateKtxTexture(
-    filament::Engine* engine, const uint8_t* data, int size,
-    filament::math::float3* spherical_harmonics_out);
+  ~Texture();
 
-// Creates a filament Texture for the given texture in the mjModel.
-filament::Texture* CreateTexture(filament::Engine* engine, const mjModel* model,
-                                 int id, TextureType texture_type);
+  filament::Texture* GetFilamentTexture() const { return texture_; }
 
-// Creates a filament Texture for the given render target.
-filament::Texture* CreateRenderTargetTexture(filament::Engine* engine,
-                                             int width, int height,
-                                             RenderTargetTextureType type);
+  using SphericalHarmonics = filament::math::float3[9];
 
+  const SphericalHarmonics* GetSphericalHarmonics() const {
+    return has_spherical_harmonics_ ? &spherical_harmonics_ : nullptr;
+  }
+
+  Texture(const Texture&) = delete;
+  Texture& operator=(const Texture&) = delete;
+
+ private:
+
+  void Create2dTexture(int width, int height, int num_channels,
+                       const uint8_t* data, bool is_srgb);
+  void CreateCubeTexture(int width, int height, int num_channels,
+                         const uint8_t* data, bool is_srgb);
+  void CreateKtxTexture(const uint8_t* data, int size);
+
+  filament::Engine* engine_ = nullptr;
+  filament::Texture* texture_ = nullptr;
+  SphericalHarmonics spherical_harmonics_;
+  bool has_spherical_harmonics_ = false;
+};
 }  // namespace mujoco
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_TEXTURE_UTIL_H_

@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MODEL_OBJECTS_H_
 
 #include <array>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -25,6 +26,7 @@
 #include <math/vec3.h>
 #include <mujoco/mjmodel.h>
 #include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/texture_util.h"
 
 namespace mujoco {
 
@@ -62,8 +64,8 @@ class ModelObjects {
   const FilamentBuffers* GetShapeBuffer(ShapeType shape) const;
   const FilamentBuffers* GetMeshBuffer(int data_id) const;
   const FilamentBuffers* GetHeightFieldBuffer(int hfield_id) const;
-  const filament::Texture* GetTexture(int tex_id) const;
-  const filament::Texture* GetTexture(int mat_id, int role) const;
+  const Texture* GetTexture(int tex_id) const;
+  const Texture* GetTexture(int mat_id, int role) const;
 
   filament::Skybox* CreateSkybox();
   filament::IndirectLight* CreateIndirectLight(int tex_id, float intensity);
@@ -78,8 +80,6 @@ class ModelObjects {
   ModelObjects& operator=(const ModelObjects&) = delete;
 
  private:
-  using SphericalHarmonics = filament::math::float3[9];
-
   const mjModel* model_ = nullptr;
   filament::Engine* engine_ = nullptr;
   std::vector<filament::Skybox*> skyboxes_;
@@ -88,8 +88,7 @@ class ModelObjects {
   std::unordered_map<int, FilamentBuffers> meshes_;
   std::unordered_map<int, FilamentBuffers> convex_hulls_;
   std::unordered_map<int, FilamentBuffers> height_fields_;
-  std::unordered_map<int, filament::Texture*> textures_;
-  std::unordered_map<int, SphericalHarmonics> spherical_harmonics_;
+  std::unordered_map<int, std::unique_ptr<Texture>> textures_;
   float specular_multiplier_ = 0.2f;
   float shininess_multiplier_ = 0.1f;
   float emissive_multiplier_ = 0.3f;

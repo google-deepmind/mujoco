@@ -16,12 +16,14 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_OBJECT_MANAGER_H_
 
 #include <array>
+#include <memory>
 #include <string_view>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
 #include <filament/Skybox.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/texture_util.h"
 
 namespace mujoco {
 
@@ -60,7 +62,7 @@ class ObjectManager {
   filament::Material* GetMaterial(MaterialType type) const;
 
   // Returns the fallback Texture with the given role.
-  const filament::Texture* GetFallbackTexture(mjtTextureRole role) const;
+  const Texture* GetFallbackTexture(mjtTextureRole role) const;
 
   // Returns the fallback IndirectLight.
   filament::IndirectLight* GetFallbackIndirectLight();
@@ -74,12 +76,12 @@ class ObjectManager {
  private:
   filament::Engine* engine_ = nullptr;
   std::array<filament::Material*, kNumMaterials> materials_;
-  std::array<filament::Texture*, mjNTEXROLE> fallback_textures_;
-  filament::Texture* fallback_white_ = nullptr;
-  filament::Texture* fallback_black_ = nullptr;
-  filament::Texture* fallback_normal_ = nullptr;
-  filament::Texture* fallback_orm_ = nullptr;
-  filament::Texture* fallback_indirect_light_texture_ = nullptr;
+  std::array<Texture*, mjNTEXROLE> fallback_textures_;
+  std::unique_ptr<Texture> fallback_white_ = nullptr;
+  std::unique_ptr<Texture> fallback_black_ = nullptr;
+  std::unique_ptr<Texture> fallback_normal_ = nullptr;
+  std::unique_ptr<Texture> fallback_orm_ = nullptr;
+  std::unique_ptr<Texture> fallback_indirect_light_texture_ = nullptr;
   filament::IndirectLight* fallback_indirect_light_ = nullptr;
 };
 

@@ -26,6 +26,7 @@
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderables.h"
+#include "experimental/filament/filament/texture_util.h"
 
 namespace mujoco {
 
@@ -68,7 +69,7 @@ class Drawable {
   // Sets the reflection texture for the drawable. We have a separate setter
   // because we need to render the reflection texture before it can be applied
   // to the material.
-  void UpdateReflectionTexture(const filament::Texture* tex);
+  void UpdateReflectionTexture(const Texture* tex);
 
  private:
   void AddMesh(int data_id);

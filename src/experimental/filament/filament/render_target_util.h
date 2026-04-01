@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDER_TARGET_UTIL_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDER_TARGET_UTIL_H_
 
+#include <memory>
+
 #include <filament/Engine.h>
 #include <filament/Texture.h>
 #include "experimental/filament/filament/texture_util.h"
@@ -39,21 +41,21 @@ class RenderTargetAndTextures {
   void Prepare(int width, int height);
 
   // Returns the color texture.
-  filament::Texture* GetColorTexture() const { return color_texture_; }
+  Texture* GetColorTexture() const;
 
   // Returns the depth texture.
-  filament::Texture* GetDepthTexture() const { return depth_texture_; }
+  Texture* GetDepthTexture() const;
 
   // Returns the render target.
-  filament::RenderTarget* GetRenderTarget() const { return render_target_; }
+  filament::RenderTarget* GetRenderTarget() const;
 
  private:
   void Destroy();
 
   filament::Engine* engine_ = nullptr;
-  filament::Texture* color_texture_ = nullptr;
-  filament::Texture* depth_texture_ = nullptr;
   filament::RenderTarget* render_target_ = nullptr;
+  std::unique_ptr<Texture> color_texture_ = nullptr;
+  std::unique_ptr<Texture> depth_texture_ = nullptr;
   RenderTargetTextureType color_type_;
   RenderTargetTextureType depth_type_;
   int width_ = 0;
