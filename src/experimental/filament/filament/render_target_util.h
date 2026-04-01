@@ -17,18 +17,9 @@
 
 #include <filament/Engine.h>
 #include <filament/Texture.h>
+#include "experimental/filament/filament/texture_util.h"
 
 namespace mujoco {
-
-// The different types of textures we can create for a render target.
-enum RenderTargetTextureType {
-  kRenderTargetNone,
-  kRenderTargetColor,
-  kRenderTargetDepth,
-  kRenderTargetDepthColor,
-  kRenderTargetReflectionColor,
-  kNumRenderTargetTextureTypes,
-};
 
 // Manages a filament RenderTarget and the textures which are bound to it.
 class RenderTargetAndTextures {
@@ -63,8 +54,8 @@ class RenderTargetAndTextures {
   filament::Texture* color_texture_ = nullptr;
   filament::Texture* depth_texture_ = nullptr;
   filament::RenderTarget* render_target_ = nullptr;
-  RenderTargetTextureType color_type_ = kRenderTargetNone;
-  RenderTargetTextureType depth_type_ = kRenderTargetNone;
+  RenderTargetTextureType color_type_;
+  RenderTargetTextureType depth_type_;
   int width_ = 0;
   int height_ = 0;
 };

@@ -37,12 +37,6 @@ enum class MeshType {
   kHeightField,
 };
 
-// The types of textures stored in the mjModel.
-enum class TextureType {
-  kNormal2d,
-  kCube,
-};
-
 // Generates a filament VertexBuffer for a given mesh in the mjModel.
 filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
                                            const mjModel* model, int id,
@@ -53,10 +47,6 @@ filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
 filament::IndexBuffer* CreateIndexBuffer(filament::Engine* engine,
                                          const mjModel* model, int id,
                                          MeshType mesh_type);
-
-// Generates a filament Texture for a given 2D texture in the mjModel.
-filament::Texture* CreateTexture(filament::Engine* engine, const mjModel* model,
-                                 int id, TextureType texture_type);
 
 // Reads a value with the given name from the mjModel's data sections. The
 // default_value is returned if the named element is not found.

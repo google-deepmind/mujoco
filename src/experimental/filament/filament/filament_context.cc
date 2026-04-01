@@ -45,6 +45,7 @@
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/render_target_util.h"
 #include "experimental/filament/filament/scene_view.h"
+#include "experimental/filament/filament/texture_util.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -62,16 +63,18 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config)
   engine_ = engine_builder.build();
 
   renderer_ = engine_->createRenderer();
-  #ifdef __EMSCRIPTEN__
-    window_swap_chain_ = engine_->createSwapChain(nullptr);
-  #else
+#ifdef __EMSCRIPTEN__
+  window_swap_chain_ = engine_->createSwapChain(nullptr);
+#else
   if (config_.native_window) {
     window_swap_chain_ = engine_->createSwapChain(config_.native_window);
   } else {
-    window_swap_chain_ = engine_->createSwapChain(config_.width, config_.height);
+    window_swap_chain_ =
+        engine_->createSwapChain(config_.width, config_.height);
   }
-  #endif
-  offscreen_swap_chain_ = engine_->createSwapChain(config_.width, config_.height);
+#endif
+  offscreen_swap_chain_ =
+      engine_->createSwapChain(config_.width, config_.height);
 
   object_manager_ = std::make_unique<ObjectManager>(engine_);
 }
@@ -183,11 +186,13 @@ void FilamentContext::SetFrameBuffer(int framebuffer) {
 
 void FilamentContext::PrepareRenderTargets(int width, int height) {
   color_target_ = std::make_unique<RenderTargetAndTextures>(
-      engine_, kRenderTargetColor, kRenderTargetDepth);
+      engine_, RenderTargetTextureType::kColor,
+      RenderTargetTextureType::kDepth);
   color_target_->Prepare(width, height);
 
   depth_target_ = std::make_unique<RenderTargetAndTextures>(
-      engine_, kRenderTargetDepthColor, kRenderTargetDepth);
+      engine_, RenderTargetTextureType::kDepthColor,
+      RenderTargetTextureType::kDepth);
   depth_target_->Prepare(width, height);
 }
 
@@ -310,8 +315,6 @@ double FilamentContext::GetFrameRate() const {
   return 1.0e9 / static_cast<double>(ns);
 }
 
-void FilamentContext::UpdateGui() {
-  DrawGui(scene_view_.get());
-}
+void FilamentContext::UpdateGui() { DrawGui(scene_view_.get()); }
 
 }  // namespace mujoco

@@ -50,6 +50,7 @@
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/render_target_util.h"
+#include "experimental/filament/filament/texture_util.h"
 
 namespace mujoco {
 
@@ -516,7 +517,8 @@ void SceneView::AddReflectiveDrawable(Drawable* drawable) {
   filament::Engine* engine = object_mgr_->GetEngine();
   while (reflect_targets_.size() < reflectives_.size()) {
     reflect_targets_.push_back(std::make_unique<RenderTargetAndTextures>(
-        engine, kRenderTargetReflectionColor, kRenderTargetDepth));
+        engine, RenderTargetTextureType::kReflectionColor,
+        RenderTargetTextureType::kDepth));
   }
 
   // Prepare a render target for the reflective drawable.

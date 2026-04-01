@@ -20,9 +20,25 @@
 #include <filament/Engine.h>
 #include <filament/Texture.h>
 #include <math/vec3.h>
+#include <mujoco/mjmodel.h>
 
 // Functions for creating filament textures.
 namespace mujoco {
+
+// The types of textures we can create.
+enum class TextureType {
+  kNormal2d,
+  kCube,
+  kKtx,
+};
+
+// The different types of textures we can create for a render target.
+enum class RenderTargetTextureType {
+  kColor,
+  kDepth,
+  kDepthColor,
+  kReflectionColor,
+};
 
 // Creates a filament Texture for the given 2D texture.
 filament::Texture* Create2dTexture(filament::Engine* engine, int width,
@@ -38,6 +54,15 @@ filament::Texture* CreateCubeTexture(filament::Engine* engine, int width,
 filament::Texture* CreateKtxTexture(
     filament::Engine* engine, const uint8_t* data, int size,
     filament::math::float3* spherical_harmonics_out);
+
+// Creates a filament Texture for the given texture in the mjModel.
+filament::Texture* CreateTexture(filament::Engine* engine, const mjModel* model,
+                                 int id, TextureType texture_type);
+
+// Creates a filament Texture for the given render target.
+filament::Texture* CreateRenderTargetTexture(filament::Engine* engine,
+                                             int width, int height,
+                                             RenderTargetTextureType type);
 
 }  // namespace mujoco
 
