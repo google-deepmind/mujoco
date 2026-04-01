@@ -1107,6 +1107,17 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
     }
 
+    // DC motor bias (back-EMF)
+    else if (m->actuator_biastype[i] == mjBIAS_DCMOTOR) {
+      const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+      const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+      if (dynprm[0] <= 0) {
+        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum K = gainprm[1];
+        bias_vel -= K * K / R;
+      }
+    }
+
     // affine gain
     if (m->actuator_gaintype[i] == mjGAIN_AFFINE) {
       // extract bias info: prm = [const, kp, kv]
@@ -1120,6 +1131,28 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
                                     m->actuator_lengthrange+2*i,
                                     m->actuator_acc0[i],
                                     m->actuator_gainprm + mjNGAIN*i);
+    }
+
+    // DC motor controller damping and LuGre micro-damping
+    else if (m->actuator_gaintype[i] == mjGAIN_DCMOTOR) {
+      const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+      const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+      int input_mode = (int)gainprm[8];
+      if (input_mode > 0) {
+        mjtNum R = gainprm[0];
+        mjtNum K = gainprm[1];
+        mjtNum gain = (dynprm[0] > 0) ? K : K / mju_max(mjMINVAL, R);
+        mjtNum kp = gainprm[4];
+        mjtNum kd = gainprm[6];
+        bias_vel -= gain * (input_mode == 1 ? kd : kp);
+      }
+
+      // LuGre: force includes -sigma1*z_dot, z_dot = a*z + v
+      // d(sigma1*z_dot)/dv = sigma1*(da/dv*z + 1), ignoring higher-order da/dv*z
+      mjtNum sigma1 = dynprm[6];
+      if (sigma1 > 0) {
+        bias_vel -= sigma1;
+      }
     }
 
     // force = gain .* [ctrl/act]

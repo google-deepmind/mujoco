@@ -9876,6 +9876,18 @@ std::string mjs_setToCylinder_wrapper(MjsActuator& actuator, double timeconst, d
   return std::string(mjs_setToCylinder(actuator.get(), timeconst, bias, area, diameter));
 }
 
+std::string mjs_setToDCMotor_wrapper(MjsActuator& actuator, const val& motorconst, double resistance, const val& nominal, const val& saturation, const val& inductance, const val& cogging, const val& controller, const val& thermal, const val& lugre, int input_mode) {
+  UNPACK_VALUE(double, motorconst);
+  UNPACK_VALUE(double, nominal);
+  UNPACK_VALUE(double, saturation);
+  UNPACK_VALUE(double, inductance);
+  UNPACK_VALUE(double, cogging);
+  UNPACK_VALUE(double, controller);
+  UNPACK_VALUE(double, thermal);
+  UNPACK_VALUE(double, lugre);
+  return std::string(mjs_setToDCMotor(actuator.get(), motorconst_.data(), resistance, nominal_.data(), saturation_.data(), inductance_.data(), cogging_.data(), controller_.data(), thermal_.data(), lugre_.data(), input_mode));
+}
+
 std::string mjs_setToDamper_wrapper(MjsActuator& actuator, double kv) {
   return std::string(mjs_setToDamper(actuator.get(), kv));
 }
@@ -10812,6 +10824,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjBIAS_NONE", mjBIAS_NONE)
     .value("mjBIAS_AFFINE", mjBIAS_AFFINE)
     .value("mjBIAS_MUSCLE", mjBIAS_MUSCLE)
+    .value("mjBIAS_DCMOTOR", mjBIAS_DCMOTOR)
     .value("mjBIAS_USER", mjBIAS_USER);
   enum_<mjtBuiltin>("mjtBuiltin")
     .value("mjBUILTIN_NONE", mjBUILTIN_NONE)
@@ -10912,6 +10925,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjDYN_FILTER", mjDYN_FILTER)
     .value("mjDYN_FILTEREXACT", mjDYN_FILTEREXACT)
     .value("mjDYN_MUSCLE", mjDYN_MUSCLE)
+    .value("mjDYN_DCMOTOR", mjDYN_DCMOTOR)
     .value("mjDYN_USER", mjDYN_USER);
   enum_<mjtEnableBit>("mjtEnableBit")
     .value("mjENBL_OVERRIDE", mjENBL_OVERRIDE)
@@ -10974,6 +10988,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjGAIN_FIXED", mjGAIN_FIXED)
     .value("mjGAIN_AFFINE", mjGAIN_AFFINE)
     .value("mjGAIN_MUSCLE", mjGAIN_MUSCLE)
+    .value("mjGAIN_DCMOTOR", mjGAIN_DCMOTOR)
     .value("mjGAIN_USER", mjGAIN_USER);
   enum_<mjtGeom>("mjtGeom")
     .value("mjGEOM_PLANE", mjGEOM_PLANE)
@@ -13295,6 +13310,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_setName", &mjs_setName_wrapper);
   function("mjs_setToAdhesion", &mjs_setToAdhesion_wrapper);
   function("mjs_setToCylinder", &mjs_setToCylinder_wrapper);
+  function("mjs_setToDCMotor", &mjs_setToDCMotor_wrapper);
   function("mjs_setToDamper", &mjs_setToDamper_wrapper);
   function("mjs_setToIntVelocity", &mjs_setToIntVelocity_wrapper);
   function("mjs_setToMotor", &mjs_setToMotor_wrapper);

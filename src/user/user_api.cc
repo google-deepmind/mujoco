@@ -15,6 +15,7 @@
 #include "user/user_api.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -1115,6 +1116,166 @@ const char* mjs_setToAdhesion(mjsActuator* actuator, double gain) {
     return "adhesion gain cannot be negative";
   if (actuator->ctrlrange[0] < 0 || actuator->ctrlrange[1] < 0)
     return "adhesion control range cannot be negative";
+  return "";
+}
+
+
+
+const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
+                             double nominal[3], double saturation[4], double inductance[2],
+                             double cogging[3], double controller[5], double thermal[6],
+                             double lugre[6], int input_mode) {
+  double Kt     = motorconst[0];  // torque constant
+  double Ke     = motorconst[1];  // back-EMF constant
+  double R      = resistance;     // electrical resistance
+  double vn     = nominal[0];     // nominal voltage
+  double tau0   = nominal[1];     // stall torque
+  double omega0 = nominal[2];     // no-load speed
+
+  // derive Ke from nominal: omega0 = vn*Ke / (Ke^2 + R*B)
+  if (vn > 0 && Ke <= 0 && omega0 > 0) {
+    // viscous damping (linear), add lugre sigma2 contribution if any
+    double B = actuator->damping[0];
+    if (lugre[0] > 0) B += lugre[2];
+
+    if (B > 0 && R > 0) {
+      // R known: solve quadratic Ke^2*omega0 - Ke*vn + R*B*omega0 = 0
+      double disc = vn*vn - 4*R*B*omega0*omega0;
+      Ke = disc > 0 ? (vn + sqrt(disc)) / (2*omega0) : vn / omega0;
+    } else if (B > 0 && tau0 > 0) {
+      // R from nominal (tau0 = Ke*vn/R, so R = Ke*vn/tau0)
+      // substituting into omega0 = vn*Ke/(Ke^2 + R*B):
+      //   omega0 = vn/(Ke + vn*B/tau0)  =>  Ke = vn/omega0 - vn*B/tau0
+      double Ke_exact = vn / omega0 - vn*B / tau0;
+      Ke = Ke_exact > 0 ? Ke_exact : vn / omega0;
+    } else {
+      // B = 0 or insufficient data for B-correction: omega0 = vn*Ke/Ke^2 = vn/Ke
+      Ke = vn / omega0;
+    }
+  }
+
+  // resolve effective motor constant K from [Kt, Ke]
+  double K = (Kt > 0 && Ke > 0) ? sqrt(Kt * Ke) :
+             (Kt > 0)           ? Kt : Ke;
+
+  // derive R from nominal: tau0 = K*vn/R
+  if (R == 0 && vn > 0 && tau0 > 0 && K > 0) {
+    R = K * vn / tau0;
+  }
+
+  if (K <= 0) return "DC motor: motor constant K must be positive";
+  if (R <= 0) return "DC motor: resistance R must be positive";
+
+  // set types
+  actuator->dyntype = mjDYN_DCMOTOR;
+  actuator->gaintype = mjGAIN_DCMOTOR;
+  actuator->biastype = mjBIAS_DCMOTOR;
+
+  // gainprm: [R, K, alpha, T0]
+  actuator->gainprm[0] = R;
+  actuator->gainprm[1] = K;
+
+  // controller parameters: gainprm[4:6] for kp, ki, kd
+  actuator->gainprm[4] = controller[0];  // kp
+  actuator->gainprm[5] = controller[1];  // ki
+  actuator->gainprm[6] = controller[2];  // kd
+
+  // controller parameters: dynprm[7,8] for slewmax, Imax
+  actuator->dynprm[7] = controller[3];  // slewmax
+  actuator->dynprm[8] = controller[4];  // Imax
+
+  // saturation: [tau_max, i_max, (di/dt)_max, v_max]
+  if (saturation[2] > 0) {
+    actuator->dynprm[1] = saturation[2];  // (di/dt)_max
+  }
+  if (saturation[3] > 0) {
+    actuator->gainprm[7] = saturation[3];  // v_max
+  }
+
+  // saturation -> forcerange
+  if (saturation[0] > 0 || saturation[1] > 0) {
+    double tau_max = saturation[0];
+    if (tau_max == 0 && saturation[1] > 0) {
+      tau_max = K * saturation[1];  // tau_max = K * i_max
+    }
+    actuator->forcerange[0] = -tau_max;
+    actuator->forcerange[1] = tau_max;
+    actuator->forcelimited = 1;
+  }
+
+  // cogging: [amplitude, periodicity, phase] -> biasprm[0:3]
+  actuator->biasprm[0] = cogging[0];  // amplitude
+  actuator->biasprm[1] = cogging[1];  // periodicity
+  actuator->biasprm[2] = cogging[2];  // phase
+
+  // count activation variables: slot order is slew, integral, temperature, bristle, current
+  int actdim = 0;
+
+  // inductance: [L, te]
+  if (inductance[0] < 0) return "DC motor: inductance must be non-negative";
+  if (inductance[1] < 0) return "DC motor: electrical time constant must be non-negative";
+  double te = inductance[0] > 0 ? inductance[0] / R : inductance[1];
+  actuator->dynprm[0] = te;
+  if (te > 0) {
+    actdim++;
+  }
+
+  // controller states: slew rate limiting
+  if (controller[3] > 0) {  // slewmax
+    actdim++;
+  }
+
+  // controller states: integral
+  if (controller[1] > 0) {  // ki
+    actdim++;
+  }
+
+  // thermal -> temperature activation
+  if (thermal[0] > 0 || thermal[1] > 0 || thermal[2] > 0) {
+    double RT    = thermal[0];   // thermal resistance
+    double C     = thermal[1];   // thermal capacitance
+    double tth   = thermal[2];   // thermal time constant
+    double alpha = thermal[3];   // temperature coefficient
+    double T0    = thermal[4];   // reference temperature
+    double Ta    = thermal[5];   // ambient temperature
+
+    if (tth > 0 && RT > 0 && C == 0) {
+      C = tth / RT;
+    } else if (tth > 0 && C > 0 && RT == 0) {
+      RT = tth / C;
+    } else if (tth == 0 && RT > 0 && C > 0) {
+      tth = RT * C;
+    }
+
+    if (RT <= 0) return "DC motor: thermal resistance must be positive";
+    if (C <= 0) return "DC motor: thermal capacitance must be positive";
+
+    actuator->dynprm[2]  = RT;
+    actuator->dynprm[3]  = C;
+    actuator->dynprm[4]  = Ta;
+    actuator->gainprm[2] = alpha;
+    actuator->gainprm[3] = T0;
+    actdim++;
+  }
+
+  // lugre: {stiffness, damping, viscous, coulomb, static, stribeck}
+  if (lugre[0] > 0) {
+    actuator->dynprm[5] = lugre[0];    // stiffness -> sigma0
+    actuator->dynprm[6] = lugre[1];    // damping   -> sigma1
+    actuator->damping[0] += lugre[2];  // viscous   -> sigma2
+    actuator->biasprm[3] = lugre[3];   // coulomb   -> tau_c
+    actuator->biasprm[4] = lugre[4];   // static    -> tau_s
+    actuator->biasprm[5] = lugre[5];   // stribeck  -> omega_s
+    actdim++;
+  }
+
+  // set input mode and activation dimension
+  actuator->gainprm[8] = input_mode;
+  actuator->actdim = actdim;
+
+  // enforce actlimited = 0; homogeneous bounds are invalid across DC motor states
+  actuator->actlimited = 0;
+
   return "";
 }
 

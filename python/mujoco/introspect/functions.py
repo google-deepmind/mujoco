@@ -10786,6 +10786,86 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Set actuator to active adhesion; return error if any.',
      )),
+    ('mjs_setToDCMotor',
+     FunctionDecl(
+         name='mjs_setToDCMotor',
+         return_type=PointerType(
+             inner_type=ValueType(name='char', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='actuator',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsActuator'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='motorconst',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='resistance',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='nominal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='saturation',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(4,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='inductance',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='cogging',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='controller',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(5,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='thermal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(6,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='lugre',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(6,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='input_mode',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Set actuator to DC motor; return error if any.',
+     )),
     ('mjs_addMesh',
      FunctionDecl(
          name='mjs_addMesh',

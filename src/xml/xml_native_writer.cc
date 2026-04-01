@@ -871,7 +871,7 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* actuator, mjCDe
   if (writingdefaults) {
     WriteAttrInt(elem, "actdim", actuator->actdim, def->Actuator().actdim);
   } else {
-    int default_actdim = actuator->dyntype == mjDYN_NONE ? 0 : 1;
+    int default_actdim = (actuator->dyntype != mjDYN_NONE && actuator->dyntype != mjDYN_DCMOTOR);
     WriteAttrInt(elem, "actdim", actuator->actdim, default_actdim);
   }
   WriteAttrKey(elem, "dyntype", dyn_map, dyn_sz, actuator->dyntype, def->Actuator().dyntype);

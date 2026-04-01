@@ -206,6 +206,10 @@ std::vector<const char*> MJCF[nMJCF] = {
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "?", "forcelimited", "ctrlrange", "forcerange",
             "gain", "user", "group", "nsample", "interp", "delay"},
+        {"dcmotor", "?", "ctrllimited", "ctrlrange",
+            "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay",
+            "motorconst", "resistance", "nominal", "saturation",
+            "inductance", "cogging", "controller", "input", "thermal", "lugre"},
     {">"},
 
     {"extension", "*"},
@@ -436,6 +440,12 @@ std::vector<const char*> MJCF[nMJCF] = {
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "*", "name", "class", "group", "nsample", "interp", "delay",
             "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
+        {"dcmotor", "*", "name", "class", "group", "nsample", "interp", "delay",
+            "ctrllimited", "ctrlrange",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "user",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
+            "motorconst", "resistance", "nominal", "saturation",
+            "inductance", "cogging", "controller", "thermal", "lugre", "input"},
         {"plugin", "*", "name", "class",  "plugin", "instance", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "damping", "armature", "cranklength", "joint", "jointinparent",
@@ -724,33 +734,45 @@ const mjMap mark_map[mark_sz] = {
 
 
 // dyn type
-const int dyn_sz = 6;
+const int dyn_sz = 7;
 const mjMap dyn_map[dyn_sz] = {
   {"none",          mjDYN_NONE},
   {"integrator",    mjDYN_INTEGRATOR},
   {"filter",        mjDYN_FILTER},
   {"filterexact",   mjDYN_FILTEREXACT},
   {"muscle",        mjDYN_MUSCLE},
+  {"dcmotor",       mjDYN_DCMOTOR},
   {"user",          mjDYN_USER}
 };
 
 
+// dcmotor controller input mode
+const int dcmotorinput_sz = 3;
+const mjMap dcmotorinput_map[dcmotorinput_sz] = {
+  {"voltage",       0},
+  {"position",      1},
+  {"velocity",      2}
+};
+
+
 // gain type
-const int gain_sz = 4;
+const int gain_sz = 5;
 const mjMap gain_map[gain_sz] = {
   {"fixed",         mjGAIN_FIXED},
   {"affine",        mjGAIN_AFFINE},
   {"muscle",        mjGAIN_MUSCLE},
+  {"dcmotor",       mjGAIN_DCMOTOR},
   {"user",          mjGAIN_USER}
 };
 
 
 // bias type
-const int bias_sz = 4;
+const int bias_sz = 5;
 const mjMap bias_map[bias_sz] = {
   {"none",          mjBIAS_NONE},
   {"affine",        mjBIAS_AFFINE},
   {"muscle",        mjBIAS_MUSCLE},
+  {"dcmotor",       mjBIAS_DCMOTOR},
   {"user",          mjBIAS_USER}
 };
 
@@ -2498,6 +2520,54 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     err = mjs_setToAdhesion(actuator, gain);
   }
 
+  // DC motor
+  else if (type == "dcmotor") {
+    bool inherited = (actuator->gaintype == mjGAIN_DCMOTOR);
+    double motorconst[2] = {inherited ? actuator->gainprm[1] : 0, 0};
+    double resistance = inherited ? actuator->gainprm[0] : 0;
+    double nominal[3] = {0, 0, 0};
+    double saturation[4] = {0, 0,
+                            inherited ? actuator->dynprm[1] : 0,
+                            inherited ? actuator->gainprm[8] : 0};
+    double controller[5] = {inherited ? actuator->gainprm[5] : 0,
+                            inherited ? actuator->gainprm[6] : 0,
+                            inherited ? actuator->gainprm[7] : 0,
+                            inherited ? actuator->dynprm[7] : 0,
+                            inherited ? actuator->dynprm[8] : 0};
+    double inductance[2] = {0, inherited ? actuator->dynprm[0] : 0};
+    double cogging[3] = {inherited ? actuator->biasprm[0] : 0,
+                         inherited ? actuator->biasprm[1] : 0,
+                         inherited ? actuator->biasprm[2] : 0};
+    double thermal[6] = {inherited ? actuator->dynprm[2] : 0,
+                         inherited ? actuator->dynprm[3] : 0,
+                         0,
+                         inherited ? actuator->gainprm[2] : 0,
+                         inherited ? actuator->gainprm[3] : 0,
+                         inherited ? actuator->dynprm[4] : 0};
+    double lugre[6] = {inherited ? actuator->dynprm[5] : 0,
+                       inherited ? actuator->dynprm[6] : 0,
+                       inherited ? actuator->damping[0] : 0,
+                       inherited ? actuator->biasprm[3] : 0,
+                       inherited ? actuator->biasprm[4] : 0,
+                       inherited ? actuator->biasprm[5] : 0};
+    int input_mode = inherited ? (int)actuator->gainprm[9] : 0;
+    ReadAttr(elem, "motorconst", 2, motorconst, text, false, false);
+    ReadAttr(elem, "resistance", 1, &resistance, text);
+    ReadAttr(elem, "nominal", 3, nominal, text, false, false);
+    ReadAttr(elem, "saturation", 4, saturation, text, false, false);
+    ReadAttr(elem, "inductance", 2, inductance, text, false, false);
+    ReadAttr(elem, "cogging", 3, cogging, text, false, false);
+    ReadAttr(elem, "controller", 5, controller, text, false, false);
+    ReadAttr(elem, "thermal", 6, thermal, text, false, false);
+    ReadAttr(elem, "lugre", 6, lugre, text, false, false);
+    if (MapValue(elem, "input", &input_mode, dcmotorinput_map, dcmotorinput_sz)) {
+      // successfully parsed
+    }
+    err = mjs_setToDCMotor(actuator, motorconst, resistance,
+                           nominal, saturation, inductance,
+                           cogging, controller, thermal, lugre, input_mode);
+  }
+
   else if (type == "plugin") {
     OnePlugin(elem, &actuator->plugin);
     int n;
@@ -2962,7 +3032,8 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def, const mjVFS*
              name == "intvelocity" ||
              name == "cylinder"    ||
              name == "muscle"      ||
-             name == "adhesion") {
+             name == "adhesion"    ||
+             name == "dcmotor") {
       OneActuator(elem, def->actuator);
     }
 

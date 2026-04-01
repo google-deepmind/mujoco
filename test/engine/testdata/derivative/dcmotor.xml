@@ -1,0 +1,35 @@
+<mujoco>
+  <worldbody>
+    <body name="motor1" pos="0 0.1 0">
+      <joint name="slide1" type="slide" axis="0 0 1"/>
+      <geom size=".03"/>
+    </body>
+    <body name="motor2" pos="0 0.2 0">
+      <joint name="slide2" type="slide" axis="0 0 1"/>
+      <geom size=".03"/>
+    </body>
+    <body name="motor3" pos="0 0.3 0">
+      <joint name="slide3" type="slide" axis="0 0 1"/>
+      <geom size=".03"/>
+    </body>
+    <body name="motor4" pos="0 0.4 0">
+      <joint name="joint4"/>
+      <geom size=".03"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <!-- DC motor back-EMF stateless damping -->
+    <dcmotor name="dc_bias" joint="slide1" motorconst="2.0" resistance="0.5"/>
+
+    <!-- DC motor velocity controller damping -->
+    <dcmotor name="dc_vel" joint="slide2" motorconst="1.0" resistance="1.0" input="velocity" controller="0 5"/>
+
+    <!-- DC motor position controller damping -->
+    <dcmotor name="dc_pos" joint="slide3" motorconst="1.0" resistance="1.0" input="position" controller="10 0 5"/>
+
+    <!-- DC motor with LuGre friction (sigma1 micro-damping) -->
+    <dcmotor name="dc_lugre" joint="joint4" motorconst="0.05" resistance="2.0"
+             lugre="1e4 100 0.001 0.005 0.008 0.1"/>
+  </actuator>
+</mujoco>

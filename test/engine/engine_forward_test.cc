@@ -1148,6 +1148,949 @@ TEST_F(ActuatorTest, DampRatioTendon) {
   mj_deleteModel(model);
 }
 
+// ----------------------- DC motor actuators ----------------------------------
+
+using DCMotorTest = MujocoTest;
+
+TEST_F(DCMotorTest, IntVelocityEquivalence) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicit"/>
+    <worldbody>
+      <body pos="0 0 0">
+        <joint name="slide1" type="slide" axis="1 0 0"/>
+        <geom size=".1"/>
+      </body>
+      <body pos="0 1 0">
+        <joint name="slide2" type="slide" axis="1 0 0"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <!--
+        Equivalence mapping:
+        intvelocity force: F = kp * \int(ctrl - v) - kv * v
+        dcmotor force:     F = (V*K - K^2*v) / R
+        where V = ki * \int(ctrl - v)     (since kp=0, kd=0)
+
+        Setting K=1, R=0.2, ki=2 yields:
+        F = (2 * \int(ctrl - v) - v) / 0.2
+          = 10 * \int(ctrl - v) - 5 * v
+
+        This perfectly matches intvelocity with kp=10, kv=5.
+      -->
+      <intvelocity name="intvel" joint="slide1" kp="10" kv="5" actrange="-0.01 0.01"/>
+      <dcmotor name="dcmotor" joint="slide2" motorconst="1" resistance="0.2" input="velocity" controller="0 2 0 0 0.01"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // Apply a time-varying velocity command
+  while (data->time < 1.0) {
+    data->ctrl[0] = mju_sin(20 * data->time);
+    data->ctrl[1] = mju_sin(20 * data->time);
+    mj_step(model, data);
+
+    // Both actuators should integrate identical states
+    EXPECT_MJTNUM_EQ(data->act[0], data->act[1]);
+
+    // Both bodies should move identically
+    EXPECT_NEAR(data->qpos[0], data->qpos[1], MjTol(1e-14, 1e-7));
+    EXPECT_NEAR(data->qvel[0], data->qvel[1], MjTol(1e-14, 1e-7));
+    EXPECT_NEAR(data->qacc[0], data->qacc[1], MjTol(1e-14, 1e-6));
+
+    // Both actuators should produce identical force
+    EXPECT_NEAR(data->actuator_force[0], data->actuator_force[1],
+                MjTol(1e-14, 1e-6));
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, StatelessSteadyState) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  double K = 0.05;
+  double R = 2.0;
+  double V = 12.0;
+  double omega = 3.0;
+
+  data->ctrl[0] = V;
+  data->qvel[0] = omega;
+  mj_forward(model, data);
+
+  double expected_force = K / R * (V - K * omega);
+  EXPECT_NEAR(data->actuator_force[0], expected_force, MjTol(1e-12, 1e-5));
+  EXPECT_EQ(model->actuator_actnum[0], 0);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, CurrentFilterConverges) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.0001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="1000"/>
+        <geom size="1" mass="100"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               inductance="0.01 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+
+  double K = 0.05;
+  double R = 2.0;
+  double V = 12.0;
+
+  data->ctrl[0] = V;
+  for (int i = 0; i < 10000; i++) {
+    mj_step(model, data);
+  }
+
+  double omega = data->qvel[0];
+  double i_ss = V / R - K / R * omega;
+  double expected_force = K * i_ss;
+
+  EXPECT_NEAR(data->act[0], i_ss, MjTol(1e-6, 1e-4));
+  EXPECT_NEAR(data->actuator_force[0], expected_force, MjTol(1e-6, 1e-4));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, CurrentFilterExactIntegration) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="10000"/>
+        <geom size="1" mass="10000"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               inductance="0.01 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  double R = 2.0;
+  double te = 0.01 / R;
+  double V = 12.0;
+
+  data->ctrl[0] = V;
+  mj_step(model, data);
+
+  double h = model->opt.timestep;
+  double exact_current = V / R * (1 - mju_exp(-h / te));
+  EXPECT_NEAR(data->act[0], exact_current, MjTol(1e-10, 1e-4));
+
+  double euler_current = V / R * h / te;
+  EXPECT_GT(std::abs(data->act[0] - euler_current),
+            std::abs(data->act[0] - exact_current));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, CoggingTorque) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               cogging="0.1 6 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  double A = 0.1, Np = 6, phi = 0;
+  double K = 0.05, R = 2.0;
+  double V = 5.0;
+  double pos = 1.0;
+
+  data->ctrl[0] = V;
+  data->qpos[0] = pos;
+  mj_forward(model, data);
+
+  double electrical_force = K / R * V;
+  double cogging = A * mju_sin(Np * pos + phi);
+  EXPECT_NEAR(data->actuator_force[0], electrical_force + cogging,
+              MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, CoggingBypassesSaturation) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               saturation="0.001 0" cogging="0.1 6 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  double A = 0.1, Np = 6, phi = 0;
+  double pos = 1.0;
+
+  data->ctrl[0] = 100.0;
+  data->qpos[0] = pos;
+  mj_forward(model, data);
+
+  double cogging = A * mju_sin(Np * pos + phi);
+  EXPECT_NEAR(model->actuator_forcerange[1], 0.001, MjTol(1e-12, 1e-5));
+  EXPECT_GT(mju_abs(data->actuator_force[0]), 0.001);
+  EXPECT_NEAR(data->actuator_force[0], 0.001 + cogging, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, LuGreViscousFriction) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               lugre="100 1 0.01 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+
+  double sigma1 = 1, sigma2 = 0.01;
+  double K = 0.05, R = 2.0;
+  double omega = 2.0;
+
+  data->ctrl[0] = 0;
+  data->qvel[0] = omega;
+  mj_forward(model, data);
+
+  EXPECT_MJTNUM_EQ(model->actuator_damping[0], sigma2);
+  double electrical_force = K / R * (0 - K * omega);
+  double z = data->act[model->actuator_actadr[0]];
+  double z_dot = data->act_dot[model->actuator_actadr[0]];
+  double lugre_force = 100 * z + sigma1 * z_dot;
+  EXPECT_NEAR(data->actuator_force[0], electrical_force - lugre_force,
+              MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, ThermalRiseAndFall) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="10000"/>
+        <geom size="1" mass="10000"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               thermal="10 5 0 0 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  int adr = model->actuator_actadr[0];
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+  EXPECT_EQ(data->act[adr], 0);
+
+  double R = 2.0, V = 10.0;
+  double RT = 10.0, C = 5.0;
+  double h = model->opt.timestep;
+  double P = V * V / R;
+
+  data->ctrl[0] = V;
+
+  mj_step(model, data);
+  double dT1 = h * P / C;
+  EXPECT_NEAR(data->act[adr], dT1, MjTol(1e-11, 1e-4));
+
+  mj_step(model, data);
+  double dT2 = dT1 + h * (P - dT1 / RT) / C;
+  EXPECT_NEAR(data->act[adr], dT2, MjTol(1e-11, 1e-4));
+
+  data->ctrl[0] = 0;
+  mj_step(model, data);
+  double dT3 = dT2 + h * (0 - dT2 / RT) / C;
+  EXPECT_NEAR(data->act[adr], dT3, MjTol(1e-11, 1e-4));
+  EXPECT_LT(data->act[adr], dT2);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, ThermalSteadyState) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="10000"/>
+        <geom size="1" mass="10000"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               thermal="0.1 0.1 0 0 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  double R = 2.0, V = 10.0;
+  double RT = 0.1;
+  double dT_ss = RT * V * V / R;
+
+  data->ctrl[0] = V;
+  for (int i = 0; i < 10000; i++) {
+    mj_step(model, data);
+  }
+
+  int adr = model->actuator_actadr[0];
+  EXPECT_NEAR(data->act[adr], dT_ss, 1e-4);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, ThermalAffectsForce) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               thermal="0.1 0.1 0 0.004 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  double K = 0.05, R = 2.0, V = 10.0;
+  double alpha = 0.004;
+  int adr = model->actuator_actadr[0];
+
+  data->ctrl[0] = V;
+  data->act[adr] = 0;
+  mj_forward(model, data);
+  double force_cold = data->actuator_force[0];
+  EXPECT_NEAR(force_cold, K / R * V, MjTol(1e-12, 1e-5));
+
+  double dT = 50;
+  data->act[adr] = dT;
+  mj_forward(model, data);
+  double R_hot = R * (1 + alpha * dT);
+  double force_hot = data->actuator_force[0];
+  EXPECT_NEAR(force_hot, K / R_hot * V, MjTol(1e-12, 1e-5));
+  EXPECT_LT(force_hot, force_cold);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Temperature slot must be correctly offset past slew and integral states.
+TEST_F(DCMotorTest, ThermalAffectsForceWithController) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               input="position" controller="1.0 1.0 0 5.0 0"
+               thermal="0.1 0.1 0 0.004 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // slot order: slew(0), integral(1), temperature(2)
+  ASSERT_EQ(model->actuator_actnum[0], 3);
+  int adr = model->actuator_actadr[0];
+  int temp_adr = adr + 2;  // temperature is slot 2
+
+  double K = 0.05, R = 2.0, alpha = 0.004;
+  double dT = 50;
+  data->act[adr]      = 1.0;   // slew state = ctrl: no rate-limiting applied
+  data->act[adr + 1]  = 0.0;   // integral state x_I = 0
+  data->act[temp_adr] = dT;    // temperature rise above ambient
+  data->ctrl[0] = 1.0;         // position setpoint = 1.0, qpos = 0, error = 1.0
+  mj_forward(model, data);
+
+  // u_eff = ctrl = 1.0 (no slew applied since act[slew] == ctrl)
+  // V = kp*(u_eff - length) + ki*x_I - kd*omega = 1.0*1.0 + 1.0*0.0 - 0*0 = 1.0
+  // R(T) = 2.0 * (1 + 0.004 * 50) = 2.4
+  // stateless (no te): force = K/R(T) * V = 0.05/2.4 * 1.0
+  double R_hot = R * (1 + alpha * dT);
+  EXPECT_NEAR(data->actuator_force[0], K / R_hot * 1.0, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, StatelessPositionMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="position" controller="2.0 0 0.5 0 0"
+               motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // Position target 5.0, current pos 0.0, current vel 0.0
+  data->ctrl[0] = 5.0;
+  mj_forward(model, data);
+
+  // V = Kp * (u - theta) = 2.0 * 5.0 = 10.0
+  // force = K / R * V + bias = (0.05 / 2.0) * 10.0 + 0 = 0.25
+  EXPECT_NEAR(data->actuator_force[0], 0.25, MjTol(1e-12, 1e-5));
+
+  // Velocity penalty
+  data->qvel[0] = 2.0;
+  mj_forward(model, data);
+  // V = 10.0 - Kd * omega = 10.0 - (0.5 * 2.0) = 9.0
+  // bias = - K^2 / R * omega = -0.0025 / 2.0 * 2.0 = -0.0025
+  // force = K / R * V + bias = 0.225 - 0.0025 = 0.2225
+  EXPECT_NEAR(data->actuator_force[0], 0.2225, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, StatelessVelocityMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="velocity" controller="3.0 0 0 0 0"
+               motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // Velocity target 4.0, current vel 1.0
+  data->ctrl[0] = 4.0;
+  data->qvel[0] = 1.0;
+  mj_forward(model, data);
+
+  // V = Kp * (u - omega) = 3.0 * (4.0 - 1.0) = 9.0
+  // bias = - K^2 / R * omega = -0.0025 / 2.0 * 1.0 = -0.00125
+  // force = K / R * V + bias = (0.05 / 2.0) * 9.0 - 0.00125 = 0.22375
+  EXPECT_NEAR(data->actuator_force[0], 0.22375, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, StatefulPositionMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="position" controller="2.0 0.5 0.1 10.0 5.0"
+               motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // Controller states: 1 for slew, 1 for ki -> actnum = 2
+  ASSERT_EQ(model->actuator_actnum[0], 2);
+  int adr = model->actuator_actadr[0];
+
+  // Current states
+  double u_prev = 1.0;
+  double x_I = 2.0;
+  data->act[adr] = u_prev;
+  data->act[adr+1] = x_I;
+
+  // target 5.0 position, current 0.0
+  data->ctrl[0] = 5.0;
+  data->qvel[0] = 0.5;
+  mj_forward(model, data);
+
+  // slew bounding: s = 10.0, dt = 0.001. max_change = 0.01
+  // Target = 5.0. It is upper bounded by u_prev + 0.01 = 1.01
+  EXPECT_NEAR(data->act_dot[adr], 10.0, MjTol(1e-12, 1e-5));
+
+  // PI error: error = u_eff - length = 1.01 - 0.0 = 1.01
+  EXPECT_NEAR(data->act_dot[adr+1], 1.01, MjTol(1e-12, 1e-5));
+
+  // V = Kp(u_eff - length) + Ki * x_I - Kd * omega
+  // V = 2.0 * 1.01 + 0.5 * 2.0 - 0.1 * 0.5 = 2.97
+  // bias = - K^2/R * omega = -(0.05)^2 / 2.0 * 0.5 = -0.000625
+  // force = K/R * V + bias = 0.025 * 2.97 - 0.000625 = 0.073625
+  EXPECT_NEAR(data->actuator_force[0], 0.073625, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, StatefulPositionWithCurrentMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="position" controller="2.0 0.5 0.1 10.0 5.0"
+               motorconst="0.05" resistance="2.0" inductance="1.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // Controller states: slew (0), ki (1), current (2). actnum = 3
+  ASSERT_EQ(model->actuator_actnum[0], 3);
+  int adr = model->actuator_actadr[0];
+
+  double u_prev = 1.0;
+  double x_I = 2.0;
+  double current = 0.5;
+  data->act[adr] = u_prev;
+  data->act[adr+1] = x_I;
+  data->act[adr+2] = current;
+
+  // Target 5.0 position, velocity 0.5
+  data->ctrl[0] = 5.0;
+  data->qvel[0] = 0.5;
+  mj_forward(model, data);
+
+  // Slew bounding: max_change = 0.01, u_eff = 1.01
+  EXPECT_NEAR(data->act_dot[adr], 10.0, MjTol(1e-12, 1e-5));
+
+  // PI error: error = u_eff - length = 1.01
+  EXPECT_NEAR(data->act_dot[adr+1], 1.01, MjTol(1e-12, 1e-5));
+
+  // Voltage computation:
+  // V = Kp(u_eff - length) + Ki * x_I - Kd * omega
+  // V = 2.0 * 1.01 + 0.5 * 2.0 - 0.1 * 0.5 = 2.97
+
+  // Current filter:
+  // t_e = L / R = 1.0 / 2.0 = 0.5
+  // di/dt = (V/R - K/R * omega - i) / t_e
+  // di/dt = (2.97/2.0 - 0.05/2.0 * 0.5 - 0.5) / 0.5
+  // di/dt = (1.485 - 0.0125 - 0.5) / 0.5 = 0.9725 / 0.5 = 1.945
+  EXPECT_NEAR(data->act_dot[adr+2], 1.945, MjTol(1e-12, 1e-5));
+
+  // Force is just K * current since current is stateful
+  EXPECT_NEAR(data->actuator_force[0], 0.05 * 0.5, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, StatefulVelocityMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="velocity" controller="3.0 1.0 0 0 2.0"
+               motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // Controller states: 1 for ki (no slew)
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+  int adr = model->actuator_actadr[0];
+
+  double x_I = 2.0;    // Exactly at Imax limit (Imax = 2.0)
+  data->act[adr] = x_I;
+
+  // target vel 4.0, current vel 1.0
+  data->ctrl[0] = 4.0;
+  data->qvel[0] = 1.0;
+  mj_forward(model, data);
+
+  // integrate command directly: error = target = 4.0
+  // since x_I == Imax (2.0) and error (4.0) > 0, act_dot should be clamped to 0
+  EXPECT_NEAR(data->act_dot[adr], 0.0, MjTol(1e-12, 1e-5));
+
+  // V = Kp * (u_eff - omega) + Ki * (x_I - length)
+  // V = 3.0 * (4.0 - 1.0) + 1.0 * (2.0 - 0.0) = 9.0 + 2.0 = 11.0
+  // bias = - K^2/R * omega = -(0.05)^2 / 2.0 * 1.0 = -0.00125
+  // force = K/R * V + bias = 0.025 * 11.0 - 0.00125 = 0.275 - 0.00125 = 0.27375
+  EXPECT_NEAR(data->actuator_force[0], 0.27375, MjTol(1e-12, 1e-5));
+
+  // repeat with non-zero joint position
+  data->qpos[0] = 1.5;
+  mj_forward(model, data);
+
+  // V = 3.0 * (4.0 - 1.0) + 1.0 * (2.0 - 1.5) = 9.0 + 0.5 = 9.5
+  // force = K/R * V + bias = 0.025 * 9.5 - 0.00125 = 0.2375 - 0.00125 = 0.23625
+  EXPECT_NEAR(data->actuator_force[0], 0.23625, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, CurrentPlusThermal) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="10000"/>
+        <geom size="1" mass="10000"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               inductance="0.01 0" thermal="10 5 0 0.004 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  ASSERT_EQ(model->actuator_actnum[0], 2);
+  int adr = model->actuator_actadr[0];
+
+  double K = 0.05, R = 2.0, V = 12.0;
+  double te = 0.01 / R;
+  double RT = 10.0, C = 5.0;
+
+  double current = 3.0;
+  double dT = 10.0;
+  data->act[adr] = dT;
+  data->act[adr+1] = current;
+  data->ctrl[0] = V;
+  mj_forward(model, data);
+
+  EXPECT_NEAR(data->actuator_force[0], K * current, MjTol(1e-12, 1e-5));
+
+  double R_hot = R * (1 + 0.004 * dT);
+  double T_dot = (R_hot * current * current - dT / RT) / C;
+  EXPECT_NEAR(data->act_dot[adr], T_dot, MjTol(1e-10, 1e-4));
+
+  double omega = data->qvel[0];
+  double i_dot = (V/R_hot - K/R_hot*omega - current) / te;
+  EXPECT_NEAR(data->act_dot[adr+1], i_dot, MjTol(1e-10, 1e-3));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, CurrentRateLimit) {
+  // Verifies that saturation:current_rate clamps di/dt.
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint" damping="10000"/>
+        <geom size="1" mass="10000"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               inductance="0.01 0" saturation="0 0 100 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+  int adr = model->actuator_actadr[0];
+
+  double V = 12.0;
+  double dimax = 100.0;   // A/s rate limit
+
+  // unclamped: i_dot = (V/R - 0 - 0) / te = 6 / 0.005 = 1200 A/s >> dimax
+  data->act[adr] = 0;   // current = 0
+  data->ctrl[0] = V;
+  mj_forward(model, data);
+
+  // i_dot should be clipped to +dimax
+  EXPECT_NEAR(data->act_dot[adr], dimax, MjTol(1e-12, 1e-5));
+
+  // reverse: large negative drive
+  data->ctrl[0] = -V;
+  mj_forward(model, data);
+
+  // i_dot should be clipped to -dimax
+  EXPECT_NEAR(data->act_dot[adr], -dimax, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, LuGreExactIntegration) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1" mass="1e6"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               lugre="100 1 0.01 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  ASSERT_EQ(model->actuator_actnum[0], 1);
+  int adr = model->actuator_actadr[0];
+
+  double sigma0 = 100, F_C = 0.5, F_S = 0.7, v_S = 10;
+  double z0 = 0.002;
+  double v = 0.5;
+  double h = model->opt.timestep;
+
+  data->act[adr] = z0;
+  data->qvel[0] = v;
+
+  double ratio = v / v_S;
+  double g_v = F_C + (F_S - F_C) * mju_exp(-ratio*ratio);
+  double a = -sigma0 * std::abs(v) / g_v;
+  double exp_ah = mju_exp(a * h);
+  double int_h = (exp_ah - 1) / a;
+  double z_new = exp_ah * z0 + int_h * v;
+
+  mj_step(model, data);
+  EXPECT_NEAR(data->act[adr], z_new, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, LuGreSteadyState) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1" mass="1e6"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               lugre="100 1 0.01 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  int adr = model->actuator_actadr[0];
+
+  double sigma0 = 100, sigma2 = 0.01;
+  double F_C = 0.5, F_S = 0.7, v_S = 10;
+  double K = 0.05, R = 2.0;
+  double v = 0.5;
+
+  data->qvel[0] = v;
+  data->ctrl[0] = 0;
+  for (int i = 0; i < 10000; i++) {
+    mj_step(model, data);
+  }
+
+  double ratio = v / v_S;
+  double g_v = F_C + (F_S - F_C) * mju_exp(-ratio*ratio);
+  double z_ss = g_v / sigma0;
+  EXPECT_NEAR(data->act[adr], z_ss, 1e-4);
+
+  EXPECT_MJTNUM_EQ(model->actuator_damping[0], sigma2);
+  double back_emf = K * K / R * data->qvel[0];
+  double lugre_ss = g_v;
+  EXPECT_NEAR(data->actuator_force[0], -back_emf - lugre_ss, 1e-3);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(DCMotorTest, LuGreBristleSpring) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               lugre="100 1 0.01 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  int adr = model->actuator_actadr[0];
+  double sigma0 = 100;
+  double X = 0.01;
+
+  data->act[adr] = X;
+  data->ctrl[0] = 0;
+  mj_forward(model, data);
+
+  EXPECT_NEAR(data->actuator_force[0], -sigma0 * X, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // ----------------------- filterexact actuators -------------------------------
 
 using FilterExactTest = MujocoTest;

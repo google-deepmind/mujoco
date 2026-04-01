@@ -50,6 +50,23 @@ MJAPI mjtNum mju_muscleDynamicsTimescale(mjtNum dctrl, mjtNum tau_act, mjtNum ta
 // muscle activation dynamics, prm = (tau_act, tau_deact, smoothing_width)
 MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
+// LuGre Stribeck function: g(v) = F_C + (F_S - F_C) * exp(-(v/v_S)^2)
+mjtNum mj_lugreStribeck(mjtNum velocity, mjtNum F_C, mjtNum F_S, mjtNum v_S);
+
+// DC motor activation slot indices (-1 = slot not active)
+typedef struct {
+  int slew;         // slew rate state
+  int integral;     // integral state
+  int temperature;  // temperature state
+  int bristle;      // LuGre bristle state
+  int current;      // current state
+  int num_slots;    // number of DC motor states
+} mjDCMotorSlots;
+
+// compute activation slot indices for a DC motor actuator
+// dynprm = actuator_dynprm row, gainprm = actuator_gainprm row
+mjDCMotorSlots mj_dcmotorSlots(const mjtNum* dynprm, const mjtNum* gainprm);
+
 // all 3 semi-axes of a geom
 MJAPI void mju_geomSemiAxes(mjtNum semiaxes[3], const mjtNum size[3], mjtGeom type);
 
