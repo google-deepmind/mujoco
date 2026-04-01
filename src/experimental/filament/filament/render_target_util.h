@@ -19,7 +19,7 @@
 
 #include <filament/Engine.h>
 #include <filament/Texture.h>
-#include "experimental/filament/filament/texture_util.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 

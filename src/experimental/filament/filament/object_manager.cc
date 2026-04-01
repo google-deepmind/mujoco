@@ -28,7 +28,7 @@
 #include <math/scalar.h>
 #include <math/vec3.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/texture_util.h"
+#include "experimental/filament/filament/texture.h"
 #include "user/user_resource.h"
 
 namespace mujoco {

@@ -26,7 +26,7 @@
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderables.h"
-#include "experimental/filament/filament/texture_util.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 

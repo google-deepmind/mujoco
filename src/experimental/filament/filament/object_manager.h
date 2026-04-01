@@ -23,7 +23,7 @@
 #include <filament/IndirectLight.h>
 #include <filament/Skybox.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/texture_util.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
