@@ -14,6 +14,7 @@
 
 #include "experimental/filament/filament/object_manager.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -87,18 +88,35 @@ ObjectManager::ObjectManager(filament::Engine* engine)
   materials_[kUnlitUi] = LoadMaterial("unlit_ui.filamat");
 
   static uint8_t black_rgb[3] = {0, 0, 0};
-  fallback_black_ = std::make_unique<Texture>(
-      engine_, TextureType::kNormal2d, mjCOLORSPACE_LINEAR, 1, 1, 3, black_rgb);
   static uint8_t white_rgb[3] = {255, 255, 255};
-  fallback_white_ = std::make_unique<Texture>(
-      engine_, TextureType::kNormal2d, mjCOLORSPACE_LINEAR, 1, 1, 3, white_rgb);
   static uint8_t normal_data[3] = {128, 128, 255};
-  fallback_normal_ =
-      std::make_unique<Texture>(engine_, TextureType::kNormal2d,
-                                mjCOLORSPACE_LINEAR, 1, 1, 3, normal_data);
   static uint8_t orm_data[3] = {0, 255, 0};
-  fallback_orm_ = std::make_unique<Texture>(
-      engine_, TextureType::kNormal2d, mjCOLORSPACE_LINEAR, 1, 1, 3, orm_data);
+
+  TextureConfig config;
+  DefaultTextureConfig(&config);
+  config.width = 1;
+  config.height = 1;
+  config.target = mjTEXTURE_2D;
+  config.format = mjPIXEL_FORMAT_RGB8;
+  config.color_space = mjCOLORSPACE_LINEAR;
+
+  auto CreateFallbackTexture = [this, &config](uint8_t color[3]) {
+    auto texture =  std::make_unique<Texture>(engine_, config);
+
+    TextureData payload;
+    DefaultTextureData(&payload);
+    payload.bytes = color;
+    payload.nbytes = 3;
+    payload.release_callback = nullptr;
+    payload.user_data = nullptr;
+    texture->Upload(payload);
+    return texture;
+  };
+
+  fallback_black_ = CreateFallbackTexture(black_rgb);
+  fallback_white_ = CreateFallbackTexture(white_rgb);
+  fallback_normal_ = CreateFallbackTexture(normal_data);
+  fallback_orm_ = CreateFallbackTexture(orm_data);
 
   fallback_textures_[mjTEXROLE_USER] = fallback_black_.get();
   fallback_textures_[mjTEXROLE_RGB] = fallback_white_.get();
@@ -149,14 +167,33 @@ void ObjectManager::LoadFallbackIndirectLight(
     fallback_indirect_light_ = nullptr;
   }
 
-  Asset asset(filename);
-  if (asset.size == 0) {
+  Asset* asset = new Asset(filename);
+  auto release_asset = +[](void* user_data) {
+    delete static_cast<Asset*>(user_data);
+  };
+  if (asset->size == 0) {
+    release_asset(asset);
     return;
   }
 
-  fallback_indirect_light_texture_ = std::make_unique<Texture>(
-      engine_, TextureType::kKtx, mjCOLORSPACE_AUTO, asset.size, 1, 1,
-      reinterpret_cast<const uint8_t*>(asset.payload));
+  TextureConfig config;
+  DefaultTextureConfig(&config);
+  config.width = 1;
+  config.height = 1;
+  config.target = mjTEXTURE_CUBE;
+  config.format = mjPIXEL_FORMAT_KTX;
+  config.color_space = mjCOLORSPACE_AUTO;
+
+  fallback_indirect_light_texture_ = std::make_unique<Texture>(engine_, config);
+
+  TextureData payload;
+  DefaultTextureData(&payload);
+  payload.bytes = asset->payload;
+  payload.nbytes = static_cast<size_t>(asset->size);
+  payload.release_callback = release_asset;
+  payload.user_data = asset;
+
+  fallback_indirect_light_texture_->Upload(payload);
   if (fallback_indirect_light_texture_ == nullptr) {
     return;
   }

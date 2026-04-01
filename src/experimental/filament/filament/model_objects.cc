@@ -125,30 +125,43 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
     mju_error("Invalid texture index: %d", id);
   }
 
-  const int width = model->tex_width[id];
-  const int height = model->tex_height[id];
-  const int num_channels = model->tex_nchannel[id];
-  const int tex_type = model->tex_type[id];
-  const mjtByte* data = model->tex_data + model->tex_adr[id];
-  const mjtColorSpace color_space = (mjtColorSpace)model->tex_colorspace[id];
+  TextureConfig config;
+  DefaultTextureConfig(&config);
+  config.width = model->tex_width[id];
+  config.height = model->tex_height[id];
+  config.target = (mjtTexture)model->tex_type[id];
+  config.color_space = (mjtColorSpace)model->tex_colorspace[id];
+  switch (model->tex_nchannel[id]) {
+    case 1:
+      config.format = mjPIXEL_FORMAT_R8;
+      break;
+    case 3:
+      config.format = mjPIXEL_FORMAT_RGB8;
+      break;
+    case 4:
+      config.format = mjPIXEL_FORMAT_RGBA8;
+      break;
+    default:
+      mju_error("Unsupported texture format: %d", model->tex_nchannel[id]);
+      break;
+  }
+  if (config.height == 1 && model->tex_nchannel[id] == 1) {
+    config.format = mjPIXEL_FORMAT_KTX;
+  }
 
-  const TextureType type = [&] {
-    if (height == 1) {
-      return TextureType::kKtx;
-    } else if (tex_type == mjTEXTURE_2D) {
-      return TextureType::kNormal2d;
-    } else if (tex_type == mjTEXTURE_CUBE) {
-      return TextureType::kCube;
-    } else if (tex_type == mjTEXTURE_SKYBOX) {
-      return TextureType::kCube;
-    } else {
-      mju_error("Unsupported texture type: %d", tex_type);
-      return TextureType::kNormal2d;
-    }
-  }();
 
-  textures_[id] = std::make_unique<Texture>(engine_, type, color_space, width,
-                                            height, num_channels, data);
+  TextureData payload;
+  DefaultTextureData(&payload);
+  payload.bytes = model->tex_data + model->tex_adr[id];
+  payload.nbytes =
+      model->tex_width[id] * model->tex_height[id] * model->tex_nchannel[id];
+  // We assume that the model has the same lifetime as the engine.
+  payload.user_data = nullptr;
+  payload.release_callback = nullptr;
+
+  auto texture = std::make_unique<Texture>(engine_, config);
+  texture->Upload(payload);
+  textures_[id] = std::move(texture);
 }
 
 void ModelObjects::UploadHeightField(const mjModel* model, int id) {
