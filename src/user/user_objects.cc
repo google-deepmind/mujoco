@@ -7222,20 +7222,20 @@ void mjCActuator::Compile(void) {
 
   // check and set actdim
   if (!plugin.active) {
-    if (actdim > 1 && dyntype != mjDYN_USER) {
-      throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' in actuator");
+    if (actdim > 1 && dyntype != mjDYN_USER && dyntype != mjDYN_DCMOTOR) {
+      throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' and 'dcmotor'");
     }
     if (actdim == 1 && dyntype == mjDYN_NONE) {
       throw mjCError(this, "invalid actdim 1 in stateless actuator");
     }
-    if (actdim == 0 && dyntype != mjDYN_NONE) {
+    if (actdim == 0 && dyntype != mjDYN_NONE && dyntype != mjDYN_DCMOTOR) {
       throw mjCError(this, "invalid actdim 0 in stateful actuator");
     }
   }
 
-  // set actdim
+  // set actdim to 1 if it is unset and type is standard one-activation dyntype
   if (actdim < 0) {
-    actdim = (dyntype != mjDYN_NONE);
+    actdim = (dyntype != mjDYN_NONE && dyntype != mjDYN_DCMOTOR);
   }
 
   // check muscle parameters

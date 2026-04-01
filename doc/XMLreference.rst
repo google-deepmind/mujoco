@@ -6323,6 +6323,174 @@ This element has a subset of the common attributes and two custom attributes.
    to the target body.
 
 
+.. _actuator-dcmotor:
+
+:el-prefix:`actuator/` |-| **dcmotor** |*|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+This element creates a DC motor actuator. Note that :el:`dcmotor` is quite different from the :ref:`general actuation
+model<geActuation>`. Unlike the general model where the components of force generation are independent affine functions
+mapping from control to force, :el:`dcmotor` relies on highly coupled physical dynamics. See the `DC motor technical
+note <_static/dcmotor.pdf>`__ for complete mathematical formulations and parameter semantics, but we include a few
+important notes here:
+
+- Note that while :ref:`resistance<actuator-dcmotor-resistance>`, :ref:`motorconst<actuator-dcmotor-motorconst>` and
+  :ref:`nominal<actuator-dcmotor-nominal>` are each optional, some combination of them is required.
+  See Section 2.1 of the `technical note <_static/dcmotor.pdf>`__.
+- The control :ref:`input<actuator-dcmotor-input>` semantic is either the voltage applied to the motor terminals, or a
+  position or velocity target for a PID :ref:`controller<actuator-dcmotor-controller>`.
+- Optional features include electrical dynamics (:ref:`inductance<actuator-dcmotor-inductance>`),
+  :ref:`cogging torque<actuator-dcmotor-cogging>`, :ref:`thermal resistance variation<actuator-dcmotor-thermal>`, and
+  :ref:`LuGre<actuator-dcmotor-lugre>` friction.
+
+The underlying :el:`general` attributes are set to the :el:`dcmotor` type, and their associated parameter arrays are
+computed internally:
+
+========= ======= ========= ========
+Attribute Setting Attribute Setting
+========= ======= ========= ========
+dyntype   dcmotor dynprm    computed
+gaintype  dcmotor gainprm   computed
+biastype  dcmotor biasprm   computed
+========= ======= ========= ========
+
+This element has the following custom attributes in addition to the common attributes:
+
+.. _actuator-dcmotor-name:
+
+.. _actuator-dcmotor-class:
+
+.. _actuator-dcmotor-group:
+
+.. _actuator-dcmotor-delay:
+
+.. _actuator-dcmotor-nsample:
+
+.. _actuator-dcmotor-interp:
+
+.. _actuator-dcmotor-ctrllimited:
+
+.. _actuator-dcmotor-ctrlrange:
+
+.. _actuator-dcmotor-lengthrange:
+
+.. _actuator-dcmotor-gear:
+
+.. _actuator-dcmotor-damping:
+
+.. _actuator-dcmotor-armature:
+
+.. _actuator-dcmotor-cranklength:
+
+.. _actuator-dcmotor-joint:
+
+.. _actuator-dcmotor-jointinparent:
+
+.. _actuator-dcmotor-tendon:
+
+.. _actuator-dcmotor-cranksite:
+
+.. _actuator-dcmotor-slidersite:
+
+.. _actuator-dcmotor-site:
+
+.. _actuator-dcmotor-refsite:
+
+.. _actuator-dcmotor-user:
+
+.. |actuator/dcmotor attrib list| replace::
+   :at:`name`, :at:`class`, :at:`group`, :at:`nsample`, :at:`interp`, :at:`delay`, :at:`ctrllimited`, :at:`ctrlrange`,
+   :at:`lengthrange`, :at:`gear`, :at:`damping`, :at:`armature`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`,
+   :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+
+|actuator/dcmotor attrib list|
+   Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-dcmotor-resistance:
+
+:at:`resistance`: :at-val:`real, optional`
+   Terminal resistance :math:`R` in Ohm. (see `tech note <_static/dcmotor.pdf>`__ for details)
+
+.. _actuator-dcmotor-motorconst:
+
+:at:`motorconst`: :at-val:`real(2), optional`
+   Motor constants, defined as :at:`motorconst` = ":at-val:`Kt` :at-val:`Ke`" (N·m/A, equivalently V·s/rad).
+   :at-val:`Kt` is the torque constant and :at-val:`Ke` the back-EMF constant; they can differ when magnetic saturation
+   is present. If both are positive, the effective constant is :math:`K = \sqrt{K_t K_e}` (geometric mean). If only one
+   is positive, :math:`K` equals that value; a single value is interpreted as :math:`K_t = K_e`. If your datasheet gives
+   the speed constant :math:`K_v` in rad/(V·s), use :math:`K_e = 1/K_v`. (see `tech note <_static/dcmotor.pdf>`__ for
+   details)
+
+.. _actuator-dcmotor-nominal:
+
+:at:`nominal`: :at-val:`real(3), optional`
+   Nominal operating point, defined as :at:`nominal` = ":at-val:`voltage` :at-val:`stall_torque`
+   :at-val:`no_load_speed`". The compiler derives :math:`K =` :at-val:`voltage` / :at-val:`no_load_speed` and :math:`R =
+   K` · :at-val:`voltage` / :at-val:`stall_torque`. (see `tech note <_static/dcmotor.pdf>`__ for details)
+
+.. _actuator-dcmotor-inductance:
+
+:at:`inductance`: :at-val:`real(2), "0 0"`
+   Electrical dynamics, defined as :at:`inductance` = ":at-val:`L` :at-val:`timeconst`" (Henry, seconds). These are
+   alternative specifications: :at-val:`L` is the winding inductance and :at-val:`timeconst` :math:`= L/R` is the
+   electrical time constant. Specify one; if both are given, :at-val:`L` takes precedence. If both are 0 (the default),
+   no electrical dynamics are modeled and the current is computed algebraically. Adds one activation variable for
+   armature current. (see `tech note <_static/dcmotor.pdf>`__ for details)
+
+.. _actuator-dcmotor-thermal:
+
+:at:`thermal`: :at-val:`real(6), "0 0 0 0 0 0"`
+   Thermal model, defined as :at:`thermal` = ":at-val:`resistance` :at-val:`capacitance` :at-val:`timeconst`
+   :at-val:`tempcoef` :at-val:`reftemp` :at-val:`ambient`" (K/W, J/K, s, 1/K, °C, °C). The first three sub-values
+   specify the thermal time constant: :at-val:`timeconst` = :at-val:`resistance` :math:`\times` :at-val:`capacitance`.
+   Specify either :at-val:`timeconst` directly, or :at-val:`resistance` and :at-val:`capacitance`; if all three are
+   given, :at-val:`timeconst` takes precedence. If all are 0 (the default), thermal modeling is disabled. Adds one
+   activation variable for winding temperature. (see `tech note <_static/dcmotor.pdf>`__ for details)
+
+.. _actuator-dcmotor-saturation:
+
+:at:`saturation`: :at-val:`real(4), "0 0 0 0"`
+   Limits on the actuator, defined as :at:`saturation` = ":at-val:`torque` :at-val:`current` :at-val:`voltage`
+   :at-val:`current_rate`". :at-val:`torque` and :at-val:`current` are alternative specifications of the maximum
+   continuous torque: if :at-val:`current` is given, :at-val:`torque` :math:`= K \cdot` :at-val:`current`; if both are
+   given, :at-val:`torque` takes precedence. Sets :at:`forcerange` to [:math:`-\tau_{\max},\, \tau_{\max}`].
+   :at-val:`voltage` sets the maximum voltage :math:`V_{\max}`. :at-val:`current_rate` sets the maximum rate of change
+   of current :math:`(di/dt)_{\max}` (requires :ref:`inductance<actuator-dcmotor-inductance>`). A value of 0 (the
+   default) for any sub-value disables the respective limit. (see `tech note <_static/dcmotor.pdf>`__ for details)
+
+.. _actuator-dcmotor-cogging:
+
+:at:`cogging`: :at-val:`real(3), "0 0 0"`
+   Cogging torque, defined as :at:`cogging` = ":at-val:`amplitude` :at-val:`poles` :at-val:`phase`" (N·m, integer, rad).
+   Adds a position-dependent torque :math:`= \textsf{amplitude} \cdot \sin(\textsf{poles} \cdot \theta +
+   \textsf{phase})`. Disabled when :at-val:`amplitude` = 0 (the default).
+   (see `tech note <_static/dcmotor.pdf>`__ for details)
+
+.. _actuator-dcmotor-lugre:
+
+:at:`lugre`: :at-val:`real(6), "0 0 0 0 0 0"`
+   LuGre friction, defined as :at:`lugre` = ":at-val:`stiffness` :at-val:`damping` :at-val:`viscous` :at-val:`coulomb`
+   :at-val:`static` :at-val:`stribeck`" (N·m/rad, N·m·s/rad, N·m·s/rad, N·m, N·m, rad/s). Disabled when
+   :at-val:`stiffness` = 0 (the default). Adds one activation variable for bristle deflection. Note that the
+   :at-val:`viscous` coefficient is mapped directly to the actuator :ref:`damping<actuator-general-damping>` array
+   (specifically the linear term, :at-val:`damping[0]`). If both are specified, their values are summed.
+   (see `tech note <_static/dcmotor.pdf>`__ for details)
+
+.. _actuator-dcmotor-input:
+
+:at:`input`: :at-val:`[voltage, position, velocity], "voltage"`
+   Specifies the input signal semantics. In "voltage" mode, the control directly sets applied motor voltage. In
+   "position" or "velocity" modes, the PID :ref:`controller<actuator-dcmotor-controller>` uses the control as a
+   reference setpoint relative to the joint trajectory. (see `tech note <_static/dcmotor.pdf>`__ for details)
+
+.. _actuator-dcmotor-controller:
+
+:at:`controller`: :at-val:`real(5), "0 0 0 0 0"`
+   PID controller parameters, defined as :at:`controller` = ":at-val:`kp` :at-val:`ki` :at-val:`kd`
+   :at-val:`slewmax` :at-val:`Imax`". Depending on the :at:`input` mode, the controller stabilizes either position or
+   velocity. If the :at:`input` mode is voltage, the controller is ignored. A value of 0 (the default) disables the
+   respective feature: :at-val:`slewmax` = 0 means no slew-rate limiting, :at-val:`Imax` = 0 means no anti-windup
+   clamping. (see `tech note <_static/dcmotor.pdf>`__ for details)
+
 .. _actuator-plugin:
 
 :el-prefix:`actuator/` |-| **plugin** |?|
@@ -9885,6 +10053,57 @@ refsite, tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`adhesion <actuator-adhesion>` attributes are available here except: name, class, body.
+
+
+.. _default-dcmotor:
+
+.. _default-dcmotor-ctrllimited:
+
+.. _default-dcmotor-ctrlrange:
+
+.. _default-dcmotor-gear:
+
+.. _default-dcmotor-damping:
+
+.. _default-dcmotor-armature:
+
+.. _default-dcmotor-cranklength:
+
+.. _default-dcmotor-user:
+
+.. _default-dcmotor-group:
+
+.. _default-dcmotor-delay:
+
+.. _default-dcmotor-nsample:
+
+.. _default-dcmotor-interp:
+
+.. _default-dcmotor-motorconst:
+
+.. _default-dcmotor-resistance:
+
+.. _default-dcmotor-nominal:
+
+.. _default-dcmotor-saturation:
+
+.. _default-dcmotor-inductance:
+
+.. _default-dcmotor-cogging:
+
+.. _default-dcmotor-controller:
+
+.. _default-dcmotor-input:
+
+.. _default-dcmotor-thermal:
+
+.. _default-dcmotor-lugre:
+
+:el-prefix:`default/` |-| **dcmotor** |?|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`dcmotor <actuator-dcmotor>` attributes are available here except: name, class, joint, jointinparent, site,
+refsite, tendon, slidersite, cranksite.
 
 
 .. _custom:

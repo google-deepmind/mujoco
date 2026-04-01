@@ -8,6 +8,9 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
+- Added the :ref:`dcmotor<actuator-dcmotor>` actuator for modeling DC motors. Supports optional
+  electrical dynamics (inductance), cogging torque, thermal resistance variation, and LuGre friction. See the
+  `technical note <_static/dcmotor.pdf>`__ for more details.
 - Actuators with joint or tendon transmissions can now contribute
   :ref:`damping<actuator-general-damping>` and :ref:`armature<actuator-general-armature>` to their transmission target.
   These are applied during the passive force and inertia computations, respectively, and are scaled by gear\ :sup:`2`

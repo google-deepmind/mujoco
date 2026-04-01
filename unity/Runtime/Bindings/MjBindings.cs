@@ -269,19 +269,22 @@ public enum mjtDyn : int{
   mjDYN_FILTER = 2,
   mjDYN_FILTEREXACT = 3,
   mjDYN_MUSCLE = 4,
-  mjDYN_USER = 5,
+  mjDYN_DCMOTOR = 5,
+  mjDYN_USER = 6,
 }
 public enum mjtGain : int{
   mjGAIN_FIXED = 0,
   mjGAIN_AFFINE = 1,
   mjGAIN_MUSCLE = 2,
-  mjGAIN_USER = 3,
+  mjGAIN_DCMOTOR = 3,
+  mjGAIN_USER = 4,
 }
 public enum mjtBias : int{
   mjBIAS_NONE = 0,
   mjBIAS_AFFINE = 1,
   mjBIAS_MUSCLE = 2,
-  mjBIAS_USER = 3,
+  mjBIAS_DCMOTOR = 3,
+  mjBIAS_USER = 4,
 }
 public enum mjtObj : int{
   mjOBJ_UNKNOWN = 0,

@@ -1557,6 +1557,13 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_FIXED)
     self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_NONE)
 
+    actuator.set_to_dcmotor(motorconst=[0.05, 0.05], resistance=2.0)
+    self.assertEqual(actuator.gainprm[0], 2.0)
+    self.assertEqual(actuator.gainprm[1], 0.05)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_DCMOTOR)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_DCMOTOR)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_DCMOTOR)
+
   def test_bad_contact_sensor(self):
     test_cases = [
         dict(

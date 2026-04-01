@@ -769,6 +769,26 @@ mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]) {
 }
 
 
+// LuGre Stribeck function: g(v) = F_C + (F_S - F_C) * exp(-(v/v_S)^2)
+mjtNum mj_lugreStribeck(mjtNum velocity, mjtNum F_C, mjtNum F_S, mjtNum v_S) {
+  mjtNum ratio = velocity / mju_max(mjMINVAL, v_S);
+  return F_C + (F_S - F_C) * mju_exp(-ratio*ratio);
+}
+
+
+// compute DC motor activation slot indices from parameter arrays
+mjDCMotorSlots mj_dcmotorSlots(const mjtNum* dynprm, const mjtNum* gainprm) {
+  mjDCMotorSlots s = {-1, -1, -1, -1, -1, 0};
+  if (dynprm[7] > 0)  s.slew        = s.num_slots++;  // slew rate limiting
+  if (gainprm[5] > 0) s.integral    = s.num_slots++;  // PI integral
+  if (dynprm[2] > 0)  s.temperature = s.num_slots++;  // thermal model
+  if (dynprm[5] > 0)  s.bristle     = s.num_slots++;  // LuGre bristle
+  if (dynprm[0] > 0)  s.current     = s.num_slots++;  // current filter
+
+  return s;
+}
+
+
 //---------------------------------------- Base64 --------------------------------------------------
 
 // decoding function for Base64

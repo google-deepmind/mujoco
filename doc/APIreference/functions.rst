@@ -4658,6 +4658,15 @@ Set actuator to muscle; return error if any.a
 
 Set actuator to active adhesion; return error if any.
 
+.. _mjs_setToDCMotor:
+
+`mjs_setToDCMotor <#mjs_setToDCMotor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToDCMotor
+
+Set actuator to DC motor; return error if any.
+
 .. _AddAssets:
 
 Assets

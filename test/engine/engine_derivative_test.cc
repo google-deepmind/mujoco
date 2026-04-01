@@ -91,6 +91,8 @@ static const char* const kDampedPendulumPath =
     "engine/testdata/derivative/damped_pendulum.xml";
 static const char* const kLinearPath =
     "engine/testdata/derivative/linear.xml";
+static const char* const kDCMotorPath =
+    "engine/testdata/derivative/dcmotor.xml";
 static const char* const kModelPath = "testdata/model.xml";
 
 // compare analytic and finite-difference d_smooth/d_qvel
@@ -99,9 +101,12 @@ TEST_F(DerivativeTest, SmoothDvel) {
   for (const char* local_path : {kEnergyConservingPendulumPath,
                                  kTumblingThinObjectPath,
                                  kDampedActuatorsPath,
-                                 kDamperActuatorsPath}) {
+                                 kDamperActuatorsPath,
+                                 kDCMotorPath}) {
     const std::string xml_path = GetTestDataFilePath(local_path);
-    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+    char error[1024] = "";
+    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(model, testing::NotNull()) << "Failed to load model: " << error;
     int nD = model->nD;
     mjData* data = mj_makeData(model);
 
@@ -758,9 +763,12 @@ TEST_F(DerivativeTest, DenseSparseRneEquivalent) {
   for (const char* local_path : {kEnergyConservingPendulumPath,
                                  kTumblingThinObjectPath,
                                  kDampedActuatorsPath,
-                                 kDamperActuatorsPath}) {
+                                 kDamperActuatorsPath,
+                                 kDCMotorPath}) {
     const std::string xml_path = GetTestDataFilePath(local_path);
-    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+    char error[1024] = "";
+    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(model, testing::NotNull()) << "Failed to load model: " << error;
     int nD = model->nD;
     mjtNum* qDeriv = (mjtNum*) mju_malloc(sizeof(mjtNum)*nD);
     mjData* data = mj_makeData(model);
