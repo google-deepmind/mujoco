@@ -28,7 +28,7 @@ requires-python = ">=3.10"
 dependencies = [
     "absl-py",
     "etils[epath]",
-    "mujoco>=3.5.0",
+    "mujoco>=3.6.0",
     "numpy",
     "warp-lang>=1.12",
 ]
@@ -55,7 +55,7 @@ dev = [
     "ruff",
     "pygls>=1.0.0,<2.0.0",
     "lsprotocol>=2023.0.1,<2024.0.0",
-    "mujoco>=3.5.0.dev0",
+    "mujoco>=3.6.0.dev0",
     "warp-lang>=1.11.0.dev0",
 ]
 # TODO(team): cpu and cuda JAX optional dependencies are temporary, remove after we land MJX:Warp

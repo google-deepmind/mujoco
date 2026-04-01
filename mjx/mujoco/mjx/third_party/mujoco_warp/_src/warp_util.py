@@ -146,13 +146,13 @@ def check_toolkit_driver():
   if wp.get_device().is_cuda:
     if not wp.is_conditional_graph_supported():
       warnings.warn(
-          """
+        """
         CUDA version < 12.4 detected
         - graph capture may be unreliable for < 12.3
         - conditional graph nodes are not available for < 12.4
           Model.opt.graph_conditional should be set to False
         """,
-          stacklevel=2,
+        stacklevel=2,
       )
 
 

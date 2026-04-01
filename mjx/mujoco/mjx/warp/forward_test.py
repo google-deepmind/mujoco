@@ -157,7 +157,16 @@ class ForwardTest(parameterized.TestCase):
           m.ten_J_rowadr,
           m.ten_J_colind,
       )
-      tu.assert_eq(dx._impl.ten_J, ten_J, 'ten_J')
+      # convert sparse warp ten_J to dense representation
+      warp_ten_J = np.zeros((m.ntendon, m.nv))
+      mujoco.mju_sparse2dense(
+          warp_ten_J,
+          np.asarray(dx._impl.ten_J),
+          mx._impl.ten_J_rownnz,
+          mx._impl.ten_J_rowadr,
+          mx._impl.ten_J_colind,
+      )
+      tu.assert_eq(warp_ten_J, ten_J, 'ten_J')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapadr')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapnum')
       tu.assert_attr_eq(dx._impl, d, 'wrap_xpos')
