@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_GUI_VIEW_H_
 
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -29,6 +30,7 @@
 #include <filament/View.h>
 #include <mujoco/mjrender.h>
 #include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/texture_util.h"
 
 namespace mujoco {
 
@@ -71,7 +73,7 @@ class GuiView {
   utils::Entity renderable_;
   std::vector<FilamentBuffers> buffers_;
   std::vector<filament::MaterialInstance*> instances_;
-  std::unordered_map<uintptr_t, filament::Texture*> textures_;
+  std::unordered_map<uintptr_t, std::unique_ptr<Texture>> textures_;
   int num_elements_ = 0;
 };
 
