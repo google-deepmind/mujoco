@@ -199,12 +199,20 @@ typedef struct mjSDF_ mjSDF;
         #define LINKER_NAME "_mj_ptr_"
     #endif
 
+    #if !defined(mjEXTERNC)
+      #if defined(__cplusplus)
+        #define mjEXTERNC extern "C"
+      #else
+        #define mjEXTERNC
+      #endif  // defined(__cplusplus)
+    #endif  // !defined(mjEXTERNC)
+
     #pragma section(".CRT$XCU", read)
 
     #define mjPLUGIN_LIB_INIT(n) \
         static void __cdecl _mj_init_##n(void); \
         /* We use extern "C" to prevent C++ name mangling */ \
-        extern "C" __declspec(allocate(".CRT$XCU")) \
+        mjEXTERNC __declspec(allocate(".CRT$XCU")) \
         void (__cdecl * _mj_ptr_##n)(void) = _mj_init_##n; \
         /* Force the linker to include the pointer symbol */ \
         __pragma(comment(linker, "/include:" LINKER_NAME #n)) \
