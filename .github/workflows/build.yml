@@ -347,7 +347,7 @@ jobs:
         CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
         CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         CHATMSG_JOB_ID: ${{ matrix.label }}
-      if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
       run: bash ./.github/workflows/build_steps.sh notify_team_chat
 
   # This job quickly determines if MuJoCo Studio is broken.
@@ -406,7 +406,7 @@ jobs:
         CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
         CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         CHATMSG_JOB_ID: ${{ matrix.label }}
-      if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
       run: bash ./.github/workflows/build_steps.sh notify_team_chat
 
 
@@ -451,5 +451,5 @@ jobs:
         CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
         CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         CHATMSG_JOB_ID: ${{ env.label }}
-      if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push' && env.GCHAT_API_URL != ''
       run: bash ./.github/workflows/build_steps.sh notify_team_chat
