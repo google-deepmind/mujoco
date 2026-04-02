@@ -67,6 +67,11 @@ set_target_properties(mujoco_wasm PROPERTIES
     OUTPUT_NAME "mujoco"
 )
 
-target_link_libraries(mujoco_wasm ccd lodepng mujoco tinyxml2 qhullstatic_r obj_decoder stl_decoder)
+# Link the mujoco library as a whole archive to avoid losing plugin
+# registration such as obj_decoder and stl_decoder.
+target_link_libraries(mujoco_wasm PRIVATE
+    -Wl,--whole-archive mujoco -Wl,--no-whole-archive
+    ccd lodepng tinyxml2 qhullstatic_r
+)
 
 install(TARGETS mujoco_wasm DESTINATION ${DIVISIBLE_INSTALL_BIN_DIR})
