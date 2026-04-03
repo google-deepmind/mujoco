@@ -611,6 +611,7 @@ class Model(PyTreeNode):
   nsite: int
   ncam: int
   nlight: int
+  nflex: int
   nmesh: int
   nmeshvert: int
   nmeshnormal: int
@@ -774,6 +775,9 @@ class Model(PyTreeNode):
   mesh_texcoordadr: np.ndarray
   mesh_texcoordnum: np.ndarray
   mesh_texcoord: np.ndarray
+  flex_vertadr: np.ndarray
+  flex_vertnum: np.ndarray
+  flex_vert0: np.ndarray
   hfield_size: np.ndarray
   hfield_nrow: np.ndarray
   hfield_ncol: np.ndarray
@@ -881,6 +885,7 @@ class Model(PyTreeNode):
   name_geomadr: np.ndarray
   name_siteadr: np.ndarray
   name_camadr: np.ndarray
+  name_flexadr: np.ndarray
   name_meshadr: np.ndarray
   name_hfieldadr: np.ndarray
   name_pairadr: np.ndarray
