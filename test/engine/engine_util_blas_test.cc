@@ -212,6 +212,26 @@ TEST_F(EngineUtilBlasTest, Normalize4EdgeCases) {
   EXPECT_EQ(quat[2], 0);
   EXPECT_EQ(quat[3], 0);
 }
+TEST_F(EngineUtilBlasTest, MjuNormalize) {
+  // standard normalization
+  mjtNum vec[] = {3, 4, 0};
+  EXPECT_EQ(mju_normalize(vec, 3), 5);
+  
+  // use EXPECT_DOUBLE_EQ for floats to handle 0.6 vs 0.60000000000000009
+  EXPECT_DOUBLE_EQ(vec[0], 0.6);
+  EXPECT_DOUBLE_EQ(vec[1], 0.8);
+  EXPECT_EQ(vec[2], 0);
 
+  // zero vector normalizes to x-axis
+  mjtNum zero[] = {0, 0, 0};
+  EXPECT_EQ(mju_normalize(zero, 3), 0);
+  
+  // we use ElementsAre here because 1, 0, 0 are exact integers
+  EXPECT_THAT(zero, ElementsAre(1, 0, 0));
+
+  // tiny vector (underflow protection)
+  mjtNum tiny[] = {1e-20, 0, 0};
+  EXPECT_GE(mju_normalize(tiny, 3), 0);
+}
 }  // namespace
 }  // namespace mujoco
