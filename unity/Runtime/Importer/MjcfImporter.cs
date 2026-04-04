@@ -17,6 +17,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Mujoco {
 // API for importing Mujoco XML files into Unity scenes.
@@ -28,7 +29,7 @@ public class MjcfImporter {
   public static Material DefaultMujocoMaterial {
     get {
       if (_DefaultMujocoMaterial == null) {
-        _DefaultMujocoMaterial = new Material(Shader.Find("Standard"));
+        _DefaultMujocoMaterial = new Material(GetLitShader());
       }
 
       return _DefaultMujocoMaterial;
@@ -446,5 +447,24 @@ public class MjcfImporter {
     camera.nearClipPlane = 0.01f;  // MuJoCo default, TODO(etom): get from visual/map/znear
     return gameObject;
   }
+
+  public static Shader GetLitShader() {
+    // Built-in pipeline is deprecated, we'll default to URP
+    string shaderName = "Universal Render Pipeline/Lit";
+
+    if (GraphicsSettings.currentRenderPipeline != null) {
+      string pipelineType = GraphicsSettings.currentRenderPipeline.GetType().ToString();
+
+      if (pipelineType.Contains("Universal")) {
+        shaderName =
+            "Universal Render Pipeline/Lit";
+      } else if (pipelineType.Contains("HighDefinition")) {
+        shaderName = "HDRP/Lit";
+      }
+    }
+    Shader shader = Shader.Find(shaderName);
+    return shader;
+  }
 }
+
 }
