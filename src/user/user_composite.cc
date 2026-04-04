@@ -318,7 +318,7 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
                                     double normal[3], double prev_quat[4]) {
   char txt_geom[100], txt_site[100], txt_slide[100];
   char this_body[100], next_body[100], this_joint[100];
-  double dquat[4], this_quat[4];
+  double rquat[4], dquat[4], this_quat[4];
 
   // set flags
   int lastidx = count[0]-2;
@@ -346,6 +346,8 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
 
   // update moving frame
   double length = mjuu_updateFrame(this_quat, normal, edge, tprev, tnext, first);
+  mjuu_mulquat(rquat, quat, this_quat);
+  mjuu_copyvec(this_quat, rquat, 4);
 
   // create body, joint, and geom names
   if (first) {
