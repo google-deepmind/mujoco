@@ -529,7 +529,11 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
   }
 
   if (fp) {
-    fclose(fp);
+    int write_error = ferror(fp);
+    int close_error = fclose(fp);
+    if (write_error || close_error) {
+      mju_warning("Error saving model to '%s': file may be incomplete or corrupt", filename);
+    }
   }
 }
 

@@ -1894,7 +1894,7 @@ static void shortcuthelp(mjrRect r, int modifier, int shortcut,
   }
 
   // combine
-  strcat(text, key);
+  strncat(text, key, sizeof(text) - strlen(text) - 1);
 
   // make rectangle for shortcut
   int g_textver = SCL(ui->spacing.textver, con);
