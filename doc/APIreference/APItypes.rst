@@ -755,6 +755,16 @@ Type of inertia inference.
 
 .. mujoco-include:: mjtGeomInertia
 
+
+.. _mjtMeshInertia:
+
+mjtMeshInertia
+~~~~~~~~~~~~~~
+
+Type of mesh inertia.
+
+.. mujoco-include:: mjtMeshInertia
+
 .. _mjtBuiltin:
 
 mjtBuiltin
