@@ -82,6 +82,11 @@ MJAPI void mju_writeLog(const char* type, const char* msg);
   mju_error_raw(_errbuf);                                                     \
 }
 
+//------------------------------ file operations ---------------------------------------------------
+
+// open file with UTF-8 filename support (uses _wfopen on Windows)
+MJAPI FILE* mju_fopen(const char* filename, const char* mode);
+
 //------------------------------ malloc and free ---------------------------------------------------
 
 // allocate memory; byte-align on 8; pad size to multiple of 8

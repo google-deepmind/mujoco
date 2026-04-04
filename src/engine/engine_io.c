@@ -488,7 +488,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
   // open file for writing if no buffer
   if (!buffer) {
-    fp = fopen(filename, "wb");
+    fp = mju_fopen(filename, "wb");
     if (!fp) {
       mju_warning("Could not open file '%s'", filename);
       return;
