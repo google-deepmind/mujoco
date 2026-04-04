@@ -89,7 +89,6 @@ TEST_F(SolverTest, IslandsEquivalent) {
         model->opt.disableflags |= mjDSBL_ISLAND;  // disable islands
         mj_forward(model, data_noisland);
 
-        auto time = std::to_string(data_noisland->time);
         for (int j = 0; j < nv; j++) {
           // increase tolerance for large elements
           mjtNum scale = 0.5 * max(static_cast<mjtNum>(2.0),
@@ -97,7 +96,7 @@ TEST_F(SolverTest, IslandsEquivalent) {
                                    std::abs(data_island->qacc[j]));
           EXPECT_NEAR(data_noisland->qacc[j], data_island->qacc[j],
                       MjTol(scale * rtol[i], 500 * scale * rtol[i]))
-              << "time: " << time << '\n'
+              << "time: " << data_noisland->time << '\n'
               << "dof: " << j << '\n'
               << "maxiter: " << maxiter[i] << '\n'
               << "rtol: " << scale * rtol[i];
