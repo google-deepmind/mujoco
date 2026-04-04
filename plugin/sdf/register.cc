@@ -20,7 +20,7 @@
 
 namespace mujoco::plugin::sdf {
 
-mjPLUGIN_LIB_INIT {
+mjPLUGIN_LIB_INIT(sdf) {
   Bolt::RegisterPlugin();
   Bowl::RegisterPlugin();
   Gear::RegisterPlugin();

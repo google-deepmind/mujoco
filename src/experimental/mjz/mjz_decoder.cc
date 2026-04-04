@@ -192,7 +192,7 @@ static mjSpec* ParseZipBuffer(const void* buffer, int nbuffer, const char* name,
   return mj_parseXML(root.c_str(), vfs, error, error_sz);
 }
 
-mjPLUGIN_LIB_INIT {
+mjPLUGIN_LIB_INIT(mjz_decoder) {
   mjpDecoder decoder;
   decoder.content_type = "application/zip";
   decoder.extension = ".mjz|.zip";

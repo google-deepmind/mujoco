@@ -182,39 +182,45 @@ struct mjSDF_ {
 };
 typedef struct mjSDF_ mjSDF;
 
-#if defined(__has_attribute)
-
-  #if __has_attribute(constructor)
-    #define mjPLUGIN_LIB_INIT __attribute__((constructor)) static void _mjplugin_init(void)
-  #endif  // __has_attribute(constructor)
-
+#if defined(__GNUC__) || defined(__clang__)
+    // GCC and Clang (including clang-cl)
+    #define mjPLUGIN_LIB_INIT(n) \
+        static void _mj_init_##n(void) __attribute__((constructor)); \
+        static void _mj_init_##n(void)
 #elif defined(_MSC_VER)
+    #define m_STR(x) #x
+    #define m_XSTR(x) m_STR(x)
 
-  #ifndef mjDLLMAIN
-    #define mjDLLMAIN DllMain
-  #endif
-
-  #if !defined(mjEXTERNC)
-    #if defined(__cplusplus)
-      #define mjEXTERNC extern "C"
+    // On x86, symbols are decorated with a leading underscore.
+    // On x64, they are not.
+    #ifdef _M_IX86
+        #define LINKER_NAME "__mj_ptr_"
     #else
-      #define mjEXTERNC
-    #endif  // defined(__cplusplus)
-  #endif  // !defined(mjEXTERNC)
+        #define LINKER_NAME "_mj_ptr_"
+    #endif
 
-  // NOLINTBEGIN(runtime/int)
-  #define mjPLUGIN_LIB_INIT                                                                 \
-    static void _mjplugin_dllmain(void);                                                    \
-    mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
-      if (reason == 1) {                                                                    \
-        _mjplugin_dllmain();                                                                \
-      }                                                                                     \
-      return 1;                                                                             \
-    }                                                                                       \
-    static void _mjplugin_dllmain(void)
-  // NOLINTEND(runtime/int)
+    #if !defined(mjEXTERNC)
+      #if defined(__cplusplus)
+        #define mjEXTERNC extern "C"
+      #else
+        #define mjEXTERNC
+      #endif  // defined(__cplusplus)
+    #endif  // !defined(mjEXTERNC)
 
-#endif  // defined(_MSC_VER)
+    #pragma section(".CRT$XCU", read)
+
+    #define mjPLUGIN_LIB_INIT(n) \
+        static void __cdecl _mj_init_##n(void); \
+        /* We use extern "C" to prevent C++ name mangling */ \
+        mjEXTERNC __declspec(allocate(".CRT$XCU")) \
+        void (__cdecl * _mj_ptr_##n)(void) = _mj_init_##n; \
+        /* Force the linker to include the pointer symbol */ \
+        __pragma(comment(linker, "/include:" LINKER_NAME #n)) \
+        static void __cdecl _mj_init_##n(void)
+
+#else
+    #error "Unknown compiler: Plugin registration not supported."
+#endif
 
 // function pointer type for mj_loadAllPluginLibraries callback
 typedef void (*mjfPluginLibraryLoadCallback)(const char* filename, int first, int count);

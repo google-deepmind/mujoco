@@ -2459,7 +2459,7 @@ int CanDecode(const mjResource* resource) {
 }  // namespace
 
 // clang-format off
-mjPLUGIN_LIB_INIT {
+mjPLUGIN_LIB_INIT(usd_decoder) {
   mjpDecoder decoder;
   mjp_defaultDecoder(&decoder);
   decoder.content_type = "model/usd";
