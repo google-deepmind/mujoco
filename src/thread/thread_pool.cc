@@ -199,7 +199,7 @@ mjStackInfo* mju_getStackInfoForThread(mjData* d, size_t thread_id) {
   }
 
   if (bytes_per_shard * number_of_shards > total_arena_size_bytes) {
-    mju_error("Arena is not large enough for %zu shards", number_of_shards);
+    mju_error("Arena is not large enough for %llu shards", (unsigned long long)number_of_shards);
   }
 
   uintptr_t result = (end_of_arena_ptr - (thread_id + 1) * bytes_per_shard);
@@ -239,8 +239,8 @@ static void  ConfigureMultiThreadedStack(mjData* d) {
       // abort if the current stack is already larger than the portion of the stack
       // that would be reserved for the main thread
       if ((uintptr_t)end_shard_cursor_ptr > current_limit) {
-        mju_error("mj_bindThreadPool: sharding stack - existing stack larger than shard size: current_size = %zu, "
-                  "max_size = %zu", current_limit, (uintptr_t) end_shard_cursor_ptr);
+        mju_error("mj_bindThreadPool: sharding stack - existing stack larger than shard size: current_size = %llu, "
+                  "max_size = %llu", (unsigned long long)current_limit, (unsigned long long)end_shard_cursor_ptr);
       }
       end_shard_cursor_ptr->top = current_limit;
       end_shard_cursor_ptr->stack_base = d->pbase;
