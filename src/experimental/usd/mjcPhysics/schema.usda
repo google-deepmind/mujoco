@@ -100,6 +100,7 @@ class "MjcSceneAPI"
     }
     doc = """API providing global simulation options for MuJoCo."""
 
+    prepend apiSchemas = ["NewtonSceneAPI"]
     inherits = </APISchemaBase>
 )
 {
@@ -108,7 +109,9 @@ class "MjcSceneAPI"
             string apiName = "Timestep"
         }
         displayName = "Timestep"
-        doc = """Controls the timestep in seconds used by MuJoCo."""
+        doc = """DEPRECATED: Use newton:timeStepsPerSecond instead.
+
+        Controls the timestep in seconds used by MuJoCo."""
     )
 
     uniform double mjc:option:impratio = 1.0 (
@@ -229,7 +232,9 @@ class "MjcSceneAPI"
             string apiName = "Iterations"
         }
         displayName = "Solver Iterations"
-        doc = """Maximum number of iterations of the constraint solver."""
+        doc = """DEPRECATED: Use newton:maxSolverIterations instead.
+
+        Maximum number of iterations of the constraint solver."""
     )
 
     uniform double mjc:option:tolerance = 1e-08 (
@@ -378,7 +383,9 @@ class "MjcSceneAPI"
             string apiName = "GravityFlag"
         }
         displayName = "Gravity Toggle"
-        doc = """Enables the application of gravitational acceleration as defined in mjOption."""
+        doc = """DEPRECATED: Use newton:gravityEnabled instead.
+
+        Enables the application of gravitational acceleration as defined in mjOption."""
     )
 
     uniform bool mjc:flag:clampctrl = True (
@@ -674,6 +681,7 @@ class "MjcCollisionAPI"
     }
     doc = """API describing a MuJoCo collider."""
 
+    prepend apiSchemas = ["NewtonCollisionAPI"]
     inherits = </APISchemaBase>
 )
 {
@@ -738,7 +746,9 @@ class "MjcCollisionAPI"
           string apiName = "Margin"
       }
       displayName = "Margin"
-      doc = """Distance threshold below which contacts are detected and included in the global array mjData.contact."""
+      doc = """DEPRECATED: Use newton:contactMargin and newton:contactGap instead.
+
+        Distance threshold below which contacts are detected and included in the global array mjData.contact."""
     )
 
     uniform double mjc:gap = 0.0 (
@@ -746,7 +756,9 @@ class "MjcCollisionAPI"
           string apiName = "Gap"
       }
       displayName = "Gap"
-      doc = """This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is positive, geom distances between margin and margin-gap correspond to such inactive contacts."""
+      doc = """DEPRECATED: Use newton:contactGap instead.
+
+        This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is positive, geom distances between margin and margin-gap correspond to such inactive contacts."""
     )
 }
 
@@ -757,6 +769,7 @@ class "MjcMeshCollisionAPI"
     }
     doc = """API describing a MuJoCo mesh collider."""
 
+    prepend apiSchemas = ["NewtonMeshCollisionAPI"]
     inherits = </APISchemaBase>
 )
 {
@@ -774,7 +787,9 @@ class "MjcMeshCollisionAPI"
             string apiName = "MaxHullVert"
         }
         displayName = "Maximum Hull Vertices"
-        doc = """Sets an upper limit on the number of vertices in the meshes convex hull. The default value of -1 means unlimited."""
+        doc = """DEPRECATED: Use newton:maxHullVertices instead.
+
+        Sets an upper limit on the number of vertices in the meshes convex hull. The default value of -1 means unlimited."""
     )
 }
 
@@ -1035,8 +1050,11 @@ class "MjcMaterialAPI"
     customData = {
         string className = "MaterialAPI"
     }
-    doc = """API providing extension attributes to represent physical MuJoCo materials."""
+    doc = """DEPRECATED: Use NewtonMaterialAPI instead. All attributes on this API have been superseded by Newton equivalents.
 
+    API providing extension attributes to represent physical MuJoCo materials."""
+
+    prepend apiSchemas = ["NewtonMaterialAPI"]
     inherits = </APISchemaBase>
 )
 {
@@ -1045,7 +1063,9 @@ class "MjcMaterialAPI"
             string apiName = "TorsionalFriction"
         }
         displayName = "Torsional Friction"
-        doc = """Friction value acting around contact normal."""
+        doc = """DEPRECATED: Use newton:torsionalFriction instead.
+
+        Friction value acting around contact normal."""
     )
 
     uniform double mjc:rollingfriction = 0.0001 (
@@ -1053,7 +1073,9 @@ class "MjcMaterialAPI"
             string apiName = "RollingFriction"
         }
         displayName = "Rolling Friction"
-        doc = """Friction value acting around both axes on the contact tangent plane."""
+        doc = """DEPRECATED: Use newton:rollingFriction instead.
+
+        Friction value acting around both axes on the contact tangent plane."""
     )
 }
 
@@ -1121,22 +1143,58 @@ class "MjcEqualityJointAPI" (
         string className = "EqualityJointAPI"
     }
     doc = """API providing extension attributes to represent equality/joint constraints.
-    This API is applied to a joint prim which acts as the constrained joint (joint1 in
-    MuJoCo terminology). The target relationship points to another joint prim which is
-    the reference joint (joint2 in MuJoCo terminology). The constrained joint's position
-    or angle is constrained to be a quartic polynomial of the reference joint's position
-    or angle. Only scalar joint types (slide and hinge) can be used."""
 
-    prepend apiSchemas = ["MjcEqualityAPI"]
+    This API is applied to a joint prim which acts as the follower (joint0). The leader
+    joint (joint1) is specified via the newton:mimicJoint relationship inherited from
+    NewtonMimicAPI.
+
+    The follower's position or angle is constrained to be a quartic polynomial of the
+    leader's position or angle:
+        joint0 = coef0 + coef1*(joint1) + coef2*(joint1)^2 + coef3*(joint1)^3 + coef4*(joint1)^4
+
+    The constant (coef0) and linear (coef1) coefficients are provided by NewtonMimicAPI
+    as newton:mimicCoef0 and newton:mimicCoef1. The higher-order coefficients (coef2-coef4)
+    are provided by this API.
+
+    Only scalar joint types (slide and hinge) can be used."""
+
+    prepend apiSchemas = ["NewtonMimicAPI"]
     inherits = </APISchemaBase>
 )
 {
+    uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2] (
+        customData = {
+            string apiName = "SolImp"
+        }
+        displayName = "SolImp"
+        doc = """Constraint solver parameter for equality constraint simulation."""
+    )
+
+    uniform double[] mjc:solref = [0.02, 1] (
+        customData = {
+            string apiName = "SolRef"
+        }
+        displayName = "SolRef"
+        doc = """Constraint solver parameter for equality constraint simulation."""
+    )
+
+    rel mjc:target (
+        customData = {
+            string apiName = "MjcTarget"
+        }
+        doc = """DEPRECATED: Use newton:mimicJoint instead.
+
+        Secondary target of the equality constraint (the leader/reference joint)."""
+    )
+
     uniform double mjc:coef0 = 0 (
         customData = {
             string apiName = "Coef0"
         }
         displayName = "Coefficient 0"
-        doc = """Constant coefficient a0 of the quartic polynomial. The constraint is:
+        doc = """DEPRECATED: Use newton:mimicCoef0 instead.
+
+        Constant coefficient a0 of the quartic polynomial. The constraint is:
         y = y0 + a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4."""
     )
 
@@ -1145,7 +1203,9 @@ class "MjcEqualityJointAPI" (
             string apiName = "Coef1"
         }
         displayName = "Coefficient 1"
-        doc = """Linear coefficient a1 of the quartic polynomial."""
+        doc = """DEPRECATED: Use newton:mimicCoef1 instead.
+
+        Linear coefficient a1 of the quartic polynomial."""
     )
 
     uniform double mjc:coef2 = 0 (

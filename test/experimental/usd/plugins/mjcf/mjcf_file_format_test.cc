@@ -78,6 +78,9 @@ PXR_NAMESPACE_OPEN_SCOPE
 // clang-format off
 TF_DEFINE_PRIVATE_TOKENS(_tokens,
                          (st)
+                         ((newtonTimeStepsPerSecond, "newton:timeStepsPerSecond"))
+                         ((newtonMaxSolverIterations, "newton:maxSolverIterations"))
+                         ((newtonGravityEnabled, "newton:gravityEnabled"))
                          );
 // clang-format on
 PXR_NAMESPACE_CLOSE_SCOPE
@@ -159,12 +162,20 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsMaterials) {
                        4.0f);
   ExpectAttributeEqual(stage,
                        "/physics_materials_test/PhysicsMaterials/"
-                       "geom_with_friction.mjc:torsionalfriction",
-                       5.0);
+                       "geom_with_friction.newton:torsionalFriction",
+                       5.0f);
   ExpectAttributeEqual(stage,
                        "/physics_materials_test/PhysicsMaterials/"
-                       "geom_with_friction.mjc:rollingfriction",
-                       6.0);
+                       "geom_with_friction.newton:rollingFriction",
+                       6.0f);
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
+      stage,
+      "/physics_materials_test/PhysicsMaterials/"
+      "geom_with_friction.mjc:torsionalfriction");
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
+      stage,
+      "/physics_materials_test/PhysicsMaterials/"
+      "geom_with_friction.mjc:rollingfriction");
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
@@ -692,10 +703,15 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimTimestep) {
     </mujoco>
   )");
 
+  // newton:timeStepsPerSecond = round(1/0.005) = 200
   ExpectAttributeEqual(
       stage,
-      kPhysicsScenePrimPath.AppendProperty(MjcPhysicsTokens->mjcOptionTimestep),
-      0.005);
+      kPhysicsScenePrimPath.AppendProperty(pxr::_tokens->newtonTimeStepsPerSecond),
+      200);
+  // deprecated mjc:option:timestep should not be authored
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
+      stage,
+      kPhysicsScenePrimPath.AppendProperty(MjcPhysicsTokens->mjcOptionTimestep));
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimCone) {
@@ -928,8 +944,12 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimIterations) {
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
-                           MjcPhysicsTokens->mjcOptionIterations),
+                           pxr::_tokens->newtonMaxSolverIterations),
                        10);
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
+      stage,
+      kPhysicsScenePrimPath.AppendProperty(
+          MjcPhysicsTokens->mjcOptionIterations));
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimLSIterations) {
@@ -1066,7 +1086,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
       MjcPhysicsTokens->mjcFlagContact,
       MjcPhysicsTokens->mjcFlagSpring,
       MjcPhysicsTokens->mjcFlagDamper,
-      MjcPhysicsTokens->mjcFlagGravity,
+      // mjc:flag:gravity is deprecated, now exported as newton:gravityEnabled
       MjcPhysicsTokens->mjcFlagClampctrl,
       MjcPhysicsTokens->mjcFlagWarmstart,
       MjcPhysicsTokens->mjcFlagFilterparent,
@@ -1083,6 +1103,10 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
     ExpectAttributeEqual(stage, kPhysicsScenePrimPath.AppendProperty(flag),
                          false);
   }
+  ExpectAttributeEqual(
+      stage,
+      kPhysicsScenePrimPath.AppendProperty(pxr::_tokens->newtonGravityEnabled),
+      false);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimEnableFlags) {
@@ -1472,8 +1496,12 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsCollisionAPI) {
                        pxr::VtArray<double>({0.1, 0.2}));
   ExpectAttributeEqual(stage, "/test/body/box.mjc:solimp",
                        pxr::VtArray<double>({0.3, 0.4, 0.5, 0.6, 0.7}));
-  ExpectAttributeEqual(stage, "/test/body/box.mjc:margin", 0.8);
-  ExpectAttributeEqual(stage, "/test/body/box.mjc:gap", 0.9);
+  // margin and gap are now exported as Newton attributes
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(stage, "/test/body/box.mjc:margin");
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(stage, "/test/body/box.mjc:gap");
+  // newton:contactMargin = margin - gap = 0.8 - 0.9 = -0.1
+  ExpectAttributeEqual(stage, "/test/body/box.newton:contactMargin", -0.1f);
+  ExpectAttributeEqual(stage, "/test/body/box.newton:contactGap", 0.9f);
   ExpectAttributeEqual(stage, "/test/body/box.mjc:shellinertia", true);
 }
 
@@ -1508,8 +1536,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsMeshCollisionAPI) {
                        MjcPhysicsTokens->convex);
   ExpectAttributeEqual(stage, "/test/body/tet_shell/Mesh.mjc:inertia",
                        MjcPhysicsTokens->shell);
-  ExpectAttributeEqual(stage, "/test/body/tet_max_vert/Mesh.mjc:maxhullvert",
-                       12);
+  // mjc:maxhullvert deprecated, newton:maxHullVertices used instead
+  EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
+      stage, "/test/body/tet_max_vert/Mesh.mjc:maxhullvert");
+  ExpectAttributeEqual(
+      stage, "/test/body/tet_max_vert/Mesh.newton:maxHullVertices", 12);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestMassAPIApplied) {

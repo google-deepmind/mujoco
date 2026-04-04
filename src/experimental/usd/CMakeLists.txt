@@ -199,6 +199,42 @@ target_link_libraries(mujoco PUBLIC
   ${MJC_PHYSICS_PLUGIN_TARGET_NAME}
 )
 
+## ----- Newton USD Schemas (codeless plugin) -----
+
+function(install_newton_usd_plugin install_base_dir)
+  include(FetchContent)
+
+  FetchContent_Declare(
+    newton-usd-schemas
+    GIT_REPOSITORY https://github.com/newton-physics/newton-usd-schemas.git
+    GIT_TAG v0.1.0rc3
+    GIT_SHALLOW TRUE
+    UPDATE_DISCONNECTED TRUE
+  )
+
+  FetchContent_GetProperties(newton-usd-schemas)
+  if(NOT newton-usd-schemas_POPULATED)
+    FetchContent_Populate(newton-usd-schemas)
+  endif()
+
+  set(NEWTON_USD_DIR "${newton-usd-schemas_SOURCE_DIR}/newton_usd_schemas")
+  if(NOT EXISTS "${NEWTON_USD_DIR}")
+    message(FATAL_ERROR "newton_usd_schemas directory not found in fetched repository")
+  endif()
+
+  set(NEWTON_BUILD_DIR "${CMAKE_BINARY_DIR}/${install_base_dir}/newton")
+  file(MAKE_DIRECTORY "${NEWTON_BUILD_DIR}")
+  configure_file("${NEWTON_USD_DIR}/plugInfo.json" "${NEWTON_BUILD_DIR}/plugInfo.json" COPYONLY)
+  configure_file("${NEWTON_USD_DIR}/generatedSchema.usda" "${NEWTON_BUILD_DIR}/generatedSchema.usda" COPYONLY)
+
+  install(FILES "${NEWTON_BUILD_DIR}/plugInfo.json"
+    DESTINATION "${install_base_dir}/newton"
+  )
+  install(FILES "${NEWTON_BUILD_DIR}/generatedSchema.usda"
+    DESTINATION "${install_base_dir}/newton"
+  )
+endfunction()
+
 ## Installation
 
 # Generate and install plugInfo.json for each plugin
@@ -217,6 +253,10 @@ configure_and_install_usd_plugin_info(
 install(FILES
   mjcPhysics/generatedSchema.usda
   DESTINATION ${MJ_USD_INSTALL_DIR_LIB}/mjcPhysics
+)
+
+install_newton_usd_plugin(
+  ${MJ_USD_INSTALL_DIR_LIB}
 )
 
 # Install shared libraries
