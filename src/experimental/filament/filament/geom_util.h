@@ -22,9 +22,8 @@
 namespace mujoco {
 
 // Populates the FilamentBuffers for a flex geometry.
-FilamentBuffers CreateGeomBuffers(filament::Engine* engine,
-                                  const mjModel* model, const mjvScene* scene,
-                                  const mjvGeom& geom);
+MeshPtr CreateGeomBuffers(filament::Engine* engine, const mjModel* model,
+                          const mjvScene* scene, const mjvGeom& geom);
 
 }  // namespace mujoco
 

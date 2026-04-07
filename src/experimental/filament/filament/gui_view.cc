@@ -62,10 +62,7 @@ GuiView::~GuiView() {
   }
   auto& em = utils::EntityManager::get();
   em.destroy(renderable_);
-  for (auto& buffer : buffers_) {
-    engine_->destroy(buffer.vertex_buffer);
-    engine_->destroy(buffer.index_buffer);
-  }
+  meshes_.clear();
   for (auto& instance : instances_) {
     engine_->destroy(instance);
   }
@@ -84,12 +81,7 @@ void GuiView::ResetRenderable() {
     em.destroy(renderable_);
     renderable_ = utils::Entity();
   }
-
-  for (auto& buffer : buffers_) {
-    engine_->destroy(buffer.vertex_buffer);
-    engine_->destroy(buffer.index_buffer);
-  }
-  buffers_.clear();
+  meshes_.clear();
 }
 
 uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
@@ -275,12 +267,7 @@ void GuiView::UpdateRenderable() {
     builder.build(*engine_, renderable_);
     scene_->addEntity(renderable_);
   }
-
-  for (auto& buffer : buffers_) {
-    engine_->destroy(buffer.vertex_buffer);
-    engine_->destroy(buffer.index_buffer);
-  }
-  buffers_.clear();
+  meshes_.clear();
 
   auto ri = rm.getInstance(renderable_);
 
@@ -299,10 +286,13 @@ void GuiView::UpdateRenderable() {
       }
       std::memcpy(dst, cmds->IdxBuffer.Data, size);
     };
-    buffers_.push_back(
-        {CreateIndexBuffer<uint16_t>(engine_, cmds->IdxBuffer.Size, ifill),
-         CreateVertexBuffer<GuiVertex>(engine_, cmds->VtxBuffer.Size, vfill)});
-    const mujoco::FilamentBuffers& buffer = buffers_.back();
+    filament::IndexBuffer* index_buffer =
+        CreateIndexBuffer<uint16_t>(engine_, cmds->IdxBuffer.Size, ifill);
+    filament::VertexBuffer* vertex_buffer =
+        CreateVertexBuffer<GuiVertex>(engine_, cmds->VtxBuffer.Size, vfill);
+
+    meshes_.push_back(std::make_unique<Mesh>(engine_, index_buffer, vertex_buffer));
+    const auto& mesh = meshes_.back();
 
     int index_offset = 0;
     for (const ImDrawCmd& command : cmds->CmdBuffer) {
@@ -327,8 +317,9 @@ void GuiView::UpdateRenderable() {
       rm.setMaterialInstanceAt(
           ri, drawable_index,
           GetMaterialInstance(drawable_index, clip_rect, command.GetTexID()));
-      rm.setGeometryAt(ri, drawable_index, kTriangles, buffer.vertex_buffer,
-                       buffer.index_buffer, index_offset, command.ElemCount);
+      rm.setGeometryAt(
+          ri, drawable_index, kTriangles, mesh->GetFilamentVertexBuffer(),
+          mesh->GetFilamentIndexBuffer(), index_offset, command.ElemCount);
       rm.setBlendOrderAt(ri, drawable_index, drawable_index);
 
       index_offset += command.ElemCount;

@@ -18,8 +18,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <span>
 
+#include <filament/Box.h>
 #include <filament/Engine.h>
 #include <filament/IndexBuffer.h>
 #include <filament/VertexBuffer.h>
@@ -162,9 +164,8 @@ static filament::IndexBuffer* BuildIndexBuffer(filament::Engine* engine,
   }
 }
 
-FilamentBuffers CreateGeomBuffers(filament::Engine* engine,
-                                  const mjModel* model, const mjvScene* scene,
-                                  const mjvGeom& geom) {
+MeshPtr CreateGeomBuffers(filament::Engine* engine, const mjModel* model,
+                          const mjvScene* scene, const mjvGeom& geom) {
   auto positions = GetPositions(model, scene, geom);
   auto normals = GetNormals(model, scene, geom);
   auto uvs = GetUvs(model, scene, geom);
@@ -175,14 +176,13 @@ FilamentBuffers CreateGeomBuffers(filament::Engine* engine,
     num_indices = 3 * scene->flexfaceused[geom.objid];
   }
 
-  FilamentBuffers buffers;
   float3 vmin = {FLT_MAX, FLT_MAX, FLT_MAX};
   float3 vmax = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
-  buffers.vertex_buffer =
-      BuildVertexBuffer(engine, positions, normals, uvs, &vmin, &vmax);
-  buffers.index_buffer = BuildIndexBuffer(engine, indices, num_indices);
-  buffers.bounds.emplace().set(vmin, vmax);
-  return buffers;
+  auto vertex_buffer = BuildVertexBuffer(engine, positions, normals, uvs, &vmin, &vmax);
+  auto index_buffer = BuildIndexBuffer(engine, indices, num_indices);
+  filament::Box bounds;
+  bounds.set(vmin, vmax);
+  return std::make_unique<Mesh>(engine, index_buffer, vertex_buffer, bounds);
 }
 
 }  // namespace mujoco

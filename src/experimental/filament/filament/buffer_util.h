@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <type_traits>
 #include <backend/BufferDescriptor.h>
@@ -30,14 +31,58 @@
 // Functions for creating filament vertex and index buffers.
 namespace mujoco {
 
-// Simple tuple-type of a IndexBuffer+VertexBuffer.
-struct FilamentBuffers {
-  filament::IndexBuffer* index_buffer = nullptr;
-  filament::VertexBuffer* vertex_buffer = nullptr;
-  std::optional<filament::Box> bounds = std::nullopt;
-  filament::RenderableManager::PrimitiveType type =
+// Owns a Vertex and Index buffer representing a geometry mesh.
+class Mesh {
+ public:
+  Mesh(filament::Engine* engine, filament::IndexBuffer* index_buffer,
+       filament::VertexBuffer* vertex_buffer,
+       std::optional<filament::Box> bounds = std::nullopt,
+       filament::RenderableManager::PrimitiveType type =
+           filament::RenderableManager::PrimitiveType::TRIANGLES)
+      : engine_(engine),
+        index_buffer_(index_buffer),
+        vertex_buffer_(vertex_buffer),
+        type_(type),
+        bounds_(bounds) {}
+
+  ~Mesh() {
+    if (index_buffer_) {
+      engine_->destroy(index_buffer_);
+    }
+    if (vertex_buffer_) {
+      engine_->destroy(vertex_buffer_);
+    }
+  }
+
+  filament::IndexBuffer* GetFilamentIndexBuffer() const {
+    return index_buffer_;
+  }
+  filament::VertexBuffer* GetFilamentVertexBuffer() const {
+    return vertex_buffer_;
+  }
+  filament::RenderableManager::PrimitiveType GetPrimitiveType() const {
+    return type_;
+  }
+  bool HasBounds() const {
+    return bounds_.has_value();
+  }
+  filament::Box GetBounds() const {
+    return bounds_.value();
+  }
+
+  Mesh(const Mesh&) = delete;
+  Mesh& operator=(const Mesh&) = delete;
+
+ private:
+  filament::Engine* engine_ = nullptr;
+  filament::IndexBuffer* index_buffer_ = nullptr;
+  filament::VertexBuffer* vertex_buffer_ = nullptr;
+  filament::RenderableManager::PrimitiveType type_ =
       filament::RenderableManager::PrimitiveType::TRIANGLES;
+  std::optional<filament::Box> bounds_;
 };
+
+using MeshPtr = std::unique_ptr<Mesh>;
 
 // Function that fills in the given buffer with actual data.
 using FillBufferFn = std::function<void(std::byte*, std::size_t)>;

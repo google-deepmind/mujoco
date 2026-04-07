@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include <filament/Box.h>
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
 #include <filament/Material.h>
@@ -28,7 +29,6 @@
 #include "experimental/filament/filament/builtins.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/texture.h"
-
 
 namespace mujoco {
 
@@ -73,14 +73,7 @@ ModelObjects::~ModelObjects() {
   for (auto& iter : indirect_lights_) {
     engine_->destroy(iter);
   }
-  for (auto& iter : meshes_) {
-    engine_->destroy(iter.second.vertex_buffer);
-    engine_->destroy(iter.second.index_buffer);
-  }
-  for (auto& iter : shapes_) {
-    engine_->destroy(iter.vertex_buffer);
-    engine_->destroy(iter.index_buffer);
-  }
+  meshes_.clear();
   textures_.clear();
 }
 
@@ -88,32 +81,25 @@ void ModelObjects::UploadMesh(const mjModel* model, int id) {
   if (model != model_) {
     mju_error("Model mismatch.");
   }
-  if (id < 0 || id >=  model->nmesh) {
+  if (id < 0 || id >= model->nmesh) {
     mju_error("Invalid mesh index %d", id);
   }
+  meshes_.erase(id);
+  convex_hulls_.erase(id);
 
-  if (auto iter = meshes_.find(id); iter != meshes_.end()) {
-    engine_->destroy(iter->second.vertex_buffer);
-    engine_->destroy(iter->second.index_buffer);
-  }
-  if (auto iter = convex_hulls_.find(id); iter != convex_hulls_.end()) {
-    engine_->destroy(iter->second.vertex_buffer);
-    engine_->destroy(iter->second.index_buffer);
-  }
-
-  FilamentBuffers& buffers = meshes_[id];
-  buffers.vertex_buffer = CreateVertexBuffer(
-      engine_, model, id, MeshType::kNormal, &buffers.bounds.emplace());
-  buffers.index_buffer =
-      CreateIndexBuffer(engine_, model, id, MeshType::kNormal);
+  filament::Box bounds;
+  auto vertex_buffer =
+      CreateVertexBuffer(engine_, model, id, MeshType::kNormal, &bounds);
+  auto index_buffer = CreateIndexBuffer(engine_, model, id, MeshType::kNormal);
+  meshes_[id] =
+      std::make_unique<Mesh>(engine_, index_buffer, vertex_buffer, bounds);
 
   if (model->mesh_graphadr[id] >= 0) {
-    FilamentBuffers& hull_buffers = convex_hulls_[id];
-    hull_buffers.vertex_buffer =
-        CreateVertexBuffer(engine_, model, id, MeshType::kConvexHull,
-                           &hull_buffers.bounds.emplace());
-    hull_buffers.index_buffer =
-        CreateIndexBuffer(engine_, model, id, MeshType::kConvexHull);
+    vertex_buffer =
+        CreateVertexBuffer(engine_, model, id, MeshType::kConvexHull, &bounds);
+    index_buffer = CreateIndexBuffer(engine_, model, id, MeshType::kConvexHull);
+    convex_hulls_[id] =
+        std::make_unique<Mesh>(engine_, index_buffer, vertex_buffer, bounds);
   }
 }
 
@@ -172,43 +158,41 @@ void ModelObjects::UploadHeightField(const mjModel* model, int id) {
     mju_error("Invalid height field index %d", id);
   }
 
-  if (auto iter = height_fields_.find(id); iter != height_fields_.end()) {
-    engine_->destroy(iter->second.vertex_buffer);
-    engine_->destroy(iter->second.index_buffer);
-  }
+  height_fields_.erase(id);
 
-  FilamentBuffers& buffers = height_fields_[id];
-  buffers.vertex_buffer = CreateVertexBuffer(
-      engine_, model, id, MeshType::kHeightField, &buffers.bounds.emplace());
-  buffers.index_buffer =
+  filament::Box bounds;
+  auto vertex_buffer =
+      CreateVertexBuffer(engine_, model, id, MeshType::kHeightField, &bounds);
+  auto index_buffer =
       CreateIndexBuffer(engine_, model, id, MeshType::kHeightField);
+  height_fields_[id] =
+      std::make_unique<Mesh>(engine_, index_buffer, vertex_buffer, bounds);
 }
 
-const FilamentBuffers* ModelObjects::GetMeshBuffer(int data_id) const {
+const Mesh* ModelObjects::GetMeshBuffer(int data_id) const {
   // As defined by mjv_updateScene:
   //   original mesh: mesh_id * 2
   //   convex hull: (mesh_id * 2) + 1
   const int mesh_id = data_id / 2;
   if (data_id % 2 == 0) {
     auto it = meshes_.find(mesh_id);
-    return it != meshes_.end() ? &it->second : nullptr;
+    return it != meshes_.end() ? it->second.get() : nullptr;
   } else {
     auto it = convex_hulls_.find(mesh_id);
-    return it != convex_hulls_.end() ? &it->second : nullptr;
+    return it != convex_hulls_.end() ? it->second.get() : nullptr;
   }
 }
 
-const FilamentBuffers* ModelObjects::GetHeightFieldBuffer(
-    int hfield_id) const {
+const Mesh* ModelObjects::GetHeightFieldBuffer(int hfield_id) const {
   auto it = height_fields_.find(hfield_id);
-  return it != height_fields_.end() ? &it->second : nullptr;
+  return it != height_fields_.end() ? it->second.get() : nullptr;
 }
 
-const FilamentBuffers* ModelObjects::GetShapeBuffer(ShapeType shape) const {
+const Mesh* ModelObjects::GetShapeBuffer(ShapeType shape) const {
   if (shape < 0 || shape >= kNumShapes) {
     mju_error("Invalid shape type: %d", shape);
   }
-  return &shapes_[shape];
+  return shapes_[shape].get();
 }
 
 const Texture* ModelObjects::GetTexture(int tex_id) const {

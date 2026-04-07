@@ -61,9 +61,9 @@ class ModelObjects {
   filament::Engine* GetEngine() const { return engine_; }
 
   // Returns the cached instance of a filament object created from the mjModel.
-  const FilamentBuffers* GetShapeBuffer(ShapeType shape) const;
-  const FilamentBuffers* GetMeshBuffer(int data_id) const;
-  const FilamentBuffers* GetHeightFieldBuffer(int hfield_id) const;
+  const Mesh* GetShapeBuffer(ShapeType shape) const;
+  const Mesh* GetMeshBuffer(int data_id) const;
+  const Mesh* GetHeightFieldBuffer(int hfield_id) const;
   const Texture* GetTexture(int tex_id) const;
   const Texture* GetTexture(int mat_id, int role) const;
 
@@ -84,10 +84,10 @@ class ModelObjects {
   filament::Engine* engine_ = nullptr;
   std::vector<filament::Skybox*> skyboxes_;
   std::vector<filament::IndirectLight*> indirect_lights_;
-  std::array<FilamentBuffers, kNumShapes> shapes_;
-  std::unordered_map<int, FilamentBuffers> meshes_;
-  std::unordered_map<int, FilamentBuffers> convex_hulls_;
-  std::unordered_map<int, FilamentBuffers> height_fields_;
+  std::array<MeshPtr, kNumShapes> shapes_;
+  std::unordered_map<int, MeshPtr> meshes_;
+  std::unordered_map<int, MeshPtr> convex_hulls_;
+  std::unordered_map<int, MeshPtr> height_fields_;
   std::unordered_map<int, std::unique_ptr<Texture>> textures_;
   float specular_multiplier_ = 0.2f;
   float shininess_multiplier_ = 0.1f;

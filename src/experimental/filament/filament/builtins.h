@@ -21,16 +21,16 @@
 // Generates buffers for built-in shapes.
 namespace mujoco {
 
-FilamentBuffers CreateLine(filament::Engine* engine);
-FilamentBuffers CreatePlane(filament::Engine* engine, int nquad);
-FilamentBuffers CreateTriangle(filament::Engine* engine);
-FilamentBuffers CreateBox(filament::Engine* engine, int nquad);
-FilamentBuffers CreateLineBox(filament::Engine* engine);
-FilamentBuffers CreateSphere(filament::Engine* engine, int nstack, int nslice);
-FilamentBuffers CreateTube(filament::Engine* engine, int nstack, int nslice);
-FilamentBuffers CreateDisk(filament::Engine* engine, int nslice);
-FilamentBuffers CreateDome(filament::Engine* engine, int nstack, int nslice);
-FilamentBuffers CreateCone(filament::Engine* engine, int nstack, int nslice);
+MeshPtr CreateLine(filament::Engine* engine);
+MeshPtr CreatePlane(filament::Engine* engine, int nquad);
+MeshPtr CreateTriangle(filament::Engine* engine);
+MeshPtr CreateBox(filament::Engine* engine, int nquad);
+MeshPtr CreateLineBox(filament::Engine* engine);
+MeshPtr CreateSphere(filament::Engine* engine, int nstack, int nslice);
+MeshPtr CreateTube(filament::Engine* engine, int nstack, int nslice);
+MeshPtr CreateDisk(filament::Engine* engine, int nslice);
+MeshPtr CreateDome(filament::Engine* engine, int nstack, int nslice);
+MeshPtr CreateCone(filament::Engine* engine, int nstack, int nslice);
 
 }  // namespace mujoco
 

@@ -71,7 +71,7 @@ class GuiView {
   filament::View* view_ = nullptr;
   filament::Material* material_ = nullptr;
   utils::Entity renderable_;
-  std::vector<FilamentBuffers> buffers_;
+  std::vector<MeshPtr> meshes_;
   std::vector<filament::MaterialInstance*> instances_;
   std::unordered_map<uintptr_t, std::unique_ptr<Texture>> textures_;
   int num_elements_ = 0;

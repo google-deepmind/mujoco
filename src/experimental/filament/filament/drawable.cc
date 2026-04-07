@@ -16,6 +16,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <memory>
 #include <numbers>
 #include <utility>
 
@@ -173,12 +174,12 @@ void Drawable::Update(const mjModel* model, const mjvScene* scene,
   if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
     // Flex geometry is updated every frame with new vertex data.
     filament::Engine* engine = renderables_.GetEngine();
-    FilamentBuffers buffers = CreateGeomBuffers(engine, model, scene, geom);
+    std::unique_ptr<Mesh> mesh = CreateGeomBuffers(engine, model, scene, geom);
 
     if (renderables_.GetNumEntities() == 0) {
-      renderables_.Append(std::move(buffers));
+      renderables_.Append(std::move(mesh));
     } else {
-      renderables_.Update(0, std::move(buffers));
+      renderables_.Update(0, std::move(mesh));
     }
   }
 
@@ -192,27 +193,27 @@ void Drawable::Update(const mjModel* model, const mjvScene* scene,
 }
 
 void Drawable::AddMesh(int data_id) {
-  const FilamentBuffers* buffers = model_objs_->GetMeshBuffer(data_id);
+  const Mesh* buffers = model_objs_->GetMeshBuffer(data_id);
   if (buffers == nullptr) {
     mju_error("Unknown mesh %d", data_id);
   }
-  renderables_.Append(*buffers);
+  renderables_.Append(buffers);
 }
 
 void Drawable::AddHeightField(int hfield_id) {
-  const FilamentBuffers* buffers = model_objs_->GetHeightFieldBuffer(hfield_id);
+  const Mesh* buffers = model_objs_->GetHeightFieldBuffer(hfield_id);
   if (buffers == nullptr) {
     mju_error("Unknown height field %d", hfield_id);
   }
-  renderables_.Append(*buffers);
+  renderables_.Append(buffers);
 }
 
 void Drawable::AddShape(ModelObjects::ShapeType shape_type) {
-  const FilamentBuffers* buffers = model_objs_->GetShapeBuffer(shape_type);
+  const Mesh* buffers = model_objs_->GetShapeBuffer(shape_type);
   if (buffers == nullptr) {
     mju_error("Unknown shape %d", shape_type);
   }
-  renderables_.Append(*buffers);
+  renderables_.Append(buffers);
 }
 
 void Drawable::AddToScene(filament::Scene* scene) {

@@ -16,7 +16,6 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDERABLES_H_
 
 #include <cstdint>
-#include <optional>
 #include <vector>
 
 #include <filament/Engine.h>
@@ -39,13 +38,13 @@ class Renderables {
   Renderables(const Renderables&) = delete;
   Renderables& operator=(const Renderables&) = delete;
 
-  // Appends a new renderable entity built from the given buffers.
-  void Append(const FilamentBuffers& buffers);
-  void Append(FilamentBuffers&& buffers);
+  // Appends a new renderable entity built from the given mesh.
+  void Append(const Mesh* mesh);
+  void Append(MeshPtr mesh);
 
-  // Updates the entity at the index with new buffers.
-  void Update(int index, const FilamentBuffers& buffers);
-  void Update(int index, FilamentBuffers&& buffers);
+  // Updates the entity at the index with new mesh.
+  void Update(int index, const Mesh* mesh);
+  void Update(int index, MeshPtr mesh);
 
   // Removes the last entity.
   void RemoveLast();
@@ -53,7 +52,7 @@ class Renderables {
   // Returns the entity at the given index.
   utils::Entity operator[](int index) { return entities_[index]; }
 
-  // Returns the owned buffers at the given index.
+  // Returns the number of Entities that make up this renderable.
   int GetNumEntities() const { return entities_.size(); }
 
   // Hides all managed entities.
@@ -84,22 +83,20 @@ class Renderables {
   filament::Engine* GetEngine() { return engine_; }
 
  private:
-  utils::Entity CreateEntity(const FilamentBuffers& buffers);
-  void UpdateEntity(utils::Entity entity, const FilamentBuffers& buffers);
-  void UpdateBuffers(int index, FilamentBuffers buffers, bool owned);
+  utils::Entity CreateEntity(const Mesh* mesh);
+  void UpdateEntity(utils::Entity entity, const Mesh* mesh);
+  void UpdateMeshes(int index, const Mesh* mesh, MeshPtr owned_mesh = nullptr);
 
-  // Tracks whether of not the filament buffers should be destroyed by this
-  // class.
-  struct OwnedBuffers {
-    bool owned = false;
-    FilamentBuffers buffers;
+  struct MeshWrapper {
+    MeshPtr owned_mesh;
+    const Mesh* mesh = nullptr;
   };
 
   filament::Engine* engine_ = nullptr;
   filament::Scene* assigned_scene_ = nullptr;
   filament::MaterialInstance* material_instance_ = nullptr;
   std::vector<utils::Entity> entities_;
-  std::vector<OwnedBuffers> owned_buffers_;
+  std::vector<MeshWrapper> meshes_;
   std::uint8_t priority_ = kDefaultPriority;
   std::uint8_t layer_mask_ = kDefaultLayerMask;
   bool wireframe_ = false;

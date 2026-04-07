@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <numbers>
 
 #include <filament/Box.h>
@@ -422,8 +423,8 @@ class ConeBuilder {
 
     int idx = 0;
     for (int j = 0; j < num_slices_; ++j) {
-      const float angle1 = (j+0) * delta_angle;
-      const float angle2 = (j+1) * delta_angle;
+      const float angle1 = (j + 0) * delta_angle;
+      const float angle2 = (j + 1) * delta_angle;
 
       ptr[idx++] = MakeVert(angle1, delta_radius);
       ptr[idx++] = MakeVert(angle2, delta_radius);
@@ -436,12 +437,12 @@ class ConeBuilder {
 
     // the rest: use quads
     for (int i = 1; i < num_stacks_; ++i) {
-      const float radius1 = delta_radius * (i+0);
-      const float radius2 = delta_radius * (i+1);
+      const float radius1 = delta_radius * (i + 0);
+      const float radius2 = delta_radius * (i + 1);
 
       for (int j = 0; j < num_slices_; ++j) {
-        const float angle1 = (j+0) * delta_angle;
-        const float angle2 = (j+1) * delta_angle;
+        const float angle1 = (j + 0) * delta_angle;
+        const float angle2 = (j + 1) * delta_angle;
 
         ptr[idx++] = MakeVert(angle1, radius2);
         ptr[idx++] = MakeVert(angle2, radius2);
@@ -676,34 +677,34 @@ class DomeBuilder {
            (num_quads_body * kNumIndicesPerQuad);
   }
 
-    void GenerateVertices(VertexType* ptr, size_t num) const {
-      const float lat_angle_delta =
-          0.5 * std::numbers::pi / static_cast<float>(num_stacks_);
-      const float lon_angle_delta =
-          2.0 * std::numbers::pi / static_cast<float>(num_slices_);
+  void GenerateVertices(VertexType* ptr, size_t num) const {
+    const float lat_angle_delta =
+        0.5 * std::numbers::pi / static_cast<float>(num_stacks_);
+    const float lon_angle_delta =
+        2.0 * std::numbers::pi / static_cast<float>(num_slices_);
 
-      // Add the pole.
-      int idx = 0;
-      ptr[idx++] = MakeVert(0, 0, 1);
+    // Add the pole.
+    int idx = 0;
+    ptr[idx++] = MakeVert(0, 0, 1);
 
-      // Vertices by latitude.
-      for (int lat = 0; lat < num_stacks_; ++lat) {
-        // +1 because we handle the north pole (which would be at a lat angle of
-        // 0-degrees) explicitly.
-        const float lat_angle = static_cast<float>(lat + 1) * lat_angle_delta;
-        const float cos_lat_angle = std::cos(lat_angle);
-        const float sin_lat_angle = std::sin(lat_angle);
-        const float z = cos_lat_angle;
+    // Vertices by latitude.
+    for (int lat = 0; lat < num_stacks_; ++lat) {
+      // +1 because we handle the north pole (which would be at a lat angle of
+      // 0-degrees) explicitly.
+      const float lat_angle = static_cast<float>(lat + 1) * lat_angle_delta;
+      const float cos_lat_angle = std::cos(lat_angle);
+      const float sin_lat_angle = std::sin(lat_angle);
+      const float z = cos_lat_angle;
 
-        for (int lon = 0; lon < num_slices_; ++lon) {
-          const float lon_angle = static_cast<float>(lon) * lon_angle_delta;
-          const float cos_lon_angle = std::cos(lon_angle);
-          const float sin_lon_angle = std::sin(lon_angle);
+      for (int lon = 0; lon < num_slices_; ++lon) {
+        const float lon_angle = static_cast<float>(lon) * lon_angle_delta;
+        const float cos_lon_angle = std::cos(lon_angle);
+        const float sin_lon_angle = std::sin(lon_angle);
 
-          const float x = sin_lat_angle * cos_lon_angle;
-          const float y = sin_lat_angle * sin_lon_angle;
-          ptr[idx++] = MakeVert(x, y, z);
-        }
+        const float x = sin_lat_angle * cos_lon_angle;
+        const float y = sin_lat_angle * sin_lon_angle;
+        ptr[idx++] = MakeVert(x, y, z);
+      }
     }
   }
 
@@ -756,9 +757,8 @@ class DomeBuilder {
   int num_slices_;
 };
 
-
 template <typename T>
-FilamentBuffers CreateFromBuilder(filament::Engine* engine, const T& builder) {
+MeshPtr CreateFromBuilder(filament::Engine* engine, const T& builder) {
   using VertexType = typename T::VertexType;
   using IndexType = typename T::IndexType;
 
@@ -786,46 +786,47 @@ FilamentBuffers CreateFromBuilder(filament::Engine* engine, const T& builder) {
 
   auto vb = CreateVertexBuffer<VertexType>(engine, num_vertices, vertices);
   auto ib = CreateIndexBuffer<IndexType>(engine, num_indices, indices);
-  return {ib, vb, builder.GetBounds(), T::kPrimitiveType};
+  return std::make_unique<Mesh>(engine, ib, vb, builder.GetBounds(),
+                                T::kPrimitiveType);
 }
 
-FilamentBuffers CreateLine(filament::Engine* engine) {
+MeshPtr CreateLine(filament::Engine* engine) {
   return CreateFromBuilder(engine, LineBuilder());
 }
 
-FilamentBuffers CreatePlane(filament::Engine* engine, int nquad) {
+MeshPtr CreatePlane(filament::Engine* engine, int nquad) {
   return CreateFromBuilder(engine, PlaneBuilder(nquad));
 }
 
-FilamentBuffers CreateTriangle(filament::Engine* engine) {
+MeshPtr CreateTriangle(filament::Engine* engine) {
   return CreateFromBuilder(engine, TriangleBuilder());
 }
 
-FilamentBuffers CreateBox(filament::Engine* engine, int nquad) {
+MeshPtr CreateBox(filament::Engine* engine, int nquad) {
   return CreateFromBuilder(engine, BoxBuilder(nquad));
 }
 
-FilamentBuffers CreateLineBox(filament::Engine* engine) {
+MeshPtr CreateLineBox(filament::Engine* engine) {
   return CreateFromBuilder(engine, LineBoxBuilder());
 }
 
-FilamentBuffers CreateSphere(filament::Engine* engine, int nstack, int nslice) {
+MeshPtr CreateSphere(filament::Engine* engine, int nstack, int nslice) {
   return CreateFromBuilder(engine, SphereBuilder(nstack, nslice));
 }
 
-FilamentBuffers CreateTube(filament::Engine* engine, int nstack, int nslice) {
+MeshPtr CreateTube(filament::Engine* engine, int nstack, int nslice) {
   return CreateFromBuilder(engine, TubeBuilder(nstack, nslice));
 }
 
-FilamentBuffers CreateDisk(filament::Engine* engine, int nslice) {
+MeshPtr CreateDisk(filament::Engine* engine, int nslice) {
   return CreateFromBuilder(engine, DiskBuilder(nslice));
 }
 
-FilamentBuffers CreateDome(filament::Engine* engine, int nstack, int nslice) {
+MeshPtr CreateDome(filament::Engine* engine, int nstack, int nslice) {
   return CreateFromBuilder(engine, DomeBuilder(nstack, nslice));
 }
 
-FilamentBuffers CreateCone(filament::Engine* engine, int nstack, int nslice) {
+MeshPtr CreateCone(filament::Engine* engine, int nstack, int nslice) {
   return CreateFromBuilder(engine, ConeBuilder(nstack, nslice));
 }
 

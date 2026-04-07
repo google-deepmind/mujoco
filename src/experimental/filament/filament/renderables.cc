@@ -15,7 +15,7 @@
 #include "experimental/filament/filament/renderables.h"
 
 #include <cstdint>
-#include <optional>
+#include <utility>
 
 #include <filament/Engine.h>
 #include <filament/RenderableManager.h>
@@ -49,66 +49,64 @@ void Renderables::RemoveLast() {
   engine_->destroy(entity);
   em.destroy(entity);
   entities_.pop_back();
-
-  if (owned_buffers_.back().owned) {
-    engine_->destroy(owned_buffers_.back().buffers.vertex_buffer);
-    engine_->destroy(owned_buffers_.back().buffers.index_buffer);
-  }
-  owned_buffers_.pop_back();
+  meshes_.pop_back();
 }
 
-void Renderables::Update(int index, const FilamentBuffers& buffers) {
+void Renderables::Update(int index, const Mesh* mesh) {
   if (index < 0 || index >= entities_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
   utils::Entity& entity = entities_[index];
-  UpdateEntity(entity, buffers);
-  UpdateBuffers(index, buffers, false);
+  UpdateEntity(entity, mesh);
+  UpdateMeshes(index, mesh);
 }
 
-void Renderables::Update(int index, FilamentBuffers&& buffers) {
+void Renderables::Update(int index, MeshPtr mesh) {
   if (index < 0 || index >= entities_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
   utils::Entity& entity = entities_[index];
-  UpdateEntity(entity, buffers);
-  UpdateBuffers(index, buffers, true);
+  UpdateEntity(entity, mesh.get());
+  UpdateMeshes(index, mesh.get(), std::move(mesh));
 }
 
-void Renderables::Append(const FilamentBuffers& buffers) {
-  utils::Entity entity = CreateEntity(buffers);
+void Renderables::Append(const Mesh* mesh) {
+  utils::Entity entity = CreateEntity(mesh);
   entities_.push_back(entity);
-  owned_buffers_.push_back({.owned = false, .buffers = buffers});
+  meshes_.emplace_back(nullptr, mesh);
 }
 
-void Renderables::Append(FilamentBuffers&& buffers) {
-  utils::Entity entity = CreateEntity(buffers);
+void Renderables::Append(MeshPtr mesh) {
+  utils::Entity entity = CreateEntity(mesh.get());
   entities_.push_back(entity);
-  owned_buffers_.push_back({.owned = true, .buffers = buffers});
+  meshes_.emplace_back(std::move(mesh), mesh.get());
 }
 
-utils::Entity Renderables::CreateEntity(const FilamentBuffers& buffers) {
-  if (buffers.vertex_buffer == nullptr) {
+utils::Entity Renderables::CreateEntity(const Mesh* mesh) {
+  filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
+  if (vertex_buffer == nullptr) {
     mju_error("Invalid (null) vertex buffer.");
   }
-  if (buffers.index_buffer == nullptr) {
+
+  filament::IndexBuffer* index_buffer = mesh->GetFilamentIndexBuffer();
+  if (index_buffer == nullptr) {
     mju_error("Invalid (null) index buffer.");
   }
+
   utils::Entity entity = utils::EntityManager::get().create();
   if (entity.isNull()) {
     mju_error("Failed to create entity.");
   }
 
   filament::RenderableManager::Builder builder(1);
-  builder.geometry(0, buffers.type, buffers.vertex_buffer,
-                   buffers.index_buffer);
-  if (material_instance_) {
-    builder.material(0, material_instance_);
-  }
-  if (buffers.bounds.has_value()) {
-    builder.boundingBox(buffers.bounds.value());
+  builder.geometry(0, mesh->GetPrimitiveType(), vertex_buffer, index_buffer);
+  if (mesh->HasBounds()) {
+    builder.boundingBox(mesh->GetBounds());
   } else {
     builder.culling(false);
+  }
+  if (material_instance_) {
+    builder.material(0, material_instance_);
   }
   builder.castShadows(cast_shadows_);
   builder.receiveShadows(receive_shadows_);
@@ -123,30 +121,29 @@ utils::Entity Renderables::CreateEntity(const FilamentBuffers& buffers) {
   return entity;
 }
 
-void Renderables::UpdateEntity(utils::Entity entity,
-                               const FilamentBuffers& buffers) {
-  if (buffers.vertex_buffer == nullptr) {
+void Renderables::UpdateEntity(utils::Entity entity, const Mesh* mesh) {
+  filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
+  if (vertex_buffer == nullptr) {
     mju_error("Invalid (null) vertex buffer.");
   }
-  if (buffers.index_buffer == nullptr) {
+
+  filament::IndexBuffer* index_buffer = mesh->GetFilamentIndexBuffer();
+  if (index_buffer == nullptr) {
     mju_error("Invalid (null) index buffer.");
   }
+
   filament::RenderableManager& rm = engine_->getRenderableManager();
-  rm.setGeometryAt(rm.getInstance(entity), 0, buffers.type,
-                   buffers.vertex_buffer, buffers.index_buffer, 0,
-                   buffers.index_buffer->getIndexCount());
+  rm.setGeometryAt(rm.getInstance(entity), 0, mesh->GetPrimitiveType(),
+                   vertex_buffer, index_buffer, 0,
+                   index_buffer->getIndexCount());
 }
 
-void Renderables::UpdateBuffers(int index, FilamentBuffers buffers, bool owned) {
-  if (index < 0 || index >= owned_buffers_.size()) {
+void Renderables::UpdateMeshes(int index, const Mesh* mesh, MeshPtr owned_mesh) {
+  if (index < 0 || index >= meshes_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
-  if (owned_buffers_[index].owned) {
-    engine_->destroy(owned_buffers_[index].buffers.vertex_buffer);
-    engine_->destroy(owned_buffers_[index].buffers.index_buffer);
-  }
-  owned_buffers_[index].buffers = buffers;
-  owned_buffers_[index].owned = owned;
+  meshes_[index].owned_mesh = std::move(owned_mesh);
+  meshes_[index].mesh = mesh;
 }
 
 void Renderables::AddToScene(filament::Scene* scene) {
@@ -239,11 +236,13 @@ void Renderables::SetWireframe(bool wireframe) {
     filament::RenderableManager& rm = engine_->getRenderableManager();
     for (int i = 0; i < entities_.size(); ++i) {
       utils::Entity& entity = entities_[i];
-      FilamentBuffers& buffers = owned_buffers_[i].buffers;
+      const Mesh* mesh = meshes_[i].mesh;
+      filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
+      filament::IndexBuffer* index_buffer = mesh->GetFilamentIndexBuffer();
       rm.setGeometryAt(rm.getInstance(entity), 0,
-                      wireframe_ ? kWireframeType : buffers.type,
-                      buffers.vertex_buffer, buffers.index_buffer, 0,
-                      buffers.index_buffer->getIndexCount());
+                       wireframe_ ? kWireframeType : mesh->GetPrimitiveType(),
+                       vertex_buffer, index_buffer, 0,
+                       index_buffer->getIndexCount());
     }
   }
 }
