@@ -16,14 +16,11 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_BUFFER_UTIL_H_
 
 #include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
-#include <type_traits>
 #include <vector>
 
-#include <backend/BufferDescriptor.h>
 #include <filament/Box.h>
 #include <filament/Engine.h>
 #include <filament/IndexBuffer.h>
@@ -139,18 +136,6 @@ class Mesh {
   // Creates a Mesh from the given MeshData.
   Mesh(filament::Engine* engine, const MeshData& data);
 
-  // Create a Mesh directly from filament objects. Internal use only.
-  Mesh(filament::Engine* engine, filament::IndexBuffer* index_buffer,
-       filament::VertexBuffer* vertex_buffer,
-       std::optional<filament::Box> bounds = std::nullopt,
-       filament::RenderableManager::PrimitiveType type =
-           filament::RenderableManager::PrimitiveType::TRIANGLES)
-      : engine_(engine),
-        index_buffer_(index_buffer),
-        vertex_buffer_(vertex_buffer),
-        type_(type),
-        bounds_(bounds) {}
-
   ~Mesh();
 
   // Returns the filament IndexBuffer for the mesh.
@@ -191,114 +176,6 @@ class Mesh {
 };
 
 using MeshPtr = std::unique_ptr<Mesh>;
-
-// Function that fills in the given buffer with actual data.
-using FillBufferFn = std::function<void(std::byte*, std::size_t)>;
-
-// Creates and populates a BufferDescriptor (for vertex and index buffers).
-filament::backend::BufferDescriptor CreateBufferDescriptor(
-    std::size_t num_bytes, const FillBufferFn& fill);
-
-// Creates a filament::VertexBuffer based on the VertexType. The fill function
-// will be used to populate the buffer.
-template <typename VertexType>
-filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
-                                           std::size_t num_vertices,
-                                           const FillBufferFn& fill) {
-  int vertex_size = 0;
-  if constexpr (VertexType::kHasPosition) {
-    vertex_size += sizeof(VertexType::position);
-  }
-  if constexpr (VertexType::kHasPosition2d) {
-    vertex_size += sizeof(VertexType::position);
-  }
-  if constexpr (VertexType::kHasOrientation) {
-    vertex_size += sizeof(VertexType::orientation);
-  }
-  if constexpr (VertexType::kHasUv) {
-    vertex_size += sizeof(VertexType::uv);
-  }
-  if constexpr (VertexType::kHasColor) {
-    vertex_size += sizeof(VertexType::color);
-  }
-
-  auto builder = filament::VertexBuffer::Builder();
-  builder.bufferCount(1);
-  builder.vertexCount(num_vertices);
-
-  int offset = 0;
-  if constexpr (VertexType::kHasPosition) {
-    builder.attribute(filament::VertexAttribute::POSITION, 0,
-                      filament::VertexBuffer::AttributeType::FLOAT3, offset,
-                      vertex_size);
-    offset += sizeof(VertexType::position);
-  }
-  if constexpr (VertexType::kHasPosition2d) {
-    builder.attribute(filament::VertexAttribute::POSITION, 0,
-                      filament::VertexBuffer::AttributeType::FLOAT2, offset,
-                      vertex_size);
-    offset += sizeof(VertexType::position);
-  }
-  if constexpr (VertexType::kHasOrientation) {
-    builder.attribute(filament::VertexAttribute::TANGENTS, 0,
-                      filament::VertexBuffer::AttributeType::FLOAT4, offset,
-                      vertex_size);
-    offset += sizeof(VertexType::orientation);
-  }
-  if constexpr (VertexType::kHasUv) {
-    builder.attribute(filament::VertexAttribute::UV0, 0,
-                      filament::VertexBuffer::AttributeType::FLOAT2, offset,
-                      vertex_size);
-    offset += sizeof(VertexType::uv);
-  }
-  if constexpr (VertexType::kHasColor) {
-    builder.attribute(filament::VertexAttribute::COLOR, 0,
-                      filament::VertexBuffer::AttributeType::UBYTE4, offset,
-                      vertex_size);
-    builder.normalized(filament::VertexAttribute::COLOR);
-    offset += sizeof(VertexType::color);
-  }
-
-  auto vb = builder.build(*engine);
-  const std::size_t buffer_size = num_vertices * vertex_size;
-  vb->setBufferAt(*engine, 0, CreateBufferDescriptor(buffer_size, fill));
-  return vb;
-}
-
-// Creates a filament::IndexBuffer. The IndexType should be either uin16_t or
-// uint32_t. The fill function will be used to populate the buffer.
-template <typename IndexType>
-filament::IndexBuffer* CreateIndexBuffer(filament::Engine* engine,
-                                         std::size_t num_indices,
-                                         const FillBufferFn& fill) {
-  static_assert(std::is_same<IndexType, uint16_t>::value ||
-                std::is_same<IndexType, uint32_t>::value);
-
-  constexpr auto type = std::is_same<IndexType, uint16_t>::value
-                            ? filament::IndexBuffer::IndexType::USHORT
-                            : filament::IndexBuffer::IndexType::UINT;
-
-  auto builder = filament::IndexBuffer::Builder();
-  builder.bufferType(type);
-  builder.indexCount(num_indices);
-
-  auto ib = builder.build(*engine);
-
-  const std::size_t buffer_size = num_indices * sizeof(IndexType);
-  ib->setBuffer(*engine, CreateBufferDescriptor(buffer_size, fill));
-  return ib;
-}
-
-// Fills an index buffer with a basic incrementing sequence.
-template <typename T>
-int FillSequence(std::byte* buffer, std::size_t num_bytes) {
-  const T num = num_bytes / sizeof(T);
-  T* ptr = reinterpret_cast<T*>(buffer);
-  for (T i = 0; i < num; ++i) {
-    ptr[i] = i;
-  }
-  return num;
-}
 
 }  // namespace mujoco
 

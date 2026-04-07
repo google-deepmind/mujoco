@@ -73,13 +73,13 @@ void Renderables::Update(int index, MeshPtr mesh) {
 void Renderables::Append(const Mesh* mesh) {
   utils::Entity entity = CreateEntity(mesh);
   entities_.push_back(entity);
-  meshes_.emplace_back(nullptr, mesh);
+  meshes_.push_back({nullptr, mesh});
 }
 
 void Renderables::Append(MeshPtr mesh) {
   utils::Entity entity = CreateEntity(mesh.get());
   entities_.push_back(entity);
-  meshes_.emplace_back(std::move(mesh), mesh.get());
+  meshes_.push_back({std::move(mesh), mesh.get()});
 }
 
 utils::Entity Renderables::CreateEntity(const Mesh* mesh) {

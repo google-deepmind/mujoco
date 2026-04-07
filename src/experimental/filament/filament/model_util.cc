@@ -16,15 +16,11 @@
 
 #include <algorithm>
 #include <cfloat>
-#include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <vector>
 
-#include <filament/Box.h>
-#include <filament/Engine.h>
-#include <filament/IndexBuffer.h>
-#include <filament/Texture.h>
-#include <filament/VertexBuffer.h>
+#include <math/TVecHelpers.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
@@ -40,6 +36,30 @@ using filament::math::float2;
 using filament::math::float3;
 using filament::math::float4;
 
+struct MeshBuilder {
+  MeshBuilder(int nvertices) : nvertices(nvertices) {
+    positions.reserve(nvertices);
+    orientations.reserve(nvertices);
+    uvs.reserve(nvertices);
+  }
+
+  void Append(const float3& position, const float4& orientation,
+              const float2& uv) {
+    positions.push_back(position);
+    orientations.push_back(orientation);
+    uvs.push_back(uv);
+    bounds_min = min(bounds_min, position);
+    bounds_max = max(bounds_max, position);
+  }
+
+  int nvertices = 0;
+  float3 bounds_min = {FLT_MAX, FLT_MAX, FLT_MAX};
+  float3 bounds_max = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+  std::vector<float3> positions;
+  std::vector<float4> orientations;
+  std::vector<float2> uvs;
+};
+
 static bool UseFaceNormal(const float3& face_normal,
                           const float3& mesh_normal) {
   // clang-format off
@@ -49,74 +69,42 @@ static bool UseFaceNormal(const float3& face_normal,
   // clang-format on
 }
 
-static void UpdateBounds(const float3& v, float3* vmin, float3* vmax) {
-  vmin->x = std::min(vmin->x, v.x);
-  vmin->y = std::min(vmin->y, v.y);
-  vmin->z = std::min(vmin->z, v.z);
-  vmax->x = std::max(vmax->x, v.x);
-  vmax->y = std::max(vmax->y, v.y);
-  vmax->z = std::max(vmax->z, v.z);
-}
 
-template <typename T>
-static void FillConvexHullBuffer(T* ptr, std::size_t num, const mjModel* model,
-                                 int meshid, float3* vmin, float3* vmax) {
+static void FillConvexHullBuffer(MeshBuilder& builder, const mjModel* model,
+                                 int meshid) {
   const int numvert = model->mesh_graph[model->mesh_graphadr[meshid]];
   const int numface = model->mesh_graph[model->mesh_graphadr[meshid] + 1];
-
-  const int vertadr = model->mesh_vertadr[meshid];
-  const float* vertices = model->mesh_vert + (3 * vertadr);
-  const int texcoordadr = model->mesh_texcoordadr[meshid];
-  const float* texcoords = model->mesh_texcoord + (2 * texcoordadr);
-
-  if (num != numface * 3) {
-    mju_error("Invalid vertex count.");
+  if (builder.nvertices != numface * 3) {
+    mju_error("Invalid vertex count (%d vs %d).", builder.nvertices, numface * 3);
     return;
   }
 
-  for (int face = 0; face < numface; ++face) {
-    int j =
-        model->mesh_graphadr[meshid] + 2 + 3 * numvert + 3 * numface + 3 * face;
+  const int dataadr = model->mesh_graphadr[meshid] + 2;
+  const int vertadr = model->mesh_vertadr[meshid];
+  const float* vertices = model->mesh_vert + (3 * vertadr);
+  const int texcoordadr = model->mesh_texcoordadr[meshid];
+  const float* texcoords = texcoordadr >= 0 ? model->mesh_texcoord + (2 * texcoordadr) : nullptr;
 
+  for (int face = 0; face < numface; ++face) {
+    const int j = dataadr + (3 * numvert) + (3 * numface) + (3 * face);
     const float3 p1 = ReadFloat3(vertices, model->mesh_graph[j + 0]);
     const float3 p2 = ReadFloat3(vertices, model->mesh_graph[j + 1]);
     const float3 p3 = ReadFloat3(vertices, model->mesh_graph[j + 2]);
     const float4 orientation = CalculateOrientation(p1, p2, p3);
-
-    UpdateBounds(p1, vmin, vmax);
-    UpdateBounds(p2, vmin, vmax);
-    UpdateBounds(p3, vmin, vmax);
-
-    ptr->position = p1;
-    ptr->orientation = orientation;
-    if constexpr (T::kHasUv) {
-      ptr->uv = ReadFloat2(texcoords, model->mesh_graph[j + 0]);
-    }
-    ++ptr;
-
-    ptr->position = p2;
-    ptr->orientation = orientation;
-    if constexpr (T::kHasUv) {
-      ptr->uv = ReadFloat2(texcoords, model->mesh_graph[j + 1]);
-    }
-    ++ptr;
-
-    ptr->position = p3;
-    ptr->orientation = orientation;
-    if constexpr (T::kHasUv) {
-      ptr->uv = ReadFloat2(texcoords, model->mesh_graph[j + 2]);
-    }
-    ++ptr;
+    const float2 uv1 = texcoords ? ReadFloat2(texcoords, model->mesh_graph[j + 0]) : float2(0, 0);
+    const float2 uv2 = texcoords ? ReadFloat2(texcoords, model->mesh_graph[j + 1]) : float2(0, 0);
+    const float2 uv3 = texcoords ? ReadFloat2(texcoords, model->mesh_graph[j + 2]) : float2(0, 0);
+    builder.Append(p1, orientation, uv1);
+    builder.Append(p2, orientation, uv2);
+    builder.Append(p3, orientation, uv3);
   }
 }
 
-template <typename T>
-static void FillMeshBuffer(T* ptr, std::size_t num, const mjModel* model,
-                           int meshid, float3* vmin, float3* vmax) {
+static void FillMeshBuffer(MeshBuilder& builder, const mjModel* model, int meshid) {
   const int faceadr = model->mesh_faceadr[meshid];
   const int facenum = model->mesh_facenum[meshid];
-  if (num != facenum * 3) {
-    mju_error("Invalid vertex count.");
+  if (builder.nvertices != facenum * 3) {
+    mju_error("Invalid vertex count (%d vs %d).", builder.nvertices, facenum * 3);
     return;
   }
 
@@ -125,7 +113,7 @@ static void FillMeshBuffer(T* ptr, std::size_t num, const mjModel* model,
   const int normaladr = model->mesh_normaladr[meshid];
   const float* normals = model->mesh_normal + 3 * normaladr;
   const int texcoordadr = model->mesh_texcoordadr[meshid];
-  const float* texcoords = model->mesh_texcoord + (2 * texcoordadr);
+  const float* texcoords = texcoordadr >= 0 ? model->mesh_texcoord + (2 * texcoordadr) : nullptr;
 
   for (int i = 0; i < facenum; ++i) {
     const int face = 3 * (faceadr + i);
@@ -133,70 +121,41 @@ static void FillMeshBuffer(T* ptr, std::size_t num, const mjModel* model,
     const float3 p1 = ReadFloat3(vertices, model->mesh_face[face + 0]);
     const float3 p2 = ReadFloat3(vertices, model->mesh_face[face + 1]);
     const float3 p3 = ReadFloat3(vertices, model->mesh_face[face + 2]);
-
-    UpdateBounds(p1, vmin, vmax);
-    UpdateBounds(p2, vmin, vmax);
-    UpdateBounds(p3, vmin, vmax);
-
     const float3 face_normal = CalculateNormal(p1, p2, p3);
     const float3 n1 = ReadFloat3(normals, model->mesh_facenormal[face + 0]);
     const float3 n2 = ReadFloat3(normals, model->mesh_facenormal[face + 1]);
     const float3 n3 = ReadFloat3(normals, model->mesh_facenormal[face + 2]);
+    const float2 uv1 = texcoords ? ReadFloat2(texcoords, model->mesh_facetexcoord[face + 0]) : float2(0, 0);
+    const float2 uv2 = texcoords ? ReadFloat2(texcoords, model->mesh_facetexcoord[face + 1]) : float2(0, 0);
+    const float2 uv3 = texcoords ? ReadFloat2(texcoords, model->mesh_facetexcoord[face + 2]) : float2(0, 0);
 
-    ptr->position = p1;
-    if constexpr (T::kHasUv) {
-      ptr->orientation = CalculateOrientation(n1);
-      ptr->uv = ReadFloat2(texcoords, model->mesh_facetexcoord[face + 0]);
-    } else if (UseFaceNormal(face_normal, n1)) {
-      ptr->orientation = CalculateOrientation(face_normal);
+    if (UseFaceNormal(face_normal, n1)) {
+      builder.Append(p1, CalculateOrientation(face_normal), uv1);
     } else {
-      ptr->orientation = CalculateOrientation(n1);
+      builder.Append(p1, CalculateOrientation(n1), uv1);
     }
-    ++ptr;
 
-    ptr->position = p2;
-    if constexpr (T::kHasUv) {
-      ptr->orientation = CalculateOrientation(n2);
-      ptr->uv = ReadFloat2(texcoords, model->mesh_facetexcoord[face + 1]);
-    } else if (UseFaceNormal(face_normal, n2)) {
-      ptr->orientation = CalculateOrientation(face_normal);
+    if (UseFaceNormal(face_normal, n2)) {
+      builder.Append(p2, CalculateOrientation(face_normal), uv2);
     } else {
-      ptr->orientation = CalculateOrientation(n2);
+      builder.Append(p2, CalculateOrientation(n2), uv2);
     }
-    ++ptr;
 
-    ptr->position = p3;
-    if constexpr (T::kHasUv) {
-      ptr->orientation = CalculateOrientation(n3);
-      ptr->uv = ReadFloat2(texcoords, model->mesh_facetexcoord[face + 2]);
-    } else if (UseFaceNormal(face_normal, n3)) {
-      ptr->orientation = CalculateOrientation(face_normal);
+    if (UseFaceNormal(face_normal, n3)) {
+      builder.Append(p3, CalculateOrientation(face_normal), uv3);
     } else {
-      ptr->orientation = CalculateOrientation(n3);
+      builder.Append(p3, CalculateOrientation(n3), uv3);
     }
-    ++ptr;
   }
 }
 
-static void FillHeightFieldBuffer(VertexNoUv* ptr, std::size_t num,
-                                  const mjModel* model, int hfieldid,
-                                  float3* vmin, float3* vmax) {
-  int count = 0;
+static void FillHeightFieldBuffer(MeshBuilder& builder, const mjModel* model,
+                                  int hfieldid) {
   auto append_tri = [&](float3 a, float3 b, float3 c) {
     float4 orientation = CalculateOrientation(a, b, c);
-    ptr[count].position = a;
-    ptr[count].orientation = orientation;
-    ++count;
-    ptr[count].position = b;
-    ptr[count].orientation = orientation;
-    ++count;
-    ptr[count].position = c;
-    ptr[count].orientation = orientation;
-    ++count;
-
-    UpdateBounds(a, vmin, vmax);
-    UpdateBounds(b, vmin, vmax);
-    UpdateBounds(c, vmin, vmax);
+    builder.Append(a, orientation, float2(0, 0));
+    builder.Append(b, orientation, float2(0, 0));
+    builder.Append(c, orientation, float2(0, 0));
   };
   auto append_quad = [&](float3 a, float3 b, float3 c, float3 d) {
     append_tri(a, b, d);
@@ -314,9 +273,6 @@ static void FillHeightFieldBuffer(VertexNoUv* ptr, std::size_t num,
                   {x1, y0, -sz[3]});
     }
   }
-  if (count != num) {
-    mju_error("Vertex count mismatch.");
-  }
 }
 
 static int CalculateHeightFieldVertexCount(const mjModel* model, int hfieldid) {
@@ -340,149 +296,85 @@ static int CalculateHeightFieldVertexCount(const mjModel* model, int hfieldid) {
   return total_count;
 }
 
-template <typename T, typename FillFn>
-static filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
-                                                  const mjModel* model, int id,
-                                                  int vertex_count,
-                                                  FillFn fill_fn,
-                                                  filament::Box* bounds) {
-  float3 vmin = {FLT_MAX, FLT_MAX, FLT_MAX};
-  float3 vmax = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
-  filament::VertexBuffer* buffer = CreateVertexBuffer<T>(
-      engine, vertex_count, [&](std::byte* buffer, std::size_t num_bytes) {
-        auto* ptr = reinterpret_cast<T*>(buffer);
-        fill_fn(ptr, num_bytes / sizeof(T), model, id, &vmin, &vmax);
-      });
-  bounds->set(vmin, vmax);
-  return buffer;
+static bool HasUvs(const mjModel* model, int id, MeshType mesh_type) {
+  return mesh_type != MeshType::kHeightField &&
+         model->mesh_texcoordadr[id] >= 0;
 }
 
-filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
-                                           const mjModel* model, int id,
-                                           MeshType mesh_type,
-                                           filament::Box* bounds) {
-  if (id < 0) {
-    mju_error("Invalid mesh index %d", id);
-    return nullptr;
-  }
-
-  int vertex_count = 0;
+static bool IsValidIndex(const mjModel* model, int id, MeshType mesh_type) {
   switch (mesh_type) {
     case MeshType::kNormal:
-      if (id >= model->nmesh) {
-        mju_error("Invalid mesh index %d", id);
-        return nullptr;
-      }
-      vertex_count = 3 * model->mesh_facenum[id];
-      break;
+      return id >= 0 && id < model->nmesh;
     case MeshType::kConvexHull:
-      if (id >= model->nmesh) {
-        mju_error("Invalid mesh index %d", id);
-        return nullptr;
-      }
-      vertex_count = 3 * model->mesh_graph[model->mesh_graphadr[id] + 1];
-      break;
+      return id >= 0 && id < model->nmesh;
     case MeshType::kHeightField:
-      if (id >= model->nhfield) {
-        mju_error("Invalid height field index %d", id);
-        return nullptr;
-      }
-      vertex_count = CalculateHeightFieldVertexCount(model, id);
-      break;
+      return id >= 0 && id < model->nhfield;
   }
-
-  if (vertex_count == 0) {
-    mju_error("Vertex count is zero.");
-    return nullptr;
-  }
-
-  const bool has_texcoords = mesh_type == MeshType::kHeightField
-                                 ? false
-                                 : model->mesh_texcoordadr[id] >= 0;
-  if (has_texcoords) {
-    using VertexType = VertexWithUv;
-    switch (mesh_type) {
-      case MeshType::kNormal:
-        return CreateVertexBuffer<VertexType>(engine, model, id, vertex_count,
-                                              FillMeshBuffer<VertexType>,
-                                              bounds);
-        break;
-      case MeshType::kConvexHull:
-        return CreateVertexBuffer<VertexType>(engine, model, id, vertex_count,
-                                              FillConvexHullBuffer<VertexType>,
-                                              bounds);
-        break;
-      case MeshType::kHeightField:
-        mju_error("Height fields do not support UV coordinates.");
-        return nullptr;
-    }
-  } else {
-    using VertexType = VertexNoUv;
-    switch (mesh_type) {
-      case MeshType::kNormal:
-        return CreateVertexBuffer<VertexType>(engine, model, id, vertex_count,
-                                              FillMeshBuffer<VertexType>,
-                                              bounds);
-        break;
-      case MeshType::kConvexHull:
-        return CreateVertexBuffer<VertexType>(engine, model, id, vertex_count,
-                                              FillConvexHullBuffer<VertexType>,
-                                              bounds);
-        break;
-      case MeshType::kHeightField:
-        return CreateVertexBuffer<VertexType>(engine, model, id, vertex_count,
-                                              FillHeightFieldBuffer, bounds);
-        break;
-    }
-  }
-
-  return nullptr;
 }
 
-filament::IndexBuffer* CreateIndexBuffer(filament::Engine* engine,
-                                         const mjModel* model, int id,
-                                         MeshType mesh_type) {
-  if (id < 0) {
-    mju_error("Invalid index %d", id);
-    return nullptr;
-  }
-
-  int index_count = 0;
+static int GetNumVertices(const mjModel* model, int id, MeshType mesh_type) {
   switch (mesh_type) {
     case MeshType::kNormal:
-      if (id >= model->nmesh) {
-        mju_error("Invalid mesh index %d", id);
-        return nullptr;
-      }
-      index_count = 3 * model->mesh_facenum[id];
+      return 3 * model->mesh_facenum[id];
+    case MeshType::kConvexHull:
+      return 3 * model->mesh_graph[model->mesh_graphadr[id] + 1];
+    case MeshType::kHeightField:
+      return CalculateHeightFieldVertexCount(model, id);
+  }
+}
+
+void UpdateMeshData(MeshData* data, const mjModel* model, int id,
+                    MeshType mesh_type) {
+  if (!IsValidIndex(model, id, mesh_type)) {
+    mju_error("Invalid index %d for type %d", id, mesh_type);
+    return;
+  }
+
+  const int num_vertices = GetNumVertices(model, id, mesh_type);
+  const bool has_uvs = HasUvs(model, id, mesh_type);
+
+  MeshBuilder* builder = new MeshBuilder(num_vertices);
+  data->user_data = builder;
+  data->release_callback = [](void* user_data) {
+    delete static_cast<MeshBuilder*>(user_data);
+  };
+
+  switch (mesh_type) {
+    case MeshType::kNormal:
+      FillMeshBuffer(*builder, model, id);
       break;
     case MeshType::kConvexHull:
-      if (id >= model->nmesh) {
-        mju_error("Invalid mesh index %d", id);
-        return nullptr;
-      }
-      index_count = 3 * model->mesh_graph[model->mesh_graphadr[id] + 1];
+      FillConvexHullBuffer(*builder, model, id);
       break;
     case MeshType::kHeightField:
-      if (id >= model->nhfield) {
-        mju_error("Invalid height field index %d", id);
-        return nullptr;
-      }
-      index_count = CalculateHeightFieldVertexCount(model, id);
+      FillHeightFieldBuffer(*builder, model, id);
       break;
   }
 
-  if (index_count == 0) {
-    mju_error("Index count is zero.");
-    return nullptr;
+  data->primitive_type = mjPRIM_TYPE_TRIANGLES;
+  data->nvertices = num_vertices;
+  data->nindices = data->nvertices;
+  data->indices = nullptr;
+  data->index_type = data->nvertices >= std::numeric_limits<uint16_t>::max()
+                         ? mjINDEX_TYPE_UINT
+                         : mjINDEX_TYPE_USHORT;
+  data->nattributes = has_uvs ? 3 : 2;
+  data->attributes[0].usage = mjVERTEX_ATTRIBUTE_POSITION;
+  data->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+  data->attributes[0].bytes = builder->positions.data();
+  data->attributes[1].usage = mjVERTEX_ATTRIBUTE_TANGENTS;
+  data->attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
+  data->attributes[1].bytes = builder->orientations.data();
+  if (has_uvs) {
+    data->attributes[2].usage = mjVERTEX_ATTRIBUTE_UV;
+    data->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+    data->attributes[2].bytes = builder->uvs.data();
   }
-
-  if (index_count >= std::numeric_limits<uint16_t>::max()) {
-    return CreateIndexBuffer<uint32_t>(engine, index_count,
-                                       FillSequence<uint32_t>);
-  } else {
-    return CreateIndexBuffer<uint16_t>(engine, index_count,
-                                       FillSequence<uint16_t>);
-  }
+  data->bounds_min[0] = builder->bounds_min.x;
+  data->bounds_min[1] = builder->bounds_min.y;
+  data->bounds_min[2] = builder->bounds_min.z;
+  data->bounds_max[0] = builder->bounds_max.x;
+  data->bounds_max[1] = builder->bounds_max.y;
+  data->bounds_max[2] = builder->bounds_max.z;
 }
 }  // namespace mujoco
