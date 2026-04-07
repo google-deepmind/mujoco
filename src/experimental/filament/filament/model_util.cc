@@ -28,7 +28,6 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
-#include "experimental/filament/filament/vertex_util.h"
 
 namespace mujoco {
 

@@ -61,8 +61,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/scene_view.h
         filament/texture.cc
         filament/texture.h
-        filament/vertex_util.cc
-        filament/vertex_util.h
 )
 if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
     target_sources(${MUJOCO_FILAMENT_TARGET_NAME}

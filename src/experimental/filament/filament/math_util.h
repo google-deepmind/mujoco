@@ -64,6 +64,22 @@ filament::math::mat4 CalculateObliqueProjection(
     const filament::math::mat4& projection,
     const filament::math::float4& plane);
 
+// Calculates the normal of a triangle given its three vertices.
+filament::math::float3 CalculateNormal(
+    const filament::math::float3& p1,
+    const filament::math::float3& p2,
+    const filament::math::float3& p3);
+
+// Calculates the orientation of a vertex given just its normal.
+filament::math::float4 CalculateOrientation(
+    const filament::math::float3& normal);
+
+// Calculates the orientation of a triangle given its three vertices.
+filament::math::float4 CalculateOrientation(
+    const filament::math::float3& p1,
+    const filament::math::float3& p2,
+    const filament::math::float3& p3);
+
 }  // namespace mujoco
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MATH_UTIL_H_

@@ -30,7 +30,6 @@
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/math_util.h"
-#include "experimental/filament/filament/vertex_util.h"
 
 namespace mujoco {
 
