@@ -25,7 +25,7 @@
 #include <utility>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/graphics_mode.h"
+#include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/studio/app.h"
 
 // Global app instance. Lifetime is controlled by Init/Deinit calls which are
