@@ -43,7 +43,7 @@
 #include "experimental/filament/filament/imgui_editor.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/render_target_util.h"
+#include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
@@ -185,12 +185,12 @@ void FilamentContext::SetFrameBuffer(int framebuffer) {
 }
 
 void FilamentContext::PrepareRenderTargets(int width, int height) {
-  color_target_ = std::make_unique<RenderTargetAndTextures>(
+  color_target_ = std::make_unique<RenderTarget>(
       engine_, RenderTargetTextureType::kColor,
       RenderTargetTextureType::kDepth);
   color_target_->Prepare(width, height);
 
-  depth_target_ = std::make_unique<RenderTargetAndTextures>(
+  depth_target_ = std::make_unique<RenderTarget>(
       engine_, RenderTargetTextureType::kDepthColor,
       RenderTargetTextureType::kDepth);
   depth_target_->Prepare(width, height);
@@ -202,23 +202,25 @@ void FilamentContext::DestroyRenderTargets() {
 }
 
 static void ReadColorPixels(filament::Renderer* renderer,
-                            filament::RenderTarget* target, mjrRect viewport,
+                            RenderTarget* target, mjrRect viewport,
                             unsigned char* buffer, size_t num_bytes) {
   filament::backend::PixelBufferDescriptor descriptor(
       buffer, num_bytes, filament::backend::PixelDataFormat::RGB,
       filament::backend::PixelDataType::UBYTE);
-  renderer->readPixels(target, viewport.left, viewport.bottom, viewport.width,
-                       viewport.height, std::move(descriptor));
+  renderer->readPixels(target->GetFilamentRenderTarget(), viewport.left,
+                       viewport.bottom, viewport.width, viewport.height,
+                       std::move(descriptor));
 }
 
 static void ReadDepthPixels(filament::Renderer* renderer,
-                            filament::RenderTarget* target, mjrRect viewport,
+                            RenderTarget* target, mjrRect viewport,
                             float* buffer, size_t num_bytes) {
   filament::backend::PixelBufferDescriptor descriptor(
       buffer, num_bytes, filament::backend::PixelDataFormat::R,
       filament::backend::PixelDataType::FLOAT);
-  renderer->readPixels(target, viewport.left, viewport.bottom, viewport.width,
-                       viewport.height, std::move(descriptor));
+  renderer->readPixels(target->GetFilamentRenderTarget(), viewport.left,
+                       viewport.bottom, viewport.width, viewport.height,
+                       std::move(descriptor));
 }
 
 void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
@@ -238,17 +240,15 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (rgb) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
-      scene_view_->Render(renderer_, last_render_mode_,
-                          color_target_->GetRenderTarget());
+      scene_view_->Render(renderer_, last_render_mode_, color_target_.get());
 
       // Render the GUI to the texture as well if requested.
       if (gui_view_ && gui_swap_chain_target_ == kOffscreenSwapChain) {
-        gui_view_->Render(renderer_, color_target_->GetRenderTarget());
+        gui_view_->Render(renderer_, color_target_.get());
       }
 
       const size_t num_bytes = viewport.width * viewport.height * 3;
-      ReadColorPixels(renderer_, color_target_->GetRenderTarget(), viewport,
-                      rgb, num_bytes);
+      ReadColorPixels(renderer_, color_target_.get(), viewport, rgb, num_bytes);
 
       renderer_->endFrame();
     }
@@ -257,11 +257,11 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
   if (depth) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
       scene_view_->Render(renderer_, SceneView::DrawMode::kDepth,
-                          depth_target_->GetRenderTarget());
+                          depth_target_.get());
 
       const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
-      ReadDepthPixels(renderer_, depth_target_->GetRenderTarget(), viewport,
-                      depth, num_bytes);
+      ReadDepthPixels(renderer_, depth_target_.get(), viewport, depth,
+                      num_bytes);
 
       renderer_->endFrame();
     }

@@ -32,6 +32,7 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/mesh.h"
+#include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
@@ -352,13 +353,12 @@ filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
   return instance;
 }
 
-void GuiView::Render(filament::Renderer* renderer,
-                     filament::RenderTarget* target) {
+void GuiView::Render(filament::Renderer* renderer, RenderTarget* target) {
   if (num_elements_ == 0) {
     return;
   }
 
-  view_->setRenderTarget(target);
+  view_->setRenderTarget(target ? target->GetFilamentRenderTarget() : nullptr);
   renderer->render(view_);
   view_->setRenderTarget(nullptr);
 }

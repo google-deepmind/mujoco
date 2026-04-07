@@ -30,6 +30,7 @@
 #include <filament/View.h>
 #include <mujoco/mjrender.h>
 #include "experimental/filament/filament/mesh.h"
+#include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
@@ -45,8 +46,7 @@ class GuiView {
   // correctly synced.
   void UpdateRenderable();
 
-  void Render(filament::Renderer* renderer,
-              filament::RenderTarget* target = nullptr);
+  void Render(filament::Renderer* renderer, RenderTarget* target = nullptr);
 
   // Uploads texture to be used with ImGui's Image and ImageButton functions.
   uintptr_t UploadImage(uintptr_t tex_id, const uint8_t* pixels, int width,

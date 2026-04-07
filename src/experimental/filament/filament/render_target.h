@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDER_TARGET_UTIL_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDER_TARGET_UTIL_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDER_TARGET_H_
+#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDER_TARGET_H_
 
 #include <memory>
 
@@ -24,17 +24,17 @@
 namespace mujoco {
 
 // Manages a filament RenderTarget and the textures which are bound to it.
-class RenderTargetAndTextures {
+class RenderTarget {
  public:
   // Defines the types of textures to create for the color and depth
   // attachments.
-  RenderTargetAndTextures(filament::Engine* engine,
+  RenderTarget(filament::Engine* engine,
                           RenderTargetTextureType color,
                           RenderTargetTextureType depth);
-  ~RenderTargetAndTextures() noexcept;
+  ~RenderTarget() noexcept;
 
-  RenderTargetAndTextures(const RenderTargetAndTextures&) = delete;
-  RenderTargetAndTextures& operator=(const RenderTargetAndTextures&) = delete;
+  RenderTarget(const RenderTarget&) = delete;
+  RenderTarget& operator=(const RenderTarget&) = delete;
 
   // Creates the textures and render target if the width of height differ from
   // the last time the render target was prepared.
@@ -46,8 +46,8 @@ class RenderTargetAndTextures {
   // Returns the depth texture.
   Texture* GetDepthTexture() const;
 
-  // Returns the render target.
-  filament::RenderTarget* GetRenderTarget() const;
+  // Returns the underlying filament render target.
+  filament::RenderTarget* GetFilamentRenderTarget() const;
 
  private:
   void Destroy();
@@ -64,4 +64,4 @@ class RenderTargetAndTextures {
 
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDER_TARGET_UTIL_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDER_TARGET_H_

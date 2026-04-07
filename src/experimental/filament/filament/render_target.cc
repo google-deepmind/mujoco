@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/render_target_util.h"
+#include "experimental/filament/filament/render_target.h"
 
 #include <memory>
 
@@ -23,16 +23,16 @@
 
 namespace mujoco {
 
-RenderTargetAndTextures::RenderTargetAndTextures(filament::Engine* engine,
+RenderTarget::RenderTarget(filament::Engine* engine,
                                                  RenderTargetTextureType color,
                                                  RenderTargetTextureType depth)
     : engine_(engine), color_type_(color), depth_type_(depth) {}
 
-RenderTargetAndTextures::~RenderTargetAndTextures() noexcept {
+RenderTarget::~RenderTarget() noexcept {
   Destroy();
 }
 
-void RenderTargetAndTextures::Prepare(int width, int height) {
+void RenderTarget::Prepare(int width, int height) {
   if (width == width_ && height == height_) {
     return;
   }
@@ -53,7 +53,7 @@ void RenderTargetAndTextures::Prepare(int width, int height) {
   render_target_ = builder.build(*engine_);
 }
 
-void RenderTargetAndTextures::Destroy() {
+void RenderTarget::Destroy() {
   if (render_target_) {
     engine_->destroy(render_target_);
     render_target_ = nullptr;
@@ -62,15 +62,15 @@ void RenderTargetAndTextures::Destroy() {
   depth_texture_.reset();
 }
 
-Texture* RenderTargetAndTextures::GetColorTexture() const {
+Texture* RenderTarget::GetColorTexture() const {
   return color_texture_.get();
 }
 
-Texture* RenderTargetAndTextures::GetDepthTexture() const {
+Texture* RenderTarget::GetDepthTexture() const {
   return depth_texture_.get();
 }
 
-filament::RenderTarget* RenderTargetAndTextures::GetRenderTarget() const {
+filament::RenderTarget* RenderTarget::GetFilamentRenderTarget() const {
   return render_target_;
 }
 

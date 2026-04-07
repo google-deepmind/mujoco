@@ -38,7 +38,7 @@
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/render_target_util.h"
+#include "experimental/filament/filament/render_target.h"
 
 namespace mujoco {
 
@@ -71,7 +71,7 @@ class SceneView {
   using DrawMode = Material::DrawMode;
 
   void Render(filament::Renderer* renderer, DrawMode draw_mode,
-              filament::RenderTarget* target = nullptr);
+              RenderTarget* target = nullptr);
 
   void UploadMesh(const mjModel* model, int id);
   void UploadTexture(const mjModel* model, int id);
@@ -128,7 +128,7 @@ class SceneView {
 
   // Each reflective drawable has its own render target which is used to render
   // the reflected image.
-  std::vector<std::unique_ptr<RenderTargetAndTextures>> reflect_targets_;
+  std::vector<std::unique_ptr<RenderTarget>> reflect_targets_;
 };
 
 }  // namespace mujoco

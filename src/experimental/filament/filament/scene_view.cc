@@ -49,7 +49,7 @@
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/render_target_util.h"
+#include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
@@ -253,7 +253,7 @@ SceneView::~SceneView() {
 }
 
 void SceneView::Render(filament::Renderer* renderer, DrawMode draw_mode,
-                       filament::RenderTarget* target) {
+                       RenderTarget* target) {
   filament::View* view = PrepareRenderView(draw_mode);
   filament::MultiSampleAntiAliasingOptions options =
       view->getMultiSampleAntiAliasingOptions();
@@ -274,7 +274,8 @@ void SceneView::Render(filament::Renderer* renderer, DrawMode draw_mode,
       drawable->SetLayerMask(0x00);
 
       // Render the reflection to its render target.
-      reflect_view_->setRenderTarget(reflect_targets_[i]->GetRenderTarget());
+      reflect_view_->setRenderTarget(
+          reflect_targets_[i]->GetFilamentRenderTarget());
       renderer->render(reflect_view_);
 
       // Unhide the reflective surface.
@@ -282,7 +283,7 @@ void SceneView::Render(filament::Renderer* renderer, DrawMode draw_mode,
     }
   }
 
-  view->setRenderTarget(target);
+  view->setRenderTarget(target ? target->GetFilamentRenderTarget() : nullptr);
   renderer->render(view);
   view->setRenderTarget(nullptr);
 
@@ -516,7 +517,7 @@ void SceneView::AddReflectiveDrawable(Drawable* drawable) {
   // drawables.
   filament::Engine* engine = object_mgr_->GetEngine();
   while (reflect_targets_.size() < reflectives_.size()) {
-    reflect_targets_.push_back(std::make_unique<RenderTargetAndTextures>(
+    reflect_targets_.push_back(std::make_unique<RenderTarget>(
         engine, RenderTargetTextureType::kReflectionColor,
         RenderTargetTextureType::kDepth));
   }
