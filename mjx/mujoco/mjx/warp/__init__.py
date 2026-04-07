@@ -15,6 +15,7 @@
 
 import typing
 from typing import Any
+from mujoco.mjx.warp import render_context
 from mujoco.mjx.warp import types
 
 if not typing.TYPE_CHECKING:

@@ -486,12 +486,13 @@ void mjXURDF::Joint(XMLElement* joint_elem) {
 
   // dynamics element
   if ((elem = FindSubElem(joint_elem, "dynamics"))) {
-    ReadAttr(elem, "damping", 1, &pjoint->damping, text);
+    ReadAttr(elem, "damping", 1, pjoint->damping, text);
     ReadAttr(elem, "friction", 1, &pjoint->frictionloss, text);
 
     // copy parameters to all elements of planar joint
     if (pjoint1) {
-      pjoint1->damping = pjoint2->damping = pjoint->damping;
+      mjuu_copyvec(pjoint1->damping, pjoint->damping, 1+mjNPOLY);
+      mjuu_copyvec(pjoint2->damping, pjoint->damping, 1+mjNPOLY);
       pjoint1->frictionloss = pjoint2->frictionloss = pjoint->frictionloss;
     }
   }

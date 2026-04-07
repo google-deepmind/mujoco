@@ -15,6 +15,7 @@
 
 import functools
 import inspect
+import warnings
 
 import warp as wp
 
@@ -144,4 +145,37 @@ def check_toolkit_driver():
   wp.init()
   if wp.get_device().is_cuda:
     if not wp.is_conditional_graph_supported():
-      raise RuntimeError("Minimum supported CUDA version: 12.4.")
+      warnings.warn(
+        """
+        CUDA version < 12.4 detected
+        - graph capture may be unreliable for < 12.3
+        - conditional graph nodes are not available for < 12.4
+          Model.opt.graph_conditional should be set to False
+        """,
+        stacklevel=2,
+      )
+
+
+class scoped_mathdx_gemm_disabled:
+  """Temporarily disable Warp MathDx GEMM kernels within this scope."""
+
+  def __init__(self, disable: bool = True):
+    self._disable = disable
+    self._config = None
+    self._prev = None
+
+  def __enter__(self):
+    if not self._disable:
+      return self
+    config = getattr(wp, "config", None)
+    if config is None or not hasattr(config, "enable_mathdx_gemm"):
+      return self
+    self._config = config
+    self._prev = config.enable_mathdx_gemm
+    self._config.enable_mathdx_gemm = False
+    return self
+
+  def __exit__(self, exc_type, exc, tb):
+    if self._config is not None:
+      self._config.enable_mathdx_gemm = self._prev
+    return False

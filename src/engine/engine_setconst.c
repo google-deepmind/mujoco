@@ -54,7 +54,8 @@ static void mj_setM0(mjModel* m, mjData* d) {
     mju_mulInertVec(buf, crb+10*m->dof_bodyid[i], d->cdof+6*i);
 
     // dof_M0(i) = armature inertia + cdof_i * (crb_body_i * cdof_i)
-    m->dof_M0[i] = m->dof_armature[i] + mju_dot(d->cdof+6*i, buf, 6);
+    mjtNum armature = m->dof_armature[i] + mj_actuatorArmature(m, mjOBJ_JOINT, m->dof_jntid[i]);
+    m->dof_M0[i] = armature + mju_dot(d->cdof+6*i, buf, 6);
   }
 }
 
@@ -102,6 +103,48 @@ static void setFixed(mjModel* m, mjData* d) {
   }
   m->ngravcomp = ngravcomp;
 
+  // set jnt_actuatorid and tendon_actuatorid
+  mju_fillInt(m->jnt_actuatorid, -1, m->njnt);
+  mju_fillInt(m->tendon_actuatorid, -1, m->ntendon);
+  for (int i=0; i < m->nu; i++) {
+    // skip actuator with no damping and no armature
+    if (m->actuator_damping[i] == 0 &&
+        mju_isZero(m->actuator_dampingpoly+mjNPOLY*i, mjNPOLY) &&
+        m->actuator_armature[i] == 0) {
+      continue;
+    }
+
+    // joint or jointinparent transmission
+    if (m->actuator_trntype[i] == mjTRN_JOINT ||
+        m->actuator_trntype[i] == mjTRN_JOINTINPARENT) {
+      int jntid = m->actuator_trnid[2*i];
+
+      // first actuator: set id to i
+      if (m->jnt_actuatorid[jntid] == -1) {
+        m->jnt_actuatorid[jntid] = i;
+      }
+
+      // multiple actuators acting on single transmission: use -2 sentinel
+      else {
+        m->jnt_actuatorid[jntid] = -2;
+      }
+    }
+
+    // tendon transmission
+    else if (m->actuator_trntype[i] == mjTRN_TENDON) {
+      int tenid = m->actuator_trnid[2*i];
+
+      // first actuator: set id to i
+      if (m->tendon_actuatorid[tenid] == -1) {
+        m->tendon_actuatorid[tenid] = i;
+      }
+
+      // multiple actuators acting on single transmission: use -2 sentinel
+      else {
+        m->tendon_actuatorid[tenid] = -2;
+      }
+    }
+  }
 
   // ----- tree related (body_treeid and dof_treeid already computed)
 
@@ -211,7 +254,10 @@ static void setFixed(mjModel* m, mjData* d) {
     }
 
     // tendon spans 2 trees and has no stiffness or damping: skip
-    if (treenum == 2 && m->tendon_stiffness[i] == 0 && m->tendon_damping[i] == 0) {
+    if (treenum == 2 &&
+        m->tendon_stiffness[i] == 0 && mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY) &&
+        m->tendon_damping[i] == 0   && mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY) &&
+        m->tendon_actuatorid[i] == -1) {
       continue;
     }
 
@@ -282,6 +328,93 @@ static void setFixed(mjModel* m, mjData* d) {
   mj_freeStack(d);
 }
 
+// compute tendon Jacobian sparsity
+static void makeTendonSparse(mjModel* m) {
+  int ntendon = m->ntendon;
+  int* rownnz = m->ten_J_rownnz;
+  int* rowadr = m->ten_J_rowadr;
+  int* colind = m->ten_J_colind;
+
+  if (!ntendon) {
+    return;
+  }
+
+  // clear
+  mju_zeroInt(rownnz, ntendon);
+  mju_zeroInt(rowadr, ntendon);
+
+  // compute rownnz, rowadr, and colind for each tendon
+  for (int i = 0; i < ntendon; i++) {
+    rowadr[i] = (i > 0 ? rowadr[i-1] + rownnz[i-1] : 0);
+    int adr = m->tendon_adr[i];
+    int num = m->tendon_num[i];
+
+    // joint tendon: each wrap object is a joint, colind is its dofadr
+    if (m->wrap_type[adr] == mjWRAP_JOINT) {
+      for (int j = 0; j < num; j++) {
+        colind[rowadr[i] + j] = m->jnt_dofadr[m->wrap_objid[adr + j]];
+      }
+      rownnz[i] = num;
+    } else {
+      // spatial tendon: collect used dofs from wrap object bodies
+      int nnz = 0;
+      for (int j = 0; j < num; j++) {
+        int type = m->wrap_type[adr + j];
+
+        // get body id from site or geom wrap object
+        int bodyid = -1;
+        if (type == mjWRAP_SITE) {
+          bodyid = m->site_bodyid[m->wrap_objid[adr + j]];
+        } else if (type == mjWRAP_SPHERE || type == mjWRAP_CYLINDER) {
+          bodyid = m->geom_bodyid[m->wrap_objid[adr + j]];
+        }
+
+        // walk up the body tree, collecting used dofs
+        if (bodyid > 0) {
+          int bid = bodyid;
+          while (bid > 0) {
+            int bdofadr = m->body_dofadr[bid];
+            int bdofnum = m->body_dofnum[bid];
+            for (int k = 0; k < bdofnum; k++) {
+              int dof = bdofadr + k;
+
+              // check if dof already in colind
+              int found = 0;
+              for (int l = 0; l < nnz; l++) {
+                if (colind[rowadr[i] + l] == dof) {
+                  found = 1;
+                  break;
+                }
+              }
+
+              // append new dof
+              if (!found) {
+                colind[rowadr[i] + nnz] = dof;
+                nnz++;
+              }
+            }
+            bid = m->body_parentid[bid];
+          }
+        }
+      }
+      rownnz[i] = nnz;
+    }
+
+    // sort colind for this tendon
+    int nnz = rownnz[i];
+    for (int j = 0; j < nnz - 1; j++) {
+      for (int k = j + 1; k < nnz; k++) {
+        // swap out-of-order entries
+        if (colind[rowadr[i] + k] < colind[rowadr[i] + j]) {
+          int tmp = colind[rowadr[i] + j];
+          colind[rowadr[i] + j] = colind[rowadr[i] + k];
+          colind[rowadr[i] + k] = tmp;
+        }
+      }
+    }
+  }
+}
+
 // compute flex sparsity: flexedge_J_{rowadr,rownnz,colind} and flexvert_J_{rowadr,rownnz}
 static void makeFlexSparse(mjModel* m, mjData* d) {
   int nv = m->nv;
@@ -347,7 +480,7 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
 
       // get sparsity
       int NV = mj_jacDifPair(m, d, chain, b1, b2, dummy_pos, dummy_pos, NULL,
-                             NULL, NULL, NULL, NULL, NULL, /*issparse=*/1);
+                             NULL, NULL, NULL, NULL, NULL, /*issparse=*/1, /*skipcommon=*/0);
 
       // copy sparsity info
       rownnz[ebase + e] = NV;
@@ -552,6 +685,7 @@ static void mj_alignFlex(mjModel* m, mjData* d) {
 
 // set quantities that depend on qpos0
 static void set0(mjModel* m, mjData* d) {
+  makeTendonSparse(m);
   makeFlexSparse(m, d);
   mj_alignFlex(m, d);
   int nv = m->nv;
@@ -649,18 +783,8 @@ static void set0(mjModel* m, mjData* d) {
       }
 
       // average diagonal and assign
-      mjtNum tran = (A[0] + A[7] + A[14])/3;
-      mjtNum rot = (A[21] + A[28] + A[35])/3;
-
-      // if one is zero, use the other to prevent degenerate constraints
-      if (tran < mjMINVAL && rot > mjMINVAL) {
-        tran = rot;  // use rotation as fallback for translation
-      } else if (rot < mjMINVAL && tran > mjMINVAL) {
-        rot = tran;  // use translation as fallback for rotation
-      }
-
-      m->body_invweight0[2*i] = tran;
-      m->body_invweight0[2*i+1] = rot;
+      m->body_invweight0[2*i] = (A[0] + A[7] + A[14])/3;
+      m->body_invweight0[2*i+1] = (A[21] + A[28] + A[35])/3;
     }
   }
 
@@ -756,7 +880,7 @@ static void set0(mjModel* m, mjData* d) {
 
     // compute tendon_invweight0
     for (int i=0; i < m->ntendon; i++) {
-      mju_sparse2dense(tmp, d->ten_J, 1, nv, d->ten_J_rownnz+i, d->ten_J_rowadr+i, d->ten_J_colind);
+      mju_sparse2dense(tmp, d->ten_J, 1, nv, m->ten_J_rownnz+i, m->ten_J_rowadr+i, m->ten_J_colind);
 
       // solve into tmp+nv
       mj_solveM(m, d, tmp+nv, tmp, 1);

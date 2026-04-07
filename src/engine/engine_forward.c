@@ -26,8 +26,8 @@
 #include "engine/engine_collision_driver.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
-#include "engine/engine_derivative.h"
 #include "engine/engine_core_util.h"
+#include "engine/engine_derivative.h"
 #include "engine/engine_inverse.h"
 #include "engine/engine_island.h"
 #include "engine/engine_macro.h"
@@ -232,7 +232,7 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 
   // tendon velocity: always sparse
   mju_mulMatVecSparse(d->ten_velocity, d->ten_J, d->qvel, m->ntendon,
-                      d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind, NULL);
+                      m->ten_J_rownnz, m->ten_J_rowadr, m->ten_J_colind, NULL);
 
   // actuator velocity: always sparse
   if (!mjDISABLED(mjDSBL_ACTUATION)) {
@@ -257,6 +257,36 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 }
 
 
+// helper for DC motor: computes control voltage from PID state
+static mjtNum dcmotorVoltage(mjtNum ctrl, mjtNum length, mjtNum velocity,
+                             mjtNum x_I, const mjtNum* gainprm) {
+  int input_mode = (int)gainprm[8];
+  mjtNum Vmax = gainprm[7];
+  mjtNum voltage;
+
+  // get voltage
+  if (input_mode > 0) {
+    mjtNum kp = gainprm[4];  // proportional gain
+    mjtNum ki = gainprm[5];  // integral gain
+    mjtNum kd = gainprm[6];  // derivative gain
+
+    if (input_mode == 1) {
+      // position mode
+      voltage = kp * (ctrl - length) + ki * x_I - kd * velocity;
+    } else {
+      // velocity mode
+      voltage = kp * (ctrl - velocity) + ki * (x_I - length);
+    }
+  } else {
+    voltage = ctrl;
+  }
+
+  // clip voltage
+  if (Vmax > 0) voltage = mju_clip(voltage, -Vmax, Vmax);
+
+  return voltage;
+}
+
 
 // clamp vector to range
 static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, int n,
@@ -275,7 +305,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
   int nv = m->nv, nu = m->nu, ntendon = m->ntendon;
   mjtNum gain, bias, tau;
-  mjtNum *prm, *force = d->actuator_force;
+  mjtNum *force = d->actuator_force;
 
   // clear actuator_force
   mju_zero(force, nu);
@@ -327,37 +357,136 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     }
 
     // zero act_dot for actuator plugins
-    if (m->actuator_actnum[i]) {
-      mju_zero(d->act_dot + act_first, m->actuator_actnum[i]);
+    int actnum = m->actuator_actnum[i];
+    if (actnum) {
+      mju_zero(d->act_dot + act_first, actnum);
     }
 
     // extract info
-    prm = m->actuator_dynprm + i*mjNDYN;
+    const mjtNum* dynprm = m->actuator_dynprm + i*mjNDYN;
+    mjtDyn dyntype = m->actuator_dyntype[i];
 
     // index into the last element in act. For most actuators it's also the
-    // first element, but actuator plugins might store their own state in act.
-    int act_last = act_first + m->actuator_actnum[i] - 1;
+    // first element, but actuator plugins might store their own state in act
+    int act_last = act_first + actnum - 1;
 
     // compute act_dot according to dynamics type
-    switch ((mjtDyn) m->actuator_dyntype[i]) {
+    switch (dyntype) {
     case mjDYN_INTEGRATOR:          // simple integrator
       d->act_dot[act_last] = ctrl[i];
       break;
 
-    case mjDYN_FILTER:              // linear filter: prm = tau
+    case mjDYN_FILTER:              // linear filter: dynprm = tau
     case mjDYN_FILTEREXACT:
-      tau = mju_max(mjMINVAL, prm[0]);
+      tau = mju_max(mjMINVAL, dynprm[0]);
       d->act_dot[act_last] = (ctrl[i] - d->act[act_last]) / tau;
       break;
 
-    case mjDYN_MUSCLE:              // muscle model: prm = (tau_act, tau_deact)
-      d->act_dot[act_last] = mju_muscleDynamics(
-          ctrl[i], d->act[act_last], prm);
+    case mjDYN_MUSCLE:              // muscle model: dynprm = (tau_act, tau_deact)
+      d->act_dot[act_last] = mju_muscleDynamics(ctrl[i], d->act[act_last], dynprm);
       break;
+
+    case mjDYN_DCMOTOR: {           // DC motor: up to 5 optional states
+      const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+
+      // verify allocated state size matches parameters; SHOULD NOT OCCUR
+      if (mj_dcmotorSlots(dynprm, gainprm).num_slots != actnum) {
+        mjERROR("inconsistent state array dimension in DC motor (actuator %d)", i);
+      }
+
+      int adr = act_first;
+      mjtNum velocity = d->actuator_velocity[i];
+      mjtNum R = gainprm[0];   // resistance
+      mjtNum K = gainprm[1];   // motor constant
+      mjtNum ki = gainprm[5];  // integral gain
+      mjtNum te = dynprm[0];   // electrical time constant
+
+      // slot order: slew, integral, temperature, bristle, current
+
+      // controller state: slew rate limiting
+      mjtNum slew_s = dynprm[7];  // slew rate limit
+      if (slew_s > 0) {
+        mjtNum u_prev = d->act[adr];
+        mjtNum slew = slew_s * m->opt.timestep;
+        mjtNum u_eff = mju_clip(ctrl[i], u_prev - slew, u_prev + slew);
+        d->act_dot[adr] = (u_eff - u_prev) / m->opt.timestep;
+        ctrl[i] = u_eff;
+        adr++;
+      }
+
+      // controller state: integral state
+      mjtNum x_I = 0;
+      if (ki > 0) {
+        x_I = d->act[adr];
+        int input_mode = (int)gainprm[8];
+        mjtNum Imax = dynprm[8];   // integral clamp
+        mjtNum act_dot = ctrl[i];  // default raw accumulator for voltage and velocity modes
+
+        // position mode
+        if (input_mode == 1) {
+          act_dot = ctrl[i] - d->actuator_length[i];
+        }
+
+        // clamp act_dot based on integral state
+        if (Imax > 0) {
+          if (x_I >= Imax) {
+            act_dot = mju_min(act_dot, 0);
+          } else if (x_I <= -Imax) {
+            act_dot = mju_max(act_dot, 0);
+          }
+        }
+        d->act_dot[adr] = act_dot;
+        adr++;
+      }
+
+      // compute physical voltage to feed into current and temperature equations
+      mjtNum V = dcmotorVoltage(ctrl[i], d->actuator_length[i], velocity, x_I, gainprm);
+
+      // temperature: dT/dt = (R*i^2 - T/RT) / C, where T = delta above ambient
+      mjtNum RT = dynprm[2];  // thermal resistance
+      if (RT > 0) {
+        mjtNum C = dynprm[3];       // thermal capacitance
+        mjtNum Ta = dynprm[4];      // ambient temperature
+        mjtNum alpha = gainprm[2];  // temperature coefficient
+        mjtNum T0 = gainprm[3];     // reference temperature
+        mjtNum T = d->act[adr];     // temperature rise above ambient
+        R *= 1 + alpha * (T + Ta - T0);
+
+        // get current: from act_last if stateful, from (V - K*omega)/R if stateless
+        mjtNum current = (te > 0) ? d->act[act_last] : (V - K * velocity) / R;
+        d->act_dot[adr] = (R*current*current - T / RT) / C;
+        adr++;
+      }
+
+      // LuGre bristle state: dz/dt = v - sigma0 * |v| / g(v) * z
+      mjtNum sigma0 = dynprm[5];  // bristle stiffness
+      if (sigma0 > 0) {
+        const mjtNum* biasprm = m->actuator_biasprm + mjNBIAS*i;
+        mjtNum F_C = biasprm[3];  // Coulomb friction
+        mjtNum F_S = biasprm[4];  // static friction
+        mjtNum v_S = biasprm[5];  // Stribeck velocity
+        mjtNum z = d->act[adr];   // bristle state
+        mjtNum g = mj_lugreStribeck(velocity, F_C, F_S, v_S);
+        mjtNum a = -sigma0 * mju_abs(velocity) / mju_max(mjMINVAL, g);
+        d->act_dot[adr] = a * z + velocity;
+        adr++;
+      }
+
+      // current state: di/dt = (V/R - K/R*omega - i) / te
+      if (te > 0) {
+        mjtNum dimax = dynprm[1];  // current rate limit (di/dt)_max
+        mjtNum i_dot = (V/R - K/R*velocity - d->act[act_last]) / te;
+        if (dimax > 0) {
+          i_dot = mju_clip(i_dot, -dimax, dimax);
+        }
+        d->act_dot[act_last] = i_dot;
+      }
+      break;
+    }
 
     default:                        // user dynamics
       if (mjcb_act_dyn) {
-        if (m->actuator_actnum[i] == 1) {
+        if (actnum == 1) {
           // scalar activation dynamics, get act_dot
           d->act_dot[act_last] = mjcb_act_dyn(m, d, i);
         } else {
@@ -407,17 +536,20 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       tendon_frclimited = m->tendon_actfrclimited[m->actuator_trnid[2*i]];
     }
 
-    // extract gain info
-    prm = m->actuator_gainprm + mjNGAIN*i;
+    // extract info
+    const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+    const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+    mjtGain gaintype = m->actuator_gaintype[i];
+    int actnum = m->actuator_actnum[i];
 
     // handle according to gain type
-    switch ((mjtGain) m->actuator_gaintype[i]) {
+    switch (gaintype) {
     case mjGAIN_FIXED:              // fixed gain: prm = gain
-      gain = prm[0];
+      gain = gainprm[0];
       break;
 
     case mjGAIN_AFFINE:             // affine: prm = [const, kp, kv]
-      gain = prm[0] + prm[1]*d->actuator_length[i] + prm[2]*d->actuator_velocity[i];
+      gain = gainprm[0] + gainprm[1]*d->actuator_length[i] + gainprm[2]*d->actuator_velocity[i];
       break;
 
     case mjGAIN_MUSCLE:             // muscle gain
@@ -425,8 +557,42 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
                             d->actuator_velocity[i],
                             m->actuator_lengthrange+2*i,
                             m->actuator_acc0[i],
-                            prm);
+                            gainprm);
       break;
+
+    case mjGAIN_DCMOTOR: {          // DC motor: gain = K or K/R
+      mjtNum R = gainprm[0];  // resistance
+      mjtNum K = gainprm[1];  // motor constant
+      mjDCMotorSlots slots = mj_dcmotorSlots(dynprm, gainprm);
+
+      // verify allocated state size matches parameters; SHOULD NOT OCCUR
+      if (slots.num_slots != actnum) {
+        mjERROR("inconsistent state array dimension in DC motor (actuator %d)", i);
+      }
+
+      int adr = m->actuator_actadr[i];
+
+      // adjust R for temperature if enabled
+      if (slots.temperature >= 0) {
+        mjtNum T = d->act[adr + slots.temperature];
+        mjtNum alpha = gainprm[2];  // temperature coefficient
+        mjtNum T0 = gainprm[3];     // reference temperature
+        mjtNum Ta = dynprm[4];      // ambient temperature
+        R *= 1 + alpha * (T + Ta - T0);
+      }
+
+      // stateful current: gain = K, force = K * act[last] (generic path)
+      // stateless: gain = K/R, force = K/R * ctrl (condition below)
+      gain = (dynprm[0] > 0) ? K : K / mju_max(mjMINVAL, R);
+
+      // controller: compute voltage, override ctrl[i] for force computation
+      if ((int)gainprm[8] > 0) {
+        mjtNum x_I = (slots.integral >= 0) ? d->act[adr + slots.integral] : 0;
+        ctrl[i] = dcmotorVoltage(ctrl[i], d->actuator_length[i],
+                                  d->actuator_velocity[i], x_I, gainprm);
+      }
+      break;
+    }
 
     default:                        // user gain
       if (mjcb_act_gain) {
@@ -437,11 +603,14 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     }
 
     // set force = gain .* [ctrl/act]
-    if (m->actuator_actadr[i] == -1) {
+
+    // DC motor without current state: use ctrl even if other activations exist
+    int dcmotor_no_current = (gaintype == mjGAIN_DCMOTOR && dynprm[0] <= 0);
+    if (actnum == 0 || dcmotor_no_current) {
       force[i] = gain * ctrl[i];
     } else {
       // use last activation variable associated with actuator i
-      int act_adr = m->actuator_actadr[i] + m->actuator_actnum[i] - 1;
+      int act_adr = m->actuator_actadr[i] + actnum - 1;
 
       mjtNum act;
       if (m->actuator_actearly[i]) {
@@ -453,24 +622,37 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     }
 
     // extract bias info
-    prm = m->actuator_biasprm + mjNBIAS*i;
+    const mjtNum* biasprm = m->actuator_biasprm + mjNBIAS*i;
+    mjtBias biastype = m->actuator_biastype[i];
 
     // handle according to bias type
-    switch ((mjtBias) m->actuator_biastype[i]) {
+    switch (biastype) {
     case mjBIAS_NONE:               // none
       bias = 0.0;
       break;
 
-    case mjBIAS_AFFINE:             // affine: prm = [const, kp, kv]
-      bias = prm[0] + prm[1]*d->actuator_length[i] + prm[2]*d->actuator_velocity[i];
+    case mjBIAS_AFFINE:             // affine: biasprm = [const, kp, kv]
+      bias = biasprm[0] + biasprm[1]*d->actuator_length[i] + biasprm[2]*d->actuator_velocity[i];
       break;
 
     case mjBIAS_MUSCLE:             // muscle passive force
       bias =  mju_muscleBias(d->actuator_length[i],
                              m->actuator_lengthrange+2*i,
                              m->actuator_acc0[i],
-                             prm);
+                             biasprm);
       break;
+
+    case mjBIAS_DCMOTOR: {          // DC motor: back-EMF only (current-limited)
+      bias = 0;
+
+      // back-EMF (stateless only; for stateful current it's in the ODE)
+      mjtNum te = m->actuator_dynprm[mjNDYN*i];  // electrical time constant
+      if (te <= 0) {
+        mjtNum K = gainprm[1];   // motor constant
+        bias -= gain * K * d->actuator_velocity[i];
+      }
+      break;
+    }
 
     default:                        // user bias
       if (mjcb_act_bias) {
@@ -536,6 +718,41 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
   // clamp actuator_force
   clampVec(force, m->actuator_forcerange, m->actuator_forcelimited, nu, NULL);
+
+  // add DC motor mechanical forces (not subject to current limits)
+  for (int i=0; i < nu; i++) {
+    if (m->actuator_biastype[i] != mjBIAS_DCMOTOR) {
+      continue;
+    }
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_ACTUATOR, i) == mjS_ASLEEP) {
+      continue;
+    }
+    if (mj_actuatorDisabled(m, i) || m->actuator_plugin[i] >= 0) {
+      continue;
+    }
+
+    const mjtNum* biasprm = m->actuator_biasprm + mjNBIAS*i;
+    const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+
+    // cogging torque
+    mjtNum A = biasprm[0];
+    if (A != 0) {
+      mjtNum Np = biasprm[1];
+      mjtNum phi = biasprm[2];
+      force[i] += A * mju_sin(Np*d->actuator_length[i] + phi);
+    }
+
+    // LuGre friction
+    mjtNum sigma0 = dynprm[5];
+    if (sigma0 > 0) {
+      mjtNum sigma1 = dynprm[6];
+      mjDCMotorSlots slots = mj_dcmotorSlots(dynprm, m->actuator_gainprm + mjNGAIN*i);
+      int adr = m->actuator_actadr[i] + slots.bristle;
+      mjtNum z = d->act[adr];
+      mjtNum z_dot = d->act_dot[adr];
+      force[i] -= sigma0 * z + sigma1 * z_dot;
+    }
+  }
 
   // qfrc_actuator = moment' * force
   mju_mulMatTVecSparse(d->qfrc_actuator, d->actuator_moment, force, nu, nv,
@@ -953,7 +1170,9 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   if (!mjDISABLED(mjDSBL_EULERDAMP) && !mjDISABLED(mjDSBL_DAMPER)) {
     for (int v=0; v < nv; v++) {
       int i = sleep_filter ? dof_awake_ind[v] : v;
-      if (m->dof_damping[i] > 0) {
+      if (m->dof_damping[i] > 0 ||
+          !mju_isZero(m->dof_dampingpoly + mjNPOLY*i, mjNPOLY) ||
+          m->jnt_actuatorid[m->dof_jntid[i]] != -1) {
         dof_damping = 1;
         break;
       }
@@ -982,7 +1201,13 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
       // qH += h*diag(B)
       for (int v=0; v < nv; v++) {
         int i = sleep_filter ? dof_awake_ind[v] : v;
-        d->qH[m->M_rowadr[i] + m->M_rownnz[i] - 1] += m->opt.timestep * m->dof_damping[i];
+        mjtNum qv = d->qvel[i];
+        mjtNum poly[mjNPOLY];
+        mju_copy(poly, m->dof_dampingpoly + mjNPOLY*i, mjNPOLY);
+        mjtNum damping = m->dof_damping[i]
+                         + mj_actuatorDamping(m, mjOBJ_JOINT, m->dof_jntid[i], poly);
+        mjtNum damp_deriv = mjd_xPolyForce(damping, poly, qv, mjNPOLY, 1);
+        d->qH[m->M_rowadr[i] + m->M_rownnz[i] - 1] += m->opt.timestep * damp_deriv;
       }
 
       // factorize in-place
@@ -1121,6 +1346,206 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 }
 
 
+// context for flex interp reduced dense factorization/solve
+typedef struct {
+  mjtNum* H;              // dense Cholesky-factored matrix (ndof x ndof)
+  int* dof_indices;       // global DOF index for each local flex DOF
+  int ndof;               // number of flex DOFs
+  int ncoupling;          // number of off-diagonal coupling terms
+  mjtNum* coupling_val;   // coupling coefficient values
+  int* coupling_row;      // local flex row index for each coupling term
+  int* coupling_col;      // global DOF column index for each coupling term
+} FlexInterpContext;
+
+
+// collect flex DOFs for one flex, marking seen_dof and incrementing count
+static void flexInterp_collect(const mjModel* m, int f,
+                               int* chain_dofs, int* seen_dof, int* count) {
+  int nodenum = m->flex_nodenum[f];
+  int nodeadr = m->flex_nodeadr[f];
+  for (int n=0; n < nodenum; n++) {
+    int b = m->flex_nodebodyid[nodeadr+n];
+    int chain_nnz;
+    if (m->body_dofnum[b] == 0) {
+      // pinned node: use bodyChain to get parent DOFs
+      chain_nnz = mj_bodyChain(m, b, chain_dofs);
+    } else {
+      // regular flex node: use body's own DOFs only
+      chain_nnz = m->body_dofnum[b];
+      for (int j=0; j < chain_nnz; j++) {
+        chain_dofs[j] = m->body_dofadr[b] + j;
+      }
+    }
+    for (int i=0; i < chain_nnz; i++) {
+      int dof = chain_dofs[i];
+      if (!seen_dof[dof]) {
+        seen_dof[dof] = 1;
+        (*count)++;
+      }
+    }
+  }
+}
+
+
+// build and factor the reduced dense matrix for flex interp DOFs
+//   mark/free stack handled by caller
+static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) {
+  FlexInterpContext ctx = {0};
+
+  int* chain_dofs = mjSTACKALLOC(d, nv, int);
+  int* seen_dof = mjSTACKALLOC(d, nv, int);
+  mju_fillInt(seen_dof, 0, nv);
+
+  // count flex DOFs
+  int ndof = 0;
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f]) {
+      flexInterp_collect(m, f, chain_dofs, seen_dof, &ndof);
+    }
+  }
+  if (ndof == 0) {
+    return ctx;
+  }
+
+  // allocate and build global-to-local mapping
+  int* dof_indices = mjSTACKALLOC(d, ndof, int);
+  int* global2local = mjSTACKALLOC(d, nv, int);
+  mju_fillInt(global2local, -1, nv);
+
+  // collect unique DOFs in order
+  int cnt = 0;
+  mju_fillInt(seen_dof, 0, nv);
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f]) {
+      int nodenum = m->flex_nodenum[f];
+      int nodeadr = m->flex_nodeadr[f];
+      for (int n=0; n < nodenum; n++) {
+        int b = m->flex_nodebodyid[nodeadr+n];
+        int chain_nnz;
+        if (m->body_dofnum[b] == 0) {
+          // pinned node: use bodyChain to get parent DOFs
+          chain_nnz = mj_bodyChain(m, b, chain_dofs);
+        } else {
+          // regular flex node: use body's own DOFs only
+          chain_nnz = m->body_dofnum[b];
+          for (int j=0; j < chain_nnz; j++) {
+            chain_dofs[j] = m->body_dofadr[b] + j;
+          }
+        }
+        for (int i=0; i < chain_nnz; i++) {
+          int dof = chain_dofs[i];
+          if (!seen_dof[dof]) {
+            seen_dof[dof] = 1;
+            dof_indices[cnt] = dof;
+            global2local[dof] = cnt;
+            cnt++;
+          }
+        }
+      }
+    }
+  }
+
+  // select sparse matrix format based on integrator
+  int implicit = (m->opt.integrator == mjINT_IMPLICIT);
+  const int* rownnz = implicit ? m->D_rownnz : m->M_rownnz;
+  const int* rowadr = implicit ? m->D_rowadr : m->M_rowadr;
+  const int* colind = implicit ? m->D_colind : m->M_colind;
+  const mjtNum* source = implicit ? d->qLU : d->qH;
+
+  // count coupling terms (off-diagonal: flex row, non-flex col)
+  int ncoupling = 0;
+  for (int i=0; i < ndof; i++) {
+    int row = dof_indices[i];
+    int start = rowadr[row];
+    int end = start + rownnz[row];
+    for (int k=start; k < end; k++) {
+      if (global2local[colind[k]] < 0) {
+        ncoupling++;
+      }
+    }
+  }
+
+  // allocate coupling storage
+  mjtNum* coupling_val = NULL;
+  int* coupling_row = NULL;
+  int* coupling_col = NULL;
+  if (ncoupling > 0) {
+    coupling_val = mjSTACKALLOC(d, ncoupling, mjtNum);
+    coupling_row = mjSTACKALLOC(d, ncoupling, int);
+    coupling_col = mjSTACKALLOC(d, ncoupling, int);
+  }
+
+  // build H_flex (dense) from qLU (implicit) or qH (implicitfast)
+  mjtNum* H = mjSTACKALLOC(d, ndof*ndof, mjtNum);
+  mju_zero(H, ndof*ndof);
+
+  int coup_cnt = 0;
+  for (int i=0; i < ndof; i++) {
+    int row = dof_indices[i];
+    int start = rowadr[row];
+    int end = start + rownnz[row];
+    for (int k=start; k < end; k++) {
+      int col = colind[k];
+      int local_j = global2local[col];
+      if (local_j >= 0) {
+        H[i*ndof+local_j] = source[k];
+      } else if (coup_cnt < ncoupling) {
+        coupling_val[coup_cnt] = source[k];
+        coupling_row[coup_cnt] = i;
+        coupling_col[coup_cnt] = col;
+        coup_cnt++;
+      }
+    }
+  }
+
+  // add flex stiffness and factorize
+  mjd_flexInterp_addH(m, d, H, dof_indices, ndof, m->opt.timestep);
+  mju_cholFactor(H, ndof, mjMINVAL);
+
+  // store results in context
+  ctx.H = H;
+  ctx.dof_indices = dof_indices;
+  ctx.ndof = ndof;
+  ctx.ncoupling = ncoupling;
+  ctx.coupling_val = coupling_val;
+  ctx.coupling_row = coupling_row;
+  ctx.coupling_col = coupling_col;
+  return ctx;
+}
+
+
+// solve the reduced dense system for flex interp DOFs, overwrite qacc
+static void flexInterp_solve(const mjModel* m, mjData* d, const FlexInterpContext* ctx,
+                             mjtNum* qacc, const mjtNum* qfrc, int nv) {
+  int ndof = ctx->ndof;
+  mjtNum* qfrc_flex = mjSTACKALLOC(d, ndof, mjtNum);
+  mjtNum* res = mjSTACKALLOC(d, nv, mjtNum);
+
+  mjtNum h = m->opt.timestep;
+  mjtNum damp = (m->nflex > 0 && m->flex_damping) ? m->flex_damping[0] : 0;
+  mjtNum scl = h*h + h*damp;
+  mjtNum factor = (scl > mjMINVAL) ? (h/scl) : 0;
+
+  // velocity correction: -h * K * v
+  mju_zero(res, nv);
+  mjd_flexInterp_mulKD(m, d, res, d->qvel, h);
+
+  for (int i=0; i < ndof; i++) {
+    int global_dof = ctx->dof_indices[i];
+    qfrc_flex[i] = qfrc[global_dof] + res[global_dof] * factor;
+  }
+
+  // coupling correction: qfrc_flex -= H_coupling * qacc_parent
+  for (int k=0; k < ctx->ncoupling; k++) {
+    qfrc_flex[ctx->coupling_row[k]] -= ctx->coupling_val[k] * qacc[ctx->coupling_col[k]];
+  }
+
+  // solve and scatter back
+  mju_cholSolve(qfrc_flex, ctx->H, qfrc_flex, ndof);
+  mju_scatter(qacc, qfrc_flex, ctx->dof_indices, ndof);
+}
+
+
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
@@ -1144,21 +1569,15 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
 
   // check for flex_interp
   int has_flex_interp = 0;
-  for (int f = 0; f < m->nflex; f++) {
+  for (int f=0; f < m->nflex; f++) {
     if (m->flex_interp[f]) {
       has_flex_interp = 1;
       break;
     }
   }
 
-  // flex: data structures for reduced dense factorization
-  mjtNum* H_flex = NULL;
-  int* flex_dof_indices = NULL;
-  int nflexdofs = 0;
-  int ncoupling = 0;
-  mjtNum* coupling_val = NULL;
-  int* coupling_row = NULL;
-  int* coupling_col = NULL;
+  // flex interp context (populated during factorization)
+  FlexInterpContext flex = {0};
 
   // factorization
   if (!skipfactor) {
@@ -1190,135 +1609,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
 
     // flex: reduced dense factorization
     if (has_flex_interp && !sleep_filter) {
-      // temporary allocations for body chain
-      int* chain_dofs = mjSTACKALLOC(d, nv, int);
-      int* seen_dof = mjSTACKALLOC(d, nv, int);
-      mju_fillInt(seen_dof, 0, nv);
-
-      // identify flex DOFs
-      // For pinned nodes (body_dofnum==0): use bodyChain to include parent DOFs
-      // For regular flex nodes: use body_dofadr for one-way coupling
-      for (int f=0; f < m->nflex; f++) {
-        if (m->flex_interp[f]) {
-          int nodenum = m->flex_nodenum[f];
-          int nodeadr = m->flex_nodeadr[f];
-          for (int n=0; n < nodenum; n++) {
-            int b = m->flex_nodebodyid[nodeadr + n];
-            int chain_nnz;
-            if (m->body_dofnum[b] == 0) {
-              // Pinned node: use bodyChain to get parent DOFs
-              chain_nnz = mj_bodyChain(m, b, chain_dofs);
-            } else {
-              // Regular flex node: use body's own DOFs only
-              chain_nnz = m->body_dofnum[b];
-              for (int j = 0; j < chain_nnz; j++) {
-                chain_dofs[j] = m->body_dofadr[b] + j;
-              }
-            }
-            for (int i=0; i < chain_nnz; i++) {
-              int dof = chain_dofs[i];
-              if (!seen_dof[dof]) {
-                seen_dof[dof] = 1;
-                nflexdofs++;
-              }
-            }
-          }
-        }
-      }
-
-      // allocations
-      if (nflexdofs > 0) {
-        flex_dof_indices = mjSTACKALLOC(d, nflexdofs, int);
-        int* global2local = mjSTACKALLOC(d, nv, int);
-        mju_fillInt(global2local, -1, nv);
-
-        // collect unique DOFs in order
-        int cnt = 0;
-        mju_fillInt(seen_dof, 0, nv);
-        for (int f=0; f < m->nflex; f++) {
-          if (m->flex_interp[f]) {
-            int nodenum = m->flex_nodenum[f];
-            int nodeadr = m->flex_nodeadr[f];
-            for (int n=0; n < nodenum; n++) {
-              int b = m->flex_nodebodyid[nodeadr + n];
-              int chain_nnz;
-              if (m->body_dofnum[b] == 0) {
-                // Pinned node: use bodyChain to get parent DOFs
-                chain_nnz = mj_bodyChain(m, b, chain_dofs);
-              } else {
-                // Regular flex node: use body's own DOFs only
-                chain_nnz = m->body_dofnum[b];
-                for (int j = 0; j < chain_nnz; j++) {
-                  chain_dofs[j] = m->body_dofadr[b] + j;
-                }
-              }
-              for (int i=0; i < chain_nnz; i++) {
-                int dof = chain_dofs[i];
-                if (!seen_dof[dof]) {
-                  seen_dof[dof] = 1;
-                  flex_dof_indices[cnt] = dof;
-                  global2local[dof] = cnt;
-                  cnt++;
-                }
-              }
-            }
-          }
-        }
-
-        const int* rownnz = (m->opt.integrator == mjINT_IMPLICIT) ? m->D_rownnz : m->M_rownnz;
-        const int* rowadr = (m->opt.integrator == mjINT_IMPLICIT) ? m->D_rowadr : m->M_rowadr;
-        const int* colind = (m->opt.integrator == mjINT_IMPLICIT) ? m->D_colind : m->M_colind;
-        const mjtNum* source = (m->opt.integrator == mjINT_IMPLICIT) ? d->qLU : d->qH;
-
-        // count coupling terms (off-diagonal: flex row, non-flex col)
-        for (int i=0; i < nflexdofs; i++) {
-          int row = flex_dof_indices[i];
-          int start = rowadr[row];
-          int end = start + rownnz[row];
-          for (int k=start; k < end; k++) {
-            if (global2local[colind[k]] < 0) {
-              ncoupling++;
-            }
-          }
-        }
-
-        // allocate coupling storage
-        if (ncoupling > 0) {
-          coupling_val = mjSTACKALLOC(d, ncoupling, mjtNum);
-          coupling_row = mjSTACKALLOC(d, ncoupling, int);
-          coupling_col = mjSTACKALLOC(d, ncoupling, int);
-        }
-
-        // build H_flex (dense) from qLU (implicit) or qH (implicitfast)
-        H_flex = mjSTACKALLOC(d, nflexdofs*nflexdofs, mjtNum);
-        mju_zero(H_flex, nflexdofs*nflexdofs);
-
-        int coup_cnt = 0;
-        for (int i=0; i < nflexdofs; i++) {
-          int row = flex_dof_indices[i];
-          int start = rowadr[row];
-          int end = start + rownnz[row];
-          for (int k=start; k < end; k++) {
-            int col = colind[k];
-            int local_j = global2local[col];
-            if (local_j >= 0) {
-              H_flex[i*nflexdofs + local_j] = source[k];
-            } else if (coup_cnt < ncoupling) {
-              coupling_val[coup_cnt] = source[k];
-              coupling_row[coup_cnt] = i;  // local flex index
-              coupling_col[coup_cnt] = col;  // global parent index
-              coup_cnt++;
-            }
-          }
-        }
-
-        // add stiffness to H_flex
-        mjtNum h = m->opt.timestep;
-        mjd_flexInterp_addH(m, d, H_flex, flex_dof_indices, nflexdofs, h);
-
-        // factor H_flex
-        mju_cholFactor(H_flex, nflexdofs, mjMINVAL);
-      }
+      flex = flexInterp_factor(m, d, nv);
     }
 
     // standard factorization (implicit / implicitfast)
@@ -1330,7 +1621,6 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     }
   }
 
-  // solve
   // standard sparse solve
   if (m->opt.integrator == mjINT_IMPLICIT) {
     mju_solveLUSparse(qacc, d->qLU, qfrc, nv, m->D_rownnz, m->D_rowadr, m->D_diag, m->D_colind,
@@ -1346,38 +1636,8 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   }
 
   // flex: reduced dense solve
-  if (H_flex) {
-    // compute qfrc_flex
-    mjtNum* qfrc_flex = mjSTACKALLOC(d, nflexdofs, mjtNum);
-    mjtNum* res = mjSTACKALLOC(d, nv, mjtNum);
-
-    mjtNum h = m->opt.timestep;
-    mjtNum damp = (m->nflex > 0 && m->flex_damping) ? m->flex_damping[0] : 0;
-    mjtNum scl = h * h + h * damp;
-    mjtNum factor = (scl > mjMINVAL) ? (h/scl) : 0;
-
-    // velocity correction: -h * K * v
-    mju_zero(res, nv);
-    mjd_flexInterp_mulKD(m, d, res, d->qvel, h);  // returns -scl * K * v
-
-    for (int i=0; i < nflexdofs; i++) {
-      int global_dof = flex_dof_indices[i];
-      qfrc_flex[i] = qfrc[global_dof] + res[global_dof] * factor;
-    }
-
-    // apply coupling correction: qfrc_flex -= H_coupling * qacc_parent
-    if (ncoupling > 0) {
-      for (int k=0; k < ncoupling; k++) {
-        qfrc_flex[coupling_row[k]] -= coupling_val[k] * qacc[coupling_col[k]];
-      }
-    }
-
-    // solve H_flex * qacc_flex = qfrc_flex
-    // reuse qfrc_flex as result buffer (qacc_flex)
-    mju_cholSolve(qfrc_flex, H_flex, qfrc_flex, nflexdofs);
-
-    // overwrite flex DOFs with reduced dense solution
-    mju_scatter(qacc, qfrc_flex, flex_dof_indices, nflexdofs);
+  if (flex.H) {
+    flexInterp_solve(m, d, &flex, qacc, qfrc, nv);
   }
 
   // advance state and time
@@ -1530,6 +1790,7 @@ void mj_step2(const mjModel* m, mjData* d) {
   mj_fwdActuation(m, d);
   mj_fwdAcceleration(m, d);
   mj_fwdConstraint(m, d);
+  d->flg_rnepost = 0;  // clear flag for lazy evaluation
   mj_sensorAcc(m, d);
   mj_checkAcc(m, d);
 

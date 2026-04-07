@@ -165,7 +165,9 @@ def benchmark(
       d = step_fn(mx, d)
 
       if render:
-        rgb, d = jax.vmap(render_fn, in_axes=(None, 0, None))(mx, d, rc)
+        rgb, d = jax.vmap(render_fn, in_axes=(None, 0, None))(
+            mx, d, rc.pytree()
+        )
         accum += rgb[0, 0, 0, 0]
 
       return (d, accum), None

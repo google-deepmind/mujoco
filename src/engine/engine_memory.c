@@ -298,6 +298,7 @@ static inline void freestackinternal(mjStackInfo* stack_info) {
             mj__getPcDebugInfo(s->pc),
             mj__getPcDebugInfo(__sanitizer_return_address()));
   }
+  uintptr_t old_top = stack_info->top;
 #endif
 
   // restore pbase and pstack
@@ -306,7 +307,7 @@ static inline void freestackinternal(mjStackInfo* stack_info) {
 
   // if running under asan, poison the newly freed memory region
 #ifdef ADDRESS_SANITIZER
-  ASAN_POISON_MEMORY_REGION((char*)stack_info->limit, stack_info->top - stack_info->limit);
+  ASAN_POISON_MEMORY_REGION((char*)old_top, stack_info->top - old_top);
 #endif
 }
 

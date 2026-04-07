@@ -14,6 +14,7 @@
 # ==============================================================================
 import dataclasses
 import enum
+from typing import Callable
 
 import mujoco
 import warp as wp
@@ -32,8 +33,8 @@ MJ_MAX_EPAFACES = 5
 TILE_SIZE_JTDAJ_SPARSE = 16
 TILE_SIZE_JTDAJ_DENSE = 16
 
-# TODO(team): remove after mjwarp depends on warp-lang >= 1.12 in pyproject.toml
-TEXTURE_DTYPE = wp.Texture2D if hasattr(wp, "Texture2D") else int
+# maximum number of plugin attributes
+_NPLUGINATTR = 128
 
 
 # TODO(team): add check that all wp.launch_tiled 'block_dim' settings are configurable
@@ -49,7 +50,6 @@ class BlockDim:
   # forward
   euler_dense: int = 32
   actuator_velocity: int = 32
-  tendon_velocity: int = 32
   # ray
   ray: int = 64
   # sensor
@@ -59,6 +59,7 @@ class BlockDim:
   cholesky_factorize: int = 32
   cholesky_solve: int = 32
   cholesky_factorize_solve: int = 32
+  solve_LD_sparse_fused: int = 64
   # solver
   update_gradient_cholesky: int = 64
   update_gradient_cholesky_blocked: int = 32
@@ -134,6 +135,20 @@ class ProjectionType(enum.IntEnum):
     ORTHOGRAPHIC = 1
 
 
+class Stage(enum.IntEnum):
+  """Computation stage.
+
+  Attributes:
+    POS: position-dependent
+    VEL: velocity-dependent
+    ACC: acceleration/force-dependent
+  """
+
+  POS = mujoco.mjtStage.mjSTAGE_POS
+  VEL = mujoco.mjtStage.mjSTAGE_VEL
+  ACC = mujoco.mjtStage.mjSTAGE_ACC
+
+
 class DataType(enum.IntFlag):
   """Sensor data types.
 
@@ -167,6 +182,7 @@ class DisableBit(enum.IntFlag):
     SENSOR:       sensors
     EULERDAMP:    implicit damping for Euler integration
     NATIVECCD:    native convex collision detection (ignored in MJWarp)
+    ISLAND:       constraint islands
   """
 
   CONSTRAINT = mujoco.mjtDisableBit.mjDSBL_CONSTRAINT
@@ -185,7 +201,8 @@ class DisableBit(enum.IntFlag):
   SENSOR = mujoco.mjtDisableBit.mjDSBL_SENSOR
   EULERDAMP = mujoco.mjtDisableBit.mjDSBL_EULERDAMP
   NATIVECCD = mujoco.mjtDisableBit.mjDSBL_NATIVECCD
-  # unsupported: MIDPHASE, AUTORESET, ISLAND
+  ISLAND = mujoco.mjtDisableBit.mjDSBL_ISLAND
+  # unsupported: MIDPHASE, AUTORESET
 
 
 class EnableBit(enum.IntFlag):
@@ -232,6 +249,7 @@ class DynType(enum.IntEnum):
     FILTER: linear filter: da/dt = (u-a) / tau
     FILTEREXACT: linear filter: da/dt = (u-a) / tau, with exact integration
     MUSCLE: piece-wise linear filter with two time constants
+    USER: user-defined dynamics via act_dyn_callback
   """
 
   NONE = mujoco.mjtDyn.mjDYN_NONE
@@ -239,7 +257,7 @@ class DynType(enum.IntEnum):
   FILTER = mujoco.mjtDyn.mjDYN_FILTER
   FILTEREXACT = mujoco.mjtDyn.mjDYN_FILTEREXACT
   MUSCLE = mujoco.mjtDyn.mjDYN_MUSCLE
-  # unsupported: USER
+  USER = mujoco.mjtDyn.mjDYN_USER
 
 
 class GainType(enum.IntEnum):
@@ -249,12 +267,13 @@ class GainType(enum.IntEnum):
     FIXED: fixed gain
     AFFINE: const + kp*length + kv*velocity
     MUSCLE: muscle FLV curve computed by muscle_gain
+    USER: user-defined gain via act_gain_callback
   """
 
   FIXED = mujoco.mjtGain.mjGAIN_FIXED
   AFFINE = mujoco.mjtGain.mjGAIN_AFFINE
   MUSCLE = mujoco.mjtGain.mjGAIN_MUSCLE
-  # unsupported: USER
+  USER = mujoco.mjtGain.mjGAIN_USER
 
 
 class BiasType(enum.IntEnum):
@@ -264,12 +283,13 @@ class BiasType(enum.IntEnum):
     NONE: no bias
     AFFINE: const + kp*length + kv*velocity
     MUSCLE: muscle passive force computed by muscle_bias
+    USER: user-defined bias via act_bias_callback
   """
 
   NONE = mujoco.mjtBias.mjBIAS_NONE
   AFFINE = mujoco.mjtBias.mjBIAS_AFFINE
   MUSCLE = mujoco.mjtBias.mjBIAS_MUSCLE
-  # unsupported: USER
+  USER = mujoco.mjtBias.mjBIAS_USER
 
 
 class JointType(enum.IntEnum):
@@ -328,6 +348,7 @@ class GeomType(enum.IntEnum):
     BOX: box
     MESH: mesh
     SDF: sdf
+    FLEX: flex
   """
 
   PLANE = mujoco.mjtGeom.mjGEOM_PLANE
@@ -339,6 +360,7 @@ class GeomType(enum.IntEnum):
   BOX = mujoco.mjtGeom.mjGEOM_BOX
   MESH = mujoco.mjtGeom.mjGEOM_MESH
   SDF = mujoco.mjtGeom.mjGEOM_SDF
+  FLEX = mujoco.mjtGeom.mjGEOM_FLEX
   # unsupported: NGEOMTYPES, ARROW*, LINE, SKIN, LABEL, NONE
 
 
@@ -462,6 +484,7 @@ class SensorType(enum.IntEnum):
     FRAMELINACC: 3D linear acceleration
     FRAMEANGACC: 3D angular acceleration
     TACTILE: tactile sensor
+    USER: user-defined sensor via sensor_callback
   """
 
   MAGNETOMETER = mujoco.mjtSensor.mjSENS_MAGNETOMETER
@@ -511,6 +534,7 @@ class SensorType(enum.IntEnum):
   FRAMELINACC = mujoco.mjtSensor.mjSENS_FRAMELINACC
   FRAMEANGACC = mujoco.mjtSensor.mjSENS_FRAMEANGACC
   TACTILE = mujoco.mjtSensor.mjSENS_TACTILE
+  USER = mujoco.mjtSensor.mjSENS_USER
 
 
 class ObjType(enum.IntEnum):
@@ -637,6 +661,10 @@ class vec11f(wp.types.vector(length=11, dtype=float)):
   pass
 
 
+class vec_pluginattr(wp.types.vector(length=_NPLUGINATTR, dtype=float)):
+  pass
+
+
 class mat23f(wp.types.matrix(shape=(2, 3), dtype=float)):
   pass
 
@@ -654,6 +682,7 @@ vec6 = vec6f
 vec8 = vec8f
 vec10 = vec10f
 vec11 = vec11f
+vec128 = vec_pluginattr
 mat23 = mat23f
 mat43 = mat43f
 mat63 = mat63f
@@ -769,6 +798,29 @@ class TileSet:
 
 
 @dataclasses.dataclass
+class Callback:
+  """Callbacks for custom physics behavior.
+
+  Attributes:
+    passive: custom passive forces, writes to ``Data.qfrc_passive``
+    control: custom control laws, writes to ``Data.ctrl``
+    act_dyn: custom actuator dynamics, writes to ``Data.act_dot``
+    act_gain: custom actuator gains, writes to ``Data.actuator_force``
+    act_bias: custom actuator biases, writes to ``Data.actuator_force``
+    sensor: custom sensors, writes to ``Data.sensordata``
+    contactfilter: custom contact filtering, writes to ``Data.contact``
+  """
+
+  passive: Callable | None = None
+  control: Callable | None = None
+  act_dyn: Callable | None = None
+  act_gain: Callable | None = None
+  act_bias: Callable | None = None
+  sensor: Callable | None = None
+  contactfilter: Callable | None = None
+
+
+@dataclasses.dataclass
 class Model:
   """Model definition and parameters.
 
@@ -793,6 +845,8 @@ class Model:
     nflexelem: number of elements in all flexes
     nflexelemdata: number of element vertex ids in all flexes
     nflexelemedge: number of element edge ids in all flexes
+    nflexshelldata: number of shell fragment vertex ids in all flexes
+    nJfe: number of non-zeros in sparse flexedge Jacobian
     nmesh: number of meshes
     nmeshvert: number of vertices for all meshes
     nmeshnormal: number of normals in all meshes
@@ -808,10 +862,12 @@ class Model:
     nexclude: number of excluded geom pairs
     neq: number of equality constraints
     ntendon: number of tendons
+    nJten: number of non-zeros in sparse tendon Jacobian
     nwrap: number of wrap objects in all tendon paths
     nsensor: number of sensors
     nmocap: number of mocap bodies
     nplugin: number of plugin instances
+    nJmom: number of non-zeros in actuator_moment
     ngravcomp: number of bodies with nonzero gravcomp
     nsensordata: number of elements in sensor data vector
     opt: physics options
@@ -923,6 +979,11 @@ class Model:
     light_poscom0: global position rel. to sub-com in qpos0  (*, nlight, 3)
     light_pos0: global position rel. to body in qpos0        (*, nlight, 3)
     light_dir0: global direction in qpos0                    (*, nlight, 3)
+    flex_contype: flex contact type                          (nflex,)
+    flex_conaffinity: flex contact affinity                  (nflex,)
+    flex_condim: contact dimensionality (1, 3, 4, 6)         (nflex,)
+    flex_friction: friction for (slide, spin, roll)          (nflex, 3)
+    flex_margin: detect contact if dist<margin               (nflex,)
     flex_dim: 1: lines, 2: triangles, 3: tetrahedra          (nflex,)
     flex_vertadr: first vertex address                       (nflex,)
     flex_vertnum: number of vertices                         (nflex,)
@@ -930,24 +991,33 @@ class Model:
     flex_edgenum: number of edges                            (nflex,)
     flex_elemadr: first element address                      (nflex,)
     flex_elemnum: number of elements                         (nflex,)
-    flex_elemedgeadr: first element address                  (nflex,)
+    flex_elemdataadr: first element vertex id address        (nflex,)
+    flex_elemedgeadr: first element edge id address          (nflex,)
+    flex_shellnum: number of shells                          (nflex,)
+    flex_shelldataadr: first shell data address              (nflex,)
     flex_vertbodyid: vertex body ids                         (nflexvert,)
     flex_edge: edge vertex ids (2 per edge)                  (nflexedge, 2)
     flex_edgeflap: adjacent vertex ids (dim=2 only)          (nflexedge, 2)
     flex_elem: element vertex ids (dim+1 per elem)           (nflexelemdata,)
     flex_elemedge: element edge ids                          (nflexelemedge,)
+    flex_shell: shell fragment vertex ids (dim per frag)     (nflexshelldata,)
+    flex_vert: vertex local positions                        (nflexvert, 3)
     flexedge_length0: edge lengths in qpos0                  (nflexedge,)
     flexedge_invweight0: inv. inertia for the edge           (nflexedge,)
+    flex_radius: radius around primitive element             (nflex,)
     flex_stiffness: finite element stiffness matrix          (nflexelem, 21)
     flex_bending: bending stiffness                          (nflexedge, 17)
     flex_damping: Rayleigh's damping coefficient             (nflex,)
+    flex_centered: flex vertices are centered at body origin (nflex,)
     flexedge_J_rownnz: number of nonzeros in Jacobian row    (nflexedge,)
     flexedge_J_rowadr: row start address in colind array     (nflexedge,)
     flexedge_J_colind: column indices in sparse Jacobian     (nJfe,)
     mesh_vertadr: first vertex address                       (nmesh,)
     mesh_vertnum: number of vertices                         (nmesh,)
     mesh_faceadr: first face address                         (nmesh,)
+    mesh_octadr: octree address for each mesh                (nmesh,)
     mesh_normaladr: first normal address                     (nmesh,)
+    mesh_normalnum: number of normals                        (nmesh,)
     mesh_graphadr: graph data address; -1: no graph          (nmesh,)
     mesh_vert: vertex positions for all meshes               (nmeshvert, 3)
     mesh_normal: normals for all meshes                      (nmeshnormal, 3)
@@ -991,6 +1061,9 @@ class Model:
     eq_data: numeric data for constraint                     (*, neq, mjNEQDATA)
     tendon_adr: address of first object in tendon's path     (ntendon,)
     tendon_num: number of objects in tendon's path           (ntendon,)
+    ten_J_rownnz: number of non-zeros in each tendon row     (ntendon,)
+    ten_J_rowadr: row start address for sparse ten_J         (ntendon,)
+    ten_J_colind: column indices in sparse ten_J             (nJten,)
     tendon_limited: does tendon have length limits           (ntendon,)
     tendon_actfrclimited: does ten have actuator force limit (ntendon,)
     tendon_solref_lim: constraint solver reference: limit    (*, ntendon, mjNREF)
@@ -1028,9 +1101,9 @@ class Model:
     actuator_forcerange: range of forces                     (*, nu, 2)
     actuator_actrange: range of activations                  (*, nu, 2)
     actuator_gear: scale length and transmitted force        (*, nu, 6)
-    actuator_cranklength: crank length for slider-crank      (nu,)
-    actuator_acc0: acceleration from unit force in qpos0     (nu,)
-    actuator_lengthrange: feasible actuator length range     (nu, 2)
+    actuator_cranklength: crank length for slider-crank      (*, nu)
+    actuator_acc0: acceleration from unit force in qpos0     (*, nu)
+    actuator_lengthrange: feasible actuator length range     (*, nu, 2)
     sensor_type: sensor type (SensorType)                    (nsensor,)
     sensor_datatype: numeric data type (DataType)            (nsensor,)
     sensor_objtype: type of sensorized object (ObjType)      (nsensor,)
@@ -1042,13 +1115,15 @@ class Model:
     sensor_adr: address in sensor array                      (nsensor,)
     sensor_cutoff: cutoff for real and positive; 0: ignore   (nsensor,)
     plugin: globally registered plugin slot number           (nplugin,)
-    plugin_attr: config attributes of geom plugin            (nplugin, 3)
+    plugin_attr: config attributes of geom plugin            (nplugin, _NPLUGINATTR)
     M_rownnz: number of non-zeros in each row of qM          (nv,)
     M_rowadr: index of each row in qM                        (nv,)
     M_colind: column indices of non-zeros in qM              (nM,)
     mapM2M: index mapping from M (legacy) to M (CSR)         (nC)
+    flex_vertflexid: flex id for each flex vertex            (nflexvert,)
 
   warp only fields:
+    callback: custom physics callbacks
     nbranch: number of branches (leaf-to-root paths)
     nv_pad: number of degrees of freedom + padding
     nacttrnbody: number of actuators with body transmission
@@ -1093,6 +1168,7 @@ class Model:
     tendon_site_pair_adr: site pair tendon address
     tendon_geom_adr: geom tendon address
     tendon_limited_adr: addresses for limited tendons
+    max_ten_J_rownnz: maximum number of non-zeros in a tendon row
     ten_wrapadr_site: wrap object starting address for sites
     ten_wrapnum_site: number of site wrap objects per tendon
     wrap_jnt_adr: addresses for joint tendon wrap object
@@ -1129,6 +1205,8 @@ class Model:
     taxel_sensorid: address for tactile sensors
     qM_tiles: tiling configuration
     qLD_updates: tuple of index triples for sparse factorization
+    qLD_all_updates: tuple of all levels concatenated
+    qLD_level_offsets: tuple of start offsets for each level
     qM_fullm_i: sparse mass matrix addressing
     qM_fullm_j: sparse mass matrix addressing
     qM_mulm_rowadr: sparse matmul row pointers
@@ -1156,6 +1234,8 @@ class Model:
   nflexelem: int
   nflexelemdata: int
   nflexelemedge: int
+  nflexshelldata: int
+  nJfe: int
   nmesh: int
   nmeshvert: int
   nmeshnormal: int
@@ -1171,10 +1251,12 @@ class Model:
   nexclude: int
   neq: int
   ntendon: int
+  nJten: int
   nwrap: int
   nsensor: int
   nmocap: int
   nplugin: int
+  nJmom: int
   ngravcomp: int
   nsensordata: int
   opt: Option
@@ -1286,6 +1368,11 @@ class Model:
   light_poscom0: array("*", "nlight", wp.vec3)
   light_pos0: array("*", "nlight", wp.vec3)
   light_dir0: array("*", "nlight", wp.vec3)
+  flex_contype: array("nflex", int)
+  flex_conaffinity: array("nflex", int)
+  flex_condim: array("nflex", int)
+  flex_friction: array("nflex", wp.vec3)
+  flex_margin: array("nflex", float)
   flex_dim: array("nflex", int)
   flex_vertadr: array("nflex", int)
   flex_vertnum: array("nflex", int)
@@ -1293,24 +1380,33 @@ class Model:
   flex_edgenum: array("nflex", int)
   flex_elemadr: array("nflex", int)
   flex_elemnum: array("nflex", int)
+  flex_elemdataadr: array("nflex", int)
   flex_elemedgeadr: array("nflex", int)
+  flex_shellnum: array("nflex", int)
+  flex_shelldataadr: array("nflex", int)
   flex_vertbodyid: array("nflexvert", int)
   flex_edge: array("nflexedge", wp.vec2i)
   flex_edgeflap: array("nflexedge", wp.vec2i)
   flex_elem: array("nflexelemdata", int)
   flex_elemedge: array("nflexelemedge", int)
+  flex_shell: array("nflexshelldata", int)
+  flex_vert: array("nflexvert", wp.vec3)
   flexedge_length0: array("nflexedge", float)
   flexedge_invweight0: array("nflexedge", float)
+  flex_radius: array("nflex", float)
   flex_stiffness: array("nflexelem", 21, float)
   flex_bending: array("nflexedge", 17, float)
   flex_damping: array("nflex", float)
+  flex_centered: array("nflex", bool)
   flexedge_J_rownnz: array("nflexedge", int)
   flexedge_J_rowadr: array("nflexedge", int)
-  flexedge_J_colind: wp.array(dtype=int)
+  flexedge_J_colind: array("nJfe", int)
   mesh_vertadr: array("nmesh", int)
   mesh_vertnum: array("nmesh", int)
   mesh_faceadr: array("nmesh", int)
+  mesh_octadr: array("nmesh", int)
   mesh_normaladr: array("nmesh", int)
+  mesh_normalnum: array("nmesh", int)
   mesh_graphadr: array("nmesh", int)
   mesh_vert: array("nmeshvert", wp.vec3)
   mesh_normal: array("nmeshnormal", wp.vec3)
@@ -1354,6 +1450,9 @@ class Model:
   eq_data: array("*", "neq", vec11)
   tendon_adr: array("ntendon", int)
   tendon_num: array("ntendon", int)
+  ten_J_rownnz: array("ntendon", int)
+  ten_J_rowadr: array("ntendon", int)
+  ten_J_colind: array("nJten", int)
   tendon_limited: array("ntendon", int)
   tendon_actfrclimited: array("ntendon", bool)
   tendon_solref_lim: array("*", "ntendon", wp.vec2)
@@ -1391,9 +1490,9 @@ class Model:
   actuator_forcerange: array("*", "nu", wp.vec2)
   actuator_actrange: array("*", "nu", wp.vec2)
   actuator_gear: array("*", "nu", wp.spatial_vector)
-  actuator_cranklength: array("nu", float)
-  actuator_acc0: array("nu", float)
-  actuator_lengthrange: array("nu", wp.vec2)
+  actuator_cranklength: array("*", "nu", float)
+  actuator_acc0: array("*", "nu", float)
+  actuator_lengthrange: array("*", "nu", wp.vec2)
   sensor_type: array("nsensor", int)
   sensor_datatype: array("nsensor", int)
   sensor_objtype: array("nsensor", int)
@@ -1405,12 +1504,14 @@ class Model:
   sensor_adr: array("nsensor", int)
   sensor_cutoff: array("nsensor", float)
   plugin: array("nplugin", int)
-  plugin_attr: array("nplugin", wp.vec3f)
+  plugin_attr: array("nplugin", vec_pluginattr)
   M_rownnz: array("nv", int)
   M_rowadr: array("nv", int)
   M_colind: array("nC", int)
   mapM2M: array("nC", int)
+  flex_vertflexid: array("nflexvert", int)
   # warp only fields:
+  callback: Callback
   nbranch: int
   nv_pad: int
   nacttrnbody: int
@@ -1450,6 +1551,7 @@ class Model:
   tendon_site_pair_adr: wp.array(dtype=int)
   tendon_geom_adr: wp.array(dtype=int)
   tendon_limited_adr: wp.array(dtype=int)
+  max_ten_J_rownnz: int
   ten_wrapadr_site: wp.array(dtype=int)
   ten_wrapnum_site: wp.array(dtype=int)
   wrap_jnt_adr: wp.array(dtype=int)
@@ -1481,6 +1583,8 @@ class Model:
   taxel_sensorid: wp.array(dtype=int)
   qM_tiles: tuple[TileSet, ...]
   qLD_updates: tuple[wp.array(dtype=wp.vec3i), ...]
+  qLD_all_updates: wp.array(dtype=wp.vec3i)
+  qLD_level_offsets: wp.array(dtype=int)
   qM_fullm_i: wp.array(dtype=int)
   qM_fullm_j: wp.array(dtype=int)
   # Gather-based sparse mul_m indices (thread per DOF, no atomics)
@@ -1533,6 +1637,8 @@ class Contact:
   solimp: array("naconmax", vec5)
   dim: array("naconmax", int)
   geom: array("naconmax", wp.vec2i)
+  flex: array("naconmax", wp.vec2i)
+  vert: array("naconmax", wp.vec2i)
   efc_address: array("naconmax", "nmaxpyramid", int)
   worldid: array("naconmax", int)
   type: array("naconmax", int)
@@ -1546,7 +1652,14 @@ class Constraint:
   Attributes:
     type: constraint type (ConstraintType)            (nworld, njmax)
     id: id of object of specific type                 (nworld, njmax)
-    J: constraint Jacobian                            (nworld, njmax_pad, nv_pad)
+    J_rownnz: number of non-zeros in J row            (nworld, 0) dense
+                                                      (nworld, njmax) sparse
+    J_rowadr: row start address in colind array       (nworld, 0) dense
+                                                      (nworld, njmax) sparse
+    J_colind: column indices in J                     (nworld, 0, 0) dense
+                                                      (nworld, 1, njmax * nv) sparse
+    J: constraint Jacobian                            (nworld, njmax_pad, nv_pad) dense
+                                                      (nworld, 1, njmax * nv) sparse
     pos: constraint position (equality, contact)      (nworld, njmax)
     margin: inclusion margin (contact)                (nworld, njmax)
     D: constraint mass                                (nworld, njmax_pad)
@@ -1561,7 +1674,10 @@ class Constraint:
 
   type: array("nworld", "njmax", int)
   id: array("nworld", "njmax", int)
-  J: array("nworld", "njmax_pad", "nv_pad", float)
+  J_rownnz: wp.array2d(dtype=int)
+  J_rowadr: wp.array2d(dtype=int)
+  J_colind: wp.array3d(dtype=int)
+  J: wp.array3d(dtype=float)
   pos: array("nworld", "njmax", float)
   margin: array("nworld", "njmax", float)
   D: array("nworld", "njmax_pad", float)
@@ -1583,6 +1699,7 @@ class Data:
     nf: number of friction constraints                          (nworld,)
     nl: number of limit constraints                             (nworld,)
     nefc: number of constraints                                 (nworld,)
+    nisland: number of constraint islands                       (nworld,)
     time: simulation time                                       (nworld,)
     energy: potential, kinetic energy                           (nworld, 2)
     qpos: position                                              (nworld, nq)
@@ -1617,16 +1734,19 @@ class Data:
     cdof: com-based motion axis of each dof (rot:lin)           (nworld, nv, 6)
     cinert: com-based body inertia and mass                     (nworld, nbody, 10)
     flexvert_xpos: cartesian flex vertex positions              (nworld, nflexvert, 3)
-    flexedge_J: edge length Jacobian                            (nworld, 1, nflexedge*6)
+    flexedge_J: edge length Jacobian                            (nworld, nJfe)
     flexedge_length: flex edge lengths                          (nworld, nflexedge, 1)
     ten_wrapadr: start address of tendon's path                 (nworld, ntendon)
     ten_wrapnum: number of wrap points in path                  (nworld, ntendon)
-    ten_J: tendon Jacobian                                      (nworld, ntendon, nv)
+    ten_J: tendon Jacobian                                      (nworld, nJten)
     ten_length: tendon lengths                                  (nworld, ntendon)
     wrap_obj: geomid; -1: site; -2: pulley                      (nworld, nwrap, 2)
     wrap_xpos: Cartesian 3D points in all paths                 (nworld, nwrap, 6)
     actuator_length: actuator lengths                           (nworld, nu)
-    actuator_moment: actuator moments                           (nworld, nu, nv)
+    moment_rownnz: number of non-zeros in actuator_moment row   (nworld, nu)
+    moment_rowadr: row start address in actuator_moment         (nworld, nu)
+    moment_colind: column indices in sparse actuator_moment     (nworld, nJmom)
+    actuator_moment: actuator moments                           (nworld, nJmom)
     crb: com-based composite inertia and mass                   (nworld, nbody, 10)
     qM: total inertia                                           (nworld, nv, nv) if dense
                                                                 (nworld, 1, nM) if sparse
@@ -1659,12 +1779,15 @@ class Data:
     cfrc_ext: com-based external force on body                  (nworld, nbody, 6)
     contact: contact data
     efc: constraint data
+    tree_island: island ID per tree (-1 if unconstrained)       (nworld, ntree)
 
   warp only fields:
     nworld: number of worlds
     naconmax: maximum number of contacts (shared across all worlds)
     naccdmax: maximum number of contacts for CCD (all worlds)
     njmax: maximum number of constraints per world
+    njmax_pad: njmax rounded up to the nearest multiple of TILE_SIZE_JTDAJ
+    njmax_nnz: number of non-zeros in constraint Jacobian
     nacon: number of detected contacts (across all worlds)      (1,)
     ncollision: collision count from broadphase                 (1,)
   """
@@ -1674,6 +1797,7 @@ class Data:
   nf: array("nworld", int)
   nl: array("nworld", int)
   nefc: array("nworld", int)
+  nisland: array("nworld", int)
   time: array("nworld", float)
   energy: array("nworld", wp.vec2)
   qpos: array("nworld", "nq", float)
@@ -1708,16 +1832,19 @@ class Data:
   cdof: array("nworld", "nv", wp.spatial_vector)
   cinert: array("nworld", "nbody", vec10)
   flexvert_xpos: array("nworld", "nflexvert", wp.vec3)
-  flexedge_J: wp.array3d(dtype=float)
+  flexedge_J: array("nworld", "nJfe", float)
   flexedge_length: array("nworld", "nflexedge", float)
   ten_wrapadr: array("nworld", "ntendon", int)
   ten_wrapnum: array("nworld", "ntendon", int)
-  ten_J: array("nworld", "ntendon", "nv", float)
+  ten_J: array("nworld", "nJten", float)
   ten_length: array("nworld", "ntendon", float)
   wrap_obj: array("nworld", "nwrap", wp.vec2i)
   wrap_xpos: array("nworld", "nwrap", wp.spatial_vector)
   actuator_length: array("nworld", "nu", float)
-  actuator_moment: array("nworld", "nu", "nv", float)
+  moment_rownnz: array("nworld", "nu", int)
+  moment_rowadr: array("nworld", "nu", int)
+  moment_colind: array("nworld", "nJmom", int)
+  actuator_moment: array("nworld", "nJmom", float)
   crb: array("nworld", "nbody", vec10)
   qM: wp.array3d(dtype=float)
   qLD: wp.array3d(dtype=float)
@@ -1746,29 +1873,17 @@ class Data:
   cfrc_ext: array("nworld", "nbody", wp.spatial_vector)
   contact: Contact
   efc: Constraint
+  tree_island: array("nworld", "ntree", int)
 
   # warp only fields:
   nworld: int
   naconmax: int
   naccdmax: int
   njmax: int
+  njmax_pad: int
+  njmax_nnz: int
   nacon: array(1, int)
   ncollision: array(1, int)
-
-
-@dataclasses.dataclass
-class CollisionContext:
-  """Collision driver intermediate arrays.
-
-  Attributes:
-    collision_pair: collision pairs from broadphase             (naconmax, 2)
-    collision_pairid: ids from broadphase                       (naconmax, 2)
-    collision_worldid: collision world ids from broadphase      (naconmax,)
-  """
-
-  collision_pair: wp.array
-  collision_pairid: wp.array
-  collision_worldid: wp.array
 
 
 @dataclasses.dataclass
@@ -1794,22 +1909,13 @@ class RenderContext:
     textures_registry: texture registry
     hfield_registry: hfield BVH id to warp mesh mapping
     hfield_bvh_id: hfield BVH ids
-    hfield_bounds_size: hfield bounds size
-    flex_mesh: flex mesh
+    hfield_bounds_size: hfield bounds half-extents
+    flex_mesh_registry: per-flex mesh BVH registry (prevents garbage collection)
     flex_rgba: flex rgba
-    flex_bvh_id: flex BVH id
-    flex_face_point: flex face points
-    flex_faceadr: flex face addresses
-    flex_nface: number of flex faces
-    flex_nwork: total flex work items for refit
-    flex_group_root: flex group roots
-    flex_elemdataadr: flex element data addresses
-    flex_shell: flex shell data
-    flex_shelldataadr: flex shell data addresses
-    flex_radius: flex radius
-    flex_workadr: flex work item addresses for refit
-    flex_worknum: flex work item counts for refit
+    flex_bvh_id: per-flex BVH ids
+    flex_group_root: per-flex group roots (nworld x n_flex_bvh)
     flex_render_smooth: whether to render flex meshes smoothly
+    flex_dim: flex dimension per flex (1D/2D/3D)
     bvh: scene BVH
     bvh_id: scene BVH id
     lower: lower bounds
@@ -1819,12 +1925,13 @@ class RenderContext:
     ray: rays
     rgb_data: RGB data
     rgb_adr: RGB addresses
-    rgb_size: per-camera RGB buffer sizes
     depth_data: depth data
     depth_adr: depth addresses
-    depth_size: per-camera depth buffer sizes
     render_rgb: per-camera RGB render flags
     render_depth: per-camera depth render flags
+    seg_data: segmentation data (per-pixel geom IDs)
+    seg_adr: segmentation addresses
+    render_seg: per-camera segmentation render flags
     znear: near plane distance
     total_rays: total number of rays
   """
@@ -1844,27 +1951,20 @@ class RenderContext:
   mesh_texcoord: array("*", wp.vec2)
   mesh_texcoord_offsets: array("nmesh", int)
   mesh_facetexcoord: array("nmeshface", wp.vec3i)
-  # TODO(team): remove after mjwarp depends on warp-lang >= 1.12 in pyproject.toml
-  textures: array("*", TEXTURE_DTYPE)
-  textures_registry: list[TEXTURE_DTYPE]
+  textures: array("*", wp.Texture2D)
+  textures_registry: list[wp.Texture2D]
   hfield_registry: dict
   hfield_bvh_id: array("nhfield", wp.uint64)
   hfield_bounds_size: array("nhfield", wp.vec3)
-  flex_mesh: wp.Mesh
+  flex_mesh_registry: dict
   flex_rgba: array("nflex", wp.vec4)
-  flex_bvh_id: wp.uint64
-  flex_face_point: array("*", wp.vec3)
-  flex_faceadr: array("nflex", int)
-  flex_nface: int
-  flex_nwork: int
-  flex_group_root: array("nworld", int)
-  flex_elemdataadr: array("nflex", int)
-  flex_shell: array("*", int)
-  flex_shelldataadr: array("nflex", int)
-  flex_radius: array("nflex", float)
-  flex_workadr: array("nflex", int)
-  flex_worknum: array("nflex", int)
+  flex_bvh_id: array("*", wp.uint64)
+  flex_group_root: array("nworld", "*", int)
   flex_render_smooth: bool
+  bvh_nflexgeom: int
+  flex_dim_np: array("nflex", int)
+  flex_geom_flexid: array("*", int)
+  flex_geom_edgeid: array("*", int)
   bvh: wp.Bvh
   bvh_id: wp.uint64
   lower: array("*", wp.vec3)
@@ -1878,5 +1978,8 @@ class RenderContext:
   depth_adr: array("ncam", int)
   render_rgb: array("ncam", bool)
   render_depth: array("ncam", bool)
+  seg_data: array("*", int)
+  seg_adr: array("ncam", int)
+  render_seg: array("ncam", bool)
   znear: float
   total_rays: int

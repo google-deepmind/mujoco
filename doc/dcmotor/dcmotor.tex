@@ -1,0 +1,1416 @@
+% Copyright 2026 DeepMind Technologies Limited
+%
+% Licensed under the Apache License, Version 2.0 (the "License");
+% you may not use this file except in compliance with the License.
+% You may obtain a copy of the License at
+%
+%     http://www.apache.org/licenses/LICENSE-2.0
+%
+% Unless required by applicable law or agreed to in writing, software
+% distributed under the License is distributed on an "AS IS" BASIS,
+% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+% See the License for the specific language governing permissions and
+% limitations under the License.
+
+\documentclass[10pt, a4paper, twocolumn]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{roboto-mono}
+\usepackage{relsize}
+\let\oldtexttt\texttt
+\renewcommand{\texttt}[1]{{\smaller\oldtexttt{#1}}}
+\usepackage{amsmath, amssymb}
+\usepackage{multicol}
+\usepackage{geometry}
+\geometry{margin=0.75in}
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{1.5ex plus 0.5ex minus 0.2ex}{1ex plus 0.2ex}
+\titlespacing*{\subsection}{0pt}{1.2ex plus 0.4ex minus 0.2ex}{0.8ex plus 0.2ex}
+\setlength{\parskip}{0.4ex plus 0.1ex minus 0.1ex}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\setlist[itemize]{label=\scalebox{0.8}{$\bullet$}}
+\usepackage{float}
+\usepackage{titling}
+\setlength{\droptitle}{-4em}
+\usepackage{stfloats}
+\usepackage{url}
+\renewcommand{\UrlFont}{\small\ttfamily}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{fillbetween}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
+\usepackage{caption}
+\usepackage{subcaption}
+\captionsetup{font=footnotesize, labelfont=footnotesize}
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{
+  language=C,
+  basicstyle=\footnotesize\ttfamily,
+  keywordstyle=\bfseries\color{blue!70!black},
+  commentstyle=\itshape\color{gray},
+  stringstyle=\color{red!60!black},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=5pt,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{gray!40},
+  backgroundcolor=\color{gray!5},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=2,
+  xleftmargin=1.5em,
+  framexleftmargin=1.5em,
+  aboveskip=0.8em,
+  belowskip=0.5em,
+  morekeywords={mjtNum, mjModel, mjData, mjtByte},
+}
+
+\newcommand{\atR}{\texttt{resistance}}
+\newcommand{\atK}{\texttt{motorconst}}
+\newcommand{\atKt}{\texttt{motorconst:Kt}}
+\newcommand{\atKe}{\texttt{motorconst:Ke}}
+\newcommand{\atVM}{\texttt{nominal:voltage}}
+\newcommand{\atSTALL}{\texttt{nominal:stall\_torque}}
+\newcommand{\atNLS}{\texttt{nominal:no\_load\_speed}}
+\newcommand{\atTMAX}{\texttt{saturation:torque}}
+\newcommand{\atIMAX}{\texttt{saturation:current}}
+\newcommand{\atVMAX}{\texttt{saturation:voltage}}
+\newcommand{\atCRATE}{\texttt{saturation:current\_rate}}
+\newcommand{\atKP}{\texttt{controller:kp}}
+\newcommand{\atKI}{\texttt{controller:ki}}
+\newcommand{\atKD}{\texttt{controller:kd}}
+\newcommand{\atSLEW}{\texttt{controller:slewmax}}
+\newcommand{\atIMAXINT}{\texttt{controller:Imax}}
+\newcommand{\atL}{\texttt{inductance:L}}
+\newcommand{\atTE}{\texttt{inductance:timeconst}}
+\newcommand{\atCOGA}{\texttt{cogging:amplitude}}
+\newcommand{\atCOGP}{\texttt{cogging:poles}}
+\newcommand{\atCOGPH}{\texttt{cogging:phase}}
+\newcommand{\atRT}{\texttt{thermal:resistance}}
+\newcommand{\atTC}{\texttt{thermal:capacitance}}
+\newcommand{\atTT}{\texttt{thermal:timeconst}}
+\newcommand{\atALPHA}{\texttt{thermal:tempcoef}}
+\newcommand{\atTREF}{\texttt{thermal:reftemp}}
+\newcommand{\atTAMB}{\texttt{thermal:ambient}}
+\newcommand{\atSIG}{\texttt{lugre:stiffness}}
+\newcommand{\atSIGD}{\texttt{lugre:damping}}
+\newcommand{\atTAUC}{\texttt{lugre:coulomb}}
+\newcommand{\atTAUS}{\texttt{lugre:static}}
+\newcommand{\atWS}{\texttt{lugre:stribeck}}
+\newcommand{\atSIGV}{\texttt{lugre:viscous}}
+
+\title{MuJoCo DC Motor Model}
+\author{Google DeepMind}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\noindent We review DC motors and describe MuJoCo's \texttt{dcmotor} actuator. The equations are derived for brushed motors but apply equally to brushless ones, where electronic commutation reduces to an equivalent circuit.
+
+%=============================================================================
+% BACKGROUND
+%=============================================================================
+\section{Background}
+\label{sec:background}
+
+We use SI units throughout, but any coherent system of units applies. We assume motion is rotational; for linear motion replace radians with meters as required.
+
+% ---------------------------------------------------------------------------
+%  Electromagnetic Model
+% ---------------------------------------------------------------------------
+\subsection{Electromagnetic Model}
+\label{sec:electromagnetics}
+
+The key electro-mechanical variables are
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Symbol & Description & Units \\
+\midrule
+$v$ & Applied voltage & Volt \\
+$i$ & Current & Ampere \\
+$\omega$ & Angular velocity & radian/second \\
+$\tau$ & Output torque & Newton $\cdot$ meter \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent and the key constants are
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}lll@{}}
+\toprule
+Symbol & Description & Units \\
+\midrule
+$R$ & Resistance & Ohm \\
+$K_t$ & Torque constant & Newton $\cdot$ meter/Ampere \\
+$K_e$ & Back-EMF constant & Volt $\cdot$ second/radian \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent The quasi-static model~\cite{hughes2019, maxon_formulas, simscape_dcmotor} assumes instantaneous electrical dynamics: current and torque are direct functions of voltage and velocity. The constitutive equations are the voltage balance \eqref{eq:voltage} and the torque law \eqref{eq:torque_law}:
+\begin{subequations}
+\label{eq:motor_laws}
+\begin{align}
+  v &= i \, R + K_e \, \omega \label{eq:voltage} \\
+  \tau &= K_t i \label{eq:torque_law}
+\end{align}
+\end{subequations}
+
+\noindent Solving for current and substituting, we have
+
+\begin{equation}
+  \tau = \frac{K_t}{R} (v - K_e \, \omega)
+  \label{eq:torque_speed}
+\end{equation}
+
+\noindent Output torque is proportional to the difference between applied and back-EMF voltage $v_{\text{back}} = K_e \, \omega$ (Figure~\ref{fig:torque_speed}).
+
+\paragraph{Electrical constants.}
+Fundamentally, both $K_t$ and $K_e$ arise from the same physical quantity: the magnetic flux $\Phi$ of the coil. Faraday's law gives $v_{\text{back}} = \Phi \, \omega$ and the Lorentz force gives $\tau = \Phi \, i$, so in SI units:
+
+\begin{equation*}
+  K_e = K_t
+  \label{eq:ke_eq_kt}
+\end{equation*}
+
+\noindent This can also be seen from energy conservation: $P_e = i \, (K_e \, \omega) = (K_t \, i) \, \omega = P_m$.
+
+\pagebreak
+\noindent Note the dimensions match:
+
+\vspace*{-\abovedisplayskip}
+\begin{equation*}
+  \frac{\text{Volt}}{\text{radian}/\text{second}}
+  = \frac{\text{Joule}}{\text{Coulomb}/\text{second}}
+  = \frac{\text{Newton} \cdot \text{meter}}{\text{Ampere}}
+\end{equation*}
+
+\noindent If these constants are the same, why have both? Two reasons. First, datasheets typically use mixed units ($K_e$ in RPM/V, $K_t$ in mN$\cdot$m/A), giving different values for the same physical quantity. Second, $K_t$ and $K_e$ are measured differently: $K_t$ by locking the rotor and measuring torque per Ampere; $K_e$ by spinning the rotor and measuring open-circuit Volts per radian/second. In the first case, high currents can lead to magnetic field saturation in the core, causing the effective $K_t$ to drop below $K_e$. The equality $K_e = K_t$ thus assumes $\Phi$ independent of $i$. We make this assumption for now and use a single motor constant $K \equiv K_t = K_e$ throughout the remainder of this document and internally in MuJoCo, but see note at end of \S\ref{sec:dcmotor}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\pgfmathsetmacro{\taus}{1.0}
+\pgfmathsetmacro{\wz}{1.0}
+\begin{axis}[
+  width=0.9\columnwidth, height=0.55\columnwidth,
+  axis lines=left,
+  clip=false,
+  xlabel={$\omega$}, ylabel={$\tau$},
+  xmin=0, xmax={\wz*1.15}, ymin=0, ymax={\taus*1.15},
+  xtick={\wz}, xticklabels={$\omega_0$},
+  ytick={\taus}, yticklabels={$\tau_0$},
+  tick style={thick},
+  every axis x label/.style={at={(ticklabel* cs:1)}, anchor=west},
+  every axis y label/.style={at={(ticklabel* cs:1)}, anchor=south},
+]
+\addplot[thick, blue!15] coordinates {(0,\taus*0.7) (\wz*0.7,0)};
+\addplot[thick, blue!25] coordinates {(0,\taus*0.8) (\wz*0.8,0)};
+\addplot[thick, blue!50] coordinates {(0,\taus*0.9) (\wz*0.9,0)};
+\addplot[thick, blue] coordinates {(0,\taus) (\wz,0)};
+\node[font=\scriptsize, text=gray, align=center]
+  at (axis cs: \wz*0.25, \taus*0.2)
+  {decreasing\\ voltage};
+\draw[->, thick, gray] (axis cs: \wz*0.4, \taus*0.55)
+  -- (axis cs: \wz*0.4, \taus*0.15);
+\node[font=\scriptsize] at (axis cs: \wz*0.4, -0.08)
+  {Speed};
+\node[font=\scriptsize, rotate=90] at (axis cs: -0.04, \taus*0.4)
+  {Torque};
+\end{axis}
+\end{tikzpicture}
+\caption{Torque-speed relationship \eqref{eq:torque_speed} at fixed voltage. As voltage decreases, the maximum torque and speed decrease linearly.}
+\label{fig:torque_speed}
+\end{figure}
+
+\paragraph{Current Saturation.}
+A maximum current rating $i_{\max}$ limits the output torque:
+\begin{equation}
+  \tau = \text{clip}\!\left(\frac{K}{R}(v - K \, \omega),\;
+    \pm K \, i_{\max} \right)
+  \label{eq:saturation}
+\end{equation}
+where the maximum torque $\tau_{\max} = K \, i_{\max}$. The feasible torque-speed envelope forms a parallelogram:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\pgfmathsetmacro{\taus}{1.3}
+\pgfmathsetmacro{\wz}{1.0}
+\pgfmathsetmacro{\taumax}{0.7}
+\pgfmathsetmacro{\slope}{\taus/\wz}
+\pgfmathsetmacro{\wcu}{(\taus-\taumax)/\slope}
+\pgfmathsetmacro{\wcl}{(\taus+\taumax)/\slope}
+\pgfmathsetmacro{\wext}{1.5}
+\pgfmathsetmacro{\dexthi}{\taus+\slope*\wext}
+\pgfmathsetmacro{\dextlo}{\taus-\slope*\wext}
+\begin{axis}[
+  width=0.9\columnwidth, height=0.6\columnwidth,
+  axis lines=middle,
+  xlabel={$\omega$}, ylabel={$\tau$},
+  xmin=-1.6, xmax=1.6, ymin=-1.6, ymax=1.6,
+  xtick={-\wz, \wz}, xticklabels={$-\omega_0$, {}},
+  ytick={-\taus, \taus},
+  yticklabels={$-\tau_0$, $\tau_0$},
+  tick style={thick},
+  every axis x label/.style={at={(ticklabel* cs:1)}, anchor=west},
+  every axis y label/.style={at={(ticklabel* cs:1)}, anchor=south},
+]
+\fill[blue, opacity=0.08]
+  (-\wcl, \taumax) -- (\wcu, \taumax) -- (\wcl, -\taumax)
+  -- (-\wcu, -\taumax) -- cycle;
+\addplot[thick, dashed, gray] coordinates {(-\wext, \dexthi) (\wext, \dextlo)};
+\addplot[thick, dashed, gray] coordinates {(-\wext, -\dextlo) (\wext, -\dexthi)};
+\addplot[thick, dashed, gray] coordinates {(-1.55, \taumax) (1.55, \taumax)};
+\addplot[thick, dashed, gray] coordinates {(-1.55, -\taumax) (1.55, -\taumax)};
+\addplot[thick, blue] coordinates
+  {(-\wcl, \taumax) (\wcu, \taumax) (\wcl, -\taumax) (-\wcu, -\taumax)
+   (-\wcl, \taumax)};
+\node[font=\scriptsize, anchor=south] at (axis cs: \wz, \taumax)
+  {$\tau_{\max}$};
+\node[font=\scriptsize, anchor=north] at (axis cs: -\wz, -\taumax)
+  {$-\tau_{\max}$};
+\draw[thick, dashed, gray] (axis cs: \wz, 0) -- (axis cs: \wz, -\taumax);
+\draw[thick, dashed, gray] (axis cs: -\wz, 0) -- (axis cs: -\wz, \taumax);
+\node[font=\normalsize, anchor=south] at (axis cs: \wz, 0.05) {$\omega_0$};
+\end{axis}
+\end{tikzpicture}
+\caption{Torque-speed envelope with current saturation~\eqref{eq:saturation}.}
+\label{fig:saturation}
+\end{figure}
+
+\noindent Note that datasheets typically distinguish two current limits. The \emph{continuous} (or \emph{nominal}) current $i_{\max}$ is the thermal limit: the maximum current the motor can sustain indefinitely without exceeding its maximum winding temperature. The \emph{peak} current $i_{\text{peak}}$ is a higher short-term limit, typically 5--10$\times$ the continuous value, constrained by demagnetization or commutation limits.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Symbol & Description & Condition & Formula/note\\
+\midrule
+$\tau_0$ & Stall Torque & $\omega=0$ & $\tau_0 = Kv / R$ \\
+$\omega_0$ & No-Load Speed & $\tau_{\text{load}}=0$ &
+  $\omega_0 \approx v / K$ \\
+$\partial\omega / \partial\tau$ & Gradient & Slope &
+  $-R/K^2$ \\
+$i_{\max}$ & Maximum Current & Limit & Thermal limit \\
+$\tau_{\max}$ & Maximum Torque & Limit & $\tau_{\max} = K \, i_{\max}$ \\
+\bottomrule
+\end{tabular}
+\caption{Named constants derived from the motor equations.}
+\label{tab:electromech_constants}
+\end{table}
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Inductance}
+\label{sec:inductance}
+
+Including the effects of winding inductance $L$ (Henry) means treating the current $i$ as a state variable:
+\begin{equation}
+  v = L \, \frac{di}{dt} + i \, R + K \, \omega
+  \label{eq:inductance}
+\end{equation}
+The change in current is proportional to the voltage and negatively proportional to both the instantaneous current and the rotation velocity. The time constant of this ODE is $t_e = L/R$. If $t_e \ll \Delta t$ (the simulation timestep), the current equilibrates within a single step and the quasi-static approximation~\eqref{eq:torque_speed} is adequate.
+
+Motor drivers often impose a hard limit on $di/dt$ to protect windings and electronics, bounding the torque ramp rate to $K \cdot (di/dt)_{\max}$.
+
+% ---------------------------------------------------------------------------
+%  Mechanical Model
+% ---------------------------------------------------------------------------
+\subsection{Mechanical Model}
+\label{sec:mechanical}
+
+Several purely mechanical phenomena affect the motor's behavior and the effective delivered torque.
+
+\paragraph{Mechanical losses.}
+These reduce the net torque available at the shaft: $\tau_{\text{net}} = \tau_{\text{elec}} - \tau_{\text{loss}}$.
+\begin{itemize}
+  \item \textbf{Coulomb:} Constant torque opposing rotation (dry friction).
+    $\tau_{\text{loss}} = \tau_c \, \text{sgn}(\omega)$. Discontinuous; already available in MuJoCo as \texttt{frictionloss}.
+  \item \textbf{Viscous:} Drag is a smooth function of speed $\tau_{\text{loss}} = b(\omega)$. The simplest model is linear, with drag proportional to speed $\tau_{\text{loss}} = B \, \omega$, but higher order terms may be needed for higher-fidelity models e.g., $\tau_{\text{loss}} = B_1 \, \omega + B_2 \, \omega |\omega| + B_3 \, \omega^3 + \dots$.
+\end{itemize}
+
+\noindent Datasheets report the \emph{no-load current} $i_0$: the current drawn when spinning freely at no-load speed $\omega_0$. At steady state, the electromagnetic torque balances all mechanical losses:
+\begin{equation}
+  K \, i_0 = \tau_c + B \, \omega_0
+  \label{eq:noload}
+\end{equation}
+This provides one constraint on two unknowns ($\tau_c$ and $B$). Without additional data, the user must either assume one dominates or obtain friction measurements at multiple speeds. In MuJoCo terms, $\tau_c$ maps to \texttt{frictionloss} and $B$ to \texttt{damping}.
+
+\noindent Combining current saturation with both mechanical losses, the net torque is:
+\begin{equation*}
+  \tau_{\text{net}} = \text{clip}\!\left( \frac{K}{R}(v - K \, \omega),\;
+    \pm K\, i_{\max} \right) - B \, \omega - \tau_c \, \text{sgn}(\omega)
+  \label{eq:net_torque}
+\end{equation*}
+The clipping applies to the electrical torque (current limit), while both friction terms are mechanical losses applied to the output post-clipping. Viscous drag $-B\omega$ tilts the envelope; Coulomb friction $-\tau_c\,\text{sgn}(\omega)$ shifts the right half ($\omega > 0$) down and the left half ($\omega < 0$) up, creating a $2\tau_c$ discontinuity at $\omega = 0$ (Figure~\ref{fig:drag_linear}).
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{\columnwidth}
+\centering
+\begin{tikzpicture}
+\pgfmathsetmacro{\taus}{1.3}
+\pgfmathsetmacro{\wz}{1.0}
+\pgfmathsetmacro{\taumax}{0.7}
+\pgfmathsetmacro{\bvis}{0.3}
+\pgfmathsetmacro{\tauf}{0.2}
+\pgfmathsetmacro{\slope}{\taus/\wz}
+\pgfmathsetmacro{\wcu}{(\taus-\taumax)/\slope}
+\pgfmathsetmacro{\wcl}{(\taus+\taumax)/\slope}
+\pgfmathsetmacro{\wext}{1.5}
+\pgfmathsetmacro{\dragL}{\bvis*\wext}
+\pgfmathsetmacro{\dragR}{-\bvis*\wext}
+%% Right half vertices (ω ≥ 0): shifted down by τ_f
+\pgfmathsetmacro{\Ra}{\taumax-\tauf}
+\pgfmathsetmacro{\Rb}{\taumax-\bvis*\wcu-\tauf}
+\pgfmathsetmacro{\Rc}{-\taumax-\bvis*\wcl-\tauf}
+\pgfmathsetmacro{\Rd}{-\taumax-\tauf}
+%% Left half vertices (ω ≤ 0): shifted up by τ_f
+\pgfmathsetmacro{\La}{\taumax+\bvis*\wcl+\tauf}
+\pgfmathsetmacro{\Lb}{\taumax+\tauf}
+\pgfmathsetmacro{\Lc}{-\taumax+\tauf}
+\pgfmathsetmacro{\Ld}{-\taumax+\bvis*\wcu+\tauf}
+\begin{axis}[
+  width=0.9\columnwidth, height=0.6\columnwidth,
+  axis lines=middle,
+  xlabel={$\omega$}, ylabel={$\tau$},
+  xmin=-1.8, xmax=1.8, ymin=-1.8, ymax=1.8,
+  xtick=\empty, ytick=\empty,
+  tick style={thick},
+  every axis x label/.style={at={(ticklabel* cs:1)}, anchor=west},
+  every axis y label/.style={at={(ticklabel* cs:1)}, anchor=south},
+]
+\fill[blue, opacity=0.08]
+  (0, \Ra) -- (\wcu, \Rb) -- (\wcl, \Rc) -- (0, \Rd) -- cycle;
+\addplot[thick, blue] coordinates
+  {(0, \Ra) (\wcu, \Rb) (\wcl, \Rc) (0, \Rd)};
+\fill[blue, opacity=0.08]
+  (-\wcl, \La) -- (0, \Lb) -- (0, \Lc) -- (-\wcu, \Ld) -- cycle;
+\addplot[thick, blue] coordinates
+  {(-\wcl, \La) (0, \Lb) (0, \Lc) (-\wcu, \Ld) (-\wcl, \La)};
+\addplot[thick, dashed, gray] coordinates {(0.01, {-\tauf-\bvis*0.01}) (\wext, {-\tauf+\dragR})};
+\addplot[thick, dashed, gray] coordinates {(-\wext, {\tauf+\dragL}) (-0.01, {\tauf+\bvis*0.01})};
+\node[font=\footnotesize, anchor=north west] at (axis cs: -1.75, -0.45)
+  {$-B\omega - \tau_c\,\text{sgn}(\omega)$};
+\draw[->, gray, thick] (axis cs: -1.4, -0.45) -- (axis cs: -1.3, {\tauf+\bvis});
+\pgfmathsetmacro{\gapmid}{(\Ra+\Lb)/2}
+\draw[thick, <->, gray] (axis cs: 0.12, \Ra) -- (axis cs: 0.12, \Lb);
+\node[font=\scriptsize, anchor=west] at (axis cs: 0.18, \gapmid)
+  {$2\tau_c$};
+\end{axis}
+\end{tikzpicture}
+\caption{Linear viscous drag and Coulomb friction.}
+\label{fig:drag_linear}
+\end{subfigure}
+
+\vspace{0.5em}
+
+\begin{subfigure}[t]{\columnwidth}
+\centering
+\begin{tikzpicture}
+\pgfmathsetmacro{\taus}{1.3}
+\pgfmathsetmacro{\wz}{1.0}
+\pgfmathsetmacro{\taumax}{0.7}
+\pgfmathsetmacro{\Bone}{0.15}
+\pgfmathsetmacro{\Btwo}{0.35}
+\pgfmathsetmacro{\slope}{\taus/\wz}
+\pgfmathsetmacro{\wcl}{(\taus+\taumax)/\slope}
+\pgfmathsetmacro{\wext}{1.7}
+\begin{axis}[
+  width=0.9\columnwidth, height=0.6\columnwidth,
+  axis lines=middle,
+  xlabel={$\omega$}, ylabel={$\tau$},
+  xmin=-2.0, xmax=2.0, ymin=-2.0, ymax=2.0,
+  xtick=\empty, ytick=\empty,
+  tick style={thick},
+  every axis x label/.style={at={(ticklabel* cs:1)}, anchor=west},
+  every axis y label/.style={at={(ticklabel* cs:1)}, anchor=south},
+  samples=200,
+]
+\addplot[name path=upper, thick, blue, domain=-\wcl:\wcl]
+  {min(\taus - \slope*x, \taumax) - \Bone*x - \Btwo*x*abs(x)};
+\addplot[name path=lower, thick, blue, domain=-\wcl:\wcl]
+  {max(-\taus - \slope*x, -\taumax) - \Bone*x - \Btwo*x*abs(x)};
+\addplot[blue, opacity=0.08] fill between[of=upper and lower];
+\addplot[thick, dashed, gray, domain=-\wext:\wext]
+  {-\Bone*x - \Btwo*x*abs(x)};
+\node[font=\footnotesize, anchor=north west] at (axis cs: -1.9, -0.5)
+  {$-b(\omega)$};
+\draw[->, gray, thick] (axis cs: -1.5, -0.5) -- (axis cs: -1.3, {0.1 + 0.35*1.3*1.3});
+\end{axis}
+\end{tikzpicture}
+\caption{Nonlinear viscous drag $b(\omega) = B_1\omega + B_2\omega|\omega|$, no friction.}
+\label{fig:drag_nonlinear}
+\end{subfigure}
+
+\caption{Torque-speed envelopes with mechanical losses. The dashed gray line shows the drag function; the shaded region is the achievable torque at each speed. Note that datasheet torque-speed curves typically plot the first quadrant only.}
+\label{fig:drag}
+\end{figure}
+
+\paragraph{Rotor Inertia and Gearing.}
+Every DC motor datasheet lists the rotor inertia $J_r$ (kg$\cdot$m$^2$). When a gear train with ratio $N$ is attached, the effective inertia reflected to the output shaft is $J_{\text{eff}} = J_r N^2$~\cite{tedrake2024}. Note that real gearboxes also introduce efficiency losses (typically 70--90\%), which reduce the transmitted torque by a multiplicative factor $\eta$, approximated by effectively reducing the motor constant $K_{\text{eff}} = \eta K$.
+
+\paragraph{Cogging Torque.}
+Brushless DC motors exhibit \emph{cogging torque}: a position-dependent torque ripple caused by the interaction between permanent magnets and stator slots. It can be modeled as a periodic bias:
+\begin{equation}
+  \tau_{\text{cog}}(\theta) = A \sin(N_p \, \theta + \phi)
+  \label{eq:cogging}
+\end{equation}
+where $A$ is the amplitude, $N_p$ is the number of pole pairs times the number of slots per pole, and $\phi$ is a phase offset. Cogging torque is significant primarily at low speeds. Datasheets sometimes report peak cogging as a percentage of rated torque (typically 1--5\%).
+
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Symbol & Description & Formula / Note \\
+\midrule
+$\tau_c$ & Coulomb friction & $\tau_c\,\text{sgn}(\omega)$ \\
+$B$ & Viscous drag (linear) & $B\,\omega$ \\
+$\omega_0$ & No-load speed &
+  $\omega_0 = v\,K / (K^2 + R\,B)$ \\
+$J_r$ & Rotor inertia & units: kg$\cdot$m$^2$ \\
+$N$ & Gear ratio & $J_{\text{eff}} = J_r N^2$ \\
+$\eta$ & Gearbox efficiency & $K' = \eta \, K$ \\
+$A$ & Cogging amplitude & $\tau_{\text{cog}} = A\sin(N_p\theta + \phi)$ \\
+$N_p$ & Cogging periodicity & poles $\times$ slots/pole \\
+$\phi$ & Cogging phase & offset \\
+\bottomrule
+\end{tabular}
+\caption{Named constants related to mechanical properties. Note that unlike in Table~\ref{tab:electromech_constants}, the non-approximate expression for $\omega_0$ takes into account the linear drag $B$ (assuming no high-order terms).}
+\label{tab:key_constants}
+\end{table}
+
+\paragraph{Backlash.}
+Gearboxes introduce backlash: a small angular deadband where the motor can turn without moving the output shaft. Datasheets report this in arcminutes. MuJoCo supports backlash modeling via a dual-joint decomposition; \href{https://mujoco.readthedocs.io/en/stable/modeling.html#backlash}{see here} for details.
+
+% ---------------------------------------------------------------------------
+%  Thermal Model
+% ---------------------------------------------------------------------------
+\subsection{Thermal Model}
+\label{sec:thermal}
+
+Winding temperature affects motor performance primarily through increased copper resistance, and can be modeled as a single lumped thermal state. The thermal constants are
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}lll@{}}
+\toprule
+Symbol & Description & Units \\
+\midrule
+$R_T$ & Thermal resistance & Kelvin/Watt \\
+$C$ & Thermal capacitance & Joule/Kelvin \\
+$t_T = R_T C$ & Thermal time constant & second \\
+$\alpha$ & Resistance temp.\ coefficient & 1/Kelvin \\
+$T_0$ & Reference temperature & degree Celsius \\
+$T_a$ & Ambient temperature & degree Celsius \\
+\bottomrule
+\end{tabular}
+\caption{Thermal model constants. Units involving temperature differences use Kelvin (equivalent to Celsius for differences); absolute temperatures use degree Celsius, following datasheet convention.}
+\end{table}
+
+\noindent Note that some manufacturers specify two thermal resistances: $R_{\text{th1}}$ (winding-to-housing) and $R_{\text{th2}}$ (housing-to-ambient), which sum to give the total winding-to-ambient thermal resistance $R_T = R_{\text{th1}} + R_{\text{th2}}$. The single-node model above uses $R_T$ directly.
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Lumped Thermal ODE}
+\label{sec:thermal_ode}
+
+The winding temperature $T$ evolves according to a first-order lumped model driven by the power dissipation $P$ (Watt, detailed in \S\ref{sec:thermal_losses}):
+\begin{equation}
+  \frac{\partial T}{\partial t} = \frac{1}{C} P - \frac{T - T_a}{t_T}
+  \label{eq:thermal_ode}
+\end{equation}
+where $t_T = R_T C$ is the thermal time constant. This produces exponential rise/decay toward a steady-state temperature $T_{ss} = T_a + R_T P$ (Figure~\ref{fig:thermal_response}).
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\pgfmathsetmacro{\Tss}{1.0}
+\pgfmathsetmacro{\ttau}{1.0}
+\pgfmathsetmacro{\xmax}{4.5}
+\begin{axis}[
+  width=0.9\columnwidth, height=0.45\columnwidth,
+  axis lines=left,
+  clip=false,
+  xlabel={$t$}, ylabel={$T - T_a$},
+  xmin=0, xmax=\xmax, ymin=0, ymax={\Tss*1.25},
+  xtick={\ttau}, xticklabels={$t_T$},
+  ytick={{\Tss*(1-exp(-1))}, \Tss},
+  yticklabels={$(1{-}1/e)\,R_T P$, $R_T P$},
+  tick style={thick},
+  every axis x label/.style={at={(ticklabel* cs:1)}, anchor=west},
+  every axis y label/.style={at={(ticklabel* cs:1)}, anchor=south},
+]
+\addplot[thick, blue, domain=0:\xmax, samples=100]
+  {\Tss*(1 - exp(-x/\ttau))};
+\addplot[thick, dashed, gray] coordinates {(0,\Tss) (\xmax,\Tss)};
+\draw[thick, dashed, gray] (axis cs:\ttau, 0) -- (axis cs:\ttau, {\Tss*(1-exp(-1))});
+\draw[thick, dashed, gray] (axis cs:0, {\Tss*(1-exp(-1))}) -- (axis cs:\ttau, {\Tss*(1-exp(-1))});
+\node[font=\scriptsize, anchor=south] at (axis cs:\xmax*0.5, \Tss)
+  {$T_{ss} = T_a + R_T P$};
+\end{axis}
+\end{tikzpicture}
+\caption{Temperature rise under constant power dissipation $P$.
+  At $t = t_T$, it reaches $(1-1/e) \approx 63\%$ of its steady-state value.}
+\label{fig:thermal_response}
+\end{figure}
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Losses}
+\label{sec:thermal_losses}
+
+The dominant loss is copper (Joule) heating:
+\begin{equation*}
+  P = i^2 R(T)
+  \label{eq:copper_loss}
+\end{equation*}
+Optionally, speed-dependent iron losses (eddy-current and hysteresis losses in the stator laminations) can be included~\cite{hughes2019}:
+\begin{equation*}
+  P = i^2 R(T) + K_{\text{fe}} \omega^2
+  \label{eq:total_loss}
+\end{equation*}
+The iron loss coefficient $K_{\text{fe}}$ is not typically listed on datasheets and must be identified from efficiency curves or manufacturer simulation tools. For most hobby and robotics motors, iron losses are small compared to copper losses and can be neglected. They become significant at high speeds in large industrial motors.
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Temperature-Dependent Resistance}
+\label{sec:resistance_temperature}
+
+Copper resistance increases approximately linearly with temperature:
+\begin{equation}
+  R(T) = R_0 \left(1 + \alpha (T - T_0)\right)
+  \label{eq:resistance_temperature}
+\end{equation}
+where $R_0$ is resistance at reference temperature $T_0$ and $\alpha \approx 0.0039 \, \text{K}^{-1}$ for copper. This is the dominant thermal feedback: as $T$ rises, $R$ increases, so for a given voltage the current $i = (v - K \omega) / R(T)$ drops, reducing torque.
+
+Note that $R(T)$ also increases heating for a given current ($P = i^2 R(T)$), creating mild positive feedback under current control.
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Magnet Flux Derating}
+\label{sec:magnet_derating}
+
+Permanent magnet flux weakens with temperature, reducing $K$:
+\begin{equation*}
+  K(T) = K_0 \left(1 + \alpha_m (T - T_0)\right)
+  \label{eq:kt_temperature}
+\end{equation*}
+with $\alpha_m < 0$ (motor-dependent). This effect is often small over normal operating ranges and can be ignored.
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Thermal Derating}
+\label{sec:thermal_derating}
+
+Real actuators limit current as winding temperature approaches a maximum:
+\begin{equation*}
+  i_{\max}(T) = \begin{cases}
+    i_{\text{rated}} & T \le T_1 \\
+    i_{\text{safe}} + (i_{\text{rated}} - i_{\text{safe}}) \, s(T) & T_1 < T < T_2 \\
+    i_{\text{safe}} & T \ge T_2
+  \end{cases}
+\end{equation*}
+where $s(T)$ is a smooth interpolant between $T_1$ and $T_2$. This reduces the maximum available torque as the motor heats up.
+
+% ---------------------------------------------------------------------------
+%  Micro-Friction Models
+% ---------------------------------------------------------------------------
+\subsection{Micro-Friction Models}
+\label{sec:micro_friction}
+
+Simple macroscopic friction models (Coulomb, viscous) cannot capture complex mechanical phenomena common in real motors with gear trains, such as pre-sliding hysteresis and stick-slip limit cycles. To capture these behaviors, a richer dynamic model is required. At the microscopic level, two surfaces in contact touch at many asperities which deform elastically under tangential load. This can be modeled as an average bristle deflection $z$, governed by a first-order ODE driven by the relative velocity $\omega$. Friction torque is then a function of $z$, $\dot{z}$, and $\omega$.
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Dahl Model}
+\label{sec:dahl}
+
+The simplest stateful model~\cite{dahl68} treats friction as a rate-independent hysteresis operator derived from the stress-strain curve:
+\begin{equation*}
+  \dot{z} = \omega - \frac{\sigma_0}{\tau_c} |\omega| \, z
+  \label{eq:dahl_state}
+\end{equation*}
+with output $\tau = -\sigma_0 z$. In steady state ($\dot{z}=0$), $z_{ss} = \tau_c \, \text{sgn}(\omega) / \sigma_0$ so $\tau_{ss} = -\tau_c \, \text{sgn}(\omega)$: pure Coulomb friction opposing motion. The two parameters are the bristle stiffness $\sigma_0$ (torque/radian) and the Coulomb friction torque $\tau_c$.
+For small displacements the model is approximately linear ($\tau \approx -\sigma_0 \theta$), giving spring-like pre-sliding behavior with hysteresis during direction reversals (Figure~\ref{fig:hysteresis}). The Dahl model does not capture the Stribeck effect~\cite{stribeck1902} (the drop in friction at low velocity) and thus cannot predict stick-slip motion.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.9\columnwidth, height=0.55\columnwidth,
+  axis lines=middle,
+  xlabel={$\theta$}, ylabel={$\tau$},
+  xmin=-1.4, xmax=1.4, ymin=-1.4, ymax=1.4,
+  xtick=\empty, ytick=\empty,
+  every axis x label/.style={at={(ticklabel* cs:1)}, anchor=west},
+  every axis y label/.style={at={(ticklabel* cs:1)}, anchor=south},
+  clip=false,
+]
+\pgfmathsetmacro{\sig}{2.5}
+\pgfmathsetmacro{\Fc}{1.0}
+\pgfmathsetmacro{\xm}{1.0}
+\pgfmathsetmacro{\ch}{(exp(\sig*\xm)+exp(-\sig*\xm))/2}
+\addplot[thick, blue, domain=-\xm:\xm, samples=150, name path=lower]
+  {-\Fc*(1 - exp(-\sig*x)/\ch)};
+\addplot[thick, blue, domain=-\xm:\xm, samples=150, name path=upper]
+  {\Fc*(1 - exp(\sig*x)/\ch)};
+\addplot[blue, opacity=0.08] fill between[of=lower and upper];
+\draw[thick, dotted] (axis cs:-1.4, -\Fc) -- (axis cs:1.4, -\Fc)
+  node[right, font=\scriptsize] {$-\tau_c$};
+\draw[thick, dotted] (axis cs:-1.4, \Fc) -- (axis cs:1.4, \Fc)
+  node[right, font=\scriptsize] {$\tau_c$};
+\draw[->, thick, gray] (axis cs:0.05, -0.78) -- (axis cs:0.25, -0.83);
+\draw[->, thick, gray] (axis cs:-0.05, 0.78) -- (axis cs:-0.25, 0.83);
+\end{axis}
+\end{tikzpicture}
+\caption{Hysteresis loop: friction torque $\tau$ vs.\ displacement $\theta$ under slow
+  periodic loading (Dahl model).
+  The loop area represents energy dissipated per cycle.
+  Unlike memoryless Coulomb friction, the torque is continuous.}
+\label{fig:hysteresis}
+\end{figure}
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{LuGre Model}
+\label{sec:lugre}
+
+The LuGre model~\cite{dewit95, lugre_revisited} extends Dahl by making the bristle saturation velocity-dependent and adding micro-damping and viscous terms:
+\begin{subequations}
+\label{eq:lugre}
+\begin{align}
+  \dot{z} &= \omega - \sigma_0 \frac{|\omega|}{g(\omega)} z
+    \label{eq:lugre_state} \\
+  \tau &= -(\sigma_0 z + \sigma_1 \dot{z} + \sigma_2 \omega)
+    \label{eq:lugre_force}
+\end{align}
+\end{subequations}
+where the function $g(\omega)$ captures the Stribeck effect:
+\begin{equation}
+  g(\omega) = \tau_c + (\tau_s - \tau_c) \, e^{-(\omega/\omega_s)^\gamma}
+  \label{eq:stribeck}
+\end{equation}
+with exponent $\gamma$ typically 1 or 2. In steady state, $\tau_{ss}(\omega) = -g(\omega) \, \text{sgn}(\omega) - \sigma_2 \omega$: the classic Stribeck curve (Figure~\ref{fig:stribeck}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.9\columnwidth, height=0.55\columnwidth,
+  axis lines=middle,
+  xlabel={$\omega$}, ylabel={$\tau_{ss}$},
+  xmin=-3, xmax=3, ymin=-2.5, ymax=2.5,
+  xtick=\empty, ytick=\empty,
+  every axis x label/.style={at={(ticklabel* cs:1)}, anchor=west},
+  every axis y label/.style={at={(ticklabel* cs:1)}, anchor=south},
+  clip=false,
+]
+\pgfmathsetmacro{\Fc}{1.0}
+\pgfmathsetmacro{\Fs}{1.8}
+\pgfmathsetmacro{\vs}{0.5}
+\pgfmathsetmacro{\sigtwo}{0.15}
+\addplot[thick, blue, domain=0.01:3, samples=200]
+  {-(\Fc + (\Fs-\Fc)*exp(-(x/\vs)^2)) - \sigtwo*x};
+\addplot[thick, blue, domain=-3:-0.01, samples=200]
+  {(\Fc + (\Fs-\Fc)*exp(-(-x/\vs)^2)) - \sigtwo*x};
+\addplot[thick, dashed, gray, domain=-3:3, samples=2] {-\sigtwo*x};
+\draw[thick, dotted] (axis cs:0,-\Fs) -- (axis cs:3,-\Fs)
+  node[right, font=\scriptsize] {$-\tau_s$};
+\draw[thick, dotted] (axis cs:0,-\Fc) -- (axis cs:3,-\Fc)
+  node[right, font=\scriptsize] {$-\tau_c$};
+\draw[thick, dotted] (axis cs:0,\Fs) -- (axis cs:-3,\Fs)
+  node[left, font=\scriptsize] {$\tau_s$};
+\draw[thick, dotted] (axis cs:0,\Fc) -- (axis cs:-3,\Fc)
+  node[left, font=\scriptsize] {$\tau_c$};
+\node[font=\footnotesize, anchor=north east] at (axis cs:-0.5, -0.1)
+  {$-\sigma_2\omega$};
+\end{axis}
+\end{tikzpicture}
+\caption{Steady-state friction $\tau_{ss}(\omega) = -g(\omega)\,\text{sgn}(\omega) - \sigma_2 \omega$.
+  Stiction torque $\tau_s$ at $\omega\!=\!0$ drops to Coulomb level $\tau_c$
+  over velocity scale $\omega_s$ (Stribeck effect). Friction opposes motion.}
+\label{fig:stribeck}
+\end{figure}
+
+\noindent The Dahl model is recovered by setting $g(\omega) = \tau_c$ and $\sigma_1 = \sigma_2 = 0$. Linearizing around $\omega = z = 0$ gives second-order dynamics $J\ddot{\theta} - (\sigma_1 + \sigma_2)\dot{\theta} - \sigma_0 \theta = \tau$ (applied torque): a spring-damper with natural frequency $\omega_n = \sqrt{\sigma_0/J}$, critically damped when $\sigma_1 = 2\sqrt{J\sigma_0}$.
+
+The LuGre model can be shown to be input-strictly-passive (the map $\omega \mapsto \tau$ dissipates energy) provided $\sigma_2 > \sigma_1 (\tau_s - \tau_c)/\tau_c$. This passivity condition limits $\sigma_1$ and can lead to underdamped micro-dynamics, motivating the following extension.
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Velocity-Dependent Damping}
+\label{sec:vel_damping}
+
+The passivity constraint on $\sigma_1$ can be relaxed by making the micro-damping decrease with velocity:
+\begin{equation*}
+  \sigma_1(\omega) = \bar{\sigma}_1\, e^{-(\omega/\omega_s)^\beta}
+  \label{eq:sigma1_vel}
+\end{equation*}
+This allows large damping in the stiction regime (good for numerical stability and physical fidelity) while satisfying passivity at higher velocities where $\sigma_1 \to 0$.
+
+Together with $\tau_c$ from \S\ref{sec:mechanical}, the LuGre model with velocity-dependent damping adds six parameters:
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Symbol & Description & Units \\
+\midrule
+$\sigma_0$ & Bristle stiffness, pre-sliding slope & N$\cdot$m/rad \\
+$\bar{\sigma}_1$ & Peak bristle damping at $\omega = 0$ & N$\cdot$m$\cdot$s/rad \\
+$\sigma_2$ & Viscous damping coefficient & N$\cdot$m$\cdot$s/rad \\
+$\tau_s$ & Stiction torque, $\tau_s \ge \tau_c$ & N$\cdot$m \\
+$\omega_s$ & Stribeck velocity & rad/s \\
+$\beta$ & Damping decay exponent & dimensionless \\
+\bottomrule
+\end{tabular}
+\caption{Parameters of the LuGre friction model (\S\ref{sec:lugre}--\ref{sec:vel_damping}).}
+\label{tab:lugre_params}
+\end{table}
+
+
+\newpage
+%=============================================================================
+% IMPLEMENTATION
+%=============================================================================
+\section{Implementation}
+\label{sec:implementation}
+
+Here we describe MuJoCo's \texttt{dcmotor} actuator. Some scalars are grouped into vectors; we use a colon to denote such scalar sub-attributes, e.g.\ \texttt{cogging:phase} refers to the third element of the \texttt{cogging} attribute (see Tables \ref{tab:mjcf_attributes} and \ref{tab:cogging_impl}).
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}lll@{}}
+\toprule
+Attribute & Size & Description \\
+\midrule
+\texttt{resistance} & 1 & Terminal resistance $R$ \\
+\texttt{motorconst} & 2 & Motor constants ($K_t, K_e$; see below) \\
+\texttt{nominal}    & 3 & Nominal operating point ($v_n, \tau_0, \omega_0$) \\
+\texttt{inductance} & 2 & Electrical dynamics ($L, t_e$) \\
+\texttt{thermal}    & 6 & Thermal model ($R_T, C, t_T, \alpha, T_0, T_a$) \\
+\texttt{saturation} & 4 & Limits ($\tau_{\max}, i_{\max}, v_{\max}, (di{/}dt)_{\max}$) \\
+\midrule
+\texttt{cogging}    & 3 & Cogging torque ($A, N_p, \phi$) \\
+\texttt{lugre}      & 6 & LuGre friction ($\sigma_0, \sigma_1, \sigma_2, \tau_c, \tau_s, \omega_s$) \\
+\texttt{damping}    & 3 & Viscous damping coefficients \\
+\texttt{armature}   & 1 & Armature inertia \\
+\midrule
+\texttt{input}      & keyword & Mode (voltage/position/velocity) \\
+\texttt{controller} & 5 & Gains and slew ($k_p, k_i, k_d, s, I_{\max}$) \\
+\bottomrule
+\end{tabular}
+\caption{MJCF attributes for the \texttt{dcmotor} actuator, split into electrical, mechanical and control groupings.}
+\label{tab:mjcf_attributes}
+\end{table}
+
+% ---------------------------------------------------------------------------
+%  Stateless dcmotor
+% ---------------------------------------------------------------------------
+\subsection{Stateless DC Motor}
+\label{sec:dcmotor}
+
+The output torque of the stateless motor follows Eq.~\eqref{eq:saturation}, mapping physical parameters to the underlying affine model. The three core parameters are the effective motor constant $K$, resistance $R$, and maximum torque $\tau_{\max}$.
+They are stored in \texttt{mjModel} as follows:
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Symbol & Description & \texttt{mjModel} storage \\
+\midrule
+$R$ & Resistance & \texttt{gainprm[0]} \\
+$K$ & Effective motor constant & \texttt{gainprm[1]} \\
+$\tau_{\max}$ & Maximum torque & \texttt{forcerange} \\
+\bottomrule
+\end{tabular}
+\caption{Stateless DC motor core parameters.}
+\end{table}
+
+\noindent The gain $G = K/R$ and back-EMF bias $-GK\omega$ are computed at runtime. Storing $R$ separately allows temperature-dependent resistance $R(T)$, Eq.~\eqref{eq:resistance_temperature}, to be applied. These three core parameters can be specified with a combination of eight sub-attributes
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Attribute & Symbol & Units \\
+\midrule
+\atR{} & $R$ & Ohm \\
+\atKt{} & $K_t$ & N$\cdot$m/A \\
+\atKe{} & $K_e$ & V$\cdot$s/rad \\
+\atVM{} & $v_n$ & Volt \\
+\atSTALL{} & $\tau_0\!=\!Kv_n/R$ & N$\cdot$m \\
+\atNLS{} & $\omega_0\!\approx\!v_n/K$ & rad/s \\
+\atTMAX{} & $\tau_{\max}$ & N$\cdot$m \\
+\atIMAX{} & $i_{\max}$ & Ampere \\
+\bottomrule
+\end{tabular}
+\caption{Stateless DC motor basic attributes.}
+\end{table}
+
+\noindent The attribute \atK{} has two sub-attributes, \texttt{Kt} and \texttt{Ke}. If both are positive, $K = \sqrt{K_t K_e}$ (preserving power balance $K^2 = K_t K_e$). If only one is positive, $K$ equals that value.
+
+\pagebreak
+\noindent The following attribute combinations are supported:
+\begin{enumerate}[itemsep=2pt, parsep=0pt, topsep=2pt]
+  \item Effective motor constant $K$, one of:
+    \begin{itemize}[itemsep=1pt, parsep=0pt, topsep=1pt]
+      \item \atKt{} \emph{and/or} \atKe{}
+      \item \atNLS{} \emph{and} \atVM{}
+    \end{itemize}
+  \item Resistance $R$, one of:
+    \begin{itemize}[itemsep=1pt, parsep=0pt, topsep=1pt]
+      \item \atR{}
+      \item \atSTALL{} \emph{and} \atVM{}
+    \end{itemize}
+  \item Maximum torque $\tau_{\max}$, one of:
+    \begin{itemize}[itemsep=1pt, parsep=0pt, topsep=1pt]
+      \item \atTMAX{}
+      \item \atIMAX{}
+    \end{itemize}
+\end{enumerate}
+
+\noindent \atIMAX{} corresponds to the continuous (thermal) current limit. Peak current behavior can be approximated with the thermal model (\S\ref{sec:temperature_impl}).
+
+\paragraph{Rotor Inertia and Gearing.} To model rotor inertia with a gear train, set the actuator's \texttt{armature} $= J_r$ and \texttt{gear} $= N$. Actuator-level \texttt{armature} automatically scales the inertia by $N^2$ to reflect $J_{\text{eff}}$ to the output shaft.
+
+\paragraph{Mechanical Drag.} The full torque-speed envelope applies viscous drag \emph{outside} the current clamp:
+\begin{equation*}
+  \tau_{\text{net}} = \text{clip}\!\left( \frac{K}{R}(v - K \, \omega),\;
+    \pm \tau_{\max} \right) - b(\omega)
+  \label{eq:drag}
+\end{equation*}
+Actuator-level \texttt{damping} reproduces this post-clamp behavior. It accepts an array of polynomial drag coefficients (\texttt{damping[0]} $= B_1$, \texttt{damping[1]} $= B_2$, $\dots$). As with \texttt{armature}, actuator-level \texttt{damping} is scaled by $N^2$.
+
+\paragraph{Cogging Torque.} The magnetic torque ripple of Eq.~\eqref{eq:cogging} is modeled as a periodic bias added to the actuator force, where $\theta$ is the \texttt{actuator\_length}, i.e.\ the transmission-transformed joint angle.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Attribute & Symbol & Units \\
+\midrule
+\atCOGA{} & $A$ & N$\cdot$m \\
+\atCOGP{} & $N_p$ & dimensionless \\
+\atCOGPH{} & $\phi$ & radian \\
+\bottomrule
+\end{tabular}
+\caption{Cogging torque attributes.}
+\label{tab:cogging_impl}
+\end{table}
+
+\paragraph{Mapping to Isaac Lab.}
+Isaac Lab~\cite{isaaclab2025} implements the stateless DC motor model. Table~\ref{tab:mapping} maps its attributes to the constants defined in this document and to the \texttt{dcmotor} attributes.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}lll@{}}
+\toprule
+Symbol & MuJoCo & Isaac Lab \\
+\midrule
+$\tau_0$ & \atSTALL{} & \texttt{saturation\_effort} \\
+$\omega_0$ & \atNLS{} & \texttt{velocity\_limit} \\
+$\tau_{\max}$ & \atTMAX{} & \texttt{effort\_limit} \\
+\bottomrule
+\end{tabular}
+\caption{Mapping of attributes to Isaac Lab.}
+\label{tab:mapping}
+\end{table}
+
+\noindent Isaac Lab does not expose electrical parameters. To reproduce the same torque-speed envelope, set \atVM{} to any positive value (e.g.,~\texttt{1}) and \texttt{ctrlrange} to $\pm$\,that value (e.g., \texttt{"-1 1"}).
+
+\paragraph{Gearbox Efficiency.} Gearbox efficiency $\eta$ is not a separate attribute. To account for transmission losses, reduce the motor constant: $K \rightarrow \eta K$. This correctly reduces forward torque transmission.
+
+\paragraph{Computed parameters.}
+Several derived quantities that appear on datasheets can be computed and used to cross-check the parameterization. The torque-speed gradient $\partial\omega/\partial\tau = -R/K^2$ gives the slope of the torque-speed line (Table~\ref{tab:electromech_constants}). The mechanical time constant $t_m = R\,J/K^2$ is the time for the motor to reach 63\% of its no-load speed under a voltage step, where $J$ is the rotor inertia (\texttt{armature}). The nominal (continuous) torque is $\tau_n = K \cdot i_{\max}$. The no-load current $i_0$ can be computed from Eq.~\eqref{eq:noload} given known friction parameters. See Table~\ref{tab:datasheet}.
+
+\paragraph{Not modeled:}
+Nonlinear torque constant $K_t(i)$. Separate $K_t$ and $K_e$ values are accepted via \atKt{} and \atKe{} but collapsed to a single effective $K = \sqrt{K_t K_e}$.
+
+
+% ---------------------------------------------------------------------------
+%  Stateful Current
+% ---------------------------------------------------------------------------
+\subsection{Stateful Current}
+\label{sec:current_impl}
+
+A winding current state variable governed by Eq.~\eqref{eq:inductance} is added if the electrical time constant $t_e > 0$ (derived from inductance $L > 0$ or specified directly). When enabled, the state is integrated by \texttt{mjDYN\_DCMOTOR}, and the gain switches from $K/R$ (stateless) to $K$ (stateful).
+The time constant $t_e$ can be determined by either:
+
+\begin{itemize}[itemsep=0pt, parsep=0pt, topsep=2pt]
+  \item \atTE{}
+  \item \atL{} \emph{and} \atR{} (via $t_e = L/R$)
+\end{itemize}
+
+\paragraph{Current rate limiting.} When the sub-attribute \atCRATE{} is set ($(di/dt)_{\max} > 0$) and the current state is enabled ($t_e > 0$), the rate of change of current is clamped:
+\begin{equation*}
+  \frac{di}{dt} \leftarrow \text{clip}\!\left(\frac{di}{dt},\; \pm(di/dt)_{\max}\right)
+\end{equation*}
+This limits the torque ramp rate to $K \cdot (di/dt)_{\max}$ (N$\cdot$m/s) without requiring any additional state variables, since the current $i$ is already an activation variable and we are simply clamping its rate of change. This attribute has no effect when $t_e = 0$ (stateless current).
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}lll@{}}
+\toprule
+Attribute & Symbol & Units \\
+\midrule
+\atL{} & $L$ & Henry \\
+\atTE{} & $t_e\!=\!L/R$ & second \\
+\atCRATE{} & $(di{/}dt)_{\max}$ & Ampere/second \\
+\bottomrule
+\end{tabular}
+\caption{Stateful current attributes.}
+\end{table}
+
+% ---------------------------------------------------------------------------
+%  Temperature
+% ---------------------------------------------------------------------------
+\subsection{Temperature}
+\label{sec:temperature_impl}
+
+A winding temperature state governed by the lumped ODE~\eqref{eq:thermal_ode} is added if any of the thermal attributes ($R_T, C, t_T$) are specified. The state $T$ is the temperature rise above ambient ($T = T_{\text{winding}} - T_a$), so the absolute temperature is $T + T_a$. Temperature modifies the winding resistance via Eq.~\eqref{eq:resistance_temperature}, which feeds back into the motor equation: higher temperature increases resistance, leading to reduced current for a given voltage.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Attribute & Symbol & Units \\
+\midrule
+\atRT{} & $R_T$ & K/W \\
+\atTC{} & $C$ & J/K \\
+\atTT{} & $t_T\!=\!R_T C$ & s \\
+\atALPHA{} & $\alpha$ & 1/K \\
+\atTREF{} & $T_0$ & \textdegree C \\
+\atTAMB{} & $T_a$ & \textdegree C \\
+\bottomrule
+\end{tabular}
+\caption{Thermal model attributes.}
+\end{table}
+
+\noindent The time constant $t_T$ can be determined by either:
+\begin{itemize}[itemsep=0pt, parsep=0pt, topsep=2pt]
+  \item \atTT{}
+  \item \atRT{} \emph{and} \atTC{}
+\end{itemize}
+
+\paragraph{Not modeled:}
+Iron losses (\S\ref{sec:thermal_losses}), magnet flux derating (\S\ref{sec:magnet_derating}), and thermal current derating (\S\ref{sec:thermal_derating}). Only copper losses ($i^2 R$) drive the thermal model; $K$ is treated as temperature-independent.
+
+% ---------------------------------------------------------------------------
+%  Stateful Friction
+% ---------------------------------------------------------------------------
+\subsection{Stateful Friction}
+\label{sec:friction_impl}
+
+A bristle deflection state governed by the LuGre model (\S\ref{sec:lugre}) is added if the bristle stiffness $\sigma_0 > 0$.
+
+The Stribeck function $g(\omega)$, Eq.~\eqref{eq:stribeck}, determines velocity-dependent friction, and the friction force is given by Eq.~\eqref{eq:lugre_force}. The bristle state is integrated using the exact ZOH scheme~\eqref{eq:zoh}. The viscous term $\sigma_2 \omega$ is mapped directly to the standard \texttt{actuator\_damping} attribute to leverage MuJoCo's implicit integration, while maintaining the $\sigma_2$ \texttt{lugre} sub-attribute for convenience.
+\paragraph{Integration.}
+The bristle stiffness $\sigma_0$ is typically very large ($10^5$--$10^6$ N$\cdot$m/rad), creating a stiff ODE. At constant velocity, the state equation~\eqref{eq:lugre_state} has the form $\dot{z} = a z + b \omega$ where $a = -\sigma_0 |\omega| / g(\omega)$ and $b = 1$. Euler integration is unstable unless $|1 + a \Delta t| < 1$, requiring impractically small timesteps ($\Delta t < 2g(\omega)/(\sigma_0 |\omega|)$, on the order of microseconds).
+Under a zero-order hold assumption ($\omega$ constant over the timestep), the linear ODE $\dot{z} = az + b\omega$ can be solved exactly:
+\begin{equation}
+  z_{k+1} = e^{a \Delta t} z_k
+    + \frac{b(e^{a \Delta t} - 1)}{a} \, \omega
+  \label{eq:zoh}
+\end{equation}
+reducing to $z_{k+1} = z_k + b\omega\Delta t$ in the limit $a \to 0$. This integration is unconditionally stable for any $\Delta t$.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Attribute & Symbol & Units \\
+\midrule
+\atSIG{} & $\sigma_0$ & N$\cdot$m/rad \\
+\atSIGD{} & $\sigma_1$ & N$\cdot$m$\cdot$s/rad \\
+\atSIGV{} & $\sigma_2$ & N$\cdot$m$\cdot$s/rad \\
+\atTAUC{} & $\tau_c$ & N$\cdot$m \\
+\atTAUS{} & $\tau_s$ & N$\cdot$m \\
+\atWS{} & $\omega_s$ & rad/s \\
+\bottomrule
+\end{tabular}
+\caption{LuGre friction attributes.}
+\end{table}
+
+\noindent\textbf{Not modeled:}
+Velocity-dependent bristle damping $\sigma_1(\omega)$ (\S\ref{sec:vel_damping}), a constant $\sigma_1$ is used. The Stribeck exponent is not exposed and fixed at $\gamma = 2$.
+
+\newpage
+% ---------------------------------------------------------------------------
+%  PID Controller
+% ---------------------------------------------------------------------------
+\subsection{PID Controller}
+\label{sec:controller}
+
+Many actuators embed an on-board controller computing drive voltage from position or velocity commands. To model such actuators, \texttt{dcmotor} supports an optional controller layer upstream of the motor physics. Two attributes control this behavior:
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Attribute & Type & Description \\
+\midrule
+\texttt{input} & keyword & \texttt{voltage}, \texttt{position}, \texttt{velocity} \\
+\texttt{controller} & vector & Gains (mode-dependent) \\
+\bottomrule
+\end{tabular}
+\caption{Controller attributes. Default \texttt{input} is \texttt{voltage}.}
+\label{tab:controller_attributes}
+\end{table}
+
+\noindent Unlike the motor parameters in Table~\ref{tab:datasheet}, controller gains are user-specified firmware settings. Gains are in {\em voltage-space} (e.g., $k_p$ in V/rad) since the output is a voltage $v$. To convert from physical torque-space (N$\cdot$m/rad), multiply by $R/K$.
+
+The controller computes a target voltage $v$ from the \texttt{ctrl} command. All motor physics --- cogging, saturation, friction, etc. --- apply identically downstream of $v$. The \texttt{input} attribute selects the controller:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={draw, rounded corners=2pt, minimum height=1.6em,
+                font=\scriptsize, fill=blue!5},
+  mode/.style={font=\scriptsize, text=blue!70!black},
+  arr/.style={->, thick, >=stealth},
+  every node/.style={inner sep=2pt},
+]
+% ctrl input
+\node[font=\small] (ctrl) at (0, 3.5) {Input $u = {}$\texttt{ctrl}};
+
+% Mode selector box
+\node[block, minimum width=5.5cm, minimum height=6.5em, align=center]
+  (sel) at (0, 1.8) {};
+\node[font=\footnotesize\bfseries, anchor=north] at (0, 2.7)
+  {Controller mode};
+\node[mode] at (0, 1.45) {$\begin{aligned}
+  \texttt{voltage:}\quad v &= u \\[2pt]
+  \texttt{position:}\quad v &= k_p(u\!-\!\theta) + k_i x_I - k_d\dot\theta \\[2pt]
+  \texttt{velocity:}\quad v &= k_p(u\!-\!\dot\theta) + k_i(x_I\!-\!\theta)
+\end{aligned}$};
+
+% arrow ctrl to mode
+\draw[arr] (ctrl.south) -- (sel.north);
+
+% Motor block
+\node[block, font=\footnotesize\bfseries, minimum width=5.5cm, minimum height=2.2em, align=center]
+  (motor) at (0, -0.8) {DC Motor physics};
+
+% single arrow with v label
+\draw[arr] (sel.south) -- (motor.north)
+  node[midway, fill=white, font=\small, inner sep=2pt] {Voltage $v$};
+
+% output
+\node[font=\small] (tau) at (0, -1.8) {Torque $\tau$};
+\draw[arr] (motor.south) -- (tau.north);
+
+\end{tikzpicture}
+\caption{Controller pipeline. The \texttt{input} attribute selects how $v$ is derived from \texttt{ctrl}; motor physics is identical downstream.}
+\label{fig:controller_pipeline}
+\end{figure}
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Position Mode}
+\label{sec:position_mode}
+
+When \texttt{input="position"}, the user command $u = {}$\texttt{ctrl} is a target position, yielding voltage:
+\begin{equation}
+  v = k_p \, (u - \theta) + k_i \, x_I - k_d \, \dot\theta
+  \label{eq:position_mode}
+\end{equation}
+where $\theta$ is the actuator length, $\dot\theta \equiv \omega$ is the actuator velocity, $x_I$ is the integral of position error, and $k_p$, $k_i$, $k_d$ are the proportional, integral, and derivative gains.
+
+\noindent The signs in~\eqref{eq:position_mode} follow MuJoCo convention: $k_p > 0$ drives toward the target, $k_d > 0$ provides damping (opposing velocity), and $k_i > 0$ reduces steady-state error.
+
+\paragraph{Integral state.} When $k_i > 0$, one additional activation state $x_I$ is allocated, governed by:
+\begin{equation*}
+  \dot{x}_I = u - \theta
+  \label{eq:position_integral}
+\end{equation*}
+When $k_i = 0$, no integral state is added and the controller reduces to PD.
+
+\paragraph{Effective torque.} Substituting~\eqref{eq:position_mode} into the stateless torque equation~\eqref{eq:torque_speed}:
+\begin{equation*}
+  \tau = \frac{K}{R} v - \frac{K^2}{R}\dot\theta
+    = \underbrace{\frac{K k_p}{R}}_{\text{stiffness}} (u - \theta)
+    + \frac{K k_i}{R} x_I
+    - \underbrace{\frac{K(K + k_d)}{R}}_{\text{damping}} \dot\theta
+  \label{eq:position_torque}
+\end{equation*}
+Note that the motor's back-EMF term $K^2\dot\theta/R$ contributes {\em additional damping} beyond the controller $k_d$ term. Even with $k_d\!=\!0$, the motor provides natural damping $K^2/R$. The computed $v$ is subject to voltage saturation (\S\ref{sec:voltage_saturation}).
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Attribute & Symbol & Units \\
+\midrule
+\atKP{} & $k_p$ & V/rad \\
+\atKI{} & $k_i$ & V/(rad$\cdot$s) \\
+\atKD{} & $k_d$ & V$\cdot$s/rad \\
+\bottomrule
+\end{tabular}
+\caption{Position mode controller gains.}
+\label{tab:position_params}
+\end{table}
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Velocity Mode}
+\label{sec:velocity_mode}
+
+When \texttt{input="velocity"}, the user command $u = {}$\texttt{ctrl} is a target velocity, and $k_p$, $k_i$ are the proportional and integral gains.
+\begin{equation}
+  v = k_p \, (u - \dot\theta) + k_i \, (x_I - \theta)
+  \label{eq:velocity_mode}
+\end{equation}
+
+\paragraph{Integral state.} When $k_i > 0$, one additional activation state $x_I$ is allocated, governed by the integrator:
+\begin{equation*}
+  \dot{x}_I = u
+  \label{eq:velocity_integral}
+\end{equation*}
+The term $k_i(x_I - \theta)$ then tracks a target position $x_I$ advancing at the commanded velocity $u$. This matches MuJoCo's \texttt{intvelocity} actuator behavior.
+
+When $k_i = 0$, no integral state is added and the controller provides pure velocity feedback. The computed $v$ is subject to voltage saturation (\S\ref{sec:voltage_saturation}).
+
+\paragraph{Effective torque.} Substituting~\eqref{eq:velocity_mode} into~\eqref{eq:torque_speed}:
+\begin{equation*}
+  \tau = \underbrace{\frac{K k_i}{R}}_{\text{stiffness}} (x_I - \theta)
+    - \underbrace{\frac{K(K + k_p)}{R}}_{\text{damping}} \dot\theta
+    + \frac{K k_p}{R} u
+  \label{eq:velocity_torque}
+\end{equation*}
+Note the role swap compared to position mode: $k_i$ provides stiffness (position tracking to $x_I$) while $k_p$ adds damping alongside the motor's natural back-EMF damping $K^2/R$.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Attribute & Symbol & Units \\
+\midrule
+\atKP{} & $k_p$ & V$\cdot$s/rad \\
+\atKI{} & $k_i$ & V/rad \\
+\bottomrule
+\end{tabular}
+\caption{Velocity mode controller gains.}
+\label{tab:velocity_params}
+\end{table}
+
+\pagebreak
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Setpoint Slew Rate}
+\label{sec:setpoint_slew}
+
+The user command $u = {}$\texttt{ctrl} can change discontinuously between timesteps. When \atSLEW{} is set ($s > 0$), the effective setpoint is rate-limited:
+\begin{equation*}
+  u \leftarrow \text{clip}(u, \; u_{\text{prev}} \pm s \cdot \Delta t)
+\end{equation*}
+where $u_{\text{prev}}$ is the previous effective setpoint and $\Delta t$ is the timestep. This smoothly ramps the reference trajectory instead of allowing instantaneous jumps.
+
+\paragraph{State variable.} When $s > 0$, one activation state $u_{\text{prev}}$ is allocated, and updated each step to $u$ (post-clamping).
+
+\paragraph{Units.} The slew rate $s$ has mode-dependent units: rad/s for position mode (limiting setpoint velocity), rad/s\textsuperscript{2} for velocity mode (limiting setpoint acceleration), and V/s for voltage mode.
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Anti-windup}
+\label{sec:anti_windup}
+
+When $k_i > 0$, the integrator state $x_I$ provides steady-state error correction. However, sustained saturation or large setpoint changes can cause $x_I$ to grow excessively, leading to overshoot (integral windup). To prevent this, when \atIMAXINT{} is set ($I_{\max} > 0$), the state is bounded each step:
+\begin{equation*}
+  x_I \leftarrow \text{clip}(x_I, \pm I_{\max})
+\end{equation*}
+This prevents controller windup even when drive signals are saturated.
+
+%  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Voltage Saturation}
+\label{sec:voltage_saturation}
+
+In \texttt{position} and \texttt{velocity} modes, the computed voltage $v$ can be arbitrarily large (proportional to the error). Real motor drivers are limited by their supply voltage. When \atVMAX{} is set ($v_{\max} > 0$), a voltage clamp is applied before the motor equations:
+\begin{equation*}
+  v \leftarrow \text{clip}(v, \pm v_{\max})
+  \label{eq:vlimit}
+\end{equation*}
+This differs from \texttt{ctrlrange} (clamping user command $u$) and \texttt{forcerange} (clamping output torque). In position and velocity modes, \texttt{ctrlrange} limits the setpoint while \atVMAX{} limits the drive signal. In voltage mode ($v = u$), both clamp the voltage; if both are set, the tighter limit wins.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Attribute & Symbol & Units \\
+\midrule
+\atKP{} & $k_p$ & mode-dependent \\
+\atKI{} & $k_i$ & mode-dependent \\
+\atKD{} & $k_d$ & V$\cdot$s/rad \\
+\atSLEW{} & $s$ & ctrl-units/s \\
+\atIMAXINT{} & $I_{\max}$ & mode-dependent \\
+\atVMAX{} & $v_{\max}$ & Volt \\
+\bottomrule
+\end{tabular}
+\caption{Controller attributes.}
+\label{tab:controller_attrs}
+\end{table}
+
+% ---------------------------------------------------------------------------
+%  Low-Level Semantics
+% ---------------------------------------------------------------------------
+\subsection{Low-Level Semantics}
+\label{sec:array_semantics}
+
+The \texttt{dcmotor} actuator uses the enum value types \texttt{mjGAIN\_DCMOTOR}, \texttt{mjDYN\_DCMOTOR}, \texttt{mjBIAS\_DCMOTOR}, and populates the rows of several \texttt{mjModel} arrays (all \texttt{actuator\_*}), as follows:
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{@{}llll@{}}
+\toprule
+Array & Index & Symbol & Description \\
+\midrule
+\texttt{gainprm} & 0 & $R$ & Resistance ($\Omega$) \\
+& 1 & $K$ & Motor constant (N$\cdot$m/A) \\
+& 2 & $\alpha$ & Resistance coeff.\ ($\text{K}^{-1}$) \\
+& 3 & $T_0$ & Reference temperature (\textdegree C) \\
+& 4 & $k_p$ & Controller proportional gain \\
+& 5 & $k_i$ & Controller integral gain \\
+& 6 & $k_d$ & Controller derivative gain \\
+& 7 & $v_{\max}$ & Voltage saturation (V) \\
+& 8 & --- & Input mode (0:\ $v$, 1:\ $\theta$, 2:\ $\dot\theta$) \\
+\midrule
+\texttt{dynprm} & 0 & $t_e$ & Electrical time constant (s) \\
+& 1 & $(di{/}dt)_{\max}$ & Current rate limit (A/s) \\
+& 2 & $R_T$ & Thermal resistance ($\text{K}$/W) \\
+& 3 & $C$ & Thermal capacitance (J/$\text{K}$) \\
+& 4 & $T_a$ & Ambient temperature (\textdegree C) \\
+& 5 & $\sigma_0$ & LuGre bristle stiffness \\
+& 6 & $\sigma_1$ & LuGre bristle damping \\
+& 7 & $s$ & Controller slew rate \\
+& 8 & $I_{\max}$ & Integral limit (anti-windup) \\
+\midrule
+\texttt{biasprm} & 0 & $A$ & Cogging amplitude (N$\cdot$m) \\
+& 1 & $N_p$ & Cogging periodicity \\
+& 2 & $\phi$ & Cogging phase (rad) \\
+& 3 & $\tau_c$ & LuGre Coulomb fric. (N$\cdot$m) \\
+& 4 & $\tau_s$ & LuGre static fric. (N$\cdot$m) \\
+& 5 & $\omega_s$ & Stribeck velocity (rad/s) \\
+\midrule
+\texttt{forcerange} & 0 & $-\tau_{\max}$ & Minimum torque (N$\cdot$m) \\
+& 1 & $\tau_{\max}$ & Maximum torque (N$\cdot$m) \\
+\midrule
+\texttt{damping} & 0 & $B_1 (+\sigma_2)$ & Linear (+ LuGre viscous) \\
+& 1 & $B_2$ & Quadratic \\
+& 2 & $B_3$ & Cubic \\
+\midrule
+\texttt{armature} & 0 & $J_r$ & Actuator armature \\
+\midrule
+\texttt{gear} & 0 & $N$ & Gear ratio \\
+\bottomrule
+\end{tabular}
+\caption{\texttt{mjModel} array semantics for the \texttt{dcmotor} actuator.}
+\label{tab:array_semantics}
+\end{table}
+
+\paragraph{Runtime mutability.}
+Most \texttt{mjModel} parameters listed above may be freely modified at runtime for system identification or gain tuning. However, five parameters control the \emph{number} of activation states, which is determined at compile time and cannot change during simulation. Toggling any of the following parameters between zero and positive after compilation is an error:
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}llcl@{}}
+\toprule
+Parameter & Storage & State & Semantics \\
+\midrule
+$s$ & \texttt{dynprm[7]} & $u_{\text{prev}}$ & previous control \\
+$k_i$ & \texttt{gainprm[5]} & $x_I$ & controller integral \\
+$R_T, C$ & \texttt{dynprm[2,3]} & $T$ & temperature rise \\
+$\sigma_0$ & \texttt{dynprm[5]} & $z$ & bristle deflection \\
+$t_e$ & \texttt{dynprm[0]} & $i$ & winding current \\
+\bottomrule
+\end{tabular}
+\caption{Compile-time state switches, allocated in \texttt{act} in the order shown. Do not toggle between zero and positive at runtime.}
+\end{table}
+
+
+\onecolumn
+%=============================================================================
+% DATASHEET MAPPING
+%=============================================================================
+\section{Datasheet Mapping}
+\label{sec:datasheet}
+
+Table~\ref{tab:datasheet} maps commercial motor datasheet specifications to attributes. The left column shows the datasheet entry as typically labeled by motor manufacturers; the right column shows the corresponding \texttt{dcmotor} MJCF attribute, when one exists. Derived quantities that are not direct attributes (gradient, mechanical time constant) are included for completeness.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lllll@{}}
+\toprule
+Specification & Symbol & Formula / Note & Datasheet Symbol & Attribute \\
+\midrule
+Resistance & $R$ & Terminal resistance & R, Ra & \atR{} \\
+Torque Constant & $K_t$ & $\tau = K_t i$ & kt, km & \atKt{} \\
+Back-EMF Constant & $K_e$ & $v_{\text{back}} = K_e \omega$ & ke & \atKe{} \\
+Speed Constant & $K_v$ & $K_v = 1/K_e$ & kn, kv & $1/$\atKe{} \\
+Nominal Voltage & $v_n$ & Rated voltage (e.g., 24V) & Un, VDC & \atVM{} \\
+No-load Speed & $\omega_0$ & $\omega_0 \approx v_n / K$ & n0 & \atNLS{} \\
+Stall Torque & $\tau_0$ & $\tau_0 = K v_n / R$ & MH, Ts & \atSTALL{} \\
+Stall Current & $i_s$ & Max.\ possible: $i_s = v_n / R$ & IA & \\
+Nominal Current & $i_{\max}$ & Thermal limit (continuous) & Ic, IN & \atIMAX{} \\
+Peak Current & $i_{\text{peak}}$ & Short-term limit & Ipk & \\
+\midrule
+Coulomb Friction & $\tau_c$ & Dry friction opposing motion & $T_f$ & \texttt{frictionloss} (joint)\\
+Viscous Friction & $B$ & Drag $\propto \omega$ & $C_v$ & \texttt{damping} \\
+Rotor Inertia & $J_r$ & Reflected: $J_{\text{eff}} = J_r N^2$ & J, Jm & \texttt{armature} \\
+Gear Ratio & $N$ & Reduction ratio & $N$, $i$ & \texttt{gear} \\
+Gearbox Efficiency & $\eta$ & Fold into $K$: use $\eta K$ & $\eta$ & \\
+Cogging Amplitude & $A$ & Peak cogging torque & --- & \atCOGA{} \\
+Cogging Periodicity & $N_p$ & Poles $\times$ slots/pole & --- & \atCOGP{} \\
+\midrule
+Nominal Torque & $\tau_n$ & $\tau_n = K \cdot i_{\max}$ & $M_N$, $T_c$ & \\
+No-load Current & $i_0$ & Friction: Eq.~\eqref{eq:noload} & $I_0$ & \\
+Gradient & $\partial\omega/\partial\tau$ & $-R / K^2$ & $\Delta n / \Delta M$ & \\
+Mech.\ Time Const. & $t_m$ & $t_m = R\,J / K^2$ & $\tau_m$ & \\
+\midrule
+Inductance & $L$ & Terminal inductance & L & \atL{} \\
+Elec.\ Time Const. & $t_e$ & $t_e = L / R$ & $\tau_e$ & \atTE{} \\
+\midrule
+Thermal Resistance & $R_T$ & Winding-to-ambient & Rth & \atRT{} \\
+Thermal Capacitance & $C$ & $C = t_T / R_T$ & $C_{\text{th}}$ & \atTC{} \\
+Thermal Time Const. & $t_T$ & $t_T = R_T C$ & $\tau_{\text{th}}$ & \atTT{} \\
+Ref.\ Temperature & $T_0$ & Temperature at which $R$ is specified & $T_{\text{ref}}$ & \atTREF{} \\
+Ambient Temperature & $T_a$ & Operating environment & --- & \atTAMB{} \\
+Max.\ Winding Temp. & $T_{\max}$ & Absolute limit & $T_{\max}$ & \\
+Res.\ Temp.\ Coeff. & $\alpha$ & $\approx 0.0039\, \text{K}^{-1}$ (copper) & $\alpha_{\text{Cu}}$ & \atALPHA{} \\
+\bottomrule
+\end{tabular}
+\caption{Datasheet parameters and their relation to model constants. Groups: electrical, mechanical, derived, inductance, thermal.}
+\label{tab:datasheet}
+\end{table}
+
+\small
+\bibliographystyle{ieeetr}
+\bibliography{refs}
+
+\end{document}

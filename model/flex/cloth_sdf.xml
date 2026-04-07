@@ -1,0 +1,51 @@
+<!-- Copyright 2026 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco>
+  <extension>
+    <plugin plugin="mujoco.sdf.torus">
+      <instance name="torus">
+        <config key="radius1" value="0.55"/>
+        <config key="radius2" value="0.15"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <asset>
+    <mesh name="torus">
+      <plugin instance="torus"/>
+    </mesh>
+  </asset>
+
+  <include file="scene.xml"/>
+
+  <worldbody>
+    <body pos="0 0 0.3">
+      <geom type="sdf" mesh="torus" rgba=".8 .17 .15 1">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+    <body name="flex" pos="0 0 .6">
+      <flexcomp name="test" type="grid" count="8 8 1" spacing=".2 .2 .2" dim="2" rgba="0 .7 .7 1">
+        <edge equality="true"/>
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </body>
+    <body pos="0 0 1.0">
+      <freejoint/>
+      <geom type="sphere" size="0.1" mass=".5" rgba="0 0 1 .2"/>
+    </body>
+  </worldbody>
+</mujoco>

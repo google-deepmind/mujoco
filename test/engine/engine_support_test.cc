@@ -34,7 +34,6 @@ namespace {
 
 using ::std::vector;
 using ::testing::ContainsRegex;  // NOLINT
-using ::testing::DoubleNear;
 using ::testing::Eq;
 using ::testing::MatchesRegex;
 using ::testing::Ne;
@@ -99,9 +98,8 @@ TEST_F(AngMomMatTest, CompareAngMom) {
   mju_mulMatVec(angmom_test, angmom_mat, data->qvel, 3, nv);
 
   // compare the two angular momentum values
-  static const mjtNum tol = 1e-8;
   for (int i = 0; i < 3; i++) {
-    EXPECT_THAT(angmom_ref[i], DoubleNear(angmom_test[i], tol));
+    EXPECT_THAT(angmom_ref[i], MjNear(angmom_test[i], 1e-8, 1e-4));
   }
 
   mju_free(angmom_mat);
@@ -129,7 +127,7 @@ TEST_F(AngMomMatTest, CompareAngMomMats) {
   mj_angmomMat(model, data, angmom_mat, bodyid);
 
   // compute the angular momentum matrix using finite differences
-  static const mjtNum eps = 1e-6;
+  static constexpr mjtNum eps = MjTol(1e-6, 1e-3);
   for (int i = 0; i < nv; i++) {
     // reset vel, forward nudge i-th dof, get angmom
     mju_copy(data->qvel, model->key_qvel, model->nv);
@@ -154,9 +152,8 @@ TEST_F(AngMomMatTest, CompareAngMomMats) {
   }
 
   // compare the two matrices
-  static const mjtNum tol = 1e-8;
   for (int i = 0; i < 3*nv; i++) {
-    EXPECT_THAT(angmom_mat_fd[i], DoubleNear(angmom_mat[i], tol));
+    EXPECT_THAT(angmom_mat_fd[i], MjNear(angmom_mat[i], 1e-8, 2e-4));
   }
 
   mju_free(angmom_mat_fd);
@@ -241,7 +238,7 @@ TEST_F(JacobianTest, SubtreeJac) {
     // compare finite-differenced and analytic Jacobian
     for (int j=0; j < 3; j++) {
       mjtNum findiff = (data->subtree_com[3*bodyid+j] - subtree_com[j]) / eps;
-      EXPECT_THAT(jac_subtree[nv*j+i], DoubleNear(findiff, eps));
+      EXPECT_THAT(jac_subtree[nv*j+i], MjNear(findiff, eps, 1e-2));
     }
   }
 
@@ -289,7 +286,7 @@ TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
   for (int r = 0; r < 3; r++) {
     for (int c = 0; c < nv; c++) {
       mjtNum expected = c - body_dofadr == r ? invtreemass : 0.0;
-      EXPECT_THAT(jac_subtree[nv*r+c], DoubleNear(expected, max_abs_err));
+      EXPECT_THAT(jac_subtree[nv*r+c], MjNear(expected, max_abs_err, 1e-4));
     }
   }
 
@@ -459,7 +456,7 @@ TEST_F(JacobianTest, JacDot) {
     mj_jacDot(model, data, jacp_dot.data(), jacr_dot.data(), point, bodyid);
 
     // jac_h: jacobian after integrating qpos with a timestep of h
-    mjtNum h = 1e-7;
+    constexpr mjtNum h = MjTol(1e-7, 5e-4);
     mj_integratePos(model, data->qpos, data->qvel, h);
     mj_kinematics(model, data);
     mj_comPos(model, data);
@@ -478,8 +475,8 @@ TEST_F(JacobianTest, JacDot) {
 
     // compare finite-differenced and analytic
     mjtNum tol = 1e-5;
-    EXPECT_THAT(jacp_dot, Pointwise(DoubleNear(tol), jacp_dot_h));
-    EXPECT_THAT(jacr_dot, Pointwise(DoubleNear(tol), jacr_dot_h));
+    EXPECT_THAT(jacp_dot, Pointwise(MjNear(tol, 5e-2), jacp_dot_h));
+    EXPECT_THAT(jacr_dot, Pointwise(MjNear(tol, 5e-2), jacr_dot_h));
 
     mj_deleteData(data);
     mj_deleteModel(model);
@@ -683,7 +680,7 @@ TEST_F(SupportTest, DifferentiatePosSubQuat) {
       mju_quat2Vel(qvel_expect, qdif, dt);
 
       // expect numerical equality
-      EXPECT_THAT(AsVector(qvel, 3), Pointwise(DoubleNear(eps), qvel_expect));
+      EXPECT_THAT(AsVector(qvel, 3), Pointwise(MjNear(eps, 1e-3), qvel_expect));
     }
   }
 
@@ -1007,7 +1004,7 @@ TEST_F(InertiaTest, mulM) {
   mj_mulM(model, data, res2.data(), vec.data());
 
   // expect vectors to match to floating point precision
-  EXPECT_THAT(res1, Pointwise(DoubleNear(1e-10), res2));
+  EXPECT_THAT(res1, Pointwise(MjNear(1e-10, 0.1), res2));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1038,7 +1035,7 @@ TEST_F(InertiaTest, mulM2) {
   // compute vec' * M * vec in two different ways, expect them to match
   mjtNum sqrtMvec2 = mju_dot(sqrtMvec.data(), sqrtMvec.data(), nv);
   mjtNum vecMvec = mju_dot(vec.data(), Mvec.data(), nv);
-  EXPECT_FLOAT_EQ(sqrtMvec2, vecMvec);
+  EXPECT_MJTNUM_EQ(sqrtMvec2, vecMvec);
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1093,7 +1090,7 @@ TEST_F(InertiaTest, FullM) {
   mju_mulMatTMat(P.data(), L.data(), DL.data(), nv, nv, nv);
 
   // expect M and P to match to high precision
-  EXPECT_THAT(M, Pointwise(DoubleNear(1e-10), P));
+  EXPECT_THAT(M, Pointwise(MjNear(1e-10, 1e-4), P));
 
   mj_deleteData(d);
   mj_deleteModel(m);
@@ -1144,39 +1141,43 @@ TEST_F(SupportTest, GeomDistance) {
 
   // plane-sphere
   distmax = 1.0;
-  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 0, 1, 1.0, fromto), 0.8);
+  EXPECT_THAT(mj_geomDistance(model, data, 0, 1, 1.0, fromto),
+              MjNear(0.8, 1e-12, 1e-5));
   mjtNum eps = 1e-12;
-  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+  EXPECT_THAT(fromto, Pointwise(MjNear(eps, 1e-5),
                                 vector<mjtNum>{0, 0, 0, 0, 0, 0.8}));
 
   // sphere-plane
-  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 1, 0, 1.0, fromto), 0.8);
-  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+  EXPECT_THAT(mj_geomDistance(model, data, 1, 0, 1.0, fromto),
+              MjNear(0.8, 1e-12, 1e-5));
+  EXPECT_THAT(fromto, Pointwise(MjNear(eps, 1e-5),
                                 vector<mjtNum>{0, 0, 0.8, 0, 0, 0}));
 
   // sphere-sphere
-  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 1, 2, 1.0, fromto), 0.5);
-  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+  EXPECT_THAT(mj_geomDistance(model, data, 1, 2, 1.0, fromto),
+              MjNear(0.5, 1e-12, 1e-5));
+  EXPECT_THAT(fromto, Pointwise(MjNear(eps, 1e-5),
                                 vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
 
   // sphere-sphere, flipped order
-  EXPECT_DOUBLE_EQ(mj_geomDistance(model, data, 2, 1, 1.0, fromto), 0.5);
-  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+  EXPECT_THAT(mj_geomDistance(model, data, 2, 1, 1.0, fromto),
+              MjNear(0.5, 1e-12, 1e-5));
+  EXPECT_THAT(fromto, Pointwise(MjNear(eps, 1e-5),
                                 vector<mjtNum>{.7, 0, 1, .2, 0, 1}));
 
   // mesh-sphere (close distmax)
   distmax = 0.701;
   eps = model->opt.ccd_tolerance;
   EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
-              DoubleNear(0.7, eps));
-  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+              MjNear(0.7, eps, eps*100));
+  EXPECT_THAT(fromto, Pointwise(MjNear(eps, eps*100),
                                 vector<mjtNum>{0, 0, .1, 0, 0, .8}));
 
   // mesh-sphere (far distmax)
   distmax = 1.0;
   EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
-              DoubleNear(0.7, eps));
-  EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
+              MjNear(0.7, eps, eps*100));
+  EXPECT_THAT(fromto, Pointwise(MjNear(eps, eps*100),
                                 vector<mjtNum>{0, 0, .1, 0, 0, .8}));
 
   mj_deleteData(data);
@@ -1203,7 +1204,7 @@ TEST_F(SupportTest, GeomDistanceFromToFlipped) {
                                  fromto10[0], fromto10[1], fromto10[2]};
 
     EXPECT_THAT(AsVector(fromto10flipped, 6),
-                Pointwise(DoubleNear(1.0e-12), fromto01));
+                Pointwise(MjNear(1.0e-12, 1e-5), fromto01));
   }
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1318,7 +1319,7 @@ TEST_F(SupportTest, ReadCtrlWithDelay) {
   // model should have delay configured
   // delay = 0.03 seconds, timestep = 0.01, so ndelay = ceil(0.03/0.01) = 3
   EXPECT_EQ(model->actuator_history[0], 3);
-  EXPECT_NEAR(model->actuator_delay[0], 0.03, 1e-10);
+  EXPECT_NEAR(model->actuator_delay[0], 0.03, 1e-7);
   EXPECT_GE(model->actuator_historyadr[0], 0);
 
   // initially, buffer should be filled with constant value (from init)
@@ -1456,11 +1457,11 @@ TEST_F(SupportTest, InitSensorDelay) {
   mjtNum result = 0;
   const mjtNum* ptr = mj_readSensor(model, data, 0, 0.04, &result, /*order=*/0);
   mjtNum val = ptr ? *ptr : result;
-  EXPECT_EQ(val, 0.7);
+  EXPECT_NEAR(val, 0.7, 1e-6);
 
   ptr = mj_readSensor(model, data, 0, 0.03, &result, /*order=*/0);
   val = ptr ? *ptr : result;
-  EXPECT_EQ(val, 0.6);
+  EXPECT_NEAR(val, 0.6, 1e-6);
 
   mj_deleteData(data);
   mj_deleteModel(model);

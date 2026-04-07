@@ -980,7 +980,8 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
         int chain_nnz = mj_bodyChain(m, bodyid[i], chain_colind);
 
         // compute sparse Jacobian for this node (3 rows)
-        mj_jacSparse(m, d, blk_jac, NULL, xpos+3*i, bodyid[i], chain_nnz, chain_colind);
+        mj_jacSparse(m, d, blk_jac, NULL, xpos+3*i, bodyid[i], chain_nnz, chain_colind,
+                     /*flg_skipcommon=*/0);
 
         // copy to sparse structure
         for (int r=0; r<3; r++) {
@@ -1106,6 +1107,17 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
     }
 
+    // DC motor bias (back-EMF)
+    else if (m->actuator_biastype[i] == mjBIAS_DCMOTOR) {
+      const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+      const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+      if (dynprm[0] <= 0) {
+        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum K = gainprm[1];
+        bias_vel -= K * K / R;
+      }
+    }
+
     // affine gain
     if (m->actuator_gaintype[i] == mjGAIN_AFFINE) {
       // extract bias info: prm = [const, kp, kv]
@@ -1119,6 +1131,28 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
                                     m->actuator_lengthrange+2*i,
                                     m->actuator_acc0[i],
                                     m->actuator_gainprm + mjNGAIN*i);
+    }
+
+    // DC motor controller damping and LuGre micro-damping
+    else if (m->actuator_gaintype[i] == mjGAIN_DCMOTOR) {
+      const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+      const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+      int input_mode = (int)gainprm[8];
+      if (input_mode > 0) {
+        mjtNum R = gainprm[0];
+        mjtNum K = gainprm[1];
+        mjtNum gain = (dynprm[0] > 0) ? K : K / mju_max(mjMINVAL, R);
+        mjtNum kp = gainprm[4];
+        mjtNum kd = gainprm[6];
+        bias_vel -= gain * (input_mode == 1 ? kd : kp);
+      }
+
+      // LuGre: force includes -sigma1*z_dot, z_dot = a*z + v
+      // d(sigma1*z_dot)/dv = sigma1*(da/dv*z + 1), ignoring higher-order da/dv*z
+      mjtNum sigma1 = dynprm[6];
+      if (sigma1 > 0) {
+        bias_vel -= sigma1;
+      }
     }
 
     // force = gain .* [ctrl/act]
@@ -1488,7 +1522,8 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     // get geom global Jacobian: rotation then translation
     if (mj_isSparse(m)) {
-      mj_jacSparse(m, d, J+3*nnz, J, d->geom_xpos+3*geomid, m->geom_bodyid[geomid], nnz, colind);
+      mj_jacSparse(m, d, J+3*nnz, J, d->geom_xpos+3*geomid, m->geom_bodyid[geomid], nnz, colind,
+                   /*flg_skipcommon=*/0);
     } else {
       mj_jacGeom(m, d, J+3*nv, J, geomid);
     }
@@ -1574,7 +1609,7 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
     nnz = mj_bodyChain(m, i, colind);
 
     // get sparse jacBodyCom
-    mj_jacSparse(m, d, J+3*nnz, J, d->xipos+3*i, i, nnz, colind);
+    mj_jacSparse(m, d, J+3*nnz, J, d->xipos+3*i, i, nnz, colind, /*flg_skipcommon=*/0);
 
     // prepare rownnz, rowadr, colind for all 6 rows
     rownnz[0] = nnz;
@@ -1731,7 +1766,12 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
   int nv_awake = sleep_filter ? d->nv_awake : nv;
   for (int j = 0; j < nv_awake; j++) {
     int i = sleep_filter ? d->dof_awake_ind[j] : j;
-    d->qDeriv[m->D_rowadr[i] + m->D_diag[i]] -= m->dof_damping[i];
+    mjtNum v = d->qvel[i];
+    mjtNum poly[mjNPOLY];
+    mju_copy(poly, m->dof_dampingpoly + mjNPOLY*i, mjNPOLY);
+    mjtNum damping = m->dof_damping[i] + mj_actuatorDamping(m, mjOBJ_JOINT, m->dof_jntid[i], poly);
+    int adr = m->D_rowadr[i] + m->D_diag[i];
+    d->qDeriv[adr] -= mjd_xPolyForce(damping, poly, v, mjNPOLY, 1);
   }
 
   // flex edge damping
@@ -1769,14 +1809,18 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
       if (treenum == 2 && !d->tree_awake[id1] && !d->tree_awake[id2]) continue;
     }
 
-    mjtNum B = -m->tendon_damping[i];
+    mjtNum v = d->ten_velocity[i];
+    mjtNum poly[mjNPOLY];
+    mju_copy(poly, m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY);
+    mjtNum damping = m->tendon_damping[i] + mj_actuatorDamping(m, mjOBJ_TENDON, i, poly);
+    mjtNum B = -mjd_xPolyForce(damping, poly, v, mjNPOLY, 1);
 
     if (!B) {
       continue;
     }
 
     // add sparse
-    addJTBJSparse(m, d, d->ten_J, &B, 1, i, d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
+    addJTBJSparse(m, d, d->ten_J, &B, 1, i, m->ten_J_rownnz, m->ten_J_rowadr, m->ten_J_colind);
   }
 }
 

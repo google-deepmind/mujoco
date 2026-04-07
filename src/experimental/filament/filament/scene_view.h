@@ -31,11 +31,14 @@
 #include <math/vec3.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
 #include "experimental/filament/filament/drawable.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/render_target.h"
 
 namespace mujoco {
 
@@ -46,7 +49,7 @@ namespace mujoco {
 // different rendering modes (e.g. normal, depth, segmentation, etc.)
 class SceneView {
  public:
-  SceneView(filament::Engine* engine, ObjectManager* object_mgr);
+  SceneView(ObjectManager* object_mgr, const mjModel* model);
   ~SceneView();
 
   // Updates all views to render into the given viewport.
@@ -63,12 +66,16 @@ class SceneView {
 
   // Updates the Entities in the filament Scene to match the current mjvScene
   // state.
-  void UpdateScene(const mjrContext* context, const mjvScene* scene);
+  void UpdateScene(const mjvScene* scene);
 
   using DrawMode = Material::DrawMode;
 
-  // Prepares and returns the filament View for the given draw mode.
-  filament::View* PrepareRenderView(DrawMode mode);
+  void Render(filament::Renderer* renderer, DrawMode draw_mode,
+              RenderTarget* target = nullptr);
+
+  void UploadMesh(const mjModel* model, int id);
+  void UploadTexture(const mjModel* model, int id);
+  void UploadHeightField(const mjModel* model, int id);
 
   // Accessors.
   filament::Engine* GetEngine() const;
@@ -79,9 +86,15 @@ class SceneView {
   SceneView& operator=(const SceneView&) = delete;
 
  private:
+  // Prepares and returns the filament View for the given draw mode.
+  filament::View* PrepareRenderView(DrawMode mode);
+
   void UpdateCamera(const mjvGLCamera* cameras);
 
   void PrepareLights();
+
+  // Registers the given drawable as a reflective surface.
+  void AddReflectiveDrawable(Drawable* drawable);
 
   // Converts a point in world space to clip space, eg. in the range [-1,-1, 0]
   // to [1, 1, 1]. Returns std::nullopt if the point is behind the camera.
@@ -89,20 +102,33 @@ class SceneView {
       const filament::math::float3& pos) const;
 
   ObjectManager* object_mgr_ = nullptr;
-  filament::Engine* engine_ = nullptr;
   filament::Scene* scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;
   std::vector<std::unique_ptr<Light>> lights_;
   std::vector<std::unique_ptr<Drawable>> drawables_;
+  std::unique_ptr<ModelObjects> model_objects_;
   std::array<filament::View*, DrawMode::kNumDrawModes> views_;
   filament::math::mat4 clip_from_world_;
   ColorGradingOptions color_grading_options_;
   DrawMode active_mode_ = DrawMode::kNumDrawModes;
   float aspect_ratio_ = 1.0f;
+  int default_shadow_map_size_ = 2048;
+  float default_vsm_blur_width_ = 0.0f;
   float fallback_head_light_intensity_ = 0.f;
   float fallback_scene_light_intensity_ = 80'000.f;
   float fallback_environment_light_intensity_ = 5'000.f;
+
+  // Custom view and camera for reflective surfaces.
+  filament::View* reflect_view_ = nullptr;
+  filament::Camera* reflect_camera_ = nullptr;
+
+  // The list of drawables that are reflective.
+  std::vector<Drawable*> reflectives_;
+
+  // Each reflective drawable has its own render target which is used to render
+  // the reflected image.
+  std::vector<std::unique_ptr<RenderTarget>> reflect_targets_;
 };
 
 }  // namespace mujoco

@@ -17,9 +17,9 @@ import 'jasmine';
 import {MainModule, MjContact, MjContactVec, MjData, MjLROpt, MjModel,
 MjOption, MjsGeom, MjSolverStat, MjSpec, MjStatistic, MjTimerStat, MjvCamera,
 MjvFigure, MjvGeom, MjvGLCamera, MjvLight, MjvOption, MjvPerturb, MjvScene,
-MjWarningStat, MjVFS, Uint8Buffer} from '../dist/mujoco_wasm.js';
+MjWarningStat, MjVFS, Uint8Buffer} from '../dist/mujoco.js';
 
-import loadMujoco from '../dist/mujoco_wasm.js'
+import loadMujoco from '../dist/mujoco.js'
 
 function assertExists<T>(value: T | null | undefined, message?: string):
 asserts value is T {
@@ -683,24 +683,24 @@ describe('MuJoCo WASM Bindings', () => {
 
   it('should check constants values', () => {
     expect(mujoco.mjNEQDATA).toBe(11);
-    expect(mujoco.get_mjDISABLESTRING()).toEqual([
+    expect(mujoco.mjDISABLESTRING).toEqual([
       'Constraint', 'Equality', 'Frictionloss', 'Limit', 'Contact', 'Spring',
       'Damper', 'Gravity', 'Clampctrl', 'Warmstart', 'Filterparent',
       'Actuation', 'Refsafe', 'Sensor', 'Midphase', 'Eulerdamp', 'AutoReset',
       'NativeCCD', 'Island'
     ]);
-    expect(mujoco.get_mjRNDSTRING()).toEqual([
+    expect(mujoco.mjRNDSTRING).toEqual([
       ['Shadow', '1', 'S'], ['Wireframe', '0', 'W'], ['Reflection', '1', 'R'],
       ['Additive', '0', 'L'], ['Skybox', '1', 'K'], ['Fog', '0', 'G'],
       ['Haze', '1', '/'], ['Depth', '0', ''], ['Segment', '0', ','],
       ['Id Color', '0', ''], ['Cull Face', '1', '']
     ]);
-    expect(mujoco.get_mjFRAMESTRING().length)
-        .toEqual(mujoco.mjtFrame.mjNFRAME.value);
-    expect(mujoco.get_mjVISSTRING().length)
+    expect(mujoco.mjFRAMESTRING.length).toEqual(mujoco.mjtFrame.mjNFRAME.value);
+    expect(mujoco.mjVISSTRING.length)
         .toEqual(mujoco.mjtVisFlag.mjNVISFLAG.value);
-    expect(mujoco.get_mjVISSTRING()[mujoco.mjtVisFlag.mjVIS_INERTIA.value])
-        .toEqual(['Inertia', '0', 'I']);
+    expect(mujoco.mjVISSTRING[mujoco.mjtVisFlag.mjVIS_INERTIA.value]).toEqual([
+      'Inertia', '0', 'I'
+    ]);
   });
 
   it('should create a spec from XML', () => {
@@ -2512,7 +2512,7 @@ describe('MuJoCo WASM Bindings', () => {
 
       vfs = new mujoco.MjVFS();
       vfs.addBuffer(objFilename, new TextEncoder().encode(cube1));
-      binaryModel = mujoco.MjModel.mj_loadBinary(mjbFilename, vfs);
+      binaryModel = mujoco.MjModel.mj_loadModel(mjbFilename, vfs);
       assertExists(binaryModel);
 
       expect(mujoco.mj_sizeModel(binaryModel))
@@ -2542,7 +2542,7 @@ describe('MuJoCo WASM Bindings', () => {
       const bufSize = mujoco.mj_sizeModel(model!);
 
       vfs = new mujoco.MjVFS();
-      binaryModel = mujoco.MjModel.mj_loadBinary(mjbFilename, vfs);
+      binaryModel = mujoco.MjModel.mj_loadModel(mjbFilename, vfs);
       assertExists(binaryModel);
 
       expect(mujoco.mj_sizeModel(binaryModel)).toEqual(bufSize);
@@ -2558,4 +2558,101 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 
+  it('should load XML with assets from VFS', () => {
+    const xml = `
+    <mujoco>
+      <asset>
+        <mesh file="cube.obj"/>
+      </asset>
+      <worldbody>
+        <geom type="mesh" mesh="cube"/>
+      </worldbody>
+    </mujoco>`;
+
+    const cube1 = `
+    v -1 -1  1
+    v  1 -1  1
+    v -1  1  1
+    v  1  1  1
+    v -1  1 -1
+    v  1  1 -1
+    v -1 -1 -1
+    v  1 -1 -1`;
+
+    const xmlFilename = '/tmp/with_vfs.xml';
+    writeXMLFile(xmlFilename, xml);
+
+    let model: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+    try {
+      vfs = new mujoco.MjVFS();
+      vfs.addBuffer('cube.obj', new TextEncoder().encode(cube1));
+      assertExists(vfs);
+
+      model = mujoco.MjModel.mj_loadXML(xmlFilename, vfs);
+      assertExists(model);
+      expect(model.nmesh).toBe(1);
+
+      const meshId =
+          mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MESH.value, 'cube');
+      expect(meshId).toBeGreaterThanOrEqual(0);
+    } finally {
+      model?.delete();
+      vfs?.delete();
+      unlinkXMLFile(xmlFilename);
+    }
+  });
+
+  it('should load a model from an XML string', () => {
+    let model: MjModel|null = null;
+    try {
+      model = mujoco.from_xml_string(TEST_XML);
+      assertExists(model);
+      expect(model.nbody).toBe(5);
+      expect(model.ngeom).toBe(3);
+    } finally {
+      model?.delete();
+    }
+  });
+
+  it('should load a model from an XML string with VFS', () => {
+    const xml = `
+    <mujoco>
+      <asset>
+        <mesh file="cube.obj"/>
+      </asset>
+      <worldbody>
+        <geom type="mesh" mesh="cube"/>
+      </worldbody>
+    </mujoco>`;
+
+    const cube1 = `
+    v -1 -1  1
+    v  1 -1  1
+    v -1  1  1
+    v  1  1  1
+    v -1  1 -1
+    v  1  1 -1
+    v -1 -1 -1
+    v  1 -1 -1`;
+
+    let model: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+    try {
+      vfs = new mujoco.MjVFS();
+      vfs.addBuffer('cube.obj', new TextEncoder().encode(cube1));
+      assertExists(vfs);
+
+      model = mujoco.from_xml_string(xml, vfs);
+      assertExists(model);
+      expect(model.nmesh).toBe(1);
+
+      const meshId =
+          mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MESH.value, 'cube');
+      expect(meshId).toBeGreaterThanOrEqual(0);
+    } finally {
+      model?.delete();
+      vfs?.delete();
+    }
+  });
 });

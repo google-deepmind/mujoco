@@ -153,11 +153,20 @@ class ForwardTest(parameterized.TestCase):
       mujoco.mju_sparse2dense(
           ten_J,
           d.ten_J,
-          d.ten_J_rownnz,
-          d.ten_J_rowadr,
-          d.ten_J_colind,
+          m.ten_J_rownnz,
+          m.ten_J_rowadr,
+          m.ten_J_colind,
       )
-      tu.assert_eq(dx._impl.ten_J, ten_J, 'ten_J')
+      # convert sparse warp ten_J to dense representation
+      warp_ten_J = np.zeros((m.ntendon, m.nv))
+      mujoco.mju_sparse2dense(
+          warp_ten_J,
+          np.asarray(dx._impl.ten_J),
+          mx._impl.ten_J_rownnz,
+          mx._impl.ten_J_rowadr,
+          mx._impl.ten_J_colind,
+      )
+      tu.assert_eq(warp_ten_J, ten_J, 'ten_J')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapadr')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapnum')
       tu.assert_attr_eq(dx._impl, d, 'wrap_xpos')
@@ -181,7 +190,15 @@ class ForwardTest(parameterized.TestCase):
           d.moment_rowadr,
           d.moment_colind,
       )
-      tu.assert_eq(dx._impl.actuator_moment, actuator_moment, 'actuator_moment')
+      warp_actuator_moment = np.zeros((m.nu, m.nv))
+      mujoco.mju_sparse2dense(
+          warp_actuator_moment,
+          np.asarray(dx._impl.actuator_moment),
+          np.asarray(dx._impl.moment_rownnz),
+          np.asarray(dx._impl.moment_rowadr),
+          np.asarray(dx._impl.moment_colind),
+      )
+      tu.assert_eq(warp_actuator_moment, actuator_moment, 'actuator_moment')
 
       # fwd_velocity
       tu.assert_attr_eq(dx._impl, d, 'actuator_velocity')

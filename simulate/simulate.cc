@@ -543,8 +543,114 @@ void ShowSensor(mj::Simulate* sim, mjrRect rect) {
     width,
     rect.height/3
   };
-  mjr_figure(viewport, &sim->figsensor, &sim->platform_ui->mjr_context());
+
+  // if image sensor selected, show sensor image instead
+  if (sim->image_sensor_count > 0 && sim->selected_image_sensor >= 0 &&
+      sim->sensor_image) {
+    // render sensor image - viewport dimensions MUST match image buffer dimensions
+    int img_w = sim->sensor_image_width;
+    int img_h = sim->sensor_image_height;
+    if (img_w > 0 && img_h > 0) {
+      // center the image in the available viewport area
+      mjrRect img_viewport = {
+        viewport.left + (viewport.width - img_w) / 2,
+        viewport.bottom + (viewport.height - img_h) / 2,
+        img_w,  // MUST match actual buffer width
+        img_h   // MUST match actual buffer height
+      };
+      mjr_drawPixels(sim->sensor_image.get(), nullptr, img_viewport,
+                     &sim->platform_ui->mjr_context());
+    }
+  } else {
+    mjr_figure(viewport, &sim->figsensor, &sim->platform_ui->mjr_context());
+  }
 }
+
+// forward declaration
+void InitializeSensorImage(mj::Simulate* sim, const mjModel* m);
+
+// Detect image sensors in model
+// A sensor is an image if: mjSENS_USER and intprm[0]*intprm[1]*3 == dim
+void DetectImageSensors(mj::Simulate* sim, const mjModel* m) {
+  sim->image_sensor_count = 0;
+  sim->image_sensor_indices.clear();
+  sim->image_sensor_names.clear();
+  sim->selected_image_sensor = -1;
+  sim->sensor_image.reset();
+
+  if (!m) return;
+
+  for (int i = 0; i < m->nsensor; i++) {
+    if (m->sensor_type[i] == mjSENS_USER) {
+      // sensor_intprm stores [width, height, unused] (mjNSENS=3 per sensor)
+      int width = m->sensor_intprm[i * mjNSENS];
+      int height = m->sensor_intprm[i * mjNSENS + 1];
+      int dim = m->sensor_dim[i];
+
+      // Check if this is an image sensor: width*height*3 == dim
+      if (width > 0 && height > 0 && width * height * 3 == dim) {
+        const char* name = m->names + m->name_sensoradr[i];
+        sim->image_sensor_indices.push_back(i);
+        sim->image_sensor_names.push_back(name);
+        sim->image_sensor_count++;
+      }
+    }
+  }
+
+  // Auto-select first image sensor if any found
+  if (sim->image_sensor_count > 0) {
+    sim->selected_image_sensor = 0;
+    InitializeSensorImage(sim, m);
+  }
+}
+
+// initialize sensor image for selected sensor
+// Reads image resolution from sensor_intprm (set by Python code)
+void InitializeSensorImage(mj::Simulate* sim, const mjModel* m) {
+  if (sim->selected_image_sensor < 0 ||
+      sim->selected_image_sensor >= sim->image_sensor_count) {
+    sim->sensor_image.reset();
+    return;
+  }
+
+  int sensor_idx = sim->image_sensor_indices[sim->selected_image_sensor];
+
+  // Read width/height from sensor_intprm
+  int width = m->sensor_intprm[sensor_idx * mjNSENS];
+  int height = m->sensor_intprm[sensor_idx * mjNSENS + 1];
+  sim->sensor_image_width = width;
+  sim->sensor_image_height = height;
+
+  // Allocate image buffer (RGB)
+  int img_size = width * height * 3;
+  sim->sensor_image = std::make_unique<unsigned char[]>(img_size);
+}
+
+// update sensor image with current sensor data
+// Uses version number (last element) to avoid reading during MuJoCo reset
+void UpdateSensorImage(mj::Simulate* sim, const mjModel* m, const mjData* d) {
+  if (sim->selected_image_sensor < 0 || !sim->sensor_image) return;
+
+  int sensor_idx = sim->image_sensor_indices[sim->selected_image_sensor];
+  int adr = m->sensor_adr[sensor_idx];
+  int w = sim->sensor_image_width;
+  int h = sim->sensor_image_height;
+  int img_size = w * h * 3;
+
+  // Check version (last element) - 0 means MuJoCo reset, skip copy
+  int current_version = (int)d->sensordata[adr + img_size - 1];
+  if (current_version == 0 || current_version == sim->sensor_image_last_seq) {
+    return;
+  }
+  sim->sensor_image_last_seq = current_version;
+
+  // Copy image data (skip last element = version)
+  for (int i = 0; i < img_size - 1; i++) {
+    mjtNum val = d->sensordata[adr + i];
+    sim->sensor_image[i] = (unsigned char)mjMIN(255, mjMAX(0, (int)val));
+  }
+}
+
 
 void ShowFigure(mj::Simulate* sim, mjrRect viewport, mjvFigure* fig){
   mjr_figure(viewport, fig, &sim->platform_ui->mjr_context());
@@ -854,6 +960,35 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m) {
       {mjITEM_END}
   };
   mjui_add(&sim->ui0, defTree);
+
+  // add image sensor selector if image sensors exist
+  if (sim->image_sensor_count > 0) {
+    // build options string: "All\nSensor1\nSensor2\n..."
+    static char sensor_options[mjMAXUITEXT];
+    mju::strcpy_arr(sensor_options, "All");
+    for (int i = 0; i < sim->image_sensor_count && i < mjMAXUIMULTI - 1; i++) {
+      mju::strcat_arr(sensor_options, "\n");
+      if ((int)sim->image_sensor_names[i].length() < mjMAXUINAME) {
+        mju::strcat_arr(sensor_options, sim->image_sensor_names[i].c_str());
+      } else {
+        char truncated[mjMAXUINAME];
+        snprintf(truncated, mjMAXUINAME, "Image %d", i);
+        mju::strcat_arr(sensor_options, truncated);
+      }
+    }
+
+    // selected_image_sensor is -1 for None, 0+ for actual sensor
+    // but mjITEM_SELECT uses 0-based index, so we need to offset
+    sim->image_sensor_ui_selection = sim->selected_image_sensor + 1;
+
+    mjuiDef defImageSensor[] = {
+        {mjITEM_SELECT, "Sensor", 2, &sim->image_sensor_ui_selection, ""},
+        {mjITEM_END}
+    };
+    // copy options string into the struct's other field
+    mju::strcpy_arr(defImageSensor[0].other, sensor_options);
+    mjui_add(&sim->ui0, defImageSensor);
+  }
 
   // add rendering flags
   mjui_add(&sim->ui0, defOpenGL);
@@ -2215,7 +2350,17 @@ void Simulate::Sync(bool state_only) {
     UpdateInfoText(this, m_, d_, this->info_title, this->info_content);
   }
   if (update_profiler) { UpdateProfiler(this, m_, d_); }
-  if (update_sensor) { UpdateSensor(this, m_, d_); }
+  if (update_sensor) {
+    UpdateSensor(this, m_, d_);
+
+    // check if image sensor selection changed in UI dropdown
+    int new_selected = this->image_sensor_ui_selection - 1;  // 0=None(-1), 1+=sensor
+    if (new_selected != this->selected_image_sensor) {
+      this->selected_image_sensor = new_selected;
+      InitializeSensorImage(this, m_);
+    }
+    UpdateSensorImage(this, m_, d_);
+  }
 
   // clear timers once profiler info has been copied
   ClearTimers(d_);
@@ -2427,6 +2572,9 @@ void Simulate::LoadOnRenderThread() {
   // set scrubber range and divisions
   this->ui0.sect[SECT_SIMULATION].item[11].slider.range[0] = 1 - nhistory_;
   this->ui0.sect[SECT_SIMULATION].item[11].slider.divisions = nhistory_;
+
+  // detect image sensors for visualization
+  DetectImageSensors(this, this->m_);
 
   // rebuild UI sections
   MakeUiSections(this, this->m_, this->d_);

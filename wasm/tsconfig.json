@@ -5,7 +5,8 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "strict": true,
-    "types": ["jasmine"]
+    "types": ["jasmine"],
+    "ignoreDeprecations": "6.0"
   },
   "include": ["tests/**/*"]
 }

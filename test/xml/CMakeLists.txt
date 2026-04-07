@@ -14,7 +14,12 @@
 
 mujoco_test(xml_api_test)
 
-mujoco_test(xml_native_reader_test)
+mujoco_test(
+  xml_native_reader_test
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:obj_decoder>"
+)
 
 mujoco_test(xml_utils_test)
 

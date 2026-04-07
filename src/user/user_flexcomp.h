@@ -53,13 +53,15 @@ typedef enum _mjtDof {
 class mjCFlexcomp {
  public:
   mjCFlexcomp(void);
-  bool Make(mjsBody* body, char* error, int error_sz);
+  bool Make(mjsBody* body, char* error, int error_sz, const mjVFS* vfs = nullptr);
 
   bool MakeGrid(char* error, int error_sz);
   bool MakeBox(char* error, int error_sz, int dim, bool open = true);
   bool MakeSquare(char* error, int error_sz);
-  bool MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz);
-  bool MakeGMSH(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz);
+  bool MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz,
+                const mjVFS* vfs = nullptr);
+  bool MakeGMSH(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz,
+                const mjVFS* vfs = nullptr);
   void LoadGMSH(mjCModel* model, mjResource* resource);
   void LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
                   int elemend, int elembegin);
@@ -81,7 +83,7 @@ class mjCFlexcomp {
   double origin[3];               // origin for generating a 3D mesh from a convex 2D mesh
   double mass;                    // total mass of auto-generated bodies
   double inertiabox;              // size of inertia box for each body
-  int equality;                   // create equality constraint, 0:none, 1:edge, 2:vert
+  int equality;                   // create equality constraint, 0:none, 1:edge, 2:vert, 3:strain
   std::string file;               // mesh/gmsh file name
   mjtDof doftype;                 // dof type, all vertices or trilinear interpolation
 

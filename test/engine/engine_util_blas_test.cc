@@ -155,10 +155,10 @@ TEST_F(EngineUtilBlasTest, Normalize4IsIdempotent) {
     mju_normalize4(quat_renormalized);
 
     // expect equality
-    EXPECT_EQ(quat[0], quat_renormalized[0]);
-    EXPECT_EQ(quat[1], quat_renormalized[1]);
-    EXPECT_EQ(quat[2], quat_renormalized[2]);
-    EXPECT_EQ(quat[3], quat_renormalized[3]);
+    EXPECT_MJTNUM_EQ(quat[0], quat_renormalized[0]);
+    EXPECT_MJTNUM_EQ(quat[1], quat_renormalized[1]);
+    EXPECT_MJTNUM_EQ(quat[2], quat_renormalized[2]);
+    EXPECT_MJTNUM_EQ(quat[3], quat_renormalized[3]);
   }
 }
 

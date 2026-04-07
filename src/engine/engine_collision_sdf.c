@@ -23,11 +23,12 @@
 #include <mujoco/mjtnum.h>
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_plugin.h"
-#include "engine/engine_ray.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
+
+
 
 
 //---------------------------- interpolated sdf -------------------------------------------
@@ -279,20 +280,11 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
     }
 
   case mjGEOM_MESH:
-    if (m->mesh_octnum[i]) {
-      return oct_distance(m, x, i);
-    } else {
-      mju_mulMatVec3(a, d->geom_xmat + 9 * i, x);
-      mju_addTo3(a, d->geom_xpos + 3 * i);
-      mjtNum dir[3] = {-a[0], -a[1], -a[2]};
-      mjtNum r = mju_norm3(dir);
-      mjtNum dist = mj_rayMesh(m, d, i, a, dir, NULL);
-      if (dist > r) {
-        mju_scl3(dir, dir, -1);
-        return -mj_rayMesh(m, d, i, a, dir, NULL);
-      }
-      return dist;
+    if (m->mesh_octadr[i] == -1) {
+      mjERROR("sdf queries require needsdf=\"true\" on mesh %d", i);
+      return 0;
     }
+    return oct_distance(m, x, i);
 
   default:
     mjERROR("sdf collisions not available for geom type %d", type);
@@ -407,18 +399,11 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     break;
 
   case mjGEOM_MESH:
-    if (m->mesh_octnum[i]) {
-      oct_gradient(m, gradient, x, i);
-    } else {
-      mju_mulMatVec3(a, d->geom_xmat+9*i, x);
-      mju_addTo3(a, d->geom_xpos+3*i);
-      mjtNum dir[3] = {-a[0], -a[1], -a[2]};
-      mjtNum r = mju_norm3(dir);
-      mjtNum dist = mj_rayMesh(m, d, i, a, dir, NULL);
-      gradient[0] = dist > r ? 1 : -1;
-      gradient[1] = dist > r ? 1 : -1;
-      gradient[2] = dist > r ? 1 : -1;
+    if (m->mesh_octadr[i] == -1) {
+      mjERROR("sdf queries require needsdf=\"true\" on mesh %d", i);
+      return;
     }
+    oct_gradient(m, gradient, x, i);
     break;
 
   default:
@@ -556,9 +541,12 @@ static int isknown(const mjtNum* points, const mjtNum x[3], int cnt) {
 
 
 // adds candidate point to result
+// flipNormal: 0 = normal points INTO SDF (for mesh-SDF where SDF is g2)
+//             1 = normal points OUT of SDF (for flex-SDF where SDF is g1)
 static int addContact(mjtNum* points, mjContact* con, const mjtNum x[3],
                       const mjtNum pos2[3], const mjtNum quat2[4], mjtNum dist,
-                      int cnt, const mjModel* m, const mjSDF* s, mjData* d) {
+                      int cnt, const mjModel* m, const mjSDF* s, const mjData* d,
+                      int flipNormal) {
   // check if there is a collision
   if (dist > 0 || isknown(points, x, cnt)) {
     return cnt;
@@ -569,7 +557,17 @@ static int addContact(mjtNum* points, mjContact* con, const mjtNum x[3],
   // compute normal in local coordinates
   mjtNum norm[3], vec[3];
   mjc_gradient(m, d, s, norm, x);
-  mju_scl3(norm, norm, -1);
+
+  // validate normal - skip if gradient is degenerate (zero or near-zero)
+  mjtNum norm_len = mju_normalize3(norm);
+  if (norm_len < mjMINVAL) {
+    return cnt;  // degenerate gradient, skip this contact
+  }
+
+  // normal direction: flipNormal=0 -> INTO SDF, flipNormal=1 -> OUT of SDF
+  if (!flipNormal) {
+    mju_scl3(norm, norm, -1);
+  }
 
   // construct contact
   con[cnt].dist = dist;
@@ -584,10 +582,39 @@ static int addContact(mjtNum* points, mjContact* con, const mjtNum x[3],
   return cnt+1;
 }
 
+// finds minimum of Frank-Wolfe objective
+static mjtNum stepFrankWolfe(mjtNum x[3], const mjtNum* corners, int ncorners,
+                             const mjModel* m, const mjSDF* sdf, const mjData* d) {
+  for (int step=0; step < m->opt.sdf_iterations; step++) {
+    mjtNum best = mjMAXVAL, fun, s[3], grad[3];
+
+    // evaluate gradient
+    mjc_gradient(m, d, sdf, grad, x);
+
+    // evaluate all corners
+    for (int i=0; i < ncorners; i++) {
+      // compute sdf
+      fun = mju_dot3(corners + 3*i, grad);
+
+      // save argmin
+      if (fun < best) {
+        best = fun;
+        mju_copy3(s, corners + 3*i);
+      }
+    }
+
+    // update collision point
+    mju_subFrom3(s, x);
+    mju_addToScl3(x, s, 2. / (step+2.));
+  }
+
+  // compute distance
+  return mjc_distance(m, d, sdf, x);
+}
 
 // finds minimum using gradient descent
 static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
-                           mjData* d, int niter) {
+                           const mjData* d, int niter) {
   const mjtNum c = .1;       // reduction factor for the target decrease in the objective function
   const mjtNum rho = .5;     // reduction factor for the gradient scaling (alpha)
   const mjtNum amin = 1e-4;  // minimum value for alpha
@@ -633,24 +660,382 @@ static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
   return dist;
 }
 
+//---------------------------- bounding box vs sdf -------------------------------------------------
+
+// stricter triangle collision
+static int triangleIntersect(const mjtNum triangle[9], const mjModel* m,
+                             const mjSDF* sdf, const mjData* d) {
+  mjtNum edges[6];
+  mjtNum normal[3], center[3];
+  mjtNum v[9], cross[9], p[3];
+  mjtNum kDistanceScl = 10.;
+  mjtNum kMinHeight = 0.1;  // minimum tetrahedron height to avoid degeneracy
+
+  // triangle normal
+  mju_sub3(edges+0, triangle+3, triangle);
+  mju_sub3(edges+3, triangle+6, triangle);
+  mju_cross(normal, edges, edges+3);
+  mju_normalize3(normal);
+
+  // triangle centroid
+  mju_scl3(p, triangle, 1./3.);
+  mju_addToScl3(p, triangle+3, 1./3.);
+  mju_addToScl3(p, triangle+6, 1./3.);
+
+  // SDF distance at centroid
+  mjtNum dist_at_centroid = mjc_distance(m, d, sdf, p);
+
+  // compute h = offset for fourth point
+  mjtNum h = -dist_at_centroid/kDistanceScl;
+
+  // if |h| is too small, we'd create a degenerate (nearly-flat) tetrahedron
+  // whose circumsphere would be gigantic; fall back to simpler triangle check
+  if (mju_abs(h) < kMinHeight) {
+    // simple check: circumcircle of triangle
+    // compute triangle circumradius
+    mjtNum a = mju_dist3(triangle, triangle+3);
+    mjtNum b = mju_dist3(triangle+3, triangle+6);
+    mjtNum c = mju_dist3(triangle+6, triangle);
+    mjtNum s = (a + b + c) / 2.0;
+    mjtNum area = mju_sqrt(s * (s-a) * (s-b) * (s-c));
+    mjtNum circumradius = (a * b * c) / (4.0 * mju_max(area, mjMINVAL));
+
+    // check if centroid is within circumradius of the SDF
+    return dist_at_centroid < circumradius;
+  }
+
+  // fourth point: triangle centroid pushed along normal
+  mju_addToScl3(p, normal, -h);
+
+  // circumsphere center (of tetrahedron formed by triangle + fourth point)
+  mju_sub3(v+0, triangle+0, p);
+  mju_sub3(v+3, triangle+3, p);
+  mju_sub3(v+6, triangle+6, p);
+  mju_cross(cross+0, v+3, v+6);
+  mju_cross(cross+3, v+6, v+0);
+  mju_cross(cross+6, v+0, v+3);
+  mju_scl3(center, cross, mju_dot3(v, v));
+  mju_addToScl3(center, cross+3, mju_dot3(v+3, v+3));
+  mju_addToScl3(center, cross+6, mju_dot3(v+6, v+6));
+
+  mjtNum denom = 2.*mju_dot3(v, cross);
+  if (mju_abs(denom) < mjMINVAL) {
+    // degenerate: fall back to simple distance check
+    return dist_at_centroid < mju_norm3(edges);
+  }
+  mju_scl3(center, center, 1./denom);
+
+  // circumsphere radius
+  mjtNum r = mju_sqrt(mju_dot3(center, center));
+
+  // coordinate change
+  mju_addTo3(center, p);
+
+  return mjc_distance(m, d, sdf, center) < r;
+}
+
+// intersect with circumsphere of bounding box
+static int boxIntersect(const mjtNum bvh[6], const mjtNum offset[3],
+                        const mjtNum rotation[9], const mjModel* m,
+                        const mjSDF* s, const mjData* d) {
+  mjtNum candidate[3];
+  mjtNum r = mju_norm3(bvh+3);
+
+  mju_mulMatVec3(candidate, rotation, bvh);
+  mju_addTo3(candidate, offset);
+
+  // check if inside the bounding box
+  return mjc_distance(m, d, s, candidate) < r;
+}
+
+// Farthest point sampling (FPS) to select spatially diverse contacts
+// Returns indices of selected candidates in nselected, fills selected_indices array
+static int selectFPS(const mjtNum* candidate, const mjtNum* dist, int ncandidate,
+                     int* selected_indices, int max_select) {
+  if (ncandidate <= 0) return 0;
+
+  mjtByte selected[mjMAXCONPAIR] = {0};
+  mjtNum min_dist2[mjMAXCONPAIR];
+  for (int i = 0; i < ncandidate; i++) {
+    min_dist2[i] = mjMAXVAL;
+  }
+
+  // start with deepest penetrating contact
+  int best = 0;
+  mjtNum bestval = -dist[0];
+  for (int i = 1; i < ncandidate; i++) {
+    if (-dist[i] > bestval) {
+      bestval = -dist[i];
+      best = i;
+    }
+  }
+
+  // iteratively select contacts using FPS
+  int nselected = 0;
+  while (nselected < max_select && nselected < mjMAXCONPAIR && best >= 0) {
+    selected[best] = 1;
+    selected_indices[nselected] = best;
+    nselected++;
+
+    const mjtNum* bestpos = candidate + 3*best;
+
+    // find next farthest point
+    int nextbest = -1;
+    mjtNum nextbestdist = -1;
+    for (int i = 0; i < ncandidate; i++) {
+      if (selected[i]) continue;
+
+      mjtNum dx = candidate[3*i+0] - bestpos[0];
+      mjtNum dy = candidate[3*i+1] - bestpos[1];
+      mjtNum dz = candidate[3*i+2] - bestpos[2];
+      mjtNum d2 = dx*dx + dy*dy + dz*dz;
+      if (d2 < min_dist2[i]) {
+        min_dist2[i] = d2;
+      }
+      if (min_dist2[i] > nextbestdist) {
+        nextbestdist = min_dist2[i];
+        nextbest = i;
+      }
+    }
+    best = nextbest;
+  }
+
+  return nselected;
+}
+
+// Process triangle corners against SDF using Halton sampling + Frank-Wolfe.
+// Corners are assumed to already be in SDF local coordinates.
+// Adds penetrating candidates to candidate/dist arrays.
+static void processSdfCorners(const mjtNum corners[9], const mjModel* m, const mjData* d,
+                              const mjSDF* sdf, int nstartpts,
+                              mjtNum* candidate, mjtNum* dist, int* ncandidate) {
+  mjtNum x[3], depth;
+
+  // stricter culling using triangle circumsphere
+  if (!triangleIntersect(corners, m, sdf, d)) {
+    return;
+  }
+
+  // sample multiple starting points using Halton sequence
+  for (int sp = 0; sp < nstartpts; sp++) {
+    if (*ncandidate >= mjMAXCONPAIR) break;
+
+    // barycentric coordinates from Halton sequence
+    mjtNum u = mju_Halton(sp + 1, 2);
+    mjtNum v = mju_Halton(sp + 1, 3);
+    if (u + v > 1) {
+      u = 1 - u;
+      v = 1 - v;
+    }
+    mjtNum b0 = 1 - u - v;
+    mjtNum b1 = u;
+    mjtNum b2 = v;
+
+    // starting point
+    x[0] = b0*corners[0] + b1*corners[3] + b2*corners[6];
+    x[1] = b0*corners[1] + b1*corners[4] + b2*corners[7];
+    x[2] = b0*corners[2] + b1*corners[5] + b2*corners[8];
+
+    depth = stepFrankWolfe(x, corners, 3, m, sdf, d);
+
+    // store candidate if penetration
+    if (depth < 0) {
+      int nc = *ncandidate;
+      mju_copy3(candidate + 3*nc, x);
+      dist[nc] = depth;
+      (*ncandidate)++;
+    }
+  }
+}
+
+// Context for inline face processing during BVH traversal
+typedef struct {
+  const mjModel* m;
+  const mjData* d;
+  const mjSDF* sdf;
+  const mjtNum* offset;
+  const mjtNum* rotation;
+  int vertadr;
+  int faceadr;
+  int nstartpts;
+  mjtNum* candidate;
+  mjtNum* dist;
+  int* ncandidate;
+} MeshSDFContext;
+
+// process a single mesh face inline during BVH traversal
+static void processOneFace(int faceid, mjtByte* bvh_active, int node,
+                           MeshSDFContext* ctx) {
+  mjtNum corners[9];
+  const mjModel* m = ctx->m;
+  int face = ctx->faceadr + faceid;
+
+  // transform triangle vertices to SDF local coordinates
+  for (int v = 0; v < 3; v++) {
+    mjtNum vec[3] = {
+      m->mesh_vert[3*(ctx->vertadr + m->mesh_face[3*face+v]) + 0],
+      m->mesh_vert[3*(ctx->vertadr + m->mesh_face[3*face+v]) + 1],
+      m->mesh_vert[3*(ctx->vertadr + m->mesh_face[3*face+v]) + 2],
+    };
+    mju_mulMatVec3(corners + 3*v, ctx->rotation, vec);
+    mju_addTo3(corners + 3*v, ctx->offset);
+  }
+
+  // use shared helper for Halton sampling + Frank-Wolfe
+  processSdfCorners(corners, m, ctx->d, ctx->sdf, ctx->nstartpts,
+                    ctx->candidate, ctx->dist, ctx->ncandidate);
+
+  if (bvh_active && *(ctx->ncandidate) > 0) bvh_active[node] = 1;
+}
+
+// Callback type for leaf node processing during BVH traversal
+// Returns 1 if node should be marked active (for visualization), 0 otherwise
+typedef int (*BVHLeafCallback)(int leaf_id, int node, void* ctx);
+
+// Generic BVH traversal with callback for leaf processing
+// bvh: pointer to BVH AABBs (6 floats per node: center xyz, half-size xyz)
+// nodeid: leaf ID per node (-1 for intermediate nodes)
+// child: child indices (2 per node)
+// bvh_active: visualization array or NULL
+// offset/rotation: transform for boxIntersect
+// m, d, sdf: for boxIntersect
+// callback: function called for each leaf node
+// ctx: user context passed to callback
+static void traverseBVH(const mjtNum* bvh, const int* nodeid, const int* child,
+                        mjtByte* bvh_active, const mjtNum* offset, const mjtNum* rotation,
+                        const mjModel* m, const mjData* d, const mjSDF* sdf,
+                        BVHLeafCallback callback, void* ctx) {
+  int stack[64];
+  int nstack = 0;
+  stack[nstack++] = 0;
+
+  while (nstack) {
+    int node = stack[--nstack];
+
+    // leaf node: call callback
+    if (nodeid[node] != -1) {
+      if (boxIntersect(bvh + 6*node, offset, rotation, m, sdf, d)) {
+        int active = callback(nodeid[node], node, ctx);
+        if (bvh_active && active) bvh_active[node] = 1;
+      }
+      continue;
+    }
+
+    // intermediate node: check bounding box
+    if (!boxIntersect(bvh + 6*node, offset, rotation, m, sdf, d)) {
+      continue;
+    }
+
+    if (bvh_active) bvh_active[node] = 1;
+
+    // push children
+    for (int i = 0; i < 2; i++) {
+      if (child[2*node+i] != -1) {
+        if (nstack >= 64) {
+          mjERROR("BVH stack depth exceeded.");
+        }
+        stack[nstack++] = child[2*node+i];
+      }
+    }
+  }
+}
+
+// mesh face callback for traverseBVH
+static int meshFaceCallback(int face_id, int node, void* ctx) {
+  MeshSDFContext* mctx = (MeshSDFContext*)ctx;
+  int ncandidate_before = *(mctx->ncandidate);
+  processOneFace(face_id, NULL, node, mctx);
+  return *(mctx->ncandidate) > ncandidate_before;  // mark active if candidates added
+}
+
 
 //------------------------------ collision functions -----------------------------------------------
 
 // collision between a height field and a signed distance field
-int mjc_HFieldSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_HFieldSDF(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mju_warning("HField vs SDF collision not yet supported!");
   return 0;
 }
 
 
 // collision between a mesh and a signed distance field
-int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
-  return mjc_SDF(m, d, con, g1, g2, margin);
+int mjc_MeshSDF(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
+  mjGETINFO;
+
+  mjtNum offset[3], rotation[9];
+  mjtNum points[3*mjMAXCONPAIR], dist[mjMAXCONPAIR], candidate[3*mjMAXCONPAIR];
+  int cnt = 0, ncandidate = 0;
+
+  // get sdf plugin
+  int instance = m->geom_plugin[g2];
+  const mjpPlugin* sdf_ptr = instance == -1 ? NULL : mjc_getSDF(m, g2);
+  instance = instance == -1 ? m->geom_dataid[g2] : instance;
+  mjtGeom geomtype = mjGEOM_SDF;
+
+  // copy into data
+  mjSDF sdf;
+  sdf.id = &instance;
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.plugin = &sdf_ptr;
+  sdf.geomtype = &geomtype;
+
+  // compute transformation from g1 to g2
+  mjtNum sdf_quat[4], quat1[4];
+  mju_mat2Quat(quat1, mat1);
+  mju_mat2Quat(sdf_quat, mat2);
+  mapPose(pos1, quat1, pos2, sdf_quat, offset, rotation);
+
+  // set up context for inline BVH processing
+  MeshSDFContext ctx;
+  ctx.m = m;
+  ctx.d = d;
+  ctx.sdf = &sdf;
+  ctx.offset = offset;
+  ctx.rotation = rotation;
+  ctx.vertadr = m->mesh_vertadr[m->geom_dataid[g1]];
+  ctx.faceadr = m->mesh_faceadr[m->geom_dataid[g1]];
+  ctx.nstartpts = mju_max(1, m->opt.sdf_initpoints);
+  ctx.candidate = candidate;
+  ctx.dist = dist;
+  ctx.ncandidate = &ncandidate;
+
+  // BVH traversal for mesh faces
+  const int bvhadr = m->mesh_bvhadr[m->geom_dataid[g1]];
+  if (bvhadr >= 0) {
+    const int* nodeid = m->bvh_nodeid + bvhadr;
+    const mjtNum* bvh = m->bvh_aabb + 6*bvhadr;
+    const int* child = m->bvh_child + 2*bvhadr;
+    mjtByte* bvh_active = m->vis.global.bvactive ? d->bvh_active + bvhadr : NULL;
+
+    traverseBVH(bvh, nodeid, child, bvh_active, ctx.offset, ctx.rotation,
+                m, d, ctx.sdf, meshFaceCallback, &ctx);
+  }
+
+  // if few candidates, add them all directly
+  if (ncandidate <= mjMAXCONPAIR) {
+    for (int i = 0; i < ncandidate; i++) {
+      cnt = addContact(points, con, candidate + 3*i, pos2, sdf_quat,
+                       dist[i], cnt, m, &sdf, d, 0);
+    }
+    return cnt;
+  }
+
+  // farthest point sampling (FPS) for spatial coverage
+  int selected_indices[mjMAXCONPAIR];
+  int nselected = selectFPS(candidate, dist, ncandidate, selected_indices, mjMAXCONPAIR);
+
+  // add selected contacts
+  for (int i = 0; i < nselected; i++) {
+    int idx = selected_indices[i];
+    cnt = addContact(points, con, candidate + 3*idx, pos2, sdf_quat,
+                     dist[idx], cnt, m, &sdf, d, 0);
+  }
+
+  return cnt;
 }
 
-
 // collision between two SDFs
-int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_SDF(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO;
   size1 = m->geom_aabb + 6*g1;
   size2 = m->geom_aabb + 6*g2;
@@ -763,24 +1148,237 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
 
     // start counters
     if (sdf_ptr[0]) {
-      sdf_ptr[0]->compute(m, (mjData*)d, instance[0], mjPLUGIN_SDF);
+      sdf_ptr[0]->compute(m, d, instance[0], mjPLUGIN_SDF);
     }
 
     // gradient descent - we use a special function of the two SDF as objective
     sdf.type = mjSDFTYPE_COLLISION;
-    dist = stepGradient(x, m, &sdf, (mjData*)d, m->opt.sdf_iterations);
+    dist = stepGradient(x, m, &sdf, d, m->opt.sdf_iterations);
 
     // inexact SDFs can yield spurious collisions, filter them by projecting on the midsurface
     sdf.type = mjSDFTYPE_INTERSECTION;
-    dist = stepGradient(x, m, &sdf, (mjData*)d, 1);
+    dist = stepGradient(x, m, &sdf, d, 1);
 
     // contact point and normal - we use the midsurface where SDF1=SDF2 as zero level set
     sdf.type = mjSDFTYPE_MIDSURFACE;
-    cnt = addContact(contacts, con, x, pos2, quat2, dist, cnt, m, &sdf, (mjData*)d);
+    cnt = addContact(contacts, con, x, pos2, quat2, dist, cnt, m, &sdf, d, 0);
 
     // SHOULD NOT OCCUR
     if (cnt > mjMAXCONPAIR) {
       mjERROR("too many contact points");
+    }
+  }
+
+  return cnt;
+}
+
+// Context for flex element processing during BVH traversal
+typedef struct {
+  const mjModel* m;
+  const mjData* d;
+  const mjSDF* sdf;
+  const mjtNum* offset;
+  const mjtNum* rotation;
+  const mjtNum* vertxpos;
+  int f;
+  int dim;
+  int nstartpts;
+  mjtNum* candidate;
+  mjtNum* dist;
+  int* elem_id;
+  int* ncandidate;
+} FlexSDFContext;
+
+// flex element callback for traverseBVH
+static int flexElemCallback(int elem_idx, int node, void* ctx) {
+  FlexSDFContext* fctx = (FlexSDFContext*)ctx;
+  const mjModel* m = fctx->m;
+  int dim = fctx->dim;
+
+  // get element vertex indices
+  const int* edata = m->flex_elem + m->flex_elemdataadr[fctx->f] + elem_idx*(dim+1);
+
+  // get triangle corners in world coordinates
+  mjtNum world_corners[9];
+  for (int v = 0; v < 3; v++) {
+    mju_copy3(world_corners + 3*v, fctx->vertxpos + 3*edata[v]);
+  }
+
+  // transform corners to SDF local coordinates
+  mjtNum corners[9];
+  for (int v = 0; v < 3; v++) {
+    mju_mulMatVec3(corners + 3*v, fctx->rotation, world_corners + 3*v);
+    mju_addTo3(corners + 3*v, fctx->offset);
+  }
+
+  // process triangle (per-element candidates)
+  mjtNum elem_candidate[3*mjMAXCONPAIR];
+  mjtNum elem_dist[mjMAXCONPAIR];
+  int elem_ncandidate = 0;
+  processSdfCorners(corners, m, fctx->d, fctx->sdf, fctx->nstartpts,
+                    elem_candidate, elem_dist, &elem_ncandidate);
+
+  // keep only deepest penetrating candidate from this element
+  if (elem_ncandidate > 0) {
+    int best_i = 0;
+    for (int i = 1; i < elem_ncandidate; i++) {
+      if (elem_dist[i] < elem_dist[best_i]) {
+        best_i = i;
+      }
+    }
+    // add to global candidate list
+    int nc = *(fctx->ncandidate);
+    if (nc < mjMAXCONPAIR) {
+      mju_copy3(fctx->candidate + 3*nc, elem_candidate + 3*best_i);
+      fctx->dist[nc] = elem_dist[best_i];
+      fctx->elem_id[nc] = elem_idx;
+      (*(fctx->ncandidate))++;
+      return 1;  // mark active
+    }
+  }
+  return 0;
+}
+
+
+int mjc_FlexSDF(const mjModel* m, const mjData* d, mjContact* con,
+                int g, int f, mjtNum margin) {
+  // g = SDF geom, f = flex
+  int dim = m->flex_dim[f];
+
+  // only support dim==2 (triangular elements)
+  if (dim != 2) {
+    return 0;
+  }
+
+  mjtNum points[3*mjMAXCONPAIR], dist[mjMAXCONPAIR], candidate[3*mjMAXCONPAIR];
+  int elem_id[mjMAXCONPAIR];  // track which element generated each candidate
+  int cnt = 0, ncandidate = 0;
+
+  // get SDF info (once for entire flex)
+  int instance = m->geom_plugin[g];
+  const mjpPlugin* sdf_ptr = instance == -1 ? NULL : mjc_getSDF(m, g);
+  instance = instance == -1 ? m->geom_dataid[g] : instance;
+  mjtGeom geomtype = mjGEOM_SDF;
+
+  mjSDF sdf;
+  sdf.id = &instance;
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.plugin = &sdf_ptr;
+  sdf.geomtype = &geomtype;
+
+  // get SDF pose (once for entire flex)
+  mjtNum sdf_quat[4];
+  const mjtNum* sdf_pos = d->geom_xpos + 3*g;
+  const mjtNum* sdf_mat = d->geom_xmat + 9*g;
+  mju_mat2Quat(sdf_quat, sdf_mat);
+
+  // compute world-to-SDF transform (once for entire flex)
+  mjtNum rotation[9], offset[3];
+  mjtNum world_origin[3] = {0, 0, 0}, world_quat[4] = {1, 0, 0, 0};
+  mapPose(world_origin, world_quat, sdf_pos, sdf_quat, offset, rotation);
+
+  // get flex element and vertex data
+  const mjtNum* vertxpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+  int nstartpts = mju_max(1, m->opt.sdf_initpoints);
+  int elemnum = m->flex_elemnum[f];
+
+  // flex has no BVH tree: iterate all elements directly
+  const int bvhadr = m->flex_bvhadr[f];
+  if (bvhadr < 0) {
+    mjtNum elem_candidate[3*mjMAXCONPAIR];
+    mjtNum elem_dist[mjMAXCONPAIR];
+    for (int e = 0; e < elemnum; e++) {
+      const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+
+      // get triangle corners in world coordinates
+      mjtNum world_corners[9];
+      for (int v = 0; v < 3; v++) {
+        mju_copy3(world_corners + 3*v, vertxpos + 3*edata[v]);
+      }
+
+      // transform corners to SDF local coordinates
+      mjtNum corners[9];
+      for (int v = 0; v < 3; v++) {
+        mju_mulMatVec3(corners + 3*v, rotation, world_corners + 3*v);
+        mju_addTo3(corners + 3*v, offset);
+      }
+
+      // process triangle using shared helper (per-element candidates)
+      int elem_ncandidate = 0;
+      processSdfCorners(corners, m, d, &sdf, nstartpts, elem_candidate, elem_dist, &elem_ncandidate);
+
+      // add contacts for this element immediately (per-element points tracking)
+      mjtNum elem_points[3*mjMAXCONPAIR];
+      int elem_cnt = 0;
+      for (int i = 0; i < elem_ncandidate && cnt < mjMAXCONPAIR; i++) {
+        int old_elem_cnt = elem_cnt;
+        elem_cnt = addContact(elem_points, con + cnt, elem_candidate + 3*i, sdf_pos, sdf_quat,
+                              elem_dist[i], elem_cnt, m, &sdf, d, 1);
+        // set element ID for successfully added contact
+        if (elem_cnt > old_elem_cnt) {
+          con[cnt].elem[1] = e;
+          cnt++;
+        }
+      }
+    }
+    return cnt;
+  }
+
+  // have BVH: use tree traversal for efficiency
+  const int* elemid = m->bvh_nodeid + bvhadr;
+  // flexes use dynamic AABBs (vertices move during simulation)
+  const int nbvhstatic = m->nbvhstatic;
+  const mjtNum* bvh = d->bvh_aabb_dyn + 6*(bvhadr - nbvhstatic);
+  const int* child = m->bvh_child + 2*bvhadr;
+  mjtByte* bvh_active = m->vis.global.bvactive ? d->bvh_active + bvhadr : NULL;
+
+  // set up context for flex element processing
+  FlexSDFContext fctx;
+  fctx.m = m;
+  fctx.d = d;
+  fctx.sdf = &sdf;
+  fctx.offset = offset;
+  fctx.rotation = rotation;
+  fctx.vertxpos = vertxpos;
+  fctx.f = f;
+  fctx.dim = dim;
+  fctx.nstartpts = nstartpts;
+  fctx.candidate = candidate;
+  fctx.dist = dist;
+  fctx.elem_id = elem_id;
+  fctx.ncandidate = &ncandidate;
+
+  traverseBVH(bvh, elemid, child, bvh_active, offset, rotation,
+              m, d, &sdf, flexElemCallback, &fctx);
+
+
+  // if few candidates, add them all directly
+  if (ncandidate <= mjMAXCONPAIR) {
+    for (int i = 0; i < ncandidate; i++) {
+      int old_cnt = cnt;
+      cnt = addContact(points, con, candidate + 3*i, sdf_pos, sdf_quat,
+                       dist[i], cnt, m, &sdf, d, 1);
+      // set element ID for successfully added contact
+      if (cnt > old_cnt) {
+        con[old_cnt].elem[1] = elem_id[i];
+      }
+    }
+    return cnt;
+  }
+
+  // farthest point sampling (FPS) for spatial coverage
+  int selected_indices[mjMAXCONPAIR];
+  int nselected = selectFPS(candidate, dist, ncandidate, selected_indices, mjMAXCONPAIR);
+
+  // add selected contacts
+  for (int i = 0; i < nselected; i++) {
+    int idx = selected_indices[i];
+    int old_cnt = cnt;
+    cnt = addContact(points, con, candidate + 3*idx, sdf_pos, sdf_quat,
+                     dist[idx], cnt, m, &sdf, d, 1);
+    // set element ID for successfully added contact
+    if (cnt > old_cnt) {
+      con[old_cnt].elem[1] = elem_id[idx];
     }
   }
 

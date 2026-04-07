@@ -268,6 +268,17 @@ class Simulate {
   mjvFigure figsize = {};
   mjvFigure figsensor = {};
 
+  // Image sensor visualization - displays pre-rendered images from mjSENS_USER
+  int image_sensor_count = 0;
+  int selected_image_sensor = -1;  // -1 = show bar chart
+  int image_sensor_ui_selection = 0;      // UI dropdown index (0=All, 1+=sensor)
+  std::vector<int> image_sensor_indices;
+  std::vector<std::string> image_sensor_names;
+  std::unique_ptr<unsigned char[]> sensor_image;
+  int sensor_image_width = 0;
+  int sensor_image_height = 0;
+  int sensor_image_last_seq = -1;  // Last seq read from sensordata
+
   // additional user-defined visualization
   mjvScene* user_scn = nullptr;
   mjtByte user_scn_flags_prev_[mjNRNDFLAG];

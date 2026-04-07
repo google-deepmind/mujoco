@@ -90,7 +90,7 @@ def _resolve_device(
     logging.debug('Picking default device: %s.', device_0)
     return device_0
 
-  if impl == types.Impl.C or impl == types.Impl.CPP:
+  if impl == types.Impl.CPP:
     cpu_0 = jax.devices('cpu')[0]
     logging.debug('Picking default device: %s', cpu_0)
     return cpu_0
@@ -128,7 +128,7 @@ def _check_impl_device_compatibility(
     _check_warp_installed()
 
   is_cpu_device = device.platform == 'cpu'
-  if impl == types.Impl.C or impl == types.Impl.CPP:
+  if impl == types.Impl.CPP:
     if not is_cpu_device:
       raise AssertionError(
           f'C implementation requires a CPU device, got {device}.'
@@ -205,6 +205,9 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
     )
   if isinstance(wp_field, mjwp_types.BlockDim):
     return mjxw.types.BlockDim(**wp_field.__dict__)
+  if isinstance(wp_field, mjwp_types.Callback):
+    return wp_field
+
   if isinstance(wp_field, tuple) and is_static(wp_field[0]):
     return wp_field
 
@@ -248,7 +251,6 @@ def _put_option(
   fields['jacobian'] = types.JacobianType(o.jacobian)
 
   option_obj = {
-      types.Impl.C: types.OptionC,
       types.Impl.JAX: types.OptionJAX,
       types.Impl.WARP: mjxw.types.OptionWarp,
   }[impl]
@@ -266,8 +268,6 @@ def _put_option(
     impl_fields['has_fluid_params'] = has_fluid_params
     return types.Option(**fields, _impl=types.OptionJAX(**impl_fields))
 
-  if impl == types.Impl.C:
-    return types.Option(**fields, _impl=types.OptionC(**impl_fields))
 
   if impl == types.Impl.WARP:
     impl_fields = {k: _wp_to_np_type(v) for k, v in impl_fields.items()}
@@ -425,28 +425,6 @@ def _put_model_jax(
   return _strip_weak_type(model)
 
 
-def _put_model_c(
-    m: mujoco.MjModel,
-    device: Optional[jax.Device] = None,
-) -> types.Model:
-  """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
-  mj_field_names = {f.name for f in types.Model.fields() if f.name != '_impl'}
-  fields = {f: getattr(m, f) for f in mj_field_names}
-  fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
-  fields['opt'] = _put_option(m.opt, impl=types.Impl.C)
-  fields['stat'] = _put_statistic(m.stat, impl=types.Impl.C)
-
-  c_impl_keys = (
-      types.ModelC.__annotations__.keys() - types.Model.__annotations__.keys()
-  )
-  c_impl_dict = {k: getattr(m, k) for k in c_impl_keys}
-  c_impl_obj = types.ModelC(**{k: copy.copy(v) for k, v in c_impl_dict.items()})
-
-  model = types.Model(
-      **{k: copy.copy(v) for k, v in fields.items()}, _impl=c_impl_obj
-  )
-  model = jax.device_put(model, device=device)
-  return _strip_weak_type(model)
 
 
 def _put_model_warp(
@@ -494,17 +472,20 @@ def _put_model_warp(
   return _strip_weak_type(model)
 
 
+# TODO(josechenf): Iterate on the keepalive implementation to make it easier to
+# use before OSS.
 def _put_model_cpp(
     m: mujoco.MjModel,
     device: Optional[jax.Device] = None,
+    keepalive_refs: Optional[Dict[int, Any]] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
 
   mj_field_names = {f.name for f in types.Model.fields() if f.name != '_impl'}
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
-  fields['opt'] = _put_option(m.opt, impl=types.Impl.C)
-  fields['stat'] = _put_statistic(m.stat, impl=types.Impl.C)
+  fields['opt'] = _put_option(m.opt, impl=types.Impl.JAX)
+  fields['stat'] = _put_statistic(m.stat, impl=types.Impl.JAX)
 
   # get the pointer address
   # we use a 0-d array
@@ -517,8 +498,10 @@ def _put_model_cpp(
   c_pointers_impl = types.ModelCPP(
       pointer_lo=pointer_lo,
       pointer_hi=pointer_hi,
-      _model=m,
   )
+
+  if keepalive_refs is not None:
+    keepalive_refs[addr] = m
 
   model = types.Model(
       **{k: copy.copy(v) for k, v in fields.items()}, _impl=c_pointers_impl
@@ -532,6 +515,7 @@ def put_model(
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
     graph_mode: Optional[mjxw.types.GraphMode] = None,
+    keepalive_refs: Optional[Dict[int, Any]] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model.
 
@@ -541,6 +525,9 @@ def put_model(
     impl: implementation to use
     graph_mode: CUDA graph capture mode (for Warp only). Use GraphMode enum from
       warp._src.jax_experimental.ffi. GraphMode.WARP is the default mode.
+    keepalive_refs: optional dict to store references to underlying MuJoCo
+      objects, preventing them from being garbage collected. Required for CPP
+      impl to keep the model alive.
 
   Returns:
     an mjx.Model placed on device
@@ -553,14 +540,12 @@ def put_model(
   impl, device = _resolve_impl_and_device(impl, device)
   if impl == types.Impl.JAX:
     return _put_model_jax(m, device)
-  elif impl == types.Impl.C:
-    return _put_model_c(m, device)
   elif impl == types.Impl.WARP:
     _check_warp_installed()
     graph_mode = graph_mode or getattr(mjxw.types.GraphMode, 'WARP')
     return _put_model_warp(m, graph_mode, device)
   elif impl == types.Impl.CPP:
-    return _put_model_cpp(m, device)
+    return _put_model_cpp(m, device, keepalive_refs=keepalive_refs)
   else:
     raise ValueError(f'Unsupported implementation: {impl}')
 
@@ -731,125 +716,6 @@ def _make_data_jax(
   return d
 
 
-def _make_data_c(
-    m: Union[types.Model, mujoco.MjModel],
-    device: Optional[jax.Device] = None,
-) -> types.Data:
-  """Allocate and initialize Data for the C implementation."""
-  # TODO(stunya): The C implementation should not use static dimensions, and
-  # the backend implementation details should be kept hidden from JAX
-  # altogether.
-  dim = collision_driver.make_condim(m, impl=types.Impl.C)
-  efc_type = constraint.make_efc_type(m, dim)
-  efc_address = constraint.make_efc_address(m, dim, efc_type)
-  ne, nf, nl, nc = constraint.counts(efc_type)
-  ncon, nefc = dim.size, ne + nf + nl + nc
-
-  float_ = jp.zeros(1, float).dtype
-  int_ = jp.zeros(1, int).dtype
-  # TODO(stunya): remove the JAX contact from C data.
-  contact = _make_data_contact_jax(dim, efc_address)
-
-  def get(m, name: str):
-    return getattr(m._impl, name) if hasattr(m, '_impl') else getattr(m, name)  # pylint: disable=protected-access
-
-  nflexvert = get(m, 'nflexvert')
-  nflexedge = get(m, 'nflexedge')
-  nflexelem = get(m, 'nflexelem')
-  nbvh = get(m, 'nbvh')
-  nbvhdynamic = get(m, 'nbvhdynamic')
-  zero_impl_fields = {
-      'solver_niter': (int_,),
-      'cinert': (m.nbody, 10, float_),
-      'light_xpos': (m.nlight, 3, float_),
-      'light_xdir': (m.nlight, 3, float_),
-      'flexvert_xpos': (nflexvert, 3, float_),
-      'flexelem_aabb': (nflexelem, 6, float_),
-      'flexedge_J': (m.nJfe, float_),
-      'flexedge_length': (nflexedge, float_),
-      'ten_J_rownnz': (m.ntendon, np.int32),
-      'ten_J_rowadr': (m.ntendon, np.int32),
-      'ten_J_colind': (m.nJten, np.int32),
-      'ten_J': (m.nJten, float_),
-      'ten_wrapadr': (m.ntendon, np.int32),
-      'ten_wrapnum': (m.ntendon, np.int32),
-      'wrap_obj': (m.nwrap, 2, np.int32),
-      'wrap_xpos': (m.nwrap, 6, float_),
-      'moment_rownnz': (m.nu, np.int32),
-      'moment_rowadr': (m.nu, np.int32),
-      'moment_colind': (m.nJmom, np.int32),
-      'actuator_moment': (m.nJmom, float_),
-      'bvh_aabb_dyn': (nbvhdynamic, 6, float_),
-      'bvh_active': (nbvh, np.uint8),
-      'tree_asleep': (m.ntree, int_),
-      'tree_awake': (m.ntree, int_),
-      'body_awake': (m.nbody, int_),
-      'body_awake_ind': (m.nbody, int_),
-      'parent_awake_ind': (m.nbody, int_),
-      'dof_awake_ind': (m.nv, int_),
-      'tree_island': (m.ntree, int_),
-      'map_itree2tree': (m.ntree, int_),
-      'flexedge_velocity': (nflexedge, float_),
-      'crb': (m.nbody, 10, float_),
-      'qM': (m.nM, float_),
-      'M': (m.nC, float_),
-      'qLD': (m.nC, float_),
-      'qH': (m.nC, float_),
-      'qHDiagInv': (m.nv, float_),
-      'qLDiagInv': (m.nv, float_),
-      'ten_velocity': (m.ntendon, float_),
-      'actuator_velocity': (m.nu, float_),
-      'plugin_data': (get(m, 'nplugin'), np.uint64),
-      'qDeriv': (m.nD, float_),
-      'qLU': (m.nD, float_),
-      'qfrc_spring': (m.nv, float_),
-      'qfrc_damper': (m.nv, float_),
-      'cacc': (m.nbody, 6, float_),
-      'cfrc_int': (m.nbody, 6, float_),
-      'cfrc_ext': (m.nbody, 6, float_),
-      'subtree_linvel': (m.nbody, 3, float_),
-      'subtree_angmom': (m.nbody, 3, float_),
-      'efc_J': (nefc, m.nv, float_),
-      'efc_pos': (nefc, float_),
-      'efc_margin': (nefc, float_),
-      'efc_frictionloss': (nefc, float_),
-      'efc_D': (nefc, float_),
-      'efc_aref': (nefc, float_),
-      'efc_force': (nefc, float_),
-  }
-  zero_impl_fields = {
-      k: np.zeros(v[:-1], dtype=v[-1]) for k, v in zero_impl_fields.items()
-  }
-  impl = types.DataC(
-      ne=ne,
-      nf=nf,
-      nl=nl,
-      nefc=nefc,
-      ncon=ncon,
-      contact=contact,
-      efc_type=efc_type,
-      **zero_impl_fields,
-  )
-
-  d = types.Data(
-      qpos=jp.array(m.qpos0, dtype=float_),
-      eq_active=m.eq_active0,
-      _impl=impl,
-      **_make_data_public_fields(m),
-  )
-
-  if m.nmocap:
-    # Set mocap_pos/quat = body_pos/quat for mocap bodies as done in C MuJoCo.
-    body_mask = m.body_mocapid >= 0
-    body_pos = m.body_pos[body_mask]
-    body_quat = m.body_quat[body_mask]
-    d = d.replace(
-        mocap_pos=body_pos[m.body_mocapid[body_mask]],
-        mocap_quat=body_quat[m.body_mocapid[body_mask]],
-    )
-
-  d = jax.device_put(d, device=device)
-  return d
 
 
 def _get_nested_attr(obj: Any, attr_name: str, split: str) -> Any:
@@ -863,6 +729,7 @@ def _make_data_warp(
     m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
     naconmax: Optional[int] = None,
+    naccdmax: Optional[int] = None,
     njmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the Warp implementation."""
@@ -873,7 +740,7 @@ def _make_data_warp(
     )
 
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
+    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, naccdmax=naccdmax, njmax=njmax)  # pylint: disable=undefined-variable
 
   fields = _make_data_public_fields(m)
   for k in fields:
@@ -903,23 +770,15 @@ def _make_data_warp(
 
   data = jax.device_put(data, device=device)
 
-  with wp.ScopedDevice('cuda:0'):  # pylint: disable=undefined-variable
-    # Warm-up the warp kernel cache.
-    # TODO(robotics-simulation): remove this warmup compilation once warp
-    # stops unloading modules during XLA graph capture for tile kernels.
-    # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)
-    mw = mjwp.put_model(m)
-    _ = mjwp.step(mw, dw)
-    # pylint: enable=undefined-variable
-  del dw, mw
-
   return data
 
 
+# TODO(josechenf): Iterate on the keepalive implementation to make it easier to
+# use before OSS.
 def _make_data_cpp(
     m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
+    keepalive_refs: Optional[Dict[int, Any]] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the CPP implementation."""
   if isinstance(m, mujoco.MjModel):
@@ -929,7 +788,13 @@ def _make_data_cpp(
     m_impl = m._impl  # pylint: disable=protected-access
     if not isinstance(m_impl, types.ModelCPP):
       raise ValueError(f'Expected ModelCPP impl, got {type(m_impl)}')
-    mj_model = m_impl._model  # pylint: disable=protected-access
+    model_addr = int(m_impl.pointer_lo) | (int(m_impl.pointer_hi) << 32)
+    if keepalive_refs is None or model_addr not in keepalive_refs:
+      raise ValueError(
+          'keepalive_refs must be provided and contain the model when calling'
+          ' _make_data_cpp with a types.Model.'
+      )
+    mj_model = keepalive_refs[model_addr]
 
   # Create the raw MuJoCo data
   mj_data = mujoco.MjData(mj_model)
@@ -944,8 +809,10 @@ def _make_data_cpp(
   c_pointers_impl = types.DataCPP(
       pointer_lo=pointer_lo,
       pointer_hi=pointer_hi,
-      _data=[mj_data],
   )
+
+  if keepalive_refs is not None:
+    keepalive_refs[addr] = [mj_data]
 
   data = types.Data(
       _impl=c_pointers_impl,
@@ -962,7 +829,9 @@ def make_data(
     _full_compat: bool = False,  # pylint: disable=invalid-name
     nconmax: Optional[int] = None,
     naconmax: Optional[int] = None,
+    naccdmax: Optional[int] = None,
     njmax: Optional[int] = None,
+    keepalive_refs: Optional[Dict[int, Any]] = None,
 ) -> types.Data:
   """Allocate and initialize Data.
 
@@ -979,7 +848,14 @@ def make_data(
       Since the number of worlds is **not** pre-defined in JAX, we use the
       `naconmax` argument to set the upper bound for the number of contacts
       across all worlds, rather than the `nconmax` argument from MuJoCo Warp.
+    naccdmax: maximum number of contacts for GJK collision detection across all
+      worlds. Since the number of worlds is **not** pre-defined in JAX, we use the
+      `naccdmax` argument to set the upper bound for the number of contacts
+      across all worlds, rather than the `nccdmax` argument from MuJoCo Warp.
     njmax: maximum number of constraints to allocate for warp across all worlds
+    keepalive_refs: optional dict to store references to underlying MuJoCo
+      objects, preventing them from being garbage collected. Required for CPP
+      impl when passing a types.Model.
 
   Returns:
     an initialized mjx.Data placed on device
@@ -1005,14 +881,12 @@ def make_data(
 
   if impl == types.Impl.JAX:
     return _make_data_jax(m, device)
-  elif impl == types.Impl.C:
-    return _make_data_c(m, device)
   elif impl == types.Impl.CPP:
-    return _make_data_cpp(m, device)
+    return _make_data_cpp(m, device, keepalive_refs=keepalive_refs)
   elif impl == types.Impl.WARP:
     _check_warp_installed()
     naconmax = nconmax if naconmax is None else naconmax
-    return _make_data_warp(m, device, naconmax, njmax)
+    return _make_data_warp(m, device, naconmax, naccdmax, njmax)
 
   raise NotImplementedError(
       f'make_data for implementation "{impl}" not implemented yet.'
@@ -1116,9 +990,9 @@ def _put_data_jax(
     mujoco.mju_sparse2dense(
         ten_J,
         d.ten_J,
-        d.ten_J_rownnz,
-        d.ten_J_rowadr,
-        d.ten_J_colind,
+        m.ten_J_rownnz,
+        m.ten_J_rowadr,
+        m.ten_J_colind,
     )
   else:
     ten_J = np.zeros((m.ntendon, m.nv))
@@ -1207,115 +1081,16 @@ def _put_data_jax(
   return _strip_weak_type(data)
 
 
-def _put_data_c(
-    m: mujoco.MjModel, d: mujoco.MjData, device: Optional[jax.Device] = None
-) -> types.Data:
-  """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
-  # TODO(stunya): ncon, nefc should potentially be jax.Array, and contact/efc
-  # should not be materialized in JAX.
-  dim = collision_driver.make_condim(m, impl=types.Impl.C)
-  efc_type = constraint.make_efc_type(m, dim)
-  efc_address = constraint.make_efc_address(m, dim, efc_type)
-  ne, nf, nl, nc = constraint.counts(efc_type)
-  ncon, nefc = dim.size, ne + nf + nl + nc
-
-  # TODO(stunya): remove this check.
-  for d_val, val, name in (
-      (d.ncon, ncon, 'ncon'),
-      (d.ne, ne, 'ne'),
-      (d.nf, nf, 'nf'),
-      (d.nl, nl, 'nl'),
-      (d.nefc, nefc, 'nefc'),
-  ):
-    if d_val > val:
-      raise ValueError(f'd.{name} too high, d.{name} = {d_val}, model = {val}')
-
-  fields = _put_data_public_fields(d)
-
-  # Implementation specific fields.
-  impl_fields = {
-      f.name: getattr(d, f.name)
-      for f in types.DataC.fields()
-      if hasattr(d, f.name)
-  }
-
-  # TODO(stunya): support islanding via C impl.
-  impl_fields['solver_niter'] = impl_fields['solver_niter'][0]
-
-  # TODO(stunya): remove reliance on JAX _put_contact.
-  contact, contact_map = _put_contact(d.contact, dim, efc_address)
-
-  # TODO(stunya): remove reliance on dense efc_J.
-  if mujoco.mj_isSparse(m):
-    efc_j = np.zeros((d.efc_J_rownnz.shape[0], m.nv))
-    mujoco.mju_sparse2dense(
-        efc_j,
-        impl_fields['efc_J'],
-        d.efc_J_rownnz,
-        d.efc_J_rowadr,
-        d.efc_J_colind,
-    )
-    impl_fields['efc_J'] = efc_j
-  else:
-    impl_fields['efc_J'] = impl_fields['efc_J'].reshape(
-        (-1 if m.nv else 0, m.nv)
-    )
-
-  # move efc rows to their correct offsets
-  for fname in (
-      'efc_J',
-      'efc_pos',
-      'efc_margin',
-      'efc_frictionloss',
-      'efc_D',
-      'efc_aref',
-      'efc_force',
-  ):
-    value = np.zeros((nefc, m.nv)) if fname == 'efc_J' else np.zeros(nefc)
-    for i in range(3):
-      value_beg = sum([ne, nf][:i])
-      d_beg = sum([d.ne, d.nf][:i])
-      size = [d.ne, d.nf, d.nl][i]
-      value[value_beg : value_beg + size] = impl_fields[fname][
-          d_beg : d_beg + size
-      ]
-
-    # for nc, we may reorder contacts so they match MJX order: group by dim
-    for id_to, id_from in enumerate(contact_map):
-      if id_from == -1:
-        continue
-      num_rows = dim[id_to]
-      if num_rows > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
-        num_rows = (num_rows - 1) * 2
-      efc_i, efc_o = d.contact.efc_address[id_from], efc_address[id_to]
-      if efc_i == -1:
-        continue
-      value[efc_o : efc_o + num_rows] = impl_fields[fname][
-          efc_i : efc_i + num_rows
-      ]
-
-    impl_fields[fname] = value
-
-  impl_fields['contact'] = contact
-  impl_fields.update(
-      ne=ne, nf=nf, nl=nl, nefc=nefc, ncon=ncon, efc_type=efc_type
-  )
-
-  # copy because device_put is async:
-  data_jax = types.DataC(**{k: copy.copy(v) for k, v in impl_fields.items()})
-  data = types.Data(
-      **{k: copy.copy(v) for k, v in fields.items()}, _impl=data_jax
-  )
-
-  data = jax.device_put(data, device=device)
-  return _strip_weak_type(data)
 
 
+# TODO(josechenf): Iterate on the keepalive implementation to make it easier to
+# use before OSS.
 def _put_data_cpp(
     m: mujoco.MjModel,
     d: mujoco.MjData,
     device: Optional[jax.Device] = None,
     dummy_arg_for_batching: Optional[jax.Array] = None,
+    keepalive_refs: Optional[Dict[int, Any]] = None,
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
 
@@ -1328,6 +1103,8 @@ def _put_data_cpp(
     mujoco.mj_copyData(new_d, m, d)
     data_list.append(new_d)
     addr = new_d._address
+    if keepalive_refs is not None:
+      keepalive_refs[addr] = new_d
     # To ensure that we retain the full pointer even if jax.config.enable_x64 is
     # set to True, we store the pointer as two 32-bit values. In the FFI call,
     # we combine the two values into a single pointer value.
@@ -1352,7 +1129,6 @@ def _put_data_cpp(
   c_pointers_impl = types.DataCPP(
       pointer_lo=pointer_lo,
       pointer_hi=pointer_hi,
-      _data=data_list,
   )
 
   data = types.Data(
@@ -1361,6 +1137,44 @@ def _put_data_cpp(
   )
   data = jax.device_put(data, device=device)
   return _strip_weak_type(data)
+
+
+def _put_data_warp(
+    m: mujoco.MjModel,
+    d: mujoco.MjData,
+    device: Optional[jax.Device] = None,
+    naconmax: Optional[int] = None,
+    njmax: Optional[int] = None,
+) -> types.Data:
+  """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
+
+  with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
+    dw = mjwp.put_data(m, d, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
+
+  fields = _put_data_public_fields(d)
+  for k in fields:
+    if not hasattr(dw, k):
+      continue
+    field = _wp_to_np_type(getattr(dw, k))
+    if mjxw.types._BATCH_DIM['Data'][k]:  # pylint: disable=protected-access
+      field = field.reshape(field.shape[1:])
+    fields[k] = field
+
+  impl_fields = {}
+  for k in mjxw.types.DataWarp.__annotations__.keys():
+    field = _get_nested_attr(dw, k, split='__')
+    field = _wp_to_np_type(field)
+    if mjxw.types._BATCH_DIM['Data'][k]:  # pylint: disable=protected-access
+      field = field.reshape(field.shape[1:])
+    impl_fields[k] = field
+
+  data = types.Data(
+      **fields,
+      _impl=mjxw.types.DataWarp(**impl_fields),
+  )
+
+  data = jax.device_put(data, device=device)
+  return data
 
 
 def put_data(
@@ -1372,6 +1186,7 @@ def put_data(
     naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
     dummy_arg_for_batching: Optional[jax.Array] = None,
+    keepalive_refs: Optional[Dict[int, Any]] = None,
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data.
 
@@ -1388,12 +1203,13 @@ def put_data(
     njmax: maximum number of constraints to allocate for warp
     dummy_arg_for_batching: dummy argument to use for batching in cpp
       implementation
+    keepalive_refs: optional dict to store references to underlying MuJoCo
+      objects, preventing them from being garbage collected.
 
   Returns:
     an mjx.Data placed on device
     DeprecationWarning: if nconmax is used
   """
-  del njmax
   if nconmax is not None:
     warnings.warn(
         'nconmax will be deprecated in mujoco-mjx>=3.5. Use naconmax instead.',
@@ -1404,14 +1220,18 @@ def put_data(
   impl, device = _resolve_impl_and_device(impl, device)
   if impl == types.Impl.JAX:
     return _put_data_jax(m, d, device)
-  elif impl == types.Impl.C:
-    return _put_data_c(m, d, device)
   elif impl == types.Impl.CPP:
     return _put_data_cpp(
-        m, d, device, dummy_arg_for_batching=dummy_arg_for_batching
+        m,
+        d,
+        device,
+        dummy_arg_for_batching=dummy_arg_for_batching,
+        keepalive_refs=keepalive_refs,
     )
-
-  # TODO(robotics-team): implement put_data_warp
+  elif impl == types.Impl.WARP:
+    _check_warp_installed()
+    naconmax = nconmax if naconmax is None else naconmax
+    return _put_data_warp(m, d, device, naconmax, njmax)
 
   raise NotImplementedError(
       f'put_data for implementation "{impl}" not implemented yet.'
@@ -1541,8 +1361,6 @@ def _get_data_into(
 
     if d.impl == types.Impl.JAX:
       all_fields = types.Data.fields() + types.DataJAX.fields()
-    elif d.impl == types.Impl.C:
-      all_fields = types.Data.fields() + types.DataC.fields()
     else:
       raise NotImplementedError(
           f'get_data_into for implementation "{d.impl}" not implemented yet.'
@@ -1599,9 +1417,6 @@ def _get_data_into(
             )
           else:
             ten_j = d_i._impl.ten_J
-        result_i.ten_J_rownnz[:] = ten_j_rownnz
-        result_i.ten_J_rowadr[:] = ten_j_rowadr
-        result_i.ten_J_colind[:] = ten_j_colind
         result_i.ten_J[:] = ten_j
         continue
 
@@ -1664,15 +1479,18 @@ def _get_data_into(
     mujoco.mj_factorM(m, result_i)
 
 
+# TODO(josechenf): Iterate on the keepalive implementation to make it easier to
+# use before OSS.
 def _get_data_into_cpp(
     result: Union[mujoco.MjData, List[mujoco.MjData]],
     m: mujoco.MjModel,
     d: types.Data,
+    keepalive_refs: Optional[Dict[int, Any]] = None,
 ):
   """Gets mjx.Data from CPP impl into an existing mujoco.MjData or list.
 
   For the CPP implementation, the mjx.Data wraps underlying mujoco.MjData
-  objects that are stored in DataCPP._data. This function simply copies the
+  objects that are stored in keepalive_refs. This function simply copies the
   data from those underlying MjData objects to the result using mj_copyData.
   """
 
@@ -1684,13 +1502,8 @@ def _get_data_into_cpp(
   if not isinstance(d_impl, types.DataCPP):
     raise ValueError(f'Expected DataCPP impl, got {type(d_impl)}')
 
-  mj_data_list = d_impl._data  # pylint: disable=protected-access
-
-  if batch_size > len(mj_data_list):
-    raise ValueError(
-        f'Batch size {batch_size} exceeds number of underlying MjData objects '
-        f'({len(mj_data_list)}). Cannot copy data.'
-    )
+  if keepalive_refs is None:
+    raise ValueError('keepalive_refs must be provided for CPP implementation.')
 
   # Verify that the underlying MjData state matches the mjx.Data state
   # Ideally we'd use mj_getState and get_state here but that requires an
@@ -1700,7 +1513,19 @@ def _get_data_into_cpp(
     d_i: types.Data = (
         jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
     )
-    src_data = mj_data_list[i]
+    result_i = result[i] if batched else result
+
+    if batched:
+      addr_i = int(d_impl.pointer_lo[i]) | (int(d_impl.pointer_hi[i]) << 32)
+    else:
+      addr_i = int(d_impl.pointer_lo) | (int(d_impl.pointer_hi) << 32)
+
+    if addr_i not in keepalive_refs:
+      raise ValueError(
+          f'Address {addr_i} not found in keepalive_refs. '
+          'Ensure keepalive_refs from the original compile() is passed.'
+      )
+    src_data = keepalive_refs[addr_i]
 
     needs_syncing = False
     for field in fields_to_check:
@@ -1717,9 +1542,6 @@ def _get_data_into_cpp(
       src_data.mocap_quat[:] = d_i.mocap_quat
       mujoco.mj_kinematics(m, src_data)
 
-  for i in range(batch_size):
-    result_i = result[i] if batched else result
-    src_data = mj_data_list[i]
     mujoco.mj_copyData(result_i, m, src_data)
 
 
@@ -1727,6 +1549,7 @@ def get_data_into(
     result: Union[mujoco.MjData, List[mujoco.MjData]],
     m: mujoco.MjModel,
     d: types.Data,
+    keepalive_refs: Optional[Dict[int, Any]] = None,
 ):
   """Gets mjx.Data from a device into an existing mujoco.MjData or list."""
   is_batched = isinstance(result, list)
@@ -1737,12 +1560,12 @@ def get_data_into(
 
   d = jax.device_get(d)
 
-  if d.impl in (types.Impl.JAX, types.Impl.C):
+  if d.impl == types.Impl.JAX:
     # TODO(stunya): Split out _get_data_into once codepaths diverge enough.
     return _get_data_into(result, m, d)
 
   if d.impl == types.Impl.CPP:
-    return _get_data_into_cpp(result, m, d)
+    return _get_data_into_cpp(result, m, d, keepalive_refs=keepalive_refs)
 
   if d.impl == types.Impl.WARP:
     return _get_data_into_warp(result, m, d)
@@ -1753,7 +1576,9 @@ def get_data_into(
 
 
 def get_data(
-    m: mujoco.MjModel, d: types.Data
+    m: mujoco.MjModel,
+    d: types.Data,
+    keepalive_refs: Optional[Dict[int, Any]] = None,
 ) -> Union[mujoco.MjData, List[mujoco.MjData]]:
   """Gets mjx.Data from a device, resulting in mujoco.MjData or List[MjData]."""
   batched = len(d.qpos.shape) > 1
@@ -1764,7 +1589,7 @@ def get_data(
   else:
     result = mujoco.MjData(m)
 
-  get_data_into(result, m, d)
+  get_data_into(result, m, d, keepalive_refs=keepalive_refs)
 
   return result
 

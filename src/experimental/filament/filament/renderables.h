@@ -15,33 +15,36 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDERABLES_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDERABLES_H_
 
-#include <optional>
-#include <span>
+#include <cstdint>
 #include <vector>
 
 #include <filament/Engine.h>
 #include <filament/Scene.h>
 #include <utils/Entity.h>
-#include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/mesh.h"
 
 namespace mujoco {
 
 // Manages a collection of related filament Renderable Entities.
 class Renderables {
  public:
+  // Default filament values for priority and layer mask.
+  static constexpr std::uint8_t kDefaultPriority = 4;
+  static constexpr std::uint8_t kDefaultLayerMask = 0x01;
+
   Renderables(filament::Engine* engine);
   ~Renderables() noexcept;
 
   Renderables(const Renderables&) = delete;
   Renderables& operator=(const Renderables&) = delete;
 
-  // Appends a new renderable entity built from the given buffers.
-  void Append(const FilamentBuffers& buffers);
-  void Append(FilamentBuffers&& buffers);
+  // Appends a new renderable entity built from the given mesh.
+  void Append(const Mesh* mesh);
+  void Append(MeshPtr mesh);
 
-  // Updates the entity at the index with new buffers.
-  void Update(int index, const FilamentBuffers& buffers);
-  void Update(int index, FilamentBuffers&& buffers);
+  // Updates the entity at the index with new mesh.
+  void Update(int index, const Mesh* mesh);
+  void Update(int index, MeshPtr mesh);
 
   // Removes the last entity.
   void RemoveLast();
@@ -49,20 +52,23 @@ class Renderables {
   // Returns the entity at the given index.
   utils::Entity operator[](int index) { return entities_[index]; }
 
-  // Returns the owned buffers at the given index.
+  // Returns the number of Entities that make up this renderable.
   int GetNumEntities() const { return entities_.size(); }
 
   // Hides all managed entities.
-  void Hide();
+  void SetLayerMask(std::uint8_t mask);
 
-  // Shows all managed entities.
-  void Show();
-
-  // Returns true if the entities are visible.
-  bool IsVisible() const { return visible_; }
+  // Sets the priority of all managed entities.
+  void SetPriority(std::uint8_t priority);
 
   // Disables the renderables from casting shadows.
-  void DisableShadows();
+  void SetCastShadows(bool cast_shadows);
+
+  // Disables the renderables from receiving shadows.
+  void SetReceiveShadows(bool receive_shadows);
+
+  // If true, forces all entities to be rendered as lines.
+  void SetWireframe(bool wireframe);
 
   // Adds all managed entities to the given filament Scene.
   void AddToScene(filament::Scene* scene);
@@ -77,17 +83,25 @@ class Renderables {
   filament::Engine* GetEngine() { return engine_; }
 
  private:
-  utils::Entity CreateEntity(const FilamentBuffers& buffers);
-  void UpdateEntity(utils::Entity entity, const FilamentBuffers& buffers);
-  void UpdateBuffers(int index, std::optional<FilamentBuffers> buffers);
+  utils::Entity CreateEntity(const Mesh* mesh);
+  void UpdateEntity(utils::Entity entity, const Mesh* mesh);
+  void UpdateMeshes(int index, const Mesh* mesh, MeshPtr owned_mesh = nullptr);
+
+  struct MeshWrapper {
+    MeshPtr owned_mesh;
+    const Mesh* mesh = nullptr;
+  };
 
   filament::Engine* engine_ = nullptr;
   filament::Scene* assigned_scene_ = nullptr;
   filament::MaterialInstance* material_instance_ = nullptr;
   std::vector<utils::Entity> entities_;
-  std::vector<std::optional<FilamentBuffers>> owned_buffers_;
-  bool visible_ = true;
+  std::vector<MeshWrapper> meshes_;
+  std::uint8_t priority_ = kDefaultPriority;
+  std::uint8_t layer_mask_ = kDefaultLayerMask;
+  bool wireframe_ = false;
   bool cast_shadows_ = true;
+  bool receive_shadows_ = true;
 };
 
 }  // namespace mujoco

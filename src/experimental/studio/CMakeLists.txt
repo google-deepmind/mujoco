@@ -50,6 +50,7 @@ include(third_party_deps/font_awesome)
 target_link_libraries(${MUJOCO_STUDIO_TARGET_NAME}
     PRIVATE
         absl::flags
+        absl::flags_parse
         dear_imgui
         implot
         mujoco::mujoco

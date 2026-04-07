@@ -14,16 +14,12 @@
 # ==============================================================================
 """I/O functions for MJX Warp."""
 
-import threading
-
 import mujoco
-from mujoco.mjx.warp.types import RenderContext
+from mujoco.mjx.warp import render_context
 import mujoco.mjx.third_party.mujoco_warp as mjw
 import warp as wp
 
 _MJX_RENDER_CONTEXT_COUNTER = 0
-_MJX_RENDER_CONTEXT_LOCK = threading.Lock()
-_MJX_RENDER_CONTEXT_BUFFERS = {}
 
 
 def _create_context(mjm, nworld, device, **kwargs):
@@ -42,20 +38,30 @@ def create_render_context(
     devices: list[str | None] | None = None,
     **kwargs,
 ):
+  """Creates a render context using mujoco_warp.create_render_context."""
   global _MJX_RENDER_CONTEXT_COUNTER
 
   if not devices:
     devices = [None]
 
-  contexts = [_create_context(mjm, nworld, d, **kwargs) for d in devices]
+  contexts = {}
+  default = None
+  for d in devices:
+    ctx = _create_context(mjm, nworld, d, **kwargs)
+    ordinal = wp.get_device(d).ordinal
+    contexts[ordinal] = ctx
+    if default is None:
+      default = ctx
 
-  with _MJX_RENDER_CONTEXT_LOCK:
+  # pylint: disable=protected-access
+  with render_context._MJX_RENDER_CONTEXT_LOCK:
     _MJX_RENDER_CONTEXT_COUNTER += 1
     key = _MJX_RENDER_CONTEXT_COUNTER
-    for d, ctx in zip(devices, contexts):
-      ordinal = wp.get_device(d).ordinal
-      _MJX_RENDER_CONTEXT_BUFFERS[(key, ordinal)] = ctx
-    if (key, None) not in _MJX_RENDER_CONTEXT_BUFFERS:
-      # save the first context as the default context
-      _MJX_RENDER_CONTEXT_BUFFERS[(key, None)] = contexts[0]
-  return RenderContext(key, _owner=True)
+    for ordinal, ctx in contexts.items():
+      render_context._MJX_RENDER_CONTEXT_BUFFERS[(key, ordinal)] = ctx
+    render_context._MJX_RENDER_CONTEXT_BUFFERS[(key, None)] = default
+  # pylint: enable=protected-access
+
+  return render_context.RenderContext(
+      key=key, contexts=contexts, default=default
+  )

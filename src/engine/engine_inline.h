@@ -39,6 +39,15 @@ mji_ functions:
 
 //------------------------------ 3D vector and matrix-vector operations ----------------------------
 
+// res = 0
+static inline
+void mji_zero3(mjtNum* restrict res) {
+  res[0] = 0;
+  res[1] = 0;
+  res[2] = 0;
+}
+
+
 // res = vec
 static inline
 void mji_copy3(mjtNum* restrict res, const mjtNum *vec) {

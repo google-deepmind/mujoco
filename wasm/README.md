@@ -18,7 +18,53 @@ TypeScript.
 > in CI but as of November 13th 2025, Windows support remains experimental
 > (installation succeeded on one Windows 11 machine but failed on others)._
 
-## Prerequisites
+## Installation
+
+The easiest way to use the MuJoCo JavaScript bindings is to install the
+`@mujoco/mujoco` package from npm:
+
+```sh
+npm install @mujoco/mujoco
+```
+
+This package is ESM (`type: module`) and includes the pre-compiled WebAssembly
+module, JavaScript bindings, and TypeScript declarations. Ensure your bundler or
+dev server serves the `.wasm` asset at runtime.
+
+### Threading Models
+
+The `@mujoco/mujoco` package includes two distinct builds of the engine to
+support different browser environments and performance needs.
+
+#### 1. Single-Threaded (Default)
+
+The standard single-threaded version is located at the root of the package. It
+is compatible with all modern browsers and does not require special security
+headers.
+```typescript
+import loadMujoco from '@mujoco/mujoco';
+```
+
+#### 2. Multi-Threaded (MT)
+
+The multi-threaded version is located in the `/mt` subfolder. It utilizes Web
+Workers and `SharedArrayBuffer` to parallelize physics computations.
+```typeScript
+import loadMujoco from '@mujoco/mujoco/mt';
+```
+
+> [!NOTE]
+> Due to the use of `SharedArrayBuffer`, browsers require Cross-Origin Isolation
+> to enable multi-threading. Your web server must send the following HTTP
+> headers:
+>    - `Cross-Origin-Opener-Policy: same-origin`
+>    - `Cross-Origin-Embedder-Policy: require-corp`
+>
+> If these headers are missing, the module will fail to initialize.
+
+## Build from source
+
+### Prerequisites
 
 > [!NOTE]
 > Run all the commands in this README from the top-level directory.
@@ -69,12 +115,8 @@ TypeScript.
 > browser as a platform, see the
 > [Porting](https://emscripten.org/docs/porting/index.html#porting) section._
 
-## User Guide
-
-### Bindings Generation
-
 The [`bindings.cc`](codegen/generated/bindings.cc) file is compiled to generate
-to `.wasm` WebAssembly file, `.js` JavaScript import, and `.d.ts` TypeScript
+the `.wasm` WebAssembly file, `.js` JavaScript import, and `.d.ts` TypeScript
 declaration file. These are the files you'll use to call MuJoCo from JavaScript.
 To generate them ensure the npm and Emscripten SDK prerequisites are set up and
 then run the following:
@@ -87,6 +129,14 @@ This command will generate the following folders under the project root:
 
 - `build`: contains MuJoCo compiled using Emscripten.
 - `wasm/dist`: contains the WebAssembly module, `.js` and `.d.ts` files.
+
+The assets inside those folders are compiled and prepared to run as
+single-threaded. If you need to operate with a multi-threaded version of the
+module make sure to pass the `-DMUJOCO_WASM_THREADS=ON` flag like:
+
+```sh
+emcmake cmake -B build -DMUJOCO_WASM_THREADS=ON && cmake --build build
+```
 
 ### Example Application
 
@@ -110,6 +160,7 @@ write your application in C++ and compile it using Emscripten, you may want to
 copy a subset of the `EMSCRIPTEN_BINDINGS` from `bindings.cc` into your
 application’s source file.
 
+## User Guide
 ### Named Access
 
 The bindings support named access methods, similar to the Python bindings,
@@ -118,6 +169,257 @@ example, you can access a geometry by name using `model.geom('mygeom')` or a
 joint using `data.jnt('myjoint')`.
 
 For more details and examples of how to use named access, please refer to the [named access tests](tests/bindings_test.ts#L1876-L2378) and [documentation](https://mujoco.readthedocs.io/en/stable/python.html#named-access).
+
+### Memory Management
+Embind-wrapped C++ object handles created or returned into JavaScript live on
+the WebAssembly heap and are **not** garbage-collected by the JS runtime.
+
+Any heap-allocated C++ object exposed to JS (e.g. via `new Module.MyClass(...)`
+or returned as a pointer/reference from a binding) must be explicitly freed
+when no longer needed to avoid memory leaks.
+
+Use the generated `.delete()` method on wrapped instances to destroy the
+underlying C++ object:
+
+```typescript
+const obj = new Module.MyClass(...);
+// ... use obj ...
+obj.delete(); // free the C++ memory
+```
+
+Be careful to call `.delete()` exactly once per created object (double-delete
+is an error). In JS code paths that may throw or return early, ensure
+deletion happens in finally blocks or wrap lifetime management to avoid leaks.
+
+> [!IMPORTANT]
+> _Embind's documentation strongly recommends that JavaScript code explicitly
+> deletes any C++ object handles it has received._
+
+### Copy vs. Reference
+
+When interacting with MuJoCo objects through the WASM bindings, it's important
+to understand how data is accessed. Properties on objects like `MjModel` and
+`MjData` can expose data in two ways: by copy or by reference.
+
+#### 1. By Copy (Value-based access)
+
+Some properties return a copy of the data at the time of access. This is common
+for complex data structures that need to be marshalled from C++ to JavaScript.
+
+A key example is `MjData.contact`. When you access `data.contact`, you get an
+object containing a copy of the contacts at that specific moment in the
+simulation.
+
+If you step the simulation forward, they will not be updated. You must access
+`data.contact` again to get the new contact information.
+
+The object you get is a JavaScript proxy interface generated by [Emscripten’s Embind library](https://emscripten.org/docs/porting/connecting_cpp_and_javascript/embind.html#built-in-type-conversions) when you expose a `std::vector` using `register_vector<T>`. It is essentially a "bridge" object.
+
+```typescript
+export interface MjContactVec extends ClassHandle {
+  /** Appends a new element to the end of the vector, increasing its length by one. */
+  push_back(_0: MjContact): void;
+  /** Resizes the vector to contain the specified number of elements, filling new slots with the provided value. */
+  resize(_0: number, _1: MjContact): void;
+  /** Returns the total number of elements currently stored in the vector. */
+  size(): number;
+  /** Retrieves the element at the specified index, or returns undefined if the index is out of bounds. */
+  get(_0: number): MjContact | undefined;
+  /** Overwrites the element at the specified index; returns true if successful or false if the index is invalid. */
+  set(_0: number, _1: MjContact): boolean;
+}
+```
+
+Example:
+```typescript
+// Gets contacts at the current time.
+const contacts = data.contact;
+
+// Step the simulation
+mujoco.mj_step(model, data);
+
+// `contacts` is now stale. To get the new contacts, you must access the property again:
+const newContacts = data.contact;
+
+// Remember to delete all created objects when they are no longer needed.
+contacts.delete();
+newContacts.delete();
+```
+
+#### 2. By Reference (View-based access)
+
+Many properties, especially large numerical arrays, return a live view directly
+into the WebAssembly memory. This is highly efficient as it avoids copying large
+amounts of data.
+
+A key example is `MjData.qpos` (joint positions). When you get a reference to
+this array, it points directly to the simulation's state data. Any changes in
+the simulation (e.g., after a call to `mj_step`) will be immediately reflected
+in this array.
+
+```typescript
+// `qpos` is a live view into the simulation state.
+const qpos = data.qpos;
+
+console.log(qpos[0]); // Print initial position
+
+// Step the simulation
+mujoco.mj_step(model, data);
+
+// `qpos` is automatically updated.
+console.log(qpos[0]); // Print new position
+
+// Remember to delete all created objects when they are no longer needed.
+data.delete();
+```
+
+### Data Layout: Row-Major Matrices
+
+When a function from the MuJoCo C API returns a matrix (or needs a matrix as
+input), these are represented in the JavaScript bindings as flat,
+one-dimensional `TypedArray`'s. The elements are stored in row-major order.
+
+For example, a 3x10 matrix will be returned as a flat array with 30 elements.
+The first 10 elements represent the first row, the next 10 represent the second
+row, and so on.
+
+Example: Accessing an element at `(row, col)`
+```typescript
+// A 3x10 matrix stored as a flat array.
+const matrix: Float64Array = ...;
+const nRows = 3;
+const nCols = 10;
+
+// To access the element at row `i` and column `j`:
+const element = matrix[i * nCols + j];
+```
+
+### Working with Out Parameters
+
+Many functions in the MuJoCo C API use "out parameters" to return data. This
+means instead of returning a value, they write the result into one of the
+arguments passed to them by reference (using pointers). In our JavaScript
+bindings, you'll need to handle these cases specifically.
+
+There are two main scenarios you'll encounter:
+
+#### 1. Array-like Out Parameters
+
+When a function expects a pointer to a primitive type (like `mjtNum*` or `int*`)
+to write an array of values, you need to pre-allocate memory for the result on
+the JavaScript side. We provide helper classes for this: `mujoco.Uint8Buffer`,
+`mujoco.DoubleBuffer`, `mujoco.FloatBuffer`, and `mujoco.IntBuffer`.
+
+Here's how to use them:
+
+1.  Create a buffer: Instantiate the appropriate buffer class with an initial array of the correct size (e.g., an array of zeros).
+2.  Call the function: Pass the buffer instance to the function as the out parameter.
+3.  Access the result: Use the `.getView()` method on the buffer to get a `TypedArray` view of the data written by the C++ function.
+4.  Free the memory: When you are done with the buffer, you must call the `.delete()` method to free the underlying memory and prevent memory leaks.
+
+Example: Rotating a vector
+
+The function `mju_rotVecQuat` rotates a vector `vec` by a quaternion `quat` and
+stores the result in the `res` out parameter.
+
+```typescript
+// Create a buffer to hold the 3D vector result.
+const res = new mujoco.DoubleBuffer([0, 0, 0]);
+
+const vec = [1, 0, 0];
+const quat = [0.707, 0, 0, 0.707]; // 90-degree rotation around z-axis
+
+try {
+  // Call the function with the buffer as the out parameter.
+  mujoco.mju_rotVecQuat(res, vec, quat);
+
+  // Get the result as a Float64Array.
+  const resultView = res.getView();
+  console.log(resultView); // Expected: approximately [0, 1, 0]
+
+} finally {
+  // IMPORTANT: Free the memory allocated for the buffer.
+  res.delete();
+}
+```
+
+#### 2. Struct Out Parameters (e.g., mjvCamera*, mjvScene*)
+
+When a function modifies a struct passed by pointer, you should pass an instance
+of the corresponding JavaScript wrapper class. The underlying C++ struct will be
+ modified in place.
+
+Example: Updating a scene
+
+The function `mjv_updateScene` populates an `mjvScene` object with information
+from `mjModel` and `mjData`.
+```typescript
+// Create instances of the necessary structs.
+const model = mujoco.MjModel.from_xml_string(xmlContent);
+const data = new mujoco.MjData(model);
+const scene = new mujoco.MjvScene(model, 1000);
+const option = new mujoco.MjvOption();
+const perturb = new mujoco.MjvPerturb();
+const camera = new mujoco.MjvCamera();
+
+// ... (step simulation, etc.)
+
+// Update the scene. The 'scene' object is modified by the function.
+mujoco.mjv_updateScene(
+    model,
+    data,
+    option,
+    perturb,
+    camera,
+    mujoco.mjtCatBit.mjCAT_ALL.value,
+    scene
+);
+
+console.log('Number of geoms in scene:', scene.ngeom);
+
+// Remember to delete all created objects when they are no longer needed.
+scene.delete();
+camera.delete();
+perturb.delete();
+option.delete();
+data.delete();
+model.delete();
+```
+
+As with buffers, you are responsible for managing the memory of these struct
+ instances and must call `.delete()` on them when you are finished.
+
+### Enums
+Access via `.value`:
+```javascript
+mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL.value
+```
+
+### Constants
+Scalar constants can be accessed as properties:
+
+```javascript
+mujoco.mjNEQDATA
+```
+
+Non-scalar constants like `mjFRAMESTRING` are also accessed as properties, and
+return JavaScript arrays:
+
+```javascript
+mujoco.mjFRAMESTRING
+```
+
+This will return a javascript array representation of the values in MuJoCo
+`mjFRAMESTRING`.
+
+> [!NOTE]
+> You will notice constants like `mjFRAMESTRING` are typed as `any`. This is
+> because they are bound using `emscripten::val::array()` in C++, and Embind
+> maps `emscripten::val` to `any` in TypeScript definition files. While
+> `EMSCRIPTEN_DECLARE_VAL_TYPE(StringArray)` could be used to define
+> `StringArray` as an alias for `emscripten::val` and hint to Embind how to
+> handle conversions in function signatures or when using `.as()` it does not
+> change how `emscripten::constant` infers types for properties.
 
 ## Development
 
@@ -182,6 +484,14 @@ stepping through code across language boundaries work correctly. Our current
 method to do this only works internally at Google, but it should be possible to
 replicate the experience with open-source tooling — community suggestions are
 welcome!
+
+## Versioning
+Package versions follow the official MuJoCo release versions.
+For example:
+
+| npm version | MuJoCo version |
+|-------------|----------------|
+| 3.5.0       | 3.5.0          |
 
 ## Future Work
 

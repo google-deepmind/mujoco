@@ -549,14 +549,46 @@ def _build_struct_bindings(
       MJDATA_ACCESSORS
     #undef X_ACCESSOR""".lstrip())
     elif w == "MjModel":
-      f1 = common.wrapped_function_name(
-          introspect_functions.FUNCTIONS["mj_loadXML"]
+      builder.line(
+          "// mj_loadXML is deprecated and will be removed in a future release"
       )
-      builder.line(f'.class_function("mj_loadXML", &{f1}, take_ownership())')
+      builder.line(
+          '.class_function("mj_loadXML",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(std::string)>(&mj_loadXML_wrapper_1))"
+      )
+      builder.line(
+          '.class_function("mj_loadXML",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(std::string,"
+          " const MjVFS&)>(&mj_loadXML_wrapper_2))"
+      )
       f2 = common.wrapped_function_name(
           introspect_functions.FUNCTIONS["mj_loadModel"]
       )
-      builder.line(f'.class_function("mj_loadBinary", &{f2}, take_ownership())')
+      builder.line(
+          "// mj_loadModel is deprecated and will be removed in a future"
+          " release"
+      )
+      builder.line(f'.class_function("mj_loadModel", &{f2})')
+      builder.line(f'.class_function("from_binary_path", &{f2})')
+      builder.line(
+          '.class_function("from_xml_string",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(const"
+          " std::string&)>(&from_xml_string_wrapper_1))"
+      )
+      builder.line(
+          '.class_function("from_xml_string",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(const"
+          " std::string&, const MjVFS&)>(&from_xml_string_wrapper_2))"
+      )
+      builder.line(
+          '.class_function("from_xml_path",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(std::string)>(&mj_loadXML_wrapper_1))"
+      )
+      builder.line(
+          '.class_function("from_xml_path",'
+          " emscripten::select_overload<std::unique_ptr<MjModel>(std::string,"
+          " const MjVFS&)>(&mj_loadXML_wrapper_2))"
+      )
       builder.line(".constructor<const MjModel &>()")
       builder.line("""
   // Binds the functions on MjModel that return accessors.

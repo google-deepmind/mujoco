@@ -58,11 +58,6 @@ set(MUJOCO_DEP_VERSION_benchmark
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 
-set(MUJOCO_DEP_VERSION_TriangleMeshDistance
-    2cb643de1436e1ba8e2be49b07ec5491ac604457
-    CACHE STRING "Version of `TriangleMeshDistance` to be fetched."
-)
-
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
 mark_as_advanced(MUJOCO_DEP_VERSION_MarchingCubeCpp)
 mark_as_advanced(MUJOCO_DEP_VERSION_tinyxml2)
@@ -73,7 +68,6 @@ mark_as_advanced(MUJOCO_DEP_VERSION_Eigen3)
 mark_as_advanced(MUJOCO_DEP_VERSION_abseil)
 mark_as_advanced(MUJOCO_DEP_VERSION_gtest)
 mark_as_advanced(MUJOCO_DEP_VERSION_benchmark)
-mark_as_advanced(MUJOCO_DEP_VERSION_TriangleMeshDistance)
 
 include(FetchContent)
 include(FindOrFetch)
@@ -200,30 +194,6 @@ findorfetch(
 if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
   unset(CMAKE_POLICY_VERSION_MINIMUM)
   unset(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
-endif()
-
-if(NOT TARGET trianglemeshdistance)
-  FetchContent_Declare(
-    trianglemeshdistance
-    GIT_REPOSITORY https://github.com/InteractiveComputerGraphics/TriangleMeshDistance.git
-    GIT_TAG ${MUJOCO_DEP_VERSION_TriangleMeshDistance}
-  )
-
-  FetchContent_GetProperties(trianglemeshdistance)
-  if(NOT trianglemeshdistance_POPULATED)
-    FetchContent_Populate(trianglemeshdistance)
-    # Patch the source code to silence a warning/error related to a loop variable creating a copy.
-    # Since this is a header only library this fix is less intrusive than disabling the warning for
-    # any target including the header.
-    set(TMD_HEADER ${trianglemeshdistance_SOURCE_DIR}/TriangleMeshDistance/include/tmd/TriangleMeshDistance.h)
-    file(READ ${TMD_HEADER} TMD_CONTENT)
-    string(REPLACE
-      "for (const auto edge_count : edges_count) {"
-      "for (const auto& edge_count : edges_count) {"
-      TMD_CONTENT "${TMD_CONTENT}")
-    file(WRITE ${TMD_HEADER} "${TMD_CONTENT}")
-    include_directories(${trianglemeshdistance_SOURCE_DIR})
-  endif()
 endif()
 
 set(ENABLE_DOUBLE_PRECISION ON)

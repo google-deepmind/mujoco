@@ -21,7 +21,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_array_safety.h"
-#include "render/glad/glad.h"
+#include "render/classic/glad/glad.h"
 
 //------------------------------------ Default themes ----------------------------------------------
 

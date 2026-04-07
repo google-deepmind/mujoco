@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { MainModule, MjData, MjModel } from "../../dist/mujoco_wasm"
-import loadMujoco from "../../dist/mujoco_wasm.js"
+import { MainModule, MjData, MjModel } from "../../dist/mujoco"
+import loadMujoco from "../../dist/mujoco.js"
 
 declare function loadMujoco(): Promise<MainModule>;
 
 async function main() {
   const mujoco: MainModule = await loadMujoco();
-
-  (mujoco as any).FS.mkdir('/working');
-  (mujoco as any).FS.mount((mujoco as any).MEMFS, {root: '.'}, '/working');
 
   const xmlContent = `
     <mujoco model="Box falling">
@@ -37,13 +34,12 @@ async function main() {
       </worldbody>
     </mujoco>`;
 
-  (mujoco as any).FS.writeFile('/working/hello.xml', xmlContent);
   let model: MjModel|undefined;
   let data: MjData|undefined;
 
   try {
     console.log('Hello world!: Loading model');
-    model = mujoco.MjModel.mj_loadXML('/working/hello.xml');
+    model = mujoco.MjModel.from_xml_string(xmlContent);
     if (!model) {
       throw new Error('Failed to load model');
     }
@@ -57,7 +53,6 @@ async function main() {
   } finally {
     model?.delete();
     data?.delete();
-    (mujoco as any).FS.unmount('/working');
   }
 }
 

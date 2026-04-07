@@ -32,18 +32,6 @@ If you intend to develop the application you may prefer to work from an IDE:
 * [Visual Studio](https://visualstudio.microsoft.com/). Follow these
   [instructions](https://learn.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio?view=msvc-170).
 
-## Filament Rendering
-
-Studio uses legacy OpenGL rendering by default but there is an option to use
-Physically Based Rendering via [Filament](https://google.github.io/filament/Filament.md.html).
-To enable Filament you need to `-DMUJOCO_USE_FILAMENT=ON` during the cmake
-configuration step. The Filament renderer has multiple rendering backends,
-on Linux OpenGL is the default but Vulkan can be used by also providing
-the `-DMUJOCO_USE_FILAMENT_VULKAN=ON` option.
-
-Also note that you will need to run the application from the folder containing
-the executable so that the expected materials/assets can be found.
-
 ## Known Bugs
 
 * MuJoCo Studio does not yet work using Wayland on Linux, use X11 instead.

@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MATH_UTIL_H_
 
 #include <math/mat3.h>
+#include <math/mat4.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
@@ -53,6 +54,31 @@ inline filament::math::mat3 ReadMat3(const T* arr, int index = 0) {
                               ptr[2], ptr[5], ptr[8]);
   // clang-format on
 }
+
+// Calculates a reflection matrix for a plane defined by its transform.
+filament::math::mat4 ToReflectionMatrix(const filament::math::mat4& xform);
+
+// Modifies a projection matrix so its near plane coincides with an arbitrary
+// plane defined in camera space.
+filament::math::mat4 CalculateObliqueProjection(
+    const filament::math::mat4& projection,
+    const filament::math::float4& plane);
+
+// Calculates the normal of a triangle given its three vertices.
+filament::math::float3 CalculateNormal(
+    const filament::math::float3& p1,
+    const filament::math::float3& p2,
+    const filament::math::float3& p3);
+
+// Calculates the orientation of a vertex given just its normal.
+filament::math::float4 CalculateOrientation(
+    const filament::math::float3& normal);
+
+// Calculates the orientation of a triangle given its three vertices.
+filament::math::float4 CalculateOrientation(
+    const filament::math::float3& p1,
+    const filament::math::float3& p2,
+    const filament::math::float3& p3);
 
 }  // namespace mujoco
 

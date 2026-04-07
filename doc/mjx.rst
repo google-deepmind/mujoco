@@ -104,8 +104,8 @@ bottlenecks exhibited in MJX-JAX around contacts and constraints.
 Note that unlike MJX-JAX, MJX-Warp does not support automatic differentiation and has no immediate plans to
 support auto-diff.
 
-MJX-Warp Basic Usage
-~~~~~~~~~~~~~~~~~~~~
+Basic Usage
+~~~~~~~~~~~
 
 We create model and data by passing ``impl='warp'`` to the ``mjx.put_model`` and ``mjx.make_data`` functions:
 
@@ -119,11 +119,11 @@ Notice that we pass two extra arguments to ``mjx.make_data``:
 
 * ``naconmax`` defines the maximum number of contacts for all worlds combined.
 * ``njmax`` defines the maximum number of constraints per world. If you are developing a new scene, these parameters
-  should be tuned by loading them in the :ref:`viewer <MJW_Cli>` and increasing the values accordingly as overflows
+  should be tuned by loading them in the :ref:`viewer <mjwViewer>` and increasing the values accordingly as overflows
   occur. Scale ``naconmax`` by the number of environments you'll eventually need in a ``jax.vmap``!
 
-MJX-Warp Contacts
-~~~~~~~~~~~~~~~~~
+Contacts
+~~~~~~~~
 
 Since JAX and Warp diverge in their implementations of contact buffers, contacts were moved from
 ``mjx.Data.contact`` to private ``mjx.Data._impl`` in MuJoCo 3.3.5. We encourage users to read out contacts solely through
@@ -134,8 +134,8 @@ For more details and examples of using MJX-Warp in the wild, see the announcemen
 
 .. _MjxWarpGraphModes:
 
-MJX-Warp Graph Modes
-~~~~~~~~~~~~~~~~~~~~
+Graph Modes
+~~~~~~~~~~~
 
 The ``mjx.put_model`` function accepts a ``graph_mode`` argument to configure the CUDA graph capture behavior,
 exposed by the ``mjx.warp.GraphMode`` enum. When called from JAX, CUDA graphs are captured by the Warp
@@ -209,14 +209,17 @@ excessive graph captures in the JAX-Warp FFI layer.
 
 .. _MjxWarpBatchRendering:
 
-MJX-Warp Batch Rendering
-~~~~~~~~~~~~~~~~~~~~~~~~
+Batch Rendering
+~~~~~~~~~~~~~~~
 
 MJX-Warp includes a hardware-accelerated batch renderer for generating pixel observations (such as RGB and depth)
 across multiple parallel environments.
 
-To use the batch renderer, you must first create a specialized render context that allocates the necessary buffers.
-Note that the number of parallel worlds (``nworld``) is fixed when creating the context:
+To use the batch renderer, you must first create a render context that allocates the necessary buffers.
+Note that the number of parallel worlds (``nworld``) is fixed when creating the context.
+``create_render_context`` returns a render context object that provides direct access to buffer
+metadata (camera resolution, addresses, etc.). Call ``.pytree()`` to obtain the lightweight JAX
+pytree that should be passed into ``jit``/``vmap``-compiled functions:
 
 .. code-block:: python
 
@@ -233,6 +236,10 @@ Note that the number of parallel worlds (``nworld``) is fixed when creating the 
         enabled_geom_groups=[0, 1, 2],
     )
 
+Hold a reference to ``rc`` for the lifetime of your program and pass ``rc.pytree()`` to
+downstream JAX functions.  The pytree is a lightweight handle that refers back to the
+context via an internal registry.
+
 Once the context is created, you can render images within a compiled JAX function. This involves updating the bounding
 volume hierarchy (BVH) and executing the raycaster:
 
@@ -241,22 +248,30 @@ volume hierarchy (BVH) and executing the raycaster:
     from mujoco.mjx import get_rgb
 
     @jax.jit
-    def render_fn(mx, d, rc):
+    def render_fn(mx, d, rc_pytree):
         # 1. Update the BVH for the current scene state
-        d = mjx.refit_bvh(mx, d, rc)
+        d = mjx.refit_bvh(mx, d, rc_pytree)
 
         # 2. Render all configured cameras
-        pixels, _ = mjx.render(mx, d, rc)
+        pixels, _ = mjx.render(mx, d, rc_pytree)
 
         # 3. Extract the RGB tensor for the first camera (index 0)
-        rgb = get_rgb(rc, 0, pixels)
+        rgb = get_rgb(rc_pytree, 0, pixels)
 
-        # CAVEAT: Always return or use the updated `d` in your computation graph.
-        # Otherwise, JAX's dead-code elimination will optimize away the refit_bvh call!
         return rgb, d
 
-Multi-GPU rendering with ``pmap``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    rgb, d = render_fn(mx, d, rc.pytree())
+
+.. WARNING::
+   The batch dimension ``nworld`` is fixed when the render context is created via
+   :func:`~mujoco.mjx.create_render_context` since the underlying Warp render context allocates
+   buffers for ``nworld`` environments that are not visible to JAX. :func:`~mujoco.mjx.render`
+   will always return outputs with a leading batch dimension of size ``nworld``. Because of this,
+   there is a known issue where :func:`~mujoco.mjx.render` does not play nice with a
+   ``jax.vmap(jax.lax.scan)``.
+
+Multi-GPU with ``pmap``
+^^^^^^^^^^^^^^^^^^^^^^^
 
 To render across multiple GPUs, create a render context **per device** by passing ``devices`` to
 :func:`create_render_context <mujoco.mjx.create_render_context>`.
@@ -438,13 +453,13 @@ The following table compares feature support between MJX-Warp and MJX-JAX compar
      - All
      - ``JOINT``, ``JOINTINPARENT``, ``SITE``, ``TENDON``
    * - :ref:`Actuator Dynamics <mjtDyn>`
-     - All except ``USER``
+     - All
      - ``NONE``, ``INTEGRATOR``, ``FILTER``, ``FILTEREXACT``, ``MUSCLE``
    * - :ref:`Actuator Gain <mjtGain>`
-     - All except ``USER``
+     - All
      - ``FIXED``, ``AFFINE``, ``MUSCLE``
    * - :ref:`Actuator Bias <mjtBias>`
-     - All except ``USER``
+     - All
      - ``NONE``, ``AFFINE``, ``MUSCLE``
    * - :ref:`Geom <mjtGeom>`
      - All
@@ -479,7 +494,7 @@ The following table compares feature support between MJX-Warp and MJX-JAX compar
      - All
      - :ref:`Fixed <tendon-fixed>`, :ref:`Spatial <tendon-spatial>`
    * - :ref:`Sensors <mjtSensor>`
-     - All except ``PLUGIN``, ``USER``
+     - All except ``PLUGIN``
      - See notes below [2]_
    * - Flex
      - ``VERTCOLLIDE``, ``ELASTICITY``
@@ -517,8 +532,8 @@ Performance Tuning
 
 .. _MjxPerformanceWarp:
 
-MJX-Warp Performance Tuning
----------------------------
+MJX-Warp
+--------
 
 :ref:`MJX-Warp <MjxWarp>` mitigates performance issues around scaling the number of contacts and constraints from
 :ref:`MJX-JAX <MjxSharpBits>`. MJX-Warp also fully supports mesh collisions. See the section on MuJoCo Warp
@@ -526,8 +541,8 @@ performance tuning `here <https://mujoco.readthedocs.io/en/stable/mjwarp/index.h
 
 .. _MjxPerformanceJAX:
 
-MJX-JAX Performance Tuning
---------------------------
+MJX-JAX
+-------
 
 .. note::
 
@@ -573,8 +588,8 @@ Broadphase
   `shadow hand <https://github.com/google-deepmind/mujoco/tree/main/mjx/mujoco/mjx/test_data/shadow_hand>`__ environment
   makes use of these parameters.
 
-MJX-JAX GPU performance
------------------------
+GPU performance
+~~~~~~~~~~~~~~~
 
 The following environment variables should be set:
 

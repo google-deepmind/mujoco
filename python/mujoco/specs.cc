@@ -1303,6 +1303,31 @@ PYBIND11_MODULE(_specs, m) {
         }
       },
       py::arg("gain"));
+  mjsActuator.def(
+      "set_to_dcmotor",
+      [](raw::MjsActuator* self, std::array<double, 2> motorconst,
+         double resistance,
+         std::array<double, 3> nominal, std::array<double, 4> saturation,
+         std::array<double, 2> inductance, std::array<double, 3> cogging,
+         std::array<double, 5> controller, std::array<double, 6> thermal,
+         std::array<double, 6> lugre, int input_mode) {
+        std::string err = mjs_setToDCMotor(
+            self, motorconst.data(), resistance, nominal.data(),
+            saturation.data(), inductance.data(), cogging.data(),
+            controller.data(), thermal.data(), lugre.data(), input_mode);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("motorconst"), py::arg("resistance"),
+      py::arg("nominal") = std::array<double, 3>{0, 0, 0},
+      py::arg("saturation") = std::array<double, 4>{0, 0, 0, 0},
+      py::arg("inductance") = std::array<double, 2>{0, 0},
+      py::arg("cogging") = std::array<double, 3>{0, 0, 0},
+      py::arg("controller") = std::array<double, 5>{0, 0, 0, 0, 0},
+      py::arg("thermal") = std::array<double, 6>{0, 0, 0, 0, 0, 0},
+      py::arg("lugre") = std::array<double, 6>{0, 0, 0, 0, 0, 0},
+      py::arg("input_mode") = 0);
 
   // ============================= MJSTENDONPATH ===============================
   // helper struct for tendon path indexing

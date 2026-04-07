@@ -2079,7 +2079,7 @@ class ModelWriter {
                                joint->solimp_friction + mjNIMP));
 
       WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
-                            MjcPhysicsTokens->mjcStiffness, joint->stiffness);
+                            MjcPhysicsTokens->mjcStiffness, joint->stiffness[0]);
 
       WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
                             MjcPhysicsTokens->mjcActuatorfrcrangeMin,
@@ -2116,7 +2116,7 @@ class ModelWriter {
                             MjcPhysicsTokens->mjcArmature, joint->armature);
 
       WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
-                            MjcPhysicsTokens->mjcDamping, joint->damping);
+                            MjcPhysicsTokens->mjcDamping, joint->damping[0]);
 
       WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
                             MjcPhysicsTokens->mjcFrictionloss,

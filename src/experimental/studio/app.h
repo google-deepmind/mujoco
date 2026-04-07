@@ -26,15 +26,18 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/gui.h"
-#include "experimental/platform/interaction.h"
-#include "experimental/platform/model_holder.h"
-#include "experimental/platform/picture_gui.h"
-#include "experimental/platform/renderer.h"
-#include "experimental/platform/sim_history.h"
-#include "experimental/platform/sim_profiler.h"
-#include "experimental/platform/step_control.h"
-#include "experimental/platform/window.h"
+#include "experimental/platform/hal/graphics_mode.h"
+#include "experimental/platform/hal/renderer.h"
+#include "experimental/platform/hal/window.h"
+#include "experimental/platform/sim/model_holder.h"
+#include "experimental/platform/sim/sim_history.h"
+#include "experimental/platform/sim/sim_profiler.h"
+#include "experimental/platform/sim/step_control.h"
+#include "experimental/platform/ux/gui.h"
+#include "experimental/platform/ux/gui_spec.h"
+#include "experimental/platform/ux/interaction.h"
+#include "experimental/platform/ux/picture_gui.h"
+#include "experimental/platform/ux/spec_editor.h"
 
 namespace mujoco::studio {
 
@@ -50,10 +53,8 @@ class App {
     // The path to the ini file containing the user settings.
     std::string ini_path;
 
-    // By default, we render directly to the window surface. However, in some
-    // cases, we may want to render to an (offscreen) texture and blit the
-    // texture to the window surface.
-    bool offscreen_mode = false;
+    // The graphics configuration used for initializing the window.
+    platform::GraphicsMode gfx_mode = platform::GraphicsMode::FilamentVulkan;
   };
 
   explicit App(Config config);
@@ -91,6 +92,12 @@ class App {
     kModelFromBuffer,
   };
 
+  enum class SpecPropertiesMode {
+    kSpec,
+    kModel,
+    kData,
+  };
+
   // UI state that is persisted across application runs
   struct UiState {
     char watch_field[1000] = "qpos";
@@ -121,6 +128,8 @@ class App {
     bool style_editor = false;
     bool imgui_demo = false;
     bool implot_demo = false;
+    float editor_split = -1;
+    float explorer_split = -1;
 
     // Controls.
     bool perturb_active = false;
@@ -135,9 +144,9 @@ class App {
     std::vector<std::string> camera_names;
     std::vector<std::string> speed_names;
 
-    // Spec Properties.
-    mjsElement* element = nullptr;
-    int element_id = -1;
+    // Spec editing.
+    SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;
+    mjsElement* curr_element = nullptr;
 
     // State.
     int state_sig = 0;
@@ -178,6 +187,8 @@ class App {
   // then compile the spec to a model.
   void OnModelLoaded(std::string filename, ModelKind model_kind);
 
+  void SwitchGraphicsMode(int width, int height, platform::GraphicsMode mode);
+
   void SetLoadError(std::string error);
   void UpdateFilePaths(const std::string& resolved_path);
 
@@ -209,12 +220,9 @@ class App {
   void ModelOptionsGui();
   void DataInspectorGui();
   void SpecExplorerGui();
-  void PropertiesGui();
-
-  void SpecDeleteSelectedElement();
+  void SpecEditorGui();
 
   float GetExpectedLabelWidth();
-  std::vector<const char*> GetCameraNames();
 
   mjSpec* spec() { return model_holder_->spec(); }
   mjModel* model() { return model_holder_->model(); }
@@ -228,18 +236,22 @@ class App {
   std::string model_path_;
   std::string load_error_;
   std::string step_error_;
+  std::string edit_error_;
+
   std::optional<std::string> pending_load_;
+  std::function<void()> pending_op_;
   bool preserve_camera_on_load_ = false;
   ModelKind model_kind_ = kEmptyModel;
+  platform::GraphicsMode gfx_mode_ = platform::GraphicsMode::FilamentVulkan;
 
   std::unique_ptr<platform::Window> window_;
   std::unique_ptr<platform::Renderer> renderer_;
   std::unique_ptr<platform::ModelHolder> model_holder_;
-  std::function<void()> spec_op_;
 
   platform::StepControl step_control_;
   platform::SimProfiler profiler_;
-  platform::SimHistory history_;
+  platform::SimHistory sim_history_;
+  platform::SpecEditor spec_editor_;
   std::vector<std::string> search_paths_;
   std::vector<std::byte> pixels_;
 

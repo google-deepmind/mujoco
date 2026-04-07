@@ -14,14 +14,15 @@
 
 #include "experimental/filament/filament/renderables.h"
 
-#include <optional>
+#include <cstdint>
+#include <utility>
 
 #include <filament/Engine.h>
 #include <filament/RenderableManager.h>
 #include <filament/Scene.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/mesh.h"
 
 namespace mujoco {
 
@@ -48,65 +49,70 @@ void Renderables::RemoveLast() {
   engine_->destroy(entity);
   em.destroy(entity);
   entities_.pop_back();
-
-  UpdateBuffers(owned_buffers_.size() - 1, std::nullopt);
-  owned_buffers_.pop_back();
+  meshes_.pop_back();
 }
 
-void Renderables::Update(int index, const FilamentBuffers& buffers) {
+void Renderables::Update(int index, const Mesh* mesh) {
   if (index < 0 || index >= entities_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
   utils::Entity& entity = entities_[index];
-  UpdateEntity(entity, buffers);
-  UpdateBuffers(index, std::nullopt);
+  UpdateEntity(entity, mesh);
+  UpdateMeshes(index, mesh);
 }
 
-void Renderables::Update(int index, FilamentBuffers&& buffers) {
+void Renderables::Update(int index, MeshPtr mesh) {
   if (index < 0 || index >= entities_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
   utils::Entity& entity = entities_[index];
-  UpdateEntity(entity, buffers);
-  UpdateBuffers(index, buffers);
+  UpdateEntity(entity, mesh.get());
+  UpdateMeshes(index, mesh.get(), std::move(mesh));
 }
 
-void Renderables::Append(const FilamentBuffers& buffers) {
-  utils::Entity entity = CreateEntity(buffers);
+void Renderables::Append(const Mesh* mesh) {
+  utils::Entity entity = CreateEntity(mesh);
   entities_.push_back(entity);
-  owned_buffers_.push_back(std::nullopt);
+  meshes_.push_back({nullptr, mesh});
 }
 
-void Renderables::Append(FilamentBuffers&& buffers) {
-  utils::Entity entity = CreateEntity(buffers);
+void Renderables::Append(MeshPtr mesh) {
+  utils::Entity entity = CreateEntity(mesh.get());
   entities_.push_back(entity);
-  owned_buffers_.push_back(buffers);
+  meshes_.push_back({std::move(mesh), mesh.get()});
 }
 
-utils::Entity Renderables::CreateEntity(const FilamentBuffers& buffers) {
-  if (buffers.vertex_buffer == nullptr) {
+utils::Entity Renderables::CreateEntity(const Mesh* mesh) {
+  filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
+  if (vertex_buffer == nullptr) {
     mju_error("Invalid (null) vertex buffer.");
   }
-  if (buffers.index_buffer == nullptr) {
+
+  filament::IndexBuffer* index_buffer = mesh->GetFilamentIndexBuffer();
+  if (index_buffer == nullptr) {
     mju_error("Invalid (null) index buffer.");
   }
+
   utils::Entity entity = utils::EntityManager::get().create();
   if (entity.isNull()) {
     mju_error("Failed to create entity.");
   }
 
   filament::RenderableManager::Builder builder(1);
-  builder.geometry(0, buffers.type, buffers.vertex_buffer,
-                   buffers.index_buffer);
+  builder.geometry(0, mesh->GetPrimitiveType(), vertex_buffer, index_buffer);
+  if (mesh->HasBounds()) {
+    builder.boundingBox(mesh->GetBounds());
+  } else {
+    builder.culling(false);
+  }
   if (material_instance_) {
     builder.material(0, material_instance_);
   }
-  builder.boundingBox(buffers.bounds)
-      .culling(false)
-      .castShadows(cast_shadows_)
-      .receiveShadows(true)
-      .layerMask(1, visible_ ? 1 : 0)
-      .screenSpaceContactShadows(true);
+  builder.castShadows(cast_shadows_);
+  builder.receiveShadows(receive_shadows_);
+  builder.layerMask(0xff, layer_mask_);
+  builder.priority(priority_);
+  builder.screenSpaceContactShadows(true);;
 
   builder.build(*engine_, entity);
   if (assigned_scene_) {
@@ -115,30 +121,29 @@ utils::Entity Renderables::CreateEntity(const FilamentBuffers& buffers) {
   return entity;
 }
 
-void Renderables::UpdateEntity(utils::Entity entity,
-                               const FilamentBuffers& buffers) {
-  if (buffers.vertex_buffer == nullptr) {
+void Renderables::UpdateEntity(utils::Entity entity, const Mesh* mesh) {
+  filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
+  if (vertex_buffer == nullptr) {
     mju_error("Invalid (null) vertex buffer.");
   }
-  if (buffers.index_buffer == nullptr) {
+
+  filament::IndexBuffer* index_buffer = mesh->GetFilamentIndexBuffer();
+  if (index_buffer == nullptr) {
     mju_error("Invalid (null) index buffer.");
   }
+
   filament::RenderableManager& rm = engine_->getRenderableManager();
-  rm.setGeometryAt(rm.getInstance(entity), 0, buffers.type,
-                   buffers.vertex_buffer, buffers.index_buffer, 0,
-                   buffers.index_buffer->getIndexCount());
+  rm.setGeometryAt(rm.getInstance(entity), 0, mesh->GetPrimitiveType(),
+                   vertex_buffer, index_buffer, 0,
+                   index_buffer->getIndexCount());
 }
 
-void Renderables::UpdateBuffers(int index,
-                                std::optional<FilamentBuffers> buffers) {
-  if (index < 0 || index >= owned_buffers_.size()) {
+void Renderables::UpdateMeshes(int index, const Mesh* mesh, MeshPtr owned_mesh) {
+  if (index < 0 || index >= meshes_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
-  if (owned_buffers_[index].has_value()) {
-    engine_->destroy(owned_buffers_[index]->vertex_buffer);
-    engine_->destroy(owned_buffers_[index]->index_buffer);
-  }
-  owned_buffers_[index] = buffers;
+  meshes_[index].owned_mesh = std::move(owned_mesh);
+  meshes_[index].mesh = mesh;
 }
 
 void Renderables::AddToScene(filament::Scene* scene) {
@@ -177,32 +182,69 @@ void Renderables::SetMaterialInstance(
   }
 }
 
-void Renderables::Hide() {
-  if (visible_) {
+void Renderables::SetLayerMask(std::uint8_t mask) {
+  if (mask != layer_mask_) {
+    layer_mask_ = mask;
+
     filament::RenderableManager& rm = engine_->getRenderableManager();
     for (utils::Entity& entity : entities_) {
-      rm.setLayerMask(rm.getInstance(entity), 1, 0);
+      rm.setLayerMask(rm.getInstance(entity), 0xff, layer_mask_);
     }
-    visible_ = false;
   }
 }
 
-void Renderables::Show() {
-  if (!visible_) {
+void Renderables::SetPriority(std::uint8_t priority) {
+  if (priority != priority_) {
+    priority_ = priority;
+
     filament::RenderableManager& rm = engine_->getRenderableManager();
     for (utils::Entity& entity : entities_) {
-      rm.setLayerMask(rm.getInstance(entity), 1, 1);
+      rm.setPriority(rm.getInstance(entity), priority_);
     }
-    visible_ = true;
   }
 }
 
-void Renderables::DisableShadows() {
-  filament::RenderableManager& rm = engine_->getRenderableManager();
-  for (utils::Entity& entity : entities_) {
-    rm.setCastShadows(rm.getInstance(entity), false);
+void Renderables::SetCastShadows(bool cast_shadows) {
+  if (cast_shadows_ != cast_shadows) {
+    cast_shadows_ = cast_shadows;
+
+    filament::RenderableManager& rm = engine_->getRenderableManager();
+    for (utils::Entity& entity : entities_) {
+      rm.setCastShadows(rm.getInstance(entity), cast_shadows_);
+    }
   }
-  cast_shadows_ = false;
+}
+
+void Renderables::SetReceiveShadows(bool receive_shadows) {
+  if (receive_shadows_ != receive_shadows) {
+    receive_shadows_ = receive_shadows;
+
+    filament::RenderableManager& rm = engine_->getRenderableManager();
+    for (utils::Entity& entity : entities_) {
+      rm.setReceiveShadows(rm.getInstance(entity), receive_shadows_);
+    }
+  }
+}
+
+void Renderables::SetWireframe(bool wireframe) {
+  static constexpr auto kWireframeType =
+      filament::RenderableManager::PrimitiveType::LINES;
+
+  if (wireframe != wireframe_) {
+    wireframe_ = wireframe;
+
+    filament::RenderableManager& rm = engine_->getRenderableManager();
+    for (int i = 0; i < entities_.size(); ++i) {
+      utils::Entity& entity = entities_[i];
+      const Mesh* mesh = meshes_[i].mesh;
+      filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
+      filament::IndexBuffer* index_buffer = mesh->GetFilamentIndexBuffer();
+      rm.setGeometryAt(rm.getInstance(entity), 0,
+                       wireframe_ ? kWireframeType : mesh->GetPrimitiveType(),
+                       vertex_buffer, index_buffer, 0,
+                       index_buffer->getIndexCount());
+    }
+  }
 }
 
 }  // namespace mujoco

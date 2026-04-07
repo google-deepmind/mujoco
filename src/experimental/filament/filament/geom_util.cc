@@ -15,15 +15,15 @@
 #include "experimental/filament/filament/geom_util.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <cstring>
+#include <memory>
 #include <span>
 
 #include <filament/Engine.h>
+#include <filament/IndexBuffer.h>
+#include <filament/VertexBuffer.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/buffer_util.h"
-#include "experimental/filament/filament/math_util.h"
-#include "experimental/filament/filament/vertex_util.h"
+#include "experimental/filament/filament/mesh.h"
 
 namespace mujoco {
 
@@ -98,60 +98,8 @@ static std::span<const int> GetIndices(const mjModel* model,
   }
 }
 
-template <typename T>
-static void FillVertices(std::byte* buffer, std::size_t len,
-                         std::span<const float> positions,
-                         std::span<const float> normals,
-                         std::span<const float> uvs) {
-  const int num_vertices = len / sizeof(T);
-  T* ptr = reinterpret_cast<T*>(buffer);
-  for (int i = 0; i < num_vertices; ++i) {
-    ptr->position = ReadFloat3(positions.data(), i);
-    ptr->orientation = CalculateOrientation(ReadFloat3(normals.data(), i));
-    if constexpr (T::kHasUv) {
-      ptr->uv.x = uvs[i * 2];
-      ptr->uv.y = uvs[i * 2 + 1];
-    }
-    ++ptr;
-  }
-}
-
-static filament::VertexBuffer* BuildVertexBuffer(
-    filament::Engine* engine, std::span<const float> positions,
-    std::span<const float> normals, std::span<const float> uvs) {
-  const int num_vertices = positions.size() / 3;
-  if (uvs.data() != nullptr) {
-    using VertexType = VertexWithUv;
-    auto fill = [&](std::byte* buffer, std::size_t len) {
-      FillVertices<VertexType>(buffer, len, positions, normals, uvs);
-    };
-    return CreateVertexBuffer<VertexType>(engine, num_vertices, fill);
-  } else {
-    using VertexType = VertexNoUv;
-    auto fill = [&](std::byte* buffer, std::size_t len) {
-      FillVertices<VertexType>(buffer, len, positions, normals, uvs);
-    };
-    return CreateVertexBuffer<VertexType>(engine, num_vertices, fill);
-  }
-}
-
-static filament::IndexBuffer* BuildIndexBuffer(filament::Engine* engine,
-                                               std::span<const int> indices,
-                                               int num_indices) {
-  if (indices.data() == nullptr) {
-    auto fill_indices = FillSequence<uint32_t>;
-    return CreateIndexBuffer<uint32_t>(engine, num_indices, fill_indices);
-  } else {
-    auto fill_indices = [&](std::byte* buffer, std::size_t len) {
-      std::memcpy(buffer, indices.data(), len);
-    };
-    return CreateIndexBuffer<uint32_t>(engine, indices.size(), fill_indices);
-  }
-}
-
-FilamentBuffers CreateGeomBuffers(filament::Engine* engine,
-                                  const mjModel* model, const mjvScene* scene,
-                                  const mjvGeom& geom) {
+MeshPtr CreateGeomBuffers(filament::Engine* engine, const mjModel* model,
+                          const mjvScene* scene, const mjvGeom& geom) {
   auto positions = GetPositions(model, scene, geom);
   auto normals = GetNormals(model, scene, geom);
   auto uvs = GetUvs(model, scene, geom);
@@ -162,10 +110,28 @@ FilamentBuffers CreateGeomBuffers(filament::Engine* engine,
     num_indices = 3 * scene->flexfaceused[geom.objid];
   }
 
-  FilamentBuffers buffers;
-  buffers.vertex_buffer = BuildVertexBuffer(engine, positions, normals, uvs);
-  buffers.index_buffer = BuildIndexBuffer(engine, indices, num_indices);
-  return buffers;
+  MeshData data;
+  DefaultMeshData(&data);
+
+  data.nattributes = uvs.data() ? 3 : 2;
+  data.attributes[0].usage = mjVERTEX_ATTRIBUTE_POSITION;
+  data.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+  data.attributes[0].bytes = positions.data();
+  data.attributes[1].usage = mjVERTEX_ATTRIBUTE_NORMAL;
+  data.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+  data.attributes[1].bytes = normals.data();
+  data.attributes[2].usage = mjVERTEX_ATTRIBUTE_UV;
+  data.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+  data.attributes[2].bytes = uvs.data();
+  data.nvertices = positions.size() / 3;
+  data.nindices = num_indices;
+  data.indices = indices.data();
+  data.index_type = mjINDEX_TYPE_UINT;
+  data.primitive_type = mjPRIM_TYPE_TRIANGLES;
+  data.compute_bounds = true;
+  data.release_callback = nullptr;
+  data.user_data = nullptr;
+  return std::make_unique<Mesh>(engine, data);
 }
 
 }  // namespace mujoco

@@ -709,7 +709,8 @@ void mj_flex(const mjModel* m, mjData* d) {
 
       // get endpoint Jacobians, subtract
       int NV = mj_jacDifPair(m, d, chain, b1, b2, pos1, pos2,
-                              jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1);
+                              jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1,
+                              /*skipcommon=*/0);
 
       // no dofs: skip
       if (!NV) {
@@ -853,9 +854,11 @@ void mj_flex(const mjModel* m, mjData* d) {
           int b1 = m->flex_vertbodyid[vbase+v1];
           int b2 = m->flex_vertbodyid[vbase+v2];
           int NV1 = mj_bodyChain(m, b1, chain1);
-          mj_jacSparse(m, d, jac1, NULL, d->flexvert_xpos + 3*(vbase+v1), b1, NV1, chain1);
+          mj_jacSparse(m, d, jac1, NULL, d->flexvert_xpos + 3*(vbase+v1), b1, NV1, chain1,
+                       /*flg_skipcommon=*/0);
           int NV2 = mj_bodyChain(m, b2, chain2);
-          mj_jacSparse(m, d, jac2, NULL, d->flexvert_xpos + 3*(vbase+v2), b2, NV2, chain2);
+          mj_jacSparse(m, d, jac2, NULL, d->flexvert_xpos + 3*(vbase+v2), b2, NV2, chain2,
+                       /*flg_skipcommon=*/0);
 
           // accumulate dense Jacobians for vertex v
           mju_mulMatTVec(J_local, jac1, dI1dy1, 3, NV1);
@@ -905,7 +908,7 @@ void mj_flex(const mjModel* m, mjData* d) {
 // compute tendon lengths and moments
 void mj_tendon(const mjModel* m, mjData* d) {
   int nv = m->nv, nten = m->ntendon;
-  int *rownnz = d->ten_J_rownnz, *rowadr = d->ten_J_rowadr, *colind = d->ten_J_colind;
+  const int *rownnz = m->ten_J_rownnz, *rowadr = m->ten_J_rowadr, *colind = m->ten_J_colind;
   mjtNum *L = d->ten_length, *J = d->ten_J;
 
   if (!nten) {
@@ -913,22 +916,20 @@ void mj_tendon(const mjModel* m, mjData* d) {
   }
 
   // allocate stack arrays
-  int *chain, *buf_ind;
-  mjtNum *jac1, *jac2, *jacdif, *tmp, *sparse_buf;
+  int *chain;
+  mjtNum *jac1, *jac2, *jacdif, *tmp;
   mj_markStack(d);
   jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
   jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
   jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
   tmp = mjSTACKALLOC(d, nv, mjtNum);
   chain = mjSTACKALLOC(d, nv, int);
-  buf_ind = mjSTACKALLOC(d, nv, int);
-  sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
 
   // clear results
   mju_zero(L, nten);
 
   // clear Jacobian
-  mju_zeroInt(rownnz, nten);
+  mju_zero(J, m->nJten);
 
   // sleep filtering
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
@@ -947,9 +948,6 @@ void mj_tendon(const mjModel* m, mjData* d) {
     d->ten_wrapnum[i] = 0;
     int tendon_num = m->tendon_num[i];
 
-    // sparse Jacobian row init
-    rowadr[i] = (i > 0 ? rowadr[i-1] + rownnz[i-1] : 0);
-
     // process fixed tendon
     if (m->wrap_type[adr] == mjWRAP_JOINT) {
       // process all defined joints
@@ -960,11 +958,10 @@ void mj_tendon(const mjModel* m, mjData* d) {
         // add to length
         L[i] += m->wrap_prm[adr+j] * d->qpos[m->jnt_qposadr[k]];
 
-        // add to moment
-        rownnz[i] = mju_combineSparse(J+rowadr[i], &m->wrap_prm[adr+j], 1, 1,
-                                      rownnz[i], 1,
-                                      colind+rowadr[i], &m->jnt_dofadr[k],
-                                      sparse_buf, buf_ind);
+        mjtNum coef = 1;
+        int dofadr = m->jnt_dofadr[k];
+        mju_combineSparseInc(J + rowadr[i], &coef, m->nv, 1, m->wrap_prm[adr+j],
+                             rownnz[i], 1, colind + rowadr[i], &dofadr);
       }
 
       continue;
@@ -1048,7 +1045,8 @@ void mj_tendon(const mjModel* m, mjData* d) {
           // get endpoint Jacobians, subtract
           int NV = mj_jacDifPair(m, d, chain,
                                  wbody[k], wbody[k+1], wpnt+3*k, wpnt+3*k+3,
-                                 jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1);
+                                 jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1,
+                                 /*skipcommon=*/0);
 
           // no dofs: skip
           if (!NV) {
@@ -1059,9 +1057,9 @@ void mj_tendon(const mjModel* m, mjData* d) {
           mju_mulMatTVec(tmp, jacdif, dif, 3, NV);
 
           // add to existing
-          rownnz[i] = mju_combineSparse(J+rowadr[i], tmp, 1, 1/divisor,
-                                        rownnz[i], NV, colind+rowadr[i],
-                                        chain, sparse_buf, buf_ind);
+          mju_combineSparseInc(J+rowadr[i], tmp, nv, 1, 1/divisor,
+                              rownnz[i], NV, colind+rowadr[i],
+                              chain);
         }
       }
 
@@ -1243,7 +1241,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
   int *chain;
 
   // define stack variables required for site transmission, don't allocate
-  mjtNum *jacref = NULL, *moment_tmp = NULL;
+  mjtNum *jacref = NULL, *moment_row = NULL;
 
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nv_awake < nv;
 
@@ -1385,27 +1383,26 @@ void mj_transmission(const mjModel* m, mjData* d) {
         mj_jacSite(m, d, jac, 0, id);
         mju_subFrom(jac, jacS, 3*nv);
 
+        moment_row = mjSTACKALLOC(d, nv, mjtNum);
+
         // clear moment
-        mju_zero(moment + adr, nv);
+        mju_zero(moment_row, nv);
 
         // apply chain rule
         for (int j=0; j < nv; j++) {
           for (int k=0; k < 3; k++) {
-            moment[adr+j] += dlda[k]*jacA[k*nv+j] + dldv[k]*jac[k*nv+j];
+            moment_row[j] += dlda[k]*jacA[k*nv+j] + dldv[k]*jac[k*nv+j];
           }
         }
 
         // scale by gear ratio
         length[i] *= gear[0];
-        for (int j = 0; j < nv; j++) {
-          moment[adr+j] *= gear[0];
-        }
 
         // sparsity (compress)
         nnz = 0;
         for (int j = 0; j < nv; j++) {
-          if (moment[adr+j]) {
-            moment[adr+nnz] = moment[adr+j];
+          if (moment_row[j]) {
+            moment[adr+nnz] = moment_row[j] * gear[0];
             colind[adr+nnz] = j;
             nnz++;
           }
@@ -1419,10 +1416,10 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
       // moment
       {
-        int ten_J_rownnz = d->ten_J_rownnz[id];
-        int ten_J_rowadr = d->ten_J_rowadr[id];
+        int ten_J_rownnz = m->ten_J_rownnz[id];
+        int ten_J_rowadr = m->ten_J_rowadr[id];
         rownnz[i] = ten_J_rownnz;
-        mju_copyInt(colind + adr, d->ten_J_colind + ten_J_rowadr, ten_J_rownnz);
+        mju_copyInt(colind + adr, m->ten_J_colind + ten_J_rowadr, ten_J_rownnz);
 
         mju_scl(moment + adr, d->ten_J + ten_J_rowadr, gear[0], ten_J_rownnz);
       }
@@ -1435,6 +1432,8 @@ void mj_transmission(const mjModel* m, mjData* d) {
       // clear length
       length[i] = 0;
 
+      if (!moment_row) moment_row = mjSTACKALLOC(d, nv, mjtNum);
+
       // reference site undefined
       if (m->actuator_trnid[2*i+1] == -1) {
         // wrench: gear expressed in global frame
@@ -1443,9 +1442,9 @@ void mj_transmission(const mjModel* m, mjData* d) {
         mji_mulMatVec3(wrench+3, d->site_xmat+9*id, gear+3);  // rotation
 
         // moment: global Jacobian projected on wrench
-        mju_mulMatTVec(moment+adr, jac, wrench, 3, nv);       // translation
+        mju_mulMatTVec(moment_row, jac, wrench, 3, nv);       // translation
         mju_mulMatTVec(jac, jacS, wrench+3, 3, nv);           // rotation
-        mju_addTo(moment+adr, jac, nv);                       // add the two
+        mju_addTo(moment_row, jac, nv);                       // add the two
       }
 
       // reference site defined
@@ -1482,7 +1481,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
         }
 
         // clear moment
-        mju_zero(moment+adr, nv);
+        mju_zero(moment_row, nv);
 
         // translational transmission
         if (!mju_isZero(gear, 3)) {
@@ -1514,7 +1513,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
           mji_mulMatVec3(wrench, d->site_xmat+9*refid, gear);
 
           // moment: global Jacobian projected on wrench
-          mju_mulMatTVec(moment+adr, jac, wrench, 3, nv);
+          mju_mulMatTVec(moment_row, jac, wrench, 3, nv);
         }
 
         // rotational transmission
@@ -1552,18 +1551,18 @@ void mj_transmission(const mjModel* m, mjData* d) {
           mjtNum wrench[6];
           mji_mulMatVec3(wrench, d->site_xmat+9*refid, gear+3);
 
-          // moment_tmp: global Jacobian projected on wrench, add to moment
-          if (!moment_tmp) moment_tmp = mjSTACKALLOC(d, nv, mjtNum);
-          mju_mulMatTVec(moment_tmp, jacS, wrench, 3, nv);
-          mju_addTo(moment+adr, moment_tmp, nv);
+          // global Jacobian projected on wrench, add to moment
+          // reuse jac as temporary storage
+          mju_mulMatTVec(jac, jacS, wrench, 3, nv);
+          mju_addTo(moment_row, jac, nv);
         }
       }
 
       // sparsity (compress)
       nnz = 0;
       for (int j = 0; j < nv; j++) {
-        if (moment[adr+j]) {
-          moment[adr+nnz] = moment[adr+j];
+        if (moment_row[j]) {
+          moment[adr+nnz] = moment_row[j];
           colind[adr+nnz] = j;
           nnz++;
         }
@@ -1577,7 +1576,8 @@ void mj_transmission(const mjModel* m, mjData* d) {
       length[i] = 0;
 
       // clear moment
-      mju_zero(moment+adr, nv);
+      if (!moment_row) moment_row = mjSTACKALLOC(d, nv, mjtNum);
+      mju_zero(moment_row, nv);
 
       // moment is average of all contact normal Jacobians
       {
@@ -1642,7 +1642,8 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
             // get Jacobian difference
             int NV = mj_jacDifPair(m, d, chain, b1, b2, con->pos, con->pos,
-                                   jac1p, jac2p, jacdifp, NULL, NULL, NULL, issparse);
+                                   jac1p, jac2p, jacdifp, NULL, NULL, NULL, issparse,
+                                   /*flg_skipcommon=*/0);
 
             // project Jacobian along the normal of the contact frame
             mju_mulMatMat(jac, con->frame, jacdifp, 1, 3, NV);
@@ -1661,21 +1662,21 @@ void mj_transmission(const mjModel* m, mjData* d) {
         // moment is average over contact normal Jacobians, make negative for adhesion
         if (counter) {
           // accumulate active contact Jacobians into moment
-          mj_mulJacTVec(m, d, moment+adr, efc_force);
+          mj_mulJacTVec(m, d, moment_row, efc_force);
 
           // add Jacobians from excluded contacts
-          mju_addTo(moment+adr, moment_exclude, nv);
+          mju_addTo(moment_row, moment_exclude, nv);
 
           // normalize by total contacts, flip sign
-          mju_scl(moment+adr, moment+adr, -1.0/counter, nv);
+          mju_scl(moment_row, moment_row, -1.0/counter, nv);
         }
       }
 
       // sparsity (compress)
       nnz = 0;
       for (int j = 0; j < nv; j++) {
-        if (moment[adr+j]) {
-          moment[adr+nnz] = moment[adr+j];
+        if (moment_row[j]) {
+          moment[adr+nnz] = moment_row[j];
           colind[adr+nnz] = j;
           nnz++;
         }
@@ -1711,15 +1712,15 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
       continue;
     }
 
-    mjtNum armature = m->tendon_armature[k];
+    mjtNum armature = m->tendon_armature[k] + mj_actuatorArmature(m, mjOBJ_TENDON, k);
     if (!armature) {
       continue;
     }
 
     // get sparse info for tendon k
-    int J_rowadr = d->ten_J_rowadr[k];
-    int J_rownnz = d->ten_J_rownnz[k];
-    const int* J_colind = d->ten_J_colind + J_rowadr;
+    int J_rowadr = m->ten_J_rowadr[k];
+    int J_rownnz = m->ten_J_rownnz[k];
+    const int* J_colind = m->ten_J_colind + J_rowadr;
     mjtNum* ten_J = d->ten_J + J_rowadr;
 
     // M += armature * ten_J' * ten_J
@@ -1802,7 +1803,7 @@ void mj_crb(const mjModel* m, mjData* d) {
 
     // init M(i,i) with armature inertia
     int Madr_ij = adr + rownnz[i] - 1;
-    M[Madr_ij] = dof_armature[i];
+    M[Madr_ij] = dof_armature[i] + mj_actuatorArmature(m, mjOBJ_JOINT, m->dof_jntid[i]);
 
     // precompute buf = crb_body_i * cdof_i
     mjtNum buf[6];
@@ -2577,6 +2578,19 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       i += 2*m->flex_vertnum[k];
       break;
 
+    case mjEQ_FLEXSTRAIN: {
+      // increment: trilinear uses 2 center (I1,J-1) + 3*ngauss shear, quadratic uses 6*ngauss
+      k = m->eq_obj1id[id];
+      int order = m->flex_interp[k];
+      int nodenum = m->flex_nodenum[k];
+      if (order && nodenum) {
+        int nquad = order + 1;
+        int ngauss = nquad * nquad * nquad;
+        i += (order == 1) ? (2 + 3 * ngauss) : (6 * ngauss);
+      }
+      break;
+    }
+
     default:
       mjERROR("unknown constraint type type %d", m->eq_type[id]);    // SHOULD NOT OCCUR
     }
@@ -2629,7 +2643,7 @@ void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
       continue;
     }
 
-    mjtNum armature = m->tendon_armature[i];
+    mjtNum armature = m->tendon_armature[i] + mj_actuatorArmature(m, mjOBJ_TENDON, i);
 
     // no armature: skip
     if (!armature) {
@@ -2649,9 +2663,9 @@ void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
 
     if (coef) {
       // sparse
-      int nnz = d->ten_J_rownnz[i];
-      int adr = d->ten_J_rowadr[i];
-      const int* colind = d->ten_J_colind + adr;
+      int nnz = m->ten_J_rownnz[i];
+      int adr = m->ten_J_rowadr[i];
+      const int* colind = m->ten_J_colind + adr;
       const mjtNum* ten_J = d->ten_J + adr;
       for (int j=0; j < nnz; j++) {
         qfrc[colind[j]] += coef * ten_J[j];

@@ -58,12 +58,6 @@ MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 // equality constraints
 void mj_instantiateEquality(const mjModel* m, mjData* d);
 
-// frictional dofs and tendons
-void mj_instantiateFriction(const mjModel* m, mjData* d);
-
-// joint and tendon limits
-void mj_instantiateLimit(const mjModel* m, mjData* d);
-
 // frictionless and frictional contacts
 void mj_instantiateContact(const mjModel* m, mjData* d);
 

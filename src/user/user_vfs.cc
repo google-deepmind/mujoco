@@ -15,7 +15,7 @@
 #include "user/user_vfs.h"
 
 #include <sys/stat.h>
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
 #define stat _stat
 #endif
 
@@ -105,7 +105,8 @@ std::string StripPathAndLower(std::string path) {
 
 namespace mujoco::user {
 
-VFS::VFS(mjVFS* vfs) : self_(vfs) {
+VFS::VFS(mjVFS* vfs) {
+  wrapped_vfs_.impl_ = this;
   mjp_defaultResourceProvider(&default_provider_);
   default_provider_.open = [](mjResource* res) {
     return OpenFile(res->name, res);
@@ -121,7 +122,7 @@ VFS::VFS(mjVFS* vfs) : self_(vfs) {
   };
 
   default_provider_.prefix = nullptr;
-  default_mount_.vfs = self_;
+  default_mount_.vfs = &wrapped_vfs_;
   default_mount_.provider = &default_provider_;
   default_mount_.data = nullptr;
   default_mount_.name = nullptr;
@@ -245,7 +246,7 @@ int VFS::Read(mjResource* resource, const void** buffer) {
 VFS::ResourcePtr VFS::CreateResource(std::string_view name,
                                      const mjpResourceProvider* provider) {
   mjResource* res = new mjResource();
-  res->vfs = self_;
+  res->vfs = &wrapped_vfs_;
   res->provider = provider;
   res->data = nullptr;
   res->name = new char[name.size() + 1];
@@ -312,11 +313,14 @@ mjResource* VFS::FindMount(const std::string& fullpath) {
 
 void VFS::MaybeSelfDestruct() {
   if (destructor_) {
-    destructor_(self_);
+    // Copy the destructor to a local variable so that we can destroy `this`
+    // object within the destructor.
+    auto fn = std::move(destructor_);
+    fn();
   }
 }
 
-void VFS::SetToSelfDestruct(std::function<void(mjVFS*)> destructor) {
+void VFS::SetToSelfDestruct(std::function<void()> destructor) {
   destructor_ = std::move(destructor);
 }
 

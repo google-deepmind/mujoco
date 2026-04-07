@@ -17,14 +17,13 @@
 
 #include <filament/Engine.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/mesh.h"
 
 namespace mujoco {
 
 // Populates the FilamentBuffers for a flex geometry.
-FilamentBuffers CreateGeomBuffers(filament::Engine* engine,
-                                  const mjModel* model, const mjvScene* scene,
-                                  const mjvGeom& geom);
+MeshPtr CreateGeomBuffers(filament::Engine* engine, const mjModel* model,
+                          const mjvScene* scene, const mjvGeom& geom);
 
 }  // namespace mujoco
 

@@ -210,7 +210,7 @@ data file into a playable movie file:
 Note that the offscreen rendering resolution of the model and ffmpeg's video_size must be identical.
 
 This sample can be compiled in three ways which differ in how the OpenGL context is created: using GLFW with an
-invisible window, using OSMesa, or using EGL. The latter two options are only available on Linux and are envoked by
+invisible window, using OSMesa, or using EGL. The latter two options are only available on Linux and are invoked by
 defining the symbols MJ_OSMESA or MJ_EGL when compiling record.cc. The functions ``initOpenGL`` and ``closeOpenGL``
 create and close the OpenGL context in three different ways depending on which of the above symbols is defined.
 

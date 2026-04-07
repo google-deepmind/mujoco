@@ -51,16 +51,14 @@ static int mjraw_PlaneSphere(mjContact* con, mjtNum margin,
 
 
 // plane : sphere
-int mjc_PlaneSphere(const mjModel* m, const mjData* d,
-                    mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_PlaneSphere(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
   return mjraw_PlaneSphere(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
 
 
 // plane : capsule
-int mjc_PlaneCapsule(const mjModel* m, const mjData* d,
-                     mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_PlaneCapsule(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
 
   // get capsule axis, segment = scaled axis
@@ -89,8 +87,7 @@ int mjc_PlaneCapsule(const mjModel* m, const mjData* d,
 
 
 // plane : cylinder
-int mjc_PlaneCylinder(const mjModel* m, const mjData* d,
-                      mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_PlaneCylinder(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
   mjtNum normal[3] = {mat1[2], mat1[5], mat1[8]};
   mjtNum axis[3] = {mat2[2], mat2[5], mat2[8]};
@@ -193,8 +190,7 @@ int mjc_PlaneCylinder(const mjModel* m, const mjData* d,
 
 
 // plane : box
-int mjc_PlaneBox(const mjModel* m, const mjData* d,
-                 mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_PlaneBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
 
   // get normal, difference between centers, normal distance
@@ -277,8 +273,7 @@ static int mjraw_SphereSphere(mjContact* con, mjtNum margin,
 
 
 // sphere : sphere
-int mjc_SphereSphere(const mjModel* m, const mjData* d,
-                     mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_SphereSphere(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
   return mjraw_SphereSphere(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
@@ -304,16 +299,15 @@ int mjraw_SphereCapsule(mjContact* con, mjtNum margin,
 
 
 // sphere : capsule
-int mjc_SphereCapsule(const mjModel* m, const mjData* d,
-                      mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_SphereCapsule(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
   return mjraw_SphereCapsule(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
 
 
 // sphere : cylinder
-int mjc_SphereCylinder(const mjModel* m, const mjData* d,
-                       mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_SphereCylinder(const mjModel* m, mjData* d, mjContact* con, int g1, int g2,
+                       mjtNum margin) {
   mjGETINFO
 
   // get cylinder sizes and axis
@@ -482,8 +476,8 @@ int mjraw_CapsuleCapsule(mjContact* con, mjtNum margin,
 
 
 // capsule : capsule
-int mjc_CapsuleCapsule(const mjModel* m, const mjData* d,
-                       mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_CapsuleCapsule(const mjModel* m, mjData* d, mjContact* con, int g1, int g2,
+                       mjtNum margin) {
   mjGETINFO
   return mjraw_CapsuleCapsule(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }

@@ -435,7 +435,7 @@ window buffer size changes whenever the user resizes or maximizes the window. Th
 fixed viewport size. In the code sample :ref:`simulate.cc <saSimulate>` we use a callback which is triggered whenever
 the window size changes, while in :ref:`basic.cc <saBasic>` we simply check the window size every time we render. On
 certain scaled displays (only on OSX it seems) the window size and framebuffer size can be different. So if you are
-getting the size with GLFW functions, use glfwGetFramebuferSize rather than glfwGetWindowSize. On the other hand,
+getting the size with GLFW functions, use glfwGetFramebufferSize rather than glfwGetWindowSize. On the other hand,
 mouse coordinates are returned by the operating system in window rather than framebuffer units; thus the mouse
 interaction functions discussed earlier should use glfwGetWindowSize to obtain the window height needed to normalize
 the mouse displacement data.

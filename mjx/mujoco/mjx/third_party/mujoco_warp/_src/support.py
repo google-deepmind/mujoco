@@ -18,16 +18,50 @@ from typing import Optional, Tuple
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src.math import motion_cross
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
+from mujoco.mjx.third_party.mujoco_warp._src.types import DynType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import State
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec10f
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False})
+
+
+# TODO(team): kernel analyzer array slice?
+@wp.func
+def next_act(
+  # Model:
+  opt_timestep: float,  # kernel_analyzer: ignore
+  actuator_dyntype: int,  # kernel_analyzer: ignore
+  actuator_dynprm: vec10f,  # kernel_analyzer: ignore
+  actuator_actrange: wp.vec2,  # kernel_analyzer: ignore
+  # Data In:
+  act_in: float,  # kernel_analyzer: ignore
+  act_dot_in: float,  # kernel_analyzer: ignore
+  # In:
+  act_dot_scale: float,
+  clamp: bool,
+) -> float:
+  # advance actuation
+  if actuator_dyntype == DynType.FILTEREXACT:
+    tau = wp.max(MJ_MINVAL, actuator_dynprm[0])
+    act = act_in + act_dot_scale * act_dot_in * tau * (1.0 - wp.exp(-opt_timestep / tau))
+  elif actuator_dyntype == DynType.USER:
+    return act_in
+  else:
+    act = act_in + act_dot_scale * act_dot_in * opt_timestep
+
+  # clamp to actrange
+  if clamp:
+    act = wp.clamp(act, actuator_actrange[0], actuator_actrange[1])
+
+  return act
 
 
 @cache_kernel

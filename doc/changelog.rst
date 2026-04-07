@@ -5,11 +5,86 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+
+- Added the :ref:`dcmotor<actuator-dcmotor>` actuator for modeling DC motors. Supports optional
+  electrical dynamics (inductance), cogging torque, thermal resistance variation, and LuGre friction. See the
+  `technical note <_static/dcmotor.pdf>`__ for more details.
+- Actuators with joint or tendon transmissions can now contribute
+  :ref:`damping<actuator-general-damping>` and :ref:`armature<actuator-general-armature>` to their transmission target.
+  These are applied during the passive force and inertia computations, respectively, and are scaled by gear\ :sup:`2`
+  ("reflected" damping/inertia).
+
+.. youtube:: aKa3ZlEF9_Y
+   :align: right
+   :width: 35%
+
+- Stiffness in :ref:`joints<body-joint-stiffness>` and :ref:`tendons<tendon-spatial-stiffness>` and damping in
+  :ref:`joints<body-joint-damping>` and :ref:`tendons<tendon-spatial-damping>` now support nonlinear polynomial
+  :ref:`force profiles<gePolynomial>`. New ``mjModel`` arrays (``jnt_stiffnesspoly``, ``tendon_stiffnesspoly``,
+  ``dof_dampingpoly``, ``tendon_dampingpoly``) hold higher-order coefficients. The existing scalar arrays
+  (``jnt_stiffness``, ``dof_damping``, etc.) continue to hold the linear coefficient and are unchanged.
+  The polynomial order is defined by the new constant :ref:`mjNPOLY<glNumericSizes>`. A future breaking C-API change
+  may unify the linear and higher-order coefficients into a single array.
+
+- Introduced :ref:`mjpEncoder`, the counterpart to :ref:`mjpDecoder` for encoding of :ref:`mjSpec` and :ref:`mjModel` into :ref:`mjResource`.
+
+  - Added :ref:`mj_encode`, :ref:`mjp_registerEncoder`, :ref:`mjp_defaultEncoder`, and :ref:`mjp_findEncoder`.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The ``mjs`` layer fields ``stiffness`` and ``damping`` in :ref:`mjsJoint` and :ref:`mjsTendon` have
+     been widened from ``mjtNum`` scalars to ``mjtNum[mjNPOLY+1]`` arrays. The first element is the linear coefficient
+     (previously the scalar), and subsequent elements are the higher-order :ref:`polynomial<gePolynomial>` coefficients.
+
+     **Migration:** Replace assignments like ``joint.stiffness = val`` with ``joint.stiffness[0] = val``.
+
+   - The ``vertcollide`` field in :ref:`mjsFlex` has been removed. It is no longer required since
+     :doc:`MuJoCo Warp <mjwarp/index>` supports native flex collisions.
+
+
+Bug fixes
+^^^^^^^^^
+
+- The compiler now correctly accounts for negative scaling when loading user specified mesh data.
+
+Version 3.6.0 (March 10, 2026)
+------------------------------
+
+General
+^^^^^^^
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   1. The tendon Jacobian ``ten_J`` is now always sparse. The fields  ``ten_J_rownnz``, ``ten_J_rowadr``, and
+      ``ten_J_colind`` have been moved from :ref:`mjData` to :ref:`mjModel` and are no longer computed at run time by
+      ``mj_tendon`` but at compile time.
+
+2. Added :ref:`mjs_getCompiler` C API function and a ``compiler`` read-only property to all Python spec element types.
+   This allows querying the compiler settings (e.g., ``meshdir``) from any element, with the correct originating spec's
+   compiler preserved after attachment.
+3. Added a new ``strain`` :ref:`equality constraint<flexcomp-edge-equality>` type for trilinear and quadratic
+   :ref:`dofs<body-flexcomp-dof>`.
+4. Flexes now support collisions with SDF geoms.
+5. Improved memory requirements for ``ten_J`` and ``ten_J_colind`` by reducing the upper bound for the number of
+   non-zeros ``nJten``.
+6. Improved memory requirements for ``actuator_moment`` and ``moment_colind`` by reducing the upper bound for the number
+   of non-zeros ``nJmom``.
+
 MJX
 ^^^
 
-- Add batch rendering support for MJX-Warp. See the :ref:`MJX-Warp batch rendering<MjxWarpBatchRendering>` section for details.
+7. Add batch rendering support for MJX-Warp. See the :ref:`MJX-Warp batch rendering<MjxWarpBatchRendering>` section for
+   details.
 
+Bug fixes
+^^^^^^^^^
+
+8. Fixed a bug where :ref:`mjs_attach` silently dropped spatial tendons with wrapping geometries that had no
+   ``sidesite`` attribute (:issue:`3119`, reported by :github:user:`tomstewart89`).
 
 Version 3.5.0 (February 12, 2026)
 ---------------------------------
@@ -160,7 +235,8 @@ Version 3.4.0 (December 5, 2025)
 General
 ^^^^^^^
 
-.. youtube:: vct493lGQ8Q
+.. youtube:: aKa3ZlEF9_Y
+   :aspect: 2:1
    :align: right
    :width: 35%
 
@@ -1090,7 +1166,7 @@ General
    forces on the joint are treated as applied by actuators. See attribute documentation for more details. The example
    model
    `refsite.xml <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/refsite.xml>`__,
-   which demostrates Cartesian actuation of an arm, has been updated to use this attribute.
+   which demonstrates Cartesian actuation of an arm, has been updated to use this attribute.
 3. Added support for gmsh format 2.2 , tetrahedral mesh, as generated by e.g. `fTetwild <https://github.com/wildmeshing/fTetWild>`__.
 
 4. Added :ref:`mju_euler2Quat` for converting an Euler-angle sequence to quaternion.
@@ -1458,8 +1534,8 @@ General
        Each row of length ``mjNSOLVER`` contains separate solver statistics for each constraint island.
        If the solver does not use islands, only row 0 is filled.
 
-       - The new constant :ref:`mjNISLAND<glNumeric>` was set to 20.
-       - :ref:`mjNSOLVER<glNumeric>` was reduced from 1000 to 200.
+       - The new constant :ref:`mjNISLAND<glNumericSizes>` was set to 20.
+       - :ref:`mjNSOLVER<glNumericSizes>` was reduced from 1000 to 200.
        - Added :ref:`mjData.solver_nisland<mjData>`: the number of islands for which the solver ran.
        - Renamed ``mjData.solver_iter`` to ``solver_niter``. Both this member and ``mjData.solver_nnz`` are now integer
          vectors of length ``mjNISLAND``.
@@ -2615,7 +2691,7 @@ UI
 11. Figure selection type changed from ``int`` to ``float``.
 #. Figures now show data coordinates, when selection and highlight are enabled.
 #. Changed ``mjMAXUIMULTI`` to 35, ``mjMAXUITEXT`` to 300, ``mjMAXUIRECT`` to 25.
-#. Added collapsable sub-sections, implemented as separators with state: ``mjSEPCLOSED`` collapsed, ``mjSEPCLOSED+1``
+#. Added collapsible sub-sections, implemented as separators with state: ``mjSEPCLOSED`` collapsed, ``mjSEPCLOSED+1``
    expanded.
 #. Added ``mjITEM_RADIOLINE`` item type.
 #. Added function ``mjui_addToSection`` to simplify UI section construction.

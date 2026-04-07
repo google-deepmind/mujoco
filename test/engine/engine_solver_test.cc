@@ -26,7 +26,6 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleNear;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 using ::std::max;
@@ -93,10 +92,11 @@ TEST_F(SolverTest, IslandsEquivalent) {
         auto time = std::to_string(data_noisland->time);
         for (int j = 0; j < nv; j++) {
           // increase tolerance for large elements
-          mjtNum scale = 0.5 * max(2.0, abs(data_noisland->qacc[j]) +
-                                        abs(data_island->qacc[j]));
-          EXPECT_THAT(data_noisland->qacc[j],
-                      DoubleNear(data_island->qacc[j], scale * rtol[i]))
+          mjtNum scale = 0.5 * max(static_cast<mjtNum>(2.0),
+                                   std::abs(data_noisland->qacc[j]) +
+                                   std::abs(data_island->qacc[j]));
+          EXPECT_NEAR(data_noisland->qacc[j], data_island->qacc[j],
+                      MjTol(scale * rtol[i], 500 * scale * rtol[i]))
               << "time: " << time << '\n'
               << "dof: " << j << '\n'
               << "maxiter: " << maxiter[i] << '\n'
@@ -159,7 +159,7 @@ TEST_F(SolverTest, IslandsEquivalentForward) {
                                 mju_norm(data_island->qacc, nv));
           mjtNum tol = scale * (solver == mjSOL_CG ? 1e-6 : 1e-8);
           EXPECT_THAT(AsVector(data_island->qacc, nv),
-                      Pointwise(DoubleNear(scale * tol),
+                      Pointwise(MjNear(scale * tol, 500 * scale * tol),
                                 AsVector(data_noisland->qacc, nv)))
               << "warmstart: " << warmstart << '\n'
               << "jacobian: " << (jacobian ? "sparse" : "dense") << '\n'
@@ -269,7 +269,8 @@ TEST_F(SolverTest, SolversEquivalent) {
               (jacobian == mjJAC_DENSE ? "dense" : "sparse");
 
           EXPECT_THAT(AsVector(data->qfrc_constraint, nv),
-                      Pointwise(DoubleNear(tolerance),
+                      Pointwise(MjNear(tolerance,
+                                       max(1e-1, 1000 * tolerance)),
                                 AsVector(data_truth->qfrc_constraint, nv)))
               << "model: " << config.path << "\n"
               << "cone: " << cone_str << "\n"

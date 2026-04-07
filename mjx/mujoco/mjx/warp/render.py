@@ -14,14 +14,13 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
-
 import dataclasses
 import functools
 import jax
 from mujoco.mjx._src import types
 from mujoco.mjx.warp import ffi
-from mujoco.mjx.warp.io import _MJX_RENDER_CONTEXT_BUFFERS
-from mujoco.mjx.warp.types import RenderContext
+from mujoco.mjx.warp.render_context import _MJX_RENDER_CONTEXT_BUFFERS
+from mujoco.mjx.warp.render_context import RenderContextPytree
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 import warp as wp
@@ -45,6 +44,9 @@ _c = mjwarp.Contact(
 _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
+_cb = mjwp_types.Callback(
+    **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
+)
 
 
 @ffi.format_args_for_warp
@@ -55,6 +57,9 @@ def _render_shim(
     cam_intrinsic: wp.array2d(dtype=wp.vec4),
     cam_projection: wp.array(dtype=int),
     cam_sensorsize: wp.array(dtype=wp.vec2),
+    flex_edge: wp.array(dtype=wp.vec2i),
+    flex_radius: wp.array(dtype=float),
+    flex_vertadr: wp.array(dtype=int),
     geom_dataid: wp.array(dtype=int),
     geom_matid: wp.array2d(dtype=int),
     geom_rgba: wp.array2d(dtype=wp.vec4),
@@ -67,11 +72,11 @@ def _render_shim(
     mat_texid: wp.array3d(dtype=int),
     mat_texrepeat: wp.array2d(dtype=wp.vec2),
     mesh_faceadr: wp.array(dtype=int),
-    nflex: int,
     nlight: int,
     # Data
     cam_xmat: wp.array2d(dtype=wp.mat33),
     cam_xpos: wp.array2d(dtype=wp.vec3),
+    flexvert_xpos: wp.array2d(dtype=wp.vec3),
     geom_xmat: wp.array2d(dtype=wp.mat33),
     geom_xpos: wp.array2d(dtype=wp.vec3),
     light_xdir: wp.array2d(dtype=wp.vec3),
@@ -83,12 +88,16 @@ def _render_shim(
 ):
   _m.stat = _s
   _m.opt = _o
+  _m.callback = _cb
   _d.efc = _e
   _d.contact = _c
   _m.cam_fovy = cam_fovy
   _m.cam_intrinsic = cam_intrinsic
   _m.cam_projection = cam_projection
   _m.cam_sensorsize = cam_sensorsize
+  _m.flex_edge = flex_edge
+  _m.flex_radius = flex_radius
+  _m.flex_vertadr = flex_vertadr
   _m.geom_dataid = geom_dataid
   _m.geom_matid = geom_matid
   _m.geom_rgba = geom_rgba
@@ -101,10 +110,10 @@ def _render_shim(
   _m.mat_texid = mat_texid
   _m.mat_texrepeat = mat_texrepeat
   _m.mesh_faceadr = mesh_faceadr
-  _m.nflex = nflex
   _m.nlight = nlight
   _d.cam_xmat = cam_xmat
   _d.cam_xpos = cam_xpos
+  _d.flexvert_xpos = flexvert_xpos
   _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
   _d.light_xdir = light_xdir
@@ -116,7 +125,7 @@ def _render_shim(
   mjwarp.render(_m, _d, render_context)
 
 
-def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
+def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
   render_ctx = _MJX_RENDER_CONTEXT_BUFFERS[(ctx.key, None)]
   output_dims = {
       'rgb': render_ctx.rgb_data_shape,
@@ -153,6 +162,9 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
       m.cam_intrinsic,
       m._impl.cam_projection,
       m.cam_sensorsize,
+      m._impl.flex_edge,
+      m._impl.flex_radius,
+      m._impl.flex_vertadr,
       m.geom_dataid,
       m.geom_matid,
       m.geom_rgba,
@@ -165,10 +177,10 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
       m.mat_texid,
       m._impl.mat_texrepeat,
       m.mesh_faceadr,
-      m._impl.nflex,
       m.nlight,
       d.cam_xmat,
       d.cam_xpos,
+      d._impl.flexvert_xpos,
       d.geom_xmat,
       d.geom_xpos,
       d._impl.light_xdir,
@@ -181,7 +193,7 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
 
 @jax.custom_batching.custom_vmap
 @functools.partial(ffi.marshal_jax_warp_callable, tree_map_output=True)
-def render(m: types.Model, d: types.Data, ctx: RenderContext):
+def render(m: types.Model, d: types.Data, ctx: RenderContextPytree):
   return _render_jax_impl(m, d, ctx)
 
 
@@ -192,7 +204,7 @@ def render_vmap(
     is_batched,
     m: types.Model,
     d: types.Data,
-    ctx: RenderContext,
+    ctx: RenderContextPytree,
 ):
   out = render(m, d, ctx)
   return out, [True, True]

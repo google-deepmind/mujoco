@@ -42,6 +42,10 @@ def _assert_attr_eq(a, b, attr):
 
 class SensorTest(parameterized.TestCase):
 
+  def setUp(self):
+    super().setUp()
+    np.random.seed(314)
+
   @parameterized.product(
       filename=['sensor/model.xml', 'sensor/sensor.xml'],
       cone_type=list(ConeType),

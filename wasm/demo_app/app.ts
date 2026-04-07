@@ -14,7 +14,7 @@
 
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
-import loadMujoco from "../dist/mujoco_wasm.js"
+import loadMujoco from "../dist/mujoco.js"
 
 declare function loadMujoco(): Promise<MainModule>;
 
@@ -205,10 +205,7 @@ class App {
   }
 
   loadModel(xmlContent: string) {
-    // Write xml as a file so that mujoco can find it
-    (mujoco as any).FS.writeFile('/working/model.xml', xmlContent);
-
-    this.mjModel = mujoco.MjModel.mj_loadXML('/working/model.xml');
+    this.mjModel = mujoco.MjModel.from_xml_string(xmlContent);
     if (!app.mjModel) {
       throw new Error('Failed to load model');
     }
@@ -437,8 +434,6 @@ function setupWindowEvents() {
   // Tip: put "window.dispatchEvent(new Event('unload'))" in the console to test
   window.addEventListener('unload', () => {
     app.dispose();
-
-    (mujoco as any).FS.unmount('/working');
   });
 
   window.addEventListener('keydown', (event) => {
@@ -463,10 +458,6 @@ let app: App;
 async function main() {
   try {
     mujoco = await loadMujoco();
-
-    // Set up emscripten virtual file system
-    (mujoco as any).FS.mkdir('/working');
-    (mujoco as any).FS.mount((mujoco as any).MEMFS, {root: '.'}, '/working');
 
     app = new App();
 

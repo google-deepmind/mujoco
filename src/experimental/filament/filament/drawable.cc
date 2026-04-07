@@ -16,6 +16,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <memory>
 #include <numbers>
 #include <utility>
 
@@ -31,11 +32,13 @@
 #include <utils/Entity.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/buffer_util.h"
 #include "experimental/filament/filament/geom_util.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
+#include "experimental/filament/filament/mesh.h"
+#include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
@@ -79,10 +82,20 @@ static float GetPlaneTileSize(const mjModel* model, int matid,
   }
 }
 
-Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
-    : material_(object_mgr), renderables_(object_mgr->GetEngine()) {
+static bool IsBehind(const mjtNum* headpos, const float* pos, const float* mat) {
+  return ((headpos[0] - pos[0]) * mat[2] +
+          (headpos[1] - pos[1]) * mat[5] +
+          (headpos[2] - pos[2]) * mat[8] < 0.0f);
+}
+
+Drawable::Drawable(ObjectManager* object_mgr, ModelObjects* model_objects,
+                   const mjvGeom& geom)
+    : material_(object_mgr),
+      model_objs_(model_objects),
+      renderables_(object_mgr->GetEngine()) {
   if (geom.category == mjCAT_DECOR) {
-    renderables_.DisableShadows();
+    renderables_.SetCastShadows(false);
+    renderables_.SetReceiveShadows(false);
   }
 
   switch ((mjtGeom)geom.type) {
@@ -93,53 +106,53 @@ Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
       AddHeightField(geom.dataid);
       break;
     case mjGEOM_PLANE:
-      AddShape(ObjectManager::kPlane);
+      AddShape(ModelObjects::kPlane);
       break;
     case mjGEOM_SPHERE:
-      AddShape(ObjectManager::kSphere);
+      AddShape(ModelObjects::kSphere);
       break;
     case mjGEOM_ELLIPSOID:
-      AddShape(ObjectManager::kSphere);
+      AddShape(ModelObjects::kSphere);
       break;
     case mjGEOM_BOX:
-      AddShape(ObjectManager::kBox);
+      AddShape(ModelObjects::kBox);
       break;
     case mjGEOM_CAPSULE:
-      AddShape(ObjectManager::kTube);
-      AddShape(ObjectManager::kDome);
-      AddShape(ObjectManager::kDome);
+      AddShape(ModelObjects::kTube);
+      AddShape(ModelObjects::kDome);
+      AddShape(ModelObjects::kDome);
       break;
     case mjGEOM_CYLINDER:
-      AddShape(ObjectManager::kTube);
-      AddShape(ObjectManager::kDisk);
-      AddShape(ObjectManager::kDisk);
+      AddShape(ModelObjects::kTube);
+      AddShape(ModelObjects::kDisk);
+      AddShape(ModelObjects::kDisk);
       break;
     case mjGEOM_ARROW:
-      AddShape(ObjectManager::kTube);
-      AddShape(ObjectManager::kCone);
-      AddShape(ObjectManager::kDisk);
+      AddShape(ModelObjects::kTube);
+      AddShape(ModelObjects::kCone);
+      AddShape(ModelObjects::kDisk);
       break;
     case mjGEOM_ARROW1:
-      AddShape(ObjectManager::kTube);
-      AddShape(ObjectManager::kCone);
-      AddShape(ObjectManager::kDisk);
-      AddShape(ObjectManager::kDisk);
+      AddShape(ModelObjects::kTube);
+      AddShape(ModelObjects::kCone);
+      AddShape(ModelObjects::kDisk);
+      AddShape(ModelObjects::kDisk);
       break;
     case mjGEOM_ARROW2:
-      AddShape(ObjectManager::kTube);
-      AddShape(ObjectManager::kCone);
-      AddShape(ObjectManager::kCone);
-      AddShape(ObjectManager::kDisk);
-      AddShape(ObjectManager::kDisk);
+      AddShape(ModelObjects::kTube);
+      AddShape(ModelObjects::kCone);
+      AddShape(ModelObjects::kCone);
+      AddShape(ModelObjects::kDisk);
+      AddShape(ModelObjects::kDisk);
       break;
     case mjGEOM_LINE:
-      AddShape(ObjectManager::kLine);
+      AddShape(ModelObjects::kLine);
       break;
     case mjGEOM_LINEBOX:
-      AddShape(ObjectManager::kLineBox);
+      AddShape(ModelObjects::kLineBox);
       break;
     case mjGEOM_TRIANGLE:
-      AddShape(ObjectManager::kTriangle);
+      AddShape(ModelObjects::kTriangle);
       break;
     case mjGEOM_FLEX:
     case mjGEOM_SKIN:
@@ -161,44 +174,46 @@ void Drawable::Update(const mjModel* model, const mjvScene* scene,
   if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
     // Flex geometry is updated every frame with new vertex data.
     filament::Engine* engine = renderables_.GetEngine();
-    FilamentBuffers buffers = CreateGeomBuffers(engine, model, scene, geom);
+    std::unique_ptr<Mesh> mesh = CreateGeomBuffers(engine, model, scene, geom);
 
     if (renderables_.GetNumEntities() == 0) {
-      renderables_.Append(std::move(buffers));
+      renderables_.Append(std::move(mesh));
     } else {
-      renderables_.Update(0, std::move(buffers));
+      renderables_.Update(0, std::move(mesh));
     }
   }
 
+  mjtNum head_pos[3];
+  mjv_cameraInModel(head_pos, nullptr, nullptr, scene);
+
   SetTransform(geom);
-  UpdateMaterial(geom, scene->flags[mjRND_IDCOLOR]);
+  UpdateMaterial(geom, scene->flags[mjRND_IDCOLOR],
+                 scene->flags[mjRND_REFLECTION], head_pos);
+  renderables_.SetWireframe(scene->flags[mjRND_WIREFRAME]);
 }
 
 void Drawable::AddMesh(int data_id) {
-  ObjectManager* object_mgr = material_.GetObjectManager();
-  const FilamentBuffers* buffers = object_mgr->GetMeshBuffer(data_id);
+  const Mesh* buffers = model_objs_->GetMeshBuffer(data_id);
   if (buffers == nullptr) {
     mju_error("Unknown mesh %d", data_id);
   }
-  renderables_.Append(*buffers);
+  renderables_.Append(buffers);
 }
 
 void Drawable::AddHeightField(int hfield_id) {
-  ObjectManager* object_mgr = material_.GetObjectManager();
-  const FilamentBuffers* buffers = object_mgr->GetHeightFieldBuffer(hfield_id);
+  const Mesh* buffers = model_objs_->GetHeightFieldBuffer(hfield_id);
   if (buffers == nullptr) {
     mju_error("Unknown height field %d", hfield_id);
   }
-  renderables_.Append(*buffers);
+  renderables_.Append(buffers);
 }
 
-void Drawable::AddShape(ObjectManager::ShapeType shape_type) {
-  ObjectManager* object_mgr = material_.GetObjectManager();
-  const FilamentBuffers* buffers = object_mgr->GetShapeBuffer(shape_type);
+void Drawable::AddShape(ModelObjects::ShapeType shape_type) {
+  const Mesh* buffers = model_objs_->GetShapeBuffer(shape_type);
   if (buffers == nullptr) {
     mju_error("Unknown shape %d", shape_type);
   }
-  renderables_.Append(*buffers);
+  renderables_.Append(buffers);
 }
 
 void Drawable::AddToScene(filament::Scene* scene) {
@@ -213,13 +228,21 @@ void Drawable::SetDrawMode(Material::DrawMode mode) {
   renderables_.SetMaterialInstance(material_.GetMaterialInstance(mode));
 }
 
+void Drawable::UpdateReflectionTexture(const Texture* tex) {
+  material_.UpdateReflectionTexture(tex);
+}
+
+void Drawable::SetLayerMask(std::uint8_t mask) {
+  renderables_.SetLayerMask(mask);
+}
+
 void Drawable::SetTransform(const mjvGeom& geom) {
   // Flex and skin geometries are in global space.
   if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
     return;
   }
 
-  const mat4 transform(ReadMat3(geom.mat), ReadFloat3(geom.pos));
+  transform_ = mat4(ReadMat3(geom.mat), ReadFloat3(geom.pos));
 
   float3 size = ReadFloat3(geom.size);
   filament::TransformManager& tm =
@@ -228,7 +251,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
     const utils::Entity& entity = renderables_[j];
 
     // Update object transform.
-    mat4 entity_transform = transform;
+    mat4 entity_transform = transform_;
 
     // Some built-in drawables are composed of multiple entities. For example,
     // capsules are a combination of a open tube and two dome end caps.
@@ -330,21 +353,34 @@ void Drawable::SetTransform(const mjvGeom& geom) {
   }
 }
 
-void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
-  ObjectManager* object_mgr = material_.GetObjectManager();
-  const mjModel* model = object_mgr->GetModel();
+void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
+                              bool enable_reflection, const mjtNum* headpos) {
+  const mjModel* model = model_objs_->GetModel();
+
+  float4 color = ReadFloat4(geom.rgba);
+  if (geom.type == mjGEOM_PLANE) {
+    if (IsBehind(headpos, geom.pos, geom.mat)) {
+      color[3] *= 0.3;
+      renderables_.SetReceiveShadows(false);
+      reflective_ = false;
+    } else {
+      renderables_.SetReceiveShadows(true);
+      reflective_ =
+          enable_reflection && geom.reflectance > 0 && color.a == 1.0f;
+    }
+  }
 
   Material::Textures textures;
   if (geom.matid >= 0) {
-    textures.color = object_mgr->GetTexture(geom.matid, mjTEXROLE_RGB);
-    textures.normal = object_mgr->GetTexture(geom.matid, mjTEXROLE_NORMAL);
-    textures.emissive = object_mgr->GetTexture(geom.matid, mjTEXROLE_EMISSIVE);
-    textures.orm = object_mgr->GetTexture(geom.matid, mjTEXROLE_ORM);
-    textures.metallic = object_mgr->GetTexture(geom.matid, mjTEXROLE_METALLIC);
+    textures.color = model_objs_->GetTexture(geom.matid, mjTEXROLE_RGB);
+    textures.normal = model_objs_->GetTexture(geom.matid, mjTEXROLE_NORMAL);
+    textures.emissive = model_objs_->GetTexture(geom.matid, mjTEXROLE_EMISSIVE);
+    textures.orm = model_objs_->GetTexture(geom.matid, mjTEXROLE_ORM);
+    textures.metallic = model_objs_->GetTexture(geom.matid, mjTEXROLE_METALLIC);
     textures.roughness =
-        object_mgr->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
+        model_objs_->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
     textures.occlusion =
-        object_mgr->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
+        model_objs_->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
     material_.UpdateTextures(textures);
   }
 
@@ -381,27 +417,35 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
       }
 
       if (textures.color == nullptr) {
-        if (geom.rgba[3] < 1.0f) {
+        if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhongColorFade);
+        } else if (reflective_) {
+          material_.SetNormalMaterialType(ObjectManager::kPhongColorReflect);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhongColor);
         }
-      } else if (textures.color->getTarget() ==
+      } else if (textures.color->GetFilamentTexture()->getTarget() ==
                 filament::Texture::Sampler::SAMPLER_CUBEMAP) {
-        if (geom.rgba[3] < 1.0f) {
+        if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
+        } else if (reflective_) {
+          material_.SetNormalMaterialType(ObjectManager::kPhongCubeReflect);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhongCube);
         }
       } else if (has_texcoords) {
-        if (geom.rgba[3] < 1.0f) {
+        if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhong2dUvFade);
+        } else if (reflective_) {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2dUvReflect);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhong2dUv);
         }
       } else {
-        if (geom.rgba[3] < 1.0f) {
+        if (color.a < 1.0f) {
           material_.SetNormalMaterialType(ObjectManager::kPhong2dFade);
+        } else if (reflective_) {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2dReflect);
         } else {
           material_.SetNormalMaterialType(ObjectManager::kPhong2d);
         }
@@ -410,7 +454,8 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
   }
 
   Material::Params params;
-  params.color = ReadFloat4(geom.rgba);
+  params.color = color;
+  params.reflectance = geom.reflectance;
   params.emissive = geom.emission;
   params.specular = geom.specular;
   params.glossiness = geom.shininess;
@@ -447,7 +492,8 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
   // the programmatic UVs.
 
   if (textures.color) {
-    if (textures.color->getTarget() == filament::Texture::Sampler::SAMPLER_2D) {
+    if (textures.color->GetFilamentTexture()->getTarget() ==
+        filament::Texture::Sampler::SAMPLER_2D) {
       // For 2D textures, `tex_repeat` specifies how many times the texture
       // image is repeated. The `tex_uniform` flag determines if the repetition
       // is applied at in object space (false) or in world space (true).
@@ -503,6 +549,12 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
       }
     }
   }
+
+  // Apply material multipliers from the model.
+  params.emissive *= model_objs_->GetEmissiveMultiplier();
+  params.specular *= model_objs_->GetSpecularMultiplier();
+  params.glossiness *= model_objs_->GetShininessMultiplier();
+
   material_.UpdateParams(params);
 }
 }  // namespace mujoco

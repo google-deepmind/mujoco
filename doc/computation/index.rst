@@ -423,6 +423,59 @@ MuJoCo can compute three types of passive forces:
 - Gravity compensation forces. See the body :ref:`gravcomp<body-gravcomp>` attribute for details.
 - Fluid forces exerted by the surrounding medium. See the :doc:`Fluid forces <fluid>` chapter for details.
 
+.. _gePolynomial:
+
+Polynomial forces
+^^^^^^^^^^^^^^^^^
+
+Nonlinear stiffness (:ref:`joints<body-joint-stiffness>`, :ref:`tendons<tendon-spatial-stiffness>`) and
+damping (:ref:`joints<body-joint-damping>`, :ref:`tendons<tendon-spatial-damping>`) are defined by polynomials
+:math:`f` of order :ref:`mjNPOLY + 1<glNumericSizes>`. The actual force applied to the system is :math:`-f`, meaning
+that sign-preserving functions yield a restorative (stiffness) or dissipative (damping) force.
+
+The stiffness polynomial takes the standard form (where :math:`x` is displacement):
+
+.. math::
+   f(x) = a x + b x^2 + c x^3 + \dots
+
+The damping polynomial takes the anti-symmetrized form (where :math:`v` is velocity):
+
+.. math::
+   f(v) = a v + b v |v| + c v^3 + \dots
+
+**Anti-symmetrization**
+  The damping polynomial uses anti-symmetrized even-powered monomials (e.g., :math:`v^2 \rightarrow v|v|`) so that the
+  function is odd: :math:`f(-v) = -f(v)`. This guarantees the force reverses direction with velocity. This formulation
+  is also physically motivated, as some natural forms of damping (like fluid drag) display an anti-symmetric quadratic
+  profile.
+
+  In contrast, asymmetric (or rather, non-anti-symmetric) stiffness profiles are physically common (e.g., biological
+  fascia), making the standard polynomial form and its Taylor-series convenience more appropriate.
+
+**Sign-preservation**
+  In both cases, sensible choices of coefficients often satisfy the **sign-preservation** condition
+  :math:`z \cdot f(z) \geq 0`. This condition is equivalent to requiring that the integral of :math:`f` (Potential
+  Energy for stiffness and Dissipation for damping) is globally convex with a minimum at the origin.
+
+  - For stiffness, violations of the condition create repulsive forces and/or multiple equilibria.
+  - For damping, violations create non-dissipative forces that inject mechanical energy into the system.
+
+  The sign-preservation condition is not enforced by the compiler; it is the user's responsibility to ensure it is
+  satisfied. The analytical conditions on the coefficients for orders up to 3 are:
+
+  .. math::
+     \begin{aligned}
+      \textrm{Standard:} \qquad & a \geq 0, \qquad c \geq 0, \qquad b^2 \leq 4 a c \\
+      \textrm{Anti-symmetrized:} \qquad & a \geq 0, \qquad c \geq 0, \qquad b < 0 \implies b^2 \leq 4 a c
+     \end{aligned}
+
+**mjModel fields**
+  Although MJCF accepts the coefficients as a single array (as does the :ref:`mjs layer<mjsJoint>`),
+  the linear coefficient in ``mjModel`` is stored separately from the higher-order ones.
+  For example, if :ref:`joint/stiffness<body-joint-stiffness>` = "a b c",
+  then ``jnt_stiffness[i] = a``, ``jnt_stiffnesspoly[i*mjNPOLY] = b`` and ``jnt_stiffnesspoly[i*mjNPOLY + 1] = c``.
+  A future breaking change of the C-API may unify the linear and higher-order coefficients into a single array.
+
 .. _geIntegration:
 
 Numerical integration
@@ -531,7 +584,7 @@ All three single-step integrators in MuJoCo use the update :eq:`eq_implicit_upda
 Semi-implicit with implicit joint damping (``Euler``)
    For this method, :math:`D` only includes derivatives of joint damping. Note that in this case :math:`D` is diagonal
    and :math:`\widehat{M}` is symmetric, so :math:`L^TL` decomposition (a variant of Cholesky) can be used. This
-   factorization is stored ``mjData.qLD``. If the model has no joint damping or the
+   factorization is stored in ``mjData.qH``. If the model has no joint damping or the
    :ref:`eulerdamp<option-flag-eulerdamp>` disable-flag is set, implicit damping is disabled and the semi-implicit
    update :eq:`eq_semimplicit` is used, rather than :eq:`eq_implicit_update`, avoiding the additional factorization of
    :math:`\widehat{M}` (*additional* because :math:`M` is already factorized for the acceleration update
@@ -579,11 +632,11 @@ Fast implicit-in-velocity (``implicitfast``)
     step is "just right", but that range is model-dependent.
 
    :ref:`integrator<option-integrator>`
-    Summary: The recommended integrator is ``implicitfast`` which usually has the best tradeoff of stabillity and
+    Summary: The recommended integrator is ``implicitfast`` which usually has the best tradeoff of stability and
     performance.
 
     **Euler**:
-     Use ``Euler`` for compatibillity with older models.
+     Use ``Euler`` for compatibility with older models.
     **implicitfast**:
      The ``implicitfast`` integrator has similar computational cost to ``Euler``, yet provides
      increased stability, and is therefore a strict improvement. It is the recommended integrator for most models.
@@ -839,14 +892,14 @@ as defined later. The ``condim`` parameter determines the contact type, and has 
 
 ``condim = 3`` : 3 for elliptic, 4 for pyramidal
    This is a regular frictional contact, which can generate normal force as well as a tangential friction force opposing
-   slip. An interpertation of this number is the slope of a surface above which a flat object will begin to slip
+   slip. An interpretation of this number is the slope of a surface above which a flat object will begin to slip
    under gravity.
 
 ``condim = 4`` : 4 for elliptic, 6 for pyramidal
    In addition to normal and tangential force, this contact can generate torsional friction torque opposing rotation
    around the contact normal, corresponding to a torque generated by a contacting surface patch. This is useful for
    modeling soft fingers, and can substantially improve the stability of simulated grasping. Torsional friction
-   coefficients have **units of length** which can be interperted as the diameter of the surface contact patch.
+   coefficients have **units of length** which can be interpreted as the diameter of the surface contact patch.
 
 ``condim = 6`` : 6 for elliptic, 10 for pyramidal
    This contact can oppose motion in all relative degrees of freedom between the two geoms. In particular it adds
@@ -1335,6 +1388,8 @@ It is a vector with dimensionality :math:`\nq` satisfying :math:`0<d<1` element-
 the diagonal elements of the regularizer as
 
 .. math::
+   :label: eq:impedance_R
+
    R_{ii} = \frac{1-d_i}{d_i} \hat{A}_{ii}
 
 Note that we are not using the diagonal of the actual :math:`A` matrix, but an approximation to it. This is because we
@@ -1354,17 +1409,22 @@ Next we explain how the reference acceleration is computed. As already mentioned
 parameterized by *damping* and *stiffness* coefficients element-wise:
 
 .. math::
+   :label: eq:aref
+
    \ari = -b_i (J v)_i - k_i r_i
 
-Recall that :math:`r` is the position residual (which is zero for friction loss and friction dimensions of elliptic
-cones), while :math:`J v` is the joint velocity projected in constraint space; the indexing notation refers to one
-component of the projected velocity vector.
+Recall that :math:`r` is the position residual, while :math:`J v` is the joint velocity projected in constraint space;
+the indexing notation refers to one component of the projected velocity vector. For friction loss and friction
+dimensions of elliptic cones, :math:`r \equiv 0` and therefore :math:`k=0`, so the reference acceleration reduces to
+pure damping: :math:`\ari = -b_i (J v)_i`. More detail is given in the :ref:`Friction<CSolverFriction>` section of the
+Modeling chapter.
 
-To summarize, the user specifies the vectors of impedance coefficients :math:`0<d<1`, damping coefficients :math:`b > 0`
-and stiffness coefficients :math:`k > 0`. The quantities :math:`R, \ar` are then computed by MuJoCo as shown above, and
-the selected optimization algorithm is applied to solve problem :eq:`eq:dual`. As explained in the :ref:`solver
-parameters <CSolver>` section of the Modeling chapter, MuJoCo offers additional automation for setting :math:`d, b, k`
-so as to achieve critical damping, or model a soft contact layer by varying :math:`d` with distance.
+To summarize, the constraint behavior is determined by three per-constraint quantities: impedance :math:`0<d<1`, damping
+:math:`b > 0` and stiffness :math:`k \geq 0`. These are computed from the :at:`solimp` and :at:`solref` attributes as
+described in the :ref:`solver parameters <soRefScaling>` section of the Modeling chapter, which also offers additional
+automation (e.g., achieving critical damping, or varying :math:`d` with distance to model a soft contact layer). The
+quantities :math:`R, \ar` are then computed from :eq:`eq:impedance_R` and :eq:`eq:aref`, and the selected optimization
+algorithm is applied to solve problem :eq:`eq:dual`.
 
 .. _soCones:
 
@@ -1614,17 +1674,17 @@ will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
        | **1**
    * - HField
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldCCD
-       | :ref:`mjMAXCONPAIR <glNumeric>`
+       | :ref:`mjMAXCONPAIR <glNumericEngine>`
      - | HFieldSDF
        | :ref:`sdf_initpoints <option-sdf_initpoints>`
    * - Sphere
@@ -1755,7 +1815,7 @@ sleeping mechanism is provided in the :ref:`Simulation chapter<siSleep>` but her
 Sleeping can occur in one of two ways:
 
 - **Automatic:** A tree whose maximum velocity in absolute value is less than the
-  :ref:`tolerance <option-sleep_tolerance>` for :ref:`mjMINAWAKE <glNumeric>` time steps is marked as "ready to sleep".
+  :ref:`tolerance <option-sleep_tolerance>` for :ref:`mjMINAWAKE <glNumericEngine>` time steps is marked as "ready to sleep".
   If all trees in an island are ready to sleep, they are put to sleep during state advancement.
 - **Initialized asleep:** By setting the :ref:`body/sleep<body-sleep>` attribute of a tree root to "init", it is
   marked as "initialized-asleep" and put to sleep during :ref:`mjData` initialization.

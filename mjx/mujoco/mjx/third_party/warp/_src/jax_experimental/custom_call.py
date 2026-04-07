@@ -19,7 +19,7 @@ from functools import reduce
 import warp as wp
 from warp._src.context import type_str
 from warp._src.jax import get_jax_device
-from warp._src.types import array_t, launch_bounds_t, strides_from_shape
+from warp._src.types import array_t, launch_bounds_t, matches_array_class, strides_from_shape
 from warp._src.utils import warn
 
 _wp_module_name_ = "warp.jax_experimental.custom_call"
@@ -340,7 +340,7 @@ def _create_jax_warp_primitive():
             wtype = warg.type
             rtt = ir.RankedTensorType(actual.type)
 
-            if not isinstance(wtype, wp.array):
+            if not matches_array_class(wtype, wp.array):
                 raise Exception("Only contiguous arrays are supported for Jax kernel arguments")
 
             if not base_type_is_compatible(wtype.dtype, rtt.element_type):
@@ -364,7 +364,7 @@ def _create_jax_warp_primitive():
         for warg in wp_kernel.adj.args[len(args) :]:
             wtype = warg.type
 
-            if not isinstance(wtype, wp.array):
+            if not matches_array_class(wtype, wp.array):
                 raise Exception("Only contiguous arrays are supported for Jax kernel arguments")
 
             # Infer dimensions from the first input.

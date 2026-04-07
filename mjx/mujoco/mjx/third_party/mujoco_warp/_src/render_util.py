@@ -206,3 +206,41 @@ def get_depth(rc: RenderContext, camera_index: int, depth_scale: float, depth_ou
     inputs=[rc.depth_data, rc.depth_adr, camera_index, depth_scale],
     outputs=[depth_out],
   )
+
+
+@wp.kernel
+def _extract_seg_kernel(
+  # In:
+  seg_data: wp.array2d(dtype=int),
+  seg_adr: wp.array(dtype=int),
+  camera_index: int,
+  # Out:
+  seg_out: wp.array3d(dtype=int),
+):
+  """Extract per-pixel geom IDs from the render context buffers for a given camera index."""
+  worldid, pixelid = wp.tid()
+  xid = pixelid % seg_out.shape[2]
+  yid = pixelid // seg_out.shape[2]
+
+  seg_adr_offset = seg_adr[camera_index]
+  seg_out[worldid, yid, xid] = seg_data[worldid, seg_adr_offset + pixelid]
+
+
+def get_segmentation(rc: RenderContext, camera_index: int, seg_out: wp.array3d(dtype=int)):
+  """Get the segmentation data from the render context buffers for a given camera index.
+
+  Each pixel contains the MuJoCo geom ID of the geometry hit by the ray, -1 for
+  background, or -2 for flex bodies.
+
+  Args:
+    rc: The render context on device.
+    camera_index: The index of the camera to get the segmentation data for.
+    seg_out: The output array to store the geom IDs in, with shape
+      (nworld, height, width).
+  """
+  wp.launch(
+    _extract_seg_kernel,
+    dim=(seg_out.shape[0], seg_out.shape[1] * seg_out.shape[2]),
+    inputs=[rc.seg_data, rc.seg_adr, camera_index],
+    outputs=[seg_out],
+  )

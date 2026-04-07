@@ -42,7 +42,7 @@ using ::testing::DoubleNear;
 
 constexpr mjtNum kTolerance = 1e-6;
 constexpr int kMaxIterations = 1000;
-constexpr char kEllipoid[] = R"(
+constexpr char kEllipsoidXml[] = R"(
 <mujoco model="Ellipsoid Test">
   <compiler angle="radian"/>
   <size nkey="1"/>
@@ -1373,7 +1373,7 @@ TEST_F(MjGjkTest, BoxMesh) {
   std::vector<mjtNum> dir, pos;
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g2, g1, 0, 1000);
-
+  EXPECT_EQ(model->nmeshpoly, 7);
   EXPECT_EQ(ncons, 4);
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1760,7 +1760,7 @@ TEST_F(MjGjkTest, MeshEdge2) {
 
 TEST_F(MjGjkTest, EllipsoidEllipsoidPenetrating) {
   char error[1024];
-  mjModel* model = LoadModelFromString(kEllipoid, error, sizeof(error));
+  mjModel* model = LoadModelFromString(kEllipsoidXml, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
@@ -1802,6 +1802,73 @@ TEST_F(MjGjkTest, EllipsoidEllipsoid) {
   mjtNum dist = GeomDist(model, data, geom1, geom2, nullptr, nullptr);
 
   EXPECT_NEAR(dist, 0.7542, .0001);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjGjkTest, EllipsoidEllipsoidSlowConvergence) {
+  // This example takes gjkIntersect 30 iterations to converge, thus failing to
+  // detect collision if opt.ccd_iterations is set to 35. With gjkIntersect
+  // disabled, GJK succeeds in 24 iterations.
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="ellipsoid" size=".05 .07 .15"/>
+      <geom name="geom2" type="ellipsoid" size=".05 .07 .15"/>
+    </worldbody>
+  </mujoco>)";
+
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  mjtNum* xmat = data->geom_xmat;
+  mjtNum* xpos = data->geom_xpos;
+
+  xmat[0] = 0.98799245191271645172;
+  xmat[1] = -0.13055117805648397411;
+  xmat[2] = -0.08262750674904573156;
+  xmat[3] = -0.03910798838001148386;
+  xmat[4] = 0.30606703783583483203;
+  xmat[5] = -0.95120635699897815307;
+  xmat[6] = 0.14947066671547387662;
+  xmat[7] = 0.94301609650019369013;
+  xmat[8] = 0.29728632920665870598;
+
+  xpos[0] = 0.44826351361072502844;
+  xpos[1] = -0.10441423315171689812;
+  xpos[2] = 0.21216466278453649519;
+
+  xmat = data->geom_xmat + 9;
+  xpos = data->geom_xpos + 3;
+
+  xmat[0] = 0.53301656081215953442;
+  xmat[1] = -0.59335516633486651283;
+  xmat[2] = -0.60317741377119038493;
+  xmat[3] = -0.39469414877746378245;
+  xmat[4] = 0.45620167535223110633;
+  xmat[5] = -0.79755661888461082398;
+  xmat[6] = 0.74840488695679441289;
+  xmat[7] = 0.66318148194106107951;
+  xmat[8] = 0.00896923573374096283;
+
+  xpos[0] = 0.39694137187624300989;
+  xpos[1] = 0.00961542646741688108;
+  xpos[2] = 0.29832742817753182818;
+
+  int geom1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  Penetration(status, dist, dir, pos, model, data, geom1, geom2);
+
+  EXPECT_LT(dist, 0.0);
+  EXPECT_NEAR(dist, 0.0, kTolerance);
   mj_deleteData(data);
   mj_deleteModel(model);
 }

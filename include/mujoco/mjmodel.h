@@ -42,6 +42,7 @@
 #define mjNFLUID        12        // number of fluid interaction parameters
 #define mjNREF          2         // number of solver reference parameters
 #define mjNIMP          5         // number of solver impedance parameters
+#define mjNPOLY         2         // number of high-order polynomial coefficients
 #define mjNSENS         3         // number of sensor parameters
 #define mjNSOLVER       200       // size of one mjData.solver array
 #define mjNISLAND       20        // number of mjData.solver arrays
@@ -161,7 +162,7 @@ typedef enum mjtTextureRole_ {    // role of texture map in rendering
   mjTEXROLE_ROUGHNESS,            // roughness
   mjTEXROLE_METALLIC,             // metallic
   mjTEXROLE_NORMAL,               // normal (bump) map
-  mjTEXROLE_OPACITY,              // transperancy
+  mjTEXROLE_OPACITY,              // opacity
   mjTEXROLE_EMISSIVE,             // light emission
   mjTEXROLE_RGBA,                 // base color, opacity
   mjTEXROLE_ORM,                  // occlusion, roughness, metallic
@@ -211,6 +212,7 @@ typedef enum mjtEq_ {             // type of equality constraint
   mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
   mjEQ_FLEX,                      // fix all edge lengths of a flex
   mjEQ_FLEXVERT,                  // fix all vertex lengths of a flex
+  mjEQ_FLEXSTRAIN,                // constrain strain of a trilinear/quadratic flex (B-bar)
   mjEQ_DISTANCE                   // unsupported, will cause an error if used
 } mjtEq;
 
@@ -242,7 +244,8 @@ typedef enum mjtDyn_ {            // type of actuator dynamics
   mjDYN_INTEGRATOR,               // integrator: da/dt = u
   mjDYN_FILTER,                   // linear filter: da/dt = (u-a) / tau
   mjDYN_FILTEREXACT,              // linear filter: da/dt = (u-a) / tau, with exact integration
-  mjDYN_MUSCLE,                   // piece-wise linear filter with two time constants
+  mjDYN_MUSCLE,                   // piecewise linear filter with two time constants
+  mjDYN_DCMOTOR,                  // DC motor electrical dynamics
   mjDYN_USER                      // user-defined dynamics type
 } mjtDyn;
 
@@ -251,6 +254,7 @@ typedef enum mjtGain_ {           // type of actuator gain
   mjGAIN_FIXED        = 0,        // fixed gain
   mjGAIN_AFFINE,                  // const + kp*length + kv*velocity
   mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
+  mjGAIN_DCMOTOR,                 // DC motor gain: K or K/R
   mjGAIN_USER                     // user-defined gain type
 } mjtGain;
 
@@ -259,6 +263,7 @@ typedef enum mjtBias_ {           // type of actuator bias
   mjBIAS_NONE         = 0,        // no bias
   mjBIAS_AFFINE,                  // const + kp*length + kv*velocity
   mjBIAS_MUSCLE,                  // muscle passive force computed by mju_muscleBias()
+  mjBIAS_DCMOTOR,                 // DC motor bias: back-EMF, cogging, LuGre friction
   mjBIAS_USER                     // user-defined bias type
 } mjtBias;
 
@@ -728,6 +733,7 @@ struct mjModel_ {
   mjtSize nexclude;               // number of excluded geom pairs
   mjtSize neq;                    // number of equality constraints
   mjtSize ntendon;                // number of tendons
+  mjtSize nJten;                  // number of non-zeros in sparse ten_J matrix
   mjtSize nwrap;                  // number of wrap objects in all tendon paths
   mjtSize nsensor;                // number of sensors
   mjtSize nnumeric;               // number of numeric custom fields
@@ -754,7 +760,6 @@ struct mjModel_ {
   // sizes set after mjModel construction
   mjtSize nnames_map;             // number of slots in the names hash map
   mjtSize nJmom;                  // number of non-zeros in sparse actuator_moment matrix
-  mjtSize nJten;                  // number of non-zeros in sparse ten_J matrix
   mjtSize ngravcomp;              // number of bodies with nonzero gravcomp
   mjtSize nemax;                  // number of potential equality-constraint rows
   mjtSize njmax;                  // number of available rows in constraint Jacobian (legacy)
@@ -831,6 +836,7 @@ struct mjModel_ {
   int*      jnt_qposadr;          // start addr in 'qpos' for joint's data    (njnt x 1)
   int*      jnt_dofadr;           // start addr in 'qvel' for joint's data    (njnt x 1)
   int*      jnt_bodyid;           // id of joint's body                       (njnt x 1)
+  int*      jnt_actuatorid;       // actuator contributing damping / armature (njnt x 1)
   int*      jnt_group;            // group for visibility                     (njnt x 1)
   mjtByte*  jnt_limited;          // does joint have limits                   (njnt x 1)
   mjtByte*  jnt_actfrclimited;    // does joint have actuator force limits    (njnt x 1)
@@ -839,7 +845,8 @@ struct mjModel_ {
   mjtNum*   jnt_solimp;           // constraint solver impedance: limit       (njnt x mjNIMP)
   mjtNum*   jnt_pos;              // local anchor position                    (njnt x 3)
   mjtNum*   jnt_axis;             // local joint axis                         (njnt x 3)
-  mjtNum*   jnt_stiffness;        // stiffness coefficient                    (njnt x 1)
+  mjtNum*   jnt_stiffness;        // linear stiffness coefficient             (njnt x 1)
+  mjtNum*   jnt_stiffnesspoly;    // high-order stiffness coefficients        (njnt x mjNPOLY)
   mjtNum*   jnt_range;            // joint limits                             (njnt x 2)
   mjtNum*   jnt_actfrcrange;      // range of total actuator force            (njnt x 2)
   mjtNum*   jnt_margin;           // min distance for limit detection         (njnt x 1)
@@ -856,7 +863,8 @@ struct mjModel_ {
   mjtNum*   dof_solimp;           // constraint solver impedance:frictionloss (nv x mjNIMP)
   mjtNum*   dof_frictionloss;     // dof friction loss                        (nv x 1)
   mjtNum*   dof_armature;         // dof armature inertia/mass                (nv x 1)
-  mjtNum*   dof_damping;          // damping coefficient                      (nv x 1)
+  mjtNum*   dof_damping;          // linear damping coefficient               (nv x 1)
+  mjtNum*   dof_dampingpoly;      // high-order damping coefficients          (nv x mjNPOLY)
   mjtNum*   dof_invweight0;       // diag. inverse inertia in qpos0           (nv x 1)
   mjtNum*   dof_M0;               // diag. inertia in qpos0                   (nv x 1)
   mjtNum*   dof_length;           // linear: 1; angular: approx. length scale (nv x 1)
@@ -1011,7 +1019,7 @@ struct mjModel_ {
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
-  int*      flex_edgeequality;    // 0: none, 1: edges, 2: vertices           (nflex x 1)
+  int*      flex_edgeequality;    // 0:none, 1:edges, 2:vertices, 3:strain    (nflex x 1)
   mjtByte*  flex_rigid;           // are all vertices in the same body        (nflex x 1)
   mjtByte*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
   mjtByte*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
@@ -1145,9 +1153,13 @@ struct mjModel_ {
   int*      tendon_adr;           // address of first object in tendon's path (ntendon x 1)
   int*      tendon_num;           // number of objects in tendon's path       (ntendon x 1)
   int*      tendon_matid;         // material id for rendering                (ntendon x 1)
+  int*      tendon_actuatorid;    // actuator contributing damping / armature (ntendon x 1)
   int*      tendon_group;         // group for visibility                     (ntendon x 1)
   int*      tendon_treenum;       // number of trees along tendon's path      (ntendon x 1)
   int*      tendon_treeid;        // first two trees along tendon's path      (ntendon x 2)
+  int*      ten_J_rownnz;         // number of non-zeros in Jacobian row      (ntendon x 1)
+  int*      ten_J_rowadr;         // row start address in colind array        (ntendon x 1)
+  int*      ten_J_colind;         // column indices in sparse Jacobian        (nJten x 1)
   mjtByte*  tendon_limited;       // does tendon have length limits           (ntendon x 1)
   mjtByte*  tendon_actfrclimited; // does tendon have actuator force limits   (ntendon x 1)
   mjtNum*   tendon_width;         // width for rendering                      (ntendon x 1)
@@ -1158,8 +1170,10 @@ struct mjModel_ {
   mjtNum*   tendon_range;         // tendon length limits                     (ntendon x 2)
   mjtNum*   tendon_actfrcrange;   // range of total actuator force            (ntendon x 2)
   mjtNum*   tendon_margin;        // min distance for limit detection         (ntendon x 1)
-  mjtNum*   tendon_stiffness;     // stiffness coefficient                    (ntendon x 1)
-  mjtNum*   tendon_damping;       // damping coefficient                      (ntendon x 1)
+  mjtNum*   tendon_stiffness;     // linear stiffness coefficient             (ntendon x 1)
+  mjtNum*   tendon_stiffnesspoly; // high-order stiffness coefficients        (ntendon x mjNPOLY)
+  mjtNum*   tendon_damping;       // linear damping coefficient               (ntendon x 1)
+  mjtNum*   tendon_dampingpoly;   // high-order damping coefficients          (ntendon x mjNPOLY)
   mjtNum*   tendon_armature;      // inertia associated with tendon velocity  (ntendon x 1)
   mjtNum*   tendon_frictionloss;  // loss due to friction                     (ntendon x 1)
   mjtNum*   tendon_lengthspring;  // spring resting length range              (ntendon x 2)
@@ -1179,6 +1193,9 @@ struct mjModel_ {
   int*      actuator_gaintype;    // gain type (mjtGain)                      (nu x 1)
   int*      actuator_biastype;    // bias type (mjtBias)                      (nu x 1)
   int*      actuator_trnid;       // transmission id: joint, tendon, site     (nu x 2)
+  mjtNum*   actuator_damping;     // linear damping coefficient               (nu x 1)
+  mjtNum*   actuator_dampingpoly; // high-order damping coefficients          (nu x mjNPOLY)
+  mjtNum*   actuator_armature;    // armature added to target (joint, tendon) (nu x 1)
   int*      actuator_actadr;      // first activation address; -1: stateless  (nu x 1)
   int*      actuator_actnum;      // number of activation variables           (nu x 1)
   int*      actuator_group;       // group for visibility                     (nu x 1)

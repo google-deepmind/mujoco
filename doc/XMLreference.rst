@@ -1005,7 +1005,7 @@ compilation.
    This attribute specifies the maximum number of contacts that will be generated at runtime.  If the number of active
    contacts is about to exceed this value, the extra contacts are discarded and a warning is generated.  This is a
    deprecated legacy attribute which prior to version 2.3.0 affected memory allocation. It is kept for backwards
-   compatibillity and debugging purposes.
+   compatibility and debugging purposes.
 
 .. _size-nstack:
 
@@ -1249,7 +1249,7 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    transformations in ``mjModel.mesh_{pos, quat, scale}``.
 #. Construct the convex hull if specified;
 #. Find the centroid of all triangle faces, and construct the union-of-pyramids representation. Triangles whose area is
-   too small (below the :ref:`mjMINVAL <glNumeric>` value of 1E-14) result in compile error;
+   too small (below the :ref:`mjMINVAL <glNumericEngine>` value of 1E-14) result in compile error;
 #. Compute the center of mass and inertia matrix of the union-of-pyramids. Use eigenvalue decomposition to find the
    principal axes of inertia. Center and align the mesh, saving the translational and rotational offsets for subsequent
    geom-related computations.
@@ -1518,7 +1518,7 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
   and other geoms (except for planes and other height fields which are not supported) are computed by first selecting
   the sub-grid of prisms that could collide with the geom based on its bounding box, and then using the general convex
   collider. The number of possible contacts between a height field and a geom is limited to 50
-  (:ref:`mjMAXCONPAIR <glNumeric>`); any contacts beyond that are discarded. To avoid penetration due to discarded
+  (:ref:`mjMAXCONPAIR <glNumericEngine>`); any contacts beyond that are discarded. To avoid penetration due to discarded
   contacts, the spatial features of the height field should be large compared to the geoms it collides with.
 
 .. _asset-hfield-name:
@@ -1992,7 +1992,7 @@ attribute and :el:`layer` child elements is an error.
         - opacity (alpha channel)
       * - :at:`emissive`
         - 4
-        - RGB light emmision intensity, exposure weight in 4th channel
+        - RGB light emission intensity, exposure weight in 4th channel
       * - :at:`orm`
         - 3
         - packed 3 channel [occlusion, roughness, metallic]
@@ -2263,13 +2263,19 @@ rotations as unit quaternions.
 .. _body-joint-solimpfriction:
 
 :at:`solreffriction`, :at:`solimpfriction`
-   Constraint solver parameters for simulating dry friction. See :ref:`CSolver`.
+   Constraint solver parameters for simulating dry friction.
+   See also :ref:`Friction<CSolverFriction>`.
 
 .. _body-joint-stiffness:
 
-:at:`stiffness`: :at-val:`real, "0"`
-   Joint stiffness. If this value is positive, a spring will be created with equilibrium position given by springref
-   below. The spring force is computed along with the other passive forces.
+:at:`stiffness`: :at-val:`real, "0 0 0"`
+   Joint stiffness coefficients :math:`a, b, c`. A positive :math:`a` produces the standard restorative linear spring
+   force :math:`f = -a x`, where :math:`x` is the joint displacement from equilibrium given by
+   :ref:`springref<body-joint-springref>`.
+
+   If the optional second and third components are set, they define a nonlinear
+   polynomial spring force :math:`f(x) = -(a x + b x^2 + c x^3)`.
+   See :ref:`Polynomial forces<gePolynomial>` for details.
 
 .. _body-joint-range:
 
@@ -2372,11 +2378,17 @@ rotations as unit quaternions.
 
 .. _body-joint-damping:
 
-:at:`damping`: :at-val:`real, "0"`
-   Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the
-   constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this
-   simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles
+:at:`damping`: :at-val:`real, "0 0 0"`
+   Damping coefficients :math:`a, b, c`.
+   A positive :math:`a` produces the standard dissipative linear damping force :math:`f(v) = -a v`,
+   where :math:`v` is the joint velocity. Despite its simplicity,
+   larger damping values can make numerical integrators unstable, which is why our Euler integrator handles
    damping implicitly. See :ref:`Integration <geIntegration>` in the Computation chapter.
+
+   If the optional second and third components are set, they define a nonlinear polynomial damping force
+   :math:`f(v) = -(a v + b v |v| + c v^3)`.
+   Note the anti-symmetrization of the quadratic term, ensuring that the force is an odd function of
+   velocity. See :ref:`Polynomial forces<gePolynomial>` for details.
 
 .. _body-joint-frictionloss:
 
@@ -3613,7 +3625,9 @@ saving the XML:
      for the entire flex, independent of the number of vertices. The positions of the vertices are updated using
      quadratic interpolation over the bounding box. While this option requires more degrees of freedom than trilinear
      flexes, it enables curved deformation modes, while the only modes achievable for trilinear flexes are
-     strech/compression and shear.
+     strech/compression and shear. To understand the difference between the two parametrizations, see `a trilinear cube
+     <https://github.com/google-deepmind/mujoco/blob/main/model/flex/trilinear.xml>`__ and `a quadratic cube
+     <https://github.com/google-deepmind/mujoco/blob/main/model/flex/quadratic.xml>`__.
 
    Note that a higher interpolation order generally requires a smaller time step for stability, although usually not as
    large as with the "full" option and a fine mesh.
@@ -3675,7 +3689,7 @@ saving the XML:
 
    **direct** allows the user to specify the point and element data of the flexcomp directly in the XML. Note that
    flexcomp will still generate moving bodies automatically, as well as automate other settings; so it still provides
-   convenience compared to specifing the corresponding flex directly.
+   convenience compared to specifying the corresponding flex directly.
 
 .. _body-flexcomp-count:
 
@@ -3787,7 +3801,6 @@ saving the XML:
 
 .. _flexcomp-contact-internal:
 .. _flexcomp-contact-selfcollide:
-.. _flexcomp-contact-vertcollide:
 .. _flexcomp-contact-activelayers:
 .. _flexcomp-contact-contype:
 .. _flexcomp-contact-conaffinity:
@@ -3802,8 +3815,8 @@ saving the XML:
 .. _flexcomp-contact-passive:
 
 .. |body/flexcomp/contact attrib list| replace::
-   :at:`internal`, :at:`selfcollide`, :at:`vertcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`,
-   :at:`condim`, :at:`priority`, :at:`friction`, :at:`solmix`, :at:`solimp`, :at:`margin`, :at:`gap`
+   :at:`internal`, :at:`selfcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`, :at:`condim`,
+   :at:`priority`, :at:`friction`, :at:`solmix`, :at:`solimp`, :at:`margin`, :at:`gap`
 
 |body/flexcomp/contact attrib list|
    Same as in :ref:`flex/contact<flex-contact>`. All attributes are passed through to the automatically-generated flex.
@@ -3819,10 +3832,12 @@ element is used to adjust the properties of all edges in the flex.
 
 .. _flexcomp-edge-equality:
 
-:at:`equality`: :at-val:`[false, true, vert], "false"`
-   The type of equality constraint applied to this edge. If **false**, no equality constraint is applied. If **true**,
-   then edge constraints are enforced. If **vert**, an averaged constraint is used, see
-   :ref:`flexvert<equality-flexvert>`.
+:at:`equality`: :at-val:`[false, true, vert, strain], "false"`
+   The type of equality constraint applied to this edge. If :at-val:`false`, no equality constraint is applied. If
+   :at-val:`true`, then edge constraints are enforced. If :at-val:`vert`, an averaged constraint is used, see
+   :ref:`flexvert<equality-flexvert>`. if :at-val:`strain`, then a constraint is added to enforce that the invariants of
+   the strain tensor do not change; this is only equality constraint type supported for trilinear and quadratic
+   :ref:`dofs<body-flexcomp-dof>` elements and :ref:`here<equality-flexstrain>`.
 
 .. _flexcomp-edge-solref:
 .. _flexcomp-edge-solimp:
@@ -3868,7 +3883,7 @@ multiple times is allowed.
 .. _flexcomp-pin-id:
 
 :at:`id`: :at-val:`int(n), required`
-   Zero-based ids of points to pin. When the points are automatically-generaged, the user needs to understand their
+   Zero-based ids of points to pin. When the points are automatically-generated, the user needs to understand their
    layout in order to decide which points to pin. This can be done by first creating a flexcomp without any pins,
    loading it in the simulator, and showing the body labels.
 
@@ -4074,7 +4089,7 @@ friction can only be created with this element.
 
    Note that as with other :at:`solreffriction` attributes, the constraint violation is identically 0. Therefore, when
    using positive semantics :at:`solreffriction[1]` is ignored, while for negative semantics :at:`solreffriction[0]` is
-   ignored. See :ref:`CSolver` for more details.
+   ignored. See :ref:`Friction<CSolverFriction>` for more details.
 
 .. _contact-pair-margin:
 
@@ -4253,7 +4268,8 @@ The elasticity model is a `Saint Venant-Kirchhoff
 <https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ model discretized with
 piecewise linear finite elements, intended to simulate the compression or elongation of hyperelastic materials subjected
 to large displacements (finite rotations) and small strains, since it uses a nonlinear strain-displacement but a linear
-stress-strain relationship.. See also :ref:`deformable <CDeformable>` objects.
+stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and `this model
+<https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__.
 
 .. _flex-elasticity-young:
 
@@ -4318,13 +4334,6 @@ extensions specific to flexes.
    hierarchies and sweep-and-prune (which are two different strategies for midphase collision pruning). **auto** selects
    **sap** in 1D and 2D, and **bvh** in 3D. Which strategy performs better depends on the specifics of the model. The
    automatic setting is just a simple rule which we have found to perform well in general.
-
-.. _flex-contact-vertcollide:
-
-:at:`vertcollide`: :at-val:`[true, false], "false"`
-   Enables or disables vertex collisions. if **true**, spherical geoms are added at the vertices of flex, with radius
-   equal to the radius of the flex. These geoms can collide with other geoms and are not visible by default. If
-   **false**, no additional geoms are added.
 
 .. _flex-contact-activelayers:
 
@@ -4454,7 +4463,7 @@ be clear from the above specification.
 .. _deformable-skin-face:
 
 :at:`face`: :at-val:`int(3*nface), optional`
-   Trinagular skin faces. Each face is a triple of vertex indices, which are integers between zero and nvert-1.
+   Triangular skin faces. Each face is a triple of vertex indices, which are integers between zero and nvert-1.
 
 .. _deformable-skin-inflate:
 
@@ -4653,9 +4662,11 @@ of the other body, without any joint elements in the child body. Weld constraint
 .. _equality-weld-relpose:
 
 :at:`relpose`: :at-val:`real(7), "0 1 0 0 0 0 0"`
-   This attribute specifies the relative pose (3D position followed by 4D quaternion orientation) of body2 relative to
-   body1. If the quaternion part (i.e., last 4 components of the vector) are all zeros, as in the default setting, this
-   attribute is ignored and the relative pose is the one corresponding to the model reference pose in qpos0. The unusual
+   This attribute specifies the relative pose (3D position followed by 4D quaternion orientation) of the anchor point
+   relative to body1. The position part (first 3 components) gives the anchor coordinates in the local frame of body1,
+   and the quaternion part (last 4 components) gives the relative orientation of body2 relative to body1. If the
+   quaternion part (i.e., last 4 components of the vector) are all zeros, as in the default setting, this attribute is
+   ignored and the relative pose is the one corresponding to the model reference pose in qpos0. The unusual
    default is because all equality constraint types share the same default for their numeric parameters.
 
 .. _equality-weld-anchor:
@@ -4784,7 +4795,8 @@ This element constrains the length of one tendon to be a quartic polynomial of a
 This element constrains the lengths of all edges of a specified flex to their respective lengths in the initial model
 configuration. In this way the edges are used to maintain the shape of the deformable entity. Note that all other
 equality constraint types add a fixed number of scalar constraints, while this element adds as many scalar constraints
-as there are edges in the specified flex.
+as there are edges in the specified flex. See `this model
+<https://github.com/google-deepmind/mujoco/blob/main/model/flex/plate.xml>`__ for an example.
 
 .. _equality-flex-name:
 .. _equality-flex-class:
@@ -4808,8 +4820,9 @@ as there are edges in the specified flex.
 
 This element constrains the trace and the derminant of the strain tensor to that of the identity matrix as in Chen, Kry,
 and Vouga, "Locking-free Simulation of Isometric Thin Plates", 2019. The strain tensor is computed per triangle and
-averaged over all triangles adjacent to a vertex. This reduces the number of constraints from 2T to 2V, freeing
-V degrees of freedom to avoid locking. It is only supported for dimension 2, i.e., cloth-like flexes.
+averaged over all triangles adjacent to a vertex. This reduces the number of constraints from 2T to 2V, freeing V
+degrees of freedom to avoid locking. It is only supported for dimension 2, i.e., cloth-like flexes. See `this model
+<https://github.com/google-deepmind/mujoco/blob/main/model/flex/poncho.xml>`__ for an example.
 
 .. _equality-flexvert-name:
 .. _equality-flexvert-class:
@@ -4824,6 +4837,34 @@ V degrees of freedom to avoid locking. It is only supported for dimension 2, i.e
 
 :at:`flex`: :at-val:`string, required`
    Name of the flex whose vertices are being constrained.
+
+
+.. _equality-flexstrain:
+
+:el-prefix:`equality/` |-| **flexstrain** |*|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element constrains the strain of a trilinear or quadratic flex to its initial values. For trilinear elements,
+a B-bar formulation is used to prevent volumetric locking: the trace of strain (I₁) and volume ratio (J-1 = det(F)-1)
+are constrained at the element center, while the three off-diagonal shear components (E₁₂, E₁₃, E₂₃) are constrained
+at each of the 8 Gauss points, giving 26 constraints per element. For quadratic elements, all 6 strain components
+(3 invariants + 3 shear) are constrained at each of the 27 Gauss points, giving 162 constraints per element. This
+constraint type is only supported for dimension 3 flexes with trilinear or quadratic interpolation. See `this model
+<https://github.com/google-deepmind/mujoco/blob/main/model/flex/strain.xml>`__ for an example.
+
+.. _equality-flexstrain-name:
+.. _equality-flexstrain-class:
+.. _equality-flexstrain-active:
+.. _equality-flexstrain-solref:
+.. _equality-flexstrain-solimp:
+
+:at:`name`, :at:`class`, :at:`active`, :at:`solref`, :at:`solimp`
+   Same as in :ref:`connect <equality-connect>` element.
+
+.. _equality-flexstrain-flex:
+
+:at:`flex`: :at-val:`string, required`
+   Name of the flex whose strain is being constrained.
 
 
 .. _equality-distance:
@@ -4936,7 +4977,8 @@ length X, as in the clip on the right of `this example model
 .. _tendon-spatial-solimpfriction:
 
 :at:`solreffriction`, :at:`solimpfriction`
-   Constraint solver parameters for simulating dry friction in the tendon. See :ref:`CSolver`.
+   Constraint solver parameters for simulating dry friction in the tendon.
+   See also :ref:`Friction<CSolverFriction>`.
 
 .. _tendon-spatial-margin:
 
@@ -4986,15 +5028,32 @@ length X, as in the clip on the right of `this example model
 
 .. _tendon-spatial-stiffness:
 
-:at:`stiffness`: :at-val:`real, "0"`
-   Stiffness coefficient. A positive value generates a spring force (linear in position) acting along the tendon.
+.. youtube:: aKa3ZlEF9_Y
+   :aspect: 2:1
+   :align: right
+   :width: 35%
+
+:at:`stiffness`: :at-val:`real, "0 0 0"`
+   Tendon stiffness coefficients :math:`a, b, c`. A positive :math:`a` generates a linear spring force
+   :math:`f(x) = -a x`, acting along the tendon. Here :math:`x` is the tendon displacement
+   defined by :ref:`springlength<tendon-spatial-springlength>`.
+
+   If the optional second and third components are set, they define a nonlinear polynomial spring force
+   :math:`f(x) = -(a x + b x^2 + c x^3)`. See :ref:`Polynomial forces<gePolynomial>` for details.
+
+   The clip on the right is of
+   `this model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/passive/poly_stiffness.xml>`__.
 
 .. _tendon-spatial-damping:
 
-:at:`damping`: :at-val:`real, "0"`
-   Damping coefficient. A positive value generates a damping force (linear in velocity) acting along the tendon. Unlike
-   joint damping which is integrated implicitly by the Euler method, tendon damping is not integrated implicitly, thus
-   joint damping should be used if possible.
+:at:`damping`: :at-val:`real, "0 0 0"`
+   Damping coefficients :math:`a, b, c`.
+   A positive :math:`a` produces the standard dissipative linear damping force :math:`f(v) = -a v`.
+
+   If the optional second and third components are set, they define a nonlinear polynomial damping force
+   :math:`f(v) = -(a v + b v |v| + c v^3)`.
+   Note the anti-symmetrization of the quadratic term, ensuring that the force is an odd function of
+   velocity. See :ref:`Polynomial forces<gePolynomial>` for details.
 
 .. image:: images/XMLreference/tendon_armature.gif
    :width: 30%
@@ -5294,6 +5353,45 @@ specify them independently.
    the first element of this vector is used. The remaining elements are needed for joint, jointinparent and site
    transmissions where this attribute is used to specify 3D force and torque axes.
 
+.. _actuator-general-damping:
+
+:at:`damping`: :at-val:`real(3), "0 0 0"`
+   Viscous damping coefficients, contributed by the actuator to its transmission target (joint or tendon only).
+   The damping value is scaled by :ref:`gear<actuator-general-gear>` squared, because the gear ratio scales both forces
+   and velocities, leading to reflected damping (analogous to :ref:`reflected inertia<actuator-general-armature>`).
+   Like :ref:`joint damping<body-joint-damping>`, coefficients correspond to linear, quadratic and cubic velocity.
+   See :ref:`Polynomial forces<gePolynomial>` for details.
+
+   Several actuator shortcuts have a :at:`kv` attribute which maps to :ref:`-biasprm[2]<actuator-general-biasprm>` and
+   has similar semantics to :at:`damping`: (e.g.,
+   :ref:`position/kv<actuator-position-kv>`). The differences between these attributes are:
+
+   - :at:`damping` is applied at the transmission target, and therefore includes the gear\ :sup:`2` factor. This factor
+     is not required for :at:`kv` as it is already applied in actuator space (so the units are identical).
+   - Implicit integration works for :at:`damping` when using the Euler integrator but not for :at:`kv`.
+     To get implicit integration for :at:`kv`, implicit or implicitfast is required, see
+     :ref:`Integrators<geIntegrators>`.
+   - :at:`damping` allows for polynomial damping, while :at:`kv` is only linear.
+   - Damping forces generated by :at:`kv` are subject to :ref:`forcerange<actuator-general-forcerange>` clamping, but
+     forces generated by :at:`damping` are not.
+
+   Finally, note that while it is permitted for nonzero damping and :ref:`armature<actuator-general-armature>` to be
+   specified for multiple actuators acting on the same transmission target, it is more performant to specify
+   them for only one actuator. Since these values are summed anyway, it is recommended to place all damping and
+   armature for one transmission target in a single actuator definition.
+
+.. _actuator-general-armature:
+
+:at:`armature`: :at-val:`real, "0"`
+   Armature inertia (or mass for slider joints) contributed by the actuator to its transmission target (joint or tendon
+   only). This is the actual inertia of the spinning element inside the actuator (e.g., a rotor). The contributed value
+   is scaled by :ref:`gear<actuator-general-gear>` squared, because the gear ratio scales both forces and velocities,
+   leading to `reflected inertia <https://en.wikipedia.org/wiki/Reflective_inertia>`__. See
+   :ref:`joint<body-joint-armature>` and :ref:`tendon<tendon-fixed-armature>` armature for more details.
+
+   See also the note in :ref:`damping<actuator-general-damping>` regarding multiple actuators acting on the same
+   transmission target.
+
 .. _actuator-general-cranklength:
 
 :at:`cranklength`: :at-val:`real, "0"`
@@ -5537,11 +5635,15 @@ This element does not have custom attributes. It only has common attributes, whi
 
 .. _actuator-motor-user:
 
+.. _actuator-motor-damping:
+
+.. _actuator-motor-armature:
+
 
 .. |actuator/motor attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
    :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
-   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`, :at:`damping`, :at:`armature`
 
 |actuator/motor attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5608,10 +5710,14 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-position-user:
 
+.. _actuator-position-damping:
+
+.. _actuator-position-armature:
+
 .. |actuator/position attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
    :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
-   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`, :at:`damping`, :at:`armature`
 
 |actuator/position attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5727,10 +5833,14 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-velocity-user:
 
+.. _actuator-velocity-damping:
+
+.. _actuator-velocity-armature:
+
 .. |actuator/velocity attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
    :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
-   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`, :at:`damping`, :at:`armature`
 
 |actuator/velocity attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5805,10 +5915,14 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-intvelocity-user:
 
+.. _actuator-intvelocity-damping:
+
+.. _actuator-intvelocity-armature:
+
 .. |actuator/intvelocity attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
    :at:`forcerange`, :at:`actrange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`,
-   :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`, :at:`damping`, :at:`armature`
 
 |actuator/intvelocity attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5899,10 +6013,14 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-damper-user:
 
+.. _actuator-damper-damping:
+
+.. _actuator-damper-armature:
+
 .. |actuator/damper attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
    :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
-   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`, :at:`damping`, :at:`armature`
 
 |actuator/damper attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -5974,10 +6092,14 @@ This element has four custom attributes in addition to the common attributes:
 
 .. _actuator-cylinder-user:
 
+.. _actuator-cylinder-damping:
+
+.. _actuator-cylinder-armature:
+
 .. |actuator/cylinder attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
    :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
-   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+   :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`, :at:`damping`, :at:`armature`
 
 |actuator/cylinder attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -6060,11 +6182,15 @@ This element has nine custom attributes in addition to the common attributes:
 
 .. _actuator-muscle-user:
 
+.. _actuator-muscle-damping:
+
+.. _actuator-muscle-armature:
+
 
 .. |actuator/muscle attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`ctrllimited`, :at:`forcelimited`, :at:`ctrlrange`,
    :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`, :at:`tendon`,
-   :at:`cranksite`, :at:`slidersite`, :at:`user`
+   :at:`cranksite`, :at:`slidersite`, :at:`user`, :at:`damping`, :at:`armature`
 
 |actuator/muscle attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -6197,10 +6323,176 @@ This element has a subset of the common attributes and two custom attributes.
    to the target body.
 
 
+.. _actuator-dcmotor:
+
+:el-prefix:`actuator/` |-| **dcmotor** |*|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+This element creates a DC motor actuator. See the `DC motor technical note <_static/dcmotor.pdf>`__ for complete
+mathematical formulations and parameter semantics, but we include a few important notes below. Note that :el:`dcmotor`
+does not conform to the affine gain / bias structure of the :ref:`general actuation model<geActuation>`, except for
+the stateless case.
+
+- :ref:`resistance<actuator-dcmotor-resistance>`, :ref:`motorconst<actuator-dcmotor-motorconst>` and
+  :ref:`nominal<actuator-dcmotor-nominal>` are each optional, but some combination of them is required.
+  See Section 2.1 of the `technical note <_static/dcmotor.pdf>`__.
+- The control :ref:`input<actuator-dcmotor-input>` semantic is either the voltage applied to the motor terminals (the
+  default), or a position or velocity target for a :ref:`PID controller<actuator-dcmotor-controller>`.
+- Optional features include electrical dynamics (:ref:`inductance<actuator-dcmotor-inductance>`),
+  :ref:`cogging torque<actuator-dcmotor-cogging>`, :ref:`thermal resistance variation<actuator-dcmotor-thermal>`, and
+  :ref:`LuGre<actuator-dcmotor-lugre>` friction.
+
+The underlying :el:`general` attributes are set to the :el:`dcmotor` type, and their associated parameter arrays are
+computed internally:
+
+========= ======= ========= ========
+Attribute Setting Attribute Setting
+========= ======= ========= ========
+dyntype   dcmotor dynprm    computed
+gaintype  dcmotor gainprm   computed
+biastype  dcmotor biasprm   computed
+========= ======= ========= ========
+
+This element has the following custom attributes in addition to the common attributes:
+
+.. _actuator-dcmotor-name:
+
+.. _actuator-dcmotor-class:
+
+.. _actuator-dcmotor-group:
+
+.. _actuator-dcmotor-delay:
+
+.. _actuator-dcmotor-nsample:
+
+.. _actuator-dcmotor-interp:
+
+.. _actuator-dcmotor-ctrllimited:
+
+.. _actuator-dcmotor-ctrlrange:
+
+.. _actuator-dcmotor-lengthrange:
+
+.. _actuator-dcmotor-gear:
+
+.. _actuator-dcmotor-damping:
+
+.. _actuator-dcmotor-armature:
+
+.. _actuator-dcmotor-cranklength:
+
+.. _actuator-dcmotor-joint:
+
+.. _actuator-dcmotor-jointinparent:
+
+.. _actuator-dcmotor-tendon:
+
+.. _actuator-dcmotor-cranksite:
+
+.. _actuator-dcmotor-slidersite:
+
+.. _actuator-dcmotor-site:
+
+.. _actuator-dcmotor-refsite:
+
+.. _actuator-dcmotor-user:
+
+.. |actuator/dcmotor attrib list| replace::
+   :at:`name`, :at:`class`, :at:`group`, :at:`nsample`, :at:`interp`, :at:`delay`, :at:`ctrllimited`, :at:`ctrlrange`,
+   :at:`lengthrange`, :at:`gear`, :at:`damping`, :at:`armature`, :at:`cranklength`, :at:`joint`, :at:`jointinparent`,
+   :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`site`, :at:`refsite`, :at:`user`
+
+|actuator/dcmotor attrib list|
+   Same as in actuator/ :ref:`general <actuator-general>`.
+
+.. _actuator-dcmotor-resistance:
+
+:at:`resistance`: :at-val:`real, optional`
+   Terminal resistance :math:`R` in Ohm. (see `tech note <_static/dcmotor.pdf>`__, Sections 1.1 and 2.1)
+
+.. _actuator-dcmotor-motorconst:
+
+:at:`motorconst`: :at-val:`real(2), optional`
+   Motor constants, defined as :at:`motorconst` = ":at-val:`Kt` :at-val:`Ke`" (N·m/A, equivalently V·s/rad).
+   :at-val:`Kt` is the torque constant and :at-val:`Ke` the back-EMF constant; they can differ when magnetic saturation
+   is present. If both are positive, the effective constant is :math:`K = \sqrt{K_t K_e}` (geometric mean). If only one
+   is positive, :math:`K` equals that value. If a datasheet specifies the speed constant :math:`K_v` in rad/(V·s), use
+   :math:`K_e = 1/K_v`. (see `tech note <_static/dcmotor.pdf>`__, Sections 1.1 and 2.1)
+
+.. _actuator-dcmotor-nominal:
+
+:at:`nominal`: :at-val:`real(3), optional`
+   Nominal operating point, defined as :at:`nominal` = ":at-val:`voltage` :at-val:`stall_torque`
+   :at-val:`no_load_speed`". The compiler derives :math:`K =` :at-val:`voltage` / :at-val:`no_load_speed` and :math:`R =
+   K` · :at-val:`voltage` / :at-val:`stall_torque`. (see `tech note <_static/dcmotor.pdf>`__, Sections 1.1 and 2.1)
+
+.. _actuator-dcmotor-inductance:
+
+:at:`inductance`: :at-val:`real(2), "0 0"`
+   Electrical dynamics, defined as :at:`inductance` = ":at-val:`L` :at-val:`timeconst`" (Henry, seconds). These are
+   alternative specifications: :at-val:`L` is the winding inductance and :at-val:`timeconst` :math:`= L/R` is the
+   electrical time constant. Specify one; if both are given, :at-val:`L` takes precedence. If both are 0 (the default),
+   no electrical dynamics are modeled and the current is computed algebraically. Adds one activation variable for
+   armature current. (see `tech note <_static/dcmotor.pdf>`__, Sections 1.1.1 and 2.2)
+
+.. _actuator-dcmotor-thermal:
+
+:at:`thermal`: :at-val:`real(6), "0 0 0 0 0 0"`
+   Thermal model, defined as :at:`thermal` = ":at-val:`resistance` :at-val:`capacitance` :at-val:`timeconst`
+   :at-val:`tempcoef` :at-val:`reftemp` :at-val:`ambient`" (K/W, J/K, s, 1/K, °C, °C). The first three sub-values
+   specify the thermal time constant: :at-val:`timeconst` = :at-val:`resistance` :math:`\times` :at-val:`capacitance`.
+   Specify either :at-val:`timeconst` directly, or :at-val:`resistance` and :at-val:`capacitance`; if all three are
+   given, :at-val:`timeconst` takes precedence. If all are 0 (the default), thermal modeling is disabled. Adds one
+   activation variable for winding temperature. (see `tech note <_static/dcmotor.pdf>`__, Sections 1.3 and 2.3)
+
+.. _actuator-dcmotor-saturation:
+
+:at:`saturation`: :at-val:`real(4), "0 0 0 0"`
+   Limits on the actuator, defined as :at:`saturation` = ":at-val:`torque` :at-val:`current` :at-val:`voltage`
+   :at-val:`current_rate`". :at-val:`torque` and :at-val:`current` are alternative specifications of the maximum
+   continuous torque: if :at-val:`current` is given, :at-val:`torque` :math:`= K \cdot` :at-val:`current`; if both are
+   given, :at-val:`torque` takes precedence. Sets :at:`forcerange` to [:math:`-\tau_{\max},\, \tau_{\max}`].
+   :at-val:`voltage` sets the maximum voltage :math:`V_{\max}`. :at-val:`current_rate` sets the maximum rate of change
+   of current :math:`(di/dt)_{\max}` (requires :ref:`inductance<actuator-dcmotor-inductance>`). A value of 0 (the
+   default) for any sub-value disables the respective limit. (see `tech note <_static/dcmotor.pdf>`__, Section 2)
+
+.. _actuator-dcmotor-cogging:
+
+:at:`cogging`: :at-val:`real(3), "0 0 0"`
+   Cogging torque, defined as :at:`cogging` = ":at-val:`amplitude` :at-val:`poles` :at-val:`phase`" (N·m, integer, rad).
+   Adds a position-dependent torque :math:`= \textsf{amplitude} \cdot \sin(\textsf{poles} \cdot \theta +
+   \textsf{phase})`. Disabled when :at-val:`amplitude` = 0 (the default).
+   (see `tech note <_static/dcmotor.pdf>`__, Sections 1.2 and 2.1)
+
+.. _actuator-dcmotor-lugre:
+
+:at:`lugre`: :at-val:`real(6), "0 0 0 0 0 0"`
+   LuGre friction, defined as :at:`lugre` = ":at-val:`stiffness` :at-val:`damping` :at-val:`viscous` :at-val:`coulomb`
+   :at-val:`static` :at-val:`stribeck`" (N·m/rad, N·m·s/rad, N·m·s/rad, N·m, N·m, rad/s). Disabled when
+   :at-val:`stiffness` = 0 (the default). Adds one activation variable for bristle deflection. Note that the
+   :at-val:`viscous` coefficient is mapped directly to the actuator :ref:`damping<actuator-general-damping>` array
+   (specifically the linear term, :at-val:`damping[0]`). If both are specified, their values are summed.
+   (see `tech note <_static/dcmotor.pdf>`__, Sections 1.4 and 2.4)
+
+.. _actuator-dcmotor-input:
+
+:at:`input`: :at-val:`[voltage, position, velocity], "voltage"`
+   Specifies the input signal semantics. In "voltage" mode, the control directly sets applied motor voltage. In
+   "position" or "velocity" modes, the :ref:`PID controller<actuator-dcmotor-controller>` uses the control as a
+   reference setpoint relative to the joint trajectory. (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
+
+.. _actuator-dcmotor-controller:
+
+:at:`controller`: :at-val:`real(5), "0 0 0 0 0"`
+   PID controller parameters, defined as :at:`controller` = ":at-val:`kp` :at-val:`ki` :at-val:`kd`
+   :at-val:`slewmax` :at-val:`Imax`". Depending on the :at:`input` mode, the controller stabilizes either position or
+   velocity. If the :at:`input` mode is voltage, this attribute is ignored. A value of 0 (the default) disables the
+   respective feature: :at-val:`slewmax` = 0 means no slew-rate limiting, :at-val:`Imax` = 0 means no anti-windup
+   clamping. (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
+
 .. _actuator-plugin:
 
 :el-prefix:`actuator/` |-| **plugin** |?|
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
 
@@ -6277,11 +6569,15 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _actuator-plugin-actearly:
 
+.. _actuator-plugin-damping:
+
+.. _actuator-plugin-armature:
+
 .. |actuator/plugin attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`delay`, :at:`actlimited`, :at:`ctrllimited`, :at:`forcelimited`,
    :at:`ctrlrange`, :at:`forcerange`, :at:`lengthrange`, :at:`gear`, :at:`cranklength`, :at:`joint`,
    :at:`jointinparent`, :at:`site`, :at:`tendon`, :at:`cranksite`, :at:`slidersite`, :at:`user`, :at:`actdim`,
-   :at:`dynprm`, :at:`actearly`
+   :at:`dynprm`, :at:`actearly`, :at:`damping`, :at:`armature`
 
 |actuator/plugin attrib list|
    Same as in actuator/ :ref:`general <actuator-general>`.
@@ -6606,7 +6902,7 @@ points (spheres) and the surface normals (arrows).
      regardless of the ray origin. If this data type is included along with either :at-val:`dist` or :at-val:`point`,
      normals will be visualized as arrows at the intersection points.
    - :at-val:`depth`: **real(1)**: The distance of the hit point from the camera plane, -1 if no surface was hit. Note
-     that this depth sematic corresponds to depth images in the computer graphics sense.
+     that this depth semantic corresponds to depth images in the computer graphics sense.
 
 .. _sensor-rangefinder-name:
 
@@ -7862,7 +8158,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 .. _sensor-distance-cutoff:
 
 :at:`cutoff`
-   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
+   See :ref:`collision-sensors` for the semantics of this attribute, which is different than for other sensor categories.
    If no collision is detected, the distance sensor returns the :at:`cutoff` value, so in this case
    :at:`cutoff` acts as a maximum clipping value, in addition to the special semantics.
 
@@ -7917,7 +8213,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 .. _sensor-normal-cutoff:
 
 :at:`cutoff`
-   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
+   See :ref:`collision-sensors` for the semantics of this attribute, which is different than for other sensor categories.
    If no collision is detected, the :ref:`normal<sensor-normal>` sensor returns (0, 0, 0), otherwise it returns a
    normalized direction vector. For this sensor, :at:`cutoff` does not lead to any clamping.
 
@@ -7973,7 +8269,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 .. _sensor-fromto-cutoff:
 
 :at:`cutoff`
-   See :ref:`collision-sensors` for the sematics of this attribute, which is different than for other sensor categories.
+   See :ref:`collision-sensors` for the semantics of this attribute, which is different than for other sensor categories.
    If no collision is detected, the :ref:`fromto<sensor-fromto>` sensor returns 6 zeros.
    For this sensor, :at:`cutoff` does not lead to any clamping.
 
@@ -8193,7 +8489,7 @@ contribute to the sensor output. The sensor can be visualized by enabling the vi
 .. _sensor-tactile-mesh:
 
 :at:`mesh`: :at-val:`string, required`
-   Name of the mesh to associate the tactile sensor with. The mesh will be created by the sensor.
+   Name of the mesh to associate the tactile sensor with.
 
 .. _sensor-tactile-name:
 
@@ -9395,6 +9691,10 @@ if omitted.
 
 .. _default-general-gear:
 
+.. _default-general-damping:
+
+.. _default-general-armature:
+
 .. _default-general-cranklength:
 
 .. _default-general-user:
@@ -9443,6 +9743,10 @@ if omitted.
 
 .. _default-motor-gear:
 
+.. _default-motor-damping:
+
+.. _default-motor-armature:
+
 .. _default-motor-cranklength:
 
 .. _default-motor-user:
@@ -9478,6 +9782,10 @@ tendon, slidersite, cranksite.
 .. _default-position-forcerange:
 
 .. _default-position-gear:
+
+.. _default-position-damping:
+
+.. _default-position-armature:
 
 .. _default-position-cranklength:
 
@@ -9518,6 +9826,10 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-velocity-gear:
 
+.. _default-velocity-damping:
+
+.. _default-velocity-armature:
+
 .. _default-velocity-cranklength:
 
 .. _default-velocity-user:
@@ -9555,6 +9867,10 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-intvelocity-gear:
 
+.. _default-intvelocity-damping:
+
+.. _default-intvelocity-armature:
+
 .. _default-intvelocity-cranklength:
 
 .. _default-intvelocity-user:
@@ -9590,6 +9906,10 @@ site, refsite, tendon, slidersite, cranksite.
 
 .. _default-damper-gear:
 
+.. _default-damper-damping:
+
+.. _default-damper-armature:
+
 .. _default-damper-cranklength:
 
 .. _default-damper-user:
@@ -9622,6 +9942,10 @@ refsite, tendon, slidersite, cranksite.
 .. _default-cylinder-forcerange:
 
 .. _default-cylinder-gear:
+
+.. _default-cylinder-damping:
+
+.. _default-cylinder-armature:
 
 .. _default-cylinder-cranklength:
 
@@ -9661,6 +9985,10 @@ refsite, tendon, slidersite, cranksite.
 .. _default-muscle-forcerange:
 
 .. _default-muscle-gear:
+
+.. _default-muscle-damping:
+
+.. _default-muscle-armature:
 
 .. _default-muscle-cranklength:
 
@@ -9723,6 +10051,57 @@ refsite, tendon, slidersite, cranksite.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`adhesion <actuator-adhesion>` attributes are available here except: name, class, body.
+
+
+.. _default-dcmotor:
+
+.. _default-dcmotor-ctrllimited:
+
+.. _default-dcmotor-ctrlrange:
+
+.. _default-dcmotor-gear:
+
+.. _default-dcmotor-damping:
+
+.. _default-dcmotor-armature:
+
+.. _default-dcmotor-cranklength:
+
+.. _default-dcmotor-user:
+
+.. _default-dcmotor-group:
+
+.. _default-dcmotor-delay:
+
+.. _default-dcmotor-nsample:
+
+.. _default-dcmotor-interp:
+
+.. _default-dcmotor-motorconst:
+
+.. _default-dcmotor-resistance:
+
+.. _default-dcmotor-nominal:
+
+.. _default-dcmotor-saturation:
+
+.. _default-dcmotor-inductance:
+
+.. _default-dcmotor-cogging:
+
+.. _default-dcmotor-controller:
+
+.. _default-dcmotor-input:
+
+.. _default-dcmotor-thermal:
+
+.. _default-dcmotor-lugre:
+
+:el-prefix:`default/` |-| **dcmotor** |?|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All :ref:`dcmotor <actuator-dcmotor>` attributes are available here except: name, class, joint, jointinparent, site,
+refsite, tendon, slidersite, cranksite.
 
 
 .. _custom:

@@ -35,6 +35,8 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
+#include "thread/thread_pool.h"
+#include "thread/thread_task.h"
 
 
 
@@ -58,6 +60,143 @@ static int ContactInfoCompare(const ContactInfo* a, const ContactInfo* b, void* 
   return 0;
 }
 mjPARTIAL_SORT(ContactSelect, ContactInfo, ContactInfoCompare);
+
+
+// arguments for parallel tactile sensor computation
+typedef struct mjTactileTaskArgs_ {
+  const mjModel* m;
+  mjData* d;
+  int sensor_id;
+  int mesh_id;
+  int geom_id;
+  int parent_weld;
+  int ncontact;
+  int nchannel;
+  int* contact_geom_ids;
+  int start_taxel;
+  int end_taxel;
+  mjtNum* forcesT;
+} mjTactileTaskArgs;
+
+
+// worker function for parallel tactile computation over taxel batches
+static void* tactile_taxel_batch(void* args) {
+  mjTactileTaskArgs* t = (mjTactileTaskArgs*)args;
+  const mjModel* m = t->m;
+  mjData* d = t->d;
+  int mesh_id = t->mesh_id;
+  int geom_id = t->geom_id;
+  int parent_weld = t->parent_weld;
+  int ncon = m->mesh_vertnum[mesh_id];
+
+  mjtNum* geom_pos = d->geom_xpos + 3*geom_id;
+  mjtNum* geom_mat = d->geom_xmat + 9*geom_id;
+  float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
+  float* mesh_normal = m->mesh_normal + 3*m->mesh_normaladr[mesh_id];
+
+  int has_frame = (m->mesh_normalnum[mesh_id] == 3 * m->mesh_vertnum[mesh_id]);
+  int normal_stride = has_frame ? 9 : 3;
+
+  // process taxels in [start_taxel, end_taxel)
+  for (int j = t->start_taxel; j < t->end_taxel; j++) {
+    mjtNum pos[3] = {mesh_vert[3*j + 0], mesh_vert[3*j + 1], mesh_vert[3*j + 2]};
+
+    mjtNum xpos[3];
+    mju_mulMatVec3(xpos, geom_mat, pos);
+    mju_addTo3(xpos, geom_pos);
+
+    // iterate over colliding geoms
+    for (int g = 0; g < t->ncontact; g++) {
+      int geom = t->contact_geom_ids[g];
+      int body = m->geom_bodyid[geom];
+
+      // set up SDF for this contact geom
+      int sdf_instance[2] = {-1, -1};
+      mjtGeom geomtype[2] = {mjGEOM_SDF, mjGEOM_SPHERE};
+      const mjpPlugin* sdf_ptr[2] = {NULL, NULL};
+      if (m->geom_type[geom] == mjGEOM_SDF) {
+        sdf_instance[0] = m->geom_plugin[geom];
+        sdf_ptr[0] = mjc_getSDF(m, geom);
+      } else if (m->geom_type[geom] == mjGEOM_MESH) {
+        sdf_instance[0] = m->geom_dataid[geom];
+        geomtype[0] = (mjtGeom)m->geom_type[geom];
+      } else {
+        sdf_instance[0] = geom;
+        geomtype[0] = (mjtGeom)m->geom_type[geom];
+      }
+
+      // skip mesh geoms not having an octree
+      if (geomtype[0] == mjGEOM_MESH &&
+          m->mesh_octadr[m->geom_dataid[geom]] == -1) {
+        continue;
+      }
+
+      mjSDF geom_sdf;
+      geom_sdf.id = &sdf_instance[0];
+      geom_sdf.type = mjSDFTYPE_SINGLE;
+      geom_sdf.plugin = &sdf_ptr[0];
+      geom_sdf.geomtype = &geomtype[0];
+
+      // position in other geom frame
+      mjtNum tmp[3], lpos[3];
+      mju_sub3(tmp, xpos, d->geom_xpos + 3*geom);
+      mju_mulMatTVec3(lpos, d->geom_xmat + 9*geom, tmp);
+
+      // SDF plugins are in the original mesh frame
+      if (sdf_ptr[0] != NULL) {
+        mjtNum mesh_mat[9];
+        mju_quat2Mat(mesh_mat, m->mesh_quat + 4 * m->geom_dataid[geom]);
+        mju_mulMatVec3(lpos, mesh_mat, lpos);
+        mju_addTo3(lpos, m->mesh_pos + 3 * m->geom_dataid[geom]);
+      }
+
+      // compute distance
+      mjtNum depth = mju_min(mjc_distance(m, d, &geom_sdf, lpos), 0);
+      if (depth == 0) {
+        continue;
+      }
+
+      // get velocity in global frame
+      mjtNum vel_sensor[6], vel_other[6], vel_rel[3];
+      mju_transformSpatial(
+          vel_sensor, d->cvel + 6 * parent_weld, 0, xpos,
+          d->subtree_com + 3 * m->body_rootid[parent_weld], NULL);
+      mju_transformSpatial(
+          vel_other, d->cvel + 6 * body, 0, d->geom_xpos + 3 * geom,
+          d->subtree_com + 3 * m->body_rootid[body], NULL);
+      mju_sub3(vel_rel, vel_sensor+3, vel_other+3);
+
+      // get normal
+      mjtNum normal[3] = {mesh_normal[normal_stride*j + 0],
+                          mesh_normal[normal_stride*j + 1],
+                          mesh_normal[normal_stride*j + 2]};
+      mju_rotVecQuat(normal, normal, m->mesh_quat + 4 * mesh_id);
+
+      // get contact force
+      mjtNum force[3];
+      mjtNum kMaxDepth = 0.05;
+      mjtNum pressure = depth / mju_max(kMaxDepth - depth, mjMINVAL);
+      mju_scl3(force, normal, pressure);
+
+      // accumulate into forcesT (disjoint writes per taxel j)
+      t->forcesT[0*ncon + j] += mju_dot3(force, normal);
+
+      if (has_frame) {
+        mjtNum tang1[3] = {mesh_normal[normal_stride*j + 3],
+                           mesh_normal[normal_stride*j + 4],
+                           mesh_normal[normal_stride*j + 5]};
+        mjtNum tang2[3] = {mesh_normal[normal_stride*j + 6],
+                           mesh_normal[normal_stride*j + 7],
+                           mesh_normal[normal_stride*j + 8]};
+        mju_rotVecQuat(tang1, tang1, m->mesh_quat + 4 * mesh_id);
+        mju_rotVecQuat(tang2, tang2, m->mesh_quat + 4 * mesh_id);
+        t->forcesT[1*ncon + j] += mju_abs(mju_dot3(vel_rel, tang1));
+        t->forcesT[2*ncon + j] += mju_abs(mju_dot3(vel_rel, tang2));
+      }
+    }
+  }
+  return NULL;
+}
 
 
 // apply cutoff to sensor i, clamping values in data buffer
@@ -1112,109 +1251,62 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
       // all of the quadrature points are contact points
       int ncon = m->mesh_vertnum[mesh_id];
 
-      // get site frame
-      mjtNum* geom_pos = d->geom_xpos + 3*geom_id;
-      mjtNum* geom_mat = d->geom_xmat + 9*geom_id;
-
       // allocate contact forces and positions
       mjtNum* forcesT = mj_stackAllocNum(d, ncon*3);
       mju_zero(forcesT, ncon*3);
 
-      // iterate over colliding geoms
-      for (int g = 0; g < ncontact; g++) {
-        int geom = contact_geom_ids[g];
-        int body = m->geom_bodyid[geom];
+      // threshold for parallelization (taxel count below which sequential is faster)
+      const int kTactileParallelThreshold = 1000;
 
-        // get sdf plugin of the geoms
-        int sdf_instance[2] = {-1, -1};
-        mjtGeom geomtype[2] = {mjGEOM_SDF, mjGEOM_SPHERE};
-        const mjpPlugin* sdf_ptr[2] = {NULL, NULL};
-        if (m->geom_type[geom] == mjGEOM_SDF) {
-          sdf_instance[0] = m->geom_plugin[geom];
-          sdf_ptr[0] = mjc_getSDF(m, geom);
-        } else if (m->geom_type[geom] == mjGEOM_MESH) {
-          sdf_instance[0] = m->geom_dataid[geom];
-          geomtype[0] = (mjtGeom)m->geom_type[geom];
-        } else {
-          sdf_instance[0] = geom;
-          geomtype[0] = (mjtGeom)m->geom_type[geom];
+      // parallel path: use threadpool to process taxel batches
+      if (d->threadpool && ncon >= kTactileParallelThreshold) {
+        int nthreads = mju_threadPoolNumberOfThreads((mjThreadPool*)d->threadpool);
+        int batch_size = (ncon + nthreads - 1) / nthreads;
+        int ntasks = (ncon + batch_size - 1) / batch_size;
+
+        mjTask* tasks = mjSTACKALLOC(d, ntasks, mjTask);
+        mjTactileTaskArgs* task_args = mjSTACKALLOC(d, ntasks, mjTactileTaskArgs);
+
+        for (int t = 0; t < ntasks; t++) {
+          task_args[t].m = m;
+          task_args[t].d = d;
+          task_args[t].sensor_id = i;
+          task_args[t].mesh_id = mesh_id;
+          task_args[t].geom_id = geom_id;
+          task_args[t].parent_weld = parent_weld;
+          task_args[t].ncontact = ncontact;
+          task_args[t].nchannel = nchannel;
+          task_args[t].contact_geom_ids = contact_geom_ids;
+          task_args[t].start_taxel = t * batch_size;
+          task_args[t].end_taxel = mju_min((t+1) * batch_size, ncon);
+          task_args[t].forcesT = forcesT;
+
+          mju_defaultTask(&tasks[t]);
+          tasks[t].func = tactile_taxel_batch;
+          tasks[t].args = &task_args[t];
+          mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[t]);
         }
 
-        // skip mesh geoms not having an octree
-        if (geomtype[0] == mjGEOM_MESH &&
-            m->mesh_octadr[m->geom_dataid[geom]] == -1) {
-          continue;
+        for (int t = 0; t < ntasks; t++) {
+          mju_taskJoin(&tasks[t]);
         }
-
-        // set SDF parameters
-        mjSDF geom_sdf;
-        geom_sdf.id = &sdf_instance[0];
-        geom_sdf.type = mjSDFTYPE_SINGLE;
-        geom_sdf.plugin = &sdf_ptr[0];
-        geom_sdf.geomtype = &geomtype[0];
-
-        // get forces in mesh coordinates
-        int node = 0;
-        float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
-        float* mesh_normal = m->mesh_normal + 3*m->mesh_normaladr[mesh_id];
-        for (int j = 0; j < ncon; j++) {
-          // position in site frame
-          mjtNum pos[3] = {mesh_vert[3*j + 0], mesh_vert[3*j + 1], mesh_vert[3*j + 2]};
-
-          // position in global frame
-          mjtNum xpos[3];
-          mju_mulMatVec3(xpos, geom_mat, pos);
-          mju_addTo3(xpos, geom_pos);
-
-          // position in other geom frame
-          mjtNum lpos[3];
-          mju_sub3(tmp, xpos, d->geom_xpos + 3*geom);
-          mju_mulMatTVec3(lpos, d->geom_xmat + 9*geom, tmp);
-
-          // SDF plugins are in the original mesh frame
-          if (sdf_ptr[0] != NULL) {
-            mjtNum mesh_mat[9];
-            mju_quat2Mat(mesh_mat, m->mesh_quat + 4 * m->geom_dataid[geom]);
-            mju_mulMatVec3(lpos, mesh_mat, lpos);
-            mju_addTo3(lpos, m->mesh_pos + 3 * m->geom_dataid[geom]);
-          }
-
-          // compute distance
-          mjtNum depth = mju_min(mjc_distance(m, d, &geom_sdf, lpos), 0);
-          if (depth == 0) {
-            node++;
-            continue;
-          }
-
-          // get velocity in global frame
-          mjtNum vel_sensor[6], vel_other[6], vel_rel[3];
-          mju_transformSpatial(
-              vel_sensor, d->cvel + 6 * parent_weld, 0, xpos,
-              d->subtree_com + 3 * m->body_rootid[parent_weld], NULL);
-          mju_transformSpatial(
-              vel_other, d->cvel + 6 * body, 0, d->geom_xpos + 3 * geom,
-              d->subtree_com + 3 * m->body_rootid[body], NULL);
-          mju_sub3(vel_rel, vel_sensor+3, vel_other+3);
-
-          mjtNum normal[3] = {mesh_normal[9*j + 0], mesh_normal[9*j + 1], mesh_normal[9*j + 2]};
-          mjtNum tang1[3] =  {mesh_normal[9*j + 3], mesh_normal[9*j + 4], mesh_normal[9*j + 5]};
-          mjtNum tang2[3] =  {mesh_normal[9*j + 6], mesh_normal[9*j + 7], mesh_normal[9*j + 8]};
-
-          // get contact force/torque, rotate into node frame
-          mju_rotVecQuat(normal, normal, m->mesh_quat + 4 * mesh_id);
-          mju_rotVecQuat(tang1, tang1, m->mesh_quat + 4 * mesh_id);
-          mju_rotVecQuat(tang2, tang2, m->mesh_quat + 4 * mesh_id);
-          mjtNum force[3];
-          mjtNum kMaxDepth = 0.05;
-          mjtNum pressure = depth / mju_max(kMaxDepth - depth, mjMINVAL);
-          mju_scl3(force, normal, pressure);
-
-          // one row of mat^T * force
-          forcesT[0*ncon + node] = mju_dot3(force, normal);
-          forcesT[1*ncon + node] = mju_abs(mju_dot3(vel_rel, tang1));
-          forcesT[2*ncon + node] = mju_abs(mju_dot3(vel_rel, tang2));
-          node++;
-        }
+      }
+      // sequential path: call tactile_taxel_batch with full range
+      else {
+        mjTactileTaskArgs args;
+        args.m = m;
+        args.d = d;
+        args.sensor_id = i;
+        args.mesh_id = mesh_id;
+        args.geom_id = geom_id;
+        args.parent_weld = parent_weld;
+        args.ncontact = ncontact;
+        args.nchannel = nchannel;
+        args.contact_geom_ids = contact_geom_ids;
+        args.start_taxel = 0;
+        args.end_taxel = ncon;
+        args.forcesT = forcesT;
+        tactile_taxel_batch(&args);
       }
 
       // compute sensor output
@@ -1618,7 +1710,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 // position-dependent energy (potential)
 void mj_energyPos(const mjModel* m, mjData* d) {
   int padr;
-  mjtNum dif[3], quat[4], stiffness;
+  mjtNum dif[3], quat[4], stiffness, x;
 
   // init potential energy:  -sum_i body(i).mass * mju_dot(body(i).pos, gravity)
   d->energy[0] = 0;
@@ -1640,7 +1732,8 @@ void mj_energyPos(const mjModel* m, mjData* d) {
       int jnt_end = jnt_start + m->body_jntnum[b];
       for (int j=jnt_start; j < jnt_end; j++) {
         stiffness = m->jnt_stiffness[j];
-        if (stiffness == 0) {
+        const mjtNum* poly = m->jnt_stiffnesspoly + mjNPOLY*j;
+        if (stiffness == 0 && mju_isZero(poly, mjNPOLY)) {
           continue;
         }
         padr = m->jnt_qposadr[j];
@@ -1648,8 +1741,8 @@ void mj_energyPos(const mjModel* m, mjData* d) {
         switch ((mjtJoint) m->jnt_type[j]) {
         case mjJNT_FREE:
           mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
-          d->energy[0] += 0.5 * stiffness * mju_dot3(dif, dif);
-
+          x = mju_norm3(dif);
+          d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
           // continue with rotations
           padr += 3;
           mjFALLTHROUGH;
@@ -1659,14 +1752,15 @@ void mj_energyPos(const mjModel* m, mjData* d) {
           mju_copy4(quat, d->qpos+padr);
           mju_normalize4(quat);
           mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
-          d->energy[0] += 0.5 * stiffness * mju_dot3(dif, dif);
+          x = mju_norm3(dif);
+          d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
+
           break;
 
         case mjJNT_SLIDE:
         case mjJNT_HINGE:
-          d->energy[0] += 0.5 * stiffness *
-                          (d->qpos[padr] - m->qpos_spring[padr]) *
-                          (d->qpos[padr] - m->qpos_spring[padr]);
+          x = d->qpos[padr] - m->qpos_spring[padr];
+          d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
           break;
         }
       }
@@ -1676,25 +1770,22 @@ void mj_energyPos(const mjModel* m, mjData* d) {
   // add tendon-level springs
   if (!mjDISABLED(mjDSBL_SPRING)) {
     for (int i=0; i < m->ntendon; i++) {
-    // skip sleeping or static tendon
-    if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, i) != mjS_AWAKE) {
-      continue;
-    }
-
-      stiffness = m->tendon_stiffness[i];
-      mjtNum length = d->ten_length[i];
-      mjtNum displacement = 0;
-
-      // compute spring displacement
-      mjtNum lower = m->tendon_lengthspring[2*i];
-      mjtNum upper = m->tendon_lengthspring[2*i+1];
-      if (length > upper) {
-        displacement = upper - length;
-      } else if (length < lower) {
-        displacement = lower - length;
+      // skip sleeping or static tendon
+      if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, i) != mjS_AWAKE) {
+        continue;
       }
 
-      d->energy[0] += 0.5*stiffness*displacement*displacement;
+      stiffness = m->tendon_stiffness[i];
+      const mjtNum* poly = m->tendon_stiffnesspoly + mjNPOLY*i;
+      mjtNum length = d->ten_length[i];
+
+      // compute spring displacement x
+      mjtNum lower = m->tendon_lengthspring[2*i];
+      mjtNum upper = m->tendon_lengthspring[2*i+1];
+      x = (length > upper) ? length - upper : (length < lower) ? length - lower : 0;
+
+      // add potential energy
+      d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
     }
   }
 

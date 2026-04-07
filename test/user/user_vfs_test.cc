@@ -407,5 +407,29 @@ TEST_F(UserVfsTest, StackedMounts) {
   EXPECT_EQ(test2, expect2);
   EXPECT_EQ(test3, expect3);
 }
+
+TEST_F(UserVfsTest, MoveVfs) {
+  // Create and move a VFS to another address.
+  mjVFS* original = new mjVFS();
+  mj_defaultVFS(original);
+  mjVFS vfs = *original;
+  delete original;
+
+  std::string buffer = "<mujoco/>";
+  mj_addBufferVFS(&vfs, "model", static_cast<const void*>(buffer.c_str()),
+                  buffer.size());
+
+  mjResource* resource = mju_openResource("", "model", &vfs, nullptr, 0);
+  ASSERT_THAT(resource, NotNull());
+
+  const void* out = nullptr;
+  const int size = mju_readResource(resource, &out);
+  EXPECT_GT(size, 0);
+  EXPECT_THAT(out, NotNull());
+
+  mju_closeResource(resource);
+  mj_deleteVFS(&vfs);
+}
+
 }  // namespace
 }  // namespace mujoco

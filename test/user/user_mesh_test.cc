@@ -71,6 +71,9 @@ static const char* const kMalformedFaceOBJPath =
 static const char* const kCubeSkinPath =
     "user/testdata/cube_skin.xml";
 
+static const char* const kNoDecoderForMeshErrorMsh =
+    "no decoder found for mesh";
+
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
@@ -110,7 +113,7 @@ TEST_F(MjCMeshTest, UnknownMeshFormat) {
         LoadModelFromString(xml.c_str(), error.data(), error.size(), &vfs);
     ASSERT_THAT(model, testing::IsNull())
         << "Should fail to load a mesh named: " << name;
-    EXPECT_THAT(error.data(), HasSubstr("unknown or unsupported mesh file: "));
+    EXPECT_THAT(error.data(), HasSubstr(kNoDecoderForMeshErrorMsh));
     EXPECT_THAT(error.data(), HasSubstr(name));
   }
 
@@ -300,7 +303,7 @@ TEST_F(MjCMeshTest, LoadMSHWithContentTypeError) {
   // should error with unknown file type
   mjModel* model = LoadModelFromString(xml, error, error_sz, &vfs);
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("unsupported mesh type: 'model/unknown'"));
+  EXPECT_THAT(error, HasSubstr(kNoDecoderForMeshErrorMsh));
   mj_deleteVFS(&vfs);
 }
 
@@ -327,7 +330,7 @@ TEST_F(MjCMeshTest, LoadMSHWithInvalidContentType) {
   // should error with unknown file type
   mjModel* model = LoadModelFromString(xml, error, error_sz, &vfs);
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("invalid content type: 'model'"));
+  EXPECT_THAT(error, HasSubstr(kNoDecoderForMeshErrorMsh));
   mj_deleteVFS(&vfs);
 }
 
@@ -976,14 +979,14 @@ TEST_F(MjCMeshTest, MeshPosQuat) {
   mju_mulPose(recovered_pos, recovered_quat,
               &model->geom_pos[0], &model->geom_quat[0],
               inverse_mesh_pos, inverse_mesh_quat);
-  EXPECT_NEAR(recovered_pos[0], 0, 1e-12);
-  EXPECT_NEAR(recovered_pos[1], 0, 1e-12);
-  EXPECT_NEAR(recovered_pos[2], 0, 1e-12);
+  EXPECT_NEAR(recovered_pos[0], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[1], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[2], 0, MjTol(1e-12, 1e-6));
 
-  EXPECT_NEAR(recovered_quat[0], 1, 1e-12);
-  EXPECT_NEAR(recovered_quat[1], 0, 1e-12);
-  EXPECT_NEAR(recovered_quat[2], 0, 1e-12);
-  EXPECT_NEAR(recovered_quat[3], 0, 1e-12);
+  EXPECT_NEAR(recovered_quat[0], 1, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[1], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[2], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[3], 0, MjTol(1e-12, 1e-6));
 
   // same test on the other geom
   mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
@@ -991,14 +994,14 @@ TEST_F(MjCMeshTest, MeshPosQuat) {
   mju_mulPose(recovered_pos, recovered_quat,
               &model->geom_pos[3], &model->geom_quat[4],
               inverse_mesh_pos, inverse_mesh_quat);
-  EXPECT_NEAR(recovered_pos[0], 1, 1e-12);
-  EXPECT_NEAR(recovered_pos[1], 2, 1e-12);
-  EXPECT_NEAR(recovered_pos[2], 3, 1e-12);
+  EXPECT_NEAR(recovered_pos[0], 1, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[1], 2, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[2], 3, MjTol(1e-12, 1e-6));
 
-  EXPECT_NEAR(recovered_quat[0], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[1], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[2], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[3], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[0], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[1], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[2], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[3], 0.5, MjTol(1e-12, 1e-6));
 
   mj_deleteModel(model);
 }
@@ -1035,14 +1038,14 @@ TEST_F(MjCMeshTest, MeshPosQuatShellInertia) {
   mju_mulPose(recovered_pos, recovered_quat,
               &model->geom_pos[0], &model->geom_quat[0],
               inverse_mesh_pos, inverse_mesh_quat);
-  EXPECT_NEAR(recovered_pos[0], 0, 1e-12);
-  EXPECT_NEAR(recovered_pos[1], 0, 1e-12);
-  EXPECT_NEAR(recovered_pos[2], 0, 1e-12);
+  EXPECT_NEAR(recovered_pos[0], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[1], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[2], 0, MjTol(1e-12, 1e-6));
 
-  EXPECT_NEAR(recovered_quat[0], 1, 1e-12);
-  EXPECT_NEAR(recovered_quat[1], 0, 1e-12);
-  EXPECT_NEAR(recovered_quat[2], 0, 1e-12);
-  EXPECT_NEAR(recovered_quat[3], 0, 1e-12);
+  EXPECT_NEAR(recovered_quat[0], 1, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[1], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[2], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[3], 0, MjTol(1e-12, 1e-6));
 
   // same test on the other geom
   mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
@@ -1050,14 +1053,14 @@ TEST_F(MjCMeshTest, MeshPosQuatShellInertia) {
   mju_mulPose(recovered_pos, recovered_quat,
               &model->geom_pos[3], &model->geom_quat[4],
               inverse_mesh_pos, inverse_mesh_quat);
-  EXPECT_NEAR(recovered_pos[0], 1, 1e-12);
-  EXPECT_NEAR(recovered_pos[1], 2, 1e-12);
-  EXPECT_NEAR(recovered_pos[2], 3, 1e-12);
+  EXPECT_NEAR(recovered_pos[0], 1, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[1], 2, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[2], 3, MjTol(1e-12, 1e-6));
 
-  EXPECT_NEAR(recovered_quat[0], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[1], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[2], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[3], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[0], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[1], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[2], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[3], 0.5, MjTol(1e-12, 1e-6));
   mj_deleteModel(model);
 }
 
@@ -1081,6 +1084,71 @@ TEST_F(MjCMeshTest, MeshScale) {
   EXPECT_THAT(AsVector(model->mesh_scale + 0, 3), ElementsAre(1, 1, 1));
   EXPECT_THAT(AsVector(model->mesh_scale + 3, 3), ElementsAre(0.9, 1, -1));
   mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh" scale="-1 1 1" inertia="exact"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1  0 3 2  1 3 0  1 2 3" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, NegativeScaleUserMeshMatchesPositiveScale) {
+  static constexpr char pos_xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="pos_mesh"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1  0 3 2  1 3 0  1 2 3" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="pos_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char neg_xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="neg_mesh" scale="-1 1 1"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1  0 3 2  1 3 0  1 2 3" />
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="neg_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* pos_model = LoadModelFromString(pos_xml, error, sizeof(error));
+  ASSERT_THAT(pos_model, NotNull()) << error;
+
+  mjModel* neg_model = LoadModelFromString(neg_xml, error, sizeof(error));
+  ASSERT_THAT(neg_model, NotNull()) << error;
+
+  ASSERT_EQ(pos_model->nmeshface, neg_model->nmeshface);
+
+  for (int i = 0; i < pos_model->nmeshface; i++) {
+    EXPECT_EQ(pos_model->mesh_face[3*i + 0], neg_model->mesh_face[3*i + 0]);
+    EXPECT_EQ(pos_model->mesh_face[3*i + 1], neg_model->mesh_face[3*i + 2]);
+    EXPECT_EQ(pos_model->mesh_face[3*i + 2], neg_model->mesh_face[3*i + 1]);
+  }
+
+  mj_deleteModel(pos_model);
+  mj_deleteModel(neg_model);
 }
 
 TEST_F(MjCMeshTest, ShellInertiaTest) {
@@ -1375,7 +1443,7 @@ TEST_F(MjCMeshTest, OctreeHangingNodeInterpolation) {
   mjModel* model = mj_compile(spec, 0);
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_GT(model->mesh_octnum[0], 0);
-  double kEps = 1e-6;
+  const mjtNum kEps = MjTol(1e-6, 1e-4);
 
   const int octree_adr = model->mesh_octadr[0];
   const int noct = model->mesh_octnum[0];
@@ -1536,14 +1604,14 @@ TEST_F(MjCMeshTest, OctreeNotComputedForNonSDF) {
   mj_deleteModel(model);
 }
 
-double CubeSDF(double p[3], double b[3]) {
-  double q[3] = {std::abs(p[0]) - b[0],
-                 std::abs(p[1]) - b[1],
-                 std::abs(p[2]) - b[2]};
-  return std::sqrt(std::pow(std::max(q[0], 0.0), 2) +
-                   std::pow(std::max(q[1], 0.0), 2) +
-                   std::pow(std::max(q[2], 0.0), 2)) +
-         std::min(std::max(q[0], std::max(q[1], q[2])), 0.0);
+mjtNum CubeSDF(mjtNum p[3], mjtNum b[3]) {
+  mjtNum q[3] = {mju_abs(p[0]) - b[0],
+                 mju_abs(p[1]) - b[1],
+                 mju_abs(p[2]) - b[2]};
+  return mju_sqrt(std::pow(std::max(q[0], (mjtNum)0), 2) +
+                   std::pow(std::max(q[1], (mjtNum)0), 2) +
+                   std::pow(std::max(q[2], (mjtNum)0), 2)) +
+         std::min(std::max(q[0], std::max(q[1], q[2])), (mjtNum)0);
 }
 
 TEST_F(MjCMeshTest, OctreeCube) {

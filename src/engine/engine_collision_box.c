@@ -17,6 +17,7 @@
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
+#include "engine/engine_util_misc.h"
 
 // hard-clamp vector to range [-limit(i), +limit(i)]
 static void mju_clampVec(mjtNum* vec, const mjtNum* limit, int n)
@@ -93,9 +94,7 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
 
 
 // sphere : box
-int mjc_SphereBox(const mjModel* m, const mjData* d, mjContact* con,
-                  int g1, int g2, mjtNum margin)
-{
+int mjc_SphereBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO;
 
   return mjraw_SphereBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
@@ -592,16 +591,15 @@ skip:
 
 
 // capsule : box
-int mjc_CapsuleBox(const mjModel* m, const mjData* d, mjContact* con,
-                   int g1, int g2, mjtNum margin)
-{
+int mjc_CapsuleBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
   return mjraw_CapsuleBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
 
 
-// box : box
-int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2, mjtNum margin)
+// internal box : box
+static inline
+int _boxbox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2, mjtNum margin)
 {
   const mjtNum* pos1 = D->geom_xpos + 3 * g1;
   const mjtNum* mat1 = D->geom_xmat + 9 * g1;
@@ -1336,4 +1334,77 @@ edgeedge:
 
 #undef rotaxis
 #undef rotmatx
+}
+
+
+// box : box
+int mjc_BoxBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
+  int num = _boxbox(m, d, con, g1, g2, margin);
+
+  // use dim field to mark: -1: bad, 0: good
+  for (int i=0; i < num; i++) {
+    con[i].dim = 0;
+  }
+
+  // get box info
+  const mjtNum* pos1 =  d->geom_xpos + 3 * g1;
+  const mjtNum* mat1 =  d->geom_xmat + 9 * g1;
+  const mjtNum* size1 = m->geom_size + 3 * g1;
+  const mjtNum* pos2 =  d->geom_xpos + 3 * g2;
+  const mjtNum* mat2 =  d->geom_xmat + 9 * g2;
+  const mjtNum* size2 = m->geom_size + 3 * g2;
+
+  // find bad: contacts outside one of the boxes
+  for (int i=0; i < num; i++) {
+    // box sizes with margin
+    mjtNum sz1[3] = {size1[0] + margin, size1[1] + margin, size1[2] + margin};
+    mjtNum sz2[3] = {size2[0] + margin, size2[1] + margin, size2[2] + margin};
+
+    // relative distance from surface (1%) outside of which box-box contacts are removed
+    static mjtNum kRemoveRatio = 1.01;
+
+    // is the contact outside: 1, inside: -1, within the removal width: 0
+    int out1 = mju_outsideBox(con[i].pos, pos1, mat1, sz1, kRemoveRatio);
+    int out2 = mju_outsideBox(con[i].pos, pos2, mat2, sz2, kRemoveRatio);
+
+    // mark as bad if outside one box and not inside the other box
+    if ((out1 == 1 && out2 != -1) || (out2 == 1 && out1 != -1)) {
+      con[i].dim = -1;
+    }
+  }
+
+  // find duplicates
+  for (int i=0; i < num-1; i++) {
+    if (con[i].dim == -1) {
+      continue;  // already marked bad: skip
+    }
+    for (int j=i+1; j < num; j++) {
+      if (con[j].dim == -1) {
+        continue;  // already marked bad: skip
+      }
+      if (con[i].pos[0] == con[j].pos[0] &&
+          con[i].pos[1] == con[j].pos[1] &&
+          con[i].pos[2] == con[j].pos[2]) {
+        con[i].dim = -1;
+        break;
+      }
+    }
+  }
+
+  // consolidate good
+  int i = 0;
+  for (int j=0; j < num; j++) {
+    // good: maybe copy
+    if (con[j].dim == 0) {
+      // different: copy
+      if (i < j) {
+        con[i] = con[j];
+      }
+
+      // advance either way
+      i++;
+    }
+  }
+
+  return i;
 }

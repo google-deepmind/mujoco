@@ -36,6 +36,13 @@ extern char **environ;  // for execve
 // so that we can dlsym and call them from Python via ctypes.
 __attribute__((used)) void mjpython_hide_dock_icon() {
   [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+  // Drain pending Cocoa events on the main thread. The activation policy
+  // change triggers an asynchronous dock/screen reconfiguration via
+  // SkyLight. If we return before it's processed, the notification lands
+  // on a GCD worker thread and hits NSScreen's main-thread assertion.
+  NSDate* soon = [NSDate dateWithTimeIntervalSinceNow:0.01];
+  [[NSRunLoop mainRunLoop] runUntilDate:soon];
 }
 __attribute__((used)) void mjpython_show_dock_icon() {
   [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];

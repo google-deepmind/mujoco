@@ -30,6 +30,12 @@ class Obj(dataclasses.PyTreeNode):
   f: tuple[jax.Array, ...]
 
 
+class LargeArrayNode(dataclasses.PyTreeNode):
+  array_a: np.ndarray
+  array_b: np.ndarray
+  array_c: np.ndarray
+
+
 class DataclassesTest(absltest.TestCase):
 
   def test_pytree_structure(self):
@@ -63,6 +69,48 @@ class DataclassesTest(absltest.TestCase):
 
     # ensure hashable meta
     hash(meta)
+
+  def test_metadata_equality(self):
+    array_size = 1_000
+    data = np.random.rand(array_size, 3).astype(np.float32)
+    tex = np.random.randint(0, 255, (1024, 1024, 3), dtype=np.uint8)
+    obj1 = LargeArrayNode(
+        array_a=data.copy(),
+        array_b=data.copy(),
+        array_c=tex.copy(),
+    )
+    obj2 = LargeArrayNode(
+        array_a=data.copy(),
+        array_b=data.copy(),
+        array_c=tex.copy(),
+    )
+
+    _, meta1 = jax.tree_util.tree_flatten(obj1)
+    _, meta2 = jax.tree_util.tree_flatten(obj2)
+
+    self.assertEqual(
+        meta1,
+        meta2,
+        'Two objects with identical numpy data should produce equal pytree'
+        ' metadata (same trace cache key).',
+    )
+
+  def test_metadata_does_not_copy_arrays(self):
+    obj = LargeArrayNode(
+        array_a=np.random.rand(100, 3).astype(np.float32),
+        array_b=np.random.rand(100, 3).astype(np.float32),
+        array_c=np.random.randint(0, 255, (16, 16, 3), dtype=np.uint8),
+    )
+
+    leaves, meta = jax.tree_util.tree_flatten(obj)
+    reconstructed = meta.unflatten(leaves)
+
+    self.assertIs(
+        reconstructed.array_a,
+        obj.array_a,
+        'Metadata should reference the original array.',
+    )
+    self.assertIs(reconstructed.array_c, obj.array_c)
 
 
 if __name__ == '__main__':

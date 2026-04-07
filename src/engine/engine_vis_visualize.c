@@ -1055,9 +1055,12 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
       continue;
     }
 
+    int has_stiffness = m->tendon_stiffness[i] ||
+                        !mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY);
+
     // tendon has a deadband spring
     int limitedspring =
-      m->tendon_stiffness[i] > 0            &&    // positive stiffness
+      has_stiffness                         &&    // positive stiffness
       m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
       m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
 
@@ -1066,10 +1069,12 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
     mjtNum lower = m->tendon_range[2*i];
     mjtNum upper = m->tendon_range[2*i + 1];
     int limitedconstraint =
-      m->tendon_stiffness[i] == 0           &&    // zero stiffness
+      !has_stiffness                        &&    // zero stiffness
       m->tendon_limited[i] == 1             &&    // limited length range
       lower == 0                            &&    // range lower-bound is 0
       ten_length < upper;                         // current length is smaller than upper bound
+
+    int has_damping = m->tendon_damping[i] || !mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY);
 
     // conditions for drawing a catenary
     int draw_catenary =
@@ -1077,7 +1082,7 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
       mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
       m->tendon_num[i] == 2                 &&    // only two sites on the tendon
       (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
-      m->tendon_damping[i] == 0             &&    // no damping
+      !has_damping                          &&    // no damping
       m->tendon_frictionloss[i] == 0;             // no frictionloss
 
     // no actuator
@@ -2910,8 +2915,8 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     scn->camera[view].orthographic = orthographic;
 
     // set symmetric frustum using intrinsic camera matrix
-    scn->camera[view].frustum_top = zver[1];
-    scn->camera[view].frustum_bottom = -zver[0];
+    scn->camera[view].frustum_top = zver[0];
+    scn->camera[view].frustum_bottom = -zver[1];
     scn->camera[view].frustum_center = (zhor[1] - zhor[0]) / 2;
     scn->camera[view].frustum_width = (zhor[1] + zhor[0]) / 2;
     scn->camera[view].frustum_near = zclip[0];

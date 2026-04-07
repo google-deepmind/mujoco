@@ -14,14 +14,13 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
-
 import dataclasses
 import functools
 import jax
 from mujoco.mjx._src import types
 from mujoco.mjx.warp import ffi
-from mujoco.mjx.warp.io import _MJX_RENDER_CONTEXT_BUFFERS
-from mujoco.mjx.warp.types import RenderContext
+from mujoco.mjx.warp.render_context import _MJX_RENDER_CONTEXT_BUFFERS
+from mujoco.mjx.warp.render_context import RenderContextPytree
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 import warp as wp
@@ -45,6 +44,9 @@ _c = mjwarp.Contact(
 _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
+_cb = mjwp_types.Callback(
+    **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
+)
 
 
 @ffi.format_args_for_warp
@@ -52,15 +54,21 @@ def _refit_bvh_shim(
     # Model
     nworld: int,
     flex_dim: wp.array(dtype=int),
+    flex_edge: wp.array(dtype=wp.vec2i),
     flex_elem: wp.array(dtype=int),
+    flex_elemadr: wp.array(dtype=int),
+    flex_elemdataadr: wp.array(dtype=int),
     flex_elemnum: wp.array(dtype=int),
+    flex_radius: wp.array(dtype=float),
+    flex_shell: wp.array(dtype=int),
+    flex_shelldataadr: wp.array(dtype=int),
     flex_vertadr: wp.array(dtype=int),
+    flex_vertnum: wp.array(dtype=int),
     geom_dataid: wp.array(dtype=int),
     geom_size: wp.array2d(dtype=wp.vec3),
     geom_type: wp.array(dtype=int),
     nflex: int,
-    nflexelemdata: int,
-    nflexvert: int,
+    nflexelem: int,
     # Data
     flexvert_xpos: wp.array2d(dtype=wp.vec3),
     geom_xmat: wp.array2d(dtype=wp.mat33),
@@ -72,18 +80,25 @@ def _refit_bvh_shim(
 ):
   _m.stat = _s
   _m.opt = _o
+  _m.callback = _cb
   _d.efc = _e
   _d.contact = _c
   _m.flex_dim = flex_dim
+  _m.flex_edge = flex_edge
   _m.flex_elem = flex_elem
+  _m.flex_elemadr = flex_elemadr
+  _m.flex_elemdataadr = flex_elemdataadr
   _m.flex_elemnum = flex_elemnum
+  _m.flex_radius = flex_radius
+  _m.flex_shell = flex_shell
+  _m.flex_shelldataadr = flex_shelldataadr
   _m.flex_vertadr = flex_vertadr
+  _m.flex_vertnum = flex_vertnum
   _m.geom_dataid = geom_dataid
   _m.geom_size = geom_size
   _m.geom_type = geom_type
   _m.nflex = nflex
-  _m.nflexelemdata = nflexelemdata
-  _m.nflexvert = nflexvert
+  _m.nflexelem = nflexelem
   _d.flexvert_xpos = flexvert_xpos
   _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
@@ -93,7 +108,9 @@ def _refit_bvh_shim(
   mjwarp.refit_bvh(_m, _d, render_context)
 
 
-def _refit_bvh_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
+def _refit_bvh_jax_impl(
+    m: types.Model, d: types.Data, ctx: RenderContextPytree
+):
   output_dims = {'dummy': (d.qpos.shape[0],)}
   jf = ffi.jax_callable_variadic_tuple(
       _refit_bvh_shim,
@@ -109,15 +126,21 @@ def _refit_bvh_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
   out = jf(
       d.qpos.shape[0],
       m._impl.flex_dim,
+      m._impl.flex_edge,
       m._impl.flex_elem,
+      m._impl.flex_elemadr,
+      m._impl.flex_elemdataadr,
       m._impl.flex_elemnum,
+      m._impl.flex_radius,
+      m._impl.flex_shell,
+      m._impl.flex_shelldataadr,
       m._impl.flex_vertadr,
+      m._impl.flex_vertnum,
       m.geom_dataid,
       m.geom_size,
       m.geom_type,
       m._impl.nflex,
-      m._impl.nflexelemdata,
-      m._impl.nflexvert,
+      m._impl.nflexelem,
       d._impl.flexvert_xpos,
       d.geom_xmat,
       d.geom_xpos,
@@ -129,7 +152,7 @@ def _refit_bvh_jax_impl(m: types.Model, d: types.Data, ctx: RenderContext):
 
 @jax.custom_batching.custom_vmap
 @ffi.marshal_jax_warp_callable
-def refit_bvh(m: types.Model, d: types.Data, ctx: RenderContext):
+def refit_bvh(m: types.Model, d: types.Data, ctx: RenderContextPytree):
   return _refit_bvh_jax_impl(m, d, ctx)
 
 
@@ -140,7 +163,7 @@ def refit_bvh_vmap(
     is_batched,
     m: types.Model,
     d: types.Data,
-    ctx: RenderContext,
+    ctx: RenderContextPytree,
 ):
   d = refit_bvh(m, d, ctx)
   return d, is_batched[1]

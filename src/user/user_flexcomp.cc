@@ -99,7 +99,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
 
 
 // make flexcomp object
-bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
+bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vfs) {
   mjCModel* model = static_cast<mjCBody*>(body->element)->model;
   mjsCompiler* compiler = static_cast<mjCBody*>(body->element)->compiler;
   mjsFlex* dflex = def.spec.flex;
@@ -170,11 +170,11 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
       break;
 
     case mjFCOMPTYPE_MESH:
-      res = MakeMesh(model, compiler, error, error_sz);
+      res = MakeMesh(model, compiler, error, error_sz, vfs);
       break;
 
     case mjFCOMPTYPE_GMSH:
-      res = MakeGMSH(model, compiler, error, error_sz);
+      res = MakeGMSH(model, compiler, error, error_sz, vfs);
       break;
 
     case mjFCOMPTYPE_DIRECT:
@@ -502,14 +502,6 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
       // add new body at vertex coordinates
       mjsBody* pb = mjs_addBody(body, 0);
 
-      // add geom if vertcollide
-      if (dflex->vertcollide) {
-        mjsGeom* geom = mjs_addGeom(pb, 0);
-        geom->type = mjGEOM_SPHERE;
-        geom->size[0] = dflex->radius;
-        geom->group = 4;
-      }
-
       // set frame and inertial
       pb->pos[0] = point[3*i];
       pb->pos[1] = point[3*i+1];
@@ -605,13 +597,6 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
           pb->inertia[2] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
           pb->explicitinertial = true;
 
-          // add geom if vertcollide
-          if (dflex->vertcollide) {
-            mjsGeom* geom = mjs_addGeom(pb, 0);
-            geom->type = mjGEOM_SPHERE;
-            geom->size[0] = dflex->radius;
-          }
-
           for (int d=0; d < 3; d++) {
             mjsJoint* jnt = mjs_addJoint(pb, 0);
             jnt->type = mjJNT_SLIDE;
@@ -644,7 +629,14 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   if (equality) {
     mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
     mjs_setDefault(pe->element, &model->Default()->spec);
-    pe->type = equality == 1 ? mjEQ_FLEX : mjEQ_FLEXVERT;
+    // equality 1=edge(mjEQ_FLEX), 2=vert(mjEQ_FLEXVERT), 3=strain(mjEQ_FLEXSTRAIN)
+    if (equality == 1) {
+      pe->type = mjEQ_FLEX;
+    } else if (equality == 2) {
+      pe->type = mjEQ_FLEXVERT;
+    } else if (equality == 3) {
+      pe->type = mjEQ_FLEXSTRAIN;
+    }
     pe->active = true;
     mjs_setString(pe->name1, name.c_str());
   }
@@ -1129,7 +1121,7 @@ template <typename T> static T* VecToArray(std::vector<T>& vector, bool clear = 
 
 
 // make mesh
-bool mjCFlexcomp::MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz) {
+bool mjCFlexcomp::MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz, const mjVFS* vfs) {
   // strip path
   if (!file.empty() && model->spec.strippath) {
     file = mjuu_strippath(file);
@@ -1156,7 +1148,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, 
 
   try {
     resource = mjCBase::LoadResource(mjs_getString(model->spec.modelfiledir),
-                                     filename, 0);
+                                     filename, vfs);
   } catch (mjCError err) {
     return comperr(error, err.message, error_sz);
   }
@@ -1178,7 +1170,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, 
   }
 
   // copy vertices
-  point = mesh.Vert();
+  point.assign(mesh.Vert().begin(), mesh.Vert().end());
 
   if (mesh.HasTexcoord()) {
     texcoord = mesh.Texcoord();
@@ -1248,7 +1240,7 @@ static int findstring(const char* buffer, int buffer_sz, const char* str) {
 
 
 // load points and elements from GMSH file
-bool mjCFlexcomp::MakeGMSH(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz) {
+bool mjCFlexcomp::MakeGMSH(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz, const mjVFS* vfs) {
   // strip path
   if (!file.empty() && model->spec.strippath) {
     file = mjuu_strippath(file);
@@ -1264,7 +1256,7 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, mjsCompiler* compiler, char* error, 
   try {
     std::string filename = mjuu_combinePaths(mjs_getString(compiler->meshdir), file);
     resource = mjCBase::LoadResource(mjs_getString(model->spec.modelfiledir),
-                                     filename, 0);
+                                     filename, vfs);
   } catch (mjCError err) {
     return comperr(error, err.message, error_sz);
   }

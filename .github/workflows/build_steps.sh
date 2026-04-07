@@ -62,6 +62,12 @@ setup_emsdk() {
     git clone https://github.com/emscripten-core/emsdk.git
     ./emsdk/emsdk install 4.0.10
     ./emsdk/emsdk activate 4.0.10
+    # Force installing emscripten's typescript dependencies. This is a
+    # workaround for the github update to a newer typescript, which gives an
+    # error on the deprecated `--outFile` flag.
+    pushd emsdk/upstream/emscripten
+    npm i
+    popd
 }
 
 
@@ -101,6 +107,8 @@ copy_plugins_posix() {
     mkdir -p ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libactuator.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libelasticity.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
+    cp lib/libobj_decoder.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
+    cp lib/libstl_decoder.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libsensor.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libsdf_plugin.* ${TMPDIR}/mujoco_install/mujoco_plugin
 }
@@ -111,6 +119,8 @@ copy_plugins_window() {
     mkdir -p ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp bin/Release/actuator.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp bin/Release/elasticity.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
+    cp bin/Release/obj_decoder.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
+    cp bin/Release/stl_decoder.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp bin/Release/sensor.dll ${TMPDIR}/mujoco_install/mujoco_plugin
 }
 
@@ -145,9 +155,8 @@ build_simulate() {
 }
 
 
-_configure_studio() {
-    # Invoke cmake will all options OFF assuming that the caller will enable
-    # needed options by running `export _CONFIGURE_STUDIO_CMAKE_ARGS=...` first
+configure_studio() {
+    echo "Configuring Studio..."
     cmake -B build \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
@@ -155,28 +164,12 @@ _configure_studio() {
         -DBUILD_SHARED_LIBS=OFF \
         -DMUJOCO_BUILD_EXAMPLES=OFF \
         -DMUJOCO_BUILD_SIMULATE=OFF \
-        -DMUJOCO_BUILD_STUDIO=OFF \
+        -DMUJOCO_BUILD_STUDIO=ON \
         -DMUJOCO_BUILD_TESTS=OFF \
         -DMUJOCO_TEST_PYTHON_UTIL=OFF \
         -DMUJOCO_WITH_USD=OFF \
-        -DMUJOCO_USE_FILAMENT=OFF \
-        -DMUJOCO_USE_FILAMENT_VULKAN=OFF \
-        ${_CONFIGURE_STUDIO_CMAKE_ARGS}
-}
-
-
-configure_studio_legacy_opengl() {
-    echo "Configuring Studio (legacy OpenGL)..."
-    export _CONFIGURE_STUDIO_CMAKE_ARGS="-DMUJOCO_BUILD_STUDIO=ON ${CMAKE_ARGS}"
-    _configure_studio
-    echo "Configuring Studio (legacy OpenGL)... DONE"
-}
-
-
-configure_studio() {
-    echo "Configuring Studio..."
-    export _CONFIGURE_STUDIO_CMAKE_ARGS="-DMUJOCO_BUILD_STUDIO=ON -DMUJOCO_USE_FILAMENT=ON ${CMAKE_ARGS}"
-    _configure_studio
+        -DMUJOCO_USE_FILAMENT=ON \
+        ${CMAKE_ARGS}
     echo "Configuring Studio... DONE"
 }
 
@@ -224,10 +217,35 @@ build_test_wasm() {
     source emsdk/emsdk_env.sh
     export PATH="$(pwd)/node_modules/.bin:$PATH"
 
-    emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF $WASM_CMAKE_ARGS
-    cmake --build build_wasm
+    echo "Building Multi-Threaded version..."
+    emcmake cmake -B build_wasm_mt \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
+        -DMUJOCO_WASM_THREADS=ON \
+        $WASM_CMAKE_ARGS
+    cmake --build build_wasm_mt --parallel $(nproc)
+
+    echo "Moving Multi-Thread version under mt subfolder..."
+    mkdir -p wasm/dist/mt
+    mv wasm/dist/mujoco.* wasm/dist/mt/
+
+    echo "Building Single-Threaded version..."
+    emcmake cmake -B build_wasm_st \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
+        -DMUJOCO_WASM_THREADS=OFF \
+        $WASM_CMAKE_ARGS
+    cmake --build build_wasm_st --parallel $(nproc)
 
     npm run test --prefix ./wasm
+}
+
+package_wasm() {
+    echo "Publishing WASM bindings..."
+    cp wasm/package.npm.json wasm/dist/package.json
+    cp wasm/README.md wasm/dist/README.md
+    VERSION="${VERSION:-${GITHUB_REF#refs/tags/}}"
+    npm --prefix wasm/dist version "${VERSION}" --no-git-tag-version
+    npm pack --dry-run ./wasm/dist
+    npm publish ./wasm/dist --access public --provenance
 }
 
 

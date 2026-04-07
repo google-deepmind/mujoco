@@ -1123,6 +1123,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of tendons',
              ),
              StructFieldDecl(
+                 name='nJten',
+                 type=ValueType(name='mjtSize'),
+                 doc='number of non-zeros in sparse ten_J matrix',
+             ),
+             StructFieldDecl(
                  name='nwrap',
                  type=ValueType(name='mjtSize'),
                  doc='number of wrap objects in all tendon paths',
@@ -1241,11 +1246,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='nJmom',
                  type=ValueType(name='mjtSize'),
                  doc='number of non-zeros in sparse actuator_moment matrix',
-             ),
-             StructFieldDecl(
-                 name='nJten',
-                 type=ValueType(name='mjtSize'),
-                 doc='number of non-zeros in sparse ten_J matrix',
              ),
              StructFieldDecl(
                  name='ngravcomp',
@@ -1664,6 +1664,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('njnt',),
              ),
              StructFieldDecl(
+                 name='jnt_actuatorid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='actuator contributing damping / armature',
+                 array_extent=('njnt',),
+             ),
+             StructFieldDecl(
                  name='jnt_group',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -1732,8 +1740,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='stiffness coefficient',
+                 doc='linear stiffness coefficient',
                  array_extent=('njnt',),
+             ),
+             StructFieldDecl(
+                 name='jnt_stiffnesspoly',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='high-order stiffness coefficients',
+                 array_extent=('njnt', 'mjNPOLY'),
              ),
              StructFieldDecl(
                  name='jnt_range',
@@ -1852,8 +1868,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='damping coefficient',
+                 doc='linear damping coefficient',
                  array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='dof_dampingpoly',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='high-order damping coefficients',
+                 array_extent=('nv', 'mjNPOLY'),
              ),
              StructFieldDecl(
                  name='dof_invweight0',
@@ -2980,7 +3004,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='0: none, 1: edges, 2: vertices',
+                 doc='0:none, 1:edges, 2:vertices, 3:strain',
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
@@ -3904,6 +3928,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ntendon',),
              ),
              StructFieldDecl(
+                 name='tendon_actuatorid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='actuator contributing damping / armature',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
                  name='tendon_group',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -3926,6 +3958,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc="first two trees along tendon's path",
                  array_extent=('ntendon', 2),
+             ),
+             StructFieldDecl(
+                 name='ten_J_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of non-zeros in Jacobian row',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='ten_J_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='row start address in colind array',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='ten_J_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='column indices in sparse Jacobian',
+                 array_extent=('nJten',),
              ),
              StructFieldDecl(
                  name='tendon_limited',
@@ -4012,16 +4068,32 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='stiffness coefficient',
+                 doc='linear stiffness coefficient',
                  array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='tendon_stiffnesspoly',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='high-order stiffness coefficients',
+                 array_extent=('ntendon', 'mjNPOLY'),
              ),
              StructFieldDecl(
                  name='tendon_damping',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='damping coefficient',
+                 doc='linear damping coefficient',
                  array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='tendon_dampingpoly',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='high-order damping coefficients',
+                 array_extent=('ntendon', 'mjNPOLY'),
              ),
              StructFieldDecl(
                  name='tendon_armature',
@@ -4142,6 +4214,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='transmission id: joint, tendon, site',
                  array_extent=('nu', 2),
+             ),
+             StructFieldDecl(
+                 name='actuator_damping',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='linear damping coefficient',
+                 array_extent=('nu',),
+             ),
+             StructFieldDecl(
+                 name='actuator_dampingpoly',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='high-order damping coefficients',
+                 array_extent=('nu', 'mjNPOLY'),
+             ),
+             StructFieldDecl(
+                 name='actuator_armature',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='armature added to target (joint, tendon)',
+                 array_extent=('nu',),
              ),
              StructFieldDecl(
                  name='actuator_actadr',
@@ -5813,30 +5909,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ntendon',),
              ),
              StructFieldDecl(
-                 name='ten_J_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of non-zeros in Jacobian row',
-                 array_extent=('ntendon',),
-             ),
-             StructFieldDecl(
-                 name='ten_J_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='row start address in colind array',
-                 array_extent=('ntendon',),
-             ),
-             StructFieldDecl(
-                 name='ten_J_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='column indices in sparse Jacobian',
-                 array_extent=('nJten',),
-             ),
-             StructFieldDecl(
                  name='ten_J',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -7301,8 +7373,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='stiffness',
-                 type=ValueType(name='double'),
-                 doc='stiffness coefficient',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 doc='stiffness coefficients',
              ),
              StructFieldDecl(
                  name='springref',
@@ -7371,8 +7446,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='damping',
-                 type=ValueType(name='double'),
-                 doc='damping coefficient',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 doc='damping coefficients',
              ),
              StructFieldDecl(
                  name='frictionloss',
@@ -8080,11 +8158,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='selfcollide',
                  type=ValueType(name='int'),
                  doc='mode for flex self collision',
-             ),
-             StructFieldDecl(
-                 name='vertcollide',
-                 type=ValueType(name='int'),
-                 doc='mode for vertex collision',
              ),
              StructFieldDecl(
                  name='passive',
@@ -8934,8 +9007,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='stiffness',
-                 type=ValueType(name='double'),
-                 doc='stiffness coefficient',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 doc='stiffness coefficients',
              ),
              StructFieldDecl(
                  name='springlength',
@@ -8947,8 +9023,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='damping',
-                 type=ValueType(name='double'),
-                 doc='damping coefficient',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 doc='damping coefficients',
              ),
              StructFieldDecl(
                  name='frictionloss',
@@ -9202,6 +9281,19 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='inheritrange',
                  type=ValueType(name='double'),
                  doc='automatic range setting for position and intvelocity',
+             ),
+             StructFieldDecl(
+                 name='damping',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 doc='damping coefficients',
+             ),
+             StructFieldDecl(
+                 name='armature',
+                 type=ValueType(name='double'),
+                 doc='armature inertia',
              ),
              StructFieldDecl(
                  name='ctrllimited',

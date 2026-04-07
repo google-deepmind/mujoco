@@ -33,7 +33,6 @@
 
 namespace mujoco {
 namespace {
-using ::testing::DoubleNear;
 using ::testing::HasSubstr;
 using ::testing::NotNull;
 
@@ -376,10 +375,10 @@ int RegisterNoAttributePlugin() {
   return mjp_registerPlugin(&plugin);
 }
 
-class EnginePluginTest : public PluginTest {
+class EnginePluginTest : public MujocoTest {
  public:
   // register all plugins
-  EnginePluginTest() : PluginTest() {
+  EnginePluginTest() : MujocoTest() {
     RegisterSensorPlugin();
 
     for (int i = 1; i <= kNumFakePlugins; ++i) {
@@ -466,7 +465,7 @@ TEST_F(MujocoTest, EmptyPluginDisallowed) {
   mj_deleteModel(m);
 }
 
-TEST_F(PluginTest, FirstPartyPlugins) {
+TEST_F(MujocoTest, FirstPartyPlugins) {
   EXPECT_THAT(mjp_pluginCount(), kNumTruePlugins);
 }
 
@@ -660,7 +659,8 @@ TEST_F(EnginePluginTest, ActuatorPlugin) {
                                                   m->plugin_stateadr[3]),
                   testing::ElementsAreArray<int>({4*(i+1), 8*j, 4*j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[2]>(d->actuator_force),
-                  testing::ElementsAreArray<mjtNum>({0.125*j, 0.25*j}));
+                  testing::ElementsAreArray<mjtNum>(
+                      {(mjtNum)0.125*j, (mjtNum)0.25*j}));
       mj_step(m, d);
       mj_forward(m, d);
     }
@@ -702,19 +702,19 @@ TEST_F(EnginePluginTest, FilteredActuatorPlugin) {
   for (int i = 0; i < 6; ++i) {
     // act_dot should be computed by the plugin
     mjtNum expected_act_dot = TestActuator::kActDotValue;
-    EXPECT_THAT(d->act_dot[i], DoubleNear(expected_act_dot, 1e-6));
+    EXPECT_THAT(d->act_dot[i], MjNear(expected_act_dot, 1e-6, 1e-4));
 
     // act_dot from the plugin should be Euler-integrated
     mjtNum expected_act = expected_act_dot * m->opt.timestep;
-    EXPECT_THAT(d->act[i], DoubleNear(expected_act, 1e-6));
+    EXPECT_THAT(d->act[i], MjNear(expected_act, 1e-6, 1e-4));
   }
 
   // actuator filter state should be updated outside the plugin for filter
   // actuators.
   mjtNum expected_act_dot = 0.5 / m->actuator_dynprm[mjNDYN * 2];
-  EXPECT_THAT(d->act_dot[6], DoubleNear(expected_act_dot, 1e-6));
+  EXPECT_THAT(d->act_dot[6], MjNear(expected_act_dot, 1e-6, 1e-4));
   EXPECT_THAT(d->act[6],
-              DoubleNear(0.5 + expected_act_dot * m->opt.timestep, 1e-6));
+              MjNear(0.5 + expected_act_dot * m->opt.timestep, 1e-6, 1e-4));
 
   mj_deleteData(d);
   mj_deleteModel(m);

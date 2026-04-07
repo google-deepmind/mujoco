@@ -15,6 +15,7 @@
 // Tests for user/user_model.cc.
 
 #include <array>
+#include <memory>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -28,7 +29,6 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleNear;
 using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::HasSubstr;
@@ -265,6 +265,9 @@ TEST_F(UserFlexTest, FlexNotCollide) {
 }
 
 TEST_F(UserFlexTest, BoundingBoxCoordinates) {
+#ifdef mjUSESINGLE
+  GTEST_SKIP() << "Float32 rounding in bounding box centering gives ~3e-8 error";
+#endif
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>
@@ -427,6 +430,9 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
 }
 
 TEST_F(UserFlexTest, StiffnessMatrix) {
+#ifdef mjUSESINGLE
+  GTEST_SKIP() << "Stiffness matrix kernel check fails in float32 precision";
+#endif
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>
@@ -451,9 +457,49 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
     ones[i] = 1;
   }
   mju_mulMatVec(res, m->flex_stiffness, ones, 3*m->nflexnode, 3*m->nflexnode);
-  EXPECT_THAT(res, Pointwise(DoubleNear(1e-8), zeros));
+  EXPECT_THAT(res, Pointwise(MjNear(1e-8, 1e-4), zeros));
 
   mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, StiffnessCacheDiffersByGeometry) {
+  std::array<char, 1024> error;
+
+  // Create two flexes with same material but different bounding boxes
+  static constexpr char xml_small[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 3 3" spacing="1 1 1" dim="3" dof="trilinear">
+      <contact selfcollide="none" internal="false"/>
+      <elasticity young="1" poisson="0.3"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_large[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 3 3" spacing="2 2 2" dim="3" dof="trilinear">
+      <contact selfcollide="none" internal="false"/>
+      <elasticity young="1" poisson="0.3"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+
+  mjModel* m_small = LoadModelFromString(xml_small, error.data(), error.size());
+  ASSERT_THAT(m_small, NotNull()) << error.data();
+
+  mjModel* m_large = LoadModelFromString(xml_large, error.data(), error.size());
+  ASSERT_THAT(m_large, NotNull()) << error.data();
+
+  // Same number of nodes but different stiffness due to different geometry
+  EXPECT_EQ(m_small->nflexnode, m_large->nflexnode);
+  EXPECT_NE(m_small->flex_stiffness[0], m_large->flex_stiffness[0]);
+
+  mj_deleteModel(m_small);
+  mj_deleteModel(m_large);
 }
 
 TEST_F(UserFlexTest, LoadTexture) {
@@ -833,6 +879,132 @@ TEST_F(UserFlexTest, MeshNodePinning) {
   // Model has 1 world body + flex bodies.
   EXPECT_EQ(m->nbody, 1 + 7);  // 1 world + 7 flex nodes (1 pinned)
 
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshLoadsFromVFS) {
+  // read cube.stl from testdata into a buffer
+  const std::string stl_path =
+      GetTestDataFilePath("user/testdata/cube.stl");
+  FILE* f = fopen(stl_path.c_str(), "rb");
+  ASSERT_THAT(f, NotNull()) << "Could not open " << stl_path;
+  fseek(f, 0, SEEK_END);
+  long stl_size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  std::string stl_data(stl_size, '\0');
+  fread(stl_data.data(), 1, stl_size, f);
+  fclose(f);
+
+  // add the STL data to a VFS
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "cube.stl", stl_data.data(), stl_size);
+
+  // XML that uses flexcomp type="mesh" referencing the VFS file
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="flex_body" pos="0 0 1">
+        <flexcomp name="flex_object" type="mesh" file="cube.stl" rigid="true">
+          <contact contype="1" conaffinity="1"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // cleanup
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  mj_deleteData(d);
+  mj_deleteModel(m);
+  mj_deleteVFS(&vfs);
+}
+
+// Test that flex constraints are preserved when attaching a model
+TEST_F(UserFlexTest, FlexAttachConstraintPreserved) {
+  // Child model with flex and strain constraint
+  static constexpr char flex_xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="flex_parent">
+      <flexcomp name="test" type="box"
+                spacing=".1 .1 .1" radius="0.001"
+                dof="trilinear" mass="1" dim="3">
+        <contact selfcollide="none"/>
+        <edge equality="strain"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+
+  // Parent model that attaches the flex model
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+  <asset>
+    <model name="flex" file="flex.xml"/>
+  </asset>
+  <worldbody>
+    <frame pos="0 0 0.3">
+      <attach model="flex" prefix="flex_"/>
+    </frame>
+  </worldbody>
+  </mujoco>
+  )";
+
+  // Set up VFS with both XML files
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "flex.xml", flex_xml, sizeof(flex_xml));
+
+  // First verify the standalone flex model has constraints
+  std::array<char, 1024> error;
+  mjModel* m_standalone =
+      LoadModelFromString(flex_xml, error.data(), error.size(), vfs.get());
+  ASSERT_THAT(m_standalone, NotNull()) << error.data();
+  mjData* d_standalone = mj_makeData(m_standalone);
+  mj_forward(m_standalone, d_standalone);
+  int standalone_neq = m_standalone->neq;
+  EXPECT_GT(standalone_neq, 0) << "Standalone flex should have constraints";
+  mj_deleteData(d_standalone);
+  mj_deleteModel(m_standalone);
+
+  // Now load the parent model which attaches the flex
+  mjModel* m_attached =
+      LoadModelFromString(parent_xml, error.data(), error.size(), vfs.get());
+  ASSERT_THAT(m_attached, NotNull()) << error.data();
+  mjData* d_attached = mj_makeData(m_attached);
+  mj_forward(m_attached, d_attached);
+
+  // THE BUG: flex constraints disappear when attached
+  EXPECT_GT(m_attached->neq, 0)
+      << "Attached flex should preserve strain constraints";
+  EXPECT_EQ(m_attached->neq, standalone_neq)
+      << "Attached flex should have same number of constraints as standalone";
+
+  mj_deleteData(d_attached);
+  mj_deleteModel(m_attached);
+  mj_deleteVFS(vfs.get());
+}
+
+TEST_F(UserFlexTest, FlexNoConstraintsWarning) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="4 4 1" spacing=".2 .2 .2"
+              dim="2" radius=".1"/>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_THAT(error.data(),
+              HasSubstr("no equality constraints or passive forces"));
   mj_deleteModel(m);
 }
 

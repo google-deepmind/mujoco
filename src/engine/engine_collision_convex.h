@@ -37,10 +37,11 @@ extern "C" {
 
 // internal object type for convex collision detection
 struct _mjCCDObj {
-  const mjModel* model;
-  const mjData* data;
   int geom;
   int geom_type;
+  mjtNum size[4];
+  mjtNum pos[3];
+  mjtNum mat[9];
   int vertindex;
   int meshindex;
   int flex;
@@ -48,15 +49,44 @@ struct _mjCCDObj {
   int vert;
   mjtNum margin;
   mjtNum rotate[4];
+  union {
+    // mesh data from mjModel
+    struct {
+      int nvert;
+      int mesh_polynum;
+      const float* vert;
+      const int* mpolymapadr;
+      const int* mpolymapnum;
+      const int* polymap;
+      const int* polyvertadr;
+      const int* polyvertnum;
+      const int* polyvert;
+      const mjtNum* polynormal;
+      const int*graph;
+    } mesh;
+
+    // hfield prism data
+    struct {
+      mjtNum prism[6][3];
+      const float* hfield_data;
+      int hfield_nrow;
+      int hfield_ncol;
+    } hfield;
+
+    // flex data from mjModel and mjData
+    struct {
+      const int* elem;
+      const int* dim;
+      const mjtNum* aabb;
+      const int* elemadr;
+      const int* elemdataadr;
+      const mjtNum* vert_xpos;
+      const int* vertadr;
+      const mjtNum* xradius;
+    } flex;
+  } data;
   void (*center)(mjtNum res[3], const struct _mjCCDObj* obj);
   void (*support)(mjtNum res[3], struct _mjCCDObj* obj, const mjtNum dir[3]);
-
-  // for hfield
-  mjtNum prism[6][3];
-  const mjtNum* size;
-  const float* hfield_data;
-  int hfield_nrow;
-  int hfield_ncol;
 };
 typedef struct _mjCCDObj mjCCDObj;
 
@@ -79,20 +109,17 @@ void mjc_pointSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
 void mjc_lineSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
 
 // pairwise geom collision functions using ccd
-int mjc_PlaneConvex(const mjModel* m, const mjData* d,
-                    mjContact* con, int g1, int g2, mjtNum margin);
-int mjc_ConvexHField(const mjModel* m, const mjData* d,
-                     mjContact* con, int g1, int g2, mjtNum margin);
-MJAPI int mjc_Convex(const mjModel* m, const mjData* d,
-                     mjContact* con, int g1, int g2, mjtNum margin);
+int mjc_PlaneConvex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin);
+int mjc_ConvexHField(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin);
+MJAPI int mjc_Convex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin);
 
 // geom-elem or elem-elem or vert-elem collision function using ccd
-int mjc_ConvexElem    (const mjModel* m, const mjData* d, mjContact* con,
-                       int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin);
+int mjc_ConvexElem(const mjModel* m, mjData* d, mjContact* con, int g1, int f1, int e1, int v1,
+                   int f2, int e2, mjtNum margin);
 
 // heightfield-elem collision function using ccd
-int mjc_HFieldElem    (const mjModel* m, const mjData* d, mjContact* con,
-                       int g, int f, int e, mjtNum margin);
+int mjc_HFieldElem(const mjModel* m, mjData* d, mjContact* con, int g, int f, int e,
+                   mjtNum margin);
 
 // fix contact frame normal
 void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2);

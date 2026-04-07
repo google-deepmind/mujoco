@@ -20,7 +20,6 @@
 #include <math/vec3.h>
 #include <utils/Entity.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
@@ -43,11 +42,15 @@ class Light {
     float spot_cone_angle = 180.f;
     // The radius of the bulb used for soft shadows.
     float bulbradius = 0.0f;
+    // The size of the shadow map.
+    int shadow_map_size = 2048;
+    // Blur width for EL VSM.
+    float vsm_blur_width = 0.0f;
     // Whether or not the light is a headlight.
     bool headlight = false;
   };
 
-  Light(ObjectManager* object_mgr, const Params& params);
+  Light(filament::Engine* engine, const Params& params);
   ~Light() noexcept;
 
   Light(const Light&) = delete;

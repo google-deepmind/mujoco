@@ -77,7 +77,18 @@ py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
   raw::MjModel* m = static_cast<raw::MjModel*>(mju_malloc(sizeof(mjModel)));
   m->buffer = nullptr;
   raw::MjData* d = mj_copyData(nullptr, old_m.get(), old_d.get());
-  if (mj_recompile(spec, nullptr, m, d)) {
+
+  bool compile_failed = false;
+
+  {
+    // Release GIL before calling mj_recompile which may spawn threads
+    py::gil_scoped_release no_gil;
+    if (mj_recompile(spec, nullptr, m, d)) {
+      compile_failed = true;
+    }
+  }
+
+  if (compile_failed) {
     throw py::value_error(mjs_getError(spec));
   }
 
@@ -896,6 +907,27 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(inttotal);
   X(interval);
   X(tolrange);
+#undef X
+
+
+  // ==================== MJRRECT ==============================================
+  py::class_<raw::MjrRect> mjrRect(m, "MjrRect");
+  mjrRect.def(py::init([](int left, int bottom, int width, int height) {
+                return raw::MjrRect{left, bottom, width, height};
+              }),
+              py::arg("left"), py::arg("bottom"), py::arg("width"),
+              py::arg("height"));
+  mjrRect.def("__copy__",
+              [](const raw::MjrRect& other) { return raw::MjrRect(other); });
+  mjrRect.def("__deepcopy__", [](const raw::MjrRect& other, py::dict) {
+    return raw::MjrRect(other);
+  });
+  DefineStructFunctions(mjrRect);
+#define X(var) mjrRect.def_readwrite(#var, &raw::MjrRect::var)
+  X(left);
+  X(bottom);
+  X(width);
+  X(height);
 #undef X
 
   // ==================== MJVPERTURB ===========================================

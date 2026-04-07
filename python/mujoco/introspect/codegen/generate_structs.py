@@ -41,6 +41,8 @@ _ANONYMOUS_KEY_PATTERN = re.compile(r'\d+:\d+(?=\))')
 _EXCLUDED = (
     'mjpDecoder',
     'mjpDecoder_',
+    'mjpEncoder',
+    'mjpEncoder_',
     'mjpPlugin',
     'mjpPlugin_',
     'mjpResourceProvider',

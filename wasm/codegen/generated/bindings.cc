@@ -17,6 +17,7 @@
 
 #include <emscripten.h>
 #include <emscripten/bind.h>
+#include <emscripten/em_asm.h>
 #include <emscripten/val.h>
 
 #include <algorithm>
@@ -2374,12 +2375,6 @@ struct MjsFlex {
   void set_selfcollide(int value) {
     ptr_->selfcollide = value;
   }
-  int vertcollide() const {
-    return ptr_->vertcollide;
-  }
-  void set_vertcollide(int value) {
-    ptr_->vertcollide = value;
-  }
   int passive() const {
     return ptr_->passive;
   }
@@ -2570,11 +2565,8 @@ struct MjsJoint {
   void set_align(int value) {
     ptr_->align = value;
   }
-  double stiffness() const {
-    return ptr_->stiffness;
-  }
-  void set_stiffness(double value) {
-    ptr_->stiffness = value;
+  emscripten::val stiffness() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->stiffness));
   }
   double springref() const {
     return ptr_->springref;
@@ -2621,11 +2613,8 @@ struct MjsJoint {
   void set_armature(double value) {
     ptr_->armature = value;
   }
-  double damping() const {
-    return ptr_->damping;
-  }
-  void set_damping(double value) {
-    ptr_->damping = value;
+  emscripten::val damping() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->damping));
   }
   double frictionloss() const {
     return ptr_->frictionloss;
@@ -3109,20 +3098,14 @@ struct MjsTendon {
   explicit MjsTendon(mjsTendon *ptr);
   mjsTendon* get() const;
   void set(mjsTendon* ptr);
-  double stiffness() const {
-    return ptr_->stiffness;
-  }
-  void set_stiffness(double value) {
-    ptr_->stiffness = value;
+  emscripten::val stiffness() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->stiffness));
   }
   emscripten::val springlength() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->springlength));
   }
-  double damping() const {
-    return ptr_->damping;
-  }
-  void set_damping(double value) {
-    ptr_->damping = value;
+  emscripten::val damping() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->damping));
   }
   double frictionloss() const {
     return ptr_->frictionloss;
@@ -3934,6 +3917,12 @@ struct MjModel {
   void set_ntendon(int value) {
     ptr_->ntendon = static_cast<mjtSize>(value);
   }
+  int nJten() const {
+    return static_cast<int>(ptr_->nJten);
+  }
+  void set_nJten(int value) {
+    ptr_->nJten = static_cast<mjtSize>(value);
+  }
   int nwrap() const {
     return static_cast<int>(ptr_->nwrap);
   }
@@ -4077,12 +4066,6 @@ struct MjModel {
   }
   void set_nJmom(int value) {
     ptr_->nJmom = static_cast<mjtSize>(value);
-  }
-  int nJten() const {
-    return static_cast<int>(ptr_->nJten);
-  }
-  void set_nJten(int value) {
-    ptr_->nJten = static_cast<mjtSize>(value);
   }
   int ngravcomp() const {
     return static_cast<int>(ptr_->ngravcomp);
@@ -4276,6 +4259,9 @@ struct MjModel {
   emscripten::val jnt_bodyid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_bodyid));
   }
+  emscripten::val jnt_actuatorid() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_actuatorid));
+  }
   emscripten::val jnt_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_group));
   }
@@ -4302,6 +4288,9 @@ struct MjModel {
   }
   emscripten::val jnt_stiffness() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_stiffness));
+  }
+  emscripten::val jnt_stiffnesspoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt * mjNPOLY, ptr_->jnt_stiffnesspoly));
   }
   emscripten::val jnt_range() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt * 2, ptr_->jnt_range));
@@ -4347,6 +4336,9 @@ struct MjModel {
   }
   emscripten::val dof_damping() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nv, ptr_->dof_damping));
+  }
+  emscripten::val dof_dampingpoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nv * mjNPOLY, ptr_->dof_dampingpoly));
   }
   emscripten::val dof_invweight0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nv, ptr_->dof_invweight0));
@@ -5116,6 +5108,9 @@ struct MjModel {
   emscripten::val tendon_matid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_matid));
   }
+  emscripten::val tendon_actuatorid() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_actuatorid));
+  }
   emscripten::val tendon_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_group));
   }
@@ -5124,6 +5119,15 @@ struct MjModel {
   }
   emscripten::val tendon_treeid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon * 2, ptr_->tendon_treeid));
+  }
+  emscripten::val ten_J_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->ten_J_rownnz));
+  }
+  emscripten::val ten_J_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->ten_J_rowadr));
+  }
+  emscripten::val ten_J_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nJten, ptr_->ten_J_colind));
   }
   emscripten::val tendon_limited() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_limited));
@@ -5158,8 +5162,14 @@ struct MjModel {
   emscripten::val tendon_stiffness() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_stiffness));
   }
+  emscripten::val tendon_stiffnesspoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon * mjNPOLY, ptr_->tendon_stiffnesspoly));
+  }
   emscripten::val tendon_damping() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_damping));
+  }
+  emscripten::val tendon_dampingpoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon * mjNPOLY, ptr_->tendon_dampingpoly));
   }
   emscripten::val tendon_armature() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_armature));
@@ -5205,6 +5215,15 @@ struct MjModel {
   }
   emscripten::val actuator_trnid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu * 2, ptr_->actuator_trnid));
+  }
+  emscripten::val actuator_damping() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_damping));
+  }
+  emscripten::val actuator_dampingpoly() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu * mjNPOLY, ptr_->actuator_dampingpoly));
+  }
+  emscripten::val actuator_armature() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_armature));
   }
   emscripten::val actuator_actadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nu, ptr_->actuator_actadr));
@@ -5792,6 +5811,15 @@ struct MjsActuator {
   }
   void set_inheritrange(double value) {
     ptr_->inheritrange = value;
+  }
+  emscripten::val damping() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->damping));
+  }
+  double armature() const {
+    return ptr_->armature;
+  }
+  void set_armature(double value) {
+    ptr_->armature = value;
   }
   int ctrllimited() const {
     return ptr_->ctrllimited;
@@ -6648,15 +6676,6 @@ struct MjData {
   }
   emscripten::val ten_wrapnum() const {
     return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_wrapnum));
-  }
-  emscripten::val ten_J_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_J_rownnz));
-  }
-  emscripten::val ten_J_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_J_rowadr));
-  }
-  emscripten::val ten_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nJten, ptr_->ten_J_colind));
   }
   emscripten::val ten_J() const {
     return emscripten::val(emscripten::typed_memory_view(model->nJten, ptr_->ten_J));
@@ -8329,9 +8348,18 @@ MjSpec::~MjSpec() {
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
-std::unique_ptr<MjModel> mj_loadXML_wrapper(std::string filename) {
+std::unique_ptr<MjModel> mj_loadXML_wrapper_1(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> mj_loadXML_wrapper_2(std::string filename, const MjVFS& vfs) {
+  char error[1000];
+  mjModel *model = mj_loadXML(filename.c_str(), vfs.get(), error, sizeof(error));
   if (!model) {
     mju_error("Loading error: %s\n", error);
   }
@@ -8348,6 +8376,39 @@ std::unique_ptr<MjModel> mj_loadModel_wrapper(std::string filename, const MjVFS&
   mjModel *model = mj_loadModel(filename.c_str(), vfs.get());
   if (!model) {
     mju_error("Failed to load from mjb");
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> from_xml_string_wrapper_1(const std::string& xml) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  const char* filename = "model.xml";
+  int add_result = mj_addBufferVFS(&vfs, filename, xml.c_str(), xml.length());
+  if (add_result != 0) {
+    mj_deleteVFS(&vfs);
+    mju_error("Could not add XML string to VFS: %d", add_result);
+  }
+  char error[1000];
+  mjModel* model = mj_loadXML(filename, &vfs, error, sizeof(error));
+  mj_deleteVFS(&vfs);
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> from_xml_string_wrapper_2(const std::string& xml, const MjVFS& vfs) {
+  std::string filename = "model.xml";
+  int add_result = mj_addBufferVFS(vfs.get(), filename.c_str(), xml.c_str(), xml.length());
+  if (add_result != 0) {
+    mju_error("Could not add XML string to VFS: %d", add_result);
+  }
+  char error[1000];
+  mjModel* model = mj_loadXML(filename.c_str(), vfs.get(), error, sizeof(error));
+  mj_deleteFileVFS(vfs.get(), filename.c_str());
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -8590,7 +8651,7 @@ void mj_fwdVelocity_wrapper(const MjModel& m, MjData& d) {
   mj_fwdVelocity(m.get(), d.get());
 }
 
-mjtNum mj_geomDistance_wrapper(const MjModel& m, const MjData& d, int geom1, int geom2, mjtNum distmax, const val& fromto) {
+mjtNum mj_geomDistance_wrapper(const MjModel& m, MjData& d, int geom1, int geom2, mjtNum distmax, const val& fromto) {
   UNPACK_NULLABLE_VALUE(mjtNum, fromto);
   CHECK_SIZE(fromto, 6);
   return mj_geomDistance(m.get(), d.get(), geom1, geom2, distmax, fromto_.data());
@@ -9659,6 +9720,14 @@ std::optional<MjsElement> mjs_firstElement_wrapper(MjSpec& s, mjtObj type) {
   return MjsElement(result);
 }
 
+std::optional<MjsCompiler> mjs_getCompiler_wrapper(MjsElement& element) {
+  mjsCompiler* result = mjs_getCompiler(element.get());
+  if (result == nullptr) {
+    return std::nullopt;
+  }
+  return MjsCompiler(result);
+}
+
 std::optional<MjsDefault> mjs_getDefault_wrapper(MjsElement& element) {
   mjsDefault* result = mjs_getDefault(element.get());
   if (result == nullptr) {
@@ -9805,6 +9874,18 @@ std::string mjs_setToAdhesion_wrapper(MjsActuator& actuator, double gain) {
 
 std::string mjs_setToCylinder_wrapper(MjsActuator& actuator, double timeconst, double bias, double area, double diameter) {
   return std::string(mjs_setToCylinder(actuator.get(), timeconst, bias, area, diameter));
+}
+
+std::string mjs_setToDCMotor_wrapper(MjsActuator& actuator, const val& motorconst, double resistance, const val& nominal, const val& saturation, const val& inductance, const val& cogging, const val& controller, const val& thermal, const val& lugre, int input_mode) {
+  UNPACK_NULLABLE_VALUE(double, motorconst);
+  UNPACK_NULLABLE_VALUE(double, nominal);
+  UNPACK_NULLABLE_VALUE(double, saturation);
+  UNPACK_NULLABLE_VALUE(double, inductance);
+  UNPACK_NULLABLE_VALUE(double, cogging);
+  UNPACK_NULLABLE_VALUE(double, controller);
+  UNPACK_NULLABLE_VALUE(double, thermal);
+  UNPACK_NULLABLE_VALUE(double, lugre);
+  return std::string(mjs_setToDCMotor(actuator.get(), motorconst_.data(), resistance, nominal_.data(), saturation_.data(), inductance_.data(), cogging_.data(), controller_.data(), thermal_.data(), lugre_.data(), input_mode));
 }
 
 std::string mjs_setToDamper_wrapper(MjsActuator& actuator, double kv) {
@@ -10743,6 +10824,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjBIAS_NONE", mjBIAS_NONE)
     .value("mjBIAS_AFFINE", mjBIAS_AFFINE)
     .value("mjBIAS_MUSCLE", mjBIAS_MUSCLE)
+    .value("mjBIAS_DCMOTOR", mjBIAS_DCMOTOR)
     .value("mjBIAS_USER", mjBIAS_USER);
   enum_<mjtBuiltin>("mjtBuiltin")
     .value("mjBUILTIN_NONE", mjBUILTIN_NONE)
@@ -10843,6 +10925,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjDYN_FILTER", mjDYN_FILTER)
     .value("mjDYN_FILTEREXACT", mjDYN_FILTEREXACT)
     .value("mjDYN_MUSCLE", mjDYN_MUSCLE)
+    .value("mjDYN_DCMOTOR", mjDYN_DCMOTOR)
     .value("mjDYN_USER", mjDYN_USER);
   enum_<mjtEnableBit>("mjtEnableBit")
     .value("mjENBL_OVERRIDE", mjENBL_OVERRIDE)
@@ -10859,6 +10942,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjEQ_TENDON", mjEQ_TENDON)
     .value("mjEQ_FLEX", mjEQ_FLEX)
     .value("mjEQ_FLEXVERT", mjEQ_FLEXVERT)
+    .value("mjEQ_FLEXSTRAIN", mjEQ_FLEXSTRAIN)
     .value("mjEQ_DISTANCE", mjEQ_DISTANCE);
   enum_<mjtEvent>("mjtEvent")
     .value("mjEVENT_NONE", mjEVENT_NONE)
@@ -10904,6 +10988,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjGAIN_FIXED", mjGAIN_FIXED)
     .value("mjGAIN_AFFINE", mjGAIN_AFFINE)
     .value("mjGAIN_MUSCLE", mjGAIN_MUSCLE)
+    .value("mjGAIN_DCMOTOR", mjGAIN_DCMOTOR)
     .value("mjGAIN_USER", mjGAIN_USER);
   enum_<mjtGeom>("mjtGeom")
     .value("mjGEOM_PLANE", mjGEOM_PLANE)
@@ -11541,9 +11626,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("subtree_com", &MjData::subtree_com)
     .property("subtree_linvel", &MjData::subtree_linvel)
     .property("ten_J", &MjData::ten_J)
-    .property("ten_J_colind", &MjData::ten_J_colind)
-    .property("ten_J_rowadr", &MjData::ten_J_rowadr)
-    .property("ten_J_rownnz", &MjData::ten_J_rownnz)
     .property("ten_length", &MjData::ten_length)
     .property("ten_velocity", &MjData::ten_velocity)
     .property("ten_wrapadr", &MjData::ten_wrapadr)
@@ -11581,8 +11663,16 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("useexisting", &MjLROpt::useexisting, &MjLROpt::set_useexisting, reference())
     .property("uselimit", &MjLROpt::uselimit, &MjLROpt::set_uselimit, reference());
   emscripten::class_<MjModel>("MjModel")
-    .class_function("mj_loadXML", &mj_loadXML_wrapper, take_ownership())
-    .class_function("mj_loadBinary", &mj_loadModel_wrapper, take_ownership())
+    // mj_loadXML is deprecated and will be removed in a future release
+    .class_function("mj_loadXML", emscripten::select_overload<std::unique_ptr<MjModel>(std::string)>(&mj_loadXML_wrapper_1))
+    .class_function("mj_loadXML", emscripten::select_overload<std::unique_ptr<MjModel>(std::string, const MjVFS&)>(&mj_loadXML_wrapper_2))
+    // mj_loadModel is deprecated and will be removed in a future release
+    .class_function("mj_loadModel", &mj_loadModel_wrapper)
+    .class_function("from_binary_path", &mj_loadModel_wrapper)
+    .class_function("from_xml_string", emscripten::select_overload<std::unique_ptr<MjModel>(const std::string&)>(&from_xml_string_wrapper_1))
+    .class_function("from_xml_string", emscripten::select_overload<std::unique_ptr<MjModel>(const std::string&, const MjVFS&)>(&from_xml_string_wrapper_2))
+    .class_function("from_xml_path", emscripten::select_overload<std::unique_ptr<MjModel>(std::string)>(&mj_loadXML_wrapper_1))
+    .class_function("from_xml_path", emscripten::select_overload<std::unique_ptr<MjModel>(std::string, const MjVFS&)>(&mj_loadXML_wrapper_2))
     .constructor<const MjModel &>()
     // Binds the functions on MjModel that return accessors.
     #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \
@@ -11605,11 +11695,14 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actuator_actlimited", &MjModel::actuator_actlimited)
     .property("actuator_actnum", &MjModel::actuator_actnum)
     .property("actuator_actrange", &MjModel::actuator_actrange)
+    .property("actuator_armature", &MjModel::actuator_armature)
     .property("actuator_biasprm", &MjModel::actuator_biasprm)
     .property("actuator_biastype", &MjModel::actuator_biastype)
     .property("actuator_cranklength", &MjModel::actuator_cranklength)
     .property("actuator_ctrllimited", &MjModel::actuator_ctrllimited)
     .property("actuator_ctrlrange", &MjModel::actuator_ctrlrange)
+    .property("actuator_damping", &MjModel::actuator_damping)
+    .property("actuator_dampingpoly", &MjModel::actuator_dampingpoly)
     .property("actuator_delay", &MjModel::actuator_delay)
     .property("actuator_dynprm", &MjModel::actuator_dynprm)
     .property("actuator_dyntype", &MjModel::actuator_dyntype)
@@ -11682,6 +11775,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("dof_armature", &MjModel::dof_armature)
     .property("dof_bodyid", &MjModel::dof_bodyid)
     .property("dof_damping", &MjModel::dof_damping)
+    .property("dof_dampingpoly", &MjModel::dof_dampingpoly)
     .property("dof_frictionloss", &MjModel::dof_frictionloss)
     .property("dof_invweight0", &MjModel::dof_invweight0)
     .property("dof_jntid", &MjModel::dof_jntid)
@@ -11809,6 +11903,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("jnt_actfrclimited", &MjModel::jnt_actfrclimited)
     .property("jnt_actfrcrange", &MjModel::jnt_actfrcrange)
     .property("jnt_actgravcomp", &MjModel::jnt_actgravcomp)
+    .property("jnt_actuatorid", &MjModel::jnt_actuatorid)
     .property("jnt_axis", &MjModel::jnt_axis)
     .property("jnt_bodyid", &MjModel::jnt_bodyid)
     .property("jnt_dofadr", &MjModel::jnt_dofadr)
@@ -11821,6 +11916,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("jnt_solimp", &MjModel::jnt_solimp)
     .property("jnt_solref", &MjModel::jnt_solref)
     .property("jnt_stiffness", &MjModel::jnt_stiffness)
+    .property("jnt_stiffnesspoly", &MjModel::jnt_stiffnesspoly)
     .property("jnt_type", &MjModel::jnt_type)
     .property("jnt_user", &MjModel::jnt_user)
     .property("key_act", &MjModel::key_act)
@@ -12090,11 +12186,16 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("skin_vertadr", &MjModel::skin_vertadr)
     .property("skin_vertnum", &MjModel::skin_vertnum)
     .property("stat", &MjModel::stat, reference())
+    .property("ten_J_colind", &MjModel::ten_J_colind)
+    .property("ten_J_rowadr", &MjModel::ten_J_rowadr)
+    .property("ten_J_rownnz", &MjModel::ten_J_rownnz)
     .property("tendon_actfrclimited", &MjModel::tendon_actfrclimited)
     .property("tendon_actfrcrange", &MjModel::tendon_actfrcrange)
+    .property("tendon_actuatorid", &MjModel::tendon_actuatorid)
     .property("tendon_adr", &MjModel::tendon_adr)
     .property("tendon_armature", &MjModel::tendon_armature)
     .property("tendon_damping", &MjModel::tendon_damping)
+    .property("tendon_dampingpoly", &MjModel::tendon_dampingpoly)
     .property("tendon_frictionloss", &MjModel::tendon_frictionloss)
     .property("tendon_group", &MjModel::tendon_group)
     .property("tendon_invweight0", &MjModel::tendon_invweight0)
@@ -12111,6 +12212,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("tendon_solref_fri", &MjModel::tendon_solref_fri)
     .property("tendon_solref_lim", &MjModel::tendon_solref_lim)
     .property("tendon_stiffness", &MjModel::tendon_stiffness)
+    .property("tendon_stiffnesspoly", &MjModel::tendon_stiffnesspoly)
     .property("tendon_treeid", &MjModel::tendon_treeid)
     .property("tendon_treenum", &MjModel::tendon_treenum)
     .property("tendon_user", &MjModel::tendon_user)
@@ -12336,11 +12438,13 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actearly", &MjsActuator::actearly, &MjsActuator::set_actearly, reference())
     .property("actlimited", &MjsActuator::actlimited, &MjsActuator::set_actlimited, reference())
     .property("actrange", &MjsActuator::actrange)
+    .property("armature", &MjsActuator::armature, &MjsActuator::set_armature, reference())
     .property("biasprm", &MjsActuator::biasprm)
     .property("biastype", &MjsActuator::biastype, &MjsActuator::set_biastype, reference())
     .property("cranklength", &MjsActuator::cranklength, &MjsActuator::set_cranklength, reference())
     .property("ctrllimited", &MjsActuator::ctrllimited, &MjsActuator::set_ctrllimited, reference())
     .property("ctrlrange", &MjsActuator::ctrlrange)
+    .property("damping", &MjsActuator::damping)
     .property("delay", &MjsActuator::delay, &MjsActuator::set_delay, reference())
     .property("dynprm", &MjsActuator::dynprm)
     .property("dyntype", &MjsActuator::dyntype, &MjsActuator::set_dyntype, reference())
@@ -12490,7 +12594,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("thickness", &MjsFlex::thickness, &MjsFlex::set_thickness, reference())
     .property("vert", &MjsFlex::vert, reference())
     .property("vertbody", &MjsFlex::vertbody, reference())
-    .property("vertcollide", &MjsFlex::vertcollide, &MjsFlex::set_vertcollide, reference())
     .property("young", &MjsFlex::young, &MjsFlex::set_young, reference());
   emscripten::class_<MjsFrame>("MjsFrame")
     .property("alt", &MjsFrame::alt, reference())
@@ -12547,7 +12650,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("align", &MjsJoint::align, &MjsJoint::set_align, reference())
     .property("armature", &MjsJoint::armature, &MjsJoint::set_armature, reference())
     .property("axis", &MjsJoint::axis)
-    .property("damping", &MjsJoint::damping, &MjsJoint::set_damping, reference())
+    .property("damping", &MjsJoint::damping)
     .property("element", &MjsJoint::element, reference())
     .property("frictionloss", &MjsJoint::frictionloss, &MjsJoint::set_frictionloss, reference())
     .property("group", &MjsJoint::group, &MjsJoint::set_group, reference())
@@ -12563,7 +12666,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("solref_limit", &MjsJoint::solref_limit)
     .property("springdamper", &MjsJoint::springdamper)
     .property("springref", &MjsJoint::springref, &MjsJoint::set_springref, reference())
-    .property("stiffness", &MjsJoint::stiffness, &MjsJoint::set_stiffness, reference())
+    .property("stiffness", &MjsJoint::stiffness)
     .property("type", &MjsJoint::type, &MjsJoint::set_type, reference())
     .property("userdata", &MjsJoint::userdata, reference());
   emscripten::class_<MjsKey>("MjsKey")
@@ -12711,7 +12814,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("actfrclimited", &MjsTendon::actfrclimited, &MjsTendon::set_actfrclimited, reference())
     .property("actfrcrange", &MjsTendon::actfrcrange)
     .property("armature", &MjsTendon::armature, &MjsTendon::set_armature, reference())
-    .property("damping", &MjsTendon::damping, &MjsTendon::set_damping, reference())
+    .property("damping", &MjsTendon::damping)
     .property("element", &MjsTendon::element, reference())
     .property("frictionloss", &MjsTendon::frictionloss, &MjsTendon::set_frictionloss, reference())
     .property("group", &MjsTendon::group, &MjsTendon::set_group, reference())
@@ -12726,7 +12829,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("solref_friction", &MjsTendon::solref_friction)
     .property("solref_limit", &MjsTendon::solref_limit)
     .property("springlength", &MjsTendon::springlength)
-    .property("stiffness", &MjsTendon::stiffness, &MjsTendon::set_stiffness, reference())
+    .property("stiffness", &MjsTendon::stiffness)
     .property("userdata", &MjsTendon::userdata, reference())
     .property("width", &MjsTendon::width, &MjsTendon::set_width, reference());
   emscripten::class_<MjsText>("MjsText")
@@ -13180,6 +13283,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_findSpec", &mjs_findSpec_wrapper);
   function("mjs_firstChild", &mjs_firstChild_wrapper);
   function("mjs_firstElement", &mjs_firstElement_wrapper);
+  function("mjs_getCompiler", &mjs_getCompiler_wrapper);
   function("mjs_getDefault", &mjs_getDefault_wrapper);
   function("mjs_getError", &mjs_getError_wrapper);
   function("mjs_getFrame", &mjs_getFrame_wrapper);
@@ -13206,6 +13310,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_setName", &mjs_setName_wrapper);
   function("mjs_setToAdhesion", &mjs_setToAdhesion_wrapper);
   function("mjs_setToCylinder", &mjs_setToCylinder_wrapper);
+  function("mjs_setToDCMotor", &mjs_setToDCMotor_wrapper);
   function("mjs_setToDamper", &mjs_setToDamper_wrapper);
   function("mjs_setToIntVelocity", &mjs_setToIntVelocity_wrapper);
   function("mjs_setToMotor", &mjs_setToMotor_wrapper);
@@ -13359,6 +13464,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   // as using std::optional<MjVFS> caused memory errors due to missing copy/move constructors.
   function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&)>(&mj_compile_wrapper_1));
   function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&, const MjVFS&)>(&mj_compile_wrapper_2));
+  function("from_xml_string", emscripten::select_overload<std::unique_ptr<MjModel>(const std::string&)>(&from_xml_string_wrapper_1));
+  function("from_xml_string", emscripten::select_overload<std::unique_ptr<MjModel>(const std::string&, const MjVFS&)>(&from_xml_string_wrapper_2));
 
   emscripten::class_<WasmBuffer<float>>("FloatBuffer")
       .constructor<int>()
@@ -13389,6 +13496,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
       .function("GetView", &WasmBuffer<uint8_t>::GetView);
 
   emscripten::register_vector<std::string>("mjStringVec");
+  emscripten::register_vector<std::vector<std::string>>("mjStringVecVec");
   emscripten::register_vector<int>("mjIntVec");
   emscripten::register_vector<mjIntVec>("mjIntVecVec");
   emscripten::register_vector<float>("mjFloatVec");
@@ -13433,7 +13541,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::constant("mjPI", mjPI);
   emscripten::constant("mjVERSION_HEADER", mjVERSION_HEADER);
 
-  // These complex constants are bound using function() rather than constant()
   emscripten::function("get_mjDISABLESTRING", &get_mjDISABLESTRING);
   emscripten::function("get_mjENABLESTRING", &get_mjENABLESTRING);
   emscripten::function("get_mjFRAMESTRING", &get_mjFRAMESTRING);
@@ -13441,6 +13548,31 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::function("get_mjRNDSTRING", &get_mjRNDSTRING);
   emscripten::function("get_mjTIMERSTRING", &get_mjTIMERSTRING);
   emscripten::function("get_mjVISSTRING", &get_mjVISSTRING);
+  // Bind these complex constants as properties on the module object.
+  // We use emscripten::constant with emscripten::val::array() to type them
+  // as `any` in TypeScript. At runtime, the EM_ASM block below overrides
+  // these properties with getters that return native JavaScript arrays
+  // (string[] or string[][]) via the get_ functions above, which is more
+  // performant and idiomatic than vector wrappers.
+  emscripten::constant("mjDISABLESTRING", emscripten::val::array());
+  emscripten::constant("mjENABLESTRING", emscripten::val::array());
+  emscripten::constant("mjFRAMESTRING", emscripten::val::array());
+  emscripten::constant("mjLABELSTRING", emscripten::val::array());
+  emscripten::constant("mjRNDSTRING", emscripten::val::array());
+  emscripten::constant("mjTIMERSTRING", emscripten::val::array());
+  emscripten::constant("mjVISSTRING", emscripten::val::array());
+  EM_ASM({
+    if (typeof Module !== "undefined") {
+      "mjDISABLESTRING mjENABLESTRING mjFRAMESTRING mjLABELSTRING mjRNDSTRING mjTIMERSTRING mjVISSTRING".split(" ").forEach(function(name) {
+        Object.defineProperty(Module, name, {
+          get: function() { return Module["get_" + name](); },
+          set: function(v) { },
+          enumerable: true,
+          configurable: true
+        });
+      });
+    }
+  });
 }
 
 }  // namespace mujoco::wasm

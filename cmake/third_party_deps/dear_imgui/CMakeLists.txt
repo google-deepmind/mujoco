@@ -59,3 +59,15 @@ target_sources(dear_imgui_OpenGL3
     ${dear_imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.h
     ${dear_imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
+
+# stdlib
+add_library(dear_imgui_stdlib STATIC)
+target_include_directories(dear_imgui_stdlib
+  PUBLIC
+    ${dear_imgui_SOURCE_DIR}
+)
+target_sources(dear_imgui_stdlib
+  PUBLIC
+    ${dear_imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.h
+    ${dear_imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
+)

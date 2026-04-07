@@ -14,24 +14,25 @@
 
 // Main entry point for the Filament-based MuJoCo renderer.
 
-#include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <ios>
 #include <iosfwd>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <absl/flags/flag.h>
+#include <absl/flags/parse.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/studio/app.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");
 ABSL_FLAG(int, window_height, 720, "Window height");
 ABSL_FLAG(std::string, model_file, "", "MuJoCo model file.");
-ABSL_FLAG(bool, offscreen_mode, false, "Offscreen mode");
+ABSL_FLAG(std::string, gfx, "", "Graphics API");
 
 std::string Resolve(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
@@ -72,6 +73,7 @@ class FileResource {
 };
 
 int main(int argc, char** argv, char** envp) {
+  absl::ParseCommandLine(argc, argv);
 
   const char* home = getenv("HOME");
   const std::string ini_path = std::string(home ? home : ".") + "/.mujoco.ini";
@@ -99,14 +101,19 @@ int main(int argc, char** argv, char** envp) {
   resource_provider.prefix = "filament";
   mjp_registerResourceProvider(&resource_provider);
 
+  std::string gfx = absl::GetFlag(FLAGS_gfx);
+
+  mujoco::platform::GraphicsMode gfx_mode =
+      mujoco::platform::GraphicsModeFromString(
+          gfx, mujoco::platform::GraphicsMode::FilamentOpenGl);
+
   const int width = absl::GetFlag(FLAGS_window_width);
   const int height = absl::GetFlag(FLAGS_window_height);
-  const bool offscreen_mode = absl::GetFlag(FLAGS_offscreen_mode);
   mujoco::studio::App app({
     .width = width,
     .height = height,
     .ini_path = ini_path,
-    .offscreen_mode = offscreen_mode,
+    .gfx_mode = gfx_mode,
   });
 
   // If the model file is not specified, try to load it from the first argument

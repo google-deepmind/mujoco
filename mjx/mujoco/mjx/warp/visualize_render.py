@@ -148,11 +148,11 @@ def _main(_: Sequence[str]):
   )
 
   dx_batch = jax_jit(jax.vmap(bvh.refit_bvh, in_axes=(None, 0, None)))(
-      mx, dx_batch, rc
+      mx, dx_batch, rc.pytree()
   )
 
   out_batch = jax_jit(jax.vmap(render.render, in_axes=(None, 0, None)))(
-      mx, dx_batch, rc
+      mx, dx_batch, rc.pytree()
   )
 
   rgb_packed = out_batch[0]
@@ -161,11 +161,11 @@ def _main(_: Sequence[str]):
   print(f'  depth shape: {depth_packed.shape}\n')
 
   rgb = jax.vmap(render_util.get_rgb, in_axes=(None, None, 0))(
-      rc, _CAMERA_ID.value, rgb_packed
+      rc.pytree(), _CAMERA_ID.value, rgb_packed
   )
 
   depth = jax.vmap(render_util.get_depth, in_axes=(None, None, 0, None))(
-      rc, _CAMERA_ID.value, depth_packed, 10.0
+      rc.pytree(), _CAMERA_ID.value, depth_packed, 10.0
   )
 
   single_path = os.path.join(
@@ -232,9 +232,9 @@ def _main(_: Sequence[str]):
     mx_pmap = jax.tree.map(lambda x: safe_shard(x, sharded), mx)
 
     def inner(mx, dx):
-      dx = bvh.refit_bvh(mx, dx, pmap_rc)
-      out = render.render(mx, dx, pmap_rc)
-      return render_util.get_rgb(pmap_rc, _CAMERA_ID.value, out[0])
+      dx = bvh.refit_bvh(mx, dx, pmap_rc.pytree())
+      out = render.render(mx, dx, pmap_rc.pytree())
+      return render_util.get_rgb(pmap_rc.pytree(), _CAMERA_ID.value, out[0])
 
     inner = jax.vmap(inner, in_axes=(None, 0))
     out = jax.pmap(inner)(mx_pmap, dx_pmap)

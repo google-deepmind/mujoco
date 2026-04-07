@@ -70,6 +70,7 @@ PYBIND11_MODULE(_constants, pymodule) {
   X(mjNSENS);
   X(mjNSOLVER);
   X(mjNISLAND);
+  X(mjNPOLY);
 
   // from mjvisualize.h
   X(mjNGROUP);

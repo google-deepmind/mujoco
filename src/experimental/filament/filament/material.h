@@ -17,11 +17,11 @@
 
 #include <filament/Engine.h>
 #include <filament/MaterialInstance.h>
-#include <filament/Texture.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
@@ -39,13 +39,14 @@ class Material {
 
   // The textures that can be assigned to the drawable's material.
   struct Textures {
-    const filament::Texture* color = nullptr;
-    const filament::Texture* normal = nullptr;
-    const filament::Texture* metallic = nullptr;
-    const filament::Texture* roughness = nullptr;
-    const filament::Texture* occlusion = nullptr;
-    const filament::Texture* orm = nullptr;
-    const filament::Texture* emissive = nullptr;
+    const Texture* color = nullptr;
+    const Texture* normal = nullptr;
+    const Texture* metallic = nullptr;
+    const Texture* roughness = nullptr;
+    const Texture* occlusion = nullptr;
+    const Texture* orm = nullptr;
+    const Texture* emissive = nullptr;
+    const Texture* reflection = nullptr;
   };
 
   // The parameters that can be applied to the drawable's material.
@@ -60,6 +61,7 @@ class Material {
     float metallic = -1.0f;
     float roughness = -1.0f;
     float emissive = -1.0f;
+    float reflectance = 0.0f;
     bool tex_uniform = false;
   };
 
@@ -78,14 +80,14 @@ class Material {
   // Updates the material textures of the drawable for rendering.
   void UpdateTextures(const Textures& textures);
 
+  // Update the reflection texture. We do this separately since the reflection
+  // texture needs to be rendered before it can be applied to the material.
+  void UpdateReflectionTexture(const Texture* tex);
+
   // Returns the material instance assigned to the draw mode.
   filament::MaterialInstance* GetMaterialInstance(DrawMode mode) {
     return instances_[mode];
   }
-
-  // Returns the ObjectManager owning the Materials which are used to create
-  // the MaterialInstances.
-  ObjectManager* GetObjectManager() { return object_mgr_; }
 
  private:
   // Updates the material instances based on the currently set parameters and

@@ -77,7 +77,7 @@ class RenderTest(parameterized.TestCase):
       wp.config.kernel_cache_dir = tempdir
     np.random.seed(0)
 
-  def _skip_if_no_warp(self):
+  def _maybe_skip(self):
     if not _FORCE_TEST:
       if not mjxw.WARP_INSTALLED:
         self.skipTest('Warp not installed.')
@@ -90,11 +90,11 @@ class RenderTest(parameterized.TestCase):
   )
   def test_render(self, xml: str, batch_size: int):
     """Tests MJX render pipeline."""
-    self._skip_if_no_warp()
+    self._maybe_skip()
     mx, dx_batch, rc = _get_model_data_rc(xml, batch_size)
 
-    dx_batch = jax.jit(mjx.refit_bvh)(mx, dx_batch, rc)
-    out_batch = jax.jit(mjx.render)(mx, dx_batch, rc)
+    dx_batch = jax.jit(mjx.refit_bvh)(mx, dx_batch, rc.pytree())
+    out_batch = jax.jit(mjx.render)(mx, dx_batch, rc.pytree())
 
     rgb = np.asarray(out_batch[0])
     depth = np.asarray(out_batch[1])
@@ -110,7 +110,7 @@ class RenderTest(parameterized.TestCase):
   )
   def test_render_nested_vmap(self, xml: str, batch_size: int):
     """Tests MJX render pipeline with nested vmap."""
-    self._skip_if_no_warp()
+    self._maybe_skip()
     mx, dx_batch, rc = _get_model_data_rc(xml, batch_size)
 
     def inner(mx, dx, rc):
@@ -120,9 +120,11 @@ class RenderTest(parameterized.TestCase):
 
     # get reference with single vmap
     dx_batch = jax.vmap(bvh.refit_bvh, in_axes=(None, 0, None))(
-        mx, dx_batch, rc
+        mx, dx_batch, rc.pytree()
     )
-    ref = jax.vmap(render.render, in_axes=(None, 0, None))(mx, dx_batch, rc)
+    ref = jax.vmap(render.render, in_axes=(None, 0, None))(
+        mx, dx_batch, rc.pytree()
+    )
     ref_rgb = np.asarray(ref[0])
     ref_depth = np.asarray(ref[1])
 
@@ -134,7 +136,7 @@ class RenderTest(parameterized.TestCase):
 
     dx_2d = jax.tree.map(_reshape_batched, dx_batch)
 
-    out_batch = jax.vmap(inner, in_axes=(None, 0, None))(mx, dx_2d, rc)
+    out_batch = jax.vmap(inner, in_axes=(None, 0, None))(mx, dx_2d, rc.pytree())
     out_batch = jax.tree.map(lambda x: x.reshape(-1, *x.shape[2:]), out_batch)
     rgb = np.asarray(out_batch[0])
     depth = np.asarray(out_batch[1])
@@ -145,6 +147,98 @@ class RenderTest(parameterized.TestCase):
     self.assertNotEqual(np.unique(rgb).shape[0], 1)
     self.assertGreater(np.count_nonzero(depth), 0)
     self.assertNotEqual(np.unique(depth).shape[0], 1)
+
+
+class RenderContextGarbageCollectionTest(absltest.TestCase):
+  """Tests that RenderContext cleans up buffers on deletion."""
+
+  def setUp(self):
+    super().setUp()
+    if mjxw.WARP_INSTALLED:
+      tempdir = '/tmp/wp_kernel_cache_dir_RenderContextGCTest'
+      wp.config.kernel_cache_dir = tempdir
+
+  def _maybe_skip(self):
+    if not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp not installed.')
+    if not io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device available.')
+
+  def test_render_context_gc(self):
+    """Verifies __del__ removes entries from _MJX_RENDER_CONTEXT_BUFFERS."""
+    self._maybe_skip()
+    from mujoco.mjx.warp import render_context as rc_module  # pylint: disable=g-import-not-at-top
+
+    self.assertEmpty(rc_module._MJX_RENDER_CONTEXT_BUFFERS)
+
+    _, _, rc = _get_model_data_rc('humanoid/humanoid.xml', 1)
+    key = rc.key
+
+    # Sanity check: buffers exist for this key.
+    matching = [
+        k
+        for k in rc_module._MJX_RENDER_CONTEXT_BUFFERS
+        if isinstance(k, tuple) and k[0] == key
+    ]
+    self.assertNotEmpty(matching)
+
+    # Delete the RenderContext and verify cleanup.
+    del rc
+
+    matching = [
+        k
+        for k in rc_module._MJX_RENDER_CONTEXT_BUFFERS
+        if isinstance(k, tuple) and k[0] == key
+    ]
+    self.assertEmpty(matching)
+
+  def test_render_context_gc_multi_keys(self):
+    """Verifies deleting one context doesn't remove another's buffers."""
+    self._maybe_skip()
+    from mujoco.mjx.warp import render_context as rc_module  # pylint: disable=g-import-not-at-top
+
+    self.assertEmpty(rc_module._MJX_RENDER_CONTEXT_BUFFERS)
+
+    _, _, rc_a = _get_model_data_rc('humanoid/humanoid.xml', 1)
+    _, _, rc_b = _get_model_data_rc('humanoid/humanoid.xml', 1)
+    key_a = rc_a.key
+    key_b = rc_b.key
+
+    # rc_a's buffers should be present.
+    matching_a = [
+        k
+        for k in rc_module._MJX_RENDER_CONTEXT_BUFFERS
+        if isinstance(k, tuple) and k[0] == key_a
+    ]
+    self.assertNotEmpty(matching_a)
+
+    # Delete only rc_a.
+    del rc_a
+
+    # rc_a's buffers should be gone.
+    matching_a = [
+        k
+        for k in rc_module._MJX_RENDER_CONTEXT_BUFFERS
+        if isinstance(k, tuple) and k[0] == key_a
+    ]
+    self.assertEmpty(matching_a)
+
+    # rc_b's buffers should still be present.
+    matching_b = [
+        k
+        for k in rc_module._MJX_RENDER_CONTEXT_BUFFERS
+        if isinstance(k, tuple) and k[0] == key_b
+    ]
+    self.assertNotEmpty(matching_b)
+
+    # Clean up rc_b.
+    del rc_b
+    matching_b = [
+        k
+        for k in rc_module._MJX_RENDER_CONTEXT_BUFFERS
+        if isinstance(k, tuple) and k[0] == key_b
+    ]
+    self.assertEmpty(matching_b)
 
 
 if __name__ == '__main__':

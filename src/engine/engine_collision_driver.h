@@ -50,10 +50,13 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
 int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair);
 
 // test two geoms for collision, apply filters, add to contact list
-void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2);
+void mj_collideGeoms(const mjModel* m, mjData* d, int ipair, int g1, int g2);
 
 // test a plane geom and a flex for collision, add to contact list
 void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f);
+
+// test an SDF geom and a flex for collision, add to contact list
+void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f);
 
 // test for internal flex collisions, add to contact list
 void mj_collideFlexInternal(const mjModel* m, mjData* d, int f);

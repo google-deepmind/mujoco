@@ -17,6 +17,7 @@
 
 #include <emscripten.h>
 #include <emscripten/bind.h>
+#include <emscripten/em_asm.h>
 #include <emscripten/val.h>
 
 #include <algorithm>
@@ -714,9 +715,18 @@ MjSpec::~MjSpec() {
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
-std::unique_ptr<MjModel> mj_loadXML_wrapper(std::string filename) {
+std::unique_ptr<MjModel> mj_loadXML_wrapper_1(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> mj_loadXML_wrapper_2(std::string filename, const MjVFS& vfs) {
+  char error[1000];
+  mjModel *model = mj_loadXML(filename.c_str(), vfs.get(), error, sizeof(error));
   if (!model) {
     mju_error("Loading error: %s\n", error);
   }
@@ -733,6 +743,39 @@ std::unique_ptr<MjModel> mj_loadModel_wrapper(std::string filename, const MjVFS&
   mjModel *model = mj_loadModel(filename.c_str(), vfs.get());
   if (!model) {
     mju_error("Failed to load from mjb");
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> from_xml_string_wrapper_1(const std::string& xml) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  const char* filename = "model.xml";
+  int add_result = mj_addBufferVFS(&vfs, filename, xml.c_str(), xml.length());
+  if (add_result != 0) {
+    mj_deleteVFS(&vfs);
+    mju_error("Could not add XML string to VFS: %d", add_result);
+  }
+  char error[1000];
+  mjModel* model = mj_loadXML(filename, &vfs, error, sizeof(error));
+  mj_deleteVFS(&vfs);
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> from_xml_string_wrapper_2(const std::string& xml, const MjVFS& vfs) {
+  std::string filename = "model.xml";
+  int add_result = mj_addBufferVFS(vfs.get(), filename.c_str(), xml.c_str(), xml.length());
+  if (add_result != 0) {
+    mju_error("Could not add XML string to VFS: %d", add_result);
+  }
+  char error[1000];
+  mjModel* model = mj_loadXML(filename.c_str(), vfs.get(), error, sizeof(error));
+  mj_deleteFileVFS(vfs.get(), filename.c_str());
+  if (!model) {
+    mju_error("Loading error: %s\n", error);
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -836,6 +879,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   // as using std::optional<MjVFS> caused memory errors due to missing copy/move constructors.
   function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&)>(&mj_compile_wrapper_1));
   function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&, const MjVFS&)>(&mj_compile_wrapper_2));
+  function("from_xml_string", emscripten::select_overload<std::unique_ptr<MjModel>(const std::string&)>(&from_xml_string_wrapper_1));
+  function("from_xml_string", emscripten::select_overload<std::unique_ptr<MjModel>(const std::string&, const MjVFS&)>(&from_xml_string_wrapper_2));
 
   emscripten::class_<WasmBuffer<float>>("FloatBuffer")
       .constructor<int>()
@@ -866,6 +911,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
       .function("GetView", &WasmBuffer<uint8_t>::GetView);
 
   emscripten::register_vector<std::string>("mjStringVec");
+  emscripten::register_vector<std::vector<std::string>>("mjStringVecVec");
   emscripten::register_vector<int>("mjIntVec");
   emscripten::register_vector<mjIntVec>("mjIntVecVec");
   emscripten::register_vector<float>("mjFloatVec");
@@ -910,7 +956,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::constant("mjPI", mjPI);
   emscripten::constant("mjVERSION_HEADER", mjVERSION_HEADER);
 
-  // These complex constants are bound using function() rather than constant()
   emscripten::function("get_mjDISABLESTRING", &get_mjDISABLESTRING);
   emscripten::function("get_mjENABLESTRING", &get_mjENABLESTRING);
   emscripten::function("get_mjFRAMESTRING", &get_mjFRAMESTRING);
@@ -918,6 +963,31 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::function("get_mjRNDSTRING", &get_mjRNDSTRING);
   emscripten::function("get_mjTIMERSTRING", &get_mjTIMERSTRING);
   emscripten::function("get_mjVISSTRING", &get_mjVISSTRING);
+  // Bind these complex constants as properties on the module object.
+  // We use emscripten::constant with emscripten::val::array() to type them
+  // as `any` in TypeScript. At runtime, the EM_ASM block below overrides
+  // these properties with getters that return native JavaScript arrays
+  // (string[] or string[][]) via the get_ functions above, which is more
+  // performant and idiomatic than vector wrappers.
+  emscripten::constant("mjDISABLESTRING", emscripten::val::array());
+  emscripten::constant("mjENABLESTRING", emscripten::val::array());
+  emscripten::constant("mjFRAMESTRING", emscripten::val::array());
+  emscripten::constant("mjLABELSTRING", emscripten::val::array());
+  emscripten::constant("mjRNDSTRING", emscripten::val::array());
+  emscripten::constant("mjTIMERSTRING", emscripten::val::array());
+  emscripten::constant("mjVISSTRING", emscripten::val::array());
+  EM_ASM({
+    if (typeof Module !== "undefined") {
+      "mjDISABLESTRING mjENABLESTRING mjFRAMESTRING mjLABELSTRING mjRNDSTRING mjTIMERSTRING mjVISSTRING".split(" ").forEach(function(name) {
+        Object.defineProperty(Module, name, {
+          get: function() { return Module["get_" + name](); },
+          set: function(v) { },
+          enumerable: true,
+          configurable: true
+        });
+      });
+    }
+  });
 }
 
 }  // namespace mujoco::wasm

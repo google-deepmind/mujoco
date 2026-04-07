@@ -486,13 +486,20 @@ def generate_add() -> None:
               f'py::object& {f.name}',
               f'py::arg("{f.name}") = py::none()',
           )
-        if f.name == 'size' and f.type.extents[0] == 3:
+        if (
+            f.name == 'size'
+            and f.type.extents[0] == 3
+            or f.name in ('stiffness', 'damping')
+        ):
           return (
-              f'set_array_size(out->{f.name}, {f.name});',
-              'array_size',
+              (
+                  f'set_array_padded(out->{f.name}, {f.name},'
+                  f' {f.type.extents[0]}, "{f.name}");'
+              ),
+              'array_padded',
               f.name,
-              'list[float]',
-              f'std::optional<std::vector<double>>& {f.name}',
+              'Optional[list[float]]',
+              f'std::optional<py::object>& {f.name}',
               f'py::arg("{f.name}") = py::none()',
           )
         return (
@@ -782,6 +789,34 @@ def generate_add() -> None:
             }
           };
           """
+        elif t == 'array_padded':
+          code += """\n
+          auto set_array_padded = [](auto&& des, const std::optional<py::object>& obj, int size, const char* name) {
+            if (obj.has_value() && !obj->is_none()) {
+              std::vector<double> array;
+              if (py::isinstance<py::int_>(*obj) || py::isinstance<py::float_>(*obj)) {
+                array.push_back(py::cast<double>(*obj));
+              } else if (py::isinstance<py::str>(*obj)) {
+                throw pybind11::type_error(
+                    std::string(name) + " should be a numeric scalar or list.");
+              } else {
+                try {
+                  array = py::cast<std::vector<double>>(*obj);
+                } catch (const py::cast_error&) {
+                  throw pybind11::type_error(
+                      std::string(name) + " should be a numeric scalar or list.");
+                }
+              }
+              if (array.empty() || array.size() > static_cast<size_t>(size)) {
+                std::string msg = std::string(name) + " should be a list/array of size 1 to " + std::to_string(size) + ".";
+                throw pybind11::value_error(msg);
+              }
+              for (int i = 0; i < size; i++) {
+                des[i] = (i < static_cast<int>(array.size())) ? array[i] : 0;
+              }
+            }
+          };
+          """
         elif t == 'char_array':
           code += """\n
           auto set_char_array = [](auto&& des, py::object& obj, int size, const char* name) {
@@ -811,20 +846,6 @@ def generate_add() -> None:
             int idx = 0;
             for (char val : chars) {
               des[idx++] = val;
-            }
-          };
-          """
-        elif t == 'array_size':
-          code += """\n
-          auto set_array_size = [](auto&& des, const std::optional<std::vector<double>>& array) {
-            if (array.has_value()) {
-              if (array->size() < 1 || array->size() > 3) {
-                std::string msg = "size should be a list/array of size 1, 2, or 3.";
-                throw pybind11::value_error(msg);
-              }
-              for (int i = 0; i < 3; i++) {
-                des[i] = (i < array->size()) ? array->at(i) : 0;
-              }
             }
           };
           """
@@ -947,6 +968,24 @@ def generate_name() -> None:
     print(code)
 
 
+def generate_compiler() -> None:
+  """Generate compiler property for all spec element types."""
+  for key, _, _, _, _ in SPECS:
+    elem = key.removeprefix('mjs')
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      {key}.def_property_readonly("compiler",
+      [](raw::{titlecase}& self) -> raw::MjsCompiler& {{
+        ::mjsCompiler* compiler = mjs_getCompiler(self.element);
+        if (!compiler) {{
+          throw pybind11::value_error("Element is not attached to a spec.");
+        }}
+        return *compiler;
+      }}, py::return_value_policy::reference_internal);
+    """
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
@@ -956,6 +995,7 @@ def main(argv: Sequence[str]) -> None:
   generate_signature()
   generate_id()
   generate_name()
+  generate_compiler()
 
 
 if __name__ == '__main__':
