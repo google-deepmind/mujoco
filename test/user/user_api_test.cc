@@ -239,6 +239,47 @@ TEST_F(MujocoTest, DeletePlugin) {
   mj_deleteModel(newmodel);
 }
 
+TEST_F(MujocoTest, SetToDCMotorNullable) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+
+  const char* err = mjs_setToDCMotor(actuator, motorconst, resistance,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);
+  EXPECT_EQ(actuator->gainprm[1], 0.05);
+  EXPECT_EQ(actuator->gainprm[4], 0);
+  EXPECT_EQ(actuator->gainprm[5], 0);
+  EXPECT_EQ(actuator->gainprm[6], 0);
+  EXPECT_EQ(actuator->dynprm[7], 0);
+  EXPECT_EQ(actuator->dynprm[8], 0);
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorDeriveKe) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double resistance = 2.0;
+  double nominal[3] = {12.0, 0, 100.0};  // vn=12, omega0=100
+
+  const char* err = mjs_setToDCMotor(actuator, nullptr, resistance,
+                                     nominal, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);
+  EXPECT_NEAR(actuator->gainprm[1], 0.12, 1e-5);
+
+  mj_deleteSpec(spec);
+}
+
 static constexpr char xml_plugin_1[] = R"(
   <mujoco model="MuJoCo Model">
     <worldbody>

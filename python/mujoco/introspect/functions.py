@@ -10805,6 +10805,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='double'),
                      extents=(2,),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='resistance',
@@ -10816,6 +10817,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='double'),
                      extents=(3,),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='saturation',
@@ -10823,6 +10825,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='double'),
                      extents=(4,),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='inductance',
@@ -10830,6 +10833,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='double'),
                      extents=(2,),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='cogging',
@@ -10837,6 +10841,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='double'),
                      extents=(3,),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='controller',
@@ -10844,6 +10849,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='double'),
                      extents=(5,),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='thermal',
@@ -10851,6 +10857,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='double'),
                      extents=(6,),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='lugre',
@@ -10858,6 +10865,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='double'),
                      extents=(6,),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='input_mode',

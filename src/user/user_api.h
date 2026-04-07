@@ -192,6 +192,13 @@ MJAPI const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], do
 // Set actuator to adhesion, return error on failure.
 MJAPI const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
 
+// Set actuator to DC motor, return error on failure.
+MJAPI const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
+                                   double nominal[3], double saturation[4], double inductance[2],
+                                   double cogging[3], double controller[5], double thermal[6],
+                                   double lugre[6], int input_mode);
+
+
 //---------------------------------- Add assets ----------------------------------------------------
 
 // Add mesh.

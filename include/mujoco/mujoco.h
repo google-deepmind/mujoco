@@ -1727,6 +1727,7 @@ MJAPI const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], do
 MJAPI const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
 
 // Set actuator to DC motor; return error if any.
+// Nullable: motorconst, nominal, saturation, inductance, cogging, controller, thermal, lugre
 MJAPI const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
                                    double nominal[3], double saturation[4], double inductance[2],
                                    double cogging[3], double controller[5], double thermal[6],

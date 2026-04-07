@@ -4667,6 +4667,8 @@ Set actuator to active adhesion; return error if any.
 
 Set actuator to DC motor; return error if any.
 
+*Nullable:* ``motorconst``, ``nominal``, ``saturation``, ``inductance``, ``cogging``, ``controller``, ``thermal``, ``lugre``
+
 .. _AddAssets:
 
 Assets

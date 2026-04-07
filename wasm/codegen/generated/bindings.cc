@@ -9877,14 +9877,14 @@ std::string mjs_setToCylinder_wrapper(MjsActuator& actuator, double timeconst, d
 }
 
 std::string mjs_setToDCMotor_wrapper(MjsActuator& actuator, const val& motorconst, double resistance, const val& nominal, const val& saturation, const val& inductance, const val& cogging, const val& controller, const val& thermal, const val& lugre, int input_mode) {
-  UNPACK_VALUE(double, motorconst);
-  UNPACK_VALUE(double, nominal);
-  UNPACK_VALUE(double, saturation);
-  UNPACK_VALUE(double, inductance);
-  UNPACK_VALUE(double, cogging);
-  UNPACK_VALUE(double, controller);
-  UNPACK_VALUE(double, thermal);
-  UNPACK_VALUE(double, lugre);
+  UNPACK_NULLABLE_VALUE(double, motorconst);
+  UNPACK_NULLABLE_VALUE(double, nominal);
+  UNPACK_NULLABLE_VALUE(double, saturation);
+  UNPACK_NULLABLE_VALUE(double, inductance);
+  UNPACK_NULLABLE_VALUE(double, cogging);
+  UNPACK_NULLABLE_VALUE(double, controller);
+  UNPACK_NULLABLE_VALUE(double, thermal);
+  UNPACK_NULLABLE_VALUE(double, lugre);
   return std::string(mjs_setToDCMotor(actuator.get(), motorconst_.data(), resistance, nominal_.data(), saturation_.data(), inductance_.data(), cogging_.data(), controller_.data(), thermal_.data(), lugre_.data(), input_mode));
 }
 
