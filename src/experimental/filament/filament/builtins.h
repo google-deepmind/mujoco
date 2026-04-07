@@ -16,7 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_BUILTINS_H_
 
 #include <filament/Engine.h>
-#include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/mesh.h"
 
 // Generates buffers for built-in shapes.
 namespace mujoco {

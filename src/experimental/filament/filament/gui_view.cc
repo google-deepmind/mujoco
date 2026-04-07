@@ -31,7 +31,7 @@
 #include <utils/EntityManager.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {

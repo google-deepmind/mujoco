@@ -19,14 +19,13 @@
 #include <utility>
 #include <vector>
 
-#include <filament/Box.h>
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
 #include <filament/Material.h>
 #include <filament/Skybox.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/buffer_util.h"
 #include "experimental/filament/filament/builtins.h"
+#include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/texture.h"
 

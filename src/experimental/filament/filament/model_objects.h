@@ -25,7 +25,7 @@
 #include <filament/Skybox.h>
 #include <math/vec3.h>
 #include <mujoco/mjmodel.h>
-#include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {

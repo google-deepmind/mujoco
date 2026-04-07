@@ -27,7 +27,7 @@
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
-#include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/vertex_util.h"
 
 namespace mujoco {

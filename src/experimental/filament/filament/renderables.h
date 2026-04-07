@@ -21,7 +21,7 @@
 #include <filament/Engine.h>
 #include <filament/Scene.h>
 #include <utils/Entity.h>
-#include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/mesh.h"
 
 namespace mujoco {
 

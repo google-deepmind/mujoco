@@ -23,7 +23,7 @@
 #include <filament/IndexBuffer.h>
 #include <filament/VertexBuffer.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/buffer_util.h"
+#include "experimental/filament/filament/mesh.h"
 
 namespace mujoco {
 
