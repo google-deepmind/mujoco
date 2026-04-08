@@ -691,17 +691,13 @@ mjPLUGIN_LIB_INIT
 
 .. code-block:: C
 
-   #define mjPLUGIN_LIB_INIT                                                                 \
-     static void _mjplugin_dllmain(void);                                                    \
-     mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
-       if (reason == 1) {                                                                    \
-         _mjplugin_dllmain();                                                                \
-       }                                                                                     \
-       return 1;                                                                             \
-     }                                                                                       \
-     static void _mjplugin_dllmain(void)
+   #define mjPLUGIN_LIB_INIT(n)                                      \
+        static void _mj_init_##n(void) __attribute__((constructor)); \
+        static void _mj_init_##n(void)
 
-Register a plugin as a dynamic library. See :ref:`plugin registration<exRegistration>` for more details.
+Register a plugin before `main()` is called. This macro takes a unique identifier `n` as an argument that is used to avoid
+name collisions between different plugin initialization functions. See :ref:`plugin registration<exRegistration>` for
+more details.
 
 
 .. _tyXMacro:

@@ -44,6 +44,10 @@ General
    - The ``vertcollide`` field in :ref:`mjsFlex` has been removed. It is no longer required since
      :doc:`MuJoCo Warp <mjwarp/index>` supports native flex collisions.
 
+   - :ref:`mjPLUGIN_LIB_INIT` macro now requires a name argument to avoid initialization function name collisions.
+     When building with MSVC, we now use the C runtime initialization section to initialize plugins instead of
+     ``DllMain``. See :ref:`plugin registration<exRegistration>` for more details.
+
    - The :ref:`mjtWarning` enum value ``mjWARN_VGEOMFULL`` is removed. Exhaustion of visual geoms is now handled
      internally by the :ref:`mjvScene`.
 

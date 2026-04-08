@@ -238,7 +238,7 @@ void Renderer::UpdateFps() {
 
 }  // namespace mujoco::platform
 
-mjPLUGIN_LIB_INIT {
+mjPLUGIN_LIB_INIT(renderer) {
   mujoco::platform::GuiPlugin plugin;
   plugin.name = "Filament";
   plugin.update = [](mujoco::platform::GuiPlugin* self) {

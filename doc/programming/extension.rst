@@ -230,12 +230,11 @@ troubleshoot issues with a model) can be statically linked into the application.
 :ref:`mjpPlugin` struct in the ``main`` function, then passing it to :ref:`mjp_registerPlugin` to be registered with
 MuJoCo.
 
-Generally, reusable plugins are expected to be packaged as dynamic libraries. A dynamic library containing one or more
-MuJoCo plugins should make sure that all plugins are registered when the library is loaded. In GCC-compatible compilers,
-this can be achieved by calling :ref:`mjp_registerPlugin` in a function that is declared with
-``__attribute__((constructor))``, while in MSVC this can be done in a DLL entry point (canonically known as
-``DllMain``). MuJoCo provides a convenience macro :ref:`mjPLUGIN_LIB_INIT` that expands to either of these
-constructs depending on the compiler used.
+Generally, reusable plugins are expected to be packaged as libraries and should be registered when the library is
+loaded. In GCC-compatible compilers, this can be achieved by calling :ref:`mjp_registerPlugin` in a function that is
+declared with ``__attribute__((constructor))``, while in MSVC this can be done by injecting code into the C runtime
+initialization. MuJoCo provides a convenience macro :ref:`mjPLUGIN_LIB_INIT` that expands to either of these constructs
+depending on the compiler used.
 
 Users of plugins that are delivered as dynamic libraries as described above can load the library using the function
 :ref:`mj_loadPluginLibrary`. This is the preferred way to load dynamic libraries containing MuJoCo plugins (rather than,
