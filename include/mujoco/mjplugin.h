@@ -182,11 +182,12 @@ struct mjSDF_ {
 };
 typedef struct mjSDF_ mjSDF;
 
-#if defined(__GNUC__) || defined(__clang__)
-    // GCC and Clang (including clang-cl)
+#if defined(__has_attribute)
+  #if __has_attribute(constructor)
     #define mjPLUGIN_LIB_INIT(n) \
         static void _mj_init_##n(void) __attribute__((constructor)); \
         static void _mj_init_##n(void)
+  #endif
 #elif defined(_MSC_VER)
     #define m_STR(x) #x
     #define m_XSTR(x) m_STR(x)
