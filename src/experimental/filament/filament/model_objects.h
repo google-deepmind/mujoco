@@ -15,7 +15,6 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MODEL_OBJECTS_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MODEL_OBJECTS_H_
 
-#include <array>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -24,6 +23,7 @@
 #include <filament/IndirectLight.h>
 #include <filament/Skybox.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mujoco.h>
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/texture.h"
 
@@ -65,6 +65,9 @@ class ModelObjects {
   const Mesh* GetHeightFieldBuffer(int hfield_id) const;
   const Texture* GetTexture(int tex_id) const;
   const Texture* GetTexture(int mat_id, int role) const;
+
+  MeshPtr CreateFlexMesh(const mjvScene* scene, const mjvGeom& geom);
+  MeshPtr CreateSkinMesh(const mjvScene* scene, const mjvGeom& geom);
 
   filament::Skybox* CreateSkybox();
   filament::IndirectLight* CreateIndirectLight(int tex_id, float intensity);

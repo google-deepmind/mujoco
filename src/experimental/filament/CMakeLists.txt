@@ -33,8 +33,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/filament_context.h
         filament/filament_platform_factory.cc
         filament/filament_platform_factory.h
-        filament/geom_util.cc
-        filament/geom_util.h
         filament/gui_view.cc
         filament/gui_view.h
         filament/imgui_editor.cc

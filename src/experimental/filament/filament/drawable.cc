@@ -16,9 +16,7 @@
 
 #include <cmath>
 #include <cstdint>
-#include <memory>
 #include <numbers>
-#include <utility>
 
 #include <filament/Material.h>
 #include <filament/RenderableManager.h>
@@ -32,7 +30,6 @@
 #include <utils/Entity.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/geom_util.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
@@ -171,15 +168,18 @@ Drawable::Drawable(ObjectManager* object_mgr, ModelObjects* model_objects,
 
 void Drawable::Update(const mjModel* model, const mjvScene* scene,
                       const mjvGeom& geom) {
-  if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
-    // Flex geometry is updated every frame with new vertex data.
-    filament::Engine* engine = renderables_.GetEngine();
-    std::unique_ptr<Mesh> mesh = CreateGeomBuffers(engine, model, scene, geom);
-
+  // Flex and skin geometries are recreated every frame from the scene data.
+  if (geom.type == mjGEOM_FLEX) {
     if (renderables_.GetNumEntities() == 0) {
-      renderables_.Append(std::move(mesh));
+      renderables_.Append(model_objs_->CreateFlexMesh(scene, geom));
     } else {
-      renderables_.Update(0, std::move(mesh));
+      renderables_.Update(0, model_objs_->CreateFlexMesh(scene, geom));
+    }
+  } else if (geom.type == mjGEOM_SKIN) {
+    if (renderables_.GetNumEntities() == 0) {
+      renderables_.Append(model_objs_->CreateSkinMesh(scene, geom));
+    } else {
+      renderables_.Update(0, model_objs_->CreateSkinMesh(scene, geom));
     }
   }
 
