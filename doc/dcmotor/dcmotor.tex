@@ -400,13 +400,11 @@ The clipping applies to the electrical torque (current limit), while both fricti
   every axis y label/.style={at={(ticklabel* cs:1)}, anchor=south},
 ]
 \fill[blue, opacity=0.08]
-  (0, \Ra) -- (\wcu, \Rb) -- (\wcl, \Rc) -- (0, \Rd) -- cycle;
+  (0, \Lb) -- (-\wcl, \La) -- (-\wcu, \Ld) -- (0, \Lc)
+  -- (0, \Rd) -- (\wcl, \Rc) -- (\wcu, \Rb) -- (0, \Ra) -- cycle;
 \addplot[thick, blue] coordinates
-  {(0, \Ra) (\wcu, \Rb) (\wcl, \Rc) (0, \Rd)};
-\fill[blue, opacity=0.08]
-  (-\wcl, \La) -- (0, \Lb) -- (0, \Lc) -- (-\wcu, \Ld) -- cycle;
-\addplot[thick, blue] coordinates
-  {(-\wcl, \La) (0, \Lb) (0, \Lc) (-\wcu, \Ld) (-\wcl, \La)};
+  {(0, \Lb) (-\wcl, \La) (-\wcu, \Ld) (0, \Lc)
+   (0, \Rd) (\wcl, \Rc) (\wcu, \Rb) (0, \Ra) (0, \Lb)};
 \addplot[thick, dashed, gray] coordinates {(0.01, {-\tauf-\bvis*0.01}) (\wext, {-\tauf+\dragR})};
 \addplot[thick, dashed, gray] coordinates {(-\wext, {\tauf+\dragL}) (-0.01, {\tauf+\bvis*0.01})};
 \node[font=\footnotesize, anchor=north west] at (axis cs: -1.75, -0.45)
