@@ -339,51 +339,26 @@ void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNu
 
 
 // dst += scl*src, only at common non-zero indices
-void mju_addToSclSparseInc(mjtNum* dst, const mjtNum* src,
-                           int nnzdst, const int* inddst,
-                           int nnzsrc, const int* indsrc, mjtNum scl) {
+void mju_addToSclSparseInc(mjtNum* restrict dst, const mjtNum* restrict src,
+                           int nnzdst, const int* restrict inddst,
+                           int nnzsrc, const int* restrict indsrc, mjtNum scl) {
   if (!nnzdst || !nnzsrc) {
     return;
   }
 
-  int adrs = 0, adrd = 0, inds = indsrc[0], indd = inddst[0];
-  while (1) {
-    // common non-zero index
+  int adrs = 0, adrd = 0;
+  while (adrs < nnzsrc && adrd < nnzdst) {
+    int inds = indsrc[adrs];
+    int indd = inddst[adrd];
+
     if (inds == indd) {
-      // add
       dst[adrd] += scl * src[adrs];
-
-      // advance src
-      if (++adrs < nnzsrc) {
-        inds = indsrc[adrs];
-      } else {
-        return;
-      }
-
-      // advance dst
-      if (++adrd < nnzdst) {
-        indd = inddst[adrd];
-      } else {
-        return;
-      }
-    }
-
-    // src non-zero index smaller: advance src
-    else if (inds < indd) {
-      if (++adrs < nnzsrc) {
-        inds = indsrc[adrs];
-      } else {
-        return;
-      }
-    }
-
-    // dst non-zero index smaller: advance dst
-    else {
-      if (++adrd < nnzdst) {
-        indd = inddst[adrd];
-      } else {
-        return;
-      }
+      adrs++;
+      adrd++;
+    } else if (inds < indd) {
+      adrs++;
+    } else {
+      adrd++;
     }
   }
 }
