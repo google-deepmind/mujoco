@@ -23,7 +23,6 @@
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
 #include <filament/Skybox.h>
-#include <math/vec3.h>
 #include <mujoco/mjmodel.h>
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/texture.h"

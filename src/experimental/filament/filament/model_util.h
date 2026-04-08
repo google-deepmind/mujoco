@@ -22,20 +22,8 @@
 #include <math/vec4.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/mesh.h"
 
 namespace mujoco {
-
-// The types of meshes stored in the mjModel.
-enum class MeshType {
-  kNormal,
-  kConvexHull,
-  kHeightField,
-};
-
-// Populates the given MeshData with data for the element in the model.
-void UpdateMeshData(MeshData* data, const mjModel* model, int id,
-                    MeshType mesh_type);
 
 // Reads a value with the given name from the mjModel's data sections. The
 // default_value is returned if the named element is not found.

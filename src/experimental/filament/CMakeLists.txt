@@ -49,7 +49,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/mesh.h
         filament/model_objects.cc
         filament/model_objects.h
-        filament/model_util.cc
         filament/model_util.h
         filament/object_manager.cc
         filament/object_manager.h
