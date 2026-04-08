@@ -12,19 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import os
+import contextlib
 from unittest import mock
 
 from absl.testing import absltest
 import jax
 import jax.numpy as jnp
-from mujoco.mjx._src import io
-from mujoco.mjx._src import render_util
-import mujoco.mjx.warp as mjxw
-from mujoco.mjx.warp.render_context import RenderContextPytree
 import numpy as np
 
-_FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
+from mujoco.mjx._src import render_util
+from mujoco.mjx.warp.render_context import RenderContextPytree
 
 
 def _fake_render_context(ncam, width, height):
@@ -39,15 +36,17 @@ def _fake_render_context(ncam, width, height):
   return rc
 
 
-class RenderUtilTest(absltest.TestCase):
+@contextlib.contextmanager
+def _mock_render_runtime(warp_rc):
+  with mock.patch.object(render_util.mjxw, 'WARP_INSTALLED', True):
+    with mock.patch.dict(
+        'mujoco.mjx.warp.render_context._MJX_RENDER_CONTEXT_BUFFERS',
+        {(0, None): warp_rc},
+    ):
+      yield
 
-  def setUp(self):
-    super().setUp()
-    if not _FORCE_TEST:
-      if not mjxw.WARP_INSTALLED:
-        self.skipTest('Warp not installed.')
-      if not io.has_cuda_gpu_device():
-        self.skipTest('No CUDA GPU device available.')
+
+class RenderUtilTest(absltest.TestCase):
 
   def test_get_rgb(self):
     width, height = 4, 4
@@ -55,13 +54,27 @@ class RenderUtilTest(absltest.TestCase):
     rc = mock.MagicMock(spec=RenderContextPytree, key=0)
     rgb_data = jnp.zeros((width * height,), dtype=jnp.uint32)
 
-    with mock.patch.dict(
-        'mujoco.mjx.warp.render_context._MJX_RENDER_CONTEXT_BUFFERS',
-        {(0, None): warp_rc},
-    ):
+    with _mock_render_runtime(warp_rc):
       rgb = jax.jit(render_util.get_rgb, static_argnums=(0, 1))(rc, 0, rgb_data)
 
     self.assertEqual(rgb.shape, (height, width, 3))
+
+  def test_get_rgb_preserves_leading_dims(self):
+    width, height = 4, 4
+    warp_rc = _fake_render_context(1, width, height)
+    rc = mock.MagicMock(spec=RenderContextPytree, key=0)
+
+    with _mock_render_runtime(warp_rc):
+      for leading_shape in ((1,), (3,), (2, 3)):
+        with self.subTest(leading_shape=leading_shape):
+          rgb_data = jnp.zeros(
+              leading_shape + (width * height,), dtype=jnp.uint32
+          )
+          rgb = jax.jit(render_util.get_rgb, static_argnums=(0, 1))(
+              rc, 0, rgb_data
+          )
+
+          self.assertEqual(rgb.shape, leading_shape + (height, width, 3))
 
   def test_get_rgb_vmap(self):
     nworld, width, height = 3, 4, 4
@@ -69,10 +82,7 @@ class RenderUtilTest(absltest.TestCase):
     rc = mock.MagicMock(spec=RenderContextPytree, key=0)
     rgb_data = jnp.zeros((nworld, width * height), dtype=jnp.uint32)
 
-    with mock.patch.dict(
-        'mujoco.mjx.warp.render_context._MJX_RENDER_CONTEXT_BUFFERS',
-        {(0, None): warp_rc},
-    ):
+    with _mock_render_runtime(warp_rc):
       rgb = jax.jit(
           jax.vmap(render_util.get_rgb, in_axes=(None, None, 0)),
           static_argnums=(0, 1),
@@ -86,15 +96,29 @@ class RenderUtilTest(absltest.TestCase):
     rc = mock.MagicMock(spec=RenderContextPytree, key=0)
     depth_data = jnp.zeros((width * height,), dtype=jnp.float32)
 
-    with mock.patch.dict(
-        'mujoco.mjx.warp.render_context._MJX_RENDER_CONTEXT_BUFFERS',
-        {(0, None): warp_rc},
-    ):
+    with _mock_render_runtime(warp_rc):
       depth = jax.jit(render_util.get_depth, static_argnums=(0, 1, 3))(
           rc, 0, depth_data, 5.0
       )
 
     self.assertEqual(depth.shape, (height, width, 1))
+
+  def test_get_depth_preserves_leading_dims(self):
+    width, height = 4, 4
+    warp_rc = _fake_render_context(1, width, height)
+    rc = mock.MagicMock(spec=RenderContextPytree, key=0)
+
+    with _mock_render_runtime(warp_rc):
+      for leading_shape in ((1,), (3,), (2, 3)):
+        with self.subTest(leading_shape=leading_shape):
+          depth_data = jnp.zeros(
+              leading_shape + (width * height,), dtype=jnp.float32
+          )
+          depth = jax.jit(render_util.get_depth, static_argnums=(0, 1, 3))(
+              rc, 0, depth_data, 5.0
+          )
+
+          self.assertEqual(depth.shape, leading_shape + (height, width, 1))
 
   def test_get_depth_vmap(self):
     nworld, width, height = 3, 4, 4
@@ -102,10 +126,7 @@ class RenderUtilTest(absltest.TestCase):
     rc = mock.MagicMock(spec=RenderContextPytree, key=0)
     depth_data = jnp.zeros((nworld, width * height), dtype=jnp.float32)
 
-    with mock.patch.dict(
-        'mujoco.mjx.warp.render_context._MJX_RENDER_CONTEXT_BUFFERS',
-        {(0, None): warp_rc},
-    ):
+    with _mock_render_runtime(warp_rc):
       depth = jax.jit(
           jax.vmap(render_util.get_depth, in_axes=(None, None, 0, None)),
           static_argnums=(0, 1, 3),

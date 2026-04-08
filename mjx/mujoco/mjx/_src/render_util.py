@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
+
 import mujoco.mjx.warp as mjxw
 
 if TYPE_CHECKING:
@@ -34,10 +35,11 @@ def get_rgb(
   Args:
     rc: RenderContextPytree.
     cam_id: Camera index to extract.
-    rgb_data: Packed render output, shape (total_pixels,) as uint32.
+    rgb_data: Packed render output, shape (..., total_pixels) as uint32.
 
   Returns:
-    Float32 RGB array with shape (H, W, 3), values in [0, 1].
+    Float32 RGB array with shape (..., H, W, 3), values in [0, 1].
+    Any leading batch axes in `rgb_data` are preserved.
 
   Raises:
     RuntimeError: If Warp is not installed.
@@ -59,14 +61,14 @@ def get_rgb(
   height = int(warp_rc.cam_res.numpy()[cam_id][1])
 
   packed = jax.lax.dynamic_slice_in_dim(
-      rgb_data, rgb_adr, width * height, axis=0
+      rgb_data, rgb_adr, width * height, axis=rgb_data.ndim - 1
   )
 
   b = (packed & 0xFF).astype(jnp.float32) / 255.0
   g = ((packed >> 8) & 0xFF).astype(jnp.float32) / 255.0
   r = ((packed >> 16) & 0xFF).astype(jnp.float32) / 255.0
   rgb = jnp.stack([r, g, b], axis=-1)
-  return rgb.reshape(height, width, 3)
+  return rgb.reshape(packed.shape[:-1] + (height, width, 3))
 
 
 def get_depth(
@@ -80,11 +82,12 @@ def get_depth(
   Args:
     rc: RenderContextPytree.
     cam_id: Camera index to extract.
-    depth_data: Raw depth output, shape (total_pixels,) as float32.
+    depth_data: Raw depth output, shape (..., total_pixels) as float32.
     depth_scale: Scale factor for normalizing depth values.
 
   Returns:
-    Float32 depth array with shape (H, W), clamped to [0, 1].
+    Float32 depth array with shape (..., H, W, 1), clamped to [0, 1].
+    Any leading batch axes in `depth_data` are preserved.
 
   Raises:
     RuntimeError: If Warp is not installed.
@@ -106,8 +109,8 @@ def get_depth(
   height = int(warp_rc.cam_res.numpy()[cam_id][1])
 
   raw = jax.lax.dynamic_slice_in_dim(
-      depth_data, depth_adr, width * height, axis=0
+      depth_data, depth_adr, width * height, axis=depth_data.ndim - 1
   )
 
   depth = jnp.clip(raw / depth_scale, 0.0, 1.0)
-  return depth.reshape(height, width, 1)
+  return depth.reshape(raw.shape[:-1] + (height, width, 1))
