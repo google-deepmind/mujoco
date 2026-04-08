@@ -44,6 +44,8 @@ General
    - The ``vertcollide`` field in :ref:`mjsFlex` has been removed. It is no longer required since
      :doc:`MuJoCo Warp <mjwarp/index>` supports native flex collisions.
 
+   - The :ref:`mjtWarning` enum value ``mjWARN_VGEOMFULL`` is removed. Exhaustion of visual geoms is now handled
+     internally by the :ref:`mjvScene`.
 
 Bug fixes
 ^^^^^^^^^

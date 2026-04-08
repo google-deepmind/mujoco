@@ -169,7 +169,11 @@ static int bodycategory(const mjModel* m, int bodyid) {
 mjvGeom* acquireGeom(mjvScene* scn, int objid, int category, int objtype) {
   // check for overflow, SHOULD NOT OCCUR
   if (scn->ngeom >= scn->maxgeom) {
-    scn->status = 1;
+    if (!scn->status) {
+      mju_warning("Pre-allocated visual geom buffer is full. "
+                  "Increase maxgeom above %d.", scn->maxgeom);
+      scn->status = 1;
+    }
     return NULL;
   }
 
@@ -3379,7 +3383,6 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
                      const mjvPerturb* pert, mjvCamera* cam, int catmask, mjvScene* scn) {
   // clear geoms
   scn->ngeom = 0;
-  scn->status = 0;
 
   // trigger plugin visualization hooks
   if (m->nplugin) {
@@ -3415,10 +3418,6 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
   // update skins
   if (opt->flags[mjVIS_SKIN]) {
     mjv_updateActiveSkin(m, d, scn, opt);
-  }
-
-  if (scn->status) {
-    mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);
   }
 }
 

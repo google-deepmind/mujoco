@@ -5416,7 +5416,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='warning',
                  type=ArrayType(
                      inner_type=ValueType(name='mjWarningStat'),
-                     extents=(8,),
+                     extents=(7,),
                  ),
                  doc='warning statistics (mutable)',
              ),
@@ -10524,7 +10524,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='status',
                  type=ValueType(name='int'),
-                 doc='status; 0: ok, 1: geoms exhausted',
+                 doc='0: ok, 1: geoms exhausted, warning issued',
              ),
          ),
      )),

@@ -63,7 +63,6 @@ typedef enum mjtWarning_ {          // warning types
   mjWARN_INERTIA         = 0,       // (near) singular inertia matrix
   mjWARN_CONTACTFULL,               // too many contacts in contact list
   mjWARN_CNSTRFULL,                 // too many constraints
-  mjWARN_VGEOMFULL,                 // too many visual geoms
   mjWARN_BADQPOS,                   // bad number in qpos
   mjWARN_BADQVEL,                   // bad number in qvel
   mjWARN_BADQACC,                   // bad number in qacc
@@ -3096,7 +3095,9 @@ struct mjvScene_ {                // abstract scene passed to OpenGL renderer
   // framing
   int      framewidth;            // frame pixel width; 0: disable framing
   float    framergb[3];           // frame color
-  int      status;                // status; 0: ok, 1: geoms exhausted
+
+  // geom buffer status
+  int      status;                // 0: ok, 1: geoms exhausted, warning issued
 };
 typedef struct mjvScene_ mjvScene;
 struct mjvFigure_ {               // abstract 2D figure passed to OpenGL renderer

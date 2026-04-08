@@ -489,12 +489,11 @@ public enum mjtWarning : int{
   mjWARN_INERTIA = 0,
   mjWARN_CONTACTFULL = 1,
   mjWARN_CNSTRFULL = 2,
-  mjWARN_VGEOMFULL = 3,
-  mjWARN_BADQPOS = 4,
-  mjWARN_BADQVEL = 5,
-  mjWARN_BADQACC = 6,
-  mjWARN_BADCTRL = 7,
-  mjNWARNING = 8,
+  mjWARN_BADQPOS = 3,
+  mjWARN_BADQVEL = 4,
+  mjWARN_BADQACC = 5,
+  mjWARN_BADCTRL = 6,
+  mjNWARNING = 7,
 }
 public enum mjtTimer : int{
   mjTIMER_STEP = 0,
@@ -5699,7 +5698,6 @@ public unsafe struct mjData_ {
   public mjWarningStat_ warning4;
   public mjWarningStat_ warning5;
   public mjWarningStat_ warning6;
-  public mjWarningStat_ warning7;
   public mjTimerStat_ timer0;
   public mjTimerStat_ timer1;
   public mjTimerStat_ timer2;

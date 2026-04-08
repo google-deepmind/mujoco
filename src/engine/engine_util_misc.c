@@ -1595,10 +1595,6 @@ const char* mju_warningText(int warning, size_t info) {
                "Increase arena memory allocation above %s bytes.", mju_writeNumBytes(info));
     break;
 
-  case mjWARN_VGEOMFULL:
-    mjSNPRINTF(str, "Pre-allocated visual geom buffer is full. Increase maxgeom above %zu.", info);
-    break;
-
   case mjWARN_BADQPOS:
     mjSNPRINTF(str, "Nan, Inf or huge value in QPOS at DOF %zu. The simulation is unstable.", info);
     break;

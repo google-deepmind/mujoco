@@ -11380,7 +11380,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjWARN_INERTIA", mjWARN_INERTIA)
     .value("mjWARN_CONTACTFULL", mjWARN_CONTACTFULL)
     .value("mjWARN_CNSTRFULL", mjWARN_CNSTRFULL)
-    .value("mjWARN_VGEOMFULL", mjWARN_VGEOMFULL)
     .value("mjWARN_BADQPOS", mjWARN_BADQPOS)
     .value("mjWARN_BADQVEL", mjWARN_BADQVEL)
     .value("mjWARN_BADQACC", mjWARN_BADQACC)

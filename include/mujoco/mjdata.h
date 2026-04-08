@@ -77,7 +77,6 @@ typedef enum mjtWarning_ {          // warning types
   mjWARN_INERTIA         = 0,       // (near) singular inertia matrix
   mjWARN_CONTACTFULL,               // too many contacts in contact list
   mjWARN_CNSTRFULL,                 // too many constraints
-  mjWARN_VGEOMFULL,                 // too many visual geoms
   mjWARN_BADQPOS,                   // bad number in qpos
   mjWARN_BADQVEL,                   // bad number in qvel
   mjWARN_BADQACC,                   // bad number in qacc

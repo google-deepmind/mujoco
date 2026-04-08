@@ -101,7 +101,6 @@ TEST_F(MjvSceneTest, UpdateSceneGeomsExhausted) {
   mjv_updateScene(model, data, &opt_, &pert_, &cam_, mjCAT_ALL, &scn_);
   EXPECT_EQ(scn_.status, 1);
   EXPECT_EQ(scn_.ngeom, maxgeoms);
-  EXPECT_EQ(data->warning[mjWARN_VGEOMFULL].number, 1);
 
   mj_deleteData(data);
   FreeSceneObjects();
