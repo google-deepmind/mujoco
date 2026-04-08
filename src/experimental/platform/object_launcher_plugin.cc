@@ -172,7 +172,7 @@ class ObjectLauncher {
 
 }  // namespace mujoco::studio
 
-mjPLUGIN_LIB_INIT {
+mjPLUGIN_LIB_INIT(object_launcher) {
   using mujoco::studio::ObjectLauncher;
 
   static ObjectLauncher plugin;
