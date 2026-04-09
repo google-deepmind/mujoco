@@ -26,7 +26,6 @@
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderables.h"
-#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
@@ -63,13 +62,8 @@ class Drawable {
   // or hide the drawable from specific passes. The default layer mask is 0x01.
   void SetLayerMask(std::uint8_t mask);
 
-  // Returns true if the drawable is reflective.
-  bool IsReflective() const { return reflective_; }
-
-  // Sets the reflection texture for the drawable. We have a separate setter
-  // because we need to render the reflection texture before it can be applied
-  // to the material.
-  void UpdateReflectionTexture(const Texture* tex);
+  // Returns the material for the drawable.
+  Material& GetMaterial();
 
  private:
   void AddMesh(int data_id);
@@ -90,7 +84,6 @@ class Drawable {
   ModelObjects* model_objs_ = nullptr;
   ObjectManager* object_mgr_ = nullptr;
   Renderables renderables_;
-  bool reflective_ = false;
   filament::math::mat4 transform_;
 };
 

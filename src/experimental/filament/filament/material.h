@@ -62,6 +62,7 @@ class Material {
     float emissive = -1.0f;
     float reflectance = 0.0f;
     bool tex_uniform = false;
+    bool reflective = false;
   };
 
   explicit Material(filament::Engine* engine);

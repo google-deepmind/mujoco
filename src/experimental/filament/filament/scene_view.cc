@@ -194,7 +194,7 @@ void SceneView::RemoveFromScene(Light* light) {
 void SceneView::AddToScene(Drawable* drawable) {
   if (drawables_.insert(drawable).second) {
     drawable->AddToScene(scene_);
-    if (drawable->IsReflective()) {
+    if (drawable->GetMaterial().GetParams().reflective) {
       AddReflectiveDrawable(drawable);
     }
   }
@@ -305,7 +305,11 @@ void SceneView::AddReflectiveDrawable(Drawable* drawable) {
   auto viewport = reflect_view_->getViewport();
   auto& target = reflect_targets_[index];
   target->Prepare(viewport.width, viewport.height);
-  drawable->UpdateReflectionTexture(target->GetColorTexture());
+
+  Material& material = drawable->GetMaterial();
+  Material::Textures textures = material.GetTextures();
+  textures.reflection = target->GetColorTexture();
+  material.UpdateTextures(textures);
 }
 
 void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {

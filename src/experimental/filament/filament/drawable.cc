@@ -238,10 +238,8 @@ void Drawable::SetDrawMode(Material::DrawMode mode) {
   renderables_.SetMaterialInstance(material_.GetMaterialInstance(mode));
 }
 
-void Drawable::UpdateReflectionTexture(const Texture* tex) {
-  Material::Textures textures = material_.GetTextures();
-  textures.reflection = tex;
-  material_.UpdateTextures(textures);
+Material& Drawable::GetMaterial() {
+  return material_;
 }
 
 void Drawable::SetLayerMask(std::uint8_t mask) {
@@ -374,16 +372,17 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
                               bool enable_reflection, const mjtNum* headpos) {
   const mjModel* model = model_objs_->GetModel();
 
-  float4 color = ReadFloat4(geom.rgba);
+  Material::Params params;
+  params.color = ReadFloat4(geom.rgba);
   if (geom.type == mjGEOM_PLANE) {
     if (IsBehind(headpos, geom.pos, geom.mat)) {
-      color[3] *= 0.3;
+      params.color[3] *= 0.3;
       renderables_.SetReceiveShadows(false);
-      reflective_ = false;
+      params.reflective = false;
     } else {
       renderables_.SetReceiveShadows(true);
-      reflective_ =
-          enable_reflection && geom.reflectance > 0 && color.a == 1.0f;
+      params.reflective =
+          enable_reflection && geom.reflectance > 0 && params.color.a == 1.0f;
     }
   }
 
@@ -434,34 +433,34 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
       }
 
       if (textures.color == nullptr) {
-        if (color.a < 1.0f) {
+        if (params.color.a < 1.0f) {
           SetNormalMaterial(ObjectManager::kPhongColorFade);
-        } else if (reflective_) {
+        } else if (params.reflective) {
           SetNormalMaterial(ObjectManager::kPhongColorReflect);
         } else {
           SetNormalMaterial(ObjectManager::kPhongColor);
         }
       } else if (textures.color->GetFilamentTexture()->getTarget() ==
                 filament::Texture::Sampler::SAMPLER_CUBEMAP) {
-        if (color.a < 1.0f) {
+        if (params.color.a < 1.0f) {
           SetNormalMaterial(ObjectManager::kPhongCubeFade);
-        } else if (reflective_) {
+        } else if (params.reflective) {
           SetNormalMaterial(ObjectManager::kPhongCubeReflect);
         } else {
           SetNormalMaterial(ObjectManager::kPhongCube);
         }
       } else if (has_texcoords) {
-        if (color.a < 1.0f) {
+        if (params.color.a < 1.0f) {
           SetNormalMaterial(ObjectManager::kPhong2dUvFade);
-        } else if (reflective_) {
+        } else if (params.reflective) {
           SetNormalMaterial(ObjectManager::kPhong2dUvReflect);
         } else {
           SetNormalMaterial(ObjectManager::kPhong2dUv);
         }
       } else {
-        if (color.a < 1.0f) {
+        if (params.color.a < 1.0f) {
           SetNormalMaterial(ObjectManager::kPhong2dFade);
-        } else if (reflective_) {
+        } else if (params.reflective) {
           SetNormalMaterial(ObjectManager::kPhong2dReflect);
         } else {
           SetNormalMaterial(ObjectManager::kPhong2d);
@@ -470,8 +469,6 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
     }
   }
 
-  Material::Params params;
-  params.color = color;
   params.reflectance = geom.reflectance;
   params.emissive = geom.emission;
   params.specular = geom.specular;
