@@ -44,6 +44,7 @@
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/scene_bridge.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
@@ -82,6 +83,7 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config)
 FilamentContext::~FilamentContext() {
   DestroyRenderTargets();
   gui_view_.reset();
+  scene_bridge_.reset();
   scene_view_.reset();
   object_manager_.reset();
   engine_->destroy(renderer_);
@@ -91,7 +93,9 @@ FilamentContext::~FilamentContext() {
 }
 
 void FilamentContext::Init(const mjModel* model) {
-  scene_view_ = std::make_unique<SceneView>(object_manager_.get(), model);
+  scene_view_ = std::make_unique<SceneView>(engine_);
+  scene_bridge_ = std::make_unique<SceneBridge>(object_manager_.get(), model,
+                                                scene_view_.get());
   gui_view_ = std::make_unique<GuiView>(
       engine_, object_manager_->GetMaterial(ObjectManager::kUnlitUi));
 
@@ -120,8 +124,7 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
     window_height_ = viewport.height;
   }
 
-  scene_view_->SetViewport(viewport);
-  scene_view_->UpdateScene(scene);
+  scene_bridge_->Update(viewport, scene);
   // Update the UX renderable entity after processing the scene in case there
   // are any elements in the scene which generate UX draw calls (e.g. labels).
   if (gui_view_ && gui_swap_chain_target_ == scene_swap_chain_target_) {
@@ -137,6 +140,7 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
   } else if (scene->flags[mjRND_DEPTH]) {
     last_render_mode_ = SceneView::DrawMode::kDepth;
   }
+  last_camera_ = mjv_averageCamera(scene->camera, scene->camera + 1);
 
   // Render the frame if we're not rendering to a texture.
   if (scene_swap_chain_target_ == kWindowSwapChain) {
@@ -146,7 +150,11 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
     }
 
     if (renderer_->beginFrame(window_swap_chain_)) {
-      scene_view_->Render(renderer_, last_render_mode_);
+      SceneView::RenderRequest request;
+      request.draw_mode = last_render_mode_;
+      request.viewport = viewport;
+      request.camera = last_camera_;
+      scene_view_->Render(renderer_, request);
 
       if (gui_view_ && gui_swap_chain_target_ == kWindowSwapChain) {
         gui_view_->Render(renderer_);
@@ -240,7 +248,12 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (rgb) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
-      scene_view_->Render(renderer_, last_render_mode_, color_target_.get());
+      SceneView::RenderRequest request;
+      request.draw_mode = last_render_mode_;
+      request.viewport = viewport;
+      request.target = color_target_.get();
+      request.camera = last_camera_;
+      scene_view_->Render(renderer_, request);
 
       // Render the GUI to the texture as well if requested.
       if (gui_view_ && gui_swap_chain_target_ == kOffscreenSwapChain) {
@@ -256,8 +269,12 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (depth) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
-      scene_view_->Render(renderer_, SceneView::DrawMode::kDepth,
-                          depth_target_.get());
+      SceneView::RenderRequest request;
+      request.draw_mode = SceneView::DrawMode::kDepth;
+      request.viewport = viewport;
+      request.target = depth_target_.get();
+      request.camera = last_camera_;
+      scene_view_->Render(renderer_, request);
 
       const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
       ReadDepthPixels(renderer_, depth_target_.get(), viewport, depth,
@@ -276,24 +293,24 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 }
 
 void FilamentContext::UploadMesh(const mjModel* model, int id) {
-  if (!scene_view_) {
-    mju_error("SceneView is not initialized.");
+  if (!scene_bridge_) {
+    mju_error("SceneBridge is not initialized.");
   }
-  scene_view_->UploadMesh(model, id);
+  scene_bridge_->UploadMesh(model, id);
 }
 
 void FilamentContext::UploadTexture(const mjModel* model, int id) {
-  if (!scene_view_) {
-    mju_error("SceneView is not initialized.");
+  if (!scene_bridge_) {
+    mju_error("SceneBridge is not initialized.");
   }
-  scene_view_->UploadTexture(model, id);
+  scene_bridge_->UploadTexture(model, id);
 }
 
 void FilamentContext::UploadHeightField(const mjModel* model, int id) {
-  if (!scene_view_) {
-    mju_error("SceneView is not initialized.");
+  if (!scene_bridge_) {
+    mju_error("SceneBridge is not initialized.");
   }
-  scene_view_->UploadHeightField(model, id);
+  scene_bridge_->UploadHeightField(model, id);
 }
 
 uintptr_t FilamentContext::UploadGuiImage(uintptr_t tex_id,
@@ -315,6 +332,6 @@ double FilamentContext::GetFrameRate() const {
   return 1.0e9 / static_cast<double>(ns);
 }
 
-void FilamentContext::UpdateGui() { DrawGui(scene_view_.get()); }
+void FilamentContext::UpdateGui() { DrawGui(scene_bridge_.get()); }
 
 }  // namespace mujoco

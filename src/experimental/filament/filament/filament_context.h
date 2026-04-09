@@ -27,6 +27,7 @@
 #include "experimental/filament/filament/gui_view.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/scene_bridge.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/render_context_filament.h"
 
@@ -80,12 +81,14 @@ class FilamentContext {
   std::unique_ptr<filament::backend::Platform> platform_;
 
   SceneView::DrawMode last_render_mode_ = SceneView::DrawMode::kNormal;
+  mjvGLCamera last_camera_;
   SwapChainType scene_swap_chain_target_ = kWindowSwapChain;
   SwapChainType gui_swap_chain_target_ = kWindowSwapChain;
   std::unique_ptr<RenderTarget> color_target_;
   std::unique_ptr<RenderTarget> depth_target_;
   std::unique_ptr<ObjectManager> object_manager_;
   std::unique_ptr<SceneView> scene_view_;
+  std::unique_ptr<SceneBridge> scene_bridge_;
   std::unique_ptr<GuiView> gui_view_;
   int window_width_ = 0;
   int window_height_ = 0;

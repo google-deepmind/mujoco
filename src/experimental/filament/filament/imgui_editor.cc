@@ -35,6 +35,7 @@
 #include <math/scalar.h>
 #include <math/vec3.h>
 #include "experimental/filament/filament/color_grading_options.h"
+#include "experimental/filament/filament/scene_bridge.h"
 #include "experimental/filament/filament/scene_view.h"
 
 namespace mujoco {
@@ -560,7 +561,7 @@ void DrawCameraGui(SceneView* scene_view) {
   Ui("Direction", &direction);
 }
 
-void DrawIndirectLightGui(SceneView* scene_view) {
+void DrawIndirectLightGui(SceneBridge* scene_bridge, SceneView* scene_view) {
   filament::View* view = scene_view->GetDefaultRenderView();
   auto ibl = view->getScene()->getIndirectLight();
 
@@ -575,7 +576,7 @@ void DrawIndirectLightGui(SceneView* scene_view) {
   static char filename[256];
   ImGui::InputText("Filename", filename, sizeof(filename));
   if (ImGui::Button("Load")) {
-    scene_view->SetEnvironmentLight(filename, intensity);
+    scene_bridge->SetEnvironmentLight(filename, intensity);
   }
 }
 
@@ -649,7 +650,8 @@ void DrawLightGui(filament::LightManager& lm,
   }
 }
 
-void DrawGui(SceneView* scene_view) {
+void DrawGui(SceneBridge* scene_bridge) {
+  SceneView* scene_view = scene_bridge->GetSceneView();
   filament::View* view = scene_view->GetDefaultRenderView();
   filament::Engine* engine = scene_view->GetEngine();
   filament::LightManager& lm = engine->getLightManager();
@@ -716,7 +718,7 @@ void DrawGui(SceneView* scene_view) {
   }
   if (ImGui::TreeNodeEx("Lights")) {
     if (ImGui::TreeNodeEx("Indirect (Image-based) Light")) {
-      DrawIndirectLightGui(scene_view);
+      DrawIndirectLightGui(scene_bridge, scene_view);
       ImGui::TreePop();
     }
     view->getScene()->forEach([&](utils::Entity entity) {

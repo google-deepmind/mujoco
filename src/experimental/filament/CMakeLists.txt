@@ -54,6 +54,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/render_target.h
         filament/renderables.cc
         filament/renderables.h
+        filament/scene_bridge.cc
+        filament/scene_bridge.h
         filament/scene_view.cc
         filament/scene_view.h
         filament/texture.cc
