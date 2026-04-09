@@ -19,45 +19,35 @@
 #include <filament/MaterialInstance.h>
 #include <filament/RenderableManager.h>
 #include <filament/TextureSampler.h>
-#include <mujoco/mjmodel.h>
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
-Material::Material(ObjectManager* object_mgr) : object_mgr_(object_mgr) {
-  instances_[kDepth] =
-      object_mgr_->GetMaterial(ObjectManager::kUnlitDepth)->createInstance();
-  instances_[kSegmentation] =
-      object_mgr_->GetMaterial(ObjectManager::kUnlitSegmentation)
-          ->createInstance();
+Material::Material(filament::Engine* engine)
+    : engine_(engine) {
 }
 
 Material::~Material() noexcept {
-  filament::Engine* engine = object_mgr_->GetEngine();
   for (int i = 0; i < kNumDrawModes; ++i) {
     if (instances_[i]) {
-      engine->destroy(instances_[i]);
+      engine_->destroy(instances_[i]);
     }
   }
 }
 
-void Material::SetNormalMaterialType(
-    ObjectManager::MaterialType material_type) {
-  filament::Material* material = object_mgr_->GetMaterial(material_type);
-
-  if (instances_[kNormal]) {
+void Material::SetMaterial(DrawMode mode, filament::Material* material) {
+  if (instances_[mode]) {
     const filament::Material* current_material =
-        instances_[kNormal]->getMaterial();
+        instances_[mode]->getMaterial();
     if (current_material == material) {
       return;
     }
 
-    object_mgr_->GetEngine()->destroy(instances_[kNormal]);
-    instances_[kNormal] = nullptr;
+    engine_->destroy(instances_[mode]);
+    instances_[mode] = nullptr;
   }
   if (material) {
-    instances_[kNormal] = material->createInstance();
+    instances_[mode] = material->createInstance();
     UpdateMaterialInstances();
   }
 }
@@ -72,9 +62,8 @@ void Material::UpdateTextures(const Textures& textures) {
   UpdateMaterialInstances();
 }
 
-void Material::UpdateReflectionTexture(const Texture* tex) {
-  textures_.reflection = tex;
-  UpdateMaterialInstances();
+void Material::SetFallbackTextures(const Textures* fallback_textures) {
+  fallback_textures_ = fallback_textures;
 }
 
 void Material::UpdateMaterialInstances() {
@@ -130,25 +119,32 @@ void Material::UpdateMaterialInstances() {
       filament::TextureSampler::MinFilter::LINEAR_MIPMAP_LINEAR);
 
   auto TrySetTexture = [&](const char* name, const Texture* texture,
-                        mjtTextureRole role) {
+                           const Texture* fallback) {
     if (material->hasParameter(name)) {
       if (texture) {
         instance->setParameter(name, texture->GetFilamentTexture(), sampler);
-      } else {
-        auto* fallback = object_mgr_->GetFallbackTexture(role);
+      } else if (fallback) {
         instance->setParameter(name, fallback->GetFilamentTexture(), sampler);
       }
     }
   };
 
-  TrySetTexture("BaseColor", textures_.color, mjTEXROLE_RGB);
-  TrySetTexture("Normal", textures_.normal, mjTEXROLE_NORMAL);
-  TrySetTexture("Metallic", textures_.metallic, mjTEXROLE_METALLIC);
-  TrySetTexture("Roughness", textures_.roughness, mjTEXROLE_ROUGHNESS);
-  TrySetTexture("Occlusion", textures_.occlusion, mjTEXROLE_OCCLUSION);
-  TrySetTexture("ORM", textures_.orm, mjTEXROLE_ORM);
-  TrySetTexture("Emissive", textures_.emissive, mjTEXROLE_EMISSIVE);
-  TrySetTexture("Reflection", textures_.reflection, mjTEXROLE_USER);
+  TrySetTexture("BaseColor", textures_.color,
+                fallback_textures_ ? fallback_textures_->color : nullptr);
+  TrySetTexture("Normal", textures_.normal,
+                fallback_textures_ ? fallback_textures_->normal : nullptr);
+  TrySetTexture("Metallic", textures_.metallic,
+                fallback_textures_ ? fallback_textures_->metallic : nullptr);
+  TrySetTexture("Roughness", textures_.roughness,
+                fallback_textures_ ? fallback_textures_->roughness : nullptr);
+  TrySetTexture("Occlusion", textures_.occlusion,
+                fallback_textures_ ? fallback_textures_->occlusion : nullptr);
+  TrySetTexture("ORM", textures_.orm,
+                fallback_textures_ ? fallback_textures_->orm : nullptr);
+  TrySetTexture("Emissive", textures_.emissive,
+                fallback_textures_ ? fallback_textures_->emissive : nullptr);
+  TrySetTexture("Reflection", textures_.reflection,
+                fallback_textures_ ? fallback_textures_->reflection : nullptr);
 }
 
 }  // namespace mujoco

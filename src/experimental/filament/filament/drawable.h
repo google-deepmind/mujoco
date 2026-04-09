@@ -34,7 +34,7 @@ namespace mujoco {
 class Drawable {
  public:
   Drawable(ObjectManager* object_mgr, ModelObjects* model_objects,
-           const mjvGeom& geom);
+           const mjvGeom& geom, const Material::Textures* fallback_textures);
   ~Drawable() noexcept = default;
 
   Drawable(const Drawable&) = delete;
@@ -79,12 +79,16 @@ class Drawable {
   // Updates the transform of the drawable for rendering.
   void SetTransform(const mjvGeom& geom);
 
+  // Sets the material for the drawable.
+  void SetNormalMaterial(ObjectManager::MaterialType material_type);
+
   // Updates the material parameters of the drawable for rendering.
   void UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
                       bool enable_reflection, const mjtNum* headpos);
 
   Material material_;
   ModelObjects* model_objs_ = nullptr;
+  ObjectManager* object_mgr_ = nullptr;
   Renderables renderables_;
   bool reflective_ = false;
   filament::math::mat4 transform_;

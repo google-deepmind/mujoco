@@ -20,7 +20,6 @@
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
@@ -65,24 +64,29 @@ class Material {
     bool tex_uniform = false;
   };
 
-  Material(ObjectManager* object_mgr);
+  explicit Material(filament::Engine* engine);
   ~Material() noexcept;
 
   Material(const Material&) = delete;
   Material& operator=(const Material&) = delete;
 
   // Assigns a material to the draw mode.
-  void SetNormalMaterialType(ObjectManager::MaterialType material_type);
+  void SetMaterial(DrawMode mode, filament::Material* material);
 
-  // Updates the material parameters of the drawable for rendering.
+  // Sets the fallback textures for the material.
+  void SetFallbackTextures(const Textures* fallback_textures);
+
+  // Updates the parameters for the material.
   void UpdateParams(const Params& params);
 
-  // Updates the material textures of the drawable for rendering.
+  // Updates the textures for the material.
   void UpdateTextures(const Textures& textures);
 
-  // Update the reflection texture. We do this separately since the reflection
-  // texture needs to be rendered before it can be applied to the material.
-  void UpdateReflectionTexture(const Texture* tex);
+  // Returns the current material parameters.
+  const Params& GetParams() const { return params_; }
+
+  // Returns the current material textures.
+  const Textures& GetTextures() const { return textures_; }
 
   // Returns the material instance assigned to the draw mode.
   filament::MaterialInstance* GetMaterialInstance(DrawMode mode) {
@@ -94,8 +98,9 @@ class Material {
   // textures.
   void UpdateMaterialInstances();
 
-  ObjectManager* object_mgr_ = nullptr;
+  filament::Engine* engine_ = nullptr;
   filament::MaterialInstance* instances_[kNumDrawModes] = {nullptr};
+  const Textures* fallback_textures_ = nullptr;
   Params params_;
   Textures textures_;
 };

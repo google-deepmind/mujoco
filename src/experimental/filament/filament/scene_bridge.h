@@ -26,6 +26,7 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/drawable.h"
 #include "experimental/filament/filament/light.h"
+#include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/scene_view.h"
@@ -78,6 +79,7 @@ class SceneBridge {
   float fallback_head_light_intensity_ = 0.f;
   float fallback_scene_light_intensity_ = 80'000.f;
   float fallback_environment_light_intensity_ = 5'000.f;
+  Material::Textures fallback_textures_;
 };
 
 }  // namespace mujoco

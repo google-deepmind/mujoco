@@ -139,6 +139,15 @@ SceneBridge::SceneBridge(ObjectManager* object_mgr, const mjModel* model,
       ReadElement(model, "filament.fallback.environment_light_intensity",
                   fallback_environment_light_intensity_);
 
+  fallback_textures_.color = object_mgr_->GetFallbackTexture(mjTEXROLE_RGB);
+  fallback_textures_.normal = object_mgr_->GetFallbackTexture(mjTEXROLE_NORMAL);
+  fallback_textures_.metallic = object_mgr_->GetFallbackTexture(mjTEXROLE_METALLIC);
+  fallback_textures_.roughness = object_mgr_->GetFallbackTexture(mjTEXROLE_ROUGHNESS);
+  fallback_textures_.occlusion = object_mgr_->GetFallbackTexture(mjTEXROLE_OCCLUSION);
+  fallback_textures_.orm = object_mgr_->GetFallbackTexture(mjTEXROLE_ORM);
+  fallback_textures_.emissive = object_mgr_->GetFallbackTexture(mjTEXROLE_EMISSIVE);
+  fallback_textures_.reflection = object_mgr_->GetFallbackTexture(mjTEXROLE_USER);
+
   // Create an empty/black indirect light to ensure that the skybox is oriented
   // to respect mujoco's Z-up convention.
   filament::IndirectLight* empty_ibl =
@@ -313,8 +322,8 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       }
     }
 
-    auto drawable =
-        std::make_unique<Drawable>(object_mgr_, model_objects_.get(), *geom);
+    auto drawable = std::make_unique<Drawable>(
+        object_mgr_, model_objects_.get(), *geom, &fallback_textures_);
     drawable->Update(model_objects_->GetModel(), scene, *geom);
     scene_view_->AddToScene(drawable.get());
     drawables_.push_back(std::move(drawable));
