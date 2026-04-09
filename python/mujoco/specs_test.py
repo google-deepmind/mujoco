@@ -979,7 +979,6 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(mesh.plugin.name, 'inst')
     self.assertEqual(mesh.plugin.plugin_name, 'mujoco.sdf.torus')
 
-
   def test_duplicate_name_error(self):
     main_xml = """
     <mujoco>
@@ -1390,6 +1389,21 @@ class SpecsTest(absltest.TestCase):
     child4 = mujoco.MjSpec()
     with self.assertRaisesRegex(ValueError, 'Frame not found.'):
       parent.attach(child4, frame='invalid_frame', prefix='child3-')
+
+  def test_delete_from_attached_spec_error(self):
+    parent = mujoco.MjSpec()
+    child = mujoco.MjSpec()
+    body = child.worldbody.add_body(name='child_body')
+    geom = body.add_geom(name='child_geom')
+
+    frame = parent.worldbody.add_frame()
+    parent.attach(child, frame=frame, prefix='child_')
+
+    # Now child spec is attached. Deleting from it should raise ValueError.
+    with self.assertRaisesRegex(
+        ValueError, 'Cannot delete element from an attached mjSpec.'
+    ):
+      child.delete(geom)
 
   def test_attach_valid_child_lists(self):
     xml1 = """

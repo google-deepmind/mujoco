@@ -173,6 +173,36 @@ TEST_F(MujocoTest, TreeTraversal) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, AttachAndChildDeletion) {
+  mjSpec* child_spec = mj_makeSpec();
+  mjsBody* child_world = mjs_findBody(child_spec, "world");
+  mjsBody* child_body = mjs_addBody(child_world, 0);
+  mjsJoint* freejoint = mjs_addJoint(child_body, 0);
+  freejoint->type = mjJNT_FREE;
+  mjs_setName(freejoint->element, "child_freejoint");
+
+  mjSpec* parent_spec = mj_makeSpec();
+  mjsBody* parent_world = mjs_findBody(parent_spec, "world");
+  mjsBody* parent_body = mjs_addBody(parent_world, 0);
+
+  // Attach child spec to parent_body
+  mjsElement* attached =
+      mjs_attach(parent_body->element, child_spec->element, "pre_", "");
+  ASSERT_THAT(attached, NotNull());
+
+  // Delete freejoint from child_spec, should fail because it is attached
+  int result = mjs_delete(child_spec, freejoint->element);
+  EXPECT_EQ(result, -1);
+
+  // The freejoint should still be in parent_spec because deletion failed
+  mjsElement* found_joint =
+      mjs_findElement(parent_spec, mjOBJ_JOINT, "pre_child_freejoint");
+  EXPECT_THAT(found_joint, NotNull());
+
+  mj_deleteSpec(child_spec);
+  mj_deleteSpec(parent_spec);
+}
+
 TEST_F(MujocoTest, ActivatePlugin) {
   mjSpec* spec = mj_makeSpec();
   mjs_activatePlugin(spec, "mujoco.elasticity.cable");

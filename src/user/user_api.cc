@@ -474,8 +474,12 @@ int mj_copyBack(mjSpec* s, const mjModel* m) {
 // remove body from mjSpec, return 0 on success
 int mjs_delete(mjSpec* s, mjsElement* element) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
+  if (model->IsAttached()) {
+    model->SetError(mjCError(nullptr, "Cannot delete element from an attached mjSpec."));
+    return -1;
+  }
   if (!element) {
-    model->SetError(mjCError(0, "Element is null."));
+    model->SetError(mjCError(nullptr, "Element is null."));
     return -1;
   }
   try {
