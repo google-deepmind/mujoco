@@ -10823,7 +10823,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='saturation',
                  type=ArrayType(
                      inner_type=ValueType(name='double'),
-                     extents=(4,),
+                     extents=(3,),
                  ),
                  nullable=True,
              ),
@@ -10847,7 +10847,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='controller',
                  type=ArrayType(
                      inner_type=ValueType(name='double'),
-                     extents=(5,),
+                     extents=(6,),
                  ),
                  nullable=True,
              ),
@@ -10863,7 +10863,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='lugre',
                  type=ArrayType(
                      inner_type=ValueType(name='double'),
-                     extents=(6,),
+                     extents=(5,),
                  ),
                  nullable=True,
              ),

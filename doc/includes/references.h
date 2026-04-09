@@ -3664,9 +3664,9 @@ const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double t
                             double lmax, double vmax, double fpmax, double fvmax);
 const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
 const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
-                             double nominal[3], double saturation[4], double inductance[2],
-                             double cogging[3], double controller[5], double thermal[6],
-                             double lugre[6], int input_mode);
+                             double nominal[3], double saturation[3], double inductance[2],
+                             double cogging[3], double controller[6], double thermal[6],
+                             double lugre[5], int input_mode);
 mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* def);
 mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);

@@ -6446,14 +6446,14 @@ This element has the following custom attributes in addition to the common attri
 
 .. _actuator-dcmotor-saturation:
 
-:at:`saturation`: :at-val:`real(4), "0 0 0 0"`
-   Limits on the actuator, defined as :at:`saturation` = ":at-val:`torque` :at-val:`current` :at-val:`voltage`
+:at:`saturation`: :at-val:`real(3), "0 0 0"`
+   Limits on the actuator, defined as :at:`saturation` = ":at-val:`torque` :at-val:`current`
    :at-val:`current_rate`". :at-val:`torque` and :at-val:`current` are alternative specifications of the maximum
    continuous torque: if :at-val:`current` is given, :at-val:`torque` :math:`= K \cdot` :at-val:`current`; if both are
    given, :at-val:`torque` takes precedence. Sets :at:`forcerange` to [:math:`-\tau_{\max},\, \tau_{\max}`].
-   :at-val:`voltage` sets the maximum voltage :math:`V_{\max}`. :at-val:`current_rate` sets the maximum rate of change
-   of current :math:`(di/dt)_{\max}` (requires :ref:`inductance<actuator-dcmotor-inductance>`). A value of 0 (the
-   default) for any sub-value disables the respective limit. (see `tech note <_static/dcmotor.pdf>`__, Section 2)
+   :at-val:`current_rate` sets the maximum rate of change of current :math:`(di/dt)_{\max}` (requires
+   :ref:`inductance<actuator-dcmotor-inductance>`). A value of 0 (the default) for any sub-value disables the respective
+   limit. (see `tech note <_static/dcmotor.pdf>`__, Section 2)
 
 .. _actuator-dcmotor-cogging:
 
@@ -6465,12 +6465,12 @@ This element has the following custom attributes in addition to the common attri
 
 .. _actuator-dcmotor-lugre:
 
-:at:`lugre`: :at-val:`real(6), "0 0 0 0 0 0"`
-   LuGre friction, defined as :at:`lugre` = ":at-val:`stiffness` :at-val:`damping` :at-val:`viscous` :at-val:`coulomb`
-   :at-val:`static` :at-val:`stribeck`" (N·m/rad, N·m·s/rad, N·m·s/rad, N·m, N·m, rad/s). Disabled when
+:at:`lugre`: :at-val:`real(5), "0 0 0 0 0"`
+   LuGre friction, defined as :at:`lugre` = ":at-val:`stiffness` :at-val:`damping` :at-val:`coulomb`
+   :at-val:`static` :at-val:`stribeck`" (N·m/rad, N·m·s/rad, N·m, N·m, rad/s). Disabled when
    :at-val:`stiffness` = 0 (the default). Adds one activation variable for bristle deflection. Note that the
-   :at-val:`viscous` coefficient is mapped directly to the actuator :ref:`damping<actuator-general-damping>` array
-   (specifically the linear term, :at-val:`damping[0]`). If both are specified, their values are summed.
+   viscous damping coefficient :math:`\sigma_2` is not part of the :at:`lugre` attribute and should be
+   added to the standard actuator :ref:`damping<actuator-general-damping>` attribute.
    (see `tech note <_static/dcmotor.pdf>`__, Sections 1.4 and 2.4)
 
 .. _actuator-dcmotor-input:
@@ -6482,12 +6482,15 @@ This element has the following custom attributes in addition to the common attri
 
 .. _actuator-dcmotor-controller:
 
-:at:`controller`: :at-val:`real(5), "0 0 0 0 0"`
+:at:`controller`: :at-val:`real(6), "0 0 0 0 0 0"`
    PID controller parameters, defined as :at:`controller` = ":at-val:`kp` :at-val:`ki` :at-val:`kd`
-   :at-val:`slewmax` :at-val:`Imax`". Depending on the :at:`input` mode, the controller stabilizes either position or
-   velocity. If the :at:`input` mode is voltage, this attribute is ignored. A value of 0 (the default) disables the
-   respective feature: :at-val:`slewmax` = 0 means no slew-rate limiting, :at-val:`Imax` = 0 means no anti-windup
-   clamping. (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
+   :at-val:`slewmax` :at-val:`Imax` :at-val:`Vmax`". Depending on the :at:`input` mode, the controller stabilizes
+   either position or velocity. If the :at:`input` mode is voltage, :at-val:`kp`, :at-val:`ki`, :at-val:`kd` are
+   ignored. :at-val:`Vmax` sets the maximum drive voltage :math:`v_{\max}` (Volt); in position/velocity modes it clamps
+   the controller output, in voltage mode it clamps the control signal (if :at:`ctrlrange` is also set, the tighter
+   limit wins). A value of 0 (the default) disables the respective feature. When positive, :at-val:`slewmax` limits the
+   setpoint rate-of-change, :at-val:`Imax` clamps the integrator state (anti-windup), and :at-val:`Vmax` clamps the
+   drive voltage. (see `tech note <_static/dcmotor.pdf>`__, Section 2.5)
 
 .. _actuator-plugin:
 

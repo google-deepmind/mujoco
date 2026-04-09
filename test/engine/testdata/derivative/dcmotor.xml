@@ -30,6 +30,6 @@
 
     <!-- DC motor with LuGre friction (sigma1 micro-damping) -->
     <dcmotor name="dc_lugre" joint="joint4" motorconst="0.05" resistance="2.0"
-             lugre="1e4 100 0.001 0.005 0.008 0.1"/>
+             damping="0.001" lugre="1e4 100 0.005 0.008 0.1"/>
   </actuator>
 </mujoco>

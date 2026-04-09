@@ -3108,7 +3108,55 @@ TEST_F(ActuatorParseTest, DCMotorSaturation) {
   mj_deleteModel(model);
 }
 
-TEST_F(ActuatorParseTest, DCMotorLuGreRemapping) {
+
+TEST_F(ActuatorParseTest, DCMotorInheritedDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <dcmotor motorconst="1.0" resistance="1.0" controller="2.0 0.5 0.1 10.0 5.0 12.0"
+      saturation="0 0 0" inductance="0 0.01" input="velocity"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // check motorconst and resistance are overridden by instance
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[1], 0.05);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[0], 2.0);
+
+  // check controller gains (kp, ki, kd) in gainprm[4:6]
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[4], 2.0);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[5], 0.5);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[6], 0.1);
+
+  // check controller limits (slewmax, Imax) in dynprm[7,8]
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[7], 10.0);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[8], 5.0);
+
+  // check Vmax in gainprm[7]
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[7], 12.0);
+
+  // check input mode in gainprm[8]
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[8], 2.0);
+
+  // check inductance (te) in dynprm[0]
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[0], 0.01);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorControllerFull) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -3119,7 +3167,36 @@ TEST_F(ActuatorParseTest, DCMotorLuGreRemapping) {
     </worldbody>
     <actuator>
       <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
-               lugre="100 1 0.01 0.5 0.7 10"/>
+               controller="1.0 2.0 3.0 4.0 5.0 6.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[4], 1.0);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[5], 2.0);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[6], 3.0);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[7], 4.0);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[8], 5.0);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[7], 6.0);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorLuGreRemapping) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0" damping="0.01"
+               lugre="100 1 0.5 0.7 10"/>
     </actuator>
   </mujoco>
   )";
@@ -3132,6 +3209,30 @@ TEST_F(ActuatorParseTest, DCMotorLuGreRemapping) {
   EXPECT_MJTNUM_EQ(model->actuator_biasprm[3], 0.5);
   EXPECT_MJTNUM_EQ(model->actuator_biasprm[4], 0.7);
   EXPECT_MJTNUM_EQ(model->actuator_biasprm[5], 10);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorLuGreInheritedDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <dcmotor motorconst="0.05" resistance="2.0" damping="0.01" lugre="100 1 0.5 0.7 10"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_MJTNUM_EQ(model->actuator_damping[0], 0.01);
   mj_deleteModel(model);
 }
 
@@ -3216,7 +3317,7 @@ TEST_F(ActuatorParseTest, DCMotorActdimLuGreOnly) {
     </worldbody>
     <actuator>
       <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
-               lugre="100 1 0.01 0.5 0.7 10"/>
+               lugre="100 1 0.5 0.7 10"/>
     </actuator>
   </mujoco>
   )";
@@ -3241,7 +3342,7 @@ TEST_F(ActuatorParseTest, DCMotorActdimAllThree) {
       <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
                inductance="0.001 0"
                thermal="10 5 0 0 0 25"
-               lugre="100 1 0.01 0.5 0.7 10"/>
+               lugre="100 1 0.5 0.7 10"/>
     </actuator>
   </mujoco>
   )";

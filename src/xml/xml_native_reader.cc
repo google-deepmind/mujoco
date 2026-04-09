@@ -2526,14 +2526,14 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     double motorconst[2] = {inherited ? actuator->gainprm[1] : 0, 0};
     double resistance = inherited ? actuator->gainprm[0] : 0;
     double nominal[3] = {0, 0, 0};
-    double saturation[4] = {0, 0,
-                            inherited ? actuator->dynprm[1] : 0,
-                            inherited ? actuator->gainprm[8] : 0};
-    double controller[5] = {inherited ? actuator->gainprm[5] : 0,
+    double saturation[3] = {0, 0,
+                            inherited ? actuator->dynprm[1] : 0};
+    double controller[6] = {inherited ? actuator->gainprm[4] : 0,
+                            inherited ? actuator->gainprm[5] : 0,
                             inherited ? actuator->gainprm[6] : 0,
-                            inherited ? actuator->gainprm[7] : 0,
                             inherited ? actuator->dynprm[7] : 0,
-                            inherited ? actuator->dynprm[8] : 0};
+                            inherited ? actuator->dynprm[8] : 0,
+                            inherited ? actuator->gainprm[7] : 0};
     double inductance[2] = {0, inherited ? actuator->dynprm[0] : 0};
     double cogging[3] = {inherited ? actuator->biasprm[0] : 0,
                          inherited ? actuator->biasprm[1] : 0,
@@ -2544,22 +2544,21 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
                          inherited ? actuator->gainprm[2] : 0,
                          inherited ? actuator->gainprm[3] : 0,
                          inherited ? actuator->dynprm[4] : 0};
-    double lugre[6] = {inherited ? actuator->dynprm[5] : 0,
+    double lugre[5] = {inherited ? actuator->dynprm[5] : 0,
                        inherited ? actuator->dynprm[6] : 0,
-                       inherited ? actuator->damping[0] : 0,
                        inherited ? actuator->biasprm[3] : 0,
                        inherited ? actuator->biasprm[4] : 0,
                        inherited ? actuator->biasprm[5] : 0};
-    int input_mode = inherited ? (int)actuator->gainprm[9] : 0;
+    int input_mode = inherited ? (int)actuator->gainprm[8] : 0;
     ReadAttr(elem, "motorconst", 2, motorconst, text, false, false);
     ReadAttr(elem, "resistance", 1, &resistance, text);
     ReadAttr(elem, "nominal", 3, nominal, text, false, false);
-    ReadAttr(elem, "saturation", 4, saturation, text, false, false);
+    ReadAttr(elem, "saturation", 3, saturation, text, false, false);
     ReadAttr(elem, "inductance", 2, inductance, text, false, false);
     ReadAttr(elem, "cogging", 3, cogging, text, false, false);
-    ReadAttr(elem, "controller", 5, controller, text, false, false);
+    ReadAttr(elem, "controller", 6, controller, text, false, false);
     ReadAttr(elem, "thermal", 6, thermal, text, false, false);
-    ReadAttr(elem, "lugre", 6, lugre, text, false, false);
+    ReadAttr(elem, "lugre", 5, lugre, text, false, false);
     if (MapValue(elem, "input", &input_mode, dcmotorinput_map, dcmotorinput_sz)) {
       // successfully parsed
     }

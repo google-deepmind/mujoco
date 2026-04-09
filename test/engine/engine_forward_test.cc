@@ -1416,7 +1416,7 @@ TEST_F(DCMotorTest, LuGreViscousFriction) {
     </worldbody>
     <actuator>
       <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
-               lugre="100 1 0.01 0.5 0.7 10"/>
+               damping="0.01" lugre="100 1 0.5 0.7 10"/>
     </actuator>
   </mujoco>
   )";
@@ -1929,7 +1929,7 @@ TEST_F(DCMotorTest, CurrentRateLimit) {
     </worldbody>
     <actuator>
       <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
-               inductance="0.01 0" saturation="0 0 100 0"/>
+               inductance="0.01 0" saturation="0 0 100"/>
     </actuator>
   </mujoco>
   )";
@@ -1963,6 +1963,106 @@ TEST_F(DCMotorTest, CurrentRateLimit) {
   mj_deleteModel(model);
 }
 
+
+TEST_F(DCMotorTest, VoltageLimit) {
+  // verifies that saturation:voltage clamps voltage
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
+               input="position" controller="1 0 0 0 0 10.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // Vmax = 10.0, ctrl = 20.0
+  // force = K/R * Vmax = 0.05 / 2.0 * 10.0 = 0.25
+  data->ctrl[0] = 20.0;
+  mj_forward(model, data);
+
+  EXPECT_NEAR(data->actuator_force[0], 0.25, MjTol(1e-12, 1e-5));
+
+  // negative drive
+  data->ctrl[0] = -20.0;
+  mj_forward(model, data);
+
+  EXPECT_NEAR(data->actuator_force[0], -0.25, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+
+TEST_F(DCMotorTest, IntegralClamp) {
+  // verifies that controller Imax clamps integral state
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.001"/>
+    <worldbody>
+      <body>
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="joint" input="position" controller="2.0 0.5 0 0 5.0"
+               motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // Imax = 5.0
+  ASSERT_EQ(model->actuator_actnum[0], 1);  // only ki is stateful
+  int adr = model->actuator_actadr[0];
+
+  // set integral state to Imax
+  data->act[adr] = 5.0;
+
+  // set target to generate positive error (ctrl - length)
+  data->ctrl[0] = 1.0;  // target
+  data->qpos[0] = 0.0;  // length = 0
+
+  mj_forward(model, data);
+
+  // act_dot should be clamped to 0 because act >= Imax and error > 0
+  EXPECT_NEAR(data->act_dot[adr], 0.0, MjTol(1e-12, 1e-5));
+
+  // set target to generate negative error
+  data->ctrl[0] = -1.0;
+  mj_forward(model, data);
+
+  // act_dot should be negative (not clamped)
+  EXPECT_NEAR(data->act_dot[adr], -1.0, MjTol(1e-12, 1e-5));
+
+  // set integral state to -Imax
+  data->act[adr] = -5.0;
+
+  // set target to generate negative error
+  data->ctrl[0] = -1.0;
+  data->qpos[0] = 0.0;
+  mj_forward(model, data);
+
+  // act_dot should be clamped to 0 because act <= -Imax and error < 0
+  EXPECT_NEAR(data->act_dot[adr], 0.0, MjTol(1e-12, 1e-5));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 TEST_F(DCMotorTest, LuGreExactIntegration) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1975,7 +2075,7 @@ TEST_F(DCMotorTest, LuGreExactIntegration) {
     </worldbody>
     <actuator>
       <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
-               lugre="100 1 0.01 0.5 0.7 10"/>
+               damping="0.01" lugre="100 1 0.5 0.7 10"/>
     </actuator>
   </mujoco>
   )";
@@ -2021,7 +2121,7 @@ TEST_F(DCMotorTest, LuGreSteadyState) {
     </worldbody>
     <actuator>
       <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
-               lugre="100 1 0.01 0.5 0.7 10"/>
+               damping="0.01" lugre="100 1 0.5 0.7 10"/>
     </actuator>
   </mujoco>
   )";
@@ -2068,7 +2168,7 @@ TEST_F(DCMotorTest, LuGreBristleSpring) {
     </worldbody>
     <actuator>
       <dcmotor joint="joint" motorconst="0.05" resistance="2.0"
-               lugre="100 1 0.01 0.5 0.7 10"/>
+               damping="0.01" lugre="100 1 0.5 0.7 10"/>
     </actuator>
   </mujoco>
   )";

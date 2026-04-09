@@ -81,7 +81,7 @@
 \newcommand{\atNLS}{\texttt{nominal:no\_load\_speed}}
 \newcommand{\atTMAX}{\texttt{saturation:torque}}
 \newcommand{\atIMAX}{\texttt{saturation:current}}
-\newcommand{\atVMAX}{\texttt{saturation:voltage}}
+\newcommand{\atVMAX}{\texttt{controller:Vmax}}
 \newcommand{\atCRATE}{\texttt{saturation:current\_rate}}
 \newcommand{\atKP}{\texttt{controller:kp}}
 \newcommand{\atKI}{\texttt{controller:ki}}
@@ -104,7 +104,6 @@
 \newcommand{\atTAUC}{\texttt{lugre:coulomb}}
 \newcommand{\atTAUS}{\texttt{lugre:static}}
 \newcommand{\atWS}{\texttt{lugre:stribeck}}
-\newcommand{\atSIGV}{\texttt{lugre:viscous}}
 
 \title{MuJoCo DC Motor Model}
 \author{Google DeepMind}
@@ -338,7 +337,7 @@ Motor drivers often impose a hard limit on $di/dt$ to protect windings and elect
 \subsection{Mechanical Model}
 \label{sec:mechanical}
 
-Several purely mechanical phenomena affect the motor's behavior and the effective delivered torque.
+Several purely mechanical phenomena affect the motor's behavior and delivered torque, warping the electromagnetic performance envelope.
 
 \paragraph{Mechanical losses.}
 These reduce the net torque available at the shaft: $\tau_{\text{net}} = \tau_{\text{elec}} - \tau_{\text{loss}}$.
@@ -355,7 +354,7 @@ These reduce the net torque available at the shaft: $\tau_{\text{net}} = \tau_{\
 \end{equation}
 This provides one constraint on two unknowns ($\tau_c$ and $B$). Without additional data, the user must either assume one dominates or obtain friction measurements at multiple speeds. In MuJoCo terms, $\tau_c$ maps to \texttt{frictionloss} and $B$ to \texttt{damping}.
 
-\noindent Combining current saturation with both mechanical losses, the net torque is:
+Combining current saturation with both mechanical losses, the net torque is:
 \begin{equation*}
   \tau_{\text{net}} = \text{clip}\!\left( \frac{K}{R}(v - K \, \omega),\;
     \pm K\, i_{\max} \right) - B \, \omega - \tau_c \, \text{sgn}(\omega)
@@ -485,7 +484,7 @@ where $A$ is the amplitude, $N_p$ is the number of pole pairs times the number o
 Symbol & Description & Formula / Note \\
 \midrule
 $\tau_c$ & Coulomb friction & $\tau_c\,\text{sgn}(\omega)$ \\
-$B$ & Viscous drag (linear) & $B\,\omega$ \\
+$B$ & Viscous drag (linear) & $-B\,\omega$ \\
 $\omega_0$ & No-load speed &
   $\omega_0 = v\,K / (K^2 + R\,B)$ \\
 $J_r$ & Rotor inertia & units: kg$\cdot$m$^2$ \\
@@ -496,7 +495,7 @@ $N_p$ & Cogging periodicity & poles $\times$ slots/pole \\
 $\phi$ & Cogging phase & offset \\
 \bottomrule
 \end{tabular}
-\caption{Named constants related to mechanical properties. Note that unlike in Table~\ref{tab:electromech_constants}, the non-approximate expression for $\omega_0$ takes into account the linear drag $B$ (assuming no high-order terms).}
+\caption{Named constants related to mechanical properties. Unlike in Table~\ref{tab:electromech_constants}, the non-approximate expression for $\omega_0$ takes into account the linear drag $B$ (assuming no high-order terms).}
 \label{tab:key_constants}
 \end{table}
 
@@ -795,7 +794,7 @@ Here we describe MuJoCo's \texttt{dcmotor} actuator. Some scalars are grouped in
 \begin{table}[H]
 \centering
 \footnotesize
-\begin{tabular}{@{}lll@{}}
+\begin{tabular}{@{}llp{5cm}@{}}
 \toprule
 Attribute & Size & Description \\
 \midrule
@@ -804,18 +803,18 @@ Attribute & Size & Description \\
 \texttt{nominal}    & 3 & Nominal operating point ($v_n, \tau_0, \omega_0$) \\
 \texttt{inductance} & 2 & Electrical dynamics ($L, t_e$) \\
 \texttt{thermal}    & 6 & Thermal model ($R_T, C, t_T, \alpha, T_0, T_a$) \\
-\texttt{saturation} & 4 & Limits ($\tau_{\max}, i_{\max}, v_{\max}, (di{/}dt)_{\max}$) \\
+\texttt{saturation} & 3 & Limits ($\tau_{\max}, i_{\max}, (di{/}dt)_{\max}$) \\
 \midrule
 \texttt{cogging}    & 3 & Cogging torque ($A, N_p, \phi$) \\
-\texttt{lugre}      & 6 & LuGre friction ($\sigma_0, \sigma_1, \sigma_2, \tau_c, \tau_s, \omega_s$) \\
+\texttt{lugre}      & 5 & LuGre friction ($\sigma_0, \sigma_1, \tau_c, \tau_s, \omega_s$) \\
 \texttt{damping}    & 3 & Viscous damping coefficients \\
 \texttt{armature}   & 1 & Armature inertia \\
 \midrule
 \texttt{input}      & keyword & Mode (voltage/position/velocity) \\
-\texttt{controller} & 5 & Gains and slew ($k_p, k_i, k_d, s, I_{\max}$) \\
+\texttt{controller} & 6 & Gains, slew, and voltage saturation ($k_p, k_i, k_d, s, I_{\max}, v_{\max}$) \\
 \bottomrule
 \end{tabular}
-\caption{MJCF attributes for the \texttt{dcmotor} actuator, split into electrical, mechanical and control groupings.}
+\caption{MJCF attributes for the \texttt{dcmotor} actuator, split into electrical, mechanical and controller groupings.}
 \label{tab:mjcf_attributes}
 \end{table}
 
@@ -1025,7 +1024,7 @@ Iron losses (\S\ref{sec:thermal_losses}), magnet flux derating (\S\ref{sec:magne
 
 A bristle deflection state governed by the LuGre model (\S\ref{sec:lugre}) is added if the bristle stiffness $\sigma_0 > 0$.
 
-The Stribeck function $g(\omega)$, Eq.~\eqref{eq:stribeck}, determines velocity-dependent friction, and the friction force is given by Eq.~\eqref{eq:lugre_force}. The bristle state is integrated using the exact ZOH scheme~\eqref{eq:zoh}. The viscous term $\sigma_2 \omega$ is mapped directly to the standard \texttt{actuator\_damping} attribute to leverage MuJoCo's implicit integration, while maintaining the $\sigma_2$ \texttt{lugre} sub-attribute for convenience.
+The Stribeck function $g(\omega)$, Eq.~\eqref{eq:stribeck}, determines velocity-dependent friction, and the friction force is given by Eq.~\eqref{eq:lugre_force}. The bristle state is integrated using the exact ZOH scheme~\eqref{eq:zoh}. The viscous term $\sigma_2 \omega$ is specified by via the standard \texttt{damping} attribute to leverage MuJoCo's implicit integration.
 \paragraph{Integration.}
 The bristle stiffness $\sigma_0$ is typically very large ($10^5$--$10^6$ N$\cdot$m/rad), creating a stiff ODE. At constant velocity, the state equation~\eqref{eq:lugre_state} has the form $\dot{z} = a z + b \omega$ where $a = -\sigma_0 |\omega| / g(\omega)$ and $b = 1$. Euler integration is unstable unless $|1 + a \Delta t| < 1$, requiring impractically small timesteps ($\Delta t < 2g(\omega)/(\sigma_0 |\omega|)$, on the order of microseconds).
 Under a zero-order hold assumption ($\omega$ constant over the timestep), the linear ODE $\dot{z} = az + b\omega$ can be solved exactly:
@@ -1045,7 +1044,6 @@ Attribute & Symbol & Units \\
 \midrule
 \atSIG{} & $\sigma_0$ & N$\cdot$m/rad \\
 \atSIGD{} & $\sigma_1$ & N$\cdot$m$\cdot$s/rad \\
-\atSIGV{} & $\sigma_2$ & N$\cdot$m$\cdot$s/rad \\
 \atTAUC{} & $\tau_c$ & N$\cdot$m \\
 \atTAUS{} & $\tau_s$ & N$\cdot$m \\
 \atWS{} & $\omega_s$ & rad/s \\
@@ -1081,7 +1079,7 @@ Attribute & Type & Description \\
 \label{tab:controller_attributes}
 \end{table}
 
-\noindent Unlike the motor parameters in Table~\ref{tab:datasheet}, controller gains are user-specified firmware settings. Gains are in {\em voltage-space} (e.g., $k_p$ in V/rad) since the output is a voltage $v$. To convert from physical torque-space (N$\cdot$m/rad), multiply by $R/K$.
+\noindent Unlike the motor parameters in Table~\ref{tab:datasheet}, controller gains are user-specified firmware settings with units that vary by manufacturer. MuJoCo uses direct {\em voltage-space} units (e.g., $k_p$ in V/rad). Torque-space (N$\cdot$m/rad) gains can be converted by multiplying by $R/K$, though empirical calibration is often necessary due to unknown internal units on real hardware.
 
 The controller computes a target voltage $v$ from the \texttt{ctrl} command. All motor physics --- cogging, saturation, friction, etc. --- apply identically downstream of $v$. The \texttt{input} attribute selects the controller:
 

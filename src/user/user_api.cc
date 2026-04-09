@@ -1122,9 +1122,9 @@ const char* mjs_setToAdhesion(mjsActuator* actuator, double gain) {
 
 
 const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
-                             double nominal[3], double saturation[4], double inductance[2],
-                             double cogging[3], double controller[5], double thermal[6],
-                             double lugre[6], int input_mode) {
+                             double nominal[3], double saturation[3], double inductance[2],
+                             double cogging[3], double controller[6], double thermal[6],
+                             double lugre[5], int input_mode) {
   double R      = resistance;                      // electrical resistance
   double Kt     = motorconst ? motorconst[0] : 0;  // torque constant
   double Ke     = motorconst ? motorconst[1] : 0;  // back-EMF constant
@@ -1134,9 +1134,8 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
 
   // derive Ke from nominal: omega0 = vn*Ke / (Ke^2 + R*B)
   if (vn > 0 && Ke <= 0 && omega0 > 0) {
-    // viscous damping (linear), add lugre sigma2 contribution if any
+    // viscous damping (linear)
     double B = actuator->damping[0];
-    if (lugre && lugre[0] > 0) B += lugre[2];
 
     if (B > 0 && R > 0) {
       // R known: solve quadratic Ke^2*omega0 - Ke*vn + R*B*omega0 = 0
@@ -1184,12 +1183,9 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
   actuator->dynprm[7] = controller ? controller[3] : 0;  // slewmax
   actuator->dynprm[8] = controller ? controller[4] : 0;  // Imax
 
-  // saturation: [tau_max, i_max, (di/dt)_max, v_max]
-  if (saturation && saturation[2] > 0) {
-    actuator->dynprm[1] = saturation[2];  // (di/dt)_max
-  }
-  if (saturation && saturation[3] > 0) {
-    actuator->gainprm[7] = saturation[3];  // v_max
+  // controller parameters: gainprm[7] for v_max
+  if (controller && controller[5] > 0) {
+    actuator->gainprm[7] = controller[5];  // v_max
   }
 
   // saturation -> forcerange
@@ -1201,6 +1197,11 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
     actuator->forcerange[0] = -tau_max;
     actuator->forcerange[1] = tau_max;
     actuator->forcelimited = 1;
+  }
+
+  // saturation: [tau_max, i_max, (di/dt)_max]
+  if (saturation && saturation[2] > 0) {
+    actuator->dynprm[1] = saturation[2];  // (di/dt)_max
   }
 
   // cogging: [amplitude, periodicity, phase] -> biasprm[0:3]
@@ -1258,14 +1259,13 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
     actdim++;
   }
 
-  // lugre: {stiffness, damping, viscous, coulomb, static, stribeck}
+  // lugre: {stiffness, damping, coulomb, static, stribeck}
   if (lugre && lugre[0] > 0) {
     actuator->dynprm[5] = lugre[0];    // stiffness -> sigma0
     actuator->dynprm[6] = lugre[1];    // damping   -> sigma1
-    actuator->damping[0] += lugre[2];  // viscous   -> sigma2
-    actuator->biasprm[3] = lugre[3];   // coulomb   -> tau_c
-    actuator->biasprm[4] = lugre[4];   // static    -> tau_s
-    actuator->biasprm[5] = lugre[5];   // stribeck  -> omega_s
+    actuator->biasprm[3] = lugre[2];   // coulomb   -> tau_c
+    actuator->biasprm[4] = lugre[3];   // static    -> tau_s
+    actuator->biasprm[5] = lugre[4];   // stribeck  -> omega_s
     actdim++;
   }
 
