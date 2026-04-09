@@ -31,20 +31,20 @@ def generate_usd_trajectory(local_args):
   # create an instance of the USDExporter
   exp = exporter.USDExporter(
       model=m,
-      output_directory_name=pathlib.Path(local_args.model_path).stem,
+      output_directory=pathlib.Path(local_args.model_path).stem,
       output_directory_root=local_args.output_directory_root,
       camera_names=local_args.camera_names,
   )
+
+  cam = mujoco.MjvCamera()
 
   # step through the simulation for the given duration of time
   while d.time < local_args.duration:
     mujoco.mj_step(m, d)
     if exp.frame_count < d.time * local_args.framerate:
-      exp.update_scene(data=d)
+      exp.update_scene(data=d, camera=cam)
 
-  exp.add_light(pos=(0, 0, 0),
-                intensity=2000,
-                light_type='dome')
+  exp.add_light(pos=(0, 0, 0), intensity=2000, light_type='dome')
 
   exp.save_scene(filetype=local_args.export_extension)
 
@@ -79,10 +79,7 @@ if __name__ == '__main__':
   )
 
   parser.add_argument(
-      '--camera_names',
-      type=str,
-      nargs='+',
-      help='cameras to include in usd'
+      '--camera_names', type=str, nargs='+', help='cameras to include in usd'
   )
 
   parser.add_argument(
