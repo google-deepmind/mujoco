@@ -46,7 +46,6 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _forward_shim(
     # Model
@@ -1499,10 +1498,10 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_shellnum,
       m._impl.flex_stiffness,
       m._impl.flex_vert,
-      m._impl.flex_vertadr,
+      m.flex_vertadr,
       m._impl.flex_vertbodyid,
       m._impl.flex_vertflexid,
-      m._impl.flex_vertnum,
+      m.flex_vertnum,
       m._impl.flexedge_J_colind,
       m._impl.flexedge_J_rowadr,
       m._impl.flexedge_J_rownnz,
@@ -1596,7 +1595,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.nbranch,
       m.ncam,
       m.neq,
-      m._impl.nflex,
+      m.nflex,
       m._impl.nflexedge,
       m._impl.nflexelem,
       m._impl.nflexshelldata,
@@ -3444,10 +3443,10 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_shellnum,
       m._impl.flex_stiffness,
       m._impl.flex_vert,
-      m._impl.flex_vertadr,
+      m.flex_vertadr,
       m._impl.flex_vertbodyid,
       m._impl.flex_vertflexid,
-      m._impl.flex_vertnum,
+      m.flex_vertnum,
       m._impl.flexedge_J_colind,
       m._impl.flexedge_J_rowadr,
       m._impl.flexedge_J_rownnz,
@@ -3542,7 +3541,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.nbranch,
       m.ncam,
       m.neq,
-      m._impl.nflex,
+      m.nflex,
       m._impl.nflexedge,
       m._impl.nflexelem,
       m._impl.nflexshelldata,

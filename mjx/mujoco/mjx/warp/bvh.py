@@ -48,7 +48,6 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _refit_bvh_shim(
     # Model
@@ -134,12 +133,12 @@ def _refit_bvh_jax_impl(
       m._impl.flex_radius,
       m._impl.flex_shell,
       m._impl.flex_shelldataadr,
-      m._impl.flex_vertadr,
-      m._impl.flex_vertnum,
+      m.flex_vertadr,
+      m.flex_vertnum,
       m.geom_dataid,
       m.geom_size,
       m.geom_type,
-      m._impl.nflex,
+      m.nflex,
       m._impl.nflexelem,
       d._impl.flexvert_xpos,
       d.geom_xmat,

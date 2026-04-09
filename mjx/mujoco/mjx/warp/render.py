@@ -48,7 +48,6 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _render_shim(
     # Model
@@ -164,7 +163,7 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
       m.cam_sensorsize,
       m._impl.flex_edge,
       m._impl.flex_radius,
-      m._impl.flex_vertadr,
+      m.flex_vertadr,
       m.geom_dataid,
       m.geom_matid,
       m.geom_rgba,

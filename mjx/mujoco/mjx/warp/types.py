@@ -165,10 +165,8 @@ class ModelWarp(PyTreeNode):
   flex_shellnum: np.ndarray
   flex_stiffness: np.ndarray
   flex_vert: np.ndarray
-  flex_vertadr: np.ndarray
   flex_vertbodyid: np.ndarray
   flex_vertflexid: np.ndarray
-  flex_vertnum: np.ndarray
   flexedge_J_colind: np.ndarray
   flexedge_J_rowadr: np.ndarray
   flexedge_J_rownnz: np.ndarray
@@ -200,7 +198,6 @@ class ModelWarp(PyTreeNode):
   nJfe: int
   nacttrnbody: int
   nbranch: int
-  nflex: int
   nflexedge: int
   nflexelem: int
   nflexelemdata: int

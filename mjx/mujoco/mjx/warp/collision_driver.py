@@ -46,7 +46,6 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _collision_shim(
     # Model
@@ -371,7 +370,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_shell,
       m._impl.flex_shelldataadr,
       m._impl.flex_shellnum,
-      m._impl.flex_vertadr,
+      m.flex_vertadr,
       m._impl.flex_vertflexid,
       m.geom_aabb,
       m.geom_conaffinity,
@@ -413,7 +412,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.mesh_vert,
       m.mesh_vertadr,
       m.mesh_vertnum,
-      m._impl.nflex,
+      m.nflex,
       m._impl.nflexelem,
       m._impl.nflexshelldata,
       m._impl.nflexvert,
