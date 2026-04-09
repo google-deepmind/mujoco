@@ -112,6 +112,7 @@ if(NOT EMSCRIPTEN)
 endif()
 add_subdirectory(plugin/obj_decoder)
 add_subdirectory(plugin/stl_decoder)
+
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)

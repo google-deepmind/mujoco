@@ -40,6 +40,8 @@ General
      (previously the scalar), and subsequent elements are the higher-order :ref:`polynomial<gePolynomial>` coefficients.
 
      **Migration:** Replace assignments like ``joint.stiffness = val`` with ``joint.stiffness[0] = val``.
+   - ``.obj`` and ``.stl`` decoders are now included as source when building MuJoCo with CMake. This fixes the
+     behaviour from the previous release where it required downstream code to load these plugins explicitly.
 
    - The ``vertcollide`` field in :ref:`mjsFlex` has been removed. It is no longer required since
      :doc:`MuJoCo Warp <mjwarp/index>` supports native flex collisions.

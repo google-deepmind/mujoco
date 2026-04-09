@@ -38,7 +38,6 @@ function(add_mujoco_shell_test TEST_NAME TARGET_BINARY)
                "CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}"
                "TARGET_BINARY=$<TARGET_FILE:${TARGET_BINARY}>"
                "TEST_TMPDIR=${TEST_TMPDIR}"
-               "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:obj_decoder>"
     )
     if(WIN32)
       # Define the directory containing the mujoco DLL library so that it can be added to the PATH.
