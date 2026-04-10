@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,8 +46,8 @@ MJAPI void mj_flex(const mjModel* m, mjData* d);
 // compute tendon lengths, velocities and moment arms
 MJAPI void mj_tendon(const mjModel* m, mjData* d);
 
-// compute time derivative of dense tendon Jacobian for one tendon
-MJAPI void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot);
+// return dot product of tendon Jacobian time derivative with vector
+MJAPI mjtNum mj_tendonDot(const mjModel* m, mjData* d, int id, const mjtNum* vec);
 
 // compute actuator transmission lengths and moments
 MJAPI void mj_transmission(const mjModel* m, mjData* d);

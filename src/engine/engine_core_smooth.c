@@ -1093,22 +1093,20 @@ void mj_tendon(const mjModel* m, mjData* d) {
 }
 
 
-// compute time derivative of dense tendon Jacobian for one tendon
-void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
+// return dot product of tendon Jacobian time derivative with vector
+mjtNum mj_tendonDot(const mjModel* m, mjData* d, int id, const mjtNum* vec) {
   int nv = m->nv;
+  mjtNum res = 0;
 
   // tendon id is invalid: return
   if (id < 0 || id >= m->ntendon) {
-    return;
+    return 0;
   }
-
-  // clear output
-  mju_zero(Jdot, nv);
 
   // fixed tendon has zero Jdot: return
   int adr = m->tendon_adr[id];
   if (m->wrap_type[adr] == mjWRAP_JOINT) {
-    return;
+    return 0;
   }
 
   // allocate stack arrays
@@ -1194,9 +1192,8 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
           // chain rule, first term: Jdot += d/dt(jac2 - jac1) * dpnt
           mju_mulMatTVec(tmp, jacdif, dpnt, 3, NV);
 
-          // scatter into dense output
           for (int k=0; k < NV; k++) {
-            Jdot[chain[k]] += tmp[k] / divisor;
+            res += (tmp[k] / divisor) * vec[chain[k]];
           }
 
           // get endpoint Jacobians, subtract
@@ -1207,9 +1204,8 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
           // chain rule, second term: Jdot += (jac2 - jac1) * d/dt(dpnt)
           mju_mulMatTVec(tmp, jacdif, dvel, 3, NV);
 
-          // scatter into dense output
           for (int k=0; k < NV; k++) {
-            Jdot[chain[k]] += tmp[k] / divisor;
+            res += (tmp[k] / divisor) * vec[chain[k]];
           }
         }
       }
@@ -1224,8 +1220,7 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
         // chain rule, first term: Jdot += d/dt(jac2 - jac1) * dpnt
         mju_mulMatTVec(tmp, jacdif, dpnt, 3, nv);
 
-        // add to existing
-        mju_addToScl(Jdot, tmp, 1/divisor, nv);
+        res += mju_dot(tmp, vec, nv) / divisor;
 
         // get endpoint Jacobians, subtract
         mj_jac(m, d, jac1, 0, wpnt, wbody[0]);
@@ -1235,8 +1230,7 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
         // chain rule, second term: Jdot += (jac2 - jac1) * d/dt(dpnt)
         mju_mulMatTVec(tmp, jacdif, dvel, 3, nv);
 
-        // add to existing
-        mju_addToScl(Jdot, tmp, 1/divisor, nv);
+        res += mju_dot(tmp, vec, nv) / divisor;
       }
     }
 
@@ -1245,6 +1239,7 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
   }
 
   mj_freeStack(d);
+  return res;
 }
 
 
@@ -2668,9 +2663,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 // add bias force due to tendon armature
 void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
-  int ntendon = m->ntendon, nv = m->nv;
-  mjtNum* ten_Jdot = NULL;
-  mj_markStack(d);
+  int ntendon = m->ntendon;
 
   // add bias term due to tendon armature
   for (int i=0; i < ntendon; i++) {
@@ -2686,16 +2679,11 @@ void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
       continue;
     }
 
-    // allocate if required
-    if (!ten_Jdot) {
-      ten_Jdot = mjSTACKALLOC(d, nv, mjtNum);
-    }
-
-    // get dense d/dt(tendon Jacobian) for tendon i
-    mj_tendonDot(m, d, i, ten_Jdot);
+    // get d/dt(tendon Jacobian) dotted with qvel for tendon i
+    mjtNum dot = mj_tendonDot(m, d, i, d->qvel);
 
     // add bias term:  qfrc += ten_J * armature * dot(ten_Jdot, qvel)
-    mjtNum coef = armature * mju_dot(ten_Jdot, d->qvel, nv);
+    mjtNum coef = armature * dot;
 
     if (coef) {
       // sparse
@@ -2708,6 +2696,4 @@ void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
       }
     }
   }
-
-  mj_freeStack(d);
 }
