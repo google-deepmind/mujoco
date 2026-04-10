@@ -1113,6 +1113,8 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
 
   // allocate stack arrays
   mj_markStack(d);
+  int issparse = mj_isSparse(m);
+  int* chain = issparse ? mjSTACKALLOC(d, nv, int) : NULL;
   mjtNum* jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
   mjtNum* jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
   mjtNum* jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
@@ -1178,30 +1180,64 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
       mju_addToScl3(dvel, dpnt, -dot);
       mju_scl3(dvel, dvel, norm > mjMINVAL ? 1/norm : 0);
 
-      // TODO(tassa ) write sparse branch, requires mj_jacDotSparse
-      // if (mj_isSparse(m)) { ... }
+      // sparse
+      if (issparse) {
+        // construct merged chain
+        int NV = mj_mergeChain(m, chain, wbody[0], wbody[1], /*flg_skipcommon=*/0);
 
-      // get endpoint JacobianDots, subtract
-      mj_jacDot(m, d, jac1, 0, wpnt, wbody[0]);
-      mj_jacDot(m, d, jac2, 0, wpnt+3, wbody[1]);
-      mju_sub(jacdif, jac2, jac1, 3*nv);
+        if (NV) {
+          // get endpoint JacobianDots, subtract
+          mj_jacDotSparse(m, d, jac1, 0, wpnt, wbody[0], NV, chain);
+          mj_jacDotSparse(m, d, jac2, 0, wpnt+3, wbody[1], NV, chain);
+          mju_sub(jacdif, jac2, jac1, 3*NV);
 
-      // chain rule, first term: Jdot += d/dt(jac2 - jac1) * dpnt
-      mju_mulMatTVec(tmp, jacdif, dpnt, 3, nv);
+          // chain rule, first term: Jdot += d/dt(jac2 - jac1) * dpnt
+          mju_mulMatTVec(tmp, jacdif, dpnt, 3, NV);
 
-      // add to existing
-      mju_addToScl(Jdot, tmp, 1/divisor, nv);
+          // scatter into dense output
+          for (int k=0; k < NV; k++) {
+            Jdot[chain[k]] += tmp[k] / divisor;
+          }
 
-      // get endpoint Jacobians, subtract
-      mj_jac(m, d, jac1, 0, wpnt, wbody[0]);
-      mj_jac(m, d, jac2, 0, wpnt+3, wbody[1]);
-      mju_sub(jacdif, jac2, jac1, 3*nv);
+          // get endpoint Jacobians, subtract
+          mj_jacSparse(m, d, jac1, 0, wpnt, wbody[0], NV, chain, /*flg_skipcommon=*/0);
+          mj_jacSparse(m, d, jac2, 0, wpnt+3, wbody[1], NV, chain, /*flg_skipcommon=*/0);
+          mju_sub(jacdif, jac2, jac1, 3*NV);
 
-      // chain rule, second term: Jdot += (jac2 - jac1) * d/dt(dpnt)
-      mju_mulMatTVec(tmp, jacdif, dvel, 3, nv);
+          // chain rule, second term: Jdot += (jac2 - jac1) * d/dt(dpnt)
+          mju_mulMatTVec(tmp, jacdif, dvel, 3, NV);
 
-      // add to existing
-      mju_addToScl(Jdot, tmp, 1/divisor, nv);
+          // scatter into dense output
+          for (int k=0; k < NV; k++) {
+            Jdot[chain[k]] += tmp[k] / divisor;
+          }
+        }
+      }
+
+      // dense
+      else {
+        // get endpoint JacobianDots, subtract
+        mj_jacDot(m, d, jac1, 0, wpnt, wbody[0]);
+        mj_jacDot(m, d, jac2, 0, wpnt+3, wbody[1]);
+        mju_sub(jacdif, jac2, jac1, 3*nv);
+
+        // chain rule, first term: Jdot += d/dt(jac2 - jac1) * dpnt
+        mju_mulMatTVec(tmp, jacdif, dpnt, 3, nv);
+
+        // add to existing
+        mju_addToScl(Jdot, tmp, 1/divisor, nv);
+
+        // get endpoint Jacobians, subtract
+        mj_jac(m, d, jac1, 0, wpnt, wbody[0]);
+        mj_jac(m, d, jac2, 0, wpnt+3, wbody[1]);
+        mju_sub(jacdif, jac2, jac1, 3*nv);
+
+        // chain rule, second term: Jdot += (jac2 - jac1) * d/dt(dpnt)
+        mju_mulMatTVec(tmp, jacdif, dvel, 3, nv);
+
+        // add to existing
+        mju_addToScl(Jdot, tmp, 1/divisor, nv);
+      }
     }
 
     // advance

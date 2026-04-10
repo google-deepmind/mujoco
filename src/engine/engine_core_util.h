@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,6 +85,11 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
 void mj_jacSparseSimple(const mjModel* m, const mjData* d,
                         mjtNum* jacdifp, mjtNum* jacdifr, const mjtNum* point,
                         int body, int flg_second, int NV, int start);
+
+// compute 3/6-by-NV sparse Jacobian time derivative of global point attached to given body
+MJAPI void mj_jacDotSparse(const mjModel* m, const mjData* d,
+                           mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
+                           int NV, const int* chain);
 
 // dense or sparse Jacobian difference for two body points: pos2 - pos1, global
 MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,

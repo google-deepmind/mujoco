@@ -17,6 +17,7 @@
 #include "src/engine/engine_core_util.h"
 #include "src/engine/engine_support.h"
 
+#include <algorithm>
 #include <cstring>
 #include <limits>
 #include <random>
@@ -477,6 +478,79 @@ TEST_F(JacobianTest, JacDot) {
     mjtNum tol = 1e-5;
     EXPECT_THAT(jacp_dot, Pointwise(MjNear(tol, 5e-2), jacp_dot_h));
     EXPECT_THAT(jacr_dot, Pointwise(MjNear(tol, 5e-2), jacr_dot_h));
+
+    mj_deleteData(data);
+    mj_deleteModel(model);
+  }
+}
+
+// compare mj_jacDotSparse with dense mj_jacDot
+TEST_F(JacobianTest, JacDotSparse) {
+  for (auto xml : {kHinge, kQuat, kTelescope, kFreeBall, kQuatlessPendulum}) {
+    char error[1024];
+    mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
+    int nv = model->nv;
+    mjData* data = mj_makeData(model);
+
+    // load keyframe if present, step for a bit
+    if (model->nkey) mj_resetDataKeyframe(model, data, 0);
+    while (data->time < 0.1) {
+      mj_step(model, data);
+    }
+
+    // minimal call required for mj_jacDot outputs to be valid
+    mj_kinematics(model, data);
+    mj_comPos(model, data);
+    mj_comVel(model, data);
+
+    // get bodyid and site position
+    int bodyid = mj_name2id(model, mjOBJ_BODY, "query");
+    EXPECT_GT(bodyid, 0);
+    int siteid = mj_name2id(model, mjOBJ_SITE, "query");
+    EXPECT_GT(siteid, -1);
+    mjtNum point[3];
+    mju_copy3(point, data->site_xpos+3*siteid);
+
+    // dense jacDot
+    vector<mjtNum> jacp_dense(3*nv);
+    vector<mjtNum> jacr_dense(3*nv);
+    mj_jacDot(model, data, jacp_dense.data(), jacr_dense.data(), point, bodyid);
+
+    // compute body chain using public mjModel fields
+    vector<int> chain(nv);
+    int NV = 0;
+    int weldbody = model->body_weldid[bodyid];
+    if (weldbody) {
+      int da = model->body_dofadr[weldbody] + model->body_dofnum[weldbody] - 1;
+      while (da >= 0) {
+        chain[NV++] = da;
+        da = model->dof_parentid[da];
+      }
+      std::reverse(chain.begin(), chain.begin() + NV);
+    }
+    EXPECT_GT(NV, 0);
+
+    // sparse jacDot
+    vector<mjtNum> jacp_sparse(3*NV);
+    vector<mjtNum> jacr_sparse(3*NV);
+    mj_jacDotSparse(model, data, jacp_sparse.data(), jacr_sparse.data(),
+                    point, bodyid, NV, chain.data());
+
+    // expand sparse to dense and compare
+    vector<mjtNum> jacp_expanded(3*nv, 0);
+    vector<mjtNum> jacr_expanded(3*nv, 0);
+    for (int ci = 0; ci < NV; ci++) {
+      int di = chain[ci];
+      for (int r = 0; r < 3; r++) {
+        jacp_expanded[di+r*nv] = jacp_sparse[ci+r*NV];
+        jacr_expanded[di+r*nv] = jacr_sparse[ci+r*NV];
+      }
+    }
+
+    // expect bitwise equality
+    EXPECT_EQ(jacp_expanded, jacp_dense);
+    EXPECT_EQ(jacr_expanded, jacr_dense);
 
     mj_deleteData(data);
     mj_deleteModel(model);
