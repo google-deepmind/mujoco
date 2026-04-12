@@ -202,7 +202,7 @@ earlier arm model :ref:`example <Examples>` the model has :math:`\nv = 13` degre
 for each of the 4 hinge joints, and 6 for the free-floating object. They appear in the same order in all system-level
 vectors and matrices whose dimensionality is :math:`\nv`. The data corresponding to a given model element can be
 recovered via indexing operations as illustrated in the :ref:`Clarifications` section in the Overview chapter. Vectors
-and matrices with dimensionality :math:`\nq` are somewhat different because the active :ref:`constraints <Constraint>`
+and matrices with dimensionality :math:`\nc` are somewhat different because the active :ref:`constraints <Constraint>`
 change at runtime. In that case there is still a fixed enumeration order (corresponding to the order in which the model
 elements appear in ``mjModel``) but any inactive constraints are omitted.
 
@@ -524,13 +524,13 @@ the *new* velocity. *Implicit* Euler means:
    \end{aligned}
 
 Comparing :eq:`eq_semimplicit` and :eq:`eq_implicit`, we see that the acceleration :math:`a_{t+h}=\dot{v}_{t+h}` on the
-right hand side of the velocity update is evaluated at the *next time step*. While evaluating the next acceleration
+right-hand side of the velocity update is evaluated at the *next time step*. While evaluating the next acceleration
 is not possible without stepping, we can use a first-order Taylor expansion to approximate this quantity, and
 take a single step of Newton's method. When the expansion is only with respect to velocity (and not position), the
 integrator is known as *implicit-in-velocity* Euler. This approach is particularly effective in systems where
 instabilities are caused by velocity-dependent forces: multi-joint pendulums, bodies tumbling through space, systems
 with lift and drag forces, and systems with substantial damping in tendons and actuators. Writing the
-acceleration as a function of velocity: :math:`a_t = a(v_t)`, the velocity update we aim to approximate is
+acceleration as a function of velocity, :math:`a_t = a(v_t)`, the velocity update we aim to approximate is
 
 .. math:: v_{t+h} = v_t + h a(v_{t+h})
 
@@ -550,7 +550,7 @@ Thus we define the derivative
        D &\equiv {\partial \over \partial v} \Big(\tau(v) - c (v) + J^T f(v)\Big)
    \end{aligned}
 
-The velocity update corresponding to Newton's method is as follows. First, we expand the right hand side to first order
+The velocity update corresponding to Newton's method is as follows. First, we expand the right-hand side to first order
 
 .. math::
    \begin{aligned}
@@ -585,7 +585,7 @@ Semi-implicit with implicit joint damping (``Euler``)
    For this method, :math:`D` only includes derivatives of joint damping. Note that in this case :math:`D` is diagonal
    and :math:`\widehat{M}` is symmetric, so :math:`L^TL` decomposition (a variant of Cholesky) can be used. This
    factorization is stored in ``mjData.qH``. If the model has no joint damping or the
-   :ref:`eulerdamp<option-flag-eulerdamp>` disable-flag is set, implicit damping is disabled and the semi-implicit
+   :ref:`eulerdamp<option-flag-eulerdamp>` disable flag is set, implicit damping is disabled and the semi-implicit
    update :eq:`eq_semimplicit` is used, rather than :eq:`eq_implicit_update`, avoiding the additional factorization of
    :math:`\widehat{M}` (*additional* because :math:`M` is already factorized for the acceleration update
    :eq:`eq_forward`).
@@ -612,12 +612,12 @@ Fast implicit-in-velocity (``implicitfast``)
 
 4th-order Runge-Kutta (``RK4``)
    One advantage of our continuous-time formulation is that we can use higher order integrators such as Runge-Kutta or
-   multistep methods. The only such integrator currently implemented is the fixed-step `4th-order Runge-Kutta method
+   multistep methods. MuJoCo implements the fixed-step `4th-order Runge-Kutta method
    <https://en.wikipedia.org/wiki/Runge–Kutta_methods#Derivation_of_the_Runge–Kutta_fourth-order_method>`__, though
    users can easily implement other integrators by calling :ref:`mj_forward` and integrating accelerations themselves.
    We have observed that for energy-conserving systems (`example <../_static/pendulum.xml>`__), RK4 is qualitatively
    better than the single-step methods, both in terms of stability and accuracy, even when the timestep is decreased by
-   a factor of 4 (so the computational effort is identical). In the presence of large velocity- dependent forces, if the
+   a factor of 4 (so the computational effort is identical). In the presence of large velocity-dependent forces, if the
    chosen single-step method integrates those forces implicitly, single-step methods can be significantly more stable
    than RK4.
 
@@ -683,8 +683,8 @@ Constraint model
 
 MuJoCo has a very flexible constraint model, which is nevertheless handled in a uniform way by the
 :ref:`solver <Solver>` described later. Here we explain what the individual constraints are conceptually, and how they
-are laid out in the system-level vector and matrices with dimensionality :math:`\nq`. Each conceptual constraint can
-contribute one or more scalar constraints towards the total count :math:`\nq`, and each scalar constraint has a
+are laid out in the system-level vector and matrices with dimensionality :math:`\nc`. Each conceptual constraint can
+contribute one or more scalar constraints towards the total count :math:`\nc`, and each scalar constraint has a
 corresponding row in the constraint Jacobian :math:`J`. Active constraints are ordered by type in the order in which the
 types are described below, and then by model element within each type. The types are: equality, friction loss, limit,
 contact. Limits are handled as frictionless contacts by the solver and are not treated as a separate type internally. We
@@ -698,7 +698,7 @@ Equality
 MuJoCo can model equality constraints in the general form :math:`r(q) = 0` where :math:`r` can be any differentiable
 scalar or vector function of the position vector :math:`q`. It has the semantics of a residual. The solver can actually
 work with non-holonomic constraints as well, but we do not yet have such constraint types defined. Each equality
-constraint contributes :math:`\dim(r)` elements to the total constraint count :math:`\nq`. The corresponding block in
+constraint contributes :math:`\dim(r)` elements to the total constraint count :math:`\nc`. The corresponding block in
 :math:`J` is simply the Jacobian of the residual, namely :math:`\partial r / \partial q`. Note that due to the
 properties of quaternions, differentiation with respect to :math:`q` produces vectors of size :math:`\nv` rather than
 :math:`\nq`.
@@ -1002,34 +1002,34 @@ We will use the following notation beyond the notation introduced earlier:
      - Size
      - Description
    * - :math:`z`
-     - :math:`\nq`
+     - :math:`\nc`
      - constraint deformations
    * - :math:`\omega`
-     - :math:`\nq`
+     - :math:`\nc`
      - velocity of constraint deformations
    * - :math:`k`
-     - :math:`\nq`
+     - :math:`\nc`
      - virtual constraint stiffness
    * - :math:`b`
-     - :math:`\nq`
+     - :math:`\nc`
      - virtual constraint damping
    * - :math:`d`
-     - :math:`\nq`
+     - :math:`\nc`
      - constraint impedance
    * - :math:`A(q)`
-     - :math:`\nq \times \nq`
+     - :math:`\nc \times \nc`
      - inverse inertia in constraint space
    * - :math:`R(q)`
-     - :math:`\nq \times \nq`
+     - :math:`\nc \times \nc`
      - diagonal regularizer in constraint space
    * - :math:`\ar`
-     - :math:`\nq`
+     - :math:`\nc`
      - reference acceleration in constraint space
    * - :math:`\au(q, v, \tau)`
-     - :math:`\nq`
+     - :math:`\nc`
      - unconstrained acceleration in constraint space
    * - :math:`\ac(q, v, \dot{v})`
-     - :math:`\nq`
+     - :math:`\nc`
      - constrained acceleration in constraint space
    * - :math:`\mathcal{K}(q)`
      -
@@ -1066,7 +1066,8 @@ explain what it means and why it makes sense. That problem is
    :label: eq:primal
 
 The new players here are the diagonal regularizer :math:`R > 0` which makes the constraints soft, and the reference
-acceleration :math:`\ar` which stabilizes the constraints. The latter is similar in spirit to Baumgarte stabilization,
+acceleration :math:`\ar` which stabilizes the constraints; the latter is a spring-damper defined in the
+:ref:`Parameters <soParameters>` section below. It is similar in spirit to Baumgarte stabilization,
 but instead of adding a constraint force directly, it modifies the optimization problem whose solution is the constraint
 force. Since this problem is itself constrained, the relation between :math:`\ar` and :math:`f` is generally non-linear.
 The quantities :math:`R` and :math:`\ar` are computed from the solver :ref:`parameters <soParameters>` as described
@@ -1254,13 +1255,15 @@ implementation, we do not actually compute the acceleration term :math:`\dot{J} 
 problems depend on differences of constraint-space accelerations, and so this term would cancel out even if we were to
 compute it.
 
-Note that the quadratic term in the inverse problem is weighted by :math:`R` instead of :math:`A+R`. This tells us two
-things. First, in the limit :math:`R \to 0` corresponding to hard constraints the inverse is no longer defined, as one
-would expect. Second and more useful, the inverse problem is diagonal, i.e., it decouples into independent optimization
-problems over the individual constraint forces. The only remaining coupling is due to the constraint set :math:`\Omega`,
-but that set is also decoupled over the conceptual constraints discussed earlier. It turns out that all these
-independent optimization problems can be solved analytically. The only non-trivial case is the elliptic friction cone
-model; we have shown how it can be handled in the above-referenced
+Note that the quadratic term in the inverse problem is weighted by :math:`R` instead of :math:`A+R`. This is the key
+structural insight: the :math:`A` matrix cancels entirely, leaving only :math:`R` in the quadratic term. Two
+consequences follow. First, in the limit :math:`R \to 0` corresponding to hard constraints the inverse is no longer
+defined, as one would expect. Second, the inverse problem is diagonal, i.e., it decouples into independent optimization
+problems over the individual constraint forces. Since :math:`R` is diagonal, no matrix inversion or factorization is
+needed -- the inverse dynamics require no optimization at all, only analytical formulas. The only remaining coupling is
+due to the constraint set :math:`\Omega`, but that set is also decoupled over the conceptual constraints discussed
+earlier. It turns out that all these independent optimization problems can be solved analytically. The only non-trivial
+case is the elliptic friction cone model; we have shown how it can be handled in the above-referenced
 `paper <https://scholar.google.com/scholar?cluster=9217655838195954277>`__. It requires a certain coupling of the
 diagonal values of :math:`R`, which is automatically enforced by MuJoCo so as to enable an exact analytical inverse for
 every model.
@@ -1287,12 +1290,15 @@ Each solver algorithm can be used with both pyramidal and elliptic friction cone
 representations of the constraint Jacobian and related matrices.
 
 **CG** : conjugate gradient method
-   This algorithm uses the non-linear conjugate gradient method with the Polak-Ribiere-Plus formula. Line-search is
-   exact, using Newton's method in one dimension, with analytical second derivatives.
+   This algorithm uses the non-linear conjugate gradient method with the Polak-Ribiere-Plus formula (non-negative
+   :math:`\beta`). Line-search is exact, using Newton's method in one dimension with analytical second derivatives on
+   the piecewise-quadratic cost. CG has no setup cost.
 
 **Newton** : Newton's method
    This algorithm implements the exact Newton method, with analytical second-order derivatives and Cholesky
-   factorization of the Hessian. The line-search is the same as in the CG method. It is the default solver.
+   factorization of the Hessian. The line-search is the same as in the CG method. When constraint states change between
+   iterations (e.g., a constraint transitions from quadratic to linear), the Hessian factorization is updated
+   incrementally via rank-1 Cholesky updates, avoiding full refactorization. It is the default solver.
 
 **PGS** : Projected Gauss-Seidel method
    This is the most common algorithm used in physics simulators, and used to be the default in MuJoCo, until we
@@ -1326,6 +1332,21 @@ representations of the constraint Jacobian and related matrices.
    and involves small matrices. Overall this algorithm has similar behavior to PGS for pyramidal cones, but it can
    handle elliptic cones without approximating them. It does more work per contact, however the contact dimensionality
    is smaller, and these two factors roughly balance each other.
+
+**NoSlip** : post-processing pass
+   This is not a standalone solver but a post-processing step, enabled by setting ``noslip_iterations`` to a positive
+   value in :ref:`option <option>`. After the main solver (Newton, CG, or PGS) has converged, the NoSlip solver
+   re-solves the friction dimensions only, using a PGS sweep with :math:`R = 0` (i.e., hard constraints) in those
+   dimensions. This suppresses the contact slip that is inherent to soft-constraint models. However, this cascade of
+   optimization steps no longer solves a single well-defined optimization problem; it is an ad-hoc correction that can
+   occasionally cause instabilities in models with complex multi-contact interactions.
+
+**Warmstart**
+   Before solving, the solver warmstarts the constraint forces from the previous time step. It evaluates the cost of
+   the warmstarted forces and compares it against the cost of zero forces (i.e., the unconstrained solution
+   ``qacc_smooth``). The lower-cost initialization is used. This dual warmstart strategy is robust: it quickly
+   bootstraps the solver when constraints persist across time steps, but avoids carrying over stale forces from
+   constraints that have disappeared.
 
 .. _soIsland:
 
@@ -1384,7 +1405,7 @@ Thus the constrained acceleration interpolates between the unconstrained and the
 in the limit :math:`R \to 0` we have a hard constraint and :math:`\ac = \ar`, while in the limit :math:`R \to \infty` we
 have have an infinitely soft constraint (i.e., no constraint) and :math:`\ac = \au`. It is then natural to introduce a
 model parameter which directly controls the interpolation. We call this parameter *impedance* and denote it :math:`d`.
-It is a vector with dimensionality :math:`\nq` satisfying :math:`0<d<1` element-wise. Once it is specified, we compute
+It is a vector with dimensionality :math:`\nc` satisfying :math:`0<d<1` element-wise. Once it is specified, we compute
 the diagonal elements of the regularizer as
 
 .. math::
@@ -1420,11 +1441,18 @@ pure damping: :math:`\ari = -b_i (J v)_i`. More detail is given in the :ref:`Fri
 Modeling chapter.
 
 To summarize, the constraint behavior is determined by three per-constraint quantities: impedance :math:`0<d<1`, damping
-:math:`b > 0` and stiffness :math:`k \geq 0`. These are computed from the :at:`solimp` and :at:`solref` attributes as
+:math:`b > 0`, and stiffness :math:`k \geq 0`. These are computed from the :at:`solimp` and :at:`solref` attributes as
 described in the :ref:`solver parameters <soRefScaling>` section of the Modeling chapter, which also offers additional
 automation (e.g., achieving critical damping, or varying :math:`d` with distance to model a soft contact layer). The
 quantities :math:`R, \ar` are then computed from :eq:`eq:impedance_R` and :eq:`eq:aref`, and the selected optimization
 algorithm is applied to solve problem :eq:`eq:dual`.
+
+The closed-loop constraint dynamics resulting from the combination of :math:`R` and :math:`\ar` are analyzed in
+detail in the :ref:`Solver parameters <CSolver>` section of the Modeling chapter. In brief, each scalar constraint
+behaves approximately as a damped second-order system whose time constant and damping ratio are set by the :at:`solref`
+attribute, and whose strength is controlled by the impedance :math:`d` set via :at:`solimp`. When critically damped
+(:math:`\text{dampratio} = 1`), the steady-state penetration under a constant external load is independent of the
+effective mass in constraint space -- a consequence of the impedance-scaled parameterization.
 
 .. _soCones:
 
@@ -1432,10 +1460,10 @@ Friction cones
 ~~~~~~~~~~~~~~
 
 As explained above, MuJoCo allows both elliptic friction cones and pyramidal approximations to them; the selected solver
-determines which type of friction cone is used. The pyramidal approximation has :math:`2 (n-1)` edges where :math:`n` is
-the dimensionality of the contact space as specified by condim. We could add more edges yielding better approximations
-to the underlying elliptic cone, but this is pointless because the resulting solver would become slower than its
-elliptic counterpart.
+determines which type of friction cone is used. The pyramidal approximation has :math:`2 (n-1)` edges where :math:`n`
+is the dimensionality of the contact space as specified by :at:`condim`. We could add more edges yielding better
+approximations to the underlying elliptic cone, but this is pointless because the resulting solver would become
+slower than its elliptic counterpart.
 
 One might have expected that if we were to increase the number of edges in the pyramidal approximation, the solution to
 our optimization problem :eq:`eq:primal` would converge to the solution for the elliptic cone. This is true in the limit

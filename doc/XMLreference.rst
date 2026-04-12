@@ -266,7 +266,7 @@ This element does not strictly belong to MJCF. Instead it is a meta-element, use
 files in a single document object model (DOM) before parsing. The included file must be a valid XML file with a unique
 top-level element. This top-level element is removed by the parser, and the elements below it are inserted at the
 location of the :el:`include` element. At least one element must be inserted as a result of this procedure. The
-:el:`include` element can be used where ever an XML element is expected in the MJCF file. Nested includes are allowed,
+:el:`include` element can be used wherever an XML element is expected in the MJCF file. Nested includes are allowed,
 however a given XML file can be included at most once in the entire model. After all the included XML files have been
 assembled into a single DOM, it must correspond to a valid MJCF model. Other than that, it is up to the user to decide
 how to use includes and how to modularize large files if desired.
@@ -746,10 +746,8 @@ has any effect. The settings here are global and apply to the entire model.
 .. _compiler-coordinate:
 
 :at:`coordinate`: :at-val:`[local, global], "local"`
-   In previous versions, this attribute could be used to specify whether frame positions and orientations are expressed
-   in local or global coordinates, but the "global" option has since been removed, and will cause an error to be
-   generated. In order to convert older models which used the "global" option, load and save them in MuJoCo 2.3.3 or
-   older.
+   This attribute specifies whether frame positions and orientations are expressed in local coordinates. The "global"
+   option is no longer supported and will cause an error.
 
 .. _compiler-angle:
 
@@ -826,8 +824,8 @@ has any effect. The settings here are global and apply to the entire model.
 .. _compiler-usethread:
 
 :at:`usethread`: :at-val:`[false, true], "true"`
-   If this attribute is "true", the model compiler will run in multi-threaded mode. Currently multi-threading is used
-   for computing the length ranges of actuators and for parallel loading and processing of meshes.
+   If this attribute is "true", the model compiler will run in multi-threaded mode. Multi-threading is used for
+   computing the length ranges of actuators and for parallel loading and processing of meshes.
 
 .. _compiler-fusestatic:
 
@@ -995,25 +993,24 @@ compilation.
 .. _size-njmax:
 
 :at:`njmax`: :at-val:`int, "-1"` |nbsp| |nbsp| |nbsp| (legacy)
-   This is a deprecated legacy attribute. In versions prior to 2.3.0, it determined the maximum allowed number
-   of constraints. Currently it means "allocate as much memory as would have previously been required for this number of
+   This is a deprecated legacy attribute. It previously determined the maximum allowed number of constraints.
+   Currently it means "allocate as much memory as would have previously been required for this number of
    constraints". Specifying both :at:`njmax` and :at:`memory` leads to an error.
 
 .. _size-nconmax:
 
 :at:`nconmax`: :at-val:`int, "-1"` |nbsp| |nbsp| |nbsp| (legacy)
    This attribute specifies the maximum number of contacts that will be generated at runtime.  If the number of active
-   contacts is about to exceed this value, the extra contacts are discarded and a warning is generated.  This is a
-   deprecated legacy attribute which prior to version 2.3.0 affected memory allocation. It is kept for backwards
-   compatibility and debugging purposes.
+   contacts is about to exceed this value, the extra contacts are discarded and a warning is generated. This is a
+   deprecated legacy attribute which previously affected memory allocation. It is kept for backwards compatibility
+   and debugging purposes.
 
 .. _size-nstack:
 
 :at:`nstack`: :at-val:`int, "-1"` |nbsp| |nbsp| |nbsp| (legacy)
-   This is a deprecated legacy attribute. In versions prior to 2.3.0, it determined the maximum size of the
-   :ref:`stack <siStack>`. After version 2.3.0, if :at:`nstack` is specified, then the size of ``mjData.narena`` is
-   ``nstack * sizeof(mjtNum)`` bytes, plus an additional space for the constraint solver. Specifying both :at:`nstack`
-   and :at:`memory` leads to an error.
+   This is a deprecated legacy attribute. It previously determined the maximum size of the :ref:`stack <siStack>`.
+   If :at:`nstack` is specified, then the size of ``mjData.narena`` is ``nstack * sizeof(mjtNum)`` bytes, plus an
+   additional space for the constraint solver. Specifying both :at:`nstack` and :at:`memory` leads to an error.
 
 .. _size-nuserdata:
 
@@ -1290,8 +1287,8 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
 :at:`inertia`: :at-val:`[convex, exact, legacy, shell], "legacy"`
    This attribute controls how the mesh is used when mass and inertia are
-   :ref:`inferred from geometry<compiler-inertiafromgeom>`. The current default value :at-val:`legacy` will be changed
-   to :at-val:`convex` in a future release.
+   :ref:`inferred from geometry<compiler-inertiafromgeom>`. The default value is :at-val:`legacy` for backward
+   compatibility, but :at-val:`convex` is recommended.
 
    :at-val:`convex`: Use the mesh's convex hull to compute volume and inertia, assuming uniform density.
 
@@ -1602,8 +1599,8 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 .. _asset-skin-rgba:
 .. _asset-skin-group:
 
-:ref:`Skins<deformable-skin>` have been moved under the new grouping element :ref:`deformable<deformable>`. They can
-still be specified here but this functionality is now deprecated and will be removed in the future.
+:ref:`Skins<deformable-skin>` are grouped under the :ref:`deformable<deformable>` element. Specifying them here is
+deprecated.
 
 
 
@@ -1618,7 +1615,7 @@ The texture data can be loaded from files or can be generated by the compiler as
 different texture types require different parameters, only a subset of the attributes below are used for any given
 texture. Provisions are provided for loading cube and skybox textures from individual image files.
 
-Currently, three file formats are supported for loading textures: PNG, KTX, and a custom MuJoCo texture format. The
+Three file formats are supported for loading textures: PNG, KTX, and a custom MuJoCo texture format. The
 loader will use the extension of the file name to determine which format to use, defaulting to the custom format if
 the extension is not recognized. Alternatively, the content_type attribute can be used to specify the format
 explicitly. Only ``image/png``, ``image/ktx``, or ``image/vnd.mujoco.texture`` are supported.
@@ -1917,8 +1914,8 @@ properties are grouped together.
    This attribute should be in the range [0 1]. If the value is greater than 0, and the material is applied to a plane
    or a box geom, the renderer will simulate reflectance. The larger the value, the stronger the reflectance. For boxes,
    only the face in the direction of the local +Z axis is reflective. Simulating reflectance properly requires
-   ray-tracing which cannot (yet) be done in real-time. We are using the stencil buffer and suitable projections
-   instead. Only the first reflective geom in the model is rendered as such. This adds one extra rendering pass through
+   ray-tracing. This renderer uses the stencil buffer and suitable projections instead to approximate it. Only the
+   first reflective geom in the model is rendered as such. This adds one extra rendering pass through
    all geoms, in addition to the extra rendering pass added by each shadow-casting light.
 
 .. _asset-material-metallic:
@@ -2183,7 +2180,7 @@ between the body where it is defined and the body's parent. If multiple joints a
 corresponding spatial transformations (of the body frame relative to the parent frame) are applied in order. If no
 joints are defined, the body is welded to its parent. Joints cannot be defined in the world body. At runtime the
 positions and orientations of all joints defined in the model are stored in the vector ``mjData.qpos``, in the order in
-which the appear in the kinematic tree. The linear and angular velocities are stored in the vector ``mjData.qvel``.
+which they appear in the kinematic tree. The linear and angular velocities are stored in the vector ``mjData.qvel``.
 These two vectors have different dimensionality when free or ball joints are used, because such joints represent
 rotations as unit quaternions.
 
@@ -2479,7 +2476,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-type:
 
 :at:`type`: :at-val:`[plane, hfield, sphere, capsule, ellipsoid, cylinder, box, mesh, sdf], "sphere"`
-   Type of geometric shape. The keywords have the following meaning: The **plane** type defines a plane which is
+   Type of geometric shape. The keywords have the following meaning: The **plane** type defines a surface which is
    infinite for collision detection purposes. It can only be attached to the world body or static children of the world.
    The plane passes through a point specified via the pos attribute. It is normal to the Z axis of the geom's local
    frame. The +Z direction corresponds to empty space. Thus the position and orientation defaults of (0,0,0) and
@@ -3218,9 +3215,9 @@ object. These elements are bodies (with their own joints and geoms) that become 
 the macro. The macro expansion is done by the model compiler. If the resulting model is then saved, the macro will be
 replaced with the actual model elements. The defaults mechanism used in the rest of MJCF does not apply here, even if
 the parent body has a childclass attribute defined. Instead there are internal defaults adjusted automatically for each
-composite object type. See :ref:`CComposite` in the modeling guide for more detailed explanation. Note that there used
-to be several composite types, but they have incrementally replaced by :ref:`replicate<replicate>` (for repeated
-objects) and :ref:`flexcomp<body-flexcomp>` (for soft objects). Therefore, the only supported composite type is now
+composite object type. See :ref:`CComposite` in the modeling guide for more detailed explanation. Note that several
+legacy composite types have been replaced by :ref:`replicate<replicate>` (for repeated objects) and
+:ref:`flexcomp<body-flexcomp>` (for soft objects). Therefore, the only supported composite type is now
 cable, which produces an inextensible chain of bodies connected with ball joints.
 
 .. _body-composite-prefix:
@@ -3237,8 +3234,8 @@ cable, which produces an inextensible chain of bodies connected with ball joints
 
    The **cable** type creates a 1D chain of bodies connected with ball joints, each having a geom with user-defined type
    (cylinder, capsule or box). The geometry can either be defined with an array of 3D vertex coordinates :at:`vertex`
-   or with prescribed functions with the option :at:`curve`. Currently, only linear and trigonometric functions are
-   supported. For example, an helix can be obtained with curve="cos(s) sin(s) s". The size is set with the option
+   or with prescribed functions with the option :at:`curve`. Only linear and trigonometric functions are supported. For
+   example, an helix can be obtained with curve="cos(s) sin(s) s". The size is set with the option
    :at:`size`, resulting in :math:`f(s)=\{\text{size}[1]\cdot\cos(2\pi\cdot\text{size}[2]),\;
    \text{size}[1]\cdot\sin(2\pi\cdot\text{size}[2]),\; \text{size}[0]\cdot s\}`.
 
@@ -3360,7 +3357,7 @@ joints should be created, as well as to adjust the attributes of both automatic 
 ''''''''''''''''''''''''''''''''''''''''
 
 This sub-element adjusts the attributes of the geoms in the composite object. The default attributes are the same as in
-the rest of MJCF (except that user-defined defaults have no effect here). Note that the geom sub-element can appears
+the rest of MJCF (except that user-defined defaults have no effect here). Note that the geom sub-element can appear
 only once, unlike joint and tendon sub-elements which can appear multiple times. This is because different kinds of
 joints and tendons have different sets of attributes, while all geoms in the composite object are identical.
 
@@ -3500,8 +3497,8 @@ Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plu
 :el-prefix:`body/` |-| **flexcomp** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Similar to :el:`composite`, this element (new in MuJoCo 3.0) is not a model element, but rather a macro which expands
-into multiple model elements representing a deformable entity. In particular this macro creates one
+Similar to :el:`composite`, this element is not a model element, but rather a macro which expands into multiple
+model elements representing a deformable entity. In particular this macro creates one
 :ref:`flex<deformable-flex>` element, a number of bodies that are children of the body in which the :el:`flexcomp` is
 defined, and optionally one :ref:`flex equality<equality-flex>` which constrains all flex edges to their initial length.
 A number of attributes are specified here and then passed through to the automatically-constructed flex. The primary
@@ -3518,9 +3515,9 @@ flexcomp point is not pinned, a new child body is created at the coordinates of 
 parent body), and then the coordinates of the flex vertex within that new body are (0,0,0). The mechanism for
 :ref:`pinning<flexcomp-pin>` flexcomp points is explained below.
 
-Composite objects (available prior to MuJoCo 3.0) needed bodies with geoms for collisions, and sites for connecting
-tendons which generated shape-preserving forces. In contrast, flexes generate their own collisions and shape-preserving
-forces (as well as rendering), thus the bodies created here are much simpler: no geoms, sites or tendons are needed.
+While :el:`composite` objects need bodies with geoms for collisions and sites for connecting tendons, flexes
+generate their own collisions and shape-preserving forces. Thus the bodies created here are much simpler: no geoms,
+sites or tendons are needed.
 Most of the bodies created here have 3 orthogonal slider joints, corresponding to freely moving point masses. In some
 cases we generate radial slider joints, allowing only expansion and contraction. Since no geoms are generated, the
 bodies need to have explicit inertial parameters.
@@ -4142,8 +4139,8 @@ This is a grouping element and does not have any attributes. It groups elements 
 :el-prefix:`deformable/` |-| **flex** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Flexible objects (or flexes) were added in MuJoCo 3.0. These are collections of massless stretchable geometric elements
-(capsules, triangles or tetrahedra) connecting vertices that are defined within different moving body frames. These
+Flexible objects (or flexes) are collections of massless stretchable geometric elements (capsules, triangles or
+tetrahedra) connecting vertices that are defined within different moving body frames. These
 stretchable elements support collisions and contact forces, which are then distributed to all the interconnected bodies.
 Flexes also generate passive and constraint forces as needed to simulate deformable entities with the desired material
 properties. The modeling of flexes is automated and simplified by the :ref:`flexcomp<body-flexcomp>` element. In most
@@ -4321,9 +4318,8 @@ extensions specific to flexes.
    flex. The pre-defined vertex-element pairs are generated by the model compiler automatically. In 3D, internal
    collision checks are performed within each tetraheron: each vertex is collided with the plane corresponding to the
    opposing triangle face (again using the flex radius). The resulting contacts are always created with condim 1, gap 0,
-   margin 0. Note that internal contacts modify the behavior implied by the :ref:`elasticity
-   parameters<flex-elasticity>` and is recommended only for flexes where element inversion cannot be prevented. The
-   default value of this attribute was changed from "true" to "false" in version 3.3.1.
+   margin 0. Note that internal contacts modify the behavior implied by the :ref:`elasticity parameters<flex-elasticity>`
+   and is recommended only for flexes where element inversion cannot be prevented.
 
 .. _flex-contact-selfcollide:
 
@@ -4369,7 +4365,7 @@ extensions specific to flexes.
 :at:`passive`: :at-val:`[true, false], "false"`
    When enabled, the contact is not added to the contact solver but it is instead used to compute passive
    (spring-damper) contact forces. All contacts, regardless of the specified condim, are frictionless (condim 1). This
-   is an experimental feature and might change in future releases.
+   is an experimental feature.
 
 
 .. _deformable-skin:
@@ -4867,13 +4863,7 @@ constraint type is only supported for dimension 3 flexes with trilinear or quadr
    Name of the flex whose strain is being constrained.
 
 
-.. _equality-distance:
 
-:el-prefix:`equality/` |-| **distance** |*|
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Distance equality constraints were removed in MuJoCo version 2.2.2. If you are using an earlier version, please switch
-to the corresponding version of the documentation.
 
 
 .. _tendon:
@@ -5157,7 +5147,7 @@ illustrated the use of pulleys.
 
 This element creates an abstract tendon whose length is defined as a linear combination of joint positions. Recall that
 the tendon length and its gradient are the only quantities needed for simulation. Thus we could define any scalar
-function of joint positions, call it "tendon", and plug it in MuJoCo. Presently the only such function is a fixed linear
+function of joint positions, call it "tendon", and use it in MuJoCo. The only such function supported is a fixed linear
 combination. The attributes of fixed tendons are a subset of the attributes of spatial tendons and have the same meaning
 as above.
 
@@ -5574,8 +5564,8 @@ specify them independently.
 :el-prefix:`actuator/` |-| **motor** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This and the next three elements are the :ref:`Actuator shortcuts <CActShortcuts>` discussed earlier. When a
-such shortcut is encountered, the parser creates a :el:`general` actuator and sets its dynprm, gainprm and biasprm
+This and the next three elements are the :ref:`Actuator shortcuts <CActShortcuts>` discussed earlier. When
+such a shortcut is encountered, the parser creates a :el:`general` actuator and sets its dynprm, gainprm and biasprm
 attributes to the internal defaults shown above, regardless of any default settings. It then adjusts dyntype, gaintype
 and biastype depending on the shortcut, parses any custom attributes (beyond the common ones), and translates them
 into regular attributes (i.e., attributes of the :el:`general` actuator type) as explained here.
@@ -5775,7 +5765,7 @@ This element has one custom attribute in addition to the common attributes:
 :el-prefix:`actuator/` |-| **velocity** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a velocity servo. Note that in order create a PD controller, one has to define two actuators: a
+This element creates a velocity servo. Note that in order to create a PD controller, one has to define two actuators: a
 position servo and a velocity servo. This is because MuJoCo actuators are SISO while a PD controller takes two control
 inputs (reference position and reference velocity).
 When using this actuator, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
@@ -6204,7 +6194,7 @@ This element has nine custom attributes in addition to the common attributes:
 
 :at:`tausmooth`: :at-val:`real, "0"`
    Width of smooth transition between activation and deactivation time constants. Units of ctrl, must be
-   nonegative.
+   nonnegative.
 
 .. _actuator-muscle-range:
 
@@ -6598,7 +6588,7 @@ computations.
 In addition to the sensors created with the elements below, the top-level function
 :ref:`mj_step` computes the quantities mjData.cacc, mjData.cfrc_int and mjData.crfc_ext
 corresponding to body accelerations and interaction forces. Some of these quantities are used to compute the output of
-certain sensors (force, acceleration etc.) but even if no such sensors are defined in the model, these quantities
+certain sensors (force, acceleration, etc.) but even if no such sensors are defined in the model, these quantities
 themselves are "features" that could be of interest to the user.
 
 
@@ -6611,7 +6601,7 @@ This element creates a touch sensor. The active sensor zone is defined by a site
 site's volume, and involves a geom attached to the same body as the site, the corresponding contact force is included in
 the sensor reading. If a contact point falls outside the sensor zone, but the normal ray intersects the sensor zone, it
 is also included. This re-projection feature is needed because, without it, the contact point may leave the sensor zone
-from the back (due to soft contacts) and cause an erroneous force reading. The output of this sensor is non-negative
+from the back (due to soft contacts) and cause an erroneous force reading. The output of this sensor is a non-negative
 scalar. It is computed by adding up the (scalar) normal forces from all included contacts.
 
 .. _sensor-touch-name:
@@ -6878,10 +6868,10 @@ defined as geoms whose rgba (or whose material rgba) has alpha=0, are also exclu
 invisible in the visualizer by disabling their geom group are not excluded; this is because sensor calculations are
 independent of the visualizer.
 
-The image on the right (click to see the model being visualized) shows two rangefinder sensors attached to a perspective and
-an orthographic camera, with frustums visualized. Both cameras have 4x4 resolution, for 16 rays each. The rangefinder
-sensors report :at:`data` = :at-val:`"dist point normal"` (see below), so we can see the rays (lines), the intersection
-points (spheres) and the surface normals (arrows).
+The image on the right (click to see the model being visualized) shows two rangefinder sensors attached to a
+perspective and an orthographic camera, with frustums visualized. Both cameras have 4x4 resolution, for 16 rays
+each. The rangefinder sensors report :at:`data` = :at-val:`"dist point normal"` (see below), so we can see the rays
+(lines), the intersection points (spheres) and the surface normals (arrows).
 
 .. _sensor-rangefinder-data:
 
@@ -8328,7 +8318,7 @@ sensor reports information that was discovered during the collision and constrai
 from ``mjData.{contact, efc_force}``, ignoring contacts that were filtered out by the :ref:`standard<coSelection>`
 mechanism and produce no force.
 
-Contact sensor output involves three stages: **matching**, **reduction** and **extraction**.
+Contact sensor output involves three stages: **matching**, **reduction**, and **extraction**.
 
 Matching
   Selects a set of contacts from ``mjData.contact`` using criteria defined by :ref:`geom1<sensor-contact-geom1>`,
@@ -8346,7 +8336,7 @@ Matching
 Reduction
   Reduces the number of matched contacts to exactly :ref:`num<sensor-contact-num>` sub-arrays, or "slots".
   If less than :at:`num` contacts match, the remaining slots are set to be identically zero. Note that the default,
-  "unsorted" reduction criterion is potentitally non-deterministic. See :ref:`reduce<sensor-contact-reduce>` below.
+  "unsorted" reduction criterion is potentially non-deterministic. See :ref:`reduce<sensor-contact-reduce>` below.
 
 Extraction
   Copies the set of fields specified by the user into each slot, see :ref:`data<sensor-contact-data>`.
@@ -8400,7 +8390,7 @@ Extraction
 
    Importantly, the :at:`data` attribute can contain **multiple sequential data types**, as long as the relative
    order---as listed above---is maintained. For example, :at:`data` = :at-val:`"found force dist"` will return 5 numbers
-   per contact (the concateneated values of [found, force, dist]), while :at:`data` = :at-val:`"force found dist"` is an
+   per contact (the concatenated values of [found, force, dist]), while :at:`data` = :at-val:`"force found dist"` is an
    error because :at-val:`found` must come before :at-val:`force`.
 
    Missing contacts
@@ -8599,8 +8589,8 @@ This element creates a user sensor. MuJoCo does not know how to compute the outp
 should install the callback :ref:`mjcb_sensor` which is expected to fill in the sensor data in ``mjData.sensordata``.
 The specification in the XML is used to allocate space for this sensor, and also determine which MuJoCo object it is
 attached to and what stage of computation it needs before the data can be computed. Note that the MuJoCo object
-referenced here can be a tuple, which in turn can reference a custom collection of MuJoCo objects -- for example several
-bodies whose center of mass is of interest.
+referenced here can be a tuple, which in turn can reference a custom collection of MuJoCo objects -- for example
+several bodies whose center of mass is of interest.
 
 If a user sensor is of :ref:`stage<sensor-user-needstage>` "vel" or "acc", then :ref:`mj_subtreeVel` or
 :ref:`mj_rnePostConstraint` will be triggered, respectively.
@@ -8877,7 +8867,7 @@ visualization should somehow be simplified.
 .. _visual-quality-shadowsize:
 
 :at:`shadowsize`: :at-val:`int, "4096"`
-   This attribute specifies the size of the square texture used for shadow mapping. Higher values result is smoother
+   This attribute specifies the size of the square texture used for shadow mapping. Higher values result in smoother
    shadows. The size of the area over which a :ref:`light <body-light>` can cast shadows also affects smoothness, so
    these settings should be adjusted jointly. The default here is somewhat conservative. Most modern GPUs are able to
    handle significantly larger textures without slowing down.
@@ -9246,7 +9236,7 @@ disables the rendering of the corresponding object.
 
 .. _visual-rgba-contactgap:
 
-:at:`contactgap`: :at-val:`real(4), "0.5, 0.8, 0.9, 1"`
+:at:`contactgap`: :at-val:`real(4), "0.5 0.8 0.9 1"`
    Color of contacts that fall in the contact gap (and are thereby excluded from contact force computations).
 
 .. _visual-rgba-rangefinder:
@@ -9315,7 +9305,7 @@ if omitted.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`mesh <asset-mesh>` element of the defaults class.
-| The available attributes are: :ref:`scale <asset-mesh-scale>` and :ref:`scale <asset-mesh-maxhullvert>`.
+| The available attributes are: :ref:`scale <asset-mesh-scale>` and :ref:`maxhullvert <asset-mesh-maxhullvert>`.
 
 
 .. _default-material:
@@ -9766,8 +9756,8 @@ if omitted.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using
-:ref:`Actuator shortcuts <CActShortcuts>`. It does not make sense to use more than one such shortcut in the same defaults
-class, because they set the same underlying attributes, replacing any previous settings. All
+:ref:`Actuator shortcuts <CActShortcuts>`. It does not make sense to use more than one such shortcut in the same
+defaults class, because they set the same underlying attributes, replacing any previous settings. All
 :ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, refsite,
 tendon, slidersite, cranksite.
 
@@ -10228,7 +10218,7 @@ See :ref:`exPlugin` for more details.
 :el-prefix:`plugin/` |-| **instance** |*|
 '''''''''''''''''''''''''''''''''''''''''
 
-Declares a plugin instance. Explicit instances declaration is required when multiple elements are backed by the same
+Declares a plugin instance. Explicit instance declaration is required when multiple elements are backed by the same
 plugin, or when global plugin configuration is desired. See plugin :ref:`declaration<exDeclaration>` and
 :ref:`configuration<exConfiguration>` for more details.
 

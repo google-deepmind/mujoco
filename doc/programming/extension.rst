@@ -3,7 +3,7 @@
 Extensions
 ----------
 
-This section describes MuJoCo's mechanisms for user-authored extensions. At present, extensibility is provided by
+This section describes MuJoCo's mechanisms for user-authored extensions. At present, extensibility is provided
 via :ref:`engine plugins<exPlugin>` and :ref:`resource providers<exProvider>`.
 
 .. _exPlugin:
@@ -11,7 +11,7 @@ via :ref:`engine plugins<exPlugin>` and :ref:`resource providers<exProvider>`.
 Engine plugins
 ~~~~~~~~~~~~~~
 
-Engine plugins, introduced in MuJoCo 2.3.0, allow user-defined logic to be inserted into various parts of MuJoCo's
+Engine plugins allow user-defined logic to be inserted into various parts of MuJoCo's
 computational pipeline. For example, custom sensor and actuator types can be implemented as plugins. Plugin features are
 referenced in the XML content of an MJCF model, allowing MJCF to remain an abstract physical description of
 a system even if the simulation requirements extend beyond MuJoCo's built-in capabilities.
@@ -462,6 +462,6 @@ Now we can write assets as strings in our MJCF files:
 
    <asset>
      <texture name="grid" file="grid.png" type="2d"/>
-     <mesh content-type="model/obj" file="data:model/obj;base65,I215IG9iamVjdA0KdiAxIDAgMA0KdiAwIDEgMA0KdiAwIDAgMQ=="/>
+     <mesh content-type="model/obj" file="data:model/obj;base64,I215IG9iamVjdA0KdiAxIDAgMA0KdiAwIDEgMA0KdiAwIDAgMQ=="/>
      ...
    </asset>
