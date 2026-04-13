@@ -35,7 +35,7 @@
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/renderables.h"
+#include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
@@ -88,10 +88,10 @@ static bool IsBehind(const float* headpos, const float* pos, const float* mat) {
 
 Drawable::Drawable(ModelObjects* model_objects, const mjvScene* scene,
                    const mjvGeom& geom)
-    : renderables_(model_objects->GetEngine()) {
+    : renderable_(model_objects->GetEngine()) {
   if (geom.category == mjCAT_DECOR) {
-    renderables_.SetCastShadows(false);
-    renderables_.SetReceiveShadows(false);
+    renderable_.SetCastShadows(false);
+    renderable_.SetReceiveShadows(false);
   }
 
   switch ((mjtGeom)geom.type) {
@@ -172,15 +172,15 @@ void Drawable::AddMesh(ModelObjects* model_objs, int data_id) {
   if (mesh == nullptr) {
     mju_error("Unknown mesh %d", data_id);
   }
-  renderables_.Append(mesh);
+  renderable_.Append(mesh);
 }
 
 void Drawable::AddGeom(ModelObjects* model_objs, const mjvScene* scene,
                        const mjvGeom& geom) {
   if (geom.type == mjGEOM_FLEX) {
-    renderables_.Append(model_objs->CreateFlexMesh(scene, geom));
+    renderable_.Append(model_objs->CreateFlexMesh(scene, geom));
   } else if (geom.type == mjGEOM_SKIN) {
-    renderables_.Append(model_objs->CreateSkinMesh(scene, geom));
+    renderable_.Append(model_objs->CreateSkinMesh(scene, geom));
   }
 }
 
@@ -189,7 +189,7 @@ void Drawable::AddHeightField(ModelObjects* model_objs, int hfield_id) {
   if (mesh == nullptr) {
     mju_error("Unknown height field %d", hfield_id);
   }
-  renderables_.Append(mesh);
+  renderable_.Append(mesh);
 }
 
 void Drawable::AddShape(ModelObjects* model_objs,
@@ -198,7 +198,7 @@ void Drawable::AddShape(ModelObjects* model_objs,
   if (mesh == nullptr) {
     mju_error("Unknown shape %d", shape_type);
   }
-  renderables_.Append(mesh);
+  renderable_.Append(mesh);
 }
 
 void Drawable::SetTransform(const mjvGeom& geom) {
@@ -211,9 +211,9 @@ void Drawable::SetTransform(const mjvGeom& geom) {
 
   float3 size = ReadFloat3(geom.size);
   filament::TransformManager& tm =
-      renderables_.GetEngine()->getTransformManager();
-  for (int j = 0; j < renderables_.GetNumEntities(); ++j) {
-    const utils::Entity& entity = renderables_[j];
+      renderable_.GetEngine()->getTransformManager();
+  for (int j = 0; j < renderable_.GetNumEntities(); ++j) {
+    const utils::Entity& entity = renderable_[j];
 
     // Update object transform.
     mat4 entity_transform = transform_;
@@ -330,15 +330,15 @@ void Drawable::UpdateMaterial(const mjModel* model, const mjvGeom& geom,
   if (geom.type == mjGEOM_PLANE) {
     if (IsBehind(headpos, geom.pos, geom.mat)) {
       params.color[3] *= 0.3;
-      renderables_.SetReceiveShadows(false);
+      renderable_.SetReceiveShadows(false);
       params.reflective = false;
     } else {
-      renderables_.SetReceiveShadows(true);
+      renderable_.SetReceiveShadows(true);
       params.reflective =
           enable_reflection && geom.reflectance > 0 && params.color.a == 1.0f;
     }
   }
-  renderables_.SetWireframe(render_flags[mjRND_WIREFRAME]);
+  renderable_.SetWireframe(render_flags[mjRND_WIREFRAME]);
 
   Material::Textures textures;
   if (geom.matid >= 0) {

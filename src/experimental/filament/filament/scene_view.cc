@@ -45,7 +45,7 @@
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/render_target.h"
-#include "experimental/filament/filament/renderables.h"
+#include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
@@ -163,7 +163,7 @@ SceneView::~SceneView() {
     light->RemoveFromScene(scene_);
   }
   for (auto& drawable : drawables_) {
-    drawable->GetRenderables().RemoveFromScene(scene_);
+    drawable->GetRenderable().RemoveFromScene(scene_);
   }
   lights_.clear();
   drawables_.clear();
@@ -194,7 +194,7 @@ void SceneView::RemoveFromScene(Light* light) {
 
 void SceneView::AddToScene(Drawable* drawable) {
   if (drawables_.insert(drawable).second) {
-    drawable->GetRenderables().AddToScene(scene_);
+    drawable->GetRenderable().AddToScene(scene_);
     if (drawable->GetMaterial().GetParams().reflective) {
       AddReflectiveDrawable(drawable);
     }
@@ -207,7 +207,7 @@ void SceneView::RemoveFromScene(Drawable* drawable) {
     if (it != reflectives_.end()) {
       reflectives_.erase(it);
     }
-    drawable->GetRenderables().RemoveFromScene(scene_);
+    drawable->GetRenderable().RemoveFromScene(scene_);
   }
 }
 
@@ -248,8 +248,8 @@ void SceneView::Render(filament::Renderer* renderer,
 
   for (auto& iter : drawables_) {
     Material& material = iter->GetMaterial();
-    Renderables& renderables = iter->GetRenderables();
-    renderables.SetMaterialInstance(
+    Renderable& renderable = iter->GetRenderable();
+    renderable.SetMaterialInstance(
         material.GetMaterialInstance(request.draw_mode));
   }
 
@@ -272,7 +272,7 @@ void SceneView::Render(filament::Renderer* renderer,
       SetupReflectionCamera(drawable->GetTransform(), camera_, reflect_camera_);
 
       // Hide reflective surface from its own reflection pass.
-      drawable->GetRenderables().SetLayerMask(0x00);
+      drawable->GetRenderable().SetLayerMask(0x00);
 
       // Render the reflection to its render target.
       reflect_view_->setRenderTarget(
@@ -280,7 +280,7 @@ void SceneView::Render(filament::Renderer* renderer,
       renderer->render(reflect_view_);
 
       // Unhide the reflective surface.
-      drawable->GetRenderables().SetLayerMask(0x01);
+      drawable->GetRenderable().SetLayerMask(0x01);
     }
   }
 

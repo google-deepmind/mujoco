@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/renderables.h"
+#include "experimental/filament/filament/renderable.h"
 
 #include <cstdint>
 #include <utility>
@@ -27,15 +27,15 @@
 
 namespace mujoco {
 
-Renderables::Renderables(filament::Engine* engine) : material_(engine) {}
+Renderable::Renderable(filament::Engine* engine) : material_(engine) {}
 
-Renderables::~Renderables() noexcept {
+Renderable::~Renderable() noexcept {
   while (!entities_.empty()) {
     RemoveLast();
   }
 }
 
-void Renderables::RemoveLast() {
+void Renderable::RemoveLast() {
   if (entities_.empty()) {
     return;
   }
@@ -53,7 +53,7 @@ void Renderables::RemoveLast() {
   meshes_.pop_back();
 }
 
-void Renderables::Update(int index, const Mesh* mesh) {
+void Renderable::Update(int index, const Mesh* mesh) {
   if (index < 0 || index >= entities_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
@@ -62,7 +62,7 @@ void Renderables::Update(int index, const Mesh* mesh) {
   UpdateMeshes(index, mesh);
 }
 
-void Renderables::Update(int index, MeshPtr mesh) {
+void Renderable::Update(int index, MeshPtr mesh) {
   if (index < 0 || index >= entities_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
@@ -71,19 +71,19 @@ void Renderables::Update(int index, MeshPtr mesh) {
   UpdateMeshes(index, mesh.get(), std::move(mesh));
 }
 
-void Renderables::Append(const Mesh* mesh) {
+void Renderable::Append(const Mesh* mesh) {
   utils::Entity entity = CreateEntity(mesh);
   entities_.push_back(entity);
   meshes_.push_back({nullptr, mesh});
 }
 
-void Renderables::Append(MeshPtr mesh) {
+void Renderable::Append(MeshPtr mesh) {
   utils::Entity entity = CreateEntity(mesh.get());
   entities_.push_back(entity);
   meshes_.push_back({std::move(mesh), mesh.get()});
 }
 
-utils::Entity Renderables::CreateEntity(const Mesh* mesh) {
+utils::Entity Renderable::CreateEntity(const Mesh* mesh) {
   filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
   if (vertex_buffer == nullptr) {
     mju_error("Invalid (null) vertex buffer.");
@@ -113,7 +113,8 @@ utils::Entity Renderables::CreateEntity(const Mesh* mesh) {
   builder.receiveShadows(receive_shadows_);
   builder.layerMask(0xff, layer_mask_);
   builder.priority(priority_);
-  builder.screenSpaceContactShadows(true);;
+  builder.screenSpaceContactShadows(true);
+  ;
 
   builder.build(*GetEngine(), entity);
   if (assigned_scene_) {
@@ -122,7 +123,7 @@ utils::Entity Renderables::CreateEntity(const Mesh* mesh) {
   return entity;
 }
 
-void Renderables::UpdateEntity(utils::Entity entity, const Mesh* mesh) {
+void Renderable::UpdateEntity(utils::Entity entity, const Mesh* mesh) {
   filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
   if (vertex_buffer == nullptr) {
     mju_error("Invalid (null) vertex buffer.");
@@ -139,8 +140,7 @@ void Renderables::UpdateEntity(utils::Entity entity, const Mesh* mesh) {
                    index_buffer->getIndexCount());
 }
 
-void Renderables::UpdateMeshes(int index, const Mesh* mesh,
-                               MeshPtr owned_mesh) {
+void Renderable::UpdateMeshes(int index, const Mesh* mesh, MeshPtr owned_mesh) {
   if (index < 0 || index >= meshes_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
@@ -148,7 +148,7 @@ void Renderables::UpdateMeshes(int index, const Mesh* mesh,
   meshes_[index].mesh = mesh;
 }
 
-void Renderables::AddToScene(filament::Scene* scene) {
+void Renderable::AddToScene(filament::Scene* scene) {
   if (assigned_scene_) {
     if (assigned_scene_ != scene) {
       mju_error("Cannot add renderable to multiple scenes.");
@@ -162,7 +162,7 @@ void Renderables::AddToScene(filament::Scene* scene) {
   assigned_scene_ = scene;
 }
 
-void Renderables::RemoveFromScene(filament::Scene* scene) {
+void Renderable::RemoveFromScene(filament::Scene* scene) {
   if (assigned_scene_ != scene) {
     mju_error("Attempting to remove renderable from wrong scene.");
   }
@@ -172,8 +172,7 @@ void Renderables::RemoveFromScene(filament::Scene* scene) {
   assigned_scene_ = nullptr;
 }
 
-void Renderables::SetMaterialInstance(
-    filament::MaterialInstance* instance) {
+void Renderable::SetMaterialInstance(filament::MaterialInstance* instance) {
   if (instance != material_instance_) {
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (utils::Entity& entity : entities_) {
@@ -184,7 +183,7 @@ void Renderables::SetMaterialInstance(
   }
 }
 
-void Renderables::SetLayerMask(std::uint8_t mask) {
+void Renderable::SetLayerMask(std::uint8_t mask) {
   if (mask != layer_mask_) {
     layer_mask_ = mask;
 
@@ -195,7 +194,7 @@ void Renderables::SetLayerMask(std::uint8_t mask) {
   }
 }
 
-void Renderables::SetPriority(std::uint8_t priority) {
+void Renderable::SetPriority(std::uint8_t priority) {
   if (priority != priority_) {
     priority_ = priority;
 
@@ -206,7 +205,7 @@ void Renderables::SetPriority(std::uint8_t priority) {
   }
 }
 
-void Renderables::SetCastShadows(bool cast_shadows) {
+void Renderable::SetCastShadows(bool cast_shadows) {
   if (cast_shadows_ != cast_shadows) {
     cast_shadows_ = cast_shadows;
 
@@ -217,7 +216,7 @@ void Renderables::SetCastShadows(bool cast_shadows) {
   }
 }
 
-void Renderables::SetReceiveShadows(bool receive_shadows) {
+void Renderable::SetReceiveShadows(bool receive_shadows) {
   if (receive_shadows_ != receive_shadows) {
     receive_shadows_ = receive_shadows;
 
@@ -228,7 +227,7 @@ void Renderables::SetReceiveShadows(bool receive_shadows) {
   }
 }
 
-void Renderables::SetWireframe(bool wireframe) {
+void Renderable::SetWireframe(bool wireframe) {
   static constexpr auto kWireframeType =
       filament::RenderableManager::PrimitiveType::LINES;
 
@@ -249,10 +248,8 @@ void Renderables::SetWireframe(bool wireframe) {
   }
 }
 
-Material& Renderables::GetMaterial() { return material_; }
+Material& Renderable::GetMaterial() { return material_; }
 
-filament::Engine* Renderables::GetEngine() {
-  return material_.GetEngine();
-}
+filament::Engine* Renderable::GetEngine() { return material_.GetEngine(); }
 
 }  // namespace mujoco

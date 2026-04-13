@@ -22,7 +22,7 @@
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/renderables.h"
+#include "experimental/filament/filament/renderable.h"
 
 namespace mujoco {
 
@@ -48,11 +48,11 @@ class Drawable {
   // Returns the transform of the drawable.
   const filament::math::mat4& GetTransform() const { return transform_; }
 
-  // Returns the renderables for the drawable.
-  Renderables& GetRenderables() { return renderables_; }
+  // Returns the renderable for the drawable.
+  Renderable& GetRenderable() { return renderable_; }
 
   // Returns the material for the drawable.
-  Material& GetMaterial() { return renderables_.GetMaterial(); }
+  Material& GetMaterial() { return renderable_.GetMaterial(); }
 
  private:
   void AddMesh(ModelObjects* model_objs, int data_id);
@@ -61,7 +61,7 @@ class Drawable {
   void AddHeightField(ModelObjects* model_objs, int hfield_id);
   void AddShape(ModelObjects* model_objs, ModelObjects::ShapeType shape_type);
 
-  Renderables renderables_;
+  Renderable renderable_;
   filament::math::mat4 transform_;
 };
 
