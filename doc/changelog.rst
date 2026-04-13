@@ -52,6 +52,16 @@ General
 
    - The :ref:`mjtWarning` enum value ``mjWARN_VGEOMFULL`` is removed. Exhaustion of visual geoms is now handled
      internally by the :ref:`mjvScene`.
+   - URDF parsing no longer hardcodes :ref:`strippath<compiler-strippath>` to "true". The setting is now respected and
+     the default is "false". Setting this is attribute is now the responsibility of the user.
+
+     **Migration:** Set :ref:`strippath<compiler-strippath>` to "true" in MJCF or programmatically using
+
+     .. code-block:: python
+
+       spec = mujoco.MjSpec.from_file("path/to/model.urdf")
+       spec.compiler.strippath = True
+
 
 Bug fixes
 ^^^^^^^^^

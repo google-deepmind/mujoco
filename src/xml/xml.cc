@@ -296,7 +296,6 @@ mjSpec* SpecFromXML(std::string_view xml, std::string_view dir,
 
       // set reasonable default for parsing a URDF
       // this is separate from the Parser to allow multiple URDFs to be loaded.
-      spec->strippath = true;
       spec->compiler.fusestatic = true;
       spec->compiler.discardvisual = true;
 

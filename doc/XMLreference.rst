@@ -739,7 +739,7 @@ has any effect. The settings here are global and apply to the entire model.
 
 .. _compiler-strippath:
 
-:at:`strippath`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
+:at:`strippath`: :at-val:`[false, true], "false"`
    When this attribute is "true", the parser will remove any path information in file names specified in the model. This
    is useful for loading models created on a different system using a different directory structure.
 
