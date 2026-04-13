@@ -17,6 +17,7 @@
 #include "src/engine/engine_forward.h"
 #include "src/engine/engine_derivative.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdlib>
@@ -476,6 +477,310 @@ TEST_F(ImplicitIntegratorTest, EnergyConservation) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+// Energy and angmom conservation for free body with implicitfast (IMR)
+TEST_F(ImplicitIntegratorTest, ConservationMidpoint) {
+  // aligned: CoM at joint origin
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.01">
+      <flag energy="enable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // auto-aligned: CoM at joint origin
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.01">
+      <flag energy="enable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint align="true"/>
+        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30" pos=".03 .02 .01"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // non-aligned: CoM offset from joint origin
+  static constexpr char xml3[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.01">
+      <flag energy="enable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30" pos=".03 .02 .01"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  int xml_idx = 1;
+  for (auto xml : {xml1, xml2, xml3}) {
+    SCOPED_TRACE(testing::Message() << "XML case " << xml_idx++);
+    char error[1024];
+    mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
+    mjData* data = mj_makeData(model);
+
+    const int nstep = 500;
+    mjtNum energy_drift[2], angmom_drift[2];  // [0]=midpoint, [1]=rk4
+
+    for (int integrator : {mjINT_IMPLICITFAST, mjINT_RK4}) {
+      int idx = (integrator == mjINT_IMPLICITFAST) ? 0 : 1;
+      model->opt.integrator = integrator;
+
+      // reset
+      mj_resetData(model, data);
+      data->qvel[3] = 1.0;
+      data->qvel[4] = 2.0;
+      data->qvel[5] = 3.0;
+      mj_forward(model, data);
+      mjtNum initial_energy = data->energy[1];
+      mjtNum initial_angmom[3];
+      mj_subtreeVel(model, data);
+      mju_copy3(initial_angmom, data->subtree_angmom);
+
+      for (int i=0; i < nstep; i++) {
+        mj_step(model, data);
+      }
+
+      energy_drift[idx] = fabs(data->energy[1] - initial_energy);
+      mj_subtreeVel(model, data);
+      mjtNum angmom_err[3];
+      mju_sub3(angmom_err, data->subtree_angmom, initial_angmom);
+      angmom_drift[idx] = mju_norm3(angmom_err);
+    }
+
+    // midpoint should conserve energy better than RK4 (double only)
+#ifndef mjUSESINGLE
+    EXPECT_LT(energy_drift[0], energy_drift[1]);
+#endif
+
+    // both should conserve angular momentum well
+    EXPECT_LT(angmom_drift[0], MjTol(1e-3, 1e-2));
+    EXPECT_LT(angmom_drift[1], MjTol(1e-3, 1e-2));
+
+    mj_deleteData(data);
+    mj_deleteModel(model);
+  }
+}
+
+// verify second-order convergence of midpoint integration
+TEST_F(ImplicitIntegratorTest, MidpointConvergenceOrder) {
+  // aligned: CoM at joint origin
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // non-aligned: CoM offset from joint origin
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30"
+              pos=".05 .03 .02"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  int xml_idx = 1;
+  for (auto xml : {xml1, xml2}) {
+    SCOPED_TRACE(testing::Message() << "XML case " << xml_idx++);
+    char error[1024];
+    mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
+
+    mjtNum T = 1.0;
+    mjtNum h_coarse = 0.02;
+    mjtNum quat_coarse[4], quat_fine[4], quat_ref[4];
+
+    auto run = [&](mjtNum h, mjtNum quat_out[4]) {
+      model->opt.timestep = h;
+      mjData* data = mj_makeData(model);
+
+      data->qvel[3] = 1.0;
+      data->qvel[4] = 2.0;
+      data->qvel[5] = 3.0;
+
+      int nstep = (int)(T / h + 0.5);
+      for (int i = 0; i < nstep; i++) {
+        mj_step(model, data);
+      }
+
+      mju_copy4(quat_out, data->qpos + 3);
+      mj_deleteData(data);
+    };
+
+    run(h_coarse, quat_coarse);
+    run(h_coarse / 2, quat_fine);
+    run(h_coarse / 16, quat_ref);
+
+    // quaternion distance: ||quat - quat_ref|| (handles sign ambiguity)
+    auto quat_dist = [](const mjtNum a[4], const mjtNum b[4]) -> mjtNum {
+      mjtNum pos = 0, neg = 0;
+      for (int i = 0; i < 4; i++) {
+        pos += (a[i] - b[i]) * (a[i] - b[i]);
+        neg += (a[i] + b[i]) * (a[i] + b[i]);
+      }
+      return mju_sqrt(mju_min(pos, neg));
+    };
+
+    mjtNum err_coarse = quat_dist(quat_coarse, quat_ref);
+    mjtNum err_fine = quat_dist(quat_fine, quat_ref);
+
+    // second-order: error ratio should be ~4 when halving timestep
+    mjtNum ratio = err_coarse / err_fine;
+    EXPECT_GT(ratio, 3.5);
+    EXPECT_LT(ratio, 4.5);
+
+    mj_deleteModel(model);
+  }
+}
+
+// verify that Newton iteration in mj_midpoint converges quickly (aligned case)
+TEST_F(ImplicitIntegratorTest, MidpointNewtonConvergence) {
+  // inertia ratios: symmetric, mildly asymmetric, extremely asymmetric
+  mjtNum inertias[][3] = {
+    {1.0, 1.0, 1.0},
+    {1.0, 2.0, 3.0},
+    {0.01, 1.0, 100.0},
+    {1.0, 1.0, 1000.0},
+  };
+
+  mjtNum timesteps[] = {0.001, 0.01, 0.1};
+
+  mjtNum velocities[][3] = {
+    {1.0, 2.0, 3.0},
+    {100.0, 0.0, 0.0},
+    {10.0, 10.0, 10.0},
+    {0.01, 0.01, 100.0},
+  };
+
+  mjtNum q_identity[4] = {1, 0, 0, 0};
+  mjtNum torques[][3] = {
+    {0, 0, 0},
+    {10.0, 20.0, 30.0},
+    {100.0, 0.0, 0.0},
+    {0.0, 0.0, 100.0},
+  };
+
+  int max_iter = 0;
+  int total_iter = 0;
+  int ncases = 0;
+
+  for (auto& I : inertias) {
+    for (mjtNum h : timesteps) {
+      for (auto& w : velocities) {
+        for (auto& tau : torques) {
+          mjtNum vel[6] = {0, 0, 0, w[0], w[1], w[2]};
+          mjtNum tau_ext[6] = {0, 0, 0, tau[0], tau[1], tau[2]};
+          mjtNum v_new[6];
+          mjtNum ipos[3] = {0, 0, 0};
+          int niter = mj_midpoint(1.0, I, ipos, q_identity, q_identity, vel,
+                                  tau_ext, NULL, h, v_new);
+          EXPECT_LT(niter, 10)
+              << "Failed for I=(" << I[0] << "," << I[1] << "," << I[2] << ")"
+              << " h=" << h
+              << " w=(" << w[0] << "," << w[1] << "," << w[2] << ")"
+              << " tau=(" << tau[0] << "," << tau[1] << "," << tau[2] << ")";
+          max_iter = std::max(max_iter, niter);
+          total_iter += niter;
+          ncases++;
+        }
+      }
+    }
+  }
+
+  EXPECT_LE(max_iter, 4);
+  EXPECT_LT((mjtNum)total_iter / ncases, 2.0);
+}
+
+// verify that Newton iteration in mj_midpoint converges quickly (non-aligned)
+TEST_F(ImplicitIntegratorTest, MidpointFullNewtonConvergence) {
+  mjtNum masses[] = {0.1, 1.0, 10.0};
+
+  mjtNum inertias[][3] = {
+    {1.0, 1.0, 1.0},
+    {1.0, 2.0, 3.0},
+    {0.01, 1.0, 100.0},
+  };
+
+  mjtNum offsets[][3] = {
+    {0.1, 0.0, 0.0},
+    {0.05, 0.03, 0.02},
+    {0.0, 0.0, 0.5},
+  };
+
+  mjtNum timesteps[] = {0.001, 0.01, 0.1};
+
+  mjtNum velocities[][6] = {
+    {1.0, 0.0, 0.0, 1.0, 2.0, 3.0},
+    {0.0, 0.0, 0.0, 10.0, 10.0, 10.0},
+    {5.0, 5.0, 5.0, 0.01, 0.01, 100.0},
+  };
+
+  mjtNum q_identity[4] = {1, 0, 0, 0};
+  mjtNum forces[][6] = {
+    {0, 0, 0, 0, 0, 0},
+    {10.0, 20.0, 30.0, 1.0, 2.0, 3.0},
+  };
+
+  int max_iter = 0;
+  int total_iter = 0;
+  int ncases = 0;
+
+  for (mjtNum mass : masses) {
+    for (auto& I : inertias) {
+      for (auto& r : offsets) {
+        for (mjtNum h : timesteps) {
+          for (auto& vel : velocities) {
+            for (auto& frc : forces) {
+              mjtNum v_new[6];
+              int niter = mj_midpoint(mass, I, r, q_identity, q_identity,
+                                      vel, frc, NULL, h, v_new);
+              EXPECT_LT(niter, 10)
+                  << "Failed for mass=" << mass
+                  << " I=(" << I[0] << "," << I[1] << "," << I[2] << ")"
+                  << " r=(" << r[0] << "," << r[1] << "," << r[2] << ")"
+                  << " h=" << h;
+              max_iter = std::max(max_iter, niter);
+              total_iter += niter;
+              ncases++;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  EXPECT_LE(max_iter, 6);
+  EXPECT_LT((mjtNum)total_iter / ncases, 3.0);
 }
 
 TEST_F(ForwardTest, ControlClamping) {

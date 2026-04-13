@@ -73,9 +73,16 @@ TEST_F(InverseTest, DiscreteInverseMatch) {
   mjtNum* qvel_next = (mjtNum*)mju_malloc(nv * sizeof(mjtNum));
   mjtNum* qacc_fd = (mjtNum*)mju_malloc(nv * sizeof(mjtNum));
 
-  for (auto integrator : {mjINT_EULER, mjINT_IMPLICIT, mjINT_IMPLICITFAST}) {
+  for (auto integrator : {mjINT_EULER, mjINT_IMPLICIT}) {
     model->opt.integrator = integrator;
     for (bool invdiscrete : {false, true}) {
+      // set/unset mjENBL_INVDISCRETE flag (affects both forward and inverse)
+      if (invdiscrete) {
+        model->opt.enableflags |= mjENBL_INVDISCRETE;
+      } else {
+        model->opt.enableflags &= ~mjENBL_INVDISCRETE;
+      }
+
       // simulate
       mj_resetData(model, data);
       for (int i = 0; i < kSteps; ++i) {
@@ -98,17 +105,9 @@ TEST_F(InverseTest, DiscreteInverseMatch) {
       mj_forward(model, data);
       mju_copy(data->qacc, qacc_fd, nv);
 
-      // set/unset mjENBL_INVDISCRETE flag
-      if (invdiscrete) {
-        model->opt.enableflags |= mjENBL_INVDISCRETE;
-      } else {
-        model->opt.enableflags &= ~mjENBL_INVDISCRETE;
-      }
-
       // call built-in testing function
       mj_compareFwdInv(model, data);
 
-      // depending on mjENBL_INVDISCRETE flag, expect mismatch to be small/large
       if (invdiscrete) {
         mjtNum epsilon = MjTol(1e-9, 0.05);
         EXPECT_LT(data->solver_fwdinv[0], epsilon);

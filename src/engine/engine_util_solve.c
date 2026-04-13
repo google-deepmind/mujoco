@@ -883,6 +883,37 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
 }
 
 
+//--------------------------- 3x3 linear solve -----------------------------------------------------
+
+// solve 3x3 linear system A*x = b using Gaussian elimination
+void mju_solve3(mjtNum x[3], const mjtNum A[9], const mjtNum b[3]) {
+  mjtNum M[3][4] = {
+    {A[0], A[1], A[2], b[0]},
+    {A[3], A[4], A[5], b[1]},
+    {A[6], A[7], A[8], b[2]}
+  };
+
+  for (int i=0; i<3; i++) {
+    mjtNum pivot = M[i][i];
+    for (int j=i; j<4; j++) {
+      M[i][j] /= pivot;
+    }
+
+    for (int k=0; k<3; k++) {
+      if (k != i) {
+        mjtNum factor = M[k][i];
+        for (int j=i; j<4; j++) {
+          M[k][j] -= factor * M[i][j];
+        }
+      }
+    }
+  }
+  x[0] = M[0][3];
+  x[1] = M[1][3];
+  x[2] = M[2][3];
+}
+
+
 //--------------------------- eigen decomposition --------------------------------------------------
 
 // eigenvalue decomposition of symmetric 3x3 matrix

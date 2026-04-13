@@ -78,6 +78,8 @@ class ForwardTest(absltest.TestCase):
 
     # implicitfast
     m.opt.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+    # TODO(team): remove this override when the mjx feature matches mujoco
+    m.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_INVDISCRETE
     dx = jax.jit(mjx.implicit)(mx, mjx.put_data(m, d))
     mujoco.mj_implicit(m, d)
     _assert_attr_eq(d, dx, 'qpos')

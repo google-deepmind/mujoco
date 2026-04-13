@@ -657,13 +657,22 @@ from its default.
 .. _option-flag-invdiscrete:
 
 :at:`invdiscrete`: :at-val:`[disable, enable], "disable"`
-   This flag enables discrete-time inverse dynamics with :ref:`mj_inverse` for all
-   :ref:`integrators<option-integrator>` other than ``RK4``. Recall from the
-   :ref:`numerical integration<geIntegration>` section that the one-step integrators (``Euler``, ``implicit`` and
-   ``implicitfast``), modify the mass matrix :math:`M \rightarrow M-hD`. This implies that finite-differenced
-   accelerations :math:`(v_{t+h} - v_t)/h` will not correspond to the continuous-time acceleration ``mjData.qacc``.
-   When this flag is enabled, :ref:`mj_inverse` will  interpret ``qacc`` as having been computed from the difference of
-   two sequential velocities, and undo the above modification.
+   This dual-purpose flag enables discrete-time inverse dynamics and disables :ref:`midpoint integration<geMidpoint>`.
+
+   Enable discrete-time inverse dynamics
+     This flag **enables** discrete-time inverse dynamics with :ref:`mj_inverse` for all
+     :ref:`integrators<option-integrator>` other than ``RK4``. Recall from the :ref:`numerical
+     integration<geIntegration>` section that the one-step integrators (``Euler``, ``implicit`` and ``implicitfast``),
+     modify the mass matrix :math:`M \rightarrow M-hD`. This implies that finite-differenced accelerations
+     :math:`(v_{t+h} - v_t)/h` will not correspond to the continuous-time acceleration ``mjData.qacc``. When this flag
+     is enabled, :ref:`mj_inverse` will interpret ``qacc`` as having been computed from the difference of two sequential
+     velocities, and undo the above modification.
+
+   Disable midpoint integration
+     Additionally and relatedly, this flag **disables** :ref:`midpoint integration<geMidpoint>` for free bodies, which
+     would otherwise break the linear relationship between finite-differenced velocities and forces assumed by discrete
+     inverse dynamics. Note that disabling midpoint integration might be useful for debugging or for other reasons,
+     regardless or whether inverse dynamics are used.
 
 
 .. _option-flag-multiccd:

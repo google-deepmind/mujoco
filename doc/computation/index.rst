@@ -573,6 +573,49 @@ Solving for :math:`v_{t+h}`, we obtain the implicit-in-velocity update
        \widehat{M} &\equiv M-h D
    \end{aligned}
 
+.. _geMidpoint:
+
+Midpoint integration for free bodies
+   The implicit-in-velocity update :eq:`eq_implicit_update` treats the acceleration as a function of velocity and
+   linearizes. While effective for damping-like forces, it is sub-optimal for rotational dynamics, where
+   Coriolis and gyroscopic forces are *quadratic* in angular velocity. For this case, a better approach is to directly
+   discretize the rotational equations of motion using the *midpoint method*.
+
+   Consider a rigid body rotating in its principal-axis frame with angular velocity
+   :math:`\omega \in \mathbb{R}^3` and diagonal inertia tensor :math:`I = \text{diag}(I_1, I_2, I_3)`. The rotational
+   dynamics are given by `Euler's rotation equation
+   <https://en.wikipedia.org/wiki/Euler%27s_equations_(rigid_body_dynamics)>`__:
+
+   .. math::
+      I \dot{\omega} + \omega \times I\omega = \tau
+
+   where :math:`\tau` is the external torque in the principal-axis frame.
+   Evaluating the velocities at the midpoint, :math:`\omega_\text{mid} = (\omega_t + \omega_{t+h})/2`, gives:
+
+   .. math::
+      \frac{2}{h} I (\omega_\text{mid} - \omega_t) + \omega_\text{mid} \times I \omega_\text{mid} = \tau
+
+   This is a system of 3 nonlinear equations in 3 unknowns :math:`\omega_\text{mid}`, solved at each timestep using
+   Newton's method with a backtracking line search. After solving, the new velocity is recovered as
+   :math:`\omega_{t+h} = 2\omega_\text{mid} - \omega_t`.
+
+   **Properties.** The midpoint method preserves all `quadratic first integrals
+   <https://doi.org/10.1007/3-540-30666-8>`__ of the ODE. For Euler's equations, these are the
+   kinetic energy :math:`H = \frac{1}{2}\omega^T I\omega` and the squared angular momentum
+   :math:`C = \frac{1}{2}|I\omega|^2`, both conserved exactly in the absence of external torque. Since :math:`C` is the
+   Casimir function of the `Lie-Poisson <https://en.wikipedia.org/wiki/Poisson_bracket>`__ structure, the midpoint
+   method is a symmetric (time-reversible) and second-order accurate *Poisson integrator*.
+
+   **Eligibility.** Midpoint integration is only applied to free bodies with no child bodies.
+
+   **Performance.** While the midpoint method carries computational overhead, we've found it to be
+   negligible compared to the rest of the pipeline, on the order of 1% in the worst case.
+
+   **Disabling.** Because midpoint integration solves a nonlinear equation for the next velocity, it breaks the linear
+   relationship between finite-differenced velocities and forces assumed by discrete inverse dynamics. Therefore,
+   setting the :ref:`invdiscrete<option-flag-invdiscrete>` flag disables midpoint integration, and also provides a
+   general opt-out mechanism for this integrator.
+
 .. _geIntegrators:
 
 Integrators
@@ -610,6 +653,9 @@ Fast implicit-in-velocity (``implicitfast``)
    derivatives are also the main source of asymmetry of :math:`D`, by dropping them and symmetrizing, we can use the
    faster :math:`L^TL` rather than :math:`LU` decomposition.
 
+Both ``implicit`` and ``implicitfast`` apply :ref:`midpoint integration<geMidpoint>` to eligible free bodies,
+providing exact energy conservation for spinning objects at negligible additional cost.
+
 4th-order Runge-Kutta (``RK4``)
    One advantage of our continuous-time formulation is that we can use higher order integrators such as Runge-Kutta or
    multistep methods. MuJoCo implements the fixed-step `4th-order Runge-Kutta method
@@ -641,11 +687,11 @@ Fast implicit-in-velocity (``implicitfast``)
      The ``implicitfast`` integrator has similar computational cost to ``Euler``, yet provides
      increased stability, and is therefore a strict improvement. It is the recommended integrator for most models.
     **implicit**:
-     The benefit over ``implicitfast`` is the implicit integration of Coriolis and centripetal forces, including
-     gyroscopic forces. The most common case where integrating such forces implicitly leads to noticeable improvement is
-     when free objects with asymmetric inertia are spinning quickly. `gyroscopic.xml <../_static/gyroscopic.xml>`__
-     shows an ellipsoid rolling on an inclined plane which quickly diverges with ``implicitfast`` but is stable with
-     ``implicit``.
+     The benefit over ``implicitfast`` is the implicit integration of Coriolis and centripetal forces for *coupled*
+     rotational systems such as multi-link pendula. Both ``implicitfast`` and ``implicit`` apply :ref:`midpoint
+     integration<geMidpoint>` to eligible free bodies with no children, for example
+     `gyroscopic.xml <../_static/gyroscopic.xml>`__ shows an ellipsoid rolling on an
+     inclined plane; both ``implicitfast`` and ``implicit`` handle this case well, while ``Euler`` quickly diverges.
     **RK4**:
      This integrator is best for systems which are energy conserving, or almost energy-conserving. `pendulum.xml
      <../_static/pendulum.xml>`__ shows a complicated pendulum mechanism which diverges quickly using ``Euler`` or

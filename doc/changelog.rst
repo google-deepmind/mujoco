@@ -27,8 +27,13 @@ General
   (``jnt_stiffness``, ``dof_damping``, etc.) continue to hold the linear coefficient and are unchanged.
   The polynomial order is defined by the new constant :ref:`mjNPOLY<glNumericSizes>`. A future breaking C-API change
   may unify the linear and higher-order coefficients into a single array.
-
-- Introduced :ref:`mjpEncoder`, the counterpart to :ref:`mjpDecoder` for encoding of :ref:`mjSpec` and :ref:`mjModel` into :ref:`mjResource`.
+- Added :ref:`midpoint integration<geMidpoint>` for standalone free bodies in ``implicit`` and ``implicitfast``
+  :ref:`integrators<geIntegrators>`. This applies the implicit midpoint rule to the rotational dynamics of free bodies
+  with no children, exactly conserving kinetic energy and angular momentum in the absence of external torques. The
+  :ref:`invdiscrete<option-flag-invdiscrete>` flag now also disables midpoint integration, providing an opt-out
+  mechanism.
+- Introduced :ref:`mjpEncoder`, the counterpart to :ref:`mjpDecoder` for encoding of :ref:`mjSpec` and :ref:`mjModel`
+  into :ref:`mjResource`.
 
   - Added :ref:`mj_encode`, :ref:`mjp_registerEncoder`, :ref:`mjp_defaultEncoder`, and :ref:`mjp_findEncoder`.
 
