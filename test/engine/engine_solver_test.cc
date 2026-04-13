@@ -55,16 +55,21 @@ TEST_F(SolverTest, IslandsEquivalent) {
   mjData* data_island = mj_makeData(model);
   mjData* data_noisland = mj_makeData(model);
 
-  // Below are 3 tolerances associated with 3 different iteration counts,
-  // they are only moderately tight, 12x higher than x86-64 failure on Linux,
-  // i.e. in that case the test fails with rtol smaller than {6e-3, 6e-4, 6e-5}.
+  constexpr int kNumTol = 3;
+  mjtNum maxiter[kNumTol] = {30,   40,   60};
+  // Below are 3 tolerances associated with 3 different iteration counts.
+  // Tolerances are set to be ~12x higher than failure thresholds.
+  // For float32, failure thresholds are ~6000x larger than for float64.
+  // Line 99 adds a 500x factor for float32, so we need another ~12x in rtol.
   // The point of this test is to show that CG convergence is actually not very
   // precise, simply changing whether islands are used changes the solution by
   // quite a lot, even at high iteration count and zero {ls_}tolerance.
   // Increasing the iteration count higher than 60 does not improve convergence.
-  constexpr int kNumTol = 3;
-  mjtNum maxiter[kNumTol] = {30,   40,   60};
-  mjtNum rtol[kNumTol] =    {6e-2, 6e-3, 6e-4};
+  mjtNum rtol[kNumTol] = {
+      MjTol(6e-2, 7.2e-1),
+      MjTol(6e-3, 7.2e-2),
+      MjTol(6e-4, 7.2e-3)
+  };
 
   for (int i = 0; i < kNumTol; ++i) {
     model->opt.iterations = maxiter[i];

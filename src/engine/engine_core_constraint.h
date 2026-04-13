@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +35,9 @@ MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mj
 
 // multiply JacobianT by vector
 MJAPI void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
+
+// subtract Jdot*v correction from result vector
+MJAPI void mj_Jdotv(const mjModel* m, mjData* d, mjtNum* result);
 
 
 //-------------------------- utility functions -----------------------------------------------------

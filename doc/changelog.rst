@@ -29,9 +29,13 @@ General
   may unify the linear and higher-order coefficients into a single array.
 - Added :ref:`midpoint integration<geMidpoint>` for standalone free bodies in ``implicit`` and ``implicitfast``
   :ref:`integrators<geIntegrators>`. This applies the implicit midpoint rule to the rotational dynamics of free bodies
-  with no children, exactly conserving kinetic energy and angular momentum in the absence of external torques. The
+  with no children, conserving kinetic energy to machine precision in the absence of external torques. The
   :ref:`invdiscrete<option-flag-invdiscrete>` flag now also disables midpoint integration, providing an opt-out
   mechanism.
+- Added the centripetal/Coriolis acceleration term :math:`\dot{J}v` to the constraint solver bias for
+  :ref:`connect<equality-connect>` and :ref:`weld<equality-weld>` equality constaints. This significantly improves the
+  stability of constrained mechanisms like four-bar linkages. See :ref:`Dual problem<soDual>` for details.
+
 - Introduced :ref:`mjpEncoder`, the counterpart to :ref:`mjpDecoder` for encoding of :ref:`mjSpec` and :ref:`mjModel`
   into :ref:`mjResource`.
 

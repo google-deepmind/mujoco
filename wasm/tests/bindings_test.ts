@@ -365,7 +365,7 @@ describe('MuJoCo WASM Bindings', () => {
       mujoco.mj_constraintUpdate(
           model!, data!, res.GetView(), cost, /*flg_coneHessian=*/ 1);
 
-      expect(cost.GetView()[0]).toBeCloseTo(3355.837);
+      expect(cost.GetView()[0]).toBeCloseTo(3357.584);
 
       res.delete();
       cost.delete();

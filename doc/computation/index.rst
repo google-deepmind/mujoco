@@ -1296,10 +1296,13 @@ when
 
 This key identity is essentially Newton's second law projected in constraint space. It is derived by moving the term
 :math:`c` in the equations of motion :eq:`eq:motion` to the right hand side, multiplying by :math:`J M^{-1}` from the
-left, adding :math:`\dot{J} v` to both sides, and substituting the above definitions of :math:`A, \au, \ac`. In terms of
-implementation, we do not actually compute the acceleration term :math:`\dot{J} v`. This is because our optimization
-problems depend on differences of constraint-space accelerations, and so this term would cancel out even if we were to
-compute it.
+left, adding :math:`\dot{J} v` to both sides, and substituting the above definitions of :math:`A, \au, \ac`. Computing
+:math:`\dot{J} v` requires differentiating the constraint Jacobian with respect to time, which is nontrivial.
+Although this term cancels in the identity :eq:`eq:identity` and so does not affect the forward-inverse comparison, its
+omission in the forward dynamics introduces a velocity-dependent bias for any constraint whose Jacobian varies with
+configuration. We compute this term for equality constraints (connect and weld) where Jacobian differentiation
+is tractable. For contacts, the term remains omitted due to the complexity of differentiating the contact frame through
+the collision pipeline.
 
 Note that the quadratic term in the inverse problem is weighted by :math:`R` instead of :math:`A+R`. This is the key
 structural insight: the :math:`A` matrix cancels entirely, leaving only :math:`R` in the quadratic term. Two

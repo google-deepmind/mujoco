@@ -787,6 +787,116 @@ TEST_F(CoreConstraintTest, ContactSharedDofJacobian) {
   mj_deleteModel(model);
 }
 
+static const char* const kJdotvConnect2dPath =
+    "engine/testdata/core_constraint/jdotv_connect_2d.xml";
+static const char* const kJdotvConnect3dPath =
+    "engine/testdata/core_constraint/jdotv_connect_3d.xml";
+static const char* const kJdotvWeld3dPath =
+    "engine/testdata/core_constraint/jdotv_weld_3d.xml";
+
+// validate mj_Jdotv against finite-differenced constraint Jacobian
+TEST_F(CoreConstraintTest, JdotvFiniteDifference) {
+
+  for (const char* path : {kJdotvConnect2dPath,
+                           kJdotvConnect3dPath,
+                           kJdotvWeld3dPath}) {
+    const std::string xml_path = GetTestDataFilePath(path);
+    char err[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, err, sizeof(err));
+    ASSERT_THAT(m, NotNull()) << err << " for " << path;
+    int nv = m->nv;
+    mjData* d = mj_makeData(m);
+
+    // simulate for 1 second to accumulate velocity
+    while (d->time < 1.0) {
+      mj_step(m, d);
+    }
+
+    // forward to populate constraints
+    mj_forward(m, d);
+    ASSERT_GT(d->ne, 0) << "no equality constraints for " << path;
+    int ne = d->ne;
+
+    // get dense J_0 (ne x nv)
+    std::vector<mjtNum> J0(ne * nv);
+    if (mj_isSparse(m)) {
+      mju_sparse2dense(J0.data(), d->efc_J, ne, nv,
+                       d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+    } else {
+      mju_copy(J0.data(), d->efc_J, ne * nv);
+    }
+
+    // compute mj_Jdotv at current state
+    std::vector<mjtNum> jdv(ne, 0);
+    mj_Jdotv(m, d, jdv.data());
+
+    // save qpos and qvel
+    std::vector<mjtNum> qpos0(m->nq), qvel0(nv);
+    mju_copy(qpos0.data(), d->qpos, m->nq);
+    mju_copy(qvel0.data(), d->qvel, nv);
+
+    // integrate qpos forward by h using qvel
+    const mjtNum h = MjTol(1e-7, 5e-4);
+    mj_integratePos(m, d->qpos, d->qvel, h);
+    mj_forward(m, d);
+
+    // get dense J_h (ne x nv)
+    ASSERT_EQ(d->ne, ne) << "constraint count changed after integration";
+    std::vector<mjtNum> Jh(ne * nv);
+    if (mj_isSparse(m)) {
+      mju_sparse2dense(Jh.data(), d->efc_J, ne, nv,
+                       d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+    } else {
+      mju_copy(Jh.data(), d->efc_J, ne * nv);
+    }
+
+    // FD: Jdotv_fd[i] = -sum_j (Jh[i,j] - J0[i,j]) / h * qvel[j]
+    // (negated because mj_Jdotv subtracts)
+    std::vector<mjtNum> jdv_fd(ne, 0);
+    for (int i = 0; i < ne; i++) {
+      for (int j = 0; j < nv; j++) {
+        jdv_fd[i] -= (Jh[i*nv+j] - J0[i*nv+j]) / h * qvel0[j];
+      }
+    }
+
+    // compare
+    EXPECT_THAT(AsVector(jdv.data(), ne),
+                Pointwise(MjNear(1e-4, 1e-2), AsVector(jdv_fd.data(), ne)))
+        << "Jdotv FD mismatch for " << path;
+
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
+
+// Test 2: forward-inverse identity preserved with Jdot*v correction
+TEST_F(CoreConstraintTest, JdotvFwdInvIdentity) {
+  for (const char* path : {kJdotvConnect2dPath,
+                           kJdotvConnect3dPath,
+                           kJdotvWeld3dPath}) {
+    const std::string xml_path = GetTestDataFilePath(path);
+    char err[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, err, sizeof(err));
+    ASSERT_THAT(m, NotNull()) << err;
+    mjData* d = mj_makeData(m);
+
+    // give initial velocity
+    for (int i = 0; i < m->nv; i++) d->qvel[i] = 0.5 * (i + 1);
+
+    // forward (with correction ON by default)
+    mj_forward(m, d);
+    mj_compareFwdInv(m, d);
+    mjtNum fwdinv = d->solver_fwdinv[0];
+
+    mjtNum epsilon = MjTol(1e-10, 1e-2);
+    EXPECT_LT(fwdinv, epsilon)
+        << "fwdinv broken for " << path
+        << " (fwdinv=" << fwdinv << ")";
+
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
 
 }  // namespace
 }  // namespace mujoco
