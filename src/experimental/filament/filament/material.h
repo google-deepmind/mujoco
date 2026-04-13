@@ -94,6 +94,9 @@ class Material {
     return instances_[mode];
   }
 
+  // Returns the filament Engine managing the material.
+  filament::Engine* GetEngine() const { return engine_; }
+
  private:
   // Updates the material instances based on the currently set parameters and
   // textures.

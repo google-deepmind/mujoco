@@ -35,6 +35,7 @@
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/renderables.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
@@ -87,8 +88,7 @@ static bool IsBehind(const float* headpos, const float* pos, const float* mat) {
 
 Drawable::Drawable(ModelObjects* model_objects, const mjvScene* scene,
                    const mjvGeom& geom)
-    : material_(model_objects->GetEngine()),
-      renderables_(model_objects->GetEngine()) {
+    : renderables_(model_objects->GetEngine()) {
   if (geom.category == mjCAT_DECOR) {
     renderables_.SetCastShadows(false);
     renderables_.SetReceiveShadows(false);
@@ -199,26 +199,6 @@ void Drawable::AddShape(ModelObjects* model_objs,
     mju_error("Unknown shape %d", shape_type);
   }
   renderables_.Append(mesh);
-}
-
-void Drawable::AddToScene(filament::Scene* scene) {
-  renderables_.AddToScene(scene);
-}
-
-void Drawable::RemoveFromScene(filament::Scene* scene) {
-  renderables_.RemoveFromScene(scene);
-}
-
-void Drawable::SetDrawMode(Material::DrawMode mode) {
-  renderables_.SetMaterialInstance(material_.GetMaterialInstance(mode));
-}
-
-Material& Drawable::GetMaterial() {
-  return material_;
-}
-
-void Drawable::SetLayerMask(std::uint8_t mask) {
-  renderables_.SetLayerMask(mask);
 }
 
 void Drawable::SetTransform(const mjvGeom& geom) {
@@ -371,7 +351,7 @@ void Drawable::UpdateMaterial(const mjModel* model, const mjvGeom& geom,
         model_objs->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
     textures.occlusion =
         model_objs->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
-    material_.UpdateTextures(textures);
+    GetMaterial().UpdateTextures(textures);
   }
 
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
@@ -543,6 +523,6 @@ void Drawable::UpdateMaterial(const mjModel* model, const mjvGeom& geom,
   params.specular *= model_objs->GetSpecularMultiplier();
   params.glossiness *= model_objs->GetShininessMultiplier();
 
-  material_.UpdateParams(params);
+  GetMaterial().UpdateParams(params);
 }
 }  // namespace mujoco

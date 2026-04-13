@@ -21,6 +21,7 @@
 #include <filament/Engine.h>
 #include <filament/Scene.h>
 #include <utils/Entity.h>
+#include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 
 namespace mujoco {
@@ -79,8 +80,11 @@ class Renderables {
   // Sets the material instance for all managed entities.
   void SetMaterialInstance(filament::MaterialInstance* material_instance);
 
-  // Returns the filament Engine managing the entities in this collection.
-  filament::Engine* GetEngine() { return engine_; }
+  // Returns the material for the renderables.
+  Material& GetMaterial();
+
+  // Returns the filament Engine managing the renderables.
+  filament::Engine* GetEngine();
 
  private:
   utils::Entity CreateEntity(const Mesh* mesh);
@@ -92,7 +96,7 @@ class Renderables {
     const Mesh* mesh = nullptr;
   };
 
-  filament::Engine* engine_ = nullptr;
+  Material material_;
   filament::Scene* assigned_scene_ = nullptr;
   filament::MaterialInstance* material_instance_ = nullptr;
   std::vector<utils::Entity> entities_;

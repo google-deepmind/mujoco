@@ -22,11 +22,12 @@
 #include <filament/Scene.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 
 namespace mujoco {
 
-Renderables::Renderables(filament::Engine* engine) : engine_(engine) {}
+Renderables::Renderables(filament::Engine* engine) : material_(engine) {}
 
 Renderables::~Renderables() noexcept {
   while (!entities_.empty()) {
@@ -46,7 +47,7 @@ void Renderables::RemoveLast() {
     assigned_scene_->remove(entity);
   }
 
-  engine_->destroy(entity);
+  GetEngine()->destroy(entity);
   em.destroy(entity);
   entities_.pop_back();
   meshes_.pop_back();
@@ -114,7 +115,7 @@ utils::Entity Renderables::CreateEntity(const Mesh* mesh) {
   builder.priority(priority_);
   builder.screenSpaceContactShadows(true);;
 
-  builder.build(*engine_, entity);
+  builder.build(*GetEngine(), entity);
   if (assigned_scene_) {
     assigned_scene_->addEntity(entity);
   }
@@ -132,13 +133,14 @@ void Renderables::UpdateEntity(utils::Entity entity, const Mesh* mesh) {
     mju_error("Invalid (null) index buffer.");
   }
 
-  filament::RenderableManager& rm = engine_->getRenderableManager();
+  filament::RenderableManager& rm = GetEngine()->getRenderableManager();
   rm.setGeometryAt(rm.getInstance(entity), 0, mesh->GetPrimitiveType(),
                    vertex_buffer, index_buffer, 0,
                    index_buffer->getIndexCount());
 }
 
-void Renderables::UpdateMeshes(int index, const Mesh* mesh, MeshPtr owned_mesh) {
+void Renderables::UpdateMeshes(int index, const Mesh* mesh,
+                               MeshPtr owned_mesh) {
   if (index < 0 || index >= meshes_.size()) {
     mju_error("Invalid index %d for renderable.", index);
   }
@@ -173,7 +175,7 @@ void Renderables::RemoveFromScene(filament::Scene* scene) {
 void Renderables::SetMaterialInstance(
     filament::MaterialInstance* instance) {
   if (instance != material_instance_) {
-    filament::RenderableManager& rm = engine_->getRenderableManager();
+    filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (utils::Entity& entity : entities_) {
       filament::RenderableManager::Instance ri = rm.getInstance(entity);
       rm.setMaterialInstanceAt(ri, 0, instance);
@@ -186,7 +188,7 @@ void Renderables::SetLayerMask(std::uint8_t mask) {
   if (mask != layer_mask_) {
     layer_mask_ = mask;
 
-    filament::RenderableManager& rm = engine_->getRenderableManager();
+    filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (utils::Entity& entity : entities_) {
       rm.setLayerMask(rm.getInstance(entity), 0xff, layer_mask_);
     }
@@ -197,7 +199,7 @@ void Renderables::SetPriority(std::uint8_t priority) {
   if (priority != priority_) {
     priority_ = priority;
 
-    filament::RenderableManager& rm = engine_->getRenderableManager();
+    filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (utils::Entity& entity : entities_) {
       rm.setPriority(rm.getInstance(entity), priority_);
     }
@@ -208,7 +210,7 @@ void Renderables::SetCastShadows(bool cast_shadows) {
   if (cast_shadows_ != cast_shadows) {
     cast_shadows_ = cast_shadows;
 
-    filament::RenderableManager& rm = engine_->getRenderableManager();
+    filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (utils::Entity& entity : entities_) {
       rm.setCastShadows(rm.getInstance(entity), cast_shadows_);
     }
@@ -219,7 +221,7 @@ void Renderables::SetReceiveShadows(bool receive_shadows) {
   if (receive_shadows_ != receive_shadows) {
     receive_shadows_ = receive_shadows;
 
-    filament::RenderableManager& rm = engine_->getRenderableManager();
+    filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (utils::Entity& entity : entities_) {
       rm.setReceiveShadows(rm.getInstance(entity), receive_shadows_);
     }
@@ -233,7 +235,7 @@ void Renderables::SetWireframe(bool wireframe) {
   if (wireframe != wireframe_) {
     wireframe_ = wireframe;
 
-    filament::RenderableManager& rm = engine_->getRenderableManager();
+    filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (int i = 0; i < entities_.size(); ++i) {
       utils::Entity& entity = entities_[i];
       const Mesh* mesh = meshes_[i].mesh;
@@ -245,6 +247,12 @@ void Renderables::SetWireframe(bool wireframe) {
                        index_buffer->getIndexCount());
     }
   }
+}
+
+Material& Renderables::GetMaterial() { return material_; }
+
+filament::Engine* Renderables::GetEngine() {
+  return material_.GetEngine();
 }
 
 }  // namespace mujoco
