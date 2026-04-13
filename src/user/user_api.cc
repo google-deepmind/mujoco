@@ -1280,6 +1280,9 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
   // enforce actlimited = 0; homogeneous bounds are invalid across DC motor states
   actuator->actlimited = 0;
 
+  // DC motor always uses actearly
+  actuator->actearly = 1;
+
   return "";
 }
 

@@ -1805,8 +1805,12 @@ TEST_F(DCMotorTest, StatefulPositionWithCurrentMode) {
   // di/dt = (1.485 - 0.0125 - 0.5) / 0.5 = 0.9725 / 0.5 = 1.945
   EXPECT_NEAR(data->act_dot[adr+2], 1.945, MjTol(1e-12, 1e-5));
 
-  // Force is just K * current since current is stateful
-  EXPECT_NEAR(data->actuator_force[0], 0.05 * 0.5, MjTol(1e-12, 1e-5));
+  // Force is K * next_activation (actearly is always on for DC motors)
+  // Inline mj_nextActivation for te = 0.5
+  mjtNum te = 0.5;
+  mjtNum h = model->opt.timestep;
+  mjtNum next_i = 0.5 + data->act_dot[adr+2] * te * (1 - mju_exp(-h / te));
+  EXPECT_NEAR(data->actuator_force[0], 0.05 * next_i, MjTol(1e-12, 1e-5));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1902,7 +1906,11 @@ TEST_F(DCMotorTest, CurrentPlusThermal) {
   data->ctrl[0] = V;
   mj_forward(model, data);
 
-  EXPECT_NEAR(data->actuator_force[0], K * current, MjTol(1e-12, 1e-5));
+  // Force uses next_activation (actearly is always on for DC motors)
+  // Inline mj_nextActivation for te = 0.01 / R = 0.005
+  mjtNum h = model->opt.timestep;
+  mjtNum next_i = current + data->act_dot[adr+1] * te * (1 - mju_exp(-h / te));
+  EXPECT_NEAR(data->actuator_force[0], K * next_i, MjTol(1e-12, 1e-5));
 
   double R_hot = R * (1 + 0.004 * dT);
   double T_dot = (R_hot * current * current - dT / RT) / C;

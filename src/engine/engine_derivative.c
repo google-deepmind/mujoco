@@ -1137,14 +1137,26 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
     else if (m->actuator_gaintype[i] == mjGAIN_DCMOTOR) {
       const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
       const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+      mjtNum te = dynprm[0];
+
+      // controller velocity derivative: dV/dω
       int input_mode = (int)gainprm[8];
-      if (input_mode > 0) {
-        mjtNum R = gainprm[0];
+      mjtNum dVdw = 0;
+      if (input_mode == 1) dVdw = -gainprm[6];       // position: -kd
+      else if (input_mode == 2) dVdw = -gainprm[4];   // velocity: -kp
+
+      if (te > 0) {
+        // stateful current with actearly: d(K*next_act)/dω
+        // includes both back-EMF (-K) and controller (dVdw) through act_dot
+        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
         mjtNum K = gainprm[1];
-        mjtNum gain = (dynprm[0] > 0) ? K : K / mju_max(mjMINVAL, R);
-        mjtNum kp = gainprm[4];
-        mjtNum kd = gainprm[6];
-        bias_vel -= gain * (input_mode == 1 ? kd : kp);
+        mjtNum s = 1 - mju_exp(-m->opt.timestep / te);
+        bias_vel += K * (dVdw - K) * s / R;
+      } else if (dVdw != 0) {
+        // stateless: controller terms only (back-EMF handled in bias block)
+        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum K = gainprm[1];
+        bias_vel += K * dVdw / R;
       }
 
       // LuGre: force includes -sigma1*z_dot, z_dot = a*z + v

@@ -7238,6 +7238,12 @@ void mjCActuator::Compile(void) {
     actdim = (dyntype != mjDYN_NONE && dyntype != mjDYN_DCMOTOR);
   }
 
+  // DC motor always uses actearly
+  if (dyntype == mjDYN_DCMOTOR && !actearly) {
+    throw mjCError(this, "actearly cannot be false for DC motor actuator '%s' (id = %d)",
+                   name.c_str(), id);
+  }
+
   // check muscle parameters
   for (int i=0; i < 2; i++) {
     // select gain or bias
