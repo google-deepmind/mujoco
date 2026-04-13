@@ -32,8 +32,8 @@ namespace mujoco {
 // Manages the filament Entities and MaterialInstances for a single mjvGeom.
 class Drawable {
  public:
-  Drawable(ObjectManager* object_mgr, ModelObjects* model_objects,
-           const mjvGeom& geom, const Material::Textures* fallback_textures);
+  Drawable(ModelObjects* model_objects, const mjvScene* scene,
+           const mjvGeom& geom);
   ~Drawable() noexcept = default;
 
   Drawable(const Drawable&) = delete;
@@ -46,9 +46,14 @@ class Drawable {
   // Removes the Drawable from the given filament Scene.
   void RemoveFromScene(filament::Scene* scene);
 
-  // Updates the drawable to reflect the current state (e.g. geometry,
-  // transform, material, etc.) of the geom.
-  void Update(const mjModel* model, const mjvScene* scene, const mjvGeom& geom);
+  // Updates the transform of the drawable for rendering.
+  void SetTransform(const mjvGeom& geom);
+
+  // Updates the material parameters of the drawable for rendering.
+  void UpdateMaterial(const mjModel* model, const mjvGeom& geom,
+                      ModelObjects* model_objs, const float headpos[3],
+                      const mjtByte render_flags[mjNRNDFLAG],
+                      ObjectManager::MaterialType* out_material_type);
 
   // Returns the transform of the drawable.
   const filament::math::mat4& GetTransform() const { return transform_; }
@@ -66,23 +71,13 @@ class Drawable {
   Material& GetMaterial();
 
  private:
-  void AddMesh(int data_id);
-  void AddHeightField(int hfield_id);
-  void AddShape(ModelObjects::ShapeType shape_type);
-
-  // Updates the transform of the drawable for rendering.
-  void SetTransform(const mjvGeom& geom);
-
-  // Sets the material for the drawable.
-  void SetNormalMaterial(ObjectManager::MaterialType material_type);
-
-  // Updates the material parameters of the drawable for rendering.
-  void UpdateMaterial(const mjvGeom& geom, bool use_segid_color,
-                      bool enable_reflection, const mjtNum* headpos);
+  void AddMesh(ModelObjects* model_objs, int data_id);
+  void AddGeom(ModelObjects* model_objs, const mjvScene* scene,
+               const mjvGeom& geom);
+  void AddHeightField(ModelObjects* model_objs, int hfield_id);
+  void AddShape(ModelObjects* model_objs, ModelObjects::ShapeType shape_type);
 
   Material material_;
-  ModelObjects* model_objs_ = nullptr;
-  ObjectManager* object_mgr_ = nullptr;
   Renderables renderables_;
   filament::math::mat4 transform_;
 };

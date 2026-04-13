@@ -41,6 +41,7 @@
 #include "experimental/filament/filament/drawable.h"
 #include "experimental/filament/filament/gui_view.h"
 #include "experimental/filament/filament/light.h"
+#include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/model_util.h"
@@ -304,6 +305,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
   mju_n2f(headpos, hpos, 3);
   mju_n2f(gazedir, hfwd, 3);
 
+  const mjModel* model = model_objects_->GetModel();
   const mjvGLCamera gl_camera =
       mjv_averageCamera(scene->camera, scene->camera + 1);
   clip_from_world_ = CalculateClipFromWorld(viewport, gl_camera);
@@ -322,9 +324,26 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       }
     }
 
-    auto drawable = std::make_unique<Drawable>(
-        object_mgr_, model_objects_.get(), *geom, &fallback_textures_);
-    drawable->Update(model_objects_->GetModel(), scene, *geom);
+    auto drawable =
+        std::make_unique<Drawable>(model_objects_.get(), scene, *geom);
+    drawable->SetTransform(*geom);
+
+    ObjectManager::MaterialType material_type = ObjectManager::kNumMaterials;
+    drawable->UpdateMaterial(model, *geom, model_objects_.get(), headpos,
+                             scene->flags, &material_type);
+
+    Material& material = drawable->GetMaterial();
+    material.SetFallbackTextures(&fallback_textures_);
+    material.SetMaterial(
+        Material::DrawMode::kNormal,
+        object_mgr_->GetMaterial(material_type));
+    material.SetMaterial(
+        Material::DrawMode::kDepth,
+        object_mgr_->GetMaterial(ObjectManager::kUnlitDepth));
+    material.SetMaterial(
+        Material::DrawMode::kSegmentation,
+        object_mgr_->GetMaterial(ObjectManager::kUnlitSegmentation));
+
     scene_view_->AddToScene(drawable.get());
     drawables_.push_back(std::move(drawable));
   }
