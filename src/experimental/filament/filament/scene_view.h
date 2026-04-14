@@ -27,9 +27,9 @@
 #include <filament/View.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
-#include "experimental/filament/filament/drawable.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/render_target.h"
 
 namespace mujoco {
@@ -47,8 +47,8 @@ class SceneView {
   // Adds/removes entities from the scene.
   void AddToScene(Light* light);
   void RemoveFromScene(Light* light);
-  void AddToScene(Drawable* drawable);
-  void RemoveFromScene(Drawable* drawable);
+  void AddToScene(Renderable* renderable);
+  void RemoveFromScene(Renderable* renderable);
   void AddToScene(filament::Skybox* skybox);
   void RemoveFromScene(filament::Skybox* skybox);
   void AddToScene(filament::IndirectLight* indirect_light);
@@ -85,9 +85,9 @@ class SceneView {
   SceneView& operator=(const SceneView&) = delete;
 
  private:
-  // Marks a drawable as reflective. Reflective drawables have to be rendered
-  // in their own passes to create the reflective texture.
-  void AddReflectiveDrawable(Drawable* drawable);
+  // Marks a renderable as reflective. Reflective renderables have to be
+  // rendered in their own passes to create the reflective texture.
+  void AddReflectiveRenderable(Renderable* renderable);
 
   filament::Engine* engine_ = nullptr;
   filament::Scene* scene_ = nullptr;
@@ -99,7 +99,7 @@ class SceneView {
 
   // Scene objects.
   std::unordered_set<Light*> lights_;
-  std::unordered_set<Drawable*> drawables_;
+  std::unordered_set<Renderable*> renderables_;
   filament::Skybox* skybox_ = nullptr;
   filament::IndirectLight* indirect_light_ = nullptr;
 
@@ -107,8 +107,8 @@ class SceneView {
   filament::View* reflect_view_ = nullptr;
   filament::Camera* reflect_camera_ = nullptr;
 
-  // The list of reflective drawables and their corresponding render targets.
-  std::vector<Drawable*> reflectives_;
+  // The list of reflective renderables and their corresponding render targets.
+  std::vector<Renderable*> reflectives_;
   std::vector<std::unique_ptr<RenderTarget>> reflect_targets_;
 };
 }  // namespace mujoco

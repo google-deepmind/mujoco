@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/drawable.h"
+#include "experimental/filament/filament/scene_geom_util.h"
 
 #include <cmath>
 #include <cstdint>
+#include <memory>
 #include <numbers>
 
 #include <filament/Material.h>
@@ -81,80 +82,111 @@ static float GetPlaneTileSize(const mjModel* model, int matid,
 }
 
 static bool IsBehind(const float* headpos, const float* pos, const float* mat) {
-  return ((headpos[0] - pos[0]) * mat[2] +
-          (headpos[1] - pos[1]) * mat[5] +
-          (headpos[2] - pos[2]) * mat[8] < 0.0f);
+  return ((headpos[0] - pos[0]) * mat[2] + (headpos[1] - pos[1]) * mat[5] +
+              (headpos[2] - pos[2]) * mat[8] <
+          0.0f);
 }
 
-Drawable::Drawable(ModelObjects* model_objects, const mjvScene* scene,
-                   const mjvGeom& geom)
-    : renderable_(model_objects->GetEngine()) {
-  if (geom.category == mjCAT_DECOR) {
-    renderable_.SetCastShadows(false);
-    renderable_.SetReceiveShadows(false);
+static void AddMesh(Renderable& renderable, ModelObjects* model_objs,
+                    int data_id) {
+  const Mesh* mesh = model_objs->GetMeshBuffer(data_id);
+  if (mesh == nullptr) {
+    mju_error("Unknown mesh %d", data_id);
   }
+  renderable.Append(mesh);
+}
 
+static void AddGeom(Renderable& renderable, ModelObjects* model_objs,
+                    const mjvScene* scene, const mjvGeom& geom) {
+  if (geom.type == mjGEOM_FLEX) {
+    renderable.Append(model_objs->CreateFlexMesh(scene, geom));
+  } else if (geom.type == mjGEOM_SKIN) {
+    renderable.Append(model_objs->CreateSkinMesh(scene, geom));
+  }
+}
+
+static void AddHeightField(Renderable& renderable, ModelObjects* model_objs,
+                           int hfield_id) {
+  const Mesh* mesh = model_objs->GetHeightFieldBuffer(hfield_id);
+  if (mesh == nullptr) {
+    mju_error("Unknown height field %d", hfield_id);
+  }
+  renderable.Append(mesh);
+}
+
+static void AddShape(Renderable& renderable, ModelObjects* model_objs,
+                     ModelObjects::ShapeType shape_type) {
+  const Mesh* mesh = model_objs->GetShapeBuffer(shape_type);
+  if (mesh == nullptr) {
+    mju_error("Unknown shape %d", shape_type);
+  }
+  renderable.Append(mesh);
+}
+
+static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
+                              const mjvScene* scene,
+                              ModelObjects* model_objects) {
   switch ((mjtGeom)geom.type) {
     case mjGEOM_MESH:
-      AddMesh(model_objects, geom.dataid);
+      AddMesh(renderable, model_objects, geom.dataid);
       break;
     case mjGEOM_HFIELD:
-      AddHeightField(model_objects, geom.dataid);
+      AddHeightField(renderable, model_objects, geom.dataid);
       break;
     case mjGEOM_PLANE:
-      AddShape(model_objects, ModelObjects::kPlane);
+      AddShape(renderable, model_objects, ModelObjects::kPlane);
       break;
     case mjGEOM_SPHERE:
-      AddShape(model_objects, ModelObjects::kSphere);
+      AddShape(renderable, model_objects, ModelObjects::kSphere);
       break;
     case mjGEOM_ELLIPSOID:
-      AddShape(model_objects, ModelObjects::kSphere);
+      AddShape(renderable, model_objects, ModelObjects::kSphere);
       break;
     case mjGEOM_BOX:
-      AddShape(model_objects, ModelObjects::kBox);
+      AddShape(renderable, model_objects, ModelObjects::kBox);
       break;
     case mjGEOM_CAPSULE:
-      AddShape(model_objects, ModelObjects::kTube);
-      AddShape(model_objects, ModelObjects::kDome);
-      AddShape(model_objects, ModelObjects::kDome);
+      AddShape(renderable, model_objects, ModelObjects::kTube);
+      AddShape(renderable, model_objects, ModelObjects::kDome);
+      AddShape(renderable, model_objects, ModelObjects::kDome);
       break;
     case mjGEOM_CYLINDER:
-      AddShape(model_objects, ModelObjects::kTube);
-      AddShape(model_objects, ModelObjects::kDisk);
-      AddShape(model_objects, ModelObjects::kDisk);
+      AddShape(renderable, model_objects, ModelObjects::kTube);
+      AddShape(renderable, model_objects, ModelObjects::kDisk);
+      AddShape(renderable, model_objects, ModelObjects::kDisk);
       break;
     case mjGEOM_ARROW:
-      AddShape(model_objects, ModelObjects::kTube);
-      AddShape(model_objects, ModelObjects::kCone);
-      AddShape(model_objects, ModelObjects::kDisk);
+      AddShape(renderable, model_objects, ModelObjects::kTube);
+      AddShape(renderable, model_objects, ModelObjects::kCone);
+      AddShape(renderable, model_objects, ModelObjects::kDisk);
       break;
     case mjGEOM_ARROW1:
-      AddShape(model_objects, ModelObjects::kTube);
-      AddShape(model_objects, ModelObjects::kCone);
-      AddShape(model_objects, ModelObjects::kDisk);
-      AddShape(model_objects, ModelObjects::kDisk);
+      AddShape(renderable, model_objects, ModelObjects::kTube);
+      AddShape(renderable, model_objects, ModelObjects::kCone);
+      AddShape(renderable, model_objects, ModelObjects::kDisk);
+      AddShape(renderable, model_objects, ModelObjects::kDisk);
       break;
     case mjGEOM_ARROW2:
-      AddShape(model_objects, ModelObjects::kTube);
-      AddShape(model_objects, ModelObjects::kCone);
-      AddShape(model_objects, ModelObjects::kCone);
-      AddShape(model_objects, ModelObjects::kDisk);
-      AddShape(model_objects, ModelObjects::kDisk);
+      AddShape(renderable, model_objects, ModelObjects::kTube);
+      AddShape(renderable, model_objects, ModelObjects::kCone);
+      AddShape(renderable, model_objects, ModelObjects::kCone);
+      AddShape(renderable, model_objects, ModelObjects::kDisk);
+      AddShape(renderable, model_objects, ModelObjects::kDisk);
       break;
     case mjGEOM_LINE:
-      AddShape(model_objects, ModelObjects::kLine);
+      AddShape(renderable, model_objects, ModelObjects::kLine);
       break;
     case mjGEOM_LINEBOX:
-      AddShape(model_objects, ModelObjects::kLineBox);
+      AddShape(renderable, model_objects, ModelObjects::kLineBox);
       break;
     case mjGEOM_TRIANGLE:
-      AddShape(model_objects, ModelObjects::kTriangle);
+      AddShape(renderable, model_objects, ModelObjects::kTriangle);
       break;
     case mjGEOM_FLEX:
-      AddGeom(model_objects, scene, geom);
+      AddGeom(renderable, model_objects, scene, geom);
       break;
     case mjGEOM_SKIN:
-      AddGeom(model_objects, scene, geom);
+      AddGeom(renderable, model_objects, scene, geom);
       break;
     case mjGEOM_NONE:
     case mjGEOM_LABEL:
@@ -167,56 +199,22 @@ Drawable::Drawable(ModelObjects* model_objects, const mjvScene* scene,
   }
 }
 
-void Drawable::AddMesh(ModelObjects* model_objs, int data_id) {
-  const Mesh* mesh = model_objs->GetMeshBuffer(data_id);
-  if (mesh == nullptr) {
-    mju_error("Unknown mesh %d", data_id);
-  }
-  renderable_.Append(mesh);
-}
-
-void Drawable::AddGeom(ModelObjects* model_objs, const mjvScene* scene,
-                       const mjvGeom& geom) {
-  if (geom.type == mjGEOM_FLEX) {
-    renderable_.Append(model_objs->CreateFlexMesh(scene, geom));
-  } else if (geom.type == mjGEOM_SKIN) {
-    renderable_.Append(model_objs->CreateSkinMesh(scene, geom));
-  }
-}
-
-void Drawable::AddHeightField(ModelObjects* model_objs, int hfield_id) {
-  const Mesh* mesh = model_objs->GetHeightFieldBuffer(hfield_id);
-  if (mesh == nullptr) {
-    mju_error("Unknown height field %d", hfield_id);
-  }
-  renderable_.Append(mesh);
-}
-
-void Drawable::AddShape(ModelObjects* model_objs,
-                        ModelObjects::ShapeType shape_type) {
-  const Mesh* mesh = model_objs->GetShapeBuffer(shape_type);
-  if (mesh == nullptr) {
-    mju_error("Unknown shape %d", shape_type);
-  }
-  renderable_.Append(mesh);
-}
-
-void Drawable::SetTransform(const mjvGeom& geom) {
+static void SetGeomTransform(Renderable& renderable, const mjvGeom& geom) {
   // Flex and skin geometries are in global space.
   if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
     return;
   }
 
-  transform_ = mat4(ReadMat3(geom.mat), ReadFloat3(geom.pos));
+  mat4 transform = mat4(ReadMat3(geom.mat), ReadFloat3(geom.pos));
 
   float3 size = ReadFloat3(geom.size);
   filament::TransformManager& tm =
-      renderable_.GetEngine()->getTransformManager();
-  for (int j = 0; j < renderable_.GetNumEntities(); ++j) {
-    const utils::Entity& entity = renderable_[j];
+      renderable.GetEngine()->getTransformManager();
+  for (int j = 0; j < renderable.GetNumEntities(); ++j) {
+    const utils::Entity& entity = renderable[j];
 
     // Update object transform.
-    mat4 entity_transform = transform_;
+    mat4 entity_transform = transform;
 
     // Some built-in drawables are composed of multiple entities. For example,
     // capsules are a combination of a open tube and two dome end caps.
@@ -318,27 +316,34 @@ void Drawable::SetTransform(const mjvGeom& geom) {
   }
 }
 
-void Drawable::UpdateMaterial(const mjModel* model, const mjvGeom& geom,
-                              ModelObjects* model_objs, const float headpos[3],
-                              const mjtByte render_flags[mjNRNDFLAG],
-                              ObjectManager::MaterialType* out_material_type) {
-  const bool use_segid_color = render_flags[mjRND_IDCOLOR];
-  const bool enable_reflection = render_flags[mjRND_REFLECTION];
+static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
+                               const mjvScene* scene, ModelObjects* model_objs,
+                               ObjectManager* object_mgr,
+                               const float headpos[3]) {
+  const mjModel* model = model_objs->GetModel();
+  Material& material = renderable.GetMaterial();
+
+  const bool use_segid_color = scene->flags[mjRND_IDCOLOR];
+  const bool enable_reflection = scene->flags[mjRND_REFLECTION];
 
   Material::Params params;
   params.color = ReadFloat4(geom.rgba);
   if (geom.type == mjGEOM_PLANE) {
     if (IsBehind(headpos, geom.pos, geom.mat)) {
       params.color[3] *= 0.3;
-      renderable_.SetReceiveShadows(false);
+      renderable.SetReceiveShadows(false);
       params.reflective = false;
     } else {
-      renderable_.SetReceiveShadows(true);
+      renderable.SetReceiveShadows(true);
       params.reflective =
           enable_reflection && geom.reflectance > 0 && params.color.a == 1.0f;
     }
   }
-  renderable_.SetWireframe(render_flags[mjRND_WIREFRAME]);
+  renderable.SetWireframe(scene->flags[mjRND_WIREFRAME]);
+  if (geom.category == mjCAT_DECOR) {
+    renderable.SetCastShadows(false);
+    renderable.SetReceiveShadows(false);
+  }
 
   Material::Textures textures;
   if (geom.matid >= 0) {
@@ -351,25 +356,26 @@ void Drawable::UpdateMaterial(const mjModel* model, const mjvGeom& geom,
         model_objs->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
     textures.occlusion =
         model_objs->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
-    GetMaterial().UpdateTextures(textures);
+    material.UpdateTextures(textures);
   }
 
+  ObjectManager::MaterialType material_type = ObjectManager::kNumMaterials;
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
-    *out_material_type = ObjectManager::kUnlitLine;
+    material_type = ObjectManager::kUnlitLine;
   } else {
     bool material_assigned = false;
     if (geom.matid >= 0) {
       material_assigned = true;
       if (textures.orm) {
-        *out_material_type = ObjectManager::kPbrPacked;
+        material_type = ObjectManager::kPbrPacked;
       } else if (textures.metallic) {
-        *out_material_type = ObjectManager::kPbr;
+        material_type = ObjectManager::kPbr;
       } else if (textures.roughness) {
-        *out_material_type = ObjectManager::kPbr;
+        material_type = ObjectManager::kPbr;
       } else if (model->mat_metallic[geom.matid] >= 0) {
-        *out_material_type = ObjectManager::kPbr;
+        material_type = ObjectManager::kPbr;
       } else if (model->mat_roughness[geom.matid] >= 0) {
-        *out_material_type = ObjectManager::kPbr;
+        material_type = ObjectManager::kPbr;
       } else {
         material_assigned = false;
       }
@@ -388,36 +394,36 @@ void Drawable::UpdateMaterial(const mjModel* model, const mjvGeom& geom,
 
       if (textures.color == nullptr) {
         if (params.color.a < 1.0f) {
-          *out_material_type = ObjectManager::kPhongColorFade;
+          material_type = ObjectManager::kPhongColorFade;
         } else if (params.reflective) {
-          *out_material_type = ObjectManager::kPhongColorReflect;
+          material_type = ObjectManager::kPhongColorReflect;
         } else {
-          *out_material_type = ObjectManager::kPhongColor;
+          material_type = ObjectManager::kPhongColor;
         }
       } else if (textures.color->GetFilamentTexture()->getTarget() ==
-                filament::Texture::Sampler::SAMPLER_CUBEMAP) {
+                 filament::Texture::Sampler::SAMPLER_CUBEMAP) {
         if (params.color.a < 1.0f) {
-          *out_material_type = ObjectManager::kPhongCubeFade;
+          material_type = ObjectManager::kPhongCubeFade;
         } else if (params.reflective) {
-          *out_material_type = ObjectManager::kPhongCubeReflect;
+          material_type = ObjectManager::kPhongCubeReflect;
         } else {
-          *out_material_type = ObjectManager::kPhongCube;
+          material_type = ObjectManager::kPhongCube;
         }
       } else if (has_texcoords) {
         if (params.color.a < 1.0f) {
-          *out_material_type = ObjectManager::kPhong2dUvFade;
+          material_type = ObjectManager::kPhong2dUvFade;
         } else if (params.reflective) {
-          *out_material_type = ObjectManager::kPhong2dUvReflect;
+          material_type = ObjectManager::kPhong2dUvReflect;
         } else {
-          *out_material_type = ObjectManager::kPhong2dUv;
+          material_type = ObjectManager::kPhong2dUv;
         }
       } else {
         if (params.color.a < 1.0f) {
-          *out_material_type = ObjectManager::kPhong2dFade;
+          material_type = ObjectManager::kPhong2dFade;
         } else if (params.reflective) {
-          *out_material_type = ObjectManager::kPhong2dReflect;
+          material_type = ObjectManager::kPhong2dReflect;
         } else {
-          *out_material_type = ObjectManager::kPhong2d;
+          material_type = ObjectManager::kPhong2d;
         }
       }
     }
@@ -522,7 +528,32 @@ void Drawable::UpdateMaterial(const mjModel* model, const mjvGeom& geom,
   params.emissive *= model_objs->GetEmissiveMultiplier();
   params.specular *= model_objs->GetSpecularMultiplier();
   params.glossiness *= model_objs->GetShininessMultiplier();
+  material.UpdateParams(params);
 
-  GetMaterial().UpdateParams(params);
+  material.SetMaterial(
+      Material::DrawMode::kNormal,
+      object_mgr->GetMaterial(material_type));
+  material.SetMaterial(
+      Material::DrawMode::kDepth,
+      object_mgr->GetMaterial(ObjectManager::kUnlitDepth));
+  material.SetMaterial(
+      Material::DrawMode::kSegmentation,
+      object_mgr->GetMaterial(ObjectManager::kUnlitSegmentation));
+}
+
+std::unique_ptr<Renderable> CreateGeomRenderable(
+    const mjvGeom& geom, const mjvScene* scene, ObjectManager* object_mgr,
+    ModelObjects* model_objs, const float headpos[3],
+    Material::Textures* fallback_textures) {
+  auto renderable = std::make_unique<Renderable>(model_objs->GetEngine());
+
+  // The order of these calls is important. e.g. We need to create the filament
+  // renderable entities before we can set their transform.
+  PrepareGeomMeshes(*renderable, geom, scene, model_objs);
+  SetGeomTransform(*renderable, geom);
+  renderable->GetMaterial().SetFallbackTextures(fallback_textures);
+  UpdateGeomMaterial(*renderable, geom, scene, model_objs, object_mgr, headpos);
+
+  return renderable;
 }
 }  // namespace mujoco
