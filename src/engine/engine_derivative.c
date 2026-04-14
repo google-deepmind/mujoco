@@ -899,7 +899,7 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
     }
 
     // get stiffness and damping
-    mjtNum* k = m->flex_stiffness + 21*m->flex_elemadr[f];
+    mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
 
     // skip if rigid or no stiffness
     if (m->flex_rigid[f] || k[0] == 0) {

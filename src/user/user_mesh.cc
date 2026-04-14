@@ -4271,12 +4271,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
 
     // linear elasticity
-    stiffness.assign(21*nelem, 0);
-    if (interpolated) {
-      int min_size = ceil(nodexpos.size()*nodexpos.size() / 21);
-      if (min_size > nelem) {
-        throw mjCError(this, "Trilinear dofs are require at least %d elements", "", min_size);
-      }
+    if (!interpolated) {
+      stiffness.assign(21 * nelem, 0);
     }
 
     // geometrically nonlinear elasticity
@@ -4333,6 +4329,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   if (!stiffness_cached && young > 0 && interpolated) {
+    int n = pow(order_ + 1, 3);
+    int ndof = 3 * n;
+    if (stiffness.size() < ndof * ndof) {
+      stiffness.resize(ndof * ndof, 0);
+    }
     ComputeLinearStiffness(stiffness, nodexpos.data(), young, poisson, order_);
   }
 

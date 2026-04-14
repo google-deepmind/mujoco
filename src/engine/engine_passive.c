@@ -201,7 +201,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
   // flex elasticity
   for (int f=0; f < m->nflex; f++) {
-    mjtNum* k = m->flex_stiffness + 21*m->flex_elemadr[f];
+    mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
     mjtNum* b = m->flex_bending + 17*m->flex_edgeadr[f];
     int dim = m->flex_dim[f];
     int nodenum = m->flex_nodenum[f];

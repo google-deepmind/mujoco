@@ -1194,6 +1194,7 @@ void mjCModel::Clear() {
   nflexedge = 0;
   nflexelem = 0;
   nflexelemdata = 0;
+  nflexstiffness = 0;
   nflexelemedge = 0;
   nflexshelldata = 0;
   nflexevpair = 0;
@@ -2177,6 +2178,7 @@ void mjCModel::SetSizes() {
   }
   nbvh = nbvhstatic + nbvhdynamic;
 
+  int extra_stiffness_size = 0;
   // flex counts
   for (int i=0; i < nflex; i++) {
     nflexnode += flexes_[i]->nnode;
@@ -2188,6 +2190,9 @@ void mjCModel::SetSizes() {
     nflexshelldata += (int)flexes_[i]->shell.size();
     nflexevpair += (int)flexes_[i]->evpair.size()/2;
     nflextexcoord += (flexes_[i]->HasTexcoord() ? flexes_[i]->get_texcoord().size()/2 : 0);
+    if (flexes_[i]->order_ != 0) {
+      extra_stiffness_size += (3 * flexes_[i]->nnode) * (3 * flexes_[i]->nnode);
+    }
     if (flexes_[i]->interpolated || flexes_[i]->rigid) {
       continue;
     }
@@ -2237,6 +2242,9 @@ void mjCModel::SetSizes() {
       }
     }
   }
+  // TODO: This can be compacted further when we update mjwarp to not rely on
+  // 21*elem_adr for non-interpolated flexes.
+  nflexstiffness = nflexelem * 21 + extra_stiffness_size;
 
   // mesh counts
   for (int i=0; i < nmesh; i++) {
@@ -3435,6 +3443,8 @@ void mjCModel::CopyObjects(mjModel* m) {
   shelldata_adr = 0;
   evpair_adr = 0;
   texcoord_adr = 0;
+  int standard_stiffness_size = 21 * m->nflexelem;
+  int current_extra_stiffness_adr = standard_stiffness_size;
   for (int i=0; i < nflex; i++) {
     // get pointer
     mjCFlex* pfl = flexes_[i];
@@ -3457,10 +3467,18 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->flex_rgba + 4 * i, pfl->rgba, 4);
 
     // elasticity
-    if (!pfl->stiffness.empty()) {
-      mjuu_copyvec(m->flex_stiffness + 21 * elem_adr, pfl->stiffness.data(), pfl->stiffness.size());
+    if (pfl->order_ == 0) {
+      m->flex_stiffnessadr[i] = 21 * elem_adr;
     } else {
-      mjuu_zerovec(m->flex_stiffness + 21 * elem_adr, 21 * pfl->nelem);
+      m->flex_stiffnessadr[i] = current_extra_stiffness_adr;
+      current_extra_stiffness_adr += (3 * pfl->nnode) * (3 * pfl->nnode);
+    }
+
+    if (!pfl->stiffness.empty()) {
+      mjuu_copyvec(m->flex_stiffness + m->flex_stiffnessadr[i], pfl->stiffness.data(), pfl->stiffness.size());
+    } else {
+      int size = (pfl->order_ == 0) ? 21 * pfl->nelem : (3 * pfl->nnode) * (3 * pfl->nnode);
+      mjuu_zerovec(m->flex_stiffness + m->flex_stiffnessadr[i], size);
     }
     if (!pfl->bending.empty()) {
       mjuu_copyvec(m->flex_bending + 17 * edge_adr, pfl->bending.data(), pfl->bending.size());
@@ -5125,12 +5143,12 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   mj_makeModel(&m,
                nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ntree, nM, nB, nC,
                nD, ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
-               nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord, nJfe, nJfv,
-               nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, nmeshpoly,
-               nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert, nskinface, nskinbone,
-               nskinbonevert, nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
-               neq, ntendon, nJten, nwrap, nsensor, nnumeric, nnumericdata, ntext, ntextdata,
-               ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
+               nflexelemdata, nflexstiffness, nflexelemedge, nflexshelldata, nflexevpair,
+               nflextexcoord, nJfe, nJfv, nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface,
+               nmeshgraph, nmeshpoly, nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert,
+               nskinface, nskinbone, nskinbonevert, nhfield, nhfielddata, ntex, ntexdata, nmat,
+               npair, nexclude, neq, ntendon, nJten, nwrap, nsensor, nnumeric, nnumericdata, ntext,
+               ntextdata, ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
                nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
                nuser_tendon, nuser_actuator, nuser_sensor, nnames, npaths);
   if (!m) {
