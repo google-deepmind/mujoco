@@ -49,6 +49,7 @@ class ObjectManager {
     kPhongCubeFade,
     kPhongCubeReflect,
     kUnlitSegmentation,
+    kUnlitDecor,
     kUnlitDepth,
     kUnlitLine,
     kUnlitUi,
@@ -65,10 +66,10 @@ class ObjectManager {
   const Texture* GetFallbackTexture(mjtTextureRole role) const;
 
   // Returns the fallback IndirectLight.
-  filament::IndirectLight* GetFallbackIndirectLight();
+  const Texture* GetFallbackIndirectLightTexture();
 
   // Loads an indirect light from a file, setting it to the fallback.
-  void LoadFallbackIndirectLight(std::string_view filename, float intensity);
+  void LoadFallbackIndirectLight(std::string_view filename);
 
   ObjectManager(const ObjectManager&) = delete;
   ObjectManager& operator=(const ObjectManager&) = delete;
@@ -81,8 +82,7 @@ class ObjectManager {
   std::unique_ptr<Texture> fallback_black_ = nullptr;
   std::unique_ptr<Texture> fallback_normal_ = nullptr;
   std::unique_ptr<Texture> fallback_orm_ = nullptr;
-  std::unique_ptr<Texture> fallback_indirect_light_texture_ = nullptr;
-  filament::IndirectLight* fallback_indirect_light_ = nullptr;
+  std::unique_ptr<Texture> fallback_indirect_light_texture_;
 };
 
 }  // namespace mujoco

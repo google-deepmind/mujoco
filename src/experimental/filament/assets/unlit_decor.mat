@@ -13,30 +13,17 @@
 // limitations under the License.
 
 material {
-    name : unlit_ui,
-    parameters : [
-        {
-            type : sampler2d,
-            name : glyph
-        }
-    ],
-    requires : [
-        uv0,
-        color
-    ],
+    name : unlit_decor,
     shadingModel : unlit,
-    culling : none,
-    depthCulling: false,
-    blending : transparent
+    culling: none,
+    parameters : [
+        { type : float4, name : BaseColorFactor }
+    ]
 }
 
 fragment {
     void material(inout MaterialInputs material) {
-        prepareMaterial(material);
-        vec2 uv = getUV0();
-        uv.y = 1.0 - uv.y;
-        vec4 tex_color = texture(materialParams_glyph, uv);
-        material.baseColor = getColor() * tex_color;
-        material.baseColor.rgb *= material.baseColor.a;
+      prepareMaterial(material);
+      material.baseColor = materialParams.BaseColorFactor;
     }
 }

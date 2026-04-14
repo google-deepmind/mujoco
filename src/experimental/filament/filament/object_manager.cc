@@ -84,6 +84,7 @@ ObjectManager::ObjectManager(filament::Engine* engine)
   materials_[kPhongCubeReflect] = LoadMaterial("phong_cube_reflect.filamat");
   materials_[kUnlitSegmentation] = LoadMaterial("unlit_segmentation.filamat");
   materials_[kUnlitLine] = LoadMaterial("unlit_line.filamat");
+  materials_[kUnlitDecor] = LoadMaterial("unlit_decor.filamat");
   materials_[kUnlitDepth] = LoadMaterial("unlit_depth.filamat");
   materials_[kUnlitUi] = LoadMaterial("unlit_ui.filamat");
 
@@ -127,14 +128,10 @@ ObjectManager::ObjectManager(filament::Engine* engine)
   fallback_textures_[mjTEXROLE_EMISSIVE] = fallback_black_.get();
   fallback_textures_[mjTEXROLE_ORM] = fallback_orm_.get();
 
-  LoadFallbackIndirectLight("ibl.ktx", 1.0f);
+  LoadFallbackIndirectLight("ibl.ktx");
 }
 
 ObjectManager::~ObjectManager() {
-  if (fallback_indirect_light_) {
-    engine_->destroy(fallback_indirect_light_);
-  }
-  fallback_indirect_light_texture_.reset();
   for (auto& iter : materials_) {
     engine_->destroy(iter);
   }
@@ -155,17 +152,12 @@ const Texture* ObjectManager::GetFallbackTexture(
   return fallback_textures_[role];
 }
 
-filament::IndirectLight* ObjectManager::GetFallbackIndirectLight() {
-  return fallback_indirect_light_;
+const Texture* ObjectManager::GetFallbackIndirectLightTexture() {
+  return fallback_indirect_light_texture_.get();
 }
 
-void ObjectManager::LoadFallbackIndirectLight(
-    std::string_view filename, float intensity) {
+void ObjectManager::LoadFallbackIndirectLight(std::string_view filename) {
   fallback_indirect_light_texture_.reset();
-  if (fallback_indirect_light_ != nullptr) {
-    engine_->destroy(fallback_indirect_light_);
-    fallback_indirect_light_ = nullptr;
-  }
 
   Asset* asset = new Asset(filename);
   auto release_asset = +[](void* user_data) {
@@ -194,23 +186,5 @@ void ObjectManager::LoadFallbackIndirectLight(
   payload.user_data = asset;
 
   fallback_indirect_light_texture_->Upload(payload);
-  if (fallback_indirect_light_texture_ == nullptr) {
-    return;
-  }
-
-  const Texture::SphericalHarmonics* spherical_harmonics =
-      fallback_indirect_light_texture_->GetSphericalHarmonics();
-
-  // Build the indirect light.
-  filament::IndirectLight::Builder builder;
-  builder.reflections(fallback_indirect_light_texture_->GetFilamentTexture());
-  if (spherical_harmonics) {
-    builder.irradiance(3, *spherical_harmonics);
-  }
-  builder.intensity(intensity);
-  // Rotate the light to match mujoco's Z-up convention.
-  builder.rotation(filament::math::mat3f::rotation(
-      filament::math::f::PI / 2, filament::math::float3{1, 0, 0}));
-  fallback_indirect_light_ = builder.build(*engine_);
 }
 }  // namespace mujoco

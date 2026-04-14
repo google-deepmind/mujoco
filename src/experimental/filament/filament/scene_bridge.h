@@ -24,11 +24,11 @@
 #include <math/vec3.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/drawable.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/scene_view.h"
 
 namespace mujoco {
@@ -71,8 +71,9 @@ class SceneBridge {
   SceneView* scene_view_ = nullptr;
   ObjectManager* object_mgr_ = nullptr;
   std::unique_ptr<ModelObjects> model_objects_;
+  std::unique_ptr<Light> fallback_ibl_;
   std::vector<std::unique_ptr<Light>> lights_;
-  std::vector<std::unique_ptr<Drawable>> drawables_;
+  std::vector<std::unique_ptr<Renderable>> renderables_;
   filament::math::mat4 clip_from_world_;
   int default_shadow_map_size_ = 2048;
   float default_vsm_blur_width_ = 0.0f;

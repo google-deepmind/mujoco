@@ -29,7 +29,6 @@
 #include <filament/RenderTarget.h>
 #include <filament/Skybox.h>
 #include <filament/View.h>
-#include <filament/Viewport.h>
 #include <math/TMatHelpers.h>
 #include <math/mat4.h>
 #include <math/mathfwd.h>
@@ -38,7 +37,6 @@
 #include <math/TVecHelpers.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
-#include "experimental/filament/filament/drawable.h"
 #include "experimental/filament/filament/gui_view.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/material.h"
@@ -46,6 +44,8 @@
 #include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/renderable.h"
+#include "experimental/filament/filament/scene_geom_util.h"
 #include "experimental/filament/filament/scene_view.h"
 
 namespace mujoco {
@@ -148,13 +148,6 @@ SceneBridge::SceneBridge(ObjectManager* object_mgr, const mjModel* model,
   fallback_textures_.orm = object_mgr_->GetFallbackTexture(mjTEXROLE_ORM);
   fallback_textures_.emissive = object_mgr_->GetFallbackTexture(mjTEXROLE_EMISSIVE);
   fallback_textures_.reflection = object_mgr_->GetFallbackTexture(mjTEXROLE_USER);
-
-  // Create an empty/black indirect light to ensure that the skybox is oriented
-  // to respect mujoco's Z-up convention.
-  filament::IndirectLight* empty_ibl =
-      model_objects_->CreateIndirectLight(-1, 100000);
-  scene_view_->AddToScene(empty_ibl);
-
   PrepareLights();
 }
 
@@ -164,19 +157,34 @@ SceneBridge::~SceneBridge() {
   }
   lights_.clear();
 
-  for (auto& iter : drawables_) {
+  for (auto& iter : renderables_) {
     scene_view_->RemoveFromScene(iter.get());
   }
-  drawables_.clear();
+  renderables_.clear();
 }
 
 void SceneBridge::SetEnvironmentLight(std::string_view filename,
                                     float intensity) {
-  filament::IndirectLight* ibl = nullptr;
-  scene_view_->AddToScene(ibl);
-  object_mgr_->LoadFallbackIndirectLight(filename, intensity);
-  ibl = object_mgr_->GetFallbackIndirectLight();
-  scene_view_->AddToScene(ibl);
+  for (auto& light : lights_) {
+    if (light->GetType() == mjLIGHT_IMAGE) {
+      scene_view_->RemoveFromScene(light.get());
+      light.reset();
+      break;
+    }
+  }
+  if (fallback_ibl_) {
+    scene_view_->RemoveFromScene(fallback_ibl_.get());
+    fallback_ibl_.reset();
+  }
+
+  object_mgr_->LoadFallbackIndirectLight(filename);
+
+  Light::Params params;
+  params.type = mjLIGHT_IMAGE;
+  params.texture = object_mgr_->GetFallbackIndirectLightTexture();
+  params.intensity = intensity;
+  fallback_ibl_ = std::make_unique<Light>(object_mgr_->GetEngine(), params);
+  scene_view_->AddToScene(fallback_ibl_.get());
 }
 
 std::optional<float3> SceneBridge::ClipFromWorld(const float3& pos) const{
@@ -190,24 +198,21 @@ std::optional<float3> SceneBridge::ClipFromWorld(const float3& pos) const{
 void SceneBridge::PrepareLights() {
   filament::Engine* engine = object_mgr_->GetEngine();
   const mjModel* model = model_objects_->GetModel();
-  filament::Skybox* skybox = model_objects_->CreateSkybox();
-  if (skybox) {
-    scene_view_->AddToScene(skybox);
-  }
 
+  bool has_image_based_light = false;
   float total_light_intensity = 0.0f;
-
   for (int i = 0; i < model->nlight; ++i) {
     total_light_intensity += model->light_intensity[i];
 
     if (model->light_type[i] == mjLIGHT_IMAGE) {
-      auto* indirect_light = model_objects_->CreateIndirectLight(
-          model->light_texid[i], model->light_intensity[i]);
-      if (indirect_light) {
-        scene_view_->AddToScene(indirect_light);
-      }
-      // Add an nullptr as a placeholder so that our indices still match.
-      lights_.emplace_back(nullptr);
+      Light::Params params;
+      params.type = mjLIGHT_IMAGE;
+      params.texture = model_objects_->GetTexture(model->light_texid[i]);
+      params.intensity = model->light_intensity[i];
+      auto light_obj = std::make_unique<Light>(engine, params);
+      scene_view_->AddToScene(light_obj.get());
+      lights_.emplace_back(std::move(light_obj));
+      has_image_based_light = true;
     } else {
       Light::Params params;
       params.color = ReadFloat3(model->light_diffuse);
@@ -236,10 +241,15 @@ void SceneBridge::PrepareLights() {
   {
     Light::Params params;
     params.color = float3(0, 0, 0);
-    params.headlight = true;
-    params.type = mjLIGHT_DIRECTIONAL;
+    // We break with the spec here slightly and use a spot light for the head
+    // light instead of a directional params. This is because filament only
+    // supports a single directional light, and we'd rather allow a scene
+    // light to be that directional params. It's also a bit odd for a
+    // directional light to move with the camera.
+    params.type = mjLIGHT_SPOT;
     params.castshadow = 0;
-    params.intensity = 0;
+    params.intensity = 0.0f;
+    params.spot_cone_angle = 90.0f;
     auto light_obj = std::make_unique<Light>(engine, params);
 #ifndef __EMSCRIPTEN__
     // TODO(b/458045799): Re-enable when lights work on glinux and chromebook.
@@ -248,22 +258,43 @@ void SceneBridge::PrepareLights() {
     lights_.emplace_back(std::move(light_obj));
   }
 
+  if (!has_image_based_light && total_light_intensity > 0.0f) {
+    // Create a black indirect light to ensure that the skybox is
+    // oriented to respect mujoco's Z-up convention.
+    filament::Engine* engine = object_mgr_->GetEngine();
+    Light::Params params;
+    params.type = mjLIGHT_IMAGE;
+    params.intensity = 10.0f;
+    fallback_ibl_ = std::make_unique<Light>(engine, params);
+    scene_view_->AddToScene(fallback_ibl_.get());
+  }
+
   // There are no "physical" lights in the scene which means we're likely
   // dealing with a "classic renderer" scene. In this case, let's add a
   // default environment light and set the light intensity ourselves.
   if (total_light_intensity == 0.0f) {
-    auto* ibl = object_mgr_->GetFallbackIndirectLight();
-    if (ibl) {
-      ibl->setIntensity(fallback_environment_light_intensity_);
-      scene_view_->AddToScene(ibl);
-    }
+    // Create a fallback environment light.
+    Light::Params params;
+    params.type = mjLIGHT_IMAGE;
+    params.texture = object_mgr_->GetFallbackIndirectLightTexture();
+    params.intensity = fallback_environment_light_intensity_;
+    fallback_ibl_ = std::make_unique<Light>(engine, params);
+    scene_view_->AddToScene(fallback_ibl_.get());
+
+    // Distribute the fallback scene light intensity among the lights.
     const float intensity = fallback_scene_light_intensity_ / lights_.size();
     for (auto& light : lights_) {
       if (light) {
-        light->SetIntensity(
-            light->IsHeadlight() ? fallback_head_light_intensity_ : intensity);
+        const bool is_headlight = (light == lights_.back());
+        light->SetIntensity(is_headlight ? fallback_head_light_intensity_
+                                         : intensity);
       }
     }
+  }
+
+  filament::Skybox* skybox = model_objects_->CreateSkybox();
+  if (skybox) {
+    scene_view_->AddToScene(skybox);
   }
 }
 
@@ -305,16 +336,15 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
   mju_n2f(headpos, hpos, 3);
   mju_n2f(gazedir, hfwd, 3);
 
-  const mjModel* model = model_objects_->GetModel();
   const mjvGLCamera gl_camera =
       mjv_averageCamera(scene->camera, scene->camera + 1);
   clip_from_world_ = CalculateClipFromWorld(viewport, gl_camera);
 
   // Remove all drawables from previous render and prepare new ones.
-  for (auto& iter : drawables_) {
+  for (auto& iter : renderables_) {
     scene_view_->RemoveFromScene(iter.get());
   }
-  drawables_.clear();
+  renderables_.clear();
   for (int i = 0; i < scene->ngeom; ++i) {
     const mjvGeom* geom = scene->geoms + i;
 
@@ -324,28 +354,12 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       }
     }
 
-    auto drawable =
-        std::make_unique<Drawable>(model_objects_.get(), scene, *geom);
-    drawable->SetTransform(*geom);
+    std::unique_ptr<Renderable> renderable =
+        CreateGeomRenderable(*geom, scene, object_mgr_, model_objects_.get(),
+                             headpos, &fallback_textures_);
 
-    ObjectManager::MaterialType material_type = ObjectManager::kNumMaterials;
-    drawable->UpdateMaterial(model, *geom, model_objects_.get(), headpos,
-                             scene->flags, &material_type);
-
-    Material& material = drawable->GetMaterial();
-    material.SetFallbackTextures(&fallback_textures_);
-    material.SetMaterial(
-        Material::DrawMode::kNormal,
-        object_mgr_->GetMaterial(material_type));
-    material.SetMaterial(
-        Material::DrawMode::kDepth,
-        object_mgr_->GetMaterial(ObjectManager::kUnlitDepth));
-    material.SetMaterial(
-        Material::DrawMode::kSegmentation,
-        object_mgr_->GetMaterial(ObjectManager::kUnlitSegmentation));
-
-    scene_view_->AddToScene(drawable.get());
-    drawables_.push_back(std::move(drawable));
+    scene_view_->AddToScene(renderable.get());
+    renderables_.push_back(std::move(renderable));
   }
 
   bool headlight_enabled = false;

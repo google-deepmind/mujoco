@@ -57,10 +57,10 @@ class Renderable {
   int GetNumEntities() const { return entities_.size(); }
 
   // Hides all managed entities.
-  void SetLayerMask(std::uint8_t mask);
+  std::uint8_t SetLayerMask(std::uint8_t mask);
 
   // Sets the priority of all managed entities.
-  void SetPriority(std::uint8_t priority);
+  std::uint8_t SetPriority(std::uint8_t priority);
 
   // Disables the renderables from casting shadows.
   void SetCastShadows(bool cast_shadows);

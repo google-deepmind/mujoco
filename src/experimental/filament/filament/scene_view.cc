@@ -17,10 +17,10 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 
 #include <filament/ColorGrading.h>
-#include <filament/IndirectLight.h>
 #include <filament/LightManager.h>
 #include <filament/Material.h>
 #include <filament/Options.h>
@@ -40,7 +40,6 @@
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
-#include "experimental/filament/filament/drawable.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
@@ -137,6 +136,7 @@ SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
     view = engine->createView();
     view->setScene(scene_);
     view->setCamera(camera_);
+    view->setVisibleLayers(0xff, mjCAT_ALL);
   }
 
   reflect_view_ = engine->createView();
@@ -144,6 +144,7 @@ SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
   reflect_view_->setCamera(reflect_camera_);
   reflect_view_->setShadowingEnabled(false);
   reflect_view_->setPostProcessingEnabled(false);
+  reflect_view_->setVisibleLayers(0xff, mjCAT_DYNAMIC | mjCAT_STATIC);
 
   // Disable post processing for the depth and segmentation views to preserve
   // the values.
@@ -162,11 +163,11 @@ SceneView::~SceneView() {
   for (auto& light : lights_) {
     light->RemoveFromScene(scene_);
   }
-  for (auto& drawable : drawables_) {
-    drawable->GetRenderable().RemoveFromScene(scene_);
+  for (auto& renderable : renderables_) {
+    renderable->RemoveFromScene(scene_);
   }
   lights_.clear();
-  drawables_.clear();
+  renderables_.clear();
   reflect_targets_.clear();
   engine_->destroyCameraComponent(reflect_camera_->getEntity());
   engine_->destroy(reflect_view_);
@@ -192,22 +193,22 @@ void SceneView::RemoveFromScene(Light* light) {
   }
 }
 
-void SceneView::AddToScene(Drawable* drawable) {
-  if (drawables_.insert(drawable).second) {
-    drawable->GetRenderable().AddToScene(scene_);
-    if (drawable->GetMaterial().GetParams().reflective) {
-      AddReflectiveDrawable(drawable);
+void SceneView::AddToScene(Renderable* renderable) {
+  if (renderables_.insert(renderable).second) {
+    renderable->AddToScene(scene_);
+    if (renderable->GetMaterial().GetParams().reflective) {
+      AddReflectiveRenderable(renderable);
     }
   }
 }
 
-void SceneView::RemoveFromScene(Drawable* drawable) {
-  if (drawables_.erase(drawable)) {
-    auto it = std::find(reflectives_.begin(), reflectives_.end(), drawable);
+void SceneView::RemoveFromScene(Renderable* renderable) {
+  if (renderables_.erase(renderable)) {
+    auto it = std::find(reflectives_.begin(), reflectives_.end(), renderable);
     if (it != reflectives_.end()) {
       reflectives_.erase(it);
     }
-    drawable->GetRenderable().RemoveFromScene(scene_);
+    renderable->RemoveFromScene(scene_);
   }
 }
 
@@ -223,18 +224,6 @@ void SceneView::RemoveFromScene(filament::Skybox* skybox) {
   }
 }
 
-void SceneView::AddToScene(filament::IndirectLight* indirect_light) {
-  indirect_light_ = indirect_light;
-  scene_->setIndirectLight(indirect_light);
-}
-
-void SceneView::RemoveFromScene(filament::IndirectLight* indirect_light) {
-  if (indirect_light_ == indirect_light) {
-    indirect_light_ = nullptr;
-    scene_->setIndirectLight(nullptr);
-  }
-}
-
 void SceneView::Render(filament::Renderer* renderer,
                        const RenderRequest& request) {
   filament::Viewport viewport(request.viewport.left, request.viewport.bottom,
@@ -246,11 +235,9 @@ void SceneView::Render(filament::Renderer* renderer,
 
   SetupCamera(request.camera, viewport, camera_);
 
-  for (auto& iter : drawables_) {
+  for (auto& iter : renderables_) {
     Material& material = iter->GetMaterial();
-    Renderable& renderable = iter->GetRenderable();
-    renderable.SetMaterialInstance(
-        material.GetMaterialInstance(request.draw_mode));
+    iter->SetMaterialInstance(material.GetMaterialInstance(request.draw_mode));
   }
 
   filament::View* view = views_[static_cast<int>(request.draw_mode)];
@@ -266,13 +253,17 @@ void SceneView::Render(filament::Renderer* renderer,
 
   // Render reflection passes.
   if (request.draw_mode == DrawMode::kNormal) {
+    filament::TransformManager& tm = engine_->getTransformManager();
     for (size_t i = 0; i < reflectives_.size(); ++i) {
-      Drawable* drawable = reflectives_[i];
+      Renderable* renderable = reflectives_[i];
 
-      SetupReflectionCamera(drawable->GetTransform(), camera_, reflect_camera_);
+      // We assume the 0th entity is the reflective entity.
+      const utils::Entity entity = (*renderable)[0];
+      const mat4 transform(tm.getTransform(tm.getInstance(entity)));
+      SetupReflectionCamera(transform, camera_, reflect_camera_);
 
       // Hide reflective surface from its own reflection pass.
-      drawable->GetRenderable().SetLayerMask(0x00);
+      std::uint8_t previous_layer_mask = renderable->SetLayerMask(0x00);
 
       // Render the reflection to its render target.
       reflect_view_->setRenderTarget(
@@ -280,7 +271,7 @@ void SceneView::Render(filament::Renderer* renderer,
       renderer->render(reflect_view_);
 
       // Unhide the reflective surface.
-      drawable->GetRenderable().SetLayerMask(0x01);
+      renderable->SetLayerMask(previous_layer_mask);
     }
   }
 
@@ -293,24 +284,24 @@ void SceneView::Render(filament::Renderer* renderer,
   }
 }
 
-void SceneView::AddReflectiveDrawable(Drawable* drawable) {
+void SceneView::AddReflectiveRenderable(Renderable* renderable) {
   const int index = reflectives_.size();
-  reflectives_.push_back(drawable);
+  reflectives_.push_back(renderable);
 
   // Ensure we have the same number of render targets as we do reflective
-  // drawables.
+  // renderables.
   while (reflect_targets_.size() < reflectives_.size()) {
     reflect_targets_.push_back(std::make_unique<RenderTarget>(
         engine_, RenderTargetTextureType::kReflectionColor,
         RenderTargetTextureType::kDepth));
   }
 
-  // Prepare a render target for the reflective drawable.
+  // Prepare a render target for the reflective renderable.
   auto viewport = reflect_view_->getViewport();
   auto& target = reflect_targets_[index];
   target->Prepare(viewport.width, viewport.height);
 
-  Material& material = drawable->GetMaterial();
+  Material& material = renderable->GetMaterial();
   Material::Textures textures = material.GetTextures();
   textures.reflection = target->GetColorTexture();
   material.UpdateTextures(textures);

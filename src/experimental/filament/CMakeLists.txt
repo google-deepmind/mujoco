@@ -27,8 +27,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/builtins.h
         filament/color_grading_options.cc
         filament/color_grading_options.h
-        filament/drawable.cc
-        filament/drawable.h
         filament/filament_context.cc
         filament/filament_context.h
         filament/filament_platform_factory.cc
@@ -56,6 +54,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/renderable.h
         filament/scene_bridge.cc
         filament/scene_bridge.h
+        filament/scene_geom_util.cc
+        filament/scene_geom_util.h
         filament/scene_view.cc
         filament/scene_view.h
         filament/texture.cc
@@ -114,6 +114,7 @@ set(MATERIAL_FILES
     phong_cube_fade.mat
     phong_cube.mat
     phong_cube_reflect.mat
+    unlit_decor.mat
     unlit_depth.mat
     unlit_line.mat
     unlit_segmentation.mat
