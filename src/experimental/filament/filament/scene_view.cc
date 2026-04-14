@@ -20,7 +20,6 @@
 #include <memory>
 
 #include <filament/ColorGrading.h>
-#include <filament/IndirectLight.h>
 #include <filament/LightManager.h>
 #include <filament/Material.h>
 #include <filament/Options.h>
@@ -219,18 +218,6 @@ void SceneView::RemoveFromScene(filament::Skybox* skybox) {
   if (skybox_ == skybox) {
     skybox_ = nullptr;
     scene_->setSkybox(nullptr);
-  }
-}
-
-void SceneView::AddToScene(filament::IndirectLight* indirect_light) {
-  indirect_light_ = indirect_light;
-  scene_->setIndirectLight(indirect_light);
-}
-
-void SceneView::RemoveFromScene(filament::IndirectLight* indirect_light) {
-  if (indirect_light_ == indirect_light) {
-    indirect_light_ = nullptr;
-    scene_->setIndirectLight(nullptr);
   }
 }
 

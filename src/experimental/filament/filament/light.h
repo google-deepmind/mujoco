@@ -20,6 +20,7 @@
 #include <math/vec3.h>
 #include <utils/Entity.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
@@ -30,6 +31,8 @@ class Light {
   struct Params {
     // The type of light (e.g. spot, point, directional, etc.)
     mjtLightType type;
+    // The texture to use for image lights.
+    const Texture* texture = nullptr;
     // The color of the light.
     filament::math::float3 color = {0, 0, 0};
     // The intensity of the light, in candela.
@@ -46,8 +49,6 @@ class Light {
     int shadow_map_size = 2048;
     // Blur width for EL VSM.
     float vsm_blur_width = 0.0f;
-    // Whether or not the light is a headlight.
-    bool headlight = false;
   };
 
   Light(filament::Engine* engine, const Params& params);
@@ -72,15 +73,16 @@ class Light {
   // Sets the intensity of the light in candela.
   void SetIntensity(float intensity);
 
+  // Returns the type of the light.
+  mjtLightType GetType() const { return params_.type; }
+
   // Enables/disables the light in the scene.
   void Enable();
   void Disable();
 
-  // Returns true if the light is a headlight.
-  bool IsHeadlight() const { return params_.headlight; }
-
  private:
   filament::Engine* engine_ = nullptr;
+  filament::IndirectLight* ibl_ = nullptr;
   utils::Entity entity_;
   bool enabled_ = true;
   Params params_;

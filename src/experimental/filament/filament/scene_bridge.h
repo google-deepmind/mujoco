@@ -71,6 +71,7 @@ class SceneBridge {
   SceneView* scene_view_ = nullptr;
   ObjectManager* object_mgr_ = nullptr;
   std::unique_ptr<ModelObjects> model_objects_;
+  std::unique_ptr<Light> fallback_ibl_;
   std::vector<std::unique_ptr<Light>> lights_;
   std::vector<std::unique_ptr<Renderable>> renderables_;
   filament::math::mat4 clip_from_world_;

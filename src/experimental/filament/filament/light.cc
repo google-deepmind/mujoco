@@ -17,30 +17,50 @@
 #include <numbers>
 
 #include <filament/Engine.h>
+#include <filament/IndirectLight.h>
 #include <filament/LightManager.h>
 #include <filament/Scene.h>
+#include <math/mat3.h>
 #include <math/vec3.h>
 #include <utils/Entity.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
+using filament::math::float3;
+using filament::math::mat3f;
+
 Light::Light(filament::Engine* engine, const Params& params)
     : engine_(engine), params_(params) {
+  // Filament treats image-based lights (IBLs) as separate objects (i.e.
+  // filament::IndirectLight) and so we need to handle IBLs specially.
+  if (params.type == mjLIGHT_IMAGE) {
+    filament::IndirectLight::Builder builder;
+    if (params.texture) {
+      // Allow null textures for fallback lights.
+      builder.reflections(params.texture->GetFilamentTexture());
+      const Texture::SphericalHarmonics* spherical_harmonics =
+          params.texture->GetSphericalHarmonics();
+      if (spherical_harmonics != nullptr) {
+        builder.irradiance(3, *spherical_harmonics);
+      }
+    }
+    builder.intensity(params.intensity);
+    // Rotate the light to match mujoco's Z-up convention.
+    builder.rotation(mat3f::rotation(std::numbers::pi / 2, float3{1, 0, 0}));
+    ibl_ = builder.build(*engine_);
+    return;
+  }
+
   filament::LightManager::Type type;
   switch (params.type) {
     case mjLIGHT_SPOT:
       type = filament::LightManager::Type::FOCUSED_SPOT;
       break;
     case mjLIGHT_DIRECTIONAL:
-      // We break with the spec here slightly and use a spot light for the head
-      // light instead of a directional params. This is because filament only
-      // supports a single directional light, and we'd rather allow a scene
-      // light to be that directional params. It's also a bit odd for a
-      // directional light to move with the camera.
-      type = params.headlight ? filament::LightManager::Type::FOCUSED_SPOT
-                             : filament::LightManager::Type::DIRECTIONAL;
+      type = filament::LightManager::Type::DIRECTIONAL;
       break;
     case mjLIGHT_POINT:
       type = filament::LightManager::Type::POINT;
@@ -55,12 +75,8 @@ Light::Light(filament::Engine* engine, const Params& params)
   builder.intensityCandela(params.intensity);
   builder.castShadows(params.castshadow);
   if (type == filament::LightManager::Type::FOCUSED_SPOT) {
-    if (params.headlight) {
-      builder.spotLightCone(0, std::numbers::pi / 2.0f);
-    } else {
-      builder.spotLightCone(0,
-                            params.spot_cone_angle * std::numbers::pi / 180.0f);
-    }
+    builder.spotLightCone(0,
+                          params.spot_cone_angle * std::numbers::pi / 180.0f);
   }
   if (type != filament::LightManager::Type::DIRECTIONAL) {
     builder.falloff(params.range);
@@ -86,52 +102,86 @@ Light::Light(filament::Engine* engine, const Params& params)
 }
 
 Light::~Light() noexcept {
-  utils::EntityManager& em = utils::EntityManager::get();
-  if (!entity_.isNull()) {
-    engine_->destroy(entity_);
-    em.destroy(entity_);
+  if (ibl_) {
+    engine_->destroy(ibl_);
+  } else {
+    utils::EntityManager& em = utils::EntityManager::get();
+    if (!entity_.isNull()) {
+      engine_->destroy(entity_);
+      em.destroy(entity_);
+    }
   }
 }
 
-void Light::AddToScene(filament::Scene* scene) { scene->addEntity(entity_); }
+void Light::AddToScene(filament::Scene* scene) {
+  if (ibl_) {
+    scene->setIndirectLight(ibl_);
+  } else {
+    scene->addEntity(entity_);
+  }
+}
 
-void Light::RemoveFromScene(filament::Scene* scene) { scene->remove(entity_); }
+void Light::RemoveFromScene(filament::Scene* scene) {
+  if (ibl_) {
+    scene->setIndirectLight(nullptr);
+  } else {
+    scene->remove(entity_);
+  }
+}
 
 void Light::SetTransform(filament::math::float3 position,
                          filament::math::float3 direction) {
-  filament::LightManager& lm = engine_->getLightManager();
-  const filament::LightManager::Instance li = lm.getInstance(entity_);
-  lm.setPosition(li, position);
-  lm.setDirection(li, direction);
+  if (!ibl_) {
+    filament::LightManager& lm = engine_->getLightManager();
+    const filament::LightManager::Instance li = lm.getInstance(entity_);
+    lm.setPosition(li, position);
+    lm.setDirection(li, direction);
+  }
 }
 
 void Light::SetColor(const filament::math::float3& color) {
-  filament::LightManager& lm = engine_->getLightManager();
-  const filament::LightManager::Instance li = lm.getInstance(entity_);
-  lm.setColor(li, color);
+  if (!ibl_) {
+    params_.color = color;
+    filament::LightManager& lm = engine_->getLightManager();
+    const filament::LightManager::Instance li = lm.getInstance(entity_);
+    lm.setColor(li, color);
+  }
 }
 
 void Light::SetIntensity(float intensity) {
-  filament::LightManager& lm = engine_->getLightManager();
-  const filament::LightManager::Instance li = lm.getInstance(entity_);
-  lm.setIntensityCandela(li, intensity);
+  params_.intensity = intensity;
+  if (ibl_) {
+    ibl_->setIntensity(intensity);
+  } else {
+    filament::LightManager& lm = engine_->getLightManager();
+    const filament::LightManager::Instance li = lm.getInstance(entity_);
+    lm.setIntensityCandela(li, intensity);
+  }
 }
 
 void Light::Enable() {
   if (!enabled_) {
     enabled_ = true;
-    filament::LightManager& lm = engine_->getLightManager();
-    const filament::LightManager::Instance li = lm.getInstance(entity_);
-    lm.setLightChannel(li, 0, enabled_);
+    if (ibl_) {
+      ibl_->setIntensity(params_.intensity);
+    } else {
+      filament::LightManager& lm = engine_->getLightManager();
+      const filament::LightManager::Instance li = lm.getInstance(entity_);
+      lm.setLightChannel(li, 0, enabled_);
+    }
   }
 }
 
 void Light::Disable() {
   if (enabled_) {
     enabled_ = false;
-    filament::LightManager& lm = engine_->getLightManager();
-    const filament::LightManager::Instance li = lm.getInstance(entity_);
-    lm.setLightChannel(li, 0, enabled_);
+    if (ibl_) {
+      ibl_->setIntensity(0.f);
+    } else {
+      filament::LightManager& lm = engine_->getLightManager();
+      const filament::LightManager::Instance li = lm.getInstance(entity_);
+      lm.setLightChannel(li, 0, enabled_);
+    }
   }
 }
 

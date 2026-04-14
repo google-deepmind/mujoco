@@ -51,8 +51,6 @@ class SceneView {
   void RemoveFromScene(Renderable* renderable);
   void AddToScene(filament::Skybox* skybox);
   void RemoveFromScene(filament::Skybox* skybox);
-  void AddToScene(filament::IndirectLight* indirect_light);
-  void RemoveFromScene(filament::IndirectLight* indirect_light);
 
   // Parameters for rendering the scene.
   using DrawMode = Material::DrawMode;
@@ -101,7 +99,6 @@ class SceneView {
   std::unordered_set<Light*> lights_;
   std::unordered_set<Renderable*> renderables_;
   filament::Skybox* skybox_ = nullptr;
-  filament::IndirectLight* indirect_light_ = nullptr;
 
   // Custom view and camera for reflective surfaces.
   filament::View* reflect_view_ = nullptr;
