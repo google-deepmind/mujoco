@@ -47,44 +47,44 @@ class Geom:
   hfprism: mat63
   vertadr: int
   vertnum: int
-  vert: wp.array(dtype=wp.vec3)
+  vert: wp.array[wp.vec3]
   graphadr: int
-  graph: wp.array(dtype=int)
+  graph: wp.array[int]
   mesh_polynum: int
   mesh_polyadr: int
-  mesh_polynormal: wp.array(dtype=wp.vec3)
-  mesh_polyvertadr: wp.array(dtype=int)
-  mesh_polyvertnum: wp.array(dtype=int)
-  mesh_polyvert: wp.array(dtype=int)
-  mesh_polymapadr: wp.array(dtype=int)
-  mesh_polymapnum: wp.array(dtype=int)
-  mesh_polymap: wp.array(dtype=int)
+  mesh_polynormal: wp.array[wp.vec3]
+  mesh_polyvertadr: wp.array[int]
+  mesh_polyvertnum: wp.array[int]
+  mesh_polyvert: wp.array[int]
+  mesh_polymapadr: wp.array[int]
+  mesh_polymapnum: wp.array[int]
+  mesh_polymap: wp.array[int]
   index: int
 
 
 @wp.func
 def geom_collision_pair(
   # Model:
-  geom_type: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
-  mesh_vertadr: wp.array(dtype=int),
-  mesh_vertnum: wp.array(dtype=int),
-  mesh_graphadr: wp.array(dtype=int),
-  mesh_vert: wp.array(dtype=wp.vec3),
-  mesh_graph: wp.array(dtype=int),
-  mesh_polynum: wp.array(dtype=int),
-  mesh_polyadr: wp.array(dtype=int),
-  mesh_polynormal: wp.array(dtype=wp.vec3),
-  mesh_polyvertadr: wp.array(dtype=int),
-  mesh_polyvertnum: wp.array(dtype=int),
-  mesh_polyvert: wp.array(dtype=int),
-  mesh_polymapadr: wp.array(dtype=int),
-  mesh_polymapnum: wp.array(dtype=int),
-  mesh_polymap: wp.array(dtype=int),
+  geom_type: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_size: wp.array2d[wp.vec3],
+  mesh_vertadr: wp.array[int],
+  mesh_vertnum: wp.array[int],
+  mesh_graphadr: wp.array[int],
+  mesh_vert: wp.array[wp.vec3],
+  mesh_graph: wp.array[int],
+  mesh_polynum: wp.array[int],
+  mesh_polyadr: wp.array[int],
+  mesh_polynormal: wp.array[wp.vec3],
+  mesh_polyvertadr: wp.array[int],
+  mesh_polyvertnum: wp.array[int],
+  mesh_polyvert: wp.array[int],
+  mesh_polymapadr: wp.array[int],
+  mesh_polymapnum: wp.array[int],
+  mesh_polymap: wp.array[int],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
   # In:
   geoms: wp.vec2i,
   worldid: int,
@@ -109,8 +109,10 @@ def geom_collision_pair(
   # z-axis of the rotation matrix, used as the surface normal for plane collisions
   geom2.normal = wp.vec3(geom2.rot[0, 2], geom2.rot[1, 2], geom2.rot[2, 2])
 
+  dataid_setid = worldid % geom_dataid.shape[0]
+
   if geom_type1 == GeomType.MESH:
-    dataid = geom_dataid[g1]
+    dataid = geom_dataid[dataid_setid, g1]
     geom1.vertadr = wp.where(dataid >= 0, mesh_vertadr[dataid], -1)
     geom1.vertnum = wp.where(dataid >= 0, mesh_vertnum[dataid], -1)
     geom1.graphadr = wp.where(dataid >= 0, mesh_graphadr[dataid], -1)
@@ -128,7 +130,7 @@ def geom_collision_pair(
     geom1.mesh_polymap = mesh_polymap
 
   if geom_type2 == GeomType.MESH:
-    dataid = geom_dataid[g2]
+    dataid = geom_dataid[dataid_setid, g2]
     geom2.vertadr = wp.where(dataid >= 0, mesh_vertadr[dataid], -1)
     geom2.vertnum = wp.where(dataid >= 0, mesh_vertnum[dataid], -1)
     geom2.graphadr = wp.where(dataid >= 0, mesh_graphadr[dataid], -1)
@@ -174,21 +176,21 @@ def write_contact(
   pairid_in: wp.vec2i,
   worldid_in: int,
   # Data out:
-  contact_dist_out: wp.array(dtype=float),
-  contact_pos_out: wp.array(dtype=wp.vec3),
-  contact_frame_out: wp.array(dtype=wp.mat33),
-  contact_includemargin_out: wp.array(dtype=float),
-  contact_friction_out: wp.array(dtype=vec5),
-  contact_solref_out: wp.array(dtype=wp.vec2),
-  contact_solreffriction_out: wp.array(dtype=wp.vec2),
-  contact_solimp_out: wp.array(dtype=vec5),
-  contact_dim_out: wp.array(dtype=int),
-  contact_geom_out: wp.array(dtype=wp.vec2i),
-  contact_efc_address_out: wp.array2d(dtype=int),
-  contact_worldid_out: wp.array(dtype=int),
-  contact_type_out: wp.array(dtype=int),
-  contact_geomcollisionid_out: wp.array(dtype=int),
-  nacon_out: wp.array(dtype=int),
+  contact_dist_out: wp.array[float],
+  contact_pos_out: wp.array[wp.vec3],
+  contact_frame_out: wp.array[wp.mat33],
+  contact_includemargin_out: wp.array[float],
+  contact_friction_out: wp.array[vec5],
+  contact_solref_out: wp.array[wp.vec2],
+  contact_solreffriction_out: wp.array[wp.vec2],
+  contact_solimp_out: wp.array[vec5],
+  contact_dim_out: wp.array[int],
+  contact_geom_out: wp.array[wp.vec2i],
+  contact_efc_address_out: wp.array2d[int],
+  contact_worldid_out: wp.array[int],
+  contact_type_out: wp.array[int],
+  contact_geomcollisionid_out: wp.array[int],
+  nacon_out: wp.array[int],
 ) -> int:
   """Atomically write a detected contact into the contact output arrays.
 
@@ -233,24 +235,24 @@ def write_contact(
 @wp.func
 def contact_params(
   # Model:
-  geom_condim: wp.array(dtype=int),
-  geom_priority: wp.array(dtype=int),
-  geom_solmix: wp.array2d(dtype=float),
-  geom_solref: wp.array2d(dtype=wp.vec2),
-  geom_solimp: wp.array2d(dtype=vec5),
-  geom_friction: wp.array2d(dtype=wp.vec3),
-  geom_margin: wp.array2d(dtype=float),
-  geom_gap: wp.array2d(dtype=float),
-  pair_dim: wp.array(dtype=int),
-  pair_solref: wp.array2d(dtype=wp.vec2),
-  pair_solreffriction: wp.array2d(dtype=wp.vec2),
-  pair_solimp: wp.array2d(dtype=vec5),
-  pair_margin: wp.array2d(dtype=float),
-  pair_gap: wp.array2d(dtype=float),
-  pair_friction: wp.array2d(dtype=vec5),
+  geom_condim: wp.array[int],
+  geom_priority: wp.array[int],
+  geom_solmix: wp.array2d[float],
+  geom_solref: wp.array2d[wp.vec2],
+  geom_solimp: wp.array2d[vec5],
+  geom_friction: wp.array2d[wp.vec3],
+  geom_margin: wp.array2d[float],
+  geom_gap: wp.array2d[float],
+  pair_dim: wp.array[int],
+  pair_solref: wp.array2d[wp.vec2],
+  pair_solreffriction: wp.array2d[wp.vec2],
+  pair_solimp: wp.array2d[vec5],
+  pair_margin: wp.array2d[float],
+  pair_gap: wp.array2d[float],
+  pair_friction: wp.array2d[vec5],
   # In:
-  collision_pair_in: wp.array(dtype=wp.vec2i),
-  collision_pairid_in: wp.array(dtype=wp.vec2i),
+  collision_pair_in: wp.array[wp.vec2i],
+  collision_pairid_in: wp.array[wp.vec2i],
   cid: int,
   worldid: int,
 ):

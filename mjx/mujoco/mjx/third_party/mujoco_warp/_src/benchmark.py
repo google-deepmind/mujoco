@@ -41,18 +41,18 @@ def _sum(stack1, stack2):
 @wp.kernel
 def ctrl_noise(
   # Model:
-  opt_timestep: wp.array(dtype=float),
-  actuator_ctrllimited: wp.array(dtype=bool),
-  actuator_ctrlrange: wp.array2d(dtype=wp.vec2),
+  opt_timestep: wp.array[float],
+  actuator_ctrllimited: wp.array[bool],
+  actuator_ctrlrange: wp.array2d[wp.vec2],
   # Data in:
-  ctrl_in: wp.array2d(dtype=float),
+  ctrl_in: wp.array2d[float],
   # In:
-  ctrl_center: wp.array1d(dtype=float),
+  ctrl_center: wp.array[float],
   step: int,
   ctrlnoisestd: float,
   ctrlnoiserate: float,
   # Data out:
-  ctrl_out: wp.array2d(dtype=float),
+  ctrl_out: wp.array2d[float],
 ):
   worldid, actid = wp.tid()
 

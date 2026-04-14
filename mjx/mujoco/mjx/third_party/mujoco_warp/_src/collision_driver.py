@@ -80,8 +80,8 @@ MJ_COLLISION_TABLE = {
 @wp.kernel
 def _zero_nacon_ncollision(
   # Data out:
-  nacon_out: wp.array(dtype=int),
-  ncollision_out: wp.array(dtype=int),
+  nacon_out: wp.array[int],
+  ncollision_out: wp.array[int],
 ):
   ncollision_out[0] = 0
   nacon_out[0] = 0
@@ -275,12 +275,12 @@ def _broadphase_filter(opt_broadphase_filter: int, ngeom_aabb: int, ngeom_rbound
   @wp.func
   def func(
     # Model:
-    geom_aabb: wp.array3d(dtype=wp.vec3),
-    geom_rbound: wp.array2d(dtype=float),
-    geom_margin: wp.array2d(dtype=float),
+    geom_aabb: wp.array3d[wp.vec3],
+    geom_rbound: wp.array2d[float],
+    geom_margin: wp.array2d[float],
     # Data in:
-    geom_xpos_in: wp.array2d(dtype=wp.vec3),
-    geom_xmat_in: wp.array2d(dtype=wp.mat33),
+    geom_xpos_in: wp.array2d[wp.vec3],
+    geom_xmat_in: wp.array2d[wp.mat33],
     # In:
     geom1: int,
     geom2: int,
@@ -324,8 +324,8 @@ def _broadphase_filter(opt_broadphase_filter: int, ngeom_aabb: int, ngeom_rbound
 @wp.func
 def _add_geom_pair(
   # Model:
-  geom_type: wp.array(dtype=int),
-  nxn_pairid: wp.array(dtype=wp.vec2i),
+  geom_type: wp.array[int],
+  nxn_pairid: wp.array[wp.vec2i],
   # Data in:
   naconmax_in: int,
   # In:
@@ -334,11 +334,11 @@ def _add_geom_pair(
   worldid: int,
   nxnid: int,
   # Data out:
-  ncollision_out: wp.array(dtype=int),
+  ncollision_out: wp.array[int],
   # Out:
-  collision_pair_out: wp.array(dtype=wp.vec2i),
-  collision_pairid_out: wp.array(dtype=wp.vec2i),
-  collision_worldid_out: wp.array(dtype=int),
+  collision_pair_out: wp.array[wp.vec2i],
+  collision_pairid_out: wp.array[wp.vec2i],
+  collision_worldid_out: wp.array[int],
 ):
   pairid = wp.atomic_add(ncollision_out, 0, 1)
 
@@ -359,7 +359,7 @@ def _add_geom_pair(
 
 
 @wp.func
-def _binary_search(values: wp.array(dtype=Any), value: Any, lower: int, upper: int) -> int:
+def _binary_search(values: wp.array[Any], value: Any, lower: int, upper: int) -> int:
   while lower < upper:
     mid = (lower + upper) >> 1
     if values[mid] > value:
@@ -375,18 +375,18 @@ def _sap_project(opt_broadphase: int):
   def sap_project(
     # Model:
     ngeom: int,
-    geom_rbound: wp.array2d(dtype=float),
-    geom_margin: wp.array2d(dtype=float),
+    geom_rbound: wp.array2d[float],
+    geom_margin: wp.array2d[float],
     # Data in:
-    geom_xpos_in: wp.array2d(dtype=wp.vec3),
+    geom_xpos_in: wp.array2d[wp.vec3],
     nworld_in: int,
     # In:
     direction_in: wp.vec3,
     # Out:
-    projection_lower_out: wp.array2d(dtype=float),
-    projection_upper_out: wp.array2d(dtype=float),
-    sort_index_out: wp.array2d(dtype=int),
-    segmented_index_out: wp.array(dtype=int),
+    projection_lower_out: wp.array2d[float],
+    projection_upper_out: wp.array2d[float],
+    sort_index_out: wp.array2d[int],
+    segmented_index_out: wp.array[int],
   ):
     worldid, geomid = wp.tid()
 
@@ -422,11 +422,11 @@ def _sap_range(
   # Model:
   ngeom: int,
   # In:
-  projection_lower_in: wp.array2d(dtype=float),
-  projection_upper_in: wp.array2d(dtype=float),
-  sort_index_in: wp.array2d(dtype=int),
+  projection_lower_in: wp.array2d[float],
+  projection_upper_in: wp.array2d[float],
+  sort_index_in: wp.array2d[int],
   # Out:
-  range_out: wp.array2d(dtype=int),
+  range_out: wp.array2d[int],
 ):
   worldid, geomid = wp.tid()
 
@@ -448,26 +448,26 @@ def _sap_broadphase(opt_broadphase_filter: int, ngeom_aabb: int, ngeom_rbound: i
   def kernel(
     # Model:
     ngeom: int,
-    geom_type: wp.array(dtype=int),
-    geom_aabb: wp.array3d(dtype=wp.vec3),
-    geom_rbound: wp.array2d(dtype=float),
-    geom_margin: wp.array2d(dtype=float),
-    nxn_pairid: wp.array(dtype=wp.vec2i),
+    geom_type: wp.array[int],
+    geom_aabb: wp.array3d[wp.vec3],
+    geom_rbound: wp.array2d[float],
+    geom_margin: wp.array2d[float],
+    nxn_pairid: wp.array[wp.vec2i],
     # Data in:
-    geom_xpos_in: wp.array2d(dtype=wp.vec3),
-    geom_xmat_in: wp.array2d(dtype=wp.mat33),
+    geom_xpos_in: wp.array2d[wp.vec3],
+    geom_xmat_in: wp.array2d[wp.mat33],
     nworld_in: int,
     naconmax_in: int,
     # In:
-    sort_index_in: wp.array2d(dtype=int),
-    cumulative_sum_in: wp.array(dtype=int),
+    sort_index_in: wp.array2d[int],
+    cumulative_sum_in: wp.array[int],
     nsweep_in: int,
     # Data out:
-    ncollision_out: wp.array(dtype=int),
+    ncollision_out: wp.array[int],
     # Out:
-    collision_pair_out: wp.array(dtype=wp.vec2i),
-    collision_pairid_out: wp.array(dtype=wp.vec2i),
-    collision_worldid_out: wp.array(dtype=int),
+    collision_pair_out: wp.array[wp.vec2i],
+    collision_pairid_out: wp.array[wp.vec2i],
+    collision_worldid_out: wp.array[int],
   ):
     worldgeomid = wp.tid()
 
@@ -528,11 +528,11 @@ def _segmented_sort(tile_size: int):
   @wp.kernel(module="unique")
   def segmented_sort(
     # In:
-    projection_lower_in: wp.array2d(dtype=float),
-    sort_index_in: wp.array2d(dtype=int),
+    projection_lower_in: wp.array2d[float],
+    sort_index_in: wp.array2d[int],
     # Out:
-    projection_lower_out: wp.array2d(dtype=float),
-    sort_index_out: wp.array2d(dtype=int),
+    projection_lower_out: wp.array2d[float],
+    sort_index_out: wp.array2d[int],
   ):
     worldid = wp.tid()
 
@@ -648,22 +648,22 @@ def _nxn_broadphase(opt_broadphase_filter: int, ngeom_aabb: int, ngeom_rbound: i
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Model:
-    geom_type: wp.array(dtype=int),
-    geom_aabb: wp.array3d(dtype=wp.vec3),
-    geom_rbound: wp.array2d(dtype=float),
-    geom_margin: wp.array2d(dtype=float),
-    nxn_geom_pair: wp.array(dtype=wp.vec2i),
-    nxn_pairid: wp.array(dtype=wp.vec2i),
+    geom_type: wp.array[int],
+    geom_aabb: wp.array3d[wp.vec3],
+    geom_rbound: wp.array2d[float],
+    geom_margin: wp.array2d[float],
+    nxn_geom_pair: wp.array[wp.vec2i],
+    nxn_pairid: wp.array[wp.vec2i],
     # Data in:
-    geom_xpos_in: wp.array2d(dtype=wp.vec3),
-    geom_xmat_in: wp.array2d(dtype=wp.mat33),
+    geom_xpos_in: wp.array2d[wp.vec3],
+    geom_xmat_in: wp.array2d[wp.mat33],
     naconmax_in: int,
     # Data out:
-    ncollision_out: wp.array(dtype=int),
+    ncollision_out: wp.array[int],
     # Out:
-    collision_pair_out: wp.array(dtype=wp.vec2i),
-    collision_pairid_out: wp.array(dtype=wp.vec2i),
-    collision_worldid_out: wp.array(dtype=int),
+    collision_pair_out: wp.array[wp.vec2i],
+    collision_pairid_out: wp.array[wp.vec2i],
+    collision_worldid_out: wp.array[int],
   ):
     worldid, elementid = wp.tid()
 

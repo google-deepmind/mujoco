@@ -48,34 +48,35 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _refit_bvh_shim(
     # Model
     nworld: int,
-    flex_dim: wp.array(dtype=int),
-    flex_edge: wp.array(dtype=wp.vec2i),
-    flex_elem: wp.array(dtype=int),
-    flex_elemadr: wp.array(dtype=int),
-    flex_elemdataadr: wp.array(dtype=int),
-    flex_elemnum: wp.array(dtype=int),
-    flex_radius: wp.array(dtype=float),
-    flex_shell: wp.array(dtype=int),
-    flex_shelldataadr: wp.array(dtype=int),
-    flex_vertadr: wp.array(dtype=int),
-    flex_vertnum: wp.array(dtype=int),
-    geom_dataid: wp.array(dtype=int),
-    geom_size: wp.array2d(dtype=wp.vec3),
-    geom_type: wp.array(dtype=int),
+    flex_dim: wp.array[int],
+    flex_edge: wp.array[wp.vec2i],
+    flex_elem: wp.array[int],
+    flex_elemadr: wp.array[int],
+    flex_elemdataadr: wp.array[int],
+    flex_elemnum: wp.array[int],
+    flex_radius: wp.array[float],
+    flex_shell: wp.array[int],
+    flex_shelldataadr: wp.array[int],
+    flex_vertadr: wp.array[int],
+    flex_vertnum: wp.array[int],
+    geom_dataid: wp.array2d[int],
+    geom_size: wp.array2d[wp.vec3],
+    geom_type: wp.array[int],
     nflex: int,
     nflexelem: int,
     # Data
-    flexvert_xpos: wp.array2d(dtype=wp.vec3),
-    geom_xmat: wp.array2d(dtype=wp.mat33),
-    geom_xpos: wp.array2d(dtype=wp.vec3),
+    flexvert_xpos: wp.array2d[wp.vec3],
+    geom_xmat: wp.array2d[wp.mat33],
+    geom_xpos: wp.array2d[wp.vec3],
     # Registry
     rc_id: int,
     # Dummy output
-    dummy: wp.array(dtype=int),
+    dummy: wp.array[int],
 ):
   _m.stat = _s
   _m.opt = _o
@@ -135,7 +136,7 @@ def _refit_bvh_jax_impl(
       m._impl.flex_shelldataadr,
       m.flex_vertadr,
       m.flex_vertnum,
-      m.geom_dataid,
+      jax.numpy.expand_dims(m.geom_dataid, 0),
       m.geom_size,
       m.geom_type,
       m.nflex,

@@ -28,9 +28,9 @@ def _convert_texture_data(
   width: int,
   adr: int,
   nc: int,
-  tex_data_in: wp.array(dtype=wp.uint8),
+  tex_data_in: wp.array[wp.uint8],
   # Out:
-  tex_data_out: wp.array3d(dtype=float),
+  tex_data_out: wp.array3d[float],
 ):
   """Convert uint8 texture data to vec4 format for efficient sampling."""
   x, y = wp.tid()
@@ -134,11 +134,11 @@ def pack_rgba_to_uint32(r: float, g: float, b: float, a: float) -> wp.uint32:
 @wp.kernel
 def unpack_rgb_kernel(
   # In:
-  packed: wp.array2d(dtype=wp.uint32),
-  rgb_adr: wp.array(dtype=int),
+  packed: wp.array2d[wp.uint32],
+  rgb_adr: wp.array[int],
   camera_index: int,
   # Out:
-  rgb_out: wp.array3d(dtype=wp.vec3),
+  rgb_out: wp.array3d[wp.vec3],
 ):
   """Unpack ABGR uint32 packed pixel data into separate R, G, and B channels."""
   worldid, pixelid = wp.tid()
@@ -157,12 +157,12 @@ def unpack_rgb_kernel(
 @wp.kernel
 def extract_depth_kernel(
   # In:
-  depth_data: wp.array2d(dtype=float),
-  depth_adr: wp.array(dtype=int),
+  depth_data: wp.array2d[float],
+  depth_adr: wp.array[int],
   camera_index: int,
   depth_scale: float,
   # Out:
-  depth_out: wp.array3d(dtype=float),
+  depth_out: wp.array3d[float],
 ):
   """Extract the depth data from the render context buffers for a given camera index."""
   worldid, pixelid = wp.tid()
@@ -174,7 +174,7 @@ def extract_depth_kernel(
   depth_out[worldid, yid, xid] = wp.clamp(val / depth_scale, 0.0, 1.0)
 
 
-def get_rgb(rc: RenderContext, camera_index: int, rgb_out: wp.array3d(dtype=wp.vec3)):
+def get_rgb(rc: RenderContext, camera_index: int, rgb_out: wp.array3d[wp.vec3]):
   """Get the RGB data output from the render context buffers for a given camera index.
 
   Args:
@@ -190,7 +190,7 @@ def get_rgb(rc: RenderContext, camera_index: int, rgb_out: wp.array3d(dtype=wp.v
   )
 
 
-def get_depth(rc: RenderContext, camera_index: int, depth_scale: float, depth_out: wp.array3d(dtype=float)):
+def get_depth(rc: RenderContext, camera_index: int, depth_scale: float, depth_out: wp.array3d[float]):
   """Get the depth data output from the render context buffers for a given camera index.
 
   Args:
@@ -211,11 +211,11 @@ def get_depth(rc: RenderContext, camera_index: int, depth_scale: float, depth_ou
 @wp.kernel
 def _extract_seg_kernel(
   # In:
-  seg_data: wp.array2d(dtype=int),
-  seg_adr: wp.array(dtype=int),
+  seg_data: wp.array2d[int],
+  seg_adr: wp.array[int],
   camera_index: int,
   # Out:
-  seg_out: wp.array3d(dtype=int),
+  seg_out: wp.array3d[int],
 ):
   """Extract per-pixel geom IDs from the render context buffers for a given camera index."""
   worldid, pixelid = wp.tid()
@@ -226,7 +226,7 @@ def _extract_seg_kernel(
   seg_out[worldid, yid, xid] = seg_data[worldid, seg_adr_offset + pixelid]
 
 
-def get_segmentation(rc: RenderContext, camera_index: int, seg_out: wp.array3d(dtype=int)):
+def get_segmentation(rc: RenderContext, camera_index: int, seg_out: wp.array3d[int]):
   """Get the segmentation data from the render context buffers for a given camera index.
 
   Each pixel contains the MuJoCo geom ID of the geometry hit by the ray, -1 for

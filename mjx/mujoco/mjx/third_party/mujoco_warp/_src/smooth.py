@@ -44,28 +44,28 @@ wp.set_module_options({"enable_backward": False})
 @wp.kernel
 def _kinematics_branch(
   # Model:
-  qpos0: wp.array2d(dtype=float),
-  body_parentid: wp.array(dtype=int),
-  body_mocapid: wp.array(dtype=int),
-  body_jntnum: wp.array(dtype=int),
-  body_jntadr: wp.array(dtype=int),
-  body_pos: wp.array2d(dtype=wp.vec3),
-  body_quat: wp.array2d(dtype=wp.quat),
-  jnt_type: wp.array(dtype=int),
-  jnt_qposadr: wp.array(dtype=int),
-  jnt_pos: wp.array2d(dtype=wp.vec3),
-  jnt_axis: wp.array2d(dtype=wp.vec3),
-  body_branches: wp.array(dtype=int),
-  body_branch_start: wp.array(dtype=int),
+  qpos0: wp.array2d[float],
+  body_parentid: wp.array[int],
+  body_mocapid: wp.array[int],
+  body_jntnum: wp.array[int],
+  body_jntadr: wp.array[int],
+  body_pos: wp.array2d[wp.vec3],
+  body_quat: wp.array2d[wp.quat],
+  jnt_type: wp.array[int],
+  jnt_qposadr: wp.array[int],
+  jnt_pos: wp.array2d[wp.vec3],
+  jnt_axis: wp.array2d[wp.vec3],
+  body_branches: wp.array[int],
+  body_branch_start: wp.array[int],
   # Data in:
-  qpos_in: wp.array2d(dtype=float),
-  mocap_pos_in: wp.array2d(dtype=wp.vec3),
-  mocap_quat_in: wp.array2d(dtype=wp.quat),
+  qpos_in: wp.array2d[float],
+  mocap_pos_in: wp.array2d[wp.vec3],
+  mocap_quat_in: wp.array2d[wp.quat],
   # Data out:
-  xpos_out: wp.array2d(dtype=wp.vec3),
-  xquat_out: wp.array2d(dtype=wp.quat),
-  xanchor_out: wp.array2d(dtype=wp.vec3),
-  xaxis_out: wp.array2d(dtype=wp.vec3),
+  xpos_out: wp.array2d[wp.vec3],
+  xquat_out: wp.array2d[wp.quat],
+  xanchor_out: wp.array2d[wp.vec3],
+  xaxis_out: wp.array2d[wp.vec3],
 ):
   worldid, branchid = wp.tid()
 
@@ -146,14 +146,14 @@ def _kinematics_branch(
 @wp.kernel
 def _compute_body_inertial_frames(
   # Model:
-  body_ipos: wp.array2d(dtype=wp.vec3),
-  body_iquat: wp.array2d(dtype=wp.quat),
+  body_ipos: wp.array2d[wp.vec3],
+  body_iquat: wp.array2d[wp.quat],
   # Data in:
-  xpos_in: wp.array2d(dtype=wp.vec3),
-  xquat_in: wp.array2d(dtype=wp.quat),
+  xpos_in: wp.array2d[wp.vec3],
+  xquat_in: wp.array2d[wp.quat],
   # Data out:
-  xipos_out: wp.array2d(dtype=wp.vec3),
-  ximat_out: wp.array2d(dtype=wp.mat33),
+  xipos_out: wp.array2d[wp.vec3],
+  ximat_out: wp.array2d[wp.mat33],
 ):
   worldid, bodyid = wp.tid()
   xpos = xpos_in[worldid, bodyid]
@@ -165,9 +165,9 @@ def _compute_body_inertial_frames(
 @wp.kernel
 def _compute_body_matrices(
   # Data in:
-  xquat_in: wp.array2d(dtype=wp.quat),
+  xquat_in: wp.array2d[wp.quat],
   # Data out:
-  xmat_out: wp.array2d(dtype=wp.mat33),
+  xmat_out: wp.array2d[wp.mat33],
 ):
   worldid, bodyid = wp.tid()
   xmat_out[worldid, bodyid] = math.quat_to_mat(xquat_in[worldid, bodyid])
@@ -176,18 +176,18 @@ def _compute_body_matrices(
 @wp.kernel
 def _geom_local_to_global(
   # Model:
-  body_rootid: wp.array(dtype=int),
-  body_weldid: wp.array(dtype=int),
-  body_mocapid: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
-  geom_pos: wp.array2d(dtype=wp.vec3),
-  geom_quat: wp.array2d(dtype=wp.quat),
+  body_rootid: wp.array[int],
+  body_weldid: wp.array[int],
+  body_mocapid: wp.array[int],
+  geom_bodyid: wp.array[int],
+  geom_pos: wp.array2d[wp.vec3],
+  geom_quat: wp.array2d[wp.quat],
   # Data in:
-  xpos_in: wp.array2d(dtype=wp.vec3),
-  xquat_in: wp.array2d(dtype=wp.quat),
+  xpos_in: wp.array2d[wp.vec3],
+  xquat_in: wp.array2d[wp.quat],
   # Data out:
-  geom_xpos_out: wp.array2d(dtype=wp.vec3),
-  geom_xmat_out: wp.array2d(dtype=wp.mat33),
+  geom_xpos_out: wp.array2d[wp.vec3],
+  geom_xmat_out: wp.array2d[wp.mat33],
 ):
   worldid, geomid = wp.tid()
   bodyid = geom_bodyid[geomid]
@@ -206,15 +206,15 @@ def _geom_local_to_global(
 @wp.kernel
 def _site_local_to_global(
   # Model:
-  site_bodyid: wp.array(dtype=int),
-  site_pos: wp.array2d(dtype=wp.vec3),
-  site_quat: wp.array2d(dtype=wp.quat),
+  site_bodyid: wp.array[int],
+  site_pos: wp.array2d[wp.vec3],
+  site_quat: wp.array2d[wp.quat],
   # Data in:
-  xpos_in: wp.array2d(dtype=wp.vec3),
-  xquat_in: wp.array2d(dtype=wp.quat),
+  xpos_in: wp.array2d[wp.vec3],
+  xquat_in: wp.array2d[wp.quat],
   # Data out:
-  site_xpos_out: wp.array2d(dtype=wp.vec3),
-  site_xmat_out: wp.array2d(dtype=wp.mat33),
+  site_xpos_out: wp.array2d[wp.vec3],
+  site_xmat_out: wp.array2d[wp.mat33],
 ):
   worldid, siteid = wp.tid()
   bodyid = site_bodyid[siteid]
@@ -228,16 +228,16 @@ def _site_local_to_global(
 def _flex_vertices(
   # Model:
   nflex: int,
-  flex_vertadr: wp.array(dtype=int),
-  flex_vertnum: wp.array(dtype=int),
-  flex_vertbodyid: wp.array(dtype=int),
-  flex_vert: wp.array(dtype=wp.vec3),
-  flex_centered: wp.array(dtype=bool),
+  flex_vertadr: wp.array[int],
+  flex_vertnum: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_vert: wp.array[wp.vec3],
+  flex_centered: wp.array[bool],
   # Data in:
-  xpos_in: wp.array2d(dtype=wp.vec3),
-  xmat_in: wp.array2d(dtype=wp.mat33),
+  xpos_in: wp.array2d[wp.vec3],
+  xmat_in: wp.array2d[wp.mat33],
   # Data out:
-  flexvert_xpos_out: wp.array2d(dtype=wp.vec3),
+  flexvert_xpos_out: wp.array2d[wp.vec3],
 ):
   worldid, vertid = wp.tid()
 
@@ -261,25 +261,25 @@ def _flex_vertices(
 def _flex_edges(
   # Model:
   nflex: int,
-  body_rootid: wp.array(dtype=int),
-  body_dofnum: wp.array(dtype=int),
-  body_dofadr: wp.array(dtype=int),
-  flex_vertadr: wp.array(dtype=int),
-  flex_edgeadr: wp.array(dtype=int),
-  flex_edgenum: wp.array(dtype=int),
-  flex_vertbodyid: wp.array(dtype=int),
-  flex_edge: wp.array(dtype=wp.vec2i),
-  flexedge_J_rowadr: wp.array(dtype=int),
-  flexedge_J_colind: wp.array(dtype=int),
+  body_rootid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_edgeadr: wp.array[int],
+  flex_edgenum: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_edge: wp.array[wp.vec2i],
+  flexedge_J_rowadr: wp.array[int],
+  flexedge_J_colind: wp.array[int],
   # Data in:
-  qvel_in: wp.array2d(dtype=float),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  flexvert_xpos_in: wp.array2d(dtype=wp.vec3),
+  qvel_in: wp.array2d[float],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
   # Data out:
-  flexedge_J_out: wp.array2d(dtype=float),
-  flexedge_length_out: wp.array2d(dtype=float),
-  flexedge_velocity_out: wp.array2d(dtype=float),
+  flexedge_J_out: wp.array2d[float],
+  flexedge_length_out: wp.array2d[float],
+  flexedge_velocity_out: wp.array2d[float],
 ):
   worldid, edgeid = wp.tid()
   for i in range(nflex):
@@ -463,11 +463,11 @@ def flex(m: Model, d: Data):
 @wp.kernel
 def _subtree_com_init(
   # Model:
-  body_mass: wp.array2d(dtype=float),
+  body_mass: wp.array2d[float],
   # Data in:
-  xipos_in: wp.array2d(dtype=wp.vec3),
+  xipos_in: wp.array2d[wp.vec3],
   # Data out:
-  subtree_com_out: wp.array2d(dtype=wp.vec3),
+  subtree_com_out: wp.array2d[wp.vec3],
 ):
   worldid, bodyid = wp.tid()
   subtree_com_out[worldid, bodyid] = xipos_in[worldid, bodyid] * body_mass[worldid % body_mass.shape[0], bodyid]
@@ -476,13 +476,13 @@ def _subtree_com_init(
 @wp.kernel
 def _subtree_com_acc(
   # Model:
-  body_parentid: wp.array(dtype=int),
+  body_parentid: wp.array[int],
   # Data in:
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
+  subtree_com_in: wp.array2d[wp.vec3],
   # In:
-  body_tree_: wp.array(dtype=int),
+  body_tree_: wp.array[int],
   # Data out:
-  subtree_com_out: wp.array2d(dtype=wp.vec3),
+  subtree_com_out: wp.array2d[wp.vec3],
 ):
   worldid, nodeid = wp.tid()
   bodyid = body_tree_[nodeid]
@@ -494,11 +494,11 @@ def _subtree_com_acc(
 @wp.kernel
 def _subtree_div(
   # Model:
-  body_subtreemass: wp.array2d(dtype=float),
+  body_subtreemass: wp.array2d[float],
   # Data in:
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
+  subtree_com_in: wp.array2d[wp.vec3],
   # Data out:
-  subtree_com_out: wp.array2d(dtype=wp.vec3),
+  subtree_com_out: wp.array2d[wp.vec3],
 ):
   worldid, bodyid = wp.tid()
   com = subtree_com_in[worldid, bodyid]
@@ -510,15 +510,15 @@ def _subtree_div(
 @wp.kernel
 def _cinert(
   # Model:
-  body_rootid: wp.array(dtype=int),
-  body_mass: wp.array2d(dtype=float),
-  body_inertia: wp.array2d(dtype=wp.vec3),
+  body_rootid: wp.array[int],
+  body_mass: wp.array2d[float],
+  body_inertia: wp.array2d[wp.vec3],
   # Data in:
-  xipos_in: wp.array2d(dtype=wp.vec3),
-  ximat_in: wp.array2d(dtype=wp.mat33),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
+  xipos_in: wp.array2d[wp.vec3],
+  ximat_in: wp.array2d[wp.mat33],
+  subtree_com_in: wp.array2d[wp.vec3],
   # Data out:
-  cinert_out: wp.array2d(dtype=vec10),
+  cinert_out: wp.array2d[vec10],
 ):
   worldid, bodyid = wp.tid()
   mat = ximat_in[worldid, bodyid]
@@ -556,17 +556,17 @@ def _cinert(
 @wp.kernel
 def _cdof(
   # Model:
-  body_rootid: wp.array(dtype=int),
-  jnt_type: wp.array(dtype=int),
-  jnt_dofadr: wp.array(dtype=int),
-  jnt_bodyid: wp.array(dtype=int),
+  body_rootid: wp.array[int],
+  jnt_type: wp.array[int],
+  jnt_dofadr: wp.array[int],
+  jnt_bodyid: wp.array[int],
   # Data in:
-  xmat_in: wp.array2d(dtype=wp.mat33),
-  xanchor_in: wp.array2d(dtype=wp.vec3),
-  xaxis_in: wp.array2d(dtype=wp.vec3),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
+  xmat_in: wp.array2d[wp.mat33],
+  xanchor_in: wp.array2d[wp.vec3],
+  xaxis_in: wp.array2d[wp.vec3],
+  subtree_com_in: wp.array2d[wp.vec3],
   # Data out:
-  cdof_out: wp.array2d(dtype=wp.spatial_vector),
+  cdof_out: wp.array2d[wp.spatial_vector],
 ):
   worldid, jntid = wp.tid()
   bodyid = jnt_bodyid[jntid]
@@ -635,21 +635,21 @@ def com_pos(m: Model, d: Data):
 @wp.kernel
 def _cam_local_to_global(
   # Model:
-  cam_mode: wp.array(dtype=int),
-  cam_bodyid: wp.array(dtype=int),
-  cam_targetbodyid: wp.array(dtype=int),
-  cam_pos: wp.array2d(dtype=wp.vec3),
-  cam_quat: wp.array2d(dtype=wp.quat),
-  cam_poscom0: wp.array2d(dtype=wp.vec3),
-  cam_pos0: wp.array2d(dtype=wp.vec3),
-  cam_mat0: wp.array2d(dtype=wp.mat33),
+  cam_mode: wp.array[int],
+  cam_bodyid: wp.array[int],
+  cam_targetbodyid: wp.array[int],
+  cam_pos: wp.array2d[wp.vec3],
+  cam_quat: wp.array2d[wp.quat],
+  cam_poscom0: wp.array2d[wp.vec3],
+  cam_pos0: wp.array2d[wp.vec3],
+  cam_mat0: wp.array2d[wp.mat33],
   # Data in:
-  xpos_in: wp.array2d(dtype=wp.vec3),
-  xquat_in: wp.array2d(dtype=wp.quat),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
+  xpos_in: wp.array2d[wp.vec3],
+  xquat_in: wp.array2d[wp.quat],
+  subtree_com_in: wp.array2d[wp.vec3],
   # Data out:
-  cam_xpos_out: wp.array2d(dtype=wp.vec3),
-  cam_xmat_out: wp.array2d(dtype=wp.mat33),
+  cam_xpos_out: wp.array2d[wp.vec3],
+  cam_xmat_out: wp.array2d[wp.mat33],
 ):
   worldid, camid = wp.tid()
   cam_pos_id = worldid % cam_pos.shape[0]
@@ -702,21 +702,21 @@ def _cam_local_to_global(
 @wp.kernel
 def _light_local_to_global(
   # Model:
-  light_mode: wp.array(dtype=int),
-  light_bodyid: wp.array(dtype=int),
-  light_targetbodyid: wp.array(dtype=int),
-  light_pos: wp.array2d(dtype=wp.vec3),
-  light_dir: wp.array2d(dtype=wp.vec3),
-  light_poscom0: wp.array2d(dtype=wp.vec3),
-  light_pos0: wp.array2d(dtype=wp.vec3),
-  light_dir0: wp.array2d(dtype=wp.vec3),
+  light_mode: wp.array[int],
+  light_bodyid: wp.array[int],
+  light_targetbodyid: wp.array[int],
+  light_pos: wp.array2d[wp.vec3],
+  light_dir: wp.array2d[wp.vec3],
+  light_poscom0: wp.array2d[wp.vec3],
+  light_pos0: wp.array2d[wp.vec3],
+  light_dir0: wp.array2d[wp.vec3],
   # Data in:
-  xpos_in: wp.array2d(dtype=wp.vec3),
-  xquat_in: wp.array2d(dtype=wp.quat),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
+  xpos_in: wp.array2d[wp.vec3],
+  xquat_in: wp.array2d[wp.quat],
+  subtree_com_in: wp.array2d[wp.vec3],
   # Data out:
-  light_xpos_out: wp.array2d(dtype=wp.vec3),
-  light_xdir_out: wp.array2d(dtype=wp.vec3),
+  light_xpos_out: wp.array2d[wp.vec3],
+  light_xdir_out: wp.array2d[wp.vec3],
 ):
   worldid, lightid = wp.tid()
   light_pos_id = worldid % light_pos.shape[0]
@@ -806,13 +806,13 @@ def camlight(m: Model, d: Data):
 @wp.kernel
 def _crb_accumulate(
   # Model:
-  body_parentid: wp.array(dtype=int),
+  body_parentid: wp.array[int],
   # Data in:
-  crb_in: wp.array2d(dtype=vec10),
+  crb_in: wp.array2d[vec10],
   # In:
-  body_tree_: wp.array(dtype=int),
+  body_tree_: wp.array[int],
   # Data out:
-  crb_out: wp.array2d(dtype=vec10),
+  crb_out: wp.array2d[vec10],
 ):
   worldid, nodeid = wp.tid()
   bodyid = body_tree_[nodeid]
@@ -825,15 +825,15 @@ def _crb_accumulate(
 @wp.kernel
 def _qM_sparse(
   # Model:
-  dof_bodyid: wp.array(dtype=int),
-  dof_parentid: wp.array(dtype=int),
-  dof_Madr: wp.array(dtype=int),
-  dof_armature: wp.array2d(dtype=float),
+  dof_bodyid: wp.array[int],
+  dof_parentid: wp.array[int],
+  dof_Madr: wp.array[int],
+  dof_armature: wp.array2d[float],
   # Data in:
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  crb_in: wp.array2d(dtype=vec10),
+  cdof_in: wp.array2d[wp.spatial_vector],
+  crb_in: wp.array2d[vec10],
   # Data out:
-  qM_out: wp.array3d(dtype=float),
+  qM_out: wp.array3d[float],
 ):
   worldid, dofid = wp.tid()
   madr_ij = dof_Madr[dofid]  # dof_Madr is not batched
@@ -855,14 +855,14 @@ def _qM_sparse(
 @wp.kernel
 def _qM_dense(
   # Model:
-  dof_bodyid: wp.array(dtype=int),
-  dof_parentid: wp.array(dtype=int),
-  dof_armature: wp.array2d(dtype=float),
+  dof_bodyid: wp.array[int],
+  dof_parentid: wp.array[int],
+  dof_armature: wp.array2d[float],
   # Data in:
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  crb_in: wp.array2d(dtype=vec10),
+  cdof_in: wp.array2d[wp.spatial_vector],
+  crb_in: wp.array2d[vec10],
   # Data out:
-  qM_out: wp.array3d(dtype=float),
+  qM_out: wp.array3d[float],
 ):
   worldid, dofid = wp.tid()
   bodyid = dof_bodyid[dofid]
@@ -915,17 +915,17 @@ def crb(m: Model, d: Data):
 @wp.kernel
 def _tendon_armature(
   # Model:
-  dof_parentid: wp.array(dtype=int),
-  dof_Madr: wp.array(dtype=int),
-  ten_J_rownnz: wp.array(dtype=int),
-  ten_J_rowadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
-  tendon_armature: wp.array2d(dtype=float),
+  dof_parentid: wp.array[int],
+  dof_Madr: wp.array[int],
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  tendon_armature: wp.array2d[float],
   is_sparse: bool,
   # Data in:
-  ten_J_in: wp.array2d(dtype=float),
+  ten_J_in: wp.array2d[float],
   # Data out:
-  qM_out: wp.array3d(dtype=float),
+  qM_out: wp.array3d[float],
 ):
   worldid, tenid, dofid = wp.tid()
 
@@ -1003,11 +1003,11 @@ def tendon_armature(m: Model, d: Data):
 @wp.kernel
 def _copy_CSR(
   # Model:
-  mapM2M: wp.array(dtype=int),
+  mapM2M: wp.array[int],
   # In:
-  M_in: wp.array3d(dtype=float),
+  M_in: wp.array3d[float],
   # Out:
-  L_out: wp.array3d(dtype=float),
+  L_out: wp.array3d[float],
 ):
   worldid, ind = wp.tid()
   L_out[worldid, 0, ind] = M_in[worldid, 0, mapM2M[ind]]
@@ -1016,13 +1016,13 @@ def _copy_CSR(
 @wp.kernel
 def _qLD_acc(
   # Model:
-  M_rownnz: wp.array(dtype=int),
-  M_rowadr: wp.array(dtype=int),
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
   # In:
-  qLD_updates_: wp.array(dtype=wp.vec3i),
-  L_in: wp.array3d(dtype=float),
+  qLD_updates_: wp.array[wp.vec3i],
+  L_in: wp.array3d[float],
   # Out:
-  L_out: wp.array3d(dtype=float),
+  L_out: wp.array3d[float],
 ):
   worldid, nodeid = wp.tid()
   update = qLD_updates_[nodeid]
@@ -1041,19 +1041,19 @@ def _qLD_acc(
 @wp.kernel
 def _qLDiag_div(
   # Model:
-  M_rownnz: wp.array(dtype=int),
-  M_rowadr: wp.array(dtype=int),
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
   # In:
-  L_in: wp.array3d(dtype=float),
+  L_in: wp.array3d[float],
   # Out:
-  D_out: wp.array2d(dtype=float),
+  D_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
   diag_i = M_rowadr[dofid] + M_rownnz[dofid] - 1  # Address of diagonal element of i
   D_out[worldid, dofid] = 1.0 / L_in[worldid, 0, diag_i]
 
 
-def _factor_i_sparse(m: Model, d: Data, M: wp.array3d(dtype=float), L: wp.array3d(dtype=float), D: wp.array2d(dtype=float)):
+def _factor_i_sparse(m: Model, d: Data, M: wp.array3d[float], L: wp.array3d[float], D: wp.array2d[float]):
   """Sparse L'*D*L factorization of inertia-like matrix M, assumed spd."""
   wp.launch(_copy_CSR, dim=(d.nworld, m.nC), inputs=[m.mapM2M, M], outputs=[L])
 
@@ -1071,11 +1071,11 @@ def _tile_cholesky_factorize(tile: TileSet):
   @wp.kernel(module="unique", enable_backward=False)
   def cholesky_factorize(
     # Data in:
-    qM_in: wp.array3d(dtype=float),
+    qM_in: wp.array3d[float],
     # In:
-    adr: wp.array(dtype=int),
+    adr: wp.array[int],
     # Out:
-    L_out: wp.array3d(dtype=float),
+    L_out: wp.array3d[float],
   ):
     worldid, nodeid = wp.tid()
     TILE_SIZE = wp.static(tile.size)
@@ -1112,9 +1112,9 @@ def factor_m(m: Model, d: Data):
 @wp.kernel
 def _cacc_world(
   # In:
-  gravity: wp.array(dtype=wp.vec3),
+  gravity: wp.array[wp.vec3],
   # Data out:
-  cacc_out: wp.array2d(dtype=wp.spatial_vector),
+  cacc_out: wp.array2d[wp.spatial_vector],
 ):
   worldid = wp.tid()
   cacc_out[worldid, 0] = wp.spatial_vector(wp.vec3(0.0), -gravity[worldid % gravity.shape[0]])
@@ -1130,20 +1130,20 @@ def _rne_cacc_world(m: Model, d: Data):
 @wp.kernel
 def _cacc_branch(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_dofnum: wp.array(dtype=int),
-  body_dofadr: wp.array(dtype=int),
-  body_branches: wp.array(dtype=int),
-  body_branch_start: wp.array(dtype=int),
+  body_parentid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  body_branches: wp.array[int],
+  body_branch_start: wp.array[int],
   # Data in:
-  qvel_in: wp.array2d(dtype=float),
-  qacc_in: wp.array2d(dtype=float),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  cdof_dot_in: wp.array2d(dtype=wp.spatial_vector),
+  qvel_in: wp.array2d[float],
+  qacc_in: wp.array2d[float],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  cdof_dot_in: wp.array2d[wp.spatial_vector],
   # In:
   flg_acc: bool,
   # Data out:
-  cacc_out: wp.array2d(dtype=wp.spatial_vector),
+  cacc_out: wp.array2d[wp.spatial_vector],
 ):
   worldid, branchid = wp.tid()
 
@@ -1187,14 +1187,14 @@ def _rne_cacc_forward(m: Model, d: Data, flg_acc: bool = False):
 @wp.kernel
 def _cfrc(
   # Data in:
-  cinert_in: wp.array2d(dtype=vec10),
-  cvel_in: wp.array2d(dtype=wp.spatial_vector),
-  cacc_in: wp.array2d(dtype=wp.spatial_vector),
-  cfrc_ext_in: wp.array2d(dtype=wp.spatial_vector),
+  cinert_in: wp.array2d[vec10],
+  cvel_in: wp.array2d[wp.spatial_vector],
+  cacc_in: wp.array2d[wp.spatial_vector],
+  cfrc_ext_in: wp.array2d[wp.spatial_vector],
   # In:
   flg_cfrc_ext: bool,
   # Data out:
-  cfrc_int_out: wp.array2d(dtype=wp.spatial_vector),
+  cfrc_int_out: wp.array2d[wp.spatial_vector],
 ):
   worldid, bodyid = wp.tid()
   bodyid += 1  # skip world body
@@ -1218,13 +1218,13 @@ def _rne_cfrc(m: Model, d: Data, flg_cfrc_ext: bool = False):
 @wp.kernel
 def _cfrc_backward(
   # Model:
-  body_parentid: wp.array(dtype=int),
+  body_parentid: wp.array[int],
   # Data in:
-  cfrc_int_in: wp.array2d(dtype=wp.spatial_vector),
+  cfrc_int_in: wp.array2d[wp.spatial_vector],
   # In:
-  body_tree_: wp.array(dtype=int),
+  body_tree_: wp.array[int],
   # Data out:
-  cfrc_int_out: wp.array2d(dtype=wp.spatial_vector),
+  cfrc_int_out: wp.array2d[wp.spatial_vector],
 ):
   worldid, nodeid = wp.tid()
   bodyid = body_tree_[nodeid]
@@ -1243,12 +1243,12 @@ def _rne_cfrc_backward(m: Model, d: Data):
 @wp.kernel
 def _qfrc_bias(
   # Model:
-  dof_bodyid: wp.array(dtype=int),
+  dof_bodyid: wp.array[int],
   # Data in:
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  cfrc_int_in: wp.array2d(dtype=wp.spatial_vector),
+  cdof_in: wp.array2d[wp.spatial_vector],
+  cfrc_int_in: wp.array2d[wp.spatial_vector],
   # Data out:
-  qfrc_bias_out: wp.array2d(dtype=float),
+  qfrc_bias_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
   bodyid = dof_bodyid[dofid]
@@ -1277,13 +1277,13 @@ def rne(m: Model, d: Data, flg_acc: bool = False):
 @wp.kernel
 def _cfrc_ext(
   # Model:
-  body_rootid: wp.array(dtype=int),
+  body_rootid: wp.array[int],
   # Data in:
-  xfrc_applied_in: wp.array2d(dtype=wp.spatial_vector),
-  xipos_in: wp.array2d(dtype=wp.vec3),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
+  xfrc_applied_in: wp.array2d[wp.spatial_vector],
+  xipos_in: wp.array2d[wp.vec3],
+  subtree_com_in: wp.array2d[wp.vec3],
   # Data out:
-  cfrc_ext_out: wp.array2d(dtype=wp.spatial_vector),
+  cfrc_ext_out: wp.array2d[wp.spatial_vector],
 ):
   worldid, bodyid = wp.tid()
   if bodyid == 0:
@@ -1298,14 +1298,14 @@ def _cfrc_ext(
 @wp.kernel
 def _count_equality_constraints(
   # Model:
-  eq_type: wp.array(dtype=int),
+  eq_type: wp.array[int],
   # Data in:
-  ne_in: wp.array(dtype=int),
-  efc_type_in: wp.array2d(dtype=int),
-  efc_id_in: wp.array2d(dtype=int),
+  ne_in: wp.array[int],
+  efc_type_in: wp.array2d[int],
+  efc_id_in: wp.array2d[int],
   # Out:
-  ne_connect_out: wp.array(dtype=int),
-  ne_weld_out: wp.array(dtype=int),
+  ne_connect_out: wp.array[int],
+  ne_weld_out: wp.array[int],
 ):
   """Counts connect and weld equality constraints from efc data."""
   worldid, efcid = wp.tid()
@@ -1328,24 +1328,24 @@ def _count_equality_constraints(
 @wp.kernel
 def _cfrc_ext_equality(
   # Model:
-  body_rootid: wp.array(dtype=int),
-  site_bodyid: wp.array(dtype=int),
-  site_pos: wp.array2d(dtype=wp.vec3),
-  eq_obj1id: wp.array(dtype=int),
-  eq_obj2id: wp.array(dtype=int),
-  eq_objtype: wp.array(dtype=int),
-  eq_data: wp.array2d(dtype=vec11),
+  body_rootid: wp.array[int],
+  site_bodyid: wp.array[int],
+  site_pos: wp.array2d[wp.vec3],
+  eq_obj1id: wp.array[int],
+  eq_obj2id: wp.array[int],
+  eq_objtype: wp.array[int],
+  eq_data: wp.array2d[vec11],
   # Data in:
-  xpos_in: wp.array2d(dtype=wp.vec3),
-  xmat_in: wp.array2d(dtype=wp.mat33),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  efc_id_in: wp.array2d(dtype=int),
-  efc_force_in: wp.array2d(dtype=float),
+  xpos_in: wp.array2d[wp.vec3],
+  xmat_in: wp.array2d[wp.mat33],
+  subtree_com_in: wp.array2d[wp.vec3],
+  efc_id_in: wp.array2d[int],
+  efc_force_in: wp.array2d[float],
   # In:
-  ne_connect_in: wp.array(dtype=int),
-  ne_weld_in: wp.array(dtype=int),
+  ne_connect_in: wp.array[int],
+  ne_weld_in: wp.array[int],
   # Data out:
-  cfrc_ext_out: wp.array2d(dtype=wp.spatial_vector),
+  cfrc_ext_out: wp.array2d[wp.spatial_vector],
 ):
   worldid, eqid = wp.tid()
 
@@ -1439,22 +1439,22 @@ def transform_force(force: wp.vec3, torque: wp.vec3, offset: wp.vec3) -> wp.spat
 def _cfrc_ext_contact(
   # Model:
   opt_cone: int,
-  body_rootid: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
+  body_rootid: wp.array[int],
+  geom_bodyid: wp.array[int],
   # Data in:
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  contact_pos_in: wp.array(dtype=wp.vec3),
-  contact_frame_in: wp.array(dtype=wp.mat33),
-  contact_friction_in: wp.array(dtype=vec5),
-  contact_dim_in: wp.array(dtype=int),
-  contact_geom_in: wp.array(dtype=wp.vec2i),
-  contact_efc_address_in: wp.array2d(dtype=int),
-  contact_worldid_in: wp.array(dtype=int),
-  efc_force_in: wp.array2d(dtype=float),
+  subtree_com_in: wp.array2d[wp.vec3],
+  contact_pos_in: wp.array[wp.vec3],
+  contact_frame_in: wp.array[wp.mat33],
+  contact_friction_in: wp.array[vec5],
+  contact_dim_in: wp.array[int],
+  contact_geom_in: wp.array[wp.vec2i],
+  contact_efc_address_in: wp.array2d[int],
+  contact_worldid_in: wp.array[int],
+  efc_force_in: wp.array2d[float],
   njmax_in: int,
-  nacon_in: wp.array(dtype=int),
+  nacon_in: wp.array[int],
   # Data out:
-  cfrc_ext_out: wp.array2d(dtype=wp.spatial_vector),
+  cfrc_ext_out: wp.array2d[wp.spatial_vector],
 ):
   contactid = wp.tid()
 
@@ -1584,17 +1584,17 @@ def rne_postconstraint(m: Model, d: Data):
 @wp.func
 def _accumulate_jac_dot_chain(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_dofnum: wp.array(dtype=int),
-  body_dofadr: wp.array(dtype=int),
-  jnt_type: wp.array(dtype=int),
-  jnt_dofadr: wp.array(dtype=int),
-  dof_jntid: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
+  body_parentid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  jnt_type: wp.array[int],
+  jnt_dofadr: wp.array[int],
+  dof_jntid: wp.array[int],
+  ten_J_colind: wp.array[int],
   # Data in:
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  cvel_in: wp.array2d(dtype=wp.spatial_vector),
-  cdof_dot_in: wp.array2d(dtype=wp.spatial_vector),
+  cdof_in: wp.array2d[wp.spatial_vector],
+  cvel_in: wp.array2d[wp.spatial_vector],
+  cdof_dot_in: wp.array2d[wp.spatial_vector],
   # In:
   offset: wp.vec3,
   pvel_lin: wp.vec3,
@@ -1606,7 +1606,7 @@ def _accumulate_jac_dot_chain(
   scale: float,
   worldid: int,
   # Out:
-  ten_Jdot_out: wp.array2d(dtype=float),
+  ten_Jdot_out: wp.array2d[float],
 ):
   """Walk body chain from bodyid to root, accumulate Jdot contributions."""
   ptr = rownnz - 1
@@ -1655,31 +1655,31 @@ def _accumulate_jac_dot_chain(
 @wp.kernel
 def _tendon_dot(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_rootid: wp.array(dtype=int),
-  body_dofnum: wp.array(dtype=int),
-  body_dofadr: wp.array(dtype=int),
-  jnt_type: wp.array(dtype=int),
-  jnt_dofadr: wp.array(dtype=int),
-  dof_jntid: wp.array(dtype=int),
-  site_bodyid: wp.array(dtype=int),
-  tendon_adr: wp.array(dtype=int),
-  tendon_num: wp.array(dtype=int),
-  ten_J_rownnz: wp.array(dtype=int),
-  ten_J_rowadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
-  tendon_armature: wp.array2d(dtype=float),
-  wrap_type: wp.array(dtype=int),
-  wrap_objid: wp.array(dtype=int),
-  wrap_prm: wp.array(dtype=float),
+  body_parentid: wp.array[int],
+  body_rootid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  jnt_type: wp.array[int],
+  jnt_dofadr: wp.array[int],
+  dof_jntid: wp.array[int],
+  site_bodyid: wp.array[int],
+  tendon_adr: wp.array[int],
+  tendon_num: wp.array[int],
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  tendon_armature: wp.array2d[float],
+  wrap_type: wp.array[int],
+  wrap_objid: wp.array[int],
+  wrap_prm: wp.array[float],
   # Data in:
-  site_xpos_in: wp.array2d(dtype=wp.vec3),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  cvel_in: wp.array2d(dtype=wp.spatial_vector),
-  cdof_dot_in: wp.array2d(dtype=wp.spatial_vector),
+  site_xpos_in: wp.array2d[wp.vec3],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  cvel_in: wp.array2d[wp.spatial_vector],
+  cdof_dot_in: wp.array2d[wp.spatial_vector],
   # Out:
-  ten_Jdot_out: wp.array2d(dtype=float),
+  ten_Jdot_out: wp.array2d[float],
 ):
   worldid, tenid = wp.tid()
 
@@ -1809,16 +1809,16 @@ def _tendon_dot(
 @wp.kernel
 def _tendon_bias_coef(
   # Model:
-  ten_J_rownnz: wp.array(dtype=int),
-  ten_J_rowadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
-  tendon_armature: wp.array2d(dtype=float),
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  tendon_armature: wp.array2d[float],
   # Data in:
-  qvel_in: wp.array2d(dtype=float),
+  qvel_in: wp.array2d[float],
   # In:
-  ten_Jdot_in: wp.array2d(dtype=float),
+  ten_Jdot_in: wp.array2d[float],
   # Out:
-  ten_bias_coef_out: wp.array2d(dtype=float),
+  ten_bias_coef_out: wp.array2d[float],
 ):
   worldid, tenid, dofid_sparse = wp.tid()
 
@@ -1842,16 +1842,16 @@ def _tendon_bias_coef(
 @wp.kernel
 def _tendon_bias_qfrc(
   # Model:
-  ten_J_rownnz: wp.array(dtype=int),
-  ten_J_rowadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
-  tendon_armature: wp.array2d(dtype=float),
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  tendon_armature: wp.array2d[float],
   # Data in:
-  ten_J_in: wp.array2d(dtype=float),
+  ten_J_in: wp.array2d[float],
   # In:
-  ten_bias_coef_in: wp.array2d(dtype=float),
+  ten_bias_coef_in: wp.array2d[float],
   # Out:
-  qfrc_out: wp.array2d(dtype=float),
+  qfrc_out: wp.array2d[float],
 ):
   worldid, tenid, dofid = wp.tid()
 
@@ -1875,7 +1875,7 @@ def _tendon_bias_qfrc(
 
 
 @event_scope
-def tendon_bias(m: Model, d: Data, qfrc: wp.array2d(dtype=float)):
+def tendon_bias(m: Model, d: Data, qfrc: wp.array2d[float]):
   """Add bias force due to tendon armature.
 
   Args:
@@ -1933,7 +1933,7 @@ def tendon_bias(m: Model, d: Data, qfrc: wp.array2d(dtype=float)):
 
 
 @wp.kernel
-def _comvel_root(cvel_out: wp.array2d(dtype=wp.spatial_vector)):
+def _comvel_root(cvel_out: wp.array2d[wp.spatial_vector]):
   worldid, elementid = wp.tid()
   cvel_out[worldid, 0][elementid] = 0.0
 
@@ -1941,19 +1941,19 @@ def _comvel_root(cvel_out: wp.array2d(dtype=wp.spatial_vector)):
 @wp.kernel
 def _comvel_branch(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_jntnum: wp.array(dtype=int),
-  body_jntadr: wp.array(dtype=int),
-  body_dofadr: wp.array(dtype=int),
-  jnt_type: wp.array(dtype=int),
-  body_branches: wp.array(dtype=int),
-  body_branch_start: wp.array(dtype=int),
+  body_parentid: wp.array[int],
+  body_jntnum: wp.array[int],
+  body_jntadr: wp.array[int],
+  body_dofadr: wp.array[int],
+  jnt_type: wp.array[int],
+  body_branches: wp.array[int],
+  body_branch_start: wp.array[int],
   # Data in:
-  qvel_in: wp.array2d(dtype=float),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
+  qvel_in: wp.array2d[float],
+  cdof_in: wp.array2d[wp.spatial_vector],
   # Data out:
-  cvel_out: wp.array2d(dtype=wp.spatial_vector),
-  cdof_dot_out: wp.array2d(dtype=wp.spatial_vector),
+  cvel_out: wp.array2d[wp.spatial_vector],
+  cdof_dot_out: wp.array2d[wp.spatial_vector],
 ):
   worldid, branchid = wp.tid()
 
@@ -2042,42 +2042,42 @@ def com_vel(m: Model, d: Data):
 def _transmission(
   # Model:
   nv: int,
-  body_parentid: wp.array(dtype=int),
-  body_rootid: wp.array(dtype=int),
-  body_weldid: wp.array(dtype=int),
-  body_dofnum: wp.array(dtype=int),
-  body_dofadr: wp.array(dtype=int),
-  jnt_type: wp.array(dtype=int),
-  jnt_qposadr: wp.array(dtype=int),
-  jnt_dofadr: wp.array(dtype=int),
-  dof_bodyid: wp.array(dtype=int),
-  dof_parentid: wp.array(dtype=int),
-  site_bodyid: wp.array(dtype=int),
-  site_quat: wp.array2d(dtype=wp.quat),
-  ten_J_rownnz: wp.array(dtype=int),
-  ten_J_rowadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
-  actuator_trntype: wp.array(dtype=int),
-  actuator_trnid: wp.array(dtype=wp.vec2i),
-  actuator_gear: wp.array2d(dtype=wp.spatial_vector),
-  actuator_cranklength: wp.array2d(dtype=float),
+  body_parentid: wp.array[int],
+  body_rootid: wp.array[int],
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  jnt_type: wp.array[int],
+  jnt_qposadr: wp.array[int],
+  jnt_dofadr: wp.array[int],
+  dof_bodyid: wp.array[int],
+  dof_parentid: wp.array[int],
+  site_bodyid: wp.array[int],
+  site_quat: wp.array2d[wp.quat],
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_gear: wp.array2d[wp.spatial_vector],
+  actuator_cranklength: wp.array2d[float],
   # Data in:
-  qpos_in: wp.array2d(dtype=float),
-  xquat_in: wp.array2d(dtype=wp.quat),
-  site_xpos_in: wp.array2d(dtype=wp.vec3),
-  site_xmat_in: wp.array2d(dtype=wp.mat33),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  ten_J_in: wp.array2d(dtype=float),
-  ten_length_in: wp.array2d(dtype=float),
+  qpos_in: wp.array2d[float],
+  xquat_in: wp.array2d[wp.quat],
+  site_xpos_in: wp.array2d[wp.vec3],
+  site_xmat_in: wp.array2d[wp.mat33],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  ten_J_in: wp.array2d[float],
+  ten_length_in: wp.array2d[float],
   # In:
-  moment_nnz: wp.array(dtype=int),
+  moment_nnz: wp.array[int],
   # Data out:
-  actuator_length_out: wp.array2d(dtype=float),
-  moment_rownnz_out: wp.array2d(dtype=int),
-  moment_rowadr_out: wp.array2d(dtype=int),
-  moment_colind_out: wp.array2d(dtype=int),
-  actuator_moment_out: wp.array2d(dtype=float),
+  actuator_length_out: wp.array2d[float],
+  moment_rownnz_out: wp.array2d[int],
+  moment_rowadr_out: wp.array2d[int],
+  moment_colind_out: wp.array2d[int],
+  actuator_moment_out: wp.array2d[float],
 ):
   worldid, actid = wp.tid()
   trntype = actuator_trntype[actid]
@@ -2448,35 +2448,35 @@ def _transmission(
 def _transmission_body_moment(
   # Model:
   opt_cone: int,
-  body_parentid: wp.array(dtype=int),
-  body_rootid: wp.array(dtype=int),
-  dof_bodyid: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
-  actuator_trnid: wp.array(dtype=wp.vec2i),
-  actuator_trntype_body_adr: wp.array(dtype=int),
+  body_parentid: wp.array[int],
+  body_rootid: wp.array[int],
+  dof_bodyid: wp.array[int],
+  geom_bodyid: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_trntype_body_adr: wp.array[int],
   # Data in:
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  moment_rowadr_in: wp.array2d(dtype=int),
-  contact_dist_in: wp.array(dtype=float),
-  contact_pos_in: wp.array(dtype=wp.vec3),
-  contact_frame_in: wp.array(dtype=wp.mat33),
-  contact_includemargin_in: wp.array(dtype=float),
-  contact_dim_in: wp.array(dtype=int),
-  contact_geom_in: wp.array(dtype=wp.vec2i),
-  contact_efc_address_in: wp.array2d(dtype=int),
-  contact_worldid_in: wp.array(dtype=int),
-  efc_J_rownnz_in: wp.array2d(dtype=int),
-  efc_J_rowadr_in: wp.array2d(dtype=int),
-  efc_J_colind_in: wp.array3d(dtype=int),
-  efc_J_in: wp.array3d(dtype=float),
-  nacon_in: wp.array(dtype=int),
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  moment_rowadr_in: wp.array2d[int],
+  contact_dist_in: wp.array[float],
+  contact_pos_in: wp.array[wp.vec3],
+  contact_frame_in: wp.array[wp.mat33],
+  contact_includemargin_in: wp.array[float],
+  contact_dim_in: wp.array[int],
+  contact_geom_in: wp.array[wp.vec2i],
+  contact_efc_address_in: wp.array2d[int],
+  contact_worldid_in: wp.array[int],
+  efc_J_rownnz_in: wp.array2d[int],
+  efc_J_rowadr_in: wp.array2d[int],
+  efc_J_colind_in: wp.array3d[int],
+  efc_J_in: wp.array3d[float],
+  nacon_in: wp.array[int],
   # In:
   efc_is_sparse: bool,
   # Data out:
-  actuator_moment_out: wp.array2d(dtype=float),
+  actuator_moment_out: wp.array2d[float],
   # Out:
-  actuator_trntype_body_ncon_out: wp.array2d(dtype=int),
+  actuator_trntype_body_ncon_out: wp.array2d[int],
 ):
   trnbodyid, conid, dofid = wp.tid()
   actid = actuator_trntype_body_adr[trnbodyid]
@@ -2583,13 +2583,13 @@ def _transmission_body_moment(
 @wp.kernel
 def _transmission_body_moment_scale(
   # Model:
-  actuator_trntype_body_adr: wp.array(dtype=int),
+  actuator_trntype_body_adr: wp.array[int],
   # Data in:
-  moment_rowadr_in: wp.array2d(dtype=int),
+  moment_rowadr_in: wp.array2d[int],
   # In:
-  actuator_trntype_body_ncon_in: wp.array2d(dtype=int),
+  actuator_trntype_body_ncon_in: wp.array2d[int],
   # Data out:
-  actuator_moment_out: wp.array2d(dtype=float),
+  actuator_moment_out: wp.array2d[float],
 ):
   worldid, trnbodyid, dofid = wp.tid()
 
@@ -2704,13 +2704,13 @@ def _solve_LD_sparse_fused(nv: int, nlevels: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # In:
-    L: wp.array3d(dtype=float),
-    D: wp.array2d(dtype=float),
-    all_updates: wp.array(dtype=wp.vec3i),
-    level_offsets: wp.array(dtype=int),
-    y: wp.array2d(dtype=float),
+    L: wp.array3d[float],
+    D: wp.array2d[float],
+    all_updates: wp.array[wp.vec3i],
+    level_offsets: wp.array[int],
+    y: wp.array2d[float],
     # Out:
-    x_out: wp.array2d(dtype=float),
+    x_out: wp.array2d[float],
   ):
     worldid, tid = wp.tid()
     NV = wp.static(nv)
@@ -2757,10 +2757,10 @@ def _solve_LD_sparse_fused(nv: int, nlevels: int):
 def _solve_LD_sparse(
   m: Model,
   d: Data,
-  L: wp.array3d(dtype=float),
-  D: wp.array2d(dtype=float),
-  x: wp.array2d(dtype=float),
-  y: wp.array2d(dtype=float),
+  L: wp.array3d[float],
+  D: wp.array2d[float],
+  x: wp.array2d[float],
+  y: wp.array2d[float],
 ):
   """Computes sparse backsubstitution: x = inv(L'*D*L)*y."""
   nlevels = len(m.qLD_updates)
@@ -2786,11 +2786,11 @@ def _tile_cholesky_solve(tile: TileSet):
   @wp.kernel(module="unique", enable_backward=False)
   def cholesky_solve(
     # In:
-    L: wp.array3d(dtype=float),
-    y: wp.array2d(dtype=float),
-    adr: wp.array(dtype=int),
+    L: wp.array3d[float],
+    y: wp.array2d[float],
+    adr: wp.array[int],
     # Out:
-    x: wp.array2d(dtype=float),
+    x: wp.array2d[float],
   ):
     worldid, nodeid = wp.tid()
     TILE_SIZE = wp.static(tile.size)
@@ -2804,7 +2804,7 @@ def _tile_cholesky_solve(tile: TileSet):
   return cholesky_solve
 
 
-def _solve_LD_dense(m: Model, d: Data, L: wp.array3d(dtype=float), x: wp.array2d(dtype=float), y: wp.array2d(dtype=float)):
+def _solve_LD_dense(m: Model, d: Data, L: wp.array3d[float], x: wp.array2d[float], y: wp.array2d[float]):
   """Computes dense backsubstitution: x = inv(L'*L)*y."""
   for tile in m.qM_tiles:
     wp.launch_tiled(
@@ -2819,10 +2819,10 @@ def _solve_LD_dense(m: Model, d: Data, L: wp.array3d(dtype=float), x: wp.array2d
 def solve_LD(
   m: Model,
   d: Data,
-  L: wp.array3d(dtype=float),
-  D: wp.array2d(dtype=float),
-  x: wp.array2d(dtype=float),
-  y: wp.array2d(dtype=float),
+  L: wp.array3d[float],
+  D: wp.array2d[float],
+  x: wp.array2d[float],
+  y: wp.array2d[float],
 ):
   """Computes backsubstitution to solve a linear system of the form x = inv(L'*D*L) * y.
 
@@ -2845,7 +2845,7 @@ def solve_LD(
 
 
 @event_scope
-def solve_m(m: Model, d: Data, x: wp.array2d(dtype=float), y: wp.array2d(dtype=float)):
+def solve_m(m: Model, d: Data, x: wp.array2d[float], y: wp.array2d[float]):
   """Computes backsubstitution: x = qLD * y.
 
   Args:
@@ -2864,12 +2864,12 @@ def _tile_cholesky_factorize_solve(tile: TileSet):
   @wp.kernel(module="unique", enable_backward=False)
   def cholesky_factorize_solve(
     # In:
-    M: wp.array3d(dtype=float),
-    y: wp.array2d(dtype=float),
-    adr: wp.array(dtype=int),
+    M: wp.array3d[float],
+    y: wp.array2d[float],
+    adr: wp.array[int],
     # Out:
-    x: wp.array2d(dtype=float),
-    L: wp.array3d(dtype=float),
+    x: wp.array2d[float],
+    L: wp.array3d[float],
   ):
     worldid, nodeid = wp.tid()
     TILE_SIZE = wp.static(tile.size)
@@ -2889,10 +2889,10 @@ def _tile_cholesky_factorize_solve(tile: TileSet):
 def _factor_solve_i_dense(
   m: Model,
   d: Data,
-  M: wp.array3d(dtype=float),
-  x: wp.array2d(dtype=float),
-  y: wp.array2d(dtype=float),
-  L: wp.array3d(dtype=float),
+  M: wp.array3d[float],
+  x: wp.array2d[float],
+  y: wp.array2d[float],
+  L: wp.array3d[float],
 ):
   for tile in m.qM_tiles:
     wp.launch_tiled(
@@ -2931,19 +2931,19 @@ def factor_solve_i(m, d, M, L, D, x, y):
 @wp.kernel
 def _subtree_vel_forward(
   # Model:
-  body_rootid: wp.array(dtype=int),
-  body_mass: wp.array2d(dtype=float),
-  body_inertia: wp.array2d(dtype=wp.vec3),
+  body_rootid: wp.array[int],
+  body_mass: wp.array2d[float],
+  body_inertia: wp.array2d[wp.vec3],
   # Data in:
-  xipos_in: wp.array2d(dtype=wp.vec3),
-  ximat_in: wp.array2d(dtype=wp.mat33),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cvel_in: wp.array2d(dtype=wp.spatial_vector),
+  xipos_in: wp.array2d[wp.vec3],
+  ximat_in: wp.array2d[wp.mat33],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cvel_in: wp.array2d[wp.spatial_vector],
   # Data out:
-  subtree_linvel_out: wp.array2d(dtype=wp.vec3),
-  subtree_angmom_out: wp.array2d(dtype=wp.vec3),
+  subtree_linvel_out: wp.array2d[wp.vec3],
+  subtree_angmom_out: wp.array2d[wp.vec3],
   # Out:
-  subtree_bodyvel_out: wp.array2d(dtype=wp.spatial_vector),
+  subtree_bodyvel_out: wp.array2d[wp.spatial_vector],
 ):
   worldid, bodyid = wp.tid()
   body_mass_id = worldid % body_mass.shape[0]
@@ -2971,14 +2971,14 @@ def _subtree_vel_forward(
 @wp.kernel
 def _linear_momentum(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_subtreemass: wp.array2d(dtype=float),
+  body_parentid: wp.array[int],
+  body_subtreemass: wp.array2d[float],
   # Data in:
-  subtree_linvel_in: wp.array2d(dtype=wp.vec3),
+  subtree_linvel_in: wp.array2d[wp.vec3],
   # In:
-  body_tree_: wp.array(dtype=int),
+  body_tree_: wp.array[int],
   # Data out:
-  subtree_linvel_out: wp.array2d(dtype=wp.vec3),
+  subtree_linvel_out: wp.array2d[wp.vec3],
 ):
   worldid, nodeid = wp.tid()
   bodyid = body_tree_[nodeid]
@@ -2991,18 +2991,18 @@ def _linear_momentum(
 @wp.kernel
 def _angular_momentum(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_mass: wp.array2d(dtype=float),
-  body_subtreemass: wp.array2d(dtype=float),
+  body_parentid: wp.array[int],
+  body_mass: wp.array2d[float],
+  body_subtreemass: wp.array2d[float],
   # Data in:
-  xipos_in: wp.array2d(dtype=wp.vec3),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  subtree_linvel_in: wp.array2d(dtype=wp.vec3),
+  xipos_in: wp.array2d[wp.vec3],
+  subtree_com_in: wp.array2d[wp.vec3],
+  subtree_linvel_in: wp.array2d[wp.vec3],
   # In:
-  subtree_bodyvel_in: wp.array2d(dtype=wp.spatial_vector),
-  body_tree_: wp.array(dtype=int),
+  subtree_bodyvel_in: wp.array2d[wp.spatial_vector],
+  body_tree_: wp.array[int],
   # Data out:
-  subtree_angmom_out: wp.array2d(dtype=wp.vec3),
+  subtree_angmom_out: wp.array2d[wp.vec3],
 ):
   worldid, nodeid = wp.tid()
   bodyid = body_tree_[nodeid]
@@ -3087,20 +3087,20 @@ def subtree_vel(m: Model, d: Data):
 @wp.kernel
 def _joint_tendon(
   # Model:
-  jnt_qposadr: wp.array(dtype=int),
-  jnt_dofadr: wp.array(dtype=int),
-  ten_J_rownnz: wp.array(dtype=int),
-  ten_J_rowadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
-  wrap_objid: wp.array(dtype=int),
-  wrap_prm: wp.array(dtype=float),
-  tendon_jnt_adr: wp.array(dtype=int),
-  wrap_jnt_adr: wp.array(dtype=int),
+  jnt_qposadr: wp.array[int],
+  jnt_dofadr: wp.array[int],
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  wrap_objid: wp.array[int],
+  wrap_prm: wp.array[float],
+  tendon_jnt_adr: wp.array[int],
+  wrap_jnt_adr: wp.array[int],
   # Data in:
-  qpos_in: wp.array2d(dtype=float),
+  qpos_in: wp.array2d[float],
   # Data out:
-  ten_J_out: wp.array2d(dtype=float),
-  ten_length_out: wp.array2d(dtype=float),
+  ten_J_out: wp.array2d[float],
+  ten_length_out: wp.array2d[float],
 ):
   worldid, wrapid = wp.tid()
 
@@ -3126,12 +3126,12 @@ def _joint_tendon(
 @wp.func
 def _accumulate_jac_chain(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_dofnum: wp.array(dtype=int),
-  body_dofadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
+  body_parentid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  ten_J_colind: wp.array[int],
   # Data in:
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
+  cdof_in: wp.array2d[wp.spatial_vector],
   # In:
   offset: wp.vec3,
   vec: wp.vec3,
@@ -3141,7 +3141,7 @@ def _accumulate_jac_chain(
   scale: float,
   worldid: int,
   # Data out:
-  ten_J_out: wp.array2d(dtype=float),
+  ten_J_out: wp.array2d[float],
 ):
   """Walk body chain from bodyid to root, accumulate Jacobian contributions."""
   ptr = rownnz - 1
@@ -3172,25 +3172,25 @@ def _accumulate_jac_chain(
 @wp.kernel
 def _spatial_site_tendon(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_rootid: wp.array(dtype=int),
-  body_dofnum: wp.array(dtype=int),
-  body_dofadr: wp.array(dtype=int),
-  site_bodyid: wp.array(dtype=int),
-  ten_J_rownnz: wp.array(dtype=int),
-  ten_J_rowadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
-  wrap_objid: wp.array(dtype=int),
-  tendon_site_pair_adr: wp.array(dtype=int),
-  wrap_site_pair_adr: wp.array(dtype=int),
-  wrap_pulley_scale: wp.array(dtype=float),
+  body_parentid: wp.array[int],
+  body_rootid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  site_bodyid: wp.array[int],
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  wrap_objid: wp.array[int],
+  tendon_site_pair_adr: wp.array[int],
+  wrap_site_pair_adr: wp.array[int],
+  wrap_pulley_scale: wp.array[float],
   # Data in:
-  site_xpos_in: wp.array2d(dtype=wp.vec3),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
+  site_xpos_in: wp.array2d[wp.vec3],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
   # Data out:
-  ten_J_out: wp.array2d(dtype=float),
-  ten_length_out: wp.array2d(dtype=float),
+  ten_J_out: wp.array2d[float],
+  ten_length_out: wp.array2d[float],
 ):
   worldid, elementid = wp.tid()
 
@@ -3255,33 +3255,33 @@ def _spatial_site_tendon(
 @wp.kernel
 def _spatial_geom_tendon(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_rootid: wp.array(dtype=int),
-  body_dofnum: wp.array(dtype=int),
-  body_dofadr: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
-  site_bodyid: wp.array(dtype=int),
-  ten_J_rownnz: wp.array(dtype=int),
-  ten_J_rowadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
-  wrap_type: wp.array(dtype=int),
-  wrap_objid: wp.array(dtype=int),
-  wrap_prm: wp.array(dtype=float),
-  tendon_geom_adr: wp.array(dtype=int),
-  wrap_geom_adr: wp.array(dtype=int),
-  wrap_pulley_scale: wp.array(dtype=float),
+  body_parentid: wp.array[int],
+  body_rootid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  geom_bodyid: wp.array[int],
+  geom_size: wp.array2d[wp.vec3],
+  site_bodyid: wp.array[int],
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  wrap_type: wp.array[int],
+  wrap_objid: wp.array[int],
+  wrap_prm: wp.array[float],
+  tendon_geom_adr: wp.array[int],
+  wrap_geom_adr: wp.array[int],
+  wrap_pulley_scale: wp.array[float],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
-  site_xpos_in: wp.array2d(dtype=wp.vec3),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
+  site_xpos_in: wp.array2d[wp.vec3],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
   # Data out:
-  ten_J_out: wp.array2d(dtype=float),
-  ten_length_out: wp.array2d(dtype=float),
+  ten_J_out: wp.array2d[float],
+  ten_length_out: wp.array2d[float],
   # Out:
-  wrap_geom_xpos_out: wp.array2d(dtype=wp.spatial_vector),
+  wrap_geom_xpos_out: wp.array2d[wp.spatial_vector],
 ):
   worldid, elementid = wp.tid()
   wrap_adr = wrap_geom_adr[elementid]
@@ -3468,19 +3468,19 @@ def _spatial_geom_tendon(
 def _spatial_tendon_wrap(
   # Model:
   ntendon: int,
-  tendon_adr: wp.array(dtype=int),
-  tendon_num: wp.array(dtype=int),
-  wrap_type: wp.array(dtype=int),
-  wrap_objid: wp.array(dtype=int),
+  tendon_adr: wp.array[int],
+  tendon_num: wp.array[int],
+  wrap_type: wp.array[int],
+  wrap_objid: wp.array[int],
   # Data in:
-  site_xpos_in: wp.array2d(dtype=wp.vec3),
+  site_xpos_in: wp.array2d[wp.vec3],
   # In:
-  wrap_geom_xpos_in: wp.array2d(dtype=wp.spatial_vector),
+  wrap_geom_xpos_in: wp.array2d[wp.spatial_vector],
   # Data out:
-  ten_wrapadr_out: wp.array2d(dtype=int),
-  ten_wrapnum_out: wp.array2d(dtype=int),
-  wrap_obj_out: wp.array2d(dtype=wp.vec2i),
-  wrap_xpos_out: wp.array2d(dtype=wp.spatial_vector),
+  ten_wrapadr_out: wp.array2d[int],
+  ten_wrapnum_out: wp.array2d[int],
+  wrap_obj_out: wp.array2d[wp.vec2i],
+  wrap_xpos_out: wp.array2d[wp.spatial_vector],
 ):
   worldid = wp.tid()
 

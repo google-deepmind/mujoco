@@ -38,43 +38,43 @@ _BLOCK_CHOLESKY_DIM = 32
 class InverseContext:
   """Workspace arrays for inverse dynamics."""
 
-  Jaref: wp.array2d(dtype=float)
-  search_dot: wp.array(dtype=float)
-  gauss: wp.array(dtype=float)
-  cost: wp.array(dtype=float)
-  prev_cost: wp.array(dtype=float)
-  done: wp.array(dtype=bool)
-  changed_efc_ids: wp.array2d(dtype=int)
-  changed_efc_count: wp.array(dtype=int)
+  Jaref: wp.array2d[float]
+  search_dot: wp.array[float]
+  gauss: wp.array[float]
+  cost: wp.array[float]
+  prev_cost: wp.array[float]
+  done: wp.array[bool]
+  changed_efc_ids: wp.array2d[int]
+  changed_efc_count: wp.array[int]
 
 
 @dataclasses.dataclass
 class SolverContext:
   """Workspace arrays for constraint solver."""
 
-  Jaref: wp.array2d(dtype=float)
-  search_dot: wp.array(dtype=float)
-  gauss: wp.array(dtype=float)
-  cost: wp.array(dtype=float)
-  prev_cost: wp.array(dtype=float)
-  done: wp.array(dtype=bool)
-  grad: wp.array2d(dtype=float)
-  grad_dot: wp.array(dtype=float)
-  Mgrad: wp.array2d(dtype=float)
-  search: wp.array2d(dtype=float)
-  mv: wp.array2d(dtype=float)
-  jv: wp.array2d(dtype=float)
-  quad: wp.array2d(dtype=wp.vec3)
-  quad_gauss: wp.array(dtype=wp.vec3)
-  alpha: wp.array(dtype=float)
-  prev_grad: wp.array2d(dtype=float)
-  prev_Mgrad: wp.array2d(dtype=float)
-  beta: wp.array(dtype=float)
-  h: wp.array3d(dtype=float)
-  hfactor: wp.array3d(dtype=float)
+  Jaref: wp.array2d[float]
+  search_dot: wp.array[float]
+  gauss: wp.array[float]
+  cost: wp.array[float]
+  prev_cost: wp.array[float]
+  done: wp.array[bool]
+  grad: wp.array2d[float]
+  grad_dot: wp.array[float]
+  Mgrad: wp.array2d[float]
+  search: wp.array2d[float]
+  mv: wp.array2d[float]
+  jv: wp.array2d[float]
+  quad: wp.array2d[wp.vec3]
+  quad_gauss: wp.array[wp.vec3]
+  alpha: wp.array[float]
+  prev_grad: wp.array2d[float]
+  prev_Mgrad: wp.array2d[float]
+  beta: wp.array[float]
+  h: wp.array3d[float]
+  hfactor: wp.array3d[float]
   # Incremental Hessian update (Newton only)
-  changed_efc_ids: wp.array2d(dtype=int)
-  changed_efc_count: wp.array(dtype=int)
+  changed_efc_ids: wp.array2d[int]
+  changed_efc_count: wp.array[int]
 
 
 def create_inverse_context(m: types.Model, d: types.Data) -> InverseContext:
@@ -331,28 +331,28 @@ def _log_scale(min_value: float, max_value: float, num_values: int, i: int) -> f
 def linesearch_parallel_fused(
   # Model:
   opt_ls_iterations: int,
-  opt_impratio_invsqrt: wp.array(dtype=float),
+  opt_impratio_invsqrt: wp.array[float],
   opt_ls_parallel_min_step: float,
   # Data in:
-  ne_in: wp.array(dtype=int),
-  nf_in: wp.array(dtype=int),
-  nefc_in: wp.array(dtype=int),
-  contact_friction_in: wp.array(dtype=types.vec5),
-  contact_efc_address_in: wp.array2d(dtype=int),
-  efc_type_in: wp.array2d(dtype=int),
-  efc_id_in: wp.array2d(dtype=int),
-  efc_D_in: wp.array2d(dtype=float),
-  efc_frictionloss_in: wp.array2d(dtype=float),
+  ne_in: wp.array[int],
+  nf_in: wp.array[int],
+  nefc_in: wp.array[int],
+  contact_friction_in: wp.array[types.vec5],
+  contact_efc_address_in: wp.array2d[int],
+  efc_type_in: wp.array2d[int],
+  efc_id_in: wp.array2d[int],
+  efc_D_in: wp.array2d[float],
+  efc_frictionloss_in: wp.array2d[float],
   njmax_in: int,
-  nacon_in: wp.array(dtype=int),
+  nacon_in: wp.array[int],
   # In:
-  ctx_Jaref_in: wp.array2d(dtype=float),
-  ctx_jv_in: wp.array2d(dtype=float),
-  ctx_quad_in: wp.array2d(dtype=wp.vec3),
-  ctx_quad_gauss_in: wp.array(dtype=wp.vec3),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_Jaref_in: wp.array2d[float],
+  ctx_jv_in: wp.array2d[float],
+  ctx_quad_in: wp.array2d[wp.vec3],
+  ctx_quad_gauss_in: wp.array[wp.vec3],
+  ctx_done_in: wp.array[bool],
   # Out:
-  cost_out: wp.array2d(dtype=float),
+  cost_out: wp.array2d[float],
 ):
   worldid, alphaid = wp.tid()
 
@@ -457,10 +457,10 @@ def linesearch_parallel_best_alpha(
   opt_ls_iterations: int,
   opt_ls_parallel_min_step: float,
   # In:
-  ctx_done_in: wp.array(dtype=bool),
-  cost_in: wp.array2d(dtype=float),
+  ctx_done_in: wp.array[bool],
+  cost_in: wp.array2d[float],
   # Out:
-  ctx_alpha_out: wp.array(dtype=float),
+  ctx_alpha_out: wp.array[float],
 ):
   worldid = wp.tid()
 
@@ -478,7 +478,7 @@ def linesearch_parallel_best_alpha(
   ctx_alpha_out[worldid] = _log_scale(opt_ls_parallel_min_step, 1.0, opt_ls_iterations, bestid)
 
 
-def _linesearch_parallel(m: types.Model, d: types.Data, ctx: SolverContext, cost: wp.array2d(dtype=float)):
+def _linesearch_parallel(m: types.Model, d: types.Data, ctx: SolverContext, cost: wp.array2d[float]):
   """Parallel linesearch with setup and teardown kernels."""
   dofs_per_thread = 20 if m.nv > 50 else 50
   threads_per_efc = ceil(m.nv / dofs_per_thread)
@@ -575,7 +575,7 @@ def _compute_efc_eval_pt_pyramidal(
   nf: int,
   # Per-row data:
   efc_D: float,
-  efc_frictionloss: wp.array(dtype=float),
+  efc_frictionloss: wp.array[float],
   ctx_Jaref: float,
   ctx_jv: float,
 ) -> wp.vec3:
@@ -607,8 +607,8 @@ def _compute_efc_eval_pt_elliptic(
   impratio_invsqrt: float,
   # Per-row data (arrays for deferred load):
   efc_type: int,
-  efc_D_in: wp.array(dtype=float),
-  efc_frictionloss: wp.array(dtype=float),
+  efc_D_in: wp.array[float],
+  efc_frictionloss: wp.array[float],
   ctx_Jaref: float,
   ctx_jv: float,
   ctx_quad: wp.vec3,
@@ -652,7 +652,7 @@ def _compute_efc_eval_pt_alpha_zero_pyramidal(
   nf: int,
   # Per-row data:
   efc_D: float,
-  efc_frictionloss: wp.array(dtype=float),
+  efc_frictionloss: wp.array[float],
   ctx_Jaref: float,
   ctx_jv: float,
 ) -> wp.vec3:
@@ -681,8 +681,8 @@ def _compute_efc_eval_pt_alpha_zero_elliptic(
   impratio_invsqrt: float,
   # Per-row data (arrays for deferred load):
   efc_type: int,
-  efc_D_in: wp.array(dtype=float),
-  efc_frictionloss: wp.array(dtype=float),
+  efc_D_in: wp.array[float],
+  efc_frictionloss: wp.array[float],
   ctx_Jaref: float,
   ctx_jv: float,
   ctx_quad: wp.vec3,
@@ -727,7 +727,7 @@ def _compute_efc_eval_pt_3alphas_pyramidal(
   nf: int,
   # Per-row data:
   efc_D: float,
-  efc_frictionloss: wp.array(dtype=float),
+  efc_frictionloss: wp.array[float],
   ctx_Jaref: float,
   ctx_jv: float,
 ) -> tuple[wp.vec3, wp.vec3, wp.vec3]:
@@ -771,8 +771,8 @@ def _compute_efc_eval_pt_3alphas_elliptic(
   impratio_invsqrt: float,
   # Per-row data (arrays for deferred load):
   efc_type: int,
-  efc_D_in: wp.array(dtype=float),
-  efc_frictionloss: wp.array(dtype=float),
+  efc_D_in: wp.array[float],
+  efc_frictionloss: wp.array[float],
   ctx_Jaref: float,
   ctx_jv: float,
   ctx_quad: wp.vec3,
@@ -917,44 +917,44 @@ def linesearch_iterative(ls_iterations: int, cone_type: types.ConeType, fuse_jv:
   def kernel(
     # Model:
     nv: int,
-    opt_tolerance: wp.array(dtype=float),
-    opt_ls_tolerance: wp.array(dtype=float),
-    opt_impratio_invsqrt: wp.array(dtype=float),
-    stat_meaninertia: wp.array(dtype=float),
+    opt_tolerance: wp.array[float],
+    opt_ls_tolerance: wp.array[float],
+    opt_impratio_invsqrt: wp.array[float],
+    stat_meaninertia: wp.array[float],
     # Data in:
-    ne_in: wp.array(dtype=int),
-    nf_in: wp.array(dtype=int),
-    nefc_in: wp.array(dtype=int),
-    qfrc_smooth_in: wp.array2d(dtype=float),
-    contact_friction_in: wp.array(dtype=types.vec5),
-    contact_dim_in: wp.array(dtype=int),
-    contact_efc_address_in: wp.array2d(dtype=int),
-    efc_type_in: wp.array2d(dtype=int),
-    efc_id_in: wp.array2d(dtype=int),
-    efc_J_rownnz_in: wp.array2d(dtype=int),
-    efc_J_rowadr_in: wp.array2d(dtype=int),
-    efc_J_colind_in: wp.array3d(dtype=int),
-    efc_J_in: wp.array3d(dtype=float),
-    efc_D_in: wp.array2d(dtype=float),
-    efc_frictionloss_in: wp.array2d(dtype=float),
+    ne_in: wp.array[int],
+    nf_in: wp.array[int],
+    nefc_in: wp.array[int],
+    qfrc_smooth_in: wp.array2d[float],
+    contact_friction_in: wp.array[types.vec5],
+    contact_dim_in: wp.array[int],
+    contact_efc_address_in: wp.array2d[int],
+    efc_type_in: wp.array2d[int],
+    efc_id_in: wp.array2d[int],
+    efc_J_rownnz_in: wp.array2d[int],
+    efc_J_rowadr_in: wp.array2d[int],
+    efc_J_colind_in: wp.array3d[int],
+    efc_J_in: wp.array3d[float],
+    efc_D_in: wp.array2d[float],
+    efc_frictionloss_in: wp.array2d[float],
     njmax_in: int,
-    nacon_in: wp.array(dtype=int),
+    nacon_in: wp.array[int],
     # In:
-    ctx_Jaref_in: wp.array2d(dtype=float),
-    ctx_search_in: wp.array2d(dtype=float),
-    ctx_search_dot_in: wp.array(dtype=float),
-    ctx_gauss_in: wp.array(dtype=float),
-    ctx_mv_in: wp.array2d(dtype=float),
-    ctx_jv_in: wp.array2d(dtype=float),
-    ctx_quad_in: wp.array2d(dtype=wp.vec3),
-    ctx_done_in: wp.array(dtype=bool),
+    ctx_Jaref_in: wp.array2d[float],
+    ctx_search_in: wp.array2d[float],
+    ctx_search_dot_in: wp.array[float],
+    ctx_gauss_in: wp.array[float],
+    ctx_mv_in: wp.array2d[float],
+    ctx_jv_in: wp.array2d[float],
+    ctx_quad_in: wp.array2d[wp.vec3],
+    ctx_done_in: wp.array[bool],
     # Data out:
-    qacc_out: wp.array2d(dtype=float),
-    efc_Ma_out: wp.array2d(dtype=float),
+    qacc_out: wp.array2d[float],
+    efc_Ma_out: wp.array2d[float],
     # Out:
-    ctx_Jaref_out: wp.array2d(dtype=float),
-    ctx_jv_out: wp.array2d(dtype=float),
-    ctx_quad_out: wp.array2d(dtype=wp.vec3),
+    ctx_Jaref_out: wp.array2d[float],
+    ctx_jv_out: wp.array2d[float],
+    ctx_quad_out: wp.array2d[wp.vec3],
   ):
     worldid, tid = wp.tid()
 
@@ -1393,11 +1393,11 @@ def _linesearch_iterative(m: types.Model, d: types.Data, ctx: SolverContext, fus
 @wp.kernel
 def linesearch_zero_jv(
   # Data in:
-  nefc_in: wp.array(dtype=int),
+  nefc_in: wp.array[int],
   # In:
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_jv_out: wp.array2d(dtype=float),
+  ctx_jv_out: wp.array2d[float],
 ):
   worldid, efcid = wp.tid()
 
@@ -1415,16 +1415,16 @@ def linesearch_jv_fused(is_sparse: bool, nv: int, dofs_per_thread: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
-    nefc_in: wp.array(dtype=int),
-    efc_J_rownnz_in: wp.array2d(dtype=int),
-    efc_J_rowadr_in: wp.array2d(dtype=int),
-    efc_J_colind_in: wp.array3d(dtype=int),
-    efc_J_in: wp.array3d(dtype=float),
+    nefc_in: wp.array[int],
+    efc_J_rownnz_in: wp.array2d[int],
+    efc_J_rowadr_in: wp.array2d[int],
+    efc_J_colind_in: wp.array3d[int],
+    efc_J_in: wp.array3d[float],
     # In:
-    ctx_search_in: wp.array2d(dtype=float),
-    ctx_done_in: wp.array(dtype=bool),
+    ctx_search_in: wp.array2d[float],
+    ctx_done_in: wp.array[bool],
     # Out:
-    ctx_jv_out: wp.array2d(dtype=float),
+    ctx_jv_out: wp.array2d[float],
   ):
     worldid, efcid, dofstart = wp.tid()
 
@@ -1476,15 +1476,15 @@ def linesearch_prepare_gauss(nv: int, dofs_per_thread: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
-    qfrc_smooth_in: wp.array2d(dtype=float),
-    efc_Ma_in: wp.array2d(dtype=float),
+    qfrc_smooth_in: wp.array2d[float],
+    efc_Ma_in: wp.array2d[float],
     # In:
-    ctx_search_in: wp.array2d(dtype=float),
-    ctx_gauss_in: wp.array(dtype=float),
-    ctx_mv_in: wp.array2d(dtype=float),
-    ctx_done_in: wp.array(dtype=bool),
+    ctx_search_in: wp.array2d[float],
+    ctx_gauss_in: wp.array[float],
+    ctx_mv_in: wp.array2d[float],
+    ctx_done_in: wp.array[bool],
     # Out:
-    ctx_quad_gauss_out: wp.array(dtype=wp.vec3),
+    ctx_quad_gauss_out: wp.array[wp.vec3],
   ):
     worldid, dofstart = wp.tid()
 
@@ -1523,22 +1523,22 @@ def linesearch_prepare_gauss(nv: int, dofs_per_thread: int):
 @wp.kernel
 def linesearch_prepare_quad(
   # Model:
-  opt_impratio_invsqrt: wp.array(dtype=float),
+  opt_impratio_invsqrt: wp.array[float],
   # Data in:
-  nefc_in: wp.array(dtype=int),
-  contact_friction_in: wp.array(dtype=types.vec5),
-  contact_dim_in: wp.array(dtype=int),
-  contact_efc_address_in: wp.array2d(dtype=int),
-  efc_type_in: wp.array2d(dtype=int),
-  efc_id_in: wp.array2d(dtype=int),
-  efc_D_in: wp.array2d(dtype=float),
-  nacon_in: wp.array(dtype=int),
+  nefc_in: wp.array[int],
+  contact_friction_in: wp.array[types.vec5],
+  contact_dim_in: wp.array[int],
+  contact_efc_address_in: wp.array2d[int],
+  efc_type_in: wp.array2d[int],
+  efc_id_in: wp.array2d[int],
+  efc_D_in: wp.array2d[float],
+  nacon_in: wp.array[int],
   # In:
-  ctx_Jaref_in: wp.array2d(dtype=float),
-  ctx_jv_in: wp.array2d(dtype=float),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_Jaref_in: wp.array2d[float],
+  ctx_jv_in: wp.array2d[float],
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_quad_out: wp.array2d(dtype=wp.vec3),
+  ctx_quad_out: wp.array2d[wp.vec3],
 ):
   worldid, efcid = wp.tid()
 
@@ -1619,13 +1619,13 @@ def linesearch_prepare_quad(
 @wp.kernel
 def linesearch_qacc_ma(
   # In:
-  ctx_search_in: wp.array2d(dtype=float),
-  ctx_mv_in: wp.array2d(dtype=float),
-  ctx_alpha_in: wp.array(dtype=float),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_search_in: wp.array2d[float],
+  ctx_mv_in: wp.array2d[float],
+  ctx_alpha_in: wp.array[float],
+  ctx_done_in: wp.array[bool],
   # Data out:
-  qacc_out: wp.array2d(dtype=float),
-  efc_Ma_out: wp.array2d(dtype=float),
+  qacc_out: wp.array2d[float],
+  efc_Ma_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
 
@@ -1640,13 +1640,13 @@ def linesearch_qacc_ma(
 @wp.kernel
 def linesearch_jaref(
   # Data in:
-  nefc_in: wp.array(dtype=int),
+  nefc_in: wp.array[int],
   # In:
-  ctx_jv_in: wp.array2d(dtype=float),
-  ctx_alpha_in: wp.array(dtype=float),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_jv_in: wp.array2d[float],
+  ctx_alpha_in: wp.array[float],
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_Jaref_out: wp.array2d(dtype=float),
+  ctx_Jaref_out: wp.array2d[float],
 ):
   worldid, efcid = wp.tid()
 
@@ -1660,7 +1660,7 @@ def linesearch_jaref(
 
 
 @event_scope
-def _linesearch(m: types.Model, d: types.Data, ctx: SolverContext, cost: wp.array2d(dtype=float)):
+def _linesearch(m: types.Model, d: types.Data, ctx: SolverContext, cost: wp.array2d[float]):
   """Linesearch for constraint solver.
 
   Args:
@@ -1706,11 +1706,11 @@ def _linesearch(m: types.Model, d: types.Data, ctx: SolverContext, cost: wp.arra
 @wp.kernel
 def solve_init_efc(
   # Data out:
-  solver_niter_out: wp.array(dtype=int),
+  solver_niter_out: wp.array[int],
   # Out:
-  ctx_search_dot_out: wp.array(dtype=float),
-  ctx_cost_out: wp.array(dtype=float),
-  ctx_done_out: wp.array(dtype=bool),
+  ctx_search_dot_out: wp.array[float],
+  ctx_cost_out: wp.array[float],
+  ctx_done_out: wp.array[bool],
 ):
   worldid = wp.tid()
   ctx_cost_out[worldid] = types.MJ_MAXVAL
@@ -1724,15 +1724,15 @@ def solve_init_jaref(is_sparse: bool, nv: int, dofs_per_thread: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
-    nefc_in: wp.array(dtype=int),
-    qacc_in: wp.array2d(dtype=float),
-    efc_J_rownnz_in: wp.array2d(dtype=int),
-    efc_J_rowadr_in: wp.array2d(dtype=int),
-    efc_J_colind_in: wp.array3d(dtype=int),
-    efc_J_in: wp.array3d(dtype=float),
-    efc_aref_in: wp.array2d(dtype=float),
+    nefc_in: wp.array[int],
+    qacc_in: wp.array2d[float],
+    efc_J_rownnz_in: wp.array2d[int],
+    efc_J_rowadr_in: wp.array2d[int],
+    efc_J_colind_in: wp.array3d[int],
+    efc_J_in: wp.array3d[float],
+    efc_aref_in: wp.array2d[float],
     # Out:
-    ctx_Jaref_out: wp.array2d(dtype=float),
+    ctx_Jaref_out: wp.array2d[float],
   ):
     worldid, efcid, dofstart = wp.tid()
 
@@ -1771,10 +1771,10 @@ def solve_init_jaref(is_sparse: bool, nv: int, dofs_per_thread: int):
 @wp.kernel
 def solve_init_search(
   # In:
-  ctx_Mgrad_in: wp.array2d(dtype=float),
+  ctx_Mgrad_in: wp.array2d[float],
   # Out:
-  ctx_search_out: wp.array2d(dtype=float),
-  ctx_search_dot_out: wp.array(dtype=float),
+  ctx_search_out: wp.array2d[float],
+  ctx_search_dot_out: wp.array[float],
 ):
   worldid, dofid = wp.tid()
   search = -1.0 * ctx_Mgrad_in[worldid, dofid]
@@ -1785,12 +1785,12 @@ def solve_init_search(
 @wp.kernel
 def update_constraint_init_cost(
   # In:
-  ctx_cost_in: wp.array(dtype=float),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_cost_in: wp.array[float],
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_gauss_out: wp.array(dtype=float),
-  ctx_cost_out: wp.array(dtype=float),
-  ctx_prev_cost_out: wp.array(dtype=float),
+  ctx_gauss_out: wp.array[float],
+  ctx_cost_out: wp.array[float],
+  ctx_prev_cost_out: wp.array[float],
 ):
   worldid = wp.tid()
 
@@ -1809,29 +1809,29 @@ def update_constraint_efc(track_changes: bool):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Model:
-    opt_impratio_invsqrt: wp.array(dtype=float),
+    opt_impratio_invsqrt: wp.array[float],
     # Data in:
-    ne_in: wp.array(dtype=int),
-    nf_in: wp.array(dtype=int),
-    nefc_in: wp.array(dtype=int),
-    contact_friction_in: wp.array(dtype=types.vec5),
-    contact_dim_in: wp.array(dtype=int),
-    contact_efc_address_in: wp.array2d(dtype=int),
-    efc_type_in: wp.array2d(dtype=int),
-    efc_id_in: wp.array2d(dtype=int),
-    efc_D_in: wp.array2d(dtype=float),
-    efc_frictionloss_in: wp.array2d(dtype=float),
-    nacon_in: wp.array(dtype=int),
+    ne_in: wp.array[int],
+    nf_in: wp.array[int],
+    nefc_in: wp.array[int],
+    contact_friction_in: wp.array[types.vec5],
+    contact_dim_in: wp.array[int],
+    contact_efc_address_in: wp.array2d[int],
+    efc_type_in: wp.array2d[int],
+    efc_id_in: wp.array2d[int],
+    efc_D_in: wp.array2d[float],
+    efc_frictionloss_in: wp.array2d[float],
+    nacon_in: wp.array[int],
     # In:
-    ctx_Jaref_in: wp.array2d(dtype=float),
-    ctx_done_in: wp.array(dtype=bool),
+    ctx_Jaref_in: wp.array2d[float],
+    ctx_done_in: wp.array[bool],
     # Data out:
-    efc_force_out: wp.array2d(dtype=float),
-    efc_state_out: wp.array2d(dtype=int),
+    efc_force_out: wp.array2d[float],
+    efc_state_out: wp.array2d[int],
     # Out:
-    ctx_cost_out: wp.array(dtype=float),
-    changed_ids_out: wp.array2d(dtype=int),
-    changed_count_out: wp.array(dtype=int),
+    ctx_cost_out: wp.array[float],
+    changed_ids_out: wp.array2d[int],
+    changed_count_out: wp.array[int],
   ):
     worldid, efcid = wp.tid()
 
@@ -1954,16 +1954,16 @@ def update_constraint_efc(track_changes: bool):
 @wp.kernel
 def update_constraint_init_qfrc_constraint_sparse(
   # Data in:
-  nefc_in: wp.array(dtype=int),
-  efc_J_rownnz_in: wp.array2d(dtype=int),
-  efc_J_rowadr_in: wp.array2d(dtype=int),
-  efc_J_colind_in: wp.array3d(dtype=int),
-  efc_J_in: wp.array3d(dtype=float),
-  efc_force_in: wp.array2d(dtype=float),
+  nefc_in: wp.array[int],
+  efc_J_rownnz_in: wp.array2d[int],
+  efc_J_rowadr_in: wp.array2d[int],
+  efc_J_colind_in: wp.array3d[int],
+  efc_J_in: wp.array3d[float],
+  efc_force_in: wp.array2d[float],
   # In:
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_done_in: wp.array[bool],
   # Data out:
-  qfrc_constraint_out: wp.array2d(dtype=float),
+  qfrc_constraint_out: wp.array2d[float],
 ):
   worldid, efcid = wp.tid()
 
@@ -1987,14 +1987,14 @@ def update_constraint_init_qfrc_constraint_sparse(
 @wp.kernel
 def update_constraint_init_qfrc_constraint_dense(
   # Data in:
-  nefc_in: wp.array(dtype=int),
-  efc_J_in: wp.array3d(dtype=float),
-  efc_force_in: wp.array2d(dtype=float),
+  nefc_in: wp.array[int],
+  efc_J_in: wp.array3d[float],
+  efc_force_in: wp.array2d[float],
   njmax_in: int,
   # In:
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_done_in: wp.array[bool],
   # Data out:
-  qfrc_constraint_out: wp.array2d(dtype=float),
+  qfrc_constraint_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
 
@@ -2015,15 +2015,15 @@ def update_constraint_gauss_cost(nv: int, dofs_per_thread: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
-    qacc_in: wp.array2d(dtype=float),
-    qfrc_smooth_in: wp.array2d(dtype=float),
-    qacc_smooth_in: wp.array2d(dtype=float),
-    efc_Ma_in: wp.array2d(dtype=float),
+    qacc_in: wp.array2d[float],
+    qfrc_smooth_in: wp.array2d[float],
+    qacc_smooth_in: wp.array2d[float],
+    efc_Ma_in: wp.array2d[float],
     # In:
-    ctx_done_in: wp.array(dtype=bool),
+    ctx_done_in: wp.array[bool],
     # Out:
-    ctx_gauss_out: wp.array(dtype=float),
-    ctx_cost_out: wp.array(dtype=float),
+    ctx_gauss_out: wp.array[float],
+    ctx_cost_out: wp.array[float],
   ):
     worldid, dofstart = wp.tid()
 
@@ -2054,14 +2054,14 @@ def update_constraint_gauss_cost(nv: int, dofs_per_thread: int):
 @wp.kernel
 def update_gradient_h_incremental(
   # Data in:
-  efc_J_in: wp.array3d(dtype=float),
-  efc_D_in: wp.array2d(dtype=float),
-  efc_state_in: wp.array2d(dtype=int),
+  efc_J_in: wp.array3d[float],
+  efc_D_in: wp.array2d[float],
+  efc_state_in: wp.array2d[int],
   # In:
-  changed_ids_in: wp.array2d(dtype=int),
-  changed_count_in: wp.array(dtype=int),
+  changed_ids_in: wp.array2d[int],
+  changed_count_in: wp.array[int],
   # Out:
-  ctx_h_out: wp.array3d(dtype=float),
+  ctx_h_out: wp.array3d[float],
 ):
   """Incrementally update lower triangle of H for changed constraints.
 
@@ -2101,17 +2101,17 @@ def update_gradient_h_incremental(
 @wp.kernel
 def update_gradient_h_incremental_sparse(
   # Data in:
-  efc_J_rownnz_in: wp.array2d(dtype=int),
-  efc_J_rowadr_in: wp.array2d(dtype=int),
-  efc_J_colind_in: wp.array3d(dtype=int),
-  efc_J_in: wp.array3d(dtype=float),
-  efc_D_in: wp.array2d(dtype=float),
-  efc_state_in: wp.array2d(dtype=int),
+  efc_J_rownnz_in: wp.array2d[int],
+  efc_J_rowadr_in: wp.array2d[int],
+  efc_J_colind_in: wp.array3d[int],
+  efc_J_in: wp.array3d[float],
+  efc_D_in: wp.array2d[float],
+  efc_state_in: wp.array2d[int],
   # In:
-  changed_ids_in: wp.array2d(dtype=int),
-  changed_count_in: wp.array(dtype=int),
+  changed_ids_in: wp.array2d[int],
+  changed_count_in: wp.array[int],
   # Out:
-  ctx_h_out: wp.array3d(dtype=float),
+  ctx_h_out: wp.array3d[float],
 ):
   """Incrementally update lower triangle of H for changed constraints (sparse J)."""
   worldid, change_idx = wp.tid()
@@ -2222,9 +2222,9 @@ def _update_constraint(m: types.Model, d: types.Data, ctx: SolverContext | Inver
 @wp.kernel
 def update_gradient_zero_grad_dot(
   # In:
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_grad_dot_out: wp.array(dtype=float),
+  ctx_grad_dot_out: wp.array[float],
 ):
   worldid = wp.tid()
 
@@ -2237,14 +2237,14 @@ def update_gradient_zero_grad_dot(
 @wp.kernel
 def update_gradient_grad(
   # Data in:
-  qfrc_smooth_in: wp.array2d(dtype=float),
-  qfrc_constraint_in: wp.array2d(dtype=float),
-  efc_Ma_in: wp.array2d(dtype=float),
+  qfrc_smooth_in: wp.array2d[float],
+  qfrc_constraint_in: wp.array2d[float],
+  efc_Ma_in: wp.array2d[float],
   # In:
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_grad_out: wp.array2d(dtype=float),
-  ctx_grad_dot_out: wp.array(dtype=float),
+  ctx_grad_out: wp.array2d[float],
+  ctx_grad_dot_out: wp.array[float],
 ):
   worldid, dofid = wp.tid()
 
@@ -2259,14 +2259,14 @@ def update_gradient_grad(
 @wp.kernel
 def update_gradient_set_h_qM_lower_sparse(
   # Model:
-  qM_fullm_i: wp.array(dtype=int),
-  qM_fullm_j: wp.array(dtype=int),
+  qM_fullm_i: wp.array[int],
+  qM_fullm_j: wp.array[int],
   # Data in:
-  qM_in: wp.array3d(dtype=float),
+  qM_in: wp.array3d[float],
   # In:
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_h_out: wp.array3d(dtype=float),
+  ctx_h_out: wp.array3d[float],
 ):
   worldid, elementid = wp.tid()
 
@@ -2301,14 +2301,14 @@ def update_gradient_JTDAJ_sparse_tiled(tile_size: int, njmax: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
-    nefc_in: wp.array(dtype=int),
-    efc_J_in: wp.array3d(dtype=float),
-    efc_D_in: wp.array2d(dtype=float),
-    efc_state_in: wp.array2d(dtype=int),
+    nefc_in: wp.array[int],
+    efc_J_in: wp.array3d[float],
+    efc_D_in: wp.array2d[float],
+    efc_state_in: wp.array2d[int],
     # In:
-    ctx_done_in: wp.array(dtype=bool),
+    ctx_done_in: wp.array[bool],
     # Out:
-    ctx_h_out: wp.array3d(dtype=float),
+    ctx_h_out: wp.array3d[float],
   ):
     worldid, elementid = wp.tid()
 
@@ -2374,15 +2374,15 @@ def update_gradient_JTDAJ_dense_tiled(nv_pad: int, tile_size: int, njmax: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
-    nefc_in: wp.array(dtype=int),
-    qM_in: wp.array3d(dtype=float),
-    efc_J_in: wp.array3d(dtype=float),
-    efc_D_in: wp.array2d(dtype=float),
-    efc_state_in: wp.array2d(dtype=int),
+    nefc_in: wp.array[int],
+    qM_in: wp.array3d[float],
+    efc_J_in: wp.array3d[float],
+    efc_D_in: wp.array2d[float],
+    efc_state_in: wp.array2d[int],
     # In:
-    ctx_done_in: wp.array(dtype=bool),
+    ctx_done_in: wp.array[bool],
     # Out:
-    ctx_h_out: wp.array3d(dtype=float),
+    ctx_h_out: wp.array3d[float],
   ):
     worldid = wp.tid()
 
@@ -2429,31 +2429,31 @@ def update_gradient_JTDAJ_dense_tiled(nv_pad: int, tile_size: int, njmax: int):
 @wp.kernel
 def update_gradient_JTCJ_sparse(
   # Model:
-  opt_impratio_invsqrt: wp.array(dtype=float),
-  dof_tri_row: wp.array(dtype=int),
-  dof_tri_col: wp.array(dtype=int),
+  opt_impratio_invsqrt: wp.array[float],
+  dof_tri_row: wp.array[int],
+  dof_tri_col: wp.array[int],
   # Data in:
-  contact_dist_in: wp.array(dtype=float),
-  contact_includemargin_in: wp.array(dtype=float),
-  contact_friction_in: wp.array(dtype=types.vec5),
-  contact_dim_in: wp.array(dtype=int),
-  contact_efc_address_in: wp.array2d(dtype=int),
-  contact_worldid_in: wp.array(dtype=int),
-  efc_J_rownnz_in: wp.array2d(dtype=int),
-  efc_J_rowadr_in: wp.array2d(dtype=int),
-  efc_J_colind_in: wp.array3d(dtype=int),
-  efc_J_in: wp.array3d(dtype=float),
-  efc_D_in: wp.array2d(dtype=float),
-  efc_state_in: wp.array2d(dtype=int),
+  contact_dist_in: wp.array[float],
+  contact_includemargin_in: wp.array[float],
+  contact_friction_in: wp.array[types.vec5],
+  contact_dim_in: wp.array[int],
+  contact_efc_address_in: wp.array2d[int],
+  contact_worldid_in: wp.array[int],
+  efc_J_rownnz_in: wp.array2d[int],
+  efc_J_rowadr_in: wp.array2d[int],
+  efc_J_colind_in: wp.array3d[int],
+  efc_J_in: wp.array3d[float],
+  efc_D_in: wp.array2d[float],
+  efc_state_in: wp.array2d[int],
   naconmax_in: int,
-  nacon_in: wp.array(dtype=int),
+  nacon_in: wp.array[int],
   # In:
-  ctx_Jaref_in: wp.array2d(dtype=float),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_Jaref_in: wp.array2d[float],
+  ctx_done_in: wp.array[bool],
   nblocks_perblock: int,
   dim_block: int,
   # Out:
-  ctx_h_out: wp.array3d(dtype=float),
+  ctx_h_out: wp.array3d[float],
 ):
   conid_start, elementid = wp.tid()
 
@@ -2591,28 +2591,28 @@ def update_gradient_JTCJ_sparse(
 @wp.kernel
 def update_gradient_JTCJ_dense(
   # Model:
-  opt_impratio_invsqrt: wp.array(dtype=float),
-  dof_tri_row: wp.array(dtype=int),
-  dof_tri_col: wp.array(dtype=int),
+  opt_impratio_invsqrt: wp.array[float],
+  dof_tri_row: wp.array[int],
+  dof_tri_col: wp.array[int],
   # Data in:
-  contact_dist_in: wp.array(dtype=float),
-  contact_includemargin_in: wp.array(dtype=float),
-  contact_friction_in: wp.array(dtype=types.vec5),
-  contact_dim_in: wp.array(dtype=int),
-  contact_efc_address_in: wp.array2d(dtype=int),
-  contact_worldid_in: wp.array(dtype=int),
-  efc_J_in: wp.array3d(dtype=float),
-  efc_D_in: wp.array2d(dtype=float),
-  efc_state_in: wp.array2d(dtype=int),
+  contact_dist_in: wp.array[float],
+  contact_includemargin_in: wp.array[float],
+  contact_friction_in: wp.array[types.vec5],
+  contact_dim_in: wp.array[int],
+  contact_efc_address_in: wp.array2d[int],
+  contact_worldid_in: wp.array[int],
+  efc_J_in: wp.array3d[float],
+  efc_D_in: wp.array2d[float],
+  efc_state_in: wp.array2d[int],
   naconmax_in: int,
-  nacon_in: wp.array(dtype=int),
+  nacon_in: wp.array[int],
   # In:
-  ctx_Jaref_in: wp.array2d(dtype=float),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_Jaref_in: wp.array2d[float],
+  ctx_done_in: wp.array[bool],
   nblocks_perblock: int,
   dim_block: int,
   # Out:
-  ctx_h_out: wp.array3d(dtype=float),
+  ctx_h_out: wp.array3d[float],
 ):
   conid_start, elementid = wp.tid()
 
@@ -2733,11 +2733,11 @@ def update_gradient_cholesky(tile_size: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # In:
-    ctx_grad_in: wp.array2d(dtype=float),
-    h_in: wp.array3d(dtype=float),
-    ctx_done_in: wp.array(dtype=bool),
+    ctx_grad_in: wp.array2d[float],
+    h_in: wp.array3d[float],
+    ctx_done_in: wp.array[bool],
     # Out:
-    ctx_Mgrad_out: wp.array2d(dtype=float),
+    ctx_Mgrad_out: wp.array2d[float],
   ):
     worldid = wp.tid()
     TILE_SIZE = wp.static(tile_size)
@@ -2759,12 +2759,12 @@ def update_gradient_cholesky_blocked(tile_size: int, matrix_size: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # In:
-    ctx_done_in: wp.array(dtype=bool),
-    ctx_grad_in: wp.array3d(dtype=float),
-    ctx_h_in: wp.array3d(dtype=float),
-    ctx_hfactor: wp.array3d(dtype=float),
+    ctx_done_in: wp.array[bool],
+    ctx_grad_in: wp.array3d[float],
+    ctx_h_in: wp.array3d[float],
+    ctx_hfactor: wp.array3d[float],
     # Out:
-    ctx_Mgrad_out: wp.array3d(dtype=float),
+    ctx_Mgrad_out: wp.array3d[float],
   ):
     worldid = wp.tid()
     TILE_SIZE = wp.static(tile_size)
@@ -2786,7 +2786,7 @@ def update_gradient_cholesky_blocked(tile_size: int, matrix_size: int):
 
 
 @wp.kernel
-def padding_h(nv: int, ctx_done_in: wp.array(dtype=bool), ctx_h_out: wp.array3d(dtype=float)):
+def padding_h(nv: int, ctx_done_in: wp.array[bool], ctx_h_out: wp.array3d[float]):
   worldid, elementid = wp.tid()
 
   if ctx_done_in[worldid]:
@@ -2826,17 +2826,17 @@ def _cholesky_factorize_solve(m: types.Model, d: types.Data, ctx: SolverContext)
 @wp.kernel
 def _JTDAJ_sparse(
   # Data in:
-  nefc_in: wp.array(dtype=int),
-  efc_J_rownnz_in: wp.array2d(dtype=int),
-  efc_J_rowadr_in: wp.array2d(dtype=int),
-  efc_J_colind_in: wp.array3d(dtype=int),
-  efc_J_in: wp.array3d(dtype=float),
-  efc_D_in: wp.array2d(dtype=float),
-  efc_state_in: wp.array2d(dtype=int),
+  nefc_in: wp.array[int],
+  efc_J_rownnz_in: wp.array2d[int],
+  efc_J_rowadr_in: wp.array2d[int],
+  efc_J_colind_in: wp.array3d[int],
+  efc_J_in: wp.array3d[float],
+  efc_D_in: wp.array2d[float],
+  efc_state_in: wp.array2d[int],
   # In:
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_done_in: wp.array[bool],
   # Out:
-  h_out: wp.array3d(dtype=float),
+  h_out: wp.array3d[float],
 ):
   worldid, efcid = wp.tid()
 
@@ -2870,10 +2870,10 @@ def _JTDAJ_sparse(
         colindj = efc_J_colind_in[worldid, 0, sparseidj]
 
       h = Ji * Jj * efc_D
-      wp.atomic_add(h_out[worldid, colindi], colindj, h)
-
-      if i != j:
-        wp.atomic_add(h_out[worldid, colindj], colindi, h)
+      # Store in lower triangle only: ensure row >= col
+      row = wp.max(colindi, colindj)
+      col = wp.min(colindi, colindj)
+      wp.atomic_add(h_out[worldid, row], col, h)
 
 
 def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext):
@@ -3061,12 +3061,12 @@ def _update_gradient_incremental(m: types.Model, d: types.Data, ctx: SolverConte
 @wp.kernel
 def solve_prev_grad_Mgrad(
   # In:
-  ctx_grad_in: wp.array2d(dtype=float),
-  ctx_Mgrad_in: wp.array2d(dtype=float),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_grad_in: wp.array2d[float],
+  ctx_Mgrad_in: wp.array2d[float],
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_prev_grad_out: wp.array2d(dtype=float),
-  ctx_prev_Mgrad_out: wp.array2d(dtype=float),
+  ctx_prev_grad_out: wp.array2d[float],
+  ctx_prev_Mgrad_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
 
@@ -3082,13 +3082,13 @@ def solve_beta(
   # Model:
   nv: int,
   # In:
-  ctx_grad_in: wp.array2d(dtype=float),
-  ctx_Mgrad_in: wp.array2d(dtype=float),
-  ctx_prev_grad_in: wp.array2d(dtype=float),
-  ctx_prev_Mgrad_in: wp.array2d(dtype=float),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_grad_in: wp.array2d[float],
+  ctx_Mgrad_in: wp.array2d[float],
+  ctx_prev_grad_in: wp.array2d[float],
+  ctx_prev_Mgrad_in: wp.array2d[float],
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_beta_out: wp.array(dtype=float),
+  ctx_beta_out: wp.array[float],
 ):
   worldid = wp.tid()
 
@@ -3108,9 +3108,9 @@ def solve_beta(
 @wp.kernel
 def solve_zero_search_dot(
   # In:
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_search_dot_out: wp.array(dtype=float),
+  ctx_search_dot_out: wp.array[float],
 ):
   worldid = wp.tid()
 
@@ -3125,13 +3125,13 @@ def solve_search_update(
   # Model:
   opt_solver: int,
   # In:
-  ctx_Mgrad_in: wp.array2d(dtype=float),
-  ctx_search_in: wp.array2d(dtype=float),
-  ctx_beta_in: wp.array(dtype=float),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_Mgrad_in: wp.array2d[float],
+  ctx_search_in: wp.array2d[float],
+  ctx_beta_in: wp.array[float],
+  ctx_done_in: wp.array[bool],
   # Out:
-  ctx_search_out: wp.array2d(dtype=float),
-  ctx_search_dot_out: wp.array(dtype=float),
+  ctx_search_out: wp.array2d[float],
+  ctx_search_dot_out: wp.array[float],
 ):
   worldid, dofid = wp.tid()
 
@@ -3151,19 +3151,19 @@ def solve_search_update(
 def solve_done(
   # Model:
   nv: int,
-  opt_tolerance: wp.array(dtype=float),
+  opt_tolerance: wp.array[float],
   opt_iterations: int,
-  stat_meaninertia: wp.array(dtype=float),
+  stat_meaninertia: wp.array[float],
   # In:
-  ctx_grad_dot_in: wp.array(dtype=float),
-  ctx_cost_in: wp.array(dtype=float),
-  ctx_prev_cost_in: wp.array(dtype=float),
-  ctx_done_in: wp.array(dtype=bool),
+  ctx_grad_dot_in: wp.array[float],
+  ctx_cost_in: wp.array[float],
+  ctx_prev_cost_in: wp.array[float],
+  ctx_done_in: wp.array[bool],
   # Data out:
-  solver_niter_out: wp.array(dtype=int),
+  solver_niter_out: wp.array[int],
   # Out:
-  nsolving_out: wp.array(dtype=int),
-  ctx_done_out: wp.array(dtype=bool),
+  nsolving_out: wp.array[int],
+  ctx_done_out: wp.array[bool],
 ):
   worldid = wp.tid()
 
@@ -3189,8 +3189,8 @@ def _solver_iteration(
   m: types.Model,
   d: types.Data,
   ctx: SolverContext,
-  step_size_cost: wp.array2d(dtype=float),
-  nsolving: wp.array(dtype=int),
+  step_size_cost: wp.array2d[float],
+  nsolving: wp.array[int],
 ):
   _linesearch(m, d, ctx, step_size_cost)
 
