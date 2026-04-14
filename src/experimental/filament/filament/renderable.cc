@@ -183,7 +183,8 @@ void Renderable::SetMaterialInstance(filament::MaterialInstance* instance) {
   }
 }
 
-void Renderable::SetLayerMask(std::uint8_t mask) {
+std::uint8_t Renderable::SetLayerMask(std::uint8_t mask) {
+  std::uint8_t prev = layer_mask_;
   if (mask != layer_mask_) {
     layer_mask_ = mask;
 
@@ -192,9 +193,11 @@ void Renderable::SetLayerMask(std::uint8_t mask) {
       rm.setLayerMask(rm.getInstance(entity), 0xff, layer_mask_);
     }
   }
+  return prev;
 }
 
-void Renderable::SetPriority(std::uint8_t priority) {
+std::uint8_t Renderable::SetPriority(std::uint8_t priority) {
+  std::uint8_t prev = priority_;
   if (priority != priority_) {
     priority_ = priority;
 
@@ -203,6 +206,7 @@ void Renderable::SetPriority(std::uint8_t priority) {
       rm.setPriority(rm.getInstance(entity), priority_);
     }
   }
+  return prev;
 }
 
 void Renderable::SetCastShadows(bool cast_shadows) {

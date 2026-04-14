@@ -206,6 +206,7 @@ static void SetGeomTransform(Renderable& renderable, const mjvGeom& geom) {
   }
 
   mat4 transform = mat4(ReadMat3(geom.mat), ReadFloat3(geom.pos));
+  renderable.SetLayerMask(geom.category);
 
   float3 size = ReadFloat3(geom.size);
   filament::TransformManager& tm =
@@ -362,6 +363,8 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
   ObjectManager::MaterialType material_type = ObjectManager::kNumMaterials;
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
     material_type = ObjectManager::kUnlitLine;
+  } else if (geom.category == mjCAT_DECOR) {
+    material_type = ObjectManager::kUnlitSegmentation;
   } else {
     bool material_assigned = false;
     if (geom.matid >= 0) {

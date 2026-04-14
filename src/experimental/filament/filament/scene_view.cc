@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 
 #include <filament/ColorGrading.h>
@@ -135,6 +136,7 @@ SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
     view = engine->createView();
     view->setScene(scene_);
     view->setCamera(camera_);
+    view->setVisibleLayers(0xff, mjCAT_ALL);
   }
 
   reflect_view_ = engine->createView();
@@ -142,6 +144,7 @@ SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
   reflect_view_->setCamera(reflect_camera_);
   reflect_view_->setShadowingEnabled(false);
   reflect_view_->setPostProcessingEnabled(false);
+  reflect_view_->setVisibleLayers(0xff, mjCAT_DYNAMIC | mjCAT_STATIC);
 
   // Disable post processing for the depth and segmentation views to preserve
   // the values.
@@ -260,7 +263,7 @@ void SceneView::Render(filament::Renderer* renderer,
       SetupReflectionCamera(transform, camera_, reflect_camera_);
 
       // Hide reflective surface from its own reflection pass.
-      renderable->SetLayerMask(0x00);
+      std::uint8_t previous_layer_mask = renderable->SetLayerMask(0x00);
 
       // Render the reflection to its render target.
       reflect_view_->setRenderTarget(
@@ -268,7 +271,7 @@ void SceneView::Render(filament::Renderer* renderer,
       renderer->render(reflect_view_);
 
       // Unhide the reflective surface.
-      renderable->SetLayerMask(0x01);
+      renderable->SetLayerMask(previous_layer_mask);
     }
   }
 

@@ -114,6 +114,7 @@ set(MATERIAL_FILES
     phong_cube_fade.mat
     phong_cube.mat
     phong_cube_reflect.mat
+    unlit_decor.mat
     unlit_depth.mat
     unlit_line.mat
     unlit_segmentation.mat
