@@ -2,80 +2,80 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.7.0 (April 14, 2026)
+------------------------------
 
 General
 ^^^^^^^
 
-- Added the :ref:`dcmotor<actuator-dcmotor>` actuator for modeling DC motors. Supports optional
-  electrical dynamics (inductance), cogging torque, thermal resistance variation, and LuGre friction. See the
-  `technical note <_static/dcmotor.pdf>`__ for more details.
-- Actuators with joint or tendon transmissions can now contribute
-  :ref:`damping<actuator-general-damping>` and :ref:`armature<actuator-general-armature>` to their transmission target.
-  These are applied during the passive force and inertia computations, respectively, and are scaled by gear\ :sup:`2`
-  ("reflected" damping/inertia).
+1. Added the :ref:`dcmotor<actuator-dcmotor>` actuator for modeling DC motors. Supports optional
+   electrical dynamics (inductance), cogging torque, thermal resistance variation, and LuGre friction. See the
+   `technical note <_static/dcmotor.pdf>`__ for more details.
+2. Actuators with joint or tendon transmissions can now contribute
+   :ref:`damping<actuator-general-damping>` and :ref:`armature<actuator-general-armature>` to their transmission target.
+   These are applied during the passive force and inertia computations, respectively, and are scaled by gear\ :sup:`2`
+   ("reflected" damping/inertia).
 
 .. youtube:: aKa3ZlEF9_Y
    :align: right
    :width: 35%
 
-- Stiffness in :ref:`joints<body-joint-stiffness>` and :ref:`tendons<tendon-spatial-stiffness>` and damping in
-  :ref:`joints<body-joint-damping>` and :ref:`tendons<tendon-spatial-damping>` now support nonlinear polynomial
-  :ref:`force profiles<gePolynomial>`. New ``mjModel`` arrays (``jnt_stiffnesspoly``, ``tendon_stiffnesspoly``,
-  ``dof_dampingpoly``, ``tendon_dampingpoly``) hold higher-order coefficients. The existing scalar arrays
-  (``jnt_stiffness``, ``dof_damping``, etc.) continue to hold the linear coefficient and are unchanged.
-  The polynomial order is defined by the new constant :ref:`mjNPOLY<glNumericSizes>`. A future breaking C-API change
-  may unify the linear and higher-order coefficients into a single array.
-- Added :ref:`midpoint integration<geMidpoint>` for standalone free bodies in ``implicit`` and ``implicitfast``
-  :ref:`integrators<geIntegrators>`. This applies the implicit midpoint rule to the rotational dynamics of free bodies
-  with no children, conserving kinetic energy to machine precision in the absence of external torques. The
-  :ref:`invdiscrete<option-flag-invdiscrete>` flag now also disables midpoint integration, providing an opt-out
-  mechanism.
-- Added the centripetal/Coriolis acceleration term :math:`\dot{J}v` to the constraint solver bias for
-  :ref:`connect<equality-connect>` and :ref:`weld<equality-weld>` equality constaints. This significantly improves the
-  stability of constrained mechanisms like four-bar linkages. See :ref:`Dual problem<soDual>` for details.
+3. Stiffness in :ref:`joints<body-joint-stiffness>` and :ref:`tendons<tendon-spatial-stiffness>` and damping in
+   :ref:`joints<body-joint-damping>` and :ref:`tendons<tendon-spatial-damping>` now support nonlinear polynomial
+   :ref:`force profiles<gePolynomial>`. New ``mjModel`` arrays (``jnt_stiffnesspoly``, ``tendon_stiffnesspoly``,
+   ``dof_dampingpoly``, ``tendon_dampingpoly``) hold higher-order coefficients. The existing scalar arrays
+   (``jnt_stiffness``, ``dof_damping``, etc.) continue to hold the linear coefficient and are unchanged.
+   The polynomial order is defined by the new constant :ref:`mjNPOLY<glNumericSizes>`. A future breaking C-API change
+   may unify the linear and higher-order coefficients into a single array.
+4. Added :ref:`midpoint integration<geMidpoint>` for standalone free bodies in ``implicit`` and ``implicitfast``
+   :ref:`integrators<geIntegrators>`. This applies the implicit midpoint rule to the rotational dynamics of free bodies
+   with no children, conserving kinetic energy to machine precision in the absence of external torques. The
+   :ref:`invdiscrete<option-flag-invdiscrete>` flag now also disables midpoint integration, providing an opt-out
+   mechanism.
+5. Added the centripetal/Coriolis acceleration term :math:`\dot{J}v` to the constraint solver bias for
+   :ref:`connect<equality-connect>` and :ref:`weld<equality-weld>` equality constaints. This significantly improves the
+   stability of constrained mechanisms like four-bar linkages. See :ref:`Dual problem<soDual>` for details.
 
-- Introduced :ref:`mjpEncoder`, the counterpart to :ref:`mjpDecoder` for encoding of :ref:`mjSpec` and :ref:`mjModel`
-  into :ref:`mjResource`.
+6. Introduced :ref:`mjpEncoder`, the counterpart to :ref:`mjpDecoder` for encoding of :ref:`mjSpec` and :ref:`mjModel`
+   into :ref:`mjResource`.
 
-  - Added :ref:`mj_encode`, :ref:`mjp_registerEncoder`, :ref:`mjp_defaultEncoder`, and :ref:`mjp_findEncoder`.
+7. Added :ref:`mj_encode`, :ref:`mjp_registerEncoder`, :ref:`mjp_defaultEncoder`, and :ref:`mjp_findEncoder`.
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The ``mjs`` layer fields ``stiffness`` and ``damping`` in :ref:`mjsJoint` and :ref:`mjsTendon` have
-     been widened from ``mjtNum`` scalars to ``mjtNum[mjNPOLY+1]`` arrays. The first element is the linear coefficient
-     (previously the scalar), and subsequent elements are the higher-order :ref:`polynomial<gePolynomial>` coefficients.
+   8. The ``mjs`` layer fields ``stiffness`` and ``damping`` in :ref:`mjsJoint` and :ref:`mjsTendon` have
+      been widened from ``mjtNum`` scalars to ``mjtNum[mjNPOLY+1]`` arrays. The first element is the linear coefficient
+      (previously the scalar), and subsequent elements are the higher-order :ref:`polynomial<gePolynomial>` coefficients.
 
-     **Migration:** Replace assignments like ``joint.stiffness = val`` with ``joint.stiffness[0] = val``.
-   - ``.obj`` and ``.stl`` decoders are now included as source when building MuJoCo with CMake. This fixes the
-     behaviour from the previous release where it required downstream code to load these plugins explicitly.
+      **Migration:** Replace assignments like ``joint.stiffness = val`` with ``joint.stiffness[0] = val``.
+   9. ``.obj`` and ``.stl`` decoders are now included as source when building MuJoCo with CMake. This fixes the
+      behaviour from the previous release where it required downstream code to load these plugins explicitly.
 
-   - The ``vertcollide`` field in :ref:`mjsFlex` has been removed. It is no longer required since
-     :doc:`MuJoCo Warp <mjwarp/index>` supports native flex collisions.
+   10. The ``vertcollide`` field in :ref:`mjsFlex` has been removed. It is no longer required since
+       :doc:`MuJoCo Warp <mjwarp/index>` supports native flex collisions.
 
-   - :ref:`mjPLUGIN_LIB_INIT` macro now requires a name argument to avoid initialization function name collisions.
-     When building with MSVC, we now use the C runtime initialization section to initialize plugins instead of
-     ``DllMain``. See :ref:`plugin registration<exRegistration>` for more details.
+   11. :ref:`mjPLUGIN_LIB_INIT` macro now requires a name argument to avoid initialization function name collisions.
+       When building with MSVC, we now use the C runtime initialization section to initialize plugins instead of
+       ``DllMain``. See :ref:`plugin registration<exRegistration>` for more details.
 
-   - The :ref:`mjtWarning` enum value ``mjWARN_VGEOMFULL`` is removed. Exhaustion of visual geoms is now handled
-     internally by the :ref:`mjvScene`.
-   - URDF parsing no longer hardcodes :ref:`strippath<compiler-strippath>` to "true". The setting is now respected and
-     the default is "false". Setting this is attribute is now the responsibility of the user.
+   12. The :ref:`mjtWarning` enum value ``mjWARN_VGEOMFULL`` is removed. Exhaustion of visual geoms is now handled
+       internally by the :ref:`mjvScene`.
+   13. URDF parsing no longer hardcodes :ref:`strippath<compiler-strippath>` to "true". The setting is now respected and
+       the default is "false". Setting this is attribute is now the responsibility of the user.
 
-     **Migration:** Set :ref:`strippath<compiler-strippath>` to "true" in MJCF or programmatically using
+       **Migration:** Set :ref:`strippath<compiler-strippath>` to "true" in MJCF or programmatically using
 
-     .. code-block:: python
+       .. code-block:: python
 
-       spec = mujoco.MjSpec.from_file("path/to/model.urdf")
-       spec.compiler.strippath = True
+         spec = mujoco.MjSpec.from_file("path/to/model.urdf")
+         spec.compiler.strippath = True
 
 
 Bug fixes
 ^^^^^^^^^
 
-- The compiler now correctly accounts for negative scaling when loading user specified mesh data.
+14. The compiler now correctly accounts for negative scaling when loading user specified mesh data.
 
 Version 3.6.0 (March 10, 2026)
 ------------------------------
