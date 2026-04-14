@@ -979,14 +979,14 @@ TEST_F(MjCMeshTest, MeshPosQuat) {
   mju_mulPose(recovered_pos, recovered_quat,
               &model->geom_pos[0], &model->geom_quat[0],
               inverse_mesh_pos, inverse_mesh_quat);
-  EXPECT_NEAR(recovered_pos[0], 0, 1e-12);
-  EXPECT_NEAR(recovered_pos[1], 0, 1e-12);
-  EXPECT_NEAR(recovered_pos[2], 0, 1e-12);
+  EXPECT_NEAR(recovered_pos[0], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[1], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[2], 0, MjTol(1e-12, 1e-6));
 
-  EXPECT_NEAR(recovered_quat[0], 1, 1e-12);
-  EXPECT_NEAR(recovered_quat[1], 0, 1e-12);
-  EXPECT_NEAR(recovered_quat[2], 0, 1e-12);
-  EXPECT_NEAR(recovered_quat[3], 0, 1e-12);
+  EXPECT_NEAR(recovered_quat[0], 1, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[1], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[2], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[3], 0, MjTol(1e-12, 1e-6));
 
   // same test on the other geom
   mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
@@ -994,14 +994,14 @@ TEST_F(MjCMeshTest, MeshPosQuat) {
   mju_mulPose(recovered_pos, recovered_quat,
               &model->geom_pos[3], &model->geom_quat[4],
               inverse_mesh_pos, inverse_mesh_quat);
-  EXPECT_NEAR(recovered_pos[0], 1, 1e-12);
-  EXPECT_NEAR(recovered_pos[1], 2, 1e-12);
-  EXPECT_NEAR(recovered_pos[2], 3, 1e-12);
+  EXPECT_NEAR(recovered_pos[0], 1, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[1], 2, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[2], 3, MjTol(1e-12, 1e-6));
 
-  EXPECT_NEAR(recovered_quat[0], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[1], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[2], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[3], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[0], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[1], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[2], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[3], 0.5, MjTol(1e-12, 1e-6));
 
   mj_deleteModel(model);
 }
@@ -1038,14 +1038,14 @@ TEST_F(MjCMeshTest, MeshPosQuatShellInertia) {
   mju_mulPose(recovered_pos, recovered_quat,
               &model->geom_pos[0], &model->geom_quat[0],
               inverse_mesh_pos, inverse_mesh_quat);
-  EXPECT_NEAR(recovered_pos[0], 0, 1e-12);
-  EXPECT_NEAR(recovered_pos[1], 0, 1e-12);
-  EXPECT_NEAR(recovered_pos[2], 0, 1e-12);
+  EXPECT_NEAR(recovered_pos[0], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[1], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[2], 0, MjTol(1e-12, 1e-6));
 
-  EXPECT_NEAR(recovered_quat[0], 1, 1e-12);
-  EXPECT_NEAR(recovered_quat[1], 0, 1e-12);
-  EXPECT_NEAR(recovered_quat[2], 0, 1e-12);
-  EXPECT_NEAR(recovered_quat[3], 0, 1e-12);
+  EXPECT_NEAR(recovered_quat[0], 1, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[1], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[2], 0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[3], 0, MjTol(1e-12, 1e-6));
 
   // same test on the other geom
   mju_negPose(inverse_mesh_pos, inverse_mesh_quat,
@@ -1053,14 +1053,14 @@ TEST_F(MjCMeshTest, MeshPosQuatShellInertia) {
   mju_mulPose(recovered_pos, recovered_quat,
               &model->geom_pos[3], &model->geom_quat[4],
               inverse_mesh_pos, inverse_mesh_quat);
-  EXPECT_NEAR(recovered_pos[0], 1, 1e-12);
-  EXPECT_NEAR(recovered_pos[1], 2, 1e-12);
-  EXPECT_NEAR(recovered_pos[2], 3, 1e-12);
+  EXPECT_NEAR(recovered_pos[0], 1, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[1], 2, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_pos[2], 3, MjTol(1e-12, 1e-6));
 
-  EXPECT_NEAR(recovered_quat[0], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[1], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[2], 0.5, 1e-12);
-  EXPECT_NEAR(recovered_quat[3], 0.5, 1e-12);
+  EXPECT_NEAR(recovered_quat[0], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[1], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[2], 0.5, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(recovered_quat[3], 0.5, MjTol(1e-12, 1e-6));
   mj_deleteModel(model);
 }
 
@@ -1443,7 +1443,7 @@ TEST_F(MjCMeshTest, OctreeHangingNodeInterpolation) {
   mjModel* model = mj_compile(spec, 0);
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_GT(model->mesh_octnum[0], 0);
-  double kEps = 1e-6;
+  const mjtNum kEps = MjTol(1e-6, 1e-4);
 
   const int octree_adr = model->mesh_octadr[0];
   const int noct = model->mesh_octnum[0];
@@ -1604,14 +1604,14 @@ TEST_F(MjCMeshTest, OctreeNotComputedForNonSDF) {
   mj_deleteModel(model);
 }
 
-double CubeSDF(double p[3], double b[3]) {
-  double q[3] = {std::abs(p[0]) - b[0],
-                 std::abs(p[1]) - b[1],
-                 std::abs(p[2]) - b[2]};
-  return std::sqrt(std::pow(std::max(q[0], 0.0), 2) +
-                   std::pow(std::max(q[1], 0.0), 2) +
-                   std::pow(std::max(q[2], 0.0), 2)) +
-         std::min(std::max(q[0], std::max(q[1], q[2])), 0.0);
+mjtNum CubeSDF(mjtNum p[3], mjtNum b[3]) {
+  mjtNum q[3] = {mju_abs(p[0]) - b[0],
+                 mju_abs(p[1]) - b[1],
+                 mju_abs(p[2]) - b[2]};
+  return mju_sqrt(std::pow(std::max(q[0], (mjtNum)0), 2) +
+                   std::pow(std::max(q[1], (mjtNum)0), 2) +
+                   std::pow(std::max(q[2], (mjtNum)0), 2)) +
+         std::min(std::max(q[0], std::max(q[1], q[2])), (mjtNum)0);
 }
 
 TEST_F(MjCMeshTest, OctreeCube) {

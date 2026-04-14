@@ -269,7 +269,7 @@ initialized with ``mjv_makeScene(model, [the new mjvScene instance], 10)`` in C.
 used, the corresponding deallocation function ``mj_freeFoo/mj_deleteFoo`` is automatically called when the Python
 object is deleted. The user does not need to manually free resources.
 
-The ``mujoco.MjModel`` class does not a have Python constructor. Instead, we provide three static factory functions
+The ``mujoco.MjModel`` class does not have a Python constructor. Instead, we provide three static factory functions
 that create a new :ref:`mjModel` instance: ``mujoco.MjModel.from_xml_string``, ``mujoco.MjModel.from_xml_path``, and
 ``mujoco.MjModel.from_binary_path``. The first function accepts a model XML as a string, while the latter two
 functions accept the path to either an XML or MJB model file. All three functions optionally accept a Python
@@ -797,7 +797,7 @@ The ``mujoco`` package contains two sub-modules: ``mujoco.rollout`` and ``mujoco
 
 rollout
 -------
-``mujoco.rollout`` and ``mujoco.rollout.Rollout`` shows how to add additional C/C++ functionality, exposed as a Python
+``mujoco.rollout`` and ``mujoco.rollout.Rollout`` show how to add additional C/C++ functionality, exposed as a Python
 module via pybind11. It is implemented in `rollout.cc
 <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__ and wrapped in `rollout.py
 <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module addresses a common
@@ -922,8 +922,7 @@ custom cameras and lights. The constructor arguments of a ``USDExporter`` instan
 - ``model``: An MjModel instance. The USD exporter reads relevant information from the model including details about
   cameras, lights, textures, and object geometries.
 
-- ``max_geom``: Maximum number of geoms in a scene, required when instantiating the internal .
-  `mjvScene <https://mujoco.readthedocs.io/en/stable/APIreference/APItypes.html#mjvscene>`__.
+- ``max_geom``: Maximum number of geoms in a scene, required when instantiating the internal :ref:`mjvScene`.
 
 - ``output_directory``: Name of the directory under which the exported USD file and all relevant
   assets are stored. When saving a scene/trajectory as a USD file, the exporter creates the following directory

@@ -17,6 +17,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -102,6 +103,9 @@ void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
 void mju_solveLUSparse(mjtNum *res, const mjtNum *LU, const mjtNum* vec, int n,
                        const int *rownnz, const int *rowadr, const int* diag, const int *colind,
                        const int *index);
+
+// solve 3x3 linear system A*x = b using Gaussian elimination
+void mju_solve3(mjtNum x[3], const mjtNum A[9], const mjtNum b[3]);
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);

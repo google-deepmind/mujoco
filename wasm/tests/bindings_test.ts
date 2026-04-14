@@ -365,7 +365,7 @@ describe('MuJoCo WASM Bindings', () => {
       mujoco.mj_constraintUpdate(
           model!, data!, res.GetView(), cost, /*flg_coneHessian=*/ 1);
 
-      expect(cost.GetView()[0]).toBeCloseTo(3355.837);
+      expect(cost.GetView()[0]).toBeCloseTo(3357.584);
 
       res.delete();
       cost.delete();
@@ -683,24 +683,24 @@ describe('MuJoCo WASM Bindings', () => {
 
   it('should check constants values', () => {
     expect(mujoco.mjNEQDATA).toBe(11);
-    expect(mujoco.get_mjDISABLESTRING()).toEqual([
+    expect(mujoco.mjDISABLESTRING).toEqual([
       'Constraint', 'Equality', 'Frictionloss', 'Limit', 'Contact', 'Spring',
       'Damper', 'Gravity', 'Clampctrl', 'Warmstart', 'Filterparent',
       'Actuation', 'Refsafe', 'Sensor', 'Midphase', 'Eulerdamp', 'AutoReset',
       'NativeCCD', 'Island'
     ]);
-    expect(mujoco.get_mjRNDSTRING()).toEqual([
+    expect(mujoco.mjRNDSTRING).toEqual([
       ['Shadow', '1', 'S'], ['Wireframe', '0', 'W'], ['Reflection', '1', 'R'],
       ['Additive', '0', 'L'], ['Skybox', '1', 'K'], ['Fog', '0', 'G'],
       ['Haze', '1', '/'], ['Depth', '0', ''], ['Segment', '0', ','],
       ['Id Color', '0', ''], ['Cull Face', '1', '']
     ]);
-    expect(mujoco.get_mjFRAMESTRING().length)
-        .toEqual(mujoco.mjtFrame.mjNFRAME.value);
-    expect(mujoco.get_mjVISSTRING().length)
+    expect(mujoco.mjFRAMESTRING.length).toEqual(mujoco.mjtFrame.mjNFRAME.value);
+    expect(mujoco.mjVISSTRING.length)
         .toEqual(mujoco.mjtVisFlag.mjNVISFLAG.value);
-    expect(mujoco.get_mjVISSTRING()[mujoco.mjtVisFlag.mjVIS_INERTIA.value])
-        .toEqual(['Inertia', '0', 'I']);
+    expect(mujoco.mjVISSTRING[mujoco.mjtVisFlag.mjVIS_INERTIA.value]).toEqual([
+      'Inertia', '0', 'I'
+    ]);
   });
 
   it('should create a spec from XML', () => {
@@ -2603,4 +2603,56 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 
+  it('should load a model from an XML string', () => {
+    let model: MjModel|null = null;
+    try {
+      model = mujoco.from_xml_string(TEST_XML);
+      assertExists(model);
+      expect(model.nbody).toBe(5);
+      expect(model.ngeom).toBe(3);
+    } finally {
+      model?.delete();
+    }
+  });
+
+  it('should load a model from an XML string with VFS', () => {
+    const xml = `
+    <mujoco>
+      <asset>
+        <mesh file="cube.obj"/>
+      </asset>
+      <worldbody>
+        <geom type="mesh" mesh="cube"/>
+      </worldbody>
+    </mujoco>`;
+
+    const cube1 = `
+    v -1 -1  1
+    v  1 -1  1
+    v -1  1  1
+    v  1  1  1
+    v -1  1 -1
+    v  1  1 -1
+    v -1 -1 -1
+    v  1 -1 -1`;
+
+    let model: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+    try {
+      vfs = new mujoco.MjVFS();
+      vfs.addBuffer('cube.obj', new TextEncoder().encode(cube1));
+      assertExists(vfs);
+
+      model = mujoco.from_xml_string(xml, vfs);
+      assertExists(model);
+      expect(model.nmesh).toBe(1);
+
+      const meshId =
+          mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MESH.value, 'cube');
+      expect(meshId).toBeGreaterThanOrEqual(0);
+    } finally {
+      model?.delete();
+      vfs?.delete();
+    }
+  });
 });

@@ -89,6 +89,19 @@ struct mjpDecoder {
 };
 typedef struct mjpDecoder mjpDecoder;
 
+//---------------------------------- Encoder -------------------------------------------------------
+
+typedef int (*mjfEncode)(const mjSpec* s, const mjModel* m, const mjVFS* vfs,
+                         mjResource* resource);
+
+struct mjpEncoder {
+  const char* content_type;
+  const char* extension;
+  mjfEncode encode;  //  Function to encode an mjSpec and mjModel to a mjResource.
+  mjfCloseResource close_resource;  // Function to close/free the resource.
+};
+typedef struct mjpEncoder mjpEncoder;
+
 //---------------------------------- Plugins -------------------------------------------------------
 
 typedef enum mjtPluginCapabilityBit_ {
@@ -169,39 +182,46 @@ struct mjSDF_ {
 };
 typedef struct mjSDF_ mjSDF;
 
+//------------------------------------ Initialization ----------------------------------------------
+
 #if defined(__has_attribute)
-
   #if __has_attribute(constructor)
-    #define mjPLUGIN_LIB_INIT __attribute__((constructor)) static void _mjplugin_init(void)
-  #endif  // __has_attribute(constructor)
-
-#elif defined(_MSC_VER)
-
-  #ifndef mjDLLMAIN
-    #define mjDLLMAIN DllMain
+    #define mjPLUGIN_LIB_INIT(n)                                     \
+      static void _mj_init_##n(void) __attribute__((constructor));   \
+      static void _mj_init_##n(void)
   #endif
-
-  #if !defined(mjEXTERNC)
-    #if defined(__cplusplus)
-      #define mjEXTERNC extern "C"
+#elif defined(_MSC_VER)
+    // on x86, symbols are decorated with a leading underscore
+    #ifdef _M_IX86
+      #define LINKER_NAME "__mj_ptr_"
     #else
-      #define mjEXTERNC
-    #endif  // defined(__cplusplus)
-  #endif  // !defined(mjEXTERNC)
+      #define LINKER_NAME "_mj_ptr_"
+    #endif
 
-  // NOLINTBEGIN(runtime/int)
-  #define mjPLUGIN_LIB_INIT                                                                 \
-    static void _mjplugin_dllmain(void);                                                    \
-    mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
-      if (reason == 1) {                                                                    \
-        _mjplugin_dllmain();                                                                \
-      }                                                                                     \
-      return 1;                                                                             \
-    }                                                                                       \
-    static void _mjplugin_dllmain(void)
-  // NOLINTEND(runtime/int)
+    #pragma section(".CRT$XCU", read)
 
-#endif  // defined(_MSC_VER)
+    #if !defined(mjEXTERNC)
+      #if defined(__cplusplus)
+        #define mjEXTERNC extern "C"
+      #else
+        #define mjEXTERNC
+      #endif  // defined(__cplusplus)
+    #endif  // !defined(mjEXTERNC)
+
+    #define mjPLUGIN_LIB_INIT(n)                                                          \
+      static void __cdecl _mj_init_##n(void);                                             \
+      /* use mjEXTERNC to prevent C++ name mangling */                                    \
+      /* allocate the function pointer to the .CRT$XCU section of the executable */       \
+      /* functions in this section are executed on startup before calling main() */       \
+      mjEXTERNC __declspec(allocate(".CRT$XCU"))                                          \
+      void (__cdecl * _mj_ptr_##n)(void) = _mj_init_##n;                                  \
+      /* Force the linker to include the pointer symbol */                                \
+      __pragma(comment(linker, "/include:" LINKER_NAME #n))                               \
+      static void __cdecl _mj_init_##n(void)
+
+#else
+    #error "Unknown compiler: Plugin registration not supported."
+#endif
 
 // function pointer type for mj_loadAllPluginLibraries callback
 typedef void (*mjfPluginLibraryLoadCallback)(const char* filename, int first, int count);

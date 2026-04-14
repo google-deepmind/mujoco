@@ -2142,11 +2142,7 @@ void Simulate::Sync(bool state_only) {
       m_->stat = m_passive_->stat;
     }
 
-    // synchronize number of mjWARN_VGEOMFULL warnings
-    if (d_passive_->warning[mjWARN_VGEOMFULL].number > warn_vgeomfull_prev_) {
-      d_->warning[mjWARN_VGEOMFULL].number +=
-          d_passive_->warning[mjWARN_VGEOMFULL].number - warn_vgeomfull_prev_;
-    }
+
   }
 
   if (pending_.save_xml) {
@@ -2334,7 +2330,7 @@ void Simulate::Sync(bool state_only) {
     mjopt_prev_ = m_passive_->opt;
     mjvis_prev_ = m_passive_->vis;
     mjstat_prev_ = m_passive_->stat;
-    warn_vgeomfull_prev_ = d_passive_->warning[mjWARN_VGEOMFULL].number;
+
   }
 
   // update settings
@@ -2550,7 +2546,7 @@ void Simulate::LoadOnRenderThread() {
     mjopt_prev_ = m_->opt;
     opt_prev_ = opt;
     cam_prev_ = cam;
-    warn_vgeomfull_prev_ = d_->warning[mjWARN_VGEOMFULL].number;
+
 
     // full copy on init
     m_passive_ = mj_copyModel(nullptr, m_);
@@ -3022,7 +3018,11 @@ void Simulate::RenderLoop() {
         int nusergeom = user_scn_geoms_.size();
         int ngeom = std::min(nusergeom, this->scn.maxgeom - this->scn.ngeom);
         if (ngeom < nusergeom) {
-          mj_warning(d_passive_, mjWARN_VGEOMFULL, this->scn.maxgeom);
+          if (!this->scn.status) {
+            mju_warning("Pre-allocated visual geom buffer is full. "
+                        "Increase maxgeom above %d.", this->scn.maxgeom);
+            this->scn.status = 1;
+          }
         }
         std::memcpy(this->scn.geoms + this->scn.ngeom, user_scn_geoms_.data(),
                     ngeom * sizeof(mjvGeom));

@@ -181,30 +181,35 @@ std::vector<const char*> MJCF[nMJCF] = {
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
             "frictionloss", "springlength", "width", "material",
             "margin", "stiffness", "damping", "rgba", "user"},
-        {"general", "?", "ctrllimited", "forcelimited", "actlimited", "ctrlrange",
-            "forcerange", "actrange", "gear", "cranklength", "user", "group", "nsample", "interp", "delay", "actdim",
-            "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm", "actearly"},
+        {"general", "?", "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange",
+            "actrange", "gear", "damping", "armature", "cranklength", "user", "group", "nsample",
+            "interp", "delay", "actdim", "dyntype", "gaintype", "biastype", "dynprm", "gainprm",
+            "biasprm", "actearly"},
         {"motor", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group", "nsample", "interp", "delay"},
-        {"position", "?", "ctrllimited", "forcelimited", "ctrlrange", "inheritrange",
-            "forcerange", "gear", "cranklength", "user", "group", "nsample", "interp", "delay", "kp", "kv", "dampratio", "timeconst"},
-        {"velocity", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group", "nsample", "interp", "delay", "kv"},
-        {"intvelocity", "?", "ctrllimited", "forcelimited",
-            "ctrlrange", "forcerange", "actrange", "inheritrange",
-            "gear", "cranklength", "user", "group", "nsample", "interp", "delay",
-            "kp", "kv", "dampratio"},
+            "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay"},
+        {"position", "?", "ctrllimited", "forcelimited", "ctrlrange", "inheritrange", "forcerange",
+            "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp",
+            "delay", "kp", "kv", "dampratio", "timeconst"},
+        {"velocity", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange", "gear",
+            "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay", "kv"},
+        {"intvelocity", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange", "actrange",
+            "inheritrange", "gear", "damping", "armature", "cranklength", "user", "group",
+            "nsample", "interp", "delay", "kp", "kv", "dampratio"},
         {"damper", "?", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group", "nsample", "interp", "delay", "kv"},
+            "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay", "kv"},
         {"cylinder", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group", "nsample", "interp", "delay",
+            "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay",
             "timeconst", "area", "diameter", "bias"},
         {"muscle", "?", "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "gear", "cranklength", "user", "group", "nsample", "interp", "delay",
+            "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay",
             "timeconst", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "?", "forcelimited", "ctrlrange", "forcerange",
             "gain", "user", "group", "nsample", "interp", "delay"},
+        {"dcmotor", "?", "ctrllimited", "ctrlrange",
+            "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay",
+            "motorconst", "resistance", "nominal", "saturation",
+            "inductance", "cogging", "controller", "input", "thermal", "lugre"},
     {">"},
 
     {"extension", "*"},
@@ -318,7 +323,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             {"elasticity", "?", "young", "poisson", "damping", "thickness", "elastic2d"},
             {"contact", "?",  "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers", "vertcollide", "passive"},
+                "internal", "selfcollide", "activelayers", "passive"},
             {"pin", "*", "id", "range", "grid", "gridrange"},
             {"plugin", "*", "plugin", "instance"},
             {"<"},
@@ -334,7 +339,7 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"<"},
             {"contact", "?",  "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers", "vertcollide", "passive"},
+                "internal", "selfcollide", "activelayers", "passive"},
             {"edge", "?", "stiffness", "damping"},
             {"elasticity", "?", "young", "poisson", "damping", "thickness", "elastic2d"},
         {">"},
@@ -393,51 +398,57 @@ std::vector<const char*> MJCF[nMJCF] = {
     {"<"},
         {"general", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
-            "lengthrange", "gear", "cranklength", "user",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "body", "actdim", "dyntype", "gaintype", "biastype", "dynprm", "gainprm", "biasprm",
             "actearly"},
         {"motor", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "lengthrange", "gear", "cranklength", "user",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite"},
         {"position", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "inheritrange", "forcerange",
-            "lengthrange", "gear", "cranklength", "user",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp", "kv", "dampratio", "timeconst"},
         {"velocity", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "lengthrange", "gear", "cranklength", "user",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
         {"intvelocity", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited",
             "ctrlrange", "forcerange", "actrange", "inheritrange", "lengthrange",
-            "gear", "cranklength", "user",
+            "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kp", "kv", "dampratio"},
         {"damper", "*", "name", "class", "group", "nsample", "interp", "delay",
             "forcelimited", "ctrlrange", "forcerange",
-            "lengthrange", "gear", "cranklength", "user",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "kv"},
         {"cylinder", "*", "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "lengthrange", "gear", "cranklength", "user",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
             "timeconst", "area", "diameter", "bias"},
         {"muscle", "*",  "name", "class", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "ctrlrange", "forcerange",
-            "lengthrange", "gear", "cranklength", "user",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "user",
             "joint", "jointinparent", "tendon", "slidersite", "cranksite",
             "timeconst", "tausmooth", "range", "force", "scale",
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "*", "name", "class", "group", "nsample", "interp", "delay",
             "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
+        {"dcmotor", "*", "name", "class", "group", "nsample", "interp", "delay",
+            "ctrllimited", "ctrlrange",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "user",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
+            "motorconst", "resistance", "nominal", "saturation",
+            "inductance", "cogging", "controller", "thermal", "lugre", "input"},
         {"plugin", "*", "name", "class",  "plugin", "instance", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
-            "lengthrange", "gear", "cranklength", "joint", "jointinparent",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "joint", "jointinparent",
             "site", "actdim", "dyntype", "dynprm", "tendon", "cranksite", "slidersite", "user",
             "actearly"},
         {"<"},
@@ -723,33 +734,45 @@ const mjMap mark_map[mark_sz] = {
 
 
 // dyn type
-const int dyn_sz = 6;
+const int dyn_sz = 7;
 const mjMap dyn_map[dyn_sz] = {
   {"none",          mjDYN_NONE},
   {"integrator",    mjDYN_INTEGRATOR},
   {"filter",        mjDYN_FILTER},
   {"filterexact",   mjDYN_FILTEREXACT},
   {"muscle",        mjDYN_MUSCLE},
+  {"dcmotor",       mjDYN_DCMOTOR},
   {"user",          mjDYN_USER}
 };
 
 
+// dcmotor controller input mode
+const int dcmotorinput_sz = 3;
+const mjMap dcmotorinput_map[dcmotorinput_sz] = {
+  {"voltage",       0},
+  {"position",      1},
+  {"velocity",      2}
+};
+
+
 // gain type
-const int gain_sz = 4;
+const int gain_sz = 5;
 const mjMap gain_map[gain_sz] = {
   {"fixed",         mjGAIN_FIXED},
   {"affine",        mjGAIN_AFFINE},
   {"muscle",        mjGAIN_MUSCLE},
+  {"dcmotor",       mjGAIN_DCMOTOR},
   {"user",          mjGAIN_USER}
 };
 
 
 // bias type
-const int bias_sz = 4;
+const int bias_sz = 5;
 const mjMap bias_map[bias_sz] = {
   {"none",          mjBIAS_NONE},
   {"affine",        mjBIAS_AFFINE},
   {"muscle",        mjBIAS_MUSCLE},
+  {"dcmotor",       mjBIAS_DCMOTOR},
   {"user",          mjBIAS_USER}
 };
 
@@ -1519,9 +1542,6 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
       flex->internal = (n == 1);
     }
     MapValue(cont, "selfcollide", &flex->selfcollide, flexself_map, 5);
-    if (MapValue(cont, "vertcollide", &flex->vertcollide, bool_map, 2)) {
-      flex->vertcollide = (n == 1);
-    }
     if (MapValue(cont, "passive", &flex->passive, bool_map, 2)) {
       flex->passive = (n == 1);
     }
@@ -1815,14 +1835,18 @@ void mjXReader::OneJoint(XMLElement* elem, mjsJoint* joint) {
   ReadAttr(elem, "pos", 3, joint->pos, text);
   ReadAttr(elem, "axis", 3, joint->axis, text);
   ReadAttr(elem, "springdamper", 2, joint->springdamper, text);
-  ReadAttr(elem, "stiffness", 1, &joint->stiffness, text);
+
+  ReadAttr(elem, "stiffness", 1+mjNPOLY, joint->stiffness, text, false, false);
+
   ReadAttr(elem, "range", 2, joint->range, text);
   ReadAttr(elem, "actuatorfrcrange", 2, joint->actfrcrange, text);
   ReadAttr(elem, "margin", 1, &joint->margin, text);
   ReadAttr(elem, "ref", 1, &joint->ref, text);
   ReadAttr(elem, "springref", 1, &joint->springref, text);
   ReadAttr(elem, "armature", 1, &joint->armature, text);
-  ReadAttr(elem, "damping", 1, &joint->damping, text);
+
+  ReadAttr(elem, "damping", 1+mjNPOLY, joint->damping, text, false, false);
+
   ReadAttr(elem, "frictionloss", 1, &joint->frictionloss, text);
   if (MapValue(elem, "actuatorgravcomp", &n, bool_map, 2)) {
     joint->actgravcomp = (n == 1);
@@ -2267,8 +2291,11 @@ void mjXReader::OneTendon(XMLElement* elem, mjsTendon* tendon) {
   ReadAttr(elem, "range", 2, tendon->range, text);
   ReadAttr(elem, "actuatorfrcrange", 2, tendon->actfrcrange, text);
   ReadAttr(elem, "margin", 1, &tendon->margin, text);
-  ReadAttr(elem, "stiffness", 1, &tendon->stiffness, text);
-  ReadAttr(elem, "damping", 1, &tendon->damping, text);
+
+  ReadAttr(elem, "stiffness", 1+mjNPOLY, tendon->stiffness, text, false, false);
+
+  ReadAttr(elem, "damping", 1+mjNPOLY, tendon->damping, text, false, false);
+
   ReadAttr(elem, "armature", 1, &tendon->armature, text);
   ReadAttr(elem, "frictionloss", 1, &tendon->frictionloss, text);
   // read springlength, either one or two values; if one, copy to second value
@@ -2310,6 +2337,8 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
   ReadAttr(elem, "actrange", 2, actuator->actrange, text);
   ReadAttr(elem, "lengthrange", 2, actuator->lengthrange, text);
   ReadAttr(elem, "gear", 6, actuator->gear, text, false, false);
+  ReadAttr(elem, "damping", 1+mjNPOLY, actuator->damping, text, false, false);
+  ReadAttr(elem, "armature", 1, &actuator->armature, text, false, false);
 
   // transmission target and type
   int cnt = 0;
@@ -2489,6 +2518,53 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     ReadAttr(elem, "gain", 1, &gain, text);
     ReadAttr(elem, "ctrlrange", 2, actuator->ctrlrange, text);
     err = mjs_setToAdhesion(actuator, gain);
+  }
+
+  // DC motor
+  else if (type == "dcmotor") {
+    bool inherited = (actuator->gaintype == mjGAIN_DCMOTOR);
+    double motorconst[2] = {inherited ? actuator->gainprm[1] : 0, 0};
+    double resistance = inherited ? actuator->gainprm[0] : 0;
+    double nominal[3] = {0, 0, 0};
+    double saturation[3] = {0, 0,
+                            inherited ? actuator->dynprm[1] : 0};
+    double controller[6] = {inherited ? actuator->gainprm[4] : 0,
+                            inherited ? actuator->gainprm[5] : 0,
+                            inherited ? actuator->gainprm[6] : 0,
+                            inherited ? actuator->dynprm[7] : 0,
+                            inherited ? actuator->dynprm[8] : 0,
+                            inherited ? actuator->gainprm[7] : 0};
+    double inductance[2] = {0, inherited ? actuator->dynprm[0] : 0};
+    double cogging[3] = {inherited ? actuator->biasprm[0] : 0,
+                         inherited ? actuator->biasprm[1] : 0,
+                         inherited ? actuator->biasprm[2] : 0};
+    double thermal[6] = {inherited ? actuator->dynprm[2] : 0,
+                         inherited ? actuator->dynprm[3] : 0,
+                         0,
+                         inherited ? actuator->gainprm[2] : 0,
+                         inherited ? actuator->gainprm[3] : 0,
+                         inherited ? actuator->dynprm[4] : 0};
+    double lugre[5] = {inherited ? actuator->dynprm[5] : 0,
+                       inherited ? actuator->dynprm[6] : 0,
+                       inherited ? actuator->biasprm[3] : 0,
+                       inherited ? actuator->biasprm[4] : 0,
+                       inherited ? actuator->biasprm[5] : 0};
+    int input_mode = inherited ? (int)actuator->gainprm[8] : 0;
+    ReadAttr(elem, "motorconst", 2, motorconst, text, false, false);
+    ReadAttr(elem, "resistance", 1, &resistance, text);
+    ReadAttr(elem, "nominal", 3, nominal, text, false, false);
+    ReadAttr(elem, "saturation", 3, saturation, text, false, false);
+    ReadAttr(elem, "inductance", 2, inductance, text, false, false);
+    ReadAttr(elem, "cogging", 3, cogging, text, false, false);
+    ReadAttr(elem, "controller", 6, controller, text, false, false);
+    ReadAttr(elem, "thermal", 6, thermal, text, false, false);
+    ReadAttr(elem, "lugre", 5, lugre, text, false, false);
+    if (MapValue(elem, "input", &input_mode, dcmotorinput_map, dcmotorinput_sz)) {
+      // successfully parsed
+    }
+    err = mjs_setToDCMotor(actuator, motorconst, resistance,
+                           nominal, saturation, inductance,
+                           cogging, controller, thermal, lugre, input_mode);
   }
 
   else if (type == "plugin") {
@@ -2679,11 +2755,11 @@ void mjXReader::OneComposite(XMLElement* elem, mjsBody* body, mjsFrame* frame, c
              "solreffriction", mjNREF, djoint.solref_friction, text, false, false);
     ReadAttr(ejnt,
              "solimpfriction", mjNIMP, djoint.solimp_friction, text, false, false);
-    ReadAttr(ejnt, "stiffness", 1, &djoint.stiffness, text);
+    ReadAttr(ejnt, "stiffness", 1, djoint.stiffness, text);
     ReadAttr(ejnt, "range", 2, djoint.range, text);
     ReadAttr(ejnt, "margin", 1, &djoint.margin, text);
     ReadAttr(ejnt, "armature", 1, &djoint.armature, text);
-    ReadAttr(ejnt, "damping", 1, &djoint.damping, text);
+    ReadAttr(ejnt, "damping", 1, djoint.damping, text);
     ReadAttr(ejnt, "frictionloss", 1, &djoint.frictionloss, text);
 
     // advance
@@ -2815,9 +2891,6 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
       dflex.internal = (n == 1);
     }
     MapValue(cont, "selfcollide", &dflex.selfcollide, flexself_map, 5);
-    if (MapValue(cont, "vertcollide", &n, bool_map, 2)) {
-      dflex.vertcollide = (n == 1);
-    }
     if (MapValue(cont, "passive", &n, bool_map, 2)) {
       dflex.passive = (n == 1);
     }
@@ -2958,7 +3031,8 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def, const mjVFS*
              name == "intvelocity" ||
              name == "cylinder"    ||
              name == "muscle"      ||
-             name == "adhesion") {
+             name == "adhesion"    ||
+             name == "dcmotor") {
       OneActuator(elem, def->actuator);
     }
 

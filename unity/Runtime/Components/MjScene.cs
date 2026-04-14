@@ -359,22 +359,18 @@ public class MjScene : MonoBehaviour {
     }
     if (Data->warning3.number > 0) {
       Data->warning3.number = 0;
-      throw new PhysicsRuntimeException("VGEOMFULL: who constructed a mjvScene?!");
+      throw new PhysicsRuntimeException("BADQPOS: NaN/inf in qpos.");
     }
     if (Data->warning4.number > 0) {
       Data->warning4.number = 0;
-      throw new PhysicsRuntimeException("BADQPOS: NaN/inf in qpos.");
+      throw new PhysicsRuntimeException("BADQVEL: NaN/inf in qvel.");
     }
     if (Data->warning5.number > 0) {
       Data->warning5.number = 0;
-      throw new PhysicsRuntimeException("BADQVEL: NaN/inf in qvel.");
+      throw new PhysicsRuntimeException("BADQACC: NaN/inf in qacc.");
     }
     if (Data->warning6.number > 0) {
       Data->warning6.number = 0;
-      throw new PhysicsRuntimeException("BADQACC: NaN/inf in qacc.");
-    }
-    if (Data->warning7.number > 0) {
-      Data->warning7.number = 0;
       throw new PhysicsRuntimeException("BADCTRL: NaN/inf in ctrl.");
     }
   }

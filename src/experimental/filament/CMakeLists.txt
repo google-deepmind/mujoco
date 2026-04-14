@@ -23,8 +23,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
     PUBLIC
         render_context_filament.h
         render_context_filament.cc
-        filament/buffer_util.cc
-        filament/buffer_util.h
         filament/builtins.cc
         filament/builtins.h
         filament/color_grading_options.cc
@@ -33,8 +31,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/drawable.h
         filament/filament_context.cc
         filament/filament_context.h
-        filament/geom_util.cc
-        filament/geom_util.h
+        filament/filament_platform_factory.cc
+        filament/filament_platform_factory.h
         filament/gui_view.cc
         filament/gui_view.h
         filament/imgui_editor.cc
@@ -43,19 +41,25 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/light.h
         filament/material.cc
         filament/material.h
+        filament/math_util.cc
         filament/math_util.h
-        filament/model_util.cc
+        filament/mesh.cc
+        filament/mesh.h
+        filament/model_objects.cc
+        filament/model_objects.h
         filament/model_util.h
         filament/object_manager.cc
         filament/object_manager.h
-        filament/renderables.cc
-        filament/renderables.h
+        filament/render_target.cc
+        filament/render_target.h
+        filament/renderable.cc
+        filament/renderable.h
+        filament/scene_bridge.cc
+        filament/scene_bridge.h
         filament/scene_view.cc
         filament/scene_view.h
-        filament/texture_util.cc
-        filament/texture_util.h
-        filament/vertex_util.cc
-        filament/vertex_util.h
+        filament/texture.cc
+        filament/texture.h
 )
 if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
     target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
@@ -100,12 +104,16 @@ set(MATERIAL_FILES
     pbr_packed.mat
     phong_2d_fade.mat
     phong_2d.mat
+    phong_2d_reflect.mat
     phong_2d_uv_fade.mat
     phong_2d_uv.mat
+    phong_2d_uv_reflect.mat
     phong_color_fade.mat
     phong_color.mat
+    phong_color_reflect.mat
     phong_cube_fade.mat
     phong_cube.mat
+    phong_cube_reflect.mat
     unlit_depth.mat
     unlit_line.mat
     unlit_segmentation.mat

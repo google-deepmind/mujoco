@@ -169,7 +169,11 @@ static int bodycategory(const mjModel* m, int bodyid) {
 mjvGeom* acquireGeom(mjvScene* scn, int objid, int category, int objtype) {
   // check for overflow, SHOULD NOT OCCUR
   if (scn->ngeom >= scn->maxgeom) {
-    scn->status = 1;
+    if (!scn->status) {
+      mju_warning("Pre-allocated visual geom buffer is full. "
+                  "Increase maxgeom above %d.", scn->maxgeom);
+      scn->status = 1;
+    }
     return NULL;
   }
 
@@ -1055,9 +1059,12 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
       continue;
     }
 
+    int has_stiffness = m->tendon_stiffness[i] ||
+                        !mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY);
+
     // tendon has a deadband spring
     int limitedspring =
-      m->tendon_stiffness[i] > 0            &&    // positive stiffness
+      has_stiffness                         &&    // positive stiffness
       m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
       m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
 
@@ -1066,10 +1073,12 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
     mjtNum lower = m->tendon_range[2*i];
     mjtNum upper = m->tendon_range[2*i + 1];
     int limitedconstraint =
-      m->tendon_stiffness[i] == 0           &&    // zero stiffness
+      !has_stiffness                        &&    // zero stiffness
       m->tendon_limited[i] == 1             &&    // limited length range
       lower == 0                            &&    // range lower-bound is 0
       ten_length < upper;                         // current length is smaller than upper bound
+
+    int has_damping = m->tendon_damping[i] || !mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY);
 
     // conditions for drawing a catenary
     int draw_catenary =
@@ -1077,7 +1086,7 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
       mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
       m->tendon_num[i] == 2                 &&    // only two sites on the tendon
       (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
-      m->tendon_damping[i] == 0             &&    // no damping
+      !has_damping                          &&    // no damping
       m->tendon_frictionloss[i] == 0;             // no frictionloss
 
     // no actuator
@@ -3374,7 +3383,6 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
                      const mjvPerturb* pert, mjvCamera* cam, int catmask, mjvScene* scn) {
   // clear geoms
   scn->ngeom = 0;
-  scn->status = 0;
 
   // trigger plugin visualization hooks
   if (m->nplugin) {
@@ -3410,10 +3418,6 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
   // update skins
   if (opt->flags[mjVIS_SKIN]) {
     mjv_updateActiveSkin(m, d, scn, opt);
-  }
-
-  if (scn->status) {
-    mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);
   }
 }
 

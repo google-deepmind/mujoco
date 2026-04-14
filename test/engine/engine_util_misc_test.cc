@@ -32,7 +32,6 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
@@ -68,21 +67,22 @@ TEST_F(UtilMiscTest, Sigmoid) {
   EXPECT_EQ(mju_sigmoid(2),   1);
 
   // epsilon for finite-differencing
-  const mjtNum dx = 1e-7;
+  constexpr mjtNum dx = MjTol(1e-7, 1e-3);
+  constexpr mjtNum fd_tol = MjTol(1e-7, 1e-3);
 
   // derivative at 0
   mjtNum dy_dx_0 = (mju_sigmoid(0 + dx) - mju_sigmoid(0)) / dx;
-  EXPECT_THAT(dy_dx_0, DoubleNear(0, dx));
+  EXPECT_NEAR(dy_dx_0, 0, fd_tol);
 
   // derivative at 1
   mjtNum dy_dx_1 = (mju_sigmoid(1) - mju_sigmoid(1 - dx)) / dx;
-  EXPECT_THAT(dy_dx_1, DoubleNear(0, dx));
+  EXPECT_NEAR(dy_dx_1, 0, fd_tol);
 
   // derivative at 0.5
   const mjtNum x = 0.5;
   mjtNum dy_dx_0p5 = (mju_sigmoid(x + dx) - mju_sigmoid(x - dx)) / (2*dx);
   mjtNum expected = 30*x*x*x*x - 60*x*x*x + 30*x*x;
-  EXPECT_THAT(dy_dx_0p5, DoubleNear(expected, dx));
+  EXPECT_NEAR(dy_dx_0p5, expected, fd_tol);
 }
 
 TEST_F(UtilMiscTest, SphereWrap) {
@@ -431,9 +431,9 @@ TEST_F(InterpolationTest, mju_interpolate3D) {
     expected[1] = quadratic_function_2(sample[0], sample[1], sample[2]);
     expected[2] = quadratic_function_3(sample[0], sample[1], sample[2]);
     mju_interpolate3D(res, sample, coeff, order);
-    EXPECT_NEAR(res[0], expected[0], 1e-10);
-    EXPECT_NEAR(res[1], expected[1], 1e-10);
-    EXPECT_NEAR(res[2], expected[2], 1e-10);
+    EXPECT_NEAR(res[0], expected[0], MjTol(1e-10, 1e-5));
+    EXPECT_NEAR(res[1], expected[1], MjTol(1e-10, 1e-5));
+    EXPECT_NEAR(res[2], expected[2], MjTol(1e-10, 1e-5));
   }
 }
 
@@ -484,9 +484,9 @@ TEST_F(InterpolationTest, mju_defGradient) {
     mju_rotVecQuat(dof5 + 3*i, dof0 + 3*i, quat);
   }
   mju_defGradient(mat, p1, dof5, order);
-  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), {0, -1, 0, 1, 0, 0, 0, 0, 1}));
+  EXPECT_THAT(mat, Pointwise(MjNear(1e-8, 1e-6), {0, -1, 0, 1, 0, 0, 0, 0, 1}));
   mju_defGradient(mat, p2, dof5, order);
-  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), {0, -1, 0, 1, 0, 0, 0, 0, 1}));
+  EXPECT_THAT(mat, Pointwise(MjNear(1e-8, 1e-6), {0, -1, 0, 1, 0, 0, 0, 0, 1}));
 
   // z-axis 30 degree rotation
   mjtNum dof6[24];
@@ -499,9 +499,9 @@ TEST_F(InterpolationTest, mju_defGradient) {
     mju_quat2Mat(rot6, quat);
   }
   mju_defGradient(mat, p1, dof6, order);
-  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot6));
+  EXPECT_THAT(mat, Pointwise(MjNear(1e-8, 1e-6), rot6));
   mju_defGradient(mat, p2, dof6, order);
-  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot6));
+  EXPECT_THAT(mat, Pointwise(MjNear(1e-8, 1e-6), rot6));
 
   // z-axis CoM rotation
   mjtNum dof7[24];
@@ -516,9 +516,9 @@ TEST_F(InterpolationTest, mju_defGradient) {
     mju_quat2Mat(rot7, quat);
   }
   mju_defGradient(mat, p1, dof7, order);
-  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot7));
+  EXPECT_THAT(mat, Pointwise(MjNear(1e-8, 1e-6), rot7));
   mju_defGradient(mat, p2, dof7, order);
-  EXPECT_THAT(mat, Pointwise(DoubleNear(1e-8), rot7));
+  EXPECT_THAT(mat, Pointwise(MjNear(1e-8, 1e-6), rot7));
 }
 
 // --------------------------------- Base64 ------------------------------------
@@ -895,8 +895,8 @@ TEST_F(HistoryTest, ReadVector_Linear) {
   mjtNum res[dim];
   const mjtNum* ptr = mju_historyRead(buf, n, dim, res, 0.5, 1);
   EXPECT_EQ(ptr, nullptr);
-  EXPECT_THAT(res[0], DoubleNear(2.0, 1e-10));  // (1+3)/2
-  EXPECT_THAT(res[1], DoubleNear(3.0, 1e-10));  // (2+4)/2
+  EXPECT_NEAR(res[0], 2.0, MjTol(1e-10, 1e-10));  // (1+3)/2
+  EXPECT_NEAR(res[1], 3.0, MjTol(1e-10, 1e-10));  // (2+4)/2
 }
 
 TEST_F(HistoryTest, InsertOutOfOrder) {
@@ -1027,24 +1027,24 @@ TEST_F(HistoryTest, CubicInterpolation) {
   // Dim 0: 0.5
   // Dim 1: 1 - 0.5 = 0.5
   mju_historyRead(buf, n, dim, res, 0.5, 2);
-  EXPECT_NEAR(res[0], 0.5, 1e-9);
-  EXPECT_NEAR(res[1], 0.5, 1e-9);
+  EXPECT_NEAR(res[0], 0.5, MjTol(1e-9, 1e-9));
+  EXPECT_NEAR(res[1], 0.5, MjTol(1e-9, 1e-9));
 
   // Test x=0.25
   // Dim 0: 3*0.25^2 - 2*0.25^3
   // Dim 1: 1 - (3*0.25^2 - 2*0.25^3)
   mju_historyRead(buf, n, dim, res, 0.25, 2);
   mjtNum expected_0_25 = 3*0.25*0.25 - 2*0.25*0.25*0.25;
-  EXPECT_NEAR(res[0], expected_0_25, 1e-9);
-  EXPECT_NEAR(res[1], 1.0 - expected_0_25, 1e-9);
+  EXPECT_NEAR(res[0], expected_0_25, MjTol(1e-9, 1e-9));
+  EXPECT_NEAR(res[1], 1.0 - expected_0_25, MjTol(1e-9, 1e-9));
 
   // Test x=0.8
   // Dim 0: 3*0.8^2 - 2*0.8^3
   // Dim 1: 1 - (3*0.8^2 - 2*0.8^3)
   mju_historyRead(buf, n, dim, res, 0.8, 2);
   mjtNum expected_0_8 = 3*0.8*0.8 - 2*0.8*0.8*0.8;
-  EXPECT_NEAR(res[0], expected_0_8, 1e-9);
-  EXPECT_NEAR(res[1], 1.0 - expected_0_8, 1e-9);
+  EXPECT_NEAR(res[0], expected_0_8, MjTol(1e-9, 1e-9));
+  EXPECT_NEAR(res[1], 1.0 - expected_0_8, MjTol(1e-9, 1e-9));
 }
 
 }  // namespace

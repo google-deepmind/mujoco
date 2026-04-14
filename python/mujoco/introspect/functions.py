@@ -387,6 +387,57 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Parse spec from a file.',
      )),
+    ('mj_encode',
+     FunctionDecl(
+         name='mj_encode',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='content_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error_sz',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Encode spec/model to a file using a registered encoder. Returns the number of bytes written on success, -1 on failure.',  # pylint: disable=line-too-long
+     )),
     ('mj_compile',
      FunctionDecl(
          name='mj_compile',
@@ -9600,6 +9651,56 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Return the resource provider with the prefix that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
      )),
+    ('mjp_registerEncoder',
+     FunctionDecl(
+         name='mjp_registerEncoder',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='encoder',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpEncoder', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Globally register an encoder. This function is thread-safe. If an identical mjpEncoder is already registered, this function does nothing. If a non-identical mjpEncoder with the same name is already registered, an mju_error is raised.',  # pylint: disable=line-too-long
+     )),
+    ('mjp_defaultEncoder',
+     FunctionDecl(
+         name='mjp_defaultEncoder',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='encoder',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpEncoder'),
+                 ),
+             ),
+         ),
+         doc='Set default resource encoder definition.',
+     )),
+    ('mjp_findEncoder',
+     FunctionDecl(
+         name='mjp_findEncoder',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjpEncoder', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='content_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Return the encoder that matches against the content type or filename extension. If no match, return NULL.',  # pylint: disable=line-too-long
+     )),
     ('mju_openResource',
      FunctionDecl(
          name='mju_openResource',
@@ -10684,6 +10785,94 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Set actuator to active adhesion; return error if any.',
+     )),
+    ('mjs_setToDCMotor',
+     FunctionDecl(
+         name='mjs_setToDCMotor',
+         return_type=PointerType(
+             inner_type=ValueType(name='char', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='actuator',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsActuator'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='motorconst',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='resistance',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='nominal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='saturation',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='inductance',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='cogging',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='controller',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(6,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='thermal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(6,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='lugre',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(5,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='input_mode',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Set actuator to DC motor; return error if any.',
      )),
     ('mjs_addMesh',
      FunctionDecl(

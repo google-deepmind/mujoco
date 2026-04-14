@@ -169,7 +169,7 @@ class SpecsTest(absltest.TestCase):
 
     # Add tendon.
     tendon = spec.add_tendon(stiffness=2, springlength=[0.1, 0.2])
-    self.assertEqual(tendon.stiffness, 2)
+    np.testing.assert_array_equal(tendon.stiffness, [2, 0, 0])
     np.testing.assert_array_equal(tendon.springlength, [0.1, 0.2])
 
     # Add actuator.
@@ -478,14 +478,14 @@ class SpecsTest(absltest.TestCase):
       body.add_geom(size=[])
     self.assertEqual(
         str(cm.exception),
-        'size should be a list/array of size 1, 2, or 3.',
+        'size should be a list/array of size 1 to 3.',
     )
 
     with self.assertRaises(ValueError) as cm:
       body.add_geom(size=[1, 2, 3, 4])
     self.assertEqual(
         str(cm.exception),
-        'size should be a list/array of size 1, 2, or 3.',
+        'size should be a list/array of size 1 to 3.',
     )
 
   def test_load_xml(self):
@@ -952,6 +952,33 @@ class SpecsTest(absltest.TestCase):
       ):
         s.compile()
 
+  def test_geom_and_mesh_plugin(self):
+    """Test that geom.plugin and mesh.plugin are accessible."""
+    spec = mujoco.MjSpec()
+
+    # Verify mesh has plugin attribute
+    mesh = spec.add_mesh(name='test_mesh')
+    self.assertTrue(hasattr(mesh, 'plugin'))
+
+    # Verify geom has plugin attribute
+    body = spec.worldbody.add_body()
+    geom = body.add_geom()
+    self.assertTrue(hasattr(geom, 'plugin'))
+
+    # Verify we can access and modify plugin properties
+    spec.activate_plugin('mujoco.sdf.torus')
+    plugin = spec.add_plugin(name='inst', plugin_name='mujoco.sdf.torus')
+
+    # Assign plugin to geom
+    geom.plugin = plugin
+    self.assertEqual(geom.plugin.name, 'inst')
+    self.assertEqual(geom.plugin.plugin_name, 'mujoco.sdf.torus')
+
+    # Assign plugin to mesh
+    mesh.plugin = plugin
+    self.assertEqual(mesh.plugin.name, 'inst')
+    self.assertEqual(mesh.plugin.plugin_name, 'mujoco.sdf.torus')
+
   def test_duplicate_name_error(self):
     main_xml = """
     <mujoco>
@@ -1363,6 +1390,21 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaisesRegex(ValueError, 'Frame not found.'):
       parent.attach(child4, frame='invalid_frame', prefix='child3-')
 
+  def test_delete_from_attached_spec_error(self):
+    parent = mujoco.MjSpec()
+    child = mujoco.MjSpec()
+    body = child.worldbody.add_body(name='child_body')
+    geom = body.add_geom(name='child_geom')
+
+    frame = parent.worldbody.add_frame()
+    parent.attach(child, frame=frame, prefix='child_')
+
+    # Now child spec is attached. Deleting from it should raise ValueError.
+    with self.assertRaisesRegex(
+        ValueError, 'Cannot delete element from an attached mjSpec.'
+    ):
+      child.delete(geom)
+
   def test_attach_valid_child_lists(self):
     xml1 = """
     <mujoco>
@@ -1528,6 +1570,13 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_NONE)
     self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_FIXED)
     self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_NONE)
+
+    actuator.set_to_dcmotor(motorconst=[0.05, 0.05], resistance=2.0)
+    self.assertEqual(actuator.gainprm[0], 2.0)
+    self.assertEqual(actuator.gainprm[1], 0.05)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_DCMOTOR)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_DCMOTOR)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_DCMOTOR)
 
   def test_bad_contact_sensor(self):
     test_cases = [

@@ -17,10 +17,6 @@
 
 #include <string_view>
 
-#include <filament/Engine.h>
-#include <filament/IndexBuffer.h>
-#include <filament/Texture.h>
-#include <filament/VertexBuffer.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
@@ -28,33 +24,6 @@
 #include <mujoco/mujoco.h>
 
 namespace mujoco {
-
-// The types of meshes stored in the mjModel.
-enum class MeshType {
-  kNormal,
-  kConvexHull,
-  kHeightField,
-};
-
-// The types of textures stored in the mjModel.
-enum class TextureType {
-  kNormal2d,
-  kCube,
-};
-
-// Generates a filament VertexBuffer for a given mesh in the mjModel.
-filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
-                                           const mjModel* model, int id,
-                                           MeshType mesh_type);
-
-// Generates a filament IndexBuffer for a given mesh in the mjModel.
-filament::IndexBuffer* CreateIndexBuffer(filament::Engine* engine,
-                                         const mjModel* model, int id,
-                                         MeshType mesh_type);
-
-// Generates a filament Texture for a given 2D texture in the mjModel.
-filament::Texture* CreateTexture(filament::Engine* engine, const mjModel* model,
-                                 int id, TextureType texture_type);
 
 // Reads a value with the given name from the mjModel's data sections. The
 // default_value is returned if the named element is not found.

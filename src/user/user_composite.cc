@@ -419,7 +419,7 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
     mjsJoint* jnt = mjs_addJoint(body, &defjoint[mjCOMPKIND_JOINT][0].spec);
     mjs_setDefault(jnt->element, mjs_getDefault(body->element));
     jnt->type = (first && strcmp(initial.c_str(), "free") == 0) ? mjJNT_FREE : mjJNT_BALL;
-    jnt->damping = jnt->type == mjJNT_FREE ? 0 : jnt->damping;
+    if (jnt->type == mjJNT_FREE) mjuu_zerovec(jnt->damping, 1+mjNPOLY);
     jnt->armature = jnt->type == mjJNT_FREE ? 0 : jnt->armature;
     jnt->frictionloss = jnt->type == mjJNT_FREE ? 0 : jnt->frictionloss;
     mjs_setName(jnt->element, this_joint);

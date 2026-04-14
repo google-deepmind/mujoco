@@ -492,6 +492,11 @@ to change.
      - 10
      - The maximal number of real-valued parameters used to define the bias of each actuator.
        Determines the size of ``mjModel.actuator_biasprm``.
+   * - ``mjNPOLY``
+     - 2
+     - The number of nonlinear polynomial coefficients for joint and tendon stiffness and damping.
+       Determines the size of ``mjModel.{jnt,tendon}_{stiffness,damping}poly``. See
+       :ref:`polynomial forces<gePolynomial>`.
    * - ``mjNFLUID``
      - 12
      - The number of per-geom fluid interaction parameters required by the ellipsoidal model.
@@ -686,17 +691,13 @@ mjPLUGIN_LIB_INIT
 
 .. code-block:: C
 
-   #define mjPLUGIN_LIB_INIT                                                                 \
-     static void _mjplugin_dllmain(void);                                                    \
-     mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
-       if (reason == 1) {                                                                    \
-         _mjplugin_dllmain();                                                                \
-       }                                                                                     \
-       return 1;                                                                             \
-     }                                                                                       \
-     static void _mjplugin_dllmain(void)
+   #define mjPLUGIN_LIB_INIT(n)                                      \
+        static void _mj_init_##n(void) __attribute__((constructor)); \
+        static void _mj_init_##n(void)
 
-Register a plugin as a dynamic library. See :ref:`plugin registration<exRegistration>` for more details.
+Register a plugin before `main()` is called. This macro takes a unique identifier `n` as an argument that is used to avoid
+name collisions between different plugin initialization functions. See :ref:`plugin registration<exRegistration>` for
+more details.
 
 
 .. _tyXMacro:

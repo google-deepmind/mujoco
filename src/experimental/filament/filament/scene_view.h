@@ -17,96 +17,100 @@
 
 #include <array>
 #include <memory>
-#include <optional>
-#include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include <filament/Camera.h>
 #include <filament/ColorGrading.h>
 #include <filament/Engine.h>
-#include <filament/IndirectLight.h>
 #include <filament/Scene.h>
 #include <filament/View.h>
-#include <math/mat4.h>
-#include <math/vec3.h>
-#include <mujoco/mjrender.h>
-#include <mujoco/mjvisualize.h>
+#include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
 #include "experimental/filament/filament/drawable.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/material.h"
-#include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/render_target.h"
 
 namespace mujoco {
 
-// Creates and owns filament Scene and View classes given a mjvScene.
+// Creates and owns the filament Scene and View (and Camera) classes.
 //
-// The filament Scene is populated with the objects (e.g. lights, geoms,
-// cameras, etc.) defined by the mjvScene. Multiple Views are created to allow
-// different rendering modes (e.g. normal, depth, segmentation, etc.)
+// The filament Scene is populated with the objects (e.g. lights, renderables,
+// skybox, etc.). It manages multiple views to support a variety of draw modes
+// (e.g. normal, depth, segmentation, etc.) as well as reflective surfaces.
 class SceneView {
  public:
-  SceneView(filament::Engine* engine, ObjectManager* object_mgr);
+  SceneView(filament::Engine* engine);
   ~SceneView();
 
-  // Updates all views to render into the given viewport.
-  void SetViewport(mjrRect viewport);
+  // Adds/removes entities from the scene.
+  void AddToScene(Light* light);
+  void RemoveFromScene(Light* light);
+  void AddToScene(Drawable* drawable);
+  void RemoveFromScene(Drawable* drawable);
+  void AddToScene(filament::Skybox* skybox);
+  void RemoveFromScene(filament::Skybox* skybox);
+  void AddToScene(filament::IndirectLight* indirect_light);
+  void RemoveFromScene(filament::IndirectLight* indirect_light);
 
-  // Updates the color grading options for the main render view.
-  void SetColorGradingOptions(const ColorGradingOptions& opts);
-
-  // Updates the environment light using the KTX image at the given path.
-  void SetEnvironmentLight(std::string_view filename, float intensity);
-
-  // Updates the environment light to the fallback light
-  void SetFallbackEnvironmentLight(float intensity);
-
-  // Updates the Entities in the filament Scene to match the current mjvScene
-  // state.
-  void UpdateScene(const mjrContext* context, const mjvScene* scene);
-
+  // Parameters for rendering the scene.
   using DrawMode = Material::DrawMode;
+  struct RenderRequest {
+    // The draw mode (e.g. normal, depth, segmentation) to render.
+    DrawMode draw_mode = DrawMode::kNormal;
+    // The target viewport for the rendered image.
+    mjrRect viewport;
+    // The camera from which to render the scene.
+    mjvGLCamera camera;
+    // An optional render target into which the scene will be rendered.
+    RenderTarget* target = nullptr;
+  };
 
-  // Prepares and returns the filament View for the given draw mode.
-  filament::View* PrepareRenderView(DrawMode mode);
+  // Renders the scene.
+  void Render(filament::Renderer* renderer, const RenderRequest& request);
 
-  // Accessors.
-  filament::Engine* GetEngine() const;
+  // Returns the filament Engine managing the scene.
+  filament::Engine* GetEngine() const { return engine_; }
+
+  // Returns the underlying filament View that is used for normal rendering.
+  // Callers can update rendering settings (e.g. post processing) directly.
   filament::View* GetDefaultRenderView();
+
+  // Helpers for managing the color grading options for the default render view.
   ColorGradingOptions GetColorGradingOptions() const;
+  void SetColorGradingOptions(const ColorGradingOptions& opts);
 
   SceneView(const SceneView&) = delete;
   SceneView& operator=(const SceneView&) = delete;
 
  private:
-  void UpdateCamera(const mjvGLCamera* cameras);
+  // Marks a drawable as reflective. Reflective drawables have to be rendered
+  // in their own passes to create the reflective texture.
+  void AddReflectiveDrawable(Drawable* drawable);
 
-  void PrepareLights();
-
-  // Converts a point in world space to clip space, eg. in the range [-1,-1, 0]
-  // to [1, 1, 1]. Returns std::nullopt if the point is behind the camera.
-  std::optional<filament::math::float3> ClipFromWorld(
-      const filament::math::float3& pos) const;
-
-  ObjectManager* object_mgr_ = nullptr;
   filament::Engine* engine_ = nullptr;
   filament::Scene* scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;
-  std::vector<std::unique_ptr<Light>> lights_;
-  std::vector<std::unique_ptr<Drawable>> drawables_;
-  std::array<filament::View*, DrawMode::kNumDrawModes> views_;
-  filament::math::mat4 clip_from_world_;
   ColorGradingOptions color_grading_options_;
+  std::array<filament::View*, DrawMode::kNumDrawModes> views_;
   DrawMode active_mode_ = DrawMode::kNumDrawModes;
-  float aspect_ratio_ = 1.0f;
-  int default_shadow_map_size_ = 2048;
-  float default_vsm_blur_width_ = 0.0f;
-  float fallback_head_light_intensity_ = 0.f;
-  float fallback_scene_light_intensity_ = 80'000.f;
-  float fallback_environment_light_intensity_ = 5'000.f;
-};
 
+  // Scene objects.
+  std::unordered_set<Light*> lights_;
+  std::unordered_set<Drawable*> drawables_;
+  filament::Skybox* skybox_ = nullptr;
+  filament::IndirectLight* indirect_light_ = nullptr;
+
+  // Custom view and camera for reflective surfaces.
+  filament::View* reflect_view_ = nullptr;
+  filament::Camera* reflect_camera_ = nullptr;
+
+  // The list of reflective drawables and their corresponding render targets.
+  std::vector<Drawable*> reflectives_;
+  std::vector<std::unique_ptr<RenderTarget>> reflect_targets_;
+};
 }  // namespace mujoco
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_SCENE_VIEW_H_

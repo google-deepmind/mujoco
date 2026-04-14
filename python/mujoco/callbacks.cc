@@ -91,8 +91,7 @@ static enable_if_not_const_t<Raw, py::handle> MjWrapperLookup(Raw* ptr) {
   // TODO(stunya): Figure out a way to do this without invoking py::detail.
   {
     py::gil_scoped_acquire gil;
-    const auto [src, type] =
-        py::detail::type_caster_base<MjWrapper<Raw>>::src_and_type(wrapper);
+    auto* type = py::detail::get_type_info(typeid(MjWrapper<Raw>));
     if (type) {
       py::object instance = py::reinterpret_steal<py::object>(
           py::detail::find_registered_python_instance(wrapper, type));

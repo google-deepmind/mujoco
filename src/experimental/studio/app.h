@@ -26,18 +26,18 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/graphics_mode.h"
-#include "experimental/platform/gui.h"
-#include "experimental/platform/gui_spec.h"
-#include "experimental/platform/interaction.h"
-#include "experimental/platform/model_holder.h"
-#include "experimental/platform/picture_gui.h"
-#include "experimental/platform/renderer.h"
-#include "experimental/platform/sim_history.h"
-#include "experimental/platform/sim_profiler.h"
-#include "experimental/platform/spec_editor.h"
-#include "experimental/platform/step_control.h"
-#include "experimental/platform/window.h"
+#include "experimental/platform/hal/graphics_mode.h"
+#include "experimental/platform/hal/renderer.h"
+#include "experimental/platform/hal/window.h"
+#include "experimental/platform/sim/model_holder.h"
+#include "experimental/platform/sim/sim_history.h"
+#include "experimental/platform/sim/sim_profiler.h"
+#include "experimental/platform/sim/step_control.h"
+#include "experimental/platform/ux/gui.h"
+#include "experimental/platform/ux/gui_spec.h"
+#include "experimental/platform/ux/interaction.h"
+#include "experimental/platform/ux/picture_gui.h"
+#include "experimental/platform/ux/spec_editor.h"
 
 namespace mujoco::studio {
 

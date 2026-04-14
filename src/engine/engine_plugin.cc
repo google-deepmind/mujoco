@@ -357,6 +357,85 @@ bool GlobalTable<mjpDecoder>::CopyObject(mjpDecoder& dst, const mjpDecoder& src,
   return true;
 }
 
+template <>
+const char* GlobalTable<mjpEncoder>::HumanReadableTypeName() {
+  return "resource encoder";
+}
+
+template <>
+std::string_view GlobalTable<mjpEncoder>::ObjectKey(const mjpEncoder& encoder) {
+  if (encoder.content_type) {
+    if (int len = strklen(encoder.content_type); len != -1) {
+      return std::string_view(encoder.content_type, len);
+    }
+  }
+  return std::string_view(encoder.extension, strklen(encoder.extension));
+}
+
+template <>
+bool GlobalTable<mjpEncoder>::ObjectEqual(const mjpEncoder& e1,
+                                          const mjpEncoder& e2) {
+  bool content_type_match = false;
+  if (e1.content_type && e2.content_type) {
+    content_type_match = CaseInsensitiveEqual(e1.content_type, e2.content_type);
+  } else {
+    content_type_match = (e1.content_type == e2.content_type);
+  }
+
+  bool extension_match = false;
+  if (e1.extension && e2.extension) {
+    extension_match = CaseInsensitiveEqual(e1.extension, e2.extension);
+  } else {
+    extension_match = (e1.extension == e2.extension);
+  }
+
+  return content_type_match && extension_match
+         && e1.encode == e2.encode && e1.close_resource == e2.close_resource;
+}
+
+template <>
+bool GlobalTable<mjpEncoder>::CopyObject(mjpEncoder& dst, const mjpEncoder& src, ErrorMessage& err) {
+  dst = src;
+  dst.content_type = nullptr;
+  dst.extension = nullptr;
+
+  if (src.content_type) {
+    std::unique_ptr<char[]> content_type = CopyName(src.content_type);
+    if (!content_type) {
+      if (strklen(src.content_type) == -1) {
+        std::snprintf(
+            err, sizeof(err),
+            "encoder->content_type length exceeds the maximum limit of %d",
+            kMaxNameLength);
+      } else {
+        std::snprintf(err, sizeof(err), "failed to allocate memory for encoder content_type");
+      }
+      return false;
+    }
+
+    dst.content_type = content_type.release();
+  }
+
+  if (src.extension) {
+    std::unique_ptr<char[]> extension = CopyName(src.extension);
+    if (!extension) {
+      if (strklen(src.extension) == -1) {
+        std::snprintf(
+            err, sizeof(err),
+            "encoder->extension length exceeds the maximum limit of %d",
+            kMaxNameLength);
+      } else {
+        std::snprintf(err, sizeof(err), "failed to allocate memory for encoder extension");
+      }
+      return false;
+    }
+
+    dst.extension = extension.release();
+  }
+
+  return true;
+}
+
 // globally register a plugin (thread-safe), return new slot id
 int mjp_registerPlugin(const mjpPlugin* plugin) {
   if (!plugin->name) {
@@ -533,6 +612,75 @@ const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* conten
     auto* decoder = GlobalTable<mjpDecoder>::GetSingleton().GetByKey(extension.c_str(), nullptr);
     if (decoder && decoder->can_decode(resource)) {
       return decoder;
+    }
+  }
+
+  return nullptr;
+}
+
+void mjp_registerEncoder(const mjpEncoder* encoder) {
+  if (!encoder->encode) {
+    mju_warning("encoder must provide an encode callback.");
+    return;
+  }
+
+  if (!encoder->close_resource) {
+    mju_warning("encoder must provide a close_resource callback.");
+    return;
+  }
+
+  if (!encoder->content_type && !encoder->extension) {
+    mju_warning("encoder must provide content_type and/or extensions.");
+    return;
+  }
+
+  mjpEncoder encoder_copy = *encoder;
+
+  if (encoder->content_type) {
+    encoder_copy.extension = nullptr;
+    GlobalTable<mjpEncoder>::GetSingleton().AppendIfUnique(encoder_copy);
+  }
+
+  if (encoder->extension) {
+    encoder_copy.content_type = nullptr;
+    std::string extensions_str(encoder->extension);
+    std::stringstream ss(extensions_str);
+    std::string extension;
+    while (std::getline(ss, extension, '|')) {
+      if (!extension.empty()) {
+        encoder_copy.extension = extension.c_str();
+        GlobalTable<mjpEncoder>::GetSingleton().AppendIfUnique(encoder_copy);
+      }
+    }
+  }
+}
+
+void mjp_defaultEncoder(mjpEncoder* encoder) {
+  std::memset(encoder, 0, sizeof(*encoder));
+}
+
+const mjpEncoder* mjp_findEncoder(const char* filename,
+                                  const char* content_type) {
+  auto extension = getext(filename ? filename : "");
+  bool has_content_type = content_type && strklen(content_type) > 0;
+  if (!has_content_type && extension.empty()) {
+    mju_warning("Must provide extension or content_type to mjp_findEncoder.");
+    return nullptr;
+  }
+
+  if (has_content_type) {
+    auto* encoder =
+        GlobalTable<mjpEncoder>::GetSingleton().GetByKey(content_type, nullptr);
+    if (encoder) {
+      return encoder;
+    }
+  }
+
+  if (!extension.empty()) {
+    auto* encoder = GlobalTable<mjpEncoder>::GetSingleton().GetByKey(
+        extension.c_str(), nullptr);
+    if (encoder) {
+      return encoder;
     }
   }
 

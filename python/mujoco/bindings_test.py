@@ -1881,6 +1881,29 @@ Euler integrator, semi-implicit in velocity.
     mujoco.mj_readSensor(model, data, 0, delay, result, interp=0)
     np.testing.assert_array_equal(result, [1, 0, 0, 0])
 
+  def test_poly_stiffness(self):
+    xml = r"""
+<mujoco>
+  <worldbody>
+    <body>
+      <geom type="sphere" size="0.1"/>
+      <joint name="slide" type="slide" stiffness="1 2 3"/>
+    </body>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    self.assertEqual(model.jnt_stiffness[0], 1)
+    np.testing.assert_array_equal(
+        model.jnt_stiffnesspoly[0], [2, 3])
+
+    x = 0.5
+    data.qpos[0] = x
+    mujoco.mj_forward(model, data)
+    expected = -(1*x + 2*x*abs(x) + 3*x**3)
+    np.testing.assert_allclose(data.qfrc_spring[0], expected)
+
   def _assert_attributes_equal(self, actual_obj, expected_obj, attr_to_compare):
     for name in attr_to_compare:
       actual_value = getattr(actual_obj, name)

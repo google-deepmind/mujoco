@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +35,9 @@ MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mj
 
 // multiply JacobianT by vector
 MJAPI void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
+
+// subtract Jdot*v correction from result vector
+MJAPI void mj_Jdotv(const mjModel* m, mjData* d, mjtNum* result);
 
 
 //-------------------------- utility functions -----------------------------------------------------
@@ -57,12 +61,6 @@ MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 
 // equality constraints
 void mj_instantiateEquality(const mjModel* m, mjData* d);
-
-// frictional dofs and tendons
-void mj_instantiateFriction(const mjModel* m, mjData* d);
-
-// joint and tendon limits
-void mj_instantiateLimit(const mjModel* m, mjData* d);
 
 // frictionless and frictional contacts
 void mj_instantiateContact(const mjModel* m, mjData* d);

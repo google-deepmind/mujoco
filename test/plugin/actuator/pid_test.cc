@@ -30,7 +30,7 @@ namespace mujoco {
 namespace {
 
 using PidTest = MujocoTest;
-using ::testing::DoubleNear;
+
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -395,9 +395,9 @@ TEST_F(PidTest, ITerm) {
     mj_step(m, d);
   }
 
-  EXPECT_THAT(d->qpos[0], DoubleNear(1.0 - 10 / 40.0, 1e-5));
-  EXPECT_THAT(d->qpos[1], DoubleNear(1.0, 1e-5));
-  EXPECT_THAT(d->qpos[2], DoubleNear(1.0 - (10 - 0.125 * 40.0) / 40.0, 1e-5));
+  EXPECT_THAT(d->qpos[0], MjNear(1.0 - 10 / 40.0, 1e-5, 1e-5));
+  EXPECT_THAT(d->qpos[1], MjNear(1.0, 1e-5, 1e-5));
+  EXPECT_THAT(d->qpos[2], MjNear(1.0 - (10 - 0.125 * 40.0) / 40.0, 1e-5, 1e-5));
 }
 
 TEST_F(PidTest, FiniteDifferencing) {
@@ -494,14 +494,14 @@ TEST_F(PidTest, CtrlClamp) {
   for (int i = 0; i < 10000; i++) {
     mj_step(m, d);
   }
-  EXPECT_THAT(d->qpos[0], DoubleNear(0.75, 1e-5));
+  EXPECT_THAT(d->qpos[0], MjNear(0.75, 1e-5, 1e-5));
 
   // when applying 0, it should be clamped to 0.25
   d->ctrl[0] = 0.0;
   for (int i = 0; i < 10000; i++) {
     mj_step(m, d);
   }
-  EXPECT_THAT(d->qpos[0], DoubleNear(0.25, 1e-5));
+  EXPECT_THAT(d->qpos[0], MjNear(0.25, 1e-5, 1e-5));
 }
 
 TEST_F(PidTest, CopyData) {

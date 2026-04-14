@@ -1,5 +1,7 @@
 <mujoco>
-  <option timestep="0.01"/>
+  <option timestep="0.01">
+    <flag multiccd="enable"/>
+  </option>
 
   <worldbody>
     <body name="body">

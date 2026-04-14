@@ -135,6 +135,13 @@ MJAPI mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, 
 MJAPI mjSpec* mj_parse(const char* filename, const char* content_type,
                        const mjVFS* vfs, char* error, int error_sz);
 
+// Encode spec/model to a file using a registered encoder.
+// Returns the number of bytes written on success, -1 on failure.
+// Nullable: m, vfs, error
+MJAPI int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
+                    const char* content_type, const mjVFS* vfs, char* error,
+                    int error_sz);
+
 // Compile spec to model.
 // Nullable: vfs
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
@@ -1411,7 +1418,7 @@ MJAPI char* mju_strncpy(char *dst, const char *src, int n);
 MJAPI mjtNum mju_sigmoid(mjtNum x);
 
 
-//---------------------------------- Signed Distance Function --------------------------------------
+//---------------------------------- Signed Distance Functions -------------------------------------
 
 // get sdf from geom id
 MJAPI const mjpPlugin* mjc_getSDF(const mjModel* m, int id);
@@ -1521,6 +1528,19 @@ MJAPI void mjp_defaultDecoder(mjpDecoder* decoder);
 // Return the resource provider with the prefix that matches against the resource name.
 // If no match, return NULL.
 MJAPI const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
+
+// Globally register an encoder. This function is thread-safe.
+// If an identical mjpEncoder is already registered, this function does nothing.
+// If a non-identical mjpEncoder with the same name is already registered, an mju_error is raised.
+MJAPI void mjp_registerEncoder(const mjpEncoder* encoder);
+
+// Set default resource encoder definition.
+MJAPI void mjp_defaultEncoder(mjpEncoder* encoder);
+
+// Return the encoder that matches against the content type or filename extension.
+// If no match, return NULL.
+MJAPI const mjpEncoder* mjp_findEncoder(const char* filename, const char* content_type);
+
 
 
 //---------------------------------- Resources -----------------------------------------------------
@@ -1705,6 +1725,13 @@ MJAPI const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], do
 
 // Set actuator to active adhesion; return error if any.
 MJAPI const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
+
+// Set actuator to DC motor; return error if any.
+// Nullable: motorconst, nominal, saturation, inductance, cogging, controller, thermal, lugre
+MJAPI const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
+                                   double nominal[3], double saturation[3], double inductance[2],
+                                   double cogging[3], double controller[6], double thermal[6],
+                                   double lugre[5], int input_mode);
 
 
 //---------------------------------- Assets --------------------------------------------------------

@@ -303,7 +303,7 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
 // compute 3/6-by-nv sparse Jacobian of global point attached to given body
 void mj_jacSparse(const mjModel* m, const mjData* d,
                   mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
-                  int NV, const int* chain) {
+                  int NV, const int* chain, int flg_skipcommon) {
   // clear jacobians
   if (jacp) {
     mju_zero(jacp, 3*NV);
@@ -337,8 +337,12 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
       ci--;
     }
 
-    // make sure we found it; SHOULD NOT OCCUR
+    // dof not in chain: skip if shared dofs are excluded, otherwise SHOULD NOT OCCUR
     if (ci < 0 || chain[ci] != da) {
+      if (flg_skipcommon) {
+        da = m->dof_parentid[da];
+        continue;
+      }
       mjERROR("dof index %d not found in chain", da);
     }
 
@@ -433,7 +437,8 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
 int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
                   int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
                   mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
-                  mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr, int issparse) {
+                  mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr,
+                  int issparse, int flg_skipcommon) {
   int issimple = (m->body_simple[b1] && m->body_simple[b2]);
   int NV = m->nv;
 
@@ -447,13 +452,18 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
     if (issimple) {
       NV = mj_mergeChainSimple(m, chain, b1, b2);
     } else {
-      NV = mj_mergeChain(m, chain, b1, b2, 0);
+      NV = mj_mergeChain(m, chain, b1, b2, flg_skipcommon);
     }
   }
 
   // skip if empty chain
   if (!NV) {
     return 0;
+  }
+
+  // count-only mode
+  if (!jacdifp && !jacdifr && !jac1p && !jac1r) {
+    return NV;
   }
 
   // sparse case
@@ -472,8 +482,8 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
     // regular processing
     else {
       // Jacobians
-      mj_jacSparse(m, d, jac1p, jac1r, pos1, b1, NV, chain);
-      mj_jacSparse(m, d, jac2p, jac2r, pos2, b2, NV, chain);
+      mj_jacSparse(m, d, jac1p, jac1r, pos1, b1, NV, chain, flg_skipcommon);
+      mj_jacSparse(m, d, jac2p, jac2r, pos2, b2, NV, chain, flg_skipcommon);
 
       // differences
       if (jacdifp) {
@@ -530,7 +540,7 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
       if (m->body_simple[body[0]]) {
         mj_jacSparseSimple(m, d, jacp, jacr, point, body[0], 1, NV, 0);
       } else {
-        mj_jacSparse(m, d, jacp, jacr, point, body[0], NV, chain);
+        mj_jacSparse(m, d, jacp, jacr, point, body[0], NV, chain, /*flg_skipcommon=*/0);
       }
 
       // apply weight
@@ -547,7 +557,7 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
       if (m->body_simple[body[i]]) {
         mj_jacSparseSimple(m, d, jp, jr, point, body[i], 1, bodyNV, 0);
       } else {
-        mj_jacSparse(m, d, jp, jr, point, body[i], bodyNV, bodychain);
+        mj_jacSparse(m, d, jp, jr, point, body[i], bodyNV, bodychain, /*flg_skipcommon=*/0);
       }
 
       // combine sparse matrices
@@ -650,6 +660,92 @@ void mj_jacDot(const mjModel* m, const mjData* d,
 }
 
 
+// compute 3/6-by-NV sparse Jacobian time derivative of global point attached to given body
+void mj_jacDotSparse(const mjModel* m, const mjData* d,
+                     mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
+                     int NV, const int* chain) {
+  mjtNum offset[3];
+  mjtNum pvel[6];
+
+  // clear jacobians, compute offset and pvel if required
+  if (jacp) {
+    mju_zero(jacp, 3*NV);
+    const mjtNum* com = d->subtree_com+3*m->body_rootid[body];
+    mju_sub3(offset, point, com);
+    mju_transformSpatial(pvel, d->cvel+6*body, 0, point, com, 0);
+  }
+  if (jacr) {
+    mju_zero(jacr, 3*NV);
+  }
+
+  // skip fixed bodies
+  body = m->body_weldid[body];
+
+  // no movable body found: nothing to do
+  if (!body) {
+    return;
+  }
+
+  // get last dof that affects this body
+  int da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
+
+  // start at end of chain (chain is in increasing order)
+  int ci = NV-1;
+
+  // backward pass over dof ancestor chain
+  while (da >= 0) {
+    // find chain index for this dof
+    while (ci >= 0 && chain[ci] > da) {
+      ci--;
+    }
+
+    // dof not in chain: SHOULD NOT OCCUR
+    if (ci < 0 || chain[ci] != da) {
+      mjERROR("dof index %d not found in chain", da);
+    }
+
+    mjtNum cdof_dot[6];
+    mji_copy6(cdof_dot, d->cdof_dot+6*da);
+    mjtNum* cdof = d->cdof+6*da;
+
+    // check for quaternion
+    mjtJoint type = m->jnt_type[m->dof_jntid[da]];
+    int dofadr = m->jnt_dofadr[m->dof_jntid[da]];
+    int is_quat = type == mjJNT_BALL || (type == mjJNT_FREE && da >= dofadr + 3);
+
+    // compute cdof_dot for quaternion (use current body cvel)
+    if (is_quat) {
+      mji_crossMotion(cdof_dot, d->cvel+6*m->dof_bodyid[da], cdof);
+    }
+
+    // construct rotation jacobian
+    if (jacr) {
+      jacr[ci+0*NV] += cdof_dot[0];
+      jacr[ci+1*NV] += cdof_dot[1];
+      jacr[ci+2*NV] += cdof_dot[2];
+    }
+
+    // construct translation jacobian (correct for rotation)
+    if (jacp) {
+      // first correction term, account for varying cdof
+      mjtNum tmp1[3];
+      mji_cross(tmp1, cdof_dot, offset);
+
+      // second correction term, account for point translational velocity
+      mjtNum tmp2[3];
+      mji_cross(tmp2, cdof, pvel + 3);
+
+      jacp[ci+0*NV] += cdof_dot[3] + tmp1[0] + tmp2[0];
+      jacp[ci+1*NV] += cdof_dot[4] + tmp1[1] + tmp2[1];
+      jacp[ci+2*NV] += cdof_dot[5] + tmp1[2] + tmp2[2];
+    }
+
+    // advance to parent dof
+    da = m->dof_parentid[da];
+  }
+}
+
+
 // compute subtree angular momentum matrix
 void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
   int nv = m->nv;
@@ -683,9 +779,9 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
 
     // save the inertia matrix of b-th body
     mjtNum inertia[9] = {0};
-    inertia[0] = m->body_inertia[3*b];   // inertia(1,1)
-    inertia[4] = m->body_inertia[3*b+1]; // inertia(2,2)
-    inertia[8] = m->body_inertia[3*b+2]; // inertia(3,3)
+    inertia[0] = m->body_inertia[3*b+0];  // inertia(1,1)
+    inertia[4] = m->body_inertia[3*b+1];  // inertia(2,2)
+    inertia[8] = m->body_inertia[3*b+2];  // inertia(3,3)
 
     // term1 = body angular momentum about self COM in world frame
     mjtNum tmp1[9], tmp2[9];
@@ -929,6 +1025,109 @@ int tendonLimit(const mjModel* m, const mjtNum* ten_length, int i) {
   }
 
   return nl;
+}
+
+
+// return actuator damping contribution to joint or tendon
+mjtNum mj_actuatorDamping(const mjModel* m, mjtObj type, int id, mjtNum poly[mjNPOLY]) {
+  if (type != mjOBJ_TENDON && type != mjOBJ_JOINT) {
+    mjERROR("only joint and tendon objects can inherit damping from actuators");
+    return 0;
+  }
+
+  // get actuator id
+  int actuatorid = type == mjOBJ_JOINT ? m->jnt_actuatorid[id] : m->tendon_actuatorid[id];
+
+  if (actuatorid == -1) {
+    return 0;
+  }
+
+  mjtNum damping = 0;
+
+  // single actuator contributes damping
+  if (actuatorid >= 0) {
+    mjtNum gear2 = m->actuator_gear[6*actuatorid] * m->actuator_gear[6*actuatorid];
+    damping = m->actuator_damping[actuatorid] * gear2;
+    for (int k = 0; k < mjNPOLY; k++) {
+      poly[k] += m->actuator_dampingpoly[mjNPOLY*actuatorid+k] * gear2;
+    }
+  }
+
+  // actuatorid < -1: scan all actuators for contributions
+  else {
+    for (int k = 0; k < m->nu; k++) {
+      // skip actuators that don't actuate the given joint/tendon
+      if (m->actuator_trnid[2*k] != id) {
+        continue;
+      }
+      if (type == mjOBJ_JOINT &&
+          m->actuator_trntype[k] != mjTRN_JOINT &&
+          m->actuator_trntype[k] != mjTRN_JOINTINPARENT) {
+        continue;
+      }
+      if (type == mjOBJ_TENDON && m->actuator_trntype[k] != mjTRN_TENDON) {
+        continue;
+      }
+
+      // accumulate damping contribution
+      mjtNum gear2 = m->actuator_gear[6*k] * m->actuator_gear[6*k];
+      damping += m->actuator_damping[k] * gear2;
+      for (int j = 0; j < mjNPOLY; j++) {
+        poly[j] += m->actuator_dampingpoly[mjNPOLY*k+j] * gear2;
+      }
+    }
+  }
+
+  return damping;
+}
+
+
+// return actuator armature contribution to joint or tendon
+mjtNum mj_actuatorArmature(const mjModel* m, mjtObj type, int id) {
+  if (type != mjOBJ_TENDON && type != mjOBJ_JOINT) {
+    mjERROR("only joint and tendon objects can inherit armature from actuators");
+    return 0;
+  }
+
+  // get actuator id
+  int actuatorid = type == mjOBJ_JOINT ? m->jnt_actuatorid[id] : m->tendon_actuatorid[id];
+
+  // no actuator contribution
+  if (actuatorid == -1) {
+    return 0;
+  }
+
+  mjtNum armature = 0;
+
+  // single actuator contributes armature
+  if (actuatorid >= 0) {
+    mjtNum gear2 = m->actuator_gear[6*actuatorid] * m->actuator_gear[6*actuatorid];
+    armature = m->actuator_armature[actuatorid] * gear2;
+  }
+
+  // actuatorid < -1: scan all actuators for contributions
+  else {
+    for (int k = 0; k < m->nu; k++) {
+      // skip actuators that don't actuate the given joint/tendon
+      if (m->actuator_trnid[2*k] != id) {
+        continue;
+      }
+      if (type == mjOBJ_JOINT &&
+          m->actuator_trntype[k] != mjTRN_JOINT &&
+          m->actuator_trntype[k] != mjTRN_JOINTINPARENT) {
+        continue;
+      }
+      if (type == mjOBJ_TENDON && m->actuator_trntype[k] != mjTRN_TENDON) {
+        continue;
+      }
+
+      // accumulate armature contribution
+      mjtNum gear2 = m->actuator_gear[6*k] * m->actuator_gear[6*k];
+      armature += m->actuator_armature[k] * gear2;
+    }
+  }
+
+  return armature;
 }
 
 

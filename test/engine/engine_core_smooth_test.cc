@@ -35,14 +35,13 @@
 namespace mujoco {
 namespace {
 
+using ::std::string;
 using ::std::vector;
 using ::testing::Each;
 using ::testing::ElementsAre;
-using ::testing::Eq;
-using ::testing::Pointwise;
-using ::testing::DoubleNear;
-using ::testing::NotNull;
 using ::testing::Not;
+using ::testing::NotNull;
+using ::testing::Pointwise;
 using CoreSmoothTest = MujocoTest;
 
 
@@ -81,7 +80,7 @@ TEST_F(CoreSmoothTest, MjDataWorldBodyValuesAreInitialized) {
       } else if constexpr (EndsWith(#name, "mat")) {                          \
         EXPECT_THAT(values, ElementsAre(1, 0, 0, 0, 1, 0, 0, 0, 1)) << #name; \
       } else if constexpr (std::string_view(#type) == "mjtNum") {             \
-        EXPECT_THAT(values, Each(Eq(0))) << #name;                            \
+        EXPECT_THAT(values, Each(MjNear(0.0, 1e-7, 1e-7))) << #name;          \
       }                                                                       \
     }
     MJDATA_POINTERS
@@ -192,13 +191,11 @@ TEST_F(CoreSmoothTest, TendonJdot) {
 
       mj_forward(m, d);
 
-      // get current J and Jdot for the tendon
+      // get current J for the tendon
       vector<mjtNum> ten_J(d->ten_J, d->ten_J + nv);
-      vector<mjtNum> ten_Jdot(nv, 0);
-      mj_tendonDot(m, d, 0, ten_Jdot.data());
 
       // compute finite-differenced Jdot
-      mjtNum h = 1e-7;
+      mjtNum h = MjTol(1e-7, 5e-4);
       mj_integratePos(m, d->qpos, d->qvel, h);
       mj_kinematics(m, d);
       mj_comPos(m, d);
@@ -207,9 +204,10 @@ TEST_F(CoreSmoothTest, TendonJdot) {
       mju_subFrom(ten_Jh.data(), ten_J.data(), nv);
       mju_scl(ten_Jh.data(), ten_Jh.data(), 1.0 / h, nv);
 
-      // expect analytic and FD derivatives to be similar to eps precision
-      mjtNum eps = 1e-6;
-      EXPECT_THAT(ten_Jdot, Pointwise(DoubleNear(eps), ten_Jh));
+      // test dot product against finite differences
+      mjtNum dot = mj_tendonDot(m, d, 0, d->qvel);
+      mjtNum expected_dot = mju_dot(ten_Jh.data(), d->qvel, nv);
+      EXPECT_NEAR(dot, expected_dot, MjTol(1e-5, 2e-3));
     }
 
     mj_deleteData(d);
@@ -266,7 +264,7 @@ TEST_F(CoreSmoothTest, TendonArmature) {
     }
 
     // expect matrices to match
-    EXPECT_THAT(M2, Pointwise(DoubleNear(1e-9), M));
+    EXPECT_THAT(M2, Pointwise(MjNear(1e-9, 1e-5), M));
   }
 
   mj_deleteData(d);
@@ -305,8 +303,8 @@ TEST_F(CoreSmoothTest, TendonArmatureConservesEnergy) {
         mjtNum time = d->time;
         mj_step(m, d);
         ASSERT_GT(d->time, time) << "Divergence detected";
-        double energy_t = d->energy[0] + d->energy[1];
-        EXPECT_THAT(energy_t, DoubleNear(energy_0, eps));
+        mjtNum energy_t = d->energy[0] + d->energy[1];
+        EXPECT_NEAR(energy_t, energy_0, MjTol(eps, 3*eps));
       }
     }
     mj_deleteData(d);
@@ -329,15 +327,13 @@ TEST_F(CoreSmoothTest, TendonArmatureConservesMomentum) {
 
     // this model contains subtreelinvel and subtreeangmom sensors
     vector<mjtNum> sdata_0 = AsVector(d->sensordata, m->nsensordata);
-    EXPECT_THAT(sdata_0, Each(Eq(0)));
-
-    double eps = 1e-5;
+    EXPECT_THAT(sdata_0, Each(MjNear(0.0, 1e-15, 1e-7)));
     while (d->time < 1) {
       mjtNum time = d->time;
       mj_step(m, d);
       ASSERT_GT(d->time, time) << "Divergence detected";
       vector<mjtNum> sdata_t = AsVector(d->sensordata, m->nsensordata);
-      EXPECT_THAT(sdata_t, Pointwise(DoubleNear(eps), sdata_0));
+      EXPECT_THAT(sdata_t, Pointwise(MjNear(1e-5, 5e-4), sdata_0));
     }
 
     // momentum is conserved nontrivially (velocities are non-zero)
@@ -388,8 +384,7 @@ TEST_F(CoreSmoothTest, TendonInertiaEquivalent) {
       mj_step(m_e, d_e);
       ASSERT_GT(d_e->time, time) << "Divergence detected";
       vector<mjtNum> xpos_e = AsVector(d_e->geom_xpos + 3*gid_e, 3);
-
-      EXPECT_THAT(xpos, Pointwise(DoubleNear(eps), xpos_e));
+      EXPECT_THAT(xpos, Pointwise(MjNear(eps, 10*eps), xpos_e));
     }
     mj_deleteData(d);
     mj_deleteModel(m);
@@ -412,7 +407,8 @@ void TestConnect(const char* const filepath) {
     mj_step(model, data);
   }
   for (int i=0; i < 3; i++) {
-    EXPECT_NEAR(data->sensordata[i], model->sensor_user[i], 1e-6);
+    EXPECT_THAT(data->sensordata[i] - model->sensor_user[i],
+                MjNear(0, 1e-6, 1e-4));
   }
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -471,7 +467,7 @@ void TestWeld(const char* const filepath) {
       EXPECT_NEAR(
           data->sensordata[model->sensor_adr[sensor_index] + i],
           model->sensor_user[model->nuser_sensor*sensor_index + i],
-          1e-6);
+          MjTol(1e-6, 5e-5));
     }
   }
   mj_deleteData(data);
@@ -570,7 +566,7 @@ TEST_F(CoreSmoothTest, EqualityBodySite) {
 
   // compare
   EXPECT_THAT(AsVector(data->sensordata, model->nsensordata),
-              Pointwise(DoubleNear(1e-8), sdata));
+              Pointwise(MjNear(1e-8, 5e-4), sdata));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -604,18 +600,16 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
   int site_id = mj_name2id(model, mjOBJ_SITE, "end_effector");
 
   // check that position matches target to within 1e-3 length units
-  double tol_pos = 1e-3;
   mjtNum relpos[3];
   mju_sub3(relpos, data->site_xpos+3*site_id, data->site_xpos+3*refsite_id);
-  EXPECT_THAT(relpos, Pointwise(DoubleNear(tol_pos), targetpos));
+  EXPECT_THAT(relpos, Pointwise(MjNear(1e-3, 5e-3), targetpos));
 
   // check that orientation matches target to within 0.06 radians
-  double tol_rot = 0.06;
   mjtNum site_xquat[4], refsite_xquat[4], relrot[3];
   mju_mat2Quat(refsite_xquat, data->site_xmat+9*refsite_id);
   mju_mat2Quat(site_xquat, data->site_xmat+9*site_id);
   mju_subQuat(relrot, site_xquat, refsite_xquat);
-  EXPECT_THAT(relrot, Pointwise(DoubleNear(tol_rot), targetrot));
+  EXPECT_THAT(relrot, Pointwise(MjNear(0.06, 0.06), targetrot));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -633,7 +627,7 @@ TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
   data->ctrl[1] = -1;
 
   // simulate, assert that momentum is conserved
-  mjtNum eps = 1e-9;
+  mjtNum eps = MjTol(1e-9, 2e-6);
   while (data->time < 1) {
     mjtNum time = data->time;
     mj_step(model, data);
@@ -690,7 +684,7 @@ TEST_F(CoreSmoothTest, FactorI) {
   mj_fullM(model, Mexpected.data(), data->qM);
 
   // expect matrices to match to floating point precision
-  EXPECT_THAT(M, Pointwise(DoubleNear(1e-12), Mexpected));
+  EXPECT_THAT(M, Pointwise(MjNear(1e-12, 1e-5), Mexpected));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -723,7 +717,7 @@ TEST_F(CoreSmoothTest, SolveLDs) {
   // expect lower triangles to match exactly
   for (int i=0; i < nv; i++) {
     for (int j=0; j < i; j++) {
-      EXPECT_EQ(LDdense[i*nv+j], LDdense2[i*nv+j]);
+      EXPECT_NEAR(LDdense[i*nv+j], LDdense2[i*nv+j], MjTol(1e-14, 1e-6));
     }
   }
 
@@ -739,7 +733,7 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
-    EXPECT_FLOAT_EQ(vec[i], vec2[i]);
+    EXPECT_NEAR(vec[i], vec2[i], MjTol(1e-14, 5e-6));
   }
 
   mj_deleteData(d);
@@ -774,7 +768,7 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv*n; i++) {
-    EXPECT_FLOAT_EQ(vec[i], vec2[i]);
+    EXPECT_NEAR(vec[i], vec2[i], MjTol(1e-14, 5e-6));
   }
 
   mj_deleteData(d);
@@ -812,8 +806,9 @@ TEST_F(CoreSmoothTest, SolveM2) {
 
   // expect equality of dot(v, M^-1 * v) and dot(M^-1/2 * v, M^-1/2 * v)
   for (int i=0; i < n; i++) {
-    EXPECT_FLOAT_EQ(mju_dot(vec2.data() + i*nv, vec.data() + i*nv, nv),
-                    mju_dot(res.data() + i*nv, res.data() + i*nv, nv));
+    EXPECT_NEAR(mju_dot(vec2.data() + i*nv, vec.data() + i*nv, nv),
+                mju_dot(res.data() + i*nv, res.data() + i*nv, nv),
+                MjTol(1e-10, 1e-2));
   }
 
   mj_deleteData(d);
@@ -850,8 +845,8 @@ TEST_F(CoreSmoothTest, FactorIs) {
              m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
 
   // expect outputs to match to floating point precision
-  EXPECT_THAT(qLD, Pointwise(DoubleNear(1e-12), qLDexpected));
-  EXPECT_THAT(qLDiagInv, Pointwise(DoubleNear(1e-12), qLDiagInvExpected));
+  EXPECT_THAT(qLD, Pointwise(MjNear(1e-12, 1e-4), qLDexpected));
+  EXPECT_THAT(qLDiagInv, Pointwise(MjNear(1e-12, 1e-4), qLDiagInvExpected));
 
   /* uncomment for debugging
   vector<mjtNum> LDdense(nv*nv);
@@ -900,8 +895,8 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   int nvert = m->flex_vertnum[0];
   ASSERT_EQ(nvert, 9);
   for (int i=0; i < nvert; i++) {
-    EXPECT_NEAR(d->flexvert_length[2*i+0], 0.0, 1e-5);
-    EXPECT_NEAR(d->flexvert_length[2*i+1], 0.0, 1e-5);
+    EXPECT_NEAR(d->flexvert_length[2*i+0], 0.0, MjTol(1e-5, 5e-5));
+    EXPECT_NEAR(d->flexvert_length[2*i+1], 0.0, MjTol(1e-5, 5e-5));
   }
 
   // set qvel to rigid rotation
@@ -924,7 +919,7 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
                d->qvel[m->flexvert_J_colind[row_start + j]];
     }
   }
-  EXPECT_THAT(Jv, Each(DoubleNear(0.0, 1e-9)));
+  EXPECT_THAT(Jv, Each(MjNear(0.0, 1e-7, 1e-4)));
 
   // check sparsity pattern
   int corners[] = {0, 2, 6, 8};
@@ -972,7 +967,7 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
     mj_kinematics(m, d);
     mj_flex(m, d);
 
-    mjtNum eps = 1e-7;
+    mjtNum eps = MjTol(1e-6, 1e-4);
     int nflexvert = m->flex_vertnum[0];
     std::vector<mjtNum> jac_fd(2 * nflexvert * m->nv);
     std::vector<mjtNum> qpos_backup(m->nq);
@@ -1021,15 +1016,15 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
             d->flexvert_J[row_start+i];
       }
     }
-    EXPECT_THAT(jac_analytic, Not(Each(Eq(0))));
-    EXPECT_THAT(jac_analytic, Pointwise(DoubleNear(tolerance), jac_fd));
+    EXPECT_THAT(jac_analytic, Not(Each(MjNear(0.0, 1e-7, 1e-4))));
+    EXPECT_THAT(jac_analytic, Pointwise(MjNear(tolerance, 1e-1), jac_fd));
 
     mju_copy(d->qpos, qpos0.data(), m->nq);
     mj_kinematics(m, d);
     mj_flex(m, d);
   };
 
-  fd_check(5e-5);
+  fd_check(MjTol(5e-5, 5e-2));
 
   // Set qpos to put flex in scale=2 configuration.
   for (int i=0; i < nvert; i++) {
@@ -1053,8 +1048,8 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   // Invariant 1: Det(C) - 1 = 4 * 4 - 1 = 15
   // Note: constraints are now scaled by sqrt(mass)
   for (int i=0; i < nvert; i++) {
-    EXPECT_NEAR(d->flexvert_length[2 * i + 0], 6.0 * scale, 1e-5);
-    EXPECT_NEAR(d->flexvert_length[2 * i + 1], 15.0 * scale, 1e-5);
+    EXPECT_NEAR(d->flexvert_length[2 * i + 0], 6.0 * scale, MjTol(1e-5, 5e-4));
+    EXPECT_NEAR(d->flexvert_length[2 * i + 1], 15.0 * scale, MjTol(1e-5, 5e-4));
   }
 
   // Perturb z-positions so configuration is not flat

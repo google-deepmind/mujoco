@@ -327,6 +327,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // set attached flag
   void SetAttached(bool deepcopy) { attached_ |= !deepcopy; }
 
+  // check if model is attached
+  bool IsAttached() const { return attached_; }
+
   // check for repeated names in list
   void CheckRepeat(mjtObj type);
 

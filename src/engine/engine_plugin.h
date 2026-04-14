@@ -71,6 +71,15 @@ MJAPI void mjp_defaultDecoder(mjpDecoder* decoder);
 // find a decoder that can process a given resource
 MJAPI const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
 
+// registers a resource encoder
+MJAPI void mjp_registerEncoder(const mjpEncoder* encoder);
+
+// set default encoder definition
+MJAPI void mjp_defaultEncoder(mjpEncoder* encoder);
+
+// find an encoder that can write a given format
+MJAPI const mjpEncoder* mjp_findEncoder(const char* filename, const char* content_type);
+
 // =================================================================================================
 // MuJoCo-internal functions beyond this point.
 // "Unsafe" suffix indicates that improper use of these functions may result in data races.

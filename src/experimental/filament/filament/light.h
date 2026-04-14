@@ -20,7 +20,6 @@
 #include <math/vec3.h>
 #include <utils/Entity.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
@@ -51,7 +50,7 @@ class Light {
     bool headlight = false;
   };
 
-  Light(ObjectManager* object_mgr, const Params& params);
+  Light(filament::Engine* engine, const Params& params);
   ~Light() noexcept;
 
   Light(const Light&) = delete;

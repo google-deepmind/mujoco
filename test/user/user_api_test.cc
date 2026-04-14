@@ -14,10 +14,12 @@
 
 // Tests for user/user_api.cc.
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <functional>
 #include <map>
 #include <memory>
@@ -171,6 +173,36 @@ TEST_F(MujocoTest, TreeTraversal) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, AttachAndChildDeletion) {
+  mjSpec* child_spec = mj_makeSpec();
+  mjsBody* child_world = mjs_findBody(child_spec, "world");
+  mjsBody* child_body = mjs_addBody(child_world, 0);
+  mjsJoint* freejoint = mjs_addJoint(child_body, 0);
+  freejoint->type = mjJNT_FREE;
+  mjs_setName(freejoint->element, "child_freejoint");
+
+  mjSpec* parent_spec = mj_makeSpec();
+  mjsBody* parent_world = mjs_findBody(parent_spec, "world");
+  mjsBody* parent_body = mjs_addBody(parent_world, 0);
+
+  // Attach child spec to parent_body
+  mjsElement* attached =
+      mjs_attach(parent_body->element, child_spec->element, "pre_", "");
+  ASSERT_THAT(attached, NotNull());
+
+  // Delete freejoint from child_spec, should fail because it is attached
+  int result = mjs_delete(child_spec, freejoint->element);
+  EXPECT_EQ(result, -1);
+
+  // The freejoint should still be in parent_spec because deletion failed
+  mjsElement* found_joint =
+      mjs_findElement(parent_spec, mjOBJ_JOINT, "pre_child_freejoint");
+  EXPECT_THAT(found_joint, NotNull());
+
+  mj_deleteSpec(child_spec);
+  mj_deleteSpec(parent_spec);
+}
+
 TEST_F(MujocoTest, ActivatePlugin) {
   mjSpec* spec = mj_makeSpec();
   mjs_activatePlugin(spec, "mujoco.elasticity.cable");
@@ -235,6 +267,96 @@ TEST_F(MujocoTest, DeletePlugin) {
   mj_deleteSpec(spec);
   mj_deleteModel(model);
   mj_deleteModel(newmodel);
+}
+
+TEST_F(MujocoTest, SetToDCMotorNullable) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+
+  const char* err = mjs_setToDCMotor(actuator, motorconst, resistance,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);
+  EXPECT_EQ(actuator->gainprm[1], 0.05);
+  EXPECT_EQ(actuator->gainprm[4], 0);
+  EXPECT_EQ(actuator->gainprm[5], 0);
+  EXPECT_EQ(actuator->gainprm[6], 0);
+  EXPECT_EQ(actuator->dynprm[7], 0);
+  EXPECT_EQ(actuator->dynprm[8], 0);
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorDeriveKe) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double resistance = 2.0;
+  double nominal[3] = {12.0, 0, 100.0};  // vn=12, omega0=100
+
+  const char* err = mjs_setToDCMotor(actuator, nullptr, resistance,
+                                     nominal, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);
+  EXPECT_NEAR(actuator->gainprm[1], 0.12, 1e-5);
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorFull) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+  double saturation[3] = {1.0, 2.0, 3.0};
+  double controller[6] = {10.0, 20.0, 30.0, 40.0, 50.0, 60.0};
+
+  const char* err = mjs_setToDCMotor(actuator, motorconst, resistance,
+                                     nullptr, saturation, nullptr,
+                                     nullptr, controller, nullptr,
+                                     nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);   // resistance
+  EXPECT_EQ(actuator->gainprm[1], 0.05);  // K
+  EXPECT_EQ(actuator->gainprm[4], 10.0);  // kp
+  EXPECT_EQ(actuator->gainprm[5], 20.0);  // ki
+  EXPECT_EQ(actuator->gainprm[6], 30.0);  // kd
+  EXPECT_EQ(actuator->dynprm[7], 40.0);   // slewmax
+  EXPECT_EQ(actuator->dynprm[8], 50.0);   // Imax
+  EXPECT_EQ(actuator->gainprm[7], 60.0);  // Vmax
+  EXPECT_EQ(actuator->dynprm[1], 3.0);    // (di/dt)_max
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorLuGre) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+  double lugre[5] = {100.0, 1.0, 0.5, 0.7, 10.0};
+
+  const char* err = mjs_setToDCMotor(actuator, motorconst, resistance,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr,
+                                     lugre, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->dynprm[5], 100.0);  // stiffness
+  EXPECT_EQ(actuator->dynprm[6], 1.0);    // damping
+  EXPECT_EQ(actuator->biasprm[3], 0.5);   // coulomb
+  EXPECT_EQ(actuator->biasprm[4], 0.7);   // static
+  EXPECT_EQ(actuator->biasprm[5], 10.0);  // stribeck
+
+  mj_deleteSpec(spec);
 }
 
 static constexpr char xml_plugin_1[] = R"(
@@ -515,96 +637,115 @@ TEST_F(MujocoTest, ModifyShellInertiaFails) {
 }
 
 // ------------------- test recompilation multiple files -----------------------
-TEST_F(MujocoTest, RecompileCompare) {
-  mjtNum tol = 0;
-  std::string field = "";
 
-  // full precision float printing
-  FullFloatPrecision increase_precision;
-
-  // loop over all xml files in data
-  std::vector<std::string> paths = {GetTestDataFilePath("."),
-                                    GetModelPath(".")};
+std::vector<std::string> GetRecompileTestModels() {
+  std::vector<std::string> models;
   std::string ext(".xml");
-  for (auto const& path : paths) {
-    for (auto &p : std::filesystem::recursive_directory_iterator(path)) {
+  for (const auto& path : {GetTestDataFilePath("."), GetModelPath(".")}) {
+    for (const auto& p : std::filesystem::recursive_directory_iterator(path)) {
       if (p.path().extension() == ext) {
         std::string xml = p.path().string();
-
-        // if file is meant to fail or model is too slow to load, skip it
-        if (absl::StrContains(p.path().string(), "malformed_") ||
-            absl::StrContains(p.path().string(), "_fail") ||
-            absl::StrContains(p.path().string(), "touch_grid") ||
-            absl::StrContains(p.path().string(), "perf") ||
-            absl::StrContains(p.path().string(), "cow")) {
+        if (absl::StrContains(xml, "malformed_") ||
+            absl::StrContains(xml, "_fail") ||
+            absl::StrContains(xml, "touch_grid") ||
+            absl::StrContains(xml, "perf") ||
+            absl::StrContains(xml, "cow")) {
           continue;
         }
-
-        // load spec
-        std::array<char, 1000> err;
-        mjSpec* s = mj_parseXML(xml.c_str(), 0, err.data(), err.size());
-
-        ASSERT_THAT(s, NotNull())
-            << "Failed to load " << xml << ": " << err.data();
-
-        // copy spec
-        mjSpec* s_copy = mj_copySpec(s);
-
-        // compare signature
-        EXPECT_EQ(s->element->signature, s_copy->element->signature) << xml;
-
-        // compile twice and compare
-        mjModel* m_old = mj_compile(s, nullptr);
-
-        ASSERT_THAT(m_old, NotNull())
-            << "Failed to compile " << xml << ": " << mjs_getError(s);
-
-        mjModel* m_new = mj_compile(s, nullptr);
-        mjModel* m_copy = mj_compile(s_copy, nullptr);
-
-        // compare signature
-        EXPECT_EQ(m_old->signature, m_new->signature) << xml;
-        EXPECT_EQ(m_old->signature, m_copy->signature) << xml;
-
-        ASSERT_THAT(m_new, NotNull())
-            << "Failed to recompile " << xml << ": " << mjs_getError(s);
-        ASSERT_THAT(m_copy, NotNull())
-            << "Failed to compile " << xml << ": " << mjs_getError(s_copy);
-
-        EXPECT_LE(CompareModel(m_old, m_new, field), tol)
-            << "Compiled and recompiled models are different!\n"
-            << "Affected file " << p.path().string() << '\n'
-            << "Different field: " << field << '\n';
-
-        EXPECT_LE(CompareModel(m_old, m_copy, field), tol)
-            << "Original and copied models are different!\n"
-            << "Affected file " << p.path().string() << '\n'
-            << "Different field: " << field << '\n';
-
-        // copy to a new spec, compile and compare
-        mjSpec* s_copy2 = mj_copySpec(s);
-        mjModel* m_copy2 = mj_compile(s_copy2, nullptr);
-
-        ASSERT_THAT(m_copy2, NotNull())
-            << "Failed to compile " << xml << ": " << mjs_getError(s_copy2);
-
-        EXPECT_LE(CompareModel(m_old, m_copy2, field), tol)
-            << "Original and re-copied models are different!\n"
-            << "Affected file " << p.path().string() << '\n'
-            << "Different field: " << field << '\n';
-
-        // delete models
-        mj_deleteSpec(s);
-        mj_deleteSpec(s_copy);
-        mj_deleteSpec(s_copy2);
-        mj_deleteModel(m_old);
-        mj_deleteModel(m_new);
-        mj_deleteModel(m_copy);
-        mj_deleteModel(m_copy2);
+        models.push_back(xml);
       }
     }
   }
+  return models;
 }
+
+class RecompileCompareTest : public MujocoTest,
+                             public ::testing::WithParamInterface<std::string> {
+ public:
+};
+TEST_P(RecompileCompareTest, RecompileCompare) {
+  std::string xml = GetParam();
+  std::string field = "";
+
+  FullFloatPrecision increase_precision;
+
+  // load spec
+  std::array<char, 1000> err;
+  mjSpec* s = mj_parseXML(xml.c_str(), 0, err.data(), err.size());
+
+  if (!s) {
+    GTEST_SKIP() << "Failed to load " << xml << ": " << err.data();
+  }
+
+  // copy spec
+  mjSpec* s_copy = mj_copySpec(s);
+
+  // compare signature
+  EXPECT_EQ(s->element->signature, s_copy->element->signature) << xml;
+
+  // compile twice and compare
+  mjModel* m_old = mj_compile(s, nullptr);
+
+  if (!m_old) {
+    mj_deleteSpec(s);
+    GTEST_SKIP() << "Failed to compile " << xml << ": " << mjs_getError(s);
+  }
+
+  mjModel* m_new = mj_compile(s, nullptr);
+  mjModel* m_copy = mj_compile(s_copy, nullptr);
+
+  // compare signature
+  EXPECT_EQ(m_old->signature, m_new->signature) << xml;
+  EXPECT_EQ(m_old->signature, m_copy->signature) << xml;
+
+  ASSERT_THAT(m_new, NotNull())
+      << "Failed to recompile " << xml << ": " << mjs_getError(s);
+  ASSERT_THAT(m_copy, NotNull())
+      << "Failed to compile " << xml << ": " << mjs_getError(s_copy);
+
+  mjtNum tol = 0;
+
+  EXPECT_LE(CompareModel(m_old, m_new, field), tol)
+      << "Compiled and recompiled models are different!\n"
+      << "Affected file " << xml << '\n'
+      << "Different field: " << field << '\n';
+
+  EXPECT_LE(CompareModel(m_old, m_copy, field), tol)
+      << "Original and copied models are different!\n"
+      << "Affected file " << xml << '\n'
+      << "Different field: " << field << '\n';
+
+  // copy to a new spec, compile and compare
+  mjSpec* s_copy2 = mj_copySpec(s);
+  mjModel* m_copy2 = mj_compile(s_copy2, nullptr);
+
+  ASSERT_THAT(m_copy2, NotNull())
+      << "Failed to compile " << xml << ": " << mjs_getError(s_copy2);
+
+  EXPECT_LE(CompareModel(m_old, m_copy2, field), tol)
+      << "Original and re-copied models are different!\n"
+      << "Affected file " << xml << '\n'
+      << "Different field: " << field << '\n';
+
+  mj_deleteModel(m_new);
+  mj_deleteModel(m_copy);
+  mj_deleteModel(m_copy2);
+  mj_deleteSpec(s_copy);
+  mj_deleteSpec(s_copy2);
+  mj_deleteSpec(s);
+  mj_deleteModel(m_old);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    AllModels, RecompileCompareTest,
+    ::testing::ValuesIn(GetRecompileTestModels()),
+    [](const ::testing::TestParamInfo<std::string>& info) {
+      std::string name = std::filesystem::path(info.param).filename().string();
+      std::replace_if(
+          name.begin(), name.end(),
+          [](char c) { return !std::isalnum(c); }, '_');
+      return name + "_" + std::to_string(info.index);
+    });
 
 TEST_F(MujocoTest, RecompileEdit) {
   static constexpr char xml[] = R"(

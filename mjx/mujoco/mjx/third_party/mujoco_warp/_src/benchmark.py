@@ -57,12 +57,12 @@ def ctrl_noise(
   worldid, actid = wp.tid()
 
   # convert rate and scale to discrete time (Ornstein-Uhlenbeck)
-  rate = wp.exp(-opt_timestep[0] / ctrlnoiserate)
+  rate = wp.exp(-opt_timestep[worldid % opt_timestep.shape[0]] / ctrlnoiserate)
   scale = ctrlnoisestd * wp.sqrt(1.0 - rate * rate)
 
   midpoint = 0.0
   halfrange = 1.0
-  ctrlrange = actuator_ctrlrange[0, actid]
+  ctrlrange = actuator_ctrlrange[worldid % actuator_ctrlrange.shape[0], actid]
   is_limited = actuator_ctrllimited[actid]
   if is_limited:
     midpoint = 0.5 * (ctrlrange[1] + ctrlrange[0])

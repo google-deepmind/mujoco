@@ -18,7 +18,53 @@ TypeScript.
 > in CI but as of November 13th 2025, Windows support remains experimental
 > (installation succeeded on one Windows 11 machine but failed on others)._
 
-## Prerequisites
+## Installation
+
+The easiest way to use the MuJoCo JavaScript bindings is to install the
+`@mujoco/mujoco` package from npm:
+
+```sh
+npm install @mujoco/mujoco
+```
+
+This package is ESM (`type: module`) and includes the pre-compiled WebAssembly
+module, JavaScript bindings, and TypeScript declarations. Ensure your bundler or
+dev server serves the `.wasm` asset at runtime.
+
+### Threading Models
+
+The `@mujoco/mujoco` package includes two distinct builds of the engine to
+support different browser environments and performance needs.
+
+#### 1. Single-Threaded (Default)
+
+The standard single-threaded version is located at the root of the package. It
+is compatible with all modern browsers and does not require special security
+headers.
+```typescript
+import loadMujoco from '@mujoco/mujoco';
+```
+
+#### 2. Multi-Threaded (MT)
+
+The multi-threaded version is located in the `/mt` subfolder. It utilizes Web
+Workers and `SharedArrayBuffer` to parallelize physics computations.
+```typeScript
+import loadMujoco from '@mujoco/mujoco/mt';
+```
+
+> [!NOTE]
+> Due to the use of `SharedArrayBuffer`, browsers require Cross-Origin Isolation
+> to enable multi-threading. Your web server must send the following HTTP
+> headers:
+>    - `Cross-Origin-Opener-Policy: same-origin`
+>    - `Cross-Origin-Embedder-Policy: require-corp`
+>
+> If these headers are missing, the module will fail to initialize.
+
+## Build from source
+
+### Prerequisites
 
 > [!NOTE]
 > Run all the commands in this README from the top-level directory.
@@ -69,12 +115,8 @@ TypeScript.
 > browser as a platform, see the
 > [Porting](https://emscripten.org/docs/porting/index.html#porting) section._
 
-## User Guide
-
-### Bindings Generation
-
 The [`bindings.cc`](codegen/generated/bindings.cc) file is compiled to generate
-to `.wasm` WebAssembly file, `.js` JavaScript import, and `.d.ts` TypeScript
+the `.wasm` WebAssembly file, `.js` JavaScript import, and `.d.ts` TypeScript
 declaration file. These are the files you'll use to call MuJoCo from JavaScript.
 To generate them ensure the npm and Emscripten SDK prerequisites are set up and
 then run the following:
@@ -87,6 +129,14 @@ This command will generate the following folders under the project root:
 
 - `build`: contains MuJoCo compiled using Emscripten.
 - `wasm/dist`: contains the WebAssembly module, `.js` and `.d.ts` files.
+
+The assets inside those folders are compiled and prepared to run as
+single-threaded. If you need to operate with a multi-threaded version of the
+module make sure to pass the `-DMUJOCO_WASM_THREADS=ON` flag like:
+
+```sh
+emcmake cmake -B build -DMUJOCO_WASM_THREADS=ON && cmake --build build
+```
 
 ### Example Application
 
@@ -110,9 +160,7 @@ write your application in C++ and compile it using Emscripten, you may want to
 copy a subset of the `EMSCRIPTEN_BINDINGS` from `bindings.cc` into your
 application’s source file.
 
-The package is ESM (`type: module`) and ships TypeScript types.
-Ensure your bundler or dev server serves the `.wasm` asset at runtime.
-
+## User Guide
 ### Named Access
 
 The bindings support named access methods, similar to the Python bindings,
@@ -307,7 +355,7 @@ The function `mjv_updateScene` populates an `mjvScene` object with information
 from `mjModel` and `mjData`.
 ```typescript
 // Create instances of the necessary structs.
-const model = mujoco.MjModel.loadFromXML(xmlContent);
+const model = mujoco.MjModel.from_xml_string(xmlContent);
 const data = new mujoco.MjData(model);
 const scene = new mujoco.MjvScene(model, 1000);
 const option = new mujoco.MjvOption();
@@ -348,22 +396,30 @@ mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL.value
 ```
 
 ### Constants
-Scalar constants will be accessed the same way they are on python, simply:
+Scalar constants can be accessed as properties:
 
 ```javascript
 mujoco.mjNEQDATA
 ```
 
-Due to Embind limitations, more complex constants that are not scalar, but are
-represented in more dimensions are exposed as functions. E.g. to use
-`mujoco.mjFRAMESTRING` you will need to call a function:
+Non-scalar constants like `mjFRAMESTRING` are also accessed as properties, and
+return JavaScript arrays:
 
 ```javascript
-mujoco.get_mjFRAMESTRING()
+mujoco.mjFRAMESTRING
 ```
 
 This will return a javascript array representation of the values in MuJoCo
 `mjFRAMESTRING`.
+
+> [!NOTE]
+> You will notice constants like `mjFRAMESTRING` are typed as `any`. This is
+> because they are bound using `emscripten::val::array()` in C++, and Embind
+> maps `emscripten::val` to `any` in TypeScript definition files. While
+> `EMSCRIPTEN_DECLARE_VAL_TYPE(StringArray)` could be used to define
+> `StringArray` as an alias for `emscripten::val` and hint to Embind how to
+> handle conversions in function signatures or when using `.as()` it does not
+> change how `emscripten::constant` infers types for properties.
 
 ## Development
 

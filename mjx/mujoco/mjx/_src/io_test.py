@@ -136,7 +136,7 @@ class ModelIOTest(parameterized.TestCase):
 
   @parameterized.product(
       xml=(_MULTIPLE_CONVEX_OBJECTS, _MULTIPLE_CONSTRAINTS),
-      impl=('jax', 'c', 'warp', 'cpp'),
+      impl=('jax', 'warp', 'cpp'),
   )
   @mock.patch.dict(os.environ, {'MJX_GPU_DEFAULT_WARP': 'true'})
   def test_put_model(self, xml, impl):
@@ -169,11 +169,7 @@ class ModelIOTest(parameterized.TestCase):
     if impl == 'jax':
       # fields restricted to MuJoCo should not be populated
       self.assertFalse(hasattr(mx, 'bvh_aabb'))
-    elif impl == 'c':
-      # Options specific to C are populated.
-      self.assertEqual(mx.opt._impl.noslip_iterations, m.opt.noslip_iterations)
-      # Fields private to C backend impl are populated.
-      self.assertTrue(hasattr(mx._impl, 'bvh_aabb'))
+
     elif impl == 'warp':
       # Options specific to Warp are populated.
       self.assertTrue(hasattr(mx.opt._impl, 'ls_parallel'))
@@ -347,8 +343,7 @@ class ModelIOTest(parameterized.TestCase):
     expected = graph_mode or mjxw_types.GraphMode.WARP
     self.assertEqual(mx.opt._impl.graph_mode, expected)
 
-  @parameterized.parameters('c', 'jax')
-  def test_unsupported_contact_types(self, impl):
+  def test_unsupported_contact_types(self):
     """Tests that unsupported contact types raise an error."""
     m = mujoco.MjModel.from_xml_string("""
       <mujoco>
@@ -368,11 +363,8 @@ class ModelIOTest(parameterized.TestCase):
       </mujoco>
     """)
 
-    if impl == 'jax':
-      with self.assertRaises(ValueError):
-        mjx.make_data(m, impl=impl)
-    if impl == 'c':
-      mjx.make_data(m, impl=impl)
+    with self.assertRaises(ValueError):
+      mjx.make_data(m, impl='jax')
 
 
 class DataIOTest(parameterized.TestCase):
@@ -384,7 +376,7 @@ class DataIOTest(parameterized.TestCase):
       self.tempdir = tempfile.TemporaryDirectory()
       wp.config.kernel_cache_dir = self.tempdir.name
 
-  @parameterized.parameters('jax', 'c', 'cpp')
+  @parameterized.parameters('jax', 'cpp')
   def test_make_data(self, impl: str):
     """Test that make_data returns the correct shapes."""
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
@@ -431,8 +423,7 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d._impl.crb.shape, (nbody, 10))
     if impl == 'jax':
       self.assertEqual(d._impl.actuator_moment.shape, (1, nv))
-    elif impl == 'c':
-      self.assertEqual(d._impl.actuator_moment.shape, (m.nJmom,))
+
     self.assertEqual(d._impl.contact.dist.shape, (ncon,))
     self.assertEqual(d._impl.contact.pos.shape, (ncon, 3))
     self.assertEqual(d._impl.contact.frame.shape, (ncon, 3, 3))
@@ -460,10 +451,7 @@ class DataIOTest(parameterized.TestCase):
       self.assertEqual(d._impl.qM.shape, (nv, nv))
       self.assertEqual(d._impl.qLD.shape, (nv, nv))
       self.assertEqual(d._impl.qLDiagInv.shape, (0,))
-    elif impl == 'c':
-      self.assertEqual(d._impl.qM.shape, (nm,))
-      self.assertEqual(d._impl.qLD.shape, (nm,))
-      self.assertEqual(d._impl.qLDiagInv.shape, (nv,))
+
 
     # test sparse
     m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
@@ -472,10 +460,7 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d._impl.qLD.shape, (nm,))
     self.assertEqual(d._impl.qLDiagInv.shape, (nv,))
 
-    if impl == 'c':
-      # check C specific fields
-      self.assertEqual(d._impl.light_xpos.shape, (m.nlight, 3))
-      self.assertEqual(d._impl.bvh_active.shape, (m.nbvh,))
+
 
   @mock.patch.dict(os.environ, {'MJX_GPU_DEFAULT_WARP': 'true'})
   def test_make_data_warp(self):
@@ -486,7 +471,7 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d._impl.contact__dist.shape[0], 9)
     self.assertEqual(d._impl.efc__pos.shape[0], 23)
 
-  @parameterized.parameters('jax', 'c', 'cpp', 'warp')
+  @parameterized.parameters('jax', 'cpp', 'warp')
   def test_put_data(self, impl: str):
     """Test that put_data puts the correct data for dense and sparse."""
     if impl == 'warp':
@@ -527,10 +512,7 @@ class DataIOTest(parameterized.TestCase):
       qm = np.zeros((m.nv, m.nv), dtype=np.float64)
       mujoco.mj_fullM(m, qm, d.qM)
       np.testing.assert_allclose(qm, mjx.full_m(mjx.put_model(m), dx))
-    elif impl == 'c':
-      np.testing.assert_allclose(dx._impl.qM, d.qM)
-      np.testing.assert_allclose(dx._impl.qLD, d.qLD)
-      np.testing.assert_allclose(dx._impl.qLDiagInv, d.qLDiagInv)
+
     elif impl == 'cpp':
       self.assertTrue(hasattr(dx._impl, 'pointer_lo'))
       self.assertTrue(hasattr(dx._impl, 'pointer_hi'))
@@ -606,8 +588,7 @@ class DataIOTest(parameterized.TestCase):
       qm = np.zeros((m.nv, m.nv))
       mujoco.mj_fullM(m, qm, d.qM)
       np.testing.assert_allclose(dx_from_dense._impl.qM, qm, atol=1e-8)
-    elif impl == 'c':
-      np.testing.assert_allclose(dx_from_dense._impl.qM, d.qM, atol=1e-8)
+
 
   def test_put_data_warp_ndim(self):
     """Tests that put_data produces expected dimensions for Warp fields."""
@@ -633,7 +614,7 @@ class DataIOTest(parameterized.TestCase):
     _ = jax.tree.map_with_path(check_ndim, dx)
 
   @parameterized.parameters(
-      ('jax', False), ('jax', True), ('c', False), ('c', True)
+      ('jax', False), ('jax', True)
   )
   def test_get_data(self, impl: str, sparse: bool):
     """Test that get_data makes correct MjData."""
@@ -698,9 +679,6 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(d_2.efc_aref, d.efc_aref)
     np.testing.assert_allclose(d_2.contact.efc_address, d.contact.efc_address)
 
-    if impl == 'c':
-      # check fields specific to the C implementation
-      np.testing.assert_allclose(d_2.bvh_active, d.bvh_active)
 
   def test_get_data_simplebody(self):
     """Test that get_data works with simple bodies where nC < nM."""
@@ -732,7 +710,7 @@ class DataIOTest(parameterized.TestCase):
     dx = mjx.put_data(m, d)
     mjx.get_data(m, dx)
 
-  @parameterized.parameters('jax', 'c')
+  @parameterized.parameters(('jax',))
   def test_get_data_batched(self, impl):
     """Test that get_data makes correct List[MjData] for batched Data."""
 
@@ -749,7 +727,7 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(ds[0].ncon, 1)
     self.assertEqual(ds[1].ncon, 0)
 
-  @parameterized.parameters('jax', 'c', 'cpp')
+  @parameterized.parameters('jax', 'cpp')
   def test_get_data_into(self, impl):
     """Test that get_data_into correctly populates an MjData."""
 
@@ -787,7 +765,7 @@ class DataIOTest(parameterized.TestCase):
     dx = mjx.make_data(m, impl='warp')
     mjx.get_data_into(d, mx, dx)
 
-  @parameterized.parameters('jax', 'c')
+  @parameterized.parameters(('jax',))
   def test_get_data_into_wrong_shape(self, impl):
     """Tests that get_data_into throwsif input and output shapes don't match."""
 
@@ -800,7 +778,7 @@ class DataIOTest(parameterized.TestCase):
     with self.assertRaisesRegex(ValueError, r'Input field.*has shape.*'):
       mjx.get_data_into(d_2, m, dx)
 
-  @parameterized.parameters('jax', 'c')
+  @parameterized.parameters(('jax',))
   def test_make_matches_put(self, impl):
     """Test that make_data produces a pytree that matches put_data."""
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
@@ -942,11 +920,11 @@ _DEVICE_TEST_CASES = [
     ('gpu-notnvidia', 'warp', ('gpu', 'error')),
     ('gpu-nvidia', 'warp', ('gpu', Impl.WARP)),
     ('tpu', 'warp', ('tpu', 'error')),
-    # C backend specified.
-    ('cpu', 'c', ('cpu', Impl.C)),
-    ('gpu-notnvidia', 'c', ('cpu', 'error')),
-    ('gpu-nvidia', 'c', ('cpu', 'error')),
-    ('tpu', 'c', ('tpu', 'error')),
+    # CPP backend specified.
+    ('cpu', 'cpp', ('cpu', Impl.CPP)),
+    ('gpu-notnvidia', 'cpp', ('cpu', 'error')),
+    ('gpu-nvidia', 'cpp', ('cpu', 'error')),
+    ('tpu', 'cpp', ('tpu', 'error')),
 ]
 
 # Test cases for `_resolve_impl_and_device` where the user does NOT
@@ -970,11 +948,11 @@ _DEFAULT_DEVICE_TEST_CASES = [
     ('gpu-notnvidia', 'warp', ('cpu', Impl.WARP)),
     ('gpu-nvidia', 'warp', ('gpu', Impl.WARP)),
     ('tpu', 'warp', ('cpu', Impl.WARP)),
-    # C backend impl specified, CPU should always be available.
-    ('cpu', 'c', ('cpu', Impl.C)),
-    ('gpu-notnvidia', 'c', ('cpu', Impl.C)),
-    ('gpu-nvidia', 'c', ('cpu', Impl.C)),
-    ('tpu', 'c', ('cpu', Impl.C)),
+    # CPP backend impl specified, CPU should always be available.
+    ('cpu', 'cpp', ('cpu', Impl.CPP)),
+    ('gpu-notnvidia', 'cpp', ('cpu', Impl.CPP)),
+    ('gpu-nvidia', 'cpp', ('cpu', Impl.CPP)),
+    ('tpu', 'cpp', ('cpu', Impl.CPP)),
 ]
 
 

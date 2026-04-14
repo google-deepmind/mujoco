@@ -15,12 +15,12 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_EDITOR_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_EDITOR_H_
 
-#include "experimental/filament/filament/scene_view.h"
+#include "experimental/filament/filament/scene_bridge.h"
 
 namespace mujoco {
 
 // Generates a ImGui Window for the given scene views.
-void DrawGui(SceneView* scene_views);
+void DrawGui(SceneBridge* scene_bridge);
 
 }  // namespace mujoco
 

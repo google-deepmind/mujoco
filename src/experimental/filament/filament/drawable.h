@@ -15,58 +15,54 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_DRAWABLE_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_DRAWABLE_H_
 
-#include <cstdint>
-
-#include <filament/Engine.h>
-#include <filament/Scene.h>
+#include <math/mat4.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
-#include "experimental/filament/filament/buffer_util.h"
 #include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/renderables.h"
+#include "experimental/filament/filament/renderable.h"
 
 namespace mujoco {
 
 // Manages the filament Entities and MaterialInstances for a single mjvGeom.
 class Drawable {
  public:
-  Drawable(ObjectManager* object_mgr, const mjvGeom& geom);
+  Drawable(ModelObjects* model_objects, const mjvScene* scene,
+           const mjvGeom& geom);
   ~Drawable() noexcept = default;
 
   Drawable(const Drawable&) = delete;
   Drawable& operator=(const Drawable&) = delete;
 
-  // Adds the Drawable to the given filament Scene. Note that a Drawable can
-  // only be assigned to a single Scene at any given time.
-  void AddToScene(filament::Scene* scene);
-
-  // Removes the Drawable from the given filament Scene.
-  void RemoveFromScene(filament::Scene* scene);
-
-  // Updates the drawable to reflect the current state (e.g. geometry,
-  // transform, material, etc.) of the geom.
-  void Update(const mjModel* model, const mjvScene* scene, const mjvGeom& geom);
-
-  // Swaps the MaterialInstance that will be used to render the Drawable (e.g.
-  // normal, depth, segmentation, etc.). This must be called before the filament
-  // beginFrame/endFrame.
-  void SetDrawMode(Material::DrawMode mode);
-
-
- private:
-  void AddMesh(int data_id);
-  void AddHeightField(int hfield_id);
-  void AddShape(ObjectManager::ShapeType shape_type);
-
   // Updates the transform of the drawable for rendering.
   void SetTransform(const mjvGeom& geom);
 
   // Updates the material parameters of the drawable for rendering.
-  void UpdateMaterial(const mjvGeom& geom, bool use_segid_color);
+  void UpdateMaterial(const mjModel* model, const mjvGeom& geom,
+                      ModelObjects* model_objs, const float headpos[3],
+                      const mjtByte render_flags[mjNRNDFLAG],
+                      ObjectManager::MaterialType* out_material_type);
 
-  Material material_;
-  Renderables renderables_;
+  // Returns the transform of the drawable.
+  const filament::math::mat4& GetTransform() const { return transform_; }
+
+  // Returns the renderable for the drawable.
+  Renderable& GetRenderable() { return renderable_; }
+
+  // Returns the material for the drawable.
+  Material& GetMaterial() { return renderable_.GetMaterial(); }
+
+ private:
+  void AddMesh(ModelObjects* model_objs, int data_id);
+  void AddGeom(ModelObjects* model_objs, const mjvScene* scene,
+               const mjvGeom& geom);
+  void AddHeightField(ModelObjects* model_objs, int hfield_id);
+  void AddShape(ModelObjects* model_objs, ModelObjects::ShapeType shape_type);
+
+  Renderable renderable_;
+  filament::math::mat4 transform_;
 };
 
 }  // namespace mujoco

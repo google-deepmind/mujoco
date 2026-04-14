@@ -1249,12 +1249,12 @@ void ParseMjcPhysicsTendon(mjSpec* spec, const pxr::MjcPhysicsTendon& tendon) {
 
   auto stiffness_attr = tendon.GetStiffnessAttr();
   if (stiffness_attr.HasAuthoredValue()) {
-    stiffness_attr.Get(&mj_tendon->stiffness);
+    stiffness_attr.Get(&mj_tendon->stiffness[0]);
   }
 
   auto damping_attr = tendon.GetDampingAttr();
   if (damping_attr.HasAuthoredValue()) {
-    damping_attr.Get(&mj_tendon->damping);
+    damping_attr.Get(&mj_tendon->damping[0]);
   }
 
   auto armature_attr = tendon.GetArmatureAttr();
@@ -1560,7 +1560,7 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
   if (stiffness_attr.HasAuthoredValue()) {
     double stiffness;
     stiffness_attr.Get(&stiffness);
-    mj_joint->stiffness = stiffness;
+    mj_joint->stiffness[0] = stiffness;
   }
 
   auto actuatorfrcrange_min_attr = joint_api.GetMjcActuatorfrcrangeMinAttr();
@@ -1628,7 +1628,7 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
   if (damping_attr.HasAuthoredValue()) {
     double damping;
     damping_attr.Get(&damping);
-    mj_joint->damping = damping;
+    mj_joint->damping[0] = damping;
   }
 
   auto frictionloss_attr = joint_api.GetMjcFrictionlossAttr();
@@ -2459,7 +2459,7 @@ int CanDecode(const mjResource* resource) {
 }  // namespace
 
 // clang-format off
-mjPLUGIN_LIB_INIT {
+mjPLUGIN_LIB_INIT(usd_decoder) {
   mjpDecoder decoder;
   mjp_defaultDecoder(&decoder);
   decoder.content_type = "model/usd";

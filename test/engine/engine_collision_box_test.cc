@@ -30,7 +30,6 @@ namespace {
 
 using MjCollisionBoxTest = MujocoTest;
 using ::testing::NotNull;
-using ::testing::DoubleNear;
 
 static const char* const kBad0FilePath =
     "engine/testdata/collision_box/boxbox_bad0.xml";
@@ -266,7 +265,8 @@ TEST_F(MjCollisionBoxTest, BoxSphere) {
     data->qpos[2] = z;
     mj_forward(model, data);
     EXPECT_EQ(data->ncon, 2);
-    EXPECT_THAT(data->contact[0].dist, DoubleNear(data->contact[1].dist, 1e-8));
+    EXPECT_THAT(data->contact[0].dist,
+                MjNear(data->contact[1].dist, 1e-8, 1e-6));
   }
 
   mj_deleteData(data);
@@ -294,7 +294,7 @@ TEST_F(MjCollisionBoxTest, BoxBoxContactDistance) {
   for (mjfCollision collision : {mjc_BoxBox, mjc_Convex}) {
     int n = collision(model, data, contact, 0, 1, 0.0);
     for (int i = 0; i < n; i++) {
-      EXPECT_NEAR(contact[i].dist, -0.5, 1.0e-8);
+      EXPECT_NEAR(contact[i].dist, -0.5, MjTol(1e-8, 1e-6));
     }
   }
 

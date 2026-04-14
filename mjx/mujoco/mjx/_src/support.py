@@ -248,6 +248,7 @@ def _getnum(m: Union[Model, mujoco.MjModel], obj: mujoco._enums.mjtObj) -> int:
       mujoco.mjtObj.mjOBJ_NUMERIC: m.nnumeric,
       mujoco.mjtObj.mjOBJ_TUPLE: m.ntuple,
       mujoco.mjtObj.mjOBJ_KEY: m.nkey,
+      mujoco.mjtObj.mjOBJ_FLEX: m.nflex,
   }.get(obj, 0)
 
 
@@ -271,6 +272,7 @@ def _getadr(
       mujoco.mjtObj.mjOBJ_NUMERIC: m.name_numericadr,
       mujoco.mjtObj.mjOBJ_TUPLE: m.name_tupleadr,
       mujoco.mjtObj.mjOBJ_KEY: m.name_keyadr,
+      mujoco.mjtObj.mjOBJ_FLEX: m.name_flexadr,
   }[obj]
 
 

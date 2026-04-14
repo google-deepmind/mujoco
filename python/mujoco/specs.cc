@@ -450,7 +450,9 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::return_value_policy::reference_internal);
   mjSpec.def("delete", [](MjSpec& self, raw::MjsBody& body) {
-    mjs_delete(self.ptr, body.element);
+    if (mjs_delete(self.ptr, body.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
   mjSpec.def(
       "attach",
@@ -867,7 +869,9 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSFRAME ====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsFrame& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
   mjsFrame.def("set_frame", [](raw::MjsFrame& self, raw::MjsFrame& frame) {
     if (mjs_setFrame(self.element, &frame) != 0) {
@@ -906,7 +910,9 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSGEOM =====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsGeom& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
   mjsGeom.def("set_frame", [](raw::MjsGeom& self, raw::MjsFrame& frame) {
     if (mjs_setFrame(self.element, &frame) != 0) {
@@ -937,7 +943,9 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSJOINT ====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsJoint& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
   mjsJoint.def("set_frame", [](raw::MjsJoint& self, raw::MjsFrame& frame) {
     if (mjs_setFrame(self.element, &frame) != 0) {
@@ -968,7 +976,9 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSSITE =====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsSite& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
   mjsSite.def("set_frame", [](raw::MjsSite& self, raw::MjsFrame& frame) {
     if (mjs_setFrame(self.element, &frame) != 0) {
@@ -1016,7 +1026,9 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSCAMERA ===================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsCamera& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
   mjsCamera.def("set_frame", [](raw::MjsCamera& self, raw::MjsFrame& frame) {
     if (mjs_setFrame(self.element, &frame) != 0) {
@@ -1047,7 +1059,9 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSLIGHT ====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsLight& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
   mjsLight.def("set_frame", [](raw::MjsLight& self, raw::MjsFrame& frame) {
     if (mjs_setFrame(self.element, &frame) != 0) {
@@ -1078,7 +1092,9 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSMATERIAL =================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsMaterial& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
   mjsMaterial.def_property(
       "classname",
@@ -1092,7 +1108,9 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSMESH =====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsMesh& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
   mjsMesh.def_property(
       "classname",
@@ -1303,6 +1321,31 @@ PYBIND11_MODULE(_specs, m) {
         }
       },
       py::arg("gain"));
+  mjsActuator.def(
+      "set_to_dcmotor",
+      [](raw::MjsActuator* self, std::array<double, 2> motorconst,
+         double resistance,
+         std::array<double, 3> nominal, std::array<double, 3> saturation,
+         std::array<double, 2> inductance, std::array<double, 3> cogging,
+         std::array<double, 6> controller, std::array<double, 6> thermal,
+         std::array<double, 5> lugre, int input_mode) {
+        std::string err = mjs_setToDCMotor(
+            self, motorconst.data(), resistance, nominal.data(),
+            saturation.data(), inductance.data(), cogging.data(),
+            controller.data(), thermal.data(), lugre.data(), input_mode);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("motorconst"), py::arg("resistance"),
+      py::arg("nominal") = std::array<double, 3>{0, 0, 0},
+      py::arg("saturation") = std::array<double, 3>{0, 0, 0},
+      py::arg("inductance") = std::array<double, 2>{0, 0},
+      py::arg("cogging") = std::array<double, 3>{0, 0, 0},
+      py::arg("controller") = std::array<double, 6>{0, 0, 0, 0, 0, 0},
+      py::arg("thermal") = std::array<double, 6>{0, 0, 0, 0, 0, 0},
+      py::arg("lugre") = std::array<double, 5>{0, 0, 0, 0, 0},
+      py::arg("input_mode") = 0);
 
   // ============================= MJSTENDONPATH ===============================
   // helper struct for tendon path indexing
@@ -1427,47 +1470,65 @@ PYBIND11_MODULE(_specs, m) {
 
   // ============================= MJSFLEX =====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsFlex& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
 
   // ============================= MJSHFIELD ===================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsHField& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
 
   // ============================= MJSSKIN =====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsSkin& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
 
   // ============================= MJSTEXTURE ==================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsTexture& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
 
   // ============================= MJSKEY ======================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsKey& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
 
   // ============================= MJSTEXT =====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsText& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
 
   // ============================= MJSNUMERIC ==================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsNumeric& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
 
   // ============================= MJSEXCLUDE ==================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsExclude& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
 
   // ============================= MJSTUPLE ====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsTuple& obj) {
-    mjs_delete(self.ptr, obj.element);
+    if (mjs_delete(self.ptr, obj.element) != 0) {
+      throw pybind11::value_error(mjs_getError(self.ptr));
+    }
   });
 
   // ============================= MJSPLUGIN ===================================

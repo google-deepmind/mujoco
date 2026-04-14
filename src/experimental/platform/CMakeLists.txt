@@ -20,67 +20,67 @@ add_library(${MUJOCO_PLATFORM_TARGET_NAME} STATIC)
 
 target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
-        egl_utils.cc
-        egl_utils.h
-        enum_utils.h
-        file_dialog.h
-        graphics_mode.cc
-        graphics_mode.h
-        gui.cc
-        gui.h
-        gui_spec.cc
-        gui_spec.h
         helpers.cc
         helpers.h
-        imgui_widgets.cc
-        imgui_widgets.h
-        interaction.cc
-        interaction.h
-        model_holder.cc
-        model_holder.h
-        picture_gui.h
-        picture_gui.cc
-        plugin.cc
-        plugin.h
-        renderer.cc
-        renderer.h
-        sim_history.cc
-        sim_history.h
-        sim_profiler.cc
-        sim_profiler.h
-        spec_editor.cc
-        spec_editor.h
-        step_control.cc
-        step_control.h
-        window.cc
-        window.h
+        hal/egl_utils.cc
+        hal/egl_utils.h
+        hal/graphics_mode.cc
+        hal/graphics_mode.h
+        hal/renderer.cc
+        hal/renderer.h
+        hal/window.cc
+        hal/window.h
+        sim/model_holder.cc
+        sim/model_holder.h
+        sim/sim_history.cc
+        sim/sim_history.h
+        sim/sim_profiler.cc
+        sim/sim_profiler.h
+        sim/step_control.cc
+        sim/step_control.h
+        ux/enum_utils.h
+        ux/file_dialog.h
+        ux/gui.cc
+        ux/gui.h
+        ux/gui_spec.cc
+        ux/gui_spec.h
+        ux/imgui_widgets.cc
+        ux/imgui_widgets.h
+        ux/interaction.cc
+        ux/interaction.h
+        ux/picture_gui.h
+        ux/picture_gui.cc
+        ux/plugin.cc
+        ux/plugin.h
+        ux/spec_editor.cc
+        ux/spec_editor.h
 )
 
 if(NOT WIN32)
   target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
       PUBLIC
-          object_launcher_plugin.cc
+          ux/object_launcher_plugin.cc
   )
 endif()
 
 if(APPLE)
-    set_source_files_properties(window_osx.mm PROPERTIES
+    set_source_files_properties(hal/window_osx.mm PROPERTIES
         COMPILE_FLAGS "-x objective-c++")
     target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
-        window_osx.mm
-        file_dialog_cocoa.mm
+        hal/window_osx.mm
+        ux/file_dialog_cocoa.mm
     )
 elseif(UNIX AND NOT APPLE)
     target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
-        file_dialog_zenity.cc
+        ux/file_dialog_zenity.cc
     )
 elseif(WIN32)
     target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
-        file_dialog_win.cc
+        ux/file_dialog_win.cc
     )
 else()
     target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
-        file_dialog.cc
+        ux/file_dialog.cc
     )
 endif()
 

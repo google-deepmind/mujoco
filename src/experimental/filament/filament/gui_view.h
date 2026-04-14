@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_GUI_VIEW_H_
 
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -28,15 +29,16 @@
 #include <filament/Texture.h>
 #include <filament/View.h>
 #include <mujoco/mjrender.h>
-#include "experimental/filament/filament/buffer_util.h"
-#include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/mesh.h"
+#include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
 // A filament::View that contains a filament::Scene used for rendering the GUI.
 class GuiView {
  public:
-  GuiView(filament::Engine* engine, ObjectManager* object_mgr);
+  GuiView(filament::Engine* engine, filament::Material* ui_material);
   ~GuiView();
 
   // Prepares the UX scene renderable using data from the current ImGui state.
@@ -44,8 +46,7 @@ class GuiView {
   // correctly synced.
   void UpdateRenderable();
 
-  // Returns the filament::View used to render the UX scene.
-  filament::View* PrepareRenderView();
+  void Render(filament::Renderer* renderer, RenderTarget* target = nullptr);
 
   // Uploads texture to be used with ImGui's Image and ImageButton functions.
   uintptr_t UploadImage(uintptr_t tex_id, const uint8_t* pixels, int width,
@@ -64,16 +65,15 @@ class GuiView {
   // Clears the filament::Scene of the UX renderable and releases all buffers.
   void ResetRenderable();
 
-  ObjectManager* object_mgr_ = nullptr;
   filament::Engine* engine_ = nullptr;
   filament::Scene* scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
   filament::View* view_ = nullptr;
   filament::Material* material_ = nullptr;
   utils::Entity renderable_;
-  std::vector<FilamentBuffers> buffers_;
+  std::vector<MeshPtr> meshes_;
   std::vector<filament::MaterialInstance*> instances_;
-  std::unordered_map<uintptr_t, filament::Texture*> textures_;
+  std::unordered_map<uintptr_t, std::unique_ptr<Texture>> textures_;
   int num_elements_ = 0;
 };
 

@@ -59,6 +59,19 @@ Parse spec from a file.
 
 *Nullable:* ``vfs``, ``error``
 
+.. _mj_encode:
+
+`mj_encode <#mj_encode>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_encode
+
+Encode spec/model to a file using a registered encoder.
+
+Returns the number of bytes written on success, -1 on failure.
+
+*Nullable:* ``m``, ``vfs``, ``error``
+
 .. _mj_compile:
 
 `mj_compile <#mj_compile>`__
@@ -3113,6 +3126,37 @@ All outputs are optional.
 
 *Nullable:* ``Dquat``, ``Dvel``, ``Dscale``
 
+.. _Signeddistancefunction:
+
+Signed Distance Functions
+^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _mjc_getSDF:
+
+`mjc_getSDF <#mjc_getSDF>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjc_getSDF
+
+get sdf from geom id
+
+.. _mjc_distance:
+
+`mjc_distance <#mjc_distance>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjc_distance
+
+signed distance function
+
+.. _mjc_gradient:
+
+`mjc_gradient <#mjc_gradient>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjc_gradient
+
+gradient of sdf
+
 .. _Plugins-api:
 
 Plugins
@@ -3252,6 +3296,39 @@ Set default resource decoder definition.
 .. mujoco-include:: mjp_findDecoder
 
 Return the resource provider with the prefix that matches against the resource name.
+
+If no match, return NULL.
+
+.. _mjp_registerEncoder:
+
+`mjp_registerEncoder <#mjp_registerEncoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_registerEncoder
+
+Globally register an encoder. This function is thread-safe.
+
+If an identical mjpEncoder is already registered, this function does nothing.
+
+If a non-identical mjpEncoder with the same name is already registered, an mju_error is raised.
+
+.. _mjp_defaultEncoder:
+
+`mjp_defaultEncoder <#mjp_defaultEncoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_defaultEncoder
+
+Set default resource encoder definition.
+
+.. _mjp_findEncoder:
+
+`mjp_findEncoder <#mjp_findEncoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_findEncoder
+
+Return the encoder that matches against the content type or filename extension.
 
 If no match, return NULL.
 
@@ -4504,6 +4581,93 @@ Add plugin.
 Add default.
 
 *Nullable:* ``parent``
+
+.. _Setactuatorparameters:
+
+Set actuator parameters
+^^^^^^^^^^^^^^^^^^^^^^^
+.. _mjs_setToMotor:
+
+`mjs_setToMotor <#mjs_setToMotor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToMotor
+
+Set actuator to motor; return error if any.
+
+.. _mjs_setToPosition:
+
+`mjs_setToPosition <#mjs_setToPosition>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToPosition
+
+Set actuator to position; return error if any.
+
+.. _mjs_setToIntVelocity:
+
+`mjs_setToIntVelocity <#mjs_setToIntVelocity>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToIntVelocity
+
+Set actuator to integrated velocity; return error if any.
+
+.. _mjs_setToVelocity:
+
+`mjs_setToVelocity <#mjs_setToVelocity>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToVelocity
+
+Set actuator to velocity servo; return error if any.
+
+.. _mjs_setToDamper:
+
+`mjs_setToDamper <#mjs_setToDamper>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToDamper
+
+Set actuator to activate damper; return error if any.
+
+.. _mjs_setToCylinder:
+
+`mjs_setToCylinder <#mjs_setToCylinder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToCylinder
+
+Set actuator to hydraulic or pneumatic cylinder; return error if any.
+
+.. _mjs_setToMuscle:
+
+`mjs_setToMuscle <#mjs_setToMuscle>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToMuscle
+
+Set actuator to muscle; return error if any.a
+
+.. _mjs_setToAdhesion:
+
+`mjs_setToAdhesion <#mjs_setToAdhesion>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToAdhesion
+
+Set actuator to active adhesion; return error if any.
+
+.. _mjs_setToDCMotor:
+
+`mjs_setToDCMotor <#mjs_setToDCMotor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToDCMotor
+
+Set actuator to DC motor; return error if any.
+
+*Nullable:* ``motorconst``, ``nominal``, ``saturation``, ``inductance``, ``cogging``, ``controller``, ``thermal``, ``lugre``
 
 .. _AddAssets:
 

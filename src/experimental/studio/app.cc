@@ -35,19 +35,19 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include "experimental/platform/file_dialog.h"
-#include "experimental/platform/graphics_mode.h"
-#include "experimental/platform/gui.h"
-#include "experimental/platform/gui_spec.h"
+#include "experimental/platform/hal/graphics_mode.h"
+#include "experimental/platform/hal/renderer.h"
+#include "experimental/platform/hal/window.h"
 #include "experimental/platform/helpers.h"
-#include "experimental/platform/imgui_widgets.h"
-#include "experimental/platform/interaction.h"
-#include "experimental/platform/model_holder.h"
-#include "experimental/platform/picture_gui.h"
-#include "experimental/platform/plugin.h"
-#include "experimental/platform/renderer.h"
-#include "experimental/platform/step_control.h"
-#include "experimental/platform/window.h"
+#include "experimental/platform/sim/model_holder.h"
+#include "experimental/platform/sim/step_control.h"
+#include "experimental/platform/ux/file_dialog.h"
+#include "experimental/platform/ux/gui.h"
+#include "experimental/platform/ux/gui_spec.h"
+#include "experimental/platform/ux/imgui_widgets.h"
+#include "experimental/platform/ux/interaction.h"
+#include "experimental/platform/ux/picture_gui.h"
+#include "experimental/platform/ux/plugin.h"
 
 namespace mujoco::studio {
 
@@ -166,7 +166,13 @@ void App::LoadModelFromFile(const std::string& filepath) {
     OnModelLoaded(filepath, kModelFromFile);
     spec_editor_.Reset(*spec());
     UpdateFilePaths(resolved_file);
-    window_->SetTitle("MuJoCo Studio : " + filepath);
+    if (model() && model()->names) {
+      // Assumes the first string in the model is the name of the model itself.
+      window_->SetTitle("MuJoCo Studio : " + std::string(model()->names));
+    } else {
+      window_->SetTitle("MuJoCo Studio : " +
+                        std::filesystem::path(filepath).stem().string());
+    }
   } else {
     SetLoadError(std::string(model_holder_->error()));
   }
@@ -721,7 +727,7 @@ void App::HandleKeyboardEvents() {
     ui_.camera_idx = platform::SetCamera(model(), &camera_, ui_.camera_idx - 1);
   } else if (has_model() && ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
     ui_.camera_idx = platform::SetCamera(model(), &camera_, ui_.camera_idx + 1);
-  // WASD camera controls for free camera.
+    // WASD camera controls for free camera.
   } else if (is_freecam_wasd &&
              (ImGui::IsKeyDown(ImGuiKey_W) || ImGui::IsKeyDown(ImGuiKey_S) ||
               ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsKeyDown(ImGuiKey_D) ||
@@ -1123,8 +1129,8 @@ void App::SpecExplorerGui() {
 
   mjsElement* element = tmp_.curr_element;
   bool open = element != nullptr;
-  if (platform::ImGui_BeginHSplit("SpecExplorerTree",
-                                  &tmp_.explorer_split, &open)) {
+  if (platform::ImGui_BeginHSplit("SpecExplorerTree", &tmp_.explorer_split,
+                                  &open)) {
     platform::SpecTreeGui(&element, spec());
 
     if (element != tmp_.curr_element) {
@@ -1141,8 +1147,8 @@ void App::SpecExplorerGui() {
       }
     }
 
-    if (platform::ImGui_HSplit("SpecExplorerProperties",
-                               &tmp_.explorer_split, &open)) {
+    if (platform::ImGui_HSplit("SpecExplorerProperties", &tmp_.explorer_split,
+                               &open)) {
       ImGui::Text("%s", mju_type2Str(tmp_.curr_element->elemtype));
       ImGui::SameLine();
       ImGui::Text("(%d)", mjs_getId(tmp_.curr_element));
@@ -1428,8 +1434,9 @@ void App::ToolBarGui() {
     const float label_width = GetExpectedLabelWidth();
     const float copy_btn_width = ImGui::CalcTextSize(ICON_COPY_CAMERA).x +
                                  ImGui::GetStyle().FramePadding.x * 2;
-    const float theme_width = ImGui::CalcTextSize(platform::ICON_FA_CIRCLE_O).x +
-                              ImGui::GetStyle().FramePadding.x * 2;
+    const float theme_width =
+        ImGui::CalcTextSize(platform::ICON_FA_CIRCLE_O).x +
+        ImGui::GetStyle().FramePadding.x * 2;
     const float sp = ImGui::GetStyle().ItemSpacing.x;
     const float right_width = label_width + sp + label_width + sp +
                               label_width + sp + copy_btn_width + sp +
@@ -1760,7 +1767,7 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
-
+#ifdef __linux__
       if (ImGui::BeginMenu("Graphics Mode (Experimental)")) {
         std::optional<platform::GraphicsMode> mode;
         if (ImGui::MenuItem(
@@ -1784,6 +1791,11 @@ void App::MainMenuGui() {
           mode = platform::GraphicsMode::FilamentOpenGlHeadless;
         }
         if (ImGui::MenuItem(
+                "Filament OpenGL Software", nullptr,
+                gfx_mode_ == platform::GraphicsMode::FilamentOpenGlSoftware)) {
+          mode = platform::GraphicsMode::FilamentOpenGlSoftware;
+        }
+        if (ImGui::MenuItem(
                 "Filament Vulkan", nullptr,
                 gfx_mode_ == platform::GraphicsMode::FilamentVulkan)) {
           mode = platform::GraphicsMode::FilamentVulkan;
@@ -1802,6 +1814,7 @@ void App::MainMenuGui() {
         }
         ImGui::EndMenu();
       }
+#endif  // __linux__
 
       ImGui::EndMenu();
     }

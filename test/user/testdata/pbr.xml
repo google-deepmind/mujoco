@@ -1,0 +1,249 @@
+<mujoco>
+  <default>
+    <default class="base_material">
+      <material>
+        <layer role="rgb" texture="white"/>
+        <layer role="metallic" texture="white"/>
+        <layer role="roughness" texture="white"/>
+      </material>
+    </default>
+  </default>
+
+
+  <asset>
+    <texture name="ibl" type="2d" file="ibl.ktx"/>
+    <texture name="white" type="2d" builtin="flat" rgb1="1 1 1" width="2" height="2"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1="1 1 1" rgb2="0.9 0.9 0.9" width="64" height="64"/>
+    <material name="floor" reflectance="0.5" texture="grid" texrepeat="4 4" texuniform="true"/>
+
+    <!-- Materials with metallic and roughness varying from 0 to 1 in 0.1 increments -->
+    <material class="base_material" name="pbr_m0.0_r0.0" metallic="0.0" roughness="0.0"/>
+    <material class="base_material" name="pbr_m0.0_r0.1" metallic="0.0" roughness="0.1"/>
+    <material class="base_material" name="pbr_m0.0_r0.2" metallic="0.0" roughness="0.2"/>
+    <material class="base_material" name="pbr_m0.0_r0.3" metallic="0.0" roughness="0.3"/>
+    <material class="base_material" name="pbr_m0.0_r0.4" metallic="0.0" roughness="0.4"/>
+    <material class="base_material" name="pbr_m0.0_r0.5" metallic="0.0" roughness="0.5"/>
+    <material class="base_material" name="pbr_m0.0_r0.6" metallic="0.0" roughness="0.6"/>
+    <material class="base_material" name="pbr_m0.0_r0.7" metallic="0.0" roughness="0.7"/>
+    <material class="base_material" name="pbr_m0.0_r0.8" metallic="0.0" roughness="0.8"/>
+    <material class="base_material" name="pbr_m0.0_r0.9" metallic="0.0" roughness="0.9"/>
+    <material class="base_material" name="pbr_m0.0_r1.0" metallic="0.0" roughness="1.0"/>
+    <material class="base_material" name="pbr_m0.1_r0.0" metallic="0.1" roughness="0.0"/>
+    <material class="base_material" name="pbr_m0.1_r0.1" metallic="0.1" roughness="0.1"/>
+    <material class="base_material" name="pbr_m0.1_r0.2" metallic="0.1" roughness="0.2"/>
+    <material class="base_material" name="pbr_m0.1_r0.3" metallic="0.1" roughness="0.3"/>
+    <material class="base_material" name="pbr_m0.1_r0.4" metallic="0.1" roughness="0.4"/>
+    <material class="base_material" name="pbr_m0.1_r0.5" metallic="0.1" roughness="0.5"/>
+    <material class="base_material" name="pbr_m0.1_r0.6" metallic="0.1" roughness="0.6"/>
+    <material class="base_material" name="pbr_m0.1_r0.7" metallic="0.1" roughness="0.7"/>
+    <material class="base_material" name="pbr_m0.1_r0.8" metallic="0.1" roughness="0.8"/>
+    <material class="base_material" name="pbr_m0.1_r0.9" metallic="0.1" roughness="0.9"/>
+    <material class="base_material" name="pbr_m0.1_r1.0" metallic="0.1" roughness="1.0"/>
+    <material class="base_material" name="pbr_m0.2_r0.0" metallic="0.2" roughness="0.0"/>
+    <material class="base_material" name="pbr_m0.2_r0.1" metallic="0.2" roughness="0.1"/>
+    <material class="base_material" name="pbr_m0.2_r0.2" metallic="0.2" roughness="0.2"/>
+    <material class="base_material" name="pbr_m0.2_r0.3" metallic="0.2" roughness="0.3"/>
+    <material class="base_material" name="pbr_m0.2_r0.4" metallic="0.2" roughness="0.4"/>
+    <material class="base_material" name="pbr_m0.2_r0.5" metallic="0.2" roughness="0.5"/>
+    <material class="base_material" name="pbr_m0.2_r0.6" metallic="0.2" roughness="0.6"/>
+    <material class="base_material" name="pbr_m0.2_r0.7" metallic="0.2" roughness="0.7"/>
+    <material class="base_material" name="pbr_m0.2_r0.8" metallic="0.2" roughness="0.8"/>
+    <material class="base_material" name="pbr_m0.2_r0.9" metallic="0.2" roughness="0.9"/>
+    <material class="base_material" name="pbr_m0.2_r1.0" metallic="0.2" roughness="1.0"/>
+    <material class="base_material" name="pbr_m0.3_r0.0" metallic="0.3" roughness="0.0"/>
+    <material class="base_material" name="pbr_m0.3_r0.1" metallic="0.3" roughness="0.1"/>
+    <material class="base_material" name="pbr_m0.3_r0.2" metallic="0.3" roughness="0.2"/>
+    <material class="base_material" name="pbr_m0.3_r0.3" metallic="0.3" roughness="0.3"/>
+    <material class="base_material" name="pbr_m0.3_r0.4" metallic="0.3" roughness="0.4"/>
+    <material class="base_material" name="pbr_m0.3_r0.5" metallic="0.3" roughness="0.5"/>
+    <material class="base_material" name="pbr_m0.3_r0.6" metallic="0.3" roughness="0.6"/>
+    <material class="base_material" name="pbr_m0.3_r0.7" metallic="0.3" roughness="0.7"/>
+    <material class="base_material" name="pbr_m0.3_r0.8" metallic="0.3" roughness="0.8"/>
+    <material class="base_material" name="pbr_m0.3_r0.9" metallic="0.3" roughness="0.9"/>
+    <material class="base_material" name="pbr_m0.3_r1.0" metallic="0.3" roughness="1.0"/>
+    <material class="base_material" name="pbr_m0.4_r0.0" metallic="0.4" roughness="0.0"/>
+    <material class="base_material" name="pbr_m0.4_r0.1" metallic="0.4" roughness="0.1"/>
+    <material class="base_material" name="pbr_m0.4_r0.2" metallic="0.4" roughness="0.2"/>
+    <material class="base_material" name="pbr_m0.4_r0.3" metallic="0.4" roughness="0.3"/>
+    <material class="base_material" name="pbr_m0.4_r0.4" metallic="0.4" roughness="0.4"/>
+    <material class="base_material" name="pbr_m0.4_r0.5" metallic="0.4" roughness="0.5"/>
+    <material class="base_material" name="pbr_m0.4_r0.6" metallic="0.4" roughness="0.6"/>
+    <material class="base_material" name="pbr_m0.4_r0.7" metallic="0.4" roughness="0.7"/>
+    <material class="base_material" name="pbr_m0.4_r0.8" metallic="0.4" roughness="0.8"/>
+    <material class="base_material" name="pbr_m0.4_r0.9" metallic="0.4" roughness="0.9"/>
+    <material class="base_material" name="pbr_m0.4_r1.0" metallic="0.4" roughness="1.0"/>
+    <material class="base_material" name="pbr_m0.5_r0.0" metallic="0.5" roughness="0.0"/>
+    <material class="base_material" name="pbr_m0.5_r0.1" metallic="0.5" roughness="0.1"/>
+    <material class="base_material" name="pbr_m0.5_r0.2" metallic="0.5" roughness="0.2"/>
+    <material class="base_material" name="pbr_m0.5_r0.3" metallic="0.5" roughness="0.3"/>
+    <material class="base_material" name="pbr_m0.5_r0.4" metallic="0.5" roughness="0.4"/>
+    <material class="base_material" name="pbr_m0.5_r0.5" metallic="0.5" roughness="0.5"/>
+    <material class="base_material" name="pbr_m0.5_r0.6" metallic="0.5" roughness="0.6"/>
+    <material class="base_material" name="pbr_m0.5_r0.7" metallic="0.5" roughness="0.7"/>
+    <material class="base_material" name="pbr_m0.5_r0.8" metallic="0.5" roughness="0.8"/>
+    <material class="base_material" name="pbr_m0.5_r0.9" metallic="0.5" roughness="0.9"/>
+    <material class="base_material" name="pbr_m0.5_r1.0" metallic="0.5" roughness="1.0"/>
+    <material class="base_material" name="pbr_m0.6_r0.0" metallic="0.6" roughness="0.0"/>
+    <material class="base_material" name="pbr_m0.6_r0.1" metallic="0.6" roughness="0.1"/>
+    <material class="base_material" name="pbr_m0.6_r0.2" metallic="0.6" roughness="0.2"/>
+    <material class="base_material" name="pbr_m0.6_r0.3" metallic="0.6" roughness="0.3"/>
+    <material class="base_material" name="pbr_m0.6_r0.4" metallic="0.6" roughness="0.4"/>
+    <material class="base_material" name="pbr_m0.6_r0.5" metallic="0.6" roughness="0.5"/>
+    <material class="base_material" name="pbr_m0.6_r0.6" metallic="0.6" roughness="0.6"/>
+    <material class="base_material" name="pbr_m0.6_r0.7" metallic="0.6" roughness="0.7"/>
+    <material class="base_material" name="pbr_m0.6_r0.8" metallic="0.6" roughness="0.8"/>
+    <material class="base_material" name="pbr_m0.6_r0.9" metallic="0.6" roughness="0.9"/>
+    <material class="base_material" name="pbr_m0.6_r1.0" metallic="0.6" roughness="1.0"/>
+    <material class="base_material" name="pbr_m0.7_r0.0" metallic="0.7" roughness="0.0"/>
+    <material class="base_material" name="pbr_m0.7_r0.1" metallic="0.7" roughness="0.1"/>
+    <material class="base_material" name="pbr_m0.7_r0.2" metallic="0.7" roughness="0.2"/>
+    <material class="base_material" name="pbr_m0.7_r0.3" metallic="0.7" roughness="0.3"/>
+    <material class="base_material" name="pbr_m0.7_r0.4" metallic="0.7" roughness="0.4"/>
+    <material class="base_material" name="pbr_m0.7_r0.5" metallic="0.7" roughness="0.5"/>
+    <material class="base_material" name="pbr_m0.7_r0.6" metallic="0.7" roughness="0.6"/>
+    <material class="base_material" name="pbr_m0.7_r0.7" metallic="0.7" roughness="0.7"/>
+    <material class="base_material" name="pbr_m0.7_r0.8" metallic="0.7" roughness="0.8"/>
+    <material class="base_material" name="pbr_m0.7_r0.9" metallic="0.7" roughness="0.9"/>
+    <material class="base_material" name="pbr_m0.7_r1.0" metallic="0.7" roughness="1.0"/>
+    <material class="base_material" name="pbr_m0.8_r0.0" metallic="0.8" roughness="0.0"/>
+    <material class="base_material" name="pbr_m0.8_r0.1" metallic="0.8" roughness="0.1"/>
+    <material class="base_material" name="pbr_m0.8_r0.2" metallic="0.8" roughness="0.2"/>
+    <material class="base_material" name="pbr_m0.8_r0.3" metallic="0.8" roughness="0.3"/>
+    <material class="base_material" name="pbr_m0.8_r0.4" metallic="0.8" roughness="0.4"/>
+    <material class="base_material" name="pbr_m0.8_r0.5" metallic="0.8" roughness="0.5"/>
+    <material class="base_material" name="pbr_m0.8_r0.6" metallic="0.8" roughness="0.6"/>
+    <material class="base_material" name="pbr_m0.8_r0.7" metallic="0.8" roughness="0.7"/>
+    <material class="base_material" name="pbr_m0.8_r0.8" metallic="0.8" roughness="0.8"/>
+    <material class="base_material" name="pbr_m0.8_r0.9" metallic="0.8" roughness="0.9"/>
+    <material class="base_material" name="pbr_m0.8_r1.0" metallic="0.8" roughness="1.0"/>
+    <material class="base_material" name="pbr_m0.9_r0.0" metallic="0.9" roughness="0.0"/>
+    <material class="base_material" name="pbr_m0.9_r0.1" metallic="0.9" roughness="0.1"/>
+    <material class="base_material" name="pbr_m0.9_r0.2" metallic="0.9" roughness="0.2"/>
+    <material class="base_material" name="pbr_m0.9_r0.3" metallic="0.9" roughness="0.3"/>
+    <material class="base_material" name="pbr_m0.9_r0.4" metallic="0.9" roughness="0.4"/>
+    <material class="base_material" name="pbr_m0.9_r0.5" metallic="0.9" roughness="0.5"/>
+    <material class="base_material" name="pbr_m0.9_r0.6" metallic="0.9" roughness="0.6"/>
+    <material class="base_material" name="pbr_m0.9_r0.7" metallic="0.9" roughness="0.7"/>
+    <material class="base_material" name="pbr_m0.9_r0.8" metallic="0.9" roughness="0.8"/>
+    <material class="base_material" name="pbr_m0.9_r0.9" metallic="0.9" roughness="0.9"/>
+    <material class="base_material" name="pbr_m0.9_r1.0" metallic="0.9" roughness="1.0"/>
+    <material class="base_material" name="pbr_m1.0_r0.0" metallic="1.0" roughness="0.0"/>
+    <material class="base_material" name="pbr_m1.0_r0.1" metallic="1.0" roughness="0.1"/>
+    <material class="base_material" name="pbr_m1.0_r0.2" metallic="1.0" roughness="0.2"/>
+    <material class="base_material" name="pbr_m1.0_r0.3" metallic="1.0" roughness="0.3"/>
+    <material class="base_material" name="pbr_m1.0_r0.4" metallic="1.0" roughness="0.4"/>
+    <material class="base_material" name="pbr_m1.0_r0.5" metallic="1.0" roughness="0.5"/>
+    <material class="base_material" name="pbr_m1.0_r0.6" metallic="1.0" roughness="0.6"/>
+    <material class="base_material" name="pbr_m1.0_r0.7" metallic="1.0" roughness="0.7"/>
+    <material class="base_material" name="pbr_m1.0_r0.8" metallic="1.0" roughness="0.8"/>
+    <material class="base_material" name="pbr_m1.0_r0.9" metallic="1.0" roughness="0.9"/>
+    <material class="base_material" name="pbr_m1.0_r1.0" metallic="1.0" roughness="1.0"/>
+  </asset>
+
+  <worldbody>
+    <light type="image" texture="ibl" intensity="10000"/>
+    <geom name="ground" type="plane" size="2 2 0.1" material="floor"/>
+    <body name="pbr_grid" pos="0 0 0">
+      <geom name="sphere_m0_r0" type="sphere" size="0.1" pos="-1.12 -1.12 0.1" material="pbr_m0.0_r0.0"/>
+      <geom name="sphere_m0_r1" type="sphere" size="0.1" pos="-1.12 -0.88 0.1" material="pbr_m0.0_r0.1"/>
+      <geom name="sphere_m0_r2" type="sphere" size="0.1" pos="-1.12 -0.62 0.1" material="pbr_m0.0_r0.2"/>
+      <geom name="sphere_m0_r3" type="sphere" size="0.1" pos="-1.12 -0.38 0.1" material="pbr_m0.0_r0.3"/>
+      <geom name="sphere_m0_r4" type="sphere" size="0.1" pos="-1.12 -0.12 0.1" material="pbr_m0.0_r0.4"/>
+      <geom name="sphere_m0_r5" type="sphere" size="0.1" pos="-1.12 0.12 0.1"  material="pbr_m0.0_r0.5"/>
+      <geom name="sphere_m0_r6" type="sphere" size="0.1" pos="-1.12 0.38 0.1"  material="pbr_m0.0_r0.6"/>
+      <geom name="sphere_m0_r7" type="sphere" size="0.1" pos="-1.12 0.62 0.1"  material="pbr_m0.0_r0.7"/>
+      <geom name="sphere_m0_r8" type="sphere" size="0.1" pos="-1.12 0.88 0.1"  material="pbr_m0.0_r0.8"/>
+      <geom name="sphere_m0_r9" type="sphere" size="0.1" pos="-1.12 1.12 0.1"  material="pbr_m0.0_r0.9"/>
+      <geom name="sphere_m1_r0" type="sphere" size="0.1" pos="-0.88 -1.12 0.1" material="pbr_m0.1_r0.0"/>
+      <geom name="sphere_m1_r1" type="sphere" size="0.1" pos="-0.88 -0.88 0.1" material="pbr_m0.1_r0.1"/>
+      <geom name="sphere_m1_r2" type="sphere" size="0.1" pos="-0.88 -0.62 0.1" material="pbr_m0.1_r0.2"/>
+      <geom name="sphere_m1_r3" type="sphere" size="0.1" pos="-0.88 -0.38 0.1" material="pbr_m0.1_r0.3"/>
+      <geom name="sphere_m1_r4" type="sphere" size="0.1" pos="-0.88 -0.12 0.1" material="pbr_m0.1_r0.4"/>
+      <geom name="sphere_m1_r5" type="sphere" size="0.1" pos="-0.88 0.12 0.1"  material="pbr_m0.1_r0.5"/>
+      <geom name="sphere_m1_r6" type="sphere" size="0.1" pos="-0.88 0.38 0.1"  material="pbr_m0.1_r0.6"/>
+      <geom name="sphere_m1_r7" type="sphere" size="0.1" pos="-0.88 0.62 0.1"  material="pbr_m0.1_r0.7"/>
+      <geom name="sphere_m1_r8" type="sphere" size="0.1" pos="-0.88 0.88 0.1"  material="pbr_m0.1_r0.8"/>
+      <geom name="sphere_m1_r9" type="sphere" size="0.1" pos="-0.88 1.12 0.1"  material="pbr_m0.1_r0.9"/>
+      <geom name="sphere_m2_r0" type="sphere" size="0.1" pos="-0.62 -1.12 0.1" material="pbr_m0.2_r0.0"/>
+      <geom name="sphere_m2_r1" type="sphere" size="0.1" pos="-0.62 -0.88 0.1" material="pbr_m0.2_r0.1"/>
+      <geom name="sphere_m2_r2" type="sphere" size="0.1" pos="-0.62 -0.62 0.1" material="pbr_m0.2_r0.2"/>
+      <geom name="sphere_m2_r3" type="sphere" size="0.1" pos="-0.62 -0.38 0.1" material="pbr_m0.2_r0.3"/>
+      <geom name="sphere_m2_r4" type="sphere" size="0.1" pos="-0.62 -0.12 0.1" material="pbr_m0.2_r0.4"/>
+      <geom name="sphere_m2_r5" type="sphere" size="0.1" pos="-0.62 0.12 0.1"  material="pbr_m0.2_r0.5"/>
+      <geom name="sphere_m2_r6" type="sphere" size="0.1" pos="-0.62 0.38 0.1"  material="pbr_m0.2_r0.6"/>
+      <geom name="sphere_m2_r7" type="sphere" size="0.1" pos="-0.62 0.62 0.1"  material="pbr_m0.2_r0.7"/>
+      <geom name="sphere_m2_r8" type="sphere" size="0.1" pos="-0.62 0.88 0.1"  material="pbr_m0.2_r0.8"/>
+      <geom name="sphere_m2_r9" type="sphere" size="0.1" pos="-0.62 1.12 0.1"  material="pbr_m0.2_r0.9"/>
+      <geom name="sphere_m3_r0" type="sphere" size="0.1" pos="-0.38 -1.12 0.1" material="pbr_m0.3_r0.0"/>
+      <geom name="sphere_m3_r1" type="sphere" size="0.1" pos="-0.38 -0.88 0.1" material="pbr_m0.3_r0.1"/>
+      <geom name="sphere_m3_r2" type="sphere" size="0.1" pos="-0.38 -0.62 0.1" material="pbr_m0.3_r0.2"/>
+      <geom name="sphere_m3_r3" type="sphere" size="0.1" pos="-0.38 -0.38 0.1" material="pbr_m0.3_r0.3"/>
+      <geom name="sphere_m3_r4" type="sphere" size="0.1" pos="-0.38 -0.12 0.1" material="pbr_m0.3_r0.4"/>
+      <geom name="sphere_m3_r5" type="sphere" size="0.1" pos="-0.38 0.12 0.1"  material="pbr_m0.3_r0.5"/>
+      <geom name="sphere_m3_r6" type="sphere" size="0.1" pos="-0.38 0.38 0.1"  material="pbr_m0.3_r0.6"/>
+      <geom name="sphere_m3_r7" type="sphere" size="0.1" pos="-0.38 0.62 0.1"  material="pbr_m0.3_r0.7"/>
+      <geom name="sphere_m3_r8" type="sphere" size="0.1" pos="-0.38 0.88 0.1"  material="pbr_m0.3_r0.8"/>
+      <geom name="sphere_m3_r9" type="sphere" size="0.1" pos="-0.38 1.12 0.1"  material="pbr_m0.3_r0.9"/>
+      <geom name="sphere_m4_r0" type="sphere" size="0.1" pos="-0.12 -1.12 0.1" material="pbr_m0.4_r0.0"/>
+      <geom name="sphere_m4_r1" type="sphere" size="0.1" pos="-0.12 -0.88 0.1" material="pbr_m0.4_r0.1"/>
+      <geom name="sphere_m4_r2" type="sphere" size="0.1" pos="-0.12 -0.62 0.1" material="pbr_m0.4_r0.2"/>
+      <geom name="sphere_m4_r3" type="sphere" size="0.1" pos="-0.12 -0.38 0.1" material="pbr_m0.4_r0.3"/>
+      <geom name="sphere_m4_r4" type="sphere" size="0.1" pos="-0.12 -0.12 0.1" material="pbr_m0.4_r0.4"/>
+      <geom name="sphere_m4_r5" type="sphere" size="0.1" pos="-0.12 0.12 0.1"  material="pbr_m0.4_r0.5"/>
+      <geom name="sphere_m4_r6" type="sphere" size="0.1" pos="-0.12 0.38 0.1"  material="pbr_m0.4_r0.6"/>
+      <geom name="sphere_m4_r7" type="sphere" size="0.1" pos="-0.12 0.62 0.1"  material="pbr_m0.4_r0.7"/>
+      <geom name="sphere_m4_r8" type="sphere" size="0.1" pos="-0.12 0.88 0.1"  material="pbr_m0.4_r0.8"/>
+      <geom name="sphere_m4_r9" type="sphere" size="0.1" pos="-0.12 1.12 0.1"  material="pbr_m0.4_r0.9"/>
+      <geom name="sphere_m5_r0" type="sphere" size="0.1" pos="0.12 -1.12 0.1"  material="pbr_m0.5_r0.0"/>
+      <geom name="sphere_m5_r1" type="sphere" size="0.1" pos="0.12 -0.88 0.1"  material="pbr_m0.5_r0.1"/>
+      <geom name="sphere_m5_r2" type="sphere" size="0.1" pos="0.12 -0.62 0.1"  material="pbr_m0.5_r0.2"/>
+      <geom name="sphere_m5_r3" type="sphere" size="0.1" pos="0.12 -0.38 0.1"  material="pbr_m0.5_r0.3"/>
+      <geom name="sphere_m5_r4" type="sphere" size="0.1" pos="0.12 -0.12 0.1"  material="pbr_m0.5_r0.4"/>
+      <geom name="sphere_m5_r5" type="sphere" size="0.1" pos="0.12 0.12 0.1"   material="pbr_m0.5_r0.5"/>
+      <geom name="sphere_m5_r6" type="sphere" size="0.1" pos="0.12 0.38 0.1"   material="pbr_m0.5_r0.6"/>
+      <geom name="sphere_m5_r7" type="sphere" size="0.1" pos="0.12 0.62 0.1"   material="pbr_m0.5_r0.7"/>
+      <geom name="sphere_m5_r8" type="sphere" size="0.1" pos="0.12 0.88 0.1"   material="pbr_m0.5_r0.8"/>
+      <geom name="sphere_m5_r9" type="sphere" size="0.1" pos="0.12 1.12 0.1"   material="pbr_m0.5_r0.9"/>
+      <geom name="sphere_m6_r0" type="sphere" size="0.1" pos="0.38 -1.12 0.1"  material="pbr_m0.6_r0.0"/>
+      <geom name="sphere_m6_r1" type="sphere" size="0.1" pos="0.38 -0.88 0.1"  material="pbr_m0.6_r0.1"/>
+      <geom name="sphere_m6_r2" type="sphere" size="0.1" pos="0.38 -0.62 0.1"  material="pbr_m0.6_r0.2"/>
+      <geom name="sphere_m6_r3" type="sphere" size="0.1" pos="0.38 -0.38 0.1"  material="pbr_m0.6_r0.3"/>
+      <geom name="sphere_m6_r4" type="sphere" size="0.1" pos="0.38 -0.12 0.1"  material="pbr_m0.6_r0.4"/>
+      <geom name="sphere_m6_r5" type="sphere" size="0.1" pos="0.38 0.12 0.1"   material="pbr_m0.6_r0.5"/>
+      <geom name="sphere_m6_r6" type="sphere" size="0.1" pos="0.38 0.38 0.1"   material="pbr_m0.6_r0.6"/>
+      <geom name="sphere_m6_r7" type="sphere" size="0.1" pos="0.38 0.62 0.1"   material="pbr_m0.6_r0.7"/>
+      <geom name="sphere_m6_r8" type="sphere" size="0.1" pos="0.38 0.88 0.1"   material="pbr_m0.6_r0.8"/>
+      <geom name="sphere_m6_r9" type="sphere" size="0.1" pos="0.38 1.12 0.1"   material="pbr_m0.6_r0.9"/>
+      <geom name="sphere_m7_r0" type="sphere" size="0.1" pos="0.62 -1.12 0.1"  material="pbr_m0.7_r0.0"/>
+      <geom name="sphere_m7_r1" type="sphere" size="0.1" pos="0.62 -0.88 0.1"  material="pbr_m0.7_r0.1"/>
+      <geom name="sphere_m7_r2" type="sphere" size="0.1" pos="0.62 -0.62 0.1"  material="pbr_m0.7_r0.2"/>
+      <geom name="sphere_m7_r3" type="sphere" size="0.1" pos="0.62 -0.38 0.1"  material="pbr_m0.7_r0.3"/>
+      <geom name="sphere_m7_r4" type="sphere" size="0.1" pos="0.62 -0.12 0.1"  material="pbr_m0.7_r0.4"/>
+      <geom name="sphere_m7_r5" type="sphere" size="0.1" pos="0.62 0.12 0.1"   material="pbr_m0.7_r0.5"/>
+      <geom name="sphere_m7_r6" type="sphere" size="0.1" pos="0.62 0.38 0.1"   material="pbr_m0.7_r0.6"/>
+      <geom name="sphere_m7_r7" type="sphere" size="0.1" pos="0.62 0.62 0.1"   material="pbr_m0.7_r0.7"/>
+      <geom name="sphere_m7_r8" type="sphere" size="0.1" pos="0.62 0.88 0.1"   material="pbr_m0.7_r0.8"/>
+      <geom name="sphere_m7_r9" type="sphere" size="0.1" pos="0.62 1.12 0.1"   material="pbr_m0.7_r0.9"/>
+      <geom name="sphere_m8_r0" type="sphere" size="0.1" pos="0.88 -1.12 0.1"  material="pbr_m0.8_r0.0"/>
+      <geom name="sphere_m8_r1" type="sphere" size="0.1" pos="0.88 -0.88 0.1"  material="pbr_m0.8_r0.1"/>
+      <geom name="sphere_m8_r2" type="sphere" size="0.1" pos="0.88 -0.62 0.1"  material="pbr_m0.8_r0.2"/>
+      <geom name="sphere_m8_r3" type="sphere" size="0.1" pos="0.88 -0.38 0.1"  material="pbr_m0.8_r0.3"/>
+      <geom name="sphere_m8_r4" type="sphere" size="0.1" pos="0.88 -0.12 0.1"  material="pbr_m0.8_r0.4"/>
+      <geom name="sphere_m8_r5" type="sphere" size="0.1" pos="0.88 0.12 0.1"   material="pbr_m0.8_r0.5"/>
+      <geom name="sphere_m8_r6" type="sphere" size="0.1" pos="0.88 0.38 0.1"   material="pbr_m0.8_r0.6"/>
+      <geom name="sphere_m8_r7" type="sphere" size="0.1" pos="0.88 0.62 0.1"   material="pbr_m0.8_r0.7"/>
+      <geom name="sphere_m8_r8" type="sphere" size="0.1" pos="0.88 0.88 0.1"   material="pbr_m0.8_r0.8"/>
+      <geom name="sphere_m8_r9" type="sphere" size="0.1" pos="0.88 1.12 0.1"   material="pbr_m0.8_r0.9"/>
+      <geom name="sphere_m9_r0" type="sphere" size="0.1" pos="1.12 -1.12 0.1"  material="pbr_m0.9_r0.0"/>
+      <geom name="sphere_m9_r1" type="sphere" size="0.1" pos="1.12 -0.88 0.1"  material="pbr_m0.9_r0.1"/>
+      <geom name="sphere_m9_r2" type="sphere" size="0.1" pos="1.12 -0.62 0.1"  material="pbr_m0.9_r0.2"/>
+      <geom name="sphere_m9_r3" type="sphere" size="0.1" pos="1.12 -0.38 0.1"  material="pbr_m0.9_r0.3"/>
+      <geom name="sphere_m9_r4" type="sphere" size="0.1" pos="1.12 -0.12 0.1"  material="pbr_m0.9_r0.4"/>
+      <geom name="sphere_m9_r5" type="sphere" size="0.1" pos="1.12 0.12 0.1"   material="pbr_m0.9_r0.5"/>
+      <geom name="sphere_m9_r6" type="sphere" size="0.1" pos="1.12 0.38 0.1"   material="pbr_m0.9_r0.6"/>
+      <geom name="sphere_m9_r7" type="sphere" size="0.1" pos="1.12 0.62 0.1"   material="pbr_m0.9_r0.7"/>
+      <geom name="sphere_m9_r8" type="sphere" size="0.1" pos="1.12 0.88 0.1"   material="pbr_m0.9_r0.8"/>
+      <geom name="sphere_m9_r9" type="sphere" size="0.1" pos="1.12 1.12 0.1"   material="pbr_m0.9_r0.9"/>
+    </body>
+  </worldbody>
+</mujoco>

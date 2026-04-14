@@ -2395,8 +2395,8 @@ void mjCModel::AutoSpringDamper(mjModel* m) {
     mjtNum damping = 2 * inertia / std::max(mjMINVAL, timeconst);
 
     // save stiffness and damping in the private mjsJoints
-    joints_[n]->stiffness = stiffness;
-    joints_[n]->damping = damping;
+    joints_[n]->stiffness[0] = stiffness;
+    joints_[n]->damping[0] = damping;
 
     // assign
     m->jnt_stiffness[n] = stiffness;
@@ -2510,17 +2510,12 @@ void mjCModel::LengthRange(mjModel* m, mjData* data) {
       err[i][0] = 0;
     }
 
-    // launch threads
-    std::vector<std::thread> th;
-    th.reserve(nthread);
+    // launch threads and wait for them to finish
+    mujoco::user::ThreadPool pool(nthread);
     for (int i=0; i < nthread; i++) {
-      th.emplace_back(LRfunc, &arg[i]);
+      pool.Schedule([&arg, i]() { LRfunc(&arg[i]); });
     }
-
-    // wait for threads to finish
-    for (int i=0; i < nthread; i++) {
-      th[i].join();
-    }
+    pool.WaitCount(nthread);
 
     // free mjData allocated here
     for (int i=1; i < nthread; i++) {
@@ -2810,7 +2805,8 @@ void mjCModel::CopyTree(mjModel* m) {
       m->jnt_bodyid[jid] = pj->body->id;
       mjuu_copyvec(m->jnt_pos+3*jid, pj->pos, 3);
       mjuu_copyvec(m->jnt_axis+3*jid, pj->axis, 3);
-      m->jnt_stiffness[jid] = (mjtNum)pj->stiffness;
+      m->jnt_stiffness[jid] = (mjtNum)pj->stiffness[0];
+      mjuu_copyvec(m->jnt_stiffnesspoly + mjNPOLY * jid, pj->stiffness + 1, mjNPOLY);
       mjuu_copyvec(m->jnt_range+2*jid, pj->range, 2);
       mjuu_copyvec(m->jnt_actfrcrange+2*jid, pj->actfrcrange, 2);
       mjuu_copyvec(m->jnt_solref+mjNREF*jid, pj->solref_limit, mjNREF);
@@ -2867,7 +2863,9 @@ void mjCModel::CopyTree(mjModel* m) {
         mjuu_copyvec(m->dof_solimp+mjNIMP*dofadr, pj->solimp_friction, mjNIMP);
         m->dof_frictionloss[dofadr] = (mjtNum)pj->frictionloss;
         m->dof_armature[dofadr] = (mjtNum)pj->armature;
-        m->dof_damping[dofadr] = (mjtNum)pj->damping;
+        m->dof_damping[dofadr] = (mjtNum)pj->damping[0];
+        mjuu_copyvec(m->dof_dampingpoly + mjNPOLY * dofadr, pj->damping + 1,
+                     mjNPOLY);
 
         // set dof_parentid, update body.lastdof
         m->dof_parentid[dofadr] = pb->lastdof;
@@ -3540,6 +3538,12 @@ void mjCModel::CopyObjects(mjModel* m) {
       }
     }
 
+    if (!pfl->rigid && m->flex_edgeequality[i] == 0 &&
+        !pfl->edgestiffness && !pfl->edgedamping && !pfl->damping) {
+      mju_warning("flex '%s' is not rigid and has no equality constraints "
+                  "or passive forces", pfl->name.c_str());
+    }
+
     // copy bvh data (flex aabb computed dynamically in mjData)
     if (pfl->tree.Nbvh()) {
       memcpy(m->bvh_child + 2*bvh_adr, pfl->tree.Child().data(), 2*pfl->tree.Nbvh()*sizeof(int));
@@ -3810,8 +3814,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_actfrcrange[2*i] = (mjtNum)pte->actfrcrange[0];
     m->tendon_actfrcrange[2*i+1] = (mjtNum)pte->actfrcrange[1];
     m->tendon_margin[i] = (mjtNum)pte->margin;
-    m->tendon_stiffness[i] = (mjtNum)pte->stiffness;
-    m->tendon_damping[i] = (mjtNum)pte->damping;
+    m->tendon_stiffness[i] = (mjtNum)pte->stiffness[0];
+    mjuu_copyvec(m->tendon_stiffnesspoly + mjNPOLY * i, pte->stiffness + 1, mjNPOLY);
+    m->tendon_damping[i] = (mjtNum)pte->damping[0];
+    mjuu_copyvec(m->tendon_dampingpoly + mjNPOLY * i, pte->damping + 1, mjNPOLY);
     m->tendon_armature[i] = (mjtNum)pte->armature;
     m->tendon_frictionloss[i] = (mjtNum)pte->frictionloss;
     m->tendon_lengthspring[2*i] = (mjtNum)pte->springlength[0];
@@ -3871,6 +3877,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->actuator_actearly[i] = pac->actearly;
     m->actuator_cranklength[i] = (mjtNum)pac->cranklength;
     mjuu_copyvec(m->actuator_gear + 6*i, pac->gear, 6);
+    m->actuator_damping[i] = (mjtNum)pac->damping[0];
+    mjuu_copyvec(m->actuator_dampingpoly + mjNPOLY*i, pac->damping + 1, mjNPOLY);
+    m->actuator_armature[i] = (mjtNum)pac->armature;
     mjuu_copyvec(m->actuator_dynprm + mjNDYN*i, pac->dynprm, mjNDYN);
     mjuu_copyvec(m->actuator_gainprm + mjNGAIN*i, pac->gainprm, mjNGAIN);
     mjuu_copyvec(m->actuator_biasprm + mjNBIAS*i, pac->biasprm, mjNBIAS);
@@ -5547,7 +5556,8 @@ bool mjCModel::CopyBack(const mjModel* m) {
     // joint data
     mjuu_copyvec(pj->pos, m->jnt_pos+3*i, 3);
     mjuu_copyvec(pj->axis, m->jnt_axis+3*i, 3);
-    pj->stiffness = (double)m->jnt_stiffness[i];
+    pj->stiffness[0] = (double)m->jnt_stiffness[i];
+    mjuu_copyvec(pj->stiffness + 1, m->jnt_stiffnesspoly + mjNPOLY * i, mjNPOLY);
     mjuu_copyvec(pj->range, m->jnt_range+2*i, 2);
     mjuu_copyvec(pj->solref_limit, m->jnt_solref+mjNREF*i, mjNREF);
     mjuu_copyvec(pj->solimp_limit, m->jnt_solimp+mjNIMP*i, mjNIMP);
@@ -5562,7 +5572,8 @@ bool mjCModel::CopyBack(const mjModel* m) {
     mjuu_copyvec(pj->solref_friction, m->dof_solref+mjNREF*j, mjNREF);
     mjuu_copyvec(pj->solimp_friction, m->dof_solimp+mjNIMP*j, mjNIMP);
     pj->armature = (double)m->dof_armature[j];
-    pj->damping = (double)m->dof_damping[j];
+    pj->damping[0] = (double)m->dof_damping[j];
+    mjuu_copyvec(pj->damping + 1, m->dof_dampingpoly + mjNPOLY * j, mjNPOLY);
     pj->frictionloss = (double)m->dof_frictionloss[j];
   }
 
@@ -5685,8 +5696,10 @@ bool mjCModel::CopyBack(const mjModel* m) {
     mjuu_copyvec(tendons_[i]->rgba, m->tendon_rgba+4*i, 4);
     tendons_[i]->width = (double)m->tendon_width[i];
     tendons_[i]->margin = (double)m->tendon_margin[i];
-    tendons_[i]->stiffness = (double)m->tendon_stiffness[i];
-    tendons_[i]->damping = (double)m->tendon_damping[i];
+    tendons_[i]->stiffness[0] = (double)m->tendon_stiffness[i];
+    mjuu_copyvec(tendons_[i]->stiffness + 1, m->tendon_stiffnesspoly + mjNPOLY * i, mjNPOLY);
+    tendons_[i]->damping[0] = (double)m->tendon_damping[i];
+    mjuu_copyvec(tendons_[i]->damping + 1, m->tendon_dampingpoly + mjNPOLY * i, mjNPOLY);
     tendons_[i]->armature = (double)m->tendon_armature[i];
     tendons_[i]->frictionloss = (double)m->tendon_frictionloss[i];
 
@@ -5708,6 +5721,9 @@ bool mjCModel::CopyBack(const mjModel* m) {
     mjuu_copyvec(pa->actrange, m->actuator_actrange+2*i, 2);
     mjuu_copyvec(pa->lengthrange, m->actuator_lengthrange+2*i, 2);
     mjuu_copyvec(pa->gear, m->actuator_gear+6*i, 6);
+    pa->damping[0] = (double)m->actuator_damping[i];
+    mjuu_copyvec(pa->damping + 1, m->actuator_dampingpoly + mjNPOLY*i, mjNPOLY);
+    pa->armature = (double)m->actuator_armature[i];
     pa->cranklength = (double)m->actuator_cranklength[i];
 
     if (nuser_actuator) {

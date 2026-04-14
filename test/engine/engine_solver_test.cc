@@ -26,7 +26,6 @@
 namespace mujoco {
 namespace {
 
-using ::testing::DoubleNear;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 using ::std::max;
@@ -56,16 +55,21 @@ TEST_F(SolverTest, IslandsEquivalent) {
   mjData* data_island = mj_makeData(model);
   mjData* data_noisland = mj_makeData(model);
 
-  // Below are 3 tolerances associated with 3 different iteration counts,
-  // they are only moderately tight, 12x higher than x86-64 failure on Linux,
-  // i.e. in that case the test fails with rtol smaller than {6e-3, 6e-4, 6e-5}.
+  constexpr int kNumTol = 3;
+  mjtNum maxiter[kNumTol] = {30,   40,   60};
+  // Below are 3 tolerances associated with 3 different iteration counts.
+  // Tolerances are set to be ~12x higher than failure thresholds.
+  // For float32, failure thresholds are ~6000x larger than for float64.
+  // Line 99 adds a 500x factor for float32, so we need another ~12x in rtol.
   // The point of this test is to show that CG convergence is actually not very
   // precise, simply changing whether islands are used changes the solution by
   // quite a lot, even at high iteration count and zero {ls_}tolerance.
   // Increasing the iteration count higher than 60 does not improve convergence.
-  constexpr int kNumTol = 3;
-  mjtNum maxiter[kNumTol] = {30,   40,   60};
-  mjtNum rtol[kNumTol] =    {6e-2, 6e-3, 6e-4};
+  mjtNum rtol[kNumTol] = {
+      MjTol(6e-2, 7.2e-1),
+      MjTol(6e-3, 7.2e-2),
+      MjTol(6e-4, 7.2e-3)
+  };
 
   for (int i = 0; i < kNumTol; ++i) {
     model->opt.iterations = maxiter[i];
@@ -93,10 +97,11 @@ TEST_F(SolverTest, IslandsEquivalent) {
         auto time = std::to_string(data_noisland->time);
         for (int j = 0; j < nv; j++) {
           // increase tolerance for large elements
-          mjtNum scale = 0.5 * max(2.0, abs(data_noisland->qacc[j]) +
-                                        abs(data_island->qacc[j]));
-          EXPECT_THAT(data_noisland->qacc[j],
-                      DoubleNear(data_island->qacc[j], scale * rtol[i]))
+          mjtNum scale = 0.5 * max(static_cast<mjtNum>(2.0),
+                                   std::abs(data_noisland->qacc[j]) +
+                                   std::abs(data_island->qacc[j]));
+          EXPECT_NEAR(data_noisland->qacc[j], data_island->qacc[j],
+                      MjTol(scale * rtol[i], 500 * scale * rtol[i]))
               << "time: " << time << '\n'
               << "dof: " << j << '\n'
               << "maxiter: " << maxiter[i] << '\n'
@@ -159,7 +164,7 @@ TEST_F(SolverTest, IslandsEquivalentForward) {
                                 mju_norm(data_island->qacc, nv));
           mjtNum tol = scale * (solver == mjSOL_CG ? 1e-6 : 1e-8);
           EXPECT_THAT(AsVector(data_island->qacc, nv),
-                      Pointwise(DoubleNear(scale * tol),
+                      Pointwise(MjNear(scale * tol, 500 * scale * tol),
                                 AsVector(data_noisland->qacc, nv)))
               << "warmstart: " << warmstart << '\n'
               << "jacobian: " << (jacobian ? "sparse" : "dense") << '\n'
@@ -269,7 +274,8 @@ TEST_F(SolverTest, SolversEquivalent) {
               (jacobian == mjJAC_DENSE ? "dense" : "sparse");
 
           EXPECT_THAT(AsVector(data->qfrc_constraint, nv),
-                      Pointwise(DoubleNear(tolerance),
+                      Pointwise(MjNear(tolerance,
+                                       max(1e-1, 1000 * tolerance)),
                                 AsVector(data_truth->qfrc_constraint, nv)))
               << "model: " << config.path << "\n"
               << "cone: " << cone_str << "\n"

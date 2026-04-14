@@ -31,6 +31,9 @@ using ElasticityTest = MujocoTest;
 
 // -------------------------------- cable -----------------------------------
 TEST_F(ElasticityTest, CantileverIntoCircle) {
+#ifdef mjUSESINGLE
+  GTEST_SKIP() << "Cable simulation with extreme stiffness diverges in float32";
+#endif
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
     <option gravity="0 0 0"/>

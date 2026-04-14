@@ -34,98 +34,56 @@
 #include <filament/View.h>
 #include <math/vec4.h>
 #include <utils/FixedCapacityVector.h>
+#include <utils/compiler.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/filament_platform_factory.h"
 #include "experimental/filament/filament/gui_view.h"
 #include "experimental/filament/filament/imgui_editor.h"
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/model_util.h"
+#include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/scene_bridge.h"
 #include "experimental/filament/filament/scene_view.h"
-#include "experimental/filament/filament/texture_util.h"
+#include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
-FilamentContext::FilamentContext(const mjrFilamentConfig* config,
-                                 const mjModel* model, mjrContext* con)
-    : config_(*config), context_(con), model_(model) {
-#if defined( __EMSCRIPTEN__)
-  filament::Engine::Backend backend = filament::Engine::Backend::OPENGL;
-#else
-  filament::Engine::Backend backend = filament::Engine::Backend::VULKAN;
-#endif
+FilamentContext::FilamentContext(const mjrFilamentConfig* config)
+    : config_(*config) {
+  FilamentPlatformSetup setup = CreateFilamentPlatform(config_);
+  platform_ = std::move(setup.platform);
 
-  switch (config_.graphics_api) {
-    case mjGFX_DEFAULT:
-      // Use the default based on the platform above.
-      break;
-    case mjGFX_OPENGL:
-      backend = filament::Engine::Backend::OPENGL;
-      break;
-    case mjGFX_VULKAN:
-      backend = filament::Engine::Backend::VULKAN;
-      break;
-    default:
-      mju_error("Unsupported graphics API: %d", config_.graphics_api);
-  }
+  filament::Engine::Builder engine_builder;
+  engine_builder.backend(setup.backend);
+  engine_builder.platform(platform_.get());
+  engine_builder.feature("backend.disable_parallel_shader_compile",
+                         setup.disable_parallel_shader_compile);
+  engine_ = engine_builder.build();
 
-  const int width = model_->vis.global.offwidth;
-  const int height = model_->vis.global.offheight;
-
-  engine_ = filament::Engine::create(backend);
   renderer_ = engine_->createRenderer();
-  #ifdef __EMSCRIPTEN__
-    window_swap_chain_ = engine_->createSwapChain(nullptr);
-  #else
+#ifdef __EMSCRIPTEN__
+  window_swap_chain_ = engine_->createSwapChain(nullptr);
+#else
   if (config_.native_window) {
     window_swap_chain_ = engine_->createSwapChain(config_.native_window);
   } else {
-    window_swap_chain_ = engine_->createSwapChain(width, height);
+    window_swap_chain_ =
+        engine_->createSwapChain(config_.width, config_.height);
   }
-  #endif
+#endif
+  offscreen_swap_chain_ =
+      engine_->createSwapChain(config_.width, config_.height);
 
-  offscreen_swap_chain_ = engine_->createSwapChain(width, height);
-  object_manager_ = std::make_unique<ObjectManager>(model, engine_, config);
-
-  // Set clear options.
-  filament::Renderer::ClearOptions opts;
-  opts.clear = true;
-  opts.discard = true;
-  opts.clearColor = ReadElement(model_, "filament.clearColor",
-                                filament::math::float4(0, 0, 0, 1));
-  renderer_->setClearOptions(opts);
-
-  // Copy parameters from model to context.
-  context_->shadowClip = model_->stat.extent * model_->vis.map.shadowclip;
-  context_->shadowScale = model_->vis.map.shadowscale;
-  context_->offWidth = model_->vis.global.offwidth;
-  context_->offHeight = model_->vis.global.offheight;
-  context_->offSamples = model_->vis.quality.offsamples;
-  context_->fogStart =
-      (float)(model_->stat.extent * model_->vis.map.fogstart);
-  context_->fogEnd = (float)(model_->stat.extent * model_->vis.map.fogend);
-  context_->fogRGBA[0] = model_->vis.rgba.fog[0];
-  context_->fogRGBA[1] = model_->vis.rgba.fog[1];
-  context_->fogRGBA[2] = model_->vis.rgba.fog[2];
-  context_->fogRGBA[3] = model_->vis.rgba.fog[3];
-  context_->lineWidth = model_->vis.global.linewidth;
-  context_->shadowSize = model_->vis.quality.shadowsize;
-  context_->readPixelFormat = 0x1907;  // 0x1907 = GL_RGB;
-  context_->ntexture = model_->ntex;
-  for (int i = 0; i < model_->ntex; ++i) {
-    context_->textureType[i] = model_->tex_type[i];
-  }
-
-  scene_view_ = std::make_unique<SceneView>(engine_, object_manager_.get());
-  if (config_.enable_gui) {
-    gui_view_ = std::make_unique<GuiView>(engine_, object_manager_.get());
-  }
+  object_manager_ = std::make_unique<ObjectManager>(engine_);
 }
 
 FilamentContext::~FilamentContext() {
   DestroyRenderTargets();
   gui_view_.reset();
+  scene_bridge_.reset();
   scene_view_.reset();
   object_manager_.reset();
   engine_->destroy(renderer_);
@@ -134,14 +92,39 @@ FilamentContext::~FilamentContext() {
   filament::Engine::destroy(engine_);
 }
 
-void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
-                             const mjrContext* con) {
-  if (con != context_) {
-    mju_error("Unexpected context.");
+void FilamentContext::Init(const mjModel* model) {
+  scene_view_ = std::make_unique<SceneView>(engine_);
+  scene_bridge_ = std::make_unique<SceneBridge>(object_manager_.get(), model,
+                                                scene_view_.get());
+  gui_view_ = std::make_unique<GuiView>(
+      engine_, object_manager_->GetMaterial(ObjectManager::kUnlitUi));
+
+  // Set clear options.
+  filament::Renderer::ClearOptions opts;
+  opts.clear = true;
+  opts.discard = true;
+  opts.clearColor = ReadElement(model, "filament.clearColor",
+                                filament::math::float4(0, 0, 0, 1));
+  renderer_->setClearOptions(opts);
+}
+
+void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
+  // If we're rendering to the window, and the window size has changed, we need
+  // to reacquire the swap chain.
+  if (scene_swap_chain_target_ == kWindowSwapChain &&
+      (viewport.width != window_width_ || viewport.height != window_height_)) {
+    if (window_width_ != 0 && window_height_ != 0) {
+      if constexpr (UTILS_HAS_THREADING) {
+        engine_->flushAndWait();
+      }
+      engine_->destroy(window_swap_chain_);
+      window_swap_chain_ = engine_->createSwapChain(config_.native_window);
+    }
+    window_width_ = viewport.width;
+    window_height_ = viewport.height;
   }
 
-  scene_view_->SetViewport(viewport);
-  scene_view_->UpdateScene(con, scene);
+  scene_bridge_->Update(viewport, scene);
   // Update the UX renderable entity after processing the scene in case there
   // are any elements in the scene which generate UX draw calls (e.g. labels).
   if (gui_view_ && gui_swap_chain_target_ == scene_swap_chain_target_) {
@@ -157,31 +140,32 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
   } else if (scene->flags[mjRND_DEPTH]) {
     last_render_mode_ = SceneView::DrawMode::kDepth;
   }
+  last_camera_ = mjv_averageCamera(scene->camera, scene->camera + 1);
 
   // Render the frame if we're not rendering to a texture.
   if (scene_swap_chain_target_ == kWindowSwapChain) {
-    #ifndef __EMSCRIPTEN__
+    if constexpr (UTILS_HAS_THREADING) {
       // Wait until previous frame is completed before requesting a new frame.
       engine_->flushAndWait();
-    #endif
+    }
 
     if (renderer_->beginFrame(window_swap_chain_)) {
-      filament::View* fview = scene_view_->PrepareRenderView(last_render_mode_);
-      renderer_->render(fview);
+      SceneView::RenderRequest request;
+      request.draw_mode = last_render_mode_;
+      request.viewport = viewport;
+      request.camera = last_camera_;
+      scene_view_->Render(renderer_, request);
 
-      if (gui_swap_chain_target_ == kWindowSwapChain) {
-        fview = gui_view_ ? gui_view_->PrepareRenderView() : nullptr;
-        if (fview) {
-          renderer_->render(fview);
-        }
+      if (gui_view_ && gui_swap_chain_target_ == kWindowSwapChain) {
+        gui_view_->Render(renderer_);
       }
 
       renderer_->endFrame();
     }
 
-    #ifdef __EMSCRIPTEN__
+    if constexpr (!UTILS_HAS_THREADING) {
       engine_->execute();
-    #endif
+    }
   }
 }
 
@@ -209,63 +193,42 @@ void FilamentContext::SetFrameBuffer(int framebuffer) {
 }
 
 void FilamentContext::PrepareRenderTargets(int width, int height) {
-  for (int i = 0; i < kNumRenderTargetTextureTypes; ++i) {
-    target_textures_[i] = CreateRenderTargetTexture(
-        engine_, width, height, static_cast<RenderTargetTextureType>(i));
-  }
+  color_target_ = std::make_unique<RenderTarget>(
+      engine_, RenderTargetTextureType::kColor,
+      RenderTargetTextureType::kDepth);
+  color_target_->Prepare(width, height);
 
-  // Render target for color pass.
-  filament::RenderTarget::Builder color_target_builder;
-  color_target_builder.texture(filament::RenderTarget::AttachmentPoint::COLOR0,
-                               target_textures_[kRenderTargetColor]);
-  color_target_builder.texture(filament::RenderTarget::AttachmentPoint::DEPTH,
-                               target_textures_[kRenderTargetDepth]);
-  color_target_ = color_target_builder.build(*engine_);
-
-  // Render target for depth pass.
-  filament::RenderTarget::Builder depth_target_builder;
-  depth_target_builder.texture(filament::RenderTarget::AttachmentPoint::COLOR0,
-                               target_textures_[kRenderTargetDepthColor]);
-  depth_target_builder.texture(filament::RenderTarget::AttachmentPoint::DEPTH,
-                               target_textures_[kRenderTargetDepth]);
-  depth_target_ = depth_target_builder.build(*engine_);
+  depth_target_ = std::make_unique<RenderTarget>(
+      engine_, RenderTargetTextureType::kDepthColor,
+      RenderTargetTextureType::kDepth);
+  depth_target_->Prepare(width, height);
 }
 
 void FilamentContext::DestroyRenderTargets() {
-  if (depth_target_) {
-    engine_->destroy(depth_target_);
-    depth_target_ = nullptr;
-  }
-  if (color_target_) {
-    engine_->destroy(color_target_);
-    color_target_ = nullptr;
-  }
-  for (int i = 0; i < kNumRenderTargetTextureTypes; ++i) {
-    if (target_textures_[i]) {
-      engine_->destroy(target_textures_[i]);
-      target_textures_[i] = nullptr;
-    }
-  }
+  depth_target_.reset();
+  color_target_.reset();
 }
 
 static void ReadColorPixels(filament::Renderer* renderer,
-                            filament::RenderTarget* target, mjrRect viewport,
+                            RenderTarget* target, mjrRect viewport,
                             unsigned char* buffer, size_t num_bytes) {
   filament::backend::PixelBufferDescriptor descriptor(
       buffer, num_bytes, filament::backend::PixelDataFormat::RGB,
       filament::backend::PixelDataType::UBYTE);
-  renderer->readPixels(target, viewport.left, viewport.bottom, viewport.width,
-                       viewport.height, std::move(descriptor));
+  renderer->readPixels(target->GetFilamentRenderTarget(), viewport.left,
+                       viewport.bottom, viewport.width, viewport.height,
+                       std::move(descriptor));
 }
 
 static void ReadDepthPixels(filament::Renderer* renderer,
-                            filament::RenderTarget* target, mjrRect viewport,
+                            RenderTarget* target, mjrRect viewport,
                             float* buffer, size_t num_bytes) {
   filament::backend::PixelBufferDescriptor descriptor(
       buffer, num_bytes, filament::backend::PixelDataFormat::R,
       filament::backend::PixelDataType::FLOAT);
-  renderer->readPixels(target, viewport.left, viewport.bottom, viewport.width,
-                       viewport.height, std::move(descriptor));
+  renderer->readPixels(target->GetFilamentRenderTarget(), viewport.left,
+                       viewport.bottom, viewport.width, viewport.height,
+                       std::move(descriptor));
 }
 
 void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
@@ -285,31 +248,20 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (rgb) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
-      filament::View* fview =
-          scene_view_->PrepareRenderView(last_render_mode_);
-
-      // We need to disable msaa in order to render to texture.
-      auto options = fview->getMultiSampleAntiAliasingOptions();
-      fview->setMultiSampleAntiAliasingOptions({
-          .enabled = false,
-      });
-      fview->setRenderTarget(color_target_);
-      renderer_->render(fview);
-      fview->setRenderTarget(nullptr);
-      fview->setMultiSampleAntiAliasingOptions(options);
+      SceneView::RenderRequest request;
+      request.draw_mode = last_render_mode_;
+      request.viewport = viewport;
+      request.target = color_target_.get();
+      request.camera = last_camera_;
+      scene_view_->Render(renderer_, request);
 
       // Render the GUI to the texture as well if requested.
-      if (gui_swap_chain_target_ == kOffscreenSwapChain) {
-        fview = gui_view_ ? gui_view_->PrepareRenderView() : nullptr;
-        if (fview) {
-          fview->setRenderTarget(color_target_);
-          renderer_->render(fview);
-          fview->setRenderTarget(nullptr);
-        }
+      if (gui_view_ && gui_swap_chain_target_ == kOffscreenSwapChain) {
+        gui_view_->Render(renderer_, color_target_.get());
       }
 
       const size_t num_bytes = viewport.width * viewport.height * 3;
-      ReadColorPixels(renderer_, color_target_, viewport, rgb, num_bytes);
+      ReadColorPixels(renderer_, color_target_.get(), viewport, rgb, num_bytes);
 
       renderer_->endFrame();
     }
@@ -317,35 +269,48 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (depth) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
-      filament::View* fview =
-          scene_view_->PrepareRenderView(SceneView::DrawMode::kDepth);
-      fview->setRenderTarget(depth_target_);
-      renderer_->render(fview);
-      fview->setRenderTarget(nullptr);
+      SceneView::RenderRequest request;
+      request.draw_mode = SceneView::DrawMode::kDepth;
+      request.viewport = viewport;
+      request.target = depth_target_.get();
+      request.camera = last_camera_;
+      scene_view_->Render(renderer_, request);
 
       const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
-      ReadDepthPixels(renderer_, depth_target_, viewport, depth, num_bytes);
+      ReadDepthPixels(renderer_, depth_target_.get(), viewport, depth,
+                      num_bytes);
 
       renderer_->endFrame();
     }
   }
 
   if (rgb || depth) {
-    // Wait for rendering and copy back to buffer to complete.
-    engine_->flushAndWait();
+    if constexpr (UTILS_HAS_THREADING) {
+      // Wait for rendering to copy back to buffer to complete.
+      engine_->flushAndWait();
+    }
   }
 }
 
 void FilamentContext::UploadMesh(const mjModel* model, int id) {
-  object_manager_->UploadMesh(model, id);
+  if (!scene_bridge_) {
+    mju_error("SceneBridge is not initialized.");
+  }
+  scene_bridge_->UploadMesh(model, id);
 }
 
 void FilamentContext::UploadTexture(const mjModel* model, int id) {
-  object_manager_->UploadTexture(model, id);
+  if (!scene_bridge_) {
+    mju_error("SceneBridge is not initialized.");
+  }
+  scene_bridge_->UploadTexture(model, id);
 }
 
 void FilamentContext::UploadHeightField(const mjModel* model, int id) {
-  object_manager_->UploadHeightField(model, id);
+  if (!scene_bridge_) {
+    mju_error("SceneBridge is not initialized.");
+  }
+  scene_bridge_->UploadHeightField(model, id);
 }
 
 uintptr_t FilamentContext::UploadGuiImage(uintptr_t tex_id,
@@ -367,8 +332,6 @@ double FilamentContext::GetFrameRate() const {
   return 1.0e9 / static_cast<double>(ns);
 }
 
-void FilamentContext::UpdateGui() {
-  DrawGui(scene_view_.get());
-}
+void FilamentContext::UpdateGui() { DrawGui(scene_bridge_.get()); }
 
 }  // namespace mujoco

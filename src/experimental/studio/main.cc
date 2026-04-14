@@ -26,7 +26,7 @@
 #include <absl/flags/flag.h>
 #include <absl/flags/parse.h>
 #include <mujoco/mujoco.h>
-#include "experimental/platform/graphics_mode.h"
+#include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/studio/app.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");

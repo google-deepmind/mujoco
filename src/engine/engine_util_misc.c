@@ -769,6 +769,26 @@ mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]) {
 }
 
 
+// LuGre Stribeck function: g(v) = F_C + (F_S - F_C) * exp(-(v/v_S)^2)
+mjtNum mj_lugreStribeck(mjtNum velocity, mjtNum F_C, mjtNum F_S, mjtNum v_S) {
+  mjtNum ratio = velocity / mju_max(mjMINVAL, v_S);
+  return F_C + (F_S - F_C) * mju_exp(-ratio*ratio);
+}
+
+
+// compute DC motor activation slot indices from parameter arrays
+mjDCMotorSlots mj_dcmotorSlots(const mjtNum* dynprm, const mjtNum* gainprm) {
+  mjDCMotorSlots s = {-1, -1, -1, -1, -1, 0};
+  if (dynprm[7] > 0)  s.slew        = s.num_slots++;  // slew rate limiting
+  if (gainprm[5] > 0) s.integral    = s.num_slots++;  // PI integral
+  if (dynprm[2] > 0)  s.temperature = s.num_slots++;  // thermal model
+  if (dynprm[5] > 0)  s.bristle     = s.num_slots++;  // LuGre bristle
+  if (dynprm[0] > 0)  s.current     = s.num_slots++;  // current filter
+
+  return s;
+}
+
+
 //---------------------------------------- Base64 --------------------------------------------------
 
 // decoding function for Base64
@@ -1575,10 +1595,6 @@ const char* mju_warningText(int warning, size_t info) {
                "Increase arena memory allocation above %s bytes.", mju_writeNumBytes(info));
     break;
 
-  case mjWARN_VGEOMFULL:
-    mjSNPRINTF(str, "Pre-allocated visual geom buffer is full. Increase maxgeom above %zu.", info);
-    break;
-
   case mjWARN_BADQPOS:
     mjSNPRINTF(str, "Nan, Inf or huge value in QPOS at DOF %zu. The simulation is unstable.", info);
     break;
@@ -1881,6 +1897,53 @@ char* mju_strncpy(char *dst, const char *src, int n) {
   }
 
   return dst;
+}
+
+
+// polynomial force coefficient: force = -x * mju_polyForce(...)
+//   flg_odd=0: linear + poly[0]*x   + poly[1]*x^2 + ...
+//   flg_odd=1: linear + poly[0]*|x| + poly[1]*x^2 + ...  (p is even, p*x is odd)
+mjtNum mju_polyForce(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd) {
+  x = flg_odd ? mju_abs(x) : x;
+  mjtNum res = linear;
+
+  mjtNum xpow = 1;
+  for (int i=0; i < n; i++) {
+    xpow *= x;
+    res += poly[i] * xpow;
+  }
+
+  return res;
+}
+
+
+// derivative of (x * mju_polyForce) w.r.t. x
+mjtNum mjd_xPolyForce(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd) {
+  x = flg_odd ? mju_abs(x) : x;
+  mjtNum res = linear;
+
+  mjtNum xpow = 1;
+  for (int i=0; i < n; i++) {
+    xpow *= x;
+    res += (i+2) * poly[i] * xpow;
+  }
+
+  return res;
+}
+
+
+// potential energy: integral from 0 to x of mju_polyForce(t) * t dt
+mjtNum mju_polyPotential(mjtNum linear, const mjtNum* poly, mjtNum x, int n, int flg_odd) {
+  x = flg_odd ? mju_abs(x) : x;
+  mjtNum res = 0.5 * linear * (x * x);
+
+  mjtNum xpow = x;
+  for (int i=0; i < n; i++) {
+    xpow *= x;
+    res += poly[i] / (i+3) * (xpow * x);
+  }
+
+  return res;
 }
 
 

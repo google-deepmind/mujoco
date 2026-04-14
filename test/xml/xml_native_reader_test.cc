@@ -1182,9 +1182,9 @@ TEST_F(XMLReaderTest, TendonArmature) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, NotNull()) << error.data();
   EXPECT_EQ(m->ntendon, 3);
-  EXPECT_FLOAT_EQ(m->tendon_armature[0], 1.5);
-  EXPECT_FLOAT_EQ(m->tendon_armature[1], 2.5);
-  EXPECT_FLOAT_EQ(m->tendon_armature[2], 0);
+  EXPECT_MJTNUM_EQ(m->tendon_armature[0], 1.5);
+  EXPECT_MJTNUM_EQ(m->tendon_armature[1], 2.5);
+  EXPECT_MJTNUM_EQ(m->tendon_armature[2], 0);
   mj_deleteModel(m);
 }
 
@@ -1378,18 +1378,19 @@ TEST_F(XMLReaderTest, ParseReplicate) {
 
   // check body positions
   mjtNum pos[2] = {0, 0};
+  constexpr mjtNum tol = MjTol(1e-8, 1e-3);
   for (int i = 1; i < 102; ++i) {
     mjtNum theta = (i-1) * 1.8 * mjPI / 180;
-    EXPECT_NEAR(m->body_pos[3*i+0], pos[0] + sin(theta), 1e-8) << i;
-    EXPECT_NEAR(m->body_pos[3*i+1], pos[1] - cos(theta), 1e-8) << i;
-    EXPECT_NEAR(m->body_pos[3*i+2], (i-1) * .1, 1e-8);
+    EXPECT_NEAR(m->body_pos[3*i+0], pos[0] + sin(theta), tol) << i;
+    EXPECT_NEAR(m->body_pos[3*i+1], pos[1] - cos(theta), tol) << i;
+    EXPECT_NEAR(m->body_pos[3*i+2], (i-1) * .1, tol);
     pos[0] += 3 * cos(theta);
     pos[1] += 3 * sin(theta);
   }
 
   // check that the final pose is correct
   int n = m->nbody-1;
-  EXPECT_NEAR(m->body_quat[4*n+0], 0, 1e-8);
+  EXPECT_NEAR(m->body_quat[4*n+0], 0, tol);
   EXPECT_EQ(m->body_quat[4*n+1], 0);
   EXPECT_EQ(m->body_quat[4*n+2], 0);
   EXPECT_EQ(m->body_quat[4*n+3], 1);
@@ -2319,7 +2320,7 @@ TEST_F(HfieldParsingTest, NoData) {
   EXPECT_EQ(model->hfield_size[0], 0.5);
   EXPECT_EQ(model->hfield_size[1], 0.5);
   EXPECT_EQ(model->hfield_size[2], 1);
-  EXPECT_EQ(model->hfield_size[3], 0.1);
+  EXPECT_MJTNUM_EQ(model->hfield_size[3], 0.1);
   mj_deleteModel(model);
 }
 
@@ -2360,7 +2361,7 @@ TEST_F(HfieldParsingTest, HasData) {
   EXPECT_EQ(model->hfield_size[0], 0.5);
   EXPECT_EQ(model->hfield_size[1], 0.5);
   EXPECT_EQ(model->hfield_size[2], 1);
-  EXPECT_EQ(model->hfield_size[3], 0.1);
+  EXPECT_MJTNUM_EQ(model->hfield_size[3], 0.1);
 
   // offset (minimum) and scaling (maximum) from normalizing operation
   float offset = 1.0;
@@ -2809,10 +2810,10 @@ TEST_F(ActuatorParseTest, IntvelocityCheckEquivalence) {
   EXPECT_DOUBLE_EQ(model->actuator_biasprm[mjNBIAS + 1], -2.5);
   EXPECT_DOUBLE_EQ(model->actuator_biasprm[mjNBIAS + 2], 0.0);
   // same actrange
-  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 0], -1.57);
-  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 1], 1.57);
-  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 2], -1.57);
-  EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 3], 1.57);
+  EXPECT_MJTNUM_EQ(model->actuator_actrange[0 + 0], -1.57);
+  EXPECT_MJTNUM_EQ(model->actuator_actrange[0 + 1], 1.57);
+  EXPECT_MJTNUM_EQ(model->actuator_actrange[0 + 2], -1.57);
+  EXPECT_MJTNUM_EQ(model->actuator_actrange[0 + 3], 1.57);
   mj_deleteModel(model);
 }
 
@@ -3002,6 +3003,426 @@ TEST_F(ActuatorParseTest, AdhesionInheritsFromGeneral) {
   mj_deleteModel(model);
 }
 
+TEST_F(ActuatorParseTest, DCMotorBasicParsing) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0" damping="1 2 3" armature="0.1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_dyntype[0], mjDYN_DCMOTOR);
+  EXPECT_EQ(model->actuator_gaintype[0], mjGAIN_DCMOTOR);
+  EXPECT_EQ(model->actuator_biastype[0], mjBIAS_DCMOTOR);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[0], 2.0);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[1], 0.05);
+  EXPECT_MJTNUM_EQ(model->actuator_damping[0], 1.0);
+  EXPECT_MJTNUM_EQ(model->actuator_dampingpoly[0], 2.0);
+  EXPECT_MJTNUM_EQ(model->actuator_dampingpoly[1], 3.0);
+  EXPECT_MJTNUM_EQ(model->actuator_armature[0], 0.1);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorNominalDerivation) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <!-- no damping: Ke = vn/omega0 -->
+      <dcmotor joint="jnt" nominal="12 0.6 600"/>
+      <!-- B > 0, R given: quadratic -->
+      <dcmotor joint="jnt" nominal="12 0 600" resistance="0.4" damping="0.0001"/>
+      <!-- B > 0, R from nominal: linear -->
+      <dcmotor joint="jnt" nominal="12 0.6 600" damping="0.0001"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // actuator 0: B = 0, Ke = vn/omega0
+  {
+    double K = 12.0 / 600.0;
+    double R = K * 12.0 / 0.6;
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[0*mjNGAIN + 0], R);
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[0*mjNGAIN + 1], K);
+  }
+
+  // actuator 1: B > 0, R given, quadratic Ke^2*omega0 - Ke*vn + R*B*omega0 = 0
+  {
+    double B = 0.0001, R = 0.4, vn = 12.0, omega0 = 600.0;
+    double disc = vn*vn - 4*R*B*omega0*omega0;
+    double Ke = (vn + sqrt(disc)) / (2*omega0);
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[1*mjNGAIN + 0], R);
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[1*mjNGAIN + 1], Ke);
+  }
+
+  // actuator 2: B > 0, R from nominal, Ke = vn/omega0 - vn*B/tau0
+  {
+    double B = 0.0001, vn = 12.0, tau0 = 0.6, omega0 = 600.0;
+    double Ke = vn / omega0 - vn*B / tau0;
+    double R = Ke * vn / tau0;
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[2*mjNGAIN + 0], R);
+    EXPECT_MJTNUM_EQ(model->actuator_gainprm[2*mjNGAIN + 1], Ke);
+  }
+
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorSaturation) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
+               saturation="1.5 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_forcelimited[0], 1);
+  EXPECT_MJTNUM_EQ(model->actuator_forcerange[0], -1.5);
+  EXPECT_MJTNUM_EQ(model->actuator_forcerange[1], 1.5);
+  mj_deleteModel(model);
+}
+
+
+TEST_F(ActuatorParseTest, DCMotorInheritedDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <dcmotor motorconst="1.0" resistance="1.0" controller="2.0 0.5 0.1 10.0 5.0 12.0"
+      saturation="0 0 0" inductance="0 0.01" input="velocity"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  // check motorconst and resistance are overridden by instance
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[1], 0.05);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[0], 2.0);
+
+  // check controller gains (kp, ki, kd) in gainprm[4:6]
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[4], 2.0);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[5], 0.5);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[6], 0.1);
+
+  // check controller limits (slewmax, Imax) in dynprm[7,8]
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[7], 10.0);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[8], 5.0);
+
+  // check Vmax in gainprm[7]
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[7], 12.0);
+
+  // check input mode in gainprm[8]
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[8], 2.0);
+
+  // check inductance (te) in dynprm[0]
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[0], 0.01);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorControllerFull) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
+               controller="1.0 2.0 3.0 4.0 5.0 6.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[4], 1.0);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[5], 2.0);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[6], 3.0);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[7], 4.0);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[8], 5.0);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[7], 6.0);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorLuGreRemapping) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0" damping="0.01"
+               lugre="100 1 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[5], 100);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[6], 1);
+  EXPECT_MJTNUM_EQ(model->actuator_damping[0], 0.01);
+  EXPECT_MJTNUM_EQ(model->actuator_biasprm[3], 0.5);
+  EXPECT_MJTNUM_EQ(model->actuator_biasprm[4], 0.7);
+  EXPECT_MJTNUM_EQ(model->actuator_biasprm[5], 10);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorLuGreInheritedDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <dcmotor motorconst="0.05" resistance="2.0" damping="0.01" lugre="100 1 0.5 0.7 10"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_MJTNUM_EQ(model->actuator_damping[0], 0.01);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorActdimStateless) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_actnum[0], 0);
+  EXPECT_EQ(model->actuator_actadr[0], -1);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorActdimCurrentOnly) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
+               inductance="0.001 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_actnum[0], 1);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[0], 0.001 / 2.0);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorActdimThermalOnly) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
+               thermal="10 5 0 0 0 25"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_actnum[0], 1);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[2], 10);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[3], 5);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[4], 25);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorActdimLuGreOnly) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
+               lugre="100 1 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_actnum[0], 1);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[5], 100);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorActdimAllThree) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.05" resistance="2.0"
+               inductance="0.001 0"
+               thermal="10 5 0 0 0 25"
+               lugre="100 1 0.5 0.7 10"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_actnum[0], 3);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorMissingKError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("motor constant K must be positive"));
+}
+
+TEST_F(ActuatorParseTest, DCMotorDefaultsPropagate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <dcmotor motorconst="0.03" resistance="1.5"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[0], 1.5);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[1], 0.03);
+  mj_deleteModel(model);
+}
+
+TEST_F(ActuatorParseTest, DCMotorMotorconstGeometricMean) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="jnt" motorconst="0.03 0.05" resistance="2.0"/>
+      <dcmotor joint="jnt" motorconst="0.03" resistance="2.0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  double K = std::sqrt(0.03 * 0.05);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[0], 2.0);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[1], K);
+  EXPECT_MJTNUM_EQ(model->actuator_gainprm[mjNGAIN + 1], 0.03);
+  mj_deleteModel(model);
+}
+
 TEST_F(ActuatorParseTest, ActdimDefaultsPropagate) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -3047,7 +3468,7 @@ TEST_F(ActuatorParseTest, MusclesParseSmoothdyn) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_EQ(model->actuator_dynprm[2], 0.0);
-  EXPECT_EQ(model->actuator_dynprm[mjNDYN + 2], 0.4);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[mjNDYN + 2], 0.4);
   mj_deleteModel(model);
 }
 
@@ -3381,6 +3802,30 @@ TEST_F(ActuatorParseTest, ActuatorDelayRequiresHistory) {
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(),
               HasSubstr("setting delay > 0 without a history buffer"));
+}
+TEST_F(ActuatorParseTest, DampingArmatureDefaultsPropagate) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <motor damping="3" armature="0.5"/>
+    </default>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="jnt"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_damping[0], 3);
+  EXPECT_EQ(model->actuator_armature[0], 0.5);
+  mj_deleteModel(model);
 }
 
 }  // namespace
