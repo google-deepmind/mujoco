@@ -31,8 +31,6 @@ if(NOT MUJOCO_WASM_FILES)
     message(FATAL_ERROR "No source files found in codegen/generated/")
 endif()
 
-option(MUJOCO_WASM_THREADS "Build with multi-threading support" ON)
-
 # Set Emscripten linker flags
 set(EMCC_LINKER_FLAGS
     "--bind"
