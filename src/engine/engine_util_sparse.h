@@ -82,7 +82,7 @@ MJAPI void mju_mulSymVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec
 MJAPI int mju_compressSparse(mjtNum* mat, int nr, int nc,
                              int* rownnz, int* rowadr, int* colind, mjtNum minval);
 
-// count the number of non-zeros in the sum of two sparse vectors
+// count the number of nonzeros in the sum of two sparse vectors
 MJAPI int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind);
 
 // incomplete combine sparse: dst = a*dst + b*src at common indices
@@ -138,6 +138,24 @@ MJAPI int mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
                                   const int* rownnzT, const int* rowadrT, const int* colindT,
                                   const int* rowsuperT, mjData* d, int flg_upper);
 
+// symbolic phase for mju_sqrMatTDSparse: compute sparsity pattern of M'*M
+//   if res_colind is NULL: count mode, fill res_rownnz/res_rowadr, return nnz
+//   if res_colind is not NULL: fill mode, write sorted column indices
+//   if res_diagind is not NULL: also fill upper triangle and output diagonal indices
+MJAPI int mju_sqrMatTDSparseSymbolic(
+    int* res_rownnz, int* res_rowadr, int* res_colind, int* res_diagind, int nr, int nc,
+    const int* rownnz, const int* rowadr, const int* colind,
+    const int* rownnzT, const int* rowadrT, const int* colindT, const int* rowsuperT, mjData* d);
+
+// numeric phase for mju_sqrMatTDSparse: compute values given pre-computed sparsity
+//   res_colind, res_rownnz, res_rowadr must be pre-computed by mju_sqrMatTDSparseSymbolic
+MJAPI void mju_sqrMatTDSparseNumeric(
+    mjtNum* res, int nc,
+    const int* res_rownnz, const int* res_rowadr, const int* res_colind, const int* res_diagind,
+    const mjtNum* mat, const int* rownnz, const int* rowadr, const int* colind,
+    const mjtNum* matT, const int* rownnzT, const int* rowadrT, const int* colindT,
+    const int* rowsuperT, const mjtNum* diag, mjData* d);
+
 // precompute res_rowadr for mju_sqrMatTDSparse using uncompressed memory
 MJAPI void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc);
 
@@ -146,7 +164,7 @@ MJAPI void mju_blockDiag(mjtNum* res, const mjtNum* mat,
                          int nc_mat, int nc_res, int nb,
                          const int* perm_r, const int* perm_c,
                          const int* block_nr, const int* block_nc,
-                         const int* blockadr_r, const int* blockadr_c);
+                         const int* block_r, const int* block_c);
 
 // block-diagonalize a sparse matrix
 MJAPI void mju_blockDiagSparse(
@@ -238,7 +256,7 @@ int mj_mergeSorted(int* merge, const int* chain1, int n1, const int* chain2, int
     } else if (c1 > c2) {
       merge[k++] = c2;
       j++;
-    } else { // c1 == c2
+    } else {  // c1 == c2
       merge[k++] = c1;
       i++;
       j++;

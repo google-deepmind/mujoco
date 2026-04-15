@@ -2965,10 +2965,11 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       return;
     }
 
-    // pre-count A nonzeros (compute AR_rownnz, AR_rowadr)
-    d->nA = mju_sqrMatTDSparseCount(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc,
-                                    BT_rownnz, BT_rowadr, BT_colind,
-                                    B_rownnz, B_rowadr, B_colind, B_rowsuper, d, /*flg_upper=*/1);
+    int* diagind = mjSTACKALLOC(d, nefc, int);
+    d->nA = mju_sqrMatTDSparseSymbolic(
+        d->efc_AR_rownnz, d->efc_AR_rowadr, NULL, diagind,
+        nv, nefc, BT_rownnz, BT_rowadr, BT_colind,
+        B_rownnz, B_rowadr, B_colind, B_rowsuper, d);
 
     // allocate A values and column indices on arena
     d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
@@ -2981,12 +2982,17 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       return;
     }
 
-    // A = B * B'
-    int* diagind = mjSTACKALLOC(d, nefc, int);
-    mju_sqrMatTDSparse(d->efc_AR, BT, B, NULL, nv, nefc,
-                       d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,
-                       BT_rownnz, BT_rowadr, BT_colind, NULL,
-                       B_rownnz, B_rowadr, B_colind, B_rowsuper, d, diagind);
+    // A = B * B': symbolic phase
+    mju_sqrMatTDSparseSymbolic(
+        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind, diagind,
+        nv, nefc, BT_rownnz, BT_rowadr, BT_colind,
+        B_rownnz, B_rowadr, B_colind, B_rowsuper, d);
+
+    // A = B * B': numeric phase
+    mju_sqrMatTDSparseNumeric(
+        d->efc_AR, nefc, d->efc_AR_rownnz, d->efc_AR_rowadr,
+        d->efc_AR_colind, diagind, BT, BT_rownnz, BT_rowadr,
+        BT_colind, B, B_rownnz, B_rowadr, B_colind, B_rowsuper, NULL, d);
 
     // AR = A + diag(R)
     for (int i=0; i < nefc; i++) {

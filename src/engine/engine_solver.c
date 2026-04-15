@@ -1530,10 +1530,10 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
   // sparse
   if (ctx->is_sparse) {
     // initialize Hessian rowadr, rownnz; get total nonzeros
-    ctx->nH = mju_sqrMatTDSparseCount(ctx->H_rownnz, ctx->H_rowadr, nv,
-                                      ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
-                                      ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
-                                      ctx->JT_rowsuper, d, /*flg_upper=*/0);
+    ctx->nH = mju_sqrMatTDSparseSymbolic(
+        ctx->H_rownnz, ctx->H_rowadr, NULL, NULL,
+        nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper, d);
 
     // add M nonzeros to Hessian total (unavoidable overcounting since H_colind is still unknown)
     ctx->nH += ctx->M_rowadr[nv - 1] + ctx->M_rownnz[nv - 1];
@@ -1549,12 +1549,18 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
     ctx->H_colind = mjSTACKALLOC(d, ctx->nH, int);
     ctx->H = mjSTACKALLOC(d, ctx->nH, mjtNum);
 
-    // compute H = J'*D*J
-    mju_sqrMatTDSparse(ctx->H, ctx->J, ctx->JT, ctx->D, nefc, nv,
-                       ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
-                       ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind, NULL,
-                       ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
-                       d, /*diagind=*/NULL);
+    // compute H = J'*D*J: symbolic phase
+    mju_sqrMatTDSparseSymbolic(
+        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, NULL,
+        nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper, d);
+
+    // compute H = J'*D*J: numeric phase
+    mju_sqrMatTDSparseNumeric(
+        ctx->H, nv, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+        NULL, ctx->J, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+        ctx->JT, ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
+        ctx->JT_rowsuper, ctx->D, d);
 
     // add mass matrix: H = J'*D*J + C
     mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
@@ -1626,12 +1632,18 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
   if (ctx->is_sparse) {
     // maybe compute H = M + J'*D*J
     if (flg_recompute) {
-      // compute H = J'*D*J
-      mju_sqrMatTDSparse(ctx->H, ctx->J, ctx->JT, ctx->D, nefc, nv,
-                        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
-                        ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind, NULL,
-                        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
-                        d, /*diagind=*/NULL);
+      // compute H = J'*D*J: symbolic phase
+      mju_sqrMatTDSparseSymbolic(
+          ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, NULL,
+          nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+          ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper, d);
+
+      // compute H = J'*D*J: numeric phase
+      mju_sqrMatTDSparseNumeric(
+          ctx->H, nv, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+          NULL, ctx->J, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+          ctx->JT, ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
+          ctx->JT_rowsuper, ctx->D, d);
 
       // add mass matrix: H = J'*D*J + C
       mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,

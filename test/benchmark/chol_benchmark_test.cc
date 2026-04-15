@@ -68,13 +68,15 @@ struct HessianData {
   // D diagonal
   std::vector<mjtNum> D;
 
+  int nefc;
+
   void Setup(const mjModel* m, mjData* d) {
     // initialize simulation state
     mj_resetDataKeyframe(m, d, 0);
     mj_forward(m, d);
 
     nv = m->nv;
-    int nefc = d->nefc;
+    nefc = d->nefc;
 
     // compute D corresponding to quad states
     D.resize(nefc);
@@ -205,14 +207,27 @@ mjModel* GetModel() {
   return m;
 }
 
+template <Size S>
+HessianData& GetHessianData() {
+  static HessianData data;
+  static bool initialized = false;
+  if (!initialized) {
+    mjModel* m = GetModel<S>();
+    mjData* d = mj_makeData(m);
+    data.Setup(m, d);
+    mj_deleteData(d);
+    initialized = true;
+  }
+  return data;
+}
+
 // old implementation benchmark
 template <Size S>
 static void BM_chol_old(benchmark::State& state) {
   mjModel* m = GetModel<S>();
   mjData* d = mj_makeData(m);
 
-  HessianData hd;
-  hd.Setup(m, d);
+  HessianData& hd = GetHessianData<S>();
 
   std::vector<mjtNum> L_work(hd.nL);
   std::vector<int> L_colind_work(hd.nL);
@@ -239,8 +254,7 @@ static void BM_chol_symbolic(benchmark::State& state) {
   mjModel* m = GetModel<S>();
   mjData* d = mj_makeData(m);
 
-  HessianData hd;
-  hd.Setup(m, d);
+  HessianData& hd = GetHessianData<S>();
 
   std::vector<int> L_colind_work(hd.nL);
   std::vector<int> LT_rownnz_work(hd.nv);
@@ -266,8 +280,7 @@ static void BM_chol_numeric(benchmark::State& state) {
   mjModel* m = GetModel<S>();
   mjData* d = mj_makeData(m);
 
-  HessianData hd;
-  hd.Setup(m, d);
+  HessianData& hd = GetHessianData<S>();
 
   std::vector<mjtNum> L_work(hd.nL);
   std::vector<int> L_colind_work(hd.nL);
@@ -371,9 +384,10 @@ template <Size S>
 static void BM_update_old(benchmark::State& state) {
   mjModel* m = GetModel<S>();
   mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+  mj_forward(m, d);
 
-  HessianData hd;
-  hd.Setup(m, d);
+  HessianData& hd = GetHessianData<S>();
 
   int nv = hd.nv;
 
@@ -433,9 +447,10 @@ template <Size S>
 static void BM_update_new(benchmark::State& state) {
   mjModel* m = GetModel<S>();
   mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+  mj_forward(m, d);
 
-  HessianData hd;
-  hd.Setup(m, d);
+  HessianData& hd = GetHessianData<S>();
 
   int nv = hd.nv;
 
