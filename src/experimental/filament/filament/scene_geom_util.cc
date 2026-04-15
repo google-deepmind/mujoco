@@ -93,15 +93,15 @@ static void AddMesh(Renderable& renderable, ModelObjects* model_objs,
   if (mesh == nullptr) {
     mju_error("Unknown mesh %d", data_id);
   }
-  renderable.Append(mesh);
+  renderable.AppendMesh(mesh);
 }
 
 static void AddGeom(Renderable& renderable, ModelObjects* model_objs,
                     const mjvScene* scene, const mjvGeom& geom) {
   if (geom.type == mjGEOM_FLEX) {
-    renderable.Append(model_objs->CreateFlexMesh(scene, geom));
+    renderable.AppendMesh(model_objs->CreateFlexMesh(scene, geom));
   } else if (geom.type == mjGEOM_SKIN) {
-    renderable.Append(model_objs->CreateSkinMesh(scene, geom));
+    renderable.AppendMesh(model_objs->CreateSkinMesh(scene, geom));
   }
 }
 
@@ -111,7 +111,7 @@ static void AddHeightField(Renderable& renderable, ModelObjects* model_objs,
   if (mesh == nullptr) {
     mju_error("Unknown height field %d", hfield_id);
   }
-  renderable.Append(mesh);
+  renderable.AppendMesh(mesh);
 }
 
 static void AddShape(Renderable& renderable, ModelObjects* model_objs,
@@ -120,7 +120,7 @@ static void AddShape(Renderable& renderable, ModelObjects* model_objs,
   if (mesh == nullptr) {
     mju_error("Unknown shape %d", shape_type);
   }
-  renderable.Append(mesh);
+  renderable.AppendMesh(mesh);
 }
 
 static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
@@ -211,7 +211,7 @@ static void SetGeomTransform(Renderable& renderable, const mjvGeom& geom) {
   float3 size = ReadFloat3(geom.size);
   filament::TransformManager& tm =
       renderable.GetEngine()->getTransformManager();
-  for (int j = 0; j < renderable.GetNumEntities(); ++j) {
+  for (int j = 0; j < renderable.GetNumMeshes(); ++j) {
     const utils::Entity& entity = renderable[j];
 
     // Update object transform.

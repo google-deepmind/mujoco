@@ -31,11 +31,11 @@ Renderable::Renderable(filament::Engine* engine) : material_(engine) {}
 
 Renderable::~Renderable() noexcept {
   while (!entities_.empty()) {
-    RemoveLast();
+    RemoveLastEntity();
   }
 }
 
-void Renderable::RemoveLast() {
+void Renderable::RemoveLastEntity() {
   if (entities_.empty()) {
     return;
   }
@@ -53,37 +53,32 @@ void Renderable::RemoveLast() {
   meshes_.pop_back();
 }
 
-void Renderable::Update(int index, const Mesh* mesh) {
-  if (index < 0 || index >= entities_.size()) {
-    mju_error("Invalid index %d for renderable.", index);
-  }
-  utils::Entity& entity = entities_[index];
-  UpdateEntity(entity, mesh);
-  UpdateMeshes(index, mesh);
+void Renderable::UpdateMesh(int index, const Mesh* mesh, int elem_offset,
+                            int elem_count) {
+  MeshInfo& mesh_info = SetMesh(index, mesh, nullptr, elem_offset, elem_count);
+  UpdateEntity(index, mesh_info);
 }
 
-void Renderable::Update(int index, MeshPtr mesh) {
-  if (index < 0 || index >= entities_.size()) {
-    mju_error("Invalid index %d for renderable.", index);
-  }
-  utils::Entity& entity = entities_[index];
-  UpdateEntity(entity, mesh.get());
-  UpdateMeshes(index, mesh.get(), std::move(mesh));
+void Renderable::UpdateMesh(int index, MeshPtr mesh, int elem_offset,
+                            int elem_count) {
+  MeshInfo& mesh_info =
+      SetMesh(index, mesh.get(), std::move(mesh), elem_offset, elem_count);
+  UpdateEntity(index, mesh_info);
 }
 
-void Renderable::Append(const Mesh* mesh) {
-  utils::Entity entity = CreateEntity(mesh);
-  entities_.push_back(entity);
-  meshes_.push_back({nullptr, mesh});
+void Renderable::AppendMesh(const Mesh* mesh, int elem_offset, int elem_count) {
+  MeshInfo& mesh_info = SetMesh(-1, mesh, nullptr, elem_offset, elem_count);
+  AppendEntity(mesh_info);
 }
 
-void Renderable::Append(MeshPtr mesh) {
-  utils::Entity entity = CreateEntity(mesh.get());
-  entities_.push_back(entity);
-  meshes_.push_back({std::move(mesh), mesh.get()});
+void Renderable::AppendMesh(MeshPtr mesh, int elem_offset, int elem_count) {
+  MeshInfo& mesh_info =
+      SetMesh(-1, mesh.get(), std::move(mesh), elem_offset, elem_count);
+  AppendEntity(mesh_info);
 }
 
-utils::Entity Renderable::CreateEntity(const Mesh* mesh) {
+void Renderable::AppendEntity(const MeshInfo& mesh_info) {
+  const Mesh* mesh = mesh_info.mesh;
   filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
   if (vertex_buffer == nullptr) {
     mju_error("Invalid (null) vertex buffer.");
@@ -100,7 +95,8 @@ utils::Entity Renderable::CreateEntity(const Mesh* mesh) {
   }
 
   filament::RenderableManager::Builder builder(1);
-  builder.geometry(0, mesh->GetPrimitiveType(), vertex_buffer, index_buffer);
+  builder.geometry(0, mesh->GetPrimitiveType(), vertex_buffer, index_buffer,
+                   mesh_info.elem_offset, mesh_info.elem_count);
   if (mesh->HasBounds()) {
     builder.boundingBox(mesh->GetBounds());
   } else {
@@ -113,17 +109,23 @@ utils::Entity Renderable::CreateEntity(const Mesh* mesh) {
   builder.receiveShadows(receive_shadows_);
   builder.layerMask(0xff, layer_mask_);
   builder.priority(priority_);
+  builder.blendOrder(0, blend_order_);
   builder.screenSpaceContactShadows(true);
-  ;
 
   builder.build(*GetEngine(), entity);
   if (assigned_scene_) {
     assigned_scene_->addEntity(entity);
   }
-  return entity;
+  entities_.push_back(entity);
 }
 
-void Renderable::UpdateEntity(utils::Entity entity, const Mesh* mesh) {
+void Renderable::UpdateEntity(int index, const MeshInfo& mesh_info) {
+  if (index < 0 || index >= entities_.size()) {
+    mju_error("Invalid index %d for renderable.", index);
+  }
+  utils::Entity entity = entities_[index];
+
+  const Mesh* mesh = mesh_info.mesh;
   filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
   if (vertex_buffer == nullptr) {
     mju_error("Invalid (null) vertex buffer.");
@@ -136,16 +138,32 @@ void Renderable::UpdateEntity(utils::Entity entity, const Mesh* mesh) {
 
   filament::RenderableManager& rm = GetEngine()->getRenderableManager();
   rm.setGeometryAt(rm.getInstance(entity), 0, mesh->GetPrimitiveType(),
-                   vertex_buffer, index_buffer, 0,
-                   index_buffer->getIndexCount());
+                   vertex_buffer, index_buffer, mesh_info.elem_offset,
+                   mesh_info.elem_count);
 }
 
-void Renderable::UpdateMeshes(int index, const Mesh* mesh, MeshPtr owned_mesh) {
-  if (index < 0 || index >= meshes_.size()) {
+Renderable::MeshInfo& Renderable::SetMesh(int index, const Mesh* mesh,
+                                          MeshPtr owned_mesh, int elem_offset,
+                                          int elem_count) {
+  if (index == -1) {
+    index = meshes_.size();
+    meshes_.emplace_back();
+  }
+  if (index < 0 || index >= static_cast<int>(meshes_.size())) {
     mju_error("Invalid index %d for renderable.", index);
   }
-  meshes_[index].owned_mesh = std::move(owned_mesh);
-  meshes_[index].mesh = mesh;
+
+  MeshInfo* mesh_info = &meshes_[index];
+  mesh_info->owned_mesh = std::move(owned_mesh);
+  mesh_info->mesh = mesh;
+  mesh_info->elem_offset = elem_offset;
+  mesh_info->elem_count = elem_count;
+  if (mesh_info->elem_count == 0) {
+    const int total =
+        mesh_info->mesh->GetFilamentIndexBuffer()->getIndexCount();
+    mesh_info->elem_count = total - mesh_info->elem_offset;
+  }
+  return *mesh_info;
 }
 
 void Renderable::AddToScene(filament::Scene* scene) {
@@ -209,6 +227,19 @@ std::uint8_t Renderable::SetPriority(std::uint8_t priority) {
   return prev;
 }
 
+std::uint16_t Renderable::SetBlendOrder(std::uint16_t blend_order) {
+  std::uint16_t prev = blend_order_;
+  if (blend_order != blend_order_) {
+    blend_order_ = blend_order;
+
+    filament::RenderableManager& rm = GetEngine()->getRenderableManager();
+    for (utils::Entity& entity : entities_) {
+      rm.setBlendOrderAt(rm.getInstance(entity), 0, blend_order_);
+    }
+  }
+  return prev;
+}
+
 void Renderable::SetCastShadows(bool cast_shadows) {
   if (cast_shadows_ != cast_shadows) {
     cast_shadows_ = cast_shadows;
@@ -246,8 +277,8 @@ void Renderable::SetWireframe(bool wireframe) {
       filament::IndexBuffer* index_buffer = mesh->GetFilamentIndexBuffer();
       rm.setGeometryAt(rm.getInstance(entity), 0,
                        wireframe_ ? kWireframeType : mesh->GetPrimitiveType(),
-                       vertex_buffer, index_buffer, 0,
-                       index_buffer->getIndexCount());
+                       vertex_buffer, index_buffer, meshes_[i].elem_offset,
+                       meshes_[i].elem_count);
     }
   }
 }
