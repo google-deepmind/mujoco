@@ -25,8 +25,6 @@ set(MUJOCO_ELASTICITY_SRCS
 )
 
 add_library(elasticity SHARED)
-target_compile_features(elasticity PRIVATE cxx_std_20)
-set_target_properties(elasticity PROPERTIES CXX_EXTENSIONS OFF)
 target_sources(elasticity PRIVATE ${MUJOCO_ELASTICITY_SRCS})
 target_include_directories(elasticity PRIVATE ${MUJOCO_ELASTICITY_INCLUDE})
 target_link_libraries(elasticity PRIVATE mujoco)

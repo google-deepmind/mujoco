@@ -103,8 +103,6 @@ endif()
 
 # Simulate library
 add_library(platform_ui_adapter OBJECT)
-target_compile_features(platform_ui_adapter PRIVATE cxx_std_20)
-set_target_properties(platform_ui_adapter PROPERTIES CXX_EXTENSIONS OFF)
 target_sources(
   platform_ui_adapter
   PUBLIC glfw_adapter.h glfw_dispatch.h platform_ui_adapter.h
@@ -127,8 +125,7 @@ endif()
 add_library(mujoco::platform_ui_adapter ALIAS platform_ui_adapter)
 
 add_library(libmujoco_simulate STATIC $<TARGET_OBJECTS:platform_ui_adapter> $<TARGET_OBJECTS:lodepng>)
-target_compile_features(libmujoco_simulate PRIVATE cxx_std_20)
-set_target_properties(libmujoco_simulate PROPERTIES OUTPUT_NAME simulate CXX_EXTENSIONS OFF)
+set_target_properties(libmujoco_simulate PROPERTIES OUTPUT_NAME simulate)
 add_library(mujoco::libmujoco_simulate ALIAS libmujoco_simulate)
 set_target_properties(libmujoco_simulate PROPERTIES PUBLIC_HEADER "simulate.h;platform_ui_adapter.h;glfw_adapter.h;glfw_dispatch.h;glfw_corevideo.h;array_safety.h")
 
@@ -164,8 +161,6 @@ if(SIMULATE_BUILD_EXECUTABLE)
   endif()
 
   add_executable(simulate main.cc array_safety.h ${SIMULATE_RESOURCE_FILES})
-  target_compile_features(simulate PRIVATE cxx_std_20)
-  set_target_properties(simulate PROPERTIES CXX_EXTENSIONS OFF)
   target_compile_options(simulate PUBLIC ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
   if(WIN32)
     add_custom_command(
