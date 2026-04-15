@@ -9,6 +9,7 @@
 *.o
 *.so
 *.so.*
+*.dll.meta
 
 # Exclude editor config
 .vscode/
