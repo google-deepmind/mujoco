@@ -23,10 +23,12 @@
 // by the caller. In most cases, this is already stored in mjModel, mjData,
 // mjvOption, etc. But, some functions take additional arguments as needed.
 
+#include <array>
 #include <vector>
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/sim/step_control.h"
 
 namespace mujoco::platform {
 
@@ -61,6 +63,22 @@ void SetupTheme(GuiTheme theme);
 // Returns the size and position of the remaining workspace area which can then
 // be used to place additional elements (e.g. floating charts).
 ImVec4 ConfigureDockingLayout();
+
+// logarithmically spaced real-time slow-down coefficients (percent)
+// clang-format off
+static constexpr std::array<const char*, 31> kPercentRealTime = {
+"100.0 ", " 80.0 ", " 66.0 ", " 50.0 ", " 40.0 ", " 33.0 ", " 25.0 ", " 20.0 ", " 16.0 ", " 13.0 ",
+" 10.0 ", "  8.0 ", "  6.6 ", "  5.0 ", "  4.0 ", "  3.3 ", "  2.5 ", "  2.0 ", "  1.6 ", "  1.3 ",
+"  1.0 ", "  0.8 ", "  0.7 ", "  0.5 ", "  0.4 ", "  0.33", "  0.25", "  0.2 ", "  0.16", "  0.13",
+"  0.1 ",
+};
+// clang-format on
+
+// UX for controlling the simulation stepping. `speed_index` is an index into
+// kPercentRealTime, an array of available speeds (indices in range [0, 30] map
+// to real-time percentages in range [100%, 0.1%]).
+void StepControlGui(const mjModel* model, StepControl* step_control,
+                    int& speed_index);
 
 // UX for selecting the GUI theme.
 bool ThemeSelectGui(GuiTheme* theme);

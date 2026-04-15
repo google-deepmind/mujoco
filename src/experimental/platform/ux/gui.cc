@@ -15,10 +15,12 @@
 #include "experimental/platform/ux/gui.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <imgui.h>
@@ -26,10 +28,23 @@
 #include <implot.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/helpers.h"
+#include "experimental/platform/sim/step_control.h"
 #include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/interaction.h"
 
 namespace mujoco::platform {
+namespace {
+struct SpeedStatus {
+  bool misaligned;
+  float measured;
+};
+
+static SpeedStatus IsSpeedMisaligned(const StepControl& step_control) {
+  const float desired = step_control.GetSpeed();
+  const float measured = step_control.GetSpeedMeasured();
+  return {std::abs(measured - desired) > 0.1f * desired, measured};
+}
+}  // namespace
 
 static ImVec2 GetFlexElementSize(int num_cols) {
   const float width = (ImGui::GetContentRegionAvail().x / num_cols) -
@@ -315,6 +330,74 @@ ImVec4 ConfigureDockingLayout() {
   const float workspace_w = dockspace_size.x - settings_width - inspector_width;
   const float workspace_h = dockspace_size.y;
   return ImVec4(workspace_x, workspace_y, workspace_w, workspace_h);
+}
+
+void StepControlGui(const mjModel* model, StepControl* step_control,
+                    int& speed_index) {
+  platform::ScopedStyle style;
+  style.Var(ImGuiStyleVar_FrameRounding, 2.f);
+
+  const ImColor yellow(255, 215, 0, 255);
+  const ImColor green(40, 180, 40, 255);
+  const float scale = ImGui::GetWindowDpiScale();
+  ImVec2 button_size(48.f * scale, 32.f * scale);
+
+  auto make_button = [&](const char* icon, StepControl::PauseState target_state,
+                         ImColor color, const char* tooltip = "",
+                         float hover_alpha = 1.f) {
+    bool active = step_control->GetPauseState() == target_state;
+    if (ImGui_ColorButton(icon, active, color, button_size, hover_alpha)) {
+      step_control->SetPauseState(target_state);
+    }
+    if (!std::string_view(tooltip).empty()) {
+      ImGui::SetItemTooltip("%s", tooltip);
+    }
+  };
+
+  make_button(ICON_FA_PAUSE, StepControl::PauseState::kNormalPaused, yellow,
+              "Pause");
+  ImGui::SameLine(0.f, 0.f);
+  make_button(ICON_FA_MAGIC, StepControl::PauseState::kViscousPaused, yellow,
+              "Viscous Pause");
+  ImGui::SameLine(0.f, 0.f);
+  make_button(ICON_FA_PLAY, StepControl::PauseState::kUnpaused, green, "", .6f);
+
+  // Speed selection.
+  ImGui::SameLine();
+  const float pad_y = (button_size.y - ImGui::GetFontSize()) * .5f;
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                      ImVec2(ImGui::GetStyle().FramePadding.x + 5.f, pad_y));
+
+  const auto [misaligned, measured] = IsSpeedMisaligned(*step_control);
+  char speed_preview[64];
+  if (misaligned) {
+    snprintf(speed_preview, sizeof(speed_preview), "%s%s (%-4.1f%%)",
+             ICON_FA_TACHOMETER, kPercentRealTime[speed_index], measured);
+  } else {
+    snprintf(speed_preview, sizeof(speed_preview), "%s%s", ICON_FA_TACHOMETER,
+             kPercentRealTime[speed_index]);
+  }
+
+  ImGui::SetNextItemWidth(ImGui::CalcTextSize(speed_preview).x +
+                          ImGui::GetStyle().FramePadding.x * 2.f);
+  if (ImGui::BeginCombo("##Speed", speed_preview,
+                        ImGuiComboFlags_NoArrowButton)) {
+    for (int n = 0; n < kPercentRealTime.size(); n++) {
+      if (ImGui::Selectable(kPercentRealTime[n], (speed_index == n))) {
+        speed_index = std::clamp<int>(n, 0, kPercentRealTime.size() - 1);
+        float speed = std::stof(kPercentRealTime[speed_index]);
+        step_control->SetSpeed(speed);
+      }
+    }
+    ImGui::EndCombo();
+  }
+
+  ImGui::PopStyleVar();
+  if (misaligned) {
+    ImGui::SetItemTooltip("%s", "Desired Speed (Measured Speed)");
+  } else {
+    ImGui::SetItemTooltip("%s", "Desired Speed");
+  }
 }
 
 bool ThemeSelectGui(GuiTheme* theme) {

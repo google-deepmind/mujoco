@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
-#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -72,9 +71,6 @@ static void SelectParentPerturb(const mjModel* model, mjvPerturb& perturb) {
   // TODO: update selected element!
 }
 
-static constexpr const char* ICON_PLAY = platform::ICON_FA_PLAY;
-static constexpr const char* ICON_PAUSE = platform::ICON_FA_PAUSE;
-static constexpr const char* ICON_VISCOUS_PAUSE = platform::ICON_FA_MAGIC;
 static constexpr const char* ICON_COPY_CAMERA = platform::ICON_FA_COPY;
 static constexpr const char* ICON_UNLOAD_MODEL = platform::ICON_FA_EJECT;
 static constexpr const char* ICON_RELOAD_MODEL = platform::ICON_FA_REFRESH;
@@ -82,20 +78,9 @@ static constexpr const char* ICON_RESET_MODEL = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_PREV_FRAME = platform::ICON_FA_CARET_LEFT;
 static constexpr const char* ICON_NEXT_FRAME = platform::ICON_FA_CARET_RIGHT;
 static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
-static constexpr const char* ICON_SPEED = platform::ICON_FA_TACHOMETER;
 static constexpr const char* ICON_RELOAD_SPEC = platform::ICON_FA_REFRESH;
 static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
-
-// logarithmically spaced real-time slow-down coefficients (percent)
-// clang-format off
-static constexpr std::array<const char*, 31> kPercentRealTime = {
-"100.0 ", " 80.0 ", " 66.0 ", " 50.0 ", " 40.0 ", " 33.0 ", " 25.0 ", " 20.0 ", " 16.0 ", " 13.0 ",
-" 10.0 ", "  8.0 ", "  6.6 ", "  5.0 ", "  4.0 ", "  3.3 ", "  2.5 ", "  2.0 ", "  1.6 ", "  1.3 ",
-"  1.0 ", "  0.8 ", "  0.7 ", "  0.5 ", "  0.4 ", "  0.33", "  0.25", "  0.2 ", "  0.16", "  0.13",
-"  0.1 ",
-};
-// clang-format on
 
 App::App(Config config)
     : ini_path_(std::move(config.ini_path)), gfx_mode_(config.gfx_mode) {
@@ -221,8 +206,8 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   // Initialize the speed based on the model's default real-time setting.
   float min_error = FLT_MAX;
   const float desired = mju_log(100 * model->vis.global.realtime);
-  for (int i = 0; i < kPercentRealTime.size(); ++i) {
-    const float speed = std::stof(kPercentRealTime[i]);
+  for (int i = 0; i < platform::kPercentRealTime.size(); ++i) {
+    const float speed = std::stof(platform::kPercentRealTime[i]);
     const float error = mju_abs(mju_log(speed) - desired);
     if (error < min_error) {
       min_error = error;
@@ -613,14 +598,13 @@ void App::HandleKeyboardEvents() {
     }
   } else if (ImGui_IsChordJustPressed(ImGuiMod_Ctrl | ImGuiKey_Space)) {
     if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-      step_control_.SetPauseState(PauseState::kUnpaused, model());
+      step_control_.SetPauseState(PauseState::kUnpaused);
     } else {
-      step_control_.SetPauseState(PauseState::kViscousPaused, model());
-      tmp_.viscous_pause_time = ImGui::GetTime();
+      step_control_.SetPauseState(PauseState::kViscousPaused);
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Space)) {
     if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-      step_control_.SetPauseState(PauseState::kNormalPaused, model());
+      step_control_.SetPauseState(PauseState::kNormalPaused);
     } else if (step_control_.GetPauseState() == PauseState::kUnpaused) {
       step_control_.SetPauseState(PauseState::kNormalPaused);
     } else {
@@ -817,12 +801,13 @@ void App::SaveSettings() {
 }
 
 void App::SetSpeedIndex(int idx) {
-  if (idx == tmp_.speed_index || kPercentRealTime.empty()) {
+  if (idx == tmp_.speed_index || platform::kPercentRealTime.empty()) {
     return;
   }
 
-  tmp_.speed_index = std::clamp<int>(idx, 0, kPercentRealTime.size() - 1);
-  float speed = std::stof(kPercentRealTime[tmp_.speed_index]);
+  tmp_.speed_index =
+      std::clamp<int>(idx, 0, platform::kPercentRealTime.size() - 1);
+  float speed = std::stof(platform::kPercentRealTime[tmp_.speed_index]);
   step_control_.SetSpeed(speed);
 }
 
@@ -1407,25 +1392,10 @@ void App::HelpGui() {
   ImGui::Columns();
 }
 
-struct SpeedStatus {
-  bool misaligned;
-  float measured;
-};
-
-static SpeedStatus IsSpeedMisaligned(
-    const platform::StepControl& step_control) {
-  const float desired = step_control.GetSpeed();
-  const float measured = step_control.GetSpeedMeasured();
-  return {std::abs(measured - desired) > 0.1f * desired, measured};
-}
-
 void App::ToolBarGui() {
   if (ImGui::BeginTable("##ToolBarTable", 2)) {
     platform::ScopedStyle style;
     const ImColor red(220, 40, 40, 255);
-    const ImColor green(40, 180, 40, 255);
-    const ImColor yellow(250, 230, 10, 255);
-    const int combo_flags = ImGuiComboFlags_NoArrowButton;
 
     const float scale = ImGui::GetWindowDpiScale();
     const ImVec2 button_size(48.f * scale, 32.f * scale);
@@ -1481,82 +1451,10 @@ void App::ToolBarGui() {
     }
     ImGui::SetItemTooltip("%s", "Reset");
 
-    // Combined (Normal Pause, Viscous Pause, Play) widget
-    {
-      style.Var(ImGuiStyleVar_FrameRounding, 2.0f);
 
-      // Normal pause button.
-      ImGui::SameLine(0, separator_width);
-      ImColor paused_color = yellow;
-      bool paused = step_control_.GetPauseState() == PauseState::kNormalPaused;
-      if (platform::ImGui_ColorButton(ICON_PAUSE, paused, paused_color,
-                                      button_size)) {
-        if (!paused) {
-          step_control_.SetPauseState(PauseState::kNormalPaused, model());
-        }
-      }
-      ImGui::SetItemTooltip("%s", "Pause");
-
-      // Viscous pause button.
-      ImGui::SameLine(0, 0);
-      ImColor vpaused_color = green;
-      float t = 0.f;
-      bool vpaused =
-          step_control_.GetPauseState() == PauseState::kViscousPaused;
-      if (vpaused) {
-        t = ImGui::GetTime() - tmp_.viscous_pause_time;
-        t = std::sqrt(std::min(t / 0.75f, 1.0f));
-        vpaused_color = ImColor(ImLerp(green.Value, yellow.Value, t));
-      }
-      if (platform::ImGui_ColorButton(ICON_VISCOUS_PAUSE, vpaused,
-                                      vpaused_color, button_size,
-                                      t < 1.0f ? 1.0f : 0.5f)) {
-        if (!vpaused) {
-          step_control_.SetPauseState(PauseState::kViscousPaused, model());
-          tmp_.viscous_pause_time = ImGui::GetTime();
-        }
-      }
-      ImGui::SetItemTooltip("%s", "Viscous Pause");
-
-      // Play button.
-      ImGui::SameLine(0, 0);
-      if (platform::ImGui_ColorButton(
-              ICON_PLAY, step_control_.GetPauseState() == PauseState::kUnpaused,
-              green, button_size, 0.6f)) {
-        step_control_.SetPauseState(PauseState::kUnpaused, model());
-      }
-    }
-
-    // Speed selection.
-    ImGui::SameLine();
-    float pad_y = (button_size.y - ImGui::GetFontSize()) * 0.5f;
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(ImGui::GetStyle().FramePadding.x + 5.f, pad_y));
-    const auto [misaligned, measured] = IsSpeedMisaligned(step_control_);
-    char speed_preview[64];
-    if (misaligned) {
-      snprintf(speed_preview, sizeof(speed_preview), "%s%s (%-4.1f%%)",
-               ICON_SPEED, kPercentRealTime[tmp_.speed_index], measured);
-    } else {
-      snprintf(speed_preview, sizeof(speed_preview), "%s%s", ICON_SPEED,
-               kPercentRealTime[tmp_.speed_index]);
-    }
-    ImGui::SetNextItemWidth(ImGui::CalcTextSize(speed_preview).x +
-                            ImGui::GetStyle().FramePadding.x * 2);
-    if (ImGui::BeginCombo("##Speed", speed_preview, combo_flags)) {
-      for (int n = 0; n < kPercentRealTime.size(); n++) {
-        if (ImGui::Selectable(kPercentRealTime[n], (tmp_.speed_index == n))) {
-          SetSpeedIndex(n);
-        }
-      }
-      ImGui::EndCombo();
-    }
-    ImGui::PopStyleVar();
-    if (misaligned) {
-      ImGui::SetItemTooltip("%s", "Desired Speed (Measured Speed)");
-    } else {
-      ImGui::SetItemTooltip("%s", "Desired Speed");
-    }
+    // Combined (Normal Pause, Viscous Pause, Play) widget and Speed selection.
+    ImGui::SameLine(0, separator_width);
+    platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
 
     ImGui::TableNextColumn();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
@@ -1709,7 +1607,7 @@ void App::MainMenuGui() {
         if (step_control_.GetPauseState() != PauseState::kNormalPaused) {
           step_control_.SetPauseState(PauseState::kNormalPaused);
         } else {
-          step_control_.SetPauseState(PauseState::kUnpaused, model());
+          step_control_.SetPauseState(PauseState::kUnpaused);
         }
       }
       if (ImGui::MenuItem("Reset", "Backspace")) {
