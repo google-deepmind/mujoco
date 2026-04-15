@@ -19,7 +19,7 @@ import ctypes.util
 import os
 import platform
 import subprocess
-from typing import Any, IO, Union, Sequence
+from typing import Any, IO, Union, Sequence, List
 from typing_extensions import TypeAlias
 import warnings
 import zipfile
@@ -158,6 +158,28 @@ def from_zip(file: Union[str, IO[bytes]]) -> _specs.MjSpec:
   return _specs.MjSpec.from_string(xml_string, assets=assets)
 
 
+def _extend_bind_items(items: List[Any], value: Any) -> None:
+  size = getattr(value, 'size', None)
+  if size is None:
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+      if len(value) == 1:
+        items.extend(value)
+      else:
+        items.append(value)
+      return
+    items.append(value)
+    return
+  if size == 1:
+    try:
+      iter(value)
+    except TypeError:
+      items.append(value)
+    else:
+      items.extend(value)
+  else:
+    items.append(value)
+
+
 class _MjBindModel:
   """Wrapper for MjModel that allows binding multiple specs."""
 
@@ -167,7 +189,7 @@ class _MjBindModel:
   def __getattr__(self, key: str):
     items = []
     for e in self.elements:
-      items.extend(getattr(e, key))
+      _extend_bind_items(items, getattr(e, key))
     return items
 
   def __setattr__(self, key: str, value: Any):
@@ -183,7 +205,7 @@ class _MjBindData:
   def __getattr__(self, key: str):
     items = []
     for e in self.elements:
-      items.extend(getattr(e, key))
+      _extend_bind_items(items, getattr(e, key))
     return items
 
   def __setattr__(self, key: str, value: Any):

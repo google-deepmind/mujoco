@@ -330,7 +330,13 @@ def name2id(
 class BindModel(object):
   """Class holding the requested MJX Model and spec id for binding a spec to Model."""
 
-  def __init__(self, model: Model, specs: Sequence[mujoco.MjStruct]):
+  def __init__(
+      self,
+      model: Model,
+      specs: Sequence[mujoco.MjStruct],
+      *,
+      squeeze: bool,
+  ):
     self.model = model
     self.prefix = ''
     ids = []
@@ -385,7 +391,7 @@ class BindModel(object):
       else:
         raise ValueError('invalid spec type')
       ids.append(spec.id)
-    if len(ids) == 1:
+    if len(ids) == 1 and squeeze:
       self.id = ids[0]
     else:
       self.id = ids
@@ -407,18 +413,24 @@ def _bind_model(
     self: Model, obj: mujoco.MjStruct | Iterable[mujoco.MjStruct]
 ) -> BindModel:
   """Bind a Mujoco spec to an MJX Model."""
-  if isinstance(obj, mujoco.MjStruct):
+  squeeze = isinstance(obj, mujoco.MjStruct)
+  if squeeze:
     obj = (obj,)
   else:
     obj = tuple(obj)
-  return BindModel(self, obj)
+  return BindModel(self, obj, squeeze=squeeze)
 
 
 class BindData(object):
   """Class holding the requested MJX Data and spec id for binding a spec to Data."""
 
   def __init__(
-      self, data: Data, model: Model, specs: Sequence[mujoco.MjStruct]
+      self,
+      data: Data,
+      model: Model,
+      specs: Sequence[mujoco.MjStruct],
+      *,
+      squeeze: bool,
   ):
     self.data = data
     self.model = model
@@ -455,7 +467,7 @@ class BindData(object):
       else:
         raise ValueError('invalid spec type')
       ids.append(spec.id)
-    if len(ids) == 1:
+    if len(ids) == 1 and squeeze:
       self.id = ids[0]
     else:
       self.id = ids
@@ -573,11 +585,12 @@ def _bind_data(
     self: Data, model: Model, obj: mujoco.MjStruct | Iterable[mujoco.MjStruct]
 ) -> BindData:
   """Bind a Mujoco spec to an MJX Data."""
-  if isinstance(obj, mujoco.MjStruct):
+  squeeze = isinstance(obj, mujoco.MjStruct)
+  if squeeze:
     obj = (obj,)
   else:
     obj = tuple(obj)
-  return BindData(self, model, obj)
+  return BindData(self, model, obj, squeeze=squeeze)
 
 
 Model.bind = _bind_model
