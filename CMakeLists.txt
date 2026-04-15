@@ -97,6 +97,9 @@ else()
   add_library(mujoco STATIC ${MUJOCO_RESOURCE_FILES})
 endif()
 
+target_compile_features(mujoco PRIVATE c_std_11 cxx_std_20)
+set_target_properties(mujoco PROPERTIES C_EXTENSIONS OFF CXX_EXTENSIONS OFF)
+
 target_include_directories(
   mujoco
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

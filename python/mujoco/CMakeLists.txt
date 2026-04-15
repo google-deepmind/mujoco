@@ -27,12 +27,10 @@ if(APPLE)
 endif()
 
 if(MSVC AND MSVC_VERSION GREATER_EQUAL 1927)
-  set(CMAKE_CXX_STANDARD 20) # For forceinline lambdas.
+  set(MUJOCO_PYTHON_CXX_FEATURE cxx_std_20) # For forceinline lambdas.
 else()
-  set(CMAKE_CXX_STANDARD 17)
+  set(MUJOCO_PYTHON_CXX_FEATURE cxx_std_17)
 endif()
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
@@ -285,6 +283,8 @@ add_library(structs_wrappers STATIC
   serialization.h
   indexers.cc
 )
+target_compile_features(structs_wrappers PRIVATE ${MUJOCO_PYTHON_CXX_FEATURE})
+set_target_properties(structs_wrappers PROPERTIES CXX_EXTENSIONS OFF)
 target_include_directories(structs_wrappers PRIVATE ${Python3_INCLUDE_DIRS})
 target_link_libraries(
   structs_wrappers
@@ -318,6 +318,8 @@ get_avx_compile_options(AVX_COMPILE_OPTIONS)
 
 macro(mujoco_pybind11_module name)
   pybind11_add_module(${name} ${ARGN})
+  target_compile_features(${name} PRIVATE ${MUJOCO_PYTHON_CXX_FEATURE})
+  set_target_properties(${name} PROPERTIES CXX_EXTENSIONS OFF)
   target_compile_options(${name} PRIVATE ${AVX_COMPILE_OPTIONS})
   if(NOT MSVC)
     target_compile_options(

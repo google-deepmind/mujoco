@@ -23,6 +23,8 @@ set(MUJOCO_ACTUATOR_SRCS
 )
 
 add_library(actuator SHARED)
+target_compile_features(actuator PRIVATE cxx_std_20)
+set_target_properties(actuator PROPERTIES CXX_EXTENSIONS OFF)
 target_sources(actuator PRIVATE ${MUJOCO_ACTUATOR_SRCS})
 target_include_directories(actuator PRIVATE ${MUJOCO_ACTUATOR_INCLUDE})
 target_link_libraries(actuator PRIVATE mujoco)

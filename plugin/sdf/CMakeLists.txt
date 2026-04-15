@@ -33,6 +33,8 @@ set(MUJOCO_SDF_SRCS
 )
 
 add_library(sdf_plugin SHARED)
+target_compile_features(sdf_plugin PRIVATE cxx_std_20)
+set_target_properties(sdf_plugin PROPERTIES CXX_EXTENSIONS OFF)
 target_sources(sdf_plugin PRIVATE ${MUJOCO_SDF_SRCS})
 target_include_directories(sdf_plugin PRIVATE ${MUJOCO_SDF_INCLUDE})
 target_link_libraries(sdf_plugin PRIVATE mujoco)

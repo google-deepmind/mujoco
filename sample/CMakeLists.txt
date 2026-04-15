@@ -72,17 +72,23 @@ endif()
 
 # Build sample binaries
 add_executable(compile compile.cc)
+target_compile_features(compile PRIVATE cxx_std_20)
+set_target_properties(compile PROPERTIES CXX_EXTENSIONS OFF)
 target_compile_options(compile PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(compile Threads::Threads)
 target_link_options(compile PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
 
 # Build sample binaries
 add_executable(dependencies dependencies.cc)
+target_compile_features(dependencies PRIVATE cxx_std_20)
+set_target_properties(dependencies PROPERTIES CXX_EXTENSIONS OFF)
 target_compile_options(dependencies PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(dependencies Threads::Threads)
 target_link_options(dependencies PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
 
 add_executable(testspeed testspeed.cc)
+target_compile_features(testspeed PRIVATE cxx_std_20)
+set_target_properties(testspeed PROPERTIES CXX_EXTENSIONS OFF)
 target_compile_options(testspeed PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(testspeed Threads::Threads)
 target_link_options(testspeed PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
@@ -94,6 +100,8 @@ target_link_libraries(testspeed mujoco::mujoco)
 # Build samples that require GLFW.
 
 add_executable(basic basic.cc)
+target_compile_features(basic PRIVATE cxx_std_20)
+set_target_properties(basic PROPERTIES CXX_EXTENSIONS OFF)
 target_compile_options(basic PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(
   basic
@@ -104,6 +112,8 @@ target_link_libraries(
 target_link_options(basic PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
 
 add_executable(record record.cc array_safety.h)
+target_compile_features(record PRIVATE cxx_std_20)
+set_target_properties(record PROPERTIES CXX_EXTENSIONS OFF)
 target_compile_options(record PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(
   record

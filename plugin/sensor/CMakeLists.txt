@@ -24,6 +24,8 @@ set(MUJOCO_SENSOR_SRCS
 )
 
 add_library(sensor SHARED)
+target_compile_features(sensor PRIVATE cxx_std_20)
+set_target_properties(sensor PROPERTIES CXX_EXTENSIONS OFF)
 target_sources(sensor PRIVATE ${MUJOCO_SENSOR_SRCS})
 target_include_directories(sensor PRIVATE ${MUJOCO_SENSOR_INCLUDE})
 target_link_libraries(sensor PRIVATE mujoco)

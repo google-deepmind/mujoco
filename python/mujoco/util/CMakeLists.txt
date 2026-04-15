@@ -12,42 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if(MSVC AND MSVC_VERSION GREATER_EQUAL 1927)
-  set(CMAKE_CXX_STANDARD 20) # For forceinline lambdas.
-else()
-  set(CMAKE_CXX_STANDARD 17)
-endif()
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
 # INTERPROCEDURAL_OPTIMIZATION is enforced when enabled.
 set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 
 add_library(crossplatform INTERFACE)
 target_sources(crossplatform INTERFACE crossplatform.h)
-set_target_properties(crossplatform PROPERTIES PUBLIC_HEADER crossplatform.h)
+target_compile_features(crossplatform INTERFACE ${MUJOCO_PYTHON_CXX_FEATURE})
+set_target_properties(crossplatform PROPERTIES PUBLIC_HEADER crossplatform.h CXX_EXTENSIONS OFF)
 target_include_directories(crossplatform INTERFACE ${mujoco_SOURCE_DIR}/mujoco)
 
 add_library(array_traits INTERFACE)
 target_sources(array_traits INTERFACE array_traits.h)
-set_target_properties(array_traits PROPERTIES PUBLIC_HEADER array_traits.h)
+target_compile_features(array_traits INTERFACE ${MUJOCO_PYTHON_CXX_FEATURE})
+set_target_properties(array_traits PROPERTIES PUBLIC_HEADER array_traits.h CXX_EXTENSIONS OFF)
 target_include_directories(array_traits INTERFACE ${mujoco_SOURCE_DIR}/mujoco)
 target_link_libraries(array_traits INTERFACE crossplatform Eigen3::Eigen)
 
 add_library(func_traits INTERFACE)
 target_sources(func_traits INTERFACE func_traits.h)
-set_target_properties(func_traits PROPERTIES PUBLIC_HEADER func_traits.h)
+target_compile_features(func_traits INTERFACE ${MUJOCO_PYTHON_CXX_FEATURE})
+set_target_properties(func_traits PROPERTIES PUBLIC_HEADER func_traits.h CXX_EXTENSIONS OFF)
 target_include_directories(func_traits INTERFACE ${mujoco_SOURCE_DIR}/mujoco)
 
 add_library(tuple_tools INTERFACE)
 target_sources(tuple_tools INTERFACE tuple_tools.h)
-set_target_properties(tuple_tools PROPERTIES PUBLIC_HEADER tuple_tools.h)
+target_compile_features(tuple_tools INTERFACE ${MUJOCO_PYTHON_CXX_FEATURE})
+set_target_properties(tuple_tools PROPERTIES PUBLIC_HEADER tuple_tools.h CXX_EXTENSIONS OFF)
 target_include_directories(tuple_tools INTERFACE ${mujoco_SOURCE_DIR}/mujoco)
 target_link_libraries(tuple_tools INTERFACE crossplatform)
 
 add_library(func_wrap INTERFACE)
 target_sources(func_wrap INTERFACE func_wrap.h)
-set_target_properties(func_wrap PROPERTIES PUBLIC_HEADER func_wrap.h)
+target_compile_features(func_wrap INTERFACE ${MUJOCO_PYTHON_CXX_FEATURE})
+set_target_properties(func_wrap PROPERTIES PUBLIC_HEADER func_wrap.h CXX_EXTENSIONS OFF)
 target_include_directories(func_wrap INTERFACE ${mujoco_SOURCE_DIR}/mujoco)
 target_link_libraries(
   func_wrap
