@@ -22,7 +22,6 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_collision_convex.h"
-#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 
@@ -2208,16 +2207,17 @@ static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) 
 }
 
 
+// return size in bytes of the buffer needed for mjc_ccd for a given number of iterations
+size_t mjc_ccdSize(int iterations) {
+  return (sizeof(Face) * 6 * iterations)           // faces in polytope
+         + (sizeof(Face*) * 6 * iterations)        // map in polytope
+         + (sizeof(Vertex) * (5 + iterations))     // vertices in polytope
+         + 2 * (24 * sizeof(int));                 // horizon data
+}
+
+
 // general convex collision detection
 mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
-  // pre-allocate static memory for low iterations
-  void* buffer = NULL;
-  static mjTHREADLOCAL Vertex vert_data[5 + mjMAX_EPA_ITERATIONS];
-  static mjTHREADLOCAL Face face_data[6 * mjMAX_EPA_ITERATIONS];
-  static mjTHREADLOCAL Face* map_data[6 * mjMAX_EPA_ITERATIONS];
-  static mjTHREADLOCAL int index_data[6 + mjMAX_EPA_ITERATIONS];
-  static mjTHREADLOCAL int edge_data[6 + mjMAX_EPA_ITERATIONS];
-
   // setup
   obj1->center(status->x1, obj1);
   obj2->center(status->x2, obj2);
@@ -2295,42 +2295,24 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     return status->dist;
   }
 
-  if (status->dist <= config->tolerance && status->nsimplex > 1) {
+  if (status->dist <= config->tolerance && status->nsimplex > 1 && config->buffer) {
     status->dist = 0;  // assume touching
     Polytope pt;
     pt.nfaces = pt.nmap = pt.nverts = pt.horizon.nedges = 0;
 
-    // allocate memory via static thread-local storage
+    // allocate memory for polytope
     int N = config->max_iterations;
-    if (N <= mjMAX_EPA_ITERATIONS) {
-      pt.maxfaces = 6 * mjMAX_EPA_ITERATIONS;
-      pt.verts = vert_data;
-      pt.faces = face_data;
-      pt.map = map_data;
-      pt.horizon.indices = index_data;
-      pt.horizon.edges = edge_data;
-    }
-
-    // static storage insufficient, allocate with callback
-    else {
-      size_t nbytes = (sizeof(Face) * 6 * N)      // faces in polytope
-                    + (sizeof(Face*) * 6 * N)     // map in polytope
-                    + (sizeof(Vertex) * (5 + N))  // vertices in polytope
-                    + 2*(sizeof(int) * (6 + N));  // horizon data
-
-      pt.maxfaces = 6 * N;
-      buffer = config->alloc(config->context, nbytes);
-      uint8_t* bbuffer = (uint8_t*)buffer;
-      pt.verts = (Vertex*)bbuffer;
-      bbuffer += sizeof(Vertex) * (5 + N);
-      pt.faces = (Face*)bbuffer;
-      bbuffer += sizeof(Face) * (6 * N);
-      pt.map = (Face**)bbuffer;
-      bbuffer += sizeof(Face*) * (6 * N);
-      pt.horizon.indices = (int*)bbuffer;
-      bbuffer += sizeof(int) * (6 + N);
-      pt.horizon.edges = (int*)bbuffer;
-    }
+    pt.maxfaces = 6 * N;
+    uint8_t* buffer = config->buffer;
+    pt.verts = (Vertex*)buffer;
+    buffer += sizeof(Vertex) * (5 + N);
+    pt.faces = (Face*)buffer;
+    buffer += sizeof(Face) * (6 * N);
+    pt.map = (Face**)buffer;
+    buffer += sizeof(Face*) * (6 * N);
+    pt.horizon.indices = (int*)buffer;
+    buffer += sizeof(int) * 24;
+    pt.horizon.edges = (int*)buffer;
 
     int ret;
     if (status->nsimplex == 2) {
@@ -2349,9 +2331,6 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
         multicontact(&pt, face, status, obj1, obj2);
       }
     }
-  }
-  if (buffer) {
-    config->free(config->context, buffer);
   }
   return status->dist;
 }

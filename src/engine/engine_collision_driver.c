@@ -516,6 +516,7 @@ void mj_collision(const mjModel* m, mjData* d) {
       }
     }
   }
+  mj_freeStack(d);
 
   // finish merging predefined geom pairs
   for (; pairadr < npair; pairadr++) {
@@ -572,8 +573,6 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   // end narrowphase and midphase timer
   TM_END(mjTIMER_COL_NARROW);
-
-  mj_freeStack(d);
   TM_END1(mjTIMER_POS_COLLISION);
 }
 

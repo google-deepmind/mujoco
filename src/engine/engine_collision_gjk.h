@@ -35,9 +35,6 @@ extern "C" {
   #define mjMAX_LIMIT FLT_MAX
 #endif
 
-// max number of EPA iterations
-#define mjMAX_EPA_ITERATIONS 170
-
 // tolerance for normal alignment of two faces (cosine of 1.6e-3)
 #define mjFACE_TOL 0.99999872
 
@@ -77,13 +74,7 @@ typedef struct {
   mjtNum tolerance;    // tolerance used by GJK and EPA
   int max_contacts;    // set to max number of contact points to recover
   mjtNum dist_cutoff;  // set to max geom distance to recover
-  void* context;       // opaque data pointer passed to callbacks
-
-  // callback to allocate memory for polytope (only needed for penetration recovery)
-  void*(*alloc)(void* context, size_t nbytes);
-
-  // callback to free memory from alloc callback
-  void(*free)(void* context, void* buffer);
+  void* buffer;        // buffer memory for polytope (should be sized given by mjc_ccdSize)
 } mjCCDConfig;
 
 // data produced from running GJK and EPA
@@ -107,6 +98,9 @@ typedef struct {
   Vertex simplex[4];
   int nsimplex;
 } mjCCDStatus;
+
+// return size in bytes of the buffer needed for mjc_ccd for a given number of iterations
+MJAPI size_t mjc_ccdSize(int iterations);
 
 // run general convex collision detection, returns positive for distance, negative for penetration
 MJAPI mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
