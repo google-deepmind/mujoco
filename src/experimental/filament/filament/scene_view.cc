@@ -129,7 +129,9 @@ static void SetupReflectionCamera(const mat4& surface_xform,
 
 SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
   scene_ = engine->createScene();
+  ux_scene_ = engine->createScene();
   camera_ = engine->createCamera(utils::EntityManager::get().create());
+  ux_camera_ = engine->createCamera(utils::EntityManager::get().create());
   reflect_camera_ = engine->createCamera(utils::EntityManager::get().create());
 
   for (auto& view : views_) {
@@ -138,6 +140,12 @@ SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
     view->setCamera(camera_);
     view->setVisibleLayers(0xff, mjCAT_ALL);
   }
+
+  ux_view_ = engine->createView();
+  ux_view_->setScene(ux_scene_);
+  ux_view_->setCamera(ux_camera_);
+  ux_view_->setPostProcessingEnabled(false);
+  ux_view_->setShadowingEnabled(false);
 
   reflect_view_ = engine->createView();
   reflect_view_->setScene(scene_);
@@ -166,16 +174,22 @@ SceneView::~SceneView() {
   for (auto& renderable : renderables_) {
     renderable->RemoveFromScene(scene_);
   }
+  for (auto& renderable : ux_renderables_) {
+    renderable->RemoveFromScene(ux_scene_);
+  }
   lights_.clear();
   renderables_.clear();
   reflect_targets_.clear();
   engine_->destroyCameraComponent(reflect_camera_->getEntity());
   engine_->destroy(reflect_view_);
+  engine_->destroyCameraComponent(ux_camera_->getEntity());
+  engine_->destroy(ux_view_);
   engine_->destroyCameraComponent(camera_->getEntity());
   if (color_grading_) {
     engine_->destroy(color_grading_);
   }
   engine_->destroy(scene_);
+  engine_->destroy(ux_scene_);
   for (auto& view : views_) {
     engine_->destroy(view);
   }
@@ -212,6 +226,18 @@ void SceneView::RemoveFromScene(Renderable* renderable) {
   }
 }
 
+void SceneView::AddToUxScene(Renderable* renderable) {
+  if (ux_renderables_.insert(renderable).second) {
+    renderable->AddToScene(ux_scene_);
+  }
+}
+
+void SceneView::RemoveFromUxScene(Renderable* renderable) {
+  if (ux_renderables_.erase(renderable)) {
+    renderable->RemoveFromScene(ux_scene_);
+  }
+}
+
 void SceneView::AddToScene(filament::Skybox* skybox) {
   skybox_ = skybox;
   scene_->setSkybox(skybox);
@@ -231,6 +257,7 @@ void SceneView::Render(filament::Renderer* renderer,
   for (auto& view : views_) {
     view->setViewport(viewport);
   }
+  ux_view_->setViewport(viewport);
   reflect_view_->setViewport(viewport);
 
   SetupCamera(request.camera, viewport, camera_);
@@ -278,6 +305,16 @@ void SceneView::Render(filament::Renderer* renderer,
   view->setRenderTarget(render_target);
   renderer->render(view);
   view->setRenderTarget(nullptr);
+
+  if (request.enable_ux) {
+    ux_camera_->setProjection(filament::Camera::Projection::ORTHO, 0.0f,
+                              viewport.width / request.gui_scale,
+                              viewport.height / request.gui_scale, 0.0f, 0.0f,
+                              1.0f);
+    ux_view_->setRenderTarget(render_target);
+    renderer->render(ux_view_);
+    ux_view_->setRenderTarget(nullptr);
+  }
 
   if (request.target) {
     view->setMultiSampleAntiAliasingOptions(options);

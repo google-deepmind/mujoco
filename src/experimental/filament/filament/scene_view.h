@@ -38,7 +38,8 @@ namespace mujoco {
 //
 // The filament Scene is populated with the objects (e.g. lights, renderables,
 // skybox, etc.). It manages multiple views to support a variety of draw modes
-// (e.g. normal, depth, segmentation, etc.) as well as reflective surfaces.
+// (e.g. normal, depth, segmentation, etc.) as well as reflective surfaces. It
+// also manages a separate scene and view for UX rendering.
 class SceneView {
  public:
   SceneView(filament::Engine* engine);
@@ -52,6 +53,10 @@ class SceneView {
   void AddToScene(filament::Skybox* skybox);
   void RemoveFromScene(filament::Skybox* skybox);
 
+  // Adds/removes entities from the UX scene, which is rendered separately.
+  void AddToUxScene(Renderable* renderable);
+  void RemoveFromUxScene(Renderable* renderable);
+
   // Parameters for rendering the scene.
   using DrawMode = Material::DrawMode;
   struct RenderRequest {
@@ -63,6 +68,10 @@ class SceneView {
     mjvGLCamera camera;
     // An optional render target into which the scene will be rendered.
     RenderTarget* target = nullptr;
+    // Whether or not to render the UX as a separate pass.
+    bool enable_ux = false;
+    // The scale factor to use for UX rendering.
+    float gui_scale = 1.0f;
   };
 
   // Renders the scene.
@@ -89,6 +98,7 @@ class SceneView {
 
   filament::Engine* engine_ = nullptr;
   filament::Scene* scene_ = nullptr;
+  filament::Scene* ux_scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;
   ColorGradingOptions color_grading_options_;
@@ -99,6 +109,11 @@ class SceneView {
   std::unordered_set<Light*> lights_;
   std::unordered_set<Renderable*> renderables_;
   filament::Skybox* skybox_ = nullptr;
+
+  // Custom view for UX.
+  filament::View* ux_view_ = nullptr;
+  filament::Camera* ux_camera_ = nullptr;
+  std::unordered_set<Renderable*> ux_renderables_;
 
   // Custom view and camera for reflective surfaces.
   filament::View* reflect_view_ = nullptr;

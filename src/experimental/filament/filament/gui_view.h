@@ -21,60 +21,49 @@
 #include <vector>
 
 #include <imgui.h>
-#include <filament/Camera.h>
-#include <filament/Engine.h>
 #include <filament/Material.h>
-#include <filament/MaterialInstance.h>
-#include <filament/Scene.h>
-#include <filament/Texture.h>
-#include <filament/View.h>
-#include <mujoco/mjrender.h>
 #include "experimental/filament/filament/mesh.h"
-#include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/renderable.h"
+#include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
-// A filament::View that contains a filament::Scene used for rendering the GUI.
+// Manages Renderables that will be added a SceneView's UX scene.
 class GuiView {
  public:
-  GuiView(filament::Engine* engine, filament::Material* ui_material);
+  GuiView(SceneView* scene_view, filament::Material* ui_material);
   ~GuiView();
 
-  // Prepares the UX scene renderable using data from the current ImGui state.
-  // This function must be called once per frame to ensure ImGui state is
-  // correctly synced.
-  void UpdateRenderable();
+  // Prepares the Renderables using data from the current ImGui state. This
+  // function must be called once per frame to ensure ImGui state is correctly
+  // synced.
+  void Update();
 
-  void Render(filament::Renderer* renderer, RenderTarget* target = nullptr);
+  // Returns the current ImGui scale factor.
+  float GetScale() const;
 
   // Uploads texture to be used with ImGui's Image and ImageButton functions.
   uintptr_t UploadImage(uintptr_t tex_id, const uint8_t* pixels, int width,
                         int height, int bpp);
 
+  GuiView(const GuiView&) = delete;
+  GuiView& operator=(const GuiView&) = delete;
+
  private:
+  // Ensures exactly `count` Renderables exist, creating or destroying them as
+  // needed.
+  void PrepareRenderables(int count);
+
   void CreateTexture(ImTextureData* data);
   void UpdateTexture(ImTextureData* data);
   void DestroyTexture(ImTextureData* data);
 
-  // Returns the filament::MaterialInstance configured to draw into the given
-  // scissor rect.
-  filament::MaterialInstance* GetMaterialInstance(int index, mjrRect rect,
-                                                  uintptr_t texture_id);
-
-  // Clears the filament::Scene of the UX renderable and releases all buffers.
-  void ResetRenderable();
-
-  filament::Engine* engine_ = nullptr;
-  filament::Scene* scene_ = nullptr;
-  filament::Camera* camera_ = nullptr;
-  filament::View* view_ = nullptr;
+  SceneView* scene_view_ = nullptr;
   filament::Material* material_ = nullptr;
-  utils::Entity renderable_;
+  std::vector<std::unique_ptr<Renderable>> renderables_;
   std::vector<MeshPtr> meshes_;
-  std::vector<filament::MaterialInstance*> instances_;
   std::unordered_map<uintptr_t, std::unique_ptr<Texture>> textures_;
-  int num_elements_ = 0;
 };
 
 // Draws text at the given screen coordinates in clip space (i.e. [-1,-1,-1] to

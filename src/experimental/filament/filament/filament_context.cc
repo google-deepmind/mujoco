@@ -97,7 +97,7 @@ void FilamentContext::Init(const mjModel* model) {
   scene_bridge_ = std::make_unique<SceneBridge>(object_manager_.get(), model,
                                                 scene_view_.get());
   gui_view_ = std::make_unique<GuiView>(
-      engine_, object_manager_->GetMaterial(ObjectManager::kUnlitUi));
+      scene_view_.get(), object_manager_->GetMaterial(ObjectManager::kUnlitUi));
 
   // Set clear options.
   filament::Renderer::ClearOptions opts;
@@ -131,7 +131,7 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
     // Prepare the filament Renderable that contains the GUI draw commands. We
     // must call this function even if we do not plan on rendering the GUI to
     // ensure the ImGui state is updated.
-    gui_view_->UpdateRenderable();
+    gui_view_->Update();
   }
 
   last_render_mode_ = SceneView::DrawMode::kNormal;
@@ -154,12 +154,9 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
       request.draw_mode = last_render_mode_;
       request.viewport = viewport;
       request.camera = last_camera_;
+      request.enable_ux = (gui_swap_chain_target_ == kWindowSwapChain);
+      request.gui_scale = gui_view_ ? gui_view_->GetScale() : 1.0f;
       scene_view_->Render(renderer_, request);
-
-      if (gui_view_ && gui_swap_chain_target_ == kWindowSwapChain) {
-        gui_view_->Render(renderer_);
-      }
-
       renderer_->endFrame();
     }
 
@@ -231,12 +228,9 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
       request.viewport = viewport;
       request.target = color_target_.get();
       request.camera = last_camera_;
+      request.enable_ux = (gui_swap_chain_target_ == kOffscreenSwapChain);
+      request.gui_scale = gui_view_ ? gui_view_->GetScale() : 1.0f;
       scene_view_->Render(renderer_, request);
-
-      // Render the GUI to the texture as well if requested.
-      if (gui_view_ && gui_swap_chain_target_ == kOffscreenSwapChain) {
-        gui_view_->Render(renderer_, color_target_.get());
-      }
 
       const size_t num_bytes = viewport.width * viewport.height * 3;
       color_target_->ReadColorPixels(renderer_, rgb, num_bytes);

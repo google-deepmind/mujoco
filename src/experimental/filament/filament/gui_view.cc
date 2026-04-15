@@ -18,70 +18,26 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
-#include <utility>
 #include <vector>
 
 #include <imgui.h>
-#include <filament/Engine.h>
-#include <filament/RenderableManager.h>
-#include <filament/Renderer.h>
-#include <filament/TextureSampler.h>
-#include <filament/Viewport.h>
+#include <filament/Material.h>
 #include <math/vec4.h>
-#include <utils/EntityManager.h>
-#include <mujoco/mjrender.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
-#include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/renderable.h"
+#include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
-using filament::math::float4;
-
-static constexpr auto kTriangles =
-    filament::RenderableManager::PrimitiveType::TRIANGLES;
-
-GuiView::GuiView(filament::Engine* engine, filament::Material* ui_material)
-    : engine_(engine), material_(ui_material) {
-  auto& em = utils::EntityManager::get();
-  scene_ = engine_->createScene();
-  camera_ = engine_->createCamera(em.create());
-  view_ = engine_->createView();
-  renderable_ = em.create();
-  view_->setScene(scene_);
-  view_->setCamera(camera_);
-  view_->setPostProcessingEnabled(false);
+GuiView::GuiView(SceneView* scene_view, filament::Material* ui_material)
+    : scene_view_(scene_view), material_(ui_material) {
 }
 
 GuiView::~GuiView() {
-  if (num_elements_ > 0) {
-    scene_->remove(renderable_);
-    auto& rm = engine_->getRenderableManager();
-    rm.destroy(renderable_);
-  }
-  auto& em = utils::EntityManager::get();
-  em.destroy(renderable_);
-  meshes_.clear();
-  for (auto& instance : instances_) {
-    engine_->destroy(instance);
-  }
-  textures_.clear();
-  engine_->destroyCameraComponent(camera_->getEntity());
-  engine_->destroy(view_);
-  engine_->destroy(scene_);
-}
-
-void GuiView::ResetRenderable() {
-  auto& em = utils::EntityManager::get();
-  if (!renderable_.isNull()) {
-    scene_->remove(renderable_);
-    auto& rm = engine_->getRenderableManager();
-    rm.destroy(renderable_);
-    em.destroy(renderable_);
-    renderable_ = utils::Entity();
-  }
-  meshes_.clear();
+  PrepareRenderables(0);
 }
 
 uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
@@ -116,7 +72,7 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
     config.target = mjTEXTURE_2D;
     config.format = bpp == 4 ? mjPIXEL_FORMAT_RGBA8 : mjPIXEL_FORMAT_RGB8;
     config.color_space = mjCOLORSPACE_LINEAR;
-    texture = std::make_unique<Texture>(engine_, config);
+    texture = std::make_unique<Texture>(scene_view_->GetEngine(), config);
   }
 
   // Create a copy of the image to pass it to filament as we don't know the
@@ -153,7 +109,8 @@ void GuiView::CreateTexture(ImTextureData* data) {
   config.color_space = mjCOLORSPACE_LINEAR;
 
   const uintptr_t tex_id = textures_.size() + 1;
-  textures_[tex_id] = std::make_unique<Texture>(engine_, config);
+  textures_[tex_id] =
+      std::make_unique<Texture>(scene_view_->GetEngine(), config);
   data->SetTexID((ImTextureID)tex_id);
   UpdateTexture(data);
 }
@@ -183,21 +140,22 @@ void GuiView::DestroyTexture(ImTextureData* data) {
   }
 }
 
-void GuiView::UpdateRenderable() {
+void GuiView::Update() {
   if (!ImGui::GetCurrentContext()) {
+    PrepareRenderables(0);
     return;
   }
 
   // Prepare the imgui draw commands. We must call this function even if we do
   // not plan on rendering anything to ensure imgui state is updated.
   ImGui::Render();
-  auto& rm = engine_->getRenderableManager();
 
   ImGuiIO& io = ImGui::GetIO();
   const ImVec2& size = io.DisplaySize;
   const ImVec2& scale = io.DisplayFramebufferScale;
   ImDrawData* commands = ImGui::GetDrawData();
-  if (!commands) {
+  if (!commands || size.x == 0 || size.y == 0) {
+    PrepareRenderables(0);
     return;
   }
   commands->ScaleClipRects(scale);
@@ -243,39 +201,13 @@ void GuiView::UpdateRenderable() {
     }
   }
 
-  if (size.x == 0 || size.y == 0 || num_elements == 0) {
-    if (num_elements_ > 0) {
-      scene_->remove(renderable_);
-      rm.destroy(renderable_);
-    }
-    num_elements_ = 0;
+  PrepareRenderables(num_elements);
+  if (num_elements == 0) {
     return;
   }
 
-  view_->setViewport(
-      filament::Viewport(0.f, 0.f, size.x * scale.x, size.y * scale.y));
-  camera_->setProjection(filament::Camera::Projection::ORTHO, 0.0, size.x,
-                         size.y, 0.0, 0.0, 1.0);
-
-  if (num_elements != num_elements_) {
-    if (num_elements_ > 0) {
-      scene_->remove(renderable_);
-      rm.destroy(renderable_);
-    }
-
-    num_elements_ = num_elements;
-
-    filament::RenderableManager::Builder builder(num_elements_);
-    builder.boundingBox({{-100, -100, -100}, {100, 100, 100}});
-    builder.culling(false);
-    builder.build(*engine_, renderable_);
-    scene_->addEntity(renderable_);
-  }
   meshes_.clear();
-
-  auto ri = rm.getInstance(renderable_);
-
-  int drawable_index = 0;
+  int renderable_index = 0;
   for (int n = 0; n < commands->CmdListsCount; ++n) {
     const ImDrawList* cmds = commands->CmdLists[n];
 
@@ -297,70 +229,70 @@ void GuiView::UpdateRenderable() {
     data.indices = cmds->IdxBuffer.Data;
     data.index_type = mjINDEX_TYPE_USHORT;
     data.primitive_type = mjPRIM_TYPE_TRIANGLES;
-    meshes_.push_back(std::make_unique<Mesh>(engine_, data));
-    const auto& mesh = meshes_.back();
+    meshes_.push_back(std::make_unique<Mesh>(scene_view_->GetEngine(), data));
+
+    const Mesh* mesh = meshes_.back().get();
 
     int index_offset = 0;
     for (const ImDrawCmd& command : cmds->CmdBuffer) {
       const int width = size.x * scale.x;
       const int height = size.y * scale.y;
 
-      int clip_left = command.ClipRect.x;
-      int clip_bottom = height - command.ClipRect.w;
-      int clip_width = command.ClipRect.z - command.ClipRect.x;
-      int clip_height = command.ClipRect.w - command.ClipRect.y;
+      auto& renderable = renderables_[renderable_index];
+      if (renderable->GetNumMeshes() == 0) {
+        renderable->AppendMesh(mesh, index_offset, command.ElemCount);
+      } else {
+        renderable->UpdateMesh(0, mesh, index_offset, command.ElemCount);
+      }
+
+      Material::Textures textures;
+      textures.color = textures_[command.GetTexID()].get();
+      renderable->GetMaterial().UpdateTextures(textures);
+
+      Material::Params properties;
+      properties.scissor[0] = command.ClipRect.x;
+      properties.scissor[1] = height - command.ClipRect.w;
+      properties.scissor[2] = command.ClipRect.z - command.ClipRect.x;
+      properties.scissor[3] = command.ClipRect.w - command.ClipRect.y;
       // Modal dialogs try to cover the whole window, but also a little outside
       // of it. This doesn't work well with filament's scissor test, so we clip
       // them to the window.
-      if (clip_left < 0 || clip_bottom < 0) {
-        clip_left = 0;
-        clip_bottom = 0;
-        clip_width = width;
-        clip_height = height;
+      if (properties.scissor[0] < 0 || properties.scissor[1] < 0) {
+        properties.scissor[0] = 0;
+        properties.scissor[1] = 0;
+        properties.scissor[2] = width;
+        properties.scissor[3] = height;
       }
-
-      mjrRect clip_rect{clip_left, clip_bottom, clip_width, clip_height};
-      rm.setMaterialInstanceAt(
-          ri, drawable_index,
-          GetMaterialInstance(drawable_index, clip_rect, command.GetTexID()));
-      rm.setGeometryAt(
-          ri, drawable_index, kTriangles, mesh->GetFilamentVertexBuffer(),
-          mesh->GetFilamentIndexBuffer(), index_offset, command.ElemCount);
-      rm.setBlendOrderAt(ri, drawable_index, drawable_index);
+      renderable->GetMaterial().UpdateParams(properties);
 
       index_offset += command.ElemCount;
-      ++drawable_index;
+      ++renderable_index;
     }
   }
 }
 
-filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
-                                                         mjrRect rect,
-                                                         uintptr_t texture_id) {
-  while (index >= instances_.size()) {
-    instances_.push_back(material_->createInstance());
-  }
+void GuiView::PrepareRenderables(int count) {
+  while (renderables_.size() < count) {
+    auto& r = renderables_.emplace_back(
+        std::make_unique<Renderable>(scene_view_->GetEngine()));
+    r->SetCastShadows(false);
+    r->SetReceiveShadows(false);
+    r->SetBlendOrder(static_cast<std::uint16_t>(renderables_.size()));
 
-  auto iter = textures_.find(texture_id);
-  if (iter == textures_.end()) {
-    mju_error("Texture not found: %lu", texture_id);
+    Material& material = r->GetMaterial();
+    Material::DrawMode mode = Material::DrawMode::kNormal;
+    material.SetMaterial(mode, material_);
+    r->SetMaterialInstance(material.GetMaterialInstance(mode));
+    scene_view_->AddToUxScene(r.get());
   }
-
-  filament::MaterialInstance* instance = instances_[index];
-  instance->setParameter("glyph", iter->second->GetFilamentTexture(),
-                         filament::TextureSampler());
-  instance->setScissor(rect.left, rect.bottom, rect.width, rect.height);
-  return instance;
+  while (renderables_.size() > count) {
+    scene_view_->RemoveFromUxScene(renderables_.back().get());
+    renderables_.pop_back();
+  }
 }
 
-void GuiView::Render(filament::Renderer* renderer, RenderTarget* target) {
-  if (num_elements_ == 0) {
-    return;
-  }
-
-  view_->setRenderTarget(target ? target->GetFilamentRenderTarget() : nullptr);
-  renderer->render(view_);
-  view_->setRenderTarget(nullptr);
+float GuiView::GetScale() const {
+  return ImGui::GetIO().DisplayFramebufferScale.x;
 }
 
 static ImVec2 ClipSpaceToWindowCoordinates(float x, float y) {

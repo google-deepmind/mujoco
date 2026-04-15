@@ -72,6 +72,11 @@ void Material::UpdateMaterialInstances() {
     return;
   }
 
+  if (params_.scissor[2] != 0 && params_.scissor[3] != 0) {
+    instance->setScissor(params_.scissor[0], params_.scissor[1],
+                         params_.scissor[2], params_.scissor[3]);
+  }
+
   const filament::Material* material = instance->getMaterial();
   if (material->hasParameter("BaseColorFactor")) {
     instance->setParameter("BaseColorFactor", filament::RgbaType::sRGB,

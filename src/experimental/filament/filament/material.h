@@ -55,6 +55,7 @@ class Material {
     filament::math::float2 tex_repeat = {1, 1};
     filament::math::float3 uv_scale = {1, 1, 1};
     filament::math::float3 uv_offset = {0, 0, 0};
+    filament::math::float4 scissor = {0, 0, 0, 0};
     float specular = -1.0f;
     float glossiness = -1.0f;
     float metallic = -1.0f;
