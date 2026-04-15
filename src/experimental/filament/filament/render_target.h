@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDER_TARGET_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDER_TARGET_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 
 #include <filament/Engine.h>
@@ -28,9 +30,8 @@ class RenderTarget {
  public:
   // Defines the types of textures to create for the color and depth
   // attachments.
-  RenderTarget(filament::Engine* engine,
-                          RenderTargetTextureType color,
-                          RenderTargetTextureType depth);
+  RenderTarget(filament::Engine* engine, RenderTargetTextureType color,
+               RenderTargetTextureType depth);
   ~RenderTarget() noexcept;
 
   RenderTarget(const RenderTarget&) = delete;
@@ -39,6 +40,10 @@ class RenderTarget {
   // Creates the textures and render target if the width of height differ from
   // the last time the render target was prepared.
   void Prepare(int width, int height);
+
+  // Reads the pixels from the render target texture.
+  void ReadColorPixels(filament::Renderer* renderer, uint8_t* bytes,
+                       size_t num_bytes);
 
   // Returns the color texture.
   Texture* GetColorTexture() const;

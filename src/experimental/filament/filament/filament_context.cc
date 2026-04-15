@@ -209,28 +209,6 @@ void FilamentContext::DestroyRenderTargets() {
   color_target_.reset();
 }
 
-static void ReadColorPixels(filament::Renderer* renderer,
-                            RenderTarget* target, mjrRect viewport,
-                            unsigned char* buffer, size_t num_bytes) {
-  filament::backend::PixelBufferDescriptor descriptor(
-      buffer, num_bytes, filament::backend::PixelDataFormat::RGB,
-      filament::backend::PixelDataType::UBYTE);
-  renderer->readPixels(target->GetFilamentRenderTarget(), viewport.left,
-                       viewport.bottom, viewport.width, viewport.height,
-                       std::move(descriptor));
-}
-
-static void ReadDepthPixels(filament::Renderer* renderer,
-                            RenderTarget* target, mjrRect viewport,
-                            float* buffer, size_t num_bytes) {
-  filament::backend::PixelBufferDescriptor descriptor(
-      buffer, num_bytes, filament::backend::PixelDataFormat::R,
-      filament::backend::PixelDataType::FLOAT);
-  renderer->readPixels(target->GetFilamentRenderTarget(), viewport.left,
-                       viewport.bottom, viewport.width, viewport.height,
-                       std::move(descriptor));
-}
-
 void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
                                  float* depth) {
   if (scene_swap_chain_target_ != kOffscreenSwapChain) {
@@ -261,7 +239,7 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
       }
 
       const size_t num_bytes = viewport.width * viewport.height * 3;
-      ReadColorPixels(renderer_, color_target_.get(), viewport, rgb, num_bytes);
+      color_target_->ReadColorPixels(renderer_, rgb, num_bytes);
 
       renderer_->endFrame();
     }
@@ -277,8 +255,8 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
       scene_view_->Render(renderer_, request);
 
       const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
-      ReadDepthPixels(renderer_, depth_target_.get(), viewport, depth,
-                      num_bytes);
+      depth_target_->ReadColorPixels(
+          renderer_, reinterpret_cast<uint8_t*>(depth), num_bytes);
 
       renderer_->endFrame();
     }

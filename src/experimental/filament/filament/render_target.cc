@@ -14,18 +14,25 @@
 
 #include "experimental/filament/filament/render_target.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <utility>
 
+#include <backend/DriverEnums.h>
+#include <backend/PixelBufferDescriptor.h>
 #include <filament/Engine.h>
+#include <filament/Renderer.h>
 #include <filament/RenderTarget.h>
 #include <filament/Texture.h>
+#include <mujoco/mujoco.h>
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
 RenderTarget::RenderTarget(filament::Engine* engine,
-                                                 RenderTargetTextureType color,
-                                                 RenderTargetTextureType depth)
+                           RenderTargetTextureType color,
+                           RenderTargetTextureType depth)
     : engine_(engine), color_type_(color), depth_type_(depth) {}
 
 RenderTarget::~RenderTarget() noexcept {
@@ -51,6 +58,35 @@ void RenderTarget::Prepare(int width, int height) {
   builder.texture(filament::RenderTarget::AttachmentPoint::DEPTH,
                   depth_texture_->GetFilamentTexture());
   render_target_ = builder.build(*engine_);
+}
+
+void RenderTarget::ReadColorPixels(filament::Renderer* renderer, uint8_t* bytes,
+                                   size_t num_bytes) {
+  filament::backend::PixelDataFormat format;
+  filament::backend::PixelDataType type;
+  size_t expected_num_bytes = 0;
+  switch (color_type_) {
+    case RenderTargetTextureType::kColor:
+      format = filament::backend::PixelDataFormat::RGB;
+      type = filament::backend::PixelDataType::UBYTE;
+      expected_num_bytes = width_ * height_ * 3;
+      break;
+    case RenderTargetTextureType::kDepthColor:
+      format = filament::backend::PixelDataFormat::R;
+      type = filament::backend::PixelDataType::FLOAT;
+      expected_num_bytes = width_ * height_ * sizeof(float);
+      break;
+    default:
+      mju_error("Unsupported pixel format: %d", color_type_);
+      return;
+  }
+  if (num_bytes != expected_num_bytes) {
+    mju_error("Invalid number of bytes.");
+    return;
+  }
+
+  filament::backend::PixelBufferDescriptor desc(bytes, num_bytes, format, type);
+  renderer->readPixels(render_target_, 0, 0, width_, height_, std::move(desc));
 }
 
 void RenderTarget::Destroy() {
