@@ -233,6 +233,7 @@ pytree that should be passed into ``jit``/``vmap``-compiled functions:
         use_shadows=True,
         render_rgb=[True] * ncam,
         render_depth=[False] * ncam,
+        render_seg=[True] * ncam,
         enabled_geom_groups=[0, 1, 2],
     )
 
@@ -246,21 +247,23 @@ volume hierarchy (BVH) and executing the raycaster:
 .. code-block:: python
 
     from mujoco.mjx import get_rgb
+    from mujoco.mjx import get_segmentation
 
     @jax.jit
     def render_fn(mx, d, rc_pytree):
         # 1. Update the BVH for the current scene state
         d = mjx.refit_bvh(mx, d, rc_pytree)
 
-        # 2. Render all configured cameras
-        pixels, _ = mjx.render(mx, d, rc_pytree)
+        # 2. Render all configured cameras, including segmentation
+        pixels, _, segmentation = mjx.render_with_segmentation(mx, d, rc_pytree)
 
-        # 3. Extract the RGB tensor for the first camera (index 0)
+        # 3. Extract the RGB tensor and geom IDs for the first camera (index 0)
         rgb = get_rgb(rc_pytree, 0, pixels)
+        seg = get_segmentation(rc_pytree, 0, segmentation)
 
-        return rgb, d
+        return rgb, seg, d
 
-    rgb, d = render_fn(mx, d, rc.pytree())
+    rgb, seg, d = render_fn(mx, d, rc.pytree())
 
 .. WARNING::
    The batch dimension ``nworld`` is fixed when the render context is created via

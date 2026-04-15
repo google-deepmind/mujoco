@@ -14,17 +14,19 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
+
 import dataclasses
 import functools
+
 import jax
+import warp as wp
+
 from mujoco.mjx._src import types
+import mujoco.mjx.third_party.mujoco_warp as mjwarp
+from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 from mujoco.mjx.warp import ffi
 from mujoco.mjx.warp.render_context import _MJX_RENDER_CONTEXT_BUFFERS
 from mujoco.mjx.warp.render_context import RenderContextPytree
-import mujoco.mjx.third_party.mujoco_warp as mjwarp
-from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
-import warp as wp
-
 
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
@@ -122,36 +124,129 @@ def _render_shim(
   render_context = _MJX_RENDER_CONTEXT_BUFFERS[(rc_id, wp.get_device().ordinal)]
   render_context.rgb_data = rgb
   render_context.depth_data = depth
+  render_context.seg_data = render_context.seg_data_buffer
   mjwarp.render(_m, _d, render_context)
 
 
-def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
+@ffi.format_args_for_warp
+def _render_with_segmentation_shim(
+    # Model
+    nworld: int,
+    cam_fovy: wp.array2d[float],
+    cam_intrinsic: wp.array2d[wp.vec4],
+    cam_projection: wp.array[int],
+    cam_sensorsize: wp.array[wp.vec2],
+    flex_edge: wp.array[wp.vec2i],
+    flex_radius: wp.array[float],
+    flex_vertadr: wp.array[int],
+    geom_dataid: wp.array2d[int],
+    geom_matid: wp.array2d[int],
+    geom_rgba: wp.array2d[wp.vec4],
+    geom_size: wp.array2d[wp.vec3],
+    geom_type: wp.array[int],
+    light_active: wp.array2d[bool],
+    light_castshadow: wp.array2d[bool],
+    light_type: wp.array2d[int],
+    mat_rgba: wp.array2d[wp.vec4],
+    mat_texid: wp.array3d[int],
+    mat_texrepeat: wp.array2d[wp.vec2],
+    mesh_faceadr: wp.array[int],
+    nlight: int,
+    # Data
+    cam_xmat: wp.array2d[wp.mat33],
+    cam_xpos: wp.array2d[wp.vec3],
+    flexvert_xpos: wp.array2d[wp.vec3],
+    geom_xmat: wp.array2d[wp.mat33],
+    geom_xpos: wp.array2d[wp.vec3],
+    light_xdir: wp.array2d[wp.vec3],
+    light_xpos: wp.array2d[wp.vec3],
+    # Registry
+    rc_id: int,
+    rgb: wp.array2d[wp.uint32],
+    depth: wp.array2d[wp.float32],
+    seg: wp.array2d[int],
+):
+  _m.stat = _s
+  _m.opt = _o
+  _m.callback = _cb
+  _d.efc = _e
+  _d.contact = _c
+  _m.cam_fovy = cam_fovy
+  _m.cam_intrinsic = cam_intrinsic
+  _m.cam_projection = cam_projection
+  _m.cam_sensorsize = cam_sensorsize
+  _m.flex_edge = flex_edge
+  _m.flex_radius = flex_radius
+  _m.flex_vertadr = flex_vertadr
+  _m.geom_dataid = geom_dataid
+  _m.geom_matid = geom_matid
+  _m.geom_rgba = geom_rgba
+  _m.geom_size = geom_size
+  _m.geom_type = geom_type
+  _m.light_active = light_active
+  _m.light_castshadow = light_castshadow
+  _m.light_type = light_type
+  _m.mat_rgba = mat_rgba
+  _m.mat_texid = mat_texid
+  _m.mat_texrepeat = mat_texrepeat
+  _m.mesh_faceadr = mesh_faceadr
+  _m.nlight = nlight
+  _d.cam_xmat = cam_xmat
+  _d.cam_xpos = cam_xpos
+  _d.flexvert_xpos = flexvert_xpos
+  _d.geom_xmat = geom_xmat
+  _d.geom_xpos = geom_xpos
+  _d.light_xdir = light_xdir
+  _d.light_xpos = light_xpos
+  _d.nworld = nworld
+  render_context = _MJX_RENDER_CONTEXT_BUFFERS[(rc_id, wp.get_device().ordinal)]
+  render_context.rgb_data = rgb
+  render_context.depth_data = depth
+  render_context.seg_data = seg
+  mjwarp.render(_m, _d, render_context)
+
+
+_RENDER_STAGE_IN_ARGNAMES = set([
+    'cam_fovy',
+    'cam_intrinsic',
+    'cam_xmat',
+    'cam_xpos',
+    'geom_matid',
+    'geom_rgba',
+    'geom_size',
+    'geom_xmat',
+    'geom_xpos',
+    'light_castshadow',
+    'light_type',
+    'mat_rgba',
+    'mat_texid',
+])
+
+
+def _render_jax_impl(
+    m: types.Model,
+    d: types.Data,
+    ctx: RenderContextPytree,
+    with_segmentation: bool = False,
+):
   render_ctx = _MJX_RENDER_CONTEXT_BUFFERS[(ctx.key, None)]
   output_dims = {
       'rgb': render_ctx.rgb_data_shape,
       'depth': render_ctx.depth_data_shape,
   }
+  render_shim = _render_shim
+  num_outputs = 2
+  if with_segmentation:
+    output_dims['seg'] = render_ctx.seg_data_shape
+    render_shim = _render_with_segmentation_shim
+    num_outputs = 3
   jf = ffi.jax_callable_variadic_tuple(
-      _render_shim,
-      num_outputs=2,
+      render_shim,
+      num_outputs=num_outputs,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([]),
-      stage_in_argnames=set([
-          'cam_fovy',
-          'cam_intrinsic',
-          'cam_xmat',
-          'cam_xpos',
-          'geom_matid',
-          'geom_rgba',
-          'geom_size',
-          'geom_xmat',
-          'geom_xpos',
-          'light_castshadow',
-          'light_type',
-          'mat_rgba',
-          'mat_texid',
-      ]),
+      stage_in_argnames=_RENDER_STAGE_IN_ARGNAMES,
       stage_out_argnames=set([]),
       graph_mode=m.opt._impl.graph_mode,
       has_side_effect=False,
@@ -208,3 +303,26 @@ def render_vmap(
 ):
   out = render(m, d, ctx)
   return out, [True, True]
+
+
+@jax.custom_batching.custom_vmap
+@functools.partial(ffi.marshal_jax_warp_callable, tree_map_output=True)
+def render_with_segmentation(
+    m: types.Model,
+    d: types.Data,
+    ctx: RenderContextPytree,
+):
+  return _render_jax_impl(m, d, ctx, with_segmentation=True)
+
+
+@render_with_segmentation.def_vmap
+@functools.partial(ffi.marshal_custom_vmap, tree_map_output=True)
+def render_with_segmentation_vmap(
+    unused_axis_size,
+    is_batched,
+    m: types.Model,
+    d: types.Data,
+    ctx: RenderContextPytree,
+):
+  out = render_with_segmentation(m, d, ctx)
+  return out, [True, True, True]

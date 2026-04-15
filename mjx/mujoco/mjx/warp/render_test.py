@@ -19,22 +19,22 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 from jax import numpy as jp
+import numpy as np
+
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import bvh
 from mujoco.mjx._src import forward
 from mujoco.mjx._src import io
 from mujoco.mjx._src import render
-import mujoco.mjx.warp as mjxw
 from mujoco.mjx.warp import test_util as tu
 from mujoco.mjx.warp import warp as wp  # pylint: disable=g-importing-member
-import numpy as np
-
+import mujoco.mjx.warp as mjxw
 
 _FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
 
 
-def _get_model_data_rc(xml, batch_size):
+def _get_model_data_rc(xml, batch_size, render_seg=False):
   m = tu.load_test_file(xml)
   d = mujoco.MjData(m)
   mujoco.mj_forward(m, d)
@@ -63,6 +63,7 @@ def _get_model_data_rc(xml, batch_size):
       use_shadows=True,
       render_rgb=True,
       render_depth=True,
+      render_seg=render_seg,
       enabled_geom_groups=[0, 1, 2],
   )
   return mx, dx_batch, rc
@@ -147,6 +148,88 @@ class RenderTest(parameterized.TestCase):
     self.assertNotEqual(np.unique(rgb).shape[0], 1)
     self.assertGreater(np.count_nonzero(depth), 0)
     self.assertNotEqual(np.unique(depth).shape[0], 1)
+
+  @parameterized.product(
+      xml=('humanoid/humanoid.xml',),
+      batch_size=(1, 16),
+  )
+  def test_render_with_segmentation(self, xml: str, batch_size: int):
+    """Tests MJX render pipeline with packed segmentation output."""
+    self._maybe_skip()
+    mx, dx_batch, rc = _get_model_data_rc(xml, batch_size, render_seg=True)
+
+    dx_batch = jax.jit(mjx.refit_bvh)(mx, dx_batch, rc.pytree())
+    out_batch = jax.jit(mjx.render_with_segmentation)(mx, dx_batch, rc.pytree())
+
+    rgb = np.asarray(out_batch[0])
+    depth = np.asarray(out_batch[1])
+    seg = np.asarray(out_batch[2])
+
+    self.assertGreater(np.count_nonzero(rgb), 0)
+    self.assertGreater(np.count_nonzero(depth), 0)
+    self.assertTrue(np.any(seg != -1))
+    self.assertGreater(np.unique(seg).shape[0], 1)
+
+    unpacked_seg = jax.vmap(mjx.get_segmentation, in_axes=(None, None, 0))(
+        rc.pytree(), 0, out_batch[2]
+    )
+    unpacked_seg = np.asarray(unpacked_seg)
+    width, height = rc._default.cam_res.numpy()[
+        0
+    ]  # pylint: disable=protected-access
+    seg_adr = int(
+        rc._default.seg_adr.numpy()[0]  # pylint: disable=protected-access
+    )
+    expected_seg = seg[:, seg_adr : seg_adr + width * height].reshape(
+        batch_size, height, width
+    )
+    np.testing.assert_array_equal(unpacked_seg, expected_seg)
+
+  @parameterized.product(
+      xml=('humanoid/humanoid.xml',),
+      batch_size=(4, 16),
+  )
+  def test_render_with_segmentation_nested_vmap(
+      self, xml: str, batch_size: int
+  ):
+    """Tests MJX render_with_segmentation with nested vmap."""
+    self._maybe_skip()
+    mx, dx_batch, rc = _get_model_data_rc(xml, batch_size, render_seg=True)
+
+    def inner(mx, dx, rc):
+      dx = jax.vmap(bvh.refit_bvh, in_axes=(None, 0, None))(mx, dx, rc)
+      out = jax.vmap(render.render_with_segmentation, in_axes=(None, 0, None))(
+          mx, dx, rc
+      )
+      return out
+
+    dx_batch = jax.vmap(bvh.refit_bvh, in_axes=(None, 0, None))(
+        mx, dx_batch, rc.pytree()
+    )
+    ref = jax.vmap(render.render_with_segmentation, in_axes=(None, 0, None))(
+        mx, dx_batch, rc.pytree()
+    )
+    ref_rgb = np.asarray(ref[0])
+    ref_depth = np.asarray(ref[1])
+    ref_seg = np.asarray(ref[2])
+
+    def _reshape_batched(x):
+      if x.shape[0] == batch_size:
+        return x.reshape(2, batch_size // 2, *x.shape[1:])
+      return x
+
+    dx_2d = jax.tree.map(_reshape_batched, dx_batch)
+
+    out_batch = jax.vmap(inner, in_axes=(None, 0, None))(mx, dx_2d, rc.pytree())
+    out_batch = jax.tree.map(lambda x: x.reshape(-1, *x.shape[2:]), out_batch)
+    rgb = np.asarray(out_batch[0])
+    depth = np.asarray(out_batch[1])
+    seg = np.asarray(out_batch[2])
+
+    np.testing.assert_array_equal(rgb, ref_rgb)
+    np.testing.assert_array_equal(depth, ref_depth)
+    np.testing.assert_array_equal(seg, ref_seg)
+    self.assertTrue(np.any(seg != -1))
 
 
 class RenderContextGarbageCollectionTest(absltest.TestCase):
