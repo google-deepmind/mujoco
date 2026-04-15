@@ -25,6 +25,30 @@ if TYPE_CHECKING:
   from mujoco.mjx.warp.render_context import RenderContextPytree
 
 
+def _get_warp_render_context(rc: 'RenderContextPytree'):
+  """Validates and returns the backing Warp render context."""
+  if not mjxw.WARP_INSTALLED:
+    raise RuntimeError('Warp not installed.')
+
+  from mujoco.mjx.warp import render_context as mjxw_rc
+
+  if not isinstance(rc, mjxw_rc.RenderContextPytree):
+    raise TypeError(
+        f'Expected RenderContextPytree, got {type(rc).__name__}.'
+        ' Use rc.pytree() to get the JAX-compatible handle.'
+    )
+
+  # pylint: disable=protected-access
+  return mjxw_rc._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]
+
+
+def _get_camera_resolution(warp_rc, cam_id: int) -> tuple[int, int]:
+  """Returns the render resolution for a given camera."""
+  width = int(warp_rc.cam_res.numpy()[cam_id][0])
+  height = int(warp_rc.cam_res.numpy()[cam_id][1])
+  return width, height
+
+
 def get_rgb(
     rc: 'RenderContextPytree',
     cam_id: int,
@@ -44,21 +68,9 @@ def get_rgb(
   Raises:
     RuntimeError: If Warp is not installed.
   """
-  if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('Warp not installed.')
-
-  import mujoco.mjx.warp.render_context as mjxw_rc  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-
-  if not isinstance(rc, mjxw_rc.RenderContextPytree):
-    raise TypeError(
-        f'Expected RenderContextPytree, got {type(rc).__name__}.'
-        ' Use rc.pytree() to get the JAX-compatible handle.'
-    )
-
-  warp_rc = mjxw_rc._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]  # pylint: disable=protected-access
+  warp_rc = _get_warp_render_context(rc)
   rgb_adr = int(warp_rc.rgb_adr.numpy()[cam_id])
-  width = int(warp_rc.cam_res.numpy()[cam_id][0])
-  height = int(warp_rc.cam_res.numpy()[cam_id][1])
+  width, height = _get_camera_resolution(warp_rc, cam_id)
 
   packed = jax.lax.dynamic_slice_in_dim(
       rgb_data, rgb_adr, width * height, axis=rgb_data.ndim - 1
@@ -92,21 +104,9 @@ def get_depth(
   Raises:
     RuntimeError: If Warp is not installed.
   """
-  if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('Warp not installed.')
-
-  import mujoco.mjx.warp.render_context as mjxw_rc  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-
-  if not isinstance(rc, mjxw_rc.RenderContextPytree):
-    raise TypeError(
-        f'Expected RenderContextPytree, got {type(rc).__name__}.'
-        ' Use rc.pytree() to get the JAX-compatible handle.'
-    )
-
-  warp_rc = mjxw_rc._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]  # pylint: disable=protected-access
+  warp_rc = _get_warp_render_context(rc)
   depth_adr = int(warp_rc.depth_adr.numpy()[cam_id])
-  width = int(warp_rc.cam_res.numpy()[cam_id][0])
-  height = int(warp_rc.cam_res.numpy()[cam_id][1])
+  width, height = _get_camera_resolution(warp_rc, cam_id)
 
   raw = jax.lax.dynamic_slice_in_dim(
       depth_data, depth_adr, width * height, axis=depth_data.ndim - 1
@@ -114,3 +114,37 @@ def get_depth(
 
   depth = jnp.clip(raw / depth_scale, 0.0, 1.0)
   return depth.reshape(raw.shape[:-1] + (height, width, 1))
+
+
+def get_segmentation(
+    rc: 'RenderContextPytree',
+    cam_id: int,
+    seg_data: jax.Array,
+) -> jax.Array:
+  """Extract raw geom IDs for a camera.
+
+  Args:
+    rc: RenderContextPytree.
+    cam_id: Camera index to extract.
+    seg_data: Packed segmentation output, shape (..., total_pixels) as integers.
+
+  Returns:
+    Integer segmentation array with shape (..., H, W).
+    Any leading batch axes in `seg_data` are preserved.
+
+  Raises:
+    RuntimeError: If Warp is not installed.
+    ValueError: If segmentation is not enabled for the selected camera.
+  """
+  warp_rc = _get_warp_render_context(rc)
+  seg_adr = int(warp_rc.seg_adr.numpy()[cam_id])
+  if seg_adr < 0:
+    raise ValueError(
+        f'Camera {cam_id} was not configured with segmentation rendering.'
+    )
+
+  width, height = _get_camera_resolution(warp_rc, cam_id)
+  packed = jax.lax.dynamic_slice_in_dim(
+      seg_data, seg_adr, width * height, axis=seg_data.ndim - 1
+  )
+  return packed.reshape(packed.shape[:-1] + (height, width))
