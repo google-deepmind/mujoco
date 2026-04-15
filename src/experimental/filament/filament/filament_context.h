@@ -24,7 +24,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjvisualize.h>
-#include "experimental/filament/filament/gui_view.h"
+#include "experimental/filament/filament/imgui_bridge.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/scene_bridge.h"
@@ -89,7 +89,7 @@ class FilamentContext {
   std::unique_ptr<ObjectManager> object_manager_;
   std::unique_ptr<SceneView> scene_view_;
   std::unique_ptr<SceneBridge> scene_bridge_;
-  std::unique_ptr<GuiView> gui_view_;
+  std::unique_ptr<ImguiBridge> imgui_bridge_;
   int window_width_ = 0;
   int window_height_ = 0;
 };

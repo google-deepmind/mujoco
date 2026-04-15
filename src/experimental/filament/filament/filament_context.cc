@@ -39,7 +39,7 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/filament_platform_factory.h"
-#include "experimental/filament/filament/gui_view.h"
+#include "experimental/filament/filament/imgui_bridge.h"
 #include "experimental/filament/filament/imgui_editor.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/object_manager.h"
@@ -82,7 +82,7 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config)
 
 FilamentContext::~FilamentContext() {
   DestroyRenderTargets();
-  gui_view_.reset();
+  imgui_bridge_.reset();
   scene_bridge_.reset();
   scene_view_.reset();
   object_manager_.reset();
@@ -96,7 +96,7 @@ void FilamentContext::Init(const mjModel* model) {
   scene_view_ = std::make_unique<SceneView>(engine_);
   scene_bridge_ = std::make_unique<SceneBridge>(object_manager_.get(), model,
                                                 scene_view_.get());
-  gui_view_ = std::make_unique<GuiView>(
+  imgui_bridge_ = std::make_unique<ImguiBridge>(
       scene_view_.get(), object_manager_->GetMaterial(ObjectManager::kUnlitUi));
 
   // Set clear options.
@@ -127,11 +127,11 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
   scene_bridge_->Update(viewport, scene);
   // Update the UX renderable entity after processing the scene in case there
   // are any elements in the scene which generate UX draw calls (e.g. labels).
-  if (gui_view_ && gui_swap_chain_target_ == scene_swap_chain_target_) {
+  if (imgui_bridge_ && gui_swap_chain_target_ == scene_swap_chain_target_) {
     // Prepare the filament Renderable that contains the GUI draw commands. We
     // must call this function even if we do not plan on rendering the GUI to
     // ensure the ImGui state is updated.
-    gui_view_->Update();
+    imgui_bridge_->Update();
   }
 
   last_render_mode_ = SceneView::DrawMode::kNormal;
@@ -155,7 +155,7 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
       request.viewport = viewport;
       request.camera = last_camera_;
       request.enable_ux = (gui_swap_chain_target_ == kWindowSwapChain);
-      request.gui_scale = gui_view_ ? gui_view_->GetScale() : 1.0f;
+      request.gui_scale = imgui_bridge_ ? imgui_bridge_->GetScale() : 1.0f;
       scene_view_->Render(renderer_, request);
       renderer_->endFrame();
     }
@@ -229,7 +229,7 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
       request.target = color_target_.get();
       request.camera = last_camera_;
       request.enable_ux = (gui_swap_chain_target_ == kOffscreenSwapChain);
-      request.gui_scale = gui_view_ ? gui_view_->GetScale() : 1.0f;
+      request.gui_scale = imgui_bridge_ ? imgui_bridge_->GetScale() : 1.0f;
       scene_view_->Render(renderer_, request);
 
       const size_t num_bytes = viewport.width * viewport.height * 3;
@@ -288,8 +288,8 @@ void FilamentContext::UploadHeightField(const mjModel* model, int id) {
 uintptr_t FilamentContext::UploadGuiImage(uintptr_t tex_id,
                                           const uint8_t* pixels, int width,
                                           int height, int bpp) {
-  if (gui_view_) {
-    return gui_view_->UploadImage(tex_id, pixels, width, height, bpp);
+  if (imgui_bridge_) {
+    return imgui_bridge_->UploadImage(tex_id, pixels, width, height, bpp);
   }
   return 0;
 }

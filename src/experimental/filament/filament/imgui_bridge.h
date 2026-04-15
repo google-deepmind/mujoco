@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_GUI_VIEW_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_GUI_VIEW_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_BRIDGE_H_
+#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_BRIDGE_H_
 
 #include <cstdint>
 #include <memory>
@@ -30,10 +30,10 @@
 namespace mujoco {
 
 // Manages Renderables that will be added a SceneView's UX scene.
-class GuiView {
+class ImguiBridge {
  public:
-  GuiView(SceneView* scene_view, filament::Material* ui_material);
-  ~GuiView();
+  ImguiBridge(SceneView* scene_view, filament::Material* ui_material);
+  ~ImguiBridge();
 
   // Prepares the Renderables using data from the current ImGui state. This
   // function must be called once per frame to ensure ImGui state is correctly
@@ -47,8 +47,8 @@ class GuiView {
   uintptr_t UploadImage(uintptr_t tex_id, const uint8_t* pixels, int width,
                         int height, int bpp);
 
-  GuiView(const GuiView&) = delete;
-  GuiView& operator=(const GuiView&) = delete;
+  ImguiBridge(const ImguiBridge&) = delete;
+  ImguiBridge& operator=(const ImguiBridge&) = delete;
 
  private:
   // Ensures exactly `count` Renderables exist, creating or destroying them as
@@ -72,4 +72,4 @@ void DrawTextAt(const char* text, float x, float y, float z);
 
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_GUI_VIEW_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_BRIDGE_H_

@@ -37,7 +37,7 @@
 #include <math/TVecHelpers.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
-#include "experimental/filament/filament/gui_view.h"
+#include "experimental/filament/filament/imgui_bridge.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/gui_view.h"
+#include "experimental/filament/filament/imgui_bridge.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -32,16 +32,13 @@
 
 namespace mujoco {
 
-GuiView::GuiView(SceneView* scene_view, filament::Material* ui_material)
-    : scene_view_(scene_view), material_(ui_material) {
-}
+ImguiBridge::ImguiBridge(SceneView* scene_view, filament::Material* ui_material)
+    : scene_view_(scene_view), material_(ui_material) {}
 
-GuiView::~GuiView() {
-  PrepareRenderables(0);
-}
+ImguiBridge::~ImguiBridge() { PrepareRenderables(0); }
 
-uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
-                               int width, int height, int bpp) {
+uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
+                                   int width, int height, int bpp) {
   if (bpp != 4 && bpp != 3) {
     mju_error("Unsupported image bpp. Got %d, wanted 3 or 4", bpp);
   }
@@ -79,9 +76,8 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   // lifetime of the data.
   const size_t num_bytes = width * height * bpp;
   std::byte* bytes = new std::byte[num_bytes];
-  const auto callback = +[](void* user) {
-    delete[] reinterpret_cast<std::byte*>(user);
-  };
+  const auto callback =
+      +[](void* user) { delete[] reinterpret_cast<std::byte*>(user); };
 
   TextureData texture_data;
   DefaultTextureData(&texture_data);
@@ -95,7 +91,7 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   return tex_id;
 }
 
-void GuiView::CreateTexture(ImTextureData* data) {
+void ImguiBridge::CreateTexture(ImTextureData* data) {
   if (data->Format != ImTextureFormat_RGBA32) {
     mju_error("Unsupported texture format.");
   }
@@ -115,7 +111,7 @@ void GuiView::CreateTexture(ImTextureData* data) {
   UpdateTexture(data);
 }
 
-void GuiView::UpdateTexture(ImTextureData* data) {
+void ImguiBridge::UpdateTexture(ImTextureData* data) {
   auto iter = textures_.find(data->TexID);
   if (iter == textures_.end()) {
     mju_error("Texture not found: %llu", data->TexID);
@@ -131,7 +127,7 @@ void GuiView::UpdateTexture(ImTextureData* data) {
   data->SetStatus(ImTextureStatus_OK);
 }
 
-void GuiView::DestroyTexture(ImTextureData* data) {
+void ImguiBridge::DestroyTexture(ImTextureData* data) {
   auto iter = textures_.find(data->TexID);
   if (iter != textures_.end()) {
     textures_.erase(data->TexID);
@@ -140,7 +136,7 @@ void GuiView::DestroyTexture(ImTextureData* data) {
   }
 }
 
-void GuiView::Update() {
+void ImguiBridge::Update() {
   if (!ImGui::GetCurrentContext()) {
     PrepareRenderables(0);
     return;
@@ -271,7 +267,7 @@ void GuiView::Update() {
   }
 }
 
-void GuiView::PrepareRenderables(int count) {
+void ImguiBridge::PrepareRenderables(int count) {
   while (renderables_.size() < count) {
     auto& r = renderables_.emplace_back(
         std::make_unique<Renderable>(scene_view_->GetEngine()));
@@ -291,7 +287,7 @@ void GuiView::PrepareRenderables(int count) {
   }
 }
 
-float GuiView::GetScale() const {
+float ImguiBridge::GetScale() const {
   return ImGui::GetIO().DisplayFramebufferScale.x;
 }
 
@@ -315,8 +311,7 @@ void DrawTextAt(const char* text, float x, float y, float z) {
   const int flags = ImGuiWindowFlags_NoBringToFrontOnFocus |
                     ImGuiWindowFlags_NoFocusOnAppearing |
                     ImGuiWindowFlags_NoBackground |
-                    ImGuiWindowFlags_NoDecoration |
-                    ImGuiWindowFlags_NoInputs |
+                    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
                     ImGuiWindowFlags_NoNav;
 
   ImGui::Begin("labels", nullptr, flags);
