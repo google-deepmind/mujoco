@@ -15,10 +15,12 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MESH_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MESH_H_
 
+#include <array>
 #include <cstddef>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include <filament/Box.h>
@@ -30,6 +32,9 @@
 
 // Functions for creating filament vertex and index buffers.
 namespace mujoco {
+
+// Maximum number of vertex attributes that can be used by a mesh.
+static constexpr int kMaxVertexAttributes = 16;
 
 // The type of data stored in an index buffer.
 typedef enum mjtIndexType_ {
@@ -83,7 +88,7 @@ struct MeshData {
 
   // Information about each attribute of a vertex in the mesh. See `interleaved`
   // for more details.
-  VertexAttribute attributes[16];
+  VertexAttribute attributes[kMaxVertexAttributes];
 
   // Whether the vertex attributes are interleaved or not.
   //
@@ -147,6 +152,9 @@ class Mesh {
   // Returns the primitive type of the mesh.
   filament::RenderableManager::PrimitiveType GetPrimitiveType() const;
 
+  // Returns the vertex attribute usages for the mesh.
+  std::span<const filament::VertexAttribute> GetVertexAttributes() const;
+
   // Returns whether the mesh has bounds.
   bool HasBounds() const;
 
@@ -173,6 +181,8 @@ class Mesh {
       filament::RenderableManager::PrimitiveType::TRIANGLES;
   std::optional<filament::Box> bounds_;
   std::vector<std::function<void()>> release_callbacks_;
+  std::array<filament::VertexAttribute, kMaxVertexAttributes> attributes_;
+  int num_attributes_ = 0;
 };
 
 using MeshPtr = std::unique_ptr<Mesh>;
