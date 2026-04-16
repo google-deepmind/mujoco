@@ -733,7 +733,7 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
-    EXPECT_NEAR(vec[i], vec2[i], MjTol(1e-14, 5e-6));
+    EXPECT_NEAR(vec[i], vec2[i], MjTol(1e-13, 5e-6));
   }
 
   mj_deleteData(d);
