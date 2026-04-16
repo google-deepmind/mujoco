@@ -306,6 +306,10 @@ if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
           DESTINATION ${CONFIG_PACKAGE_LOCATION}
   )
 
+  # Configure and install the pkg-config file
+  configure_file(mujoco.pc.in "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc" @ONLY)
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc" DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+
   # Install also models into share folder.
   install(
     DIRECTORY model
