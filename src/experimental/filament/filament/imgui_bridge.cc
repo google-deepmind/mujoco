@@ -23,6 +23,7 @@
 #include <imgui.h>
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/renderable.h"
@@ -276,7 +277,7 @@ void ImguiBridge::PrepareRenderables(int count) {
     r->SetBlendOrder(static_cast<std::uint16_t>(renderables_.size()));
 
     Material& material = r->GetMaterial();
-    Material::DrawMode mode = Material::DrawMode::kNormal;
+    DrawMode mode = DrawMode::Color;
     material.SetMaterial(mode, object_mgr_->GetMaterial(ObjectManager::kUnlitUi));
     r->SetMaterialInstance(material.GetMaterialInstance(mode));
     scene_view_->AddToUxScene(r.get());

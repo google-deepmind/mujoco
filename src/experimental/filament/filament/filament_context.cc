@@ -38,6 +38,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/filament_platform_factory.h"
 #include "experimental/filament/filament/imgui_bridge.h"
 #include "experimental/filament/filament/imgui_editor.h"
@@ -134,11 +135,11 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene) {
     imgui_bridge_->Update();
   }
 
-  last_render_mode_ = SceneView::DrawMode::kNormal;
+  last_render_mode_ = DrawMode::Color;
   if (scene->flags[mjRND_SEGMENT]) {
-    last_render_mode_ = SceneView::DrawMode::kSegmentation;
+    last_render_mode_ = DrawMode::Segmentation;
   } else if (scene->flags[mjRND_DEPTH]) {
-    last_render_mode_ = SceneView::DrawMode::kDepth;
+    last_render_mode_ = DrawMode::Depth;
   }
   last_camera_ = mjv_averageCamera(scene->camera, scene->camera + 1);
 
@@ -242,7 +243,7 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
   if (depth) {
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
       SceneView::RenderRequest request;
-      request.draw_mode = SceneView::DrawMode::kDepth;
+      request.draw_mode = DrawMode::Depth;
       request.viewport = viewport;
       request.target = depth_target_.get();
       request.camera = last_camera_;

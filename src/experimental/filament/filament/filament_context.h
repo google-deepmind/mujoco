@@ -24,6 +24,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjvisualize.h>
+#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/imgui_bridge.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/render_target.h"
@@ -80,7 +81,7 @@ class FilamentContext {
   filament::SwapChain* offscreen_swap_chain_ = nullptr;
   std::unique_ptr<filament::backend::Platform> platform_;
 
-  SceneView::DrawMode last_render_mode_ = SceneView::DrawMode::kNormal;
+  DrawMode last_render_mode_ = DrawMode::Color;
   mjvGLCamera last_camera_;
   SwapChainType scene_swap_chain_target_ = kWindowSwapChain;
   SwapChainType gui_swap_chain_target_ = kWindowSwapChain;

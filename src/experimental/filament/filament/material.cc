@@ -20,6 +20,7 @@
 #include <filament/RenderableManager.h>
 #include <filament/TextureSampler.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/filament/object_manager.h"
 
@@ -38,20 +39,25 @@ Material::~Material() noexcept {
 }
 
 void Material::SetMaterial(DrawMode mode, filament::Material* material) {
-  if (instances_[mode]) {
+  const int index = static_cast<int>(mode);
+  if (instances_[index]) {
     const filament::Material* current_material =
-        instances_[mode]->getMaterial();
+        instances_[index]->getMaterial();
     if (current_material == material) {
       return;
     }
 
-    GetEngine()->destroy(instances_[mode]);
-    instances_[mode] = nullptr;
+    GetEngine()->destroy(instances_[index]);
+    instances_[index] = nullptr;
   }
   if (material) {
-    instances_[mode] = material->createInstance();
+    instances_[index] = material->createInstance();
     UpdateMaterialInstances();
   }
+}
+
+filament::MaterialInstance* Material::GetMaterialInstance(DrawMode mode) {
+  return instances_[static_cast<int>(mode)];
 }
 
 void Material::UpdateParams(const Params& params) {
@@ -65,7 +71,8 @@ void Material::UpdateTextures(const Textures& textures) {
 }
 
 void Material::UpdateMaterialInstances() {
-  filament::MaterialInstance* instance = instances_[DrawMode::kNormal];
+  filament::MaterialInstance* instance =
+      instances_[static_cast<int>(DrawMode::Color)];
   if (instance == nullptr) {
     return;
   }
@@ -107,9 +114,10 @@ void Material::UpdateMaterialInstances() {
     instance->setParameter("Reflectance", params_.reflectance);
   }
 
-  if (instances_[DrawMode::kSegmentation]) {
-    instances_[DrawMode::kSegmentation]->setParameter(
-        "BaseColorFactor", params_.segmentation_color);
+  const int segmentation_index = static_cast<int>(DrawMode::Segmentation);
+  if (instances_[segmentation_index]) {
+    instances_[segmentation_index]->setParameter("BaseColorFactor",
+                                                 params_.segmentation_color);
   }
 
   // All textures use the same default sampler.

@@ -20,6 +20,7 @@
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
+#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/filament/object_manager.h"
 
@@ -27,16 +28,6 @@ namespace mujoco {
 
 class Material {
  public:
-  // The different methods for rendering objects. Each mode uses a different
-  // material, but all materials "share" the same textures and parameters
-  // (unless specifically noted otherwise).
-  enum DrawMode {
-    kNormal,
-    kDepth,
-    kSegmentation,
-    kNumDrawModes,
-  };
-
   // The textures that can be assigned to the drawable's material.
   struct Textures {
     const Texture* color = nullptr;
@@ -89,9 +80,7 @@ class Material {
   const Textures& GetTextures() const { return textures_; }
 
   // Returns the material instance assigned to the draw mode.
-  filament::MaterialInstance* GetMaterialInstance(DrawMode mode) {
-    return instances_[mode];
-  }
+  filament::MaterialInstance* GetMaterialInstance(DrawMode mode);
 
   // Returns the filament Engine managing the material.
   filament::Engine* GetEngine() const { return object_mgr_->GetEngine(); }

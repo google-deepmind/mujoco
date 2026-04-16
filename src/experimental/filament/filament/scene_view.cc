@@ -40,6 +40,7 @@
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
+#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
@@ -53,12 +54,9 @@ using filament::math::float3;
 using filament::math::float4;
 using filament::math::mat4;
 
-static constexpr int kNormalIndex =
-    static_cast<int>(Material::DrawMode::kNormal);
-static constexpr int kDepthIndex =
-    static_cast<int>(Material::DrawMode::kDepth);
-static constexpr int kSegmentIndex =
-    static_cast<int>(Material::DrawMode::kSegmentation);
+static constexpr int kNormalIndex = static_cast<int>(DrawMode::Color);
+static constexpr int kDepthIndex = static_cast<int>(DrawMode::Depth);
+static constexpr int kSegmentIndex = static_cast<int>(DrawMode::Segmentation);
 
 static filament::ColorGrading::Builder ToBuilder(
     const ColorGradingOptions& opts) {
@@ -279,7 +277,7 @@ void SceneView::Render(filament::Renderer* renderer,
   }
 
   // Render reflection passes.
-  if (request.draw_mode == DrawMode::kNormal) {
+  if (request.draw_mode == DrawMode::Color) {
     filament::TransformManager& tm = engine_->getTransformManager();
     for (size_t i = 0; i < reflectives_.size(); ++i) {
       Renderable* renderable = reflectives_[i];

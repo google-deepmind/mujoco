@@ -31,6 +31,7 @@
 #include <utils/Entity.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
@@ -533,14 +534,11 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
   params.glossiness *= model_objs->GetShininessMultiplier();
   material.UpdateParams(params);
 
+  material.SetMaterial(DrawMode::Color, object_mgr->GetMaterial(material_type));
+  material.SetMaterial(DrawMode::Depth,
+                       object_mgr->GetMaterial(ObjectManager::kUnlitDepth));
   material.SetMaterial(
-      Material::DrawMode::kNormal,
-      object_mgr->GetMaterial(material_type));
-  material.SetMaterial(
-      Material::DrawMode::kDepth,
-      object_mgr->GetMaterial(ObjectManager::kUnlitDepth));
-  material.SetMaterial(
-      Material::DrawMode::kSegmentation,
+      DrawMode::Segmentation,
       object_mgr->GetMaterial(ObjectManager::kUnlitSegmentation));
 }
 
