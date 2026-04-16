@@ -546,15 +546,13 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
 
 std::unique_ptr<Renderable> CreateGeomRenderable(
     const mjvGeom& geom, const mjvScene* scene, ObjectManager* object_mgr,
-    ModelObjects* model_objs, const float headpos[3],
-    Material::Textures* fallback_textures) {
-  auto renderable = std::make_unique<Renderable>(model_objs->GetEngine());
+    ModelObjects* model_objs, const float headpos[3]) {
+  auto renderable = std::make_unique<Renderable>(object_mgr);
 
   // The order of these calls is important. e.g. We need to create the filament
   // renderable entities before we can set their transform.
   PrepareGeomMeshes(*renderable, geom, scene, model_objs);
   SetGeomTransform(*renderable, geom);
-  renderable->GetMaterial().SetFallbackTextures(fallback_textures);
   UpdateGeomMaterial(*renderable, geom, scene, model_objs, object_mgr, headpos);
 
   return renderable;

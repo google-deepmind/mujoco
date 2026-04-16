@@ -24,10 +24,11 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
+#include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
-Renderable::Renderable(filament::Engine* engine) : material_(engine) {}
+Renderable::Renderable(ObjectManager* object_mgr) : material_(object_mgr) {}
 
 Renderable::~Renderable() noexcept {
   while (!entities_.empty()) {

@@ -23,6 +23,7 @@
 #include <utils/Entity.h>
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
+#include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
@@ -40,7 +41,7 @@ class Renderable {
   static constexpr std::uint8_t kDefaultPriority = 4;
   static constexpr std::uint8_t kDefaultLayerMask = 0x01;
 
-  Renderable(filament::Engine* engine);
+  explicit Renderable(ObjectManager* object_mgr);
   ~Renderable() noexcept;
 
   Renderable(const Renderable&) = delete;

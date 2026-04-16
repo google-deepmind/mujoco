@@ -21,19 +21,19 @@
 #include <vector>
 
 #include <imgui.h>
-#include <filament/Material.h>
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/renderable.h"
+#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
-ImguiBridge::ImguiBridge(SceneView* scene_view, filament::Material* ui_material)
-    : scene_view_(scene_view), material_(ui_material) {}
+ImguiBridge::ImguiBridge(ObjectManager* object_mgr, SceneView* scene_view)
+    : object_mgr_(object_mgr), scene_view_(scene_view) {}
 
 ImguiBridge::~ImguiBridge() { PrepareRenderables(0); }
 
@@ -270,14 +270,14 @@ void ImguiBridge::Update() {
 void ImguiBridge::PrepareRenderables(int count) {
   while (renderables_.size() < count) {
     auto& r = renderables_.emplace_back(
-        std::make_unique<Renderable>(scene_view_->GetEngine()));
+        std::make_unique<Renderable>(object_mgr_));
     r->SetCastShadows(false);
     r->SetReceiveShadows(false);
     r->SetBlendOrder(static_cast<std::uint16_t>(renderables_.size()));
 
     Material& material = r->GetMaterial();
     Material::DrawMode mode = Material::DrawMode::kNormal;
-    material.SetMaterial(mode, material_);
+    material.SetMaterial(mode, object_mgr_->GetMaterial(ObjectManager::kUnlitUi));
     r->SetMaterialInstance(material.GetMaterialInstance(mode));
     scene_view_->AddToUxScene(r.get());
   }

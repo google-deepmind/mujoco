@@ -47,6 +47,7 @@
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/scene_geom_util.h"
 #include "experimental/filament/filament/scene_view.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
@@ -55,8 +56,39 @@ using filament::math::float4;
 using filament::math::mat3;
 using filament::math::mat4;
 
-SceneBridge::SceneBridge(ObjectManager* object_mgr, const mjModel* model,
-                         SceneView* scene_view)
+static std::unique_ptr<Texture> CreateFallbackIndirectLightTexture(
+    ObjectManager* object_mgr, std::string_view filename = "") {
+  if (filename.empty()) {
+    filename = ObjectManager::kDefaultEnvironmentLight;
+  }
+
+  std::unique_ptr<ObjectManager::Asset> asset = object_mgr->LoadAsset(filename);
+
+  TextureConfig config;
+  DefaultTextureConfig(&config);
+  config.width = 1;
+  config.height = 1;
+  config.target = mjTEXTURE_CUBE;
+  config.format = mjPIXEL_FORMAT_KTX;
+  config.color_space = mjCOLORSPACE_AUTO;
+
+  auto texture = std::make_unique<Texture>(object_mgr->GetEngine(), config);
+
+  TextureData payload;
+  DefaultTextureData(&payload);
+  payload.bytes = (void*)asset->GetBytes().data();
+  payload.nbytes = asset->GetBytes().size();
+  payload.release_callback = +[](void* user_data) {
+    delete static_cast<ObjectManager::Asset*>(user_data);
+  };
+  payload.user_data = asset.release();
+
+  texture->Upload(payload);
+  return texture;
+}
+
+SceneBridge::SceneBridge(ObjectManager* object_mgr, SceneView* scene_view,
+                         const mjModel* model)
     : scene_view_(scene_view), object_mgr_(object_mgr) {
   model_objects_ =
       std::make_unique<ModelObjects>(model, object_mgr_->GetEngine());
@@ -140,14 +172,6 @@ SceneBridge::SceneBridge(ObjectManager* object_mgr, const mjModel* model,
       ReadElement(model, "filament.fallback.environment_light_intensity",
                   fallback_environment_light_intensity_);
 
-  fallback_textures_.color = object_mgr_->GetFallbackTexture(mjTEXROLE_RGB);
-  fallback_textures_.normal = object_mgr_->GetFallbackTexture(mjTEXROLE_NORMAL);
-  fallback_textures_.metallic = object_mgr_->GetFallbackTexture(mjTEXROLE_METALLIC);
-  fallback_textures_.roughness = object_mgr_->GetFallbackTexture(mjTEXROLE_ROUGHNESS);
-  fallback_textures_.occlusion = object_mgr_->GetFallbackTexture(mjTEXROLE_OCCLUSION);
-  fallback_textures_.orm = object_mgr_->GetFallbackTexture(mjTEXROLE_ORM);
-  fallback_textures_.emissive = object_mgr_->GetFallbackTexture(mjTEXROLE_EMISSIVE);
-  fallback_textures_.reflection = object_mgr_->GetFallbackTexture(mjTEXROLE_USER);
   PrepareLights();
 }
 
@@ -164,7 +188,7 @@ SceneBridge::~SceneBridge() {
 }
 
 void SceneBridge::SetEnvironmentLight(std::string_view filename,
-                                    float intensity) {
+                                      float intensity) {
   for (auto& light : lights_) {
     if (light->GetType() == mjLIGHT_IMAGE) {
       scene_view_->RemoveFromScene(light.get());
@@ -177,11 +201,12 @@ void SceneBridge::SetEnvironmentLight(std::string_view filename,
     fallback_ibl_.reset();
   }
 
-  object_mgr_->LoadFallbackIndirectLight(filename);
+  fallback_ibl_texture_ =
+      CreateFallbackIndirectLightTexture(object_mgr_, filename);
 
   Light::Params params;
   params.type = mjLIGHT_IMAGE;
-  params.texture = object_mgr_->GetFallbackIndirectLightTexture();
+  params.texture = fallback_ibl_texture_.get();
   params.intensity = intensity;
   fallback_ibl_ = std::make_unique<Light>(object_mgr_->GetEngine(), params);
   scene_view_->AddToScene(fallback_ibl_.get());
@@ -274,9 +299,11 @@ void SceneBridge::PrepareLights() {
   // default environment light and set the light intensity ourselves.
   if (total_light_intensity == 0.0f) {
     // Create a fallback environment light.
+    fallback_ibl_texture_ = CreateFallbackIndirectLightTexture(object_mgr_);
+
     Light::Params params;
     params.type = mjLIGHT_IMAGE;
-    params.texture = object_mgr_->GetFallbackIndirectLightTexture();
+    params.texture = fallback_ibl_texture_.get();
     params.intensity = fallback_environment_light_intensity_;
     fallback_ibl_ = std::make_unique<Light>(engine, params);
     scene_view_->AddToScene(fallback_ibl_.get());
@@ -354,9 +381,8 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       }
     }
 
-    std::unique_ptr<Renderable> renderable =
-        CreateGeomRenderable(*geom, scene, object_mgr_, model_objects_.get(),
-                             headpos, &fallback_textures_);
+    std::unique_ptr<Renderable> renderable = CreateGeomRenderable(
+        *geom, scene, object_mgr_, model_objects_.get(), headpos);
 
     scene_view_->AddToScene(renderable.get());
     renderables_.push_back(std::move(renderable));

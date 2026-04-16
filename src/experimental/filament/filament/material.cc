@@ -19,18 +19,20 @@
 #include <filament/MaterialInstance.h>
 #include <filament/RenderableManager.h>
 #include <filament/TextureSampler.h>
+#include <mujoco/mujoco.h>
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
-Material::Material(filament::Engine* engine)
-    : engine_(engine) {
+Material::Material(ObjectManager* object_mgr)
+    : object_mgr_(object_mgr) {
 }
 
 Material::~Material() noexcept {
   for (int i = 0; i < kNumDrawModes; ++i) {
     if (instances_[i]) {
-      engine_->destroy(instances_[i]);
+      GetEngine()->destroy(instances_[i]);
     }
   }
 }
@@ -43,7 +45,7 @@ void Material::SetMaterial(DrawMode mode, filament::Material* material) {
       return;
     }
 
-    engine_->destroy(instances_[mode]);
+    GetEngine()->destroy(instances_[mode]);
     instances_[mode] = nullptr;
   }
   if (material) {
@@ -60,10 +62,6 @@ void Material::UpdateParams(const Params& params) {
 void Material::UpdateTextures(const Textures& textures) {
   textures_ = textures;
   UpdateMaterialInstances();
-}
-
-void Material::SetFallbackTextures(const Textures* fallback_textures) {
-  fallback_textures_ = fallback_textures;
 }
 
 void Material::UpdateMaterialInstances() {
@@ -124,32 +122,24 @@ void Material::UpdateMaterialInstances() {
       filament::TextureSampler::MinFilter::LINEAR_MIPMAP_LINEAR);
 
   auto TrySetTexture = [&](const char* name, const Texture* texture,
-                           const Texture* fallback) {
+                           mjtTextureRole role) {
     if (material->hasParameter(name)) {
-      if (texture) {
+      if (texture != nullptr) {
         instance->setParameter(name, texture->GetFilamentTexture(), sampler);
-      } else if (fallback) {
-        instance->setParameter(name, fallback->GetFilamentTexture(), sampler);
+      } else {
+        instance->setParameter(name, object_mgr_->GetFallbackTexture(role), sampler);
       }
     }
   };
 
-  TrySetTexture("BaseColor", textures_.color,
-                fallback_textures_ ? fallback_textures_->color : nullptr);
-  TrySetTexture("Normal", textures_.normal,
-                fallback_textures_ ? fallback_textures_->normal : nullptr);
-  TrySetTexture("Metallic", textures_.metallic,
-                fallback_textures_ ? fallback_textures_->metallic : nullptr);
-  TrySetTexture("Roughness", textures_.roughness,
-                fallback_textures_ ? fallback_textures_->roughness : nullptr);
-  TrySetTexture("Occlusion", textures_.occlusion,
-                fallback_textures_ ? fallback_textures_->occlusion : nullptr);
-  TrySetTexture("ORM", textures_.orm,
-                fallback_textures_ ? fallback_textures_->orm : nullptr);
-  TrySetTexture("Emissive", textures_.emissive,
-                fallback_textures_ ? fallback_textures_->emissive : nullptr);
-  TrySetTexture("Reflection", textures_.reflection,
-                fallback_textures_ ? fallback_textures_->reflection : nullptr);
+  TrySetTexture("BaseColor", textures_.color, mjTEXROLE_RGB);
+  TrySetTexture("Normal", textures_.normal, mjTEXROLE_NORMAL);
+  TrySetTexture("Metallic", textures_.metallic, mjTEXROLE_METALLIC);
+  TrySetTexture("Roughness", textures_.roughness, mjTEXROLE_ROUGHNESS);
+  TrySetTexture("Occlusion", textures_.occlusion, mjTEXROLE_OCCLUSION);
+  TrySetTexture("ORM", textures_.orm, mjTEXROLE_ORM);
+  TrySetTexture("Emissive", textures_.emissive, mjTEXROLE_EMISSIVE);
+  TrySetTexture("Reflection", textures_.reflection, mjTEXROLE_USER);
 }
 
 }  // namespace mujoco

@@ -94,10 +94,10 @@ FilamentContext::~FilamentContext() {
 
 void FilamentContext::Init(const mjModel* model) {
   scene_view_ = std::make_unique<SceneView>(engine_);
-  scene_bridge_ = std::make_unique<SceneBridge>(object_manager_.get(), model,
-                                                scene_view_.get());
-  imgui_bridge_ = std::make_unique<ImguiBridge>(
-      scene_view_.get(), object_manager_->GetMaterial(ObjectManager::kUnlitUi));
+  scene_bridge_ = std::make_unique<SceneBridge>(object_manager_.get(),
+                                                scene_view_.get(), model);
+  imgui_bridge_ =
+      std::make_unique<ImguiBridge>(object_manager_.get(), scene_view_.get());
 
   // Set clear options.
   filament::Renderer::ClearOptions opts;

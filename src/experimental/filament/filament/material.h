@@ -21,6 +21,7 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
@@ -66,7 +67,7 @@ class Material {
     bool reflective = false;
   };
 
-  explicit Material(filament::Engine* engine);
+  explicit Material(ObjectManager* object_mgr);
   ~Material() noexcept;
 
   Material(const Material&) = delete;
@@ -74,9 +75,6 @@ class Material {
 
   // Assigns a material to the draw mode.
   void SetMaterial(DrawMode mode, filament::Material* material);
-
-  // Sets the fallback textures for the material.
-  void SetFallbackTextures(const Textures* fallback_textures);
 
   // Updates the parameters for the material.
   void UpdateParams(const Params& params);
@@ -96,16 +94,15 @@ class Material {
   }
 
   // Returns the filament Engine managing the material.
-  filament::Engine* GetEngine() const { return engine_; }
+  filament::Engine* GetEngine() const { return object_mgr_->GetEngine(); }
 
  private:
   // Updates the material instances based on the currently set parameters and
   // textures.
   void UpdateMaterialInstances();
 
-  filament::Engine* engine_ = nullptr;
+  ObjectManager* object_mgr_;
   filament::MaterialInstance* instances_[kNumDrawModes] = {nullptr};
-  const Textures* fallback_textures_ = nullptr;
   Params params_;
   Textures textures_;
 };
