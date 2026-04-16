@@ -189,6 +189,21 @@ void mji_mulMatTMat3(mjtNum* restrict res, const mjtNum mat1[9], const mjtNum ma
 }
 
 
+// transpose 3x3 matrix
+static inline
+void mji_transpose3(mjtNum* restrict res, const mjtNum mat[9]) {
+  res[0] = mat[0];
+  res[1] = mat[3];
+  res[2] = mat[6];
+  res[3] = mat[1];
+  res[4] = mat[4];
+  res[5] = mat[7];
+  res[6] = mat[2];
+  res[7] = mat[5];
+  res[8] = mat[8];
+}
+
+
 //------------------------------ 4D vector and matrix-vector operations ----------------------------
 
 // res = vec

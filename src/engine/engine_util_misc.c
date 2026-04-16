@@ -1304,21 +1304,13 @@ void mju_printMatSparse(const mjtNum* mat, int nr,
 
 // min function, avoid re-evaluation
 mjtNum mju_min(mjtNum a, mjtNum b) {
-  if (a <= b) {
-    return a;
-  } else {
-    return b;
-  }
+  return a <= b ? a : b;
 }
 
 
 // max function, avoid re-evaluation
 mjtNum mju_max(mjtNum a, mjtNum b) {
-  if (a >= b) {
-    return a;
-  } else {
-    return b;
-  }
+  return a >= b ? a : b;
 }
 
 
