@@ -14,25 +14,35 @@
 
 #include "experimental/filament/filament/renderable.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <utility>
 
 #include <filament/Engine.h>
+#include <filament/Material.h>
 #include <filament/RenderableManager.h>
 #include <filament/Scene.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
-Renderable::Renderable(ObjectManager* object_mgr) : material_(object_mgr) {}
+Renderable::Renderable(Usage usage, ObjectManager* object_mgr)
+    : usage_(usage), object_mgr_(object_mgr) {}
 
 Renderable::~Renderable() noexcept {
   while (!entities_.empty()) {
     RemoveLastEntity();
+  }
+  for (int i = 0; i < kNumDrawModes; ++i) {
+    if (instances_[i] != nullptr) {
+      GetEngine()->destroy(instances_[i]);
+      instances_[i] = nullptr;
+    }
   }
 }
 
@@ -103,8 +113,8 @@ void Renderable::AppendEntity(const MeshInfo& mesh_info) {
   } else {
     builder.culling(false);
   }
-  if (material_instance_) {
-    builder.material(0, material_instance_);
+  if (instances_[static_cast<int>(draw_mode_)] != nullptr) {
+    builder.material(0, instances_[static_cast<int>(draw_mode_)]);
   }
   builder.castShadows(cast_shadows_);
   builder.receiveShadows(receive_shadows_);
@@ -191,15 +201,67 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
   assigned_scene_ = nullptr;
 }
 
-void Renderable::SetMaterialInstance(filament::MaterialInstance* instance) {
-  if (instance != material_instance_) {
+void Renderable::UpdateMaterial(const MaterialParams& params,
+                                const MaterialTextures& textures) {
+  params_ = params;
+  textures_ = textures;
+
+  AssignMaterial(DrawMode::Color, GetColorMaterialType());
+  if (usage_ == Usage::SceneObject) {
+    AssignMaterial(DrawMode::Depth, ObjectManager::kUnlitDepth);
+    AssignMaterial(DrawMode::Segmentation, ObjectManager::kUnlitSegmentation);
+  }
+
+  for (int i = 0; i < kNumDrawModes; ++i) {
+    if (instances_[i]) {
+      UpdateMaterialInstance(instances_[i], params_, textures_, object_mgr_);
+    }
+  }
+  SetDrawMode(draw_mode_);
+}
+
+void Renderable::AssignMaterial(DrawMode mode,
+                                ObjectManager::MaterialType material_type) {
+  const int index = static_cast<int>(mode);
+
+  filament::Material* material = object_mgr_->GetMaterial(material_type);
+  if (instances_[index]) {
+    if (instances_[index]->getMaterial() == material) {
+      // The correct material is already assigned, do nothing.
+      return;
+    } else {
+      GetEngine()->destroy(instances_[index]);
+      instances_[index] = nullptr;
+    }
+  }
+  if (material) {
+    instances_[index] = material->createInstance();
+  }
+}
+
+const MaterialParams& Renderable::GetMaterialParams() const {
+  return params_;
+}
+
+const MaterialTextures& Renderable::GetMaterialTextures() const {
+  return textures_;
+}
+
+void Renderable::SetDrawMode(DrawMode mode) {
+  // Only SceneObjects support non-color draw modes.
+  if (usage_ != Usage::SceneObject) {
+    mode = DrawMode::Color;
+  }
+
+  filament::MaterialInstance* instance = instances_[static_cast<int>(mode)];
+  if (instance) {
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (utils::Entity& entity : entities_) {
       filament::RenderableManager::Instance ri = rm.getInstance(entity);
       rm.setMaterialInstanceAt(ri, 0, instance);
     }
-    material_instance_ = instance;
   }
+  draw_mode_ = mode;
 }
 
 std::uint8_t Renderable::SetLayerMask(std::uint8_t mask) {
@@ -284,8 +346,74 @@ void Renderable::SetWireframe(bool wireframe) {
   }
 }
 
-Material& Renderable::GetMaterial() { return material_; }
 
-filament::Engine* Renderable::GetEngine() { return material_.GetEngine(); }
+ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
+  if (usage_ == Usage::DecorLines) {
+    return ObjectManager::kUnlitLine;
+  } else if (usage_ == Usage::Decor) {
+    return ObjectManager::kUnlitSegmentation;
+  } else if (usage_ == Usage::Ux) {
+    return ObjectManager::kUnlitUi;
+  } else if (textures_.orm) {
+    return ObjectManager::kPbrPacked;
+  } else if (textures_.metallic) {
+    return ObjectManager::kPbr;
+  } else if (textures_.roughness) {
+    return ObjectManager::kPbr;
+  } else if (params_.metallic >= 0) {
+    return ObjectManager::kPbr;
+  } else if (params_.roughness >= 0) {
+    return ObjectManager::kPbr;
+  }
+
+  // Check to see if we're dealing with a mesh with texture coordinates.
+  // `data_id` is the id of the mesh in model (i.e. the geom has mesh
+  // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if
+  // it has them.
+  bool has_texcoords = false;
+  if (!meshes_.empty()) {
+    const auto attribs = meshes_[0].mesh->GetVertexAttributes();
+    auto it = std::find(attribs.begin(), attribs.end(),
+                        filament::VertexAttribute::UV0);
+    has_texcoords = (it != attribs.end());
+  }
+
+  if (textures_.color == nullptr) {
+    if (params_.color.a < 1.0f) {
+      return ObjectManager::kPhongColorFade;
+    } else if (params_.reflective) {
+      return ObjectManager::kPhongColorReflect;
+    } else {
+      return ObjectManager::kPhongColor;
+    }
+  } else if (textures_.color->GetFilamentTexture()->getTarget() ==
+              filament::Texture::Sampler::SAMPLER_CUBEMAP) {
+    if (params_.color.a < 1.0f) {
+      return ObjectManager::kPhongCubeFade;
+    } else if (params_.reflective) {
+      return ObjectManager::kPhongCubeReflect;
+    } else {
+      return ObjectManager::kPhongCube;
+    }
+  } else if (has_texcoords) {
+    if (params_.color.a < 1.0f) {
+      return ObjectManager::kPhong2dUvFade;
+    } else if (params_.reflective) {
+      return ObjectManager::kPhong2dUvReflect;
+    } else {
+      return ObjectManager::kPhong2dUv;
+    }
+  } else {
+    if (params_.color.a < 1.0f) {
+      return ObjectManager::kPhong2dFade;
+    } else if (params_.reflective) {
+      return ObjectManager::kPhong2dReflect;
+    } else {
+      return ObjectManager::kPhong2d;
+    }
+  }
+}
+
+filament::Engine* Renderable::GetEngine() { return object_mgr_->GetEngine(); }
 
 }  // namespace mujoco
