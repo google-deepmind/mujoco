@@ -271,7 +271,7 @@ Version 3.4.0 (December 5, 2025)
 General
 ^^^^^^^
 
-.. youtube:: aKa3ZlEF9_Y
+.. youtube:: vct493lGQ8Q
    :aspect: 2:1
    :align: right
    :width: 35%
