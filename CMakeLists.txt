@@ -126,7 +126,7 @@ if(NOT EMSCRIPTEN AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT)
   add_subdirectory(src/ui)
 endif()
 
-if(MUJOCO_USE_FILAMENT AND NOT EMSCRIPTEN)
+if(MUJOCO_USE_FILAMENT)
   add_subdirectory(src/experimental/filament)
 endif()
 
