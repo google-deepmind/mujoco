@@ -4967,6 +4967,20 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
 }
 
 void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
+#if defined(__EMSCRIPTEN__) && !defined(MUJOCO_WASM_THREADS)
+  // The MuJoCo compiler defaults to usethread=1, which causes it to try to
+  // create pthreads for compilation. In the single-threaded WASM build, this
+  // crashes because there is no threading support, so we disable threading on
+  // the internal compiler struct (not the spec) to avoid permanently mutating
+  // the spec (which would cause usethread="false" to appear in a saved XML).
+  struct ScopedDisableThreading {
+    mjtByte& ref;
+    mjtByte saved;
+    explicit ScopedDisableThreading(mjtByte& r) : ref(r), saved(r) { ref = 0; }
+    ~ScopedDisableThreading() { ref = saved; }
+  } disable_usethread(compiler.usethread);
+#endif
+
   // check if nan test works
   double test = mjNAN;
   if (mjuu_defined(test)) {
