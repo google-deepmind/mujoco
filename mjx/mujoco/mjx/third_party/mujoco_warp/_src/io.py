@@ -2779,15 +2779,15 @@ def create_render_context(
 
   cam_res_arr = wp.array(active_cam_res, dtype=wp.vec2i)
 
-  if render_rgb is None:
-    render_rgb = [mjm.cam_output[i] & mujoco.mjtCamOutBit.mjCAMOUT_RGB for i in active_cam_indices]
-  elif isinstance(render_rgb, bool):
+  if isinstance(render_rgb, bool):
     render_rgb = [render_rgb] * ncam
+  elif render_rgb is None:
+    render_rgb = [mjm.cam_output[i] & mujoco.mjtCamOutBit.mjCAMOUT_RGB for i in active_cam_indices]
 
-  if render_depth is None:
-    render_depth = [mjm.cam_output[i] & mujoco.mjtCamOutBit.mjCAMOUT_DEPTH for i in active_cam_indices]
   if isinstance(render_depth, bool):
     render_depth = [render_depth] * ncam
+  elif render_depth is None:
+    render_depth = [mjm.cam_output[i] & mujoco.mjtCamOutBit.mjCAMOUT_DEPTH for i in active_cam_indices]
 
   if render_seg is None:
     render_seg = [mjm.cam_output[i] & mujoco.mjtCamOutBit.mjCAMOUT_SEG for i in active_cam_indices]
