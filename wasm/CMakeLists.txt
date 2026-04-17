@@ -22,18 +22,14 @@ include_directories(${PROJECT_SOURCE_DIR})
 
 link_directories(${CMAKE_BINARY_DIR}/lib)
 
-file(GLOB MUJOCO_WASM_FILES
-    "codegen/generated/*.cc"
-    "unpack.cc"
-)
+# Set Emscripten compile flags.
+# -fexceptions is required for val::throw_() (used by ThrowMujocoErrorToJS) to
+# actually throw a JS exception. Without it, Emscripten compiles throw as a
+# no-op. In the MT build, -pthread implicitly enables exception support, but
+# the ST build needs it set explicitly here.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions")
 
-if(NOT MUJOCO_WASM_FILES)
-    message(FATAL_ERROR "No source files found in codegen/generated/")
-endif()
-
-option(MUJOCO_WASM_THREADS "Build with multi-threading support" ON)
-
-# Set Emscripten linker flags
+# Set Emscripten linker flags shared by all WASM targets.
 set(EMCC_LINKER_FLAGS
     "--bind"
     "-s ASSERTIONS=1"
@@ -44,9 +40,9 @@ set(EMCC_LINKER_FLAGS
     "-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','MEMFS']"
     "-s EXPORT_NAME=loadMujoco"
     "-s DISABLE_EXCEPTION_CATCHING=0"
+    "-fexceptions"
     "-gsource-map"
     "-g"
-    "--emit-tsd mujoco.d.ts"
 )
 if(MUJOCO_WASM_THREADS)
     list(APPEND EMCC_LINKER_FLAGS
@@ -55,7 +51,28 @@ if(MUJOCO_WASM_THREADS)
     )
     add_definitions(-DMUJOCO_WASM_THREADS)
 endif()
-string (REPLACE ";" " " EMCC_LINKER_FLAGS_STR "${EMCC_LINKER_FLAGS}")
+
+# Common link libraries for all WASM targets. The mujoco library is linked as a
+# whole archive to avoid losing plugin registration such as obj_decoder and
+# stl_decoder.
+set(MUJOCO_WASM_LINK_LIBRARIES
+    -Wl,--whole-archive mujoco -Wl,--no-whole-archive
+    ccd lodepng tinyxml2 qhullstatic_r
+)
+
+# --- Main WASM bindings target ---
+
+file(GLOB MUJOCO_WASM_FILES
+    "codegen/generated/*.cc"
+    "unpack.cc"
+)
+
+if(NOT MUJOCO_WASM_FILES)
+    message(FATAL_ERROR "No source files found in codegen/generated/")
+endif()
+
+set(MUJOCO_WASM_LINKER_FLAGS ${EMCC_LINKER_FLAGS} "--emit-tsd mujoco.d.ts")
+string(REPLACE ";" " " MUJOCO_WASM_LINKER_FLAGS_STR "${MUJOCO_WASM_LINKER_FLAGS}")
 
 add_executable(mujoco_wasm ${MUJOCO_WASM_FILES})
 
@@ -63,15 +80,36 @@ add_executable(mujoco_wasm ${MUJOCO_WASM_FILES})
 # `mujoco` library target, but emit artifacts named `mujoco.*` by setting the
 # output name. Also apply the emscripten linker flags to the wasm target.
 set_target_properties(mujoco_wasm PROPERTIES
-    LINK_FLAGS "${EMCC_LINKER_FLAGS_STR}"
+    LINK_FLAGS "${MUJOCO_WASM_LINKER_FLAGS_STR}"
     OUTPUT_NAME "mujoco"
 )
 
-# Link the mujoco library as a whole archive to avoid losing plugin
-# registration such as obj_decoder and stl_decoder.
-target_link_libraries(mujoco_wasm PRIVATE
-    -Wl,--whole-archive mujoco -Wl,--no-whole-archive
-    ccd lodepng tinyxml2 qhullstatic_r
-)
+target_link_libraries(mujoco_wasm PRIVATE ${MUJOCO_WASM_LINK_LIBRARIES})
 
 install(TARGETS mujoco_wasm DESTINATION ${DIVISIBLE_INSTALL_BIN_DIR})
+
+# --- Benchmark target ---
+
+if(MUJOCO_BUILD_TESTS_WASM)
+    file(GLOB MUJOCO_WASM_BENCHMARK_FILES
+        "tests/benchmark_test.cc"
+        "unpack.cc"
+    )
+
+    if(NOT MUJOCO_WASM_BENCHMARK_FILES)
+        message(FATAL_ERROR "No benchmark source files found")
+    endif()
+
+    set(BENCHMARK_LINKER_FLAGS ${EMCC_LINKER_FLAGS} "--emit-tsd mujoco_wasm_benchmark.d.ts")
+    string(REPLACE ";" " " BENCHMARK_LINKER_FLAGS_STR "${BENCHMARK_LINKER_FLAGS}")
+
+    add_executable(mujoco_wasm_benchmark ${MUJOCO_WASM_BENCHMARK_FILES})
+
+    set_target_properties(mujoco_wasm_benchmark PROPERTIES
+        LINK_FLAGS "${BENCHMARK_LINKER_FLAGS_STR}"
+    )
+
+    target_link_libraries(mujoco_wasm_benchmark PRIVATE ${MUJOCO_WASM_LINK_LIBRARIES})
+
+    install(TARGETS mujoco_wasm_benchmark DESTINATION ${DIVISIBLE_INSTALL_BIN_DIR})
+endif()

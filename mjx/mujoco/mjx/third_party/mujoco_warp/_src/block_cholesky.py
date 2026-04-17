@@ -23,10 +23,10 @@ def create_blocked_cholesky_func(block_size: int):
   @wp.func
   def blocked_cholesky_func(
     # In:
-    A: wp.array(dtype=float, ndim=2),
+    A: wp.array2d[float],
     matrix_size: int,
     # Out:
-    L: wp.array(dtype=float, ndim=2),
+    L: wp.array2d[float],
   ):
     """Computes the Cholesky factorization of a symmetric positive definite matrix A in blocks.
 
@@ -68,11 +68,11 @@ def create_blocked_cholesky_solve_func(block_size: int, matrix_size_static: int)
   @wp.func
   def blocked_cholesky_solve_func(
     # In:
-    L: wp.array(dtype=float, ndim=2),
-    b: wp.array(dtype=float, ndim=2),
+    L: wp.array2d[float],
+    b: wp.array2d[float],
     matrix_size: int,
     # Out:
-    x: wp.array(dtype=float, ndim=2),
+    x: wp.array2d[float],
   ):
     """Block Cholesky factorization and solve.
 

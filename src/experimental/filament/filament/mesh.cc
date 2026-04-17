@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <utility>
 
 #include <filament/Box.h>
@@ -202,6 +203,7 @@ void Mesh::BuildVertexBuffer(const MeshData& data) {
         vb_builder.normalized(usage);
       }
       offset += VertexAttributeTypeSize(attrib);
+      attributes_[i] = usage;
     }
     vertex_buffer_ = vb_builder.build(*engine_);
     vertex_buffer_->setBufferAt(*engine_, 0, {bytes, nbytes, callback, this});
@@ -221,7 +223,9 @@ void Mesh::BuildVertexBuffer(const MeshData& data) {
       if (usage == filament::VertexAttribute::COLOR) {
         vb_builder.normalized(usage);
       }
+      attributes_[i] = usage;
     }
+    num_attributes_ = data.nattributes;
     vertex_buffer_ = vb_builder.build(*engine_);
 
     // Assign the individual data buffers.
@@ -332,6 +336,10 @@ filament::VertexBuffer* Mesh::GetFilamentVertexBuffer() const {
 
 filament::RenderableManager::PrimitiveType Mesh::GetPrimitiveType() const {
   return type_;
+}
+
+std::span<const filament::VertexAttribute> Mesh::GetVertexAttributes() const {
+  return {attributes_.data(), attributes_.data() + num_attributes_};
 }
 
 bool Mesh::HasBounds() const {

@@ -456,6 +456,9 @@ def _put_model_warp(
     if not hasattr(mw, k) or k in ('stat', 'opt'):
       continue
     field = _wp_to_np_type(getattr(mw, k), k)
+    if k == 'geom_dataid' and field.ndim > 1:
+      # Batched geom_dataid is not supported in MJX.
+      field = field[0]
     fields[k] = field
 
   impl_fields = {}

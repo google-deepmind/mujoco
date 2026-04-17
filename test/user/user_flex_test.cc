@@ -79,6 +79,27 @@ TEST_F(UserFlexTest, CountTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("Count too small"));
 }
 
+TEST_F(UserFlexTest, CellnumZeroInterpolated) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="b0"/>
+    <body name="b1"/>
+    <body name="b2"/>
+    <body name="b3"/>
+  </worldbody>
+  <deformable>
+    <flex name="test" cellcount="2 2 0" dof="trilinear"
+          dim="3" body="b0 b1 b2 b3" element="0 1 2 3"/>
+  </deformable>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("cellcount cannot be 0"));
+}
+
 TEST_F(UserFlexTest, SpacingGreaterThanGeometry) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -447,7 +468,7 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << error.data();
-  EXPECT_NE(m->flex_stiffness[0], 0);
+  EXPECT_NE(m->flex_stiffness[m->flex_stiffnessadr[0]], 0);
   EXPECT_EQ(m->nflexnode, 8);
 
   // constants are in the kernel
@@ -456,7 +477,8 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
     zeros[i] = 0;
     ones[i] = 1;
   }
-  mju_mulMatVec(res, m->flex_stiffness, ones, 3*m->nflexnode, 3*m->nflexnode);
+  mju_mulMatVec(res, m->flex_stiffness + m->flex_stiffnessadr[0], ones,
+                3 * m->nflexnode, 3 * m->nflexnode);
   EXPECT_THAT(res, Pointwise(MjNear(1e-8, 1e-4), zeros));
 
   mj_deleteModel(m);
@@ -496,7 +518,8 @@ TEST_F(UserFlexTest, StiffnessCacheDiffersByGeometry) {
 
   // Same number of nodes but different stiffness due to different geometry
   EXPECT_EQ(m_small->nflexnode, m_large->nflexnode);
-  EXPECT_NE(m_small->flex_stiffness[0], m_large->flex_stiffness[0]);
+  EXPECT_NE(m_small->flex_stiffness[m_small->flex_stiffnessadr[0]],
+            m_large->flex_stiffness[m_large->flex_stiffnessadr[0]]);
 
   mj_deleteModel(m_small);
   mj_deleteModel(m_large);

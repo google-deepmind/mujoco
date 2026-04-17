@@ -89,8 +89,20 @@ MJAPI void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, 
 // evaluate the basis function at x for the i-th node
 MJAPI mjtNum mju_evalBasis(const mjtNum x[3], int i, int order);
 
+// map global parametric coord to cell-local coord and build node indices
+MJAPI int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, mjtNum local[3],
+                         int* nodeindices);
+
 // interpolate a function at x with given interpolation coefficients and order n
-MJAPI void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, int order);
+MJAPI void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, int order,
+                             const int* nodeindices);
+
+// gather cell-local quantities and optionally compute rotation
+MJAPI void mju_flexGatherCellState(int order, int cy, int cz, int ci, int cj, int ck,
+                                   const mjtNum* xpos_g, const mjtNum* vel_g,
+                                   const mjtNum* xpos0_g, mjtNum* xpos_c, mjtNum* vel_c,
+                                   mjtNum* xpos0_c, int* nodeindices, mjtNum* quat);
+
 
 // ----------------------------- Base64 ------------------------------------------------------------
 

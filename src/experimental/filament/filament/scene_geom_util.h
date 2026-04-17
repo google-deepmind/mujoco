@@ -28,8 +28,7 @@ namespace mujoco {
 // Creates a Renderable from the given mjvGeom.
 std::unique_ptr<Renderable> CreateGeomRenderable(
     const mjvGeom& geom, const mjvScene* scene, ObjectManager* object_mgr,
-    ModelObjects* model_objs, const float headpos[3],
-    Material::Textures* fallback_textures);
+    ModelObjects* model_objs, const float headpos[3]);
 
 }  // namespace mujoco
 

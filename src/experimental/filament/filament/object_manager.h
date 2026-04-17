@@ -16,20 +16,39 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_OBJECT_MANAGER_H_
 
 #include <array>
+#include <cstddef>
 #include <memory>
+#include <span>
 #include <string_view>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
 #include <filament/Skybox.h>
+#include <filament/Texture.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
 // Creates and owns various filament objects based on the data in a mjrContext.
 class ObjectManager {
  public:
+  class Asset {
+   public:
+    ~Asset();
+
+    std::span<const std::byte> GetBytes() const;
+
+    Asset(const Asset&) = delete;
+    Asset& operator=(const Asset&) = delete;
+   private:
+    friend class ObjectManager;
+    explicit Asset(std::string_view filename);
+
+    std::size_t size = 0;
+    void* payload = nullptr;
+    mjResource* resource = nullptr;
+  };
+
   ObjectManager(filament::Engine* engine);
   ~ObjectManager();
 
@@ -63,13 +82,13 @@ class ObjectManager {
   filament::Material* GetMaterial(MaterialType type) const;
 
   // Returns the fallback Texture with the given role.
-  const Texture* GetFallbackTexture(mjtTextureRole role) const;
+  const filament::Texture* GetFallbackTexture(mjtTextureRole role) const;
 
-  // Returns the fallback IndirectLight.
-  const Texture* GetFallbackIndirectLightTexture();
+  // Loads the given asset from the filament resource directory.
+  std::unique_ptr<Asset> LoadAsset(std::string_view filename);
 
-  // Loads an indirect light from a file, setting it to the fallback.
-  void LoadFallbackIndirectLight(std::string_view filename);
+  // The default environment light to use if no environment light is specified.
+  static constexpr const char* kDefaultEnvironmentLight = "ibl.ktx";
 
   ObjectManager(const ObjectManager&) = delete;
   ObjectManager& operator=(const ObjectManager&) = delete;
@@ -77,12 +96,11 @@ class ObjectManager {
  private:
   filament::Engine* engine_ = nullptr;
   std::array<filament::Material*, kNumMaterials> materials_;
-  std::array<Texture*, mjNTEXROLE> fallback_textures_;
-  std::unique_ptr<Texture> fallback_white_ = nullptr;
-  std::unique_ptr<Texture> fallback_black_ = nullptr;
-  std::unique_ptr<Texture> fallback_normal_ = nullptr;
-  std::unique_ptr<Texture> fallback_orm_ = nullptr;
-  std::unique_ptr<Texture> fallback_indirect_light_texture_;
+  std::array<filament::Texture*, mjNTEXROLE> fallback_textures_;
+  filament::Texture* fallback_white_ = nullptr;
+  filament::Texture* fallback_black_ = nullptr;
+  filament::Texture* fallback_normal_ = nullptr;
+  filament::Texture* fallback_orm_ = nullptr;
 };
 
 }  // namespace mujoco

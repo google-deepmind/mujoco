@@ -17,7 +17,7 @@ material {
     parameters : [
         {
             type : sampler2d,
-            name : glyph
+            name : BaseColor
         }
     ],
     requires : [
@@ -35,7 +35,7 @@ fragment {
         prepareMaterial(material);
         vec2 uv = getUV0();
         uv.y = 1.0 - uv.y;
-        vec4 tex_color = texture(materialParams_glyph, uv);
+        vec4 tex_color = texture(materialParams_BaseColor, uv);
         material.baseColor = getColor() * tex_color;
         material.baseColor.rgb *= material.baseColor.a;
     }

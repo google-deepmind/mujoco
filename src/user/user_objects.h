@@ -1042,7 +1042,7 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
 
   static constexpr int kNumEdges[3] = {1, 3, 6};  // number of edges per element indexed by dim
 
-  void SetOrder(int order) { order_ = order; }  // set interpolation order
+
 
  private:
   void Compile(const mjVFS* vfs);         // compiler
@@ -1052,7 +1052,7 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   std::vector<double> vert0_;             // vertex positions in [0, 1]^d in the bounding box
   std::vector<double> node0_;             // node Cartesian positions
 
-  int order_ = 0;                         // interpolation order
+
 
   // stiffness caching
   std::string ComputeStiffnessCacheKey() const;

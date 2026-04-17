@@ -17,6 +17,7 @@ import enum
 from typing import Callable
 
 import mujoco
+import numpy as np
 import warp as wp
 
 MJ_MINVAL = mujoco.mjMINVAL
@@ -793,8 +794,17 @@ class TileSet:
     size: size of all the tiles in this set
   """
 
-  adr: wp.array(dtype=int)
+  adr: wp.array[int]
   size: int
+
+  def __eq__(self, other) -> bool:
+    if self.__class__ is not other.__class__:
+      return NotImplemented
+    return self.size == other.size and np.array_equal(np.asarray(self.adr.numpy()), np.asarray(other.adr.numpy()))
+
+  def __hash__(self) -> int:
+    adr = np.asarray(self.adr.numpy())
+    return hash((self.size, adr.dtype.str, adr.shape, adr.tobytes()))
 
 
 @dataclasses.dataclass
@@ -933,7 +943,7 @@ class Model:
     geom_conaffinity: geom contact affinity                  (ngeom,)
     geom_condim: contact dimensionality (1, 3, 4, 6)         (ngeom,)
     geom_bodyid: id of geom's body                           (ngeom,)
-    geom_dataid: id of geom's mesh/hfield; -1: none          (ngeom,)
+    geom_dataid: id of geom's mesh/hfield; -1: none          (*, ngeom)
     geom_matid: material id for rendering                    (*, ngeom,)
     geom_group: geom group inclusion/exclusion mask          (ngeom,)
     geom_priority: geom contact priority                     (ngeom,)
@@ -1322,7 +1332,7 @@ class Model:
   geom_conaffinity: array("ngeom", int)
   geom_condim: array("ngeom", int)
   geom_bodyid: array("ngeom", int)
-  geom_dataid: array("ngeom", int)
+  geom_dataid: array("*", "ngeom", int)
   geom_matid: array("*", "ngeom", int)
   geom_group: array("ngeom", int)
   geom_priority: array("ngeom", int)
@@ -1527,70 +1537,70 @@ class Model:
   has_fluid: bool
   has_sdf_geom: bool
   block_dim: BlockDim
-  body_tree: tuple[wp.array(dtype=int), ...]
-  body_branches: wp.array(dtype=int)
-  body_branch_start: wp.array(dtype=int)
+  body_tree: tuple[wp.array[int], ...]
+  body_branches: wp.array[int]
+  body_branch_start: wp.array[int]
   mocap_bodyid: array("nmocap", int)
   body_fluid_ellipsoid: array("nbody", bool)
-  jnt_limited_slide_hinge_adr: wp.array(dtype=int)
-  jnt_limited_ball_adr: wp.array(dtype=int)
-  dof_tri_row: wp.array(dtype=int)
-  dof_tri_col: wp.array(dtype=int)
-  nxn_geom_pair: wp.array(dtype=wp.vec2i)
-  nxn_geom_pair_filtered: wp.array(dtype=wp.vec2i)
-  nxn_pairid: wp.array(dtype=wp.vec2i)
-  nxn_pairid_filtered: wp.array(dtype=wp.vec2i)
+  jnt_limited_slide_hinge_adr: wp.array[int]
+  jnt_limited_ball_adr: wp.array[int]
+  dof_tri_row: wp.array[int]
+  dof_tri_col: wp.array[int]
+  nxn_geom_pair: wp.array[wp.vec2i]
+  nxn_geom_pair_filtered: wp.array[wp.vec2i]
+  nxn_pairid: wp.array[wp.vec2i]
+  nxn_pairid_filtered: wp.array[wp.vec2i]
   geom_pair_type_count: tuple[int, ...]
   geom_plugin_index: array("ngeom", int)
-  eq_connect_adr: wp.array(dtype=int)
-  eq_wld_adr: wp.array(dtype=int)
-  eq_jnt_adr: wp.array(dtype=int)
-  eq_ten_adr: wp.array(dtype=int)
-  eq_flex_adr: wp.array(dtype=int)
-  tendon_jnt_adr: wp.array(dtype=int)
-  tendon_site_pair_adr: wp.array(dtype=int)
-  tendon_geom_adr: wp.array(dtype=int)
-  tendon_limited_adr: wp.array(dtype=int)
+  eq_connect_adr: wp.array[int]
+  eq_wld_adr: wp.array[int]
+  eq_jnt_adr: wp.array[int]
+  eq_ten_adr: wp.array[int]
+  eq_flex_adr: wp.array[int]
+  tendon_jnt_adr: wp.array[int]
+  tendon_site_pair_adr: wp.array[int]
+  tendon_geom_adr: wp.array[int]
+  tendon_limited_adr: wp.array[int]
   max_ten_J_rownnz: int
-  ten_wrapadr_site: wp.array(dtype=int)
-  ten_wrapnum_site: wp.array(dtype=int)
-  wrap_jnt_adr: wp.array(dtype=int)
-  wrap_site_adr: wp.array(dtype=int)
-  wrap_site_pair_adr: wp.array(dtype=int)
-  wrap_geom_adr: wp.array(dtype=int)
+  ten_wrapadr_site: wp.array[int]
+  ten_wrapnum_site: wp.array[int]
+  wrap_jnt_adr: wp.array[int]
+  wrap_site_adr: wp.array[int]
+  wrap_site_pair_adr: wp.array[int]
+  wrap_geom_adr: wp.array[int]
   wrap_pulley_scale: array("nwrap", float)
-  actuator_trntype_body_adr: wp.array(dtype=int)
-  sensor_pos_adr: wp.array(dtype=int)
-  sensor_limitpos_adr: wp.array(dtype=int)
-  sensor_vel_adr: wp.array(dtype=int)
-  sensor_limitvel_adr: wp.array(dtype=int)
-  sensor_acc_adr: wp.array(dtype=int)
-  sensor_rangefinder_adr: wp.array(dtype=int)
-  rangefinder_sensor_adr: wp.array(dtype=int)
-  sensor_collision_start_adr: wp.array(dtype=int)
+  actuator_trntype_body_adr: wp.array[int]
+  sensor_pos_adr: wp.array[int]
+  sensor_limitpos_adr: wp.array[int]
+  sensor_vel_adr: wp.array[int]
+  sensor_limitvel_adr: wp.array[int]
+  sensor_acc_adr: wp.array[int]
+  sensor_rangefinder_adr: wp.array[int]
+  rangefinder_sensor_adr: wp.array[int]
+  sensor_collision_start_adr: wp.array[int]
   collision_sensor_adr: array("nsensor", int)
-  sensor_touch_adr: wp.array(dtype=int)
-  sensor_limitfrc_adr: wp.array(dtype=int)
+  sensor_touch_adr: wp.array[int]
+  sensor_limitfrc_adr: wp.array[int]
   sensor_e_potential: bool
   sensor_e_kinetic: bool
-  sensor_tendonactfrc_adr: wp.array(dtype=int)
+  sensor_tendonactfrc_adr: wp.array[int]
   sensor_subtree_vel: bool
   sensor_contact_adr: array("nsensorcontact", int)
   sensor_adr_to_contact_adr: array("nsensor", int)
   sensor_rne_postconstraint: bool
   sensor_rangefinder_bodyid: array("nrangefinder", int)
   taxel_vertadr: array("nsensortaxel", int)
-  taxel_sensorid: wp.array(dtype=int)
+  taxel_sensorid: wp.array[int]
   qM_tiles: tuple[TileSet, ...]
-  qLD_updates: tuple[wp.array(dtype=wp.vec3i), ...]
-  qLD_all_updates: wp.array(dtype=wp.vec3i)
-  qLD_level_offsets: wp.array(dtype=int)
-  qM_fullm_i: wp.array(dtype=int)
-  qM_fullm_j: wp.array(dtype=int)
+  qLD_updates: tuple[wp.array[wp.vec3i], ...]
+  qLD_all_updates: wp.array[wp.vec3i]
+  qLD_level_offsets: wp.array[int]
+  qM_fullm_i: wp.array[int]
+  qM_fullm_j: wp.array[int]
   # Gather-based sparse mul_m indices (thread per DOF, no atomics)
-  qM_mulm_rowadr: wp.array(dtype=int)  # start address for each row [nv+1]
-  qM_mulm_col: wp.array(dtype=int)  # column index to gather from
-  qM_mulm_madr: wp.array(dtype=int)  # matrix address to read
+  qM_mulm_rowadr: wp.array[int]  # start address for each row [nv+1]
+  qM_mulm_col: wp.array[int]  # column index to gather from
+  qM_mulm_madr: wp.array[int]  # matrix address to read
 
 
 class ContactType(enum.IntFlag):
@@ -1674,10 +1684,10 @@ class Constraint:
 
   type: array("nworld", "njmax", int)
   id: array("nworld", "njmax", int)
-  J_rownnz: wp.array2d(dtype=int)
-  J_rowadr: wp.array2d(dtype=int)
-  J_colind: wp.array3d(dtype=int)
-  J: wp.array3d(dtype=float)
+  J_rownnz: wp.array2d[int]
+  J_rowadr: wp.array2d[int]
+  J_colind: wp.array3d[int]
+  J: wp.array3d[float]
   pos: array("nworld", "njmax", float)
   margin: array("nworld", "njmax", float)
   D: array("nworld", "njmax_pad", float)
@@ -1846,8 +1856,8 @@ class Data:
   moment_colind: array("nworld", "nJmom", int)
   actuator_moment: array("nworld", "nJmom", float)
   crb: array("nworld", "nbody", vec10)
-  qM: wp.array3d(dtype=float)
-  qLD: wp.array3d(dtype=float)
+  qM: wp.array3d[float]
+  qLD: wp.array3d[float]
   qLDiagInv: array("nworld", "nv", float)
   flexedge_velocity: array("nworld", "nflexedge", float)
   ten_velocity: array("nworld", "ntendon", float)

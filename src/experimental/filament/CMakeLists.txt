@@ -27,12 +27,13 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/builtins.h
         filament/color_grading_options.cc
         filament/color_grading_options.h
+        filament/draw_mode.h
         filament/filament_context.cc
         filament/filament_context.h
         filament/filament_platform_factory.cc
         filament/filament_platform_factory.h
-        filament/gui_view.cc
-        filament/gui_view.h
+        filament/imgui_bridge.cc
+        filament/imgui_bridge.h
         filament/imgui_editor.cc
         filament/imgui_editor.h
         filament/light.cc

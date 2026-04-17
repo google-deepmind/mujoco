@@ -872,12 +872,12 @@ typedef enum {
 
 // shared kernel for flex interpolation derivatives, scale = s1 + s2*damping
 //  op: operation type (VEC, or ADDH)
-//  res: output vector (VEC) or dense H matrix (ADDH)
+//  res: output vector (VEC) or banded H matrix (ADDH)
 //  vec: input vector for VEC operation, NULL otherwise
-//  dof_indices, ndof: DOF mapping for ADDH, ignored otherwise
+//  dof_indices, ndof, nband: DOF mapping and band width for ADDH, ignored otherwise
 static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
                                   mjtNum* res, const mjtNum* vec, mjtNum s1, mjtNum s2,
-                                  const int* dof_indices, int ndof) {
+                                  const int* dof_indices, int ndof, int nband) {
   int nv = m->nv;
 
   // build global2local map for ADDH
@@ -899,7 +899,7 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
     }
 
     // get stiffness and damping
-    mjtNum* k = m->flex_stiffness + 21*m->flex_elemadr[f];
+    mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
 
     // skip if rigid or no stiffness
     if (m->flex_rigid[f] || k[0] == 0) {
@@ -915,127 +915,146 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
       continue;
     }
 
+    int order = m->flex_interp[f];
+    int npc = (order+1)*(order+1)*(order+1);
+    int cx = m->flex_cellnum[3*f+0];
+    int cy = m->flex_cellnum[3*f+1];
+    int cz = m->flex_cellnum[3*f+2];
+
     int nodenum = m->flex_nodenum[f];
     int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
 
     // standard stack allocation
     mj_markStack(d);
     mjtNum* xpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-    mjtNum* K_rot = mjSTACKALLOC(d, 9*nodenum*nodenum, mjtNum);
 
-    // sparse Jacobian allocations
-    int dim = 3 * nodenum;
-    int* rownnz = mjSTACKALLOC(d, dim, int);
-    int* rowadr = mjSTACKALLOC(d, dim, int);
-    mjtNum* J_val = mjSTACKALLOC(d, dim*nv, mjtNum);
-    int* J_colind = mjSTACKALLOC(d, dim*nv, int);
+    // per-cell arrays
+    int dim_c = 3 * npc;
+    mjtNum* xpos_c = mjSTACKALLOC(d, 3*npc, mjtNum);
+    mjtNum* K_rot_cell = mjSTACKALLOC(d, dim_c*dim_c, mjtNum);
+
+    // sparse Jacobian for one cell
+    int* J_rownnz = mjSTACKALLOC(d, dim_c, int);
+    int* J_rowadr = mjSTACKALLOC(d, dim_c, int);
+    mjtNum* J_val = mjSTACKALLOC(d, dim_c*nv, mjtNum);
+    int* J_colind = mjSTACKALLOC(d, dim_c*nv, int);
 
     // temp allocations for chain
     int* chain_colind = mjSTACKALLOC(d, nv, int);
     mjtNum* blk_jac = mjSTACKALLOC(d, 3*nv, mjtNum);
 
-    // compute positions, rotation and Jacobian
-    mjtNum quat[4] = {1, 0, 0, 0};
-    mj_flexInterpState(m, d, f, xpos, NULL, quat);
+    // gather raw node positions (unrotated)
+    mju_flexGatherState(m, d, f, xpos, NULL);
 
-    // compute generalized stiffness in global frame: K_rot = R * K * R^T
-    mjtNum R[9];
-    mju_quat2Mat(R, quat);       // R = R_global2local
-    mjtNum RT[9];
-    mju_transpose(RT, R, 3, 3);  // RT = R_local2global
+    // loop over cells
+    int cell_idx = 0;
+    for (int ci = 0; ci < cx; ci++) {
+      for (int cj = 0; cj < cy; cj++) {
+        for (int ck = 0; ck < cz; ck++) {
+          // gather cell-local node positions
+          int gindices[125];  // max npc = 125 for quadratic
+          mjtNum quat[4];
+          mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos, NULL, NULL,
+                                  xpos_c, NULL, NULL, gindices, quat);
 
-    // blockwise rotation: K_rot(i,j) = scale * RT * K_local(i,j) * R
-    // note: k stores -K, so K_rot = scale * (-K_phys)
-    for (int i=0; i < nodenum; i++) {
-      for (int j=0; j < nodenum; j++) {
-        mjtNum blk[9], tmp[9];
+          // R = R_global2local, RT = R_local2global
+          mjtNum R[9], RT[9];
+          mju_quat2Mat(R, quat);
+          mju_transpose(RT, R, 3, 3);
 
-        // get K_local(i,j)
-        int adr = (3*i)*(3*nodenum) + 3*j;
-        for (int r=0; r < 3; r++) {
-          for (int c=0; c < 3; c++) {
-            blk[3*r+c] = k[adr + r*(3*nodenum) + c];
+          // get cell stiffness
+          mjtNum* k_cell = k + cell_idx * 3*npc * 3*npc;
+
+          // compute K_rot_cell = RT * K_cell * R (block-wise)
+          mju_zero(K_rot_cell, dim_c*dim_c);
+          for (int a = 0; a < npc; a++) {
+            for (int b = 0; b < npc; b++) {
+              mjtNum blk[9], tmp[9];
+
+              // get K_cell(a,b) 3x3 block
+              int adr_cell = (3*a)*(3*npc) + 3*b;
+              for (int r = 0; r < 3; r++) {
+                for (int c = 0; c < 3; c++) {
+                  blk[3*r+c] = k_cell[adr_cell + r*(3*npc) + c];
+                }
+              }
+
+              // tmp = K * R
+              mju_mulMatMat3(tmp, blk, R);
+              // blk = RT * tmp = RT * K * R
+              mju_mulMatMat3(blk, RT, tmp);
+
+              // store in K_rot_cell at (a, b)
+              int adr_out = (3*a)*dim_c + 3*b;
+              for (int r = 0; r < 3; r++) {
+                for (int c = 0; c < 3; c++) {
+                  K_rot_cell[adr_out + r*dim_c + c] = scale * blk[3*r+c];
+                }
+              }
+            }
           }
-        }
 
-        // tmp = K * R
-        mju_mulMatMat3(tmp, blk, R);
+          // construct sparse Jacobian for this cell's nodes
+          int current_adr = 0;
+          for (int n = 0; n < npc; n++) {
+            int bid = bodyid[gindices[n]];
+            int chain_nnz = mj_bodyChain(m, bid, chain_colind);
+            mj_jacSparse(m, d, blk_jac, NULL, xpos+3*gindices[n], bid,
+                         chain_nnz, chain_colind, /*flg_skipcommon=*/0);
 
-        // blk = RT * tmp = RT * K * R
-        mju_mulMatMat3(blk, RT, tmp);
+            for (int r = 0; r < 3; r++) {
+              int row_idx = 3*n + r;
+              J_rownnz[row_idx] = chain_nnz;
+              J_rowadr[row_idx] = current_adr;
 
-        // store scaled into K_rot
-        for (int r=0; r < 3; r++) {
-          for (int c=0; c < 3; c++) {
-            K_rot[adr + r*(3*nodenum) + c] = scale * blk[3*r+c];
-          }
-        }
-      }
-    }
-
-    // construct sparse Jacobian J_val
-    int current_adr = 0;
-    for (int i=0; i < nodenum; i++) {
-        // get chain for this node
-        int chain_nnz = mj_bodyChain(m, bodyid[i], chain_colind);
-
-        // compute sparse Jacobian for this node (3 rows)
-        mj_jacSparse(m, d, blk_jac, NULL, xpos+3*i, bodyid[i], chain_nnz, chain_colind,
-                     /*flg_skipcommon=*/0);
-
-        // copy to sparse structure
-        for (int r=0; r<3; r++) {
-            int row_idx = 3*i + r;
-            rownnz[row_idx] = chain_nnz;
-            rowadr[row_idx] = current_adr;
-
-            for (int idx=0; idx<chain_nnz; idx++) {
+              for (int idx = 0; idx < chain_nnz; idx++) {
                 J_colind[current_adr] = chain_colind[idx];
                 J_val[current_adr] = blk_jac[r*chain_nnz + idx];
                 current_adr++;
-            }
-        }
-    }
-
-    // perform operation
-    if (op == mjFLEXOP_VEC) {
-      // res += J^T * K_rot * J * vec
-      addJTBJ_mulSparse(m, d, res, vec, rownnz, rowadr, J_colind, J_val, K_rot, dim);
-    } else if (op == mjFLEXOP_ADDH) {
-      // H += -J^T * K_rot * J
-      // H is dense ndof x ndof
-
-      // reuse stack for J_reduced (but now we extract from sparse J)
-      mjtNum* J_reduced = mjSTACKALLOC(d, dim*ndof, mjtNum);
-      mju_zero(J_reduced, dim*ndof);
-
-      // extract columns of J into J_reduced
-      for (int i=0; i<dim; i++) {
-          int nnz = rownnz[i];
-          int adr = rowadr[i];
-          for (int idx=0; idx<nnz; idx++) {
-              int global_col = J_colind[adr + idx];
-              int local_idx = global2local[global_col];
-              if (local_idx >= 0) {
-                  J_reduced[i*ndof + local_idx] = J_val[adr + idx];
               }
+            }
           }
-      }
 
-      // H -= J_reduced^T * K_rot * J_reduced
-      // K_rot * J_reduced (dim x ndof)
-      mjtNum* KJ = mjSTACKALLOC(d, dim*ndof, mjtNum);
-      mju_mulMatMat(KJ, K_rot, J_reduced, dim, dim, ndof);
+          // apply operation with cell's K_rot and J
+          if (op == mjFLEXOP_VEC) {
+            addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
+                              J_val, K_rot_cell, dim_c);
+          } else if (op == mjFLEXOP_ADDH) {
+            mj_markStack(d);
+            // H -= J_cell^T * K_rot_cell * J_cell (banded format)
+            mjtNum* J_reduced = mjSTACKALLOC(d, dim_c*ndof, mjtNum);
+            mju_zero(J_reduced, dim_c*ndof);
 
-      // H[i, j] -= sum_k J_reduced[k, i] * KJ[k, j]
-      for (int i=0; i<ndof; i++) {
-        for (int j=0; j<ndof; j++) {
-          mjtNum val = 0;
-          for (int dim_idx=0; dim_idx<dim; dim_idx++) {
-            val += J_reduced[dim_idx*ndof + i] * KJ[dim_idx*ndof + j];
+            for (int i = 0; i < dim_c; i++) {
+              int nnz = J_rownnz[i];
+              int adr = J_rowadr[i];
+              for (int idx = 0; idx < nnz; idx++) {
+                int global_col = J_colind[adr + idx];
+                int local_idx = global2local[global_col];
+                if (local_idx >= 0) {
+                  J_reduced[i*ndof + local_idx] = J_val[adr + idx];
+                }
+              }
+            }
+
+            // KJ = K_rot_cell * J_reduced  (dim_c x ndof)
+            mjtNum* KJ = mjSTACKALLOC(d, dim_c*ndof, mjtNum);
+            mju_mulMatMat(KJ, K_rot_cell, J_reduced, dim_c, dim_c, ndof);
+
+            // H[i,j] -= J_reduced[k,i] * KJ[k,j], store lower triangle in banded format
+            for (int i = 0; i < ndof; i++) {
+              for (int j = mjMAX(0, i-nband+1); j <= i; j++) {
+                mjtNum val = 0;
+                for (int dim_idx = 0; dim_idx < dim_c; dim_idx++) {
+                  val += J_reduced[dim_idx*ndof + i] * KJ[dim_idx*ndof + j];
+                }
+                res[i*nband + nband-1-(i-j)] -= val;
+              }
+            }
+            mj_freeStack(d);
           }
-          // res is H
-          res[i*ndof + j] -= val;
+
+          cell_idx++;
         }
       }
     }
@@ -1053,15 +1072,16 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
 // compute res += (h^2 + h*damping) * J'*K*J * vec, for all interpolated flexes
 void mjd_flexInterp_mulKD(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, mjtNum h) {
   // s1=h*h, s2=h => scale = h*h + h*damping
-  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, h * h, h, NULL, 0);
+  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, h * h, h, NULL, 0, 0);
 }
 
 
-// add (h^2 + h*damping) * J'*K*J to dense matrix H, for all interpolated flexes
-//  H: dense ndof x ndof matrix
+// add (h^2 + h*damping) * J'*K*J to banded matrix H, for all interpolated flexes
+//  H: banded ndof x nband matrix (lower triangle, band storage)
 //  dof_indices: maps local indices to global DOFs
-void mjd_flexInterp_addH(const mjModel* m, mjData* d, mjtNum* H, const int* dof_indices, int ndof, mjtNum h) {
-  mjd_flexInterp_kernel(m, d, mjFLEXOP_ADDH, H, NULL, h * h, h, dof_indices, ndof);
+void mjd_flexInterp_addH(const mjModel* m, mjData* d, mjtNum* H, const int* dof_indices,
+                         int ndof, int nband, mjtNum h) {
+  mjd_flexInterp_kernel(m, d, mjFLEXOP_ADDH, H, NULL, h * h, h, dof_indices, ndof, nband);
 }
 
 

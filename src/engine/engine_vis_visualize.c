@@ -1434,10 +1434,9 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
     }
 
     // control points box
-    mjtNum xpos[mjMAXFLEXNODES];
+    mjtNum* xpos = mjSTACKALLOC(d, 3*m->flex_nodenum[f], mjtNum);
     int nstart = m->flex_nodeadr[f];
     int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
-    int nnode = m->flex_interp[f]+1;
     if (m->flex_centered[f]) {
       for (int i=0; i < m->flex_nodenum[f]; i++) {
         mju_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
@@ -1448,15 +1447,23 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
         mju_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
       }
     }
-    for (int i=0; i < nnode; i++) {
-      for (int j=0; j < nnode; j++) {
-        for (int k=0; k < nnode; k++) {
-          int nn = nnode*nnode;
-          int offset  = 3*(nn*(i+0) + nnode*(j+0) + k);
-          int offset1 = 3*(nn*(i+1) + nnode*(j+0) + k);
-          int offset2 = 3*(nn*(i+0) + nnode*(j+1) + k);
-          int offset3 = 3*(nn*(i+0) + nnode*(j+0) + (k+1));
-          if (i < nnode-1) {
+
+    int cx = m->flex_cellnum[3*f+0];
+    int cy = m->flex_cellnum[3*f+1];
+    int cz = m->flex_cellnum[3*f+2];
+    int order = m->flex_interp[f];
+    int NX = cx * order + 1;
+    int NY = cy * order + 1;
+    int NZ = cz * order + 1;
+
+    for (int i=0; i < NX; i++) {
+      for (int j=0; j < NY; j++) {
+        for (int k=0; k < NZ; k++) {
+          int offset  = 3*(i*NY*NZ + j*NZ + k);
+          int offset1 = 3*((i+1)*NY*NZ + j*NZ + k);
+          int offset2 = 3*(i*NY*NZ + (j+1)*NZ + k);
+          int offset3 = 3*(i*NY*NZ + j*NZ + (k+1));
+          if (i < NX-1) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;
@@ -1465,7 +1472,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset1);
             releaseGeom(&thisgeom, scn);
           }
-          if (j < nnode-1) {
+          if (j < NY-1) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;
@@ -1474,7 +1481,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset2);
             releaseGeom(&thisgeom, scn);
           }
-          if (k < nnode-1) {
+          if (k < NZ-1) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;

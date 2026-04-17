@@ -212,25 +212,28 @@ build_test_wasm() {
     echo "Building and testing WASM bindings..."
     source emsdk/emsdk_env.sh
     export PATH="$(pwd)/node_modules/.bin:$PATH"
-
-    echo "Building Multi-Threaded version..."
+    echo "Build MuJoCo with Emscripten (Multi-Threaded)..."
     emcmake cmake -B build_wasm_mt \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -DMUJOCO_WASM_THREADS=ON \
         $WASM_CMAKE_ARGS
     cmake --build build_wasm_mt --parallel $(nproc)
 
+    echo "Run bindings tests for Multi-Threaded version..."
+    npm run test --prefix ./wasm
+
     echo "Moving Multi-Thread version under mt subfolder..."
     mkdir -p wasm/dist/mt
     mv wasm/dist/mujoco.* wasm/dist/mt/
 
-    echo "Building Single-Threaded version..."
+    echo "Build MuJoCo with Emscripten (Single-Threaded)..."
     emcmake cmake -B build_wasm_st \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -DMUJOCO_WASM_THREADS=OFF \
         $WASM_CMAKE_ARGS
     cmake --build build_wasm_st --parallel $(nproc)
 
+    echo "Run bindings tests for Single-Threaded version..."
     npm run test --prefix ./wasm
 }
 

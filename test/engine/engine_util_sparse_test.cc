@@ -14,9 +14,10 @@
 
 // Tests for engine/engine_util_sparse.c
 
-#include <array>
-
 #include "src/engine/engine_util_sparse.h"
+
+#include <array>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -360,6 +361,45 @@ TEST_F(EngineUtilSparseTest, MjuCompressSparse) {
   EXPECT_EQ(AsVector(dense, 6), AsVector(dense_expected_minval1, 6));
 }
 
+// helper: run split-col approach and return dense result
+static void SqrMatTDSplitCol(
+    std::vector<mjtNum>& dense_result, int nr, int nc,
+    const mjtNum* mat, const int* rownnz, const int* rowadr, const int* colind,
+    const mjtNum* matT, const int* rownnzT, const int* rowadrT,
+    const int* colindT, const int* rowsuperT, const mjtNum* diag,
+    int* out_diagind, mjData* d) {
+  // count mode
+  std::vector<int> H_rownnz(nc, 0);
+  std::vector<int> H_rowadr(nc, 0);
+  int nnz = mju_sqrMatTDSparseSymbolic(
+      H_rownnz.data(), H_rowadr.data(), nullptr,
+      out_diagind, nr, nc, rownnz, rowadr, colind,
+      rownnzT, rowadrT, colindT, rowsuperT, d);
+
+  // fill mode
+  std::vector<int> H_colind(nnz);
+  mju_sqrMatTDSparseSymbolic(
+      H_rownnz.data(), H_rowadr.data(), H_colind.data(),
+      out_diagind, nr, nc, rownnz, rowadr, colind,
+      rownnzT, rowadrT, colindT, rowsuperT, d);
+
+  // numeric phase
+  std::vector<mjtNum> H(nnz, 0);
+  mju_sqrMatTDSparseNumeric(
+      H.data(), nc, H_rownnz.data(), H_rowadr.data(),
+      H_colind.data(), out_diagind, mat, rownnz, rowadr, colind,
+      matT, rownnzT, rowadrT, colindT, rowsuperT, diag, d);
+
+  // densify
+  dense_result.assign(nc * nc, 0);
+  for (int r = 0; r < nc; r++) {
+    for (int j = 0; j < H_rownnz[r]; j++) {
+      int c = H_colind[H_rowadr[r] + j];
+      dense_result[r*nc + c] = H[H_rowadr[r] + j];
+    }
+  }
+}
+
 TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse1) {
   //       0 0 0
   // M  =  0 0 0
@@ -378,29 +418,13 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse1) {
   int rownnzT[] = {3, 3, 3};
   int rowadrT[] = {0, 3, 6};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, nullptr,
+                   diagindH, data);
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 1);
-
-  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, nullptr, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
-  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+  EXPECT_THAT(dense, ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -424,27 +448,12 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparseLower) {
   int rownnzT[] = {3, 3, 3};
   int rowadrT[] = {0, 3, 6};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, nullptr,
+                   nullptr, data);
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 0);
-  EXPECT_THAT(rownnzH, ElementsAre(1, 2, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 1, 3));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, nullptr, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, nullptr);
-
-  EXPECT_THAT(matH, ElementsAre(12, 0, 0, 0, 6, 0, 12, 3, 14));
-  EXPECT_THAT(colindH, ElementsAre(0, 0, 0, 0, 1, 0, 0, 1, 2));
-  EXPECT_THAT(rownnzH, ElementsAre(1, 2, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+  EXPECT_THAT(dense, ElementsAre(12, 0, 0, 0, 6, 0, 12, 3, 14));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -468,31 +477,13 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse2) {
   int rownnzT[] = {3, 3, 3};
   int rowadrT[] = {0, 3, 6};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, nullptr,
+                   diagindH, data);
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 1);
-
-  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
-
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, nullptr, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(12, 0, 12, 0, 6, 3, 12, 3, 14));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
-  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
-  EXPECT_THAT(diagindH, ElementsAre(0, 4, 8));
+  EXPECT_THAT(dense, ElementsAre(12, 0, 12, 0, 6, 3, 12, 3, 14));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -516,31 +507,15 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse3) {
   int rownnzT[] = {2, 2, 0};
   int rowadrT[] = {0, 2, 4};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
-
   mjtNum diag[] = {2, 3, 4};
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 1);
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, diag,
+                   diagindH, data);
 
-  EXPECT_THAT(rownnzH, ElementsAre(2, 2, 0));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 2, 4));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(66, 4, 0, 4, 35, 0, 0, 0, 0));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 0, 0, 1, 0, 2, 0, 0));
-  EXPECT_THAT(rownnzH, ElementsAre(2, 2, 1));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+  EXPECT_THAT(dense, ElementsAre(66, 4, 0, 4, 35, 0, 0, 0, 0));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -564,32 +539,15 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse3b) {
   int rownnzT[] = {2, 2, 1};
   int rowadrT[] = {0, 2, 4};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
-
   mjtNum diag[] = {1, 1, 1};
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 1);
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, diag,
+                   diagindH, data);
 
-  EXPECT_THAT(rownnzH, ElementsAre(2, 3, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 2, 5));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(26, 2, 0, 2, 13, 12, 12, 16, 0));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 0, 0, 1, 2, 1, 2, 0));
-  EXPECT_THAT(rownnzH, ElementsAre(2, 3, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
-  EXPECT_THAT(diagindH, ElementsAre(0, 4, 7));
+  EXPECT_THAT(dense, ElementsAre(26, 2, 0, 2, 13, 12, 0, 12, 16));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -613,32 +571,15 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse4) {
   int rownnzT[] = {2, 0, 2};
   int rowadrT[] = {0, 2, 2};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
-
   mjtNum diag[] = {2, 3, 4};
 
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, diag,
+                   diagindH, data);
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 1);
-
-  EXPECT_THAT(rownnzH, ElementsAre(2, 0, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 2, 2));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(66, 4, 0, 0, 0, 0, 4, 35, 0));
-  EXPECT_THAT(colindH, ElementsAre(0, 2, 0, 1, 0, 0, 0, 2, 0));
-  EXPECT_THAT(rownnzH, ElementsAre(2, 1, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+  EXPECT_THAT(dense, ElementsAre(66, 0, 4, 0, 0, 0, 4, 0, 35));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -662,30 +603,13 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse5) {
   int rownnzT[] = {2, 1, 1};
   int rowadrT[] = {0, 2, 3};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, nullptr,
+                   diagindH, data);
 
-
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 1);
-
-  EXPECT_THAT(rownnzH, ElementsAre(3, 2, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 5));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, nullptr, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(5, 6, 4, 6, 9, 0, 4, 16, 0));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 0, 0, 2, 0));
-  EXPECT_THAT(rownnzH, ElementsAre(3, 2, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+  EXPECT_THAT(dense, ElementsAre(5, 6, 4, 6, 9, 0, 4, 0, 16));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -709,30 +633,13 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse6) {
   int rownnzT[] = {1, 1, 2};
   int rowadrT[] = {0, 1, 2};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, nullptr,
+                   diagindH, data);
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 1);
-
-  EXPECT_THAT(rownnzH, ElementsAre(2, 1, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 2, 3));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, nullptr, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(1, 2, 0, 4, 0, 0, 2, 13, 0));
-  EXPECT_THAT(colindH, ElementsAre(0, 2, 0, 1, 0, 0, 0, 2, 0));
-  EXPECT_THAT(rownnzH, ElementsAre(2, 1, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
-  EXPECT_THAT(diagindH, ElementsAre(0, 3, 7));
+  EXPECT_THAT(dense, ElementsAre(1, 0, 2, 0, 4, 0, 2, 0, 13));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -756,31 +663,15 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse7) {
   int rownnzT[] = {2, 2};
   int rowadrT[] = {0, 2};
 
-  mjtNum matH[] = {0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0};
-  int rownnzH[] = {0, 0};
-  int rowadrH[] = {0, 0};
-  int diagindH[] = {0, 0};
-
   mjtNum diag[] = {2, 3, 4};
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 2, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 1);
+  int diagindH[2];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 2, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, diag,
+                   diagindH, data);
 
-  EXPECT_THAT(rownnzH, ElementsAre(2, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 2));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 2);
-  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 2, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(66, 4, 4, 35));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 0, 1));
-  EXPECT_THAT(rownnzH, ElementsAre(2, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 2));
+  EXPECT_THAT(dense, ElementsAre(66, 4, 4, 35));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -803,31 +694,15 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse8) {
   int rownnzT[] = {2, 1, 1};
   int rowadrT[] = {0, 2, 3};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
-
   mjtNum diag[] = {2, 3};
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 1);
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 2, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, diag,
+                   diagindH, data);
 
-  EXPECT_THAT(rownnzH, ElementsAre(3, 2, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 5));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, diag, 2, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(14, 18, 8, 18, 27, 0, 8, 32, 0));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 0, 0, 2, 0));
-  EXPECT_THAT(rownnzH, ElementsAre(3, 2, 2));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+  EXPECT_THAT(dense, ElementsAre(14, 18, 8, 18, 27, 0, 8, 0, 32));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -851,31 +726,15 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse9) {
   int rownnzT[] = {3, 3, 3};
   int rowadrT[] = {0, 3, 6};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
-
   mjtNum diag[] = {2, 3, 4};
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, nullptr, data, 1);
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, nullptr, diag,
+                   diagindH, data);
 
-  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     nullptr, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(69, 77, 80, 77, 99, 108, 80, 108, 120));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
-  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+  EXPECT_THAT(dense, ElementsAre(69, 77, 80, 77, 99, 108, 80, 108, 120));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -900,31 +759,15 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse10) {
   int rowadrT[] = {0, 3, 6};
   int rowsuperT[] = {2, 1, 0};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
-
   mjtNum diag[] = {1, 2, 1};
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, rowsuperT, data, 1);
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, rowsuperT, diag,
+                   diagindH, data);
 
-  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     rowsuperT, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(18, 17, 14, 17, 23, 19, 14, 19, 18));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
-  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+  EXPECT_THAT(dense, ElementsAre(18, 17, 14, 17, 23, 19, 14, 19, 18));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -949,31 +792,15 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse11) {
   int rowadrT[] = {0, 1, 3};
   int rowsuperT[] = {0, 1, 0};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0};
-  int rowadrH[] = {0, 0, 0};
-  int diagindH[] = {0, 0, 0};
-
   mjtNum diag[] = {1, 1, 1};
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 3, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, rowsuperT, data, 1);
+  int diagindH[3];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 3, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, rowsuperT, diag,
+                   diagindH, data);
 
-  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 3);
-  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 3, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     rowsuperT, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(1, 1, 1, 1, 10, 10, 1, 10, 10));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
-  EXPECT_THAT(rownnzH, ElementsAre(3, 3, 3));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 3, 6));
+  EXPECT_THAT(dense, ElementsAre(1, 1, 1, 1, 10, 10, 1, 10, 10));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -998,33 +825,16 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse12) {
   int rowadrT[] = {0, 1, 2, 4};
   int rowsuperT[] = {1, 0, 1, 0};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0, 0};
-  int rowadrH[] = {0, 0, 0, 0};
-  int diagindH[] = {0, 0, 0, 0};
-
   mjtNum diag[] = {1, 1, 1};
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 4, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, rowsuperT, data, 1);
+  int diagindH[4];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 4, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, rowsuperT, diag,
+                   diagindH, data);
 
-  EXPECT_THAT(rownnzH, ElementsAre(4, 4, 4, 4));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 4, 8, 12));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 4);
-  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 4, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     rowsuperT, data, diagindH);
-
-  EXPECT_THAT(matH,
+  EXPECT_THAT(dense,
               ElementsAre(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 10, 10, 1, 1, 10, 10));
-  EXPECT_THAT(colindH,
-              ElementsAre(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3));
-  EXPECT_THAT(rownnzH, ElementsAre(4, 4, 4, 4));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 4, 8, 12));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1049,35 +859,16 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse13) {
   int rowadrT[] = {0, 3, 6, 6, 6};
   int rowsuperT[] = {1, 0, 2, 1, 0};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0, 0, 0};
-  int rowadrH[] = {0, 0, 0, 0, 0};
-  int diagindH[] = {0, 0, 0, 0, 0};
-
   mjtNum diag[] = {1, 1, 1};
 
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 5, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, rowsuperT, data, 1);
+  int diagindH[5];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 3, 5, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, rowsuperT, diag,
+                   diagindH, data);
 
-  EXPECT_THAT(rownnzH, ElementsAre(2, 2, 0, 0, 0));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 2, 4, 4, 4));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 5);
-  mju_sqrMatTDSparse(matH, mat, matT, diag, 3, 5, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     rowsuperT, data, diagindH);
-
-  EXPECT_THAT(matH, ElementsAre(3, 3, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                0, 0, 0, 0, 0, 0, 0, 0, 0));
-  EXPECT_THAT(colindH, ElementsAre(0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0,
-                                   3, 0, 0, 0, 0, 4, 0, 0, 0, 0));
-  EXPECT_THAT(rownnzH, ElementsAre(2, 2, 1, 1, 1));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 5, 10, 15, 20));
+  EXPECT_THAT(dense, ElementsAre(3, 3, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                 0, 0, 0, 0, 0, 0, 0, 0, 0));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -1100,40 +891,305 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse14) {
   int rowadrT[] = {0, 1, 2, 3, 4, 5, 6};
   int rowsuperT[] = {3, 2, 1, 0, 2, 1, 0};
 
-  mjtNum matH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int colindH[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int rownnzH[] = {0, 0, 0, 0, 0, 0, 0};
-  int rowadrH[] = {0, 0, 0, 0, 0, 0, 0};
-  int diagindH[] = {0, 0, 0, 0, 0, 0, 0};
-
-  // test precount
-  mju_sqrMatTDSparseCount(rownnzH, rowadrH, 7, rownnz, rowadr, colind,
-                          rownnzT, rowadrT, colindT, rowsuperT, data, 1);
-
-  EXPECT_THAT(rownnzH, ElementsAre(7, 7, 7, 7, 7, 7, 7));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 7, 14, 21, 28, 35, 42));
-
-  // test computation
-  mju_sqrMatTDUncompressedInit(rowadrH, 7);
-  mju_sqrMatTDSparse(matH, mat, matT, nullptr, 1, 7, rownnzH, rowadrH, colindH,
-                     rownnz, rowadr, colind, nullptr, rownnzT, rowadrT, colindT,
-                     rowsuperT, data, diagindH);
+  int diagindH[7];
+  std::vector<mjtNum> dense;
+  SqrMatTDSplitCol(dense, 1, 7, mat, rownnz, rowadr, colind,
+                   matT, rownnzT, rowadrT, colindT, rowsuperT, nullptr,
+                   diagindH, data);
 
   EXPECT_THAT(
-      matH, ElementsAre(1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 2,
-                        2, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 2, 2, 2,
-                        2, 4, 4, 4, 2, 2, 2, 2, 4, 4, 4));
-  EXPECT_THAT(colindH,
-              ElementsAre(0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3,
-                          4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 0,
-                          1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6));
+      dense, ElementsAre(1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1,
+                         1, 2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 4, 4,
+                         4, 2, 2, 2, 2, 4, 4, 4, 2, 2, 2, 2, 4, 4, 4));
 
-  EXPECT_THAT(rownnzH, ElementsAre(7, 7, 7, 7, 7, 7, 7));
-  EXPECT_THAT(rowadrH, ElementsAre(0, 7, 14, 21, 28, 35, 42));
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparseSymbolic) {
+  // Simple dense 2x2 matrix:
+  //     1 2
+  // M = 3 4
+  //
+  // M'M (lower triangle) should have 3 elements: (0,0), (1,0), (1,1)
+
+  mjModel* model = LoadModelFromString("<mujoco/>");
+  mjData* data = mj_makeData(model);
+
+  // M in CSR: row 0 has cols 0,1; row 1 has cols 0,1
+  int colind[] = {0, 1, 0, 1};
+  int rownnz[] = {2, 2};
+  int rowadr[] = {0, 2};
+
+  // compute transpose using mju_transposeSparse
+  mjtNum mat[] = {1, 2, 3, 4};
+  mjtNum matT[4];
+  int colindT[4];
+  int rownnzT[2];
+  int rowadrT[2];
+  mju_transposeSparse(matT, mat, 2, 2, rownnzT, rowadrT, colindT, nullptr,
+                      rownnz, rowadr, colind);
+
+  // use old function as ground truth
+  int rownnzH_expected[] = {0, 0};
+  int rowadrH_expected[] = {0, 0};
+  int nnz_expected = mju_sqrMatTDSparseCount(
+      rownnzH_expected, rowadrH_expected, 2, rownnz, rowadr, colind, rownnzT,
+      rowadrT, colindT, nullptr, data, /*flg_upper=*/0);
+
+  // verify: lower triangle should have 3 elements: (0,0), (1,0), (1,1)
+  EXPECT_EQ(nnz_expected, 3);
+  EXPECT_THAT(rownnzH_expected, ElementsAre(1, 2));
+  EXPECT_THAT(rowadrH_expected, ElementsAre(0, 1));
+
+  // test count mode of new function
+  int rownnzH[] = {0, 0};
+  int rowadrH[] = {0, 0};
+
+  int nnz = mju_sqrMatTDSparseSymbolic(rownnzH, rowadrH, nullptr, nullptr,
+                                       2, 2, rownnz, rowadr, colind, rownnzT,
+                                       rowadrT, colindT, nullptr, data);
+
+  EXPECT_EQ(nnz, nnz_expected);
+  EXPECT_THAT(rownnzH, ElementsAre(rownnzH_expected[0], rownnzH_expected[1]));
+  EXPECT_THAT(rowadrH, ElementsAre(rowadrH_expected[0], rowadrH_expected[1]));
+
+  // test fill mode
+  std::vector<int> colindH(nnz, -1);
+
+  mju_sqrMatTDSparseSymbolic(rownnzH, rowadrH, colindH.data(), nullptr, 2, 2,
+                             rownnz, rowadr, colind, rownnzT, rowadrT,
+                             colindT, nullptr, data);
+
+  // verify: row 0 should have {0}, row 1 should have {0, 1}
+  EXPECT_THAT(colindH, ElementsAre(0, 0, 1));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparseSymbolicUpper) {
+  // Test flg_upper=1: count both lower and upper triangle
+  // Same matrix as previous test
+
+  mjModel* model = LoadModelFromString("<mujoco/>");
+  mjData* data = mj_makeData(model);
+
+  int colind[] = {0, 1, 0, 1};
+  int rownnz[] = {2, 2};
+  int rowadr[] = {0, 2};
+
+  mjtNum mat[] = {1, 2, 3, 4};
+  mjtNum matT[4];
+  int colindT[4];
+  int rownnzT[2];
+  int rowadrT[2];
+  mju_transposeSparse(matT, mat, 2, 2, rownnzT, rowadrT, colindT, nullptr,
+                      rownnz, rowadr, colind);
+
+  // use old function as ground truth with flg_upper=1
+  int rownnzH_expected[] = {0, 0};
+  int rowadrH_expected[] = {0, 0};
+  int nnz_expected = mju_sqrMatTDSparseCount(
+      rownnzH_expected, rowadrH_expected, 2, rownnz, rowadr, colind, rownnzT,
+      rowadrT, colindT, nullptr, data, /*flg_upper=*/1);
+
+  // test new function with diagind (upper triangle)
+  int rownnzH[] = {0, 0};
+  int rowadrH[] = {0, 0};
+  int diagindH[] = {0, 0};
+  int nnz = mju_sqrMatTDSparseSymbolic(rownnzH, rowadrH, nullptr, diagindH,
+                                       2, 2, rownnz, rowadr, colind, rownnzT,
+                                       rowadrT, colindT, nullptr, data);
+
+  EXPECT_EQ(nnz, nnz_expected);
+  EXPECT_THAT(rownnzH, ElementsAre(rownnzH_expected[0], rownnzH_expected[1]));
+  EXPECT_THAT(rowadrH, ElementsAre(rowadrH_expected[0], rowadrH_expected[1]));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparseSymbolicSupernode) {
+  // Test supernode exploitation with a matrix that has supernodes
+  // M has two rows with identical sparsity pattern
+
+  mjModel* model = LoadModelFromString("<mujoco/>");
+  mjData* data = mj_makeData(model);
+
+  // 3x2 matrix where rows 1 and 2 have same pattern
+  //     1 0
+  // M = 2 3
+  //     4 5
+  int colind[] = {0, 0, 1, 0, 1};
+  int rownnz[] = {1, 2, 2};
+  int rowadr[] = {0, 1, 3};
+
+  mjtNum mat[] = {1, 2, 3, 4, 5};
+  mjtNum matT[5];
+  int colindT[5];
+  int rownnzT[2];
+  int rowadrT[2];
+  mju_transposeSparse(matT, mat, 3, 2, rownnzT, rowadrT, colindT, nullptr,
+                      rownnz, rowadr, colind);
+
+  // compute rowsuperT
+  int rowsuperT[2];
+  mju_superSparse(2, rowsuperT, rownnzT, rowadrT, colindT);
+
+  // use old function as ground truth
+  int rownnzH_expected[] = {0, 0};
+  int rowadrH_expected[] = {0, 0};
+  int nnz_expected = mju_sqrMatTDSparseCount(
+      rownnzH_expected, rowadrH_expected, 2, rownnz, rowadr, colind, rownnzT,
+      rowadrT, colindT, rowsuperT, data, /*flg_upper=*/0);
+
+  // test new function with supernodes
+  int rownnzH[] = {0, 0};
+  int rowadrH[] = {0, 0};
+  int nnz = mju_sqrMatTDSparseSymbolic(rownnzH, rowadrH, nullptr, nullptr,
+                                       3, 2, rownnz, rowadr, colind, rownnzT,
+                                       rowadrT, colindT, rowsuperT, data);
+
+  EXPECT_EQ(nnz, nnz_expected);
+  EXPECT_THAT(rownnzH, ElementsAre(rownnzH_expected[0], rownnzH_expected[1]));
+  EXPECT_THAT(rowadrH, ElementsAre(rowadrH_expected[0], rowadrH_expected[1]));
+
+  // test fill mode with supernodes
+  std::vector<int> colindH(nnz, -1);
+  mju_sqrMatTDSparseSymbolic(rownnzH, rowadrH, colindH.data(), nullptr, 3, 2,
+                             rownnz, rowadr, colind, rownnzT, rowadrT,
+                             colindT, rowsuperT, data);
+
+  // verify all filled
+  for (int i = 0; i < nnz; i++) {
+    EXPECT_GE(colindH[i], 0) << "colindH[" << i << "] not filled";
+  }
+
+  // verify numeric phase with supernodes
+  std::vector<mjtNum> resH(nnz);
+  mjtNum diag[] = {1, 1, 1, 1, 1};  // dummy diagonal
+  mju_sqrMatTDSparseNumeric(resH.data(), 2, rownnzH, rowadrH, colindH.data(),
+                            nullptr, mat, rownnz, rowadr, colind, matT, rownnzT,
+                            rowadrT, colindT, rowsuperT, diag, data);
+
+  // ground truth numeric
+  std::vector<mjtNum> res_expected(4);
+  std::vector<int> colindH_expected(4);
+  int rownnzH_exp[] = {0, 0};
+  int rowadrH_exp[] = {0, 2};
+  mju_sqrMatTDSparse(res_expected.data(), mat, matT, diag, 3, 2, rownnzH_exp,
+                     rowadrH_exp, colindH_expected.data(), rownnz, rowadr,
+                     colind, nullptr, rownnzT, rowadrT, colindT, rowsuperT,
+                     data, nullptr);
+
+  // compare values (sparse result vs sparse ground truth)
+  for (int r = 0; r < 2; r++) {
+    for (int i = 0; i < rownnzH[r]; i++) {
+      // find matching col in ground truth
+      int c = colindH[rowadrH[r] + i];
+      mjtNum val = resH[rowadrH[r] + i];
+
+      bool found = false;
+      for (int j = 0; j < rownnzH_exp[r]; j++) {
+        if (colindH_expected[rowadrH_exp[r] + j] == c) {
+          EXPECT_NEAR(val, res_expected[rowadrH_exp[r] + j], 1e-14);
+          found = true;
+          break;
+        }
+      }
+      EXPECT_TRUE(found) << "Column " << c
+                         << " not found in ground truth for row " << r;
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparseNumeric) {
+  // Test numeric phase using symbolic phase + existing function as ground truth
+  //     1 2
+  // M = 3 4
+
+  mjModel* model = LoadModelFromString("<mujoco/>");
+  mjData* data = mj_makeData(model);
+
+  int colind[] = {0, 1, 0, 1};
+  int rownnz[] = {2, 2};
+  int rowadr[] = {0, 2};
+  mjtNum mat[] = {1, 2, 3, 4};
+
+  // compute transpose
+  mjtNum matT[4];
+  int colindT[4];
+  int rownnzT[2];
+  int rowadrT[2];
+  mju_transposeSparse(matT, mat, 2, 2, rownnzT, rowadrT, colindT, nullptr,
+                      rownnz, rowadr, colind);
+
+  // compute supernodes
+  int rowsuperT[2];
+  mju_superSparse(2, rowsuperT, rownnzT, rowadrT, colindT);
+
+  mjtNum diag[] = {2, 3};  // diagonal weighting matrix
+
+  // test both diagind cases: lower-only (diagind=NULL) and both triangles
+  // (diagind!=NULL)
+  for (int use_diagind = 0; use_diagind <= 1; use_diagind++) {
+    // compute sparsity pattern using symbolic phase
+    int rownnzH[] = {0, 0};
+    int rowadrH[] = {0, 0};
+    int diagindH[] = {0, 0};
+    int nnz = mju_sqrMatTDSparseSymbolic(
+        rownnzH, rowadrH, nullptr, use_diagind ? diagindH : nullptr, 2, 2,
+        rownnz, rowadr, colind, rownnzT, rowadrT, colindT, nullptr, data);
+
+    std::vector<int> colindH(nnz);
+    mju_sqrMatTDSparseSymbolic(
+        rownnzH, rowadrH, colindH.data(), use_diagind ? diagindH : nullptr, 2,
+        2, rownnz, rowadr, colind, rownnzT, rowadrT, colindT, nullptr, data);
+
+    // compute values using numeric phase
+    std::vector<mjtNum> resH(nnz);
+    mju_sqrMatTDSparseNumeric(resH.data(), 2, rownnzH, rowadrH,
+                              colindH.data(), use_diagind ? diagindH : nullptr,
+                              mat, rownnz, rowadr, colind, matT, rownnzT,
+                              rowadrT, colindT, rowsuperT, diag, data);
+
+    // compute ground truth using existing mju_sqrMatTDSparse
+    // use uncompressed storage to give the old function enough room
+    std::vector<mjtNum> res_expected(4);  // 2x2 uncompressed
+    std::vector<int> colindH_expected(4);
+    int rownnzH_exp[] = {0, 0};
+    int rowadrH_exp[] = {0, 2};
+    int diagind_exp[] = {0, 0};
+    mju_sqrMatTDSparse(res_expected.data(), mat, matT, diag, 2, 2, rownnzH_exp,
+                       rowadrH_exp, colindH_expected.data(), rownnz, rowadr,
+                       colind, nullptr, rownnzT, rowadrT, colindT, nullptr,
+                       data, use_diagind ? diagind_exp : nullptr);
+
+    // check that rownnz matches (nnz may differ due to compressed vs
+    // uncompressed storage)
+    EXPECT_EQ(rownnzH[0], rownnzH_exp[0])
+        << "rownnz[0] mismatch for use_diagind=" << use_diagind;
+    EXPECT_EQ(rownnzH[1], rownnzH_exp[1])
+        << "rownnz[1] mismatch for use_diagind=" << use_diagind;
+
+    // compare column indices and values for each row
+    for (int r = 0; r < 2; r++) {
+      for (int j = 0; j < rownnzH[r]; j++) {
+        int idx = rowadrH[r] + j;
+        int idx_exp = rowadrH_exp[r] + j;
+        EXPECT_EQ(colindH[idx], colindH_expected[idx_exp])
+            << "colind mismatch at row " << r << " pos " << j
+            << " for use_diagind=" << use_diagind;
+        EXPECT_NEAR(resH[idx], res_expected[idx_exp], 1e-10)
+            << "value mismatch at row " << r << " pos " << j
+            << " for use_diagind=" << use_diagind;
+      }
+    }
+  }
 
   mj_deleteData(data);
   mj_deleteModel(model);

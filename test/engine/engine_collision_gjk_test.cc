@@ -61,14 +61,6 @@ constexpr char kEllipsoidXml[] = R"(
   </keyframe>
 </mujoco>)";
 
-void* CCDAllocate(void* data, std::size_t nbytes) {
-  return new std::byte[nbytes];
-}
-
-void CCDFree(void* data, void* buffer) {
-  delete [] (std::byte*)buffer;
-}
-
 mjtNum GeomDist(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
                 mjtNum x2[3], mjtNum cutoff = mjMAX_LIMIT) {
   mjCCDConfig config;
@@ -79,6 +71,7 @@ mjtNum GeomDist(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
   config.tolerance = kTolerance,
   config.max_contacts = 0;   // no geom contacts needed
   config.dist_cutoff = cutoff;
+  config.buffer = nullptr;
 
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, 0);
@@ -129,14 +122,13 @@ int Penetration(mjCCDStatus& status, mjtNum& depth, std::vector<mjtNum>& dir,
   mjCCDConfig config;
 
   // set config
+  auto buffer = std::vector<std::byte>(mjc_ccdSize(kMaxIterations));
   config.max_iterations = kMaxIterations;
   config.tolerance = kTolerance;
   config.max_contacts = max_contacts;
   config.dist_cutoff = 0;  // no geom distances needed
   config.max_contacts = max_contacts;
-  config.context = nullptr;
-  config.alloc = CCDAllocate;
-  config.free = CCDFree;
+  config.buffer = buffer.data();
 
   mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
   if (dist < 0) {

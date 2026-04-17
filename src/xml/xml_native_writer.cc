@@ -141,6 +141,13 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
   WriteAttrKey(elem, "flatskin", bool_map, 2, flex->flatskin, defflex.flatskin);
   WriteAttrInt(elem, "dim", flex->dim, defflex.dim);
   WriteAttrInt(elem, "group", flex->group, defflex.group);
+  WriteAttr(elem, "cellcount", 3, flex->spec.cellcount, defflex.spec.cellcount);
+  if (flex->spec.order != defflex.spec.order) {
+    string dof_str = "full";
+    if (flex->spec.order == 1) dof_str = "trilinear";
+    else if (flex->spec.order == 2) dof_str = "quadratic";
+    WriteAttrTxt(elem, "dof", dof_str);
+  }
 
   // data vectors
   if (!flex->get_vertbody().empty()) {

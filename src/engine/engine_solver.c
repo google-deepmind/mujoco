@@ -813,6 +813,8 @@ typedef struct {
 
   // Newton arrays, known-size (PrimalAllocate)
   mjtNum* D;              // constraint inertia                           (nefc x 1)
+  mjtNum* cholupd;        // scratch for rank-1 Cholesky updates          (nv x 1)
+  mjtNum* LTJ;            // L'*J for cone Cholesky updates               (6 x nv)
   int* H_rowadr;          // Hessian row addresses                        (nv x 1)
   int* H_rownnz;          // Hessian row nonzeros                         (nv x 1)
   int* HT_rownnz;         // Hessian transpose row nonzeros               (nv x 1)
@@ -988,6 +990,10 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
   // Newton only, known-size arrays
   if (flg_Newton) {
     ctx->D = mjSTACKALLOC(d, nefc, mjtNum);
+    ctx->cholupd = mjSTACKALLOC(d, nv, mjtNum);
+    if (ctx->is_elliptic) {
+      ctx->LTJ = mjSTACKALLOC(d, 6*nv, mjtNum);
+    }
 
     // sparse Newton only
     if (ctx->is_sparse) {
@@ -1524,10 +1530,10 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
   // sparse
   if (ctx->is_sparse) {
     // initialize Hessian rowadr, rownnz; get total nonzeros
-    ctx->nH = mju_sqrMatTDSparseCount(ctx->H_rownnz, ctx->H_rowadr, nv,
-                                      ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
-                                      ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
-                                      ctx->JT_rowsuper, d, /*flg_upper=*/0);
+    ctx->nH = mju_sqrMatTDSparseSymbolic(
+        ctx->H_rownnz, ctx->H_rowadr, NULL, NULL,
+        nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper, d);
 
     // add M nonzeros to Hessian total (unavoidable overcounting since H_colind is still unknown)
     ctx->nH += ctx->M_rowadr[nv - 1] + ctx->M_rownnz[nv - 1];
@@ -1543,12 +1549,18 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
     ctx->H_colind = mjSTACKALLOC(d, ctx->nH, int);
     ctx->H = mjSTACKALLOC(d, ctx->nH, mjtNum);
 
-    // compute H = J'*D*J
-    mju_sqrMatTDSparse(ctx->H, ctx->J, ctx->JT, ctx->D, nefc, nv,
-                       ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
-                       ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind, NULL,
-                       ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
-                       d, /*diagind=*/NULL);
+    // compute H = J'*D*J: symbolic phase
+    mju_sqrMatTDSparseSymbolic(
+        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, NULL,
+        nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper, d);
+
+    // compute H = J'*D*J: numeric phase
+    mju_sqrMatTDSparseNumeric(
+        ctx->H, nv, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+        NULL, ctx->J, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+        ctx->JT, ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
+        ctx->JT_rowsuper, ctx->D, d);
 
     // add mass matrix: H = J'*D*J + C
     mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
@@ -1620,12 +1632,18 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
   if (ctx->is_sparse) {
     // maybe compute H = M + J'*D*J
     if (flg_recompute) {
-      // compute H = J'*D*J
-      mju_sqrMatTDSparse(ctx->H, ctx->J, ctx->JT, ctx->D, nefc, nv,
-                        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
-                        ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind, NULL,
-                        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
-                        d, /*diagind=*/NULL);
+      // compute H = J'*D*J: symbolic phase
+      mju_sqrMatTDSparseSymbolic(
+          ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, NULL,
+          nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+          ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper, d);
+
+      // compute H = J'*D*J: numeric phase
+      mju_sqrMatTDSparseNumeric(
+          ctx->H, nv, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+          NULL, ctx->J, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+          ctx->JT, ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
+          ctx->JT_rowsuper, ctx->D, d);
 
       // add mass matrix: H = J'*D*J + C
       mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
@@ -1678,10 +1696,7 @@ static void HessianCone(mjData* d, mjPrimalContext* ctx) {
   // start with Hcone = H
   mju_copy(ctx->Lcone, ctx->L, ctx->nL);
 
-  mj_markStack(d);
-
-  // storage for L'*J
-  mjtNum* LTJ = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* LTJ = ctx->LTJ;
 
   // add contributions
   for (int i=0; i < nefc; i++) {
@@ -1737,18 +1752,13 @@ static void HessianCone(mjData* d, mjPrimalContext* ctx) {
       i += (dim-1);
     }
   }
-
-  mj_freeStack(d);
 }
 
 
 // incremental update to Hessian factor due to changes in efc_state
 static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldstate) {
   int rank, nv = ctx->nv, nefc = ctx->nefc;
-  mj_markStack(d);
-
-  // local space
-  mjtNum* vec = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* cholupd = ctx->cholupd;
 
   // clear update counter
   ctx->nupdate = 0;
@@ -1769,27 +1779,26 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
 
     // perform update if flagged
     if (flag_update != -1) {
-      // update with vec = J(i,:)*sqrt(D[i]))
+      // update with cholupd = J(i,:)*sqrt(D[i]))
       if (ctx->is_sparse) {
         // get nnz and adr of row i
         const int nnz = ctx->J_rownnz[i], adr = ctx->J_rowadr[i];
 
-        // scale vec
-        mju_scl(vec, ctx->J+adr, mju_sqrt(ctx->efc_D[i]), nnz);
+        // scale cholupd
+        mju_scl(cholupd, ctx->J+adr, mju_sqrt(ctx->efc_D[i]), nnz);
 
         // sparse update or downdate
-        rank = mju_cholUpdateSparse(ctx->L, vec, nv, flag_update,
+        rank = mju_cholUpdateSparse(ctx->L, cholupd, nv, flag_update,
                                     ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz,
                                     ctx->J_colind+adr, d);
       } else {
-        mju_scl(vec, ctx->J+i*nv, mju_sqrt(ctx->efc_D[i]), nv);
-        rank = mju_cholUpdate(ctx->L, vec, nv, flag_update);
+        mju_scl(cholupd, ctx->J+i*nv, mju_sqrt(ctx->efc_D[i]), nv);
+        rank = mju_cholUpdate(ctx->L, cholupd, nv, flag_update);
       }
       ctx->nupdate++;
 
       // recompute H directly if accuracy lost
       if (rank < nv) {
-        mj_freeStack(d);
         FactorizeHessian(d, ctx, /*flg_recompute=*/1);
 
         // nothing else to do
@@ -1802,8 +1811,6 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
   if (ctx->ncone) {
     HessianCone(d, ctx);
   }
-
-  mj_freeStack(d);
 }
 
 

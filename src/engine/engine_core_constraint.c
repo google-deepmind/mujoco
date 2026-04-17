@@ -432,21 +432,31 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
     return 0;
   }
 
+  // compute parametric coordinates of the vertex in [0, 1]^3
   mjtNum coord[3] = {0, 0, 0};
   for (int i = 0; i < nw; i++) {
-    mju_addToScl3(coord,  m->flex_vert0 + 3*v[i], vweight[i]);
+    mju_addToScl3(coord, m->flex_vert0 + 3*v[i], vweight[i]);
   }
+
+  int order = m->flex_interp[f];
+  int npc = (order+1)*(order+1)*(order+1);  // number of nodes per cell
+
+  // cell lookup: get local coords and node indices
+  mjtNum local[3];
+  int nodeindices[27];  // max npc for quadratic: 3^3 = 27
+  mju_cellLookup(coord, m->flex_cellnum+3*f, order, local, nodeindices);
+
+  // evaluate basis functions for this cell's local nodes
   int nstart = m->flex_nodeadr[f];
-  int nend = m->flex_nodeadr[f] + m->flex_nodenum[f];
   int nb = 0;
 
-  for (int i = nstart; i < nend; i++) {
-    mjtNum w = mju_evalBasis(coord, i-nstart, m->flex_interp[f]);
+  for (int j = 0; j < npc; j++) {
+    mjtNum w = mju_evalBasis(local, j, order);
     if (w < 1e-5) {
       continue;
     }
     if (bweight) bweight[nb] = w;
-    body[nb++] = m->flex_nodebodyid[i];
+    body[nb++] = m->flex_nodebodyid[nstart + nodeindices[j]];
   }
 
   return nb;
@@ -871,6 +881,11 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         break;
       }
 
+      int npc = (order+1)*(order+1)*(order+1);
+      int cx = m->flex_cellnum[3*f+0];
+      int cy = m->flex_cellnum[3*f+1];
+      int cz = m->flex_cellnum[3*f+2];
+
       // allocate stack for node positions and Jacobians
       mj_markStack(d);
       mjtNum* xpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
@@ -910,152 +925,164 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         }
       }
 
-      // loop over Gauss points
-      // get reference positions from m->flex_node0 (Cartesian positions at qpos0)
+      // reference positions for all nodes
       int nstart = m->flex_nodeadr[f];
       mjtNum* refpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
       for (int n = 0; n < nodenum; n++) {
         mju_copy3(refpos + 3*n, m->flex_node0 + 3*(n + nstart));
       }
 
-      // B-bar: precompute center-point values for volumetric constraint (trilinear only)
-      if (order == 1) {
-        mjtNum center[3] = {0.5, 0.5, 0.5};
-        mjtNum Fcur_c[9], Fref_c[9], Fref_inv_center[9], F_center[9];
-
-        // compute deformation gradient at center
-        mju_defGradient(Fcur_c, center, xpos, order);
-        mju_defGradient(Fref_c, center, refpos, order);
-        mat3_inverse(Fref_c, Fref_inv_center);
-        mju_mulMatMat3(F_center, Fcur_c, Fref_inv_center);
-
-        // compute C and E at center
-        mjtNum C_c[9], E_c[9];
-        mju_mulMatTMat3(C_c, F_center, F_center);
-        mju_scl(E_c, C_c, 0.5, 9);
-        E_c[0] -= 0.5;
-        E_c[4] -= 0.5;
-        E_c[8] -= 0.5;
-
-        // J = det(F) at center
-        mjtNum I1_center = E_c[0] + E_c[4] + E_c[8];
-        mjtNum J_center = mat3_det(F_center);
-
-        // compute shape function gradients at center (8 nodes for trilinear)
-        mjtNum grad_center[8][3];
-        shape_gradients(order, center, grad_center);
-
-        // add I1 and J-1 constraints at center (reduced integration for volumetric)
-        mjtNum* dSdx = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-        for (int inv = 0; inv < 2; inv++) {
-          if (inv == 0) {
-            // I1 = tr(E), dI1/dE = I
-            cpos[0] = I1_center;
-          } else {
-            // J - 1 = det(F) - 1, dJ/dF = cofactor(F)
-            cpos[0] = J_center - 1.0;
-          }
-
-          volumetric_dSdx(inv, nodenum, grad_center, F_center, Fref_inv_center, dSdx);
-          strain_jacobian(nodenum, nv, dSdx, node_jac, strain_jac);
-
-          if (issparse) {
-            mjtNum* sparse_jac = mjSTACKALLOC(d, combined_nnz, mjtNum);
-            for (int k = 0; k < combined_nnz; k++) {
-              sparse_jac[k] = strain_jac[combined_chain[k]];
-            }
-            mj_addConstraint(m, d, sparse_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
-                             combined_nnz, combined_chain);
-          } else {
-            mj_addConstraint(m, d, strain_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
-          }
-        }
-      }
-
-      // add I1 and J-1 constraints at center (reduced integration for volumetric)
+      // per-cell arrays
+      mjtNum* xpos_c = mjSTACKALLOC(d, 3*npc, mjtNum);
+      mjtNum* refpos_c = mjSTACKALLOC(d, 3*npc, mjtNum);
+      mjtNum* dSdx_local = mjSTACKALLOC(d, 3*npc, mjtNum);
       mjtNum* dSdx = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-      for (int g = 0; g < ngauss; g++) {
-        mjtNum* p = gauss[g];
+      int gindices[125];  // max npc = 125 for quadratic
 
-        // F = Fcur * Fref_inv
-        mjtNum Fcur[9], Fref[9], Fref_inv[9], F[9];
-        mju_defGradient(Fcur, p, xpos, order);
-        mju_defGradient(Fref, p, refpos, order);
-        mat3_inverse(Fref, Fref_inv);
-        mju_mulMatMat3(F, Fcur, Fref_inv);
+      // loop over cells
+      for (int ci = 0; ci < cx; ci++) {
+        for (int cj = 0; cj < cy; cj++) {
+          for (int ck = 0; ck < cz; ck++) {
+            // gather cell-local node positions
+            mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos, NULL, refpos, xpos_c, NULL,
+                                    refpos_c, gindices, NULL);
 
-        // compute Green-Lagrange strain E = 0.5*(C - I)
-        mjtNum C[9], E[9];
-        mju_mulMatTMat3(C, F, F);
-        for (int j = 0; j < 9; j++) {
-          E[j] = 0.5 * C[j];
-        }
-        E[0] -= 0.5;
-        E[4] -= 0.5;
-        E[8] -= 0.5;
+            // B-bar: center-point volumetric constraints (trilinear)
+            if (order == 1) {
+              mjtNum center[3] = {0.5, 0.5, 0.5};
+              mjtNum Fcur_c[9], Fref_c[9], Fref_inv_c[9], F_c[9];
 
-        // compute 3 invariants of E
-        mjtNum I1 = E[0] + E[4] + E[8];
-        mjtNum trE2 = E[0]*E[0] + E[1]*E[3] + E[2]*E[6] +
-                      E[3]*E[1] + E[4]*E[4] + E[5]*E[7] +
-                      E[6]*E[2] + E[7]*E[5] + E[8]*E[8];
-        mjtNum I2 = 0.5 * (I1*I1 - trE2);
-        mjtNum I3 = mat3_det(E);
+              mju_defGradient(Fcur_c, center, xpos_c, order);
+              mju_defGradient(Fref_c, center, refpos_c, order);
+              mat3_inverse(Fref_c, Fref_inv_c);
+              mju_mulMatMat3(F_c, Fcur_c, Fref_inv_c);
 
-        // compute shape function gradients at this Gauss point
-        mjtNum grad[27][3];
-        shape_gradients(order, p, grad);
+              mjtNum C_c[9], E_c[9];
+              mju_mulMatTMat3(C_c, F_c, F_c);
+              mju_scl(E_c, C_c, 0.5, 9);
+              E_c[0] -= 0.5; E_c[4] -= 0.5; E_c[8] -= 0.5;
 
-        // trilinear: 3 constraints per Gauss point (I1, I2, I3 skipped - only shear)
-        // quadratic: 6 constraints per Gauss point
-        for (int s = 0; s < 6; s++) {
-          // skip I1, I2, I3 for trilinear (I1, J-1 at center; I2 is small for small strain)
-          if (order == 1 && (s == 0 || s == 1 || s == 2)) {
-            continue;
-          }
+              mjtNum I1_c = E_c[0] + E_c[4] + E_c[8];
+              mjtNum J_c = mat3_det(F_c);
 
-          mjtNum dSdE[9];
-          mju_zero(dSdE, 9);
+              mjtNum grad_c[8][3];
+              shape_gradients(order, center, grad_c);
 
-          if (s == 0) {
-            // I1 = tr(E), dI1/dE = I (only for quadratic)
-            cpos[0] = I1;
-            dSdE[0] = dSdE[4] = dSdE[8] = 1.0;
-          } else if (s == 1) {
-            // I2 = 0.5*(tr(E)^2 - tr(E^2)), dI2/dE = tr(E)*I - E
-            cpos[0] = I2;
-            dSdE[0] = I1 - E[0];
-            dSdE[4] = I1 - E[4];
-            dSdE[8] = I1 - E[8];
-            dSdE[1] = -E[1]; dSdE[3] = -E[3];
-            dSdE[2] = -E[2]; dSdE[6] = -E[6];
-            dSdE[5] = -E[5]; dSdE[7] = -E[7];
-          } else if (s == 2) {
-            // I3 = det(E), dI3/dE = cofactor(E)
-            cpos[0] = I3;
-            mat3_cofactor(E, dSdE);
-          } else {
-            // off-diagonal entries: s=3->E12, s=4->E13, s=5->E23
-            int offdiag_idx[3] = {1, 2, 5};
-            int ij = offdiag_idx[s - 3];
-            cpos[0] = E[ij];
-            dSdE[ij] = 1.0;
-          }
+              for (int inv = 0; inv < 2; inv++) {
+                cpos[0] = (inv == 0) ? I1_c : J_c - 1.0;
 
-          // compute dS/dx for all nodes
-          invariant_dSdx(nodenum, grad, F, Fref_inv, dSdE, dSdx);
-          strain_jacobian(nodenum, nv, dSdx, node_jac, strain_jac);
+                // compute local dSdx
+                volumetric_dSdx(inv, npc, grad_c, F_c, Fref_inv_c, dSdx_local);
 
-          // add constraint
-          if (issparse) {
-            mjtNum* sparse_jac = mjSTACKALLOC(d, combined_nnz, mjtNum);
-            for (int k = 0; k < combined_nnz; k++) {
-              sparse_jac[k] = strain_jac[combined_chain[k]];
+                // scatter to global dSdx
+                mju_zero(dSdx, 3*nodenum);
+                for (int n = 0; n < npc; n++) {
+                  mju_addTo3(dSdx + 3*gindices[n], dSdx_local + 3*n);
+                }
+
+                strain_jacobian(nodenum, nv, dSdx, node_jac, strain_jac);
+
+                if (issparse) {
+                  mj_markStack(d);
+                  mjtNum* sj = mjSTACKALLOC(d, combined_nnz, mjtNum);
+                  for (int k = 0; k < combined_nnz; k++) {
+                    sj[k] = strain_jac[combined_chain[k]];
+                  }
+                  mj_addConstraint(m, d, sj, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
+                                   combined_nnz, combined_chain);
+                  mj_freeStack(d);
+                } else {
+                  mj_addConstraint(m, d, strain_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
+                }
+              }
             }
-            mj_addConstraint(m, d, sparse_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
-                             combined_nnz, combined_chain);
-          } else {
-            mj_addConstraint(m, d, strain_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
+
+            // Gauss integration per cell
+            for (int g = 0; g < ngauss; g++) {
+              mjtNum* p = gauss[g];
+
+              // F = Fcur * Fref_inv
+              mjtNum Fcur[9], Fref[9], Fref_inv[9], F[9];
+              mju_defGradient(Fcur, p, xpos_c, order);
+              mju_defGradient(Fref, p, refpos_c, order);
+              mat3_inverse(Fref, Fref_inv);
+              mju_mulMatMat3(F, Fcur, Fref_inv);
+
+              // Green-Lagrange strain E = 0.5*(C - I)
+              mjtNum C[9], E[9];
+              mju_mulMatTMat3(C, F, F);
+              for (int j = 0; j < 9; j++) {
+                E[j] = 0.5 * C[j];
+              }
+              E[0] -= 0.5; E[4] -= 0.5; E[8] -= 0.5;
+
+              // 3 invariants of E
+              mjtNum I1 = E[0] + E[4] + E[8];
+              mjtNum trE2 = E[0]*E[0] + E[1]*E[3] + E[2]*E[6]
+                          + E[3]*E[1] + E[4]*E[4] + E[5]*E[7]
+                          + E[6]*E[2] + E[7]*E[5] + E[8]*E[8];
+              mjtNum I2 = 0.5 * (I1*I1 - trE2);
+              mjtNum I3 = mat3_det(E);
+
+              // shape function gradients at Gauss point
+              mjtNum grad[27][3];
+              shape_gradients(order, p, grad);
+
+              for (int s = 0; s < 6; s++) {
+                // skip I1,I2,I3 for trilinear (B-bar handles vol)
+                if (order == 1 && (s == 0 || s == 1 || s == 2)) {
+                  continue;
+                }
+
+                mjtNum dSdE[9];
+                mju_zero(dSdE, 9);
+
+                if (s == 0) {
+                  cpos[0] = I1;
+                  dSdE[0] = dSdE[4] = dSdE[8] = 1.0;
+                } else if (s == 1) {
+                  cpos[0] = I2;
+                  dSdE[0] = I1-E[0]; dSdE[4] = I1-E[4];
+                  dSdE[8] = I1-E[8];
+                  dSdE[1] = -E[1]; dSdE[3] = -E[3];
+                  dSdE[2] = -E[2]; dSdE[6] = -E[6];
+                  dSdE[5] = -E[5]; dSdE[7] = -E[7];
+                } else if (s == 2) {
+                  cpos[0] = I3;
+                  mat3_cofactor(E, dSdE);
+                } else {
+                  int offdiag_idx[3] = {1, 2, 5};
+                  int ij = offdiag_idx[s - 3];
+                  cpos[0] = E[ij];
+                  dSdE[ij] = 1.0;
+                }
+
+                // compute local dS/dx for cell nodes
+                invariant_dSdx(npc, grad, F, Fref_inv, dSdE,
+                               dSdx_local);
+
+                // scatter to global dSdx
+                mju_zero(dSdx, 3*nodenum);
+                for (int n = 0; n < npc; n++) {
+                  mju_addTo3(dSdx + 3*gindices[n], dSdx_local + 3*n);
+                }
+
+                strain_jacobian(nodenum, nv, dSdx, node_jac, strain_jac);
+
+                if (issparse) {
+                  mj_markStack(d);
+                  mjtNum* sj = mjSTACKALLOC(d, combined_nnz, mjtNum);
+                  for (int k = 0; k < combined_nnz; k++) {
+                    sj[k] = strain_jac[combined_chain[k]];
+                  }
+                  mj_addConstraint(m, d, sj, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
+                                   combined_nnz, combined_chain);
+                  mj_freeStack(d);
+                } else {
+                  mj_addConstraint(m, d, strain_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
+                }
+              }
+            }
           }
         }
       }
@@ -1899,10 +1926,13 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         int nstart = m->flex_nodeadr[flex_id];
         int order = m->flex_interp[flex_id];
 
-        // compute constraint count: trilinear (2 + 3*8 = 26), quadratic (6*27 = 162)
+        // compute constraint count per cell, then multiply by ncells
         int nquad = order + 1;
         int ngauss = nquad * nquad * nquad;
-        int nconstraint = (order == 1) ? (2 + 3 * ngauss) : (6 * ngauss);
+        int ncells = m->flex_cellnum[3*flex_id+0]
+                   * m->flex_cellnum[3*flex_id+1]
+                   * m->flex_cellnum[3*flex_id+2];
+        int nconstraint = ncells * ((order == 1) ? (2 + 3 * ngauss) : (6 * ngauss));
 
         mjtNum avg_invweight = 0;
         for (int n = 0; n < nodenum; n++) {
@@ -2510,7 +2540,10 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
       }
       int nquad = order + 1;  // 2 for order=1, 3 for order=2
       int ngauss = nquad * nquad * nquad;  // 8 or 27
-      size = (order == 1) ? (2 + 3 * ngauss) : (6 * ngauss);  // 26 or 162
+      int ncells = m->flex_cellnum[3*id[0]+0]
+                 * m->flex_cellnum[3*id[0]+1]
+                 * m->flex_cellnum[3*id[0]+2];
+      size = ncells * ((order == 1) ? (2 + 3 * ngauss) : (6 * ngauss));
 
       if (nnz) {
         // Count unique DOFs across all node bodies (matching instantiation)
@@ -2965,10 +2998,11 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       return;
     }
 
-    // pre-count A nonzeros (compute AR_rownnz, AR_rowadr)
-    d->nA = mju_sqrMatTDSparseCount(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc,
-                                    BT_rownnz, BT_rowadr, BT_colind,
-                                    B_rownnz, B_rowadr, B_colind, B_rowsuper, d, /*flg_upper=*/1);
+    int* diagind = mjSTACKALLOC(d, nefc, int);
+    d->nA = mju_sqrMatTDSparseSymbolic(
+        d->efc_AR_rownnz, d->efc_AR_rowadr, NULL, diagind,
+        nv, nefc, BT_rownnz, BT_rowadr, BT_colind,
+        B_rownnz, B_rowadr, B_colind, B_rowsuper, d);
 
     // allocate A values and column indices on arena
     d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
@@ -2981,12 +3015,17 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       return;
     }
 
-    // A = B * B'
-    int* diagind = mjSTACKALLOC(d, nefc, int);
-    mju_sqrMatTDSparse(d->efc_AR, BT, B, NULL, nv, nefc,
-                       d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,
-                       BT_rownnz, BT_rowadr, BT_colind, NULL,
-                       B_rownnz, B_rowadr, B_colind, B_rowsuper, d, diagind);
+    // A = B * B': symbolic phase
+    mju_sqrMatTDSparseSymbolic(
+        d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind, diagind,
+        nv, nefc, BT_rownnz, BT_rowadr, BT_colind,
+        B_rownnz, B_rowadr, B_colind, B_rowsuper, d);
+
+    // A = B * B': numeric phase
+    mju_sqrMatTDSparseNumeric(
+        d->efc_AR, nefc, d->efc_AR_rownnz, d->efc_AR_rowadr,
+        d->efc_AR_colind, diagind, BT, BT_rownnz, BT_rowadr,
+        BT_colind, B, B_rownnz, B_rowadr, B_colind, B_rowsuper, NULL, d);
 
     // AR = A + diag(R)
     for (int i=0; i < nefc; i++) {

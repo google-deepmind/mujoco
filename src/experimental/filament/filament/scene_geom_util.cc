@@ -93,15 +93,15 @@ static void AddMesh(Renderable& renderable, ModelObjects* model_objs,
   if (mesh == nullptr) {
     mju_error("Unknown mesh %d", data_id);
   }
-  renderable.Append(mesh);
+  renderable.AppendMesh(mesh);
 }
 
 static void AddGeom(Renderable& renderable, ModelObjects* model_objs,
                     const mjvScene* scene, const mjvGeom& geom) {
   if (geom.type == mjGEOM_FLEX) {
-    renderable.Append(model_objs->CreateFlexMesh(scene, geom));
+    renderable.AppendMesh(model_objs->CreateFlexMesh(scene, geom));
   } else if (geom.type == mjGEOM_SKIN) {
-    renderable.Append(model_objs->CreateSkinMesh(scene, geom));
+    renderable.AppendMesh(model_objs->CreateSkinMesh(scene, geom));
   }
 }
 
@@ -111,7 +111,7 @@ static void AddHeightField(Renderable& renderable, ModelObjects* model_objs,
   if (mesh == nullptr) {
     mju_error("Unknown height field %d", hfield_id);
   }
-  renderable.Append(mesh);
+  renderable.AppendMesh(mesh);
 }
 
 static void AddShape(Renderable& renderable, ModelObjects* model_objs,
@@ -120,7 +120,7 @@ static void AddShape(Renderable& renderable, ModelObjects* model_objs,
   if (mesh == nullptr) {
     mju_error("Unknown shape %d", shape_type);
   }
-  renderable.Append(mesh);
+  renderable.AppendMesh(mesh);
 }
 
 static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
@@ -211,7 +211,7 @@ static void SetGeomTransform(Renderable& renderable, const mjvGeom& geom) {
   float3 size = ReadFloat3(geom.size);
   filament::TransformManager& tm =
       renderable.GetEngine()->getTransformManager();
-  for (int j = 0; j < renderable.GetNumEntities(); ++j) {
+  for (int j = 0; j < renderable.GetNumMeshes(); ++j) {
     const utils::Entity& entity = renderable[j];
 
     // Update object transform.
@@ -322,12 +322,10 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
                                ObjectManager* object_mgr,
                                const float headpos[3]) {
   const mjModel* model = model_objs->GetModel();
-  Material& material = renderable.GetMaterial();
 
   const bool use_segid_color = scene->flags[mjRND_IDCOLOR];
   const bool enable_reflection = scene->flags[mjRND_REFLECTION];
-
-  Material::Params params;
+  MaterialParams params;
   params.color = ReadFloat4(geom.rgba);
   if (geom.type == mjGEOM_PLANE) {
     if (IsBehind(headpos, geom.pos, geom.mat)) {
@@ -346,7 +344,7 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
     renderable.SetReceiveShadows(false);
   }
 
-  Material::Textures textures;
+  MaterialTextures textures;
   if (geom.matid >= 0) {
     textures.color = model_objs->GetTexture(geom.matid, mjTEXROLE_RGB);
     textures.normal = model_objs->GetTexture(geom.matid, mjTEXROLE_NORMAL);
@@ -357,79 +355,6 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
         model_objs->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
     textures.occlusion =
         model_objs->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
-    material.UpdateTextures(textures);
-  }
-
-  ObjectManager::MaterialType material_type = ObjectManager::kNumMaterials;
-  if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
-    material_type = ObjectManager::kUnlitLine;
-  } else if (geom.category == mjCAT_DECOR) {
-    material_type = ObjectManager::kUnlitSegmentation;
-  } else {
-    bool material_assigned = false;
-    if (geom.matid >= 0) {
-      material_assigned = true;
-      if (textures.orm) {
-        material_type = ObjectManager::kPbrPacked;
-      } else if (textures.metallic) {
-        material_type = ObjectManager::kPbr;
-      } else if (textures.roughness) {
-        material_type = ObjectManager::kPbr;
-      } else if (model->mat_metallic[geom.matid] >= 0) {
-        material_type = ObjectManager::kPbr;
-      } else if (model->mat_roughness[geom.matid] >= 0) {
-        material_type = ObjectManager::kPbr;
-      } else {
-        material_assigned = false;
-      }
-    }
-
-    if (!material_assigned) {
-      // Check to see if we're dealing with a mesh with texture coordinates.
-      // `data_id` is the id of the mesh in model (i.e. the geom has mesh
-      // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if
-      // it has them.
-      bool has_texcoords = false;
-      if ((geom.type == mjGEOM_MESH || geom.type == mjGEOM_SDF) &&
-          geom.dataid >= 0 && model->mesh_texcoordadr[geom.dataid / 2] >= 0) {
-        has_texcoords = true;
-      }
-
-      if (textures.color == nullptr) {
-        if (params.color.a < 1.0f) {
-          material_type = ObjectManager::kPhongColorFade;
-        } else if (params.reflective) {
-          material_type = ObjectManager::kPhongColorReflect;
-        } else {
-          material_type = ObjectManager::kPhongColor;
-        }
-      } else if (textures.color->GetFilamentTexture()->getTarget() ==
-                 filament::Texture::Sampler::SAMPLER_CUBEMAP) {
-        if (params.color.a < 1.0f) {
-          material_type = ObjectManager::kPhongCubeFade;
-        } else if (params.reflective) {
-          material_type = ObjectManager::kPhongCubeReflect;
-        } else {
-          material_type = ObjectManager::kPhongCube;
-        }
-      } else if (has_texcoords) {
-        if (params.color.a < 1.0f) {
-          material_type = ObjectManager::kPhong2dUvFade;
-        } else if (params.reflective) {
-          material_type = ObjectManager::kPhong2dUvReflect;
-        } else {
-          material_type = ObjectManager::kPhong2dUv;
-        }
-      } else {
-        if (params.color.a < 1.0f) {
-          material_type = ObjectManager::kPhong2dFade;
-        } else if (params.reflective) {
-          material_type = ObjectManager::kPhong2dReflect;
-        } else {
-          material_type = ObjectManager::kPhong2d;
-        }
-      }
-    }
   }
 
   params.reflectance = geom.reflectance;
@@ -531,30 +456,26 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
   params.emissive *= model_objs->GetEmissiveMultiplier();
   params.specular *= model_objs->GetSpecularMultiplier();
   params.glossiness *= model_objs->GetShininessMultiplier();
-  material.UpdateParams(params);
 
-  material.SetMaterial(
-      Material::DrawMode::kNormal,
-      object_mgr->GetMaterial(material_type));
-  material.SetMaterial(
-      Material::DrawMode::kDepth,
-      object_mgr->GetMaterial(ObjectManager::kUnlitDepth));
-  material.SetMaterial(
-      Material::DrawMode::kSegmentation,
-      object_mgr->GetMaterial(ObjectManager::kUnlitSegmentation));
+  renderable.UpdateMaterial(params, textures);
 }
 
 std::unique_ptr<Renderable> CreateGeomRenderable(
     const mjvGeom& geom, const mjvScene* scene, ObjectManager* object_mgr,
-    ModelObjects* model_objs, const float headpos[3],
-    Material::Textures* fallback_textures) {
-  auto renderable = std::make_unique<Renderable>(model_objs->GetEngine());
+    ModelObjects* model_objs, const float headpos[3]) {
+  Renderable::Usage usage = Renderable::Usage::SceneObject;
+  if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
+    usage = Renderable::Usage::DecorLines;
+  } else if (geom.category == mjCAT_DECOR) {
+    usage = Renderable::Usage::Decor;
+  }
+
+  auto renderable = std::make_unique<Renderable>(usage, object_mgr);
 
   // The order of these calls is important. e.g. We need to create the filament
   // renderable entities before we can set their transform.
   PrepareGeomMeshes(*renderable, geom, scene, model_objs);
   SetGeomTransform(*renderable, geom);
-  renderable->GetMaterial().SetFallbackTextures(fallback_textures);
   UpdateGeomMaterial(*renderable, geom, scene, model_objs, object_mgr, headpos);
 
   return renderable;

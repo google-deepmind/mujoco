@@ -612,11 +612,116 @@ mjtNum mju_evalBasis(const mjtNum x[3], int i, int order) {
   }
 }
 
+// map global parametric coord to cell-local coord and build node indices
+//   coord: [0,1]^3 parametric coordinates
+//   cellnum: cell counts (cx, cy, cz)
+//   order: interpolation order (1=trilinear, 2=triquadratic)
+//   local: output local parametric coordinates within cell [0,1]^3
+//   nodeindices: output array of global node indices for the cell (size (order+1)^3, may be NULL)
+//   returns: number of nodes per cell (order+1)^3
+int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, mjtNum local[3],
+                   int* nodeindices) {
+  int cx = cellnum[0], cy = cellnum[1], cz = cellnum[2];
+
+  // find containing cell
+  int ci = (int)mju_floor(coord[0] * cx);
+  int cj = (int)mju_floor(coord[1] * cy);
+  int ck = (int)mju_floor(coord[2] * cz);
+  ci = mjMIN(ci, cx - 1); ci = mjMAX(ci, 0);
+  cj = mjMIN(cj, cy - 1); cj = mjMAX(cj, 0);
+  ck = mjMIN(ck, cz - 1); ck = mjMAX(ck, 0);
+
+  // local parametric coordinates within cell
+  local[0] = mju_clip(coord[0] * cx - ci, 0, 1);
+  local[1] = mju_clip(coord[1] * cy - cj, 0, 1);
+  local[2] = mju_clip(coord[2] * cz - ck, 0, 1);
+
+  // build node indices for this cell
+  if (nodeindices) {
+    int ny_g = cy * order + 1;
+    int nz_g = cz * order + 1;
+    int ni = 0;
+    for (int li = 0; li <= order; li++) {
+      for (int lj = 0; lj <= order; lj++) {
+        for (int lk = 0; lk <= order; lk++) {
+          int gi = ci*order + li;
+          int gj = cj*order + lj;
+          int gk = ck*order + lk;
+          nodeindices[ni++] = gi*ny_g*nz_g + gj*nz_g + gk;
+        }
+      }
+    }
+  }
+
+  int npc = (order + 1) * (order + 1) * (order + 1);
+  return npc;
+}
+
+
 // interpolate a function at x with given interpolation coefficients and order n
-void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, int order) {
+void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, int order,
+                       const int* nodeindices) {
   int npoint = (order + 1) * (order + 1) * (order + 1);
   for (int j=0; j < npoint; j++) {
-    mju_addToScl3(res, coeff+3*j, mju_evalBasis(x, j, order));
+    int idx = nodeindices ? nodeindices[j] : j;
+    mju_addToScl3(res, coeff+3*idx, mju_evalBasis(x, j, order));
+  }
+}
+
+
+static void flexInterpRotation(int order, const mjtNum* xpos_c,
+                               const mjtNum local[3], mjtNum* quat) {
+  mjtNum mat[9] = {0};
+
+  if (order > 0) {
+    mju_defGradient(mat, local, xpos_c, order);
+  } else {
+    // order 0: fallback to identity matrix
+    mat[0] = 1;
+    mat[4] = 1;
+    mat[8] = 1;
+  }
+
+  // find rotation
+  quat[0] = 1;
+  quat[1] = 0;
+  quat[2] = 0;
+  quat[3] = 0;
+  mju_mat2Rot(quat, mat);
+  mju_negQuat(quat, quat);
+}
+
+
+// gather cell-local quantities and optionally compute rotation
+void mju_flexGatherCellState(int order, int cy, int cz, int ci, int cj, int ck,
+                             const mjtNum* xpos_g, const mjtNum* vel_g, const mjtNum* xpos0_g,
+                             mjtNum* xpos_c, mjtNum* vel_c, mjtNum* xpos0_c,
+                             int* nodeindices, mjtNum* quat) {
+  int ny_g = cy * order + 1;
+  int nz_g = cz * order + 1;
+
+  int local = 0;
+  for (int li = 0; li <= order; li++) {
+    for (int lj = 0; lj <= order; lj++) {
+      for (int lk = 0; lk <= order; lk++) {
+        int gi = ci*order + li;
+        int gj = cj*order + lj;
+        int gk = ck*order + lk;
+        int gidx = gi*ny_g*nz_g + gj*nz_g + gk;
+
+        if (xpos_c && xpos_g) mju_copy3(xpos_c + 3*local, xpos_g + 3*gidx);
+        if (vel_c && vel_g) mju_copy3(vel_c + 3*local, vel_g + 3*gidx);
+        if (xpos0_c && xpos0_g) mju_copy3(xpos0_c + 3*local, xpos0_g + 3*gidx);
+        if (nodeindices) nodeindices[local] = gidx;
+
+        local++;
+      }
+    }
+  }
+
+  if (quat && xpos_c) {
+    mjtNum p[3] = {.5, .5, .5};
+    flexInterpRotation(order, xpos_c, p, quat);
   }
 }
 
@@ -1304,21 +1409,13 @@ void mju_printMatSparse(const mjtNum* mat, int nr,
 
 // min function, avoid re-evaluation
 mjtNum mju_min(mjtNum a, mjtNum b) {
-  if (a <= b) {
-    return a;
-  } else {
-    return b;
-  }
+  return a <= b ? a : b;
 }
 
 
 // max function, avoid re-evaluation
 mjtNum mju_max(mjtNum a, mjtNum b) {
-  if (a >= b) {
-    return a;
-  } else {
-    return b;
-  }
+  return a >= b ? a : b;
 }
 
 

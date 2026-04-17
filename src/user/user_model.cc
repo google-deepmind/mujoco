@@ -1194,6 +1194,7 @@ void mjCModel::Clear() {
   nflexedge = 0;
   nflexelem = 0;
   nflexelemdata = 0;
+  nflexstiffness = 0;
   nflexelemedge = 0;
   nflexshelldata = 0;
   nflexevpair = 0;
@@ -2177,6 +2178,7 @@ void mjCModel::SetSizes() {
   }
   nbvh = nbvhstatic + nbvhdynamic;
 
+  int extra_stiffness_size = 0;
   // flex counts
   for (int i=0; i < nflex; i++) {
     nflexnode += flexes_[i]->nnode;
@@ -2188,6 +2190,14 @@ void mjCModel::SetSizes() {
     nflexshelldata += (int)flexes_[i]->shell.size();
     nflexevpair += (int)flexes_[i]->evpair.size()/2;
     nflextexcoord += (flexes_[i]->HasTexcoord() ? flexes_[i]->get_texcoord().size()/2 : 0);
+    if (flexes_[i]->spec.order != 0) {
+      int npc = (int)pow(flexes_[i]->spec.order + 1, 3);
+      int ndof_cell = 3 * npc;
+      int ncells = flexes_[i]->spec.cellcount[0] *
+                   flexes_[i]->spec.cellcount[1] *
+                   flexes_[i]->spec.cellcount[2];
+      extra_stiffness_size += ncells * ndof_cell * ndof_cell;
+    }
     if (flexes_[i]->interpolated || flexes_[i]->rigid) {
       continue;
     }
@@ -2237,6 +2247,9 @@ void mjCModel::SetSizes() {
       }
     }
   }
+  // TODO: This can be compacted further when we update mjwarp to not rely on
+  // 21*elem_adr for non-interpolated flexes.
+  nflexstiffness = nflexelem * 21 + extra_stiffness_size;
 
   // mesh counts
   for (int i=0; i < nmesh; i++) {
@@ -3435,6 +3448,8 @@ void mjCModel::CopyObjects(mjModel* m) {
   shelldata_adr = 0;
   evpair_adr = 0;
   texcoord_adr = 0;
+  int standard_stiffness_size = 21 * m->nflexelem;
+  int current_extra_stiffness_adr = standard_stiffness_size;
   for (int i=0; i < nflex; i++) {
     // get pointer
     mjCFlex* pfl = flexes_[i];
@@ -3457,10 +3472,30 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->flex_rgba + 4 * i, pfl->rgba, 4);
 
     // elasticity
-    if (!pfl->stiffness.empty()) {
-      mjuu_copyvec(m->flex_stiffness + 21 * elem_adr, pfl->stiffness.data(), pfl->stiffness.size());
+    if (pfl->spec.order == 0) {
+      m->flex_stiffnessadr[i] = 21 * elem_adr;
     } else {
-      mjuu_zerovec(m->flex_stiffness + 21 * elem_adr, 21 * pfl->nelem);
+      m->flex_stiffnessadr[i] = current_extra_stiffness_adr;
+      int npc = (int)pow(pfl->spec.order + 1, 3);
+      int ndof_cell = 3 * npc;
+      int ncells = pfl->spec.cellcount[0] * pfl->spec.cellcount[1] * pfl->spec.cellcount[2];
+      current_extra_stiffness_adr += ncells * ndof_cell * ndof_cell;
+    }
+
+    if (!pfl->stiffness.empty()) {
+      mjuu_copyvec(m->flex_stiffness + m->flex_stiffnessadr[i],
+                   pfl->stiffness.data(), pfl->stiffness.size());
+    } else {
+      int stiff_size;
+      if (pfl->spec.order == 0) {
+        stiff_size = 21 * pfl->nelem;
+      } else {
+        int npc = (int)pow(pfl->spec.order + 1, 3);
+        int ndof_cell = 3 * npc;
+        int ncells = pfl->spec.cellcount[0] * pfl->spec.cellcount[1] * pfl->spec.cellcount[2];
+        stiff_size = ncells * ndof_cell * ndof_cell;
+      }
+      mjuu_zerovec(m->flex_stiffness + m->flex_stiffnessadr[i], stiff_size);
     }
     if (!pfl->bending.empty()) {
       mjuu_copyvec(m->flex_bending + 17 * edge_adr, pfl->bending.data(), pfl->bending.size());
@@ -3595,7 +3630,12 @@ void mjCModel::CopyObjects(mjModel* m) {
     }
 
     // set interpolation type, only two types for now
-    m->flex_interp[i] = pfl->order_;
+    m->flex_interp[i] = pfl->spec.order;
+
+    // set cell count for multi-cell finite cell method
+    m->flex_cellnum[3*i+0] = pfl->spec.cellcount[0];
+    m->flex_cellnum[3*i+1] = pfl->spec.cellcount[1];
+    m->flex_cellnum[3*i+2] = pfl->spec.cellcount[2];
 
     // convert edge pairs to int array, set edge rigid
     for (int k=0; k < pfl->nedge; k++) {
@@ -4949,6 +4989,20 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
 }
 
 void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
+#if defined(__EMSCRIPTEN__) && !defined(MUJOCO_WASM_THREADS)
+  // The MuJoCo compiler defaults to usethread=1, which causes it to try to
+  // create pthreads for compilation. In the single-threaded WASM build, this
+  // crashes because there is no threading support, so we disable threading on
+  // the internal compiler struct (not the spec) to avoid permanently mutating
+  // the spec (which would cause usethread="false" to appear in a saved XML).
+  struct ScopedDisableThreading {
+    mjtByte& ref;
+    mjtByte saved;
+    explicit ScopedDisableThreading(mjtByte& r) : ref(r), saved(r) { ref = 0; }
+    ~ScopedDisableThreading() { ref = saved; }
+  } disable_usethread(compiler.usethread);
+#endif
+
   // check if nan test works
   double test = mjNAN;
   if (mjuu_defined(test)) {
@@ -5125,12 +5179,12 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   mj_makeModel(&m,
                nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ntree, nM, nB, nC,
                nD, ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
-               nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord, nJfe, nJfv,
-               nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, nmeshpoly,
-               nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert, nskinface, nskinbone,
-               nskinbonevert, nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,
-               neq, ntendon, nJten, nwrap, nsensor, nnumeric, nnumericdata, ntext, ntextdata,
-               ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
+               nflexelemdata, nflexstiffness, nflexelemedge, nflexshelldata, nflexevpair,
+               nflextexcoord, nJfe, nJfv, nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface,
+               nmeshgraph, nmeshpoly, nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert,
+               nskinface, nskinbone, nskinbonevert, nhfield, nhfielddata, ntex, ntexdata, nmat,
+               npair, nexclude, neq, ntendon, nJten, nwrap, nsensor, nnumeric, nnumericdata, ntext,
+               ntextdata, ntuple, ntupledata, nkey, nmocap, nplugin, npluginattr,
                nuser_body, nuser_jnt, nuser_geom, nuser_site, nuser_cam,
                nuser_tendon, nuser_actuator, nuser_sensor, nnames, npaths);
   if (!m) {

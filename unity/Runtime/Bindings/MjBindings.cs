@@ -113,7 +113,7 @@ public const int mjMAXLINEPNT = 1001;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 3007000;
+public const int mjVERSION_HEADER = 3007001;
 
 
 // ------------------------------------Enums------------------------------------
@@ -962,6 +962,7 @@ public unsafe struct mjModel_ {
   public UInt64 nflexedge;
   public UInt64 nflexelem;
   public UInt64 nflexelemdata;
+  public UInt64 nflexstiffness;
   public UInt64 nflexelemedge;
   public UInt64 nflexshelldata;
   public UInt64 nflexevpair;
@@ -1199,6 +1200,8 @@ public unsafe struct mjModel_ {
   public int* flex_matid;
   public int* flex_group;
   public int* flex_interp;
+  public int* flex_bandwidth;
+  public int* flex_cellnum;
   public int* flex_nodeadr;
   public int* flex_nodenum;
   public int* flex_vertadr;
@@ -1208,6 +1211,7 @@ public unsafe struct mjModel_ {
   public int* flex_elemadr;
   public int* flex_elemnum;
   public int* flex_elemdataadr;
+  public int* flex_stiffnessadr;
   public int* flex_elemedgeadr;
   public int* flex_shellnum;
   public int* flex_shelldataadr;

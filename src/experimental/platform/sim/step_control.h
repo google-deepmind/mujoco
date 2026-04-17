@@ -70,11 +70,10 @@ class StepControl {
   enum class PauseState { kUnpaused, kNormalPaused, kViscousPaused };
 
   // Sets the pause state of the simulation.
-  // m must be non-null for viscous pausing.
-  void SetPauseState(PauseState state, mjModel* m = nullptr);
+  void SetPauseState(PauseState state);
 
   // Gets the current pause state of the simulation.
-  PauseState GetPauseState() const { return pause_state_; }
+  PauseState GetPauseState() const;
 
   // If the simulation is paused, will perform a single step on the next
   // Advance() call.

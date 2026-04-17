@@ -27,6 +27,7 @@
 #include "engine/engine_collision_sdf.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
+#include "engine/engine_inline.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_sort.h"
@@ -516,6 +517,7 @@ void mj_collision(const mjModel* m, mjData* d) {
       }
     }
   }
+  mj_freeStack(d);
 
   // finish merging predefined geom pairs
   for (; pairadr < npair; pairadr++) {
@@ -572,8 +574,6 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   // end narrowphase and midphase timer
   TM_END(mjTIMER_COL_NARROW);
-
-  mj_freeStack(d);
   TM_END1(mjTIMER_POS_COLLISION);
 }
 
@@ -950,6 +950,7 @@ static void makeAAMM(const mjModel* m, mjData* d,
                      mjtNum* x_max, mjtNum* y_max, mjtNum* z_max,
                      int bf, const mjtNum* frame) {
   mjtNum aamm[6];
+  mjtNum override_margin = mjENABLED(mjENBL_OVERRIDE) ? 0.5 * m->opt.o_margin : 0;
 
   // body
   if (bf < m->nbody) {
@@ -959,14 +960,32 @@ static void makeAAMM(const mjModel* m, mjData* d,
     // process all body geoms (body is collidable, should have geoms)
     for (int i=0; i < body_geomnum; i++) {
       int geom = m->body_geomadr[body]+i;
-      mjtNum margin = mjENABLED(mjENBL_OVERRIDE) ? 0.5*m->opt.o_margin : m->geom_margin[geom];
+      mjtNum margin = override_margin ? override_margin : m->geom_margin[geom];
       mjtNum _aamm[6];
 
-      // set _aamm for this geom
+      const mjtNum* aabb = m->geom_aabb + 6*geom;
+      const mjtNum* size = m->geom_aabb + 6*geom + 3;
+      const mjtNum* xpos = d->geom_xpos + 3*geom;
+      const mjtNum* xmat = d->geom_xmat + 9*geom;
+
+      // compute center in global coordinates
+      mjtNum pos[3];
+      mji_mulMatVec3(pos, xmat, aabb);
+      mju_addTo3(pos, xpos);
+
+      mjtNum axis[9];
+      mji_transpose3(axis, xmat);
+      mjtNum r_half = m->geom_rbound[geom];
+
       for (int j=0; j < 3; j++) {
-        mjtNum cen = mju_dot3(d->geom_xpos+3*geom, frame+3*j);
-        _aamm[j]   = cen - m->geom_rbound[geom] - margin;
-        _aamm[j+3] = cen + m->geom_rbound[geom] + margin;
+        const mjtNum* frame_j = frame + 3*j;
+        mjtNum aabb_cen = mju_dot3(pos, frame_j);
+        mjtNum aabb_half = mju_abs(size[0] * mju_dot3(axis + 0, frame_j))
+                         + mju_abs(size[1] * mju_dot3(axis + 3, frame_j))
+                         + mju_abs(size[2] * mju_dot3(axis + 6, frame_j));
+        mjtNum r_cen = mju_dot3(xpos, frame_j);
+        _aamm[j + 0] = mju_max(r_cen - r_half, aabb_cen - aabb_half) - margin;
+        _aamm[j + 3] = mju_min(r_cen + r_half, aabb_cen + aabb_half) + margin;
       }
 
       // update body aamm
@@ -1007,7 +1026,7 @@ static void makeAAMM(const mjModel* m, mjData* d,
     }
 
     // correct for flex radius and margin
-    mjtNum margin = mjENABLED(mjENBL_OVERRIDE) ? 0.5*m->opt.o_margin : m->flex_margin[f];
+    mjtNum margin = override_margin ? override_margin : m->flex_margin[f];
     mjtNum bound = m->flex_radius[f] + margin;
     aamm[0] -= bound;
     aamm[1] -= bound;

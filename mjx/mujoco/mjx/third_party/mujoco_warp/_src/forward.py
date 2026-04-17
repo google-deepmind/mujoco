@@ -51,17 +51,17 @@ wp.set_module_options({"enable_backward": False})
 @wp.kernel
 def _next_position(
   # Model:
-  opt_timestep: wp.array(dtype=float),
-  jnt_type: wp.array(dtype=int),
-  jnt_qposadr: wp.array(dtype=int),
-  jnt_dofadr: wp.array(dtype=int),
+  opt_timestep: wp.array[float],
+  jnt_type: wp.array[int],
+  jnt_qposadr: wp.array[int],
+  jnt_dofadr: wp.array[int],
   # Data in:
-  qpos_in: wp.array2d(dtype=float),
-  qvel_in: wp.array2d(dtype=float),
+  qpos_in: wp.array2d[float],
+  qvel_in: wp.array2d[float],
   # In:
   qvel_scale_in: float,
   # Data out:
-  qpos_out: wp.array2d(dtype=float),
+  qpos_out: wp.array2d[float],
 ):
   worldid, jntid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
@@ -115,14 +115,14 @@ def _next_position(
 @wp.kernel
 def _next_velocity(
   # Model:
-  opt_timestep: wp.array(dtype=float),
+  opt_timestep: wp.array[float],
   # Data in:
-  qvel_in: wp.array2d(dtype=float),
-  qacc_in: wp.array2d(dtype=float),
+  qvel_in: wp.array2d[float],
+  qacc_in: wp.array2d[float],
   # In:
   qacc_scale_in: float,
   # Data out:
-  qvel_out: wp.array2d(dtype=float),
+  qvel_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
@@ -132,21 +132,21 @@ def _next_velocity(
 @wp.kernel
 def _next_activation(
   # Model:
-  opt_timestep: wp.array(dtype=float),
-  actuator_dyntype: wp.array(dtype=int),
-  actuator_actadr: wp.array(dtype=int),
-  actuator_actnum: wp.array(dtype=int),
-  actuator_actlimited: wp.array(dtype=bool),
-  actuator_dynprm: wp.array2d(dtype=vec10f),
-  actuator_actrange: wp.array2d(dtype=wp.vec2),
+  opt_timestep: wp.array[float],
+  actuator_dyntype: wp.array[int],
+  actuator_actadr: wp.array[int],
+  actuator_actnum: wp.array[int],
+  actuator_actlimited: wp.array[bool],
+  actuator_dynprm: wp.array2d[vec10f],
+  actuator_actrange: wp.array2d[wp.vec2],
   # Data in:
-  act_in: wp.array2d(dtype=float),
-  act_dot_in: wp.array2d(dtype=float),
+  act_in: wp.array2d[float],
+  act_dot_in: wp.array2d[float],
   # In:
   act_dot_scale: float,
   limit: bool,
   # Data out:
-  act_out: wp.array2d(dtype=float),
+  act_out: wp.array2d[float],
 ):
   worldid, uid = wp.tid()
   opt_timestep_id = worldid % opt_timestep.shape[0]
@@ -171,21 +171,21 @@ def _next_activation(
 @wp.kernel
 def _next_time(
   # Model:
-  opt_timestep: wp.array(dtype=float),
+  opt_timestep: wp.array[float],
   is_sparse: bool,
   # Data in:
-  nefc_in: wp.array(dtype=int),
-  time_in: wp.array(dtype=float),
-  efc_J_rownnz_in: wp.array2d(dtype=int),
-  efc_J_rowadr_in: wp.array2d(dtype=int),
+  nefc_in: wp.array[int],
+  time_in: wp.array[float],
+  efc_J_rownnz_in: wp.array2d[int],
+  efc_J_rowadr_in: wp.array2d[int],
   nworld_in: int,
   naconmax_in: int,
   njmax_in: int,
   njmax_nnz_in: int,
-  nacon_in: wp.array(dtype=int),
-  ncollision_in: wp.array(dtype=int),
+  nacon_in: wp.array[int],
+  ncollision_in: wp.array[int],
   # Data out:
-  time_out: wp.array(dtype=float),
+  time_out: wp.array[float],
 ):
   worldid = wp.tid()
   time_out[worldid] = time_in[worldid] + opt_timestep[worldid % opt_timestep.shape[0]]
@@ -277,11 +277,11 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
 @wp.kernel
 def _euler_damp_qfrc_sparse(
   # Model:
-  opt_timestep: wp.array(dtype=float),
-  dof_Madr: wp.array(dtype=int),
-  dof_damping: wp.array2d(dtype=float),
+  opt_timestep: wp.array[float],
+  dof_Madr: wp.array[int],
+  dof_damping: wp.array2d[float],
   # Out:
-  qM_integration_out: wp.array3d(dtype=float),
+  qM_integration_out: wp.array3d[float],
 ):
   worldid, tid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
@@ -295,15 +295,15 @@ def _tile_euler_dense(tile: TileSet):
   @wp.kernel(module="unique", enable_backward=False)
   def euler_dense(
     # Model:
-    opt_timestep: wp.array(dtype=float),
-    dof_damping: wp.array2d(dtype=float),
+    opt_timestep: wp.array[float],
+    dof_damping: wp.array2d[float],
     # Data in:
-    qM_in: wp.array3d(dtype=float),
-    efc_Ma_in: wp.array2d(dtype=float),
+    qM_in: wp.array3d[float],
+    efc_Ma_in: wp.array2d[float],
     # In:
-    adr_in: wp.array(dtype=int),
+    adr_in: wp.array[int],
     # Data out:
-    qacc_out: wp.array2d(dtype=float),
+    qacc_out: wp.array2d[float],
   ):
     worldid, nodeid = wp.tid()
     timestep = opt_timestep[worldid % opt_timestep.shape[0]]
@@ -358,8 +358,8 @@ def _rk_perturb_state(
   m: Model,
   d: Data,
   scale: float,
-  qpos_t0: wp.array2d(dtype=float),
-  qvel_t0: wp.array2d(dtype=float),
+  qpos_t0: wp.array2d[float],
+  qvel_t0: wp.array2d[float],
   act_t0: Optional[wp.array] = None,
 ):
   # position
@@ -403,13 +403,13 @@ def _rk_perturb_state(
 @wp.kernel
 def _rk_accumulate_velocity_acceleration(
   # Data in:
-  qvel_in: wp.array2d(dtype=float),
-  qacc_in: wp.array2d(dtype=float),
+  qvel_in: wp.array2d[float],
+  qacc_in: wp.array2d[float],
   # In:
   scale: float,
   # Data out:
-  qvel_out: wp.array2d(dtype=float),
-  qacc_out: wp.array2d(dtype=float),
+  qvel_out: wp.array2d[float],
+  qacc_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
   qvel_out[worldid, dofid] += scale * qvel_in[worldid, dofid]
@@ -419,11 +419,11 @@ def _rk_accumulate_velocity_acceleration(
 @wp.kernel
 def _rk_accumulate_activation_velocity(
   # Data in:
-  act_dot_in: wp.array2d(dtype=float),
+  act_dot_in: wp.array2d[float],
   # In:
   scale: float,
   # Data out:
-  act_dot_out: wp.array2d(dtype=float),
+  act_dot_out: wp.array2d[float],
 ):
   worldid, actid = wp.tid()
   act_dot_out[worldid, actid] += scale * act_dot_in[worldid, actid]
@@ -433,8 +433,8 @@ def _rk_accumulate(
   m: Model,
   d: Data,
   scale: float,
-  qvel_rk: wp.array2d(dtype=float),
-  qacc_rk: wp.array2d(dtype=float),
+  qvel_rk: wp.array2d[float],
+  qacc_rk: wp.array2d[float],
   act_dot_rk: Optional[wp.array] = None,
 ):
   """Computes one term of 1/6 k_1 + 1/3 k_2 + 1/3 k_3 + 1/6 k_4."""
@@ -540,13 +540,13 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
 @wp.kernel
 def _actuator_velocity(
   # Data in:
-  qvel_in: wp.array2d(dtype=float),
-  moment_rownnz_in: wp.array2d(dtype=int),
-  moment_rowadr_in: wp.array2d(dtype=int),
-  moment_colind_in: wp.array2d(dtype=int),
-  actuator_moment_in: wp.array2d(dtype=float),
+  qvel_in: wp.array2d[float],
+  moment_rownnz_in: wp.array2d[int],
+  moment_rowadr_in: wp.array2d[int],
+  moment_colind_in: wp.array2d[int],
+  actuator_moment_in: wp.array2d[float],
   # Data out:
-  actuator_velocity_out: wp.array2d(dtype=float),
+  actuator_velocity_out: wp.array2d[float],
 ):
   worldid, actid = wp.tid()
 
@@ -565,14 +565,14 @@ def _actuator_velocity(
 @wp.kernel
 def _tendon_velocity(
   # Model:
-  ten_J_rownnz: wp.array(dtype=int),
-  ten_J_rowadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
   # Data in:
-  qvel_in: wp.array2d(dtype=float),
-  ten_J_in: wp.array2d(dtype=float),
+  qvel_in: wp.array2d[float],
+  ten_J_in: wp.array2d[float],
   # Data out:
-  ten_velocity_out: wp.array2d(dtype=float),
+  ten_velocity_out: wp.array2d[float],
 ):
   worldid, tenid = wp.tid()
 
@@ -617,34 +617,34 @@ def fwd_velocity(m: Model, d: Data):
 def _actuator_force(
   # Model:
   na: int,
-  opt_timestep: wp.array(dtype=float),
-  actuator_dyntype: wp.array(dtype=int),
-  actuator_gaintype: wp.array(dtype=int),
-  actuator_biastype: wp.array(dtype=int),
-  actuator_actadr: wp.array(dtype=int),
-  actuator_actnum: wp.array(dtype=int),
-  actuator_ctrllimited: wp.array(dtype=bool),
-  actuator_forcelimited: wp.array(dtype=bool),
-  actuator_actlimited: wp.array(dtype=bool),
-  actuator_dynprm: wp.array2d(dtype=vec10f),
-  actuator_gainprm: wp.array2d(dtype=vec10f),
-  actuator_biasprm: wp.array2d(dtype=vec10f),
-  actuator_actearly: wp.array(dtype=bool),
-  actuator_ctrlrange: wp.array2d(dtype=wp.vec2),
-  actuator_forcerange: wp.array2d(dtype=wp.vec2),
-  actuator_actrange: wp.array2d(dtype=wp.vec2),
-  actuator_acc0: wp.array2d(dtype=float),
-  actuator_lengthrange: wp.array2d(dtype=wp.vec2),
+  opt_timestep: wp.array[float],
+  actuator_dyntype: wp.array[int],
+  actuator_gaintype: wp.array[int],
+  actuator_biastype: wp.array[int],
+  actuator_actadr: wp.array[int],
+  actuator_actnum: wp.array[int],
+  actuator_ctrllimited: wp.array[bool],
+  actuator_forcelimited: wp.array[bool],
+  actuator_actlimited: wp.array[bool],
+  actuator_dynprm: wp.array2d[vec10f],
+  actuator_gainprm: wp.array2d[vec10f],
+  actuator_biasprm: wp.array2d[vec10f],
+  actuator_actearly: wp.array[bool],
+  actuator_ctrlrange: wp.array2d[wp.vec2],
+  actuator_forcerange: wp.array2d[wp.vec2],
+  actuator_actrange: wp.array2d[wp.vec2],
+  actuator_acc0: wp.array2d[float],
+  actuator_lengthrange: wp.array2d[wp.vec2],
   # Data in:
-  act_in: wp.array2d(dtype=float),
-  ctrl_in: wp.array2d(dtype=float),
-  actuator_length_in: wp.array2d(dtype=float),
-  actuator_velocity_in: wp.array2d(dtype=float),
+  act_in: wp.array2d[float],
+  ctrl_in: wp.array2d[float],
+  actuator_length_in: wp.array2d[float],
+  actuator_velocity_in: wp.array2d[float],
   # In:
   dsbl_clampctrl: int,
   # Data out:
-  act_dot_out: wp.array2d(dtype=float),
-  actuator_force_out: wp.array2d(dtype=float),
+  act_dot_out: wp.array2d[float],
+  actuator_force_out: wp.array2d[float],
 ):
   worldid, uid = wp.tid()
 
@@ -738,12 +738,12 @@ def _actuator_force(
 @wp.kernel
 def _tendon_actuator_force(
   # Model:
-  actuator_trntype: wp.array(dtype=int),
-  actuator_trnid: wp.array(dtype=wp.vec2i),
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
   # Data in:
-  actuator_force_in: wp.array2d(dtype=float),
+  actuator_force_in: wp.array2d[float],
   # Out:
-  ten_actfrc_out: wp.array2d(dtype=float),
+  ten_actfrc_out: wp.array2d[float],
 ):
   worldid, actid = wp.tid()
 
@@ -756,14 +756,14 @@ def _tendon_actuator_force(
 @wp.kernel
 def _tendon_actuator_force_clamp(
   # Model:
-  tendon_actfrclimited: wp.array(dtype=bool),
-  tendon_actfrcrange: wp.array2d(dtype=wp.vec2),
-  actuator_trntype: wp.array(dtype=int),
-  actuator_trnid: wp.array(dtype=wp.vec2i),
+  tendon_actfrclimited: wp.array[bool],
+  tendon_actfrcrange: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
   # In:
-  ten_actfrc_in: wp.array2d(dtype=float),
+  ten_actfrc_in: wp.array2d[float],
   # Data out:
-  actuator_force_out: wp.array2d(dtype=float),
+  actuator_force_out: wp.array2d[float],
 ):
   worldid, actid = wp.tid()
 
@@ -782,13 +782,13 @@ def _tendon_actuator_force_clamp(
 @wp.kernel
 def _qfrc_actuator(
   # Data in:
-  moment_rownnz_in: wp.array2d(dtype=int),
-  moment_rowadr_in: wp.array2d(dtype=int),
-  moment_colind_in: wp.array2d(dtype=int),
-  actuator_moment_in: wp.array2d(dtype=float),
-  actuator_force_in: wp.array2d(dtype=float),
+  moment_rownnz_in: wp.array2d[int],
+  moment_rowadr_in: wp.array2d[int],
+  moment_colind_in: wp.array2d[int],
+  actuator_moment_in: wp.array2d[float],
+  actuator_force_in: wp.array2d[float],
   # Data out:
-  qfrc_actuator_out: wp.array2d(dtype=float),
+  qfrc_actuator_out: wp.array2d[float],
 ):
   worldid, actid = wp.tid()
 
@@ -806,15 +806,15 @@ def _qfrc_actuator(
 def _qfrc_actuator_gravcomp_limits(
   # Model:
   ngravcomp: int,
-  jnt_actfrclimited: wp.array(dtype=bool),
-  jnt_actgravcomp: wp.array(dtype=int),
-  jnt_actfrcrange: wp.array2d(dtype=wp.vec2),
-  dof_jntid: wp.array(dtype=int),
+  jnt_actfrclimited: wp.array[bool],
+  jnt_actgravcomp: wp.array[int],
+  jnt_actfrcrange: wp.array2d[wp.vec2],
+  dof_jntid: wp.array[int],
   # Data in:
-  qfrc_gravcomp_in: wp.array2d(dtype=float),
-  qfrc_actuator_in: wp.array2d(dtype=float),
+  qfrc_gravcomp_in: wp.array2d[float],
+  qfrc_actuator_in: wp.array2d[float],
   # Data out:
-  qfrc_actuator_out: wp.array2d(dtype=float),
+  qfrc_actuator_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
   jntid = dof_jntid[dofid]
@@ -930,12 +930,12 @@ def fwd_actuation(m: Model, d: Data):
 @wp.kernel
 def _qfrc_smooth(
   # Data in:
-  qfrc_applied_in: wp.array2d(dtype=float),
-  qfrc_bias_in: wp.array2d(dtype=float),
-  qfrc_passive_in: wp.array2d(dtype=float),
-  qfrc_actuator_in: wp.array2d(dtype=float),
+  qfrc_applied_in: wp.array2d[float],
+  qfrc_bias_in: wp.array2d[float],
+  qfrc_passive_in: wp.array2d[float],
+  qfrc_actuator_in: wp.array2d[float],
   # Data out:
-  qfrc_smooth_out: wp.array2d(dtype=float),
+  qfrc_smooth_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
   qfrc_smooth_out[worldid, dofid] = (
