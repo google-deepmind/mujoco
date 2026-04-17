@@ -77,6 +77,7 @@ bool IsValidElementOrNodeHeader22(const std::string& line) {
 mjCFlexcomp::mjCFlexcomp(void) {
   type = mjFCOMPTYPE_GRID;
   count[0] = count[1] = count[2] = 10;
+  cellcount[0] = cellcount[1] = cellcount[2] = -1;
   mjuu_setvec(spacing, 0.02, 0.02, 0.02);
   mjuu_setvec(scale, 1, 1, 1);
   mass = 1;
@@ -269,10 +270,19 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
 
   // construct pinned array
   int nnode = 0;
-  if (doftype == mjFCOMPDOF_TRILINEAR) {
-    nnode = 8;
-  } else if (doftype == mjFCOMPDOF_QUADRATIC) {
-    nnode = 27;
+  if (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
+    int order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
+    // multi-cell count for mesh/direct/gmsh, else single cell
+    int cx = 1, cy = 1, cz = 1;
+    if (type == mjFCOMPTYPE_MESH || type == mjFCOMPTYPE_DIRECT ||
+        type == mjFCOMPTYPE_GMSH) {
+      if (cellcount[0] >= 0) {
+        cx = cellcount[0];
+        cy = cellcount[1];
+        cz = cellcount[2];
+      }
+    }
+    nnode = (cx*order+1) * (cy*order+1) * (cz*order+1);
   }
   pinned = vector<bool>(std::max(npnt, nnode), rigid);
 
@@ -562,36 +572,81 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     }
   }
 
-  // create nodal mesh for trilinear interpolation
+  // create nodal mesh for trilinear/quadratic interpolation
   if (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
-    int order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
-    flex->SetOrder(order);
-    std::vector<double> node(3*(order+1)*(order+1)*(order+1), 0);
+    flex->spec.order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
+
+    if (cellcount[0] >= 0) {
+      flex->spec.cellcount[0] = cellcount[0];
+      flex->spec.cellcount[1] = cellcount[1];
+      flex->spec.cellcount[2] = cellcount[2];
+    }
+
+    // total number of nodes with shared boundaries
+    int nx = flex->spec.cellcount[0] * flex->spec.order + 1;
+    int ny = flex->spec.cellcount[1] * flex->spec.order + 1;
+    int nz = flex->spec.cellcount[2] * flex->spec.order + 1;
+    int nnode = nx * ny * nz;
+
+    std::vector<double> node(3 * nnode, 0);
     int idx = 0;
-    double step = 1.0 / (double)order;
+
+    // Simpson's rule weights for quadratic mass distribution
     double massP2[3] = {1. / 6., 2. / 3., 1. / 6.};
-    for (int i=0; i <= order; i++) {
-      for (int j=0; j <= order; j++) {
-        for (int k=0; k <= order; k++) {
+
+    // compute per-node mass for trilinear:
+    //   mass / nnode (uniform), or use Simpson for quadratic
+    double node_mass_uniform = mass / nnode;
+
+    for (int gi = 0; gi < nx; gi++) {
+      for (int gj = 0; gj < ny; gj++) {
+        for (int gk = 0; gk < nz; gk++) {
+          // parametric position in [0, 1]^3
+          double s = (double)gi / (flex->spec.cellcount[0] * flex->spec.order);
+          double t = (double)gj / (flex->spec.cellcount[1] * flex->spec.order);
+          double u = (double)gk / (flex->spec.cellcount[2] * flex->spec.order);
+
+          // physical position
+          double px = minmax[0] + s * (minmax[3] - minmax[0]);
+          double py = minmax[1] + t * (minmax[4] - minmax[1]);
+          double pz = minmax[2] + u * (minmax[5] - minmax[2]);
+
           if (pinned[idx]) {
-            node[3*idx+0] = minmax[0] + i * step * (minmax[3] - minmax[0]);
-            node[3*idx+1] = minmax[1] + j * step * (minmax[4] - minmax[1]);
-            node[3*idx+2] = minmax[2] + k * step * (minmax[5] - minmax[2]);
-            mjs_appendString(pf->nodebody, mjs_getName(body->element)->c_str());
+            node[3*idx+0] = px;
+            node[3*idx+1] = py;
+            node[3*idx+2] = pz;
+            mjs_appendString(pf->nodebody,
+                             mjs_getName(body->element)->c_str());
             idx++;
             continue;
           }
 
           mjsBody* pb = mjs_addBody(body, 0);
-          pb->pos[0] = minmax[0] + i * step * (minmax[3] - minmax[0]);
-          pb->pos[1] = minmax[1] + j * step * (minmax[4] - minmax[1]);
-          pb->pos[2] = minmax[2] + k * step * (minmax[5] - minmax[2]);
+          pb->pos[0] = px;
+          pb->pos[1] = py;
+          pb->pos[2] = pz;
           mjuu_zerovec(pb->ipos, 3);
+
+          // mass distribution
           if (doftype == mjFCOMPDOF_TRILINEAR) {
-            pb->mass = mass / 8;
+            pb->mass = node_mass_uniform;
           } else {
-            pb->mass = mass * massP2[i] * massP2[j] * massP2[k];
+            // local index within the cell for mass computation
+            int li = gi % flex->spec.order;
+            int lj = gj % flex->spec.order;
+            int lk = gk % flex->spec.order;
+            // boundary nodes: average mass contribution
+            int ncells_i = (gi > 0 && gi < nx-1 && li == 0) ? 2 : 1;
+            int ncells_j = (gj > 0 && gj < ny-1 && lj == 0) ? 2 : 1;
+            int ncells_k = (gk > 0 && gk < nz-1 && lk == 0) ? 2 : 1;
+            // use Simpson weights scaled by cell count
+            double wi = massP2[li == 0 ? 0 : li];
+            double wj = massP2[lj == 0 ? 0 : lj];
+            double wk = massP2[lk == 0 ? 0 : lk];
+            pb->mass = mass * wi * wj * wk * ncells_i * ncells_j * ncells_k
+                       / (flex->spec.cellcount[0] * flex->spec.cellcount[1] * flex->spec.cellcount[2]);
           }
+
           pb->inertia[0] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
           pb->inertia[1] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
           pb->inertia[2] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
@@ -607,7 +662,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
 
           // construct node name, add to nodebody
           char txt[100];
-          mju::sprintf_arr(txt, "%s_%d_%d_%d", name.c_str(), i, j, k);
+          mju::sprintf_arr(txt, "%s_%d_%d_%d", name.c_str(), gi, gj, gk);
           mjs_setName(pb->element, txt);
           mjs_appendString(pf->nodebody, mjs_getName(pb->element)->c_str());
 

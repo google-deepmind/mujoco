@@ -78,6 +78,7 @@ class mjCFlexcomp {
   std::string name;               // flex name
   mjtFcompType type;              // flexcomp type
   int count[3];                   // grid count in each dimension
+  int cellcount[3];               // number of cells for interpolation
   double spacing[3];              // spacing between grid elements
   double scale[3];                // scaling for mesh and direct
   double origin[3];               // origin for generating a 3D mesh from a convex 2D mesh

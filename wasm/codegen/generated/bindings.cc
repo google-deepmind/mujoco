@@ -2446,6 +2446,15 @@ struct MjsFlex {
   void set_elastic2d(int value) {
     ptr_->elastic2d = value;
   }
+  emscripten::val cellcount() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->cellcount));
+  }
+  int order() const {
+    return ptr_->order;
+  }
+  void set_order(int value) {
+    ptr_->order = value;
+  }
   mjStringVec &nodebody() const {
     return *(ptr_->nodebody);
   }
@@ -4639,6 +4648,9 @@ struct MjModel {
   }
   emscripten::val flex_interp() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_interp));
+  }
+  emscripten::val flex_cellnum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 3, ptr_->flex_cellnum));
   }
   emscripten::val flex_nodeadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_nodeadr));
@@ -11806,6 +11818,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_bending", &MjModel::flex_bending)
     .property("flex_bvhadr", &MjModel::flex_bvhadr)
     .property("flex_bvhnum", &MjModel::flex_bvhnum)
+    .property("flex_cellnum", &MjModel::flex_cellnum)
     .property("flex_centered", &MjModel::flex_centered)
     .property("flex_conaffinity", &MjModel::flex_conaffinity)
     .property("flex_condim", &MjModel::flex_condim)
@@ -12569,6 +12582,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("info", &MjsExclude::info, &MjsExclude::set_info, reference());
   emscripten::class_<MjsFlex>("MjsFlex")
     .property("activelayers", &MjsFlex::activelayers, &MjsFlex::set_activelayers, reference())
+    .property("cellcount", &MjsFlex::cellcount)
     .property("conaffinity", &MjsFlex::conaffinity, &MjsFlex::set_conaffinity, reference())
     .property("condim", &MjsFlex::condim, &MjsFlex::set_condim, reference())
     .property("contype", &MjsFlex::contype, &MjsFlex::set_contype, reference())
@@ -12590,6 +12604,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("material", &MjsFlex::material, &MjsFlex::set_material, reference())
     .property("node", &MjsFlex::node, reference())
     .property("nodebody", &MjsFlex::nodebody, reference())
+    .property("order", &MjsFlex::order, &MjsFlex::set_order, reference())
     .property("passive", &MjsFlex::passive, &MjsFlex::set_passive, reference())
     .property("poisson", &MjsFlex::poisson, &MjsFlex::set_poisson, reference())
     .property("priority", &MjsFlex::priority, &MjsFlex::set_priority, reference())

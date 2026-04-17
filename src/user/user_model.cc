@@ -2190,8 +2190,13 @@ void mjCModel::SetSizes() {
     nflexshelldata += (int)flexes_[i]->shell.size();
     nflexevpair += (int)flexes_[i]->evpair.size()/2;
     nflextexcoord += (flexes_[i]->HasTexcoord() ? flexes_[i]->get_texcoord().size()/2 : 0);
-    if (flexes_[i]->order_ != 0) {
-      extra_stiffness_size += (3 * flexes_[i]->nnode) * (3 * flexes_[i]->nnode);
+    if (flexes_[i]->spec.order != 0) {
+      int npc = (int)pow(flexes_[i]->spec.order + 1, 3);
+      int ndof_cell = 3 * npc;
+      int ncells = flexes_[i]->spec.cellcount[0] *
+                   flexes_[i]->spec.cellcount[1] *
+                   flexes_[i]->spec.cellcount[2];
+      extra_stiffness_size += ncells * ndof_cell * ndof_cell;
     }
     if (flexes_[i]->interpolated || flexes_[i]->rigid) {
       continue;
@@ -3467,18 +3472,30 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->flex_rgba + 4 * i, pfl->rgba, 4);
 
     // elasticity
-    if (pfl->order_ == 0) {
+    if (pfl->spec.order == 0) {
       m->flex_stiffnessadr[i] = 21 * elem_adr;
     } else {
       m->flex_stiffnessadr[i] = current_extra_stiffness_adr;
-      current_extra_stiffness_adr += (3 * pfl->nnode) * (3 * pfl->nnode);
+      int npc = (int)pow(pfl->spec.order + 1, 3);
+      int ndof_cell = 3 * npc;
+      int ncells = pfl->spec.cellcount[0] * pfl->spec.cellcount[1] * pfl->spec.cellcount[2];
+      current_extra_stiffness_adr += ncells * ndof_cell * ndof_cell;
     }
 
     if (!pfl->stiffness.empty()) {
-      mjuu_copyvec(m->flex_stiffness + m->flex_stiffnessadr[i], pfl->stiffness.data(), pfl->stiffness.size());
+      mjuu_copyvec(m->flex_stiffness + m->flex_stiffnessadr[i],
+                   pfl->stiffness.data(), pfl->stiffness.size());
     } else {
-      int size = (pfl->order_ == 0) ? 21 * pfl->nelem : (3 * pfl->nnode) * (3 * pfl->nnode);
-      mjuu_zerovec(m->flex_stiffness + m->flex_stiffnessadr[i], size);
+      int stiff_size;
+      if (pfl->spec.order == 0) {
+        stiff_size = 21 * pfl->nelem;
+      } else {
+        int npc = (int)pow(pfl->spec.order + 1, 3);
+        int ndof_cell = 3 * npc;
+        int ncells = pfl->spec.cellcount[0] * pfl->spec.cellcount[1] * pfl->spec.cellcount[2];
+        stiff_size = ncells * ndof_cell * ndof_cell;
+      }
+      mjuu_zerovec(m->flex_stiffness + m->flex_stiffnessadr[i], stiff_size);
     }
     if (!pfl->bending.empty()) {
       mjuu_copyvec(m->flex_bending + 17 * edge_adr, pfl->bending.data(), pfl->bending.size());
@@ -3613,7 +3630,12 @@ void mjCModel::CopyObjects(mjModel* m) {
     }
 
     // set interpolation type, only two types for now
-    m->flex_interp[i] = pfl->order_;
+    m->flex_interp[i] = pfl->spec.order;
+
+    // set cell count for multi-cell finite cell method
+    m->flex_cellnum[3*i+0] = pfl->spec.cellcount[0];
+    m->flex_cellnum[3*i+1] = pfl->spec.cellcount[1];
+    m->flex_cellnum[3*i+2] = pfl->spec.cellcount[2];
 
     // convert edge pairs to int array, set edge rigid
     for (int k=0; k < pfl->nedge; k++) {

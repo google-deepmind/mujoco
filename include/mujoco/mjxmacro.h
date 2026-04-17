@@ -454,6 +454,7 @@
     X   ( int,     flex_matid,            nflex,         1                    ) \
     X   ( int,     flex_group,            nflex,         1                    ) \
     X   ( int,     flex_interp,           nflex,         1                    ) \
+    X   ( int,     flex_cellnum,          nflex,         3                    ) \
     X   ( int,     flex_nodeadr,          nflex,         1                    ) \
     X   ( int,     flex_nodenum,          nflex,         1                    ) \
     X   ( int,     flex_vertadr,          nflex,         1                    ) \

@@ -987,6 +987,34 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
 
 //-------------------------- miscellaneous utilities -----------------------------------------------
 
+// gather global node positions and velocities
+void mju_flexGatherState(const mjModel* m, mjData* d, int f, mjtNum* xpos, mjtNum* vel) {
+  int nodenum = m->flex_nodenum[f];
+  int nstart = m->flex_nodeadr[f];
+  int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+
+  // compute positions
+  if (m->flex_centered[f]) {
+    for (int i=0; i < nodenum; i++) {
+      mju_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+      if (vel) {
+        mju_copy3(vel + 3*i, d->qvel + m->body_dofadr[bodyid[i]]);
+      }
+    }
+  } else {
+    mjtNum screw[6];
+    for (int i=0; i < nodenum; i++) {
+      mju_mulMatVec3(xpos + 3*i, d->xmat + 9*bodyid[i], m->flex_node + 3*(i+nstart));
+      mju_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+      if (vel) {
+        mj_objectVelocity(m, d, mjOBJ_BODY, bodyid[i], screw, 0);
+        mju_copy3(vel + 3*i, screw + 3);
+      }
+    }
+  }
+}
+
+
 // extract 6D force:torque for one contact, in contact frame
 void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]) {
   mjContact* con;

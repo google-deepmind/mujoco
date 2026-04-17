@@ -315,7 +315,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             {">"},
         {">"},
         {"flexcomp", "*", "name", "type", "group", "dim", "dof",
-            "count", "spacing", "radius", "rigid", "mass", "inertiabox",
+            "count", "cellcount", "spacing", "radius", "rigid", "mass", "inertiabox",
             "scale", "file", "point", "element", "texcoord", "material", "rgba",
             "flatskin", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler", "origin"},
         {"<"},
@@ -334,8 +334,8 @@ std::vector<const char*> MJCF[nMJCF] = {
 
     {"deformable", "*"},
     {"<"},
-        {"flex", "*", "name", "group", "dim", "radius", "material",
-            "rgba", "flatskin", "body", "vertex", "element", "texcoord", "elemtexcoord", "node"},
+        {"flex", "*", "name", "group", "dim", "radius", "material", "rgba", "flatskin", "body",
+            "vertex", "element", "texcoord", "elemtexcoord", "node", "cellcount", "dof"},
         {"<"},
             {"contact", "?",  "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
@@ -1500,6 +1500,16 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
   }
   ReadAttrInt(elem, "dim", &flex->dim);
   ReadAttrInt(elem, "group", &flex->group);
+
+  flex->cellcount[0] = 1;
+  flex->cellcount[1] = 1;
+  flex->cellcount[2] = 1;
+  ReadAttr(elem, "cellcount", 3, flex->cellcount, text);
+
+  flex->order = 0;
+  if (MapValue(elem, "dof", &n, fdof_map, mjNFCOMPDOFS)) {
+    flex->order = (n == mjFCOMPDOF_QUADRATIC) ? 2 : (n == mjFCOMPDOF_TRILINEAR ? 1 : 0);
+  }
 
   // read data vectors
   if (ReadAttrTxt(elem, "body", text, true)) {
@@ -2794,6 +2804,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     fcomp.type = (mjtFcompType)n;
   }
   ReadAttr(elem, "count", 3, fcomp.count, text);
+  ReadAttr(elem, "cellcount", 3, fcomp.cellcount, text);
   ReadAttr(elem, "spacing", 3, fcomp.spacing, text);
   ReadAttr(elem, "scale", 3, fcomp.scale, text);
   ReadAttr(elem, "mass", 1, &fcomp.mass, text);
