@@ -79,6 +79,27 @@ TEST_F(UserFlexTest, CountTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("Count too small"));
 }
 
+TEST_F(UserFlexTest, CellnumZeroInterpolated) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="b0"/>
+    <body name="b1"/>
+    <body name="b2"/>
+    <body name="b3"/>
+  </worldbody>
+  <deformable>
+    <flex name="test" cellcount="2 2 0" dof="trilinear"
+          dim="3" body="b0 b1 b2 b3" element="0 1 2 3"/>
+  </deformable>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("cellcount cannot be 0"));
+}
+
 TEST_F(UserFlexTest, SpacingGreaterThanGeometry) {
   static constexpr char xml[] = R"(
   <mujoco>

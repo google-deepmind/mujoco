@@ -4095,6 +4095,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // check node compatibility with count and dof
   if (spec.order > 0) {
+    if (spec.cellcount[0] == 0 || spec.cellcount[1] == 0 || spec.cellcount[2] == 0) {
+      throw mjCError(this, "cellcount cannot be 0 in any dimension when interpolation order > 0");
+    }
     int expected_nodes = (spec.cellcount[0] * spec.order + 1) *
                          (spec.cellcount[1] * spec.order + 1) *
                          (spec.cellcount[2] * spec.order + 1);

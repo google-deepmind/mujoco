@@ -872,12 +872,12 @@ typedef enum {
 
 // shared kernel for flex interpolation derivatives, scale = s1 + s2*damping
 //  op: operation type (VEC, or ADDH)
-//  res: output vector (VEC) or dense H matrix (ADDH)
+//  res: output vector (VEC) or banded H matrix (ADDH)
 //  vec: input vector for VEC operation, NULL otherwise
-//  dof_indices, ndof: DOF mapping for ADDH, ignored otherwise
+//  dof_indices, ndof, nband: DOF mapping and band width for ADDH, ignored otherwise
 static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
                                   mjtNum* res, const mjtNum* vec, mjtNum s1, mjtNum s2,
-                                  const int* dof_indices, int ndof) {
+                                  const int* dof_indices, int ndof, int nband) {
   int nv = m->nv;
 
   // build global2local map for ADDH
@@ -1021,7 +1021,7 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
                               J_val, K_rot_cell, dim_c);
           } else if (op == mjFLEXOP_ADDH) {
             mj_markStack(d);
-            // H -= J_cell^T * K_rot_cell * J_cell
+            // H -= J_cell^T * K_rot_cell * J_cell (banded format)
             mjtNum* J_reduced = mjSTACKALLOC(d, dim_c*ndof, mjtNum);
             mju_zero(J_reduced, dim_c*ndof);
 
@@ -1041,14 +1041,14 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
             mjtNum* KJ = mjSTACKALLOC(d, dim_c*ndof, mjtNum);
             mju_mulMatMat(KJ, K_rot_cell, J_reduced, dim_c, dim_c, ndof);
 
-            // H[i,j] -= J_reduced[k,i] * KJ[k,j]
+            // H[i,j] -= J_reduced[k,i] * KJ[k,j], store lower triangle in banded format
             for (int i = 0; i < ndof; i++) {
-              for (int j = 0; j < ndof; j++) {
+              for (int j = mjMAX(0, i-nband+1); j <= i; j++) {
                 mjtNum val = 0;
                 for (int dim_idx = 0; dim_idx < dim_c; dim_idx++) {
                   val += J_reduced[dim_idx*ndof + i] * KJ[dim_idx*ndof + j];
                 }
-                res[i*ndof + j] -= val;
+                res[i*nband + nband-1-(i-j)] -= val;
               }
             }
             mj_freeStack(d);
@@ -1072,15 +1072,16 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
 // compute res += (h^2 + h*damping) * J'*K*J * vec, for all interpolated flexes
 void mjd_flexInterp_mulKD(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, mjtNum h) {
   // s1=h*h, s2=h => scale = h*h + h*damping
-  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, h * h, h, NULL, 0);
+  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, h * h, h, NULL, 0, 0);
 }
 
 
-// add (h^2 + h*damping) * J'*K*J to dense matrix H, for all interpolated flexes
-//  H: dense ndof x ndof matrix
+// add (h^2 + h*damping) * J'*K*J to banded matrix H, for all interpolated flexes
+//  H: banded ndof x nband matrix (lower triangle, band storage)
 //  dof_indices: maps local indices to global DOFs
-void mjd_flexInterp_addH(const mjModel* m, mjData* d, mjtNum* H, const int* dof_indices, int ndof, mjtNum h) {
-  mjd_flexInterp_kernel(m, d, mjFLEXOP_ADDH, H, NULL, h * h, h, dof_indices, ndof);
+void mjd_flexInterp_addH(const mjModel* m, mjData* d, mjtNum* H, const int* dof_indices,
+                         int ndof, int nband, mjtNum h) {
+  mjd_flexInterp_kernel(m, d, mjFLEXOP_ADDH, H, NULL, h * h, h, dof_indices, ndof, nband);
 }
 
 

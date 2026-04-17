@@ -4649,6 +4649,9 @@ struct MjModel {
   emscripten::val flex_interp() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_interp));
   }
+  emscripten::val flex_bandwidth() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_bandwidth));
+  }
   emscripten::val flex_cellnum() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 3, ptr_->flex_cellnum));
   }
@@ -11815,6 +11818,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("eq_type", &MjModel::eq_type)
     .property("exclude_signature", &MjModel::exclude_signature)
     .property("flex_activelayers", &MjModel::flex_activelayers)
+    .property("flex_bandwidth", &MjModel::flex_bandwidth)
     .property("flex_bending", &MjModel::flex_bending)
     .property("flex_bvhadr", &MjModel::flex_bvhadr)
     .property("flex_bvhnum", &MjModel::flex_bvhnum)
