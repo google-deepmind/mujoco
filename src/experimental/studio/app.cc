@@ -902,7 +902,8 @@ void App::BuildGui() {
 
   if (tmp_.picture_in_picture) {
     if (ImGui::Begin("Picture-in-Picture", &tmp_.picture_in_picture)) {
-      PipGui(model(), data(), window_.get(), renderer_.get(), &tmp_.pips);
+      platform::PipGui(model(), data(), window_->GetAspectRatio(),
+                       renderer_.get(), &tmp_.pips);
     }
     ImGui::End();
   }

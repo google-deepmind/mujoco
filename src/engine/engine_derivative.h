@@ -49,7 +49,7 @@ MJAPI void mjd_flexInterp_mulKD(const mjModel* m, mjData* d, mjtNum* res, const 
 
 // assemble flex stiffness matrix H_flex: H += h*h*K + h*D
 //  H is a dense matrix of size ndof x ndof, dof_indices maps local rows/cols to global DOFs
-MJAPI void mjd_flexInterp_addH(const mjModel* m, mjData* d, mjtNum* H, const int* dof_indices, int ndof, mjtNum h);
+MJAPI void mjd_flexInterp_addH(const mjModel* m, mjData* d, mjtNum* H, const int* dof_indices, int ndof, int nband, mjtNum h);
 
 
 #ifdef __cplusplus

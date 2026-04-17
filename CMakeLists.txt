@@ -132,9 +132,6 @@ endif()
 
 if(EMSCRIPTEN)
   add_subdirectory(wasm)
-  if(MUJOCO_BUILD_TESTS_WASM)
-    add_subdirectory(wasm/tests)
-  endif()
 endif()
 
 

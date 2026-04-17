@@ -208,7 +208,7 @@ void SceneView::RemoveFromScene(Light* light) {
 void SceneView::AddToScene(Renderable* renderable) {
   if (renderables_.insert(renderable).second) {
     renderable->AddToScene(scene_);
-    if (renderable->GetMaterial().GetParams().reflective) {
+    if (renderable->GetMaterialParams().reflective) {
       AddReflectiveRenderable(renderable);
     }
   }
@@ -261,8 +261,7 @@ void SceneView::Render(filament::Renderer* renderer,
   SetupCamera(request.camera, viewport, camera_);
 
   for (auto& iter : renderables_) {
-    Material& material = iter->GetMaterial();
-    iter->SetMaterialInstance(material.GetMaterialInstance(request.draw_mode));
+    iter->SetDrawMode(request.draw_mode);
   }
 
   filament::View* view = views_[static_cast<int>(request.draw_mode)];
@@ -336,10 +335,9 @@ void SceneView::AddReflectiveRenderable(Renderable* renderable) {
   auto& target = reflect_targets_[index];
   target->Prepare(viewport.width, viewport.height);
 
-  Material& material = renderable->GetMaterial();
-  Material::Textures textures = material.GetTextures();
+  MaterialTextures textures = renderable->GetMaterialTextures();
   textures.reflection = target->GetColorTexture();
-  material.UpdateTextures(textures);
+  renderable->UpdateMaterial(renderable->GetMaterialParams(), textures);
 }
 
 void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {

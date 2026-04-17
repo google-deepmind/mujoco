@@ -2,6 +2,15 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+
+- Added :ref:`multi-cell support<body-flexcomp-cellnum>` for trilinear and quadratic flexes. Note that the implicit
+  integrator uses a dense solver for the flex degrees of freedom, which can be slow for multi-cell flexes.
+
 Version 3.7.0 (April 14, 2026)
 ------------------------------
 

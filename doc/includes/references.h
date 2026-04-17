@@ -1315,6 +1315,8 @@ struct mjModel_ {
   int*      flex_matid;           // material id for rendering                (nflex x 1)
   int*      flex_group;           // group for visibility                     (nflex x 1)
   int*      flex_interp;          // interpolation (0: vertex, 1: nodes)      (nflex x 1)
+  int*      flex_bandwidth;       // precomputed solver bandwidth             (nflex x 1)
+  int*      flex_cellnum;         // finite cell num per dimension            (nflex x 3)
   int*      flex_nodeadr;         // first node address                       (nflex x 1)
   int*      flex_nodenum;         // number of nodes                          (nflex x 1)
   int*      flex_vertadr;         // first vertex address                     (nflex x 1)
@@ -2256,6 +2258,8 @@ typedef struct mjsFlex_ {          // flex specification
   double damping;                  // Rayleigh's damping
   double thickness;                // thickness (2D only)
   int elastic2d;                   // 2D passive forces; 0: none, 1: bending, 2: stretching, 3: both
+  int cellcount[3];                // grid cell count for finite cell method
+  int order;                       // interpolation order (1: trilinear, 2: quadratic)
 
   // mesh properties
   mjStringVec* nodebody;           // node body names

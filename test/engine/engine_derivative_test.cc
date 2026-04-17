@@ -1473,6 +1473,17 @@ void RotateFlexGrid(mjModel* model, mjData* data, const char* flex_name,
   }
 }
 
+// Helper: assemble flex stiffness into dense matrix via banded addH
+// This wraps the banded API and converts to dense for test verification.
+static void addH_dense(mjModel* m, mjData* d, mjtNum* H_dense,
+                       const int* dof_indices, int ndof, mjtNum h) {
+  // use full bandwidth (ndof) for exact dense equivalence
+  std::vector<mjtNum> H_band(ndof * ndof, 0);
+  mjd_flexInterp_addH(m, d, H_band.data(), dof_indices, ndof, ndof, h);
+  // convert banded to dense (lower triangle), then symmetrize
+  mju_band2Dense(H_dense, H_band.data(), ndof, ndof, 0, 1);
+}
+
 // compare analytic and fin-diff d_qfrc_passive/d_qvel for flex interp
 // Combined test for verify mjd_flexInterp_mulK (stiffness) and damping
 TEST_F(DerivativeTest, FlexInterpDerivatives) {
@@ -1525,7 +1536,7 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
       for (int i = 0; i < nv; i++) dof_indices[i] = i;
 
       // assemble K into H
-      mjd_flexInterp_addH(model, data, H.data(), dof_indices.data(), nv, 1.0);
+      addH_dense(model, data, H.data(), dof_indices.data(), nv, 1.0);
 
       // restore damping
       model->flex_damping[0] = save_damping;
@@ -1618,10 +1629,10 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
       for (int i = 0; i < nv; i++) dof_indices[i] = i;
 
       vector<mjtNum> H1(nv * nv, 0);
-      mjd_flexInterp_addH(model, data, H1.data(), dof_indices.data(), nv, 1.0);
+      addH_dense(model, data, H1.data(), dof_indices.data(), nv, 1.0);
 
       vector<mjtNum> H2(nv * nv, 0);
-      mjd_flexInterp_addH(model, data, H2.data(), dof_indices.data(), nv, 0.5);
+      addH_dense(model, data, H2.data(), dof_indices.data(), nv, 0.5);
 
       vector<mjtNum> D(nv * nv);
       for (int i = 0; i < nv * nv; i++) {
@@ -1695,8 +1706,7 @@ TEST_F(DerivativeTest, FlexInterpDerivativesDeformed) {
   for (int i = 0; i < nv; i++) dof_indices[i] = i;
 
   // h=1, damping=0 => adds K to H
-  mjd_flexInterp_addH(model, data, H_approx.data(), dof_indices.data(), nv,
-                      1.0);
+  addH_dense(model, data, H_approx.data(), dof_indices.data(), nv, 1.0);
 
   // 2. Compute Finite Difference Jacobian (Ground Truth)
   // qfrc_passive = -dV/dq

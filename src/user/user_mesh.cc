@@ -3961,7 +3961,10 @@ std::string mjCFlex::ComputeStiffnessCacheKey() const {
 
   combine(std::hash<double>{}(young));
   combine(std::hash<double>{}(poisson));
-  combine(std::hash<int>{}(order_));
+  combine(std::hash<int>{}(spec.order));
+  combine(std::hash<int>{}(spec.cellcount[0]));
+  combine(std::hash<int>{}(spec.cellcount[1]));
+  combine(std::hash<int>{}(spec.cellcount[2]));
 
   // compute bounding box from vertex positions
   if (!vert_.empty()) {
@@ -4086,10 +4089,23 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // set nnode
   nnode = static_cast<int>(nodebody_.size());
-  if (nnode && !order_) {
-    order_ = std::pow(nnode, 1.0 / 3) - 1;
-    if (nnode != std::pow(order_ + 1, 3)) {
-      throw mjCError(this, "number of nodes must be %d^3 but it is %d", nullptr, order_, nnode);
+  if (nnode && !spec.order) {
+    throw mjCError(this, "Interpolation order must be explicitly specified (dof is missing)");
+  }
+
+  // check node compatibility with count and dof
+  if (spec.order > 0) {
+    if (spec.cellcount[0] == 0 || spec.cellcount[1] == 0 || spec.cellcount[2] == 0) {
+      throw mjCError(this, "cellcount cannot be 0 in any dimension when interpolation order > 0");
+    }
+    int expected_nodes = (spec.cellcount[0] * spec.order + 1) *
+                         (spec.cellcount[1] * spec.order + 1) *
+                         (spec.cellcount[2] * spec.order + 1);
+    if (nnode != expected_nodes) {
+      std::string msg = "number of nodes (" + std::to_string(nnode) +
+                        ") does not match cellcount and dof expected (" +
+                        std::to_string(expected_nodes) + ")";
+      throw mjCError(this, msg.c_str());
     }
   }
 
@@ -4329,12 +4345,48 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   if (!stiffness_cached && young > 0 && interpolated) {
-    int n = pow(order_ + 1, 3);
-    int ndof = 3 * n;
-    if (stiffness.size() < ndof * ndof) {
-      stiffness.resize(ndof * ndof, 0);
+    int npc = pow(spec.order + 1, 3);  // nodes per cell
+    int ndof_cell = 3 * npc;
+    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    int ncells = cx * cy * cz;
+    int ny_global = cy * spec.order + 1;
+    int nz_global = cz * spec.order + 1;
+
+    // total stiffness = ncells * ndof_cell^2
+    stiffness.resize(ncells * ndof_cell * ndof_cell, 0);
+
+    // compute stiffness per cell
+    for (int ci = 0; ci < cx; ci++) {
+      for (int cj = 0; cj < cy; cj++) {
+        for (int ck = 0; ck < cz; ck++) {
+          int cell_idx = ci * cy * cz + cj * cz + ck;
+
+          // gather cell's local node positions
+          std::vector<double> cell_pos(3 * npc);
+          int local = 0;
+          for (int li = 0; li <= spec.order; li++) {
+            for (int lj = 0; lj <= spec.order; lj++) {
+              for (int lk = 0; lk <= spec.order; lk++) {
+                int gi = ci * spec.order + li;
+                int gj = cj * spec.order + lj;
+                int gk = ck * spec.order + lk;
+                int global = gi * ny_global * nz_global + gj * nz_global + gk;
+                mjuu_copyvec(cell_pos.data() + 3*local, nodexpos.data() + 3*global, 3);
+                local++;
+              }
+            }
+          }
+
+          // compute per-cell stiffness
+          std::vector<double> K_cell(ndof_cell * ndof_cell, 0);
+          ComputeLinearStiffness(K_cell, cell_pos.data(), young, poisson, spec.order);
+
+          // copy into global stiffness array
+          mjuu_copyvec(stiffness.data() + cell_idx * ndof_cell * ndof_cell,
+                       K_cell.data(), ndof_cell * ndof_cell);
+        }
+      }
     }
-    ComputeLinearStiffness(stiffness, nodexpos.data(), young, poisson, order_);
   }
 
   // create bounding volume hierarchy

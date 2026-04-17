@@ -58,61 +58,7 @@ static void inline GradSquaredLengths(mjtNum gradient[6][2][3],
   }
 }
 
-// compute interpolated flex state: xpos, vel, quat
-//  f: flex index
-//  xpos: (output) 3*nodenum
-//  vel: (output) 3*nodenum, can be NULL
-//  quat: (output) 4, rotation from global to local
-void mj_flexInterpState(const mjModel* m, mjData* d, int f,
-                        mjtNum* xpos, mjtNum* vel, mjtNum* quat) {
-  int nodenum = m->flex_nodenum[f];
-  int nstart = m->flex_nodeadr[f];
-  int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
-  mjtNum com[3] = {0};
 
-  // compute positions
-  if (m->flex_centered[f]) {
-    for (int i=0; i < nodenum; i++) {
-      mji_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
-      if (vel) {
-        mji_copy3(vel + 3*i, d->qvel + m->body_dofadr[bodyid[i]]);
-      }
-    }
-  } else {
-    mjtNum screw[6];
-    for (int i=0; i < nodenum; i++) {
-      mji_mulMatVec3(xpos + 3*i, d->xmat + 9*bodyid[i], m->flex_node + 3*(i+nstart));
-      mji_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
-      if (vel) {
-        mj_objectVelocity(m, d, mjOBJ_BODY, bodyid[i], screw, 0);
-        mji_copy3(vel + 3*i, screw + 3);
-      }
-    }
-  }
-
-  // compute center of mass
-  for (int i = 0; i < nodenum; i++) {
-    mji_addToScl3(com, xpos+3*i, 1.0/nodenum);
-  }
-
-  // compute the Jacobian at the center of mass
-  mjtNum mat[9] = {0};
-  mjtNum p[3] = {.5, .5, .5};
-  mju_defGradient(mat, p, xpos, m->flex_interp[f]);
-
-  // find rotation
-  mju_mat2Rot(quat, mat);
-  mju_negQuat(quat, quat);
-
-  // rotate vertices to quat and add reference center of mass
-  for (int i = 0; i < nodenum; i++) {
-    mju_rotVecQuat(xpos+3*i, xpos+3*i, quat);
-    mji_addTo3(xpos+3*i, p);
-    if (vel) {
-      mju_rotVecQuat(vel+3*i, vel+3*i, quat);
-    }
-  }
-}
 
 // spring and damper forces
 static void mj_springdamper(const mjModel* m, mjData* d) {
@@ -284,42 +230,111 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     }
 
     if (m->flex_interp[f]) {
+      int order = m->flex_interp[f];
+      int npc = (order+1)*(order+1)*(order+1);  // nodes per cell
+      int cx = m->flex_cellnum[3*f+0];
+      int cy = m->flex_cellnum[3*f+1];
+      int cz = m->flex_cellnum[3*f+2];
+      int ny_g = cy * order + 1;
+      int nz_g = cz * order + 1;
+
       mj_markStack(d);
-      mjtNum* xpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-      mjtNum* displ = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-      mjtNum* vel = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-      mjtNum* frc = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-      mjtNum* dmp = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+
+      // allocate global arrays
+      mjtNum* xpos_g = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+      mjtNum* vel_g = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+      mjtNum* frc_g = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+      mjtNum* dmp_g = mjSTACKALLOC(d, 3*nodenum, mjtNum);
       mjtNum* xpos0 = m->flex_node0 + 3*m->flex_nodeadr[f];
       int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
 
-      mjtNum quat[4] = {1, 0, 0, 0};
-      mj_flexInterpState(m, d, f, xpos, vel, quat);
+      // gather global node positions and velocities (unrotated)
+      mju_flexGatherState(m, d, f, xpos_g, vel_g);
 
-      // compute displacement
-      for (int i = 0; i < nodenum; i++) {
-        mji_addScl3(displ+3*i, xpos+3*i, xpos0+3*i, -1);
+      // zero global force accumulators
+      mju_zero(frc_g, 3*nodenum);
+      mju_zero(dmp_g, 3*nodenum);
+
+      // per-cell arrays
+      mjtNum* xpos_c = mjSTACKALLOC(d, 3*npc, mjtNum);
+      mjtNum* vel_c = mjSTACKALLOC(d, 3*npc, mjtNum);
+      mjtNum* xpos0_c = mjSTACKALLOC(d, 3*npc, mjtNum);
+      mjtNum* displ_c = mjSTACKALLOC(d, 3*npc, mjtNum);
+      mjtNum* frc_c = mjSTACKALLOC(d, 3*npc, mjtNum);
+      mjtNum* dmp_c = mjSTACKALLOC(d, 3*npc, mjtNum);
+
+      // loop over cells
+      int cell_idx = 0;
+      for (int ci = 0; ci < cx; ci++) {
+        for (int cj = 0; cj < cy; cj++) {
+          for (int ck = 0; ck < cz; ck++) {
+            // gather cell-local node data
+            mjtNum quat[4];
+            mjtNum p[3] = {.5, .5, .5};
+            mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos_g, vel_g, xpos0,
+                                    xpos_c, vel_c, xpos0_c, NULL, quat);
+
+            // rotate to corotational frame
+            for (int n = 0; n < npc; n++) {
+              mju_rotVecQuat(xpos_c+3*n, xpos_c+3*n, quat);
+              mji_addTo3(xpos_c+3*n, p);
+              mju_rotVecQuat(vel_c+3*n, vel_c+3*n, quat);
+            }
+
+            // compute displacement
+            for (int n = 0; n < npc; n++) {
+              mji_addScl3(displ_c+3*n, xpos_c+3*n, xpos0_c+3*n, -1);
+            }
+
+            // get cell stiffness matrix
+            mjtNum* k_cell = k + cell_idx * 3*npc * 3*npc;
+
+            // compute force in corotational frame
+            if (enbl_spring) {
+              mju_mulMatVec(frc_c, k_cell, displ_c, 3*npc, 3*npc);
+            }
+            if (enbl_damper) {
+              mju_mulMatVec(dmp_c, k_cell, vel_c, 3*npc, 3*npc);
+            }
+
+            // rotate back to global frame and scatter
+            mju_negQuat(quat, quat);
+            int local = 0;
+            for (int li = 0; li <= order; li++) {
+              for (int lj = 0; lj <= order; lj++) {
+                for (int lk = 0; lk <= order; lk++) {
+                  int gi = ci*order + li;
+                  int gj = cj*order + lj;
+                  int gk = ck*order + lk;
+                  int gidx = gi*ny_g*nz_g + gj*nz_g + gk;
+                  mjtNum qfrc[3], qdmp[3];
+                  mji_rotVecQuat(qfrc, frc_c+3*local, quat);
+                  mji_rotVecQuat(qdmp, dmp_c+3*local, quat);
+                  if (enbl_spring) {
+                    mji_addTo3(frc_g + 3*gidx, qfrc);
+                  }
+                  if (enbl_damper) {
+                    mji_addTo3(dmp_g + 3*gidx, qdmp);
+                  }
+                  local++;
+                }
+              }
+            }
+
+            cell_idx++;
+          }
+        }
       }
 
-      // compute force in the stretch frame
-      if (enbl_spring) mju_mulMatVec(frc, k, displ, 3*nodenum, 3*nodenum);
-
-      // compute damping force in stretch frame
-      if (enbl_damper) mju_mulMatVec(dmp, k, vel, 3*nodenum, 3*nodenum);
-
-      // rotate forces to global frame and add to qfrc
-      mju_negQuat(quat, quat);
+      // apply accumulated forces to bodies
       for (int i = 0; i < nodenum; i++) {
-        mjtNum qfrc[3], qdmp[3];
-        mji_rotVecQuat(qfrc, frc+3*i, quat);
-        mji_rotVecQuat(qdmp, dmp+3*i, quat);
-        mju_scl3(qdmp, qdmp, m->flex_damping[f]);
+        mju_scl3(dmp_g+3*i, dmp_g+3*i, m->flex_damping[f]);
         if (m->flex_centered[f]) {
-          if (enbl_spring) mji_addTo3(d->qfrc_spring+m->body_dofadr[bodyid[i]], qfrc);
-          if (enbl_damper) mji_addTo3(d->qfrc_damper+m->body_dofadr[bodyid[i]], qdmp);
+          if (enbl_spring) mji_addTo3(d->qfrc_spring + m->body_dofadr[bodyid[i]], frc_g+3*i);
+          if (enbl_damper) mji_addTo3(d->qfrc_damper + m->body_dofadr[bodyid[i]], dmp_g+3*i);
         } else {
-          if (enbl_spring) mj_applyFT(m, d, qfrc, 0, xpos+3*i, bodyid[i], d->qfrc_spring);
-          if (enbl_damper) mj_applyFT(m, d, qdmp, 0, xpos+3*i, bodyid[i], d->qfrc_damper);
+          if (enbl_spring) mj_applyFT(m, d, frc_g+3*i, 0, xpos_g+3*i, bodyid[i], d->qfrc_spring);
+          if (enbl_damper) mj_applyFT(m, d, dmp_g+3*i, 0, xpos_g+3*i, bodyid[i], d->qfrc_damper);
         }
       }
 

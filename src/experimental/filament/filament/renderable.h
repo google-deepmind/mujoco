@@ -21,6 +21,7 @@
 #include <filament/Engine.h>
 #include <filament/Scene.h>
 #include <utils/Entity.h>
+#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
@@ -37,11 +38,19 @@ namespace mujoco {
 // assigns the same material instance to all of them.
 class Renderable {
  public:
+  // How the material is to be used for rendering.
+  enum class Usage {
+    SceneObject,
+    Decor,
+    DecorLines,
+    Ux,
+  };
+
   // Default filament values for priority and layer mask.
   static constexpr std::uint8_t kDefaultPriority = 4;
   static constexpr std::uint8_t kDefaultLayerMask = 0x01;
 
-  explicit Renderable(ObjectManager* object_mgr);
+  Renderable(Usage usage, ObjectManager* object_mgr);
   ~Renderable() noexcept;
 
   Renderable(const Renderable&) = delete;
@@ -95,10 +104,17 @@ class Renderable {
   void RemoveFromScene(filament::Scene* scene);
 
   // Sets the material instance for all managed entities.
-  void SetMaterialInstance(filament::MaterialInstance* material_instance);
+  void SetDrawMode(DrawMode mode);
 
-  // Returns the material for the renderables.
-  Material& GetMaterial();
+  // Updates the parameters for the material.
+  void UpdateMaterial(const MaterialParams& params,
+                      const MaterialTextures& textures);
+
+  // Returns the current material parameters.
+  const MaterialParams& GetMaterialParams() const;
+
+  // Returns the current material textures.
+  const MaterialTextures& GetMaterialTextures() const;
 
   // Returns the filament Engine managing the renderables.
   filament::Engine* GetEngine();
@@ -129,9 +145,17 @@ class Renderable {
   // Removes the last filament::Entity from the renderable.
   void RemoveLastEntity();
 
-  Material material_;
+  void AssignMaterial(DrawMode mode, ObjectManager::MaterialType material_type);
+
+  ObjectManager::MaterialType GetColorMaterialType() const;
+
+  Usage usage_;
+  ObjectManager* object_mgr_;
+  filament::MaterialInstance* instances_[kNumDrawModes] = {nullptr};
+  MaterialParams params_;
+  MaterialTextures textures_;
+  DrawMode draw_mode_ = DrawMode::Color;
   filament::Scene* assigned_scene_ = nullptr;
-  filament::MaterialInstance* material_instance_ = nullptr;
   std::vector<utils::Entity> entities_;
   std::vector<MeshInfo> meshes_;
   std::uint8_t priority_ = kDefaultPriority;

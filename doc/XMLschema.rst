@@ -1418,6 +1418,9 @@
                :ref:`count<body-flexcomp-count>`
 
             .. grid-item::
+               :ref:`cellcount<body-flexcomp-cellcount>`
+
+            .. grid-item::
                :ref:`spacing<body-flexcomp-spacing>`
 
             .. grid-item::
@@ -1656,6 +1659,12 @@
 
             .. grid-item::
                :ref:`node<deformable-flex-node>`
+
+            .. grid-item::
+               :ref:`cellcount<deformable-flex-cellcount>`
+
+            .. grid-item::
+               :ref:`dof<deformable-flex-dof>`
 
 
          .. dropdown:: :ref:`contact<flex-contact>` :octicon:`dot`

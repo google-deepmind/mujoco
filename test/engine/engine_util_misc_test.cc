@@ -430,11 +430,88 @@ TEST_F(InterpolationTest, mju_interpolate3D) {
     expected[0] = quadratic_function_1(sample[0], sample[1], sample[2]);
     expected[1] = quadratic_function_2(sample[0], sample[1], sample[2]);
     expected[2] = quadratic_function_3(sample[0], sample[1], sample[2]);
-    mju_interpolate3D(res, sample, coeff, order);
+    mju_interpolate3D(res, sample, coeff, order, NULL);
     EXPECT_NEAR(res[0], expected[0], MjTol(1e-10, 1e-5));
     EXPECT_NEAR(res[1], expected[1], MjTol(1e-10, 1e-5));
     EXPECT_NEAR(res[2], expected[2], MjTol(1e-10, 1e-5));
   }
+}
+
+TEST_F(InterpolationTest, mju_cellLookup_SingleCell) {
+  // single cell (1x1x1): local coords should equal global coords
+  int cellnum[3] = {1, 1, 1};
+  mjtNum coord[3] = {0.3, 0.7, 0.5};
+  mjtNum local[3];
+  int nodeindices[8];
+
+  int npc = mju_cellLookup(coord, cellnum, 1, local, nodeindices);
+  EXPECT_EQ(npc, 8);
+  EXPECT_NEAR(local[0], 0.3, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(local[1], 0.7, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(local[2], 0.5, MjTol(1e-12, 1e-6));
+
+  // for trilinear 1x1x1: nodes are 0..7 in lexicographic order
+  for (int i = 0; i < 8; i++) {
+    EXPECT_EQ(nodeindices[i], i);
+  }
+}
+
+TEST_F(InterpolationTest, mju_cellLookup_MultiCell) {
+  // 2x3x4 grid, trilinear: 3x4x5 = 60 nodes
+  int cellnum[3] = {2, 3, 4};
+  int order = 1;
+  int ny_g = 3*1 + 1;  // 4
+  int nz_g = 4*1 + 1;  // 5
+
+  // point at (0.75, 0.5, 0.125) -> cell (1, 1, 0)
+  mjtNum coord[3] = {0.75, 0.5, 0.125};
+  mjtNum local[3];
+  int nodeindices[8];
+
+  int npc = mju_cellLookup(coord, cellnum, order, local, nodeindices);
+  EXPECT_EQ(npc, 8);
+
+  // cell (1,1,0): local = (0.75*2 - 1, 0.5*3 - 1, 0.125*4 - 0)
+  EXPECT_NEAR(local[0], 0.5, 1e-12);
+  EXPECT_NEAR(local[1], 0.5, 1e-12);
+  EXPECT_NEAR(local[2], 0.5, 1e-12);
+
+  // expected node indices for cell (1,1,0), trilinear:
+  //   (gi, gj, gk) for li,lj,lk in {0,1}
+  //   gi = 1+li, gj = 1+lj, gk = 0+lk
+  //   gidx = gi*ny_g*nz_g + gj*nz_g + gk
+  int expected[8];
+  int ni = 0;
+  for (int li = 0; li <= 1; li++) {
+    for (int lj = 0; lj <= 1; lj++) {
+      for (int lk = 0; lk <= 1; lk++) {
+        expected[ni++] = (1+li)*ny_g*nz_g + (1+lj)*nz_g + lk;
+      }
+    }
+  }
+  for (int i = 0; i < 8; i++) {
+    EXPECT_EQ(nodeindices[i], expected[i]);
+  }
+}
+
+TEST_F(InterpolationTest, mju_cellLookup_Boundary) {
+  // point exactly at coord=1.0 should clamp to last cell
+  int cellnum[3] = {3, 3, 3};
+  mjtNum coord[3] = {1.0, 1.0, 1.0};
+  mjtNum local[3];
+
+  mju_cellLookup(coord, cellnum, 1, local, NULL);
+  // cell (2,2,2), local = (1*3 - 2, 1*3 - 2, 1*3 - 2) = (1, 1, 1)
+  EXPECT_NEAR(local[0], 1.0, 1e-12);
+  EXPECT_NEAR(local[1], 1.0, 1e-12);
+  EXPECT_NEAR(local[2], 1.0, 1e-12);
+
+  // point at coord=0.0 should map to first cell
+  mjtNum coord0[3] = {0.0, 0.0, 0.0};
+  mju_cellLookup(coord0, cellnum, 1, local, NULL);
+  EXPECT_NEAR(local[0], 0.0, 1e-12);
+  EXPECT_NEAR(local[1], 0.0, 1e-12);
+  EXPECT_NEAR(local[2], 0.0, 1e-12);
 }
 
 TEST_F(InterpolationTest, mju_defGradient) {
@@ -521,7 +598,48 @@ TEST_F(InterpolationTest, mju_defGradient) {
   EXPECT_THAT(mat, Pointwise(MjNear(1e-8, 1e-6), rot7));
 }
 
-// --------------------------------- Base64 ------------------------------------
+TEST_F(InterpolationTest, mju_flexInterpState_MultiCell) {
+  int order = 1;  // trilinear
+  int cy = 2;
+  int cz = 2;
+  int nodenum = 27;  // 3x3x3
+
+  std::vector<mjtNum> xpos(3 * nodenum);
+  mjtNum quat[4];
+
+  // Populate xpos directly for a grid centered at origin, rotated 90 deg around
+  // Z Original grid points: {-0.1, 0.0, 0.1}^3 Rotated: (x, y, z) -> (-y, x, z)
+  int idx = 0;
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      for (int k = 0; k < 3; k++) {
+        mjtNum x = (i - 1) * 0.1;
+        mjtNum y = (j - 1) * 0.1;
+        mjtNum z = (k - 1) * 0.1;
+
+        // Apply rotation
+        xpos[3*idx + 0] = -y;
+        xpos[3*idx + 1] = x;
+        xpos[3*idx + 2] = z;
+        idx++;
+      }
+    }
+  }
+
+  int npc = (order+1)*(order+1)*(order+1);
+  std::vector<mjtNum> xpos_c(3 * npc);
+
+  mju_flexGatherCellState(order, cy, cz, 0, 0, 0, xpos.data(), NULL, NULL,
+                          xpos_c.data(), NULL, NULL, NULL, quat);
+
+  // Expected quaternion for -90 deg around Z (global to local):
+  // [sqrt(0.5), 0, 0, -sqrt(0.5)]
+  mjtNum expected_val = mju_sqrt(0.5);
+  EXPECT_NEAR(quat[0], expected_val, 1e-5);
+  EXPECT_NEAR(quat[1], 0.0, 1e-5);
+  EXPECT_NEAR(quat[2], 0.0, 1e-5);
+  EXPECT_NEAR(quat[3], -expected_val, 1e-5);
+}
 
 using Base64Test = MujocoTest;
 

@@ -1350,11 +1350,12 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 }
 
 
-// context for flex interp reduced dense factorization/solve
+// context for flex interp reduced banded factorization/solve
 typedef struct {
-  mjtNum* H;              // dense Cholesky-factored matrix (ndof x ndof)
+  mjtNum* H;              // banded Cholesky-factored matrix (ndof x nband)
   int* dof_indices;       // global DOF index for each local flex DOF
   int ndof;               // number of flex DOFs
+  int nband;              // half-bandwidth + 1 (number of band columns)
   int ncoupling;          // number of off-diagonal coupling terms
   mjtNum* coupling_val;   // coupling coefficient values
   int* coupling_row;      // local flex row index for each coupling term
@@ -1391,7 +1392,7 @@ static void flexInterp_collect(const mjModel* m, int f,
 }
 
 
-// build and factor the reduced dense matrix for flex interp DOFs
+// build and factor the reduced banded matrix for flex interp DOFs
 //   mark/free stack handled by caller
 static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) {
   FlexInterpContext ctx = {0};
@@ -1456,18 +1457,35 @@ static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) 
   const int* colind = implicit ? m->D_colind : m->M_colind;
   const mjtNum* source = implicit ? d->qLU : d->qH;
 
-  // count coupling terms (off-diagonal: flex row, non-flex col)
+  // get precomputed bandwidth
+  int bandwidth = 0;
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f]) {
+      if (m->flex_bandwidth[f] > bandwidth) {
+        bandwidth = m->flex_bandwidth[f];
+      }
+    }
+  }
+
+  // compute ncoupling from sparse matrix entries
   int ncoupling = 0;
   for (int i=0; i < ndof; i++) {
     int row = dof_indices[i];
     int start = rowadr[row];
     int end = start + rownnz[row];
     for (int k=start; k < end; k++) {
-      if (global2local[colind[k]] < 0) {
+      int local_j = global2local[colind[k]];
+      if (local_j < 0) {
         ncoupling++;
       }
     }
   }
+
+  // nband = bandwidth + 1 (includes diagonal)
+  int nband = bandwidth + 1;
+
+  // cap nband at ndof (dense fallback for small systems)
+  if (nband > ndof) nband = ndof;
 
   // allocate coupling storage
   mjtNum* coupling_val = NULL;
@@ -1479,9 +1497,9 @@ static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) 
     coupling_col = mjSTACKALLOC(d, ncoupling, int);
   }
 
-  // build H_flex (dense) from qLU (implicit) or qH (implicitfast)
-  mjtNum* H = mjSTACKALLOC(d, ndof*ndof, mjtNum);
-  mju_zero(H, ndof*ndof);
+  // build H_flex (banded) from qLU (implicit) or qH (implicitfast)
+  mjtNum* H = mjSTACKALLOC(d, ndof*nband, mjtNum);
+  mju_zero(H, ndof*nband);
 
   int coup_cnt = 0;
   for (int i=0; i < ndof; i++) {
@@ -1492,7 +1510,13 @@ static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) 
       int col = colind[k];
       int local_j = global2local[col];
       if (local_j >= 0) {
-        H[i*ndof+local_j] = source[k];
+        // store lower triangle only: row i, col local_j, where i >= local_j
+        if (i >= local_j) {
+          H[i*nband + nband-1-(i-local_j)] = source[k];
+        } else {
+          // upper triangle entry: store symmetrically in lower triangle
+          H[local_j*nband + nband-1-(local_j-i)] = source[k];
+        }
       } else if (coup_cnt < ncoupling) {
         coupling_val[coup_cnt] = source[k];
         coupling_row[coup_cnt] = i;
@@ -1502,14 +1526,15 @@ static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) 
     }
   }
 
-  // add flex stiffness and factorize
-  mjd_flexInterp_addH(m, d, H, dof_indices, ndof, m->opt.timestep);
-  mju_cholFactor(H, ndof, mjMINVAL);
+  // add flex stiffness in banded format and factorize
+  mjd_flexInterp_addH(m, d, H, dof_indices, ndof, nband, m->opt.timestep);
+  mju_cholFactorBand(H, ndof, nband, 0, 0, 0);
 
   // store results in context
   ctx.H = H;
   ctx.dof_indices = dof_indices;
   ctx.ndof = ndof;
+  ctx.nband = nband;
   ctx.ncoupling = ncoupling;
   ctx.coupling_val = coupling_val;
   ctx.coupling_row = coupling_row;
@@ -1518,7 +1543,7 @@ static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) 
 }
 
 
-// solve the reduced dense system for flex interp DOFs, overwrite qacc
+// solve the reduced banded system for flex interp DOFs, overwrite qacc
 static void flexInterp_solve(const mjModel* m, mjData* d, const FlexInterpContext* ctx,
                              mjtNum* qacc, const mjtNum* qfrc, int nv) {
   int ndof = ctx->ndof;
@@ -1544,8 +1569,8 @@ static void flexInterp_solve(const mjModel* m, mjData* d, const FlexInterpContex
     qfrc_flex[ctx->coupling_row[k]] -= ctx->coupling_val[k] * qacc[ctx->coupling_col[k]];
   }
 
-  // solve and scatter back
-  mju_cholSolve(qfrc_flex, ctx->H, qfrc_flex, ndof);
+  // solve with banded Cholesky and scatter back
+  mju_cholSolveBand(qfrc_flex, ctx->H, qfrc_flex, ndof, ctx->nband, 0);
   mju_scatter(qacc, qfrc_flex, ctx->dof_indices, ndof);
 }
 

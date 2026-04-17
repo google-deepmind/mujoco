@@ -580,9 +580,11 @@ void mj_flex(const mjModel* m, mjData* d) {
       }
     }
 
-    // trilinear interpolation
+    // trilinear/quadratic interpolation
     else {
-      mjtNum nodexpos[3*mjMAXFLEXNODES];
+      int nodenum = nend - nstart;
+      mj_markStack(d);
+      mjtNum* nodexpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
       if (m->flex_centered[f]) {
         for (int i=nstart; i < nend; i++) {
           mji_copy3(nodexpos + 3*(i-nstart), d->xpos + 3*m->flex_nodebodyid[i]);
@@ -596,14 +598,26 @@ void mj_flex(const mjModel* m, mjData* d) {
       }
 
       int order = m->flex_interp[f];
-      if (nend - nstart != (order + 1) * (order + 1) * (order + 1)) {
+      int cx = m->flex_cellnum[3*f+0];
+      int cy = m->flex_cellnum[3*f+1];
+      int cz = m->flex_cellnum[3*f+2];
+      int nx_g = cx * order + 1;
+      int ny_g = cy * order + 1;
+      int nz_g = cz * order + 1;
+      if (nend - nstart != nx_g * ny_g * nz_g) {
         mjERROR("flex_interp_order mismatch");
       }
 
       for (int i=vstart; i < vend; i++) {
         mju_zero3(d->flexvert_xpos+3*i);
-        mju_interpolate3D(d->flexvert_xpos+3*i, m->flex_vert0 + 3*i, nodexpos, order);
+
+        // cell lookup: get local coords and node indices
+        mjtNum local[3];
+        int nodeindices[27];  // max npc for quadratic: 3^3 = 27
+        mju_cellLookup(m->flex_vert0 + 3*i, m->flex_cellnum+3*f, order, local, nodeindices);
+        mju_interpolate3D(d->flexvert_xpos+3*i, local, nodexpos, order, nodeindices);
       }
+      mj_freeStack(d);
     }
   }
 
@@ -2617,7 +2631,10 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       if (order && nodenum) {
         int nquad = order + 1;
         int ngauss = nquad * nquad * nquad;
-        i += (order == 1) ? (2 + 3 * ngauss) : (6 * ngauss);
+        int ncells = m->flex_cellnum[3*k+0]
+                   * m->flex_cellnum[3*k+1]
+                   * m->flex_cellnum[3*k+2];
+        i += ncells * ((order == 1) ? (2 + 3 * ngauss) : (6 * ngauss));
       }
       break;
     }

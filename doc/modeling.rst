@@ -1442,6 +1442,16 @@ instead to specify shear and volumetric stiffnesses separately using the `Poisso
 <https://en.wikipedia.org/wiki/Poisson%27s_ratio>`__ of the material. For more details, see the `Saint Venant-Kirchhoff
 <https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ hyperelastic model.
 
+**Parametrization types**.
+
+While the default behavior of :el:`flexcomp` produces a "full" flex where every node corresponds to a MuJoCo body, it
+also supports specialized :ref:`parametrizations<body-flexcomp-dof>` for volumetric objects: **trilinear** and
+**quadratic**. Instead of directly simulating all nodes, these options define a background grid of cells. The positions
+of the interior vertices are computed by interpolating the positions of the cell corners. Trilinear flexes use 8-node
+hexahedral cells with linear interpolation along each axis, while quadratic flexes use 27-node cells with quadratic
+interpolation, allowing for curved deformation modes. These grid-based parametrizations require fewer degrees of freedom
+than full flexes and can result in significantly faster simulation times, especially for large volumetric soft bodies.
+
 **Creation and visualization**.
 
 .. code-block:: xml

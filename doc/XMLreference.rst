@@ -3700,8 +3700,14 @@ saving the XML:
 .. _body-flexcomp-count:
 
 :at:`count`: :at-val:`int(3), "10 10 10"`
-   The number of automatically generated points in each dimension. This and the next attribute only apply to types grid,
-   box, cylinder, ellipsoid.
+   Specifies the number of automatically generated points in each dimension for types **grid**, **box**, **cylinder**,
+   and **ellipsoid**.
+
+.. _body-flexcomp-cellcount:
+
+:at:`cellcount`: :at-val:`int(3), "1 1 1"`
+   Specifies the number of cells in each dimension for the background interpolation grid when using **trilinear** or
+   **quadratic** dofs.
 
 .. _body-flexcomp-spacing:
 
@@ -4241,6 +4247,17 @@ cases, the user will specify a :el:`flexcomp` which will then automatically cons
    The degrees-of-freedom of the flex.
    An array of MuJoCo body names (separated by white space) to which each node belongs. The number of body names
    should equal the number of nodes (nnode). See the flexcomp :ref:`dof<body-flexcomp-dof>` attribute for more details.
+
+.. _deformable-flex-cellcount:
+
+:at:`cellcount`: :at-val:`int(3), optional`
+   When using **trilinear** or **quadratic** dofs, this specifies the number of cells in each dimension for the
+   background interpolation grid.
+
+.. _deformable-flex-dof:
+
+:at:`dof`: :at-val:`[trilinear, quadratic], optional`
+   Interpolation order for the flex.
 
 .. _flex-edge:
 

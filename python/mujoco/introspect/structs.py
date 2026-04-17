@@ -2669,6 +2669,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
+                 name='flex_bandwidth',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='precomputed solver bandwidth',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
+                 name='flex_cellnum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='finite cell num per dimension',
+                 array_extent=('nflex', 3),
+             ),
+             StructFieldDecl(
                  name='flex_nodeadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -8236,6 +8252,19 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='elastic2d',
                  type=ValueType(name='int'),
                  doc='2D passive forces; 0: none, 1: bending, 2: stretching, 3: both',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='cellcount',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(3,),
+                 ),
+                 doc='grid cell count for finite cell method',
+             ),
+             StructFieldDecl(
+                 name='order',
+                 type=ValueType(name='int'),
+                 doc='interpolation order (1: trilinear, 2: quadratic)',
              ),
              StructFieldDecl(
                  name='nodebody',

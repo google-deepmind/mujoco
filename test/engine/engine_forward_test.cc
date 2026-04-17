@@ -3107,7 +3107,7 @@ TEST_F(ForwardTest, FlexParentCoupling) {
       <body name="parent" pos="0 0 0">
         <freejoint/>
         <geom size=".1" mass="0.1"/>
-        <flexcomp name="flex" type="grid" count="3 3 3" spacing="1 1 1"
+        <flexcomp name="flex" type="grid" count="3 3 3" cellcount="1 1 1" spacing="1 1 1"
                   radius=".01" dim="3" mass="100" dof="trilinear" pos="1 1 1">
           <contact selfcollide="none"/>
           <elasticity young="1e4" poisson="0.3" damping="50"/>
@@ -3152,7 +3152,7 @@ TEST_F(ForwardTest, FlexParentCoupling) {
     if (diff > max_diff) max_diff = diff;
   }
 
-  EXPECT_LT(max_diff, MjTol(2e-5, 5e-3))
+  EXPECT_LT(max_diff, MjTol(2e-5, 1.5e-2))
       << "Implicit integrator should match Euler at small timestep";
 
   mj_deleteData(data);

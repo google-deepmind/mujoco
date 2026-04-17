@@ -23,7 +23,6 @@
 #include <imgui.h>
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/renderable.h"
@@ -242,11 +241,10 @@ void ImguiBridge::Update() {
         renderable->UpdateMesh(0, mesh, index_offset, command.ElemCount);
       }
 
-      Material::Textures textures;
+      MaterialTextures textures;
       textures.color = textures_[command.GetTexID()].get();
-      renderable->GetMaterial().UpdateTextures(textures);
 
-      Material::Params properties;
+      MaterialParams properties;
       properties.scissor[0] = command.ClipRect.x;
       properties.scissor[1] = height - command.ClipRect.w;
       properties.scissor[2] = command.ClipRect.z - command.ClipRect.x;
@@ -260,7 +258,7 @@ void ImguiBridge::Update() {
         properties.scissor[2] = width;
         properties.scissor[3] = height;
       }
-      renderable->GetMaterial().UpdateParams(properties);
+      renderable->UpdateMaterial(properties, textures);
 
       index_offset += command.ElemCount;
       ++renderable_index;
@@ -271,15 +269,10 @@ void ImguiBridge::Update() {
 void ImguiBridge::PrepareRenderables(int count) {
   while (renderables_.size() < count) {
     auto& r = renderables_.emplace_back(
-        std::make_unique<Renderable>(object_mgr_));
+        std::make_unique<Renderable>(Renderable::Usage::Ux, object_mgr_));
     r->SetCastShadows(false);
     r->SetReceiveShadows(false);
     r->SetBlendOrder(static_cast<std::uint16_t>(renderables_.size()));
-
-    Material& material = r->GetMaterial();
-    DrawMode mode = DrawMode::Color;
-    material.SetMaterial(mode, object_mgr_->GetMaterial(ObjectManager::kUnlitUi));
-    r->SetMaterialInstance(material.GetMaterialInstance(mode));
     scene_view_->AddToUxScene(r.get());
   }
   while (renderables_.size() > count) {
