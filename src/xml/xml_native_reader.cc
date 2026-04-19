@@ -602,42 +602,42 @@ std::vector<const char*> MJCF[nMJCF] = {
 //---------------------------------- MJCF keywords used in attributes ------------------------------
 
 // coordinate type
-const mjMap coordinate_map[2] = {
+extern const mjMap coordinate_map[2] = {
   {"local",   0},
   {"global",  1}
 };
 
 
 // angle type
-const mjMap angle_map[2] = {
+extern const mjMap angle_map[2] = {
   {"radian",  0},
   {"degree",  1}
 };
 
 
 // bool type
-const mjMap bool_map[2] = {
+extern const mjMap bool_map[2] = {
   {"false",   0},
   {"true",    1}
 };
 
 
 // fluidshape type
-const mjMap fluid_map[2] = {
+extern const mjMap fluid_map[2] = {
   {"none",      0},
   {"ellipsoid", 1}
 };
 
 
 // enable type
-const mjMap enable_map[2] = {
+extern const mjMap enable_map[2] = {
   {"disable", 0},
   {"enable",  1}
 };
 
 
 // TFAuto type
-const mjMap TFAuto_map[3] = {
+extern const mjMap TFAuto_map[3] = {
   {"false",   0},
   {"true",    1},
   {"auto",    2}
@@ -652,8 +652,8 @@ const mjMap FAuto_map[2] = {
 
 
 // body sleep type
-const int bodysleep_sz = 4;
-const mjMap bodysleep_map[bodysleep_sz] = {
+extern const int bodysleep_sz = 4;
+extern const mjMap bodysleep_map[bodysleep_sz] = {
   {"auto",          mjSLEEP_AUTO},
   {"never",         mjSLEEP_NEVER},
   {"allowed",       mjSLEEP_ALLOWED},
@@ -661,8 +661,8 @@ const mjMap bodysleep_map[bodysleep_sz] = {
 };
 
 // joint type
-const int joint_sz = 4;
-const mjMap joint_map[joint_sz] = {
+extern const int joint_sz = 4;
+extern const mjMap joint_map[joint_sz] = {
   {"free",          mjJNT_FREE},
   {"ball",          mjJNT_BALL},
   {"slide",         mjJNT_SLIDE},
@@ -671,7 +671,7 @@ const mjMap joint_map[joint_sz] = {
 
 
 // geom type
-const mjMap geom_map[mjNGEOMTYPES] = {
+extern const mjMap geom_map[mjNGEOMTYPES] = {
   {"plane",         mjGEOM_PLANE},
   {"hfield",        mjGEOM_HFIELD},
   {"sphere",        mjGEOM_SPHERE},
@@ -685,15 +685,15 @@ const mjMap geom_map[mjNGEOMTYPES] = {
 
 
 // projection type
-const int projection_sz = 2;
-const mjMap projection_map[projection_sz] = {
+extern const int projection_sz = 2;
+extern const mjMap projection_map[projection_sz] = {
   {"perspective",   mjPROJ_PERSPECTIVE},
   {"orthographic",  mjPROJ_ORTHOGRAPHIC}
 };
 
 // camlight type
-const int camlight_sz = 5;
-const mjMap camlight_map[camlight_sz] = {
+extern const int camlight_sz = 5;
+extern const mjMap camlight_map[camlight_sz] = {
   {"fixed",         mjCAMLIGHT_FIXED},
   {"track",         mjCAMLIGHT_TRACK},
   {"trackcom",      mjCAMLIGHT_TRACKCOM},
@@ -703,8 +703,8 @@ const mjMap camlight_map[camlight_sz] = {
 
 
 // light type
-const int lighttype_sz = 4;
-const mjMap lighttype_map[lighttype_sz] = {
+extern const int lighttype_sz = 4;
+extern const mjMap lighttype_map[lighttype_sz] = {
   {"spot",          mjLIGHT_SPOT},
   {"directional",   mjLIGHT_DIRECTIONAL},
   {"point",         mjLIGHT_POINT},
@@ -713,8 +713,8 @@ const mjMap lighttype_map[lighttype_sz] = {
 
 
 // texmat role type
-const int texrole_sz = mjNTEXROLE - 1;
-const mjMap texrole_map[texrole_sz] = {
+extern const int texrole_sz = mjNTEXROLE - 1;
+extern const mjMap texrole_map[texrole_sz] = {
   {"rgb",           mjTEXROLE_RGB},
   {"occlusion",     mjTEXROLE_OCCLUSION},
   {"roughness",     mjTEXROLE_ROUGHNESS},
@@ -728,8 +728,8 @@ const mjMap texrole_map[texrole_sz] = {
 
 
 // integrator type
-const int integrator_sz = 4;
-const mjMap integrator_map[integrator_sz] = {
+extern const int integrator_sz = 4;
+extern const mjMap integrator_map[integrator_sz] = {
   {"Euler",         mjINT_EULER},
   {"RK4",           mjINT_RK4},
   {"implicit",      mjINT_IMPLICIT},
@@ -738,16 +738,16 @@ const mjMap integrator_map[integrator_sz] = {
 
 
 // cone type
-const int cone_sz = 2;
-const mjMap cone_map[cone_sz] = {
+extern const int cone_sz = 2;
+extern const mjMap cone_map[cone_sz] = {
   {"pyramidal",     mjCONE_PYRAMIDAL},
   {"elliptic",      mjCONE_ELLIPTIC}
 };
 
 
 // Jacobian type
-const int jac_sz = 3;
-const mjMap jac_map[jac_sz] = {
+extern const int jac_sz = 3;
+extern const mjMap jac_map[jac_sz] = {
   {"dense",         mjJAC_DENSE},
   {"sparse",        mjJAC_SPARSE},
   {"auto",          mjJAC_AUTO}
@@ -755,8 +755,8 @@ const mjMap jac_map[jac_sz] = {
 
 
 // solver type
-const int solver_sz = 3;
-const mjMap solver_map[solver_sz] = {
+extern const int solver_sz = 3;
+extern const mjMap solver_map[solver_sz] = {
   {"PGS",           mjSOL_PGS},
   {"CG",            mjSOL_CG},
   {"Newton",        mjSOL_NEWTON}
@@ -764,8 +764,8 @@ const mjMap solver_map[solver_sz] = {
 
 
 // constraint type
-const int equality_sz = 8;
-const mjMap equality_map[equality_sz] = {
+extern const int equality_sz = 8;
+extern const mjMap equality_map[equality_sz] = {
   {"connect",       mjEQ_CONNECT},
   {"weld",          mjEQ_WELD},
   {"joint",         mjEQ_JOINT},
@@ -778,8 +778,8 @@ const mjMap equality_map[equality_sz] = {
 
 
 // type for texture
-const int texture_sz = 3;
-const mjMap texture_map[texture_sz] = {
+extern const int texture_sz = 3;
+extern const mjMap texture_map[texture_sz] = {
   {"2d",            mjTEXTURE_2D},
   {"cube",          mjTEXTURE_CUBE},
   {"skybox",        mjTEXTURE_SKYBOX}
@@ -787,8 +787,8 @@ const mjMap texture_map[texture_sz] = {
 
 
 // colorspace for texture
-const int colorspace_sz = 3;
-const mjMap colorspace_map[colorspace_sz] = {
+extern const int colorspace_sz = 3;
+extern const mjMap colorspace_map[colorspace_sz] = {
   {"auto",          mjCOLORSPACE_AUTO},
   {"linear",        mjCOLORSPACE_LINEAR},
   {"sRGB",          mjCOLORSPACE_SRGB}
@@ -796,8 +796,8 @@ const mjMap colorspace_map[colorspace_sz] = {
 
 
 // builtin type for texture
-const int builtin_sz = 4;
-const mjMap builtin_map[builtin_sz] = {
+extern const int builtin_sz = 4;
+extern const mjMap builtin_map[builtin_sz] = {
   {"none",          mjBUILTIN_NONE},
   {"gradient",      mjBUILTIN_GRADIENT},
   {"checker",       mjBUILTIN_CHECKER},
@@ -806,8 +806,8 @@ const mjMap builtin_map[builtin_sz] = {
 
 
 // mark type for texture
-const int mark_sz = 4;
-const mjMap mark_map[mark_sz] = {
+extern const int mark_sz = 4;
+extern const mjMap mark_map[mark_sz] = {
   {"none",          mjMARK_NONE},
   {"edge",          mjMARK_EDGE},
   {"cross",         mjMARK_CROSS},
@@ -816,8 +816,8 @@ const mjMap mark_map[mark_sz] = {
 
 
 // dyn type
-const int dyn_sz = 7;
-const mjMap dyn_map[dyn_sz] = {
+extern const int dyn_sz = 7;
+extern const mjMap dyn_map[dyn_sz] = {
   {"none",          mjDYN_NONE},
   {"integrator",    mjDYN_INTEGRATOR},
   {"filter",        mjDYN_FILTER},
@@ -829,8 +829,8 @@ const mjMap dyn_map[dyn_sz] = {
 
 
 // dcmotor controller input mode
-const int dcmotorinput_sz = 3;
-const mjMap dcmotorinput_map[dcmotorinput_sz] = {
+extern const int dcmotorinput_sz = 3;
+extern const mjMap dcmotorinput_map[dcmotorinput_sz] = {
   {"voltage",       0},
   {"position",      1},
   {"velocity",      2}
@@ -838,8 +838,8 @@ const mjMap dcmotorinput_map[dcmotorinput_sz] = {
 
 
 // gain type
-const int gain_sz = 5;
-const mjMap gain_map[gain_sz] = {
+extern const int gain_sz = 5;
+extern const mjMap gain_map[gain_sz] = {
   {"fixed",         mjGAIN_FIXED},
   {"affine",        mjGAIN_AFFINE},
   {"muscle",        mjGAIN_MUSCLE},
@@ -849,8 +849,8 @@ const mjMap gain_map[gain_sz] = {
 
 
 // bias type
-const int bias_sz = 5;
-const mjMap bias_map[bias_sz] = {
+extern const int bias_sz = 5;
+extern const mjMap bias_map[bias_sz] = {
   {"none",          mjBIAS_NONE},
   {"affine",        mjBIAS_AFFINE},
   {"muscle",        mjBIAS_MUSCLE},
@@ -860,8 +860,8 @@ const mjMap bias_map[bias_sz] = {
 
 
 // interpolation type
-const int interp_sz = 3;
-const mjMap interp_map[interp_sz] = {
+extern const int interp_sz = 3;
+extern const mjMap interp_map[interp_sz] = {
   {"zoh",           0},
   {"linear",        1},
   {"cubic",         2}
@@ -869,8 +869,8 @@ const mjMap interp_map[interp_sz] = {
 
 
 // stage type
-const int stage_sz = 4;
-const mjMap stage_map[stage_sz] = {
+extern const int stage_sz = 4;
+extern const mjMap stage_map[stage_sz] = {
   {"none",          mjSTAGE_NONE},
   {"pos",           mjSTAGE_POS},
   {"vel",           mjSTAGE_VEL},
@@ -879,8 +879,8 @@ const mjMap stage_map[stage_sz] = {
 
 
 // data type
-const int datatype_sz = 4;
-const mjMap datatype_map[datatype_sz] = {
+extern const int datatype_sz = 4;
+extern const mjMap datatype_map[datatype_sz] = {
   {"real",          mjDATATYPE_REAL},
   {"positive",      mjDATATYPE_POSITIVE},
   {"axis",          mjDATATYPE_AXIS},
@@ -889,7 +889,7 @@ const mjMap datatype_map[datatype_sz] = {
 
 
 // contact data type
-const mjMap condata_map[mjNCONDATA] = {
+extern const mjMap condata_map[mjNCONDATA] = {
   {"found",         mjCONDATA_FOUND},
   {"force",         mjCONDATA_FORCE},
   {"torque",        mjCONDATA_TORQUE},
@@ -901,7 +901,7 @@ const mjMap condata_map[mjNCONDATA] = {
 
 
 // rangefinder data type
-const mjMap raydata_map[mjNRAYDATA] = {
+extern const mjMap raydata_map[mjNRAYDATA] = {
   {"dist",          mjRAYDATA_DIST},
   {"dir",           mjRAYDATA_DIR},
   {"origin",        mjRAYDATA_ORIGIN},
@@ -911,16 +911,16 @@ const mjMap raydata_map[mjNRAYDATA] = {
 };
 
 // camera output type
-const int camout_sz = mjNCAMOUT;
-const mjMap camout_map[mjNCAMOUT] = {{"rgb", mjCAMOUT_RGB},
+extern const int camout_sz = mjNCAMOUT;
+extern const mjMap camout_map[mjNCAMOUT] = {{"rgb", mjCAMOUT_RGB},
                                      {"depth", mjCAMOUT_DEPTH},
                                      {"distance", mjCAMOUT_DIST},
                                      {"normal", mjCAMOUT_NORMAL},
                                      {"segmentation", mjCAMOUT_SEG}};
 
 // contact reduction type
-const int reduce_sz = 4;
-const mjMap reduce_map[reduce_sz] = {
+extern const int reduce_sz = 4;
+extern const mjMap reduce_map[reduce_sz] = {
   {"none",          0},
   {"mindist",       1},
   {"maxforce",      2},
@@ -934,8 +934,8 @@ const mjMap conflict_map[conflict_sz] = {{"warning", mjCONFLICT_WARNING},
                                          {"error", mjCONFLICT_ERROR}};
 
 // LR mode
-const int lrmode_sz = 4;
-const mjMap lrmode_map[lrmode_sz] = {
+extern const int lrmode_sz = 4;
+extern const mjMap lrmode_map[lrmode_sz] = {
   {"none",          mjLRMODE_NONE},
   {"muscle",        mjLRMODE_MUSCLE},
   {"muscleuser",    mjLRMODE_MUSCLEUSER},
@@ -944,7 +944,7 @@ const mjMap lrmode_map[lrmode_sz] = {
 
 
 // composite type
-const mjMap comp_map[mjNCOMPTYPES] = {
+extern const mjMap comp_map[mjNCOMPTYPES] = {
   {"particle",      mjCOMPTYPE_PARTICLE},
   {"grid",          mjCOMPTYPE_GRID},
   {"rope",          mjCOMPTYPE_ROPE},
@@ -955,13 +955,13 @@ const mjMap comp_map[mjNCOMPTYPES] = {
 
 
 // composite joint kind
-const mjMap jkind_map[1] = {
+extern const mjMap jkind_map[1] = {
   {"main",          mjCOMPKIND_JOINT}
 };
 
 
 // composite rope shape
-const mjMap shape_map[mjNCOMPSHAPES] = {
+extern const mjMap shape_map[mjNCOMPSHAPES] = {
   {"s",             mjCOMPSHAPE_LINE},
   {"cos(s)",        mjCOMPSHAPE_COS},
   {"sin(s)",        mjCOMPSHAPE_SIN},
@@ -970,14 +970,14 @@ const mjMap shape_map[mjNCOMPSHAPES] = {
 
 
 // mesh type
-const mjMap meshtype_map[2] = {
+extern const mjMap meshtype_map[2] = {
   {"false",         mjINERTIA_VOLUME},
   {"true",          mjINERTIA_SHELL},
 };
 
 
 // mesh inertia type
-const mjMap meshinertia_map[4] = {
+extern const mjMap meshinertia_map[4] = {
   {"convex",        mjMESH_INERTIA_CONVEX},
   {"legacy",        mjMESH_INERTIA_LEGACY},
   {"exact",         mjMESH_INERTIA_EXACT},
@@ -986,8 +986,8 @@ const mjMap meshinertia_map[4] = {
 
 
 // mesh builtin type
-const int meshbuiltin_sz = 8;
-const mjMap meshbuiltin_map[meshbuiltin_sz] = {
+extern const int meshbuiltin_sz = 8;
+extern const mjMap meshbuiltin_map[meshbuiltin_sz] = {
   {"none",          mjMESH_BUILTIN_NONE},
   {"sphere",        mjMESH_BUILTIN_SPHERE},
   {"hemisphere",    mjMESH_BUILTIN_HEMISPHERE},
@@ -1000,7 +1000,7 @@ const mjMap meshbuiltin_map[meshbuiltin_sz] = {
 
 
 // flexcomp type
-const mjMap fcomp_map[mjNFCOMPTYPES] = {
+extern const mjMap fcomp_map[mjNFCOMPTYPES] = {
   {"grid",          mjFCOMPTYPE_GRID},
   {"box",           mjFCOMPTYPE_BOX},
   {"cylinder",      mjFCOMPTYPE_CYLINDER},
@@ -1015,7 +1015,7 @@ const mjMap fcomp_map[mjNFCOMPTYPES] = {
 
 
 // flexcomp dof type
-const mjMap fdof_map[mjNFCOMPDOFS] = {
+extern const mjMap fdof_map[mjNFCOMPDOFS] = {
   {"full",          mjFCOMPDOF_FULL},
   {"radial",        mjFCOMPDOF_RADIAL},
   {"trilinear",     mjFCOMPDOF_TRILINEAR},
@@ -1025,7 +1025,7 @@ const mjMap fdof_map[mjNFCOMPDOFS] = {
 
 
 // flex selfcollide type
-const mjMap flexself_map[5] = {
+extern const mjMap flexself_map[5] = {
   {"none",          mjFLEXSELF_NONE},
   {"narrow",        mjFLEXSELF_NARROW},
   {"bvh",           mjFLEXSELF_BVH},
@@ -1035,7 +1035,7 @@ const mjMap flexself_map[5] = {
 
 
 // flex elastic 2d type
-const mjMap elastic2d_map[5] = {
+extern const mjMap elastic2d_map[5] = {
   {"none",          0},
   {"bend",          1},
   {"stretch",       2},
@@ -1044,7 +1044,7 @@ const mjMap elastic2d_map[5] = {
 
 
 // flex equality type
-const mjMap flexeq_map[4] = {
+extern const mjMap flexeq_map[4] = {
   {"false",         0},
   {"true",          1},
   {"vert",          2},
