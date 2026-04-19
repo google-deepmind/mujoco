@@ -334,6 +334,9 @@ MJAPI void mju_printMatSparse(const mjtNum* mat, int nr,
 MJAPI int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
                          int flg_html, int flg_pad);
 
+// Print internal XML schema as an XSD (XML Schema Definition) document.
+MJAPI int mj_printSchemaXSD(const char* filename, char* buffer, int buffer_sz);
+
 // Print scene to text file.
 MJAPI void mj_printScene(const mjvScene* s, const char* filename);
 
