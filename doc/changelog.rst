@@ -10,6 +10,9 @@ General
 
 - Added :ref:`multi-cell support<body-flexcomp-cellnum>` for trilinear and quadratic flexes. Note that the implicit
   integrator uses a dense solver for the flex degrees of freedom, which can be slow for multi-cell flexes.
+- Refactored ``flexstrain`` equality constraints to be instantiated per cell instead of per flex object, reducing the
+  number of degrees of freedom per constraint row. The equality can be associated with a specific cell with the new
+  attribute ":ref:`cell <equality-flexstrain-cell>`
 
 Version 3.7.0 (April 14, 2026)
 ------------------------------

@@ -680,20 +680,35 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     mjs_setDouble(pf->vert, point.data(), point.size());
   }
 
-  // create edge equality constraint
+  // create equality constraints
   if (equality) {
-    mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
-    mjs_setDefault(pe->element, &model->Default()->spec);
     // equality 1=edge(mjEQ_FLEX), 2=vert(mjEQ_FLEXVERT), 3=strain(mjEQ_FLEXSTRAIN)
-    if (equality == 1) {
-      pe->type = mjEQ_FLEX;
-    } else if (equality == 2) {
-      pe->type = mjEQ_FLEXVERT;
+    if (equality == 1 || equality == 2) {
+      mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
+      mjs_setDefault(pe->element, &model->Default()->spec);
+      pe->type = (equality == 1) ? mjEQ_FLEX : mjEQ_FLEXVERT;
+      pe->active = true;
+      mjs_setString(pe->name1, name.c_str());
     } else if (equality == 3) {
-      pe->type = mjEQ_FLEXSTRAIN;
+      // create one strain constraint per cell, storing cell index in eq_data
+      int cell_cx = flex->spec.cellcount[0];
+      int cell_cy = flex->spec.cellcount[1];
+      int cell_cz = flex->spec.cellcount[2];
+      for (int ci = 0; ci < cell_cx; ci++) {
+        for (int cj = 0; cj < cell_cy; cj++) {
+          for (int ck = 0; ck < cell_cz; ck++) {
+            mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
+            mjs_setDefault(pe->element, &model->Default()->spec);
+            pe->type = mjEQ_FLEXSTRAIN;
+            pe->active = true;
+            mjs_setString(pe->name1, name.c_str());
+            pe->data[0] = ci;
+            pe->data[1] = cj;
+            pe->data[2] = ck;
+          }
+        }
+      }
     }
-    pe->active = true;
-    mjs_setString(pe->name1, name.c_str());
   }
 
   return true;

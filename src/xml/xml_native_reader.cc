@@ -371,7 +371,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "active", "solref", "solimp"},
         {"flexvert", "*", "name", "class", "flex",
             "active", "solref", "solimp"},
-        {"flexstrain", "*", "name", "class", "flex",
+        {"flexstrain", "*", "name", "class", "flex", "cell",
             "active", "solref", "solimp"},
     {">"},
 
@@ -2245,8 +2245,12 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
 
       case mjEQ_FLEX:
       case mjEQ_FLEXVERT:
+        ReadAttrTxt(elem, "flex", name1, true);
+        break;
+
       case mjEQ_FLEXSTRAIN:
         ReadAttrTxt(elem, "flex", name1, true);
+        ReadAttr(elem, "cell", 3, equality->data, text);
         break;
 
       case mjEQ_DISTANCE:

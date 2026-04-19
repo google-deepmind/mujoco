@@ -4888,8 +4888,11 @@ constraint type is only supported for dimension 3 flexes with trilinear or quadr
 :at:`flex`: :at-val:`string, required`
    Name of the flex whose strain is being constrained.
 
+.. _equality-flexstrain-cell:
 
-
+:at:`cell`: :at-val:`int(3), optional`
+   3D grid index (i, j, k) identifying the cell in the flex object. The grid size is specified in the :ref:`cellcount
+   <deformable-flex-cellcount>` attribute.
 
 
 .. _tendon:

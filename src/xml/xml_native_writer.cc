@@ -728,8 +728,12 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
 
       case mjEQ_FLEX:
       case mjEQ_FLEXVERT:
+        WriteAttrTxt(elem, "flex", mjs_getString(equality->name1));
+        break;
+
       case mjEQ_FLEXSTRAIN:
         WriteAttrTxt(elem, "flex", mjs_getString(equality->name1));
+        WriteAttr(elem, "cell", 3, equality->data);
         break;
 
       default:
