@@ -257,13 +257,16 @@ volume hierarchy (BVH) and executing the raycaster:
         # 2. Render all configured cameras, including segmentation
         pixels, _, segmentation = mjx.render_with_segmentation(mx, d, rc_pytree)
 
-        # 3. Extract the RGB tensor and geom IDs for the first camera (index 0)
+        # 3. Extract the RGB tensor and segmentation IDs for the first camera
         rgb = get_rgb(rc_pytree, 0, pixels)
         seg = get_segmentation(rc_pytree, 0, segmentation)
 
         return rgb, seg, d
 
     rgb, seg, d = render_fn(mx, d, rc.pytree())
+
+The segmentation image contains MuJoCo geom IDs per pixel, ``-1`` for
+background, and ``-2`` for flex bodies.
 
 .. WARNING::
    The batch dimension ``nworld`` is fixed when the render context is created via

@@ -185,6 +185,22 @@ class RenderTest(parameterized.TestCase):
     )
     np.testing.assert_array_equal(unpacked_seg, expected_seg)
 
+  def test_render_with_segmentation_raises_when_disabled(self):
+    """Tests render_with_segmentation rejects contexts without seg output."""
+    self._maybe_skip()
+    mx, dx_batch, rc = _get_model_data_rc(
+        'humanoid/humanoid.xml', 1, render_seg=False
+    )
+
+    dx_batch = jax.jit(mjx.refit_bvh)(mx, dx_batch, rc.pytree())
+    with self.assertRaisesWithLiteralMatch(
+        ValueError,
+        'Render context was not configured with segmentation rendering. '
+        'Pass render_seg=True or enable it for at least one camera in '
+        'create_render_context.',
+    ):
+      jax.jit(mjx.render_with_segmentation)(mx, dx_batch, rc.pytree())
+
   @parameterized.product(
       xml=('humanoid/humanoid.xml',),
       batch_size=(4, 16),
