@@ -69,8 +69,6 @@ class SceneView {
     RenderTarget* target = nullptr;
     // Whether or not to render the UX as a separate pass.
     bool enable_ux = false;
-    // The scale factor to use for UX rendering.
-    float gui_scale = 1.0f;
   };
 
   // Renders the scene.

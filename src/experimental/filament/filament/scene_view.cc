@@ -277,13 +277,11 @@ void SceneView::Render(filament::Renderer* renderer,
 
   // Render reflection passes.
   if (request.draw_mode == DrawMode::Color) {
-    filament::TransformManager& tm = engine_->getTransformManager();
     for (size_t i = 0; i < reflectives_.size(); ++i) {
       Renderable* renderable = reflectives_[i];
 
       // We assume the 0th entity is the reflective entity.
-      const utils::Entity entity = (*renderable)[0];
-      const mat4 transform(tm.getTransform(tm.getInstance(entity)));
+      mat4 transform(renderable->GetTransform());
       SetupReflectionCamera(transform, camera_, reflect_camera_);
 
       // Hide reflective surface from its own reflection pass.
@@ -305,8 +303,7 @@ void SceneView::Render(filament::Renderer* renderer,
 
   if (request.enable_ux) {
     ux_camera_->setProjection(filament::Camera::Projection::ORTHO, 0.0f,
-                              viewport.width / request.gui_scale,
-                              viewport.height / request.gui_scale, 0.0f, 0.0f,
+                              viewport.width, viewport.height, 0.0f, 0.0f,
                               1.0f);
     ux_view_->setRenderTarget(render_target);
     renderer->render(ux_view_);
