@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 # Copyright 2026 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,10 +27,13 @@ doc/XMLreference.rst for human-facing `:at:` blocks and patches each
 
 Typical usage (release workflow):
     ./build/bin/xmlschema /tmp/raw.xsd
-    python3 doc/mjcf_schema_enrich.py \
+    ./doc/mjcf_schema_enrich.py \
         --in /tmp/raw.xsd \
         --rst doc/XMLreference.rst \
         --out doc/mjcf.xsd
+
+The shebang invokes `uv run --script`, which provisions a matching
+Python interpreter from the PEP 723 metadata block above.
 
 The script fails soft: attrs with no matching RST block keep their
 auto-generated type but lose the doc annotation. A --report flag prints
