@@ -459,14 +459,17 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
 std::unique_ptr<Renderable> CreateGeomRenderable(
     const mjvGeom& geom, const mjvScene* scene, ObjectManager* object_mgr,
     ModelObjects* model_objs, const float headpos[3]) {
-  Renderable::Usage usage = Renderable::Usage::SceneObject;
+  ShadingModel shading_model = ShadingModel::SceneObject;
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
-    usage = Renderable::Usage::DecorLines;
+    shading_model = ShadingModel::DecorLines;
   } else if (geom.category == mjCAT_DECOR) {
-    usage = Renderable::Usage::Decor;
+    shading_model = ShadingModel::Decor;
   }
 
-  auto renderable = std::make_unique<Renderable>(usage, object_mgr);
+  RenderableParams config;
+  DefaultRenderableParams(&config);
+  config.shading_model = shading_model;
+  auto renderable = std::make_unique<Renderable>(object_mgr, config);
 
   // The order of these calls is important. e.g. We need to create the filament
   // renderable entities before we can set their transform.

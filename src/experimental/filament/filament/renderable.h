@@ -28,6 +28,21 @@
 
 namespace mujoco {
 
+// The shading model (material) for a Renderable.
+enum class ShadingModel {
+  SceneObject,
+  Decor,
+  DecorLines,
+  Ux,
+};
+
+// Configuration parameters for a Renderable.
+struct RenderableParams {
+  ShadingModel shading_model;
+};
+
+void DefaultRenderableParams(RenderableParams* params);
+
 // A collection of meshes and a material that, together, define an object that
 // can be rendered in a scene.
 //
@@ -38,19 +53,11 @@ namespace mujoco {
 // assigns the same material instance to all of them.
 class Renderable {
  public:
-  // How the material is to be used for rendering.
-  enum class Usage {
-    SceneObject,
-    Decor,
-    DecorLines,
-    Ux,
-  };
-
   // Default filament values for priority and layer mask.
   static constexpr std::uint8_t kDefaultPriority = 4;
   static constexpr std::uint8_t kDefaultLayerMask = 0x01;
 
-  Renderable(Usage usage, ObjectManager* object_mgr);
+  Renderable(ObjectManager* object_mgr, const RenderableParams& params);
   ~Renderable() noexcept;
 
   Renderable(const Renderable&) = delete;
@@ -145,11 +152,11 @@ class Renderable {
 
   ObjectManager::MaterialType GetColorMaterialType() const;
 
-  Usage usage_;
   ObjectManager* object_mgr_;
+  RenderableParams params_;
   filament::MaterialInstance* instances_[kNumDrawModes] = {nullptr};
-  MaterialParams params_;
-  MaterialTextures textures_;
+  MaterialParams material_params_;
+  MaterialTextures material_textures_;
   DrawMode draw_mode_ = DrawMode::Color;
   filament::Scene* assigned_scene_ = nullptr;
   std::vector<utils::Entity> entities_;

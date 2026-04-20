@@ -268,8 +268,11 @@ void ImguiBridge::Update() {
 
 void ImguiBridge::PrepareRenderables(int count) {
   while (renderables_.size() < count) {
+    RenderableParams config;
+    DefaultRenderableParams(&config);
+    config.shading_model = ShadingModel::Ux;
     auto& r = renderables_.emplace_back(
-        std::make_unique<Renderable>(Renderable::Usage::Ux, object_mgr_));
+        std::make_unique<Renderable>(object_mgr_, config));
     r->SetCastShadows(false);
     r->SetReceiveShadows(false);
     r->SetBlendOrder(static_cast<std::uint16_t>(renderables_.size()));
