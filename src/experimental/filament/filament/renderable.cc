@@ -135,11 +135,23 @@ void Renderable::InitPartEntity(Part& part) {
 }
 
 void Renderable::SetTransform(const Trs& trs) {
-  transform_ = trs.ToTransform();
-  filament::TransformManager& tm = GetEngine()->getTransformManager();
-  for (Part& part : parts_) {
-    tm.setTransform(tm.getInstance(part.entity), transform_);
+  if (parts_.empty()) {
+    transform_ = trs.ToTransform();
+    return;
   }
+
+  filament::TransformManager& tm = GetEngine()->getTransformManager();
+  if (get_transform_fn_) {
+    for (int i = 0; i < parts_.size(); ++i) {
+      const mat4f& transform = get_transform_fn_(i, trs);
+      tm.setTransform(tm.getInstance(parts_[i].entity), transform);
+    }
+  } else {
+    for (Part& part : parts_) {
+      tm.setTransform(tm.getInstance(part.entity), trs.ToTransform());
+    }
+  }
+  transform_ = tm.getTransform(tm.getInstance(parts_[0].entity));
 }
 
 const mat4f& Renderable::GetTransform() const {
@@ -147,23 +159,18 @@ const mat4f& Renderable::GetTransform() const {
 }
 
 void Renderable::SetMeshes(std::span<const Mesh*> meshes,
-                           std::span<const mat4f> transforms) {
-  if (meshes.size() != transforms.size()) {
-    mju_error("Number of meshes does not match number of transforms.");
-  }
+                           GetTransformFn get_transform_fn) {
   if (!parts_.empty()) {
     mju_error("Cannot set meshes for renderable with multiple parts.");
   }
 
-  filament::TransformManager& tm = GetEngine()->getTransformManager();
+  get_transform_fn_ = get_transform_fn;
   for (int i = 0; i < meshes.size(); ++i) {
     Part& part = parts_.emplace_back();
     part.mesh = meshes[i];
     part.elem_offset = 0;
     part.elem_count = part.mesh->GetFilamentIndexBuffer()->getIndexCount();
     InitPartEntity(part);
-
-    tm.setTransform(tm.getInstance(part.entity), transforms[i]);
   }
 }
 

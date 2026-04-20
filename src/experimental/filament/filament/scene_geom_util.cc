@@ -103,7 +103,7 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
                               const mjvScene* scene,
                               ModelObjects* model_objects) {
   std::vector<const Mesh*> meshes;
-  std::vector<mat4f> transforms;
+  Renderable::GetTransformFn get_transforms;
 
   Trs trs = {
       .translation = ReadFloat3(geom.pos),
@@ -115,12 +115,12 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
     case mjGEOM_MESH:
       meshes.push_back(GetMesh(model_objects, geom.dataid));
       // Ignore size for meshes.
-      transforms.push_back(mat4f(trs.rotation, trs.translation));
+      trs.size = float3{1.0f, 1.0f, 1.0f};
       break;
     case mjGEOM_HFIELD:
       meshes.push_back(GetHeightField(model_objects, geom.dataid));
       // Ignore size for height fields.
-      transforms.push_back(mat4f(trs.rotation, trs.translation));
+      trs.size = float3{1.0f, 1.0f, 1.0f};
       break;
     case mjGEOM_PLANE: {
       meshes.push_back(GetShape(model_objects, ModelObjects::kPlane));
@@ -134,20 +134,16 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       }
       // Planes only define an xy size, so set the z-dimension to 1.0f.
       trs.size.z = 1.0f;
-      transforms.push_back(trs.ToTransform());
       break;
     }
     case mjGEOM_SPHERE:
       meshes.push_back(GetShape(model_objects, ModelObjects::kSphere));
-      transforms.push_back(trs.ToTransform());
       break;
     case mjGEOM_ELLIPSOID:
       meshes.push_back(GetShape(model_objects, ModelObjects::kSphere));
-      transforms.push_back(trs.ToTransform());
       break;
     case mjGEOM_BOX:
       meshes.push_back(GetShape(model_objects, ModelObjects::kBox));
-      transforms.push_back(trs.ToTransform());
       break;
     case mjGEOM_CAPSULE: {
       // Capsules are a tube with two domes at the ends.
@@ -155,25 +151,31 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       meshes.push_back(GetShape(model_objects, ModelObjects::kDome));
       meshes.push_back(GetShape(model_objects, ModelObjects::kDome));
 
-      transforms.push_back(trs.ToTransform());
-
-      // We apply an inverse scale to the domes to counteract the capsule's
-      // overall scale so that the domes remain spherical in shape.
-      const float xz_size = 0.5f * (trs.size.x + trs.size.y);
-
-      // Move the first dome to the top of the capsule.
-      mat4f top = mat4f(trs.rotation, trs.translation);
-      top *= mat4f::translation(float3{0, 0, trs.size.z});
-      top *= mat4f::scaling(float3{trs.size.x, trs.size.y, xz_size});
-      transforms.push_back(top);
-
-      // Move the second dome to the bottom of the capsule and rotate it 180
-      // degrees so that it's facing the right way.
-      mat4f bottom = mat4f(trs.rotation, trs.translation);
-      bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
-      bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
-      bottom *= mat4f::scaling(float3{trs.size.x, trs.size.y, xz_size});
-      transforms.push_back(bottom);
+      get_transforms = [](int index, const Trs& trs) {
+        // We apply an inverse scale to the domes to counteract the capsule's
+        // overall scale so that the domes remain spherical in shape.
+        const float xz_size = 0.5f * (trs.size.x + trs.size.y);
+        if (index == 0) {
+          return trs.ToTransform();
+        } else if (index == 1) {
+          // Move the first dome to the top of the capsule.
+          mat4f top = mat4f(trs.rotation, trs.translation);
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(float3{trs.size.x, trs.size.y, xz_size});
+          return top;
+        } else if (index == 2) {
+          // Move the second dome to the bottom of the capsule and rotate it 180
+          // degrees so that it's facing the right way.
+          mat4f bottom = mat4f(trs.rotation, trs.translation);
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          bottom *= mat4f::scaling(float3{trs.size.x, trs.size.y, xz_size});
+          return bottom;
+        } else {
+          mju_error("Invalid index for capsule geom: %d (expected [0,2])", index);
+          return trs.ToTransform();
+        }
+      };
       break;
     }
     case mjGEOM_CYLINDER: {
@@ -182,21 +184,28 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
       meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
 
-      transforms.push_back(trs.ToTransform());
-
-      // Move the first disk to the top of the cylinder.
-      mat4f top = mat4f(trs.rotation, trs.translation);
-      top *= mat4f::translation(float3{0, 0, trs.size.z});
-      top *= mat4f::scaling(trs.size);
-      transforms.push_back(top);
-
-      // Move the second disk to the bottom of the cylinder. Rotate the disk
-      // 180 degrees so that the normals point outwards.
-      mat4f bottom = mat4f(trs.rotation, trs.translation);
-      bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
-      bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
-      bottom *= mat4f::scaling(trs.size);
-      transforms.push_back(bottom);
+      get_transforms = [](int index, const Trs& trs) {
+        if (index == 0) {
+          return trs.ToTransform();
+        } else if (index == 1) {
+          // Move the first disk to the top of the cylinder.
+          mat4f top = mat4f(trs.rotation, trs.translation);
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(trs.size);
+          return top;
+        } else if (index == 2) {
+          // Move the second disk to the bottom of the cylinder. Rotate the disk
+          // 180 degrees so that the normals point outwards.
+          mat4f bottom = mat4f(trs.rotation, trs.translation);
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          bottom *= mat4f::scaling(trs.size);
+          return bottom;
+        } else {
+          mju_error("Invalid index for cylinder geom: %d (expected [0,2])", index);
+          return trs.ToTransform();
+        }
+      };
       break;
     }
     case mjGEOM_ARROW: {
@@ -205,27 +214,33 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
       meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
 
-      mat4f base = mat4f(trs.rotation, trs.translation);
-      base *= mat4f::scaling(float3{1, 1, kArrowScale});
-      base *= mat4f::translation(float3{0, 0, trs.size.z});
-      transforms.push_back(base * mat4f::scaling(trs.size));
-
-      mat4f top = base;
-      top *= mat4f::translation(float3{0, 0, trs.size.z});
-      top *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      transforms.push_back(top * mat4f::scaling(trs.size));
-
-      mat4f top_disk = base;
-      top_disk *= mat4f::translation(float3{0, 0, trs.size.z});
-      top_disk *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
-      top_disk *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      transforms.push_back(top_disk * mat4f::scaling(trs.size));
-
-      mat4f bottom = base;
-      bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
-      bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
-      transforms.push_back(bottom * mat4f::scaling(trs.size));
-
+      get_transforms = [](int index, const Trs& trs) {
+        mat4f base = mat4f(trs.rotation, trs.translation);
+        base *= mat4f::scaling(float3{1, 1, kArrowScale});
+        base *= mat4f::translation(float3{0, 0, trs.size.z});
+        if (index == 0) {
+          return base * mat4f::scaling(trs.size);
+        } else if (index == 1) {
+          mat4f top = base;
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top * mat4f::scaling(trs.size);
+        } else if (index == 2) {
+          mat4f top_disk = base;
+          top_disk *= mat4f::translation(float3{0, 0, trs.size.z});
+          top_disk *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          top_disk *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top_disk * mat4f::scaling(trs.size);
+        } else if (index == 3) {
+          mat4f bottom = base;
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          return bottom * mat4f::scaling(trs.size);
+        } else {
+          mju_error("Invalid index for arrow geom: %d (expected [0,3])", index);
+          return trs.ToTransform();
+        }
+      };
       break;
     }
     case mjGEOM_ARROW1: {
@@ -233,19 +248,26 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       meshes.push_back(GetShape(model_objects, ModelObjects::kCone));
       meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
 
+      get_transforms = [](int index, const Trs& trs) {
       mat4f base = mat4f(trs.rotation, trs.translation);
       base *= mat4f::scaling(float3{1, 1, kArrowScale});
       base *= mat4f::translation(float3{0, 0, trs.size.z});
-      transforms.push_back(base * mat4f::scaling(trs.size));
-
-      mat4f top = base;
-      top *= mat4f::translation(float3{0, 0, trs.size.z});
-      transforms.push_back(top * mat4f::scaling(trs.size));
-
-      mat4f bottom = base;
-      bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
-      bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
-      transforms.push_back(bottom * mat4f::scaling(trs.size));
+        if (index == 0) {
+          return base * mat4f::scaling(trs.size);
+        } else if (index == 1) {
+          mat4f top = base;
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          return top * mat4f::scaling(trs.size);
+        } else if (index == 2) {
+          mat4f bottom = base;
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          return bottom * mat4f::scaling(trs.size);
+        } else {
+          mju_error("Invalid index for arrow1 geom: %d (expected [0,2])", index);
+          return trs.ToTransform();
+        }
+      };
       break;
     }
     case mjGEOM_ARROW2: {
@@ -255,55 +277,58 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
       meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
 
-      mat4f base = mat4f(trs.rotation, trs.translation);
-      base *= mat4f::scaling(float3{1, 1, kArrowScale});
-      base *= mat4f::translation(float3{0, 0, trs.size.z});
-      transforms.push_back(base * mat4f::scaling(trs.size));
-
-      mat4f top = base;
-      top *= mat4f::translation(float3{0, 0, trs.size.z});
-      top *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      transforms.push_back(top * mat4f::scaling(trs.size));
-
-      mat4f bottom = base;
-      bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
-      bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
-      bottom *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      transforms.push_back(bottom * mat4f::scaling(trs.size));
-
-      mat4f top_disk = base;
-      top_disk *= mat4f::translation(float3{0, 0, trs.size.z});
-      top_disk *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
-      top_disk *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      transforms.push_back(top_disk * mat4f::scaling(trs.size));
-
-      mat4f bottom_disk = base;
-      bottom_disk *= mat4f::translation(float3{0, 0, -trs.size.z});
-      transforms.push_back(bottom_disk * mat4f::scaling(trs.size));
-
+      get_transforms = [](int index, const Trs& trs) {
+        mat4f base = mat4f(trs.rotation, trs.translation);
+        base *= mat4f::scaling(float3{1, 1, kArrowScale});
+        base *= mat4f::translation(float3{0, 0, trs.size.z});
+        if (index == 0) {
+          return base * mat4f::scaling(trs.size);
+        } else if (index == 1) {
+          mat4f top = base;
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top * mat4f::scaling(trs.size);
+        } else if (index == 2) {
+          mat4f bottom = base;
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          bottom *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return bottom * mat4f::scaling(trs.size);
+        } else if (index == 3) {
+          mat4f top_disk = base;
+          top_disk *= mat4f::translation(float3{0, 0, trs.size.z});
+          top_disk *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          top_disk *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top_disk * mat4f::scaling(trs.size);
+        } else if (index == 4) {
+          mat4f bottom_disk = base;
+          bottom_disk *= mat4f::translation(float3{0, 0, -trs.size.z});
+          return bottom_disk * mat4f::scaling(trs.size);
+        } else {
+          mju_error("Invalid index for arrow2 geom: %d (expected [0,4])", index);
+          return trs.ToTransform();
+        }
+      };
       break;
     }
     case mjGEOM_LINE:
       meshes.push_back(GetShape(model_objects, ModelObjects::kLine));
-      transforms.push_back(trs.ToTransform());
       break;
     case mjGEOM_LINEBOX:
       meshes.push_back(GetShape(model_objects, ModelObjects::kLineBox));
-      transforms.push_back(trs.ToTransform());
       break;
     case mjGEOM_TRIANGLE:
       meshes.push_back(GetShape(model_objects, ModelObjects::kTriangle));
-      transforms.push_back(trs.ToTransform());
       break;
     case mjGEOM_FLEX:
       meshes.push_back(GetSkinFlexMesh(model_objects, geom.objid));
       // Flexes are defined in global space.
-      transforms.push_back(mat4f());
+      trs = Trs();
       break;
     case mjGEOM_SKIN:
       meshes.push_back(GetSkinFlexMesh(model_objects, geom.objid));
       // Skins are defined in global space.
-      transforms.push_back(mat4f());
+      trs = Trs();
       break;
     case mjGEOM_NONE:
     case mjGEOM_LABEL:
@@ -315,7 +340,8 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       break;
   }
 
-  renderable.SetMeshes(meshes, transforms);
+  renderable.SetMeshes(meshes, get_transforms);
+  renderable.SetTransform(trs);
 }
 
 static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,

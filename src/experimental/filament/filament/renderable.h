@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDERABLE_H_
 
 #include <cstdint>
+#include <functional>
 #include <span>
 #include <vector>
 
@@ -83,10 +84,13 @@ class Renderable {
   // Returns the current transform of the renderable.
   const filament::math::mat4f& GetTransform() const;
 
-  // Sets multiple meshes for a renderable. Each mesh is assigned a specific
-  // transform to allow for assembly of compound shapes.
+  // Sets multiple meshes for a renderable. Users can optionally provide a
+  // function that will be used to compute the transform for each (sub)mesh
+  // relative to the transform of the renderable itself. This allows users to
+  // construct compound (but rigid) objects from multiple meshes.
+  using GetTransformFn = std::function<filament::math::mat4f(int, const Trs&)>;
   void SetMeshes(std::span<const Mesh*> meshes,
-                 std::span<const filament::math::mat4f> transforms);
+                 GetTransformFn get_transform = nullptr);
 
   // Sets the layer mask for the managed filament Entities. Layer masks can be
   // used to show/hide the renderable in different views. Returns the previous
@@ -158,7 +162,7 @@ class Renderable {
   filament::Scene* assigned_scene_ = nullptr;
   std::vector<Part> parts_;
   filament::math::mat4f transform_;
-
+  GetTransformFn get_transform_fn_;
   std::uint8_t priority_ = kDefaultPriority;
   std::uint8_t layer_mask_ = kDefaultLayerMask;
   std::uint16_t blend_order_ = 0;
