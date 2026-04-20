@@ -126,10 +126,15 @@ regenerate it:
 ```bash
 cmake --build build --target xmlschema
 ./build/bin/xmlschema /tmp/raw.xsd
-python3 doc/mjcf_schema_enrich.py \
+./doc/mjcf_schema_enrich.py \
     --in /tmp/raw.xsd --rst doc/XMLreference.rst --out doc/mjcf.xsd \
     --strict --report
 ```
+
+`doc/mjcf_schema_enrich.py` is a [uv](https://docs.astral.sh/uv/) PEP 723
+script; its shebang provisions a matching Python interpreter, so the only
+prerequisite is `uv` on `PATH`. Run it as `./doc/mjcf_schema_enrich.py ...`
+or `uv run doc/mjcf_schema_enrich.py ...`.
 
 `--strict` exits non-zero on drift between the parser, the attribute table
 (`src/xml/xml_native_schema.cc`), and the RST — fix warnings before
