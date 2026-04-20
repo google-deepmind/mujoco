@@ -3593,7 +3593,7 @@ saving the XML:
 
 .. _body-flexcomp-dof:
 
-:at:`dof`: :at-val:`[full, radial, trilinear, quadratic], "full"`
+:at:`dof`: :at-val:`[full, radial, trilinear, quadratic, 2d], "full"`
    The parametrization of the flex's degrees of freedom (dofs). See the video on the right illustrating the
    different parametrizations with deformable spheres. The three models in the video are respectively
    `sphere_full <https://github.com/google-deepmind/mujoco/blob/main/model/flex/sphere_full.xml>`__,
@@ -3607,6 +3607,10 @@ saving the XML:
      A single radial translational dof per vertex. Note that unlike in the "full" case, the radial parametrization
      requires a free joint at the flex's parent in order for free body motion to be possible. This type of
      parametrization is appropriate for shapes that are relatively spherical.
+
+   **2d**
+     Two orthogonal translational dofs (X and Y) per vertex. This restricts the motion of the vertices to planes
+     parallel to the parent body's X-Y plane.
 
    **trilinear**
      Three translational dofs at each corner of the bounding box of the flex, for a total of 24 dofs for the entire

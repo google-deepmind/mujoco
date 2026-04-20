@@ -613,6 +613,17 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
         }
       }
 
+      // add two orthogonal sliders (x and y only)
+      else if (doftype == mjFCOMPDOF_2D) {
+        for (int j=0; j < 2; j++) {
+          mjsJoint* jnt = mjs_addJoint(pb, 0);
+          jnt->type = mjJNT_SLIDE;
+          mjuu_setvec(jnt->pos, 0, 0, 0);
+          mjuu_setvec(jnt->axis, 0, 0, 0);
+          jnt->axis[j] = 1;
+        }
+      }
+
       // construct body name, add to vertbody
       char txt[100];
       mju::sprintf_arr(txt, "%s_%d", name.c_str(), i);

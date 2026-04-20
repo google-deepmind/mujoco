@@ -45,6 +45,7 @@ typedef enum _mjtDof {
   mjFCOMPDOF_RADIAL,
   mjFCOMPDOF_TRILINEAR,
   mjFCOMPDOF_QUADRATIC,
+  mjFCOMPDOF_2D,
 
   mjNFCOMPDOFS
 } mjtDof;

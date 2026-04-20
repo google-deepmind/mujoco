@@ -1227,6 +1227,71 @@ TEST_F(UserFlexTest, TotalMassQuadratic) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserFlexTest, Dof2d) {
+  // 3x3 grid with dof="2d": 9 vertices, 2 DOFs each -> nv = 18
+  static constexpr char xml_2d[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 3 1" spacing=".1 .1 .1"
+              dim="2" radius=".01" dof="2d">
+      <edge equality="true"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+
+  // same model with dof="full" for comparison: 9 vertices, 3 DOFs each -> nv = 27
+  static constexpr char xml_full[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 3 1" spacing=".1 .1 .1"
+              dim="2" radius=".01">
+      <edge equality="true"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+
+  // load 2d model
+  mjModel* m_2d = LoadModelFromString(xml_2d, error.data(), error.size());
+  ASSERT_THAT(m_2d, NotNull()) << error.data();
+  mjData* d_2d = mj_makeData(m_2d);
+
+  // load full model
+  mjModel* m_full = LoadModelFromString(xml_full, error.data(), error.size());
+  ASSERT_THAT(m_full, NotNull()) << error.data();
+  mjData* d_full = mj_makeData(m_full);
+
+  // verify DOF counts
+  EXPECT_EQ(m_2d->nv, 18);    // 9 vertices * 2 DOFs
+  EXPECT_EQ(m_full->nv, 27);  // 9 vertices * 3 DOFs
+
+  // same number of vertices and elements
+  EXPECT_EQ(m_2d->nflexvert, m_full->nflexvert);
+  EXPECT_EQ(m_2d->nflexelem, m_full->nflexelem);
+
+  // each body has 2 DOFs in 2d mode, 3 in full mode
+  for (int i = 1; i < m_2d->nbody; i++) {
+    EXPECT_EQ(m_2d->body_dofnum[i], 2) << "body " << i;
+  }
+  for (int i = 1; i < m_full->nbody; i++) {
+    EXPECT_EQ(m_full->body_dofnum[i], 3) << "body " << i;
+  }
+
+  // simulate a few steps to make sure nothing crashes
+  for (int i = 0; i < 10; i++) {
+    mj_step(m_2d, d_2d);
+    mj_step(m_full, d_full);
+  }
+
+  mj_deleteModel(m_2d);
+  mj_deleteModel(m_full);
+  mj_deleteData(d_2d);
+  mj_deleteData(d_full);
+}
+
 }  // namespace
 }  // namespace mujoco
 
