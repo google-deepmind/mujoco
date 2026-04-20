@@ -66,25 +66,12 @@ void Renderable::RemoveLastEntity() {
 
 void Renderable::UpdateMesh(int index, const Mesh* mesh, int elem_offset,
                             int elem_count) {
-  MeshInfo& mesh_info = SetMesh(index, mesh, nullptr, elem_offset, elem_count);
-  UpdateEntity(index, mesh_info);
-}
-
-void Renderable::UpdateMesh(int index, MeshPtr mesh, int elem_offset,
-                            int elem_count) {
-  MeshInfo& mesh_info =
-      SetMesh(index, mesh.get(), std::move(mesh), elem_offset, elem_count);
+  MeshInfo& mesh_info = SetMesh(index, mesh, elem_offset, elem_count);
   UpdateEntity(index, mesh_info);
 }
 
 void Renderable::AppendMesh(const Mesh* mesh, int elem_offset, int elem_count) {
-  MeshInfo& mesh_info = SetMesh(-1, mesh, nullptr, elem_offset, elem_count);
-  AppendEntity(mesh_info);
-}
-
-void Renderable::AppendMesh(MeshPtr mesh, int elem_offset, int elem_count) {
-  MeshInfo& mesh_info =
-      SetMesh(-1, mesh.get(), std::move(mesh), elem_offset, elem_count);
+  MeshInfo& mesh_info = SetMesh(-1, mesh, elem_offset, elem_count);
   AppendEntity(mesh_info);
 }
 
@@ -154,8 +141,7 @@ void Renderable::UpdateEntity(int index, const MeshInfo& mesh_info) {
 }
 
 Renderable::MeshInfo& Renderable::SetMesh(int index, const Mesh* mesh,
-                                          MeshPtr owned_mesh, int elem_offset,
-                                          int elem_count) {
+                                          int elem_offset, int elem_count) {
   if (index == -1) {
     index = meshes_.size();
     meshes_.emplace_back();
@@ -165,7 +151,6 @@ Renderable::MeshInfo& Renderable::SetMesh(int index, const Mesh* mesh,
   }
 
   MeshInfo* mesh_info = &meshes_[index];
-  mesh_info->owned_mesh = std::move(owned_mesh);
   mesh_info->mesh = mesh;
   mesh_info->elem_offset = elem_offset;
   mesh_info->elem_count = elem_count;

@@ -96,13 +96,9 @@ static void AddMesh(Renderable& renderable, ModelObjects* model_objs,
   renderable.AppendMesh(mesh);
 }
 
-static void AddGeom(Renderable& renderable, ModelObjects* model_objs,
-                    const mjvScene* scene, const mjvGeom& geom) {
-  if (geom.type == mjGEOM_FLEX) {
-    renderable.AppendMesh(model_objs->CreateFlexMesh(scene, geom));
-  } else if (geom.type == mjGEOM_SKIN) {
-    renderable.AppendMesh(model_objs->CreateSkinMesh(scene, geom));
-  }
+static void AddSkinFlexMesh(Renderable& renderable, ModelObjects* model_objs,
+                            int objid) {
+  renderable.AppendMesh(model_objs->GetFlexSkinGeomMesh(objid));
 }
 
 static void AddHeightField(Renderable& renderable, ModelObjects* model_objs,
@@ -183,10 +179,10 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       AddShape(renderable, model_objects, ModelObjects::kTriangle);
       break;
     case mjGEOM_FLEX:
-      AddGeom(renderable, model_objects, scene, geom);
+      AddSkinFlexMesh(renderable, model_objects, geom.objid);
       break;
     case mjGEOM_SKIN:
-      AddGeom(renderable, model_objects, scene, geom);
+      AddSkinFlexMesh(renderable, model_objects, geom.objid);
       break;
     case mjGEOM_NONE:
     case mjGEOM_LABEL:

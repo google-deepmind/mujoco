@@ -60,15 +60,12 @@ class Renderable {
   // can be used to specify a submesh to append. If elem_count is 0, assumes
   // the entire mesh should be appended.
   void AppendMesh(const Mesh* mesh, int elem_offset = 0, int elem_count = 0);
-  void AppendMesh(MeshPtr mesh, int elem_offset = 0, int elem_count = 0);
 
   // Replaces the mesh at the index with a new mesh. The elem_offset and
   // elem_count parameters can be used to specify a submesh to append. If
   // elem_count is 0, assumes the entire mesh should be appended.
   void UpdateMesh(int index, const Mesh* mesh, int elem_offset = 0,
               int elem_count = 0);
-  void UpdateMesh(int index, MeshPtr mesh, int elem_offset = 0,
-                  int elem_count = 0);
 
   // Returns the number of meshes that define the renderable.
   int GetNumMeshes() const { return meshes_.size(); }
@@ -124,7 +121,6 @@ class Renderable {
 
  private:
   struct MeshInfo {
-    MeshPtr owned_mesh;
     const Mesh* mesh = nullptr;
     int elem_offset = 0;
     int elem_count = 0;
@@ -132,8 +128,8 @@ class Renderable {
 
   // Sets the mesh information for the mesh at the given index. If index is -1,
   // a new mesh will be appended to the renderable.
-  MeshInfo& SetMesh(int index, const Mesh* mesh, MeshPtr owned_mesh,
-                    int elem_offset, int elem_count);
+  MeshInfo& SetMesh(int index, const Mesh* mesh, int elem_offset,
+                    int elem_count);
 
   // Appends a new filament::Entity to the renderable, configured to use the
   // given mesh.
