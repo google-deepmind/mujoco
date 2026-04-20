@@ -743,7 +743,10 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       mjtNum* refpos_c = mjSTACKALLOC(d, 3*npc, mjtNum);
       for (int n = 0; n < npc; n++) {
         int gn = gindices[n];
-        if (m->flex_centered[f]) {
+        if (m->flex_centered[f] ||
+            (m->flex_node[3*(gn + nstart)+0] == 0 &&
+             m->flex_node[3*(gn + nstart)+1] == 0 &&
+             m->flex_node[3*(gn + nstart)+2] == 0)) {
           mju_copy3(xpos_c + 3*n, d->xpos + 3*bodyid[gn]);
         } else {
           mju_mulMatVec3(xpos_c + 3*n, d->xmat + 9*bodyid[gn], m->flex_node + 3*(gn + nstart));

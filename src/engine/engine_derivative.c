@@ -880,15 +880,60 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
                                   const int* dof_indices, int ndof, int nband) {
   int nv = m->nv;
 
-  // build global2local map for ADDH
-  int* global2local = NULL;
+  // compute upper bounds across all interpolated flexes
+  int max_nodenum = 0;
+  int max_npc = 0;
+  for (int f = 0; f < m->nflex; f++) {
+    if (!m->flex_interp[f]) continue;
+    if (m->flex_rigid[f]) continue;
+    int order = m->flex_interp[f];
+    int npc = (order+1)*(order+1)*(order+1);
+    if (npc > max_npc) max_npc = npc;
+    if (m->flex_nodenum[f] > max_nodenum) max_nodenum = m->flex_nodenum[f];
+  }
+
+  // nothing to do
+  if (max_npc == 0) {
+    return;
+  }
+
+  int max_dim_c = 3 * max_npc;
+
+  // single unconditional markStack
+  mj_markStack(d);
+
+  // global2local map for ADDH
+  int* global2local = mjSTACKALLOC(d, nv, int);
   if (op == mjFLEXOP_ADDH) {
-    mj_markStack(d);
-    global2local = mjSTACKALLOC(d, nv, int);
     mju_fillInt(global2local, -1, nv);
     for (int i=0; i<ndof; i++) {
       global2local[dof_indices[i]] = i;
     }
+  }
+
+  // per-flex node positions (upper bound)
+  mjtNum* xpos = mjSTACKALLOC(d, 3*max_nodenum, mjtNum);
+
+  // per-cell arrays (upper bound)
+  mjtNum* xpos_c = mjSTACKALLOC(d, 3*max_npc, mjtNum);
+  mjtNum* K_rot_cell = mjSTACKALLOC(d, max_dim_c*max_dim_c, mjtNum);
+
+  // sparse Jacobian for one cell (upper bound)
+  int* J_rownnz = mjSTACKALLOC(d, max_dim_c, int);
+  int* J_rowadr = mjSTACKALLOC(d, max_dim_c, int);
+  mjtNum* J_val = mjSTACKALLOC(d, max_dim_c*nv, mjtNum);
+  int* J_colind = mjSTACKALLOC(d, max_dim_c*nv, int);
+
+  // temp allocations for chain
+  int* chain_colind = mjSTACKALLOC(d, nv, int);
+  mjtNum* blk_jac = mjSTACKALLOC(d, 3*nv, mjtNum);
+
+  // ADDH-specific allocations (upper bound)
+  mjtNum* J_reduced = NULL;
+  mjtNum* KJ = NULL;
+  if (op == mjFLEXOP_ADDH) {
+    J_reduced = mjSTACKALLOC(d, max_dim_c*ndof, mjtNum);
+    KJ = mjSTACKALLOC(d, max_dim_c*ndof, mjtNum);
   }
 
   // loop over flexes
@@ -899,10 +944,10 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
     }
 
     // get stiffness and damping
-    mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
+    mjtNum* K = m->flex_stiffness + m->flex_stiffnessadr[f];
 
     // skip if rigid or no stiffness
-    if (m->flex_rigid[f] || k[0] == 0) {
+    if (m->flex_rigid[f] || K[0] == 0) {
       continue;
     }
 
@@ -926,27 +971,9 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
     int cy = m->flex_cellnum[3*f+1];
     int cz = m->flex_cellnum[3*f+2];
 
-    int nodenum = m->flex_nodenum[f];
     int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
 
-    // standard stack allocation
-    mj_markStack(d);
-    mjtNum* xpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-
-    // per-cell arrays
     int dim_c = 3 * npc;
-    mjtNum* xpos_c = mjSTACKALLOC(d, 3*npc, mjtNum);
-    mjtNum* K_rot_cell = mjSTACKALLOC(d, dim_c*dim_c, mjtNum);
-
-    // sparse Jacobian for one cell
-    int* J_rownnz = mjSTACKALLOC(d, dim_c, int);
-    int* J_rowadr = mjSTACKALLOC(d, dim_c, int);
-    mjtNum* J_val = mjSTACKALLOC(d, dim_c*nv, mjtNum);
-    int* J_colind = mjSTACKALLOC(d, dim_c*nv, int);
-
-    // temp allocations for chain
-    int* chain_colind = mjSTACKALLOC(d, nv, int);
-    mjtNum* blk_jac = mjSTACKALLOC(d, 3*nv, mjtNum);
 
     // gather raw node positions (unrotated)
     mju_flexGatherState(m, d, f, xpos, NULL);
@@ -956,6 +983,16 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
     for (int ci = 0; ci < cx; ci++) {
       for (int cj = 0; cj < cy; cj++) {
         for (int ck = 0; ck < cz; ck++) {
+          // get cell stiffness
+          mjtNum* k_cell = K + cell_idx * 3*npc * 3*npc;
+
+          // skip empty cells: stiffness buffer is zero-initialized at compile time
+          // (user_model.cc), and non-empty cells have strictly positive diagonal
+          if (k_cell[0] == 0) {
+            cell_idx++;
+            continue;
+          }
+
           // gather cell-local node positions
           int gindices[125];  // max npc = 125 for quadratic
           mjtNum quat[4];
@@ -966,9 +1003,6 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
           mjtNum R[9], RT[9];
           mju_quat2Mat(R, quat);
           mju_transpose(RT, R, 3, 3);
-
-          // get cell stiffness
-          mjtNum* k_cell = k + cell_idx * 3*npc * 3*npc;
 
           // compute K_rot_cell = RT * K_cell * R (block-wise)
           mju_zero(K_rot_cell, dim_c*dim_c);
@@ -1025,9 +1059,7 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
             addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
                               J_val, K_rot_cell, dim_c);
           } else if (op == mjFLEXOP_ADDH) {
-            mj_markStack(d);
             // H -= J_cell^T * K_rot_cell * J_cell (banded format)
-            mjtNum* J_reduced = mjSTACKALLOC(d, dim_c*ndof, mjtNum);
             mju_zero(J_reduced, dim_c*ndof);
 
             for (int i = 0; i < dim_c; i++) {
@@ -1043,7 +1075,6 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
             }
 
             // KJ = K_rot_cell * J_reduced  (dim_c x ndof)
-            mjtNum* KJ = mjSTACKALLOC(d, dim_c*ndof, mjtNum);
             mju_mulMatMat(KJ, K_rot_cell, J_reduced, dim_c, dim_c, ndof);
 
             // H[i,j] -= J_reduced[k,i] * KJ[k,j], store lower triangle in banded format
@@ -1056,20 +1087,15 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
                 res[i*nband + nband-1-(i-j)] -= val;
               }
             }
-            mj_freeStack(d);
           }
 
           cell_idx++;
         }
       }
     }
-
-    mj_freeStack(d);
   }
 
-  if (op == mjFLEXOP_ADDH) {
-    mj_freeStack(d);  // free global2local
-  }
+  mj_freeStack(d);
 }
 
 

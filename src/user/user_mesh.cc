@@ -4407,6 +4407,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
         for (int ck = 0; ck < cz; ck++) {
           int cell_idx = ci * cy * cz + cj * cz + ck;
 
+          // skip stiffness computation for empty cells (no mesh content)
+          if (!cell_empty.empty() && cell_empty[cell_idx]) {
+            continue;
+          }
+
           // gather cell's local node positions
           std::vector<double> cell_pos(3 * npc);
           int local = 0;

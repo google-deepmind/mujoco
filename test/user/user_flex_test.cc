@@ -1031,5 +1031,202 @@ TEST_F(UserFlexTest, FlexNoConstraintsWarning) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserFlexTest, EmptyCellNodePinning) {
+  // A 2x2x2 grid with a box mesh that fills all cells.
+  // No nodes should be pinned.
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="box" spacing=".1 .1 .1" dim="3"
+              dof="trilinear" mass="1" cellcount="2 2 2">
+      <contact selfcollide="none"/>
+      <elasticity young="1"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // A 2x2x2 grid with trilinear order has (2+1)^3 = 27 node positions.
+  int nadr = m->flex_nodeadr[0];
+  int nnode = m->flex_nodenum[0];
+  EXPECT_EQ(nnode, 27);
+
+  // All cells are occupied by the box, so no node should be pinned.
+  int pinned = 0;
+  for (int n = nadr; n < nadr + nnode; n++) {
+    int bid = m->flex_nodebodyid[n];
+    if (m->body_jntnum[bid] == 0) {
+      pinned++;
+    }
+  }
+  EXPECT_EQ(pinned, 0);
+
+  // Verify simulation works
+  mjData* d = mj_makeData(m);
+  for (int i = 0; i < 10; i++) {
+    mj_step(m, d);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, EmptyCellNodePinningMesh) {
+  // Load bunny_multicell.xml which has a 3x3x3 grid.
+  // The bunny mesh only occupies some cells, so many nodes should be pinned.
+  const std::string xml_path =
+      GetModelPath("flex/bunny_multicell.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // 3x3x3 grid, order=1: (3+1)^3 = 64 node positions
+  int nadr = m->flex_nodeadr[0];
+  int nnode = m->flex_nodenum[0];
+  EXPECT_EQ(nnode, 64);
+
+  // Count pinned nodes (no joints)
+  int pinned = 0;
+  int free_nodes = 0;
+  for (int n = nadr; n < nadr + nnode; n++) {
+    int bid = m->flex_nodebodyid[n];
+    if (m->body_jntnum[bid] == 0) {
+      pinned++;
+    } else {
+      free_nodes++;
+    }
+  }
+
+  // At least some nodes should be pinned since the bunny doesn't fill all cells
+  EXPECT_GT(pinned, 0) << "Expected some nodes to be pinned from empty cells";
+  EXPECT_GT(free_nodes, 0) << "Expected some nodes to remain free";
+  EXPECT_EQ(pinned + free_nodes, nnode);
+
+  // Verify the model can simulate
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+  for (int i = 0; i < 10; i++) {
+    mj_step(m, d);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, EmptyCellNodePinningQuadratic) {
+  // Regression test for ci_min calculation with order=2.
+  // A 2x1x1 quadratic grid has nodes at gi=0..4 (5 nodes per axis).
+  // We place mesh vertices only in cell 0 (x in [0, 0.5]), so cell 1 is empty.
+  //
+  // Node gi=3 belongs only to cell 1 (1*2 <= 3 <= 2*2).
+  // With the old formula (gi-order)/order = (3-2)/2 = 0, it would also check
+  // cell 0 (non-empty), incorrectly marking gi=3 as non-pinned.
+  // Single hex element at x=[0,0.3], well inside cell 0 of a 3x1x1 grid.
+  // Anchor vertex at x=1.0 extends the bounding box to [0,1]^3.
+  // The 3x1x1 quadratic grid splits at x=0.33, 0.67.
+  // Cell 0 has vertices, cells 1 and 2 are empty.
+  // Interior nodes for cells 1,2 should be pinned to the parent body.
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="parent">
+    <freejoint/>
+    <inertial mass="0.01" pos="0 0 0"
+             diaginertia="0.001 0.001 0.001"/>
+    <flexcomp name="test" type="direct" dim="3"
+              dof="quadratic" mass="1" cellcount="3 1 1"
+              point="0.0 0.0 0.0  0.3 0.0 0.0
+                     0.0 1.0 0.0  0.3 1.0 0.0
+                     0.0 0.0 1.0  0.3 0.0 1.0
+                     0.0 1.0 1.0  0.3 1.0 1.0
+                     1.0 0.5 0.5"
+              element="0 1 3 2 4 5 7 6">
+      <contact selfcollide="none"/>
+      <elasticity young="1"/>
+    </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // 3x1x1 quadratic grid: (3*2+1) * (1*2+1) * (1*2+1) = 7*3*3 = 63 nodes
+  int nadr = m->flex_nodeadr[0];
+  int nnode = m->flex_nodenum[0];
+  EXPECT_EQ(nnode, 63);
+
+  // Count pinned nodes: pinned nodes are assigned to the parent body.
+  int parent_bid = mj_name2id(m, mjOBJ_BODY, "parent");
+  ASSERT_GT(parent_bid, 0);
+  int pinned = 0;
+  for (int n = nadr; n < nadr + nnode; n++) {
+    if (m->flex_nodebodyid[n] == parent_bid) {
+      pinned++;
+    }
+  }
+
+  // Cells 1 and 2 are empty, so nodes exclusively in those cells are pinned.
+  // Nodes at gi=3..6 (with any gj, gk) are only in cells 1 and/or 2.
+  // That's 4 * 3 * 3 = 36 nodes.
+  EXPECT_EQ(pinned, 36);
+
+  mj_deleteData(mj_makeData(m));
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, TotalMassTrilinear) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
+              dim="3" dof="trilinear" mass="1.5">
+      <contact selfcollide="none" internal="false"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  double total_mass = 0;
+  for (int i = 1; i < m->nbody; ++i) {
+    total_mass += m->body_mass[i];
+  }
+
+  EXPECT_NEAR(total_mass, 1.5, 1e-5);
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, TotalMassQuadratic) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 2 2" spacing="1 1 1"
+              dim="3" dof="quadratic" mass="2.0">
+      <contact selfcollide="none" internal="false"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  double total_mass = 0;
+  for (int i = 1; i < m->nbody; ++i) {
+    total_mass += m->body_mass[i];
+  }
+
+  EXPECT_NEAR(total_mass, 2.0, 1e-5);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco
+
