@@ -217,6 +217,13 @@ namespaced once by the innermost call of :ref:`mjs_attach`. See the limitations 
    respect the global :ref:`angle<compiler-angle>` and :ref:`eulerseq<compiler-eulerseq>` settings. Rotation is always
    with respect to the frame of the previous replica, so total rotation is cumulative.
 
+.. _replicate-childclass:
+
+:at:`childclass`: :at-val:`string, optional`
+   If present, all descendant elements that admit a defaults class will use the class specified here, unless they specify
+   their own class or another element with a :at:`childclass` attribute is encountered along the chain.
+   See :ref:`body-childclass<body-childclass>` for details.
+
 .. collapse:: Usage example of replicate
 
    Loading this model and saving it:
@@ -271,9 +278,17 @@ however a given XML file can be included at most once in the entire model. After
 assembled into a single DOM, it must correspond to a valid MJCF model. Other than that, it is up to the user to decide
 how to use includes and how to modularize large files if desired.
 
+.. _include-file:
+
 :at:`file`: :at-val:`string, required`
    The name of the XML file to be included. The file location is relative to the directory of the main MJCF file. If the
    file is not in the same directory, it should be prefixed with a relative path.
+
+.. _include-prefix:
+
+:at:`prefix`: :at-val:`string, optional`
+   Optional namespace prefix applied to the names of elements loaded from the included file. See the
+   :ref:`attach<body-attach>` element for the attachment/namespacing semantics.
 
 .. admonition:: Prefer attach to include
    :class: note
@@ -6649,7 +6664,7 @@ scalar. It is computed by adding up the (scalar) normal forces from all included
 
 .. _sensor-touch-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-touch-site:
@@ -6685,7 +6700,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-accelerometer-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-accelerometer-site:
@@ -6718,7 +6733,7 @@ the site frame. This sensor outputs three numbers, which are the linear velocity
 
 .. _sensor-velocimeter-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-velocimeter-site:
@@ -6753,7 +6768,7 @@ simulate an inertial measurement unit (IMU).
 
 .. _sensor-gyro-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-gyro-site:
@@ -6791,7 +6806,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-force-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-force-site:
@@ -6830,7 +6845,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-torque-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-torque-site:
@@ -6864,7 +6879,7 @@ site frame. The output is a 3D vector.
 
 .. _sensor-magnetometer-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-magnetometer-site:
@@ -6942,7 +6957,7 @@ each. The rangefinder sensors report :at:`data` = :at-val:`"dist point normal"` 
 
 .. _sensor-rangefinder-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-rangefinder-site:
@@ -6993,7 +7008,7 @@ z-coordinate indicates a location in front of/behind the camera plane, respectiv
 
 .. _sensor-camprojection-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointpos:
@@ -7021,7 +7036,7 @@ attached to scalar joints (slide or hinge). Its output is scalar.
 
 .. _sensor-jointpos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointpos-joint:
@@ -7055,7 +7070,7 @@ scalar.
 
 .. _sensor-jointvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointvel-joint:
@@ -7088,7 +7103,7 @@ This element creates a tendon length sensor. It can be attached to both spatial 
 
 .. _sensor-tendonpos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonpos-tendon:
@@ -7121,7 +7136,7 @@ scalar.
 
 .. _sensor-tendonvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonvel-tendon:
@@ -7154,7 +7169,7 @@ sensor can be attached to any actuator. Its output is scalar.
 
 .. _sensor-actuatorpos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-actuatorpos-actuator:
@@ -7186,7 +7201,7 @@ This element creates an actuator velocity sensor. This sensor can be attached to
 
 .. _sensor-actuatorvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-actuatorvel-actuator:
@@ -7220,7 +7235,7 @@ arms determined by the transmission). This sensor can be attached to any actuato
 
 .. _sensor-actuatorfrc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-actuatorfrc-actuator:
@@ -7258,7 +7273,7 @@ joint or when a single actuator acts on multiple joints. See :ref:`CForceRange` 
 
 .. _sensor-jointactuatorfrc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointactuatorfrc-joint:
@@ -7293,7 +7308,7 @@ single tendon. See :ref:`CForceRange` for details.
 
 .. _sensor-tendonactuatorfrc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonactuatorfrc-tendon:
@@ -7325,7 +7340,7 @@ This element creates a quaternion sensor for a ball joints. It outputs 4 numbers
 
 .. _sensor-ballquat-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-ballquat-joint:
@@ -7359,7 +7374,7 @@ rotation takes place.
 
 .. _sensor-ballangvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-ballangvel-joint:
@@ -7391,7 +7406,7 @@ This element creates a joint limit sensor for position.
 
 .. _sensor-jointlimitpos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointlimitpos-joint:
@@ -7426,7 +7441,7 @@ This element creates a joint limit sensor for velocity.
 
 .. _sensor-jointlimitvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointlimitvel-joint:
@@ -7459,7 +7474,7 @@ This element creates a joint limit sensor for constraint force.
 
 .. _sensor-jointlimitfrc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-jointlimitfrc-joint:
@@ -7492,7 +7507,7 @@ This element creates a tendon limit sensor for position.
 
 .. _sensor-tendonlimitpos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonlimitpos-tendon:
@@ -7525,7 +7540,7 @@ This element creates a tendon limit sensor for velocity.
 
 .. _sensor-tendonlimitvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonlimitvel-tendon:
@@ -7558,7 +7573,7 @@ This element creates a tendon limit sensor for constraint force.
 
 .. _sensor-tendonlimitfrc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-tendonlimitfrc-tendon:
@@ -7592,7 +7607,7 @@ optionally with respect to a given frame-of-reference.
 
 .. _sensor-framepos-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framepos-objtype:
@@ -7644,7 +7659,7 @@ object, in global coordinates.
 
 .. _sensor-framequat-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framequat-objtype:
@@ -7692,7 +7707,7 @@ object, in global coordinates.
 
 .. _sensor-framexaxis-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framexaxis-objtype:
@@ -7740,7 +7755,7 @@ object, in global coordinates.
 
 .. _sensor-frameyaxis-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-frameyaxis-objtype:
@@ -7788,7 +7803,7 @@ object, in global coordinates.
 
 .. _sensor-framezaxis-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framezaxis-objtype:
@@ -7836,7 +7851,7 @@ coordinates.
 
 .. _sensor-framelinvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framelinvel-objtype:
@@ -7884,7 +7899,7 @@ coordinates.
 
 .. _sensor-frameangvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-frameangvel-objtype:
@@ -7934,7 +7949,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-framelinacc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-framelinacc-objtype:
@@ -7974,7 +7989,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-frameangacc-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-frameangacc-objtype:
@@ -8012,7 +8027,7 @@ global coordinates.
 
 .. _sensor-subtreecom-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-subtreecom-body:
@@ -8047,7 +8062,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 
 .. _sensor-subtreelinvel-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-subtreelinvel-body:
@@ -8082,7 +8097,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 
 .. _sensor-subtreeangmom-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-subtreeangmom-body:
@@ -8115,7 +8130,7 @@ See `example model <https://github.com/google-deepmind/mujoco/blob/main/test/eng
 
 .. _sensor-insidesite-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 .. _sensor-insidesite-objtype:
@@ -8218,7 +8233,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-distance-user:
 
-:at:`name`, :at:`noise`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
+:at:`name`, :at:`noise`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 
@@ -8273,7 +8288,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-normal-user:
 
-:at:`name`, :at:`noise`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
+:at:`name`, :at:`noise`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 
@@ -8329,7 +8344,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-fromto-user:
 
-:at:`name`, :at:`noise`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
+:at:`name`, :at:`noise`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 
@@ -8481,7 +8496,7 @@ Extraction
 
 .. _sensor-contact-noise:
 
-:at:`name`, :at:`noise`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
+:at:`name`, :at:`noise`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 .. _sensor-tactile:
@@ -8525,7 +8540,7 @@ contribute to the sensor output. The sensor can be visualized by enabling the vi
 
 .. _sensor-tactile-user:
 
-:at:`name`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`:
+:at:`name`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`:
    See :ref:`CSensor`.
 
 .. _sensor-e_potential:
@@ -8551,7 +8566,7 @@ This element creates sensor that returns the potential energy.
 
 .. _sensor-e_potential-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 
@@ -8578,7 +8593,7 @@ This element creates sensor that returns the kinetic energy.
 
 .. _sensor-e_kinetic-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 
@@ -8605,7 +8620,7 @@ This element creates sensor that returns the simulation time.
 
 .. _sensor-clock-user:
 
-:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interval`, :at:`delay`, :at:`user`
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`nsample`, :at:`interp`, :at:`interval`, :at:`delay`, :at:`user`
    See :ref:`CSensor`.
 
 
