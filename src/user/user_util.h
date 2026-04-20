@@ -264,6 +264,7 @@ template<typename T> MJAPI std::string VectorToString(const std::vector<T>& v);
 // convert string to vector
 template<typename T> MJAPI std::vector<T> StringToVector(char *cs);
 template<typename T> MJAPI std::vector<T> StringToVector(const std::string& s);
+template<> MJAPI std::vector<std::string> StringToVector(const std::string& s);
 
 }  // namespace mujoco::user
 
