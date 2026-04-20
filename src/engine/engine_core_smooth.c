@@ -564,16 +564,13 @@ void mj_flex(const mjModel* m, mjData* d) {
 
     // 0: vertices are the mesh vertices, 1: vertices are interpolated from nodal dofs
     if (m->flex_interp[f] == 0) {
-      // centered: copy body position
-      if (m->flex_centered[f]) {
-        for (int i=vstart; i < vend; i++) {
+      for (int i=vstart; i < vend; i++) {
+        if (m->flex_centered[f] ||
+            (m->flex_vert[3*i+0] == 0 &&
+             m->flex_vert[3*i+1] == 0 &&
+             m->flex_vert[3*i+2] == 0)) {
           mji_copy3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
-        }
-      }
-
-      // non-centered: map from local to global
-      else {
-        for (int i=vstart; i < vend; i++) {
+        } else {
           mji_mulMatVec3(d->flexvert_xpos+3*i, d->xmat+9*m->flex_vertbodyid[i], m->flex_vert+3*i);
           mji_addTo3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
         }
@@ -585,13 +582,14 @@ void mj_flex(const mjModel* m, mjData* d) {
       int nodenum = nend - nstart;
       mj_markStack(d);
       mjtNum* nodexpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-      if (m->flex_centered[f]) {
-        for (int i=nstart; i < nend; i++) {
-          mji_copy3(nodexpos + 3*(i-nstart), d->xpos + 3*m->flex_nodebodyid[i]);
-        }
-      } else {
-        for (int i=nstart; i < nend; i++) {
-          int j = i - nstart;
+      for (int i=nstart; i < nend; i++) {
+        int j = i - nstart;
+        if (m->flex_centered[f] ||
+            (m->flex_node[3*i+0] == 0 &&
+             m->flex_node[3*i+1] == 0 &&
+             m->flex_node[3*i+2] == 0)) {
+          mji_copy3(nodexpos + 3*j, d->xpos + 3*m->flex_nodebodyid[i]);
+        } else {
           mji_mulMatVec3(nodexpos + 3*j, d->xmat + 9*m->flex_nodebodyid[i], m->flex_node + 3*i);
           mji_addTo3(nodexpos + 3*j, d->xpos + 3*m->flex_nodebodyid[i]);
         }

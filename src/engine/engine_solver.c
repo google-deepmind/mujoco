@@ -810,6 +810,12 @@ typedef struct {
   mjtNum* Mgrad;          // M\grad or H\grad                             (nv x 1)
   mjtNum* search;         // linesearch vector                            (nv x 1)
   mjtNum* quad;           // quadratic polynomials for constraint costs   (nefc x 3)
+  int* oldstate;          // previous constraint state                    (nefc x 1)
+
+  // CG arrays (PrimalAllocate, CG only)
+  mjtNum* gradold;        // previous gradient                            (nv x 1)
+  mjtNum* Mgradold;       // previous preconditioned gradient             (nv x 1)
+  mjtNum* Mgraddif;       // gradient difference                          (nv x 1)
 
   // Newton arrays, known-size (PrimalAllocate)
   mjtNum* D;              // constraint inertia                           (nefc x 1)
@@ -823,8 +829,6 @@ typedef struct {
   int* L_rowadr;          // Hessian factor row addresses                 (nv x 1)
   int* LT_rownnz;         // Hessian factor transpose row nonzeros        (nv x 1)
   int* LT_rowadr;         // Hessian factor transpose row addresses       (nv x 1)
-  int* buf_ind;           // index buffer for sparse addition             (nv x 1)
-  mjtNum* buf_val;        // value buffer for sparse addition             (nv x 1)
 
   // Newton arrays, computed-size (MakeHessian)
   int nH;                 // number of nonzeros in Hessian H
@@ -960,54 +964,93 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
 // allocate fixed-size arrays in mjPrimalContext
 //  mj_{mark/free}Stack in calling function!
 static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
-  // local sizes
+  // local sizes and flags
   int nv = ctx->nv;
   int nefc = ctx->nefc;
+  int nJ = ctx->is_sparse ? d->nJ : 0;
+  int is_sparse = ctx->is_sparse;
+  int is_elliptic = ctx->is_elliptic;
 
-  // common arrays
-  ctx->Jaref  = mjSTACKALLOC(d, nefc, mjtNum);
-  ctx->Jv     = mjSTACKALLOC(d, nefc, mjtNum);
-  ctx->Ma     = mjSTACKALLOC(d, nv, mjtNum);
-  ctx->Mv     = mjSTACKALLOC(d, nv, mjtNum);
-  ctx->grad   = mjSTACKALLOC(d, nv, mjtNum);
-  ctx->Mgrad  = mjSTACKALLOC(d, nv, mjtNum);
-  ctx->search = mjSTACKALLOC(d, nv, mjtNum);
-  ctx->quad   = mjSTACKALLOC(d, nefc*3, mjtNum);
+  // compute mjtNum block size
+  size_t nNum = 5*nefc + 5*nv;         // common arrays
+  if (is_sparse) nNum += nJ;           // JT
+  if (flg_Newton) {
+    nNum += nefc + nv;                 // D, cholupd
+    if (is_elliptic) nNum += 6*nv;     // LTJ
+    if (!is_sparse) {
+      nNum += nv*nv;                   // L (dense)
+      if (is_elliptic) nNum += nv*nv;  // Lcone (dense)
+    }
+  } else {
+    nNum += 3*nv;                      // CG arrays
+  }
 
-  // sparse only, compute Jacobian transpose
-  if (ctx->is_sparse) {
-    ctx->JT_rownnz   = mjSTACKALLOC(d, nv, int);
-    ctx->JT_rowadr   = mjSTACKALLOC(d, nv, int);
-    ctx->JT_rowsuper = mjSTACKALLOC(d, nv, int);
-    ctx->JT_colind   = mjSTACKALLOC(d, d->nJ, int);
-    ctx->JT          = mjSTACKALLOC(d, d->nJ, mjtNum);
-    int offset       = ctx->J_rowadr[0];
+  // compute int block size
+  size_t nInt = nefc;                  // oldstate
+  if (is_sparse) {
+    nInt += 3*nv + nJ;                 // JT sparse
+    if (flg_Newton) nInt += 8*nv;      // Newton sparse
+  }
+
+  // allocate mjtNum and int blocks
+  mjtNum* numblock = mjSTACKALLOC(d, nNum, mjtNum);
+  int* intblock    = mjSTACKALLOC(d, nInt, int);
+
+  // carve mjtNum block
+  ctx->Jaref  = numblock;  numblock += nefc;
+  ctx->Jv     = numblock;  numblock += nefc;
+  ctx->Ma     = numblock;  numblock += nv;
+  ctx->Mv     = numblock;  numblock += nv;
+  ctx->grad   = numblock;  numblock += nv;
+  ctx->Mgrad  = numblock;  numblock += nv;
+  ctx->search = numblock;  numblock += nv;
+  ctx->quad   = numblock;  numblock += 3*nefc;
+  if (is_sparse) {
+    ctx->JT   = numblock;  numblock += nJ;
+  }
+  if (flg_Newton) {
+    ctx->D       = numblock;  numblock += nefc;
+    ctx->cholupd = numblock;  numblock += nv;
+    if (is_elliptic) {
+      ctx->LTJ = numblock;  numblock += 6*nv;
+    }
+    if (!is_sparse) {
+      ctx->nL = nv*nv;
+      ctx->L     = numblock;  numblock += ctx->nL;
+      ctx->Lcone = is_elliptic ? numblock : NULL;
+      if (is_elliptic) numblock += ctx->nL;
+    }
+  } else {
+    ctx->gradold  = numblock;  numblock += nv;
+    ctx->Mgradold = numblock;  numblock += nv;
+    ctx->Mgraddif = numblock;  numblock += nv;
+  }
+
+  // carve int block
+  ctx->oldstate = intblock;  intblock += nefc;
+  if (is_sparse) {
+    ctx->JT_rownnz   = intblock;  intblock += nv;
+    ctx->JT_rowadr   = intblock;  intblock += nv;
+    ctx->JT_rowsuper = intblock;  intblock += nv;
+    ctx->JT_colind   = intblock;  intblock += nJ;
+  }
+  if (flg_Newton && is_sparse) {
+    ctx->H_rowadr   = intblock;  intblock += nv;
+    ctx->H_rownnz   = intblock;  intblock += nv;
+    ctx->HT_rownnz  = intblock;  intblock += nv;
+    ctx->HT_rowadr  = intblock;  intblock += nv;
+    ctx->L_rownnz   = intblock;  intblock += nv;
+    ctx->L_rowadr   = intblock;  intblock += nv;
+    ctx->LT_rownnz  = intblock;  intblock += nv;
+    ctx->LT_rowadr  = intblock;  intblock += nv;
+  }
+
+  // sparse: compute Jacobian transpose
+  if (is_sparse) {
+    int offset = ctx->J_rowadr[0];
     mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
                         ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
                         ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset);
-  }
-
-  // Newton only, known-size arrays
-  if (flg_Newton) {
-    ctx->D = mjSTACKALLOC(d, nefc, mjtNum);
-    ctx->cholupd = mjSTACKALLOC(d, nv, mjtNum);
-    if (ctx->is_elliptic) {
-      ctx->LTJ = mjSTACKALLOC(d, 6*nv, mjtNum);
-    }
-
-    // sparse Newton only
-    if (ctx->is_sparse) {
-      ctx->H_rowadr   = mjSTACKALLOC(d, nv, int);
-      ctx->H_rownnz   = mjSTACKALLOC(d, nv, int);
-      ctx->HT_rownnz  = mjSTACKALLOC(d, nv, int);
-      ctx->HT_rowadr  = mjSTACKALLOC(d, nv, int);
-      ctx->L_rownnz   = mjSTACKALLOC(d, nv, int);
-      ctx->L_rowadr   = mjSTACKALLOC(d, nv, int);
-      ctx->LT_rownnz  = mjSTACKALLOC(d, nv, int);
-      ctx->LT_rowadr  = mjSTACKALLOC(d, nv, int);
-      ctx->buf_val    = mjSTACKALLOC(d, nv, mjtNum);
-      ctx->buf_ind    = mjSTACKALLOC(d, nv, int);
-    }
   }
 }
 
@@ -1529,7 +1572,7 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
 
   // sparse
   if (ctx->is_sparse) {
-    // initialize Hessian rowadr, rownnz; get total nonzeros
+    // count Hessian nonzeros, initialize rowadr, rownnz
     ctx->nH = mju_sqrMatTDSparseSymbolic(
         ctx->H_rownnz, ctx->H_rowadr, NULL, NULL,
         nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
@@ -1538,16 +1581,18 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
     // add M nonzeros to Hessian total (unavoidable overcounting since H_colind is still unknown)
     ctx->nH += ctx->M_rowadr[nv - 1] + ctx->M_rownnz[nv - 1];
 
-    // shift H row addresses to make room for C
+    // nH is known: allocate H, H_colind, HT_colind
+    ctx->H          = mjSTACKALLOC(d, ctx->nH, mjtNum);
+    int* H_intblock = mjSTACKALLOC(d, 2*ctx->nH, int);
+    ctx->H_colind   = H_intblock;
+    ctx->HT_colind  = H_intblock + ctx->nH;
+
+    // shift H row addresses to make room for M
     int shift = 0;
     for (int r = 0; r < nv - 1; r++) {
       shift += ctx->M_rownnz[r];
       ctx->H_rowadr[r + 1] += shift;
     }
-
-    // allocate H_colind and H
-    ctx->H_colind = mjSTACKALLOC(d, ctx->nH, int);
-    ctx->H = mjSTACKALLOC(d, ctx->nH, mjtNum);
 
     // compute H = J'*D*J: symbolic phase
     mju_sqrMatTDSparseSymbolic(
@@ -1562,13 +1607,11 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
         ctx->JT, ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
         ctx->JT_rowsuper, ctx->D, d);
 
-    // add mass matrix: H = J'*D*J + C
+    // add mass matrix: H = J'*D*J + M
     mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
-                       ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
-                       ctx->buf_val, ctx->buf_ind);
+                       ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
 
-    // compute H' (upper triangle, required for symbolic Cholesky)
-    ctx->HT_colind = mjSTACKALLOC(d, ctx->nH, int);
+    // compute H' sparse structure (upper triangle, required for symbolic Cholesky)
     mju_transposeSparse(NULL, NULL, nv, nv, ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind, NULL,
                         ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind);
 
@@ -1578,16 +1621,16 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
                                      ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind,
                                      nv, d);
 
-    // allocate L_colind, L, Lcone
-    ctx->L_colind = mjSTACKALLOC(d, ctx->nL, int);
-    ctx->L = mjSTACKALLOC(d, ctx->nL, mjtNum);
-    if (ctx->is_elliptic) {
-      ctx->Lcone = mjSTACKALLOC(d, ctx->nL, mjtNum);
-    }
-
-    // allocate LT (CSC representation of L)
-    ctx->LT_colind = mjSTACKALLOC(d, ctx->nL, int);
-    ctx->LT_map = mjSTACKALLOC(d, ctx->nL, int);
+    // nL is known: allocate blocks and carve L_colind, LT_colind, LT_map, L, Lcone
+    size_t nL_int = 2*ctx->nL + ctx->nL;                     // L_colind + LT_colind + LT_map
+    size_t nL_num = ctx->is_elliptic ? 2*ctx->nL : ctx->nL;  // L + Lcone
+    int* L_intblock    = mjSTACKALLOC(d, nL_int, int);
+    mjtNum* L_numblock = mjSTACKALLOC(d, nL_num, mjtNum);
+    ctx->L_colind      = L_intblock;
+    ctx->LT_colind     = L_intblock + ctx->nL;
+    ctx->LT_map        = L_intblock + 2*ctx->nL;
+    ctx->L             = L_numblock;
+    ctx->Lcone         = ctx->is_elliptic ? L_numblock + ctx->nL : NULL;
 
     // symbolic Cholesky: populate L_colind and LT structures
     mju_cholFactorSymbolic(ctx->L_colind, ctx->L_rownnz, ctx->L_rowadr,
@@ -1598,13 +1641,6 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
 
   // dense
   else {
-    // allocate L, Lcone
-    ctx->nL = nv*nv;
-    ctx->L = mjSTACKALLOC(d, ctx->nL, mjtNum);
-    if (ctx->is_elliptic) {
-      ctx->Lcone = mjSTACKALLOC(d, ctx->nL, mjtNum);
-    }
-
     // compute H = M + J'*D*J
     mju_sqrMatTD_impl(ctx->L, ctx->J, ctx->D, nefc, nv, /*flg_upper=*/ 0);
     mju_addToSymSparse(ctx->L, ctx->M, ctx->nv,
@@ -1647,8 +1683,7 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
 
       // add mass matrix: H = J'*D*J + C
       mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
-                         ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
-                         ctx->buf_val, ctx->buf_ind);
+                         ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
     }
 
     // numeric sparse factorization: L = chol(H) using pre-computed sparsity pattern
@@ -1691,12 +1726,11 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
 // elliptic case: Hcone = H + cone_contributions
 static void HessianCone(mjData* d, mjPrimalContext* ctx) {
   int nv = ctx->nv, nefc = ctx->nefc;
+  mjtNum* LTJ = ctx->LTJ;
   mjtNum local[36];
 
   // start with Hcone = H
   mju_copy(ctx->Lcone, ctx->L, ctx->nL);
-
-  mjtNum* LTJ = ctx->LTJ;
 
   // add contributions
   for (int i=0; i < nefc; i++) {
@@ -1818,7 +1852,6 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
 static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, int flg_Newton) {
   int iter = 0;
   mjtNum alpha, beta;
-  mjtNum *gradold = NULL, *Mgradold = NULL, *Mgraddif = NULL;
   mjPrimalContext ctx;
   mj_markStack(d);
 
@@ -1829,14 +1862,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   // local copies
   int nv   = ctx.nv;
   int nefc = ctx.nefc;
-
-  // allocate local storage
-  if (!flg_Newton) {
-    gradold     = mjSTACKALLOC(d, nv, mjtNum);
-    Mgradold    = mjSTACKALLOC(d, nv, mjtNum);
-    Mgraddif    = mjSTACKALLOC(d, nv, mjtNum);
-  }
-  int* oldstate = mjSTACKALLOC(d, nefc, int);
+  int* oldstate = ctx.oldstate;
 
   // compute Ma = M * qacc
   mju_mulSymVecSparse(ctx.Ma, ctx.M, ctx.qacc, nv,
@@ -1895,8 +1921,8 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
 
     // save old
     if (!flg_Newton) {
-      mju_copy(gradold, ctx.grad, nv);
-      mju_copy(Mgradold, ctx.Mgrad, nv);
+      mju_copy(ctx.gradold, ctx.grad, nv);
+      mju_copy(ctx.Mgradold, ctx.Mgrad, nv);
     }
     mju_copyInt(oldstate, ctx.efc_state, nefc);
     mjtNum oldcost = ctx.cost;
@@ -1933,9 +1959,9 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
       mju_scl(ctx.search, ctx.Mgrad, -1, nv);
     } else {
       // Polak-Ribiere
-      mju_sub(Mgraddif, ctx.Mgrad, Mgradold, nv);
-      beta = mju_dot(ctx.grad, Mgraddif, nv) /
-             mju_max(mjMINVAL, mju_dot(gradold, Mgradold, nv));
+      mju_sub(ctx.Mgraddif, ctx.Mgrad, ctx.Mgradold, nv);
+      beta = mju_dot(ctx.grad, ctx.Mgraddif, nv) /
+             mju_max(mjMINVAL, mju_dot(ctx.gradold, ctx.Mgradold, nv));
 
       // reset if negative
       if (beta < 0) {

@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <utility>
 
 #include <filament/Engine.h>
 #include <filament/Material.h>
@@ -31,8 +30,12 @@
 
 namespace mujoco {
 
-Renderable::Renderable(Usage usage, ObjectManager* object_mgr)
-    : usage_(usage), object_mgr_(object_mgr) {}
+void DefaultRenderableParams(RenderableParams* params) {
+  params->shading_model = ShadingModel::SceneObject;
+}
+
+Renderable::Renderable(ObjectManager* object_mgr, const RenderableParams& params)
+    : object_mgr_(object_mgr), params_(params) {}
 
 Renderable::~Renderable() noexcept {
   while (!entities_.empty()) {
@@ -66,25 +69,12 @@ void Renderable::RemoveLastEntity() {
 
 void Renderable::UpdateMesh(int index, const Mesh* mesh, int elem_offset,
                             int elem_count) {
-  MeshInfo& mesh_info = SetMesh(index, mesh, nullptr, elem_offset, elem_count);
-  UpdateEntity(index, mesh_info);
-}
-
-void Renderable::UpdateMesh(int index, MeshPtr mesh, int elem_offset,
-                            int elem_count) {
-  MeshInfo& mesh_info =
-      SetMesh(index, mesh.get(), std::move(mesh), elem_offset, elem_count);
+  MeshInfo& mesh_info = SetMesh(index, mesh, elem_offset, elem_count);
   UpdateEntity(index, mesh_info);
 }
 
 void Renderable::AppendMesh(const Mesh* mesh, int elem_offset, int elem_count) {
-  MeshInfo& mesh_info = SetMesh(-1, mesh, nullptr, elem_offset, elem_count);
-  AppendEntity(mesh_info);
-}
-
-void Renderable::AppendMesh(MeshPtr mesh, int elem_offset, int elem_count) {
-  MeshInfo& mesh_info =
-      SetMesh(-1, mesh.get(), std::move(mesh), elem_offset, elem_count);
+  MeshInfo& mesh_info = SetMesh(-1, mesh, elem_offset, elem_count);
   AppendEntity(mesh_info);
 }
 
@@ -154,8 +144,7 @@ void Renderable::UpdateEntity(int index, const MeshInfo& mesh_info) {
 }
 
 Renderable::MeshInfo& Renderable::SetMesh(int index, const Mesh* mesh,
-                                          MeshPtr owned_mesh, int elem_offset,
-                                          int elem_count) {
+                                          int elem_offset, int elem_count) {
   if (index == -1) {
     index = meshes_.size();
     meshes_.emplace_back();
@@ -165,7 +154,6 @@ Renderable::MeshInfo& Renderable::SetMesh(int index, const Mesh* mesh,
   }
 
   MeshInfo* mesh_info = &meshes_[index];
-  mesh_info->owned_mesh = std::move(owned_mesh);
   mesh_info->mesh = mesh;
   mesh_info->elem_offset = elem_offset;
   mesh_info->elem_count = elem_count;
@@ -203,18 +191,19 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
 
 void Renderable::UpdateMaterial(const MaterialParams& params,
                                 const MaterialTextures& textures) {
-  params_ = params;
-  textures_ = textures;
+  material_params_ = params;
+  material_textures_ = textures;
 
   AssignMaterial(DrawMode::Color, GetColorMaterialType());
-  if (usage_ == Usage::SceneObject) {
+  if (params_.shading_model == ShadingModel::SceneObject) {
     AssignMaterial(DrawMode::Depth, ObjectManager::kUnlitDepth);
     AssignMaterial(DrawMode::Segmentation, ObjectManager::kUnlitSegmentation);
   }
 
   for (int i = 0; i < kNumDrawModes; ++i) {
     if (instances_[i]) {
-      UpdateMaterialInstance(instances_[i], params_, textures_, object_mgr_);
+      UpdateMaterialInstance(instances_[i], material_params_,
+                             material_textures_, object_mgr_);
     }
   }
   SetDrawMode(draw_mode_);
@@ -240,16 +229,16 @@ void Renderable::AssignMaterial(DrawMode mode,
 }
 
 const MaterialParams& Renderable::GetMaterialParams() const {
-  return params_;
+  return material_params_;
 }
 
 const MaterialTextures& Renderable::GetMaterialTextures() const {
-  return textures_;
+  return material_textures_;
 }
 
 void Renderable::SetDrawMode(DrawMode mode) {
   // Only SceneObjects support non-color draw modes.
-  if (usage_ != Usage::SceneObject) {
+  if (params_.shading_model != ShadingModel::SceneObject) {
     mode = DrawMode::Color;
   }
 
@@ -348,21 +337,21 @@ void Renderable::SetWireframe(bool wireframe) {
 
 
 ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
-  if (usage_ == Usage::DecorLines) {
+  if (params_.shading_model == ShadingModel::DecorLines) {
     return ObjectManager::kUnlitLine;
-  } else if (usage_ == Usage::Decor) {
-    return ObjectManager::kUnlitSegmentation;
-  } else if (usage_ == Usage::Ux) {
+  } else if (params_.shading_model == ShadingModel::Decor) {
+    return ObjectManager::kUnlitDecor;
+  } else if (params_.shading_model == ShadingModel::Ux) {
     return ObjectManager::kUnlitUi;
-  } else if (textures_.orm) {
+  } else if (material_textures_.orm) {
     return ObjectManager::kPbrPacked;
-  } else if (textures_.metallic) {
+  } else if (material_textures_.metallic) {
     return ObjectManager::kPbr;
-  } else if (textures_.roughness) {
+  } else if (material_textures_.roughness) {
     return ObjectManager::kPbr;
-  } else if (params_.metallic >= 0) {
+  } else if (material_params_.metallic >= 0) {
     return ObjectManager::kPbr;
-  } else if (params_.roughness >= 0) {
+  } else if (material_params_.roughness >= 0) {
     return ObjectManager::kPbr;
   }
 
@@ -378,35 +367,35 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
     has_texcoords = (it != attribs.end());
   }
 
-  if (textures_.color == nullptr) {
-    if (params_.color.a < 1.0f) {
+  if (material_textures_.color == nullptr) {
+    if (material_params_.color.a < 1.0f) {
       return ObjectManager::kPhongColorFade;
-    } else if (params_.reflective) {
+    } else if (material_params_.reflective) {
       return ObjectManager::kPhongColorReflect;
     } else {
       return ObjectManager::kPhongColor;
     }
-  } else if (textures_.color->GetFilamentTexture()->getTarget() ==
+  } else if (material_textures_.color->GetFilamentTexture()->getTarget() ==
               filament::Texture::Sampler::SAMPLER_CUBEMAP) {
-    if (params_.color.a < 1.0f) {
+    if (material_params_.color.a < 1.0f) {
       return ObjectManager::kPhongCubeFade;
-    } else if (params_.reflective) {
+    } else if (material_params_.reflective) {
       return ObjectManager::kPhongCubeReflect;
     } else {
       return ObjectManager::kPhongCube;
     }
   } else if (has_texcoords) {
-    if (params_.color.a < 1.0f) {
+    if (material_params_.color.a < 1.0f) {
       return ObjectManager::kPhong2dUvFade;
-    } else if (params_.reflective) {
+    } else if (material_params_.reflective) {
       return ObjectManager::kPhong2dUvReflect;
     } else {
       return ObjectManager::kPhong2dUv;
     }
   } else {
-    if (params_.color.a < 1.0f) {
+    if (material_params_.color.a < 1.0f) {
       return ObjectManager::kPhong2dFade;
-    } else if (params_.reflective) {
+    } else if (material_params_.reflective) {
       return ObjectManager::kPhong2dReflect;
     } else {
       return ObjectManager::kPhong2d;

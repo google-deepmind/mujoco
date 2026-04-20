@@ -198,15 +198,14 @@ void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int
 }
 
 
-// add sparse matrix M to sparse destination matrix, requires pre-allocated buffers
+// add sparse matrix M to sparse destination matrix
 void mju_addToMatSparse(mjtNum* dst, int* rownnz, int* rowadr, int* colind, int nr,
                         const mjtNum* M, const int* M_rownnz, const int* M_rowadr,
-                        const int* M_colind,
-                        mjtNum* buf_val, int* buf_ind) {
+                        const int* M_colind) {
   for (int i=0; i < nr; i++) {
     rownnz[i] = mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], 1, 1,
                                   rownnz[i], M_rownnz[i], colind + rowadr[i],
-                                  M_colind + M_rowadr[i], buf_val, buf_ind);
+                                  M_colind + M_rowadr[i]);
   }
 }
 
@@ -256,8 +255,8 @@ void mju_mulSymVecSparse(mjtNum* restrict res, const mjtNum* restrict mat,
     for (int k=diag-1; k >= 0; k--) {
       int j = ind[k];
       mjtNum val = row[k];
-      res[i] += val * vec[j]; // strict lower
-      res[j] += val * vec[i]; // strict upper
+      res[i] += val * vec[j];  // strict lower
+      res[j] += val * vec[i];  // strict upper
     }
   }
 }

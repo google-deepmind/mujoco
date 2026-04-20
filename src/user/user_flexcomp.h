@@ -116,6 +116,11 @@ class mjCFlexcomp {
   std::string plugin_name;
   std::string plugin_instance_name;
   mjsPlugin plugin;
+
+ private:
+  // identify empty cells and pin nodes exclusively in empty cells
+  void MarkEmptyCells(mjCFlex* flex, const double* points, int npnt,
+                      const double minmax[6], int nx, int ny, int nz);
 };
 
 #endif  // MUJOCO_SRC_USER_USER_FLEXCOMP_H_

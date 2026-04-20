@@ -40,3 +40,5 @@ mujoco_test(user_composite_test)
 mujoco_test(user_resource_test)
 
 mujoco_test(user_vfs_test)
+
+mujoco_test(user_util_test)

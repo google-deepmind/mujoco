@@ -28,6 +28,21 @@
 
 namespace mujoco {
 
+// The shading model (material) for a Renderable.
+enum class ShadingModel {
+  SceneObject,
+  Decor,
+  DecorLines,
+  Ux,
+};
+
+// Configuration parameters for a Renderable.
+struct RenderableParams {
+  ShadingModel shading_model;
+};
+
+void DefaultRenderableParams(RenderableParams* params);
+
 // A collection of meshes and a material that, together, define an object that
 // can be rendered in a scene.
 //
@@ -38,19 +53,11 @@ namespace mujoco {
 // assigns the same material instance to all of them.
 class Renderable {
  public:
-  // How the material is to be used for rendering.
-  enum class Usage {
-    SceneObject,
-    Decor,
-    DecorLines,
-    Ux,
-  };
-
   // Default filament values for priority and layer mask.
   static constexpr std::uint8_t kDefaultPriority = 4;
   static constexpr std::uint8_t kDefaultLayerMask = 0x01;
 
-  Renderable(Usage usage, ObjectManager* object_mgr);
+  Renderable(ObjectManager* object_mgr, const RenderableParams& params);
   ~Renderable() noexcept;
 
   Renderable(const Renderable&) = delete;
@@ -60,15 +67,12 @@ class Renderable {
   // can be used to specify a submesh to append. If elem_count is 0, assumes
   // the entire mesh should be appended.
   void AppendMesh(const Mesh* mesh, int elem_offset = 0, int elem_count = 0);
-  void AppendMesh(MeshPtr mesh, int elem_offset = 0, int elem_count = 0);
 
   // Replaces the mesh at the index with a new mesh. The elem_offset and
   // elem_count parameters can be used to specify a submesh to append. If
   // elem_count is 0, assumes the entire mesh should be appended.
   void UpdateMesh(int index, const Mesh* mesh, int elem_offset = 0,
               int elem_count = 0);
-  void UpdateMesh(int index, MeshPtr mesh, int elem_offset = 0,
-                  int elem_count = 0);
 
   // Returns the number of meshes that define the renderable.
   int GetNumMeshes() const { return meshes_.size(); }
@@ -124,7 +128,6 @@ class Renderable {
 
  private:
   struct MeshInfo {
-    MeshPtr owned_mesh;
     const Mesh* mesh = nullptr;
     int elem_offset = 0;
     int elem_count = 0;
@@ -132,8 +135,8 @@ class Renderable {
 
   // Sets the mesh information for the mesh at the given index. If index is -1,
   // a new mesh will be appended to the renderable.
-  MeshInfo& SetMesh(int index, const Mesh* mesh, MeshPtr owned_mesh,
-                    int elem_offset, int elem_count);
+  MeshInfo& SetMesh(int index, const Mesh* mesh, int elem_offset,
+                    int elem_count);
 
   // Appends a new filament::Entity to the renderable, configured to use the
   // given mesh.
@@ -149,11 +152,11 @@ class Renderable {
 
   ObjectManager::MaterialType GetColorMaterialType() const;
 
-  Usage usage_;
   ObjectManager* object_mgr_;
+  RenderableParams params_;
   filament::MaterialInstance* instances_[kNumDrawModes] = {nullptr};
-  MaterialParams params_;
-  MaterialTextures textures_;
+  MaterialParams material_params_;
+  MaterialTextures material_textures_;
   DrawMode draw_mode_ = DrawMode::Color;
   filament::Scene* assigned_scene_ = nullptr;
   std::vector<utils::Entity> entities_;

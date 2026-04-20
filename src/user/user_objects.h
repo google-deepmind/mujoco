@@ -983,6 +983,8 @@ class mjCFlex_ : public mjCBase {
   std::vector<int> edgeidx_;              // element edge ids
   std::vector<double> stiffness;          // elasticity stiffness matrix
   std::vector<double> bending;            // bending stiffness matrix
+  bool has_strain_eq = false;             // true if strain constraints reference this flex
+  std::vector<bool> cell_empty;           // true if cell contains no mesh geometry
 
   // variable-size data
   std::vector<std::string> vertbody_;     // vertex body names

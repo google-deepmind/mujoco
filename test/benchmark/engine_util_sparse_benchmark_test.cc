@@ -99,8 +99,7 @@ int ABSL_ATTRIBUTE_NOINLINE combineSparse_baseline(mjtNum* dst,
                                                    mjtNum a, mjtNum b,
                                                    int dst_nnz, int src_nnz,
                                                    int* dst_ind,
-                                                   const int* src_ind,
-                                                   mjtNum* buf, int* buf_ind) {
+                                                   const int* src_ind) {
   // check for identical pattern
   if (compare_baseline(dst_ind, src_ind, dst_nnz)) {
     // combine mjtNum data directly
@@ -116,8 +115,7 @@ int ABSL_ATTRIBUTE_NOINLINE combineSparse_new(mjtNum* dst,
                                               mjtNum a, mjtNum b,
                                               int dst_nnz, int src_nnz,
                                               int* dst_ind,
-                                              const int* src_ind,
-                                              mjtNum* buf, int* buf_ind) {
+                                              const int* src_ind) {
   // check for identical pattern
   if (compare_memcmp(dst_ind, src_ind, dst_nnz)) {
     // combine mjtNum data directly
@@ -372,7 +370,7 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
         // in order to trigger all if's in combineSparse
          func(H+rowadr[c], H+rowadr[r], 1, -H[adr+i],
               rownnz[c], rownnz[c],
-              colind+rowadr[c], colind+rowadr[c], NULL, NULL);
+              colind+rowadr[c], colind+rowadr[c]);
       }
     }
   }

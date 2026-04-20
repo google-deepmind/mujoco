@@ -47,47 +47,6 @@
 //-------------------------- utility functions -----------------------------------------------------
 
 
-// compute 3x3 matrix inverse, storing result in out
-// assumes matrix is invertible (det != 0)
-static void mat3_inverse(const mjtNum* mat, mjtNum* out) {
-  mjtNum det = mat[0]*(mat[4]*mat[8] - mat[5]*mat[7]) -
-               mat[1]*(mat[3]*mat[8] - mat[5]*mat[6]) +
-               mat[2]*(mat[3]*mat[7] - mat[4]*mat[6]);
-
-  out[0] =  (mat[4]*mat[8] - mat[5]*mat[7]) / det;
-  out[1] = -(mat[1]*mat[8] - mat[2]*mat[7]) / det;
-  out[2] =  (mat[1]*mat[5] - mat[2]*mat[4]) / det;
-  out[3] = -(mat[3]*mat[8] - mat[5]*mat[6]) / det;
-  out[4] =  (mat[0]*mat[8] - mat[2]*mat[6]) / det;
-  out[5] = -(mat[0]*mat[5] - mat[2]*mat[3]) / det;
-  out[6] =  (mat[3]*mat[7] - mat[4]*mat[6]) / det;
-  out[7] = -(mat[0]*mat[7] - mat[1]*mat[6]) / det;
-  out[8] =  (mat[0]*mat[4] - mat[1]*mat[3]) / det;
-}
-
-
-// compute 3x3 matrix cofactor, storing result in out
-static void mat3_cofactor(const mjtNum* mat, mjtNum* out) {
-  out[0] =   mat[4]*mat[8] - mat[5]*mat[7];
-  out[1] = -(mat[3]*mat[8] - mat[5]*mat[6]);
-  out[2] =   mat[3]*mat[7] - mat[4]*mat[6];
-  out[3] = -(mat[1]*mat[8] - mat[2]*mat[7]);
-  out[4] =   mat[0]*mat[8] - mat[2]*mat[6];
-  out[5] = -(mat[0]*mat[7] - mat[1]*mat[6]);
-  out[6] =   mat[1]*mat[5] - mat[2]*mat[4];
-  out[7] = -(mat[0]*mat[5] - mat[2]*mat[3]);
-  out[8] =   mat[0]*mat[4] - mat[1]*mat[3];
-}
-
-
-// compute 3x3 matrix determinant
-static mjtNum mat3_det(const mjtNum* mat) {
-  return mat[0]*(mat[4]*mat[8] - mat[5]*mat[7]) -
-         mat[1]*(mat[3]*mat[8] - mat[5]*mat[6]) +
-         mat[2]*(mat[3]*mat[7] - mat[4]*mat[6]);
-}
-
-
 // compute cell node Jacobians and combined chain for flex strain constraints
 // npc: number of nodes per cell
 // gindices: global indices of cell nodes in flex
@@ -162,133 +121,6 @@ static void cell_strain_jacobian(int npc, int cell_nnz,
       for (int k = 0; k < cell_nnz; k++) {
         strain_jac[k] += w * cell_node_jac[row*cell_nnz + k];
       }
-    }
-  }
-}
-
-
-// basis functions for flex strain constraints
-static void basis(int order, int i, mjtNum p, mjtNum* phi, mjtNum* dphi) {
-  if (order == 1) {
-    *phi = (i == 0 ? 1 - p : p);
-    *dphi = (i == 0 ? -1 : 1);
-  } else {
-    if (i == 0) {
-      *phi = 2 * p * p - 3 * p + 1;
-      *dphi = 4 * p - 3;
-    } else if (i == 1) {
-      *phi = 4 * (p - p * p);
-      *dphi = 4 * (1 - 2 * p);
-    } else {
-      *phi = 2 * p * p - p;
-      *dphi = 4 * p - 1;
-    }
-  }
-}
-
-
-// compute shape function gradients at a parametric point
-// grad: output array of size nodenum x 3 (gradient w.r.t. parametric coords)
-static void shape_gradients(
-    int order, const mjtNum* p, mjtNum grad[][3]) {
-  int npoint = (order + 1) * (order + 1) * (order + 1);
-  int stride = order + 1;
-
-  for (int n = 0; n < npoint; n++) {
-    int ix = n / (stride * stride);
-    int iy = (n / stride) % stride;
-    int iz = n % stride;
-
-    mjtNum phi_x, phi_y, phi_z, dphi_x, dphi_y, dphi_z;
-    basis(order, ix, p[0], &phi_x, &dphi_x);
-    basis(order, iy, p[1], &phi_y, &dphi_y);
-    basis(order, iz, p[2], &phi_z, &dphi_z);
-
-    grad[n][0] = dphi_x * phi_y * phi_z;
-    grad[n][1] = phi_x * dphi_y * phi_z;
-    grad[n][2] = phi_x * phi_y * dphi_z;
-  }
-}
-
-
-// compute dStrain/dNodePosition for volumetric invariants (I1 or J-1)
-// dSdx: output array of size 3*nodenum
-static void volumetric_dSdx(int invariant_type, int nodenum, mjtNum grad[][3],
-                            const mjtNum* F, const mjtNum* Fref_inv, mjtNum* dSdx) {
-  mju_zero(dSdx, 3*nodenum);
-
-  if (invariant_type == 0) {
-    mjtNum dSdE[9] = {1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0};
-
-    for (int n = 0; n < nodenum; n++) {
-      for (int c = 0; c < 3; c++) {
-        mjtNum dS = 0;
-        for (int ij = 0; ij < 9; ij++) {
-          int ii = ij / 3;
-          int jj = ij % 3;
-
-          mjtNum dF_ci = 0;
-          for (int k = 0; k < 3; k++) {
-            dF_ci += grad[n][k] * Fref_inv[k*3 + ii];
-          }
-          mjtNum dF_cj = 0;
-          for (int k = 0; k < 3; k++) {
-            dF_cj += grad[n][k] * Fref_inv[k*3 + jj];
-          }
-
-          mjtNum dC_ij = dF_ci * F[c*3 + jj] + F[c*3 + ii] * dF_cj;
-          dS += dSdE[ij] * 0.5 * dC_ij;
-        }
-        dSdx[3*n + c] = dS;
-      }
-    }
-  } else {
-    mjtNum cofF[9];
-    mat3_cofactor(F, cofF);
-
-    for (int n = 0; n < nodenum; n++) {
-      for (int c = 0; c < 3; c++) {
-        mjtNum dJ = 0;
-        for (int b = 0; b < 3; b++) {
-          mjtNum dF_cb = 0;
-          for (int k = 0; k < 3; k++) {
-            dF_cb += grad[n][k] * Fref_inv[k*3 + b];
-          }
-          dJ += cofF[c*3 + b] * dF_cb;
-        }
-        dSdx[3*n + c] = dJ;
-      }
-    }
-  }
-}
-
-
-// compute dStrain/dNodePosition for general strain invariants
-// dSdx: output array of size 3*nodenum
-static void invariant_dSdx(int nodenum, mjtNum grad[][3], const mjtNum* F,
-                           const mjtNum* Fref_inv, const mjtNum* dSdE, mjtNum* dSdx) {
-  mju_zero(dSdx, 3*nodenum);
-
-  for (int n = 0; n < nodenum; n++) {
-    for (int c = 0; c < 3; c++) {
-      mjtNum dS = 0;
-      for (int ij = 0; ij < 9; ij++) {
-        int ii = ij / 3;
-        int jj = ij % 3;
-
-        mjtNum dF_ci = 0;
-        for (int k = 0; k < 3; k++) {
-          dF_ci += grad[n][k] * Fref_inv[k*3 + ii];
-        }
-        mjtNum dF_cj = 0;
-        for (int k = 0; k < 3; k++) {
-          dF_cj += grad[n][k] * Fref_inv[k*3 + jj];
-        }
-
-        mjtNum dC_ij = dF_ci * F[c*3 + jj] + F[c*3 + ii] * dF_cj;
-        dS += dSdE[ij] * 0.5 * dC_ij;
-      }
-      dSdx[3*n + c] = dS;
     }
   }
 }
@@ -664,12 +496,12 @@ static void mj_equalityAnchors(const mjModel* m, const mjData* d, int eq_id,
 // equality constraints
 void mj_instantiateEquality(const mjModel* m, mjData* d) {
   int issparse = mj_isSparse(m), nv = m->nv;
-  int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL, *buf_ind = NULL;
+  int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL;
   int flex_edgeadr, flex_edgenum;
   int flex_vertadr, flex_vertnum;
   mjtNum cpos[6], pos[2][3], ref[2], dif, deriv;
   mjtNum quat[4], quat1[4], quat2[4], quat3[4], axis[3];
-  mjtNum *jac[2], *jacdif, *data, *sparse_buf = NULL;
+  mjtNum *jac[2], *jacdif, *data;
 
   // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax == 0) {
@@ -688,8 +520,6 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   if (issparse) {
     chain = mjSTACKALLOC(d, nv, int);
     chain2 = mjSTACKALLOC(d, nv, int);
-    buf_ind = mjSTACKALLOC(d, nv, int);
-    sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
   }
 
   // find active equality constraints
@@ -857,8 +687,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
         // compute Jacobian: sparse or dense
         if (issparse) {
-          NV = mju_combineSparse(jac[0], jac[1], 1, -deriv, NV, NV2, chain,
-                                  chain2, sparse_buf, buf_ind);
+          NV = mju_combineSparse(jac[0], jac[1], 1, -deriv, NV, NV2, chain, chain2);
         } else {
           mju_addToScl(jac[0], jac[1], -deriv, nv);
         }
@@ -914,13 +743,26 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       mjtNum* refpos_c = mjSTACKALLOC(d, 3*npc, mjtNum);
       for (int n = 0; n < npc; n++) {
         int gn = gindices[n];
-        if (m->flex_centered[f]) {
+        if (m->flex_centered[f] ||
+            (m->flex_node[3*(gn + nstart)+0] == 0 &&
+             m->flex_node[3*(gn + nstart)+1] == 0 &&
+             m->flex_node[3*(gn + nstart)+2] == 0)) {
           mju_copy3(xpos_c + 3*n, d->xpos + 3*bodyid[gn]);
         } else {
           mju_mulMatVec3(xpos_c + 3*n, d->xmat + 9*bodyid[gn], m->flex_node + 3*(gn + nstart));
           mju_addTo3(xpos_c + 3*n, d->xpos + 3*bodyid[gn]);
         }
         mju_copy3(refpos_c + 3*n, m->flex_node0 + 3*(gn + nstart));
+      }
+
+      // compute corotational quaternion from cell-local positions
+      mjtNum cell_quat[4] = {1, 0, 0, 0};
+      {
+        mjtNum center[3] = {0.5, 0.5, 0.5};
+        mjtNum mat[9];
+        mju_defGradient(mat, center, xpos_c, order);
+        mju_mat2Rot(cell_quat, mat);
+        mju_negQuat(cell_quat, cell_quat);
       }
 
       // build per-cell sparse chain and node Jacobians
@@ -940,140 +782,59 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         mju_zero(dense_jac, nv);
       }
 
-      // Gauss-Legendre quadrature points in [0,1]^3
-      int nquad = order + 1;
-      int ngauss = nquad * nquad * nquad;
+      // read eigenmode data from flex_stiffness
+      int ndof_cell = 3 * npc;
+      int cell_idx = ci * m->flex_cellnum[3*f+1] * m->flex_cellnum[3*f+2]
+                   + cj * m->flex_cellnum[3*f+2] + ck;
+      const mjtNum* k_cell = m->flex_stiffness + m->flex_stiffnessadr[f]
+                           + cell_idx * ndof_cell * ndof_cell;
+      int neig = (int)k_cell[0];
 
-      mjtNum gp1d[3];
-      if (nquad == 2) {
-        gp1d[0] = 0.5 - 0.5/mju_sqrt(3.0);
-        gp1d[1] = 0.5 + 0.5/mju_sqrt(3.0);
-      } else {
-        gp1d[0] = 0.5 - 0.5*mju_sqrt(0.6);
-        gp1d[1] = 0.5;
-        gp1d[2] = 0.5 + 0.5*mju_sqrt(0.6);
+      // compute displacement in corotational frame
+      mjtNum* displ_c = mjSTACKALLOC(d, ndof_cell, mjtNum);
+      for (int n = 0; n < npc; n++) {
+        // rotate xpos_c to corotational frame
+        mjtNum xrot[3];
+        mju_rotVecQuat(xrot, xpos_c + 3*n, cell_quat);
+        displ_c[3*n + 0] = xrot[0] - refpos_c[3*n + 0];
+        displ_c[3*n + 1] = xrot[1] - refpos_c[3*n + 1];
+        displ_c[3*n + 2] = xrot[2] - refpos_c[3*n + 2];
       }
 
-      mjtNum (*gauss)[3] = (mjtNum (*)[3])mjSTACKALLOC(d, 3*ngauss, mjtNum);
-      for (int gi = 0; gi < nquad; gi++) {
-        for (int gj = 0; gj < nquad; gj++) {
-          for (int gk = 0; gk < nquad; gk++) {
-            int idx = gi*nquad*nquad + gj*nquad + gk;
-            gauss[idx][0] = gp1d[gi];
-            gauss[idx][1] = gp1d[gj];
-            gauss[idx][2] = gp1d[gk];
-          }
+      // compute inverse quaternion for rotating eigenvectors to world frame
+      mjtNum cell_quat_inv[4];
+      mju_negQuat(cell_quat_inv, cell_quat);
+
+      // loop over eigenmodes
+      for (int eig = 0; eig < neig; eig++) {
+        const mjtNum* eigvec = k_cell + 1 + eig * ndof_cell;
+
+        // constraint residual: dot product of scaled eigenvector with displacement
+        mjtNum residual = 0;
+        for (int j = 0; j < ndof_cell; j++) {
+          residual += eigvec[j] * displ_c[j];
         }
-      }
+        cpos[0] = residual;
 
-      // B-bar: center-point volumetric constraints (trilinear)
-      if (order == 1) {
-        mjtNum center[3] = {0.5, 0.5, 0.5};
-        mjtNum Fcur_c[9], Fref_c[9], Fref_inv_c[9], F_c[9];
-
-        mju_defGradient(Fcur_c, center, xpos_c, order);
-        mju_defGradient(Fref_c, center, refpos_c, order);
-        mat3_inverse(Fref_c, Fref_inv_c);
-        mju_mulMatMat3(F_c, Fcur_c, Fref_inv_c);
-
-        mjtNum C_c[9], E_c[9];
-        mju_mulMatTMat3(C_c, F_c, F_c);
-        mju_scl(E_c, C_c, 0.5, 9);
-        E_c[0] -= 0.5; E_c[4] -= 0.5; E_c[8] -= 0.5;
-
-        mjtNum I1_c = E_c[0] + E_c[4] + E_c[8];
-        mjtNum J_c = mat3_det(F_c);
-
-        mjtNum grad_c[8][3];
-        shape_gradients(order, center, grad_c);
-
-        for (int inv = 0; inv < 2; inv++) {
-          cpos[0] = (inv == 0) ? I1_c : J_c - 1.0;
-          volumetric_dSdx(inv, npc, grad_c, F_c, Fref_inv_c, dSdx_local);
-          cell_strain_jacobian(npc, cell_nnz, dSdx_local, cell_node_jac, strain_jac);
-          if (issparse) {
-            mj_addConstraint(m, d, strain_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
-                             cell_nnz, cell_chain);
-          } else {
-            for (int k = 0; k < cell_nnz; k++) {
-              dense_jac[cell_chain[k]] = strain_jac[k];
-            }
-            mj_addConstraint(m, d, dense_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
-            for (int k = 0; k < cell_nnz; k++) {
-              dense_jac[cell_chain[k]] = 0;
-            }
-          }
+        // rotate eigenvector to world frame for Jacobian
+        // dSdx_local[3*n+c] = Σ_d R_inv[c][d] * eigvec[3*n+d]
+        for (int n = 0; n < npc; n++) {
+          mju_rotVecQuat(dSdx_local + 3*n, eigvec + 3*n, cell_quat_inv);
         }
-      }
 
-      // Gauss integration
-      for (int g = 0; g < ngauss; g++) {
-        mjtNum* p = gauss[g];
+        // contract with cell_node_jac to get sparse Jacobian
+        cell_strain_jacobian(npc, cell_nnz, dSdx_local, cell_node_jac, strain_jac);
 
-        mjtNum Fcur[9], Fref[9], Fref_inv[9], F[9];
-        mju_defGradient(Fcur, p, xpos_c, order);
-        mju_defGradient(Fref, p, refpos_c, order);
-        mat3_inverse(Fref, Fref_inv);
-        mju_mulMatMat3(F, Fcur, Fref_inv);
-
-        mjtNum C[9], E[9];
-        mju_mulMatTMat3(C, F, F);
-        for (int j = 0; j < 9; j++) {
-          E[j] = 0.5 * C[j];
-        }
-        E[0] -= 0.5; E[4] -= 0.5; E[8] -= 0.5;
-
-        mjtNum I1 = E[0] + E[4] + E[8];
-        mjtNum trE2 = E[0]*E[0] + E[1]*E[3] + E[2]*E[6]
-                    + E[3]*E[1] + E[4]*E[4] + E[5]*E[7]
-                    + E[6]*E[2] + E[7]*E[5] + E[8]*E[8];
-        mjtNum I2 = 0.5 * (I1*I1 - trE2);
-        mjtNum I3 = mat3_det(E);
-
-        mjtNum (*grad)[3] = (mjtNum (*)[3])mjSTACKALLOC(d, 3*npc, mjtNum);
-        shape_gradients(order, p, grad);
-
-        for (int s = 0; s < 6; s++) {
-          if (order == 1 && (s == 0 || s == 1 || s == 2)) {
-            continue;
+        if (issparse) {
+          mj_addConstraint(m, d, strain_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
+                           cell_nnz, cell_chain);
+        } else {
+          for (int k = 0; k < cell_nnz; k++) {
+            dense_jac[cell_chain[k]] = strain_jac[k];
           }
-
-          mjtNum dSdE[9];
-          mju_zero(dSdE, 9);
-
-          if (s == 0) {
-            cpos[0] = I1;
-            dSdE[0] = dSdE[4] = dSdE[8] = 1.0;
-          } else if (s == 1) {
-            cpos[0] = I2;
-            dSdE[0] = I1-E[0]; dSdE[4] = I1-E[4];
-            dSdE[8] = I1-E[8];
-            dSdE[1] = -E[1]; dSdE[3] = -E[3];
-            dSdE[2] = -E[2]; dSdE[6] = -E[6];
-            dSdE[5] = -E[5]; dSdE[7] = -E[7];
-          } else if (s == 2) {
-            cpos[0] = I3;
-            mat3_cofactor(E, dSdE);
-          } else {
-            int offdiag_idx[3] = {1, 2, 5};
-            int ij = offdiag_idx[s - 3];
-            cpos[0] = E[ij];
-            dSdE[ij] = 1.0;
-          }
-
-          invariant_dSdx(npc, grad, F, Fref_inv, dSdE, dSdx_local);
-          cell_strain_jacobian(npc, cell_nnz, dSdx_local, cell_node_jac, strain_jac);
-          if (issparse) {
-            mj_addConstraint(m, d, strain_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
-                             cell_nnz, cell_chain);
-          } else {
-            for (int k = 0; k < cell_nnz; k++) {
-              dense_jac[cell_chain[k]] = strain_jac[k];
-            }
-            mj_addConstraint(m, d, dense_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
-            for (int k = 0; k < cell_nnz; k++) {
-              dense_jac[cell_chain[k]] = 0;
-            }
+          mj_addConstraint(m, d, dense_jac, cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
+          for (int k = 0; k < cell_nnz; k++) {
+            dense_jac[cell_chain[k]] = 0;
           }
         }
       }
@@ -2404,6 +2165,9 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
     chain2 = mjSTACKALLOC(d, nv, int);
   }
 
+  // pre-allocate buffer for cell body IDs (max npc = 125 for order=2)
+  int* cell_bodies = nnz ? mjSTACKALLOC(d, 125, int) : NULL;
+
   // find active equality constraints
   for (int i=0; i < neq; i++) {
     // skip inactive
@@ -2536,24 +2300,25 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
         break;
       }
       int npc = (order+1)*(order+1)*(order+1);
-      int nquad = order + 1;
-      int ngauss = nquad * nquad * nquad;
-      size = (order == 1) ? (2 + 3 * ngauss) : (6 * ngauss);  // per cell
+
+      // read eigenmode count from flex_stiffness
+      int ndof_cell = 3 * npc;
+      int ci_cell = (int)m->eq_data[mjNEQDATA*i + 0];
+      int cj_cell = (int)m->eq_data[mjNEQDATA*i + 1];
+      int ck_cell = (int)m->eq_data[mjNEQDATA*i + 2];
+      int cy = m->flex_cellnum[3*f+1];
+      int cz = m->flex_cellnum[3*f+2];
+      int cell_idx = ci_cell * cy * cz + cj_cell * cz + ck_cell;
+      const mjtNum* k_cell = m->flex_stiffness + m->flex_stiffnessadr[f]
+                           + cell_idx * ndof_cell * ndof_cell;
+      size = (int)k_cell[0];  // neig stored as first element
 
       if (nnz) {
-        // get cell index from eq_data
-        int ci_cell = (int)m->eq_data[mjNEQDATA*i + 0];
-        int cj_cell = (int)m->eq_data[mjNEQDATA*i + 1];
-        int ck_cell = (int)m->eq_data[mjNEQDATA*i + 2];
-        int cy = m->flex_cellnum[3*f+1];
-        int cz = m->flex_cellnum[3*f+2];
-
         // get the npc node body IDs for this cell
         int gindices[125];
         mju_flexGatherCellState(order, cy, cz, ci_cell, cj_cell, ck_cell,
                                 NULL, NULL, NULL, NULL, NULL, NULL, gindices, NULL);
         int nstart = m->flex_nodeadr[f];
-        int* cell_bodies = mjSTACKALLOC(d, npc, int);
         for (int n = 0; n < npc; n++) {
           cell_bodies[n] = m->flex_nodebodyid[nstart + gindices[n]];
         }

@@ -62,7 +62,7 @@ class ImguiBridge {
   ObjectManager* object_mgr_ = nullptr;
   SceneView* scene_view_ = nullptr;
   std::vector<std::unique_ptr<Renderable>> renderables_;
-  std::vector<MeshPtr> meshes_;
+  std::vector<std::unique_ptr<Mesh>> meshes_;
   std::unordered_map<uintptr_t, std::unique_ptr<Texture>> textures_;
 };
 

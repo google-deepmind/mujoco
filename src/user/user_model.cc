@@ -3657,6 +3657,8 @@ void mjCModel::CopyObjects(mjModel* m) {
         int b1 = pfl->vertbodyid[pfl->edge[k].first];
         int b2 = pfl->vertbodyid[pfl->edge[k].second];
         m->flexedge_rigid[edge_adr+k] = (bodies_[b1]->weldid == bodies_[b2]->weldid);
+      } else {
+        m->flexedge_rigid[edge_adr+k] = 0;
       }
     }
 

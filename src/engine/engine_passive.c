@@ -229,6 +229,11 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       continue;
     }
 
+    // skip interpolated flex with strain constraints (stiffness in constraint solver)
+    if (m->flex_edgeequality[f] == 3) {
+      continue;
+    }
+
     if (m->flex_interp[f]) {
       int order = m->flex_interp[f];
       int npc = (order+1)*(order+1)*(order+1);  // nodes per cell
@@ -268,16 +273,23 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       for (int ci = 0; ci < cx; ci++) {
         for (int cj = 0; cj < cy; cj++) {
           for (int ck = 0; ck < cz; ck++) {
+            // get cell stiffness matrix
+            mjtNum* k_cell = k + cell_idx * 3*npc * 3*npc;
+
+            // skip empty cells (zero stiffness)
+            if (k_cell[0] == 0) {
+              cell_idx++;
+              continue;
+            }
+
             // gather cell-local node data
             mjtNum quat[4];
-            mjtNum p[3] = {.5, .5, .5};
             mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos_g, vel_g, xpos0,
                                     xpos_c, vel_c, xpos0_c, NULL, quat);
 
             // rotate to corotational frame
             for (int n = 0; n < npc; n++) {
               mju_rotVecQuat(xpos_c+3*n, xpos_c+3*n, quat);
-              mji_addTo3(xpos_c+3*n, p);
               mju_rotVecQuat(vel_c+3*n, vel_c+3*n, quat);
             }
 
@@ -285,9 +297,6 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
             for (int n = 0; n < npc; n++) {
               mji_addScl3(displ_c+3*n, xpos_c+3*n, xpos0_c+3*n, -1);
             }
-
-            // get cell stiffness matrix
-            mjtNum* k_cell = k + cell_idx * 3*npc * 3*npc;
 
             // compute force in corotational frame
             if (enbl_spring) {
@@ -329,12 +338,20 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       // apply accumulated forces to bodies
       for (int i = 0; i < nodenum; i++) {
         mju_scl3(dmp_g+3*i, dmp_g+3*i, m->flex_damping[f]);
-        if (m->flex_centered[f]) {
-          if (enbl_spring) mji_addTo3(d->qfrc_spring + m->body_dofadr[bodyid[i]], frc_g+3*i);
-          if (enbl_damper) mji_addTo3(d->qfrc_damper + m->body_dofadr[bodyid[i]], dmp_g+3*i);
+        int bid = bodyid[i];
+        int nidx = i + m->flex_nodeadr[f];
+
+        // fast path: node at body origin (not pinned), direct DOF write
+        if (m->body_dofnum[bid] > 0 &&
+            (m->flex_centered[f] ||
+             (m->flex_node[3*nidx+0] == 0 &&
+              m->flex_node[3*nidx+1] == 0 &&
+              m->flex_node[3*nidx+2] == 0))) {
+          if (enbl_spring) mji_addTo3(d->qfrc_spring + m->body_dofadr[bid], frc_g+3*i);
+          if (enbl_damper) mji_addTo3(d->qfrc_damper + m->body_dofadr[bid], dmp_g+3*i);
         } else {
-          if (enbl_spring) mj_applyFT(m, d, frc_g+3*i, 0, xpos_g+3*i, bodyid[i], d->qfrc_spring);
-          if (enbl_damper) mj_applyFT(m, d, dmp_g+3*i, 0, xpos_g+3*i, bodyid[i], d->qfrc_damper);
+          if (enbl_spring) mj_applyFT(m, d, frc_g+3*i, 0, xpos_g+3*i, bid, d->qfrc_spring);
+          if (enbl_damper) mj_applyFT(m, d, dmp_g+3*i, 0, xpos_g+3*i, bid, d->qfrc_damper);
         }
       }
 

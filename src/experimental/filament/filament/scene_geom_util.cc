@@ -96,13 +96,9 @@ static void AddMesh(Renderable& renderable, ModelObjects* model_objs,
   renderable.AppendMesh(mesh);
 }
 
-static void AddGeom(Renderable& renderable, ModelObjects* model_objs,
-                    const mjvScene* scene, const mjvGeom& geom) {
-  if (geom.type == mjGEOM_FLEX) {
-    renderable.AppendMesh(model_objs->CreateFlexMesh(scene, geom));
-  } else if (geom.type == mjGEOM_SKIN) {
-    renderable.AppendMesh(model_objs->CreateSkinMesh(scene, geom));
-  }
+static void AddSkinFlexMesh(Renderable& renderable, ModelObjects* model_objs,
+                            int objid) {
+  renderable.AppendMesh(model_objs->GetFlexSkinGeomMesh(objid));
 }
 
 static void AddHeightField(Renderable& renderable, ModelObjects* model_objs,
@@ -183,10 +179,10 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       AddShape(renderable, model_objects, ModelObjects::kTriangle);
       break;
     case mjGEOM_FLEX:
-      AddGeom(renderable, model_objects, scene, geom);
+      AddSkinFlexMesh(renderable, model_objects, geom.objid);
       break;
     case mjGEOM_SKIN:
-      AddGeom(renderable, model_objects, scene, geom);
+      AddSkinFlexMesh(renderable, model_objects, geom.objid);
       break;
     case mjGEOM_NONE:
     case mjGEOM_LABEL:
@@ -463,14 +459,17 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
 std::unique_ptr<Renderable> CreateGeomRenderable(
     const mjvGeom& geom, const mjvScene* scene, ObjectManager* object_mgr,
     ModelObjects* model_objs, const float headpos[3]) {
-  Renderable::Usage usage = Renderable::Usage::SceneObject;
+  ShadingModel shading_model = ShadingModel::SceneObject;
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
-    usage = Renderable::Usage::DecorLines;
+    shading_model = ShadingModel::DecorLines;
   } else if (geom.category == mjCAT_DECOR) {
-    usage = Renderable::Usage::Decor;
+    shading_model = ShadingModel::Decor;
   }
 
-  auto renderable = std::make_unique<Renderable>(usage, object_mgr);
+  RenderableParams config;
+  DefaultRenderableParams(&config);
+  config.shading_model = shading_model;
+  auto renderable = std::make_unique<Renderable>(object_mgr, config);
 
   // The order of these calls is important. e.g. We need to create the filament
   // renderable entities before we can set their transform.
