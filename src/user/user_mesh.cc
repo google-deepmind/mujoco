@@ -3818,6 +3818,48 @@ void inline ComputeLinearStiffness(std::vector<double>& K,
   }
 }
 
+
+// Eigendecompose cell stiffness matrix and store scaled eigenvectors.
+// K_cell is n×n stored (negative convention: K_stored = -K_physical).
+// Output layout in `out`:
+//   [0]: neig (as double)
+//   [1 .. neig*n]: sqrt(λ_phys_i) * v_i, row-major
+// Returns number of retained eigenmodes.
+static int EigendecomposeStiffness(const double* K_cell_data,
+                                   double* out, int ndof) {
+  // copy K_cell for in-place decomposition
+  std::vector<double> mat(K_cell_data, K_cell_data + ndof * ndof);
+  std::vector<double> eigval(ndof);
+  std::vector<double> eigvec(ndof * ndof);
+
+  mjuu_eigendecompose(mat.data(), eigval.data(), eigvec.data(), ndof);
+
+  // K_stored = -K_physical, so physical eigenvalue = -eigval[i]
+  // retain modes where physical eigenvalue > threshold
+  double max_eigval = 0;
+  for (int i = 0; i < ndof; i++) {
+    max_eigval = std::max(max_eigval, std::abs(eigval[i]));
+  }
+  double threshold = max_eigval * 1e-8;
+
+  int neig = 0;
+  for (int i = 0; i < ndof; i++) {
+    double lambda_phys = -eigval[i];  // negate to get physical eigenvalue
+    if (lambda_phys > threshold) {
+      // store sqrt(λ) * eigenvector (column i of eigvec matrix)
+      double scale = std::sqrt(lambda_phys);
+      for (int j = 0; j < ndof; j++) {
+        out[1 + neig * ndof + j] = scale * eigvec[j * ndof + i];
+      }
+      neig++;
+    }
+  }
+
+  out[0] = static_cast<double>(neig);
+  return neig;
+}
+
+
 //------------------ class mjCFlex implementation --------------------------------------------------
 
 // constructor
@@ -4344,7 +4386,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     stiffness_cached = LoadCachedStiffness();
   }
 
-  if (!stiffness_cached && young > 0 && interpolated) {
+  if (!stiffness_cached && interpolated && (young > 0 || has_strain_eq)) {
+    // use young=1 for strain constraints (eigenvectors are geometry-only)
+    double K_young = has_strain_eq ? 1e1 : young;
+    double K_poisson = has_strain_eq ? 0.3 : poisson;
+
     int npc = pow(spec.order + 1, 3);  // nodes per cell
     int ndof_cell = 3 * npc;
     int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
@@ -4379,11 +4425,17 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
           // compute per-cell stiffness
           std::vector<double> K_cell(ndof_cell * ndof_cell, 0);
-          ComputeLinearStiffness(K_cell, cell_pos.data(), young, poisson, spec.order);
+          ComputeLinearStiffness(K_cell, cell_pos.data(), K_young, K_poisson, spec.order);
+          double* out = stiffness.data() + cell_idx * ndof_cell * ndof_cell;
 
-          // copy into global stiffness array
-          mjuu_copyvec(stiffness.data() + cell_idx * ndof_cell * ndof_cell,
-                       K_cell.data(), ndof_cell * ndof_cell);
+          if (has_strain_eq) {
+            // eigendecompose: store [neig, sqrt(λ)*v_1, sqrt(λ)*v_2, ...]
+            std::fill(out, out + ndof_cell * ndof_cell, 0.0);
+            EigendecomposeStiffness(K_cell.data(), out, ndof_cell);
+          } else {
+            // store raw K for passive forces
+            std::copy(K_cell.begin(), K_cell.end(), out);
+          }
         }
       }
     }

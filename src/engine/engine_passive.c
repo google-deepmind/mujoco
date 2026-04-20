@@ -229,6 +229,11 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       continue;
     }
 
+    // skip interpolated flex with strain constraints (stiffness in constraint solver)
+    if (m->flex_edgeequality[f] == 3) {
+      continue;
+    }
+
     if (m->flex_interp[f]) {
       int order = m->flex_interp[f];
       int npc = (order+1)*(order+1)*(order+1);  // nodes per cell
@@ -270,14 +275,12 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
           for (int ck = 0; ck < cz; ck++) {
             // gather cell-local node data
             mjtNum quat[4];
-            mjtNum p[3] = {.5, .5, .5};
             mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos_g, vel_g, xpos0,
                                     xpos_c, vel_c, xpos0_c, NULL, quat);
 
             // rotate to corotational frame
             for (int n = 0; n < npc; n++) {
               mju_rotVecQuat(xpos_c+3*n, xpos_c+3*n, quat);
-              mji_addTo3(xpos_c+3*n, p);
               mju_rotVecQuat(vel_c+3*n, vel_c+3*n, quat);
             }
 

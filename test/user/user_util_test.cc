@@ -17,6 +17,8 @@
 #include "src/user/user_util.h"
 
 #include <cerrno>
+#include <cmath>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -178,6 +180,143 @@ TEST_F(UserUtilTest, VectorToString) {
 TEST_F(UserUtilTest, VectorToStringEmpty) {
   std::vector<double> v;
   EXPECT_EQ(VectorToString(v), "");
+}
+
+// utility: modified Gram-Schmidt to orthogonalize columns of Q (n x n)
+static void gramSchmidt(double* Q, int n) {
+  for (int j = 0; j < n; j++) {
+    // subtract projections onto previous columns
+    for (int k = 0; k < j; k++) {
+      double dot = 0;
+      for (int i = 0; i < n; i++) {
+        dot += Q[i * n + j] * Q[i * n + k];
+      }
+      for (int i = 0; i < n; i++) {
+        Q[i * n + j] -= dot * Q[i * n + k];
+      }
+    }
+    // normalize
+    double norm = 0;
+    for (int i = 0; i < n; i++) {
+      norm += Q[i * n + j] * Q[i * n + j];
+    }
+    norm = std::sqrt(norm);
+    for (int i = 0; i < n; i++) {
+      Q[i * n + j] /= norm;
+    }
+  }
+}
+
+// utility: compose SPD matrix A = Q * diag(eigvals) * Q^T
+static void composeMatrix(double* A, const double* Q,
+                          const double* eigvals, int n) {
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j <= i; j++) {
+      double sum = 0;
+      for (int k = 0; k < n; k++) {
+        sum += Q[i * n + k] * eigvals[k] * Q[j * n + k];
+      }
+      A[i * n + j] = sum;
+      A[j * n + i] = sum;
+    }
+  }
+}
+
+TEST_F(UserUtilTest, EigendecomposeConvergence) {
+  // seeded RNG for reproducibility
+  std::mt19937_64 rng;
+  rng.seed(42);
+  std::normal_distribution<double> dist(0, 1);
+
+  // sweep over matrix sizes used by flex stiffness
+  //   order=1: 8 nodes * 3 dof = 24
+  //   order=2: 27 nodes * 3 dof = 81
+  for (int n : {24, 81}) {
+    int total_sweeps = 0;
+    int max_sweeps = 0;
+    int count = 0;
+
+    // generate random orthogonal matrix Q via Gram-Schmidt
+    std::vector<double> Q(n * n);
+    for (int i = 0; i < n * n; i++) {
+      Q[i] = dist(rng);
+    }
+    gramSchmidt(Q.data(), n);
+
+    // sweep eigenvalue spectra of varying difficulty
+    //   well-separated, clustered, wide condition number
+    for (double condition : {1e1, 1e3, 1e6}) {
+      for (double cluster : {0.0, 0.5, 0.9}) {
+        // construct eigenvalues
+        std::vector<double> eigvals(n);
+        for (int i = 0; i < n; i++) {
+          // base: logarithmically spaced from 1 to condition
+          double t = (double)i / (n - 1);
+          double base = std::exp(t * std::log(condition));
+
+          // cluster: push eigenvalues toward geometric mean
+          double mean = std::sqrt(condition);
+          eigvals[i] = (1 - cluster) * base + cluster * mean;
+        }
+
+        // compose A = Q * diag(eigvals) * Q^T
+        std::vector<double> A(n * n);
+        composeMatrix(A.data(), Q.data(), eigvals.data(), n);
+
+        // save copy for verification
+        std::vector<double> A_copy(A);
+
+        // decompose
+        std::vector<double> found_eigval(n);
+        std::vector<double> found_eigvec(n * n);
+        int sweeps = mjuu_eigendecompose(
+            A.data(), found_eigval.data(),
+            found_eigvec.data(), n);
+
+        total_sweeps += sweeps;
+        if (sweeps > max_sweeps) max_sweeps = sweeps;
+        count++;
+
+        // verify convergence
+        EXPECT_LT(sweeps, 200)
+            << "n=" << n
+            << " condition=" << condition
+            << " cluster=" << cluster;
+
+        // verify A*v = lambda*v for each eigenpair
+        for (int i = 0; i < n; i++) {
+          for (int r = 0; r < n; r++) {
+            double Av = 0;
+            for (int c = 0; c < n; c++) {
+              Av += A_copy[r * n + c] * found_eigvec[c * n + i];
+            }
+            double lv = found_eigval[i] * found_eigvec[r * n + i];
+            EXPECT_NEAR(Av, lv,
+                        1e-6 * std::abs(found_eigval[i]))
+                << "n=" << n << " condition=" << condition
+                << " cluster=" << cluster
+                << " eigpair=" << i << " row=" << r;
+          }
+        }
+
+        // verify all eigenvalues are positive
+        for (int i = 0; i < n; i++) {
+          EXPECT_GT(found_eigval[i], 0)
+              << "n=" << n << " eigenvalue " << i;
+        }
+      }
+    }
+
+    double mean_sweeps = (double)total_sweeps / count;
+
+    // assert reasonable average convergence
+    EXPECT_LE(mean_sweeps, 20.0)
+        << "n=" << n << ": mean sweeps too high";
+
+    // assert max sweeps within budget
+    EXPECT_LT(max_sweeps, 200)
+        << "n=" << n << ": max sweeps exceeded 200";
+  }
 }
 
 }  // namespace

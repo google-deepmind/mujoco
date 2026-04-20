@@ -26,6 +26,8 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjexport.h>
+
 const double mjEPS = 1E-14;     // minimum value in various calculations
 const double mjMINMASS = 1E-6;  // minimum mass allowed
 
@@ -157,6 +159,12 @@ double mjuu_updateFrame(double quat[4], double normal[3], const double edge[3],
 // eigenvalue decomposition of symmetric 3x3 matrix
 int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double mat[9]);
 
+// Jacobi eigenvalue decomposition of symmetric n×n matrix
+// eigval[n]: output eigenvalues, eigvec[n*n]: output eigenvectors (columns)
+// mat[n*n]: input matrix (destroyed on output)
+// returns number of sweeps used
+MJAPI int mjuu_eigendecompose(double* mat, double* eigval, double* eigvec, int n);
+
 // transform vector by pose
 void mjuu_trnVecPose(double res[3], const double pos[3], const double quat[4], const double vec[3]);
 
@@ -166,7 +174,7 @@ const char* mjuu_fullInertia(double quat[4], double inertia[3], const double ful
 namespace mujoco::user {
 
 // utility class for handling file paths
-class FilePath {
+class MJAPI FilePath {
  public:
   FilePath() = default;
   explicit FilePath(const std::string& str) : path_(PathReduce(str)) {}
@@ -251,11 +259,11 @@ struct Cleanup {
 std::vector<uint8_t> FileToMemory(const char* filename);
 
 // convert vector to string separating elements by whitespace
-template<typename T> std::string VectorToString(const std::vector<T>& v);
+template<typename T> MJAPI std::string VectorToString(const std::vector<T>& v);
 
 // convert string to vector
-template<typename T> std::vector<T> StringToVector(char *cs);
-template<typename T> std::vector<T> StringToVector(const std::string& s);
+template<typename T> MJAPI std::vector<T> StringToVector(char *cs);
+template<typename T> MJAPI std::vector<T> StringToVector(const std::string& s);
 
 }  // namespace mujoco::user
 

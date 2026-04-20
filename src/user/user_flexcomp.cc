@@ -691,6 +691,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
       mjs_setString(pe->name1, name.c_str());
     } else if (equality == 3) {
       // create one strain constraint per cell, storing cell index in eq_data
+      flex->has_strain_eq = true;
       int cell_cx = flex->spec.cellcount[0];
       int cell_cy = flex->spec.cellcount[1];
       int cell_cz = flex->spec.cellcount[2];

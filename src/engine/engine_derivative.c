@@ -906,6 +906,11 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
       continue;
     }
 
+    // skip if strain constraints present (stiffness handled by constraint solver)
+    if (m->flex_edgeequality[f] == 3) {
+      continue;
+    }
+
     // compute scale
     mjtNum damping = m->flex_damping[f];
     mjtNum scale = s1 + s2 * damping;
