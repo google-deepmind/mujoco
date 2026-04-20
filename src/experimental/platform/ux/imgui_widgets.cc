@@ -321,7 +321,7 @@ bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
   float f = *value;
   const bool res = ImGui::SliderFloat(name, &f, min, max);
   if (res) {
-    *value = f;
+    *value = mju_clip(f, min, max);
   }
   return res;
 }
