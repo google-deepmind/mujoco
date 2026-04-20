@@ -25,13 +25,21 @@
 
 namespace mujoco {
 
+// Defines the basic properties of a render target.
+struct RenderTargetConfig {
+  mjtPixelFormat color_format;
+  mjtPixelFormat depth_format;
+};
+
+// Initializes the RenderTargetConfig to default values.
+void DefaultRenderTargetConfig(RenderTargetConfig* config);
+
 // Manages a filament RenderTarget and the textures which are bound to it.
 class RenderTarget {
  public:
   // Defines the types of textures to create for the color and depth
   // attachments.
-  RenderTarget(filament::Engine* engine, RenderTargetTextureType color,
-               RenderTargetTextureType depth);
+  RenderTarget(filament::Engine* engine, const RenderTargetConfig& config);
   ~RenderTarget() noexcept;
 
   RenderTarget(const RenderTarget&) = delete;
@@ -58,11 +66,10 @@ class RenderTarget {
   void Destroy();
 
   filament::Engine* engine_ = nullptr;
+  RenderTargetConfig config_;
   filament::RenderTarget* render_target_ = nullptr;
   std::unique_ptr<Texture> color_texture_ = nullptr;
   std::unique_ptr<Texture> depth_texture_ = nullptr;
-  RenderTargetTextureType color_type_;
-  RenderTargetTextureType depth_type_;
   int width_ = 0;
   int height_ = 0;
 };

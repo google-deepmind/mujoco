@@ -99,6 +99,10 @@ static filament::Texture::InternalFormat GetTextureInternalFormat(
         return filament::Texture::InternalFormat::RGB8;
       case mjPIXEL_FORMAT_RGBA8:
         return filament::Texture::InternalFormat::RGBA8;
+      case mjPIXEL_FORMAT_R32F:
+        return filament::Texture::InternalFormat::R32F;
+      case mjPIXEL_FORMAT_DEPTH32F:
+        return filament::Texture::InternalFormat::DEPTH32F;
       default:
         mju_error("Unsupported format: %d", (int)config.format);
         return filament::Texture::InternalFormat::UNUSED;
@@ -114,7 +118,8 @@ void DefaultTextureConfig(TextureConfig* config) {
   std::memset(config, 0, sizeof(TextureConfig));
 }
 
-Texture::Texture(filament::Engine* engine, const TextureConfig& config)
+Texture::Texture(filament::Engine* engine, const TextureConfig& config,
+                 InternalFlags flags)
     : engine_(engine), config_(config) {
   if (IsCompressed(config_)) {
     // We defer creation of compressed textures until Upload() is called. In
@@ -139,45 +144,19 @@ Texture::Texture(filament::Engine* engine, const TextureConfig& config)
     builder.sampler(filament::Texture::Sampler::SAMPLER_2D);
   }
 
-  if (config_.color_space != mjCOLORSPACE_SRGB) {
-    builder.usage(filament::Texture::Usage::GEN_MIPMAPPABLE |
-                  filament::Texture::Usage::SAMPLEABLE |
-                  filament::Texture::Usage::UPLOADABLE);
+  filament::Texture::Usage usage = filament::Texture::Usage::DEFAULT;
+  if (flags.color_attachment) {
+    usage |= filament::Texture::Usage::COLOR_ATTACHMENT;
+    usage |= filament::Texture::Usage::BLIT_SRC;
+  } else if (flags.depth_attachment) {
+    usage |= filament::Texture::Usage::DEPTH_ATTACHMENT;
+    usage |= filament::Texture::Usage::BLIT_SRC;
+  } else if (config_.color_space != mjCOLORSPACE_SRGB) {
+    usage |= filament::Texture::Usage::GEN_MIPMAPPABLE;
   }
-  texture_ = builder.build(*engine_);
-}
+  builder.usage(usage);
 
-Texture::Texture(filament::Engine* engine, RenderTargetTextureType type,
-                 int width, int height) : engine_(engine) {
-  filament::Texture::Builder builder;
-  builder.width(width);
-  builder.height(height);
-  switch (type) {
-    case RenderTargetTextureType::kColor:
-      builder.usage(filament::Texture::Usage::COLOR_ATTACHMENT |
-                    filament::Texture::Usage::BLIT_SRC);
-      builder.format(filament::Texture::InternalFormat::RGB8);
-      break;
-    case RenderTargetTextureType::kDepth:
-      builder.usage(filament::Texture::Usage::DEPTH_ATTACHMENT |
-                    filament::Texture::Usage::SAMPLEABLE);
-      builder.format(filament::Texture::InternalFormat::DEPTH32F);
-      break;
-    case RenderTargetTextureType::kDepthColor:
-      builder.usage(filament::Texture::Usage::COLOR_ATTACHMENT |
-                    filament::Texture::Usage::BLIT_SRC);
-      builder.format(filament::Texture::InternalFormat::R32F);
-      break;
-    case RenderTargetTextureType::kReflectionColor:
-      builder.usage(filament::Texture::Usage::COLOR_ATTACHMENT |
-                    filament::Texture::Usage::BLIT_SRC |
-                    filament::Texture::Usage::SAMPLEABLE);
-      builder.format(filament::Texture::InternalFormat::RGBA8);
-      break;
-    default:
-      mju_error("Unknown type: %d", static_cast<int>(type));
-  }
-  texture_ = builder.build(*engine);
+  texture_ = builder.build(*engine_);
 }
 
 Texture::~Texture() {

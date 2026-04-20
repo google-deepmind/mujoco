@@ -191,14 +191,17 @@ void FilamentContext::SetFrameBuffer(int framebuffer) {
 }
 
 void FilamentContext::PrepareRenderTargets(int width, int height) {
-  color_target_ = std::make_unique<RenderTarget>(
-      engine_, RenderTargetTextureType::kColor,
-      RenderTargetTextureType::kDepth);
+  RenderTargetConfig config;
+  DefaultRenderTargetConfig(&config);
+
+  config.color_format = mjPIXEL_FORMAT_RGB8;
+  config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  color_target_ = std::make_unique<RenderTarget>(engine_, config);
   color_target_->Prepare(width, height);
 
-  depth_target_ = std::make_unique<RenderTarget>(
-      engine_, RenderTargetTextureType::kDepthColor,
-      RenderTargetTextureType::kDepth);
+  config.color_format = mjPIXEL_FORMAT_R32F;
+  config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  depth_target_ = std::make_unique<RenderTarget>(engine_, config);
   depth_target_->Prepare(width, height);
 }
 
