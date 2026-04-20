@@ -17,44 +17,10 @@
 
 #include <sstream>
 
-#include "xml/xml_util.h"
-
 namespace mujoco {
 
-// Kind of data accepted in an attribute value. Mirrors the ReadAttr* / MapValue
-// calls performed by mjXReader::OneX() parsers.
-enum mjXAttrKind {
-  kMjXString = 0,   // arbitrary string
-  kMjXInt,          // single int
-  kMjXIntN,         // exactly N ints        (fixed-length list)
-  kMjXIntVec,       // variable-length int list
-  kMjXReal,         // single real
-  kMjXRealN,        // exactly N reals       (fixed-length list)
-  kMjXRealUpToN,    // up to N reals         (variable, capped)
-  kMjXRealVec,      // variable-length real list
-  kMjXEnum,         // keyword from an mjMap
-};
-
-// One (element, attribute) binding. The generator looks up entries by
-// (element, attr) to decide which xs:simpleType to reference.
-// `map`/`map_size` are only used for kMjXEnum.
-struct mjXAttr {
-  const char* element;
-  const char* attr;
-  mjXAttrKind kind;
-  int size;                  // for kMjXIntN / kMjXRealN / kMjXRealUpToN
-  const mjMap* map;          // for kMjXEnum
-  int map_size;              // for kMjXEnum
-};
-
-// Flat table of typed bindings. The generator walks MJCF[] for tree structure
-// and consults this table for the type of each (element, attr) pair.
-// Any pair present in MJCF[] but missing here is emitted as xs:string with a
-// warning comment in the output.
-extern const mjXAttr kMjXAttrTable[];
-extern const int kMjXAttrTableSize;
-
 // Emit an XSD document describing the MJCF format to `out`.
+// The attribute type metadata comes from kMjXAttrTable in xml_native_reader.cc.
 void PrintSchemaXSD(std::stringstream& out);
 
 }  // namespace mujoco
