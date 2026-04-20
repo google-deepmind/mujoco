@@ -1179,6 +1179,64 @@ TEST_F(UserFlexTest, EmptyCellNodePinningQuadratic) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserFlexTest, EmptyCellDetectsElements) {
+  // A cube surface mesh (dim=2, 12 triangles) spanning [0,1]^3.
+  // With cellcount="6 6 6" (216 cells), only 8 corner cells contain
+  // mesh vertices.
+  //
+  // Bug: MarkEmptyCells only checked vertices, so 208/216 cells are
+  // marked empty, causing most interior nodes to be incorrectly pinned.
+  // Fix: check element AABBs to correctly identify occupied cells.
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="parent">
+    <freejoint/>
+    <inertial mass="0.01" pos="0.5 0.5 0.5"
+             diaginertia="0.001 0.001 0.001"/>
+    <flexcomp name="test" type="direct" dim="2"
+              dof="trilinear" mass="1" cellcount="6 6 6"
+              point="0 0 0  1 0 0  1 1 0  0 1 0
+                     0 0 1  1 0 1  1 1 1  0 1 1"
+              element="0 1 2  0 2 3  4 6 5  4 7 6
+                       0 5 1  0 4 5  2 7 3  2 6 7
+                       0 3 7  0 7 4  1 5 6  1 6 2">
+      <contact selfcollide="none"/>
+    </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // 6x6x6 trilinear grid: (6+1)^3 = 343 nodes
+  int nadr = m->flex_nodeadr[0];
+  int nnode = m->flex_nodenum[0];
+  ASSERT_EQ(nnode, 343);
+
+  // Count pinned nodes: those assigned to the parent body.
+  int parent_bid = mj_name2id(m, mjOBJ_BODY, "parent");
+  ASSERT_GT(parent_bid, 0);
+  int pinned = 0;
+  for (int n = nadr; n < nadr + nnode; n++) {
+    if (m->flex_nodebodyid[n] == parent_bid) {
+      pinned++;
+    }
+  }
+
+  // The cube surface fills the entire bounding box. The element-AABB
+  // marks all boundary cells as surface cells (152/216). The interior
+  // flood-fill finds no exterior seeds (all boundary cells are surface),
+  // so the remaining 64 cells are classified as interior (non-empty).
+  // No cells are empty → 0 nodes pinned.
+  EXPECT_EQ(pinned, 0);
+
+  mj_deleteData(mj_makeData(m));
+  mj_deleteModel(m);
+}
+
 TEST_F(UserFlexTest, TotalMassTrilinear) {
   static constexpr char xml[] = R"(
   <mujoco>
