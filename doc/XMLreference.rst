@@ -7,6 +7,31 @@ Introduction
 
 This chapter is the reference manual for the MJCF modeling language used in MuJoCo.
 
+.. _XSDSchema:
+
+Editor integration (XSD)
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The MJCF grammar is also published as an `XSD <https://www.w3.org/XML/Schema>`_
+schema, generated directly from the parser source and the prose below. Pointing
+your editor at it gives you autocompletion, inline documentation, and validation
+while writing MJCF.
+
+For VS Code, install the
+`Red Hat XML extension <https://marketplace.visualstudio.com/items?itemName=redhat.vscode-xml>`_
+and reference the schema from the root element:
+
+.. code-block:: xml
+
+   <mujoco xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/google-deepmind/mujoco/main/doc/mjcf.xsd">
+     ...
+   </mujoco>
+
+Other editors with XSD support (IntelliJ, Eclipse, Emacs ``nxml-mode``) work the
+same way. The schema is regenerated on every release -- see
+``CONTRIBUTING.md`` if you are contributing changes to MJCF.
+
 
 .. _CSchema:
 
