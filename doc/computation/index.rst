@@ -1656,23 +1656,25 @@ Both pipelines are controlled by a tolerance (in units of distance) and maximum 
 
 Multiple contacts
 ^^^^^^^^^^^^^^^^^
-Some colliders can return more than one contact per colliding pair to model line or surface contacts, as when two flat
+Some colliders can return more than one contact per colliding pair to model edge or surface contacts, as when two flat
 objects touch. For example the capsule-plane and box-plane colliders can return up to two or four contacts,
-respectively. Standard general-purpose convex collision algorithms like MPR and GJK always return a single contact
+respectively. Standard general-purpose convex collision algorithms like MPR and GJK/EPA always return a single contact
 point, which is problematic for surface contact scenarios (e.g., box-stacking). Both of MuJoCo's CCD pipelines can
 return multiple points per contacting pair ("multiccd"). This behavior is controlled by the
 :ref:`multiccd<option-flag-multiccd>` flag, but is implemented in different ways with different trade-offs:
 
-libccd pipeline (legacy)
+multi-run pipeline (legacy)
   Multiple contact points are found by rotating the two geoms by ±1e-3 radians around the tangential axes and
   re-running the collision routine. If a new contact is detected it is added, allowing for up to 4 additional contact
-  points. This method is effective, but increases the cost of each collision call by a factor of 5.
+  points. This method is effective, but increases the cost of each collision call by a factor of 5.  This method is
+  used when the :ref:`nativeccd<option-flag-nativeccd>` flag is disabled, and for geoms collisions involving cylinders
+  and capsules or with :ref:`positive contact margins<body-geom-margin>`.
 
-native pipeline
-  Native multiccd discovers multiple contacts using a novel analysis of the contacting surfaces at the solution,
-  avoiding full re-runs of the collision routine, and is thus effectively "free". Note that native multiccd currently
-  does not support positive contact margins. If one of the two geoms has a positive margin, native multiccd will fall
-  back to legacy algorithm.
+single-shot pipeline
+  The single-shot pipeline is used in conjunction with the native CCD pipeline, i.e., when the
+  :ref:`nativeccd<option-flag-nativeccd>` flag is enabled. As this pipeline is one-shot and most of the geom analysis
+  is done at compilation time, there is very little performance overhead. Supported geoms are boxes and meshes without
+  :ref:`positive contact margins<body-geom-margin>`.
 
 .. _coDistance:
 

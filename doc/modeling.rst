@@ -1767,10 +1767,11 @@ better visualize and understand the contact configuration and resulting forces.
 
   a. Improve the geometry of the contacting geoms in order to add more contact points, possibly with non-flat
      geometry (e.g., bumps), so slippage is prevented by the normal force and not only frictional components.
-  b. If contacts are between flat surfaces, try enabling the :ref:`multiccd<option-flag-multiccd>` flag, which allows
-     the detector to find more contacts than the single contact returned by the convex-convex collider.
-  c. Try enabling the native collision detection pipeline by setting the :ref:`nativeccd<option-flag-nativeccd>` flag,
-     which uses a more accurate and efficient convex collision detection algorithm.
+  b. If contacts are between flat surfaces, make sure that the flag :ref:`multiccd<option-flag-multiccd>` is not
+     disabled (enabled by default), as it allows the detector to find more contacts than the single contact
+     returned by the convex-convex collider.
+  c. Make sure that the flag :ref:`nativeccd<option-flag-nativeccd>` is not disabled (enabled by default),
+     as NativeCCD is a more accurate and efficient convex collision detection algorithm.
 
 **High-frequency vibration**
   High-frequency, low-amplitude vibrations are also a real-world problem in many industrial settings, but unlike in

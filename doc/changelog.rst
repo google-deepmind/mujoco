@@ -14,6 +14,14 @@ General
   number of degrees of freedom per constraint row. The equality can be associated with a specific cell with the new
   attribute ":ref:`cell <equality-flexstrain-cell>`
 
+  .. admonition:: Breaking API changes
+   :class: attention
+
+   - The feature :ref:`multiccd<coMultiCCD>` is now enabled by default. This feature has little performance overhead
+     and gives better contact behavior for stability.
+
+     **Migration:** The flag :ref:`multiccd<option-flag-multiccd>` must be explicitly disabled.
+
 Version 3.7.0 (April 14, 2026)
 ------------------------------
 
