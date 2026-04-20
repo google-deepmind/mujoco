@@ -46,6 +46,7 @@ TEST_F(SolverTest, IslandsEquivalent) {
   model->opt.tolerance = 0;                     // set tolerance to 0
   model->opt.ls_tolerance = 0;                  // set ls_tolerance to 0
   model->opt.ccd_tolerance = 0;                 // set ccd_tolerance to 0
+  model->opt.disableflags |= mjDSBL_MULTICCD;   // disable multiccd
 
   int nv = model->nv;
 

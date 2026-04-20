@@ -10942,6 +10942,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjDSBL_AUTORESET", mjDSBL_AUTORESET)
     .value("mjDSBL_NATIVECCD", mjDSBL_NATIVECCD)
     .value("mjDSBL_ISLAND", mjDSBL_ISLAND)
+    .value("mjDSBL_MULTICCD", mjDSBL_MULTICCD)
     .value("mjNDISABLE", mjNDISABLE);
   enum_<mjtDyn>("mjtDyn")
     .value("mjDYN_NONE", mjDYN_NONE)
@@ -10956,7 +10957,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjENBL_ENERGY", mjENBL_ENERGY)
     .value("mjENBL_FWDINV", mjENBL_FWDINV)
     .value("mjENBL_INVDISCRETE", mjENBL_INVDISCRETE)
-    .value("mjENBL_MULTICCD", mjENBL_MULTICCD)
     .value("mjENBL_SLEEP", mjENBL_SLEEP)
     .value("mjNENABLE", mjNENABLE);
   enum_<mjtEq>("mjtEq")
