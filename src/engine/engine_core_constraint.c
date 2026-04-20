@@ -496,12 +496,12 @@ static void mj_equalityAnchors(const mjModel* m, const mjData* d, int eq_id,
 // equality constraints
 void mj_instantiateEquality(const mjModel* m, mjData* d) {
   int issparse = mj_isSparse(m), nv = m->nv;
-  int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL, *buf_ind = NULL;
+  int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL;
   int flex_edgeadr, flex_edgenum;
   int flex_vertadr, flex_vertnum;
   mjtNum cpos[6], pos[2][3], ref[2], dif, deriv;
   mjtNum quat[4], quat1[4], quat2[4], quat3[4], axis[3];
-  mjtNum *jac[2], *jacdif, *data, *sparse_buf = NULL;
+  mjtNum *jac[2], *jacdif, *data;
 
   // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax == 0) {
@@ -520,8 +520,6 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   if (issparse) {
     chain = mjSTACKALLOC(d, nv, int);
     chain2 = mjSTACKALLOC(d, nv, int);
-    buf_ind = mjSTACKALLOC(d, nv, int);
-    sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
   }
 
   // find active equality constraints
@@ -689,8 +687,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
         // compute Jacobian: sparse or dense
         if (issparse) {
-          NV = mju_combineSparse(jac[0], jac[1], 1, -deriv, NV, NV2, chain,
-                                  chain2, sparse_buf, buf_ind);
+          NV = mju_combineSparse(jac[0], jac[1], 1, -deriv, NV, NV2, chain, chain2);
         } else {
           mju_addToScl(jac[0], jac[1], -deriv, nv);
         }

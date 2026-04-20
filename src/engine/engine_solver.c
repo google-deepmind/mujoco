@@ -829,8 +829,6 @@ typedef struct {
   int* L_rowadr;          // Hessian factor row addresses                 (nv x 1)
   int* LT_rownnz;         // Hessian factor transpose row nonzeros        (nv x 1)
   int* LT_rowadr;         // Hessian factor transpose row addresses       (nv x 1)
-  int* buf_ind;           // index buffer for sparse addition             (nv x 1)
-  mjtNum* buf_val;        // value buffer for sparse addition             (nv x 1)
 
   // Newton arrays, computed-size (MakeHessian)
   int nH;                 // number of nonzeros in Hessian H
@@ -979,9 +977,7 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
   if (flg_Newton) {
     nNum += nefc + nv;                 // D, cholupd
     if (is_elliptic) nNum += 6*nv;     // LTJ
-    if (is_sparse) {
-      nNum += nv;                      // buf_val
-    } else {
+    if (!is_sparse) {
       nNum += nv*nv;                   // L (dense)
       if (is_elliptic) nNum += nv*nv;  // Lcone (dense)
     }
@@ -993,7 +989,7 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
   size_t nInt = nefc;                  // oldstate
   if (is_sparse) {
     nInt += 3*nv + nJ;                 // JT sparse
-    if (flg_Newton) nInt += 9*nv;      // Newton sparse
+    if (flg_Newton) nInt += 8*nv;      // Newton sparse
   }
 
   // allocate mjtNum and int blocks
@@ -1018,9 +1014,7 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
     if (is_elliptic) {
       ctx->LTJ = numblock;  numblock += 6*nv;
     }
-    if (is_sparse) {
-      ctx->buf_val = numblock;  numblock += nv;
-    } else {
+    if (!is_sparse) {
       ctx->nL = nv*nv;
       ctx->L     = numblock;  numblock += ctx->nL;
       ctx->Lcone = is_elliptic ? numblock : NULL;
@@ -1049,7 +1043,6 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
     ctx->L_rowadr   = intblock;  intblock += nv;
     ctx->LT_rownnz  = intblock;  intblock += nv;
     ctx->LT_rowadr  = intblock;  intblock += nv;
-    ctx->buf_ind    = intblock;  intblock += nv;
   }
 
   // sparse: compute Jacobian transpose
@@ -1616,8 +1609,7 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
 
     // add mass matrix: H = J'*D*J + M
     mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
-                       ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
-                       ctx->buf_val, ctx->buf_ind);
+                       ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
 
     // compute H' sparse structure (upper triangle, required for symbolic Cholesky)
     mju_transposeSparse(NULL, NULL, nv, nv, ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind, NULL,
@@ -1691,8 +1683,7 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
 
       // add mass matrix: H = J'*D*J + C
       mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
-                         ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
-                         ctx->buf_val, ctx->buf_ind);
+                         ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
     }
 
     // numeric sparse factorization: L = chol(H) using pre-computed sparsity pattern
