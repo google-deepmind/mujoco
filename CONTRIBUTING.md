@@ -114,3 +114,24 @@ Thanks for improving MuJoCo!
 
 This project follows Google's
 [Open Source Community Guidelines](https://opensource.google/conduct/).
+
+
+## Regenerating the MJCF XSD
+
+The MJCF XSD shipped with releases lives at `doc/mjcf.xsd` and is
+auto-generated from `src/xml/` and `doc/XMLreference.rst`. If your change
+touches MJCF parsing, adds an attribute, or edits the reference docs,
+regenerate it:
+
+```bash
+cmake --build build --target xmlschema
+./build/bin/xmlschema /tmp/raw.xsd
+python3 doc/mjcf_schema_enrich.py \
+    --in /tmp/raw.xsd --rst doc/XMLreference.rst --out doc/mjcf.xsd \
+    --strict --report
+```
+
+`--strict` exits non-zero on drift between the parser, the attribute table
+(`src/xml/xml_native_schema.cc`), and the RST — fix warnings before
+committing. See the header comment in `xml_native_schema.cc` for which files
+to edit when adding a new attribute.
