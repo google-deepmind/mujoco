@@ -4251,6 +4251,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
   }
 
+  // compute unrotated node positions for stiffness computation
+  std::vector<double> nodexpos_local = ComputeUnrotatedNodePositions(nodexpos);
+
   // reorder tetrahedra so right-handed face orientation is outside
   // faces are (0,1,2); (0,2,3); (0,3,1); (1,3,2)
   if (dim == 3) {
@@ -4410,7 +4413,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
                 int gj = cj * spec.order + lj;
                 int gk = ck * spec.order + lk;
                 int global = gi * ny_global * nz_global + gj * nz_global + gk;
-                mjuu_copyvec(cell_pos.data() + 3*local, nodexpos.data() + 3*global, 3);
+                mjuu_copyvec(cell_pos.data() + 3*local, nodexpos_local.data() + 3*global, 3);
                 local++;
               }
             }
@@ -4453,13 +4456,87 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
   }
 
-  // store node cartesian positions
+  // store node positions in unrotated (body-local) frame
+  // this ensures the runtime displacement refpos - R^{-1}*x is zero at rest
   node0_.assign(3*nnode, 0);
   for (int i=0; i < nnode; i++) {
-    mjuu_copyvec(node0_.data()+3*i, nodexpos.data()+3*i, 3);
+    mjuu_copyvec(node0_.data()+3*i, nodexpos_local.data()+3*i, 3);
   }
 }
 
+
+// compute unrotated node positions for stiffness computation and node0_
+//
+// the runtime corotational code extracts rotation R from the deformation
+// gradient and computes displacement as R^{-1}*x - refpos; at rest R = R0
+// (the total grid rotation), so refpos must equal R0^{-1}*nodexpos to get
+// zero displacement at rest; additionally, the stiffness eigenvectors must
+// be computed from axis-aligned positions to preserve the diagonal Jacobian
+// assumption in ComputeLinearStiffness.
+std::vector<double> mjCFlex::ComputeUnrotatedNodePositions(
+    const std::vector<double>& nodexpos) const {
+  std::vector<double> nodexpos_local(3*nnode);
+  if (interpolated && nnode > 0) {
+    int ny_global = spec.cellcount[1] * spec.order + 1;
+    int nz_global = spec.cellcount[2] * spec.order + 1;
+
+    // find first non-empty cell
+    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    int ref_ci = 0, ref_cj = 0, ref_ck = 0;
+    bool found = false;
+    for (int ci = 0; ci < cx && !found; ci++) {
+      for (int cj = 0; cj < cy && !found; cj++) {
+        for (int ck = 0; ck < cz && !found; ck++) {
+          int cell_idx = ci * cy * cz + cj * cz + ck;
+          if (cell_empty.empty() || !cell_empty[cell_idx]) {
+            ref_ci = ci; ref_cj = cj; ref_ck = ck;
+            found = true;
+          }
+        }
+      }
+    }
+
+    // corner indices of the reference cell (order=1 corners at local 0,0,0
+    // and at offsets along each parametric axis)
+    int g000 = (ref_ci * spec.order) * ny_global * nz_global +
+               (ref_cj * spec.order) * nz_global +
+               (ref_ck * spec.order);
+    int g100 = ((ref_ci * spec.order) + spec.order) * ny_global * nz_global +
+               (ref_cj * spec.order) * nz_global +
+               (ref_ck * spec.order);
+    int g010 = (ref_ci * spec.order) * ny_global * nz_global +
+               ((ref_cj * spec.order) + spec.order) * nz_global +
+               (ref_ck * spec.order);
+    int g001 = (ref_ci * spec.order) * ny_global * nz_global +
+               (ref_cj * spec.order) * nz_global +
+               ((ref_ck * spec.order) + spec.order);
+
+    // edge vectors (columns of the deformation gradient F = R * S)
+    // we store them as rows in R0 to use mjuu_mulvecmat for applying R0^{-1}
+    double R0[9];
+    for (int d = 0; d < 3; d++) {
+      R0[0+d] = nodexpos[3*g100 + d] - nodexpos[3*g000 + d];
+      R0[3+d] = nodexpos[3*g010 + d] - nodexpos[3*g000 + d];
+      R0[6+d] = nodexpos[3*g001 + d] - nodexpos[3*g000 + d];
+    }
+
+    // normalize to get rotation matrix columns (valid for regular grids)
+    double li = mjuu_normvec(R0+0, 3);
+    double lj = mjuu_normvec(R0+3, 3);
+    double lk = mjuu_normvec(R0+6, 3);
+    (void)li; (void)lj; (void)lk;
+
+    // apply inverse rotation to each nodexpos to get local-frame positions
+    for (int i = 0; i < nnode; i++) {
+      const double* p = nodexpos.data() + 3*i;
+      double* q = nodexpos_local.data() + 3*i;
+      mjuu_mulvecmat(q, p, R0);
+    }
+  } else {
+    nodexpos_local = nodexpos;
+  }
+  return nodexpos_local;
+}
 
 
 // create flex BVH

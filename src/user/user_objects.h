@@ -1054,7 +1054,8 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   std::vector<double> vert0_;             // vertex positions in [0, 1]^d in the bounding box
   std::vector<double> node0_;             // node Cartesian positions
 
-
+  // compute unrotated node positions for stiffness computation
+  std::vector<double> ComputeUnrotatedNodePositions(const std::vector<double>& nodexpos) const;
 
   // stiffness caching
   std::string ComputeStiffnessCacheKey() const;
