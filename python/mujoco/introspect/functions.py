@@ -2407,6 +2407,32 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='RNE with complete data: compute cacc, cfrc_ext, cfrc_int.',
      )),
+    ('mj_maxContact',
+     FunctionDecl(
+         name='mj_maxContact',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='g1',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='g2',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='has_margin',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Return the maximum number of contacts that can be generated between two geoms. If has_margin is -1, then the margin is pulled from the model, otherwise if has_margin > 0 indicates that the geoms have a positive margin.',  # pylint: disable=line-too-long
+     )),
     ('mj_collision',
      FunctionDecl(
          name='mj_collision',

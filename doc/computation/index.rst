@@ -1718,9 +1718,36 @@ work, but it pays off at runtime and yields both faster and more stable simulati
 Pair-wise colliders
 ^^^^^^^^^^^^^^^^^^^
 
-The table below provides information about the colliders used for different geom pairs. The second row in each cell
-lists the maximum number of contacts generated, possibly with ``multiccd`` enabled. For example, ``Mesh`` / ``Mesh``
-will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
+The table below provides information about the colliders used for different geom pairs. These values can be computed
+dynamically by the :ref:`mj_maxContact` function. Use the toggles to see the max number of contacts returned with the
+parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-multiccd>`, and
+:ref:`margin<body-geom-margin>`.
+
+.. raw:: html
+
+   <div class="pairwise-toggles">
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="nativeccd-checkbox" checked>
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>nativeccd</span>
+     </div>
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="multiccd-checkbox">
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>multiccd</span>
+     </div>
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="margin-checkbox">
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>with margin</span>
+     </div>
+   </div>
 
 .. list-table::
    :header-rows: 1
@@ -1744,7 +1771,7 @@ will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
      - | primitive
        | **1**
      - | primitive
-       | **2**
+       | **4**
      - | primitive
        | **4**
      - | primitive
@@ -1787,12 +1814,28 @@ will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
        | **2**
      - | CCD
        | **1**
-     - | CCD
-       | **1**, **4**
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
      - | primitive
        | **2**
-     - | CCD
-       | **1**, **4**
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
      - | SDF
        | :ref:`sdf_initpoints <option-sdf_initpoints>`
    * - Ellipsoid
@@ -1812,12 +1855,36 @@ will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
      -
      -
      -
-     - | CCD
-       | **1**, **4**
-     - | CCD
-       | **1**, **4**
-     - | CCD
-       | **1**, **4**
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
      - | SDF
        | :ref:`sdf_initpoints <option-sdf_initpoints>`
    * - Box
@@ -1827,8 +1894,16 @@ will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
      -
      - | primitive
        | **8**
-     - | CCD
-       | **1**, **4**
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+           <div class="multiccd-off"><strong>1</strong></div>
+           <div class="multiccd-native"><strong>4</strong></div>
+           <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
      - | SDF
        | :ref:`sdf_initpoints <option-sdf_initpoints>`
    * - Mesh
@@ -1837,8 +1912,16 @@ will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
      -
      -
      -
-     - | CCD
-       | **1**, **4**
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line">
+            <div class="multiccd-off"><strong>1</strong></div>
+            <div class="multiccd-native"><strong>4</strong></div>
+            <div class="multiccd-legacy"><strong>5</strong></div>
+         </div>
+
      - | MeshSDF
        | :ref:`sdf_initpoints <option-sdf_initpoints>`
    * - SDF
@@ -1850,6 +1933,32 @@ will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
      -
      - | SDF
        | :ref:`sdf_initpoints <option-sdf_initpoints>`
+
+.. raw:: html
+
+   <script>
+     const pairwiseToggles = () => {
+       const table = document.querySelector('.table-pairwise');
+       const toggles = [
+         {id: 'nativeccd-checkbox', cls: 'nativeccd-enabled'},
+         {id: 'multiccd-checkbox', cls: 'multiccd-enabled'},
+         {id: 'margin-checkbox', cls: 'margin-enabled'}
+       ];
+
+       toggles.forEach(toggle => {
+         const cb = document.getElementById(toggle.id);
+         if (cb.checked) {
+           table.classList.add(toggle.cls);
+         }
+         cb.addEventListener('change', () => {
+           table.classList.toggle(toggle.cls, this.checked);
+         });
+       });
+     };
+     pairwiseToggles();
+   </script>
+
+
 
 .. _Sleeping:
 

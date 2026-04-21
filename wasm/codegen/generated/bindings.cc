@@ -8845,6 +8845,10 @@ void mj_makeM_wrapper(const MjModel& m, MjData& d) {
   mj_makeM(m.get(), d.get());
 }
 
+int mj_maxContact_wrapper(const MjModel& m, int g1, int g2, int has_margin) {
+  return mj_maxContact(m.get(), g1, g2, has_margin);
+}
+
 void mj_mulJacTVec_wrapper(const MjModel& m, const MjData& d, const val& res, const NumberArray& vec) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
@@ -13173,6 +13177,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_local2Global", &mj_local2Global_wrapper);
   function("mj_makeConstraint", &mj_makeConstraint_wrapper);
   function("mj_makeM", &mj_makeM_wrapper);
+  function("mj_maxContact", &mj_maxContact_wrapper);
   function("mj_mulJacTVec", &mj_mulJacTVec_wrapper);
   function("mj_mulJacVec", &mj_mulJacVec_wrapper);
   function("mj_mulM", &mj_mulM_wrapper);

@@ -3272,6 +3272,7 @@ void mj_passive(const mjModel* m, mjData* d);
 void mj_subtreeVel(const mjModel* m, mjData* d);
 void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result);
 void mj_rnePostConstraint(const mjModel* m, mjData* d);
+int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin);
 void mj_collision(const mjModel* m, mjData* d);
 void mj_makeConstraint(const mjModel* m, mjData* d);
 void mj_island(const mjModel* m, mjData* d);

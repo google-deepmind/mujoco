@@ -1179,6 +1179,18 @@ It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-
 The computed force arrays ``cfrc_int`` and ``cfrc_ext`` currently suffer from a know bug, they do not take into account
 the effect of spatial tendons, see :issue:`832`.
 
+.. _mj_maxContact:
+
+`mj_maxContact <#mj_maxContact>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_maxContact
+
+Return the maximum number of contacts that can be generated between two geoms.
+
+If has_margin is -1, then the margin is pulled from the model, otherwise if has_margin > 0
+indicates that the geoms have a positive margin.
+
 .. _mj_collision:
 
 `mj_collision <#mj_collision>`__

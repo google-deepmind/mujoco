@@ -6952,6 +6952,9 @@ public static unsafe extern void mj_rne(mjModel_* m, mjData_* d, int flg_acc, do
 public static unsafe extern void mj_rnePostConstraint(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_maxContact(mjModel_* m, int g1, int g2, int has_margin);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_collision(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

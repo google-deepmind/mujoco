@@ -7,7 +7,8 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-
+- Added new :ref:`mj_maxContact<mj_maxContact>` function to get the maximum number of possible contacts returned by
+  two geoms.
 - Added :ref:`multi-cell support<body-flexcomp-cellnum>` for trilinear and quadratic flexes. Note that the implicit
   integrator uses a dense solver for the flex degrees of freedom, which can be slow for multi-cell flexes.
 - Refactored ``flexstrain`` equality constraints to be instantiated per cell instead of per flex object, reducing the

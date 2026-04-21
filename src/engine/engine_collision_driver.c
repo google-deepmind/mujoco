@@ -38,7 +38,7 @@
 #include "engine/engine_util_spatial.h"
 
 
-// table of pair-wise collision functions
+// table of pairwise collision functions
 mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES] = {
   /*              PLANE  HFIELD  SPHERE            CAPSULE             ELLIPSOID         CYLINDER            BOX               MESH              SDF */
   /*PLANE     */ {0,     0,      mjc_PlaneSphere,  mjc_PlaneCapsule,   mjc_PlaneConvex,  mjc_PlaneCylinder,  mjc_PlaneBox,     mjc_PlaneConvex,  mjc_PlaneConvex},
@@ -55,6 +55,104 @@ mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES] = {
 
 
 //------------------------------------ utility functions ------------------------------------------
+
+
+// return the maximum number of contacts that can be generated between two geoms
+// if has_margin is -1, then the margin is pulled from the model, otherwise if has_margin > 0
+// indicates that the geoms have a positive margin
+int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin) {
+  int type1 = m->geom_type[g1];
+  int type2 = m->geom_type[g2];
+
+  if (type1 == mjGEOM_SDF || type2 == mjGEOM_SDF) {
+    return m->opt.sdf_initpoints;
+  }
+
+  if (type1 == mjGEOM_HFIELD || type2 == mjGEOM_HFIELD) {
+    int type = (type1 == mjGEOM_HFIELD) ? type2 : type1;
+    return (type != mjGEOM_PLANE && type != mjGEOM_HFIELD) ? mjMAXCONPAIR : 0;
+  }
+
+  // spheres and ellipsoids always generate a single contact
+  if (type1 == mjGEOM_SPHERE || type1 == mjGEOM_ELLIPSOID ||
+      type2 == mjGEOM_SPHERE || type2 == mjGEOM_ELLIPSOID) {
+    return 1;
+  }
+
+  // box-box primitive collider
+  if (type1 == mjGEOM_BOX && type2 == mjGEOM_BOX) {
+    return 8;
+  }
+
+  // capsule-capsule primitive collider
+  if (type1 == mjGEOM_CAPSULE && type2 == mjGEOM_CAPSULE) {
+    return 2;
+  }
+
+  // capsule-box primitive collider
+  if ((type1 == mjGEOM_CAPSULE && type2 == mjGEOM_BOX) ||
+      (type1 == mjGEOM_BOX && type2 == mjGEOM_CAPSULE)) {
+    return 4;
+  }
+
+  // the remaining plane cases
+  if (type1 == mjGEOM_PLANE || type2 == mjGEOM_PLANE) {
+    int type = (type1 == mjGEOM_PLANE) ? type2 : type1;
+    switch (type) {
+      case mjGEOM_CAPSULE:
+        return 2;
+      case mjGEOM_CYLINDER:
+      case mjGEOM_BOX:
+        return 4;
+      case mjGEOM_MESH:
+        return 3;
+      default:
+        return 0;
+    }
+  }
+
+  int is_multiccd = !mjDISABLED(mjDSBL_MULTICCD);
+  if (!is_multiccd) {
+    return 1;
+  }
+
+  if (type1 == mjGEOM_CAPSULE || type2 == mjGEOM_CAPSULE ||
+      type1 == mjGEOM_CYLINDER || type2 == mjGEOM_CYLINDER) {
+    return 5;
+  }
+
+  if (mjDISABLED(mjDSBL_NATIVECCD)) {
+    return is_multiccd ? 5 : 1;  // mesh-mesh or mesh-box with libccd
+  }
+
+  // check margin from model
+  if (has_margin < 0) {
+    has_margin = 0;
+    if (mjENABLED(mjENBL_OVERRIDE)) {
+      has_margin = m->opt.o_margin > 0.0;
+    } else {
+      int npair = m->npair;
+      int ipair = -1;
+      for (int k=0; k < npair; k++) {
+        if ((m->pair_geom1[k] == g1 && m->pair_geom2[k] == g2) ||
+            (m->pair_geom1[k] == g2 && m->pair_geom2[k] == g1)) {
+            ipair = k;
+            break;
+          }
+        }
+
+      if (ipair > -1) {
+        has_margin = m->pair_margin[ipair] > 0.0;
+      } else {
+        has_margin = m->geom_margin[g1] > 0.0 || m->geom_margin[g2] > 0.0;
+      }
+    }
+  }
+
+  // 4 contacts for mesh-mesh or mesh-box without margins, 5 with margins
+  return has_margin ? 5 : 4;
+}
+
 
 // move arena pointer back to the end of the contact array
 static inline void resetArena(mjData* d) {
