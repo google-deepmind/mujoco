@@ -23,6 +23,13 @@ General
 
      **Migration:** The flag :ref:`multiccd<option-flag-multiccd>` must be explicitly disabled.
 
+Bug fixes
+^^^^^^^^^
+
+- Asset paths in attached child specs are now resolved relative to the model file directory of the child spec, rather
+  than the parent spec. This prevents the origin of the parent spec to affect the resolution of asset paths in the child
+  spec.
+
 Version 3.7.0 (April 14, 2026)
 ------------------------------
 

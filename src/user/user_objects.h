@@ -1122,9 +1122,6 @@ class mjCMesh_ : public mjCBase {
 
   // octree
   mjCOctree octree_;                  // octree of the mesh
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
@@ -1336,9 +1333,6 @@ class mjCSkin_ : public mjCBase {
 
   int matid;                          // material id
   std::vector<int> bodyid;            // body ids
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCSkin: public mjCSkin_, private mjsSkin {
@@ -1391,9 +1385,6 @@ class mjCHField_ : public mjCBase {
   std::string spec_file_;
   std::string spec_content_type_;
   std::vector<float> spec_userdata_;
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCHField : public mjCHField_, private mjsHField {
@@ -1442,9 +1433,6 @@ class mjCTexture_ : public mjCBase {
   std::string spec_file_;
   std::string spec_content_type_;
   std::vector<std::string> spec_cubefiles_;
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCTexture : public mjCTexture_, private mjsTexture {
