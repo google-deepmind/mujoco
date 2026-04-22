@@ -1216,13 +1216,15 @@ Euler integrator, semi-implicit in velocity.
       mujoco.set_mjcb_control(lambda m, d: None)
       mujoco.mj_step(model_instances[-1], data_instances[-1])
     mujoco.set_mjcb_control(None)
+    # Reference counting changed in Python 3.14.
+    expected_refcount = 2 if sys.version_info < (3, 14) else 1
     while data_instances:
       d = data_instances.pop()
-      self.assertEqual(sys.getrefcount(d), 2)
+      self.assertEqual(sys.getrefcount(d), expected_refcount)
       del d
     while model_instances:
       m = model_instances.pop()
-      self.assertEqual(sys.getrefcount(m), 2)
+      self.assertEqual(sys.getrefcount(m), expected_refcount)
 
   # This test is disabled on PyPy as it uses sys.getrefcount
   # However PyPy is not officially supported by MuJoCo
@@ -1236,7 +1238,9 @@ Euler integrator, semi-implicit in velocity.
     # passed to getrefcount.
     self.assertEqual(sys.getrefcount(data.model), 3)
     del data
-    self.assertEqual(sys.getrefcount(model), 2)
+    # Reference counting changed in Python 3.14.
+    expected_refcount = 2 if sys.version_info < (3, 14) else 1
+    self.assertEqual(sys.getrefcount(model), expected_refcount)
 
   def test_can_initialize_mjv_structs(self):
     self.assertIsInstance(mujoco.MjvScene(), mujoco.MjvScene)
