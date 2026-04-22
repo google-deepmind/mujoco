@@ -4100,6 +4100,19 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
   nelem = (int)elem_.size()/(dim+1);
 
+  // elastic2d checks
+  if (elastic2d) {
+    if (thickness <= 0) {
+      throw mjCError(this, "2d elasticity requires positive thickness");
+    }
+    if (interpolated) {
+      throw mjCError(this, "interpolated flex does not yet support 2d elasticity");
+    }
+    if (dim != 2 && !interpolated) {
+      throw mjCError(this, "2d elasticity requires 2d flex");
+    }
+  }
+
   // set nvert, rigid, centered; check size
   if (vert_.empty()) {
     centered = true;
@@ -4342,9 +4355,6 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
     // bending stiffness (2D only)
     if (dim == 2 && (elastic2d == 1 || elastic2d == 3)) {
-      if (thickness < 0) {
-        throw mjCError(this, "thickness must be positive for bending stiffness");
-      }
       bending.assign(nedge*17, 0);
 
       for (unsigned int e = 0; e < nedge; e++) {

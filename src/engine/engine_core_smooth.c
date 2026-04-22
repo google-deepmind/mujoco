@@ -595,7 +595,8 @@ void mj_flex(const mjModel* m, mjData* d) {
         }
       }
 
-      int order = m->flex_interp[f];
+      int interp = m->flex_interp[f];
+      int order = interp < 0 ? -interp : interp;
       int cx = m->flex_cellnum[3*f+0];
       int cy = m->flex_cellnum[3*f+1];
       int cz = m->flex_cellnum[3*f+2];
@@ -2624,7 +2625,8 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     case mjEQ_FLEXSTRAIN: {
       // increment: trilinear uses 2 center (I1,J-1) + 3*ngauss shear, quadratic uses 6*ngauss
       k = m->eq_obj1id[id];
-      int order = m->flex_interp[k];
+      int interp_k = m->flex_interp[k];
+      int order = interp_k < 0 ? -interp_k : interp_k;
       int nodenum = m->flex_nodenum[k];
       if (order && nodenum) {
         int nquad = order + 1;

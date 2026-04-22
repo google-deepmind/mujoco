@@ -1452,6 +1452,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
     int cy = m->flex_cellnum[3*f+1];
     int cz = m->flex_cellnum[3*f+2];
     int order = m->flex_interp[f];
+    order = order < 0 ? -order : order;
     int NX = cx * order + 1;
     int NY = cy * order + 1;
     int NZ = cz * order + 1;

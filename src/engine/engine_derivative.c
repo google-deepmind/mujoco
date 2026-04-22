@@ -887,6 +887,7 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
     if (!m->flex_interp[f]) continue;
     if (m->flex_rigid[f]) continue;
     int order = m->flex_interp[f];
+    order = order < 0 ? -order : order;
     int npc = (order+1)*(order+1)*(order+1);
     if (npc > max_npc) max_npc = npc;
     if (m->flex_nodenum[f] > max_nodenum) max_nodenum = m->flex_nodenum[f];
@@ -966,6 +967,7 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
     }
 
     int order = m->flex_interp[f];
+    order = order < 0 ? -order : order;
     int npc = (order+1)*(order+1)*(order+1);
     int cx = m->flex_cellnum[3*f+0];
     int cy = m->flex_cellnum[3*f+1];

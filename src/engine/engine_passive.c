@@ -236,6 +236,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
     if (m->flex_interp[f]) {
       int order = m->flex_interp[f];
+      order = order < 0 ? -order : order;
       int npc = (order+1)*(order+1)*(order+1);  // nodes per cell
       int cx = m->flex_cellnum[3*f+0];
       int cy = m->flex_cellnum[3*f+1];

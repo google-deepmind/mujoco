@@ -714,6 +714,7 @@ static void makeFlexBandwidth(mjModel* m, mjData* d) {
     for (int f = 0; f < m->nflex; f++) {
       if (!m->flex_interp[f]) continue;
       int order = m->flex_interp[f];
+      order = order < 0 ? -order : order;
       int nodeadr = m->flex_nodeadr[f];
       int nodenum = m->flex_nodenum[f];
       int cx = m->flex_cellnum[3*f+0];

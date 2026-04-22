@@ -275,6 +275,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
   }
 
   int order = m->flex_interp[f];
+  order = order < 0 ? -order : order;
   int npc = (order+1)*(order+1)*(order+1);  // number of nodes per cell
 
   // cell lookup: get local coords and node indices
@@ -709,6 +710,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       int f = id[0];
       int nodenum = m->flex_nodenum[f];
       int order = m->flex_interp[f];
+      order = order < 0 ? -order : order;
 
       // skip if not interpolated (order == 0 or no nodes)
       if (!order || !nodenum) {
@@ -1676,6 +1678,7 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         int flex_id = m->eq_obj1id[id];
         int nstart = m->flex_nodeadr[flex_id];
         int order = m->flex_interp[flex_id];
+        order = order < 0 ? -order : order;
         int npc = (order+1)*(order+1)*(order+1);
 
         // per-cell constraint count
@@ -2296,6 +2299,7 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
       // per-cell strain constraints: each equality is one cell
       int f = id[0];
       int order = m->flex_interp[f];
+      order = order < 0 ? -order : order;
       if (!order || !m->flex_nodenum[f]) {
         break;
       }
