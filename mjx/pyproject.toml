@@ -29,7 +29,7 @@ dependencies = [
     "etils[epath]",
     "jax",
     "jaxlib",
-    "mujoco>=3.7.1",
+    "mujoco>=3.7.1.dev903852035",
     "scipy",
     "trimesh",
 ]
