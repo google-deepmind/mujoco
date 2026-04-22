@@ -179,8 +179,6 @@ TEST_F(MjcPhysicsSceneTest, TestDefaults) {
   EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(FwdinvFlag, mjENBL_FWDINV);
   EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(InvDiscreteFlag,
                                                    mjENBL_INVDISCRETE);
-  EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(MultiCCDFlag,
-                                                   mjENBL_MULTICCD);
 
   mj_deleteModel(default_model);
   mj_deleteSpec(empty_spec);

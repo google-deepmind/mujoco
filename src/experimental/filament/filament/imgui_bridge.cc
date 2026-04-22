@@ -21,6 +21,8 @@
 #include <vector>
 
 #include <imgui.h>
+#include <math/mat3.h>
+#include <math/vec3.h>
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/material.h"
@@ -31,6 +33,9 @@
 #include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
+
+using filament::math::float3;
+using filament::math::mat3f;
 
 ImguiBridge::ImguiBridge(ObjectManager* object_mgr, SceneView* scene_view)
     : object_mgr_(object_mgr), scene_view_(scene_view) {}
@@ -235,11 +240,7 @@ void ImguiBridge::Update() {
       const int height = size.y * scale.y;
 
       auto& renderable = renderables_[renderable_index];
-      if (renderable->GetNumMeshes() == 0) {
-        renderable->AppendMesh(mesh, index_offset, command.ElemCount);
-      } else {
-        renderable->UpdateMesh(0, mesh, index_offset, command.ElemCount);
-      }
+      renderable->SetMesh(mesh, index_offset, command.ElemCount);
 
       MaterialTextures textures;
       textures.color = textures_[command.GetTexID()].get();
@@ -259,6 +260,8 @@ void ImguiBridge::Update() {
         properties.scissor[3] = height;
       }
       renderable->UpdateMaterial(properties, textures);
+      renderable->SetTransform(
+          {float3{0, 0, 0}, mat3f(), float3(scale.x, scale.y, 1.0f)});
 
       index_offset += command.ElemCount;
       ++renderable_index;
@@ -268,8 +271,11 @@ void ImguiBridge::Update() {
 
 void ImguiBridge::PrepareRenderables(int count) {
   while (renderables_.size() < count) {
+    RenderableParams config;
+    DefaultRenderableParams(&config);
+    config.shading_model = ShadingModel::Ux;
     auto& r = renderables_.emplace_back(
-        std::make_unique<Renderable>(Renderable::Usage::Ux, object_mgr_));
+        std::make_unique<Renderable>(object_mgr_, config));
     r->SetCastShadows(false);
     r->SetReceiveShadows(false);
     r->SetBlendOrder(static_cast<std::uint16_t>(renderables_.size()));
@@ -279,10 +285,6 @@ void ImguiBridge::PrepareRenderables(int count) {
     scene_view_->RemoveFromUxScene(renderables_.back().get());
     renderables_.pop_back();
   }
-}
-
-float ImguiBridge::GetScale() const {
-  return ImGui::GetIO().DisplayFramebufferScale.x;
 }
 
 static ImVec2 ClipSpaceToWindowCoordinates(float x, float y) {

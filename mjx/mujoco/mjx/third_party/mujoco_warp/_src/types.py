@@ -184,6 +184,7 @@ class DisableBit(enum.IntFlag):
     EULERDAMP:    implicit damping for Euler integration
     NATIVECCD:    native convex collision detection (ignored in MJWarp)
     ISLAND:       constraint islands
+    MULTICCD:     multiple CCD contact points
   """
 
   CONSTRAINT = mujoco.mjtDisableBit.mjDSBL_CONSTRAINT
@@ -203,6 +204,7 @@ class DisableBit(enum.IntFlag):
   EULERDAMP = mujoco.mjtDisableBit.mjDSBL_EULERDAMP
   NATIVECCD = mujoco.mjtDisableBit.mjDSBL_NATIVECCD
   ISLAND = mujoco.mjtDisableBit.mjDSBL_ISLAND
+  MULTICCD = mujoco.mjtDisableBit.mjDSBL_MULTICCD
   # unsupported: MIDPHASE, AUTORESET
 
 
@@ -212,12 +214,10 @@ class EnableBit(enum.IntFlag):
   Attributes:
     ENERGY: energy computation
     INVDISCRETE: discrete-time inverse dynamics
-    MULTICCD: multiple contacts with CCD
   """
 
   ENERGY = mujoco.mjtEnableBit.mjENBL_ENERGY
   INVDISCRETE = mujoco.mjtEnableBit.mjENBL_INVDISCRETE
-  MULTICCD = mujoco.mjtEnableBit.mjENBL_MULTICCD
   # unsupported: OVERRIDE, FWDINV, ISLAND
 
 

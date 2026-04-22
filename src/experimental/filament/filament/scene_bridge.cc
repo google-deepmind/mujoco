@@ -381,6 +381,10 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       }
     }
 
+    if (geom->type == mjGEOM_FLEX || geom->type == mjGEOM_SKIN) {
+      model_objects_->CreateSkinFlexMesh(scene, *geom);
+    }
+
     std::unique_ptr<Renderable> renderable = CreateGeomRenderable(
         *geom, scene, object_mgr_, model_objects_.get(), headpos);
 

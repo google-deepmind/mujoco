@@ -46,14 +46,30 @@ inline filament::math::float4 ReadFloat4(const T* arr, int index = 0) {
 
 // Reads a mat3 from an array buffer in the model/scene.
 template <typename T>
-inline filament::math::mat3 ReadMat3(const T* arr, int index = 0) {
+inline filament::math::mat3f ReadMat3(const T* arr, int index = 0) {
   // clang-format off
   const T* ptr = arr + (9 * index);
-  return filament::math::mat3(ptr[0], ptr[3], ptr[6],
-                              ptr[1], ptr[4], ptr[7],
-                              ptr[2], ptr[5], ptr[8]);
+  return filament::math::mat3f(ptr[0], ptr[3], ptr[6],
+                               ptr[1], ptr[4], ptr[7],
+                               ptr[2], ptr[5], ptr[8]);
   // clang-format on
 }
+
+// A tuple of translation, rotation, and size.
+struct Trs {
+  filament::math::float3 translation{0.0f, 0.0f, 0.0f};
+  filament::math::mat3f rotation;
+  // Note: this is _slightly_ different than scale. For example, for capsules,
+  // the size determines the length of the tube and the radius of the domes,
+  // but the shape remains a capsule.
+  filament::math::float3 size{1.0f, 1.0f, 1.0f};
+
+  // Converts the TRS to a transform matrix.
+  filament::math::mat4f ToTransform() const {
+    return filament::math::mat4f(rotation, translation) *
+           filament::math::mat4f::scaling(size);
+  }
+};
 
 // Calculates a reflection matrix for a plane defined by its transform.
 filament::math::mat4 ToReflectionMatrix(const filament::math::mat4& xform);

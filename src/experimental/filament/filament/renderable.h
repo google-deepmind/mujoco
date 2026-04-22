@@ -16,62 +16,81 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_RENDERABLE_H_
 
 #include <cstdint>
+#include <functional>
+#include <span>
 #include <vector>
 
 #include <filament/Engine.h>
 #include <filament/Scene.h>
+#include <math/mat4.h>
 #include <utils/Entity.h>
 #include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
-// A collection of meshes and a material that, together, define an object that
-// can be rendered in a scene.
+// The shading model (material) for a Renderable.
+enum class ShadingModel {
+  SceneObject,
+  Decor,
+  DecorLines,
+  Ux,
+};
+
+// Configuration parameters for a Renderable.
+struct RenderableParams {
+  ShadingModel shading_model;
+};
+
+void DefaultRenderableParams(RenderableParams* params);
+
+// A Renderable is effectively two things: a mesh and a material.
 //
-// Meshes can be added to the Renderable either by unique_ptr or raw pointer.
-// This determines whether or not the Renderable takes ownership of the mesh.
+// The mesh describes the surface geometry of the object and the material
+// describes how that surface interacts with light (i.e. the color of each point
+// on the surface).
 //
-// Internally, the Renderable creates a filament::Entity for each mesh and
-// assigns the same material instance to all of them.
+// Defining the mesh is easy; just call SetMesh.
+//
+// Defining a Material happens in two stages. First, the user specifies the
+// ShadingModel to use for Rendering. This describes the overall intent of
+// how the Renderable will appear (e.g. lit, unlit, wireframe, etc.). Next,
+// the user specifies the MaterialParams and MaterialTextures to use with the
+// ShadingModel. Its these properties that ultimately define the actual material
+// of the Renderable.
 class Renderable {
  public:
-  // How the material is to be used for rendering.
-  enum class Usage {
-    SceneObject,
-    Decor,
-    DecorLines,
-    Ux,
-  };
-
   // Default filament values for priority and layer mask.
   static constexpr std::uint8_t kDefaultPriority = 4;
   static constexpr std::uint8_t kDefaultLayerMask = 0x01;
 
-  Renderable(Usage usage, ObjectManager* object_mgr);
+  Renderable(ObjectManager* object_mgr, const RenderableParams& params);
   ~Renderable() noexcept;
 
   Renderable(const Renderable&) = delete;
   Renderable& operator=(const Renderable&) = delete;
 
-  // Appends a mesh to the renderable. The elem_offset and elem_count parameters
-  // can be used to specify a submesh to append. If elem_count is 0, assumes
-  // the entire mesh should be appended.
-  void AppendMesh(const Mesh* mesh, int elem_offset = 0, int elem_count = 0);
-  void AppendMesh(MeshPtr mesh, int elem_offset = 0, int elem_count = 0);
+  // Sets the mesh of the renderable. The elem_offset and elem_count parameters
+  // can be used to specify a submesh within the mesh. If elem_count is 0,
+  // assumes the entire mesh should be appended.
+  void SetMesh(const Mesh* mesh, int elem_offset = 0, int elem_count = 0);
 
-  // Replaces the mesh at the index with a new mesh. The elem_offset and
-  // elem_count parameters can be used to specify a submesh to append. If
-  // elem_count is 0, assumes the entire mesh should be appended.
-  void UpdateMesh(int index, const Mesh* mesh, int elem_offset = 0,
-              int elem_count = 0);
-  void UpdateMesh(int index, MeshPtr mesh, int elem_offset = 0,
-                  int elem_count = 0);
+  // Sets the transform of the renderable.
+  void SetTransform(const Trs& trs);
 
-  // Returns the number of meshes that define the renderable.
-  int GetNumMeshes() const { return meshes_.size(); }
+  // Returns the current transform of the renderable.
+  const filament::math::mat4f& GetTransform() const;
+
+  // Sets multiple meshes for a renderable. Users can optionally provide a
+  // function that will be used to compute the transform for each (sub)mesh
+  // relative to the transform of the renderable itself. This allows users to
+  // construct compound (but rigid) objects from multiple meshes.
+  using GetTransformFn = std::function<filament::math::mat4f(int, const Trs&)>;
+  void SetMeshes(std::span<const Mesh*> meshes,
+                 GetTransformFn get_transform = nullptr);
 
   // Sets the layer mask for the managed filament Entities. Layer masks can be
   // used to show/hide the renderable in different views. Returns the previous
@@ -103,7 +122,8 @@ class Renderable {
   // Removes the renderable from the given filament Scene.
   void RemoveFromScene(filament::Scene* scene);
 
-  // Sets the material instance for all managed entities.
+  // Further defines the material of the renderable. Only applies to renderables
+  // with a SceneObject shading model.
   void SetDrawMode(DrawMode mode);
 
   // Updates the parameters for the material.
@@ -119,45 +139,30 @@ class Renderable {
   // Returns the filament Engine managing the renderables.
   filament::Engine* GetEngine();
 
-  // Returns the underlying filament::entity for the given mesh.
-  utils::Entity operator[](int index) { return entities_[index]; }
-
  private:
-  struct MeshInfo {
-    MeshPtr owned_mesh;
+  struct Part {
+    utils::Entity entity;
     const Mesh* mesh = nullptr;
     int elem_offset = 0;
     int elem_count = 0;
   };
 
-  // Sets the mesh information for the mesh at the given index. If index is -1,
-  // a new mesh will be appended to the renderable.
-  MeshInfo& SetMesh(int index, const Mesh* mesh, MeshPtr owned_mesh,
-                    int elem_offset, int elem_count);
-
-  // Appends a new filament::Entity to the renderable, configured to use the
-  // given mesh.
-  void AppendEntity(const MeshInfo& mesh_info);
-
-  // Updates the filament::Entity at the given index to use the given mesh.
-  void UpdateEntity(int index, const MeshInfo& mesh_info);
-
-  // Removes the last filament::Entity from the renderable.
-  void RemoveLastEntity();
+  void InitPartEntity(Part& part);
 
   void AssignMaterial(DrawMode mode, ObjectManager::MaterialType material_type);
 
   ObjectManager::MaterialType GetColorMaterialType() const;
 
-  Usage usage_;
   ObjectManager* object_mgr_;
+  RenderableParams params_;
   filament::MaterialInstance* instances_[kNumDrawModes] = {nullptr};
-  MaterialParams params_;
-  MaterialTextures textures_;
+  MaterialParams material_params_;
+  MaterialTextures material_textures_;
   DrawMode draw_mode_ = DrawMode::Color;
   filament::Scene* assigned_scene_ = nullptr;
-  std::vector<utils::Entity> entities_;
-  std::vector<MeshInfo> meshes_;
+  std::vector<Part> parts_;
+  filament::math::mat4f transform_;
+  GetTransformFn get_transform_fn_;
   std::uint8_t priority_ = kDefaultPriority;
   std::uint8_t layer_mask_ = kDefaultLayerMask;
   std::uint16_t blend_order_ = 0;

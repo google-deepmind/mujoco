@@ -390,5 +390,73 @@ TEST_F(MjCollisionTest, MarginSumming) {
   mj_deleteModel(m);
 }
 
+TEST_F(MjCollisionTest, MaxContact) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag multiccd="enable"/>
+    </option>
+    <asset>
+      <mesh name="smallbox"
+        vertex="-1 -1 -1  1 -1 -1   1  1 -1
+                 1  1  1  1 -1  1  -1  1 -1
+                -1  1  1 -1 -1  1"/>
+    </asset>
+    <worldbody>
+      <geom name="mesh" type="mesh" mesh="smallbox"/>
+      <geom name="box" type="box" size="1 1 1"/>
+      <geom name="plane" type="plane" size="1 1 1"/>
+      <geom name="sphere" type="sphere" size="1"/>
+      <geom name="capsule" type="capsule" size="1 1"/>
+      <geom name="ellipsoid" type="ellipsoid" size="1 1 1"/>
+      <geom name="cylinder" type="cylinder" size="1 1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  int mesh = mj_name2id(m, mjOBJ_GEOM, "mesh");
+  int box = mj_name2id(m, mjOBJ_GEOM, "box");
+  int plane = mj_name2id(m, mjOBJ_GEOM, "plane");
+  int sphere = mj_name2id(m, mjOBJ_GEOM, "sphere");
+  int capsule = mj_name2id(m, mjOBJ_GEOM, "capsule");
+  int ellipsoid = mj_name2id(m, mjOBJ_GEOM, "ellipsoid");
+  int cylinder = mj_name2id(m, mjOBJ_GEOM, "cylinder");
+
+  EXPECT_EQ(mj_maxContact(m, mesh, box, -1), 4);
+  EXPECT_EQ(mj_maxContact(m, mesh, plane, -1), 3);
+  EXPECT_EQ(mj_maxContact(m, box, plane, -1), 4);
+  EXPECT_EQ(mj_maxContact(m, mesh, mesh, -1), 4);
+  EXPECT_EQ(mj_maxContact(m, box, box, -1), 8);
+  EXPECT_EQ(mj_maxContact(m, capsule, capsule, -1), 2);
+  EXPECT_EQ(mj_maxContact(m, capsule, box, -1), 4);
+  EXPECT_EQ(mj_maxContact(m, capsule, plane, -1), 2);
+  EXPECT_EQ(mj_maxContact(m, cylinder, plane, -1), 4);
+  EXPECT_EQ(mj_maxContact(m, sphere, sphere, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, sphere, capsule, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, sphere, box, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, sphere, mesh, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, sphere, plane, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, sphere, cylinder, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, ellipsoid, ellipsoid, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, ellipsoid, box, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, ellipsoid, mesh, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, ellipsoid, plane, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, ellipsoid, cylinder, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, ellipsoid, capsule, -1), 1);
+  EXPECT_EQ(mj_maxContact(m, capsule, cylinder, -1), 5);
+  EXPECT_EQ(mj_maxContact(m, capsule, mesh, -1), 5);
+  EXPECT_EQ(mj_maxContact(m, cylinder, cylinder, -1), 5);
+  EXPECT_EQ(mj_maxContact(m, cylinder, box, -1), 5);
+  EXPECT_EQ(mj_maxContact(m, cylinder, mesh, -1), 5);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco

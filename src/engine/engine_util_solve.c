@@ -144,10 +144,7 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
                          int* rownnz, const int* rowadr, int* colind,
                          mjData* d) {
   int rank = n;
-
-  mj_markStack(d);
-  mjtNum* buf = mjSTACKALLOC(d, n, mjtNum);
-  int* buf_ind = mjSTACKALLOC(d, n, int);
+  (void) d;
 
   // backpass over rows
   for (int r=n-1; r >= 0; r--) {
@@ -175,15 +172,13 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
 
       // mat(c,0:c) = mat(c,0:c) - mat(r,c) * mat(r,0:c)
       int nnz_c = mju_combineSparse(mat + rowadr[c], mat+rowadr[r], 1, -mat[adr+i],
-                                    rownnz[c], i+1, colind+rowadr[c], colind+rowadr[r],
-                                    buf, buf_ind);
+                                    rownnz[c], i+1, colind+rowadr[c], colind+rowadr[r]);
 
       // assign new nnz to row c
       rownnz[c] = nnz_c;
     }
   }
 
-  mj_freeStack(d);
   return rank;
 }
 

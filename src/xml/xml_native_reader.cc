@@ -371,7 +371,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "active", "solref", "solimp"},
         {"flexvert", "*", "name", "class", "flex",
             "active", "solref", "solimp"},
-        {"flexstrain", "*", "name", "class", "flex",
+        {"flexstrain", "*", "name", "class", "flex", "cell",
             "active", "solref", "solimp"},
     {">"},
 
@@ -932,7 +932,8 @@ const mjMap fdof_map[mjNFCOMPDOFS] = {
   {"full",          mjFCOMPDOF_FULL},
   {"radial",        mjFCOMPDOF_RADIAL},
   {"trilinear",     mjFCOMPDOF_TRILINEAR},
-  {"quadratic",     mjFCOMPDOF_QUADRATIC}
+  {"quadratic",     mjFCOMPDOF_QUADRATIC},
+  {"2d",            mjFCOMPDOF_2D}
 };
 
 
@@ -1283,6 +1284,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("autoreset",    mjDSBL_AUTORESET)
     READDSBL("nativeccd",    mjDSBL_NATIVECCD)
     READDSBL("island",       mjDSBL_ISLAND)
+    READDSBL("multiccd",     mjDSBL_MULTICCD)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \
@@ -1294,7 +1296,6 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READENBL("energy",      mjENBL_ENERGY)
     READENBL("fwdinv",      mjENBL_FWDINV)
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
-    READENBL("multiccd",    mjENBL_MULTICCD)
     READENBL("sleep",       mjENBL_SLEEP)
 #undef READENBL
   }
@@ -2245,8 +2246,12 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
 
       case mjEQ_FLEX:
       case mjEQ_FLEXVERT:
+        ReadAttrTxt(elem, "flex", name1, true);
+        break;
+
       case mjEQ_FLEXSTRAIN:
         ReadAttrTxt(elem, "flex", name1, true);
+        ReadAttr(elem, "cell", 3, equality->data, text);
         break;
 
       case mjEQ_DISTANCE:

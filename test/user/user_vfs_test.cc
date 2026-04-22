@@ -224,6 +224,38 @@ TEST_F(UserVfsTest, DeleteFileRepeat) {
   mj_deleteVFS(&vfs);
 }
 
+TEST_F(UserVfsTest, ContainsBuffer) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  std::string buffer = "<mujoco/>";
+  const void* ptr = static_cast<const void*>(buffer.c_str());
+  mj_addBufferVFS(&vfs, "model", ptr, buffer.size());
+
+  EXPECT_TRUE(mj_containsBufferVFS(&vfs, "model"));
+  EXPECT_FALSE(mj_containsBufferVFS(&vfs, "nonexistent"));
+  EXPECT_FALSE(mj_containsBufferVFS(&vfs, "Model"));
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserVfsTest, ContainsFile) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
+  constexpr char path[] = "engine/testdata/actuation/";
+  const std::string dir = GetTestDataFilePath(path);
+  std::string file = "activation.xml";
+  mj_addFileVFS(&vfs, dir.c_str(), file.c_str());
+
+  EXPECT_TRUE(mj_containsFileVFS(&vfs, dir.c_str(), file.c_str()));
+  EXPECT_TRUE(mj_containsFileVFS(&vfs, nullptr, (dir + file).c_str()));
+  EXPECT_TRUE(mj_containsFileVFS(&vfs, nullptr, "Activation.xml"));
+  EXPECT_TRUE(mj_containsFileVFS(&vfs, "some/dir/", "activation.xml"));
+  EXPECT_FALSE(mj_containsFileVFS(&vfs, nullptr, "nonexistent.xml"));
+
+  mj_deleteVFS(&vfs);
+}
+
 
 TEST_F(UserVfsTest, AddBuffer) {
   mjVFS vfs;

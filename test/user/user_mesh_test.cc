@@ -819,6 +819,58 @@ TEST_F(MjCMeshTest, VolumeSmallAllowedShell) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, Flex2DElasticityRequiresPositiveThickness) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="grid" count="3 3 1" spacing="1 1 1" dim="2" dof="2d">
+        <elasticity young="1" thickness="0" elastic2d="bend"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("2d elasticity requires positive thickness"));
+}
+
+TEST_F(MjCMeshTest, InterpolatedFlexDoesNotSupport2DElasticity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="grid" count="3 3 1" spacing="1 1 1" dim="2" dof="trilinear">
+        <contact selfcollide="none"/>
+        <elasticity young="1" thickness="1" elastic2d="bend"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("interpolated flex does not yet support 2d elasticity"));
+}
+
+TEST_F(MjCMeshTest, Flex2DElasticityRequires2DFlex) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="grid" count="3 3 3" spacing="1 1 1" dim="3" dof="2d">
+        <elasticity young="1" thickness="1" elastic2d="bend"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("2d elasticity requires 2d flex"));
+}
+
 TEST_F(MjCMeshTest, VolumeNegativeThrowsError) {
   static constexpr char xml[] = R"(
   <mujoco>

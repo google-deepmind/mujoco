@@ -1192,7 +1192,7 @@ void MakeJointSection(mj::Simulate* sim) {
 
       // set range
       if (sim->jnt_range_[i].has_value())
-        mju::sprintf_arr(defSlider[0].other, "%.4g %.4g",
+        mju::sprintf_arr(defSlider[0].other, "%.17g %.17g",
                          sim->jnt_range_[i]->first, sim->jnt_range_[i]->second);
       else if (sim->jnt_type_[i]==mjJNT_SLIDE) {
         mju::strcpy_arr(defSlider[0].other, "-1 1");
@@ -1251,7 +1251,7 @@ void MakeControlSection(mj::Simulate* sim) {
 
     // set range
     if (sim->actuator_ctrlrange_[i].has_value())
-      mju::sprintf_arr(defSlider[0].other, "%.4g %.4g",
+      mju::sprintf_arr(defSlider[0].other, "%.17g %.17g",
                        sim->actuator_ctrlrange_[i]->first, sim->actuator_ctrlrange_[i]->second);
     else {
       mju::strcpy_arr(defSlider[0].other, "-1 1");

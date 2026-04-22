@@ -1452,6 +1452,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
     int cy = m->flex_cellnum[3*f+1];
     int cz = m->flex_cellnum[3*f+2];
     int order = m->flex_interp[f];
+    order = order < 0 ? -order : order;
     int NX = cx * order + 1;
     int NY = cy * order + 1;
     int NZ = cz * order + 1;
@@ -1459,11 +1460,18 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
     for (int i=0; i < NX; i++) {
       for (int j=0; j < NY; j++) {
         for (int k=0; k < NZ; k++) {
-          int offset  = 3*(i*NY*NZ + j*NZ + k);
+          int n0 = i*NY*NZ + j*NZ + k;
+
+          // skip if this node is pinned (no joints on its body)
+          if (m->body_jntnum[bodyid[n0]] == 0) {
+            continue;
+          }
+
+          int offset  = 3*n0;
           int offset1 = 3*((i+1)*NY*NZ + j*NZ + k);
           int offset2 = 3*(i*NY*NZ + (j+1)*NZ + k);
           int offset3 = 3*(i*NY*NZ + j*NZ + (k+1));
-          if (i < NX-1) {
+          if (i < NX-1 && m->body_jntnum[bodyid[(i+1)*NY*NZ + j*NZ + k]] > 0) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;
@@ -1472,7 +1480,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset1);
             releaseGeom(&thisgeom, scn);
           }
-          if (j < NY-1) {
+          if (j < NY-1 && m->body_jntnum[bodyid[i*NY*NZ + (j+1)*NZ + k]] > 0) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;
@@ -1481,7 +1489,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset2);
             releaseGeom(&thisgeom, scn);
           }
-          if (k < NZ-1) {
+          if (k < NZ-1 && m->body_jntnum[bodyid[i*NY*NZ + j*NZ + (k+1)]] > 0) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;

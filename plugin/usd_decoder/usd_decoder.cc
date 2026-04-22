@@ -704,7 +704,7 @@ void ParseUsdPhysicsScene(mjSpec* spec,
 
   bool multiccd_flag;
   mjc_physics_scene.GetMultiCCDFlagAttr().Get(&multiccd_flag);
-  spec->option.enableflags |= (multiccd_flag ? mjENBL_MULTICCD : 0);
+  spec->option.disableflags |= (!multiccd_flag ? mjDSBL_MULTICCD : 0);
 
   // Compiler attributes
   auto auto_limits_attr = mjc_physics_scene.GetAutoLimitsAttr();

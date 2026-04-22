@@ -849,8 +849,9 @@ static void setslider(mjuiItem* it, mjUI* ui,
   rx = mju_round(rx * it->slider.divisions) / mjMAX(1, it->slider.divisions);
   rx = mjMAX(0, mjMIN(1, rx));
 
-  // compute value
-  mjtNum val = (mjtNum)(it->slider.range[0]*(1-rx) + it->slider.range[1]*rx);
+  // compute value, clamp to range
+  mjtNum val = mju_clip(it->slider.range[0]*(1-rx) + it->slider.range[1]*rx,
+                        it->slider.range[0], it->slider.range[1]);
 
   // set slider position
   if (it->type == mjITEM_SLIDERINT) {

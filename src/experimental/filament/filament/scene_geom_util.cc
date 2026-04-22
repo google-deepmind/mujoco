@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <numbers>
+#include <vector>
 
 #include <filament/Material.h>
 #include <filament/RenderableManager.h>
@@ -44,29 +45,11 @@ namespace mujoco {
 using filament::math::float2;
 using filament::math::float3;
 using filament::math::float4;
-using filament::math::mat4;
+using filament::math::mat4f;
 
 // An arbitrary scale factor for arrows.
 static constexpr float kArrowScale = 1.f / 6.f;
 static constexpr float kArrowHeadSize = 1.75f;
-
-// Some built-in geometries are actually composed of multiple simple shapes. A
-// capsule, for example, is a open-ended tube with two dome ends. We use these
-// constants to help identify which entity (by index) represents which part of
-// the overall shape.
-static constexpr int kCapsuleTopDome = 1;
-static constexpr int kCapsuleBottomDome = 2;
-static constexpr int kCylinderTopDisk = 1;
-static constexpr int kCylinderBottomDisk = 2;
-static constexpr int kArrow0Cone = 1;
-static constexpr int kArrow0ConeDisk = 2;
-static constexpr int kArrow0BottomDisk = 3;
-static constexpr int kArrow1Cone = 1;
-static constexpr int kArrow1BottomDisk = 2;
-static constexpr int kArrow2TopCone = 1;
-static constexpr int kArrow2BottomCone = 2;
-static constexpr int kArrow2TopConeDisk = 3;
-static constexpr int kArrow2BottomConeDisk = 4;
 
 // Returns the tile size for infinite plane texture alignment.
 // This is duplicated from engine_vis_visualize.c (re-center infinite plane)
@@ -87,106 +70,265 @@ static bool IsBehind(const float* headpos, const float* pos, const float* mat) {
           0.0f);
 }
 
-static void AddMesh(Renderable& renderable, ModelObjects* model_objs,
-                    int data_id) {
+static const Mesh* GetMesh(ModelObjects* model_objs, int data_id) {
   const Mesh* mesh = model_objs->GetMeshBuffer(data_id);
   if (mesh == nullptr) {
     mju_error("Unknown mesh %d", data_id);
   }
-  renderable.AppendMesh(mesh);
+  return mesh;
 }
 
-static void AddGeom(Renderable& renderable, ModelObjects* model_objs,
-                    const mjvScene* scene, const mjvGeom& geom) {
-  if (geom.type == mjGEOM_FLEX) {
-    renderable.AppendMesh(model_objs->CreateFlexMesh(scene, geom));
-  } else if (geom.type == mjGEOM_SKIN) {
-    renderable.AppendMesh(model_objs->CreateSkinMesh(scene, geom));
-  }
+static const Mesh* GetSkinFlexMesh(ModelObjects* model_objs, int objid) {
+  return model_objs->GetFlexSkinGeomMesh(objid);
 }
 
-static void AddHeightField(Renderable& renderable, ModelObjects* model_objs,
-                           int hfield_id) {
+static const Mesh* GetHeightField(ModelObjects* model_objs, int hfield_id) {
   const Mesh* mesh = model_objs->GetHeightFieldBuffer(hfield_id);
   if (mesh == nullptr) {
     mju_error("Unknown height field %d", hfield_id);
   }
-  renderable.AppendMesh(mesh);
+  return mesh;
 }
 
-static void AddShape(Renderable& renderable, ModelObjects* model_objs,
-                     ModelObjects::ShapeType shape_type) {
+static const Mesh* GetShape(ModelObjects* model_objs,
+                            ModelObjects::ShapeType shape_type) {
   const Mesh* mesh = model_objs->GetShapeBuffer(shape_type);
   if (mesh == nullptr) {
     mju_error("Unknown shape %d", shape_type);
   }
-  renderable.AppendMesh(mesh);
+  return mesh;
 }
 
 static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
                               const mjvScene* scene,
                               ModelObjects* model_objects) {
+  std::vector<const Mesh*> meshes;
+  Renderable::GetTransformFn get_transforms;
+
+  Trs trs = {
+      .translation = ReadFloat3(geom.pos),
+      .rotation = ReadMat3(geom.mat),
+      .size = ReadFloat3(geom.size),
+  };
+
   switch ((mjtGeom)geom.type) {
     case mjGEOM_MESH:
-      AddMesh(renderable, model_objects, geom.dataid);
+      meshes.push_back(GetMesh(model_objects, geom.dataid));
+      // Ignore size for meshes.
+      trs.size = float3{1.0f, 1.0f, 1.0f};
       break;
     case mjGEOM_HFIELD:
-      AddHeightField(renderable, model_objects, geom.dataid);
+      meshes.push_back(GetHeightField(model_objects, geom.dataid));
+      // Ignore size for height fields.
+      trs.size = float3{1.0f, 1.0f, 1.0f};
       break;
-    case mjGEOM_PLANE:
-      AddShape(renderable, model_objects, ModelObjects::kPlane);
+    case mjGEOM_PLANE: {
+      meshes.push_back(GetShape(model_objects, ModelObjects::kPlane));
+      const bool is_infinite = !(trs.size.x > 0 && trs.size.y > 0);
+      if (is_infinite) {
+        // Infinite planes are scaled to match the tile size used by
+        // re-centering in engine_vis_visualize.c.
+        const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
+        trs.size.x = plane_scale;
+        trs.size.y = plane_scale;
+      }
+      // Planes only define an xy size, so set the z-dimension to 1.0f.
+      trs.size.z = 1.0f;
       break;
+    }
     case mjGEOM_SPHERE:
-      AddShape(renderable, model_objects, ModelObjects::kSphere);
+      meshes.push_back(GetShape(model_objects, ModelObjects::kSphere));
       break;
     case mjGEOM_ELLIPSOID:
-      AddShape(renderable, model_objects, ModelObjects::kSphere);
+      meshes.push_back(GetShape(model_objects, ModelObjects::kSphere));
       break;
     case mjGEOM_BOX:
-      AddShape(renderable, model_objects, ModelObjects::kBox);
+      meshes.push_back(GetShape(model_objects, ModelObjects::kBox));
       break;
-    case mjGEOM_CAPSULE:
-      AddShape(renderable, model_objects, ModelObjects::kTube);
-      AddShape(renderable, model_objects, ModelObjects::kDome);
-      AddShape(renderable, model_objects, ModelObjects::kDome);
+    case mjGEOM_CAPSULE: {
+      // Capsules are a tube with two domes at the ends.
+      meshes.push_back(GetShape(model_objects, ModelObjects::kTube));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kDome));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kDome));
+
+      get_transforms = [](int index, const Trs& trs) {
+        // We apply an inverse scale to the domes to counteract the capsule's
+        // overall scale so that the domes remain spherical in shape.
+        const float xz_size = 0.5f * (trs.size.x + trs.size.y);
+        if (index == 0) {
+          return trs.ToTransform();
+        } else if (index == 1) {
+          // Move the first dome to the top of the capsule.
+          mat4f top = mat4f(trs.rotation, trs.translation);
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(float3{trs.size.x, trs.size.y, xz_size});
+          return top;
+        } else if (index == 2) {
+          // Move the second dome to the bottom of the capsule and rotate it 180
+          // degrees so that it's facing the right way.
+          mat4f bottom = mat4f(trs.rotation, trs.translation);
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          bottom *= mat4f::scaling(float3{trs.size.x, trs.size.y, xz_size});
+          return bottom;
+        } else {
+          mju_error("Invalid index for capsule geom: %d (expected [0,2])", index);
+          return trs.ToTransform();
+        }
+      };
       break;
-    case mjGEOM_CYLINDER:
-      AddShape(renderable, model_objects, ModelObjects::kTube);
-      AddShape(renderable, model_objects, ModelObjects::kDisk);
-      AddShape(renderable, model_objects, ModelObjects::kDisk);
+    }
+    case mjGEOM_CYLINDER: {
+      // Cylinders are a tube with two disks at the ends.
+      meshes.push_back(GetShape(model_objects, ModelObjects::kTube));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
+
+      get_transforms = [](int index, const Trs& trs) {
+        if (index == 0) {
+          return trs.ToTransform();
+        } else if (index == 1) {
+          // Move the first disk to the top of the cylinder.
+          mat4f top = mat4f(trs.rotation, trs.translation);
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(trs.size);
+          return top;
+        } else if (index == 2) {
+          // Move the second disk to the bottom of the cylinder. Rotate the disk
+          // 180 degrees so that the normals point outwards.
+          mat4f bottom = mat4f(trs.rotation, trs.translation);
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          bottom *= mat4f::scaling(trs.size);
+          return bottom;
+        } else {
+          mju_error("Invalid index for cylinder geom: %d (expected [0,2])", index);
+          return trs.ToTransform();
+        }
+      };
       break;
-    case mjGEOM_ARROW:
-      AddShape(renderable, model_objects, ModelObjects::kTube);
-      AddShape(renderable, model_objects, ModelObjects::kCone);
-      AddShape(renderable, model_objects, ModelObjects::kDisk);
+    }
+    case mjGEOM_ARROW: {
+      meshes.push_back(GetShape(model_objects, ModelObjects::kTube));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kCone));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
+
+      get_transforms = [](int index, const Trs& trs) {
+        mat4f base = mat4f(trs.rotation, trs.translation);
+        base *= mat4f::scaling(float3{1, 1, kArrowScale});
+        base *= mat4f::translation(float3{0, 0, trs.size.z});
+        if (index == 0) {
+          return base * mat4f::scaling(trs.size);
+        } else if (index == 1) {
+          mat4f top = base;
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top * mat4f::scaling(trs.size);
+        } else if (index == 2) {
+          mat4f top_disk = base;
+          top_disk *= mat4f::translation(float3{0, 0, trs.size.z});
+          top_disk *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          top_disk *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top_disk * mat4f::scaling(trs.size);
+        } else if (index == 3) {
+          mat4f bottom = base;
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          return bottom * mat4f::scaling(trs.size);
+        } else {
+          mju_error("Invalid index for arrow geom: %d (expected [0,3])", index);
+          return trs.ToTransform();
+        }
+      };
       break;
-    case mjGEOM_ARROW1:
-      AddShape(renderable, model_objects, ModelObjects::kTube);
-      AddShape(renderable, model_objects, ModelObjects::kCone);
-      AddShape(renderable, model_objects, ModelObjects::kDisk);
-      AddShape(renderable, model_objects, ModelObjects::kDisk);
+    }
+    case mjGEOM_ARROW1: {
+      meshes.push_back(GetShape(model_objects, ModelObjects::kTube));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kCone));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
+
+      get_transforms = [](int index, const Trs& trs) {
+      mat4f base = mat4f(trs.rotation, trs.translation);
+      base *= mat4f::scaling(float3{1, 1, kArrowScale});
+      base *= mat4f::translation(float3{0, 0, trs.size.z});
+        if (index == 0) {
+          return base * mat4f::scaling(trs.size);
+        } else if (index == 1) {
+          mat4f top = base;
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          return top * mat4f::scaling(trs.size);
+        } else if (index == 2) {
+          mat4f bottom = base;
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          return bottom * mat4f::scaling(trs.size);
+        } else {
+          mju_error("Invalid index for arrow1 geom: %d (expected [0,2])", index);
+          return trs.ToTransform();
+        }
+      };
       break;
-    case mjGEOM_ARROW2:
-      AddShape(renderable, model_objects, ModelObjects::kTube);
-      AddShape(renderable, model_objects, ModelObjects::kCone);
-      AddShape(renderable, model_objects, ModelObjects::kCone);
-      AddShape(renderable, model_objects, ModelObjects::kDisk);
-      AddShape(renderable, model_objects, ModelObjects::kDisk);
+    }
+    case mjGEOM_ARROW2: {
+      meshes.push_back(GetShape(model_objects, ModelObjects::kTube));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kCone));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kCone));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
+      meshes.push_back(GetShape(model_objects, ModelObjects::kDisk));
+
+      get_transforms = [](int index, const Trs& trs) {
+        mat4f base = mat4f(trs.rotation, trs.translation);
+        base *= mat4f::scaling(float3{1, 1, kArrowScale});
+        base *= mat4f::translation(float3{0, 0, trs.size.z});
+        if (index == 0) {
+          return base * mat4f::scaling(trs.size);
+        } else if (index == 1) {
+          mat4f top = base;
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top * mat4f::scaling(trs.size);
+        } else if (index == 2) {
+          mat4f bottom = base;
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          bottom *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return bottom * mat4f::scaling(trs.size);
+        } else if (index == 3) {
+          mat4f top_disk = base;
+          top_disk *= mat4f::translation(float3{0, 0, trs.size.z});
+          top_disk *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          top_disk *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top_disk * mat4f::scaling(trs.size);
+        } else if (index == 4) {
+          mat4f bottom_disk = base;
+          bottom_disk *= mat4f::translation(float3{0, 0, -trs.size.z});
+          return bottom_disk * mat4f::scaling(trs.size);
+        } else {
+          mju_error("Invalid index for arrow2 geom: %d (expected [0,4])", index);
+          return trs.ToTransform();
+        }
+      };
       break;
+    }
     case mjGEOM_LINE:
-      AddShape(renderable, model_objects, ModelObjects::kLine);
+      meshes.push_back(GetShape(model_objects, ModelObjects::kLine));
       break;
     case mjGEOM_LINEBOX:
-      AddShape(renderable, model_objects, ModelObjects::kLineBox);
+      meshes.push_back(GetShape(model_objects, ModelObjects::kLineBox));
       break;
     case mjGEOM_TRIANGLE:
-      AddShape(renderable, model_objects, ModelObjects::kTriangle);
+      meshes.push_back(GetShape(model_objects, ModelObjects::kTriangle));
       break;
     case mjGEOM_FLEX:
-      AddGeom(renderable, model_objects, scene, geom);
+      meshes.push_back(GetSkinFlexMesh(model_objects, geom.objid));
+      // Flexes are defined in global space.
+      trs = Trs();
       break;
     case mjGEOM_SKIN:
-      AddGeom(renderable, model_objects, scene, geom);
+      meshes.push_back(GetSkinFlexMesh(model_objects, geom.objid));
+      // Skins are defined in global space.
+      trs = Trs();
       break;
     case mjGEOM_NONE:
     case mjGEOM_LABEL:
@@ -197,124 +339,9 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       mju_warning("Unsupported geom type: %d", geom.type);
       break;
   }
-}
 
-static void SetGeomTransform(Renderable& renderable, const mjvGeom& geom) {
-  // Flex and skin geometries are in global space.
-  if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
-    return;
-  }
-
-  mat4 transform = mat4(ReadMat3(geom.mat), ReadFloat3(geom.pos));
-  renderable.SetLayerMask(geom.category);
-
-  float3 size = ReadFloat3(geom.size);
-  filament::TransformManager& tm =
-      renderable.GetEngine()->getTransformManager();
-  for (int j = 0; j < renderable.GetNumMeshes(); ++j) {
-    const utils::Entity& entity = renderable[j];
-
-    // Update object transform.
-    mat4 entity_transform = transform;
-
-    // Some built-in drawables are composed of multiple entities. For example,
-    // capsules are a combination of a open tube and two dome end caps.
-
-    if (geom.type == mjGEOM_CYLINDER) {
-      // Cylinders are a tube with two disks at the ends. The "bottom" disk is
-      // rotated so that the normals point outwards.
-      if (j == kCylinderTopDisk) {
-        entity_transform *= mat4::translation(float3{0, 0, size.z});
-      } else if (j == kCylinderBottomDisk) {
-        entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
-      }
-    } else if (geom.type == mjGEOM_CAPSULE) {
-      // Capsules are a tube with two domes at the ends. We apply an inverse
-      // scale to the domes to "counteract" the capsule's overall scale so that
-      // the domes remain spherical in shape.
-      const float xz_size = 0.5f * (size.x + size.y);
-      if (j == kCapsuleTopDome) {
-        entity_transform *= mat4::translation(float3{0, 0, size.z});
-        entity_transform *= mat4::scaling(float3{1, 1, xz_size / size.z});
-      } else if (j == kCapsuleBottomDome) {
-        entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
-        entity_transform *= mat4::scaling(float3{1, 1, xz_size / size.z});
-      }
-    } else if (geom.type == mjGEOM_ARROW) {
-      // An arrow is a tube with a cone at the end and a disk cap at the other
-      // end. Because the cone head's base is larger than the tube, an extra
-      // disk is added to the base of the cone. This disk is rotated such that
-      // its normal points outwards.
-      entity_transform *= mat4::scaling(float3{1, 1, kArrowScale});
-      entity_transform *= mat4::translation(float3{0, 0, size.z});
-      if (j == kArrow0Cone) {
-        entity_transform *= mat4::translation(float3{0, 0, size.z});
-        entity_transform *=
-            mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      } else if (j == kArrow0ConeDisk) {
-        entity_transform *= mat4::translation(float3{0, 0, size.z});
-        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
-        entity_transform *=
-            mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      } else if (j == kArrow0BottomDisk) {
-        entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
-      }
-    } else if (geom.type == mjGEOM_ARROW1) {
-      // An arrow1 is a tube with a cone at the end and a disk cap at the other
-      // end.
-      entity_transform *= mat4::scaling(float3{1, 1, kArrowScale});
-      entity_transform *= mat4::translation(float3{0, 0, size.z});
-      if (j == kArrow1Cone) {
-        entity_transform *= mat4::translation(float3{0, 0, size.z});
-      } else if (j == kArrow1BottomDisk) {
-        entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
-      }
-    } else if (geom.type == mjGEOM_ARROW2) {
-      // An arrow2 is a tube with a cone at both ends.  Like the standard arrow,
-      // an extra disk is added to the base of each cone.
-      entity_transform *= mat4::scaling(float3{1, 1, kArrowScale});
-      entity_transform *= mat4::translation(float3{0, 0, size.z});
-      if (j == kArrow2TopCone) {
-        entity_transform *= mat4::translation(float3{0, 0, size.z});
-        entity_transform *=
-            mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      } else if (j == kArrow2BottomCone) {
-        entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
-        entity_transform *=
-            mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      } else if (j == kArrow2TopConeDisk) {
-        entity_transform *= mat4::translation(float3{0, 0, size.z});
-        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
-        entity_transform *=
-            mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      } else if (j == kArrow2BottomConeDisk) {
-        entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *=
-            mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
-      }
-    }
-    if (geom.type == mjGEOM_PLANE) {
-      const bool is_infinite = !(size.x > 0 && size.y > 0);
-      if (is_infinite) {
-        // Infinite planes are scaled to match the tile size used by
-        // re-centering in engine_vis_visualize.c.
-        const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
-        entity_transform *=
-            mat4::scaling(float3{plane_scale, plane_scale, 1.0f});
-      } else {
-        // Regular planes are scaled by geom.size.
-        entity_transform *= mat4::scaling(float3{size.x, size.y, 1.0f});
-      }
-    } else if (geom.type != mjGEOM_MESH && geom.type != mjGEOM_HFIELD) {
-      entity_transform *= mat4::scaling(size);
-    }
-    tm.setTransform(tm.getInstance(entity), entity_transform);
-  }
+  renderable.SetMeshes(meshes, get_transforms);
+  renderable.SetTransform(trs);
 }
 
 static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
@@ -338,10 +365,12 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
           enable_reflection && geom.reflectance > 0 && params.color.a == 1.0f;
     }
   }
-  renderable.SetWireframe(scene->flags[mjRND_WIREFRAME]);
+  renderable.SetLayerMask(geom.category);
   if (geom.category == mjCAT_DECOR) {
     renderable.SetCastShadows(false);
     renderable.SetReceiveShadows(false);
+  } else {
+    renderable.SetWireframe(scene->flags[mjRND_WIREFRAME]);
   }
 
   MaterialTextures textures;
@@ -463,19 +492,19 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
 std::unique_ptr<Renderable> CreateGeomRenderable(
     const mjvGeom& geom, const mjvScene* scene, ObjectManager* object_mgr,
     ModelObjects* model_objs, const float headpos[3]) {
-  Renderable::Usage usage = Renderable::Usage::SceneObject;
+  ShadingModel shading_model = ShadingModel::SceneObject;
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
-    usage = Renderable::Usage::DecorLines;
+    shading_model = ShadingModel::DecorLines;
   } else if (geom.category == mjCAT_DECOR) {
-    usage = Renderable::Usage::Decor;
+    shading_model = ShadingModel::Decor;
   }
 
-  auto renderable = std::make_unique<Renderable>(usage, object_mgr);
+  RenderableParams config;
+  DefaultRenderableParams(&config);
+  config.shading_model = shading_model;
+  auto renderable = std::make_unique<Renderable>(object_mgr, config);
 
-  // The order of these calls is important. e.g. We need to create the filament
-  // renderable entities before we can set their transform.
   PrepareGeomMeshes(*renderable, geom, scene, model_objs);
-  SetGeomTransform(*renderable, geom);
   UpdateGeomMaterial(*renderable, geom, scene, model_objs, object_mgr, headpos);
 
   return renderable;

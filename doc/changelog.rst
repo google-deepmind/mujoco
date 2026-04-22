@@ -7,9 +7,29 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-
+- Added new :ref:`mj_maxContact<mj_maxContact>` function to get the maximum number of possible contacts returned by
+  two geoms.
+- Added ``mj_containsBufferVFS`` and ``mj_containsFileVFS`` to check for existence of buffers and files in VFS.
 - Added :ref:`multi-cell support<body-flexcomp-cellnum>` for trilinear and quadratic flexes. Note that the implicit
   integrator uses a dense solver for the flex degrees of freedom, which can be slow for multi-cell flexes.
+- Refactored ``flexstrain`` equality constraints to be instantiated per cell instead of per flex object, reducing the
+  number of degrees of freedom per constraint row. The equality can be associated with a specific cell with the new
+  attribute ":ref:`cell <equality-flexstrain-cell>`
+
+  .. admonition:: Breaking API changes
+   :class: attention
+
+   - The feature :ref:`multiccd<coMultiCCD>` is now enabled by default. This feature has little performance overhead
+     and gives better contact behavior for stability.
+
+     **Migration:** The flag :ref:`multiccd<option-flag-multiccd>` must be explicitly disabled.
+
+Bug fixes
+^^^^^^^^^
+
+- Asset paths in attached child specs are now resolved relative to the model file directory of the child spec, rather
+  than the parent spec. This prevents the origin of the parent spec to affect the resolution of asset paths in the child
+  spec.
 
 Version 3.7.0 (April 14, 2026)
 ------------------------------

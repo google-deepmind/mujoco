@@ -304,6 +304,7 @@ PYBIND11_MODULE(_functions, pymodule) {
             m, d, flg_acc, result.data());
       });
   Def<traits::mj_rnePostConstraint>(pymodule);
+  Def<traits::mj_maxContact>(pymodule);
   Def<traits::mj_collision>(pymodule);
   Def<traits::mj_makeConstraint>(pymodule);
   Def<traits::mj_island>(pymodule);

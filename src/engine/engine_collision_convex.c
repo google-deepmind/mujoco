@@ -828,7 +828,7 @@ static int maxContacts(const mjModel* m, const mjCCDObj* obj1, const mjCCDObj* o
   // reduce mesh collisions to 4 contacts max
   if (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH) {
     if (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH) {
-      return mjENABLED(mjENBL_MULTICCD) ? 4 : 1;
+      return mjDISABLED(mjDSBL_MULTICCD) ? 1 : 4;
     }
   }
 
@@ -857,7 +857,7 @@ int mjc_Convex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtN
   }
 
   // look for additional contacts
-  if (ncon == 1 && mjENABLED(mjENBL_MULTICCD)  // TODO(tassa) leave as bitflag or make geom attribute (?)
+  if (ncon == 1 && !mjDISABLED(mjDSBL_MULTICCD)  // TODO(tassa) leave as bitflag or make geom attribute (?)
       && m->geom_type[g1] != mjGEOM_ELLIPSOID && m->geom_type[g1] != mjGEOM_SPHERE
       && m->geom_type[g2] != mjGEOM_ELLIPSOID && m->geom_type[g2] != mjGEOM_SPHERE) {
     // multiCCD parameters

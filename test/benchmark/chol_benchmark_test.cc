@@ -22,7 +22,6 @@
 #include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_memory.h"
 #include "src/engine/engine_support.h"
 #include "src/engine/engine_util_solve.h"
 #include "src/engine/engine_util_sparse.h"
@@ -352,10 +351,6 @@ constexpr int kNumUpdateVectors = 25;
 int ABSL_ATTRIBUTE_NOINLINE mju_cholUpdateSparse_old(
     mjtNum* mat, mjtNum* x, int n, int flg_plus, const int* rownnz,
     const int* rowadr, const int* colind, int x_nnz, int* x_ind, mjData* d) {
-  mj_markStack(d);
-  int* buf_ind = mjSTACKALLOC(d, n, int);
-  mjtNum* sparse_buf = mjSTACKALLOC(d, n, mjtNum);
-
   int rank = n, i = x_nnz - 1;
   while (i >= 0) {
     int nnz = rownnz[x_ind[i]], adr = rowadr[x_ind[i]];
@@ -372,10 +367,9 @@ int ABSL_ATTRIBUTE_NOINLINE mju_cholUpdateSparse_old(
     mju_combineSparseInc(mat + adr, x, n, 1 / c, (flg_plus ? s / c : -s / c),
                          nnz - 1, i, colind + adr, x_ind);
     int new_x_nnz = mju_combineSparse(x, mat + adr, c, -s, i, nnz - 1, x_ind,
-                                      colind + adr, sparse_buf, buf_ind);
+                                      colind + adr);
     i = i - 1 + (new_x_nnz - i);
   }
-  mj_freeStack(d);
   return rank;
 }
 

@@ -16,100 +16,105 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <utility>
+#include <span>
 
 #include <filament/Engine.h>
 #include <filament/Material.h>
 #include <filament/RenderableManager.h>
 #include <filament/Scene.h>
+#include <filament/TransformManager.h>
+#include <math/mat4.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
-Renderable::Renderable(Usage usage, ObjectManager* object_mgr)
-    : usage_(usage), object_mgr_(object_mgr) {}
+using filament::math::mat4f;
+
+void DefaultRenderableParams(RenderableParams* params) {
+  params->shading_model = ShadingModel::SceneObject;
+}
+
+Renderable::Renderable(ObjectManager* object_mgr, const RenderableParams& params)
+    : object_mgr_(object_mgr), params_(params) {}
 
 Renderable::~Renderable() noexcept {
-  while (!entities_.empty()) {
-    RemoveLastEntity();
+  filament::Engine* engine = GetEngine();
+  utils::EntityManager& em = utils::EntityManager::get();
+
+  for (Part& part : parts_) {
+    if (assigned_scene_) {
+      assigned_scene_->remove(part.entity);
+    }
+    engine->destroy(part.entity);
+    em.destroy(part.entity);
   }
   for (int i = 0; i < kNumDrawModes; ++i) {
     if (instances_[i] != nullptr) {
-      GetEngine()->destroy(instances_[i]);
+      engine->destroy(instances_[i]);
       instances_[i] = nullptr;
     }
   }
 }
 
-void Renderable::RemoveLastEntity() {
-  if (entities_.empty()) {
-    return;
+void Renderable::SetMesh(const Mesh* mesh, int elem_offset, int elem_count) {
+  if (mesh == nullptr) {
+    mju_error("Cannot set mesh to nullptr.");
   }
-
-  utils::EntityManager& em = utils::EntityManager::get();
-  utils::Entity entity = entities_.back();
-
-  if (assigned_scene_) {
-    assigned_scene_->remove(entity);
-  }
-
-  GetEngine()->destroy(entity);
-  em.destroy(entity);
-  entities_.pop_back();
-  meshes_.pop_back();
-}
-
-void Renderable::UpdateMesh(int index, const Mesh* mesh, int elem_offset,
-                            int elem_count) {
-  MeshInfo& mesh_info = SetMesh(index, mesh, nullptr, elem_offset, elem_count);
-  UpdateEntity(index, mesh_info);
-}
-
-void Renderable::UpdateMesh(int index, MeshPtr mesh, int elem_offset,
-                            int elem_count) {
-  MeshInfo& mesh_info =
-      SetMesh(index, mesh.get(), std::move(mesh), elem_offset, elem_count);
-  UpdateEntity(index, mesh_info);
-}
-
-void Renderable::AppendMesh(const Mesh* mesh, int elem_offset, int elem_count) {
-  MeshInfo& mesh_info = SetMesh(-1, mesh, nullptr, elem_offset, elem_count);
-  AppendEntity(mesh_info);
-}
-
-void Renderable::AppendMesh(MeshPtr mesh, int elem_offset, int elem_count) {
-  MeshInfo& mesh_info =
-      SetMesh(-1, mesh.get(), std::move(mesh), elem_offset, elem_count);
-  AppendEntity(mesh_info);
-}
-
-void Renderable::AppendEntity(const MeshInfo& mesh_info) {
-  const Mesh* mesh = mesh_info.mesh;
   filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
   if (vertex_buffer == nullptr) {
     mju_error("Invalid (null) vertex buffer.");
   }
-
   filament::IndexBuffer* index_buffer = mesh->GetFilamentIndexBuffer();
   if (index_buffer == nullptr) {
     mju_error("Invalid (null) index buffer.");
   }
 
-  utils::Entity entity = utils::EntityManager::get().create();
-  if (entity.isNull()) {
+  if (elem_count == 0) {
+    elem_count = index_buffer->getIndexCount() - elem_offset;
+  }
+
+  if (parts_.empty()) {
+    Part& part = parts_.emplace_back();
+    part.mesh = mesh;
+    part.elem_offset = elem_offset;
+    part.elem_count = elem_count;
+    InitPartEntity(part);
+  } else if (parts_.size() == 1) {
+    Part& part = parts_[0];
+    part.mesh = mesh;
+    part.elem_offset = elem_offset;
+    part.elem_count = elem_count;
+
+    filament::RenderableManager& rm = GetEngine()->getRenderableManager();
+    rm.setGeometryAt(rm.getInstance(part.entity), 0,
+                     part.mesh->GetPrimitiveType(), vertex_buffer, index_buffer,
+                     part.elem_offset, part.elem_count);
+
+  } else {
+    mju_error("Cannot set mesh for renderable with multiple parts.");
+  }
+}
+
+void Renderable::InitPartEntity(Part& part) {
+  part.entity = utils::EntityManager::get().create();
+  if (part.entity.isNull()) {
     mju_error("Failed to create entity.");
   }
 
+  filament::VertexBuffer* vertex_buffer = part.mesh->GetFilamentVertexBuffer();
+  filament::IndexBuffer* index_buffer = part.mesh->GetFilamentIndexBuffer();
+
   filament::RenderableManager::Builder builder(1);
-  builder.geometry(0, mesh->GetPrimitiveType(), vertex_buffer, index_buffer,
-                   mesh_info.elem_offset, mesh_info.elem_count);
-  if (mesh->HasBounds()) {
-    builder.boundingBox(mesh->GetBounds());
+  builder.geometry(0, part.mesh->GetPrimitiveType(), vertex_buffer, index_buffer,
+                   part.elem_offset, part.elem_count);
+  if (part.mesh->HasBounds()) {
+    builder.boundingBox(part.mesh->GetBounds());
   } else {
     builder.culling(false);
   }
@@ -123,58 +128,50 @@ void Renderable::AppendEntity(const MeshInfo& mesh_info) {
   builder.blendOrder(0, blend_order_);
   builder.screenSpaceContactShadows(true);
 
-  builder.build(*GetEngine(), entity);
+  builder.build(*GetEngine(), part.entity);
   if (assigned_scene_) {
-    assigned_scene_->addEntity(entity);
+    assigned_scene_->addEntity(part.entity);
   }
-  entities_.push_back(entity);
 }
 
-void Renderable::UpdateEntity(int index, const MeshInfo& mesh_info) {
-  if (index < 0 || index >= entities_.size()) {
-    mju_error("Invalid index %d for renderable.", index);
-  }
-  utils::Entity entity = entities_[index];
-
-  const Mesh* mesh = mesh_info.mesh;
-  filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
-  if (vertex_buffer == nullptr) {
-    mju_error("Invalid (null) vertex buffer.");
+void Renderable::SetTransform(const Trs& trs) {
+  if (parts_.empty()) {
+    transform_ = trs.ToTransform();
+    return;
   }
 
-  filament::IndexBuffer* index_buffer = mesh->GetFilamentIndexBuffer();
-  if (index_buffer == nullptr) {
-    mju_error("Invalid (null) index buffer.");
+  filament::TransformManager& tm = GetEngine()->getTransformManager();
+  if (get_transform_fn_) {
+    for (int i = 0; i < parts_.size(); ++i) {
+      const mat4f& transform = get_transform_fn_(i, trs);
+      tm.setTransform(tm.getInstance(parts_[i].entity), transform);
+    }
+  } else {
+    for (Part& part : parts_) {
+      tm.setTransform(tm.getInstance(part.entity), trs.ToTransform());
+    }
   }
-
-  filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-  rm.setGeometryAt(rm.getInstance(entity), 0, mesh->GetPrimitiveType(),
-                   vertex_buffer, index_buffer, mesh_info.elem_offset,
-                   mesh_info.elem_count);
+  transform_ = tm.getTransform(tm.getInstance(parts_[0].entity));
 }
 
-Renderable::MeshInfo& Renderable::SetMesh(int index, const Mesh* mesh,
-                                          MeshPtr owned_mesh, int elem_offset,
-                                          int elem_count) {
-  if (index == -1) {
-    index = meshes_.size();
-    meshes_.emplace_back();
-  }
-  if (index < 0 || index >= static_cast<int>(meshes_.size())) {
-    mju_error("Invalid index %d for renderable.", index);
+const mat4f& Renderable::GetTransform() const {
+  return transform_;
+}
+
+void Renderable::SetMeshes(std::span<const Mesh*> meshes,
+                           GetTransformFn get_transform_fn) {
+  if (!parts_.empty()) {
+    mju_error("Cannot set meshes for renderable with multiple parts.");
   }
 
-  MeshInfo* mesh_info = &meshes_[index];
-  mesh_info->owned_mesh = std::move(owned_mesh);
-  mesh_info->mesh = mesh;
-  mesh_info->elem_offset = elem_offset;
-  mesh_info->elem_count = elem_count;
-  if (mesh_info->elem_count == 0) {
-    const int total =
-        mesh_info->mesh->GetFilamentIndexBuffer()->getIndexCount();
-    mesh_info->elem_count = total - mesh_info->elem_offset;
+  get_transform_fn_ = get_transform_fn;
+  for (int i = 0; i < meshes.size(); ++i) {
+    Part& part = parts_.emplace_back();
+    part.mesh = meshes[i];
+    part.elem_offset = 0;
+    part.elem_count = part.mesh->GetFilamentIndexBuffer()->getIndexCount();
+    InitPartEntity(part);
   }
-  return *mesh_info;
 }
 
 void Renderable::AddToScene(filament::Scene* scene) {
@@ -185,8 +182,8 @@ void Renderable::AddToScene(filament::Scene* scene) {
     // Entities are already added to the scene.
     return;
   }
-  for (utils::Entity& entity : entities_) {
-    scene->addEntity(entity);
+  for (Part& part : parts_) {
+    scene->addEntity(part.entity);
   }
   assigned_scene_ = scene;
 }
@@ -195,26 +192,27 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
   if (assigned_scene_ != scene) {
     mju_error("Attempting to remove renderable from wrong scene.");
   }
-  for (utils::Entity& entity : entities_) {
-    scene->remove(entity);
+  for (Part& part : parts_) {
+    scene->remove(part.entity);
   }
   assigned_scene_ = nullptr;
 }
 
 void Renderable::UpdateMaterial(const MaterialParams& params,
                                 const MaterialTextures& textures) {
-  params_ = params;
-  textures_ = textures;
+  material_params_ = params;
+  material_textures_ = textures;
 
   AssignMaterial(DrawMode::Color, GetColorMaterialType());
-  if (usage_ == Usage::SceneObject) {
+  if (params_.shading_model == ShadingModel::SceneObject) {
     AssignMaterial(DrawMode::Depth, ObjectManager::kUnlitDepth);
     AssignMaterial(DrawMode::Segmentation, ObjectManager::kUnlitSegmentation);
   }
 
   for (int i = 0; i < kNumDrawModes; ++i) {
     if (instances_[i]) {
-      UpdateMaterialInstance(instances_[i], params_, textures_, object_mgr_);
+      UpdateMaterialInstance(instances_[i], material_params_,
+                             material_textures_, object_mgr_);
     }
   }
   SetDrawMode(draw_mode_);
@@ -240,24 +238,24 @@ void Renderable::AssignMaterial(DrawMode mode,
 }
 
 const MaterialParams& Renderable::GetMaterialParams() const {
-  return params_;
+  return material_params_;
 }
 
 const MaterialTextures& Renderable::GetMaterialTextures() const {
-  return textures_;
+  return material_textures_;
 }
 
 void Renderable::SetDrawMode(DrawMode mode) {
   // Only SceneObjects support non-color draw modes.
-  if (usage_ != Usage::SceneObject) {
+  if (params_.shading_model != ShadingModel::SceneObject) {
     mode = DrawMode::Color;
   }
 
   filament::MaterialInstance* instance = instances_[static_cast<int>(mode)];
   if (instance) {
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-    for (utils::Entity& entity : entities_) {
-      filament::RenderableManager::Instance ri = rm.getInstance(entity);
+    for (Part& part : parts_) {
+      filament::RenderableManager::Instance ri = rm.getInstance(part.entity);
       rm.setMaterialInstanceAt(ri, 0, instance);
     }
   }
@@ -270,8 +268,8 @@ std::uint8_t Renderable::SetLayerMask(std::uint8_t mask) {
     layer_mask_ = mask;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-    for (utils::Entity& entity : entities_) {
-      rm.setLayerMask(rm.getInstance(entity), 0xff, layer_mask_);
+    for (Part& part : parts_) {
+      rm.setLayerMask(rm.getInstance(part.entity), 0xff, layer_mask_);
     }
   }
   return prev;
@@ -283,8 +281,8 @@ std::uint8_t Renderable::SetPriority(std::uint8_t priority) {
     priority_ = priority;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-    for (utils::Entity& entity : entities_) {
-      rm.setPriority(rm.getInstance(entity), priority_);
+    for (Part& part : parts_) {
+      rm.setPriority(rm.getInstance(part.entity), priority_);
     }
   }
   return prev;
@@ -296,8 +294,8 @@ std::uint16_t Renderable::SetBlendOrder(std::uint16_t blend_order) {
     blend_order_ = blend_order;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-    for (utils::Entity& entity : entities_) {
-      rm.setBlendOrderAt(rm.getInstance(entity), 0, blend_order_);
+    for (Part& part : parts_) {
+      rm.setBlendOrderAt(rm.getInstance(part.entity), 0, blend_order_);
     }
   }
   return prev;
@@ -308,8 +306,8 @@ void Renderable::SetCastShadows(bool cast_shadows) {
     cast_shadows_ = cast_shadows;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-    for (utils::Entity& entity : entities_) {
-      rm.setCastShadows(rm.getInstance(entity), cast_shadows_);
+  for (Part& part : parts_) {
+        rm.setCastShadows(rm.getInstance(part.entity), cast_shadows_);
     }
   }
 }
@@ -319,8 +317,8 @@ void Renderable::SetReceiveShadows(bool receive_shadows) {
     receive_shadows_ = receive_shadows;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-    for (utils::Entity& entity : entities_) {
-      rm.setReceiveShadows(rm.getInstance(entity), receive_shadows_);
+    for (Part& part : parts_) {
+      rm.setReceiveShadows(rm.getInstance(part.entity), receive_shadows_);
     }
   }
 }
@@ -333,36 +331,33 @@ void Renderable::SetWireframe(bool wireframe) {
     wireframe_ = wireframe;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-    for (int i = 0; i < entities_.size(); ++i) {
-      utils::Entity& entity = entities_[i];
-      const Mesh* mesh = meshes_[i].mesh;
-      filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
-      filament::IndexBuffer* index_buffer = mesh->GetFilamentIndexBuffer();
-      rm.setGeometryAt(rm.getInstance(entity), 0,
-                       wireframe_ ? kWireframeType : mesh->GetPrimitiveType(),
-                       vertex_buffer, index_buffer, meshes_[i].elem_offset,
-                       meshes_[i].elem_count);
+    for (Part& part : parts_) {
+      filament::VertexBuffer* vertex_buffer = part.mesh->GetFilamentVertexBuffer();
+      filament::IndexBuffer* index_buffer = part.mesh->GetFilamentIndexBuffer();
+      rm.setGeometryAt(rm.getInstance(part.entity), 0,
+                       wireframe_ ? kWireframeType : part.mesh->GetPrimitiveType(),
+                       vertex_buffer, index_buffer, part.elem_offset,
+                       part.elem_count);
     }
   }
 }
 
-
 ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
-  if (usage_ == Usage::DecorLines) {
+  if (params_.shading_model == ShadingModel::DecorLines) {
     return ObjectManager::kUnlitLine;
-  } else if (usage_ == Usage::Decor) {
-    return ObjectManager::kUnlitSegmentation;
-  } else if (usage_ == Usage::Ux) {
+  } else if (params_.shading_model == ShadingModel::Decor) {
+    return ObjectManager::kUnlitDecor;
+  } else if (params_.shading_model == ShadingModel::Ux) {
     return ObjectManager::kUnlitUi;
-  } else if (textures_.orm) {
+  } else if (material_textures_.orm) {
     return ObjectManager::kPbrPacked;
-  } else if (textures_.metallic) {
+  } else if (material_textures_.metallic) {
     return ObjectManager::kPbr;
-  } else if (textures_.roughness) {
+  } else if (material_textures_.roughness) {
     return ObjectManager::kPbr;
-  } else if (params_.metallic >= 0) {
+  } else if (material_params_.metallic >= 0) {
     return ObjectManager::kPbr;
-  } else if (params_.roughness >= 0) {
+  } else if (material_params_.roughness >= 0) {
     return ObjectManager::kPbr;
   }
 
@@ -371,42 +366,42 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
   // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if
   // it has them.
   bool has_texcoords = false;
-  if (!meshes_.empty()) {
-    const auto attribs = meshes_[0].mesh->GetVertexAttributes();
+  if (!parts_.empty()) {
+    const auto attribs = parts_[0].mesh->GetVertexAttributes();
     auto it = std::find(attribs.begin(), attribs.end(),
                         filament::VertexAttribute::UV0);
     has_texcoords = (it != attribs.end());
   }
 
-  if (textures_.color == nullptr) {
-    if (params_.color.a < 1.0f) {
+  if (material_textures_.color == nullptr) {
+    if (material_params_.color.a < 1.0f) {
       return ObjectManager::kPhongColorFade;
-    } else if (params_.reflective) {
+    } else if (material_params_.reflective) {
       return ObjectManager::kPhongColorReflect;
     } else {
       return ObjectManager::kPhongColor;
     }
-  } else if (textures_.color->GetFilamentTexture()->getTarget() ==
+  } else if (material_textures_.color->GetFilamentTexture()->getTarget() ==
               filament::Texture::Sampler::SAMPLER_CUBEMAP) {
-    if (params_.color.a < 1.0f) {
+    if (material_params_.color.a < 1.0f) {
       return ObjectManager::kPhongCubeFade;
-    } else if (params_.reflective) {
+    } else if (material_params_.reflective) {
       return ObjectManager::kPhongCubeReflect;
     } else {
       return ObjectManager::kPhongCube;
     }
   } else if (has_texcoords) {
-    if (params_.color.a < 1.0f) {
+    if (material_params_.color.a < 1.0f) {
       return ObjectManager::kPhong2dUvFade;
-    } else if (params_.reflective) {
+    } else if (material_params_.reflective) {
       return ObjectManager::kPhong2dUvReflect;
     } else {
       return ObjectManager::kPhong2dUv;
     }
   } else {
-    if (params_.color.a < 1.0f) {
+    if (material_params_.color.a < 1.0f) {
       return ObjectManager::kPhong2dFade;
-    } else if (params_.reflective) {
+    } else if (material_params_.reflective) {
       return ObjectManager::kPhong2dReflect;
     } else {
       return ObjectManager::kPhong2d;

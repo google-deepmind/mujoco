@@ -983,6 +983,8 @@ class mjCFlex_ : public mjCBase {
   std::vector<int> edgeidx_;              // element edge ids
   std::vector<double> stiffness;          // elasticity stiffness matrix
   std::vector<double> bending;            // bending stiffness matrix
+  bool has_strain_eq = false;             // true if strain constraints reference this flex
+  std::vector<bool> cell_empty;           // true if cell contains no mesh geometry
 
   // variable-size data
   std::vector<std::string> vertbody_;     // vertex body names
@@ -1052,7 +1054,8 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   std::vector<double> vert0_;             // vertex positions in [0, 1]^d in the bounding box
   std::vector<double> node0_;             // node Cartesian positions
 
-
+  // compute unrotated node positions for stiffness computation
+  std::vector<double> ComputeUnrotatedNodePositions(const std::vector<double>& nodexpos) const;
 
   // stiffness caching
   std::string ComputeStiffnessCacheKey() const;
@@ -1120,9 +1123,6 @@ class mjCMesh_ : public mjCBase {
 
   // octree
   mjCOctree octree_;                  // octree of the mesh
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
@@ -1334,9 +1334,6 @@ class mjCSkin_ : public mjCBase {
 
   int matid;                          // material id
   std::vector<int> bodyid;            // body ids
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCSkin: public mjCSkin_, private mjsSkin {
@@ -1389,9 +1386,6 @@ class mjCHField_ : public mjCBase {
   std::string spec_file_;
   std::string spec_content_type_;
   std::vector<float> spec_userdata_;
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCHField : public mjCHField_, private mjsHField {
@@ -1440,9 +1434,6 @@ class mjCTexture_ : public mjCBase {
   std::string spec_file_;
   std::string spec_content_type_;
   std::vector<std::string> spec_cubefiles_;
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCTexture : public mjCTexture_, private mjsTexture {
