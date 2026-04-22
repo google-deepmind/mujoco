@@ -130,7 +130,7 @@ MJAPI void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
 //-------------------------- miscellaneous ---------------------------------------------------------
 
 // gather global node positions and velocities
-MJAPI void mju_flexGatherState(const mjModel* m, mjData* d, int f, mjtNum* xpos, mjtNum* vel);
+MJAPI void mju_flexGatherState(const mjModel* m, const mjData* d, int f, mjtNum* xpos, mjtNum* vel);
 
 // extract 6D force:torque for one contact, in contact frame
 MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);

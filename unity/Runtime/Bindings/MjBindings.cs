@@ -137,16 +137,16 @@ public enum mjtDisableBit : int{
   mjDSBL_AUTORESET = 65536,
   mjDSBL_NATIVECCD = 131072,
   mjDSBL_ISLAND = 262144,
-  mjNDISABLE = 19,
+  mjDSBL_MULTICCD = 524288,
+  mjNDISABLE = 20,
 }
 public enum mjtEnableBit : int{
   mjENBL_OVERRIDE = 1,
   mjENBL_ENERGY = 2,
   mjENBL_FWDINV = 4,
   mjENBL_INVDISCRETE = 8,
-  mjENBL_MULTICCD = 16,
-  mjENBL_SLEEP = 32,
-  mjNENABLE = 6,
+  mjENBL_SLEEP = 16,
+  mjNENABLE = 5,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -6685,6 +6685,12 @@ public static unsafe extern int mj_addBufferVFS(void* vfs, [MarshalAs(UnmanagedT
 public static unsafe extern int mj_deleteFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_containsBufferVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string name);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_containsFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string directory, [MarshalAs(UnmanagedType.LPStr)]string filename);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteVFS(void* vfs);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
@@ -6950,6 +6956,9 @@ public static unsafe extern void mj_rne(mjModel_* m, mjData_* d, int flg_acc, do
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_rnePostConstraint(mjModel_* m, mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_maxContact(mjModel_* m, int g1, int g2, int has_margin);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_collision(mjModel_* m, mjData_* d);

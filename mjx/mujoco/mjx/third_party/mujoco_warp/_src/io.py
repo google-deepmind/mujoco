@@ -370,7 +370,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   )
 
   # check for unsupported margin + multicontact / box-box CCD combinations
-  use_multiccd = mjm.opt.enableflags & types.EnableBit.MULTICCD
+  use_multiccd = (mjm.opt.disableflags & types.DisableBit.MULTICCD) == 0
   nativeccd_disabled = mjm.opt.disableflags & types.DisableBit.NATIVECCD
   BOX = int(mujoco.mjtGeom.mjGEOM_BOX)
   MESH = int(mujoco.mjtGeom.mjGEOM_MESH)

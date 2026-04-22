@@ -40,9 +40,6 @@ class ImguiBridge {
   // synced.
   void Update();
 
-  // Returns the current ImGui scale factor.
-  float GetScale() const;
-
   // Uploads texture to be used with ImGui's Image and ImageButton functions.
   uintptr_t UploadImage(uintptr_t tex_id, const uint8_t* pixels, int width,
                         int height, int bpp);
@@ -62,7 +59,7 @@ class ImguiBridge {
   ObjectManager* object_mgr_ = nullptr;
   SceneView* scene_view_ = nullptr;
   std::vector<std::unique_ptr<Renderable>> renderables_;
-  std::vector<MeshPtr> meshes_;
+  std::vector<std::unique_ptr<Mesh>> meshes_;
   std::unordered_map<uintptr_t, std::unique_ptr<Texture>> textures_;
 };
 

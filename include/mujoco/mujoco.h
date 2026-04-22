@@ -94,6 +94,12 @@ MJAPI int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int 
 // Delete file from VFS; return 0: success, -1: not found in VFS.
 MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 
+// Check if buffer exists in VFS; return 1: exists, 0: not found.
+MJAPI int mj_containsBufferVFS(mjVFS* vfs, const char* name);
+
+// Check if file exists in VFS; return 1: exists, 0: not found.
+MJAPI int mj_containsFileVFS(mjVFS* vfs, const char* directory, const char* filename);
+
 // Delete all files from VFS and deallocates VFS internal memory.
 MJAPI void mj_deleteVFS(mjVFS* vfs);
 
@@ -459,6 +465,11 @@ MJAPI void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result);
 
 // RNE with complete data: compute cacc, cfrc_ext, cfrc_int.
 MJAPI void mj_rnePostConstraint(const mjModel* m, mjData* d);
+
+// Return the maximum number of contacts that can be generated between two geoms.
+// If has_margin is -1, then the margin is pulled from the model, otherwise if has_margin > 0
+// indicates that the geoms have a positive margin.
+MJAPI int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin);
 
 // Run collision detection.
 MJAPI void mj_collision(const mjModel* m, mjData* d);

@@ -116,9 +116,10 @@ target directory.
 
 **Notes:**
 
-- When building on Windows, use Visual Studio 2019 or later and make sure Windows SDK version 10.0.22000 or later is
-  installed (see :issue:`862` for more details).
-- To optimize runtime performance build with ``-DCMAKE_BUILD_TYPE=Release``
+- To optimize runtime performance build with ``-DCMAKE_BUILD_TYPE=Release``.
+- When building on Windows with MSVC, use Visual Studio 2019 or later and make sure Windows SDK version 10.0.22000 or
+  later is installed (see :issue:`862` for more details).
+- We've found that performance on Windows is best when building with Clang, rather than MSVC.
 
 .. tip::
    As a reference, a working build configuration can be found in MuJoCo's

@@ -4668,9 +4668,6 @@ void mjCHField::NameSpace(const mjCModel* m) {
     name = mjuu_stripext(stripped);
   }
   mjCBase::NameSpace(m);
-  if (modelfiledir_.empty()) {
-    modelfiledir_ = FilePath(m->spec_modelfiledir_);
-  }
 }
 
 
@@ -4798,15 +4795,12 @@ void mjCHField::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    // copy paths from model if not already defined
-    if (modelfiledir_.empty()) {
-      modelfiledir_ = FilePath(model->modelfiledir_);
-    }
     mujoco::user::FilePath meshdir_;
     meshdir_ = FilePath(mjs_getString(compiler->meshdir));
 
     FilePath filename = meshdir_ + FilePath(file_);
-    mjResource* resource = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);
+    mjSpec* owning_spec = model->FindSpec(compiler);
+    mjResource* resource = LoadResource(owning_spec->modelfiledir->c_str(), filename.Str(), vfs);
 
     struct CachedHField {
       int nrow, ncol;
@@ -4965,9 +4959,6 @@ void mjCTexture::NameSpace(const mjCModel* m) {
     name = mjuu_stripext(stripped);
   }
   mjCBase::NameSpace(m);
-  if (modelfiledir_.empty()) {
-    modelfiledir_ = FilePath(m->spec_modelfiledir_);
-  }
 }
 
 
@@ -5388,7 +5379,8 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
   }
 
   // try loading from cache
-  mjResource* resource = LoadResource(modelfiledir_.Str(), filename, vfs);
+  mjSpec* owning_spec = model->FindSpec(compiler);
+  mjResource* resource = LoadResource(owning_spec->modelfiledir->c_str(), filename, vfs);
   if (cache && cache->PopulateData(GetCacheId(resource, asset_type), resource, callback)) {
     mju_closeResource(resource);
     return;
@@ -5640,10 +5632,6 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
 void mjCTexture::Compile(const mjVFS* vfs) {
   CopyFromSpec();
 
-  // copy paths from model if not already defined
-  if (modelfiledir_.empty()) {
-    modelfiledir_ = FilePath(model->modelfiledir_);
-  }
   mujoco::user::FilePath texturedir_;
   texturedir_ = FilePath(mjs_getString(compiler->texturedir));
 

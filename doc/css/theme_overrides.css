@@ -54,6 +54,98 @@ body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
   font-size: 85%;
 }
 
+.pairwise-toggles {
+  display: flex;
+  align-items: center;
+  gap: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+.pairwise-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.pairwise-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.pairwise-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.pairwise-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 20px;
+}
+
+.pairwise-slider:before {
+  content: "";
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.pairwise-switch input:checked + .pairwise-slider {
+  background-color: var(--secondary-header-color, #123693);
+}
+
+.pairwise-switch input:checked + .pairwise-slider:before {
+  transform: translateX(16px);
+}
+
+.multiccd-off,
+.multiccd-native,
+.multiccd-legacy {
+  display: none;
+  margin: 0;
+}
+
+.multiccd-off {
+  display: inline;
+}
+
+.multiccd-enabled .multiccd-off {
+  display: none;
+}
+
+.multiccd-enabled.nativeccd-enabled:not(.margin-enabled) .multiccd-native {
+  display: inline;
+}
+
+.multiccd-enabled:not(.nativeccd-enabled) .multiccd-legacy,
+.multiccd-enabled.nativeccd-enabled.margin-enabled .multiccd-legacy {
+  display: inline;
+}
+
+.margin-show {
+  display: none;
+}
+
+.margin-enabled .margin-hide {
+  display: none;
+}
+
+.margin-enabled .margin-show {
+  display: inline;
+}
+
+
 .small-centered td, .small-centered th,
 .table-pairwise td, .table-pairwise th {
   text-align: center !important;

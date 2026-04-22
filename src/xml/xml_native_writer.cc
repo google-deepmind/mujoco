@@ -728,8 +728,12 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
 
       case mjEQ_FLEX:
       case mjEQ_FLEXVERT:
+        WriteAttrTxt(elem, "flex", mjs_getString(equality->name1));
+        break;
+
       case mjEQ_FLEXSTRAIN:
         WriteAttrTxt(elem, "flex", mjs_getString(equality->name1));
+        WriteAttr(elem, "cell", 3, equality->data);
         break;
 
       default:
@@ -1089,7 +1093,7 @@ void mjXWriter::Option(XMLElement* root) {
     XMLElement* sub = InsertEnd(section, "flag");
 
 #define WRITEDSBL(NAME, MASK) \
-    if( model->option.disableflags & MASK ) \
+    if (model->option.disableflags & MASK) \
       WriteAttrKey(sub, NAME, enable_map, 2, 0);
     WRITEDSBL("constraint",     mjDSBL_CONSTRAINT)
     WRITEDSBL("equality",       mjDSBL_EQUALITY)
@@ -1110,16 +1114,16 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("autoreset",      mjDSBL_AUTORESET)
     WRITEDSBL("nativeccd",      mjDSBL_NATIVECCD)
     WRITEDSBL("island",         mjDSBL_ISLAND)
+    WRITEDSBL("multiccd",       mjDSBL_MULTICCD)
 #undef WRITEDSBL
 
 #define WRITEENBL(NAME, MASK) \
-    if( model->option.enableflags & MASK ) \
+    if (model->option.enableflags & MASK) \
       WriteAttrKey(sub, NAME, enable_map, 2, 1);
     WRITEENBL("override",       mjENBL_OVERRIDE)
     WRITEENBL("energy",         mjENBL_ENERGY)
     WRITEENBL("fwdinv",         mjENBL_FWDINV)
     WRITEENBL("invdiscrete",    mjENBL_INVDISCRETE)
-    WRITEENBL("multiccd",       mjENBL_MULTICCD)
     WRITEENBL("sleep",          mjENBL_SLEEP)
 #undef WRITEENBL
   }

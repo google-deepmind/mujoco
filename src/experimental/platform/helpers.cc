@@ -14,6 +14,7 @@
 
 #include "experimental/platform/helpers.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -23,6 +24,7 @@
 #include <ios>
 #include <iterator>
 #include <string>
+#include <vector>
 
 #include "webp/encode.h"
 #include "webp/types.h"
@@ -77,8 +79,13 @@ std::string ResolveFile(const std::string& filename,
       return resolved;
     }
 
+    std::vector<std::filesystem::path> entries;
     for (const auto& it : std::filesystem::recursive_directory_iterator(path)) {
-      resolved = CheckPathForFile(it.path(), filename);
+      entries.push_back(it.path());
+    }
+    std::sort(entries.begin(), entries.end());
+    for (const auto& entry : entries) {
+      resolved = CheckPathForFile(entry, filename);
       if (!resolved.empty()) {
         return resolved;
       }

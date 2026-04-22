@@ -864,6 +864,7 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
         if (m->flex_interp[i]) {
           mjtNum* coord = m->flex_vert0 + 3*(m->flex_vertadr[i] + vertid);
           int order = m->flex_interp[i];
+          order = order < 0 ? -order : order;
           int npc = (order+1)*(order+1)*(order+1);
 
           // cell lookup: get local coords and node indices

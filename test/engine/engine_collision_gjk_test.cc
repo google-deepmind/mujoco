@@ -1998,7 +1998,7 @@ TEST_F(MjGjkTest, CylinderBoxMargin) {
   <mujoco>
     <statistic meansize="0.15"/>
     <option>
-      <flag gravity="disable"/>
+      <flag gravity="disable" multiccd="disable"/>
     </option>
 
     <worldbody>

@@ -66,7 +66,8 @@ const char* mjDISABLESTRING[mjNDISABLE] = {
   "Eulerdamp",
   "AutoReset",
   "NativeCCD",
-  "Island"
+  "Island",
+  "MultiCCD"
 };
 
 
@@ -76,7 +77,6 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Energy",
   "Fwdinv",
   "InvDiscrete",
-  "MultiCCD",
   "Sleep"
 };
 
@@ -420,17 +420,11 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
   int nv = m->nv;
+
   // sparse
   if (rownnz && rowadr && colind) {
-    mj_markStack(d);
-    mjtNum* buf_val = mjSTACKALLOC(d, nv, mjtNum);
-    int* buf_ind = mjSTACKALLOC(d, nv, int);
-
-    mju_addToMatSparse(dst, rownnz, rowadr, colind, nv,
-      d->M, m->M_rownnz, m->M_rowadr, m->M_colind,
-      buf_val, buf_ind);
-
-    mj_freeStack(d);
+    mju_addToMatSparse(dst, rownnz, rowadr, colind, nv, d->M,
+                       m->M_rownnz, m->M_rowadr, m->M_colind);
   }
 
   // dense

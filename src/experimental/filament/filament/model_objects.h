@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MODEL_OBJECTS_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MODEL_OBJECTS_H_
 
+#include <array>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -55,6 +56,8 @@ class ModelObjects {
 
   void UploadHeightField(const mjModel* model, int id);
 
+  void CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom);
+
   // Returns the filament engine used by the ModelObjects to create filament
   // objects.
   filament::Engine* GetEngine() const { return engine_; }
@@ -63,11 +66,9 @@ class ModelObjects {
   const Mesh* GetShapeBuffer(ShapeType shape) const;
   const Mesh* GetMeshBuffer(int data_id) const;
   const Mesh* GetHeightFieldBuffer(int hfield_id) const;
+  const Mesh* GetFlexSkinGeomMesh(int geom_id) const;
   const Texture* GetTexture(int tex_id) const;
   const Texture* GetTexture(int mat_id, int role) const;
-
-  MeshPtr CreateFlexMesh(const mjvScene* scene, const mjvGeom& geom);
-  MeshPtr CreateSkinMesh(const mjvScene* scene, const mjvGeom& geom);
 
   filament::Skybox* CreateSkybox();
   filament::IndirectLight* CreateIndirectLight(int tex_id, float intensity);
@@ -86,10 +87,11 @@ class ModelObjects {
   filament::Engine* engine_ = nullptr;
   std::vector<filament::Skybox*> skyboxes_;
   std::vector<filament::IndirectLight*> indirect_lights_;
-  std::array<MeshPtr, kNumShapes> shapes_;
-  std::unordered_map<int, MeshPtr> meshes_;
-  std::unordered_map<int, MeshPtr> convex_hulls_;
-  std::unordered_map<int, MeshPtr> height_fields_;
+  std::array<std::unique_ptr<Mesh>, kNumShapes> shapes_;
+  std::unordered_map<int, std::unique_ptr<Mesh>> meshes_;
+  std::unordered_map<int, std::unique_ptr<Mesh>> convex_hulls_;
+  std::unordered_map<int, std::unique_ptr<Mesh>> height_fields_;
+  std::unordered_map<int, std::unique_ptr<Mesh>> dynamic_meshes_;
   std::unordered_map<int, std::unique_ptr<Texture>> textures_;
   float specular_multiplier_ = 0.2f;
   float shininess_multiplier_ = 0.1f;

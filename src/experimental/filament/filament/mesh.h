@@ -185,8 +185,6 @@ class Mesh {
   int num_attributes_ = 0;
 };
 
-using MeshPtr = std::unique_ptr<Mesh>;
-
 }  // namespace mujoco
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MESH_H_

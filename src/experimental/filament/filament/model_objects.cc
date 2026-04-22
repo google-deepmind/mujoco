@@ -630,20 +630,11 @@ void ModelObjects::UploadHeightField(const mjModel* model, int id) {
   height_fields_[id] = std::make_unique<Mesh>(engine_, data);
 }
 
-MeshPtr ModelObjects::CreateFlexMesh(const mjvScene* scene,
-                                     const mjvGeom& geom) {
+void ModelObjects::CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom) {
   MeshData data;
   DefaultMeshData(&data);
   UpdateSkinFlexMeshData(&data, model_, scene, geom);
-  return std::make_unique<Mesh>(engine_, data);
-}
-
-MeshPtr ModelObjects::CreateSkinMesh(const mjvScene* scene,
-                                     const mjvGeom& geom) {
-  MeshData data;
-  DefaultMeshData(&data);
-  UpdateSkinFlexMeshData(&data, model_, scene, geom);
-  return std::make_unique<Mesh>(engine_, data);
+  dynamic_meshes_[geom.objid] = std::make_unique<Mesh>(engine_, data);
 }
 
 const Mesh* ModelObjects::GetMeshBuffer(int data_id) const {
@@ -670,6 +661,11 @@ const Mesh* ModelObjects::GetShapeBuffer(ShapeType shape) const {
     mju_error("Invalid shape type: %d", shape);
   }
   return shapes_[shape].get();
+}
+
+const Mesh* ModelObjects::GetFlexSkinGeomMesh(int geom_id) const {
+  auto it = dynamic_meshes_.find(geom_id);
+  return it != dynamic_meshes_.end() ? it->second.get() : nullptr;
 }
 
 const Texture* ModelObjects::GetTexture(int tex_id) const {

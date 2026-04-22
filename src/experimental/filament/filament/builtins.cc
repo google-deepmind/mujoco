@@ -65,7 +65,8 @@ class BuiltinBuilder : MeshData {
   virtual ~BuiltinBuilder() = default;
 
   template <typename T, typename... Args>
-  static MeshPtr Create(filament::Engine* engine, Args&&... args) {
+  static std::unique_ptr<Mesh> Create(filament::Engine* engine,
+                                      Args&&... args) {
     auto builder = new T(std::forward<Args>(args)...);
     MeshData* mesh_data = builder->PrepareMeshData();
     mesh_data->release_callback = +[](void* user_data) {
@@ -621,43 +622,43 @@ class DomeBuilder : public BuiltinBuilder {
   }
 };
 
-MeshPtr CreateLine(filament::Engine* engine) {
+std::unique_ptr<Mesh> CreateLine(filament::Engine* engine) {
   return BuiltinBuilder::Create<LineBuilder>(engine);
 }
 
-MeshPtr CreatePlane(filament::Engine* engine, int nquad) {
+std::unique_ptr<Mesh> CreatePlane(filament::Engine* engine, int nquad) {
   return BuiltinBuilder::Create<PlaneBuilder>(engine, nquad);
 }
 
-MeshPtr CreateTriangle(filament::Engine* engine) {
+std::unique_ptr<Mesh> CreateTriangle(filament::Engine* engine) {
   return BuiltinBuilder::Create<TriangleBuilder>(engine);
 }
 
-MeshPtr CreateBox(filament::Engine* engine, int nquad) {
+std::unique_ptr<Mesh> CreateBox(filament::Engine* engine, int nquad) {
   return BuiltinBuilder::Create<BoxBuilder>(engine, nquad);
 }
 
-MeshPtr CreateLineBox(filament::Engine* engine) {
+std::unique_ptr<Mesh> CreateLineBox(filament::Engine* engine) {
   return BuiltinBuilder::Create<LineBoxBuilder>(engine);
 }
 
-MeshPtr CreateSphere(filament::Engine* engine, int nstack, int nslice) {
+std::unique_ptr<Mesh> CreateSphere(filament::Engine* engine, int nstack, int nslice) {
   return BuiltinBuilder::Create<SphereBuilder>(engine, nstack, nslice);
 }
 
-MeshPtr CreateTube(filament::Engine* engine, int nstack, int nslice) {
+std::unique_ptr<Mesh> CreateTube(filament::Engine* engine, int nstack, int nslice) {
   return BuiltinBuilder::Create<TubeBuilder>(engine, nstack, nslice);
 }
 
-MeshPtr CreateDisk(filament::Engine* engine, int nslice) {
+std::unique_ptr<Mesh> CreateDisk(filament::Engine* engine, int nslice) {
   return BuiltinBuilder::Create<DiskBuilder>(engine, nslice);
 }
 
-MeshPtr CreateDome(filament::Engine* engine, int nstack, int nslice) {
+std::unique_ptr<Mesh> CreateDome(filament::Engine* engine, int nstack, int nslice) {
   return BuiltinBuilder::Create<DomeBuilder>(engine, nstack, nslice);
 }
 
-MeshPtr CreateCone(filament::Engine* engine, int nstack, int nslice) {
+std::unique_ptr<Mesh> CreateCone(filament::Engine* engine, int nstack, int nslice) {
   return BuiltinBuilder::Create<ConeBuilder>(engine, nstack, nslice);
 }
 

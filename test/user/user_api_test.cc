@@ -19,6 +19,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>  // NOLINT
 #include <functional>
 #include <map>
@@ -32,6 +33,7 @@
 #include "src/cc/array_safety.h"
 #include <mujoco/mujoco.h>
 #include <mujoco/mjspec.h>
+#include <mujoco/mjplugin.h>
 #include "src/xml/xml_api.h"
 #include "src/xml/xml_numeric_format.h"
 #include "test/fixture.h"
@@ -201,6 +203,103 @@ TEST_F(MujocoTest, AttachAndChildDeletion) {
 
   mj_deleteSpec(child_spec);
   mj_deleteSpec(parent_spec);
+}
+
+int open_mock(mjResource* resource) {
+  static const char parent_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent_body"/>
+    </worldbody>
+  </mujoco>
+  )";
+  resource->data = mju_malloc(sizeof(parent_xml));
+  std::strcpy((char*)resource->data, parent_xml);
+  return 1;
+}
+
+int read_mock(mjResource* resource, const void** buffer) {
+  *buffer = resource->data;
+  return std::strlen((const char*)resource->data);
+}
+
+void close_mock(mjResource* resource) {
+  mju_free(resource->data);
+  resource->data = nullptr;
+}
+
+TEST_F(MujocoTest, AttachedSpecDoesNotInheritURI) {
+  // This test checks that when we attach a child spec to a parent spec that was
+  // loaded from a resource provider, the child spec does not inherit the
+  // resource URI from the parent. This allows the child spec to specify assets
+  // relative to its model file or in the VFS.
+  mjpResourceProvider provider = {
+      .prefix = "fakeprovider",
+      .open = open_mock,
+      .read = read_mock,
+      .close = close_mock,
+  };
+
+  mjp_registerResourceProvider(&provider);
+
+  std::array<char, 1024> err;
+  mjSpec* parent_spec =
+      mj_parseXML("fakeprovider:parent.xml", nullptr, err.data(), err.size());
+  mjs_setString(parent_spec->modelname, "parent");
+  ASSERT_THAT(parent_spec, NotNull()) << err.data();
+
+  // Create child spec
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="child_body">
+        <geom type="mesh" mesh="asset"/>
+      </body>
+    </worldbody>
+    <asset>
+      <mesh name="asset" file="asset.obj"/>
+    </asset>
+  </mujoco>
+  )";
+
+  // Setup VFS with asset
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  static constexpr char asset_data[] = R"(
+  v 0 0 0
+  v 1 0 0
+  v 0 1 0
+  v 0 0 1
+  f 1 2 3
+  f 1 2 4
+  f 2 3 4
+  f 3 1 4
+  )";
+  mj_addBufferVFS(&vfs, "asset.obj", asset_data, sizeof(asset_data));
+
+  mjSpec* child_spec =
+      mj_parseXMLString(child_xml, &vfs, err.data(), err.size());
+  mjs_setString(child_spec->modelname, "child");
+  ASSERT_THAT(child_spec, NotNull()) << err.data();
+
+  // Attach child spec to parent spec's world body
+  mjsBody* world = mjs_findBody(parent_spec, "world");
+  ASSERT_THAT(world, NotNull());
+
+  mjsElement* attached =
+      mjs_attach(world->element, child_spec->element, "", "");
+  ASSERT_THAT(attached, NotNull());
+
+  mjModel* model = mj_compile(parent_spec, &vfs);
+  mj_deleteVFS(&vfs);
+
+  EXPECT_THAT(model, NotNull()) << mjs_getError(parent_spec);
+
+  if (model) {
+    mj_deleteModel(model);
+  }
+  mj_deleteSpec(parent_spec);
+  mj_deleteSpec(child_spec);
 }
 
 TEST_F(MujocoTest, ActivatePlugin) {

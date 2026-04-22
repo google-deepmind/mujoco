@@ -2063,6 +2063,9 @@
                :ref:`flex<equality-flexstrain-flex>`
 
             .. grid-item::
+               :ref:`cell<equality-flexstrain-cell>`
+
+            .. grid-item::
                :ref:`active<equality-flexstrain-active>`
 
             .. grid-item::

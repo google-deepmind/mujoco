@@ -25,29 +25,13 @@
 // Functions for creating filament textures.
 namespace mujoco {
 
-// The types of textures we can create. For internal use only.
-enum class TextureTarget {
-  // A standard 2D image with a width and a height.
-  kNormal2d,
-  // A 2D texture split up into the 6 faces of a cube.
-  kCube,
-};
-
-// The different types of textures we can create for a render target.
-// For internal use only.
-enum class RenderTargetTextureType {
-  kColor,
-  kDepth,
-  kDepthColor,
-  kReflectionColor,
-};
-
 // Pixel formats for textures.
 typedef enum mjtPixelFormat_ {
   mjPIXEL_FORMAT_UNKNOWN = 0,
   mjPIXEL_FORMAT_R8,
   mjPIXEL_FORMAT_RGB8,
   mjPIXEL_FORMAT_RGBA8,
+  mjPIXEL_FORMAT_R32F,
   mjPIXEL_FORMAT_DEPTH32F,
   mjPIXEL_FORMAT_KTX,
 } mjtPixelFormat;
@@ -98,12 +82,16 @@ void DefaultTextureConfig(TextureConfig* config);
 // Wrapper around a filament::Texture.
 class Texture {
  public:
-  // Creates a texture with the given data.
-  Texture(filament::Engine* engine, const TextureConfig& config);
+  // Flags for internal use.
+  struct InternalFlags {
+    InternalFlags() : color_attachment(false), depth_attachment(false) {}
+    bool color_attachment;
+    bool depth_attachment;
+  };
 
-  // Creates a texture for use with a render target, for internal use.
-  Texture(filament::Engine* engine, RenderTargetTextureType type, int width,
-          int height);
+  // Creates a texture with the given data.
+  Texture(filament::Engine* engine, const TextureConfig& config,
+          InternalFlags flags = InternalFlags());
 
   ~Texture();
 
