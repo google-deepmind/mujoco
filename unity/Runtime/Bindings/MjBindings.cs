@@ -6685,6 +6685,12 @@ public static unsafe extern int mj_addBufferVFS(void* vfs, [MarshalAs(UnmanagedT
 public static unsafe extern int mj_deleteFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string filename);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_containsBufferVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string name);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_containsFileVFS(void* vfs, [MarshalAs(UnmanagedType.LPStr)]string directory, [MarshalAs(UnmanagedType.LPStr)]string filename);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteVFS(void* vfs);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

@@ -1519,6 +1519,24 @@ Add file to VFS from buffer; return 0: success, 2: repeated name, -1: failed to 
 
 Delete file from VFS; return 0: success, -1: not found in VFS.
 
+.. _mj_containsBufferVFS:
+
+`mj_containsBufferVFS <#mj_containsBufferVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_containsBufferVFS
+
+Check if buffer exists in VFS; return 1: exists, 0: not found.
+
+.. _mj_containsFileVFS:
+
+`mj_containsFileVFS <#mj_containsFileVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_containsFileVFS
+
+Check if file exists in VFS; return 1: exists, 0: not found.
+
 .. _mj_deleteVFS:
 
 `mj_deleteVFS <#mj_deleteVFS>`__

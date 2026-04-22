@@ -124,6 +124,8 @@ _SKIPPED_ASSET_CACHE_FUNCTIONS: tuple[str, ...] = (
 _SKIPPED_VFS_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_addFileVFS",
+    "mj_containsBufferVFS",
+    "mj_containsFileVFS",
     "mj_mountVFS",
     "mj_unmountVFS",
     # go/keep-sorted end

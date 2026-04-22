@@ -94,6 +94,12 @@ MJAPI int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int 
 // Delete file from VFS; return 0: success, -1: not found in VFS.
 MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 
+// Check if buffer exists in VFS; return 1: exists, 0: not found.
+MJAPI int mj_containsBufferVFS(mjVFS* vfs, const char* name);
+
+// Check if file exists in VFS; return 1: exists, 0: not found.
+MJAPI int mj_containsFileVFS(mjVFS* vfs, const char* directory, const char* filename);
+
 // Delete all files from VFS and deallocates VFS internal memory.
 MJAPI void mj_deleteVFS(mjVFS* vfs);
 

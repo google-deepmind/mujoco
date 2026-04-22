@@ -162,6 +162,52 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Delete file from VFS; return 0: success, -1: not found in VFS.',
      )),
+    ('mj_containsBufferVFS',
+     FunctionDecl(
+         name='mj_containsBufferVFS',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Check if buffer exists in VFS; return 1: exists, 0: not found.',
+     )),
+    ('mj_containsFileVFS',
+     FunctionDecl(
+         name='mj_containsFileVFS',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='directory',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Check if file exists in VFS; return 1: exists, 0: not found.',
+     )),
     ('mj_deleteVFS',
      FunctionDecl(
          name='mj_deleteVFS',

@@ -3161,6 +3161,8 @@ int mj_unmountVFS(mjVFS* vfs, const char* filename);
 int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int nbuffer);
 int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
+int mj_containsBufferVFS(mjVFS* vfs, const char* name);
+int mj_containsFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 void mj_deleteVFS(mjVFS* vfs);
 size_t mj_getCacheSize(const mjCache* cache);
 size_t mj_getCacheCapacity(const mjCache* cache);
