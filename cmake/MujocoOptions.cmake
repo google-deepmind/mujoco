@@ -56,6 +56,7 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 if(MSVC)
   add_compile_options(/Gy /Gw /Oi)
+  add_compile_options(/utf-8)  # all source file is utf-8 encoded, eliminate warning C4819
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-fdata-sections -ffunction-sections)
 endif()
