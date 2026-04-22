@@ -521,6 +521,10 @@ class FfiCallable:
         # LRU cache of graphs captured by Warp
         self._graph_cache_max = graph_cache_max
         self.captures = collections.OrderedDict()
+        # On CPU there is no graph-capture fast path, so cache the reconstructed
+        # Warp array wrappers when XLA reuses the same buffers across callbacks.
+        self._cpu_arg_cache_max = 16
+        self._cpu_arg_cache = collections.OrderedDict()
 
         # Selective staging: None means copy all, else copy only specified
         self.stage_in_argnames = set(stage_in_argnames) if stage_in_argnames else None
@@ -867,27 +871,59 @@ class FfiCallable:
                     device = wp.get_device("cpu")
                     stream = None
 
-                # reconstruct the argument list
-                arg_list = []
+                cpu_arg_cache_key = None
+                arg_list = None
+                if not device.is_cuda:
+                    ip = [inputs[i].contents.data for i in self.array_input_indices]
+                    op = [outputs[i].contents.data for i in self.array_output_indices]
+                    cpu_arg_cache_key = (device_ordinal, call_id, *ip, *op)
+                    arg_list = self._cpu_arg_cache.get(cpu_arg_cache_key)
+                    if arg_list is not None:
+                        self._cpu_arg_cache.move_to_end(cpu_arg_cache_key)
 
-                # input and in-out args
-                for i, arg in enumerate(self.input_args):
-                    if arg.is_array:
-                        buffer = inputs[i].contents
-                        shape = collapse_batch_dims(buffer.dims[: buffer.rank - arg.dtype_ndim], arg.type.ndim)
-                        arr = wp.array(ptr=buffer.data, dtype=arg.type.dtype, shape=shape, device=device)
+                if arg_list is None:
+                    # reconstruct the argument list
+                    arg_list = []
+
+                    # input and in-out args
+                    for i, arg in enumerate(self.input_args):
+                        if arg.is_array:
+                            buffer = inputs[i].contents
+                            shape = collapse_batch_dims(
+                                buffer.dims[: buffer.rank - arg.dtype_ndim],
+                                arg.type.ndim,
+                            )
+                            arr = wp.array(
+                                ptr=buffer.data,
+                                dtype=arg.type.dtype,
+                                shape=shape,
+                                device=device,
+                            )
+                            arg_list.append(arr)
+                        else:
+                            # scalar argument, get stashed value
+                            value = call_desc.static_inputs[arg.name]
+                            arg_list.append(value)
+
+                    # pure output args (skip in-out FFI buffers)
+                    for i, arg in enumerate(self.output_args):
+                        buffer = outputs[i + self.num_in_out].contents
+                        shape = collapse_batch_dims(
+                            buffer.dims[: buffer.rank - arg.dtype_ndim],
+                            arg.type.ndim,
+                        )
+                        arr = wp.array(
+                            ptr=buffer.data,
+                            dtype=arg.type.dtype,
+                            shape=shape,
+                            device=device,
+                        )
                         arg_list.append(arr)
-                    else:
-                        # scalar argument, get stashed value
-                        value = call_desc.static_inputs[arg.name]
-                        arg_list.append(value)
 
-                # pure output args (skip in-out FFI buffers)
-                for i, arg in enumerate(self.output_args):
-                    buffer = outputs[i + self.num_in_out].contents
-                    shape = collapse_batch_dims(buffer.dims[: buffer.rank - arg.dtype_ndim], arg.type.ndim)
-                    arr = wp.array(ptr=buffer.data, dtype=arg.type.dtype, shape=shape, device=device)
-                    arg_list.append(arr)
+                    if cpu_arg_cache_key is not None:
+                        self._cpu_arg_cache[cpu_arg_cache_key] = arg_list
+                        if len(self._cpu_arg_cache) > self._cpu_arg_cache_max:
+                            self._cpu_arg_cache.popitem(last=False)
 
                 # call the Python function with reconstructed arguments
                 with wp.ScopedStream(stream, sync_enter=False) if stream else wp.ScopedDevice(device):
