@@ -24,34 +24,38 @@
 
 namespace mujoco {
 
+typedef mjtLightType mjrLightType;
+
+// Configuration parameters for a light.
+struct mjrLightParams {
+  // The type of light (e.g. spot, point, directional, etc.)
+  mjrLightType type;
+  // The texture to use for image lights.
+  const Texture* texture;
+  // The color of the light.
+  float color[3];
+  // The intensity of the light, in candela.
+  float intensity;
+  // Whether or not the light casts shadows.
+  mjtByte cast_shadows;
+  // The range/distance in which the light is effective, in meters.
+  float range;
+  // The angle of the spot light cone, in degrees.
+  float spot_cone_angle;
+  // The radius of the bulb used for soft shadows.
+  float bulb_radius;
+  // The size of the shadow map.
+  int shadow_map_size;
+  // Blur width for EL VSM.
+  float vsm_blur_width;
+};
+
+void mjr_defaultLightParams(mjrLightParams* params);
+
 // Manages the filament Entities for a single mjvLight.
 class Light {
  public:
-  // Configuration parameters for a light.
-  struct Params {
-    // The type of light (e.g. spot, point, directional, etc.)
-    mjtLightType type;
-    // The texture to use for image lights.
-    const Texture* texture = nullptr;
-    // The color of the light.
-    filament::math::float3 color = {0, 0, 0};
-    // The intensity of the light, in candela.
-    float intensity = 0.0f;
-    // Whether or not the light casts shadows.
-    bool castshadow = true;
-    // The range/distance in which the light is effective, in meters.
-    float range = 10.0f;
-    // The angle of the spot light cone, in degrees.
-    float spot_cone_angle = 180.f;
-    // The radius of the bulb used for soft shadows.
-    float bulbradius = 0.0f;
-    // The size of the shadow map.
-    int shadow_map_size = 2048;
-    // Blur width for EL VSM.
-    float vsm_blur_width = 0.0f;
-  };
-
-  Light(filament::Engine* engine, const Params& params);
+  Light(filament::Engine* engine, const mjrLightParams& params);
   ~Light() noexcept;
 
   Light(const Light&) = delete;
@@ -85,7 +89,7 @@ class Light {
   filament::IndirectLight* ibl_ = nullptr;
   utils::Entity entity_;
   bool enabled_ = true;
-  Params params_;
+  mjrLightParams params_;
 };
 
 }  // namespace mujoco

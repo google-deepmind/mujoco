@@ -207,7 +207,8 @@ void SceneBridge::SetEnvironmentLight(std::string_view filename,
   fallback_ibl_texture_ =
       CreateFallbackIndirectLightTexture(object_mgr_, filename);
 
-  Light::Params params;
+  mjrLightParams params;
+  mjr_defaultLightParams(&params);
   params.type = mjLIGHT_IMAGE;
   params.texture = fallback_ibl_texture_.get();
   params.intensity = intensity;
@@ -233,7 +234,8 @@ void SceneBridge::PrepareLights() {
     total_light_intensity += model->light_intensity[i];
 
     if (model->light_type[i] == mjLIGHT_IMAGE) {
-      Light::Params params;
+      mjrLightParams params;
+      mjr_defaultLightParams(&params);
       params.type = mjLIGHT_IMAGE;
       params.texture = model_objects_->GetTexture(model->light_texid[i]);
       params.intensity = model->light_intensity[i];
@@ -242,11 +244,14 @@ void SceneBridge::PrepareLights() {
       lights_.emplace_back(std::move(light_obj));
       has_image_based_light = true;
     } else {
-      Light::Params params;
-      params.color = ReadFloat3(model->light_diffuse);
+      mjrLightParams params;
+      mjr_defaultLightParams(&params);
+      params.color[0] = model->light_diffuse[0];
+      params.color[1] = model->light_diffuse[1];
+      params.color[2] = model->light_diffuse[2];
       params.type = (mjtLightType)model->light_type[i];
-      params.castshadow = model->light_castshadow[i];
-      params.bulbradius = model->light_bulbradius[i];
+      params.cast_shadows = model->light_castshadow[i];
+      params.bulb_radius = model->light_bulbradius[i];
       params.range = model->light_range[i];
       params.intensity = model->light_intensity[i];
       params.shadow_map_size = default_shadow_map_size_;
@@ -267,15 +272,15 @@ void SceneBridge::PrepareLights() {
   // Add a placeholder (black) headlight as our last light. Going forward, we'll
   // assume lights_.back() is always the headlight.
   {
-    Light::Params params;
-    params.color = float3(0, 0, 0);
+    mjrLightParams params;
+    mjr_defaultLightParams(&params);
     // We break with the spec here slightly and use a spot light for the head
     // light instead of a directional params. This is because filament only
     // supports a single directional light, and we'd rather allow a scene
     // light to be that directional params. It's also a bit odd for a
     // directional light to move with the camera.
     params.type = mjLIGHT_SPOT;
-    params.castshadow = 0;
+    params.cast_shadows = 0;
     params.intensity = 0.0f;
     params.spot_cone_angle = 90.0f;
     auto light_obj = std::make_unique<Light>(engine, params);
@@ -290,7 +295,8 @@ void SceneBridge::PrepareLights() {
     // Create a black indirect light to ensure that the skybox is
     // oriented to respect mujoco's Z-up convention.
     filament::Engine* engine = object_mgr_->GetEngine();
-    Light::Params params;
+    mjrLightParams params;
+    mjr_defaultLightParams(&params);
     params.type = mjLIGHT_IMAGE;
     params.intensity = 10.0f;
     fallback_ibl_ = std::make_unique<Light>(engine, params);
@@ -304,7 +310,8 @@ void SceneBridge::PrepareLights() {
     // Create a fallback environment light.
     fallback_ibl_texture_ = CreateFallbackIndirectLightTexture(object_mgr_);
 
-    Light::Params params;
+    mjrLightParams params;
+    mjr_defaultLightParams(&params);
     params.type = mjLIGHT_IMAGE;
     params.texture = fallback_ibl_texture_.get();
     params.intensity = fallback_environment_light_intensity_;
