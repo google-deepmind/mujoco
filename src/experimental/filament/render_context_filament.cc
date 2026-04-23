@@ -21,13 +21,13 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/filament_context.h"
+#include "experimental/filament/filament/mjr_filament_renderer.h"
 
 
 #if defined(TLS_FILAMENT_CONTEXT)
-static thread_local mujoco::FilamentContext* g_filament_context = nullptr;
+static thread_local mujoco::MjrFilamentRenderer* g_filament_context = nullptr;
 #else
-static mujoco::FilamentContext* g_filament_context = nullptr;
+static mujoco::MjrFilamentRenderer* g_filament_context = nullptr;
 #endif
 
 static void CheckFilamentContext() {
@@ -43,13 +43,13 @@ void mjrf_defaultFilamentConfig(mjrFilamentConfig* config) {
 }
 
 void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,
-                             const mjrFilamentConfig* config) {
+                              const mjrFilamentConfig* config) {
   // TODO: Support multiple contexts and multiple threads. For now, we'll just
   // assume a single, global context.
   if (g_filament_context != nullptr) {
     mju_error("Context already exists!");
   }
-  g_filament_context = new mujoco::FilamentContext(config);
+  g_filament_context = new mujoco::MjrFilamentRenderer(config);
   g_filament_context->Init(m);
 }
 
