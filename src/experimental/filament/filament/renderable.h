@@ -33,19 +33,19 @@
 namespace mujoco {
 
 // The shading model (material) for a Renderable.
-enum class ShadingModel {
-  SceneObject,
-  Decor,
-  DecorLines,
-  Ux,
-};
+typedef enum mjrShadingModel_ {
+  mjSHADING_MODEL_SCENE_OBJECT,
+  mjSHADING_MODEL_DECOR,
+  mjSHADING_MODEL_DECOR_LINES,
+  mjSHADING_MODEL_UX,
+} mjrShadingModel;
 
 // Configuration parameters for a Renderable.
-struct RenderableParams {
-  ShadingModel shading_model;
+struct mjrRenderableParams {
+  mjrShadingModel shading_model;
 };
 
-void DefaultRenderableParams(RenderableParams* params);
+void mjr_defaultRenderableParams(mjrRenderableParams* params);
 
 // A Renderable is effectively two things: a mesh and a material.
 //
@@ -67,7 +67,7 @@ class Renderable {
   static constexpr std::uint8_t kDefaultPriority = 4;
   static constexpr std::uint8_t kDefaultLayerMask = 0x01;
 
-  Renderable(ObjectManager* object_mgr, const RenderableParams& params);
+  Renderable(ObjectManager* object_mgr, const mjrRenderableParams& params);
   ~Renderable() noexcept;
 
   Renderable(const Renderable&) = delete;
@@ -154,7 +154,7 @@ class Renderable {
   ObjectManager::MaterialType GetColorMaterialType() const;
 
   ObjectManager* object_mgr_;
-  RenderableParams params_;
+  mjrRenderableParams params_;
   filament::MaterialInstance* instances_[kNumDrawModes] = {nullptr};
   MaterialParams material_params_;
   MaterialTextures material_textures_;

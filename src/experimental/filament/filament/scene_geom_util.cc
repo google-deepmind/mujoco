@@ -490,17 +490,17 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
 std::unique_ptr<Renderable> CreateGeomRenderable(
     const mjvGeom& geom, const mjvScene* scene, ObjectManager* object_mgr,
     ModelObjects* model_objs, const float headpos[3]) {
-  ShadingModel shading_model = ShadingModel::SceneObject;
+  mjrShadingModel shading_model = mjSHADING_MODEL_SCENE_OBJECT;
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
-    shading_model = ShadingModel::DecorLines;
+    shading_model = mjSHADING_MODEL_DECOR_LINES;
   } else if (geom.category == mjCAT_DECOR) {
-    shading_model = ShadingModel::Decor;
+    shading_model = mjSHADING_MODEL_DECOR;
   }
 
-  RenderableParams config;
-  DefaultRenderableParams(&config);
-  config.shading_model = shading_model;
-  auto renderable = std::make_unique<Renderable>(object_mgr, config);
+  mjrRenderableParams params;
+  mjr_defaultRenderableParams(&params);
+  params.shading_model = shading_model;
+  auto renderable = std::make_unique<Renderable>(object_mgr, params);
 
   PrepareGeomMeshes(*renderable, geom, scene, model_objs);
   UpdateGeomMaterial(*renderable, geom, scene, model_objs, object_mgr, headpos);

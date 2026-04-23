@@ -36,11 +36,11 @@ namespace mujoco {
 
 using filament::math::mat4f;
 
-void DefaultRenderableParams(RenderableParams* params) {
-  params->shading_model = ShadingModel::SceneObject;
+void mjr_defaultRenderableParams(mjrRenderableParams* params) {
+  params->shading_model = mjSHADING_MODEL_SCENE_OBJECT;
 }
 
-Renderable::Renderable(ObjectManager* object_mgr, const RenderableParams& params)
+Renderable::Renderable(ObjectManager* object_mgr, const mjrRenderableParams& params)
     : object_mgr_(object_mgr), params_(params) {}
 
 Renderable::~Renderable() noexcept {
@@ -204,7 +204,7 @@ void Renderable::UpdateMaterial(const MaterialParams& params,
   material_textures_ = textures;
 
   AssignMaterial(DrawMode::Color, GetColorMaterialType());
-  if (params_.shading_model == ShadingModel::SceneObject) {
+  if (params_.shading_model == mjSHADING_MODEL_SCENE_OBJECT) {
     AssignMaterial(DrawMode::Depth, ObjectManager::kUnlitDepth);
     AssignMaterial(DrawMode::Segmentation, ObjectManager::kUnlitSegmentation);
   }
@@ -247,7 +247,7 @@ const MaterialTextures& Renderable::GetMaterialTextures() const {
 
 void Renderable::SetDrawMode(DrawMode mode) {
   // Only SceneObjects support non-color draw modes.
-  if (params_.shading_model != ShadingModel::SceneObject) {
+  if (params_.shading_model != mjSHADING_MODEL_SCENE_OBJECT) {
     mode = DrawMode::Color;
   }
 
@@ -343,11 +343,11 @@ void Renderable::SetWireframe(bool wireframe) {
 }
 
 ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
-  if (params_.shading_model == ShadingModel::DecorLines) {
+  if (params_.shading_model == mjSHADING_MODEL_DECOR_LINES) {
     return ObjectManager::kUnlitLine;
-  } else if (params_.shading_model == ShadingModel::Decor) {
+  } else if (params_.shading_model == mjSHADING_MODEL_DECOR) {
     return ObjectManager::kUnlitDecor;
-  } else if (params_.shading_model == ShadingModel::Ux) {
+  } else if (params_.shading_model == mjSHADING_MODEL_UX) {
     return ObjectManager::kUnlitUi;
   } else if (material_textures_.orm) {
     return ObjectManager::kPbrPacked;
