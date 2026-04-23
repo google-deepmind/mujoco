@@ -180,7 +180,10 @@ SceneBridge::~SceneBridge() {
     scene_view_->RemoveFromScene(iter.get());
   }
   lights_.clear();
-
+  if (fallback_ibl_) {
+    scene_view_->RemoveFromScene(fallback_ibl_.get());
+  }
+  fallback_ibl_.reset();
   for (auto& iter : renderables_) {
     scene_view_->RemoveFromScene(iter.get());
   }
