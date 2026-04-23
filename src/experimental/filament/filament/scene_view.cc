@@ -300,7 +300,7 @@ void SceneView::AddReflectiveRenderable(Renderable* renderable) {
   target->Prepare(viewport.width, viewport.height);
 
   if (reflections_enabled_) {
-    MaterialTextures textures = renderable->GetMaterialTextures();
+    mjrMaterialTextures textures = renderable->GetMaterialTextures();
     textures.reflection = target->GetColorTexture();
     renderable->UpdateMaterial(renderable->GetMaterialParams(), textures);
   }
@@ -332,7 +332,7 @@ void SceneView::EnableReflections() {
 
   for (int i = 0; i < reflectives_.size(); ++i) {
     Renderable* renderable = reflectives_[i];
-    MaterialTextures textures = renderable->GetMaterialTextures();
+    mjrMaterialTextures textures = renderable->GetMaterialTextures();
     textures.reflection = reflect_targets_[i]->GetColorTexture();
     renderable->UpdateMaterial(renderable->GetMaterialParams(), textures);
   }
@@ -341,7 +341,7 @@ void SceneView::EnableReflections() {
 void SceneView::DisableReflections() {
   reflections_enabled_ = false;
   for (Renderable* renderable : reflectives_) {
-    MaterialTextures textures = renderable->GetMaterialTextures();
+    mjrMaterialTextures textures = renderable->GetMaterialTextures();
     textures.reflection = nullptr;
     renderable->UpdateMaterial(renderable->GetMaterialParams(), textures);
   }

@@ -17,49 +17,51 @@
 
 #include <filament/Engine.h>
 #include <filament/MaterialInstance.h>
-#include <math/vec2.h>
-#include <math/vec3.h>
-#include <math/vec4.h>
+#include <mujoco/mujoco.h>
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
 // The textures that can be assigned to the drawable's material.
-struct MaterialTextures {
-  const Texture* color = nullptr;
-  const Texture* normal = nullptr;
-  const Texture* metallic = nullptr;
-  const Texture* roughness = nullptr;
-  const Texture* occlusion = nullptr;
-  const Texture* orm = nullptr;
-  const Texture* emissive = nullptr;
-  const Texture* reflection = nullptr;
+struct mjrMaterialTextures {
+  const Texture* color;
+  const Texture* normal;
+  const Texture* metallic;
+  const Texture* roughness;
+  const Texture* occlusion;
+  const Texture* orm;
+  const Texture* emissive;
+  const Texture* reflection;
 };
 
+void mjr_defaultMaterialTextures(mjrMaterialTextures* textures);
+
 // The parameters that can be applied to the drawable's material.
-struct MaterialParams {
-  filament::math::float4 color = {1, 1, 1, 1};
-  filament::math::float4 segmentation_color = {1, 1, 1, 1};
-  filament::math::float2 tex_repeat = {1, 1};
-  filament::math::float3 uv_scale = {1, 1, 1};
-  filament::math::float3 uv_offset = {0, 0, 0};
-  filament::math::float4 scissor = {0, 0, 0, 0};
-  float specular = -1.0f;
-  float glossiness = -1.0f;
-  float metallic = -1.0f;
-  float roughness = -1.0f;
-  float emissive = -1.0f;
-  float reflectance = 0.0f;
-  bool tex_uniform = false;
-  bool reflective = false;
+struct mjrMaterialParams {
+  float color[4];
+  float segmentation_color[4];
+  float tex_repeat[2];
+  float uv_scale[3];
+  float uv_offset[3];
+  float scissor[4];
+  float specular;
+  float glossiness;
+  float metallic;
+  float roughness;
+  float emissive;
+  float reflectance;
+  mjtByte tex_uniform;
+  mjtByte reflective;
 };
+
+void mjr_defaultMaterialParams(mjrMaterialParams* params);
 
 // Updates the material instances based on the currently set parameters and
 // textures.
 void UpdateMaterialInstance(filament::MaterialInstance* instance,
-                            const MaterialParams& params,
-                            const MaterialTextures& textures,
+                            const mjrMaterialParams& params,
+                            const mjrMaterialTextures& textures,
                             ObjectManager* object_mgr);
 
 }  // namespace mujoco

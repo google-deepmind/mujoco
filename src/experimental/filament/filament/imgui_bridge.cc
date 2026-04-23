@@ -247,10 +247,12 @@ void ImguiBridge::Update() {
       auto& renderable = renderables_[renderable_index];
       renderable->SetMesh(mesh, index_offset, command.ElemCount);
 
-      MaterialTextures textures;
+      mjrMaterialTextures textures;
+      mjr_defaultMaterialTextures(&textures);
       textures.color = textures_[command.GetTexID()].get();
 
-      MaterialParams properties;
+      mjrMaterialParams properties;
+      mjr_defaultMaterialParams(&properties);
       properties.scissor[0] = command.ClipRect.x;
       properties.scissor[1] = height - command.ClipRect.w;
       properties.scissor[2] = command.ClipRect.z - command.ClipRect.x;

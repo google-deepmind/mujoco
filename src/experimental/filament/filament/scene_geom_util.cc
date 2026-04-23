@@ -351,8 +351,12 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
   const mjModel* model = model_objs->GetModel();
 
   const bool use_segid_color = scene->flags[mjRND_IDCOLOR];
-  MaterialParams params;
-  params.color = ReadFloat4(geom.rgba);
+  mjrMaterialParams params;
+  mjr_defaultMaterialParams(&params);
+  params.color[0] = geom.rgba[0];
+  params.color[1] = geom.rgba[1];
+  params.color[2] = geom.rgba[2];
+  params.color[3] = geom.rgba[3];
   if (geom.type == mjGEOM_PLANE) {
     if (IsBehind(headpos, geom.pos, geom.mat)) {
       params.color[3] *= 0.3;
@@ -360,7 +364,7 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
       params.reflective = false;
     } else {
       renderable.SetReceiveShadows(true);
-      params.reflective = geom.reflectance > 0 && params.color.a == 1.0f;
+      params.reflective = geom.reflectance > 0 && params.color[3] == 1.0f;
     }
   }
   renderable.SetLayerMask(geom.category);
@@ -371,7 +375,8 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
     renderable.SetWireframe(scene->flags[mjRND_WIREFRAME]);
   }
 
-  MaterialTextures textures;
+  mjrMaterialTextures textures;
+  mjr_defaultMaterialTextures(&textures);
   if (geom.matid >= 0) {
     textures.color = model_objs->GetTexture(geom.matid, mjTEXROLE_RGB);
     textures.normal = model_objs->GetTexture(geom.matid, mjTEXROLE_NORMAL);
@@ -392,7 +397,8 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
     params.metallic = model->mat_metallic[geom.matid];
     params.roughness = model->mat_roughness[geom.matid];
     params.tex_uniform = model->mat_texuniform[geom.matid];
-    params.tex_repeat = ReadFloat2(model->mat_texrepeat, geom.matid);
+    params.tex_repeat[0] = model->mat_texrepeat[(geom.matid * 2) + 0];
+    params.tex_repeat[1] = model->mat_texrepeat[(geom.matid * 2) + 1];
   }
 
   if (geom.segid >= 0) {
@@ -408,9 +414,9 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
     const uint8_t red = (segmentation_color >> 0) & 0xff;
     const uint8_t green = (segmentation_color >> 8) & 0xff;
     const uint8_t blue = (segmentation_color >> 16) & 0xff;
-    params.segmentation_color.x = static_cast<float>(red) / 255.0f;
-    params.segmentation_color.y = static_cast<float>(green) / 255.0f;
-    params.segmentation_color.z = static_cast<float>(blue) / 255.0f;
+    params.segmentation_color[0] = static_cast<float>(red) / 255.0f;
+    params.segmentation_color[1] = static_cast<float>(green) / 255.0f;
+    params.segmentation_color[2] = static_cast<float>(blue) / 255.0f;
   }
 
   // UvScale only applies to objects that don't have explicit UV coordinates
@@ -426,23 +432,23 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
       // For 2D textures, `tex_repeat` specifies how many times the texture
       // image is repeated. The `tex_uniform` flag determines if the repetition
       // is applied at in object space (false) or in world space (true).
-      params.uv_scale.x = params.tex_repeat.x;
-      params.uv_scale.y = params.tex_repeat.y;
+      params.uv_scale[0] = params.tex_repeat[0];
+      params.uv_scale[1] = params.tex_repeat[1];
 
       if (geom.dataid >= 0 && geom.type != mjGEOM_PLANE) {
         if (geom.size[0] > mjMINVAL) {
-          params.uv_scale.x /= geom.size[0];
+          params.uv_scale[0] /= geom.size[0];
         }
         if (geom.size[1] > mjMINVAL) {
-          params.uv_scale.y /= geom.size[1];
+          params.uv_scale[1] /= geom.size[1];
         }
       }
       if (params.tex_uniform) {
         if (geom.size[0] > 0) {
-          params.uv_scale.x *= geom.size[0];
+          params.uv_scale[0] *= geom.size[0];
         }
         if (geom.size[1] > 0) {
-          params.uv_scale.y *= geom.size[1];
+          params.uv_scale[1] *= geom.size[1];
         }
       }
       const bool is_infinite_plane =
@@ -452,11 +458,11 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
         // re-centering in engine_vis_visualize.c.
         const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
         const float tile_size_x =
-            GetPlaneTileSize(model, geom.matid, params.tex_repeat.x);
+            GetPlaneTileSize(model, geom.matid, params.tex_repeat[0]);
         const float tile_size_y =
-            GetPlaneTileSize(model, geom.matid, params.tex_repeat.y);
-        params.uv_scale.x = 2.0f * plane_scale / tile_size_x;
-        params.uv_scale.y = 2.0f * plane_scale / tile_size_y;
+            GetPlaneTileSize(model, geom.matid, params.tex_repeat[1]);
+        params.uv_scale[0] = 2.0f * plane_scale / tile_size_x;
+        params.uv_scale[1] = 2.0f * plane_scale / tile_size_y;
       }
 
       // We want to do the equivalent of:
@@ -464,17 +470,17 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
       //   mjr_setf4(tplane, 0, -0.5 * scl.y, 0, -0.5);
       //   glTexGenfv(GL_S, GL_OBJECT_PLANE, splane);
       //   glTexGenfv(GL_T, GL_OBJECT_PLANE, tplane);
-      params.uv_scale.x = 0.5f * params.uv_scale.x;
-      params.uv_scale.y = -0.5f * params.uv_scale.y;
-      params.uv_offset.x = -0.5f;
-      params.uv_offset.y = -0.5f;
+      params.uv_scale[0] = 0.5f * params.uv_scale[0];
+      params.uv_scale[1] = -0.5f * params.uv_scale[1];
+      params.uv_offset[0] = -0.5f;
+      params.uv_offset[1] = -0.5f;
     } else {
       // For cube maps, if `tex_uniform` is true, then scale the texture so that
       // it covers a 1x1 area of world space rather than the area of the object.
       if (params.tex_uniform) {
-        params.uv_scale.x = 1.0f / (geom.size[0] ? geom.size[0] : 1.0f);
-        params.uv_scale.y = 1.0f / (geom.size[1] ? geom.size[1] : 1.0f);
-        params.uv_scale.z = 1.0f / (geom.size[2] ? geom.size[2] : 1.0f);
+        params.uv_scale[0] = 1.0f / (geom.size[0] ? geom.size[0] : 1.0f);
+        params.uv_scale[1] = 1.0f / (geom.size[1] ? geom.size[1] : 1.0f);
+        params.uv_scale[2] = 1.0f / (geom.size[2] ? geom.size[2] : 1.0f);
       }
     }
   }

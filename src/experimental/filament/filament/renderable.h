@@ -127,14 +127,14 @@ class Renderable {
   void SetDrawMode(DrawMode mode);
 
   // Updates the parameters for the material.
-  void UpdateMaterial(const MaterialParams& params,
-                      const MaterialTextures& textures);
+  void UpdateMaterial(const mjrMaterialParams& params,
+                      const mjrMaterialTextures& textures);
 
   // Returns the current material parameters.
-  const MaterialParams& GetMaterialParams() const;
+  const mjrMaterialParams& GetMaterialParams() const;
 
   // Returns the current material textures.
-  const MaterialTextures& GetMaterialTextures() const;
+  const mjrMaterialTextures& GetMaterialTextures() const;
 
   // Returns the filament Engine managing the renderables.
   filament::Engine* GetEngine();
@@ -156,8 +156,8 @@ class Renderable {
   ObjectManager* object_mgr_;
   mjrRenderableParams params_;
   filament::MaterialInstance* instances_[kNumDrawModes] = {nullptr};
-  MaterialParams material_params_;
-  MaterialTextures material_textures_;
+  mjrMaterialParams material_params_;
+  mjrMaterialTextures material_textures_;
   DrawMode draw_mode_ = DrawMode::Color;
   filament::Scene* assigned_scene_ = nullptr;
   std::vector<Part> parts_;
