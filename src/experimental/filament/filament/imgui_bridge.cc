@@ -72,8 +72,8 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   // new texture.
   if (texture == nullptr || texture->GetWidth() != width ||
       texture->GetHeight() != height) {
-    TextureConfig config;
-    DefaultTextureConfig(&config);
+    mjrTextureConfig config;
+    mjr_defaultTextureConfig(&config);
     config.width = width;
     config.height = height;
     config.target = mjTEXTURE_2D;
@@ -89,8 +89,8 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   const auto callback =
       +[](void* user) { delete[] reinterpret_cast<std::byte*>(user); };
 
-  TextureData texture_data;
-  DefaultTextureData(&texture_data);
+  mjrTextureData texture_data;
+  mjr_defaultTextureData(&texture_data);
   texture_data.bytes = bytes;
   texture_data.nbytes = num_bytes;
   texture_data.user_data = bytes;
@@ -106,8 +106,8 @@ void ImguiBridge::CreateTexture(ImTextureData* data) {
     mju_error("Unsupported texture format.");
   }
 
-  TextureConfig config;
-  DefaultTextureConfig(&config);
+  mjrTextureConfig config;
+  mjr_defaultTextureConfig(&config);
   config.width = data->Width;
   config.height = data->Height;
   config.target = mjTEXTURE_2D;
@@ -127,8 +127,8 @@ void ImguiBridge::UpdateTexture(ImTextureData* data) {
     mju_error("Texture not found: %llu", data->TexID);
   }
 
-  TextureData texture_data;
-  DefaultTextureData(&texture_data);
+  mjrTextureData texture_data;
+  mjr_defaultTextureData(&texture_data);
   texture_data.bytes = data->GetPixels();
   texture_data.nbytes = data->Width * data->Height * 4;
   texture_data.user_data = nullptr;

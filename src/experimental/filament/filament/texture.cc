@@ -29,15 +29,15 @@ namespace mujoco {
 
 static constexpr int kNumFacesPerCube = 6;
 
-static bool IsCompressed(const TextureConfig& config) {
+static bool IsCompressed(const mjrTextureConfig& config) {
   return config.format == mjPIXEL_FORMAT_KTX;
 }
 
-static bool IsCubeMap(const TextureConfig& config) {
+static bool IsCubeMap(const mjrTextureConfig& config) {
   return config.target == mjTEXTURE_CUBE || config.target == mjTEXTURE_SKYBOX;
 }
 
-static int GetFaceHeight(const TextureConfig& config) {
+static int GetFaceHeight(const mjrTextureConfig& config) {
   int face_height = config.height;
   if (config.width != config.height) {
     if (config.width * kNumFacesPerCube != config.height) {
@@ -51,7 +51,7 @@ static int GetFaceHeight(const TextureConfig& config) {
   return face_height;
 }
 
-static int GetNumChannels(const TextureConfig& config) {
+static int GetNumChannels(const mjrTextureConfig& config) {
   switch (config.format) {
     case mjPIXEL_FORMAT_R8:
       return 1;
@@ -65,7 +65,7 @@ static int GetNumChannels(const TextureConfig& config) {
   }
 }
 
-static filament::Texture::Format GetTextureFormat(const TextureConfig& config) {
+static filament::Texture::Format GetTextureFormat(const mjrTextureConfig& config) {
   switch (config.format) {
     case mjPIXEL_FORMAT_R8:
       return filament::Texture::Format::R;
@@ -80,7 +80,7 @@ static filament::Texture::Format GetTextureFormat(const TextureConfig& config) {
 }
 
 static filament::Texture::InternalFormat GetTextureInternalFormat(
-    const TextureConfig& config) {
+    const mjrTextureConfig& config) {
   if (config.color_space == mjCOLORSPACE_SRGB) {
     switch (config.format) {
       case mjPIXEL_FORMAT_RGB8:
@@ -110,15 +110,15 @@ static filament::Texture::InternalFormat GetTextureInternalFormat(
   }
 }
 
-void DefaultTextureData(TextureData* data) {
-  std::memset(data, 0, sizeof(TextureData));
+void mjr_defaultTextureData(mjrTextureData* data) {
+  std::memset(data, 0, sizeof(mjrTextureData));
 }
 
-void DefaultTextureConfig(TextureConfig* config) {
-  std::memset(config, 0, sizeof(TextureConfig));
+void mjr_defaultTextureConfig(mjrTextureConfig* config) {
+  std::memset(config, 0, sizeof(mjrTextureConfig));
 }
 
-Texture::Texture(filament::Engine* engine, const TextureConfig& config,
+Texture::Texture(filament::Engine* engine, const mjrTextureConfig& config,
                  InternalFlags flags)
     : engine_(engine), config_(config) {
   if (IsCompressed(config_)) {
@@ -166,7 +166,7 @@ Texture::~Texture() {
   }
 }
 
-void Texture::Upload(const TextureData& data) {
+void Texture::Upload(const mjrTextureData& data) {
   user_data_ = data.user_data;
   release_callback_ = data.release_callback;
 

@@ -27,8 +27,8 @@ namespace mujoco {
 
 // Defines the basic properties of a render target.
 struct RenderTargetConfig {
-  mjtPixelFormat color_format;
-  mjtPixelFormat depth_format;
+  mjrPixelFormat color_format;
+  mjrPixelFormat depth_format;
 };
 
 // Initializes the RenderTargetConfig to default values.

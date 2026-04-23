@@ -575,8 +575,8 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
     mju_error("Invalid texture index: %d", id);
   }
 
-  TextureConfig config;
-  DefaultTextureConfig(&config);
+  mjrTextureConfig config;
+  mjr_defaultTextureConfig(&config);
   config.width = model->tex_width[id];
   config.height = model->tex_height[id];
   config.target = (mjtTexture)model->tex_type[id];
@@ -600,8 +600,8 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
   }
 
 
-  TextureData payload;
-  DefaultTextureData(&payload);
+  mjrTextureData payload;
+  mjr_defaultTextureData(&payload);
   payload.bytes = model->tex_data + model->tex_adr[id];
   payload.nbytes =
       model->tex_width[id] * model->tex_height[id] * model->tex_nchannel[id];

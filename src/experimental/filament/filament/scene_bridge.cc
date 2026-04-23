@@ -64,8 +64,8 @@ static std::unique_ptr<Texture> CreateFallbackIndirectLightTexture(
 
   std::unique_ptr<ObjectManager::Asset> asset = object_mgr->LoadAsset(filename);
 
-  TextureConfig config;
-  DefaultTextureConfig(&config);
+  mjrTextureConfig config;
+  mjr_defaultTextureConfig(&config);
   config.width = 1;
   config.height = 1;
   config.target = mjTEXTURE_CUBE;
@@ -74,9 +74,9 @@ static std::unique_ptr<Texture> CreateFallbackIndirectLightTexture(
 
   auto texture = std::make_unique<Texture>(object_mgr->GetEngine(), config);
 
-  TextureData payload;
-  DefaultTextureData(&payload);
-  payload.bytes = (void*)asset->GetBytes().data();
+  mjrTextureData payload;
+  mjr_defaultTextureData(&payload);
+  payload.bytes = asset->GetBytes().data();
   payload.nbytes = asset->GetBytes().size();
   payload.release_callback = +[](void* user_data) {
     delete static_cast<ObjectManager::Asset*>(user_data);
