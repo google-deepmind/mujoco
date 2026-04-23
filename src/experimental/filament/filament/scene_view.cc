@@ -286,8 +286,8 @@ void SceneView::AddReflectiveRenderable(Renderable* renderable) {
   // Ensure we have the same number of render targets as we do reflective
   // renderables.
   while (reflect_targets_.size() < reflectives_.size()) {
-    RenderTargetConfig config;
-    DefaultRenderTargetConfig(&config);
+    mjrRenderTargetConfig config;
+    mjr_defaultRenderTargetConfig(&config);
 
     config.color_format = mjPIXEL_FORMAT_RGBA8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;

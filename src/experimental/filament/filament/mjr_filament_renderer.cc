@@ -130,8 +130,8 @@ void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
   render_requests_[1].height = viewport.height;
 
   if (rgb) {
-    RenderTargetConfig config;
-    DefaultRenderTargetConfig(&config);
+    mjrRenderTargetConfig config;
+    mjr_defaultRenderTargetConfig(&config);
     config.color_format = mjPIXEL_FORMAT_RGB8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     auto target = std::make_unique<RenderTarget>(GetEngine(), config);
@@ -154,8 +154,8 @@ void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
   }
 
   if (depth) {
-    RenderTargetConfig config;
-    DefaultRenderTargetConfig(&config);
+    mjrRenderTargetConfig config;
+    mjr_defaultRenderTargetConfig(&config);
     config.color_format = mjPIXEL_FORMAT_R32F;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     auto target = std::make_unique<RenderTarget>(GetEngine(), config);
