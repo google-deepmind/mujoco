@@ -25,7 +25,6 @@
 #include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/imgui_bridge.h"
 #include "experimental/filament/filament/scene_bridge.h"
-#include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -71,16 +70,14 @@ class MjrFilamentRenderer : public FilamentContext {
   MjrFilamentRenderer& operator=(const MjrFilamentRenderer&) = delete;
 
  private:
-  enum SwapChainType {
-    kWindowSwapChain,
-    kOffscreenSwapChain,
+  enum class FrameBufferMode {
+    Window,
+    OffScreen,
+    OffScreenWithGui,
   };
 
-  DrawMode last_render_mode_ = DrawMode::Color;
-  mjvGLCamera last_camera_;
-  SwapChainType scene_swap_chain_target_ = kWindowSwapChain;
-  SwapChainType gui_swap_chain_target_ = kWindowSwapChain;
-  std::unique_ptr<SceneView> scene_view_;
+  FrameBufferMode mode_ = FrameBufferMode::Window;
+  RenderRequest render_requests_[2];
   std::unique_ptr<SceneBridge> scene_bridge_;
   std::unique_ptr<ImguiBridge> imgui_bridge_;
 };

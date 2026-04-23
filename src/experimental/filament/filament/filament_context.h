@@ -59,10 +59,6 @@ class FilamentContext {
     // will be rendered to the window (as previously configured in
     // mjrFilamentConfig::native_window).
     RenderTarget* target = nullptr;
-
-    // Whether or not to include the UX scene in the render. (The SceneView
-    // stores both a main simulation scene and the UX scene.)
-    bool draw_ux = true;
   };
 
   // Information needed to read pixels from a render target.

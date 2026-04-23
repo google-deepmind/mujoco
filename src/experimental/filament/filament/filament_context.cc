@@ -36,6 +36,7 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/filament_platform_factory.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/render_context_filament.h"
 
@@ -81,77 +82,91 @@ FilamentContext::~FilamentContext() {
 FilamentContext::FrameHandle FilamentContext::Render(
     std::span<const RenderRequest> requests,
     std::span<const ReadPixelsRequest> read_requests) {
-  if (requests.size() != 1) {
-    mju_error("Only one render request is supported for now.");
-  }
   if (read_requests.size() > 1) {
     mju_error("Only one read request is supported for now.");
   }
 
-  const RenderRequest& request = requests[0];
-
-  if (request.target == nullptr) {
-    if (!read_requests.empty()) {
-      mju_error("Cannot read pixels from the window.");
-    }
-
-    if constexpr (UTILS_HAS_THREADING) {
-      // Wait until previous frame is completed before requesting a new frame.
-      engine_->flushAndWait();
-    }
-
-    // If the window size has changed, we need to reacquire the swap chain.
-    if (request.width != window_width_ || request.height != window_height_) {
-      if (window_width_ != 0 && window_height_ != 0) {
-        engine_->destroy(window_swap_chain_);
-        window_swap_chain_ = engine_->createSwapChain(config_.native_window);
-      }
-      window_width_ = request.width;
-      window_height_ = request.height;
-    }
-
-    SceneView::RenderRequest scene_view_request;
-    scene_view_request.draw_mode = request.draw_mode;
-    scene_view_request.viewport = {0, 0, request.width, request.height};
-    scene_view_request.camera = request.camera;
-    scene_view_request.enable_ux = request.draw_ux;
-    if (renderer_->beginFrame(window_swap_chain_)) {
-      request.scene->Render(renderer_, scene_view_request);
+  bool render_began = false;
+  RenderTarget* current_target = nullptr;
+  for (const RenderRequest& request : requests) {
+    if (request.target != current_target && render_began) {
       renderer_->endFrame();
+      render_began = false;
     }
+    current_target = request.target;
 
+    if (current_target == nullptr) {
+      if (!read_requests.empty()) {
+        mju_error("Cannot read pixels from the window.");
+      }
+
+      if constexpr (UTILS_HAS_THREADING) {
+        // Wait until previous frame is completed before requesting a new frame.
+        engine_->flushAndWait();
+      }
+
+      // If the window size has changed, we need to reacquire the swap chain.
+      if (request.width != window_width_ || request.height != window_height_) {
+        if (window_width_ != 0 && window_height_ != 0) {
+          engine_->destroy(window_swap_chain_);
+          window_swap_chain_ = engine_->createSwapChain(config_.native_window);
+        }
+        window_width_ = request.width;
+        window_height_ = request.height;
+      }
+
+      if (!render_began) {
+        render_began = renderer_->beginFrame(window_swap_chain_);
+      }
+      if (render_began) {
+        SceneView::RenderRequest scene_view_request;
+        scene_view_request.draw_mode = request.draw_mode;
+        scene_view_request.viewport = {0, 0, request.width, request.height};
+        scene_view_request.camera = request.camera;
+        request.scene->Render(renderer_, scene_view_request);
+      }
+    } else {
+      if (read_requests.empty()) {
+        mju_error(
+            "Rendering to a render target without a read request is pointless.");
+      }
+
+      const ReadPixelsRequest& read_request = read_requests[0];
+      if (read_request.num_bytes == 0) {
+        mju_error("Output buffer size is zero.");
+      }
+
+      if (!render_began) {
+        render_began = renderer_->beginFrame(offscreen_swap_chain_);
+      }
+      if (render_began) {
+        SceneView::RenderRequest scene_view_request;
+        scene_view_request.draw_mode = request.draw_mode;
+        scene_view_request.viewport = {0, 0, request.width, request.height};
+        scene_view_request.camera = request.camera;
+        scene_view_request.target = request.target;
+        request.scene->Render(renderer_, scene_view_request);
+        request.target->ReadColorPixels(renderer_, read_request.output,
+                                        read_request.num_bytes);
+      }
+    }
+  }
+
+  if (render_began) {
+    renderer_->endFrame();
+    render_began = false;
     if constexpr (!UTILS_HAS_THREADING) {
       engine_->execute();
     }
-  } else {
-    if (read_requests.empty()) {
-      mju_error(
-          "Rendering to a render target without a read request is pointless.");
-    }
+  }
 
-    const ReadPixelsRequest& read_request = read_requests[0];
-    if (read_request.num_bytes == 0) {
-      mju_error("Output buffer size is zero.");
-
-    }
-
-    if (renderer_->beginFrame(offscreen_swap_chain_)) {
-      SceneView::RenderRequest scene_view_request;
-      scene_view_request.draw_mode = request.draw_mode;
-      scene_view_request.viewport = {0, 0, request.width, request.height};
-      scene_view_request.camera = request.camera;
-      scene_view_request.enable_ux = request.draw_ux;
-      scene_view_request.target = request.target;
-      request.scene->Render(renderer_, scene_view_request);
-      request.target->ReadColorPixels(renderer_, read_request.output,
-                                      read_request.num_bytes);
-      renderer_->endFrame();
-    }
+  if (!read_requests.empty()) {
     engine_->flushAndWait();
-    if (read_request.read_completed_callback) {
-      read_request.read_completed_callback(read_request.user_data);
+    if (read_requests[0].read_completed_callback) {
+      read_requests[0].read_completed_callback(read_requests[0].user_data);
     }
   }
+
   return ++frame_counter_;
 }
 

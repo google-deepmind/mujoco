@@ -37,8 +37,13 @@ namespace mujoco {
 using filament::math::float3;
 using filament::math::mat3f;
 
-ImguiBridge::ImguiBridge(ObjectManager* object_mgr, SceneView* scene_view)
-    : object_mgr_(object_mgr), scene_view_(scene_view) {}
+ImguiBridge::ImguiBridge(ObjectManager* object_mgr)
+    : object_mgr_(object_mgr) {
+  scene_view_ = std::make_unique<SceneView>(object_mgr_->GetEngine());
+  scene_view_->DisableShadows();
+  scene_view_->DisableReflections();
+  scene_view_->DisablePostProcessing();
+}
 
 ImguiBridge::~ImguiBridge() { PrepareRenderables(0); }
 
@@ -279,10 +284,10 @@ void ImguiBridge::PrepareRenderables(int count) {
     r->SetCastShadows(false);
     r->SetReceiveShadows(false);
     r->SetBlendOrder(static_cast<std::uint16_t>(renderables_.size()));
-    scene_view_->AddToUxScene(r.get());
+    scene_view_->AddToScene(r.get());
   }
   while (renderables_.size() > count) {
-    scene_view_->RemoveFromUxScene(renderables_.back().get());
+    scene_view_->RemoveFromScene(renderables_.back().get());
     renderables_.pop_back();
   }
 }

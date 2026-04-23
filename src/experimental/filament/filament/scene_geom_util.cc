@@ -351,7 +351,6 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
   const mjModel* model = model_objs->GetModel();
 
   const bool use_segid_color = scene->flags[mjRND_IDCOLOR];
-  const bool enable_reflection = scene->flags[mjRND_REFLECTION];
   MaterialParams params;
   params.color = ReadFloat4(geom.rgba);
   if (geom.type == mjGEOM_PLANE) {
@@ -361,8 +360,7 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
       params.reflective = false;
     } else {
       renderable.SetReceiveShadows(true);
-      params.reflective =
-          enable_reflection && geom.reflectance > 0 && params.color.a == 1.0f;
+      params.reflective = geom.reflectance > 0 && params.color.a == 1.0f;
     }
   }
   renderable.SetLayerMask(geom.category);

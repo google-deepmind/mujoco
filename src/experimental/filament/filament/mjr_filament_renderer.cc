@@ -14,6 +14,7 @@
 
 #include "experimental/filament/filament/mjr_filament_renderer.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 
@@ -28,7 +29,6 @@
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/scene_bridge.h"
-#include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 
@@ -39,11 +39,31 @@ MjrFilamentRenderer::MjrFilamentRenderer(const mjrFilamentConfig* config)
 }
 
 void MjrFilamentRenderer::Init(const mjModel* model) {
-  scene_view_ = std::make_unique<SceneView>(GetEngine());
-  scene_bridge_ = std::make_unique<SceneBridge>(GetObjectManager(),
-                                                scene_view_.get(), model);
-  imgui_bridge_ =
-      std::make_unique<ImguiBridge>(GetObjectManager(), scene_view_.get());
+  scene_bridge_ = std::make_unique<SceneBridge>(GetObjectManager(), model);
+  imgui_bridge_ = std::make_unique<ImguiBridge>(GetObjectManager());
+
+  render_requests_[0].scene = scene_bridge_->GetSceneView();
+  render_requests_[0].draw_mode = DrawMode::Color;
+
+  render_requests_[1].scene = imgui_bridge_->GetSceneView();
+  render_requests_[1].draw_mode = DrawMode::Color;
+
+  // The UX camera is a fixed orthographic camera. We only need to change the
+  // width/height based on the viewport per frame.
+  render_requests_[1].camera.orthographic = true;
+  render_requests_[1].camera.pos[0] = 0.0f;
+  render_requests_[1].camera.pos[1] = 0.0f;
+  render_requests_[1].camera.pos[2] = 1.0f;
+  render_requests_[1].camera.forward[0] = 0.0f;
+  render_requests_[1].camera.forward[1] = 0.0f;
+  render_requests_[1].camera.forward[2] = -1.0f;
+  render_requests_[1].camera.up[0] = 0.0f;
+  render_requests_[1].camera.up[1] = 1.0f;
+  render_requests_[1].camera.up[2] = 0.0f;
+  render_requests_[1].camera.frustum_top = 0.0f;
+  render_requests_[1].camera.frustum_near = 0.0f;
+  render_requests_[1].camera.frustum_far = 1.0f;
+
 
   SetClearColor(ReadElement(model, "filament.clearColor",
                             filament::math::float4(0, 0, 0, 1)));
@@ -53,46 +73,45 @@ void MjrFilamentRenderer::Render(const mjrRect& viewport, const mjvScene* scene)
   scene_bridge_->Update(viewport, scene);
   // Update the UX renderable entity after processing the scene in case there
   // are any elements in the scene which generate UX draw calls (e.g. labels).
-  if (imgui_bridge_ && gui_swap_chain_target_ == scene_swap_chain_target_) {
-    // Prepare the filament Renderable that contains the GUI draw commands. We
-    // must call this function even if we do not plan on rendering the GUI to
-    // ensure the ImGui state is updated.
+  if (mode_ != FrameBufferMode::OffScreen) {
     imgui_bridge_->Update();
   }
 
-  last_render_mode_ = DrawMode::Color;
   if (scene->flags[mjRND_SEGMENT]) {
-    last_render_mode_ = DrawMode::Segmentation;
+    render_requests_[0].draw_mode  = DrawMode::Segmentation;
   } else if (scene->flags[mjRND_DEPTH]) {
-    last_render_mode_ = DrawMode::Depth;
+    render_requests_[0].draw_mode  = DrawMode::Depth;
+  } else {
+    render_requests_[0].draw_mode  = DrawMode::Color;
   }
-  last_camera_ = mjv_averageCamera(scene->camera, scene->camera + 1);
 
-  if (scene_swap_chain_target_ == kWindowSwapChain) {
-    RenderRequest request;
-    request.scene = scene_view_.get();
-    request.draw_mode = last_render_mode_;
-    request.camera = last_camera_;
-    request.draw_ux = (gui_swap_chain_target_ == kWindowSwapChain);
-    request.width = viewport.width;
-    request.height = viewport.height;
-    FilamentContext::Render({&request, 1});
+  render_requests_[0].width = viewport.width;
+  render_requests_[0].height = viewport.height;
+  render_requests_[1].width = viewport.width;
+  render_requests_[1].height = viewport.height;
+
+  render_requests_[0].camera = mjv_averageCamera(scene->camera, scene->camera + 1);
+  render_requests_[1].camera.frustum_center = viewport.width / 2.0f;
+  render_requests_[1].camera.frustum_width = viewport.width / 2.0f;
+  render_requests_[1].camera.frustum_bottom = viewport.height;
+
+  if (mode_ == FrameBufferMode::Window) {
+    render_requests_[0].target = nullptr;
+    render_requests_[1].target = nullptr;
+    FilamentContext::Render(render_requests_);
   }
 }
 
 void MjrFilamentRenderer::SetFrameBuffer(int framebuffer) {
   switch (framebuffer) {
     case mjFB_WINDOW:
-      scene_swap_chain_target_ = kWindowSwapChain;
-      gui_swap_chain_target_ = kWindowSwapChain;
+      mode_ = FrameBufferMode::Window;
       break;
     case mjFB_OFFSCREEN:
-      scene_swap_chain_target_ = kOffscreenSwapChain;
-      gui_swap_chain_target_ = kWindowSwapChain;
+      mode_ = FrameBufferMode::OffScreen;
       break;
     case 2:  // No official constant fo this.
-      scene_swap_chain_target_ = kOffscreenSwapChain;
-      gui_swap_chain_target_ = kOffscreenSwapChain;
+      mode_ = FrameBufferMode::OffScreenWithGui;
       break;
     default:
       mju_error("Invalid framebuffer mode: %d", framebuffer);
@@ -101,53 +120,62 @@ void MjrFilamentRenderer::SetFrameBuffer(int framebuffer) {
 
 void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
                                      float* depth) {
-  if (scene_swap_chain_target_ != kOffscreenSwapChain) {
+  if (mode_ == FrameBufferMode::Window) {
     mju_error("ReadPixels is only supported for offscreen rendering.");
   }
 
-  RenderRequest request;
-  request.scene = scene_view_.get();
-  request.camera = last_camera_;
-  request.draw_ux = (gui_swap_chain_target_ == kOffscreenSwapChain);
-  request.width = viewport.width;
-  request.height = viewport.height;
+  render_requests_[0].width = viewport.width;
+  render_requests_[0].height = viewport.height;
+  render_requests_[1].width = viewport.width;
+  render_requests_[1].height = viewport.height;
 
   if (rgb) {
-    request.draw_mode = last_render_mode_;
-
     RenderTargetConfig config;
     DefaultRenderTargetConfig(&config);
     config.color_format = mjPIXEL_FORMAT_RGB8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     auto target = std::make_unique<RenderTarget>(GetEngine(), config);
-    target->Prepare(request.width, request.height);
-    request.target = target.get();
+    target->Prepare(viewport.width, viewport.height);
+    render_requests_[0].target = target.get();
+    render_requests_[1].target = target.get();
+
+    const size_t num_requests =
+        (mode_ == FrameBufferMode::OffScreenWithGui) ? 2 : 1;
 
     ReadPixelsRequest read_request;
     read_request.output = rgb;
     read_request.num_bytes = viewport.width * viewport.height * 3;
-    const FrameHandle frame =
-        FilamentContext::Render({&request, 1}, {&read_request, 1});
+    const FrameHandle frame = FilamentContext::Render(
+        {&render_requests_[0], num_requests}, {&read_request, 1});
     FilamentContext::WaitForFrame(frame);
+
+    render_requests_[0].target = nullptr;
+    render_requests_[1].target = nullptr;
   }
 
   if (depth) {
-    request.draw_mode = DrawMode::Depth;
-
     RenderTargetConfig config;
     DefaultRenderTargetConfig(&config);
     config.color_format = mjPIXEL_FORMAT_R32F;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     auto target = std::make_unique<RenderTarget>(GetEngine(), config);
-    target->Prepare(request.width, request.height);
-    request.target = target.get();
+    target->Prepare(viewport.width, viewport.height);
+    render_requests_[0].target = target.get();
+    render_requests_[1].target = target.get();
+
+    DrawMode last_draw_mode = render_requests_[0].draw_mode;
+    render_requests_[0].draw_mode = DrawMode::Depth;
 
     ReadPixelsRequest read_request;
     read_request.output = reinterpret_cast<uint8_t*>(depth);
     read_request.num_bytes = viewport.width * viewport.height * sizeof(float);
     const FrameHandle frame =
-        FilamentContext::Render({&request, 1}, {&read_request, 1});
+        FilamentContext::Render({&render_requests_[0], 1}, {&read_request, 1});
     FilamentContext::WaitForFrame(frame);
+
+    render_requests_[0].target = nullptr;
+    render_requests_[1].target = nullptr;
+    render_requests_[0].draw_mode = last_draw_mode;
   }
 }
 
@@ -175,10 +203,7 @@ void MjrFilamentRenderer::UploadHeightField(const mjModel* model, int id) {
 uintptr_t MjrFilamentRenderer::UploadGuiImage(uintptr_t tex_id,
                                           const uint8_t* pixels, int width,
                                           int height, int bpp) {
-  if (imgui_bridge_) {
-    return imgui_bridge_->UploadImage(tex_id, pixels, width, height, bpp);
-  }
-  return 0;
+  return imgui_bridge_->UploadImage(tex_id, pixels, width, height, bpp);
 }
 
 void MjrFilamentRenderer::UpdateGui() { DrawGui(scene_bridge_.get()); }

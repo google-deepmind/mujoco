@@ -87,9 +87,9 @@ static std::unique_ptr<Texture> CreateFallbackIndirectLightTexture(
   return texture;
 }
 
-SceneBridge::SceneBridge(ObjectManager* object_mgr, SceneView* scene_view,
-                         const mjModel* model)
-    : scene_view_(scene_view), object_mgr_(object_mgr) {
+SceneBridge::SceneBridge(ObjectManager* object_mgr, const mjModel* model)
+    : object_mgr_(object_mgr) {
+  scene_view_ = std::make_unique<SceneView>(object_mgr_->GetEngine());
   model_objects_ =
       std::make_unique<ModelObjects>(model, object_mgr_->GetEngine());
 
@@ -354,8 +354,16 @@ filament::math::mat4 CalculateClipFromWorld(const mjrRect& viewport,
 }
 
 void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
-  filament::View* view = scene_view_->GetDefaultRenderView();
-  view->setShadowingEnabled(scene->flags[mjRND_SHADOW] ? true : false);
+  if (scene->flags[mjRND_SHADOW]) {
+    scene_view_->EnableShadows();
+  } else {
+    scene_view_->DisableShadows();
+  }
+  if (scene->flags[mjRND_REFLECTION]) {
+    scene_view_->EnableReflections();
+  } else {
+    scene_view_->DisableReflections();
+  }
 
   mjtNum hpos[3], hfwd[3];
   float headpos[3], gazedir[3];
