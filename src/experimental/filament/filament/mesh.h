@@ -18,6 +18,8 @@
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <vector>
@@ -180,7 +182,12 @@ class Mesh {
   filament::RenderableManager::PrimitiveType type_ =
       filament::RenderableManager::PrimitiveType::TRIANGLES;
   std::optional<filament::Box> bounds_;
-  std::vector<std::function<void()>> release_callbacks_;
+  struct SharedState {
+    std::vector<std::function<void()>> callbacks;
+    std::mutex mutex;
+    bool called = false;
+  };
+  std::shared_ptr<SharedState> shared_state_;
   std::array<filament::VertexAttribute, mjMAX_VERTEX_ATTRIBUTES> attributes_;
   int num_attributes_ = 0;
 };

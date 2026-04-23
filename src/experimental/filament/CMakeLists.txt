@@ -129,20 +129,32 @@ foreach(MATERIAL_FILE ${MATERIAL_FILES})
     set(INPUT_FILE "${ASSETS_DIR}/${MATERIAL_FILE}")
     set(OUTPUT_FILE "${OUTPUT_ASSETS_DIR}/${MATERIAL_NAME}.filamat")
 
-    add_custom_command(
-        OUTPUT ${OUTPUT_FILE}
-        COMMAND ${MATC_EXECUTABLE}
-            --platform=all
-            --api=vulkan
-            --api=opengl
-            --variant-filter skinning
-            --optimize-size
-            --output ${OUTPUT_FILE}
-            ${INPUT_FILE}
-        DEPENDS ${INPUT_FILE}
-        DEPENDS matc
-        COMMENT "Compiling ${MATERIAL_FILE}"
-    )
+    if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+        set(PRECOMPILED_FILE "${MUJOCO_NATIVE_BUILD_DIR}/src/experimental/filament/assets/${MATERIAL_NAME}.filamat")
+        add_custom_command(
+            OUTPUT ${OUTPUT_FILE}
+            COMMAND ${CMAKE_COMMAND} -E copy
+                ${PRECOMPILED_FILE}
+                ${OUTPUT_FILE}
+            DEPENDS ${PRECOMPILED_FILE}
+            COMMENT "Copying precompiled material ${MATERIAL_NAME}.filamat"
+        )
+    else()
+        add_custom_command(
+            OUTPUT ${OUTPUT_FILE}
+            COMMAND ${MATC_EXECUTABLE}
+                --platform=all
+                --api=vulkan
+                --api=opengl
+                --variant-filter skinning
+                --optimize-size
+                --output ${OUTPUT_FILE}
+                ${INPUT_FILE}
+            DEPENDS ${INPUT_FILE}
+            DEPENDS matc
+            COMMENT "Compiling ${MATERIAL_FILE}"
+        )
+    endif()
 
     list(APPEND MUJOCO_FILAMENT_ASSET_FILES ${OUTPUT_FILE})
 endforeach()

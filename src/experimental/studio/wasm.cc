@@ -18,7 +18,11 @@
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
 
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -59,6 +63,84 @@ class AssetRegistry {
   std::unordered_map<std::string, std::string> assets_;
 };
 
+// ---------------------------------------------------------------------------
+// HTTP/HTTPS resource fetching via the JS fetch API (uses ASYNCIFY to yield).
+// ---------------------------------------------------------------------------
+
+// Fetches a URL using the JS fetch API. Returns a malloc'd buffer and its size.
+// The caller is responsible for freeing the buffer. Returns 0 on failure.
+EM_ASYNC_JS(int, FetchUrl,
+            (const char* url, char** out_data, std::int32_t* out_size), {
+              try {
+                const urlStr = UTF8ToString(url);
+                const response = await fetch(urlStr);
+                if (!response.ok) {
+                  console.error('Fetch failed: ' + response.status + ' ' +
+                                urlStr);
+                  return 0;
+                }
+                const buffer = await response.arrayBuffer();
+                const bytes = new Uint8Array(buffer);
+                const ptr = _malloc(bytes.length);
+                HEAPU8.set(bytes, ptr);
+                setValue(out_data, ptr, '*');
+                setValue(out_size, bytes.length, 'i32');
+                return 1;
+              } catch (e) {
+                console.error('Fetch error:', e);
+                return 0;
+              }
+            });
+
+// Cache for data fetched via HTTP/HTTPS. Stores the downloaded bytes keyed by
+// the resource name (URL) so that read() can return a pointer to the data.
+class FetchCache {
+ public:
+  static FetchCache& Instance() {
+    static FetchCache instance;
+    return instance;
+  }
+
+  // Fetches the URL and stores the result. Returns the size (>0) on success.
+  int Fetch(const char* url) {
+    char* data = nullptr;
+    std::int32_t size = 0;
+    if (!FetchUrl(url, &data, &size)) {
+      return 0;
+    }
+    entries_[url] = Entry{UniquePtrWasm<char[]>(data), size};
+    return size;
+  }
+
+  // Returns pointer and size for a previously fetched URL.
+  int Read(const char* url, const void** buffer) {
+    auto it = entries_.find(url);
+    if (it == entries_.end()) {
+      return -1;
+    }
+    *buffer = it->second.data.get();
+    return it->second.size;
+  }
+
+  // Frees the data for a URL.
+  void Close(const char* url) { entries_.erase(url); }
+
+ private:
+  struct FreeDeleter {
+    void operator()(void* p) const { std::free(p); }
+  };
+  template <typename T>
+  using UniquePtrWasm = std::unique_ptr<T, FreeDeleter>;
+
+  struct Entry {
+    UniquePtrWasm<char[]> data;
+    int size;
+  };
+  std::unordered_map<std::string, Entry> entries_;
+};
+
+// ---------------------------------------------------------------------------
+
 // Javascript-facing function to register an asset.
 void RegisterAsset(std::string filename, std::string contents) {
   AssetRegistry::Instance().RegisterAsset(std::move(filename),
@@ -92,6 +174,27 @@ void Init() {
   resource_provider.prefix = "filament";
   mjp_registerResourceProvider(&resource_provider);
 
+  // Register HTTP/HTTPS resource providers so that models loaded from URLs
+  // can automatically fetch referenced assets (meshes, textures, etc.) over
+  // the network.
+  mjpResourceProvider http_provider;
+  mjp_defaultResourceProvider(&http_provider);
+
+  http_provider.open = [](mjResource* resource) {
+    return FetchCache::Instance().Fetch(resource->name);
+  };
+  http_provider.read = [](mjResource* resource, const void** buffer) {
+    return FetchCache::Instance().Read(resource->name, buffer);
+  };
+  http_provider.close = [](mjResource* resource) {
+    FetchCache::Instance().Close(resource->name);
+  };
+
+  http_provider.prefix = "http";
+  mjp_registerResourceProvider(&http_provider);
+  http_provider.prefix = "https";
+  mjp_registerResourceProvider(&http_provider);
+
   g_app = new mujoco::studio::App({
     .width = width,
     .height = height,
@@ -124,6 +227,17 @@ void LoadFile(const std::string& filename, const std::string& data) {
   g_app->LoadModelFromBuffer({ptr, ptr + data.size()}, content_type, filename);
 }
 
+// Javascript-facing function to load a model from a URL.
+// The URL is passed directly to LoadModelFromFile, which will use the
+// registered HTTP/HTTPS resource providers to fetch the model and any
+// referenced assets.
+void LoadUrl(const std::string& url) {
+  if (!g_app) {
+    return;
+  }
+  g_app->LoadModelFromFile(url);
+}
+
 // Javascript-facing function to render a single frame.
 void RenderFrame() {
   if (g_app) {
@@ -144,6 +258,7 @@ EMSCRIPTEN_BINDINGS(studio_bindings) {
   emscripten::function("registerAsset", &RegisterAsset);
   emscripten::function("init", &Init);
   emscripten::function("loadFile", &LoadFile);
+  emscripten::function("loadUrl", &LoadUrl);
   emscripten::function("renderFrame", &RenderFrame);
   emscripten::function("deinit", &Deinit);
 }

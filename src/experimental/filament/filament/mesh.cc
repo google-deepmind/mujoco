@@ -18,6 +18,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
+#include <mutex>
 #include <span>
 #include <utility>
 
@@ -105,7 +107,7 @@ void mjr_defaultMeshData(mjrMeshData* data) {
 }
 
 Mesh::Mesh(filament::Engine* engine, const mjrMeshData& data)
-    : engine_(engine) {
+    : engine_(engine), shared_state_(std::make_shared<SharedState>()) {
   type_ = data.primitive_type == mjMESH_PRIMITIVE_TYPE_TRIANGLES
               ? filament::RenderableManager::PrimitiveType::TRIANGLES
               : filament::RenderableManager::PrimitiveType::LINES;
@@ -113,7 +115,7 @@ Mesh::Mesh(filament::Engine* engine, const mjrMeshData& data)
   // If the user has provided a release callback, then we need to ensure we
   // call is when filament is done with the mesh data.
   if (data.release_callback) {
-    release_callbacks_.push_back([=]() {
+    shared_state_->callbacks.push_back([=]() {
       data.release_callback(data.user_data);
     });
   }
@@ -138,11 +140,21 @@ void Mesh::BuildVertexBuffer(const mjrMeshData& data) {
     mju_error("mjrMeshData has no vertices.");
   }
 
-  // The filament BufferDescriptor callback for releasing the memory. We assume
-  // that ReleaseResources() can be called multiple times, so we assign this
-  // callback to each buffer descriptor.
+  // The filament BufferDescriptor callback for releasing the memory.
+  // We pass a heap-allocated shared_ptr to the shared state as the user data.
   auto callback = +[](void* buffer, size_t size, void* user) {
-    static_cast<Mesh*>(user)->ReleaseResources();
+    auto* state_ptr = static_cast<std::shared_ptr<SharedState>*>(user);
+    auto state = *state_ptr;
+    delete state_ptr;
+
+    std::lock_guard<std::mutex> lock(state->mutex);
+    if (!state->called) {
+      for (const auto& cb : state->callbacks) {
+        cb();
+      }
+      state->callbacks.clear();
+      state->called = true;
+    }
   };
 
   // Pointers to specific attributes in the mesh data, used for additional
@@ -206,7 +218,8 @@ void Mesh::BuildVertexBuffer(const mjrMeshData& data) {
       attributes_[i] = usage;
     }
     vertex_buffer_ = vb_builder.build(*engine_);
-    vertex_buffer_->setBufferAt(*engine_, 0, {bytes, nbytes, callback, this});
+    auto* user_data = new std::shared_ptr<SharedState>(shared_state_);
+    vertex_buffer_->setBufferAt(*engine_, 0, {bytes, nbytes, callback, user_data});
   } else {
     // For a non-interleaved vertex buffer, we assign a separate buffer to each
     // attribute.
@@ -238,7 +251,8 @@ void Mesh::BuildVertexBuffer(const mjrMeshData& data) {
         nbytes = data.nvertices * sizeof(float4);
         bytes = BuildOrientationsFromNormals(data.nvertices, attrib);
       }
-      vertex_buffer_->setBufferAt(*engine_, i, {bytes, nbytes, callback, this});
+      auto* user_data = new std::shared_ptr<SharedState>(shared_state_);
+      vertex_buffer_->setBufferAt(*engine_, i, {bytes, nbytes, callback, user_data});
     }
   }
 }
@@ -259,7 +273,7 @@ void Mesh::BuildIndexBuffer(const mjrMeshData& data) {
   const void* indices = data.indices;
   if (indices == nullptr) {
     std::byte* sequence = new std::byte[num_bytes];
-    release_callbacks_.push_back([=]() {
+    shared_state_->callbacks.push_back([=]() {
       delete[] sequence;
     });
 
@@ -286,7 +300,7 @@ void Mesh::BuildIndexBuffer(const mjrMeshData& data) {
 float4* Mesh::BuildOrientationsFromNormals(int nvertices,
                                            const mjrVertexAttribute& normals) {
   float4* orientations = new float4[nvertices];
-  release_callbacks_.push_back([=]() {
+  shared_state_->callbacks.push_back([=]() {
     delete[] orientations;
   });
   const float* normals_ptr = reinterpret_cast<const float*>(normals.bytes);
@@ -321,10 +335,14 @@ void Mesh::UpdateBounds(const mjrMeshData& data) {
 }
 
 void Mesh::ReleaseResources() {
-  for (const auto& callback : release_callbacks_) {
-    callback();
+  std::lock_guard<std::mutex> lock(shared_state_->mutex);
+  if (!shared_state_->called) {
+    for (const auto& callback : shared_state_->callbacks) {
+      callback();
+    }
+    shared_state_->callbacks.clear();
+    shared_state_->called = true;
   }
-  release_callbacks_.clear();
 }
 
 filament::IndexBuffer* Mesh::GetFilamentIndexBuffer() const {
