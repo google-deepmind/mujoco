@@ -217,16 +217,16 @@ void ImguiBridge::Update() {
   for (int n = 0; n < commands->CmdListsCount; ++n) {
     const ImDrawList* cmds = commands->CmdLists[n];
 
-    MeshData data;
-    DefaultMeshData(&data);
+    mjrMeshData data;
+    mjr_defaultMeshData(&data);
     data.nattributes = 3;
-    data.attributes[0].usage = mjVERTEX_ATTRIBUTE_POSITION;
+    data.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
     data.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
     data.attributes[0].bytes = cmds->VtxBuffer.Data;
-    data.attributes[1].usage = mjVERTEX_ATTRIBUTE_UV;
+    data.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
     data.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
     data.attributes[1].bytes = cmds->VtxBuffer.Data + sizeof(float) * 2;
-    data.attributes[2].usage = mjVERTEX_ATTRIBUTE_COLOR;
+    data.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_COLOR;
     data.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_UBYTE4;
     data.attributes[2].bytes = cmds->VtxBuffer.Data + sizeof(float) * 4;
     data.interleaved = true;
@@ -234,7 +234,7 @@ void ImguiBridge::Update() {
     data.nindices = cmds->IdxBuffer.Size;
     data.indices = cmds->IdxBuffer.Data;
     data.index_type = mjINDEX_TYPE_USHORT;
-    data.primitive_type = mjPRIM_TYPE_TRIANGLES;
+    data.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
     meshes_.push_back(std::make_unique<Mesh>(scene_view_->GetEngine(), data));
 
     const Mesh* mesh = meshes_.back().get();

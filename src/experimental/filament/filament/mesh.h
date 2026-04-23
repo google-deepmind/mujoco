@@ -18,7 +18,6 @@
 #include <array>
 #include <cstddef>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <span>
 #include <vector>
@@ -29,66 +28,67 @@
 #include <filament/RenderableManager.h>
 #include <filament/VertexBuffer.h>
 #include <math/vec4.h>
+#include <mujoco/mujoco.h>
 
 // Functions for creating filament vertex and index buffers.
 namespace mujoco {
 
-// Maximum number of vertex attributes that can be used by a mesh.
-static constexpr int kMaxVertexAttributes = 16;
-
 // The type of data stored in an index buffer.
-typedef enum mjtIndexType_ {
+typedef enum mjrIndexType_ {
   mjINDEX_TYPE_USHORT = 0,
   mjINDEX_TYPE_UINT = 1,
-} mjtIndexType;
+} mjrIndexType;
 
 // The type of primitive to be drawn by vertex data.
-typedef enum mjtMeshPrimitiveType_ {
-  mjPRIM_TYPE_TRIANGLES = 0,
-  mjPRIM_TYPE_LINES = 1,
-} mjtMeshPrimitiveType;
+typedef enum mjrMeshPrimitiveType_ {
+  mjMESH_PRIMITIVE_TYPE_TRIANGLES = 0,
+  mjMESH_PRIMITIVE_TYPE_LINES = 1,
+} mjrMeshPrimitiveType;
 
 // The usage/purpose of an attribute of a vertex.
-typedef enum mjtVertexAttributeUsage_ {
-  mjVERTEX_ATTRIBUTE_POSITION = 0,
-  mjVERTEX_ATTRIBUTE_NORMAL = 1,
-  mjVERTEX_ATTRIBUTE_TANGENTS = 2,
-  mjVERTEX_ATTRIBUTE_UV = 3,
-  mjVERTEX_ATTRIBUTE_COLOR = 4,
-} mjtVertexAttributeUsage;
+typedef enum mjrVertexAttributeUsage_ {
+  mjVERTEX_ATTRIBUTE_USAGE_POSITION = 0,
+  mjVERTEX_ATTRIBUTE_USAGE_NORMAL = 1,
+  mjVERTEX_ATTRIBUTE_USAGE_TANGENTS = 2,
+  mjVERTEX_ATTRIBUTE_USAGE_UV = 3,
+  mjVERTEX_ATTRIBUTE_USAGE_COLOR = 4,
+} mjrVertexAttributeUsage;
 
 // The data format of an attribute of a vertex.
-typedef enum mjtVertexAttributeType_ {
+typedef enum mjrVertexAttributeType_ {
   mjVERTEX_ATTRIBUTE_TYPE_FLOAT2 = 0,
   mjVERTEX_ATTRIBUTE_TYPE_FLOAT3 = 1,
   mjVERTEX_ATTRIBUTE_TYPE_FLOAT4 = 2,
   mjVERTEX_ATTRIBUTE_TYPE_UBYTE4 = 3,
-} mjtVertexAttributeType;
+} mjrVertexAttributeType;
+
+// Maximum number of vertex attributes that can be used by a mesh.
+enum { mjMAX_VERTEX_ATTRIBUTES = 16 };
 
 // Information about a single attribute of a vertex.
-struct VertexAttribute {
+struct mjrVertexAttribute {
   // The data for the attribute.
   const void* bytes;
 
   // The usage/purpose of the attribute.
-  mjtVertexAttributeUsage usage;
+  mjrVertexAttributeUsage usage;
 
   // The data format of the attribute.
-  mjtVertexAttributeType type;
+  mjrVertexAttributeType type;
 };
 
 // The binary contents of a mesh.
-struct MeshData {
+struct mjrMeshData {
   // The number of vertices in the mesh. Each of the vertex arrays below is
   // assumed to have this number of elements.
-  size_t nvertices;
+  mjtSize nvertices;
 
   // The number of attributes for each vertex in the mesh.
   int nattributes;
 
   // Information about each attribute of a vertex in the mesh. See `interleaved`
   // for more details.
-  VertexAttribute attributes[kMaxVertexAttributes];
+  mjrVertexAttribute attributes[mjMAX_VERTEX_ATTRIBUTES];
 
   // Whether the vertex attributes are interleaved or not.
   //
@@ -99,24 +99,24 @@ struct MeshData {
   //
   // If false, assume each attribute is stored in a separate array as defined
   // by the `data` field of the attribute.
-  bool interleaved;
+  mjtByte interleaved;
 
   // The number of indices in the mesh. The indices array is assumed to have
   // this number of elements.
-  size_t nindices;
+  mjtSize nindices;
 
   // The indices of the mesh, stored as either ushort or uint depending on the
   // index type.
   const void* indices;
 
   // The type of data stored in the indices array.
-  mjtIndexType index_type;
+  mjrIndexType index_type;
 
   // The type of primitive to be drawn by vertex data.
-  mjtMeshPrimitiveType primitive_type;
+  mjrMeshPrimitiveType primitive_type;
 
   // Whether to compute the bounds of the mesh using the vertex positions.
-  bool compute_bounds;
+  mjtByte compute_bounds;
 
   // The bounds of the mesh. If bounds_min == bounds_max, then we assume that
   // that the bounds are not set (i.e. the bounds is empty).
@@ -133,13 +133,13 @@ struct MeshData {
 };
 
 // Initializes the MeshData to default values.
-void DefaultMeshData(MeshData* data);
+void mjr_defaultMeshData(mjrMeshData* data);
 
 // Owns a Vertex and Index buffer representing a geometry mesh.
 class Mesh {
  public:
   // Creates a Mesh from the given MeshData.
-  Mesh(filament::Engine* engine, const MeshData& data);
+  Mesh(filament::Engine* engine, const mjrMeshData& data);
 
   ~Mesh();
 
@@ -165,12 +165,12 @@ class Mesh {
   Mesh& operator=(const Mesh&) = delete;
 
  private:
-  void BuildVertexBuffer(const MeshData& data);
-  void BuildIndexBuffer(const MeshData& data);
-  void UpdateBounds(const MeshData& data);
+  void BuildVertexBuffer(const mjrMeshData& data);
+  void BuildIndexBuffer(const mjrMeshData& data);
+  void UpdateBounds(const mjrMeshData& data);
 
   filament::math::float4* BuildOrientationsFromNormals(
-      int nvertices, const VertexAttribute& normals);
+      int nvertices, const mjrVertexAttribute& normals);
 
   void ReleaseResources();
 
@@ -181,7 +181,7 @@ class Mesh {
       filament::RenderableManager::PrimitiveType::TRIANGLES;
   std::optional<filament::Box> bounds_;
   std::vector<std::function<void()>> release_callbacks_;
-  std::array<filament::VertexAttribute, kMaxVertexAttributes> attributes_;
+  std::array<filament::VertexAttribute, mjMAX_VERTEX_ATTRIBUTES> attributes_;
   int num_attributes_ = 0;
 };
 

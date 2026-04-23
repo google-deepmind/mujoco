@@ -412,7 +412,7 @@ static std::span<const int> GetIndices(const mjModel* model,
   }
 }
 
-static void UpdateMeshData(MeshData* data, const mjModel* model, int id,
+static void UpdatemjrMeshData(mjrMeshData* data, const mjModel* model, int id,
                            MeshType mesh_type) {
   if (!IsValidIndex(model, id, mesh_type)) {
     mju_error("Invalid index %d for type %d", id, mesh_type);
@@ -440,7 +440,7 @@ static void UpdateMeshData(MeshData* data, const mjModel* model, int id,
       break;
   }
 
-  data->primitive_type = mjPRIM_TYPE_TRIANGLES;
+  data->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
   data->nvertices = num_vertices;
   data->nindices = data->nvertices;
   data->indices = nullptr;
@@ -448,14 +448,14 @@ static void UpdateMeshData(MeshData* data, const mjModel* model, int id,
                          ? mjINDEX_TYPE_UINT
                          : mjINDEX_TYPE_USHORT;
   data->nattributes = has_uvs ? 3 : 2;
-  data->attributes[0].usage = mjVERTEX_ATTRIBUTE_POSITION;
+  data->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
   data->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
   data->attributes[0].bytes = builder->positions.data();
-  data->attributes[1].usage = mjVERTEX_ATTRIBUTE_TANGENTS;
+  data->attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
   data->attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
   data->attributes[1].bytes = builder->orientations.data();
   if (has_uvs) {
-    data->attributes[2].usage = mjVERTEX_ATTRIBUTE_UV;
+    data->attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
     data->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
     data->attributes[2].bytes = builder->uvs.data();
   }
@@ -467,7 +467,7 @@ static void UpdateMeshData(MeshData* data, const mjModel* model, int id,
   data->bounds_max[2] = builder->bounds_max.z;
 }
 
-void UpdateSkinFlexMeshData(MeshData* data, const mjModel* model,
+void UpdateSkinFlexmjrMeshData(mjrMeshData* data, const mjModel* model,
                             const mjvScene* scene, const mjvGeom& geom) {
   auto positions = GetPositions(model, scene, geom);
   auto normals = GetNormals(model, scene, geom);
@@ -480,20 +480,20 @@ void UpdateSkinFlexMeshData(MeshData* data, const mjModel* model,
   }
 
   data->nattributes = uvs.data() ? 3 : 2;
-  data->attributes[0].usage = mjVERTEX_ATTRIBUTE_POSITION;
+  data->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
   data->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
   data->attributes[0].bytes = positions.data();
-  data->attributes[1].usage = mjVERTEX_ATTRIBUTE_NORMAL;
+  data->attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_NORMAL;
   data->attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
   data->attributes[1].bytes = normals.data();
-  data->attributes[2].usage = mjVERTEX_ATTRIBUTE_UV;
+  data->attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
   data->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
   data->attributes[2].bytes = uvs.data();
   data->nvertices = positions.size() / 3;
   data->nindices = num_indices;
   data->indices = indices.data();
   data->index_type = mjINDEX_TYPE_UINT;
-  data->primitive_type = mjPRIM_TYPE_TRIANGLES;
+  data->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
   data->compute_bounds = true;
   data->release_callback = nullptr;
   data->user_data = nullptr;
@@ -554,15 +554,15 @@ void ModelObjects::UploadMesh(const mjModel* model, int id) {
   meshes_.erase(id);
   convex_hulls_.erase(id);
 
-  MeshData data;
-  DefaultMeshData(&data);
-  UpdateMeshData(&data, model, id, MeshType::kNormal);
+  mjrMeshData data;
+  mjr_defaultMeshData(&data);
+  UpdatemjrMeshData(&data, model, id, MeshType::kNormal);
   meshes_[id] = std::make_unique<Mesh>(engine_, data);
 
   if (model->mesh_graphadr[id] >= 0) {
-    MeshData convex_hull_data;
-    DefaultMeshData(&convex_hull_data);
-    UpdateMeshData(&convex_hull_data, model, id, MeshType::kConvexHull);
+    mjrMeshData convex_hull_data;
+    mjr_defaultMeshData(&convex_hull_data);
+    UpdatemjrMeshData(&convex_hull_data, model, id, MeshType::kConvexHull);
     convex_hulls_[id] = std::make_unique<Mesh>(engine_, convex_hull_data);
   }
 }
@@ -624,16 +624,16 @@ void ModelObjects::UploadHeightField(const mjModel* model, int id) {
 
   height_fields_.erase(id);
 
-  MeshData data;
-  DefaultMeshData(&data);
-  UpdateMeshData(&data, model, id, MeshType::kHeightField);
+  mjrMeshData data;
+  mjr_defaultMeshData(&data);
+  UpdatemjrMeshData(&data, model, id, MeshType::kHeightField);
   height_fields_[id] = std::make_unique<Mesh>(engine_, data);
 }
 
 void ModelObjects::CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom) {
-  MeshData data;
-  DefaultMeshData(&data);
-  UpdateSkinFlexMeshData(&data, model_, scene, geom);
+  mjrMeshData data;
+  mjr_defaultMeshData(&data);
+  UpdateSkinFlexmjrMeshData(&data, model_, scene, geom);
   dynamic_meshes_[geom.objid] = std::make_unique<Mesh>(engine_, data);
 }
 
