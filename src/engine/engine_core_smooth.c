@@ -227,7 +227,7 @@ void mj_kinematics2(const mjModel* m, mjData* d) {
 
     mj_local2Global(d, d->site_xpos+3*i, d->site_xmat+9*i,
                     m->site_pos+3*i, m->site_quat+4*i,
-                    bodyid, m->site_sameframe[i]);
+                    bodyid, mjSAMEFRAME_NONE);
   }
 }
 
