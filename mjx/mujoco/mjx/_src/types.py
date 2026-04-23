@@ -776,6 +776,10 @@ class Model(PyTreeNode):
   flex_vertadr: np.ndarray
   flex_vertnum: np.ndarray
   flex_vert0: np.ndarray
+  flex_nodeadr: np.ndarray
+  flex_nodenum: np.ndarray
+  flex_nodebodyid: np.ndarray
+  flex_node0: np.ndarray
   hfield_size: np.ndarray
   hfield_nrow: np.ndarray
   hfield_ncol: np.ndarray
