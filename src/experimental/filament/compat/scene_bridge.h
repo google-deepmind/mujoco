@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_SCENE_BRIDGE_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_SCENE_BRIDGE_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_SCENE_BRIDGE_H_
+#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_SCENE_BRIDGE_H_
 
 #include <memory>
 #include <optional>
@@ -24,8 +24,8 @@
 #include <math/vec3.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/compat/model_objects.h"
 #include "experimental/filament/filament/light.h"
-#include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/scene_view.h"
@@ -85,4 +85,4 @@ class SceneBridge {
 
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_SCENE_BRIDGE_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_SCENE_BRIDGE_H_

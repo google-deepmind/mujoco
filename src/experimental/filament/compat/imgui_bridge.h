@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_BRIDGE_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_BRIDGE_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_IMGUI_BRIDGE_H_
+#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_IMGUI_BRIDGE_H_
 
 #include <cstdint>
 #include <memory>
@@ -72,4 +72,4 @@ void DrawTextAt(const char* text, float x, float y, float z);
 
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_BRIDGE_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_IMGUI_BRIDGE_H_

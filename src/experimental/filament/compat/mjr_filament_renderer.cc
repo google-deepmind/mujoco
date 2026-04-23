@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/mjr_filament_renderer.h"
+#include "experimental/filament/compat/mjr_filament_renderer.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -22,13 +22,13 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/compat/imgui_bridge.h"
+#include "experimental/filament/compat/imgui_editor.h"
+#include "experimental/filament/compat/scene_bridge.h"
 #include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/filament_context.h"
-#include "experimental/filament/filament/imgui_bridge.h"
-#include "experimental/filament/filament/imgui_editor.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/render_target.h"
-#include "experimental/filament/filament/scene_bridge.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 

@@ -21,7 +21,7 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/mjr_filament_renderer.h"
+#include "experimental/filament/compat/mjr_filament_renderer.h"
 
 
 #if defined(TLS_FILAMENT_CONTEXT)

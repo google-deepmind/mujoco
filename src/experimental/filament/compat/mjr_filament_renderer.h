@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MJR_FILAMENT_RENDERER_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MJR_FILAMENT_RENDERER_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_MJR_FILAMENT_RENDERER_H_
+#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_MJR_FILAMENT_RENDERER_H_
 
 #include <cstdint>
 #include <memory>
@@ -21,10 +21,9 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjvisualize.h>
-#include "experimental/filament/filament/draw_mode.h"
+#include "experimental/filament/compat/imgui_bridge.h"
+#include "experimental/filament/compat/scene_bridge.h"
 #include "experimental/filament/filament/filament_context.h"
-#include "experimental/filament/filament/imgui_bridge.h"
-#include "experimental/filament/filament/scene_bridge.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -84,4 +83,4 @@ class MjrFilamentRenderer : public FilamentContext {
 
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MJR_FILAMENT_RENDERER_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_MJR_FILAMENT_RENDERER_H_

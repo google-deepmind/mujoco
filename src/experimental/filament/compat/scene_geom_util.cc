@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/scene_geom_util.h"
+#include "experimental/filament/compat/scene_geom_util.h"
 
 #include <cmath>
 #include <cstdint>
@@ -22,20 +22,17 @@
 
 #include <filament/Material.h>
 #include <filament/RenderableManager.h>
-#include <filament/Scene.h>
 #include <filament/Texture.h>
-#include <filament/TransformManager.h>
 #include <math/mat4.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
-#include <utils/Entity.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/compat/model_objects.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
-#include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/texture.h"

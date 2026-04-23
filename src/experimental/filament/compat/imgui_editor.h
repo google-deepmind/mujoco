@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_EDITOR_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_EDITOR_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_IMGUI_EDITOR_H_
+#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_IMGUI_EDITOR_H_
 
-#include "experimental/filament/filament/scene_bridge.h"
+#include "experimental/filament/compat/scene_bridge.h"
 
 namespace mujoco {
 
@@ -24,4 +24,4 @@ void DrawGui(SceneBridge* scene_bridge);
 
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_IMGUI_EDITOR_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_IMGUI_EDITOR_H_

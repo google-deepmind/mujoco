@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MODEL_OBJECTS_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MODEL_OBJECTS_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_MODEL_OBJECTS_H_
+#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_MODEL_OBJECTS_H_
 
 #include <array>
 #include <memory>
@@ -100,4 +100,4 @@ class ModelObjects {
 
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MODEL_OBJECTS_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_MODEL_OBJECTS_H_

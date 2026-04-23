@@ -32,10 +32,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/filament_context.h
         filament/filament_platform_factory.cc
         filament/filament_platform_factory.h
-        filament/imgui_bridge.cc
-        filament/imgui_bridge.h
-        filament/imgui_editor.cc
-        filament/imgui_editor.h
         filament/light.cc
         filament/light.h
         filament/material.cc
@@ -44,10 +40,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/math_util.h
         filament/mesh.cc
         filament/mesh.h
-        filament/mjr_filament_renderer.cc
-        filament/mjr_filament_renderer.h
-        filament/model_objects.cc
-        filament/model_objects.h
         filament/model_util.h
         filament/object_manager.cc
         filament/object_manager.h
@@ -55,14 +47,22 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/render_target.h
         filament/renderable.cc
         filament/renderable.h
-        filament/scene_bridge.cc
-        filament/scene_bridge.h
-        filament/scene_geom_util.cc
-        filament/scene_geom_util.h
         filament/scene_view.cc
         filament/scene_view.h
         filament/texture.cc
         filament/texture.h
+        compat/imgui_bridge.cc
+        compat/imgui_bridge.h
+        compat/imgui_editor.cc
+        compat/imgui_editor.h
+        compat/mjr_filament_renderer.cc
+        compat/mjr_filament_renderer.h
+        compat/model_objects.cc
+        compat/model_objects.h
+        compat/scene_bridge.cc
+        compat/scene_bridge.h
+        compat/scene_geom_util.cc
+        compat/scene_geom_util.h
 )
 if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
     target_sources(${MUJOCO_FILAMENT_TARGET_NAME}

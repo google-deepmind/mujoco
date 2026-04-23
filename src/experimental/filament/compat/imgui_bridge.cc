@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/imgui_bridge.h"
+#include "experimental/filament/compat/imgui_bridge.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -23,7 +23,6 @@
 #include <imgui.h>
 #include <math/mat3.h>
 #include <math/vec3.h>
-#include <math/vec4.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"

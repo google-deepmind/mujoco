@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/scene_bridge.h"
+#include "experimental/filament/compat/scene_bridge.h"
 
 #include <memory>
 #include <optional>
@@ -36,16 +36,15 @@
 #include <math/vec4.h>
 #include <math/TVecHelpers.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/compat/imgui_bridge.h"
+#include "experimental/filament/compat/model_objects.h"
+#include "experimental/filament/compat/scene_geom_util.h"
 #include "experimental/filament/filament/color_grading_options.h"
-#include "experimental/filament/filament/imgui_bridge.h"
 #include "experimental/filament/filament/light.h"
-#include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
-#include "experimental/filament/filament/model_objects.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderable.h"
-#include "experimental/filament/filament/scene_geom_util.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
 
