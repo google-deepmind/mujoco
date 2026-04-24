@@ -25,6 +25,11 @@ General
 
      **Migration:** The flag :ref:`multiccd<option-flag-multiccd>` must be explicitly disabled.
 
+Documentation
+^^^^^^^^^^^^^
+
+* Added :ref:`documentation<exDecoder>` for :ref:`mjpDecoder` plugins.
+
 Bug fixes
 ^^^^^^^^^
 
