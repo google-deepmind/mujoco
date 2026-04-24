@@ -49,8 +49,8 @@ void mjr_defaultMaterialTextures(mjrMaterialTextures* textures) {
 void mjr_defaultMaterialParams(mjrMaterialParams* params) {
   setf(params->color, {1.f, 1.f, 1.f, 1.f});
   setf(params->segmentation_color, {1, 1, 1, 1});
-  setf(params->uv_scale, {1, 1});
-  setf(params->uv_offset, {0, 0});
+  setf(params->uv_scale, {1, 1, 1});
+  setf(params->uv_offset, {0, 0, 0});
   setf(params->scissor, {0, 0, 0, 0});
 
   params->emissive = -1.0f;
