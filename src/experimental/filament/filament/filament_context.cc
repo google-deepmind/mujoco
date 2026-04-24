@@ -118,6 +118,9 @@ FilamentContext::FrameHandle FilamentContext::Render(
       if (!render_began) {
         render_began = renderer_->beginFrame(window_swap_chain_);
       }
+      if (!render_began) {
+        break;
+      }
       if (render_began) {
         SceneView::RenderRequest scene_view_request;
         scene_view_request.draw_mode = request.draw_mode;
@@ -139,6 +142,9 @@ FilamentContext::FrameHandle FilamentContext::Render(
       if (!render_began) {
         render_began = renderer_->beginFrame(offscreen_swap_chain_);
       }
+      if (!render_began) {
+        break;
+      }
       if (render_began) {
         SceneView::RenderRequest scene_view_request;
         scene_view_request.draw_mode = request.draw_mode;
@@ -154,10 +160,9 @@ FilamentContext::FrameHandle FilamentContext::Render(
 
   if (render_began) {
     renderer_->endFrame();
-    render_began = false;
-    if constexpr (!UTILS_HAS_THREADING) {
-      engine_->execute();
-    }
+  }
+  if constexpr (!UTILS_HAS_THREADING) {
+    engine_->execute();
   }
 
   if (!read_requests.empty()) {
