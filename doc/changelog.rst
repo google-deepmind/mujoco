@@ -7,6 +7,7 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+- Added support for Python 3.14.
 - Added new :ref:`mj_maxContact<mj_maxContact>` function to get the maximum number of possible contacts returned by
   two geoms.
 - Added ``mj_containsBufferVFS`` and ``mj_containsFileVFS`` to check for existence of buffers and files in VFS.
