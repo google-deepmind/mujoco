@@ -20,46 +20,18 @@ build:
       - asdf install uv latest
       - asdf global uv latest
       - uv venv $READTHEDOCS_VIRTUALENV_PATH
-      # install doc requirements and build tools
+      # install doc requirements
       - |
         UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH \
         uv pip install \
           -r doc/requirements.txt \
-          cmake pip build setuptools absl-py
-      # build and install MuJoCo C library
+          pip setuptools absl-py
+      # generate and install doc-only mujoco stubs (no C build required)
+      - python doc/make_mujoco_stubs.py python/mujoco_doc
       - |
-        VENV=$READTHEDOCS_VIRTUALENV_PATH && \
-        $VENV/bin/cmake -B build \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_INSTALL_PREFIX=$VENV \
-          -DMUJOCO_BUILD_EXAMPLES=OFF \
-          -DMUJOCO_BUILD_SIMULATE=OFF \
-          -DMUJOCO_BUILD_TESTS=OFF \
-          -DMUJOCO_TEST_PYTHON_UTIL=OFF && \
-        $VENV/bin/cmake --build build --parallel && \
-        $VENV/bin/cmake --install build
-      # copy plugins
-      - |
-        mkdir -p $READTHEDOCS_VIRTUALENV_PATH/mujoco_plugin && \
-        cp build/lib/libactuator.* \
-           build/lib/libelasticity.* \
-           build/lib/libsensor.* \
-           $READTHEDOCS_VIRTUALENV_PATH/mujoco_plugin/ && \
-        cp build/lib/libsdf_plugin.* \
-           $READTHEDOCS_VIRTUALENV_PATH/mujoco_plugin/ || true
-      # build and install Python bindings from source
-      - |
-        export VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH \
-               PATH=$READTHEDOCS_VIRTUALENV_PATH/bin:$PATH && \
-        cd python && bash make_sdist.sh && cd dist && \
-        MUJOCO_PATH=$READTHEDOCS_VIRTUALENV_PATH \
-        MUJOCO_PLUGIN_PATH=$READTHEDOCS_VIRTUALENV_PATH/mujoco_plugin \
-        MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
-          -DGLFW_BUILD_WAYLAND=OFF -DGLFW_BUILD_X11=OFF" \
         UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH \
-        uv pip install mujoco-*.tar.gz && \
-        cd ../..
-      # install mjx and mujoco_warp
+        uv pip install --no-deps python/mujoco_doc
+      # install mjx and mujoco_warp (mujoco dep satisfied by stubs above)
       - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install -e mjx
       - |
         find mjx/mujoco/mjx/third_party/mujoco_warp -type f -exec \
