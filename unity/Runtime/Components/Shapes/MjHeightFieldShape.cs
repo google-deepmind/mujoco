@@ -91,6 +91,11 @@ public class MjHeightFieldShape : IMjShape {
 
     mjcf.SetAttribute("hfield", assetName);
     PrepareHeightMap();
+    if (MinimumHeight <= 0) {
+      // Unity imports hfields with min height = 0, which MuJoCo can't handle
+      // Use a small fraction of max height, or a small constant
+      MinimumHeight = Mathf.Max(0.0001f, MaximumHeight * 0.0001f);
+    }
   }
 
   public void FromMjcf(XmlElement mjcf) {
@@ -107,7 +112,7 @@ public class MjHeightFieldShape : IMjShape {
 
     RenderTexture.active = null;
     if (ExportImage) {
-      if (minimumHeight > 0.0001)
+      if (minimumHeight < 0.0001)
         Debug.LogWarning("Due to assumptions in MuJoCo heightfields, terrains should have a " +
                          "minimum heightmap value of 0.");
       File.WriteAllBytes(FullHeightMapPath, texture.EncodeToPNG());
