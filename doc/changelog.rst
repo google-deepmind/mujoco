@@ -8,7 +8,7 @@ Version 3.8.0 (April 24, 2026)
 General
 ^^^^^^^
 1. Added support for Python 3.14.
-2. Added :ref:`multi-cell support<body-flexcomp-cellnum>` for trilinear and quadratic flexes. Note that the implicit
+2. Added :ref:`multi-cell support<body-flexcomp-cellcount>` for trilinear and quadratic flexes. Note that the implicit
    integrator uses a dense solver for the flex degrees of freedom, which can be slow for multi-cell flexes.
 3. Refactored ``strain`` flex :ref:`equality constraints<flexcomp-edge-equality>` to be instantiated per cell instead of
    per flex object, reducing the number of degrees of freedom per constraint row. The equality can be associated with a
@@ -17,7 +17,7 @@ General
    colliding two geoms.
 5. Added ``mj_containsBufferVFS`` and ``mj_containsFileVFS`` to check for existence of buffers and files in VFS.
 
-  .. admonition:: Breaking API changes
+.. admonition:: Breaking API changes
    :class: attention
 
    6. The :ref:`multiccd<coMultiCCD>` option (multiple contacts returned from the convex collision detection pipeline)
