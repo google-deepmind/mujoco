@@ -26,8 +26,8 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
-#include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
 
@@ -36,15 +36,25 @@ namespace mujoco {
 using filament::math::float3;
 using filament::math::mat3f;
 
-ImguiBridge::ImguiBridge(ObjectManager* object_mgr)
-    : object_mgr_(object_mgr) {
+ImguiBridge::ImguiBridge(ObjectManager* object_mgr) : object_mgr_(object_mgr) {
   scene_view_ = std::make_unique<SceneView>(object_mgr_->GetEngine());
   scene_view_->DisableShadows();
   scene_view_->DisableReflections();
   scene_view_->DisablePostProcessing();
 }
 
-ImguiBridge::~ImguiBridge() { PrepareRenderables(0); }
+ImguiBridge::~ImguiBridge() {
+  PrepareRenderables(0);
+
+  // Destroy all textures tracked by ImGui.
+  if (ImGui::GetCurrentContext()) {
+    for (ImTextureData* tex : ImGui::GetPlatformIO().Textures) {
+      if (tex->Status != ImTextureStatus_Destroyed) {
+        DestroyTexture(tex);
+      }
+    }
+  }
+}
 
 uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
                                    int width, int height, int bpp) {
@@ -183,22 +193,10 @@ void ImguiBridge::Update() {
 
   if (commands->Textures != nullptr) {
     for (ImTextureData* tex : *commands->Textures) {
-      if (tex->Status == ImTextureStatus_OK) {
-        // ImGui's lifecycle is independent of the filament context lifecycle.
-        // As such, it is possible to destroy and create a new filament context
-        // while ImGui is still expecting the "OK" textures to work. In this
-        // case, we simply recreate the texture.
-        if (textures_.find(tex->TexID) == textures_.end()) {
-          CreateTexture(tex);
-        }
-      } else if (tex->Status == ImTextureStatus_WantCreate) {
+      if (tex->Status == ImTextureStatus_WantCreate) {
         CreateTexture(tex);
       } else if (tex->Status == ImTextureStatus_WantUpdates) {
-        if (textures_.find(tex->TexID) == textures_.end()) {
-          CreateTexture(tex);
-        } else {
-          UpdateTexture(tex);
-        }
+        UpdateTexture(tex);
       } else if (tex->Status == ImTextureStatus_WantDestroy &&
                  tex->UnusedFrames > 0) {
         DestroyTexture(tex);
