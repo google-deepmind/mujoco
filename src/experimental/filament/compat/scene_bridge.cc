@@ -260,10 +260,7 @@ void SceneBridge::PrepareLights() {
       }
 
       auto light_obj = std::make_unique<Light>(engine, params);
-#ifndef __EMSCRIPTEN__
-      // TODO(b/458045799): Re-enable when lights work on glinux and chromebook.
       scene_view_->AddToScene(light_obj.get());
-#endif
       lights_.emplace_back(std::move(light_obj));
     }
   }
@@ -283,10 +280,7 @@ void SceneBridge::PrepareLights() {
     params.intensity = 0.0f;
     params.spot_cone_angle = 90.0f;
     auto light_obj = std::make_unique<Light>(engine, params);
-#ifndef __EMSCRIPTEN__
-    // TODO(b/458045799): Re-enable when lights work on glinux and chromebook.
     scene_view_->AddToScene(light_obj.get());
-#endif
     lights_.emplace_back(std::move(light_obj));
   }
 
