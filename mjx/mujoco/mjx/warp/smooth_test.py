@@ -133,10 +133,11 @@ class SmoothTest(parameterized.TestCase):
 
   def test_kinematics_vmap(self):
     """Tests kinematics with batched data."""
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     m = tu.load_test_file('pendula.xml')
 
