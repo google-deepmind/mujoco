@@ -445,8 +445,8 @@ static void UpdatemjrMeshData(mjrMeshData* data, const mjModel* model, int id,
   data->nindices = data->nvertices;
   data->indices = nullptr;
   data->index_type = data->nvertices >= std::numeric_limits<uint16_t>::max()
-                         ? mjINDEX_TYPE_UINT
-                         : mjINDEX_TYPE_USHORT;
+                         ? mjINDEX_TYPE_U32
+                         : mjINDEX_TYPE_U16;
   data->nattributes = has_uvs ? 3 : 2;
   data->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
   data->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
@@ -492,7 +492,7 @@ void UpdateSkinFlexmjrMeshData(mjrMeshData* data, const mjModel* model,
   data->nvertices = positions.size() / 3;
   data->nindices = num_indices;
   data->indices = indices.data();
-  data->index_type = mjINDEX_TYPE_UINT;
+  data->index_type = mjINDEX_TYPE_U32;
   data->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
   data->compute_bounds = true;
   data->release_callback = nullptr;

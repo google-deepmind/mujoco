@@ -93,7 +93,7 @@ class BuiltinBuilder : mjrMeshData {
         primitive_type_ == filament::backend::PrimitiveType::TRIANGLES
             ? mjMESH_PRIMITIVE_TYPE_TRIANGLES
             : mjMESH_PRIMITIVE_TYPE_LINES;
-    index_type = mjINDEX_TYPE_USHORT;
+    index_type = mjINDEX_TYPE_U16;
     bounds_min[0] = bounds_.getMin().x;
     bounds_min[1] = bounds_.getMin().y;
     bounds_min[2] = bounds_.getMin().z;

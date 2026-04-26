@@ -37,8 +37,8 @@ namespace mujoco {
 
 // The type of data stored in an index buffer.
 typedef enum mjrIndexType_ {
-  mjINDEX_TYPE_USHORT = 0,
-  mjINDEX_TYPE_UINT = 1,
+  mjINDEX_TYPE_U16 = 0,
+  mjINDEX_TYPE_U32 = 1,
 } mjrIndexType;
 
 // The type of primitive to be drawn by vertex data.

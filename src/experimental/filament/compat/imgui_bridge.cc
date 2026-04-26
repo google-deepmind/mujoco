@@ -230,7 +230,7 @@ void ImguiBridge::Update() {
     data.nvertices = cmds->VtxBuffer.Size;
     data.nindices = cmds->IdxBuffer.Size;
     data.indices = cmds->IdxBuffer.Data;
-    data.index_type = mjINDEX_TYPE_USHORT;
+    data.index_type = mjINDEX_TYPE_U16;
     data.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
     meshes_.push_back(std::make_unique<Mesh>(scene_view_->GetEngine(), data));
 
