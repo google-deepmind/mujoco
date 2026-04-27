@@ -192,7 +192,7 @@ void SetupTheme(GuiTheme theme) {
   float rounding = 4.0f;
   s.DisplaySafeAreaPadding = ImVec2(0, 0);
   s.WindowPadding = ImVec2(hspacing, vspacing);
-  s.FramePadding = ImVec2(hspacing, vspacing);
+  s.FramePadding = ImVec2(hspacing, 2);
   s.ItemSpacing = ImVec2(hspacing, vspacing);
   s.ItemInnerSpacing = ImVec2(hspacing, vspacing);
   s.WindowRounding = rounding;
@@ -205,7 +205,7 @@ void SetupTheme(GuiTheme theme) {
   s.WindowBorderSize = 0.0f;
   s.FrameBorderSize = 1.0f;
   s.PopupBorderSize = 1.0f;
-  s.IndentSpacing = 20.0f;
+  s.IndentSpacing = 6.0f;
   s.ScrollbarSize = 12.0f;
   s.GrabMinSize = 5.0f;
   s.WindowMenuButtonPosition = ImGuiDir_None;
@@ -817,22 +817,6 @@ void PhysicsGui(mjModel* model, float min_width) {
     ImGui::TreePop();
   }
 
-  if (ImGui::TreeNodeEx("Actuator Groups")) {
-    if (ImGui::BeginTable("##ActuatorGroupsTable", num_cols)) {
-      const ImVec2 size = GetFlexElementSize(num_cols);
-      for (int i = 0; i < 6; ++i) {
-        char label[64];
-        std::snprintf(label, sizeof(label), "Act Group %d", i);
-        ImGui::TableNextColumn();
-        int flipped = ~opt.disableactuator;
-        ImGui_BitToggle(label, &flipped, 1 << i, size);
-        opt.disableactuator = ~flipped;
-      }
-      ImGui::EndTable();
-    }
-    ImGui::TreePop();
-  };
-
   if (ImGui::TreeNodeEx("Algorithmic Parameters")) {
     ImGui_Input("Timestep", &opt.timestep, {0, 1, 0.01, 0.1});
     ImGui_Input("Iterations", &opt.iterations, {0, 1000, 1, 10});
@@ -864,6 +848,22 @@ void PhysicsGui(mjModel* model, float min_width) {
     ImGui_InputN("Sol Imp", opt.o_solimp, 5, {.format = "%0.1f"});
     ImGui_InputN("Sol Ref", opt.o_solref, 2, {.format = "%0.1f"});
     ImGui_InputN("Friction", opt.o_friction, 5, {.format = "%.1f"});
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNodeEx("Actuator Groups")) {
+    if (ImGui::BeginTable("##ActuatorGroupsTable", num_cols)) {
+      const ImVec2 size = GetFlexElementSize(num_cols);
+      for (int i = 0; i < 6; ++i) {
+        char label[64];
+        std::snprintf(label, sizeof(label), "Act Group %d", i);
+        ImGui::TableNextColumn();
+        int flipped = ~opt.disableactuator;
+        ImGui_BitToggle(label, &flipped, 1 << i, size);
+        opt.disableactuator = ~flipped;
+      }
+      ImGui::EndTable();
+    }
     ImGui::TreePop();
   }
 
@@ -986,8 +986,6 @@ void RenderingGui(const mjModel* model, mjvOption* vis_options,
       static_cast<int>(std::floor(available_width / min_width)), 1, 6);
 
   if (ImGui::TreeNodeEx("Model Elements", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
     if (ImGui::BeginTable("##ModelElementsTable", num_cols)) {
       const ImVec2 size = GetFlexElementSize(num_cols);
       for (int i = 0; i < mjNVISFLAG; ++i) {
@@ -996,14 +994,10 @@ void RenderingGui(const mjModel* model, mjvOption* vis_options,
       }
       ImGui::EndTable();
     }
-
-    ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
     ImGui::TreePop();
   }
 
   if (ImGui::TreeNodeEx("Render Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
     if (ImGui::BeginTable("##RenderFlagsTable", num_cols)) {
       const ImVec2 size = GetFlexElementSize(num_cols);
       for (int i = 0; i < mjNRNDFLAG; ++i) {
@@ -1012,8 +1006,6 @@ void RenderingGui(const mjModel* model, mjvOption* vis_options,
       }
       ImGui::EndTable();
     }
-
-    ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
     ImGui::TreePop();
   }
 }
@@ -1030,8 +1022,6 @@ void GroupsGui(const mjModel* model, mjvOption* vis_options, float min_width) {
 
   auto GroupGui = [&](const char* name, mjtByte* group) {
     if (ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_DefaultOpen)) {
-      ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
       char label[64];
       std::snprintf(label, sizeof(label), "##%s", name);
       if (ImGui::BeginTable(label, num_cols)) {
@@ -1044,8 +1034,6 @@ void GroupsGui(const mjModel* model, mjvOption* vis_options, float min_width) {
 
         ImGui::EndTable();
       }
-
-      ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
       ImGui::TreePop();
     }
   };
@@ -1150,12 +1138,24 @@ void ControlsGui(const mjModel* model, const mjData* data,
   ImGui::PopItemWidth();
 }
 
+static int GetPlotXLimit(const mjData* data) {
+  int max_niter = 0;
+  const int nisland0 =
+      data->nefc ? mjMAX(1, mjMIN(data->nisland, mjNISLAND)) : 0;
+  for (int k = 0; k < nisland0; k++) {
+    max_niter = mjMAX(max_niter, data->solver_niter[k]);
+  }
+  return mjMAX(10, ((max_niter + 9) / 10) * 10);
+}
+
 void ConvergenceGui(const mjModel* model, mjData* data) {
+  int xlim = GetPlotXLimit(data);
+
   if (ImPlot::BeginPlot("Convergence (log 10)", ImVec2(-1, 0),
                         ImPlotFlags_NoMouseText)) {
     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
     ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisLimits(ImAxis_X1, 0, 20, ImPlotCond_Always);
+    ImPlot::SetupAxisLimits(ImAxis_X1, 0, xlim, ImPlotCond_Always);
     ImPlot::SetupAxisFormat(ImAxis_Y1, "%.1f");
     ImPlot::SetupAxisLimits(ImAxis_Y1, -20, 5, ImPlotCond_Always);
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
@@ -1212,10 +1212,12 @@ void ConvergenceGui(const mjModel* model, mjData* data) {
 }
 
 void CountsGui(const mjModel* model, mjData* data) {
+  int xlim = GetPlotXLimit(data);
+
   if (ImPlot::BeginPlot("Counts", ImVec2(-1, 0), ImPlotFlags_NoMouseText)) {
     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
     ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisLimits(ImAxis_X1, 0, 20, ImPlotCond_Always);
+    ImPlot::SetupAxisLimits(ImAxis_X1, 0, xlim, ImPlotCond_Always);
     ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0f");
     ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 80, ImPlotCond_Always);
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);

@@ -1011,14 +1011,14 @@ void App::ModelOptionsGui() {
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Physics Settings", node_flags)) {
+  if (ImGui::TreeNodeEx("Physics", node_flags)) {
     platform::PhysicsGui(model(), min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("RenderingGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Rendering Settings", node_flags)) {
+  if (ImGui::TreeNodeEx("Rendering", node_flags)) {
     platform::RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
                            min_width);
     ImGui::TreePop();
