@@ -31,6 +31,7 @@ from mujoco.mjx.warp import test_util as tu
 from mujoco.mjx.warp import warp as wp  # pylint: disable=g-importing-member
 import numpy as np
 
+
 try:
   from mujoco.mjx.warp import forward  # pylint: disable=g-import-not-at-top
 except ImportError:
@@ -276,6 +277,56 @@ class StepTest(parameterized.TestCase):
 
     for _ in range(10):
       dx_batch = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))(
+          mx, dx_batch
+      )
+
+    for i in range(batch_size):
+      dx = dx_batch[i]
+      dx_orig = dx_batch_orig[i]
+
+      d.qpos[:] = dx_orig.qpos
+      d.qvel[:] = dx_orig.qvel
+      d.ctrl[:] = dx_orig.ctrl
+      d.mocap_pos[:] = dx_orig.mocap_pos
+      d.mocap_quat[:] = dx_orig.mocap_quat
+      d.time = dx_orig.time
+      mujoco.mj_step(m, d, 10)
+
+      tu.assert_attr_eq(dx, d, 'qpos')
+      tu.assert_attr_eq(dx, d, 'qvel')
+      tu.assert_attr_eq(dx, d, 'time')
+      tu.assert_attr_eq(dx, d, 'ctrl')
+      tu.assert_attr_eq(dx, d, 'act')
+      tu.assert_attr_eq(dx, d, 'mocap_pos')
+      tu.assert_attr_eq(dx, d, 'mocap_quat')
+      tu.assert_attr_eq(dx, d, 'sensordata')
+
+  @parameterized.parameters(
+      'humanoid/humanoid.xml',
+      'pendula.xml',
+  )
+  def test_step_cpu(self, xml: str):
+    """Tests step on the CPU device."""
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+
+    batch_size = 1
+    m = test_util.load_test_file(xml)
+    m.opt.iterations = 10
+    m.opt.ls_iterations = 10
+
+    cpu_device = jax.devices('cpu')[0]
+    mx = mjx.put_model(m, impl='warp', device=cpu_device)
+
+    d = mujoco.MjData(m)
+    worldids = jp.arange(batch_size)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
+    dx_batch = jax.device_put(dx_batch, cpu_device)
+    dx_batch_orig = dx_batch
+
+    for _ in range(10):
+      dx_batch = jax.vmap(forward.step, in_axes=(None, 0))(
           mx, dx_batch
       )
 

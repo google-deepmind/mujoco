@@ -33,19 +33,19 @@
 namespace mujoco {
 
 // The shading model (material) for a Renderable.
-enum class ShadingModel {
-  SceneObject,
-  Decor,
-  DecorLines,
-  Ux,
-};
+typedef enum mjrShadingModel_ {
+  mjSHADING_MODEL_SCENE_OBJECT,
+  mjSHADING_MODEL_DECOR,
+  mjSHADING_MODEL_DECOR_LINES,
+  mjSHADING_MODEL_UX,
+} mjrShadingModel;
 
 // Configuration parameters for a Renderable.
-struct RenderableParams {
-  ShadingModel shading_model;
+struct mjrRenderableParams {
+  mjrShadingModel shading_model;
 };
 
-void DefaultRenderableParams(RenderableParams* params);
+void mjr_defaultRenderableParams(mjrRenderableParams* params);
 
 // A Renderable is effectively two things: a mesh and a material.
 //
@@ -67,7 +67,7 @@ class Renderable {
   static constexpr std::uint8_t kDefaultPriority = 4;
   static constexpr std::uint8_t kDefaultLayerMask = 0x01;
 
-  Renderable(ObjectManager* object_mgr, const RenderableParams& params);
+  Renderable(ObjectManager* object_mgr, const mjrRenderableParams& params);
   ~Renderable() noexcept;
 
   Renderable(const Renderable&) = delete;
@@ -127,14 +127,14 @@ class Renderable {
   void SetDrawMode(DrawMode mode);
 
   // Updates the parameters for the material.
-  void UpdateMaterial(const MaterialParams& params,
-                      const MaterialTextures& textures);
+  void UpdateMaterial(const mjrMaterialParams& params,
+                      const mjrMaterialTextures& textures);
 
   // Returns the current material parameters.
-  const MaterialParams& GetMaterialParams() const;
+  const mjrMaterialParams& GetMaterialParams() const;
 
   // Returns the current material textures.
-  const MaterialTextures& GetMaterialTextures() const;
+  const mjrMaterialTextures& GetMaterialTextures() const;
 
   // Returns the filament Engine managing the renderables.
   filament::Engine* GetEngine();
@@ -154,10 +154,10 @@ class Renderable {
   ObjectManager::MaterialType GetColorMaterialType() const;
 
   ObjectManager* object_mgr_;
-  RenderableParams params_;
+  mjrRenderableParams params_;
   filament::MaterialInstance* instances_[kNumDrawModes] = {nullptr};
-  MaterialParams material_params_;
-  MaterialTextures material_textures_;
+  mjrMaterialParams material_params_;
+  mjrMaterialTextures material_textures_;
   DrawMode draw_mode_ = DrawMode::Color;
   filament::Scene* assigned_scene_ = nullptr;
   std::vector<Part> parts_;

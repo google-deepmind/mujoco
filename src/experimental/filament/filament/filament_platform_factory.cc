@@ -31,13 +31,13 @@ static filament::Engine::Backend ResolveBackend(int graphics_api) {
 #endif
 
   switch (graphics_api) {
-    case mjGFX_DEFAULT:
+    case mjGRAPHICS_API_DEFAULT:
       // Use the default based on the platform above.
       break;
-    case mjGFX_OPENGL:
+    case mjGRAPHICS_API_OPENGL:
       backend = filament::Engine::Backend::OPENGL;
       break;
-    case mjGFX_VULKAN:
+    case mjGRAPHICS_API_VULKAN:
       backend = filament::Engine::Backend::VULKAN;
       break;
     default:

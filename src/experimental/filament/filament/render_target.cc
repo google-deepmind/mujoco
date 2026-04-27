@@ -30,13 +30,13 @@
 
 namespace mujoco {
 
-void DefaultRenderTargetConfig(RenderTargetConfig* config) {
+void mjr_defaultRenderTargetConfig(mjrRenderTargetConfig* config) {
   config->color_format = mjPIXEL_FORMAT_RGBA8;
   config->depth_format = mjPIXEL_FORMAT_DEPTH32F;
 }
 
 RenderTarget::RenderTarget(filament::Engine* engine,
-                           const RenderTargetConfig& config)
+                           const mjrRenderTargetConfig& config)
     : engine_(engine), config_(config) {}
 
 RenderTarget::~RenderTarget() noexcept {
@@ -51,8 +51,8 @@ void RenderTarget::Prepare(int width, int height) {
   width_ = width;
   height_ = height;
 
-  TextureConfig color_config;
-  DefaultTextureConfig(&color_config);
+  mjrTextureConfig color_config;
+  mjr_defaultTextureConfig(&color_config);
   Texture::InternalFlags color_flags;
   color_config.width = width;
   color_config.height = height;
@@ -63,8 +63,8 @@ void RenderTarget::Prepare(int width, int height) {
   color_flags.color_attachment = true;
   color_texture_ = std::make_unique<Texture>(engine_, color_config, color_flags);
 
-  TextureConfig depth_config;
-  DefaultTextureConfig(&depth_config);
+  mjrTextureConfig depth_config;
+  mjr_defaultTextureConfig(&depth_config);
   Texture::InternalFlags depth_flags;
   depth_config.width = width;
   depth_config.height = height;

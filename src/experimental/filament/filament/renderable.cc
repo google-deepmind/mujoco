@@ -36,12 +36,15 @@ namespace mujoco {
 
 using filament::math::mat4f;
 
-void DefaultRenderableParams(RenderableParams* params) {
-  params->shading_model = ShadingModel::SceneObject;
+void mjr_defaultRenderableParams(mjrRenderableParams* params) {
+  params->shading_model = mjSHADING_MODEL_SCENE_OBJECT;
 }
 
-Renderable::Renderable(ObjectManager* object_mgr, const RenderableParams& params)
-    : object_mgr_(object_mgr), params_(params) {}
+Renderable::Renderable(ObjectManager* object_mgr, const mjrRenderableParams& params)
+    : object_mgr_(object_mgr), params_(params) {
+  mjr_defaultMaterialParams(&material_params_);
+  mjr_defaultMaterialTextures(&material_textures_);
+}
 
 Renderable::~Renderable() noexcept {
   filament::Engine* engine = GetEngine();
@@ -198,13 +201,13 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
   assigned_scene_ = nullptr;
 }
 
-void Renderable::UpdateMaterial(const MaterialParams& params,
-                                const MaterialTextures& textures) {
+void Renderable::UpdateMaterial(const mjrMaterialParams& params,
+                                const mjrMaterialTextures& textures) {
   material_params_ = params;
   material_textures_ = textures;
 
   AssignMaterial(DrawMode::Color, GetColorMaterialType());
-  if (params_.shading_model == ShadingModel::SceneObject) {
+  if (params_.shading_model == mjSHADING_MODEL_SCENE_OBJECT) {
     AssignMaterial(DrawMode::Depth, ObjectManager::kUnlitDepth);
     AssignMaterial(DrawMode::Segmentation, ObjectManager::kUnlitSegmentation);
   }
@@ -237,17 +240,17 @@ void Renderable::AssignMaterial(DrawMode mode,
   }
 }
 
-const MaterialParams& Renderable::GetMaterialParams() const {
+const mjrMaterialParams& Renderable::GetMaterialParams() const {
   return material_params_;
 }
 
-const MaterialTextures& Renderable::GetMaterialTextures() const {
+const mjrMaterialTextures& Renderable::GetMaterialTextures() const {
   return material_textures_;
 }
 
 void Renderable::SetDrawMode(DrawMode mode) {
   // Only SceneObjects support non-color draw modes.
-  if (params_.shading_model != ShadingModel::SceneObject) {
+  if (params_.shading_model != mjSHADING_MODEL_SCENE_OBJECT) {
     mode = DrawMode::Color;
   }
 
@@ -343,11 +346,11 @@ void Renderable::SetWireframe(bool wireframe) {
 }
 
 ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
-  if (params_.shading_model == ShadingModel::DecorLines) {
+  if (params_.shading_model == mjSHADING_MODEL_DECOR_LINES) {
     return ObjectManager::kUnlitLine;
-  } else if (params_.shading_model == ShadingModel::Decor) {
+  } else if (params_.shading_model == mjSHADING_MODEL_DECOR) {
     return ObjectManager::kUnlitDecor;
-  } else if (params_.shading_model == ShadingModel::Ux) {
+  } else if (params_.shading_model == mjSHADING_MODEL_UX) {
     return ObjectManager::kUnlitUi;
   } else if (material_textures_.orm) {
     return ObjectManager::kPbrPacked;
@@ -374,7 +377,7 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
   }
 
   if (material_textures_.color == nullptr) {
-    if (material_params_.color.a < 1.0f) {
+    if (material_params_.color[3] < 1.0f) {
       return ObjectManager::kPhongColorFade;
     } else if (material_params_.reflective) {
       return ObjectManager::kPhongColorReflect;
@@ -383,7 +386,7 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
     }
   } else if (material_textures_.color->GetFilamentTexture()->getTarget() ==
               filament::Texture::Sampler::SAMPLER_CUBEMAP) {
-    if (material_params_.color.a < 1.0f) {
+    if (material_params_.color[3] < 1.0f) {
       return ObjectManager::kPhongCubeFade;
     } else if (material_params_.reflective) {
       return ObjectManager::kPhongCubeReflect;
@@ -391,7 +394,7 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
       return ObjectManager::kPhongCube;
     }
   } else if (has_texcoords) {
-    if (material_params_.color.a < 1.0f) {
+    if (material_params_.color[3] < 1.0f) {
       return ObjectManager::kPhong2dUvFade;
     } else if (material_params_.reflective) {
       return ObjectManager::kPhong2dUvReflect;
@@ -399,7 +402,7 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
       return ObjectManager::kPhong2dUv;
     }
   } else {
-    if (material_params_.color.a < 1.0f) {
+    if (material_params_.color[3] < 1.0f) {
       return ObjectManager::kPhong2dFade;
     } else if (material_params_.reflective) {
       return ObjectManager::kPhong2dReflect;

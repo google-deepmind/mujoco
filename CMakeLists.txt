@@ -29,7 +29,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 3.7.1
+  VERSION 3.8.1
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -53,11 +53,48 @@ endif()
 
 if(EMSCRIPTEN)
   option(MUJOCO_BUILD_TESTS_WASM "Build tests for WASM bindings" ON)
+  option(MUJOCO_BUILD_STUDIO "Build studio for MuJoCo (WASM)" OFF)
+  option(MUJOCO_USE_FILAMENT "Use filament rendering" OFF)
   option(MUJOCO_WASM_THREADS "Build with multi-threading support" ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -O3 -fexceptions")
   if(MUJOCO_WASM_THREADS)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+  endif()
+
+  # Filament uses the WEBGL variable (not EMSCRIPTEN) to identify web builds.
+  # Without this, it falls into the LINUX path and tries to compile with
+  # futex, X11, Vulkan, etc.
+  if(MUJOCO_USE_FILAMENT)
+    set(WEBGL ON CACHE BOOL "Filament WebGL mode" FORCE)
+  endif()
+
+  # Automatically generate host tool imports for Filament cross-compilation.
+  # When WEBGL is true, Filament hardcodes the path to:
+  #   ${FILAMENT}/${IMPORT_EXECUTABLES_DIR}/ImportExecutables-Release.cmake
+  # So we write our file with that exact name and set IMPORT_EXECUTABLES_DIR
+  # to point at CMAKE_BINARY_DIR (which is ../../ relative to filament-src).
+  set(MUJOCO_NATIVE_BUILD_DIR "${PROJECT_SOURCE_DIR}/build-host" CACHE PATH "Path to native build directory containing host tools")
+  find_program(MATC_EXE matc PATHS "${MUJOCO_NATIVE_BUILD_DIR}/bin" NO_DEFAULT_PATH)
+  find_program(RESGEN_EXE resgen PATHS "${MUJOCO_NATIVE_BUILD_DIR}/bin" NO_DEFAULT_PATH)
+  find_program(CMGEN_EXE cmgen PATHS "${MUJOCO_NATIVE_BUILD_DIR}/bin" NO_DEFAULT_PATH)
+
+  if(MATC_EXE AND RESGEN_EXE AND CMGEN_EXE)
+    message(STATUS "Found host tools in ${MUJOCO_NATIVE_BUILD_DIR}/bin")
+    set(IMPORT_EXECUTABLES_FILE "${CMAKE_BINARY_DIR}/ImportExecutables-Release.cmake")
+    file(WRITE "${IMPORT_EXECUTABLES_FILE}"
+      "add_executable(matc IMPORTED)\n"
+      "set_property(TARGET matc PROPERTY IMPORTED_LOCATION \"${MATC_EXE}\")\n"
+      "add_executable(resgen IMPORTED)\n"
+      "set_property(TARGET resgen PROPERTY IMPORTED_LOCATION \"${RESGEN_EXE}\")\n"
+      "add_executable(cmgen IMPORTED)\n"
+      "set_property(TARGET cmgen PROPERTY IMPORTED_LOCATION \"${CMGEN_EXE}\")\n"
+    )
+    # Filament's WEBGL path resolves: ${FILAMENT}/${IMPORT_EXECUTABLES_DIR}/ImportExecutables-Release.cmake
+    # FILAMENT = _deps/filament-src, so ../../ resolves to CMAKE_BINARY_DIR.
+    set(IMPORT_EXECUTABLES_DIR "../../" CACHE PATH "" FORCE)
+  else()
+    message(WARNING "Host tools (matc, resgen, cmgen) not found in ${MUJOCO_NATIVE_BUILD_DIR}/bin. WASM build of Studio might fail.")
   endif()
 endif()
 
@@ -125,8 +162,9 @@ if(NOT EMSCRIPTEN AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT)
   add_subdirectory(src/render/classic)
   add_subdirectory(src/ui)
 endif()
+add_subdirectory(src/render/noop)
 
-if(MUJOCO_USE_FILAMENT AND NOT EMSCRIPTEN)
+if(MUJOCO_USE_FILAMENT)
   add_subdirectory(src/experimental/filament)
 endif()
 

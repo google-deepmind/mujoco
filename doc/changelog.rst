@@ -2,34 +2,41 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.8.0 (April 24, 2026)
+------------------------------
 
 General
 ^^^^^^^
-- Added new :ref:`mj_maxContact<mj_maxContact>` function to get the maximum number of possible contacts returned by
-  two geoms.
-- Added ``mj_containsBufferVFS`` and ``mj_containsFileVFS`` to check for existence of buffers and files in VFS.
-- Added :ref:`multi-cell support<body-flexcomp-cellnum>` for trilinear and quadratic flexes. Note that the implicit
-  integrator uses a dense solver for the flex degrees of freedom, which can be slow for multi-cell flexes.
-- Refactored ``flexstrain`` equality constraints to be instantiated per cell instead of per flex object, reducing the
-  number of degrees of freedom per constraint row. The equality can be associated with a specific cell with the new
-  attribute ":ref:`cell <equality-flexstrain-cell>`
+1. Added support for Python 3.14.
+2. Added :ref:`multi-cell support<body-flexcomp-cellcount>` for trilinear and quadratic flexes. Note that the implicit
+   integrator uses a dense solver for the flex degrees of freedom, which can be slow for multi-cell flexes.
+3. Refactored ``strain`` flex :ref:`equality constraints<flexcomp-edge-equality>` to be instantiated per cell instead of
+   per flex object, reducing the number of degrees of freedom per constraint row. The equality can be associated with a
+   specific cell with the new attribute :ref:`cell <equality-flexstrain-cell>`
+4. Added new :ref:`mj_maxContact<mj_maxContact>` function to get the maximum number of possible contacts returned by
+   colliding two geoms.
+5. Added ``mj_containsBufferVFS`` and ``mj_containsFileVFS`` to check for existence of buffers and files in VFS.
 
-  .. admonition:: Breaking API changes
+.. admonition:: Breaking API changes
    :class: attention
 
-   - The feature :ref:`multiccd<coMultiCCD>` is now enabled by default. This feature has little performance overhead
-     and gives better contact behavior for stability.
+   6. The :ref:`multiccd<coMultiCCD>` option (multiple contacts returned from the convex collision detection pipeline)
+      is now enabled by default. The new implementation (as opposed to the legacy pipeline) has little performance
+      overhead and improves stability.
 
-     **Migration:** The flag :ref:`multiccd<option-flag-multiccd>` must be explicitly disabled.
+      **Migration:** Disable :ref:`multiccd<option-flag-multiccd>` to recover the previous behavior.
+
+Documentation
+^^^^^^^^^^^^^
+
+7. Added :ref:`documentation<exDecoder>` for :ref:`mjpDecoder` plugins.
 
 Bug fixes
 ^^^^^^^^^
 
-- Asset paths in attached child specs are now resolved relative to the model file directory of the child spec, rather
-  than the parent spec. This prevents the origin of the parent spec to affect the resolution of asset paths in the child
-  spec.
+8. Asset paths in attached child specs are now resolved relative to the model file directory of the child spec, rather
+   than the parent spec. This prevents the origin of the parent spec to affect the resolution of asset paths in the
+   child spec.
 
 Version 3.7.0 (April 14, 2026)
 ------------------------------

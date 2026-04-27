@@ -1,0 +1,51 @@
+name: live
+
+on:
+  push:
+    branches:
+      - live
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-upload-artifacts:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Prepare Linux
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
+
+    - name: Setup Emscripten
+      run: bash ./.github/workflows/build_steps.sh setup_emsdk
+
+    - name: Build MuJoCo Live
+      env:
+        CC: clang-18
+        CXX: clang++-18
+      run: bash ./.github/workflows/build_steps.sh build_mujoco_live
+
+    - name: Prepare files for GitHub Pages
+      run: |
+        mkdir -p dist/bin
+        cp -r build_wasm/bin/* dist/bin/
+        cp src/experimental/studio/index.html dist/index.html
+
+    - name: Upload GitHub Pages artifacts
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: dist
+
+  deploy-pages:
+    needs: build-and-upload-artifacts
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

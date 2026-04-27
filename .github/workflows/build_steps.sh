@@ -295,6 +295,32 @@ EOF
 }
 
 
+build_mujoco_live() {
+    echo "Setting up Emscripten SDK..."
+    source emsdk/emsdk_env.sh
+
+    echo "Building Filament tools, targeting host platform..."
+    cmake -S . -B build_host -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DUSE_STATIC_LIBCXX=OFF \
+        -DMUJOCO_BUILD_STUDIO=ON \
+        -DMUJOCO_USE_FILAMENT=ON \
+        -DMUJOCO_BUILD_TESTS=OFF \
+        -DMUJOCO_BUILD_EXAMPLES=OFF \
+        -DMUJOCO_BUILD_SIMULATE=OFF
+    cmake --build build_host --target matc resgen cmgen mujoco_filament_assets -j$(nproc)
+
+    echo "Building WASM app..."
+    emcmake cmake -S . -B build_wasm -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DMUJOCO_BUILD_STUDIO=ON \
+        -DMUJOCO_USE_FILAMENT=ON \
+        -DMUJOCO_BUILD_TESTS_WASM=OFF \
+        -DMUJOCO_NATIVE_BUILD_DIR=$(pwd)/build_host
+    cmake --build build_wasm --target mujoco_live -j$(nproc)
+}
+
+
 # Discover functions defined in this script by finding identifiers followed by
 # "()" and capturing the identifier as a valid function name.
 VALID_FUNCTIONS=()

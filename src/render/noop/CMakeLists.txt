@@ -12,4 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-target_sources(mujoco PRIVATE render_noop.c)
+add_library(render_noop STATIC render_noop.c)
+target_link_libraries(render_noop PUBLIC mujoco::mujoco)
+add_library(mujoco::render_noop ALIAS render_noop)

@@ -21,12 +21,13 @@
 #include <filament/Texture.h>
 #include <math/vec3.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mujoco.h>
 
 // Functions for creating filament textures.
 namespace mujoco {
 
 // Pixel formats for textures.
-typedef enum mjtPixelFormat_ {
+typedef enum mjrPixelFormat_ {
   mjPIXEL_FORMAT_UNKNOWN = 0,
   mjPIXEL_FORMAT_R8,
   mjPIXEL_FORMAT_RGB8,
@@ -34,15 +35,18 @@ typedef enum mjtPixelFormat_ {
   mjPIXEL_FORMAT_R32F,
   mjPIXEL_FORMAT_DEPTH32F,
   mjPIXEL_FORMAT_KTX,
-} mjtPixelFormat;
+} mjrPixelFormat;
+
+typedef mjtTexture mjrTextureTarget;
+typedef mjtColorSpace mjrColorSpace;
 
 // The binary contents of a texture.
-struct TextureData {
+struct mjrTextureData {
   // Pointer to the image data. If null, an empty texture will be created.
-  void* bytes;
+  const void* bytes;
 
   // The number of bytes in the image data.
-  size_t nbytes;
+  mjtSize nbytes;
 
   // Because rendering may be multithreaded, we cannot make assumptions about
   // when the image data will finish uploading to the GPU. As such, we will use
@@ -54,10 +58,10 @@ struct TextureData {
 };
 
 // Initializes the TextureData to default values.
-void DefaultTextureData(TextureData* data);
+void mjr_defaultTextureData(mjrTextureData* data);
 
 // Defines the basic properties of a texture.
-struct TextureConfig {
+struct mjrTextureConfig {
   // The width of the texture. For compressed textures (e.g. KTX), this is the
   // number of bytes in the compressed data.
   int width;
@@ -67,17 +71,17 @@ struct TextureConfig {
   int height;
 
   // The target of the texture (e.g. 2D, cube, etc.)
-  mjtTexture target;
+  mjrTextureTarget target;
 
   // The format of the pixels in the texture (e.g. RGB8, RGBA8, KTX, etc.)
-  mjtPixelFormat format;
+  mjrPixelFormat format;
 
   // The color space of the texture (e.g. LINEAR, sRGB, etc.)
-  mjtColorSpace color_space;
+  mjrColorSpace color_space;
 };
 
 // Initializes the TextureConfig to default values.
-void DefaultTextureConfig(TextureConfig* config);
+void mjr_defaultTextureConfig(mjrTextureConfig* config);
 
 // Wrapper around a filament::Texture.
 class Texture {
@@ -90,13 +94,13 @@ class Texture {
   };
 
   // Creates a texture with the given data.
-  Texture(filament::Engine* engine, const TextureConfig& config,
+  Texture(filament::Engine* engine, const mjrTextureConfig& config,
           InternalFlags flags = InternalFlags());
 
   ~Texture();
 
   // Uploads the given data to the texture.
-  void Upload(const TextureData& data);
+  void Upload(const mjrTextureData& data);
 
   // Returns the width of the texture.
   int GetWidth() const { return config_.width; }
@@ -121,7 +125,7 @@ class Texture {
 
   filament::Engine* engine_ = nullptr;
   filament::Texture* texture_ = nullptr;
-  TextureConfig config_;
+  mjrTextureConfig config_;
   SphericalHarmonics spherical_harmonics_;
   bool has_spherical_harmonics_ = false;
 

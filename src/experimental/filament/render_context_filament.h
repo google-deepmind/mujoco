@@ -29,11 +29,11 @@ extern "C" {
 // IMPORTANT: This API should still be considered experimental and is likely
 // change frequently.
 
-typedef enum mjtGraphicsApi_ {  // backend graphics API to use
-  mjGFX_DEFAULT        = 0,     // default based on platform
-  mjGFX_OPENGL,                 // OpenGL (desktop)
-  mjGFX_VULKAN                  // Vulkan
-} mjtGraphicsApi;
+typedef enum mjrGraphicsApi_ {  // backend graphics API to use
+  mjGRAPHICS_API_DEFAULT = 0,   // default based on platform
+  mjGRAPHICS_API_OPENGL,        // OpenGL (desktop) / WebGL
+  mjGRAPHICS_API_VULKAN         // Vulkan
+} mjrGraphicsApi;
 
 struct mjrFilamentConfig {
   // The native window handle into which we can render directly.

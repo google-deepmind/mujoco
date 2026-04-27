@@ -934,8 +934,8 @@ _DEVICE_TEST_CASES = [
     ('gpu-nvidia', 'jax', ('gpu', Impl.JAX)),
     ('tpu', 'jax', ('tpu', Impl.JAX)),
     # WARP backend specified.
-    ('cpu', 'warp', ('cpu', 'error')),
-    ('gpu-notnvidia', 'warp', ('cpu', 'error')),
+    ('cpu', 'warp', ('cpu', Impl.WARP)),
+    ('gpu-notnvidia', 'warp', ('gpu', 'error')),
     ('gpu-nvidia', 'warp', ('gpu', Impl.WARP)),
     ('tpu', 'warp', ('tpu', 'error')),
     # CPP backend specified.
@@ -962,10 +962,10 @@ _DEFAULT_DEVICE_TEST_CASES = [
     ('gpu-nvidia', 'jax', ('gpu', Impl.JAX)),
     ('tpu', 'jax', ('tpu', Impl.JAX)),
     # WARP backend impl specified.
-    ('cpu', 'warp', ('cpu', 'error')),
-    ('gpu-notnvidia', 'warp', ('cpu', 'error')),
+    ('cpu', 'warp', ('cpu', Impl.WARP)),
+    ('gpu-notnvidia', 'warp', ('cpu', Impl.WARP)),
     ('gpu-nvidia', 'warp', ('gpu', Impl.WARP)),
-    ('tpu', 'warp', ('tpu', 'error')),
+    ('tpu', 'warp', ('cpu', Impl.WARP)),
     # CPP backend impl specified, CPU should always be available.
     ('cpu', 'cpp', ('cpu', Impl.CPP)),
     ('gpu-notnvidia', 'cpp', ('cpu', Impl.CPP)),
@@ -1140,15 +1140,6 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
     self.mock_jax_backends.side_effect = backends_side_effect
 
     expected_device, expected_impl = expected
-    if (
-        expected_impl == 'error'
-        and default_device_str != 'gpu-nvidia'
-        and impl_str == 'warp'
-    ):
-      with self.assertRaisesRegex(RuntimeError, 'cuda backend not supported'):
-        mjx_io._resolve_impl_and_device(impl=impl_str, device=None)
-      return
-
     if expected_impl == 'error':
       with self.assertRaises(AssertionError):
         mjx_io._resolve_impl_and_device(impl=impl_str, device=None)

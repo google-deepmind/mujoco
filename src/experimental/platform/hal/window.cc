@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdlib>
 #include <span>
 #include <string>
 #include <string_view>
@@ -46,8 +47,8 @@ extern void* GetNativeWindowOsx(void* window);
 
 namespace mujoco::platform {
 
-static void InitImGui(SDL_Window* window, float content_scale, bool load_fonts,
-                      bool build_fonts) {
+static void InitImGui(SDL_Window* window, float content_scale,
+                      bool load_fonts) {
   ImGui::CreateContext();
 
   ImGuiIO& io = ImGui::GetIO();
@@ -83,10 +84,6 @@ static void InitImGui(SDL_Window* window, float content_scale, bool load_fonts,
     size = mju_readResource(font, const_cast<const void**>(&data));
     constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
     io.Fonts->AddFontFromMemoryTTF(data, size, 14.f, &icon_cfg, icon_ranges);
-
-    if (build_fonts) {
-      io.Fonts->Build();
-    }
 
     // Note: we purposefully do not "close" the font resources as ImGui may
     // need them again to resize fonts.
@@ -132,9 +129,7 @@ Window::Window(std::string_view title, int width, int height, Config config)
     mju_error("Error creating window: %s", SDL_GetError());
   }
 
-  InitImGui(sdl_window_, content_scale, config.load_fonts,
-            (config_.gfx_mode != GraphicsMode::ClassicOpenGl &&
-             config_.gfx_mode != GraphicsMode::ClassicOpenGlHeadless));
+  InitImGui(sdl_window_, content_scale, config.load_fonts);
 
   // Filament (except WebGL) manages its own swap chain including when to swap.
   // In all other cases, we'll use SDL to manage the swap chain.

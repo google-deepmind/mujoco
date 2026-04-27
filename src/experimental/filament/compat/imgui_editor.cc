@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/imgui_editor.h"
+#include "experimental/filament/compat/imgui_editor.h"
 
 #include <algorithm>
 #include <any>
@@ -34,8 +34,8 @@
 #include <math/mathfwd.h>
 #include <math/scalar.h>
 #include <math/vec3.h>
+#include "experimental/filament/compat/scene_bridge.h"
 #include "experimental/filament/filament/color_grading_options.h"
-#include "experimental/filament/filament/scene_bridge.h"
 #include "experimental/filament/filament/scene_view.h"
 
 namespace mujoco {

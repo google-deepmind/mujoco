@@ -18,6 +18,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
+#include <mutex>
 #include <span>
 #include <utility>
 
@@ -37,17 +39,17 @@ namespace mujoco {
 using filament::math::float3;
 using filament::math::float4;
 
-static filament::VertexAttribute GetUsage(const VertexAttribute& attrib) {
+static filament::VertexAttribute GetUsage(const mjrVertexAttribute& attrib) {
   switch (attrib.usage) {
-    case mjVERTEX_ATTRIBUTE_POSITION:
+    case mjVERTEX_ATTRIBUTE_USAGE_POSITION:
       return filament::VertexAttribute::POSITION;
-    case mjVERTEX_ATTRIBUTE_NORMAL:
+    case mjVERTEX_ATTRIBUTE_USAGE_NORMAL:
       return filament::VertexAttribute::TANGENTS;
-    case mjVERTEX_ATTRIBUTE_TANGENTS:
+    case mjVERTEX_ATTRIBUTE_USAGE_TANGENTS:
       return filament::VertexAttribute::TANGENTS;
-    case mjVERTEX_ATTRIBUTE_UV:
+    case mjVERTEX_ATTRIBUTE_USAGE_UV:
       return filament::VertexAttribute::UV0;
-    case mjVERTEX_ATTRIBUTE_COLOR:
+    case mjVERTEX_ATTRIBUTE_USAGE_COLOR:
       return filament::VertexAttribute::COLOR;
     default:
       mju_error("Unsupported vertex attribute usage: %d", attrib.usage);
@@ -56,7 +58,7 @@ static filament::VertexAttribute GetUsage(const VertexAttribute& attrib) {
 }
 
 static filament::VertexBuffer::AttributeType GetType(
-    const VertexAttribute& attrib) {
+    const mjrVertexAttribute& attrib) {
   switch (attrib.type) {
     case mjVERTEX_ATTRIBUTE_TYPE_FLOAT2:
       return filament::VertexBuffer::AttributeType::FLOAT2;
@@ -72,7 +74,7 @@ static filament::VertexBuffer::AttributeType GetType(
   }
 }
 
-int VertexAttributeTypeSize(const VertexAttribute& attrib) {
+int VertexAttributeTypeSize(const mjrVertexAttribute& attrib) {
   switch (attrib.type) {
     case mjVERTEX_ATTRIBUTE_TYPE_FLOAT2:
       return sizeof(float) * 2;
@@ -99,21 +101,21 @@ int FillSequence(std::byte* buffer, std::size_t num_bytes) {
   return num;
 }
 
-// Initializes the MeshData to default values.
-void DefaultMeshData(MeshData* data) {
-  std::memset(data, 0, sizeof(MeshData));
+// Initializes the mjrMeshData to default values.
+void mjr_defaultMeshData(mjrMeshData* data) {
+  std::memset(data, 0, sizeof(mjrMeshData));
 }
 
-Mesh::Mesh(filament::Engine* engine, const MeshData& data)
-    : engine_(engine) {
-  type_ = data.primitive_type == mjPRIM_TYPE_TRIANGLES
+Mesh::Mesh(filament::Engine* engine, const mjrMeshData& data)
+    : engine_(engine), shared_state_(std::make_shared<SharedState>()) {
+  type_ = data.primitive_type == mjMESH_PRIMITIVE_TYPE_TRIANGLES
               ? filament::RenderableManager::PrimitiveType::TRIANGLES
               : filament::RenderableManager::PrimitiveType::LINES;
 
   // If the user has provided a release callback, then we need to ensure we
   // call is when filament is done with the mesh data.
   if (data.release_callback) {
-    release_callbacks_.push_back([=]() {
+    shared_state_->callbacks.push_back([=]() {
       data.release_callback(data.user_data);
     });
   }
@@ -133,40 +135,50 @@ Mesh::~Mesh() {
   }
 }
 
-void Mesh::BuildVertexBuffer(const MeshData& data) {
+void Mesh::BuildVertexBuffer(const mjrMeshData& data) {
   if (data.nvertices == 0) {
-    mju_error("MeshData has no vertices.");
+    mju_error("mjrMeshData has no vertices.");
   }
 
-  // The filament BufferDescriptor callback for releasing the memory. We assume
-  // that ReleaseResources() can be called multiple times, so we assign this
-  // callback to each buffer descriptor.
+  // The filament BufferDescriptor callback for releasing the memory.
+  // We pass a heap-allocated shared_ptr to the shared state as the user data.
   auto callback = +[](void* buffer, size_t size, void* user) {
-    static_cast<Mesh*>(user)->ReleaseResources();
+    auto* state_ptr = static_cast<std::shared_ptr<SharedState>*>(user);
+    auto state = *state_ptr;
+    delete state_ptr;
+
+    std::lock_guard<std::mutex> lock(state->mutex);
+    if (!state->called) {
+      for (const auto& cb : state->callbacks) {
+        cb();
+      }
+      state->callbacks.clear();
+      state->called = true;
+    }
   };
 
   // Pointers to specific attributes in the mesh data, used for additional
   // validation and processing.
-  const VertexAttribute* positions = nullptr;
-  const VertexAttribute* normals = nullptr;
-  const VertexAttribute* tangents = nullptr;
+  const mjrVertexAttribute* positions = nullptr;
+  const mjrVertexAttribute* normals = nullptr;
+  const mjrVertexAttribute* tangents = nullptr;
   for (int i = 0; i < data.nattributes; ++i) {
-    if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_POSITION) {
+    if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
       positions = &data.attributes[i];
-    } else if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_NORMAL) {
+    } else if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
       normals = &data.attributes[i];
-    } else if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_TANGENTS) {
+    } else if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_TANGENTS) {
       tangents = &data.attributes[i];
     }
   }
   if (!positions) {
-    mju_error("MeshData has no positions.");
+    mju_error("mjrMeshData has no positions.");
   }
-  if (data.attributes[0].usage != mjVERTEX_ATTRIBUTE_POSITION) {
+  if (data.attributes[0].usage != mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
     mju_error("Positions must be the first attribute.");
   }
   if (normals && tangents) {
-    mju_error("MeshData has both normals and tangents.");
+    mju_error("mjrMeshData has both normals and tangents.");
   }
   if (normals && data.interleaved) {
     // We need to build orientations from normals and so we require each
@@ -195,7 +207,7 @@ void Mesh::BuildVertexBuffer(const MeshData& data) {
     // each offset is the sum of the sizes of the preceding attributes.
     int offset = 0;
     for (int i = 0; i < data.nattributes; ++i) {
-      const VertexAttribute& attrib = data.attributes[i];
+      const mjrVertexAttribute& attrib = data.attributes[i];
       const filament::VertexAttribute usage = GetUsage(attrib);
       filament::VertexBuffer::AttributeType type = GetType(attrib);
       vb_builder.attribute(usage, 0, type, offset, total_vertex_size);
@@ -206,16 +218,17 @@ void Mesh::BuildVertexBuffer(const MeshData& data) {
       attributes_[i] = usage;
     }
     vertex_buffer_ = vb_builder.build(*engine_);
-    vertex_buffer_->setBufferAt(*engine_, 0, {bytes, nbytes, callback, this});
+    auto* user_data = new std::shared_ptr<SharedState>(shared_state_);
+    vertex_buffer_->setBufferAt(*engine_, 0, {bytes, nbytes, callback, user_data});
   } else {
     // For a non-interleaved vertex buffer, we assign a separate buffer to each
     // attribute.
     vb_builder.bufferCount(data.nattributes);
     for (int i = 0; i < data.nattributes; ++i) {
-      const VertexAttribute& attrib = data.attributes[i];
+      const mjrVertexAttribute& attrib = data.attributes[i];
       const filament::VertexAttribute usage = GetUsage(attrib);
       filament::VertexBuffer::AttributeType type = GetType(attrib);
-      if (attrib.usage == mjVERTEX_ATTRIBUTE_NORMAL) {
+      if (attrib.usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
         // We will replace normals with orientations.
         type = filament::VertexBuffer::AttributeType::FLOAT4;
       }
@@ -230,25 +243,26 @@ void Mesh::BuildVertexBuffer(const MeshData& data) {
 
     // Assign the individual data buffers.
     for (int i = 0; i < data.nattributes; ++i) {
-      const VertexAttribute& attrib = data.attributes[i];
+      const mjrVertexAttribute& attrib = data.attributes[i];
       const void* bytes = attrib.bytes;
       size_t nbytes = data.nvertices * VertexAttributeTypeSize(attrib);
-      if (attrib.usage == mjVERTEX_ATTRIBUTE_NORMAL) {
+      if (attrib.usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
         // Replace normals with orientations.
         nbytes = data.nvertices * sizeof(float4);
         bytes = BuildOrientationsFromNormals(data.nvertices, attrib);
       }
-      vertex_buffer_->setBufferAt(*engine_, i, {bytes, nbytes, callback, this});
+      auto* user_data = new std::shared_ptr<SharedState>(shared_state_);
+      vertex_buffer_->setBufferAt(*engine_, i, {bytes, nbytes, callback, user_data});
     }
   }
 }
 
-void Mesh::BuildIndexBuffer(const MeshData& data) {
+void Mesh::BuildIndexBuffer(const mjrMeshData& data) {
   if (data.nindices == 0) {
     return;
   }
 
-  const int element_size = data.index_type == mjINDEX_TYPE_USHORT
+  const int element_size = data.index_type == mjINDEX_TYPE_U16
                                 ? sizeof(uint16_t)
                                 : sizeof(uint32_t);
   const int num_bytes = data.nindices * element_size;
@@ -259,11 +273,11 @@ void Mesh::BuildIndexBuffer(const MeshData& data) {
   const void* indices = data.indices;
   if (indices == nullptr) {
     std::byte* sequence = new std::byte[num_bytes];
-    release_callbacks_.push_back([=]() {
+    shared_state_->callbacks.push_back([=]() {
       delete[] sequence;
     });
 
-    if (data.index_type == mjINDEX_TYPE_USHORT) {
+    if (data.index_type == mjINDEX_TYPE_U16) {
       FillSequence<uint16_t>(sequence, num_bytes);
     } else {
       FillSequence<uint32_t>(sequence, num_bytes);
@@ -273,7 +287,7 @@ void Mesh::BuildIndexBuffer(const MeshData& data) {
 
   filament::IndexBuffer::Builder ib_builder;
   ib_builder.indexCount(data.nindices);
-  ib_builder.bufferType(data.index_type == mjINDEX_TYPE_USHORT
+  ib_builder.bufferType(data.index_type == mjINDEX_TYPE_U16
                             ? filament::IndexBuffer::IndexType::USHORT
                             : filament::IndexBuffer::IndexType::UINT);
   index_buffer_ = ib_builder.build(*engine_);
@@ -283,9 +297,10 @@ void Mesh::BuildIndexBuffer(const MeshData& data) {
   index_buffer_->setBuffer(*engine_, std::move(desc));
 }
 
-float4* Mesh::BuildOrientationsFromNormals(int nvertices, const VertexAttribute& normals) {
+float4* Mesh::BuildOrientationsFromNormals(int nvertices,
+                                           const mjrVertexAttribute& normals) {
   float4* orientations = new float4[nvertices];
-  release_callbacks_.push_back([=]() {
+  shared_state_->callbacks.push_back([=]() {
     delete[] orientations;
   });
   const float* normals_ptr = reinterpret_cast<const float*>(normals.bytes);
@@ -295,7 +310,7 @@ float4* Mesh::BuildOrientationsFromNormals(int nvertices, const VertexAttribute&
   return orientations;
 }
 
-void Mesh::UpdateBounds(const MeshData& data) {
+void Mesh::UpdateBounds(const mjrMeshData& data) {
   float3 bounds_min = ReadFloat3(data.bounds_min);
   float3 bounds_max = ReadFloat3(data.bounds_max);
   if (bounds_min != bounds_max) {
@@ -304,8 +319,8 @@ void Mesh::UpdateBounds(const MeshData& data) {
     bounds_min = float3(FLT_MAX, FLT_MAX, FLT_MAX);
     bounds_max = float3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 
-    if (data.attributes[0].usage != mjVERTEX_ATTRIBUTE_POSITION) {
-      mju_error("MeshData has no positions.");
+    if (data.attributes[0].usage != mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
+      mju_error("mjrMeshData has no positions.");
     }
     const float* positions =
         reinterpret_cast<const float*>(data.attributes[0].bytes);
@@ -320,10 +335,14 @@ void Mesh::UpdateBounds(const MeshData& data) {
 }
 
 void Mesh::ReleaseResources() {
-  for (const auto& callback : release_callbacks_) {
-    callback();
+  std::lock_guard<std::mutex> lock(shared_state_->mutex);
+  if (!shared_state_->called) {
+    for (const auto& callback : shared_state_->callbacks) {
+      callback();
+    }
+    shared_state_->callbacks.clear();
+    shared_state_->called = true;
   }
-  release_callbacks_.clear();
 }
 
 filament::IndexBuffer* Mesh::GetFilamentIndexBuffer() const {

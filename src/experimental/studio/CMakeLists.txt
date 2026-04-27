@@ -14,87 +14,124 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-set(MUJOCO_STUDIO_TARGET_NAME mujoco_studio)
-
-add_executable(${MUJOCO_STUDIO_TARGET_NAME})
-
-target_sources(${MUJOCO_STUDIO_TARGET_NAME}
-    PRIVATE
-        app.cc
-        app.h
-        main.cc
-)
-
-target_include_directories(${MUJOCO_STUDIO_TARGET_NAME}
-    PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/src
-)
-
-if (WIN32)
-    target_compile_definitions(${MUJOCO_STUDIO_TARGET_NAME}
-        PRIVATE
-        -D_USE_MATH_DEFINES
-    )
-    set_target_properties(${MUJOCO_STUDIO_TARGET_NAME}
-        PROPERTIES
-            VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
-    )
-endif()
-
 include(third_party_deps/dear_imgui)
 include(third_party_deps/implot)
 include(third_party_deps/opensans)
 include(third_party_deps/font_awesome)
 
-target_link_libraries(${MUJOCO_STUDIO_TARGET_NAME}
-    PRIVATE
-        absl::flags
-        absl::flags_parse
-        dear_imgui
-        implot
-        mujoco::mujoco
-        mujoco::platform
-)
-
-# TODO: re-enable mjz support on Windows builds once DllMain issue is resolved.
-if (NOT WIN32)
-    target_link_libraries(${MUJOCO_STUDIO_TARGET_NAME}
+# Common configuration shared between mujoco_studio and mujoco_live.
+function(configure_studio_target TARGET_NAME)
+    target_sources(${TARGET_NAME}
         PRIVATE
-            mujoco::mjz
+            app.cc
+            app.h
     )
-endif()
 
-file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
+    target_include_directories(${TARGET_NAME}
+        PUBLIC
+            ${PROJECT_SOURCE_DIR}/include
+            ${PROJECT_SOURCE_DIR}/src
+    )
 
-add_custom_command(
-    TARGET ${MUJOCO_STUDIO_TARGET_NAME}
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND}
-        -E copy
-            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/opensans-src/fonts/ttf/OpenSans-Regular.ttf
-            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
-    COMMENT "Copying OpenSans-Regular.ttf assets to build directory"
-)
-add_custom_command(
-    TARGET ${MUJOCO_STUDIO_TARGET_NAME}
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND}
-        -E copy
-            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/font_awesome-src/fonts/fontawesome-webfont.ttf
-            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
-    COMMENT "Copying fontawesome-webfont.ttf to build directory"
-)
+    if (WIN32)
+        target_compile_definitions(${TARGET_NAME}
+            PRIVATE
+            -D_USE_MATH_DEFINES
+        )
+        set_target_properties(${TARGET_NAME}
+            PROPERTIES
+                VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+        )
+    endif()
 
-# Filament backend requires additional files to be copied into an "assets" folder.
-if(MUJOCO_USE_FILAMENT)
+    target_link_libraries(${TARGET_NAME}
+        PRIVATE
+            absl::flags
+            absl::flags_parse
+            dear_imgui
+            implot
+            mujoco::mujoco
+            mujoco::platform
+    )
+
+    # TODO: re-enable mjz support on Windows builds once DllMain issue is resolved.
+    if (NOT WIN32)
+        target_link_libraries(${TARGET_NAME}
+            PRIVATE
+                mujoco::mjz
+        )
+    endif()
+
+    file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
+
     add_custom_command(
-        TARGET ${MUJOCO_STUDIO_TARGET_NAME}
+        TARGET ${TARGET_NAME}
         POST_BUILD
         COMMAND ${CMAKE_COMMAND}
-            -E copy_directory
-                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/experimental/filament/assets
+            -E copy
+                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/opensans-src/fonts/ttf/OpenSans-Regular.ttf
                 ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
-        COMMENT "Copying Filament assets to build directory"
+        COMMENT "Copying OpenSans-Regular.ttf assets to build directory"
+    )
+    add_custom_command(
+        TARGET ${TARGET_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -E copy
+                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/font_awesome-src/fonts/fontawesome-webfont.ttf
+                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+        COMMENT "Copying fontawesome-webfont.ttf to build directory"
+    )
+
+    # Filament backend requires additional files to be copied into an "assets" folder.
+    if(MUJOCO_USE_FILAMENT)
+        add_custom_command(
+            TARGET ${TARGET_NAME}
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND}
+                -E copy_directory
+                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/experimental/filament/assets
+                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+            COMMENT "Copying Filament assets to build directory"
+        )
+    endif()
+endfunction()
+
+# Desktop Studio target.
+if(NOT EMSCRIPTEN)
+    add_executable(mujoco_studio)
+    target_sources(mujoco_studio PRIVATE main.cc)
+    configure_studio_target(mujoco_studio)
+endif()
+
+# WASM Live target.
+if(EMSCRIPTEN)
+    add_executable(mujoco_live)
+    target_sources(mujoco_live PRIVATE wasm.cc)
+    target_compile_options(mujoco_live PRIVATE -g)
+    configure_studio_target(mujoco_live)
+    target_link_libraries(mujoco_live PRIVATE mujoco::render_noop)
+
+    # Ensure resource decoder plugins are linked into the WASM binary.
+    target_link_options(mujoco_live PRIVATE
+        -Wl,--whole-archive $<TARGET_FILE:mujoco> -Wl,--no-whole-archive
+    )
+
+    # Filament's OpenGL backend requires WebGL2 / full ES3 bindings.
+    target_link_options(mujoco_live PRIVATE
+        --bind
+        -sUSE_WEBGL2=1
+        -sFULL_ES3
+        -sMIN_WEBGL_VERSION=2
+        -sMAX_WEBGL_VERSION=2
+        -sALLOW_MEMORY_GROWTH=1
+        -sASYNCIFY=1
+        -sFETCH=1
+        -sGL_PREINITIALIZED_CONTEXT=1
+        -sSTACK_SIZE=512mb
+        -sINITIAL_MEMORY=1024mb
+        -sASSERTIONS=1
+        -fexceptions
+        -g
     )
 endif()

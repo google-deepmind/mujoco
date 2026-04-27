@@ -14,20 +14,59 @@
 
 #include "experimental/filament/filament/material.h"
 
+#include <array>
+
 #include <filament/Color.h>
 #include <filament/Material.h>
 #include <filament/MaterialInstance.h>
 #include <filament/RenderableManager.h>
 #include <filament/TextureSampler.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
+template <int N>
+static void setf(float (&arr)[N], const std::array<float, N>& values) {
+  for (int i = 0; i < N; ++i) {
+    arr[i] = values[i];
+  }
+}
+
+void mjr_defaultMaterialTextures(mjrMaterialTextures* textures) {
+  textures->color = nullptr;
+  textures->normal = nullptr;
+  textures->metallic = nullptr;
+  textures->roughness = nullptr;
+  textures->occlusion = nullptr;
+  textures->orm = nullptr;
+  textures->emissive = nullptr;
+  textures->reflection = nullptr;
+}
+
+void mjr_defaultMaterialParams(mjrMaterialParams* params) {
+  setf(params->color, {1.f, 1.f, 1.f, 1.f});
+  setf(params->segmentation_color, {1, 1, 1, 1});
+  setf(params->uv_scale, {1, 1, 1});
+  setf(params->uv_offset, {0, 0, 0});
+  setf(params->scissor, {0, 0, 0, 0});
+
+  params->emissive = -1.0f;
+  params->specular = -1.0f;
+  params->glossiness = -1.0f;
+  params->metallic = -1.0f;
+  params->roughness = -1.0f;
+  params->reflectance = 0.0f;
+  params->tex_uniform = false;
+  params->reflective = false;
+}
+
+
 void UpdateMaterialInstance(filament::MaterialInstance* instance,
-                            const MaterialParams& params,
-                            const MaterialTextures& textures,
+                            const mjrMaterialParams& params,
+                            const mjrMaterialTextures& textures,
                             ObjectManager* object_mgr) {
   if (params.scissor[2] != 0 && params.scissor[3] != 0) {
     instance->setScissor(params.scissor[0], params.scissor[1],
@@ -37,11 +76,11 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
   const filament::Material* material = instance->getMaterial();
   if (material->hasParameter("BaseColorFactor")) {
     instance->setParameter("BaseColorFactor", filament::RgbaType::sRGB,
-                           params.color);
+                           ReadFloat4(params.color));
   }
   if (material->hasParameter("SegmentationColor")) {
     instance->setParameter("SegmentationColor", filament::RgbaType::LINEAR,
-                           params.segmentation_color);
+                           ReadFloat4(params.segmentation_color));
   }
   if (material->hasParameter("EmissiveFactor")) {
     instance->setParameter("EmissiveFactor", params.emissive);
@@ -61,10 +100,10 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
                            params.roughness >= 0 ? params.roughness : 1.0f);
   }
   if (material->hasParameter("UvScale")) {
-    instance->setParameter("UvScale", params.uv_scale);
+    instance->setParameter("UvScale", ReadFloat3(params.uv_scale));
   }
   if (material->hasParameter("UvOffset")) {
-    instance->setParameter("UvOffset", params.uv_offset);
+    instance->setParameter("UvOffset", ReadFloat3(params.uv_offset));
   }
   if (material->hasParameter("Reflectance")) {
     instance->setParameter("Reflectance", params.reflectance);
