@@ -64,6 +64,7 @@ class ImguiBridge {
   std::vector<std::unique_ptr<Renderable>> renderables_;
   std::vector<std::unique_ptr<Mesh>> meshes_;
   std::unordered_map<uintptr_t, std::unique_ptr<Texture>> textures_;
+  uintptr_t next_tex_id_ = 1;
 };
 
 // Draws text at the given screen coordinates in clip space (i.e. [-1,-1,-1] to

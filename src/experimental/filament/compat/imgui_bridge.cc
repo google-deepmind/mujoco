@@ -72,7 +72,7 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
 
   // Assign a new texture ID.
   if (tex_id == 0) {
-    tex_id = textures_.size() + 1;
+    tex_id = next_tex_id_++;
   }
 
   std::unique_ptr<Texture>& texture = textures_[tex_id];
@@ -123,7 +123,7 @@ void ImguiBridge::CreateTexture(ImTextureData* data) {
   config.format = mjPIXEL_FORMAT_RGBA8;
   config.color_space = mjCOLORSPACE_LINEAR;
 
-  const uintptr_t tex_id = textures_.size() + 1;
+  const uintptr_t tex_id = next_tex_id_++;
   textures_[tex_id] =
       std::make_unique<Texture>(scene_view_->GetEngine(), config);
   data->SetTexID((ImTextureID)tex_id);
