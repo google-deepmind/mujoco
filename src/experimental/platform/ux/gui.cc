@@ -506,7 +506,7 @@ bool CameraSelectionGui(const mjModel* model, mjData* data, mjvCamera& camera,
 
   auto select = [&](int type, int idx) {
     if (ImGui::Selectable(GetCameraName(model, camera, type).c_str(),
-            (type == idx))) {
+                          (type == idx))) {
       return true;
     }
     return false;
@@ -1148,13 +1148,13 @@ static int GetPlotXLimit(const mjData* data) {
   return mjMAX(10, ((max_niter + 9) / 10) * 10);
 }
 
-void ConvergenceGui(const mjModel* model, mjData* data) {
+void ConvergenceGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
   int xlim = GetPlotXLimit(data);
-
-  if (ImPlot::BeginPlot("Convergence (log 10)", ImVec2(-1, 0),
-                        ImPlotFlags_NoMouseText)) {
+  ImPlotFlags flags =
+      ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
+  if (ImPlot::BeginPlot("Convergence (log 10) vs iter", plot_size, flags)) {
     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
-    ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
+    ImPlot::SetupAxis(ImAxis_X1, "", ImPlotAxisFlags_AutoFit);
     ImPlot::SetupAxisLimits(ImAxis_X1, 0, xlim, ImPlotCond_Always);
     ImPlot::SetupAxisFormat(ImAxis_Y1, "%.1f");
     ImPlot::SetupAxisLimits(ImAxis_Y1, -20, 5, ImPlotCond_Always);
@@ -1211,12 +1211,13 @@ void ConvergenceGui(const mjModel* model, mjData* data) {
   }
 }
 
-void CountsGui(const mjModel* model, mjData* data) {
+void CountsGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
   int xlim = GetPlotXLimit(data);
-
-  if (ImPlot::BeginPlot("Counts", ImVec2(-1, 0), ImPlotFlags_NoMouseText)) {
+  ImPlotFlags flags =
+      ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
+  if (ImPlot::BeginPlot("Counts vs iter", plot_size, flags)) {
     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
-    ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
+    ImPlot::SetupAxis(ImAxis_X1, "", ImPlotAxisFlags_AutoFit);
     ImPlot::SetupAxisLimits(ImAxis_X1, 0, xlim, ImPlotCond_Always);
     ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0f");
     ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 80, ImPlotCond_Always);

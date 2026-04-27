@@ -27,6 +27,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
+#include <implot.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/ux/enum_utils.h"
 
@@ -565,6 +566,46 @@ inline void EndBoxSection() { ImGui::EndTable(); }
 
 // Saves the given contents to the clipboard if the clipboard is available.
 void MaybeSaveToClipboard(const std::string& contents);
+
+// Returns plot flags with title/legend conditionally hidden when the plot
+// area is too small.  `plot_size` is the final rendered size of the plot.
+ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size);
+
+// Sets up the X axis as a "time/frame" axis.
+// Hides tick labels when the plot is narrow.
+// Uses `label` as the axis label (empty string to hide) and auto-fit limits.
+void ImPlot_SetupTimeAxis(
+    ImVec2 plot_size, const char* label = "",
+    ImPlotAxisFlags extra_flags = ImPlotAxisFlags_AutoFit);
+
+// Sets up a Y axis with auto-fit limits.
+// Hides tick labels when the plot is short.
+void ImPlot_SetupValueAxis(
+    ImVec2 plot_size, const char* label = "", const char* format = nullptr,
+    ImPlotAxisFlags extra_flags = ImPlotAxisFlags_AutoFit);
+
+// Sets up a Y axis with fixed limits and optional explicit ticks.
+// Hides tick labels when the plot is short.
+void ImPlot_SetupFixedAxis(ImVec2 plot_size, double y_min, double y_max,
+                           const char* label = "", const char* format = nullptr,
+                           const double* tick_values = nullptr,
+                           const char* const* tick_labels = nullptr,
+                           int n_ticks = 0);
+
+enum class ImPlotLayoutDirection {
+  kHorizontal,
+  kVertical,
+};
+
+struct ImPlotPairLayout {
+  ImVec2 plot_size;  // Size for each individual plot.
+  ImPlotLayoutDirection direction;
+};
+
+// Computes a responsive layout for two plots that share the available
+// content region.  When the region is wider than tall, the plots are placed
+// side-by-side; otherwise they are stacked vertically.
+ImPlotPairLayout ImPlot_ComputePairLayout();
 
 }  // namespace mujoco::platform
 

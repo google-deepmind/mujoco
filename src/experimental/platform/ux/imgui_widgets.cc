@@ -14,6 +14,7 @@
 
 #include "experimental/platform/ux/imgui_widgets.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <sstream>
@@ -23,6 +24,7 @@
 #include <vector>
 
 #include <imgui.h>
+#include <implot.h>
 #include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
@@ -376,6 +378,74 @@ void MaybeSaveToClipboard(const std::string& contents) {
   if (ImGui::GetIO().SetClipboardTextFn) {
     ImGui::GetIO().SetClipboardTextFn(nullptr, contents.c_str());
   }
+}
+
+ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size) {
+  ImPlotFlags flags = ImPlotFlags_None;
+  if (plot_size.x > 0 && plot_size.y > 0) {
+    const float min_dim = std::min(plot_size.x, plot_size.y);
+    if (min_dim < 300) {
+      flags |= ImPlotFlags_NoTitle;
+    }
+    if (min_dim < 200) {
+      flags |= ImPlotFlags_NoLegend;
+    }
+  }
+  return flags;
+}
+
+void ImPlot_SetupTimeAxis(ImVec2 plot_size, const char* label,
+                          ImPlotAxisFlags extra_flags) {
+  ImPlotAxisFlags flags = extra_flags;
+  if (plot_size.x > 0 && plot_size.x < 300) {
+    flags |= ImPlotAxisFlags_NoTickLabels;
+  }
+  ImPlot::SetupAxis(ImAxis_X1, label, flags);
+}
+
+void ImPlot_SetupValueAxis(ImVec2 plot_size, const char* label,
+                           const char* format, ImPlotAxisFlags extra_flags) {
+  ImPlotAxisFlags flags = extra_flags;
+  if (plot_size.y > 0 && plot_size.y < 150) {
+    flags |= ImPlotAxisFlags_NoTickLabels;
+  }
+  ImPlot::SetupAxis(ImAxis_Y1, label, flags);
+  if (format) {
+    ImPlot::SetupAxisFormat(ImAxis_Y1, format);
+  }
+}
+
+void ImPlot_SetupFixedAxis(ImVec2 plot_size, double y_min, double y_max,
+                           const char* label, const char* format,
+                           const double* tick_values,
+                           const char* const* tick_labels, int n_ticks) {
+  ImPlotAxisFlags flags = ImPlotAxisFlags_None;
+  if (plot_size.y > 0 && plot_size.y < 150) {
+    flags |= ImPlotAxisFlags_NoTickLabels;
+  }
+  ImPlot::SetupAxis(ImAxis_Y1, label, flags);
+  ImPlot::SetupAxisLimits(ImAxis_Y1, y_min, y_max, ImPlotCond_Always);
+  if (format) {
+    ImPlot::SetupAxisFormat(ImAxis_Y1, format);
+  }
+  if (tick_values && n_ticks > 0) {
+    ImPlot::SetupAxisTicks(ImAxis_Y1, tick_values, n_ticks, tick_labels);
+  }
+}
+
+ImPlotPairLayout ImPlot_ComputePairLayout() {
+  ImVec2 avail = ImGui::GetContentRegionAvail();
+  bool is_wide = avail.x > avail.y;
+
+  const float item_spacing = ImGui::GetStyle().ItemSpacing.y;
+  ImVec2 plot_size(is_wide ? (avail.x - item_spacing) * 0.5f : avail.x,
+                   is_wide ? avail.y : (avail.y - item_spacing) * 0.5f);
+
+  return {
+      plot_size,
+      is_wide ? ImPlotLayoutDirection::kHorizontal
+              : ImPlotLayoutDirection::kVertical,
+  };
 }
 
 }  // namespace mujoco::platform

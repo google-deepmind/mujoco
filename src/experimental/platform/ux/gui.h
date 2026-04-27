@@ -138,10 +138,12 @@ void NoiseGui(const mjModel* model, const mjData* data, float& noise_scale,
               float& noise_rate);
 
 // UX for the solver convergence chart.
-void ConvergenceGui(const mjModel* model, mjData* data);
+void ConvergenceGui(const mjModel* model, mjData* data,
+                    ImVec2 plot_size = ImVec2(-1, 0));
 
 // UX for the solver counts chart.
-void CountsGui(const mjModel* model, mjData* data);
+void CountsGui(const mjModel* model, mjData* data,
+               ImVec2 plot_size = ImVec2(-1, 0));
 
 // UX for displaying basic simulation information. Note that the pause state and
 // FPS needs to be tracked by the caller and passed here to be displayed.

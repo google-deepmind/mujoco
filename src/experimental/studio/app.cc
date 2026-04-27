@@ -884,8 +884,12 @@ void App::BuildGui() {
     ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Performance", &tmp_.chart_performance)) {
-      profiler_.CpuTimeGraph();
-      profiler_.DimensionsGraph();
+      auto layout = platform::ImPlot_ComputePairLayout();
+      profiler_.CpuTimeGraph(layout.plot_size);
+      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
+        ImGui::SameLine();
+      }
+      profiler_.DimensionsGraph(layout.plot_size);
     }
     ImGui::End();
   }
@@ -894,8 +898,12 @@ void App::BuildGui() {
     ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
-      platform::CountsGui(model(), data());
-      platform::ConvergenceGui(model(), data());
+      auto layout = platform::ImPlot_ComputePairLayout();
+      platform::CountsGui(model(), data(), layout.plot_size);
+      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
+        ImGui::SameLine();
+      }
+      platform::ConvergenceGui(model(), data(), layout.plot_size);
     }
     ImGui::End();
   }
@@ -1451,7 +1459,6 @@ void App::ToolBarGui() {
       ResetPhysics();
     }
     ImGui::SetItemTooltip("%s", "Reset");
-
 
     // Combined (Normal Pause, Viscous Pause, Play) widget and Speed selection.
     ImGui::SameLine(0, separator_width);
