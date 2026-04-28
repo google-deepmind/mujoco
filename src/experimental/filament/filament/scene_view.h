@@ -32,6 +32,7 @@
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
@@ -40,10 +41,13 @@ namespace mujoco {
 // The filament Scene is populated with the objects (e.g. lights, renderables,
 // skybox, etc.). It manages multiple views to support a variety of draw modes
 // (e.g. normal, depth, segmentation, etc.) as well as reflective surfaces.
-class SceneView {
+class SceneView : public mjrScene {
  public:
   SceneView(filament::Engine* engine);
   ~SceneView();
+
+  SceneView(const SceneView&) = delete;
+  SceneView& operator=(const SceneView&) = delete;
 
   // Adds/removes entities from the scene.
   void AddToScene(Light* light);
@@ -90,8 +94,12 @@ class SceneView {
   ColorGradingOptions GetColorGradingOptions() const;
   void SetColorGradingOptions(const ColorGradingOptions& opts);
 
-  SceneView(const SceneView&) = delete;
-  SceneView& operator=(const SceneView&) = delete;
+  static SceneView* downcast(mjrScene* scene) {
+    return static_cast<SceneView*>(scene);
+  }
+  static const SceneView* downcast(const mjrScene* scene) {
+    return static_cast<const SceneView*>(scene);
+  }
 
  private:
   // Marks a renderable as reflective. Reflective renderables have to be

@@ -21,6 +21,7 @@
 #include <utils/Entity.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
@@ -31,7 +32,7 @@ struct mjrLightParams {
   // The type of light (e.g. spot, point, directional, etc.)
   mjrLightType type;
   // The texture to use for image lights.
-  const Texture* texture;
+  const mjrTexture* texture;
   // The color of the light.
   float color[3];
   // The intensity of the light, in candela.
@@ -53,7 +54,7 @@ struct mjrLightParams {
 void mjr_defaultLightParams(mjrLightParams* params);
 
 // Manages the filament Entities for a single mjvLight.
-class Light {
+class Light : public mjrLight {
  public:
   Light(filament::Engine* engine, const mjrLightParams& params);
   ~Light() noexcept;
@@ -83,6 +84,13 @@ class Light {
   // Enables/disables the light in the scene.
   void Enable();
   void Disable();
+
+  static Light* downcast(mjrLight* light) {
+    return static_cast<Light*>(light);
+  }
+  static const Light* downcast(const mjrLight* light) {
+    return static_cast<const Light*>(light);
+  }
 
  private:
   filament::Engine* engine_ = nullptr;

@@ -31,6 +31,7 @@
 #include <filament/VertexBuffer.h>
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/render_context_filament.h"
 
 // Functions for creating filament vertex and index buffers.
 namespace mujoco {
@@ -138,12 +139,15 @@ struct mjrMeshData {
 void mjr_defaultMeshData(mjrMeshData* data);
 
 // Owns a Vertex and Index buffer representing a geometry mesh.
-class Mesh {
+class Mesh : public mjrMesh {
  public:
   // Creates a Mesh from the given MeshData.
   Mesh(filament::Engine* engine, const mjrMeshData& data);
 
   ~Mesh();
+
+  Mesh(const Mesh&) = delete;
+  Mesh& operator=(const Mesh&) = delete;
 
   // Returns the filament IndexBuffer for the mesh.
   filament::IndexBuffer* GetFilamentIndexBuffer() const;
@@ -163,8 +167,12 @@ class Mesh {
   // Returns the bounds of the mesh.
   filament::Box GetBounds() const;
 
-  Mesh(const Mesh&) = delete;
-  Mesh& operator=(const Mesh&) = delete;
+  static Mesh* downcast(mjrMesh* mesh) {
+    return static_cast<Mesh*>(mesh);
+  }
+  static const Mesh* downcast(const mjrMesh* mesh) {
+    return static_cast<const Mesh*>(mesh);
+  }
 
  private:
   void BuildVertexBuffer(const mjrMeshData& data);

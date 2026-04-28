@@ -15,13 +15,12 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_TEXTURE_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_TEXTURE_H_
 
-#include <cstddef>
-
 #include <filament/Engine.h>
 #include <filament/Texture.h>
 #include <math/vec3.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/render_context_filament.h"
 
 // Functions for creating filament textures.
 namespace mujoco {
@@ -84,7 +83,7 @@ struct mjrTextureConfig {
 void mjr_defaultTextureConfig(mjrTextureConfig* config);
 
 // Wrapper around a filament::Texture.
-class Texture {
+class Texture : public mjrTexture {
  public:
   // Flags for internal use.
   struct InternalFlags {
@@ -98,6 +97,9 @@ class Texture {
           InternalFlags flags = InternalFlags());
 
   ~Texture();
+
+  Texture(const Texture&) = delete;
+  Texture& operator=(const Texture&) = delete;
 
   // Uploads the given data to the texture.
   void Upload(const mjrTextureData& data);
@@ -117,8 +119,12 @@ class Texture {
     return has_spherical_harmonics_ ? &spherical_harmonics_ : nullptr;
   }
 
-  Texture(const Texture&) = delete;
-  Texture& operator=(const Texture&) = delete;
+  static Texture* downcast(mjrTexture* texture) {
+    return static_cast<Texture*>(texture);
+  }
+  static const Texture* downcast(const mjrTexture* texture) {
+    return static_cast<const Texture*>(texture);
+  }
 
  private:
   void ReleaseData();

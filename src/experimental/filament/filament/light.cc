@@ -56,9 +56,10 @@ Light::Light(filament::Engine* engine, const mjrLightParams& params)
     filament::IndirectLight::Builder builder;
     if (params.texture) {
       // Allow null textures for fallback lights.
-      builder.reflections(params.texture->GetFilamentTexture());
+      const Texture* texture = Texture::downcast(params.texture);
+      builder.reflections(texture->GetFilamentTexture());
       const Texture::SphericalHarmonics* spherical_harmonics =
-          params.texture->GetSphericalHarmonics();
+          texture->GetSphericalHarmonics();
       if (spherical_harmonics != nullptr) {
         builder.irradiance(3, *spherical_harmonics);
       }

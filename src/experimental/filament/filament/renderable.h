@@ -29,6 +29,7 @@
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
@@ -61,7 +62,7 @@ void mjr_defaultRenderableParams(mjrRenderableParams* params);
 // the user specifies the MaterialParams and MaterialTextures to use with the
 // ShadingModel. Its these properties that ultimately define the actual material
 // of the Renderable.
-class Renderable {
+class Renderable : public mjrRenderable {
  public:
   // Default filament values for priority and layer mask.
   static constexpr std::uint8_t kDefaultPriority = 4;
@@ -138,6 +139,13 @@ class Renderable {
 
   // Returns the filament Engine managing the renderables.
   filament::Engine* GetEngine();
+
+  static Renderable* downcast(mjrRenderable* renderable) {
+    return static_cast<Renderable*>(renderable);
+  }
+  static const Renderable* downcast(const mjrRenderable* renderable) {
+    return static_cast<const Renderable*>(renderable);
+  }
 
  private:
   struct Part {

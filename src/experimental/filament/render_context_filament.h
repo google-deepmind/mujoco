@@ -29,6 +29,17 @@ extern "C" {
 // IMPORTANT: This API should still be considered experimental and is likely
 // change frequently.
 
+// Opaque types.
+struct mjrTexture {};
+struct mjrMesh {};
+struct mjrScene {};
+struct mjrLight {};
+struct mjrRenderable {};
+struct mjrRenderTarget {};
+
+// Opaque type for the filament rendering context.
+struct mjrfContext {};
+
 typedef enum mjrGraphicsApi_ {  // backend graphics API to use
   mjGRAPHICS_API_DEFAULT = 0,   // default based on platform
   mjGRAPHICS_API_OPENGL,        // OpenGL (desktop) / WebGL

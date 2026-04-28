@@ -35,15 +35,18 @@
 namespace mujoco {
 
 // Manages the filament renderer and provides APIs for rendering scenes.
-class FilamentContext {
+class FilamentContext : public mjrfContext {
  public:
   explicit FilamentContext(const mjrFilamentConfig* config);
   ~FilamentContext();
 
+  FilamentContext(const FilamentContext&) = delete;
+  FilamentContext& operator=(const FilamentContext&) = delete;
+
   // Information needed to render a single image of a scene.
   struct RenderRequest {
     // The scene to render.
-    SceneView* scene = nullptr;
+    mjrScene* scene = nullptr;
 
     // The method (e.g. Color, Depth, Segmentation, etc.) to use for rendering.
     DrawMode draw_mode = DrawMode::Color;
@@ -58,12 +61,12 @@ class FilamentContext {
     // The render target into which to render the image. If nullptr, the image
     // will be rendered to the window (as previously configured in
     // mjrFilamentConfig::native_window).
-    RenderTarget* target = nullptr;
+    mjrRenderTarget* target = nullptr;
   };
 
   // Information needed to read pixels from a render target.
   struct ReadPixelsRequest {
-    RenderTarget* target = nullptr;
+    mjrRenderTarget* target = nullptr;
 
     // The buffer into which the read pixels will be written.
     uint8_t* output = nullptr;
@@ -107,8 +110,12 @@ class FilamentContext {
 
   ObjectManager* GetObjectManager() const { return object_manager_.get(); }
 
-  FilamentContext(const FilamentContext&) = delete;
-  FilamentContext& operator=(const FilamentContext&) = delete;
+  static FilamentContext* downcast(mjrfContext* context) {
+    return static_cast<FilamentContext*>(context);
+  }
+  static const FilamentContext* downcast(const mjrfContext* context) {
+    return static_cast<const FilamentContext*>(context);
+  }
 
  private:
   mjrFilamentConfig config_;

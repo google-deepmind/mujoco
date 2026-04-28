@@ -87,7 +87,7 @@ FilamentContext::FrameHandle FilamentContext::Render(
   }
 
   bool render_began = false;
-  RenderTarget* current_target = nullptr;
+  mjrRenderTarget* current_target = nullptr;
   for (const RenderRequest& request : requests) {
     if (request.target != current_target && render_began) {
       renderer_->endFrame();
@@ -126,7 +126,8 @@ FilamentContext::FrameHandle FilamentContext::Render(
         scene_view_request.draw_mode = request.draw_mode;
         scene_view_request.viewport = {0, 0, request.width, request.height};
         scene_view_request.camera = request.camera;
-        request.scene->Render(renderer_, scene_view_request);
+        SceneView* scene_view = SceneView::downcast(request.scene);
+        scene_view->Render(renderer_, scene_view_request);
       }
     } else {
       if (read_requests.empty()) {
@@ -146,13 +147,16 @@ FilamentContext::FrameHandle FilamentContext::Render(
         break;
       }
       if (render_began) {
+        RenderTarget* render_target = RenderTarget::downcast(request.target);
+
         SceneView::RenderRequest scene_view_request;
         scene_view_request.draw_mode = request.draw_mode;
         scene_view_request.viewport = {0, 0, request.width, request.height};
         scene_view_request.camera = request.camera;
-        scene_view_request.target = request.target;
-        request.scene->Render(renderer_, scene_view_request);
-        request.target->ReadColorPixels(renderer_, read_request.output,
+        scene_view_request.target = render_target;
+        SceneView* scene_view = SceneView::downcast(request.scene);
+        scene_view->Render(renderer_, scene_view_request);
+        render_target->ReadColorPixels(renderer_, read_request.output,
                                         read_request.num_bytes);
       }
     }
