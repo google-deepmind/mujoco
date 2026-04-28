@@ -15,6 +15,7 @@
 // Tests for engine/engine_island.c.
 
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -600,6 +601,42 @@ TEST_F(IslandTest, EqualityConstraintOfTendons) {
   mj_forward(model, data);
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+TEST_F(IslandTest, PGSIslandExact) {
+  const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // simulate to get a non-trivial state
+  while (d->time < 0.5) {
+    mj_step(m, d);
+  }
+
+  // switch to PGS, disable early termination
+  m->opt.solver = mjSOL_PGS;
+  m->opt.tolerance = 0;
+
+  // solve with islands
+  m->opt.disableflags &= ~mjDSBL_ISLAND;
+  mj_forward(m, d);
+  ASSERT_GT(d->nisland, 1);
+  std::vector<mjtNum> qfrc_island(d->qfrc_constraint,
+                                  d->qfrc_constraint + m->nv);
+
+  // solve without islands
+  m->opt.disableflags |= mjDSBL_ISLAND;
+  mj_forward(m, d);
+  std::vector<mjtNum> qfrc_mono(d->qfrc_constraint,
+                                d->qfrc_constraint + m->nv);
+
+  // expect exact match
+  EXPECT_EQ(qfrc_island, qfrc_mono);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 }  // namespace

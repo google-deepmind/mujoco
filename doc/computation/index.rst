@@ -1424,12 +1424,6 @@ While islanding is not free (see implementation in `engine_island.c
 - Unconstrained DOFs are completely untouched by the solver, which otherwise needs to discover that they are unaffected.
 - Solving separate islands can be multi-threaded.
 
-.. admonition:: Known issues
-   :class: note
-
-   Islanding is not yet supported by the PGS solver.
-
-
 .. _soParameters:
 
 Parameters

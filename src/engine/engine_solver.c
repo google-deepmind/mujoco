@@ -66,7 +66,6 @@ static void saveStats(const mjModel* m, mjData* d, int island, int iter,
 
 
 // finalize dual solver: map to joint space
-// TODO: b/295296178 - add island support to Dual solvers
 static void dualFinish(const mjModel* m, mjData* d) {
   // map constraint force to joint space
   mj_mulJacTVec(m, d, d->qfrc_constraint, d->efc_force);
@@ -77,10 +76,15 @@ static void dualFinish(const mjModel* m, mjData* d) {
 }
 
 
+// PGS: map efc_force to joint space
+void mj_dualFinish(const mjModel* m, mjData* d) {
+  dualFinish(m, d);
+}
+
+
 // compute 1/diag(AR)
 //   res[c] = 1 / AR[efclist[c], efclist[c]] for c = 0..nefc-1
 //   efclist is NULL for monolithic (sequential) iteration
-// TODO: b/295296178 - add island support to Dual solvers
 static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res,
                       int nefc, const int* efclist, int flg_subR) {
   const mjtNum *AR = d->efc_AR;
@@ -118,7 +122,6 @@ static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res,
 
 
 // extract diagonal block from AR, clamp diag to 1e-10 if flg_subR
-// TODO: b/295296178 - add island support to Dual solvers
 static void extractBlock(const mjModel* m, const mjData* d, mjtNum* Ac,
                          int start, int n, int flg_subR) {
   int nefc = d->nefc;
@@ -178,7 +181,6 @@ static void extractBlock(const mjModel* m, const mjData* d, mjtNum* Ac,
 
 
 // compute residual for one block
-// TODO: b/295296178 - add island support to Dual solvers
 static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int dim, int flg_subR) {
   int nefc = d->nefc;
 
@@ -208,7 +210,6 @@ static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int 
 
 
 // compute cost change
-// TODO: b/295296178 - add island support to Dual solvers
 static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
                          const mjtNum* res, int dim) {
   mjtNum change;
@@ -235,7 +236,6 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
 
 // set efc_state to dual constraint state; return nactive
 //   iterates over efclist (or sequentially if NULL), classifies by ne/nf ranges
-// TODO: b/295296178 - add island support to Dual solvers
 static int dualState(const mjData* d, int* state,
                      int ne, int nf, int nefc, const int* efclist) {
   const mjtNum* force = d->efc_force;
@@ -384,7 +384,6 @@ static void solveQCQP(mjtNum* force, int i, int dim,
 //   island: island index for stats (use -1 for monolithic, mapped to 0)
 //   ne, nf, nefc: constraint type counts
 //   efclist: maps list position c to monolithic efc index (NULL for sequential)
-// TODO: b/295296178 - add island support to Dual solvers
 static void solPGS(const mjModel* m, mjData* d, int island,
                    int ne, int nf, int nefc,
                    const int* efclist, int maxiter) {
@@ -572,10 +571,20 @@ static void solPGS(const mjModel* m, mjData* d, int island,
 }
 
 
-// PGS entry point (monolithic)
+// PGS entry point (monolithic, no dualFinish — caller handles it)
 void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   solPGS(m, d, /*island=*/-1, d->ne, d->nf, d->nefc, /*efclist=*/NULL, maxiter);
-  dualFinish(m, d);
+}
+
+
+// PGS entry point (one island)
+void mj_solPGS_island(const mjModel* m, mjData* d, int island, int maxiter) {
+  int ne = d->island_ne[island];
+  int nf = d->island_nf[island];
+  int nefc = d->island_nefc[island];
+  int iefcadr = d->island_iefcadr[island];
+
+  solPGS(m, d, island, ne, nf, nefc, d->map_iefc2efc + iefcadr, maxiter);
 }
 
 
@@ -754,8 +763,10 @@ static void solNoSlip(const mjModel* m, mjData* d, int island,
     improvement *= scale;
 
     // save noslip stats after all the entries from regular solver
-    int stats_iter = iter + d->solver_niter[island_stat];
-    saveStats(m, d, island_stat, stats_iter, improvement, 0, 0, nactive, nchange, 0, 0);
+    if (island_stat < mjNISLAND) {
+      int stats_iter = iter + d->solver_niter[island_stat];
+      saveStats(m, d, island_stat, stats_iter, improvement, 0, 0, nactive, nchange, 0, 0);
+    }
 
     // increment iteration count
     iter++;
@@ -767,16 +778,28 @@ static void solNoSlip(const mjModel* m, mjData* d, int island,
   }
 
   // update solver iterations
-  d->solver_niter[island_stat] += iter;
+  if (island_stat < mjNISLAND) {
+    d->solver_niter[island_stat] += iter;
+  }
 
   mj_freeStack(d);
 }
 
 
-// NoSlip entry point (monolithic)
+// NoSlip entry point (monolithic, no dualFinish — caller handles it)
 void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   solNoSlip(m, d, /*island=*/-1, d->ne, d->nf, d->nefc, /*efclist=*/NULL, maxiter);
-  dualFinish(m, d);
+}
+
+
+// NoSlip entry point (one island)
+void mj_solNoSlip_island(const mjModel* m, mjData* d, int island, int maxiter) {
+  int ne = d->island_ne[island];
+  int nf = d->island_nf[island];
+  int nefc = d->island_nefc[island];
+  int iefcadr = d->island_iefcadr[island];
+
+  solNoSlip(m, d, island, ne, nf, nefc, d->map_iefc2efc + iefcadr, maxiter);
 }
 
 

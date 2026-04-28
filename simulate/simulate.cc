@@ -349,7 +349,7 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
       sim->figcost.linepnt[start + 2] = 0;
     }
 
-    for (int i=0; i<sim->figcost.linepnt[0]; i++) {
+    for (int i=0; i<npoints; i++) {
       // x
       sim->figcost.linedata[start + 0][2*i] = i;
       sim->figcost.linedata[start + 1][2*i] = i;

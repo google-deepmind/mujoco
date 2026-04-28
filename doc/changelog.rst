@@ -2,6 +2,11 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+- Added island support for the :ref:`PGS solver<soAlgorithms>`.
+
 Version 3.8.0 (April 24, 2026)
 ------------------------------
 
