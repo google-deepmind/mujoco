@@ -26,15 +26,6 @@
 
 namespace mujoco {
 
-// Defines the basic properties of a render target.
-struct mjrRenderTargetConfig {
-  mjrPixelFormat color_format;
-  mjrPixelFormat depth_format;
-};
-
-// Initializes the RenderTargetConfig to default values.
-void mjr_defaultRenderTargetConfig(mjrRenderTargetConfig* config);
-
 // Manages a filament RenderTarget and the textures which are bound to it.
 class RenderTarget : public mjrRenderTarget {
  public:

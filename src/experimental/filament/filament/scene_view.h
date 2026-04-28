@@ -27,7 +27,6 @@
 #include <filament/View.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
-#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/render_target.h"
@@ -59,7 +58,7 @@ class SceneView : public mjrScene {
   // Parameters for rendering the scene.
   struct RenderRequest {
     // The draw mode (e.g. normal, depth, segmentation) to render.
-    DrawMode draw_mode = DrawMode::Color;
+    mjrDrawMode draw_mode = mjDRAW_MODE_COLOR;
     // The target viewport for the rendered image.
     mjrRect viewport;
     // The camera from which to render the scene.
@@ -111,7 +110,7 @@ class SceneView : public mjrScene {
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;
   ColorGradingOptions color_grading_options_;
-  std::array<filament::View*, kNumDrawModes> views_;
+  std::array<filament::View*, mjNUM_DRAW_MODES> views_;
 
   // Scene objects.
   std::unordered_set<Light*> lights_;

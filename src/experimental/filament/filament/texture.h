@@ -25,63 +25,6 @@
 // Functions for creating filament textures.
 namespace mujoco {
 
-// Pixel formats for textures.
-typedef enum mjrPixelFormat_ {
-  mjPIXEL_FORMAT_UNKNOWN = 0,
-  mjPIXEL_FORMAT_R8,
-  mjPIXEL_FORMAT_RGB8,
-  mjPIXEL_FORMAT_RGBA8,
-  mjPIXEL_FORMAT_R32F,
-  mjPIXEL_FORMAT_DEPTH32F,
-  mjPIXEL_FORMAT_KTX,
-} mjrPixelFormat;
-
-typedef mjtTexture mjrTextureTarget;
-typedef mjtColorSpace mjrColorSpace;
-
-// The binary contents of a texture.
-struct mjrTextureData {
-  // Pointer to the image data. If null, an empty texture will be created.
-  const void* bytes;
-
-  // The number of bytes in the image data.
-  mjtSize nbytes;
-
-  // Because rendering may be multithreaded, we cannot make assumptions about
-  // when the image data will finish uploading to the GPU. As such, we will use
-  // this callback to notify callers when it is safe to free the image data.
-  void (*release_callback)(void* user_data);
-
-  // User data to pass to the release callback.
-  void* user_data;
-};
-
-// Initializes the TextureData to default values.
-void mjr_defaultTextureData(mjrTextureData* data);
-
-// Defines the basic properties of a texture.
-struct mjrTextureConfig {
-  // The width of the texture. For compressed textures (e.g. KTX), this is the
-  // number of bytes in the compressed data.
-  int width;
-
-  // The height of the texture. For compressed textures (e.g. KTX), this should
-  // be 0.
-  int height;
-
-  // The target of the texture (e.g. 2D, cube, etc.)
-  mjrTextureTarget target;
-
-  // The format of the pixels in the texture (e.g. RGB8, RGBA8, KTX, etc.)
-  mjrPixelFormat format;
-
-  // The color space of the texture (e.g. LINEAR, sRGB, etc.)
-  mjrColorSpace color_space;
-};
-
-// Initializes the TextureConfig to default values.
-void mjr_defaultTextureConfig(mjrTextureConfig* config);
-
 // Wrapper around a filament::Texture.
 class Texture : public mjrTexture {
  public:

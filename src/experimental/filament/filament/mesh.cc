@@ -33,6 +33,7 @@
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/math_util.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
@@ -99,11 +100,6 @@ int FillSequence(std::byte* buffer, std::size_t num_bytes) {
     ptr[i] = i;
   }
   return num;
-}
-
-// Initializes the mjrMeshData to default values.
-void mjr_defaultMeshData(mjrMeshData* data) {
-  std::memset(data, 0, sizeof(mjrMeshData));
 }
 
 Mesh::Mesh(filament::Engine* engine, const mjrMeshData& data)

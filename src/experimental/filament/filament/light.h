@@ -20,38 +20,9 @@
 #include <math/vec3.h>
 #include <utils/Entity.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
-
-typedef mjtLightType mjrLightType;
-
-// Configuration parameters for a light.
-struct mjrLightParams {
-  // The type of light (e.g. spot, point, directional, etc.)
-  mjrLightType type;
-  // The texture to use for image lights.
-  const mjrTexture* texture;
-  // The color of the light.
-  float color[3];
-  // The intensity of the light, in candela.
-  float intensity;
-  // Whether or not the light casts shadows.
-  mjtByte cast_shadows;
-  // The range/distance in which the light is effective, in meters.
-  float range;
-  // The angle of the spot light cone, in degrees.
-  float spot_cone_angle;
-  // The radius of the bulb used for soft shadows.
-  float bulb_radius;
-  // The size of the shadow map.
-  int shadow_map_size;
-  // Blur width for EL VSM.
-  float vsm_blur_width;
-};
-
-void mjr_defaultLightParams(mjrLightParams* params);
 
 // Manages the filament Entities for a single mjvLight.
 class Light : public mjrLight {

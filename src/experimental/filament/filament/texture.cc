@@ -110,14 +110,6 @@ static filament::Texture::InternalFormat GetTextureInternalFormat(
   }
 }
 
-void mjr_defaultTextureData(mjrTextureData* data) {
-  std::memset(data, 0, sizeof(mjrTextureData));
-}
-
-void mjr_defaultTextureConfig(mjrTextureConfig* config) {
-  std::memset(config, 0, sizeof(mjrTextureConfig));
-}
-
 Texture::Texture(filament::Engine* engine, const mjrTextureConfig& config,
                  InternalFlags flags)
     : engine_(engine), config_(config) {

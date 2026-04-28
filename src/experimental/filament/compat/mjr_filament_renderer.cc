@@ -25,7 +25,6 @@
 #include "experimental/filament/compat/imgui_bridge.h"
 #include "experimental/filament/compat/imgui_editor.h"
 #include "experimental/filament/compat/scene_bridge.h"
-#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/filament/render_target.h"
@@ -42,11 +41,14 @@ void MjrFilamentRenderer::Init(const mjModel* model) {
   scene_bridge_ = std::make_unique<SceneBridge>(GetObjectManager(), model);
   imgui_bridge_ = std::make_unique<ImguiBridge>(GetObjectManager());
 
+  mjr_defaultRenderRequest(&render_requests_[0]);
+  mjr_defaultRenderRequest(&render_requests_[1]);
+
   render_requests_[0].scene = scene_bridge_->GetSceneView();
-  render_requests_[0].draw_mode = DrawMode::Color;
+  render_requests_[0].draw_mode = mjDRAW_MODE_COLOR;
 
   render_requests_[1].scene = imgui_bridge_->GetSceneView();
-  render_requests_[1].draw_mode = DrawMode::Color;
+  render_requests_[1].draw_mode = mjDRAW_MODE_COLOR;
 
   // The UX camera is a fixed orthographic camera. We only need to change the
   // width/height based on the viewport per frame.
@@ -78,11 +80,11 @@ void MjrFilamentRenderer::Render(const mjrRect& viewport, const mjvScene* scene)
   }
 
   if (scene->flags[mjRND_SEGMENT]) {
-    render_requests_[0].draw_mode  = DrawMode::Segmentation;
+    render_requests_[0].draw_mode = mjDRAW_MODE_SEGMENTATION;
   } else if (scene->flags[mjRND_DEPTH]) {
-    render_requests_[0].draw_mode  = DrawMode::Depth;
+    render_requests_[0].draw_mode = mjDRAW_MODE_DEPTH;
   } else {
-    render_requests_[0].draw_mode  = DrawMode::Color;
+    render_requests_[0].draw_mode = mjDRAW_MODE_COLOR;
   }
 
   render_requests_[0].width = viewport.width;
@@ -142,10 +144,11 @@ void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
     const size_t num_requests =
         (mode_ == FrameBufferMode::OffScreenWithGui) ? 2 : 1;
 
-    ReadPixelsRequest read_request;
+    mjrReadPixelsRequest read_request;
+    mjr_defaultReadPixelsRequest(&read_request);
     read_request.output = rgb;
     read_request.num_bytes = viewport.width * viewport.height * 3;
-    const FrameHandle frame = FilamentContext::Render(
+    const mjrFrameHandle frame = FilamentContext::Render(
         {&render_requests_[0], num_requests}, {&read_request, 1});
     FilamentContext::WaitForFrame(frame);
 
@@ -163,13 +166,14 @@ void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
     render_requests_[0].target = target.get();
     render_requests_[1].target = target.get();
 
-    DrawMode last_draw_mode = render_requests_[0].draw_mode;
-    render_requests_[0].draw_mode = DrawMode::Depth;
+    mjrDrawMode last_draw_mode = render_requests_[0].draw_mode;
+    render_requests_[0].draw_mode = mjDRAW_MODE_DEPTH;
 
-    ReadPixelsRequest read_request;
+    mjrReadPixelsRequest read_request;
+    mjr_defaultReadPixelsRequest(&read_request);
     read_request.output = reinterpret_cast<uint8_t*>(depth);
     read_request.num_bytes = viewport.width * viewport.height * sizeof(float);
-    const FrameHandle frame =
+    const mjrFrameHandle frame =
         FilamentContext::Render({&render_requests_[0], 1}, {&read_request, 1});
     FilamentContext::WaitForFrame(frame);
 

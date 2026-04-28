@@ -79,16 +79,16 @@ FilamentContext::~FilamentContext() {
   filament::Engine::destroy(engine_);
 }
 
-FilamentContext::FrameHandle FilamentContext::Render(
-    std::span<const RenderRequest> requests,
-    std::span<const ReadPixelsRequest> read_requests) {
+mjrFrameHandle FilamentContext::Render(
+    std::span<const mjrRenderRequest> requests,
+    std::span<const mjrReadPixelsRequest> read_requests) {
   if (read_requests.size() > 1) {
     mju_error("Only one read request is supported for now.");
   }
 
   bool render_began = false;
   mjrRenderTarget* current_target = nullptr;
-  for (const RenderRequest& request : requests) {
+  for (const mjrRenderRequest& request : requests) {
     if (request.target != current_target && render_began) {
       renderer_->endFrame();
       render_began = false;
@@ -135,7 +135,7 @@ FilamentContext::FrameHandle FilamentContext::Render(
             "Rendering to a render target without a read request is pointless.");
       }
 
-      const ReadPixelsRequest& read_request = read_requests[0];
+      const mjrReadPixelsRequest& read_request = read_requests[0];
       if (read_request.num_bytes == 0) {
         mju_error("Output buffer size is zero.");
       }
@@ -156,7 +156,7 @@ FilamentContext::FrameHandle FilamentContext::Render(
         scene_view_request.target = render_target;
         SceneView* scene_view = SceneView::downcast(request.scene);
         scene_view->Render(renderer_, scene_view_request);
-        render_target->ReadColorPixels(renderer_, read_request.output,
+        render_target->ReadColorPixels(renderer_, (uint8_t*)read_request.output,
                                         read_request.num_bytes);
       }
     }
@@ -179,7 +179,7 @@ FilamentContext::FrameHandle FilamentContext::Render(
   return ++frame_counter_;
 }
 
-void FilamentContext::WaitForFrame(FrameHandle frame_handle) {
+void FilamentContext::WaitForFrame(mjrFrameHandle frame_handle) {
   if (frame_counter_ < frame_handle) {
     engine_->flushAndWait();
   }

@@ -30,12 +30,12 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/model_objects.h"
-#include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
@@ -424,7 +424,7 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
   // the programmatic UVs.
 
   if (textures.color) {
-    if (textures.color->GetFilamentTexture()->getTarget() ==
+    if (Texture::downcast(textures.color)->GetFilamentTexture()->getTarget() ==
         filament::Texture::Sampler::SAMPLER_2D) {
       // For 2D textures, `tex_repeat` specifies how many times the texture
       // image is repeated. The `tex_uniform` flag determines if the repetition
