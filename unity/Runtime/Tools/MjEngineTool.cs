@@ -16,6 +16,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Xml;
 using UnityEngine;
@@ -244,13 +245,32 @@ public static class MjEngineTool {
     return ret.Substring(startIndex:0, length:ret.Length - 1);
   }
 
+  // Note: we could make these (and other parts of the C# code base)
+  // use generics instead
+  public static string ArrayToMjcf(int[] array) {
+    String ret = "";
+    foreach (int entry in array) {
+      ret += MakeLocaleInvariant($"{entry} ");
+    }
+    return ret.Substring(startIndex: 0, length: ret.Length - 1);
+  }
+
+  public static string ArrayToMjcf(string[] array) {
+    String ret = "";
+    foreach (string entry in array) {
+      ret += MakeLocaleInvariant($"{entry} ");
+    }
+    return ret.Substring(startIndex: 0, length: ret.Length - 1);
+  }
+
   // Converts a list of floats to an Mjcf.
   public static string ListToMjcf(List<float> list) {
     String ret = "";
     foreach (float entry in list) {
       ret += MakeLocaleInvariant($"{entry} ");
     }
-    return ret.Substring(startIndex:0, length:ret.Length - 1);
+
+    return ret.Substring(startIndex: 0, length: ret.Length - 1);
   }
 
   // Generates an Mjcf of the specified component's transform.
@@ -372,12 +392,12 @@ public static class MjEngineTool {
   public static void LoadPlugins() {
     if(!Directory.Exists("Packages/org.mujoco/Runtime/Plugins/")) return;
 
-    foreach (string pluginPath in Directory.GetFiles("Packages/org.mujoco/Runtime/Plugins/")) {
-      MujocoLib.mj_loadPluginLibrary(pluginPath);
+    foreach (string pluginPath in Directory.GetFiles("Packages/org.mujoco/Runtime/Plugins/")
+                 .Where(f => f.EndsWith(".dll") || f.EndsWith(".so"))) {
+      Debug.Log($"Loading plugin {pluginPath}");
+      MujocoLib.mj_loadPluginLibrary(Path.GetFullPath(pluginPath));
     }
-
   }
-
 }
 
 public static class MjSceneImportSettings {
