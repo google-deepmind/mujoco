@@ -22,6 +22,7 @@ import textwrap
 import typing
 import zipfile  # pylint: disable=unused-import
 
+from absl import flags
 from absl.testing import absltest
 from etils import epath
 import mujoco
@@ -34,6 +35,11 @@ def get_linenumber():
 
 
 class SpecsTest(absltest.TestCase):
+  def setUp(self):
+    super().setUp()
+    # Mark flags as parsed to avoid pytest errors about unparsed flags.
+    # This is needed for `create_tempdir()` calls below.
+    flags.FLAGS.mark_as_parsed()
 
   def test_typing(self):
     spec = mujoco.MjSpec()
@@ -1963,6 +1969,50 @@ class SpecsTest(absltest.TestCase):
     # Corner pixel: off-axis ray, dist > depth
     self.assertGreater(cam_sd[0], cam_sd[1])  # dist > depth
     self.assertAlmostEqual(cam_sd[1], 2.0, places=6)  # depth is still 2.0
+
+  def test_encode_xml(self):
+    # Create a simple spec and compile.
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    geom = body.add_geom()
+    geom.size[0] = 1
+    model = spec.compile()
+
+    # Encode to XML.
+    filename = os.path.join(self.create_tempdir().full_path, 'output.xml')
+    nbytes = spec.encode(filename, model)
+    self.assertGreater(nbytes, 0)
+
+    # Verify the output is valid XML that can be loaded.
+    reloaded = mujoco.MjSpec.from_file(filename)
+    reloaded_model = reloaded.compile()
+    self.assertEqual(reloaded_model.ngeom, model.ngeom)
+
+  def test_encode_xml_without_model(self):
+    # Create a simple spec and compile so XML can be written.
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    geom = body.add_geom()
+    geom.size[0] = 1
+    spec.compile()
+
+    # Encode to XML without passing a model explicitly.
+    filename = os.path.join(self.create_tempdir().full_path, 'output.xml')
+    nbytes = spec.encode(filename)
+    self.assertGreater(nbytes, 0)
+
+  def test_encode_no_encoder_raises(self):
+    # Create a simple spec and compile.
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    geom = body.add_geom()
+    geom.size[0] = 1
+    model = spec.compile()
+
+    # Encode with an unknown extension should fail.
+    filename = os.path.join(self.create_tempdir().full_path, 'output.unknown')
+    with self.assertRaises(mujoco.FatalError):
+      spec.encode(filename, model)
 
 if __name__ == '__main__':
   absltest.main()

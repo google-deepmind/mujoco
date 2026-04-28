@@ -432,6 +432,51 @@ PYBIND11_MODULE(_specs, m) {
     }
   });
   mjSpec.def(
+      "encode",
+      [](MjSpec& self, std::string filename,
+         std::optional<py::object> model,
+         std::optional<std::string> content_type) -> int {
+        raw::MjModel* m = nullptr;
+        if (model.has_value() && !model->is_none()) {
+          auto& wrapper =
+              py::cast<_impl::MjModelWrapper&>(*model);
+          m = wrapper.get();
+        }
+
+        mjVFS vfs;
+        mjVFS* vfs_ptr = nullptr;
+        if (!self.assets.empty()) {
+          mj_defaultVFS(&vfs);
+          vfs_ptr = &vfs;
+          for (const auto& asset : self.assets) {
+            std::string buffer_name =
+                py::cast<std::string>(asset.first);
+            std::string buffer =
+                py::cast<std::string>(asset.second);
+            mj_addBufferVFS(vfs_ptr, buffer_name.c_str(),
+                            buffer.c_str(), buffer.size());
+          }
+        }
+
+        std::array<char, 1024> err;
+        err[0] = '\0';
+        const char* ct =
+            content_type.has_value() ? content_type->c_str() : nullptr;
+        int nbytes = mj_encode(self.ptr, m, filename.c_str(), ct,
+                               vfs_ptr, err.data(), err.size());
+
+        if (vfs_ptr) {
+          mj_deleteVFS(vfs_ptr);
+        }
+
+        if (nbytes < 0) {
+          throw FatalError(std::string(err.data()));
+        }
+        return nbytes;
+      },
+      py::arg("filename"), py::arg("model") = py::none(),
+      py::arg("content_type") = py::none());
+  mjSpec.def(
       "add_default",
       [](MjSpec* spec, std::string& classname,
          raw::MjsDefault* parent) -> raw::MjsDefault* {

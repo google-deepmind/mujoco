@@ -547,6 +547,12 @@ Compiled ``MjSpec`` objects can be saved to XML string with the ``to_xml()`` met
      </worldbody>
    </mujoco>
 
+Alternatively, the spec can be saved directly to a file using ``encode()``:
+
+.. code-block:: python
+
+   spec.encode('model.xml', model)
+
 Attachment
 ----------
 
