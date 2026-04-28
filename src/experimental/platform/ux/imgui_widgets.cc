@@ -375,9 +375,7 @@ void ImGui_EndHSplit(bool open) {
 }
 
 void MaybeSaveToClipboard(const std::string& contents) {
-  if (ImGui::GetIO().SetClipboardTextFn) {
-    ImGui::GetIO().SetClipboardTextFn(nullptr, contents.c_str());
-  }
+  ImGui::SetClipboardText(contents.c_str());
 }
 
 ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size) {

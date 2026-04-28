@@ -81,7 +81,7 @@ void StepControlGui(const mjModel* model, StepControl* step_control,
                     int& speed_index);
 
 // UX for selecting the GUI theme.
-bool ThemeSelectGui(GuiTheme* theme);
+bool ThemeSelectGui(GuiTheme* theme, const ImVec2& size = ImVec2(0, 0));
 
 // UX for selecting the visualization label option.
 bool LabelSelectionGui(mjvOption* opts);

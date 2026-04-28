@@ -97,15 +97,15 @@ void SetupTheme(GuiTheme theme) {
     c[ImGuiCol_TextSelectedBg] = ImVec4(0.73, 0.73, 0.73, 0.35);
     c[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80, 0.80, 0.80, 0.35);
     c[ImGuiCol_DragDropTarget] = ImVec4(1.00, 1.00, 0.00, 0.90);
-    c[ImGuiCol_NavHighlight] = ImVec4(0.26, 0.59, 0.98, 1.00);
+    c[ImGuiCol_NavCursor] = ImVec4(0.26, 0.59, 0.98, 1.00);
     c[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00, 1.00, 1.00, 0.70);
     c[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80, 0.80, 0.80, 0.20);
     c[ImGuiCol_DockingEmptyBg] = ImVec4(0.38, 0.38, 0.38, 1.00);
     c[ImGuiCol_Tab] = ImVec4(0.25, 0.25, 0.25, 1.00);
     c[ImGuiCol_TabHovered] = ImVec4(0.40, 0.40, 0.40, 1.00);
-    c[ImGuiCol_TabActive] = ImVec4(0.33, 0.33, 0.33, 1.00);
-    c[ImGuiCol_TabUnfocused] = ImVec4(0.25, 0.25, 0.25, 1.00);
-    c[ImGuiCol_TabUnfocusedActive] = ImVec4(0.33, 0.33, 0.33, 1.00);
+    c[ImGuiCol_TabSelected] = ImVec4(0.33, 0.33, 0.33, 1.00);
+    c[ImGuiCol_TabDimmed] = ImVec4(0.25, 0.25, 0.25, 1.00);
+    c[ImGuiCol_TabDimmedSelected] = ImVec4(0.33, 0.33, 0.33, 1.00);
     c[ImGuiCol_DockingPreview] = ImVec4(0.85, 0.85, 0.85, 0.28);
     c[ImGuiCol_WindowBg].w = 1.0f;
   } else if (theme == GuiTheme::kLight) {
@@ -220,7 +220,7 @@ ImVec4 ConfigureDockingLayout() {
   const float kOptionsRelWidth = 0.22f;
   const float kInspectorRelWidth = 0.22f;
   const float kStatsRelHeight = 0.3f;
-  const float kToolsBarHeight = 48.f * scale;
+  const float kToolsBarHeight = 36.f * scale;
   const float kStatusBarHeight = 32.f * scale;
 
   const ImVec2 dockspace_pos{viewport->WorkPos.x,
@@ -303,6 +303,9 @@ ImVec4 ConfigureDockingLayout() {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
+    const float toolbar_vpad =
+        std::max(0.f, (kToolsBarHeight - ImGui::GetFrameHeight()) * 0.5f);
+    style.Var(ImGuiStyleVar_WindowPadding, ImVec2(4, toolbar_vpad));
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kToolsBarHeight),
                              ImGuiCond_Always);
@@ -335,18 +338,23 @@ ImVec4 ConfigureDockingLayout() {
 void StepControlGui(const mjModel* model, StepControl* step_control,
                     int& speed_index) {
   platform::ScopedStyle style;
-  style.Var(ImGuiStyleVar_FrameRounding, 2.f);
+  style.Var(ImGuiStyleVar_FrameRounding, 8.f);
 
   const ImColor yellow(255, 215, 0, 255);
   const ImColor green(40, 180, 40, 255);
-  const float scale = ImGui::GetWindowDpiScale();
-  ImVec2 button_size(48.f * scale, 32.f * scale);
 
   auto make_button = [&](const char* icon, StepControl::PauseState target_state,
-                         ImColor color, const char* tooltip = "",
-                         float hover_alpha = 1.f) {
+                         ImColor color, ImDrawFlags corners,
+                         const char* tooltip = "",
+                         float hover_alpha = 1.f, float width_scale = 1.f) {
+    ImVec2 size(0, 0);
+    if (width_scale != 1.f) {
+      const ImGuiStyle& s = ImGui::GetStyle();
+      const float w = ImGui::CalcTextSize(icon).x + s.FramePadding.x * 2;
+      size.x = w * width_scale;
+    }
     bool active = step_control->GetPauseState() == target_state;
-    if (ImGui_ColorButton(icon, active, color, button_size, hover_alpha)) {
+    if (ImGui_ColorButtonEx(icon, active, color, corners, size, hover_alpha)) {
       step_control->SetPauseState(target_state);
     }
     if (!std::string_view(tooltip).empty()) {
@@ -355,26 +363,28 @@ void StepControlGui(const mjModel* model, StepControl* step_control,
   };
 
   make_button(ICON_FA_PAUSE, StepControl::PauseState::kNormalPaused, yellow,
-              "Pause");
+              ImDrawFlags_RoundCornersLeft, "Pause", .3f, 1.6f);
   ImGui::SameLine(0.f, 0.f);
   make_button(ICON_FA_MAGIC, StepControl::PauseState::kViscousPaused, yellow,
-              "Viscous Pause");
+              ImDrawFlags_RoundCornersNone, "Viscous Pause", .3f, 1.3f);
   ImGui::SameLine(0.f, 0.f);
-  make_button(ICON_FA_PLAY, StepControl::PauseState::kUnpaused, green, "", .6f);
+  make_button(ICON_FA_PLAY, StepControl::PauseState::kUnpaused, green,
+              ImDrawFlags_RoundCornersRight, "", .3f, 1.6f);
 
   // Speed selection.
-  ImGui::SameLine();
-  const float pad_y = (button_size.y - ImGui::GetFontSize()) * .5f;
+  style.Reset();
+  ImGui::SameLine(0, ImGui::GetFrameHeight() * .6f);
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                      ImVec2(ImGui::GetStyle().FramePadding.x + 5.f, pad_y));
+                      ImVec2(ImGui::GetStyle().FramePadding.x + 5.f,
+                             ImGui::GetStyle().FramePadding.y));
 
   const auto [misaligned, measured] = IsSpeedMisaligned(*step_control);
   char speed_preview[64];
   if (misaligned) {
-    snprintf(speed_preview, sizeof(speed_preview), "%s%s (%-4.1f%%)",
+    snprintf(speed_preview, sizeof(speed_preview), "%s %s (%-4.1f%%)",
              ICON_FA_TACHOMETER, kPercentRealTime[speed_index], measured);
   } else {
-    snprintf(speed_preview, sizeof(speed_preview), "%s%s", ICON_FA_TACHOMETER,
+    snprintf(speed_preview, sizeof(speed_preview), "%s %s", ICON_FA_TACHOMETER,
              kPercentRealTime[speed_index]);
   }
 
@@ -400,39 +410,22 @@ void StepControlGui(const mjModel* model, StepControl* step_control,
   }
 }
 
-bool ThemeSelectGui(GuiTheme* theme) {
+bool ThemeSelectGui(GuiTheme* theme, const ImVec2& size) {
   static constexpr const char* ICON_DARKMODE = ICON_FA_CIRCLE;
   static constexpr const char* ICON_LIGHTMODE = ICON_FA_CIRCLE_O;
   static constexpr const char* ICON_CLASSICMODE = ICON_FA_ADJUST;
   const char* theme_icons[] = {ICON_LIGHTMODE, ICON_DARKMODE, ICON_CLASSICMODE};
   const char* theme_tooltips[] = {"Light Mode", "Dark Mode", "Classic Mode"};
-  const GuiTheme theme_values[] = {
-      GuiTheme::kLight,
-      GuiTheme::kDark,
-      GuiTheme::kClassic,
-  };
-
-  bool changed = false;
 
   int theme_idx = static_cast<int>(*theme);
-  ImGui::SetNextItemWidth(ImGui::CalcTextSize(theme_icons[0]).x +
-                          ImGui::GetStyle().FramePadding.x * 2);
-  if (ImGui::BeginCombo("##Theme", theme_icons[theme_idx],
-                        ImGuiComboFlags_NoArrowButton)) {
-    for (int n = 0; n < IM_ARRAYSIZE(theme_icons); n++) {
-      if (ImGui::Selectable(theme_icons[n], (theme_idx == n))) {
-        *theme = theme_values[n];
-        changed = true;
-      }
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("%s", theme_tooltips[n]);
-      }
-    }
-    ImGui::EndCombo();
+  if (ImGui::Button(theme_icons[theme_idx], size)) {
+    theme_idx = (theme_idx + 1) % IM_ARRAYSIZE(theme_icons);
+    *theme = static_cast<GuiTheme>(theme_idx);
+    return true;
   }
-  ImGui::SetItemTooltip("%s", "Theme");
+  ImGui::SetItemTooltip("%s", theme_tooltips[theme_idx]);
 
-  return changed;
+  return false;
 }
 
 bool LabelSelectionGui(mjvOption* opts) {

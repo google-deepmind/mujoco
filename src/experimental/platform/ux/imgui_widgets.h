@@ -551,6 +551,55 @@ inline bool ImGui_ColorButton(const char* label, bool active, ImColor color,
   return ImGui::Button(label, size);
 }
 
+// Like ImGui_ColorButton, but with per-corner rounding control via ImDrawFlags.
+// Use ImDrawFlags_RoundCornersLeft, ImDrawFlags_RoundCornersRight,
+// ImDrawFlags_RoundCornersNone, ImDrawFlags_RoundCornersAll, etc.
+inline bool ImGui_ColorButtonEx(const char* label, bool active, ImColor color,
+                                ImDrawFlags corners,
+                                const ImVec2& size = ImVec2(0, 0),
+                                float hover_alpha = 0.5f) {
+  const ImGuiStyle& s = ImGui::GetStyle();
+  const ImVec2 label_size = ImGui::CalcTextSize(label, nullptr, true);
+  const ImVec2 btn_size(
+      size.x > 0 ? size.x : label_size.x + s.FramePadding.x * 2,
+      size.y > 0 ? size.y : label_size.y + s.FramePadding.y * 2);
+
+  const ImVec2 pos = ImGui::GetCursorScreenPos();
+  ImGui::InvisibleButton(label, btn_size);
+  const bool clicked = ImGui::IsItemClicked();
+  const bool hovered = ImGui::IsItemHovered();
+
+  // Determine background color.
+  const ImColor hover_color(color.Value.x, color.Value.y, color.Value.z,
+                            color.Value.w * hover_alpha);
+  ImColor bg;
+  if (active) {
+    bg = color;
+  } else if (hovered) {
+    bg = hover_color;
+  } else {
+    bg = ImGui::GetColorU32(ImGuiCol_Button);
+  }
+
+  // Draw background with per-corner rounding.
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  const ImVec2 max(pos.x + btn_size.x, pos.y + btn_size.y);
+  dl->AddRectFilled(pos, max, bg, s.FrameRounding, corners);
+
+  // Draw border.
+  if (s.FrameBorderSize > 0) {
+    dl->AddRect(pos, max, ImGui::GetColorU32(ImGuiCol_Border),
+                s.FrameRounding, corners, s.FrameBorderSize);
+  }
+
+  // Draw label centered.
+  const ImVec2 text_pos(pos.x + (btn_size.x - label_size.x) * 0.5f,
+                        pos.y + (btn_size.y - label_size.y) * 0.5f);
+  dl->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_Text), label);
+
+  return clicked;
+}
+
 // Begin a boxed section with outer borders - use EndBoxSection to close.
 inline bool BeginBoxSection(const char* id, ImGuiTableFlags extra_flags = 0) {
   ImGuiTableFlags flags = ImGuiTableFlags_BordersOuter | extra_flags;
