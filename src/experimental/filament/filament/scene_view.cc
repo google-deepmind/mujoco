@@ -158,6 +158,10 @@ SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
 }
 
 SceneView::~SceneView() {
+  if (skybox_) {
+    scene_->setSkybox(nullptr);
+    engine_->destroy(skybox_);
+  }
   for (auto& light : lights_) {
     light->RemoveFromScene(scene_);
   }
@@ -210,15 +214,17 @@ void SceneView::RemoveFromScene(Renderable* renderable) {
   }
 }
 
-void SceneView::AddToScene(filament::Skybox* skybox) {
-  skybox_ = skybox;
-  scene_->setSkybox(skybox);
-}
-
-void SceneView::RemoveFromScene(filament::Skybox* skybox) {
-  if (skybox_ == skybox) {
-    skybox_ = nullptr;
+void SceneView::SetSkybox(const Texture* skybox_texture) {
+  if (skybox_) {
     scene_->setSkybox(nullptr);
+    engine_->destroy(skybox_);
+    skybox_ = nullptr;
+  }
+  if (skybox_texture) {
+    filament::Skybox::Builder builder;
+    builder.environment(skybox_texture->GetFilamentTexture());
+    skybox_ = builder.build(*engine_);
+    scene_->setSkybox(skybox_);
   }
 }
 

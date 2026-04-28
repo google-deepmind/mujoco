@@ -26,12 +26,7 @@
 #include <vector>
 
 #include <filament/Engine.h>
-#include <filament/IndirectLight.h>
-#include <filament/Material.h>
-#include <filament/Skybox.h>
 #include <math/TVecHelpers.h>
-#include <math/mat3.h>
-#include <math/scalar.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
@@ -47,7 +42,6 @@ namespace mujoco {
 using filament::math::float2;
 using filament::math::float3;
 using filament::math::float4;
-using filament::math::mat3f;
 
 enum class MeshType {
   kNormal,
@@ -534,12 +528,6 @@ ModelObjects::ModelObjects(const mjModel* model, filament::Engine* engine)
 }
 
 ModelObjects::~ModelObjects() {
-  for (auto& iter : skyboxes_) {
-    engine_->destroy(iter);
-  }
-  for (auto& iter : indirect_lights_) {
-    engine_->destroy(iter);
-  }
   meshes_.clear();
   textures_.clear();
 }
@@ -681,48 +669,13 @@ const Texture* ModelObjects::GetTexture(int mat_id, int role) const {
   return GetTexture(tex_id);
 }
 
-filament::IndirectLight* ModelObjects::CreateIndirectLight(int tex_id,
-                                                           float intensity) {
-  filament::Texture* texture = nullptr;
-  const Texture::SphericalHarmonics* spherical_harmonics = nullptr;
-  auto texture_iter = textures_.find(tex_id);
-  if (texture_iter != textures_.end()) {
-    texture = texture_iter->second->GetFilamentTexture();
-    spherical_harmonics = texture_iter->second->GetSphericalHarmonics();
-  }
-
-  filament::IndirectLight::Builder builder;
-  builder.reflections(texture);
-  if (spherical_harmonics != nullptr) {
-    builder.irradiance(3, *spherical_harmonics);
-  }
-  builder.intensity(intensity);
-  // Rotate the light to match mujoco's Z-up convention.
-  builder.rotation(mat3f::rotation(filament::math::f::PI / 2, float3{1, 0, 0}));
-  filament::IndirectLight* indirect_light = builder.build(*engine_);
-  indirect_lights_.push_back(indirect_light);
-  return indirect_light;
-}
-
-filament::Skybox* ModelObjects::CreateSkybox() {
-  filament::Texture* skybox_texture = nullptr;
+const Texture* ModelObjects::GetSkyboxTexture() const {
   for (auto& iter : textures_) {
-    const int texture_type = model_->tex_type[iter.first];
-    if (texture_type == mjTEXTURE_SKYBOX) {
-      skybox_texture = iter.second->GetFilamentTexture();
-      break;
+    if (model_->tex_type[iter.first] == mjTEXTURE_SKYBOX) {
+      return iter.second.get();
     }
   }
-
-  if (skybox_texture == nullptr) {
-    return nullptr;
-  }
-
-  filament::Skybox::Builder builder;
-  builder.environment(skybox_texture);
-  filament::Skybox* skybox = builder.build(*engine_);
-  skyboxes_.push_back(skybox);
-  return skybox;
+  return nullptr;
 }
 
 }  // namespace mujoco

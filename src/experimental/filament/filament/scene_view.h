@@ -31,6 +31,7 @@
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/texture.h"
 
 namespace mujoco {
 
@@ -49,8 +50,7 @@ class SceneView {
   void RemoveFromScene(Light* light);
   void AddToScene(Renderable* renderable);
   void RemoveFromScene(Renderable* renderable);
-  void AddToScene(filament::Skybox* skybox);
-  void RemoveFromScene(filament::Skybox* skybox);
+  void SetSkybox(const Texture* skybox_texture);
 
   // Parameters for rendering the scene.
   struct RenderRequest {
