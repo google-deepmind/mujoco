@@ -187,27 +187,29 @@ void SetupTheme(GuiTheme theme) {
     c[ImGuiCol_TabDimmedSelected] = check;
   }
 
+  float scale = s.FontScaleDpi;
+
   int hspacing = 4;
   int vspacing = 6;
   float rounding = 4.0f;
   s.DisplaySafeAreaPadding = ImVec2(0, 0);
-  s.WindowPadding = ImVec2(hspacing, vspacing);
-  s.FramePadding = ImVec2(hspacing, 2);
-  s.ItemSpacing = ImVec2(hspacing, vspacing);
-  s.ItemInnerSpacing = ImVec2(hspacing, vspacing);
-  s.WindowRounding = rounding;
-  s.FrameRounding = rounding;
-  s.TabRounding = rounding;
-  s.ScrollbarRounding = rounding;
-  s.ChildRounding = rounding;
-  s.GrabRounding = rounding;
-  s.PopupRounding = rounding;
+  s.WindowPadding = ImTrunc(ImVec2(hspacing * scale, vspacing * scale));
+  s.FramePadding = ImTrunc(ImVec2(hspacing * scale, 2.0f * scale));
+  s.ItemSpacing = ImTrunc(ImVec2(hspacing * scale, vspacing * scale));
+  s.ItemInnerSpacing = ImTrunc(ImVec2(hspacing * scale, vspacing * scale));
+  s.WindowRounding = ImTrunc(rounding * scale);
+  s.FrameRounding = ImTrunc(rounding * scale);
+  s.TabRounding = ImTrunc(rounding * scale);
+  s.ScrollbarRounding = ImTrunc(rounding * scale);
+  s.ChildRounding = ImTrunc(rounding * scale);
+  s.GrabRounding = ImTrunc(rounding * scale);
+  s.PopupRounding = ImTrunc(rounding * scale);
   s.WindowBorderSize = 0.0f;
   s.FrameBorderSize = 1.0f;
   s.PopupBorderSize = 1.0f;
-  s.IndentSpacing = 6.0f;
-  s.ScrollbarSize = 12.0f;
-  s.GrabMinSize = 5.0f;
+  s.IndentSpacing = ImTrunc(6.0f * scale);
+  s.ScrollbarSize = ImTrunc(12.0f * scale);
+  s.GrabMinSize = ImTrunc(5.0f * scale);
   s.WindowMenuButtonPosition = ImGuiDir_None;
   s.TabCloseButtonMinWidthSelected = 0.0f;
   s.DockingNodeHasCloseButton = false;
@@ -323,7 +325,7 @@ ImVec4 ConfigureDockingLayout() {
     style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
     const float toolbar_vpad =
         std::max(0.f, (kToolsBarHeight - ImGui::GetFrameHeight()) * 0.5f);
-    style.Var(ImGuiStyleVar_WindowPadding, ImVec2(4, toolbar_vpad));
+    style.Var(ImGuiStyleVar_WindowPadding, ImVec2(4 * scale, toolbar_vpad));
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kToolsBarHeight),
                              ImGuiCond_Always);
@@ -357,7 +359,7 @@ ImVec4 ConfigureDockingLayout() {
 void StepControlGui(const mjModel* model, StepControl* step_control,
                     int& speed_index) {
   platform::ScopedStyle style;
-  style.Var(ImGuiStyleVar_FrameRounding, 8.f);
+  style.Var(ImGuiStyleVar_FrameRounding, 8.f * ImGui::GetStyle().FontScaleDpi);
 
   const ImColor yellow(255, 215, 0, 255);
   const ImColor green(40, 180, 40, 255);
@@ -394,7 +396,8 @@ void StepControlGui(const mjModel* model, StepControl* step_control,
   style.Reset();
   ImGui::SameLine(0, ImGui::GetFrameHeight() * .6f);
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                      ImVec2(ImGui::GetStyle().FramePadding.x + 5.f,
+                      ImVec2(ImGui::GetStyle().FramePadding.x +
+                                 5.f * ImGui::GetStyle().FontScaleDpi,
                              ImGui::GetStyle().FramePadding.y));
 
   const auto [misaligned, measured] = IsSpeedMisaligned(*step_control);
