@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <span>
@@ -141,6 +142,9 @@ class ZipArchiveProvider : public mjpResourceProvider {
     FileInfo& info = it->second;
 
     // Lazily read and store the file contents from the archive.
+    // The mutex is needed because mz_zip_archive is not thread-safe, and
+    // multiple threads may call Read concurrently during parallel compilation.
+    std::lock_guard<std::mutex> lock(mutex_);
     if (info.contents.empty()) {
       info.contents.resize(info.size);
       if (!mz_zip_reader_extract_to_mem(&archive_, info.index,
@@ -168,6 +172,7 @@ class ZipArchiveProvider : public mjpResourceProvider {
   mz_zip_archive archive_;
   std::vector<char> buffer_;
   std::unordered_map<std::string, FileInfo> files_;
+  mutable std::mutex mutex_;
 };
 
 static mjSpec* ParseZipBuffer(const void* buffer, int nbuffer, const char* name,
