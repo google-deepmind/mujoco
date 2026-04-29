@@ -37,10 +37,12 @@ using filament::math::float3;
 using filament::math::mat3f;
 
 ImguiBridge::ImguiBridge(FilamentContext* ctx) : ctx_(ctx) {
-  scene_view_ = std::make_unique<SceneView>(ctx_);
-  scene_view_->DisableShadows();
-  scene_view_->DisableReflections();
-  scene_view_->DisablePostProcessing();
+  mjrSceneParams params;
+  mjr_defaultSceneParams(&params);
+  params.enable_post_processing = false;
+  params.enable_reflections = false;
+  params.enable_shadows = false;
+  scene_view_ = std::make_unique<SceneView>(ctx_, params);
 }
 
 ImguiBridge::~ImguiBridge() {

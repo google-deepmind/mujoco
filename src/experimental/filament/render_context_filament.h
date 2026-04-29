@@ -284,6 +284,19 @@ struct mjrMeshData {
 // Initializes the mjrMeshData to default values.
 void mjr_defaultMeshData(mjrMeshData* data);
 
+// Configuration parameters for a Scene.
+struct mjrSceneParams {
+  // Whether or not to enable post processing; enabled by default.
+  mjtByte enable_post_processing;
+  // Whether or not to enable reflections; enabled by default.
+  mjtByte enable_reflections;
+  // Whether or not to enable shadows; enabled by default.
+  mjtByte enable_shadows;
+};
+
+// Initializes the mjrSceneParams to default values.
+void mjr_defaultSceneParams(mjrSceneParams* params);
+
 // Configuration parameters for a light.
 struct mjrLightParams {
   // The type of light (e.g. spot, point, directional, etc.)

@@ -83,7 +83,9 @@ static std::unique_ptr<Texture> CreateFallbackIndirectLightTexture(
 
 SceneBridge::SceneBridge(FilamentContext* ctx, const mjModel* model)
     : ctx_(ctx) {
-  scene_view_ = std::make_unique<SceneView>(ctx_);
+  mjrSceneParams params;
+  mjr_defaultSceneParams(&params);
+  scene_view_ = std::make_unique<SceneView>(ctx_, params);
   model_objects_ = std::make_unique<ModelObjects>(model, ctx_);
 
   // Configure options for the normal view.

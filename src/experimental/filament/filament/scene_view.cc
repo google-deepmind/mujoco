@@ -121,7 +121,8 @@ static void SetupReflectionCamera(const mat4& surface_xform,
   reflection_camera->setCustomProjection(oblique, near, far);
 }
 
-SceneView::SceneView(FilamentContext* ctx) : ctx_(ctx) {
+SceneView::SceneView(FilamentContext* ctx, const mjrSceneParams& params)
+    : ctx_(ctx) {
   filament::Engine* engine = ctx_->GetEngine();
   scene_ = engine->createScene();
   camera_ = engine->createCamera(utils::EntityManager::get().create());
@@ -152,6 +153,16 @@ SceneView::SceneView(FilamentContext* ctx) : ctx_(ctx) {
   tm.create(fog);
   tm.setTransform(tm.getInstance(fog),
                   mat4::rotation(filament::math::f::PI / 2, float3{-1, 0, 0}));
+
+  if (!params.enable_post_processing) {
+    DisablePostProcessing();
+  }
+  if (!params.enable_reflections) {
+    DisableReflections();
+  }
+  if (!params.enable_shadows) {
+    DisableShadows();
+  }
 }
 
 SceneView::~SceneView() {

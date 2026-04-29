@@ -43,7 +43,7 @@ namespace mujoco {
 // (e.g. normal, depth, segmentation, etc.) as well as reflective surfaces.
 class SceneView : public mjrScene {
  public:
-  explicit SceneView(FilamentContext* ctx);
+  SceneView(FilamentContext* ctx, const mjrSceneParams& params);
   ~SceneView();
 
   SceneView(const SceneView&) = delete;
