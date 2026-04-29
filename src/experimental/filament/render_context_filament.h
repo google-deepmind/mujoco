@@ -326,7 +326,13 @@ void mjr_defaultLightParams(mjrLightParams* params);
 
 // Defines the basic properties of a render target.
 struct mjrRenderTargetConfig {
+  // The width of the render target.
+  int width;
+  // The height of the render target.
+  int height;
+  // The format of the color buffer in the render target.
   mjrPixelFormat color_format;
+  // The format of the depth buffer in the render target.
   mjrPixelFormat depth_format;
 };
 

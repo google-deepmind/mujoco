@@ -34,7 +34,11 @@ namespace mujoco {
 
 RenderTarget::RenderTarget(FilamentContext* ctx,
                            const mjrRenderTargetConfig& config)
-    : ctx_(ctx), config_(config) {}
+    : ctx_(ctx), config_(config) {
+  if (config_.width > 0 && config_.height > 0) {
+    Prepare(config_.width, config_.height);
+  }
+}
 
 RenderTarget::~RenderTarget() noexcept {
   Destroy();
@@ -47,6 +51,11 @@ void RenderTarget::Prepare(int width, int height) {
   Destroy();
   width_ = width;
   height_ = height;
+  if (width_ <= 0 || height_ <= 0) {
+    width_ = 0;
+    height_ = 0;
+    return;
+  }
 
   mjrTextureConfig color_config;
   mjr_defaultTextureConfig(&color_config);

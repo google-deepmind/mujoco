@@ -134,11 +134,12 @@ void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
   if (rgb) {
     mjrRenderTargetConfig config;
     mjr_defaultRenderTargetConfig(&config);
+    config.width = viewport.width;
+    config.height = viewport.height;
     config.color_format = mjPIXEL_FORMAT_RGB8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     auto target =
         std::make_unique<RenderTarget>(filament_context_.get(), config);
-    target->Prepare(viewport.width, viewport.height);
     render_requests_[0].target = target.get();
     render_requests_[1].target = target.get();
 

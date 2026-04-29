@@ -116,6 +116,7 @@ void mjr_defaultRenderableParams(mjrRenderableParams* params) {
 }
 
 void mjr_defaultRenderTargetConfig(mjrRenderTargetConfig* config) {
+  memset(config, 0, sizeof(mjrRenderTargetConfig));
   config->color_format = mjPIXEL_FORMAT_RGBA8;
   config->depth_format = mjPIXEL_FORMAT_DEPTH32F;
 }
