@@ -1286,3 +1286,19 @@ CCD colliders and will raise a ``NotImplementedError`` when calling :func:`mjw.p
    * - box-box
      - :ref:`NATIVECCD <option-flag-nativeccd>` enabled (on by default)
      - Set margin to ``0`` or disable ``NATIVECCD``
+
+Rendering
+---------
+
+The batch renderer included in MJWarp serves a different purpose than MuJoCo's renderer. The MJWarp batch
+renderer is a single hit raycaster optimized for high throughput and low fidelity.
+
+It supports:
+ * Simple lambertian diffuse shading
+ * Basic point lights and directional lights
+ * Textures
+ * Shadows
+
+It does not support:
+ * Advanced lighting effects such as global illumination
+ * Physically based material properties
