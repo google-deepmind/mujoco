@@ -27,7 +27,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/builtins.h
         filament/color_grading_options.cc
         filament/color_grading_options.h
-        filament/draw_mode.h
         filament/filament_context.cc
         filament/filament_context.h
         filament/filament_platform_factory.cc

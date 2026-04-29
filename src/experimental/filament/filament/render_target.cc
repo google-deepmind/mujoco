@@ -30,11 +30,6 @@
 
 namespace mujoco {
 
-void mjr_defaultRenderTargetConfig(mjrRenderTargetConfig* config) {
-  config->color_format = mjPIXEL_FORMAT_RGBA8;
-  config->depth_format = mjPIXEL_FORMAT_DEPTH32F;
-}
-
 RenderTarget::RenderTarget(filament::Engine* engine,
                            const mjrRenderTargetConfig& config)
     : engine_(engine), config_(config) {}

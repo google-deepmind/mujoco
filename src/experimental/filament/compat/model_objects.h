@@ -18,11 +18,8 @@
 #include <array>
 #include <memory>
 #include <unordered_map>
-#include <vector>
 
 #include <filament/Engine.h>
-#include <filament/IndirectLight.h>
-#include <filament/Skybox.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/mesh.h"
@@ -30,7 +27,7 @@
 
 namespace mujoco {
 
-// Creates and owns various filament objects based on the data in a mjrContext.
+// Creates and owns various filament objects based on the mjModel.
 class ModelObjects {
  public:
   ModelObjects(const mjModel* model, filament::Engine* engine);
@@ -58,10 +55,6 @@ class ModelObjects {
 
   void CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom);
 
-  // Returns the filament engine used by the ModelObjects to create filament
-  // objects.
-  filament::Engine* GetEngine() const { return engine_; }
-
   // Returns the cached instance of a filament object created from the mjModel.
   const Mesh* GetShapeBuffer(ShapeType shape) const;
   const Mesh* GetMeshBuffer(int data_id) const;
@@ -69,9 +62,7 @@ class ModelObjects {
   const Mesh* GetFlexSkinGeomMesh(int geom_id) const;
   const Texture* GetTexture(int tex_id) const;
   const Texture* GetTexture(int mat_id, int role) const;
-
-  filament::Skybox* CreateSkybox();
-  filament::IndirectLight* CreateIndirectLight(int tex_id, float intensity);
+  const Texture* GetSkyboxTexture() const;
 
   float GetSpecularMultiplier() const { return specular_multiplier_; }
   float GetShininessMultiplier() const { return shininess_multiplier_; }
@@ -85,8 +76,6 @@ class ModelObjects {
  private:
   const mjModel* model_ = nullptr;
   filament::Engine* engine_ = nullptr;
-  std::vector<filament::Skybox*> skyboxes_;
-  std::vector<filament::IndirectLight*> indirect_lights_;
   std::array<std::unique_ptr<Mesh>, kNumShapes> shapes_;
   std::unordered_map<int, std::unique_ptr<Mesh>> meshes_;
   std::unordered_map<int, std::unique_ptr<Mesh>> convex_hulls_;

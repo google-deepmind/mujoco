@@ -22,20 +22,12 @@
 #include <filament/Engine.h>
 #include <filament/Texture.h>
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
-// Defines the basic properties of a render target.
-struct mjrRenderTargetConfig {
-  mjrPixelFormat color_format;
-  mjrPixelFormat depth_format;
-};
-
-// Initializes the RenderTargetConfig to default values.
-void mjr_defaultRenderTargetConfig(mjrRenderTargetConfig* config);
-
 // Manages a filament RenderTarget and the textures which are bound to it.
-class RenderTarget {
+class RenderTarget : public mjrRenderTarget {
  public:
   // Defines the types of textures to create for the color and depth
   // attachments.
@@ -61,6 +53,13 @@ class RenderTarget {
 
   // Returns the underlying filament render target.
   filament::RenderTarget* GetFilamentRenderTarget() const;
+
+  static RenderTarget* downcast(mjrRenderTarget* render_target) {
+    return static_cast<RenderTarget*>(render_target);
+  }
+  static const RenderTarget* downcast(const mjrRenderTarget* render_target) {
+    return static_cast<const RenderTarget*>(render_target);
+  }
 
  private:
   void Destroy();

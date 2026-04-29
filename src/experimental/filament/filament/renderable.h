@@ -24,28 +24,13 @@
 #include <filament/Scene.h>
 #include <math/mat4.h>
 #include <utils/Entity.h>
-#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
-
-// The shading model (material) for a Renderable.
-typedef enum mjrShadingModel_ {
-  mjSHADING_MODEL_SCENE_OBJECT,
-  mjSHADING_MODEL_DECOR,
-  mjSHADING_MODEL_DECOR_LINES,
-  mjSHADING_MODEL_UX,
-} mjrShadingModel;
-
-// Configuration parameters for a Renderable.
-struct mjrRenderableParams {
-  mjrShadingModel shading_model;
-};
-
-void mjr_defaultRenderableParams(mjrRenderableParams* params);
 
 // A Renderable is effectively two things: a mesh and a material.
 //
@@ -61,7 +46,7 @@ void mjr_defaultRenderableParams(mjrRenderableParams* params);
 // the user specifies the MaterialParams and MaterialTextures to use with the
 // ShadingModel. Its these properties that ultimately define the actual material
 // of the Renderable.
-class Renderable {
+class Renderable : public mjrRenderable {
  public:
   // Default filament values for priority and layer mask.
   static constexpr std::uint8_t kDefaultPriority = 4;
@@ -124,7 +109,7 @@ class Renderable {
 
   // Further defines the material of the renderable. Only applies to renderables
   // with a SceneObject shading model.
-  void SetDrawMode(DrawMode mode);
+  void SetDrawMode(mjrDrawMode mode);
 
   // Updates the parameters for the material.
   void UpdateMaterial(const mjrMaterialParams& params,
@@ -139,6 +124,13 @@ class Renderable {
   // Returns the filament Engine managing the renderables.
   filament::Engine* GetEngine();
 
+  static Renderable* downcast(mjrRenderable* renderable) {
+    return static_cast<Renderable*>(renderable);
+  }
+  static const Renderable* downcast(const mjrRenderable* renderable) {
+    return static_cast<const Renderable*>(renderable);
+  }
+
  private:
   struct Part {
     utils::Entity entity;
@@ -149,16 +141,16 @@ class Renderable {
 
   void InitPartEntity(Part& part);
 
-  void AssignMaterial(DrawMode mode, ObjectManager::MaterialType material_type);
+  void AssignMaterial(mjrDrawMode mode, ObjectManager::MaterialType material_type);
 
   ObjectManager::MaterialType GetColorMaterialType() const;
 
   ObjectManager* object_mgr_;
   mjrRenderableParams params_;
-  filament::MaterialInstance* instances_[kNumDrawModes] = {nullptr};
+  filament::MaterialInstance* instances_[mjNUM_DRAW_MODES] = {nullptr};
   mjrMaterialParams material_params_;
   mjrMaterialTextures material_textures_;
-  DrawMode draw_mode_ = DrawMode::Color;
+  mjrDrawMode draw_mode_ = mjDRAW_MODE_COLOR;
   filament::Scene* assigned_scene_ = nullptr;
   std::vector<Part> parts_;
   filament::math::mat4f transform_;

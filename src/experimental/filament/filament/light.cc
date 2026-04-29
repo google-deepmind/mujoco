@@ -27,26 +27,12 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
 using filament::math::float3;
 using filament::math::mat3f;
-
-void mjr_defaultLightParams(mjrLightParams* params) {
-  params->type = mjLIGHT_POINT;
-  params->texture = nullptr;
-  params->color[0] = 0;
-  params->color[1] = 0;
-  params->color[2] = 0;
-  params->intensity = 0.0f;
-  params->cast_shadows = true;
-  params->range = 10.0f;
-  params->spot_cone_angle = 180.f;
-  params->bulb_radius = 0.0f;
-  params->shadow_map_size = 2048;
-  params->vsm_blur_width = 0.0f;
-}
 
 Light::Light(filament::Engine* engine, const mjrLightParams& params)
     : engine_(engine), params_(params) {
@@ -56,9 +42,10 @@ Light::Light(filament::Engine* engine, const mjrLightParams& params)
     filament::IndirectLight::Builder builder;
     if (params.texture) {
       // Allow null textures for fallback lights.
-      builder.reflections(params.texture->GetFilamentTexture());
+      const Texture* texture = Texture::downcast(params.texture);
+      builder.reflections(texture->GetFilamentTexture());
       const Texture::SphericalHarmonics* spherical_harmonics =
-          params.texture->GetSphericalHarmonics();
+          texture->GetSphericalHarmonics();
       if (spherical_harmonics != nullptr) {
         builder.irradiance(3, *spherical_harmonics);
       }

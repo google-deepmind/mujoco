@@ -72,13 +72,11 @@ static void SelectParentPerturb(const mjModel* model, mjvPerturb& perturb) {
 }
 
 static constexpr const char* ICON_COPY_CAMERA = platform::ICON_FA_COPY;
-static constexpr const char* ICON_UNLOAD_MODEL = platform::ICON_FA_EJECT;
 static constexpr const char* ICON_RELOAD_MODEL = platform::ICON_FA_REFRESH;
 static constexpr const char* ICON_RESET_MODEL = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_PREV_FRAME = platform::ICON_FA_CARET_LEFT;
 static constexpr const char* ICON_NEXT_FRAME = platform::ICON_FA_CARET_RIGHT;
 static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
-static constexpr const char* ICON_RELOAD_SPEC = platform::ICON_FA_REFRESH;
 static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
@@ -580,6 +578,14 @@ void App::HandleKeyboardEvents() {
     tmp_.inspector_panel = !tmp_.inspector_panel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab)) {
     tmp_.options_panel = !tmp_.options_panel;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Minus | ImGuiMod_Ctrl)) {
+    float old_scale = ui_.font_scale;
+    ui_.font_scale = std::clamp(ui_.font_scale - 0.1f, 0.5f, 3.0f);
+    platform::RescaleDock(ui_.font_scale / old_scale);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal | ImGuiMod_Ctrl)) {
+    float old_scale = ui_.font_scale;
+    ui_.font_scale = std::clamp(ui_.font_scale + 0.1f, 0.5f, 3.0f);
+    platform::RescaleDock(ui_.font_scale / old_scale);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Minus)) {
     SetSpeedIndex(tmp_.speed_index + 1);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal)) {
@@ -825,6 +831,8 @@ void App::BuildGui() {
     platform::SetupTheme(ui_.theme);
   }
 
+  ImGui::GetIO().FontGlobalScale = ui_.font_scale;
+
   const ImVec4 workspace_rect = platform::ConfigureDockingLayout();
 
   // Place charts in bottom right corner of the workspace.
@@ -884,8 +892,12 @@ void App::BuildGui() {
     ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Performance", &tmp_.chart_performance)) {
-      profiler_.CpuTimeGraph();
-      profiler_.DimensionsGraph();
+      auto layout = platform::ImPlot_ComputePairLayout();
+      profiler_.CpuTimeGraph(layout.plot_size);
+      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
+        ImGui::SameLine();
+      }
+      profiler_.DimensionsGraph(layout.plot_size);
     }
     ImGui::End();
   }
@@ -894,8 +906,12 @@ void App::BuildGui() {
     ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
-      platform::CountsGui(model(), data());
-      platform::ConvergenceGui(model(), data());
+      auto layout = platform::ImPlot_ComputePairLayout();
+      platform::CountsGui(model(), data(), layout.plot_size);
+      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
+        ImGui::SameLine();
+      }
+      platform::ConvergenceGui(model(), data(), layout.plot_size);
     }
     ImGui::End();
   }
@@ -1011,14 +1027,14 @@ void App::ModelOptionsGui() {
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Physics Settings", node_flags)) {
+  if (ImGui::TreeNodeEx("Physics", node_flags)) {
     platform::PhysicsGui(model(), min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("RenderingGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Rendering Settings", node_flags)) {
+  if (ImGui::TreeNodeEx("Rendering", node_flags)) {
     platform::RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
                            min_width);
     ImGui::TreePop();
@@ -1394,13 +1410,12 @@ void App::HelpGui() {
 }
 
 void App::ToolBarGui() {
+  ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
   if (ImGui::BeginTable("##ToolBarTable", 2)) {
     platform::ScopedStyle style;
-    const ImColor red(220, 40, 40, 255);
-
-    const float scale = ImGui::GetWindowDpiScale();
-    const ImVec2 button_size(48.f * scale, 32.f * scale);
-    const ImVec2 play_button_size(80.f * scale, 32.f * scale);
+    style.Var(ImGuiStyleVar_ItemSpacing,
+              ImVec2(ImGui::GetStyle().ItemSpacing.x * 2.0f,
+                     ImGui::GetStyle().ItemSpacing.y));
 
     const float label_width = GetExpectedLabelWidth();
     const float copy_btn_width = ImGui::CalcTextSize(ICON_COPY_CAMERA).x +
@@ -1412,56 +1427,40 @@ void App::ToolBarGui() {
     const float right_width = label_width + sp + label_width + sp +
                               label_width + sp + copy_btn_width + sp +
                               theme_width;
-    const float separator_width = .2f * button_size.x;
+    const float separator_width = ImGui::GetFrameHeight() * .6f;
 
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, right_width);
 
     ImGui::TableNextColumn();
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetStyle().WindowPadding.x);
 
-    // Combined (Unload, Reload) widget
+    const float btn_size = ImGui::GetFrameHeight();
+    const ImVec2 square_size(btn_size, btn_size);
+
+    // Reload button.
     {
       style.Var(ImGuiStyleVar_FrameRounding, 2.0f);
-
-      // Unload button.
-      {
-        const ImColor a = red;
-        const ImColor h(a.Value.x, a.Value.y, a.Value.z, a.Value.w * 0.6f);
-        style.Color(ImGuiCol_ButtonHovered, h);
-        style.Color(ImGuiCol_ButtonActive, a);
-
-        if (ImGui::Button(ICON_UNLOAD_MODEL, button_size)) {
-          InitEmptyModel();
-        }
-        ImGui::SetItemTooltip("%s", "Unload");
-        style.Reset();
-      }
-
-      // Reload button.
-      ImGui::SameLine(0, 0);
-      if (ImGui::Button(ICON_RELOAD_MODEL, button_size)) {
+      if (ImGui::Button(ICON_RELOAD_MODEL, square_size)) {
         RequestModelReload();
       }
       ImGui::SetItemTooltip("%s", "Reload");
     }
 
     // Reset button.
-    ImGui::SameLine(0, separator_width);
-    if (ImGui::Button(ICON_RESET_MODEL, button_size)) {
+    ImGui::SameLine(0, 0.5 * separator_width);
+    if (ImGui::Button(ICON_RESET_MODEL, square_size)) {
       ResetPhysics();
     }
     ImGui::SetItemTooltip("%s", "Reset");
-
 
     // Combined (Normal Pause, Viscous Pause, Play) widget and Speed selection.
     ImGui::SameLine(0, separator_width);
     platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
 
     ImGui::TableNextColumn();
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                         (button_size.y - ImGui::GetFrameHeight()) * 0.5f);
 
-    if (ImGui::Button(ICON_COPY_CAMERA)) {
+    if (ImGui::Button(ICON_COPY_CAMERA, square_size)) {
       std::string camera_string = platform::CameraToString(data(), &camera_);
       platform::MaybeSaveToClipboard(camera_string);
     }
@@ -1481,13 +1480,14 @@ void App::ToolBarGui() {
 
     ImGui::SameLine();
     ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-    if (platform::ThemeSelectGui(&ui_.theme)) {
+    if (platform::ThemeSelectGui(&ui_.theme, square_size)) {
       platform::SetupTheme(ui_.theme);
       ImGui::GetIO().WantSaveIniSettings = true;
     }
 
     ImGui::EndTable();
   }
+  ImGui::PopStyleVar();
 }
 
 void App::StatusBarGui() {
@@ -1851,11 +1851,13 @@ float App::GetExpectedLabelWidth() {
 App::UiState::Dict App::UiState::ToDict() const {
   return {
       {"theme", std::to_string(static_cast<int>(theme))},
+      {"font_scale", std::to_string(font_scale)},
   };
 }
 
 void App::UiState::FromDict(const Dict& dict) {
   *this = UiState();
   theme = ReadIniValue(dict, "theme", theme);
+  font_scale = platform::ReadIniValue(dict, "font_scale", font_scale);
 }
 }  // namespace mujoco::studio

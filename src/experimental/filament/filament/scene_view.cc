@@ -40,23 +40,18 @@
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
-#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/light.h"
-#include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
 using filament::math::float3;
 using filament::math::float4;
 using filament::math::mat4;
-
-static constexpr int kNormalIndex = static_cast<int>(DrawMode::Color);
-static constexpr int kDepthIndex = static_cast<int>(DrawMode::Depth);
-static constexpr int kSegmentIndex = static_cast<int>(DrawMode::Segmentation);
 
 static filament::ColorGrading::Builder ToBuilder(
     const ColorGradingOptions& opts) {
@@ -146,11 +141,11 @@ SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
 
   // Disable post processing for the depth and segmentation views to preserve
   // the values.
-  views_[kDepthIndex]->setPostProcessingEnabled(false);
-  views_[kSegmentIndex]->setPostProcessingEnabled(false);
+  views_[mjDRAW_MODE_DEPTH]->setPostProcessingEnabled(false);
+  views_[mjDRAW_MODE_SEGMENTATION]->setPostProcessingEnabled(false);
 
   // Rotate the fog to align with mujoco's +Z up space.
-  auto fog = views_[kNormalIndex]->getFogEntity();
+  auto fog = views_[mjDRAW_MODE_COLOR]->getFogEntity();
   auto& tm = engine->getTransformManager();
   tm.create(fog);
   tm.setTransform(tm.getInstance(fog),
@@ -158,6 +153,10 @@ SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
 }
 
 SceneView::~SceneView() {
+  if (skybox_) {
+    scene_->setSkybox(nullptr);
+    engine_->destroy(skybox_);
+  }
   for (auto& light : lights_) {
     light->RemoveFromScene(scene_);
   }
@@ -210,15 +209,17 @@ void SceneView::RemoveFromScene(Renderable* renderable) {
   }
 }
 
-void SceneView::AddToScene(filament::Skybox* skybox) {
-  skybox_ = skybox;
-  scene_->setSkybox(skybox);
-}
-
-void SceneView::RemoveFromScene(filament::Skybox* skybox) {
-  if (skybox_ == skybox) {
-    skybox_ = nullptr;
+void SceneView::SetSkybox(const Texture* skybox_texture) {
+  if (skybox_) {
     scene_->setSkybox(nullptr);
+    engine_->destroy(skybox_);
+    skybox_ = nullptr;
+  }
+  if (skybox_texture) {
+    filament::Skybox::Builder builder;
+    builder.environment(skybox_texture->GetFilamentTexture());
+    skybox_ = builder.build(*engine_);
+    scene_->setSkybox(skybox_);
   }
 }
 
@@ -249,7 +250,7 @@ void SceneView::Render(filament::Renderer* renderer,
   }
 
   // Render reflection passes.
-  if (request.draw_mode == DrawMode::Color && reflections_enabled_) {
+  if (request.draw_mode == mjDRAW_MODE_COLOR && reflections_enabled_) {
     for (size_t i = 0; i < reflectives_.size(); ++i) {
       Renderable* renderable = reflectives_[i];
 
@@ -311,7 +312,7 @@ void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
   auto color_grading = ToBuilder(color_grading_options_)
                            .toneMapper(tone_mapper.get())
                            .build(*engine_);
-  views_[kNormalIndex]->setColorGrading(color_grading);
+  views_[mjDRAW_MODE_COLOR]->setColorGrading(color_grading);
   if (color_grading_) {
     engine_->destroy(color_grading_);
   }
@@ -320,11 +321,11 @@ void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
 }
 
 void SceneView::EnableShadows() {
-  views_[kNormalIndex]->setShadowingEnabled(true);
+  views_[mjDRAW_MODE_COLOR]->setShadowingEnabled(true);
 }
 
 void SceneView::DisableShadows() {
-  views_[kNormalIndex]->setShadowingEnabled(false);
+  views_[mjDRAW_MODE_COLOR]->setShadowingEnabled(false);
 }
 
 void SceneView::EnableReflections() {
@@ -345,19 +346,18 @@ void SceneView::DisableReflections() {
     textures.reflection = nullptr;
     renderable->UpdateMaterial(renderable->GetMaterialParams(), textures);
   }
-
 }
 
 void SceneView::EnablePostProcessing() {
-  views_[kNormalIndex]->setPostProcessingEnabled(true);
+  views_[mjDRAW_MODE_COLOR]->setPostProcessingEnabled(true);
 }
 
 void SceneView::DisablePostProcessing() {
-  views_[kNormalIndex]->setPostProcessingEnabled(false);
+  views_[mjDRAW_MODE_COLOR]->setPostProcessingEnabled(false);
 }
 
 filament::View* SceneView::GetDefaultRenderView() {
-  return views_[kNormalIndex];
+  return views_[mjDRAW_MODE_COLOR];
 }
 
 ColorGradingOptions SceneView::GetColorGradingOptions() const {

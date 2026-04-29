@@ -953,7 +953,7 @@ static void solve_threaded(const mjModel* m, mjData* d, int flg_Newton) {
 // compute efc_b, efc_force, qfrc_constraint; update qacc
 void mj_fwdConstraint(const mjModel* m, mjData* d) {
   TM_START;
-  int nv = m->nv, nefc = d->nefc, nisland = d->nisland;
+  int nv = m->nv, nefc = d->nefc, nisland = d->nisland, nidof;
 
   // always clear qfrc_constraint
   mju_zero(d->qfrc_constraint, nv);
@@ -970,50 +970,69 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   mj_mulJacVec(m, d, d->efc_b, d->qacc_smooth);
   mju_subFrom(d->efc_b, d->efc_aref, nefc);
 
+  // check for invalid solver type
+  if (m->opt.solver != mjSOL_PGS && m->opt.solver != mjSOL_CG && m->opt.solver != mjSOL_NEWTON) {
+    mjERROR("unknown solver type %d", m->opt.solver);
+  }
+
   // warmstart solver
   warmstart(m, d);
   mju_zeroInt(d->solver_niter, mjNISLAND);
 
   // check if islands are supported
-  int islands_supported = !mjDISABLED(mjDSBL_ISLAND)    &&
-                          nisland > 0                   &&
-                          m->opt.noslip_iterations == 0 &&
-                          (m->opt.solver == mjSOL_CG || m->opt.solver == mjSOL_NEWTON);
+  int islands_supported = !mjDISABLED(mjDSBL_ISLAND) && nisland > 0;
 
   // run solver over constraint islands
   if (islands_supported) {
-    int nidof = d->nidof;
-
-    // copy inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
-    mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
-    mju_gather(d->ifrc_constraint, d->qfrc_constraint, d->map_idof2dof, nidof);
-    mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
-    mju_gather(d->iacc,            d->qacc,            d->map_idof2dof, nidof);
-    mju_gather(d->iefc_force,      d->efc_force,       d->map_iefc2efc, nefc);
-    mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
-
-    // solve per island, with or without threads
-    if (!d->threadpool) {
-      // no threadpool, loop over islands
+    switch ((mjtSolver) m->opt.solver) {
+    case mjSOL_PGS:
       for (int island=0; island < nisland; island++) {
-        if (m->opt.solver == mjSOL_NEWTON) {
-          mj_solNewton_island(m, d, island, m->opt.iterations);
-        } else {
-          mj_solCG_island(m, d, island, m->opt.iterations);
-        }
+        mj_solPGS_island(m, d, island, m->opt.iterations);
       }
-    } else {
-      // have threadpool, solve using threads
-      solve_threaded(m, d, m->opt.solver == mjSOL_NEWTON);
+      break;
+
+    case mjSOL_CG:
+    case mjSOL_NEWTON:
+      // copy inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
+      nidof = d->nidof;
+      mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
+      mju_gather(d->ifrc_constraint, d->qfrc_constraint, d->map_idof2dof, nidof);
+      mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
+      mju_gather(d->iacc,            d->qacc,            d->map_idof2dof, nidof);
+      mju_gather(d->iefc_force,      d->efc_force,       d->map_iefc2efc, nefc);
+      mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
+
+      // solve per island, with or without threads
+      if (!d->threadpool) {
+        // no threadpool, loop over islands
+        for (int island=0; island < nisland; island++) {
+          if (m->opt.solver == mjSOL_NEWTON) {
+            mj_solNewton_island(m, d, island, m->opt.iterations);
+          } else {
+            mj_solCG_island(m, d, island, m->opt.iterations);
+          }
+        }
+      } else {
+        // have threadpool, solve using threads
+        solve_threaded(m, d, m->opt.solver == mjSOL_NEWTON);
+      }
+
+      // copy back solver outputs (scatter dofs since ni <= nv)
+      mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);
+      mju_scatter(d->qfrc_constraint, d->ifrc_constraint, d->map_idof2dof, nidof);
+      mju_gather(d->efc_force, d->iefc_force, d->map_efc2iefc, nefc);
+      break;
     }
 
-    // copy back solver outputs (scatter dofs since ni <= nv)
-    mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);
-    mju_scatter(d->qfrc_constraint, d->ifrc_constraint, d->map_idof2dof, nidof);
-    mju_gather(d->efc_force, d->iefc_force, d->map_efc2iefc, nefc);
+    // run noslip solver per island if enabled
+    if (m->opt.noslip_iterations > 0) {
+      for (int island=0; island < nisland; island++) {
+        mj_solNoSlip_island(m, d, island, m->opt.noslip_iterations);
+      }
+    }
   }
 
-  // run solver over all constraints
+  // run solver over all constraints (monolithic)
   else {
     switch ((mjtSolver) m->opt.solver) {
     case mjSOL_PGS:                     // PGS
@@ -1027,15 +1046,17 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     case mjSOL_NEWTON:                  // Newton
       mj_solNewton(m, d, m->opt.iterations);
       break;
+    }
 
-    default:
-      mjERROR("unknown solver type %d", m->opt.solver);
+    // run noslip solver if enabled
+    if (m->opt.noslip_iterations > 0) {
+      mj_solNoSlip(m, d, m->opt.noslip_iterations);
     }
   }
 
-  // run noslip solver if enabled
-  if (m->opt.noslip_iterations > 0) {
-    mj_solNoSlip(m, d, m->opt.noslip_iterations);
+  // dual solvers: map efc_force to joint space (always monolithic)
+  if (m->opt.solver == mjSOL_PGS || m->opt.noslip_iterations > 0) {
+    mj_dualFinish(m, d);
   }
 
   TM_END(mjTIMER_CONSTRAINT);

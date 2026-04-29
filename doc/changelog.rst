@@ -2,6 +2,16 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+- Added island support for the :ref:`PGS solver<soAlgorithms>`.
+
+Python
+^^^^^^
+
+- Added ``MjSpec.encode`` method, wrapping :ref:`mj_encode`.
+
 Version 3.8.0 (April 24, 2026)
 ------------------------------
 

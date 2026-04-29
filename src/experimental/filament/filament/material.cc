@@ -14,8 +14,6 @@
 
 #include "experimental/filament/filament/material.h"
 
-#include <array>
-
 #include <filament/Color.h>
 #include <filament/Material.h>
 #include <filament/MaterialInstance.h>
@@ -25,44 +23,9 @@
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
-
-template <int N>
-static void setf(float (&arr)[N], const std::array<float, N>& values) {
-  for (int i = 0; i < N; ++i) {
-    arr[i] = values[i];
-  }
-}
-
-void mjr_defaultMaterialTextures(mjrMaterialTextures* textures) {
-  textures->color = nullptr;
-  textures->normal = nullptr;
-  textures->metallic = nullptr;
-  textures->roughness = nullptr;
-  textures->occlusion = nullptr;
-  textures->orm = nullptr;
-  textures->emissive = nullptr;
-  textures->reflection = nullptr;
-}
-
-void mjr_defaultMaterialParams(mjrMaterialParams* params) {
-  setf(params->color, {1.f, 1.f, 1.f, 1.f});
-  setf(params->segmentation_color, {1, 1, 1, 1});
-  setf(params->uv_scale, {1, 1, 1});
-  setf(params->uv_offset, {0, 0, 0});
-  setf(params->scissor, {0, 0, 0, 0});
-
-  params->emissive = -1.0f;
-  params->specular = -1.0f;
-  params->glossiness = -1.0f;
-  params->metallic = -1.0f;
-  params->roughness = -1.0f;
-  params->reflectance = 0.0f;
-  params->tex_uniform = false;
-  params->reflective = false;
-}
-
 
 void UpdateMaterialInstance(filament::MaterialInstance* instance,
                             const mjrMaterialParams& params,
@@ -118,11 +81,12 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
   sampler.setMinFilter(
       filament::TextureSampler::MinFilter::LINEAR_MIPMAP_LINEAR);
 
-  auto TrySetTexture = [&](const char* name, const Texture* texture,
+  auto TrySetTexture = [&](const char* name, const mjrTexture* texture,
                            mjtTextureRole role) {
     if (material->hasParameter(name)) {
       if (texture != nullptr) {
-        instance->setParameter(name, texture->GetFilamentTexture(), sampler);
+        instance->setParameter(
+            name, Texture::downcast(texture)->GetFilamentTexture(), sampler);
       } else {
         instance->setParameter(name, object_mgr->GetFallbackTexture(role),
                                sampler);

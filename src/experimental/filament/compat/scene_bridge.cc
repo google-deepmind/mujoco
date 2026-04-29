@@ -322,10 +322,7 @@ void SceneBridge::PrepareLights() {
     }
   }
 
-  filament::Skybox* skybox = model_objects_->CreateSkybox();
-  if (skybox) {
-    scene_view_->AddToScene(skybox);
-  }
+  scene_view_->SetSkybox(model_objects_->GetSkyboxTexture());
 }
 
 filament::math::mat4 CalculateClipFromWorld(const mjrRect& viewport,

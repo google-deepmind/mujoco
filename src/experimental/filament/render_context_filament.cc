@@ -14,6 +14,7 @@
 
 #include "experimental/filament/render_context_filament.h"
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 
@@ -36,10 +37,89 @@ static void CheckFilamentContext() {
   }
 }
 
+template <int N>
+static void setf(float (&arr)[N], const std::array<float, N>& values) {
+  for (int i = 0; i < N; ++i) {
+    arr[i] = values[i];
+  }
+}
+
+
 extern "C" {
 
 void mjrf_defaultFilamentConfig(mjrFilamentConfig* config) {
   memset(config, 0, sizeof(mjrFilamentConfig));
+}
+
+void mjr_defaultTextureData(mjrTextureData* data) {
+  memset(data, 0, sizeof(mjrTextureData));
+}
+
+void mjr_defaultTextureConfig(mjrTextureConfig* config) {
+  memset(config, 0, sizeof(mjrTextureConfig));
+}
+
+void mjr_defaultMeshData(mjrMeshData* data) {
+  std::memset(data, 0, sizeof(mjrMeshData));
+}
+
+void mjr_defaultLightParams(mjrLightParams* params) {
+  params->type = mjLIGHT_POINT;
+  params->texture = nullptr;
+  params->color[0] = 0;
+  params->color[1] = 0;
+  params->color[2] = 0;
+  params->intensity = 0.0f;
+  params->cast_shadows = true;
+  params->range = 10.0f;
+  params->spot_cone_angle = 180.f;
+  params->bulb_radius = 0.0f;
+  params->shadow_map_size = 2048;
+  params->vsm_blur_width = 0.0f;
+}
+
+void mjr_defaultMaterialTextures(mjrMaterialTextures* textures) {
+  textures->color = nullptr;
+  textures->normal = nullptr;
+  textures->metallic = nullptr;
+  textures->roughness = nullptr;
+  textures->occlusion = nullptr;
+  textures->orm = nullptr;
+  textures->emissive = nullptr;
+  textures->reflection = nullptr;
+}
+
+void mjr_defaultMaterialParams(mjrMaterialParams* params) {
+  setf(params->color, {1.f, 1.f, 1.f, 1.f});
+  setf(params->segmentation_color, {1, 1, 1, 1});
+  setf(params->uv_scale, {1, 1, 1});
+  setf(params->uv_offset, {0, 0, 0});
+  setf(params->scissor, {0, 0, 0, 0});
+  params->emissive = -1.0f;
+  params->specular = -1.0f;
+  params->glossiness = -1.0f;
+  params->metallic = -1.0f;
+  params->roughness = -1.0f;
+  params->reflectance = 0.0f;
+  params->tex_uniform = false;
+  params->reflective = false;
+}
+
+void mjr_defaultRenderableParams(mjrRenderableParams* params) {
+  params->shading_model = mjSHADING_MODEL_SCENE_OBJECT;
+}
+
+void mjr_defaultRenderTargetConfig(mjrRenderTargetConfig* config) {
+  config->color_format = mjPIXEL_FORMAT_RGBA8;
+  config->depth_format = mjPIXEL_FORMAT_DEPTH32F;
+}
+
+void mjr_defaultRenderRequest(mjrRenderRequest* request) {
+  memset(request, 0, sizeof(mjrRenderRequest));
+}
+
+void mjr_defaultReadPixelsRequest(mjrReadPixelsRequest* request) {
+  memset(request, 0, sizeof(mjrReadPixelsRequest));
 }
 
 void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,

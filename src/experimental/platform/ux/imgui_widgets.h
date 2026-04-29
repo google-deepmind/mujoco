@@ -27,6 +27,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
+#include <implot.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/ux/enum_utils.h"
 
@@ -550,6 +551,55 @@ inline bool ImGui_ColorButton(const char* label, bool active, ImColor color,
   return ImGui::Button(label, size);
 }
 
+// Like ImGui_ColorButton, but with per-corner rounding control via ImDrawFlags.
+// Use ImDrawFlags_RoundCornersLeft, ImDrawFlags_RoundCornersRight,
+// ImDrawFlags_RoundCornersNone, ImDrawFlags_RoundCornersAll, etc.
+inline bool ImGui_ColorButtonEx(const char* label, bool active, ImColor color,
+                                ImDrawFlags corners,
+                                const ImVec2& size = ImVec2(0, 0),
+                                float hover_alpha = 0.5f) {
+  const ImGuiStyle& s = ImGui::GetStyle();
+  const ImVec2 label_size = ImGui::CalcTextSize(label, nullptr, true);
+  const ImVec2 btn_size(
+      size.x > 0 ? size.x : label_size.x + s.FramePadding.x * 2,
+      size.y > 0 ? size.y : label_size.y + s.FramePadding.y * 2);
+
+  const ImVec2 pos = ImGui::GetCursorScreenPos();
+  ImGui::InvisibleButton(label, btn_size);
+  const bool clicked = ImGui::IsItemClicked();
+  const bool hovered = ImGui::IsItemHovered();
+
+  // Determine background color.
+  const ImColor hover_color(color.Value.x, color.Value.y, color.Value.z,
+                            color.Value.w * hover_alpha);
+  ImColor bg;
+  if (active) {
+    bg = color;
+  } else if (hovered) {
+    bg = hover_color;
+  } else {
+    bg = ImGui::GetColorU32(ImGuiCol_Button);
+  }
+
+  // Draw background with per-corner rounding.
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  const ImVec2 max(pos.x + btn_size.x, pos.y + btn_size.y);
+  dl->AddRectFilled(pos, max, bg, s.FrameRounding, corners);
+
+  // Draw border.
+  if (s.FrameBorderSize > 0) {
+    dl->AddRect(pos, max, ImGui::GetColorU32(ImGuiCol_Border),
+                s.FrameRounding, corners, s.FrameBorderSize);
+  }
+
+  // Draw label centered.
+  const ImVec2 text_pos(pos.x + (btn_size.x - label_size.x) * 0.5f,
+                        pos.y + (btn_size.y - label_size.y) * 0.5f);
+  dl->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_Text), label);
+
+  return clicked;
+}
+
 // Begin a boxed section with outer borders - use EndBoxSection to close.
 inline bool BeginBoxSection(const char* id, ImGuiTableFlags extra_flags = 0) {
   ImGuiTableFlags flags = ImGuiTableFlags_BordersOuter | extra_flags;
@@ -565,6 +615,46 @@ inline void EndBoxSection() { ImGui::EndTable(); }
 
 // Saves the given contents to the clipboard if the clipboard is available.
 void MaybeSaveToClipboard(const std::string& contents);
+
+// Returns plot flags with title/legend conditionally hidden when the plot
+// area is too small.  `plot_size` is the final rendered size of the plot.
+ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size);
+
+// Sets up the X axis as a "time/frame" axis.
+// Hides tick labels when the plot is narrow.
+// Uses `label` as the axis label (empty string to hide) and auto-fit limits.
+void ImPlot_SetupTimeAxis(
+    ImVec2 plot_size, const char* label = "",
+    ImPlotAxisFlags extra_flags = ImPlotAxisFlags_AutoFit);
+
+// Sets up a Y axis with auto-fit limits.
+// Hides tick labels when the plot is short.
+void ImPlot_SetupValueAxis(
+    ImVec2 plot_size, const char* label = "", const char* format = nullptr,
+    ImPlotAxisFlags extra_flags = ImPlotAxisFlags_AutoFit);
+
+// Sets up a Y axis with fixed limits and optional explicit ticks.
+// Hides tick labels when the plot is short.
+void ImPlot_SetupFixedAxis(ImVec2 plot_size, double y_min, double y_max,
+                           const char* label = "", const char* format = nullptr,
+                           const double* tick_values = nullptr,
+                           const char* const* tick_labels = nullptr,
+                           int n_ticks = 0);
+
+enum class ImPlotLayoutDirection {
+  kHorizontal,
+  kVertical,
+};
+
+struct ImPlotPairLayout {
+  ImVec2 plot_size;  // Size for each individual plot.
+  ImPlotLayoutDirection direction;
+};
+
+// Computes a responsive layout for two plots that share the available
+// content region.  When the region is wider than tall, the plots are placed
+// side-by-side; otherwise they are stacked vertically.
+ImPlotPairLayout ImPlot_ComputePairLayout();
 
 }  // namespace mujoco::platform
 

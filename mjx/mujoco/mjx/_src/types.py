@@ -775,6 +775,7 @@ class Model(PyTreeNode):
   mesh_texcoord: np.ndarray
   flex_vertadr: np.ndarray
   flex_vertnum: np.ndarray
+  flex_interp: np.ndarray
   flex_vert0: np.ndarray
   flex_nodeadr: np.ndarray
   flex_nodenum: np.ndarray

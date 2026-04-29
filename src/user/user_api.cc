@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <functional>
 #include <iterator>
 #include <map>
@@ -143,6 +144,18 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
 int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
               const char* content_type, const mjVFS* vfs, char* error,
               int error_sz) {
+  // TODO(shaves) Move MJCF and URDF to encoders/decoders.
+  auto filepath = mujoco::user::FilePath(filename);
+  if (filepath.Ext() == ".xml" ||
+      (content_type && std::strcmp(content_type, "text/xml") == 0)) {
+    int result = mj_saveXML(s, filename, error, error_sz);
+    if (result < 0) {
+      return -1;
+    }
+
+    return std::filesystem::file_size(filename);
+  }
+
   const mjpEncoder* encoder = mjp_findEncoder(filename, content_type);
   if (!encoder) {
     if (error) {

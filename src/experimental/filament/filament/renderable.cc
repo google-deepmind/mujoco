@@ -26,19 +26,16 @@
 #include <math/mat4.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
 using filament::math::mat4f;
-
-void mjr_defaultRenderableParams(mjrRenderableParams* params) {
-  params->shading_model = mjSHADING_MODEL_SCENE_OBJECT;
-}
 
 Renderable::Renderable(ObjectManager* object_mgr, const mjrRenderableParams& params)
     : object_mgr_(object_mgr), params_(params) {
@@ -57,7 +54,7 @@ Renderable::~Renderable() noexcept {
     engine->destroy(part.entity);
     em.destroy(part.entity);
   }
-  for (int i = 0; i < kNumDrawModes; ++i) {
+  for (int i = 0; i < mjNUM_DRAW_MODES; ++i) {
     if (instances_[i] != nullptr) {
       engine->destroy(instances_[i]);
       instances_[i] = nullptr;
@@ -206,13 +203,13 @@ void Renderable::UpdateMaterial(const mjrMaterialParams& params,
   material_params_ = params;
   material_textures_ = textures;
 
-  AssignMaterial(DrawMode::Color, GetColorMaterialType());
+  AssignMaterial(mjDRAW_MODE_COLOR, GetColorMaterialType());
   if (params_.shading_model == mjSHADING_MODEL_SCENE_OBJECT) {
-    AssignMaterial(DrawMode::Depth, ObjectManager::kUnlitDepth);
-    AssignMaterial(DrawMode::Segmentation, ObjectManager::kUnlitSegmentation);
+    AssignMaterial(mjDRAW_MODE_DEPTH, ObjectManager::kUnlitDepth);
+    AssignMaterial(mjDRAW_MODE_SEGMENTATION, ObjectManager::kUnlitSegmentation);
   }
 
-  for (int i = 0; i < kNumDrawModes; ++i) {
+  for (int i = 0; i < mjNUM_DRAW_MODES; ++i) {
     if (instances_[i]) {
       UpdateMaterialInstance(instances_[i], material_params_,
                              material_textures_, object_mgr_);
@@ -221,7 +218,7 @@ void Renderable::UpdateMaterial(const mjrMaterialParams& params,
   SetDrawMode(draw_mode_);
 }
 
-void Renderable::AssignMaterial(DrawMode mode,
+void Renderable::AssignMaterial(mjrDrawMode mode,
                                 ObjectManager::MaterialType material_type) {
   const int index = static_cast<int>(mode);
 
@@ -248,10 +245,10 @@ const mjrMaterialTextures& Renderable::GetMaterialTextures() const {
   return material_textures_;
 }
 
-void Renderable::SetDrawMode(DrawMode mode) {
+void Renderable::SetDrawMode(mjrDrawMode mode) {
   // Only SceneObjects support non-color draw modes.
   if (params_.shading_model != mjSHADING_MODEL_SCENE_OBJECT) {
-    mode = DrawMode::Color;
+    mode = mjDRAW_MODE_COLOR;
   }
 
   filament::MaterialInstance* instance = instances_[static_cast<int>(mode)];
@@ -369,6 +366,7 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
   // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if
   // it has them.
   bool has_texcoords = false;
+  const Texture* color_texture = Texture::downcast(material_textures_.color);
   if (!parts_.empty()) {
     const auto attribs = parts_[0].mesh->GetVertexAttributes();
     auto it = std::find(attribs.begin(), attribs.end(),
@@ -376,7 +374,7 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
     has_texcoords = (it != attribs.end());
   }
 
-  if (material_textures_.color == nullptr) {
+  if (color_texture == nullptr) {
     if (material_params_.color[3] < 1.0f) {
       return ObjectManager::kPhongColorFade;
     } else if (material_params_.reflective) {
@@ -384,7 +382,7 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
     } else {
       return ObjectManager::kPhongColor;
     }
-  } else if (material_textures_.color->GetFilamentTexture()->getTarget() ==
+  } else if (color_texture->GetFilamentTexture()->getTarget() ==
               filament::Texture::Sampler::SAMPLER_CUBEMAP) {
     if (material_params_.color[3] < 1.0f) {
       return ObjectManager::kPhongCubeFade;

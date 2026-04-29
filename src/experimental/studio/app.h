@@ -105,6 +105,7 @@ class App {
     int camera_idx = platform::kTumbleCameraIdx;
     int key_idx = 0;
     platform::GuiTheme theme = platform::GuiTheme::kLight;
+    float font_scale = 1.0f;
 
     using Dict = std::unordered_map<std::string, std::string>;
     Dict ToDict() const;

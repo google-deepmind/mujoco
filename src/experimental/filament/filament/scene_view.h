@@ -27,10 +27,11 @@
 #include <filament/View.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
-#include "experimental/filament/filament/draw_mode.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
@@ -39,23 +40,25 @@ namespace mujoco {
 // The filament Scene is populated with the objects (e.g. lights, renderables,
 // skybox, etc.). It manages multiple views to support a variety of draw modes
 // (e.g. normal, depth, segmentation, etc.) as well as reflective surfaces.
-class SceneView {
+class SceneView : public mjrScene {
  public:
   SceneView(filament::Engine* engine);
   ~SceneView();
+
+  SceneView(const SceneView&) = delete;
+  SceneView& operator=(const SceneView&) = delete;
 
   // Adds/removes entities from the scene.
   void AddToScene(Light* light);
   void RemoveFromScene(Light* light);
   void AddToScene(Renderable* renderable);
   void RemoveFromScene(Renderable* renderable);
-  void AddToScene(filament::Skybox* skybox);
-  void RemoveFromScene(filament::Skybox* skybox);
+  void SetSkybox(const Texture* skybox_texture);
 
   // Parameters for rendering the scene.
   struct RenderRequest {
     // The draw mode (e.g. normal, depth, segmentation) to render.
-    DrawMode draw_mode = DrawMode::Color;
+    mjrDrawMode draw_mode = mjDRAW_MODE_COLOR;
     // The target viewport for the rendered image.
     mjrRect viewport;
     // The camera from which to render the scene.
@@ -90,8 +93,12 @@ class SceneView {
   ColorGradingOptions GetColorGradingOptions() const;
   void SetColorGradingOptions(const ColorGradingOptions& opts);
 
-  SceneView(const SceneView&) = delete;
-  SceneView& operator=(const SceneView&) = delete;
+  static SceneView* downcast(mjrScene* scene) {
+    return static_cast<SceneView*>(scene);
+  }
+  static const SceneView* downcast(const mjrScene* scene) {
+    return static_cast<const SceneView*>(scene);
+  }
 
  private:
   // Marks a renderable as reflective. Reflective renderables have to be
@@ -103,7 +110,7 @@ class SceneView {
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;
   ColorGradingOptions color_grading_options_;
-  std::array<filament::View*, kNumDrawModes> views_;
+  std::array<filament::View*, mjNUM_DRAW_MODES> views_;
 
   // Scene objects.
   std::unordered_set<Light*> lights_;

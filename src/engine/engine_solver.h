@@ -35,10 +35,19 @@ void mj_solNewton(const mjModel* m, mjData* d, int maxiter);
 
 //------------------------------ per-island solvers ------------------------------------------------
 
+// PGS solver (one island, no dualFinish — caller handles it)
+void mj_solPGS_island(const mjModel* m, mjData* d, int island, int maxiter);
+
+// NoSlip solver (one island, no dualFinish — caller handles it)
+void mj_solNoSlip_island(const mjModel* m, mjData* d, int island, int maxiter);
+
 // CG solver
 void mj_solCG_island(const mjModel* m, mjData* d, int island, int maxiter);
 
 // Newton entry point
 void mj_solNewton_island(const mjModel* m, mjData* d, int island, int maxiter);
+
+// map efc_force to joint space (used after dual island dispatch)
+void mj_dualFinish(const mjModel* m, mjData* d);
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_SOLVER_H_
