@@ -90,15 +90,33 @@ SceneBridge::SceneBridge(FilamentContext* ctx, const mjModel* model)
 
   // Configure options for the normal view.
   auto cg = scene_view_->GetColorGradingOptions();
-  cg.exposure = ReadElement(model, "filament.out.exposure", cg.exposure);
-  cg.contrast = ReadElement(model, "filament.out.contrast", cg.contrast);
-  cg.vibrance = ReadElement(model, "filament.out.vibrance", cg.vibrance);
-  cg.saturation = ReadElement(model, "filament.out.saturation", cg.saturation);
-  cg.temperature = ReadElement(model, "filament.out.temperature", cg.temperature);
-  cg.tint = ReadElement(model, "filament.out.tint", cg.tint);
+  cg.exposure = ReadElement(model, "filament.cg.exposure", cg.exposure);
+  cg.contrast = ReadElement(model, "filament.cg.contrast", cg.contrast);
+  cg.vibrance = ReadElement(model, "filament.cg.vibrance", cg.vibrance);
+  cg.saturation = ReadElement(model, "filament.cg.saturation", cg.saturation);
+  cg.temperature =
+      ReadElement(model, "filament.cg.temperature", cg.temperature);
+  cg.tint = ReadElement(model, "filament.cg.tint", cg.tint);
+  cg.gamut_mapping =
+      ReadElement(model, "filament.cg.gamut_mapping", cg.gamut_mapping);
+  cg.luminance_scaling =
+      ReadElement(model, "filament.cg.luminance_scaling", cg.luminance_scaling);
+  cg.slope = ReadElement(model, "filament.cg.slope", cg.slope);
+  cg.offset = ReadElement(model, "filament.cg.offset", cg.offset);
+  cg.power = ReadElement(model, "filament.cg.power", cg.power);
+  cg.shadow_gamma =
+      ReadElement(model, "filament.cg.shadow_gamma", cg.shadow_gamma);
+  cg.mid_point = ReadElement(model, "filament.cg.mid_point", cg.mid_point);
+  cg.highlight_scale =
+      ReadElement(model, "filament.cg.highlight_scale", cg.highlight_scale);
+  cg.shadows = ReadElement(model, "filament.cg.shadows", cg.shadows);
+  cg.midtones = ReadElement(model, "filament.cg.midtones", cg.midtones);
+  cg.highlights = ReadElement(model, "filament.cg.highlights", cg.highlights);
+  cg.tonal_ranges =
+      ReadElement(model, "filament.cg.tonal_ranges", cg.tonal_ranges);
 
   auto tone_mapping =
-      ReadElement<std::string_view>(model, "filament.out.tone_mapping");
+      ReadElement<std::string_view>(model, "filament.cg.tone_mapping");
   if (tone_mapping == "aces") {
     cg.tone_mapper = ToneMapperType::kACES;
   } else if (tone_mapping == "aces_legacy") {
@@ -117,11 +135,27 @@ SceneBridge::SceneBridge(FilamentContext* ctx, const mjModel* model)
   ao.enabled = ReadElement(model, "filament.ao.enabled", true);
   ao.bentNormals = ReadElement(model, "filament.ao.bent_normals", false);
   ao.ssct.enabled = ReadElement(model, "filament.ao.ssct", ao.ssct.enabled);
-  ao.quality = filament::QualityLevel::ULTRA;
-  ao.lowPassFilter = filament::QualityLevel::ULTRA;
-  ao.upsampling = filament::QualityLevel::ULTRA;
-  ao.bilateralThreshold = 0.5f;
+  ao.quality =
+      ReadElement(model, "filament.ao.quality", filament::QualityLevel::ULTRA);
+  ao.lowPassFilter = ReadElement(model, "filament.ao.low_pass_filter",
+                                 filament::QualityLevel::ULTRA);
+  ao.upsampling = ReadElement(model, "filament.ao.upsampling",
+                              filament::QualityLevel::ULTRA);
+  ao.bilateralThreshold =
+      ReadElement(model, "filament.ao.bilateral_threshold", 0.5f);
   fview->setAmbientOcclusionOptions(ao);
+
+  auto bloom = fview->getBloomOptions();
+  bloom.enabled = ReadElement(model, "filament.bloom.enabled", bloom.enabled);
+  bloom.strength =
+      ReadElement(model, "filament.bloom.strength", bloom.strength);
+  bloom.dirtStrength =
+      ReadElement(model, "filament.bloom.dirt_strength", bloom.dirtStrength);
+  bloom.quality = ReadElement(model, "filament.bloom.quality", bloom.quality);
+  bloom.resolution =
+      ReadElement(model, "filament.bloom.resolution", bloom.resolution);
+  bloom.levels = ReadElement(model, "filament.bloom.levels", bloom.levels);
+  fview->setBloomOptions(bloom);
 
   auto msaa = fview->getMultiSampleAntiAliasingOptions();
   msaa.enabled = ReadElement(model, "filament.msaa.enabled", true);
