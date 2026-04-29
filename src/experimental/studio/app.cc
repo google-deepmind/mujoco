@@ -578,6 +578,14 @@ void App::HandleKeyboardEvents() {
     tmp_.inspector_panel = !tmp_.inspector_panel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab)) {
     tmp_.options_panel = !tmp_.options_panel;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Minus | ImGuiMod_Ctrl)) {
+    float old_scale = ui_.font_scale;
+    ui_.font_scale = std::clamp(ui_.font_scale - 0.1f, 0.5f, 3.0f);
+    platform::RescaleDock(ui_.font_scale / old_scale);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal | ImGuiMod_Ctrl)) {
+    float old_scale = ui_.font_scale;
+    ui_.font_scale = std::clamp(ui_.font_scale + 0.1f, 0.5f, 3.0f);
+    platform::RescaleDock(ui_.font_scale / old_scale);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Minus)) {
     SetSpeedIndex(tmp_.speed_index + 1);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal)) {
@@ -822,6 +830,8 @@ void App::BuildGui() {
   if (!tmp_.style_editor) {
     platform::SetupTheme(ui_.theme);
   }
+
+  ImGui::GetIO().FontGlobalScale = ui_.font_scale;
 
   const ImVec4 workspace_rect = platform::ConfigureDockingLayout();
 
@@ -1841,11 +1851,13 @@ float App::GetExpectedLabelWidth() {
 App::UiState::Dict App::UiState::ToDict() const {
   return {
       {"theme", std::to_string(static_cast<int>(theme))},
+      {"font_scale", std::to_string(font_scale)},
   };
 }
 
 void App::UiState::FromDict(const Dict& dict) {
   *this = UiState();
   theme = ReadIniValue(dict, "theme", theme);
+  font_scale = platform::ReadIniValue(dict, "font_scale", font_scale);
 }
 }  // namespace mujoco::studio

@@ -213,15 +213,32 @@ void SetupTheme(GuiTheme theme) {
   s.DockingNodeHasCloseButton = false;
 }
 
+void RescaleDock(float ratio) {
+  if (ratio == 1) return;
+  ImGuiID root = ImGui::GetID("Root");
+  ImGuiDockNode* root_node = ImGui::DockBuilderGetNode(root);
+  if (root_node) {
+    struct ScaleNodes {
+      static void Apply(ImGuiDockNode* node, float r) {
+        node->SizeRef.x *= r;
+        if (node->ChildNodes[0]) Apply(node->ChildNodes[0], r);
+        if (node->ChildNodes[1]) Apply(node->ChildNodes[1], r);
+      }
+    };
+    ScaleNodes::Apply(root_node, ratio);
+  }
+}
+
 ImVec4 ConfigureDockingLayout() {
   ImGuiViewport* viewport = ImGui::GetMainViewport();
   const float scale = ImGui::GetWindowDpiScale();
+  const float font_scale = ImGui::GetIO().FontGlobalScale;
 
   const float kOptionsRelWidth = 0.22f;
   const float kInspectorRelWidth = 0.22f;
   const float kStatsRelHeight = 0.3f;
-  const float kToolsBarHeight = 36.f * scale;
-  const float kStatusBarHeight = 32.f * scale;
+  const float kToolsBarHeight = 36.f * scale * font_scale;
+  const float kStatusBarHeight = 32.f * scale * font_scale;
 
   const ImVec2 dockspace_pos{viewport->WorkPos.x,
                              viewport->WorkPos.y + kToolsBarHeight};
@@ -303,6 +320,7 @@ ImVec4 ConfigureDockingLayout() {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
+    style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
     const float toolbar_vpad =
         std::max(0.f, (kToolsBarHeight - ImGui::GetFrameHeight()) * 0.5f);
     style.Var(ImGuiStyleVar_WindowPadding, ImVec2(4, toolbar_vpad));
@@ -318,6 +336,7 @@ ImVec4 ConfigureDockingLayout() {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
+    style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
     ImGui::SetNextWindowPos(ImVec2(0, viewport->Size.y - kStatusBarHeight),
                             ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kStatusBarHeight),

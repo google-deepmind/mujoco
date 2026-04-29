@@ -42,6 +42,9 @@ enum class GuiTheme {
 // Updates the ImGui internal style state to match the requested theme.
 void SetupTheme(GuiTheme theme);
 
+// Rescales all dock node widths by the given ratio.
+void RescaleDock(float ratio);
+
 // Configures the ImGui docking module to the standard layout used by Studio.
 // This includes the following named sections:
 //   "ToolBar": fixed size bar spanning the top of the window; for placing
