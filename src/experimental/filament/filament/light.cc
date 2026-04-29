@@ -25,6 +25,7 @@
 #include <utils/Entity.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
@@ -34,8 +35,8 @@ namespace mujoco {
 using filament::math::float3;
 using filament::math::mat3f;
 
-Light::Light(filament::Engine* engine, const mjrLightParams& params)
-    : engine_(engine), params_(params) {
+Light::Light(FilamentContext* ctx, const mjrLightParams& params)
+    : engine_(ctx->GetEngine()), params_(params) {
   // Filament treats image-based lights (IBLs) as separate objects (i.e.
   // filament::IndirectLight) and so we need to handle IBLs specially.
   if (params.type == mjLIGHT_IMAGE) {

@@ -25,8 +25,8 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/model_objects.h"
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/light.h"
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
@@ -36,7 +36,7 @@ namespace mujoco {
 // Manages all mjModel data and updates a SceneView using an mjvScene.
 class SceneBridge {
  public:
-  SceneBridge(ObjectManager* object_mgr, const mjModel* model);
+  SceneBridge(FilamentContext* ctx, const mjModel* model);
   ~SceneBridge();
 
   // Updates the environment light using the KTX image at the given path.
@@ -68,8 +68,8 @@ class SceneBridge {
   std::optional<filament::math::float3> ClipFromWorld(
       const filament::math::float3& pos) const;
 
+  FilamentContext* ctx_ = nullptr;
   std::unique_ptr<SceneView> scene_view_;
-  ObjectManager* object_mgr_ = nullptr;
   std::unique_ptr<ModelObjects> model_objects_;
   std::unique_ptr<Light> fallback_ibl_;
   std::unique_ptr<Texture> fallback_ibl_texture_;

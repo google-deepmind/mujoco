@@ -20,9 +20,6 @@
 #include <numbers>
 #include <vector>
 
-#include <filament/Material.h>
-#include <filament/RenderableManager.h>
-#include <filament/Texture.h>
 #include <math/mat4.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
@@ -30,9 +27,9 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/model_objects.h"
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
@@ -343,7 +340,6 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
 
 static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
                                const mjvScene* scene, ModelObjects* model_objs,
-                               ObjectManager* object_mgr,
                                const float headpos[3]) {
   const mjModel* model = model_objs->GetModel();
 
@@ -491,7 +487,7 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
 }
 
 std::unique_ptr<Renderable> CreateGeomRenderable(
-    const mjvGeom& geom, const mjvScene* scene, ObjectManager* object_mgr,
+    const mjvGeom& geom, const mjvScene* scene, FilamentContext* ctx,
     ModelObjects* model_objs, const float headpos[3]) {
   mjrShadingModel shading_model = mjSHADING_MODEL_SCENE_OBJECT;
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
@@ -503,11 +499,9 @@ std::unique_ptr<Renderable> CreateGeomRenderable(
   mjrRenderableParams params;
   mjr_defaultRenderableParams(&params);
   params.shading_model = shading_model;
-  auto renderable = std::make_unique<Renderable>(object_mgr, params);
-
+  auto renderable = std::make_unique<Renderable>(ctx, params);
   PrepareGeomMeshes(*renderable, geom, scene, model_objs);
-  UpdateGeomMaterial(*renderable, geom, scene, model_objs, object_mgr, headpos);
-
+  UpdateGeomMaterial(*renderable, geom, scene, model_objs, headpos);
   return renderable;
 }
 }  // namespace mujoco

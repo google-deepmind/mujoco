@@ -24,7 +24,7 @@
 #include <filament/Scene.h>
 #include <math/mat4.h>
 #include <utils/Entity.h>
-#include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
@@ -52,7 +52,7 @@ class Renderable : public mjrRenderable {
   static constexpr std::uint8_t kDefaultPriority = 4;
   static constexpr std::uint8_t kDefaultLayerMask = 0x01;
 
-  Renderable(ObjectManager* object_mgr, const mjrRenderableParams& params);
+  Renderable(FilamentContext* ctx, const mjrRenderableParams& params);
   ~Renderable() noexcept;
 
   Renderable(const Renderable&) = delete;

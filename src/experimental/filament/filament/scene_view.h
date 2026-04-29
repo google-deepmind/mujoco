@@ -27,6 +27,7 @@
 #include <filament/View.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/render_target.h"
@@ -42,7 +43,7 @@ namespace mujoco {
 // (e.g. normal, depth, segmentation, etc.) as well as reflective surfaces.
 class SceneView : public mjrScene {
  public:
-  SceneView(filament::Engine* engine);
+  explicit SceneView(FilamentContext* ctx);
   ~SceneView();
 
   SceneView(const SceneView&) = delete;
@@ -71,7 +72,7 @@ class SceneView : public mjrScene {
   void Render(filament::Renderer* renderer, const RenderRequest& request);
 
   // Returns the filament Engine managing the scene.
-  filament::Engine* GetEngine() const { return engine_; }
+  filament::Engine* GetEngine() const { return ctx_->GetEngine(); }
 
   // Enables/disables shadows for the default render view.
   void EnableShadows();
@@ -105,7 +106,7 @@ class SceneView : public mjrScene {
   // rendered in their own passes to create the reflective texture.
   void AddReflectiveRenderable(Renderable* renderable);
 
-  filament::Engine* engine_ = nullptr;
+  FilamentContext* ctx_ = nullptr;
   filament::Scene* scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;

@@ -26,13 +26,15 @@
 #include <filament/RenderTarget.h>
 #include <filament/Texture.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
-RenderTarget::RenderTarget(filament::Engine* engine,
+RenderTarget::RenderTarget(FilamentContext* ctx,
                            const mjrRenderTargetConfig& config)
-    : engine_(engine), config_(config) {}
+    : ctx_(ctx), config_(config) {}
 
 RenderTarget::~RenderTarget() noexcept {
   Destroy();
@@ -56,7 +58,7 @@ void RenderTarget::Prepare(int width, int height) {
   color_config.color_space = mjCOLORSPACE_LINEAR;
   color_config.format = mjPIXEL_FORMAT_RGB8;
   color_flags.color_attachment = true;
-  color_texture_ = std::make_unique<Texture>(engine_, color_config, color_flags);
+  color_texture_ = std::make_unique<Texture>(ctx_, color_config, color_flags);
 
   mjrTextureConfig depth_config;
   mjr_defaultTextureConfig(&depth_config);
@@ -68,14 +70,14 @@ void RenderTarget::Prepare(int width, int height) {
   depth_config.color_space = mjCOLORSPACE_LINEAR;
   depth_config.format = mjPIXEL_FORMAT_DEPTH32F;
   depth_flags.depth_attachment = true;
-  depth_texture_ = std::make_unique<Texture>(engine_, depth_config, depth_flags);
+  depth_texture_ = std::make_unique<Texture>(ctx_, depth_config, depth_flags);
 
   filament::RenderTarget::Builder builder;
   builder.texture(filament::RenderTarget::AttachmentPoint::COLOR,
                   color_texture_->GetFilamentTexture());
   builder.texture(filament::RenderTarget::AttachmentPoint::DEPTH,
                   depth_texture_->GetFilamentTexture());
-  render_target_ = builder.build(*engine_);
+  render_target_ = builder.build(*ctx_->GetEngine());
 }
 
 void RenderTarget::ReadColorPixels(filament::Renderer* renderer, uint8_t* bytes,
@@ -109,7 +111,7 @@ void RenderTarget::ReadColorPixels(filament::Renderer* renderer, uint8_t* bytes,
 
 void RenderTarget::Destroy() {
   if (render_target_) {
-    engine_->destroy(render_target_);
+    ctx_->GetEngine()->destroy(render_target_);
     render_target_ = nullptr;
   }
   color_texture_.reset();

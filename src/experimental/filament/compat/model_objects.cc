@@ -32,6 +32,7 @@
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/builtins.h"
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/model_util.h"
@@ -493,21 +494,21 @@ void UpdateSkinFlexmjrMeshData(mjrMeshData* data, const mjModel* model,
   data->user_data = nullptr;
 }
 
-ModelObjects::ModelObjects(const mjModel* model, filament::Engine* engine)
-    : model_(model), engine_(engine) {
+ModelObjects::ModelObjects(const mjModel* model, FilamentContext* ctx)
+    : model_(model), ctx_(ctx) {
   const int nstack = model->vis.quality.numstacks;
   const int nslice = model->vis.quality.numslices;
   const int nquad = model->vis.quality.numquads;
-  shapes_[kLine] = CreateLine(engine_);
-  shapes_[kBox] = CreateBox(engine_, nquad);
-  shapes_[kLineBox] = CreateLineBox(engine_);
-  shapes_[kCone] = CreateCone(engine_, nstack, nslice);
-  shapes_[kDisk] = CreateDisk(engine_, nslice);
-  shapes_[kDome] = CreateDome(engine_, nstack / 2, nslice);
-  shapes_[kTube] = CreateTube(engine_, nstack, nslice);
-  shapes_[kPlane] = CreatePlane(engine_, nquad);
-  shapes_[kSphere] = CreateSphere(engine_, nstack, nslice);
-  shapes_[kTriangle] = CreateTriangle(engine_);
+  shapes_[kLine] = CreateLine(ctx_);
+  shapes_[kBox] = CreateBox(ctx_, nquad);
+  shapes_[kLineBox] = CreateLineBox(ctx_);
+  shapes_[kCone] = CreateCone(ctx_, nstack, nslice);
+  shapes_[kDisk] = CreateDisk(ctx_, nslice);
+  shapes_[kDome] = CreateDome(ctx_, nstack / 2, nslice);
+  shapes_[kTube] = CreateTube(ctx_, nstack, nslice);
+  shapes_[kPlane] = CreatePlane(ctx_, nquad);
+  shapes_[kSphere] = CreateSphere(ctx_, nstack, nslice);
+  shapes_[kTriangle] = CreateTriangle(ctx_);
 
   for (int i = 0; i < model_->ntex; ++i) {
     UploadTexture(model_, i);
@@ -545,13 +546,13 @@ void ModelObjects::UploadMesh(const mjModel* model, int id) {
   mjrMeshData data;
   mjr_defaultMeshData(&data);
   UpdatemjrMeshData(&data, model, id, MeshType::kNormal);
-  meshes_[id] = std::make_unique<Mesh>(engine_, data);
+  meshes_[id] = std::make_unique<Mesh>(ctx_, data);
 
   if (model->mesh_graphadr[id] >= 0) {
     mjrMeshData convex_hull_data;
     mjr_defaultMeshData(&convex_hull_data);
     UpdatemjrMeshData(&convex_hull_data, model, id, MeshType::kConvexHull);
-    convex_hulls_[id] = std::make_unique<Mesh>(engine_, convex_hull_data);
+    convex_hulls_[id] = std::make_unique<Mesh>(ctx_, convex_hull_data);
   }
 }
 
@@ -587,7 +588,6 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
     config.format = mjPIXEL_FORMAT_KTX;
   }
 
-
   mjrTextureData payload;
   mjr_defaultTextureData(&payload);
   payload.bytes = model->tex_data + model->tex_adr[id];
@@ -597,7 +597,7 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
   payload.user_data = nullptr;
   payload.release_callback = nullptr;
 
-  auto texture = std::make_unique<Texture>(engine_, config);
+  auto texture = std::make_unique<Texture>(ctx_, config);
   texture->Upload(payload);
   textures_[id] = std::move(texture);
 }
@@ -615,14 +615,14 @@ void ModelObjects::UploadHeightField(const mjModel* model, int id) {
   mjrMeshData data;
   mjr_defaultMeshData(&data);
   UpdatemjrMeshData(&data, model, id, MeshType::kHeightField);
-  height_fields_[id] = std::make_unique<Mesh>(engine_, data);
+  height_fields_[id] = std::make_unique<Mesh>(ctx_, data);
 }
 
 void ModelObjects::CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom) {
   mjrMeshData data;
   mjr_defaultMeshData(&data);
   UpdateSkinFlexmjrMeshData(&data, model_, scene, geom);
-  dynamic_meshes_[geom.objid] = std::make_unique<Mesh>(engine_, data);
+  dynamic_meshes_[geom.objid] = std::make_unique<Mesh>(ctx_, data);
 }
 
 const Mesh* ModelObjects::GetMeshBuffer(int data_id) const {

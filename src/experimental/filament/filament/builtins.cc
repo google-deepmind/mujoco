@@ -21,14 +21,13 @@
 #include <numbers>
 #include <vector>
 
-#include <backend/DriverEnums.h>
-#include <filament/Box.h>
-#include <filament/Engine.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
@@ -59,13 +58,13 @@ static std::size_t NumIndicesPerSide(int num_quads_per_axis) {
   return kNumIndicesPerQuad * num_quads_per_axis * num_quads_per_axis;
 }
 
-class BuiltinBuilder : mjrMeshData {
+class BuiltinBuilder : public mjrMeshData {
  public:
   BuiltinBuilder() { mjr_defaultMeshData(this); }
   virtual ~BuiltinBuilder() = default;
 
   template <typename T, typename... Args>
-  static std::unique_ptr<Mesh> Create(filament::Engine* engine,
+  static std::unique_ptr<Mesh> Create(FilamentContext* ctx,
                                       Args&&... args) {
     auto builder = new T(std::forward<Args>(args)...);
     mjrMeshData* mesh_data = builder->PrepareMeshData();
@@ -73,7 +72,7 @@ class BuiltinBuilder : mjrMeshData {
       delete static_cast<BuiltinBuilder*>(user_data);
     };
     mesh_data->user_data = builder;
-    return std::make_unique<Mesh>(engine, *mesh_data);
+    return std::make_unique<Mesh>(ctx, *mesh_data);
   }
 
   mjrMeshData* PrepareMeshData() {
@@ -89,33 +88,29 @@ class BuiltinBuilder : mjrMeshData {
 
     indices = indices_.data();
     nindices = indices_.size();
-    primitive_type =
-        primitive_type_ == filament::backend::PrimitiveType::TRIANGLES
-            ? mjMESH_PRIMITIVE_TYPE_TRIANGLES
-            : mjMESH_PRIMITIVE_TYPE_LINES;
     index_type = mjINDEX_TYPE_U16;
-    bounds_min[0] = bounds_.getMin().x;
-    bounds_min[1] = bounds_.getMin().y;
-    bounds_min[2] = bounds_.getMin().z;
-    bounds_max[0] = bounds_.getMax().x;
-    bounds_max[1] = bounds_.getMax().y;
-    bounds_max[2] = bounds_.getMax().z;
     return this;
   }
 
  protected:
+  void SetBounds(const float3& min, const float3& max) {
+    bounds_min[0] = min.x;
+    bounds_min[1] = min.y;
+    bounds_min[2] = min.z;
+    bounds_max[0] = max.x;
+    bounds_max[1] = max.y;
+    bounds_max[2] = max.z;
+  }
+
   std::vector<float3> positions_;
   std::vector<float4> orientations_;
   std::vector<uint16_t> indices_;
-  filament::Box bounds_;
-  filament::RenderableManager::PrimitiveType primitive_type_ =
-      filament::RenderableManager::PrimitiveType::TRIANGLES;
 };
 
 class LineBuilder : public BuiltinBuilder {
  public:
   LineBuilder() {
-    primitive_type_ = filament::RenderableManager::PrimitiveType::LINES;
+    primitive_type = mjMESH_PRIMITIVE_TYPE_LINES;
 
     positions_.reserve(2);
     positions_.emplace_back(0, 0, 0);
@@ -127,7 +122,7 @@ class LineBuilder : public BuiltinBuilder {
     indices_.push_back(0);
     indices_.push_back(1);
 
-    bounds_.set({0, 0, 0}, {0, 0, 1});
+    SetBounds({0, 0, 0}, {0, 0, 1});
   }
 };
 
@@ -161,7 +156,7 @@ class PlaneBuilder : public BuiltinBuilder {
       }
     }
 
-    bounds_.set({-1, -1, -0.001}, {1, 1, 0.001});
+    SetBounds({-1, -1, -0.001}, {1, 1, 0.001});
   }
 };
 
@@ -180,14 +175,14 @@ class TriangleBuilder : public BuiltinBuilder {
     indices_.emplace_back(1);
     indices_.emplace_back(2);
 
-    bounds_.set({-1, -1, -0.001}, {1, 1, 0.001});
+    SetBounds({-1, -1, -0.001}, {1, 1, 0.001});
   }
 };
 
 class LineBoxBuilder : public BuiltinBuilder {
  public:
   explicit LineBoxBuilder() {
-    primitive_type_ = filament::RenderableManager::PrimitiveType::LINES;
+    primitive_type = mjMESH_PRIMITIVE_TYPE_LINES;
 
     positions_.reserve(8);
     positions_.emplace_back(-1.0f, -1.0f, -1.0f);
@@ -229,7 +224,7 @@ class LineBoxBuilder : public BuiltinBuilder {
     indices_.push_back(1);
     indices_.push_back(5);
 
-    bounds_.set({-1, -1, -1}, {1, 1, 1});
+    SetBounds({-1, -1, -1}, {1, 1, 1});
   }
 };
 
@@ -277,7 +272,7 @@ class BoxBuilder : public BuiltinBuilder {
       }
     }
 
-    bounds_.set({-1, -1, -1}, {1, 1, 1});
+    SetBounds({-1, -1, -1}, {1, 1, 1});
   }
 
  private:
@@ -334,7 +329,7 @@ class TubeBuilder : public BuiltinBuilder {
       }
     }
 
-    bounds_.set({-1, -1, -1}, {1, 1, 1});
+    SetBounds({-1, -1, -1}, {1, 1, 1});
   }
 };
 
@@ -398,7 +393,7 @@ class ConeBuilder : public BuiltinBuilder {
       }
     }
 
-    bounds_.set({-1, -1, 0}, {1, 1, 1});
+    SetBounds({-1, -1, 0}, {1, 1, 1});
   }
 
  private:
@@ -440,7 +435,7 @@ class DiskBuilder : public BuiltinBuilder {
       indices_.push_back(1 + next);
     }
 
-    bounds_.set({-1, -1, -0.001}, {1, 1, 0.001});
+    SetBounds({-1, -1, -0.001}, {1, 1, 0.001});
   }
 };
 
@@ -527,7 +522,7 @@ class SphereBuilder : public BuiltinBuilder {
       indices_.push_back(row_start + adjacent);
     }
 
-    bounds_.set({-1, -1, -1}, {1, 1, 1});
+    SetBounds({-1, -1, -1}, {1, 1, 1});
   }
 
  private:
@@ -611,7 +606,7 @@ class DomeBuilder : public BuiltinBuilder {
       row_start += num_slices;
     }
 
-    bounds_.set({-1, -1, 0}, {1, 1, 1});
+    SetBounds({-1, -1, 0}, {1, 1, 1});
   }
 
  private:
@@ -622,44 +617,44 @@ class DomeBuilder : public BuiltinBuilder {
   }
 };
 
-std::unique_ptr<Mesh> CreateLine(filament::Engine* engine) {
-  return BuiltinBuilder::Create<LineBuilder>(engine);
+std::unique_ptr<Mesh> CreateLine(FilamentContext* ctx) {
+  return BuiltinBuilder::Create<LineBuilder>(ctx);
 }
 
-std::unique_ptr<Mesh> CreatePlane(filament::Engine* engine, int nquad) {
-  return BuiltinBuilder::Create<PlaneBuilder>(engine, nquad);
+std::unique_ptr<Mesh> CreatePlane(FilamentContext* ctx, int nquad) {
+  return BuiltinBuilder::Create<PlaneBuilder>(ctx, nquad);
 }
 
-std::unique_ptr<Mesh> CreateTriangle(filament::Engine* engine) {
-  return BuiltinBuilder::Create<TriangleBuilder>(engine);
+std::unique_ptr<Mesh> CreateTriangle(FilamentContext* ctx) {
+  return BuiltinBuilder::Create<TriangleBuilder>(ctx);
 }
 
-std::unique_ptr<Mesh> CreateBox(filament::Engine* engine, int nquad) {
-  return BuiltinBuilder::Create<BoxBuilder>(engine, nquad);
+std::unique_ptr<Mesh> CreateBox(FilamentContext* ctx, int nquad) {
+  return BuiltinBuilder::Create<BoxBuilder>(ctx, nquad);
 }
 
-std::unique_ptr<Mesh> CreateLineBox(filament::Engine* engine) {
-  return BuiltinBuilder::Create<LineBoxBuilder>(engine);
+std::unique_ptr<Mesh> CreateLineBox(FilamentContext* ctx) {
+  return BuiltinBuilder::Create<LineBoxBuilder>(ctx);
 }
 
-std::unique_ptr<Mesh> CreateSphere(filament::Engine* engine, int nstack, int nslice) {
-  return BuiltinBuilder::Create<SphereBuilder>(engine, nstack, nslice);
+std::unique_ptr<Mesh> CreateSphere(FilamentContext* ctx, int nstack, int nslice) {
+  return BuiltinBuilder::Create<SphereBuilder>(ctx, nstack, nslice);
 }
 
-std::unique_ptr<Mesh> CreateTube(filament::Engine* engine, int nstack, int nslice) {
-  return BuiltinBuilder::Create<TubeBuilder>(engine, nstack, nslice);
+std::unique_ptr<Mesh> CreateTube(FilamentContext* ctx, int nstack, int nslice) {
+  return BuiltinBuilder::Create<TubeBuilder>(ctx, nstack, nslice);
 }
 
-std::unique_ptr<Mesh> CreateDisk(filament::Engine* engine, int nslice) {
-  return BuiltinBuilder::Create<DiskBuilder>(engine, nslice);
+std::unique_ptr<Mesh> CreateDisk(FilamentContext* ctx, int nslice) {
+  return BuiltinBuilder::Create<DiskBuilder>(ctx, nslice);
 }
 
-std::unique_ptr<Mesh> CreateDome(filament::Engine* engine, int nstack, int nslice) {
-  return BuiltinBuilder::Create<DomeBuilder>(engine, nstack, nslice);
+std::unique_ptr<Mesh> CreateDome(FilamentContext* ctx, int nstack, int nslice) {
+  return BuiltinBuilder::Create<DomeBuilder>(ctx, nstack, nslice);
 }
 
-std::unique_ptr<Mesh> CreateCone(filament::Engine* engine, int nstack, int nslice) {
-  return BuiltinBuilder::Create<ConeBuilder>(engine, nstack, nslice);
+std::unique_ptr<Mesh> CreateCone(FilamentContext* ctx, int nstack, int nslice) {
+  return BuiltinBuilder::Create<ConeBuilder>(ctx, nstack, nslice);
 }
 
 }  // namespace mujoco

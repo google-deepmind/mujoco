@@ -19,9 +19,9 @@
 #include <memory>
 #include <unordered_map>
 
-#include <filament/Engine.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/texture.h"
 
@@ -30,7 +30,7 @@ namespace mujoco {
 // Creates and owns various filament objects based on the mjModel.
 class ModelObjects {
  public:
-  ModelObjects(const mjModel* model, filament::Engine* engine);
+  ModelObjects(const mjModel* model, FilamentContext* ctx);
   ~ModelObjects();
 
   enum ShapeType {
@@ -75,7 +75,7 @@ class ModelObjects {
 
  private:
   const mjModel* model_ = nullptr;
-  filament::Engine* engine_ = nullptr;
+  FilamentContext* ctx_ = nullptr;
   std::array<std::unique_ptr<Mesh>, kNumShapes> shapes_;
   std::unordered_map<int, std::unique_ptr<Mesh>> meshes_;
   std::unordered_map<int, std::unique_ptr<Mesh>> convex_hulls_;

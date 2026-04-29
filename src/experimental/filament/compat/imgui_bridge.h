@@ -21,18 +21,18 @@
 #include <vector>
 
 #include <imgui.h>
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
-#include "experimental/filament/filament/object_manager.h"
 
 namespace mujoco {
 
 // Creates and manages a SceneView using data read from ImGui.
 class ImguiBridge {
  public:
-  explicit ImguiBridge(ObjectManager* object_mgr);
+  explicit ImguiBridge(FilamentContext* ctx);
   ~ImguiBridge();
 
   // Prepares the Renderables using data from the current ImGui state. This
@@ -59,7 +59,7 @@ class ImguiBridge {
   void UpdateTexture(ImTextureData* data);
   void DestroyTexture(ImTextureData* data);
 
-  ObjectManager* object_mgr_ = nullptr;
+  FilamentContext* ctx_ = nullptr;
   std::unique_ptr<SceneView> scene_view_;
   std::vector<std::unique_ptr<Renderable>> renderables_;
   std::vector<std::unique_ptr<Mesh>> meshes_;

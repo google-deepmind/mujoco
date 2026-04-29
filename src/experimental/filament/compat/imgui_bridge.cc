@@ -24,20 +24,20 @@
 #include <math/mat3.h>
 #include <math/vec3.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/mesh.h"
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
 using filament::math::float3;
 using filament::math::mat3f;
 
-ImguiBridge::ImguiBridge(ObjectManager* object_mgr) : object_mgr_(object_mgr) {
-  scene_view_ = std::make_unique<SceneView>(object_mgr_->GetEngine());
+ImguiBridge::ImguiBridge(FilamentContext* ctx) : ctx_(ctx) {
+  scene_view_ = std::make_unique<SceneView>(ctx_);
   scene_view_->DisableShadows();
   scene_view_->DisableReflections();
   scene_view_->DisablePostProcessing();
@@ -88,7 +88,7 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
     config.target = mjTEXTURE_2D;
     config.format = bpp == 4 ? mjPIXEL_FORMAT_RGBA8 : mjPIXEL_FORMAT_RGB8;
     config.color_space = mjCOLORSPACE_LINEAR;
-    texture = std::make_unique<Texture>(scene_view_->GetEngine(), config);
+    texture = std::make_unique<Texture>(ctx_, config);
   }
 
   // Create a copy of the image to pass it to filament as we don't know the
@@ -124,8 +124,7 @@ void ImguiBridge::CreateTexture(ImTextureData* data) {
   config.color_space = mjCOLORSPACE_LINEAR;
 
   const uintptr_t tex_id = next_tex_id_++;
-  textures_[tex_id] =
-      std::make_unique<Texture>(scene_view_->GetEngine(), config);
+  textures_[tex_id] = std::make_unique<Texture>(ctx_, config);
   data->SetTexID((ImTextureID)tex_id);
   UpdateTexture(data);
 }
@@ -232,7 +231,7 @@ void ImguiBridge::Update() {
     data.indices = cmds->IdxBuffer.Data;
     data.index_type = mjINDEX_TYPE_U16;
     data.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-    meshes_.push_back(std::make_unique<Mesh>(scene_view_->GetEngine(), data));
+    meshes_.push_back(std::make_unique<Mesh>(ctx_, data));
 
     const Mesh* mesh = meshes_.back().get();
 
@@ -278,8 +277,8 @@ void ImguiBridge::PrepareRenderables(int count) {
     mjrRenderableParams params;
     mjr_defaultRenderableParams(&params);
     params.shading_model = mjSHADING_MODEL_UX;
-    auto& r = renderables_.emplace_back(
-        std::make_unique<Renderable>(object_mgr_, params));
+    auto& r =
+        renderables_.emplace_back(std::make_unique<Renderable>(ctx_, params));
     r->SetCastShadows(false);
     r->SetReceiveShadows(false);
     r->SetBlendOrder(static_cast<std::uint16_t>(renderables_.size()));

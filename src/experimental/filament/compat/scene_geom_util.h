@@ -19,14 +19,14 @@
 
 #include <mujoco/mjvisualize.h>
 #include "experimental/filament/compat/model_objects.h"
-#include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/renderable.h"
 
 namespace mujoco {
 
 // Creates a Renderable from the given mjvGeom.
 std::unique_ptr<Renderable> CreateGeomRenderable(
-    const mjvGeom& geom, const mjvScene* scene, ObjectManager* object_mgr,
+    const mjvGeom& geom, const mjvScene* scene, FilamentContext* ctx,
     ModelObjects* model_objs, const float headpos[3]);
 
 }  // namespace mujoco

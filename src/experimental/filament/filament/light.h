@@ -20,6 +20,7 @@
 #include <math/vec3.h>
 #include <utils/Entity.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -27,7 +28,7 @@ namespace mujoco {
 // Manages the filament Entities for a single mjvLight.
 class Light : public mjrLight {
  public:
-  Light(filament::Engine* engine, const mjrLightParams& params);
+  Light(FilamentContext* ctx, const mjrLightParams& params);
   ~Light() noexcept;
 
   Light(const Light&) = delete;

@@ -26,6 +26,7 @@
 #include <math/mat4.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
@@ -37,8 +38,8 @@ namespace mujoco {
 
 using filament::math::mat4f;
 
-Renderable::Renderable(ObjectManager* object_mgr, const mjrRenderableParams& params)
-    : object_mgr_(object_mgr), params_(params) {
+Renderable::Renderable(FilamentContext* ctx, const mjrRenderableParams& params)
+    : object_mgr_(ctx->GetObjectManager()), params_(params) {
   mjr_defaultMaterialParams(&material_params_);
   mjr_defaultMaterialTextures(&material_textures_);
 }

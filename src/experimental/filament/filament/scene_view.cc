@@ -40,6 +40,7 @@
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/render_target.h"
@@ -120,7 +121,8 @@ static void SetupReflectionCamera(const mat4& surface_xform,
   reflection_camera->setCustomProjection(oblique, near, far);
 }
 
-SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
+SceneView::SceneView(FilamentContext* ctx) : ctx_(ctx) {
+  filament::Engine* engine = ctx_->GetEngine();
   scene_ = engine->createScene();
   camera_ = engine->createCamera(utils::EntityManager::get().create());
   reflect_camera_ = engine->createCamera(utils::EntityManager::get().create());
@@ -153,9 +155,10 @@ SceneView::SceneView(filament::Engine* engine) : engine_(engine) {
 }
 
 SceneView::~SceneView() {
+  filament::Engine* engine = ctx_->GetEngine();
   if (skybox_) {
     scene_->setSkybox(nullptr);
-    engine_->destroy(skybox_);
+    engine->destroy(skybox_);
   }
   for (auto& light : lights_) {
     light->RemoveFromScene(scene_);
@@ -166,15 +169,15 @@ SceneView::~SceneView() {
   lights_.clear();
   renderables_.clear();
   reflect_targets_.clear();
-  engine_->destroyCameraComponent(reflect_camera_->getEntity());
-  engine_->destroy(reflect_view_);
-  engine_->destroyCameraComponent(camera_->getEntity());
+  engine->destroyCameraComponent(reflect_camera_->getEntity());
+  engine->destroy(reflect_view_);
+  engine->destroyCameraComponent(camera_->getEntity());
   if (color_grading_) {
-    engine_->destroy(color_grading_);
+    engine->destroy(color_grading_);
   }
-  engine_->destroy(scene_);
+  engine->destroy(scene_);
   for (auto& view : views_) {
-    engine_->destroy(view);
+    engine->destroy(view);
   }
 }
 
@@ -212,13 +215,13 @@ void SceneView::RemoveFromScene(Renderable* renderable) {
 void SceneView::SetSkybox(const Texture* skybox_texture) {
   if (skybox_) {
     scene_->setSkybox(nullptr);
-    engine_->destroy(skybox_);
+    GetEngine()->destroy(skybox_);
     skybox_ = nullptr;
   }
   if (skybox_texture) {
     filament::Skybox::Builder builder;
     builder.environment(skybox_texture->GetFilamentTexture());
-    skybox_ = builder.build(*engine_);
+    skybox_ = builder.build(*GetEngine());
     scene_->setSkybox(skybox_);
   }
 }
@@ -292,7 +295,7 @@ void SceneView::AddReflectiveRenderable(Renderable* renderable) {
 
     config.color_format = mjPIXEL_FORMAT_RGBA8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-    reflect_targets_.push_back(std::make_unique<RenderTarget>(engine_, config));
+    reflect_targets_.push_back(std::make_unique<RenderTarget>(ctx_, config));
   }
 
   // Prepare a render target for the reflective renderable.
@@ -311,10 +314,10 @@ void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
   auto tone_mapper = CreateToneMapper(opts.tone_mapper);
   auto color_grading = ToBuilder(color_grading_options_)
                            .toneMapper(tone_mapper.get())
-                           .build(*engine_);
+                           .build(*GetEngine());
   views_[mjDRAW_MODE_COLOR]->setColorGrading(color_grading);
   if (color_grading_) {
-    engine_->destroy(color_grading_);
+    GetEngine()->destroy(color_grading_);
   }
   color_grading_ = color_grading;
   color_grading_options_ = opts;
@@ -362,6 +365,31 @@ filament::View* SceneView::GetDefaultRenderView() {
 
 ColorGradingOptions SceneView::GetColorGradingOptions() const {
   return color_grading_options_;
+}
+
+void DoRender(filament::Renderer* renderer, const mjrRenderRequest& request) {
+  SceneView::RenderRequest scene_view_request;
+  scene_view_request.draw_mode = request.draw_mode;
+  scene_view_request.viewport = {0, 0, request.width, request.height};
+  scene_view_request.camera = request.camera;
+  SceneView* scene_view = SceneView::downcast(request.scene);
+  scene_view->Render(renderer, scene_view_request);
+}
+
+void DoReadPixels(filament::Renderer* renderer,
+                  const mjrRenderRequest& request,
+                  const mjrReadPixelsRequest& read_request) {
+  RenderTarget* render_target = RenderTarget::downcast(request.target);
+
+  SceneView::RenderRequest scene_view_request;
+  scene_view_request.draw_mode = request.draw_mode;
+  scene_view_request.viewport = {0, 0, request.width, request.height};
+  scene_view_request.camera = request.camera;
+  scene_view_request.target = render_target;
+  SceneView* scene_view = SceneView::downcast(request.scene);
+  scene_view->Render(renderer, scene_view_request);
+  render_target->ReadColorPixels(renderer, (uint8_t*)read_request.output,
+                                  read_request.num_bytes);
 }
 
 }  // namespace mujoco

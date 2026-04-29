@@ -17,22 +17,22 @@
 
 #include <memory>
 
-#include <filament/Engine.h>
+#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/mesh.h"
 
 // Generates buffers for built-in shapes.
 namespace mujoco {
 
-std::unique_ptr<Mesh> CreateLine(filament::Engine* engine);
-std::unique_ptr<Mesh> CreatePlane(filament::Engine* engine, int nquad);
-std::unique_ptr<Mesh> CreateTriangle(filament::Engine* engine);
-std::unique_ptr<Mesh> CreateBox(filament::Engine* engine, int nquad);
-std::unique_ptr<Mesh> CreateLineBox(filament::Engine* engine);
-std::unique_ptr<Mesh> CreateSphere(filament::Engine* engine, int nstack, int nslice);
-std::unique_ptr<Mesh> CreateTube(filament::Engine* engine, int nstack, int nslice);
-std::unique_ptr<Mesh> CreateDisk(filament::Engine* engine, int nslice);
-std::unique_ptr<Mesh> CreateDome(filament::Engine* engine, int nstack, int nslice);
-std::unique_ptr<Mesh> CreateCone(filament::Engine* engine, int nstack, int nslice);
+std::unique_ptr<Mesh> CreateLine(FilamentContext* ctx);
+std::unique_ptr<Mesh> CreatePlane(FilamentContext* ctx, int nquad);
+std::unique_ptr<Mesh> CreateTriangle(FilamentContext* ctx);
+std::unique_ptr<Mesh> CreateBox(FilamentContext* ctx, int nquad);
+std::unique_ptr<Mesh> CreateLineBox(FilamentContext* ctx);
+std::unique_ptr<Mesh> CreateSphere(FilamentContext* ctx, int nstack, int nslice);
+std::unique_ptr<Mesh> CreateTube(FilamentContext* ctx, int nstack, int nslice);
+std::unique_ptr<Mesh> CreateDisk(FilamentContext* ctx, int nslice);
+std::unique_ptr<Mesh> CreateDome(FilamentContext* ctx, int nstack, int nslice);
+std::unique_ptr<Mesh> CreateCone(FilamentContext* ctx, int nstack, int nslice);
 
 }  // namespace mujoco
 
