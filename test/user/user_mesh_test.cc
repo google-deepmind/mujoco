@@ -836,11 +836,11 @@ TEST_F(MjCMeshTest, Flex2DElasticityRequiresPositiveThickness) {
               HasSubstr("2d elasticity requires positive thickness"));
 }
 
-TEST_F(MjCMeshTest, InterpolatedFlexDoesNotSupport2DElasticity) {
+TEST_F(MjCMeshTest, InterpolatedFlexSupportsBendElasticityWithWarning) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
-      <flexcomp name="f" type="grid" count="3 3 1" spacing="1 1 1" dim="2" dof="trilinear">
+      <flexcomp name="f" type="grid" count="3 3 2" spacing="1 1 1" dim="3" dof="trilinear">
         <contact selfcollide="none"/>
         <elasticity young="1" thickness="1" elastic2d="bend"/>
       </flexcomp>
@@ -849,10 +849,25 @@ TEST_F(MjCMeshTest, InterpolatedFlexDoesNotSupport2DElasticity) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, testing::IsNull());
-  EXPECT_THAT(
-      error.data(),
-      HasSubstr("interpolated flex does not yet support 2d elasticity"));
+  EXPECT_THAT(model, testing::NotNull()) << error.data();
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, InterpolatedFlexSupportsBothElasticityWithWarning) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="grid" count="3 3 2" spacing="1 1 1" dim="3" dof="trilinear">
+        <contact selfcollide="none"/>
+        <elasticity young="1" thickness="1" elastic2d="both"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::NotNull()) << error.data();
+  mj_deleteModel(model);
 }
 
 TEST_F(MjCMeshTest, Flex2DElasticityRequires2DFlex) {

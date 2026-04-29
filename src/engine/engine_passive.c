@@ -236,13 +236,23 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
     if (m->flex_interp[f]) {
       int order = m->flex_interp[f];
+      int shell_mode = order < 0;
       order = order < 0 ? -order : order;
-      int npc = (order+1)*(order+1)*(order+1);  // nodes per cell
       int cx = m->flex_cellnum[3*f+0];
       int cy = m->flex_cellnum[3*f+1];
       int cz = m->flex_cellnum[3*f+2];
-      int ny_g = cy * order + 1;
-      int nz_g = cz * order + 1;
+
+      // determine element type: 2D boundary quads (shell) or 3D cells (volume)
+      int npe;       // nodes per element
+      int nelem_fe;  // total finite elements
+
+      if (shell_mode) {
+        npe = (order+1)*(order+1);
+        nelem_fe = 2*(cy*cz + cx*cz + cx*cy);
+      } else {
+        npe = (order+1)*(order+1)*(order+1);
+        nelem_fe = cx * cy * cz;
+      }
 
       mj_markStack(d);
 
@@ -261,77 +271,70 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       mju_zero(frc_g, 3*nodenum);
       mju_zero(dmp_g, 3*nodenum);
 
-      // per-cell arrays
-      mjtNum* xpos_c = mjSTACKALLOC(d, 3*npc, mjtNum);
-      mjtNum* vel_c = mjSTACKALLOC(d, 3*npc, mjtNum);
-      mjtNum* xpos0_c = mjSTACKALLOC(d, 3*npc, mjtNum);
-      mjtNum* displ_c = mjSTACKALLOC(d, 3*npc, mjtNum);
-      mjtNum* frc_c = mjSTACKALLOC(d, 3*npc, mjtNum);
-      mjtNum* dmp_c = mjSTACKALLOC(d, 3*npc, mjtNum);
+      // per-element arrays (sized for npe)
+      mjtNum* xpos_e = mjSTACKALLOC(d, 3*npe, mjtNum);
+      mjtNum* vel_e = mjSTACKALLOC(d, 3*npe, mjtNum);
+      mjtNum* xpos0_e = mjSTACKALLOC(d, 3*npe, mjtNum);
+      mjtNum* displ_e = mjSTACKALLOC(d, 3*npe, mjtNum);
+      mjtNum* frc_e = mjSTACKALLOC(d, 3*npe, mjtNum);
+      mjtNum* dmp_e = mjSTACKALLOC(d, 3*npe, mjtNum);
+      int* gindices = mjSTACKALLOC(d, npe, int);
 
-      // loop over cells
-      int cell_idx = 0;
-      for (int ci = 0; ci < cx; ci++) {
-        for (int cj = 0; cj < cy; cj++) {
-          for (int ck = 0; ck < cz; ck++) {
-            // get cell stiffness matrix
-            mjtNum* k_cell = k + cell_idx * 3*npc * 3*npc;
+      // loop over finite elements
+      for (int fe = 0; fe < nelem_fe; fe++) {
+        // get element stiffness matrix
+        mjtNum* k_elem = k + fe * 3*npe * 3*npe;
 
-            // skip empty cells (zero stiffness)
-            if (k_cell[0] == 0) {
-              cell_idx++;
-              continue;
-            }
+        // skip empty elements (zero stiffness)
+        if (k_elem[0] == 0) {
+          continue;
+        }
 
-            // gather cell-local node data
-            mjtNum quat[4];
-            mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos_g, vel_g, xpos0,
-                                    xpos_c, vel_c, xpos0_c, NULL, quat);
+        // gather element-local node data and compute corotational rotation
+        mjtNum quat[4];
+        if (shell_mode) {
+          mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos_g, vel_g, xpos0,
+                                  xpos_e, vel_e, xpos0_e, gindices, quat);
+        } else {
+          int ci = fe / (cy * cz);
+          int cj = (fe / cz) % cy;
+          int ck = fe % cz;
+          mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos_g, vel_g,
+                                  xpos0, xpos_e, vel_e, xpos0_e, gindices,
+                                  quat);
+        }
 
-            // rotate to corotational frame
-            for (int n = 0; n < npc; n++) {
-              mju_rotVecQuat(xpos_c+3*n, xpos_c+3*n, quat);
-              mju_rotVecQuat(vel_c+3*n, vel_c+3*n, quat);
-            }
+        // rotate to corotational frame
+        for (int n = 0; n < npe; n++) {
+          mju_rotVecQuat(xpos_e+3*n, xpos_e+3*n, quat);
+          mju_rotVecQuat(vel_e+3*n, vel_e+3*n, quat);
+        }
 
-            // compute displacement
-            for (int n = 0; n < npc; n++) {
-              mji_addScl3(displ_c+3*n, xpos_c+3*n, xpos0_c+3*n, -1);
-            }
+        // compute displacement
+        for (int n = 0; n < npe; n++) {
+          mji_addScl3(displ_e+3*n, xpos_e+3*n, xpos0_e+3*n, -1);
+        }
 
-            // compute force in corotational frame
-            if (enbl_spring) {
-              mju_mulMatVec(frc_c, k_cell, displ_c, 3*npc, 3*npc);
-            }
-            if (enbl_damper) {
-              mju_mulMatVec(dmp_c, k_cell, vel_c, 3*npc, 3*npc);
-            }
+        // compute force in corotational frame
+        if (enbl_spring) {
+          mju_mulMatVec(frc_e, k_elem, displ_e, 3*npe, 3*npe);
+        }
+        if (enbl_damper) {
+          mju_mulMatVec(dmp_e, k_elem, vel_e, 3*npe, 3*npe);
+        }
 
-            // rotate back to global frame and scatter
-            mju_negQuat(quat, quat);
-            int local = 0;
-            for (int li = 0; li <= order; li++) {
-              for (int lj = 0; lj <= order; lj++) {
-                for (int lk = 0; lk <= order; lk++) {
-                  int gi = ci*order + li;
-                  int gj = cj*order + lj;
-                  int gk = ck*order + lk;
-                  int gidx = gi*ny_g*nz_g + gj*nz_g + gk;
-                  mjtNum qfrc[3], qdmp[3];
-                  mji_rotVecQuat(qfrc, frc_c+3*local, quat);
-                  mji_rotVecQuat(qdmp, dmp_c+3*local, quat);
-                  if (enbl_spring) {
-                    mji_addTo3(frc_g + 3*gidx, qfrc);
-                  }
-                  if (enbl_damper) {
-                    mji_addTo3(dmp_g + 3*gidx, qdmp);
-                  }
-                  local++;
-                }
-              }
-            }
-
-            cell_idx++;
+        // rotate back to global frame and scatter using node indices
+        mju_negQuat(quat, quat);
+        for (int n = 0; n < npe; n++) {
+          mjtNum qfrc[3], qdmp[3];
+          mji_rotVecQuat(qfrc, frc_e+3*n, quat);
+          mji_rotVecQuat(qdmp, dmp_e+3*n, quat);
+          int gidx = gindices[n];
+          if (enbl_spring) {
+            mji_addTo3(frc_g + 3*gidx, qfrc);
+          }
+          if (enbl_damper) {
+            mji_addTo3(dmp_g + 3*gidx, qdmp);
           }
         }
       }

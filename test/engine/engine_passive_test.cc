@@ -847,5 +847,41 @@ TEST_F(PassiveTest, PolynomialDampingTendon) {
   mj_deleteModel(m);
 }
 
+// shell-mode (elastic2d=stretch) flexcomp must have zero passive spring forces
+// at rest (initial configuration); any nonzero force indicates a rotation
+// mismatch between compile-time reference positions and runtime corotation.
+TEST_F(ElasticityTest, ShellModeZeroForceAtRest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp type="grid" count="8 8 8" spacing=".07 .07 .07" pos="0 0 1"
+                dim="3" cellcount="1 1 1" radius=".001" rgba="0 .7 .7 1"
+                mass="5" name="softbody" dof="trilinear">
+        <elasticity young="1e4" poisson="0.1" damping="0.01"
+                    elastic2d="stretch" thickness="0.02"/>
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  mj_forward(m, d);
+
+  // all spring forces should be zero at rest
+  for (int i = 0; i < m->nv; i++) {
+    EXPECT_NEAR(d->qfrc_spring[i], 0, 1e-10)
+        << "nonzero spring force at DOF " << i;
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco

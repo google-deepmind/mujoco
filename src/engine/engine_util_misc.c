@@ -726,6 +726,133 @@ void mju_flexGatherCellState(int order, int cy, int cz, int ci, int cj, int ck,
 }
 
 
+// compute corotational rotation from 2D deformation gradient on a flat face
+void mju_flexInterpRotation2D(int order, const mjtNum* xpos_f, int npe,
+                              int axis0, int axis1, int normal_axis,
+                              const mjtNum local[2], mjtNum* quat) {
+  // compute 3x2 deformation gradient F at parametric point local
+  mjtNum t1[3] = {0, 0, 0};  // tangent along axis0
+  mjtNum t2[3] = {0, 0, 0};  // tangent along axis1
+  int idx = 0;
+  for (int l0 = 0; l0 <= order; l0++) {
+    for (int l1 = 0; l1 <= order; l1++) {
+      mjtNum grad0 = dphi(local[0], l0, order) * phi(local[1], l1, order);
+      mjtNum grad1 = phi(local[0], l0, order) * dphi(local[1], l1, order);
+      for (int d = 0; d < 3; d++) {
+        t1[d] += xpos_f[3*idx + d] * grad0;
+        t2[d] += xpos_f[3*idx + d] * grad1;
+      }
+      idx++;
+    }
+  }
+
+  // normal = t1 x t2
+  mjtNum normal[3];
+  mju_cross(normal, t1, t2);
+
+  // build 3x3 matrix with columns assigned to canonical axes (row-major)
+  // axis0 → t1, axis1 → t2, normal_axis → normal
+  // this ensures identity rotation for axis-aligned grids
+  mjtNum mat[9] = {0};
+  mjtNum* vecs[3];
+  vecs[axis0] = t1;
+  vecs[axis1] = t2;
+  vecs[normal_axis] = normal;
+
+  for (int col = 0; col < 3; col++) {
+    mat[0*3 + col] = vecs[col][0];
+    mat[1*3 + col] = vecs[col][1];
+    mat[2*3 + col] = vecs[col][2];
+  }
+
+  // extract rotation via polar decomposition
+  quat[0] = 1;
+  quat[1] = 0;
+  quat[2] = 0;
+  quat[3] = 0;
+  mju_mat2Rot(quat, mat);
+  mju_negQuat(quat, quat);
+}
+
+
+// gather face-element-local quantities and optionally compute rotation (shell mode)
+//
+// face element enumeration for a grid with cell counts (cx, cy, cz):
+//   face 0: x=0     cy*cz quads (normal=0)
+//   face 1: x=max   cy*cz quads (normal=0)
+//   face 2: y=0     cx*cz quads (normal=1)
+//   face 3: y=max   cx*cz quads (normal=1)
+//   face 4: z=0     cx*cy quads (normal=2)
+//   face 5: z=max   cx*cy quads (normal=2)
+void mju_flexGatherFaceState(int order, int cx, int cy, int cz,
+                             int face_elem_idx,
+                             const mjtNum* xpos_g, const mjtNum* vel_g,
+                             const mjtNum* xpos0_g,
+                             mjtNum* xpos_f, mjtNum* vel_f, mjtNum* xpos0_f,
+                             int* nodeindices, mjtNum* quat) {
+  int ny_g = cy * order + 1;
+  int nz_g = cz * order + 1;
+  int npe = (order + 1) * (order + 1);
+
+  // face sizes and properties
+  int face_sizes[6] = {cy*cz, cy*cz, cx*cz, cx*cz, cx*cy, cx*cy};
+  int face_normal[6] = {0, 0, 1, 1, 2, 2};
+  int face_count1[6] = {cz, cz, cx, cx, cy, cy};
+  int face_fixed_vals[6];
+  face_fixed_vals[0] = 0;
+  face_fixed_vals[1] = cx * order;
+  face_fixed_vals[2] = 0;
+  face_fixed_vals[3] = cy * order;
+  face_fixed_vals[4] = 0;
+  face_fixed_vals[5] = cz * order;
+
+  // determine which face and quad within face
+  int face_id = 0;
+  int within_face = face_elem_idx;
+  int cumul = 0;
+  for (int f = 0; f < 6; f++) {
+    if (face_elem_idx < cumul + face_sizes[f]) {
+      face_id = f;
+      within_face = face_elem_idx - cumul;
+      break;
+    }
+    cumul += face_sizes[f];
+  }
+
+  int normal_axis = face_normal[face_id];
+  int na0 = (normal_axis + 1) % 3;  // slow in-plane axis
+  int na1 = (normal_axis + 2) % 3;  // fast in-plane axis
+  int c1 = face_count1[face_id];
+  int g_fixed = face_fixed_vals[face_id];
+  int q0 = within_face / c1;
+  int q1 = within_face % c1;
+
+  // gather nodes
+  int local = 0;
+  for (int l0 = 0; l0 <= order; l0++) {
+    for (int l1 = 0; l1 <= order; l1++) {
+      int g[3];
+      g[normal_axis] = g_fixed;
+      g[na0] = q0 * order + l0;
+      g[na1] = q1 * order + l1;
+      int gidx = g[0] * ny_g * nz_g + g[1] * nz_g + g[2];
+
+      if (xpos_f && xpos_g) mju_copy3(xpos_f + 3*local, xpos_g + 3*gidx);
+      if (vel_f && vel_g) mju_copy3(vel_f + 3*local, vel_g + 3*gidx);
+      if (xpos0_f && xpos0_g) mju_copy3(xpos0_f + 3*local, xpos0_g + 3*gidx);
+      if (nodeindices) nodeindices[local] = gidx;
+
+      local++;
+    }
+  }
+
+  if (quat && xpos_f) {
+    mjtNum p[2] = {.5, .5};
+    mju_flexInterpRotation2D(order, xpos_f, npe, na0, na1, normal_axis, p, quat);
+  }
+}
+
+
 //------------------------------ actuator models ---------------------------------------------------
 
 // normalized muscle length-gain curve

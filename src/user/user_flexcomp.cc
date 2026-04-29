@@ -884,27 +884,47 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
       pe->active = true;
       mjs_setString(pe->name1, name.c_str());
     } else if (equality == 3) {
-      // create one strain constraint per cell, storing cell index in eq_data
+      // create one strain constraint per finite element, storing element index
       flex->has_strain_eq = true;
       int cell_cx = flex->spec.cellcount[0];
       int cell_cy = flex->spec.cellcount[1];
       int cell_cz = flex->spec.cellcount[2];
-      for (int ci = 0; ci < cell_cx; ci++) {
-        for (int cj = 0; cj < cell_cy; cj++) {
-          for (int ck = 0; ck < cell_cz; ck++) {
-            // skip empty cells
-            if (!flex->cell_empty.empty() &&
-                flex->cell_empty[ci * cell_cy * cell_cz + cj * cell_cz + ck]) {
-              continue;
+      bool shell = (doftype == mjFCOMPDOF_TRILINEAR ||
+                    doftype == mjFCOMPDOF_QUADRATIC) &&
+                    flex->spec.elastic2d;
+
+      if (shell) {
+        // shell mode: one constraint per boundary face element
+        int nelem_fe = 2*(cell_cy*cell_cz + cell_cx*cell_cz + cell_cx*cell_cy);
+        for (int fe = 0; fe < nelem_fe; fe++) {
+          mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
+          mjs_setDefault(pe->element, &model->Default()->spec);
+          pe->type = mjEQ_FLEXSTRAIN;
+          pe->active = true;
+          mjs_setString(pe->name1, name.c_str());
+          pe->data[0] = fe;
+          pe->data[1] = -1;  // sentinel: shell mode
+          pe->data[2] = -1;
+        }
+      } else {
+        // volume mode: one constraint per 3D cell
+        for (int ci = 0; ci < cell_cx; ci++) {
+          for (int cj = 0; cj < cell_cy; cj++) {
+            for (int ck = 0; ck < cell_cz; ck++) {
+              // skip empty cells
+              if (!flex->cell_empty.empty() &&
+                  flex->cell_empty[ci * cell_cy * cell_cz + cj * cell_cz + ck]) {
+                continue;
+              }
+              mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
+              mjs_setDefault(pe->element, &model->Default()->spec);
+              pe->type = mjEQ_FLEXSTRAIN;
+              pe->active = true;
+              mjs_setString(pe->name1, name.c_str());
+              pe->data[0] = ci;
+              pe->data[1] = cj;
+              pe->data[2] = ck;
             }
-            mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
-            mjs_setDefault(pe->element, &model->Default()->spec);
-            pe->type = mjEQ_FLEXSTRAIN;
-            pe->active = true;
-            mjs_setString(pe->name1, name.c_str());
-            pe->data[0] = ci;
-            pe->data[1] = cj;
-            pe->data[2] = ck;
           }
         }
       }

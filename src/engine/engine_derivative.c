@@ -882,23 +882,29 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
 
   // compute upper bounds across all interpolated flexes
   int max_nodenum = 0;
-  int max_npc = 0;
+  int max_npe = 0;  // max nodes per element (3D cell or 2D face)
   for (int f = 0; f < m->nflex; f++) {
     if (!m->flex_interp[f]) continue;
     if (m->flex_rigid[f]) continue;
     int order = m->flex_interp[f];
+    int shell_mode = order < 0;
     order = order < 0 ? -order : order;
-    int npc = (order+1)*(order+1)*(order+1);
-    if (npc > max_npc) max_npc = npc;
+    int npe;
+    if (shell_mode) {
+      npe = (order+1)*(order+1);
+    } else {
+      npe = (order+1)*(order+1)*(order+1);
+    }
+    if (npe > max_npe) max_npe = npe;
     if (m->flex_nodenum[f] > max_nodenum) max_nodenum = m->flex_nodenum[f];
   }
 
   // nothing to do
-  if (max_npc == 0) {
+  if (max_npe == 0) {
     return;
   }
 
-  int max_dim_c = 3 * max_npc;
+  int max_dim_c = 3 * max_npe;
 
   // single unconditional markStack
   mj_markStack(d);
@@ -915,8 +921,8 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
   // per-flex node positions (upper bound)
   mjtNum* xpos = mjSTACKALLOC(d, 3*max_nodenum, mjtNum);
 
-  // per-cell arrays (upper bound)
-  mjtNum* xpos_c = mjSTACKALLOC(d, 3*max_npc, mjtNum);
+  // per-element arrays (upper bound)
+  mjtNum* xpos_c = mjSTACKALLOC(d, 3*max_npe, mjtNum);
   mjtNum* K_rot_cell = mjSTACKALLOC(d, max_dim_c*max_dim_c, mjtNum);
 
   // sparse Jacobian for one cell (upper bound)
@@ -967,131 +973,141 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
     }
 
     int order = m->flex_interp[f];
+    int shell_mode = order < 0;
     order = order < 0 ? -order : order;
-    int npc = (order+1)*(order+1)*(order+1);
     int cx = m->flex_cellnum[3*f+0];
     int cy = m->flex_cellnum[3*f+1];
     int cz = m->flex_cellnum[3*f+2];
 
     int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
 
-    int dim_c = 3 * npc;
+    // determine element type: 2D boundary quads (shell) or 3D cells (volume)
+    int npe;
+    int nelem_fe;
+    if (shell_mode) {
+      npe = (order+1)*(order+1);
+      nelem_fe = 2*(cy*cz + cx*cz + cx*cy);
+    } else {
+      npe = (order+1)*(order+1)*(order+1);
+      nelem_fe = cx * cy * cz;
+    }
+    int dim_e = 3 * npe;
 
     // gather raw node positions (unrotated)
     mju_flexGatherState(m, d, f, xpos, NULL);
 
-    // loop over cells
-    int cell_idx = 0;
-    for (int ci = 0; ci < cx; ci++) {
-      for (int cj = 0; cj < cy; cj++) {
-        for (int ck = 0; ck < cz; ck++) {
-          // get cell stiffness
-          mjtNum* k_cell = K + cell_idx * 3*npc * 3*npc;
+    // loop over finite elements
+    for (int fe = 0; fe < nelem_fe; fe++) {
+      // get element stiffness
+      mjtNum* k_elem = K + fe * 3*npe * 3*npe;
 
-          // skip empty cells: stiffness buffer is zero-initialized at compile time
-          // (user_model.cc), and non-empty cells have strictly positive diagonal
-          if (k_cell[0] == 0) {
-            cell_idx++;
-            continue;
-          }
+      // skip empty elements: stiffness buffer is zero-initialized at compile time
+      // (user_model.cc), and non-empty elements have strictly positive diagonal
+      if (k_elem[0] == 0) {
+        continue;
+      }
 
-          // gather cell-local node positions
-          int gindices[125];  // max npc = 125 for quadratic
-          mjtNum quat[4];
-          mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos, NULL, NULL,
-                                  xpos_c, NULL, NULL, gindices, quat);
+      // gather element-local node positions
+      int gindices[125];  // max npe = 125 for quadratic 3D
+      mjtNum quat[4];
+      if (shell_mode) {
+        mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos, NULL, NULL,
+                                xpos_c, NULL, NULL, gindices, quat);
+      } else {
+        int ci = fe / (cy * cz);
+        int cj = (fe / cz) % cy;
+        int ck = fe % cz;
+        mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos, NULL, NULL,
+                                xpos_c, NULL, NULL, gindices, quat);
+      }
 
-          // R = R_global2local, RT = R_local2global
-          mjtNum R[9], RT[9];
-          mju_quat2Mat(R, quat);
-          mju_transpose(RT, R, 3, 3);
+      // R = R_global2local, RT = R_local2global
+      mjtNum R[9], RT[9];
+      mju_quat2Mat(R, quat);
+      mju_transpose(RT, R, 3, 3);
 
-          // compute K_rot_cell = RT * K_cell * R (block-wise)
-          mju_zero(K_rot_cell, dim_c*dim_c);
-          for (int a = 0; a < npc; a++) {
-            for (int b = 0; b < npc; b++) {
-              mjtNum blk[9], tmp[9];
+      // compute K_rot = RT * K_elem * R (block-wise)
+      mju_zero(K_rot_cell, dim_e*dim_e);
+      for (int a = 0; a < npe; a++) {
+        for (int b = 0; b < npe; b++) {
+          mjtNum blk[9], tmp[9];
 
-              // get K_cell(a,b) 3x3 block
-              int adr_cell = (3*a)*(3*npc) + 3*b;
-              for (int r = 0; r < 3; r++) {
-                for (int c = 0; c < 3; c++) {
-                  blk[3*r+c] = k_cell[adr_cell + r*(3*npc) + c];
-                }
-              }
-
-              // tmp = K * R
-              mju_mulMatMat3(tmp, blk, R);
-              // blk = RT * tmp = RT * K * R
-              mju_mulMatMat3(blk, RT, tmp);
-
-              // store in K_rot_cell at (a, b)
-              int adr_out = (3*a)*dim_c + 3*b;
-              for (int r = 0; r < 3; r++) {
-                for (int c = 0; c < 3; c++) {
-                  K_rot_cell[adr_out + r*dim_c + c] = scale * blk[3*r+c];
-                }
-              }
+          // get K_elem(a,b) 3x3 block
+          int adr_cell = (3*a)*(3*npe) + 3*b;
+          for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) {
+              blk[3*r+c] = k_elem[adr_cell + r*(3*npe) + c];
             }
           }
 
-          // construct sparse Jacobian for this cell's nodes
-          int current_adr = 0;
-          for (int n = 0; n < npc; n++) {
-            int bid = bodyid[gindices[n]];
-            int chain_nnz = mj_bodyChain(m, bid, chain_colind);
-            mj_jacSparse(m, d, blk_jac, NULL, xpos+3*gindices[n], bid,
-                         chain_nnz, chain_colind, /*flg_skipcommon=*/0);
+          // tmp = K * R
+          mju_mulMatMat3(tmp, blk, R);
+          // blk = RT * tmp = RT * K * R
+          mju_mulMatMat3(blk, RT, tmp);
 
-            for (int r = 0; r < 3; r++) {
-              int row_idx = 3*n + r;
-              J_rownnz[row_idx] = chain_nnz;
-              J_rowadr[row_idx] = current_adr;
-
-              for (int idx = 0; idx < chain_nnz; idx++) {
-                J_colind[current_adr] = chain_colind[idx];
-                J_val[current_adr] = blk_jac[r*chain_nnz + idx];
-                current_adr++;
-              }
+          // store in K_rot_cell at (a, b)
+          int adr_out = (3*a)*dim_e + 3*b;
+          for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) {
+              K_rot_cell[adr_out + r*dim_e + c] = scale * blk[3*r+c];
             }
           }
+        }
+      }
 
-          // apply operation with cell's K_rot and J
-          if (op == mjFLEXOP_VEC) {
-            addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
-                              J_val, K_rot_cell, dim_c);
-          } else if (op == mjFLEXOP_ADDH) {
-            // H -= J_cell^T * K_rot_cell * J_cell (banded format)
-            mju_zero(J_reduced, dim_c*ndof);
+      // construct sparse Jacobian for this element's nodes
+      int current_adr = 0;
+      for (int n = 0; n < npe; n++) {
+        int bid = bodyid[gindices[n]];
+        int chain_nnz = mj_bodyChain(m, bid, chain_colind);
+        mj_jacSparse(m, d, blk_jac, NULL, xpos+3*gindices[n], bid,
+                     chain_nnz, chain_colind, /*flg_skipcommon=*/0);
 
-            for (int i = 0; i < dim_c; i++) {
-              int nnz = J_rownnz[i];
-              int adr = J_rowadr[i];
-              for (int idx = 0; idx < nnz; idx++) {
-                int global_col = J_colind[adr + idx];
-                int local_idx = global2local[global_col];
-                if (local_idx >= 0) {
-                  J_reduced[i*ndof + local_idx] = J_val[adr + idx];
-                }
-              }
-            }
+        for (int r = 0; r < 3; r++) {
+          int row_idx = 3*n + r;
+          J_rownnz[row_idx] = chain_nnz;
+          J_rowadr[row_idx] = current_adr;
 
-            // KJ = K_rot_cell * J_reduced  (dim_c x ndof)
-            mju_mulMatMat(KJ, K_rot_cell, J_reduced, dim_c, dim_c, ndof);
+          for (int idx = 0; idx < chain_nnz; idx++) {
+            J_colind[current_adr] = chain_colind[idx];
+            J_val[current_adr] = blk_jac[r*chain_nnz + idx];
+            current_adr++;
+          }
+        }
+      }
 
-            // H[i,j] -= J_reduced[k,i] * KJ[k,j], store lower triangle in banded format
-            for (int i = 0; i < ndof; i++) {
-              for (int j = mjMAX(0, i-nband+1); j <= i; j++) {
-                mjtNum val = 0;
-                for (int dim_idx = 0; dim_idx < dim_c; dim_idx++) {
-                  val += J_reduced[dim_idx*ndof + i] * KJ[dim_idx*ndof + j];
-                }
-                res[i*nband + nband-1-(i-j)] -= val;
-              }
+      // apply operation with element's K_rot and J
+      if (op == mjFLEXOP_VEC) {
+        addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
+                          J_val, K_rot_cell, dim_e);
+      } else if (op == mjFLEXOP_ADDH) {
+        // H -= J_elem^T * K_rot * J_elem (banded format)
+        mju_zero(J_reduced, dim_e*ndof);
+
+        for (int i = 0; i < dim_e; i++) {
+          int nnz = J_rownnz[i];
+          int adr = J_rowadr[i];
+          for (int idx = 0; idx < nnz; idx++) {
+            int global_col = J_colind[adr + idx];
+            int local_idx = global2local[global_col];
+            if (local_idx >= 0) {
+              J_reduced[i*ndof + local_idx] = J_val[adr + idx];
             }
           }
+        }
 
-          cell_idx++;
+        // KJ = K_rot * J_reduced  (dim_e x ndof)
+        mju_mulMatMat(KJ, K_rot_cell, J_reduced, dim_e, dim_e, ndof);
+
+        // H[i,j] -= J_reduced[k,i] * KJ[k,j], store lower triangle in banded format
+        for (int i = 0; i < ndof; i++) {
+          for (int j = mjMAX(0, i-nband+1); j <= i; j++) {
+            mjtNum val = 0;
+            for (int dim_idx = 0; dim_idx < dim_e; dim_idx++) {
+              val += J_reduced[dim_idx*ndof + i] * KJ[dim_idx*ndof + j];
+            }
+            res[i*nband + nband-1-(i-j)] -= val;
+          }
         }
       }
     }

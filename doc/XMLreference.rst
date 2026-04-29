@@ -4328,7 +4328,8 @@ stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and
 
 :at:`elastic2d`: :at-val:`[none, bend, stretch, both], "none"`
    Elastic contribution to passive forces of 2D flexes. "none": none, "bend": bending only, "stretch": stretching only,
-   "both": bending and stretching. Not yet supported by :ref:`dof<body-flexcomp-dof>` **trilinear** and **quadratic**.
+   "both": bending and stretching. Bending is not yet supported by :ref:`dof<body-flexcomp-dof>` **trilinear** and
+   **quadratic**.
 
 .. _flex-contact:
 

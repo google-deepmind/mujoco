@@ -103,6 +103,19 @@ MJAPI void mju_flexGatherCellState(int order, int cy, int cz, int ci, int cj, in
                                    const mjtNum* xpos0_g, mjtNum* xpos_c, mjtNum* vel_c,
                                    mjtNum* xpos0_c, int* nodeindices, mjtNum* quat);
 
+// gather face-element-local quantities and optionally compute rotation (shell mode)
+MJAPI void mju_flexGatherFaceState(int order, int cx, int cy, int cz,
+                                   int face_elem_idx,
+                                   const mjtNum* xpos_g, const mjtNum* vel_g,
+                                   const mjtNum* xpos0_g,
+                                   mjtNum* xpos_f, mjtNum* vel_f, mjtNum* xpos0_f,
+                                   int* nodeindices, mjtNum* quat);
+
+// compute corotational rotation from 2D deformation gradient on a flat face
+MJAPI void mju_flexInterpRotation2D(int order, const mjtNum* xpos_f, int npe,
+                                    int axis0, int axis1, int normal_axis,
+                                    const mjtNum local[2], mjtNum* quat);
+
 
 // ----------------------------- Base64 ------------------------------------------------------------
 

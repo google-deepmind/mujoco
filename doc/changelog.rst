@@ -6,6 +6,8 @@ Upcoming version (not yet released)
 -----------------------------------
 
 - Added island support for the :ref:`PGS solver<soAlgorithms>`.
+- Added support for :ref:`elastic2d<body-flexcomp-elastic2d>` for trilinear and quadratic flex
+  :ref:`dofs<body-flexcomp-dof>`.
 
 Python
 ^^^^^^

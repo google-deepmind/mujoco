@@ -3807,6 +3807,98 @@ void inline ComputeLinearStiffness(std::vector<double>& K,
 }
 
 
+// compute the linear stiffness matrix for a flat 2D quad face element (membrane)
+//   K:      output stiffness matrix, size 3*npe x 3*npe, npe = (order+1)^2
+//   pos:    node positions (3*npe doubles), ordered row-major in 2D parametric domain
+//   E, nu:  Young's modulus and Poisson's ratio
+//   order:  interpolation order (1 or 2)
+//   thickness: shell thickness
+//   normal_axis: axis perpendicular to the face (0=x, 1=y, 2=z)
+void inline ComputeLinearStiffness2D(std::vector<double>& K,
+                                     const double* pos,
+                                     double E, double nu, int order,
+                                     double thickness, int normal_axis) {
+  int nbasis = order + 1;
+  int npe = nbasis * nbasis;        // nodes per face element
+  int ndof = 3 * npe;
+
+  // in-plane axes
+  int axis0 = (normal_axis + 1) % 3;  // slow-varying
+  int axis1 = (normal_axis + 2) % 3;  // fast-varying
+
+  // compute quadrature points
+  std::vector<double> points(nbasis);
+  std::vector<double> weight(nbasis);
+  quadratureGaussLegendre(points.data(), weight.data(), nbasis, 0, 1);
+
+  // compute element transformation (diagonal Jacobian on flat face)
+  double d0 = (pos + 3*(npe-1))[axis0] - pos[axis0];  // extent along axis0
+  double d1 = (pos + 3*(npe-1))[axis1] - pos[axis1];  // extent along axis1
+  if (d0 == 0 || d1 == 0) {
+    throw mjCError(nullptr, "degenerate 2D element with zero extent");
+  }
+  double detJ = d0 * d1;
+  double invJ0 = 1.0 / d0;
+  double invJ1 = 1.0 / d1;
+
+  // plane-stress Lamé parameter: lambda* = E*nu/(1 - nu^2)
+  double la = E * nu / (1.0 - nu * nu);
+  double mu = E / (2.0 * (1.0 + nu));
+
+  // basis function gradients (2-component)
+  std::vector<std::array<double, 2>> F(npe);
+
+  // loop over quadrature points (2D)
+  for (int ps = 0; ps < nbasis; ps++) {
+    for (int pt = 0; pt < nbasis; pt++) {
+      double s = points[ps];
+      double t = points[pt];
+      double dvol = weight[ps] * weight[pt] * detJ * thickness;
+      int dof = 0;
+
+      // cartesian product of 2D basis functions
+      for (int b0 = 0; b0 < nbasis; b0++) {
+        for (int b1 = 0; b1 < nbasis; b1++) {
+          F[dof][0] = dphi(s, b0, order) *  phi(t, b1, order);
+          F[dof][1] =  phi(s, b0, order) * dphi(t, b1, order);
+          dof++;
+        }
+      }
+
+      if (dof != npe) {
+        throw mjCError(nullptr, "incorrect number of 2D basis functions");
+      }
+
+      // tensor contraction (same structure as 3D but with zero normal column)
+      for (int i = 0; i < npe; i++) {
+        for (int j = 0; j < npe; j++) {
+          Matrix du;
+          Matrix dv;
+          du.fill({0, 0, 0});
+          dv.fill({0, 0, 0});
+          for (int k = 0; k < 3; k++) {
+            for (int l = 0; l < 3; l++) {
+              // du[k] has non-zero entries only at in-plane axes
+              du[k][axis0] = invJ0 * F[i][0];
+              du[k][axis1] = invJ1 * F[i][1];
+              // du[k][normal_axis] = 0 (already zero)
+              dv[l][axis0] = invJ0 * F[j][0];
+              dv[l][axis1] = invJ1 * F[j][1];
+              // dv[l][normal_axis] = 0 (already zero)
+              K[ndof*(3*i+k) + 3*j+l] -= la * trace(du) * trace(dv) * dvol;
+              // mu (not 2*mu): same convention as 3D ComputeLinearStiffness
+              K[ndof*(3*i+k) + 3*j+l] -= mu * trace(inner(sym(du), sym(dv))) * dvol;
+              mjuu_zerovec(du[k].data(), 3);
+              mjuu_zerovec(dv[l].data(), 3);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
 // Eigendecompose cell stiffness matrix and store scaled eigenvectors.
 // K_cell is n×n stored (negative convention: K_stored = -K_physical).
 // Output layout in `out`:
@@ -3964,7 +4056,8 @@ void mjCFlex::ResolveReferences(const mjCModel* m) {
     mjCBody* pbody = static_cast<mjCBody*>(m->FindObject(mjOBJ_BODY, vertbody));
     if (pbody) {
       vertbodyid.push_back(pbody->id);
-      if (pbody->joints.size() != 3 && dim == 2 && (elastic2d == 1 || elastic2d == 3)) {
+      if (pbody->joints.size() != 3 && dim == 2 &&
+          (elastic2d == 1 || elastic2d == 3) && !interpolated) {
         // TODO(quaglino): add support for pins
         throw mjCError(this, "pins are not supported for bending");
       }
@@ -4105,8 +4198,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (thickness <= 0) {
       throw mjCError(this, "2d elasticity requires positive thickness");
     }
-    if (interpolated) {
-      throw mjCError(this, "interpolated flex does not yet support 2d elasticity");
+    if (interpolated && elastic2d != 2) {
+      mju_warning("bending passive force is not implemented for interpolated flex");
     }
     if (dim != 2 && !interpolated) {
       throw mjCError(this, "2d elasticity requires 2d flex");
@@ -4140,6 +4233,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   if (spec.order > 0) {
     if (spec.cellcount[0] == 0 || spec.cellcount[1] == 0 || spec.cellcount[2] == 0) {
       throw mjCError(this, "cellcount cannot be 0 in any dimension when interpolation order > 0");
+    }
+    if (elastic2d && !(spec.cellcount[0] == 1 || spec.cellcount[1] == 1 || spec.cellcount[2] == 1)) {
+      throw mjCError(this,
+                     "shell trilinear flex requires at least one dimension "
+                     "with cell count equal to one (no interior nodes)");
     }
     int expected_nodes = (spec.cellcount[0] * spec.order + 1) *
                          (spec.cellcount[1] * spec.order + 1) *
@@ -4354,7 +4452,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
 
     // bending stiffness (2D only)
-    if (dim == 2 && (elastic2d == 1 || elastic2d == 3)) {
+    if (dim == 2 && (elastic2d == 1 || elastic2d == 3) && !interpolated) {
       bending.assign(nedge*17, 0);
 
       for (unsigned int e = 0; e < nedge; e++) {
@@ -4392,57 +4490,130 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     double K_young = has_strain_eq ? 1e1 : young;
     double K_poisson = has_strain_eq ? 0.3 : poisson;
 
-    int npc = pow(spec.order + 1, 3);  // nodes per cell
-    int ndof_cell = 3 * npc;
     int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
-    int ncells = cx * cy * cz;
     int ny_global = cy * spec.order + 1;
     int nz_global = cz * spec.order + 1;
 
-    // total stiffness = ncells * ndof_cell^2
-    stiffness.resize(ncells * ndof_cell * ndof_cell, 0);
+    // determine element type: 2D boundary quads (shell) or 3D cells (volume)
+    bool shell_mode = elastic2d != 0;
+    int npe;       // nodes per element
+    int nelem_fe;  // total finite elements
 
-    // compute stiffness per cell
-    for (int ci = 0; ci < cx; ci++) {
-      for (int cj = 0; cj < cy; cj++) {
-        for (int ck = 0; ck < cz; ck++) {
-          int cell_idx = ci * cy * cz + cj * cz + ck;
+    if (shell_mode) {
+      npe = pow(spec.order + 1, 2);   // (order+1)^2 for 2D quads
+      nelem_fe = 2*(cy*cz + cx*cz + cx*cy);
+    } else {
+      npe = pow(spec.order + 1, 3);   // (order+1)^3 for 3D cells
+      nelem_fe = cx * cy * cz;
+    }
+    int ndof_elem = 3 * npe;
 
-          // skip stiffness computation for empty cells (no mesh content)
-          if (!cell_empty.empty() && cell_empty[cell_idx]) {
-            continue;
+    // total stiffness = nelem_fe * ndof_elem^2
+    stiffness.resize(nelem_fe * ndof_elem * ndof_elem, 0);
+
+    // face layout for shell mode:
+    //   face 0: x=0     (cy*cz quads, normal=0, in-plane=(1,2))
+    //   face 1: x=max   (cy*cz quads, normal=0, in-plane=(1,2))
+    //   face 2: y=0     (cx*cz quads, normal=1, in-plane=(0,2))
+    //   face 3: y=max   (cx*cz quads, normal=1, in-plane=(0,2))
+    //   face 4: z=0     (cx*cy quads, normal=2, in-plane=(0,1))
+    //   face 5: z=max   (cx*cy quads, normal=2, in-plane=(0,1))
+    // face_sizes = {cy*cz, cy*cz, cx*cz, cx*cz, cx*cy, cx*cy}
+    int face_sizes[6] = {cy*cz, cy*cz, cx*cz, cx*cz, cx*cy, cx*cy};
+    int face_normal[6] = {0, 0, 1, 1, 2, 2};
+    // cell counts along each in-plane axis for each face
+    int face_count1[6] = {cz, cz, cx, cx, cy, cy};  // fast axis count
+    // fixed axis value (in grid node units, 0 or max)
+    int face_fixed[6] = {0, cx*spec.order, 0, cy*spec.order, 0, cz*spec.order};
+
+    // compute stiffness per element
+    for (int fe = 0; fe < nelem_fe; fe++) {
+      // gather element node positions
+      std::vector<double> elem_pos(3 * npe);
+      int normal_axis = -1;
+
+      if (shell_mode) {
+        // determine which face and quad within face
+        int face_id = 0, within_face = fe;
+        int cumul = 0;
+        for (int f = 0; f < 6; f++) {
+          if (fe < cumul + face_sizes[f]) {
+            face_id = f;
+            within_face = fe - cumul;
+            break;
           }
+          cumul += face_sizes[f];
+        }
 
-          // gather cell's local node positions
-          std::vector<double> cell_pos(3 * npc);
-          int local = 0;
-          for (int li = 0; li <= spec.order; li++) {
-            for (int lj = 0; lj <= spec.order; lj++) {
-              for (int lk = 0; lk <= spec.order; lk++) {
-                int gi = ci * spec.order + li;
-                int gj = cj * spec.order + lj;
-                int gk = ck * spec.order + lk;
-                int global = gi * ny_global * nz_global + gj * nz_global + gk;
-                mjuu_copyvec(cell_pos.data() + 3*local, nodexpos_local.data() + 3*global, 3);
-                local++;
-              }
-            }
-          }
+        normal_axis = face_normal[face_id];
+        int na0 = (normal_axis + 1) % 3;  // slow in-plane axis
+        int na1 = (normal_axis + 2) % 3;  // fast in-plane axis
+        int c1 = face_count1[face_id];    // cell count along fast axis
+        int g_fixed = face_fixed[face_id];  // grid index along normal axis
+        int q0 = within_face / c1;        // quad index along slow in-plane axis
+        int q1 = within_face % c1;        // quad index along fast in-plane axis
 
-          // compute per-cell stiffness
-          std::vector<double> K_cell(ndof_cell * ndof_cell, 0);
-          ComputeLinearStiffness(K_cell, cell_pos.data(), K_young, K_poisson, spec.order);
-          double* out = stiffness.data() + cell_idx * ndof_cell * ndof_cell;
-
-          if (has_strain_eq) {
-            // eigendecompose: store [neig, sqrt(λ)*v_1, sqrt(λ)*v_2, ...]
-            std::fill(out, out + ndof_cell * ndof_cell, 0.0);
-            EigendecomposeStiffness(K_cell.data(), out, ndof_cell);
-          } else {
-            // store raw K for passive forces
-            std::copy(K_cell.begin(), K_cell.end(), out);
+        // gather 2D face element nodes
+        int local = 0;
+        for (int l0 = 0; l0 <= spec.order; l0++) {
+          for (int l1 = 0; l1 <= spec.order; l1++) {
+            // build global node index from 3 axis values
+            int g[3];
+            g[normal_axis] = g_fixed;
+            g[na0] = q0 * spec.order + l0;
+            g[na1] = q1 * spec.order + l1;
+            int global = g[0] * ny_global * nz_global + g[1] * nz_global + g[2];
+            mjuu_copyvec(elem_pos.data() + 3*local,
+                         nodexpos_local.data() + 3*global, 3);
+            local++;
           }
         }
+      } else {
+        // 3D cell: convert flat index to (ci, cj, ck)
+        int ci = fe / (cy * cz);
+        int cj = (fe / cz) % cy;
+        int ck = fe % cz;
+
+        // skip stiffness computation for empty cells (no mesh content)
+        if (!cell_empty.empty() && cell_empty[fe]) {
+          continue;
+        }
+
+        // gather cell's local node positions
+        int local = 0;
+        for (int li = 0; li <= spec.order; li++) {
+          for (int lj = 0; lj <= spec.order; lj++) {
+            for (int lk = 0; lk <= spec.order; lk++) {
+              int gi = ci * spec.order + li;
+              int gj = cj * spec.order + lj;
+              int gk = ck * spec.order + lk;
+              int global = gi * ny_global * nz_global + gj * nz_global + gk;
+              mjuu_copyvec(elem_pos.data() + 3*local,
+                           nodexpos_local.data() + 3*global, 3);
+              local++;
+            }
+          }
+        }
+      }
+
+      // compute per-element stiffness
+      std::vector<double> K_elem(ndof_elem * ndof_elem, 0);
+      if (shell_mode) {
+        ComputeLinearStiffness2D(K_elem, elem_pos.data(), K_young, K_poisson,
+                                 spec.order, thickness, normal_axis);
+      } else {
+        ComputeLinearStiffness(K_elem, elem_pos.data(), K_young, K_poisson,
+                               spec.order);
+      }
+      double* out = stiffness.data() + fe * ndof_elem * ndof_elem;
+
+      if (has_strain_eq) {
+        // eigendecompose: store [neig, sqrt(λ)*v_1, sqrt(λ)*v_2, ...]
+        std::fill(out, out + ndof_elem * ndof_elem, 0.0);
+        EigendecomposeStiffness(K_elem.data(), out, ndof_elem);
+      } else {
+        // store raw K for passive forces
+        std::copy(K_elem.begin(), K_elem.end(), out);
       }
     }
   }

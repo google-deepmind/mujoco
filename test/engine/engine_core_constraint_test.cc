@@ -682,6 +682,46 @@ TEST_F(CoreConstraintTest, StrainConstraintQuadratic) {
   mj_deleteModel(m);
 }
 
+TEST_F(CoreConstraintTest, ShellModeBendZeroForceAtRest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp type="grid" count="8 8 8" spacing=".07 .07 .07" pos="0 0 1"
+                dim="3" cellcount="1 1 1" radius=".001" rgba="0 .7 .7 1"
+                mass="5" name="softbody" dof="trilinear">
+        <elasticity young="0" poisson="0.1" damping="0.01"
+                    elastic2d="bend" thickness="0.02"/>
+        <edge equality="strain"/>
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  mj_forward(m, d);
+
+  // Check number of equalities
+  EXPECT_EQ(m->neq, 6);
+
+  // Check total number of scalar equality constraints
+  EXPECT_EQ(d->ne, 48);  // 6 faces * 8 modes per face
+
+  // all constraint residuals should be zero at rest
+  for (int i = 0; i < d->ne; i++) {
+    EXPECT_NEAR(d->efc_pos[i], 0, 1e-10)
+        << "nonzero constraint residual at " << i;
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 // Test quadratic passive forces (no constraints) for stability
 TEST_F(CoreConstraintTest, QuadraticPassiveForceStability) {
   static constexpr char xml[] = R"(
