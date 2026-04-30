@@ -1055,7 +1055,9 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   std::vector<double> node0_;             // node Cartesian positions
 
   // compute unrotated node positions for stiffness computation
-  std::vector<double> ComputeUnrotatedNodePositions(const std::vector<double>& nodexpos) const;
+  // optionally outputs the grid rotation matrix R0 (stored as rows)
+  std::vector<double> ComputeUnrotatedNodePositions(
+      const std::vector<double>& nodexpos, double* R0_out = nullptr) const;
 
   // stiffness caching
   std::string ComputeStiffnessCacheKey() const;

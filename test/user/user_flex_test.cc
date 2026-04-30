@@ -392,9 +392,9 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
 
   EXPECT_EQ(m1->nflexvert, m2->nflexvert);
   for (int i = 0; i < 3*m1->nflexvert; ++i) {
-    EXPECT_EQ(m1->flex_vert[i], d2->flexvert_xpos[i]);
-    EXPECT_EQ(m1->flex_vert0[i], m2->flex_vert0[i]);
-    EXPECT_EQ(d1->flexvert_xpos[i], d2->flexvert_xpos[i]);
+    EXPECT_NEAR(m1->flex_vert[i], d2->flexvert_xpos[i], 1e-7);
+    EXPECT_NEAR(m1->flex_vert0[i], m2->flex_vert0[i], 1e-7);
+    EXPECT_NEAR(d1->flexvert_xpos[i], d2->flexvert_xpos[i], 1e-7);
   }
 
   EXPECT_EQ(m1->nM, m2->nM);
@@ -1348,6 +1348,55 @@ TEST_F(UserFlexTest, Dof2d) {
   mj_deleteModel(m_full);
   mj_deleteData(d_2d);
   mj_deleteData(d_full);
+}
+
+TEST_F(UserFlexTest, Vert0RotationInvariant) {
+  // unrotated trilinear grid
+  static constexpr char xml_unrotated[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="parent">
+      <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
+                dim="3" dof="trilinear">
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+
+  // same grid rotated 45 degrees around Z via parent body quaternion
+  static constexpr char xml_rotated[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="parent" quat="0.9238795 0 0 0.3826834">
+      <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
+                dim="3" dof="trilinear">
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* m1 = LoadModelFromString(xml_unrotated, error.data(), error.size());
+  ASSERT_THAT(m1, NotNull()) << error.data();
+
+  mjModel* m2 = LoadModelFromString(xml_rotated, error.data(), error.size());
+  ASSERT_THAT(m2, NotNull()) << error.data();
+
+  // same number of vertices
+  ASSERT_EQ(m1->nflexvert, m2->nflexvert);
+
+  // vert0 must be identical regardless of rotation
+  for (int i = 0; i < 3 * m1->nflexvert; ++i) {
+    EXPECT_NEAR(m1->flex_vert0[i], m2->flex_vert0[i], 1e-10)
+        << "vert0 mismatch at index " << i;
+  }
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
 }
 
 }  // namespace

@@ -4363,7 +4363,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // compute unrotated node positions for stiffness computation
-  std::vector<double> nodexpos_local = ComputeUnrotatedNodePositions(nodexpos);
+  double R0[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};  // identity by default
+  std::vector<double> nodexpos_local = ComputeUnrotatedNodePositions(nodexpos, R0);
 
   // reorder tetrahedra so right-handed face orientation is outside
   // faces are (0,1,2); (0,2,3); (0,3,1); (1,3,2)
@@ -4623,16 +4624,54 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // compute bounding box coordinates
   vert0_.assign(3*nvert, 0);
-  const mjtNum* bvh = tree.Bvh().data();
-  size[0] = bvh[3] - radius;
-  size[1] = bvh[4] - radius;
-  size[2] = bvh[5] - radius;
-  for (int j=0; j < nvert; j++) {
-    for (int k=0; k < 3; k++) {
-      if (size[k] > mjMINVAL) {
-        vert0_[3*j+k] = (vertxpos[3*j+k] - bvh[k]) / (2*size[k]) + 0.5;
-      } else {
-        vert0_[3*j+k] = 0.5;
+
+  if (interpolated && nnode > 0) {
+    // for interpolated flex, compute vert0_ in the unrotated local frame
+    // to make parametric coordinates rotation-invariant
+    std::vector<double> vertxpos_local(3*nvert);
+    for (int j = 0; j < nvert; j++) {
+      mjuu_mulvecmat(vertxpos_local.data()+3*j, vertxpos.data()+3*j, R0);
+    }
+
+    // compute local-frame bounding box from unrotated node positions
+    double lo[3] = {1e30, 1e30, 1e30};
+    double hi[3] = {-1e30, -1e30, -1e30};
+    for (int i = 0; i < nnode; i++) {
+      for (int k = 0; k < 3; k++) {
+        lo[k] = std::min(lo[k], nodexpos_local[3*i+k]);
+        hi[k] = std::max(hi[k], nodexpos_local[3*i+k]);
+      }
+    }
+
+    // set size from local bounding box
+    for (int k = 0; k < 3; k++) {
+      size[k] = (hi[k] - lo[k]) / 2;
+    }
+
+    // normalize vertex positions within local bounding box
+    for (int j = 0; j < nvert; j++) {
+      for (int k = 0; k < 3; k++) {
+        double extent = hi[k] - lo[k];
+        if (extent > mjMINVAL) {
+          vert0_[3*j+k] = (vertxpos_local[3*j+k] - lo[k]) / extent;
+        } else {
+          vert0_[3*j+k] = 0.5;
+        }
+      }
+    }
+  } else {
+    // non-interpolated: use BVH bounding box (original behavior)
+    const mjtNum* bvh = tree.Bvh().data();
+    size[0] = bvh[3] - radius;
+    size[1] = bvh[4] - radius;
+    size[2] = bvh[5] - radius;
+    for (int j=0; j < nvert; j++) {
+      for (int k=0; k < 3; k++) {
+        if (size[k] > mjMINVAL) {
+          vert0_[3*j+k] = (vertxpos[3*j+k] - bvh[k]) / (2*size[k]) + 0.5;
+        } else {
+          vert0_[3*j+k] = 0.5;
+        }
       }
     }
   }
@@ -4655,7 +4694,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 // be computed from axis-aligned positions to preserve the diagonal Jacobian
 // assumption in ComputeLinearStiffness.
 std::vector<double> mjCFlex::ComputeUnrotatedNodePositions(
-    const std::vector<double>& nodexpos) const {
+    const std::vector<double>& nodexpos, double* R0_out) const {
   std::vector<double> nodexpos_local(3*nnode);
   if (interpolated && nnode > 0) {
     int ny_global = spec.cellcount[1] * spec.order + 1;
@@ -4706,6 +4745,22 @@ std::vector<double> mjCFlex::ComputeUnrotatedNodePositions(
     double lj = mjuu_normvec(R0+3, 3);
     double lk = mjuu_normvec(R0+6, 3);
     (void)li; (void)lj; (void)lk;
+
+    // assert R0 is orthonormal (rows are the normalized edge vectors)
+    for (int a = 0; a < 3; a++) {
+      for (int b = a; b < 3; b++) {
+        double dot = mjuu_dot3(R0 + 3*a, R0 + 3*b);
+        double expected = (a == b) ? 1.0 : 0.0;
+        if (std::abs(dot - expected) > 1e-8) {
+          throw mjCError(this, "flex grid rotation R0 is not orthonormal");
+        }
+      }
+    }
+
+    // output R0 if requested
+    if (R0_out) {
+      mjuu_copyvec(R0_out, R0, 9);
+    }
 
     // apply inverse rotation to each nodexpos to get local-frame positions
     for (int i = 0; i < nnode; i++) {
