@@ -926,12 +926,15 @@ void App::BuildGui() {
 
   if (tmp_.help) {
     platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_Alpha, 0.6f);
+    style.Var(ImGuiStyleVar_Alpha, 0.8f);
     ImGui::SetNextWindowPos(ImVec2(workspace_rect.x, workspace_rect.y),
-                            ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(400, 0), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Help", &tmp_.help)) {
+                            ImGuiCond_Appearing);
+    ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Appearing);
+    if (ImGui::Begin("Help", &tmp_.help,
+                     ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.0f, 5.0f));
       HelpGui();
+      ImGui::PopStyleVar();
     }
     ImGui::End();
   }
@@ -1297,11 +1300,18 @@ void App::SpecEditorGui() {
 }
 
 void App::HelpGui() {
+  const float pad = ImGui::GetStyle().ItemSpacing.x;
+  const float indent = pad * 2;
+  const float col0 = ImGui::CalcTextSize("Toggle Visc Pause").x + pad;
+  const float col1 = ImGui::CalcTextSize("Ctrl+Spc").x + pad + indent;
+  const float col2 = ImGui::CalcTextSize("Center of Mass").x + pad + indent;
+  const float col3 = ImGui::CalcTextSize("M").x + pad + indent;
+  ImGui::Dummy(ImVec2(col0 + col1 + col2 + col3, 0));
   ImGui::Columns(4);
-  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.35f);
-  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.15f);
-  ImGui::SetColumnWidth(2, ImGui::GetWindowWidth() * 0.4f);
-  ImGui::SetColumnWidth(3, ImGui::GetWindowWidth() * 0.1f);
+  ImGui::SetColumnWidth(0, col0);
+  ImGui::SetColumnWidth(1, col1);
+  ImGui::SetColumnWidth(2, col2);
+  ImGui::SetColumnWidth(3, col3);
 
   ImGui::Text("Help");
   ImGui::Text("Stats");
@@ -1329,6 +1339,7 @@ void App::HelpGui() {
   ImGui::Text("Site Group");
 
   ImGui::NextColumn();
+  ImGui::Indent(indent);
   ImGui::Text("F1");
   ImGui::Text("F2");
   ImGui::Text("F6");
@@ -1342,7 +1353,7 @@ void App::HelpGui() {
   ImGui::Text("Bksp");
   ImGui::Text("Tab");
   ImGui::Text("Sh+Tab");
-  ImGui::Text("=");
+  ImGui::Text("+");
   ImGui::Text("-");
   ImGui::Text("[");
   ImGui::Text("]");
@@ -1355,6 +1366,7 @@ void App::HelpGui() {
   ImGui::Text("Sh+0-5");
 
   ImGui::NextColumn();
+  ImGui::Indent(indent);
   ImGui::Text("Activation");
   ImGui::Text("Auto Connect");
   ImGui::Text("Body Tree");
@@ -1381,6 +1393,7 @@ void App::HelpGui() {
   ImGui::Text("Transparent");
 
   ImGui::NextColumn();
+  ImGui::Indent(indent);
   ImGui::Text(",");
   ImGui::Text("K");
   ImGui::Text("`");

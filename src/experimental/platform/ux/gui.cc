@@ -347,6 +347,11 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::End();
   }
 
+  ImGuiDockNode* central = ImGui::DockBuilderGetCentralNode(root);
+  if (central) {
+    return ImVec4(central->Pos.x, central->Pos.y,
+                  central->Size.x, central->Size.y);
+  }
   const int settings_width = dockspace_size.x * kOptionsRelWidth;
   const int inspector_width = dockspace_size.x * kInspectorRelWidth;
   const float workspace_x = dockspace_pos.x + settings_width;
