@@ -1376,11 +1376,29 @@ void mju_sqrMatTDSparse_row(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
 }
 
 
-// block-diagonalize a dense matrix
+// extract a single block of a dense matrix
 //   res         output matrix
 //   mat         input matrix
 //   nc_mat      number of columns in mat
 //   nc_res      number of columns in res
+//   nr          number of rows in res
+//   perm_r      reverse permutation of rows (res -> mat)
+//   perm_c      reverse permutation of columns (res -> mat)
+void mju_block(mjtNum* restrict res, const mjtNum* restrict mat,
+               int nc_mat, int nc_res, int nr,
+               const int* restrict perm_r, const int* restrict perm_c) {
+  for (int r = 0; r < nr; r++) {
+    mjtNum* res_r = res + r * nc_res;
+    const mjtNum* mat_r = mat + perm_r[r] * nc_mat;
+    mju_gather(res_r, mat_r, perm_c, nc_res);
+  }
+}
+
+// block-diagonalize a dense matrix
+//   res         target matrix
+//   mat         source full matrix
+//   nc_mat      number of columns in source matrix
+//   nc_res      number of columns in the block-diagonal target matrix
 //   nb          number of blocks
 //   perm_r      reverse permutation of rows (res -> mat)
 //   perm_c      reverse permutation of columns (res -> mat)
@@ -1393,16 +1411,54 @@ void mju_blockDiag(mjtNum* restrict res, const mjtNum* restrict mat,
                    const int* restrict perm_r, const int* restrict perm_c,
                    const int* restrict block_nr, const int* restrict block_nc,
                    const int* restrict block_r, const int* restrict block_c) {
-  for (int b=0; b < nb; b++) {
-    int bnr = block_nr[b];
-    int bnc = block_nc[b];
-    const int* adr_r = perm_r + block_r[b];
-    const int* adr_c = perm_c + block_c[b];
+  for (int b = 0; b < nb; b++) {
     int adr = nc_res * block_r[b];
-    for (int r = 0; r < bnr; r++) {
-      for (int c = 0; c < bnc; c++) {
-        res[adr++] = mat[nc_mat * adr_r[r] + adr_c[c]];
-      }
+    mju_block(res + adr, mat, nc_mat, block_nc[b], block_nr[b],
+              perm_r + block_r[b], perm_c + block_c[b]);
+  }
+}
+
+
+// extract a single block of a sparse matrix
+//   res, res2     target matrix values
+//   res_rownnz    non-zeros in each row of target matrix
+//   res_rowadr    row address of each initial row in target matrix
+//   res_colind    column indices for each extracted value (relative)
+//   mat, mat2     source matrix values
+//   rownnz        non-zeros in each row of source matrix
+//   rowadr        addresses within the source matrix values
+//   colind        source matrix column indices
+//   nr            number of rows to extract
+//   perm_r        row permutation (maps local row to source row)
+//   perm_c        column permutation (maps source col to local col)
+//   col_offset    subtrahend to shift mapped absolute columns into relative block space
+//   res_offset    rowadr starting offset for the extracted submatrix
+void mju_blockSparse(mjtNum* restrict res, int* restrict res_rownnz,
+                     int* restrict res_rowadr, int* restrict res_colind,
+                     const mjtNum* restrict mat, const int* restrict rownnz,
+                     const int* restrict rowadr, const int* restrict colind,
+                     int nr,
+                     const int* restrict perm_r, const int* restrict perm_c,
+                     int col_offset, int res_offset,
+                     mjtNum* restrict res2, const mjtNum* restrict mat2) {
+  for (int r = 0; r < nr; r++) {
+    int k = perm_r[r];
+    int nnz = rownnz[k];
+    res_rownnz[r] = nnz;
+
+    int res_adr = (r == 0) ? res_offset : (res_rowadr[r-1] + res_rownnz[r-1]);
+    res_rowadr[r] = res_adr;
+
+    int* res_colind_r = res_colind + (res_adr - res_offset);
+    int mat_adr = rowadr[k];
+    const int* colind_k = colind + mat_adr;
+    for (int j = 0; j < nnz; j++) {
+      res_colind_r[j] = perm_c[colind_k[j]] - col_offset;
+    }
+
+    mju_copy(res + (res_adr - res_offset), mat + mat_adr, nnz);
+    if (mat2 && res2) {
+      mju_copy(res2 + (res_adr - res_offset), mat2 + mat_adr, nnz);
     }
   }
 }
@@ -1433,43 +1489,15 @@ void mju_blockDiagSparse(mjtNum* restrict res, int* restrict res_rownnz,
                          const int* restrict perm_r, const int* restrict perm_c,
                          const int* restrict block_r, const int* restrict block_c,
                          mjtNum* restrict res2, const mjtNum* restrict mat2) {
-  int block = 0;
-  int col_offset = block_c[block];
-  int row_next = block + 1 < nb ? block_r[block + 1] : nr;
-  for (int r=0; r < nr; r++) {
-    // row k in mat goes to row r in res
-    int k = perm_r[r];
+  for (int b = 0; b < nb; b++) {
+    int nr_block = (b + 1 < nb ? block_r[b + 1] : nr) - block_r[b];
+    int res_adr = (block_r[b] == 0) ? 0 : (res_rowadr[block_r[b] - 1] + res_rownnz[block_r[b] - 1]);
 
-    // rownnz
-    int nnz = rownnz[k];
-    res_rownnz[r] = nnz;
-
-    // rowadr
-    int res_adr = (r == 0) ? 0 : res_rowadr[r-1] + res_rownnz[r-1];
-    res_rowadr[r] = res_adr;
-
-    // colind
-    int* res_colind_r = res_colind + res_adr;
-    mjtNum* res_r = res + res_adr;
-    int mat_adr = rowadr[k];
-    const int* colind_k = colind + mat_adr;
-    const mjtNum* mat_k = mat + mat_adr;
-    for (int j=0; j < nnz; j++) {
-      res_colind_r[j] = perm_c[colind_k[j]] - col_offset;
-    }
-
-    // values (dense copy: partial order within block is guaranteed)
-    mju_copy(res_r, mat_k, nnz);
-    if (mat2 && res2) {
-      mju_copy(res2 + res_adr, mat2 + mat_adr, nnz);
-    }
-
-    // end of block reached: update block counter, column offset, next row
-    if (r + 1 >= row_next && block + 1 < nb) {
-      block++;
-      col_offset = block_c[block];
-      row_next = block + 1 < nb ? block_r[block + 1] : nr;
-    }
+    mju_blockSparse(res + res_adr, res_rownnz + block_r[b],
+                    res_rowadr + block_r[b], res_colind + res_adr,
+                    mat, rownnz, rowadr, colind,
+                    nr_block, perm_r + block_r[b], perm_c,
+                    block_c[b], res_adr,
+                    res2 ? res2 + res_adr : NULL, mat2);
   }
 }
-
