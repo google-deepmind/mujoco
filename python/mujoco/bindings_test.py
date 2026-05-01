@@ -160,6 +160,9 @@ class MuJoCoBindingsTest(parameterized.TestCase):
         [[0, 0, 0], [0, 0, 0.1], [0, 0, 0], [0, 0, 0], [42.0, 0, 42.0]],
     )
 
+  def test_renderer_constant(self):
+    self.assertIn(mujoco.mjRENDERER, ('classic', 'filament', 'noop'))
+
   def test_can_set_array(self):
     self.data.qpos = 0.12345
     np.testing.assert_array_equal(

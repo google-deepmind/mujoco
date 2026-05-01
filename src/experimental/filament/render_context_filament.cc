@@ -15,13 +15,29 @@
 #include "experimental/filament/render_context_filament.h"
 
 #include <array>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+#define NOMINMAX
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 #include <math/mat3.h>
 #include <math/vec3.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjrender.h>
+#include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/compat/mjr_filament_renderer.h"
 #include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/mesh.h"
@@ -29,6 +45,141 @@
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/filament/texture.h"
+
+#if defined(TLS_FILAMENT_CONTEXT)
+static thread_local mujoco::MjrFilamentRenderer* g_filament_context = nullptr;
+#else
+static mujoco::MjrFilamentRenderer* g_filament_context = nullptr;
+#endif
+
+static void CheckFilamentContext() {
+  if (g_filament_context == nullptr) {
+    mju_error("Missing context; did you call mjrf_makeFilamentContext?");
+  }
+}
+
+struct FilamentAssetResource {
+  std::vector<char> data;
+};
+
+static std::once_flag g_filament_provider_once;
+
+static std::string JoinPath(std::string_view dir, std::string_view filename) {
+  if (dir.empty()) {
+    return std::string(filename);
+  }
+  std::string path(dir);
+  const char last = path.back();
+  if (last != '/' && last != '\\') {
+#if defined(_WIN32) || defined(__CYGWIN__)
+    path.push_back('\\');
+#else
+    path.push_back('/');
+#endif
+  }
+  path.append(filename);
+  return path;
+}
+
+static std::string GetLibraryDir() {
+  void* anchor = reinterpret_cast<void*>(
+      reinterpret_cast<uintptr_t>(&mj_forward));
+#if defined(_WIN32) || defined(__CYGWIN__)
+  HMODULE module = nullptr;
+  constexpr DWORD flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                          GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+  if (GetModuleHandleExA(flags, reinterpret_cast<LPCSTR>(anchor), &module)) {
+    char path[MAX_PATH];
+    if (GetModuleFileNameA(module, path, MAX_PATH)) {
+      std::string lib_path(path);
+      const std::size_t last_slash = lib_path.find_last_of("\\/");
+      if (last_slash != std::string::npos) {
+        return lib_path.substr(0, last_slash + 1);
+      }
+    }
+  }
+#else
+  Dl_info info;
+  if (dladdr(anchor, &info) && info.dli_fname) {
+    std::string lib_path(info.dli_fname);
+    const std::size_t last_slash = lib_path.find_last_of('/');
+    if (last_slash != std::string::npos) {
+      return lib_path.substr(0, last_slash + 1);
+    }
+  }
+#endif
+  return "";
+}
+
+static void EnsureDefaultFilamentResourceProvider() {
+  std::call_once(g_filament_provider_once, [] {
+    if (mjp_getResourceProvider("filament:pbr.filamat")) {
+      return;
+    }
+
+    static mjpResourceProvider provider;
+    mjp_defaultResourceProvider(&provider);
+
+    provider.open = [](mjResource* resource) {
+      std::string_view name(resource->name);
+      const std::size_t prefix_end = name.find(':');
+      const std::string_view filename =
+          prefix_end == std::string_view::npos
+              ? name
+              : name.substr(prefix_end + 1);
+
+      std::vector<std::string> asset_dirs;
+      if (const char* env_dir = std::getenv("MUJOCO_FILAMENT_ASSETS_DIR")) {
+        asset_dirs.emplace_back(env_dir);
+      }
+      const std::string library_dir = GetLibraryDir();
+      if (!library_dir.empty()) {
+        asset_dirs.push_back(JoinPath(library_dir, "assets"));
+      }
+      asset_dirs.emplace_back("assets");
+
+      for (const std::string& dir : asset_dirs) {
+        std::ifstream file(JoinPath(dir, filename),
+                           std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+          continue;
+        }
+        const std::streamsize size = file.tellg();
+        if (size <= 0) {
+          continue;
+        }
+        auto* asset = new FilamentAssetResource();
+        asset->data.resize(static_cast<std::size_t>(size));
+        file.seekg(0, std::ios::beg);
+        if (!file.read(asset->data.data(), size)) {
+          delete asset;
+          continue;
+        }
+        resource->data = asset;
+        return static_cast<int>(asset->data.size());
+      }
+      return 0;
+    };
+    provider.read = [](mjResource* resource, const void** buffer) {
+      auto* asset = static_cast<FilamentAssetResource*>(resource->data);
+      if (!asset) {
+        return -1;
+      }
+      *buffer = asset->data.data();
+      return static_cast<int>(asset->data.size());
+    };
+    provider.close = [](mjResource* resource) {
+      delete static_cast<FilamentAssetResource*>(resource->data);
+      resource->data = nullptr;
+    };
+    provider.prefix = "filament";
+
+    const int slot = mjp_registerResourceProvider(&provider);
+    if (slot < 0 && !mjp_getResourceProvider("filament:pbr.filamat")) {
+      mju_warning("Failed to register default Filament resource provider.");
+    }
+  });
+}
 
 template <int N>
 static void setf(float (&arr)[N], const std::array<float, N>& values) {
@@ -327,4 +478,90 @@ void mjrf_getFrameStats(mjrfContext* ctx, mjrFrameHandle frame,
                         mjrFrameStats* stats_out) {
   mujoco::FilamentContext::downcast(ctx)->GetFrameStats(frame, stats_out);
 }
+
+// Legacy API, to be deprecated.
+
+void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,
+                              const mjrFilamentConfig* config) {
+  // TODO: Support multiple contexts and multiple threads. For now, we'll just
+  // assume a single, global context.
+  if (g_filament_context != nullptr) {
+    mju_error("Context already exists!");
+  }
+  EnsureDefaultFilamentResourceProvider();
+  g_filament_context = new mujoco::MjrFilamentRenderer(config);
+  g_filament_context->Init(m);
+}
+
+void mjrf_defaultContext(mjrContext* con) {
+  memset(con, 0, sizeof(mjrContext));
+}
+
+void mjrf_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
+  mjrf_freeContext(con);
+  mjrFilamentConfig cfg;
+  mjrf_defaultFilamentConfig(&cfg);
+  cfg.width = m->vis.global.offwidth;
+  cfg.height = m->vis.global.offheight;
+  mjrf_makeFilamentContext(m, con, &cfg);
+}
+
+void mjrf_freeContext(mjrContext* con) {
+  // mjr_freeContext may be called multiple times.
+  if (g_filament_context) {
+    delete g_filament_context;
+    g_filament_context = nullptr;
+  }
+  mjrf_defaultContext(con);
+}
+
+void mjrf_renderScene(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
+  CheckFilamentContext();
+  g_filament_context->Render(viewport, scn);
+}
+
+void mjrf_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
+  CheckFilamentContext();
+  g_filament_context->UploadMesh(m, meshid);
+}
+
+void mjrf_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
+  CheckFilamentContext();
+  g_filament_context->UploadTexture(m, texid);
+}
+
+void mjrf_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
+  CheckFilamentContext();
+  g_filament_context->UploadHeightField(m, hfieldid);
+}
+
+void mjrf_setBuffer(int framebuffer, mjrContext* con) {
+  CheckFilamentContext();
+  g_filament_context->SetFrameBuffer(framebuffer);
+}
+
+void mjrf_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
+                          const mjrContext* con) {
+  CheckFilamentContext();
+  g_filament_context->ReadPixels(viewport, rgb, depth);
+}
+
+uintptr_t mjrf_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
+                             int width, int height, int bpp,
+                             const mjrContext* con) {
+  CheckFilamentContext();
+  return g_filament_context->UploadGuiImage(tex_id, pixels, width, height, bpp);
+}
+
+double mjrf_getFrameRate(const mjrContext* con) {
+  CheckFilamentContext();
+  return g_filament_context->GetFrameRate();
+}
+
+void mjrf_updateGui(const mjrContext* con) {
+  if (g_filament_context != nullptr) {
+    g_filament_context->UpdateGui();
+  }
+}
+
 }  // extern "C"

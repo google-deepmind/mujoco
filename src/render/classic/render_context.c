@@ -50,6 +50,10 @@
 
 //----------------------------- custom OpenGL context ----------------------------------------------
 
+const char* mjr_getRenderer(void) {
+  return "classic";
+}
+
 // set default mjrContext
 void mjr_defaultContext(mjrContext* con) {
   memset(con, 0, sizeof(mjrContext));
