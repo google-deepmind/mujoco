@@ -275,6 +275,8 @@ that create a new :ref:`mjModel` instance: ``mujoco.MjModel.from_xml_string``, `
 functions accept the path to either an XML or MJB model file. All three functions optionally accept a Python
 dictionary which is converted into a MuJoCo :ref:`Virtualfilesystem` for use during model compilation.
 
+
+
 .. _PyFunctions:
 
 Functions
@@ -514,16 +516,64 @@ The ``MjSpec`` object wraps the :ref:`mjSpec` struct and can be constructed in t
 
 Note the ``from_string()`` and ``from_file()`` methods can only be called at construction time.
 
+.. _PyVFS:
+
 Assets
 ^^^^^^
 
-All three methods take in an optional argument called ``assets`` which is used to resolve asset references in the XML.
-This argument is a dictionary that maps asset name (string) to asset data (bytes), as demonstrated below:
+MuJoCo optionally uses a :ref:`Virtual File System <Virtualfilesystem>` (VFS) to load assets (like meshes and textures)
+from memory. Some :ref:`decoders<exDecoder>` may also choose to leverage the VFS as a way to load assets on
+demand, such as when addressing files in an archive format. This requires the same VFS to be used when parsing and
+compiling a spec (and all attached specs) into a model.
+
+The Python bindings provide the ``mujoco.MjVfs`` as a wrapper around the :ref:`mjVFS` C struct.
+
+``MjVfs`` supports the context manager protocol, which ensures that resources are properly freed when leaving the block:
+
+.. code-block:: python
+
+   with mujoco.MjVfs() as vfs:
+       vfs["model.xml"] = b"<mujoco/>"
+       spec = mujoco.MjSpec.from_string("model.xml", vfs=vfs)
+       spec.compile(vfs=vfs)
+
+You can also create an instance directly and call ``close()`` when done:
+
+.. code-block:: python
+
+   vfs = mujoco.MjVfs()
+   vfs["model.xml"] = some_xml_string.encode("utf-8")
+   spec = mujoco.MjSpec.from_file("model.xml", vfs=vfs)
+   spec.compile(vfs=vfs)
+   vfs.close()
+
+The ``MjVfs`` object supports dictionary-like operations to manage buffers:
+
+- ``vfs["name"] = data``: Adds a buffer to the VFS. ``data`` must be of type ``bytes``.
+- ``del vfs["name"]``: Deletes a file from the VFS.
+- ``"name" in vfs``: Checks if a file exists in the VFS.
+
+The static factory functions ``mujoco.MjModel.from_xml_string``, ``mujoco.MjModel.from_xml_path``,
+``mujoco.MjSpec.from_string`` and ``mujoco.MjSpec.from_file`` accept an optional ``vfs`` argument. Additionally, the
+``spec.compile()`` function also accepts an optional ``vfs`` argument.
+
+.. warning::
+   The previous way of passing assets via a dictionary mapping asset names to bytes is **deprecated** and will be
+   removed in the next release. You cannot specify both the ``assets`` dictionary and the ``vfs`` argument at the same
+   time. ``MjVfs`` should be used as a drop-in replacement.
+
+For reference, the deprecated ``assets`` dictionary approach looked like this:
 
 .. code-block:: python
 
   assets = {'image.png': b'image_data'}
   spec = mujoco.MjSpec.from_string(xml_referencing_image_png, assets=assets)
+  model = spec.compile()
+
+  # Or
+
+  spec = mujoco.MjSpec.from_string(xml_referencing_image_png)
+  spec.assets = {'image.png': b'image_data'}
   model = spec.compile()
 
 Save to XML
@@ -566,8 +616,8 @@ It is possible to combine multiple specs by using attachments. The following opt
     the reference to a frame, which is the attached worldbody transformed into a frame. The site must belong to the
     child spec. Prefix and suffix can also be specified as keyword arguments.
 -   Attach a child spec to a frame in the parent spec: ``parent_spec.attach(child_spec, frame=frame_name_or_obj)``,
-    returns the reference to a frame, which is the attached worldbody transformed into a frame. The frame must belong to
-    the child spec. Prefix and suffix can also be specified as keyword arguments.
+    returns the reference to a frame, which is the attached worldbody transformed into a frame. The frame must
+    belong to the child spec. Prefix and suffix can also be specified as keyword arguments.
 
 The default behavior of attaching is to not copy, so all the child references (except for the worldbody) are still valid
 in the parent and therefore modifying the child will modify the parent. This is not true for the attach

@@ -55,6 +55,19 @@ Bug fixes
    than the parent spec. This prevents the origin of the parent spec to affect the resolution of asset paths in the
    child spec.
 
+Python
+^^^^^^
+
+- Added ``mujoco.MjVfs`` Python binding to interact with the Virtual File System directly from Python.
+  See :ref:`Virtual File System <PyVFS>` for usage details.
+
+  .. warning::
+   The previous way of passing assets via a dictionary mapping asset names to bytes is **deprecated** and will be
+   removed in an upcoming release. You cannot specify both the ``assets`` dictionary and the ``vfs`` argument at the same
+   time. ``MjVfs`` should be used as a drop-in replacement.
+
+
+
 Version 3.7.0 (April 14, 2026)
 ------------------------------
 

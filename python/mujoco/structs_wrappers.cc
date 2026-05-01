@@ -19,6 +19,7 @@
 #include <cstring>
 #include <chrono>  // NOLINT(build/c++11)
 #include <exception>
+#include <functional>
 #include <ios>
 #include <iostream>
 #include <memory>
@@ -38,6 +39,7 @@
 #include "raw.h"
 #include "serialization.h"
 #include "structs.h"
+#include "vfs.h"
 #include <pybind11/cast.h>
 #include <pybind11/detail/common.h>
 #include <pybind11/numpy.h>
@@ -79,6 +81,18 @@ constexpr auto XArrayShapeImpl(const std::string_view dim1_str) {
 inline std::size_t NConMax(const mjData* d) {
   return d->narena / sizeof(mjContact);
 }
+template <typename Callback = void()>
+struct Cleanup final {
+  Callback clean_func;
+  Cleanup(Callback callback) : clean_func(std::move(callback)) {}
+  ~Cleanup() { clean_func(); }
+};
+
+// `Cleanup c = /* callback */;`
+//
+// C++17 type deduction API for creating an instance of `Cleanup`
+template <typename Callback>
+Cleanup(Callback callback) -> Cleanup<Callback>;
 
 }  // namespace
 
@@ -295,18 +309,29 @@ MjModelWrapper::~MjWrapper() {
 template <typename LoadFunc>
 static raw::MjModel* LoadModelFileImpl(const std::string& filename,
                                        const std::vector<VfsAsset>& assets,
+                                       mjVFS* vfs,
                                        LoadFunc&& loadfunc) {
-  mjVFS vfs;
-  mjVFS* vfs_ptr = nullptr;
+  if (!assets.empty() && vfs != nullptr) {
+    throw py::value_error("Cannot specify both 'assets' and 'vfs'.");
+  }
+
+  std::optional<mjVFS> local_vfs;
+  Cleanup vfs_cleanup = [&]() {
+    if (local_vfs.has_value()) {
+      mj_deleteVFS(vfs);
+    };
+  };
+
   if (!assets.empty()) {
-    mj_defaultVFS(&vfs);
-    vfs_ptr = &vfs;
+    vfs = &local_vfs.emplace();
+    mj_defaultVFS(vfs);
+
     for (const auto& asset : assets) {
       std::string buffer_name = StripPath(asset.name);
       const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
-          vfs_ptr, buffer_name.c_str(), asset.content, asset.content_size);
+          vfs, buffer_name.c_str(), asset.content,
+          asset.content_size);
       if (vfs_error) {
-        mj_deleteVFS(vfs_ptr);
         if (vfs_error == 2) {
           throw py::value_error("Repeated file name in assets dict: " +
                                 buffer_name);
@@ -317,28 +342,34 @@ static raw::MjModel* LoadModelFileImpl(const std::string& filename,
     }
   }
 
-  raw::MjModel* model = loadfunc(filename.c_str(), vfs_ptr);
-  mj_deleteVFS(vfs_ptr);
+  raw::MjModel* model = loadfunc(filename.c_str(), vfs);
   if (model && !model->buffer) {
     mj_deleteModel(model);
     model = nullptr;
   }
+
   return model;
 }
 
 MjModelWrapper MjModelWrapper::LoadXMLFile(
     const std::string& filename,
-    const std::optional<std::unordered_map<std::string, py::bytes>>& assets) {
+    const std::optional<std::unordered_map<std::string, py::bytes>>& assets,
+    MjVfs* vfs) {
+  if (assets.has_value() && vfs != nullptr) {
+    throw py::value_error("Cannot specify both 'assets' and 'vfs'.");
+  }
+
   const auto converted_assets = ConvertAssetsDict(assets);
   raw::MjModel* model;
   {
     py::gil_scoped_release no_gil;
     char error[1024];
-    model = LoadModelFileImpl(filename, converted_assets,
-                              [&error](const char* filename, const mjVFS* vfs) {
-                                return InterceptMjErrors(mj_loadXML)(
-                                    filename, vfs, error, sizeof(error));
-                              });
+    model = LoadModelFileImpl(
+        filename, converted_assets, vfs ? vfs->get() : nullptr,
+        [&error](const char* filename, const mjVFS* vfs) {
+          return InterceptMjErrors(mj_loadXML)(
+              filename, vfs, error, sizeof(error));
+        });
     if (!model) {
       throw py::value_error(error);
     }
@@ -348,12 +379,18 @@ MjModelWrapper MjModelWrapper::LoadXMLFile(
 
 MjModelWrapper MjModelWrapper::LoadBinaryFile(
     const std::string& filename,
-    const std::optional<std::unordered_map<std::string, py::bytes>>& assets) {
+    const std::optional<std::unordered_map<std::string, py::bytes>>& assets,
+    MjVfs* vfs) {
+  if (assets.has_value() && vfs != nullptr) {
+    throw py::value_error("Cannot specify both 'assets' and 'vfs'.");
+  }
+
   const auto converted_assets = ConvertAssetsDict(assets);
   raw::MjModel* model;
   {
     py::gil_scoped_release no_gil;
     model = LoadModelFileImpl(filename, converted_assets,
+                              vfs ? vfs->get() : nullptr,
                               InterceptMjErrors(mj_loadModel));
     if (!model) {
       throw py::value_error("mj_loadModel: failed to load from mjb");
@@ -364,22 +401,44 @@ MjModelWrapper MjModelWrapper::LoadBinaryFile(
 
 MjModelWrapper MjModelWrapper::LoadXML(
     const std::string& xml,
-    const std::optional<std::unordered_map<std::string, py::bytes>>& assets) {
+    const std::optional<std::unordered_map<std::string, py::bytes>>& assets,
+    MjVfs* vfs) {
+  if (assets.has_value() && vfs != nullptr) {
+    throw py::value_error("Cannot specify both 'assets' and 'vfs'.");
+  }
+
   auto converted_assets = ConvertAssetsDict(assets);
   raw::MjModel* model;
   {
     py::gil_scoped_release no_gil;
-    std::string model_filename = "model_.xml";
-    if (assets.has_value()) {
-      while (assets->find(model_filename) != assets->end()) {
-        model_filename =
-            model_filename.substr(0, model_filename.size() - 4) + "_.xml";
+    std::string model_identifier = "model_.xml";
+    bool file_added = false;
+    Cleanup file_cleanup = [&]() {
+      if (file_added) {
+        mj_deleteFileVFS(vfs->get(), model_identifier.c_str());
       }
+    };
+    if (vfs != nullptr) {
+      while (mj_containsBufferVFS(vfs->get(), model_identifier.c_str())) {
+        model_identifier =
+            model_identifier.substr(0, model_identifier.size() - 4) + "_.xml";
+      }
+
+      mj_addBufferVFS(vfs->get(), model_identifier.c_str(), xml.c_str(),
+                      xml.length());
+      file_added = true;
+    } else {
+      while (assets.has_value() &&
+             assets->find(model_identifier) != assets->end()) {
+        model_identifier =
+            model_identifier.substr(0, model_identifier.size() - 4) + "_.xml";
+      }
+      converted_assets.emplace_back(model_identifier.c_str(), xml.c_str(),
+                                    xml.length());
     }
-    converted_assets.emplace_back(model_filename.c_str(), xml.c_str(),
-                                  xml.length());
     char error[1024];
-    model = LoadModelFileImpl(model_filename, converted_assets,
+    model = LoadModelFileImpl(model_identifier, converted_assets,
+                              vfs ? vfs->get() : nullptr,
                               [&error](const char* filename, const mjVFS* vfs) {
                                 return InterceptMjErrors(mj_loadXML)(
                                     filename, vfs, error, sizeof(error));
@@ -468,6 +527,7 @@ std::unique_ptr<MjModelWrapper> MjModelWrapper::Deserialize(
   raw::MjModel* model = LoadModelFileImpl(
       "model.mjb",
       {{"model.mjb", model_bytes.data(), static_cast<std::size_t>(model_size)}},
+      nullptr,
       InterceptMjErrors(mj_loadModel));
   if (!model) {
     throw py::value_error("Invalid serialized mjModel.");

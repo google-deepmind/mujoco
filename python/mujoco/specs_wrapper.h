@@ -35,7 +35,7 @@ struct MjSpec {
   MjSpec& operator=(MjSpec&& other);
   ~MjSpec();
 
-  raw::MjModel* Compile();
+  raw::MjModel* Compile(mjVFS* vfs = nullptr);
 
   raw::MjSpec* ptr;
   py::dict assets;
