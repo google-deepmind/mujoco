@@ -493,7 +493,7 @@ class "MjcSceneAPI"
         doc = """Enables discrete-time inverse dynamics with mj_inverse for integrators other than RK4."""
     )
 
-    uniform bool mjc:flag:multiccd = False (
+    uniform bool mjc:flag:multiccd = True (
         customData = {
             string apiName = "MultiCCDFlag"
         }
