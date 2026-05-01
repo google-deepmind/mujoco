@@ -1727,5 +1727,62 @@ TEST_F(SensorTest, TactileSkipTangents) {
   mj_deleteModel(model);
 }
 
+
+// insidesite uses subtree_com for massless flex parent bodies
+TEST_F(SensorTest, InsideSiteFlexBody) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body name="parent">
+        <flexcomp name="soft" type="grid" count="3 3 3"
+                  radius="0.01" dim="3" mass="1">
+            <elasticity young="5e4" poisson="0.2"/>
+        </flexcomp>
+      </body>
+
+      <!-- large site centered at origin, should contain the flex -->
+      <site name="container" type="box" size="2 2 2"/>
+    </worldbody>
+
+    <sensor>
+      <insidesite name="inside" site="container"
+                  objtype="body" objname="parent"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // flex is at origin, site is a large box at origin — should be inside
+  mj_forward(m, d);
+  EXPECT_EQ(d->sensordata[0], 1)
+      << "flex body should be inside the container site";
+
+  // shift all vertex/node bodies far outside the site via qpos
+  // each body has 3 slide joints (x, y, z); shift z by +10
+  int parent_id = mj_name2id(m, mjOBJ_BODY, "parent");
+  for (int b = parent_id + 1; b < m->nbody; b++) {
+    if (m->body_parentid[b] == parent_id) {
+      int jadr = m->body_jntadr[b];
+      if (jadr >= 0 && m->body_jntnum[b] == 3) {
+        // z-slide is the 3rd joint
+        d->qpos[m->jnt_qposadr[jadr + 2]] = 10.0;
+      }
+    }
+  }
+  mj_forward(m, d);
+
+  // subtree_com should now be far outside; sensor should read 0
+  EXPECT_EQ(d->sensordata[0], 0)
+      << "flex body should be outside the container site after displacement";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco
