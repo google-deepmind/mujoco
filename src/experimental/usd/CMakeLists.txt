@@ -108,10 +108,6 @@ add_library(${MJCF_PLUGIN_TARGET_NAME} SHARED)
 target_sources(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
   plugins/mjcf/mjcf_file_format.cc
   plugins/mjcf/mjcf_file_format.h
-  plugins/mjcf/mujoco_to_usd.cc
-  plugins/mjcf/mujoco_to_usd.h
-  plugins/mjcf/utils.cc
-  plugins/mjcf/utils.h
 )
 set_target_properties(${MJCF_PLUGIN_TARGET_NAME} PROPERTIES
   OUTPUT_NAME ${MJCF_PLUGIN_TARGET_NAME}
@@ -120,6 +116,9 @@ set_target_properties(${MJCF_PLUGIN_TARGET_NAME} PROPERTIES
 target_include_directories(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/plugins"
 )
+if(MSVC)
+  target_compile_definitions(${MJCF_PLUGIN_TARGET_NAME} PRIVATE NOMINMAX=1)
+endif()
 
 ## ----- mjcPhysics -----
 
@@ -141,6 +140,9 @@ target_sources(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
   mjcPhysics/tendon.cpp
   mjcPhysics/tokens.cpp
 )
+if(MSVC)
+  target_compile_definitions(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE NOMINMAX=1)
+endif()
 set_target_properties(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PROPERTIES
   OUTPUT_NAME ${MJC_PHYSICS_PLUGIN_TARGET_NAME}
   ${DEFAULT_CXX_VISIBILITY_PROPS}
@@ -155,14 +157,27 @@ target_sources(mujoco PRIVATE
   layer_sink.cc
   utils.cc
   writer.cc
+  plugins/mjcf/mujoco_to_usd.cc
+  plugins/mjcf/utils.cc
+)
+target_include_directories(mujoco PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/plugins"
 )
 
 # pxr/usd/tf/hashset.h might include deprecated headers so disable this check
 # when compiling with USD enabled.
-target_compile_options(
-     mujoco
-     PRIVATE -Wno-deprecated
-)
+if(MSVC)
+  target_compile_options(
+      mujoco
+      PRIVATE /wd4996
+  )
+  target_compile_definitions(mujoco PRIVATE NOMINMAX=1)
+else()
+  target_compile_options(
+      mujoco
+      PRIVATE -Wno-deprecated
+  )
+endif()
 
 # Configure RPATH for macOS and UNIX.
 if(APPLE)
