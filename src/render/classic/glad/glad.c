@@ -86,7 +86,7 @@ static PFNWGLGETPROCADDRESSPROC_PRIVATE mjGladGetProcAddressPtr;
 #endif
 
 static
-int mjGlad_open_gl(void) {
+int mjGlad_open_gl(void* get_proc_address) {
 #ifndef IS_UWP
   mjGlad_libGL = LoadLibraryW(L"opengl32.dll");
   if(mjGlad_libGL != NULL) {
@@ -164,8 +164,11 @@ static int mjGlad_dl_iterate_callback(struct dl_phdr_info* info, size_t size, vo
   return result;
 }
 
-static int mjGlad_open_gl(void) {
-  mjGladGetProcAddressPtr = NULL;
+static int mjGlad_open_gl(void* get_proc_address) {
+  mjGladGetProcAddressPtr = (PFNGLXGETPROCADDRESSPROC_PRIVATE)get_proc_address;
+  if (mjGladGetProcAddressPtr != NULL) {
+    return 1;
+  }
 
   // We try to load a GetProcAddress symbol that's already been loaded into the process first.
   // Since MuJoCo relies on user code to set up a working OpenGL environment, one of these symbols
@@ -224,7 +227,7 @@ static int mjGlad_open_gl(void) {
   return mjGladGetProcAddressPtr ? 1 : 0;
 }
 #else
-static int mjGlad_open_gl(void) {
+static int mjGlad_open_gl(void* get_proc_address) {
   static const char *NAMES[] = {
       "../Frameworks/OpenGL.framework/OpenGL",
       "/Library/Frameworks/OpenGL.framework/OpenGL",
@@ -1490,8 +1493,8 @@ static void mjGlad_find_coreGL(void) {
   }
 }
 
-int mjGladLoadGLUnsafe(void) {
-  if (mjGlad_open_gl()) {
+int mjGladLoadGLUnsafe(void* get_proc_address) {
+  if (mjGlad_open_gl(get_proc_address)) {
     mjGLVersion.major = 0; mjGLVersion.minor = 0;
     glGetString = (PFNGLGETSTRINGPROC)mjGlad_get_proc("glGetString");
     if (glGetString == NULL) return 0;
