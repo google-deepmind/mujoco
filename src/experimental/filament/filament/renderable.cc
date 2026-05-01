@@ -122,11 +122,11 @@ void Renderable::InitPartEntity(Part& part) {
   if (instances_[static_cast<int>(draw_mode_)] != nullptr) {
     builder.material(0, instances_[static_cast<int>(draw_mode_)]);
   }
-  builder.castShadows(cast_shadows_);
-  builder.receiveShadows(receive_shadows_);
-  builder.layerMask(0xff, layer_mask_);
-  builder.priority(priority_);
-  builder.blendOrder(0, blend_order_);
+  builder.castShadows(params_.cast_shadows);
+  builder.receiveShadows(params_.receive_shadows);
+  builder.layerMask(0xff, params_.layer_mask);
+  builder.priority(params_.priority);
+  builder.blendOrder(0, params_.blend_order);
   builder.screenSpaceContactShadows(true);
 
   builder.build(*GetEngine(), part.entity);
@@ -264,62 +264,62 @@ void Renderable::SetDrawMode(mjrDrawMode mode) {
 }
 
 std::uint8_t Renderable::SetLayerMask(std::uint8_t mask) {
-  std::uint8_t prev = layer_mask_;
-  if (mask != layer_mask_) {
-    layer_mask_ = mask;
+  std::uint8_t prev = params_.layer_mask;
+  if (mask != params_.layer_mask) {
+    params_.layer_mask = mask;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
-      rm.setLayerMask(rm.getInstance(part.entity), 0xff, layer_mask_);
+      rm.setLayerMask(rm.getInstance(part.entity), 0xff, params_.layer_mask);
     }
   }
   return prev;
 }
 
 std::uint8_t Renderable::SetPriority(std::uint8_t priority) {
-  std::uint8_t prev = priority_;
-  if (priority != priority_) {
-    priority_ = priority;
+  std::uint8_t prev = params_.priority;
+  if (priority != params_.priority) {
+    params_.priority = priority;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
-      rm.setPriority(rm.getInstance(part.entity), priority_);
+      rm.setPriority(rm.getInstance(part.entity), params_.priority);
     }
   }
   return prev;
 }
 
 std::uint16_t Renderable::SetBlendOrder(std::uint16_t blend_order) {
-  std::uint16_t prev = blend_order_;
-  if (blend_order != blend_order_) {
-    blend_order_ = blend_order;
+  std::uint16_t prev = params_.blend_order;
+  if (blend_order != params_.blend_order) {
+    params_.blend_order = blend_order;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
-      rm.setBlendOrderAt(rm.getInstance(part.entity), 0, blend_order_);
+      rm.setBlendOrderAt(rm.getInstance(part.entity), 0, params_.blend_order);
     }
   }
   return prev;
 }
 
 void Renderable::SetCastShadows(bool cast_shadows) {
-  if (cast_shadows_ != cast_shadows) {
-    cast_shadows_ = cast_shadows;
+  if (params_.cast_shadows != cast_shadows) {
+    params_.cast_shadows = cast_shadows;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
   for (Part& part : parts_) {
-        rm.setCastShadows(rm.getInstance(part.entity), cast_shadows_);
+        rm.setCastShadows(rm.getInstance(part.entity), params_.cast_shadows);
     }
   }
 }
 
 void Renderable::SetReceiveShadows(bool receive_shadows) {
-  if (receive_shadows_ != receive_shadows) {
-    receive_shadows_ = receive_shadows;
+  if (params_.receive_shadows != receive_shadows) {
+    params_.receive_shadows = receive_shadows;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
-      rm.setReceiveShadows(rm.getInstance(part.entity), receive_shadows_);
+      rm.setReceiveShadows(rm.getInstance(part.entity), params_.receive_shadows);
     }
   }
 }

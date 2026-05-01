@@ -48,10 +48,6 @@ namespace mujoco {
 // of the Renderable.
 class Renderable : public mjrRenderable {
  public:
-  // Default filament values for priority and layer mask.
-  static constexpr std::uint8_t kDefaultPriority = 4;
-  static constexpr std::uint8_t kDefaultLayerMask = 0x01;
-
   Renderable(FilamentContext* ctx, const mjrRenderableParams& params);
   ~Renderable() noexcept;
 
@@ -155,12 +151,7 @@ class Renderable : public mjrRenderable {
   std::vector<Part> parts_;
   filament::math::mat4f transform_;
   GetTransformFn get_transform_fn_;
-  std::uint8_t priority_ = kDefaultPriority;
-  std::uint8_t layer_mask_ = kDefaultLayerMask;
-  std::uint16_t blend_order_ = 0;
   bool wireframe_ = false;
-  bool cast_shadows_ = true;
-  bool receive_shadows_ = true;
 };
 
 }  // namespace mujoco

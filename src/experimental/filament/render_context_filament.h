@@ -206,6 +206,20 @@ void mjr_defaultTextureConfig(mjrTextureConfig* config);
 struct mjrRenderableParams {
   // The shading model to use for the Renderable.
   mjrShadingModel shading_model;
+  // Whether or not the Renderable casts shadows.
+  mjtByte cast_shadows;
+  // Whether or not the Renderable receives shadows.
+  mjtByte receive_shadows;
+  // The layers to which the Renderable belongs. This mask is used in
+  // conjunction with the layer mask in the Scene to determine which
+  // Renderables to render. Defaults to 0xff.
+  uint8_t layer_mask;
+  // Controls the order in which the Renderable is drawn relative to other
+  // Renderables; defaults to 4.
+  uint8_t priority;
+  // Similar to priority, but provides finer-grained control for Renderables
+  // with transparency; defaults to 0.
+  uint16_t blend_order;
 };
 
 // Initializes the mjrRenderableParams to default values.
@@ -292,6 +306,11 @@ struct mjrSceneParams {
   mjtByte enable_reflections;
   // Whether or not to enable shadows; enabled by default.
   mjtByte enable_shadows;
+  // This mask, in conjunction with the layer mask in the Renderable, determines
+  // which Renderables to render within the Scene.
+  uint8_t layer_mask;
+  // The layer mask to use for reflections.
+  uint8_t reflection_layer_mask;
 };
 
 // Initializes the mjrSceneParams to default values.

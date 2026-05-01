@@ -67,6 +67,8 @@ void mjr_defaultSceneParams(mjrSceneParams* params) {
   params->enable_post_processing = true;
   params->enable_reflections = true;
   params->enable_shadows = true;
+  params->layer_mask = 0xff;
+  params->reflection_layer_mask = 0xff;
 }
 
 void mjr_defaultLightParams(mjrLightParams* params) {
@@ -113,6 +115,11 @@ void mjr_defaultMaterialParams(mjrMaterialParams* params) {
 
 void mjr_defaultRenderableParams(mjrRenderableParams* params) {
   params->shading_model = mjSHADING_MODEL_SCENE_OBJECT;
+  params->cast_shadows = true;
+  params->receive_shadows = true;
+  params->layer_mask = 0x01;
+  params->priority = 4;
+  params->blend_order = 0;
 }
 
 void mjr_defaultRenderTargetConfig(mjrRenderTargetConfig* config) {

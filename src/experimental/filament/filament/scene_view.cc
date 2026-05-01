@@ -132,7 +132,7 @@ SceneView::SceneView(FilamentContext* ctx, const mjrSceneParams& params)
     view = engine->createView();
     view->setScene(scene_);
     view->setCamera(camera_);
-    view->setVisibleLayers(0xff, mjCAT_ALL);
+    view->setVisibleLayers(0xff, params.layer_mask);
   }
 
   reflect_view_ = engine->createView();
@@ -140,7 +140,7 @@ SceneView::SceneView(FilamentContext* ctx, const mjrSceneParams& params)
   reflect_view_->setCamera(reflect_camera_);
   reflect_view_->setShadowingEnabled(false);
   reflect_view_->setPostProcessingEnabled(false);
-  reflect_view_->setVisibleLayers(0xff, mjCAT_DYNAMIC | mjCAT_STATIC);
+  reflect_view_->setVisibleLayers(0xff, params.reflection_layer_mask);
 
   // Disable post processing for the depth and segmentation views to preserve
   // the values.
