@@ -39,7 +39,9 @@ static std::string GetAssetPath(std::string_view filename) {
 ObjectManager::Asset::Asset(std::string_view filename) {
   std::string path = GetAssetPath(filename);
   resource = mju_openResource("", path.c_str(), nullptr, nullptr, 0);
-  size = mju_readResource(resource, const_cast<const void**>(&payload));
+  const int read_size =
+      mju_readResource(resource, const_cast<const void**>(&payload));
+  size = read_size > 0 ? read_size : 0;
 }
 
 ObjectManager::Asset::~Asset() {
@@ -56,6 +58,12 @@ ObjectManager::ObjectManager(filament::Engine* engine)
     : engine_(engine) {
   auto LoadMaterial = [this](std::string_view filename) {
     Asset asset(filename);
+    if (asset.payload == nullptr || asset.size == 0) {
+      mju_error(
+          "Failed to load Filament material asset '%.*s'. Make sure the "
+          "generated .filamat and .ktx assets were packaged next to MuJoCo.",
+          static_cast<int>(filename.size()), filename.data());
+    }
     filament::Material::Builder material_builder;
     material_builder.package(asset.payload, asset.size);
     return material_builder.build(*this->engine_);
