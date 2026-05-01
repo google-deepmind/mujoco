@@ -1371,6 +1371,14 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 }
 
 
+// return 1 if flex f needs implicit interp treatment
+static int flexInterp_active(const mjModel* m, int f) {
+  return m->flex_interp[f] && !m->flex_rigid[f] &&
+         m->flex_edgeequality[f] != 3 &&
+         m->flex_stiffness[m->flex_stiffnessadr[f]] != 0;
+}
+
+
 // context for flex interp reduced banded factorization/solve
 typedef struct {
   mjtNum* H;              // banded Cholesky-factored matrix (ndof x nband)
@@ -1425,7 +1433,7 @@ static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) 
   // count flex DOFs
   int ndof = 0;
   for (int f=0; f < m->nflex; f++) {
-    if (m->flex_interp[f]) {
+    if (flexInterp_active(m, f)) {
       flexInterp_collect(m, f, chain_dofs, seen_dof, &ndof);
     }
   }
@@ -1442,7 +1450,7 @@ static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) 
   int cnt = 0;
   mju_fillInt(seen_dof, 0, nv);
   for (int f=0; f < m->nflex; f++) {
-    if (m->flex_interp[f]) {
+    if (flexInterp_active(m, f)) {
       int nodenum = m->flex_nodenum[f];
       int nodeadr = m->flex_nodeadr[f];
       for (int n=0; n < nodenum; n++) {
@@ -1481,7 +1489,7 @@ static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) 
   // get precomputed bandwidth
   int bandwidth = 0;
   for (int f=0; f < m->nflex; f++) {
-    if (m->flex_interp[f]) {
+    if (flexInterp_active(m, f)) {
       if (m->flex_bandwidth[f] > bandwidth) {
         bandwidth = m->flex_bandwidth[f];
       }
@@ -1963,10 +1971,10 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
   }
 
-  // check for flex_interp
+  // check for flex_interp that needs implicit treatment
   int has_flex_interp = 0;
   for (int f=0; f < m->nflex; f++) {
-    if (m->flex_interp[f]) {
+    if (flexInterp_active(m, f)) {
       has_flex_interp = 1;
       break;
     }
