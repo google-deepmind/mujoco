@@ -575,7 +575,7 @@ Solving for :math:`v_{t+h}`, we obtain the implicit-in-velocity update
 
 .. _geMidpoint:
 
-Midpoint integration for free bodies
+Midpoint integration for free bodies in vacuum
    The implicit-in-velocity update :eq:`eq_implicit_update` treats the acceleration as a function of velocity and
    linearizes. While effective for damping-like forces, it is sub-optimal for rotational dynamics, where
    Coriolis and gyroscopic forces are *quadratic* in angular velocity. For this case, a better approach is to directly
@@ -606,7 +606,9 @@ Midpoint integration for free bodies
    Casimir function of the `Lie-Poisson <https://en.wikipedia.org/wiki/Poisson_bracket>`__ structure, the midpoint
    method is a symmetric (time-reversible) and second-order accurate *Poisson integrator*.
 
-   **Eligibility.** Midpoint integration is only applied to free bodies with no child bodies.
+   **Eligibility.** Midpoint integration is only applied when using the ``implicitfast`` integrator, to
+   free bodies with no child bodies, and only when the medium has zero :ref:`density<option-density>` and
+   :ref:`viscosity<option-viscosity>`.
 
    **Performance.** While the midpoint method carries computational overhead, we've found it to be
    negligible compared to the rest of the pipeline, on the order of 1% in the worst case.
@@ -652,9 +654,8 @@ Fast implicit-in-velocity (``implicitfast``)
    scenarios which are not common and already well-handled by the Runge-Kutta integrator (see below). Because the RNE
    derivatives are also the main source of asymmetry of :math:`D`, by dropping them and symmetrizing, we can use the
    faster :math:`L^TL` rather than :math:`LU` decomposition.
-
-Both ``implicit`` and ``implicitfast`` apply :ref:`midpoint integration<geMidpoint>` to eligible free bodies,
-providing exact energy conservation for spinning objects at negligible additional cost.
+   The ``implicitfast`` integrator applies :ref:`midpoint integration<geMidpoint>` to eligible free bodies in vacuum,
+   providing exact energy conservation for spinning objects at negligible additional cost.
 
 4th-order Runge-Kutta (``RK4``)
    One advantage of our continuous-time formulation is that we can use higher order integrators such as Runge-Kutta or
@@ -688,10 +689,11 @@ providing exact energy conservation for spinning objects at negligible additiona
      increased stability, and is therefore a strict improvement. It is the recommended integrator for most models.
     **implicit**:
      The benefit over ``implicitfast`` is the implicit integration of Coriolis and centripetal forces for *coupled*
-     rotational systems such as multi-link pendula. Both ``implicitfast`` and ``implicit`` apply :ref:`midpoint
-     integration<geMidpoint>` to eligible free bodies with no children, for example
-     `gyroscopic.xml <../_static/gyroscopic.xml>`__ shows an ellipsoid rolling on an
-     inclined plane; both ``implicitfast`` and ``implicit`` handle this case well, while ``Euler`` quickly diverges.
+     rotational systems such as multi-link pendula. Note that ``implicit`` does not apply :ref:`midpoint
+     integration<geMidpoint>` (only ``implicitfast`` does), but its RNE derivatives provide comparable stability
+     for free-body rotation. For example, `gyroscopic.xml <../_static/gyroscopic.xml>`__ shows an ellipsoid rolling
+     on an inclined plane; both ``implicitfast`` and ``implicit`` handle this case well, while ``Euler`` quickly
+     diverges.
     **RK4**:
      This integrator is best for systems which are energy conserving, or almost energy-conserving. `pendulum.xml
      <../_static/pendulum.xml>`__ shows a complicated pendulum mechanism which diverges quickly using ``Euler`` or

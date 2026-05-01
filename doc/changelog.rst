@@ -8,6 +8,11 @@ Upcoming version (not yet released)
 - Added island support for the :ref:`PGS solver<soAlgorithms>`.
 - Added support for :ref:`elastic2d<body-flexcomp-elastic2d>` for trilinear and quadratic flex
   :ref:`dofs<body-flexcomp-dof>`.
+- :ref:`Midpoint integration<geMidpoint>` is now restricted to the ``implicitfast``
+  :ref:`integrator<geIntegrators>` and is disabled when fluid forces are active
+  (nonzero :ref:`density<option-density>` or :ref:`viscosity<option-viscosity>`).
+  Midpoint integration treats external forces as zero-order-hold constants, which causes
+  energy gain in the presence of contacts and in fluid media.
 
 Python
 ^^^^^^

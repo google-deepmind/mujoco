@@ -783,6 +783,140 @@ TEST_F(ImplicitIntegratorTest, MidpointFullNewtonConvergence) {
   EXPECT_LT((mjtNum)total_iter / ncases, 3.0);
 }
 
+// verify midpoint eligibility: compare with/without invdiscrete
+//   if trajectories differ, midpoint was applied
+//   if trajectories match, midpoint was skipped
+TEST_F(ImplicitIntegratorTest, MidpointEligibility) {
+  // free body with asymmetric inertia, optionally near a plane
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" timestep="0.01">
+      <flag energy="enable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="5 5 0.1"/>
+      <body name="free" pos="0 0 2">
+        <freejoint/>
+        <geom type="ellipsoid" size="0.3 0.2 0.1" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d1 = mj_makeData(m);
+  mjData* d2 = mj_makeData(m);
+  int nsteps = 50;
+
+  auto spin_and_compare = [&](const char* label,
+                              bool expect_midpoint) {
+    mj_resetData(m, d1);
+    mj_resetData(m, d2);
+    d1->qvel[3] = d2->qvel[3] = 5;
+    d1->qvel[4] = d2->qvel[4] = 3;
+    d1->qvel[5] = d2->qvel[5] = 1;
+
+    // d1: midpoint enabled (default)
+    m->opt.enableflags &= ~mjENBL_INVDISCRETE;
+    for (int i = 0; i < nsteps; i++) mj_step(m, d1);
+
+    // d2: midpoint disabled
+    m->opt.enableflags |= mjENBL_INVDISCRETE;
+    mj_resetData(m, d2);
+    d2->qvel[3] = 5; d2->qvel[4] = 3; d2->qvel[5] = 1;
+    for (int i = 0; i < nsteps; i++) mj_step(m, d2);
+    m->opt.enableflags &= ~mjENBL_INVDISCRETE;
+
+    // compare angular velocities
+    mjtNum diff = 0;
+    for (int k = 3; k < 6; k++) {
+      mjtNum d = d1->qvel[k] - d2->qvel[k];
+      diff += d * d;
+    }
+    if (expect_midpoint) {
+      EXPECT_GT(diff, 1e-6)
+          << label << ": expected midpoint to be applied";
+    } else {
+      EXPECT_LT(diff, 1e-20)
+          << label << ": expected midpoint to be skipped";
+    }
+  };
+
+  // case 1: free body in vacuum, implicitfast -> midpoint applied
+  m->opt.integrator = mjINT_IMPLICITFAST;
+  m->opt.density = 0;
+  m->opt.viscosity = 0;
+  spin_and_compare("vacuum+implicitfast", true);
+
+  // case 2: implicit integrator -> midpoint NOT applied
+  m->opt.integrator = mjINT_IMPLICIT;
+  spin_and_compare("vacuum+implicit", false);
+
+  // case 3: fluid (nonzero density) -> midpoint NOT applied
+  m->opt.integrator = mjINT_IMPLICITFAST;
+  m->opt.density = 1.2;
+  spin_and_compare("fluid+implicitfast", false);
+  m->opt.density = 0;
+
+  // case 4: fluid (nonzero viscosity) -> midpoint NOT applied
+  m->opt.viscosity = 0.001;
+  spin_and_compare("viscosity+implicitfast", false);
+  m->opt.viscosity = 0;
+
+  // case 5: body with active contacts -> midpoint NOT applied
+  // test both island-enabled and island-disabled branches
+  for (int disable_island = 0; disable_island < 2; disable_island++) {
+    m->opt.integrator = mjINT_IMPLICITFAST;
+    if (disable_island) {
+      m->opt.disableflags |= mjDSBL_ISLAND;
+    } else {
+      m->opt.disableflags &= ~mjDSBL_ISLAND;
+    }
+
+    mj_resetData(m, d1);
+    mj_resetData(m, d2);
+    d1->qpos[2] = d2->qpos[2] = 0.05;
+    d1->qvel[3] = d2->qvel[3] = 5;
+    d1->qvel[4] = d2->qvel[4] = 3;
+    d1->qvel[5] = d2->qvel[5] = 1;
+
+    // verify contacts are active
+    mj_forward(m, d1);
+    ASSERT_GT(d1->ncon, 0) << "body should be in contact with the plane";
+
+    // single step with midpoint enabled
+    mj_resetData(m, d1);
+    d1->qpos[2] = 0.05;
+    d1->qvel[3] = 5; d1->qvel[4] = 3; d1->qvel[5] = 1;
+    m->opt.enableflags &= ~mjENBL_INVDISCRETE;
+    mj_step(m, d1);
+
+    // single step with midpoint disabled
+    mj_resetData(m, d2);
+    d2->qpos[2] = 0.05;
+    d2->qvel[3] = 5; d2->qvel[4] = 3; d2->qvel[5] = 1;
+    m->opt.enableflags |= mjENBL_INVDISCRETE;
+    mj_step(m, d2);
+    m->opt.enableflags &= ~mjENBL_INVDISCRETE;
+
+    mjtNum diff = 0;
+    for (int k = 0; k < m->nv; k++) {
+      mjtNum d = d1->qvel[k] - d2->qvel[k];
+      diff += d * d;
+    }
+    EXPECT_LT(diff, 1e-20)
+        << "contact (island " << (disable_island ? "disabled" : "enabled")
+        << "): expected midpoint to be skipped";
+  }
+  m->opt.disableflags &= ~mjDSBL_ISLAND;
+
+  mj_deleteData(d2);
+  mj_deleteData(d1);
+  mj_deleteModel(m);
+}
+
 TEST_F(ForwardTest, ControlClamping) {
   static constexpr char xml[] = R"(
   <mujoco>
