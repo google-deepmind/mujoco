@@ -15,8 +15,21 @@
 #include "experimental/filament/render_context_filament.h"
 
 #include <array>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+#define NOMINMAX
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 #include <math/mat3.h>
 #include <math/vec3.h>
@@ -44,6 +57,129 @@ static void CheckFilamentContext() {
   if (g_filament_context == nullptr) {
     mju_error("Missing context; did you call mjrf_makeFilamentContext?");
   }
+}
+
+struct FilamentAssetResource {
+  std::vector<char> data;
+};
+
+static std::once_flag g_filament_provider_once;
+
+static std::string JoinPath(std::string_view dir, std::string_view filename) {
+  if (dir.empty()) {
+    return std::string(filename);
+  }
+  std::string path(dir);
+  const char last = path.back();
+  if (last != '/' && last != '\\') {
+#if defined(_WIN32) || defined(__CYGWIN__)
+    path.push_back('\\');
+#else
+    path.push_back('/');
+#endif
+  }
+  path.append(filename);
+  return path;
+}
+
+static std::string GetLibraryDir() {
+  void* anchor = reinterpret_cast<void*>(
+      reinterpret_cast<uintptr_t>(&mj_forward));
+#if defined(_WIN32) || defined(__CYGWIN__)
+  HMODULE module = nullptr;
+  constexpr DWORD flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                          GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+  if (GetModuleHandleExA(flags, reinterpret_cast<LPCSTR>(anchor), &module)) {
+    char path[MAX_PATH];
+    if (GetModuleFileNameA(module, path, MAX_PATH)) {
+      std::string lib_path(path);
+      const std::size_t last_slash = lib_path.find_last_of("\\/");
+      if (last_slash != std::string::npos) {
+        return lib_path.substr(0, last_slash + 1);
+      }
+    }
+  }
+#else
+  Dl_info info;
+  if (dladdr(anchor, &info) && info.dli_fname) {
+    std::string lib_path(info.dli_fname);
+    const std::size_t last_slash = lib_path.find_last_of('/');
+    if (last_slash != std::string::npos) {
+      return lib_path.substr(0, last_slash + 1);
+    }
+  }
+#endif
+  return "";
+}
+
+static void EnsureDefaultFilamentResourceProvider() {
+  std::call_once(g_filament_provider_once, [] {
+    if (mjp_getResourceProvider("filament:pbr.filamat")) {
+      return;
+    }
+
+    static mjpResourceProvider provider;
+    mjp_defaultResourceProvider(&provider);
+
+    provider.open = [](mjResource* resource) {
+      std::string_view name(resource->name);
+      const std::size_t prefix_end = name.find(':');
+      const std::string_view filename =
+          prefix_end == std::string_view::npos
+              ? name
+              : name.substr(prefix_end + 1);
+
+      std::vector<std::string> asset_dirs;
+      if (const char* env_dir = std::getenv("MUJOCO_FILAMENT_ASSETS_DIR")) {
+        asset_dirs.emplace_back(env_dir);
+      }
+      const std::string library_dir = GetLibraryDir();
+      if (!library_dir.empty()) {
+        asset_dirs.push_back(JoinPath(library_dir, "assets"));
+      }
+      asset_dirs.emplace_back("assets");
+
+      for (const std::string& dir : asset_dirs) {
+        std::ifstream file(JoinPath(dir, filename),
+                           std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+          continue;
+        }
+        const std::streamsize size = file.tellg();
+        if (size <= 0) {
+          continue;
+        }
+        auto* asset = new FilamentAssetResource();
+        asset->data.resize(static_cast<std::size_t>(size));
+        file.seekg(0, std::ios::beg);
+        if (!file.read(asset->data.data(), size)) {
+          delete asset;
+          continue;
+        }
+        resource->data = asset;
+        return static_cast<int>(asset->data.size());
+      }
+      return 0;
+    };
+    provider.read = [](mjResource* resource, const void** buffer) {
+      auto* asset = static_cast<FilamentAssetResource*>(resource->data);
+      if (!asset) {
+        return -1;
+      }
+      *buffer = asset->data.data();
+      return static_cast<int>(asset->data.size());
+    };
+    provider.close = [](mjResource* resource) {
+      delete static_cast<FilamentAssetResource*>(resource->data);
+      resource->data = nullptr;
+    };
+    provider.prefix = "filament";
+
+    const int slot = mjp_registerResourceProvider(&provider);
+    if (slot < 0 && !mjp_getResourceProvider("filament:pbr.filamat")) {
+      mju_warning("Failed to register default Filament resource provider.");
+    }
+  });
 }
 
 template <int N>
@@ -360,6 +496,7 @@ void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,
   if (g_filament_context != nullptr) {
     mju_error("Context already exists!");
   }
+  EnsureDefaultFilamentResourceProvider();
   g_filament_context = new mujoco::MjrFilamentRenderer(config);
   g_filament_context->Init(m);
 }
