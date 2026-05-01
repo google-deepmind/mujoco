@@ -2523,6 +2523,23 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       mjui_update(sect_edit-1, item_edit, ui, state, con);
     }
 
+    // if a SELECT dropdown was open, handle click-to-select before resetting focus
+    if (sect_rec > 0 && it_rec && it_rec->type == mjITEM_SELECT) {
+      int sel = findselect(it_rec, ui, state, con);
+      if (sel >= 0) {
+        // cursor is over an option: select it, close dropdown
+        *(int*)it_rec->pdata = sel;
+        ui->mousesect = 0;
+        mjui_update(-1, -1, ui, state, con);
+        return it_rec;
+      } else if (sect_cur == sect_rec && item_cur == item_rec) {
+        // cursor is on the same dropdown header: toggle closed
+        ui->mousesect = 0;
+        mjui_update(-1, -1, ui, state, con);
+        return ui->editchanged;
+      }
+    }
+
     // free mouse focus, just in case
     ui->mousesect = 0;
 
@@ -2695,17 +2712,15 @@ mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con) {
       // find and set value
       i = findselect(it_rec, ui, state, con);
       if (i >= 0) {
+        // option selected: set value, close dropdown
         *(int*)it_rec->pdata = i;
-      }
-
-      // free mouse and redraw ALL (selection box spills over)
-      ui->mousesect = 0;
-      mjui_update(-1, -1, ui, state, con);
-
-      // return if value set change
-      if (i >= 0) {
+        ui->mousesect = 0;
+        mjui_update(-1, -1, ui, state, con);
         return it_rec;
       }
+
+      // no option under cursor (quick click): keep dropdown open for next click
+      return NULL;
     }
 
     // button release
