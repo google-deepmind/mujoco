@@ -1,0 +1,52 @@
+<?xml version="1.0" ?>
+<mujoco model="compass">
+  <extension>
+    <plugin plugin="mujoco.magnet"/>
+  </extension>
+
+  <statistic center="0 0 0.5" extent="0.8"/>
+  <option gravity="0 0 0"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="120" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
+
+    <!-- The first instance of the plugin MUST define the magnetic field at the origin and the gradient -->
+    <!-- We create a magnetic field in X an Y without a gradient -->
+    <plugin plugin="mujoco.magnet">
+      <config key="B0" value="0.05 0.05 0"/>
+      <config key="dB" value="0 0 0"/>
+    </plugin>
+
+    <!-- Base for the compass -->
+    <body name="base" pos="0 0 0.5">
+      <geom name="base_geom" type="cylinder" size="0.06 0.02" rgba="0.4 0.4 0.4 1"/>
+      <geom type="sphere" pos="0 0 0.025" size="0.01" rgba="0.6 0.6 0.6 1"/>
+    </body>
+
+    <body name="needle_mount" pos="0 0 0.52">
+      <joint name="needle_hinge" type="hinge" axis="0 0 1" pos="0 0 0" damping="0.05"/>
+
+      <!-- Long axis over body X, symmetric in Y and Z -->
+      <geom name="needle" type="box" size="0.25 0.02 0.02" pos="0 0 0.0" rgba="0.8 0.1 0.1 1" contype="0" conaffinity="0"/>
+
+      <plugin plugin="mujoco.magnet">
+        <config key="mu_r" value="1000"/>             <!-- Relative permeability of iron -->
+        <config key="V" value="5e-6"/>
+        <config key="N" value="0.05 0.475 0.475"/>    <!-- Demagnetizing factors (X is the asymmetric side) -->
+      </plugin>
+    </body>
+  </worldbody>
+</mujoco>
