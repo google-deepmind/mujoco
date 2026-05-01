@@ -94,9 +94,10 @@ target_include_directories(${MUJOCO_PLATFORM_TARGET_NAME}
         ${PROJECT_SOURCE_DIR}/src
 )
 
-include(third_party_deps/dear_imgui)
-include(third_party_deps/implot)
 include(third_party_deps/sdl2)
+include(third_party_deps/dear_imgui)
+mujoco_add_dear_imgui_sdl2_backend()
+include(third_party_deps/implot)
 include(third_party_deps/libwebp)
 
 target_link_libraries(${MUJOCO_PLATFORM_TARGET_NAME}

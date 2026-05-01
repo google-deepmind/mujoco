@@ -13,61 +13,65 @@
 # limitations under the License.
 
 add_library(dear_imgui STATIC)
+set(MUJOCO_DEAR_IMGUI_SOURCE_DIR "${dear_imgui_SOURCE_DIR}" CACHE INTERNAL "")
 target_include_directories(dear_imgui
   PUBLIC
-    ${dear_imgui_SOURCE_DIR}
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}
 )
 target_sources(dear_imgui
   PUBLIC
-    ${dear_imgui_SOURCE_DIR}/imgui.h
-    ${dear_imgui_SOURCE_DIR}/imgui.cpp
-    ${dear_imgui_SOURCE_DIR}/imgui_internal.h
-    ${dear_imgui_SOURCE_DIR}/imgui_draw.cpp
-    ${dear_imgui_SOURCE_DIR}/imgui_tables.cpp
-    ${dear_imgui_SOURCE_DIR}/imgui_widgets.cpp
-    ${dear_imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui.h
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui.cpp
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui_internal.h
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui_draw.cpp
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui_tables.cpp
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui_widgets.cpp
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui_demo.cpp
 )
 
-# SDL2 backend
-# TODO: I don't know how to correctly check for dependencies in cmake. This
-# assumes that SDL2 is pulled in _before_ dear_imgui, but that seems fragile.
-# For now, we'll just assume SDL2 is available as dear_imgui is only being used
-# in contexts which depend on SDL2.
-#if(TARGET SDL2)
+function(mujoco_add_dear_imgui_sdl2_backend)
+  if(TARGET dear_imgui_SDL2 OR NOT TARGET SDL2::SDL2-static)
+    return()
+  endif()
+
   add_library(dear_imgui_SDL2 STATIC)
   target_include_directories(dear_imgui_SDL2
     PUBLIC
-      ${dear_imgui_SOURCE_DIR}
+      ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}
   )
   target_sources(dear_imgui_SDL2
     PUBLIC
-      ${dear_imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
+      ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
   )
   target_link_libraries(dear_imgui_SDL2
     SDL2::SDL2-static
   )
-#endif()
+endfunction()
+
+# SDL2 backend. Filament uses base dear_imgui without SDL2; platform calls this
+# helper again after SDL2 is pulled in.
+mujoco_add_dear_imgui_sdl2_backend()
 
 # OpenGL3 backend
 add_library(dear_imgui_OpenGL3 STATIC)
 target_include_directories(dear_imgui_OpenGL3
   PUBLIC
-    ${dear_imgui_SOURCE_DIR}
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}
 )
 target_sources(dear_imgui_OpenGL3
   PUBLIC
-    ${dear_imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.h
-    ${dear_imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.h
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
 # stdlib
 add_library(dear_imgui_stdlib STATIC)
 target_include_directories(dear_imgui_stdlib
   PUBLIC
-    ${dear_imgui_SOURCE_DIR}
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}
 )
 target_sources(dear_imgui_stdlib
   PUBLIC
-    ${dear_imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.h
-    ${dear_imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/misc/cpp/imgui_stdlib.h
+    ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
 )
