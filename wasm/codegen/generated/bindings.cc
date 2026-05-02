@@ -3752,6 +3752,12 @@ struct MjModel {
   void set_nflexstiffness(int value) {
     ptr_->nflexstiffness = static_cast<mjtSize>(value);
   }
+  int nflexbending() const {
+    return static_cast<int>(ptr_->nflexbending);
+  }
+  void set_nflexbending(int value) {
+    ptr_->nflexbending = static_cast<mjtSize>(value);
+  }
   int nflexelemedge() const {
     return static_cast<int>(ptr_->nflexelemedge);
   }
@@ -4688,6 +4694,9 @@ struct MjModel {
   emscripten::val flex_elemedgeadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_elemedgeadr));
   }
+  emscripten::val flex_bendingadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_bendingadr));
+  }
   emscripten::val flex_shellnum() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_shellnum));
   }
@@ -4773,7 +4782,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexstiffness, ptr_->flex_stiffness));
   }
   emscripten::val flex_bending() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * 17, ptr_->flex_bending));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexbending, ptr_->flex_bending));
   }
   emscripten::val flex_damping() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_damping));
@@ -11824,6 +11833,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_activelayers", &MjModel::flex_activelayers)
     .property("flex_bandwidth", &MjModel::flex_bandwidth)
     .property("flex_bending", &MjModel::flex_bending)
+    .property("flex_bendingadr", &MjModel::flex_bendingadr)
     .property("flex_bvhadr", &MjModel::flex_bvhadr)
     .property("flex_bvhnum", &MjModel::flex_bvhnum)
     .property("flex_cellnum", &MjModel::flex_cellnum)
@@ -12069,6 +12079,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("neq", &MjModel::neq, &MjModel::set_neq, reference())
     .property("nexclude", &MjModel::nexclude, &MjModel::set_nexclude, reference())
     .property("nflex", &MjModel::nflex, &MjModel::set_nflex, reference())
+    .property("nflexbending", &MjModel::nflexbending, &MjModel::set_nflexbending, reference())
     .property("nflexedge", &MjModel::nflexedge, &MjModel::set_nflexedge, reference())
     .property("nflexelem", &MjModel::nflexelem, &MjModel::set_nflexelem, reference())
     .property("nflexelemdata", &MjModel::nflexelemdata, &MjModel::set_nflexelemdata, reference())

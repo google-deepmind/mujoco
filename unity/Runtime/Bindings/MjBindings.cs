@@ -963,6 +963,7 @@ public unsafe struct mjModel_ {
   public UInt64 nflexelem;
   public UInt64 nflexelemdata;
   public UInt64 nflexstiffness;
+  public UInt64 nflexbending;
   public UInt64 nflexelemedge;
   public UInt64 nflexshelldata;
   public UInt64 nflexevpair;
@@ -1213,6 +1214,7 @@ public unsafe struct mjModel_ {
   public int* flex_elemdataadr;
   public int* flex_stiffnessadr;
   public int* flex_elemedgeadr;
+  public int* flex_bendingadr;
   public int* flex_shellnum;
   public int* flex_shelldataadr;
   public int* flex_evpairadr;

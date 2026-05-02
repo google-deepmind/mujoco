@@ -704,6 +704,7 @@ struct mjModel_ {
   mjtSize nflexelem;              // number of elements in all flexes
   mjtSize nflexelemdata;          // number of element vertex ids in all flexes
   mjtSize nflexstiffness;         // number of stiffness parameters in all flexes
+  mjtSize nflexbending;           // number of bending parameters in all flexes
   mjtSize nflexelemedge;          // number of element edge ids in all flexes
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
   mjtSize nflexevpair;            // number of element-vertex pairs in all flexes
@@ -991,6 +992,7 @@ struct mjModel_ {
   int*      flex_elemdataadr;     // first element vertex id address          (nflex x 1)
   int*      flex_stiffnessadr;    // stiffness matrix address                 (nflex x 1)
   int*      flex_elemedgeadr;     // first element edge id address            (nflex x 1)
+  int*      flex_bendingadr;      // first bending data address               (nflex x 1)
   int*      flex_shellnum;        // number of shells                         (nflex x 1)
   int*      flex_shelldataadr;    // first shell data address                 (nflex x 1)
   int*      flex_evpairadr;       // first evpair address                     (nflex x 1)
@@ -1019,7 +1021,7 @@ struct mjModel_ {
   mjtNum*   flex_radius;          // radius around primitive element          (nflex x 1)
   mjtNum*   flex_size;            // vertex bounding box half sizes in qpos0  (nflex x 3)
   mjtNum*   flex_stiffness;       // finite element stiffness matrix          (nflexstiffness x 1)
-  mjtNum*   flex_bending;         // bending stiffness                        (nflexedge x 17)
+  mjtNum*   flex_bending;         // bending stiffness                        (nflexbending x 1)
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
