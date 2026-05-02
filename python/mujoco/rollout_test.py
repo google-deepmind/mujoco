@@ -711,6 +711,43 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     ):
       rollout.rollout(model, data, initial_state, ctrl)
 
+  @parameterized.parameters(0, 2)
+  def test_mj_errors_can_fill_remaining_trajectory(self, nthread):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    bad_model = copy.copy(model)
+    bad_model.opt.solver = 10  # invalid solver type
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+
+    nbatch = 2
+    nstep = 3
+    initial_state = np.zeros((nbatch, nstate))
+    ctrl = np.zeros((nbatch, nstep, model.nu))
+    data = (
+        [mujoco.MjData(model) for _ in range(nthread)]
+        if nthread
+        else mujoco.MjData(model)
+    )
+
+    state, sensordata = rollout.rollout(
+        [bad_model, model],
+        data,
+        initial_state,
+        ctrl,
+        raise_on_error=False,
+    )
+
+    expected_state, expected_sensordata = rollout.rollout(
+        model, mujoco.MjData(model), initial_state[1], ctrl[1]
+    )
+    np.testing.assert_array_equal(
+        state[0], np.tile(state[0, 0], (nstep, 1))
+    )
+    np.testing.assert_array_equal(
+        sensordata[0], np.tile(sensordata[0, 0], (nstep, 1))
+    )
+    np.testing.assert_array_equal(state[1:], expected_state)
+    np.testing.assert_array_equal(sensordata[1:], expected_sensordata)
+
   def test_invalid(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
