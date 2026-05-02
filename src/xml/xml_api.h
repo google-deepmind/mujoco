@@ -40,6 +40,9 @@ MJAPI void mj_freeLastXML(void);
 MJAPI int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
                          int flg_html, int flg_pad);
 
+// print internal XML schema as an XSD (XML Schema Definition) document
+MJAPI int mj_printSchemaXSD(const char* filename, char* buffer, int buffer_sz);
+
 // load model from binary MJB file
 // if vfs is not NULL, look up file in vfs before reading from disk
 MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
