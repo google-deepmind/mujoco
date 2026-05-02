@@ -94,6 +94,16 @@ MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 // address of diagonal element i in band-dense matrix representation
 MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 
+// dense LU factorization with partial pivoting
+//   factorizes n x n row-major matrix A in-place into L and U
+//   L has unit diagonal (not stored), U has explicit diagonal
+//   pivot stores row permutation: row i of original = row pivot[i] of result
+//   return 1 if successful, 0 if singular (diagonal element < mjMINVAL)
+MJAPI int mju_factorLU(mjtNum* A, int n, int* pivot);
+
+// solve A*x = b given LU factorization of A, LU and pivot are output of mju_factorLU
+MJAPI void mju_solveLU(mjtNum* x, const mjtNum* LU, const mjtNum* b, const int* pivot, int n);
+
 // sparse reverse-order LU factorization, assume tree topology (only dofs in index, if given)
 //  LU = L + U; original = (U+I) * L; scratch is size n
 void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
