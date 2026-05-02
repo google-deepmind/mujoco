@@ -14,10 +14,11 @@
 # ==============================================================================
 """I/O functions for MJX Warp."""
 
-import mujoco
-from mujoco.mjx.warp import render_context
-import mujoco.mjx.third_party.mujoco_warp as mjw
 import warp as wp
+
+import mujoco
+import mujoco.mjx.third_party.mujoco_warp as mjw
+from mujoco.mjx.warp import render_context
 
 _MJX_RENDER_CONTEXT_COUNTER = 0
 
@@ -27,8 +28,11 @@ def _create_context(mjm, nworld, device, **kwargs):
     ctx = mjw.create_render_context(mjm=mjm, nworld=nworld, **kwargs)
     ctx.rgb_data_shape = ctx.rgb_data.shape
     ctx.depth_data_shape = ctx.depth_data.shape
+    ctx.seg_data_shape = ctx.seg_data.shape
+    ctx.seg_data_buffer = ctx.seg_data
     ctx.rgb_data = None
     ctx.depth_data = None
+    ctx.seg_data = None
   return ctx
 
 

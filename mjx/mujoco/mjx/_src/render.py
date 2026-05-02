@@ -15,26 +15,42 @@
 """Render helpers for MJX."""
 
 from typing import Any
+
+import jax
+import mujoco.mjx.warp as mjxw
+
+from mujoco.mjx._src.warp_context import get_warp_render_context
+from mujoco.mjx._src.warp_context import require_segmentation_enabled
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import Impl
 from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
-import mujoco.mjx.warp as mjxw
 
 
-def render(m: Model, d: Data, ctx: Any) -> Data:
-  """Render."""
+def render(m: Model, d: Data, ctx: Any) -> tuple[jax.Array, jax.Array]:
+  """Render packed RGB and depth buffers."""
   if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
-    import mujoco.mjx.warp.render_context as mjxw_rc  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-    from mujoco.mjx.warp import render as mjxw_render  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+    from mujoco.mjx.warp import render as mjxw_render
 
-    if not isinstance(ctx, mjxw_rc.RenderContextPytree):
-      raise TypeError(
-          f'Expected RenderContextPytree, got {type(ctx).__name__}.'
-          ' Use rc.pytree() to get the JAX-compatible handle.'
-      )
-
+    get_warp_render_context(ctx)
     return mjxw_render.render(m, d, ctx)
 
   raise NotImplementedError('render only implemented for MuJoCo Warp.')
+
+
+def render_with_segmentation(
+    m: Model, d: Data, ctx: Any
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+  """Render and return RGB, depth, and packed segmentation outputs."""
+  if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
+    from mujoco.mjx.warp import render as mjxw_render
+
+    warp_rc = get_warp_render_context(ctx)
+    require_segmentation_enabled(warp_rc)
+
+    return mjxw_render.render_with_segmentation(m, d, ctx)
+
+  raise NotImplementedError(
+      'render_with_segmentation only implemented for MuJoCo Warp.'
+  )

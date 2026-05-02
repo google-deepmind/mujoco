@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-import mujoco.mjx.warp as mjxw
+from mujoco.mjx._src.warp_context import get_camera_resolution
+from mujoco.mjx._src.warp_context import get_warp_render_context
 
 if TYPE_CHECKING:
   from mujoco.mjx.warp.render_context import RenderContextPytree
@@ -44,21 +45,9 @@ def get_rgb(
   Raises:
     RuntimeError: If Warp is not installed.
   """
-  if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('Warp not installed.')
-
-  import mujoco.mjx.warp.render_context as mjxw_rc  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-
-  if not isinstance(rc, mjxw_rc.RenderContextPytree):
-    raise TypeError(
-        f'Expected RenderContextPytree, got {type(rc).__name__}.'
-        ' Use rc.pytree() to get the JAX-compatible handle.'
-    )
-
-  warp_rc = mjxw_rc._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]  # pylint: disable=protected-access
+  warp_rc = get_warp_render_context(rc)
   rgb_adr = int(warp_rc.rgb_adr.numpy()[cam_id])
-  width = int(warp_rc.cam_res.numpy()[cam_id][0])
-  height = int(warp_rc.cam_res.numpy()[cam_id][1])
+  width, height = get_camera_resolution(warp_rc, cam_id)
 
   packed = jax.lax.dynamic_slice_in_dim(
       rgb_data, rgb_adr, width * height, axis=rgb_data.ndim - 1
@@ -92,21 +81,9 @@ def get_depth(
   Raises:
     RuntimeError: If Warp is not installed.
   """
-  if not mjxw.WARP_INSTALLED:
-    raise RuntimeError('Warp not installed.')
-
-  import mujoco.mjx.warp.render_context as mjxw_rc  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-
-  if not isinstance(rc, mjxw_rc.RenderContextPytree):
-    raise TypeError(
-        f'Expected RenderContextPytree, got {type(rc).__name__}.'
-        ' Use rc.pytree() to get the JAX-compatible handle.'
-    )
-
-  warp_rc = mjxw_rc._MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]  # pylint: disable=protected-access
+  warp_rc = get_warp_render_context(rc)
   depth_adr = int(warp_rc.depth_adr.numpy()[cam_id])
-  width = int(warp_rc.cam_res.numpy()[cam_id][0])
-  height = int(warp_rc.cam_res.numpy()[cam_id][1])
+  width, height = get_camera_resolution(warp_rc, cam_id)
 
   raw = jax.lax.dynamic_slice_in_dim(
       depth_data, depth_adr, width * height, axis=depth_data.ndim - 1
@@ -114,3 +91,39 @@ def get_depth(
 
   depth = jnp.clip(raw / depth_scale, 0.0, 1.0)
   return depth.reshape(raw.shape[:-1] + (height, width, 1))
+
+
+def get_segmentation(
+    rc: 'RenderContextPytree',
+    cam_id: int,
+    seg_data: jax.Array,
+) -> jax.Array:
+  """Extract raw segmentation IDs for a camera.
+
+  Args:
+    rc: RenderContextPytree.
+    cam_id: Camera index to extract.
+    seg_data: Packed segmentation output, shape (..., total_pixels) as integers.
+
+  Returns:
+    Integer segmentation array with shape (..., H, W). Each pixel contains the
+    MuJoCo geom ID of the hit geometry, ``-1`` for background, or ``-2`` for a
+    flex body.
+    Any leading batch axes in `seg_data` are preserved.
+
+  Raises:
+    RuntimeError: If Warp is not installed.
+    ValueError: If segmentation is not enabled for the selected camera.
+  """
+  warp_rc = get_warp_render_context(rc)
+  seg_adr = int(warp_rc.seg_adr.numpy()[cam_id])
+  if seg_adr < 0:
+    raise ValueError(
+        f'Camera {cam_id} was not configured with segmentation rendering.'
+    )
+
+  width, height = get_camera_resolution(warp_rc, cam_id)
+  packed = jax.lax.dynamic_slice_in_dim(
+      seg_data, seg_adr, width * height, axis=seg_data.ndim - 1
+  )
+  return packed.reshape(packed.shape[:-1] + (height, width))
