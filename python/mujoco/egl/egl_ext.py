@@ -27,6 +27,9 @@ except OSError:
 from OpenGL import EGL
 from OpenGL import error
 
+# From the EGL_NV_device_cuda extension.
+EGL_CUDA_DEVICE_NV = 0x323A
+
 # From the EGL_EXT_device_enumeration extension.
 PFNEGLQUERYDEVICESEXTPROC = ctypes.CFUNCTYPE(
     EGL.EGLBoolean,
@@ -52,6 +55,21 @@ except TypeError as e:
   raise ImportError('eglGetPlatformDisplayEXT is not available.') from e
 
 
+# From the EGL_EXT_device_query extension.
+EGLAttrib = getattr(EGL, 'EGLAttrib', ctypes.c_ssize_t)
+PFNEGLQUERYDEVICEATTRIBEXTPROC = ctypes.CFUNCTYPE(
+    EGL.EGLBoolean,
+    EGL.EGLDeviceEXT,
+    EGL.EGLint,
+    ctypes.POINTER(EGLAttrib),
+)
+try:
+  _eglQueryDeviceAttribEXT = PFNEGLQUERYDEVICEATTRIBEXTPROC(  # pylint: disable=invalid-name
+      EGL.eglGetProcAddress('eglQueryDeviceAttribEXT'))
+except TypeError:
+  _eglQueryDeviceAttribEXT = None
+
+
 # Wrap raw _eglQueryDevicesEXT function into something more Pythonic.
 def eglQueryDevicesEXT(max_devices=10):  # pylint: disable=invalid-name
   devices = (EGL.EGLDeviceEXT * max_devices)()
@@ -65,7 +83,25 @@ def eglQueryDevicesEXT(max_devices=10):  # pylint: disable=invalid-name
                         result=success)
 
 
+def eglQueryDeviceAttribEXT(device, attribute):  # pylint: disable=invalid-name
+  if _eglQueryDeviceAttribEXT is None:
+    raise ImportError('eglQueryDeviceAttribEXT is not available.')
+
+  value = EGLAttrib()
+  success = _eglQueryDeviceAttribEXT(device, attribute, ctypes.byref(value))
+  if success == EGL.EGL_TRUE:
+    return value.value
+  else:
+    raise error.GLError(err=EGL.eglGetError(),
+                        baseOperation=eglQueryDeviceAttribEXT,
+                        result=success)
+
+
 # Expose everything from upstream so that
 # we can use this as a drop-in replacement for OpenGL.EGL.
 # pylint: disable=wildcard-import,g-bad-import-order
+_eglQueryDevicesEXTWrapper = eglQueryDevicesEXT  # pylint: disable=invalid-name
+_eglQueryDeviceAttribEXTWrapper = eglQueryDeviceAttribEXT  # pylint: disable=invalid-name
 from OpenGL.EGL import *
+eglQueryDevicesEXT = _eglQueryDevicesEXTWrapper  # pylint: disable=invalid-name
+eglQueryDeviceAttribEXT = _eglQueryDeviceAttribEXTWrapper  # pylint: disable=invalid-name
