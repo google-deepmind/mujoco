@@ -98,6 +98,13 @@ if(EMSCRIPTEN)
   endif()
 endif()
 
+if(MUJOCO_USE_FILAMENT_MJR_COMPAT AND NOT MUJOCO_USE_FILAMENT)
+  message(
+    FATAL_ERROR
+      "MUJOCO_USE_FILAMENT_MJR_COMPAT requires MUJOCO_USE_FILAMENT=ON"
+  )
+endif()
+
 if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
   enable_language(OBJC)
   enable_language(OBJCXX)
@@ -200,6 +207,30 @@ target_link_libraries(
           tinyobjloader
           tinyxml2
 )
+
+if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
+  add_dependencies(mujoco mujoco_filament mujoco_filament_mjr_compat)
+  target_sources(mujoco PRIVATE $<TARGET_OBJECTS:mujoco_filament_mjr_compat>)
+  if(APPLE)
+    target_link_libraries(
+      mujoco
+      PRIVATE "-Wl,-force_load,$<TARGET_FILE:mujoco_filament>"
+              mujoco::filament
+    )
+  elseif(MSVC)
+    target_link_libraries(mujoco PRIVATE mujoco::filament)
+    target_link_options(
+      mujoco PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:mujoco_filament>"
+    )
+  else()
+    target_link_libraries(
+      mujoco
+      PRIVATE "-Wl,--whole-archive"
+              mujoco_filament
+              "-Wl,--no-whole-archive"
+    )
+  endif()
+endif()
 
 set_target_properties(
   mujoco PROPERTIES VERSION "${mujoco_VERSION}" PUBLIC_HEADER "${MUJOCO_HEADERS}"

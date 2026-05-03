@@ -19,6 +19,10 @@
 // library) when you do not intend to use any graphics APIs and want to reduce
 // dependencies, compile times, binary size, etc.
 
+const char* mjr_getRenderer(void) {
+  return "noop";
+}
+
 void mjr_defaultContext(mjrContext* con) {
   mju_error("mjr_defaultContext not implemented.");
 }
