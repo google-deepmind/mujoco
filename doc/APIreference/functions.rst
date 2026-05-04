@@ -3982,6 +3982,15 @@ Convert matrix from dense to sparse.
 
 Convert matrix from sparse to dense.
 
+.. _mju_sym2dense:
+
+`mju_sym2dense <#mju_sym2dense>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_sym2dense
+
+Convert lower-triangular symmetric CSR matrix to full dense matrix.
+
 .. _Quaternions:
 
 Quaternions

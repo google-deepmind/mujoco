@@ -1058,7 +1058,13 @@ def _put_data_jax(
   # convert qM and qLD if jacobian is dense
   if not support.is_sparse(m):
     impl_fields['qM'] = np.zeros((m.nv, m.nv))
-    mujoco.mj_fullM(m, impl_fields['qM'], d.qM)
+    mujoco.mju_sym2dense(
+        impl_fields['qM'],
+        d.M,
+        m.M_rownnz,
+        m.M_rowadr,
+        m.M_colind,
+    )
     # TODO(erikfrey): derive L*L' from L'*D*L instead of recomputing
     try:
       impl_fields['qLD'], _ = scipy.linalg.cho_factor(impl_fields['qM'])

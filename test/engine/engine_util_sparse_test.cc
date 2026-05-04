@@ -361,6 +361,42 @@ TEST_F(EngineUtilSparseTest, MjuCompressSparse) {
   EXPECT_EQ(AsVector(dense, 6), AsVector(dense_expected_minval1, 6));
 }
 
+TEST_F(EngineUtilSparseTest, MjuSym2Dense) {
+  // lower-triangular CSR for a 3x3 symmetric matrix:
+  //     1 2 0
+  //     2 3 4
+  //     0 4 5
+  // stored as lower triangle:
+  //   row 0: [1]           (col 0)
+  //   row 1: [2, 3]        (cols 0, 1)
+  //   row 2: [4, 5]        (cols 1, 2)
+  mjtNum mat[] = {1, 2, 3, 4, 5};
+  int rownnz[] = {1, 2, 2};
+  int rowadr[] = {0, 1, 3};
+  int colind[] = {0, 0, 1, 1, 2};
+
+  mjtNum dense[9];
+  mju_sym2dense(dense, mat, 3, rownnz, rowadr, colind);
+
+  mjtNum expected[] = {1, 2, 0, 2, 3, 4, 0, 4, 5};
+  EXPECT_EQ(AsVector(dense, 9), AsVector(expected, 9));
+}
+
+TEST_F(EngineUtilSparseTest, MjuSym2DenseWithUpper) {
+  mjtNum mat[] = {1, 999, 2, 3, 4, 5};
+  int rownnz[] = {2, 2, 2};
+  int rowadr[] = {0, 2, 4};
+  int colind[] = {0, 1, 0, 1, 1, 2};
+
+  mjtNum dense[9];
+  mju_sym2dense(dense, mat, 3, rownnz, rowadr, colind);
+
+  mjtNum expected[] = {1, 2, 0,
+                       2, 3, 4,
+                       0, 4, 5};
+  EXPECT_EQ(AsVector(dense, 9), AsVector(expected, 9));
+}
+
 // helper: run split-col approach and return dense result
 static void SqrMatTDSplitCol(
     std::vector<mjtNum>& dense_result, int nr, int nc,

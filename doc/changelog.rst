@@ -5,6 +5,8 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
 - Added island support for the :ref:`PGS solver<soAlgorithms>`.
 - Added support for :ref:`elastic2d<body-flexcomp-elastic2d>` for trilinear and quadratic flex
   :ref:`dofs<body-flexcomp-dof>`.
@@ -13,6 +15,18 @@ Upcoming version (not yet released)
   (nonzero :ref:`density<option-density>` or :ref:`viscosity<option-viscosity>`).
   Midpoint integration treats external forces as zero-order-hold constants, which causes
   energy gain in the presence of contacts and in fluid media.
+- Added :ref:`mju_sym2dense`, converting a lower-triangular, implicitly symmetric CSR matrix to a dense
+  symmetric matrix. The inertia matrix ``mjData.M`` is an example of such a matrix.
+
+.. admonition:: Future breaking API changes
+   :class: warning
+
+   - The introduction of :ref:`mju_sym2dense` is a step towards the removal of the legacy-format ``mjData.qM`` in favor
+     of the CSR-format ``mjData.M``. This removal will involve a future breaking change to :ref:`mj_fullM` (which
+     currently accepts a ``qM``-like matrix as an argument). To prevent a future breakage, replace
+     ``mj_fullM(m, dst, d->qM)``  with
+     |br| ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
+
 
 Python
 ^^^^^^

@@ -520,7 +520,7 @@ class DataIOTest(parameterized.TestCase):
     if impl == 'jax':
       # check that qM is transformed properly
       qm = np.zeros((m.nv, m.nv), dtype=np.float64)
-      mujoco.mj_fullM(m, qm, d.qM)
+      mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
       np.testing.assert_allclose(qm, mjx.full_m(mjx.put_model(m), dx))
 
     elif impl == 'cpp':
@@ -529,7 +529,7 @@ class DataIOTest(parameterized.TestCase):
       return  # cpp does not populate other fields in _impl
     elif impl == 'warp':
       qm = np.zeros((m.nv, m.nv), dtype=np.float64)
-      mujoco.mj_fullM(m, qm, d.qM)
+      mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
       np.testing.assert_allclose(dx._impl.qM, qm)
       # TODO(taylorhowell): test efc__J
       np.testing.assert_allclose(dx._impl.efc__aref[:3], d.efc_aref[:3])
@@ -596,7 +596,7 @@ class DataIOTest(parameterized.TestCase):
     dx_from_dense = mjx.put_data(m, d, impl=impl)
     if impl == 'jax':
       qm = np.zeros((m.nv, m.nv))
-      mujoco.mj_fullM(m, qm, d.qM)
+      mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
       np.testing.assert_allclose(dx_from_dense._impl.qM, qm, atol=1e-8)
 
 

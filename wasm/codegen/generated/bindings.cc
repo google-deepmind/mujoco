@@ -10638,6 +10638,15 @@ mjtNum mju_sum_wrapper(const NumberArray& vec, int n) {
   return mju_sum(vec_.data(), n);
 }
 
+void mju_sym2dense_wrapper(const val& res, const NumberArray& mat, int n, const NumberArray& rownnz, const NumberArray& rowadr, const NumberArray& colind) {
+  UNPACK_VALUE(mjtNum, res);
+  UNPACK_ARRAY(mjtNum, mat);
+  UNPACK_ARRAY(int, rownnz);
+  UNPACK_ARRAY(int, rowadr);
+  UNPACK_ARRAY(int, colind);
+  mju_sym2dense(res_.data(), mat_.data(), n, rownnz_.data(), rowadr_.data(), colind_.data());
+}
+
 void mju_symmetrize_wrapper(const val& res, const NumberArray& mat, int n) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, mat);
@@ -13461,6 +13470,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mju_subFrom3", &mju_subFrom3_wrapper);
   function("mju_subQuat", &mju_subQuat_wrapper);
   function("mju_sum", &mju_sum_wrapper);
+  function("mju_sym2dense", &mju_sym2dense_wrapper);
   function("mju_symmetrize", &mju_symmetrize_wrapper);
   function("mju_transformSpatial", &mju_transformSpatial_wrapper);
   function("mju_transpose", &mju_transpose_wrapper);

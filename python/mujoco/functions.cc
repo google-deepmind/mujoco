@@ -1241,6 +1241,37 @@ PYBIND11_MODULE(_functions, pymodule) {
                                   colind.data());
       });
 
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_sym2dense, "n")(
+      pymodule,
+      [](Eigen::Ref<EigenArrayXX> res,
+         Eigen::Ref<const EigenVectorX> mat,
+         Eigen::Ref<const EigenVectorI> rownnz,
+         Eigen::Ref<const EigenVectorI> rowadr,
+         Eigen::Ref<const EigenVectorI> colind) {
+        if (res.rows() != res.cols()) {
+          throw py::type_error("res should be a square matrix");
+        }
+        if (res.rows() != rownnz.size()) {
+          throw py::type_error("#rows in res should equal size of rownnz");
+        }
+        if (res.rows() != rowadr.size()) {
+          throw py::type_error("#rows in res should equal size of rowadr");
+        }
+        if (res.rows() > 0) {
+          int nnz = rowadr.array().tail(1)[0] + rownnz.array().tail(1)[0];
+          if (mat.size() < nnz) {
+            throw py::type_error("mat size is too small for the given sparse "
+                                 "structure");
+          }
+          if (colind.size() < nnz) {
+            throw py::type_error("colind size is too small for the given "
+                                 "sparse structure");
+          }
+        }
+        return ::mju_sym2dense(res.data(), mat.data(), res.rows(),
+                               rownnz.data(), rowadr.data(), colind.data());
+      });
+
   // Quaternions
   Def<traits::mju_rotVecQuat>(pymodule);
   Def<traits::mju_negQuat>(pymodule);

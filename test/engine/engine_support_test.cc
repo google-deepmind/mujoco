@@ -548,7 +548,8 @@ TEST_F(InertiaTest, mulM) {
 
   // dense M matrix
   vector<mjtNum> Mdense(nv*nv);
-  mj_fullM(model, Mdense.data(), data->qM);
+  mju_sym2dense(Mdense.data(), data->M, nv,
+                model->M_rownnz, model->M_rowadr, model->M_colind);
 
   // arbitrary RHS vector
   vector<mjtNum> vec(nv);
@@ -611,9 +612,9 @@ TEST_F(InertiaTest, FullM) {
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
-  // get dense mass matrix from qM using mj_fullM
+  // get dense mass matrix from M using mju_sym2dense
   vector<mjtNum> M(nv * nv);
-  mj_fullM(m, M.data(), d->qM);
+  mju_sym2dense(M.data(), d->M, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
 
   // get dense mass matrix from M using mju_sparse2dense
   vector<mjtNum> M_CSR(nv * nv);

@@ -64,7 +64,7 @@ class SupportTest(parameterized.TestCase):
     dx = mjx.put_data(m, d)
     mjx_full_m = jax.jit(support.full_m)(mx, dx)
     mj_full_m = np.zeros((m.nv, m.nv), dtype=np.float64)
-    mujoco.mj_fullM(m, mj_full_m, d.qM)
+    mujoco.mju_sym2dense(mj_full_m, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
     np.testing.assert_allclose(mjx_full_m, mj_full_m, atol=5e-5, rtol=5e-5)
 
   @parameterized.parameters('constraints.xml', 'pendula.xml')

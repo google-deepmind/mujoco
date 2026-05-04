@@ -1206,6 +1206,10 @@ MJAPI int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
 MJAPI void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
                             const int* rownnz, const int* rowadr, const int* colind);
 
+// Convert lower-triangular symmetric CSR matrix to full dense matrix.
+MJAPI void mju_sym2dense(mjtNum* res, const mjtNum* mat, int n,
+                         const int* rownnz, const int* rowadr, const int* colind);
+
 
 //---------------------------------- Quaternions ---------------------------------------------------
 

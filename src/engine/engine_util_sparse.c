@@ -140,6 +140,23 @@ void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
 }
 
 
+// convert lower-triangular symmetric CSR matrix to full dense matrix
+void mju_sym2dense(mjtNum* res, const mjtNum* mat, int n,
+                   const int* rownnz, const int* rowadr, const int* colind) {
+  mju_zero(res, n*n);
+  for (int i = 0; i < n; i++) {
+    int adr = rowadr[i];
+    for (int j = 0; j < rownnz[i]; j++) {
+      int col = colind[adr+j];
+      if (col <= i) {
+        res[i*n+col] = mat[adr+j];
+        res[col*n+i] = mat[adr+j];
+      }
+    }
+  }
+}
+
+
 // res[row, :] = mat[row, :]
 void mju_copySparse(mjtNum* res, const mjtNum* mat, const int* rownnz, const int* rowadr,
                     const int* row, int nrow) {

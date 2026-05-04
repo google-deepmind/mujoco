@@ -7515,6 +7515,9 @@ public static unsafe extern int mju_dense2sparse(double* res, double* mat, int n
 public static unsafe extern void mju_sparse2dense(double* res, double* mat, int nr, int nc, int* rownnz, int* rowadr, int* colind);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_sym2dense(double* res, double* mat, int n, int* rownnz, int* rowadr, int* colind);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_rotVecQuat(double* res, double* vec, double* quat);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

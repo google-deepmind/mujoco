@@ -1307,7 +1307,7 @@ static void setStat(mjModel* m, mjData* d) {
   if (m->nv) {
     m->stat.meaninertia = 0;
     for (int i=0; i < m->nv; i++) {
-      m->stat.meaninertia += d->qM[m->dof_Madr[i]];
+      m->stat.meaninertia += d->M[m->M_rowadr[i] + m->M_rownnz[i] - 1];
     }
     m->stat.meaninertia /= m->nv;
   }
