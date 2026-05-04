@@ -1197,7 +1197,9 @@ def _cfrc(
   cfrc_int_out: wp.array2d[wp.spatial_vector],
 ):
   worldid, bodyid = wp.tid()
-  bodyid += 1  # skip world body
+  if bodyid == 0:
+    cfrc_int_out[worldid, 0] = wp.spatial_vector(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    return
   cacc = cacc_in[worldid, bodyid]
   cinert = cinert_in[worldid, bodyid]
   cvel = cvel_in[worldid, bodyid]
@@ -1210,9 +1212,7 @@ def _cfrc(
 
 
 def _rne_cfrc(m: Model, d: Data, flg_cfrc_ext: bool = False):
-  wp.launch(
-    _cfrc, dim=[d.nworld, m.nbody - 1], inputs=[d.cinert, d.cvel, d.cacc, d.cfrc_ext, flg_cfrc_ext], outputs=[d.cfrc_int]
-  )
+  wp.launch(_cfrc, dim=[d.nworld, m.nbody], inputs=[d.cinert, d.cvel, d.cacc, d.cfrc_ext, flg_cfrc_ext], outputs=[d.cfrc_int])
 
 
 @wp.kernel
@@ -1983,6 +1983,9 @@ def _comvel_branch(
         cvel += cdof[dofid + 1] * qvel[dofid + 1]
         cvel += cdof[dofid + 2] * qvel[dofid + 2]
 
+        cdof_dot_out[worldid, dofid + 0] = wp.spatial_vector(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        cdof_dot_out[worldid, dofid + 1] = wp.spatial_vector(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        cdof_dot_out[worldid, dofid + 2] = wp.spatial_vector(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         cdof_dot_out[worldid, dofid + 3] = math.motion_cross(cvel, cdof[dofid + 3])
         cdof_dot_out[worldid, dofid + 4] = math.motion_cross(cvel, cdof[dofid + 4])
         cdof_dot_out[worldid, dofid + 5] = math.motion_cross(cvel, cdof[dofid + 5])
@@ -2061,6 +2064,7 @@ def _transmission(
   actuator_trnid: wp.array[wp.vec2i],
   actuator_gear: wp.array2d[wp.spatial_vector],
   actuator_cranklength: wp.array2d[float],
+  body_isdofancestor: wp.array2d[int],
   # Data in:
   qpos_in: wp.array2d[float],
   xquat_in: wp.array2d[wp.quat],
@@ -2219,12 +2223,30 @@ def _transmission(
 
       # get Jacobians of axis(jacA) and vec(jac)
       jacp, jacr = support.jac_dof(
-        body_parentid, body_rootid, dof_bodyid, subtree_com_in, cdof_in, site_xpos_idslider, site_bodyid[idslider], da, worldid
+        body_parentid,
+        body_rootid,
+        dof_bodyid,
+        body_isdofancestor,
+        subtree_com_in,
+        cdof_in,
+        site_xpos_idslider,
+        site_bodyid[idslider],
+        da,
+        worldid,
       )
       jacS = jacp
       jacA = wp.cross(jacr, axis)
       jac, _ = support.jac_dof(
-        body_parentid, body_rootid, dof_bodyid, subtree_com_in, cdof_in, site_xpos_id, site_bodyid[id], da, worldid
+        body_parentid,
+        body_rootid,
+        dof_bodyid,
+        body_isdofancestor,
+        subtree_com_in,
+        cdof_in,
+        site_xpos_id,
+        site_bodyid[id],
+        da,
+        worldid,
       )
       jac -= jacS
 
@@ -2313,6 +2335,7 @@ def _transmission(
           body_parentid,
           body_rootid,
           dof_bodyid,
+          body_isdofancestor,
           subtree_com_in,
           cdof_in,
           site_xpos_in[worldid, siteid],
@@ -2419,10 +2442,28 @@ def _transmission(
           break
 
         jacp, jacr = support.jac_dof(
-          body_parentid, body_rootid, dof_bodyid, subtree_com_in, cdof_in, site_xpos, site_bodyid[siteid], da, worldid
+          body_parentid,
+          body_rootid,
+          dof_bodyid,
+          body_isdofancestor,
+          subtree_com_in,
+          cdof_in,
+          site_xpos,
+          site_bodyid[siteid],
+          da,
+          worldid,
         )
         jacpref, jacrref = support.jac_dof(
-          body_parentid, body_rootid, dof_bodyid, subtree_com_in, cdof_in, ref_xpos, site_bodyid[refid], da, worldid
+          body_parentid,
+          body_rootid,
+          dof_bodyid,
+          body_isdofancestor,
+          subtree_com_in,
+          cdof_in,
+          ref_xpos,
+          site_bodyid[refid],
+          da,
+          worldid,
         )
 
         moment = float(0.0)
@@ -2453,6 +2494,7 @@ def _transmission_body_moment(
   dof_bodyid: wp.array[int],
   geom_bodyid: wp.array[int],
   actuator_trnid: wp.array[wp.vec2i],
+  body_isdofancestor: wp.array2d[int],
   actuator_trntype_body_adr: wp.array[int],
   # Data in:
   subtree_com_in: wp.array2d[wp.vec3],
@@ -2568,10 +2610,10 @@ def _transmission_body_moment(
       colind = dofid
 
     jacp1, _ = support.jac_dof(
-      body_parentid, body_rootid, dof_bodyid, subtree_com_in, cdof_in, contact_pos, b1, colind, worldid
+      body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, contact_pos, b1, colind, worldid
     )
     jacp2, _ = support.jac_dof(
-      body_parentid, body_rootid, dof_bodyid, subtree_com_in, cdof_in, contact_pos, b2, colind, worldid
+      body_parentid, body_rootid, dof_bodyid, body_isdofancestor, subtree_com_in, cdof_in, contact_pos, b2, colind, worldid
     )
 
     jacdif = jacp2 - jacp1
@@ -2635,6 +2677,7 @@ def transmission(m: Model, d: Data):
       m.actuator_trnid,
       m.actuator_gear,
       m.actuator_cranklength,
+      m.body_isdofancestor,
       d.qpos,
       d.xquat,
       d.site_xpos,
@@ -2662,6 +2705,7 @@ def transmission(m: Model, d: Data):
         m.dof_bodyid,
         m.geom_bodyid,
         m.actuator_trnid,
+        m.body_isdofancestor,
         m.actuator_trntype_body_adr,
         d.subtree_com,
         d.cdof,

@@ -34,6 +34,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
+from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import RenderContext
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
@@ -82,6 +83,72 @@ def sample_texture(
   v = v - wp.floor(v)
   tex_color = wp.texture_sample(tex, wp.vec2(u, v), dtype=wp.vec4)
   return wp.vec3(tex_color[0], tex_color[1], tex_color[2])
+
+
+@wp.func
+def sample_skybox(
+  # In:
+  skybox_tex: wp.Texture2D,
+  face_width_inv: float,
+  ray_dir_world: wp.vec3,
+) -> wp.vec3:
+  # MuJoCo maps a world-space direction to cube-map space by rotating 90° about X
+  # (see render_gl3.c: S=x, T=z, R=-y). Faces in tex_data are stacked vertically
+  # in OpenGL cube-face order: +X, -X, +Y, -Y, +Z, -Z.
+  rx = ray_dir_world[0]
+  ry = ray_dir_world[2]
+  rz = -ray_dir_world[1]
+
+  arx = wp.abs(rx)
+  ary = wp.abs(ry)
+  arz = wp.abs(rz)
+
+  face = int(0)
+  sc = float(0.0)
+  tc = float(0.0)
+  ma = float(1.0)
+
+  if arx >= ary and arx >= arz:
+    ma = arx
+    if rx > 0.0:
+      face = 0
+      sc = -rz
+      tc = -ry
+    else:
+      face = 1
+      sc = rz
+      tc = -ry
+  elif ary >= arz:
+    ma = ary
+    if ry > 0.0:
+      face = 2
+      sc = rx
+      tc = rz
+    else:
+      face = 3
+      sc = rx
+      tc = -rz
+  else:
+    ma = arz
+    if rz > 0.0:
+      face = 4
+      sc = rx
+      tc = -ry
+    else:
+      face = 5
+      sc = -rx
+      tc = -ry
+
+  s = (math.safe_div(sc, ma) + 1.0) * 0.5
+  t = (math.safe_div(tc, ma) + 1.0) * 0.5
+
+  # Keep the linear filter from bleeding between adjacent faces in the vertical strip.
+  t_min = 0.5 * face_width_inv
+  t = wp.clamp(t, t_min, 1.0 - t_min)
+
+  v = (float(face) + t) * wp.static(1.0 / 6.0)
+  color = wp.texture_sample(skybox_tex, wp.vec2(s, v), dtype=wp.vec4)
+  return wp.vec3(color[0], color[1], color[2])
 
 
 # TODO: Investigate combining cast_ray and cast_ray_first_hit
@@ -525,7 +592,7 @@ def render(m: Model, d: Data, rc: RenderContext):
   """
   rc.rgb_data.fill_(rc.background_color)
   rc.depth_data.fill_(0.0)
-  rc.seg_data.fill_(-1)
+  rc.seg_data.fill_(wp.vec2i(-1, -1))
 
   @wp.kernel(module="unique", enable_backward=False)
   def _render_megakernel(
@@ -588,7 +655,7 @@ def render(m: Model, d: Data, rc: RenderContext):
     # Out:
     rgb_out: wp.array2d[wp.uint32],
     depth_out: wp.array2d[float],
-    seg_out: wp.array2d[int],
+    seg_out: wp.array2d[wp.vec2i],
   ):
     worldid, rayid = wp.tid()
 
@@ -661,10 +728,25 @@ def render(m: Model, d: Data, rc: RenderContext):
     )
 
     if render_seg[cam_idx] and geom_id != -1:
-      seg_out[worldid, seg_adr[cam_idx] + rayid_local] = geom_id
+      if geom_id == -2:
+        seg_out[worldid, seg_adr[cam_idx] + rayid_local] = wp.vec2i(mesh_id, int(ObjType.FLEX))
+      else:
+        seg_out[worldid, seg_adr[cam_idx] + rayid_local] = wp.vec2i(geom_id, int(ObjType.GEOM))
 
     # Early Out
     if geom_id == -1:
+      if wp.static(rc.render_skybox) and render_rgb[cam_idx]:
+        skybox_color = sample_skybox(
+          textures[wp.static(rc.skybox_tex_id)],
+          wp.static(1.0 / float(rc.skybox_face_width)),
+          ray_dir_world,
+        )
+        rgb_out[worldid, rgb_adr[cam_idx] + rayid_local] = pack_rgba_to_uint32(
+          skybox_color[0] * 255.0,
+          skybox_color[1] * 255.0,
+          skybox_color[2] * 255.0,
+          255.0,
+        )
       return
 
     if render_depth[cam_idx]:

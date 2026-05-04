@@ -211,13 +211,13 @@ def get_depth(rc: RenderContext, camera_index: int, depth_scale: float, depth_ou
 @wp.kernel
 def _extract_seg_kernel(
   # In:
-  seg_data: wp.array2d[int],
+  seg_data: wp.array2d[wp.vec2i],
   seg_adr: wp.array[int],
   camera_index: int,
   # Out:
-  seg_out: wp.array3d[int],
+  seg_out: wp.array3d[wp.vec2i],
 ):
-  """Extract per-pixel geom IDs from the render context buffers for a given camera index."""
+  """Extract per-pixel `(object_id, object_type)` pairs for a camera."""
   worldid, pixelid = wp.tid()
   xid = pixelid % seg_out.shape[2]
   yid = pixelid // seg_out.shape[2]
@@ -226,17 +226,18 @@ def _extract_seg_kernel(
   seg_out[worldid, yid, xid] = seg_data[worldid, seg_adr_offset + pixelid]
 
 
-def get_segmentation(rc: RenderContext, camera_index: int, seg_out: wp.array3d[int]):
+def get_segmentation(rc: RenderContext, camera_index: int, seg_out: wp.array3d[wp.vec2i]):
   """Get the segmentation data from the render context buffers for a given camera index.
 
-  Each pixel contains the MuJoCo geom ID of the geometry hit by the ray, -1 for
-  background, or -2 for flex bodies.
+  Each pixel stores MuJoCo-style `(object_id, object_type)` data. Background
+  pixels are `(-1, -1)`. Regular geometry hits are `(geom_id, mjOBJ_GEOM)`.
+  Flex hits are `(flex_id, mjOBJ_FLEX)`.
 
   Args:
     rc: The render context on device.
     camera_index: The index of the camera to get the segmentation data for.
-    seg_out: The output array to store the geom IDs in, with shape
-      (nworld, height, width).
+    seg_out: The output array to store segmentation data in, with shape
+      `(nworld, height, width)` and dtype `wp.vec2i`.
   """
   wp.launch(
     _extract_seg_kernel,

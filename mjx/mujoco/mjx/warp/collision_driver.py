@@ -61,11 +61,16 @@ def _collision_shim(
     flex_elemdataadr: wp.array[int],
     flex_elemnum: wp.array[int],
     flex_friction: wp.array[wp.vec3],
+    flex_gap: wp.array[float],
     flex_margin: wp.array[float],
+    flex_priority: wp.array[int],
     flex_radius: wp.array[float],
     flex_shell: wp.array[int],
     flex_shelldataadr: wp.array[int],
     flex_shellnum: wp.array[int],
+    flex_solimp: wp.array[mjwp_types.vec5],
+    flex_solmix: wp.array[float],
+    flex_solref: wp.array[wp.vec2],
     flex_vertadr: wp.array[int],
     flex_vertflexid: wp.array[int],
     geom_aabb: wp.array3d[wp.vec3],
@@ -136,7 +141,6 @@ def _collision_shim(
     opt__ccd_iterations: int,
     opt__ccd_tolerance: wp.array[float],
     opt__disableflags: int,
-    opt__enableflags: int,
     opt__sdf_initpoints: int,
     opt__sdf_iterations: int,
     # Data
@@ -179,11 +183,16 @@ def _collision_shim(
   _m.flex_elemdataadr = flex_elemdataadr
   _m.flex_elemnum = flex_elemnum
   _m.flex_friction = flex_friction
+  _m.flex_gap = flex_gap
   _m.flex_margin = flex_margin
+  _m.flex_priority = flex_priority
   _m.flex_radius = flex_radius
   _m.flex_shell = flex_shell
   _m.flex_shelldataadr = flex_shelldataadr
   _m.flex_shellnum = flex_shellnum
+  _m.flex_solimp = flex_solimp
+  _m.flex_solmix = flex_solmix
+  _m.flex_solref = flex_solref
   _m.flex_vertadr = flex_vertadr
   _m.flex_vertflexid = flex_vertflexid
   _m.geom_aabb = geom_aabb
@@ -245,7 +254,6 @@ def _collision_shim(
   _m.opt.ccd_iterations = opt__ccd_iterations
   _m.opt.ccd_tolerance = opt__ccd_tolerance
   _m.opt.disableflags = opt__disableflags
-  _m.opt.enableflags = opt__enableflags
   _m.opt.sdf_initpoints = opt__sdf_initpoints
   _m.opt.sdf_iterations = opt__sdf_iterations
   _m.pair_dim = pair_dim
@@ -366,11 +374,16 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_elemdataadr,
       m._impl.flex_elemnum,
       m._impl.flex_friction,
+      m._impl.flex_gap,
       m._impl.flex_margin,
+      m._impl.flex_priority,
       m._impl.flex_radius,
       m._impl.flex_shell,
       m._impl.flex_shelldataadr,
       m._impl.flex_shellnum,
+      m._impl.flex_solimp,
+      m._impl.flex_solmix,
+      m._impl.flex_solref,
       m.flex_vertadr,
       m._impl.flex_vertflexid,
       m.geom_aabb,
@@ -441,7 +454,6 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.opt._impl.ccd_iterations,
       m.opt._impl.ccd_tolerance,
       m.opt.disableflags,
-      m.opt.enableflags,
       m.opt._impl.sdf_initpoints,
       m.opt._impl.sdf_iterations,
       d._impl.naccdmax,

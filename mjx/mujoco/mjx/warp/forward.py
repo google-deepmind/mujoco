@@ -88,6 +88,7 @@ def _forward_shim(
     body_invweight0: wp.array2d[wp.vec2],
     body_ipos: wp.array2d[wp.vec3],
     body_iquat: wp.array2d[wp.quat],
+    body_isdofancestor: wp.array2d[int],
     body_jntadr: wp.array[int],
     body_jntnum: wp.array[int],
     body_mass: wp.array2d[float],
@@ -116,6 +117,7 @@ def _forward_shim(
     dof_armature: wp.array2d[float],
     dof_bodyid: wp.array[int],
     dof_damping: wp.array2d[float],
+    dof_dampingpoly: wp.array2d[wp.vec2],
     dof_frictionloss: wp.array2d[float],
     dof_invweight0: wp.array2d[float],
     dof_jntid: wp.array[int],
@@ -155,11 +157,16 @@ def _forward_shim(
     flex_elemedgeadr: wp.array[int],
     flex_elemnum: wp.array[int],
     flex_friction: wp.array[wp.vec3],
+    flex_gap: wp.array[float],
     flex_margin: wp.array[float],
+    flex_priority: wp.array[int],
     flex_radius: wp.array[float],
     flex_shell: wp.array[int],
     flex_shelldataadr: wp.array[int],
     flex_shellnum: wp.array[int],
+    flex_solimp: wp.array[mjwp_types.vec5],
+    flex_solmix: wp.array[float],
+    flex_solref: wp.array[wp.vec2],
     flex_stiffness: wp.array2d[float],
     flex_vert: wp.array[wp.vec3],
     flex_vertadr: wp.array[int],
@@ -218,6 +225,7 @@ def _forward_shim(
     jnt_solimp: wp.array2d[mjwp_types.vec5],
     jnt_solref: wp.array2d[wp.vec2],
     jnt_stiffness: wp.array2d[float],
+    jnt_stiffnesspoly: wp.array2d[wp.vec2],
     jnt_type: wp.array[int],
     light_bodyid: wp.array[int],
     light_dir: wp.array2d[wp.vec3],
@@ -352,6 +360,7 @@ def _forward_shim(
     tendon_adr: wp.array[int],
     tendon_armature: wp.array2d[float],
     tendon_damping: wp.array2d[float],
+    tendon_dampingpoly: wp.array2d[wp.vec2],
     tendon_frictionloss: wp.array2d[float],
     tendon_geom_adr: wp.array[int],
     tendon_invweight0: wp.array2d[float],
@@ -368,6 +377,7 @@ def _forward_shim(
     tendon_solref_fri: wp.array2d[wp.vec2],
     tendon_solref_lim: wp.array2d[wp.vec2],
     tendon_stiffness: wp.array2d[float],
+    tendon_stiffnesspoly: wp.array2d[wp.vec2],
     wrap_geom_adr: wp.array[int],
     wrap_jnt_adr: wp.array[int],
     wrap_objid: wp.array[int],
@@ -509,6 +519,7 @@ def _forward_shim(
     efc__J_colind: wp.array3d[int],
     efc__J_rowadr: wp.array2d[int],
     efc__J_rownnz: wp.array2d[int],
+    efc__Jqvel: wp.array2d[float],
     efc__Ma: wp.array2d[float],
     efc__aref: wp.array2d[float],
     efc__force: wp.array2d[float],
@@ -562,6 +573,7 @@ def _forward_shim(
   _m.body_invweight0 = body_invweight0
   _m.body_ipos = body_ipos
   _m.body_iquat = body_iquat
+  _m.body_isdofancestor = body_isdofancestor
   _m.body_jntadr = body_jntadr
   _m.body_jntnum = body_jntnum
   _m.body_mass = body_mass
@@ -590,6 +602,7 @@ def _forward_shim(
   _m.dof_armature = dof_armature
   _m.dof_bodyid = dof_bodyid
   _m.dof_damping = dof_damping
+  _m.dof_dampingpoly = dof_dampingpoly
   _m.dof_frictionloss = dof_frictionloss
   _m.dof_invweight0 = dof_invweight0
   _m.dof_jntid = dof_jntid
@@ -629,11 +642,16 @@ def _forward_shim(
   _m.flex_elemedgeadr = flex_elemedgeadr
   _m.flex_elemnum = flex_elemnum
   _m.flex_friction = flex_friction
+  _m.flex_gap = flex_gap
   _m.flex_margin = flex_margin
+  _m.flex_priority = flex_priority
   _m.flex_radius = flex_radius
   _m.flex_shell = flex_shell
   _m.flex_shelldataadr = flex_shelldataadr
   _m.flex_shellnum = flex_shellnum
+  _m.flex_solimp = flex_solimp
+  _m.flex_solmix = flex_solmix
+  _m.flex_solref = flex_solref
   _m.flex_stiffness = flex_stiffness
   _m.flex_vert = flex_vert
   _m.flex_vertadr = flex_vertadr
@@ -692,6 +710,7 @@ def _forward_shim(
   _m.jnt_solimp = jnt_solimp
   _m.jnt_solref = jnt_solref
   _m.jnt_stiffness = jnt_stiffness
+  _m.jnt_stiffnesspoly = jnt_stiffnesspoly
   _m.jnt_type = jnt_type
   _m.light_bodyid = light_bodyid
   _m.light_dir = light_dir
@@ -853,6 +872,7 @@ def _forward_shim(
   _m.tendon_adr = tendon_adr
   _m.tendon_armature = tendon_armature
   _m.tendon_damping = tendon_damping
+  _m.tendon_dampingpoly = tendon_dampingpoly
   _m.tendon_frictionloss = tendon_frictionloss
   _m.tendon_geom_adr = tendon_geom_adr
   _m.tendon_invweight0 = tendon_invweight0
@@ -869,6 +889,7 @@ def _forward_shim(
   _m.tendon_solref_fri = tendon_solref_fri
   _m.tendon_solref_lim = tendon_solref_lim
   _m.tendon_stiffness = tendon_stiffness
+  _m.tendon_stiffnesspoly = tendon_stiffnesspoly
   _m.wrap_geom_adr = wrap_geom_adr
   _m.wrap_jnt_adr = wrap_jnt_adr
   _m.wrap_objid = wrap_objid
@@ -914,6 +935,7 @@ def _forward_shim(
   _d.efc.J_colind = efc__J_colind
   _d.efc.J_rowadr = efc__J_rowadr
   _d.efc.J_rownnz = efc__J_rownnz
+  _d.efc.Jqvel = efc__Jqvel
   _d.efc.Ma = efc__Ma
   _d.efc.aref = efc__aref
   _d.efc.force = efc__force
@@ -1090,6 +1112,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       'efc__J_colind': d._impl.efc__J_colind.shape,
       'efc__J_rowadr': d._impl.efc__J_rowadr.shape,
       'efc__J_rownnz': d._impl.efc__J_rownnz.shape,
+      'efc__Jqvel': d._impl.efc__Jqvel.shape,
       'efc__Ma': d._impl.efc__Ma.shape,
       'efc__aref': d._impl.efc__aref.shape,
       'efc__force': d._impl.efc__force.shape,
@@ -1103,7 +1126,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _forward_shim,
-      num_outputs=102,
+      num_outputs=103,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([
@@ -1199,6 +1222,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'efc__J_colind',
           'efc__J_rowadr',
           'efc__J_rownnz',
+          'efc__Jqvel',
           'efc__Ma',
           'efc__aref',
           'efc__force',
@@ -1249,6 +1273,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'cvel',
           'dof_armature',
           'dof_damping',
+          'dof_dampingpoly',
           'dof_frictionloss',
           'dof_invweight0',
           'dof_solimp',
@@ -1281,6 +1306,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'jnt_solimp',
           'jnt_solref',
           'jnt_stiffness',
+          'jnt_stiffnesspoly',
           'light_dir',
           'light_dir0',
           'light_pos',
@@ -1328,6 +1354,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'tendon_actfrcrange',
           'tendon_armature',
           'tendon_damping',
+          'tendon_dampingpoly',
           'tendon_frictionloss',
           'tendon_invweight0',
           'tendon_length0',
@@ -1339,6 +1366,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'tendon_solref_fri',
           'tendon_solref_lim',
           'tendon_stiffness',
+          'tendon_stiffnesspoly',
           'time',
           'xanchor',
           'xaxis',
@@ -1425,6 +1453,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.body_invweight0,
       m.body_ipos,
       m.body_iquat,
+      m._impl.body_isdofancestor,
       m.body_jntadr,
       m.body_jntnum,
       m.body_mass,
@@ -1453,6 +1482,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.dof_armature,
       m.dof_bodyid,
       m.dof_damping,
+      m.dof_dampingpoly,
       m.dof_frictionloss,
       m.dof_invweight0,
       m.dof_jntid,
@@ -1492,11 +1522,16 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_elemedgeadr,
       m._impl.flex_elemnum,
       m._impl.flex_friction,
+      m._impl.flex_gap,
       m._impl.flex_margin,
+      m._impl.flex_priority,
       m._impl.flex_radius,
       m._impl.flex_shell,
       m._impl.flex_shelldataadr,
       m._impl.flex_shellnum,
+      m._impl.flex_solimp,
+      m._impl.flex_solmix,
+      m._impl.flex_solref,
       m._impl.flex_stiffness,
       m._impl.flex_vert,
       m.flex_vertadr,
@@ -1555,6 +1590,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.jnt_solimp,
       m.jnt_solref,
       m.jnt_stiffness,
+      m.jnt_stiffnesspoly,
       m.jnt_type,
       m._impl.light_bodyid,
       m.light_dir,
@@ -1689,6 +1725,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.tendon_adr,
       m.tendon_armature,
       m.tendon_damping,
+      m.tendon_dampingpoly,
       m.tendon_frictionloss,
       m._impl.tendon_geom_adr,
       m.tendon_invweight0,
@@ -1705,6 +1742,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.tendon_solref_fri,
       m.tendon_solref_lim,
       m.tendon_stiffness,
+      m.tendon_stiffnesspoly,
       m._impl.wrap_geom_adr,
       m._impl.wrap_jnt_adr,
       m.wrap_objid,
@@ -1845,6 +1883,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d._impl.efc__J_colind,
       d._impl.efc__J_rowadr,
       d._impl.efc__J_rownnz,
+      d._impl.efc__Jqvel,
       d._impl.efc__Ma,
       d._impl.efc__aref,
       d._impl.efc__force,
@@ -1949,16 +1988,17 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       '_impl.efc__J_colind': out[89],
       '_impl.efc__J_rowadr': out[90],
       '_impl.efc__J_rownnz': out[91],
-      '_impl.efc__Ma': out[92],
-      '_impl.efc__aref': out[93],
-      '_impl.efc__force': out[94],
-      '_impl.efc__frictionloss': out[95],
-      '_impl.efc__id': out[96],
-      '_impl.efc__margin': out[97],
-      '_impl.efc__pos': out[98],
-      '_impl.efc__state': out[99],
-      '_impl.efc__type': out[100],
-      '_impl.efc__vel': out[101],
+      '_impl.efc__Jqvel': out[92],
+      '_impl.efc__Ma': out[93],
+      '_impl.efc__aref': out[94],
+      '_impl.efc__force': out[95],
+      '_impl.efc__frictionloss': out[96],
+      '_impl.efc__id': out[97],
+      '_impl.efc__margin': out[98],
+      '_impl.efc__pos': out[99],
+      '_impl.efc__state': out[100],
+      '_impl.efc__type': out[101],
+      '_impl.efc__vel': out[102],
   })
   return d
 
@@ -2017,6 +2057,7 @@ def _step_shim(
     body_invweight0: wp.array2d[wp.vec2],
     body_ipos: wp.array2d[wp.vec3],
     body_iquat: wp.array2d[wp.quat],
+    body_isdofancestor: wp.array2d[int],
     body_jntadr: wp.array[int],
     body_jntnum: wp.array[int],
     body_mass: wp.array2d[float],
@@ -2045,6 +2086,7 @@ def _step_shim(
     dof_armature: wp.array2d[float],
     dof_bodyid: wp.array[int],
     dof_damping: wp.array2d[float],
+    dof_dampingpoly: wp.array2d[wp.vec2],
     dof_frictionloss: wp.array2d[float],
     dof_invweight0: wp.array2d[float],
     dof_jntid: wp.array[int],
@@ -2084,11 +2126,16 @@ def _step_shim(
     flex_elemedgeadr: wp.array[int],
     flex_elemnum: wp.array[int],
     flex_friction: wp.array[wp.vec3],
+    flex_gap: wp.array[float],
     flex_margin: wp.array[float],
+    flex_priority: wp.array[int],
     flex_radius: wp.array[float],
     flex_shell: wp.array[int],
     flex_shelldataadr: wp.array[int],
     flex_shellnum: wp.array[int],
+    flex_solimp: wp.array[mjwp_types.vec5],
+    flex_solmix: wp.array[float],
+    flex_solref: wp.array[wp.vec2],
     flex_stiffness: wp.array2d[float],
     flex_vert: wp.array[wp.vec3],
     flex_vertadr: wp.array[int],
@@ -2147,6 +2194,7 @@ def _step_shim(
     jnt_solimp: wp.array2d[mjwp_types.vec5],
     jnt_solref: wp.array2d[wp.vec2],
     jnt_stiffness: wp.array2d[float],
+    jnt_stiffnesspoly: wp.array2d[wp.vec2],
     jnt_type: wp.array[int],
     light_bodyid: wp.array[int],
     light_dir: wp.array2d[wp.vec3],
@@ -2282,6 +2330,7 @@ def _step_shim(
     tendon_adr: wp.array[int],
     tendon_armature: wp.array2d[float],
     tendon_damping: wp.array2d[float],
+    tendon_dampingpoly: wp.array2d[wp.vec2],
     tendon_frictionloss: wp.array2d[float],
     tendon_geom_adr: wp.array[int],
     tendon_invweight0: wp.array2d[float],
@@ -2298,6 +2347,7 @@ def _step_shim(
     tendon_solref_fri: wp.array2d[wp.vec2],
     tendon_solref_lim: wp.array2d[wp.vec2],
     tendon_stiffness: wp.array2d[float],
+    tendon_stiffnesspoly: wp.array2d[wp.vec2],
     wrap_geom_adr: wp.array[int],
     wrap_jnt_adr: wp.array[int],
     wrap_objid: wp.array[int],
@@ -2440,6 +2490,7 @@ def _step_shim(
     efc__J_colind: wp.array3d[int],
     efc__J_rowadr: wp.array2d[int],
     efc__J_rownnz: wp.array2d[int],
+    efc__Jqvel: wp.array2d[float],
     efc__Ma: wp.array2d[float],
     efc__aref: wp.array2d[float],
     efc__force: wp.array2d[float],
@@ -2493,6 +2544,7 @@ def _step_shim(
   _m.body_invweight0 = body_invweight0
   _m.body_ipos = body_ipos
   _m.body_iquat = body_iquat
+  _m.body_isdofancestor = body_isdofancestor
   _m.body_jntadr = body_jntadr
   _m.body_jntnum = body_jntnum
   _m.body_mass = body_mass
@@ -2521,6 +2573,7 @@ def _step_shim(
   _m.dof_armature = dof_armature
   _m.dof_bodyid = dof_bodyid
   _m.dof_damping = dof_damping
+  _m.dof_dampingpoly = dof_dampingpoly
   _m.dof_frictionloss = dof_frictionloss
   _m.dof_invweight0 = dof_invweight0
   _m.dof_jntid = dof_jntid
@@ -2560,11 +2613,16 @@ def _step_shim(
   _m.flex_elemedgeadr = flex_elemedgeadr
   _m.flex_elemnum = flex_elemnum
   _m.flex_friction = flex_friction
+  _m.flex_gap = flex_gap
   _m.flex_margin = flex_margin
+  _m.flex_priority = flex_priority
   _m.flex_radius = flex_radius
   _m.flex_shell = flex_shell
   _m.flex_shelldataadr = flex_shelldataadr
   _m.flex_shellnum = flex_shellnum
+  _m.flex_solimp = flex_solimp
+  _m.flex_solmix = flex_solmix
+  _m.flex_solref = flex_solref
   _m.flex_stiffness = flex_stiffness
   _m.flex_vert = flex_vert
   _m.flex_vertadr = flex_vertadr
@@ -2623,6 +2681,7 @@ def _step_shim(
   _m.jnt_solimp = jnt_solimp
   _m.jnt_solref = jnt_solref
   _m.jnt_stiffness = jnt_stiffness
+  _m.jnt_stiffnesspoly = jnt_stiffnesspoly
   _m.jnt_type = jnt_type
   _m.light_bodyid = light_bodyid
   _m.light_dir = light_dir
@@ -2786,6 +2845,7 @@ def _step_shim(
   _m.tendon_adr = tendon_adr
   _m.tendon_armature = tendon_armature
   _m.tendon_damping = tendon_damping
+  _m.tendon_dampingpoly = tendon_dampingpoly
   _m.tendon_frictionloss = tendon_frictionloss
   _m.tendon_geom_adr = tendon_geom_adr
   _m.tendon_invweight0 = tendon_invweight0
@@ -2802,6 +2862,7 @@ def _step_shim(
   _m.tendon_solref_fri = tendon_solref_fri
   _m.tendon_solref_lim = tendon_solref_lim
   _m.tendon_stiffness = tendon_stiffness
+  _m.tendon_stiffnesspoly = tendon_stiffnesspoly
   _m.wrap_geom_adr = wrap_geom_adr
   _m.wrap_jnt_adr = wrap_jnt_adr
   _m.wrap_objid = wrap_objid
@@ -2847,6 +2908,7 @@ def _step_shim(
   _d.efc.J_colind = efc__J_colind
   _d.efc.J_rowadr = efc__J_rowadr
   _d.efc.J_rownnz = efc__J_rownnz
+  _d.efc.Jqvel = efc__Jqvel
   _d.efc.Ma = efc__Ma
   _d.efc.aref = efc__aref
   _d.efc.force = efc__force
@@ -3027,6 +3089,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       'efc__J_colind': d._impl.efc__J_colind.shape,
       'efc__J_rowadr': d._impl.efc__J_rowadr.shape,
       'efc__J_rownnz': d._impl.efc__J_rownnz.shape,
+      'efc__Jqvel': d._impl.efc__Jqvel.shape,
       'efc__Ma': d._impl.efc__Ma.shape,
       'efc__aref': d._impl.efc__aref.shape,
       'efc__force': d._impl.efc__force.shape,
@@ -3040,7 +3103,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _step_shim,
-      num_outputs=106,
+      num_outputs=107,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([
@@ -3140,6 +3203,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'efc__J_colind',
           'efc__J_rowadr',
           'efc__J_rownnz',
+          'efc__Jqvel',
           'efc__Ma',
           'efc__aref',
           'efc__force',
@@ -3190,6 +3254,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'cvel',
           'dof_armature',
           'dof_damping',
+          'dof_dampingpoly',
           'dof_frictionloss',
           'dof_invweight0',
           'dof_solimp',
@@ -3222,6 +3287,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'jnt_solimp',
           'jnt_solref',
           'jnt_stiffness',
+          'jnt_stiffnesspoly',
           'light_dir',
           'light_dir0',
           'light_pos',
@@ -3269,6 +3335,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'tendon_actfrcrange',
           'tendon_armature',
           'tendon_damping',
+          'tendon_dampingpoly',
           'tendon_frictionloss',
           'tendon_invweight0',
           'tendon_length0',
@@ -3280,6 +3347,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'tendon_solref_fri',
           'tendon_solref_lim',
           'tendon_stiffness',
+          'tendon_stiffnesspoly',
           'time',
           'xanchor',
           'xaxis',
@@ -3370,6 +3438,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.body_invweight0,
       m.body_ipos,
       m.body_iquat,
+      m._impl.body_isdofancestor,
       m.body_jntadr,
       m.body_jntnum,
       m.body_mass,
@@ -3398,6 +3467,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.dof_armature,
       m.dof_bodyid,
       m.dof_damping,
+      m.dof_dampingpoly,
       m.dof_frictionloss,
       m.dof_invweight0,
       m.dof_jntid,
@@ -3437,11 +3507,16 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_elemedgeadr,
       m._impl.flex_elemnum,
       m._impl.flex_friction,
+      m._impl.flex_gap,
       m._impl.flex_margin,
+      m._impl.flex_priority,
       m._impl.flex_radius,
       m._impl.flex_shell,
       m._impl.flex_shelldataadr,
       m._impl.flex_shellnum,
+      m._impl.flex_solimp,
+      m._impl.flex_solmix,
+      m._impl.flex_solref,
       m._impl.flex_stiffness,
       m._impl.flex_vert,
       m.flex_vertadr,
@@ -3500,6 +3575,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.jnt_solimp,
       m.jnt_solref,
       m.jnt_stiffness,
+      m.jnt_stiffnesspoly,
       m.jnt_type,
       m._impl.light_bodyid,
       m.light_dir,
@@ -3635,6 +3711,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.tendon_adr,
       m.tendon_armature,
       m.tendon_damping,
+      m.tendon_dampingpoly,
       m.tendon_frictionloss,
       m._impl.tendon_geom_adr,
       m.tendon_invweight0,
@@ -3651,6 +3728,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.tendon_solref_fri,
       m.tendon_solref_lim,
       m.tendon_stiffness,
+      m.tendon_stiffnesspoly,
       m._impl.wrap_geom_adr,
       m._impl.wrap_jnt_adr,
       m.wrap_objid,
@@ -3792,6 +3870,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d._impl.efc__J_colind,
       d._impl.efc__J_rowadr,
       d._impl.efc__J_rownnz,
+      d._impl.efc__Jqvel,
       d._impl.efc__Ma,
       d._impl.efc__aref,
       d._impl.efc__force,
@@ -3900,16 +3979,17 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       '_impl.efc__J_colind': out[93],
       '_impl.efc__J_rowadr': out[94],
       '_impl.efc__J_rownnz': out[95],
-      '_impl.efc__Ma': out[96],
-      '_impl.efc__aref': out[97],
-      '_impl.efc__force': out[98],
-      '_impl.efc__frictionloss': out[99],
-      '_impl.efc__id': out[100],
-      '_impl.efc__margin': out[101],
-      '_impl.efc__pos': out[102],
-      '_impl.efc__state': out[103],
-      '_impl.efc__type': out[104],
-      '_impl.efc__vel': out[105],
+      '_impl.efc__Jqvel': out[96],
+      '_impl.efc__Ma': out[97],
+      '_impl.efc__aref': out[98],
+      '_impl.efc__force': out[99],
+      '_impl.efc__frictionloss': out[100],
+      '_impl.efc__id': out[101],
+      '_impl.efc__margin': out[102],
+      '_impl.efc__pos': out[103],
+      '_impl.efc__state': out[104],
+      '_impl.efc__type': out[105],
+      '_impl.efc__vel': out[106],
   })
   return d
 

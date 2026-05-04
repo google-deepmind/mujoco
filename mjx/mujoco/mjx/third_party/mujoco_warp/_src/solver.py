@@ -2785,6 +2785,36 @@ def update_gradient_cholesky_blocked(tile_size: int, matrix_size: int):
   return kernel
 
 
+def update_gradient_cholesky_blocked_skip_unchanged(tile_size: int, matrix_size: int):
+  """Blocked Cholesky that skips factorization when no constraints changed."""
+
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # In:
+    ctx_done_in: wp.array[bool],
+    ctx_grad_in: wp.array3d[float],
+    ctx_h_in: wp.array3d[float],
+    changed_count_in: wp.array[int],
+    ctx_hfactor: wp.array3d[float],
+    # Out:
+    ctx_Mgrad_out: wp.array3d[float],
+  ):
+    worldid = wp.tid()
+    TILE_SIZE = wp.static(tile_size)
+
+    if ctx_done_in[worldid]:
+      return
+
+    if changed_count_in[worldid] > 0:
+      wp.static(create_blocked_cholesky_func(TILE_SIZE))(ctx_h_in[worldid], matrix_size, ctx_hfactor[worldid])
+
+    wp.static(create_blocked_cholesky_solve_func(TILE_SIZE, matrix_size))(
+      ctx_hfactor[worldid], ctx_grad_in[worldid], matrix_size, ctx_Mgrad_out[worldid]
+    )
+
+  return kernel
+
+
 @wp.kernel
 def padding_h(nv: int, ctx_done_in: wp.array[bool], ctx_h_out: wp.array3d[float]):
   worldid, elementid = wp.tid()
@@ -2796,8 +2826,12 @@ def padding_h(nv: int, ctx_done_in: wp.array[bool], ctx_h_out: wp.array3d[float]
   ctx_h_out[worldid, dofid, dofid] = 1.0
 
 
-def _cholesky_factorize_solve(m: types.Model, d: types.Data, ctx: SolverContext):
-  """Cholesky factorize ctx.h and solve for Mgrad."""
+def _cholesky_factorize_solve(m: types.Model, d: types.Data, ctx: SolverContext, skip_unchanged: bool = False):
+  """Cholesky factorize ctx.h and solve for Mgrad.
+
+  If skip_unchanged is True (blocked path only), worlds where no constraints
+  changed reuse the cached factorization in hfactor instead of refactorizing.
+  """
   if m.nv <= _BLOCK_CHOLESKY_DIM:
     wp.launch_tiled(
       update_gradient_cholesky(m.nv),
@@ -2814,13 +2848,22 @@ def _cholesky_factorize_solve(m: types.Model, d: types.Data, ctx: SolverContext)
       outputs=[ctx.h],
     )
 
-    wp.launch_tiled(
-      update_gradient_cholesky_blocked(types.TILE_SIZE_JTDAJ_DENSE, m.nv_pad),
-      dim=d.nworld,
-      inputs=[ctx.done, ctx.grad.reshape(shape=(d.nworld, ctx.grad.shape[1], 1)), ctx.h, ctx.hfactor],
-      outputs=[ctx.Mgrad.reshape(shape=(d.nworld, ctx.Mgrad.shape[1], 1))],
-      block_dim=m.block_dim.update_gradient_cholesky_blocked,
-    )
+    if skip_unchanged:
+      wp.launch_tiled(
+        update_gradient_cholesky_blocked_skip_unchanged(types.TILE_SIZE_JTDAJ_DENSE, m.nv_pad),
+        dim=d.nworld,
+        inputs=[ctx.done, ctx.grad.reshape(shape=(d.nworld, ctx.grad.shape[1], 1)), ctx.h, ctx.changed_efc_count, ctx.hfactor],
+        outputs=[ctx.Mgrad.reshape(shape=(d.nworld, ctx.Mgrad.shape[1], 1))],
+        block_dim=m.block_dim.update_gradient_cholesky_blocked,
+      )
+    else:
+      wp.launch_tiled(
+        update_gradient_cholesky_blocked(types.TILE_SIZE_JTDAJ_DENSE, m.nv_pad),
+        dim=d.nworld,
+        inputs=[ctx.done, ctx.grad.reshape(shape=(d.nworld, ctx.grad.shape[1], 1)), ctx.h, ctx.hfactor],
+        outputs=[ctx.Mgrad.reshape(shape=(d.nworld, ctx.Mgrad.shape[1], 1))],
+        block_dim=m.block_dim.update_gradient_cholesky_blocked,
+      )
 
 
 @wp.kernel
@@ -3055,7 +3098,7 @@ def _update_gradient_incremental(m: types.Model, d: types.Data, ctx: SolverConte
       outputs=[ctx.h],
     )
 
-  _cholesky_factorize_solve(m, d, ctx)
+  _cholesky_factorize_solve(m, d, ctx, skip_unchanged=True)
 
 
 @wp.kernel

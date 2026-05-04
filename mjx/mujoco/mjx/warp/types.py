@@ -76,6 +76,7 @@ class BlockDim:
   cholesky_factorize: int
   cholesky_factorize_solve: int
   cholesky_solve: int
+  contact_jac_tiled: int
   contact_sort: int
   energy_vel_kinetic: int
   euler_dense: int
@@ -129,6 +130,7 @@ class ModelWarp(PyTreeNode):
   body_branch_start: np.ndarray
   body_branches: np.ndarray
   body_fluid_ellipsoid: np.ndarray
+  body_isdofancestor: np.ndarray
   body_tree: Tuple[np.ndarray, ...]
   callback: Callback
   cam_projection: np.ndarray
@@ -158,11 +160,16 @@ class ModelWarp(PyTreeNode):
   flex_elemedgeadr: np.ndarray
   flex_elemnum: np.ndarray
   flex_friction: np.ndarray
+  flex_gap: np.ndarray
   flex_margin: np.ndarray
+  flex_priority: np.ndarray
   flex_radius: np.ndarray
   flex_shell: np.ndarray
   flex_shelldataadr: np.ndarray
   flex_shellnum: np.ndarray
+  flex_solimp: np.ndarray
+  flex_solmix: np.ndarray
+  flex_solref: np.ndarray
   flex_stiffness: np.ndarray
   flex_vert: np.ndarray
   flex_vertbodyid: np.ndarray
@@ -302,6 +309,7 @@ class DataWarp(PyTreeNode):
   efc__J_colind: jax.Array
   efc__J_rowadr: jax.Array
   efc__J_rownnz: jax.Array
+  efc__Jqvel: jax.Array
   efc__Ma: jax.Array
   efc__aref: jax.Array
   efc__force: jax.Array
@@ -442,6 +450,7 @@ _NDIM = {
         'efc__J_colind': 3,
         'efc__J_rowadr': 2,
         'efc__J_rownnz': 2,
+        'efc__Jqvel': 2,
         'efc__Ma': 2,
         'efc__aref': 2,
         'efc__force': 2,
@@ -554,6 +563,7 @@ _NDIM = {
         'block_dim__cholesky_factorize': 0,
         'block_dim__cholesky_factorize_solve': 0,
         'block_dim__cholesky_solve': 0,
+        'block_dim__contact_jac_tiled': 0,
         'block_dim__contact_sort': 0,
         'block_dim__energy_vel_kinetic': 0,
         'block_dim__euler_dense': 0,
@@ -580,6 +590,7 @@ _NDIM = {
         'body_invweight0': 3,
         'body_ipos': 3,
         'body_iquat': 3,
+        'body_isdofancestor': 2,
         'body_jntadr': 1,
         'body_jntnum': 1,
         'body_mass': 2,
@@ -610,6 +621,7 @@ _NDIM = {
         'dof_armature': 2,
         'dof_bodyid': 1,
         'dof_damping': 2,
+        'dof_dampingpoly': 3,
         'dof_frictionloss': 2,
         'dof_invweight0': 2,
         'dof_jntid': 1,
@@ -651,11 +663,16 @@ _NDIM = {
         'flex_elemedgeadr': 1,
         'flex_elemnum': 1,
         'flex_friction': 2,
+        'flex_gap': 1,
         'flex_margin': 1,
+        'flex_priority': 1,
         'flex_radius': 1,
         'flex_shell': 1,
         'flex_shelldataadr': 1,
         'flex_shellnum': 1,
+        'flex_solimp': 2,
+        'flex_solmix': 1,
+        'flex_solref': 2,
         'flex_stiffness': 2,
         'flex_vert': 2,
         'flex_vertadr': 1,
@@ -715,6 +732,7 @@ _NDIM = {
         'jnt_solimp': 3,
         'jnt_solref': 3,
         'jnt_stiffness': 2,
+        'jnt_stiffnesspoly': 3,
         'jnt_type': 1,
         'light_active': 2,
         'light_bodyid': 1,
@@ -910,6 +928,7 @@ _NDIM = {
         'tendon_adr': 1,
         'tendon_armature': 2,
         'tendon_damping': 2,
+        'tendon_dampingpoly': 3,
         'tendon_frictionloss': 2,
         'tendon_geom_adr': 1,
         'tendon_invweight0': 2,
@@ -927,6 +946,7 @@ _NDIM = {
         'tendon_solref_fri': 3,
         'tendon_solref_lim': 3,
         'tendon_stiffness': 2,
+        'tendon_stiffnesspoly': 3,
         'tree_bodynum': 1,
         'tree_dofadr': 1,
         'tree_dofnum': 1,
@@ -1008,6 +1028,7 @@ _BATCH_DIM = {
         'efc__J_colind': True,
         'efc__J_rowadr': True,
         'efc__J_rownnz': True,
+        'efc__Jqvel': True,
         'efc__Ma': True,
         'efc__aref': True,
         'efc__force': True,
@@ -1120,6 +1141,7 @@ _BATCH_DIM = {
         'block_dim__cholesky_factorize': False,
         'block_dim__cholesky_factorize_solve': False,
         'block_dim__cholesky_solve': False,
+        'block_dim__contact_jac_tiled': False,
         'block_dim__contact_sort': False,
         'block_dim__energy_vel_kinetic': False,
         'block_dim__euler_dense': False,
@@ -1146,6 +1168,7 @@ _BATCH_DIM = {
         'body_invweight0': True,
         'body_ipos': True,
         'body_iquat': True,
+        'body_isdofancestor': False,
         'body_jntadr': False,
         'body_jntnum': False,
         'body_mass': True,
@@ -1176,6 +1199,7 @@ _BATCH_DIM = {
         'dof_armature': True,
         'dof_bodyid': False,
         'dof_damping': True,
+        'dof_dampingpoly': True,
         'dof_frictionloss': True,
         'dof_invweight0': True,
         'dof_jntid': False,
@@ -1217,11 +1241,16 @@ _BATCH_DIM = {
         'flex_elemedgeadr': False,
         'flex_elemnum': False,
         'flex_friction': False,
+        'flex_gap': False,
         'flex_margin': False,
+        'flex_priority': False,
         'flex_radius': False,
         'flex_shell': False,
         'flex_shelldataadr': False,
         'flex_shellnum': False,
+        'flex_solimp': False,
+        'flex_solmix': False,
+        'flex_solref': False,
         'flex_stiffness': False,
         'flex_vert': False,
         'flex_vertadr': False,
@@ -1281,6 +1310,7 @@ _BATCH_DIM = {
         'jnt_solimp': True,
         'jnt_solref': True,
         'jnt_stiffness': True,
+        'jnt_stiffnesspoly': True,
         'jnt_type': False,
         'light_active': True,
         'light_bodyid': False,
@@ -1476,6 +1506,7 @@ _BATCH_DIM = {
         'tendon_adr': False,
         'tendon_armature': True,
         'tendon_damping': True,
+        'tendon_dampingpoly': True,
         'tendon_frictionloss': True,
         'tendon_geom_adr': False,
         'tendon_invweight0': True,
@@ -1493,6 +1524,7 @@ _BATCH_DIM = {
         'tendon_solref_fri': True,
         'tendon_solref_lim': True,
         'tendon_stiffness': True,
+        'tendon_stiffnesspoly': True,
         'tree_bodynum': False,
         'tree_dofadr': False,
         'tree_dofnum': False,

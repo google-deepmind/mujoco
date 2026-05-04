@@ -24,7 +24,6 @@ Example:
 import copy
 import enum
 import logging
-import shutil
 import sys
 import time
 from typing import Sequence
@@ -39,11 +38,6 @@ from etils import epath
 
 import mujoco.mjx.third_party.mujoco_warp as mjw
 
-# mjwarp-viewer has priviledged access to a few internal methods
-from mujoco.mjx.third_party.mujoco_warp._src.io import find_keys
-from mujoco.mjx.third_party.mujoco_warp._src.io import make_trajectory
-from mujoco.mjx.third_party.mujoco_warp._src.io import override_model
-
 
 class EngineOptions(enum.IntEnum):
   """Engine option."""
@@ -52,16 +46,9 @@ class EngineOptions(enum.IntEnum):
   C = 1
 
 
-_CLEAR_WARP_CACHE = flags.DEFINE_bool("clear_warp_cache", False, "Clear warp caches (kernel, LTO, CUDA compute)")
 _ENGINE = flags.DEFINE_enum_class("engine", EngineOptions.WARP, EngineOptions, "Simulation engine")
-_NCONMAX = flags.DEFINE_integer("nconmax", None, "Maximum number of contacts.")
-_NJMAX = flags.DEFINE_integer("njmax", None, "Maximum number of constraints per world.")
-_NJMAX_NNZ = flags.DEFINE_integer("njmax_nnz", None, "Maximum number of non-zeros in constraint Jacobian.")
-_NCCDMAX = flags.DEFINE_integer("nccdmax", None, "Maximum number of CCD contacts per world.")
-_OVERRIDE = flags.DEFINE_multi_string("override", [], "Model overrides (notation: foo.bar = baz)", short_name="o")
-_KEYFRAME = flags.DEFINE_integer("keyframe", 0, "keyframe to initialize simulation.")
-_DEVICE = flags.DEFINE_string("device", None, "override the default Warp device")
-_REPLAY = flags.DEFINE_string("replay", None, "keyframe sequence to replay, keyframe name must prefix match")
+from mujoco.mjx.third_party.mujoco_warp._src import cli
+
 _VIEWER = flags.DEFINE_enum("viewer", "mujoco", ["mujoco", "viser"], "Viewer backend (mujoco native or mjviser web)")
 
 _VIEWER_GLOBAL_STATE = {"running": True, "step_once": False}
@@ -73,26 +60,6 @@ def key_callback(key: int) -> None:
     logging.info("RUNNING = %s", _VIEWER_GLOBAL_STATE["running"])
   elif key == 46:  # period
     _VIEWER_GLOBAL_STATE["step_once"] = True
-
-
-def _load_model(path: epath.Path) -> mujoco.MjModel:
-  if not path.exists():
-    resource_path = epath.resource_path("mjx") / "third_party/mujoco_warp" / path
-    if not resource_path.exists():
-      raise FileNotFoundError(f"file not found: {path}\nalso tried: {resource_path}")
-    path = resource_path
-
-  print(f"Loading model from: {path}...")
-  if path.suffix == ".mjb":
-    return mujoco.MjModel.from_binary_path(path.as_posix())
-
-  spec = mujoco.MjSpec.from_file(path.as_posix())
-  # check if the file has any mujoco.sdf test plugins
-  if any(p.plugin_name.startswith("mujoco.sdf") for p in spec.plugins):
-    from mujoco.mjx.third_party.mujoco_warp.test_data.collision_sdf.utils import register_sdf_plugins as register_sdf_plugins
-
-    register_sdf_plugins(mjw)
-  return spec.compile()
 
 
 def _compile_step(m, d):
@@ -177,20 +144,13 @@ def _main(argv: Sequence[str]) -> None:
   elif len(argv) > 2:
     raise app.UsageError("Too many command-line arguments.")
 
-  mjm = _load_model(epath.Path(argv[1]))
-  mjd = mujoco.MjData(mjm)
-  ctrls = None
-  if _REPLAY.value:
-    keys = find_keys(mjm, _REPLAY.value)
-    if not keys:
-      raise app.UsageError(f"Key prefix not find: {_REPLAY.value}")
-    ctrls = make_trajectory(mjm, keys)
-    mujoco.mj_resetDataKeyframe(mjm, mjd, keys[0])
-  elif mjm.nkey > 0 and _KEYFRAME.value > -1:
-    mujoco.mj_resetDataKeyframe(mjm, mjd, _KEYFRAME.value)
+  wp.config.quiet = flags.FLAGS["verbosity"].value < 1
+  wp.init()
+
+  mjm = cli.load_model(epath.Path(argv[1]))
+  m, d, rc, ctrls = cli.init_structs(mjw.step, mjm)
 
   if _ENGINE.value == EngineOptions.C:
-    override_model(mjm, _OVERRIDE.value)
     print(
       f"  nbody: {mjm.nbody} nv: {mjm.nv} ngeom: {mjm.ngeom} nu: {mjm.nu}\n"
       f"  solver: {mujoco.mjtSolver(mjm.opt.solver).name} cone: {mujoco.mjtCone(mjm.opt.cone).name}"
@@ -199,22 +159,8 @@ def _main(argv: Sequence[str]) -> None:
     )
     print(f"MuJoCo C simulating with dt = {mjm.opt.timestep:.3f}...")
   else:
-    wp.config.quiet = flags.FLAGS["verbosity"].value < 1
-    wp.init()
-    wp.set_device(_DEVICE.value)
-    if _CLEAR_WARP_CACHE.value:
-      wp.clear_kernel_cache()
-      wp.clear_lto_cache()
-      # Clear CUDA compute cache for truly cold start JIT
-      compute_cache = epath.Path("~/.nv/ComputeCache").expanduser()
-      if compute_cache.exists():
-        shutil.rmtree(compute_cache)
-        compute_cache.mkdir()
+    wp.set_device(cli.DEVICE.value)
 
-    override_model(mjm, _OVERRIDE.value)
-    m = mjw.put_model(mjm)
-    override_model(m, _OVERRIDE.value)
-    d = mjw.put_data(mjm, mjd, nconmax=_NCONMAX.value, njmax=_NJMAX.value, njmax_nnz=_NJMAX_NNZ.value, nccdmax=_NCCDMAX.value)
     graph = _compile_step(m, d) if wp.get_device().is_cuda else None
     if graph is None:
       mjw.step(m, d)  # warmup step
@@ -238,6 +184,8 @@ def _main(argv: Sequence[str]) -> None:
   else:
     step_fn = _make_c_step_fn(ctrls)
 
+  mjd = mujoco.MjData(mjm)
+  mjw.get_data_into(mjd, mjm, d)
   if _VIEWER.value == "viser":
     _run_viser_viewer(mjm, mjd, step_fn)
   else:
@@ -249,6 +197,8 @@ def main():
   # pyproject bin scripts break this assumption, so manually set argv and docstring
   sys.argv[0] = "mujoco_warp.viewer"
   sys.modules["__main__"].__doc__ = __doc__
+  # default to single world with no noise
+  flags.FLAGS.set_default("nworld", 1)
   app.run(_main)
 
 

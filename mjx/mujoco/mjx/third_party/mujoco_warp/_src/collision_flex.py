@@ -19,6 +19,7 @@ from mujoco.mjx.third_party.mujoco_warp._src import collision_primitive_core
 from mujoco.mjx.third_party.mujoco_warp._src.math import make_frame
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINMU
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
@@ -26,6 +27,93 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False})
+
+
+# TODO(team): generalize into a shared contact parameter mixing function
+#   (mj_contactParam) that works for both geom-geom and geom-flex contacts.
+@wp.func
+def _mix_flex_contact_params(
+  # In:
+  a_condim: int,
+  a_priority: int,
+  a_solmix: float,
+  a_solref: wp.vec2,
+  a_solimp: vec5,
+  a_friction: wp.vec3,
+  a_gap: float,
+  b_condim: int,
+  b_priority: int,
+  b_solmix: float,
+  b_solref: wp.vec2,
+  b_solimp: vec5,
+  b_friction: wp.vec3,
+  b_gap: float,
+):
+  """Mix contact parameters between geom and flex, matching mj_contactParam."""
+  gap = a_gap + b_gap
+
+  if a_priority > b_priority:
+    condim = a_condim
+    solref = a_solref
+    solimp = a_solimp
+    fri = a_friction
+  elif a_priority < b_priority:
+    condim = b_condim
+    solref = b_solref
+    solimp = b_solimp
+    fri = b_friction
+  else:
+    # same priority
+    condim = wp.max(a_condim, b_condim)
+
+    # compute solver mix factor
+    if a_solmix >= MJ_MINVAL and b_solmix >= MJ_MINVAL:
+      mix = a_solmix / (a_solmix + b_solmix)
+    elif a_solmix < MJ_MINVAL and b_solmix < MJ_MINVAL:
+      mix = 0.5
+    elif a_solmix < MJ_MINVAL:
+      mix = 0.0
+    else:
+      mix = 1.0
+
+    # solref: mix if both standard, min if either direct
+    if a_solref[0] > 0.0 and b_solref[0] > 0.0:
+      solref = wp.vec2(
+        mix * a_solref[0] + (1.0 - mix) * b_solref[0],
+        mix * a_solref[1] + (1.0 - mix) * b_solref[1],
+      )
+    else:
+      solref = wp.vec2(
+        wp.min(a_solref[0], b_solref[0]),
+        wp.min(a_solref[1], b_solref[1]),
+      )
+
+    # solimp: mix
+    solimp = vec5(
+      mix * a_solimp[0] + (1.0 - mix) * b_solimp[0],
+      mix * a_solimp[1] + (1.0 - mix) * b_solimp[1],
+      mix * a_solimp[2] + (1.0 - mix) * b_solimp[2],
+      mix * a_solimp[3] + (1.0 - mix) * b_solimp[3],
+      mix * a_solimp[4] + (1.0 - mix) * b_solimp[4],
+    )
+
+    # friction: max
+    fri = wp.vec3(
+      wp.max(a_friction[0], b_friction[0]),
+      wp.max(a_friction[1], b_friction[1]),
+      wp.max(a_friction[2], b_friction[2]),
+    )
+
+  # unpack 5D friction with MJ_MINMU floor
+  friction = vec5(
+    wp.max(MJ_MINMU, fri[0]),
+    wp.max(MJ_MINMU, fri[0]),
+    wp.max(MJ_MINMU, fri[1]),
+    wp.max(MJ_MINMU, fri[2]),
+    wp.max(MJ_MINMU, fri[2]),
+  )
+
+  return condim, gap, solref, solimp, friction
 
 
 @wp.func
@@ -264,13 +352,21 @@ def _flex_plane_narrowphase(
   nflexvert: int,
   geom_type: wp.array[int],
   geom_condim: wp.array[int],
+  geom_priority: wp.array[int],
+  geom_solmix: wp.array2d[float],
   geom_solref: wp.array2d[wp.vec2],
   geom_solimp: wp.array2d[vec5],
   geom_friction: wp.array2d[wp.vec3],
   geom_margin: wp.array2d[float],
+  geom_gap: wp.array2d[float],
   flex_condim: wp.array[int],
+  flex_priority: wp.array[int],
+  flex_solmix: wp.array[float],
+  flex_solref: wp.array[wp.vec2],
+  flex_solimp: wp.array[vec5],
   flex_friction: wp.array[wp.vec3],
   flex_margin: wp.array[float],
+  flex_gap: wp.array[float],
   flex_vertadr: wp.array[int],
   flex_radius: wp.array[float],
   flex_vertflexid: wp.array[int],
@@ -303,8 +399,6 @@ def _flex_plane_narrowphase(
   flexid = flex_vertflexid[vertid]
   radius = flex_radius[flexid]
   flex_margin_val = flex_margin[flexid]
-  flex_condim_val = flex_condim[flexid]
-  flex_fric = flex_friction[flexid]
   # Convert global vertid to local vertex index within this flex
   local_vertid = vertid - flex_vertadr[flexid]
 
@@ -327,20 +421,21 @@ def _flex_plane_narrowphase(
     dist = signed_dist - radius
 
     if dist < margin:
-      geom_condim_val = geom_condim[geomid]
-      condim = wp.max(geom_condim_val, flex_condim_val)
-      solref = geom_solref[worldid % geom_solref.shape[0], geomid]
-      solimp = geom_solimp[worldid % geom_solimp.shape[0], geomid]
-      geom_fric = geom_friction[worldid % geom_friction.shape[0], geomid]
-      fric0 = wp.max(geom_fric[0], flex_fric[0])
-      fric1 = wp.max(geom_fric[1], flex_fric[1])
-      fric2 = wp.max(geom_fric[2], flex_fric[2])
-      friction = vec5(
-        wp.max(MJ_MINMU, fric0),
-        wp.max(MJ_MINMU, fric0),
-        wp.max(MJ_MINMU, fric1),
-        wp.max(MJ_MINMU, fric2),
-        wp.max(MJ_MINMU, fric2),
+      condim, gap, solref, solimp, friction = _mix_flex_contact_params(
+        geom_condim[geomid],
+        geom_priority[geomid],
+        geom_solmix[worldid % geom_solmix.shape[0], geomid],
+        geom_solref[worldid % geom_solref.shape[0], geomid],
+        geom_solimp[worldid % geom_solimp.shape[0], geomid],
+        geom_friction[worldid % geom_friction.shape[0], geomid],
+        geom_gap[worldid % geom_gap.shape[0], geomid],
+        flex_condim[flexid],
+        flex_priority[flexid],
+        flex_solmix[flexid],
+        flex_solref[flexid],
+        flex_solimp[flexid],
+        flex_friction[flexid],
+        flex_gap[flexid],
       )
 
       contact_pos = vert - plane_normal * (dist * 0.5 + radius)
@@ -349,7 +444,7 @@ def _flex_plane_narrowphase(
         dist,
         contact_pos,
         make_frame(plane_normal),
-        margin,
+        margin - gap,
         condim,
         friction,
         solref,
@@ -386,14 +481,24 @@ def _flex_narrowphase_dim2(
   geom_contype: wp.array[int],
   geom_conaffinity: wp.array[int],
   geom_condim: wp.array[int],
+  geom_priority: wp.array[int],
+  geom_solmix: wp.array2d[float],
   geom_solref: wp.array2d[wp.vec2],
   geom_solimp: wp.array2d[vec5],
   geom_size: wp.array2d[wp.vec3],
   geom_friction: wp.array2d[wp.vec3],
   geom_margin: wp.array2d[float],
+  geom_gap: wp.array2d[float],
   flex_contype: wp.array[int],
   flex_conaffinity: wp.array[int],
+  flex_condim: wp.array[int],
+  flex_priority: wp.array[int],
+  flex_solmix: wp.array[float],
+  flex_solref: wp.array[wp.vec2],
+  flex_solimp: wp.array[vec5],
+  flex_friction: wp.array[wp.vec3],
   flex_margin: wp.array[float],
+  flex_gap: wp.array[float],
   flex_dim: wp.array[int],
   flex_vertadr: wp.array[int],
   flex_elemadr: wp.array[int],
@@ -478,17 +583,22 @@ def _flex_narrowphase_dim2(
     geom_rot = geom_xmat_in[worldid, geomid]
     geom_size_val = geom_size[worldid % geom_size.shape[0], geomid]
 
-    condim = geom_condim[geomid]
-    gf = geom_friction[worldid % geom_friction.shape[0], geomid]
-    friction = vec5(
-      wp.max(MJ_MINMU, gf[0]),
-      wp.max(MJ_MINMU, gf[0]),
-      wp.max(MJ_MINMU, gf[1]),
-      wp.max(MJ_MINMU, gf[2]),
-      wp.max(MJ_MINMU, gf[2]),
+    condim, gap, solref, solimp, friction = _mix_flex_contact_params(
+      geom_condim[geomid],
+      geom_priority[geomid],
+      geom_solmix[worldid % geom_solmix.shape[0], geomid],
+      geom_solref[worldid % geom_solref.shape[0], geomid],
+      geom_solimp[worldid % geom_solimp.shape[0], geomid],
+      geom_friction[worldid % geom_friction.shape[0], geomid],
+      geom_gap[worldid % geom_gap.shape[0], geomid],
+      flex_condim[flexid],
+      flex_priority[flexid],
+      flex_solmix[flexid],
+      flex_solref[flexid],
+      flex_solimp[flexid],
+      flex_friction[flexid],
+      flex_gap[flexid],
     )
-    solref = geom_solref[worldid % geom_solref.shape[0], geomid]
-    solimp = geom_solimp[worldid % geom_solimp.shape[0], geomid]
 
     _collide_geom_triangle(
       naconmax_in,
@@ -537,14 +647,24 @@ def _flex_narrowphase_dim3(
   geom_contype: wp.array[int],
   geom_conaffinity: wp.array[int],
   geom_condim: wp.array[int],
+  geom_priority: wp.array[int],
+  geom_solmix: wp.array2d[float],
   geom_solref: wp.array2d[wp.vec2],
   geom_solimp: wp.array2d[vec5],
   geom_size: wp.array2d[wp.vec3],
   geom_friction: wp.array2d[wp.vec3],
   geom_margin: wp.array2d[float],
+  geom_gap: wp.array2d[float],
   flex_contype: wp.array[int],
   flex_conaffinity: wp.array[int],
+  flex_condim: wp.array[int],
+  flex_priority: wp.array[int],
+  flex_solmix: wp.array[float],
+  flex_solref: wp.array[wp.vec2],
+  flex_solimp: wp.array[vec5],
+  flex_friction: wp.array[wp.vec3],
   flex_margin: wp.array[float],
+  flex_gap: wp.array[float],
   flex_dim: wp.array[int],
   flex_vertadr: wp.array[int],
   flex_shellnum: wp.array[int],
@@ -632,17 +752,22 @@ def _flex_narrowphase_dim3(
     geom_rot = geom_xmat_in[worldid, geomid]
     geom_size_val = geom_size[worldid % geom_size.shape[0], geomid]
 
-    condim = geom_condim[geomid]
-    gf = geom_friction[worldid % geom_friction.shape[0], geomid]
-    friction = vec5(
-      wp.max(MJ_MINMU, gf[0]),
-      wp.max(MJ_MINMU, gf[0]),
-      wp.max(MJ_MINMU, gf[1]),
-      wp.max(MJ_MINMU, gf[2]),
-      wp.max(MJ_MINMU, gf[2]),
+    condim, gap, solref, solimp, friction = _mix_flex_contact_params(
+      geom_condim[geomid],
+      geom_priority[geomid],
+      geom_solmix[worldid % geom_solmix.shape[0], geomid],
+      geom_solref[worldid % geom_solref.shape[0], geomid],
+      geom_solimp[worldid % geom_solimp.shape[0], geomid],
+      geom_friction[worldid % geom_friction.shape[0], geomid],
+      geom_gap[worldid % geom_gap.shape[0], geomid],
+      flex_condim[flexid],
+      flex_priority[flexid],
+      flex_solmix[flexid],
+      flex_solref[flexid],
+      flex_solimp[flexid],
+      flex_friction[flexid],
+      flex_gap[flexid],
     )
-    solref = geom_solref[worldid % geom_solref.shape[0], geomid]
-    solimp = geom_solimp[worldid % geom_solimp.shape[0], geomid]
 
     _collide_geom_triangle(
       naconmax_in,
@@ -698,14 +823,24 @@ def flex_narrowphase(m: Model, d: Data):
       m.geom_contype,
       m.geom_conaffinity,
       m.geom_condim,
+      m.geom_priority,
+      m.geom_solmix,
       m.geom_solref,
       m.geom_solimp,
       m.geom_size,
       m.geom_friction,
       m.geom_margin,
+      m.geom_gap,
       m.flex_contype,
       m.flex_conaffinity,
+      m.flex_condim,
+      m.flex_priority,
+      m.flex_solmix,
+      m.flex_solref,
+      m.flex_solimp,
+      m.flex_friction,
       m.flex_margin,
+      m.flex_gap,
       m.flex_dim,
       m.flex_vertadr,
       m.flex_elemadr,
@@ -749,14 +884,24 @@ def flex_narrowphase(m: Model, d: Data):
       m.geom_contype,
       m.geom_conaffinity,
       m.geom_condim,
+      m.geom_priority,
+      m.geom_solmix,
       m.geom_solref,
       m.geom_solimp,
       m.geom_size,
       m.geom_friction,
       m.geom_margin,
+      m.geom_gap,
       m.flex_contype,
       m.flex_conaffinity,
+      m.flex_condim,
+      m.flex_priority,
+      m.flex_solmix,
+      m.flex_solref,
+      m.flex_solimp,
+      m.flex_friction,
       m.flex_margin,
+      m.flex_gap,
       m.flex_dim,
       m.flex_vertadr,
       m.flex_shellnum,
@@ -797,13 +942,21 @@ def flex_narrowphase(m: Model, d: Data):
       m.nflexvert,
       m.geom_type,
       m.geom_condim,
+      m.geom_priority,
+      m.geom_solmix,
       m.geom_solref,
       m.geom_solimp,
       m.geom_friction,
       m.geom_margin,
+      m.geom_gap,
       m.flex_condim,
+      m.flex_priority,
+      m.flex_solmix,
+      m.flex_solref,
+      m.flex_solimp,
       m.flex_friction,
       m.flex_margin,
+      m.flex_gap,
       m.flex_vertadr,
       m.flex_radius,
       m.flex_vertflexid,

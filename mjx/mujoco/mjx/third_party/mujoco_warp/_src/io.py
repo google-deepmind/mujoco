@@ -138,6 +138,10 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   if (mjm.sensor_plugin != -1).any():
     raise NotImplementedError("Sensor plugins not supported.")
 
+  # array sizes may change in the future
+  if mujoco.mjNPOLY != 2:
+    warnings.warn(f"mujoco.mjNPOLY is {mujoco.mjNPOLY}, expected 2. Higher order polynomials may not be supported correctly.")
+
   # TODO(team): remove after _update_gradient for Newton uses tile operations for islands
   nv_max = 60
   if mjm.nv > nv_max and mjm.opt.jacobian == mujoco.mjtJacobian.mjJAC_DENSE:
@@ -222,7 +226,10 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.nsensortaxel = mjm.mesh_vertnum[mjm.sensor_objid[mjm.sensor_type == mujoco.mjtSensor.mjSENS_TACTILE]].sum()
   m.nsensorcontact = (mjm.sensor_type == mujoco.mjtSensor.mjSENS_CONTACT).sum()
   m.nrangefinder = (mjm.sensor_type == mujoco.mjtSensor.mjSENS_RANGEFINDER).sum()
-  m.nmaxcondim = np.concatenate(([0], mjm.geom_condim, mjm.pair_dim)).max()
+  condim_arrays = [np.array([0]), mjm.geom_condim, mjm.pair_dim]
+  if mjm.nflex > 0:
+    condim_arrays.append(mjm.flex_condim)
+  m.nmaxcondim = np.concatenate(condim_arrays).max()
   m.nmaxpyramid = np.maximum(1, 2 * (m.nmaxcondim - 1))
   m.has_sdf_geom = (mjm.geom_type == mujoco.mjtGeom.mjGEOM_SDF).any()
   m.block_dim = types.BlockDim()
@@ -265,6 +272,21 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.jnt_limited_slide_hinge_adr = np.nonzero(jnt_limited_slide_hinge)[0]
   m.jnt_limited_ball_adr = np.nonzero(mjm.jnt_limited & (mjm.jnt_type == mujoco.mjtJoint.mjJNT_BALL))[0]
   m.dof_tri_row, m.dof_tri_col = np.tril_indices(mjm.nv)
+
+  # precompute body_isdofancestor: which DOFs affect each body
+  # TODO: Investigate alternative approach such as bitmap
+  body_isdofancestor = np.zeros((mjm.nbody, m.nv_pad), dtype=np.int32)
+  for bodyid in range(mjm.nbody):
+    b = bodyid
+    while b > 0 and mjm.body_dofnum[b] == 0:
+      b = mjm.body_parentid[b]
+    if mjm.body_dofnum[b] == 0:
+      continue
+    dofid = mjm.body_dofadr[b] + mjm.body_dofnum[b] - 1
+    while dofid >= 0:
+      body_isdofancestor[bodyid, dofid] = 1
+      dofid = mjm.dof_parentid[dofid]
+  m.body_isdofancestor = body_isdofancestor
 
   # precalculated geom pairs
   filterparent = not (mjm.opt.disableflags & types.DisableBit.FILTERPARENT)
@@ -918,7 +940,10 @@ def make_data(
       raise ValueError(f"nccdmax ({nccdmax}) must be <= nconmax ({nconmax})")
 
   sizes = dict({"*": 1}, **{f.name: getattr(mjm, f.name, None) for f in dataclasses.fields(types.Model) if f.type is int})
-  sizes["nmaxcondim"] = np.concatenate(([0], mjm.geom_condim, mjm.pair_dim)).max()
+  condim_arrays = [np.array([0]), mjm.geom_condim, mjm.pair_dim]
+  if mjm.nflex > 0:
+    condim_arrays.append(mjm.flex_condim)
+  sizes["nmaxcondim"] = np.concatenate(condim_arrays).max()
   sizes["nmaxpyramid"] = np.maximum(1, 2 * (sizes["nmaxcondim"] - 1))
   tile_size = types.TILE_SIZE_JTDAJ_SPARSE if is_sparse(mjm) else types.TILE_SIZE_JTDAJ_DENSE
   sizes["njmax_pad"], sizes["nv_pad"] = _get_padded_sizes(mjm.nv, njmax, is_sparse(mjm), tile_size)
@@ -1090,7 +1115,10 @@ def put_data(
     raise ValueError(f"njmax overflow (njmax must be >= {mjd.nefc})")
 
   sizes = dict({"*": 1}, **{f.name: getattr(mjm, f.name, None) for f in dataclasses.fields(types.Model) if f.type is int})
-  sizes["nmaxcondim"] = np.concatenate(([0], mjm.geom_condim, mjm.pair_dim)).max()
+  condim_arrays = [np.array([0]), mjm.geom_condim, mjm.pair_dim]
+  if mjm.nflex > 0:
+    condim_arrays.append(mjm.flex_condim)
+  sizes["nmaxcondim"] = np.concatenate(condim_arrays).max()
   sizes["nmaxpyramid"] = np.maximum(1, 2 * (sizes["nmaxcondim"] - 1))
   tile_size = types.TILE_SIZE_JTDAJ_SPARSE if is_sparse(mjm) else types.TILE_SIZE_JTDAJ_DENSE
   sizes["njmax_pad"], sizes["nv_pad"] = _get_padded_sizes(mjm.nv, njmax, is_sparse(mjm), tile_size)
@@ -1183,7 +1211,7 @@ def put_data(
       if mujoco.mj_isSparse(mjm):
         mujoco.mju_sparse2dense(mj_efc_J, mjd.efc_J, mjd.efc_J_rownnz, mjd.efc_J_rowadr, mjd.efc_J_colind)
       else:
-        mj_efc_J = mjd.efc_J.reshape((mjd.nefc, mjm.nv))
+        mj_efc_J = mjd.efc_J.reshape((-1, mjm.nv))[: mjd.nefc]
     efc_J = np.zeros((nworld, sizes["njmax_pad"], sizes["nv_pad"]), dtype=float)
     efc_J[:, : mjd.nefc, : mjm.nv] = np.tile(mj_efc_J, (nworld, 1, 1))
     efc.J = wp.array(efc_J, dtype=float)
@@ -2659,6 +2687,7 @@ def create_render_context(
   cam_active: list[bool] | None = None,
   flex_render_smooth: bool = True,
   use_precomputed_rays: bool = True,
+  render_skybox: bool = False,
 ) -> types.RenderContext:
   """Creates a render context on device.
 
@@ -2669,8 +2698,8 @@ def create_render_context(
              MuJoCo model values.
     render_rgb: Whether to render RGB images. If None, uses the MuJoCo model values.
     render_depth: Whether to render depth images. If None, uses the MuJoCo model values.
-    render_seg: Whether to render segmentation (per-pixel geom IDs). If None,
-      uses the MuJoCo model values.
+    render_seg: Whether to render segmentation (per-pixel object ID/type pairs).
+      If None, uses the MuJoCo model values.
     use_textures: Whether to use textures.
     use_shadows: Whether to use shadows.
     enabled_geom_groups: The geom groups to render.
@@ -2679,6 +2708,8 @@ def create_render_context(
     flex_render_smooth: Whether to render flex meshes smoothly.
     use_precomputed_rays: Use precomputed rays instead of computing during rendering.
                           When using domain randomization for camera intrinsics, set to False.
+    render_skybox: Whether to shade missed rays with the MuJoCo skybox texture.
+                   Requires the model to contain a texture with type `mjTEXTURE_SKYBOX`.
 
   Returns:
     The render context containing rendering fields and output arrays on device.
@@ -2737,26 +2768,36 @@ def create_render_context(
   flex_geom_flexid = []
   flex_geom_edgeid = []
   flex_bvh_id = np.full(nflex, 0, dtype=wp.uint64)
-  flex_group_root = np.zeros((nflex, nworld), dtype=int)
+  # Indexed later as [worldid, flexid].
+  flex_group_root = np.full((nworld, nflex), -1, dtype=int)
 
   for f in range(nflex):
     if mjm.flex_dim[f] == 1:
       edge_adr = mjm.flex_edgeadr[f]
       flex_geom_flexid.extend([f] * mjm.flex_edgenum[f])
       flex_geom_edgeid.extend([edge_adr + e for e in range(mjm.flex_edgenum[f])])
-      flex_group_root[f] = np.zeros(nworld, dtype=int)
     else:
       flex_geom_flexid.append(f)
       flex_geom_edgeid.append(-1)
       fmesh, group_root = bvh.build_flex_bvh(mjm, mjd, nworld, f)
       flex_registry[f] = fmesh
       flex_bvh_id[f] = fmesh.id
-      flex_group_root[f] = group_root.numpy()
+      flex_group_root[:, f] = group_root.numpy()
 
   textures_registry = []
   for i in range(mjm.ntex):
     textures_registry.append(render_util.create_warp_texture(mjm, i))
   textures = wp.array(textures_registry, dtype=wp.Texture2D)
+
+  # Locate skybox texture
+  skybox_tex_ids = np.nonzero(mjm.tex_type == mujoco.mjtTexture.mjTEXTURE_SKYBOX)[0] if mjm.ntex else np.array([], dtype=int)
+  if render_skybox:
+    assert skybox_tex_ids.size > 0, "render_skybox=True but the model has no texture with type mjTEXTURE_SKYBOX"
+    skybox_tex_id = int(skybox_tex_ids[0])
+    skybox_face_width = int(mjm.tex_width[skybox_tex_id])
+  else:
+    skybox_tex_id = -1
+    skybox_face_width = 1
 
   # Filter active cameras
   if cam_active is not None:
@@ -2857,6 +2898,9 @@ def create_render_context(
     use_shadows=use_shadows,
     background_color=render_util.pack_rgba_to_uint32(0.1 * 255.0, 0.1 * 255.0, 0.2 * 255.0, 1.0 * 255.0),
     use_precomputed_rays=use_precomputed_rays,
+    render_skybox=render_skybox,
+    skybox_tex_id=skybox_tex_id,
+    skybox_face_width=skybox_face_width,
     bvh_ngeom=bvh_ngeom,
     enabled_geom_ids=wp.array(geom_enabled_idx, dtype=int),
     mesh_registry=mesh_registry,
@@ -2892,7 +2936,7 @@ def create_render_context(
     depth_adr=wp.array(depth_adr, dtype=int),
     render_rgb=wp.array(render_rgb, dtype=bool),
     render_depth=wp.array(render_depth, dtype=bool),
-    seg_data=wp.zeros((nworld, max(si, 1)), dtype=int),
+    seg_data=wp.zeros((nworld, max(si, 1)), dtype=wp.vec2i),
     seg_adr=wp.array(seg_adr, dtype=int),
     render_seg=wp.array(render_seg, dtype=bool),
     znear=znear,

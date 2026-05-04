@@ -21,6 +21,7 @@ from mujoco.mjx.third_party.mujoco_warp._src import sensor
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import solver
 from mujoco.mjx.third_party.mujoco_warp._src import support
+from mujoco.mjx.third_party.mujoco_warp._src import util_misc
 from mujoco.mjx.third_party.mujoco_warp._src.support import mul_m
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
@@ -36,14 +37,22 @@ def _qfrc_eulerdamp(
   # Model:
   opt_timestep: wp.array[float],
   dof_damping: wp.array2d[float],
+  dof_dampingpoly: wp.array2d[wp.vec2],
   # Data in:
+  qvel_in: wp.array2d[float],
   qacc_in: wp.array2d[float],
   # Out:
   qfrc_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
-  qfrc_out[worldid, dofid] += timestep * dof_damping[worldid % dof_damping.shape[0], dofid] * qacc_in[worldid, dofid]
+
+  damping = dof_damping[worldid % dof_damping.shape[0], dofid]
+  dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dofid]
+  v = qvel_in[worldid, dofid]
+
+  damp_deriv = util_misc._poly_force_deriv(damping, dpoly, v, 1)
+  qfrc_out[worldid, dofid] += timestep * damp_deriv * qacc_in[worldid, dofid]
 
 
 @wp.kernel
@@ -91,11 +100,11 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
     # d.qM @ d.qacc
     support.mul_m(m, d, qfrc, d.qacc)
 
-    # qfrc += m.opt.timestep * m.dof_damping * d.qacc
+    # qfrc += m.opt.timestep * damp_deriv * d.qacc
     wp.launch(
       _qfrc_eulerdamp,
       dim=(d.nworld, m.nv),
-      inputs=[m.opt.timestep, m.dof_damping, d.qacc],
+      inputs=[m.opt.timestep, m.dof_damping, m.dof_dampingpoly, d.qvel, d.qacc],
       outputs=[qfrc],
     )
   elif m.opt.integrator == IntegratorType.IMPLICITFAST:
