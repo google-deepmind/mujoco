@@ -39,6 +39,10 @@ dependencies = [
 warp = [
     "warp-lang==1.12.1",
 ]
+dev = [
+    "isort",
+    "pyink",
+]
 
 [project.scripts]
 mjx-testspeed = "mujoco.mjx.testspeed:main"
