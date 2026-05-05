@@ -45,7 +45,11 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
                            ReadFloat4(material.segmentation_color));
   }
   if (fmaterial->hasParameter("EmissiveFactor")) {
-    instance->setParameter("EmissiveFactor", material.emissive);
+    const float emissive =
+        material.emissive > 0
+            ? material.emissive
+            : (material.emissive_texture != nullptr ? 1.0f : 0.0f);
+    instance->setParameter("EmissiveFactor", emissive);
   }
   if (fmaterial->hasParameter("SpecularFactor")) {
     instance->setParameter("SpecularFactor", material.specular);

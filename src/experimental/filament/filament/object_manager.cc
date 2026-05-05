@@ -120,7 +120,7 @@ ObjectManager::ObjectManager(filament::Engine* engine)
   fallback_textures_[mjTEXROLE_ROUGHNESS] = fallback_white_;
   fallback_textures_[mjTEXROLE_METALLIC] = fallback_black_;
   fallback_textures_[mjTEXROLE_NORMAL] = fallback_normal_;
-  fallback_textures_[mjTEXROLE_EMISSIVE] = fallback_black_;
+  fallback_textures_[mjTEXROLE_EMISSIVE] = fallback_white_;
   fallback_textures_[mjTEXROLE_ORM] = fallback_orm_;
 }
 
