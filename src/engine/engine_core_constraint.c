@@ -391,6 +391,18 @@ static void mj_addConstraint(const mjModel* m, mjData* d,
         mju_copy(J + adr[nefc+i], jac + i*NV, NV);
       }
     }
+
+    // set J row supernodes; 1: next row has same pattern, 0: different pattern
+
+    // cross-boundary: does previous row have same pattern?
+    if (nefc > 0 && NV == nnz[nefc-1] &&
+        (NV == 0 || mju_compare(ind + adr[nefc], ind + adr[nefc-1], NV))) {
+      d->efc_J_rowsuper[nefc-1] = 1;
+    }
+
+    // within-constraint: consecutive rows always share same pattern
+    mju_fillInt(d->efc_J_rowsuper + nefc, 1, size-1);
+    d->efc_J_rowsuper[nefc+size-1] = 0;
   }
 
   // all rows empty: skip constraint
@@ -1162,7 +1174,7 @@ static inline int mj_addConstraintCount(const mjModel* m, int size, int NV) {
 }
 
 
-// frictional dofs and tendons
+// frictional DOFs and tendons
 // count_only: count constraints and Jacobian nonzeros without instantiating
 static int mj_instantiateFriction(const mjModel* m, mjData* d, int count_only, int* nnz) {
   int nv = m->nv, issparse = mj_isSparse(m);
@@ -1184,7 +1196,7 @@ static int mj_instantiateFriction(const mjModel* m, mjData* d, int count_only, i
     jac = mjSTACKALLOC(d, nv, mjtNum);
   }
 
-  // find frictional dofs
+  // find frictional DOFs
   for (int i=0; i < nv; i++) {
     // no friction loss: skip
     if (!m->dof_frictionloss[i]) {
@@ -2647,18 +2659,13 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
     return;
   }
 
-  // transpose sparse Jacobian, make row supernodes
-  if (mj_isSparse(m)) {
-#ifdef mjUSEAVX
-    // compute supernodes of J; used by mju_mulMatVecSparse_avx
-    mju_superSparse(d->nefc, d->efc_J_rowsuper,
-                    d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
-#else
-  #ifdef MEMORY_SANITIZER
-    // tell msan to treat the entire J rowsuper as uninitialized
-    __msan_allocated_memory(d->efc_J_rowsuper, d->nefc);
-  #endif  // MEMORY_SANITIZER
-#endif  // mjUSEAVX
+  // accumulate J row supernodes (reverse cumsum of 0/1 flags set at assembly time)
+  if (mj_isSparse(m) && d->nefc) {
+    for (int r=d->nefc-2; r >= 0; r--) {
+      if (d->efc_J_rowsuper[r]) {
+        d->efc_J_rowsuper[r] += d->efc_J_rowsuper[r+1];
+      }
+    }
   }
 
   // compute diagApprox
@@ -2704,35 +2711,43 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
     B_rowadr[0] = 0;
     for (int r=0; r < nefc; r++) {
-      int nnz = 0;  // nonzeros in row r of B
-
-      // traverse row r of J in reverse, count unique nonzeros
-      int start = d->efc_J_rowadr[r];
-      int end = start + d->efc_J_rownnz[r];
-      for (int i=end-1; i >= start; i--) {
-        int j = d->efc_J_colind[i];
-
-        // if dof j is marked, it was already counted by a child dof: skip it
-        if (marker[j] == r) {
-          continue;
-        }
-
-        // traverse row j of C, marking new unique nonzeros
-        int nnzC = m->M_rownnz[j];
-        int adrC = m->M_rowadr[j];
-        for (int k=0; k < nnzC; k++) {
-          int c = m->M_colind[adrC + k];
-          if (marker[c] != r) {
-            marker[c] = r;
-            nnz++;
-          }
-        }
+      // supernode: same sparsity as previous row
+      if (r > 0 && d->efc_J_rowsuper[r-1] > 0) {
+        B_rownnz[r] = B_rownnz[r-1];
       }
 
-      // update rownnz and rowadr
-      B_rownnz[r] = nnz;
+      // first row in supernode block: full chain traversal
+      else {
+        int nnz = 0;
+
+        // traverse row r of J in reverse, count unique nonzeros
+        int start = d->efc_J_rowadr[r];
+        int end = start + d->efc_J_rownnz[r];
+        for (int i=end-1; i >= start; i--) {
+          int j = d->efc_J_colind[i];
+
+          // if dof j is marked, it was already counted by a child dof: skip it
+          if (marker[j] == r) {
+            continue;
+          }
+
+          // traverse row j of M, marking new unique nonzeros
+          int nnzM = m->M_rownnz[j];
+          int adrM = m->M_rowadr[j];
+          for (int k=0; k < nnzM; k++) {
+            int c = m->M_colind[adrM + k];
+            if (marker[c] != r) {
+              marker[c] = r;
+              nnz++;
+            }
+          }
+        }
+        B_rownnz[r] = nnz;
+      }
+
+      // update rowadr
       if (r < nefc - 1) {
-        B_rowadr[r+1] = B_rowadr[r] + nnz;
+        B_rowadr[r+1] = B_rowadr[r] + B_rownnz[r];
       }
     }
 
@@ -2747,42 +2762,67 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     int* B_colind = mjSTACKALLOC(d, nB, int);
 
     for (int r=0; r < nefc; r++) {
-      // init row
-      int end = B_rowadr[r] + B_rownnz[r];
-      int adrJ = d->efc_J_rowadr[r];
-      int remainJ = d->efc_J_rownnz[r];
-      int nnzB = 0;
+      // supernode: copy column indices, only update values from J
+      if (r > 0 && d->efc_J_rowsuper[r-1] > 0) {
+        int prevAdr = B_rowadr[r-1];
+        int adrB = B_rowadr[r];
+        int nnzB = B_rownnz[r];
+        mju_copyInt(B_colind + adrB, B_colind + prevAdr, nnzB);
+        mju_zero(B + adrB, nnzB);
 
-      // complete chain in reverse
-      while (1) {
-        // get previous dof in src and dst
-        int prev_src = (remainJ > 0 ? d->efc_J_colind[adrJ + remainJ - 1] : -1);
-        int prev_dst = (nnzB > 0 ? m->dof_parentid[B_colind[end - nnzB]] : -1);
-
-        // both finished: break
-        if (prev_src < 0 && prev_dst < 0) {
-          break;
-        }
-
-        // add src
-        else if (prev_src >= prev_dst) {
-          nnzB++;
-          remainJ--;
-          B_colind[end - nnzB] = prev_src;
-          B[end - nnzB] = d->efc_J[adrJ + remainJ];
-        }
-
-        // add dst
-        else {
-          nnzB++;
-          B_colind[end - nnzB] = prev_dst;
-          B[end - nnzB] = 0;
+        // copy J values into correct positions
+        int adrJ = d->efc_J_rowadr[r];
+        int jnnz = d->efc_J_rownnz[r];
+        int bi = 0, ji = 0;
+        while (ji < jnnz && bi < nnzB) {
+          if (B_colind[adrB+bi] == d->efc_J_colind[adrJ+ji]) {
+            B[adrB+bi] = d->efc_J[adrJ+ji];
+            bi++;
+            ji++;
+          } else {
+            bi++;
+          }
         }
       }
 
-      // compare with B_rownnz: SHOULD NOT OCCUR
-      if (nnzB != B_rownnz[r]) {
-        mjERROR("pre and post-count of B_rownnz are not equal on row %d", r);
+      // first row in supernode block: full chain completion
+      else {
+        int end = B_rowadr[r] + B_rownnz[r];
+        int adrJ = d->efc_J_rowadr[r];
+        int remainJ = d->efc_J_rownnz[r];
+        int nnzB = 0;
+
+        // complete chain in reverse
+        while (1) {
+          // get previous dof in src and dst
+          int prev_src = (remainJ > 0 ? d->efc_J_colind[adrJ + remainJ - 1] : -1);
+          int prev_dst = (nnzB > 0 ? m->dof_parentid[B_colind[end - nnzB]] : -1);
+
+          // both finished: break
+          if (prev_src < 0 && prev_dst < 0) {
+            break;
+          }
+
+          // add src
+          else if (prev_src >= prev_dst) {
+            nnzB++;
+            remainJ--;
+            B_colind[end - nnzB] = prev_src;
+            B[end - nnzB] = d->efc_J[adrJ + remainJ];
+          }
+
+          // add dst
+          else {
+            nnzB++;
+            B_colind[end - nnzB] = prev_dst;
+            B[end - nnzB] = 0;
+          }
+        }
+
+        // compare with B_rownnz: SHOULD NOT OCCUR
+        if (nnzB != B_rownnz[r]) {
+          mjERROR("pre and post-count of B_rownnz are not equal on row %d", r);
+        }
       }
     }
 
@@ -2814,9 +2854,8 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       }
     }
 
-    // construct B supernodes
-    int* B_rowsuper = mjSTACKALLOC(d, nefc, int);
-    mju_superSparse(nefc, B_rowsuper, B_rownnz, B_rowadr, B_colind);
+    // B supernodes are identical to J supernodes
+    const int* B_rowsuper = d->efc_J_rowsuper;
 
     // construct B transposed
     int* BT_rownnz = mjSTACKALLOC(d, nv, int);
