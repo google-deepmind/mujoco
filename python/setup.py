@@ -79,7 +79,7 @@ def get_plugin_lib_patterns():
   elif platform.system() == 'Darwin':
     return ['lib*.dylib']
   else:
-    return ['lib*']
+    return ['lib*.so*']
 
 
 def start_and_end(iterable):
