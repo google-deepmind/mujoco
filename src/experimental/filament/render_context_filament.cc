@@ -130,6 +130,9 @@ static void EnsureDefaultFilamentResourceProvider() {
               : name.substr(prefix_end + 1);
 
       std::vector<std::string> asset_dirs;
+      if (const char* env_dir = std::getenv("MUJOCO_ASSETS_DIR")) {
+        asset_dirs.emplace_back(env_dir);
+      }
       if (const char* env_dir = std::getenv("MUJOCO_FILAMENT_ASSETS_DIR")) {
         asset_dirs.emplace_back(env_dir);
       }

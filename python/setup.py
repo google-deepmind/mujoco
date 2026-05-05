@@ -35,6 +35,7 @@ MUJOCO_CMAKE = 'MUJOCO_CMAKE'
 MUJOCO_CMAKE_ARGS = 'MUJOCO_CMAKE_ARGS'
 MUJOCO_PATH = 'MUJOCO_PATH'
 MUJOCO_PLUGIN_PATH = 'MUJOCO_PLUGIN_PATH'
+MUJOCO_ASSETS_DIR = 'MUJOCO_ASSETS_DIR'
 MUJOCO_FILAMENT_ASSETS_DIR = 'MUJOCO_FILAMENT_ASSETS_DIR'
 FILAMENT_ASSET_PATTERNS = ('*.filamat', '*.ktx')
 FILAMENT_SENTINEL_ASSET = 'pbr.filamat'
@@ -204,14 +205,15 @@ class BuildCMakeExtension(build_ext.build_ext):
           )
 
   def _find_filament_assets_dir(self):
-    explicit_dir = os.environ.get(MUJOCO_FILAMENT_ASSETS_DIR)
-    if explicit_dir:
-      if os.path.isfile(os.path.join(explicit_dir, FILAMENT_SENTINEL_ASSET)):
-        return explicit_dir
-      raise RuntimeError(
-          f'{MUJOCO_FILAMENT_ASSETS_DIR} does not contain '
-          f'{FILAMENT_SENTINEL_ASSET}: {explicit_dir}'
-      )
+    for env_var in (MUJOCO_ASSETS_DIR, MUJOCO_FILAMENT_ASSETS_DIR):
+      explicit_dir = os.environ.get(env_var)
+      if explicit_dir:
+        if os.path.isfile(os.path.join(explicit_dir, FILAMENT_SENTINEL_ASSET)):
+          return explicit_dir
+        raise RuntimeError(
+            f'{env_var} does not contain '
+            f'{FILAMENT_SENTINEL_ASSET}: {explicit_dir}'
+        )
 
     candidate_dirs = []
     mujoco_path = os.environ.get(MUJOCO_PATH)
