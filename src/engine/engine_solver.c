@@ -15,6 +15,7 @@
 #include "engine/engine_solver.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <mujoco/mjdata.h>
@@ -234,6 +235,34 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
 }
 
 
+// PCG32 random number generator state
+typedef struct {
+  uint64_t state;
+  uint64_t inc;
+} pcg32_state;
+
+
+// generate next 32-bit pseudorandom integer
+static uint32_t pcg32_next(pcg32_state* rng) {
+  uint64_t oldstate = rng->state;
+  rng->state = oldstate * 6364136223846793005ULL + (rng->inc | 1);
+  uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
+  uint32_t rot = oldstate >> 59u;
+  return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
+}
+
+
+// Fisher-Yates shuffle of integer array
+static void shuffle_int(int* array, int n, pcg32_state* rng) {
+  for (int i = n - 1; i > 0; i--) {
+    uint32_t j = pcg32_next(rng) % (i + 1);
+    int temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+  }
+}
+
+
 // set efc_state to dual constraint state; return nactive
 //   iterates over efclist (or sequentially if NULL), classifies by ne/nf ranges
 static int dualState(const mjData* d, int* state,
@@ -391,7 +420,8 @@ static void solPGS(const mjModel* m, mjData* d, int island,
   mjtNum *force = d->efc_force;
   mj_markStack(d);
   mjtNum* ARinv = mjSTACKALLOC(d, nefc, mjtNum);
-  int* oldstate = mjSTACKALLOC(d, nefc, int);
+  int* oldstate = mjSTACKALLOC(d, 2*nefc, int);
+  int* blockstart = oldstate + nefc;
 
   int island_stat = mjMAX(0, island);  // island index for diagnostic stats
   mjtNum scale = 1 / (m->stat.meaninertia * mjMAX(1, m->nv));
@@ -402,14 +432,41 @@ static void solPGS(const mjModel* m, mjData* d, int island,
   // initial constraint state
   dualState(d, d->efc_state, ne, nf, nefc, efclist);
 
+  // build block-index array: one entry per constraint block
+  int nblocks = 0;
+  for (int c=0; c < nefc; ) {
+    blockstart[nblocks++] = c;
+    int i = efclist ? efclist[c] : c;
+    if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
+      c += d->contact[d->efc_id[i]].dim;
+    } else {
+      c++;
+    }
+  }
+
+  // seed PCG32 RNG from simulation time
+  pcg32_state rng;
+  uint64_t seed = 0;
+  memcpy(&seed, &d->time, sizeof(d->time));
+  rng.state = 0;
+  rng.inc = 1;
+  rng.state = seed;
+  pcg32_next(&rng);
+  rng.state += seed;
+  pcg32_next(&rng);
+
   // main iteration
   int iter = 0;
   while (iter < maxiter) {
     // clear improvement
     mjtNum improvement = 0;
 
-    // perform one sweep
-    for (int c=0; c < nefc; c++) {
+    // shuffle constraint visitation order
+    shuffle_int(blockstart, nblocks, &rng);
+
+    // perform one sweep over constraint blocks
+    for (int bi=0; bi < nblocks; bi++) {
+      int c = blockstart[bi];
       int i = efclist ? efclist[c] : c;
 
       // get constraint dimensionality
@@ -529,9 +586,6 @@ static void solPGS(const mjModel* m, mjData* d, int island,
         Athis[0] = 1/ARinv[c];
       }
       improvement -= costChange(Athis, force+i, oldforce, res, dim);
-
-      // skip the rest of this constraint
-      c += (dim-1);
     }
 
     // update constraint state

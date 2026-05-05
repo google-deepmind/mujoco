@@ -603,7 +603,7 @@ TEST_F(IslandTest, EqualityConstraintOfTendons) {
   mj_deleteModel(model);
 }
 
-TEST_F(IslandTest, PGSIslandExact) {
+TEST_F(IslandTest, PGSIsland) {
   const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
   char error[1024];
   mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
@@ -632,8 +632,8 @@ TEST_F(IslandTest, PGSIslandExact) {
   std::vector<mjtNum> qfrc_mono(d->qfrc_constraint,
                                 d->qfrc_constraint + m->nv);
 
-  // expect exact match
-  EXPECT_EQ(qfrc_island, qfrc_mono);
+  // expect close match (inexact due to randomized constraint visitation order)
+  EXPECT_THAT(qfrc_island, Pointwise(MjNear(1e-3, 1e-3), qfrc_mono));
 
   mj_deleteData(d);
   mj_deleteModel(m);

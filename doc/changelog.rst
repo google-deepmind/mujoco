@@ -8,6 +8,8 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 - Added island support for the :ref:`PGS solver<soAlgorithms>`.
+- The :ref:`PGS solver<soAlgorithms>` now iterates over constraints in pseudo-random order, improving performance by
+  ~20%.
 - Added support for :ref:`elastic2d<body-flexcomp-elastic2d>` for trilinear and quadratic flex
   :ref:`dofs<body-flexcomp-dof>`.
 - :ref:`Midpoint integration<geMidpoint>` is now restricted to the ``implicitfast``
