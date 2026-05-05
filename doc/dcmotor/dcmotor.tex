@@ -113,7 +113,7 @@
 
 \maketitle
 
-\noindent We review DC motors and describe MuJoCo's \texttt{dcmotor} actuator. The equations are derived for brushed motors but apply equally to brushless ones, where electronic commutation reduces to an equivalent circuit.
+\noindent We review DC motors and describe MuJoCo's \href{https://mujoco.readthedocs.io/en/stable/XMLreference.html#actuator-dcmotor}{\texttt{dcmotor} actuator}. The equations are derived for brushed motors but apply equally to brushless ones, where electronic commutation reduces to an equivalent circuit.
 
 %=============================================================================
 % BACKGROUND
@@ -789,7 +789,7 @@ $\beta$ & Damping decay exponent & dimensionless \\
 \section{Implementation}
 \label{sec:implementation}
 
-Here we describe MuJoCo's \texttt{dcmotor} actuator. Some scalars are grouped into vectors; we use a colon to denote such scalar sub-attributes, e.g.\ \texttt{cogging:phase} refers to the third element of the \texttt{cogging} attribute (see Tables \ref{tab:mjcf_attributes} and \ref{tab:cogging_impl}).
+Here we describe MuJoCo's \href{https://mujoco.readthedocs.io/en/stable/XMLreference.html#actuator-dcmotor}{\texttt{dcmotor} actuator}. Some scalars are grouped into vectors; we use a colon to denote such scalar sub-attributes, e.g.\ \texttt{cogging:phase} refers to the third element of the \texttt{cogging} attribute (see Tables \ref{tab:mjcf_attributes} and \ref{tab:cogging_impl}).
 
 \begin{table}[H]
 \centering
