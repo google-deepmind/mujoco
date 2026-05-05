@@ -299,8 +299,8 @@ static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
     if (len_A < mjMINVAL || len_B < mjMINVAL) continue;
     mjtNum inv_A = 1.0 / len_A;
     mjtNum inv_B = 1.0 / len_B;
-    mji_scl3(n_A, n_A, inv_A);
-    mji_scl3(n_B, n_B, inv_B);
+    n_A[0] *= inv_A; n_A[1] *= inv_A; n_A[2] *= inv_A;
+    n_B[0] *= inv_B; n_B[1] *= inv_B; n_B[2] *= inv_B;
 
     // normal jump residual: r = (n_A - n_B) - dn0
     mjtNum r[3];
