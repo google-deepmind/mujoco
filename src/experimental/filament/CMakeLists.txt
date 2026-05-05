@@ -23,6 +23,7 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
     PUBLIC
         render_context_filament.h
         render_context_filament.cc
+        render_context_filament_cpp.h
         filament/builtins.cc
         filament/builtins.h
         filament/color_grading_options.cc

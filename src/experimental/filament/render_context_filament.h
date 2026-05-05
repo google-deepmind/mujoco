@@ -421,6 +421,45 @@ struct mjrFilamentConfig {
   bool force_software_rendering;
 };
 
+// Creates a texture for the filament renderer.
+mjrTexture* mjrf_createTexture(mjrfContext* ctx, const mjrTextureConfig* cfg);
+
+// Destroys the texture.
+void mjrf_destroyTexture(mjrTexture* texture);
+
+// Creates a mesh for the filament renderer.
+mjrMesh* mjrf_createMesh(mjrfContext* ctx, const mjrMeshData* data);
+
+// Destroys the mesh.
+void mjrf_destroyMesh(mjrMesh* mesh);
+
+// Creates a scene for the filament renderer.
+mjrScene* mjrf_createScene(mjrfContext* ctx, const mjrSceneParams* params);
+
+// Destroys the scene.
+void mjrf_destroyScene(mjrScene* scene);
+
+// Creates a light for the filament renderer.
+mjrLight* mjrf_createLight(mjrfContext* ctx, const mjrLightParams* params);
+
+// Destroys the light.
+void mjrf_destroyLight(mjrLight* light);
+
+// Creates a renderable for the filament renderer.
+mjrRenderable* mjrf_createRenderable(mjrfContext* ctx, const mjrRenderableParams* params);
+
+// Destroys the renderable.
+void mjrf_destroyRenderable(mjrRenderable* renderable);
+
+// Creates a render target for the filament renderer.
+mjrRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx,
+                                         const mjrRenderTargetConfig* config);
+
+// Destroys the render target.
+void mjrf_destroyRenderTarget(mjrRenderTarget* render_target);
+
+// Legacy API, to be deprecated.
+
 void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);
 
 void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,

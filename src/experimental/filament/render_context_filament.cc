@@ -23,6 +23,13 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/mjr_filament_renderer.h"
+#include "experimental/filament/filament/filament_context.h"
+#include "experimental/filament/filament/light.h"
+#include "experimental/filament/filament/mesh.h"
+#include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/renderable.h"
+#include "experimental/filament/filament/scene_view.h"
+#include "experimental/filament/filament/texture.h"
 
 
 #if defined(TLS_FILAMENT_CONTEXT)
@@ -134,6 +141,56 @@ void mjr_defaultRenderRequest(mjrRenderRequest* request) {
 
 void mjr_defaultReadPixelsRequest(mjrReadPixelsRequest* request) {
   memset(request, 0, sizeof(mjrReadPixelsRequest));
+}
+
+mjrTexture* mjrf_createTexture(mjrfContext* ctx, const mjrTextureConfig* cfg) {
+  return new mujoco::Texture(mujoco::FilamentContext::downcast(ctx), *cfg);
+}
+
+void mjrf_destroyTexture(mjrTexture* texture) {
+  delete mujoco::Texture::downcast(texture);
+}
+
+mjrMesh* mjrf_createMesh(mjrfContext* ctx, const mjrMeshData* data) {
+  return new mujoco::Mesh(mujoco::FilamentContext::downcast(ctx), *data);
+}
+
+void mjrf_destroyMesh(mjrMesh* mesh) { delete mujoco::Mesh::downcast(mesh); }
+
+mjrScene* mjrf_createScene(mjrfContext* ctx, const mjrSceneParams* params) {
+  return new mujoco::SceneView(mujoco::FilamentContext::downcast(ctx), *params);
+}
+
+void mjrf_destroyScene(mjrScene* scene) {
+  delete mujoco::SceneView::downcast(scene);
+}
+
+mjrLight* mjrf_createLight(mjrfContext* ctx, const mjrLightParams* params) {
+  return new mujoco::Light(mujoco::FilamentContext::downcast(ctx), *params);
+}
+
+void mjrf_destroyLight(mjrLight* light) {
+  delete mujoco::Light::downcast(light);
+}
+
+mjrRenderable* mjrf_createRenderable(mjrfContext* ctx,
+                                     const mjrRenderableParams* params) {
+  return new mujoco::Renderable(mujoco::FilamentContext::downcast(ctx),
+                                *params);
+}
+
+void mjrf_destroyRenderable(mjrRenderable* renderable) {
+  delete mujoco::Renderable::downcast(renderable);
+}
+
+mjrRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx,
+                                         const mjrRenderTargetConfig* config) {
+  return new mujoco::RenderTarget(mujoco::FilamentContext::downcast(ctx),
+                                  *config);
+}
+
+void mjrf_destroyRenderTarget(mjrRenderTarget* render_target) {
+  delete mujoco::RenderTarget::downcast(render_target);
 }
 
 void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,
