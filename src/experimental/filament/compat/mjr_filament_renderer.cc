@@ -64,9 +64,6 @@ void MjrFilamentRenderer::Init(const mjModel* model) {
   render_requests_[1].camera.frustum_top = 0.0f;
   render_requests_[1].camera.frustum_near = 0.0f;
   render_requests_[1].camera.frustum_far = 1.0f;
-
-  filament_context_->SetClearColor(ReadElement(
-      model, "filament.clearColor", filament::math::float4(0, 0, 0, 1)));
 }
 
 void MjrFilamentRenderer::Render(const mjrRect& viewport,

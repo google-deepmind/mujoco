@@ -90,109 +90,12 @@ SceneBridge::SceneBridge(FilamentContext* ctx, const mjModel* model)
   scene_view_ = std::make_unique<SceneView>(ctx_, params);
   model_objects_ = std::make_unique<ModelObjects>(model, ctx_);
 
-  // Configure options for the normal view.
-  auto cg = scene_view_->GetColorGradingOptions();
-  cg.exposure = ReadElement(model, "filament.cg.exposure", cg.exposure);
-  cg.contrast = ReadElement(model, "filament.cg.contrast", cg.contrast);
-  cg.vibrance = ReadElement(model, "filament.cg.vibrance", cg.vibrance);
-  cg.saturation = ReadElement(model, "filament.cg.saturation", cg.saturation);
-  cg.temperature =
-      ReadElement(model, "filament.cg.temperature", cg.temperature);
-  cg.tint = ReadElement(model, "filament.cg.tint", cg.tint);
-  cg.gamut_mapping =
-      ReadElement(model, "filament.cg.gamut_mapping", cg.gamut_mapping);
-  cg.luminance_scaling =
-      ReadElement(model, "filament.cg.luminance_scaling", cg.luminance_scaling);
-  cg.slope = ReadElement(model, "filament.cg.slope", cg.slope);
-  cg.offset = ReadElement(model, "filament.cg.offset", cg.offset);
-  cg.power = ReadElement(model, "filament.cg.power", cg.power);
-  cg.shadow_gamma =
-      ReadElement(model, "filament.cg.shadow_gamma", cg.shadow_gamma);
-  cg.mid_point = ReadElement(model, "filament.cg.mid_point", cg.mid_point);
-  cg.highlight_scale =
-      ReadElement(model, "filament.cg.highlight_scale", cg.highlight_scale);
-  cg.shadows = ReadElement(model, "filament.cg.shadows", cg.shadows);
-  cg.midtones = ReadElement(model, "filament.cg.midtones", cg.midtones);
-  cg.highlights = ReadElement(model, "filament.cg.highlights", cg.highlights);
-  cg.tonal_ranges =
-      ReadElement(model, "filament.cg.tonal_ranges", cg.tonal_ranges);
-
-  auto tone_mapping =
-      ReadElement<std::string_view>(model, "filament.cg.tone_mapping");
-  if (tone_mapping == "aces") {
-    cg.tone_mapper = ToneMapperType::kACES;
-  } else if (tone_mapping == "aces_legacy") {
-    cg.tone_mapper = ToneMapperType::kACESLegacy;
-  } else if (tone_mapping == "filmic") {
-    cg.tone_mapper = ToneMapperType::kFilmic;
-  } else if (tone_mapping == "linear") {
-    cg.tone_mapper = ToneMapperType::kLinear;
-  } else if (tone_mapping == "pbr_neutral") {
-    cg.tone_mapper = ToneMapperType::kPBRNeutral;
-  }
-  scene_view_->SetColorGradingOptions(cg);
-
-  filament::View* fview = scene_view_->GetDefaultRenderView();
-  auto ao = fview->getAmbientOcclusionOptions();
-  ao.enabled = ReadElement(model, "filament.ao.enabled", true);
-  ao.bentNormals = ReadElement(model, "filament.ao.bent_normals", false);
-  ao.ssct.enabled = ReadElement(model, "filament.ao.ssct", ao.ssct.enabled);
-  ao.quality =
-      ReadElement(model, "filament.ao.quality", filament::QualityLevel::ULTRA);
-  ao.lowPassFilter = ReadElement(model, "filament.ao.low_pass_filter",
-                                 filament::QualityLevel::ULTRA);
-  ao.upsampling = ReadElement(model, "filament.ao.upsampling",
-                              filament::QualityLevel::ULTRA);
-  ao.bilateralThreshold =
-      ReadElement(model, "filament.ao.bilateral_threshold", 0.5f);
-  fview->setAmbientOcclusionOptions(ao);
-
-  auto bloom = fview->getBloomOptions();
-  bloom.enabled = ReadElement(model, "filament.bloom.enabled", bloom.enabled);
-  bloom.strength =
-      ReadElement(model, "filament.bloom.strength", bloom.strength);
-  bloom.dirtStrength =
-      ReadElement(model, "filament.bloom.dirt_strength", bloom.dirtStrength);
-  bloom.quality = ReadElement(model, "filament.bloom.quality", bloom.quality);
-  bloom.resolution =
-      ReadElement(model, "filament.bloom.resolution", bloom.resolution);
-  bloom.levels = ReadElement(model, "filament.bloom.levels", bloom.levels);
-  fview->setBloomOptions(bloom);
-
-  auto msaa = fview->getMultiSampleAntiAliasingOptions();
-  msaa.enabled = ReadElement(model, "filament.msaa.enabled", true);
-  fview->setMultiSampleAntiAliasingOptions(msaa);
+  scene_view_->Configure(model);
 
   default_shadow_map_size_ = ReadElement(
       model, "filament.shadows.map_size", default_shadow_map_size_);
   default_vsm_blur_width_ = ReadElement(
       model, "filament.shadows.vsm_blur_width", default_vsm_blur_width_);
-
-  auto shadow_type = fview->getShadowType();
-  shadow_type = ReadElement(model, "filament.shadows.type", shadow_type);
-  fview->setShadowType(shadow_type);
-
-  auto fog_opts = fview->getFogOptions();
-  fog_opts.enabled =
-      ReadElement(model, "filament.fog.enabled", fog_opts.enabled);
-  fog_opts.color = ReadElement(model, "filament.fog.color", fog_opts.color);
-  fog_opts.distance = ReadElement(
-      model, "filament.fog.distance", fog_opts.distance);
-  fog_opts.density = ReadElement(
-      model, "filament.fog.density", fog_opts.density);
-  fog_opts.cutOffDistance = ReadElement(
-      model, "filament.fog.cutOffDistance", fog_opts.cutOffDistance);
-  fog_opts.maximumOpacity = ReadElement(
-      model, "filament.fog.maximumOpacity", fog_opts.maximumOpacity);
-  fog_opts.height = ReadElement(model, "filament.fog.height", fog_opts.height);
-  fog_opts.heightFalloff = ReadElement(
-      model, "filament.fog.heightFalloff", fog_opts.heightFalloff);
-  fog_opts.inScatteringStart = ReadElement(
-      model, "filament.fog.inScatteringStart", fog_opts.inScatteringStart);
-  fog_opts.inScatteringSize = ReadElement(
-      model, "filament.fog.inScatteringSize", fog_opts.inScatteringSize);
-  fview->setFogOptions(fog_opts);
-
   fallback_head_light_intensity_ =
       ReadElement(model, "filament.fallback.head_light_intensity",
                   fallback_head_light_intensity_);

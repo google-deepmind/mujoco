@@ -94,6 +94,10 @@ class SceneView : public mjrScene {
   ColorGradingOptions GetColorGradingOptions() const;
   void SetColorGradingOptions(const ColorGradingOptions& opts);
 
+  // Reads filament-specific settings from the mjModel and configures the
+  // scene view accordingly.
+  void Configure(const mjModel* model);
+
   static SceneView* downcast(mjrScene* scene) {
     return static_cast<SceneView*>(scene);
   }
