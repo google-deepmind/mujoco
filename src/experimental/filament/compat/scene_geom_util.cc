@@ -420,8 +420,7 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
   // the programmatic UVs.
 
   if (textures.color) {
-    if (Texture::downcast(textures.color)->GetFilamentTexture()->getTarget() ==
-        filament::Texture::Sampler::SAMPLER_2D) {
+    if (Texture::downcast(textures.color)->GetTarget() == mjTEXTURE_2D) {
       // For 2D textures, `tex_repeat` specifies how many times the texture
       // image is repeated. The `tex_uniform` flag determines if the repetition
       // is applied at in object space (false) or in world space (true).

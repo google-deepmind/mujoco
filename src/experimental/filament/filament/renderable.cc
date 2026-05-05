@@ -383,8 +383,7 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
     } else {
       return ObjectManager::kPhongColor;
     }
-  } else if (color_texture->GetFilamentTexture()->getTarget() ==
-              filament::Texture::Sampler::SAMPLER_CUBEMAP) {
+  } else if (color_texture->GetTarget() == mjTEXTURE_CUBE) {
     if (material_params_.color[3] < 1.0f) {
       return ObjectManager::kPhongCubeFade;
     } else if (material_params_.reflective) {
