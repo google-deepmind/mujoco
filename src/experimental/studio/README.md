@@ -46,6 +46,10 @@ cd build-studio/bin
 ./mujoco_studio --gfx=opengl
 ```
 
+On Linux, build Filament-backed targets with a single C++ standard library. If
+Filament is built with `libc++`, configure MuJoCo with clang and matching
+`-stdlib=libc++` compiler/linker flags to avoid mixed-stdlib link failures.
+
 On macOS, Studio defaults to Filament OpenGL. The OpenGL implementation may be
 provided by Apple's Metal-backed OpenGL layer, so runtime logs can mention both
 OpenGL and Metal/Apple GPU details.

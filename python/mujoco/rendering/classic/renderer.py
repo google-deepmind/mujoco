@@ -84,9 +84,8 @@ the clause:
     self._rect = mujoco.MjrRect(0, 0, self._width, self._height)
 
     # Create render contexts.
-    # TODO(nimrod): Figure out why pytype doesn't like gl_context.GLContext
-    if gl_context.GLContext is not None:
-      self._gl_context = gl_context.GLContext(width, height)  # type: ignore
+    if GLContext is not None:
+      self._gl_context = GLContext(width, height)
     if self._gl_context:
       self._gl_context.make_current()
     self._mjr_context = mujoco.MjrContext(model, font_scale.value)
