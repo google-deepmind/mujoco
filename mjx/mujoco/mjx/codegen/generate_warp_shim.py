@@ -251,8 +251,10 @@ def _warp_function(
     if fn_name == 'render':
       render_context_args.append('rgb: wp.array2d[wp.uint32],')
       render_context_args.append('depth: wp.array2d[wp.float32],')
+      render_context_args.append('seg: wp.array2d[wp.vec2i],')
       fn_assignments.append('  render_context.rgb_data = rgb')
       fn_assignments.append('  render_context.depth_data = depth')
+      fn_assignments.append('  render_context.seg_data = seg')
     else:
       fn_assignments.append('  dummy.zero_()')
 
@@ -287,13 +289,16 @@ def _jax_shim_fn(
 
   for arg in warp_fn_args:
     if 'nworld' in arg:
-      jax_args.append('d.qpos.shape[0]')
+      if field_usage.render_context_in_caller:
+        jax_args.append('render_ctx.nworld')
+      else:
+        jax_args.append('d.qpos.shape[0]')
       continue
 
     if arg in ('rc_id', 'dummy'):
       continue
 
-    if arg in ('rgb', 'depth') and fn_name == 'render':
+    if arg in ('rgb', 'depth', 'seg') and fn_name == 'render':
       num_outputs += 1
       continue
 
@@ -342,13 +347,17 @@ def _jax_shim_fn(
   needs_dummy_output = not field_usage.data_out_fields
   if needs_dummy_output and fn_name != 'render':
     num_outputs = 1
-    output_dims = ["'dummy': (d.qpos.shape[0],)"]
+    if field_usage.render_context_in_caller:
+      output_dims = ["'dummy': (render_ctx.nworld,)"]
+    else:
+      output_dims = ["'dummy': (d.qpos.shape[0],)"]
     has_side_effect = True
 
   if fn_name == 'render':
     output_dims = [
         "'rgb': render_ctx.rgb_data_shape",
         "'depth': render_ctx.depth_data_shape",
+        "'seg': render_ctx.seg_data_shape",
     ]
     tree_replace = []
 
@@ -438,8 +447,9 @@ def _{fn_name}_shim(
   ) = _jax_shim_fn(fn_name, field_usage, warp_fn_args, mjwarp_field_info)
   render_ctx_line = ''
   return_stmt = 'return d'
-  if fn_name == 'render':
+  if field_usage.render_context_in_caller:
     render_ctx_line = f'  render_ctx = _MJX_RENDER_CONTEXT_BUFFERS[(ctx.key, None)]\n'
+  if fn_name == 'render':
     return_stmt = 'return out'
   output_dims_str = '{' + ','.join(output_dims) + '}'
   data_tree_replace = f"d = d.tree_replace({{ {','.join(tree_replace)} }})"
@@ -478,7 +488,7 @@ def _{fn_name}_jax_impl({','.join(fn_args)}):
         '@functools.partial(ffi.marshal_custom_vmap, tree_map_output=True)'
     )
     vmap_return_stmt = (
-        f'out = {fn_name}({fn_call_str})\n  return out, [True, True]'
+        f'out = {fn_name}({fn_call_str})\n  return out, [True, True, True]'
     )
 
   src += f"""

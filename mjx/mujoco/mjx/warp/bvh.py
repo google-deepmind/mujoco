@@ -110,7 +110,8 @@ def _refit_bvh_shim(
 def _refit_bvh_jax_impl(
     m: types.Model, d: types.Data, ctx: RenderContextPytree
 ):
-  output_dims = {'dummy': (d.qpos.shape[0],)}
+  render_ctx = _MJX_RENDER_CONTEXT_BUFFERS[(ctx.key, None)]
+  output_dims = {'dummy': (render_ctx.nworld,)}
   jf = ffi.jax_callable_variadic_tuple(
       _refit_bvh_shim,
       num_outputs=1,
@@ -123,7 +124,7 @@ def _refit_bvh_jax_impl(
       has_side_effect=True,
   )
   out = jf(
-      d.qpos.shape[0],
+      render_ctx.nworld,
       m._impl.flex_dim,
       m._impl.flex_edge,
       m._impl.flex_elem,

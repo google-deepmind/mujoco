@@ -52,6 +52,9 @@ _RANDOMIZE_QPOS = flags.DEFINE_boolean(
 )
 _USE_TEXTURES = flags.DEFINE_boolean('use_textures', True, 'enable textures')
 _USE_SHADOWS = flags.DEFINE_boolean('use_shadows', True, 'enable shadows')
+_RENDER_SEGMENTATION = flags.DEFINE_boolean(
+    'render_segmentation', False, 'enable segmentation rendering'
+)
 _WP_KERNEL_CACHE_DIR = flags.DEFINE_string(
     'wp_kernel_cache_dir',
     '/tmp/wp_kernel_cache_dir_visualize_render',
@@ -91,6 +94,31 @@ def _save_tiled(rgb, out_path):
   print(f'  tiled image:  {out_path}')
 
 
+def _colorize_segmentation(seg_ids: np.ndarray) -> np.ndarray:
+  """Map integer geom IDs to deterministic RGB colors.
+
+  Background (-1) and flex (-2) pixels are mapped to black.
+  """
+  seg = np.asarray(seg_ids)
+  h, w = seg.shape[-2], seg.shape[-1]
+  flat = seg.reshape(*seg.shape[:-2], -1)
+
+  # Deterministic pastel palette via golden-ratio hue spacing.
+  r = np.zeros_like(flat, dtype=np.uint8)
+  g = np.zeros_like(flat, dtype=np.uint8)
+  b = np.zeros_like(flat, dtype=np.uint8)
+
+  mask = flat >= 0
+  ids = flat[mask]
+  # Simple hash-based colouring.
+  r[mask] = ((ids * 67 + 11) % 256).astype(np.uint8)
+  g[mask] = ((ids * 113 + 59) % 256).astype(np.uint8)
+  b[mask] = ((ids * 197 + 37) % 256).astype(np.uint8)
+
+  rgb = np.stack([r, g, b], axis=-1)
+  return rgb.reshape(*seg.shape[:-2], h, w, 3)
+
+
 def _main(_: Sequence[str]):
   os.environ['MJX_WARP_ENABLED'] = 'true'
 
@@ -110,6 +138,7 @@ def _main(_: Sequence[str]):
   print(f'  camera_id   : {_CAMERA_ID.value}')
   print(f'  use_textures: {_USE_TEXTURES.value}')
   print(f'  use_shadows : {_USE_SHADOWS.value}')
+  print(f'  render_seg  : {_RENDER_SEGMENTATION.value}')
   print(f'  pmap        : {_PMAP.value}')
   print(f'  output_dir  : {_OUTPUT_DIR.value}\n')
 
@@ -144,6 +173,7 @@ def _main(_: Sequence[str]):
       use_shadows=_USE_SHADOWS.value,
       render_rgb=True,
       render_depth=True,
+      render_seg=_RENDER_SEGMENTATION.value,
       enabled_geom_groups=[0, 1, 2],
   )
 
@@ -151,14 +181,23 @@ def _main(_: Sequence[str]):
       mx, dx_batch, rc.pytree()
   )
 
-  out_batch = jax_jit(jax.vmap(render.render, in_axes=(None, 0, None)))(
+  if _RENDER_SEGMENTATION.value:
+    render_fn = render.render_with_segmentation
+  else:
+    render_fn = render.render
+
+  out_batch = jax_jit(jax.vmap(render_fn, in_axes=(None, 0, None)))(
       mx, dx_batch, rc.pytree()
   )
 
   rgb_packed = out_batch[0]
   depth_packed = out_batch[1]
+  seg_packed = out_batch[2] if _RENDER_SEGMENTATION.value else None
   print(f'  rgb shape:   {rgb_packed.shape}')
-  print(f'  depth shape: {depth_packed.shape}\n')
+  print(f'  depth shape: {depth_packed.shape}')
+  if seg_packed is not None:
+    print(f'  seg shape:   {seg_packed.shape}')
+  print()
 
   rgb = jax.vmap(render_util.get_rgb, in_axes=(None, None, 0))(
       rc.pytree(), _CAMERA_ID.value, rgb_packed
@@ -173,11 +212,25 @@ def _main(_: Sequence[str]):
   )
   _save_single(rgb, single_path)
 
-  depth_rgb = np.repeat(np.asarray(depth)[..., None], 3, axis=-1)
+  depth_np = np.asarray(depth).squeeze(-1)  # (nworld, H, W)
+  depth_rgb = np.repeat(depth_np[..., None], 3, axis=-1)
   depth_single_path = os.path.join(
       _OUTPUT_DIR.value, f'depth_{_CAMERA_ID.value}.png'
   )
   _save_single(depth_rgb, depth_single_path)
+
+  if _RENDER_SEGMENTATION.value:
+    seg = jax.vmap(render_util.get_segmentation, in_axes=(None, None, 0))(
+        rc.pytree(), _CAMERA_ID.value, seg_packed
+    )
+    seg_rgb = _colorize_segmentation(np.asarray(seg))
+    # Convert to float [0, 1] so _save_single / _save_tiled work.
+    seg_rgb_f = seg_rgb.astype(np.float32) / 255.0
+
+    seg_single_path = os.path.join(
+        _OUTPUT_DIR.value, f'seg_{_CAMERA_ID.value}.png'
+    )
+    _save_single(seg_rgb_f, seg_single_path)
 
   if _NWORLD.value > 1:
     tiled_path = os.path.join(
@@ -189,6 +242,12 @@ def _main(_: Sequence[str]):
         _OUTPUT_DIR.value, f'depth_tiled_{_CAMERA_ID.value}.png'
     )
     _save_tiled(depth_rgb, depth_tiled_path)
+
+    if _RENDER_SEGMENTATION.value:
+      seg_tiled_path = os.path.join(
+          _OUTPUT_DIR.value, f'seg_tiled_{_CAMERA_ID.value}.png'
+      )
+      _save_tiled(seg_rgb_f, seg_tiled_path)
 
   if _PMAP.value:
     ndevices = jax.local_device_count()
