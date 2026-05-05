@@ -458,6 +458,86 @@ mjrRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx,
 // Destroys the render target.
 void mjrf_destroyRenderTarget(mjrRenderTarget* render_target);
 
+// Uploads the given texture data to the texture.
+void mjrf_setTextureData(mjrTexture* texture, const mjrTextureData* data);
+
+// Returns the width of the texture.
+int mjrf_getTextureWidth(const mjrTexture* texture);
+
+// Returns the height of the texture.
+int mjrf_getTextureHeight(const mjrTexture* texture);
+
+// Returns the target type of the texture.
+mjrTextureTarget mjrf_getTextureTarget(const mjrTexture* texture);
+
+// Enables or disables the light.
+void mjrf_setLightEnabled(mjrLight* light, bool enabled);
+
+// Sets the intensity of the light, in candela.
+void mjrf_setLightIntensity(mjrLight* light, float intensity);
+
+// Sets the RGB color of the light.
+void mjrf_setLightColor(mjrLight* light, const float color[3]);
+
+// Sets the position and direction of the light.
+void mjrf_setLightTransform(mjrLight* light, const float position[3],
+                            const float direction[3]);
+
+// Returns the type of the light.
+mjrLightType mjrf_getLightType(const mjrLight* light);
+
+// Sets the mesh of the renderable.
+void mjrf_setRenderableMesh(mjrRenderable* renderable, const mjrMesh* mesh,
+                            int elem_offset, int elem_count);
+
+// Sets the material properties and textures of the renderable.
+void mjrf_setRenderableMaterial(mjrRenderable* renderable,
+                                const mjrMaterialParams* params,
+                                const mjrMaterialTextures* textures);
+
+// Sets the transform (position, rotation, and size) of the renderable.
+void mjrf_setRenderableTransform(mjrRenderable* renderable,
+                                 const float position[3],
+                                 const float rotation[9], const float size[3]);
+
+// Sets whether the renderable casts shadows or not.
+void mjrf_setRenderableCastShadows(mjrRenderable* renderable,
+                                   bool cast_shadows);
+
+// Sets whether the renderable receives shadows or not.
+void mjrf_setRenderableReceiveShadows(mjrRenderable* renderable,
+                                      bool receive_shadows);
+
+// Forces the renderable to be rendered using lines.
+void mjrf_setRenderableWireframe(mjrRenderable* renderable, bool wireframe);
+
+// Sets the layer mask of the renderable. See mjrRenderableParams for details.
+void mjrf_setRenderableLayerMask(mjrRenderable* renderable, uint8_t layer_mask);
+
+// Adds the light to the scene.
+void mjrf_addLightToScene(mjrScene* scene, mjrLight* light);
+
+// Removes the light from the scene.
+void mjrf_removeLightFromScene(mjrScene* scene, mjrLight* light);
+
+// Adds the renderable to the scene.
+void mjrf_addRenderableToScene(mjrScene* scene, mjrRenderable* renderable);
+
+// Removes the renderable from the scene.
+void mjrf_removeRenderableFromScene(mjrScene* scene, mjrRenderable* renderable);
+
+// Sets the skybox texture of the scene.
+void mjrf_setSceneSkybox(mjrScene* scene, const mjrTexture* texture);
+
+// Enables (or disables) shadows in the scene..
+void mjrf_setSceneShadowsEnabled(mjrScene* scene, bool enabled);
+
+// Enables (or disables) reflections in the scene.
+void mjrf_setSceneReflectionsEnabled(mjrScene* scene, bool enabled);
+
+// Configures the scene based on the parameters in the model.
+void mjrf_configureSceneFromModel(mjrScene* scene, const mjModel* model);
+
 // Legacy API, to be deprecated.
 
 void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);

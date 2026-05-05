@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include <math/mat3.h>
+#include <math/vec3.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjvisualize.h>
@@ -191,6 +193,139 @@ mjrRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx,
 
 void mjrf_destroyRenderTarget(mjrRenderTarget* render_target) {
   delete mujoco::RenderTarget::downcast(render_target);
+}
+
+
+void mjrf_setTextureData(mjrTexture* texture, const mjrTextureData* data) {
+  mujoco::Texture::downcast(texture)->Upload(*data);
+}
+
+int mjrf_getTextureWidth(const mjrTexture* texture) {
+  return mujoco::Texture::downcast(texture)->GetWidth();
+}
+
+int mjrf_getTextureHeight(const mjrTexture* texture) {
+  return mujoco::Texture::downcast(texture)->GetHeight();
+}
+
+mjrTextureTarget mjrf_getTextureTarget(const mjrTexture* texture) {
+  return mujoco::Texture::downcast(texture)->GetTarget();
+}
+
+void mjrf_setLightEnabled(mjrLight* light, bool enabled) {
+  if (enabled) {
+    mujoco::Light::downcast(light)->Enable();
+  } else {
+    mujoco::Light::downcast(light)->Disable();
+  }
+}
+
+void mjrf_setLightIntensity(mjrLight* light, float intensity) {
+  mujoco::Light::downcast(light)->SetIntensity(intensity);
+}
+
+void mjrf_setLightColor(mjrLight* light, const float color[3]) {
+  mujoco::Light::downcast(light)->SetColor({color[0], color[1], color[2]});
+}
+
+void mjrf_setLightTransform(mjrLight* light, const float position[3],
+                            const float direction[3]) {
+  mujoco::Light::downcast(light)->SetTransform(
+      {position[0], position[1], position[2]},
+      {direction[0], direction[1], direction[2]});
+}
+
+mjrLightType mjrf_getLightType(const mjrLight* light) {
+  return mujoco::Light::downcast(light)->GetType();
+}
+
+void mjrf_setRenderableMesh(mjrRenderable* renderable, const mjrMesh* mesh,
+                            int elem_offset, int elem_count) {
+  mujoco::Renderable::downcast(renderable)
+      ->SetMesh(mujoco::Mesh::downcast(mesh), elem_offset, elem_count);
+}
+
+void mjrf_setRenderableMaterial(mjrRenderable* renderable,
+                                const mjrMaterialParams* params,
+                                const mjrMaterialTextures* textures) {
+  mujoco::Renderable::downcast(renderable)->UpdateMaterial(*params, *textures);
+}
+
+void mjrf_setRenderableTransform(mjrRenderable* renderable,
+                                 const float position[3],
+                                 const float rotation[9], const float size[3]) {
+  const filament::math::float3 fposition{position[0], position[1], position[2]};
+  const filament::math::float3 fsize{size[0], size[1], size[2]};
+  const filament::math::mat3f frotation{rotation[0], rotation[1], rotation[2],
+                                        rotation[3], rotation[4], rotation[5],
+                                        rotation[6], rotation[7], rotation[8]};
+  mujoco::Renderable::downcast(renderable)
+      ->SetTransform({fposition, frotation, fsize});
+}
+
+void mjrf_setRenderableLayerMask(mjrRenderable* renderable,
+                                 uint8_t layer_mask) {
+  mujoco::Renderable::downcast(renderable)->SetLayerMask(layer_mask);
+}
+
+void mjrf_setRenderableWireframe(mjrRenderable* renderable, bool wireframe) {
+  mujoco::Renderable::downcast(renderable)->SetWireframe(wireframe);
+}
+
+void mjrf_setRenderableCastShadows(mjrRenderable* renderable,
+                                   bool cast_shadows) {
+  mujoco::Renderable::downcast(renderable)->SetCastShadows(cast_shadows);
+}
+
+void mjrf_setRenderableReceiveShadows(mjrRenderable* renderable,
+                                      bool receive_shadows) {
+  mujoco::Renderable::downcast(renderable)->SetReceiveShadows(receive_shadows);
+}
+
+void mjrf_addLightToScene(mjrScene* scene, mjrLight* light) {
+  mujoco::SceneView::downcast(scene)->AddToScene(
+      mujoco::Light::downcast(light));
+}
+
+void mjrf_removeLightFromScene(mjrScene* scene, mjrLight* light) {
+  mujoco::SceneView::downcast(scene)->RemoveFromScene(
+      mujoco::Light::downcast(light));
+}
+
+void mjrf_addRenderableToScene(mjrScene* scene, mjrRenderable* renderable) {
+  mujoco::SceneView::downcast(scene)->AddToScene(
+      mujoco::Renderable::downcast(renderable));
+}
+
+void mjrf_removeRenderableFromScene(mjrScene* scene,
+                                    mjrRenderable* renderable) {
+  mujoco::SceneView::downcast(scene)->RemoveFromScene(
+      mujoco::Renderable::downcast(renderable));
+}
+
+void mjrf_setSceneSkybox(mjrScene* scene, const mjrTexture* texture) {
+  mujoco::SceneView::downcast(scene)->SetSkybox(
+      mujoco::Texture::downcast(texture));
+}
+
+void mjrf_setSceneShadowsEnabled(mjrScene* scene, bool enabled) {
+  if (enabled) {
+    mujoco::SceneView::downcast(scene)->EnableShadows();
+  } else {
+    mujoco::SceneView::downcast(scene)->DisableShadows();
+  }
+}
+
+void mjrf_setSceneReflectionsEnabled(mjrScene* scene, bool enabled) {
+  if (enabled) {
+    mujoco::SceneView::downcast(scene)->EnableReflections();
+  } else {
+    mujoco::SceneView::downcast(scene)->DisableReflections();
+  }
+}
+
+void mjrf_configureSceneFromModel(mjrScene* scene, const mjModel* model) {
+  mujoco::SceneView::downcast(scene)->Configure(model);
 }
 
 void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,
