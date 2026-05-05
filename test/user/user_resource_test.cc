@@ -15,9 +15,13 @@
 // Tests for user/user_resource.cc
 
 #include <array>
+#include <chrono>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <ctime>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -72,6 +76,46 @@ void close_str(mjResource* resource) {
   mju_free(resource->data);
   resource->data = nullptr;
 }
+
+void SetEnvVar(const char* name, const char* value) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+  _putenv_s(name, value);
+#else
+  setenv(name, value, 1);
+#endif
+}
+
+void UnsetEnvVar(const char* name) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+  _putenv_s(name, "");
+#else
+  unsetenv(name);
+#endif
+}
+
+class ScopedEnvVar {
+ public:
+  ScopedEnvVar(const char* name, const std::string& value) : name_(name) {
+    if (const char* old_value = std::getenv(name)) {
+      had_old_value_ = true;
+      old_value_ = old_value;
+    }
+    SetEnvVar(name, value.c_str());
+  }
+
+  ~ScopedEnvVar() {
+    if (had_old_value_) {
+      SetEnvVar(name_, old_value_.c_str());
+    } else {
+      UnsetEnvVar(name_);
+    }
+  }
+
+ private:
+  const char* name_;
+  bool had_old_value_ = false;
+  std::string old_value_;
+};
 
 TEST_F(ResourceTest, RegisterProviderSuccess) {
   mjpResourceProvider provider = {
@@ -280,6 +324,36 @@ TEST_F(ResourceTest, GeneralTest) {
   EXPECT_THAT(buffer, StrEq("Hello World"));
 
   mju_closeResource(resource);
+}
+
+TEST_F(ResourceTest, BuiltInMujocoAssetProviderUsesAssetsDir) {
+  namespace fs = std::filesystem;
+  const fs::path test_dir =
+      fs::temp_directory_path() /
+      ("mujoco-assets-resource-test-" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  const fs::path assets_dir = test_dir / "assets";
+  fs::create_directories(assets_dir);
+
+  const std::string expected = "packaged asset bytes";
+  const fs::path asset_path = assets_dir / "test_asset.bin";
+  std::ofstream(asset_path, std::ios::binary).write(
+      expected.data(), expected.size());
+
+  ScopedEnvVar assets_dir_env("MUJOCO_ASSETS_DIR", assets_dir.string());
+
+  mjResource* resource = mju_openResource(
+      "", "mujoco:test_asset.bin", nullptr, nullptr, 0);
+  ASSERT_THAT(resource, NotNull());
+
+  const void* buffer = nullptr;
+  const int bytes = mju_readResource(resource, &buffer);
+  EXPECT_EQ(bytes, static_cast<int>(expected.size()));
+  EXPECT_EQ(std::string(static_cast<const char*>(buffer), bytes), expected);
+
+  mju_closeResource(resource);
+  fs::remove_all(test_dir);
 }
 
 TEST_F(ResourceTest, GeneralFailureTest) {
