@@ -145,6 +145,14 @@ void mjr_defaultReadPixelsRequest(mjrReadPixelsRequest* request) {
   memset(request, 0, sizeof(mjrReadPixelsRequest));
 }
 
+mjrfContext* mjrf_createContext(const mjrFilamentConfig* config) {
+  return new mujoco::FilamentContext(config);
+}
+
+void mjrf_destroyContext(mjrfContext* ctx) {
+  delete mujoco::FilamentContext::downcast(ctx);
+}
+
 mjrTexture* mjrf_createTexture(mjrfContext* ctx, const mjrTextureConfig* cfg) {
   return new mujoco::Texture(mujoco::FilamentContext::downcast(ctx), *cfg);
 }
@@ -328,6 +336,20 @@ void mjrf_configureSceneFromModel(mjrScene* scene, const mjModel* model) {
   mujoco::SceneView::downcast(scene)->Configure(model);
 }
 
+mjrFrameHandle mjrf_render(mjrfContext* ctx, const mjrRenderRequest* req,
+                           int nreq, const mjrReadPixelsRequest* read_req,
+                           int nread_req) {
+  return mujoco::FilamentContext::downcast(ctx)->Render(
+      {req, static_cast<size_t>(nreq)},
+      {read_req, static_cast<size_t>(nread_req)});
+}
+
+void mjrf_waitForFrame(mjrfContext* ctx, mjrFrameHandle frame) {
+  mujoco::FilamentContext::downcast(ctx)->WaitForFrame(frame);
+}
+
+// Legacy API, to be deprecated.
+
 void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,
                               const mjrFilamentConfig* config) {
   // TODO: Support multiple contexts and multiple threads. For now, we'll just
@@ -361,7 +383,7 @@ void mjrf_freeContext(mjrContext* con) {
   mjrf_defaultContext(con);
 }
 
-void mjrf_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
+void mjrf_renderScene(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
   CheckFilamentContext();
   g_filament_context->Render(viewport, scn);
 }

@@ -25,6 +25,11 @@ namespace mujoco {
 template <typename T>
 using UniquePtr = std::unique_ptr<T, void (*)(T*)>;
 
+inline UniquePtr<mjrfContext> CreateContext(const mjrFilamentConfig& config) {
+  mjrfContext* context = mjrf_createContext(&config);
+  return UniquePtr<mjrfContext>(context, mjrf_destroyContext);
+}
+
 inline UniquePtr<mjrTexture> CreateTexture(mjrfContext* ctx,
                                            const mjrTextureConfig& config) {
   mjrTexture* texture = mjrf_createTexture(ctx, &config);

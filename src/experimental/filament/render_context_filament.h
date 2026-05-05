@@ -421,6 +421,15 @@ struct mjrFilamentConfig {
   bool force_software_rendering;
 };
 
+// Initializes the mjrFilamentConfig to default values.
+void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);
+
+// Creates a filament rendering context.
+mjrfContext* mjrf_createContext(const mjrFilamentConfig* config);
+
+// Destroys the filament rendering context.
+void mjrf_destroyContext(mjrfContext* ctx);
+
 // Creates a texture for the filament renderer.
 mjrTexture* mjrf_createTexture(mjrfContext* ctx, const mjrTextureConfig* cfg);
 
@@ -538,6 +547,14 @@ void mjrf_setSceneReflectionsEnabled(mjrScene* scene, bool enabled);
 // Configures the scene based on the parameters in the model.
 void mjrf_configureSceneFromModel(mjrScene* scene, const mjModel* model);
 
+// Submits the given requests for rendering.
+mjrFrameHandle mjrf_render(mjrfContext* ctx, const mjrRenderRequest* req,
+                           int nreq, const mjrReadPixelsRequest* read_req,
+                           int nread_req);
+
+// Waits for the rendering to complete for the given frame handle.
+void mjrf_waitForFrame(mjrfContext* ctx, mjrFrameHandle frame);
+
 // Legacy API, to be deprecated.
 
 void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);
@@ -551,7 +568,7 @@ void mjrf_makeContext(const mjModel* m, mjrContext* con, int fontscale);
 
 void mjrf_freeContext(mjrContext* con);
 
-void mjrf_render(mjrRect viewport, mjvScene* scn, const mjrContext* con);
+void mjrf_renderScene(mjrRect viewport, mjvScene* scn, const mjrContext* con);
 
 void mjrf_uploadMesh(const mjModel* m, const mjrContext* con, int meshid);
 

@@ -36,7 +36,7 @@ void mjr_freeContext(mjrContext* con) {
   mjrf_freeContext(con);
 }
 void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
-  mjrf_render(viewport, scn, con);
+  mjrf_renderScene(viewport, scn, con);
 }
 void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
   mjrf_uploadMesh(m, con, meshid);

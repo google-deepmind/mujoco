@@ -95,7 +95,7 @@ void Renderer::Init(const mjModel* model) {
                                        : mjGRAPHICS_API_VULKAN;
       mjrf_makeFilamentContext(model, &render_context_, &render_config);
       render_ = [&](mjrRect rect, mjvScene* scene) {
-        mjrf_render(rect, scene, &render_context_);
+        mjrf_renderScene(rect, scene, &render_context_);
       };
       set_buffer_ = [&](int framebuffer) {
         mjrf_setBuffer(framebuffer, &render_context_);
