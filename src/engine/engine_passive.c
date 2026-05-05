@@ -201,6 +201,196 @@ static void mj_flexPassiveInterp(const mjModel* m, mjData* d, int f,
 }
 
 
+// 2D shape function gradient: dir=0 returns dphi(s0,l0)*phi(s1,l1),
+//                             dir=1 returns phi(s0,l0)*dphi(s1,l1)
+static inline mjtNum mju_dphi2D(mjtNum s0, int l0, mjtNum s1, int l1,
+                                int order, int dir) {
+  if (dir == 0) {
+    return mju_flexDphi(s0, l0, order) * mju_flexPhi(s1, l1, order);
+  } else {
+    return mju_flexPhi(s0, l0, order) * mju_flexDphi(s1, l1, order);
+  }
+}
+
+
+// per-edge data layout in flex_bending for interpolated shell bending
+#define BEND_EDGE_SIZE 10
+
+
+// passive bending forces for interpolated flex shell
+//
+// Current approach: discrete Crouzeix-Raviart — point evaluation of the
+// normal jump at each edge midpoint, with energy E = D/(2h) * |Δn - Δn₀|² * l.
+//
+// TODO(quaglino): upgrade to a Galerkin formulation by precomputing a bending
+// stiffness matrix K_bend in the corotated frame using edge normal-jump residuals
+// as DOFs and Gauss integration over each face. At runtime, rotate the residual
+// vector into the corotated frame, multiply by K_bend, and rotate back. This
+// would give implicit derivatives for free (K_bend is constant) and better
+// accuracy for elements with varying curvature.
+static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
+                                      int enbl_spring, int enbl_damper) {
+  // read bending edge data
+  const mjtNum* bdata = m->flex_bending + m->flex_bendingadr[f];
+  int nedge = (int)bdata[0];
+  if (nedge == 0) return;
+
+  int order = -m->flex_interp[f];  // shell_mode: interp < 0
+  int cx = m->flex_cellnum[3*f+0];
+  int cy = m->flex_cellnum[3*f+1];
+  int cz = m->flex_cellnum[3*f+2];
+  int npe = (order+1)*(order+1);
+  int nodenum = m->flex_nodenum[f];
+
+  mj_markStack(d);
+
+  // gather global state
+  mjtNum* xpos_g = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+  mjtNum* vel_g = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+  mjtNum* frc_g = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+  mjtNum* dmp_g = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+  mju_flexGatherState(m, d, f, xpos_g, vel_g);
+  mju_zero(frc_g, 3*nodenum);
+  mju_zero(dmp_g, 3*nodenum);
+
+  // per-face temporaries
+  mjtNum* xpos_A = mjSTACKALLOC(d, 3*npe, mjtNum);
+  mjtNum* xpos_B = mjSTACKALLOC(d, 3*npe, mjtNum);
+  mjtNum* vel_A = mjSTACKALLOC(d, 3*npe, mjtNum);
+  mjtNum* vel_B = mjSTACKALLOC(d, 3*npe, mjtNum);
+  int* gidx_A = mjSTACKALLOC(d, npe, int);
+  int* gidx_B = mjSTACKALLOC(d, npe, int);
+
+  mjtNum kD = m->opt.timestep > 0 ? m->flex_damping[f] / m->opt.timestep : 0;
+  if (enbl_damper && kD > 0) {
+    mju_warning("Bending damping is not yet supported for interpolated flex shells.");
+  }
+
+  for (int e = 0; e < nedge; e++) {
+    const mjtNum* edata = bdata + 1 + e * BEND_EDGE_SIZE;
+    int fe_A = (int)edata[0];
+    int fe_B = (int)edata[1];
+    mjtNum local_A[2] = {edata[2], edata[3]};
+    mjtNum local_B[2] = {edata[4], edata[5]};
+    mjtNum stiffness = edata[6];
+    mjtNum dn0[3] = {edata[7], edata[8], edata[9]};
+
+    if (stiffness == 0) continue;
+
+    // gather face A and B positions + velocities
+    mju_flexGatherFaceState(order, cx, cy, cz, fe_A, xpos_g,
+                            enbl_damper ? vel_g : NULL, NULL,
+                            xpos_A, enbl_damper ? vel_A : NULL, NULL,
+                            gidx_A, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, fe_B, xpos_g,
+                            enbl_damper ? vel_g : NULL, NULL,
+                            xpos_B, enbl_damper ? vel_B : NULL, NULL,
+                            gidx_B, NULL);
+
+    // compute deformed normals at edge midpoint
+    mjtNum n_A[3], t1_A[3], t2_A[3];
+    mjtNum n_B[3], t1_B[3], t2_B[3];
+    mju_flexFaceNormal2D(n_A, t1_A, t2_A, order, xpos_A, local_A);
+    mju_flexFaceNormal2D(n_B, t1_B, t2_B, order, xpos_B, local_B);
+
+    // normalize normals
+    mjtNum len_A = mju_norm3(n_A);
+    mjtNum len_B = mju_norm3(n_B);
+    if (len_A < mjMINVAL || len_B < mjMINVAL) continue;
+    mjtNum inv_A = 1.0 / len_A;
+    mjtNum inv_B = 1.0 / len_B;
+    mji_scl3(n_A, n_A, inv_A);
+    mji_scl3(n_B, n_B, inv_B);
+
+    // normal jump residual: r = (n_A - n_B) - dn0
+    mjtNum r[3];
+    mji_sub3(r, n_A, n_B);
+    r[0] -= dn0[0]; r[1] -= dn0[1]; r[2] -= dn0[2];
+
+    // --- spring force ---
+    if (enbl_spring) {
+      // w_A = P_A * r = (r - n_A*(n_A.r)) / |c_A|
+      mjtNum dot_A = mju_dot3(n_A, r);
+      mjtNum w_A[3];
+      w_A[0] = (r[0] - n_A[0]*dot_A) * inv_A;
+      w_A[1] = (r[1] - n_A[1]*dot_A) * inv_A;
+      w_A[2] = (r[2] - n_A[2]*dot_A) * inv_A;
+
+      mjtNum dot_B = mju_dot3(n_B, r);
+      mjtNum w_B[3];
+      w_B[0] = (r[0] - n_B[0]*dot_B) * inv_B;
+      w_B[1] = (r[1] - n_B[1]*dot_B) * inv_B;
+      w_B[2] = (r[2] - n_B[2]*dot_B) * inv_B;
+
+      // precompute cross products: wA x t2_A, wA x t1_A
+      mjtNum wAt2[3], wAt1[3], wBt2[3], wBt1[3];
+      mji_cross(wAt2, w_A, t2_A);
+      mji_cross(wAt1, w_A, t1_A);
+      mji_cross(wBt2, w_B, t2_B);
+      mji_cross(wBt1, w_B, t1_B);
+
+      // force on face A nodes: f_k = stiffness * [g0_k * (wA x t2_A) -
+      //                                           g1_k * (wA x t1_A)]
+      int idx = 0;
+      for (int l0 = 0; l0 <= order; l0++) {
+        for (int l1 = 0; l1 <= order; l1++) {
+          mjtNum g0 = mju_dphi2D(local_A[0], l0, local_A[1], l1, order, 0);
+          mjtNum g1 = mju_dphi2D(local_A[0], l0, local_A[1], l1, order, 1);
+          int gi = gidx_A[idx];
+          for (int j = 0; j < 3; j++) {
+            frc_g[3*gi + j] += stiffness * (g0 * wAt2[j] - g1 * wAt1[j]);
+          }
+          idx++;
+        }
+      }
+
+      // force on face B nodes (negative sign: ∂Δn/∂x = -∂n_B/∂x)
+      idx = 0;
+      for (int l0 = 0; l0 <= order; l0++) {
+        for (int l1 = 0; l1 <= order; l1++) {
+          mjtNum g0 = mju_dphi2D(local_B[0], l0, local_B[1], l1, order, 0);
+          mjtNum g1 = mju_dphi2D(local_B[0], l0, local_B[1], l1, order, 1);
+          int gi = gidx_B[idx];
+          for (int j = 0; j < 3; j++) {
+            frc_g[3*gi + j] -= stiffness * (g0 * wBt2[j] - g1 * wBt1[j]);
+          }
+          idx++;
+        }
+      }
+    }
+
+    // --- damping force ---
+    // TODO(quaglino): bending damping is disabled because at corner edges
+    // with nonzero rest normal jump, dΔn/dt = ω × Δn₀ ≠ 0 under rigid
+    // rotation, producing anti-conservative forces. A correct implementation
+    // would subtract the rigid-body velocity component before computing the
+    // damping residual.
+  }
+
+  // apply accumulated forces to bodies
+  int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+  for (int i = 0; i < nodenum; i++) {
+    int bid = bodyid[i];
+    int nidx = i + m->flex_nodeadr[f];
+
+    // fast path: node at body origin, direct DOF write
+    if (m->body_dofnum[bid] > 0 &&
+        (m->flex_centered[f] ||
+         (m->flex_node[3*nidx+0] == 0 &&
+          m->flex_node[3*nidx+1] == 0 &&
+          m->flex_node[3*nidx+2] == 0))) {
+      if (enbl_spring) mji_addTo3(d->qfrc_spring + m->body_dofadr[bid], frc_g+3*i);
+      if (enbl_damper) mji_addTo3(d->qfrc_damper + m->body_dofadr[bid], dmp_g+3*i);
+    } else {
+      if (enbl_spring) mj_applyFT(m, d, frc_g+3*i, 0, xpos_g+3*i, bid, d->qfrc_spring);
+      if (enbl_damper) mj_applyFT(m, d, dmp_g+3*i, 0, xpos_g+3*i, bid, d->qfrc_damper);
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
 // passive forces for flex bending
 static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
                                int enbl_spring, int enbl_damper) {
@@ -466,8 +656,13 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     }
 
     if (m->flex_interp[f]) {
-      // interpolated flex
+      // interpolated flex: stretch forces
       mj_flexPassiveInterp(m, d, f, enbl_spring, enbl_damper);
+
+      // interpolated shell bending forces
+      if (m->flex_interp[f] < 0) {
+        mj_flexPassiveBendInterp(m, d, f, enbl_spring, enbl_damper);
+      }
     } else {
       // add bending forces
       mj_flexPassiveBend(m, d, f, enbl_spring, enbl_damper);

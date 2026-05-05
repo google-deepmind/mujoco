@@ -975,6 +975,11 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
     int order = m->flex_interp[f];
     int shell_mode = order < 0;
     order = order < 0 ? -order : order;
+
+    // warn that bending derivatives are not yet implemented
+    if (shell_mode) {
+      mj_warning(d, mjWARN_INERTIA, f);  // bending implicit derivatives missing
+    }
     int cx = m->flex_cellnum[3*f+0];
     int cy = m->flex_cellnum[3*f+1];
     int cz = m->flex_cellnum[3*f+2];

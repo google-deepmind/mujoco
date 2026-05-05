@@ -2883,11 +2883,8 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   }
 
   // check errors
-  if (dflex.elastic2d >= 2 && fcomp.equality) {
-    throw mjXError(elem, "elasticity and edge constraints cannot both be present");
-  }
-  if (fcomp.equality == 3 && dflex.young > 0) {
-    throw mjXError(elem, "strain constraint and elasticity (young) cannot both be present");
+  if (dflex.elastic2d != 1 && fcomp.equality && dflex.young > 0) {
+    throw mjXError(elem, "flex constraints and elasticity (young) cannot both be present");
   }
 
   // contact

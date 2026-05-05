@@ -4168,6 +4168,7 @@ void mjCFlex::DelTexcoord() {
 
 
 void mjCFlex::ResolveReferences(const mjCModel* m) {
+  interpolated = !nodebody_.empty();
   vertbodyid.clear();
   nodebodyid.clear();
   for (const auto& vertbody : vertbody_) {
@@ -4279,6 +4280,247 @@ void mjCFlex::CacheStiffness() {
 }
 
 
+// compute interpolated shell bending edge data
+// enumerates intra-surface and corner edges, stores per-edge metadata:
+//   [fe_A, fe_B, local_A[2], local_B[2], stiffness, dn0[3]]
+static void ComputeInterpBending(
+    std::vector<double>& bending,
+    const std::vector<double>& nodexpos_local,
+    int order, const int cellcount[3],
+    double young, double poisson, double thickness) {
+  // bending modulus D = E * t^3 / (12 * (1 - nu^2))
+  double D_bend = young * thickness * thickness * thickness /
+                  (12.0 * (1.0 - poisson * poisson));
+
+  int cx = cellcount[0], cy = cellcount[1], cz = cellcount[2];
+  int ny_global = cy * order + 1;
+  int nz_global = cz * order + 1;
+  int npe = (order + 1) * (order + 1);  // nodes per 2D face element
+
+  // face layout: 6 surfaces of the box
+  //   face 0: x=0, face 1: x=max, face 2: y=0, face 3: y=max,
+  //   face 4: z=0, face 5: z=max
+  int face_sizes[6] = {cy*cz, cy*cz, cx*cz, cx*cz, cx*cy, cx*cy};
+  int face_normal[6] = {0, 0, 1, 1, 2, 2};
+  int face_count1[6] = {cz, cz, cx, cx, cy, cy};
+  int face_fixed[6] = {0, cx*order, 0, cy*order, 0, cz*order};
+
+  // gather node positions for one face element
+  auto gather_face_nodes = [&](int face_id, int within_face,
+                               std::vector<double>& fpos) {
+    int nax = face_normal[face_id];
+    int a0 = (nax + 1) % 3;
+    int a1 = (nax + 2) % 3;
+    int c1 = face_count1[face_id];
+    int gf = face_fixed[face_id];
+    int q0 = within_face / c1;
+    int q1 = within_face % c1;
+    fpos.resize(3 * npe);
+    int loc = 0;
+    for (int l0 = 0; l0 <= order; l0++) {
+      for (int l1 = 0; l1 <= order; l1++) {
+        int g[3];
+        g[nax] = gf;
+        g[a0] = q0 * order + l0;
+        g[a1] = q1 * order + l1;
+        int gidx = g[0] * ny_global * nz_global + g[1] * nz_global + g[2];
+        mjuu_copyvec(fpos.data() + 3*loc, &nodexpos_local[3*gidx], 3);
+        loc++;
+      }
+    }
+  };
+
+  // compute unnormalized normal and tangents at a parametric point
+  auto compute_normal = [&](const std::vector<double>& fpos,
+                            const double local[2],
+                            double normal[3], double t1[3], double t2[3]) {
+    mjuu_zerovec(t1, 3);
+    mjuu_zerovec(t2, 3);
+    int idx = 0;
+    for (int l0 = 0; l0 <= order; l0++) {
+      for (int l1 = 0; l1 <= order; l1++) {
+        double g0 = dphi(local[0], l0, order) * phi(local[1], l1, order);
+        double g1 = phi(local[0], l0, order) * dphi(local[1], l1, order);
+        for (int d = 0; d < 3; d++) {
+          t1[d] += fpos[3*idx + d] * g0;
+          t2[d] += fpos[3*idx + d] * g1;
+        }
+        idx++;
+      }
+    }
+    mjuu_crossvec(normal, t1, t2);
+  };
+
+  // face cumulative offsets
+  int face_cumul[6];
+  face_cumul[0] = 0;
+  for (int f = 1; f < 6; f++) {
+    face_cumul[f] = face_cumul[f-1] + face_sizes[f-1];
+  }
+
+  int face_count0[6];
+  for (int f = 0; f < 6; f++) {
+    face_count0[f] = face_sizes[f] / face_count1[f];
+  }
+
+  int cells[3] = {cx, cy, cz};
+
+  // find the neighbor of face element (fid, q0, q1) across the edge in
+  // direction dir (0=a0, 1=a1) at side (+1 or -1).
+  // returns (fid_B, within_B) and fills local_A, local_B with parametric
+  // midpoint coordinates on each side of the shared edge.
+  auto get_neighbor = [&](int fid, int q0, int q1, int dir, int side, double local_A[2],
+                          double local_B[2]) -> std::pair<int, int> {
+    int nax = fid / 2, sign_f = fid % 2;
+    int a0 = (nax+1)%3, a1 = (nax+2)%3;
+    int nc1 = face_count1[fid];
+
+    // parametric coordinates on face A at the shared edge
+    local_A[0] = (dir == 0) ? (side > 0 ? 1.0 : 0.0) : 0.5;
+    local_A[1] = (dir == 1) ? (side > 0 ? 1.0 : 0.0) : 0.5;
+
+    // check if neighbor is on the same face (internal)
+    int q_nb = (dir == 0 ? q0 : q1) + side;
+    int q_max = (dir == 0) ? face_count0[fid] : nc1;
+    if (q_nb >= 0 && q_nb < q_max) {
+      // internal neighbor
+      int q0_B = (dir == 0) ? q_nb : q0;
+      int q1_B = (dir == 0) ? q1 : q_nb;
+      local_B[0] = (dir == 0) ? (side > 0 ? 0.0 : 1.0) : 0.5;
+      local_B[1] = (dir == 1) ? (side > 0 ? 0.0 : 1.0) : 0.5;
+      return {fid, q0_B * nc1 + q1_B};
+    }
+
+    // boundary neighbor: cross to adjacent face on the box
+    int ax = (dir == 0) ? a0 : a1;           // axis being crossed
+    int fid_B = 2*ax + (side > 0 ? 1 : 0);  // neighboring face
+    int nc1_B = face_count1[fid_B];
+
+    // the running coordinate along the shared edge maps to the neighbor face:
+    //   dir=0: edge runs along a1, maps to a0_B = (ax+1)%3 = a1 → q0_B
+    //   dir=1: edge runs along a0, maps to a1_B = (ax+2)%3 = a0 → q1_B
+    // the boundary position maps to the other axis on face B (= nax of face A):
+    //   q_boundary = sign_f ? cells[nax]-1 : 0
+    int q_run = (dir == 0) ? q1 : q0;
+    int q_boundary = sign_f ? (cells[nax]-1) : 0;
+    int q0_B, q1_B;
+    if (dir == 0) {
+      q0_B = q_run;
+      q1_B = q_boundary;
+      local_B[0] = 0.5;
+      local_B[1] = sign_f ? 1.0 : 0.0;
+    } else {
+      q0_B = q_boundary;
+      q1_B = q_run;
+      local_B[0] = sign_f ? 1.0 : 0.0;
+      local_B[1] = 0.5;
+    }
+    return {fid_B, q0_B * nc1_B + q1_B};
+  };
+
+  struct BendEdge {
+    int fe_A, fe_B;          // global face element indices (for runtime)
+    int fid_A, fid_B;        // face id (0-5)
+    int within_A, within_B;  // within-face element index
+    double local_A[2];
+    double local_B[2];
+  };
+  std::vector<BendEdge> edges;
+
+  // enumerate all edges: for each face element, check 4 neighbors
+  // (2 directions × 2 sides). Add each edge once via fe_A < fe_B.
+  for (int f = 0; f < 6; f++) {
+    int nc0 = face_count0[f];
+    int nc1 = face_count1[f];
+    for (int q0 = 0; q0 < nc0; q0++) {
+      for (int q1 = 0; q1 < nc1; q1++) {
+        int within_A = q0 * nc1 + q1;
+        int fe_A = face_cumul[f] + within_A;
+
+        for (int dir = 0; dir < 2; dir++) {
+          for (int side = -1; side <= 1; side += 2) {
+            double lA[2], lB[2];
+            auto [fid_B, within_B] = get_neighbor(f, q0, q1, dir, side, lA, lB);
+            int fe_B = face_cumul[fid_B] + within_B;
+            if (fe_A < fe_B) {
+              BendEdge e;
+              e.fe_A = fe_A;  e.fid_A = f;      e.within_A = within_A;
+              e.fe_B = fe_B;  e.fid_B = fid_B;  e.within_B = within_B;
+              mjuu_copyvec(e.local_A, lA, 2);
+              mjuu_copyvec(e.local_B, lB, 2);
+              edges.push_back(e);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // compute per-edge bending data
+  const int BEND_EDGE_SIZE = 10;  // should match engine_passive.c
+  bending.resize(1 + edges.size() * BEND_EDGE_SIZE, 0);
+  bending[0] = static_cast<double>(edges.size());
+
+  for (int e = 0; e < (int)edges.size(); e++) {
+    const BendEdge& edge = edges[e];
+    std::vector<double> fpos_A, fpos_B;
+    gather_face_nodes(edge.fid_A, edge.within_A, fpos_A);
+    gather_face_nodes(edge.fid_B, edge.within_B, fpos_B);
+
+    // compute rest normals at edge midpoint
+    double n_A[3], t1_A[3], t2_A[3];
+    double n_B[3], t1_B[3], t2_B[3];
+    compute_normal(fpos_A, edge.local_A, n_A, t1_A, t2_A);
+    compute_normal(fpos_B, edge.local_B, n_B, t1_B, t2_B);
+
+    // normalize
+    double len_A = mjuu_normvec(n_A, 3);
+    double len_B = mjuu_normvec(n_B, 3);
+    if (len_A < 1e-12 || len_B < 1e-12) continue;
+
+    // rest normal jump
+    double dn0[3] = {n_A[0]-n_B[0], n_A[1]-n_B[1], n_A[2]-n_B[2]};
+
+    // stiffness coefficient: D * l_e / h_e
+    // determine which tangent is along vs across the edge for each face:
+    //   local[k] == 0.5 means parametric direction k runs along the edge
+    double h_A, l_A, h_B, l_B;
+    if (edge.local_A[0] == 0.5) {
+      // edge runs along ξ on face A: t1 is along edge, t2 is across
+      l_A = mjuu_normvec(t1_A, 3);
+      h_A = mjuu_normvec(t2_A, 3);
+    } else {
+      // edge runs along η on face A: t2 is along edge, t1 is across
+      h_A = mjuu_normvec(t1_A, 3);
+      l_A = mjuu_normvec(t2_A, 3);
+    }
+    if (edge.local_B[0] == 0.5) {
+      l_B = mjuu_normvec(t1_B, 3);
+      h_B = mjuu_normvec(t2_B, 3);
+    } else {
+      h_B = mjuu_normvec(t1_B, 3);
+      l_B = mjuu_normvec(t2_B, 3);
+    }
+    double h_avg = (h_A + h_B) / 2;
+    double l_avg = (l_A + l_B) / 2;
+    double stiffness_coeff = D_bend * l_avg / mjMAX(h_avg, 1e-12);
+
+    // pack into bending array
+    double* edata = bending.data() + 1 + e * BEND_EDGE_SIZE;
+    edata[0] = static_cast<double>(edge.fe_A);
+    edata[1] = static_cast<double>(edge.fe_B);
+    edata[2] = edge.local_A[0];
+    edata[3] = edge.local_A[1];
+    edata[4] = edge.local_B[0];
+    edata[5] = edge.local_B[1];
+    edata[6] = stiffness_coeff;
+    edata[7] = dn0[0];
+    edata[8] = dn0[1];
+    edata[9] = dn0[2];
+  }
+}
+
+
 // compiler
 void mjCFlex::Compile(const mjVFS* vfs) {
   CopyFromSpec();
@@ -4316,8 +4558,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (thickness <= 0) {
       throw mjCError(this, "2d elasticity requires positive thickness");
     }
-    if (interpolated && elastic2d != 2) {
-      mju_warning("bending passive force is not implemented for interpolated flex");
+    if (poisson < 0.0 || poisson >= 0.5) {
+      throw mjCError(this, "Poisson ratio must be in [0, 0.5)");
     }
     if (dim != 2 && !interpolated) {
       throw mjCError(this, "2d elasticity requires 2d flex");
@@ -4735,6 +4977,12 @@ void mjCFlex::Compile(const mjVFS* vfs) {
         std::copy(K_elem.begin(), K_elem.end(), out);
       }
     }
+  }
+
+  // compute interpolated shell bending edge data (independent of stiffness cache)
+  if (interpolated && (elastic2d == 1 || elastic2d == 3) && thickness > 0 && young > 0) {
+    ComputeInterpBending(bending, nodexpos_local, spec.order, spec.cellcount,
+                         young, poisson, thickness);
   }
 
   // create bounding volume hierarchy

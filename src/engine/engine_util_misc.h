@@ -116,6 +116,34 @@ MJAPI void mju_flexInterpRotation2D(int order, const mjtNum* xpos_f, int npe,
                                     int axis0, int axis1, int normal_axis,
                                     const mjtNum local[2], mjtNum* quat);
 
+// compute unnormalized surface normal and tangent vectors at a parametric point
+// on a 2D face element; normal = t1 x t2 (unnormalized)
+MJAPI void mju_flexFaceNormal2D(mjtNum normal[3], mjtNum t1[3], mjtNum t2[3],
+                                int order, const mjtNum* xpos_f,
+                                const mjtNum local[2]);
+
+
+// 1D shape function: order 1 (linear) or 2 (quadratic), node index i
+static inline mjtNum mju_flexPhi(mjtNum s, int i, int order) {
+  if (order == 1) return i == 0 ? 1 - s : s;
+  switch (i) {
+    case 0: return 2*s*s - 3*s + 1;
+    case 1: return 4*(s - s*s);
+    case 2: return 2*s*s - s;
+    default: return 0;
+  }
+}
+
+// 1D shape function gradient
+static inline mjtNum mju_flexDphi(mjtNum s, int i, int order) {
+  if (order == 1) return i == 0 ? -1 : 1;
+  switch (i) {
+    case 0: return 4*s - 3;
+    case 1: return 4*(1 - 2*s);
+    case 2: return 4*s - 1;
+    default: return 0;
+  }
+}
 
 // ----------------------------- Base64 ------------------------------------------------------------
 

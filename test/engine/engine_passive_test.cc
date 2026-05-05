@@ -883,5 +883,119 @@ TEST_F(ElasticityTest, ShellModeZeroForceAtRest) {
   mj_deleteModel(m);
 }
 
+// interpolated shell bending must produce zero spring forces at rest
+TEST_F(ElasticityTest, InterpBendingZeroForceAtRest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp type="grid" count="8 8 8" spacing=".07 .07 .07" pos="0 0 1"
+                dim="3" cellcount="2 2 1" radius=".001" rgba="0 .7 .7 1"
+                mass="5" name="softbody" dof="trilinear">
+        <elasticity young="1e4" poisson="0.1" damping="0"
+                    elastic2d="bend" thickness="0.02"/>
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // verify bending data was compiled
+  const mjtNum* bdata = m->flex_bending + m->flex_bendingadr[0];
+  int nedge = (int)bdata[0];
+  EXPECT_GT(nedge, 0) << "no bending edges compiled";
+
+  mj_forward(m, d);
+
+  // all spring forces should be zero at rest
+  for (int i = 0; i < m->nv; i++) {
+    EXPECT_NEAR(d->qfrc_spring[i], 0, 1e-10)
+        << "nonzero spring force at DOF " << i;
+  }
+
+  // verify per-edge bending data
+  int n_flat = 0, n_corner = 0;
+  for (int e = 0; e < nedge; e++) {
+    const mjtNum* edata = bdata + 1 + e * 10;
+    mjtNum stiffness = edata[6];
+    mjtNum dn0[3] = {edata[7], edata[8], edata[9]};
+    mjtNum dn0_norm = mju_norm3(dn0);
+
+    // stiffness must be positive
+    EXPECT_GT(stiffness, 0) << "edge " << e << " has non-positive stiffness";
+
+    if (dn0_norm < 1e-10) {
+      // intra-surface edge: coplanar faces, zero normal jump
+      n_flat++;
+    } else {
+      // corner edge: 90° between perpendicular face normals, |dn0| = sqrt(2)
+      n_corner++;
+      EXPECT_NEAR(dn0_norm, mju_sqrt(2.0), 1e-10)
+          << "corner edge " << e << " has unexpected |dn0|=" << dn0_norm;
+    }
+  }
+
+  // for a 2x2x1 box: 12 intra-surface + 20 corner = 32 edges
+  EXPECT_GT(n_flat, 0) << "no intra-surface edges found";
+  EXPECT_GT(n_corner, 0) << "no corner edges found";
+  EXPECT_EQ(n_flat + n_corner, nedge);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// interpolated shell bending must produce zero forces after a rigid rotation
+TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp type="grid" count="8 8 8" spacing=".07 .07 .07" pos="0 0 1"
+                dim="3" cellcount="2 2 1" radius=".001" rgba="0 .7 .7 1"
+                mass="5" name="softbody" dof="trilinear">
+        <elasticity young="1e4" poisson="0.1" damping="0"
+                    elastic2d="bend" thickness="0.02"/>
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // apply a rigid rotation by setting all body quats to a 30 degree rotation
+  // about z-axis (all flex node bodies get the same rotation)
+  mjtNum angle = 30 * 3.14159265358979 / 180.0;
+  mjtNum sa = mju_sin(angle / 2), ca = mju_cos(angle / 2);
+  for (int b = 1; b < m->nbody; b++) {
+    int qadr = m->jnt_qposadr[m->body_jntadr[b]];
+    if (m->body_jntnum[b] > 0 && m->jnt_type[m->body_jntadr[b]] == mjJNT_FREE) {
+      d->qpos[qadr + 3] = ca;
+      d->qpos[qadr + 4] = 0;
+      d->qpos[qadr + 5] = 0;
+      d->qpos[qadr + 6] = sa;
+    }
+  }
+
+  mj_forward(m, d);
+
+  // spring forces should still be zero (or very small) after rigid rotation
+  for (int i = 0; i < m->nv; i++) {
+    EXPECT_NEAR(d->qfrc_spring[i], 0, 1e-6)
+        << "nonzero spring force at DOF " << i << " after rigid rotation";
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco

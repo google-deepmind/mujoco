@@ -33,7 +33,6 @@
       <flexcomp type="grid" count="9 19 1" spacing=".05 .05 .05" mass="10"
                 name="flag" radius="0.001">
         <edge equality="true" damping="0.001"/>
-        <elasticity poisson="0" thickness="1e-2" young="3e6" elastic2d="none"/>
       </flexcomp>
     </body>
   </worldbody>

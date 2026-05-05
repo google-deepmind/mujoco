@@ -533,47 +533,9 @@ void mju_camPixelRay(mjtNum origin[3], mjtNum direction[3],
 
 // ----------------------------- flex interpolation ------------------------------------------------
 
-mjtNum static inline phi(mjtNum s, int i, int order) {
-  if (order == 1) {
-    return i == 0 ? 1 - s : s;
-  } else if (order == 2) {
-    switch (i) {
-      case 0:
-        return 2 * s * s - 3 * s + 1;
-      case 1:
-        return 4 * (s - s * s);
-      case 2:
-        return 2 * s * s - s;
-      default:
-        mjERROR("invalid index %d", i);
-        return 0;
-    }
-  } else {
-    mjERROR("order must be 1 or 2");
-    return 0;
-  }
-}
-
-mjtNum static inline dphi(mjtNum s, int i, int order) {
-  if (order == 1) {
-    return i == 0 ? -1 : 1;
-  } else if (order == 2) {
-    switch (i) {
-      case 0:
-        return 4 * s - 3;
-      case 1:
-        return 4 * (1 - 2 * s);
-      case 2:
-        return 4 * s - 1;
-      default:
-        mjERROR("invalid index %d, must be 0, 1, or 2", i);
-        return 0;
-    }
-  } else {
-    mjERROR("order must be 1 or 2");
-    return 0;
-  }
-}
+// use shared shape functions from engine_util_misc.h
+#define phi mju_flexPhi
+#define dphi mju_flexDphi
 
 // evaluate the deformation gradient at p using the nodal dof values
 void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int order) {
@@ -850,6 +812,29 @@ void mju_flexGatherFaceState(int order, int cx, int cy, int cz,
     mjtNum p[2] = {.5, .5};
     mju_flexInterpRotation2D(order, xpos_f, npe, na0, na1, normal_axis, p, quat);
   }
+}
+
+
+// compute unnormalized surface normal and tangent vectors at a parametric point
+// on a 2D face element; normal = t1 x t2 (unnormalized)
+void mju_flexFaceNormal2D(mjtNum normal[3], mjtNum t1[3], mjtNum t2[3],
+                          int order, const mjtNum* xpos_f,
+                          const mjtNum local[2]) {
+  mju_zero3(t1);
+  mju_zero3(t2);
+  int idx = 0;
+  for (int l0 = 0; l0 <= order; l0++) {
+    for (int l1 = 0; l1 <= order; l1++) {
+      mjtNum grad0 = dphi(local[0], l0, order) *  phi(local[1], l1, order);
+      mjtNum grad1 =  phi(local[0], l0, order) * dphi(local[1], l1, order);
+      for (int d = 0; d < 3; d++) {
+        t1[d] += xpos_f[3*idx + d] * grad0;
+        t2[d] += xpos_f[3*idx + d] * grad1;
+      }
+      idx++;
+    }
+  }
+  mju_cross(normal, t1, t2);
 }
 
 
