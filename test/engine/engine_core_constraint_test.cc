@@ -710,7 +710,9 @@ TEST_F(CoreConstraintTest, ShellModeBendZeroForceAtRest) {
   EXPECT_EQ(m->neq, 6);
 
   // Check total number of scalar equality constraints
-  EXPECT_EQ(d->ne, 48);  // 6 faces * 8 modes per face
+  // 6 faces * 6 physical modes per face = 36
+  // (2 spurious rigid-rotation modes from transverse shear are projected out)
+  EXPECT_EQ(d->ne, 36);
 
   // all constraint residuals should be zero at rest
   for (int i = 0; i < d->ne; i++) {

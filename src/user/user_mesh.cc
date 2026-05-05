@@ -3904,9 +3904,16 @@ void inline ComputeLinearStiffness2D(std::vector<double>& K,
 // Output layout in `out`:
 //   [0]: neig (as double)
 //   [1 .. neig*n]: sqrt(λ_phys_i) * v_i, row-major
+// If pos is non-null (3*npe doubles), rigid body modes are projected out of
+// each eigenvector to prevent ghost damping in the constraint solver.  The
+// constraint Jacobian freezes the corotational frame, so eigenvectors aligned
+// with rigid rotation patterns produce spurious velocity-level forces.
 // Returns number of retained eigenmodes.
 static int EigendecomposeStiffness(const double* K_cell_data,
-                                   double* out, int ndof) {
+                                   double* out, int ndof,
+                                   const double* pos) {
+  int npe = ndof / 3;
+
   // copy K_cell for in-place decomposition
   std::vector<double> mat(K_cell_data, K_cell_data + ndof * ndof);
   std::vector<double> eigval(ndof);
@@ -3914,25 +3921,136 @@ static int EigendecomposeStiffness(const double* K_cell_data,
 
   mjuu_eigendecompose(mat.data(), eigval.data(), eigvec.data(), ndof);
 
+  // build orthonormal rigid body modes for projection
+  // 6 modes: 3 translations + 3 rotations about centroid
+  const int kMaxRigid = 6;
+  std::vector<double> rigid(pos ? kMaxRigid * ndof : 0, 0);
+
+  if (pos) {
+    // compute centroid
+    double centroid[3] = {0, 0, 0};
+    for (int n = 0; n < npe; n++) {
+      for (int k = 0; k < 3; k++) {
+        centroid[k] += pos[3*n + k];
+      }
+    }
+    for (int k = 0; k < 3; k++) {
+      centroid[k] /= npe;
+    }
+
+    // translation modes: uniform displacement along each axis
+    for (int n = 0; n < npe; n++) {
+      rigid[0*ndof + 3*n + 0] = 1;
+      rigid[1*ndof + 3*n + 1] = 1;
+      rigid[2*ndof + 3*n + 2] = 1;
+    }
+
+    // rotation modes: e_axis × (pos_n - centroid)
+    for (int n = 0; n < npe; n++) {
+      double rx = pos[3*n + 0] - centroid[0];
+      double ry = pos[3*n + 1] - centroid[1];
+      double rz = pos[3*n + 2] - centroid[2];
+
+      // rotation about x: [0, -rz, ry]
+      rigid[3*ndof + 3*n + 1] = -rz;
+      rigid[3*ndof + 3*n + 2] =  ry;
+
+      // rotation about y: [rz, 0, -rx]
+      rigid[4*ndof + 3*n + 0] =  rz;
+      rigid[4*ndof + 3*n + 2] = -rx;
+
+      // rotation about z: [-ry, rx, 0]
+      rigid[5*ndof + 3*n + 0] = -ry;
+      rigid[5*ndof + 3*n + 1] =  rx;
+    }
+
+    // orthonormalize via modified Gram-Schmidt
+    for (int i = 0; i < kMaxRigid; i++) {
+      double* ri = rigid.data() + i * ndof;
+      for (int j = 0; j < i; j++) {
+        const double* rj = rigid.data() + j * ndof;
+        double dot = 0;
+        for (int k = 0; k < ndof; k++) {
+          dot += ri[k] * rj[k];
+        }
+        for (int k = 0; k < ndof; k++) {
+          ri[k] -= dot * rj[k];
+        }
+      }
+      double norm2 = 0;
+      for (int k = 0; k < ndof; k++) {
+        norm2 += ri[k] * ri[k];
+      }
+      if (norm2 > 1e-20) {
+        double inv_norm = 1.0 / std::sqrt(norm2);
+        for (int k = 0; k < ndof; k++) {
+          ri[k] *= inv_norm;
+        }
+      } else {
+        // degenerate mode (e.g., collinear nodes): zero out
+        std::fill(ri, ri + ndof, 0.0);
+      }
+    }
+  }
+
   // K_stored = -K_physical, so physical eigenvalue = -eigval[i]
   // retain modes where physical eigenvalue > threshold
   double max_eigval = 0;
   for (int i = 0; i < ndof; i++) {
     max_eigval = std::max(max_eigval, std::abs(eigval[i]));
   }
-  double threshold = max_eigval * 1e-8;
 
+  double threshold = max_eigval * 1e-8;
   int neig = 0;
   for (int i = 0; i < ndof; i++) {
     double lambda_phys = -eigval[i];  // negate to get physical eigenvalue
     if (lambda_phys > threshold) {
       // store sqrt(λ) * eigenvector (column i of eigvec matrix)
       double scale = std::sqrt(lambda_phys);
+      double* w = out + 1 + neig * ndof;
       for (int j = 0; j < ndof; j++) {
-        out[1 + neig * ndof + j] = scale * eigvec[j * ndof + i];
+        w[j] = scale * eigvec[j * ndof + i];
       }
+
+      // project out rigid body components
+      if (pos) {
+        for (int r = 0; r < kMaxRigid; r++) {
+          const double* rr = rigid.data() + r * ndof;
+          double dot = 0;
+          for (int j = 0; j < ndof; j++) {
+            dot += w[j] * rr[j];
+          }
+          for (int j = 0; j < ndof; j++) {
+            w[j] -= dot * rr[j];
+          }
+        }
+
+        // discard if projected norm is negligible relative to original
+        double norm2 = 0;
+        for (int j = 0; j < ndof; j++) {
+          norm2 += w[j] * w[j];
+        }
+        if (norm2 < lambda_phys * 1e-6) {
+          continue;  // mode was mostly rigid body: skip
+        }
+      }
+
       neig++;
+
+      // guard: eigendecomposed data must fit within ndof*ndof slot
+      // (guaranteed by rigid-body projection discarding >= 6 modes)
+      if (1 + neig * ndof > ndof * ndof) {
+        mju_error("EigendecomposeStiffness: output size %d exceeds buffer %d",
+                  1 + neig * ndof, ndof * ndof);
+      }
     }
+  }
+
+  // check that enough modes were discarded (rigid body + numerical artifacts)
+  // for 3D elements: expect ndof - neig == 6
+  if (pos && ndof - neig != kMaxRigid) {
+    mju_warning("EigendecomposeStiffness: only %d modes discarded, expected "
+                "at least %d rigid body modes", ndof - neig, kMaxRigid);
   }
 
   out[0] = static_cast<double>(neig);
@@ -4611,7 +4729,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       if (has_strain_eq) {
         // eigendecompose: store [neig, sqrt(λ)*v_1, sqrt(λ)*v_2, ...]
         std::fill(out, out + ndof_elem * ndof_elem, 0.0);
-        EigendecomposeStiffness(K_elem.data(), out, ndof_elem);
+        EigendecomposeStiffness(K_elem.data(), out, ndof_elem, elem_pos.data());
       } else {
         // store raw K for passive forces
         std::copy(K_elem.begin(), K_elem.end(), out);

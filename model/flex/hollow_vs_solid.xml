@@ -24,7 +24,7 @@
             solref="0.001 1" friction="2 0.1 0.1"/>
       <joint type="slide" axis="0 0 1" range="-1 1"/>
       <default class="finger">
-        <geom size="0.06 0.01 0.05"/>
+        <geom size="0.01 0.06 0.03"/>
         <joint type="slide" range="0 0.1"/>
       </default>
     </default>
@@ -51,7 +51,7 @@
         type="grid" name="soft_mesh_2" dim="3" spacing=".025 .05 .025"
         mass="0.43" radius="0.005" dof="trilinear" rgba="0.9 0.7 0.7 1">
         <elasticity young="0" poisson="0.3" damping="0.01" elastic2d="bend" thickness="0.03"/>
-        <edge equality="strain" solref="0.001 1"/>
+        <edge equality="strain" solref="0.001 1" solimp="0.99 0.999 0.001"/>
         <contact selfcollide="none"
               internal="false"
               friction="2.0 0.5 0.01"
