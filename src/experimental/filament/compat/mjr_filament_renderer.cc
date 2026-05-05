@@ -27,8 +27,8 @@
 #include "experimental/filament/compat/scene_bridge.h"
 #include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/model_util.h"
-#include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/render_context_filament_cpp.h"
 
 namespace mujoco {
 
@@ -43,10 +43,10 @@ void MjrFilamentRenderer::Init(const mjModel* model) {
   mjr_defaultRenderRequest(&render_requests_[0]);
   mjr_defaultRenderRequest(&render_requests_[1]);
 
-  render_requests_[0].scene = scene_bridge_->GetSceneView();
+  render_requests_[0].scene = scene_bridge_->GetScene();
   render_requests_[0].draw_mode = mjDRAW_MODE_COLOR;
 
-  render_requests_[1].scene = imgui_bridge_->GetSceneView();
+  render_requests_[1].scene = imgui_bridge_->GetScene();
   render_requests_[1].draw_mode = mjDRAW_MODE_COLOR;
 
   // The UX camera is a fixed orthographic camera. We only need to change the
@@ -135,8 +135,7 @@ void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
     config.height = viewport.height;
     config.color_format = mjPIXEL_FORMAT_RGB8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-    auto target =
-        std::make_unique<RenderTarget>(filament_context_.get(), config);
+    auto target = CreateRenderTarget(filament_context_.get(), config);
     render_requests_[0].target = target.get();
     render_requests_[1].target = target.get();
 
@@ -158,11 +157,11 @@ void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
   if (depth) {
     mjrRenderTargetConfig config;
     mjr_defaultRenderTargetConfig(&config);
+    config.width = viewport.width;
+    config.height = viewport.height;
     config.color_format = mjPIXEL_FORMAT_R32F;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-    auto target =
-        std::make_unique<RenderTarget>(filament_context_.get(), config);
-    target->Prepare(viewport.width, viewport.height);
+    auto target = CreateRenderTarget(filament_context_.get(), config);
     render_requests_[0].target = target.get();
     render_requests_[1].target = target.get();
 

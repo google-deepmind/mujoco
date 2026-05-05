@@ -19,8 +19,6 @@
 #include <string_view>
 #include <utility>
 
-#include <filament/Options.h>
-#include <filament/View.h>
 #include <math/TMatHelpers.h>
 #include <math/mat4.h>
 #include <math/mathfwd.h>
@@ -31,16 +29,13 @@
 #include "experimental/filament/compat/imgui_bridge.h"
 #include "experimental/filament/compat/model_objects.h"
 #include "experimental/filament/compat/scene_geom_util.h"
-#include "experimental/filament/filament/color_grading_options.h"
 #include "experimental/filament/filament/filament_context.h"
-#include "experimental/filament/filament/light.h"
+#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/model_util.h"
-#include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/scene_view.h"
-#include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/render_context_filament_cpp.h"
 
 namespace mujoco {
 
@@ -49,14 +44,14 @@ using filament::math::float4;
 using filament::math::mat3;
 using filament::math::mat4;
 
-static std::unique_ptr<Texture> CreateFallbackIndirectLightTexture(
-    FilamentContext* ctx, std::string_view filename = "") {
+static UniquePtr<mjrTexture> CreateFallbackIndirectLightTexture(
+    mjrfContext* ctx, std::string_view filename = "") {
   if (filename.empty()) {
     filename = ObjectManager::kDefaultEnvironmentLight;
   }
 
   std::unique_ptr<ObjectManager::Asset> asset =
-      ctx->GetObjectManager()->LoadAsset(filename);
+      FilamentContext::downcast(ctx)->GetObjectManager()->LoadAsset(filename);
 
   mjrTextureConfig config;
   mjr_defaultTextureConfig(&config);
@@ -66,7 +61,7 @@ static std::unique_ptr<Texture> CreateFallbackIndirectLightTexture(
   config.format = mjPIXEL_FORMAT_KTX;
   config.color_space = mjCOLORSPACE_AUTO;
 
-  auto texture = std::make_unique<Texture>(ctx, config);
+  auto texture = CreateTexture(ctx, config);
 
   mjrTextureData payload;
   mjr_defaultTextureData(&payload);
@@ -77,20 +72,20 @@ static std::unique_ptr<Texture> CreateFallbackIndirectLightTexture(
   };
   payload.user_data = asset.release();
 
-  texture->Upload(payload);
+  mjrf_setTextureData(texture.get(), &payload);
   return texture;
 }
 
-SceneBridge::SceneBridge(FilamentContext* ctx, const mjModel* model)
+SceneBridge::SceneBridge(mjrfContext* ctx, const mjModel* model)
     : ctx_(ctx) {
   mjrSceneParams params;
   mjr_defaultSceneParams(&params);
   params.layer_mask = mjCAT_ALL;
   params.reflection_layer_mask = mjCAT_DYNAMIC | mjCAT_STATIC;
-  scene_view_ = std::make_unique<SceneView>(ctx_, params);
+  scene_ = CreateScene(ctx_, params);
   model_objects_ = std::make_unique<ModelObjects>(model, ctx_);
 
-  scene_view_->Configure(model);
+  mjrf_configureSceneFromModel(scene_.get(), model);
 
   default_shadow_map_size_ = ReadElement(
       model, "filament.shadows.map_size", default_shadow_map_size_);
@@ -111,15 +106,15 @@ SceneBridge::SceneBridge(FilamentContext* ctx, const mjModel* model)
 
 SceneBridge::~SceneBridge() {
   for (auto& iter : lights_) {
-    scene_view_->RemoveFromScene(iter.get());
+    mjrf_removeLightFromScene(scene_.get(), iter.get());
   }
   lights_.clear();
   if (fallback_ibl_) {
-    scene_view_->RemoveFromScene(fallback_ibl_.get());
+    mjrf_removeLightFromScene(scene_.get(), fallback_ibl_.get());
   }
   fallback_ibl_.reset();
   for (auto& iter : renderables_) {
-    scene_view_->RemoveFromScene(iter.get());
+    mjrf_removeRenderableFromScene(scene_.get(), iter.get());
   }
   renderables_.clear();
 }
@@ -127,14 +122,14 @@ SceneBridge::~SceneBridge() {
 void SceneBridge::SetEnvironmentLight(std::string_view filename,
                                       float intensity) {
   for (auto& light : lights_) {
-    if (light->GetType() == mjLIGHT_IMAGE) {
-      scene_view_->RemoveFromScene(light.get());
+    if (mjrf_getLightType(light.get()) == mjLIGHT_IMAGE) {
+      mjrf_removeLightFromScene(scene_.get(), light.get());
       light.reset();
       break;
     }
   }
   if (fallback_ibl_) {
-    scene_view_->RemoveFromScene(fallback_ibl_.get());
+    mjrf_removeLightFromScene(scene_.get(), fallback_ibl_.get());
     fallback_ibl_.reset();
   }
 
@@ -145,8 +140,8 @@ void SceneBridge::SetEnvironmentLight(std::string_view filename,
   params.type = mjLIGHT_IMAGE;
   params.texture = fallback_ibl_texture_.get();
   params.intensity = intensity;
-  fallback_ibl_ = std::make_unique<Light>(ctx_, params);
-  scene_view_->AddToScene(fallback_ibl_.get());
+  fallback_ibl_ = CreateLight(ctx_, params);
+  mjrf_addLightToScene(scene_.get(), fallback_ibl_.get());
 }
 
 std::optional<float3> SceneBridge::ClipFromWorld(const float3& pos) const{
@@ -171,8 +166,8 @@ void SceneBridge::PrepareLights() {
       params.type = mjLIGHT_IMAGE;
       params.texture = model_objects_->GetTexture(model->light_texid[i]);
       params.intensity = model->light_intensity[i];
-      auto light_obj = std::make_unique<Light>(ctx_, params);
-      scene_view_->AddToScene(light_obj.get());
+      auto light_obj = CreateLight(ctx_, params);
+      mjrf_addLightToScene(scene_.get(), light_obj.get());
       lights_.emplace_back(std::move(light_obj));
       has_image_based_light = true;
     } else {
@@ -192,8 +187,8 @@ void SceneBridge::PrepareLights() {
         params.spot_cone_angle = model->light_cutoff[i];
       }
 
-      auto light_obj = std::make_unique<Light>(ctx_, params);
-      scene_view_->AddToScene(light_obj.get());
+      auto light_obj = CreateLight(ctx_, params);
+      mjrf_addLightToScene(scene_.get(), light_obj.get());
       lights_.emplace_back(std::move(light_obj));
     }
   }
@@ -212,8 +207,8 @@ void SceneBridge::PrepareLights() {
     params.cast_shadows = 0;
     params.intensity = 0.0f;
     params.spot_cone_angle = 90.0f;
-    auto light_obj = std::make_unique<Light>(ctx_, params);
-    scene_view_->AddToScene(light_obj.get());
+    auto light_obj = CreateLight(ctx_, params);
+    mjrf_addLightToScene(scene_.get(), light_obj.get());
     lights_.emplace_back(std::move(light_obj));
   }
 
@@ -224,8 +219,8 @@ void SceneBridge::PrepareLights() {
     mjr_defaultLightParams(&params);
     params.type = mjLIGHT_IMAGE;
     params.intensity = 10.0f;
-    fallback_ibl_ = std::make_unique<Light>(ctx_, params);
-    scene_view_->AddToScene(fallback_ibl_.get());
+    fallback_ibl_ = CreateLight(ctx_, params);
+    mjrf_addLightToScene(scene_.get(), fallback_ibl_.get());
   }
 
   // There are no "physical" lights in the scene which means we're likely
@@ -240,21 +235,22 @@ void SceneBridge::PrepareLights() {
     params.type = mjLIGHT_IMAGE;
     params.texture = fallback_ibl_texture_.get();
     params.intensity = fallback_environment_light_intensity_;
-    fallback_ibl_ = std::make_unique<Light>(ctx_, params);
-    scene_view_->AddToScene(fallback_ibl_.get());
+    fallback_ibl_ = CreateLight(ctx_, params);
+    mjrf_addLightToScene(scene_.get(), fallback_ibl_.get());
 
     // Distribute the fallback scene light intensity among the lights.
     const float intensity = fallback_scene_light_intensity_ / lights_.size();
     for (auto& light : lights_) {
       if (light) {
         const bool is_headlight = (light == lights_.back());
-        light->SetIntensity(is_headlight ? fallback_head_light_intensity_
-                                         : intensity);
+        mjrf_setLightIntensity(light.get(),
+                               is_headlight ? fallback_head_light_intensity_
+                                            : intensity);
       }
     }
   }
 
-  scene_view_->SetSkybox(model_objects_->GetSkyboxTexture());
+  mjrf_setSceneSkybox(scene_.get(), model_objects_->GetSkyboxTexture());
 }
 
 mat4 CalculateClipFromWorld(const mjrRect& viewport, const mjvGLCamera& cam) {
@@ -285,16 +281,8 @@ mat4 CalculateClipFromWorld(const mjrRect& viewport, const mjvGLCamera& cam) {
 }
 
 void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
-  if (scene->flags[mjRND_SHADOW]) {
-    scene_view_->EnableShadows();
-  } else {
-    scene_view_->DisableShadows();
-  }
-  if (scene->flags[mjRND_REFLECTION]) {
-    scene_view_->EnableReflections();
-  } else {
-    scene_view_->DisableReflections();
-  }
+  mjrf_setSceneShadowsEnabled(scene_.get(), scene->flags[mjRND_SHADOW]);
+  mjrf_setSceneReflectionsEnabled(scene_.get(), scene->flags[mjRND_REFLECTION]);
 
   mjtNum hpos[3], hfwd[3];
   float headpos[3], gazedir[3];
@@ -308,7 +296,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
 
   // Remove all drawables from previous render and prepare new ones.
   for (auto& iter : renderables_) {
-    scene_view_->RemoveFromScene(iter.get());
+    mjrf_removeRenderableFromScene(scene_.get(), iter.get());
   }
   renderables_.clear();
   for (int i = 0; i < scene->ngeom; ++i) {
@@ -324,10 +312,10 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       model_objects_->CreateSkinFlexMesh(scene, *geom);
     }
 
-    std::unique_ptr<Renderable> renderable = CreateGeomRenderable(
+    UniquePtr<mjrRenderable> renderable = CreateGeomRenderable(
         *geom, scene, ctx_, model_objects_.get(), headpos);
 
-    scene_view_->AddToScene(renderable.get());
+    mjrf_addRenderableToScene(scene_.get(), renderable.get());
     renderables_.push_back(std::move(renderable));
   }
 
@@ -343,16 +331,15 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       headpos[2] -= gazedir[2] * 0.05f;
 
       // The headlight is always the "back" light.
-      std::unique_ptr<Light>& light = lights_.back();
-      light->SetColor(ReadFloat3(scene_light.diffuse));
-      light->SetTransform(ReadFloat3(headpos), ReadFloat3(gazedir));
+      UniquePtr<mjrLight>& light = lights_.back();
+      mjrf_setLightColor(light.get(), scene_light.diffuse);
+      mjrf_setLightTransform(light.get(), headpos, gazedir);
       continue;
     } else if (scene_light.id < lights_.size() - 1) {
-      std::unique_ptr<Light>& light = lights_[scene_light.id];
+      UniquePtr<mjrLight>& light = lights_[scene_light.id];
       if (light) {
-        light->SetColor(ReadFloat3(scene_light.diffuse));
-        light->SetTransform(ReadFloat3(scene_light.pos),
-                            ReadFloat3(scene_light.dir));
+        mjrf_setLightColor(light.get(), scene_light.diffuse);
+        mjrf_setLightTransform(light.get(), scene_light.pos, scene_light.dir);
       }
     } else {
       mju_error("Unexpected light id: %d", scene_light.id);
@@ -360,11 +347,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
   }
 
   // Enable/disable the headlight based on whether or not it's in the scene.
-  if (headlight_enabled) {
-    lights_.back()->Enable();
-  } else {
-    lights_.back()->Disable();
-  }
+  mjrf_setLightEnabled(lights_.back().get(), headlight_enabled);
 }
 
 void SceneBridge::UploadMesh(const mjModel* model, int id) {

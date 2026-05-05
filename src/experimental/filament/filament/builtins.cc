@@ -28,6 +28,7 @@
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/render_context_filament_cpp.h"
 
 namespace mujoco {
 
@@ -64,15 +65,14 @@ class BuiltinBuilder : public mjrMeshData {
   virtual ~BuiltinBuilder() = default;
 
   template <typename T, typename... Args>
-  static std::unique_ptr<Mesh> Create(FilamentContext* ctx,
-                                      Args&&... args) {
+  static UniquePtr<mjrMesh> Create(mjrfContext* ctx, Args&&... args) {
     auto builder = new T(std::forward<Args>(args)...);
     mjrMeshData* mesh_data = builder->PrepareMeshData();
     mesh_data->release_callback = +[](void* user_data) {
       delete static_cast<BuiltinBuilder*>(user_data);
     };
     mesh_data->user_data = builder;
-    return std::make_unique<Mesh>(ctx, *mesh_data);
+    return CreateMesh(ctx, *mesh_data);
   }
 
   mjrMeshData* PrepareMeshData() {
@@ -617,43 +617,43 @@ class DomeBuilder : public BuiltinBuilder {
   }
 };
 
-std::unique_ptr<Mesh> CreateLine(FilamentContext* ctx) {
+UniquePtr<mjrMesh> CreateLine(mjrfContext* ctx) {
   return BuiltinBuilder::Create<LineBuilder>(ctx);
 }
 
-std::unique_ptr<Mesh> CreatePlane(FilamentContext* ctx, int nquad) {
+UniquePtr<mjrMesh> CreatePlane(mjrfContext* ctx, int nquad) {
   return BuiltinBuilder::Create<PlaneBuilder>(ctx, nquad);
 }
 
-std::unique_ptr<Mesh> CreateTriangle(FilamentContext* ctx) {
+UniquePtr<mjrMesh> CreateTriangle(mjrfContext* ctx) {
   return BuiltinBuilder::Create<TriangleBuilder>(ctx);
 }
 
-std::unique_ptr<Mesh> CreateBox(FilamentContext* ctx, int nquad) {
+UniquePtr<mjrMesh> CreateBox(mjrfContext* ctx, int nquad) {
   return BuiltinBuilder::Create<BoxBuilder>(ctx, nquad);
 }
 
-std::unique_ptr<Mesh> CreateLineBox(FilamentContext* ctx) {
+UniquePtr<mjrMesh> CreateLineBox(mjrfContext* ctx) {
   return BuiltinBuilder::Create<LineBoxBuilder>(ctx);
 }
 
-std::unique_ptr<Mesh> CreateSphere(FilamentContext* ctx, int nstack, int nslice) {
+UniquePtr<mjrMesh> CreateSphere(mjrfContext* ctx, int nstack, int nslice) {
   return BuiltinBuilder::Create<SphereBuilder>(ctx, nstack, nslice);
 }
 
-std::unique_ptr<Mesh> CreateTube(FilamentContext* ctx, int nstack, int nslice) {
+UniquePtr<mjrMesh> CreateTube(mjrfContext* ctx, int nstack, int nslice) {
   return BuiltinBuilder::Create<TubeBuilder>(ctx, nstack, nslice);
 }
 
-std::unique_ptr<Mesh> CreateDisk(FilamentContext* ctx, int nslice) {
+UniquePtr<mjrMesh> CreateDisk(mjrfContext* ctx, int nslice) {
   return BuiltinBuilder::Create<DiskBuilder>(ctx, nslice);
 }
 
-std::unique_ptr<Mesh> CreateDome(FilamentContext* ctx, int nstack, int nslice) {
+UniquePtr<mjrMesh> CreateDome(mjrfContext* ctx, int nstack, int nslice) {
   return BuiltinBuilder::Create<DomeBuilder>(ctx, nstack, nslice);
 }
 
-std::unique_ptr<Mesh> CreateCone(FilamentContext* ctx, int nstack, int nslice) {
+UniquePtr<mjrMesh> CreateCone(mjrfContext* ctx, int nstack, int nslice) {
   return BuiltinBuilder::Create<ConeBuilder>(ctx, nstack, nslice);
 }
 

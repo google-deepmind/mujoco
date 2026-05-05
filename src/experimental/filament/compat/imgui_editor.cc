@@ -651,7 +651,7 @@ void DrawLightGui(filament::LightManager& lm,
 }
 
 void DrawGui(SceneBridge* scene_bridge) {
-  SceneView* scene_view = scene_bridge->GetSceneView();
+  SceneView* scene_view = SceneView::downcast(scene_bridge->GetScene());
   filament::View* view = scene_view->GetDefaultRenderView();
   filament::Engine* engine = scene_view->GetEngine();
   filament::LightManager& lm = engine->getLightManager();

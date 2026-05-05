@@ -18,31 +18,28 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include <imgui.h>
 #include <math/mat3.h>
 #include <math/vec3.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/filament_context.h"
-#include "experimental/filament/filament/mesh.h"
-#include "experimental/filament/filament/renderable.h"
-#include "experimental/filament/filament/scene_view.h"
-#include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/render_context_filament_cpp.h"
 
 namespace mujoco {
 
 using filament::math::float3;
 using filament::math::mat3f;
 
-ImguiBridge::ImguiBridge(FilamentContext* ctx) : ctx_(ctx) {
+ImguiBridge::ImguiBridge(mjrfContext* ctx) : ctx_(ctx) {
   mjrSceneParams params;
   mjr_defaultSceneParams(&params);
   params.enable_post_processing = false;
   params.enable_reflections = false;
   params.enable_shadows = false;
-  scene_view_ = std::make_unique<SceneView>(ctx_, params);
+  scene_ = CreateScene(ctx_, params);
 }
 
 ImguiBridge::~ImguiBridge() {
@@ -77,12 +74,12 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
     tex_id = next_tex_id_++;
   }
 
-  std::unique_ptr<Texture>& texture = textures_[tex_id];
+  mjrTexture* texture = GetTexture(tex_id);
 
   // If the texture does not exist or the dimensions have changed, we create a
   // new texture.
-  if (texture == nullptr || texture->GetWidth() != width ||
-      texture->GetHeight() != height) {
+  if (texture == nullptr || mjrf_getTextureWidth(texture) != width ||
+      mjrf_getTextureHeight(texture) != height) {
     mjrTextureConfig config;
     mjr_defaultTextureConfig(&config);
     config.width = width;
@@ -90,7 +87,9 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
     config.target = mjTEXTURE_2D;
     config.format = bpp == 4 ? mjPIXEL_FORMAT_RGBA8 : mjPIXEL_FORMAT_RGB8;
     config.color_space = mjCOLORSPACE_LINEAR;
-    texture = std::make_unique<Texture>(ctx_, config);
+    UniquePtr<mjrTexture> new_texture = ::mujoco::CreateTexture(ctx_, config);
+    texture = new_texture.get();
+    textures_.insert_or_assign(tex_id, std::move(new_texture));
   }
 
   // Create a copy of the image to pass it to filament as we don't know the
@@ -108,7 +107,7 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   texture_data.release_callback = callback;
 
   std::memcpy(bytes, pixels, num_bytes);
-  texture->Upload(texture_data);
+  mjrf_setTextureData(texture, &texture_data);
   return tex_id;
 }
 
@@ -126,7 +125,7 @@ void ImguiBridge::CreateTexture(ImTextureData* data) {
   config.color_space = mjCOLORSPACE_LINEAR;
 
   const uintptr_t tex_id = next_tex_id_++;
-  textures_[tex_id] = std::make_unique<Texture>(ctx_, config);
+  textures_.insert_or_assign(tex_id, ::mujoco::CreateTexture(ctx_, config));
   data->SetTexID((ImTextureID)tex_id);
   UpdateTexture(data);
 }
@@ -143,7 +142,7 @@ void ImguiBridge::UpdateTexture(ImTextureData* data) {
   texture_data.nbytes = data->Width * data->Height * 4;
   texture_data.user_data = nullptr;
   texture_data.release_callback = nullptr;
-  iter->second->Upload(texture_data);
+  mjrf_setTextureData(iter->second.get(), &texture_data);
   data->SetStatus(ImTextureStatus_OK);
 }
 
@@ -154,6 +153,14 @@ void ImguiBridge::DestroyTexture(ImTextureData* data) {
     data->SetTexID(ImTextureID_Invalid);
     data->SetStatus(ImTextureStatus_Destroyed);
   }
+}
+
+mjrTexture* ImguiBridge::GetTexture(uintptr_t tex_id) const {
+  auto iter = textures_.find(tex_id);
+  if (iter == textures_.end()) {
+    return nullptr;
+  }
+  return iter->second.get();
 }
 
 void ImguiBridge::Update() {
@@ -233,21 +240,22 @@ void ImguiBridge::Update() {
     data.indices = cmds->IdxBuffer.Data;
     data.index_type = mjINDEX_TYPE_U16;
     data.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-    meshes_.push_back(std::make_unique<Mesh>(ctx_, data));
+    meshes_.push_back(CreateMesh(ctx_, data));
 
-    const Mesh* mesh = meshes_.back().get();
+    const mjrMesh* mesh = meshes_.back().get();
 
     int index_offset = 0;
     for (const ImDrawCmd& command : cmds->CmdBuffer) {
       const int width = size.x * scale.x;
       const int height = size.y * scale.y;
 
-      auto& renderable = renderables_[renderable_index];
-      renderable->SetMesh(mesh, index_offset, command.ElemCount);
+      UniquePtr<mjrRenderable>& renderable = renderables_[renderable_index];
+      mjrf_setRenderableMesh(renderable.get(), mesh, index_offset,
+                             command.ElemCount);
 
       mjrMaterialTextures textures;
       mjr_defaultMaterialTextures(&textures);
-      textures.color = textures_[command.GetTexID()].get();
+      textures.color = GetTexture(command.GetTexID());
 
       mjrMaterialParams properties;
       mjr_defaultMaterialParams(&properties);
@@ -264,9 +272,12 @@ void ImguiBridge::Update() {
         properties.scissor[2] = width;
         properties.scissor[3] = height;
       }
-      renderable->UpdateMaterial(properties, textures);
-      renderable->SetTransform(
-          {float3{0, 0, 0}, mat3f(), float3(scale.x, scale.y, 1.0f)});
+      mjrf_setRenderableMaterial(renderable.get(), &properties, &textures);
+
+      const float position[] = {0, 0, 0};
+      const float rotation[] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+      const float size[] = {scale.x, scale.y, 1.0f};
+      mjrf_setRenderableTransform(renderable.get(), position, rotation, size);
 
       index_offset += command.ElemCount;
       ++renderable_index;
@@ -279,15 +290,14 @@ void ImguiBridge::PrepareRenderables(int count) {
     mjrRenderableParams params;
     mjr_defaultRenderableParams(&params);
     params.shading_model = mjSHADING_MODEL_UX;
-    auto& r =
-        renderables_.emplace_back(std::make_unique<Renderable>(ctx_, params));
-    r->SetCastShadows(false);
-    r->SetReceiveShadows(false);
-    r->SetBlendOrder(static_cast<std::uint16_t>(renderables_.size()));
-    scene_view_->AddToScene(r.get());
+    params.cast_shadows = false;
+    params.receive_shadows = false;
+    params.blend_order = static_cast<std::uint16_t>(renderables_.size() + 1);
+    auto& renderable = renderables_.emplace_back(CreateRenderable(ctx_, params));
+    mjrf_addRenderableToScene(scene_.get(), renderable.get());
   }
   while (renderables_.size() > count) {
-    scene_view_->RemoveFromScene(renderables_.back().get());
+    mjrf_removeRenderableFromScene(scene_.get(), renderables_.back().get());
     renderables_.pop_back();
   }
 }

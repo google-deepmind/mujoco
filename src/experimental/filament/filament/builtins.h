@@ -15,24 +15,22 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_BUILTINS_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_BUILTINS_H_
 
-#include <memory>
-
-#include "experimental/filament/filament/filament_context.h"
-#include "experimental/filament/filament/mesh.h"
+#include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/render_context_filament_cpp.h"
 
 // Generates buffers for built-in shapes.
 namespace mujoco {
 
-std::unique_ptr<Mesh> CreateLine(FilamentContext* ctx);
-std::unique_ptr<Mesh> CreatePlane(FilamentContext* ctx, int nquad);
-std::unique_ptr<Mesh> CreateTriangle(FilamentContext* ctx);
-std::unique_ptr<Mesh> CreateBox(FilamentContext* ctx, int nquad);
-std::unique_ptr<Mesh> CreateLineBox(FilamentContext* ctx);
-std::unique_ptr<Mesh> CreateSphere(FilamentContext* ctx, int nstack, int nslice);
-std::unique_ptr<Mesh> CreateTube(FilamentContext* ctx, int nstack, int nslice);
-std::unique_ptr<Mesh> CreateDisk(FilamentContext* ctx, int nslice);
-std::unique_ptr<Mesh> CreateDome(FilamentContext* ctx, int nstack, int nslice);
-std::unique_ptr<Mesh> CreateCone(FilamentContext* ctx, int nstack, int nslice);
+UniquePtr<mjrMesh> CreateLine(mjrfContext* ctx);
+UniquePtr<mjrMesh> CreatePlane(mjrfContext* ctx, int nquad);
+UniquePtr<mjrMesh> CreateTriangle(mjrfContext* ctx);
+UniquePtr<mjrMesh> CreateBox(mjrfContext* ctx, int nquad);
+UniquePtr<mjrMesh> CreateLineBox(mjrfContext* ctx);
+UniquePtr<mjrMesh> CreateSphere(mjrfContext* ctx, int nstack, int nslice);
+UniquePtr<mjrMesh> CreateTube(mjrfContext* ctx, int nstack, int nslice);
+UniquePtr<mjrMesh> CreateDisk(mjrfContext* ctx, int nslice);
+UniquePtr<mjrMesh> CreateDome(mjrfContext* ctx, int nstack, int nslice);
+UniquePtr<mjrMesh> CreateCone(mjrfContext* ctx, int nstack, int nslice);
 
 }  // namespace mujoco
 

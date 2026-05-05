@@ -14,7 +14,6 @@
 
 #include "experimental/filament/compat/model_objects.h"
 
-#include <array>
 #include <algorithm>
 #include <cfloat>
 #include <cstddef>
@@ -25,18 +24,16 @@
 #include <utility>
 #include <vector>
 
-#include <filament/Engine.h>
 #include <math/TVecHelpers.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/builtins.h"
-#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/math_util.h"
-#include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/model_util.h"
-#include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/render_context_filament_cpp.h"
 
 namespace mujoco {
 
@@ -407,7 +404,7 @@ static std::span<const int> GetIndices(const mjModel* model,
   }
 }
 
-static void UpdatemjrMeshData(mjrMeshData* data, const mjModel* model, int id,
+static void UpdateMeshData(mjrMeshData* data, const mjModel* model, int id,
                            MeshType mesh_type) {
   if (!IsValidIndex(model, id, mesh_type)) {
     mju_error("Invalid index %d for type %d", id, mesh_type);
@@ -462,7 +459,7 @@ static void UpdatemjrMeshData(mjrMeshData* data, const mjModel* model, int id,
   data->bounds_max[2] = builder->bounds_max.z;
 }
 
-void UpdateSkinFlexmjrMeshData(mjrMeshData* data, const mjModel* model,
+void UpdateSkinFlexMeshData(mjrMeshData* data, const mjModel* model,
                             const mjvScene* scene, const mjvGeom& geom) {
   auto positions = GetPositions(model, scene, geom);
   auto normals = GetNormals(model, scene, geom);
@@ -494,21 +491,21 @@ void UpdateSkinFlexmjrMeshData(mjrMeshData* data, const mjModel* model,
   data->user_data = nullptr;
 }
 
-ModelObjects::ModelObjects(const mjModel* model, FilamentContext* ctx)
+ModelObjects::ModelObjects(const mjModel* model, mjrfContext* ctx)
     : model_(model), ctx_(ctx) {
   const int nstack = model->vis.quality.numstacks;
   const int nslice = model->vis.quality.numslices;
   const int nquad = model->vis.quality.numquads;
-  shapes_[kLine] = CreateLine(ctx_);
-  shapes_[kBox] = CreateBox(ctx_, nquad);
-  shapes_[kLineBox] = CreateLineBox(ctx_);
-  shapes_[kCone] = CreateCone(ctx_, nstack, nslice);
-  shapes_[kDisk] = CreateDisk(ctx_, nslice);
-  shapes_[kDome] = CreateDome(ctx_, nstack / 2, nslice);
-  shapes_[kTube] = CreateTube(ctx_, nstack, nslice);
-  shapes_[kPlane] = CreatePlane(ctx_, nquad);
-  shapes_[kSphere] = CreateSphere(ctx_, nstack, nslice);
-  shapes_[kTriangle] = CreateTriangle(ctx_);
+  shapes_.insert({kLine, CreateLine(ctx_)});
+  shapes_.insert({kBox, CreateBox(ctx_, nquad)});
+  shapes_.insert({kLineBox, CreateLineBox(ctx_)});
+  shapes_.insert({kCone, CreateCone(ctx_, nstack, nslice)});
+  shapes_.insert({kDisk, CreateDisk(ctx_, nslice)});
+  shapes_.insert({kDome, CreateDome(ctx_, nstack / 2, nslice)});
+  shapes_.insert({kTube, CreateTube(ctx_, nstack, nslice)});
+  shapes_.insert({kPlane, CreatePlane(ctx_, nquad)});
+  shapes_.insert({kSphere, CreateSphere(ctx_, nstack, nslice)});
+  shapes_.insert({kTriangle, CreateTriangle(ctx_)});
 
   for (int i = 0; i < model_->ntex; ++i) {
     UploadTexture(model_, i);
@@ -545,14 +542,14 @@ void ModelObjects::UploadMesh(const mjModel* model, int id) {
 
   mjrMeshData data;
   mjr_defaultMeshData(&data);
-  UpdatemjrMeshData(&data, model, id, MeshType::kNormal);
-  meshes_[id] = std::make_unique<Mesh>(ctx_, data);
+  UpdateMeshData(&data, model, id, MeshType::kNormal);
+  meshes_.insert_or_assign(id, CreateMesh(ctx_, data));
 
   if (model->mesh_graphadr[id] >= 0) {
     mjrMeshData convex_hull_data;
     mjr_defaultMeshData(&convex_hull_data);
-    UpdatemjrMeshData(&convex_hull_data, model, id, MeshType::kConvexHull);
-    convex_hulls_[id] = std::make_unique<Mesh>(ctx_, convex_hull_data);
+    UpdateMeshData(&convex_hull_data, model, id, MeshType::kConvexHull);
+    convex_hulls_.insert_or_assign(id, CreateMesh(ctx_, convex_hull_data));
   }
 }
 
@@ -597,9 +594,9 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
   payload.user_data = nullptr;
   payload.release_callback = nullptr;
 
-  auto texture = std::make_unique<Texture>(ctx_, config);
-  texture->Upload(payload);
-  textures_[id] = std::move(texture);
+  auto texture = CreateTexture(ctx_, config);
+  mjrf_setTextureData(texture.get(), &payload);
+  textures_.insert_or_assign(id, std::move(texture));
 }
 
 void ModelObjects::UploadHeightField(const mjModel* model, int id) {
@@ -614,18 +611,18 @@ void ModelObjects::UploadHeightField(const mjModel* model, int id) {
 
   mjrMeshData data;
   mjr_defaultMeshData(&data);
-  UpdatemjrMeshData(&data, model, id, MeshType::kHeightField);
-  height_fields_[id] = std::make_unique<Mesh>(ctx_, data);
+  UpdateMeshData(&data, model, id, MeshType::kHeightField);
+  height_fields_.insert_or_assign(id, CreateMesh(ctx_, data));
 }
 
 void ModelObjects::CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom) {
   mjrMeshData data;
   mjr_defaultMeshData(&data);
-  UpdateSkinFlexmjrMeshData(&data, model_, scene, geom);
-  dynamic_meshes_[geom.objid] = std::make_unique<Mesh>(ctx_, data);
+  UpdateSkinFlexMeshData(&data, model_, scene, geom);
+  dynamic_meshes_.insert_or_assign(geom.objid, CreateMesh(ctx_, data));
 }
 
-const Mesh* ModelObjects::GetMeshBuffer(int data_id) const {
+const mjrMesh* ModelObjects::GetMeshBuffer(int data_id) const {
   // As defined by mjv_updateScene:
   //   original mesh: mesh_id * 2
   //   convex hull: (mesh_id * 2) + 1
@@ -639,29 +636,27 @@ const Mesh* ModelObjects::GetMeshBuffer(int data_id) const {
   }
 }
 
-const Mesh* ModelObjects::GetHeightFieldBuffer(int hfield_id) const {
+const mjrMesh* ModelObjects::GetHeightFieldBuffer(int hfield_id) const {
   auto it = height_fields_.find(hfield_id);
   return it != height_fields_.end() ? it->second.get() : nullptr;
 }
 
-const Mesh* ModelObjects::GetShapeBuffer(ShapeType shape) const {
-  if (shape < 0 || shape >= kNumShapes) {
-    mju_error("Invalid shape type: %d", shape);
-  }
-  return shapes_[shape].get();
+const mjrMesh* ModelObjects::GetShapeBuffer(ShapeType shape) const {
+  auto it = shapes_.find(shape);
+  return it != shapes_.end() ? it->second.get() : nullptr;
 }
 
-const Mesh* ModelObjects::GetFlexSkinGeomMesh(int geom_id) const {
+const mjrMesh* ModelObjects::GetFlexSkinGeomMesh(int geom_id) const {
   auto it = dynamic_meshes_.find(geom_id);
   return it != dynamic_meshes_.end() ? it->second.get() : nullptr;
 }
 
-const Texture* ModelObjects::GetTexture(int tex_id) const {
+const mjrTexture* ModelObjects::GetTexture(int tex_id) const {
   auto it = textures_.find(tex_id);
   return it != textures_.end() ? it->second.get() : nullptr;
 }
 
-const Texture* ModelObjects::GetTexture(int mat_id, int role) const {
+const mjrTexture* ModelObjects::GetTexture(int mat_id, int role) const {
   if (mat_id < 0 || mat_id >= model_->nmat || role < 0 || role >= mjNTEXROLE) {
     return nullptr;
   }
@@ -669,7 +664,7 @@ const Texture* ModelObjects::GetTexture(int mat_id, int role) const {
   return GetTexture(tex_id);
 }
 
-const Texture* ModelObjects::GetSkyboxTexture() const {
+const mjrTexture* ModelObjects::GetSkyboxTexture() const {
   for (auto& iter : textures_) {
     if (model_->tex_type[iter.first] == mjTEXTURE_SKYBOX) {
       return iter.second.get();

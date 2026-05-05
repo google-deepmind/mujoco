@@ -70,7 +70,7 @@ class Renderable : public mjrRenderable {
   // relative to the transform of the renderable itself. This allows users to
   // construct compound (but rigid) objects from multiple meshes.
   using GetTransformFn = std::function<filament::math::mat4f(int, const Trs&)>;
-  void SetMeshes(std::span<const Mesh*> meshes,
+  void SetMeshes(std::span<const mjrMesh*> meshes,
                  GetTransformFn get_transform = nullptr);
 
   // Sets the layer mask for the managed filament Entities. Layer masks can be

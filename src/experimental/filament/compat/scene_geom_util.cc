@@ -16,6 +16,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <numbers>
 #include <vector>
@@ -27,12 +28,10 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/model_objects.h"
-#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/math_util.h"
-#include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/renderable.h"
-#include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/render_context_filament_cpp.h"
 
 namespace mujoco {
 
@@ -64,39 +63,39 @@ static bool IsBehind(const float* headpos, const float* pos, const float* mat) {
           0.0f);
 }
 
-static const Mesh* GetMesh(ModelObjects* model_objs, int data_id) {
-  const Mesh* mesh = model_objs->GetMeshBuffer(data_id);
+static const mjrMesh* GetMesh(ModelObjects* model_objs, int data_id) {
+  const mjrMesh* mesh = model_objs->GetMeshBuffer(data_id);
   if (mesh == nullptr) {
     mju_error("Unknown mesh %d", data_id);
   }
   return mesh;
 }
 
-static const Mesh* GetSkinFlexMesh(ModelObjects* model_objs, int objid) {
+static const mjrMesh* GetSkinFlexMesh(ModelObjects* model_objs, int objid) {
   return model_objs->GetFlexSkinGeomMesh(objid);
 }
 
-static const Mesh* GetHeightField(ModelObjects* model_objs, int hfield_id) {
-  const Mesh* mesh = model_objs->GetHeightFieldBuffer(hfield_id);
+static const mjrMesh* GetHeightField(ModelObjects* model_objs, int hfield_id) {
+  const mjrMesh* mesh = model_objs->GetHeightFieldBuffer(hfield_id);
   if (mesh == nullptr) {
     mju_error("Unknown height field %d", hfield_id);
   }
   return mesh;
 }
 
-static const Mesh* GetShape(ModelObjects* model_objs,
+static const mjrMesh* GetShape(ModelObjects* model_objs,
                             ModelObjects::ShapeType shape_type) {
-  const Mesh* mesh = model_objs->GetShapeBuffer(shape_type);
+  const mjrMesh* mesh = model_objs->GetShapeBuffer(shape_type);
   if (mesh == nullptr) {
     mju_error("Unknown shape %d", shape_type);
   }
   return mesh;
 }
 
-static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
+static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
                               const mjvScene* scene,
                               ModelObjects* model_objects) {
-  std::vector<const Mesh*> meshes;
+  std::vector<const mjrMesh*> meshes;
   Renderable::GetTransformFn get_transforms;
 
   Trs trs = {
@@ -334,11 +333,18 @@ static void PrepareGeomMeshes(Renderable& renderable, const mjvGeom& geom,
       break;
   }
 
-  renderable.SetMeshes(meshes, get_transforms);
-  renderable.SetTransform(trs);
+  Renderable::downcast(renderable)->SetMeshes(meshes, get_transforms);
+
+  float position[3];
+  std::memcpy(position, &trs.translation[0], 3 * sizeof(float));
+  float rotation[9];
+  std::memcpy(rotation, &trs.rotation[0], 9 * sizeof(float));
+  float size[3];
+  std::memcpy(size, &trs.size[0], 3 * sizeof(float));
+  mjrf_setRenderableTransform(renderable, position, rotation, size);
 }
 
-static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
+static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
                                const mjvScene* scene, ModelObjects* model_objs,
                                const float headpos[3]) {
   const mjModel* model = model_objs->GetModel();
@@ -353,19 +359,19 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
   if (geom.type == mjGEOM_PLANE) {
     if (IsBehind(headpos, geom.pos, geom.mat)) {
       params.color[3] *= 0.3;
-      renderable.SetReceiveShadows(false);
+      mjrf_setRenderableReceiveShadows(renderable, false);
       params.reflective = false;
     } else {
-      renderable.SetReceiveShadows(true);
+      mjrf_setRenderableReceiveShadows(renderable, true);
       params.reflective = geom.reflectance > 0 && params.color[3] == 1.0f;
     }
   }
-  renderable.SetLayerMask(geom.category);
+  mjrf_setRenderableLayerMask(renderable, geom.category);
   if (geom.category == mjCAT_DECOR) {
-    renderable.SetCastShadows(false);
-    renderable.SetReceiveShadows(false);
+    mjrf_setRenderableCastShadows(renderable, false);
+    mjrf_setRenderableReceiveShadows(renderable, false);
   } else {
-    renderable.SetWireframe(scene->flags[mjRND_WIREFRAME]);
+    mjrf_setRenderableWireframe(renderable, scene->flags[mjRND_WIREFRAME]);
   }
 
   mjrMaterialTextures textures;
@@ -420,7 +426,7 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
   // the programmatic UVs.
 
   if (textures.color) {
-    if (Texture::downcast(textures.color)->GetTarget() == mjTEXTURE_2D) {
+    if (mjrf_getTextureTarget(textures.color) == mjTEXTURE_2D) {
       // For 2D textures, `tex_repeat` specifies how many times the texture
       // image is repeated. The `tex_uniform` flag determines if the repetition
       // is applied at in object space (false) or in world space (true).
@@ -482,11 +488,11 @@ static void UpdateGeomMaterial(Renderable& renderable, const mjvGeom& geom,
   params.specular *= model_objs->GetSpecularMultiplier();
   params.glossiness *= model_objs->GetShininessMultiplier();
 
-  renderable.UpdateMaterial(params, textures);
+  mjrf_setRenderableMaterial(renderable, &params, &textures);
 }
 
-std::unique_ptr<Renderable> CreateGeomRenderable(
-    const mjvGeom& geom, const mjvScene* scene, FilamentContext* ctx,
+UniquePtr<mjrRenderable> CreateGeomRenderable(
+    const mjvGeom& geom, const mjvScene* scene, mjrfContext* ctx,
     ModelObjects* model_objs, const float headpos[3]) {
   mjrShadingModel shading_model = mjSHADING_MODEL_SCENE_OBJECT;
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
@@ -498,9 +504,9 @@ std::unique_ptr<Renderable> CreateGeomRenderable(
   mjrRenderableParams params;
   mjr_defaultRenderableParams(&params);
   params.shading_model = shading_model;
-  auto renderable = std::make_unique<Renderable>(ctx, params);
-  PrepareGeomMeshes(*renderable, geom, scene, model_objs);
-  UpdateGeomMaterial(*renderable, geom, scene, model_objs, headpos);
+  auto renderable = CreateRenderable(ctx, params);
+  PrepareGeomMeshes(renderable.get(), geom, scene, model_objs);
+  UpdateGeomMaterial(renderable.get(), geom, scene, model_objs, headpos);
   return renderable;
 }
 }  // namespace mujoco
