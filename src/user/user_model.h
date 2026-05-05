@@ -242,19 +242,19 @@ class mjCModel : public mjCModel_, private mjSpec {
   // API for access to model elements (outside tree)
   int NumObjects(mjtObj type);              // number of objects in specified list
   mjCBase* GetObject(mjtObj type, int id);  // pointer to specified object
-  mjsElement* NextObject(mjsElement* object, mjtObj type = mjOBJ_UNKNOWN);  // next object of specified type
+  mjsElement* NextObject(const mjsElement* object, mjtObj type = mjOBJ_UNKNOWN) const;  // next object of specified type
 
   // API for access to other variables
   bool IsCompiled() const;                                          // is model already compiled
   const mjCError& GetError() const;                                 // get reference of error object
   void SetError(const mjCError& error) { errInfo = error; }         // set value of error object
   mjCBody* GetWorld();                                              // pointer to world body
-  mjCDef* FindDefault(std::string name);                            // find defaults class name
+  mjCDef* FindDefault(const std::string& name) const;               // find defaults class name
   mjCDef* AddDefault(std::string name, mjCDef* parent = nullptr);   // add defaults class to array
   mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
   mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
   mjSpec* FindSpec(std::string name) const;                         // find spec given name
-  mjSpec* FindSpec(const mjsCompiler* compiler_);                   // find spec given mjsCompiler
+  mjSpec* FindSpec(const mjsCompiler* compiler_) const;             // find spec given mjsCompiler
   void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
 
   // find asset given name checking both name and filename

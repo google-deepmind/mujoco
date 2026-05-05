@@ -9687,7 +9687,7 @@ void mjs_deleteUserValue_wrapper(MjsElement& element, const String& key) {
   mjs_deleteUserValue(element.get(), key.as<const std::string>().data());
 }
 
-std::optional<MjsBody> mjs_findBody_wrapper(MjSpec& s, const String& name) {
+std::optional<MjsBody> mjs_findBody_wrapper(const MjSpec& s, const String& name) {
   CHECK_VAL(name);
   mjsBody* result = mjs_findBody(s.get(), name.as<const std::string>().data());
   if (result == nullptr) {
@@ -9696,7 +9696,7 @@ std::optional<MjsBody> mjs_findBody_wrapper(MjSpec& s, const String& name) {
   return MjsBody(result);
 }
 
-std::optional<MjsBody> mjs_findChild_wrapper(MjsBody& body, const String& name) {
+std::optional<MjsBody> mjs_findChild_wrapper(const MjsBody& body, const String& name) {
   CHECK_VAL(name);
   mjsBody* result = mjs_findChild(body.get(), name.as<const std::string>().data());
   if (result == nullptr) {
@@ -9705,7 +9705,7 @@ std::optional<MjsBody> mjs_findChild_wrapper(MjsBody& body, const String& name) 
   return MjsBody(result);
 }
 
-std::optional<MjsDefault> mjs_findDefault_wrapper(MjSpec& s, const String& classname) {
+std::optional<MjsDefault> mjs_findDefault_wrapper(const MjSpec& s, const String& classname) {
   CHECK_VAL(classname);
   mjsDefault* result = mjs_findDefault(s.get(), classname.as<const std::string>().data());
   if (result == nullptr) {
@@ -9714,7 +9714,7 @@ std::optional<MjsDefault> mjs_findDefault_wrapper(MjSpec& s, const String& class
   return MjsDefault(result);
 }
 
-std::optional<MjsElement> mjs_findElement_wrapper(MjSpec& s, mjtObj type, const String& name) {
+std::optional<MjsElement> mjs_findElement_wrapper(const MjSpec& s, mjtObj type, const String& name) {
   CHECK_VAL(name);
   mjsElement* result = mjs_findElement(s.get(), type, name.as<const std::string>().data());
   if (result == nullptr) {
@@ -9723,7 +9723,7 @@ std::optional<MjsElement> mjs_findElement_wrapper(MjSpec& s, mjtObj type, const 
   return MjsElement(result);
 }
 
-std::optional<MjsFrame> mjs_findFrame_wrapper(MjSpec& s, const String& name) {
+std::optional<MjsFrame> mjs_findFrame_wrapper(const MjSpec& s, const String& name) {
   CHECK_VAL(name);
   mjsFrame* result = mjs_findFrame(s.get(), name.as<const std::string>().data());
   if (result == nullptr) {
@@ -9732,7 +9732,7 @@ std::optional<MjsFrame> mjs_findFrame_wrapper(MjSpec& s, const String& name) {
   return MjsFrame(result);
 }
 
-std::optional<MjSpec> mjs_findSpec_wrapper(MjSpec& spec, const String& name) {
+std::optional<MjSpec> mjs_findSpec_wrapper(const MjSpec& spec, const String& name) {
   CHECK_VAL(name);
   mjSpec* result = mjs_findSpec(spec.get(), name.as<const std::string>().data());
   if (result == nullptr) {
@@ -9741,7 +9741,7 @@ std::optional<MjSpec> mjs_findSpec_wrapper(MjSpec& spec, const String& name) {
   return MjSpec(result);
 }
 
-std::optional<MjsElement> mjs_firstChild_wrapper(MjsBody& body, mjtObj type, int recurse) {
+std::optional<MjsElement> mjs_firstChild_wrapper(const MjsBody& body, mjtObj type, int recurse) {
   mjsElement* result = mjs_firstChild(body.get(), type, recurse);
   if (result == nullptr) {
     return std::nullopt;
@@ -9749,7 +9749,7 @@ std::optional<MjsElement> mjs_firstChild_wrapper(MjsBody& body, mjtObj type, int
   return MjsElement(result);
 }
 
-std::optional<MjsElement> mjs_firstElement_wrapper(MjSpec& s, mjtObj type) {
+std::optional<MjsElement> mjs_firstElement_wrapper(const MjSpec& s, mjtObj type) {
   mjsElement* result = mjs_firstElement(s.get(), type);
   if (result == nullptr) {
     return std::nullopt;
@@ -9757,7 +9757,7 @@ std::optional<MjsElement> mjs_firstElement_wrapper(MjSpec& s, mjtObj type) {
   return MjsElement(result);
 }
 
-std::optional<MjsCompiler> mjs_getCompiler_wrapper(MjsElement& element) {
+std::optional<MjsCompiler> mjs_getCompiler_wrapper(const MjsElement& element) {
   mjsCompiler* result = mjs_getCompiler(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -9765,7 +9765,7 @@ std::optional<MjsCompiler> mjs_getCompiler_wrapper(MjsElement& element) {
   return MjsCompiler(result);
 }
 
-std::optional<MjsDefault> mjs_getDefault_wrapper(MjsElement& element) {
+std::optional<MjsDefault> mjs_getDefault_wrapper(const MjsElement& element) {
   mjsDefault* result = mjs_getDefault(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -9777,7 +9777,7 @@ std::string mjs_getError_wrapper(MjSpec& s) {
   return std::string(mjs_getError(s.get()));
 }
 
-std::optional<MjsFrame> mjs_getFrame_wrapper(MjsElement& element) {
+std::optional<MjsFrame> mjs_getFrame_wrapper(const MjsElement& element) {
   mjsFrame* result = mjs_getFrame(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -9785,7 +9785,7 @@ std::optional<MjsFrame> mjs_getFrame_wrapper(MjsElement& element) {
   return MjsFrame(result);
 }
 
-int mjs_getId_wrapper(MjsElement& element) {
+int mjs_getId_wrapper(const MjsElement& element) {
   return mjs_getId(element.get());
 }
 
@@ -9793,7 +9793,7 @@ std::string mjs_getName_wrapper(MjsElement& element) {
   return *mjs_getName(element.get());
 }
 
-std::optional<MjsBody> mjs_getParent_wrapper(MjsElement& element) {
+std::optional<MjsBody> mjs_getParent_wrapper(const MjsElement& element) {
   mjsBody* result = mjs_getParent(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -9801,7 +9801,7 @@ std::optional<MjsBody> mjs_getParent_wrapper(MjsElement& element) {
   return MjsBody(result);
 }
 
-std::optional<MjSpec> mjs_getSpec_wrapper(MjsElement& element) {
+std::optional<MjSpec> mjs_getSpec_wrapper(const MjsElement& element) {
   mjSpec* result = mjs_getSpec(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -9809,7 +9809,7 @@ std::optional<MjSpec> mjs_getSpec_wrapper(MjsElement& element) {
   return MjSpec(result);
 }
 
-std::optional<MjsDefault> mjs_getSpecDefault_wrapper(MjSpec& s) {
+std::optional<MjsDefault> mjs_getSpecDefault_wrapper(const MjSpec& s) {
   mjsDefault* result = mjs_getSpecDefault(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -9825,11 +9825,11 @@ std::optional<MjsWrap> mjs_getWrap_wrapper(const MjsTendon& tendonspec, int i) {
   return MjsWrap(result);
 }
 
-double mjs_getWrapCoef_wrapper(MjsWrap& wrap) {
+double mjs_getWrapCoef_wrapper(const MjsWrap& wrap) {
   return mjs_getWrapCoef(wrap.get());
 }
 
-double mjs_getWrapDivisor_wrapper(MjsWrap& wrap) {
+double mjs_getWrapDivisor_wrapper(const MjsWrap& wrap) {
   return mjs_getWrapDivisor(wrap.get());
 }
 
@@ -9837,7 +9837,7 @@ int mjs_getWrapNum_wrapper(const MjsTendon& tendonspec) {
   return mjs_getWrapNum(tendonspec.get());
 }
 
-std::optional<MjsSite> mjs_getWrapSideSite_wrapper(MjsWrap& wrap) {
+std::optional<MjsSite> mjs_getWrapSideSite_wrapper(const MjsWrap& wrap) {
   mjsSite* result = mjs_getWrapSideSite(wrap.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -9845,7 +9845,7 @@ std::optional<MjsSite> mjs_getWrapSideSite_wrapper(MjsWrap& wrap) {
   return MjsSite(result);
 }
 
-std::optional<MjsElement> mjs_getWrapTarget_wrapper(MjsWrap& wrap) {
+std::optional<MjsElement> mjs_getWrapTarget_wrapper(const MjsWrap& wrap) {
   mjsElement* result = mjs_getWrapTarget(wrap.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -9862,7 +9862,7 @@ int mjs_makeMesh_wrapper(MjsMesh& mesh, mjtMeshBuiltin builtin, const val& param
   return mjs_makeMesh(mesh.get(), builtin, params_.data(), nparams);
 }
 
-std::optional<MjsElement> mjs_nextChild_wrapper(MjsBody& body, MjsElement& child, int recurse) {
+std::optional<MjsElement> mjs_nextChild_wrapper(const MjsBody& body, const MjsElement& child, int recurse) {
   mjsElement* result = mjs_nextChild(body.get(), child.get(), recurse);
   if (result == nullptr) {
     return std::nullopt;
@@ -9870,7 +9870,7 @@ std::optional<MjsElement> mjs_nextChild_wrapper(MjsBody& body, MjsElement& child
   return MjsElement(result);
 }
 
-std::optional<MjsElement> mjs_nextElement_wrapper(MjSpec& s, MjsElement& element) {
+std::optional<MjsElement> mjs_nextElement_wrapper(const MjSpec& s, const MjsElement& element) {
   mjsElement* result = mjs_nextElement(s.get(), element.get());
   if (result == nullptr) {
     return std::nullopt;

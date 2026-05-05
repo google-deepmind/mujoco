@@ -1302,61 +1302,56 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
 
 
 // get spec from body
-mjSpec* mjs_getSpec(mjsElement* element) {
-  return &(static_cast<mjCBase*>(element)->model->spec);
+mjSpec* mjs_getSpec(const mjsElement* element) {
+  return &(static_cast<const mjCBase*>(element)->model->spec);
 }
 
 
 
-mjsCompiler* mjs_getCompiler(mjsElement* element) {
-  return static_cast<mjCBase*>(element)->compiler;
+mjsCompiler* mjs_getCompiler(const mjsElement* element) {
+  return static_cast<const mjCBase*>(element)->compiler;
 }
 
 
 
 // find spec (model asset) by name
-mjSpec* mjs_findSpec(mjSpec* s, const char* name) {
-  mjCModel* model = static_cast<mjCModel*>(s->element);
+mjSpec* mjs_findSpec(const mjSpec* s, const char* name) {
+  const mjCModel* model = static_cast<mjCModel*>(s->element);
   return model->FindSpec(name);
 }
 
 
 
 // get default
-mjsDefault* mjs_getDefault(mjsElement* element) {
-  mjCModel* model = static_cast<mjCBase*>(element)->model;
-  std::string classname = static_cast<mjCBase*>(element)->classname;
-  return &(model->def_map[classname]->spec);
+mjsDefault* mjs_getDefault(const mjsElement* element) {
+  const mjCModel* model = static_cast<const mjCBase*>(element)->model;
+  std::string classname = static_cast<const mjCBase*>(element)->classname;
+  auto it = model->def_map.find(classname);
+  return (it != model->def_map.end()) ? &it->second->spec : nullptr;
 }
 
 
 
 // Find default with given name in model.
-mjsDefault* mjs_findDefault(mjSpec* s, const char* classname) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+mjsDefault* mjs_findDefault(const mjSpec* s, const char* classname) {
+  const mjCModel* modelC = static_cast<mjCModel*>(s->element);
   mjCDef* cdef = modelC->FindDefault(classname);
-  if (!cdef) {
-    return nullptr;
-  }
-  return &cdef->spec;
+  return cdef ? &cdef->spec : nullptr;
 }
 
 
 
 // get default[0] from model
-mjsDefault* mjs_getSpecDefault(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+mjsDefault* mjs_getSpecDefault(const mjSpec* s) {
+  const mjCModel* modelC = static_cast<mjCModel*>(s->element);
   mjCDef* def = modelC->Default();
-  if (!def) {
-    return nullptr;
-  }
-  return &def->spec;
+  return def ? &def->spec : nullptr;
 }
 
 
 
 // find body in model by name
-mjsBody* mjs_findBody(mjSpec* s, const char* name) {
+mjsBody* mjs_findBody(const mjSpec* s, const char* name) {
   mjsElement* body = mjs_findElement(s, mjOBJ_BODY, name);
   return body ? &(static_cast<mjCBody*>(body)->spec) : nullptr;
 }
@@ -1364,7 +1359,7 @@ mjsBody* mjs_findBody(mjSpec* s, const char* name) {
 
 
 // find element in spec by name
-mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name) {
+mjsElement* mjs_findElement(const mjSpec* s, mjtObj type, const char* name) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   if (model->IsCompiled() && type != mjOBJ_FRAME) {
     return model->FindObject(type, std::string(name));  // fast lookup
@@ -1390,8 +1385,8 @@ mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name) {
 
 
 // find child of a body by name
-mjsBody* mjs_findChild(mjsBody* bodyspec, const char* name) {
-  mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
+mjsBody* mjs_findChild(const mjsBody* bodyspec, const char* name) {
+  const mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
   mjCBase* child = body->FindObject(mjOBJ_BODY, std::string(name));
   return child ? &(static_cast<mjCBody*>(child)->spec) : nullptr;
 }
@@ -1399,22 +1394,22 @@ mjsBody* mjs_findChild(mjsBody* bodyspec, const char* name) {
 
 
 // get parent body
-mjsBody* mjs_getParent(mjsElement* element) {
+mjsBody* mjs_getParent(const mjsElement* element) {
   switch (element->elemtype) {
     case mjOBJ_BODY:
-      return &(static_cast<mjCBody*>(element)->GetParent()->spec);
+      return &(static_cast<const mjCBody*>(element)->GetParent()->spec);
     case mjOBJ_FRAME:
-      return &(static_cast<mjCFrame*>(element)->GetParent()->spec);
+      return &(static_cast<const mjCFrame*>(element)->GetParent()->spec);
     case mjOBJ_JOINT:
-      return &(static_cast<mjCJoint*>(element)->GetParent()->spec);
+      return &(static_cast<const mjCJoint*>(element)->GetParent()->spec);
     case mjOBJ_GEOM:
-      return &(static_cast<mjCGeom*>(element)->GetParent()->spec);
+      return &(static_cast<const mjCGeom*>(element)->GetParent()->spec);
     case mjOBJ_SITE:
-      return &(static_cast<mjCSite*>(element)->GetParent()->spec);
+      return &(static_cast<const mjCSite*>(element)->GetParent()->spec);
     case mjOBJ_CAMERA:
-      return &(static_cast<mjCCamera*>(element)->GetParent()->spec);
+      return &(static_cast<const mjCCamera*>(element)->GetParent()->spec);
     case mjOBJ_LIGHT:
-      return &(static_cast<mjCLight*>(element)->GetParent()->spec);
+      return &(static_cast<const mjCLight*>(element)->GetParent()->spec);
     default:
       return nullptr;
   }
@@ -1423,8 +1418,8 @@ mjsBody* mjs_getParent(mjsElement* element) {
 
 
 // get parent frame
-mjsFrame* mjs_getFrame(mjsElement* element) {
-  mjCBase* base = static_cast<mjCBase*>(element);
+mjsFrame* mjs_getFrame(const mjsElement* element) {
+  const mjCBase* base = static_cast<const mjCBase*>(element);
   switch (element->elemtype) {
     case mjOBJ_BODY:
     case mjOBJ_FRAME:
@@ -1442,7 +1437,7 @@ mjsFrame* mjs_getFrame(mjsElement* element) {
 
 
 // find frame by name
-mjsFrame* mjs_findFrame(mjSpec* s, const char* name) {
+mjsFrame* mjs_findFrame(const mjSpec* s, const char* name) {
   mjsElement* frame = mjs_findElement(s, mjOBJ_FRAME, name);
   return frame ? &(static_cast<mjCFrame*>(frame)->spec) : nullptr;
 }
@@ -1601,11 +1596,11 @@ int mjs_sensorDim(const mjsSensor* sensor) {
 
 
 // get id
-int mjs_getId(mjsElement* element) {
+int mjs_getId(const mjsElement* element) {
   if (!element) {
     return -1;
   }
-  return static_cast<mjCBase*>(element)->id;
+  return static_cast<const mjCBase*>(element)->id;
 }
 
 
@@ -1619,8 +1614,8 @@ void mjs_setDefault(mjsElement* element, const mjsDefault* defspec) {
 
 
 // return first child of selected type
-mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse) {
-  mjCBody* bodyC = static_cast<mjCBody*>(body->element);
+mjsElement* mjs_firstChild(const mjsBody* body, mjtObj type, int recurse) {
+  const mjCBody* bodyC = static_cast<const mjCBody*>(body->element);
   try {
     return bodyC->NextChild(NULL, type, recurse);
   } catch (mjCError& e) {
@@ -1632,8 +1627,8 @@ mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse) {
 
 
 // return body's next child; return NULL if child is last
-mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child, int recurse) {
-  mjCBody* bodyC = static_cast<mjCBody*>(body->element);
+mjsElement* mjs_nextChild(const mjsBody* body, const mjsElement* child, int recurse) {
+  const mjCBody* bodyC = static_cast<const mjCBody*>(body->element);
   try {
     return bodyC->NextChild(child, child->elemtype, recurse);
   } catch(mjCError& e) {
@@ -1645,23 +1640,23 @@ mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child, int recurse) {
 
 
 // return spec's first element of selected type
-mjsElement* mjs_firstElement(mjSpec* s, mjtObj type) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+mjsElement* mjs_firstElement(const mjSpec* s, mjtObj type) {
+  const mjCModel* modelC = static_cast<mjCModel*>(s->element);
   return modelC->NextObject(NULL, type);
 }
 
 
 
 // return spec's next element; return NULL if element is last
-mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+mjsElement* mjs_nextElement(const mjSpec* s, const mjsElement* element) {
+  const mjCModel* modelC = static_cast<mjCModel*>(s->element);
   return modelC->NextObject(element);
 }
 
 
 
-mjsElement* mjs_getWrapTarget(mjsWrap* wrap) {
-  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+mjsElement* mjs_getWrapTarget(const mjsWrap* wrap) {
+  const mjCWrap* cwrap = static_cast<const mjCWrap*>(wrap->element);
   mjtObj type = mjOBJ_UNKNOWN;
   switch (cwrap->Type()) {
     case mjWRAP_SPHERE:
@@ -1680,15 +1675,14 @@ mjsElement* mjs_getWrapTarget(mjsWrap* wrap) {
     default:
       return nullptr;
   }
-  mjSpec* spec = mjs_getSpec(wrap->element);
-  mjsElement* target = mjs_findElement(spec, type, cwrap->name.c_str());
-  return target;
+  const mjSpec* spec = mjs_getSpec(wrap->element);
+  return mjs_findElement(spec, type, cwrap->name.c_str());
 }
 
 
 
-mjsSite* mjs_getWrapSideSite(mjsWrap* wrap) {
-  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+mjsSite* mjs_getWrapSideSite(const mjsWrap* wrap) {
+  const mjCWrap* cwrap = static_cast<const mjCWrap*>(wrap->element);
   // only sphere and cylinder (geoms) have side sites
   if ((cwrap->Type() != mjWRAP_SPHERE &&
       cwrap->Type() != mjWRAP_CYLINDER) ||
@@ -1696,7 +1690,7 @@ mjsSite* mjs_getWrapSideSite(mjsWrap* wrap) {
     return nullptr;
   }
 
-  mjSpec* spec = mjs_getSpec(wrap->element);
+  const mjSpec* spec = mjs_getSpec(wrap->element);
   mjsElement* site = mjs_findElement(spec, mjOBJ_SITE, cwrap->sidesite.c_str());
   if (site == nullptr) {
     mju_warning("Could not find side site %s for wrap %s in spec",
@@ -1708,8 +1702,8 @@ mjsSite* mjs_getWrapSideSite(mjsWrap* wrap) {
 
 
 
-double mjs_getWrapDivisor(mjsWrap* wrap) {
-  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+double mjs_getWrapDivisor(const mjsWrap* wrap) {
+  const mjCWrap* cwrap = static_cast<const mjCWrap*>(wrap->element);
   if (cwrap->Type() != mjWRAP_PULLEY) {
     mju_warning("Querying divisor attribute of non-pulley wrap: %s", cwrap->name.c_str());
     return 1.0;
@@ -1719,8 +1713,8 @@ double mjs_getWrapDivisor(mjsWrap* wrap) {
 
 
 
-double mjs_getWrapCoef(mjsWrap* wrap) {
-  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+double mjs_getWrapCoef(const mjsWrap* wrap) {
+  const mjCWrap* cwrap = static_cast<const mjCWrap*>(wrap->element);
   if (cwrap->Type() != mjWRAP_JOINT) {
     mju_warning("Querying coef attribute of non-joint wrap: %s", cwrap->name.c_str());
     return 1.0;

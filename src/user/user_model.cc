@@ -1408,7 +1408,7 @@ mjCBase* mjCModel::GetObject(mjtObj type, int id) {
 
 
 template <class T>
-static mjsElement* GetNext(std::vector<T*>& list, mjsElement* child) {
+static mjsElement* GetNext(const std::vector<T*>& list, const mjsElement* child) {
   if (!child) {
     if (list.empty()) {
       return nullptr;
@@ -1428,7 +1428,7 @@ static mjsElement* GetNext(std::vector<T*>& list, mjsElement* child) {
 
 
 // next object of specified type
-mjsElement* mjCModel::NextObject(mjsElement* object, mjtObj type) {
+mjsElement* mjCModel::NextObject(const mjsElement* object, mjtObj type) const {
   if (type == mjOBJ_UNKNOWN) {
     if (!object) {
       throw mjCError(nullptr, "type must be specified if no element is given");
@@ -1519,7 +1519,7 @@ mjCBody* mjCModel::GetWorld() {
 
 
 // find default class name in array
-mjCDef* mjCModel::FindDefault(string name) {
+mjCDef* mjCModel::FindDefault(const string& name) const {
   for (int i=0; i < (int)defaults_.size(); i++) {
     if (defaults_[i]->name == name) {
       return defaults_[i];
@@ -1697,13 +1697,13 @@ mjSpec* mjCModel::FindSpec(std::string name) const {
 
 
 // find spec by mjsCompiler pointer
-mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) {
+mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) const {
   if (compiler_ == &spec.compiler) {
-    return &spec;
+    return &const_cast<mjCModel*>(this)->spec;
   }
 
-  if (compiler2spec_.find(compiler_) != compiler2spec_.end()) {
-    return compiler2spec_[compiler_];
+  if (auto it = compiler2spec_.find(compiler_); it != compiler2spec_.end()) {
+    return it->second;
   }
 
   for (auto s : specs_) {
