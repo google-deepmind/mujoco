@@ -713,7 +713,7 @@ TEST_F(MjCMeshTest, AreaTooSmall) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("mesh surface area is too small"));
 }
 
@@ -1383,6 +1383,63 @@ TEST_F(MjCMeshTest, QhullCache) {
 
   mj_deleteModel(model);
   mj_deleteVFS(&vfs);
+}
+
+TEST_F(MjCMeshTest, ColocatedMeshError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+            vertex="0 0 0  0 0 0  0 0 0  0 0 0"
+            face="0 1 2   1 3 2"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("colocated"));
+}
+
+TEST_F(MjCMeshTest, CollinearMeshError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+            vertex="0 0 0  1 0 0  2 0 0  3 0 0"
+            face="0 1 2   1 3 2"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("collinear"));
+}
+
+TEST_F(MjCMeshTest, CoplanarMeshError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="flat_quad"
+            vertex="-5 -5 0   5 -5 0   -5 5 0   5 5 0"
+            face="0 1 2   1 3 2"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="flat_quad"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("coplanar"));
 }
 
 TEST_F(MjCMeshTest, LoadSkin) {

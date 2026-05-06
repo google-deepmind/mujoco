@@ -1715,6 +1715,78 @@ void mjCMesh::MakeGraph(const double* dvert) {
     return;
   }
 
+  // check for colocated/collinear/coplanar vertices
+  {
+    // find second vertex that is distinct from vertex 0
+    int v1 = -1;
+    double len1 = 0;
+    for (int i = 1; i < nvert(); i++) {
+      len1 = mjuu_dist3(dvert+3*i, dvert);
+      if (len1 > mjMINVAL) {
+        v1 = i;
+        break;
+      }
+    }
+
+    // no second vertex found: all vertices are colocated
+    if (v1 < 0) {
+      throw mjCError(this,
+          "mesh '%s' has colocated vertices, cannot compute convex hull."
+          " Consider using a small sphere instead",
+          name.c_str());
+    }
+
+    // find first non-collinear triple to define a plane
+    double edge1[3] = {dvert[3*v1+0] - dvert[0],
+                       dvert[3*v1+1] - dvert[1],
+                       dvert[3*v1+2] - dvert[2]};
+    double normal[3] = {0, 0, 0};
+    bool collinear = true;
+    for (int i = 1; i < nvert(); i++) {
+      if (i == v1) continue;
+      double edge2[3] = {dvert[3*i+0] - dvert[0],
+                         dvert[3*i+1] - dvert[1],
+                         dvert[3*i+2] - dvert[2]};
+      double len2 = sqrt(mjuu_dot3(edge2, edge2));
+      if (len2 < mjMINVAL) continue;
+      mjuu_crossvec(normal, edge1, edge2);
+      double norm = sqrt(mjuu_dot3(normal, normal));
+      if (norm > mjMINVAL * len1 * len2) {
+        normal[0] /= norm;
+        normal[1] /= norm;
+        normal[2] /= norm;
+        collinear = false;
+        break;
+      }
+    }
+
+    // vertices are collinear: cannot compute convex hull
+    if (collinear) {
+      throw mjCError(this,
+          "mesh '%s' has collinear vertices, cannot compute convex hull."
+          " Consider using a thin capsule instead",
+          name.c_str());
+    }
+
+    // find first vertex that is not on the plane
+    double d = mjuu_dot3(normal, dvert);
+    bool coplanar = true;
+    for (int i = 0; i < nvert(); i++) {
+      if (fabs(mjuu_dot3(normal, dvert+3*i) - d) > mjMINVAL * len1) {
+        coplanar = false;
+        break;
+      }
+    }
+
+    // vertices are coplanar: cannot compute convex hull
+    if (coplanar) {
+      throw mjCError(this,
+          "mesh '%s' has coplanar vertices, cannot compute convex hull."
+          " Consider using a primitive geom type (plane or thin box) instead",
+          name.c_str());
+    }
+  }
+
   qhT qh_qh;
   qhT* qh = &qh_qh;
   qh_zero(qh, stderr);
