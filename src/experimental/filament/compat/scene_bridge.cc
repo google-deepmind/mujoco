@@ -26,7 +26,6 @@
 #include <math/vec4.h>
 #include <math/TVecHelpers.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/compat/imgui_bridge.h"
 #include "experimental/filament/compat/model_objects.h"
 #include "experimental/filament/compat/scene_geom_util.h"
 #include "experimental/filament/filament/filament_context.h"
@@ -302,9 +301,9 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
   for (int i = 0; i < scene->ngeom; ++i) {
     const mjvGeom* geom = scene->geoms + i;
 
-    if (geom->label[0] != 0) {
+    if (draw_text_callback_ && geom->label[0] != 0) {
       if (auto pos = ClipFromWorld(ReadFloat3(geom->pos))) {
-        DrawTextAt(geom->label, pos->x, pos->y, pos->z);
+        draw_text_callback_(geom->label, pos->x, pos->y, pos->z);
       }
     }
 
@@ -361,4 +360,9 @@ void SceneBridge::UploadTexture(const mjModel* model, int id) {
 void SceneBridge::UploadHeightField(const mjModel* model, int id) {
   model_objects_->UploadHeightField(model, id);
 }
+
+void SceneBridge::SetDrawTextFunction(DrawTextAtFn fn) {
+  draw_text_callback_ = std::move(fn);
+}
+
 }  // namespace mujoco

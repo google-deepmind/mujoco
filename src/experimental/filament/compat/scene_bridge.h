@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_SCENE_BRIDGE_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_SCENE_BRIDGE_H_
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -51,6 +52,9 @@ class SceneBridge {
   void UploadTexture(const mjModel* model, int id);
   void UploadHeightField(const mjModel* model, int id);
 
+  using DrawTextAtFn = std::function<void(const char*, float, float, float)>;
+  void SetDrawTextFunction(DrawTextAtFn fn);
+
   // Returns the managed scene.
   mjrScene* GetScene() const { return scene_.get(); }
 
@@ -67,6 +71,7 @@ class SceneBridge {
 
   mjrfContext* ctx_ = nullptr;
   std::unique_ptr<ModelObjects> model_objects_;
+  DrawTextAtFn draw_text_callback_;
   UniquePtr<mjrScene> scene_{nullptr, nullptr};
   UniquePtr<mjrLight> fallback_ibl_{nullptr, nullptr};
   UniquePtr<mjrTexture> fallback_ibl_texture_{nullptr, nullptr};

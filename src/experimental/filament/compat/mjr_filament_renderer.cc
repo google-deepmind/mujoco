@@ -17,7 +17,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string_view>
 
+#include <math/mathfwd.h>
 #include <math/vec4.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
@@ -39,6 +41,7 @@ MjrFilamentRenderer::MjrFilamentRenderer(const mjrFilamentConfig* config) {
 void MjrFilamentRenderer::Init(const mjModel* model) {
   scene_bridge_ = std::make_unique<SceneBridge>(filament_context_.get(), model);
   imgui_bridge_ = std::make_unique<ImguiBridge>(filament_context_.get());
+  scene_bridge_->SetDrawTextFunction(DrawTextAt);
 
   mjr_defaultRenderRequest(&render_requests_[0]);
   mjr_defaultRenderRequest(&render_requests_[1]);
