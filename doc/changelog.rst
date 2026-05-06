@@ -30,6 +30,12 @@ General
      |br| ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
 
 
+
+Bug fixes
+^^^^^^^^^
+
+- Fixed default for multiccd in :ref:`mjcPhysics`.
+
 Python
 ^^^^^^
 
