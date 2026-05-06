@@ -143,6 +143,7 @@ class ModelWarp(PyTreeNode):
   eq_ten_adr: np.ndarray
   eq_wld_adr: np.ndarray
   flex_bending: np.ndarray
+  flex_bendingadr: np.ndarray
   flex_centered: np.ndarray
   flex_conaffinity: np.ndarray
   flex_condim: np.ndarray
@@ -171,6 +172,7 @@ class ModelWarp(PyTreeNode):
   flex_solmix: np.ndarray
   flex_solref: np.ndarray
   flex_stiffness: np.ndarray
+  flex_stiffnessadr: np.ndarray
   flex_vert: np.ndarray
   flex_vertbodyid: np.ndarray
   flex_vertflexid: np.ndarray
@@ -205,11 +207,13 @@ class ModelWarp(PyTreeNode):
   nJfe: int
   nacttrnbody: int
   nbranch: int
+  nflexbending: int
   nflexedge: int
   nflexelem: int
   nflexelemdata: int
   nflexelemedge: int
   nflexshelldata: int
+  nflexstiffness: int
   nflexvert: int
   nmaxcondim: int
   nmaxmeshdeg: int
@@ -645,7 +649,8 @@ _NDIM = {
         'eq_type': 1,
         'eq_wld_adr': 1,
         'exclude_signature': 1,
-        'flex_bending': 2,
+        'flex_bending': 1,
+        'flex_bendingadr': 1,
         'flex_centered': 1,
         'flex_conaffinity': 1,
         'flex_condim': 1,
@@ -673,7 +678,8 @@ _NDIM = {
         'flex_solimp': 2,
         'flex_solmix': 1,
         'flex_solref': 2,
-        'flex_stiffness': 2,
+        'flex_stiffness': 1,
+        'flex_stiffnessadr': 1,
         'flex_vert': 2,
         'flex_vertadr': 1,
         'flex_vertbodyid': 1,
@@ -785,11 +791,13 @@ _NDIM = {
         'neq': 0,
         'nexclude': 0,
         'nflex': 0,
+        'nflexbending': 0,
         'nflexedge': 0,
         'nflexelem': 0,
         'nflexelemdata': 0,
         'nflexelemedge': 0,
         'nflexshelldata': 0,
+        'nflexstiffness': 0,
         'nflexvert': 0,
         'ngeom': 0,
         'ngravcomp': 0,
@@ -1224,6 +1232,7 @@ _BATCH_DIM = {
         'eq_wld_adr': False,
         'exclude_signature': False,
         'flex_bending': False,
+        'flex_bendingadr': False,
         'flex_centered': False,
         'flex_conaffinity': False,
         'flex_condim': False,
@@ -1252,6 +1261,7 @@ _BATCH_DIM = {
         'flex_solmix': False,
         'flex_solref': False,
         'flex_stiffness': False,
+        'flex_stiffnessadr': False,
         'flex_vert': False,
         'flex_vertadr': False,
         'flex_vertbodyid': False,
@@ -1363,11 +1373,13 @@ _BATCH_DIM = {
         'neq': False,
         'nexclude': False,
         'nflex': False,
+        'nflexbending': False,
         'nflexedge': False,
         'nflexelem': False,
         'nflexelemdata': False,
         'nflexelemedge': False,
         'nflexshelldata': False,
+        'nflexstiffness': False,
         'nflexvert': False,
         'ngeom': False,
         'ngravcomp': False,

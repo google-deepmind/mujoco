@@ -46,6 +46,7 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _forward_shim(
     # Model
@@ -138,7 +139,8 @@ def _forward_shim(
     eq_ten_adr: wp.array[int],
     eq_type: wp.array[int],
     eq_wld_adr: wp.array[int],
-    flex_bending: wp.array2d[float],
+    flex_bending: wp.array[float],
+    flex_bendingadr: wp.array[int],
     flex_centered: wp.array[bool],
     flex_conaffinity: wp.array[int],
     flex_condim: wp.array[int],
@@ -166,7 +168,8 @@ def _forward_shim(
     flex_solimp: wp.array[mjwp_types.vec5],
     flex_solmix: wp.array[float],
     flex_solref: wp.array[wp.vec2],
-    flex_stiffness: wp.array2d[float],
+    flex_stiffness: wp.array[float],
+    flex_stiffnessadr: wp.array[int],
     flex_vert: wp.array[wp.vec3],
     flex_vertadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
@@ -624,6 +627,7 @@ def _forward_shim(
   _m.eq_type = eq_type
   _m.eq_wld_adr = eq_wld_adr
   _m.flex_bending = flex_bending
+  _m.flex_bendingadr = flex_bendingadr
   _m.flex_centered = flex_centered
   _m.flex_conaffinity = flex_conaffinity
   _m.flex_condim = flex_condim
@@ -652,6 +656,7 @@ def _forward_shim(
   _m.flex_solmix = flex_solmix
   _m.flex_solref = flex_solref
   _m.flex_stiffness = flex_stiffness
+  _m.flex_stiffnessadr = flex_stiffnessadr
   _m.flex_vert = flex_vert
   _m.flex_vertadr = flex_vertadr
   _m.flex_vertbodyid = flex_vertbodyid
@@ -1504,6 +1509,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.eq_type,
       m._impl.eq_wld_adr,
       m._impl.flex_bending,
+      m._impl.flex_bendingadr,
       m._impl.flex_centered,
       m._impl.flex_conaffinity,
       m._impl.flex_condim,
@@ -1532,6 +1538,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_solmix,
       m._impl.flex_solref,
       m._impl.flex_stiffness,
+      m._impl.flex_stiffnessadr,
       m._impl.flex_vert,
       m.flex_vertadr,
       m._impl.flex_vertbodyid,
@@ -2107,7 +2114,8 @@ def _step_shim(
     eq_ten_adr: wp.array[int],
     eq_type: wp.array[int],
     eq_wld_adr: wp.array[int],
-    flex_bending: wp.array2d[float],
+    flex_bending: wp.array[float],
+    flex_bendingadr: wp.array[int],
     flex_centered: wp.array[bool],
     flex_conaffinity: wp.array[int],
     flex_condim: wp.array[int],
@@ -2135,7 +2143,8 @@ def _step_shim(
     flex_solimp: wp.array[mjwp_types.vec5],
     flex_solmix: wp.array[float],
     flex_solref: wp.array[wp.vec2],
-    flex_stiffness: wp.array2d[float],
+    flex_stiffness: wp.array[float],
+    flex_stiffnessadr: wp.array[int],
     flex_vert: wp.array[wp.vec3],
     flex_vertadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
@@ -2595,6 +2604,7 @@ def _step_shim(
   _m.eq_type = eq_type
   _m.eq_wld_adr = eq_wld_adr
   _m.flex_bending = flex_bending
+  _m.flex_bendingadr = flex_bendingadr
   _m.flex_centered = flex_centered
   _m.flex_conaffinity = flex_conaffinity
   _m.flex_condim = flex_condim
@@ -2623,6 +2633,7 @@ def _step_shim(
   _m.flex_solmix = flex_solmix
   _m.flex_solref = flex_solref
   _m.flex_stiffness = flex_stiffness
+  _m.flex_stiffnessadr = flex_stiffnessadr
   _m.flex_vert = flex_vert
   _m.flex_vertadr = flex_vertadr
   _m.flex_vertbodyid = flex_vertbodyid
@@ -3489,6 +3500,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.eq_type,
       m._impl.eq_wld_adr,
       m._impl.flex_bending,
+      m._impl.flex_bendingadr,
       m._impl.flex_centered,
       m._impl.flex_conaffinity,
       m._impl.flex_condim,
@@ -3517,6 +3529,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_solmix,
       m._impl.flex_solref,
       m._impl.flex_stiffness,
+      m._impl.flex_stiffnessadr,
       m._impl.flex_vert,
       m.flex_vertadr,
       m._impl.flex_vertbodyid,

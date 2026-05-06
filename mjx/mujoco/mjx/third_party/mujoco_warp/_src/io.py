@@ -660,6 +660,14 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.flexedge_J_rowadr = mjm.flexedge_J_rowadr
   m.flexedge_J_colind = mjm.flexedge_J_colind.reshape(-1)
 
+  # flex_bendingadr backward compat: flatten old (nflexedge, 17) to 1D
+  if not check_version("mujoco>=3.8.1.dev909088123"):
+    m.flex_bendingadr = (
+      np.array([mjm.flex_edgeadr[i] * 17 for i in range(mjm.nflex)], dtype=int) if mjm.nflex else np.zeros(0, dtype=int)
+    )
+    m.flex_bending = mjm.flex_bending.ravel()
+    m.nflexbending = len(m.flex_bending)
+
   # place m on device
   sizes = dict({"*": 1}, **{f.name: getattr(m, f.name) for f in dataclasses.fields(types.Model) if f.type is int})
   for f in dataclasses.fields(types.Model):
@@ -2652,6 +2660,39 @@ def make_trajectory(model: mujoco.MjModel, keys: list[int]) -> np.ndarray:
     prev_time = time
 
   return np.array(ctrls)
+
+
+def load_trajectory(npz_path: str, mjm: mujoco.MjModel, mjd: mujoco.MjData) -> np.ndarray:
+  """Load ctrl sequence from NPZ and interpolate to model timestep.
+
+  If the trajectory dt differs from mjm.opt.timestep, each ctrl value is held
+  constant (zero-order hold) for the appropriate number of physics steps.
+
+  The NPZ file should contain:
+    - 'ctrl': array of shape (nstep, nu) with ctrl values
+    - 'times': array of shape (nstep,) with timestamps
+    - 'qpos' (optional): array of shape (1, nq) - initial state
+    - 'qvel' (optional): array of shape (1, nv) - initial state
+  """
+  data = np.load(npz_path)
+  ctrl = data["ctrl"]
+  times = data["times"]
+
+  if ctrl.shape[1] != mjm.nu:
+    raise ValueError(f"ctrl shape {ctrl.shape} does not match model nu={mjm.nu}")
+
+  # set initial state from first frame if available
+  if "qpos" in data and data["qpos"].shape[1] == mjm.nq:
+    mjd.qpos[:] = data["qpos"][0]
+  if "qvel" in data and data["qvel"].shape[1] == mjm.nv:
+    mjd.qvel[:] = data["qvel"][0]
+
+  # determine decimation from timing
+  ctrl_dt = (times[1] - times[0]) if len(times) > 1 else mjm.opt.timestep
+  decimation = max(1, round(ctrl_dt / mjm.opt.timestep))
+
+  # expand: each ctrl held constant for decimation physics steps
+  return np.repeat(ctrl, decimation, axis=0)
 
 
 @wp.kernel

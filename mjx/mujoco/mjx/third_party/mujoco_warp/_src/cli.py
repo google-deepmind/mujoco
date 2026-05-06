@@ -21,14 +21,12 @@ from typing import Callable, Tuple, get_type_hints
 import mujoco
 import numpy as np
 import warp as wp
-from absl import app
 from absl import flags
 from etils import epath
 
 import mujoco.mjx.third_party.mujoco_warp as mjw
 from mujoco.mjx.third_party.mujoco_warp._src import warp_util
-from mujoco.mjx.third_party.mujoco_warp._src.io import find_keys
-from mujoco.mjx.third_party.mujoco_warp._src.io import make_trajectory
+from mujoco.mjx.third_party.mujoco_warp._src.io import load_trajectory
 from mujoco.mjx.third_party.mujoco_warp._src.io import override_model
 from mujoco.mjx.third_party.mujoco_warp._src.util_misc import halton
 
@@ -46,7 +44,7 @@ NOISE_STD = flags.DEFINE_float("noise_std", 0.01, "add noise to ctrl signal (sta
 NOISE_RATE = flags.DEFINE_float("noise_rate", 0.1, "add noise to ctrl signal (noise rate)")
 
 DEVICE = flags.DEFINE_string("device", None, "override the default Warp device")
-REPLAY = flags.DEFINE_string("replay", None, "keyframe sequence to replay, keyframe name must prefix match")
+REPLAY = flags.DEFINE_string("replay", None, "NPZ file with ctrl sequence to replay")
 
 RENDER_WIDTH = flags.DEFINE_integer("render_width", 64, "render width (pixels)")
 RENDER_HEIGHT = flags.DEFINE_integer("render_height", 64, "render height (pixels)")
@@ -133,11 +131,10 @@ def init_structs(
   mjd = mujoco.MjData(mjm)
   ctrls = None
   if REPLAY.value:
-    keys = find_keys(mjm, REPLAY.value)
-    if not keys:
-      raise app.UsageError(f"Key prefix not found: {REPLAY.value}")
-    ctrls = make_trajectory(mjm, keys)
-    mujoco.mj_resetDataKeyframe(mjm, mjd, keys[0])
+    ctrls = load_trajectory(REPLAY.value, mjm, mjd)
+    # default nstep to trajectory length when not explicitly set
+    if flags.FLAGS["nstep"].using_default_value:
+      flags.FLAGS.nstep = len(ctrls)
   elif mjm.nkey > 0 and KEYFRAME.value > -1:
     mujoco.mj_resetDataKeyframe(mjm, mjd, KEYFRAME.value)
     ctrls = [mjd.ctrl.copy() for _ in range(NSTEP.value)]

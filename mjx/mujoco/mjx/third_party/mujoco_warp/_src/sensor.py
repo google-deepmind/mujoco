@@ -464,6 +464,8 @@ def _sensor_pos(
   body_geomnum: wp.array[int],
   body_geomadr: wp.array[int],
   body_iquat: wp.array2d[wp.quat],
+  body_mass: wp.array2d[float],
+  body_subtreemass: wp.array2d[float],
   jnt_qposadr: wp.array[int],
   geom_type: wp.array[int],
   geom_bodyid: wp.array[int],
@@ -684,7 +686,18 @@ def _sensor_pos(
     if objtype == ObjType.XBODY:
       xpos = xpos_in[worldid, objid]
     elif objtype == ObjType.BODY:
-      xpos = xipos_in[worldid, objid]
+      # for massless bodies with positive subtree mass (e.g., flex parents),
+      # xipos is the static body frame origin; use subtree_com instead
+      if objid > 0:
+        if (
+          body_mass[worldid % body_mass.shape[0], objid] < MJ_MINVAL
+          and body_subtreemass[worldid % body_subtreemass.shape[0], objid] >= MJ_MINVAL
+        ):
+          xpos = subtree_com_in[worldid, objid]
+        else:
+          xpos = xipos_in[worldid, objid]
+      else:
+        xpos = xipos_in[worldid, objid]
     elif objtype == ObjType.GEOM:
       xpos = geom_xpos_in[worldid, objid]
     elif objtype == ObjType.SITE:
@@ -830,6 +843,8 @@ def sensor_pos(m: Model, d: Data):
       m.body_geomnum,
       m.body_geomadr,
       m.body_iquat,
+      m.body_mass,
+      m.body_subtreemass,
       m.jnt_qposadr,
       m.geom_type,
       m.geom_bodyid,
