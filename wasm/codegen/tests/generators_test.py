@@ -475,7 +475,7 @@ void set_ngeom(int value) {
     )
     self.assertEqual(
         wrapped_field_data.binding,
-        '.property("ngeom", &MjModel::ngeom, &MjModel::set_ngeom, reference())',
+        '.property("ngeom", &MjModel::ngeom, &MjModel::set_ngeom)',
     )
 
   def test_pointer_type_field(self):
