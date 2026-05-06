@@ -302,6 +302,29 @@ void ImguiBridge::PrepareRenderables(int count) {
   }
 }
 
+mjrScene* ImguiBridge::GetScene() const { return scene_.get(); }
+
+mjrCamera ImguiBridge::GetCamera(int width, int height) const {
+  mjrCamera camera;
+  camera.orthographic = true;
+  camera.pos[0] = 0.0f;
+  camera.pos[1] = 0.0f;
+  camera.pos[2] = 1.0f;
+  camera.forward[0] = 0.0f;
+  camera.forward[1] = 0.0f;
+  camera.forward[2] = -1.0f;
+  camera.up[0] = 0.0f;
+  camera.up[1] = 1.0f;
+  camera.up[2] = 0.0f;
+  camera.frustum_top = 0.0f;
+  camera.frustum_near = 0.0f;
+  camera.frustum_far = 1.0f;
+  camera.frustum_center = width / 2.0f;
+  camera.frustum_width = width / 2.0f;
+  camera.frustum_bottom = height;
+  return camera;
+}
+
 static ImVec2 ClipSpaceToWindowCoordinates(float x, float y) {
   const ImVec2& display_size = ImGui::GetIO().DisplaySize;
   const float pos_x = display_size.x * ((x + 1) * 0.5f);

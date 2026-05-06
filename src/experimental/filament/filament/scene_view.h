@@ -63,7 +63,7 @@ class SceneView : public mjrScene {
     // The target viewport for the rendered image.
     mjrRect viewport;
     // The camera from which to render the scene.
-    mjvGLCamera camera;
+    mjrCamera camera;
     // An optional render target into which the scene will be rendered.
     RenderTarget* target = nullptr;
   };

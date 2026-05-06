@@ -56,7 +56,9 @@ class SceneBridge {
   void SetDrawTextFunction(DrawTextAtFn fn);
 
   // Returns the managed scene.
-  mjrScene* GetScene() const { return scene_.get(); }
+  mjrScene* GetScene() const;
+  mjrCamera GetCamera() const;
+  mjrDrawMode GetDrawMode() const;
 
   SceneBridge(const SceneBridge&) = delete;
   SceneBridge& operator=(const SceneBridge&) = delete;
@@ -71,6 +73,8 @@ class SceneBridge {
 
   mjrfContext* ctx_ = nullptr;
   std::unique_ptr<ModelObjects> model_objects_;
+  mjrCamera camera_;
+  mjrDrawMode draw_mode_ = mjDRAW_MODE_COLOR;
   DrawTextAtFn draw_text_callback_;
   UniquePtr<mjrScene> scene_{nullptr, nullptr};
   UniquePtr<mjrLight> fallback_ibl_{nullptr, nullptr};

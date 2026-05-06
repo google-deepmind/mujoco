@@ -80,10 +80,9 @@ class MjrFilamentRenderer {
   };
 
   std::unique_ptr<FilamentContext> filament_context_;
-  FrameBufferMode mode_ = FrameBufferMode::Window;
-  mjrRenderRequest render_requests_[2];
   std::unique_ptr<SceneBridge> scene_bridge_;
   std::unique_ptr<ImguiBridge> imgui_bridge_;
+  FrameBufferMode mode_ = FrameBufferMode::Window;
 };
 
 }  // namespace mujoco

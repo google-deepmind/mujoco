@@ -76,7 +76,7 @@ static filament::ColorGrading::Builder ToBuilder(
       .curves(opts.shadow_gamma, opts.mid_point, opts.highlight_scale);
 }
 
-static void SetupCamera(const mjvGLCamera& cam,
+static void SetupCamera(const mjrCamera& cam,
                         const filament::Viewport& viewport,
                         filament::Camera* camera) {
   const filament::Camera::Projection type =

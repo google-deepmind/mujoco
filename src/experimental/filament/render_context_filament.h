@@ -122,6 +122,7 @@ typedef std::uint64_t mjrFrameHandle;
 typedef mjtTexture mjrTextureTarget;
 typedef mjtColorSpace mjrColorSpace;
 typedef mjtLightType mjrLightType;
+typedef mjvGLCamera mjrCamera;
 
 // The textures that can be assigned to the drawable's material.
 struct mjrMaterialTextures {
@@ -367,7 +368,7 @@ struct mjrRenderRequest {
   mjrDrawMode draw_mode;
 
   // The camera from which to render the scene.
-  mjvGLCamera camera;
+  mjrCamera camera;
 
   // The dimensions of the output image.
   int width;
