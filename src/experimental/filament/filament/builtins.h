@@ -27,6 +27,7 @@ class Builtins {
  public:
   Builtins(filament::Engine* engine, int nstack, int nslice, int nquad);
 
+  // Returns a mesh for the corresponding built-in shape.
   const Mesh* Line();
   const Mesh* LineBox();
   const Mesh* Plane();

@@ -144,9 +144,10 @@ void mjrf_destroyContext(mjrfContext* ctx) {
   delete mujoco::FilamentContext::downcast(ctx);
 }
 
-mjrTexture* mjrf_createTexture(mjrfContext* ctx, const mjrTextureConfig* cfg) {
+mjrTexture* mjrf_createTexture(mjrfContext* ctx,
+                               const mjrTextureConfig* config) {
   return new mujoco::Texture(
-      mujoco::FilamentContext::downcast(ctx)->GetEngine(), *cfg);
+      mujoco::FilamentContext::downcast(ctx)->GetEngine(), *config);
 }
 
 void mjrf_destroyTexture(mjrTexture* texture) {
@@ -212,7 +213,7 @@ mjrSamplerType mjrf_getSamplerType(const mjrTexture* texture) {
   return mujoco::Texture::downcast(texture)->GetSamplerType();
 }
 
-void mjrf_setLightEnabled(mjrLight* light, bool enabled) {
+void mjrf_setLightEnabled(mjrLight* light, mjtByte enabled) {
   if (enabled) {
     mujoco::Light::downcast(light)->Enable();
   } else {
@@ -273,17 +274,17 @@ void mjrf_setRenderableLayerMask(mjrRenderable* renderable,
   mujoco::Renderable::downcast(renderable)->SetLayerMask(layer_mask);
 }
 
-void mjrf_setRenderableWireframe(mjrRenderable* renderable, bool wireframe) {
+void mjrf_setRenderableWireframe(mjrRenderable* renderable, mjtByte wireframe) {
   mujoco::Renderable::downcast(renderable)->SetWireframe(wireframe);
 }
 
 void mjrf_setRenderableCastShadows(mjrRenderable* renderable,
-                                   bool cast_shadows) {
+                                   mjtByte cast_shadows) {
   mujoco::Renderable::downcast(renderable)->SetCastShadows(cast_shadows);
 }
 
 void mjrf_setRenderableReceiveShadows(mjrRenderable* renderable,
-                                      bool receive_shadows) {
+                                      mjtByte receive_shadows) {
   mujoco::Renderable::downcast(renderable)->SetReceiveShadows(receive_shadows);
 }
 
@@ -313,7 +314,7 @@ void mjrf_setSceneSkybox(mjrScene* scene, const mjrTexture* texture) {
       mujoco::Texture::downcast(texture));
 }
 
-void mjrf_setSceneShadowsEnabled(mjrScene* scene, bool enabled) {
+void mjrf_setSceneShadowsEnabled(mjrScene* scene, mjtByte enabled) {
   if (enabled) {
     mujoco::SceneView::downcast(scene)->EnableShadows();
   } else {
@@ -321,7 +322,7 @@ void mjrf_setSceneShadowsEnabled(mjrScene* scene, bool enabled) {
   }
 }
 
-void mjrf_setSceneReflectionsEnabled(mjrScene* scene, bool enabled) {
+void mjrf_setSceneReflectionsEnabled(mjrScene* scene, mjtByte enabled) {
   if (enabled) {
     mujoco::SceneView::downcast(scene)->EnableReflections();
   } else {

@@ -31,10 +31,9 @@
 #include <math/vec4.h>
 #include "experimental/filament/render_context_filament.h"
 
-// Functions for creating filament vertex and index buffers.
 namespace mujoco {
 
-// Owns a Vertex and Index buffer representing a geometry mesh.
+// Owns a filament Vertex and Index buffer representing a geometry mesh.
 class Mesh : public mjrMesh {
  public:
   // Creates a Mesh from the given MeshData.

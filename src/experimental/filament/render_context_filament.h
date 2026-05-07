@@ -29,7 +29,37 @@ extern "C" {
 // IMPORTANT: This API should still be considered experimental and is likely
 // change frequently.
 
-// Opaque types.
+// This library provides a C API for the filament rendering library
+// (https://github.com/google/filament) that is designed to work with the
+// MuJoCo library for visualizing simulations.
+//
+// The filament renderer is a real-time physically based rendering (PBR) engine
+// developed by Google. It is designed to be as small as possible and as
+// efficient as possible, while still providing high-quality results. It works
+// across all major platforms (Linux, Windows, macOS, Android, iOS, Web) and
+// supports OpenGL, Vulkan, and Metal.
+//
+// For the purposes of this API, we assume the reader has a basic understanding
+// of rendering concepts (e.g. textures, vertices, cameras, framebuffers, etc.).
+// We will also highlight some of the key differences between this renderer and
+// the legacy/classic MuJoCo (mjr) renderer.
+//
+// ## API Overview
+//
+// There are seven key components: Context, Texture, Mesh, Scene, Light,
+// Renderable, and RenderTarget. We'll describe these in detail further below.
+//
+// Each object is created using a `create` function and destroyed using a
+// `destroy` function, e.g. `mjrf_createTexture` and `mjrf_destroyTexture`.
+// The `create` functions accept a pointer to a configuration struct (e.g.
+// `mjrTextureConfig`) which describes the parameters for the object to be
+// created. Each of these structs has a corresponding `default` function (e.g.
+// `mjr_defaultTextureConfig`) which can be used to initialize the struct to
+// default values. Default values are assumed to be 0/NULL unless otherwise
+// specified.
+//
+// For now, we'll just define opaque handles for each of our components.
+struct mjrfContext {};
 struct mjrTexture {};
 struct mjrMesh {};
 struct mjrScene {};
@@ -37,10 +67,66 @@ struct mjrLight {};
 struct mjrRenderable {};
 struct mjrRenderTarget {};
 
-// Opaque type for the filament rendering context.
-struct mjrfContext {};
 
-// The different modes that can be used to render a scene.
+// ## Rendering Context (mjrfContext)
+//
+// The Context is the main entry point for the library. It manages all the
+// core filament objects that are responsible for the rendering of an image.
+//
+// Filament uses a separate thread for doing the actual rendering. However,
+// despite that, this API is not thread-safe; calls are expected to be made
+// from a single thread. Also, due to the asynchronous nature of filament,
+// some APIs provide handles or callbacks to signal when an operation is
+// complete. (Note: for WASM builds, filament does not use a separate thread.)
+//
+// All other objects (e.g. Textures, Meshes, Scenes, etc.) need a Context in
+// order to be created. Otherwise, the main function to use with the Context is
+// `mjrf_render()` which does the actual rendering.
+//
+// There are two key differences between the mjrfContext and the classic
+// mjrContext. Firstly, the filament context will manage the underlying graphics
+// context itself. This means users do not need to initialize EGL or similar
+// libraries beforehand. Secondly, the filament context is independent of a
+// MuJoCo model. That means you can use a single mjrfContext to render images
+// for multiple models.
+
+// Underlying graphics API library to use for the Context.
+typedef enum mjrGraphicsApi_ {
+  // Default, based on current platform.
+  mjGRAPHICS_API_DEFAULT = 0,
+  // OpenGL (desktop), GLES (mobile), WebGL (web)
+  mjGRAPHICS_API_OPENGL,
+  // Vulkan
+  mjGRAPHICS_API_VULKAN,
+} mjrGraphicsApi;
+
+// Configuration parameters for the filament rendering context.
+struct mjrFilamentConfig {
+  // The native window handle into which we can render directly. If nullptr,
+  // rendering will be done to an offscreen framebuffer.
+  void* native_window;
+
+  // The initial width and height of the offscreen framebuffer.
+  int width;
+  int height;
+
+  // The backend graphics API to use.
+  mjrGraphicsApi graphics_api;
+
+  // Use software rendering even if the platform supports hardware rendering.
+  mjtByte force_software_rendering;
+};
+
+// Initializes the mjrFilamentConfig to default values.
+void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);
+
+// Creates a filament rendering context.
+mjrfContext* mjrf_createContext(const mjrFilamentConfig* config);
+
+// Destroys the filament rendering context.
+void mjrf_destroyContext(mjrfContext* ctx);
+
+// Describes the look/intention of the final rendered image.
 typedef enum mjrDrawMode_ {
   // Render the scene with "normal" colors and lighting.
   mjDRAW_MODE_COLOR,
@@ -51,19 +137,198 @@ typedef enum mjrDrawMode_ {
   mjDRAW_MODE_SEGMENTATION,
 } mjrDrawMode;
 
-enum { mjNUM_DRAW_MODES = 3 };
+enum { mjNUM_DRAW_MODES = 3 };  // Number of modes in `mjrDrawMode`.
 
-// The type of data stored in an index buffer.
-typedef enum mjrIndexType_ {
-  mjINDEX_TYPE_U16 = 0,
-  mjINDEX_TYPE_U32,
-} mjrIndexType;
+// Parameters describing the camera to use for rendering an image.
+typedef mjvGLCamera mjrCamera;
 
-// The type of primitive to be drawn by vertex data.
-typedef enum mjrMeshPrimitiveType_ {
-  mjMESH_PRIMITIVE_TYPE_TRIANGLES = 0,
-  mjMESH_PRIMITIVE_TYPE_LINES,
-} mjrMeshPrimitiveType;
+// Describes a single rendering operation; used by `mjrf_render()`.
+struct mjrRenderRequest {
+  // The scene to render.
+  mjrScene* scene;
+
+  // The camera from which to render the scene.
+  mjrCamera camera;
+
+  // The method (e.g. Color, Depth, Segmentation, etc.) to use for rendering.
+  mjrDrawMode draw_mode;
+
+  // The viewport into which to render the image.
+  mjrRect viewport;
+
+  // The render target into which to render the image. If nullptr, the image
+  // will be rendered to the window (as previously configured in
+  // mjrFilamentConfig::native_window).
+  mjrRenderTarget* target;
+};
+
+// Initializes the mjrRenderRequest to default values.
+void mjr_defaultRenderRequest(mjrRenderRequest* request);
+
+// Information needed to read pixels; used by `mjrf_render()`.
+struct mjrReadPixelsRequest {
+  // The render target from which to read the image pixels.
+  mjrRenderTarget* target;
+
+  // The buffer into which the read pixels will be written.
+  void* output;
+
+  // The number of bytes in the output buffer. This should match the size of
+  // the render target texture.
+  mjtSize num_bytes;
+
+  // Callback when the read pixels operation is complete. This function can
+  // optionally be used to free the output buffer if needed.
+  void (*read_completed_callback)(void* user_data);
+
+  // User data to pass to the completion callback.
+  void* user_data;
+};
+
+// Initializes the mjrReadPixelsRequest to default values.
+void mjr_defaultReadPixelsRequest(mjrReadPixelsRequest* request);
+
+// Because rendering is asynchronous, each render request is assigned a
+// unique Handle which can be used to query the status of the request. The
+// Handle can also be used to block until the request is completed.
+typedef std::uint64_t mjrFrameHandle;
+
+// Submits the given requests for rendering. Because rendering may happen
+// asynchronously, we have to submit both the render and read requests in the
+// same call. This function is also when any callbacks will be triggered,
+// though there is no guarantee on when exactly that will be done.
+//
+// Multiple requests and reads can be submitted in a single call. These
+// requests will be processed in order, so some care must be taken. Firstly,
+// requests should be grouped by target. Next, the combined area of the
+// viewports for all requests for a given target must be contained within the
+// dimensions of the target itself.
+mjrFrameHandle mjrf_render(mjrfContext* ctx, const mjrRenderRequest* req,
+                           int nreq, const mjrReadPixelsRequest* read_req,
+                           int nread_req);
+
+// Waits for all rendering operations to complete for the given frame handle,
+// triggering any callbacks as needed.
+void mjrf_waitForFrame(mjrfContext* ctx, mjrFrameHandle frame);
+
+// Information about a single frame of rendering.
+struct mjrFrameStats {
+  // The frame rate of the renderer, in frames per second.
+  double frame_rate;
+};
+
+// Initializes the mjrFrameStats to default values.
+void mjr_defaultFrameStats(mjrFrameStats* stats);
+
+// Returns the stats for the given frame but updating the given `stats_out`.
+void mjrf_getFrameStats(mjrfContext* ctx, mjrFrameHandle frame,
+                        mjrFrameStats* stats_out);
+
+// ## Textures (mjrTexture)
+//
+// A texture is a 2D or 3D (cubemap) image that adds visual detail to a rendered
+// model, such as color or bumpiness, without increasing geometric complexity.
+//
+// For textures intended to be used for image-based lights (see `mjrLight`
+// below), you should use filament's `cmgen` tool to generate a KTX image from
+// your source image. This tool will calculate additional data (i.e. the
+// spherical harmonics) and encode that information into the KTX file.
+
+// Pixel formats for textures.
+typedef enum mjrPixelFormat_ {
+  mjPIXEL_FORMAT_UNKNOWN = 0,
+  mjPIXEL_FORMAT_R8,
+  mjPIXEL_FORMAT_RGB8,
+  mjPIXEL_FORMAT_RGBA8,
+  mjPIXEL_FORMAT_R32F,
+  mjPIXEL_FORMAT_DEPTH32F,
+  mjPIXEL_FORMAT_KTX,
+} mjrPixelFormat;
+
+// Type of texture.
+typedef mjtTexture mjrSamplerType;
+
+// Type of color space encoding.
+typedef mjtColorSpace mjrColorSpace;
+
+// Defines the basic properties of a texture.
+struct mjrTextureConfig {
+  // The width of the texture. For compressed textures (e.g. KTX), this is the
+  // number of bytes in the compressed data.
+  int width;
+
+  // The height of the texture. For compressed textures (e.g. KTX), this should
+  // be 0.
+  int height;
+
+  // How the texture will be interpreted by the renderer (e.g. 2D, cube, etc.).
+  mjrSamplerType sampler_type;
+
+  // The format of the pixels in the texture (e.g. RGB8, RGBA8, KTX, etc.)
+  mjrPixelFormat format;
+
+  // The color space of the texture (e.g. LINEAR, sRGB, etc.)
+  mjrColorSpace color_space;
+};
+
+// Initializes the mjrTextureConfig to default values.
+void mjr_defaultTextureConfig(mjrTextureConfig* config);
+
+// Creates a texture with the given configuration. Note that the texture will
+// not be created on the GPU until `mjrf_setTextureData()` is called.
+mjrTexture* mjrf_createTexture(mjrfContext* ctx, const mjrTextureConfig* config);
+
+// Destroys the texture.
+void mjrf_destroyTexture(mjrTexture* texture);
+
+// The binary data for a texture.
+struct mjrTextureData {
+  // Pointer to the data. If null, an empty texture will be created.
+  const void* bytes;
+
+  // The number of bytes in the image data.
+  mjtSize nbytes;
+
+  // Because rendering may be multithreaded, we cannot make assumptions about
+  // when the image data will finish uploading to the GPU. As such, we will use
+  // this callback to notify callers when it is safe to free the image data.
+  void (*release_callback)(void* user_data);
+
+  // User data to pass to the release callback.
+  void* user_data;
+};
+
+// Initializes the mjrTextureData to default values.
+void mjr_defaultTextureData(mjrTextureData* data);
+
+// Uploads the given texture data to the texture.
+void mjrf_setTextureData(mjrTexture* texture, const mjrTextureData* data);
+
+// Returns the width of the texture.
+int mjrf_getTextureWidth(const mjrTexture* texture);
+
+// Returns the height of the texture.
+int mjrf_getTextureHeight(const mjrTexture* texture);
+
+// Returns the target type of the texture.
+mjrSamplerType mjrf_getSamplerType(const mjrTexture* texture);
+
+// ## Meshes (mjrMesh)
+//
+// A mesh describes the surface geometry of an object to be rendered. It is
+// defined as a collection of vertices (i.e. a VertexBuffer), a set of indices
+// (i.e. an IndexBuffer) that describes the order in which the vertices should
+// be processed, and a primitive type that defined how the vertices are to be
+// interpreted (e.g. triangles, lines, etc.) when rendering the surface.
+//
+// Filament does not directly support normals. Instead, it encodes the normal,
+// tangen, and bitangent into a 4-component quaternion describing the
+// "orientation" of the vertex. Ideally, you should preprocess your assets
+// to generate this data offline, but we will compute it on the fly if needed
+// (at a performance cost).
+//
+// We also suggest precomputing the bounds of the mesh, otherwise we will also
+// compute it on the fly.
 
 // The usage/purpose of an attribute of a vertex.
 typedef enum mjrVertexAttributeUsage_ {
@@ -82,167 +347,17 @@ typedef enum mjrVertexAttributeType_ {
   mjVERTEX_ATTRIBUTE_TYPE_UBYTE4,
 } mjrVertexAttributeType;
 
-// Pixel formats for textures.
-typedef enum mjrPixelFormat_ {
-  mjPIXEL_FORMAT_UNKNOWN = 0,
-  mjPIXEL_FORMAT_R8,
-  mjPIXEL_FORMAT_RGB8,
-  mjPIXEL_FORMAT_RGBA8,
-  mjPIXEL_FORMAT_R32F,
-  mjPIXEL_FORMAT_DEPTH32F,
-  mjPIXEL_FORMAT_KTX,
-} mjrPixelFormat;
+// The type of data stored in an index buffer.
+typedef enum mjrIndexType_ {
+  mjINDEX_TYPE_U16 = 0,
+  mjINDEX_TYPE_U32,
+} mjrIndexType;
 
-typedef enum mjrGraphicsApi_ {  // backend graphics API to use
-  mjGRAPHICS_API_DEFAULT = 0,   // default based on platform
-  mjGRAPHICS_API_OPENGL,        // OpenGL (desktop) / WebGL
-  mjGRAPHICS_API_VULKAN         // Vulkan
-} mjrGraphicsApi;
-
-
-// Rendering is asynchronous by nature. Each render request is assigned a
-// unique Handle which can be used to query the status of the request. The
-// Handle can also be used to block until the request is completed.
-typedef std::uint64_t mjrFrameHandle;
-
-// Bring some legacy mjt types into the mjr namespace.
-typedef mjtTexture mjrSamplerType;
-typedef mjtColorSpace mjrColorSpace;
-typedef mjtLightType mjrLightType;
-typedef mjvGLCamera mjrCamera;
-
-// The material to be applied to a renderable.
-struct mjrMaterial {
-  // The color of the object. Defaults to white.
-  float color[4];
-
-  // The color to use for segmentation rendering. Defaults to white.
-  float segmentation_color[4];
-
-  // Applies an addition scale to the UV coordinates of the object. Defaults to
-  // (1, 1, 1).
-  float uv_scale[3];
-
-  // Applies an offset to the UV coordinates of the object. Defaults to (0, 0,
-  // 0).
-  float uv_offset[3];
-
-  // Applies a scissor test to the object.
-  float scissor[4];
-
-  // Factors for PBR metallic-roughness materials.
-  float metallic;
-  float roughness;
-
-  // Factors for (non-PBR) specular-glossiness materials.
-  float specular;
-  float glossiness;
-
-  // The emissive (glow) factor of the object.
-  float emissive;
-
-  // Whether or not the object is a reflective surface. Only applies to planes.
-  mjtByte reflective;
-  // The blend factor to use for reflective surfaces. A value of 1.0 means that
-  // the surface is fully reflective (i.e. a mirror).
-  float reflectance;
-
-  // If true, does not apply any lighting to the object. (Assumes the object is
-  // used for UX or decorative elements like contact forces and labels.)
-  mjtByte decor_ux;
-
-  // The texture containing the base color of the object.
-  const mjrTexture* color_texture;
-
-  // The normal map of the object.
-  const mjrTexture* normal_texture;
-
-  // The metallic map of the object.
-  const mjrTexture* metallic_texture;
-
-  // The roughness map of the object.
-  const mjrTexture* roughness_texture;
-
-  // The occlusion map of the object.
-  const mjrTexture* occlusion_texture;
-
-  // A texture containing the occlusion, roughness, and metallic maps packed
-  // into the R, G, B channels, respectively.
-  const mjrTexture* orm_texture;
-
-  // An emissive texture for the object.
-  const mjrTexture* emissive_texture;
-
-  // The reflection texture to use for the object. For internal use only.
-  const mjrTexture* reflection_texture;
-};
-
-// Initializes the mjrMaterial to default values.
-void mjr_defaultMaterial(mjrMaterial* material);
-
-// The binary contents of a texture.
-struct mjrTextureData {
-  // Pointer to the image data. If null, an empty texture will be created.
-  const void* bytes;
-
-  // The number of bytes in the image data.
-  mjtSize nbytes;
-
-  // Because rendering may be multithreaded, we cannot make assumptions about
-  // when the image data will finish uploading to the GPU. As such, we will use
-  // this callback to notify callers when it is safe to free the image data.
-  void (*release_callback)(void* user_data);
-
-  // User data to pass to the release callback.
-  void* user_data;
-};
-
-// Initializes the mjrTextureData to default values.
-void mjr_defaultTextureData(mjrTextureData* data);
-
-// Defines the basic properties of a texture.
-struct mjrTextureConfig {
-  // The width of the texture. For compressed textures (e.g. KTX), this is the
-  // number of bytes in the compressed data.
-  int width;
-
-  // The height of the texture. For compressed textures (e.g. KTX), this should
-  // be 0.
-  int height;
-
-  // The target of the texture (e.g. 2D, cube, etc.)
-  mjrSamplerType sampler_type;
-
-  // The format of the pixels in the texture (e.g. RGB8, RGBA8, KTX, etc.)
-  mjrPixelFormat format;
-
-  // The color space of the texture (e.g. LINEAR, sRGB, etc.)
-  mjrColorSpace color_space;
-};
-
-// Initializes the mjrTextureConfig to default values.
-void mjr_defaultTextureConfig(mjrTextureConfig* config);
-
-// Configuration parameters for a Renderable.
-struct mjrRenderableParams {
-  // Whether or not the Renderable casts shadows.
-  mjtByte cast_shadows;
-  // Whether or not the Renderable receives shadows.
-  mjtByte receive_shadows;
-  // The layers to which the Renderable belongs. This mask is used in
-  // conjunction with the layer mask in the Scene to determine which
-  // Renderables to render. Defaults to 0xff.
-  uint8_t layer_mask;
-  // Controls the order in which the Renderable is drawn relative to other
-  // Renderables; defaults to 4.
-  uint8_t priority;
-  // Similar to priority, but provides finer-grained control for Renderables
-  // with transparency; defaults to 0.
-  uint16_t blend_order;
-};
-
-// Initializes the mjrRenderableParams to default values.
-void mjr_defaultRenderableParams(mjrRenderableParams* params);
+// The type of primitive to be drawn by vertex data.
+typedef enum mjrMeshPrimitiveType_ {
+  mjMESH_PRIMITIVE_TYPE_TRIANGLES = 0,
+  mjMESH_PRIMITIVE_TYPE_LINES,
+} mjrMeshPrimitiveType;
 
 // Information about a single attribute of a vertex.
 struct mjrVertexAttribute {
@@ -317,23 +432,92 @@ struct mjrMeshData {
 // Initializes the mjrMeshData to default values.
 void mjr_defaultMeshData(mjrMeshData* data);
 
+// Creates a mesh with the given data.
+mjrMesh* mjrf_createMesh(mjrfContext* ctx, const mjrMeshData* data);
+
+// Destroys the mesh.
+void mjrf_destroyMesh(mjrMesh* mesh);
+
+// ## Scenes (mjrScene)
+//
+// A scene is a collection of entities (Lights and Renderables) that defines
+// what is to be rendered. It also specifies the various effects that are to be
+// applied to the rendering (e.g. shadows, reflections, post-processing, etc.)
+
 // Configuration parameters for a Scene.
 struct mjrSceneParams {
   // Whether or not to enable post processing; enabled by default.
   mjtByte enable_post_processing;
+
   // Whether or not to enable reflections; enabled by default.
   mjtByte enable_reflections;
+
   // Whether or not to enable shadows; enabled by default.
   mjtByte enable_shadows;
+
   // This mask, in conjunction with the layer mask in the Renderable, determines
   // which Renderables to render within the Scene.
   uint8_t layer_mask;
+
   // The layer mask to use for reflections.
   uint8_t reflection_layer_mask;
 };
 
 // Initializes the mjrSceneParams to default values.
 void mjr_defaultSceneParams(mjrSceneParams* params);
+
+// Creates a scene with the given parameters.
+mjrScene* mjrf_createScene(mjrfContext* ctx, const mjrSceneParams* params);
+
+// Destroys the scene.
+void mjrf_destroyScene(mjrScene* scene);
+
+// Adds a light to the scene.
+void mjrf_addLightToScene(mjrScene* scene, mjrLight* light);
+
+// Removes the light from the scene.
+void mjrf_removeLightFromScene(mjrScene* scene, mjrLight* light);
+
+// Adds a renderable to the scene.
+void mjrf_addRenderableToScene(mjrScene* scene, mjrRenderable* renderable);
+
+// Removes the renderable from the scene.
+void mjrf_removeRenderableFromScene(mjrScene* scene, mjrRenderable* renderable);
+
+// Sets the skybox (cube texture) for the scene.
+void mjrf_setSceneSkybox(mjrScene* scene, const mjrTexture* texture);
+
+// Enables (or disables) shadows in the scene.
+void mjrf_setSceneShadowsEnabled(mjrScene* scene, mjtByte enabled);
+
+// Enables (or disables) reflections in the scene.
+void mjrf_setSceneReflectionsEnabled(mjrScene* scene, mjtByte enabled);
+
+// Configures the scene based on the parameters in an mjModel.
+void mjrf_configureSceneFromModel(mjrScene* scene, const mjModel* model);
+
+// ## Lights (mjrLight)
+//
+// A light is a source of illumination in the scene. (Without lights, a scene
+// will be completely black.) There are several different types of lights such
+// as directional, spot, point, and image lights.
+//
+// The primary light in a scene is the image light (also sometimes known as the
+// environment light). This is a light that "surrounds" the entire scene and
+// is defined as a 3D texture. Each "pixel" of the cubemap is interpreted as the
+// color of projected into the scene from a particular direction.
+//
+// Directional lights are the next most common type of light and is usually
+// used to simulate the sun; a uniformly colored light that is emitted in a
+// single direction.
+//
+// Filament only supports a single image and directional light. You can define
+// as many point or spot lights as you want. Each light source (except image
+// based lights) may or may not cast shadows. Each shadow-casting light incurs a
+// performance cost.
+
+// The type of light (spot, directional, image, etc.).
+typedef mjtLightType mjrLightType;
 
 // Configuration parameters for a light.
 struct mjrLightParams {
@@ -362,152 +546,14 @@ struct mjrLightParams {
 // Initializes the mjrLightParams to default values.
 void mjr_defaultLightParams(mjrLightParams* params);
 
-// Defines the basic properties of a render target.
-struct mjrRenderTargetConfig {
-  // The width of the render target.
-  int width;
-  // The height of the render target.
-  int height;
-  // The format of the color buffer in the render target.
-  mjrPixelFormat color_format;
-  // The format of the depth buffer in the render target.
-  mjrPixelFormat depth_format;
-};
-
-// Initializes the RenderTargetConfig to default values.
-void mjr_defaultRenderTargetConfig(mjrRenderTargetConfig* config);
-
-// Information needed to render a single image of a scene.
-struct mjrRenderRequest {
-  // The scene to render.
-  mjrScene* scene;
-
-  // The method (e.g. Color, Depth, Segmentation, etc.) to use for rendering.
-  mjrDrawMode draw_mode;
-
-  // The camera from which to render the scene.
-  mjrCamera camera;
-
-  // The viewport into which to render the image.
-  mjrRect viewport;
-
-  // The render target into which to render the image. If nullptr, the image
-  // will be rendered to the window (as previously configured in
-  // mjrFilamentConfig::native_window).
-  mjrRenderTarget* target;
-};
-
-// Initializes the mjrRenderRequest to default values.
-void mjr_defaultRenderRequest(mjrRenderRequest* request);
-
-// Information needed to read pixels from a render target.
-struct mjrReadPixelsRequest {
-  mjrRenderTarget* target;
-
-  // The buffer into which the read pixels will be written.
-  void* output;
-
-  // The number of bytes in the output buffer. This should match the size of
-  // the render target texture.
-  mjtSize num_bytes;
-
-  // Callback when the read pixels operation is complete. This will be called
-  // during WaitForFrame() or in a subsequent call to Render(). This function
-  // can optionally be used to free the output buffer if needed.
-  void (*read_completed_callback)(void* user_data);
-
-  // User data to pass to the completion callback.
-  void* user_data;
-};
-
-// Initializes the mjrReadPixelsRequest to default values.
-void mjr_defaultReadPixelsRequest(mjrReadPixelsRequest* request);
-
-// Information about a single frame of rendering.
-struct mjrFrameStats {
-  // The frame rate of the renderer, in frames per second.
-  double frame_rate;
-};
-
-// Initializes the mjrFrameStats to default values.
-void mjr_defaultFrameStats(mjrFrameStats* stats);
-
-// Configuration parameters for the filament rendering context.
-struct mjrFilamentConfig {
-  // The native window handle into which we can render directly.
-  void* native_window;
-
-  // The initial width and height of the offscreen framebuffer.
-  int width;
-  int height;
-
-  // The backend graphics API to use.
-  int graphics_api;
-
-  // Use software rendering even if the platform supports hardware rendering.
-  bool force_software_rendering;
-};
-
-// Initializes the mjrFilamentConfig to default values.
-void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);
-
-// Creates a filament rendering context.
-mjrfContext* mjrf_createContext(const mjrFilamentConfig* config);
-
-// Destroys the filament rendering context.
-void mjrf_destroyContext(mjrfContext* ctx);
-
-// Creates a texture for the filament renderer.
-mjrTexture* mjrf_createTexture(mjrfContext* ctx, const mjrTextureConfig* cfg);
-
-// Destroys the texture.
-void mjrf_destroyTexture(mjrTexture* texture);
-
-// Creates a mesh for the filament renderer.
-mjrMesh* mjrf_createMesh(mjrfContext* ctx, const mjrMeshData* data);
-
-// Destroys the mesh.
-void mjrf_destroyMesh(mjrMesh* mesh);
-
-// Creates a scene for the filament renderer.
-mjrScene* mjrf_createScene(mjrfContext* ctx, const mjrSceneParams* params);
-
-// Destroys the scene.
-void mjrf_destroyScene(mjrScene* scene);
-
 // Creates a light for the filament renderer.
 mjrLight* mjrf_createLight(mjrfContext* ctx, const mjrLightParams* params);
 
 // Destroys the light.
 void mjrf_destroyLight(mjrLight* light);
 
-// Creates a renderable for the filament renderer.
-mjrRenderable* mjrf_createRenderable(mjrfContext* ctx, const mjrRenderableParams* params);
-
-// Destroys the renderable.
-void mjrf_destroyRenderable(mjrRenderable* renderable);
-
-// Creates a render target for the filament renderer.
-mjrRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx,
-                                         const mjrRenderTargetConfig* config);
-
-// Destroys the render target.
-void mjrf_destroyRenderTarget(mjrRenderTarget* render_target);
-
-// Uploads the given texture data to the texture.
-void mjrf_setTextureData(mjrTexture* texture, const mjrTextureData* data);
-
-// Returns the width of the texture.
-int mjrf_getTextureWidth(const mjrTexture* texture);
-
-// Returns the height of the texture.
-int mjrf_getTextureHeight(const mjrTexture* texture);
-
-// Returns the sampler type of the texture.
-mjrSamplerType mjrf_getSamplerType(const mjrTexture* texture);
-
 // Enables or disables the light.
-void mjrf_setLightEnabled(mjrLight* light, bool enabled);
+void mjrf_setLightEnabled(mjrLight* light, mjtByte enabled);
 
 // Sets the intensity of the light, in candela.
 void mjrf_setLightIntensity(mjrLight* light, float intensity);
@@ -521,6 +567,120 @@ void mjrf_setLightTransform(mjrLight* light, const float position[3],
 
 // Returns the type of the light.
 mjrLightType mjrf_getLightType(const mjrLight* light);
+
+// ## Renderables (mjrRenderable)
+//
+// A renderable is a single drawable object in the scene. It is defined as a
+// combination of a mesh (i.e. surface geometry) and a material (i.e. surface
+// appearance and properties).
+//
+// In terms of materials, there are three lighting models currently supported:
+//
+// 1. Metallic-roughness (PBR): this is the preferred model for rendering
+//    models based standard metallic-roughness workflows.
+// 2. Specular-glossiness (non-PBR): this is a legacy model designed to be
+//    compatible with classic mjr renderer, though it is not 100% identical.
+// 3. Unlit: this model ignores lighting and used for rendering UX or decorative
+//    elements like contact forces and labels.
+//
+// Which lighting model is used is determined by the mjrMaterial properties.
+
+// The material to be applied to a renderable.
+struct mjrMaterial {
+  // The color of the object. Defaults to white.
+  float color[4];
+
+  // The color to use for segmentation rendering. Defaults to white.
+  float segmentation_color[4];
+
+  // Applies an addition scale to the UV coordinates of the object. Defaults to
+  // (1, 1, 1).
+  float uv_scale[3];
+
+  // Applies an offset to the UV coordinates of the object. Defaults to (0, 0,
+  // 0).
+  float uv_offset[3];
+
+  // Applies a scissor test to the object.
+  float scissor[4];
+
+  // Factors for PBR metallic-roughness materials.
+  float metallic;
+  float roughness;
+
+  // Factors for (non-PBR) specular-glossiness materials.
+  float specular;
+  float glossiness;
+
+  // The emissive (glow) factor of the object.
+  float emissive;
+
+  // Whether or not the object is a reflective surface. Only applies to planes.
+  mjtByte reflective;
+  // The blend factor to use for reflective surfaces. A value of 1.0 means that
+  // the surface is fully reflective (i.e. a mirror).
+  float reflectance;
+
+  // If true, does not apply any lighting to the object. Assumes the object is
+  // used for UX or decorative elements like contact forces and labels.
+  mjtByte decor_ux;
+
+  // The texture containing the base color of the object.
+  const mjrTexture* color_texture;
+
+  // The normal map of the object.
+  const mjrTexture* normal_texture;
+
+  // The metallic map of the object.
+  const mjrTexture* metallic_texture;
+
+  // The roughness map of the object.
+  const mjrTexture* roughness_texture;
+
+  // The occlusion map of the object.
+  const mjrTexture* occlusion_texture;
+
+  // A texture containing the occlusion, roughness, and metallic maps packed
+  // into the R, G, B channels, respectively.
+  const mjrTexture* orm_texture;
+
+  // An emissive texture for the object.
+  const mjrTexture* emissive_texture;
+
+  // The reflection texture to use for the object. For internal use only.
+  const mjrTexture* reflection_texture;
+};
+
+// Initializes the mjrMaterial to default values.
+void mjr_defaultMaterial(mjrMaterial* material);
+
+// Configuration parameters for a Renderable.
+struct mjrRenderableParams {
+  // Whether or not the Renderable casts shadows.
+  mjtByte cast_shadows;
+  // Whether or not the Renderable receives shadows.
+  mjtByte receive_shadows;
+  // The layers to which the Renderable belongs. This mask is used in
+  // conjunction with the layer mask in the Scene to determine which
+  // Renderables to render. Defaults to 0xff.
+  uint8_t layer_mask;
+  // Controls the order in which the Renderable is drawn relative to other
+  // Renderables; defaults to 4.
+  uint8_t priority;
+  // Similar to priority, but provides finer-grained control for Renderables
+  // with transparency; defaults to 0.
+  uint16_t blend_order;
+};
+
+// Initializes the mjrRenderableParams to default values.
+void mjr_defaultRenderableParams(mjrRenderableParams* params);
+
+// Creates a renderable with the given parameters.
+mjrRenderable* mjrf_createRenderable(mjrfContext* ctx,
+                                     const mjrRenderableParams* params);
+
+// Destroys the renderable.
+void mjrf_destroyRenderable(mjrRenderable* renderable);
 
 // Sets the mesh of the renderable.
 void mjrf_setRenderableMesh(mjrRenderable* renderable, const mjrMesh* mesh,
@@ -536,65 +696,60 @@ void mjrf_setRenderableGeomMesh(mjrRenderable* renderable, mjtGeom type,
 void mjrf_setRenderableMaterial(mjrRenderable* renderable,
                                 const mjrMaterial* material);
 
-// Sets the transform (position, rotation, and size) of the renderable.
+// Sets the transform (position, rotation, and size) of the renderable. Note
+// that `size` is not the same as `scale`. For example, the z-size of a capsule
+// only scales the tubular-portion of its geometry, but not the spherical caps.
 void mjrf_setRenderableTransform(mjrRenderable* renderable,
                                  const float position[3],
                                  const float rotation[9], const float size[3]);
 
 // Sets whether the renderable casts shadows or not.
 void mjrf_setRenderableCastShadows(mjrRenderable* renderable,
-                                   bool cast_shadows);
+                                   mjtByte cast_shadows);
 
 // Sets whether the renderable receives shadows or not.
 void mjrf_setRenderableReceiveShadows(mjrRenderable* renderable,
-                                      bool receive_shadows);
+                                      mjtByte receive_shadows);
 
 // Forces the renderable to be rendered using lines.
-void mjrf_setRenderableWireframe(mjrRenderable* renderable, bool wireframe);
+void mjrf_setRenderableWireframe(mjrRenderable* renderable, mjtByte wireframe);
 
 // Sets the layer mask of the renderable. See mjrRenderableParams for details.
 void mjrf_setRenderableLayerMask(mjrRenderable* renderable, uint8_t layer_mask);
 
-// Adds the light to the scene.
-void mjrf_addLightToScene(mjrScene* scene, mjrLight* light);
+// ## Render Targets (mjrRenderTarget)
+//
+// A render target is a memory buffer that holds the results of a rendering
+// operation. (This is an alternative to rendering directly to the screen.)
+// See mjrf_render for more details.
 
-// Removes the light from the scene.
-void mjrf_removeLightFromScene(mjrScene* scene, mjrLight* light);
+// Defines the basic properties of a render target.
+struct mjrRenderTargetConfig {
+  // The width of the render target.
+  int width;
+  // The height of the render target.
+  int height;
+  // The format of the color buffer in the render target.
+  mjrPixelFormat color_format;
+  // The format of the depth buffer in the render target.
+  mjrPixelFormat depth_format;
+};
 
-// Adds the renderable to the scene.
-void mjrf_addRenderableToScene(mjrScene* scene, mjrRenderable* renderable);
+// Initializes the RenderTargetConfig to default values.
+void mjr_defaultRenderTargetConfig(mjrRenderTargetConfig* config);
 
-// Removes the renderable from the scene.
-void mjrf_removeRenderableFromScene(mjrScene* scene, mjrRenderable* renderable);
+// Creates a render target for the filament renderer.
+mjrRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx,
+                                         const mjrRenderTargetConfig* config);
 
-// Sets the skybox texture of the scene.
-void mjrf_setSceneSkybox(mjrScene* scene, const mjrTexture* texture);
+// Destroys the render target.
+void mjrf_destroyRenderTarget(mjrRenderTarget* render_target);
 
-// Enables (or disables) shadows in the scene..
-void mjrf_setSceneShadowsEnabled(mjrScene* scene, bool enabled);
-
-// Enables (or disables) reflections in the scene.
-void mjrf_setSceneReflectionsEnabled(mjrScene* scene, bool enabled);
-
-// Configures the scene based on the parameters in the model.
-void mjrf_configureSceneFromModel(mjrScene* scene, const mjModel* model);
-
-// Submits the given requests for rendering.
-mjrFrameHandle mjrf_render(mjrfContext* ctx, const mjrRenderRequest* req,
-                           int nreq, const mjrReadPixelsRequest* read_req,
-                           int nread_req);
-
-// Waits for the rendering to complete for the given frame handle.
-void mjrf_waitForFrame(mjrfContext* ctx, mjrFrameHandle frame);
-
-// Returns the stats for the given frame but updating the given `stats_out`.
-void mjrf_getFrameStats(mjrfContext* ctx, mjrFrameHandle frame,
-                        mjrFrameStats* stats_out);
+// ## Debug-only functions.
 
 // Draws an ImGui editor for the given scene, exposing filament-specific
 // settings.
 void mjrf_DEBUG_drawImguiEditor(mjrScene* scene);
-
 
 // Legacy API, to be deprecated.
 
