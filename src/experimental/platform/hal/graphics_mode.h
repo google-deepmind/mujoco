@@ -33,6 +33,9 @@ enum class GraphicsMode {
   // The Filament-based renderer running on Vulkan.
   FilamentVulkan,
 
+  // The Filament-based renderer running on Vulkan using software rendering.
+  FilamentVulkanSoftware,
+
   // The Filament-based renderer running on WebGL.
   FilamentWebGl,
 

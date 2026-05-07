@@ -1712,6 +1712,11 @@ void App::MainMenuGui() {
                 gfx_mode_ == platform::GraphicsMode::FilamentVulkan)) {
           mode = platform::GraphicsMode::FilamentVulkan;
         }
+        if (ImGui::MenuItem(
+                "Filament Vulkan Software", nullptr,
+                gfx_mode_ == platform::GraphicsMode::FilamentVulkanSoftware)) {
+          mode = platform::GraphicsMode::FilamentVulkanSoftware;
+        }
         if (mode.has_value()) {
           pending_op_ = [=, this]() {
             const int width = window_->GetWidth();
