@@ -119,7 +119,7 @@ typedef enum mjrGraphicsApi_ {  // backend graphics API to use
 typedef std::uint64_t mjrFrameHandle;
 
 // Bring some legacy mjt types into the mjr namespace.
-typedef mjtTexture mjrTextureTarget;
+typedef mjtTexture mjrSamplerType;
 typedef mjtColorSpace mjrColorSpace;
 typedef mjtLightType mjrLightType;
 typedef mjvGLCamera mjrCamera;
@@ -191,7 +191,7 @@ struct mjrTextureConfig {
   int height;
 
   // The target of the texture (e.g. 2D, cube, etc.)
-  mjrTextureTarget target;
+  mjrSamplerType sampler_type;
 
   // The format of the pixels in the texture (e.g. RGB8, RGBA8, KTX, etc.)
   mjrPixelFormat format;
@@ -486,8 +486,8 @@ int mjrf_getTextureWidth(const mjrTexture* texture);
 // Returns the height of the texture.
 int mjrf_getTextureHeight(const mjrTexture* texture);
 
-// Returns the target type of the texture.
-mjrTextureTarget mjrf_getTextureTarget(const mjrTexture* texture);
+// Returns the sampler type of the texture.
+mjrSamplerType mjrf_getSamplerType(const mjrTexture* texture);
 
 // Enables or disables the light.
 void mjrf_setLightEnabled(mjrLight* light, bool enabled);

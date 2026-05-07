@@ -61,7 +61,7 @@ void RenderTarget::Prepare(int width, int height) {
   Texture::InternalFlags color_flags;
   color_config.width = width;
   color_config.height = height;
-  color_config.target = mjTEXTURE_2D;
+  color_config.sampler_type = mjTEXTURE_2D;
   color_config.format = config_.color_format;
   color_config.color_space = mjCOLORSPACE_LINEAR;
   color_config.format = mjPIXEL_FORMAT_RGB8;
@@ -73,7 +73,7 @@ void RenderTarget::Prepare(int width, int height) {
   Texture::InternalFlags depth_flags;
   depth_config.width = width;
   depth_config.height = height;
-  depth_config.target = mjTEXTURE_2D;
+  depth_config.sampler_type = mjTEXTURE_2D;
   depth_config.format = config_.depth_format;
   depth_config.color_space = mjCOLORSPACE_LINEAR;
   depth_config.format = mjPIXEL_FORMAT_DEPTH32F;

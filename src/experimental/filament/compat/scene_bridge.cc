@@ -58,7 +58,7 @@ static UniquePtr<mjrTexture> CreateFallbackIndirectLightTexture(
   mjr_defaultTextureConfig(&config);
   config.width = 1;
   config.height = 1;
-  config.target = mjTEXTURE_CUBE;
+  config.sampler_type = mjTEXTURE_CUBE;
   config.format = mjPIXEL_FORMAT_KTX;
   config.color_space = mjCOLORSPACE_AUTO;
 

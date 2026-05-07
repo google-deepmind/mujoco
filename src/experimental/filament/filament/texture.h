@@ -52,7 +52,7 @@ class Texture : public mjrTexture {
   int GetHeight() const { return config_.height; }
 
   // Returns the target of the texture.
-  mjrTextureTarget GetTarget() const { return config_.target; }
+  mjrSamplerType GetSamplerType() const { return config_.sampler_type; }
 
   // Returns the underlying filament texture.
   filament::Texture* GetFilamentTexture() const { return texture_; }

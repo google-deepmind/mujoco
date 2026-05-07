@@ -259,7 +259,7 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
   // the programmatic UVs.
 
   if (textures.color) {
-    if (mjrf_getTextureTarget(textures.color) == mjTEXTURE_2D) {
+    if (mjrf_getSamplerType(textures.color) == mjTEXTURE_2D) {
       // For 2D textures, `tex_repeat` specifies how many times the texture
       // image is repeated. The `tex_uniform` flag determines if the repetition
       // is applied at in object space (false) or in world space (true).

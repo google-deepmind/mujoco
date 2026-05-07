@@ -84,7 +84,7 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
     mjr_defaultTextureConfig(&config);
     config.width = width;
     config.height = height;
-    config.target = mjTEXTURE_2D;
+    config.sampler_type = mjTEXTURE_2D;
     config.format = bpp == 4 ? mjPIXEL_FORMAT_RGBA8 : mjPIXEL_FORMAT_RGB8;
     config.color_space = mjCOLORSPACE_LINEAR;
     UniquePtr<mjrTexture> new_texture = ::mujoco::CreateTexture(ctx_, config);
@@ -120,7 +120,7 @@ void ImguiBridge::CreateTexture(ImTextureData* data) {
   mjr_defaultTextureConfig(&config);
   config.width = data->Width;
   config.height = data->Height;
-  config.target = mjTEXTURE_2D;
+  config.sampler_type = mjTEXTURE_2D;
   config.format = mjPIXEL_FORMAT_RGBA8;
   config.color_space = mjCOLORSPACE_LINEAR;
 

@@ -545,7 +545,7 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
   mjr_defaultTextureConfig(&config);
   config.width = model->tex_width[id];
   config.height = model->tex_height[id];
-  config.target = (mjtTexture)model->tex_type[id];
+  config.sampler_type = (mjtTexture)model->tex_type[id];
   config.color_space = (mjtColorSpace)model->tex_colorspace[id];
   switch (model->tex_nchannel[id]) {
     case 1:

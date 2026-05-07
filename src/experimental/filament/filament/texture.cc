@@ -35,7 +35,8 @@ static bool IsCompressed(const mjrTextureConfig& config) {
 }
 
 static bool IsCubeMap(const mjrTextureConfig& config) {
-  return config.target == mjTEXTURE_CUBE || config.target == mjTEXTURE_SKYBOX;
+  return config.sampler_type == mjTEXTURE_CUBE ||
+         config.sampler_type == mjTEXTURE_SKYBOX;
 }
 
 static int GetFaceHeight(const mjrTextureConfig& config) {
