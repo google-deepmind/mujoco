@@ -62,7 +62,12 @@ static void inline GradSquaredLengths(mjtNum gradient[6][2][3],
 // passive forces for interpolated flex (stretch + bending)
 static void mj_flexPassiveInterp(const mjModel* m, mjData* d, int f,
                                  int enbl_spring, int enbl_damper) {
-  mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
+  int stiffnessadr = m->flex_stiffnessadr[f];
+  if (stiffnessadr < 0) {
+    return;
+  }
+
+  mjtNum* k = m->flex_stiffness + stiffnessadr;
   int nodenum = m->flex_nodenum[f];
 
   int order = m->flex_interp[f];
@@ -230,8 +235,17 @@ static inline mjtNum mju_dphi2D(mjtNum s0, int l0, mjtNum s1, int l1,
 // accuracy for elements with varying curvature.
 static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
                                       int enbl_spring, int enbl_damper) {
+  if (m->flex_interp[f] >= 0) {
+    return;
+  }
+
+  int bendingadr = m->flex_bendingadr[f];
+  if (bendingadr < 0) {
+    return;
+  }
+
   // read bending edge data
-  const mjtNum* bdata = m->flex_bending + m->flex_bendingadr[f];
+  const mjtNum* bdata = m->flex_bending + bendingadr;
   int nedge = (int)bdata[0];
   if (nedge == 0) return;
 
@@ -398,10 +412,15 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
     return;
   }
 
+  int bendingadr = m->flex_bendingadr[f];
+  if (bendingadr < 0) {
+    return;
+  }
+
   int edgenum = m->flex_edgenum[f];
   mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
   int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
-  mjtNum* b = m->flex_bending + 17*m->flex_edgeadr[f];
+  mjtNum* b = m->flex_bending + bendingadr;
 
   for (int e = 0; e < edgenum; e++) {
     const int* edge = m->flex_edge + 2*(e+m->flex_edgeadr[f]);
@@ -469,7 +488,11 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
 // passive forces for flex stretch
 static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
                                   int enbl_spring, int enbl_damper) {
-  mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
+  int stiffnessadr = m->flex_stiffnessadr[f];
+  if (stiffnessadr < 0) {
+    return;
+  }
+  mjtNum* k = m->flex_stiffness + stiffnessadr;
   if (k[0] == 0) {
     return;
   }
@@ -660,9 +683,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       mj_flexPassiveInterp(m, d, f, enbl_spring, enbl_damper);
 
       // interpolated shell bending forces
-      if (m->flex_interp[f] < 0) {
-        mj_flexPassiveBendInterp(m, d, f, enbl_spring, enbl_damper);
-      }
+      mj_flexPassiveBendInterp(m, d, f, enbl_spring, enbl_damper);
     } else {
       // add bending forces
       mj_flexPassiveBend(m, d, f, enbl_spring, enbl_damper);

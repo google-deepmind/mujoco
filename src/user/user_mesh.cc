@@ -4918,6 +4918,14 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     stiffness_cached = LoadCachedStiffness();
   }
 
+  // check if any strain equality references this flex
+  for (auto* equality : model->Equalities()) {
+    if (equality->spec.type == mjEQ_FLEXSTRAIN && *equality->spec.name1 == name) {
+      has_strain_eq = true;
+      break;
+    }
+  }
+
   if (!stiffness_cached && interpolated && (young > 0 || has_strain_eq)) {
     // use young=1 for strain constraints (eigenvectors are geometry-only)
     double K_young = has_strain_eq ? 1e1 : young;
