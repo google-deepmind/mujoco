@@ -562,6 +562,11 @@ mjrFrameHandle mjrf_render(mjrfContext* ctx, const mjrRenderRequest* req,
 // Waits for the rendering to complete for the given frame handle.
 void mjrf_waitForFrame(mjrfContext* ctx, mjrFrameHandle frame);
 
+// Draws an ImGui editor for the given scene, exposing filament-specific
+// settings.
+void mjrf_DEBUG_drawImguiEditor(mjrScene* scene);
+
+
 // Legacy API, to be deprecated.
 
 void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);

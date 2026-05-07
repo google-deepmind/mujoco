@@ -37,12 +37,6 @@ class SceneBridge {
   SceneBridge(mjrfContext* ctx, const mjModel* model);
   ~SceneBridge();
 
-  // Updates the environment light using the KTX image at the given path.
-  void SetEnvironmentLight(std::string_view filename, float intensity);
-
-  // Updates the environment light to the fallback light
-  void SetFallbackEnvironmentLight(float intensity);
-
   // Updates the Entities in the filament Scene to match the current mjvScene
   // state.
   void Update(const mjrRect& viewport, const mjvScene* scene);

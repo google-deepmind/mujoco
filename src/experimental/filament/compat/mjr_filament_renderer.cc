@@ -24,7 +24,6 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/imgui_bridge.h"
-#include "experimental/filament/compat/imgui_editor.h"
 #include "experimental/filament/compat/scene_bridge.h"
 #include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/model_util.h"
@@ -185,6 +184,8 @@ uintptr_t MjrFilamentRenderer::UploadGuiImage(uintptr_t tex_id,
   return imgui_bridge_->UploadImage(tex_id, pixels, width, height, bpp);
 }
 
-void MjrFilamentRenderer::UpdateGui() { DrawGui(scene_bridge_.get()); }
+void MjrFilamentRenderer::UpdateGui() {
+  mjrf_DEBUG_drawImguiEditor(scene_bridge_->GetScene());
+}
 
 }  // namespace mujoco

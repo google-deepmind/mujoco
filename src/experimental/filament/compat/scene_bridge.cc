@@ -32,7 +32,6 @@
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/model_util.h"
-#include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/render_context_filament.h"
 #include "experimental/filament/render_context_filament_cpp.h"
 
@@ -44,13 +43,10 @@ using filament::math::mat3;
 using filament::math::mat4;
 
 static UniquePtr<mjrTexture> CreateFallbackIndirectLightTexture(
-    mjrfContext* ctx, std::string_view filename = "") {
-  if (filename.empty()) {
-    filename = ObjectManager::kDefaultEnvironmentLight;
-  }
-
+    mjrfContext* ctx) {
   std::unique_ptr<ObjectManager::Asset> asset =
-      FilamentContext::downcast(ctx)->GetObjectManager()->LoadAsset(filename);
+      FilamentContext::downcast(ctx)->GetObjectManager()->LoadAsset(
+          ObjectManager::kDefaultEnvironmentLight);
 
   mjrTextureConfig config;
   mjr_defaultTextureConfig(&config);
@@ -116,31 +112,6 @@ SceneBridge::~SceneBridge() {
     mjrf_removeRenderableFromScene(scene_.get(), iter.get());
   }
   renderables_.clear();
-}
-
-void SceneBridge::SetEnvironmentLight(std::string_view filename,
-                                      float intensity) {
-  for (auto& light : lights_) {
-    if (mjrf_getLightType(light.get()) == mjLIGHT_IMAGE) {
-      mjrf_removeLightFromScene(scene_.get(), light.get());
-      light.reset();
-      break;
-    }
-  }
-  if (fallback_ibl_) {
-    mjrf_removeLightFromScene(scene_.get(), fallback_ibl_.get());
-    fallback_ibl_.reset();
-  }
-
-  fallback_ibl_texture_ = CreateFallbackIndirectLightTexture(ctx_, filename);
-
-  mjrLightParams params;
-  mjr_defaultLightParams(&params);
-  params.type = mjLIGHT_IMAGE;
-  params.texture = fallback_ibl_texture_.get();
-  params.intensity = intensity;
-  fallback_ibl_ = CreateLight(ctx_, params);
-  mjrf_addLightToScene(scene_.get(), fallback_ibl_.get());
 }
 
 std::optional<float3> SceneBridge::ClipFromWorld(const float3& pos) const{

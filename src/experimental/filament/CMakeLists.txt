@@ -32,6 +32,7 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/filament_context.h
         filament/filament_platform_factory.cc
         filament/filament_platform_factory.h
+        filament/imgui_editor.cc
         filament/light.cc
         filament/light.h
         filament/material.cc
@@ -53,8 +54,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/texture.h
         compat/imgui_bridge.cc
         compat/imgui_bridge.h
-        compat/imgui_editor.cc
-        compat/imgui_editor.h
         compat/mjr_filament_renderer.cc
         compat/mjr_filament_renderer.h
         compat/model_objects.cc
