@@ -29,7 +29,6 @@
 #include <filament/RenderableManager.h>
 #include <filament/VertexBuffer.h>
 #include <math/vec4.h>
-#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/render_context_filament.h"
 
 // Functions for creating filament vertex and index buffers.
@@ -39,8 +38,7 @@ namespace mujoco {
 class Mesh : public mjrMesh {
  public:
   // Creates a Mesh from the given MeshData.
-  Mesh(FilamentContext* ctx, const mjrMeshData& data);
-
+  Mesh(filament::Engine* engine, const mjrMeshData& data);
   ~Mesh();
 
   Mesh(const Mesh&) = delete;

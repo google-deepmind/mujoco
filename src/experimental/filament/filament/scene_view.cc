@@ -308,7 +308,8 @@ void SceneView::AddReflectiveRenderable(Renderable* renderable) {
 
     config.color_format = mjPIXEL_FORMAT_RGBA8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-    reflect_targets_.push_back(std::make_unique<RenderTarget>(ctx_, config));
+    reflect_targets_.push_back(
+        std::make_unique<RenderTarget>(ctx_->GetEngine(), config));
   }
 
   // Prepare a render target for the reflective renderable.

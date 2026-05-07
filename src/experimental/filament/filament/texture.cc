@@ -24,7 +24,6 @@
 #include <image/Ktx1Bundle.h>
 #include <ktxreader/Ktx1Reader.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -112,9 +111,9 @@ static filament::Texture::InternalFormat GetTextureInternalFormat(
   }
 }
 
-Texture::Texture(FilamentContext* ctx, const mjrTextureConfig& config,
+Texture::Texture(filament::Engine* engine, const mjrTextureConfig& config,
                  InternalFlags flags)
-    : engine_(ctx->GetEngine()), config_(config) {
+    : engine_(engine), config_(config) {
   if (IsCompressed(config_)) {
     // We defer creation of compressed textures until Upload() is called. In
     // the meantime, we don't really know anything about the texture (e.g.

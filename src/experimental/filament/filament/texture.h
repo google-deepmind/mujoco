@@ -18,7 +18,6 @@
 #include <filament/Engine.h>
 #include <filament/Texture.h>
 #include <math/vec3.h>
-#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/render_context_filament.h"
 
 // Functions for creating filament textures.
@@ -35,7 +34,7 @@ class Texture : public mjrTexture {
   };
 
   // Creates a texture with the given data.
-  Texture(FilamentContext* ctx, const mjrTextureConfig& config,
+  Texture(filament::Engine* engine, const mjrTextureConfig& config,
           InternalFlags flags = InternalFlags());
 
   ~Texture();
