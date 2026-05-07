@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -28,8 +29,6 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/model_objects.h"
 #include "experimental/filament/compat/scene_geom_util.h"
-#include "experimental/filament/filament/filament_context.h"
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/model_util.h"
 #include "experimental/filament/render_context_filament.h"
@@ -44,9 +43,17 @@ using filament::math::mat4;
 
 static UniquePtr<mjrTexture> CreateFallbackIndirectLightTexture(
     mjrfContext* ctx) {
-  std::unique_ptr<ObjectManager::Asset> asset =
-      FilamentContext::downcast(ctx)->GetObjectManager()->LoadAsset(
-          ObjectManager::kDefaultEnvironmentLight);
+  const std::string filename = ResolveFilamentAssetPath("ibl.ktx");
+  mjResource* resource =
+      mju_openResource("", filename.c_str(), nullptr, nullptr, 0);
+  if (!resource) {
+    mju_error("Failed to open resource: %s", filename.c_str());
+  }
+  const void* bytes = nullptr;
+  const int nbytes = mju_readResource(resource, &bytes);
+  if (bytes == nullptr || nbytes <= 0) {
+    mju_error("Failed to read resource: %s", filename.c_str());
+  }
 
   mjrTextureConfig config;
   mjr_defaultTextureConfig(&config);
@@ -60,12 +67,12 @@ static UniquePtr<mjrTexture> CreateFallbackIndirectLightTexture(
 
   mjrTextureData payload;
   mjr_defaultTextureData(&payload);
-  payload.bytes = asset->GetBytes().data();
-  payload.nbytes = asset->GetBytes().size();
+  payload.bytes = bytes;
+  payload.nbytes = nbytes;
   payload.release_callback = +[](void* user_data) {
-    delete static_cast<ObjectManager::Asset*>(user_data);
+    mju_closeResource((mjResource*)user_data);
   };
-  payload.user_data = asset.release();
+  payload.user_data = resource;
 
   mjrf_setTextureData(texture.get(), &payload);
   return texture;
