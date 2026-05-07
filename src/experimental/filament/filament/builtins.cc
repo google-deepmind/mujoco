@@ -19,16 +19,16 @@
 #include <cstdint>
 #include <memory>
 #include <numbers>
+#include <utility>
 #include <vector>
 
+#include <filament/Engine.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
-#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/render_context_filament.h"
-#include "experimental/filament/render_context_filament_cpp.h"
 
 namespace mujoco {
 
@@ -65,14 +65,15 @@ class BuiltinBuilder : public mjrMeshData {
   virtual ~BuiltinBuilder() = default;
 
   template <typename T, typename... Args>
-  static UniquePtr<mjrMesh> Create(mjrfContext* ctx, Args&&... args) {
+  static std::unique_ptr<Mesh> Create(filament::Engine* engine,
+                                      Args&&... args) {
     auto builder = new T(std::forward<Args>(args)...);
     mjrMeshData* mesh_data = builder->PrepareMeshData();
     mesh_data->release_callback = +[](void* user_data) {
       delete static_cast<BuiltinBuilder*>(user_data);
     };
     mesh_data->user_data = builder;
-    return CreateMesh(ctx, *mesh_data);
+    return std::make_unique<Mesh>(engine, *mesh_data);
   }
 
   mjrMeshData* PrepareMeshData() {
@@ -617,44 +618,28 @@ class DomeBuilder : public BuiltinBuilder {
   }
 };
 
-UniquePtr<mjrMesh> CreateLine(mjrfContext* ctx) {
-  return BuiltinBuilder::Create<LineBuilder>(ctx);
+Builtins::Builtins(filament::Engine* engine, int nstack, int nslice, int nquad) {
+  line_ = BuiltinBuilder::Create<LineBuilder>(engine);
+  plane_ = BuiltinBuilder::Create<PlaneBuilder>(engine, nquad);
+  triangle_ = BuiltinBuilder::Create<TriangleBuilder>(engine);
+  box_ = BuiltinBuilder::Create<BoxBuilder>(engine, nquad);
+  line_box_ = BuiltinBuilder::Create<LineBoxBuilder>(engine);
+  sphere_ = BuiltinBuilder::Create<SphereBuilder>(engine, nstack, nslice);
+  tube_ = BuiltinBuilder::Create<TubeBuilder>(engine, nstack, nslice);
+  disk_ = BuiltinBuilder::Create<DiskBuilder>(engine, nslice);
+  dome_ = BuiltinBuilder::Create<DomeBuilder>(engine, nstack, nslice);
+  cone_ = BuiltinBuilder::Create<ConeBuilder>(engine, nstack, nslice);
 }
 
-UniquePtr<mjrMesh> CreatePlane(mjrfContext* ctx, int nquad) {
-  return BuiltinBuilder::Create<PlaneBuilder>(ctx, nquad);
-}
-
-UniquePtr<mjrMesh> CreateTriangle(mjrfContext* ctx) {
-  return BuiltinBuilder::Create<TriangleBuilder>(ctx);
-}
-
-UniquePtr<mjrMesh> CreateBox(mjrfContext* ctx, int nquad) {
-  return BuiltinBuilder::Create<BoxBuilder>(ctx, nquad);
-}
-
-UniquePtr<mjrMesh> CreateLineBox(mjrfContext* ctx) {
-  return BuiltinBuilder::Create<LineBoxBuilder>(ctx);
-}
-
-UniquePtr<mjrMesh> CreateSphere(mjrfContext* ctx, int nstack, int nslice) {
-  return BuiltinBuilder::Create<SphereBuilder>(ctx, nstack, nslice);
-}
-
-UniquePtr<mjrMesh> CreateTube(mjrfContext* ctx, int nstack, int nslice) {
-  return BuiltinBuilder::Create<TubeBuilder>(ctx, nstack, nslice);
-}
-
-UniquePtr<mjrMesh> CreateDisk(mjrfContext* ctx, int nslice) {
-  return BuiltinBuilder::Create<DiskBuilder>(ctx, nslice);
-}
-
-UniquePtr<mjrMesh> CreateDome(mjrfContext* ctx, int nstack, int nslice) {
-  return BuiltinBuilder::Create<DomeBuilder>(ctx, nstack, nslice);
-}
-
-UniquePtr<mjrMesh> CreateCone(mjrfContext* ctx, int nstack, int nslice) {
-  return BuiltinBuilder::Create<ConeBuilder>(ctx, nstack, nslice);
-}
+const Mesh* Builtins::Line() { return line_.get(); }
+const Mesh* Builtins::LineBox() { return line_box_.get(); }
+const Mesh* Builtins::Plane() { return plane_.get(); }
+const Mesh* Builtins::Triangle() { return triangle_.get(); }
+const Mesh* Builtins::Box() { return box_.get(); }
+const Mesh* Builtins::Sphere() { return sphere_.get(); }
+const Mesh* Builtins::Cone() { return cone_.get(); }
+const Mesh* Builtins::Disk() { return disk_.get(); }
+const Mesh* Builtins::Dome() { return dome_.get(); }
+const Mesh* Builtins::Tube() { return tube_.get(); }
 
 }  // namespace mujoco

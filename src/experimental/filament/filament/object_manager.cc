@@ -20,6 +20,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
@@ -27,6 +28,7 @@
 #include <filament/Skybox.h>
 #include <filament/Texture.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/builtins.h"
 #include "user/user_resource.h"
 
 namespace mujoco {
@@ -129,6 +131,22 @@ filament::Material* ObjectManager::GetMaterial(MaterialType type) const {
     mju_error("Invalid material type: %d", type);
   }
   return materials_[type];
+}
+
+Builtins* ObjectManager::GetBuiltins(int nstack, int nslice, int nquad) {
+  // Assumes nstack, nslice, and nquad are non-negative and less than 2^20.
+  std::uint64_t key = (static_cast<uint64_t>(nstack) << 20) |
+                      (static_cast<uint64_t>(nslice) << 40) |
+                      static_cast<uint64_t>(nquad);
+
+  auto iter = builtins_.find(key);
+  if (iter == builtins_.end()) {
+    auto builtins = std::make_unique<Builtins>(engine_, nstack, nslice, nquad);
+    Builtins* ptr = builtins.get();
+    builtins_[key] = std::move(builtins);
+    return ptr;
+  }
+  return iter->second.get();
 }
 
 const filament::Texture* ObjectManager::GetFallbackTexture(

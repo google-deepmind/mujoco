@@ -16,7 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <span>
+#include <numbers>
 
 #include <filament/Engine.h>
 #include <filament/Material.h>
@@ -24,8 +24,12 @@
 #include <filament/Scene.h>
 #include <filament/TransformManager.h>
 #include <math/mat4.h>
+#include <math/vec2.h>
+#include <math/vec3.h>
+#include <math/vec4.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/builtins.h"
 #include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/math_util.h"
@@ -36,7 +40,14 @@
 
 namespace mujoco {
 
+using filament::math::float2;
+using filament::math::float3;
+using filament::math::float4;
 using filament::math::mat4f;
+
+// An arbitrary scale factor for arrows.
+static constexpr float kArrowScale = 1.f / 6.f;
+static constexpr float kArrowHeadSize = 1.75f;
 
 Renderable::Renderable(FilamentContext* ctx, const mjrRenderableParams& params)
     : object_mgr_(ctx->GetObjectManager()), params_(params) {
@@ -159,20 +170,12 @@ const mat4f& Renderable::GetTransform() const {
   return transform_;
 }
 
-void Renderable::SetMeshes(std::span<const mjrMesh*> meshes,
-                           GetTransformFn get_transform_fn) {
-  if (!parts_.empty()) {
-    mju_error("Cannot set meshes for renderable with multiple parts.");
-  }
-
-  get_transform_fn_ = get_transform_fn;
-  for (int i = 0; i < meshes.size(); ++i) {
-    Part& part = parts_.emplace_back();
-    part.mesh = Mesh::downcast(meshes[i]);
-    part.elem_offset = 0;
-    part.elem_count = part.mesh->GetFilamentIndexBuffer()->getIndexCount();
-    InitPartEntity(part);
-  }
+void Renderable::AppendMesh(const Mesh* mesh) {
+  Part& part = parts_.emplace_back();
+  part.mesh = Mesh::downcast(mesh);
+  part.elem_offset = 0;
+  part.elem_count = part.mesh->GetFilamentIndexBuffer()->getIndexCount();
+  InitPartEntity(part);
 }
 
 void Renderable::AddToScene(filament::Scene* scene) {
@@ -407,6 +410,198 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
     } else {
       return ObjectManager::kPhong2d;
     }
+  }
+}
+
+void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
+  Builtins* builtins = object_mgr_->GetBuiltins(nstack, nslice, nquad);
+
+  switch (type) {
+    case mjGEOM_PLANE:
+      AppendMesh(builtins->Plane());
+      break;
+    case mjGEOM_SPHERE:
+      AppendMesh(builtins->Sphere());
+      break;
+    case mjGEOM_ELLIPSOID:
+      AppendMesh(builtins->Sphere());
+      break;
+    case mjGEOM_BOX:
+      AppendMesh(builtins->Box());
+      break;
+    case mjGEOM_CAPSULE:
+      // Capsules are a tube with two domes at the ends.
+      AppendMesh(builtins->Tube());
+      AppendMesh(builtins->Dome());
+      AppendMesh(builtins->Dome());
+
+      get_transform_fn_ = [](int index, const Trs& trs) {
+        // We apply an inverse scale to the domes to counteract the capsule's
+        // overall scale so that the domes remain spherical in shape.
+        const float xz_size = 0.5f * (trs.size.x + trs.size.y);
+        if (index == 0) {
+          return trs.ToTransform();
+        } else if (index == 1) {
+          // Move the first dome to the top of the capsule.
+          mat4f top = mat4f(trs.rotation, trs.translation);
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(float3{trs.size.x, trs.size.y, xz_size});
+          return top;
+        } else if (index == 2) {
+          // Move the second dome to the bottom of the capsule and rotate it 180
+          // degrees so that it's facing the right way.
+          mat4f bottom = mat4f(trs.rotation, trs.translation);
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          bottom *= mat4f::scaling(float3{trs.size.x, trs.size.y, xz_size});
+          return bottom;
+        } else {
+          mju_error("Invalid index for capsule geom: %d (expected [0,2])", index);
+          return trs.ToTransform();
+        }
+      };
+      break;
+    case mjGEOM_CYLINDER:
+      // Cylinders are a tube with two disks at the ends.
+      AppendMesh(builtins->Tube());
+      AppendMesh(builtins->Disk());
+      AppendMesh(builtins->Disk());
+
+      get_transform_fn_ = [](int index, const Trs& trs) {
+        if (index == 0) {
+          return trs.ToTransform();
+        } else if (index == 1) {
+          // Move the first disk to the top of the cylinder.
+          mat4f top = mat4f(trs.rotation, trs.translation);
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(trs.size);
+          return top;
+        } else if (index == 2) {
+          // Move the second disk to the bottom of the cylinder. Rotate the disk
+          // 180 degrees so that the normals point outwards.
+          mat4f bottom = mat4f(trs.rotation, trs.translation);
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          bottom *= mat4f::scaling(trs.size);
+          return bottom;
+        } else {
+          mju_error("Invalid index for cylinder geom: %d (expected [0,2])", index);
+          return trs.ToTransform();
+        }
+      };
+      break;
+    case mjGEOM_ARROW:
+      AppendMesh(builtins->Tube());
+      AppendMesh(builtins->Cone());
+      AppendMesh(builtins->Disk());
+      AppendMesh(builtins->Disk());
+
+      get_transform_fn_ = [](int index, const Trs& trs) {
+        mat4f base = mat4f(trs.rotation, trs.translation);
+        base *= mat4f::scaling(float3{1, 1, kArrowScale});
+        base *= mat4f::translation(float3{0, 0, trs.size.z});
+        if (index == 0) {
+          return base * mat4f::scaling(trs.size);
+        } else if (index == 1) {
+          mat4f top = base;
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top * mat4f::scaling(trs.size);
+        } else if (index == 2) {
+          mat4f top_disk = base;
+          top_disk *= mat4f::translation(float3{0, 0, trs.size.z});
+          top_disk *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          top_disk *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top_disk * mat4f::scaling(trs.size);
+        } else if (index == 3) {
+          mat4f bottom = base;
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          return bottom * mat4f::scaling(trs.size);
+        } else {
+          mju_error("Invalid index for arrow geom: %d (expected [0,3])", index);
+          return trs.ToTransform();
+        }
+      };
+      break;
+    case mjGEOM_ARROW1:
+      AppendMesh(builtins->Tube());
+      AppendMesh(builtins->Cone());
+      AppendMesh(builtins->Disk());
+
+      get_transform_fn_ = [](int index, const Trs& trs) {
+      mat4f base = mat4f(trs.rotation, trs.translation);
+      base *= mat4f::scaling(float3{1, 1, kArrowScale});
+      base *= mat4f::translation(float3{0, 0, trs.size.z});
+        if (index == 0) {
+          return base * mat4f::scaling(trs.size);
+        } else if (index == 1) {
+          mat4f top = base;
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          return top * mat4f::scaling(trs.size);
+        } else if (index == 2) {
+          mat4f bottom = base;
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          return bottom * mat4f::scaling(trs.size);
+        } else {
+          mju_error("Invalid index for arrow1 geom: %d (expected [0,2])", index);
+          return trs.ToTransform();
+        }
+      };
+      break;
+    case mjGEOM_ARROW2:
+      AppendMesh(builtins->Tube());
+      AppendMesh(builtins->Cone());
+      AppendMesh(builtins->Cone());
+      AppendMesh(builtins->Disk());
+      AppendMesh(builtins->Disk());
+
+      get_transform_fn_ = [](int index, const Trs& trs) {
+        mat4f base = mat4f(trs.rotation, trs.translation);
+        base *= mat4f::scaling(float3{1, 1, kArrowScale});
+        base *= mat4f::translation(float3{0, 0, trs.size.z});
+        if (index == 0) {
+          return base * mat4f::scaling(trs.size);
+        } else if (index == 1) {
+          mat4f top = base;
+          top *= mat4f::translation(float3{0, 0, trs.size.z});
+          top *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top * mat4f::scaling(trs.size);
+        } else if (index == 2) {
+          mat4f bottom = base;
+          bottom *= mat4f::translation(float3{0, 0, -trs.size.z});
+          bottom *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          bottom *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return bottom * mat4f::scaling(trs.size);
+        } else if (index == 3) {
+          mat4f top_disk = base;
+          top_disk *= mat4f::translation(float3{0, 0, trs.size.z});
+          top_disk *= mat4f::rotation(std::numbers::pi, float3{1, 0, 0});
+          top_disk *= mat4f::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
+          return top_disk * mat4f::scaling(trs.size);
+        } else if (index == 4) {
+          mat4f bottom_disk = base;
+          bottom_disk *= mat4f::translation(float3{0, 0, -trs.size.z});
+          return bottom_disk * mat4f::scaling(trs.size);
+        } else {
+          mju_error("Invalid index for arrow2 geom: %d (expected [0,4])", index);
+          return trs.ToTransform();
+        }
+      };
+      break;
+    case mjGEOM_LINE:
+      AppendMesh(builtins->Line());
+      break;
+    case mjGEOM_LINEBOX:
+      AppendMesh(builtins->LineBox());
+      break;
+    case mjGEOM_TRIANGLE:
+      AppendMesh(builtins->Triangle());
+      break;
+    default:
+      mju_error("Unsupported geom type: %d", type);
+      break;
   }
 }
 

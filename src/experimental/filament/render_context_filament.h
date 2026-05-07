@@ -500,6 +500,12 @@ mjrLightType mjrf_getLightType(const mjrLight* light);
 void mjrf_setRenderableMesh(mjrRenderable* renderable, const mjrMesh* mesh,
                             int elem_offset, int elem_count);
 
+// Sets the mesh of the renderable to a built-in mesh based on the geom type.
+// Note: using the same parameters (nstack, nslice, nquad) will have better
+// performance as the internal mesh data can be shared across renderables.
+void mjrf_setRenderableGeomMesh(mjrRenderable* renderable, mjtGeom type,
+                                int nstack, int nslice, int nquad);
+
 // Sets the material properties and textures of the renderable.
 void mjrf_setRenderableMaterial(mjrRenderable* renderable,
                                 const mjrMaterialParams* params,

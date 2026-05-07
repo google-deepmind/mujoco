@@ -17,15 +17,18 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <span>
 #include <string_view>
+#include <unordered_map>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
 #include <filament/Skybox.h>
 #include <filament/Texture.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/builtins.h"
 
 namespace mujoco {
 
@@ -84,6 +87,9 @@ class ObjectManager {
   // Returns the fallback Texture with the given role.
   const filament::Texture* GetFallbackTexture(mjtTextureRole role) const;
 
+  // Returns the built-in mesh collection with the given parameters.
+  Builtins* GetBuiltins(int nstack, int nslice, int nquad);
+
   // Loads the given asset from the filament resource directory.
   std::unique_ptr<Asset> LoadAsset(std::string_view filename);
 
@@ -97,6 +103,7 @@ class ObjectManager {
   filament::Engine* engine_ = nullptr;
   std::array<filament::Material*, kNumMaterials> materials_;
   std::array<filament::Texture*, mjNTEXROLE> fallback_textures_;
+  std::unordered_map<std::uint64_t, std::unique_ptr<Builtins>> builtins_;
   filament::Texture* fallback_white_ = nullptr;
   filament::Texture* fallback_black_ = nullptr;
   filament::Texture* fallback_normal_ = nullptr;

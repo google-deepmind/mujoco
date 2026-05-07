@@ -15,22 +15,41 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_BUILTINS_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_BUILTINS_H_
 
-#include "experimental/filament/render_context_filament.h"
-#include "experimental/filament/render_context_filament_cpp.h"
+#include <memory>
 
-// Generates buffers for built-in shapes.
+#include <filament/Engine.h>
+#include "experimental/filament/filament/mesh.h"
+
 namespace mujoco {
 
-UniquePtr<mjrMesh> CreateLine(mjrfContext* ctx);
-UniquePtr<mjrMesh> CreatePlane(mjrfContext* ctx, int nquad);
-UniquePtr<mjrMesh> CreateTriangle(mjrfContext* ctx);
-UniquePtr<mjrMesh> CreateBox(mjrfContext* ctx, int nquad);
-UniquePtr<mjrMesh> CreateLineBox(mjrfContext* ctx);
-UniquePtr<mjrMesh> CreateSphere(mjrfContext* ctx, int nstack, int nslice);
-UniquePtr<mjrMesh> CreateTube(mjrfContext* ctx, int nstack, int nslice);
-UniquePtr<mjrMesh> CreateDisk(mjrfContext* ctx, int nslice);
-UniquePtr<mjrMesh> CreateDome(mjrfContext* ctx, int nstack, int nslice);
-UniquePtr<mjrMesh> CreateCone(mjrfContext* ctx, int nstack, int nslice);
+// A collection of meshes that "built in" to the renderer.
+class Builtins {
+ public:
+  Builtins(filament::Engine* engine, int nstack, int nslice, int nquad);
+
+  const Mesh* Line();
+  const Mesh* LineBox();
+  const Mesh* Plane();
+  const Mesh* Triangle();
+  const Mesh* Box();
+  const Mesh* Sphere();
+  const Mesh* Cone();
+  const Mesh* Disk();
+  const Mesh* Dome();
+  const Mesh* Tube();
+
+ private:
+  std::unique_ptr<Mesh> line_;
+  std::unique_ptr<Mesh> line_box_;
+  std::unique_ptr<Mesh> plane_;
+  std::unique_ptr<Mesh> triangle_;
+  std::unique_ptr<Mesh> box_;
+  std::unique_ptr<Mesh> sphere_;
+  std::unique_ptr<Mesh> cone_;
+  std::unique_ptr<Mesh> disk_;
+  std::unique_ptr<Mesh> dome_;
+  std::unique_ptr<Mesh> tube_;
+};
 
 }  // namespace mujoco
 

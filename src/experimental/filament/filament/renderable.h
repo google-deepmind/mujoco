@@ -17,13 +17,13 @@
 
 #include <cstdint>
 #include <functional>
-#include <span>
 #include <vector>
 
 #include <filament/Engine.h>
 #include <filament/Scene.h>
 #include <math/mat4.h>
 #include <utils/Entity.h>
+#include <mujoco/mujoco.h>
 #include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
@@ -59,19 +59,14 @@ class Renderable : public mjrRenderable {
   // assumes the entire mesh should be appended.
   void SetMesh(const Mesh* mesh, int elem_offset = 0, int elem_count = 0);
 
+  // Sets the mesh of the renderable based on the given geom type.
+  void SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad);
+
   // Sets the transform of the renderable.
   void SetTransform(const Trs& trs);
 
   // Returns the current transform of the renderable.
   const filament::math::mat4f& GetTransform() const;
-
-  // Sets multiple meshes for a renderable. Users can optionally provide a
-  // function that will be used to compute the transform for each (sub)mesh
-  // relative to the transform of the renderable itself. This allows users to
-  // construct compound (but rigid) objects from multiple meshes.
-  using GetTransformFn = std::function<filament::math::mat4f(int, const Trs&)>;
-  void SetMeshes(std::span<const mjrMesh*> meshes,
-                 GetTransformFn get_transform = nullptr);
 
   // Sets the layer mask for the managed filament Entities. Layer masks can be
   // used to show/hide the renderable in different views. Returns the previous
@@ -128,12 +123,16 @@ class Renderable : public mjrRenderable {
   }
 
  private:
+  using GetTransformFn = std::function<filament::math::mat4f(int, const Trs&)>;
+
   struct Part {
     utils::Entity entity;
     const Mesh* mesh = nullptr;
     int elem_offset = 0;
     int elem_count = 0;
   };
+
+  void AppendMesh(const Mesh* mesh);
 
   void InitPartEntity(Part& part);
 

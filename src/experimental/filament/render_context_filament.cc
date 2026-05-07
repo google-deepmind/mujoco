@@ -254,6 +254,12 @@ void mjrf_setRenderableMesh(mjrRenderable* renderable, const mjrMesh* mesh,
       ->SetMesh(mujoco::Mesh::downcast(mesh), elem_offset, elem_count);
 }
 
+void mjrf_setRenderableGeomMesh(mjrRenderable* renderable, mjtGeom type,
+                                int nstack, int nslice, int nquad) {
+  mujoco::Renderable::downcast(renderable)->SetGeomMesh(type, nstack, nslice,
+                                                        nquad);
+}
+
 void mjrf_setRenderableMaterial(mjrRenderable* renderable,
                                 const mjrMaterialParams* params,
                                 const mjrMaterialTextures* textures) {
@@ -265,9 +271,9 @@ void mjrf_setRenderableTransform(mjrRenderable* renderable,
                                  const float rotation[9], const float size[3]) {
   const filament::math::float3 fposition{position[0], position[1], position[2]};
   const filament::math::float3 fsize{size[0], size[1], size[2]};
-  const filament::math::mat3f frotation{rotation[0], rotation[1], rotation[2],
-                                        rotation[3], rotation[4], rotation[5],
-                                        rotation[6], rotation[7], rotation[8]};
+  const filament::math::mat3f frotation{rotation[0], rotation[3], rotation[6],
+                                        rotation[1], rotation[4], rotation[7],
+                                        rotation[2], rotation[5], rotation[8]};
   mujoco::Renderable::downcast(renderable)
       ->SetTransform({fposition, frotation, fsize});
 }
