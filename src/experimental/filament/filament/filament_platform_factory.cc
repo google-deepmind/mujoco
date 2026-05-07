@@ -14,7 +14,6 @@
 
 #include "experimental/filament/filament/filament_platform_factory.h"
 
-#include <dlfcn.h>
 #include <memory>
 
 #include <backend/Platform.h>
