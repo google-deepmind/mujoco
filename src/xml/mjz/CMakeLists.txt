@@ -18,4 +18,4 @@ set(MUJOCO_MJZ_SRCS
 )
 
 target_sources(mujoco PRIVATE ${MUJOCO_MJZ_SRCS})
-target_link_libraries(mujoco miniz)
+target_link_libraries(mujoco PRIVATE miniz)
