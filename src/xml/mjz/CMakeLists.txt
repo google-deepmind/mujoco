@@ -11,27 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-cmake_minimum_required(VERSION 3.16)
-
-set(MUJOCO_MJZ_TARGET_NAME mujoco_mjz)
-
-add_library(${MUJOCO_MJZ_TARGET_NAME} STATIC)
-
-target_include_directories(${MUJOCO_MJZ_TARGET_NAME} PRIVATE
-    ../..
-)
-
-target_sources(${MUJOCO_MJZ_TARGET_NAME}
-    PUBLIC
-        mjz_decoder.cc
-)
-
 include(third_party_deps/miniz)
 
-target_link_libraries(${MUJOCO_MJZ_TARGET_NAME}
-    miniz
-    mujoco::mujoco
+set(MUJOCO_MJZ_SRCS
+    mjz_decoder.cc
 )
 
-add_library(mujoco::mjz ALIAS ${MUJOCO_MJZ_TARGET_NAME})
+target_sources(mujoco PRIVATE ${MUJOCO_MJZ_SRCS})
+target_link_libraries(mujoco miniz)
