@@ -20,9 +20,9 @@
 #include <filament/RenderableManager.h>
 #include <filament/TextureSampler.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/math_util.h"
-#include "experimental/filament/filament/texture.h"
+#include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {

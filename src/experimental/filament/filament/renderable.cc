@@ -29,10 +29,10 @@
 #include <math/vec4.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/builtins.h"
 #include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/material.h"
-#include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/texture.h"

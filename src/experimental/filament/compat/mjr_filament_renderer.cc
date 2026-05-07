@@ -18,17 +18,14 @@
 #include <cstdint>
 #include <memory>
 
-#include <math/mathfwd.h>
-#include <math/vec4.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/imgui_bridge.h"
 #include "experimental/filament/compat/scene_bridge.h"
 #include "experimental/filament/filament/filament_context.h"
-#include "experimental/filament/filament/model_util.h"
-#include "experimental/filament/render_context_filament.h"
 #include "experimental/filament/render_context_filament_cpp.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 

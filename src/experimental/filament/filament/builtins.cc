@@ -26,7 +26,7 @@
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
-#include "experimental/filament/filament/math_util.h"
+#include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/render_context_filament.h"
 

@@ -24,8 +24,8 @@
 #include <math/mat4.h>
 #include <utils/Entity.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/filament_context.h"
-#include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/render_context_filament.h"

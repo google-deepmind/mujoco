@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MATH_UTIL_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MATH_UTIL_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_UTIL_H_
+#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_UTIL_H_
 
 #include <math/mat3.h>
 #include <math/mat4.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
+#include <mujoco/mjmodel.h>
+#include <mujoco/mujoco.h>
 
 namespace mujoco {
 
@@ -96,6 +98,51 @@ filament::math::float4 CalculateOrientation(
     const filament::math::float3& p2,
     const filament::math::float3& p3);
 
+// Reads a value with the given name from the mjModel's data sections. The
+// default_value is returned if the named element is not found.
+template <typename T>
+T ReadElement(const mjModel* model, const char* name, T default_value = T()) {
+  constexpr bool is_string =
+      std::is_same_v<T, const char*> || std::is_same_v<T, std::string_view>;
+
+  const int type = is_string ? mjOBJ_TEXT : mjOBJ_NUMERIC;
+  const int id = mj_name2id(model, type, name);
+  if (id < 0) {
+    return default_value;
+  }
+
+  if constexpr (std::is_same_v<T, const char*>) {
+    const char* ptr = model->text_data + model->text_adr[id];
+    return ptr;
+  } else if constexpr (std::is_same_v<T, std::string_view>) {
+    const char* ptr = model->text_data + model->text_adr[id];
+    // Do not include the null terminator in the string view.
+    return std::string_view(ptr, model->text_size[id] - 1);
+  } else if constexpr (std::is_arithmetic_v<T>) {
+    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
+    return static_cast<T>(*ptr);
+  } else if constexpr (std::is_enum_v<T>) {
+    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
+    return static_cast<T>(static_cast<int>(*ptr));
+  } else if constexpr (std::is_same_v<T, filament::math::float2>) {
+    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
+    if (model->numeric_size[id] != 2) mju_error("Invalid numeric size.");
+    return T{ptr[0], ptr[1]};
+  } else if constexpr (std::is_same_v<T, filament::math::float3>) {
+    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
+    if (model->numeric_size[id] != 3) mju_error("Invalid numeric size.");
+    return T{ptr[0], ptr[1], ptr[2]};
+  } else if constexpr (std::is_same_v<T, filament::math::float4>) {
+    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
+    if (model->numeric_size[id] != 4) mju_error("Invalid numeric size.");
+    return T{ptr[0], ptr[1], ptr[2], ptr[3]};
+  } else if constexpr (std::is_same_v<T, bool>) {
+    const mjtNum* ptr = model->numeric_data + model->numeric_adr[id];
+    return static_cast<T>(*ptr != 0);
+  }
+  return default_value;
+}
+
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MATH_UTIL_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_UTIL_H_
