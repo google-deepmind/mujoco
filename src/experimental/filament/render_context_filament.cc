@@ -145,6 +145,10 @@ void mjr_defaultReadPixelsRequest(mjrReadPixelsRequest* request) {
   memset(request, 0, sizeof(mjrReadPixelsRequest));
 }
 
+void mjr_defaultFrameStats(mjrFrameStats* stats) {
+  memset(stats, 0, sizeof(mjrFrameStats));
+}
+
 mjrfContext* mjrf_createContext(const mjrFilamentConfig* config) {
   return new mujoco::FilamentContext(config);
 }
@@ -353,6 +357,11 @@ mjrFrameHandle mjrf_render(mjrfContext* ctx, const mjrRenderRequest* req,
 
 void mjrf_waitForFrame(mjrfContext* ctx, mjrFrameHandle frame) {
   mujoco::FilamentContext::downcast(ctx)->WaitForFrame(frame);
+}
+
+void mjrf_getFrameStats(mjrfContext* ctx, mjrFrameHandle frame,
+                        mjrFrameStats* stats_out) {
+  mujoco::FilamentContext::downcast(ctx)->GetFrameStats(frame, stats_out);
 }
 
 // Legacy API, to be deprecated.

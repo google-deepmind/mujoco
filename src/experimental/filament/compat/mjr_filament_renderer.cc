@@ -181,6 +181,13 @@ uintptr_t MjrFilamentRenderer::UploadGuiImage(uintptr_t tex_id,
   return imgui_bridge_->UploadImage(tex_id, pixels, width, height, bpp);
 }
 
+double MjrFilamentRenderer::GetFrameRate() const {
+  mjrFrameStats stats;
+  mjr_defaultFrameStats(&stats);
+  filament_context_->GetFrameStats(0, &stats);
+  return stats.frame_rate;
+}
+
 void MjrFilamentRenderer::UpdateGui() {
   mjrf_DEBUG_drawImguiEditor(scene_bridge_->GetScene());
 }

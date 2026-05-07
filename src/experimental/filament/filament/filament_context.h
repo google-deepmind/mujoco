@@ -52,8 +52,8 @@ class FilamentContext : public mjrfContext {
   // Sets the clear color for the renderer.
   void SetClearColor(const filament::math::float4& color);
 
-  // Returns the current frame rate of the renderer.
-  double GetFrameRate() const;
+  // Returns information about the frame.
+  void GetFrameStats(mjrFrameHandle frame, mjrFrameStats* stats_out) const;
 
   filament::Engine* GetEngine() const { return engine_; }
 

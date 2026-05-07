@@ -183,14 +183,16 @@ void FilamentContext::SetClearColor(const filament::math::float4& color) {
   renderer_->setClearOptions(opts);
 }
 
-double FilamentContext::GetFrameRate() const {
+void FilamentContext::GetFrameStats(mjrFrameHandle frame,
+                                    mjrFrameStats* stats_out) const {
   utils::FixedCapacityVector<filament::Renderer::FrameInfo> frame_info =
       renderer_->getFrameInfoHistory(1);
-  if (frame_info.empty()) {
-    return 0;
+  if (!frame_info.empty()) {
+    const int64_t ns = frame_info[0].denoisedGpuFrameDuration;
+    stats_out->frame_rate = 1.0e9 / static_cast<double>(ns);
+  } else {
+    stats_out->frame_rate = 0.0;
   }
-  const int64_t ns = frame_info[0].denoisedGpuFrameDuration;
-  return 1.0e9 / static_cast<double>(ns);
 }
 
 }  // namespace mujoco

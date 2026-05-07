@@ -65,9 +65,7 @@ class MjrFilamentRenderer {
   // Renders an ImGui window containing Filament-specific editor UI.
   void UpdateGui();
 
-  double GetFrameRate() const {
-    return filament_context_->GetFrameRate();
-  }
+  double GetFrameRate() const;
 
   MjrFilamentRenderer(const MjrFilamentRenderer&) = delete;
   MjrFilamentRenderer& operator=(const MjrFilamentRenderer&) = delete;

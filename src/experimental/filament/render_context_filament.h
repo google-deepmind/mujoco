@@ -406,6 +406,15 @@ struct mjrReadPixelsRequest {
 // Initializes the mjrReadPixelsRequest to default values.
 void mjr_defaultReadPixelsRequest(mjrReadPixelsRequest* request);
 
+// Information about a single frame of rendering.
+struct mjrFrameStats {
+  // The frame rate of the renderer, in frames per second.
+  double frame_rate;
+};
+
+// Initializes the mjrFrameStats to default values.
+void mjr_defaultFrameStats(mjrFrameStats* stats);
+
 // Configuration parameters for the filament rendering context.
 struct mjrFilamentConfig {
   // The native window handle into which we can render directly.
@@ -561,6 +570,10 @@ mjrFrameHandle mjrf_render(mjrfContext* ctx, const mjrRenderRequest* req,
 
 // Waits for the rendering to complete for the given frame handle.
 void mjrf_waitForFrame(mjrfContext* ctx, mjrFrameHandle frame);
+
+// Returns the stats for the given frame but updating the given `stats_out`.
+void mjrf_getFrameStats(mjrfContext* ctx, mjrFrameHandle frame,
+                        mjrFrameStats* stats_out);
 
 // Draws an ImGui editor for the given scene, exposing filament-specific
 // settings.
