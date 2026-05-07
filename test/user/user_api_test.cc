@@ -205,6 +205,39 @@ TEST_F(MujocoTest, AttachAndChildDeletion) {
   mj_deleteSpec(parent_spec);
 }
 
+TEST_F(MujocoTest, OriginSpecInvariantToAttachment) {
+  mjSpec* child_spec = mj_makeSpec();
+  mjsBody* child_world = mjs_findBody(child_spec, "world");
+  mjsBody* child_body = mjs_addBody(child_world, 0);
+  mjsJoint* freejoint = mjs_addJoint(child_body, 0);
+  freejoint->type = mjJNT_FREE;
+  mjs_setName(freejoint->element, "child_freejoint");
+
+  mjSpec* parent_spec = mj_makeSpec();
+  mjsBody* parent_world = mjs_findBody(parent_spec, "world");
+  mjsBody* parent_body = mjs_addBody(parent_world, 0);
+  mjs_setName(parent_body->element, "parent_body");
+
+  // Attach child spec to parent_body
+  mjsElement* attached =
+      mjs_attach(parent_body->element, child_spec->element, "pre_", "");
+  ASSERT_THAT(attached, NotNull());
+
+  // The freejoint should still be in parent_spec because deletion failed
+  mjsElement* child_spec_joint =
+      mjs_findElement(parent_spec, mjOBJ_JOINT, "pre_child_freejoint");
+  EXPECT_EQ(mjs_getSpec(child_spec_joint), parent_spec);
+  EXPECT_EQ(mjs_getOriginSpec(child_spec_joint), child_spec);
+
+  mjsElement* parent_spec_body =
+      mjs_findElement(parent_spec, mjOBJ_BODY, "parent_body");
+  EXPECT_EQ(mjs_getOriginSpec(parent_spec_body), parent_spec);
+
+
+  mj_deleteSpec(child_spec);
+  mj_deleteSpec(parent_spec);
+}
+
 int open_mock(mjResource* resource) {
   static const char parent_xml[] = R"(
   <mujoco>

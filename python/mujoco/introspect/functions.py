@@ -11126,6 +11126,22 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Get spec from body.',
      )),
+    ('mjs_getOriginSpec',
+     FunctionDecl(
+         name='mjs_getOriginSpec',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjSpec'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement', is_const=True),
+                 ),
+             ),
+         ),
+         doc='get spec that originally defined an element contrary to mjs_getSpec, this does not change after attachment',  # pylint: disable=line-too-long
+     )),
     ('mjs_getCompiler',
      FunctionDecl(
          name='mjs_getCompiler',

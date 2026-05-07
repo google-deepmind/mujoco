@@ -3687,6 +3687,7 @@ mjsTexture* mjs_addTexture(mjSpec* s);
 mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* def);
 int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int nparams);
 mjSpec* mjs_getSpec(const mjsElement* element);
+mjSpec* mjs_getOriginSpec(const mjsElement* element);
 mjsCompiler* mjs_getCompiler(const mjsElement* element);
 mjSpec* mjs_findSpec(const mjSpec* spec, const char* name);
 mjsBody* mjs_findBody(const mjSpec* s, const char* name);

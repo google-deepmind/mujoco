@@ -9793,6 +9793,14 @@ std::string mjs_getName_wrapper(MjsElement& element) {
   return *mjs_getName(element.get());
 }
 
+std::optional<MjSpec> mjs_getOriginSpec_wrapper(const MjsElement& element) {
+  mjSpec* result = mjs_getOriginSpec(element.get());
+  if (result == nullptr) {
+    return std::nullopt;
+  }
+  return MjSpec(result);
+}
+
 std::optional<MjsBody> mjs_getParent_wrapper(const MjsElement& element) {
   mjsBody* result = mjs_getParent(element.get());
   if (result == nullptr) {
@@ -13343,6 +13351,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_getFrame", &mjs_getFrame_wrapper);
   function("mjs_getId", &mjs_getId_wrapper);
   function("mjs_getName", &mjs_getName_wrapper);
+  function("mjs_getOriginSpec", &mjs_getOriginSpec_wrapper);
   function("mjs_getParent", &mjs_getParent_wrapper);
   function("mjs_getSpec", &mjs_getSpec_wrapper);
   function("mjs_getSpecDefault", &mjs_getSpecDefault_wrapper);

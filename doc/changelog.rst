@@ -19,6 +19,9 @@ General
   energy gain in the presence of contacts and in fluid media.
 - Added :ref:`mju_sym2dense`, converting a lower-triangular, implicitly symmetric CSR matrix to a dense
   symmetric matrix. The inertia matrix ``mjData.M`` is an example of such a matrix.
+- Added :ref:`mjs_getOriginSpec`, returning the spec that originally defined an element, prior to attachment. This is in
+  contrast to :ref:`mjs_getSpec` which returns the spec currently owning the element. If the element is not the result
+  of an attach operation, the functions are identical.
 
 .. admonition:: Future breaking API changes
    :class: warning
