@@ -370,9 +370,8 @@ struct mjrRenderRequest {
   // The camera from which to render the scene.
   mjrCamera camera;
 
-  // The dimensions of the output image.
-  int width;
-  int height;
+  // The viewport into which to render the image.
+  mjrRect viewport;
 
   // The render target into which to render the image. If nullptr, the image
   // will be rendered to the window (as previously configured in

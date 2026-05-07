@@ -486,7 +486,7 @@ void SceneView::Configure(const mjModel* model) {
 void DoRender(filament::Renderer* renderer, const mjrRenderRequest& request) {
   SceneView::RenderRequest scene_view_request;
   scene_view_request.draw_mode = request.draw_mode;
-  scene_view_request.viewport = {0, 0, request.width, request.height};
+  scene_view_request.viewport = request.viewport;
   scene_view_request.camera = request.camera;
   SceneView* scene_view = SceneView::downcast(request.scene);
   scene_view->Render(renderer, scene_view_request);
@@ -499,7 +499,7 @@ void DoReadPixels(filament::Renderer* renderer,
 
   SceneView::RenderRequest scene_view_request;
   scene_view_request.draw_mode = request.draw_mode;
-  scene_view_request.viewport = {0, 0, request.width, request.height};
+  scene_view_request.viewport = request.viewport;
   scene_view_request.camera = request.camera;
   scene_view_request.target = render_target;
   SceneView* scene_view = SceneView::downcast(request.scene);

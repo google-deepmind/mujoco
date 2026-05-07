@@ -110,13 +110,14 @@ mjrFrameHandle FilamentContext::Render(
       }
 
       // If the window size has changed, we need to reacquire the swap chain.
-      if (request.width != window_width_ || request.height != window_height_) {
+      if (request.viewport.width != window_width_ ||
+          request.viewport.height != window_height_) {
         if (window_width_ != 0 && window_height_ != 0) {
           engine_->destroy(window_swap_chain_);
           window_swap_chain_ = engine_->createSwapChain(config_.native_window);
         }
-        window_width_ = request.width;
-        window_height_ = request.height;
+        window_width_ = request.viewport.width;
+        window_height_ = request.viewport.height;
       }
 
       if (!render_began) {

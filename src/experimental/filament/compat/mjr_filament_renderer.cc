@@ -54,15 +54,13 @@ void MjrFilamentRenderer::Render(const mjrRect& viewport,
     reqs[0].scene = scene_bridge_->GetScene();
     reqs[0].draw_mode = scene_bridge_->GetDrawMode();
     reqs[0].camera = scene_bridge_->GetCamera();
-    reqs[0].width = viewport.width;
-    reqs[0].height = viewport.height;
+    reqs[0].viewport = viewport;
 
     mjr_defaultRenderRequest(&reqs[1]);
     reqs[1].scene = imgui_bridge_->GetScene();
     reqs[1].draw_mode = mjDRAW_MODE_COLOR;
     reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
-    reqs[1].width = viewport.width;
-    reqs[1].height = viewport.height;
+    reqs[1].viewport = viewport;
     filament_context_->Render(reqs);
   }
 }
@@ -95,15 +93,13 @@ void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
   reqs[0].scene = scene_bridge_->GetScene();
   reqs[0].draw_mode = scene_bridge_->GetDrawMode();
   reqs[0].camera = scene_bridge_->GetCamera();
-  reqs[0].width = viewport.width;
-  reqs[0].height = viewport.height;
+  reqs[0].viewport = viewport;
 
   mjr_defaultRenderRequest(&reqs[1]);
   reqs[1].scene = imgui_bridge_->GetScene();
   reqs[1].draw_mode = mjDRAW_MODE_COLOR;
   reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
-  reqs[1].width = viewport.width;
-  reqs[1].height = viewport.height;
+  reqs[1].viewport = viewport;
 
   if (rgb) {
     mjrRenderTargetConfig config;
