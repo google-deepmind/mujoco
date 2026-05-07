@@ -25,8 +25,7 @@ namespace mujoco {
 // Updates the material instances based on the currently set parameters and
 // textures.
 void UpdateMaterialInstance(filament::MaterialInstance* instance,
-                            const mjrMaterialParams& params,
-                            const mjrMaterialTextures& textures,
+                            const mjrMaterial& material,
                             ObjectManager* object_mgr);
 
 }  // namespace mujoco

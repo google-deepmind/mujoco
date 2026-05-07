@@ -37,15 +37,6 @@ namespace mujoco {
 // The mesh describes the surface geometry of the object and the material
 // describes how that surface interacts with light (i.e. the color of each point
 // on the surface).
-//
-// Defining the mesh is easy; just call SetMesh.
-//
-// Defining a Material happens in two stages. First, the user specifies the
-// ShadingModel to use for Rendering. This describes the overall intent of
-// how the Renderable will appear (e.g. lit, unlit, wireframe, etc.). Next,
-// the user specifies the MaterialParams and MaterialTextures to use with the
-// ShadingModel. Its these properties that ultimately define the actual material
-// of the Renderable.
 class Renderable : public mjrRenderable {
  public:
   Renderable(FilamentContext* ctx, const mjrRenderableParams& params);
@@ -98,19 +89,14 @@ class Renderable : public mjrRenderable {
   // Removes the renderable from the given filament Scene.
   void RemoveFromScene(filament::Scene* scene);
 
-  // Further defines the material of the renderable. Only applies to renderables
-  // with a SceneObject shading model.
+  // Further defines the material of the renderable.
   void SetDrawMode(mjrDrawMode mode);
 
   // Updates the parameters for the material.
-  void UpdateMaterial(const mjrMaterialParams& params,
-                      const mjrMaterialTextures& textures);
+  void UpdateMaterial(const mjrMaterial& material);
 
   // Returns the current material parameters.
-  const mjrMaterialParams& GetMaterialParams() const;
-
-  // Returns the current material textures.
-  const mjrMaterialTextures& GetMaterialTextures() const;
+  const mjrMaterial& GetMaterial() const;
 
   // Returns the filament Engine managing the renderables.
   filament::Engine* GetEngine();
@@ -143,8 +129,7 @@ class Renderable : public mjrRenderable {
   ObjectManager* object_mgr_;
   mjrRenderableParams params_;
   filament::MaterialInstance* instances_[mjNUM_DRAW_MODES] = {nullptr};
-  mjrMaterialParams material_params_;
-  mjrMaterialTextures material_textures_;
+  mjrMaterial material_;
   mjrDrawMode draw_mode_ = mjDRAW_MODE_COLOR;
   filament::Scene* assigned_scene_ = nullptr;
   std::vector<Part> parts_;

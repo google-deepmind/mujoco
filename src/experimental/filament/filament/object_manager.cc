@@ -68,7 +68,6 @@ ObjectManager::ObjectManager(filament::Engine* engine)
   materials_[kPhongCubeFade] = LoadMaterial(engine, "phong_cube_fade.filamat");
   materials_[kPhongCubeReflect] = LoadMaterial(engine, "phong_cube_reflect.filamat");
   materials_[kUnlitSegmentation] = LoadMaterial(engine, "unlit_segmentation.filamat");
-  materials_[kUnlitLine] = LoadMaterial(engine, "unlit_line.filamat");
   materials_[kUnlitDecor] = LoadMaterial(engine, "unlit_decor.filamat");
   materials_[kUnlitDepth] = LoadMaterial(engine, "unlit_depth.filamat");
   materials_[kUnlitUi] = LoadMaterial(engine, "unlit_ui.filamat");

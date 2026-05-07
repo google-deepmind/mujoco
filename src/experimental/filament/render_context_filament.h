@@ -53,19 +53,6 @@ typedef enum mjrDrawMode_ {
 
 enum { mjNUM_DRAW_MODES = 3 };
 
-// The shading model (material) for a Renderable.
-typedef enum mjrShadingModel_ {
-  // For renderables in the main 3D scene.
-  mjSHADING_MODEL_SCENE_OBJECT = 0,
-  // For UX renderables.
-  mjSHADING_MODEL_UX,
-  // For decorative elements in a Scene (e.g. contact points, force vectors,
-  // etc.). These objects will not be affected by lighting.
-  mjSHADING_MODEL_DECOR,
-  // As above, but uses a line primitives for drawing.
-  mjSHADING_MODEL_DECOR_LINES,
-} mjrShadingModel;
-
 // The type of data stored in an index buffer.
 typedef enum mjrIndexType_ {
   mjINDEX_TYPE_U16 = 0,
@@ -124,41 +111,74 @@ typedef mjtColorSpace mjrColorSpace;
 typedef mjtLightType mjrLightType;
 typedef mjvGLCamera mjrCamera;
 
-// The textures that can be assigned to the drawable's material.
-struct mjrMaterialTextures {
-  const mjrTexture* color;
-  const mjrTexture* normal;
-  const mjrTexture* metallic;
-  const mjrTexture* roughness;
-  const mjrTexture* occlusion;
-  const mjrTexture* orm;
-  const mjrTexture* emissive;
-  const mjrTexture* reflection;
-};
-
-// Initializes the mjrMaterialTextures to default values.
-void mjr_defaultMaterialTextures(mjrMaterialTextures* textures);
-
-// The parameters that can be applied to the drawable's material.
-struct mjrMaterialParams {
+// The material to be applied to a renderable.
+struct mjrMaterial {
+  // The color of the object. Defaults to white.
   float color[4];
+
+  // The color to use for segmentation rendering. Defaults to white.
   float segmentation_color[4];
-  float tex_repeat[2];
+
+  // Applies an addition scale to the UV coordinates of the object. Defaults to
+  // (1, 1, 1).
   float uv_scale[3];
+
+  // Applies an offset to the UV coordinates of the object. Defaults to (0, 0,
+  // 0).
   float uv_offset[3];
+
+  // Applies a scissor test to the object.
   float scissor[4];
-  float specular;
-  float glossiness;
+
+  // Factors for PBR metallic-roughness materials.
   float metallic;
   float roughness;
+
+  // Factors for (non-PBR) specular-glossiness materials.
+  float specular;
+  float glossiness;
+
+  // The emissive (glow) factor of the object.
   float emissive;
-  float reflectance;
-  mjtByte tex_uniform;
+
+  // Whether or not the object is a reflective surface. Only applies to planes.
   mjtByte reflective;
+  // The blend factor to use for reflective surfaces. A value of 1.0 means that
+  // the surface is fully reflective (i.e. a mirror).
+  float reflectance;
+
+  // If true, does not apply any lighting to the object. (Assumes the object is
+  // used for UX or decorative elements like contact forces and labels.)
+  mjtByte decor_ux;
+
+  // The texture containing the base color of the object.
+  const mjrTexture* color_texture;
+
+  // The normal map of the object.
+  const mjrTexture* normal_texture;
+
+  // The metallic map of the object.
+  const mjrTexture* metallic_texture;
+
+  // The roughness map of the object.
+  const mjrTexture* roughness_texture;
+
+  // The occlusion map of the object.
+  const mjrTexture* occlusion_texture;
+
+  // A texture containing the occlusion, roughness, and metallic maps packed
+  // into the R, G, B channels, respectively.
+  const mjrTexture* orm_texture;
+
+  // An emissive texture for the object.
+  const mjrTexture* emissive_texture;
+
+  // The reflection texture to use for the object. For internal use only.
+  const mjrTexture* reflection_texture;
 };
 
-// Initializes the mjrMaterialParams to default values.
-void mjr_defaultMaterialParams(mjrMaterialParams* params);
+// Initializes the mjrMaterial to default values.
+void mjr_defaultMaterial(mjrMaterial* material);
 
 // The binary contents of a texture.
 struct mjrTextureData {
@@ -205,8 +225,6 @@ void mjr_defaultTextureConfig(mjrTextureConfig* config);
 
 // Configuration parameters for a Renderable.
 struct mjrRenderableParams {
-  // The shading model to use for the Renderable.
-  mjrShadingModel shading_model;
   // Whether or not the Renderable casts shadows.
   mjtByte cast_shadows;
   // Whether or not the Renderable receives shadows.
@@ -516,8 +534,7 @@ void mjrf_setRenderableGeomMesh(mjrRenderable* renderable, mjtGeom type,
 
 // Sets the material properties and textures of the renderable.
 void mjrf_setRenderableMaterial(mjrRenderable* renderable,
-                                const mjrMaterialParams* params,
-                                const mjrMaterialTextures* textures);
+                                const mjrMaterial* material);
 
 // Sets the transform (position, rotation, and size) of the renderable.
 void mjrf_setRenderableTransform(mjrRenderable* renderable,

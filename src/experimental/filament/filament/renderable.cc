@@ -51,8 +51,7 @@ static constexpr float kArrowHeadSize = 1.75f;
 
 Renderable::Renderable(FilamentContext* ctx, const mjrRenderableParams& params)
     : object_mgr_(ctx->GetObjectManager()), params_(params) {
-  mjr_defaultMaterialParams(&material_params_);
-  mjr_defaultMaterialTextures(&material_textures_);
+  mjr_defaultMaterial(&material_);
 }
 
 Renderable::~Renderable() noexcept {
@@ -202,21 +201,18 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
   assigned_scene_ = nullptr;
 }
 
-void Renderable::UpdateMaterial(const mjrMaterialParams& params,
-                                const mjrMaterialTextures& textures) {
-  material_params_ = params;
-  material_textures_ = textures;
+void Renderable::UpdateMaterial(const mjrMaterial& material) {
+  material_ = material;
 
   AssignMaterial(mjDRAW_MODE_COLOR, GetColorMaterialType());
-  if (params_.shading_model == mjSHADING_MODEL_SCENE_OBJECT) {
+  if (!material_.decor_ux) {
     AssignMaterial(mjDRAW_MODE_DEPTH, ObjectManager::kUnlitDepth);
     AssignMaterial(mjDRAW_MODE_SEGMENTATION, ObjectManager::kUnlitSegmentation);
   }
 
   for (int i = 0; i < mjNUM_DRAW_MODES; ++i) {
     if (instances_[i]) {
-      UpdateMaterialInstance(instances_[i], material_params_,
-                             material_textures_, object_mgr_);
+      UpdateMaterialInstance(instances_[i], material_, object_mgr_);
     }
   }
   SetDrawMode(draw_mode_);
@@ -241,17 +237,13 @@ void Renderable::AssignMaterial(mjrDrawMode mode,
   }
 }
 
-const mjrMaterialParams& Renderable::GetMaterialParams() const {
-  return material_params_;
-}
-
-const mjrMaterialTextures& Renderable::GetMaterialTextures() const {
-  return material_textures_;
+const mjrMaterial& Renderable::GetMaterial() const {
+  return material_;
 }
 
 void Renderable::SetDrawMode(mjrDrawMode mode) {
   // Only SceneObjects support non-color draw modes.
-  if (params_.shading_model != mjSHADING_MODEL_SCENE_OBJECT) {
+  if (!material_.decor_ux) {
     mode = mjDRAW_MODE_COLOR;
   }
 
@@ -347,21 +339,21 @@ void Renderable::SetWireframe(bool wireframe) {
 }
 
 ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
-  if (params_.shading_model == mjSHADING_MODEL_DECOR_LINES) {
-    return ObjectManager::kUnlitLine;
-  } else if (params_.shading_model == mjSHADING_MODEL_DECOR) {
-    return ObjectManager::kUnlitDecor;
-  } else if (params_.shading_model == mjSHADING_MODEL_UX) {
-    return ObjectManager::kUnlitUi;
-  } else if (material_textures_.orm) {
+  if (material_.decor_ux) {
+    if (material_.color_texture) {
+      return ObjectManager::kUnlitUi;
+    } else {
+      return ObjectManager::kUnlitDecor;
+    }
+  } else if (material_.orm_texture) {
     return ObjectManager::kPbrPacked;
-  } else if (material_textures_.metallic) {
+  } else if (material_.metallic_texture) {
     return ObjectManager::kPbr;
-  } else if (material_textures_.roughness) {
+  } else if (material_.roughness_texture) {
     return ObjectManager::kPbr;
-  } else if (material_params_.metallic >= 0) {
+  } else if (material_.metallic >= 0) {
     return ObjectManager::kPbr;
-  } else if (material_params_.roughness >= 0) {
+  } else if (material_.roughness >= 0) {
     return ObjectManager::kPbr;
   }
 
@@ -370,7 +362,7 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
   // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if
   // it has them.
   bool has_texcoords = false;
-  const Texture* color_texture = Texture::downcast(material_textures_.color);
+  const Texture* color_texture = Texture::downcast(material_.color_texture);
   if (!parts_.empty()) {
     const auto attribs = parts_[0].mesh->GetVertexAttributes();
     auto it = std::find(attribs.begin(), attribs.end(),
@@ -379,33 +371,33 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
   }
 
   if (color_texture == nullptr) {
-    if (material_params_.color[3] < 1.0f) {
+    if (material_.color[3] < 1.0f) {
       return ObjectManager::kPhongColorFade;
-    } else if (material_params_.reflective) {
+    } else if (material_.reflective) {
       return ObjectManager::kPhongColorReflect;
     } else {
       return ObjectManager::kPhongColor;
     }
   } else if (color_texture->GetSamplerType() == mjTEXTURE_CUBE) {
-    if (material_params_.color[3] < 1.0f) {
+    if (material_.color[3] < 1.0f) {
       return ObjectManager::kPhongCubeFade;
-    } else if (material_params_.reflective) {
+    } else if (material_.reflective) {
       return ObjectManager::kPhongCubeReflect;
     } else {
       return ObjectManager::kPhongCube;
     }
   } else if (has_texcoords) {
-    if (material_params_.color[3] < 1.0f) {
+    if (material_.color[3] < 1.0f) {
       return ObjectManager::kPhong2dUvFade;
-    } else if (material_params_.reflective) {
+    } else if (material_.reflective) {
       return ObjectManager::kPhong2dUvReflect;
     } else {
       return ObjectManager::kPhong2dUv;
     }
   } else {
-    if (material_params_.color[3] < 1.0f) {
+    if (material_.color[3] < 1.0f) {
       return ObjectManager::kPhong2dFade;
-    } else if (material_params_.reflective) {
+    } else if (material_.reflective) {
       return ObjectManager::kPhong2dReflect;
     } else {
       return ObjectManager::kPhong2d;

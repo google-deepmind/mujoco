@@ -69,10 +69,11 @@ void mjr_defaultTextureConfig(mjrTextureConfig* config) {
 }
 
 void mjr_defaultMeshData(mjrMeshData* data) {
-  std::memset(data, 0, sizeof(mjrMeshData));
+  memset(data, 0, sizeof(mjrMeshData));
 }
 
 void mjr_defaultSceneParams(mjrSceneParams* params) {
+  memset(params, 0, sizeof(mjrSceneParams));
   params->enable_post_processing = true;
   params->enable_reflections = true;
   params->enable_shadows = true;
@@ -81,6 +82,7 @@ void mjr_defaultSceneParams(mjrSceneParams* params) {
 }
 
 void mjr_defaultLightParams(mjrLightParams* params) {
+  memset(params, 0, sizeof(mjrLightParams));
   params->type = mjLIGHT_POINT;
   params->texture = nullptr;
   params->color[0] = 0;
@@ -95,35 +97,20 @@ void mjr_defaultLightParams(mjrLightParams* params) {
   params->vsm_blur_width = 0.0f;
 }
 
-void mjr_defaultMaterialTextures(mjrMaterialTextures* textures) {
-  textures->color = nullptr;
-  textures->normal = nullptr;
-  textures->metallic = nullptr;
-  textures->roughness = nullptr;
-  textures->occlusion = nullptr;
-  textures->orm = nullptr;
-  textures->emissive = nullptr;
-  textures->reflection = nullptr;
-}
-
-void mjr_defaultMaterialParams(mjrMaterialParams* params) {
-  setf(params->color, {1.f, 1.f, 1.f, 1.f});
-  setf(params->segmentation_color, {1, 1, 1, 1});
-  setf(params->uv_scale, {1, 1, 1});
-  setf(params->uv_offset, {0, 0, 0});
-  setf(params->scissor, {0, 0, 0, 0});
-  params->emissive = -1.0f;
-  params->specular = -1.0f;
-  params->glossiness = -1.0f;
-  params->metallic = -1.0f;
-  params->roughness = -1.0f;
-  params->reflectance = 0.0f;
-  params->tex_uniform = false;
-  params->reflective = false;
+void mjr_defaultMaterial(mjrMaterial* material) {
+  memset(material, 0, sizeof(mjrMaterial));
+  setf(material->color, {1.f, 1.f, 1.f, 1.f});
+  setf(material->segmentation_color, {1, 1, 1, 1});
+  setf(material->uv_scale, {1, 1, 1});
+  material->emissive = -1.0f;
+  material->specular = -1.0f;
+  material->glossiness = -1.0f;
+  material->metallic = -1.0f;
+  material->roughness = -1.0f;
 }
 
 void mjr_defaultRenderableParams(mjrRenderableParams* params) {
-  params->shading_model = mjSHADING_MODEL_SCENE_OBJECT;
+  memset(params, 0, sizeof(mjrRenderableParams));
   params->cast_shadows = true;
   params->receive_shadows = true;
   params->layer_mask = 0x01;
@@ -265,9 +252,8 @@ void mjrf_setRenderableGeomMesh(mjrRenderable* renderable, mjtGeom type,
 }
 
 void mjrf_setRenderableMaterial(mjrRenderable* renderable,
-                                const mjrMaterialParams* params,
-                                const mjrMaterialTextures* textures) {
-  mujoco::Renderable::downcast(renderable)->UpdateMaterial(*params, *textures);
+                                const mjrMaterial* material) {
+  mujoco::Renderable::downcast(renderable)->UpdateMaterial(*material);
 }
 
 void mjrf_setRenderableTransform(mjrRenderable* renderable,

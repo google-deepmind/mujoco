@@ -253,26 +253,25 @@ void ImguiBridge::Update() {
       mjrf_setRenderableMesh(renderable.get(), mesh, index_offset,
                              command.ElemCount);
 
-      mjrMaterialTextures textures;
-      mjr_defaultMaterialTextures(&textures);
-      textures.color = GetTexture(command.GetTexID());
+      mjrMaterial material;
+      mjr_defaultMaterial(&material);
+      material.color_texture = GetTexture(command.GetTexID());
 
-      mjrMaterialParams properties;
-      mjr_defaultMaterialParams(&properties);
-      properties.scissor[0] = command.ClipRect.x;
-      properties.scissor[1] = height - command.ClipRect.w;
-      properties.scissor[2] = command.ClipRect.z - command.ClipRect.x;
-      properties.scissor[3] = command.ClipRect.w - command.ClipRect.y;
+      material.decor_ux = true;
+      material.scissor[0] = command.ClipRect.x;
+      material.scissor[1] = height - command.ClipRect.w;
+      material.scissor[2] = command.ClipRect.z - command.ClipRect.x;
+      material.scissor[3] = command.ClipRect.w - command.ClipRect.y;
       // Modal dialogs try to cover the whole window, but also a little outside
       // of it. This doesn't work well with filament's scissor test, so we clip
       // them to the window.
-      if (properties.scissor[0] < 0 || properties.scissor[1] < 0) {
-        properties.scissor[0] = 0;
-        properties.scissor[1] = 0;
-        properties.scissor[2] = width;
-        properties.scissor[3] = height;
+      if (material.scissor[0] < 0 || material.scissor[1] < 0) {
+        material.scissor[0] = 0;
+        material.scissor[1] = 0;
+        material.scissor[2] = width;
+        material.scissor[3] = height;
       }
-      mjrf_setRenderableMaterial(renderable.get(), &properties, &textures);
+      mjrf_setRenderableMaterial(renderable.get(), &material);
 
       const float position[] = {0, 0, 0};
       const float rotation[] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
@@ -289,7 +288,6 @@ void ImguiBridge::PrepareRenderables(int count) {
   while (renderables_.size() < count) {
     mjrRenderableParams params;
     mjr_defaultRenderableParams(&params);
-    params.shading_model = mjSHADING_MODEL_UX;
     params.cast_shadows = false;
     params.receive_shadows = false;
     params.blend_order = static_cast<std::uint16_t>(renderables_.size() + 1);

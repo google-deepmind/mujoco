@@ -28,48 +28,47 @@
 namespace mujoco {
 
 void UpdateMaterialInstance(filament::MaterialInstance* instance,
-                            const mjrMaterialParams& params,
-                            const mjrMaterialTextures& textures,
+                            const mjrMaterial& material,
                             ObjectManager* object_mgr) {
-  if (params.scissor[2] != 0 && params.scissor[3] != 0) {
-    instance->setScissor(params.scissor[0], params.scissor[1],
-                         params.scissor[2], params.scissor[3]);
+  if (material.scissor[2] != 0 && material.scissor[3] != 0) {
+    instance->setScissor(material.scissor[0], material.scissor[1],
+                         material.scissor[2], material.scissor[3]);
   }
 
-  const filament::Material* material = instance->getMaterial();
-  if (material->hasParameter("BaseColorFactor")) {
+  const filament::Material* fmaterial = instance->getMaterial();
+  if (fmaterial->hasParameter("BaseColorFactor")) {
     instance->setParameter("BaseColorFactor", filament::RgbaType::sRGB,
-                           ReadFloat4(params.color));
+                           ReadFloat4(material.color));
   }
-  if (material->hasParameter("SegmentationColor")) {
+  if (fmaterial->hasParameter("SegmentationColor")) {
     instance->setParameter("SegmentationColor", filament::RgbaType::LINEAR,
-                           ReadFloat4(params.segmentation_color));
+                           ReadFloat4(material.segmentation_color));
   }
-  if (material->hasParameter("EmissiveFactor")) {
-    instance->setParameter("EmissiveFactor", params.emissive);
+  if (fmaterial->hasParameter("EmissiveFactor")) {
+    instance->setParameter("EmissiveFactor", material.emissive);
   }
-  if (material->hasParameter("SpecularFactor")) {
-    instance->setParameter("SpecularFactor", params.specular);
+  if (fmaterial->hasParameter("SpecularFactor")) {
+    instance->setParameter("SpecularFactor", material.specular);
   }
-  if (material->hasParameter("GlossinessFactor")) {
-    instance->setParameter("GlossinessFactor", params.glossiness);
+  if (fmaterial->hasParameter("GlossinessFactor")) {
+    instance->setParameter("GlossinessFactor", material.glossiness);
   }
-  if (material->hasParameter("MetallicFactor")) {
+  if (fmaterial->hasParameter("MetallicFactor")) {
     instance->setParameter("MetallicFactor",
-                           params.metallic >= 0 ? params.metallic : 1.0f);
+                           material.metallic >= 0 ? material.metallic : 1.0f);
   }
-  if (material->hasParameter("RoughnessFactor")) {
+  if (fmaterial->hasParameter("RoughnessFactor")) {
     instance->setParameter("RoughnessFactor",
-                           params.roughness >= 0 ? params.roughness : 1.0f);
+                           material.roughness >= 0 ? material.roughness : 1.0f);
   }
-  if (material->hasParameter("UvScale")) {
-    instance->setParameter("UvScale", ReadFloat3(params.uv_scale));
+  if (fmaterial->hasParameter("UvScale")) {
+    instance->setParameter("UvScale", ReadFloat3(material.uv_scale));
   }
-  if (material->hasParameter("UvOffset")) {
-    instance->setParameter("UvOffset", ReadFloat3(params.uv_offset));
+  if (fmaterial->hasParameter("UvOffset")) {
+    instance->setParameter("UvOffset", ReadFloat3(material.uv_offset));
   }
-  if (material->hasParameter("Reflectance")) {
-    instance->setParameter("Reflectance", params.reflectance);
+  if (fmaterial->hasParameter("Reflectance")) {
+    instance->setParameter("Reflectance", material.reflectance);
   }
 
   // All textures use the same default sampler.
@@ -83,7 +82,7 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
 
   auto TrySetTexture = [&](const char* name, const mjrTexture* texture,
                            mjtTextureRole role) {
-    if (material->hasParameter(name)) {
+    if (fmaterial->hasParameter(name)) {
       if (texture != nullptr) {
         instance->setParameter(
             name, Texture::downcast(texture)->GetFilamentTexture(), sampler);
@@ -94,14 +93,14 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
     }
   };
 
-  TrySetTexture("BaseColor", textures.color, mjTEXROLE_RGB);
-  TrySetTexture("Normal", textures.normal, mjTEXROLE_NORMAL);
-  TrySetTexture("Metallic", textures.metallic, mjTEXROLE_METALLIC);
-  TrySetTexture("Roughness", textures.roughness, mjTEXROLE_ROUGHNESS);
-  TrySetTexture("Occlusion", textures.occlusion, mjTEXROLE_OCCLUSION);
-  TrySetTexture("ORM", textures.orm, mjTEXROLE_ORM);
-  TrySetTexture("Emissive", textures.emissive, mjTEXROLE_EMISSIVE);
-  TrySetTexture("Reflection", textures.reflection, mjTEXROLE_USER);
+  TrySetTexture("BaseColor", material.color_texture, mjTEXROLE_RGB);
+  TrySetTexture("Normal", material.normal_texture, mjTEXROLE_NORMAL);
+  TrySetTexture("Metallic", material.metallic_texture, mjTEXROLE_METALLIC);
+  TrySetTexture("Roughness", material.roughness_texture, mjTEXROLE_ROUGHNESS);
+  TrySetTexture("Occlusion", material.occlusion_texture, mjTEXROLE_OCCLUSION);
+  TrySetTexture("ORM", material.orm_texture, mjTEXROLE_ORM);
+  TrySetTexture("Emissive", material.emissive_texture, mjTEXROLE_EMISSIVE);
+  TrySetTexture("Reflection", material.reflection_texture, mjTEXROLE_USER);
 }
 
 }  // namespace mujoco

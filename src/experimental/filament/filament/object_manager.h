@@ -56,7 +56,6 @@ class ObjectManager {
     kUnlitSegmentation,
     kUnlitDecor,
     kUnlitDepth,
-    kUnlitLine,
     kUnlitUi,
     kNumMaterials,
   };
