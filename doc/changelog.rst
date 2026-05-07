@@ -37,7 +37,7 @@ General
 Bug fixes
 ^^^^^^^^^
 
-- Fixed default for multiccd in :ref:`mjcPhysics`.
+- Fixed default for multiccd in :doc:`mjcPhysics <OpenUSD/mjcPhysics>`.
 
 Python
 ^^^^^^
