@@ -83,6 +83,7 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
 
   switch ((mjtGeom)geom.type) {
     case mjGEOM_MESH:
+    case mjGEOM_SDF:
       mjrf_setRenderableMesh(renderable, GetMesh(model_objects, geom.dataid), 0, 0);
       // Ignore size for meshes.
       size[0] = 1.f;
@@ -168,7 +169,6 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
     case mjGEOM_LABEL:
       // Do nothing.
       break;
-    case mjGEOM_SDF:
     case mjNGEOMTYPES:
       mju_warning("Unsupported geom type: %d", geom.type);
       break;
