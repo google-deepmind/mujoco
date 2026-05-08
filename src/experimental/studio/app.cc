@@ -106,17 +106,6 @@ void App::SwitchGraphicsMode(int width, int height,
       window_->GetNativeWindowHandle(), gfx_mode_);
 }
 
-void App::ClearModel() {
-  model_holder_.reset();
-  window_->SetTitle("MuJoCo Studio");
-  step_control_.SetSpeed(100.f);
-  profiler_.Clear();
-  tmp_ = UiTempState();
-  load_error_ = "";
-  step_error_ = "";
-  edit_error_ = "";
-}
-
 void App::Recompile() {
   mj_recompile(model_holder_->spec(), model_holder_->vfs(),
                model_holder_->model(), model_holder_->data());
@@ -129,7 +118,8 @@ void App::RequestModelLoad(std::string model_file) {
 }
 
 void App::RequestModelReload() {
-  if (model_kind_ == kModelFromFile) {
+  if (model_kind_ == kModelFromFile ||
+      (model_kind_ == kEmptyModel && !model_path_.empty())) {
     pending_load_ = model_path_;
     preserve_camera_on_load_ = true;
   }
@@ -158,6 +148,9 @@ void App::LoadModelFromFile(const std::string& filepath) {
     }
   } else {
     SetLoadError(std::string(model_holder_->error()));
+    // Keep track of the attempted load in case the user fixes the error and
+    // tries to reload the same file again.
+    model_path_ = resolved_file;
   }
 }
 
@@ -175,6 +168,10 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
 }
 
 void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
+  load_error_ = "";
+  step_error_ = "";
+  edit_error_ = "";
+
   model_path_ = std::move(filename);
 
   if (model_kind_ == kEmptyModel) {
@@ -243,6 +240,8 @@ void App::UpdateFilePaths(const std::string& resolved_path) {
 void App::SetLoadError(std::string error) {
   InitEmptyModel();
   load_error_ = std::move(error);
+  step_error_ = "";
+  edit_error_ = "";
 }
 
 void App::ResetPhysics() {

@@ -175,9 +175,6 @@ class App {
   // Requests that the currently loaded model be reloaded at the next update.
   void RequestModelReload();
 
-  // Clears the currently loaded model and all associated state.
-  void ClearModel();
-
   // Recompiles the spec, updating the model and data.
   void Recompile();
 
