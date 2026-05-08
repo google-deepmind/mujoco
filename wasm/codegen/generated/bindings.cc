@@ -6246,6 +6246,12 @@ struct MjsMesh {
       *(ptr_->material) = value;
     }
   }
+  int octree_maxdepth() const {
+    return ptr_->octree_maxdepth;
+  }
+  void set_octree_maxdepth(int value) {
+    ptr_->octree_maxdepth = value;
+  }
   mjString info() const {
     return (ptr_ && ptr_->info) ? *(ptr_->info) : "";
   }
@@ -12782,6 +12788,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("material", &MjsMesh::material, &MjsMesh::set_material, reference())
     .property("maxhullvert", &MjsMesh::maxhullvert, &MjsMesh::set_maxhullvert, reference())
     .property("needsdf", &MjsMesh::needsdf, &MjsMesh::set_needsdf, reference())
+    .property("octree_maxdepth", &MjsMesh::octree_maxdepth, &MjsMesh::set_octree_maxdepth, reference())
     .property("plugin", &MjsMesh::plugin, reference())
     .property("refpos", &MjsMesh::refpos)
     .property("refquat", &MjsMesh::refquat)

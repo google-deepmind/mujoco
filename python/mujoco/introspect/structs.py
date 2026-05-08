@@ -8462,6 +8462,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='name of material',
              ),
              StructFieldDecl(
+                 name='octree_maxdepth',
+                 type=ValueType(name='int'),
+                 doc='max octree depth',
+             ),
+             StructFieldDecl(
                  name='info',
                  type=PointerType(
                      inner_type=ValueType(name='mjString'),

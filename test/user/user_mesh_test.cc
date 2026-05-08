@@ -1501,6 +1501,8 @@ TEST_F(MjCMeshTest, OctreeIsBalanced) {
   mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
   mjsGeom* geom = mjs_asGeom(mjs_firstElement(spec, mjOBJ_GEOM));
   geom->type = mjGEOM_SDF;
+  mjsMesh* mesh = mjs_asMesh(mjs_firstElement(spec, mjOBJ_MESH));
+  mesh->octree_maxdepth = 5;
   mjModel* model = mj_compile(spec, 0);
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_GT(model->mesh_octnum[0], 0);
@@ -1564,6 +1566,8 @@ TEST_F(MjCMeshTest, OctreeHangingNodeInterpolation) {
   mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
   mjsGeom* geom = mjs_asGeom(mjs_firstElement(spec, mjOBJ_GEOM));
   geom->type = mjGEOM_SDF;
+  mjsMesh* mesh = mjs_asMesh(mjs_firstElement(spec, mjOBJ_MESH));
+  mesh->octree_maxdepth = 5;
   mjModel* model = mj_compile(spec, 0);
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_GT(model->mesh_octnum[0], 0);

@@ -782,6 +782,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     } else if (octree_.NumNodes() == 0) {
       std::vector<double> dvert(vert_.begin(), vert_.end());
       octree_.SetFace(dvert, face_);
+      octree_.SetMaxDepth(spec.octree_maxdepth);
       octree_.CreateOctree(aamm_);
       if (!plugin.active) {
         octree_.ComputeSdfCoeffs(dvert.data(), nvert(), face_.data(), nface(), tree_);
@@ -1532,6 +1533,7 @@ void mjCMesh::Process() {
   // make octree
   if (needsdf) {
     octree_.SetFace(dvert, face_);
+    octree_.SetMaxDepth(spec.octree_maxdepth);
     octree_.CreateOctree(aamm_);
 
     if (!plugin.active) {
