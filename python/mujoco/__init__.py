@@ -165,10 +165,7 @@ class _MjBindModel:
     object.__setattr__(self, 'elements', elements)
 
   def __getattr__(self, key: str):
-    items = []
-    for e in self.elements:
-      items.extend(getattr(e, key))
-    return items
+    return _bind_attribute(self.elements, key)
 
   def __setattr__(self, key: str, value: Any):
     raise AttributeError(f'Cannot set {key} on MjModel.')
@@ -181,15 +178,72 @@ class _MjBindData:
     object.__setattr__(self, 'elements', elements)
 
   def __getattr__(self, key: str):
-    items = []
-    for e in self.elements:
-      items.extend(getattr(e, key))
-    return items
+    return _bind_attribute(self.elements, key)
 
   def __setattr__(self, key: str, value: Any):
     value_it = iter(value)
     for element in self.elements:
       setattr(element, key, next(value_it))
+
+
+_JOINT_VECTOR_FIELDS = frozenset({
+    'qpos0',
+    'qpos_spring',
+    'bodyid',
+    'jntid',
+    'parentid',
+    'Madr',
+    'simplenum',
+    'frictionloss',
+    'armature',
+    'damping',
+    'dampingpoly',
+    'invweight0',
+    'M0',
+    'qpos',
+    'qvel',
+    'qacc_warmstart',
+    'qfrc_applied',
+    'qacc',
+    'cdof',
+    'qLDiagInv',
+    'cdof_dot',
+    'qfrc_bias',
+    'qfrc_passive',
+    'qfrc_actuator',
+    'qfrc_smooth',
+    'qacc_smooth',
+    'qfrc_constraint',
+    'qfrc_inverse',
+})
+
+
+_RAGGED_BIND_FIELDS_BY_GROUP = {
+    'MjModelHfieldViews': frozenset({'data'}),
+    'MjModelJointViews': _JOINT_VECTOR_FIELDS,
+    'MjModelNumericViews': frozenset({'data'}),
+    'MjModelTextureViews': frozenset({'data'}),
+    'MjModelTupleViews': frozenset({'objtype', 'objid', 'objprm'}),
+    'MjDataJointViews': _JOINT_VECTOR_FIELDS,
+    'MjDataSensorViews': frozenset({'data'}),
+}
+
+
+def _bind_attribute(elements: Sequence[Any], key: str):
+  """Returns the bound attribute for a sequence of grouped view objects."""
+  items = []
+  for element in elements:
+    value = getattr(element, key)
+    group = type(element).__name__
+    shape = getattr(value, 'shape', ())
+    if (
+        key in _RAGGED_BIND_FIELDS_BY_GROUP.get(group, ())
+        or tuple(shape) == (1,)
+    ):
+      items.extend(value)
+    else:
+      items.append(value)
+  return items
 
 
 def _bind_model(

@@ -1465,14 +1465,33 @@ class SpecsTest(absltest.TestCase):
     joint_box = spec.joint('box')
     joint_sphere = spec.joint('sphere')
     joints = [joint_box, joint_sphere]
+    geoms = spec.geoms[1:3]
     mj_model = spec.compile()
     mj_data = mujoco.MjData(mj_model)
+    mujoco.mj_forward(mj_model, mj_data)
     np.testing.assert_array_equal(mj_data.bind(joint_box).qpos, 0)
     np.testing.assert_array_equal(mj_model.bind(joint_box).qposadr, 7)
     np.testing.assert_array_equal(mj_data.bind(joints).qpos, [0, 0])
     np.testing.assert_array_equal(mj_model.bind(joints).qposadr, [7, 8])
     np.testing.assert_array_equal(mj_data.bind([]).qpos, [])
     np.testing.assert_array_equal(mj_model.bind([]).qposadr, [])
+    np.testing.assert_array_equal(mj_data.bind(joints[0:1]).qpos, [0])
+    np.testing.assert_array_equal(mj_model.bind(geoms[0]).size, [0.15] * 3)
+    np.testing.assert_array_equal(
+        mj_model.bind(geoms[0:1]).size, [[0.15] * 3]
+    )
+    np.testing.assert_array_equal(
+        mj_model.bind(geoms[0:2]).size, [[0.15] * 3, [0.15] * 3]
+    )
+    np.testing.assert_array_equal(
+        np.asarray(mj_model.bind(geoms[0:1]).size).shape, (1, 3)
+    )
+    np.testing.assert_array_equal(
+        np.asarray(mj_data.bind(geoms[0:1]).xpos).shape, (1, 3)
+    )
+    np.testing.assert_array_equal(
+        np.asarray(mj_model.bind(joints[0:1]).axis).shape, (1, 3)
+    )
     mj_data.bind(joints).qpos = np.array([1, 2])
     np.testing.assert_array_equal(mj_data.bind(joints).qpos, [1, 2])
     with self.assertRaisesRegex(
