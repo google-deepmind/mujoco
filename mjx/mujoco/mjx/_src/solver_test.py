@@ -164,6 +164,42 @@ class SolverTest(parameterized.TestCase):
     m.opt.cone = cone
     solver.solve(mjx.put_model(m), mjx.put_data(m, mujoco.MjData(m)))
 
+  def test_solver_reverse_mode_grad(self):
+    """Reverse-mode autodiff works with the scan solver loop enabled.
+
+    Regression test for https://github.com/google-deepmind/mujoco/issues/2259.
+    The default outer solver loop uses `jax.lax.while_loop`, which raises
+    `ValueError: Reverse-mode differentiation does not work for lax.while_loop
+    or lax.fori_loop with dynamic start/stop values.` when wrapped in
+    `jax.grad`. Enabling `solver_scan` switches this loop to a scan-based
+    implementation for users that need reverse-mode gradients.
+    """
+    m = mujoco.MjModel.from_xml_string("""
+       <mujoco>
+          <worldbody>
+            <geom size="0 0 1e-5" type="plane" condim="1"/>
+            <body pos="0 0 0.09">
+              <freejoint/>
+              <geom size="0.1"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """)
+    # iterations > 1 exercises the loop that previously broke autodiff.
+    m.opt.iterations = 4
+    m.opt.ls_iterations = 4
+    mx = mjx.put_model(m).tree_replace({'opt._impl.solver_scan': True})
+    dx = mjx.put_data(m, mujoco.MjData(m))
+
+    def loss(qvel):
+      d = dx.replace(qvel=qvel)
+      d = mjx.solve(mx, d)
+      return (d.qacc ** 2).sum()
+
+    grad = jax.jit(jax.grad(loss))(dx.qvel)
+    self.assertEqual(grad.shape, dx.qvel.shape)
+    self.assertTrue(np.all(np.isfinite(grad)))
+
 
 if __name__ == '__main__':
   absltest.main()
