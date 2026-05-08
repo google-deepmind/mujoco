@@ -243,7 +243,7 @@ const mjrMaterial& Renderable::GetMaterial() const {
 
 void Renderable::SetDrawMode(mjrDrawMode mode) {
   // Only SceneObjects support non-color draw modes.
-  if (!material_.decor_ux) {
+  if (material_.decor_ux) {
     mode = mjDRAW_MODE_COLOR;
   }
 
