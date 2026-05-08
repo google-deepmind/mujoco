@@ -13,14 +13,12 @@
 // limitations under the License.
 
 #include <algorithm>
-#include <array>
 #include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
-#include <queue>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -107,116 +105,11 @@ void mjCFlexcomp::MarkEmptyCells(mjCFlex* flex, const double* points,
   int cx = flex->spec.cellcount[0];
   int cy = flex->spec.cellcount[1];
   int cz = flex->spec.cellcount[2];
-  int ncells = cx * cy * cz;
   int order = flex->spec.order;
 
-  // determine which cells contain mesh elements (not just vertices)
-  // for each element, compute its AABB and mark all overlapping cells
-  std::vector<bool> has_element(ncells, false);
-
-  double dx = minmax[3] - minmax[0];
-  double dy = minmax[4] - minmax[1];
-  double dz = minmax[5] - minmax[2];
-
-  // vertices per element: dim+1 (edges=2, triangles=3, tets=4)
-  int nvpe = flex->spec.dim + 1;
-
-  if (nvpe > 0 && !element.empty()) {
-    int nelem = element.size() / nvpe;
-    for (int e = 0; e < nelem; e++) {
-      // compute element AABB
-      double elo[3] = {1e30, 1e30, 1e30};
-      double ehi[3] = {-1e30, -1e30, -1e30};
-      for (int v = 0; v < nvpe; v++) {
-        int vid = element[nvpe * e + v];
-        for (int j = 0; j < 3; j++) {
-          elo[j] = std::min(elo[j], points[3 * vid + j]);
-          ehi[j] = std::max(ehi[j], points[3 * vid + j]);
-        }
-      }
-
-      // map element AABB to cell range
-      auto cellIdx = [](double coord, double lo, double d, int nc) {
-        if (d <= 0) return 0;
-        int c = (int)((coord - lo) / d * nc);
-        return std::max(0, std::min(nc - 1, c));
-      };
-
-      int ci0 = cellIdx(elo[0], minmax[0], dx, cx);
-      int ci1 = cellIdx(ehi[0], minmax[0], dx, cx);
-      int cj0 = cellIdx(elo[1], minmax[1], dy, cy);
-      int cj1 = cellIdx(ehi[1], minmax[1], dy, cy);
-      int ck0 = cellIdx(elo[2], minmax[2], dz, cz);
-      int ck1 = cellIdx(ehi[2], minmax[2], dz, cz);
-
-      // mark all overlapping cells as containing elements
-      for (int ci = ci0; ci <= ci1; ci++) {
-        for (int cj = cj0; cj <= cj1; cj++) {
-          for (int ck = ck0; ck <= ck1; ck++) {
-            has_element[ci * cy * cz + cj * cz + ck] = true;
-          }
-        }
-      }
-    }
-  }
-
-  // default: all cells non-empty (only exterior cells will be empty)
-  flex->cell_empty.assign(ncells, false);
-
-  // for dim=2 (surface mesh): check watertightness and flood-fill
-  if (flex->spec.dim == 2 && nvpe == 3 && !element.empty()) {
-    // flood-fill from grid boundary to find exterior cells
-    // cells reachable from the boundary through non-element cells
-    // are outside the mesh volume; cells NOT reachable are interior
-    std::vector<bool> visited(ncells, false);
-    std::queue<std::array<int, 3>> bfs;
-
-    // seed BFS from boundary cells that have no elements
-    for (int ci = 0; ci < cx; ci++) {
-      for (int cj = 0; cj < cy; cj++) {
-        for (int ck = 0; ck < cz; ck++) {
-          if (ci == 0 || ci == cx - 1 ||
-              cj == 0 || cj == cy - 1 ||
-              ck == 0 || ck == cz - 1) {
-            int idx = ci * cy * cz + cj * cz + ck;
-            if (!has_element[idx] && !visited[idx]) {
-              visited[idx] = true;
-              flex->cell_empty[idx] = true;
-              bfs.push({ci, cj, ck});
-            }
-          }
-        }
-      }
-    }
-
-    // BFS: spread through non-element cells
-    const int dirs[6][3] = {
-        {-1, 0, 0}, {1, 0, 0},  {0, -1, 0},
-        {0, 1, 0},  {0, 0, -1}, {0, 0, 1}};
-    while (!bfs.empty()) {
-      auto [ci, cj, ck] = bfs.front();
-      bfs.pop();
-      for (auto& d : dirs) {
-        int ni = ci + d[0], nj = cj + d[1], nk = ck + d[2];
-        if (ni < 0 || ni >= cx ||
-            nj < 0 || nj >= cy ||
-            nk < 0 || nk >= cz) {
-          continue;
-        }
-        int nidx = ni * cy * cz + nj * cz + nk;
-        if (!visited[nidx] && !has_element[nidx]) {
-          visited[nidx] = true;
-          flex->cell_empty[nidx] = true;
-          bfs.push({ni, nj, nk});
-        }
-      }
-    }
-  } else {
-    // dim!=2 (e.g., tet mesh): cells without element overlap are empty
-    for (int c = 0; c < ncells; c++) {
-      flex->cell_empty[c] = !has_element[c];
-    }
-  }
+  // delegate cell_empty computation to mjCFlex
+  int nelem = element.size() / (flex->spec.dim + 1);
+  flex->ComputeCellEmpty(points, element.data(), npnt, nelem, flex->spec.dim, minmax);
 
   // pin nodes that belong exclusively to empty cells
   for (int gi = 0; gi < nx; gi++) {

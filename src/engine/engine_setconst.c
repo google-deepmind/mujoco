@@ -447,6 +447,8 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
   mju_zeroInt(m->flex_vertedge, 2 * m->nflexedge);
   mju_zeroInt(m->flex_vertedge, 2 * m->nflexedge);
   mju_zero(m->flex_vertmetric, 4 * m->nflexvert);
+  mju_zeroInt(m->flexedge_J_colind, m->nJfe);
+  mju_zeroInt(m->flexvert_J_colind, 2 * m->nJfv);
   int current_adj_offset = 0;
 
   // compute lengths and Jacobians of edges

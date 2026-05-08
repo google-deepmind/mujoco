@@ -1055,6 +1055,9 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   void Compile(const mjVFS* vfs);         // compiler
   void CreateBVH(void);                   // create flex BVH
   void CreateShellPair(void);             // create shells and evpairs
+  void ComputeCellEmpty(const double* vpos, const int* elems,  // identify cells
+                        int nv, int ne, int fdim,              // with no mesh content
+                        const double* bbox = nullptr);         // optional precomputed bbox
 
   std::vector<double> vert0_;             // vertex positions in [0, 1]^d in the bounding box
   std::vector<double> node0_;             // node Cartesian positions
