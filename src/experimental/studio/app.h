@@ -120,8 +120,7 @@ class App {
     // Windows.
     bool help = false;
     bool stats = false;
-    bool chart_solver = false;
-    bool chart_performance = false;
+    bool profiler = false;
     bool picture_in_picture = false;
     bool options_panel = true;
     bool inspector_panel = true;

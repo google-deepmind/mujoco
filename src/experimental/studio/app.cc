@@ -625,14 +625,12 @@ void App::HandleKeyboardEvents() {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
     ToggleWindow(tmp_.stats);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F3)) {
+    ToggleWindow(tmp_.profiler);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
     vis_options_.frame = (vis_options_.frame + 1) % mjNFRAME;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
     vis_options_.label = (vis_options_.label + 1) % mjNLABEL;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F9)) {
-    tmp_.chart_solver = !tmp_.chart_solver;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F10)) {
-    tmp_.chart_performance = !tmp_.chart_performance;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
     tmp_.full_screen = !tmp_.full_screen;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_H)) {
@@ -887,30 +885,10 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  if (tmp_.chart_performance) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Performance", &tmp_.chart_performance)) {
-      auto layout = platform::ImPlot_ComputePairLayout();
-      profiler_.CpuTimeGraph(layout.plot_size);
-      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
-        ImGui::SameLine();
-      }
-      profiler_.DimensionsGraph(layout.plot_size);
-    }
-    ImGui::End();
-  }
-
-  if (tmp_.chart_solver) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
-      auto layout = platform::ImPlot_ComputePairLayout();
-      platform::CountsGui(model(), data(), layout.plot_size);
-      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
-        ImGui::SameLine();
-      }
-      platform::ConvergenceGui(model(), data(), layout.plot_size);
+  if (tmp_.profiler) {
+    if (ImGui::Begin("Profiler", &tmp_.profiler,
+                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+      platform::ProfilerGui(model(), data(), &profiler_);
     }
     ImGui::End();
   }
@@ -1311,10 +1289,9 @@ void App::HelpGui() {
 
   ImGui::Text("Help");
   ImGui::Text("Stats");
+  ImGui::Text("Profiler");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
-  ImGui::Text("Solver Charts");
-  ImGui::Text("Perf. Charts");
   ImGui::Text("Toggle Fullscreen");
   ImGui::Text("Free Camera");
   ImGui::Text("Toggle Pause");
@@ -1338,10 +1315,9 @@ void App::HelpGui() {
   ImGui::Indent(indent);
   ImGui::Text("F1");
   ImGui::Text("F2");
+  ImGui::Text("F3");
   ImGui::Text("F6");
   ImGui::Text("F7");
-  ImGui::Text("F9");
-  ImGui::Text("F10");
   ImGui::Text("F11");
   ImGui::Text("Esc");
   ImGui::Text("Spc");
@@ -1733,11 +1709,8 @@ void App::MainMenuGui() {
     }
 
     if (ImGui::BeginMenu("Charts")) {
-      if (ImGui::MenuItem("Solver", "F9")) {
-        tmp_.chart_solver = !tmp_.chart_solver;
-      }
-      if (ImGui::MenuItem("Performance", "F10")) {
-        tmp_.chart_performance = !tmp_.chart_performance;
+      if (ImGui::MenuItem("Profiler", "F3")) {
+        ToggleWindow(tmp_.profiler);
       }
       ImGui::EndMenu();
     }

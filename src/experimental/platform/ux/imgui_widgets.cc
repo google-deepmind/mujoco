@@ -382,10 +382,10 @@ ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size) {
   ImPlotFlags flags = ImPlotFlags_None;
   if (plot_size.x > 0 && plot_size.y > 0) {
     const float min_dim = std::min(plot_size.x, plot_size.y);
-    if (min_dim < 300) {
+    if (min_dim < 150) {
       flags |= ImPlotFlags_NoTitle;
     }
-    if (min_dim < 200) {
+    if (min_dim < 140) {
       flags |= ImPlotFlags_NoLegend;
     }
   }
@@ -395,7 +395,7 @@ ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size) {
 void ImPlot_SetupTimeAxis(ImVec2 plot_size, const char* label,
                           ImPlotAxisFlags extra_flags) {
   ImPlotAxisFlags flags = extra_flags;
-  if (plot_size.x > 0 && plot_size.x < 300) {
+  if (plot_size.x > 0 && plot_size.x < 180) {
     flags |= ImPlotAxisFlags_NoTickLabels;
   }
   ImPlot::SetupAxis(ImAxis_X1, label, flags);
@@ -404,7 +404,7 @@ void ImPlot_SetupTimeAxis(ImVec2 plot_size, const char* label,
 void ImPlot_SetupValueAxis(ImVec2 plot_size, const char* label,
                            const char* format, ImPlotAxisFlags extra_flags) {
   ImPlotAxisFlags flags = extra_flags;
-  if (plot_size.y > 0 && plot_size.y < 150) {
+  if (plot_size.y > 0 && plot_size.y < 90) {
     flags |= ImPlotAxisFlags_NoTickLabels;
   }
   ImPlot::SetupAxis(ImAxis_Y1, label, flags);
@@ -418,7 +418,7 @@ void ImPlot_SetupFixedAxis(ImVec2 plot_size, double y_min, double y_max,
                            const double* tick_values,
                            const char* const* tick_labels, int n_ticks) {
   ImPlotAxisFlags flags = ImPlotAxisFlags_None;
-  if (plot_size.y > 0 && plot_size.y < 150) {
+  if (plot_size.y > 0 && plot_size.y < 90) {
     flags |= ImPlotAxisFlags_NoTickLabels;
   }
   ImPlot::SetupAxis(ImAxis_Y1, label, flags);
