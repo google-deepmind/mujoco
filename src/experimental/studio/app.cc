@@ -872,11 +872,6 @@ void App::BuildGui() {
   }
 
   if (tmp_.inspector_panel) {
-    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
-      DataInspectorGui();
-    }
-    ImGui::End();
-
     if (ImGui::Begin("Explorer", &tmp_.inspector_panel)) {
       SpecExplorerGui();
     }
@@ -884,6 +879,11 @@ void App::BuildGui() {
 
     if (ImGui::Begin("Editor", &tmp_.inspector_panel)) {
       SpecEditorGui();
+    }
+    ImGui::End();
+
+    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
+      DataInspectorGui();
     }
     ImGui::End();
   }
@@ -1071,17 +1071,6 @@ void App::DataInspectorGui() {
   const ImGuiTreeNodeFlags node_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
-  ImGui::BeginChild("NoiseGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Noise", node_flags)) {
-    float noise_scale = 0;
-    float noise_rate = 0;
-    step_control_.GetNoiseParameters(noise_scale, noise_rate);
-    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
-    step_control_.SetNoiseParameters(noise_scale, noise_rate);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
-
   ImGui::BeginChild("JointsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Joints", node_flags)) {
     platform::JointsGui(model(), data(), &vis_options_);
@@ -1091,6 +1080,14 @@ void App::DataInspectorGui() {
 
   ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Controls", node_flags)) {
+
+    float noise_scale = 0;
+    float noise_rate = 0;
+    step_control_.GetNoiseParameters(noise_scale, noise_rate);
+    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
+    step_control_.SetNoiseParameters(noise_scale, noise_rate);
+    ImGui::Separator();
+
     platform::ControlsGui(model(), data(), &vis_options_);
     ImGui::TreePop();
   }

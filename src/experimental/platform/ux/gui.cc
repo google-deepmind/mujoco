@@ -464,7 +464,8 @@ bool LabelSelectionGui(mjvOption* opts) {
 
   bool changed = false;
   const std::string label_preview =
-      std::string(ICON_LABEL) + " " + kLabelNames[opts->label];
+      opts->label == 0 ? std::string(ICON_LABEL) + " Label"
+                       : std::string(ICON_LABEL) + " " + kLabelNames[opts->label];
   if (ImGui::BeginCombo("##Label", label_preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
     for (int n = 0; n < IM_ARRAYSIZE(kLabelNames); n++) {
@@ -486,7 +487,8 @@ bool FrameSelectionGui(mjvOption* opts) {
 
   bool changed = false;
   const std::string frame_preview =
-      std::string(ICON_FRAME) + " " + kFrameNames[opts->frame];
+      opts->frame == 0 ? std::string(ICON_FRAME) + " Frame"
+                       : std::string(ICON_FRAME) + " " + kFrameNames[opts->frame];
   if (ImGui::BeginCombo("##Frame", frame_preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
     for (int n = 0; n < IM_ARRAYSIZE(kFrameNames); n++) {
@@ -1071,8 +1073,8 @@ void NoiseGui(const mjModel* model, const mjData* data, float& noise_scale,
               float& noise_rate) {
   const float item_width = ImGui::GetWindowWidth() * .6f;
   ImGui::PushItemWidth(item_width);
-  ImGui::SliderFloat("Scale", &noise_scale, 0, 1);
-  ImGui::SliderFloat("Rate", &noise_rate, 0, 4);
+  ImGui::SliderFloat("Noise scale", &noise_scale, 0, 1);
+  ImGui::SliderFloat("Noise rate", &noise_rate, 0, 4);
   ImGui::PopItemWidth();
 }
 
