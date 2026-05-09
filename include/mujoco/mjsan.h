@@ -48,14 +48,16 @@ extern "C" {
 #endif
 
 void mj__markStack(mjData*) __attribute__((noinline));
-static inline void mj_markStack(mjData* d) __attribute__((always_inline)) {
+static void mj_markStack(mjData* d) __attribute__((always_inline));
+static inline void mj_markStack(mjData* d)  {
   asm volatile("" ::: "memory");
   mj__markStack(d);
   asm volatile("" ::: "memory");
 }
 
 void mj__freeStack(mjData*) __attribute__((noinline));
-static inline void mj_freeStack(mjData* d) __attribute__((always_inline)) {
+static void mj_freeStack(mjData* d) __attribute__((always_inline));
+static inline void mj_freeStack(mjData* d) {
   asm volatile("" ::: "memory");
   mj__freeStack(d);
   asm volatile("" ::: "memory");
