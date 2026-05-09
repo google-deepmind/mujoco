@@ -130,6 +130,9 @@ template <typename T>
 using Arch_PerLibInit = pxr::Arch_PerLibInit<T>;
 #if defined(ARCH_OS_DARWIN)
 using Arch_ConstructorEntry = pxr::Arch_ConstructorEntry;
+#elif defined(ARCH_OS_WINDOWS)
+using Arch_ConstructorInit = pxr::Arch_ConstructorInit;
+using Arch_ConstructorEntry = pxr::Arch_ConstructorEntry;
 #endif
 enum ErrorCodes { UnsupportedActuatorTypeError, UnsupportedGeomTypeError, MujocoCompilationError };
 
