@@ -103,8 +103,9 @@ public struct MjcfOptionFlag {
                                                             localDefault.FrictionLoss);
     Limit = mjcf.GetEnumAttribute<EnableDisableFlag>("limit", localDefault.Limit);
     Contact = mjcf.GetEnumAttribute<EnableDisableFlag>("contact", localDefault.Contact);
-    Spring = mjcf.GetEnumAttribute<EnableDisableFlag>("spring", localDefault.Spring);
-    Damper = mjcf.GetEnumAttribute<EnableDisableFlag>("damper", localDefault.Damper);
+    var passive = mjcf.GetEnumAttribute<EnableDisableFlag>("passive", localDefault.Spring);
+    Spring = mjcf.GetEnumAttribute<EnableDisableFlag>("spring", passive);
+    Damper = mjcf.GetEnumAttribute<EnableDisableFlag>("damper", passive);
     Gravity = mjcf.GetEnumAttribute<EnableDisableFlag>("gravity", localDefault.Gravity);
     ClampCtrl = mjcf.GetEnumAttribute<EnableDisableFlag>("clampctrl", localDefault.ClampCtrl);
     WarmStart = mjcf.GetEnumAttribute<EnableDisableFlag>("warmstart", localDefault.WarmStart);

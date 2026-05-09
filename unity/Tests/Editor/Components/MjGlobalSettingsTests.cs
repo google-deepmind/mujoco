@@ -94,6 +94,7 @@ public class MjGlobalSettingsGenerationTests {
     Assert.That(_doc.OuterXml, Does.Contain(@"contact="));
     Assert.That(_doc.OuterXml, Does.Contain(@"spring="));
     Assert.That(_doc.OuterXml, Does.Contain(@"damper="));
+    Assert.That(_doc.OuterXml, Does.Not.Contain(@"passive="));
     Assert.That(_doc.OuterXml, Does.Contain(@"clampctrl="));
     Assert.That(_doc.OuterXml, Does.Contain(@"warmstart="));
     Assert.That(_doc.OuterXml, Does.Contain(@"filterparent="));
@@ -183,6 +184,16 @@ public class MjGlobalSettingsParsingTests {
     Assert.That(_settings.CustomNumeric.Count, Is.EqualTo(1));
     Assert.That(_settings.CustomNumeric[0].Name, Is.EqualTo("numeric_name"));
     Assert.That(_settings.CustomNumeric[0].Data, Is.EqualTo("1 2 3"));
+  }
+
+  [Test]
+  public void ParseLegacyPassiveFlagAsSpringAndDamper() {
+    _flag.SetAttribute("passive", "disable");
+
+    _settings.ParseGlobalMjcfSections(_root);
+
+    Assert.That(_settings.GlobalOptions.Flag.Spring, Is.EqualTo(EnableDisableFlag.disable));
+    Assert.That(_settings.GlobalOptions.Flag.Damper, Is.EqualTo(EnableDisableFlag.disable));
   }
 }
 }
