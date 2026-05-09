@@ -153,7 +153,9 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       rotation[0] = 1.f;
       rotation[4] = 1.f;
       rotation[8] = 1.f;
-      std::memset(size, 0, sizeof(size));
+      size[0] = 1.f;
+      size[1] = 1.f;
+      size[2] = 1.f;
       break;
     case mjGEOM_SKIN:
       mjrf_setRenderableMesh(renderable, GetSkinFlexMesh(model_objects, geom.objid), 0, 0);
@@ -163,7 +165,9 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       rotation[0] = 1.f;
       rotation[4] = 1.f;
       rotation[8] = 1.f;
-      std::memset(size, 0, sizeof(size));
+      size[0] = 1.f;
+      size[1] = 1.f;
+      size[2] = 1.f;
       break;
     case mjGEOM_NONE:
     case mjGEOM_LABEL:
