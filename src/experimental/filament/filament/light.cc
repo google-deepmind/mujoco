@@ -25,8 +25,8 @@
 #include <utils/Entity.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/filament_context.h"
-#include "experimental/filament/filament/math_util.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 

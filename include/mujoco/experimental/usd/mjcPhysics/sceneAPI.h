@@ -1319,7 +1319,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:flag:multiccd = 0` |
+  /// | Declaration | `uniform bool mjc:flag:multiccd = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |

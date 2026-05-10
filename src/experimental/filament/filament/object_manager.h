@@ -17,41 +17,29 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <span>
 #include <string_view>
+#include <unordered_map>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
 #include <filament/Skybox.h>
 #include <filament/Texture.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/builtins.h"
 
 namespace mujoco {
 
 // Creates and owns various filament objects based on the data in a mjrContext.
 class ObjectManager {
  public:
-  class Asset {
-   public:
-    ~Asset();
-
-    std::span<const std::byte> GetBytes() const;
-
-    Asset(const Asset&) = delete;
-    Asset& operator=(const Asset&) = delete;
-   private:
-    friend class ObjectManager;
-    explicit Asset(std::string_view filename);
-
-    std::size_t size = 0;
-    void* payload = nullptr;
-    mjResource* resource = nullptr;
-  };
-
   ObjectManager(filament::Engine* engine);
   ~ObjectManager();
 
+  // The different filament::Materials that are loaded and managed by the
+  // ObjectManager.
   enum MaterialType {
     kPbr,
     kPbrPacked,
@@ -70,13 +58,9 @@ class ObjectManager {
     kUnlitSegmentation,
     kUnlitDecor,
     kUnlitDepth,
-    kUnlitLine,
     kUnlitUi,
     kNumMaterials,
   };
-
-  // Returns the filament Engine that owns the assets.
-  filament::Engine* GetEngine() const { return engine_; }
 
   // Returns the Material of the given type.
   filament::Material* GetMaterial(MaterialType type) const;
@@ -84,11 +68,13 @@ class ObjectManager {
   // Returns the fallback Texture with the given role.
   const filament::Texture* GetFallbackTexture(mjtTextureRole role) const;
 
-  // Loads the given asset from the filament resource directory.
-  std::unique_ptr<Asset> LoadAsset(std::string_view filename);
+  // Returns the built-in mesh collection with the given dimensions. For
+  // performance reasons, you should consider always using the same dimensions
+  // in order to reuse the same meshes.
+  Builtins* GetBuiltins(int nstack, int nslice, int nquad);
 
-  // The default environment light to use if no environment light is specified.
-  static constexpr const char* kDefaultEnvironmentLight = "ibl.ktx";
+  // Returns the filament Engine that owns the assets.
+  filament::Engine* GetEngine() const { return engine_; }
 
   ObjectManager(const ObjectManager&) = delete;
   ObjectManager& operator=(const ObjectManager&) = delete;
@@ -97,6 +83,7 @@ class ObjectManager {
   filament::Engine* engine_ = nullptr;
   std::array<filament::Material*, kNumMaterials> materials_;
   std::array<filament::Texture*, mjNTEXROLE> fallback_textures_;
+  std::unordered_map<std::uint64_t, std::unique_ptr<Builtins>> builtins_;
   filament::Texture* fallback_white_ = nullptr;
   filament::Texture* fallback_black_ = nullptr;
   filament::Texture* fallback_normal_ = nullptr;

@@ -106,17 +106,6 @@ void App::SwitchGraphicsMode(int width, int height,
       window_->GetNativeWindowHandle(), gfx_mode_);
 }
 
-void App::ClearModel() {
-  model_holder_.reset();
-  window_->SetTitle("MuJoCo Studio");
-  step_control_.SetSpeed(100.f);
-  profiler_.Clear();
-  tmp_ = UiTempState();
-  load_error_ = "";
-  step_error_ = "";
-  edit_error_ = "";
-}
-
 void App::Recompile() {
   mj_recompile(model_holder_->spec(), model_holder_->vfs(),
                model_holder_->model(), model_holder_->data());
@@ -129,7 +118,8 @@ void App::RequestModelLoad(std::string model_file) {
 }
 
 void App::RequestModelReload() {
-  if (model_kind_ == kModelFromFile) {
+  if (model_kind_ == kModelFromFile ||
+      (model_kind_ == kEmptyModel && !model_path_.empty())) {
     pending_load_ = model_path_;
     preserve_camera_on_load_ = true;
   }
@@ -158,6 +148,9 @@ void App::LoadModelFromFile(const std::string& filepath) {
     }
   } else {
     SetLoadError(std::string(model_holder_->error()));
+    // Keep track of the attempted load in case the user fixes the error and
+    // tries to reload the same file again.
+    model_path_ = resolved_file;
   }
 }
 
@@ -175,6 +168,10 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
 }
 
 void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
+  load_error_ = "";
+  step_error_ = "";
+  edit_error_ = "";
+
   model_path_ = std::move(filename);
 
   if (model_kind_ == kEmptyModel) {
@@ -243,6 +240,8 @@ void App::UpdateFilePaths(const std::string& resolved_path) {
 void App::SetLoadError(std::string error) {
   InitEmptyModel();
   load_error_ = std::move(error);
+  step_error_ = "";
+  edit_error_ = "";
 }
 
 void App::ResetPhysics() {
@@ -626,14 +625,12 @@ void App::HandleKeyboardEvents() {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
     ToggleWindow(tmp_.stats);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F3)) {
+    ToggleWindow(tmp_.profiler);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
     vis_options_.frame = (vis_options_.frame + 1) % mjNFRAME;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
     vis_options_.label = (vis_options_.label + 1) % mjNLABEL;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F9)) {
-    tmp_.chart_solver = !tmp_.chart_solver;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F10)) {
-    tmp_.chart_performance = !tmp_.chart_performance;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
     tmp_.full_screen = !tmp_.full_screen;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_H)) {
@@ -872,11 +869,6 @@ void App::BuildGui() {
   }
 
   if (tmp_.inspector_panel) {
-    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
-      DataInspectorGui();
-    }
-    ImGui::End();
-
     if (ImGui::Begin("Explorer", &tmp_.inspector_panel)) {
       SpecExplorerGui();
     }
@@ -886,32 +878,17 @@ void App::BuildGui() {
       SpecEditorGui();
     }
     ImGui::End();
-  }
 
-  if (tmp_.chart_performance) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Performance", &tmp_.chart_performance)) {
-      auto layout = platform::ImPlot_ComputePairLayout();
-      profiler_.CpuTimeGraph(layout.plot_size);
-      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
-        ImGui::SameLine();
-      }
-      profiler_.DimensionsGraph(layout.plot_size);
+    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
+      DataInspectorGui();
     }
     ImGui::End();
   }
 
-  if (tmp_.chart_solver) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
-      auto layout = platform::ImPlot_ComputePairLayout();
-      platform::CountsGui(model(), data(), layout.plot_size);
-      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
-        ImGui::SameLine();
-      }
-      platform::ConvergenceGui(model(), data(), layout.plot_size);
+  if (tmp_.profiler) {
+    if (ImGui::Begin("Profiler", &tmp_.profiler,
+                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+      platform::ProfilerGui(model(), data(), &profiler_);
     }
     ImGui::End();
   }
@@ -1071,17 +1048,6 @@ void App::DataInspectorGui() {
   const ImGuiTreeNodeFlags node_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
-  ImGui::BeginChild("NoiseGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Noise", node_flags)) {
-    float noise_scale = 0;
-    float noise_rate = 0;
-    step_control_.GetNoiseParameters(noise_scale, noise_rate);
-    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
-    step_control_.SetNoiseParameters(noise_scale, noise_rate);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
-
   ImGui::BeginChild("JointsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Joints", node_flags)) {
     platform::JointsGui(model(), data(), &vis_options_);
@@ -1091,6 +1057,14 @@ void App::DataInspectorGui() {
 
   ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Controls", node_flags)) {
+
+    float noise_scale = 0;
+    float noise_rate = 0;
+    step_control_.GetNoiseParameters(noise_scale, noise_rate);
+    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
+    step_control_.SetNoiseParameters(noise_scale, noise_rate);
+    ImGui::Separator();
+
     platform::ControlsGui(model(), data(), &vis_options_);
     ImGui::TreePop();
   }
@@ -1315,10 +1289,9 @@ void App::HelpGui() {
 
   ImGui::Text("Help");
   ImGui::Text("Stats");
+  ImGui::Text("Profiler");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
-  ImGui::Text("Solver Charts");
-  ImGui::Text("Perf. Charts");
   ImGui::Text("Toggle Fullscreen");
   ImGui::Text("Free Camera");
   ImGui::Text("Toggle Pause");
@@ -1342,10 +1315,9 @@ void App::HelpGui() {
   ImGui::Indent(indent);
   ImGui::Text("F1");
   ImGui::Text("F2");
+  ImGui::Text("F3");
   ImGui::Text("F6");
   ImGui::Text("F7");
-  ImGui::Text("F9");
-  ImGui::Text("F10");
   ImGui::Text("F11");
   ImGui::Text("Esc");
   ImGui::Text("Spc");
@@ -1712,6 +1684,11 @@ void App::MainMenuGui() {
                 gfx_mode_ == platform::GraphicsMode::FilamentVulkan)) {
           mode = platform::GraphicsMode::FilamentVulkan;
         }
+        if (ImGui::MenuItem(
+                "Filament Vulkan Software", nullptr,
+                gfx_mode_ == platform::GraphicsMode::FilamentVulkanSoftware)) {
+          mode = platform::GraphicsMode::FilamentVulkanSoftware;
+        }
         if (mode.has_value()) {
           pending_op_ = [=, this]() {
             const int width = window_->GetWidth();
@@ -1732,11 +1709,8 @@ void App::MainMenuGui() {
     }
 
     if (ImGui::BeginMenu("Charts")) {
-      if (ImGui::MenuItem("Solver", "F9")) {
-        tmp_.chart_solver = !tmp_.chart_solver;
-      }
-      if (ImGui::MenuItem("Performance", "F10")) {
-        tmp_.chart_performance = !tmp_.chart_performance;
+      if (ImGui::MenuItem("Profiler", "F3")) {
+        ToggleWindow(tmp_.profiler);
       }
       ImGui::EndMenu();
     }

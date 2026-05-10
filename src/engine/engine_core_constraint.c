@@ -832,9 +832,14 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
       // read eigenmode data from flex_stiffness
       int ndof_elem = 3 * npe;
-      const mjtNum* k_elem = m->flex_stiffness + m->flex_stiffnessadr[f]
-                           + elem_idx * ndof_elem * ndof_elem;
-      int neig = (int)k_elem[0];
+      int stiffnessadr = m->flex_stiffnessadr[f];
+      int neig = 0;
+      const mjtNum* k_elem = NULL;
+      if (stiffnessadr >= 0) {
+        k_elem = m->flex_stiffness + stiffnessadr
+               + elem_idx * ndof_elem * ndof_elem;
+        neig = (int)k_elem[0];
+      }
 
       // compute displacement in corotational frame
       mjtNum* displ_e = mjSTACKALLOC(d, ndof_elem, mjtNum);
@@ -2387,9 +2392,12 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
 
       // read eigenmode count from flex_stiffness
       int ndof_elem = 3 * npe;
-      const mjtNum* k_elem = m->flex_stiffness + m->flex_stiffnessadr[f]
-                           + elem_idx * ndof_elem * ndof_elem;
-      size = (int)k_elem[0];  // neig stored as first element
+      size = 0;
+      if (m->flex_stiffnessadr[f] >= 0) {
+        const mjtNum* k_elem = m->flex_stiffness + m->flex_stiffnessadr[f]
+                             + elem_idx * ndof_elem * ndof_elem;
+        size = (int)k_elem[0];  // neig stored as first element
+      }
 
       if (nnz) {
         // get element node body IDs

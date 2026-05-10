@@ -37,7 +37,8 @@ class ImguiBridge {
   void Update();
 
   // Returns the managed UX scene.
-  mjrScene* GetScene() const { return scene_.get(); }
+  mjrScene* GetScene() const;
+  mjrCamera GetCamera(int width, int height) const;
 
   // Uploads texture to be used with ImGui's Image and ImageButton functions.
   uintptr_t UploadImage(uintptr_t tex_id, const uint8_t* pixels, int width,

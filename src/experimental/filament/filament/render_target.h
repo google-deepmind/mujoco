@@ -21,7 +21,6 @@
 
 #include <filament/Engine.h>
 #include <filament/Texture.h>
-#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 
@@ -32,7 +31,7 @@ class RenderTarget : public mjrRenderTarget {
  public:
   // Defines the types of textures to create for the color and depth
   // attachments.
-  RenderTarget(FilamentContext* ctx, const mjrRenderTargetConfig& config);
+  RenderTarget(filament::Engine* engine, const mjrRenderTargetConfig& config);
   ~RenderTarget() noexcept;
 
   RenderTarget(const RenderTarget&) = delete;
@@ -65,7 +64,7 @@ class RenderTarget : public mjrRenderTarget {
  private:
   void Destroy();
 
-  FilamentContext* ctx_ = nullptr;
+  filament::Engine* engine_ = nullptr;
   mjrRenderTargetConfig config_;
   filament::RenderTarget* render_target_ = nullptr;
   std::unique_ptr<Texture> color_texture_ = nullptr;

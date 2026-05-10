@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_RENDER_CONTEXT_FILAMENT_CPP_H_
 
 #include <memory>
+#include <string>
 
 #include "experimental/filament/render_context_filament.h"
 
@@ -65,6 +66,8 @@ inline UniquePtr<mjrRenderTarget> CreateRenderTarget(
   mjrRenderTarget* render_target = mjrf_createRenderTarget(ctx, &config);
   return UniquePtr<mjrRenderTarget>(render_target, mjrf_destroyRenderTarget);
 }
+
+std::string ResolveFilamentAssetPath(const std::string& filename);
 
 }  // namespace mujoco
 

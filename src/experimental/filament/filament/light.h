@@ -25,7 +25,8 @@
 
 namespace mujoco {
 
-// Manages the filament Entities for a single mjvLight.
+// Wrapper around both a "normal" filament Light Entity and a filament
+// IndirectLight.
 class Light : public mjrLight {
  public:
   Light(FilamentContext* ctx, const mjrLightParams& params);
@@ -34,20 +35,20 @@ class Light : public mjrLight {
   Light(const Light&) = delete;
   Light& operator=(const Light&) = delete;
 
-  // Adds the filament light Entities to the given filament Scene.
+  // Adds this light to the filament Scene.
   void AddToScene(filament::Scene* scene);
 
-  // Removes the filament light Entities from the given filament Scene.
+  // Removes this light from the filament Scene.
   void RemoveFromScene(filament::Scene* scene);
 
-  // Updates the light's position/rotation.
+  // Updates this light's position and rotation.
   void SetTransform(filament::math::float3 position,
                     filament::math::float3 direction);
 
-  // Sets the color of the light.
+  // Sets the color of this light.
   void SetColor(const filament::math::float3& color);
 
-  // Sets the intensity of the light in candela.
+  // Sets the intensity of this light, in candela.
   void SetIntensity(float intensity);
 
   // Returns the type of the light.
@@ -68,8 +69,8 @@ class Light : public mjrLight {
   filament::Engine* engine_ = nullptr;
   filament::IndirectLight* ibl_ = nullptr;
   utils::Entity entity_;
-  bool enabled_ = true;
   mjrLightParams params_;
+  bool enabled_ = true;
 };
 
 }  // namespace mujoco

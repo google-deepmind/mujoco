@@ -4783,6 +4783,16 @@ Find and get utilities
 
 Get spec from body.
 
+.. _mjs_getOriginSpec:
+
+`mjs_getOriginSpec <#mjs_getOriginSpec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getOriginSpec
+
+get spec that originally defined an element
+contrary to mjs_getSpec, this does not change after attachment
+
 .. _mjs_getCompiler:
 
 `mjs_getCompiler <#mjs_getCompiler>`__

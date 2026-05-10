@@ -24,6 +24,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         render_context_filament.h
         render_context_filament.cc
         render_context_filament_cpp.h
+        filament_util.h
+        filament_util.cc
         filament/builtins.cc
         filament/builtins.h
         filament/color_grading_options.cc
@@ -32,15 +34,13 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/filament_context.h
         filament/filament_platform_factory.cc
         filament/filament_platform_factory.h
+        filament/imgui_editor.cc
         filament/light.cc
         filament/light.h
         filament/material.cc
         filament/material.h
-        filament/math_util.cc
-        filament/math_util.h
         filament/mesh.cc
         filament/mesh.h
-        filament/model_util.h
         filament/object_manager.cc
         filament/object_manager.h
         filament/render_target.cc
@@ -53,8 +53,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/texture.h
         compat/imgui_bridge.cc
         compat/imgui_bridge.h
-        compat/imgui_editor.cc
-        compat/imgui_editor.h
         compat/mjr_filament_renderer.cc
         compat/mjr_filament_renderer.h
         compat/model_objects.cc
@@ -119,7 +117,6 @@ set(MATERIAL_FILES
     phong_cube_reflect.mat
     unlit_decor.mat
     unlit_depth.mat
-    unlit_line.mat
     unlit_segmentation.mat
     unlit_ui.mat
 )

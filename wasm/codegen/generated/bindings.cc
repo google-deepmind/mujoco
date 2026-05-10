@@ -6246,6 +6246,12 @@ struct MjsMesh {
       *(ptr_->material) = value;
     }
   }
+  int octree_maxdepth() const {
+    return ptr_->octree_maxdepth;
+  }
+  void set_octree_maxdepth(int value) {
+    ptr_->octree_maxdepth = value;
+  }
   mjString info() const {
     return (ptr_ && ptr_->info) ? *(ptr_->info) : "";
   }
@@ -9793,6 +9799,14 @@ std::string mjs_getName_wrapper(MjsElement& element) {
   return *mjs_getName(element.get());
 }
 
+std::optional<MjSpec> mjs_getOriginSpec_wrapper(const MjsElement& element) {
+  mjSpec* result = mjs_getOriginSpec(element.get());
+  if (result == nullptr) {
+    return std::nullopt;
+  }
+  return MjSpec(result);
+}
+
 std::optional<MjsBody> mjs_getParent_wrapper(const MjsElement& element) {
   mjsBody* result = mjs_getParent(element.get());
   if (result == nullptr) {
@@ -12774,6 +12788,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("material", &MjsMesh::material, &MjsMesh::set_material, reference())
     .property("maxhullvert", &MjsMesh::maxhullvert, &MjsMesh::set_maxhullvert, reference())
     .property("needsdf", &MjsMesh::needsdf, &MjsMesh::set_needsdf, reference())
+    .property("octree_maxdepth", &MjsMesh::octree_maxdepth, &MjsMesh::set_octree_maxdepth, reference())
     .property("plugin", &MjsMesh::plugin, reference())
     .property("refpos", &MjsMesh::refpos)
     .property("refquat", &MjsMesh::refquat)
@@ -13343,6 +13358,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_getFrame", &mjs_getFrame_wrapper);
   function("mjs_getId", &mjs_getId_wrapper);
   function("mjs_getName", &mjs_getName_wrapper);
+  function("mjs_getOriginSpec", &mjs_getOriginSpec_wrapper);
   function("mjs_getParent", &mjs_getParent_wrapper);
   function("mjs_getSpec", &mjs_getSpec_wrapper);
   function("mjs_getSpecDefault", &mjs_getSpecDefault_wrapper);

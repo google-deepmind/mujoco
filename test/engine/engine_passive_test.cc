@@ -955,11 +955,11 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
   <mujoco>
     <option gravity="0 0 0"/>
     <worldbody>
-      <flexcomp type="grid" count="8 8 8" spacing=".07 .07 .07" pos="0 0 1"
-                dim="3" cellcount="2 2 1" radius=".001" rgba="0 .7 .7 1"
+      <flexcomp type="grid" count="8 2 12" spacing=".025 .05 .025" pos="0 0 1"
+                dim="3" cellcount="6 1 6" radius=".001" rgba="0 .7 .7 1"
                 mass="5" name="softbody" dof="trilinear">
-        <elasticity young="1e4" poisson="0.1" damping="0"
-                    elastic2d="bend" thickness="0.02"/>
+        <elasticity young="1e5" poisson="0.3" damping="0"
+                    elastic2d="bend" thickness="0.03"/>
         <contact selfcollide="none" internal="false"/>
       </flexcomp>
     </worldbody>
@@ -971,25 +971,57 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
   ASSERT_THAT(m, testing::NotNull()) << error;
   mjData* d = mj_makeData(m);
 
-  // apply a rigid rotation by setting all body quats to a 30 degree rotation
-  // about z-axis (all flex node bodies get the same rotation)
-  mjtNum angle = 30 * 3.14159265358979 / 180.0;
-  mjtNum sa = mju_sin(angle / 2), ca = mju_cos(angle / 2);
+  // compute geometric center from body positions (skip world body)
+  mjtNum center[3] = {0, 0, 0};
+  int nnodes = 0;
   for (int b = 1; b < m->nbody; b++) {
-    int qadr = m->jnt_qposadr[m->body_jntadr[b]];
-    if (m->body_jntnum[b] > 0 && m->jnt_type[m->body_jntadr[b]] == mjJNT_FREE) {
-      d->qpos[qadr + 3] = ca;
-      d->qpos[qadr + 4] = 0;
-      d->qpos[qadr + 5] = 0;
-      d->qpos[qadr + 6] = sa;
+    center[0] += m->body_pos[3*b + 0];
+    center[1] += m->body_pos[3*b + 1];
+    center[2] += m->body_pos[3*b + 2];
+    nnodes++;
+  }
+  ASSERT_GT(nnodes, 0);
+  center[0] /= nnodes; center[1] /= nnodes; center[2] /= nnodes;
+
+  // rotation: 45 degrees about (1,1,1)/sqrt(3)
+  mjtNum angle = 45 * 3.14159265358979 / 180.0;
+  mjtNum sa = mju_sin(angle / 2), ca = mju_cos(angle / 2);
+  mjtNum inv_sqrt3 = 1.0 / mju_sqrt(3.0);
+  mjtNum quat[4] = {ca, sa * inv_sqrt3, sa * inv_sqrt3, sa * inv_sqrt3};
+  mjtNum neg_quat[4];
+  mju_negQuat(neg_quat, quat);
+
+  // apply rigid rotation via slide joint displacements:
+  // new_pos = center + R * (body_pos - center)
+  // qpos = new_pos - body_pos
+  for (int b = 1; b < m->nbody; b++) {
+    mjtNum rel[3] = {m->body_pos[3*b+0] - center[0],
+                     m->body_pos[3*b+1] - center[1],
+                     m->body_pos[3*b+2] - center[2]};
+    mjtNum rotated[3];
+    mju_rotVecQuat(rotated, rel, neg_quat);
+
+    // each body has 3 slide joints (x, y, z)
+    for (int j = 0; j < m->body_jntnum[b] && j < 3; j++) {
+      int jid = m->body_jntadr[b] + j;
+      int qadr = m->jnt_qposadr[jid];
+      int axis = -1;
+      for (int a = 0; a < 3; a++) {
+        if (m->jnt_axis[3*jid + a] != 0) { axis = a; break; }
+      }
+      if (axis >= 0) {
+        d->qpos[qadr] =
+            (center[axis] + rotated[axis]) - m->body_pos[3 * b + axis];
+      }
     }
   }
 
   mj_forward(m, d);
 
-  // spring forces should still be zero (or very small) after rigid rotation
+  // spring forces should still be zero after rigid rotation
+  constexpr mjtNum tol = MjTol(1e-6, 1e-3);
   for (int i = 0; i < m->nv; i++) {
-    EXPECT_NEAR(d->qfrc_spring[i], 0, 1e-6)
+    EXPECT_NEAR(d->qfrc_spring[i], 0, tol)
         << "nonzero spring force at DOF " << i << " after rigid rotation";
   }
 

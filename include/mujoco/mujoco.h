@@ -1776,6 +1776,10 @@ MJAPI int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, in
 // Get spec from body.
 MJAPI mjSpec* mjs_getSpec(const mjsElement* element);
 
+// get spec that originally defined an element
+// contrary to mjs_getSpec, this does not change after attachment
+MJAPI mjSpec* mjs_getOriginSpec(const mjsElement* element);
+
 // Get compiler associated with element's origin spec.
 MJAPI mjsCompiler* mjs_getCompiler(const mjsElement* element);
 

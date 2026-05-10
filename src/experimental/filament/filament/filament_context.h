@@ -29,7 +29,7 @@
 
 namespace mujoco {
 
-// Manages the filament renderer and provides APIs for rendering scenes.
+// Manages the filament::Renderer and provides APIs for rendering scenes.
 class FilamentContext : public mjrfContext {
  public:
   explicit FilamentContext(const mjrFilamentConfig* config);
@@ -43,8 +43,9 @@ class FilamentContext : public mjrfContext {
   // immediately afterwards. The renderer thread will then perform the actual
   // rendering on the GPU. Callers can use WaitForFrame to block until the
   // rendering is complete.
-  mjrFrameHandle Render(std::span<const mjrRenderRequest> render_requests,
-                     std::span<const mjrReadPixelsRequest> read_requests = {});
+  mjrFrameHandle Render(
+      std::span<const mjrRenderRequest> render_requests,
+      std::span<const mjrReadPixelsRequest> read_requests = {});
 
   // Blocks until the given frame has completed rendering.
   void WaitForFrame(mjrFrameHandle frame_handle);
@@ -52,8 +53,8 @@ class FilamentContext : public mjrfContext {
   // Sets the clear color for the renderer.
   void SetClearColor(const filament::math::float4& color);
 
-  // Returns the current frame rate of the renderer.
-  double GetFrameRate() const;
+  // Returns information about the frame.
+  void GetFrameStats(mjrFrameHandle frame, mjrFrameStats* stats_out) const;
 
   filament::Engine* GetEngine() const { return engine_; }
 

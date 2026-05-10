@@ -69,10 +69,11 @@ void mjr_defaultTextureConfig(mjrTextureConfig* config) {
 }
 
 void mjr_defaultMeshData(mjrMeshData* data) {
-  std::memset(data, 0, sizeof(mjrMeshData));
+  memset(data, 0, sizeof(mjrMeshData));
 }
 
 void mjr_defaultSceneParams(mjrSceneParams* params) {
+  memset(params, 0, sizeof(mjrSceneParams));
   params->enable_post_processing = true;
   params->enable_reflections = true;
   params->enable_shadows = true;
@@ -81,6 +82,7 @@ void mjr_defaultSceneParams(mjrSceneParams* params) {
 }
 
 void mjr_defaultLightParams(mjrLightParams* params) {
+  memset(params, 0, sizeof(mjrLightParams));
   params->type = mjLIGHT_POINT;
   params->texture = nullptr;
   params->color[0] = 0;
@@ -95,35 +97,20 @@ void mjr_defaultLightParams(mjrLightParams* params) {
   params->vsm_blur_width = 0.0f;
 }
 
-void mjr_defaultMaterialTextures(mjrMaterialTextures* textures) {
-  textures->color = nullptr;
-  textures->normal = nullptr;
-  textures->metallic = nullptr;
-  textures->roughness = nullptr;
-  textures->occlusion = nullptr;
-  textures->orm = nullptr;
-  textures->emissive = nullptr;
-  textures->reflection = nullptr;
-}
-
-void mjr_defaultMaterialParams(mjrMaterialParams* params) {
-  setf(params->color, {1.f, 1.f, 1.f, 1.f});
-  setf(params->segmentation_color, {1, 1, 1, 1});
-  setf(params->uv_scale, {1, 1, 1});
-  setf(params->uv_offset, {0, 0, 0});
-  setf(params->scissor, {0, 0, 0, 0});
-  params->emissive = -1.0f;
-  params->specular = -1.0f;
-  params->glossiness = -1.0f;
-  params->metallic = -1.0f;
-  params->roughness = -1.0f;
-  params->reflectance = 0.0f;
-  params->tex_uniform = false;
-  params->reflective = false;
+void mjr_defaultMaterial(mjrMaterial* material) {
+  memset(material, 0, sizeof(mjrMaterial));
+  setf(material->color, {1.f, 1.f, 1.f, 1.f});
+  setf(material->segmentation_color, {1, 1, 1, 1});
+  setf(material->uv_scale, {1, 1, 1});
+  material->emissive = -1.0f;
+  material->specular = -1.0f;
+  material->glossiness = -1.0f;
+  material->metallic = -1.0f;
+  material->roughness = -1.0f;
 }
 
 void mjr_defaultRenderableParams(mjrRenderableParams* params) {
-  params->shading_model = mjSHADING_MODEL_SCENE_OBJECT;
+  memset(params, 0, sizeof(mjrRenderableParams));
   params->cast_shadows = true;
   params->receive_shadows = true;
   params->layer_mask = 0x01;
@@ -145,6 +132,10 @@ void mjr_defaultReadPixelsRequest(mjrReadPixelsRequest* request) {
   memset(request, 0, sizeof(mjrReadPixelsRequest));
 }
 
+void mjr_defaultFrameStats(mjrFrameStats* stats) {
+  memset(stats, 0, sizeof(mjrFrameStats));
+}
+
 mjrfContext* mjrf_createContext(const mjrFilamentConfig* config) {
   return new mujoco::FilamentContext(config);
 }
@@ -153,8 +144,10 @@ void mjrf_destroyContext(mjrfContext* ctx) {
   delete mujoco::FilamentContext::downcast(ctx);
 }
 
-mjrTexture* mjrf_createTexture(mjrfContext* ctx, const mjrTextureConfig* cfg) {
-  return new mujoco::Texture(mujoco::FilamentContext::downcast(ctx), *cfg);
+mjrTexture* mjrf_createTexture(mjrfContext* ctx,
+                               const mjrTextureConfig* config) {
+  return new mujoco::Texture(
+      mujoco::FilamentContext::downcast(ctx)->GetEngine(), *config);
 }
 
 void mjrf_destroyTexture(mjrTexture* texture) {
@@ -162,7 +155,8 @@ void mjrf_destroyTexture(mjrTexture* texture) {
 }
 
 mjrMesh* mjrf_createMesh(mjrfContext* ctx, const mjrMeshData* data) {
-  return new mujoco::Mesh(mujoco::FilamentContext::downcast(ctx), *data);
+  return new mujoco::Mesh(mujoco::FilamentContext::downcast(ctx)->GetEngine(),
+                          *data);
 }
 
 void mjrf_destroyMesh(mjrMesh* mesh) { delete mujoco::Mesh::downcast(mesh); }
@@ -195,14 +189,13 @@ void mjrf_destroyRenderable(mjrRenderable* renderable) {
 
 mjrRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx,
                                          const mjrRenderTargetConfig* config) {
-  return new mujoco::RenderTarget(mujoco::FilamentContext::downcast(ctx),
-                                  *config);
+  return new mujoco::RenderTarget(
+      mujoco::FilamentContext::downcast(ctx)->GetEngine(), *config);
 }
 
 void mjrf_destroyRenderTarget(mjrRenderTarget* render_target) {
   delete mujoco::RenderTarget::downcast(render_target);
 }
-
 
 void mjrf_setTextureData(mjrTexture* texture, const mjrTextureData* data) {
   mujoco::Texture::downcast(texture)->Upload(*data);
@@ -216,11 +209,11 @@ int mjrf_getTextureHeight(const mjrTexture* texture) {
   return mujoco::Texture::downcast(texture)->GetHeight();
 }
 
-mjrTextureTarget mjrf_getTextureTarget(const mjrTexture* texture) {
-  return mujoco::Texture::downcast(texture)->GetTarget();
+mjrSamplerType mjrf_getSamplerType(const mjrTexture* texture) {
+  return mujoco::Texture::downcast(texture)->GetSamplerType();
 }
 
-void mjrf_setLightEnabled(mjrLight* light, bool enabled) {
+void mjrf_setLightEnabled(mjrLight* light, mjtByte enabled) {
   if (enabled) {
     mujoco::Light::downcast(light)->Enable();
   } else {
@@ -253,10 +246,15 @@ void mjrf_setRenderableMesh(mjrRenderable* renderable, const mjrMesh* mesh,
       ->SetMesh(mujoco::Mesh::downcast(mesh), elem_offset, elem_count);
 }
 
+void mjrf_setRenderableGeomMesh(mjrRenderable* renderable, mjtGeom type,
+                                int nstack, int nslice, int nquad) {
+  mujoco::Renderable::downcast(renderable)->SetGeomMesh(type, nstack, nslice,
+                                                        nquad);
+}
+
 void mjrf_setRenderableMaterial(mjrRenderable* renderable,
-                                const mjrMaterialParams* params,
-                                const mjrMaterialTextures* textures) {
-  mujoco::Renderable::downcast(renderable)->UpdateMaterial(*params, *textures);
+                                const mjrMaterial* material) {
+  mujoco::Renderable::downcast(renderable)->UpdateMaterial(*material);
 }
 
 void mjrf_setRenderableTransform(mjrRenderable* renderable,
@@ -264,9 +262,9 @@ void mjrf_setRenderableTransform(mjrRenderable* renderable,
                                  const float rotation[9], const float size[3]) {
   const filament::math::float3 fposition{position[0], position[1], position[2]};
   const filament::math::float3 fsize{size[0], size[1], size[2]};
-  const filament::math::mat3f frotation{rotation[0], rotation[1], rotation[2],
-                                        rotation[3], rotation[4], rotation[5],
-                                        rotation[6], rotation[7], rotation[8]};
+  const filament::math::mat3f frotation{rotation[0], rotation[3], rotation[6],
+                                        rotation[1], rotation[4], rotation[7],
+                                        rotation[2], rotation[5], rotation[8]};
   mujoco::Renderable::downcast(renderable)
       ->SetTransform({fposition, frotation, fsize});
 }
@@ -276,17 +274,17 @@ void mjrf_setRenderableLayerMask(mjrRenderable* renderable,
   mujoco::Renderable::downcast(renderable)->SetLayerMask(layer_mask);
 }
 
-void mjrf_setRenderableWireframe(mjrRenderable* renderable, bool wireframe) {
+void mjrf_setRenderableWireframe(mjrRenderable* renderable, mjtByte wireframe) {
   mujoco::Renderable::downcast(renderable)->SetWireframe(wireframe);
 }
 
 void mjrf_setRenderableCastShadows(mjrRenderable* renderable,
-                                   bool cast_shadows) {
+                                   mjtByte cast_shadows) {
   mujoco::Renderable::downcast(renderable)->SetCastShadows(cast_shadows);
 }
 
 void mjrf_setRenderableReceiveShadows(mjrRenderable* renderable,
-                                      bool receive_shadows) {
+                                      mjtByte receive_shadows) {
   mujoco::Renderable::downcast(renderable)->SetReceiveShadows(receive_shadows);
 }
 
@@ -316,7 +314,7 @@ void mjrf_setSceneSkybox(mjrScene* scene, const mjrTexture* texture) {
       mujoco::Texture::downcast(texture));
 }
 
-void mjrf_setSceneShadowsEnabled(mjrScene* scene, bool enabled) {
+void mjrf_setSceneShadowsEnabled(mjrScene* scene, mjtByte enabled) {
   if (enabled) {
     mujoco::SceneView::downcast(scene)->EnableShadows();
   } else {
@@ -324,7 +322,7 @@ void mjrf_setSceneShadowsEnabled(mjrScene* scene, bool enabled) {
   }
 }
 
-void mjrf_setSceneReflectionsEnabled(mjrScene* scene, bool enabled) {
+void mjrf_setSceneReflectionsEnabled(mjrScene* scene, mjtByte enabled) {
   if (enabled) {
     mujoco::SceneView::downcast(scene)->EnableReflections();
   } else {
@@ -346,6 +344,11 @@ mjrFrameHandle mjrf_render(mjrfContext* ctx, const mjrRenderRequest* req,
 
 void mjrf_waitForFrame(mjrfContext* ctx, mjrFrameHandle frame) {
   mujoco::FilamentContext::downcast(ctx)->WaitForFrame(frame);
+}
+
+void mjrf_getFrameStats(mjrfContext* ctx, mjrFrameHandle frame,
+                        mjrFrameStats* stats_out) {
+  mujoco::FilamentContext::downcast(ctx)->GetFrameStats(frame, stats_out);
 }
 
 // Legacy API, to be deprecated.

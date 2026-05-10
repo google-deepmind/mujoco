@@ -19,6 +19,9 @@ General
   energy gain in the presence of contacts and in fluid media.
 - Added :ref:`mju_sym2dense`, converting a lower-triangular, implicitly symmetric CSR matrix to a dense
   symmetric matrix. The inertia matrix ``mjData.M`` is an example of such a matrix.
+- Added :ref:`mjs_getOriginSpec`, returning the spec that originally defined an element, prior to attachment. This is in
+  contrast to :ref:`mjs_getSpec` which returns the spec currently owning the element. If the element is not the result
+  of an attach operation, the functions are identical.
 
 .. admonition:: Future breaking API changes
    :class: warning
@@ -30,10 +33,23 @@ General
      |br| ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
 
 
+
+Bug fixes
+^^^^^^^^^
+
+- Fixed default for multiccd in :doc:`mjcPhysics <OpenUSD/mjcPhysics>`.
+
 Python
 ^^^^^^
 
 - Added ``MjSpec.encode`` method, wrapping :ref:`mj_encode`.
+- Added ``mujoco.MjVfs`` Python binding to interact with the Virtual File System directly from Python.
+  See :ref:`Virtual File System <PyVFS>` for usage details.
+
+  .. warning::
+   The previous way of passing assets via a dictionary mapping asset names to bytes is **deprecated** and will be
+   removed in an upcoming release. You cannot specify both the ``assets`` dictionary and the ``vfs`` argument at the same
+   time. ``MjVfs`` should be used as a drop-in replacement.
 
 Version 3.8.0 (April 24, 2026)
 ------------------------------
@@ -70,19 +86,6 @@ Bug fixes
 8. Asset paths in attached child specs are now resolved relative to the model file directory of the child spec, rather
    than the parent spec. This prevents the origin of the parent spec to affect the resolution of asset paths in the
    child spec.
-
-Python
-^^^^^^
-
-- Added ``mujoco.MjVfs`` Python binding to interact with the Virtual File System directly from Python.
-  See :ref:`Virtual File System <PyVFS>` for usage details.
-
-  .. warning::
-   The previous way of passing assets via a dictionary mapping asset names to bytes is **deprecated** and will be
-   removed in an upcoming release. You cannot specify both the ``assets`` dictionary and the ``vfs`` argument at the same
-   time. ``MjVfs`` should be used as a drop-in replacement.
-
-
 
 Version 3.7.0 (April 14, 2026)
 ------------------------------

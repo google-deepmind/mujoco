@@ -110,13 +110,14 @@ mjrFrameHandle FilamentContext::Render(
       }
 
       // If the window size has changed, we need to reacquire the swap chain.
-      if (request.width != window_width_ || request.height != window_height_) {
+      if (request.viewport.width != window_width_ ||
+          request.viewport.height != window_height_) {
         if (window_width_ != 0 && window_height_ != 0) {
           engine_->destroy(window_swap_chain_);
           window_swap_chain_ = engine_->createSwapChain(config_.native_window);
         }
-        window_width_ = request.width;
-        window_height_ = request.height;
+        window_width_ = request.viewport.width;
+        window_height_ = request.viewport.height;
       }
 
       if (!render_began) {
@@ -183,14 +184,16 @@ void FilamentContext::SetClearColor(const filament::math::float4& color) {
   renderer_->setClearOptions(opts);
 }
 
-double FilamentContext::GetFrameRate() const {
+void FilamentContext::GetFrameStats(mjrFrameHandle frame,
+                                    mjrFrameStats* stats_out) const {
   utils::FixedCapacityVector<filament::Renderer::FrameInfo> frame_info =
       renderer_->getFrameInfoHistory(1);
-  if (frame_info.empty()) {
-    return 0;
+  if (!frame_info.empty()) {
+    const int64_t ns = frame_info[0].denoisedGpuFrameDuration;
+    stats_out->frame_rate = 1.0e9 / static_cast<double>(ns);
+  } else {
+    stats_out->frame_rate = 0.0;
   }
-  const int64_t ns = frame_info[0].denoisedGpuFrameDuration;
-  return 1.0e9 / static_cast<double>(ns);
 }
 
 }  // namespace mujoco

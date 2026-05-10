@@ -1308,6 +1308,16 @@ mjSpec* mjs_getSpec(const mjsElement* element) {
 
 
 
+// get spec that originally defined an element
+// contrary to mjs_getSpec, this does not change after attachment
+mjSpec* mjs_getOriginSpec(const mjsElement* element) {
+  const mjCModel* model = static_cast<const mjCBase*>(element)->model;
+  const mjsCompiler* compiler = static_cast<const mjCBase*>(element)->compiler;
+  return model->FindSpec(compiler);
+}
+
+
+
 mjsCompiler* mjs_getCompiler(const mjsElement* element) {
   return static_cast<const mjCBase*>(element)->compiler;
 }

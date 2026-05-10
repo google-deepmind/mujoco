@@ -32,8 +32,7 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/filament_context.h"
-#include "experimental/filament/filament/math_util.h"
+#include "experimental/filament/filament_util.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -103,8 +102,8 @@ int FillSequence(std::byte* buffer, std::size_t num_bytes) {
   return num;
 }
 
-Mesh::Mesh(FilamentContext* ctx, const mjrMeshData& data)
-    : engine_(ctx->GetEngine()), shared_state_(std::make_shared<SharedState>()) {
+Mesh::Mesh(filament::Engine* engine, const mjrMeshData& data)
+    : engine_(engine), shared_state_(std::make_shared<SharedState>()) {
   type_ = data.primitive_type == mjMESH_PRIMITIVE_TYPE_TRIANGLES
               ? filament::RenderableManager::PrimitiveType::TRIANGLES
               : filament::RenderableManager::PrimitiveType::LINES;

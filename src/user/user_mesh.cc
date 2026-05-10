@@ -25,6 +25,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <queue>
 #include <set>
 #include <string>
 #include <string_view>
@@ -782,6 +783,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     } else if (octree_.NumNodes() == 0) {
       std::vector<double> dvert(vert_.begin(), vert_.end());
       octree_.SetFace(dvert, face_);
+      octree_.SetMaxDepth(spec.octree_maxdepth);
       octree_.CreateOctree(aamm_);
       if (!plugin.active) {
         octree_.ComputeSdfCoeffs(dvert.data(), nvert(), face_.data(), nface(), tree_);
@@ -1532,6 +1534,7 @@ void mjCMesh::Process() {
   // make octree
   if (needsdf) {
     octree_.SetFace(dvert, face_);
+    octree_.SetMaxDepth(spec.octree_maxdepth);
     octree_.CreateOctree(aamm_);
 
     if (!plugin.active) {
@@ -1713,6 +1716,78 @@ void mjCMesh::MakeGraph(const double* dvert) {
   // graph not needed for small meshes
   if (nvert() < 4) {
     return;
+  }
+
+  // check for colocated/collinear/coplanar vertices
+  {
+    // find second vertex that is distinct from vertex 0
+    int v1 = -1;
+    double len1 = 0;
+    for (int i = 1; i < nvert(); i++) {
+      len1 = mjuu_dist3(dvert+3*i, dvert);
+      if (len1 > mjMINVAL) {
+        v1 = i;
+        break;
+      }
+    }
+
+    // no second vertex found: all vertices are colocated
+    if (v1 < 0) {
+      throw mjCError(this,
+          "mesh '%s' has colocated vertices, cannot compute convex hull."
+          " Consider using a small sphere instead",
+          name.c_str());
+    }
+
+    // find first non-collinear triple to define a plane
+    double edge1[3] = {dvert[3*v1+0] - dvert[0],
+                       dvert[3*v1+1] - dvert[1],
+                       dvert[3*v1+2] - dvert[2]};
+    double normal[3] = {0, 0, 0};
+    bool collinear = true;
+    for (int i = 1; i < nvert(); i++) {
+      if (i == v1) continue;
+      double edge2[3] = {dvert[3*i+0] - dvert[0],
+                         dvert[3*i+1] - dvert[1],
+                         dvert[3*i+2] - dvert[2]};
+      double len2 = sqrt(mjuu_dot3(edge2, edge2));
+      if (len2 < mjMINVAL) continue;
+      mjuu_crossvec(normal, edge1, edge2);
+      double norm = sqrt(mjuu_dot3(normal, normal));
+      if (norm > mjMINVAL * len1 * len2) {
+        normal[0] /= norm;
+        normal[1] /= norm;
+        normal[2] /= norm;
+        collinear = false;
+        break;
+      }
+    }
+
+    // vertices are collinear: cannot compute convex hull
+    if (collinear) {
+      throw mjCError(this,
+          "mesh '%s' has collinear vertices, cannot compute convex hull."
+          " Consider using a thin capsule instead",
+          name.c_str());
+    }
+
+    // find first vertex that is not on the plane
+    double d = mjuu_dot3(normal, dvert);
+    bool coplanar = true;
+    for (int i = 0; i < nvert(); i++) {
+      if (fabs(mjuu_dot3(normal, dvert+3*i) - d) > mjMINVAL * len1) {
+        coplanar = false;
+        break;
+      }
+    }
+
+    // vertices are coplanar: cannot compute convex hull
+    if (coplanar) {
+      throw mjCError(this,
+          "mesh '%s' has coplanar vertices, cannot compute convex hull."
+          " Consider using a primitive geom type (plane or thin box) instead",
+          name.c_str());
+    }
   }
 
   qhT qh_qh;
@@ -4624,8 +4699,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // no elemtexcoord: copy from faces
   if (elemtexcoord_.empty() && !texcoord_.empty()) {
-    elemtexcoord_.assign(3*nelem, 0);
-    memcpy(elemtexcoord_.data(), elem_.data(), 3*nelem*sizeof(int));
+    elemtexcoord_.assign((dim + 1) * nelem, 0);
+    memcpy(elemtexcoord_.data(), elem_.data(), (dim + 1) * nelem * sizeof(int));
   }
 
   // resolve material name
@@ -4840,10 +4915,27 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // create shell fragments and element-vertex collision pairs
   CreateShellPair();
 
+  // recompute cell_empty from vertex/element geometry
+  // (survives XML round-trips where flexcomp data is lost)
+  if (interpolated && cell_empty.empty()) {
+    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    if (cx * cy * cz > 1) {
+      ComputeCellEmpty(vertxpos.data(), elem_.data(), nvert, nelem, dim);
+    }
+  }
+
   // compute linear stiffness for interpolated elements (cached)
   bool stiffness_cached = false;
   if (young > 0 && interpolated) {
     stiffness_cached = LoadCachedStiffness();
+  }
+
+  // check if any strain equality references this flex
+  for (auto* equality : model->Equalities()) {
+    if (equality->spec.type == mjEQ_FLEXSTRAIN && *equality->spec.name1 == name) {
+      has_strain_eq = true;
+      break;
+    }
   }
 
   if (!stiffness_cached && interpolated && (young > 0 || has_strain_eq)) {
@@ -5138,6 +5230,131 @@ std::vector<double> mjCFlex::ComputeUnrotatedNodePositions(
     nodexpos_local = nodexpos;
   }
   return nodexpos_local;
+}
+
+
+// identify cells with no mesh content from vertex/element geometry
+void mjCFlex::ComputeCellEmpty(const double* vpos, const int* elems,
+                               int nv, int ne, int fdim,
+                               const double* bbox) {
+  int cx = spec.cellcount[0];
+  int cy = spec.cellcount[1];
+  int cz = spec.cellcount[2];
+  int ncells = cx * cy * cz;
+
+  // use precomputed bounding box if provided, otherwise compute from vertices
+  double minmax[6];
+  if (bbox) {
+    for (int j = 0; j < 6; j++) minmax[j] = bbox[j];
+  } else {
+    minmax[0] = minmax[1] = minmax[2] = 1e30;
+    minmax[3] = minmax[4] = minmax[5] = -1e30;
+    for (int i = 0; i < nv; i++) {
+      for (int j = 0; j < 3; j++) {
+        minmax[j+0] = std::min(minmax[j+0], vpos[3*i+j]);
+        minmax[j+3] = std::max(minmax[j+3], vpos[3*i+j]);
+      }
+    }
+  }
+
+  double dx = minmax[3] - minmax[0];
+  double dy = minmax[4] - minmax[1];
+  double dz = minmax[5] - minmax[2];
+
+  // determine which cells contain mesh elements
+  std::vector<bool> has_element(ncells, false);
+  int nvpe = fdim + 1;
+
+  if (nvpe > 0 && ne > 0) {
+    for (int e = 0; e < ne; e++) {
+      // compute element AABB
+      double elo[3] = {1e30, 1e30, 1e30};
+      double ehi[3] = {-1e30, -1e30, -1e30};
+      for (int v = 0; v < nvpe; v++) {
+        int vid = elems[nvpe * e + v];
+        for (int j = 0; j < 3; j++) {
+          elo[j] = std::min(elo[j], vpos[3 * vid + j]);
+          ehi[j] = std::max(ehi[j], vpos[3 * vid + j]);
+        }
+      }
+
+      // map element AABB to cell range
+      auto cellIdx = [](double coord, double lo, double d, int nc) {
+        if (d <= 0) return 0;
+        int c = (int)((coord - lo) / d * nc);
+        return std::max(0, std::min(nc - 1, c));
+      };
+
+      int ci0 = cellIdx(elo[0], minmax[0], dx, cx);
+      int ci1 = cellIdx(ehi[0], minmax[0], dx, cx);
+      int cj0 = cellIdx(elo[1], minmax[1], dy, cy);
+      int cj1 = cellIdx(ehi[1], minmax[1], dy, cy);
+      int ck0 = cellIdx(elo[2], minmax[2], dz, cz);
+      int ck1 = cellIdx(ehi[2], minmax[2], dz, cz);
+
+      for (int ci = ci0; ci <= ci1; ci++) {
+        for (int cj = cj0; cj <= cj1; cj++) {
+          for (int ck = ck0; ck <= ck1; ck++) {
+            has_element[ci * cy * cz + cj * cz + ck] = true;
+          }
+        }
+      }
+    }
+  }
+
+  cell_empty.assign(ncells, false);
+
+  // for dim=2 (surface mesh): flood-fill from boundary to find exterior cells
+  if (fdim == 2 && nvpe == 3 && ne > 0) {
+    std::vector<bool> visited(ncells, false);
+    std::queue<std::array<int, 3>> bfs;
+
+    // seed BFS from boundary cells that have no elements
+    for (int ci = 0; ci < cx; ci++) {
+      for (int cj = 0; cj < cy; cj++) {
+        for (int ck = 0; ck < cz; ck++) {
+          if (ci == 0 || ci == cx - 1 ||
+              cj == 0 || cj == cy - 1 ||
+              ck == 0 || ck == cz - 1) {
+            int idx = ci * cy * cz + cj * cz + ck;
+            if (!has_element[idx] && !visited[idx]) {
+              visited[idx] = true;
+              cell_empty[idx] = true;
+              bfs.push({ci, cj, ck});
+            }
+          }
+        }
+      }
+    }
+
+    // BFS: spread through non-element cells
+    const int dirs[6][3] = {
+        {-1, 0, 0}, {1, 0, 0},  {0, -1, 0},
+        {0, 1, 0},  {0, 0, -1}, {0, 0, 1}};
+    while (!bfs.empty()) {
+      auto [ci, cj, ck] = bfs.front();
+      bfs.pop();
+      for (auto& d : dirs) {
+        int ni = ci + d[0], nj = cj + d[1], nk = ck + d[2];
+        if (ni < 0 || ni >= cx ||
+            nj < 0 || nj >= cy ||
+            nk < 0 || nk >= cz) {
+          continue;
+        }
+        int nidx = ni * cy * cz + nj * cz + nk;
+        if (!visited[nidx] && !has_element[nidx]) {
+          visited[nidx] = true;
+          cell_empty[nidx] = true;
+          bfs.push({ni, nj, nk});
+        }
+      }
+    }
+  } else {
+    // dim!=2: cells without element overlap are empty
+    for (int c = 0; c < ncells; c++) {
+      cell_empty[c] = !has_element[c];
+    }
+  }
 }
 
 

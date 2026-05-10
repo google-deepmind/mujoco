@@ -29,11 +29,9 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/builtins.h"
-#include "experimental/filament/filament/math_util.h"
-#include "experimental/filament/filament/model_util.h"
-#include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/filament_util.h"
 #include "experimental/filament/render_context_filament_cpp.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
@@ -493,19 +491,6 @@ void UpdateSkinFlexMeshData(mjrMeshData* data, const mjModel* model,
 
 ModelObjects::ModelObjects(const mjModel* model, mjrfContext* ctx)
     : model_(model), ctx_(ctx) {
-  const int nstack = model->vis.quality.numstacks;
-  const int nslice = model->vis.quality.numslices;
-  const int nquad = model->vis.quality.numquads;
-  shapes_.insert({kLine, CreateLine(ctx_)});
-  shapes_.insert({kBox, CreateBox(ctx_, nquad)});
-  shapes_.insert({kLineBox, CreateLineBox(ctx_)});
-  shapes_.insert({kCone, CreateCone(ctx_, nstack, nslice)});
-  shapes_.insert({kDisk, CreateDisk(ctx_, nslice)});
-  shapes_.insert({kDome, CreateDome(ctx_, nstack / 2, nslice)});
-  shapes_.insert({kTube, CreateTube(ctx_, nstack, nslice)});
-  shapes_.insert({kPlane, CreatePlane(ctx_, nquad)});
-  shapes_.insert({kSphere, CreateSphere(ctx_, nstack, nslice)});
-  shapes_.insert({kTriangle, CreateTriangle(ctx_)});
 
   for (int i = 0; i < model_->ntex; ++i) {
     UploadTexture(model_, i);
@@ -523,11 +508,6 @@ ModelObjects::ModelObjects(const mjModel* model, mjrfContext* ctx)
       model_, "filament.phong.shininess_multiplier", shininess_multiplier_);
   emissive_multiplier_ = ReadElement(
       model_, "filament.phong.emissive_multiplier", emissive_multiplier_);
-}
-
-ModelObjects::~ModelObjects() {
-  meshes_.clear();
-  textures_.clear();
 }
 
 void ModelObjects::UploadMesh(const mjModel* model, int id) {
@@ -565,7 +545,7 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
   mjr_defaultTextureConfig(&config);
   config.width = model->tex_width[id];
   config.height = model->tex_height[id];
-  config.target = (mjtTexture)model->tex_type[id];
+  config.sampler_type = (mjtTexture)model->tex_type[id];
   config.color_space = (mjtColorSpace)model->tex_colorspace[id];
   switch (model->tex_nchannel[id]) {
     case 1:
@@ -639,11 +619,6 @@ const mjrMesh* ModelObjects::GetMeshBuffer(int data_id) const {
 const mjrMesh* ModelObjects::GetHeightFieldBuffer(int hfield_id) const {
   auto it = height_fields_.find(hfield_id);
   return it != height_fields_.end() ? it->second.get() : nullptr;
-}
-
-const mjrMesh* ModelObjects::GetShapeBuffer(ShapeType shape) const {
-  auto it = shapes_.find(shape);
-  return it != shapes_.end() ? it->second.get() : nullptr;
 }
 
 const mjrMesh* ModelObjects::GetFlexSkinGeomMesh(int geom_id) const {

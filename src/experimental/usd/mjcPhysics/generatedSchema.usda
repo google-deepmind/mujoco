@@ -138,7 +138,7 @@ class "MjcSceneAPI" (
         displayName = "Mid-Phase Collision Filtering Toggle"
         doc = "Enables mid-phase collision filtering using a static AABB bounding volume hierarchy (BVH)."
     )
-    uniform bool mjc:flag:multiccd = 0 (
+    uniform bool mjc:flag:multiccd = 1 (
         displayName = "Multiple Contact Collision Detection (CCD) Toggle"
         doc = "Enables multiple-contact collision detection for geom pairs using a general-purpose convex-convex collider."
     )

@@ -224,6 +224,10 @@ MJAPI int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, in
 // Get spec from body.
 MJAPI mjSpec* mjs_getSpec(const mjsElement* element);
 
+// get spec that originally defined an element
+// contrary to mjs_getSpec, this does not change after attachment
+MJAPI mjSpec* mjs_getOriginSpec(const mjsElement* element);
+
 // Find spec (model asset) by name.
 MJAPI mjSpec* mjs_findSpec(const mjSpec* spec, const char* name);
 

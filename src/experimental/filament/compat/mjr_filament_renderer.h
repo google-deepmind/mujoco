@@ -65,9 +65,7 @@ class MjrFilamentRenderer {
   // Renders an ImGui window containing Filament-specific editor UI.
   void UpdateGui();
 
-  double GetFrameRate() const {
-    return filament_context_->GetFrameRate();
-  }
+  double GetFrameRate() const;
 
   MjrFilamentRenderer(const MjrFilamentRenderer&) = delete;
   MjrFilamentRenderer& operator=(const MjrFilamentRenderer&) = delete;
@@ -80,10 +78,9 @@ class MjrFilamentRenderer {
   };
 
   std::unique_ptr<FilamentContext> filament_context_;
-  FrameBufferMode mode_ = FrameBufferMode::Window;
-  mjrRenderRequest render_requests_[2];
   std::unique_ptr<SceneBridge> scene_bridge_;
   std::unique_ptr<ImguiBridge> imgui_bridge_;
+  FrameBufferMode mode_ = FrameBufferMode::Window;
 };
 
 }  // namespace mujoco

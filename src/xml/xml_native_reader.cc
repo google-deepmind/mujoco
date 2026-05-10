@@ -1553,7 +1553,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
       flex->internal = (n == 1);
     }
     MapValue(cont, "selfcollide", &flex->selfcollide, flexself_map, 5);
-    if (MapValue(cont, "passive", &flex->passive, bool_map, 2)) {
+    if (MapValue(cont, "passive", &n, bool_map, 2)) {
       flex->passive = (n == 1);
     }
     ReadAttrInt(cont, "activelayers", &flex->activelayers);

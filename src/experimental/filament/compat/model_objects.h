@@ -28,21 +28,6 @@ namespace mujoco {
 class ModelObjects {
  public:
   ModelObjects(const mjModel* model, mjrfContext* ctx);
-  ~ModelObjects();
-
-  enum ShapeType {
-    kLine,
-    kLineBox,
-    kPlane,
-    kTriangle,
-    kBox,
-    kSphere,
-    kCone,
-    kDisk,
-    kDome,
-    kTube,
-    kNumShapes,
-  };
 
   void UploadMesh(const mjModel* model, int id);
 
@@ -53,7 +38,6 @@ class ModelObjects {
   void CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom);
 
   // Returns the cached instance of a filament object created from the mjModel.
-  const mjrMesh* GetShapeBuffer(ShapeType shape) const;
   const mjrMesh* GetMeshBuffer(int data_id) const;
   const mjrMesh* GetHeightFieldBuffer(int hfield_id) const;
   const mjrMesh* GetFlexSkinGeomMesh(int geom_id) const;
@@ -73,7 +57,6 @@ class ModelObjects {
  private:
   const mjModel* model_ = nullptr;
   mjrfContext* ctx_ = nullptr;
-  std::unordered_map<ShapeType, UniquePtr<mjrMesh>> shapes_;
   std::unordered_map<int, UniquePtr<mjrMesh>> meshes_;
   std::unordered_map<int, UniquePtr<mjrMesh>> convex_hulls_;
   std::unordered_map<int, UniquePtr<mjrMesh>> height_fields_;

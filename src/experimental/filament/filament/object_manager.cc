@@ -20,6 +20,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
@@ -27,59 +28,49 @@
 #include <filament/Skybox.h>
 #include <filament/Texture.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/builtins.h"
 #include "user/user_resource.h"
 
 namespace mujoco {
 
-static std::string GetAssetPath(std::string_view filename) {
-  std::string path = "filament:" + std::string(filename);
+std::string ResolveFilamentAssetPath(const std::string& filename) {
+  std::string path = "filament:" + filename;
   return path;
 }
 
-ObjectManager::Asset::Asset(std::string_view filename) {
-  std::string path = GetAssetPath(filename);
-  resource = mju_openResource("", path.c_str(), nullptr, nullptr, 0);
-  size = mju_readResource(resource, const_cast<const void**>(&payload));
-}
-
-ObjectManager::Asset::~Asset() {
-  if (resource) {
-    mju_closeResource(resource);
-  }
-}
-
-std::span<const std::byte> ObjectManager::Asset::GetBytes() const {
-  return {reinterpret_cast<const std::byte*>(payload), size};
-}
+static filament::Material* LoadMaterial(filament::Engine* engine,
+                                        std::string_view filename) {
+  const std::string path = ResolveFilamentAssetPath(std::string(filename));
+  mjResource* resource = mju_openResource("", path.c_str(), nullptr, nullptr, 0);
+  void* payload = nullptr;
+  int size = mju_readResource(resource, const_cast<const void**>(&payload));
+  filament::Material::Builder material_builder;
+  material_builder.package(payload, size);
+  filament::Material* material = material_builder.build(*engine);
+  mju_closeResource(resource);
+  return material;
+};
 
 ObjectManager::ObjectManager(filament::Engine* engine)
     : engine_(engine) {
-  auto LoadMaterial = [this](std::string_view filename) {
-    Asset asset(filename);
-    filament::Material::Builder material_builder;
-    material_builder.package(asset.payload, asset.size);
-    return material_builder.build(*this->engine_);
-  };
-
-  materials_[kPbr] = LoadMaterial("pbr.filamat");
-  materials_[kPbrPacked] = LoadMaterial("pbr_packed.filamat");
-  materials_[kPhong2d] = LoadMaterial("phong_2d.filamat");
-  materials_[kPhong2dFade] = LoadMaterial("phong_2d_fade.filamat");
-  materials_[kPhong2dReflect] = LoadMaterial("phong_2d_reflect.filamat");
-  materials_[kPhong2dUv] = LoadMaterial("phong_2d_uv.filamat");
-  materials_[kPhong2dUvFade] = LoadMaterial("phong_2d_uv_fade.filamat");
-  materials_[kPhong2dUvReflect] = LoadMaterial("phong_2d_uv_reflect.filamat");
-  materials_[kPhongColor] = LoadMaterial("phong_color.filamat");
-  materials_[kPhongColorFade] = LoadMaterial("phong_color_fade.filamat");
-  materials_[kPhongColorReflect] = LoadMaterial("phong_color_reflect.filamat");
-  materials_[kPhongCube] = LoadMaterial("phong_cube.filamat");
-  materials_[kPhongCubeFade] = LoadMaterial("phong_cube_fade.filamat");
-  materials_[kPhongCubeReflect] = LoadMaterial("phong_cube_reflect.filamat");
-  materials_[kUnlitSegmentation] = LoadMaterial("unlit_segmentation.filamat");
-  materials_[kUnlitLine] = LoadMaterial("unlit_line.filamat");
-  materials_[kUnlitDecor] = LoadMaterial("unlit_decor.filamat");
-  materials_[kUnlitDepth] = LoadMaterial("unlit_depth.filamat");
-  materials_[kUnlitUi] = LoadMaterial("unlit_ui.filamat");
+  materials_[kPbr] = LoadMaterial(engine, "pbr.filamat");
+  materials_[kPbrPacked] = LoadMaterial(engine, "pbr_packed.filamat");
+  materials_[kPhong2d] = LoadMaterial(engine, "phong_2d.filamat");
+  materials_[kPhong2dFade] = LoadMaterial(engine, "phong_2d_fade.filamat");
+  materials_[kPhong2dReflect] = LoadMaterial(engine, "phong_2d_reflect.filamat");
+  materials_[kPhong2dUv] = LoadMaterial(engine, "phong_2d_uv.filamat");
+  materials_[kPhong2dUvFade] = LoadMaterial(engine, "phong_2d_uv_fade.filamat");
+  materials_[kPhong2dUvReflect] = LoadMaterial(engine, "phong_2d_uv_reflect.filamat");
+  materials_[kPhongColor] = LoadMaterial(engine, "phong_color.filamat");
+  materials_[kPhongColorFade] = LoadMaterial(engine, "phong_color_fade.filamat");
+  materials_[kPhongColorReflect] = LoadMaterial(engine, "phong_color_reflect.filamat");
+  materials_[kPhongCube] = LoadMaterial(engine, "phong_cube.filamat");
+  materials_[kPhongCubeFade] = LoadMaterial(engine, "phong_cube_fade.filamat");
+  materials_[kPhongCubeReflect] = LoadMaterial(engine, "phong_cube_reflect.filamat");
+  materials_[kUnlitSegmentation] = LoadMaterial(engine, "unlit_segmentation.filamat");
+  materials_[kUnlitDecor] = LoadMaterial(engine, "unlit_decor.filamat");
+  materials_[kUnlitDepth] = LoadMaterial(engine, "unlit_depth.filamat");
+  materials_[kUnlitUi] = LoadMaterial(engine, "unlit_ui.filamat");
 
   static uint8_t black_rgb[3] = {0, 0, 0};
   static uint8_t white_rgb[3] = {255, 255, 255};
@@ -131,16 +122,27 @@ filament::Material* ObjectManager::GetMaterial(MaterialType type) const {
   return materials_[type];
 }
 
+Builtins* ObjectManager::GetBuiltins(int nstack, int nslice, int nquad) {
+  // Assumes nstack, nslice, and nquad are non-negative and less than 2^20.
+  std::uint64_t key = (static_cast<uint64_t>(nstack) << 20) |
+                      (static_cast<uint64_t>(nslice) << 40) |
+                      static_cast<uint64_t>(nquad);
+
+  auto iter = builtins_.find(key);
+  if (iter == builtins_.end()) {
+    auto builtins = std::make_unique<Builtins>(engine_, nstack, nslice, nquad);
+    Builtins* ptr = builtins.get();
+    builtins_[key] = std::move(builtins);
+    return ptr;
+  }
+  return iter->second.get();
+}
+
 const filament::Texture* ObjectManager::GetFallbackTexture(
     mjtTextureRole role) const {
   if (role < 0 || role >= mjNTEXROLE) {
     mju_error("Invalid texture role: %d", role);
   }
   return fallback_textures_[role];
-}
-
-std::unique_ptr<ObjectManager::Asset> ObjectManager::LoadAsset(
-    std::string_view filename) {
-  return std::unique_ptr<Asset>(new Asset(filename));
 }
 }  // namespace mujoco

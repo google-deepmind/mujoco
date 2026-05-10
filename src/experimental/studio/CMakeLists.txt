@@ -54,14 +54,6 @@ function(configure_studio_target TARGET_NAME)
             mujoco::platform
     )
 
-    # TODO: re-enable mjz support on Windows builds once DllMain issue is resolved.
-    if (NOT WIN32)
-        target_link_libraries(${TARGET_NAME}
-            PRIVATE
-                mujoco::mjz
-        )
-    endif()
-
     file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
 
     add_custom_command(
