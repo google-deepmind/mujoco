@@ -268,10 +268,13 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
     return 0;
   }
 
-  // compute parametric coordinates of the vertex in [0, 1]^3
+  // determine sign: vweight may be negative for side-0 of a contact pair
+  mjtNum sign = vweight[0] < 0 ? -1 : 1;
+
+  // compute parametric coordinates using absolute weights
   mjtNum coord[3] = {0, 0, 0};
   for (int i = 0; i < nw; i++) {
-    mju_addToScl3(coord, m->flex_vert0 + 3*v[i], vweight[i]);
+    mju_addToScl3(coord, m->flex_vert0 + 3*v[i], mju_abs(vweight[i]));
   }
 
   int order = m->flex_interp[f];
@@ -292,7 +295,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
     if (w < 1e-5) {
       continue;
     }
-    if (bweight) bweight[nb] = w;
+    if (bweight) bweight[nb] = sign * w;
     body[nb++] = m->flex_nodebodyid[nstart + nodeindices[j]];
   }
 
