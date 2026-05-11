@@ -2674,14 +2674,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
-                 name='flex_bandwidth',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='precomputed solver bandwidth',
-                 array_extent=('nflex',),
-             ),
-             StructFieldDecl(
                  name='flex_cellnum',
                  type=PointerType(
                      inner_type=ValueType(name='int'),

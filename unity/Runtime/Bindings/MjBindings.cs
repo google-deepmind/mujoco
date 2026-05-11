@@ -1201,7 +1201,6 @@ public unsafe struct mjModel_ {
   public int* flex_matid;
   public int* flex_group;
   public int* flex_interp;
-  public int* flex_bandwidth;
   public int* flex_cellnum;
   public int* flex_nodeadr;
   public int* flex_nodenum;

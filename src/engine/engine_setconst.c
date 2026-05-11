@@ -638,135 +638,6 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
   mj_freeStack(d);
 }
 
-// compute flex bandwidth for trilinear interpolation
-static void makeFlexBandwidth(mjModel* m, mjData* d) {
-  if (!m->nflex) {
-    return;
-  }
-
-  mj_markStack(d);
-  int* chain_dofs = mjSTACKALLOC(d, m->nv, int);
-  int* seen_dof = mjSTACKALLOC(d, m->nv, int);
-  int* dof_indices = mjSTACKALLOC(d, m->nv, int);
-  int* global2local = mjSTACKALLOC(d, m->nv, int);
-
-  mju_zeroInt(seen_dof, m->nv);
-  for (int i = 0; i < m->nv; i++) {
-    global2local[i] = -1;
-  }
-
-  int ndof = 0;
-  for (int f = 0; f < m->nflex; f++) {
-    if (m->flex_interp[f]) {
-      int nodenum = m->flex_nodenum[f];
-      int nodeadr = m->flex_nodeadr[f];
-      for (int n = 0; n < nodenum; n++) {
-        int b = m->flex_nodebodyid[nodeadr + n];
-        // only the body's own DOFs enter the reduced banded flex system;
-        // ancestor DOFs are solved by the global factorization and coupled
-        // via off-diagonal correction (see flexInterp_solve in engine_forward)
-        int chain_nnz;
-        if (m->body_dofnum[b] == 0) {
-          chain_nnz = mj_bodyChain(m, b, chain_dofs);
-        } else {
-          chain_nnz = m->body_dofnum[b];
-          for (int j = 0; j < chain_nnz; j++) {
-            chain_dofs[j] = m->body_dofadr[b] + j;
-          }
-        }
-        for (int i = 0; i < chain_nnz; i++) {
-          int dof = chain_dofs[i];
-          if (!seen_dof[dof]) {
-            seen_dof[dof] = 1;
-            dof_indices[ndof] = dof;
-            global2local[dof] = ndof++;
-          }
-        }
-      }
-    }
-  }
-
-  int bandwidth = 0;
-  if (ndof > 0) {
-    // check sparse matrix coupling (both D and M)
-    for (int integrator = 0; integrator < 2; integrator++) {
-      const int* rownnz = (integrator == 0) ? m->D_rownnz : m->M_rownnz;
-      const int* rowadr = (integrator == 0) ? m->D_rowadr : m->M_rowadr;
-      const int* colind = (integrator == 0) ? m->D_colind : m->M_colind;
-
-      // D arrays are only allocated for implicit integrators
-      if (!rownnz) continue;
-
-      for (int i = 0; i < ndof; i++) {
-        int row = dof_indices[i];
-        int start = rowadr[row];
-        int end = start + rownnz[row];
-        for (int k = start; k < end; k++) {
-          int local_j = global2local[colind[k]];
-          if (local_j >= 0) {
-            int diff = i - local_j;
-            if (diff < 0) diff = -diff;
-            if (diff > bandwidth) bandwidth = diff;
-          }
-        }
-      }
-    }
-
-    // check stiffness coupling
-    for (int f = 0; f < m->nflex; f++) {
-      if (!m->flex_interp[f]) continue;
-      int order = m->flex_interp[f];
-      order = order < 0 ? -order : order;
-      int nodeadr = m->flex_nodeadr[f];
-      int nodenum = m->flex_nodenum[f];
-      int cx = m->flex_cellnum[3*f+0];
-      int cy = m->flex_cellnum[3*f+1];
-      int cz = m->flex_cellnum[3*f+2];
-      int ny = cy * order + 1;
-      int nz = cz * order + 1;
-
-      for (int icx = 0; icx < cx; icx++) {
-        for (int icy = 0; icy < cy; icy++) {
-          for (int icz = 0; icz < cz; icz++) {
-            int min_local = ndof, max_local = -1;
-            for (int lx = 0; lx <= order; lx++) {
-              for (int ly = 0; ly <= order; ly++) {
-                for (int lz = 0; lz <= order; lz++) {
-                  int gx = icx * order + lx;
-                  int gy = icy * order + ly;
-                  int gz = icz * order + lz;
-                  int node_idx = gx * ny * nz + gy * nz + gz;  // non-negative by construction
-                  if (node_idx < nodenum) {
-                    int b = m->flex_nodebodyid[nodeadr + node_idx];
-                    int chain_nnz = mj_bodyChain(m, b, chain_dofs);
-                    for (int i = 0; i < chain_nnz; i++) {
-                      int dof = chain_dofs[i];
-                      int local = global2local[dof];
-                      if (local >= 0) {
-                        if (local < min_local) min_local = local;
-                        if (local > max_local) max_local = local;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-            if (max_local >= 0 && max_local - min_local > bandwidth) {
-              bandwidth = max_local - min_local;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // store bandwidth for all flexes (global max)
-  for (int f = 0; f < m->nflex; f++) {
-    m->flex_bandwidth[f] = bandwidth;
-  }
-
-  mj_freeStack(d);
-}
 
 // align 2D flexes to the XY plane
 static void mj_alignFlex(mjModel* m, mjData* d) {
@@ -819,7 +690,7 @@ static void mj_alignFlex(mjModel* m, mjData* d) {
 static void set0(mjModel* m, mjData* d) {
   makeTendonSparse(m);
   makeFlexSparse(m, d);
-  makeFlexBandwidth(m, d);
+
   mj_alignFlex(m, d);
   int nv = m->nv;
   mjtNum A[36] = {0}, pos[3], quat[4];

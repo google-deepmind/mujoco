@@ -1473,15 +1473,24 @@ void RotateFlexGrid(mjModel* model, mjData* data, const char* flex_name,
   }
 }
 
-// Helper: assemble flex stiffness into dense matrix via banded addH
-// This wraps the banded API and converts to dense for test verification.
-static void addH_dense(mjModel* m, mjData* d, mjtNum* H_dense,
-                       const int* dof_indices, int ndof, mjtNum h) {
-  // use full bandwidth (ndof) for exact dense equivalence
-  std::vector<mjtNum> H_band(ndof * ndof, 0);
-  mjd_flexInterp_addH(m, d, H_band.data(), dof_indices, ndof, ndof, h);
-  // convert banded to dense (lower triangle), then symmetrize
-  mju_band2Dense(H_dense, H_band.data(), ndof, ndof, 0, 1);
+// Helper: assemble flex stiffness into dense matrix via matrix-vector products.
+// Builds K column-by-column using mjd_flexInterp_mulKD.
+// Result is -(h^2 + h*damping) * J'KJ (negative sign matches the old addH
+// convention where stiffness is subtracted from the system matrix).
+static void mulKD_dense(mjModel* m, mjData* d, mjtNum* H_dense,
+                        int nv, mjtNum h) {
+  std::vector<mjtNum> e_i(nv, 0);
+  std::vector<mjtNum> col(nv, 0);
+  for (int i = 0; i < nv; i++) {
+    mju_zero(e_i.data(), nv);
+    mju_zero(col.data(), nv);
+    e_i[i] = 1.0;
+    mjd_flexInterp_mulKD(m, d, col.data(), e_i.data(), h);
+    // col = +(h^2 + h*damp)*K*e_i, negate to match addH convention (H -= K)
+    for (int j = 0; j < nv; j++) {
+      H_dense[j * nv + i] = -col[j];
+    }
+  }
 }
 
 // compare analytic and fin-diff d_qfrc_passive/d_qvel for flex interp
@@ -1525,18 +1534,16 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
         vec[i] = mju_Halton(i, 2) - 0.5;
       }
 
-      // use addH to compute K * vec
-      // addH adds (h^2*K + h*D) to H
-      // if we set h=1, damping=0, we get K added to H
+      // use mulKD to compute K * vec
+      // mulKD adds (h^2*K + h*D)*vec to res
+      // if we set h=1, damping=0, we get K*vec
       mjtNum save_damping = model->flex_damping[0];
       model->flex_damping[0] = 0;
 
       std::vector<mjtNum> H(nv * nv, 0);
-      std::vector<int> dof_indices(nv);
-      for (int i = 0; i < nv; i++) dof_indices[i] = i;
 
-      // assemble K into H
-      addH_dense(model, data, H.data(), dof_indices.data(), nv, 1.0);
+      // assemble K into H column-by-column
+      mulKD_dense(model, data, H.data(), nv, 1.0);
 
       // restore damping
       model->flex_damping[0] = save_damping;
@@ -1623,16 +1630,13 @@ TEST_F(DerivativeTest, FlexInterpDerivatives) {
       // check that we have non-zero damping (FD should find it)
       EXPECT_GT(mju_norm(qDerivFD.data(), nD), 1e-3);
 
-      // compute expected flex damping using mjd_flexInterp_addH
+      // compute expected flex damping using mulKD_dense
       // D = 4*H(0.5) - H(1)
-      vector<int> dof_indices(nv);
-      for (int i = 0; i < nv; i++) dof_indices[i] = i;
-
       vector<mjtNum> H1(nv * nv, 0);
-      addH_dense(model, data, H1.data(), dof_indices.data(), nv, 1.0);
+      mulKD_dense(model, data, H1.data(), nv, 1.0);
 
       vector<mjtNum> H2(nv * nv, 0);
-      addH_dense(model, data, H2.data(), dof_indices.data(), nv, 0.5);
+      mulKD_dense(model, data, H2.data(), nv, 0.5);
 
       vector<mjtNum> D(nv * nv);
       for (int i = 0; i < nv * nv; i++) {
@@ -1700,13 +1704,11 @@ TEST_F(DerivativeTest, FlexInterpDerivativesDeformed) {
   mj_forward(model, data);
 
   // 1. Compute Analytic Jacobian (Approximate)
-  // We use mjd_flexInterp_addH to get K_approx
+  // We use mulKD_dense to get K_approx
   std::vector<mjtNum> H_approx(nv * nv, 0);
-  std::vector<int> dof_indices(nv);
-  for (int i = 0; i < nv; i++) dof_indices[i] = i;
 
-  // h=1, damping=0 => adds K to H
-  addH_dense(model, data, H_approx.data(), dof_indices.data(), nv, 1.0);
+  // h=1, damping=0 => gives K
+  mulKD_dense(model, data, H_approx.data(), nv, 1.0);
 
   // 2. Compute Finite Difference Jacobian (Ground Truth)
   // qfrc_passive = -dV/dq

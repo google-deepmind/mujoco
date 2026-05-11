@@ -1371,236 +1371,121 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 }
 
 
-// return 1 if flex f needs implicit interp treatment
-static int flexInterp_active(const mjModel* m, int f) {
-  return m->flex_interp[f] && !m->flex_rigid[f] &&
-         m->flex_edgeequality[f] != 3 &&
-         m->flex_stiffness[m->flex_stiffnessadr[f]] != 0;
+// return 1 if any flex needs implicit interp treatment
+static int flexInterp_has_active(const mjModel* m) {
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f] && !m->flex_rigid[f] &&
+        m->flex_edgeequality[f] != 3 &&
+        m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 
-// context for flex interp reduced banded factorization/solve
-typedef struct {
-  mjtNum* H;              // banded Cholesky-factored matrix (ndof x nband)
-  int* dof_indices;       // global DOF index for each local flex DOF
-  int ndof;               // number of flex DOFs
-  int nband;              // half-bandwidth + 1 (number of band columns)
-  int ncoupling;          // number of off-diagonal coupling terms
-  mjtNum* coupling_val;   // coupling coefficient values
-  int* coupling_row;      // local flex row index for each coupling term
-  int* coupling_col;      // global DOF column index for each coupling term
-} FlexInterpContext;
-
-
-// collect flex DOFs for one flex, marking seen_dof and incrementing count
-static void flexInterp_collect(const mjModel* m, int f,
-                               int* chain_dofs, int* seen_dof, int* count) {
-  int nodenum = m->flex_nodenum[f];
-  int nodeadr = m->flex_nodeadr[f];
-  for (int n=0; n < nodenum; n++) {
-    int b = m->flex_nodebodyid[nodeadr+n];
-    int chain_nnz;
-    if (m->body_dofnum[b] == 0) {
-      // pinned node: use bodyChain to get parent DOFs
-      chain_nnz = mj_bodyChain(m, b, chain_dofs);
-    } else {
-      // regular flex node: use body's own DOFs only
-      chain_nnz = m->body_dofnum[b];
-      for (int j=0; j < chain_nnz; j++) {
-        chain_dofs[j] = m->body_dofadr[b] + j;
-      }
-    }
-    for (int i=0; i < chain_nnz; i++) {
-      int dof = chain_dofs[i];
-      if (!seen_dof[dof]) {
-        seen_dof[dof] = 1;
-        (*count)++;
-      }
-    }
-  }
-}
-
-
-// build and factor the reduced banded matrix for flex interp DOFs
-//   mark/free stack handled by caller
-static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) {
-  FlexInterpContext ctx = {0};
-
-  int* chain_dofs = mjSTACKALLOC(d, nv, int);
-  int* seen_dof = mjSTACKALLOC(d, nv, int);
-  mju_fillInt(seen_dof, 0, nv);
-
-  // count flex DOFs
-  int ndof = 0;
-  for (int f=0; f < m->nflex; f++) {
-    if (flexInterp_active(m, f)) {
-      flexInterp_collect(m, f, chain_dofs, seen_dof, &ndof);
-    }
-  }
-  if (ndof == 0) {
-    return ctx;
-  }
-
-  // allocate and build global-to-local mapping
-  int* dof_indices = mjSTACKALLOC(d, ndof, int);
-  int* global2local = mjSTACKALLOC(d, nv, int);
-  mju_fillInt(global2local, -1, nv);
-
-  // collect unique DOFs in order
-  int cnt = 0;
-  mju_fillInt(seen_dof, 0, nv);
-  for (int f=0; f < m->nflex; f++) {
-    if (flexInterp_active(m, f)) {
-      int nodenum = m->flex_nodenum[f];
-      int nodeadr = m->flex_nodeadr[f];
-      for (int n=0; n < nodenum; n++) {
-        int b = m->flex_nodebodyid[nodeadr+n];
-        int chain_nnz;
-        if (m->body_dofnum[b] == 0) {
-          // pinned node: use bodyChain to get parent DOFs
-          chain_nnz = mj_bodyChain(m, b, chain_dofs);
-        } else {
-          // regular flex node: use body's own DOFs only
-          chain_nnz = m->body_dofnum[b];
-          for (int j=0; j < chain_nnz; j++) {
-            chain_dofs[j] = m->body_dofadr[b] + j;
-          }
-        }
-        for (int i=0; i < chain_nnz; i++) {
-          int dof = chain_dofs[i];
-          if (!seen_dof[dof]) {
-            seen_dof[dof] = 1;
-            dof_indices[cnt] = dof;
-            global2local[dof] = cnt;
-            cnt++;
-          }
-        }
-      }
-    }
-  }
-
-  // select sparse matrix format based on integrator
-  int implicit = (m->opt.integrator == mjINT_IMPLICIT);
-  const int* rownnz = implicit ? m->D_rownnz : m->M_rownnz;
-  const int* rowadr = implicit ? m->D_rowadr : m->M_rowadr;
-  const int* colind = implicit ? m->D_colind : m->M_colind;
-  const mjtNum* source = implicit ? d->qLU : d->qH;
-
-  // get precomputed bandwidth
-  int bandwidth = 0;
-  for (int f=0; f < m->nflex; f++) {
-    if (flexInterp_active(m, f)) {
-      if (m->flex_bandwidth[f] > bandwidth) {
-        bandwidth = m->flex_bandwidth[f];
-      }
-    }
-  }
-
-  // compute ncoupling from sparse matrix entries
-  int ncoupling = 0;
-  for (int i=0; i < ndof; i++) {
-    int row = dof_indices[i];
-    int start = rowadr[row];
-    int end = start + rownnz[row];
-    for (int k=start; k < end; k++) {
-      int local_j = global2local[colind[k]];
-      if (local_j < 0) {
-        ncoupling++;
-      }
-    }
-  }
-
-  // nband = bandwidth + 1 (includes diagonal)
-  int nband = bandwidth + 1;
-
-  // cap nband at ndof (dense fallback for small systems)
-  if (nband > ndof) nband = ndof;
-
-  // allocate coupling storage
-  mjtNum* coupling_val = NULL;
-  int* coupling_row = NULL;
-  int* coupling_col = NULL;
-  if (ncoupling > 0) {
-    coupling_val = mjSTACKALLOC(d, ncoupling, mjtNum);
-    coupling_row = mjSTACKALLOC(d, ncoupling, int);
-    coupling_col = mjSTACKALLOC(d, ncoupling, int);
-  }
-
-  // build H_flex (banded) from qLU (implicit) or qH (implicitfast)
-  mjtNum* H = mjSTACKALLOC(d, ndof*nband, mjtNum);
-  mju_zero(H, ndof*nband);
-
-  int coup_cnt = 0;
-  for (int i=0; i < ndof; i++) {
-    int row = dof_indices[i];
-    int start = rowadr[row];
-    int end = start + rownnz[row];
-    for (int k=start; k < end; k++) {
-      int col = colind[k];
-      int local_j = global2local[col];
-      if (local_j >= 0) {
-        // store lower triangle only: row i, col local_j, where i >= local_j
-        if (i >= local_j) {
-          H[i*nband + nband-1-(i-local_j)] = source[k];
-        } else {
-          // upper triangle entry: store symmetrically in lower triangle
-          H[local_j*nband + nband-1-(local_j-i)] = source[k];
-        }
-      } else if (coup_cnt < ncoupling) {
-        coupling_val[coup_cnt] = source[k];
-        coupling_row[coup_cnt] = i;
-        coupling_col[coup_cnt] = col;
-        coup_cnt++;
-      }
-    }
-  }
-
-  // add flex stiffness in banded format and factorize
-  mjd_flexInterp_addH(m, d, H, dof_indices, ndof, nband, m->opt.timestep);
-  mju_cholFactorBand(H, ndof, nband, 0, 0, 0);
-
-  // store results in context
-  ctx.H = H;
-  ctx.dof_indices = dof_indices;
-  ctx.ndof = ndof;
-  ctx.nband = nband;
-  ctx.ncoupling = ncoupling;
-  ctx.coupling_val = coupling_val;
-  ctx.coupling_row = coupling_row;
-  ctx.coupling_col = coupling_col;
-  return ctx;
-}
-
-
-// solve the reduced banded system for flex interp DOFs, overwrite qacc
-static void flexInterp_solve(const mjModel* m, mjData* d, const FlexInterpContext* ctx,
-                             mjtNum* qacc, const mjtNum* qfrc, int nv) {
-  int ndof = ctx->ndof;
-  mjtNum* qfrc_flex = mjSTACKALLOC(d, ndof, mjtNum);
-  mjtNum* res = mjSTACKALLOC(d, nv, mjtNum);
-
+// preconditioned CG solve for implicit flex interp
+//   solves (M - h*qDeriv - (h^2+h*d)*K) * qacc = qfrc - h*K*qvel
+//   where K is the flex stiffness, using the already-factored standard system
+//   (M - h*qDeriv) as a preconditioner
+static void flexInterp_cgsolve(const mjModel* m, mjData* d,
+                                mjtNum* qacc, const mjtNum* qfrc, int nv) {
   mjtNum h = m->opt.timestep;
-  mjtNum damp = (m->nflex > 0 && m->flex_damping) ? m->flex_damping[0] : 0;
-  mjtNum scl = h*h + h*damp;
-  mjtNum factor = (scl > mjMINVAL) ? (h/scl) : 0;
+  int implicit = (m->opt.integrator == mjINT_IMPLICIT);
 
-  // velocity correction: -h * K * v
-  mju_zero(res, nv);
-  mjd_flexInterp_mulKD(m, d, res, d->qvel, h);
+  mj_markStack(d);
 
-  for (int i=0; i < ndof; i++) {
-    int global_dof = ctx->dof_indices[i];
-    qfrc_flex[i] = qfrc[global_dof] + res[global_dof] * factor;
+  // allocate CG work vectors
+  mjtNum* rhs = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* r = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* z = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* p = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* Ap = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* temp = mjSTACKALLOC(d, nv, mjtNum);
+
+  // build RHS: rhs = qfrc - h*K*qvel  (velocity correction from flex stiffness)
+  mju_copy(rhs, qfrc, nv);
+  mju_zero(temp, nv);
+  mjd_flexInterp_mulK(m, d, temp, d->qvel, h);  // temp = h*K*v (stiffness only)
+  mju_addToScl(rhs, temp, -1.0, nv);  // rhs -= h*K*v
+
+  // --- helper lambda-style inline: compute Ap = A*x ---
+  // A*x = (M - h*qDeriv)*x - (h^2+h*d)*K*x
+  #define FLEX_CG_MATVEC(Ap_out, x_in)                                           \
+    mju_mulMatVecSparse(Ap_out, d->qDeriv, x_in, nv, m->D_rownnz, m->D_rowadr,   \
+                        m->D_colind, NULL);                                      \
+    mju_zero(temp, nv);                                                          \
+    mju_mulSymVecSparse(temp, d->M, x_in, nv, m->M_rownnz, m->M_rowadr,          \
+                        m->M_colind);                                            \
+    mju_addScl(Ap_out, temp, Ap_out, -h, nv);                                    \
+    mju_zero(temp, nv);                                                          \
+    mjd_flexInterp_mulKD(m, d, temp, x_in, h);                                   \
+    mju_addToScl(Ap_out, temp, -1.0, nv)
+
+  // --- helper: preconditioner solve z = (M - h*qDeriv)^{-1} * r ---
+  #define FLEX_CG_PRECOND(z_out, r_in)                                           \
+    if (implicit) {                                                              \
+      mju_solveLUSparse(z_out, d->qLU, r_in, nv, m->D_rownnz, m->D_rowadr,       \
+                        m->D_diag, m->D_colind, NULL);                           \
+    } else {                                                                     \
+      mju_copy(z_out, r_in, nv);                                                 \
+      mj_solveLD(z_out, d->qH, d->qHDiagInv, nv, 1, m->M_rownnz, m->M_rowadr,    \
+                 m->M_colind, NULL);                                             \
+    }
+
+  // initial residual: r = rhs - A*qacc
+  FLEX_CG_MATVEC(Ap, qacc);
+  mju_sub(r, rhs, Ap, nv);
+
+  // check if already converged
+  mjtNum rnorm = mju_dot(r, r, nv);
+  mjtNum tol = 1e-10 * mju_dot(rhs, rhs, nv);
+  if (rnorm < tol || rnorm < mjMINVAL) {
+    mj_freeStack(d);
+    return;
   }
 
-  // coupling correction: qfrc_flex -= H_coupling * qacc_parent
-  for (int k=0; k < ctx->ncoupling; k++) {
-    qfrc_flex[ctx->coupling_row[k]] -= ctx->coupling_val[k] * qacc[ctx->coupling_col[k]];
+  // z = precond(r), p = z
+  FLEX_CG_PRECOND(z, r);
+  mju_copy(p, z, nv);
+  mjtNum rz = mju_dot(r, z, nv);
+
+  // CG iterations
+  int maxiter = 50;
+  for (int iter=0; iter < maxiter; iter++) {
+    FLEX_CG_MATVEC(Ap, p);
+
+    // alpha = rz / dot(p, Ap)
+    mjtNum pAp = mju_dot(p, Ap, nv);
+    if (mju_abs(pAp) < mjMINVAL) break;
+    mjtNum alpha = rz / pAp;
+
+    // qacc += alpha * p
+    mju_addToScl(qacc, p, alpha, nv);
+
+    // r -= alpha * Ap
+    mju_addToScl(r, Ap, -alpha, nv);
+
+    // check convergence
+    rnorm = mju_dot(r, r, nv);
+    if (rnorm < tol || rnorm < mjMINVAL) break;
+
+    // z = precond(r)
+    FLEX_CG_PRECOND(z, r);
+
+    // beta = rz_new / rz
+    mjtNum rz_new = mju_dot(r, z, nv);
+    mjtNum beta = rz_new / mju_max(mjMINVAL, rz);
+
+    // p = z + beta * p
+    mju_addScl(p, z, p, beta, nv);
+    rz = rz_new;
   }
 
-  // solve with banded Cholesky and scatter back
-  mju_cholSolveBand(qfrc_flex, ctx->H, qfrc_flex, ndof, ctx->nband, 0);
-  mju_scatter(qacc, qfrc_flex, ctx->dof_indices, ndof);
+  #undef FLEX_CG_MATVEC
+  #undef FLEX_CG_PRECOND
+
+  mj_freeStack(d);
 }
 
 
@@ -1972,16 +1857,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   }
 
   // check for flex_interp that needs implicit treatment
-  int has_flex_interp = 0;
-  for (int f=0; f < m->nflex; f++) {
-    if (flexInterp_active(m, f)) {
-      has_flex_interp = 1;
-      break;
-    }
-  }
-
-  // flex interp context (populated during factorization)
-  FlexInterpContext flex = {0};
+  int has_flex_interp = !sleep_filter && flexInterp_has_active(m);
 
   // factorization
   if (!skipfactor) {
@@ -2011,11 +1887,6 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjERROR("integrator must be implicit or implicitfast");
     }
 
-    // flex: reduced dense factorization
-    if (has_flex_interp && !sleep_filter) {
-      flex = flexInterp_factor(m, d, nv);
-    }
-
     // standard factorization (implicit / implicitfast)
     if (m->opt.integrator == mjINT_IMPLICIT) {
       int* scratch = mjSTACKALLOC(d, nv, int);
@@ -2039,9 +1910,9 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
   }
 
-  // flex: reduced dense solve
-  if (flex.H) {
-    flexInterp_solve(m, d, &flex, qacc, qfrc, nv);
+  // flex: CG correction for implicit flex stiffness
+  if (has_flex_interp) {
+    flexInterp_cgsolve(m, d, qacc, qfrc, m->nv);
   }
 
   // count and list joints of free bodies eligible for midpoint integration

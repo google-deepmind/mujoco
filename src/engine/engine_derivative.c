@@ -1134,13 +1134,13 @@ void mjd_flexInterp_mulKD(const mjModel* m, mjData* d, mjtNum* res, const mjtNum
 }
 
 
-// add (h^2 + h*damping) * J'*K*J to banded matrix H, for all interpolated flexes
-//  H: banded ndof x nband matrix (lower triangle, band storage)
-//  dof_indices: maps local indices to global DOFs
-void mjd_flexInterp_addH(const mjModel* m, mjData* d, mjtNum* H, const int* dof_indices,
-                         int ndof, int nband, mjtNum h) {
-  mjd_flexInterp_kernel(m, d, mjFLEXOP_ADDH, H, NULL, h * h, h, dof_indices, ndof, nband);
+// compute res += h * J'*K*J * vec, for all interpolated flexes (stiffness only, no damping)
+void mjd_flexInterp_mulK(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, mjtNum h) {
+  // s1=h, s2=0 => scale = h (no damping contribution)
+  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, h, 0, NULL, 0, 0);
 }
+
+
 
 
 
