@@ -177,6 +177,18 @@ void Window::SetTitle(std::string_view title) {
   SDL_SetWindowTitle(sdl_window_, title.data());
 }
 
+void Window::Resize(int width, int height) {
+  SDL_SetWindowSize(sdl_window_, width, height);
+  SDL_SetWindowPosition(sdl_window_, SDL_WINDOWPOS_CENTERED,
+                        SDL_WINDOWPOS_CENTERED);
+
+  SDL_GetWindowSize(sdl_window_, &width_, &height_);
+  int drawable_width = width_;
+  int drawable_height = height_;
+  SDL_GL_GetDrawableSize(sdl_window_, &drawable_width, &drawable_height);
+  scale_ = (float)drawable_width / (float)width_;
+}
+
 void Window::DisableWindowResizing() {
   SDL_SetWindowResizable(sdl_window_, SDL_FALSE);
 }

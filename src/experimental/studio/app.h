@@ -106,6 +106,8 @@ class App {
     int key_idx = 0;
     platform::GuiTheme theme = platform::GuiTheme::kLight;
     float font_scale = 1.0f;
+    int window_width = 0;
+    int window_height = 0;
 
     using Dict = std::unordered_map<std::string, std::string>;
     Dict ToDict() const;

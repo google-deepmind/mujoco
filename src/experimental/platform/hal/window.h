@@ -79,6 +79,9 @@ class Window {
   // Returns the graphics configuration of the window.
   GraphicsMode GetGraphicsMode() const;
 
+  // Resizes the window to the given width and height.
+  void Resize(int width, int height);
+
   // Enables window resizing.
   void EnableWindowResizing();
 

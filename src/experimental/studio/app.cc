@@ -104,6 +104,11 @@ void App::SwitchGraphicsMode(int width, int height,
                                                window_config);
   renderer_ = std::make_unique<platform::Renderer>(
       window_->GetNativeWindowHandle(), gfx_mode_);
+
+  LoadSettings();
+  if (ui_.window_width > 0 && ui_.window_height > 0) {
+    window_->Resize(ui_.window_width, ui_.window_height);
+  }
 }
 
 void App::Recompile() {
@@ -791,6 +796,10 @@ void App::LoadSettings() {
 void App::SaveSettings() {
   if (!ini_path_.empty()) {
     std::string settings = ImGui::SaveIniSettingsToMemory();
+    if (window_) {
+      ui_.window_width = window_->GetWidth();
+      ui_.window_height = window_->GetHeight();
+    }
     platform::AppendIniSection(settings, "[Studio][UX]", ui_.ToDict());
 
     platform::KeyValues plugin_names;
@@ -1839,12 +1848,18 @@ App::UiState::Dict App::UiState::ToDict() const {
   return {
       {"theme", std::to_string(static_cast<int>(theme))},
       {"font_scale", std::to_string(font_scale)},
+      {"window_width", std::to_string(window_width)},
+      {"window_height", std::to_string(window_height)},
   };
 }
 
 void App::UiState::FromDict(const Dict& dict) {
+  using platform::ReadIniValue;
+
   *this = UiState();
   theme = ReadIniValue(dict, "theme", theme);
-  font_scale = platform::ReadIniValue(dict, "font_scale", font_scale);
+  window_width = ReadIniValue(dict, "window_width", window_width);
+  window_height = ReadIniValue(dict, "window_height", window_height);
+  font_scale = ReadIniValue(dict, "font_scale", font_scale);
 }
 }  // namespace mujoco::studio
