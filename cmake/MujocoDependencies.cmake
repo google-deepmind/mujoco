@@ -247,13 +247,25 @@ if(WIN32)
   endif()
 endif()
 
+if(DEFINED BUILD_TESTS)
+  set(_OLD_BUILD_TESTS "${BUILD_TESTS}")
+  set(_BUILD_TESTS_WAS_DEFINED TRUE)
+else()
+  set(_BUILD_TESTS_WAS_DEFINED FALSE)
+endif()
 set(BUILD_TESTS OFF)
 fetchpackage(
-    PACKAGE_NAME  miniz
-    GIT_REPO      https://github.com/richgel999/miniz.git
-    GIT_TAG       ${MUJOCO_DEP_VERSION_miniz}
-    TARGETS       miniz
+  PACKAGE_NAME  miniz
+  GIT_REPO      https://github.com/richgel999/miniz.git
+  GIT_TAG       ${MUJOCO_DEP_VERSION_miniz}
+  TARGETS       miniz
 )
+if(_BUILD_TESTS_WAS_DEFINED)
+  set(BUILD_TESTS "${_OLD_BUILD_TESTS}")
+else()
+  unset(BUILD_TESTS)
+endif()
+unset(_BUILD_TESTS_WAS_DEFINED)
 
 
 if(MUJOCO_BUILD_TESTS OR MUJOCO_BUILD_STUDIO OR MUJOCO_USE_FILAMENT)
