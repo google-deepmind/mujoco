@@ -10,7 +10,7 @@ sphinx-reredirects==0.1.1
 sphinx-toolbox==3.8.2
 nbsphinx==0.9.1
 pandoc==1.1.0
-pygments==2.19.2
+pygments==2.20.0
 jq==1.8.0
 Jinja2==3.1.6
 wheel==0.45.1
