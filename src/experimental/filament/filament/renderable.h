@@ -130,6 +130,7 @@ class Renderable : public mjrRenderable {
   ObjectManager* object_mgr_;
   mjrRenderableParams params_;
   filament::MaterialInstance* instances_[mjNUM_DRAW_MODES] = {nullptr};
+  mjtGeom geom_type_ = mjGEOM_NONE;
   mjrMaterial material_;
   mjrDrawMode draw_mode_ = mjDRAW_MODE_COLOR;
   filament::Scene* assigned_scene_ = nullptr;

@@ -15,7 +15,6 @@
 material {
     name : unlit_segmentation,
     shadingModel : unlit,
-    culling: none,
     parameters : [
         { type : float4, name : SegmentationColor }
     ]

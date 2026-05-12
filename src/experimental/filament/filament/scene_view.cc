@@ -141,6 +141,7 @@ SceneView::SceneView(FilamentContext* ctx, const mjrSceneParams& params)
   reflect_view_->setCamera(reflect_camera_);
   reflect_view_->setShadowingEnabled(false);
   reflect_view_->setPostProcessingEnabled(false);
+  reflect_view_->setFrontFaceWindingInverted(true);
   reflect_view_->setVisibleLayers(0xff, params.reflection_layer_mask);
 
   // Disable post processing for the depth and segmentation views to preserve

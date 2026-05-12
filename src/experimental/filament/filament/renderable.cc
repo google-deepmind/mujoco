@@ -77,6 +77,11 @@ void Renderable::SetMesh(const Mesh* mesh, int elem_offset, int elem_count) {
   if (mesh == nullptr) {
     mju_error("Cannot set mesh to nullptr.");
   }
+
+  // We use MESH, even though it could be any mesh-like geom type, e.g.
+  // heightfields, flex, skin, sdf, etc.
+  geom_type_ = mjGEOM_MESH;
+
   filament::VertexBuffer* vertex_buffer = mesh->GetFilamentVertexBuffer();
   if (vertex_buffer == nullptr) {
     mju_error("Invalid (null) vertex buffer.");
@@ -234,6 +239,10 @@ void Renderable::AssignMaterial(mjrDrawMode mode,
   }
   if (material) {
     instances_[index] = material->createInstance();
+    if (geom_type_ == mjGEOM_PLANE || geom_type_ == mjGEOM_TRIANGLE) {
+      instances_[index]->setCullingMode(
+          filament::MaterialInstance::CullingMode::NONE);
+    }
   }
 }
 
@@ -407,6 +416,7 @@ ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
 
 void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
   Builtins* builtins = object_mgr_->GetBuiltins(nstack, nslice, nquad);
+  geom_type_ = type;
 
   switch (type) {
     case mjGEOM_PLANE:

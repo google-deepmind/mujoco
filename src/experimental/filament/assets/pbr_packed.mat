@@ -15,7 +15,6 @@
 material {
     name : pbr_packed,
     shadingModel : lit,
-    culling: none,
     flipUV: false,
     parameters : [
         { type : sampler2d, name : BaseColor },
