@@ -153,7 +153,7 @@ class PlaneBuilder : public BuiltinBuilder {
         const int i1 = base_idx + 1;
         const int i2 = base_idx + num_quads_per_axis + 2;
         const int i3 = base_idx + num_quads_per_axis + 1;
-        AppendQuadIndices(indices_, i0, i1, i2, i3);
+        AppendQuadIndices(indices_, i0, i3, i2, i1);
       }
     }
 
@@ -268,7 +268,11 @@ class BoxBuilder : public BuiltinBuilder {
           const int i1 = base_idx + 1;
           const int i2 = base_idx + num_quads_per_axis_ + 2;
           const int i3 = base_idx + num_quads_per_axis_ + 1;
-          AppendQuadIndices(indices_, i0, i1, i2, i3);
+          if (i == 2 || i == 1 || i == 4) {
+            AppendQuadIndices(indices_, i0, i3, i2, i1);
+          } else {
+            AppendQuadIndices(indices_, i0, i1, i2, i3);
+          }
         }
       }
     }
@@ -326,7 +330,7 @@ class TubeBuilder : public BuiltinBuilder {
         const int i1 = base_idx + 1;
         const int i2 = (base_idx + num_stacks + 2) % num_vertices;
         const int i3 = (base_idx + num_stacks + 1) % num_vertices;
-        AppendQuadIndices(indices_, i0, i1, i2, i3);
+        AppendQuadIndices(indices_, i0, i3, i2, i1);
       }
     }
 
@@ -494,8 +498,8 @@ class SphereBuilder : public BuiltinBuilder {
     for (int lon = 0; lon < num_slices; ++lon) {
       const int next = lon < (num_slices - 1) ? lon + 1 : 0;
       indices_.push_back(kNorthPoleIndex);
-      indices_.push_back(row_start + next);
       indices_.push_back(row_start + lon);
+      indices_.push_back(row_start + next);
     }
 
     // Latitudinal triangle strips.
@@ -519,8 +523,8 @@ class SphereBuilder : public BuiltinBuilder {
     for (int lon = 0; lon < num_slices; ++lon) {
       const int adjacent = lon < (num_slices - 1) ? lon + 1 : 0;
       indices_.push_back(kSouthPoleIndex);
-      indices_.push_back(row_start + lon);
       indices_.push_back(row_start + adjacent);
+      indices_.push_back(row_start + lon);
     }
 
     SetBounds({-1, -1, -1}, {1, 1, 1});
@@ -585,8 +589,8 @@ class DomeBuilder : public BuiltinBuilder {
     for (int lon = 0; lon < num_slices; ++lon) {
       const int next = lon < (num_slices - 1) ? lon + 1 : 0;
       indices_.push_back(kPoleIndex);
-      indices_.push_back(row_start + next);
       indices_.push_back(row_start + lon);
+      indices_.push_back(row_start + next);
     }
 
     // Latitudinal quad strips.  The first "stack" was handled above, so we

@@ -254,17 +254,17 @@ static void FillHeightFieldBuffer(MeshBuilder& builder, const mjModel* model,
   // Build the front edge.
   for (int col = 0; col < ncol - 1; ++col) {
     const float3 a = get_pos(0, col);
-    const float3 b = get_pos(0, col + 1);
-    const float3 c = {b.x, b.y, -sz[3]};
-    const float3 d = {a.x, a.y, -sz[3]};
+    const float3 b = {a.x, a.y, -sz[3]};
+    const float3 d = get_pos(0, col + 1);
+    const float3 c = {d.x, d.y, -sz[3]};
     append_quad(a, b, c, d);
   }
   // Build the back edge.
   for (int col = 0; col < ncol - 1; ++col) {
     const float3 a = get_pos(nrow - 1, col + 1);
-    const float3 b = get_pos(nrow - 1, col);
-    const float3 c = {b.x, b.y, -sz[3]};
-    const float3 d = {a.x, a.y, -sz[3]};
+    const float3 b = {a.x, a.y, -sz[3]};
+    const float3 d = get_pos(nrow - 1, col);
+    const float3 c = {d.x, d.y, -sz[3]};
     append_quad(a, b, c, d);
   }
   // Build the base. We use the visualization quality as the size rather than
