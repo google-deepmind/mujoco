@@ -314,7 +314,7 @@ typedef struct mjsGeom_ {          // geom specification
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
-  double gap;                      // include in solver if dist < margin-gap
+  double gap;                      // additional contact detection buffer
 
   // inertia inference
   double mass;                     // used to compute density
@@ -433,7 +433,7 @@ typedef struct mjsFlex_ {          // flex specification
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
-  double gap;                      // include in solver if dist<margin-gap
+  double gap;                      // additional contact detection buffer
 
   // other properties
   int dim;                         // element dimensionality
@@ -597,7 +597,7 @@ typedef struct mjsPair_ {          // pair specification
   mjtNum solreffriction[mjNREF];   // solver reference, frictional directions
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
-  double gap;                      // include in solver if dist<margin-gap
+  double gap;                      // additional contact detection buffer
   double friction[5];              // full contact friction
   mjString* info;                  // message appended to errors
 } mjsPair;

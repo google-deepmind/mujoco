@@ -882,12 +882,13 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
       // both are leaves
       if (isleaf1 && isleaf2) {
         mjtNum margin = mj_assignMargin(m, m->geom_margin[nodeid1] + m->geom_margin[nodeid2]);
+        mjtNum gap = m->geom_gap[nodeid1] + m->geom_gap[nodeid2];
 
-        if (!mj_filterSphere(m, d, nodeid1, nodeid2, margin)) {
+        if (!mj_filterSphere(m, d, nodeid1, nodeid2, margin + gap)) {
           if (mj_collideOBB(m->geom_aabb + 6*nodeid1, m->geom_aabb + 6*nodeid2,
                             d->geom_xpos + 3*nodeid1, d->geom_xmat + 9*nodeid1,
                             d->geom_xpos + 3*nodeid2, d->geom_xmat + 9*nodeid2,
-                            margin, NULL, NULL, &initialize)) {
+                            margin + gap, NULL, NULL, &initialize)) {
             mj_collideGeomPair(m, d, nodeid1, nodeid2, merged, startadr, pairadr);
             if (mark_active) {
               d->bvh_active[node1 + bvhadr1] = 1;
@@ -913,15 +914,16 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
       // both are leaves
       if (isleaf1 && isleaf2) {
         mjtNum margin = mj_assignMargin(m, m->geom_margin[nodeid1] + m->flex_margin[f2]);
+        mjtNum gap = m->geom_gap[nodeid1] + m->flex_gap[f2];
 
         if (!filterBitmask(m->geom_contype[nodeid1], m->geom_conaffinity[nodeid1],
                            m->flex_contype[f2], m->flex_conaffinity[f2]) &&
-            !filterSphereBox(d->geom_xpos + 3*nodeid1, m->geom_rbound[nodeid1] + margin,
+            !filterSphereBox(d->geom_xpos + 3*nodeid1, m->geom_rbound[nodeid1] + margin + gap,
                              bvh2 + 6*node2)) {
           if (mj_collideOBB(m->geom_aabb + 6*nodeid1, bvh2 + 6*node2,
                             d->geom_xpos + 3*nodeid1, d->geom_xmat + 9*nodeid1,
                             NULL, NULL,
-                            margin, NULL, NULL, &initialize)) {
+                            margin + gap, NULL, NULL, &initialize)) {
             // collide unless geom is plane or SDF (handled separately)
             if (m->geom_type[nodeid1] != mjGEOM_PLANE &&
                 m->geom_type[nodeid1] != mjGEOM_SDF) {
@@ -1058,7 +1060,8 @@ static void makeAAMM(const mjModel* m, mjData* d,
     // process all body geoms (body is collidable, should have geoms)
     for (int i=0; i < body_geomnum; i++) {
       int geom = m->body_geomadr[body]+i;
-      mjtNum margin = override_margin ? override_margin : m->geom_margin[geom];
+      mjtNum margin = override_margin ? override_margin
+                                       : m->geom_margin[geom] + m->geom_gap[geom];
       mjtNum _aamm[6];
 
       const mjtNum* aabb = m->geom_aabb + 6*geom;
@@ -1124,7 +1127,8 @@ static void makeAAMM(const mjModel* m, mjData* d,
     }
 
     // correct for flex radius and margin
-    mjtNum margin = override_margin ? override_margin : m->flex_margin[f];
+    mjtNum margin = override_margin ? override_margin
+                                     : m->flex_margin[f] + m->flex_gap[f];
     mjtNum bound = m->flex_radius[f] + margin;
     aamm[0] -= bound;
     aamm[1] -= bound;
@@ -1513,8 +1517,8 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
 
 //----------------------------- narrow-phase collision detection -----------------------------------
 
-// compute contact condim, gap, solref, solimp, friction
-static void mj_contactParam(const mjModel* m, int* condim, mjtNum* gap,
+// compute contact condim, solref, solimp, friction
+static void mj_contactParam(const mjModel* m, int* condim,
                             mjtNum* solref, mjtNum* solimp, mjtNum* friction,
                             int g1, int g2, int f1, int f2) {
   mjtNum fri[3];
@@ -1522,7 +1526,6 @@ static void mj_contactParam(const mjModel* m, int* condim, mjtNum* gap,
   // get parameters from geom1 or flex1
   int priority1 =           (f1 < 0) ? m->geom_priority[g1]     : m->flex_priority[f1];
   int condim1 =             (f1 < 0) ? m->geom_condim[g1]       : m->flex_condim[f1];
-  mjtNum gap1 =             (f1 < 0) ? m->geom_gap[g1]          : m->flex_gap[f1];
   mjtNum solmix1 =          (f1 < 0) ? m->geom_solmix[g1]       : m->flex_solmix[f1];
   const mjtNum* solref1 =   (f1 < 0) ? m->geom_solref+g1*mjNREF : m->flex_solref+f1*mjNREF;
   const mjtNum* solimp1 =   (f1 < 0) ? m->geom_solimp+g1*mjNIMP : m->flex_solimp+f1*mjNIMP;
@@ -1531,14 +1534,10 @@ static void mj_contactParam(const mjModel* m, int* condim, mjtNum* gap,
   // get parameters from geom2 or flex2
   int priority2 =           (f2 < 0) ? m->geom_priority[g2]     : m->flex_priority[f2];
   int condim2 =             (f2 < 0) ? m->geom_condim[g2]       : m->flex_condim[f2];
-  mjtNum gap2 =             (f2 < 0) ? m->geom_gap[g2]          : m->flex_gap[f2];
   mjtNum solmix2 =          (f2 < 0) ? m->geom_solmix[g2]       : m->flex_solmix[f2];
   const mjtNum* solref2 =   (f2 < 0) ? m->geom_solref+g2*mjNREF : m->flex_solref+f2*mjNREF;
   const mjtNum* solimp2 =   (f2 < 0) ? m->geom_solimp+g2*mjNIMP : m->flex_solimp+f2*mjNIMP;
   const mjtNum* friction2 = (f2 < 0) ? m->geom_friction+g2*3    : m->flex_friction+f2*3;
-
-  // gap: add
-  *gap = gap1 + gap2;
 
   // different priority: copy from item with higher priority
   if (priority1 > priority2) {
@@ -1719,8 +1718,15 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int ipair, int g1, int g2) {
     margin = mj_assignMargin(m, m->pair_margin[ipair]);
   }
 
+  // set gap: dynamic or pair
+  if (ipair < 0) {
+    gap = m->geom_gap[g1] + m->geom_gap[g2];
+  } else {
+    gap = m->pair_gap[ipair];
+  }
+
   // bounding sphere filter
-  if (mj_filterSphere(m, d, g1, g2, margin)) {
+  if (mj_filterSphere(m, d, g1, g2, margin + gap)) {
     return;
   }
 
@@ -1733,7 +1739,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int ipair, int g1, int g2) {
   }
 
   // call collision detector to generate contacts
-  num = collisionFunc(m, d, con, g1, g2, margin);
+  num = collisionFunc(m, d, con, g1, g2, margin + gap);
 
   // check contacts
   if (!num) {
@@ -1746,15 +1752,14 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int ipair, int g1, int g2) {
     mjERROR("too many contacts returned by collision function");
   }
 
-  // set condim, gap, solref, solimp, friction: dynamic
+  // set condim, solref, solimp, friction: dynamic
   if (ipair < 0) {
-    mj_contactParam(m, &condim, &gap, solref, solimp, friction, g1, g2, -1, -1);
+    mj_contactParam(m, &condim, solref, solimp, friction, g1, g2, -1, -1);
   }
 
-  // set condim, gap, solref, solimp, friction: pair
+  // set condim, solref, solimp, friction: pair
   else {
     condim = m->pair_dim[ipair];
-    gap = m->pair_gap[ipair];
     mju_copy(solref, m->pair_solref+mjNREF*ipair, mjNREF);
     mju_copy(solimp, m->pair_solimp+mjNIMP*ipair, mjNIMP);
     mju_copy(friction, m->pair_friction+5*ipair, 5);
@@ -1778,7 +1783,7 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int ipair, int g1, int g2) {
     con[i].vert[1] = -1;
 
     // set remaining contact parameters
-    mj_setContact(m, con + i, condim, margin-gap, solref, solreffriction, solimp, friction);
+    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction);
   }
 
   // add to ncon
@@ -1801,9 +1806,10 @@ void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
   mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
   int condim;
   int flex_vertnum = m->flex_vertnum[f];
-  mjtNum gap, solref[mjNREF], solimp[mjNIMP], friction[5];
+  mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
+  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5];
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, &gap, solref, solimp, friction, g, -1, -1, f);
+  mj_contactParam(m, &condim, solref, solimp, friction, g, -1, -1, f);
 
   // collide all flex vertices with plane
   for (int i=0; i < flex_vertnum; i++) {
@@ -1814,7 +1820,7 @@ void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
     mjtNum dist = mju_dot3(dif, nrm);
 
     // no contact
-    if (dist > margin + radius) {
+    if (dist > margin + gap + radius) {
       continue;
     }
 
@@ -1835,7 +1841,7 @@ void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
     con.vert[1] = i;
 
     // set remaining contact parameters
-    mj_setContact(m, &con, condim, margin-gap, solref, solreffriction, solimp, friction);
+    mj_setContact(m, &con, condim, margin, solref, solreffriction, solimp, friction);
 
     // add to mjData, abort if too many contacts
     if (mj_addContact(m, d, &con)) {
@@ -1854,10 +1860,11 @@ void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
 
   // prepare contact parameters (same for all contacts)
   mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
+  mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
   int condim;
-  mjtNum gap, solref[mjNREF], solimp[mjNIMP], friction[5];
+  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5];
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, &gap, solref, solimp, friction, g, -1, -1, f);
+  mj_contactParam(m, &condim, solref, solimp, friction, g, -1, -1, f);
 
   // allocate temporary contact array on stack (zero-initialized)
   mj_markStack(d);
@@ -1865,7 +1872,7 @@ void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
   memset(con, 0, mjMAXCONPAIR * sizeof(mjContact));
 
   // call batched flex-SDF collision
-  int num = mjc_FlexSDF(m, d, con, g, f, margin);
+  int num = mjc_FlexSDF(m, d, con, g, f, margin + gap);
 
   // add contacts to mjData
   for (int i = 0; i < num; i++) {
@@ -1880,7 +1887,7 @@ void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
     con[i].vert[1] = -1;
 
     // set remaining contact parameters
-    mj_setContact(m, con + i, condim, margin-gap, solref, solreffriction, solimp, friction);
+    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction);
 
     // add to mjData, abort if too many contacts
     if (mj_addContact(m, d, con + i)) {
@@ -1949,9 +1956,9 @@ void mj_collideFlexInternal(const mjModel* m, mjData* d, int f) {
   int condim;
   int flex_elemnum = m->flex_elemnum[f];
   mjtNum radius = m->flex_radius[f];
-  mjtNum gap, solref[mjNREF], solimp[mjNIMP], friction[5];
+  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5];
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, &gap, solref, solimp, friction, -1, -1, f, f);
+  mj_contactParam(m, &condim, solref, solimp, friction, -1, -1, f, f);
   condim = 1;
 
   // process all elements
@@ -2048,13 +2055,14 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
 // test a geom and an elem for collision, add to contact list
 void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
   mjtNum margin = mj_assignMargin(m, m->geom_margin[g] + m->flex_margin[f]);
+  mjtNum gap = m->geom_gap[g] + m->flex_gap[f];
   int dim = m->flex_dim[f], type = m->geom_type[g];
   int num;
 
   // bounding sphere test: only if midphase is disabled
   if (mjDISABLED(mjDSBL_MIDPHASE)) {
     int eglobal = m->flex_elemadr[f] + e;
-    if (filterSphereBox(d->geom_xpos+3*g, m->geom_rbound[g]+margin,
+    if (filterSphereBox(d->geom_xpos+3*g, m->geom_rbound[g]+margin+gap,
                         d->flexelem_aabb+6*eglobal)) {
       return;
     }
@@ -2087,17 +2095,17 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
 
     // call raw primitive for corresponding geom type
     if (type == mjGEOM_SPHERE) {
-      num = mjraw_SphereCapsule(con, margin,
+      num = mjraw_SphereCapsule(con, margin + gap,
                                 d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g,
                                 pos, mat, size);
     }
     else if (type == mjGEOM_CAPSULE) {
-      num = mjraw_CapsuleCapsule(con, margin,
+      num = mjraw_CapsuleCapsule(con, margin + gap,
                                  d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g,
                                  pos, mat, size);
     }
     else {
-      num = mjraw_CapsuleBox(con, margin,
+      num = mjraw_CapsuleBox(con, margin + gap,
                              pos, mat, size,
                              d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g);
 
@@ -2110,13 +2118,13 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
 
   // heightfield : elem
   else if (type == mjGEOM_HFIELD) {
-    num = mjc_HFieldElem(m, d, con, g, f, e, margin);
+    num = mjc_HFieldElem(m, d, con, g, f, e, margin + gap);
   }
 
   // sphere : triangle
   else if (type == mjGEOM_SPHERE && dim == 2) {
     const mjtNum* vertxpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
-    num = mjraw_SphereTriangle(con, margin,
+    num = mjraw_SphereTriangle(con, margin + gap,
                                d->geom_xpos+3*g, m->geom_size[3*g],
                                vertxpos + 3*edata[0], vertxpos + 3*edata[1],
                                vertxpos + 3*edata[2], m->flex_radius[f]);
@@ -2125,7 +2133,7 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
   // box : triangle
   else if (type == mjGEOM_BOX && dim == 2) {
     const mjtNum* vertxpos = d->flexvert_xpos + 3 * m->flex_vertadr[f];
-    num = mjraw_BoxTriangle(con, margin, d->geom_xpos + 3 * g,
+    num = mjraw_BoxTriangle(con, margin + gap, d->geom_xpos + 3 * g,
                             d->geom_xmat + 9 * g, m->geom_size + 3 * g,
                             vertxpos + 3 * edata[0], vertxpos + 3 * edata[1],
                             vertxpos + 3 * edata[2], m->flex_radius[f]);
@@ -2135,14 +2143,14 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
   else if (type == mjGEOM_CAPSULE && dim == 2) {
     const mjtNum* vertxpos = d->flexvert_xpos + 3 * m->flex_vertadr[f];
     num = mjraw_CapsuleTriangle(
-        con, margin, d->geom_xpos + 3 * g, d->geom_xmat + 9 * g,
+        con, margin + gap, d->geom_xpos + 3 * g, d->geom_xmat + 9 * g,
         m->geom_size + 3 * g, vertxpos + 3 * edata[0], vertxpos + 3 * edata[1],
         vertxpos + 3 * edata[2], m->flex_radius[f]);
   }
 
   // general geom : elem
   else {
-    num = mjc_ConvexElem(m, d, con, g, -1, -1, -1, f, e, margin);
+    num = mjc_ConvexElem(m, d, con, g, -1, -1, -1, f, e, margin + gap);
   }
 
   // check contacts
@@ -2153,9 +2161,9 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
 
   // get contact parameters
   int condim;
-  mjtNum gap, friction[5], solref[mjNREF], solimp[mjNIMP];
+  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP];
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, &gap, solref, solimp, friction, g, -1, -1, f);
+  mj_contactParam(m, &condim, solref, solimp, friction, g, -1, -1, f);
 
   // add contacts
   for (int i=0; i < num; i++) {
@@ -2170,7 +2178,7 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
     con[i].vert[1] = -1;
 
     // set remaining contact parameters
-    mj_setContact(m, con + i, condim, margin-gap, solref, solreffriction, solimp, friction);
+    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction);
   }
 
   // add to ncon
@@ -2184,17 +2192,19 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
 // test two elems for collision, add to contact list
 void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2) {
   mjtNum margin = mj_assignMargin(m, m->flex_margin[f1] + m->flex_margin[f2]);
+  mjtNum gap = m->flex_gap[f1] + m->flex_gap[f2];
   int dim1 = m->flex_dim[f1], dim2 = m->flex_dim[f2];
   int num;
 
-  // ignore margin in self-collisions
+  // ignore margin and gap in self-collisions
   if (f1 == f2) {
     margin = 0;
+    gap = 0;
   }
 
   // bounding box filter (not applied in midphase)
   if (filterBox(d->flexelem_aabb+6*(m->flex_elemadr[f1]+e1),
-                d->flexelem_aabb+6*(m->flex_elemadr[f2]+e2), margin)) {
+                d->flexelem_aabb+6*(m->flex_elemadr[f2]+e2), margin + gap)) {
     return;
   }
 
@@ -2231,12 +2241,12 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
                    pos2, mat2, size2);
 
     // raw primitive
-    num = mjraw_CapsuleCapsule(con, margin, pos1, mat1, size1, pos2, mat2, size2);
+    num = mjraw_CapsuleCapsule(con, margin + gap, pos1, mat1, size1, pos2, mat2, size2);
   }
 
   // general convex collision
   else {
-    num = mjc_ConvexElem(m, d, con, -1, f1, e1, -1, f2, e2, margin);
+    num = mjc_ConvexElem(m, d, con, -1, f1, e1, -1, f2, e2, margin + gap);
   }
 
   // check contacts
@@ -2247,14 +2257,9 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
 
   // get contact parameters
   int condim;
-  mjtNum gap, friction[5], solref[mjNREF], solimp[mjNIMP];
+  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP];
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, &gap, solref, solimp, friction, -1, -1, f1, f2);
-
-  // ignore gap in self collision, since margin is ignored
-  if (f1 == f2) {
-    gap = 0;
-  }
+  mj_contactParam(m, &condim, solref, solimp, friction, -1, -1, f1, f2);
 
   // add contacts
   for (int i=0; i < num; i++) {
@@ -2269,7 +2274,7 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
     con[i].vert[1] = -1;
 
     // set remaining contact parameters
-    mj_setContact(m, con + i, condim, margin-gap, solref, solreffriction, solimp, friction);
+    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction);
   }
 
   // add to ncon
@@ -2336,9 +2341,9 @@ void mj_collideElemVert(const mjModel* m, mjData* d, int f, int e, int v) {
 
   // get contact parameters
   int condim;
-  mjtNum gap, friction[5], solref[mjNREF], solimp[mjNIMP];
+  mjtNum friction[5], solref[mjNREF], solimp[mjNIMP];
   mjtNum solreffriction[mjNREF] = {0};
-  mj_contactParam(m, &condim, &gap, solref, solimp, friction, -1, -1, f, f);
+  mj_contactParam(m, &condim, solref, solimp, friction, -1, -1, f, f);
 
   // add contacts
   for (int i=0; i < num; i++) {

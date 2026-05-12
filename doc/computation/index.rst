@@ -909,7 +909,7 @@ In addition to the above quantities which are computed online, each contact has 
 model definition.
 
 .. list-table::
-   :widths: 1 5
+   :widths: 2 6
    :header-rows: 1
 
    * - Parameter
@@ -920,15 +920,53 @@ model definition.
      - Vector of friction coefficients with dimensionality ``condim-1``. See below for semantics of the specific
        coefficients.
    * - ``margin``
-     - The distance margin used to determine if the contact should be included in the global contact array
-       ``mjData.contact``.
+     - The geometric inflation of the geom surfaces. Contacts are detected when the distance is below
+       ``margin + gap``, and contact forces are generated when the distance is below ``margin``.
    * - ``gap``
-     - For custom computations it is sometimes convenient to include contacts in ``mjData.contact`` but not generate
-       contact forces. This is what ``gap`` does: contact forces are generated only when the normal distance is below
-       (margin - gap).
+     - An additional detection buffer beyond ``margin``. Contacts with distance between ``margin`` and
+       ``margin + gap`` are included in ``mjData.contact`` as inactive contacts, but no contact forces are generated.
+       This is useful for action-at-a-distance effects, for example by :ref:`adhesion<actuator-adhesion>` actuators.
    * - ``solref`` and ``solimp``
      - :ref:`Solver <Solver>` parameters, explained later.
 
+.. _coMarginGap:
+
+margin and gap
+^^^^^^^^^^^^^^
+
+Each geom has a ``margin`` and a ``gap`` parameter, defined in the table above. The values for both parameters are
+:ref:`summed<CContact>` when considering contact between the two geoms. Together they define three regimes of contact
+detection and force generation, illustrated in the figure below.
+
+.. image:: ../images/modeling/margin_gap_light.svg
+   :width: 90%
+   :align: center
+   :class: only-light
+
+.. image:: ../images/modeling/margin_gap_dark.svg
+   :width: 90%
+   :align: center
+   :class: only-dark
+
+The distance between two geom surfaces determines which regime applies:
+
+- **No contact** (distance > ``margin + gap``): The geom surfaces, including their gap buffers, are not overlapping.
+  No contact is generated.
+
+- **Inactive contact** (``margin`` < distance ≤ ``margin + gap``): A contact is detected and included in
+  ``mjData.contact``, but no contact force is generated (``efc_address = -1``). These contacts can be used for custom
+  computations, for example by :ref:`adhesion<actuator-adhesion>` actuators.
+
+- **Active contact** (distance ≤ ``margin``): The contact is active and constraint forces are generated. The constraint
+  impedance function is applied to the quantity ``distance - margin``, which is non-positive in this regime.
+
+Negative ``margin`` values, corresponding "shrinkgage" of the geometric shape, are permitted. In this case
+``margin + gap >= 0`` must be maintained for collision detection to work correctly.
+
+.. _coCondim:
+
+condim
+^^^^^^
 The contact friction cone can be either elliptic or pyramidal. This is a global setting determined by the choice of
 constraint solver: the elliptic solvers work with elliptic cones, while the pyramidal solvers work with pyramidal cones,
 as defined later. The ``condim`` parameter determines the contact type, and has the following meaning:
@@ -960,6 +998,11 @@ as defined later. The ``condim`` parameter determines the contact type, and has 
 Note that condim cannot be 2 or 5. This is because the two tangential directions and the two rolling directions are
 treated as pairs. The friction coefficients within a pair can be different though, which can be used to model skating
 for example.
+
+.. _coCones:
+
+Friction cones
+^^^^^^^^^^^^^^
 
 Now we describe the friction cones and the corresponding Jacobians more formally. In this section only, let :math:`f`
 denote the vector of constraint forces for a single contact (as opposed to the system-level vector of constraint

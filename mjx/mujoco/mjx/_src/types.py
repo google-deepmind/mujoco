@@ -942,7 +942,7 @@ class Contact(PyTreeNode):
     dist: distance between nearest points; neg: penetration
     pos: position of contact point: midpoint between geoms            (3,)
     frame: normal is in [0-2]                                         (9,)
-    includemargin: include if dist<includemargin=margin-gap           (1,)
+    includemargin: include if dist<includemargin=margin               (1,)
     friction: tangent1, 2, spin, roll1, 2                             (5,)
     solref: constraint solver reference, normal direction             (mjNREF,)
     solreffriction: constraint solver reference, friction directions  (mjNREF,)

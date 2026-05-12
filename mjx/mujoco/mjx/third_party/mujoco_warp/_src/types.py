@@ -17,6 +17,7 @@ import enum
 from typing import Callable
 
 import mujoco
+from mujoco.mjx.third_party.mujoco_warp._src.util_pkg import check_version
 import numpy as np
 import warp as wp
 
@@ -26,6 +27,8 @@ MJ_MINIMP = mujoco.mjMINIMP  # minimum constraint impedance
 MJ_MAXIMP = mujoco.mjMAXIMP  # maximum constraint impedance
 MJ_MAXCONPAIR = mujoco.mjMAXCONPAIR
 MJ_MINMU = mujoco.mjMINMU  # minimum friction
+# True if MuJoCo >= 3.9.0 (new margin/gap semantics: includemargin = margin)
+_NEW_GAP_SEMANTICS = check_version("mujoco>=3.9.0")
 # maximum size (by number of edges) of an horizon in EPA algorithm
 MJ_MAX_EPAHORIZON = 24
 # maximum average number of trianglarfaces EPA can insert at each iteration
@@ -974,7 +977,7 @@ class Model:
     geom_quat: local orientation offset rel. to body         (*, ngeom, 4)
     geom_friction: friction for (slide, spin, roll)          (*, ngeom, 3)
     geom_margin: detect contact if dist<margin               (*, ngeom,)
-    geom_gap: include in solver if dist<margin-gap           (*, ngeom,)
+    geom_gap: additional contact detection buffer            (*, ngeom,)
     geom_fluid: fluid interaction parameters                 (ngeom, mjNFLUID)
     geom_rgba: rgba when material is omitted                 (*, ngeom, 4)
     site_type: geom type for rendering (GeomType)            (nsite,)
@@ -1082,7 +1085,7 @@ class Model:
     pair_solreffriction: solver reference: contact friction  (*, npair, mjNREF)
     pair_solimp: solver impedance: contact                   (*, npair, mjNIMP)
     pair_margin: detect contact if dist<margin               (*, npair,)
-    pair_gap: include in solver if dist<margin-gap           (*, npair,)
+    pair_gap: additional contact detection buffer            (*, npair,)
     pair_friction: tangent1, 2, spin, roll1, 2               (*, npair, 5)
     exclude_signature: body1 << 16 + body2                   (nexclude,)
     eq_type: constraint type (EqType)                        (neq,)
@@ -1663,7 +1666,7 @@ class Contact:
     dist: distance between nearest points; neg: penetration          (naconmax,)
     pos: position of contact point: midpoint between geoms           (naconmax, 3)
     frame: normal is in [0-2], points from geom[0] to geom[1]        (naconmax, 3, 3)
-    includemargin: include if dist<includemargin=margin-gap          (naconmax,)
+    includemargin: include if dist<includemargin=margin              (naconmax,)
     friction: tangent1, 2, spin, roll1, 2                            (naconmax, 5)
     solref: constraint solver reference, normal direction            (naconmax, 2)
     solreffriction: constraint solver reference, friction directions (naconmax, 2)

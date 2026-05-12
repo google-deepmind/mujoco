@@ -22,6 +22,7 @@ import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINMU
+from mujoco.mjx.third_party.mujoco_warp._src.types import _NEW_GAP_SEMANTICS
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
@@ -197,14 +198,15 @@ def write_contact(
   Returns 1 if the contact is active (dist < margin), 0 otherwise.
   """
   active = dist_in < margin_in
+  detected = dist_in < margin_in + gap_in
 
   # skip contact and no collision sensor
-  if (pairid_in[0] == -2 or not active) and pairid_in[1] == -1:
+  if (pairid_in[0] == -2 or not detected) and pairid_in[1] == -1:
     return 0
 
   contact_type = 0
 
-  if pairid_in[0] >= -1 and active:
+  if pairid_in[0] >= -1 and detected:
     contact_type |= ContactType.CONSTRAINT
 
   if pairid_in[1] >= 0:
@@ -217,7 +219,10 @@ def write_contact(
     contact_frame_out[cid] = frame_in
     contact_geom_out[cid] = geoms_in
     contact_worldid_out[cid] = worldid_in
-    includemargin = margin_in - gap_in
+    if wp.static(_NEW_GAP_SEMANTICS):
+      includemargin = margin_in
+    else:
+      includemargin = margin_in - gap_in
     contact_includemargin_out[cid] = includemargin
     contact_dim_out[cid] = condim_in
     contact_friction_out[cid] = friction_in

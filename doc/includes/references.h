@@ -108,7 +108,7 @@ struct mjContact_ {                // result of collision detection functions
   mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]
 
   // contact parameters set by mj_collideGeoms
-  mjtNum  includemargin;           // include if dist<includemargin=margin-gap
+  mjtNum  includemargin;           // margin for force generation
   mjtNum  friction[5];             // tangent1, 2, spin, roll1, 2
   mjtNum  solref[mjNREF];          // constraint solver reference, normal direction
   mjtNum  solreffriction[mjNREF];  // constraint solver reference, friction directions
@@ -1236,8 +1236,8 @@ struct mjModel_ {
   mjtNum*   geom_pos;             // local position offset rel. to body       (ngeom x 3)
   mjtNum*   geom_quat;            // local orientation offset rel. to body    (ngeom x 4)
   mjtNum*   geom_friction;        // friction for (slide, spin, roll)         (ngeom x 3)
-  mjtNum*   geom_margin;          // detect contact if dist<margin            (ngeom x 1)
-  mjtNum*   geom_gap;             // include in solver if dist<margin-gap     (ngeom x 1)
+  mjtNum*   geom_margin;          // geometric inflation for contact          (ngeom x 1)
+  mjtNum*   geom_gap;             // additional contact detection buffer      (ngeom x 1)
   mjtNum*   geom_fluid;           // fluid interaction parameters             (ngeom x mjNFLUID)
   mjtNum*   geom_user;            // user data                                (ngeom x nuser_geom)
   float*    geom_rgba;            // rgba when material is omitted            (ngeom x 4)
@@ -1304,8 +1304,8 @@ struct mjModel_ {
   mjtNum*   flex_solref;          // constraint solver reference: contact     (nflex x mjNREF)
   mjtNum*   flex_solimp;          // constraint solver impedance: contact     (nflex x mjNIMP)
   mjtNum*   flex_friction;        // friction for (slide, spin, roll)         (nflex x 3)
-  mjtNum*   flex_margin;          // detect contact if dist<margin            (nflex x 1)
-  mjtNum*   flex_gap;             // include in solver if dist<margin-gap     (nflex x 1)
+  mjtNum*   flex_margin;          // geometric inflation for contact          (nflex x 1)
+  mjtNum*   flex_gap;             // additional contact detection buffer      (nflex x 1)
   mjtByte*  flex_internal;        // internal flex collision enabled          (nflex x 1)
   int*      flex_selfcollide;     // self collision mode (mjtFlexSelf)        (nflex x 1)
   int*      flex_activelayers;    // number of active element layers, 3D only (nflex x 1)
@@ -1474,8 +1474,8 @@ struct mjModel_ {
   mjtNum*   pair_solref;          // solver reference: contact normal         (npair x mjNREF)
   mjtNum*   pair_solreffriction;  // solver reference: contact friction       (npair x mjNREF)
   mjtNum*   pair_solimp;          // solver impedance: contact                (npair x mjNIMP)
-  mjtNum*   pair_margin;          // detect contact if dist<margin            (npair x 1)
-  mjtNum*   pair_gap;             // include in solver if dist<margin-gap     (npair x 1)
+  mjtNum*   pair_margin;          // geometric inflation for contact          (npair x 1)
+  mjtNum*   pair_gap;             // additional contact detection buffer      (npair x 1)
   mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)
 
   // excluded body pairs for collision detection
@@ -2127,7 +2127,7 @@ typedef struct mjsGeom_ {          // geom specification
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
-  double gap;                      // include in solver if dist < margin-gap
+  double gap;                      // additional contact detection buffer
 
   // inertia inference
   double mass;                     // used to compute density
@@ -2238,7 +2238,7 @@ typedef struct mjsFlex_ {          // flex specification
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
-  double gap;                      // include in solver if dist<margin-gap
+  double gap;                      // additional contact detection buffer
 
   // other properties
   int dim;                         // element dimensionality
@@ -2389,7 +2389,7 @@ typedef struct mjsPair_ {          // pair specification
   mjtNum solreffriction[mjNREF];   // solver reference, frictional directions
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
-  double gap;                      // include in solver if dist<margin-gap
+  double gap;                      // additional contact detection buffer
   double friction[5];              // full contact friction
   mjString* info;                  // message appended to errors
 } mjsPair;

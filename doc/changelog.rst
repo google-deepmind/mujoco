@@ -2,6 +2,57 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The semantics of the contact ``margin`` and ``gap`` parameters have been redesigned for conceptual clarity and
+     consistency with `NVIDIA Newton <https://developer.nvidia.com/newton>`__. See the new
+     :ref:`margin and gap<coMarginGap>` documentation section for details.
+
+     Previously, ``margin`` controlled the *detection threshold* (contacts exist when ``dist < margin``) and ``gap``
+     was subtracted from it to produce the *force threshold* (forces generated when ``dist < margin - gap``). This was
+     unintuitive: users expected ``margin`` to mean geometric inflation and ``gap`` to mean a spatial gap.
+
+     Under the new semantics, ``margin`` is the geometric inflation of the geom surface and ``gap`` is an additional
+     detection buffer beyond the inflated surface:
+
+     - **Detection**: contacts are created when ``dist < margin + gap``.
+     - **Force generation**: constraint forces are applied when ``dist < margin``.
+     - **Inactive contacts**: contacts with ``margin < dist ≤ margin + gap`` are included in ``mjData.contact`` but
+       generate no force (``efc_address = -1``). This is useful for :ref:`adhesion<actuator-adhesion>` actuators and
+       custom callbacks.
+
+     With the default values ``margin = 0``, ``gap = 0``, the behavior is unchanged.
+
+     .. image:: images/modeling/margin_gap_light.svg
+        :width: 80%
+        :align: center
+        :class: only-light
+
+     .. image:: images/modeling/margin_gap_dark.svg
+        :width: 80%
+        :align: center
+        :class: only-dark
+
+     |
+
+     **Migration:** Models that use the default ``gap="0"`` (the vast majority) require no changes. For models with
+     ``gap > 0``, apply the following transformation to preserve identical behavior:
+
+     .. code-block::
+
+        margin_new = margin_old - gap_old
+        gap_new    = gap_old
+
+     For example, a geom with the old attributes ``margin="0.1" gap="0.1"`` should be changed to
+     ``margin="0" gap="0.1"``.
+
+     Negative ``margin`` values are now permitted (corresponding to ``gap > margin`` under the old semantics). The
+     constraint ``margin + gap >= 0`` should be maintained to ensure valid collision detection.
+
 Version 3.8.1 (May 11, 2026)
 ----------------------------
 

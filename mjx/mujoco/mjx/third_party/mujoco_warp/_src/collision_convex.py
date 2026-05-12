@@ -35,6 +35,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAX_EPAFACES
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAX_EPAHORIZON
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXCONPAIR
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import _NEW_GAP_SEMANTICS
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
@@ -773,7 +774,10 @@ def ccd_kernel_builder(
     if is_collision_sensor:
       cutoff = 1.0e32
     else:
-      cutoff = 0.0
+      if wp.static(_NEW_GAP_SEMANTICS):
+        cutoff = gap
+      else:
+        cutoff = 0.0
     dist, ncollision, w1, w2, multiccd_idx = ccd(
       opt_ccd_tolerance[worldid % opt_ccd_tolerance.shape[0]],
       cutoff,
@@ -793,8 +797,12 @@ def ccd_kernel_builder(
       epa_horizon_in[ccdid],
     )
 
-    if dist >= 0.0 and pairid[1] == -1:
-      return 0
+    if wp.static(_NEW_GAP_SEMANTICS):
+      if dist >= gap and pairid[1] == -1:
+        return 0
+    else:
+      if dist >= 0.0 and pairid[1] == -1:
+        return 0
 
     # CCD operates on margin-inflated shapes (support() inflates each geom by
     # 0.5 * margin).  The returned dist is therefore relative to the inflated

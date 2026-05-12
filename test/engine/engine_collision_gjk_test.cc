@@ -2019,8 +2019,10 @@ TEST_F(MjGjkTest, CylinderBoxMargin) {
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
 
+  // margin=0.1 means forces generated when dist<0.1
+  // the contact at dist~0.015 is within margin, so forces are generated
   EXPECT_EQ(data->ncon, 1);
-  EXPECT_LT(data->contact[0].efc_address, 0);
+  EXPECT_GE(data->contact[0].efc_address, 0);
 
   mj_deleteData(data);
   mj_deleteModel(model);

@@ -376,8 +376,8 @@ adjust it properly through the XML.
 :at:`o_margin`: :at-val:`real, "0"`
    This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
    enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom<body-geom>` or
-   :ref:`pair<contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the
-   Computation chapter. The related gap parameter does not have a global override.
+   :ref:`pair<contact-pair>` depending on how the contact pair was generated. See :ref:`margin and gap<coMarginGap>` in
+   the Computation chapter. The related gap parameter does not have a global override.
 
 .. _option-o_solref:
 .. _option-o_solimp:
@@ -2702,18 +2702,20 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-margin:
 
 :at:`margin`: :at-val:`real, "0"`
-   Distance threshold below which contacts are detected and included in the global array mjData.contact. This however
-   does not mean that contact force will be generated. A contact is considered active only if the distance between the
-   two geom surfaces is below margin-gap. Recall that constraint impedance can be a function of distance, as explained
-   in :ref:`CSolver`. The quantity this function is applied to is the distance between
-   the two geoms minus the margin plus the gap.
+   Geometric inflation of the geom surface for the purpose of contact force generation. When the distance between two
+   geom surfaces is below ``margin``, the contact is considered active and contact forces are generated. The constraint
+   impedance can be a function of distance, as explained in :ref:`CSolver`. The quantity this function is applied to is
+   the distance between the two geoms minus the ``margin``. See :ref:`margin and gap<coMarginGap>`.
 
 .. _body-geom-gap:
 
 :at:`gap`: :at-val:`real, "0"`
-   This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the
-   constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is
-   positive, geom distances between margin and margin-gap correspond to such inactive contacts.
+   Additional contact detection buffer beyond ``margin``. When this value is positive, contacts are detected at
+   distance ``margin + gap`` but forces are only generated at distance ``margin``. Contacts with distance between
+   ``margin`` and ``margin + gap`` are included in ``mjData.contact`` as inactive contacts (with ``efc_address`` = -1).
+   These inactive contacts can be used for custom computations, for example by :ref:`adhesion<actuator-adhesion>`
+   actuators which use contacts in the gap zone to generate adhesive forces without producing contact forces.
+   See :ref:`margin and gap<coMarginGap>`.
 
 .. _body-geom-fromto:
 
@@ -4110,14 +4112,15 @@ friction can only be created with this element.
 .. _contact-pair-margin:
 
 :at:`margin`: :at-val:`real, "0"`
-   Distance threshold below which contacts are detected and included in the global array mjData.contact.
+   Geometric inflation for the purpose of contact force generation. Contacts are detected at distance ``margin + gap``
+   and forces are generated at distance ``margin``.
 
 .. _contact-pair-gap:
 
 :at:`gap`: :at-val:`real, "0"`
-   This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the
-   constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is
-   positive, geom distances between margin and margin-gap correspond to such inactive contacts.
+   Additional contact detection buffer beyond ``margin``. When this value is positive, contacts with distance between
+   ``margin`` and ``margin + gap`` are included in ``mjData.contact`` as inactive contacts but no contact forces are
+   generated.
 
 
 .. _contact-exclude:
@@ -6286,16 +6289,16 @@ This element has nine custom attributes in addition to the common attributes:
 
 This element defines an active adhesion actuator which injects forces at contacts in the normal direction, see
 illustration video. The model shown in the video can be found `here
-<https://github.com/google-deepmind/mujoco/tree/main/model/adhesion>`_ and includes inline annotations. The transmission target
-is a :el:`body`, and adhesive forces are injected into all contacts involving geoms which belong to this body. The force
-is divided equally between multiple contacts. When the :at:`gap` attribute is not used, this actuator requires active
-contacts and cannot apply a force at a distance, more like the active adhesion on the feet of geckos and insects rather
-than an industrial vacuum gripper. In order to enable "suction at a distance", "inflate" the body's geoms by
-:at:`margin` and add a corresponding :at:`gap` which activates contacts only after :at:`gap` penetration distance. This
-will create a layer around the geom where contacts are detected but are inactive, and can be used for
-applying the adhesive force. In the video above, such inactive contacts are blue, while active contacts are orange.
-An adhesion actuator's length is always 0. :at:`ctrlrange` is required and must also be nonnegative (no repulsive forces
-are allowed). The underlying :el:`general` attributes are set as follows:
+<https://github.com/google-deepmind/mujoco/tree/main/model/adhesion>`_ and includes inline annotations. The transmission
+target is a :el:`body`, and adhesive forces are injected into all contacts involving geoms which belong to this body.
+The force is divided equally between multiple contacts. When the :ref:`gap<body-geom-gap>` attribute is not used, this
+actuator requires active contacts and cannot apply a force at a distance, more like the active adhesion on the feet of
+geckos and insects rather than an industrial vacuum gripper. In order to enable "suction at a distance", set the
+:ref:`gap<body-geom-gap>` attribute of the body's geoms to a positive value. This creates a layer around each geom where
+contacts are detected but no contact forces are generated, and the adhesive force can act across this gap. In the video
+above, such inactive contacts are blue, while active contacts are orange. An adhesion actuator's length is always 0.
+:at:`ctrlrange` is required and must also be nonnegative (no repulsive forces are allowed). The underlying :el:`general`
+attributes are set as follows:
 
 =========== ======= =========== ========
 Attribute   Setting Attribute   Setting

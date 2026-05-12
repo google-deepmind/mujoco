@@ -2118,7 +2118,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='detect contact if dist<margin',
+                 doc='geometric inflation for contact',
                  array_extent=('ngeom',),
              ),
              StructFieldDecl(
@@ -2126,7 +2126,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='include in solver if dist<margin-gap',
+                 doc='additional contact detection buffer',
                  array_extent=('ngeom',),
              ),
              StructFieldDecl(
@@ -2598,7 +2598,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='detect contact if dist<margin',
+                 doc='geometric inflation for contact',
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
@@ -2606,7 +2606,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='include in solver if dist<margin-gap',
+                 doc='additional contact detection buffer',
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
@@ -3846,7 +3846,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='detect contact if dist<margin',
+                 doc='geometric inflation for contact',
                  array_extent=('npair',),
              ),
              StructFieldDecl(
@@ -3854,7 +3854,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='include in solver if dist<margin-gap',
+                 doc='additional contact detection buffer',
                  array_extent=('npair',),
              ),
              StructFieldDecl(
@@ -5169,7 +5169,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='includemargin',
                  type=ValueType(name='mjtNum'),
-                 doc='include if dist<includemargin=margin-gap',
+                 doc='margin for force generation',
              ),
              StructFieldDecl(
                  name='friction',
@@ -7644,7 +7644,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='gap',
                  type=ValueType(name='double'),
-                 doc='include in solver if dist < margin-gap',
+                 doc='additional contact detection buffer',
              ),
              StructFieldDecl(
                  name='mass',
@@ -8158,7 +8158,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='gap',
                  type=ValueType(name='double'),
-                 doc='include in solver if dist<margin-gap',
+                 doc='additional contact detection buffer',
              ),
              StructFieldDecl(
                  name='dim',
@@ -8917,7 +8917,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='gap',
                  type=ValueType(name='double'),
-                 doc='include in solver if dist<margin-gap',
+                 doc='additional contact detection buffer',
              ),
              StructFieldDecl(
                  name='friction',

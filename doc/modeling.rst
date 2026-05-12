@@ -344,7 +344,7 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
 
    For equality constraints, :math:`r` is the constraint violation. For limits, normal directions of elliptic cones and
    all directions of pyramidal cones, :math:`r` is the (limit or contact) distance minus the margin at which the
-   constraint becomes active; for contacts this margin is :ref:`margin<body-geom-margin>`-:ref:`gap<body-geom-gap>`.
+   constraint becomes active; for contacts this margin is :ref:`margin<body-geom-margin>`.
    Limit and contact constraints are active when :math:`r < 0` (penetration).
 
    For frictional constraints, see :ref:`Friction<CSolverFriction>`.
@@ -516,6 +516,7 @@ are as follows:
 **margin**, **gap**
    The sum of the two geom margins (or gaps respectively) is used. The geom priority is ignored here, because the
    margin and gap are distance properties and a one-sided specification makes little sense.
+   See :ref:`margin and gap<coMarginGap>`.
 
 .. _solmixing:
 

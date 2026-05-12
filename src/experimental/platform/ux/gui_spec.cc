@@ -421,7 +421,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(solref, "solver reference");
       FIELD(solimp, "solver impedance");
       FIELD(margin, "margin for contact detection");
-      FIELD(gap, "include in solver if dist < margin-gap");
+      FIELD(gap, "additional contact detection buffer");
       FIELD(mass, "used to compute density");
       FIELD(density, "used to compute mass and inertia from volume or surface");
       FIELD(typeinertia, "selects between surface and volume inertia");
@@ -530,7 +530,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(solref, "solver reference");
       FIELD(solimp, "solver impedance");
       FIELD(margin, "margin for contact detection");
-      FIELD(gap, "include in solver if dist<margin-gap");
+      FIELD(gap, "additional contact detection buffer");
       FIELD(dim, "element dimensionality");
       FIELD(radius, "radius around primitive element");
       FIELD(size, "vertex bounding box half sizes in qpos0");
@@ -626,7 +626,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(solreffriction, "solver reference, frictional directions");
       FIELD(solimp, "solver impedance");
       FIELD(margin, "margin for contact detection");
-      FIELD(gap, "include in solver if dist<margin-gap");
+      FIELD(gap, "additional contact detection buffer");
       FIELD(friction, "full contact friction");
       FIELD(info, "message appended to errors");
       break;

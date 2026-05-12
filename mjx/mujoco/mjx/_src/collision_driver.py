@@ -275,7 +275,7 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
     if ip.size > 0:
       # pair contacts get their params from m.pair_* fields
       params.append((
-          m.pair_margin[ip] - m.pair_gap[ip],
+          m.pair_margin[ip],
           jp.clip(m.pair_friction[ip], min=eps),
           m.pair_solref[ip],
           m.pair_solreffriction[ip],
@@ -284,7 +284,6 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
     if geom1.size > 0 and geom2.size > 0:
       # other contacts get their params from geom fields
       margin = m.geom_margin[geom1] + m.geom_margin[geom2]
-      gap = m.geom_gap[geom1] + m.geom_gap[geom2]
       solmix1, solmix2 = m.geom_solmix[geom1], m.geom_solmix[geom2]
       mix = solmix1 / (solmix1 + solmix2)
       mix = jp.where((solmix1 < eps) & (solmix2 < eps), 0.5, mix)
@@ -315,7 +314,7 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
 
       # unpack 5d friction:
       friction = friction[:, [0, 0, 1, 2, 2]]
-      params.append((margin - gap, friction, solref, solreffriction, solimp))
+      params.append((margin, friction, solref, solreffriction, solimp))
 
     params = map(jp.concatenate, zip(*params))
     includemargin, friction, solref, solreffriction, solimp = params
