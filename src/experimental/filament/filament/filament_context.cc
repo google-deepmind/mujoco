@@ -36,15 +36,11 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/filament_platform_factory.h"
 #include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/scene_view.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
-
-// Forward declarations of functions defined in scene_view.cc to prevent
-// circular dependencies.
-void DoRender(filament::Renderer* renderer, const mjrRenderRequest& request);
-void DoReadPixels(filament::Renderer* renderer, const mjrRenderRequest& request,
-                  const mjrReadPixelsRequest& read_request);
 
 FilamentContext::FilamentContext(const mjrFilamentConfig* config)
     : config_(*config) {
@@ -127,7 +123,8 @@ mjrFrameHandle FilamentContext::Render(
         break;
       }
       if (render_began) {
-        DoRender(renderer_, request);
+        SceneView* scene_view = SceneView::downcast(request.scene);
+        scene_view->Render(renderer_, request);
       }
     } else {
       if (read_requests.empty()) {
@@ -147,8 +144,11 @@ mjrFrameHandle FilamentContext::Render(
         break;
       }
       if (render_began) {
-        DoRender(renderer_, request);
-        DoReadPixels(renderer_, request, read_request);
+        SceneView* scene_view = SceneView::downcast(request.scene);
+        scene_view->Render(renderer_, request);
+        RenderTarget* render_target = RenderTarget::downcast(request.target);
+        render_target->ReadColorPixels(renderer_, (uint8_t*)read_request.output,
+                                       read_request.num_bytes);
       }
     }
   }

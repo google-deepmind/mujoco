@@ -88,6 +88,10 @@ SceneBridge::SceneBridge(mjrfContext* ctx, const mjModel* model)
 
   mjrf_configureSceneFromModel(scene_.get(), model);
 
+  auto clear_color = ReadElement(model, "filament.clearColor",
+                                 filament::math::float4(0, 0, 0, 1));
+  mjrf_setClearColor(ctx_, &clear_color[0]);
+
   default_shadow_map_size_ = ReadElement(
       model, "filament.shadows.map_size", default_shadow_map_size_);
   default_vsm_blur_width_ = ReadElement(

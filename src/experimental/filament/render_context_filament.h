@@ -211,6 +211,9 @@ mjrFrameHandle mjrf_render(mjrfContext* ctx, const mjrRenderRequest* req,
 // triggering any callbacks as needed.
 void mjrf_waitForFrame(mjrfContext* ctx, mjrFrameHandle frame);
 
+// Sets the clear color for the renderer.
+void mjrf_setClearColor(mjrfContext* ctx, const float color[3]);
+
 // Information about a single frame of rendering.
 struct mjrFrameStats {
   // The frame rate of the renderer, in frames per second.

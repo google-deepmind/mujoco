@@ -162,7 +162,8 @@ mjrMesh* mjrf_createMesh(mjrfContext* ctx, const mjrMeshData* data) {
 void mjrf_destroyMesh(mjrMesh* mesh) { delete mujoco::Mesh::downcast(mesh); }
 
 mjrScene* mjrf_createScene(mjrfContext* ctx, const mjrSceneParams* params) {
-  return new mujoco::SceneView(mujoco::FilamentContext::downcast(ctx), *params);
+  return new mujoco::SceneView(
+      mujoco::FilamentContext::downcast(ctx)->GetEngine(), *params);
 }
 
 void mjrf_destroyScene(mjrScene* scene) {
@@ -170,7 +171,8 @@ void mjrf_destroyScene(mjrScene* scene) {
 }
 
 mjrLight* mjrf_createLight(mjrfContext* ctx, const mjrLightParams* params) {
-  return new mujoco::Light(mujoco::FilamentContext::downcast(ctx), *params);
+  return new mujoco::Light(mujoco::FilamentContext::downcast(ctx)->GetEngine(),
+                           *params);
 }
 
 void mjrf_destroyLight(mjrLight* light) {
@@ -179,8 +181,9 @@ void mjrf_destroyLight(mjrLight* light) {
 
 mjrRenderable* mjrf_createRenderable(mjrfContext* ctx,
                                      const mjrRenderableParams* params) {
-  return new mujoco::Renderable(mujoco::FilamentContext::downcast(ctx),
-                                *params);
+  return new mujoco::Renderable(
+      mujoco::FilamentContext::downcast(ctx)->GetEngine(), *params,
+      mujoco::FilamentContext::downcast(ctx)->GetObjectManager());
 }
 
 void mjrf_destroyRenderable(mjrRenderable* renderable) {
@@ -344,6 +347,11 @@ mjrFrameHandle mjrf_render(mjrfContext* ctx, const mjrRenderRequest* req,
 
 void mjrf_waitForFrame(mjrfContext* ctx, mjrFrameHandle frame) {
   mujoco::FilamentContext::downcast(ctx)->WaitForFrame(frame);
+}
+
+void mjrf_setClearColor(mjrfContext* ctx, const float color[3]) {
+  mujoco::FilamentContext::downcast(ctx)->SetClearColor(
+      {color[0], color[1], color[2], 1.0f});
 }
 
 void mjrf_getFrameStats(mjrfContext* ctx, mjrFrameHandle frame,

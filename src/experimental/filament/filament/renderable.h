@@ -25,7 +25,6 @@
 #include <utils/Entity.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament_util.h"
-#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/render_context_filament.h"
@@ -39,7 +38,8 @@ namespace mujoco {
 // on the surface).
 class Renderable : public mjrRenderable {
  public:
-  Renderable(FilamentContext* ctx, const mjrRenderableParams& params);
+  Renderable(filament::Engine* engine, const mjrRenderableParams& params,
+             ObjectManager* object_mgr);
   ~Renderable() noexcept;
 
   Renderable(const Renderable&) = delete;

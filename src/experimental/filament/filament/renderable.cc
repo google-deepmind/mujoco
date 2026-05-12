@@ -31,7 +31,6 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/builtins.h"
-#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
@@ -49,8 +48,10 @@ using filament::math::mat4f;
 static constexpr float kArrowScale = 1.f / 6.f;
 static constexpr float kArrowHeadSize = 1.75f;
 
-Renderable::Renderable(FilamentContext* ctx, const mjrRenderableParams& params)
-    : object_mgr_(ctx->GetObjectManager()), params_(params) {
+Renderable::Renderable(filament::Engine* engine,
+                       const mjrRenderableParams& params,
+                       ObjectManager* object_mgr)
+    : object_mgr_(object_mgr), params_(params) {
   mjr_defaultMaterial(&material_);
 }
 

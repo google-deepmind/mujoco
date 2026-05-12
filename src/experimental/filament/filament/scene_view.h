@@ -27,7 +27,6 @@
 #include <filament/View.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
-#include "experimental/filament/filament/filament_context.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/render_target.h"
@@ -43,7 +42,7 @@ namespace mujoco {
 // (e.g. normal, depth, segmentation, etc.) as well as reflective surfaces.
 class SceneView : public mjrScene {
  public:
-  SceneView(FilamentContext* ctx, const mjrSceneParams& params);
+  SceneView(filament::Engine* engine, const mjrSceneParams& params);
   ~SceneView();
 
   SceneView(const SceneView&) = delete;
@@ -56,23 +55,10 @@ class SceneView : public mjrScene {
   void RemoveFromScene(Renderable* renderable);
   void SetSkybox(const Texture* skybox_texture);
 
-  // Parameters for rendering the scene.
-  struct RenderRequest {
-    // The draw mode (e.g. normal, depth, segmentation) to render.
-    mjrDrawMode draw_mode = mjDRAW_MODE_COLOR;
-    // The target viewport for the rendered image.
-    mjrRect viewport;
-    // The camera from which to render the scene.
-    mjrCamera camera;
-    // An optional render target into which the scene will be rendered.
-    RenderTarget* target = nullptr;
-  };
-
-  // Renders the scene.
-  void Render(filament::Renderer* renderer, const RenderRequest& request);
+  void Render(filament::Renderer* renderer, const mjrRenderRequest& request);
 
   // Returns the filament Engine managing the scene.
-  filament::Engine* GetEngine() const { return ctx_->GetEngine(); }
+  filament::Engine* GetEngine() const { return engine_; }
 
   // Enables/disables shadows for the default render view.
   void EnableShadows();
@@ -110,7 +96,7 @@ class SceneView : public mjrScene {
   // rendered in their own passes to create the reflective texture.
   void AddReflectiveRenderable(Renderable* renderable);
 
-  FilamentContext* ctx_ = nullptr;
+  filament::Engine* engine_ = nullptr;
   filament::Scene* scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;
