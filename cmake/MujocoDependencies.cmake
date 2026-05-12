@@ -38,6 +38,10 @@ set(MUJOCO_DEP_VERSION_qhull
     62ccc56af071eaa478bef6ed41fd7a55d3bb2d80
     CACHE STRING "Version of `qhull` to be fetched."
 )
+set(MUJOCO_DEP_VERSION_miniz
+    3.1.1
+    CACHE STRING "Version of `miniz` to be fetched."
+)
 set(MUJOCO_DEP_VERSION_Eigen3
     ea13a98decd497a8c5588fb5de71b57bcf10d864
     CACHE STRING "Version of `Eigen3` to be fetched."
@@ -242,6 +246,15 @@ if(WIN32)
     target_compile_options(ccd PRIVATE -Wno-macro-redefined)
   endif()
 endif()
+
+set(BUILD_TESTS OFF)
+fetchpackage(
+    PACKAGE_NAME  miniz
+    GIT_REPO      https://github.com/richgel999/miniz.git
+    GIT_TAG       ${MUJOCO_DEP_VERSION_miniz}
+    TARGETS       miniz
+)
+
 
 if(MUJOCO_BUILD_TESTS OR MUJOCO_BUILD_STUDIO OR MUJOCO_USE_FILAMENT)
   set(ABSL_PROPAGATE_CXX_STD ON)
