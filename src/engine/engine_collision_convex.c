@@ -34,17 +34,6 @@
 
 #define mjMINVAL2 (mjMINVAL * mjMINVAL)
 
-// allocate callback for EPA in nativeccd
-static void* ccd_allocate(void* data, size_t nbytes) {
-  mj_markStack((mjData*)data);
-  return mj_stackAllocByte((mjData*)data, nbytes, sizeof(mjtNum));
-}
-
-// free callback for EPA in nativeccd
-static void ccd_free(void* data, void* buffer) {
-  mj_freeStack((mjData*)data);
-}
-
 // ccd prism first dir
 static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t *vec) {
   ccdVec3Set(vec, 0, 0, 1);
@@ -98,15 +87,15 @@ static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj
   mjtNum dist;
 
   // set config
+  mj_markStack(d);
   config.max_iterations = m->opt.ccd_iterations;
   config.tolerance = m->opt.ccd_tolerance;
   config.max_contacts = ncon;
   config.dist_cutoff = 0;  // no geom distances needed
-  config.context = (void*)d;
-  config.alloc = ccd_allocate;
-  config.free = ccd_free;
+  config.buffer = mj_stackAllocByte(d, mjc_ccdSize(config.max_iterations), sizeof(mjtNum));
 
   if ((dist = mjc_ccd(&config, &status, obj1, obj2)) < 0) {
+    mj_freeStack(d);
     int nwitness = status.nx;
     for (int i = 0; i < nwitness; i++, con++) {
       con->dist = margin + dist;
@@ -119,6 +108,7 @@ static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj
     }
     return nwitness;
   }
+  mj_freeStack(d);
   return 0;
 }
 
@@ -838,7 +828,7 @@ static int maxContacts(const mjModel* m, const mjCCDObj* obj1, const mjCCDObj* o
   // reduce mesh collisions to 4 contacts max
   if (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH) {
     if (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH) {
-      return mjENABLED(mjENBL_MULTICCD) ? 4 : 1;
+      return mjDISABLED(mjDSBL_MULTICCD) ? 1 : 4;
     }
   }
 
@@ -867,7 +857,7 @@ int mjc_Convex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtN
   }
 
   // look for additional contacts
-  if (ncon == 1 && mjENABLED(mjENBL_MULTICCD)  // TODO(tassa) leave as bitflag or make geom attribute (?)
+  if (ncon == 1 && !mjDISABLED(mjDSBL_MULTICCD)  // TODO(tassa) leave as bitflag or make geom attribute (?)
       && m->geom_type[g1] != mjGEOM_ELLIPSOID && m->geom_type[g1] != mjGEOM_SPHERE
       && m->geom_type[g2] != mjGEOM_ELLIPSOID && m->geom_type[g2] != mjGEOM_SPHERE) {
     // multiCCD parameters

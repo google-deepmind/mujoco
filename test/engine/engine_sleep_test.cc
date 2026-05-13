@@ -533,6 +533,59 @@ TEST_F(SleepTest, Equality) {
   mj_deleteModel(m);
 }
 
+// Test that the midpoint integrator doesn't break the sleep qvel=0 invariant.
+// A standalone free body (eligible for midpoint) with high viscosity should
+// eventually go to sleep, and after sleeping, qvel/qacc must be exactly zero.
+TEST_F(SleepTest, MidpointSleepZeroVelocity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" viscosity="10"
+            sleep_tolerance="0.01">
+      <flag sleep="enable" gravity="disable" constraint="disable"
+            contact="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="1" euler="10 20 30"
+              pos=".03 .02 .01"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // give initial velocity (both translational and angular)
+  d->qvel[0] = 0.5;
+  d->qvel[1] = 0.5;
+  d->qvel[2] = 0.5;
+  d->qvel[3] = 1.0;
+  d->qvel[4] = 2.0;
+  d->qvel[5] = 3.0;
+
+  // step until body goes to sleep
+  for (int step = 0; step < 1000; step++) {
+    mj_step(m, d);
+    if (d->ntree_awake == 0) break;
+  }
+
+  // body should have gone to sleep
+  ASSERT_EQ(d->ntree_awake, 0) << "body did not go to sleep";
+
+  // qvel and qacc must be exactly zero for sleeping body
+  for (int i = 0; i < 6; i++) {
+    EXPECT_EQ(d->qvel[i], 0.0) << "qvel[" << i << "] not zero after sleep";
+    EXPECT_EQ(d->qacc[i], 0.0) << "qacc[" << i << "] not zero after sleep";
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 static const char* const kInitIslandFailModel =
     "engine/testdata/sleep/init_island_fail.xml";
 

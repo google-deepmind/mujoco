@@ -77,6 +77,7 @@ bool IsValidElementOrNodeHeader22(const std::string& line) {
 mjCFlexcomp::mjCFlexcomp(void) {
   type = mjFCOMPTYPE_GRID;
   count[0] = count[1] = count[2] = 10;
+  cellcount[0] = cellcount[1] = cellcount[2] = -1;
   mjuu_setvec(spacing, 0.02, 0.02, 0.02);
   mjuu_setvec(scale, 1, 1, 1);
   mass = 1;
@@ -96,6 +97,51 @@ mjCFlexcomp::mjCFlexcomp(void) {
   plugin.name = (mjString*)&plugin_instance_name;
 }
 
+
+// identify empty cells and pin nodes exclusively in empty cells
+void mjCFlexcomp::MarkEmptyCells(mjCFlex* flex, const double* points,
+                                 int npnt, const double minmax[6],
+                                 int nx, int ny, int nz) {
+  int cx = flex->spec.cellcount[0];
+  int cy = flex->spec.cellcount[1];
+  int cz = flex->spec.cellcount[2];
+  int order = flex->spec.order;
+
+  // delegate cell_empty computation to mjCFlex
+  int nelem = element.size() / (flex->spec.dim + 1);
+  flex->ComputeCellEmpty(points, element.data(), npnt, nelem, flex->spec.dim, minmax);
+
+  // pin nodes that belong exclusively to empty cells
+  for (int gi = 0; gi < nx; gi++) {
+    for (int gj = 0; gj < ny; gj++) {
+      for (int gk = 0; gk < nz; gk++) {
+        // find all cells that reference this node
+        bool all_empty = true;
+        int ci_min = std::max(0, gi == 0 ? 0 : (gi - 1) / order);
+        int ci_max = std::min(cx - 1, gi / order);
+        int cj_min = std::max(0, gj == 0 ? 0 : (gj - 1) / order);
+        int cj_max = std::min(cy - 1, gj / order);
+        int ck_min = std::max(0, gk == 0 ? 0 : (gk - 1) / order);
+        int ck_max = std::min(cz - 1, gk / order);
+
+        for (int ci = ci_min; ci <= ci_max && all_empty; ci++) {
+          for (int cj = cj_min; cj <= cj_max && all_empty; cj++) {
+            for (int ck = ck_min; ck <= ck_max && all_empty; ck++) {
+              if (!flex->cell_empty[ci * cy * cz + cj * cz + ck]) {
+                all_empty = false;
+              }
+            }
+          }
+        }
+
+        if (all_empty) {
+          int idx = gi * ny * nz + gj * nz + gk;
+          pinned[idx] = true;
+        }
+      }
+    }
+  }
+}
 
 
 // make flexcomp object
@@ -269,10 +315,19 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
 
   // construct pinned array
   int nnode = 0;
-  if (doftype == mjFCOMPDOF_TRILINEAR) {
-    nnode = 8;
-  } else if (doftype == mjFCOMPDOF_QUADRATIC) {
-    nnode = 27;
+  if (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
+    int order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
+    // multi-cell count for mesh/direct/gmsh, else single cell
+    int cx = 1, cy = 1, cz = 1;
+    if (type == mjFCOMPTYPE_MESH || type == mjFCOMPTYPE_DIRECT ||
+        type == mjFCOMPTYPE_GMSH) {
+      if (cellcount[0] >= 0) {
+        cx = cellcount[0];
+        cy = cellcount[1];
+        cz = cellcount[2];
+      }
+    }
+    nnode = (cx*order+1) * (cy*order+1) * (cz*order+1);
   }
   pinned = vector<bool>(std::max(npnt, nnode), rigid);
 
@@ -538,6 +593,17 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
         }
       }
 
+      // add two orthogonal sliders (x and y only)
+      else if (doftype == mjFCOMPDOF_2D) {
+        for (int j=0; j < 2; j++) {
+          mjsJoint* jnt = mjs_addJoint(pb, 0);
+          jnt->type = mjJNT_SLIDE;
+          mjuu_setvec(jnt->pos, 0, 0, 0);
+          mjuu_setvec(jnt->axis, 0, 0, 0);
+          jnt->axis[j] = 1;
+        }
+      }
+
       // construct body name, add to vertbody
       char txt[100];
       mju::sprintf_arr(txt, "%s_%d", name.c_str(), i);
@@ -562,36 +628,97 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     }
   }
 
-  // create nodal mesh for trilinear interpolation
+  // create nodal mesh for trilinear/quadratic interpolation
   if (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
-    int order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
-    flex->SetOrder(order);
-    std::vector<double> node(3*(order+1)*(order+1)*(order+1), 0);
+    flex->spec.order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
+
+    if (cellcount[0] >= 0) {
+      flex->spec.cellcount[0] = cellcount[0];
+      flex->spec.cellcount[1] = cellcount[1];
+      flex->spec.cellcount[2] = cellcount[2];
+    }
+
+    // total number of nodes with shared boundaries
+    int nx = flex->spec.cellcount[0] * flex->spec.order + 1;
+    int ny = flex->spec.cellcount[1] * flex->spec.order + 1;
+    int nz = flex->spec.cellcount[2] * flex->spec.order + 1;
+    int nnode = nx * ny * nz;
+
+    // mark empty cells and pin nodes exclusively in empty cells
+    MarkEmptyCells(flex, point.data(), npnt, minmax, nx, ny, nz);
+
+    // if MarkEmptyCells pinned any nodes, force centered=false
+    // so that pf->node (local positions) is saved to the model
+    if (centered) {
+      for (int i = 0; i < nnode; i++) {
+        if (pinned[i]) {
+          centered = false;
+          break;
+        }
+      }
+    }
+
+    std::vector<double> node(3 * nnode, 0);
     int idx = 0;
-    double step = 1.0 / (double)order;
+
+    // Simpson's rule weights for quadratic mass distribution
     double massP2[3] = {1. / 6., 2. / 3., 1. / 6.};
-    for (int i=0; i <= order; i++) {
-      for (int j=0; j <= order; j++) {
-        for (int k=0; k <= order; k++) {
+
+
+
+    // collect created bodies for mass normalization
+    std::vector<mjsBody*> node_bodies;
+
+    for (int gi = 0; gi < nx; gi++) {
+      for (int gj = 0; gj < ny; gj++) {
+        for (int gk = 0; gk < nz; gk++) {
+          // parametric position in [0, 1]^3
+          double s = (double)gi / (flex->spec.cellcount[0] * flex->spec.order);
+          double t = (double)gj / (flex->spec.cellcount[1] * flex->spec.order);
+          double u = (double)gk / (flex->spec.cellcount[2] * flex->spec.order);
+
+          // physical position
+          double px = minmax[0] + s * (minmax[3] - minmax[0]);
+          double py = minmax[1] + t * (minmax[4] - minmax[1]);
+          double pz = minmax[2] + u * (minmax[5] - minmax[2]);
+
           if (pinned[idx]) {
-            node[3*idx+0] = minmax[0] + i * step * (minmax[3] - minmax[0]);
-            node[3*idx+1] = minmax[1] + j * step * (minmax[4] - minmax[1]);
-            node[3*idx+2] = minmax[2] + k * step * (minmax[5] - minmax[2]);
-            mjs_appendString(pf->nodebody, mjs_getName(body->element)->c_str());
+            node[3*idx+0] = px;
+            node[3*idx+1] = py;
+            node[3*idx+2] = pz;
+            mjs_appendString(pf->nodebody,
+                             mjs_getName(body->element)->c_str());
             idx++;
             continue;
           }
 
           mjsBody* pb = mjs_addBody(body, 0);
-          pb->pos[0] = minmax[0] + i * step * (minmax[3] - minmax[0]);
-          pb->pos[1] = minmax[1] + j * step * (minmax[4] - minmax[1]);
-          pb->pos[2] = minmax[2] + k * step * (minmax[5] - minmax[2]);
+          pb->pos[0] = px;
+          pb->pos[1] = py;
+          pb->pos[2] = pz;
           mjuu_zerovec(pb->ipos, 3);
+
+          // mass distribution
           if (doftype == mjFCOMPDOF_TRILINEAR) {
-            pb->mass = mass / 8;
+            pb->mass = 1.0;
           } else {
-            pb->mass = mass * massP2[i] * massP2[j] * massP2[k];
+            // local index within the cell for mass computation
+            int li = gi % flex->spec.order;
+            int lj = gj % flex->spec.order;
+            int lk = gk % flex->spec.order;
+            // boundary nodes: average mass contribution
+            int ncells_i = (gi > 0 && gi < nx-1 && li == 0) ? 2 : 1;
+            int ncells_j = (gj > 0 && gj < ny-1 && lj == 0) ? 2 : 1;
+            int ncells_k = (gk > 0 && gk < nz-1 && lk == 0) ? 2 : 1;
+            // use Simpson weights
+            double wi = massP2[li == 0 ? 0 : li];
+            double wj = massP2[lj == 0 ? 0 : lj];
+            double wk = massP2[lk == 0 ? 0 : lk];
+            pb->mass = wi * wj * wk * ncells_i * ncells_j * ncells_k;
           }
+
+          node_bodies.push_back(pb);
+
           pb->inertia[0] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
           pb->inertia[1] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
           pb->inertia[2] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
@@ -607,12 +734,27 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
 
           // construct node name, add to nodebody
           char txt[100];
-          mju::sprintf_arr(txt, "%s_%d_%d_%d", name.c_str(), i, j, k);
+          mju::sprintf_arr(txt, "%s_%d_%d_%d", name.c_str(), gi, gj, gk);
           mjs_setName(pb->element, txt);
           mjs_appendString(pf->nodebody, mjs_getName(pb->element)->c_str());
 
           idx++;
         }
+      }
+    }
+
+    // normalize masses so total equals prescribed mass
+    double total_mass = 0;
+    for (mjsBody* pb : node_bodies) {
+      total_mass += pb->mass;
+    }
+    if (total_mass > 0) {
+      double scale = mass / total_mass;
+      for (mjsBody* pb : node_bodies) {
+        pb->mass *= scale;
+        pb->inertia[0] *= scale;
+        pb->inertia[1] *= scale;
+        pb->inertia[2] *= scale;
       }
     }
 
@@ -625,20 +767,61 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     mjs_setDouble(pf->vert, point.data(), point.size());
   }
 
-  // create edge equality constraint
+  // create equality constraints
   if (equality) {
-    mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
-    mjs_setDefault(pe->element, &model->Default()->spec);
     // equality 1=edge(mjEQ_FLEX), 2=vert(mjEQ_FLEXVERT), 3=strain(mjEQ_FLEXSTRAIN)
-    if (equality == 1) {
-      pe->type = mjEQ_FLEX;
-    } else if (equality == 2) {
-      pe->type = mjEQ_FLEXVERT;
+    if (equality == 1 || equality == 2) {
+      mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
+      mjs_setDefault(pe->element, &model->Default()->spec);
+      pe->type = (equality == 1) ? mjEQ_FLEX : mjEQ_FLEXVERT;
+      pe->active = true;
+      mjs_setString(pe->name1, name.c_str());
     } else if (equality == 3) {
-      pe->type = mjEQ_FLEXSTRAIN;
+      // create one strain constraint per finite element, storing element index
+      flex->has_strain_eq = true;
+      int cell_cx = flex->spec.cellcount[0];
+      int cell_cy = flex->spec.cellcount[1];
+      int cell_cz = flex->spec.cellcount[2];
+      bool shell = (doftype == mjFCOMPDOF_TRILINEAR ||
+                    doftype == mjFCOMPDOF_QUADRATIC) &&
+                    flex->spec.elastic2d;
+
+      if (shell) {
+        // shell mode: one constraint per boundary face element
+        int nelem_fe = 2*(cell_cy*cell_cz + cell_cx*cell_cz + cell_cx*cell_cy);
+        for (int fe = 0; fe < nelem_fe; fe++) {
+          mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
+          mjs_setDefault(pe->element, &model->Default()->spec);
+          pe->type = mjEQ_FLEXSTRAIN;
+          pe->active = true;
+          mjs_setString(pe->name1, name.c_str());
+          pe->data[0] = fe;
+          pe->data[1] = -1;  // sentinel: shell mode
+          pe->data[2] = -1;
+        }
+      } else {
+        // volume mode: one constraint per 3D cell
+        for (int ci = 0; ci < cell_cx; ci++) {
+          for (int cj = 0; cj < cell_cy; cj++) {
+            for (int ck = 0; ck < cell_cz; ck++) {
+              // skip empty cells
+              if (!flex->cell_empty.empty() &&
+                  flex->cell_empty[ci * cell_cy * cell_cz + cj * cell_cz + ck]) {
+                continue;
+              }
+              mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
+              mjs_setDefault(pe->element, &model->Default()->spec);
+              pe->type = mjEQ_FLEXSTRAIN;
+              pe->active = true;
+              mjs_setString(pe->name1, name.c_str());
+              pe->data[0] = ci;
+              pe->data[1] = cj;
+              pe->data[2] = ck;
+            }
+          }
+        }
+      }
     }
-    pe->active = true;
-    mjs_setString(pe->name1, name.c_str());
   }
 
   return true;

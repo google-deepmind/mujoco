@@ -15,8 +15,6 @@
 // Tests for engine/engine_core_constraint.c.
 
 #include <array>
-#include <cstddef>
-#include <cstring>
 #include <string>
 #include <vector>
 
@@ -35,135 +33,8 @@ namespace {
 
 using ::testing::NotNull;
 using ::testing::Pointwise;
+
 using CoreConstraintTest = MujocoTest;
-
-// compute rotation residual following formula in mj_instantiateEquality
-void RotationResidual(const mjModel *model, mjData *data,
-                        const mjtNum qpos[7], const mjtNum dqpos[6],
-                        mjtNum res[3]) {
-  // copy configuration, compute required quantities with mj_step1
-  mju_copy(data->qpos, qpos, 7);
-
-  // perturb configuration if given
-  if (dqpos) {
-    mj_integratePos(model, data->qpos, dqpos, 1);
-  }
-
-  // update relevant quantities
-  mj_step1(model, data);
-
-  // compute orientation residual
-  mjtNum quat1[4], quat2[4], quat3[4];
-  mju_copy4(quat1, data->xquat+4*1);
-  mju_negQuat(quat2, data->xquat+4*2);
-  mju_mulQuat(quat3, quat2, quat1);
-  mju_copy3(res, quat3+1);
-}
-
-// validate rotational Jacobian used in welds
-TEST_F(CoreConstraintTest, WeldRotJacobian) {
-#ifdef mjUSESINGLE
-  GTEST_SKIP() << "FD Jacobian with eps=1e-6 below float32 precision";
-#endif
-  constexpr char xml[] = R"(
-  <mujoco>
-    <option jacobian="dense"/>
-    <worldbody>
-      <body>
-        <joint type="ball"/>
-        <geom size=".1"/>
-      </body>
-      <body pos=".5 0 0">
-        <joint axis="1 0 0" pos="0 0 .01"/>
-        <joint axis="0 1 0" pos=".02 0 0"/>
-        <joint axis="0 0 1" pos="0 .03 0"/>
-        <geom size=".1"/>
-      </body>
-    </worldbody>
-  </mujoco>
-  )";
-  char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, testing::NotNull()) << error;
-  ASSERT_EQ(model->nq, 7);
-  ASSERT_EQ(model->nv, 6);
-  static const int nv = 6;  // for increased readability
-  mjData* data = mj_makeData(model);
-
-  // arbitrary initial values for the ball and hinge joints
-  mjtNum qpos0[7] = {.5, .5, .5, .5, .7, .8, .9};
-
-  // compute required quantities using mj_step1
-  mj_step1(model, data);
-
-  // get orientation error
-  mjtNum res[3];
-  RotationResidual(model, data, qpos0, NULL, res);
-
-  // compute Jacobian with finite-differencing
-  mjtNum jacFD[3*nv];
-  mjtNum dqpos[nv] = {0};
-  mjtNum dres[3];
-  const mjtNum eps = 1e-6;
-  for (int i=0; i < nv; i++) {
-    // nudge i-th dof
-    dqpos[i] = eps;
-
-    // get nudged residual
-    RotationResidual(model, data, qpos0, dqpos, dres);
-
-    // remove nudge
-    dqpos[i] = 0.0;
-
-    // compute Jacobian column
-    for (int j=0; j < 3; j++) {
-      jacFD[nv*j + i] = (dres[j] - res[j]) / eps;
-    }
-  }
-
-  // reset mjData to qpos0
-  mju_copy(data->qpos, qpos0, 7);
-  mj_step1(model, data);
-
-  // intermediate quaternions quat1 and quat2
-  mjtNum quat1[4], negQuat2[4];
-  mju_copy4(quat1, data->xquat+4*1);
-  mju_negQuat(negQuat2, data->xquat+4*2);
-
-  // get analytical Jacobian following formula in mj_instantiateEquality
-  mjtNum jacdif[3*nv], jac0[3*nv], jac1[3*nv];
-  mjtNum point[3] = {0};
-
-  // rotational Jacobian difference
-  mj_jacDifPair(model, data, NULL, 2, 1, point, point,
-                NULL, NULL, NULL, jac0, jac1, jacdif, mj_isSparse(model),
-                /*flg_skipcommon=*/0);
-
-  // formula: 0.5 * neg(quat2) * (jac1-jac2) * quat1
-  mjtNum axis[3], quat3[4], quat4[4];
-  for (int j=0; j < nv; j++) {
-    // axis = [jac1-jac2]_col(j)
-    axis[0] = jacdif[0*nv+j];
-    axis[1] = jacdif[1*nv+j];
-    axis[2] = jacdif[2*nv+j];
-
-    // apply formula
-    mju_mulQuatAxis(quat3, negQuat2, axis);
-    mju_mulQuat(quat4, quat3, quat1);
-
-    // correct Jacobian
-    jacdif[0*nv+j] = 0.5*quat4[1];
-    jacdif[1*nv+j] = 0.5*quat4[2];
-    jacdif[2*nv+j] = 0.5*quat4[3];
-  }
-
-  // test that analytical and finite-differenced Jacobians match
-  EXPECT_THAT(AsVector(jacFD, 3*nv),
-              Pointwise(MjNear(eps, 1e-3), AsVector(jacdif, 3*nv)));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
-}
 
 // test formulas for penetration at rest
 TEST_F(CoreConstraintTest, RestPenetration) {
@@ -749,6 +620,191 @@ TEST_F(CoreConstraintTest, StrainConstraintNoPinning) {
   mj_deleteModel(m);
 }
 
+// Test flex strain constraint with quadratic interpolation
+TEST_F(CoreConstraintTest, StrainConstraintQuadratic) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <option integrator="implicitfast" jacobian="dense"/>
+  <worldbody>
+    <body name="parent">
+      <joint type="free"/>
+      <geom type="box" size=".01 .01 .01" mass=".1"/>
+      <flexcomp name="test" type="box"
+                spacing=".1 .1 .1" radius="0.001"
+                pos="0 0 .5" dof="quadratic" mass="1" dim="3">
+        <contact selfcollide="none"/>
+        <edge equality="strain"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+
+  mj_resetData(m, d);
+  mj_forward(m, d);
+
+  // Check constraints generated
+  EXPECT_GT(d->ne, 0) << "Expected strain constraints";
+
+  // Check that initial strain is ~0
+  mjtNum max_pos = 0;
+  for (int i = 0; i < d->ne; i++) {
+    if (mju_abs(d->efc_pos[i]) > max_pos) {
+      max_pos = mju_abs(d->efc_pos[i]);
+    }
+  }
+  EXPECT_LT(max_pos, 1e-6) << "Initial strain should be ~0";
+
+  // Check Jacobian for NaN
+  int nv = m->nv;
+  bool has_bad_jacobian = false;
+  for (int i = 0; i < d->ne; i++) {
+    for (int j = 0; j < nv; j++) {
+      if (mju_isBad(d->efc_J[i*nv + j])) {
+        has_bad_jacobian = true;
+      }
+    }
+  }
+  EXPECT_FALSE(has_bad_jacobian) << "Jacobian has NaN";
+
+  // Run simulation for a few steps
+  for (int i = 0; i < 100; i++) {
+    mj_step(m, d);
+    ASSERT_FALSE(mju_isBad(d->qpos[0]))
+        << "Simulation unstable at step " << i;
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(CoreConstraintTest, ShellModeBendZeroForceAtRest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp type="grid" count="8 8 8" spacing=".07 .07 .07" pos="0 0 1"
+                dim="3" cellcount="1 1 1" radius=".001" rgba="0 .7 .7 1"
+                mass="5" name="softbody" dof="trilinear">
+        <elasticity young="0" poisson="0.1" damping="0.01"
+                    elastic2d="bend" thickness="0.02"/>
+        <edge equality="strain"/>
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  mj_forward(m, d);
+
+  // Check number of equalities
+  EXPECT_EQ(m->neq, 6);
+
+  // Check total number of scalar equality constraints
+  // 6 faces * 6 physical modes per face = 36
+  // (2 spurious rigid-rotation modes from transverse shear are projected out)
+  EXPECT_EQ(d->ne, 36);
+
+  // all constraint residuals should be zero at rest
+  for (int i = 0; i < d->ne; i++) {
+    EXPECT_NEAR(d->efc_pos[i], 0, 1e-10)
+        << "nonzero constraint residual at " << i;
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// Test quadratic passive forces (no constraints) for stability
+TEST_F(CoreConstraintTest, QuadraticPassiveForceStability) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <option integrator="implicitfast" solver="CG" tolerance="1e-6"/>
+  <worldbody>
+    <geom type="plane" size="10 10 1"/>
+    <flexcomp name="test" type="grid" count="3 3 3"
+              spacing=".05 .05 .05" radius="0.001"
+              pos="0 0 .3" dof="quadratic" mass="1" dim="3">
+      <contact selfcollide="none"/>
+      <elasticity young="1e4" damping="0.01"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+
+  // Run for 500 steps — should stay stable
+  for (int i = 0; i < 500; i++) {
+    mj_step(m, d);
+    ASSERT_FALSE(mju_isBad(d->qpos[0]))
+        << "Passive quadratic unstable at step " << i;
+    for (int j = 0; j < m->nv; j++) {
+      ASSERT_LT(mju_abs(d->qvel[j]), 1000.0)
+          << "Velocity exploded at step " << i;
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// Test quadratic with anisotropic cells (like what mesh bounding box creates)
+TEST_F(CoreConstraintTest, QuadraticAnisotropicStrain) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <option integrator="implicitfast" solver="CG" tolerance="1e-6"/>
+  <size memory="50M"/>
+  <worldbody>
+    <geom type="plane" size="10 10 1"/>
+    <body name="parent">
+      <joint type="free"/>
+      <geom type="box" size=".01 .01 .01" mass=".1"/>
+      <flexcomp name="test" type="grid" count="3 3 3"
+                spacing=".1 .05 .08" radius="0.001"
+                pos="0 0 .5" dof="quadratic" mass="1" dim="3">
+        <contact selfcollide="none" internal="false"/>
+        <edge equality="strain" damping="0.01"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+
+  mj_forward(m, d);
+  EXPECT_GT(d->ne, 0) << "Expected strain constraints";
+
+  // Run for 200 steps with gravity + contact
+  for (int i = 0; i < 200; i++) {
+    mj_step(m, d);
+    ASSERT_FALSE(mju_isBad(d->qpos[0]))
+        << "Anisotropic quadratic unstable at step " << i;
+    for (int j = 0; j < m->nv; j++) {
+      ASSERT_LT(mju_abs(d->qvel[j]), 1000.0)
+          << "Velocity exploded at step " << i
+          << ", qvel[" << j << "]=" << d->qvel[j];
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 TEST_F(CoreConstraintTest, ContactSharedDofJacobian) {
   constexpr char xml[] = R"(
   <mujoco>
@@ -787,6 +843,254 @@ TEST_F(CoreConstraintTest, ContactSharedDofJacobian) {
   mj_deleteModel(model);
 }
 
+static const char* const kJdotvConnect2dPath =
+    "engine/testdata/core_constraint/jdotv_connect_2d.xml";
+static const char* const kJdotvConnect3dPath =
+    "engine/testdata/core_constraint/jdotv_connect_3d.xml";
+static const char* const kJdotvWeld3dPath =
+    "engine/testdata/core_constraint/jdotv_weld_3d.xml";
+
+// validate mj_Jdotv against finite-differenced constraint Jacobian
+TEST_F(CoreConstraintTest, JdotvFiniteDifference) {
+
+  for (const char* path : {kJdotvConnect2dPath,
+                           kJdotvConnect3dPath,
+                           kJdotvWeld3dPath}) {
+    const std::string xml_path = GetTestDataFilePath(path);
+    char err[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, err, sizeof(err));
+    ASSERT_THAT(m, NotNull()) << err << " for " << path;
+    int nv = m->nv;
+    mjData* d = mj_makeData(m);
+
+    // simulate for 1 second to accumulate velocity
+    while (d->time < 1.0) {
+      mj_step(m, d);
+    }
+
+    // forward to populate constraints
+    mj_forward(m, d);
+    ASSERT_GT(d->ne, 0) << "no equality constraints for " << path;
+    int ne = d->ne;
+
+    // get dense J_0 (ne x nv)
+    std::vector<mjtNum> J0(ne * nv);
+    if (mj_isSparse(m)) {
+      mju_sparse2dense(J0.data(), d->efc_J, ne, nv,
+                       d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+    } else {
+      mju_copy(J0.data(), d->efc_J, ne * nv);
+    }
+
+    // compute mj_Jdotv at current state
+    std::vector<mjtNum> jdv(ne, 0);
+    mj_Jdotv(m, d, jdv.data());
+
+    // save qpos and qvel
+    std::vector<mjtNum> qpos0(m->nq), qvel0(nv);
+    mju_copy(qpos0.data(), d->qpos, m->nq);
+    mju_copy(qvel0.data(), d->qvel, nv);
+
+    // integrate qpos forward by h using qvel
+    const mjtNum h = MjTol(1e-7, 5e-4);
+    mj_integratePos(m, d->qpos, d->qvel, h);
+    mj_forward(m, d);
+
+    // get dense J_h (ne x nv)
+    ASSERT_EQ(d->ne, ne) << "constraint count changed after integration";
+    std::vector<mjtNum> Jh(ne * nv);
+    if (mj_isSparse(m)) {
+      mju_sparse2dense(Jh.data(), d->efc_J, ne, nv,
+                       d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+    } else {
+      mju_copy(Jh.data(), d->efc_J, ne * nv);
+    }
+
+    // FD: Jdotv_fd[i] = -sum_j (Jh[i,j] - J0[i,j]) / h * qvel[j]
+    // (negated because mj_Jdotv subtracts)
+    std::vector<mjtNum> jdv_fd(ne, 0);
+    for (int i = 0; i < ne; i++) {
+      for (int j = 0; j < nv; j++) {
+        jdv_fd[i] -= (Jh[i*nv+j] - J0[i*nv+j]) / h * qvel0[j];
+      }
+    }
+
+    // compare
+    EXPECT_THAT(AsVector(jdv.data(), ne),
+                Pointwise(MjNear(1e-4, 1e-2), AsVector(jdv_fd.data(), ne)))
+        << "Jdotv FD mismatch for " << path;
+
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
+
+// Test 2: forward-inverse identity preserved with Jdot*v correction
+TEST_F(CoreConstraintTest, JdotvFwdInvIdentity) {
+  for (const char* path : {kJdotvConnect2dPath,
+                           kJdotvConnect3dPath,
+                           kJdotvWeld3dPath}) {
+    const std::string xml_path = GetTestDataFilePath(path);
+    char err[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, err, sizeof(err));
+    ASSERT_THAT(m, NotNull()) << err;
+    mjData* d = mj_makeData(m);
+
+    // give initial velocity
+    for (int i = 0; i < m->nv; i++) d->qvel[i] = 0.5 * (i + 1);
+
+    // forward (with correction ON by default)
+    mj_forward(m, d);
+    mj_compareFwdInv(m, d);
+    mjtNum fwdinv = d->solver_fwdinv[0];
+
+    mjtNum epsilon = MjTol(1e-10, 1e-2);
+    EXPECT_LT(fwdinv, epsilon)
+        << "fwdinv broken for " << path
+        << " (fwdinv=" << fwdinv << ")";
+
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
+
+// --------------------------- strain constraint rotated parent ----------------
+
+struct StrainConstraintTestCase {
+  std::string test_name;
+  std::string body_pos;
+  std::string body_quat;
+  std::string flex_spacing;
+  std::string flex_xyaxes;
+};
+
+class StrainConstraintRotatedTest : public CoreConstraintTest,
+                                    public ::testing::WithParamInterface<
+                                        StrainConstraintTestCase> {
+};
+
+TEST_P(StrainConstraintRotatedTest, ResidualIsZero) {
+  auto param = GetParam();
+  std::string xml = R"(
+  <mujoco>
+  <option integrator="implicitfast" jacobian="dense" gravity="0 0 0"/>
+  <worldbody>
+    <body name="parent" )";
+
+  if (!param.body_pos.empty()) {
+    xml += "pos=\"" + param.body_pos + "\" ";
+  }
+  if (!param.body_quat.empty()) {
+    xml += "quat=\"" + param.body_quat + "\" ";
+  }
+  xml += R"(>
+      <joint type="free"/>
+      <geom type="box" size=".01 .01 .01" mass=".1"/>
+      <flexcomp name="test" type="box" )";
+
+  if (!param.flex_spacing.empty()) {
+    xml += "spacing=\"" + param.flex_spacing + "\" ";
+  }
+  if (!param.flex_xyaxes.empty()) {
+    xml += "xyaxes=\"" + param.flex_xyaxes + "\" ";
+  }
+
+  xml += R"(radius="0.001"
+                pos="0 0 0" dof="trilinear" mass="1" dim="3">
+        <contact selfcollide="none"/>
+        <edge equality="strain"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml.c_str(), error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+
+  mj_forward(m, d);
+
+  // Check we have strain constraints
+  EXPECT_GT(d->ne, 0) << "Expected strain constraints";
+
+  // The critical check: constraint residuals must be ~0 at the initial
+  // (undeformed) configuration, even though the body is rotated.
+  mjtNum max_pos = 0;
+  for (int i = 0; i < d->ne; i++) {
+    max_pos = mju_max(max_pos, mju_abs(d->efc_pos[i]));
+  }
+  EXPECT_LT(max_pos, 1e-6)
+      << "Strain constraint residual should be ~0"
+      << " (max_pos=" << max_pos << ")";
+
+  // Verify stability
+  for (int i = 0; i < 200; i++) {
+    mj_step(m, d);
+    ASSERT_FALSE(mju_isBad(d->qpos[0]))
+        << "Simulation unstable at step " << i;
+    for (int j = 0; j < m->nv; j++) {
+      ASSERT_LT(mju_abs(d->qvel[j]), 1000.0)
+          << "Velocity exploded at step " << i
+          << ", qvel[" << j << "]=" << d->qvel[j];
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  StrainConstraintRotatedTests, StrainConstraintRotatedTest,
+  testing::ValuesIn<StrainConstraintTestCase>({
+      // Test strain constraint with a rotated parent body.
+      // The flexcomp is placed inside a parent body that has a non-identity
+      // initial rotation. This reproduces the "grocery scene" bug where the
+      // stiffness matrix eigenvectors and reference positions were computed
+      // in world frame instead of the unrotated local frame, causing
+      // spurious constraint forces.
+      {
+          "RotatedParent",
+          "1 2 3",
+          "0.707107 0 0.707107 0",
+          ".1 .1 .1",
+          ""
+      },
+      // Same test with an anisotropic box (different spacing per axis) and
+      // arbitrary rotation (combined 45-deg Y + 30-deg X).
+      {
+          "RotatedParentAnisotropic",
+          "0.5 -1 2",
+          "0.8924 0.2392 0.3696 -0.0990",
+          ".15 .08 .05",
+          ""
+      },
+      // Test strain constraint with flexcomp-level xyaxes rotation.
+      // This is the "grocery scene" pattern where the flexcomp grid itself is
+      // rotated via xyaxes="0 1 0 0 0 1" (X->Y, Y->Z).
+      {
+          "FlexcompXyaxes",
+          "",
+          "",
+          ".1 .02 .1",
+          "0 1 0 0 0 1"
+      },
+      // Test combining parent body rotation with flexcomp xyaxes rotation.
+      // The total rotation is the composition of both.
+      {
+          "RotatedParentPlusXyaxes",
+          "1 2 3",
+          "0.707107 0 0.707107 0",
+          ".15 .08 .05",
+          "0 1 0 0 0 1"
+      }
+  }),
+  [](const testing::TestParamInfo<
+      StrainConstraintRotatedTest::ParamType>& info) {
+    return info.param.test_name;
+  }
+);
 
 }  // namespace
 }  // namespace mujoco

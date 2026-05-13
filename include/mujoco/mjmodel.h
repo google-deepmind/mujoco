@@ -70,8 +70,9 @@ typedef enum mjtDisableBit_ {     // disable default feature bitflags
   mjDSBL_AUTORESET    = 1<<16,    // automatic reset when numerical issues are detected
   mjDSBL_NATIVECCD    = 1<<17,    // native convex collision detection
   mjDSBL_ISLAND       = 1<<18,    // constraint island discovery
+  mjDSBL_MULTICCD     = 1<<19,    // multiple CCD contact points
 
-  mjNDISABLE          = 19        // number of disable flags
+  mjNDISABLE          = 20        // number of disable flags
 } mjtDisableBit;
 
 
@@ -81,10 +82,9 @@ typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_FWDINV       = 1<<2,     // record solver statistics
   mjENBL_INVDISCRETE  = 1<<3,     // discrete-time inverse dynamics
                                   // experimental features:
-  mjENBL_MULTICCD     = 1<<4,     // multi-point convex collision detection
-  mjENBL_SLEEP        = 1<<5,     // sleeping
+  mjENBL_SLEEP        = 1<<4,     // sleeping
 
-  mjNENABLE           = 6         // number of enable flags
+  mjNENABLE           = 5         // number of enable flags
 } mjtEnableBit;
 
 
@@ -244,7 +244,8 @@ typedef enum mjtDyn_ {            // type of actuator dynamics
   mjDYN_INTEGRATOR,               // integrator: da/dt = u
   mjDYN_FILTER,                   // linear filter: da/dt = (u-a) / tau
   mjDYN_FILTEREXACT,              // linear filter: da/dt = (u-a) / tau, with exact integration
-  mjDYN_MUSCLE,                   // piece-wise linear filter with two time constants
+  mjDYN_MUSCLE,                   // piecewise linear filter with two time constants
+  mjDYN_DCMOTOR,                  // DC motor electrical dynamics
   mjDYN_USER                      // user-defined dynamics type
 } mjtDyn;
 
@@ -253,6 +254,7 @@ typedef enum mjtGain_ {           // type of actuator gain
   mjGAIN_FIXED        = 0,        // fixed gain
   mjGAIN_AFFINE,                  // const + kp*length + kv*velocity
   mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
+  mjGAIN_DCMOTOR,                 // DC motor gain: K or K/R
   mjGAIN_USER                     // user-defined gain type
 } mjtGain;
 
@@ -261,6 +263,7 @@ typedef enum mjtBias_ {           // type of actuator bias
   mjBIAS_NONE         = 0,        // no bias
   mjBIAS_AFFINE,                  // const + kp*length + kv*velocity
   mjBIAS_MUSCLE,                  // muscle passive force computed by mju_muscleBias()
+  mjBIAS_DCMOTOR,                 // DC motor bias: back-EMF, cogging, LuGre friction
   mjBIAS_USER                     // user-defined bias type
 } mjtBias;
 
@@ -700,6 +703,8 @@ struct mjModel_ {
   mjtSize nflexedge;              // number of edges in all flexes
   mjtSize nflexelem;              // number of elements in all flexes
   mjtSize nflexelemdata;          // number of element vertex ids in all flexes
+  mjtSize nflexstiffness;         // number of stiffness parameters in all flexes
+  mjtSize nflexbending;           // number of bending parameters in all flexes
   mjtSize nflexelemedge;          // number of element edge ids in all flexes
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
   mjtSize nflexevpair;            // number of element-vertex pairs in all flexes
@@ -894,8 +899,8 @@ struct mjModel_ {
   mjtNum*   geom_pos;             // local position offset rel. to body       (ngeom x 3)
   mjtNum*   geom_quat;            // local orientation offset rel. to body    (ngeom x 4)
   mjtNum*   geom_friction;        // friction for (slide, spin, roll)         (ngeom x 3)
-  mjtNum*   geom_margin;          // detect contact if dist<margin            (ngeom x 1)
-  mjtNum*   geom_gap;             // include in solver if dist<margin-gap     (ngeom x 1)
+  mjtNum*   geom_margin;          // geometric inflation for contact          (ngeom x 1)
+  mjtNum*   geom_gap;             // additional contact detection buffer      (ngeom x 1)
   mjtNum*   geom_fluid;           // fluid interaction parameters             (ngeom x mjNFLUID)
   mjtNum*   geom_user;            // user data                                (ngeom x nuser_geom)
   float*    geom_rgba;            // rgba when material is omitted            (ngeom x 4)
@@ -962,8 +967,8 @@ struct mjModel_ {
   mjtNum*   flex_solref;          // constraint solver reference: contact     (nflex x mjNREF)
   mjtNum*   flex_solimp;          // constraint solver impedance: contact     (nflex x mjNIMP)
   mjtNum*   flex_friction;        // friction for (slide, spin, roll)         (nflex x 3)
-  mjtNum*   flex_margin;          // detect contact if dist<margin            (nflex x 1)
-  mjtNum*   flex_gap;             // include in solver if dist<margin-gap     (nflex x 1)
+  mjtNum*   flex_margin;          // geometric inflation for contact          (nflex x 1)
+  mjtNum*   flex_gap;             // additional contact detection buffer      (nflex x 1)
   mjtByte*  flex_internal;        // internal flex collision enabled          (nflex x 1)
   int*      flex_selfcollide;     // self collision mode (mjtFlexSelf)        (nflex x 1)
   int*      flex_activelayers;    // number of active element layers, 3D only (nflex x 1)
@@ -974,6 +979,7 @@ struct mjModel_ {
   int*      flex_matid;           // material id for rendering                (nflex x 1)
   int*      flex_group;           // group for visibility                     (nflex x 1)
   int*      flex_interp;          // interpolation (0: vertex, 1: nodes)      (nflex x 1)
+  int*      flex_cellnum;         // finite cell num per dimension            (nflex x 3)
   int*      flex_nodeadr;         // first node address                       (nflex x 1)
   int*      flex_nodenum;         // number of nodes                          (nflex x 1)
   int*      flex_vertadr;         // first vertex address                     (nflex x 1)
@@ -983,7 +989,9 @@ struct mjModel_ {
   int*      flex_elemadr;         // first element address                    (nflex x 1)
   int*      flex_elemnum;         // number of elements                       (nflex x 1)
   int*      flex_elemdataadr;     // first element vertex id address          (nflex x 1)
+  int*      flex_stiffnessadr;    // stiffness matrix address                 (nflex x 1)
   int*      flex_elemedgeadr;     // first element edge id address            (nflex x 1)
+  int*      flex_bendingadr;      // first bending data address               (nflex x 1)
   int*      flex_shellnum;        // number of shells                         (nflex x 1)
   int*      flex_shelldataadr;    // first shell data address                 (nflex x 1)
   int*      flex_evpairadr;       // first evpair address                     (nflex x 1)
@@ -1011,8 +1019,8 @@ struct mjModel_ {
   mjtNum*   flexedge_invweight0;  // edge inv. weight in qpos0                (nflexedge x 1)
   mjtNum*   flex_radius;          // radius around primitive element          (nflex x 1)
   mjtNum*   flex_size;            // vertex bounding box half sizes in qpos0  (nflex x 3)
-  mjtNum*   flex_stiffness;       // finite element stiffness matrix          (nflexelem x 21)
-  mjtNum*   flex_bending;         // bending stiffness                        (nflexedge x 17)
+  mjtNum*   flex_stiffness;       // finite element stiffness matrix          (nflexstiffness x 1)
+  mjtNum*   flex_bending;         // bending stiffness                        (nflexbending x 1)
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
@@ -1129,8 +1137,8 @@ struct mjModel_ {
   mjtNum*   pair_solref;          // solver reference: contact normal         (npair x mjNREF)
   mjtNum*   pair_solreffriction;  // solver reference: contact friction       (npair x mjNREF)
   mjtNum*   pair_solimp;          // solver impedance: contact                (npair x mjNIMP)
-  mjtNum*   pair_margin;          // detect contact if dist<margin            (npair x 1)
-  mjtNum*   pair_gap;             // include in solver if dist<margin-gap     (npair x 1)
+  mjtNum*   pair_margin;          // geometric inflation for contact          (npair x 1)
+  mjtNum*   pair_gap;             // additional contact detection buffer      (npair x 1)
   mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)
 
   // excluded body pairs for collision detection

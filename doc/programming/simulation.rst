@@ -13,7 +13,7 @@ initialized by the corresponding API functions. These are very elaborate data st
 structures, preallocated data arrays for all intermediate results, as well as an :ref:`internal stack <siStack>`. Our
 strategy is to allocate all necessary heap memory at the beginning of the simulation, and free it after the simulation
 is done, so that we never have to call the C memory allocation and deallocation functions during the simulation. This is
-done for speed, avoidance of memory fragmentation, future GPU portability, and ease of managing the state of the entire
+done for speed, avoidance of memory fragmentation, GPU portability, and ease of managing the state of the entire
 simulator during a reset. It also means however that the maximal variable-memory allocation given by the :at:`memory`
 attribute in the :ref:`size <size>` MJCF element, which affects the allocation of :ref:`mjData`, must be set to a
 sufficiently large value. If this maximal size is exceeded during simulation, it is not increased dynamically, but
@@ -331,6 +331,8 @@ Auxiliary Controls: ``qfrc_applied`` and ``xfrc_applied``
   | Note that the effects of ``qfrc_applied`` and ``xfrc_applied`` can be recreated by appropriate actuator
     definitions.
 
+.. _siMocap:
+
 MoCap poses: ``mocap_pos`` and ``mocap_quat``
   ``mjData.mocap_pos`` and ``mjData.mocap_quat`` are special optional kinematic states :ref:`described here<CMocap>`,
   which allow the user to set the positions and orientations of static bodies in real-time, for example when streaming
@@ -560,14 +562,12 @@ external force computed by inverse dynamics.
 Multi-threading
 ~~~~~~~~~~~~~~~
 
-When MuJoCo is used for simulation as explained in the :ref:`simulation loop <siSimulation>` section, it runs in a
-single thread. We have experimented with multi-threading parts of the simulation pipeline that are computationally
-expensive and amenable to parallel processing, and have concluded that the speedup is not worth using up the extra
-processor cores. This is because MuJoCo is already fast compared to the overhead of launching and synchronizing
-multiple threads within the same time step. If users start working with large simulations involving many floating
-bodies, we may eventually implement within-step multi-threading, but for now this use case is not common.
+MuJoCo has experimental support for within-step multi-threading. When a :ref:`mjThreadPool` is assigned to
+``mjData.threadpool``, parts of the simulation pipeline — such as collision detection and constraint solving across
+:ref:`islands<siSleep>` — can be distributed across worker threads. Note that within-step threading currently has
+significant memory overhead and is still a work in progress.
 
-Rather than speed up a single simulation, we prefer to use multi-threading to speed up sampling operations that are
+The more common and well-supported use of multi-threading is to speed up sampling operations that are
 common in more advanced applications. Simulation is inherently serial over time (the output of one mj_step is the
 input to the next), while in sampling many calls to either forward or inverse dynamics can be executed in parallel
 since there are no dependencies among them, except perhaps for a common initial state.
@@ -784,7 +784,7 @@ difference between row-major and column-major formats.
 When possible, MuJoCo exploits sparsity. This can make all the difference between O(N) and O(N^3) scaling. The inertia
 matrix ``mjData.qM`` and its LTDL factorization ``mjData.qLD`` are always represented as sparse. ``qM`` uses a custom
 indexing format designed for matrices that correspond to tree topology, while ``qLD`` uses the standard CSR format.
-``qM`` will be migrated to CSR in and upcoming change. The functions :ref:`mj_factorM`, :ref:`mj_solveM`,
+``qM`` will be migrated to CSR in an upcoming change. The functions :ref:`mj_factorM`, :ref:`mj_solveM`,
 :ref:`mj_solveM2` and :ref:`mj_mulM` are used for sparse factorization, substitution and matrix-vector multiplication.
 The user can also convert these matrices to dense format with the function :ref:`mj_fullM` although MuJoCo never does
 that internally.
@@ -994,7 +994,7 @@ in MJCF which are sufficient for most models, and allow the user to adjust them 
 the simulator runs out of dynamic memory at runtime it will trigger an error. When such errors are triggered, the user
 should increase :at:`memory`. The field ``mjData.maxuse_arena`` is designed to help with this adjustment. It keeps track
 of the maximum arena use since the last reset. So one strategy is to make very large allocation, then monitor
-``mjData.maxuse_memory`` statistics during typical simulations, and use it to reduce the allocation.
+``mjData.maxuse_arena`` statistics during typical simulations, and use it to reduce the allocation.
 
 The kinetic and potential energy are computed and stored in ``mjData.energy`` when the corresponding flag in
 ``mjModel.opt.enableflags`` is set. This can be used as another diagnostic. In general, simulation instability is
@@ -1061,7 +1061,7 @@ non-convex mesh collisions, or to replace some of the convex collision functions
 beyond the ones provided by MuJoCo. The global 2D array :ref:`mjCOLLISIONFUNC` contains the collision function pointer
 for each pair of geom types (in the upper-left triangle). To replace them, simply set these pointers to your
 functions. The collision function type is :ref:`mjfCollision`. When user collision functions detect contacts, they
-should construct an mjvContact structure for each contact and then call the function :ref:`mj_addContact` to add that
+should construct an :ref:`mjContact` structure for each contact and then call the function :ref:`mj_addContact` to add that
 contact to ``mjData.contact``. The reference documentation of mj_addContact explains which fields of mjContact must be
 filled in by custom collision functions. Note that the functions we are talking about here correspond to near-phase
 collisions, and are called only after the list of candidate geom pairs has been constructed by the internal
@@ -1176,7 +1176,7 @@ which are initialized asleep. These can be placed in mid-air or in deep collisio
 Notes
 ^^^^^
 
-.. admonition:: New feature
+.. admonition:: Subject to change
    :class: warning
 
    Sleeping is a new feature (Nov 2025) that is subject to change and may have latent bugs.
@@ -1270,7 +1270,7 @@ Notes
   The RK4 integrator is not currently supported, due to the subtleties of waking inside the sub-steps.
 
 **Latent bugs**
-  Sleeping is a new feature (Nov 2025) and may have latent bugs. These bugs may generally come in two varieties:
+  Sleeping may have latent bugs. These bugs may generally come in two varieties:
 
   - Quantities which could be skipped are instead recomputed. The only observable effect of such a bug would be that
     the simulation is slower than it could be. This type of bug can only be diagnosed with detailed profiling.

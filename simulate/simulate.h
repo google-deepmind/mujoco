@@ -147,8 +147,6 @@ class Simulate {
   mjvOption opt_prev_;
   mjvCamera cam_prev_;
 
-  int warn_vgeomfull_prev_;
-
   // pending GUI-driven actions, to be applied at the next call to Sync
   struct {
     std::optional<std::string> save_xml;

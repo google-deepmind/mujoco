@@ -349,7 +349,7 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
       sim->figcost.linepnt[start + 2] = 0;
     }
 
-    for (int i=0; i<sim->figcost.linepnt[0]; i++) {
+    for (int i=0; i<npoints; i++) {
       // x
       sim->figcost.linedata[start + 0][2*i] = i;
       sim->figcost.linedata[start + 1][2*i] = i;
@@ -1192,7 +1192,7 @@ void MakeJointSection(mj::Simulate* sim) {
 
       // set range
       if (sim->jnt_range_[i].has_value())
-        mju::sprintf_arr(defSlider[0].other, "%.4g %.4g",
+        mju::sprintf_arr(defSlider[0].other, "%.17g %.17g",
                          sim->jnt_range_[i]->first, sim->jnt_range_[i]->second);
       else if (sim->jnt_type_[i]==mjJNT_SLIDE) {
         mju::strcpy_arr(defSlider[0].other, "-1 1");
@@ -1251,7 +1251,7 @@ void MakeControlSection(mj::Simulate* sim) {
 
     // set range
     if (sim->actuator_ctrlrange_[i].has_value())
-      mju::sprintf_arr(defSlider[0].other, "%.4g %.4g",
+      mju::sprintf_arr(defSlider[0].other, "%.17g %.17g",
                        sim->actuator_ctrlrange_[i]->first, sim->actuator_ctrlrange_[i]->second);
     else {
       mju::strcpy_arr(defSlider[0].other, "-1 1");
@@ -2142,11 +2142,7 @@ void Simulate::Sync(bool state_only) {
       m_->stat = m_passive_->stat;
     }
 
-    // synchronize number of mjWARN_VGEOMFULL warnings
-    if (d_passive_->warning[mjWARN_VGEOMFULL].number > warn_vgeomfull_prev_) {
-      d_->warning[mjWARN_VGEOMFULL].number +=
-          d_passive_->warning[mjWARN_VGEOMFULL].number - warn_vgeomfull_prev_;
-    }
+
   }
 
   if (pending_.save_xml) {
@@ -2334,7 +2330,7 @@ void Simulate::Sync(bool state_only) {
     mjopt_prev_ = m_passive_->opt;
     mjvis_prev_ = m_passive_->vis;
     mjstat_prev_ = m_passive_->stat;
-    warn_vgeomfull_prev_ = d_passive_->warning[mjWARN_VGEOMFULL].number;
+
   }
 
   // update settings
@@ -2550,7 +2546,7 @@ void Simulate::LoadOnRenderThread() {
     mjopt_prev_ = m_->opt;
     opt_prev_ = opt;
     cam_prev_ = cam;
-    warn_vgeomfull_prev_ = d_->warning[mjWARN_VGEOMFULL].number;
+
 
     // full copy on init
     m_passive_ = mj_copyModel(nullptr, m_);
@@ -3022,7 +3018,11 @@ void Simulate::RenderLoop() {
         int nusergeom = user_scn_geoms_.size();
         int ngeom = std::min(nusergeom, this->scn.maxgeom - this->scn.ngeom);
         if (ngeom < nusergeom) {
-          mj_warning(d_passive_, mjWARN_VGEOMFULL, this->scn.maxgeom);
+          if (!this->scn.status) {
+            mju_warning("Pre-allocated visual geom buffer is full. "
+                        "Increase maxgeom above %d.", this->scn.maxgeom);
+            this->scn.status = 1;
+          }
         }
         std::memcpy(this->scn.geoms + this->scn.ngeom, user_scn_geoms_.data(),
                     ngeom * sizeof(mjvGeom));

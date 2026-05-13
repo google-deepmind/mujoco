@@ -1285,7 +1285,7 @@ void mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double 
     }
 
     // skip if the box is empty
-    if (colliding.empty() || task.lev >= 6) {
+    if (colliding.empty() || task.lev >= max_depth_) {
       continue;
     }
 
@@ -2251,7 +2251,7 @@ mjCBase* mjCBody::GetObject(mjtObj type, int i) {
 
 // find object by name in given list
 template <class T>
-static T* findobject(std::string name, std::vector<T*>& list) {
+static T* findobject(const std::string& name, const std::vector<T*>& list) {
   for (unsigned int i=0; i < list.size(); i++) {
     if (list[i]->name == name) {
       return list[i];
@@ -2264,12 +2264,12 @@ static T* findobject(std::string name, std::vector<T*>& list) {
 
 
 // recursive find by name
-mjCBase* mjCBody::FindObject(mjtObj type, std::string _name, bool recursive) {
+mjCBase* mjCBody::FindObject(mjtObj type, const std::string& _name, bool recursive) const {
   mjCBase* res = 0;
 
   // check self: just in case
   if (name == _name) {
-    return this;
+    return const_cast<mjCBody*>(this);
   }
 
   // search elements of this body
@@ -2406,7 +2406,7 @@ static mjsElement* GetNextBody(const mjCBody* body, const mjsElement* child,
 
 
 // get next child of given type
-mjsElement* mjCBody::NextChild(const mjsElement* child, mjtObj type, bool recursive) {
+mjsElement* mjCBody::NextChild(const mjsElement* child, mjtObj type, bool recursive) const {
   if (type == mjOBJ_UNKNOWN) {
     if (!child) {
       throw mjCError(this, "child type must be specified if no child element is given");
@@ -4668,9 +4668,6 @@ void mjCHField::NameSpace(const mjCModel* m) {
     name = mjuu_stripext(stripped);
   }
   mjCBase::NameSpace(m);
-  if (modelfiledir_.empty()) {
-    modelfiledir_ = FilePath(m->spec_modelfiledir_);
-  }
 }
 
 
@@ -4798,15 +4795,12 @@ void mjCHField::Compile(const mjVFS* vfs) {
       throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
     }
 
-    // copy paths from model if not already defined
-    if (modelfiledir_.empty()) {
-      modelfiledir_ = FilePath(model->modelfiledir_);
-    }
     mujoco::user::FilePath meshdir_;
     meshdir_ = FilePath(mjs_getString(compiler->meshdir));
 
     FilePath filename = meshdir_ + FilePath(file_);
-    mjResource* resource = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);
+    mjSpec* owning_spec = model->FindSpec(compiler);
+    mjResource* resource = LoadResource(owning_spec->modelfiledir->c_str(), filename.Str(), vfs);
 
     struct CachedHField {
       int nrow, ncol;
@@ -4965,9 +4959,6 @@ void mjCTexture::NameSpace(const mjCModel* m) {
     name = mjuu_stripext(stripped);
   }
   mjCBase::NameSpace(m);
-  if (modelfiledir_.empty()) {
-    modelfiledir_ = FilePath(m->spec_modelfiledir_);
-  }
 }
 
 
@@ -5388,7 +5379,8 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
   }
 
   // try loading from cache
-  mjResource* resource = LoadResource(modelfiledir_.Str(), filename, vfs);
+  mjSpec* owning_spec = model->FindSpec(compiler);
+  mjResource* resource = LoadResource(owning_spec->modelfiledir->c_str(), filename, vfs);
   if (cache && cache->PopulateData(GetCacheId(resource, asset_type), resource, callback)) {
     mju_closeResource(resource);
     return;
@@ -5640,10 +5632,6 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
 void mjCTexture::Compile(const mjVFS* vfs) {
   CopyFromSpec();
 
-  // copy paths from model if not already defined
-  if (modelfiledir_.empty()) {
-    modelfiledir_ = FilePath(model->modelfiledir_);
-  }
   mujoco::user::FilePath texturedir_;
   texturedir_ = FilePath(mjs_getString(compiler->texturedir));
 
@@ -7222,20 +7210,26 @@ void mjCActuator::Compile(void) {
 
   // check and set actdim
   if (!plugin.active) {
-    if (actdim > 1 && dyntype != mjDYN_USER) {
-      throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' in actuator");
+    if (actdim > 1 && dyntype != mjDYN_USER && dyntype != mjDYN_DCMOTOR) {
+      throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' and 'dcmotor'");
     }
     if (actdim == 1 && dyntype == mjDYN_NONE) {
       throw mjCError(this, "invalid actdim 1 in stateless actuator");
     }
-    if (actdim == 0 && dyntype != mjDYN_NONE) {
+    if (actdim == 0 && dyntype != mjDYN_NONE && dyntype != mjDYN_DCMOTOR) {
       throw mjCError(this, "invalid actdim 0 in stateful actuator");
     }
   }
 
-  // set actdim
+  // set actdim to 1 if it is unset and type is standard one-activation dyntype
   if (actdim < 0) {
-    actdim = (dyntype != mjDYN_NONE);
+    actdim = (dyntype != mjDYN_NONE && dyntype != mjDYN_DCMOTOR);
+  }
+
+  // DC motor always uses actearly
+  if (dyntype == mjDYN_DCMOTOR && !actearly) {
+    throw mjCError(this, "actearly cannot be false for DC motor actuator '%s' (id = %d)",
+                   name.c_str(), id);
   }
 
   // check muscle parameters

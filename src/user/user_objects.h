@@ -270,6 +270,7 @@ struct OctreeTask {
 struct mjCOctree_ {
   int nnode_ = 0;
   int nvert_ = 0;
+  int max_depth_ = 6;                   // max octree depth (default 6)
   std::vector<OctNode> node_;
   std::vector<Triangle> face_;          // mesh faces                (nmeshface x 3)
   std::vector<Point> vert_;             // octree vertices           (nvert x 3)
@@ -307,6 +308,10 @@ class mjCOctree : public mjCOctree_ {
   }
   void AddCoeff(int n, int v, double coeff) { node_[n].coeff[v] = coeff; }
   double Coeff(int n, int v) const { return node_[n].coeff[v]; }
+
+  // Set max octree depth (default 6)
+  void SetMaxDepth(int depth) { max_depth_ = depth; }
+  int MaxDepth() const { return max_depth_; }
 
   // Set number of Laplacian smoothing iterations (0 = disabled, default)
   void SetSmoothingIterations(int iterations) { smoothing_iterations_ = iterations; }
@@ -531,7 +536,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   // API for accessing objects
   int NumObjects(mjtObj type);
   mjCBase* GetObject(mjtObj type, int id);
-  mjCBase* FindObject(mjtObj type, std::string name, bool recursive = true);
+  mjCBase* FindObject(mjtObj type, const std::string& name, bool recursive = true) const;
 
   // Propagate suffix and prefix to the whole tree
   void NameSpace(const mjCModel* m);
@@ -556,7 +561,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   // returns nullptr if the next child is not found or if `child` is the last element, returns
   // the next child after the input `child` otherwise
   mjsElement* NextChild(const mjsElement* child, mjtObj type = mjOBJ_UNKNOWN,
-                        bool recursive = false);
+                        bool recursive = false) const;
 
   // reset keyframe references for allowing self-attach
   void ForgetKeyframes() const;
@@ -983,6 +988,8 @@ class mjCFlex_ : public mjCBase {
   std::vector<int> edgeidx_;              // element edge ids
   std::vector<double> stiffness;          // elasticity stiffness matrix
   std::vector<double> bending;            // bending stiffness matrix
+  bool has_strain_eq = false;             // true if strain constraints reference this flex
+  std::vector<bool> cell_empty;           // true if cell contains no mesh geometry
 
   // variable-size data
   std::vector<std::string> vertbody_;     // vertex body names
@@ -1042,17 +1049,23 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
 
   static constexpr int kNumEdges[3] = {1, 3, 6};  // number of edges per element indexed by dim
 
-  void SetOrder(int order) { order_ = order; }  // set interpolation order
+
 
  private:
   void Compile(const mjVFS* vfs);         // compiler
   void CreateBVH(void);                   // create flex BVH
   void CreateShellPair(void);             // create shells and evpairs
+  void ComputeCellEmpty(const double* vpos, const int* elems,  // identify cells
+                        int nv, int ne, int fdim,              // with no mesh content
+                        const double* bbox = nullptr);         // optional precomputed bbox
 
   std::vector<double> vert0_;             // vertex positions in [0, 1]^d in the bounding box
   std::vector<double> node0_;             // node Cartesian positions
 
-  int order_ = 0;                         // interpolation order
+  // compute unrotated node positions for stiffness computation
+  // optionally outputs the grid rotation matrix R0 (stored as rows)
+  std::vector<double> ComputeUnrotatedNodePositions(
+      const std::vector<double>& nodexpos, double* R0_out = nullptr) const;
 
   // stiffness caching
   std::string ComputeStiffnessCacheKey() const;
@@ -1120,9 +1133,6 @@ class mjCMesh_ : public mjCBase {
 
   // octree
   mjCOctree octree_;                  // octree of the mesh
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
@@ -1206,6 +1216,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
 
   // octree
   const mjCOctree& octree() { return octree_; }
+  mjCOctree& mutable_octree() { return octree_; }
 
   void Compile(const mjVFS* vfs);                   // compiler
   double* GetPosPtr();                              // get position
@@ -1334,9 +1345,6 @@ class mjCSkin_ : public mjCBase {
 
   int matid;                          // material id
   std::vector<int> bodyid;            // body ids
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCSkin: public mjCSkin_, private mjsSkin {
@@ -1389,9 +1397,6 @@ class mjCHField_ : public mjCBase {
   std::string spec_file_;
   std::string spec_content_type_;
   std::vector<float> spec_userdata_;
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCHField : public mjCHField_, private mjsHField {
@@ -1440,9 +1445,6 @@ class mjCTexture_ : public mjCBase {
   std::string spec_file_;
   std::string spec_content_type_;
   std::vector<std::string> spec_cubefiles_;
-
-  // paths stored during model attachment
-  mujoco::user::FilePath modelfiledir_;
 };
 
 class mjCTexture : public mjCTexture_, private mjsTexture {

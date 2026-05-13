@@ -22,6 +22,7 @@ import textwrap
 import typing
 import zipfile  # pylint: disable=unused-import
 
+from absl import flags
 from absl.testing import absltest
 from etils import epath
 import mujoco
@@ -34,6 +35,11 @@ def get_linenumber():
 
 
 class SpecsTest(absltest.TestCase):
+  def setUp(self):
+    super().setUp()
+    # Mark flags as parsed to avoid pytest errors about unparsed flags.
+    # This is needed for `create_tempdir()` calls below.
+    flags.FLAGS.mark_as_parsed()
 
   def test_typing(self):
     spec = mujoco.MjSpec()
@@ -979,7 +985,6 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(mesh.plugin.name, 'inst')
     self.assertEqual(mesh.plugin.plugin_name, 'mujoco.sdf.torus')
 
-
   def test_duplicate_name_error(self):
     main_xml = """
     <mujoco>
@@ -1391,6 +1396,21 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaisesRegex(ValueError, 'Frame not found.'):
       parent.attach(child4, frame='invalid_frame', prefix='child3-')
 
+  def test_delete_from_attached_spec_error(self):
+    parent = mujoco.MjSpec()
+    child = mujoco.MjSpec()
+    body = child.worldbody.add_body(name='child_body')
+    geom = body.add_geom(name='child_geom')
+
+    frame = parent.worldbody.add_frame()
+    parent.attach(child, frame=frame, prefix='child_')
+
+    # Now child spec is attached. Deleting from it should raise ValueError.
+    with self.assertRaisesRegex(
+        ValueError, 'Cannot delete element from an attached mjSpec.'
+    ):
+      child.delete(geom)
+
   def test_attach_valid_child_lists(self):
     xml1 = """
     <mujoco>
@@ -1556,6 +1576,13 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_NONE)
     self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_FIXED)
     self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_NONE)
+
+    actuator.set_to_dcmotor(motorconst=[0.05, 0.05], resistance=2.0)
+    self.assertEqual(actuator.gainprm[0], 2.0)
+    self.assertEqual(actuator.gainprm[1], 0.05)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_DCMOTOR)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_DCMOTOR)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_DCMOTOR)
 
   def test_bad_contact_sensor(self):
     test_cases = [
@@ -1942,6 +1969,50 @@ class SpecsTest(absltest.TestCase):
     # Corner pixel: off-axis ray, dist > depth
     self.assertGreater(cam_sd[0], cam_sd[1])  # dist > depth
     self.assertAlmostEqual(cam_sd[1], 2.0, places=6)  # depth is still 2.0
+
+  def test_encode_xml(self):
+    # Create a simple spec and compile.
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    geom = body.add_geom()
+    geom.size[0] = 1
+    model = spec.compile()
+
+    # Encode to XML.
+    filename = os.path.join(self.create_tempdir().full_path, 'output.xml')
+    nbytes = spec.encode(filename, model)
+    self.assertGreater(nbytes, 0)
+
+    # Verify the output is valid XML that can be loaded.
+    reloaded = mujoco.MjSpec.from_file(filename)
+    reloaded_model = reloaded.compile()
+    self.assertEqual(reloaded_model.ngeom, model.ngeom)
+
+  def test_encode_xml_without_model(self):
+    # Create a simple spec and compile so XML can be written.
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    geom = body.add_geom()
+    geom.size[0] = 1
+    spec.compile()
+
+    # Encode to XML without passing a model explicitly.
+    filename = os.path.join(self.create_tempdir().full_path, 'output.xml')
+    nbytes = spec.encode(filename)
+    self.assertGreater(nbytes, 0)
+
+  def test_encode_no_encoder_raises(self):
+    # Create a simple spec and compile.
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    geom = body.add_geom()
+    geom.size[0] = 1
+    model = spec.compile()
+
+    # Encode with an unknown extension should fail.
+    filename = os.path.join(self.create_tempdir().full_path, 'output.unknown')
+    with self.assertRaises(mujoco.FatalError):
+      spec.encode(filename, model)
 
 if __name__ == '__main__':
   absltest.main()

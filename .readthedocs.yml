@@ -11,21 +11,37 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.12"
+  apt_packages:
+    - libgl-dev
   jobs:
     create_environment:
+      # install uv
       - asdf plugin add uv
       - asdf install uv latest
       - asdf global uv latest
       - uv venv $READTHEDOCS_VIRTUALENV_PATH
-      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install -r doc/requirements.txt
-      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install mujoco mujoco-mjx
-      # replace mujoco.mjx.third_party.mujoco_warp import paths with mujoco_warp
+      # install doc requirements
       - |
-        find mjx/mujoco/mjx/third_party/mujoco_warp -type f -exec sed -i 's/mujoco\.mjx\.third_party\.mujoco_warp/mujoco_warp/g' {} \;
+        UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH \
+        uv pip install \
+          -r doc/requirements.txt \
+          pip setuptools absl-py
+      # generate and install doc-only mujoco stubs (no C build required)
+      - python doc/make_mujoco_stubs.py python/mujoco_doc
+      - |
+        UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH \
+        uv pip install --no-deps python/mujoco_doc
+      # install mjx and mujoco_warp (mujoco dep satisfied by stubs above)
+      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install -e mjx
+      - |
+        find mjx/mujoco/mjx/third_party/mujoco_warp -type f -exec \
+          sed -i 's/mujoco\.mjx\.third_party\.mujoco_warp/mujoco_warp/g' {} \;
       - python doc/mjwarp/update_types.py mjx/mujoco/mjx/third_party/mujoco_warp/_src/types.py
-      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install mjx/mujoco/mjx/third_party/mujoco_warp
+      - |
+        UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH \
+        uv pip install mjx/mujoco/mjx/third_party/mujoco_warp
     install:
-      - "true"  # skip
+      - "true"  # skip default install
 
 sphinx:
   builder: html

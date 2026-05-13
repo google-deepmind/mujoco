@@ -25,6 +25,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <queue>
 #include <set>
 #include <string>
 #include <string_view>
@@ -300,9 +301,6 @@ void mjCMesh::NameSpace(const mjCModel* m) {
     name = mjuu_stripext(stripped);
   }
   mjCBase::NameSpace(m);
-  if (modelfiledir_.empty()) {
-    modelfiledir_ = FilePath(m->spec_modelfiledir_);
-  }
   if (!plugin_instance_name.empty()) {
     plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
   }
@@ -712,17 +710,14 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     mujoco::user::FilePath meshdir_;
     meshdir_ = FilePath(mjs_getString(compiler->meshdir));
 
-    if (modelfiledir_.empty()) {
-      modelfiledir_ = FilePath(model->modelfiledir_);
-    }
-
     // remove path from file if necessary
     if (model->strippath) {
       file_ = mjuu_strippath(file_);
     }
 
+    mjSpec* owning_spec = model->FindSpec(compiler);
     FilePath filename = meshdir_ + FilePath(file_);
-    resource_ = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);
+    resource_ = LoadResource(owning_spec->modelfiledir->c_str(), filename.Str(), vfs);
 
     // try loading from cache
     if (cache != nullptr && LoadCachedMesh(cache, resource_)) {
@@ -788,6 +783,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     } else if (octree_.NumNodes() == 0) {
       std::vector<double> dvert(vert_.begin(), vert_.end());
       octree_.SetFace(dvert, face_);
+      octree_.SetMaxDepth(spec.octree_maxdepth);
       octree_.CreateOctree(aamm_);
       if (!plugin.active) {
         octree_.ComputeSdfCoeffs(dvert.data(), nvert(), face_.data(), nface(), tree_);
@@ -1538,6 +1534,7 @@ void mjCMesh::Process() {
   // make octree
   if (needsdf) {
     octree_.SetFace(dvert, face_);
+    octree_.SetMaxDepth(spec.octree_maxdepth);
     octree_.CreateOctree(aamm_);
 
     if (!plugin.active) {
@@ -1719,6 +1716,78 @@ void mjCMesh::MakeGraph(const double* dvert) {
   // graph not needed for small meshes
   if (nvert() < 4) {
     return;
+  }
+
+  // check for colocated/collinear/coplanar vertices
+  {
+    // find second vertex that is distinct from vertex 0
+    int v1 = -1;
+    double len1 = 0;
+    for (int i = 1; i < nvert(); i++) {
+      len1 = mjuu_dist3(dvert+3*i, dvert);
+      if (len1 > mjMINVAL) {
+        v1 = i;
+        break;
+      }
+    }
+
+    // no second vertex found: all vertices are colocated
+    if (v1 < 0) {
+      throw mjCError(this,
+          "mesh '%s' has colocated vertices, cannot compute convex hull."
+          " Consider using a small sphere instead",
+          name.c_str());
+    }
+
+    // find first non-collinear triple to define a plane
+    double edge1[3] = {dvert[3*v1+0] - dvert[0],
+                       dvert[3*v1+1] - dvert[1],
+                       dvert[3*v1+2] - dvert[2]};
+    double normal[3] = {0, 0, 0};
+    bool collinear = true;
+    for (int i = 1; i < nvert(); i++) {
+      if (i == v1) continue;
+      double edge2[3] = {dvert[3*i+0] - dvert[0],
+                         dvert[3*i+1] - dvert[1],
+                         dvert[3*i+2] - dvert[2]};
+      double len2 = sqrt(mjuu_dot3(edge2, edge2));
+      if (len2 < mjMINVAL) continue;
+      mjuu_crossvec(normal, edge1, edge2);
+      double norm = sqrt(mjuu_dot3(normal, normal));
+      if (norm > mjMINVAL * len1 * len2) {
+        normal[0] /= norm;
+        normal[1] /= norm;
+        normal[2] /= norm;
+        collinear = false;
+        break;
+      }
+    }
+
+    // vertices are collinear: cannot compute convex hull
+    if (collinear) {
+      throw mjCError(this,
+          "mesh '%s' has collinear vertices, cannot compute convex hull."
+          " Consider using a thin capsule instead",
+          name.c_str());
+    }
+
+    // find first vertex that is not on the plane
+    double d = mjuu_dot3(normal, dvert);
+    bool coplanar = true;
+    for (int i = 0; i < nvert(); i++) {
+      if (fabs(mjuu_dot3(normal, dvert+3*i) - d) > mjMINVAL * len1) {
+        coplanar = false;
+        break;
+      }
+    }
+
+    // vertices are coplanar: cannot compute convex hull
+    if (coplanar) {
+      throw mjCError(this,
+          "mesh '%s' has coplanar vertices, cannot compute convex hull."
+          " Consider using a primitive geom type (plane or thin box) instead",
+          name.c_str());
+    }
   }
 
   qhT qh_qh;
@@ -2957,9 +3026,6 @@ void mjCSkin::NameSpace(const mjCModel* m) {
   for (auto& name : spec_bodyname_) {
     name = m->prefix + name + m->suffix;
   }
-  if (modelfiledir_.empty()) {
-    modelfiledir_ = FilePath(m->spec_modelfiledir_);
-  }
 }
 
 
@@ -3046,15 +3112,12 @@ void mjCSkin::Compile(const mjVFS* vfs) {
       throw mjCError(this, "Unknown skin file type: %s", file_.c_str());
     }
 
-    // copy paths from model if not already defined
-    if (modelfiledir_.empty()) {
-      modelfiledir_ = FilePath(model->modelfiledir_);
-    }
     mujoco::user::FilePath meshdir_;
     meshdir_ = FilePath(mjs_getString(compiler->meshdir));
 
     FilePath filename = meshdir_ + FilePath(file_);
-    mjResource* resource = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);
+    mjSpec* owning_spec = model->FindSpec(compiler);
+    mjResource* resource = LoadResource(owning_spec->modelfiledir->c_str(), filename.Str(), vfs);
 
     try {
       LoadSKN(resource);
@@ -3818,6 +3881,258 @@ void inline ComputeLinearStiffness(std::vector<double>& K,
   }
 }
 
+
+// compute the linear stiffness matrix for a flat 2D quad face element (membrane)
+//   K:      output stiffness matrix, size 3*npe x 3*npe, npe = (order+1)^2
+//   pos:    node positions (3*npe doubles), ordered row-major in 2D parametric domain
+//   E, nu:  Young's modulus and Poisson's ratio
+//   order:  interpolation order (1 or 2)
+//   thickness: shell thickness
+//   normal_axis: axis perpendicular to the face (0=x, 1=y, 2=z)
+void inline ComputeLinearStiffness2D(std::vector<double>& K,
+                                     const double* pos,
+                                     double E, double nu, int order,
+                                     double thickness, int normal_axis) {
+  int nbasis = order + 1;
+  int npe = nbasis * nbasis;        // nodes per face element
+  int ndof = 3 * npe;
+
+  // in-plane axes
+  int axis0 = (normal_axis + 1) % 3;  // slow-varying
+  int axis1 = (normal_axis + 2) % 3;  // fast-varying
+
+  // compute quadrature points
+  std::vector<double> points(nbasis);
+  std::vector<double> weight(nbasis);
+  quadratureGaussLegendre(points.data(), weight.data(), nbasis, 0, 1);
+
+  // compute element transformation (diagonal Jacobian on flat face)
+  double d0 = (pos + 3*(npe-1))[axis0] - pos[axis0];  // extent along axis0
+  double d1 = (pos + 3*(npe-1))[axis1] - pos[axis1];  // extent along axis1
+  if (d0 == 0 || d1 == 0) {
+    throw mjCError(nullptr, "degenerate 2D element with zero extent");
+  }
+  double detJ = d0 * d1;
+  double invJ0 = 1.0 / d0;
+  double invJ1 = 1.0 / d1;
+
+  // plane-stress Lamé parameter: lambda* = E*nu/(1 - nu^2)
+  double la = E * nu / (1.0 - nu * nu);
+  double mu = E / (2.0 * (1.0 + nu));
+
+  // basis function gradients (2-component)
+  std::vector<std::array<double, 2>> F(npe);
+
+  // loop over quadrature points (2D)
+  for (int ps = 0; ps < nbasis; ps++) {
+    for (int pt = 0; pt < nbasis; pt++) {
+      double s = points[ps];
+      double t = points[pt];
+      double dvol = weight[ps] * weight[pt] * detJ * thickness;
+      int dof = 0;
+
+      // cartesian product of 2D basis functions
+      for (int b0 = 0; b0 < nbasis; b0++) {
+        for (int b1 = 0; b1 < nbasis; b1++) {
+          F[dof][0] = dphi(s, b0, order) *  phi(t, b1, order);
+          F[dof][1] =  phi(s, b0, order) * dphi(t, b1, order);
+          dof++;
+        }
+      }
+
+      if (dof != npe) {
+        throw mjCError(nullptr, "incorrect number of 2D basis functions");
+      }
+
+      // tensor contraction (same structure as 3D but with zero normal column)
+      for (int i = 0; i < npe; i++) {
+        for (int j = 0; j < npe; j++) {
+          Matrix du;
+          Matrix dv;
+          du.fill({0, 0, 0});
+          dv.fill({0, 0, 0});
+          for (int k = 0; k < 3; k++) {
+            for (int l = 0; l < 3; l++) {
+              // du[k] has non-zero entries only at in-plane axes
+              du[k][axis0] = invJ0 * F[i][0];
+              du[k][axis1] = invJ1 * F[i][1];
+              // du[k][normal_axis] = 0 (already zero)
+              dv[l][axis0] = invJ0 * F[j][0];
+              dv[l][axis1] = invJ1 * F[j][1];
+              // dv[l][normal_axis] = 0 (already zero)
+              K[ndof*(3*i+k) + 3*j+l] -= la * trace(du) * trace(dv) * dvol;
+              // mu (not 2*mu): same convention as 3D ComputeLinearStiffness
+              K[ndof*(3*i+k) + 3*j+l] -= mu * trace(inner(sym(du), sym(dv))) * dvol;
+              mjuu_zerovec(du[k].data(), 3);
+              mjuu_zerovec(dv[l].data(), 3);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+// Eigendecompose cell stiffness matrix and store scaled eigenvectors.
+// K_cell is n×n stored (negative convention: K_stored = -K_physical).
+// Output layout in `out`:
+//   [0]: neig (as double)
+//   [1 .. neig*n]: sqrt(λ_phys_i) * v_i, row-major
+// If pos is non-null (3*npe doubles), rigid body modes are projected out of
+// each eigenvector to prevent ghost damping in the constraint solver.  The
+// constraint Jacobian freezes the corotational frame, so eigenvectors aligned
+// with rigid rotation patterns produce spurious velocity-level forces.
+// Returns number of retained eigenmodes.
+static int EigendecomposeStiffness(const double* K_cell_data,
+                                   double* out, int ndof,
+                                   const double* pos) {
+  int npe = ndof / 3;
+
+  // copy K_cell for in-place decomposition
+  std::vector<double> mat(K_cell_data, K_cell_data + ndof * ndof);
+  std::vector<double> eigval(ndof);
+  std::vector<double> eigvec(ndof * ndof);
+
+  mjuu_eigendecompose(mat.data(), eigval.data(), eigvec.data(), ndof);
+
+  // build orthonormal rigid body modes for projection
+  // 6 modes: 3 translations + 3 rotations about centroid
+  const int kMaxRigid = 6;
+  std::vector<double> rigid(pos ? kMaxRigid * ndof : 0, 0);
+
+  if (pos) {
+    // compute centroid
+    double centroid[3] = {0, 0, 0};
+    for (int n = 0; n < npe; n++) {
+      for (int k = 0; k < 3; k++) {
+        centroid[k] += pos[3*n + k];
+      }
+    }
+    for (int k = 0; k < 3; k++) {
+      centroid[k] /= npe;
+    }
+
+    // translation modes: uniform displacement along each axis
+    for (int n = 0; n < npe; n++) {
+      rigid[0*ndof + 3*n + 0] = 1;
+      rigid[1*ndof + 3*n + 1] = 1;
+      rigid[2*ndof + 3*n + 2] = 1;
+    }
+
+    // rotation modes: e_axis × (pos_n - centroid)
+    for (int n = 0; n < npe; n++) {
+      double rx = pos[3*n + 0] - centroid[0];
+      double ry = pos[3*n + 1] - centroid[1];
+      double rz = pos[3*n + 2] - centroid[2];
+
+      // rotation about x: [0, -rz, ry]
+      rigid[3*ndof + 3*n + 1] = -rz;
+      rigid[3*ndof + 3*n + 2] =  ry;
+
+      // rotation about y: [rz, 0, -rx]
+      rigid[4*ndof + 3*n + 0] =  rz;
+      rigid[4*ndof + 3*n + 2] = -rx;
+
+      // rotation about z: [-ry, rx, 0]
+      rigid[5*ndof + 3*n + 0] = -ry;
+      rigid[5*ndof + 3*n + 1] =  rx;
+    }
+
+    // orthonormalize via modified Gram-Schmidt
+    for (int i = 0; i < kMaxRigid; i++) {
+      double* ri = rigid.data() + i * ndof;
+      for (int j = 0; j < i; j++) {
+        const double* rj = rigid.data() + j * ndof;
+        double dot = 0;
+        for (int k = 0; k < ndof; k++) {
+          dot += ri[k] * rj[k];
+        }
+        for (int k = 0; k < ndof; k++) {
+          ri[k] -= dot * rj[k];
+        }
+      }
+      double norm2 = 0;
+      for (int k = 0; k < ndof; k++) {
+        norm2 += ri[k] * ri[k];
+      }
+      if (norm2 > 1e-20) {
+        double inv_norm = 1.0 / std::sqrt(norm2);
+        for (int k = 0; k < ndof; k++) {
+          ri[k] *= inv_norm;
+        }
+      } else {
+        // degenerate mode (e.g., collinear nodes): zero out
+        std::fill(ri, ri + ndof, 0.0);
+      }
+    }
+  }
+
+  // K_stored = -K_physical, so physical eigenvalue = -eigval[i]
+  // retain modes where physical eigenvalue > threshold
+  double max_eigval = 0;
+  for (int i = 0; i < ndof; i++) {
+    max_eigval = std::max(max_eigval, std::abs(eigval[i]));
+  }
+
+  double threshold = max_eigval * 1e-8;
+  int neig = 0;
+  for (int i = 0; i < ndof; i++) {
+    double lambda_phys = -eigval[i];  // negate to get physical eigenvalue
+    if (lambda_phys > threshold) {
+      // store sqrt(λ) * eigenvector (column i of eigvec matrix)
+      double scale = std::sqrt(lambda_phys);
+      double* w = out + 1 + neig * ndof;
+      for (int j = 0; j < ndof; j++) {
+        w[j] = scale * eigvec[j * ndof + i];
+      }
+
+      // project out rigid body components
+      if (pos) {
+        for (int r = 0; r < kMaxRigid; r++) {
+          const double* rr = rigid.data() + r * ndof;
+          double dot = 0;
+          for (int j = 0; j < ndof; j++) {
+            dot += w[j] * rr[j];
+          }
+          for (int j = 0; j < ndof; j++) {
+            w[j] -= dot * rr[j];
+          }
+        }
+
+        // discard if projected norm is negligible relative to original
+        double norm2 = 0;
+        for (int j = 0; j < ndof; j++) {
+          norm2 += w[j] * w[j];
+        }
+        if (norm2 < lambda_phys * 1e-6) {
+          continue;  // mode was mostly rigid body: skip
+        }
+      }
+
+      neig++;
+
+      // guard: eigendecomposed data must fit within ndof*ndof slot
+      // (guaranteed by rigid-body projection discarding >= 6 modes)
+      if (1 + neig * ndof > ndof * ndof) {
+        mju_error("EigendecomposeStiffness: output size %d exceeds buffer %d",
+                  1 + neig * ndof, ndof * ndof);
+      }
+    }
+  }
+
+  // check that enough modes were discarded (rigid body + numerical artifacts)
+  // for 3D elements: expect ndof - neig == 6
+  if (pos && ndof - neig != kMaxRigid) {
+    mju_warning("EigendecomposeStiffness: only %d modes discarded, expected "
+                "at least %d rigid body modes", ndof - neig, kMaxRigid);
+  }
+
+  out[0] = static_cast<double>(neig);
+  return neig;
+}
+
+
 //------------------ class mjCFlex implementation --------------------------------------------------
 
 // constructor
@@ -3928,13 +4243,15 @@ void mjCFlex::DelTexcoord() {
 
 
 void mjCFlex::ResolveReferences(const mjCModel* m) {
+  interpolated = !nodebody_.empty();
   vertbodyid.clear();
   nodebodyid.clear();
   for (const auto& vertbody : vertbody_) {
     mjCBody* pbody = static_cast<mjCBody*>(m->FindObject(mjOBJ_BODY, vertbody));
     if (pbody) {
       vertbodyid.push_back(pbody->id);
-      if (pbody->joints.size() != 3 && dim == 2 && (elastic2d == 1 || elastic2d == 3)) {
+      if (pbody->joints.size() != 3 && dim == 2 &&
+          (elastic2d == 1 || elastic2d == 3) && !interpolated) {
         // TODO(quaglino): add support for pins
         throw mjCError(this, "pins are not supported for bending");
       }
@@ -3961,7 +4278,10 @@ std::string mjCFlex::ComputeStiffnessCacheKey() const {
 
   combine(std::hash<double>{}(young));
   combine(std::hash<double>{}(poisson));
-  combine(std::hash<int>{}(order_));
+  combine(std::hash<int>{}(spec.order));
+  combine(std::hash<int>{}(spec.cellcount[0]));
+  combine(std::hash<int>{}(spec.cellcount[1]));
+  combine(std::hash<int>{}(spec.cellcount[2]));
 
   // compute bounding box from vertex positions
   if (!vert_.empty()) {
@@ -4035,6 +4355,247 @@ void mjCFlex::CacheStiffness() {
 }
 
 
+// compute interpolated shell bending edge data
+// enumerates intra-surface and corner edges, stores per-edge metadata:
+//   [fe_A, fe_B, local_A[2], local_B[2], stiffness, dn0[3]]
+static void ComputeInterpBending(
+    std::vector<double>& bending,
+    const std::vector<double>& nodexpos_local,
+    int order, const int cellcount[3],
+    double young, double poisson, double thickness) {
+  // bending modulus D = E * t^3 / (12 * (1 - nu^2))
+  double D_bend = young * thickness * thickness * thickness /
+                  (12.0 * (1.0 - poisson * poisson));
+
+  int cx = cellcount[0], cy = cellcount[1], cz = cellcount[2];
+  int ny_global = cy * order + 1;
+  int nz_global = cz * order + 1;
+  int npe = (order + 1) * (order + 1);  // nodes per 2D face element
+
+  // face layout: 6 surfaces of the box
+  //   face 0: x=0, face 1: x=max, face 2: y=0, face 3: y=max,
+  //   face 4: z=0, face 5: z=max
+  int face_sizes[6] = {cy*cz, cy*cz, cx*cz, cx*cz, cx*cy, cx*cy};
+  int face_normal[6] = {0, 0, 1, 1, 2, 2};
+  int face_count1[6] = {cz, cz, cx, cx, cy, cy};
+  int face_fixed[6] = {0, cx*order, 0, cy*order, 0, cz*order};
+
+  // gather node positions for one face element
+  auto gather_face_nodes = [&](int face_id, int within_face,
+                               std::vector<double>& fpos) {
+    int nax = face_normal[face_id];
+    int a0 = (nax + 1) % 3;
+    int a1 = (nax + 2) % 3;
+    int c1 = face_count1[face_id];
+    int gf = face_fixed[face_id];
+    int q0 = within_face / c1;
+    int q1 = within_face % c1;
+    fpos.resize(3 * npe);
+    int loc = 0;
+    for (int l0 = 0; l0 <= order; l0++) {
+      for (int l1 = 0; l1 <= order; l1++) {
+        int g[3];
+        g[nax] = gf;
+        g[a0] = q0 * order + l0;
+        g[a1] = q1 * order + l1;
+        int gidx = g[0] * ny_global * nz_global + g[1] * nz_global + g[2];
+        mjuu_copyvec(fpos.data() + 3*loc, &nodexpos_local[3*gidx], 3);
+        loc++;
+      }
+    }
+  };
+
+  // compute unnormalized normal and tangents at a parametric point
+  auto compute_normal = [&](const std::vector<double>& fpos,
+                            const double local[2],
+                            double normal[3], double t1[3], double t2[3]) {
+    mjuu_zerovec(t1, 3);
+    mjuu_zerovec(t2, 3);
+    int idx = 0;
+    for (int l0 = 0; l0 <= order; l0++) {
+      for (int l1 = 0; l1 <= order; l1++) {
+        double g0 = dphi(local[0], l0, order) * phi(local[1], l1, order);
+        double g1 = phi(local[0], l0, order) * dphi(local[1], l1, order);
+        for (int d = 0; d < 3; d++) {
+          t1[d] += fpos[3*idx + d] * g0;
+          t2[d] += fpos[3*idx + d] * g1;
+        }
+        idx++;
+      }
+    }
+    mjuu_crossvec(normal, t1, t2);
+  };
+
+  // face cumulative offsets
+  int face_cumul[6];
+  face_cumul[0] = 0;
+  for (int f = 1; f < 6; f++) {
+    face_cumul[f] = face_cumul[f-1] + face_sizes[f-1];
+  }
+
+  int face_count0[6];
+  for (int f = 0; f < 6; f++) {
+    face_count0[f] = face_sizes[f] / face_count1[f];
+  }
+
+  int cells[3] = {cx, cy, cz};
+
+  // find the neighbor of face element (fid, q0, q1) across the edge in
+  // direction dir (0=a0, 1=a1) at side (+1 or -1).
+  // returns (fid_B, within_B) and fills local_A, local_B with parametric
+  // midpoint coordinates on each side of the shared edge.
+  auto get_neighbor = [&](int fid, int q0, int q1, int dir, int side, double local_A[2],
+                          double local_B[2]) -> std::pair<int, int> {
+    int nax = fid / 2, sign_f = fid % 2;
+    int a0 = (nax+1)%3, a1 = (nax+2)%3;
+    int nc1 = face_count1[fid];
+
+    // parametric coordinates on face A at the shared edge
+    local_A[0] = (dir == 0) ? (side > 0 ? 1.0 : 0.0) : 0.5;
+    local_A[1] = (dir == 1) ? (side > 0 ? 1.0 : 0.0) : 0.5;
+
+    // check if neighbor is on the same face (internal)
+    int q_nb = (dir == 0 ? q0 : q1) + side;
+    int q_max = (dir == 0) ? face_count0[fid] : nc1;
+    if (q_nb >= 0 && q_nb < q_max) {
+      // internal neighbor
+      int q0_B = (dir == 0) ? q_nb : q0;
+      int q1_B = (dir == 0) ? q1 : q_nb;
+      local_B[0] = (dir == 0) ? (side > 0 ? 0.0 : 1.0) : 0.5;
+      local_B[1] = (dir == 1) ? (side > 0 ? 0.0 : 1.0) : 0.5;
+      return {fid, q0_B * nc1 + q1_B};
+    }
+
+    // boundary neighbor: cross to adjacent face on the box
+    int ax = (dir == 0) ? a0 : a1;           // axis being crossed
+    int fid_B = 2*ax + (side > 0 ? 1 : 0);  // neighboring face
+    int nc1_B = face_count1[fid_B];
+
+    // the running coordinate along the shared edge maps to the neighbor face:
+    //   dir=0: edge runs along a1, maps to a0_B = (ax+1)%3 = a1 → q0_B
+    //   dir=1: edge runs along a0, maps to a1_B = (ax+2)%3 = a0 → q1_B
+    // the boundary position maps to the other axis on face B (= nax of face A):
+    //   q_boundary = sign_f ? cells[nax]-1 : 0
+    int q_run = (dir == 0) ? q1 : q0;
+    int q_boundary = sign_f ? (cells[nax]-1) : 0;
+    int q0_B, q1_B;
+    if (dir == 0) {
+      q0_B = q_run;
+      q1_B = q_boundary;
+      local_B[0] = 0.5;
+      local_B[1] = sign_f ? 1.0 : 0.0;
+    } else {
+      q0_B = q_boundary;
+      q1_B = q_run;
+      local_B[0] = sign_f ? 1.0 : 0.0;
+      local_B[1] = 0.5;
+    }
+    return {fid_B, q0_B * nc1_B + q1_B};
+  };
+
+  struct BendEdge {
+    int fe_A, fe_B;          // global face element indices (for runtime)
+    int fid_A, fid_B;        // face id (0-5)
+    int within_A, within_B;  // within-face element index
+    double local_A[2];
+    double local_B[2];
+  };
+  std::vector<BendEdge> edges;
+
+  // enumerate all edges: for each face element, check 4 neighbors
+  // (2 directions × 2 sides). Add each edge once via fe_A < fe_B.
+  for (int f = 0; f < 6; f++) {
+    int nc0 = face_count0[f];
+    int nc1 = face_count1[f];
+    for (int q0 = 0; q0 < nc0; q0++) {
+      for (int q1 = 0; q1 < nc1; q1++) {
+        int within_A = q0 * nc1 + q1;
+        int fe_A = face_cumul[f] + within_A;
+
+        for (int dir = 0; dir < 2; dir++) {
+          for (int side = -1; side <= 1; side += 2) {
+            double lA[2], lB[2];
+            auto [fid_B, within_B] = get_neighbor(f, q0, q1, dir, side, lA, lB);
+            int fe_B = face_cumul[fid_B] + within_B;
+            if (fe_A < fe_B) {
+              BendEdge e;
+              e.fe_A = fe_A;  e.fid_A = f;      e.within_A = within_A;
+              e.fe_B = fe_B;  e.fid_B = fid_B;  e.within_B = within_B;
+              mjuu_copyvec(e.local_A, lA, 2);
+              mjuu_copyvec(e.local_B, lB, 2);
+              edges.push_back(e);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // compute per-edge bending data
+  const int BEND_EDGE_SIZE = 10;  // should match engine_passive.c
+  bending.resize(1 + edges.size() * BEND_EDGE_SIZE, 0);
+  bending[0] = static_cast<double>(edges.size());
+
+  for (int e = 0; e < (int)edges.size(); e++) {
+    const BendEdge& edge = edges[e];
+    std::vector<double> fpos_A, fpos_B;
+    gather_face_nodes(edge.fid_A, edge.within_A, fpos_A);
+    gather_face_nodes(edge.fid_B, edge.within_B, fpos_B);
+
+    // compute rest normals at edge midpoint
+    double n_A[3], t1_A[3], t2_A[3];
+    double n_B[3], t1_B[3], t2_B[3];
+    compute_normal(fpos_A, edge.local_A, n_A, t1_A, t2_A);
+    compute_normal(fpos_B, edge.local_B, n_B, t1_B, t2_B);
+
+    // normalize
+    double len_A = mjuu_normvec(n_A, 3);
+    double len_B = mjuu_normvec(n_B, 3);
+    if (len_A < 1e-12 || len_B < 1e-12) continue;
+
+    // rest normal jump
+    double dn0[3] = {n_A[0]-n_B[0], n_A[1]-n_B[1], n_A[2]-n_B[2]};
+
+    // stiffness coefficient: D * l_e / h_e
+    // determine which tangent is along vs across the edge for each face:
+    //   local[k] == 0.5 means parametric direction k runs along the edge
+    double h_A, l_A, h_B, l_B;
+    if (edge.local_A[0] == 0.5) {
+      // edge runs along ξ on face A: t1 is along edge, t2 is across
+      l_A = mjuu_normvec(t1_A, 3);
+      h_A = mjuu_normvec(t2_A, 3);
+    } else {
+      // edge runs along η on face A: t2 is along edge, t1 is across
+      h_A = mjuu_normvec(t1_A, 3);
+      l_A = mjuu_normvec(t2_A, 3);
+    }
+    if (edge.local_B[0] == 0.5) {
+      l_B = mjuu_normvec(t1_B, 3);
+      h_B = mjuu_normvec(t2_B, 3);
+    } else {
+      h_B = mjuu_normvec(t1_B, 3);
+      l_B = mjuu_normvec(t2_B, 3);
+    }
+    double h_avg = (h_A + h_B) / 2;
+    double l_avg = (l_A + l_B) / 2;
+    double stiffness_coeff = D_bend * l_avg / mjMAX(h_avg, 1e-12);
+
+    // pack into bending array
+    double* edata = bending.data() + 1 + e * BEND_EDGE_SIZE;
+    edata[0] = static_cast<double>(edge.fe_A);
+    edata[1] = static_cast<double>(edge.fe_B);
+    edata[2] = edge.local_A[0];
+    edata[3] = edge.local_A[1];
+    edata[4] = edge.local_B[0];
+    edata[5] = edge.local_B[1];
+    edata[6] = stiffness_coeff;
+    edata[7] = dn0[0];
+    edata[8] = dn0[1];
+    edata[9] = dn0[2];
+  }
+}
+
+
 // compiler
 void mjCFlex::Compile(const mjVFS* vfs) {
   CopyFromSpec();
@@ -4067,6 +4628,19 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
   nelem = (int)elem_.size()/(dim+1);
 
+  // elastic2d checks
+  if (elastic2d) {
+    if (thickness <= 0) {
+      throw mjCError(this, "2d elasticity requires positive thickness");
+    }
+    if (poisson < 0.0 || poisson >= 0.5) {
+      throw mjCError(this, "Poisson ratio must be in [0, 0.5)");
+    }
+    if (dim != 2 && !interpolated) {
+      throw mjCError(this, "2d elasticity requires 2d flex");
+    }
+  }
+
   // set nvert, rigid, centered; check size
   if (vert_.empty()) {
     centered = true;
@@ -4086,10 +4660,28 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // set nnode
   nnode = static_cast<int>(nodebody_.size());
-  if (nnode && !order_) {
-    order_ = std::pow(nnode, 1.0 / 3) - 1;
-    if (nnode != std::pow(order_ + 1, 3)) {
-      throw mjCError(this, "number of nodes must be %d^3 but it is %d", nullptr, order_, nnode);
+  if (nnode && !spec.order) {
+    throw mjCError(this, "Interpolation order must be explicitly specified (dof is missing)");
+  }
+
+  // check node compatibility with count and dof
+  if (spec.order > 0) {
+    if (spec.cellcount[0] == 0 || spec.cellcount[1] == 0 || spec.cellcount[2] == 0) {
+      throw mjCError(this, "cellcount cannot be 0 in any dimension when interpolation order > 0");
+    }
+    if (elastic2d && !(spec.cellcount[0] == 1 || spec.cellcount[1] == 1 || spec.cellcount[2] == 1)) {
+      throw mjCError(this,
+                     "shell trilinear flex requires at least one dimension "
+                     "with cell count equal to one (no interior nodes)");
+    }
+    int expected_nodes = (spec.cellcount[0] * spec.order + 1) *
+                         (spec.cellcount[1] * spec.order + 1) *
+                         (spec.cellcount[2] * spec.order + 1);
+    if (nnode != expected_nodes) {
+      std::string msg = "number of nodes (" + std::to_string(nnode) +
+                        ") does not match cellcount and dof expected (" +
+                        std::to_string(expected_nodes) + ")";
+      throw mjCError(this, msg.c_str());
     }
   }
 
@@ -4107,8 +4699,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // no elemtexcoord: copy from faces
   if (elemtexcoord_.empty() && !texcoord_.empty()) {
-    elemtexcoord_.assign(3*nelem, 0);
-    memcpy(elemtexcoord_.data(), elem_.data(), 3*nelem*sizeof(int));
+    elemtexcoord_.assign((dim + 1) * nelem, 0);
+    memcpy(elemtexcoord_.data(), elem_.data(), (dim + 1) * nelem * sizeof(int));
   }
 
   // resolve material name
@@ -4205,6 +4797,10 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
   }
 
+  // compute unrotated node positions for stiffness computation
+  double R0[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};  // identity by default
+  std::vector<double> nodexpos_local = ComputeUnrotatedNodePositions(nodexpos, R0);
+
   // reorder tetrahedra so right-handed face orientation is outside
   // faces are (0,1,2); (0,2,3); (0,3,1); (1,3,2)
   if (dim == 3) {
@@ -4271,12 +4867,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
 
     // linear elasticity
-    stiffness.assign(21*nelem, 0);
-    if (interpolated) {
-      int min_size = ceil(nodexpos.size()*nodexpos.size() / 21);
-      if (min_size > nelem) {
-        throw mjCError(this, "Trilinear dofs are require at least %d elements", "", min_size);
-      }
+    if (!interpolated) {
+      stiffness.assign(21 * nelem, 0);
     }
 
     // geometrically nonlinear elasticity
@@ -4296,10 +4888,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
 
     // bending stiffness (2D only)
-    if (dim == 2 && (elastic2d == 1 || elastic2d == 3)) {
-      if (thickness < 0) {
-        throw mjCError(this, "thickness must be positive for bending stiffness");
-      }
+    if (dim == 2 && (elastic2d == 1 || elastic2d == 3) && !interpolated) {
       bending.assign(nedge*17, 0);
 
       for (unsigned int e = 0; e < nedge; e++) {
@@ -4326,14 +4915,166 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // create shell fragments and element-vertex collision pairs
   CreateShellPair();
 
+  // recompute cell_empty from vertex/element geometry
+  // (survives XML round-trips where flexcomp data is lost)
+  if (interpolated && cell_empty.empty()) {
+    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    if (cx * cy * cz > 1) {
+      ComputeCellEmpty(vertxpos.data(), elem_.data(), nvert, nelem, dim);
+    }
+  }
+
   // compute linear stiffness for interpolated elements (cached)
   bool stiffness_cached = false;
   if (young > 0 && interpolated) {
     stiffness_cached = LoadCachedStiffness();
   }
 
-  if (!stiffness_cached && young > 0 && interpolated) {
-    ComputeLinearStiffness(stiffness, nodexpos.data(), young, poisson, order_);
+  // check if any strain equality references this flex
+  for (auto* equality : model->Equalities()) {
+    if (equality->spec.type == mjEQ_FLEXSTRAIN && *equality->spec.name1 == name) {
+      has_strain_eq = true;
+      break;
+    }
+  }
+
+  if (!stiffness_cached && interpolated && (young > 0 || has_strain_eq)) {
+    // use young=1 for strain constraints (eigenvectors are geometry-only)
+    double K_young = has_strain_eq ? 1e1 : young;
+    double K_poisson = has_strain_eq ? 0.3 : poisson;
+
+    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    int ny_global = cy * spec.order + 1;
+    int nz_global = cz * spec.order + 1;
+
+    // determine element type: 2D boundary quads (shell) or 3D cells (volume)
+    bool shell_mode = elastic2d != 0;
+    int npe;       // nodes per element
+    int nelem_fe;  // total finite elements
+
+    if (shell_mode) {
+      npe = pow(spec.order + 1, 2);   // (order+1)^2 for 2D quads
+      nelem_fe = 2*(cy*cz + cx*cz + cx*cy);
+    } else {
+      npe = pow(spec.order + 1, 3);   // (order+1)^3 for 3D cells
+      nelem_fe = cx * cy * cz;
+    }
+    int ndof_elem = 3 * npe;
+
+    // total stiffness = nelem_fe * ndof_elem^2
+    stiffness.resize(nelem_fe * ndof_elem * ndof_elem, 0);
+
+    // face layout for shell mode:
+    //   face 0: x=0     (cy*cz quads, normal=0, in-plane=(1,2))
+    //   face 1: x=max   (cy*cz quads, normal=0, in-plane=(1,2))
+    //   face 2: y=0     (cx*cz quads, normal=1, in-plane=(0,2))
+    //   face 3: y=max   (cx*cz quads, normal=1, in-plane=(0,2))
+    //   face 4: z=0     (cx*cy quads, normal=2, in-plane=(0,1))
+    //   face 5: z=max   (cx*cy quads, normal=2, in-plane=(0,1))
+    // face_sizes = {cy*cz, cy*cz, cx*cz, cx*cz, cx*cy, cx*cy}
+    int face_sizes[6] = {cy*cz, cy*cz, cx*cz, cx*cz, cx*cy, cx*cy};
+    int face_normal[6] = {0, 0, 1, 1, 2, 2};
+    // cell counts along each in-plane axis for each face
+    int face_count1[6] = {cz, cz, cx, cx, cy, cy};  // fast axis count
+    // fixed axis value (in grid node units, 0 or max)
+    int face_fixed[6] = {0, cx*spec.order, 0, cy*spec.order, 0, cz*spec.order};
+
+    // compute stiffness per element
+    for (int fe = 0; fe < nelem_fe; fe++) {
+      // gather element node positions
+      std::vector<double> elem_pos(3 * npe);
+      int normal_axis = -1;
+
+      if (shell_mode) {
+        // determine which face and quad within face
+        int face_id = 0, within_face = fe;
+        int cumul = 0;
+        for (int f = 0; f < 6; f++) {
+          if (fe < cumul + face_sizes[f]) {
+            face_id = f;
+            within_face = fe - cumul;
+            break;
+          }
+          cumul += face_sizes[f];
+        }
+
+        normal_axis = face_normal[face_id];
+        int na0 = (normal_axis + 1) % 3;  // slow in-plane axis
+        int na1 = (normal_axis + 2) % 3;  // fast in-plane axis
+        int c1 = face_count1[face_id];    // cell count along fast axis
+        int g_fixed = face_fixed[face_id];  // grid index along normal axis
+        int q0 = within_face / c1;        // quad index along slow in-plane axis
+        int q1 = within_face % c1;        // quad index along fast in-plane axis
+
+        // gather 2D face element nodes
+        int local = 0;
+        for (int l0 = 0; l0 <= spec.order; l0++) {
+          for (int l1 = 0; l1 <= spec.order; l1++) {
+            // build global node index from 3 axis values
+            int g[3];
+            g[normal_axis] = g_fixed;
+            g[na0] = q0 * spec.order + l0;
+            g[na1] = q1 * spec.order + l1;
+            int global = g[0] * ny_global * nz_global + g[1] * nz_global + g[2];
+            mjuu_copyvec(elem_pos.data() + 3*local,
+                         nodexpos_local.data() + 3*global, 3);
+            local++;
+          }
+        }
+      } else {
+        // 3D cell: convert flat index to (ci, cj, ck)
+        int ci = fe / (cy * cz);
+        int cj = (fe / cz) % cy;
+        int ck = fe % cz;
+
+        // skip stiffness computation for empty cells (no mesh content)
+        if (!cell_empty.empty() && cell_empty[fe]) {
+          continue;
+        }
+
+        // gather cell's local node positions
+        int local = 0;
+        for (int li = 0; li <= spec.order; li++) {
+          for (int lj = 0; lj <= spec.order; lj++) {
+            for (int lk = 0; lk <= spec.order; lk++) {
+              int gi = ci * spec.order + li;
+              int gj = cj * spec.order + lj;
+              int gk = ck * spec.order + lk;
+              int global = gi * ny_global * nz_global + gj * nz_global + gk;
+              mjuu_copyvec(elem_pos.data() + 3*local,
+                           nodexpos_local.data() + 3*global, 3);
+              local++;
+            }
+          }
+        }
+      }
+
+      // compute per-element stiffness
+      std::vector<double> K_elem(ndof_elem * ndof_elem, 0);
+      if (shell_mode) {
+        ComputeLinearStiffness2D(K_elem, elem_pos.data(), K_young, K_poisson,
+                                 spec.order, thickness, normal_axis);
+      } else {
+        ComputeLinearStiffness(K_elem, elem_pos.data(), K_young, K_poisson,
+                               spec.order);
+      }
+      double* out = stiffness.data() + fe * ndof_elem * ndof_elem;
+
+      if (has_strain_eq) {
+        // eigendecompose: store [neig, sqrt(λ)*v_1, sqrt(λ)*v_2, ...]
+        std::fill(out, out + ndof_elem * ndof_elem, 0.0);
+        EigendecomposeStiffness(K_elem.data(), out, ndof_elem, elem_pos.data());
+      } else {
+        // store raw K for passive forces
+        std::copy(K_elem.begin(), K_elem.end(), out);
+      }
+    }
+  }
+
+  // compute interpolated shell bending edge data (independent of stiffness cache)
+  if (interpolated && (elastic2d == 1 || elastic2d == 3) && thickness > 0 && young > 0) {
+    ComputeInterpBending(bending, nodexpos_local, spec.order, spec.cellcount,
+                         young, poisson, thickness);
   }
 
   // create bounding volume hierarchy
@@ -4341,27 +5082,280 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // compute bounding box coordinates
   vert0_.assign(3*nvert, 0);
-  const mjtNum* bvh = tree.Bvh().data();
-  size[0] = bvh[3] - radius;
-  size[1] = bvh[4] - radius;
-  size[2] = bvh[5] - radius;
-  for (int j=0; j < nvert; j++) {
-    for (int k=0; k < 3; k++) {
-      if (size[k] > mjMINVAL) {
-        vert0_[3*j+k] = (vertxpos[3*j+k] - bvh[k]) / (2*size[k]) + 0.5;
-      } else {
-        vert0_[3*j+k] = 0.5;
+
+  if (interpolated && nnode > 0) {
+    // for interpolated flex, compute vert0_ in the unrotated local frame
+    // to make parametric coordinates rotation-invariant
+    std::vector<double> vertxpos_local(3*nvert);
+    for (int j = 0; j < nvert; j++) {
+      mjuu_mulvecmat(vertxpos_local.data()+3*j, vertxpos.data()+3*j, R0);
+    }
+
+    // compute local-frame bounding box from unrotated node positions
+    double lo[3] = {1e30, 1e30, 1e30};
+    double hi[3] = {-1e30, -1e30, -1e30};
+    for (int i = 0; i < nnode; i++) {
+      for (int k = 0; k < 3; k++) {
+        lo[k] = std::min(lo[k], nodexpos_local[3*i+k]);
+        hi[k] = std::max(hi[k], nodexpos_local[3*i+k]);
+      }
+    }
+
+    // set size from local bounding box
+    for (int k = 0; k < 3; k++) {
+      size[k] = (hi[k] - lo[k]) / 2;
+    }
+
+    // normalize vertex positions within local bounding box
+    for (int j = 0; j < nvert; j++) {
+      for (int k = 0; k < 3; k++) {
+        double extent = hi[k] - lo[k];
+        if (extent > mjMINVAL) {
+          vert0_[3*j+k] = (vertxpos_local[3*j+k] - lo[k]) / extent;
+        } else {
+          vert0_[3*j+k] = 0.5;
+        }
+      }
+    }
+  } else {
+    // non-interpolated: use BVH bounding box (original behavior)
+    const mjtNum* bvh = tree.Bvh().data();
+    size[0] = bvh[3] - radius;
+    size[1] = bvh[4] - radius;
+    size[2] = bvh[5] - radius;
+    for (int j=0; j < nvert; j++) {
+      for (int k=0; k < 3; k++) {
+        if (size[k] > mjMINVAL) {
+          vert0_[3*j+k] = (vertxpos[3*j+k] - bvh[k]) / (2*size[k]) + 0.5;
+        } else {
+          vert0_[3*j+k] = 0.5;
+        }
       }
     }
   }
 
-  // store node cartesian positions
+  // store node positions in unrotated (body-local) frame
+  // this ensures the runtime displacement refpos - R^{-1}*x is zero at rest
   node0_.assign(3*nnode, 0);
   for (int i=0; i < nnode; i++) {
-    mjuu_copyvec(node0_.data()+3*i, nodexpos.data()+3*i, 3);
+    mjuu_copyvec(node0_.data()+3*i, nodexpos_local.data()+3*i, 3);
   }
 }
 
+
+// compute unrotated node positions for stiffness computation and node0_
+//
+// the runtime corotational code extracts rotation R from the deformation
+// gradient and computes displacement as R^{-1}*x - refpos; at rest R = R0
+// (the total grid rotation), so refpos must equal R0^{-1}*nodexpos to get
+// zero displacement at rest; additionally, the stiffness eigenvectors must
+// be computed from axis-aligned positions to preserve the diagonal Jacobian
+// assumption in ComputeLinearStiffness.
+std::vector<double> mjCFlex::ComputeUnrotatedNodePositions(
+    const std::vector<double>& nodexpos, double* R0_out) const {
+  std::vector<double> nodexpos_local(3*nnode);
+  if (interpolated && nnode > 0) {
+    int ny_global = spec.cellcount[1] * spec.order + 1;
+    int nz_global = spec.cellcount[2] * spec.order + 1;
+
+    // find first non-empty cell
+    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    int ref_ci = 0, ref_cj = 0, ref_ck = 0;
+    bool found = false;
+    for (int ci = 0; ci < cx && !found; ci++) {
+      for (int cj = 0; cj < cy && !found; cj++) {
+        for (int ck = 0; ck < cz && !found; ck++) {
+          int cell_idx = ci * cy * cz + cj * cz + ck;
+          if (cell_empty.empty() || !cell_empty[cell_idx]) {
+            ref_ci = ci; ref_cj = cj; ref_ck = ck;
+            found = true;
+          }
+        }
+      }
+    }
+
+    // corner indices of the reference cell (order=1 corners at local 0,0,0
+    // and at offsets along each parametric axis)
+    int g000 = (ref_ci * spec.order) * ny_global * nz_global +
+               (ref_cj * spec.order) * nz_global +
+               (ref_ck * spec.order);
+    int g100 = ((ref_ci * spec.order) + spec.order) * ny_global * nz_global +
+               (ref_cj * spec.order) * nz_global +
+               (ref_ck * spec.order);
+    int g010 = (ref_ci * spec.order) * ny_global * nz_global +
+               ((ref_cj * spec.order) + spec.order) * nz_global +
+               (ref_ck * spec.order);
+    int g001 = (ref_ci * spec.order) * ny_global * nz_global +
+               (ref_cj * spec.order) * nz_global +
+               ((ref_ck * spec.order) + spec.order);
+
+    // edge vectors (columns of the deformation gradient F = R * S)
+    // we store them as rows in R0 to use mjuu_mulvecmat for applying R0^{-1}
+    double R0[9];
+    for (int d = 0; d < 3; d++) {
+      R0[0+d] = nodexpos[3*g100 + d] - nodexpos[3*g000 + d];
+      R0[3+d] = nodexpos[3*g010 + d] - nodexpos[3*g000 + d];
+      R0[6+d] = nodexpos[3*g001 + d] - nodexpos[3*g000 + d];
+    }
+
+    // normalize to get rotation matrix columns (valid for regular grids)
+    double li = mjuu_normvec(R0+0, 3);
+    double lj = mjuu_normvec(R0+3, 3);
+    double lk = mjuu_normvec(R0+6, 3);
+    (void)li; (void)lj; (void)lk;
+
+    // assert R0 is orthonormal (rows are the normalized edge vectors)
+    for (int a = 0; a < 3; a++) {
+      for (int b = a; b < 3; b++) {
+        double dot = mjuu_dot3(R0 + 3*a, R0 + 3*b);
+        double expected = (a == b) ? 1.0 : 0.0;
+        if (std::abs(dot - expected) > 1e-8) {
+          throw mjCError(this, "flex grid rotation R0 is not orthonormal");
+        }
+      }
+    }
+
+    // output R0 if requested
+    if (R0_out) {
+      mjuu_copyvec(R0_out, R0, 9);
+    }
+
+    // apply inverse rotation to each nodexpos to get local-frame positions
+    for (int i = 0; i < nnode; i++) {
+      const double* p = nodexpos.data() + 3*i;
+      double* q = nodexpos_local.data() + 3*i;
+      mjuu_mulvecmat(q, p, R0);
+    }
+  } else {
+    nodexpos_local = nodexpos;
+  }
+  return nodexpos_local;
+}
+
+
+// identify cells with no mesh content from vertex/element geometry
+void mjCFlex::ComputeCellEmpty(const double* vpos, const int* elems,
+                               int nv, int ne, int fdim,
+                               const double* bbox) {
+  int cx = spec.cellcount[0];
+  int cy = spec.cellcount[1];
+  int cz = spec.cellcount[2];
+  int ncells = cx * cy * cz;
+
+  // use precomputed bounding box if provided, otherwise compute from vertices
+  double minmax[6];
+  if (bbox) {
+    for (int j = 0; j < 6; j++) minmax[j] = bbox[j];
+  } else {
+    minmax[0] = minmax[1] = minmax[2] = 1e30;
+    minmax[3] = minmax[4] = minmax[5] = -1e30;
+    for (int i = 0; i < nv; i++) {
+      for (int j = 0; j < 3; j++) {
+        minmax[j+0] = std::min(minmax[j+0], vpos[3*i+j]);
+        minmax[j+3] = std::max(minmax[j+3], vpos[3*i+j]);
+      }
+    }
+  }
+
+  double dx = minmax[3] - minmax[0];
+  double dy = minmax[4] - minmax[1];
+  double dz = minmax[5] - minmax[2];
+
+  // determine which cells contain mesh elements
+  std::vector<bool> has_element(ncells, false);
+  int nvpe = fdim + 1;
+
+  if (nvpe > 0 && ne > 0) {
+    for (int e = 0; e < ne; e++) {
+      // compute element AABB
+      double elo[3] = {1e30, 1e30, 1e30};
+      double ehi[3] = {-1e30, -1e30, -1e30};
+      for (int v = 0; v < nvpe; v++) {
+        int vid = elems[nvpe * e + v];
+        for (int j = 0; j < 3; j++) {
+          elo[j] = std::min(elo[j], vpos[3 * vid + j]);
+          ehi[j] = std::max(ehi[j], vpos[3 * vid + j]);
+        }
+      }
+
+      // map element AABB to cell range
+      auto cellIdx = [](double coord, double lo, double d, int nc) {
+        if (d <= 0) return 0;
+        int c = (int)((coord - lo) / d * nc);
+        return std::max(0, std::min(nc - 1, c));
+      };
+
+      int ci0 = cellIdx(elo[0], minmax[0], dx, cx);
+      int ci1 = cellIdx(ehi[0], minmax[0], dx, cx);
+      int cj0 = cellIdx(elo[1], minmax[1], dy, cy);
+      int cj1 = cellIdx(ehi[1], minmax[1], dy, cy);
+      int ck0 = cellIdx(elo[2], minmax[2], dz, cz);
+      int ck1 = cellIdx(ehi[2], minmax[2], dz, cz);
+
+      for (int ci = ci0; ci <= ci1; ci++) {
+        for (int cj = cj0; cj <= cj1; cj++) {
+          for (int ck = ck0; ck <= ck1; ck++) {
+            has_element[ci * cy * cz + cj * cz + ck] = true;
+          }
+        }
+      }
+    }
+  }
+
+  cell_empty.assign(ncells, false);
+
+  // for dim=2 (surface mesh): flood-fill from boundary to find exterior cells
+  if (fdim == 2 && nvpe == 3 && ne > 0) {
+    std::vector<bool> visited(ncells, false);
+    std::queue<std::array<int, 3>> bfs;
+
+    // seed BFS from boundary cells that have no elements
+    for (int ci = 0; ci < cx; ci++) {
+      for (int cj = 0; cj < cy; cj++) {
+        for (int ck = 0; ck < cz; ck++) {
+          if (ci == 0 || ci == cx - 1 ||
+              cj == 0 || cj == cy - 1 ||
+              ck == 0 || ck == cz - 1) {
+            int idx = ci * cy * cz + cj * cz + ck;
+            if (!has_element[idx] && !visited[idx]) {
+              visited[idx] = true;
+              cell_empty[idx] = true;
+              bfs.push({ci, cj, ck});
+            }
+          }
+        }
+      }
+    }
+
+    // BFS: spread through non-element cells
+    const int dirs[6][3] = {
+        {-1, 0, 0}, {1, 0, 0},  {0, -1, 0},
+        {0, 1, 0},  {0, 0, -1}, {0, 0, 1}};
+    while (!bfs.empty()) {
+      auto [ci, cj, ck] = bfs.front();
+      bfs.pop();
+      for (auto& d : dirs) {
+        int ni = ci + d[0], nj = cj + d[1], nk = ck + d[2];
+        if (ni < 0 || ni >= cx ||
+            nj < 0 || nj >= cy ||
+            nk < 0 || nk >= cz) {
+          continue;
+        }
+        int nidx = ni * cy * cz + nj * cz + nk;
+        if (!visited[nidx] && !has_element[nidx]) {
+          visited[nidx] = true;
+          cell_empty[nidx] = true;
+          bfs.push({ni, nj, nk});
+        }
+      }
+    }
+  } else {
+    // dim!=2: cells without element overlap are empty
+    for (int c = 0; c < ncells; c++) {
+      cell_empty[c] = !has_element[c];
+    }
+  }
+}
 
 
 // create flex BVH

@@ -43,8 +43,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 3007000
-#define mjVERSIONSTRING "3.7.0"
+ #define mjVERSION 3009000
+#define mjVERSIONSTRING "3.9.0"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -66,7 +66,8 @@ const char* mjDISABLESTRING[mjNDISABLE] = {
   "Eulerdamp",
   "AutoReset",
   "NativeCCD",
-  "Island"
+  "Island",
+  "MultiCCD"
 };
 
 
@@ -76,7 +77,6 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Energy",
   "Fwdinv",
   "InvDiscrete",
-  "MultiCCD",
   "Sleep"
 };
 
@@ -420,17 +420,11 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
   int nv = m->nv;
+
   // sparse
   if (rownnz && rowadr && colind) {
-    mj_markStack(d);
-    mjtNum* buf_val = mjSTACKALLOC(d, nv, mjtNum);
-    int* buf_ind = mjSTACKALLOC(d, nv, int);
-
-    mju_addToMatSparse(dst, rownnz, rowadr, colind, nv,
-      d->M, m->M_rownnz, m->M_rowadr, m->M_colind,
-      buf_val, buf_ind);
-
-    mj_freeStack(d);
+    mju_addToMatSparse(dst, rownnz, rowadr, colind, nv, d->M,
+                       m->M_rownnz, m->M_rowadr, m->M_colind);
   }
 
   // dense
@@ -526,6 +520,7 @@ void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc) {
 // returns the smallest distance between two geoms (using nativeccd)
 static mjtNum mj_geomDistanceCCD(const mjModel* m, mjData* d, int g1, int g2,
                                  mjtNum distmax, mjtNum fromto[6]) {
+  mj_markStack(d);
   mjCCDConfig config;
   mjCCDStatus status;
 
@@ -534,12 +529,14 @@ static mjtNum mj_geomDistanceCCD(const mjModel* m, mjData* d, int g1, int g2,
   config.tolerance = m->opt.ccd_tolerance;
   config.max_contacts = 1;        // want contacts
   config.dist_cutoff = distmax;   // want geom distances
+  config.buffer = mj_stackAllocByte(d, mjc_ccdSize(config.max_iterations), sizeof(mjtNum));
 
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, 0);
   mjc_initCCDObj(&obj2, m, d, g2, 0);
 
   mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
+  mj_freeStack(d);
 
   // witness points are only computed if dist <= distmax
   if (fromto && status.nx > 0) {
@@ -709,22 +706,69 @@ int mj_actuatorDisabled(const mjModel* m, int i) {
 mjtNum mj_nextActivation(const mjModel* m, const mjData* d,
                          int actuator_id, int act_adr, mjtNum act_dot) {
   mjtNum act = d->act[act_adr];
+  int dyntype = m->actuator_dyntype[actuator_id];
 
-  if (m->actuator_dyntype[actuator_id] == mjDYN_FILTEREXACT) {
+  if (dyntype == mjDYN_FILTEREXACT) {
     // exact filter integration
     // act_dot(0) = (ctrl-act(0)) / tau
     // act(h) = act(0) + (ctrl-act(0)) (1 - exp(-h / tau))
     //        = act(0) + act_dot(0) * tau * (1 - exp(-h / tau))
     mjtNum tau = mju_max(mjMINVAL, m->actuator_dynprm[actuator_id*mjNDYN]);
     act = act + act_dot * tau * (1 - mju_exp(-m->opt.timestep / tau));
-  } else {
-    // Euler integration
+  } else if (dyntype == mjDYN_DCMOTOR) {
+    const mjtNum* dynprm = m->actuator_dynprm + actuator_id * mjNDYN;
+    const mjtNum* gainprm = m->actuator_gainprm + actuator_id * mjNGAIN;
+    mjDCMotorSlots slots = mj_dcmotorSlots(dynprm, gainprm);
+
+    int offset = act_adr - m->actuator_actadr[actuator_id];
+
+    // current filter: exact integration
+    if (offset == slots.current) {
+      mjtNum te = mju_max(mjMINVAL, dynprm[0]);
+      act = act + act_dot * te * (1 - mju_exp(-m->opt.timestep / te));
+    }
+
+    // LuGre bristle:  dz/dt = a*z + v  where a = -sigma0*|v|/g(v)
+    else if (offset == slots.bristle) {
+      const mjtNum* biasprm = m->actuator_biasprm + mjNBIAS*actuator_id;
+      mjtNum F_C = biasprm[3];    // Coulomb friction
+      mjtNum F_S = biasprm[4];    // static friction
+      mjtNum v_S = biasprm[5];    // Stribeck velocity
+      mjtNum sigma0 = dynprm[5];  // bristle stiffness
+      mjtNum velocity = d->actuator_velocity[actuator_id];
+      mjtNum g = mj_lugreStribeck(velocity, F_C, F_S, v_S);
+
+      // ZOH exact ZOH integration: z(h) = exp(ah)*z(0) + ((exp(ah)-1)/a)*v
+      mjtNum a = -sigma0 * mju_abs(velocity) / mju_max(mjMINVAL, g);  // decay rate
+      mjtNum h = m->opt.timestep;
+      mjtNum exp_ah = mju_exp(a * h);                                 // state transition
+      mjtNum int_h = mju_abs(a) > mjMINVAL ? (exp_ah - 1) / a : h;    // input integral
+      act = exp_ah * act + int_h * velocity;
+    }
+
+    // integral state: Euler integration with anti-windup clamp
+    else if (offset == slots.integral) {
+      act = act + act_dot * m->opt.timestep;
+      mjtNum Imax = dynprm[8];
+      if (Imax > 0) {
+        act = mju_clip(act, -Imax, Imax);
+      }
+    }
+
+    // temperature and slew: Euler integration
+    else {
+      act = act + act_dot * m->opt.timestep;
+    }
+  }
+
+  // otherwise Euler integration
+  else {
     act = act + act_dot * m->opt.timestep;
   }
 
-  // clamp to actrange
-  if (m->actuator_actlimited[actuator_id]) {
-    mjtNum* actrange = m->actuator_actrange + 2*actuator_id;
+  // clamp to actrange unless DC motor
+  if (dyntype != mjDYN_DCMOTOR && m->actuator_actlimited[actuator_id]) {
+    const mjtNum* actrange = m->actuator_actrange + 2*actuator_id;
     act = mju_clip(act, actrange[0], actrange[1]);
   }
 

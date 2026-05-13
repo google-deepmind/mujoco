@@ -388,7 +388,7 @@ Defined in `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/includ
      - value
      - description
    * - ``mjVERSION_HEADER``
-     - 3007000
+     - 3009000
      - The version of the MuJoCo headers. This is an integer calculated from the version string "S.M.P"
        using the formula ``(S * 1e6) + (M * 1e3) + P``. For example, version 4.2.1 is represented as 4002001.
        The API function :ref:`mj_version` returns a number with the same meaning
@@ -691,17 +691,13 @@ mjPLUGIN_LIB_INIT
 
 .. code-block:: C
 
-   #define mjPLUGIN_LIB_INIT                                                                 \
-     static void _mjplugin_dllmain(void);                                                    \
-     mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
-       if (reason == 1) {                                                                    \
-         _mjplugin_dllmain();                                                                \
-       }                                                                                     \
-       return 1;                                                                             \
-     }                                                                                       \
-     static void _mjplugin_dllmain(void)
+   #define mjPLUGIN_LIB_INIT(n)                                      \
+        static void _mj_init_##n(void) __attribute__((constructor)); \
+        static void _mj_init_##n(void)
 
-Register a plugin as a dynamic library. See :ref:`plugin registration<exRegistration>` for more details.
+Register a plugin before `main()` is called. This macro takes a unique identifier `n` as an argument that is used to avoid
+name collisions between different plugin initialization functions. See :ref:`plugin registration<exRegistration>` for
+more details.
 
 
 .. _tyXMacro:

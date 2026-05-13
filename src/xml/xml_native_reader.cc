@@ -206,6 +206,10 @@ std::vector<const char*> MJCF[nMJCF] = {
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "?", "forcelimited", "ctrlrange", "forcerange",
             "gain", "user", "group", "nsample", "interp", "delay"},
+        {"dcmotor", "?", "ctrllimited", "ctrlrange",
+            "gear", "damping", "armature", "cranklength", "user", "group", "nsample", "interp", "delay",
+            "motorconst", "resistance", "nominal", "saturation",
+            "inductance", "cogging", "controller", "input", "thermal", "lugre"},
     {">"},
 
     {"extension", "*"},
@@ -311,7 +315,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             {">"},
         {">"},
         {"flexcomp", "*", "name", "type", "group", "dim", "dof",
-            "count", "spacing", "radius", "rigid", "mass", "inertiabox",
+            "count", "cellcount", "spacing", "radius", "rigid", "mass", "inertiabox",
             "scale", "file", "point", "element", "texcoord", "material", "rgba",
             "flatskin", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler", "origin"},
         {"<"},
@@ -330,8 +334,8 @@ std::vector<const char*> MJCF[nMJCF] = {
 
     {"deformable", "*"},
     {"<"},
-        {"flex", "*", "name", "group", "dim", "radius", "material",
-            "rgba", "flatskin", "body", "vertex", "element", "texcoord", "elemtexcoord", "node"},
+        {"flex", "*", "name", "group", "dim", "radius", "material", "rgba", "flatskin", "body",
+            "vertex", "element", "texcoord", "elemtexcoord", "node", "cellcount", "dof"},
         {"<"},
             {"contact", "?",  "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
@@ -367,7 +371,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "active", "solref", "solimp"},
         {"flexvert", "*", "name", "class", "flex",
             "active", "solref", "solimp"},
-        {"flexstrain", "*", "name", "class", "flex",
+        {"flexstrain", "*", "name", "class", "flex", "cell",
             "active", "solref", "solimp"},
     {">"},
 
@@ -436,6 +440,12 @@ std::vector<const char*> MJCF[nMJCF] = {
             "lmin", "lmax", "vmax", "fpmax", "fvmax"},
         {"adhesion", "*", "name", "class", "group", "nsample", "interp", "delay",
             "forcelimited", "ctrlrange", "forcerange", "user", "body", "gain"},
+        {"dcmotor", "*", "name", "class", "group", "nsample", "interp", "delay",
+            "ctrllimited", "ctrlrange",
+            "lengthrange", "gear", "damping", "armature", "cranklength", "user",
+            "joint", "jointinparent", "tendon", "slidersite", "cranksite", "site", "refsite",
+            "motorconst", "resistance", "nominal", "saturation",
+            "inductance", "cogging", "controller", "thermal", "lugre", "input"},
         {"plugin", "*", "name", "class",  "plugin", "instance", "group", "nsample", "interp", "delay",
             "ctrllimited", "forcelimited", "actlimited", "ctrlrange", "forcerange", "actrange",
             "lengthrange", "gear", "damping", "armature", "cranklength", "joint", "jointinparent",
@@ -724,33 +734,45 @@ const mjMap mark_map[mark_sz] = {
 
 
 // dyn type
-const int dyn_sz = 6;
+const int dyn_sz = 7;
 const mjMap dyn_map[dyn_sz] = {
   {"none",          mjDYN_NONE},
   {"integrator",    mjDYN_INTEGRATOR},
   {"filter",        mjDYN_FILTER},
   {"filterexact",   mjDYN_FILTEREXACT},
   {"muscle",        mjDYN_MUSCLE},
+  {"dcmotor",       mjDYN_DCMOTOR},
   {"user",          mjDYN_USER}
 };
 
 
+// dcmotor controller input mode
+const int dcmotorinput_sz = 3;
+const mjMap dcmotorinput_map[dcmotorinput_sz] = {
+  {"voltage",       0},
+  {"position",      1},
+  {"velocity",      2}
+};
+
+
 // gain type
-const int gain_sz = 4;
+const int gain_sz = 5;
 const mjMap gain_map[gain_sz] = {
   {"fixed",         mjGAIN_FIXED},
   {"affine",        mjGAIN_AFFINE},
   {"muscle",        mjGAIN_MUSCLE},
+  {"dcmotor",       mjGAIN_DCMOTOR},
   {"user",          mjGAIN_USER}
 };
 
 
 // bias type
-const int bias_sz = 4;
+const int bias_sz = 5;
 const mjMap bias_map[bias_sz] = {
   {"none",          mjBIAS_NONE},
   {"affine",        mjBIAS_AFFINE},
   {"muscle",        mjBIAS_MUSCLE},
+  {"dcmotor",       mjBIAS_DCMOTOR},
   {"user",          mjBIAS_USER}
 };
 
@@ -910,7 +932,8 @@ const mjMap fdof_map[mjNFCOMPDOFS] = {
   {"full",          mjFCOMPDOF_FULL},
   {"radial",        mjFCOMPDOF_RADIAL},
   {"trilinear",     mjFCOMPDOF_TRILINEAR},
-  {"quadratic",     mjFCOMPDOF_QUADRATIC}
+  {"quadratic",     mjFCOMPDOF_QUADRATIC},
+  {"2d",            mjFCOMPDOF_2D}
 };
 
 
@@ -1261,6 +1284,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("autoreset",    mjDSBL_AUTORESET)
     READDSBL("nativeccd",    mjDSBL_NATIVECCD)
     READDSBL("island",       mjDSBL_ISLAND)
+    READDSBL("multiccd",     mjDSBL_MULTICCD)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \
@@ -1272,7 +1296,6 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READENBL("energy",      mjENBL_ENERGY)
     READENBL("fwdinv",      mjENBL_FWDINV)
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
-    READENBL("multiccd",    mjENBL_MULTICCD)
     READENBL("sleep",       mjENBL_SLEEP)
 #undef READENBL
   }
@@ -1479,6 +1502,16 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
   ReadAttrInt(elem, "dim", &flex->dim);
   ReadAttrInt(elem, "group", &flex->group);
 
+  flex->cellcount[0] = 1;
+  flex->cellcount[1] = 1;
+  flex->cellcount[2] = 1;
+  ReadAttr(elem, "cellcount", 3, flex->cellcount, text);
+
+  flex->order = 0;
+  if (MapValue(elem, "dof", &n, fdof_map, mjNFCOMPDOFS)) {
+    flex->order = (n == mjFCOMPDOF_QUADRATIC) ? 2 : (n == mjFCOMPDOF_TRILINEAR ? 1 : 0);
+  }
+
   // read data vectors
   if (ReadAttrTxt(elem, "body", text, true)) {
     mjs_setStringVec(flex->vertbody, text.c_str());
@@ -1520,7 +1553,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
       flex->internal = (n == 1);
     }
     MapValue(cont, "selfcollide", &flex->selfcollide, flexself_map, 5);
-    if (MapValue(cont, "passive", &flex->passive, bool_map, 2)) {
+    if (MapValue(cont, "passive", &n, bool_map, 2)) {
       flex->passive = (n == 1);
     }
     ReadAttrInt(cont, "activelayers", &flex->activelayers);
@@ -2213,8 +2246,12 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
 
       case mjEQ_FLEX:
       case mjEQ_FLEXVERT:
+        ReadAttrTxt(elem, "flex", name1, true);
+        break;
+
       case mjEQ_FLEXSTRAIN:
         ReadAttrTxt(elem, "flex", name1, true);
+        ReadAttr(elem, "cell", 3, equality->data, text);
         break;
 
       case mjEQ_DISTANCE:
@@ -2498,6 +2535,53 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     err = mjs_setToAdhesion(actuator, gain);
   }
 
+  // DC motor
+  else if (type == "dcmotor") {
+    bool inherited = (actuator->gaintype == mjGAIN_DCMOTOR);
+    double motorconst[2] = {inherited ? actuator->gainprm[1] : 0, 0};
+    double resistance = inherited ? actuator->gainprm[0] : 0;
+    double nominal[3] = {0, 0, 0};
+    double saturation[3] = {0, 0,
+                            inherited ? actuator->dynprm[1] : 0};
+    double controller[6] = {inherited ? actuator->gainprm[4] : 0,
+                            inherited ? actuator->gainprm[5] : 0,
+                            inherited ? actuator->gainprm[6] : 0,
+                            inherited ? actuator->dynprm[7] : 0,
+                            inherited ? actuator->dynprm[8] : 0,
+                            inherited ? actuator->gainprm[7] : 0};
+    double inductance[2] = {0, inherited ? actuator->dynprm[0] : 0};
+    double cogging[3] = {inherited ? actuator->biasprm[0] : 0,
+                         inherited ? actuator->biasprm[1] : 0,
+                         inherited ? actuator->biasprm[2] : 0};
+    double thermal[6] = {inherited ? actuator->dynprm[2] : 0,
+                         inherited ? actuator->dynprm[3] : 0,
+                         0,
+                         inherited ? actuator->gainprm[2] : 0,
+                         inherited ? actuator->gainprm[3] : 0,
+                         inherited ? actuator->dynprm[4] : 0};
+    double lugre[5] = {inherited ? actuator->dynprm[5] : 0,
+                       inherited ? actuator->dynprm[6] : 0,
+                       inherited ? actuator->biasprm[3] : 0,
+                       inherited ? actuator->biasprm[4] : 0,
+                       inherited ? actuator->biasprm[5] : 0};
+    int input_mode = inherited ? (int)actuator->gainprm[8] : 0;
+    ReadAttr(elem, "motorconst", 2, motorconst, text, false, false);
+    ReadAttr(elem, "resistance", 1, &resistance, text);
+    ReadAttr(elem, "nominal", 3, nominal, text, false, false);
+    ReadAttr(elem, "saturation", 3, saturation, text, false, false);
+    ReadAttr(elem, "inductance", 2, inductance, text, false, false);
+    ReadAttr(elem, "cogging", 3, cogging, text, false, false);
+    ReadAttr(elem, "controller", 6, controller, text, false, false);
+    ReadAttr(elem, "thermal", 6, thermal, text, false, false);
+    ReadAttr(elem, "lugre", 5, lugre, text, false, false);
+    if (MapValue(elem, "input", &input_mode, dcmotorinput_map, dcmotorinput_sz)) {
+      // successfully parsed
+    }
+    err = mjs_setToDCMotor(actuator, motorconst, resistance,
+                           nominal, saturation, inductance,
+                           cogging, controller, thermal, lugre, input_mode);
+  }
+
   else if (type == "plugin") {
     OnePlugin(elem, &actuator->plugin);
     int n;
@@ -2725,6 +2809,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     fcomp.type = (mjtFcompType)n;
   }
   ReadAttr(elem, "count", 3, fcomp.count, text);
+  ReadAttr(elem, "cellcount", 3, fcomp.cellcount, text);
   ReadAttr(elem, "spacing", 3, fcomp.spacing, text);
   ReadAttr(elem, "scale", 3, fcomp.scale, text);
   ReadAttr(elem, "mass", 1, &fcomp.mass, text);
@@ -2798,11 +2883,8 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   }
 
   // check errors
-  if (dflex.elastic2d >= 2 && fcomp.equality) {
-    throw mjXError(elem, "elasticity and edge constraints cannot both be present");
-  }
-  if (fcomp.equality == 3 && dflex.young > 0) {
-    throw mjXError(elem, "strain constraint and elasticity (young) cannot both be present");
+  if (dflex.elastic2d != 1 && fcomp.equality && dflex.young > 0) {
+    throw mjXError(elem, "flex constraints and elasticity (young) cannot both be present");
   }
 
   // contact
@@ -2962,7 +3044,8 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def, const mjVFS*
              name == "intvelocity" ||
              name == "cylinder"    ||
              name == "muscle"      ||
-             name == "adhesion") {
+             name == "adhesion"    ||
+             name == "dcmotor") {
       OneActuator(elem, def->actuator);
     }
 

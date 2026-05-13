@@ -754,6 +754,81 @@ int mjuu_eig3(double eigval[3], double eigvec[9], double quat[4], const double m
   return iter;
 }
 
+
+// Jacobi eigenvalue decomposition of symmetric n×n matrix.
+// On output, eigenvalues are in eigval and eigenvectors are columns of eigvec.
+// Both arrays must be pre-allocated: eigval[n], eigvec[n*n].
+// The input matrix mat is destroyed.
+int mjuu_eigendecompose(double* mat, double* eigval, double* eigvec, int n) {
+  // initialize eigvec to identity
+  std::fill(eigvec, eigvec + n*n, 0.0);
+  for (int i = 0; i < n; i++) {
+    eigvec[i*n + i] = 1.0;
+  }
+
+  const int max_sweeps = 200;
+  const double tol = 1e-12;
+
+  int sweep;
+  for (sweep = 0; sweep < max_sweeps; sweep++) {
+    // check convergence: sum of squared off-diagonal elements
+    double off_diag = 0;
+    for (int i = 0; i < n; i++) {
+      for (int j = i+1; j < n; j++) {
+        off_diag += mat[i*n + j] * mat[i*n + j];
+      }
+    }
+    if (off_diag < tol * tol) break;
+
+    // sweep over all off-diagonal pairs
+    for (int p = 0; p < n; p++) {
+      for (int q = p+1; q < n; q++) {
+        double apq = mat[p*n + q];
+        if (std::abs(apq) < tol * 1e-3) continue;
+
+        // compute rotation angle
+        double app = mat[p*n + p];
+        double aqq = mat[q*n + q];
+        double tau = (aqq - app) / (2.0 * apq);
+        double t = (tau >= 0 ? 1.0 : -1.0) /
+                   (std::abs(tau) + std::sqrt(1.0 + tau*tau));
+        double c = 1.0 / std::sqrt(1.0 + t*t);
+        double s = t * c;
+
+        // update matrix (Jacobi rotation)
+        mat[p*n + p] -= t * apq;
+        mat[q*n + q] += t * apq;
+        mat[p*n + q] = 0;
+        mat[q*n + p] = 0;
+
+        for (int r = 0; r < n; r++) {
+          if (r == p || r == q) continue;
+          double mrp = mat[r*n + p];
+          double mrq = mat[r*n + q];
+          mat[r*n + p] = mat[p*n + r] = c*mrp - s*mrq;
+          mat[r*n + q] = mat[q*n + r] = s*mrp + c*mrq;
+        }
+
+        // accumulate eigenvectors
+        for (int r = 0; r < n; r++) {
+          double vrp = eigvec[r*n + p];
+          double vrq = eigvec[r*n + q];
+          eigvec[r*n + p] = c*vrp - s*vrq;
+          eigvec[r*n + q] = s*vrp + c*vrq;
+        }
+      }
+    }
+  }
+
+  // extract eigenvalues from diagonal
+  for (int i = 0; i < n; i++) {
+    eigval[i] = mat[i*n + i];
+  }
+
+  return sweep;
+}
+
+
 // transform vector by pose
 void mjuu_trnVecPose(double res[3], const double pos[3], const double quat[4],
                      const double vec[3]) {
@@ -1189,10 +1264,10 @@ template<typename T> std::string VectorToString(const std::vector<T>& v) {
   return s;
 }
 
-template std::string VectorToString(const std::vector<int>& v);
-template std::string VectorToString(const std::vector<float>& v);
-template std::string VectorToString(const std::vector<double>& v);
-template std::string VectorToString(const std::vector<std::string>& v);
+template MJAPI std::string VectorToString(const std::vector<int>& v);
+template MJAPI std::string VectorToString(const std::vector<float>& v);
+template MJAPI std::string VectorToString(const std::vector<double>& v);
+template MJAPI std::string VectorToString(const std::vector<std::string>& v);
 
 namespace {
 
@@ -1258,7 +1333,11 @@ template <typename T> std::vector<T> StringToVector(char* cs) {
   return v;
 }
 
-template<> std::vector<std::string> StringToVector(const std::string& s) {
+template<> MJAPI std::vector<std::string> StringToVector(char* cs) {
+  return StringToVector<std::string>(std::string(cs));
+}
+
+template<> MJAPI std::vector<std::string> StringToVector(const std::string& s) {
   std::vector<std::string> v;
   std::stringstream ss(s);
   std::string word;
@@ -1268,17 +1347,18 @@ template<> std::vector<std::string> StringToVector(const std::string& s) {
   return v;
 }
 
-template std::vector<int>    StringToVector(char* cs);
-template std::vector<float>  StringToVector(char* cs);
-template std::vector<double> StringToVector(char* cs);
+template MJAPI std::vector<int>    StringToVector(char* cs);
+template MJAPI std::vector<float>  StringToVector(char* cs);
+template MJAPI std::vector<double> StringToVector(char* cs);
+template MJAPI std::vector<unsigned char> StringToVector(char* cs);
 
 
 template <typename T> std::vector<T> StringToVector(const std::string& s) {
   return StringToVector<T>(const_cast<char*>(s.c_str()));
 }
-template std::vector<int>    StringToVector(const std::string& s);
-template std::vector<float>  StringToVector(const std::string& s);
-template std::vector<double> StringToVector(const std::string& s);
-template std::vector<unsigned char> StringToVector(const std::string& s);
+template MJAPI std::vector<int>    StringToVector(const std::string& s);
+template MJAPI std::vector<float>  StringToVector(const std::string& s);
+template MJAPI std::vector<double> StringToVector(const std::string& s);
+template MJAPI std::vector<unsigned char> StringToVector(const std::string& s);
 
 }  // namespace mujoco::user

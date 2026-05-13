@@ -50,48 +50,48 @@ _cb = mjwp_types.Callback(
 def _kinematics_shim(
     # Model
     nworld: int,
-    body_branch_start: wp.array(dtype=int),
-    body_branches: wp.array(dtype=int),
-    body_ipos: wp.array2d(dtype=wp.vec3),
-    body_iquat: wp.array2d(dtype=wp.quat),
-    body_jntadr: wp.array(dtype=int),
-    body_jntnum: wp.array(dtype=int),
-    body_mocapid: wp.array(dtype=int),
-    body_parentid: wp.array(dtype=int),
-    body_pos: wp.array2d(dtype=wp.vec3),
-    body_quat: wp.array2d(dtype=wp.quat),
-    body_rootid: wp.array(dtype=int),
-    body_weldid: wp.array(dtype=int),
-    geom_bodyid: wp.array(dtype=int),
-    geom_pos: wp.array2d(dtype=wp.vec3),
-    geom_quat: wp.array2d(dtype=wp.quat),
-    jnt_axis: wp.array2d(dtype=wp.vec3),
-    jnt_pos: wp.array2d(dtype=wp.vec3),
-    jnt_qposadr: wp.array(dtype=int),
-    jnt_type: wp.array(dtype=int),
+    body_branch_start: wp.array[int],
+    body_branches: wp.array[int],
+    body_ipos: wp.array2d[wp.vec3],
+    body_iquat: wp.array2d[wp.quat],
+    body_jntadr: wp.array[int],
+    body_jntnum: wp.array[int],
+    body_mocapid: wp.array[int],
+    body_parentid: wp.array[int],
+    body_pos: wp.array2d[wp.vec3],
+    body_quat: wp.array2d[wp.quat],
+    body_rootid: wp.array[int],
+    body_weldid: wp.array[int],
+    geom_bodyid: wp.array[int],
+    geom_pos: wp.array2d[wp.vec3],
+    geom_quat: wp.array2d[wp.quat],
+    jnt_axis: wp.array2d[wp.vec3],
+    jnt_pos: wp.array2d[wp.vec3],
+    jnt_qposadr: wp.array[int],
+    jnt_type: wp.array[int],
     nbody: int,
     nbranch: int,
     ngeom: int,
     nsite: int,
-    qpos0: wp.array2d(dtype=float),
-    site_bodyid: wp.array(dtype=int),
-    site_pos: wp.array2d(dtype=wp.vec3),
-    site_quat: wp.array2d(dtype=wp.quat),
+    qpos0: wp.array2d[float],
+    site_bodyid: wp.array[int],
+    site_pos: wp.array2d[wp.vec3],
+    site_quat: wp.array2d[wp.quat],
     # Data
-    geom_xmat: wp.array2d(dtype=wp.mat33),
-    geom_xpos: wp.array2d(dtype=wp.vec3),
-    mocap_pos: wp.array2d(dtype=wp.vec3),
-    mocap_quat: wp.array2d(dtype=wp.quat),
-    qpos: wp.array2d(dtype=float),
-    site_xmat: wp.array2d(dtype=wp.mat33),
-    site_xpos: wp.array2d(dtype=wp.vec3),
-    xanchor: wp.array2d(dtype=wp.vec3),
-    xaxis: wp.array2d(dtype=wp.vec3),
-    ximat: wp.array2d(dtype=wp.mat33),
-    xipos: wp.array2d(dtype=wp.vec3),
-    xmat: wp.array2d(dtype=wp.mat33),
-    xpos: wp.array2d(dtype=wp.vec3),
-    xquat: wp.array2d(dtype=wp.quat),
+    geom_xmat: wp.array2d[wp.mat33],
+    geom_xpos: wp.array2d[wp.vec3],
+    mocap_pos: wp.array2d[wp.vec3],
+    mocap_quat: wp.array2d[wp.quat],
+    qpos: wp.array2d[float],
+    site_xmat: wp.array2d[wp.mat33],
+    site_xpos: wp.array2d[wp.vec3],
+    xanchor: wp.array2d[wp.vec3],
+    xaxis: wp.array2d[wp.vec3],
+    ximat: wp.array2d[wp.mat33],
+    xipos: wp.array2d[wp.vec3],
+    xmat: wp.array2d[wp.mat33],
+    xpos: wp.array2d[wp.vec3],
+    xquat: wp.array2d[wp.quat],
 ):
   _m.stat = _s
   _m.opt = _o
@@ -297,59 +297,65 @@ def kinematics_vmap(
 def _tendon_shim(
     # Model
     nworld: int,
-    body_parentid: wp.array(dtype=int),
-    body_rootid: wp.array(dtype=int),
-    dof_bodyid: wp.array(dtype=int),
-    geom_bodyid: wp.array(dtype=int),
-    geom_size: wp.array2d(dtype=wp.vec3),
-    jnt_dofadr: wp.array(dtype=int),
-    jnt_qposadr: wp.array(dtype=int),
+    body_dofadr: wp.array[int],
+    body_dofnum: wp.array[int],
+    body_parentid: wp.array[int],
+    body_rootid: wp.array[int],
+    geom_bodyid: wp.array[int],
+    geom_size: wp.array2d[wp.vec3],
+    jnt_dofadr: wp.array[int],
+    jnt_qposadr: wp.array[int],
     ntendon: int,
-    nv: int,
     nwrap: int,
-    site_bodyid: wp.array(dtype=int),
-    tendon_adr: wp.array(dtype=int),
-    tendon_geom_adr: wp.array(dtype=int),
-    tendon_jnt_adr: wp.array(dtype=int),
-    tendon_num: wp.array(dtype=int),
-    tendon_site_pair_adr: wp.array(dtype=int),
-    wrap_geom_adr: wp.array(dtype=int),
-    wrap_jnt_adr: wp.array(dtype=int),
-    wrap_objid: wp.array(dtype=int),
-    wrap_prm: wp.array(dtype=float),
-    wrap_pulley_scale: wp.array(dtype=float),
-    wrap_site_pair_adr: wp.array(dtype=int),
-    wrap_type: wp.array(dtype=int),
+    site_bodyid: wp.array[int],
+    ten_J_colind: wp.array[int],
+    ten_J_rowadr: wp.array[int],
+    ten_J_rownnz: wp.array[int],
+    tendon_adr: wp.array[int],
+    tendon_geom_adr: wp.array[int],
+    tendon_jnt_adr: wp.array[int],
+    tendon_num: wp.array[int],
+    tendon_site_pair_adr: wp.array[int],
+    wrap_geom_adr: wp.array[int],
+    wrap_jnt_adr: wp.array[int],
+    wrap_objid: wp.array[int],
+    wrap_prm: wp.array[float],
+    wrap_pulley_scale: wp.array[float],
+    wrap_site_pair_adr: wp.array[int],
+    wrap_type: wp.array[int],
     # Data
-    cdof: wp.array2d(dtype=wp.spatial_vector),
-    geom_xmat: wp.array2d(dtype=wp.mat33),
-    geom_xpos: wp.array2d(dtype=wp.vec3),
-    qpos: wp.array2d(dtype=float),
-    site_xpos: wp.array2d(dtype=wp.vec3),
-    subtree_com: wp.array2d(dtype=wp.vec3),
-    ten_J: wp.array3d(dtype=float),
-    ten_length: wp.array2d(dtype=float),
-    ten_wrapadr: wp.array2d(dtype=int),
-    ten_wrapnum: wp.array2d(dtype=int),
-    wrap_obj: wp.array2d(dtype=wp.vec2i),
-    wrap_xpos: wp.array2d(dtype=wp.spatial_vector),
+    cdof: wp.array2d[wp.spatial_vector],
+    geom_xmat: wp.array2d[wp.mat33],
+    geom_xpos: wp.array2d[wp.vec3],
+    qpos: wp.array2d[float],
+    site_xpos: wp.array2d[wp.vec3],
+    subtree_com: wp.array2d[wp.vec3],
+    ten_J: wp.array2d[float],
+    ten_length: wp.array2d[float],
+    ten_wrapadr: wp.array2d[int],
+    ten_wrapnum: wp.array2d[int],
+    wrap_obj: wp.array2d[wp.vec2i],
+    wrap_xpos: wp.array2d[wp.spatial_vector],
 ):
   _m.stat = _s
   _m.opt = _o
   _m.callback = _cb
   _d.efc = _e
   _d.contact = _c
+  _m.body_dofadr = body_dofadr
+  _m.body_dofnum = body_dofnum
   _m.body_parentid = body_parentid
   _m.body_rootid = body_rootid
-  _m.dof_bodyid = dof_bodyid
   _m.geom_bodyid = geom_bodyid
   _m.geom_size = geom_size
   _m.jnt_dofadr = jnt_dofadr
   _m.jnt_qposadr = jnt_qposadr
   _m.ntendon = ntendon
-  _m.nv = nv
   _m.nwrap = nwrap
   _m.site_bodyid = site_bodyid
+  _m.ten_J_colind = ten_J_colind
+  _m.ten_J_rowadr = ten_J_rowadr
+  _m.ten_J_rownnz = ten_J_rownnz
   _m.tendon_adr = tendon_adr
   _m.tendon_geom_adr = tendon_geom_adr
   _m.tendon_jnt_adr = tendon_jnt_adr
@@ -416,17 +422,20 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
   )
   out = jf(
       d.qpos.shape[0],
+      m.body_dofadr,
+      m.body_dofnum,
       m.body_parentid,
       m.body_rootid,
-      m.dof_bodyid,
       m.geom_bodyid,
       m.geom_size,
       m.jnt_dofadr,
       m.jnt_qposadr,
       m.ntendon,
-      m.nv,
       m.nwrap,
       m.site_bodyid,
+      m._impl.ten_J_colind,
+      m._impl.ten_J_rowadr,
+      m._impl.ten_J_rownnz,
       m.tendon_adr,
       m._impl.tendon_geom_adr,
       m._impl.tendon_jnt_adr,
@@ -473,4 +482,126 @@ def tendon(m: types.Model, d: types.Data):
 @ffi.marshal_custom_vmap
 def tendon_vmap(unused_axis_size, is_batched, m: types.Model, d: types.Data):
   d = tendon(m, d)
+  return d, is_batched[1]
+
+
+@ffi.format_args_for_warp
+def _com_pos_shim(
+    # Model
+    nworld: int,
+    body_inertia: wp.array2d[wp.vec3],
+    body_mass: wp.array2d[float],
+    body_parentid: wp.array[int],
+    body_rootid: wp.array[int],
+    body_subtreemass: wp.array2d[float],
+    body_tree: tuple[wp.array[int], ...],
+    jnt_bodyid: wp.array[int],
+    jnt_dofadr: wp.array[int],
+    jnt_type: wp.array[int],
+    nbody: int,
+    njnt: int,
+    # Data
+    cdof: wp.array2d[wp.spatial_vector],
+    cinert: wp.array2d[mjwp_types.vec10],
+    subtree_com: wp.array2d[wp.vec3],
+    xanchor: wp.array2d[wp.vec3],
+    xaxis: wp.array2d[wp.vec3],
+    ximat: wp.array2d[wp.mat33],
+    xipos: wp.array2d[wp.vec3],
+    xmat: wp.array2d[wp.mat33],
+):
+  _m.stat = _s
+  _m.opt = _o
+  _m.callback = _cb
+  _d.efc = _e
+  _d.contact = _c
+  _m.body_inertia = body_inertia
+  _m.body_mass = body_mass
+  _m.body_parentid = body_parentid
+  _m.body_rootid = body_rootid
+  _m.body_subtreemass = body_subtreemass
+  _m.body_tree = body_tree
+  _m.jnt_bodyid = jnt_bodyid
+  _m.jnt_dofadr = jnt_dofadr
+  _m.jnt_type = jnt_type
+  _m.nbody = nbody
+  _m.njnt = njnt
+  _d.cdof = cdof
+  _d.cinert = cinert
+  _d.subtree_com = subtree_com
+  _d.xanchor = xanchor
+  _d.xaxis = xaxis
+  _d.ximat = ximat
+  _d.xipos = xipos
+  _d.xmat = xmat
+  _d.nworld = nworld
+  mjwarp.com_pos(_m, _d)
+
+
+def _com_pos_jax_impl(m: types.Model, d: types.Data):
+  output_dims = {
+      'cdof': d.cdof.shape,
+      'cinert': d._impl.cinert.shape,
+      'subtree_com': d.subtree_com.shape,
+  }
+  jf = ffi.jax_callable_variadic_tuple(
+      _com_pos_shim,
+      num_outputs=3,
+      output_dims=output_dims,
+      vmap_method=None,
+      in_out_argnames=set(['cdof', 'cinert', 'subtree_com']),
+      stage_in_argnames=set([
+          'body_inertia',
+          'body_mass',
+          'body_subtreemass',
+          'cdof',
+          'subtree_com',
+          'xanchor',
+          'xaxis',
+          'ximat',
+          'xipos',
+          'xmat',
+      ]),
+      stage_out_argnames=set(['cdof', 'subtree_com']),
+      graph_mode=m.opt._impl.graph_mode,
+      has_side_effect=False,
+  )
+  out = jf(
+      d.qpos.shape[0],
+      m.body_inertia,
+      m.body_mass,
+      m.body_parentid,
+      m.body_rootid,
+      m.body_subtreemass,
+      m._impl.body_tree,
+      m.jnt_bodyid,
+      m.jnt_dofadr,
+      m.jnt_type,
+      m.nbody,
+      m.njnt,
+      d.cdof,
+      d._impl.cinert,
+      d.subtree_com,
+      d.xanchor,
+      d.xaxis,
+      d.ximat,
+      d.xipos,
+      d.xmat,
+  )
+  d = d.tree_replace(
+      {'cdof': out[0], '_impl.cinert': out[1], 'subtree_com': out[2]}
+  )
+  return d
+
+
+@jax.custom_batching.custom_vmap
+@ffi.marshal_jax_warp_callable
+def com_pos(m: types.Model, d: types.Data):
+  return _com_pos_jax_impl(m, d)
+
+
+@com_pos.def_vmap
+@ffi.marshal_custom_vmap
+def com_pos_vmap(unused_axis_size, is_batched, m: types.Model, d: types.Data):
+  d = com_pos(m, d)
   return d, is_batched[1]

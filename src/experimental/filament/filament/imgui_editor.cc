@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/imgui_editor.h"
 
 #include <algorithm>
 #include <any>
@@ -36,6 +35,7 @@
 #include <math/vec3.h>
 #include "experimental/filament/filament/color_grading_options.h"
 #include "experimental/filament/filament/scene_view.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
@@ -571,12 +571,6 @@ void DrawIndirectLightGui(SceneView* scene_view) {
       ibl->setIntensity(intensity);
     }
   }
-
-  static char filename[256];
-  ImGui::InputText("Filename", filename, sizeof(filename));
-  if (ImGui::Button("Load")) {
-    scene_view->SetEnvironmentLight(filename, intensity);
-  }
 }
 
 void DrawLightGui(filament::LightManager& lm,
@@ -649,74 +643,79 @@ void DrawLightGui(filament::LightManager& lm,
   }
 }
 
-void DrawGui(SceneView* scene_view) {
+}  // namespace mujoco
+
+extern "C" {
+
+void mjrf_DEBUG_drawImguiEditor(mjrScene* scene) {
+  mujoco::SceneView* scene_view = mujoco::SceneView::downcast(scene);
   filament::View* view = scene_view->GetDefaultRenderView();
   filament::Engine* engine = scene_view->GetEngine();
   filament::LightManager& lm = engine->getLightManager();
 
   if (ImGui::TreeNodeEx("Ambient Occlusion")) {
-    DrawAmbientOcclusionGui(scene_view);
+    mujoco::DrawAmbientOcclusionGui(scene_view);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Screen Space")) {
-    DrawScreenSpaceGui(scene_view);
+    mujoco::DrawScreenSpaceGui(scene_view);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Shadowing")) {
-    DrawShadowingGui(scene_view);
+    mujoco::DrawShadowingGui(scene_view);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Post Processing")) {
-    DrawPostProcessingGui(scene_view);
+    mujoco::DrawPostProcessingGui(scene_view);
     if (ImGui::TreeNodeEx("Anti Aliasing (FXAA)")) {
-      DrawFxaaGui(scene_view);
+      mujoco::DrawFxaaGui(scene_view);
       ImGui::TreePop();
     }
     if (ImGui::TreeNodeEx("Anti Aliasing (MSAA)")) {
-      DrawMsaaGui(scene_view);
+      mujoco::DrawMsaaGui(scene_view);
       ImGui::TreePop();
     }
     if (ImGui::TreeNodeEx("Anti Aliasing (Temporal)")) {
-      DrawTaaGui(scene_view);
+      mujoco::DrawTaaGui(scene_view);
       ImGui::TreePop();
     }
     if (ImGui::TreeNodeEx("Bloom")) {
-      DrawBloomGui(scene_view);
+      mujoco::DrawBloomGui(scene_view);
       ImGui::TreePop();
     }
     if (ImGui::TreeNodeEx("Color Grading")) {
-      DrawColorGradingGui(scene_view);
+      mujoco::DrawColorGradingGui(scene_view);
       ImGui::TreePop();
     }
     if (ImGui::TreeNodeEx("Depth of Field")) {
-      DrawDepthOfFieldGui(scene_view);
+      mujoco::DrawDepthOfFieldGui(scene_view);
       ImGui::TreePop();
     }
     if (ImGui::TreeNodeEx("Dithering")) {
-      DrawDitheringGui(scene_view);
+      mujoco::DrawDitheringGui(scene_view);
       ImGui::TreePop();
     }
     if (ImGui::TreeNodeEx("Fog")) {
-      DrawFogGui(scene_view);
+      mujoco::DrawFogGui(scene_view);
       ImGui::TreePop();
     }
     if (ImGui::TreeNodeEx("Vignette")) {
-      DrawVignetteGui(scene_view);
+      mujoco::DrawVignetteGui(scene_view);
       ImGui::TreePop();
     }
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Visibility Layers")) {
-    DrawVisibleLayersGui(scene_view);
+    mujoco::DrawVisibleLayersGui(scene_view);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Camera")) {
-    DrawCameraGui(scene_view);
+    mujoco::DrawCameraGui(scene_view);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Lights")) {
     if (ImGui::TreeNodeEx("Indirect (Image-based) Light")) {
-      DrawIndirectLightGui(scene_view);
+      mujoco::DrawIndirectLightGui(scene_view);
       ImGui::TreePop();
     }
     view->getScene()->forEach([&](utils::Entity entity) {
@@ -730,11 +729,12 @@ void DrawGui(SceneView* scene_view) {
                                                : " (S)";
       const std::string name = "Light " + std::to_string(entity.getId()) + type;
       if (ImGui::TreeNodeEx(name.c_str())) {
-        DrawLightGui(lm, li);
+        mujoco::DrawLightGui(lm, li);
         ImGui::TreePop();
       }
     });
     ImGui::TreePop();
   }
 }
-}  // namespace mujoco
+
+}  // extern "C"

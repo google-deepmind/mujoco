@@ -141,7 +141,7 @@ class "MjcSceneAPI" (
         displayName = "Mid-Phase Collision Filtering Toggle"
         doc = "Enables mid-phase collision filtering using a static AABB bounding volume hierarchy (BVH)."
     )
-    uniform bool mjc:flag:multiccd = 0 (
+    uniform bool mjc:flag:multiccd = 1 (
         displayName = "Multiple Contact Collision Detection (CCD) Toggle"
         doc = "Enables multiple-contact collision detection for geom pairs using a general-purpose convex-convex collider."
     )
@@ -322,7 +322,7 @@ class "MjcCollisionAPI" (
         displayName = "Gap"
         doc = """DEPRECATED: Use newton:contactGap instead.
 
-        This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is positive, geom distances between margin and margin-gap correspond to such inactive contacts."""
+        Additional contact detection buffer beyond margin. Contacts are detected at distance margin + gap but forces are only generated at distance margin."
     )
     uniform int mjc:group = 0 (
         displayName = "Group"
@@ -332,7 +332,7 @@ class "MjcCollisionAPI" (
         displayName = "Margin"
         doc = """DEPRECATED: Use newton:contactMargin and newton:contactGap instead.
 
-        Distance threshold below which contacts are detected and included in the global array mjData.contact."""
+        Geometric inflation of the geom surface for the purpose of contact force generation."
     )
     uniform int mjc:priority = 0 (
         displayName = "Priority"

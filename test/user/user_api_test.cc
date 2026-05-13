@@ -19,6 +19,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>  // NOLINT
 #include <functional>
 #include <map>
@@ -32,6 +33,7 @@
 #include "src/cc/array_safety.h"
 #include <mujoco/mujoco.h>
 #include <mujoco/mjspec.h>
+#include <mujoco/mjplugin.h>
 #include "src/xml/xml_api.h"
 #include "src/xml/xml_numeric_format.h"
 #include "test/fixture.h"
@@ -173,6 +175,166 @@ TEST_F(MujocoTest, TreeTraversal) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, AttachAndChildDeletion) {
+  mjSpec* child_spec = mj_makeSpec();
+  mjsBody* child_world = mjs_findBody(child_spec, "world");
+  mjsBody* child_body = mjs_addBody(child_world, 0);
+  mjsJoint* freejoint = mjs_addJoint(child_body, 0);
+  freejoint->type = mjJNT_FREE;
+  mjs_setName(freejoint->element, "child_freejoint");
+
+  mjSpec* parent_spec = mj_makeSpec();
+  mjsBody* parent_world = mjs_findBody(parent_spec, "world");
+  mjsBody* parent_body = mjs_addBody(parent_world, 0);
+
+  // Attach child spec to parent_body
+  mjsElement* attached =
+      mjs_attach(parent_body->element, child_spec->element, "pre_", "");
+  ASSERT_THAT(attached, NotNull());
+
+  // Delete freejoint from child_spec, should fail because it is attached
+  int result = mjs_delete(child_spec, freejoint->element);
+  EXPECT_EQ(result, -1);
+
+  // The freejoint should still be in parent_spec because deletion failed
+  mjsElement* found_joint =
+      mjs_findElement(parent_spec, mjOBJ_JOINT, "pre_child_freejoint");
+  EXPECT_THAT(found_joint, NotNull());
+
+  mj_deleteSpec(child_spec);
+  mj_deleteSpec(parent_spec);
+}
+
+TEST_F(MujocoTest, OriginSpecInvariantToAttachment) {
+  mjSpec* child_spec = mj_makeSpec();
+  mjsBody* child_world = mjs_findBody(child_spec, "world");
+  mjsBody* child_body = mjs_addBody(child_world, 0);
+  mjsJoint* freejoint = mjs_addJoint(child_body, 0);
+  freejoint->type = mjJNT_FREE;
+  mjs_setName(freejoint->element, "child_freejoint");
+
+  mjSpec* parent_spec = mj_makeSpec();
+  mjsBody* parent_world = mjs_findBody(parent_spec, "world");
+  mjsBody* parent_body = mjs_addBody(parent_world, 0);
+  mjs_setName(parent_body->element, "parent_body");
+
+  // Attach child spec to parent_body
+  mjsElement* attached =
+      mjs_attach(parent_body->element, child_spec->element, "pre_", "");
+  ASSERT_THAT(attached, NotNull());
+
+  // The freejoint should still be in parent_spec because deletion failed
+  mjsElement* child_spec_joint =
+      mjs_findElement(parent_spec, mjOBJ_JOINT, "pre_child_freejoint");
+  EXPECT_EQ(mjs_getSpec(child_spec_joint), parent_spec);
+  EXPECT_EQ(mjs_getOriginSpec(child_spec_joint), child_spec);
+
+  mjsElement* parent_spec_body =
+      mjs_findElement(parent_spec, mjOBJ_BODY, "parent_body");
+  EXPECT_EQ(mjs_getOriginSpec(parent_spec_body), parent_spec);
+
+
+  mj_deleteSpec(child_spec);
+  mj_deleteSpec(parent_spec);
+}
+
+int open_mock(mjResource* resource) {
+  static const char parent_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent_body"/>
+    </worldbody>
+  </mujoco>
+  )";
+  resource->data = mju_malloc(sizeof(parent_xml));
+  std::strcpy((char*)resource->data, parent_xml);
+  return 1;
+}
+
+int read_mock(mjResource* resource, const void** buffer) {
+  *buffer = resource->data;
+  return std::strlen((const char*)resource->data);
+}
+
+void close_mock(mjResource* resource) {
+  mju_free(resource->data);
+  resource->data = nullptr;
+}
+
+TEST_F(MujocoTest, AttachedSpecDoesNotInheritURI) {
+  // This test checks that when we attach a child spec to a parent spec that was
+  // loaded from a resource provider, the child spec does not inherit the
+  // resource URI from the parent. This allows the child spec to specify assets
+  // relative to its model file or in the VFS.
+  mjpResourceProvider provider = {
+      .prefix = "fakeprovider",
+      .open = open_mock,
+      .read = read_mock,
+      .close = close_mock,
+  };
+
+  mjp_registerResourceProvider(&provider);
+
+  std::array<char, 1024> err;
+  mjSpec* parent_spec =
+      mj_parseXML("fakeprovider:parent.xml", nullptr, err.data(), err.size());
+  mjs_setString(parent_spec->modelname, "parent");
+  ASSERT_THAT(parent_spec, NotNull()) << err.data();
+
+  // Create child spec
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="child_body">
+        <geom type="mesh" mesh="asset"/>
+      </body>
+    </worldbody>
+    <asset>
+      <mesh name="asset" file="asset.obj"/>
+    </asset>
+  </mujoco>
+  )";
+
+  // Setup VFS with asset
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  static constexpr char asset_data[] = R"(
+  v 0 0 0
+  v 1 0 0
+  v 0 1 0
+  v 0 0 1
+  f 1 2 3
+  f 1 2 4
+  f 2 3 4
+  f 3 1 4
+  )";
+  mj_addBufferVFS(&vfs, "asset.obj", asset_data, sizeof(asset_data));
+
+  mjSpec* child_spec =
+      mj_parseXMLString(child_xml, &vfs, err.data(), err.size());
+  mjs_setString(child_spec->modelname, "child");
+  ASSERT_THAT(child_spec, NotNull()) << err.data();
+
+  // Attach child spec to parent spec's world body
+  mjsBody* world = mjs_findBody(parent_spec, "world");
+  ASSERT_THAT(world, NotNull());
+
+  mjsElement* attached =
+      mjs_attach(world->element, child_spec->element, "", "");
+  ASSERT_THAT(attached, NotNull());
+
+  mjModel* model = mj_compile(parent_spec, &vfs);
+  mj_deleteVFS(&vfs);
+
+  EXPECT_THAT(model, NotNull()) << mjs_getError(parent_spec);
+
+  if (model) {
+    mj_deleteModel(model);
+  }
+  mj_deleteSpec(parent_spec);
+  mj_deleteSpec(child_spec);
+}
+
 TEST_F(MujocoTest, ActivatePlugin) {
   mjSpec* spec = mj_makeSpec();
   mjs_activatePlugin(spec, "mujoco.elasticity.cable");
@@ -237,6 +399,96 @@ TEST_F(MujocoTest, DeletePlugin) {
   mj_deleteSpec(spec);
   mj_deleteModel(model);
   mj_deleteModel(newmodel);
+}
+
+TEST_F(MujocoTest, SetToDCMotorNullable) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+
+  const char* err = mjs_setToDCMotor(actuator, motorconst, resistance,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);
+  EXPECT_EQ(actuator->gainprm[1], 0.05);
+  EXPECT_EQ(actuator->gainprm[4], 0);
+  EXPECT_EQ(actuator->gainprm[5], 0);
+  EXPECT_EQ(actuator->gainprm[6], 0);
+  EXPECT_EQ(actuator->dynprm[7], 0);
+  EXPECT_EQ(actuator->dynprm[8], 0);
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorDeriveKe) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double resistance = 2.0;
+  double nominal[3] = {12.0, 0, 100.0};  // vn=12, omega0=100
+
+  const char* err = mjs_setToDCMotor(actuator, nullptr, resistance,
+                                     nominal, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);
+  EXPECT_NEAR(actuator->gainprm[1], 0.12, 1e-5);
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorFull) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+  double saturation[3] = {1.0, 2.0, 3.0};
+  double controller[6] = {10.0, 20.0, 30.0, 40.0, 50.0, 60.0};
+
+  const char* err = mjs_setToDCMotor(actuator, motorconst, resistance,
+                                     nullptr, saturation, nullptr,
+                                     nullptr, controller, nullptr,
+                                     nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[0], 2.0);   // resistance
+  EXPECT_EQ(actuator->gainprm[1], 0.05);  // K
+  EXPECT_EQ(actuator->gainprm[4], 10.0);  // kp
+  EXPECT_EQ(actuator->gainprm[5], 20.0);  // ki
+  EXPECT_EQ(actuator->gainprm[6], 30.0);  // kd
+  EXPECT_EQ(actuator->dynprm[7], 40.0);   // slewmax
+  EXPECT_EQ(actuator->dynprm[8], 50.0);   // Imax
+  EXPECT_EQ(actuator->gainprm[7], 60.0);  // Vmax
+  EXPECT_EQ(actuator->dynprm[1], 3.0);    // (di/dt)_max
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorLuGre) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  double motorconst[2] = {0.05, 0.05};
+  double resistance = 2.0;
+  double lugre[5] = {100.0, 1.0, 0.5, 0.7, 10.0};
+
+  const char* err = mjs_setToDCMotor(actuator, motorconst, resistance,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr,
+                                     lugre, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->dynprm[5], 100.0);  // stiffness
+  EXPECT_EQ(actuator->dynprm[6], 1.0);    // damping
+  EXPECT_EQ(actuator->biasprm[3], 0.5);   // coulomb
+  EXPECT_EQ(actuator->biasprm[4], 0.7);   // static
+  EXPECT_EQ(actuator->biasprm[5], 10.0);  // stribeck
+
+  mj_deleteSpec(spec);
 }
 
 static constexpr char xml_plugin_1[] = R"(

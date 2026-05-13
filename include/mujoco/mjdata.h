@@ -77,7 +77,6 @@ typedef enum mjtWarning_ {          // warning types
   mjWARN_INERTIA         = 0,       // (near) singular inertia matrix
   mjWARN_CONTACTFULL,               // too many contacts in contact list
   mjWARN_CNSTRFULL,                 // too many constraints
-  mjWARN_VGEOMFULL,                 // too many visual geoms
   mjWARN_BADQPOS,                   // bad number in qpos
   mjWARN_BADQVEL,                   // bad number in qvel
   mjWARN_BADQACC,                   // bad number in qacc
@@ -131,7 +130,7 @@ struct mjContact_ {                // result of collision detection functions
   mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]
 
   // contact parameters set by mj_collideGeoms
-  mjtNum  includemargin;           // include if dist<includemargin=margin-gap
+  mjtNum  includemargin;           // margin for force generation
   mjtNum  friction[5];             // tangent1, 2, spin, roll1, 2
   mjtNum  solref[mjNREF];          // constraint solver reference, normal direction
   mjtNum  solreffriction[mjNREF];  // constraint solver reference, friction directions

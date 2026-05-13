@@ -1,0 +1,102 @@
+<!-- Copyright 2026 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco>
+  <include file="scene.xml"/>
+
+  <option cone="elliptic" solver="CG" />
+
+  <default>
+    <default class="gripper">
+      <geom type="box" size="0.02 0.15 0.02" rgba="0.5 0.5 0.5 1"
+            solref="0.001 1" friction="2 0.1 0.1"/>
+      <joint type="slide" axis="0 0 1" range="-1 1"/>
+      <default class="finger">
+        <geom size="0.01 0.06 0.03"/>
+        <joint type="slide" range="0 0.1"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="solid" pos=".32 0 .2">
+      <flexcomp
+        origin="0 0 0" count="8 2 12" cellcount="6 1 6"
+        type="grid" name="soft_mesh" dim="3" spacing=".025 .05 .025"
+        mass="0.43" radius="0.005" dof="trilinear" rgba="0.7 0.9 0.7 1">
+        <edge equality="strain" solref="0.001 1"/>
+        <contact selfcollide="none"
+              internal="false"
+              friction="2.0 0.5 0.01"
+              solref="0.001 1"
+              solimp="0.99 0.999 0.001"/>
+      </flexcomp>
+    </body>
+
+    <body name="hollow" pos=".32 .45 .2">
+      <flexcomp
+        origin="0 0 0" count="8 2 12" cellcount="6 1 6"
+        type="grid" name="soft_mesh_2" dim="3" spacing=".025 .05 .025"
+        mass="0.43" radius="0.005" dof="trilinear" rgba="0.9 0.7 0.7 1">
+        <elasticity young="1e5" poisson="0.3" damping="0" elastic2d="bend" thickness="0.03"/>
+        <edge equality="strain" solref="0.001 1" solimp="0.99 0.999 0.001"/>
+        <contact selfcollide="none"
+              internal="false"
+              friction="2.0 0.5 0.01"
+              solref="0.001 1"
+              solimp="0.99 0.999 0.001"/>
+      </flexcomp>
+    </body>
+
+    <body name="gripper_solid" pos="0.2 0.45 0.2">
+      <joint name="lift_solid" class="gripper"/>
+      <geom class="gripper"/>
+      <body name="left_finger_r" pos="0.05 -0.1 0" childclass="finger">
+        <joint name="left_slide_r" axis="0 1 0"/>
+        <geom rgba="0.8 0.2 0.2 1"/>
+      </body>
+      <body name="right_finger_r" pos="0.05 0.1 0" childclass="finger">
+        <joint name="right_slide_r" axis="0 -1 0"/>
+        <geom rgba="0.8 0.2 0.2 1"/>
+      </body>
+    </body>
+
+    <body name="gripper_hollow" pos="0.2 0 0.2">
+      <joint name="lift_hollow" class="gripper"/>
+      <geom class="gripper"/>
+      <body name="left_finger_s" pos="0.05 -0.1 0" childclass="finger">
+        <joint name="left_slide_s" axis="0 1 0"/>
+        <geom rgba="0.2 0.8 0.2 1"/>
+      </body>
+      <body name="right_finger_s" pos="0.05 0.1 0" childclass="finger">
+        <joint name="right_slide_s" axis="0 -1 0"/>
+        <geom rgba="0.2 0.8 0.2 1"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <equality>
+    <joint joint1="right_slide_r" joint2="left_slide_r"/>
+    <joint joint1="right_slide_s" joint2="left_slide_s"/>
+  </equality>
+
+  <actuator>
+    <position name="lift_r" joint="lift_solid" kp="400" dampratio="1" ctrlrange="-1 1"/>
+    <position name="grasp_r" joint="left_slide_r" kp="10" dampratio="1" ctrlrange="0 5"/>
+
+    <position name="lift_s" joint="lift_hollow" kp="400" dampratio="1" ctrlrange="-1 1"/>
+    <position name="grasp_s" joint="left_slide_s" kp="10" dampratio="1" ctrlrange="0 5"/>
+  </actuator>
+</mujoco>

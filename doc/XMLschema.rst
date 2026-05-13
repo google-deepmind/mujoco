@@ -1418,6 +1418,9 @@
                :ref:`count<body-flexcomp-count>`
 
             .. grid-item::
+               :ref:`cellcount<body-flexcomp-cellcount>`
+
+            .. grid-item::
                :ref:`spacing<body-flexcomp-spacing>`
 
             .. grid-item::
@@ -1656,6 +1659,12 @@
 
             .. grid-item::
                :ref:`node<deformable-flex-node>`
+
+            .. grid-item::
+               :ref:`cellcount<deformable-flex-cellcount>`
+
+            .. grid-item::
+               :ref:`dof<deformable-flex-dof>`
 
 
          .. dropdown:: :ref:`contact<flex-contact>` :octicon:`dot`
@@ -2052,6 +2061,9 @@
 
             .. grid-item::
                :ref:`flex<equality-flexstrain-flex>`
+
+            .. grid-item::
+               :ref:`cell<equality-flexstrain-cell>`
 
             .. grid-item::
                :ref:`active<equality-flexstrain-active>`
@@ -2982,6 +2994,105 @@
 
             .. grid-item::
                :ref:`gain<actuator-adhesion-gain>`
+
+
+      .. dropdown:: :ref:`dcmotor<actuator-dcmotor>` |*|
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`name<actuator-dcmotor-name>`
+
+            .. grid-item::
+               :ref:`class<actuator-dcmotor-class>`
+
+            .. grid-item::
+               :ref:`group<actuator-dcmotor-group>`
+
+            .. grid-item::
+               :ref:`nsample<actuator-dcmotor-nsample>`
+
+            .. grid-item::
+               :ref:`interp<actuator-dcmotor-interp>`
+
+            .. grid-item::
+               :ref:`delay<actuator-dcmotor-delay>`
+
+            .. grid-item::
+               :ref:`ctrllimited<actuator-dcmotor-ctrllimited>`
+
+            .. grid-item::
+               :ref:`ctrlrange<actuator-dcmotor-ctrlrange>`
+
+            .. grid-item::
+               :ref:`lengthrange<actuator-dcmotor-lengthrange>`
+
+            .. grid-item::
+               :ref:`gear<actuator-dcmotor-gear>`
+
+            .. grid-item::
+               :ref:`damping<actuator-dcmotor-damping>`
+
+            .. grid-item::
+               :ref:`armature<actuator-dcmotor-armature>`
+
+            .. grid-item::
+               :ref:`cranklength<actuator-dcmotor-cranklength>`
+
+            .. grid-item::
+               :ref:`user<actuator-dcmotor-user>`
+
+            .. grid-item::
+               :ref:`joint<actuator-dcmotor-joint>`
+
+            .. grid-item::
+               :ref:`jointinparent<actuator-dcmotor-jointinparent>`
+
+            .. grid-item::
+               :ref:`tendon<actuator-dcmotor-tendon>`
+
+            .. grid-item::
+               :ref:`slidersite<actuator-dcmotor-slidersite>`
+
+            .. grid-item::
+               :ref:`cranksite<actuator-dcmotor-cranksite>`
+
+            .. grid-item::
+               :ref:`site<actuator-dcmotor-site>`
+
+            .. grid-item::
+               :ref:`refsite<actuator-dcmotor-refsite>`
+
+            .. grid-item::
+               :ref:`motorconst<actuator-dcmotor-motorconst>`
+
+            .. grid-item::
+               :ref:`resistance<actuator-dcmotor-resistance>`
+
+            .. grid-item::
+               :ref:`nominal<actuator-dcmotor-nominal>`
+
+            .. grid-item::
+               :ref:`saturation<actuator-dcmotor-saturation>`
+
+            .. grid-item::
+               :ref:`inductance<actuator-dcmotor-inductance>`
+
+            .. grid-item::
+               :ref:`cogging<actuator-dcmotor-cogging>`
+
+            .. grid-item::
+               :ref:`controller<actuator-dcmotor-controller>`
+
+            .. grid-item::
+               :ref:`thermal<actuator-dcmotor-thermal>`
+
+            .. grid-item::
+               :ref:`lugre<actuator-dcmotor-lugre>`
+
+            .. grid-item::
+               :ref:`input<actuator-dcmotor-input>`
 
 
       .. dropdown:: :ref:`plugin<actuator-plugin>` |*|
@@ -6144,6 +6255,75 @@
 
             .. grid-item::
                :ref:`delay<default-adhesion-delay>`
+
+
+      .. dropdown:: :ref:`dcmotor<default-dcmotor>` :octicon:`dot`
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`ctrllimited<default-dcmotor-ctrllimited>`
+
+            .. grid-item::
+               :ref:`ctrlrange<default-dcmotor-ctrlrange>`
+
+            .. grid-item::
+               :ref:`gear<default-dcmotor-gear>`
+
+            .. grid-item::
+               :ref:`damping<default-dcmotor-damping>`
+
+            .. grid-item::
+               :ref:`armature<default-dcmotor-armature>`
+
+            .. grid-item::
+               :ref:`cranklength<default-dcmotor-cranklength>`
+
+            .. grid-item::
+               :ref:`user<default-dcmotor-user>`
+
+            .. grid-item::
+               :ref:`group<default-dcmotor-group>`
+
+            .. grid-item::
+               :ref:`nsample<default-dcmotor-nsample>`
+
+            .. grid-item::
+               :ref:`interp<default-dcmotor-interp>`
+
+            .. grid-item::
+               :ref:`delay<default-dcmotor-delay>`
+
+            .. grid-item::
+               :ref:`motorconst<default-dcmotor-motorconst>`
+
+            .. grid-item::
+               :ref:`resistance<default-dcmotor-resistance>`
+
+            .. grid-item::
+               :ref:`nominal<default-dcmotor-nominal>`
+
+            .. grid-item::
+               :ref:`saturation<default-dcmotor-saturation>`
+
+            .. grid-item::
+               :ref:`inductance<default-dcmotor-inductance>`
+
+            .. grid-item::
+               :ref:`cogging<default-dcmotor-cogging>`
+
+            .. grid-item::
+               :ref:`controller<default-dcmotor-controller>`
+
+            .. grid-item::
+               :ref:`input<default-dcmotor-input>`
+
+            .. grid-item::
+               :ref:`thermal<default-dcmotor-thermal>`
+
+            .. grid-item::
+               :ref:`lugre<default-dcmotor-lugre>`
 
 
    .. dropdown:: :ref:`custom<custom>` |*|

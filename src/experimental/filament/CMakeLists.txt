@@ -23,46 +23,44 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
     PUBLIC
         render_context_filament.h
         render_context_filament.cc
-        filament/buffer_util.cc
-        filament/buffer_util.h
+        render_context_filament_cpp.h
+        filament_util.h
+        filament_util.cc
         filament/builtins.cc
         filament/builtins.h
         filament/color_grading_options.cc
         filament/color_grading_options.h
-        filament/drawable.cc
-        filament/drawable.h
         filament/filament_context.cc
         filament/filament_context.h
         filament/filament_platform_factory.cc
         filament/filament_platform_factory.h
-        filament/geom_util.cc
-        filament/geom_util.h
-        filament/gui_view.cc
-        filament/gui_view.h
         filament/imgui_editor.cc
-        filament/imgui_editor.h
         filament/light.cc
         filament/light.h
         filament/material.cc
         filament/material.h
-        filament/math_util.cc
-        filament/math_util.h
-        filament/model_objects.cc
-        filament/model_objects.h
-        filament/model_util.cc
-        filament/model_util.h
+        filament/mesh.cc
+        filament/mesh.h
         filament/object_manager.cc
         filament/object_manager.h
-        filament/render_target_util.cc
-        filament/render_target_util.h
-        filament/renderables.cc
-        filament/renderables.h
+        filament/render_target.cc
+        filament/render_target.h
+        filament/renderable.cc
+        filament/renderable.h
         filament/scene_view.cc
         filament/scene_view.h
-        filament/texture_util.cc
-        filament/texture_util.h
-        filament/vertex_util.cc
-        filament/vertex_util.h
+        filament/texture.cc
+        filament/texture.h
+        compat/imgui_bridge.cc
+        compat/imgui_bridge.h
+        compat/mjr_filament_renderer.cc
+        compat/mjr_filament_renderer.h
+        compat/model_objects.cc
+        compat/model_objects.h
+        compat/scene_bridge.cc
+        compat/scene_bridge.h
+        compat/scene_geom_util.cc
+        compat/scene_geom_util.h
 )
 if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
     target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
@@ -117,8 +115,8 @@ set(MATERIAL_FILES
     phong_cube_fade.mat
     phong_cube.mat
     phong_cube_reflect.mat
+    unlit_decor.mat
     unlit_depth.mat
-    unlit_line.mat
     unlit_segmentation.mat
     unlit_ui.mat
 )
@@ -128,20 +126,32 @@ foreach(MATERIAL_FILE ${MATERIAL_FILES})
     set(INPUT_FILE "${ASSETS_DIR}/${MATERIAL_FILE}")
     set(OUTPUT_FILE "${OUTPUT_ASSETS_DIR}/${MATERIAL_NAME}.filamat")
 
-    add_custom_command(
-        OUTPUT ${OUTPUT_FILE}
-        COMMAND ${MATC_EXECUTABLE}
-            --platform=all
-            --api=vulkan
-            --api=opengl
-            --variant-filter skinning
-            --optimize-size
-            --output ${OUTPUT_FILE}
-            ${INPUT_FILE}
-        DEPENDS ${INPUT_FILE}
-        DEPENDS matc
-        COMMENT "Compiling ${MATERIAL_FILE}"
-    )
+    if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+        set(PRECOMPILED_FILE "${MUJOCO_NATIVE_BUILD_DIR}/src/experimental/filament/assets/${MATERIAL_NAME}.filamat")
+        add_custom_command(
+            OUTPUT ${OUTPUT_FILE}
+            COMMAND ${CMAKE_COMMAND} -E copy
+                ${PRECOMPILED_FILE}
+                ${OUTPUT_FILE}
+            DEPENDS ${PRECOMPILED_FILE}
+            COMMENT "Copying precompiled material ${MATERIAL_NAME}.filamat"
+        )
+    else()
+        add_custom_command(
+            OUTPUT ${OUTPUT_FILE}
+            COMMAND ${MATC_EXECUTABLE}
+                --platform=all
+                --api=vulkan
+                --api=opengl
+                --variant-filter skinning
+                --optimize-size
+                --output ${OUTPUT_FILE}
+                ${INPUT_FILE}
+            DEPENDS ${INPUT_FILE}
+            DEPENDS matc
+            COMMENT "Compiling ${MATERIAL_FILE}"
+        )
+    endif()
 
     list(APPEND MUJOCO_FILAMENT_ASSET_FILES ${OUTPUT_FILE})
 endforeach()

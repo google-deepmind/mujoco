@@ -44,6 +44,9 @@
 namespace py = ::pybind11;
 
 namespace mujoco::python {
+
+class MjVfs;
+
 namespace _impl {
 
 struct VfsAsset {
@@ -501,17 +504,20 @@ class MjWrapper<raw::MjModel> : public WrapperBase<raw::MjModel> {
   static MjWrapper LoadXMLFile(
       const std::string& filename,
       const std::optional<
-          std::unordered_map<std::string, pybind11::bytes>>& assets);
+          std::unordered_map<std::string, pybind11::bytes>>& assets,
+      MjVfs* vfs = nullptr);
 
   static MjWrapper LoadBinaryFile(
       const std::string& filename,
       const std::optional<
-          std::unordered_map<std::string, pybind11::bytes>>& assets);
+          std::unordered_map<std::string, pybind11::bytes>>& assets,
+      MjVfs* vfs = nullptr);
 
   static MjWrapper LoadXML(
       const std::string& xml,
       const std::optional<
-          std::unordered_map<std::string, pybind11::bytes>>& assets);
+          std::unordered_map<std::string, pybind11::bytes>>& assets,
+      MjVfs* vfs = nullptr);
 
   static MjWrapper WrapRawModel(raw::MjModel* m);
 

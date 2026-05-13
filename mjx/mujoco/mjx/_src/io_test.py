@@ -520,7 +520,7 @@ class DataIOTest(parameterized.TestCase):
     if impl == 'jax':
       # check that qM is transformed properly
       qm = np.zeros((m.nv, m.nv), dtype=np.float64)
-      mujoco.mj_fullM(m, qm, d.qM)
+      mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
       np.testing.assert_allclose(qm, mjx.full_m(mjx.put_model(m), dx))
 
     elif impl == 'cpp':
@@ -529,7 +529,7 @@ class DataIOTest(parameterized.TestCase):
       return  # cpp does not populate other fields in _impl
     elif impl == 'warp':
       qm = np.zeros((m.nv, m.nv), dtype=np.float64)
-      mujoco.mj_fullM(m, qm, d.qM)
+      mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
       np.testing.assert_allclose(dx._impl.qM, qm)
       # TODO(taylorhowell): test efc__J
       np.testing.assert_allclose(dx._impl.efc__aref[:3], d.efc_aref[:3])
@@ -596,7 +596,7 @@ class DataIOTest(parameterized.TestCase):
     dx_from_dense = mjx.put_data(m, d, impl=impl)
     if impl == 'jax':
       qm = np.zeros((m.nv, m.nv))
-      mujoco.mj_fullM(m, qm, d.qM)
+      mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
       np.testing.assert_allclose(dx_from_dense._impl.qM, qm, atol=1e-8)
 
 
@@ -934,8 +934,8 @@ _DEVICE_TEST_CASES = [
     ('gpu-nvidia', 'jax', ('gpu', Impl.JAX)),
     ('tpu', 'jax', ('tpu', Impl.JAX)),
     # WARP backend specified.
-    ('cpu', 'warp', ('cpu', 'error')),
-    ('gpu-notnvidia', 'warp', ('cpu', 'error')),
+    ('cpu', 'warp', ('cpu', Impl.WARP)),
+    ('gpu-notnvidia', 'warp', ('gpu', 'error')),
     ('gpu-nvidia', 'warp', ('gpu', Impl.WARP)),
     ('tpu', 'warp', ('tpu', 'error')),
     # CPP backend specified.
@@ -962,10 +962,10 @@ _DEFAULT_DEVICE_TEST_CASES = [
     ('gpu-nvidia', 'jax', ('gpu', Impl.JAX)),
     ('tpu', 'jax', ('tpu', Impl.JAX)),
     # WARP backend impl specified.
-    ('cpu', 'warp', ('cpu', 'error')),
-    ('gpu-notnvidia', 'warp', ('cpu', 'error')),
+    ('cpu', 'warp', ('cpu', Impl.WARP)),
+    ('gpu-notnvidia', 'warp', ('cpu', Impl.WARP)),
     ('gpu-nvidia', 'warp', ('gpu', Impl.WARP)),
-    ('tpu', 'warp', ('tpu', 'error')),
+    ('tpu', 'warp', ('cpu', Impl.WARP)),
     # CPP backend impl specified, CPU should always be available.
     ('cpu', 'cpp', ('cpu', Impl.CPP)),
     ('gpu-notnvidia', 'cpp', ('cpu', Impl.CPP)),
@@ -1140,15 +1140,6 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
     self.mock_jax_backends.side_effect = backends_side_effect
 
     expected_device, expected_impl = expected
-    if (
-        expected_impl == 'error'
-        and default_device_str != 'gpu-nvidia'
-        and impl_str == 'warp'
-    ):
-      with self.assertRaisesRegex(RuntimeError, 'cuda backend not supported'):
-        mjx_io._resolve_impl_and_device(impl=impl_str, device=None)
-      return
-
     if expected_impl == 'error':
       with self.assertRaises(AssertionError):
         mjx_io._resolve_impl_and_device(impl=impl_str, device=None)

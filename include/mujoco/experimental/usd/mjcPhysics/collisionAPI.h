@@ -321,8 +321,8 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // MARGIN
   // --------------------------------------------------------------------- //
-  /// Distance threshold below which contacts are detected and included in the
-  /// global array mjData.contact.
+  /// Geometric inflation of the geom surface for the purpose of contact force
+  /// generation.
   ///
   /// | ||
   /// | -- | -- |
@@ -346,11 +346,8 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // GAP
   // --------------------------------------------------------------------- //
-  /// This attribute is used to enable the generation of inactive contacts,
-  /// i.e., contacts that are ignored by the constraint solver but are included
-  /// in mjData.contact for the purpose of custom computations. When this value
-  /// is positive, geom distances between margin and margin-gap correspond to
-  /// such inactive contacts.
+  /// Additional contact detection buffer beyond margin. Contacts are detected
+  /// at distance margin + gap but forces are only generated at distance margin.
   ///
   /// | ||
   /// | -- | -- |

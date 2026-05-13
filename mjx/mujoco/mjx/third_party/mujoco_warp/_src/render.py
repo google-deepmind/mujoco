@@ -23,6 +23,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_capsule
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_cylinder
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_ellipsoid
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_flex_with_bvh
+from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_flex_with_bvh_anyhit
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_mesh_with_bvh
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_mesh_with_bvh_anyhit
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_plane
@@ -33,30 +34,27 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
+from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import RenderContext
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False})
 
 
-# TODO(team): remove after mjwarp depends on warp-lang >= 1.12 in pyproject.toml
-from mujoco.mjx.third_party.mujoco_warp._src.types import TEXTURE_DTYPE
-
-
 @wp.func
 def sample_texture(
   # Model:
-  geom_type: wp.array(dtype=int),
-  mesh_faceadr: wp.array(dtype=int),
+  geom_type: wp.array[int],
+  mesh_faceadr: wp.array[int],
   # In:
   geom_id: int,
   tex_repeat: wp.vec2,
-  tex: TEXTURE_DTYPE,
+  tex: wp.Texture2D,
   pos: wp.vec3,
   rot: wp.mat33,
-  mesh_facetexcoord: wp.array(dtype=wp.vec3i),
-  mesh_texcoord: wp.array(dtype=wp.vec2),
-  mesh_texcoord_offsets: wp.array(dtype=int),
+  mesh_facetexcoord: wp.array[wp.vec3i],
+  mesh_texcoord: wp.array[wp.vec2],
+  mesh_texcoord_offsets: wp.array[int],
   hit_point: wp.vec3,
   bary_u: float,
   bary_v: float,
@@ -87,24 +85,99 @@ def sample_texture(
   return wp.vec3(tex_color[0], tex_color[1], tex_color[2])
 
 
+@wp.func
+def sample_skybox(
+  # In:
+  skybox_tex: wp.Texture2D,
+  face_width_inv: float,
+  ray_dir_world: wp.vec3,
+) -> wp.vec3:
+  # MuJoCo maps a world-space direction to cube-map space by rotating 90° about X
+  # (see render_gl3.c: S=x, T=z, R=-y). Faces in tex_data are stacked vertically
+  # in OpenGL cube-face order: +X, -X, +Y, -Y, +Z, -Z.
+  rx = ray_dir_world[0]
+  ry = ray_dir_world[2]
+  rz = -ray_dir_world[1]
+
+  arx = wp.abs(rx)
+  ary = wp.abs(ry)
+  arz = wp.abs(rz)
+
+  face = int(0)
+  sc = float(0.0)
+  tc = float(0.0)
+  ma = float(1.0)
+
+  if arx >= ary and arx >= arz:
+    ma = arx
+    if rx > 0.0:
+      face = 0
+      sc = -rz
+      tc = -ry
+    else:
+      face = 1
+      sc = rz
+      tc = -ry
+  elif ary >= arz:
+    ma = ary
+    if ry > 0.0:
+      face = 2
+      sc = rx
+      tc = rz
+    else:
+      face = 3
+      sc = rx
+      tc = -rz
+  else:
+    ma = arz
+    if rz > 0.0:
+      face = 4
+      sc = rx
+      tc = -ry
+    else:
+      face = 5
+      sc = -rx
+      tc = -ry
+
+  s = (math.safe_div(sc, ma) + 1.0) * 0.5
+  t = (math.safe_div(tc, ma) + 1.0) * 0.5
+
+  # Keep the linear filter from bleeding between adjacent faces in the vertical strip.
+  t_min = 0.5 * face_width_inv
+  t = wp.clamp(t, t_min, 1.0 - t_min)
+
+  v = (float(face) + t) * wp.static(1.0 / 6.0)
+  color = wp.texture_sample(skybox_tex, wp.vec2(s, v), dtype=wp.vec4)
+  return wp.vec3(color[0], color[1], color[2])
+
+
 # TODO: Investigate combining cast_ray and cast_ray_first_hit
 @wp.func
 def cast_ray(
   # Model:
-  geom_type: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
+  geom_type: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_size: wp.array2d[wp.vec3],
+  flex_vertadr: wp.array[int],
+  flex_edge: wp.array[wp.vec2i],
+  flex_radius: wp.array[float],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
   # In:
   bvh_id: wp.uint64,
   group_root: int,
-  world_id: int,
+  worldid: int,
   bvh_ngeom: int,
-  enabled_geom_ids: wp.array(dtype=int),
-  mesh_bvh_id: wp.array(dtype=wp.uint64),
-  hfield_bvh_id: wp.array(dtype=wp.uint64),
+  flex_bvh_ngeom: int,
+  enabled_geom_ids: wp.array[int],
+  mesh_bvh_id: wp.array[wp.uint64],
+  hfield_bvh_id: wp.array[wp.uint64],
+  flex_geom_flexid: wp.array[int],
+  flex_geom_edgeid: wp.array[int],
+  flex_bvh_id: wp.array[wp.uint64],
+  flex_group_root: wp.array2d[int],
   ray_origin_world: wp.vec3,
   ray_dir_world: wp.vec3,
 ) -> Tuple[int, float, wp.vec3, float, float, int, int]:
@@ -118,91 +191,127 @@ def cast_ray(
 
   query = wp.bvh_query_ray(bvh_id, ray_origin_world, ray_dir_world, group_root)
   bounds_nr = int(0)
+  ngeom = bvh_ngeom + flex_bvh_ngeom
 
   while wp.bvh_query_next(query, bounds_nr, dist):
     gi_global = bounds_nr
-    gi_bvh_local = gi_global - (world_id * bvh_ngeom)
-    gi = enabled_geom_ids[gi_bvh_local]
+    local_id = gi_global - (worldid * ngeom)
 
+    d = float(-1.0)
     hit_mesh_id = int(-1)
     u = float(0.0)
     v = float(0.0)
     f = int(-1)
     n = wp.vec3(0.0, 0.0, 0.0)
+    hit_geom_id = int(-1)
+
+    if local_id < bvh_ngeom:
+      gi = enabled_geom_ids[local_id]
+      gtype = geom_type[gi]
+    else:
+      gi = local_id - bvh_ngeom
+      gtype = GeomType.FLEX
+
+    hit_geom_id = gi
 
     # TODO: Investigate branch elimination with static loop unrolling
-    if geom_type[gi] == GeomType.PLANE:
+    if gtype == GeomType.PLANE:
       d, n = ray_plane(
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.HFIELD:
+    if gtype == GeomType.HFIELD:
       d, n, u, v, f, geom_hfield_id = ray_mesh_with_bvh(
         hfield_bvh_id,
-        geom_dataid[gi],
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
+        geom_dataid[worldid % geom_dataid.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
         ray_origin_world,
         ray_dir_world,
         dist,
       )
-    if geom_type[gi] == GeomType.SPHERE:
+    if gtype == GeomType.SPHERE:
       d, n = ray_sphere(
-        geom_xpos_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi][0] * geom_size[world_id % geom_size.shape[0], gi][0],
+        geom_xpos_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi][0] * geom_size[worldid % geom_size.shape[0], gi][0],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.ELLIPSOID:
+    if gtype == GeomType.ELLIPSOID:
       d, n = ray_ellipsoid(
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.CAPSULE:
+    if gtype == GeomType.CAPSULE:
       d, n = ray_capsule(
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.CYLINDER:
+    if gtype == GeomType.CYLINDER:
       d, n = ray_cylinder(
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.BOX:
+    if gtype == GeomType.BOX:
       d, all, n = ray_box(
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.MESH:
+    if gtype == GeomType.MESH:
       d, n, u, v, f, hit_mesh_id = ray_mesh_with_bvh(
         mesh_bvh_id,
-        geom_dataid[gi],
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
+        geom_dataid[worldid % geom_dataid.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
         ray_origin_world,
         ray_dir_world,
         dist,
       )
+    if gtype == GeomType.FLEX:
+      hit_geom_id = -2
+      flexid = flex_geom_flexid[gi]
+      edge_id = flex_geom_edgeid[gi]
+
+      if edge_id >= 0:
+        edge = flex_edge[edge_id]
+        vert_adr = flex_vertadr[flexid]
+        v0 = flexvert_xpos_in[worldid, vert_adr + edge[0]]
+        v1 = flexvert_xpos_in[worldid, vert_adr + edge[1]]
+        pos = 0.5 * (v0 + v1)
+        vec = v1 - v0
+
+        length = wp.length(vec)
+        edgeq = math.quat_z2vec(vec)
+        mat = math.quat_to_mat(edgeq)
+        size = wp.vec3(flex_radius[flexid], 0.5 * length, 0.0)
+
+        d, n = ray_capsule(pos, mat, size, ray_origin_world, ray_dir_world)
+        hit_mesh_id = flexid
+      else:
+        flex_gr = flex_group_root[worldid, flexid]
+        d, n, u, v, f = ray_flex_with_bvh(flex_bvh_id, flexid, flex_gr, ray_origin_world, ray_dir_world, dist)
+        if d >= 0.0:
+          hit_mesh_id = flexid
 
     if d >= 0.0 and d < dist:
       dist = d
       normal = n
-      geom_id = gi
+      geom_id = hit_geom_id
       bary_u = u
       bary_v = v
       face_idx = f
@@ -214,20 +323,29 @@ def cast_ray(
 @wp.func
 def cast_ray_first_hit(
   # Model:
-  geom_type: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
+  geom_type: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_size: wp.array2d[wp.vec3],
+  flex_vertadr: wp.array[int],
+  flex_edge: wp.array[wp.vec2i],
+  flex_radius: wp.array[float],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
   # In:
   bvh_id: wp.uint64,
   group_root: int,
-  world_id: int,
+  worldid: int,
   bvh_ngeom: int,
-  enabled_geom_ids: wp.array(dtype=int),
-  mesh_bvh_id: wp.array(dtype=wp.uint64),
-  hfield_bvh_id: wp.array(dtype=wp.uint64),
+  bvh_nflexgeom: int,
+  enabled_geom_ids: wp.array[int],
+  mesh_bvh_id: wp.array[wp.uint64],
+  hfield_bvh_id: wp.array[wp.uint64],
+  flex_geom_flexid: wp.array[int],
+  flex_geom_edgeid: wp.array[int],
+  flex_bvh_id: wp.array[wp.uint64],
+  flex_group_root: wp.array2d[int],
   ray_origin_world: wp.vec3,
   ray_dir_world: wp.vec3,
   max_dist: float,
@@ -235,81 +353,119 @@ def cast_ray_first_hit(
   """A simpler version of casting rays that only checks for the first hit."""
   query = wp.bvh_query_ray(bvh_id, ray_origin_world, ray_dir_world, group_root)
   bounds_nr = int(0)
+  ngeom = bvh_ngeom + bvh_nflexgeom
 
   while wp.bvh_query_next(query, bounds_nr, max_dist):
     gi_global = bounds_nr
-    gi_bvh_local = gi_global - (world_id * bvh_ngeom)
-    gi = enabled_geom_ids[gi_bvh_local]
+    local_id = gi_global - (worldid * ngeom)
+
+    d = float(-1.0)
+    n = wp.vec3(0.0, 0.0, 0.0)
+
+    if local_id < bvh_ngeom:
+      gi = enabled_geom_ids[local_id]
+      gtype = geom_type[gi]
+    else:
+      gi = local_id - bvh_ngeom
+      gtype = GeomType.FLEX
 
     # TODO: Investigate branch elimination with static loop unrolling
-    if geom_type[gi] == GeomType.PLANE:
+    if gtype == GeomType.PLANE:
       d, n = ray_plane(
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.HFIELD:
+    if gtype == GeomType.HFIELD:
       d, n, u, v, f, geom_hfield_id = ray_mesh_with_bvh(
         hfield_bvh_id,
-        geom_dataid[gi],
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
+        geom_dataid[worldid % geom_dataid.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
         ray_origin_world,
         ray_dir_world,
         max_dist,
       )
-    if geom_type[gi] == GeomType.SPHERE:
+    if gtype == GeomType.SPHERE:
       d, n = ray_sphere(
-        geom_xpos_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi][0] * geom_size[world_id % geom_size.shape[0], gi][0],
+        geom_xpos_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi][0] * geom_size[worldid % geom_size.shape[0], gi][0],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.ELLIPSOID:
+    if gtype == GeomType.ELLIPSOID:
       d, n = ray_ellipsoid(
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.CAPSULE:
+    if gtype == GeomType.CAPSULE:
       d, n = ray_capsule(
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.CYLINDER:
+    if gtype == GeomType.CYLINDER:
       d, n = ray_cylinder(
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.BOX:
+    if gtype == GeomType.BOX:
       d, all, n = ray_box(
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
-        geom_size[world_id % geom_size.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
+        geom_size[worldid % geom_size.shape[0], gi],
         ray_origin_world,
         ray_dir_world,
       )
-    if geom_type[gi] == GeomType.MESH:
+    if gtype == GeomType.MESH:
       hit = ray_mesh_with_bvh_anyhit(
         mesh_bvh_id,
-        geom_dataid[gi],
-        geom_xpos_in[world_id, gi],
-        geom_xmat_in[world_id, gi],
+        geom_dataid[worldid % geom_dataid.shape[0], gi],
+        geom_xpos_in[worldid, gi],
+        geom_xmat_in[worldid, gi],
         ray_origin_world,
         ray_dir_world,
         max_dist,
       )
       d = 0.0 if hit else -1.0
+    if gtype == GeomType.FLEX:
+      flexid = flex_geom_flexid[gi]
+      edge_id = flex_geom_edgeid[gi]
+
+      if edge_id >= 0:
+        edge = flex_edge[edge_id]
+        vert_adr = flex_vertadr[flexid]
+        v0 = flexvert_xpos_in[worldid, vert_adr + edge[0]]
+        v1 = flexvert_xpos_in[worldid, vert_adr + edge[1]]
+        pos = 0.5 * (v0 + v1)
+        vec = v1 - v0
+
+        length = wp.length(vec)
+        edgeq = math.quat_z2vec(vec)
+        mat = math.quat_to_mat(edgeq)
+        size = wp.vec3(flex_radius[flexid], 0.5 * length, 0.0)
+
+        d, n = ray_capsule(pos, mat, size, ray_origin_world, ray_dir_world)
+      else:
+        hit = ray_flex_with_bvh_anyhit(
+          flex_bvh_id,
+          flexid,
+          flex_group_root[worldid, flexid],
+          ray_origin_world,
+          ray_dir_world,
+          max_dist,
+        )
+        d = 0.0 if hit else -1.0
 
     if d >= 0.0 and d < max_dist:
       return True
@@ -320,21 +476,30 @@ def cast_ray_first_hit(
 @wp.func
 def compute_lighting(
   # Model:
-  geom_type: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
+  geom_type: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_size: wp.array2d[wp.vec3],
+  flex_vertadr: wp.array[int],
+  flex_edge: wp.array[wp.vec2i],
+  flex_radius: wp.array[float],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
   # In:
   use_shadows: bool,
   bvh_id: wp.uint64,
   group_root: int,
   bvh_ngeom: int,
-  enabled_geom_ids: wp.array(dtype=int),
-  world_id: int,
-  mesh_bvh_id: wp.array(dtype=wp.uint64),
-  hfield_bvh_id: wp.array(dtype=wp.uint64),
+  bvh_nflexgeom: int,
+  enabled_geom_ids: wp.array[int],
+  worldid: int,
+  mesh_bvh_id: wp.array[wp.uint64],
+  hfield_bvh_id: wp.array[wp.uint64],
+  flex_geom_flexid: wp.array[int],
+  flex_geom_edgeid: wp.array[int],
+  flex_bvh_id: wp.array[wp.uint64],
+  flex_group_root: wp.array2d[int],
   lightactive: bool,
   lighttype: int,
   lightcastshadow: bool,
@@ -385,15 +550,24 @@ def compute_lighting(
       geom_type,
       geom_dataid,
       geom_size,
+      flex_vertadr,
+      flex_edge,
+      flex_radius,
       geom_xpos_in,
       geom_xmat_in,
+      flexvert_xpos_in,
       bvh_id,
       group_root,
-      world_id,
+      worldid,
       bvh_ngeom,
+      bvh_nflexgeom,
       enabled_geom_ids,
       mesh_bvh_id,
       hfield_bvh_id,
+      flex_geom_flexid,
+      flex_geom_edgeid,
+      flex_bvh_id,
+      flex_group_root,
       shadow_origin,
       L,
       max_t,
@@ -418,95 +592,105 @@ def render(m: Model, d: Data, rc: RenderContext):
   """
   rc.rgb_data.fill_(rc.background_color)
   rc.depth_data.fill_(0.0)
+  rc.seg_data.fill_(wp.vec2i(-1, -1))
 
   @wp.kernel(module="unique", enable_backward=False)
   def _render_megakernel(
     # Model:
-    geom_type: wp.array(dtype=int),
-    geom_dataid: wp.array(dtype=int),
-    geom_matid: wp.array2d(dtype=int),
-    geom_size: wp.array2d(dtype=wp.vec3),
-    geom_rgba: wp.array2d(dtype=wp.vec4),
-    cam_projection: wp.array(dtype=int),
-    cam_fovy: wp.array2d(dtype=float),
-    cam_sensorsize: wp.array(dtype=wp.vec2),
-    cam_intrinsic: wp.array2d(dtype=wp.vec4),
-    light_type: wp.array2d(dtype=int),
-    light_castshadow: wp.array2d(dtype=bool),
-    light_active: wp.array2d(dtype=bool),
-    mesh_faceadr: wp.array(dtype=int),
-    mat_texid: wp.array3d(dtype=int),
-    mat_texrepeat: wp.array2d(dtype=wp.vec2),
-    mat_rgba: wp.array2d(dtype=wp.vec4),
+    geom_type: wp.array[int],
+    geom_dataid: wp.array2d[int],
+    geom_matid: wp.array2d[int],
+    geom_size: wp.array2d[wp.vec3],
+    geom_rgba: wp.array2d[wp.vec4],
+    cam_projection: wp.array[int],
+    cam_fovy: wp.array2d[float],
+    cam_sensorsize: wp.array[wp.vec2],
+    cam_intrinsic: wp.array2d[wp.vec4],
+    light_type: wp.array2d[int],
+    light_castshadow: wp.array2d[bool],
+    light_active: wp.array2d[bool],
+    flex_vertadr: wp.array[int],
+    flex_edge: wp.array[wp.vec2i],
+    flex_radius: wp.array[float],
+    mesh_faceadr: wp.array[int],
+    mat_texid: wp.array3d[int],
+    mat_texrepeat: wp.array2d[wp.vec2],
+    mat_rgba: wp.array2d[wp.vec4],
     # Data in:
-    geom_xpos_in: wp.array2d(dtype=wp.vec3),
-    geom_xmat_in: wp.array2d(dtype=wp.mat33),
-    cam_xpos_in: wp.array2d(dtype=wp.vec3),
-    cam_xmat_in: wp.array2d(dtype=wp.mat33),
-    light_xpos_in: wp.array2d(dtype=wp.vec3),
-    light_xdir_in: wp.array2d(dtype=wp.vec3),
+    geom_xpos_in: wp.array2d[wp.vec3],
+    geom_xmat_in: wp.array2d[wp.mat33],
+    cam_xpos_in: wp.array2d[wp.vec3],
+    cam_xmat_in: wp.array2d[wp.mat33],
+    light_xpos_in: wp.array2d[wp.vec3],
+    light_xdir_in: wp.array2d[wp.vec3],
+    flexvert_xpos_in: wp.array2d[wp.vec3],
     # In:
     nrender: int,
     use_shadows: bool,
     bvh_ngeom: int,
-    cam_res: wp.array(dtype=wp.vec2i),
-    cam_id_map: wp.array(dtype=int),
-    ray: wp.array(dtype=wp.vec3),
-    rgb_adr: wp.array(dtype=int),
-    depth_adr: wp.array(dtype=int),
-    render_rgb: wp.array(dtype=bool),
-    render_depth: wp.array(dtype=bool),
+    bvh_nflexgeom: int,
+    cam_res: wp.array[wp.vec2i],
+    cam_id_map: wp.array[int],
+    ray: wp.array[wp.vec3],
+    rgb_adr: wp.array[int],
+    depth_adr: wp.array[int],
+    seg_adr: wp.array[int],
+    render_rgb: wp.array[bool],
+    render_depth: wp.array[bool],
+    render_seg: wp.array[bool],
     bvh_id: wp.uint64,
-    group_root: wp.array(dtype=int),
-    flex_bvh_id: wp.uint64,
-    flex_group_root: wp.array(dtype=int),
-    enabled_geom_ids: wp.array(dtype=int),
-    mesh_bvh_id: wp.array(dtype=wp.uint64),
-    mesh_facetexcoord: wp.array(dtype=wp.vec3i),
-    mesh_texcoord: wp.array(dtype=wp.vec2),
-    mesh_texcoord_offsets: wp.array(dtype=int),
-    hfield_bvh_id: wp.array(dtype=wp.uint64),
-    flex_rgba: wp.array(dtype=wp.vec4),
-    # TODO: remove after mjwarp depends on warp-lang >= 1.12 in pyproject.toml
-    textures: wp.array(dtype=TEXTURE_DTYPE),
+    group_root: wp.array[int],
+    flex_bvh_id: wp.array[wp.uint64],
+    flex_group_root: wp.array2d[int],
+    enabled_geom_ids: wp.array[int],
+    mesh_bvh_id: wp.array[wp.uint64],
+    mesh_facetexcoord: wp.array[wp.vec3i],
+    mesh_texcoord: wp.array[wp.vec2],
+    mesh_texcoord_offsets: wp.array[int],
+    hfield_bvh_id: wp.array[wp.uint64],
+    flex_rgba: wp.array[wp.vec4],
+    flex_geom_flexid: wp.array[int],
+    flex_geom_edgeid: wp.array[int],
+    textures: wp.array[wp.Texture2D],
     # Out:
-    rgb_out: wp.array2d(dtype=wp.uint32),
-    depth_out: wp.array2d(dtype=float),
+    rgb_out: wp.array2d[wp.uint32],
+    depth_out: wp.array2d[float],
+    seg_out: wp.array2d[wp.vec2i],
   ):
-    world_idx, ray_idx = wp.tid()
+    worldid, rayid = wp.tid()
 
-    # Map global ray_idx -> (cam_idx, ray_idx_local) using cumulative sizes
+    # Map global rayid -> (cam_idx, rayid_local) using cumulative sizes
     cam_idx = int(-1)
-    ray_idx_local = int(-1)
+    rayid_local = int(-1)
     accum = int(0)
     for i in range(nrender):
       num_i = cam_res[i][0] * cam_res[i][1]
-      if ray_idx < accum + num_i:
+      if rayid < accum + num_i:
         cam_idx = i
-        ray_idx_local = ray_idx - accum
+        rayid_local = rayid - accum
         break
       accum += num_i
-    if cam_idx == -1 or ray_idx_local < 0:
+    if cam_idx == -1 or rayid_local < 0:
       return
 
-    if not render_rgb[cam_idx] and not render_depth[cam_idx]:
+    if not render_rgb[cam_idx] and not render_depth[cam_idx] and not render_seg[cam_idx]:
       return
 
     # Map active camera index to MuJoCo camera ID
     mujoco_cam_id = cam_id_map[cam_idx]
 
     if wp.static(rc.use_precomputed_rays):
-      ray_dir_local_cam = ray[ray_idx]
+      ray_dir_local_cam = ray[rayid]
     else:
       img_w = cam_res[cam_idx][0]
       img_h = cam_res[cam_idx][1]
-      px = ray_idx_local % img_w
-      py = ray_idx_local // img_w
+      px = rayid_local % img_w
+      py = rayid_local // img_w
       ray_dir_local_cam = compute_ray(
         cam_projection[mujoco_cam_id],
-        cam_fovy[world_idx % cam_fovy.shape[0], mujoco_cam_id],
+        cam_fovy[worldid % cam_fovy.shape[0], mujoco_cam_id],
         cam_sensorsize[mujoco_cam_id],
-        cam_intrinsic[world_idx % cam_intrinsic.shape[0], mujoco_cam_id],
+        cam_intrinsic[worldid % cam_intrinsic.shape[0], mujoco_cam_id],
         img_w,
         img_h,
         px,
@@ -514,41 +698,55 @@ def render(m: Model, d: Data, rc: RenderContext):
         wp.static(rc.znear),
       )
 
-    ray_dir_world = cam_xmat_in[world_idx, mujoco_cam_id] @ ray_dir_local_cam
-    ray_origin_world = cam_xpos_in[world_idx, mujoco_cam_id]
+    ray_dir_world = cam_xmat_in[worldid, mujoco_cam_id] @ ray_dir_local_cam
+    ray_origin_world = cam_xpos_in[worldid, mujoco_cam_id]
 
     geom_id, dist, normal, u, v, f, mesh_id = cast_ray(
       geom_type,
       geom_dataid,
       geom_size,
+      flex_vertadr,
+      flex_edge,
+      flex_radius,
       geom_xpos_in,
       geom_xmat_in,
+      flexvert_xpos_in,
       bvh_id,
-      group_root[world_idx],
-      world_idx,
+      group_root[worldid],
+      worldid,
       bvh_ngeom,
+      bvh_nflexgeom,
       enabled_geom_ids,
       mesh_bvh_id,
       hfield_bvh_id,
+      flex_geom_flexid,
+      flex_geom_edgeid,
+      flex_bvh_id,
+      flex_group_root,
       ray_origin_world,
       ray_dir_world,
     )
 
-    if wp.static(m.nflex > 0):
-      d, n, u, v, f = ray_flex_with_bvh(
-        flex_bvh_id,
-        flex_group_root[world_idx],
-        ray_origin_world,
-        ray_dir_world,
-        dist,
-      )
-      if d >= 0.0 and d < dist:
-        dist = d
-        normal = n
-        geom_id = -2
+    if render_seg[cam_idx] and geom_id != -1:
+      if geom_id == -2:
+        seg_out[worldid, seg_adr[cam_idx] + rayid_local] = wp.vec2i(mesh_id, int(ObjType.FLEX))
+      else:
+        seg_out[worldid, seg_adr[cam_idx] + rayid_local] = wp.vec2i(geom_id, int(ObjType.GEOM))
 
     # Early Out
     if geom_id == -1:
+      if wp.static(rc.render_skybox) and render_rgb[cam_idx]:
+        skybox_color = sample_skybox(
+          textures[wp.static(rc.skybox_tex_id)],
+          wp.static(1.0 / float(rc.skybox_face_width)),
+          ray_dir_world,
+        )
+        rgb_out[worldid, rgb_adr[cam_idx] + rayid_local] = pack_rgba_to_uint32(
+          skybox_color[0] * 255.0,
+          skybox_color[1] * 255.0,
+          skybox_color[2] * 255.0,
+          255.0,
+        )
       return
 
     if render_depth[cam_idx]:
@@ -556,9 +754,7 @@ def render(m: Model, d: Data, rc: RenderContext):
       # In camera-local coordinates, the optical axis is -Z. The Z-component of the
       # normalized ray direction is negative, so -ray_dir_local_cam[2] gives cos(θ)
       # between the ray and the optical axis.
-      depth_out[world_idx, depth_adr[cam_idx] + ray_idx_local] = dist * (
-          -ray_dir_local_cam[2]
-      )
+      depth_out[worldid, depth_adr[cam_idx] + rayid_local] = dist * (-ray_dir_local_cam[2])
 
     if not render_rgb[cam_idx]:
       return
@@ -567,31 +763,30 @@ def render(m: Model, d: Data, rc: RenderContext):
     hit_point = ray_origin_world + ray_dir_world * dist
 
     if geom_id == -2:
-      # TODO: Currently flex textures are not supported, and only the first rgba value
-      # is used until further flex support is added.
-      color = flex_rgba[0]
-    elif geom_matid[world_idx % geom_matid.shape[0], geom_id] == -1:
-      color = geom_rgba[world_idx % geom_rgba.shape[0], geom_id]
+      # We encode flex_id in mesh_id for flex ray hits during cast_ray
+      color = flex_rgba[mesh_id]
+    elif geom_matid[worldid % geom_matid.shape[0], geom_id] == -1:
+      color = geom_rgba[worldid % geom_rgba.shape[0], geom_id]
     else:
-      color = mat_rgba[world_idx % mat_rgba.shape[0], geom_matid[world_idx % geom_matid.shape[0], geom_id]]
+      color = mat_rgba[worldid % mat_rgba.shape[0], geom_matid[worldid % geom_matid.shape[0], geom_id]]
 
     base_color = wp.vec3(color[0], color[1], color[2])
     hit_color = base_color
 
     if wp.static(rc.use_textures):
       if geom_id != -2:
-        mat_id = geom_matid[world_idx % geom_matid.shape[0], geom_id]
+        mat_id = geom_matid[worldid % geom_matid.shape[0], geom_id]
         if mat_id >= 0:
-          tex_id = mat_texid[world_idx % mat_texid.shape[0], mat_id, 1]
+          tex_id = mat_texid[worldid % mat_texid.shape[0], mat_id, 1]
           if tex_id >= 0:
             tex_color = sample_texture(
               geom_type,
               mesh_faceadr,
               geom_id,
-              mat_texrepeat[world_idx % mat_texrepeat.shape[0], mat_id],
+              mat_texrepeat[worldid % mat_texrepeat.shape[0], mat_id],
               textures[tex_id],
-              geom_xpos_in[world_idx, geom_id],
-              geom_xmat_in[world_idx, geom_id],
+              geom_xpos_in[worldid, geom_id],
+              geom_xmat_in[worldid, geom_id],
               mesh_facetexcoord,
               mesh_texcoord,
               mesh_texcoord_offsets,
@@ -616,21 +811,30 @@ def render(m: Model, d: Data, rc: RenderContext):
         geom_type,
         geom_dataid,
         geom_size,
+        flex_vertadr,
+        flex_edge,
+        flex_radius,
         geom_xpos_in,
         geom_xmat_in,
+        flexvert_xpos_in,
         use_shadows,
         bvh_id,
-        group_root[world_idx],
+        group_root[worldid],
         bvh_ngeom,
+        bvh_nflexgeom,
         enabled_geom_ids,
-        world_idx,
+        worldid,
         mesh_bvh_id,
         hfield_bvh_id,
-        light_active[world_idx % light_active.shape[0], l],
-        light_type[world_idx % light_type.shape[0], l],
-        light_castshadow[world_idx % light_castshadow.shape[0], l],
-        light_xpos_in[world_idx, l],
-        light_xdir_in[world_idx, l],
+        flex_geom_flexid,
+        flex_geom_edgeid,
+        flex_bvh_id,
+        flex_group_root,
+        light_active[worldid % light_active.shape[0], l],
+        light_type[worldid % light_type.shape[0], l],
+        light_castshadow[worldid % light_castshadow.shape[0], l],
+        light_xpos_in[worldid, l],
+        light_xdir_in[worldid, l],
         normal,
         hit_point,
       )
@@ -639,7 +843,7 @@ def render(m: Model, d: Data, rc: RenderContext):
     hit_color = wp.min(result, wp.vec3(1.0, 1.0, 1.0))
     hit_color = wp.max(hit_color, wp.vec3(0.0, 0.0, 0.0))
 
-    rgb_out[world_idx, rgb_adr[cam_idx] + ray_idx_local] = pack_rgba_to_uint32(
+    rgb_out[worldid, rgb_adr[cam_idx] + rayid_local] = pack_rgba_to_uint32(
       hit_color[0] * 255.0,
       hit_color[1] * 255.0,
       hit_color[2] * 255.0,
@@ -662,6 +866,9 @@ def render(m: Model, d: Data, rc: RenderContext):
       m.light_type,
       m.light_castshadow,
       m.light_active,
+      m.flex_vertadr,
+      m.flex_edge,
+      m.flex_radius,
       m.mesh_faceadr,
       m.mat_texid,
       m.mat_texrepeat,
@@ -672,16 +879,20 @@ def render(m: Model, d: Data, rc: RenderContext):
       d.cam_xmat,
       d.light_xpos,
       d.light_xdir,
+      d.flexvert_xpos,
       rc.nrender,
       rc.use_shadows,
       rc.bvh_ngeom,
+      rc.bvh_nflexgeom,
       rc.cam_res,
       rc.cam_id_map,
       rc.ray,
       rc.rgb_adr,
       rc.depth_adr,
+      rc.seg_adr,
       rc.render_rgb,
       rc.render_depth,
+      rc.render_seg,
       rc.bvh_id,
       rc.group_root,
       rc.flex_bvh_id,
@@ -693,10 +904,13 @@ def render(m: Model, d: Data, rc: RenderContext):
       rc.mesh_texcoord_offsets,
       rc.hfield_bvh_id,
       rc.flex_rgba,
+      rc.flex_geom_flexid,
+      rc.flex_geom_edgeid,
       rc.textures,
     ],
     outputs=[
       rc.rgb_data,
       rc.depth_data,
+      rc.seg_data,
     ],
   )

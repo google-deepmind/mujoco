@@ -96,16 +96,15 @@ def _resolve_device(
     return cpu_0
 
   if impl == types.Impl.WARP:
-    # WARP implementation requires a CUDA GPU.
-    cuda_gpus = [d for d in jax.devices('cuda')]
-    if not cuda_gpus:
-      raise AssertionError(
-          'No CUDA GPU devices found in'
-          f' jax.devices("cuda")={jax.devices("cuda")}.'
-      )
+    # WARP implementation requires a CUDA GPU or CPU.
+    if has_cuda_gpu_device():
+      cuda_gpus = [d for d in jax.devices('cuda')]
+      if cuda_gpus:
+        logging.debug('Picking default device: %s', cuda_gpus[0])
+        return cuda_gpus[0]
 
-    logging.debug('Picking default device: %s', cuda_gpus[0])
-    return cuda_gpus[0]
+    logging.debug('Picking default device for Warp: CPU')
+    return jax.devices('cpu')[0]
 
   raise ValueError(f'Unsupported implementation: {impl}')
 
@@ -121,9 +120,12 @@ def _check_impl_device_compatibility(
   impl = types.Impl(impl)
 
   if impl == types.Impl.WARP:
-    if not _is_cuda_gpu_device(device):
+    is_cuda_device = _is_cuda_gpu_device(device)
+    is_cpu_device = device.platform == 'cpu'
+    if not (is_cuda_device or is_cpu_device):
       raise AssertionError(
-          f'Warp implementation requires a CUDA GPU device, got {device}.'
+          'Warp implementation requires a CUDA GPU or CPU device, got '
+          f'{device}.'
       )
     _check_warp_installed()
 
@@ -425,8 +427,6 @@ def _put_model_jax(
   return _strip_weak_type(model)
 
 
-
-
 def _put_model_warp(
     m: mujoco.MjModel,
     graph_mode: mjxw.types.GraphMode,
@@ -456,6 +456,9 @@ def _put_model_warp(
     if not hasattr(mw, k) or k in ('stat', 'opt'):
       continue
     field = _wp_to_np_type(getattr(mw, k), k)
+    if k == 'geom_dataid' and field.ndim > 1:
+      # Batched geom_dataid is not supported in MJX.
+      field = field[0]
     fields[k] = field
 
   impl_fields = {}
@@ -714,8 +717,6 @@ def _make_data_jax(
 
   d = jax.device_put(d, device=device)
   return d
-
-
 
 
 def _get_nested_attr(obj: Any, attr_name: str, split: str) -> Any:
@@ -1057,7 +1058,13 @@ def _put_data_jax(
   # convert qM and qLD if jacobian is dense
   if not support.is_sparse(m):
     impl_fields['qM'] = np.zeros((m.nv, m.nv))
-    mujoco.mj_fullM(m, impl_fields['qM'], d.qM)
+    mujoco.mju_sym2dense(
+        impl_fields['qM'],
+        d.M,
+        m.M_rownnz,
+        m.M_rowadr,
+        m.M_colind,
+    )
     # TODO(erikfrey): derive L*L' from L'*D*L instead of recomputing
     try:
       impl_fields['qLD'], _ = scipy.linalg.cho_factor(impl_fields['qM'])
@@ -1079,8 +1086,6 @@ def _put_data_jax(
 
   data = jax.device_put(data, device=device)
   return _strip_weak_type(data)
-
-
 
 
 # TODO(josechenf): Iterate on the keepalive implementation to make it easier to

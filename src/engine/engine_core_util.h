@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -85,6 +86,11 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
                         mjtNum* jacdifp, mjtNum* jacdifr, const mjtNum* point,
                         int body, int flg_second, int NV, int start);
 
+// compute 3/6-by-NV sparse Jacobian time derivative of global point attached to given body
+MJAPI void mj_jacDotSparse(const mjModel* m, const mjData* d,
+                           mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
+                           int NV, const int* chain);
+
 // dense or sparse Jacobian difference for two body points: pos2 - pos1, global
 MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
                         int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
@@ -122,6 +128,9 @@ MJAPI void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
 
 
 //-------------------------- miscellaneous ---------------------------------------------------------
+
+// gather global node positions and velocities
+MJAPI void mju_flexGatherState(const mjModel* m, const mjData* d, int f, mjtNum* xpos, mjtNum* vel);
 
 // extract 6D force:torque for one contact, in contact frame
 MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);

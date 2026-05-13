@@ -17,6 +17,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,6 +94,16 @@ MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 // address of diagonal element i in band-dense matrix representation
 MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 
+// dense LU factorization with partial pivoting
+//   factorizes n x n row-major matrix A in-place into L and U
+//   L has unit diagonal (not stored), U has explicit diagonal
+//   pivot stores row permutation: row i of original = row pivot[i] of result
+//   return 1 if successful, 0 if singular (diagonal element < mjMINVAL)
+MJAPI int mju_factorLU(mjtNum* A, int n, int* pivot);
+
+// solve A*x = b given LU factorization of A, LU and pivot are output of mju_factorLU
+MJAPI void mju_solveLU(mjtNum* x, const mjtNum* LU, const mjtNum* b, const int* pivot, int n);
+
 // sparse reverse-order LU factorization, assume tree topology (only dofs in index, if given)
 //  LU = L + U; original = (U+I) * L; scratch is size n
 void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
@@ -102,6 +113,9 @@ void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
 void mju_solveLUSparse(mjtNum *res, const mjtNum *LU, const mjtNum* vec, int n,
                        const int *rownnz, const int *rowadr, const int* diag, const int *colind,
                        const int *index);
+
+// solve 3x3 linear system A*x = b using Gaussian elimination
+void mju_solve3(mjtNum x[3], const mjtNum A[9], const mjtNum b[3]);
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);

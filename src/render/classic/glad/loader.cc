@@ -17,7 +17,7 @@
 extern "C" {
 
 GLAPI int mjGladLoadGL() {
-  static const int glad_initialized = mjGladLoadGLUnsafe();
+  static const int glad_initialized = mjGladLoadGLUnsafe(nullptr);
   return glad_initialized;
 }
 

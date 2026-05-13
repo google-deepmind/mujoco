@@ -23,10 +23,10 @@ def create_blocked_cholesky_func(block_size: int):
   @wp.func
   def blocked_cholesky_func(
     # In:
-    A: wp.array(dtype=float, ndim=2),
+    A: wp.array2d[float],
     matrix_size: int,
     # Out:
-    L: wp.array(dtype=float, ndim=2),
+    L: wp.array2d[float],
   ):
     """Computes the Cholesky factorization of a symmetric positive definite matrix A in blocks.
 
@@ -45,8 +45,8 @@ def create_blocked_cholesky_func(block_size: int):
         wp.tile_matmul(L_block, wp.tile_transpose(L_block), A_kk_tile, alpha=-1.0)
 
       # Compute the Cholesky factorization for the block
-      L_kk_tile = wp.tile_cholesky(A_kk_tile)
-      wp.tile_store(L, L_kk_tile, offset=(k, k))
+      wp.tile_cholesky_inplace(A_kk_tile)
+      wp.tile_store(L, A_kk_tile, offset=(k, k))
 
       # Process the blocks below the current block
       for i in range(end, matrix_size, block_size):
@@ -57,7 +57,7 @@ def create_blocked_cholesky_func(block_size: int):
           L_2_tile = wp.tile_load(L, shape=(block_size, block_size), offset=(k, j), storage="shared")
           wp.tile_matmul(L_tile, wp.tile_transpose(L_2_tile), A_ik_tile, alpha=-1.0)
 
-        wp.tile_lower_solve_inplace(L_kk_tile, wp.tile_transpose(A_ik_tile))
+        wp.tile_lower_solve_inplace(A_kk_tile, wp.tile_transpose(A_ik_tile))
         wp.tile_store(L, A_ik_tile, offset=(i, k))
 
   return blocked_cholesky_func
@@ -68,11 +68,11 @@ def create_blocked_cholesky_solve_func(block_size: int, matrix_size_static: int)
   @wp.func
   def blocked_cholesky_solve_func(
     # In:
-    L: wp.array(dtype=float, ndim=2),
-    b: wp.array(dtype=float, ndim=2),
+    L: wp.array2d[float],
+    b: wp.array2d[float],
     matrix_size: int,
     # Out:
-    x: wp.array(dtype=float, ndim=2),
+    x: wp.array2d[float],
   ):
     """Block Cholesky factorization and solve.
 
@@ -98,11 +98,12 @@ def create_blocked_cholesky_solve_func(block_size: int, matrix_size_static: int)
       tmp_tile = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(i, 0))
       for j in range(i_end, matrix_size, block_size):
         L_tile = wp.tile_load(L, shape=(block_size, block_size), offset=(j, i), storage="shared")
-        x_tile = wp.tile_load(x, shape=(block_size, 1), offset=(j, 0), storage="shared", bounds_check=False)
+        x_tile = wp.tile_view(rhs_tile, shape=(block_size, 1), offset=(j, 0))
         wp.tile_matmul(wp.tile_transpose(L_tile), x_tile, tmp_tile, alpha=-1.0)
       L_tile = wp.tile_load(L, shape=(block_size, block_size), offset=(i, i), storage="shared")
 
       wp.tile_upper_solve_inplace(wp.tile_transpose(L_tile), tmp_tile)
-      wp.tile_store(x, tmp_tile, offset=(i, 0), bounds_check=False)
+
+    wp.tile_store(x, rhs_tile, offset=(0, 0), bounds_check=False)
 
   return blocked_cholesky_solve_func

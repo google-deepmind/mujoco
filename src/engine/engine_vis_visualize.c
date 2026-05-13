@@ -169,7 +169,11 @@ static int bodycategory(const mjModel* m, int bodyid) {
 mjvGeom* acquireGeom(mjvScene* scn, int objid, int category, int objtype) {
   // check for overflow, SHOULD NOT OCCUR
   if (scn->ngeom >= scn->maxgeom) {
-    scn->status = 1;
+    if (!scn->status) {
+      mju_warning("Pre-allocated visual geom buffer is full. "
+                  "Increase maxgeom above %d.", scn->maxgeom);
+      scn->status = 1;
+    }
     return NULL;
   }
 
@@ -1430,10 +1434,9 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
     }
 
     // control points box
-    mjtNum xpos[mjMAXFLEXNODES];
+    mjtNum* xpos = mjSTACKALLOC(d, 3*m->flex_nodenum[f], mjtNum);
     int nstart = m->flex_nodeadr[f];
     int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
-    int nnode = m->flex_interp[f]+1;
     if (m->flex_centered[f]) {
       for (int i=0; i < m->flex_nodenum[f]; i++) {
         mju_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
@@ -1444,15 +1447,31 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
         mju_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
       }
     }
-    for (int i=0; i < nnode; i++) {
-      for (int j=0; j < nnode; j++) {
-        for (int k=0; k < nnode; k++) {
-          int nn = nnode*nnode;
-          int offset  = 3*(nn*(i+0) + nnode*(j+0) + k);
-          int offset1 = 3*(nn*(i+1) + nnode*(j+0) + k);
-          int offset2 = 3*(nn*(i+0) + nnode*(j+1) + k);
-          int offset3 = 3*(nn*(i+0) + nnode*(j+0) + (k+1));
-          if (i < nnode-1) {
+
+    int cx = m->flex_cellnum[3*f+0];
+    int cy = m->flex_cellnum[3*f+1];
+    int cz = m->flex_cellnum[3*f+2];
+    int order = m->flex_interp[f];
+    order = order < 0 ? -order : order;
+    int NX = cx * order + 1;
+    int NY = cy * order + 1;
+    int NZ = cz * order + 1;
+
+    for (int i=0; i < NX; i++) {
+      for (int j=0; j < NY; j++) {
+        for (int k=0; k < NZ; k++) {
+          int n0 = i*NY*NZ + j*NZ + k;
+
+          // skip if this node is pinned (no joints on its body)
+          if (m->body_jntnum[bodyid[n0]] == 0) {
+            continue;
+          }
+
+          int offset  = 3*n0;
+          int offset1 = 3*((i+1)*NY*NZ + j*NZ + k);
+          int offset2 = 3*(i*NY*NZ + (j+1)*NZ + k);
+          int offset3 = 3*(i*NY*NZ + j*NZ + (k+1));
+          if (i < NX-1 && m->body_jntnum[bodyid[(i+1)*NY*NZ + j*NZ + k]] > 0) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;
@@ -1461,7 +1480,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset1);
             releaseGeom(&thisgeom, scn);
           }
-          if (j < nnode-1) {
+          if (j < NY-1 && m->body_jntnum[bodyid[i*NY*NZ + (j+1)*NZ + k]] > 0) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;
@@ -1470,7 +1489,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset2);
             releaseGeom(&thisgeom, scn);
           }
-          if (k < nnode-1) {
+          if (k < NZ-1 && m->body_jntnum[bodyid[i*NY*NZ + j*NZ + (k+1)]] > 0) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;
@@ -3379,7 +3398,6 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
                      const mjvPerturb* pert, mjvCamera* cam, int catmask, mjvScene* scn) {
   // clear geoms
   scn->ngeom = 0;
-  scn->status = 0;
 
   // trigger plugin visualization hooks
   if (m->nplugin) {
@@ -3415,10 +3433,6 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
   // update skins
   if (opt->flags[mjVIS_SKIN]) {
     mjv_updateActiveSkin(m, d, scn, opt);
-  }
-
-  if (scn->status) {
-    mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);
   }
 }
 

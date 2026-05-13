@@ -91,7 +91,11 @@ void SdfVisualizer::Visualize(const mjModel* m, const mjData* d,
     for (int k = 0; k < 2; k++) {
       for (int j = 0; j < (k == 0 ? 2 : n-1); j++) {
         if (scn->ngeom >= scn->maxgeom) {
-          mj_warning((mjData*)d, mjWARN_VGEOMFULL, scn->maxgeom);
+          if (!scn->status) {
+            mju_warning("Pre-allocated visual geom buffer is full. "
+                        "Increase maxgeom above %d.", scn->maxgeom);
+            scn->status = 1;
+          }
           return;
         }
         mjvGeom* thisgeom = scn->geoms + scn->ngeom;

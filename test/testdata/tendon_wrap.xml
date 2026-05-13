@@ -1,6 +1,6 @@
 <mujoco>
   <option>
-    <flag island="enable"/>
+    <flag island="enable" multiccd="enable"/>
   </option>
 
   <default>

@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,10 +27,15 @@ extern "C" {
 // collision function pointers and max contact pairs
 MJAPI extern mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES];
 
+// return the maximum number of contacts that can be generated between two geoms
+// if has_margin is -1, then the margin is pulled from the model, otherwise if has_margin > 0
+// indicates that the geoms have a positive margin
+MJAPI int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin);
+
 // collision detection entry point
 MJAPI void mj_collision(const mjModel* m, mjData* d);
 
-// applies Separating Axis Theorem for rotated AABBs
+// apply the Separating Axis Theorem for rotated AABBs
 MJAPI int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
                         const mjtNum xpos1[3], const mjtNum xmat1[9],
                         const mjtNum xpos2[3], const mjtNum xmat2[9], mjtNum margin,

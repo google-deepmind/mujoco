@@ -863,24 +863,31 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
         flexdist = newdist;
         if (m->flex_interp[i]) {
           mjtNum* coord = m->flex_vert0 + 3*(m->flex_vertadr[i] + vertid);
+          int order = m->flex_interp[i];
+          order = order < 0 ? -order : order;
+          int npc = (order+1)*(order+1)*(order+1);
+
+          // cell lookup: get local coords and node indices
+          mjtNum loc[3];
+          int nodeindices[27];  // max npc for quadratic: 3^3 = 27
+          mju_cellLookup(coord, m->flex_cellnum+3*i, order, loc, nodeindices);
+
+          // find node with largest weight in this cell
           int nodeid = -1;
           int nstart = m->flex_nodeadr[i];
-          int nend = nstart + m->flex_nodenum[i];
           mjtNum w = 0;
-          for (int j = nstart; j < nend; j++) {
-            if (mju_evalBasis(coord, j-nstart, m->flex_interp[i]) > w) {
-              w = mju_evalBasis(coord, j-nstart, m->flex_interp[i]);
-              nodeid = j;
+          for (int j = 0; j < npc; j++) {
+            mjtNum ww = mju_evalBasis(loc, j, order);
+            if (ww > w) {
+              w = ww;
+              nodeid = nodeindices[j];
             }
           }
-          if (nodeid < 0) {
-            mjERROR("flex %d: node closest to vertex %d not found", i, vertid);
-          }
-          flexbodyid = m->flex_nodebodyid[m->flex_nodeadr[i] + nodeid];
+          flexbodyid = m->flex_nodebodyid[nstart + nodeid];
           if (m->flex_centered[i]) {
             mju_copy3(flexpnt, d->xpos + 3*flexbodyid);
           } else {
-            mju_mulMatVec3(flexpnt, d->xmat + 9*flexbodyid, m->flex_node + 3*nodeid);
+            mju_mulMatVec3(flexpnt, d->xmat + 9*flexbodyid, m->flex_node + 3*(nstart + nodeid));
             mju_addTo3(flexpnt, d->xpos + 3*flexbodyid);
           }
         } else {

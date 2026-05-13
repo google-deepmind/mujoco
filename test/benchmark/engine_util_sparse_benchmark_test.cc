@@ -14,7 +14,6 @@
 
 // A benchmark for comparing different implementations of mj_solveLD.
 
-#include <cstddef>
 #include <cstring>
 #include <vector>
 
@@ -31,123 +30,179 @@ namespace {
 
 using CombineFuncPtr = decltype(&mju_combineSparse);
 using TransposeFuncPtr = decltype(&mju_transposeSparse);
-using SqrMatTDFuncPtr = decltype(&mju_sqrMatTDSparse);
 
-// number of steps to roll out before benchmarking
-static const int kNumWarmupSteps = 500;
+// ================================ Cached Data ================================
 
-// ----------------------------- old functions --------------------------------
+// ---- MatVecSparse data ----
+struct MatVecData {
+  int nv;
+  int nefc;
+  int nJ;
+  std::vector<mjtNum> efc_J;
+  std::vector<int> efc_J_rownnz, efc_J_rowadr, efc_J_colind, efc_J_rowsuper;
+  std::vector<mjtNum> vec;
+};
 
-void ABSL_ATTRIBUTE_NOINLINE mju_sqrMatTDSparse_baseline(
-    mjtNum* res, const mjtNum* mat, const mjtNum* matT, const mjtNum* diag,
-    int nr, int nc, int* res_rownnz, int* res_rowadr, int* res_colind,
-    const int* rownnz, const int* rowadr, const int* colind,
-    const int* rowsuper, const int* rownnzT, const int* rowadrT,
-    const int* colindT, const int* rowsuperT, mjData* d, int* unused) {
-  mj_markStack(d);
-  int* chain = mj_stackAllocInt(d, 2 * nc);
-  mjtNum* buffer = mj_stackAllocNum(d, nc);
+MatVecData& GetMatVecData() {
+  static MatVecData data = [] {
+    MatVecData d;
+    mjModel* m = LoadModelFromPath("flex/flag.xml");
+    mjData* dat = mj_makeData(m);
 
-  for (int r = 0; r < nc; r++) {
-    res_rowadr[r] = r * nc;
-  }
-
-  for (int r = 0; r < nc; r++) {
-    if (rowsuperT && r > 0 && rowsuperT[r - 1] > 0) {
-      res_rownnz[r] = res_rownnz[r - 1];
-      memcpy(res_colind + res_rowadr[r], res_colind + res_rowadr[r - 1],
-             res_rownnz[r] * sizeof(int));
-
-      if (rownnzT[r]) {
-        res_colind[res_rowadr[r] + res_rownnz[r]] = r;
-        res_rownnz[r]++;
-      }
-    } else {
-      int nchain = 0;
-      int inew = 0, iold = nc;
-      int lastadded = -1;
-      for (int i = 0; i < rownnzT[r]; i++) {
-        int c = colindT[rowadrT[r] + i];
-        if (rowsuper && lastadded >= 0 &&
-            (c - lastadded) <= rowsuper[lastadded]) {
-          continue;
-        } else {
-          lastadded = c;
-        }
-
-        int adr = inew;
-        inew = iold;
-        iold = adr;
-
-        int nnewchain = 0;
-        adr = 0;
-        int end = rowadr[c] + rownnz[c];
-        for (int adr1 = rowadr[c]; adr1 < end; adr1++) {
-          int col_mat = colind[adr1];
-          while (adr < nchain && chain[iold + adr] < col_mat &&
-                 chain[iold + adr] <= r) {
-            chain[inew + nnewchain++] = chain[iold + adr++];
-          }
-
-          if (col_mat > r) {
-            break;
-          }
-
-          if (adr < nchain && chain[iold + adr] == col_mat) {
-            adr++;
-          }
-          chain[inew + nnewchain++] = col_mat;
-        }
-
-        while (adr < nchain && chain[iold + adr] <= r) {
-          chain[inew + nnewchain++] = chain[iold + adr++];
-        }
-        nchain = nnewchain;
-      }
-      res_rownnz[r] = nchain;
-      if (nchain) {
-        memcpy(res_colind + res_rowadr[r], chain + inew, nchain * sizeof(int));
-      }
+    for (int i = 0; i < 500; i++) {
+      mj_step(m, dat);
     }
-  }
 
-  for (int r = 0; r < nc; r++) {
-    int adr = res_rowadr[r];
-    for (int i = 0; i < res_rownnz[r]; i++) {
-      buffer[res_colind[adr + i]] = 0;
-    }
-    for (int i = 0; i < rownnzT[r]; i++) {
-      int c = colindT[rowadrT[r] + i];
-      mjtNum matTrc = matT[rowadrT[r] + i];
-      if (diag) {
-        matTrc *= diag[c];
-      }
+    d.nv = m->nv;
+    d.nefc = dat->nefc;
+    d.nJ = dat->nJ;
+    d.efc_J.assign(dat->efc_J, dat->efc_J + d.nJ);
+    d.efc_J_rownnz.assign(dat->efc_J_rownnz, dat->efc_J_rownnz + d.nefc);
+    d.efc_J_rowadr.assign(dat->efc_J_rowadr, dat->efc_J_rowadr + d.nefc);
+    d.efc_J_colind.assign(dat->efc_J_colind, dat->efc_J_colind + d.nJ);
+    d.efc_J_rowsuper.assign(dat->efc_J_rowsuper, dat->efc_J_rowsuper + d.nefc);
 
-      int end = rowadr[c] + rownnz[c];
-      for (int adr = rowadr[c]; adr < end; adr++) {
-        int adr1;
-        if ((adr1 = colind[adr]) > r) {
-          break;
-        }
-        buffer[adr1] += matTrc * mat[adr];
-      }
+    // compute direction: vec = -M^{-1} * (Ma - qfrc_smooth - qfrc_constraint)
+    mj_markStack(dat);
+    mjtNum* Ma = mj_stackAllocNum(dat, m->nv);
+    mjtNum* grad = mj_stackAllocNum(dat, m->nv);
+    mjtNum* Mgrad = mj_stackAllocNum(dat, m->nv);
+    mj_mulM(m, dat, Ma, dat->qacc);
+    for (int i = 0; i < m->nv; i++) {
+      grad[i] = Ma[i] - dat->qfrc_smooth[i] - dat->qfrc_constraint[i];
     }
-    adr = res_rowadr[r];
-    for (int i = 0; i < res_rownnz[r]; i++) {
-      res[adr + i] = buffer[res_colind[adr + i]];
-    }
-  }
-  for (int r = 1; r < nc; r++) {
-    int end = res_rowadr[r] + res_rownnz[r] - 1;
-    for (int adr = res_rowadr[r]; adr < end; adr++) {
-      int adr1 =  res_rowadr[res_colind[adr]] + res_rownnz[res_colind[adr]]++;
-      res[adr1] = res[adr];
-      res_colind[adr1] = r;
-    }
-  }
+    mj_solveM(m, dat, Mgrad, grad, 1);
+    d.vec.resize(m->nv);
+    mju_scl(d.vec.data(), Mgrad, -1, m->nv);
+    mj_freeStack(dat);
 
-  mj_freeStack(d);
+    mj_deleteData(dat);
+    mj_deleteModel(m);
+    return d;
+  }();
+  return data;
 }
+
+// ---- CombineSparse data ----
+struct CombineData {
+  int nv;
+  std::vector<mjtNum> H;
+  std::vector<int> rownnz, rowadr, colind;
+};
+
+CombineData& GetCombineData() {
+  static CombineData data = [] {
+    CombineData cd;
+    mjModel* m = LoadModelFromPath("humanoid/humanoid.xml");
+    m->opt.jacobian = mjJAC_SPARSE;
+    mjData* d = mj_makeData(m);
+
+    for (int i = 0; i < 500; i++) {
+      mj_step(m, d);
+    }
+
+    cd.nv = m->nv;
+    mj_markStack(d);
+    mjtNum* H = mj_stackAllocNum(d, m->nv*m->nv);
+    int* rownnz = mj_stackAllocInt(d, m->nv);
+    int* rowadr = mj_stackAllocInt(d, m->nv);
+    int* colind = mj_stackAllocInt(d, m->nv*m->nv);
+    int* diagind = mj_stackAllocInt(d, m->nv);
+
+    mjtNum* D = mj_stackAllocNum(d, d->nefc);
+    for (int i = 0; i < d->nefc; i++) {
+      if (d->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
+        D[i] = d->efc_D[i];
+      } else {
+        D[i] = 0;
+      }
+    }
+
+    int* JT_rownnz   = mj_stackAllocInt(d, m->nv);
+    int* JT_rowadr   = mj_stackAllocInt(d, m->nv);
+    int* JT_rowsuper = mj_stackAllocInt(d, m->nv);
+    int* JT_colind   = mj_stackAllocInt(d, d->nJ);
+    mjtNum* JT       = mj_stackAllocNum(d, d->nJ);
+    mju_transposeSparse(JT, d->efc_J, d->nefc, m->nv,
+                        JT_rownnz, JT_rowadr, JT_colind, JT_rowsuper,
+                        d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+
+    // compute H = J'*D*J, uncompressed layout
+    mju_sqrMatTDUncompressedInit(rowadr, m->nv);
+    mju_sqrMatTDSparse(H, d->efc_J, JT, D, d->nefc, m->nv,
+                       rownnz, rowadr, colind,
+                       d->efc_J_rownnz, d->efc_J_rowadr,
+                       d->efc_J_colind, d->efc_J_rowsuper,
+                       JT_rownnz, JT_rowadr,
+                       JT_colind, JT_rowsuper, d,
+                       diagind);
+
+    // compute H = M + J'*D*J
+    mj_addM(m, d, H, rownnz, rowadr, colind);
+
+    // copy to persistent storage
+    int nH = rowadr[m->nv-1] + m->nv;  // uncompressed: rowadr[r] = r*nv
+    cd.H.assign(H, H + nH);
+    cd.rownnz.assign(rownnz, rownnz + m->nv);
+    cd.rowadr.assign(rowadr, rowadr + m->nv);
+    cd.colind.assign(colind, colind + nH);
+
+    mj_freeStack(d);
+    mj_deleteData(d);
+    mj_deleteModel(m);
+    return cd;
+  }();
+  return data;
+}
+
+// ---- TransposeSparse data ----
+struct TransposeData {
+  int nv;
+  int nefc;
+  int nJ;
+  std::vector<mjtNum> efc_J;
+  std::vector<int> efc_J_rownnz, efc_J_rowadr, efc_J_colind;
+};
+
+enum class Size { H2_100, H100 };
+
+template <Size S>
+const char* ModelPath() {
+  if constexpr (S == Size::H2_100) {
+    return "../test/benchmark/testdata/2humanoid100_chol.xml";
+  } else {
+    return "../test/benchmark/testdata/100_humanoids_chol.xml";
+  }
+}
+
+template <Size S>
+TransposeData& GetTransposeData() {
+  static TransposeData data = [] {
+    TransposeData td;
+    mjModel* m = LoadModelFromPath(ModelPath<S>());
+    m->opt.jacobian = mjJAC_SPARSE;
+    mjData* d = mj_makeData(m);
+
+    while (d->time < 2) {
+      mj_step(m, d);
+    }
+
+    td.nv = m->nv;
+    td.nefc = d->nefc;
+    td.nJ = d->nJ;
+    td.efc_J.assign(d->efc_J, d->efc_J + d->nJ);
+    td.efc_J_rownnz.assign(d->efc_J_rownnz, d->efc_J_rownnz + d->nefc);
+    td.efc_J_rowadr.assign(d->efc_J_rowadr, d->efc_J_rowadr + d->nefc);
+    td.efc_J_colind.assign(d->efc_J_colind, d->efc_J_colind + d->nJ);
+
+    mj_deleteData(d);
+    mj_deleteModel(m);
+    return td;
+  }();
+  return data;
+}
+
+// ================================ old functions ==============================
 
 // transpose sparse matrix (uncompressed)
 void ABSL_ATTRIBUTE_NOINLINE transposeSparse_baseline(
@@ -208,8 +263,7 @@ int ABSL_ATTRIBUTE_NOINLINE combineSparse_baseline(mjtNum* dst,
                                                    mjtNum a, mjtNum b,
                                                    int dst_nnz, int src_nnz,
                                                    int* dst_ind,
-                                                   const int* src_ind,
-                                                   mjtNum* buf, int* buf_ind) {
+                                                   const int* src_ind) {
   // check for identical pattern
   if (compare_baseline(dst_ind, src_ind, dst_nnz)) {
     // combine mjtNum data directly
@@ -225,8 +279,7 @@ int ABSL_ATTRIBUTE_NOINLINE combineSparse_new(mjtNum* dst,
                                               mjtNum a, mjtNum b,
                                               int dst_nnz, int src_nnz,
                                               int* dst_ind,
-                                              const int* src_ind,
-                                              mjtNum* buf, int* buf_ind) {
+                                              const int* src_ind) {
   // check for identical pattern
   if (compare_memcmp(dst_ind, src_ind, dst_nnz)) {
     // combine mjtNum data directly
@@ -340,61 +393,31 @@ void ABSL_ATTRIBUTE_NOINLINE mulMatVecSparse_8(mjtNum* res,
   }
 }
 
-// ----------------------------- benchmark ------------------------------------
+// ----------------------------- benchmark -------------------------------------
 
 static void BM_MatVecSparse(benchmark::State& state, int unroll) {
-  static mjModel* m = LoadModelFromPath("flex/flag.xml");
-  mjData* d = mj_makeData(m);
+  MatVecData& data = GetMatVecData();
+  std::vector<mjtNum> res(data.nefc);
 
-  // warm-up rollout to get a typical state
-  for (int i=0; i < kNumWarmupSteps; i++) {
-    mj_step(m, d);
-  }
-
-  // allocate gradient
-  mj_markStack(d);
-  mjtNum *Ma = mj_stackAllocNum(d, m->nv);
-  mjtNum *vec = mj_stackAllocNum(d, m->nv);
-  mjtNum *res = mj_stackAllocNum(d, d->nefc);
-  mjtNum *grad = mj_stackAllocNum(d, m->nv);
-  mjtNum *Mgrad  = mj_stackAllocNum(d, m->nv);
-
-  // compute gradient
-  mj_mulM(m, d, Ma, d->qacc);
-  for (int i=0; i < m->nv; i++) {
-    grad[i] = Ma[i] - d->qfrc_smooth[i] - d->qfrc_constraint[i];
-  }
-
-  // compute search direction
-  mj_solveM(m, d, Mgrad, grad, 1);
-  mju_scl(vec, Mgrad, -1, m->nv);
-
-  // save state
-  std::vector<mjtNum> qpos = AsVector(d->qpos, m->nq);
-  std::vector<mjtNum> qvel = AsVector(d->qvel, m->nv);
-  std::vector<mjtNum> act = AsVector(d->act, m->na);
-  std::vector<mjtNum> warmstart = AsVector(d->qacc_warmstart, m->nv);
-
-  // time benchmark
   for (auto s : state) {
     if (unroll == 4) {
-      mju_mulMatVecSparse(res, d->efc_J, vec, d->nefc,
-                          d->efc_J_rownnz, d->efc_J_rowadr,
-                          d->efc_J_colind, d->efc_J_rowsuper);
+      mju_mulMatVecSparse(res.data(), data.efc_J.data(), data.vec.data(),
+                          data.nefc, data.efc_J_rownnz.data(),
+                          data.efc_J_rowadr.data(), data.efc_J_colind.data(),
+                          data.efc_J_rowsuper.data());
     } else if (unroll == 1) {
-      mulMatVecSparse_1(res, d->efc_J, vec, d->nefc,
-                        d->efc_J_rownnz, d->efc_J_rowadr,
-                        d->efc_J_colind, d->efc_J_rowsuper);
+      mulMatVecSparse_1(res.data(), data.efc_J.data(), data.vec.data(),
+                        data.nefc, data.efc_J_rownnz.data(),
+                        data.efc_J_rowadr.data(), data.efc_J_colind.data(),
+                        data.efc_J_rowsuper.data());
     } else if (unroll == 8) {
-      mulMatVecSparse_8(res, d->efc_J, vec, d->nefc,
-                        d->efc_J_rownnz, d->efc_J_rowadr,
-                        d->efc_J_colind, d->efc_J_rowsuper);
+      mulMatVecSparse_8(res.data(), data.efc_J.data(), data.vec.data(),
+                        data.nefc, data.efc_J_rownnz.data(),
+                        data.efc_J_rowadr.data(), data.efc_J_colind.data(),
+                        data.efc_J_rowsuper.data());
     }
   }
 
-  // finalize
-  mj_freeStack(d);
-  mj_deleteData(d);
   state.SetItemsProcessed(state.iterations());
 }
 
@@ -420,75 +443,30 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_MatVecSparse_1(
 BENCHMARK(BM_MatVecSparse_1);
 
 static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
-  static mjModel* m = LoadModelFromPath("humanoid/humanoid.xml");
-  m->opt.jacobian = mjJAC_SPARSE;
+  CombineData& data = GetCombineData();
 
-  mjData* d = mj_makeData(m);
-
-  // warm-up rollout to get a typical state
-  for (int i=0; i < kNumWarmupSteps; i++) {
-    mj_step(m, d);
-  }
-
-  // allocate
-  mj_markStack(d);
-  mjtNum* H = mj_stackAllocNum(d, m->nv*m->nv);
-  int* rownnz = mj_stackAllocInt(d, m->nv);
-  int* rowadr = mj_stackAllocInt(d, m->nv);
-  int* colind = mj_stackAllocInt(d, m->nv*m->nv);
-  int* diagind = mj_stackAllocInt(d, m->nv);
-
-  // compute D corresponding to quad states
-  mjtNum* D = mj_stackAllocNum(d, d->nefc);
-  for (int i = 0; i < d->nefc; i++) {
-    if (d->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
-      D[i] = d->efc_D[i];
-    } else {
-      D[i] = 0;
-    }
-  }
-
-  int* JT_rownnz   = mj_stackAllocInt(d, m->nv);
-  int* JT_rowadr   = mj_stackAllocInt(d, m->nv);
-  int* JT_rowsuper = mj_stackAllocInt(d, m->nv);
-  int* JT_colind   = mj_stackAllocInt(d, d->nJ);
-  mjtNum* JT       = mj_stackAllocNum(d, d->nJ);
-  mju_transposeSparse(JT, d->efc_J, d->nefc, m->nv,
-                      JT_rownnz, JT_rowadr, JT_colind, JT_rowsuper,
-                      d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
-
-  // compute H = J'*D*J, uncompressed layout
-  mju_sqrMatTDUncompressedInit(rowadr, m->nv);
-  mju_sqrMatTDSparse(H, d->efc_J, JT, D, d->nefc, m->nv,
-                     rownnz, rowadr, colind,
-                     d->efc_J_rownnz, d->efc_J_rowadr,
-                     d->efc_J_colind, d->efc_J_rowsuper,
-                     JT_rownnz, JT_rowadr,
-                     JT_colind, JT_rowsuper, d,
-                     diagind);
-
-  // compute H = M + J'*D*J
-  mj_addM(m, d, H, rownnz, rowadr, colind);
+  // make working copies that get modified each iteration
+  std::vector<mjtNum> H = data.H;
+  std::vector<int> rownnz = data.rownnz;
+  std::vector<int> rowadr = data.rowadr;
+  std::vector<int> colind = data.colind;
 
   // time benchmark
   for (auto s : state) {
-    for (int r = m->nv-1; r >= 0; r--) {
+    for (int r = data.nv-1; r >= 0; r--) {
       for (int i = 0; i < rownnz[r]-1; i++) {
         int adr = rowadr[r];
         int c = colind[adr+i];
         // true arguments should be i+1 and colind+rowadr[r]
         // but instead we repeat rownnz[c] and colind+rowadr[c]
         // in order to trigger all if's in combineSparse
-         func(H+rowadr[c], H+rowadr[r], 1, -H[adr+i],
+         func(H.data()+rowadr[c], H.data()+rowadr[r], 1, -H[adr+i],
               rownnz[c], rownnz[c],
-              colind+rowadr[c], colind+rowadr[c], NULL, NULL);
+              colind.data()+rowadr[c], colind.data()+rowadr[c]);
       }
     }
   }
 
-  // finalize
-  mj_freeStack(d);
-  mj_deleteData(d);
   state.SetItemsProcessed(state.iterations());
 }
 
@@ -512,172 +490,98 @@ enum class Supernode {
   Inline
 };
 
+template <Size S>
 static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func,
                                Supernode super) {
-  static mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
+  TransposeData& data = GetTransposeData<S>();
 
-  // force use of sparse matrices
-  m->opt.jacobian = mjJAC_SPARSE;
-
-  mjData* d = mj_makeData(m);
-
-  // warm-up rollout to get a typical state
-  while (d->time < 2) {
-    mj_step(m, d);
-  }
-
-  mj_markStack(d);
-
-  // need uncompressed layout
-  mjtNum* res = mj_stackAllocNum(d, m->nv * d->nefc);
-  int* res_rownnz = mj_stackAllocInt(d, m->nv);
-  int* res_rowadr = mj_stackAllocInt(d, m->nv);
-  int* res_rowsuper = mj_stackAllocInt(d, m->nv);
-  int* res_colind = mj_stackAllocInt(d, m->nv * d->nefc);
+  // allocate output buffers (uncompressed layout)
+  std::vector<mjtNum> res(data.nv * data.nefc);
+  std::vector<int> res_rownnz(data.nv);
+  std::vector<int> res_rowadr(data.nv);
+  std::vector<int> res_rowsuper(data.nv);
+  std::vector<int> res_colind(data.nv * data.nefc);
 
   // time benchmark
   for (auto s : state) {
-    int* rowsuper = (super == Supernode::Inline) ? res_rowsuper : nullptr;
-    func(res, d->efc_J, d->nefc, m->nv,
-         res_rownnz, res_rowadr, res_colind, rowsuper,
-         d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+    int* rowsuper =
+        (super == Supernode::Inline) ? res_rowsuper.data() : nullptr;
+    func(res.data(), data.efc_J.data(), data.nefc, data.nv,
+         res_rownnz.data(), res_rowadr.data(), res_colind.data(), rowsuper,
+         data.efc_J_rownnz.data(), data.efc_J_rowadr.data(),
+         data.efc_J_colind.data());
     if (super == Supernode::PostProcess) {
-      mju_superSparse(m->nv, res_rowsuper,
-                      res_rownnz, res_rowadr, res_colind);
+      mju_superSparse(data.nv, res_rowsuper.data(),
+                      res_rownnz.data(), res_rowadr.data(), res_colind.data());
     }
   }
 
-  mj_freeStack(d);
-  mj_deleteData(d);
   state.SetItemsProcessed(state.iterations());
 }
 
-void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_transposeSparse_old(benchmark::State& state) {
-  MujocoErrorTestGuard guard;
-  BM_transposeSparse(state, &transposeSparse_baseline, Supernode::None);
-}
-BENCHMARK(BM_transposeSparse_old);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_transposeSparse_new(benchmark::State& state) {
+BM_transposeSparse_2H100_old(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_transposeSparse(state, &mju_transposeSparse, Supernode::None);
+  BM_transposeSparse<Size::H2_100>(state, &transposeSparse_baseline,
+                                   Supernode::None);
 }
-BENCHMARK(BM_transposeSparse_new);
+BENCHMARK(BM_transposeSparse_2H100_old);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_transposeSparse_superpost(benchmark::State& state) {
+BM_transposeSparse_2H100_new(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_transposeSparse(state, &mju_transposeSparse, Supernode::PostProcess);
+  BM_transposeSparse<Size::H2_100>(state, &mju_transposeSparse,
+                                   Supernode::None);
 }
-BENCHMARK(BM_transposeSparse_superpost);
+BENCHMARK(BM_transposeSparse_2H100_new);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_transposeSparse_superinline(benchmark::State& state) {
+BM_transposeSparse_2H100_superpost(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_transposeSparse(state, &mju_transposeSparse, Supernode::Inline);
+  BM_transposeSparse<Size::H2_100>(state, &mju_transposeSparse,
+                                   Supernode::PostProcess);
 }
-BENCHMARK(BM_transposeSparse_superinline);
-
-static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
-  static mjModel* m =
-      LoadModelFromPath("../test/benchmark/testdata/2humanoid100.xml");
-
-  // force use of sparse matrices, Newton solver, no islands
-  m->opt.jacobian = mjJAC_SPARSE;
-  m->opt.solver = mjSOL_NEWTON;
-  m->opt.disableflags |= mjDSBL_ISLAND;
-
-  mjData* d = mj_makeData(m);
-
-  // warm-up rollout to get a typical state
-  while (d->time < 2) {
-    mj_step(m, d);
-  }
-
-  // allocate
-  mj_markStack(d);
-  mjtNum* H = mj_stackAllocNum(d, m->nv * m->nv);
-  int* rownnz = mj_stackAllocInt(d, m->nv);
-  int* rowadr = mj_stackAllocInt(d, m->nv);
-  int* colind = mj_stackAllocInt(d, m->nv * m->nv);
-  int* diagind = mj_stackAllocInt(d, m->nv);
-
-  // compute D corresponding to quad states
-  mjtNum* D = mj_stackAllocNum(d, d->nefc);
-  for (int i = 0; i < d->nefc; i++) {
-    if (d->efc_state[i] == mjCNSTRSTATE_QUADRATIC) {
-      D[i] = d->efc_D[i];
-    } else {
-      D[i] = 0;
-    }
-  }
-
-  int* JT_rownnz   = mj_stackAllocInt(d, m->nv);
-  int* JT_rowadr   = mj_stackAllocInt(d, m->nv);
-  int* JT_rowsuper = mj_stackAllocInt(d, m->nv);
-  int* JT_colind   = mj_stackAllocInt(d, d->nJ);
-  mjtNum* JT       = mj_stackAllocNum(d, d->nJ);
-  mju_transposeSparse(JT, d->efc_J, d->nefc, m->nv,
-                      JT_rownnz, JT_rowadr, JT_colind, JT_rowsuper,
-                      d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
-
-  // time benchmark
-  if (func) {
-    mju_sqrMatTDSparseCount(rownnz, rowadr, m->nv,
-      d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
-      JT_rownnz, JT_rowadr,
-      JT_colind, nullptr, d, 1);
-
-    for (auto s : state) {
-      // compute H = J'*D*J, compressed layout
-      func(H, d->efc_J, JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
-         d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
-         JT_rownnz, JT_rowadr, JT_colind,
-         JT_rowsuper, d, diagind);
-    }
-  } else {
-    for (auto s : state) {
-      // baseline depends on efc_J_rowsuper
-      mju_superSparse(d->nefc, d->efc_J_rowsuper,
-                      d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
-
-      // compute H = J'*D*J, uncompressed layout
-      mju_sqrMatTDSparse_baseline(
-          H, d->efc_J, JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
-          d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, d->efc_J_rowsuper,
-          JT_rownnz, JT_rowadr, JT_colind,
-          JT_rowsuper, d, /*unused=*/nullptr);
-    }
-  }
-
-  // finalize
-  mj_freeStack(d);
-  mj_deleteData(d);
-  state.SetItemsProcessed(state.iterations());
-}
+BENCHMARK(BM_transposeSparse_2H100_superpost);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_sqrMatTDSparse_col(benchmark::State& state) {
+BM_transposeSparse_2H100_superinline(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_sqrMatTDSparse(state, &mju_sqrMatTDSparse);
+  BM_transposeSparse<Size::H2_100>(state, &mju_transposeSparse,
+                                   Supernode::Inline);
 }
-BENCHMARK(BM_sqrMatTDSparse_col);
+BENCHMARK(BM_transposeSparse_2H100_superinline);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_sqrMatTDSparse_row(benchmark::State& state) {
+BM_transposeSparse_100H_old(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_sqrMatTDSparse(state, &mju_sqrMatTDSparse_row);
+  BM_transposeSparse<Size::H100>(state, &transposeSparse_baseline,
+                                 Supernode::None);
 }
-BENCHMARK(BM_sqrMatTDSparse_row);
+BENCHMARK(BM_transposeSparse_100H_old);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_sqrMatTDSparse_uncompressed(benchmark::State& state) {
+BM_transposeSparse_100H_new(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_sqrMatTDSparse(state, nullptr);
+  BM_transposeSparse<Size::H100>(state, &mju_transposeSparse, Supernode::None);
 }
-BENCHMARK(BM_sqrMatTDSparse_uncompressed);
+BENCHMARK(BM_transposeSparse_100H_new);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_transposeSparse_100H_superpost(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_transposeSparse<Size::H100>(state, &mju_transposeSparse,
+                                 Supernode::PostProcess);
+}
+BENCHMARK(BM_transposeSparse_100H_superpost);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_transposeSparse_100H_superinline(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_transposeSparse<Size::H100>(state, &mju_transposeSparse,
+                                 Supernode::Inline);
+}
+BENCHMARK(BM_transposeSparse_100H_superinline);
 
 }  // namespace
 }  // namespace mujoco

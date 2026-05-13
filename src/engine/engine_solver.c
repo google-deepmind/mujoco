@@ -15,6 +15,7 @@
 #include "engine/engine_solver.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <mujoco/mjdata.h>
@@ -66,7 +67,6 @@ static void saveStats(const mjModel* m, mjData* d, int island, int iter,
 
 
 // finalize dual solver: map to joint space
-// TODO: b/295296178 - add island support to Dual solvers
 static void dualFinish(const mjModel* m, mjData* d) {
   // map constraint force to joint space
   mj_mulJacTVec(m, d, d->qfrc_constraint, d->efc_force);
@@ -77,10 +77,17 @@ static void dualFinish(const mjModel* m, mjData* d) {
 }
 
 
+// PGS: map efc_force to joint space
+void mj_dualFinish(const mjModel* m, mjData* d) {
+  dualFinish(m, d);
+}
+
+
 // compute 1/diag(AR)
-// TODO: b/295296178 - add island support to Dual solvers
-static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res, int flg_subR) {
-  int nefc = d->nefc;
+//   res[c] = 1 / AR[efclist[c], efclist[c]] for c = 0..nefc-1
+//   efclist is NULL for monolithic (sequential) iteration
+static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res,
+                      int nefc, const int* efclist, int flg_subR) {
   const mjtNum *AR = d->efc_AR;
   const mjtNum *R = d->efc_R;
 
@@ -90,12 +97,13 @@ static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res, int flg_su
     const int *rownnz = d->efc_AR_rownnz;
     const int *colind = d->efc_AR_colind;
 
-    for (int i=0; i < nefc; i++) {
+    for (int c=0; c < nefc; c++) {
+      int i = efclist ? efclist[c] : c;
       int nnz = rownnz[i];
       for (int j=0; j < nnz; j++) {
         int adr = rowadr[i] + j;
         if (i == colind[adr]) {
-          res[i] = 1 / (flg_subR ? mju_max(mjMINVAL, AR[adr] - R[i]) : AR[adr]);
+          res[c] = 1 / (flg_subR ? mju_max(mjMINVAL, AR[adr] - R[i]) : AR[adr]);
           break;
         }
       }
@@ -104,16 +112,17 @@ static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res, int flg_su
 
   // dense
   else {
-    for (int i=0; i < nefc; i++) {
-      int adr = i * (nefc + 1);
-      res[i] = 1 / (flg_subR ? mju_max(mjMINVAL, AR[adr] - R[i]) : AR[adr]);
+    int d_nefc = d->nefc;  // global nefc
+    for (int c=0; c < nefc; c++) {
+      int i = efclist ? efclist[c] : c;
+      int adr = i * (d_nefc + 1);
+      res[c] = 1 / (flg_subR ? mju_max(mjMINVAL, AR[adr] - R[i]) : AR[adr]);
     }
   }
 }
 
 
 // extract diagonal block from AR, clamp diag to 1e-10 if flg_subR
-// TODO: b/295296178 - add island support to Dual solvers
 static void extractBlock(const mjModel* m, const mjData* d, mjtNum* Ac,
                          int start, int n, int flg_subR) {
   int nefc = d->nefc;
@@ -173,7 +182,6 @@ static void extractBlock(const mjModel* m, const mjData* d, mjtNum* Ac,
 
 
 // compute residual for one block
-// TODO: b/295296178 - add island support to Dual solvers
 static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int dim, int flg_subR) {
   int nefc = d->nefc;
 
@@ -203,7 +211,6 @@ static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int 
 
 
 // compute cost change
-// TODO: b/295296178 - add island support to Dual solvers
 static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
                          const mjtNum* res, int dim) {
   mjtNum change;
@@ -228,10 +235,38 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
 }
 
 
+// PCG32 random number generator state
+typedef struct {
+  uint64_t state;
+  uint64_t inc;
+} pcg32_state;
+
+
+// generate next 32-bit pseudorandom integer
+static uint32_t pcg32_next(pcg32_state* rng) {
+  uint64_t oldstate = rng->state;
+  rng->state = oldstate * 6364136223846793005ULL + (rng->inc | 1);
+  uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
+  uint32_t rot = oldstate >> 59u;
+  return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
+}
+
+
+// Fisher-Yates shuffle of integer array
+static void shuffle_int(int* array, int n, pcg32_state* rng) {
+  for (int i = n - 1; i > 0; i--) {
+    uint32_t j = pcg32_next(rng) % (i + 1);
+    int temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+  }
+}
+
+
 // set efc_state to dual constraint state; return nactive
-// TODO: b/295296178 - add island support to Dual solvers
-static int dualState(const mjModel* m, const mjData* d, int* state) {
-  int ne = d->ne, nf = d->nf, nefc = d->nefc;
+//   iterates over efclist (or sequentially if NULL), classifies by ne/nf ranges
+static int dualState(const mjData* d, int* state,
+                     int ne, int nf, int nefc, const int* efclist) {
   const mjtNum* force = d->efc_force;
   const mjtNum* floss = d->efc_frictionloss;
 
@@ -239,10 +274,14 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
   int nactive = ne + nf;
 
   // equality
-  mju_fillInt(state, mjCNSTRSTATE_QUADRATIC, ne);
+  for (int c=0; c < ne; c++) {
+    int i = efclist ? efclist[c] : c;
+    state[i] = mjCNSTRSTATE_QUADRATIC;
+  }
 
   // friction
-  for (int i=ne; i < ne+nf; i++) {
+  for (int c=ne; c < ne+nf; c++) {
+    int i = efclist ? efclist[c] : c;
     if (force[i] <= -floss[i]) {
       state[i] = mjCNSTRSTATE_LINEARPOS;  // opposite of primal
     } else if (force[i] >= floss[i]) {
@@ -253,7 +292,9 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
   }
 
   // limit and contact
-  for (int i=ne+nf; i < nefc; i++) {
+  for (int c=ne+nf; c < nefc; c++) {
+    int i = efclist ? efclist[c] : c;
+
     // non-negative
     if (d->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
       if (force[i] <= 0) {
@@ -302,7 +343,7 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
       mju_fillInt(state+i, result, dim);
 
       // advance
-      i += (dim-1);
+      c += (dim-1);
     }
   }
 
@@ -310,26 +351,104 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
 }
 
 
+// update constraint state, return nactive and nchange
+static int dualStateChange(const mjData* d, int* state, int* oldstate,
+                           int ne, int nf, int nefc,
+                           const int* efclist, int* nchange) {
+  // save old state
+  for (int c=0; c < nefc; c++) {
+    int i = efclist ? efclist[c] : c;
+    oldstate[c] = state[i];
+  }
+
+  // update state
+  int nactive = dualState(d, state, ne, nf, nefc, efclist);
+
+  // count state changes
+  *nchange = 0;
+  for (int c=0; c < nefc; c++) {
+    int i = efclist ? efclist[c] : c;
+    *nchange += (oldstate[c] != state[i]);
+  }
+
+  return nactive;
+}
+
+
+// solve QCQP and project onto friction ellipsoid, write to force[i+1..i+dim-1]
+static void solveQCQP(mjtNum* force, int i, int dim,
+                      mjtNum* Ac, mjtNum* bc, const mjtNum* mu) {
+  int flg_active;
+  mjtNum v[6];
+
+  // solve
+  if (dim == 3) {
+    flg_active = mju_QCQP2(v, Ac, bc, mu, force[i]);
+  } else if (dim == 4) {
+    flg_active = mju_QCQP3(v, Ac, bc, mu, force[i]);
+  } else {  // dim == 5
+    flg_active = mju_QCQP(v, Ac, bc, mu, force[i], dim-1);
+  }
+
+  // on constraint: put v on ellipsoid, in case QCQP is approximate
+  if (flg_active) {
+    mjtNum s = 0;
+    for (int j=0; j < dim-1; j++) {
+      s += v[j]*v[j] / (mu[j]*mu[j]);
+    }
+    s = mju_sqrt(force[i]*force[i] / mju_max(mjMINVAL, s));
+    for (int j=0; j < dim-1; j++) {
+      v[j] *= s;
+    }
+  }
+
+  // assign
+  mju_copy(force+i+1, v, dim-1);
+}
+
+
 //---------------------------- PGS solver ----------------------------------------------------------
 
-// TODO: b/295296178 - add island support to Dual solvers
-void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
-  int ne = d->ne, nf = d->nf, nefc = d->nefc;
+// core PGS solver: iterates over constraints specified by efclist
+//   island: island index for stats (use -1 for monolithic, mapped to 0)
+//   ne, nf, nefc: constraint type counts
+//   efclist: maps list position c to monolithic efc index (NULL for sequential)
+static void solPGS(const mjModel* m, mjData* d, int island,
+                   int ne, int nf, int nefc,
+                   const int* efclist, int maxiter) {
   const mjtNum *floss = d->efc_frictionloss;
   mjtNum *force = d->efc_force;
   mj_markStack(d);
   mjtNum* ARinv = mjSTACKALLOC(d, nefc, mjtNum);
-  int* oldstate = mjSTACKALLOC(d, nefc, int);
+  int* oldstate = mjSTACKALLOC(d, 2*nefc, int);
+  int* blockstart = oldstate + nefc;
 
-  // TODO: b/295296178 - Use island index (currently hardcoded to 0)
-  int island = 0;
+  int island_stat = mjMAX(0, island);  // island index for diagnostic stats
   mjtNum scale = 1 / (m->stat.meaninertia * mjMAX(1, m->nv));
 
   // precompute inverse diagonal of AR
-  ARdiaginv(m, d, ARinv, 0);
+  ARdiaginv(m, d, ARinv, nefc, efclist, 0);
 
   // initial constraint state
-  dualState(m, d, d->efc_state);
+  dualState(d, d->efc_state, ne, nf, nefc, efclist);
+
+  // build block-index array: one entry per constraint block
+  int nblocks = 0;
+  for (int c=0; c < nefc; ) {
+    blockstart[nblocks++] = c;
+    int i = efclist ? efclist[c] : c;
+    if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
+      c += d->contact[d->efc_id[i]].dim;
+    } else {
+      c++;
+    }
+  }
+
+  // seed PCG32 RNG with a fixed seed
+  pcg32_state rng;
+  rng.state = 0;
+  rng.inc = 1;
+  pcg32_next(&rng);
 
   // main iteration
   int iter = 0;
@@ -337,8 +456,14 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
     // clear improvement
     mjtNum improvement = 0;
 
-    // perform one sweep
-    for (int i=0; i < nefc; i++) {
+    // shuffle constraint visitation order
+    shuffle_int(blockstart, nblocks, &rng);
+
+    // perform one sweep over constraint blocks
+    for (int bi=0; bi < nblocks; bi++) {
+      int c = blockstart[bi];
+      int i = efclist ? efclist[c] : c;
+
       // get constraint dimensionality
       int dim;
       if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
@@ -361,16 +486,16 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
       // simple constraint
       if (d->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
         // unconstrained minimum
-        force[i] -= res[0]*ARinv[i];
+        force[i] -= res[0]*ARinv[c];
 
         // impose interval and inequality constraints
-        if (i >= ne && i < ne+nf) {
+        if (c >= ne && c < ne+nf) {
           if (force[i] < -floss[i]) {
             force[i] = -floss[i];
           } else if (force[i] > floss[i]) {
             force[i] = floss[i];
           }
-        } else if (i >= ne+nf) {
+        } else if (c >= ne+nf) {
           if (force[i] < 0) {
             force[i] = 0;
           }
@@ -380,7 +505,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
       // elliptic cone constraint
       else {
         // get friction
-        mjtNum *mu =  d->contact[d->efc_id[i]].friction;
+        mjtNum *mu = d->contact[d->efc_id[i]].friction;
 
         //-------------------- perform normal or ray update
 
@@ -390,7 +515,7 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
         // normal force too small: normal update
         if (force[i] < mjMINVAL) {
           // unconstrained minimum
-          force[i] -= res[0]*ARinv[i];
+          force[i] -= res[0]*ARinv[c];
 
           // clamp
           if (force[i] < 0) {
@@ -447,60 +572,27 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
 
         // QCQP
         else {
-          int flg_active;
-          mjtNum v[6];
-
-          // solve
-          if (dim == 3) {
-            flg_active = mju_QCQP2(v, Ac, bc, mu, force[i]);
-          } else if (dim == 4) {
-            flg_active = mju_QCQP3(v, Ac, bc, mu, force[i]);
-          } else {
-            flg_active = mju_QCQP(v, Ac, bc, mu, force[i], dim-1);
-          }
-
-          // on constraint: put v on ellipsoid, in case QCQP is approximate
-          if (flg_active) {
-            mjtNum s = 0;
-            for (int j=0; j < dim-1; j++) {
-              s += v[j]*v[j] / (mu[j]*mu[j]);
-            }
-            s = mju_sqrt(force[i]*force[i] / mju_max(mjMINVAL, s));
-            for (int j=0; j < dim-1; j++) {
-              v[j] *= s;
-            }
-          }
-
-          // assign
-          mju_copy(force+i+1, v, dim-1);
+          solveQCQP(force, i, dim, Ac, bc, mu);
         }
       }
 
       // accumulate improvement
       if (dim == 1) {
-        Athis[0] = 1/ARinv[i];
+        Athis[0] = 1/ARinv[c];
       }
       improvement -= costChange(Athis, force+i, oldforce, res, dim);
-
-      // skip the rest of this constraint
-      i += (dim-1);
     }
 
-    // process state
-    mju_copyInt(oldstate, d->efc_state, nefc);
-    int nactive = dualState(m, d, d->efc_state);
-    int nchange = 0;
-    for (int i=0; i < nefc; i++) {
-      nchange += (oldstate[i] != d->efc_state[i]);
-    }
+    // update constraint state
+    int nchange;
+    int nactive = dualStateChange(d, d->efc_state, oldstate, ne, nf, nefc, efclist, &nchange);
 
     // scale improvement, save stats
     improvement *= scale;
-    saveStats(m, d, island, iter, improvement, 0, 0, nactive, nchange, 0, 0);
+    saveStats(m, d, island_stat, iter, improvement, 0, 0, nactive, nchange, 0, 0);
 
     // increment iteration count
     iter++;
-
 
     // terminate
     if (improvement < m->opt.tolerance) {
@@ -509,51 +601,69 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
   }
 
   // finalize statistics
-  if (island < mjNISLAND) {
+  if (island_stat < mjNISLAND) {
     // update solver iterations
-    d->solver_niter[island] += iter;
+    d->solver_niter[island_stat] += iter;
 
     // set nnz
     if (mj_isSparse(m)) {
-      d->solver_nnz[island] = 0;
-      for (int i=0; i < nefc; i++) {
-        d->solver_nnz[island] += d->efc_AR_rownnz[i];
+      d->solver_nnz[island_stat] = 0;
+      for (int c=0; c < nefc; c++) {
+        d->solver_nnz[island_stat] += d->efc_AR_rownnz[efclist ? efclist[c] : c];
       }
     } else {
-      d->solver_nnz[island] = nefc*nefc;
+      d->solver_nnz[island_stat] = nefc*nefc;
     }
   }
-
-  // map to joint space
-  dualFinish(m, d);
 
   mj_freeStack(d);
 }
 
 
+// PGS entry point (monolithic, no dualFinish — caller handles it)
+void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
+  solPGS(m, d, /*island=*/-1, d->ne, d->nf, d->nefc, /*efclist=*/NULL, maxiter);
+}
+
+
+// PGS entry point (one island)
+void mj_solPGS_island(const mjModel* m, mjData* d, int island, int maxiter) {
+  int ne = d->island_ne[island];
+  int nf = d->island_nf[island];
+  int nefc = d->island_nefc[island];
+  int iefcadr = d->island_iefcadr[island];
+
+  solPGS(m, d, island, ne, nf, nefc, d->map_iefc2efc + iefcadr, maxiter);
+}
+
+
 //---------------------------- NoSlip solver -------------------------------------------------------
 
-// TODO: b/295296178 - add island support to Dual solvers
-void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
-  int dim, iter = 0, ne = d->ne, nf = d->nf, nefc = d->nefc;
+// core NoSlip solver: iterates over constraints specified by efclist
+//   island: island index for stats (use -1 for monolithic, mapped to 0)
+//   ne, nf, nefc: constraint type counts
+//   efclist: maps list position c to monolithic efc index (NULL for sequential)
+static void solNoSlip(const mjModel* m, mjData* d, int island,
+                      int ne, int nf, int nefc,
+                      const int* efclist, int maxiter) {
+  int dim, iter = 0;
   const mjtNum *floss = d->efc_frictionloss;
   mjtNum *force = d->efc_force;
   mjtNum *mu, improvement;
-  mjtNum v[5], Ac[25], bc[5], res[5], oldforce[5], delta[5], mid, y, K0, K1;
+  mjtNum Ac[25], bc[5], res[5], oldforce[5], delta[5], mid, y, K0, K1;
   mjContact* con;
   mj_markStack(d);
   mjtNum* ARinv = mjSTACKALLOC(d, nefc, mjtNum);
   int* oldstate = mjSTACKALLOC(d, nefc, int);
 
-  // TODO: b/295296178 - Use island index (currently hardcoded to 0)
-  int island = 0;
+  int island_stat = mjMAX(0, island);
   mjtNum scale = 1 / (m->stat.meaninertia * mjMAX(1, m->nv));
 
   // precompute inverse diagonal of A
-  ARdiaginv(m, d, ARinv, 1);
+  ARdiaginv(m, d, ARinv, nefc, efclist, 1);
 
   // initial constraint state
-  dualState(m, d, d->efc_state);
+  dualState(d, d->efc_state, ne, nf, nefc, efclist);
 
   // main iteration
   while (iter < maxiter) {
@@ -562,19 +672,22 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 
     // correct for cost change at iter 0
     if (iter == 0) {
-      for (int i=0; i < nefc; i++) {
+      for (int c=0; c < nefc; c++) {
+        int i = efclist ? efclist[c] : c;
         improvement += 0.5*force[i]*force[i]*d->efc_R[i];
       }
     }
 
     // perform one sweep: dry friction
-    for (int i=ne; i < ne+nf; i++) {
+    for (int c=ne; c < ne+nf; c++) {
+      int i = efclist ? efclist[c] : c;
+
       // compute residual, save old
       residual(m, d, res, i, 1, 1);
       oldforce[0] = force[i];
 
       // unconstrained minimum
-      force[i] -= res[0]*ARinv[i];
+      force[i] -= res[0]*ARinv[c];
 
       // impose interval constraints
       if (force[i] < -floss[i]) {
@@ -585,11 +698,13 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 
       // add to improvement
       delta[0] = force[i] - oldforce[0];
-      improvement -= 0.5*delta[0]*delta[0]/ARinv[i] + delta[0]*res[0];
+      improvement -= 0.5*delta[0]*delta[0]/ARinv[c] + delta[0]*res[0];
     }
 
     // perform one sweep: contact friction
-    for (int i=ne+nf; i < nefc; i++) {
+    for (int c=ne+nf; c < nefc; c++) {
+      int i = efclist ? efclist[c] : c;
+
       // pyramidal contact
       if (d->efc_type[i] == mjCNSTR_CONTACT_PYRAMIDAL) {
         // get contact info
@@ -648,7 +763,7 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
         }
 
         // skip the rest of this contact
-        i += 2*(dim-1)-1;
+        c += 2*(dim-1)-1;
       }
 
       // elliptic contact
@@ -678,55 +793,29 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 
         // QCQP
         else {
-          int flg_active = 0;
-
-          // solve
-          if (dim == 3) {
-            flg_active = mju_QCQP2(v, Ac, bc, mu, force[i]);
-          } else if (dim == 4) {
-            flg_active = mju_QCQP3(v, Ac, bc, mu, force[i]);
-          } else {
-            flg_active = mju_QCQP(v, Ac, bc, mu, force[i], dim-1);
-          }
-
-          // on constraint: put v on ellipsoid, in case QCQP is approximate
-          if (flg_active) {
-            mjtNum s = 0;
-            for (int j=0; j < dim-1; j++) {
-              s += v[j]*v[j]/(mu[j]*mu[j]);
-            }
-            s = mju_sqrt(force[i]*force[i] / mju_max(mjMINVAL, s));
-            for (int j=0; j < dim-1; j++) {
-              v[j] *= s;
-            }
-          }
-
-          // assign
-          mju_copy(force+i+1, v, dim-1);
+          solveQCQP(force, i, dim, Ac, bc, mu);
         }
 
         // accumulate improvement
         improvement -= costChange(Ac, force+i+1, oldforce, res, dim-1);
 
         // skip the rest of this contact
-        i += (dim-1);
+        c += (dim-1);
       }
     }
 
-    // process state
-    mju_copyInt(oldstate, d->efc_state, nefc);
-    int nactive = dualState(m, d, d->efc_state);
-    int nchange = 0;
-    for (int i=0; i < nefc; i++) {
-      nchange += (oldstate[i] != d->efc_state[i]);
-    }
+    // update constraint state
+    int nchange;
+    int nactive = dualStateChange(d, d->efc_state, oldstate, ne, nf, nefc, efclist, &nchange);
 
     // scale improvement, save stats
     improvement *= scale;
 
     // save noslip stats after all the entries from regular solver
-    int stats_iter = iter + d->solver_niter[island];
-    saveStats(m, d, island, stats_iter, improvement, 0, 0, nactive, nchange, 0, 0);
+    if (island_stat < mjNISLAND) {
+      int stats_iter = iter + d->solver_niter[island_stat];
+      saveStats(m, d, island_stat, stats_iter, improvement, 0, 0, nactive, nchange, 0, 0);
+    }
 
     // increment iteration count
     iter++;
@@ -738,12 +827,28 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
   }
 
   // update solver iterations
-  d->solver_niter[island] += iter;
-
-  // map to joint space
-  dualFinish(m, d);
+  if (island_stat < mjNISLAND) {
+    d->solver_niter[island_stat] += iter;
+  }
 
   mj_freeStack(d);
+}
+
+
+// NoSlip entry point (monolithic, no dualFinish — caller handles it)
+void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
+  solNoSlip(m, d, /*island=*/-1, d->ne, d->nf, d->nefc, /*efclist=*/NULL, maxiter);
+}
+
+
+// NoSlip entry point (one island)
+void mj_solNoSlip_island(const mjModel* m, mjData* d, int island, int maxiter) {
+  int ne = d->island_ne[island];
+  int nf = d->island_nf[island];
+  int nefc = d->island_nefc[island];
+  int iefcadr = d->island_iefcadr[island];
+
+  solNoSlip(m, d, island, ne, nf, nefc, d->map_iefc2efc + iefcadr, maxiter);
 }
 
 
@@ -810,9 +915,17 @@ typedef struct {
   mjtNum* Mgrad;          // M\grad or H\grad                             (nv x 1)
   mjtNum* search;         // linesearch vector                            (nv x 1)
   mjtNum* quad;           // quadratic polynomials for constraint costs   (nefc x 3)
+  int* oldstate;          // previous constraint state                    (nefc x 1)
+
+  // CG arrays (PrimalAllocate, CG only)
+  mjtNum* gradold;        // previous gradient                            (nv x 1)
+  mjtNum* Mgradold;       // previous preconditioned gradient             (nv x 1)
+  mjtNum* Mgraddif;       // gradient difference                          (nv x 1)
 
   // Newton arrays, known-size (PrimalAllocate)
   mjtNum* D;              // constraint inertia                           (nefc x 1)
+  mjtNum* cholupd;        // scratch for rank-1 Cholesky updates          (nv x 1)
+  mjtNum* LTJ;            // L'*J for cone Cholesky updates               (6 x nv)
   int* H_rowadr;          // Hessian row addresses                        (nv x 1)
   int* H_rownnz;          // Hessian row nonzeros                         (nv x 1)
   int* HT_rownnz;         // Hessian transpose row nonzeros               (nv x 1)
@@ -821,8 +934,6 @@ typedef struct {
   int* L_rowadr;          // Hessian factor row addresses                 (nv x 1)
   int* LT_rownnz;         // Hessian factor transpose row nonzeros        (nv x 1)
   int* LT_rowadr;         // Hessian factor transpose row addresses       (nv x 1)
-  int* buf_ind;           // index buffer for sparse addition             (nv x 1)
-  mjtNum* buf_val;        // value buffer for sparse addition             (nv x 1)
 
   // Newton arrays, computed-size (MakeHessian)
   int nH;                 // number of nonzeros in Hessian H
@@ -958,50 +1069,93 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
 // allocate fixed-size arrays in mjPrimalContext
 //  mj_{mark/free}Stack in calling function!
 static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
-  // local sizes
+  // local sizes and flags
   int nv = ctx->nv;
   int nefc = ctx->nefc;
+  int nJ = ctx->is_sparse ? d->nJ : 0;
+  int is_sparse = ctx->is_sparse;
+  int is_elliptic = ctx->is_elliptic;
 
-  // common arrays
-  ctx->Jaref  = mjSTACKALLOC(d, nefc, mjtNum);
-  ctx->Jv     = mjSTACKALLOC(d, nefc, mjtNum);
-  ctx->Ma     = mjSTACKALLOC(d, nv, mjtNum);
-  ctx->Mv     = mjSTACKALLOC(d, nv, mjtNum);
-  ctx->grad   = mjSTACKALLOC(d, nv, mjtNum);
-  ctx->Mgrad  = mjSTACKALLOC(d, nv, mjtNum);
-  ctx->search = mjSTACKALLOC(d, nv, mjtNum);
-  ctx->quad   = mjSTACKALLOC(d, nefc*3, mjtNum);
+  // compute mjtNum block size
+  size_t nNum = 5*nefc + 5*nv;         // common arrays
+  if (is_sparse) nNum += nJ;           // JT
+  if (flg_Newton) {
+    nNum += nefc + nv;                 // D, cholupd
+    if (is_elliptic) nNum += 6*nv;     // LTJ
+    if (!is_sparse) {
+      nNum += nv*nv;                   // L (dense)
+      if (is_elliptic) nNum += nv*nv;  // Lcone (dense)
+    }
+  } else {
+    nNum += 3*nv;                      // CG arrays
+  }
 
-  // sparse only, compute Jacobian transpose
-  if (ctx->is_sparse) {
-    ctx->JT_rownnz   = mjSTACKALLOC(d, nv, int);
-    ctx->JT_rowadr   = mjSTACKALLOC(d, nv, int);
-    ctx->JT_rowsuper = mjSTACKALLOC(d, nv, int);
-    ctx->JT_colind   = mjSTACKALLOC(d, d->nJ, int);
-    ctx->JT          = mjSTACKALLOC(d, d->nJ, mjtNum);
-    int offset       = ctx->J_rowadr[0];
+  // compute int block size
+  size_t nInt = nefc;                  // oldstate
+  if (is_sparse) {
+    nInt += 3*nv + nJ;                 // JT sparse
+    if (flg_Newton) nInt += 8*nv;      // Newton sparse
+  }
+
+  // allocate mjtNum and int blocks
+  mjtNum* numblock = mjSTACKALLOC(d, nNum, mjtNum);
+  int* intblock    = mjSTACKALLOC(d, nInt, int);
+
+  // carve mjtNum block
+  ctx->Jaref  = numblock;  numblock += nefc;
+  ctx->Jv     = numblock;  numblock += nefc;
+  ctx->Ma     = numblock;  numblock += nv;
+  ctx->Mv     = numblock;  numblock += nv;
+  ctx->grad   = numblock;  numblock += nv;
+  ctx->Mgrad  = numblock;  numblock += nv;
+  ctx->search = numblock;  numblock += nv;
+  ctx->quad   = numblock;  numblock += 3*nefc;
+  if (is_sparse) {
+    ctx->JT   = numblock;  numblock += nJ;
+  }
+  if (flg_Newton) {
+    ctx->D       = numblock;  numblock += nefc;
+    ctx->cholupd = numblock;  numblock += nv;
+    if (is_elliptic) {
+      ctx->LTJ = numblock;  numblock += 6*nv;
+    }
+    if (!is_sparse) {
+      ctx->nL = nv*nv;
+      ctx->L     = numblock;  numblock += ctx->nL;
+      ctx->Lcone = is_elliptic ? numblock : NULL;
+      if (is_elliptic) numblock += ctx->nL;
+    }
+  } else {
+    ctx->gradold  = numblock;  numblock += nv;
+    ctx->Mgradold = numblock;  numblock += nv;
+    ctx->Mgraddif = numblock;  numblock += nv;
+  }
+
+  // carve int block
+  ctx->oldstate = intblock;  intblock += nefc;
+  if (is_sparse) {
+    ctx->JT_rownnz   = intblock;  intblock += nv;
+    ctx->JT_rowadr   = intblock;  intblock += nv;
+    ctx->JT_rowsuper = intblock;  intblock += nv;
+    ctx->JT_colind   = intblock;  intblock += nJ;
+  }
+  if (flg_Newton && is_sparse) {
+    ctx->H_rowadr   = intblock;  intblock += nv;
+    ctx->H_rownnz   = intblock;  intblock += nv;
+    ctx->HT_rownnz  = intblock;  intblock += nv;
+    ctx->HT_rowadr  = intblock;  intblock += nv;
+    ctx->L_rownnz   = intblock;  intblock += nv;
+    ctx->L_rowadr   = intblock;  intblock += nv;
+    ctx->LT_rownnz  = intblock;  intblock += nv;
+    ctx->LT_rowadr  = intblock;  intblock += nv;
+  }
+
+  // sparse: compute Jacobian transpose
+  if (is_sparse) {
+    int offset = ctx->J_rowadr[0];
     mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
                         ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
                         ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset);
-  }
-
-  // Newton only, known-size arrays
-  if (flg_Newton) {
-    ctx->D = mjSTACKALLOC(d, nefc, mjtNum);
-
-    // sparse Newton only
-    if (ctx->is_sparse) {
-      ctx->H_rowadr   = mjSTACKALLOC(d, nv, int);
-      ctx->H_rownnz   = mjSTACKALLOC(d, nv, int);
-      ctx->HT_rownnz  = mjSTACKALLOC(d, nv, int);
-      ctx->HT_rowadr  = mjSTACKALLOC(d, nv, int);
-      ctx->L_rownnz   = mjSTACKALLOC(d, nv, int);
-      ctx->L_rowadr   = mjSTACKALLOC(d, nv, int);
-      ctx->LT_rownnz  = mjSTACKALLOC(d, nv, int);
-      ctx->LT_rowadr  = mjSTACKALLOC(d, nv, int);
-      ctx->buf_val    = mjSTACKALLOC(d, nv, mjtNum);
-      ctx->buf_ind    = mjSTACKALLOC(d, nv, int);
-    }
   }
 }
 
@@ -1523,40 +1677,46 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
 
   // sparse
   if (ctx->is_sparse) {
-    // initialize Hessian rowadr, rownnz; get total nonzeros
-    ctx->nH = mju_sqrMatTDSparseCount(ctx->H_rownnz, ctx->H_rowadr, nv,
-                                      ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
-                                      ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
-                                      ctx->JT_rowsuper, d, /*flg_upper=*/0);
+    // count Hessian nonzeros, initialize rowadr, rownnz
+    ctx->nH = mju_sqrMatTDSparseSymbolic(
+        ctx->H_rownnz, ctx->H_rowadr, NULL, NULL,
+        nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper, d);
 
     // add M nonzeros to Hessian total (unavoidable overcounting since H_colind is still unknown)
     ctx->nH += ctx->M_rowadr[nv - 1] + ctx->M_rownnz[nv - 1];
 
-    // shift H row addresses to make room for C
+    // nH is known: allocate H, H_colind, HT_colind
+    ctx->H          = mjSTACKALLOC(d, ctx->nH, mjtNum);
+    int* H_intblock = mjSTACKALLOC(d, 2*ctx->nH, int);
+    ctx->H_colind   = H_intblock;
+    ctx->HT_colind  = H_intblock + ctx->nH;
+
+    // shift H row addresses to make room for M
     int shift = 0;
     for (int r = 0; r < nv - 1; r++) {
       shift += ctx->M_rownnz[r];
       ctx->H_rowadr[r + 1] += shift;
     }
 
-    // allocate H_colind and H
-    ctx->H_colind = mjSTACKALLOC(d, ctx->nH, int);
-    ctx->H = mjSTACKALLOC(d, ctx->nH, mjtNum);
+    // compute H = J'*D*J: symbolic phase
+    mju_sqrMatTDSparseSymbolic(
+        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, NULL,
+        nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper, d);
 
-    // compute H = J'*D*J
-    mju_sqrMatTDSparse(ctx->H, ctx->J, ctx->JT, ctx->D, nefc, nv,
-                       ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
-                       ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind, NULL,
-                       ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
-                       d, /*diagind=*/NULL);
+    // compute H = J'*D*J: numeric phase
+    mju_sqrMatTDSparseNumeric(
+        ctx->H, nv, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+        NULL, ctx->J, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+        ctx->JT, ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
+        ctx->JT_rowsuper, ctx->D, d);
 
-    // add mass matrix: H = J'*D*J + C
+    // add mass matrix: H = J'*D*J + M
     mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
-                       ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
-                       ctx->buf_val, ctx->buf_ind);
+                       ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
 
-    // compute H' (upper triangle, required for symbolic Cholesky)
-    ctx->HT_colind = mjSTACKALLOC(d, ctx->nH, int);
+    // compute H' sparse structure (upper triangle, required for symbolic Cholesky)
     mju_transposeSparse(NULL, NULL, nv, nv, ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind, NULL,
                         ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind);
 
@@ -1566,16 +1726,16 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
                                      ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind,
                                      nv, d);
 
-    // allocate L_colind, L, Lcone
-    ctx->L_colind = mjSTACKALLOC(d, ctx->nL, int);
-    ctx->L = mjSTACKALLOC(d, ctx->nL, mjtNum);
-    if (ctx->is_elliptic) {
-      ctx->Lcone = mjSTACKALLOC(d, ctx->nL, mjtNum);
-    }
-
-    // allocate LT (CSC representation of L)
-    ctx->LT_colind = mjSTACKALLOC(d, ctx->nL, int);
-    ctx->LT_map = mjSTACKALLOC(d, ctx->nL, int);
+    // nL is known: allocate blocks and carve L_colind, LT_colind, LT_map, L, Lcone
+    size_t nL_int = 2*ctx->nL + ctx->nL;                     // L_colind + LT_colind + LT_map
+    size_t nL_num = ctx->is_elliptic ? 2*ctx->nL : ctx->nL;  // L + Lcone
+    int* L_intblock    = mjSTACKALLOC(d, nL_int, int);
+    mjtNum* L_numblock = mjSTACKALLOC(d, nL_num, mjtNum);
+    ctx->L_colind      = L_intblock;
+    ctx->LT_colind     = L_intblock + ctx->nL;
+    ctx->LT_map        = L_intblock + 2*ctx->nL;
+    ctx->L             = L_numblock;
+    ctx->Lcone         = ctx->is_elliptic ? L_numblock + ctx->nL : NULL;
 
     // symbolic Cholesky: populate L_colind and LT structures
     mju_cholFactorSymbolic(ctx->L_colind, ctx->L_rownnz, ctx->L_rowadr,
@@ -1586,13 +1746,6 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
 
   // dense
   else {
-    // allocate L, Lcone
-    ctx->nL = nv*nv;
-    ctx->L = mjSTACKALLOC(d, ctx->nL, mjtNum);
-    if (ctx->is_elliptic) {
-      ctx->Lcone = mjSTACKALLOC(d, ctx->nL, mjtNum);
-    }
-
     // compute H = M + J'*D*J
     mju_sqrMatTD_impl(ctx->L, ctx->J, ctx->D, nefc, nv, /*flg_upper=*/ 0);
     mju_addToSymSparse(ctx->L, ctx->M, ctx->nv,
@@ -1620,17 +1773,22 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
   if (ctx->is_sparse) {
     // maybe compute H = M + J'*D*J
     if (flg_recompute) {
-      // compute H = J'*D*J
-      mju_sqrMatTDSparse(ctx->H, ctx->J, ctx->JT, ctx->D, nefc, nv,
-                        ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
-                        ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind, NULL,
-                        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
-                        d, /*diagind=*/NULL);
+      // compute H = J'*D*J: symbolic phase
+      mju_sqrMatTDSparseSymbolic(
+          ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, NULL,
+          nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+          ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper, d);
+
+      // compute H = J'*D*J: numeric phase
+      mju_sqrMatTDSparseNumeric(
+          ctx->H, nv, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
+          NULL, ctx->J, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+          ctx->JT, ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
+          ctx->JT_rowsuper, ctx->D, d);
 
       // add mass matrix: H = J'*D*J + C
       mju_addToMatSparse(ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, nv,
-                         ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
-                         ctx->buf_val, ctx->buf_ind);
+                         ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
     }
 
     // numeric sparse factorization: L = chol(H) using pre-computed sparsity pattern
@@ -1673,15 +1831,11 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
 // elliptic case: Hcone = H + cone_contributions
 static void HessianCone(mjData* d, mjPrimalContext* ctx) {
   int nv = ctx->nv, nefc = ctx->nefc;
+  mjtNum* LTJ = ctx->LTJ;
   mjtNum local[36];
 
   // start with Hcone = H
   mju_copy(ctx->Lcone, ctx->L, ctx->nL);
-
-  mj_markStack(d);
-
-  // storage for L'*J
-  mjtNum* LTJ = mjSTACKALLOC(d, 6*nv, mjtNum);
 
   // add contributions
   for (int i=0; i < nefc; i++) {
@@ -1737,18 +1891,13 @@ static void HessianCone(mjData* d, mjPrimalContext* ctx) {
       i += (dim-1);
     }
   }
-
-  mj_freeStack(d);
 }
 
 
 // incremental update to Hessian factor due to changes in efc_state
 static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldstate) {
   int rank, nv = ctx->nv, nefc = ctx->nefc;
-  mj_markStack(d);
-
-  // local space
-  mjtNum* vec = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* cholupd = ctx->cholupd;
 
   // clear update counter
   ctx->nupdate = 0;
@@ -1769,27 +1918,26 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
 
     // perform update if flagged
     if (flag_update != -1) {
-      // update with vec = J(i,:)*sqrt(D[i]))
+      // update with cholupd = J(i,:)*sqrt(D[i]))
       if (ctx->is_sparse) {
         // get nnz and adr of row i
         const int nnz = ctx->J_rownnz[i], adr = ctx->J_rowadr[i];
 
-        // scale vec
-        mju_scl(vec, ctx->J+adr, mju_sqrt(ctx->efc_D[i]), nnz);
+        // scale cholupd
+        mju_scl(cholupd, ctx->J+adr, mju_sqrt(ctx->efc_D[i]), nnz);
 
         // sparse update or downdate
-        rank = mju_cholUpdateSparse(ctx->L, vec, nv, flag_update,
+        rank = mju_cholUpdateSparse(ctx->L, cholupd, nv, flag_update,
                                     ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz,
                                     ctx->J_colind+adr, d);
       } else {
-        mju_scl(vec, ctx->J+i*nv, mju_sqrt(ctx->efc_D[i]), nv);
-        rank = mju_cholUpdate(ctx->L, vec, nv, flag_update);
+        mju_scl(cholupd, ctx->J+i*nv, mju_sqrt(ctx->efc_D[i]), nv);
+        rank = mju_cholUpdate(ctx->L, cholupd, nv, flag_update);
       }
       ctx->nupdate++;
 
       // recompute H directly if accuracy lost
       if (rank < nv) {
-        mj_freeStack(d);
         FactorizeHessian(d, ctx, /*flg_recompute=*/1);
 
         // nothing else to do
@@ -1802,8 +1950,6 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
   if (ctx->ncone) {
     HessianCone(d, ctx);
   }
-
-  mj_freeStack(d);
 }
 
 
@@ -1811,7 +1957,6 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
 static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, int flg_Newton) {
   int iter = 0;
   mjtNum alpha, beta;
-  mjtNum *gradold = NULL, *Mgradold = NULL, *Mgraddif = NULL;
   mjPrimalContext ctx;
   mj_markStack(d);
 
@@ -1822,14 +1967,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   // local copies
   int nv   = ctx.nv;
   int nefc = ctx.nefc;
-
-  // allocate local storage
-  if (!flg_Newton) {
-    gradold     = mjSTACKALLOC(d, nv, mjtNum);
-    Mgradold    = mjSTACKALLOC(d, nv, mjtNum);
-    Mgraddif    = mjSTACKALLOC(d, nv, mjtNum);
-  }
-  int* oldstate = mjSTACKALLOC(d, nefc, int);
+  int* oldstate = ctx.oldstate;
 
   // compute Ma = M * qacc
   mju_mulSymVecSparse(ctx.Ma, ctx.M, ctx.qacc, nv,
@@ -1888,8 +2026,8 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
 
     // save old
     if (!flg_Newton) {
-      mju_copy(gradold, ctx.grad, nv);
-      mju_copy(Mgradold, ctx.Mgrad, nv);
+      mju_copy(ctx.gradold, ctx.grad, nv);
+      mju_copy(ctx.Mgradold, ctx.Mgrad, nv);
     }
     mju_copyInt(oldstate, ctx.efc_state, nefc);
     mjtNum oldcost = ctx.cost;
@@ -1926,9 +2064,9 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
       mju_scl(ctx.search, ctx.Mgrad, -1, nv);
     } else {
       // Polak-Ribiere
-      mju_sub(Mgraddif, ctx.Mgrad, Mgradold, nv);
-      beta = mju_dot(ctx.grad, Mgraddif, nv) /
-             mju_max(mjMINVAL, mju_dot(gradold, Mgradold, nv));
+      mju_sub(ctx.Mgraddif, ctx.Mgrad, ctx.Mgradold, nv);
+      beta = mju_dot(ctx.grad, ctx.Mgraddif, nv) /
+             mju_max(mjMINVAL, mju_dot(ctx.gradold, ctx.Mgradold, nv));
 
       // reset if negative
       if (beta < 0) {

@@ -22,24 +22,26 @@ import re
 def _parse_version(version_str: str) -> tuple[tuple[int, int | str], ...]:
   """Parse a version string into comparable components.
 
-  Both '.' and '-' are treated as separators. Each component is wrapped in a
-  tuple: (0, int) for numeric parts, (-1, str) for non-numeric. A (0, 0)
-  sentinel is appended so that stable releases sort above pre-release suffixes
-  during Python tuple comparison (e.g., 1.2.3 >= 1.2.3.dev). Non-numeric
-  components are compared lexicographically (e.g., b >= a).
+  Dot-separated components form the version. Hyphen-separated suffixes (e.g.,
+  "-foo3") are treated as local build identifiers and stripped before
+  parsing. Each component is wrapped in a tuple: (0, int) for numeric parts,
+  (-1, str) for non-numeric. A (0, 0) sentinel is appended so that stable
+  releases sort above pre-release suffixes during Python tuple comparison
+  (e.g., 1.2.3 >= 1.2.3.dev). Non-numeric components are compared
+  lexicographically (e.g., b >= a).
 
   Args:
-    version_str: Version string like "3.5.0" or "3.5.0.dev869102767".
+    version_str: Version string like "3.5.0", "3.5.0.dev869102767", or
+      "3.9.0-foo3".
 
   Returns:
     Tuple of (type_order, value) pairs for comparison, where type_order is 0
     for integers and -1 for strings, followed by a (0, 0) sentinel.
   """
-  # Split on both '.' and '-'
-  parts = re.split(r"[.\-]", version_str)
-  return tuple(
-      [(0, int(p)) if p.isdigit() else (-1, p) for p in parts] + [(0, 0)]
-  )
+  # Strip local build identifier (e.g., "3.9.0-foo3" -> "3.9.0")
+  version_str = version_str.split("-", 1)[0]
+  parts = version_str.split(".")
+  return tuple([(0, int(p)) if p.isdigit() else (-1, p) for p in parts] + [(0, 0)])
 
 
 def check_version(spec: str) -> bool:
@@ -65,9 +67,7 @@ def check_version(spec: str) -> bool:
   """
   match = re.match(r"^([a-zA-Z0-9_\-]+)(>=|<=|>|<|==|!=)(.+)$", spec)
   if not match:
-    raise ValueError(
-        f"Invalid version spec '{spec}'. Expected format: 'package>=version'"
-    )
+    raise ValueError(f"Invalid version spec '{spec}'. Expected format: 'package>=version'")
   package_name, op, version_str = match.groups()
 
   required_version = _parse_version(version_str)
@@ -87,11 +87,11 @@ def check_version(spec: str) -> bool:
   installed_version = _parse_version(installed_str)
 
   ops = {
-      ">=": operator.ge,
-      "<=": operator.le,
-      ">": operator.gt,
-      "<": operator.lt,
-      "==": operator.eq,
-      "!=": operator.ne,
+    ">=": operator.ge,
+    "<=": operator.le,
+    ">": operator.gt,
+    "<": operator.lt,
+    "==": operator.eq,
+    "!=": operator.ne,
   }
   return ops[op](installed_version, required_version)

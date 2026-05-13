@@ -52,12 +52,12 @@ def _ray_map(pos: wp.vec3, mat: wp.mat33, pnt: wp.vec3, vec: wp.vec3) -> Tuple[w
 @wp.func
 def _ray_eliminate(
   # Model:
-  body_weldid: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
-  geom_matid: wp.array(dtype=int),  # kernel_analyzer: ignore
-  geom_group: wp.array(dtype=int),
-  geom_rgba: wp.array(dtype=wp.vec4),  # kernel_analyzer: ignore
-  mat_rgba: wp.array(dtype=wp.vec4),  # kernel_analyzer: ignore
+  body_weldid: wp.array[int],
+  geom_bodyid: wp.array[int],
+  geom_matid: wp.array[int],  # kernel_analyzer: ignore
+  geom_group: wp.array[int],
+  geom_rgba: wp.array[wp.vec4],  # kernel_analyzer: ignore
+  mat_rgba: wp.array[wp.vec4],  # kernel_analyzer: ignore
   # In:
   geomid: int,
   geomgroup: vec6,
@@ -451,26 +451,27 @@ def ray_box(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp.ve
 @wp.func
 def ray_hfield(
   # Model:
-  geom_type: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  hfield_size: wp.array(dtype=wp.vec4),
-  hfield_nrow: wp.array(dtype=int),
-  hfield_ncol: wp.array(dtype=int),
-  hfield_adr: wp.array(dtype=int),
-  hfield_data: wp.array(dtype=float),
+  geom_type: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  hfield_size: wp.array[wp.vec4],
+  hfield_nrow: wp.array[int],
+  hfield_ncol: wp.array[int],
+  hfield_adr: wp.array[int],
+  hfield_data: wp.array[float],
   # In:
   pos: wp.vec3,
   mat: wp.mat33,
   pnt: wp.vec3,
   vec: wp.vec3,
   id: int,
+  worldid: int,
 ) -> Tuple[float, wp.vec3]:
   # check geom type
   if geom_type[id] != GeomType.HFIELD:
     return -1.0, wp.vec3()
 
   # hfield id and dimensions
-  hid = geom_dataid[id]
+  hid = geom_dataid[worldid % geom_dataid.shape[0], id]
   nrow = hfield_nrow[hid]
   ncol = hfield_ncol[hid]
 
@@ -622,10 +623,10 @@ def ray_hfield(
 def ray_mesh(
   # Model:
   nmeshface: int,
-  mesh_vertadr: wp.array(dtype=int),
-  mesh_faceadr: wp.array(dtype=int),
-  mesh_vert: wp.array(dtype=wp.vec3),
-  mesh_face: wp.array(dtype=wp.vec3i),
+  mesh_vertadr: wp.array[int],
+  mesh_faceadr: wp.array[int],
+  mesh_vert: wp.array[wp.vec3],
+  mesh_face: wp.array[wp.vec3i],
   # In:
   data_id: int,
   pos: wp.vec3,
@@ -699,7 +700,7 @@ def ray_mesh(
 @wp.func
 def ray_mesh_with_bvh(
   # In:
-  mesh_bvh_id: wp.array(dtype=wp.uint64),
+  mesh_bvh_id: wp.array[wp.uint64],
   mesh_geom_id: int,
   pos: wp.vec3,
   mat: wp.mat33,
@@ -732,7 +733,7 @@ def ray_mesh_with_bvh(
 @wp.func
 def ray_mesh_with_bvh_anyhit(
   # In:
-  mesh_bvh_id: wp.array(dtype=wp.uint64),
+  mesh_bvh_id: wp.array[wp.uint64],
   mesh_geom_id: int,
   pos: wp.vec3,
   mat: wp.mat33,
@@ -752,7 +753,8 @@ def ray_mesh_with_bvh_anyhit(
 @wp.func
 def ray_flex_with_bvh(
   # In:
-  bvh_id: wp.uint64,
+  flex_bvh_id: wp.array[wp.uint64],
+  flexid: int,
   group_root: int,
   pnt: wp.vec3,
   vec: wp.vec3,
@@ -769,12 +771,29 @@ def ray_flex_with_bvh(
   n = wp.vec3(0.0, 0.0, 0.0)
   f = int(-1)
 
-  hit = wp.mesh_query_ray(bvh_id, pnt, vec, max_t, t, u, v, sign, n, f, group_root)
+  hit = wp.mesh_query_ray(flex_bvh_id[flexid], pnt, vec, max_t, t, u, v, sign, n, f, group_root)
 
   if hit:
     return t, n, u, v, f
 
   return -1.0, wp.vec3(0.0, 0.0, 0.0), 0.0, 0.0, -1
+
+
+@wp.func
+def ray_flex_with_bvh_anyhit(
+  # In:
+  flex_bvh_id: wp.array[wp.uint64],
+  flexid: int,
+  group_root: int,
+  pnt: wp.vec3,
+  vec: wp.vec3,
+  max_t: float,
+) -> bool:
+  """Returns True if there is any hit for ray flex intersections.
+
+  Requires wp.Mesh be constructed and their ids to be passed. Flex are already in world space.
+  """
+  return wp.mesh_query_ray_anyhit(flex_bvh_id[flexid], pnt, vec, max_t, group_root)
 
 
 @wp.func
@@ -805,27 +824,27 @@ def ray_geom(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp.v
 def _ray_geom_mesh(
   # Model:
   nmeshface: int,
-  body_weldid: wp.array(dtype=int),
-  geom_type: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_matid: wp.array2d(dtype=int),
-  geom_group: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
-  geom_rgba: wp.array2d(dtype=wp.vec4),
-  mesh_vertadr: wp.array(dtype=int),
-  mesh_faceadr: wp.array(dtype=int),
-  mesh_vert: wp.array(dtype=wp.vec3),
-  mesh_face: wp.array(dtype=wp.vec3i),
-  hfield_size: wp.array(dtype=wp.vec4),
-  hfield_nrow: wp.array(dtype=int),
-  hfield_ncol: wp.array(dtype=int),
-  hfield_adr: wp.array(dtype=int),
-  hfield_data: wp.array(dtype=float),
-  mat_rgba: wp.array2d(dtype=wp.vec4),
+  body_weldid: wp.array[int],
+  geom_type: wp.array[int],
+  geom_bodyid: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_matid: wp.array2d[int],
+  geom_group: wp.array[int],
+  geom_size: wp.array2d[wp.vec3],
+  geom_rgba: wp.array2d[wp.vec4],
+  mesh_vertadr: wp.array[int],
+  mesh_faceadr: wp.array[int],
+  mesh_vert: wp.array[wp.vec3],
+  mesh_face: wp.array[wp.vec3i],
+  hfield_size: wp.array[wp.vec4],
+  hfield_nrow: wp.array[int],
+  hfield_ncol: wp.array[int],
+  hfield_adr: wp.array[int],
+  hfield_data: wp.array[float],
+  mat_rgba: wp.array2d[wp.vec4],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
   # In:
   worldid: int,
   pnt: wp.vec3,
@@ -858,7 +877,7 @@ def _ray_geom_mesh(
         mesh_faceadr,
         mesh_vert,
         mesh_face,
-        geom_dataid[geomid],
+        geom_dataid[worldid % geom_dataid.shape[0], geomid],
         pos,
         mat,
         geom_size[worldid % geom_size.shape[0], geomid],
@@ -879,6 +898,7 @@ def _ray_geom_mesh(
         pnt,
         vec,
         geomid,
+        worldid,
       )
     else:
       return ray_geom(pos, mat, geom_size[worldid % geom_size.shape[0], geomid], pnt, vec, type)
@@ -891,37 +911,37 @@ def _ray(
   # Model:
   ngeom: int,
   nmeshface: int,
-  body_weldid: wp.array(dtype=int),
-  geom_type: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_matid: wp.array2d(dtype=int),
-  geom_group: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
-  geom_rgba: wp.array2d(dtype=wp.vec4),
-  mesh_vertadr: wp.array(dtype=int),
-  mesh_faceadr: wp.array(dtype=int),
-  mesh_vert: wp.array(dtype=wp.vec3),
-  mesh_face: wp.array(dtype=wp.vec3i),
-  hfield_size: wp.array(dtype=wp.vec4),
-  hfield_nrow: wp.array(dtype=int),
-  hfield_ncol: wp.array(dtype=int),
-  hfield_adr: wp.array(dtype=int),
-  hfield_data: wp.array(dtype=float),
-  mat_rgba: wp.array2d(dtype=wp.vec4),
+  body_weldid: wp.array[int],
+  geom_type: wp.array[int],
+  geom_bodyid: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_matid: wp.array2d[int],
+  geom_group: wp.array[int],
+  geom_size: wp.array2d[wp.vec3],
+  geom_rgba: wp.array2d[wp.vec4],
+  mesh_vertadr: wp.array[int],
+  mesh_faceadr: wp.array[int],
+  mesh_vert: wp.array[wp.vec3],
+  mesh_face: wp.array[wp.vec3i],
+  hfield_size: wp.array[wp.vec4],
+  hfield_nrow: wp.array[int],
+  hfield_ncol: wp.array[int],
+  hfield_adr: wp.array[int],
+  hfield_data: wp.array[float],
+  mat_rgba: wp.array2d[wp.vec4],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
   # In:
-  pnt: wp.array2d(dtype=wp.vec3),
-  vec: wp.array2d(dtype=wp.vec3),
+  pnt: wp.array2d[wp.vec3],
+  vec: wp.array2d[wp.vec3],
   geomgroup: vec6,
   flg_static: bool,
-  bodyexclude: wp.array(dtype=int),
+  bodyexclude: wp.array[int],
   # Out:
-  dist_out: wp.array2d(dtype=float),
-  geomid_out: wp.array2d(dtype=int),
-  normal_out: wp.array2d(dtype=wp.vec3),
+  dist_out: wp.array2d[float],
+  geomid_out: wp.array2d[int],
+  normal_out: wp.array2d[wp.vec3],
 ):
   worldid, rayid, tid = wp.tid()
 
@@ -993,18 +1013,18 @@ def _ray(
 @wp.func
 def _ray_geom_mesh_bvh(
   # Model:
-  body_weldid: wp.array(dtype=int),
-  geom_type: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_matid: wp.array2d(dtype=int),
-  geom_group: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
-  geom_rgba: wp.array2d(dtype=wp.vec4),
-  mat_rgba: wp.array2d(dtype=wp.vec4),
+  body_weldid: wp.array[int],
+  geom_type: wp.array[int],
+  geom_bodyid: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_matid: wp.array2d[int],
+  geom_group: wp.array[int],
+  geom_size: wp.array2d[wp.vec3],
+  geom_rgba: wp.array2d[wp.vec4],
+  mat_rgba: wp.array2d[wp.vec4],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
   # In:
   worldid: int,
   pnt: wp.vec3,
@@ -1013,8 +1033,8 @@ def _ray_geom_mesh_bvh(
   flg_static: bool,
   bodyexclude: int,
   geomid: int,
-  mesh_bvh_id: wp.array(dtype=wp.uint64),
-  hfield_bvh_id: wp.array(dtype=wp.uint64),
+  mesh_bvh_id: wp.array[wp.uint64],
+  hfield_bvh_id: wp.array[wp.uint64],
   min_dist: float,
 ) -> Tuple[float, wp.vec3]:
   if not _ray_eliminate(
@@ -1037,7 +1057,7 @@ def _ray_geom_mesh_bvh(
       bvh_ids = mesh_bvh_id if gtype == GeomType.MESH else hfield_bvh_id
       t, n, u, v, f, geom_mesh_id = ray_mesh_with_bvh(
         bvh_ids,
-        geom_dataid[geomid],
+        geom_dataid[worldid % geom_dataid.shape[0], geomid],
         pos,
         mat,
         pnt,
@@ -1063,33 +1083,33 @@ def _ray_geom_mesh_bvh(
 def _ray_bvh(
   # Model:
   ngeom: int,
-  body_weldid: wp.array(dtype=int),
-  geom_type: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_matid: wp.array2d(dtype=int),
-  geom_group: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
-  geom_rgba: wp.array2d(dtype=wp.vec4),
-  mat_rgba: wp.array2d(dtype=wp.vec4),
+  body_weldid: wp.array[int],
+  geom_type: wp.array[int],
+  geom_bodyid: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_matid: wp.array2d[int],
+  geom_group: wp.array[int],
+  geom_size: wp.array2d[wp.vec3],
+  geom_rgba: wp.array2d[wp.vec4],
+  mat_rgba: wp.array2d[wp.vec4],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
   # In:
-  pnt: wp.array2d(dtype=wp.vec3),
-  vec: wp.array2d(dtype=wp.vec3),
+  pnt: wp.array2d[wp.vec3],
+  vec: wp.array2d[wp.vec3],
   geomgroup: vec6,
   flg_static: bool,
-  bodyexclude: wp.array(dtype=int),
+  bodyexclude: wp.array[int],
   bvh_id: wp.uint64,
-  group_root: wp.array(dtype=int),
-  enabled_geom_ids: wp.array(dtype=int),
-  mesh_bvh_id: wp.array(dtype=wp.uint64),
-  hfield_bvh_id: wp.array(dtype=wp.uint64),
+  group_root: wp.array[int],
+  enabled_geom_ids: wp.array[int],
+  mesh_bvh_id: wp.array[wp.uint64],
+  hfield_bvh_id: wp.array[wp.uint64],
   # Out:
-  dist_out: wp.array2d(dtype=float),
-  geomid_out: wp.array2d(dtype=int),
-  normal_out: wp.array2d(dtype=wp.vec3),
+  dist_out: wp.array2d[float],
+  geomid_out: wp.array2d[int],
+  normal_out: wp.array2d[wp.vec3],
 ):
   worldid, rayid = wp.tid()
 
@@ -1148,8 +1168,8 @@ def _ray_bvh(
 def ray(
   m: Model,
   d: Data,
-  pnt: wp.array2d(dtype=wp.vec3),
-  vec: wp.array2d(dtype=wp.vec3),
+  pnt: wp.array2d[wp.vec3],
+  vec: wp.array2d[wp.vec3],
   geomgroup: vec6 | None = None,
   flg_static: bool = True,
   bodyexclude: int = -1,
@@ -1192,14 +1212,14 @@ def ray(
 def rays(
   m: Model,
   d: Data,
-  pnt: wp.array2d(dtype=wp.vec3),
-  vec: wp.array2d(dtype=wp.vec3),
+  pnt: wp.array2d[wp.vec3],
+  vec: wp.array2d[wp.vec3],
   geomgroup: vec6,
   flg_static: bool,
-  bodyexclude: wp.array(dtype=int),
-  dist: wp.array2d(dtype=float),
-  geomid: wp.array2d(dtype=int),
-  normal: wp.array2d(dtype=wp.vec3),
+  bodyexclude: wp.array[int],
+  dist: wp.array2d[float],
+  geomid: wp.array2d[int],
+  normal: wp.array2d[wp.vec3],
   rc: RenderContext | None = None,
 ):
   """Ray intersection for multiple worlds and multiple rays.

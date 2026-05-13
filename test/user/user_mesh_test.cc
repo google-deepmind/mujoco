@@ -713,7 +713,7 @@ TEST_F(MjCMeshTest, AreaTooSmall) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("mesh surface area is too small"));
 }
 
@@ -817,6 +817,73 @@ TEST_F(MjCMeshTest, VolumeSmallAllowedShell) {
   EXPECT_LE(mju_abs(model->geom_size[1]), 1);
   EXPECT_LE(mju_abs(model->geom_size[2]), 1);
   mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, Flex2DElasticityRequiresPositiveThickness) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="grid" count="3 3 1" spacing="1 1 1" dim="2" dof="2d">
+        <elasticity young="1" thickness="0" elastic2d="bend"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("2d elasticity requires positive thickness"));
+}
+
+TEST_F(MjCMeshTest, InterpolatedFlexSupportsBendElasticityWithWarning) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="grid" count="3 3 2" spacing="1 1 1" dim="3" dof="trilinear">
+        <contact selfcollide="none"/>
+        <elasticity young="1" thickness="1" elastic2d="bend"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::NotNull()) << error.data();
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, InterpolatedFlexSupportsBothElasticityWithWarning) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="grid" count="3 3 2" spacing="1 1 1" dim="3" dof="trilinear">
+        <contact selfcollide="none"/>
+        <elasticity young="1" thickness="1" elastic2d="both"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::NotNull()) << error.data();
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, Flex2DElasticityRequires2DFlex) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="grid" count="3 3 3" spacing="1 1 1" dim="3" dof="2d">
+        <elasticity young="1" thickness="1" elastic2d="bend"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("2d elasticity requires 2d flex"));
 }
 
 TEST_F(MjCMeshTest, VolumeNegativeThrowsError) {
@@ -1318,6 +1385,63 @@ TEST_F(MjCMeshTest, QhullCache) {
   mj_deleteVFS(&vfs);
 }
 
+TEST_F(MjCMeshTest, ColocatedMeshError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+            vertex="0 0 0  0 0 0  0 0 0  0 0 0"
+            face="0 1 2   1 3 2"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("colocated"));
+}
+
+TEST_F(MjCMeshTest, CollinearMeshError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="example_mesh"
+            vertex="0 0 0  1 0 0  2 0 0  3 0 0"
+            face="0 1 2   1 3 2"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="example_mesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("collinear"));
+}
+
+TEST_F(MjCMeshTest, CoplanarMeshError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="flat_quad"
+            vertex="-5 -5 0   5 -5 0   -5 5 0   5 5 0"
+            face="0 1 2   1 3 2"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="flat_quad"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("coplanar"));
+}
+
 TEST_F(MjCMeshTest, LoadSkin) {
   const std::string xml_path = GetTestDataFilePath(kCubeSkinPath);
   std::array<char, 1024> error;
@@ -1377,6 +1501,8 @@ TEST_F(MjCMeshTest, OctreeIsBalanced) {
   mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
   mjsGeom* geom = mjs_asGeom(mjs_firstElement(spec, mjOBJ_GEOM));
   geom->type = mjGEOM_SDF;
+  mjsMesh* mesh = mjs_asMesh(mjs_firstElement(spec, mjOBJ_MESH));
+  mesh->octree_maxdepth = 5;
   mjModel* model = mj_compile(spec, 0);
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_GT(model->mesh_octnum[0], 0);
@@ -1440,6 +1566,8 @@ TEST_F(MjCMeshTest, OctreeHangingNodeInterpolation) {
   mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
   mjsGeom* geom = mjs_asGeom(mjs_firstElement(spec, mjOBJ_GEOM));
   geom->type = mjGEOM_SDF;
+  mjsMesh* mesh = mjs_asMesh(mjs_firstElement(spec, mjOBJ_MESH));
+  mesh->octree_maxdepth = 5;
   mjModel* model = mj_compile(spec, 0);
   ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_GT(model->mesh_octnum[0], 0);

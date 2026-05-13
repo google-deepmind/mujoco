@@ -7,45 +7,217 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-
-- Actuators with joint or tendon transmissions can now contribute
-  :ref:`damping<actuator-general-damping>` and :ref:`armature<actuator-general-armature>` to their transmission target.
-  These are applied during the passive force and inertia computations, respectively, and are scaled by gear\ :sup:`2`
-  ("reflected" damping/inertia).
-
-.. youtube:: aKa3ZlEF9_Y
-   :align: right
-   :width: 35%
-
-- Stiffness in :ref:`joints<body-joint-stiffness>` and :ref:`tendons<tendon-spatial-stiffness>` and damping in
-  :ref:`joints<body-joint-damping>` and :ref:`tendons<tendon-spatial-damping>` now support nonlinear polynomial
-  :ref:`force profiles<gePolynomial>`. New ``mjModel`` arrays (``jnt_stiffnesspoly``, ``tendon_stiffnesspoly``,
-  ``dof_dampingpoly``, ``tendon_dampingpoly``) hold higher-order coefficients. The existing scalar arrays
-  (``jnt_stiffness``, ``dof_damping``, etc.) continue to hold the linear coefficient and are unchanged.
-  The polynomial order is defined by the new constant :ref:`mjNPOLY<glNumericSizes>`. A future breaking C-API change
-  may unify the linear and higher-order coefficients into a single array.
-
-- Introduced :ref:`mjpEncoder`, the counterpart to :ref:`mjpDecoder` for encoding of :ref:`mjSpec` and :ref:`mjModel` into :ref:`mjResource`.
-
-  - Added :ref:`mj_encode`, :ref:`mjp_registerEncoder`, :ref:`mjp_defaultEncoder`, and :ref:`mjp_findEncoder`.
+- The pseudo-random constraint visitation order in the :ref:`PGS solver<soAlgorithms>`, introduced in the previous
+  release, now uses a fixed seed. The previous implementation seeded with ``mjData.time``, which introduced subtle yet
+  undesirable time dependence.
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The ``mjs`` layer fields ``stiffness`` and ``damping`` in :ref:`mjsJoint` and :ref:`mjsTendon` have
-     been widened from ``mjtNum`` scalars to ``mjtNum[mjNPOLY+1]`` arrays. The first element is the linear coefficient
-     (previously the scalar), and subsequent elements are the higher-order :ref:`polynomial<gePolynomial>` coefficients.
+   - The semantics of the contact ``margin`` and ``gap`` parameters have been redesigned for conceptual clarity and
+     consistency with `NVIDIA Newton <https://developer.nvidia.com/newton>`__. See the new
+     :ref:`margin and gap<coMarginGap>` documentation section for details.
 
-     **Migration:** Replace assignments like ``joint.stiffness = val`` with ``joint.stiffness[0] = val``.
+     Previously, ``margin`` controlled the *detection threshold* (contacts exist when ``dist < margin``) and ``gap``
+     was subtracted from it to produce the *force threshold* (forces generated when ``dist < margin - gap``). This was
+     unintuitive: users expected ``margin`` to mean geometric inflation and ``gap`` to mean a spatial gap.
 
-   - The ``vertcollide`` field in :ref:`mjsFlex` has been removed. It is no longer required since
-     :doc:`MuJoCo Warp <mjwarp/index>` supports native flex collisions.
+     Under the new semantics, ``margin`` is the geometric inflation of the geom surface and ``gap`` is an additional
+     detection buffer beyond the inflated surface:
+
+     - **Detection**: contacts are created when ``dist < margin + gap``.
+     - **Force generation**: constraint forces are applied when ``dist < margin``.
+     - **Inactive contacts**: contacts with ``margin < dist ≤ margin + gap`` are included in ``mjData.contact`` but
+       generate no force (``efc_address = -1``). This is useful for :ref:`adhesion<actuator-adhesion>` actuators and
+       custom callbacks.
+
+     With the default values ``margin = 0``, ``gap = 0``, the behavior is unchanged.
+
+     .. image:: images/modeling/margin_gap_light.svg
+        :width: 80%
+        :align: center
+        :class: only-light
+
+     .. image:: images/modeling/margin_gap_dark.svg
+        :width: 80%
+        :align: center
+        :class: only-dark
+
+     |
+
+     **Migration:** Models that use the default ``gap="0"`` (the vast majority) require no changes. For models with
+     ``gap > 0``, apply the following transformation to preserve identical behavior:
+
+     .. code-block::
+
+        margin_new = margin_old - gap_old
+        gap_new    = gap_old
+
+     For example, a geom with the old attributes ``margin="0.1" gap="0.1"`` should be changed to
+     ``margin="0" gap="0.1"``.
+
+     Negative ``margin`` values are now permitted (corresponding to ``gap > margin`` under the old semantics). The
+     constraint ``margin + gap >= 0`` should be maintained to ensure valid collision detection.
+
+Version 3.8.1 (May 11, 2026)
+----------------------------
+
+General
+^^^^^^^
+1. Added island support for the :ref:`PGS solver<soAlgorithms>`.
+2. The :ref:`PGS solver<soAlgorithms>` now iterates over constraints in pseudo-random order, improving performance by
+   ~20%.
+3. Added support for :ref:`elastic2d<flex-elasticity-elastic2d>` for trilinear and quadratic flex
+   :ref:`dofs<body-flexcomp-dof>`.
+4. :ref:`Midpoint integration<geMidpoint>` is now restricted to the ``implicitfast``
+   :ref:`integrator<geIntegrators>` and is disabled when fluid forces are active
+   (nonzero :ref:`density<option-density>` or :ref:`viscosity<option-viscosity>`).
+   Midpoint integration treats external forces as zero-order-hold constants, which causes
+   energy gain in the presence of contacts and in fluid media.
+5. Added :ref:`mjs_getOriginSpec`, returning the spec that originally defined an element, prior to attachment. This is
+   in contrast to :ref:`mjs_getSpec` which returns the spec currently owning the element. If the element is not the
+   result of an attach operation, the functions are identical.
+6. Added :ref:`mju_sym2dense`, converting a lower-triangular, implicitly symmetric CSR matrix to a dense symmetric
+   matrix. The inertia matrix ``mjData.M`` is an example of such a matrix.
+
+.. admonition:: Future breaking API changes
+   :class: warning
+
+   7. The introduction of :ref:`mju_sym2dense` is a step towards the removal of the legacy-format ``mjData.qM`` in favor
+      of the CSR-format ``mjData.M``. This removal will involve a future breaking change to :ref:`mj_fullM` (which
+      currently accepts a ``qM``-like matrix as an argument). To prevent a future breakage, replace
+      ``mj_fullM(m, dst, d->qM)``  with
+      |br| ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
 
 
 Bug fixes
 ^^^^^^^^^
 
-- The compiler now correctly accounts for negative scaling when loading user specified mesh data.
+8. Fixed default for multiccd in :doc:`mjcPhysics <OpenUSD/mjcPhysics>`.
+
+Python
+^^^^^^
+
+9. Added ``MjSpec.encode`` method, wrapping :ref:`mj_encode`.
+10. Added ``mujoco.MjVfs`` Python binding to interact with the Virtual File System directly from Python.
+    See :ref:`Virtual File System <PyVFS>` for usage details.
+
+    .. warning::
+       The previous way of passing assets via a dictionary mapping asset names to bytes is **deprecated** and will be
+       removed in an upcoming release. You cannot specify both the ``assets`` dictionary and the ``vfs`` argument at the
+       same time. ``MjVfs`` should be used as a drop-in replacement.
+
+
+Version 3.8.0 (April 24, 2026)
+------------------------------
+
+General
+^^^^^^^
+1. Added support for Python 3.14.
+2. Added :ref:`multi-cell support<body-flexcomp-cellcount>` for trilinear and quadratic flexes. Note that the implicit
+   integrator uses a dense solver for the flex degrees of freedom, which can be slow for multi-cell flexes.
+3. Refactored ``strain`` flex :ref:`equality constraints<flexcomp-edge-equality>` to be instantiated per cell instead of
+   per flex object, reducing the number of degrees of freedom per constraint row. The equality can be associated with a
+   specific cell with the new attribute :ref:`cell <equality-flexstrain-cell>`
+4. Added new :ref:`mj_maxContact<mj_maxContact>` function to get the maximum number of possible contacts returned by
+   colliding two geoms.
+5. Added ``mj_containsBufferVFS`` and ``mj_containsFileVFS`` to check for existence of buffers and files in VFS.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   6. The :ref:`multiccd<coMultiCCD>` option (multiple contacts returned from the convex collision detection pipeline)
+      is now enabled by default. The new implementation (as opposed to the legacy pipeline) has little performance
+      overhead and improves stability.
+
+      **Migration:** Disable :ref:`multiccd<option-flag-multiccd>` to recover the previous behavior.
+
+Documentation
+^^^^^^^^^^^^^
+
+7. Added :ref:`documentation<exDecoder>` for :ref:`mjpDecoder` plugins.
+
+Bug fixes
+^^^^^^^^^
+
+8. Asset paths in attached child specs are now resolved relative to the model file directory of the child spec, rather
+   than the parent spec. This prevents the origin of the parent spec to affect the resolution of asset paths in the
+   child spec.
+
+Version 3.7.0 (April 14, 2026)
+------------------------------
+
+General
+^^^^^^^
+
+1. Added the :ref:`dcmotor<actuator-dcmotor>` actuator for modeling DC motors. Supports optional
+   electrical dynamics (inductance), cogging torque, thermal resistance variation, and LuGre friction. See the
+   `technical note <_static/dcmotor.pdf>`__ for more details.
+2. Actuators with joint or tendon transmissions can now contribute
+   :ref:`damping<actuator-general-damping>` and :ref:`armature<actuator-general-armature>` to their transmission target.
+   These are applied during the passive force and inertia computations, respectively, and are scaled by gear\ :sup:`2`
+   ("reflected" damping/inertia).
+
+.. youtube:: aKa3ZlEF9_Y
+   :align: right
+   :width: 35%
+
+3. Stiffness in :ref:`joints<body-joint-stiffness>` and :ref:`tendons<tendon-spatial-stiffness>` and damping in
+   :ref:`joints<body-joint-damping>` and :ref:`tendons<tendon-spatial-damping>` now support nonlinear polynomial
+   :ref:`force profiles<gePolynomial>`. New ``mjModel`` arrays (``jnt_stiffnesspoly``, ``tendon_stiffnesspoly``,
+   ``dof_dampingpoly``, ``tendon_dampingpoly``) hold higher-order coefficients. The existing scalar arrays
+   (``jnt_stiffness``, ``dof_damping``, etc.) continue to hold the linear coefficient and are unchanged.
+   The polynomial order is defined by the new constant :ref:`mjNPOLY<glNumericSizes>`. A future breaking C-API change
+   may unify the linear and higher-order coefficients into a single array.
+4. Added :ref:`midpoint integration<geMidpoint>` for standalone free bodies in ``implicit`` and ``implicitfast``
+   :ref:`integrators<geIntegrators>`. This applies the implicit midpoint rule to the rotational dynamics of free bodies
+   with no children, conserving kinetic energy to machine precision in the absence of external torques. The
+   :ref:`invdiscrete<option-flag-invdiscrete>` flag now also disables midpoint integration, providing an opt-out
+   mechanism.
+5. Added the centripetal/Coriolis acceleration term :math:`\dot{J}v` to the constraint solver bias for
+   :ref:`connect<equality-connect>` and :ref:`weld<equality-weld>` equality constaints. This significantly improves the
+   stability of constrained mechanisms like four-bar linkages. See :ref:`Dual problem<soDual>` for details.
+
+6. Introduced :ref:`mjpEncoder`, the counterpart to :ref:`mjpDecoder` for encoding of :ref:`mjSpec` and :ref:`mjModel`
+   into :ref:`mjResource`.
+
+7. Added :ref:`mj_encode`, :ref:`mjp_registerEncoder`, :ref:`mjp_defaultEncoder`, and :ref:`mjp_findEncoder`.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   8. The ``mjs`` layer fields ``stiffness`` and ``damping`` in :ref:`mjsJoint` and :ref:`mjsTendon` have
+      been widened from ``mjtNum`` scalars to ``mjtNum[mjNPOLY+1]`` arrays. The first element is the linear coefficient
+      (previously the scalar), and subsequent elements are the higher-order :ref:`polynomial<gePolynomial>` coefficients.
+
+      **Migration:** Replace assignments like ``joint.stiffness = val`` with ``joint.stiffness[0] = val``.
+   9. ``.obj`` and ``.stl`` decoders are now included as source when building MuJoCo with CMake. This fixes the
+      behaviour from the previous release where it required downstream code to load these plugins explicitly.
+
+   10. The ``vertcollide`` field in :ref:`mjsFlex` has been removed. It is no longer required since
+       :doc:`MuJoCo Warp <mjwarp/index>` supports native flex collisions.
+
+   11. :ref:`mjPLUGIN_LIB_INIT` macro now requires a name argument to avoid initialization function name collisions.
+       When building with MSVC, we now use the C runtime initialization section to initialize plugins instead of
+       ``DllMain``. See :ref:`plugin registration<exRegistration>` for more details.
+
+   12. The :ref:`mjtWarning` enum value ``mjWARN_VGEOMFULL`` is removed. Exhaustion of visual geoms is now handled
+       internally by the :ref:`mjvScene`.
+   13. URDF parsing no longer hardcodes :ref:`strippath<compiler-strippath>` to "true". The setting is now respected and
+       the default is "false". Setting this is attribute is now the responsibility of the user.
+
+       **Migration:** Set :ref:`strippath<compiler-strippath>` to "true" in MJCF or programmatically using
+
+       .. code-block:: python
+
+         spec = mujoco.MjSpec.from_file("path/to/model.urdf")
+         spec.compiler.strippath = True
+
+
+Bug fixes
+^^^^^^^^^
+
+14. The compiler now correctly accounts for negative scaling when loading user specified mesh data.
 
 Version 3.6.0 (March 10, 2026)
 ------------------------------

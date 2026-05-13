@@ -18,16 +18,50 @@ from typing import Optional, Tuple
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src.math import motion_cross
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
+from mujoco.mjx.third_party.mujoco_warp._src.types import DynType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import State
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec10f
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False})
+
+
+# TODO(team): kernel analyzer array slice?
+@wp.func
+def next_act(
+  # Model:
+  opt_timestep: float,  # kernel_analyzer: ignore
+  actuator_dyntype: int,  # kernel_analyzer: ignore
+  actuator_dynprm: vec10f,  # kernel_analyzer: ignore
+  actuator_actrange: wp.vec2,  # kernel_analyzer: ignore
+  # Data In:
+  act_in: float,  # kernel_analyzer: ignore
+  act_dot_in: float,  # kernel_analyzer: ignore
+  # In:
+  act_dot_scale: float,
+  clamp: bool,
+) -> float:
+  # advance actuation
+  if actuator_dyntype == DynType.FILTEREXACT:
+    tau = wp.max(MJ_MINVAL, actuator_dynprm[0])
+    act = act_in + act_dot_scale * act_dot_in * tau * (1.0 - wp.exp(-opt_timestep / tau))
+  elif actuator_dyntype == DynType.USER:
+    return act_in
+  else:
+    act = act_in + act_dot_scale * act_dot_in * opt_timestep
+
+  # clamp to actrange
+  if clamp:
+    act = wp.clamp(act, actuator_actrange[0], actuator_actrange[1])
+
+  return act
 
 
 @cache_kernel
@@ -35,16 +69,16 @@ def mul_m_sparse(check_skip: bool):
   @wp.kernel(module="unique")
   def _mul_m_sparse(
     # Model:
-    qM_mulm_rowadr: wp.array(dtype=int),
-    qM_mulm_col: wp.array(dtype=int),
-    qM_mulm_madr: wp.array(dtype=int),
+    qM_mulm_rowadr: wp.array[int],
+    qM_mulm_col: wp.array[int],
+    qM_mulm_madr: wp.array[int],
     # Data in:
-    qM_in: wp.array3d(dtype=float),
+    qM_in: wp.array3d[float],
     # In:
-    vec: wp.array2d(dtype=float),
-    skip: wp.array(dtype=bool),
+    vec: wp.array2d[float],
+    skip: wp.array[bool],
     # Out:
-    res: wp.array2d(dtype=float),
+    res: wp.array2d[float],
   ):
     """Sparse matmul: one thread per DOF, gather-based (no atomics)."""
     worldid, dofid = wp.tid()
@@ -74,12 +108,12 @@ def mul_m_dense(nv: int, check_skip: bool):
   @wp.kernel(module="unique")
   def _mul_m_dense(
     # Data in:
-    qM_in: wp.array3d(dtype=float),
+    qM_in: wp.array3d[float],
     # In:
-    vec: wp.array2d(dtype=float),
-    skip: wp.array(dtype=bool),
+    vec: wp.array2d[float],
+    skip: wp.array[bool],
     # Out:
-    res: wp.array2d(dtype=float),
+    res: wp.array2d[float],
   ):
     worldid, i = wp.tid()
 
@@ -99,8 +133,8 @@ def mul_m_dense(nv: int, check_skip: bool):
 def mul_m(
   m: Model,
   d: Data,
-  res: wp.array2d(dtype=float),
-  vec: wp.array2d(dtype=float),
+  res: wp.array2d[float],
+  vec: wp.array2d[float],
   skip: Optional[wp.array] = None,
   M: Optional[wp.array] = None,
 ):
@@ -141,18 +175,18 @@ def mul_m(
 def _apply_ft(
   # Model:
   nbody: int,
-  body_parentid: wp.array(dtype=int),
-  body_rootid: wp.array(dtype=int),
-  dof_bodyid: wp.array(dtype=int),
+  body_parentid: wp.array[int],
+  body_rootid: wp.array[int],
+  dof_bodyid: wp.array[int],
   # Data in:
-  xipos_in: wp.array2d(dtype=wp.vec3),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
+  xipos_in: wp.array2d[wp.vec3],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
   # In:
-  ft_in: wp.array2d(dtype=wp.spatial_vector),
+  ft_in: wp.array2d[wp.spatial_vector],
   flg_add: bool,
   # Out:
-  qfrc_out: wp.array2d(dtype=float),
+  qfrc_out: wp.array2d[float],
 ):
   worldid, dofid = wp.tid()
   cdof = cdof_in[worldid, dofid]
@@ -182,7 +216,7 @@ def _apply_ft(
     qfrc_out[worldid, dofid] = accumul
 
 
-def apply_ft(m: Model, d: Data, ft: wp.array2d(dtype=wp.spatial_vector), qfrc: wp.array2d(dtype=float), flg_add: bool):
+def apply_ft(m: Model, d: Data, ft: wp.array2d[wp.spatial_vector], qfrc: wp.array2d[float], flg_add: bool):
   wp.launch(
     kernel=_apply_ft,
     dim=(d.nworld, m.nv),
@@ -192,7 +226,7 @@ def apply_ft(m: Model, d: Data, ft: wp.array2d(dtype=wp.spatial_vector), qfrc: w
 
 
 @event_scope
-def xfrc_accumulate(m: Model, d: Data, qfrc: wp.array2d(dtype=float)):
+def xfrc_accumulate(m: Model, d: Data, qfrc: wp.array2d[float]):
   """Map applied forces at each body via Jacobians to dof space and accumulate.
 
   Args:
@@ -204,9 +238,7 @@ def xfrc_accumulate(m: Model, d: Data, qfrc: wp.array2d(dtype=float)):
 
 
 @wp.func
-def _decode_pyramid(
-  njmax_in: int, pyramid: wp.array(dtype=float), efc_address: int, mu: vec5, condim: int
-) -> wp.spatial_vector:
+def _decode_pyramid(njmax_in: int, pyramid: wp.array[float], efc_address: int, mu: vec5, condim: int) -> wp.spatial_vector:
   """Converts pyramid representation to contact force."""
   force = wp.spatial_vector()
 
@@ -236,13 +268,13 @@ def contact_force_fn(
   # Model:
   opt_cone: int,
   # Data in:
-  contact_frame_in: wp.array(dtype=wp.mat33),
-  contact_friction_in: wp.array(dtype=vec5),
-  contact_dim_in: wp.array(dtype=int),
-  contact_efc_address_in: wp.array2d(dtype=int),
-  efc_force_in: wp.array2d(dtype=float),
+  contact_frame_in: wp.array[wp.mat33],
+  contact_friction_in: wp.array[vec5],
+  contact_dim_in: wp.array[int],
+  contact_efc_address_in: wp.array2d[int],
+  efc_force_in: wp.array2d[float],
   njmax_in: int,
-  nacon_in: wp.array(dtype=int),
+  nacon_in: wp.array[int],
   # In:
   worldid: int,
   contact_id: int,
@@ -281,19 +313,19 @@ def contact_force_kernel(
   # Model:
   opt_cone: int,
   # Data in:
-  contact_frame_in: wp.array(dtype=wp.mat33),
-  contact_friction_in: wp.array(dtype=vec5),
-  contact_dim_in: wp.array(dtype=int),
-  contact_efc_address_in: wp.array2d(dtype=int),
-  contact_worldid_in: wp.array(dtype=int),
-  efc_force_in: wp.array2d(dtype=float),
+  contact_frame_in: wp.array[wp.mat33],
+  contact_friction_in: wp.array[vec5],
+  contact_dim_in: wp.array[int],
+  contact_efc_address_in: wp.array2d[int],
+  contact_worldid_in: wp.array[int],
+  efc_force_in: wp.array2d[float],
   njmax_in: int,
-  nacon_in: wp.array(dtype=int),
+  nacon_in: wp.array[int],
   # In:
-  contact_ids: wp.array(dtype=int),
+  contact_ids: wp.array[int],
   to_world_frame: bool,
   # Out:
-  out: wp.array(dtype=wp.spatial_vector),
+  out: wp.array[wp.spatial_vector],
 ):
   tid = wp.tid()
 
@@ -319,9 +351,7 @@ def contact_force_kernel(
   )
 
 
-def contact_force(
-  m: Model, d: Data, contact_ids: wp.array(dtype=int), to_world_frame: bool, force: wp.array(dtype=wp.spatial_vector)
-):
+def contact_force(m: Model, d: Data, contact_ids: wp.array[int], to_world_frame: bool, force: wp.array[wp.spatial_vector]):
   """Compute forces for contacts in Data.
 
   Args:
@@ -364,30 +394,38 @@ def transform_force(frc: wp.spatial_vector, offset: wp.vec3) -> wp.spatial_vecto
 
 
 @wp.func
+def _compute_jacp(cdof_clip: wp.spatial_vector, offset: wp.vec3, affect: int) -> wp.vec3:
+  if affect == 0:
+    return wp.vec3(0.0)
+  cdof_lin = wp.spatial_bottom(cdof_clip)
+  cdof_ang = wp.spatial_top(cdof_clip)
+  return cdof_lin + wp.cross(cdof_ang, offset)
+
+
+@wp.func
+def _compute_jacr(cdof_clip: wp.spatial_vector, affect: int) -> wp.vec3:
+  if affect == 0:
+    return wp.vec3(0.0)
+  return wp.spatial_top(cdof_clip)
+
+
+@wp.func
 def jac_dof(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_rootid: wp.array(dtype=int),
-  dof_bodyid: wp.array(dtype=int),
+  body_parentid: wp.array[int],
+  body_rootid: wp.array[int],
+  dof_bodyid: wp.array[int],
+  body_isdofancestor: wp.array2d[int],
   # Data in:
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
   # In:
   point: wp.vec3,
   bodyid: int,
   dofid: int,
   worldid: int,
 ) -> Tuple[wp.vec3, wp.vec3]:
-  dof_bodyid_ = dof_bodyid[dofid]
-  in_tree = int(dof_bodyid_ == 0)
-  parentid = bodyid
-  while parentid != 0:
-    if parentid == dof_bodyid_:
-      in_tree = 1
-      break
-    parentid = body_parentid[parentid]
-
-  if not in_tree:
+  if body_isdofancestor[bodyid, dofid] == 0:
     return wp.vec3(0.0), wp.vec3(0.0)
 
   offset = point - wp.vec3(subtree_com_in[worldid, body_rootid[bodyid]])
@@ -407,23 +445,33 @@ def _make_jac_kernel(has_jacp: bool, has_jacr: bool):
   @wp.kernel(module="unique", enable_backward=False)
   def _jac(
     # Model:
-    body_parentid: wp.array(dtype=int),
-    body_rootid: wp.array(dtype=int),
-    dof_bodyid: wp.array(dtype=int),
+    body_parentid: wp.array[int],
+    body_rootid: wp.array[int],
+    dof_bodyid: wp.array[int],
+    body_isdofancestor: wp.array2d[int],
     # Data in:
-    subtree_com_in: wp.array2d(dtype=wp.vec3),
-    cdof_in: wp.array2d(dtype=wp.spatial_vector),
+    subtree_com_in: wp.array2d[wp.vec3],
+    cdof_in: wp.array2d[wp.spatial_vector],
     # In:
-    point_in: wp.array(dtype=wp.vec3),
-    bodyid_in: wp.array(dtype=int),
+    point_in: wp.array[wp.vec3],
+    bodyid_in: wp.array[int],
     # Out:
-    jacp_out: wp.array3d(dtype=float),
-    jacr_out: wp.array3d(dtype=float),
+    jacp_out: wp.array3d[float],
+    jacr_out: wp.array3d[float],
   ):
     worldid, dofid = wp.tid()
 
     jacp_val, jacr_val = jac_dof(
-      body_parentid, body_rootid, dof_bodyid, subtree_com_in, cdof_in, point_in[worldid], bodyid_in[worldid], dofid, worldid
+      body_parentid,
+      body_rootid,
+      dof_bodyid,
+      body_isdofancestor,
+      subtree_com_in,
+      cdof_in,
+      point_in[worldid],
+      bodyid_in[worldid],
+      dofid,
+      worldid,
     )
 
     if wp.static(has_jacp):
@@ -443,10 +491,10 @@ def _make_jac_kernel(has_jacp: bool, has_jacr: bool):
 def jac(
   m: Model,
   d: Data,
-  jacp: wp.array | None,  # wp.array3d(dtype=float)
-  jacr: wp.array | None,  # wp.array3d(dtype=float)
-  point: wp.array(dtype=wp.vec3),
-  body: wp.array(dtype=int),
+  jacp: wp.array | None,  # wp.array3d[float]
+  jacr: wp.array | None,  # wp.array3d[float]
+  point: wp.array[wp.vec3],
+  body: wp.array[int],
 ):
   """Compute translational and rotational Jacobian for point on body.
 
@@ -466,7 +514,7 @@ def jac(
   wp.launch(
     kernel,
     dim=(d.nworld, m.nv),
-    inputs=[m.body_parentid, m.body_rootid, m.dof_bodyid, d.subtree_com, d.cdof, point, body],
+    inputs=[m.body_parentid, m.body_rootid, m.dof_bodyid, m.body_isdofancestor, d.subtree_com, d.cdof, point, body],
     outputs=[jacp_arr, jacr_arr],
   )
 
@@ -474,33 +522,25 @@ def jac(
 @wp.func
 def jac_dot_dof(
   # Model:
-  body_parentid: wp.array(dtype=int),
-  body_rootid: wp.array(dtype=int),
-  jnt_type: wp.array(dtype=int),
-  jnt_dofadr: wp.array(dtype=int),
-  dof_bodyid: wp.array(dtype=int),
-  dof_jntid: wp.array(dtype=int),
+  body_parentid: wp.array[int],
+  body_rootid: wp.array[int],
+  jnt_type: wp.array[int],
+  jnt_dofadr: wp.array[int],
+  dof_bodyid: wp.array[int],
+  dof_jntid: wp.array[int],
+  body_isdofancestor: wp.array2d[int],
   # Data in:
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  cvel_in: wp.array2d(dtype=wp.spatial_vector),
-  cdof_dot_in: wp.array2d(dtype=wp.spatial_vector),
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  cvel_in: wp.array2d[wp.spatial_vector],
+  cdof_dot_in: wp.array2d[wp.spatial_vector],
   # In:
   point: wp.vec3,
   bodyid: int,
   dofid: int,
   worldid: int,
 ) -> Tuple[wp.vec3, wp.vec3]:
-  dof_bodyid_ = dof_bodyid[dofid]
-  in_tree = int(dof_bodyid_ == 0)
-  parentid = bodyid
-  while parentid != 0:
-    if parentid == dof_bodyid_:
-      in_tree = 1
-      break
-    parentid = body_parentid[parentid]
-
-  if not in_tree:
+  if body_isdofancestor[bodyid, dofid] == 0:
     return wp.vec3(0.0), wp.vec3(0.0)
 
   com = subtree_com_in[worldid, body_rootid[bodyid]]
@@ -539,7 +579,7 @@ def jac_dot_dof(
   return jacp, jacr
 
 
-def get_state(m: Model, d: Data, state: wp.array2d(dtype=float), sig: int, active: Optional[wp.array] = None):
+def get_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Optional[wp.array] = None):
   """Copy concatenated state components specified by sig from Data into state.
 
   The bits of the integer sig correspond to element fields of State.
@@ -565,22 +605,22 @@ def get_state(m: Model, d: Data, state: wp.array2d(dtype=float), sig: int, activ
     neq: int,
     nmocap: int,
     # Data in:
-    time_in: wp.array(dtype=float),
-    qpos_in: wp.array2d(dtype=float),
-    qvel_in: wp.array2d(dtype=float),
-    act_in: wp.array2d(dtype=float),
-    qacc_warmstart_in: wp.array2d(dtype=float),
-    ctrl_in: wp.array2d(dtype=float),
-    qfrc_applied_in: wp.array2d(dtype=float),
-    xfrc_applied_in: wp.array2d(dtype=wp.spatial_vector),
-    eq_active_in: wp.array2d(dtype=bool),
-    mocap_pos_in: wp.array2d(dtype=wp.vec3),
-    mocap_quat_in: wp.array2d(dtype=wp.quat),
+    time_in: wp.array[float],
+    qpos_in: wp.array2d[float],
+    qvel_in: wp.array2d[float],
+    act_in: wp.array2d[float],
+    qacc_warmstart_in: wp.array2d[float],
+    ctrl_in: wp.array2d[float],
+    qfrc_applied_in: wp.array2d[float],
+    xfrc_applied_in: wp.array2d[wp.spatial_vector],
+    eq_active_in: wp.array2d[bool],
+    mocap_pos_in: wp.array2d[wp.vec3],
+    mocap_quat_in: wp.array2d[wp.quat],
     # In:
     sig_in: int,
-    active_in: wp.array(dtype=bool),
+    active_in: wp.array[bool],
     # Out:
-    state_out: wp.array2d(dtype=float),
+    state_out: wp.array2d[float],
   ):
     worldid = wp.tid()
 
@@ -678,7 +718,7 @@ def get_state(m: Model, d: Data, state: wp.array2d(dtype=float), sig: int, activ
   )
 
 
-def set_state(m: Model, d: Data, state: wp.array2d(dtype=float), sig: int, active: Optional[wp.array] = None):
+def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Optional[wp.array] = None):
   """Copy concatenated state components specified by sig from state into Data.
 
   The bits of the integer sig correspond to element fields of State.
@@ -705,20 +745,20 @@ def set_state(m: Model, d: Data, state: wp.array2d(dtype=float), sig: int, activ
     nmocap: int,
     # In:
     sig_in: int,
-    active_in: wp.array(dtype=bool),
-    state_in: wp.array2d(dtype=float),
+    active_in: wp.array[bool],
+    state_in: wp.array2d[float],
     # Data out:
-    time_out: wp.array(dtype=float),
-    qpos_out: wp.array2d(dtype=float),
-    qvel_out: wp.array2d(dtype=float),
-    act_out: wp.array2d(dtype=float),
-    qacc_warmstart_out: wp.array2d(dtype=float),
-    ctrl_out: wp.array2d(dtype=float),
-    qfrc_applied_out: wp.array2d(dtype=float),
-    xfrc_applied_out: wp.array2d(dtype=wp.spatial_vector),
-    eq_active_out: wp.array2d(dtype=bool),
-    mocap_pos_out: wp.array2d(dtype=wp.vec3),
-    mocap_quat_out: wp.array2d(dtype=wp.quat),
+    time_out: wp.array[float],
+    qpos_out: wp.array2d[float],
+    qvel_out: wp.array2d[float],
+    act_out: wp.array2d[float],
+    qacc_warmstart_out: wp.array2d[float],
+    ctrl_out: wp.array2d[float],
+    qfrc_applied_out: wp.array2d[float],
+    xfrc_applied_out: wp.array2d[wp.spatial_vector],
+    eq_active_out: wp.array2d[bool],
+    mocap_pos_out: wp.array2d[wp.vec3],
+    mocap_quat_out: wp.array2d[wp.quat],
   ):
     worldid = wp.tid()
 

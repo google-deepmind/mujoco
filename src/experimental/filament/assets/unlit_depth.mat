@@ -16,7 +16,6 @@ material {
     name : unlit_depth,
     shadingModel : unlit,
     blending : opaque,
-    culling: none,
     depthWrite: true
 }
 

@@ -27,8 +27,12 @@ def _create_context(mjm, nworld, device, **kwargs):
     ctx = mjw.create_render_context(mjm=mjm, nworld=nworld, **kwargs)
     ctx.rgb_data_shape = ctx.rgb_data.shape
     ctx.depth_data_shape = ctx.depth_data.shape
+    ctx.seg_data_shape = (*ctx.seg_data.shape, 2)  # vec2i → trailing dim
+    ctx.seg_data_buffer = ctx.seg_data
+    ctx.nworld = nworld
     ctx.rgb_data = None
     ctx.depth_data = None
+    ctx.seg_data = None
   return ctx
 
 

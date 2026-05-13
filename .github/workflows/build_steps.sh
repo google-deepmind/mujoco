@@ -107,8 +107,6 @@ copy_plugins_posix() {
     mkdir -p ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libactuator.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libelasticity.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
-    cp lib/libobj_decoder.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
-    cp lib/libstl_decoder.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libsensor.* ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp lib/libsdf_plugin.* ${TMPDIR}/mujoco_install/mujoco_plugin
 }
@@ -119,8 +117,6 @@ copy_plugins_window() {
     mkdir -p ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp bin/Release/actuator.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp bin/Release/elasticity.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
-    cp bin/Release/obj_decoder.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
-    cp bin/Release/stl_decoder.dll ${TMPDIR}/mujoco_install/mujoco_plugin &&
     cp bin/Release/sensor.dll ${TMPDIR}/mujoco_install/mujoco_plugin
 }
 
@@ -216,25 +212,28 @@ build_test_wasm() {
     echo "Building and testing WASM bindings..."
     source emsdk/emsdk_env.sh
     export PATH="$(pwd)/node_modules/.bin:$PATH"
-
-    echo "Building Multi-Threaded version..."
+    echo "Build MuJoCo with Emscripten (Multi-Threaded)..."
     emcmake cmake -B build_wasm_mt \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -DMUJOCO_WASM_THREADS=ON \
         $WASM_CMAKE_ARGS
     cmake --build build_wasm_mt --parallel $(nproc)
 
+    echo "Run bindings tests for Multi-Threaded version..."
+    npm run test --prefix ./wasm
+
     echo "Moving Multi-Thread version under mt subfolder..."
     mkdir -p wasm/dist/mt
     mv wasm/dist/mujoco.* wasm/dist/mt/
 
-    echo "Building Single-Threaded version..."
+    echo "Build MuJoCo with Emscripten (Single-Threaded)..."
     emcmake cmake -B build_wasm_st \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -DMUJOCO_WASM_THREADS=OFF \
         $WASM_CMAKE_ARGS
     cmake --build build_wasm_st --parallel $(nproc)
 
+    echo "Run bindings tests for Single-Threaded version..."
     npm run test --prefix ./wasm
 }
 
@@ -293,6 +292,32 @@ EOF
     -X POST \
     -H "Content-Type: application/json" \
     --data-raw "${CHATMSG}"
+}
+
+
+build_mujoco_live() {
+    echo "Setting up Emscripten SDK..."
+    source emsdk/emsdk_env.sh
+
+    echo "Building Filament tools, targeting host platform..."
+    cmake -S . -B build_host -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DUSE_STATIC_LIBCXX=OFF \
+        -DMUJOCO_BUILD_STUDIO=ON \
+        -DMUJOCO_USE_FILAMENT=ON \
+        -DMUJOCO_BUILD_TESTS=OFF \
+        -DMUJOCO_BUILD_EXAMPLES=OFF \
+        -DMUJOCO_BUILD_SIMULATE=OFF
+    cmake --build build_host --target matc resgen cmgen mujoco_filament_assets -j$(nproc)
+
+    echo "Building WASM app..."
+    emcmake cmake -S . -B build_wasm -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DMUJOCO_BUILD_STUDIO=ON \
+        -DMUJOCO_USE_FILAMENT=ON \
+        -DMUJOCO_BUILD_TESTS_WASM=OFF \
+        -DMUJOCO_NATIVE_BUILD_DIR=$(pwd)/build_host
+    cmake --build build_wasm --target mujoco_live -j$(nproc)
 }
 
 

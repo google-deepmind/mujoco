@@ -404,7 +404,10 @@ def marshal_custom_vmap(
     )
     if tree_map_output:
       out = jax.tree.map(
-          lambda x: x.reshape(axis_size, -1), d_broadcast_flat_result
+          lambda x: x
+          if x.shape[0] == axis_size
+          else x.reshape(axis_size, -1, *x.shape[1:]),
+          d_broadcast_flat_result,
       )
       return out, out_batched
 

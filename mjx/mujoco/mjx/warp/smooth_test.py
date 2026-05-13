@@ -100,12 +100,44 @@ class SmoothTest(parameterized.TestCase):
     tu.assert_attr_eq(d, dx, 'site_xpos')
     tu.assert_eq(d.site_xmat.reshape((-1, 3, 3)), dx.site_xmat, 'site_xmat')
 
+  def test_com_pos(self):
+    """Tests com_pos with unbatched data."""
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    m = tu.load_test_file('pendula.xml')
+
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m, impl='warp')
+    mx = mx.replace(_impl=mx._impl.replace(qM_tiles=()))
+
+    rng = jax.random.PRNGKey(0)
+    dx = mjx.make_data(m, impl='warp')
+    _, key = jax.random.split(rng)
+    qpos = jax.random.uniform(key, (m.nq,))
+    dx = dx.replace(qpos=qpos)
+
+    dx = jax.jit(smooth.kinematics)(mx, dx)
+    dx = jax.jit(smooth.com_pos)(mx, dx)
+
+    d.qpos[:] = qpos
+    mujoco.mj_kinematics(m, d)
+    mujoco.mj_comPos(m, d)
+
+    tu.assert_attr_eq(d, dx, 'subtree_com')
+    tu.assert_attr_eq(d, dx, 'cdof')
+    tu.assert_eq(d.cinert, dx._impl.cinert, 'cinert')
+
   def test_kinematics_vmap(self):
     """Tests kinematics with batched data."""
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     m = tu.load_test_file('pendula.xml')
 
@@ -143,6 +175,57 @@ class SmoothTest(parameterized.TestCase):
       tu.assert_eq(d.geom_xmat.reshape((-1, 3, 3)), dx.geom_xmat, 'geom_xmat')
       tu.assert_attr_eq(d, dx, 'site_xpos')
       tu.assert_eq(d.site_xmat.reshape((-1, 3, 3)), dx.site_xmat, 'site_xmat')
+
+  def test_com_pos_vmap(self):
+    """Tests com_pos with batched data."""
+    if not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp not installed.')
+    if not io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device available.')
+
+    m = tu.load_test_file('pendula.xml')
+
+    batch_size = 7
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m, impl='warp')
+    mx = mx.replace(_impl=mx._impl.replace(qM_tiles=()))
+
+    worldids = jp.arange(batch_size)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
+    for f in (
+        'xanchor',
+        'xaxis',
+        'xpos',
+        'xipos',
+        'site_xpos',
+        'site_xmat',
+        'subtree_com',
+        'cdof',
+    ):
+      dx_batch = dx_batch.replace(**{f: jp.zeros_like(getattr(dx_batch, f))})
+    dx_batch = dx_batch.tree_replace(
+        {'_impl.cinert': jp.zeros_like(dx_batch._impl.cinert)}
+    )
+
+    dx_batch = jax.jit(jax.vmap(smooth.kinematics, in_axes=(None, 0)))(
+        mx, dx_batch
+    )
+    dx_batch = jax.jit(jax.vmap(smooth.com_pos, in_axes=(None, 0)))(
+        mx, dx_batch
+    )
+
+    for i in range(batch_size):
+      dx = dx_batch[i]
+
+      d.qpos[:] = dx.qpos
+      d.mocap_pos[:] = dx.mocap_pos
+      d.mocap_quat[:] = dx.mocap_quat
+      mujoco.mj_kinematics(m, d)
+      mujoco.mj_comPos(m, d)
+
+      tu.assert_attr_eq(d, dx, 'subtree_com')
+      tu.assert_attr_eq(d, dx, 'cdof')
+      tu.assert_eq(d.cinert, dx._impl.cinert, 'cinert')
 
   def test_kinematics_nested_vmap(self):
     """Tests kinematics with nested batch data."""

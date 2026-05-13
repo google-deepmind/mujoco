@@ -1,8 +1,8 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>MuJoCo Studio!</title>
+    <title>MuJoCo Live</title>
   </head>
   <body style="margin: 0; overflow: hidden">
     <div style="position: absolute; top: 3px; right: 3px; z-index: 1;">
@@ -16,6 +16,28 @@
       style="width: 100vw; height: 100vh; display: block"
     ></canvas>
     <script>
+      // --- Loading overlay (shown while model is compiling) ---
+      var loadingOverlay = document.createElement('div');
+      loadingOverlay.id = 'loadingOverlay';
+      loadingOverlay.style.cssText =
+        'position:fixed;top:0;left:0;width:100%;height:100%;' +
+        'background:rgba(0,0,0,0.6);z-index:10000;display:none;' +
+        'align-items:center;justify-content:center;';
+      loadingOverlay.innerHTML =
+        '<div style="color:#fff;font-size:24px;font-family:sans-serif;' +
+        'text-align:center;">' +
+        '<div style="margin-bottom:16px;">Loading model\u2026</div>' +
+        '<div style="font-size:14px;opacity:0.7;">This may take a moment ' +
+        'for large models.</div></div>';
+      document.body.appendChild(loadingOverlay);
+
+      function showLoading() {
+        loadingOverlay.style.display = 'flex';
+      }
+      function hideLoading() {
+        loadingOverlay.style.display = 'none';
+      }
+
       var Module = {
         preRun: [],
         postRun: [],
@@ -46,8 +68,29 @@
         totalDependencies: 0,
         monitorRunDependencies(left) {},
         onRuntimeInitialized: () => {
-          // Define assets to prefetch. These paths are relative to the wasm_binary/ directory.
+          // Define assets to prefetch. These paths are relative to the mujoco_live_wasm/ directory.
           const assetsToPrefetch = [
+            "assets/fontawesome-webfont.ttf",
+            "assets/ibl.ktx",
+            "assets/OpenSans-Regular.ttf",
+            "assets/pbr.filamat",
+            "assets/pbr_packed.filamat",
+            "assets/phong_2d_fade.filamat",
+            "assets/phong_2d.filamat",
+            "assets/phong_2d_reflect.filamat",
+            "assets/phong_2d_uv_fade.filamat",
+            "assets/phong_2d_uv.filamat",
+            "assets/phong_2d_uv_reflect.filamat",
+            "assets/phong_color_fade.filamat",
+            "assets/phong_color.filamat",
+            "assets/phong_color_reflect.filamat",
+            "assets/phong_cube_fade.filamat",
+            "assets/phong_cube.filamat",
+            "assets/phong_cube_reflect.filamat",
+            "assets/unlit_decor.filamat",
+            "assets/unlit_depth.filamat",
+            "assets/unlit_segmentation.filamat",
+            "assets/unlit_ui.filamat"
           ];
 
           const assetPromises = assetsToPrefetch.map(async (relativePath) => {
@@ -71,7 +114,31 @@
             .then(() => {
               try {
                 Module.init();
-                requestAnimationFrame(Module.animate);
+
+                // Check for a ?model= URL parameter and load from URL.
+                const params = new URLSearchParams(window.location.search);
+                const modelUrl = params.get('model');
+                if (modelUrl) {
+                  // loadUrl uses ASYNCIFY (via EM_ASYNC_JS fetch), which
+                  // suspends the WASM module. We must not start the animation
+                  // loop until the load completes, otherwise renderFrame will
+                  // hit "Cannot have multiple async operations in flight".
+                  showLoading();
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(async () => {
+                      try {
+                        await Module.loadUrl(modelUrl);
+                      } catch (error) {
+                        console.error('Failed to load model from URL:', error);
+                      } finally {
+                        hideLoading();
+                        requestAnimationFrame(Module.animate);
+                      }
+                    });
+                  });
+                } else {
+                  requestAnimationFrame(Module.animate);
+                }
               } catch (error) {
                 console.error('Failed to initialize app.', error);
               }
@@ -95,6 +162,31 @@
         Module.canvas.style.height = window.innerHeight + "px";
       });
 
+      function handleFile(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const buffer = e.target.result;
+          // Show the loading overlay, then defer the blocking WASM call by two
+          // animation frames so the browser has a chance to paint the overlay.
+          showLoading();
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              try {
+                Module.loadFile(file.name, buffer);
+              } catch (error) {
+                console.error('Failed to load model from file:', error);
+              } finally {
+                hideLoading();
+              }
+            });
+          });
+        };
+        reader.onerror = (e) => {
+          console.error('Error reading file:', e);
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
       document.addEventListener('DOMContentLoaded', () => {
         const uploadButton = document.getElementById('uploadButton');
         const fileInput = document.getElementById('fileInput');
@@ -108,23 +200,55 @@
           if (!file) {
             return;
           }
+          handleFile(file);
+        });
 
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const buffer = e.target.result;
-            try {
-              Module.loadFile(file.name, buffer);
-            } catch (error) {
-              console.error('Failed to load model from file:', error);
-            }
-          };
-          reader.onerror = (e) => {
-            console.error('Error reading file:', e);
-          };
-          reader.readAsArrayBuffer(file);
+        // --- Drag-and-drop support ---
+        const dropOverlay = document.createElement('div');
+        dropOverlay.id = 'dropOverlay';
+        dropOverlay.style.cssText =
+          'position:fixed;top:0;left:0;width:100%;height:100%;' +
+          'background:rgba(0,0,0,0.5);z-index:9999;display:none;' +
+          'pointer-events:none;align-items:center;justify-content:center;';
+        dropOverlay.innerHTML =
+          '<div style="color:#fff;font-size:24px;font-family:sans-serif;' +
+          'padding:32px 48px;border:3px dashed #fff;border-radius:16px;">' +
+          'Drop model file here</div>';
+        document.body.appendChild(dropOverlay);
+
+        let dragCounter = 0;
+
+        document.addEventListener('dragenter', (e) => {
+          e.preventDefault();
+          dragCounter++;
+          if (dragCounter === 1) {
+            dropOverlay.style.display = 'flex';
+          }
+        });
+
+        document.addEventListener('dragleave', (e) => {
+          e.preventDefault();
+          dragCounter--;
+          if (dragCounter === 0) {
+            dropOverlay.style.display = 'none';
+          }
+        });
+
+        document.addEventListener('dragover', (e) => {
+          e.preventDefault();
+        });
+
+        document.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dragCounter = 0;
+          dropOverlay.style.display = 'none';
+          const files = e.dataTransfer.files;
+          for (let i = 0; i < files.length; i++) {
+            handleFile(files[i]);
+          }
         });
       });
     </script>
-    <script async src="/bin/wasm.js"></script>
+    <script async src="bin/mujoco_live.js"></script>
   </body>
 </html>

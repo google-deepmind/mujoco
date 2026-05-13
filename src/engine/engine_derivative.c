@@ -872,23 +872,75 @@ typedef enum {
 
 // shared kernel for flex interpolation derivatives, scale = s1 + s2*damping
 //  op: operation type (VEC, or ADDH)
-//  res: output vector (VEC) or dense H matrix (ADDH)
+//  res: output vector (VEC) or banded H matrix (ADDH)
 //  vec: input vector for VEC operation, NULL otherwise
-//  dof_indices, ndof: DOF mapping for ADDH, ignored otherwise
+//  dof_indices, ndof, nband: DOF mapping and band width for ADDH, ignored otherwise
 static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
                                   mjtNum* res, const mjtNum* vec, mjtNum s1, mjtNum s2,
-                                  const int* dof_indices, int ndof) {
+                                  const int* dof_indices, int ndof, int nband) {
   int nv = m->nv;
 
-  // build global2local map for ADDH
-  int* global2local = NULL;
+  // compute upper bounds across all interpolated flexes
+  int max_nodenum = 0;
+  int max_npe = 0;  // max nodes per element (3D cell or 2D face)
+  for (int f = 0; f < m->nflex; f++) {
+    if (!m->flex_interp[f]) continue;
+    if (m->flex_rigid[f]) continue;
+    int order = m->flex_interp[f];
+    int shell_mode = order < 0;
+    order = order < 0 ? -order : order;
+    int npe;
+    if (shell_mode) {
+      npe = (order+1)*(order+1);
+    } else {
+      npe = (order+1)*(order+1)*(order+1);
+    }
+    if (npe > max_npe) max_npe = npe;
+    if (m->flex_nodenum[f] > max_nodenum) max_nodenum = m->flex_nodenum[f];
+  }
+
+  // nothing to do
+  if (max_npe == 0) {
+    return;
+  }
+
+  int max_dim_c = 3 * max_npe;
+
+  // single unconditional markStack
+  mj_markStack(d);
+
+  // global2local map for ADDH
+  int* global2local = mjSTACKALLOC(d, nv, int);
   if (op == mjFLEXOP_ADDH) {
-    mj_markStack(d);
-    global2local = mjSTACKALLOC(d, nv, int);
     mju_fillInt(global2local, -1, nv);
     for (int i=0; i<ndof; i++) {
       global2local[dof_indices[i]] = i;
     }
+  }
+
+  // per-flex node positions (upper bound)
+  mjtNum* xpos = mjSTACKALLOC(d, 3*max_nodenum, mjtNum);
+
+  // per-element arrays (upper bound)
+  mjtNum* xpos_c = mjSTACKALLOC(d, 3*max_npe, mjtNum);
+  mjtNum* K_rot_cell = mjSTACKALLOC(d, max_dim_c*max_dim_c, mjtNum);
+
+  // sparse Jacobian for one cell (upper bound)
+  int* J_rownnz = mjSTACKALLOC(d, max_dim_c, int);
+  int* J_rowadr = mjSTACKALLOC(d, max_dim_c, int);
+  mjtNum* J_val = mjSTACKALLOC(d, max_dim_c*nv, mjtNum);
+  int* J_colind = mjSTACKALLOC(d, max_dim_c*nv, int);
+
+  // temp allocations for chain
+  int* chain_colind = mjSTACKALLOC(d, nv, int);
+  mjtNum* blk_jac = mjSTACKALLOC(d, 3*nv, mjtNum);
+
+  // ADDH-specific allocations (upper bound)
+  mjtNum* J_reduced = NULL;
+  mjtNum* KJ = NULL;
+  if (op == mjFLEXOP_ADDH) {
+    J_reduced = mjSTACKALLOC(d, max_dim_c*ndof, mjtNum);
+    KJ = mjSTACKALLOC(d, max_dim_c*ndof, mjtNum);
   }
 
   // loop over flexes
@@ -899,10 +951,19 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
     }
 
     // get stiffness and damping
-    mjtNum* k = m->flex_stiffness + 21*m->flex_elemadr[f];
+    int stiffnessadr = m->flex_stiffnessadr[f];
+    if (stiffnessadr < 0) {
+      continue;
+    }
+    mjtNum* K = m->flex_stiffness + stiffnessadr;
 
     // skip if rigid or no stiffness
-    if (m->flex_rigid[f] || k[0] == 0) {
+    if (m->flex_rigid[f] || K[0] == 0) {
+      continue;
+    }
+
+    // skip if strain constraints present (stiffness handled by constraint solver)
+    if (m->flex_edgeequality[f] == 3) {
       continue;
     }
 
@@ -915,153 +976,216 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
       continue;
     }
 
-    int nodenum = m->flex_nodenum[f];
+    int order = m->flex_interp[f];
+    int shell_mode = order < 0;
+    order = order < 0 ? -order : order;
+
+    // warn that bending derivatives are not yet implemented
+    if (shell_mode) {
+      mj_warning(d, mjWARN_INERTIA, f);  // bending implicit derivatives missing
+    }
+    int cx = m->flex_cellnum[3*f+0];
+    int cy = m->flex_cellnum[3*f+1];
+    int cz = m->flex_cellnum[3*f+2];
+
     int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
 
-    // standard stack allocation
-    mj_markStack(d);
-    mjtNum* xpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-    mjtNum* K_rot = mjSTACKALLOC(d, 9*nodenum*nodenum, mjtNum);
-
-    // sparse Jacobian allocations
-    int dim = 3 * nodenum;
-    int* rownnz = mjSTACKALLOC(d, dim, int);
-    int* rowadr = mjSTACKALLOC(d, dim, int);
-    mjtNum* J_val = mjSTACKALLOC(d, dim*nv, mjtNum);
-    int* J_colind = mjSTACKALLOC(d, dim*nv, int);
-
-    // temp allocations for chain
-    int* chain_colind = mjSTACKALLOC(d, nv, int);
-    mjtNum* blk_jac = mjSTACKALLOC(d, 3*nv, mjtNum);
-
-    // compute positions, rotation and Jacobian
-    mjtNum quat[4] = {1, 0, 0, 0};
-    mj_flexInterpState(m, d, f, xpos, NULL, quat);
-
-    // compute generalized stiffness in global frame: K_rot = R * K * R^T
-    mjtNum R[9];
-    mju_quat2Mat(R, quat);       // R = R_global2local
-    mjtNum RT[9];
-    mju_transpose(RT, R, 3, 3);  // RT = R_local2global
-
-    // blockwise rotation: K_rot(i,j) = scale * RT * K_local(i,j) * R
-    // note: k stores -K, so K_rot = scale * (-K_phys)
-    for (int i=0; i < nodenum; i++) {
-      for (int j=0; j < nodenum; j++) {
-        mjtNum blk[9], tmp[9];
-
-        // get K_local(i,j)
-        int adr = (3*i)*(3*nodenum) + 3*j;
-        for (int r=0; r < 3; r++) {
-          for (int c=0; c < 3; c++) {
-            blk[3*r+c] = k[adr + r*(3*nodenum) + c];
-          }
-        }
-
-        // tmp = K * R
-        mju_mulMatMat3(tmp, blk, R);
-
-        // blk = RT * tmp = RT * K * R
-        mju_mulMatMat3(blk, RT, tmp);
-
-        // store scaled into K_rot
-        for (int r=0; r < 3; r++) {
-          for (int c=0; c < 3; c++) {
-            K_rot[adr + r*(3*nodenum) + c] = scale * blk[3*r+c];
-          }
-        }
-      }
+    // determine element type: 2D boundary quads (shell) or 3D cells (volume)
+    int npe;
+    int nelem_fe;
+    if (shell_mode) {
+      npe = (order+1)*(order+1);
+      nelem_fe = 2*(cy*cz + cx*cz + cx*cy);
+    } else {
+      npe = (order+1)*(order+1)*(order+1);
+      nelem_fe = cx * cy * cz;
     }
+    int dim_e = 3 * npe;
 
-    // construct sparse Jacobian J_val
-    int current_adr = 0;
-    for (int i=0; i < nodenum; i++) {
-        // get chain for this node
-        int chain_nnz = mj_bodyChain(m, bodyid[i], chain_colind);
+    // gather raw node positions (unrotated)
+    mju_flexGatherState(m, d, f, xpos, NULL);
 
-        // compute sparse Jacobian for this node (3 rows)
-        mj_jacSparse(m, d, blk_jac, NULL, xpos+3*i, bodyid[i], chain_nnz, chain_colind,
-                     /*flg_skipcommon=*/0);
+    // loop over finite elements
+    for (int fe = 0; fe < nelem_fe; fe++) {
+      // get element stiffness
+      mjtNum* k_elem = K + fe * 3*npe * 3*npe;
 
-        // copy to sparse structure
-        for (int r=0; r<3; r++) {
-            int row_idx = 3*i + r;
-            rownnz[row_idx] = chain_nnz;
-            rowadr[row_idx] = current_adr;
+      // skip empty elements: stiffness buffer is zero-initialized at compile time
+      // (user_model.cc), and non-empty elements have strictly positive diagonal
+      if (k_elem[0] == 0) {
+        continue;
+      }
 
-            for (int idx=0; idx<chain_nnz; idx++) {
-                J_colind[current_adr] = chain_colind[idx];
-                J_val[current_adr] = blk_jac[r*chain_nnz + idx];
-                current_adr++;
+      // gather element-local node positions
+      int gindices[125];  // max npe = 125 for quadratic 3D
+      mjtNum quat[4];
+      if (shell_mode) {
+        mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos, NULL, NULL,
+                                xpos_c, NULL, NULL, gindices, quat);
+      } else {
+        int ci = fe / (cy * cz);
+        int cj = (fe / cz) % cy;
+        int ck = fe % cz;
+        mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos, NULL, NULL,
+                                xpos_c, NULL, NULL, gindices, quat);
+      }
+
+      // R = R_global2local, RT = R_local2global
+      mjtNum R[9], RT[9];
+      mju_quat2Mat(R, quat);
+      mju_transpose(RT, R, 3, 3);
+
+      // compute K_rot = RT * K_elem * R (block-wise)
+      mju_zero(K_rot_cell, dim_e*dim_e);
+      for (int a = 0; a < npe; a++) {
+        for (int b = 0; b < npe; b++) {
+          mjtNum blk[9], tmp[9];
+
+          // get K_elem(a,b) 3x3 block
+          int adr_cell = (3*a)*(3*npe) + 3*b;
+          for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) {
+              blk[3*r+c] = k_elem[adr_cell + r*(3*npe) + c];
             }
-        }
-    }
-
-    // perform operation
-    if (op == mjFLEXOP_VEC) {
-      // res += J^T * K_rot * J * vec
-      addJTBJ_mulSparse(m, d, res, vec, rownnz, rowadr, J_colind, J_val, K_rot, dim);
-    } else if (op == mjFLEXOP_ADDH) {
-      // H += -J^T * K_rot * J
-      // H is dense ndof x ndof
-
-      // reuse stack for J_reduced (but now we extract from sparse J)
-      mjtNum* J_reduced = mjSTACKALLOC(d, dim*ndof, mjtNum);
-      mju_zero(J_reduced, dim*ndof);
-
-      // extract columns of J into J_reduced
-      for (int i=0; i<dim; i++) {
-          int nnz = rownnz[i];
-          int adr = rowadr[i];
-          for (int idx=0; idx<nnz; idx++) {
-              int global_col = J_colind[adr + idx];
-              int local_idx = global2local[global_col];
-              if (local_idx >= 0) {
-                  J_reduced[i*ndof + local_idx] = J_val[adr + idx];
-              }
           }
+
+          // tmp = K * R
+          mju_mulMatMat3(tmp, blk, R);
+          // blk = RT * tmp = RT * K * R
+          mju_mulMatMat3(blk, RT, tmp);
+
+          // store in K_rot_cell at (a, b)
+          int adr_out = (3*a)*dim_e + 3*b;
+          for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) {
+              K_rot_cell[adr_out + r*dim_e + c] = scale * blk[3*r+c];
+            }
+          }
+        }
       }
 
-      // H -= J_reduced^T * K_rot * J_reduced
-      // K_rot * J_reduced (dim x ndof)
-      mjtNum* KJ = mjSTACKALLOC(d, dim*ndof, mjtNum);
-      mju_mulMatMat(KJ, K_rot, J_reduced, dim, dim, ndof);
+      // construct sparse Jacobian for this element's nodes
+      int current_adr = 0;
+      for (int n = 0; n < npe; n++) {
+        int bid = bodyid[gindices[n]];
+        int chain_nnz = mj_bodyChain(m, bid, chain_colind);
+        mj_jacSparse(m, d, blk_jac, NULL, xpos+3*gindices[n], bid,
+                     chain_nnz, chain_colind, /*flg_skipcommon=*/0);
 
-      // H[i, j] -= sum_k J_reduced[k, i] * KJ[k, j]
-      for (int i=0; i<ndof; i++) {
-        for (int j=0; j<ndof; j++) {
+        for (int r = 0; r < 3; r++) {
+          int row_idx = 3*n + r;
+          J_rownnz[row_idx] = chain_nnz;
+          J_rowadr[row_idx] = current_adr;
+
+          for (int idx = 0; idx < chain_nnz; idx++) {
+            J_colind[current_adr] = chain_colind[idx];
+            J_val[current_adr] = blk_jac[r*chain_nnz + idx];
+            current_adr++;
+          }
+        }
+      }
+
+      // apply operation with element's K_rot and J
+      if (op == mjFLEXOP_VEC) {
+        addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
+                          J_val, K_rot_cell, dim_e);
+      } else if (op == mjFLEXOP_ADDH) {
+        // H -= J_elem^T * K_rot * J_elem (banded format)
+        mju_zero(J_reduced, dim_e*ndof);
+
+        for (int i = 0; i < dim_e; i++) {
+          int nnz = J_rownnz[i];
+          int adr = J_rowadr[i];
+          for (int idx = 0; idx < nnz; idx++) {
+            int global_col = J_colind[adr + idx];
+            int local_idx = global2local[global_col];
+            if (local_idx >= 0) {
+              J_reduced[i*ndof + local_idx] = J_val[adr + idx];
+            }
+          }
+        }
+
+        // KJ = K_rot * J_reduced  (dim_e x ndof)
+        mju_mulMatMat(KJ, K_rot_cell, J_reduced, dim_e, dim_e, ndof);
+
+        // H[i,j] -= J_reduced[k,i] * KJ[k,j], store lower triangle in banded format
+        for (int i = 0; i < ndof; i++) {
+          for (int j = mjMAX(0, i-nband+1); j <= i; j++) {
+            mjtNum val = 0;
+            for (int dim_idx = 0; dim_idx < dim_e; dim_idx++) {
+              val += J_reduced[dim_idx*ndof + i] * KJ[dim_idx*ndof + j];
+            }
+            res[i*nband + nband-1-(i-j)] -= val;
+          }
+        }
+      }
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
+
+// compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
+void mjd_flexInterp_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                        mjtNum s1, mjtNum s2) {
+  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, s1, s2, NULL, 0, 0);
+}
+
+
+
+// compute res += scale * K_bend * vec for standard (non-interp) flex bending
+//   scale = s1 + s2 * flex_damping[f]  per flex
+//   for stiffness+damping: s1=h^2, s2=h  =>  scale = h^2 + h*damping
+//   for stiffness only:    s1=h,   s2=0  =>  scale = h
+void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                      mjtNum s1, mjtNum s2) {
+  for (int f = 0; f < m->nflex; f++) {
+    // skip interp, rigid, or non-2D
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2) {
+      continue;
+    }
+
+    int bendingadr = m->flex_bendingadr[f];
+    if (bendingadr < 0) {
+      continue;
+    }
+
+    mjtNum scale = s1 + s2 * m->flex_damping[f];
+    if (!scale) {
+      continue;
+    }
+
+    const mjtNum* b = m->flex_bending + bendingadr;
+    const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+    int edgenum = m->flex_edgenum[f];
+    int edgeadr = m->flex_edgeadr[f];
+
+    for (int e = 0; e < edgenum; e++) {
+      const int* edge = m->flex_edge + 2*(e + edgeadr);
+      const int* flap = m->flex_edgeflap + 2*(e + edgeadr);
+      int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+
+      // skip boundary edges (no second flap vertex)
+      if (v[3] == -1) {
+        continue;
+      }
+
+      // apply 4x4 bending stencil, coordinate-wise
+      for (int i = 0; i < 4; i++) {
+        int dof_i = m->body_dofadr[bodyid[v[i]]];
+        for (int x = 0; x < 3; x++) {
           mjtNum val = 0;
-          for (int dim_idx=0; dim_idx<dim; dim_idx++) {
-            val += J_reduced[dim_idx*ndof + i] * KJ[dim_idx*ndof + j];
+          for (int j = 0; j < 4; j++) {
+            int dof_j = m->body_dofadr[bodyid[v[j]]];
+            val += b[17*e + 4*i + j] * vec[dof_j + x];
           }
-          // res is H
-          res[i*ndof + j] -= val;
+          res[dof_i + x] += scale * val;
         }
       }
     }
-
-    mj_freeStack(d);
   }
-
-  if (op == mjFLEXOP_ADDH) {
-    mj_freeStack(d);  // free global2local
-  }
-}
-
-
-
-// compute res += (h^2 + h*damping) * J'*K*J * vec, for all interpolated flexes
-void mjd_flexInterp_mulKD(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, mjtNum h) {
-  // s1=h*h, s2=h => scale = h*h + h*damping
-  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, h * h, h, NULL, 0);
-}
-
-
-// add (h^2 + h*damping) * J'*K*J to dense matrix H, for all interpolated flexes
-//  H: dense ndof x ndof matrix
-//  dof_indices: maps local indices to global DOFs
-void mjd_flexInterp_addH(const mjModel* m, mjData* d, mjtNum* H, const int* dof_indices, int ndof, mjtNum h) {
-  mjd_flexInterp_kernel(m, d, mjFLEXOP_ADDH, H, NULL, h * h, h, dof_indices, ndof);
 }
 
 
@@ -1107,6 +1231,17 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       bias_vel = (m->actuator_biasprm + mjNBIAS*i)[2];
     }
 
+    // DC motor bias (back-EMF)
+    else if (m->actuator_biastype[i] == mjBIAS_DCMOTOR) {
+      const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+      const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+      if (dynprm[0] <= 0) {
+        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum K = gainprm[1];
+        bias_vel -= K * K / R;
+      }
+    }
+
     // affine gain
     if (m->actuator_gaintype[i] == mjGAIN_AFFINE) {
       // extract bias info: prm = [const, kp, kv]
@@ -1120,6 +1255,40 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
                                     m->actuator_lengthrange+2*i,
                                     m->actuator_acc0[i],
                                     m->actuator_gainprm + mjNGAIN*i);
+    }
+
+    // DC motor controller damping and LuGre micro-damping
+    else if (m->actuator_gaintype[i] == mjGAIN_DCMOTOR) {
+      const mjtNum* dynprm = m->actuator_dynprm + mjNDYN*i;
+      const mjtNum* gainprm = m->actuator_gainprm + mjNGAIN*i;
+      mjtNum te = dynprm[0];
+
+      // controller velocity derivative: dV/dω
+      int input_mode = (int)gainprm[8];
+      mjtNum dVdw = 0;
+      if (input_mode == 1) dVdw = -gainprm[6];       // position: -kd
+      else if (input_mode == 2) dVdw = -gainprm[4];   // velocity: -kp
+
+      if (te > 0) {
+        // stateful current with actearly: d(K*next_act)/dω
+        // includes both back-EMF (-K) and controller (dVdw) through act_dot
+        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum K = gainprm[1];
+        mjtNum s = 1 - mju_exp(-m->opt.timestep / te);
+        bias_vel += K * (dVdw - K) * s / R;
+      } else if (dVdw != 0) {
+        // stateless: controller terms only (back-EMF handled in bias block)
+        mjtNum R = mju_max(mjMINVAL, gainprm[0]);
+        mjtNum K = gainprm[1];
+        bias_vel += K * dVdw / R;
+      }
+
+      // LuGre: force includes -sigma1*z_dot, z_dot = a*z + v
+      // d(sigma1*z_dot)/dv = sigma1*(da/dv*z + 1), ignoring higher-order da/dv*z
+      mjtNum sigma1 = dynprm[6];
+      if (sigma1 > 0) {
+        bias_vel -= sigma1;
+      }
     }
 
     // force = gain .* [ctrl/act]

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="mujoco-warp"
-version = "3.6.0"
+version = "3.8.0.1"
 # TODO(team): create a distribution list
 authors = [
     {name = "Newton Developers", email = "mujoco@deepmind.com"},
@@ -22,13 +22,14 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
 ]
 requires-python = ">=3.10"
 dependencies = [
     "absl-py",
     "etils[epath]",
-    "mujoco>=3.5.0",
+    "mujoco>=3.8.0",
     "numpy",
     "warp-lang>=1.12",
 ]
@@ -55,8 +56,10 @@ dev = [
     "ruff",
     "pygls>=1.0.0,<2.0.0",
     "lsprotocol>=2023.0.1,<2024.0.0",
-    "mujoco>=3.5.0.dev0",
+    "mujoco>=3.8.0.dev0",
     "warp-lang>=1.11.0.dev0",
+    "mjviser>=0.0.10",
+    "pillow",
 ]
 # TODO(team): cpu and cuda JAX optional dependencies are temporary, remove after we land MJX:Warp
 cpu = [
@@ -69,6 +72,8 @@ cuda = [
 [project.scripts]
 mjwarp-testspeed = "mujoco_warp.testspeed:main"
 mjwarp-viewer = "mujoco_warp.viewer:main"
+mjwarp-record = "mujoco_warp.record:main"
+
 
 [project.urls]
 Homepage = "https://github.com/google-deepmind/mujoco_warp"

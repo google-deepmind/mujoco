@@ -63,7 +63,6 @@ typedef enum mjtWarning_ {          // warning types
   mjWARN_INERTIA         = 0,       // (near) singular inertia matrix
   mjWARN_CONTACTFULL,               // too many contacts in contact list
   mjWARN_CNSTRFULL,                 // too many constraints
-  mjWARN_VGEOMFULL,                 // too many visual geoms
   mjWARN_BADQPOS,                   // bad number in qpos
   mjWARN_BADQVEL,                   // bad number in qvel
   mjWARN_BADQACC,                   // bad number in qacc
@@ -109,7 +108,7 @@ struct mjContact_ {                // result of collision detection functions
   mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]
 
   // contact parameters set by mj_collideGeoms
-  mjtNum  includemargin;           // include if dist<includemargin=margin-gap
+  mjtNum  includemargin;           // margin for force generation
   mjtNum  friction[5];             // tangent1, 2, spin, roll1, 2
   mjtNum  solref[mjNREF];          // constraint solver reference, normal direction
   mjtNum  solreffriction[mjNREF];  // constraint solver reference, friction directions
@@ -495,8 +494,9 @@ typedef enum mjtDisableBit_ {     // disable default feature bitflags
   mjDSBL_AUTORESET    = 1<<16,    // automatic reset when numerical issues are detected
   mjDSBL_NATIVECCD    = 1<<17,    // native convex collision detection
   mjDSBL_ISLAND       = 1<<18,    // constraint island discovery
+  mjDSBL_MULTICCD     = 1<<19,    // multiple CCD contact points
 
-  mjNDISABLE          = 19        // number of disable flags
+  mjNDISABLE          = 20        // number of disable flags
 } mjtDisableBit;
 typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_OVERRIDE     = 1<<0,     // override contact parameters
@@ -504,10 +504,9 @@ typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_FWDINV       = 1<<2,     // record solver statistics
   mjENBL_INVDISCRETE  = 1<<3,     // discrete-time inverse dynamics
                                   // experimental features:
-  mjENBL_MULTICCD     = 1<<4,     // multi-point convex collision detection
-  mjENBL_SLEEP        = 1<<5,     // sleeping
+  mjENBL_SLEEP        = 1<<4,     // sleeping
 
-  mjNENABLE           = 6         // number of enable flags
+  mjNENABLE           = 5         // number of enable flags
 } mjtEnableBit;
 typedef enum mjtJoint_ {          // type of degree of freedom
   mjJNT_FREE          = 0,        // global position and orientation (quat)       (7)
@@ -635,19 +634,22 @@ typedef enum mjtDyn_ {            // type of actuator dynamics
   mjDYN_INTEGRATOR,               // integrator: da/dt = u
   mjDYN_FILTER,                   // linear filter: da/dt = (u-a) / tau
   mjDYN_FILTEREXACT,              // linear filter: da/dt = (u-a) / tau, with exact integration
-  mjDYN_MUSCLE,                   // piece-wise linear filter with two time constants
+  mjDYN_MUSCLE,                   // piecewise linear filter with two time constants
+  mjDYN_DCMOTOR,                  // DC motor electrical dynamics
   mjDYN_USER                      // user-defined dynamics type
 } mjtDyn;
 typedef enum mjtGain_ {           // type of actuator gain
   mjGAIN_FIXED        = 0,        // fixed gain
   mjGAIN_AFFINE,                  // const + kp*length + kv*velocity
   mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
+  mjGAIN_DCMOTOR,                 // DC motor gain: K or K/R
   mjGAIN_USER                     // user-defined gain type
 } mjtGain;
 typedef enum mjtBias_ {           // type of actuator bias
   mjBIAS_NONE         = 0,        // no bias
   mjBIAS_AFFINE,                  // const + kp*length + kv*velocity
   mjBIAS_MUSCLE,                  // muscle passive force computed by mju_muscleBias()
+  mjBIAS_DCMOTOR,                 // DC motor bias: back-EMF, cogging, LuGre friction
   mjBIAS_USER                     // user-defined bias type
 } mjtBias;
 typedef enum mjtObj_ {            // type of MujoCo object
@@ -1038,6 +1040,8 @@ struct mjModel_ {
   mjtSize nflexedge;              // number of edges in all flexes
   mjtSize nflexelem;              // number of elements in all flexes
   mjtSize nflexelemdata;          // number of element vertex ids in all flexes
+  mjtSize nflexstiffness;         // number of stiffness parameters in all flexes
+  mjtSize nflexbending;           // number of bending parameters in all flexes
   mjtSize nflexelemedge;          // number of element edge ids in all flexes
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
   mjtSize nflexevpair;            // number of element-vertex pairs in all flexes
@@ -1232,8 +1236,8 @@ struct mjModel_ {
   mjtNum*   geom_pos;             // local position offset rel. to body       (ngeom x 3)
   mjtNum*   geom_quat;            // local orientation offset rel. to body    (ngeom x 4)
   mjtNum*   geom_friction;        // friction for (slide, spin, roll)         (ngeom x 3)
-  mjtNum*   geom_margin;          // detect contact if dist<margin            (ngeom x 1)
-  mjtNum*   geom_gap;             // include in solver if dist<margin-gap     (ngeom x 1)
+  mjtNum*   geom_margin;          // geometric inflation for contact          (ngeom x 1)
+  mjtNum*   geom_gap;             // additional contact detection buffer      (ngeom x 1)
   mjtNum*   geom_fluid;           // fluid interaction parameters             (ngeom x mjNFLUID)
   mjtNum*   geom_user;            // user data                                (ngeom x nuser_geom)
   float*    geom_rgba;            // rgba when material is omitted            (ngeom x 4)
@@ -1300,8 +1304,8 @@ struct mjModel_ {
   mjtNum*   flex_solref;          // constraint solver reference: contact     (nflex x mjNREF)
   mjtNum*   flex_solimp;          // constraint solver impedance: contact     (nflex x mjNIMP)
   mjtNum*   flex_friction;        // friction for (slide, spin, roll)         (nflex x 3)
-  mjtNum*   flex_margin;          // detect contact if dist<margin            (nflex x 1)
-  mjtNum*   flex_gap;             // include in solver if dist<margin-gap     (nflex x 1)
+  mjtNum*   flex_margin;          // geometric inflation for contact          (nflex x 1)
+  mjtNum*   flex_gap;             // additional contact detection buffer      (nflex x 1)
   mjtByte*  flex_internal;        // internal flex collision enabled          (nflex x 1)
   int*      flex_selfcollide;     // self collision mode (mjtFlexSelf)        (nflex x 1)
   int*      flex_activelayers;    // number of active element layers, 3D only (nflex x 1)
@@ -1312,6 +1316,7 @@ struct mjModel_ {
   int*      flex_matid;           // material id for rendering                (nflex x 1)
   int*      flex_group;           // group for visibility                     (nflex x 1)
   int*      flex_interp;          // interpolation (0: vertex, 1: nodes)      (nflex x 1)
+  int*      flex_cellnum;         // finite cell num per dimension            (nflex x 3)
   int*      flex_nodeadr;         // first node address                       (nflex x 1)
   int*      flex_nodenum;         // number of nodes                          (nflex x 1)
   int*      flex_vertadr;         // first vertex address                     (nflex x 1)
@@ -1321,7 +1326,9 @@ struct mjModel_ {
   int*      flex_elemadr;         // first element address                    (nflex x 1)
   int*      flex_elemnum;         // number of elements                       (nflex x 1)
   int*      flex_elemdataadr;     // first element vertex id address          (nflex x 1)
+  int*      flex_stiffnessadr;    // stiffness matrix address                 (nflex x 1)
   int*      flex_elemedgeadr;     // first element edge id address            (nflex x 1)
+  int*      flex_bendingadr;      // first bending data address               (nflex x 1)
   int*      flex_shellnum;        // number of shells                         (nflex x 1)
   int*      flex_shelldataadr;    // first shell data address                 (nflex x 1)
   int*      flex_evpairadr;       // first evpair address                     (nflex x 1)
@@ -1349,8 +1356,8 @@ struct mjModel_ {
   mjtNum*   flexedge_invweight0;  // edge inv. weight in qpos0                (nflexedge x 1)
   mjtNum*   flex_radius;          // radius around primitive element          (nflex x 1)
   mjtNum*   flex_size;            // vertex bounding box half sizes in qpos0  (nflex x 3)
-  mjtNum*   flex_stiffness;       // finite element stiffness matrix          (nflexelem x 21)
-  mjtNum*   flex_bending;         // bending stiffness                        (nflexedge x 17)
+  mjtNum*   flex_stiffness;       // finite element stiffness matrix          (nflexstiffness x 1)
+  mjtNum*   flex_bending;         // bending stiffness                        (nflexbending x 1)
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
@@ -1467,8 +1474,8 @@ struct mjModel_ {
   mjtNum*   pair_solref;          // solver reference: contact normal         (npair x mjNREF)
   mjtNum*   pair_solreffriction;  // solver reference: contact friction       (npair x mjNREF)
   mjtNum*   pair_solimp;          // solver impedance: contact                (npair x mjNIMP)
-  mjtNum*   pair_margin;          // detect contact if dist<margin            (npair x 1)
-  mjtNum*   pair_gap;             // include in solver if dist<margin-gap     (npair x 1)
+  mjtNum*   pair_margin;          // geometric inflation for contact          (npair x 1)
+  mjtNum*   pair_gap;             // additional contact detection buffer      (npair x 1)
   mjtNum*   pair_friction;        // tangent1, 2, spin, roll1, 2              (npair x 5)
 
   // excluded body pairs for collision detection
@@ -2120,7 +2127,7 @@ typedef struct mjsGeom_ {          // geom specification
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
-  double gap;                      // include in solver if dist < margin-gap
+  double gap;                      // additional contact detection buffer
 
   // inertia inference
   double mass;                     // used to compute density
@@ -2231,7 +2238,7 @@ typedef struct mjsFlex_ {          // flex specification
   mjtNum solref[mjNREF];           // solver reference
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
-  double gap;                      // include in solver if dist<margin-gap
+  double gap;                      // additional contact detection buffer
 
   // other properties
   int dim;                         // element dimensionality
@@ -2252,6 +2259,8 @@ typedef struct mjsFlex_ {          // flex specification
   double damping;                  // Rayleigh's damping
   double thickness;                // thickness (2D only)
   int elastic2d;                   // 2D passive forces; 0: none, 1: bending, 2: stretching, 3: both
+  int cellcount[3];                // grid cell count for finite cell method
+  int order;                       // interpolation order (1: trilinear, 2: quadratic)
 
   // mesh properties
   mjStringVec* nodebody;           // node body names
@@ -2284,6 +2293,7 @@ typedef struct mjsMesh_ {          // mesh specification
   mjIntVec* userfacetexcoord;      // user texcoord indices
   mjsPlugin plugin;                // sdf plugin
   mjString* material;              // name of material
+  int octree_maxdepth;             // max octree depth
   mjString* info;                  // message appended to compiler errors
 } mjsMesh;
 typedef struct mjsHField_ {        // height field specification
@@ -2379,7 +2389,7 @@ typedef struct mjsPair_ {          // pair specification
   mjtNum solreffriction[mjNREF];   // solver reference, frictional directions
   mjtNum solimp[mjNIMP];           // solver impedance
   double margin;                   // margin for contact detection
-  double gap;                      // include in solver if dist<margin-gap
+  double gap;                      // additional contact detection buffer
   double friction[5];              // full contact friction
   mjString* info;                  // message appended to errors
 } mjsPair;
@@ -3093,7 +3103,9 @@ struct mjvScene_ {                // abstract scene passed to OpenGL renderer
   // framing
   int      framewidth;            // frame pixel width; 0: disable framing
   float    framergb[3];           // frame color
-  int      status;                // status; 0: ok, 1: geoms exhausted
+
+  // geom buffer status
+  int      status;                // 0: ok, 1: geoms exhausted, warning issued
 };
 typedef struct mjvScene_ mjvScene;
 struct mjvFigure_ {               // abstract 2D figure passed to OpenGL renderer
@@ -3151,6 +3163,8 @@ int mj_unmountVFS(mjVFS* vfs, const char* filename);
 int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int nbuffer);
 int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
+int mj_containsBufferVFS(mjVFS* vfs, const char* name);
+int mj_containsFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 void mj_deleteVFS(mjVFS* vfs);
 size_t mj_getCacheSize(const mjCache* cache);
 size_t mj_getCacheCapacity(const mjCache* cache);
@@ -3262,6 +3276,7 @@ void mj_passive(const mjModel* m, mjData* d);
 void mj_subtreeVel(const mjModel* m, mjData* d);
 void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result);
 void mj_rnePostConstraint(const mjModel* m, mjData* d);
+int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin);
 void mj_collision(const mjModel* m, mjData* d);
 void mj_makeConstraint(const mjModel* m, mjData* d);
 void mj_island(const mjModel* m, mjData* d);
@@ -3507,6 +3522,8 @@ int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
                      int* rownnz, int* rowadr, int* colind, int nnz);
 void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
                       const int* rownnz, const int* rowadr, const int* colind);
+void mju_sym2dense(mjtNum* res, const mjtNum* mat, int n,
+                   const int* rownnz, const int* rowadr, const int* colind);
 void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]);
 void mju_negQuat(mjtNum res[4], const mjtNum quat[4]);
 void mju_mulQuat(mjtNum res[4], const mjtNum quat1[4], const mjtNum quat2[4]);
@@ -3659,33 +3676,38 @@ const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double t
                             double range[2], double force, double scale, double lmin,
                             double lmax, double vmax, double fpmax, double fvmax);
 const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
+const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
+                             double nominal[3], double saturation[3], double inductance[2],
+                             double cogging[3], double controller[6], double thermal[6],
+                             double lugre[5], int input_mode);
 mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* def);
 mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);
 mjsTexture* mjs_addTexture(mjSpec* s);
 mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* def);
 int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int nparams);
-mjSpec* mjs_getSpec(mjsElement* element);
-mjsCompiler* mjs_getCompiler(mjsElement* element);
-mjSpec* mjs_findSpec(mjSpec* spec, const char* name);
-mjsBody* mjs_findBody(mjSpec* s, const char* name);
-mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name);
-mjsBody* mjs_findChild(mjsBody* body, const char* name);
-mjsBody* mjs_getParent(mjsElement* element);
-mjsFrame* mjs_getFrame(mjsElement* element);
-mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
-mjsDefault* mjs_getDefault(mjsElement* element);
-mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
-mjsDefault* mjs_getSpecDefault(mjSpec* s);
-int mjs_getId(mjsElement* element);
-mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse);
-mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child, int recurse);
-mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
-mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
-mjsElement* mjs_getWrapTarget(mjsWrap* wrap);
-mjsSite* mjs_getWrapSideSite(mjsWrap* wrap);
-double mjs_getWrapDivisor(mjsWrap* wrap);
-double mjs_getWrapCoef(mjsWrap* wrap);
+mjSpec* mjs_getSpec(const mjsElement* element);
+mjSpec* mjs_getOriginSpec(const mjsElement* element);
+mjsCompiler* mjs_getCompiler(const mjsElement* element);
+mjSpec* mjs_findSpec(const mjSpec* spec, const char* name);
+mjsBody* mjs_findBody(const mjSpec* s, const char* name);
+mjsElement* mjs_findElement(const mjSpec* s, mjtObj type, const char* name);
+mjsBody* mjs_findChild(const mjsBody* body, const char* name);
+mjsBody* mjs_getParent(const mjsElement* element);
+mjsFrame* mjs_getFrame(const mjsElement* element);
+mjsFrame* mjs_findFrame(const mjSpec* s, const char* name);
+mjsDefault* mjs_getDefault(const mjsElement* element);
+mjsDefault* mjs_findDefault(const mjSpec* s, const char* classname);
+mjsDefault* mjs_getSpecDefault(const mjSpec* s);
+int mjs_getId(const mjsElement* element);
+mjsElement* mjs_firstChild(const mjsBody* body, mjtObj type, int recurse);
+mjsElement* mjs_nextChild(const mjsBody* body, const mjsElement* child, int recurse);
+mjsElement* mjs_firstElement(const mjSpec* s, mjtObj type);
+mjsElement* mjs_nextElement(const mjSpec* s, const mjsElement* element);
+mjsElement* mjs_getWrapTarget(const mjsWrap* wrap);
+mjsSite* mjs_getWrapSideSite(const mjsWrap* wrap);
+double mjs_getWrapDivisor(const mjsWrap* wrap);
+double mjs_getWrapCoef(const mjsWrap* wrap);
 int mjs_setName(mjsElement* element, const char* name);
 void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 void mjs_setString(mjString* dest, const char* text);

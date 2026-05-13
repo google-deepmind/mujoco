@@ -1179,6 +1179,18 @@ It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-
 The computed force arrays ``cfrc_int`` and ``cfrc_ext`` currently suffer from a know bug, they do not take into account
 the effect of spatial tendons, see :issue:`832`.
 
+.. _mj_maxContact:
+
+`mj_maxContact <#mj_maxContact>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_maxContact
+
+Return the maximum number of contacts that can be generated between two geoms.
+
+If has_margin is -1, then the margin is pulled from the model, otherwise if has_margin > 0
+indicates that the geoms have a positive margin.
+
 .. _mj_collision:
 
 `mj_collision <#mj_collision>`__
@@ -1506,6 +1518,24 @@ Add file to VFS from buffer; return 0: success, 2: repeated name, -1: failed to 
 .. mujoco-include:: mj_deleteFileVFS
 
 Delete file from VFS; return 0: success, -1: not found in VFS.
+
+.. _mj_containsBufferVFS:
+
+`mj_containsBufferVFS <#mj_containsBufferVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_containsBufferVFS
+
+Check if buffer exists in VFS; return 1: exists, 0: not found.
+
+.. _mj_containsFileVFS:
+
+`mj_containsFileVFS <#mj_containsFileVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_containsFileVFS
+
+Check if file exists in VFS; return 1: exists, 0: not found.
 
 .. _mj_deleteVFS:
 
@@ -3952,6 +3982,15 @@ Convert matrix from dense to sparse.
 
 Convert matrix from sparse to dense.
 
+.. _mju_sym2dense:
+
+`mju_sym2dense <#mju_sym2dense>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_sym2dense
+
+Convert lower-triangular symmetric CSR matrix to full dense matrix.
+
 .. _Quaternions:
 
 Quaternions
@@ -4658,6 +4697,17 @@ Set actuator to muscle; return error if any.a
 
 Set actuator to active adhesion; return error if any.
 
+.. _mjs_setToDCMotor:
+
+`mjs_setToDCMotor <#mjs_setToDCMotor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setToDCMotor
+
+Set actuator to DC motor; return error if any.
+
+*Nullable:* ``motorconst``, ``nominal``, ``saturation``, ``inductance``, ``cogging``, ``controller``, ``thermal``, ``lugre``
+
 .. _AddAssets:
 
 Assets
@@ -4732,6 +4782,16 @@ Find and get utilities
 .. mujoco-include:: mjs_getSpec
 
 Get spec from body.
+
+.. _mjs_getOriginSpec:
+
+`mjs_getOriginSpec <#mjs_getOriginSpec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getOriginSpec
+
+get spec that originally defined an element
+contrary to mjs_getSpec, this does not change after attachment
 
 .. _mjs_getCompiler:
 
