@@ -727,4 +727,3 @@ class MjcTendon "MjcTendon" (
         doc = "Radius of the cross-section area of the spatial tendon, used for rendering in MuJoCo. Parts of the tendon that wrap around geom obstacles are rendered with reduced width."
     )
 }
-
