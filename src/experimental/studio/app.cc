@@ -105,7 +105,8 @@ void App::SwitchGraphicsMode(int width, int height,
   renderer_ = std::make_unique<platform::Renderer>(
       window_->GetNativeWindowHandle(), gfx_mode_);
 
-  LoadSettings();
+  // TODO: Figure out why this breaks on some platforms.
+  // LoadSettings();
   if (ui_.window_width > 0 && ui_.window_height > 0) {
     window_->Resize(ui_.window_width, ui_.window_height);
   }
