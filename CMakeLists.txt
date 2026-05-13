@@ -296,11 +296,8 @@ if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
   endif()
 endif()
 
-if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
+if(NOT EMSCRIPTEN AND NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
   set(MUJOCO_TARGETS mujoco)
-  if (EMSCRIPTEN)
-    list(APPEND MUJOCO_TARGETS lodepng)
-  endif()
 
   # Install the libraries.
   install(
