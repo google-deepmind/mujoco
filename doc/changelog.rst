@@ -5,6 +5,12 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+- The pseudo-random constraint visitation order in the :ref:`PGS solver<soAlgorithms>`, introduced in the previous
+  release, now uses a fixed seed. The previous implementation seeded with ``mjData.time``, which introduced subtle yet
+  undesirable time dependence.
+
 .. admonition:: Breaking API changes
    :class: attention
 

@@ -444,15 +444,10 @@ static void solPGS(const mjModel* m, mjData* d, int island,
     }
   }
 
-  // seed PCG32 RNG from simulation time
+  // seed PCG32 RNG with a fixed seed
   pcg32_state rng;
-  uint64_t seed = 0;
-  memcpy(&seed, &d->time, sizeof(d->time));
   rng.state = 0;
   rng.inc = 1;
-  rng.state = seed;
-  pcg32_next(&rng);
-  rng.state += seed;
   pcg32_next(&rng);
 
   // main iteration
