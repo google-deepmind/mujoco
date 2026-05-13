@@ -2072,8 +2072,7 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: invalid sensor_refid";
     }
     if (sensor_type == mjSENS_TACTILE) {
-      int obj_id = m->sensor_objid[i];
-      int parent_body = m->geom_bodyid[obj_id];
+      int parent_body = m->geom_bodyid[m->sensor_refid[i]];
       int collision_geoms = 0;
       for (int b = 0; b < m->body_geomnum[parent_body]; ++b) {
         int geom_id = m->body_geomadr[parent_body]+b;

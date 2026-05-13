@@ -1784,5 +1784,34 @@ TEST_F(SensorTest, InsideSiteFlexBody) {
   mj_deleteModel(m);
 }
 
+// Test that a tactile sensor's compile-time body-collision check correctly
+// uses the referenced Geom ID instead of mistakenly indexing by Mesh ID.
+TEST_F(SensorTest, TactileMeshIdMismatchedValidator) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="sensor_mesh" builtin="sphere" params="0"/>
+    </asset>
+    <worldbody>
+      <body>
+        <geom size="0.1" contype="0" conaffinity="0"/>
+      </body>
+      <body>
+        <geom name="sensor_geom" type="mesh" mesh="sensor_mesh"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <tactile geom="sensor_geom" mesh="sensor_mesh"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco
