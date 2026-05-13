@@ -43,15 +43,14 @@ MJAPI void mjd_passive_vel(const mjModel* m, mjData* d);
 // subtract (d qfrc_bias / d qvel) from qDeriv (dense version)
 MJAPI void mjd_rne_vel_dense(const mjModel* m, mjData* d);
 
-// derivative of flex_interp generalized force w.r.t position: res = (d qfrc_flexinterp / d qpos) * vec
-//  res and vec are vectors of size m->nv
-MJAPI void mjd_flexInterp_mulKD(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, mjtNum h);
+// compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
+MJAPI void mjd_flexInterp_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                              mjtNum s1, mjtNum s2);
 
-// derivative of flex_interp generalized force w.r.t position (stiffness only, no damping)
-MJAPI void mjd_flexInterp_mulK(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, mjtNum h);
-
-
-
+// compute res += scale * K_bend * vec for standard (non-interp) flex bending
+//   scale = s1 + s2 * flex_damping[f]  per flex
+MJAPI void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                            mjtNum s1, mjtNum s2);
 
 
 #ifdef __cplusplus

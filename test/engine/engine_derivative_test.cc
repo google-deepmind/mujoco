@@ -1474,7 +1474,7 @@ void RotateFlexGrid(mjModel* model, mjData* data, const char* flex_name,
 }
 
 // Helper: assemble flex stiffness into dense matrix via matrix-vector products.
-// Builds K column-by-column using mjd_flexInterp_mulKD.
+// Builds K column-by-column using mjd_flexInterp_mul.
 // Result is -(h^2 + h*damping) * J'KJ (negative sign matches the old addH
 // convention where stiffness is subtracted from the system matrix).
 static void mulKD_dense(mjModel* m, mjData* d, mjtNum* H_dense,
@@ -1485,7 +1485,7 @@ static void mulKD_dense(mjModel* m, mjData* d, mjtNum* H_dense,
     mju_zero(e_i.data(), nv);
     mju_zero(col.data(), nv);
     e_i[i] = 1.0;
-    mjd_flexInterp_mulKD(m, d, col.data(), e_i.data(), h);
+    mjd_flexInterp_mul(m, d, col.data(), e_i.data(), h * h, h);
     // col = +(h^2 + h*damp)*K*e_i, negate to match addH convention (H -= K)
     for (int j = 0; j < nv; j++) {
       H_dense[j * nv + i] = -col[j];

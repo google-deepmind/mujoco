@@ -1127,20 +1127,66 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
 
 
 
-// compute res += (h^2 + h*damping) * J'*K*J * vec, for all interpolated flexes
-void mjd_flexInterp_mulKD(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, mjtNum h) {
-  // s1=h*h, s2=h => scale = h*h + h*damping
-  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, h * h, h, NULL, 0, 0);
+// compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
+void mjd_flexInterp_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                        mjtNum s1, mjtNum s2) {
+  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, s1, s2, NULL, 0, 0);
 }
 
 
-// compute res += h * J'*K*J * vec, for all interpolated flexes (stiffness only, no damping)
-void mjd_flexInterp_mulK(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, mjtNum h) {
-  // s1=h, s2=0 => scale = h (no damping contribution)
-  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, h, 0, NULL, 0, 0);
+
+// compute res += scale * K_bend * vec for standard (non-interp) flex bending
+//   scale = s1 + s2 * flex_damping[f]  per flex
+//   for stiffness+damping: s1=h^2, s2=h  =>  scale = h^2 + h*damping
+//   for stiffness only:    s1=h,   s2=0  =>  scale = h
+void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                      mjtNum s1, mjtNum s2) {
+  for (int f = 0; f < m->nflex; f++) {
+    // skip interp, rigid, or non-2D
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2) {
+      continue;
+    }
+
+    int bendingadr = m->flex_bendingadr[f];
+    if (bendingadr < 0) {
+      continue;
+    }
+
+    mjtNum scale = s1 + s2 * m->flex_damping[f];
+    if (!scale) {
+      continue;
+    }
+
+    const mjtNum* b = m->flex_bending + bendingadr;
+    const int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+    int edgenum = m->flex_edgenum[f];
+    int edgeadr = m->flex_edgeadr[f];
+
+    for (int e = 0; e < edgenum; e++) {
+      const int* edge = m->flex_edge + 2*(e + edgeadr);
+      const int* flap = m->flex_edgeflap + 2*(e + edgeadr);
+      int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+
+      // skip boundary edges (no second flap vertex)
+      if (v[3] == -1) {
+        continue;
+      }
+
+      // apply 4x4 bending stencil, coordinate-wise
+      for (int i = 0; i < 4; i++) {
+        int dof_i = m->body_dofadr[bodyid[v[i]]];
+        for (int x = 0; x < 3; x++) {
+          mjtNum val = 0;
+          for (int j = 0; j < 4; j++) {
+            int dof_j = m->body_dofadr[bodyid[v[j]]];
+            val += b[17*e + 4*i + j] * vec[dof_j + x];
+          }
+          res[dof_i + x] += scale * val;
+        }
+      }
+    }
+  }
 }
-
-
 
 
 

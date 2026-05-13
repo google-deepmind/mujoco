@@ -3147,7 +3147,7 @@ TEST_F(ForwardTest, FlexTrilinearInstability) {
   // using mulKD for legacy check consistency, but we know it applies h^2+h*d
   // scaling; actually, let's stick to the high-level property checks from
   // FlexStiffnessSign which used mulKD
-  mjd_flexInterp_mulKD(model, data, flex_Kv.data(), v.data(), h);
+  mjd_flexInterp_mul(model, data, flex_Kv.data(), v.data(), h * h, h);
 
   // compute v^T*M*v and v^T*scale*K*v
   mjtNum vMv = mju_dot(v.data(), Mv.data(), nv);
@@ -3831,6 +3831,130 @@ TEST_F(ActuatorDampingTest, DampingVsKvGearScaling) {
       << "position trajectory mismatch";
   EXPECT_NEAR(d->qvel[0], d->qvel[1], MjTol(1e-12, 1e-5))
       << "velocity trajectory mismatch";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// flex sheet dropping on a plane should not gain energy from implicit bending
+TEST_F(ImplicitIntegratorTest, FlexContactEnergy) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10" timestep="0.001" integrator="implicitfast"
+            solver="CG" tolerance="1e-6">
+      <flag energy="enable"/>
+    </option>
+    <default>
+      <geom solref="0.003 1"/>
+    </default>
+    <worldbody>
+      <geom type="plane" size="5 5 0.1"/>
+      <flexcomp type="grid" count="8 8 1" spacing=".04 .04 .04"
+                radius=".01" name="sheet" dim="2" pos="0 0 0.02" mass="0.1">
+        <edge equality="true" damping="0.1"/>
+        <elasticity young="3e6" poisson="0" thickness="2e-2"
+                    elastic2d="bend" damping="0"/>
+        <contact solref="0.003 1" internal="false" selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  ASSERT_EQ(m->nflex, 1);
+
+  mjData* d = mj_makeData(m);
+
+  // compute initial energy
+  mj_forward(m, d);
+  mjtNum initial_energy = d->energy[0] + d->energy[1];
+  ASSERT_GT(initial_energy, 0);
+
+  // simulate
+  mjtNum max_energy = initial_energy;
+  int max_energy_step = 0;
+  int nsteps = 500;
+  for (int i = 0; i < nsteps; i++) {
+    mj_step(m, d);
+    mjtNum total_energy = d->energy[0] + d->energy[1];
+    if (total_energy > max_energy) {
+      max_energy = total_energy;
+      max_energy_step = i + 1;
+    }
+  }
+
+  mjtNum energy_ratio = max_energy / initial_energy;
+
+  EXPECT_LE(energy_ratio, 1.01)
+      << "contact solver injected energy: max_energy/initial_energy = "
+      << energy_ratio << " (max at step " << max_energy_step << ")"
+      << "\n  initial_energy = " << initial_energy
+      << "\n  max_energy     = " << max_energy;
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// bending damping on a flat flex must dissipate energy with implicit integrator
+TEST_F(ImplicitIntegratorTest, BendingDampingDecaysEnergy) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" timestep="0.001" integrator="implicitfast">
+      <flag energy="enable"/>
+    </option>
+    <worldbody>
+      <flexcomp type="grid" count="6 6 1" spacing=".1 .1 .1"
+                radius=".005" name="sheet" dim="2" mass="0.1">
+        <edge equality="false" damping="0" stiffness="0"/>
+        <elasticity young="1e6" poisson="0" thickness="0.02"
+                    elastic2d="bend" damping="0.1"/>
+        <contact solref="0.01" internal="false" selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  ASSERT_EQ(m->nflex, 1);
+  ASSERT_GT(m->flex_damping[0], 0) << "flex_damping not set";
+
+  mjData* d = mj_makeData(m);
+
+  // perturb a central vertex with upward velocity
+  // vertex layout is 6x6 grid; pick a central vertex (row=3, col=3 -> id=21)
+  int center_vert = 21;
+  int bid = m->flex_vertbodyid[m->flex_vertadr[0] + center_vert];
+  int dofadr = m->body_dofadr[bid];
+  d->qvel[dofadr + 2] = 1.0;  // z-velocity
+
+  // initial forward to compute energy
+  mj_forward(m, d);
+  mjtNum initial_energy = d->energy[0] + d->energy[1];
+  ASSERT_GT(initial_energy, 0) << "initial energy should be nonzero";
+
+  // step forward and check energy decay
+  mjtNum max_energy = initial_energy;
+  int nsteps = 100;
+  for (int i = 0; i < nsteps; i++) {
+    mj_step(m, d);
+    mjtNum total_energy = d->energy[0] + d->energy[1];
+    max_energy = mju_max(max_energy, total_energy);
+  }
+
+  // energy must never exceed initial (system must not go unstable)
+  EXPECT_LE(max_energy, initial_energy * 1.01)
+      << "energy exceeded initial by more than 1%: max=" << max_energy
+      << ", initial=" << initial_energy;
+
+  // after 100 steps (0.1 seconds), energy should have decayed significantly
+  mjtNum final_energy = d->energy[0] + d->energy[1];
+  EXPECT_LT(final_energy, 0.5 * initial_energy)
+      << "energy did not decay by at least 50% after " << nsteps << " steps"
+      << " (initial=" << initial_energy << ", final=" << final_energy << ")";
 
   mj_deleteData(d);
   mj_deleteModel(m);

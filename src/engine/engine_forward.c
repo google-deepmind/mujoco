@@ -1371,12 +1371,23 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 }
 
 
-// return 1 if any flex needs implicit interp treatment
-static int flexInterp_has_active(const mjModel* m) {
+// return 1 if any flex needs implicit stiffness treatment (interp or bending)
+static int flex_has_implicit_stiffness(const mjModel* m) {
   for (int f=0; f < m->nflex; f++) {
-    if (m->flex_interp[f] && !m->flex_rigid[f] &&
+    if (m->flex_rigid[f]) {
+      continue;
+    }
+
+    // interpolated flex with stiffness
+    if (m->flex_interp[f] &&
         m->flex_edgeequality[f] != 3 &&
         m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      return 1;
+    }
+
+    // standard flex with bending
+    if (!m->flex_interp[f] && m->flex_dim[f] == 2 &&
+        m->flex_bendingadr[f] >= 0) {
       return 1;
     }
   }
@@ -1403,24 +1414,27 @@ static void flexInterp_cgsolve(const mjModel* m, mjData* d,
   mjtNum* Ap = mjSTACKALLOC(d, nv, mjtNum);
   mjtNum* temp = mjSTACKALLOC(d, nv, mjtNum);
 
-  // build RHS: rhs = qfrc - h*K*qvel  (velocity correction from flex stiffness)
+  // build RHS: rhs = qfrc
   mju_copy(rhs, qfrc, nv);
+
+  // flex_interp velocity correction: rhs -= h*K_interp*qvel
   mju_zero(temp, nv);
-  mjd_flexInterp_mulK(m, d, temp, d->qvel, h);  // temp = h*K*v (stiffness only)
-  mju_addToScl(rhs, temp, -1.0, nv);  // rhs -= h*K*v
+  mjd_flexInterp_mul(m, d, temp, d->qvel, h, 0);  // temp = h*K_interp*v
+  mju_addToScl(rhs, temp, -1.0, nv);  // rhs -= h*K_interp*v
+
+  // standard flex bending velocity correction: rhs -= h*K_bend*qvel
+  mjd_flexBend_mul(m, d, rhs, d->qvel, -h, 0);  // rhs -= h*K_bend*v
 
   // --- helper lambda-style inline: compute Ap = A*x ---
-  // A*x = (M - h*qDeriv)*x - (h^2+h*d)*K*x
+  // A*x = (M - h*qDeriv)*x - (h^2+h*d)*K_interp*x + (h^2+h*d)*K_bend*x
   #define FLEX_CG_MATVEC(Ap_out, x_in)                                           \
     mju_mulMatVecSparse(Ap_out, d->qDeriv, x_in, nv, m->D_rownnz, m->D_rowadr,   \
                         m->D_colind, NULL);                                      \
-    mju_zero(temp, nv);                                                          \
     mju_mulSymVecSparse(temp, d->M, x_in, nv, m->M_rownnz, m->M_rowadr,          \
                         m->M_colind);                                            \
     mju_addScl(Ap_out, temp, Ap_out, -h, nv);                                    \
-    mju_zero(temp, nv);                                                          \
-    mjd_flexInterp_mulKD(m, d, temp, x_in, h);                                   \
-    mju_addToScl(Ap_out, temp, -1.0, nv)
+    mjd_flexInterp_mul(m, d, Ap_out, x_in, -(h*h), -h);                          \
+    mjd_flexBend_mul(m, d, Ap_out, x_in, h*h, h)
 
   // --- helper: preconditioner solve z = (M - h*qDeriv)^{-1} * r ---
   #define FLEX_CG_PRECOND(z_out, r_in)                                           \
@@ -1857,7 +1871,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   }
 
   // check for flex_interp that needs implicit treatment
-  int has_flex_interp = !sleep_filter && flexInterp_has_active(m);
+  int has_flex_stiffness = !sleep_filter && flex_has_implicit_stiffness(m);
 
   // factorization
   if (!skipfactor) {
@@ -1911,7 +1925,7 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   }
 
   // flex: CG correction for implicit flex stiffness
-  if (has_flex_interp) {
+  if (has_flex_stiffness) {
     flexInterp_cgsolve(m, d, qacc, qfrc, m->nv);
   }
 
