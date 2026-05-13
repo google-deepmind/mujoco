@@ -3960,5 +3960,57 @@ TEST_F(ImplicitIntegratorTest, BendingDampingDecaysEnergy) {
   mj_deleteModel(m);
 }
 
+// interp stretch stiffness with implicitfast must preserve energy stability
+TEST_F(ImplicitIntegratorTest, InterpStretchEnergy) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" timestep="0.001" integrator="implicitfast">
+      <flag energy="enable"/>
+    </option>
+    <worldbody>
+      <flexcomp type="grid" count="4 4 4" cellcount="3 3 3"
+                spacing=".05 .05 .05" radius=".005" name="cube"
+                dim="3" mass="10" dof="trilinear">
+        <elasticity young="1e6" poisson="0.3" damping="0"/>
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+
+  mjData* d = mj_makeData(m);
+
+  // perturb a central vertex with velocity
+  int center_body = m->nbody / 2;
+  int dofadr = m->body_dofadr[center_body];
+  ASSERT_GT(m->body_dofnum[center_body], 0);
+  d->qvel[dofadr + 2] = 1.0;  // z-velocity
+
+  mj_forward(m, d);
+  mjtNum initial_energy = d->energy[0] + d->energy[1];
+  ASSERT_GT(initial_energy, 0) << "initial energy should be nonzero";
+
+  // step and track max energy
+  mjtNum max_energy = initial_energy;
+  int nsteps = 50;
+  for (int i = 0; i < nsteps; i++) {
+    mj_step(m, d);
+    mjtNum total_energy = d->energy[0] + d->energy[1];
+    max_energy = mju_max(max_energy, total_energy);
+  }
+
+  // energy must not blow up
+  EXPECT_LE(max_energy, initial_energy * 1.01)
+      << "energy exceeded initial by more than 1%: max=" << max_energy
+      << ", initial=" << initial_energy;
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco

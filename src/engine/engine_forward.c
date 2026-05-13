@@ -1417,10 +1417,8 @@ static void flexInterp_cgsolve(const mjModel* m, mjData* d,
   // build RHS: rhs = qfrc
   mju_copy(rhs, qfrc, nv);
 
-  // flex_interp velocity correction: rhs -= h*K_interp*qvel
-  mju_zero(temp, nv);
-  mjd_flexInterp_mul(m, d, temp, d->qvel, h, 0);  // temp = h*K_interp*v
-  mju_addToScl(rhs, temp, -1.0, nv);  // rhs -= h*K_interp*v
+  // flex_interp velocity correction: rhs += h*K_interp*qvel (K_interp is NSD)
+  mjd_flexInterp_mul(m, d, rhs, d->qvel, h, 0);  // rhs += h*K_interp*v
 
   // standard flex bending velocity correction: rhs -= h*K_bend*qvel
   mjd_flexBend_mul(m, d, rhs, d->qvel, -h, 0);  // rhs -= h*K_bend*v
