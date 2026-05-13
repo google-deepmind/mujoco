@@ -33,6 +33,10 @@ jobs:
         mkdir -p dist/bin
         cp -r build_wasm/bin/* dist/bin/
         cp src/experimental/studio/index.html dist/index.html
+        COMMIT_HASH=$(git rev-parse HEAD 2>/dev/null || true)
+        if [ -n "$COMMIT_HASH" ]; then
+          sed -i "s/__COMMIT_HASH_PLACEHOLDER__/$COMMIT_HASH/g" dist/index.html
+        fi
 
     - name: Upload GitHub Pages artifacts
       uses: actions/upload-pages-artifact@v3

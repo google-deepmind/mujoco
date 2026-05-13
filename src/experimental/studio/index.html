@@ -5,10 +5,17 @@
     <title>MuJoCo Live</title>
   </head>
   <body style="margin: 0; overflow: hidden">
-    <div style="position: absolute; top: 3px; right: 3px; z-index: 1;">
-      <button id="uploadButton">Upload Model</button>
-      <input type="file" id="fileInput" accept=".xml,.mjb,.mjz,.zip" style="display: none;">
-    </div>
+    <div id="commitHash" style="
+      position: absolute; top: 3px; right: 3px; z-index: 1;
+      font-family: monospace; font-size: 9px; color: #fff;
+      mix-blend-mode: difference;
+      padding: 2px 4px; user-select: all;" title="Build commit">__COMMIT_HASH_PLACEHOLDER__</div>
+  <script>
+    (function () {
+      var el = document.getElementById('commitHash');
+      if (el && el.textContent === '__COMMIT_HASH_PLACEHOLDER__') el.remove();
+    })();
+  </script>
     <canvas
       class="emscripten"
       id="canvas"
@@ -188,21 +195,6 @@
       }
 
       document.addEventListener('DOMContentLoaded', () => {
-        const uploadButton = document.getElementById('uploadButton');
-        const fileInput = document.getElementById('fileInput');
-
-        uploadButton.addEventListener('click', () => {
-          fileInput.click();
-        });
-
-        fileInput.addEventListener('change', (event) => {
-          const file = event.target.files[0];
-          if (!file) {
-            return;
-          }
-          handleFile(file);
-        });
-
         // --- Drag-and-drop support ---
         const dropOverlay = document.createElement('div');
         dropOverlay.id = 'dropOverlay';
