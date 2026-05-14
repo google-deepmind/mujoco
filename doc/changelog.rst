@@ -15,7 +15,7 @@ General
    :class: attention
 
    - The semantics of the contact ``margin`` and ``gap`` parameters have been redesigned for conceptual clarity and
-     consistency with `NVIDIA Newton <https://developer.nvidia.com/newton>`__. See the new
+     consistency with `Newton <https://github.com/newton-physics/newton>`__. See the new
      :ref:`margin and gap<coMarginGap>` documentation section for details.
 
      Previously, ``margin`` controlled the *detection threshold* (contacts exist when ``dist < margin``) and ``gap``
