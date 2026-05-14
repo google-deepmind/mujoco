@@ -14,6 +14,8 @@ name: build
 
 on:
   push:
+    branches:
+      - main
     paths-ignore:
       - "doc/**"
       - "**/README.md"

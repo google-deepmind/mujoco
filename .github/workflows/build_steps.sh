@@ -317,7 +317,7 @@ build_mujoco_live() {
         -DMUJOCO_USE_FILAMENT=ON \
         -DMUJOCO_BUILD_TESTS_WASM=OFF \
         -DMUJOCO_NATIVE_BUILD_DIR=$(pwd)/build_host
-    cmake --build build_wasm --target mujoco_live -j$(nproc)
+    cmake --build build_wasm --target mujoco_studio -j$(nproc)
 }
 
 

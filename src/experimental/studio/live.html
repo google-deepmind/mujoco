@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="live.css">
+    <title>MuJoCo Live</title>
+  </head>
+  <body style="margin: 0; overflow: hidden">
+    <div id="loadingOverlay">
+      <div class="loading-container">
+        <div class="loading-title">Loading model&hellip;</div>
+        <div class="loading-subtitle">This may take a moment for large models.</div>
+      </div>
+    </div>
+    <div id="dropOverlay">
+      <div class="drop-message">Drop model file here</div>
+    </div>
+    <div id="commitHash">__COMMIT_HASH_PLACEHOLDER__</div>
+    <canvas id="canvas" class="emscripten" oncontextmenu="event.preventDefault()"></canvas>
+    <script src="live.js"></script>
+    <script async src="bin/mujoco_studio.js"></script>
+  </body>
+</html>
