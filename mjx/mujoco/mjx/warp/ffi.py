@@ -329,7 +329,7 @@ def _check_leading_dim(
     path: jax.tree_util.KeyPath,
     leaf: Any,
     expected_batch_dim: int,
-    expected_nconmax: int,
+    expected_naconmax: int,
     expected_njmax: int,
 ):
   """Asserts that the batch dimension of a leaf node matches the expected batch dimension."""
@@ -345,11 +345,11 @@ def _check_leading_dim(
   if (
       not has_batch_dim
       and attr.startswith('contact__')
-      and leaf.shape[0] != expected_nconmax
+      and leaf.shape[0] != expected_naconmax
   ):
     raise ValueError(
-        f'Leaf node leading dim ({leaf.shape[0]}) does not match nconmax'
-        f' ({expected_nconmax}) for field {attr}.'
+        f'Leaf node leading dim ({leaf.shape[0]}) does not match naconmax'
+        f' ({expected_naconmax}) for field {attr}.'
     )
   if (
       not has_batch_dim

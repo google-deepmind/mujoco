@@ -828,7 +828,6 @@ def make_data(
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
     _full_compat: bool = False,  # pylint: disable=invalid-name
-    nconmax: Optional[int] = None,
     naconmax: Optional[int] = None,
     naccdmax: Optional[int] = None,
     njmax: Optional[int] = None,
@@ -840,15 +839,10 @@ def make_data(
     m: the model to use
     device: which device to use - if unspecified picks the default device
     impl: implementation to use ('jax', 'warp')
-    nconmax: maximum number of contacts to allocate for warp across all worlds
-      Since the number of worlds is **not** pre-defined in JAX, we use the
-      `nconmax` argument to set the upper bound for the number of contacts
-      across all worlds. In MuJoCo Warp, the analgous field is called
-      `naconmax`.
     naconmax: maximum number of contacts to allocate for warp across all worlds
       Since the number of worlds is **not** pre-defined in JAX, we use the
       `naconmax` argument to set the upper bound for the number of contacts
-      across all worlds, rather than the `nconmax` argument from MuJoCo Warp.
+      across all worlds.
     naccdmax: maximum number of contacts for GJK collision detection across all
       worlds. Since the number of worlds is **not** pre-defined in JAX, we use the
       `naccdmax` argument to set the upper bound for the number of contacts
@@ -864,14 +858,7 @@ def make_data(
   Raises:
     ValueError: if the model's impl does not match the make_data impl
     NotImplementedError: if the impl is not implemented yet
-    DeprecationWarning: if nconmax is used
   """
-  if nconmax is not None:
-    warnings.warn(
-        'nconmax will be deprecated in mujoco-mjx>=3.5. Use naconmax instead.',
-        DeprecationWarning,
-        stacklevel=2,
-    )
 
   impl, device = _resolve_impl_and_device(impl, device)
 
@@ -886,7 +873,6 @@ def make_data(
     return _make_data_cpp(m, device, keepalive_refs=keepalive_refs)
   elif impl == types.Impl.WARP:
     _check_warp_installed()
-    naconmax = nconmax if naconmax is None else naconmax
     return _make_data_warp(m, device, naconmax, naccdmax, njmax)
 
   raise NotImplementedError(
@@ -1187,7 +1173,6 @@ def put_data(
     d: mujoco.MjData,
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
-    nconmax: Optional[int] = None,
     naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
     dummy_arg_for_batching: Optional[jax.Array] = None,
@@ -1200,11 +1185,10 @@ def put_data(
     d: the data to put on device
     device: which device to use - if unspecified picks the default device
     impl: implementation to use ('jax', 'warp')
-    nconmax: maximum number of contacts to allocate for warp
     naconmax: maximum number of contacts to allocate for warp across all worlds
       Since the number of worlds is **not** pre-defined in JAX, we use the
       `naconmax` argument to set the upper bound for the number of contacts
-      across all worlds, rather than the `nconmax` argument from MuJoCo Warp.
+      across all worlds.
     njmax: maximum number of constraints to allocate for warp
     dummy_arg_for_batching: dummy argument to use for batching in cpp
       implementation
@@ -1213,14 +1197,7 @@ def put_data(
 
   Returns:
     an mjx.Data placed on device
-    DeprecationWarning: if nconmax is used
   """
-  if nconmax is not None:
-    warnings.warn(
-        'nconmax will be deprecated in mujoco-mjx>=3.5. Use naconmax instead.',
-        DeprecationWarning,
-        stacklevel=2,
-    )
 
   impl, device = _resolve_impl_and_device(impl, device)
   if impl == types.Impl.JAX:
@@ -1235,7 +1212,6 @@ def put_data(
     )
   elif impl == types.Impl.WARP:
     _check_warp_installed()
-    naconmax = nconmax if naconmax is None else naconmax
     return _put_data_warp(m, d, device, naconmax, njmax)
 
   raise NotImplementedError(
