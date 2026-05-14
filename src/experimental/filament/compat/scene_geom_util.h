@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_SCENE_GEOM_UTIL_H_
 
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mujoco.h>
 #include "experimental/filament/compat/model_objects.h"
 #include "experimental/filament/render_context_filament.h"
 #include "experimental/filament/render_context_filament_cpp.h"
@@ -24,8 +25,8 @@ namespace mujoco {
 
 // Creates a Renderable from the given mjvGeom.
 UniquePtr<mjrRenderable> CreateGeomRenderable(
-    const mjvGeom& geom, const mjvScene* scene, mjrfContext* ctx,
-    ModelObjects* model_objs, const float headpos[3]);
+    const mjvGeom& geom, mjrfContext* ctx, ModelObjects* model_objs,
+    const float headpos[3], const mjtByte render_flags[mjNRNDFLAG]);
 
 }  // namespace mujoco
 

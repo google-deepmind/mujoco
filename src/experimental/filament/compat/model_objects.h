@@ -38,11 +38,10 @@ class ModelObjects {
   void CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom);
 
   // Returns the cached instance of a filament object created from the mjModel.
-  const mjrMesh* GetMeshBuffer(int data_id) const;
-  const mjrMesh* GetHeightFieldBuffer(int hfield_id) const;
-  const mjrMesh* GetFlexSkinGeomMesh(int geom_id) const;
+  const mjrMesh* GetMesh(int data_id) const;
+  const mjrMesh* GetHeightField(int hfield_id) const;
+  const mjrMesh* GetFlexSkinMesh(int geom_id) const;
   const mjrTexture* GetTexture(int tex_id) const;
-  const mjrTexture* GetTexture(int mat_id, int role) const;
   const mjrTexture* GetSkyboxTexture() const;
 
   float GetSpecularMultiplier() const { return specular_multiplier_; }

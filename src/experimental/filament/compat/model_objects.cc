@@ -602,7 +602,7 @@ void ModelObjects::CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom
   dynamic_meshes_.insert_or_assign(geom.objid, CreateMesh(ctx_, data));
 }
 
-const mjrMesh* ModelObjects::GetMeshBuffer(int data_id) const {
+const mjrMesh* ModelObjects::GetMesh(int data_id) const {
   // As defined by mjv_updateScene:
   //   original mesh: mesh_id * 2
   //   convex hull: (mesh_id * 2) + 1
@@ -616,27 +616,28 @@ const mjrMesh* ModelObjects::GetMeshBuffer(int data_id) const {
   }
 }
 
-const mjrMesh* ModelObjects::GetHeightFieldBuffer(int hfield_id) const {
-  auto it = height_fields_.find(hfield_id);
-  return it != height_fields_.end() ? it->second.get() : nullptr;
+const mjrMesh* ModelObjects::GetHeightField(int hfield_id) const {
+  if (auto it = height_fields_.find(hfield_id); it != height_fields_.end()) {
+    return it->second.get();
+  }
+  mju_error("Unknown height field %d", hfield_id);
+  return nullptr;
 }
 
-const mjrMesh* ModelObjects::GetFlexSkinGeomMesh(int geom_id) const {
-  auto it = dynamic_meshes_.find(geom_id);
-  return it != dynamic_meshes_.end() ? it->second.get() : nullptr;
+const mjrMesh* ModelObjects::GetFlexSkinMesh(int geom_id) const {
+  if (auto it = dynamic_meshes_.find(geom_id); it != dynamic_meshes_.end()) {
+    return it->second.get();
+  }
+  mju_error("Unknown dynamic mesh %d", geom_id);
+  return nullptr;
 }
 
 const mjrTexture* ModelObjects::GetTexture(int tex_id) const {
-  auto it = textures_.find(tex_id);
-  return it != textures_.end() ? it->second.get() : nullptr;
-}
-
-const mjrTexture* ModelObjects::GetTexture(int mat_id, int role) const {
-  if (mat_id < 0 || mat_id >= model_->nmat || role < 0 || role >= mjNTEXROLE) {
-    return nullptr;
+  if (auto it = textures_.find(tex_id); it != textures_.end()) {
+    return it->second.get();
   }
-  const int tex_id = model_->mat_texid[mat_id * mjNTEXROLE + role];
-  return GetTexture(tex_id);
+  mju_error("Unknown texture %d", tex_id);
+  return nullptr;
 }
 
 const mjrTexture* ModelObjects::GetSkyboxTexture() const {

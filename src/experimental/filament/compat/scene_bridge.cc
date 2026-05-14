@@ -299,7 +299,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
     }
 
     UniquePtr<mjrRenderable> renderable = CreateGeomRenderable(
-        *geom, scene, ctx_, model_objects_.get(), headpos);
+        *geom, ctx_, model_objects_.get(), headpos, scene->flags);
 
     mjrf_addRenderableToScene(scene_.get(), renderable.get());
     renderables_.push_back(std::move(renderable));
