@@ -16,11 +16,37 @@
 
 import gc
 import sys
+from unittest import mock
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import mujoco
+from mujoco.rendering.classic import gl_context
+from mujoco.rendering.classic import renderer as renderer_module
 import numpy as np
+
+
+class MuJoCoRendererNoGLContextTest(absltest.TestCase):
+
+  def test_renderer_allows_missing_gl_context_symbol(self):
+    xml = '<mujoco><worldbody/></mujoco>'
+    model = mujoco.MjModel.from_xml_string(xml)
+    had_gl_context = hasattr(gl_context, 'GLContext')
+    original_gl_context = getattr(gl_context, 'GLContext', None)
+    fake_mjr_context = mock.Mock()
+
+    try:
+      if had_gl_context:
+        delattr(gl_context, 'GLContext')
+      with mock.patch.object(renderer_module, 'GLContext', None):
+        with mock.patch.object(renderer_module.mujoco, 'MjrContext',
+                               return_value=fake_mjr_context):
+          with mock.patch.object(renderer_module.mujoco, 'mjr_setBuffer'):
+            renderer = renderer_module.Renderer(model, 50, 50)
+            self.assertIsNone(renderer._gl_context)  # pylint: disable=protected-access
+    finally:
+      if had_gl_context:
+        gl_context.GLContext = original_gl_context
 
 
 @absltest.skipUnless(

@@ -38,39 +38,58 @@ std::string ResolveFilamentAssetPath(const std::string& filename) {
   return path;
 }
 
-static filament::Material* LoadMaterial(filament::Engine* engine,
-                                        std::string_view filename) {
-  const std::string path = ResolveFilamentAssetPath(std::string(filename));
-  mjResource* resource = mju_openResource("", path.c_str(), nullptr, nullptr, 0);
-  void* payload = nullptr;
-  int size = mju_readResource(resource, const_cast<const void**>(&payload));
-  filament::Material::Builder material_builder;
-  material_builder.package(payload, size);
-  filament::Material* material = material_builder.build(*engine);
-  mju_closeResource(resource);
-  return material;
-};
+ObjectManager::Asset::Asset(std::string_view filename) {
+  std::string path = ResolveFilamentAssetPath(std::string(filename));
+  resource = mju_openResource("", path.c_str(), nullptr, nullptr, 0);
+  const int read_size =
+      mju_readResource(resource, const_cast<const void**>(&payload));
+  size = read_size > 0 ? read_size : 0;
+}
+
+ObjectManager::Asset::~Asset() {
+  if (resource) {
+    mju_closeResource(resource);
+  }
+}
+
+std::span<const std::byte> ObjectManager::Asset::GetBytes() const {
+  return {reinterpret_cast<const std::byte*>(payload), size};
+}
 
 ObjectManager::ObjectManager(filament::Engine* engine)
     : engine_(engine) {
-  materials_[kPbr] = LoadMaterial(engine, "pbr.filamat");
-  materials_[kPbrPacked] = LoadMaterial(engine, "pbr_packed.filamat");
-  materials_[kPhong2d] = LoadMaterial(engine, "phong_2d.filamat");
-  materials_[kPhong2dFade] = LoadMaterial(engine, "phong_2d_fade.filamat");
-  materials_[kPhong2dReflect] = LoadMaterial(engine, "phong_2d_reflect.filamat");
-  materials_[kPhong2dUv] = LoadMaterial(engine, "phong_2d_uv.filamat");
-  materials_[kPhong2dUvFade] = LoadMaterial(engine, "phong_2d_uv_fade.filamat");
-  materials_[kPhong2dUvReflect] = LoadMaterial(engine, "phong_2d_uv_reflect.filamat");
-  materials_[kPhongColor] = LoadMaterial(engine, "phong_color.filamat");
-  materials_[kPhongColorFade] = LoadMaterial(engine, "phong_color_fade.filamat");
-  materials_[kPhongColorReflect] = LoadMaterial(engine, "phong_color_reflect.filamat");
-  materials_[kPhongCube] = LoadMaterial(engine, "phong_cube.filamat");
-  materials_[kPhongCubeFade] = LoadMaterial(engine, "phong_cube_fade.filamat");
-  materials_[kPhongCubeReflect] = LoadMaterial(engine, "phong_cube_reflect.filamat");
-  materials_[kUnlitSegmentation] = LoadMaterial(engine, "unlit_segmentation.filamat");
-  materials_[kUnlitDecor] = LoadMaterial(engine, "unlit_decor.filamat");
-  materials_[kUnlitDepth] = LoadMaterial(engine, "unlit_depth.filamat");
-  materials_[kUnlitUi] = LoadMaterial(engine, "unlit_ui.filamat");
+  auto LoadMaterial = [this](std::string_view filename) {
+    Asset asset(filename);
+    if (asset.payload == nullptr || asset.size == 0) {
+      mju_error(
+          "Failed to load Filament material asset '%.*s'. Make sure the "
+          "generated .filamat and .ktx assets were packaged next to MuJoCo.",
+          static_cast<int>(filename.size()), filename.data());
+    }
+    filament::Material::Builder material_builder;
+    material_builder.package(asset.payload, asset.size);
+    return material_builder.build(*this->engine_);
+  };
+
+  materials_[kPbr] = LoadMaterial("pbr.filamat");
+  materials_[kPbrPacked] = LoadMaterial("pbr_packed.filamat");
+  materials_[kPhong2d] = LoadMaterial("phong_2d.filamat");
+  materials_[kPhong2dFade] = LoadMaterial("phong_2d_fade.filamat");
+  materials_[kPhong2dReflect] = LoadMaterial("phong_2d_reflect.filamat");
+  materials_[kPhong2dUv] = LoadMaterial("phong_2d_uv.filamat");
+  materials_[kPhong2dUvFade] = LoadMaterial("phong_2d_uv_fade.filamat");
+  materials_[kPhong2dUvReflect] = LoadMaterial("phong_2d_uv_reflect.filamat");
+  materials_[kPhongColor] = LoadMaterial("phong_color.filamat");
+  materials_[kPhongColorFade] = LoadMaterial("phong_color_fade.filamat");
+  materials_[kPhongColorReflect] = LoadMaterial("phong_color_reflect.filamat");
+  materials_[kPhongCube] = LoadMaterial("phong_cube.filamat");
+  materials_[kPhongCubeFade] = LoadMaterial("phong_cube_fade.filamat");
+  materials_[kPhongCubeReflect] = LoadMaterial("phong_cube_reflect.filamat");
+  materials_[kUnlitSegmentation] = LoadMaterial("unlit_segmentation.filamat");
+  materials_[kUnlitLine] = LoadMaterial("unlit_line.filamat");
+  materials_[kUnlitDecor] = LoadMaterial("unlit_decor.filamat");
+  materials_[kUnlitDepth] = LoadMaterial("unlit_depth.filamat");
+  materials_[kUnlitUi] = LoadMaterial("unlit_ui.filamat");
 
   static uint8_t black_rgb[3] = {0, 0, 0};
   static uint8_t white_rgb[3] = {255, 255, 255};
@@ -101,7 +120,7 @@ ObjectManager::ObjectManager(filament::Engine* engine)
   fallback_textures_[mjTEXROLE_ROUGHNESS] = fallback_white_;
   fallback_textures_[mjTEXROLE_METALLIC] = fallback_black_;
   fallback_textures_[mjTEXROLE_NORMAL] = fallback_normal_;
-  fallback_textures_[mjTEXROLE_EMISSIVE] = fallback_black_;
+  fallback_textures_[mjTEXROLE_EMISSIVE] = fallback_white_;
   fallback_textures_[mjTEXROLE_ORM] = fallback_orm_;
 }
 
@@ -144,5 +163,10 @@ const filament::Texture* ObjectManager::GetFallbackTexture(
     mju_error("Invalid texture role: %d", role);
   }
   return fallback_textures_[role];
+}
+
+std::unique_ptr<ObjectManager::Asset> ObjectManager::LoadAsset(
+    std::string_view filename) {
+  return std::unique_ptr<Asset>(new Asset(filename));
 }
 }  // namespace mujoco

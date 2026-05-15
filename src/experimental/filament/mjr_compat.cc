@@ -26,6 +26,10 @@ extern "C" {
 
 // mjr functions that are supported by the filament renderer.
 
+const char* mjr_getRenderer(void) {
+  return "filament";
+}
+
 void mjr_defaultContext(mjrContext* con) {
   mjrf_defaultContext(con);
 }

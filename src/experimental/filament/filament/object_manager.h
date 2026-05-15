@@ -35,6 +35,24 @@ namespace mujoco {
 // Creates and owns various filament objects based on the data in a mjrContext.
 class ObjectManager {
  public:
+  class Asset {
+   public:
+    ~Asset();
+
+    std::span<const std::byte> GetBytes() const;
+
+    Asset(const Asset&) = delete;
+    Asset& operator=(const Asset&) = delete;
+
+   private:
+    friend class ObjectManager;
+    explicit Asset(std::string_view filename);
+
+    std::size_t size = 0;
+    void* payload = nullptr;
+    mjResource* resource = nullptr;
+  };
+
   ObjectManager(filament::Engine* engine);
   ~ObjectManager();
 
@@ -58,6 +76,7 @@ class ObjectManager {
     kUnlitSegmentation,
     kUnlitDecor,
     kUnlitDepth,
+    kUnlitLine,
     kUnlitUi,
     kNumMaterials,
   };
@@ -75,6 +94,12 @@ class ObjectManager {
 
   // Returns the filament Engine that owns the assets.
   filament::Engine* GetEngine() const { return engine_; }
+
+  // Loads the given asset from the filament resource directory.
+  std::unique_ptr<Asset> LoadAsset(std::string_view filename);
+
+  // The default environment light to use if no environment light is specified.
+  static constexpr const char* kDefaultEnvironmentLight = "ibl.ktx";
 
   ObjectManager(const ObjectManager&) = delete;
   ObjectManager& operator=(const ObjectManager&) = delete;

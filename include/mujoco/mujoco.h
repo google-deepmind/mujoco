@@ -849,6 +849,9 @@ MJAPI void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  cons
 
 //---------------------------------- OpenGL rendering ----------------------------------------------
 
+// Return name of the active renderer implementation backing the mjr API.
+MJAPI const char* mjr_getRenderer(void);
+
 // Set default mjrContext.
 MJAPI void mjr_defaultContext(mjrContext* con);
 

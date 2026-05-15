@@ -485,6 +485,18 @@ if(APPLE)
 endif()
 
 if(MUJOCO_PYTHON_MAKE_WHEEL)
+  set(WHEEL_FILAMENT_COMMANDS "")
+  if(MUJOCO_USE_FILAMENT AND DEFINED MUJOCO_FILAMENT_ASSETS_DIR)
+    set(FILAMENT_ASSETS_FOR_WHEEL "${CMAKE_CURRENT_BINARY_DIR}/dist/mujoco/assets")
+    list(
+      APPEND
+      WHEEL_FILAMENT_COMMANDS
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${FILAMENT_ASSETS_FOR_WHEEL}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_directory "${MUJOCO_FILAMENT_ASSETS_DIR}"
+              "${FILAMENT_ASSETS_FOR_WHEEL}"
+    )
+  endif()
+
   add_custom_target(
     wheel ALL
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "${CMAKE_CURRENT_BINARY_DIR}/dist"
@@ -494,6 +506,7 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
             "${CMAKE_CURRENT_BINARY_DIR}/dist/LICENSE"
     COMMAND "${CMAKE_COMMAND}" -E copy ${LIBRARIES_FOR_WHEEL}
             "${CMAKE_CURRENT_BINARY_DIR}/dist/mujoco"
+    ${WHEEL_FILAMENT_COMMANDS}
     COMMAND "${Python3_EXECUTABLE}" -m pip wheel --wheel-dir "${CMAKE_BINARY_DIR}" --no-deps -vvv
             "${CMAKE_CURRENT_BINARY_DIR}/dist"
   )
@@ -512,6 +525,9 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
     _structs
     mujoco
   )
+  if(TARGET mujoco_filament_assets)
+    add_dependencies(wheel mujoco_filament_assets)
+  endif()
   if(APPLE)
     add_dependencies(wheel mjpython)
   endif()

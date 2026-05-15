@@ -20,7 +20,7 @@ add_library(${MUJOCO_FILAMENT_TARGET_NAME} STATIC)
 target_compile_definitions(${MUJOCO_FILAMENT_TARGET_NAME} PRIVATE MJ_STATIC)
 
 target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
-    PUBLIC
+    PRIVATE
         render_context_filament.h
         render_context_filament.cc
         render_context_filament_cpp.h
@@ -62,27 +62,38 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         compat/scene_geom_util.cc
         compat/scene_geom_util.h
 )
-if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
-    target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
-        PUBLIC
-            mjr_compat.cc
-    )
-endif()
-
 target_include_directories(${MUJOCO_FILAMENT_TARGET_NAME}
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/src
 )
 
+if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
+    add_library(mujoco_filament_mjr_compat OBJECT mjr_compat.cc)
+    target_compile_definitions(mujoco_filament_mjr_compat PRIVATE MUJOCO_DLL_EXPORTS)
+    target_include_directories(mujoco_filament_mjr_compat
+        PRIVATE
+            ${PROJECT_SOURCE_DIR}/include
+            ${PROJECT_SOURCE_DIR}/src
+    )
+endif()
+
+# dear_imgui's local CMake creates its SDL2 backend target unconditionally.
+# Studio pulls SDL2 through the platform layer, but the standalone Filament/MJR
+# path needs to define SDL2 here.
+include(third_party_deps/sdl2)
 include(third_party_deps/dear_imgui)
 include(third_party_deps/filament)
 target_link_libraries(${MUJOCO_FILAMENT_TARGET_NAME}
-    dear_imgui
-    filament
-    image       # provided by filament
-    ktxreader   # provided by filament
+    PRIVATE
+        dear_imgui
+        filament
+        image       # provided by filament
+        ktxreader   # provided by filament
 )
+if(CMAKE_DL_LIBS)
+    target_link_libraries(${MUJOCO_FILAMENT_TARGET_NAME} PRIVATE ${CMAKE_DL_LIBS})
+endif()
 
 add_library(mujoco::filament ALIAS ${MUJOCO_FILAMENT_TARGET_NAME})
 
@@ -161,4 +172,15 @@ list(APPEND MUJOCO_FILAMENT_ASSET_FILES "${OUTPUT_ASSETS_DIR}/ibl.ktx")
 add_custom_target(mujoco_filament_assets DEPENDS ${MUJOCO_FILAMENT_ASSET_FILES})
 add_dependencies(${MUJOCO_FILAMENT_TARGET_NAME} mujoco_filament_assets)
 
-set(MUJOCO_FILAMENT_ASSETS_DIR ${OUTPUT_ASSETS_DIR})
+set(MUJOCO_FILAMENT_ASSETS_DIR
+    ${OUTPUT_ASSETS_DIR}
+    CACHE PATH "Directory containing generated MuJoCo Filament runtime assets."
+)
+
+install(
+    DIRECTORY "${OUTPUT_ASSETS_DIR}/"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/assets"
+    FILES_MATCHING
+    PATTERN "*.filamat"
+    PATTERN "*.ktx"
+)
