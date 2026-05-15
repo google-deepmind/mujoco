@@ -195,6 +195,35 @@ void Init() {
   http_provider.prefix = "https";
   mjp_registerResourceProvider(&http_provider);
 
+  // Register a "github:" resource provider that resolves
+  // github:org/repo/branch/path/to/file.xml to
+  // https://raw.githubusercontent.com/org/repo/branch/path/to/file.xml
+  mjpResourceProvider github_provider;
+  mjp_defaultResourceProvider(&github_provider);
+
+  github_provider.open = [](mjResource* resource) {
+    std::string name(resource->name);
+    // Strip the "github:" prefix and prepend the raw.githubusercontent URL.
+    std::string url =
+        "https://raw.githubusercontent.com/" + name.substr(strlen("github:"));
+    return FetchCache::Instance().Fetch(url.c_str());
+  };
+  github_provider.read = [](mjResource* resource, const void** buffer) {
+    std::string name(resource->name);
+    std::string url =
+        "https://raw.githubusercontent.com/" + name.substr(strlen("github:"));
+    return FetchCache::Instance().Read(url.c_str(), buffer);
+  };
+  github_provider.close = [](mjResource* resource) {
+    std::string name(resource->name);
+    std::string url =
+        "https://raw.githubusercontent.com/" + name.substr(strlen("github:"));
+    FetchCache::Instance().Close(url.c_str());
+  };
+
+  github_provider.prefix = "github";
+  mjp_registerResourceProvider(&github_provider);
+
   g_app = new mujoco::studio::App({
     .width = width,
     .height = height,
