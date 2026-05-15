@@ -267,11 +267,22 @@ static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
   mju_zero(frc_g, 3*nodenum);
   mju_zero(dmp_g, 3*nodenum);
 
-  // per-face temporaries
+  // precompute per-face cache: each face appears in multiple bending edges,
+  // so caching avoids redundant position gathering and quaternion computation
+  int nfaces = 2*(cy*cz + cx*cz + cx*cy);
+  mjtNum* face_xpos = mjSTACKALLOC(d, nfaces * 3*npe, mjtNum);
+  int* face_gidx = mjSTACKALLOC(d, nfaces * npe, int);
+  mjtNum* face_quat = mjSTACKALLOC(d, nfaces * 4, mjtNum);
+  for (int fi = 0; fi < nfaces; fi++) {
+    mju_flexGatherFaceState(order, cx, cy, cz, fi, xpos_g,
+                            NULL, NULL,
+                            face_xpos + fi * 3*npe, NULL, NULL,
+                            face_gidx + fi * npe, face_quat + fi * 4);
+  }
+
+  // per-edge temporaries
   mjtNum* xpos_A = mjSTACKALLOC(d, 3*npe, mjtNum);
   mjtNum* xpos_B = mjSTACKALLOC(d, 3*npe, mjtNum);
-  mjtNum* vel_A = mjSTACKALLOC(d, 3*npe, mjtNum);
-  mjtNum* vel_B = mjSTACKALLOC(d, 3*npe, mjtNum);
   int* gidx_A = mjSTACKALLOC(d, npe, int);
   int* gidx_B = mjSTACKALLOC(d, npe, int);
 
@@ -291,16 +302,15 @@ static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
 
     if (stiffness == 0) continue;
 
-    // gather face A and B positions + corotational quats
+    // look up cached face data instead of recomputing
+    mju_copy(xpos_A, face_xpos + fe_A * 3*npe, 3*npe);
+    mju_copy(xpos_B, face_xpos + fe_B * 3*npe, 3*npe);
+    mju_copyInt(gidx_A, face_gidx + fe_A * npe, npe);
+    mju_copyInt(gidx_B, face_gidx + fe_B * npe, npe);
     mjtNum quat_A[4], quat_B[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, fe_A, xpos_g,
-                            enbl_damper ? vel_g : NULL, NULL,
-                            xpos_A, enbl_damper ? vel_A : NULL, NULL,
-                            gidx_A, quat_A);
-    mju_flexGatherFaceState(order, cx, cy, cz, fe_B, xpos_g,
-                            enbl_damper ? vel_g : NULL, NULL,
-                            xpos_B, enbl_damper ? vel_B : NULL, NULL,
-                            gidx_B, quat_B);
+    mju_copy(quat_A, face_quat + fe_A * 4, 4);
+    mju_copy(quat_B, face_quat + fe_B * 4, 4);
+
 
     // compute deformed normals at edge midpoint
     mjtNum n_A[3], t1_A[3], t2_A[3];
