@@ -280,6 +280,14 @@ static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
                             face_gidx + fi * npe, face_quat + fi * 4);
   }
 
+  // check cached node indices are in bounds
+  for (int i = 0; i < nfaces * npe; i++) {
+    if (face_gidx[i] < 0 || face_gidx[i] >= nodenum) {
+      mjERROR("cached node index out of range: face_gidx[%d]=%d, nodenum=%d",
+              i, face_gidx[i], nodenum);
+    }
+  }
+
   // per-edge temporaries
   mjtNum* xpos_A = mjSTACKALLOC(d, 3*npe, mjtNum);
   mjtNum* xpos_B = mjSTACKALLOC(d, 3*npe, mjtNum);
