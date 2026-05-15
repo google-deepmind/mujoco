@@ -105,4 +105,36 @@ class mjXReader : public mjXBase {
 #define nMJCF 248
 extern std::vector<const char*> MJCF[nMJCF];
 
+// Kind of data accepted in an attribute value. Mirrors the ReadAttr* / MapValue
+// calls performed by mjXReader::OneX() parsers. Used by the XSD generator in
+// xml_native_schema.cc.
+enum mjXAttrKind {
+  kMjXString = 0,   // arbitrary string
+  kMjXInt,          // single int
+  kMjXIntN,         // exactly N ints        (fixed-length list)
+  kMjXIntVec,       // variable-length int list
+  kMjXReal,         // single real
+  kMjXRealN,        // exactly N reals       (fixed-length list)
+  kMjXRealUpToN,    // up to N reals         (variable, capped)
+  kMjXRealVec,      // variable-length real list
+  kMjXEnum,         // keyword from an mjMap
+};
+
+// One (element, attribute) binding. Consumed by the XSD generator.
+// `map`/`map_size` are only used for kMjXEnum.
+struct mjXAttr {
+  const char* element;
+  const char* attr;
+  mjXAttrKind kind;
+  int size;                  // for kMjXIntN / kMjXRealN / kMjXRealUpToN
+  const mjMap* map;          // for kMjXEnum
+  int map_size;              // for kMjXEnum
+};
+
+// Typed attribute table mirroring the ReadAttr*/MapValue calls in OneX().
+// Defined in xml_native_reader.cc alongside MJCF[] and the enum maps so the
+// maps can keep internal linkage.
+extern const mjXAttr kMjXAttrTable[];
+extern const int kMjXAttrTableSize;
+
 #endif  // MUJOCO_SRC_XML_XML_NATIVE_READER_H_

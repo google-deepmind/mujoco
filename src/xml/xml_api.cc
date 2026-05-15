@@ -30,6 +30,7 @@
 #include "xml/xml.h"
 #include "xml/xml_global.h"
 #include "xml/xml_native_reader.h"
+#include "xml/xml_native_schema.h"
 #include "xml/xml_util.h"
 
 //---------------------------------- Functions -----------------------------------------------------
@@ -127,6 +128,28 @@ int mj_printSchema(const char* filename, char* buffer, int buffer_sz, int flg_ht
   }
 
   // return string length
+  return str.str().size();
+}
+
+
+
+// print internal XML schema as an XSD (XML Schema Definition) document
+int mj_printSchemaXSD(const char* filename, char* buffer, int buffer_sz) {
+  std::stringstream str;
+  mujoco::PrintSchemaXSD(str);
+
+  if (filename) {
+    std::ofstream file;
+    file.open(filename);
+    file << str.str();
+    file.close();
+  }
+
+  if (buffer && buffer_sz) {
+    strncpy(buffer, str.str().c_str(), buffer_sz);
+    buffer[buffer_sz-1] = 0;
+  }
+
   return str.str().size();
 }
 
