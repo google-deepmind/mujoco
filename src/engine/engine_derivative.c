@@ -864,20 +864,14 @@ static void addJTBJ_mulSparse(const mjModel* m, mjData* d, mjtNum* res, const mj
 }
 
 
-// operation type for flex interpolation derivative kernel
-typedef enum {
-  mjFLEXOP_VEC,    // res += J'*K*J*vec
-  mjFLEXOP_ADDH    // H -= J'*K*J to H (dense)
-} mjtFlexOp;
-
 // shared kernel for flex interpolation derivatives, scale = s1 + s2*damping
-//  op: operation type (VEC, or ADDH)
-//  res: output vector (VEC) or banded H matrix (ADDH)
-//  vec: input vector for VEC operation, NULL otherwise
-//  dof_indices, ndof, nband: DOF mapping and band width for ADDH, ignored otherwise
-static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
+//  res: output vector (res += J'*K*J*vec), or NULL for cache-only mode
+//  vec: input vector, or NULL for cache-only mode
+//  K_rot_cache: if non-NULL, use pre-cached K_rot values instead of computing them
+//  K_rot_out: if non-NULL and K_rot_cache is NULL, store computed K_rot values here
+static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
                                   mjtNum* res, const mjtNum* vec, mjtNum s1, mjtNum s2,
-                                  const int* dof_indices, int ndof, int nband) {
+                                  const mjtNum* K_rot_cache, mjtNum* K_rot_out) {
   int nv = m->nv;
 
   // compute upper bounds across all interpolated flexes
@@ -909,15 +903,6 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
   // single unconditional markStack
   mj_markStack(d);
 
-  // global2local map for ADDH
-  int* global2local = mjSTACKALLOC(d, nv, int);
-  if (op == mjFLEXOP_ADDH) {
-    mju_fillInt(global2local, -1, nv);
-    for (int i=0; i<ndof; i++) {
-      global2local[dof_indices[i]] = i;
-    }
-  }
-
   // per-flex node positions (upper bound)
   mjtNum* xpos = mjSTACKALLOC(d, 3*max_nodenum, mjtNum);
 
@@ -934,14 +919,6 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
   // temp allocations for chain
   int* chain_colind = mjSTACKALLOC(d, nv, int);
   mjtNum* blk_jac = mjSTACKALLOC(d, 3*nv, mjtNum);
-
-  // ADDH-specific allocations (upper bound)
-  mjtNum* J_reduced = NULL;
-  mjtNum* KJ = NULL;
-  if (op == mjFLEXOP_ADDH) {
-    J_reduced = mjSTACKALLOC(d, max_dim_c*ndof, mjtNum);
-    KJ = mjSTACKALLOC(d, max_dim_c*ndof, mjtNum);
-  }
 
   // loop over flexes
   for (int f=0; f < m->nflex; f++) {
@@ -1012,52 +989,85 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
         continue;
       }
 
-      // gather element-local node positions
-      int gindices[125];  // max npe = 125 for quadratic 3D
-      mjtNum quat[4];
-      if (shell_mode) {
-        mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos, NULL, NULL,
-                                xpos_c, NULL, NULL, gindices, quat);
+      // use cached K_rot or compute from scratch
+      int gindices[125];  // element node indices (max npe = 125 for quadratic 3D)
+      int krot_adr = stiffnessadr + fe * dim_e * dim_e;
+      if (K_rot_cache) {
+        // read K_rot from cache and apply scale
+        for (int i = 0; i < dim_e*dim_e; i++) {
+          K_rot_cell[i] = scale * K_rot_cache[krot_adr + i];
+        }
+
+        // recompute gindices (cheap index-only call, no rotation)
+        if (shell_mode) {
+          mju_flexGatherFaceState(order, cx, cy, cz, fe, NULL, NULL, NULL,
+                                  NULL, NULL, NULL, gindices, NULL);
+        } else {
+          int ci = fe / (cy * cz);
+          int cj = (fe / cz) % cy;
+          int ck = fe % cz;
+          mju_flexGatherCellState(order, cy, cz, ci, cj, ck, NULL, NULL, NULL,
+                                  NULL, NULL, NULL, gindices, NULL);
+        }
       } else {
-        int ci = fe / (cy * cz);
-        int cj = (fe / cz) % cy;
-        int ck = fe % cz;
-        mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos, NULL, NULL,
-                                xpos_c, NULL, NULL, gindices, quat);
-      }
+        // gather element-local node positions and rotation
+        mjtNum quat[4];
+        if (shell_mode) {
+          mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos, NULL, NULL,
+                                  xpos_c, NULL, NULL, gindices, quat);
+        } else {
+          int ci = fe / (cy * cz);
+          int cj = (fe / cz) % cy;
+          int ck = fe % cz;
+          mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos, NULL, NULL,
+                                  xpos_c, NULL, NULL, gindices, quat);
+        }
 
-      // R = R_global2local, RT = R_local2global
-      mjtNum R[9], RT[9];
-      mju_quat2Mat(R, quat);
-      mju_transpose(RT, R, 3, 3);
+        // R = R_global2local, RT = R_local2global
+        mjtNum R[9], RT[9];
+        mju_quat2Mat(R, quat);
+        mju_transpose(RT, R, 3, 3);
 
-      // compute K_rot = RT * K_elem * R (block-wise)
-      mju_zero(K_rot_cell, dim_e*dim_e);
-      for (int a = 0; a < npe; a++) {
-        for (int b = 0; b < npe; b++) {
-          mjtNum blk[9], tmp[9];
+        // compute K_rot = RT * K_elem * R (block-wise)
+        mju_zero(K_rot_cell, dim_e*dim_e);
+        for (int a = 0; a < npe; a++) {
+          for (int b = 0; b < npe; b++) {
+            mjtNum blk[9], tmp[9];
 
-          // get K_elem(a,b) 3x3 block
-          int adr_cell = (3*a)*(3*npe) + 3*b;
-          for (int r = 0; r < 3; r++) {
-            for (int c = 0; c < 3; c++) {
-              blk[3*r+c] = k_elem[adr_cell + r*(3*npe) + c];
+            // get K_elem(a,b) 3x3 block
+            int adr_cell = (3*a)*(3*npe) + 3*b;
+            for (int r = 0; r < 3; r++) {
+              for (int c = 0; c < 3; c++) {
+                blk[3*r+c] = k_elem[adr_cell + r*(3*npe) + c];
+              }
             }
-          }
 
-          // tmp = K * R
-          mju_mulMatMat3(tmp, blk, R);
-          // blk = RT * tmp = RT * K * R
-          mju_mulMatMat3(blk, RT, tmp);
+            // tmp = K * R
+            mju_mulMatMat3(tmp, blk, R);
+            // blk = RT * tmp = RT * K * R
+            mju_mulMatMat3(blk, RT, tmp);
 
-          // store in K_rot_cell at (a, b)
-          int adr_out = (3*a)*dim_e + 3*b;
-          for (int r = 0; r < 3; r++) {
-            for (int c = 0; c < 3; c++) {
-              K_rot_cell[adr_out + r*dim_e + c] = scale * blk[3*r+c];
+            // store in K_rot_cell at (a, b)
+            int adr_out = (3*a)*dim_e + 3*b;
+            for (int r = 0; r < 3; r++) {
+              for (int c = 0; c < 3; c++) {
+                K_rot_cell[adr_out + r*dim_e + c] = scale * blk[3*r+c];
+              }
             }
           }
         }
+
+        // optionally store unscaled K_rot to output cache
+        if (K_rot_out) {
+          for (int i = 0; i < dim_e*dim_e; i++) {
+            K_rot_out[krot_adr + i] = K_rot_cell[i] / scale;
+          }
+        }
+      }
+
+      // skip Jacobian construction and op when only caching (res == NULL)
+      if (!res) {
+        continue;
       }
 
       // construct sparse Jacobian for this element's nodes
@@ -1081,40 +1091,9 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
         }
       }
 
-      // apply operation with element's K_rot and J
-      if (op == mjFLEXOP_VEC) {
-        addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
-                          J_val, K_rot_cell, dim_e);
-      } else if (op == mjFLEXOP_ADDH) {
-        // H -= J_elem^T * K_rot * J_elem (banded format)
-        mju_zero(J_reduced, dim_e*ndof);
-
-        for (int i = 0; i < dim_e; i++) {
-          int nnz = J_rownnz[i];
-          int adr = J_rowadr[i];
-          for (int idx = 0; idx < nnz; idx++) {
-            int global_col = J_colind[adr + idx];
-            int local_idx = global2local[global_col];
-            if (local_idx >= 0) {
-              J_reduced[i*ndof + local_idx] = J_val[adr + idx];
-            }
-          }
-        }
-
-        // KJ = K_rot * J_reduced  (dim_e x ndof)
-        mju_mulMatMat(KJ, K_rot_cell, J_reduced, dim_e, dim_e, ndof);
-
-        // H[i,j] -= J_reduced[k,i] * KJ[k,j], store lower triangle in banded format
-        for (int i = 0; i < ndof; i++) {
-          for (int j = mjMAX(0, i-nband+1); j <= i; j++) {
-            mjtNum val = 0;
-            for (int dim_idx = 0; dim_idx < dim_e; dim_idx++) {
-              val += J_reduced[dim_idx*ndof + i] * KJ[dim_idx*ndof + j];
-            }
-            res[i*nband + nband-1-(i-j)] -= val;
-          }
-        }
-      }
+      // res += J'*K_rot*J*vec
+      addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
+                        J_val, K_rot_cell, dim_e);
     }
   }
 
@@ -1124,9 +1103,17 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d, mjtFlexOp op,
 
 
 // compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
+//   K_rot_cache: if non-NULL, use pre-cached K_rot (same layout as m->flex_stiffness)
 void mjd_flexInterp_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
-                        mjtNum s1, mjtNum s2) {
-  mjd_flexInterp_kernel(m, d, mjFLEXOP_VEC, res, vec, s1, s2, NULL, 0, 0);
+                        mjtNum s1, mjtNum s2, const mjtNum* K_rot_cache) {
+  mjd_flexInterp_kernel(m, d, res, vec, s1, s2, K_rot_cache, NULL);
+}
+
+
+// precompute unscaled K_rot for all elements into cache (same layout as m->flex_stiffness)
+void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_out) {
+  // use s1=1, s2=0 so scale=1 and K_rot_out gets unscaled values
+  mjd_flexInterp_kernel(m, d, NULL, NULL, 1, 0, NULL, K_rot_out);
 }
 
 

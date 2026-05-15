@@ -1485,7 +1485,7 @@ static void mulKD_dense(mjModel* m, mjData* d, mjtNum* H_dense,
     mju_zero(e_i.data(), nv);
     mju_zero(col.data(), nv);
     e_i[i] = 1.0;
-    mjd_flexInterp_mul(m, d, col.data(), e_i.data(), h * h, h);
+    mjd_flexInterp_mul(m, d, col.data(), e_i.data(), h * h, h, NULL);
     // col = +(h^2 + h*damp)*K*e_i, negate to match addH convention (H -= K)
     for (int j = 0; j < nv; j++) {
       H_dense[j * nv + i] = -col[j];

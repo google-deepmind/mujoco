@@ -1414,16 +1414,22 @@ static void flexInterp_cgsolve(const mjModel* m, mjData* d,
   mjtNum* Ap = mjSTACKALLOC(d, nv, mjtNum);
   mjtNum* temp = mjSTACKALLOC(d, nv, mjtNum);
 
+  // precompute K_rot cache: same layout as m->flex_stiffness
+  int krot_size = m->nflexstiffness;
+  mjtNum* K_rot_cache = mjSTACKALLOC(d, krot_size, mjtNum);
+  mju_zero(K_rot_cache, krot_size);
+  mjd_flexInterp_cacheKrot(m, d, K_rot_cache);
+
   // build RHS: rhs = qfrc
   mju_copy(rhs, qfrc, nv);
 
   // flex_interp velocity correction: rhs += h*K_interp*qvel (K_interp is NSD)
-  mjd_flexInterp_mul(m, d, rhs, d->qvel, h, 0);  // rhs += h*K_interp*v
+  mjd_flexInterp_mul(m, d, rhs, d->qvel, h, 0, K_rot_cache);
 
   // standard flex bending velocity correction: rhs -= h*K_bend*qvel
   mjd_flexBend_mul(m, d, rhs, d->qvel, -h, 0);  // rhs -= h*K_bend*v
 
-  // --- helper lambda-style inline: compute Ap = A*x ---
+  // --- helper: compute Ap = A*x ---
   // A*x = (M - h*qDeriv)*x - (h^2+h*d)*K_interp*x + (h^2+h*d)*K_bend*x
   #define FLEX_CG_MATVEC(Ap_out, x_in)                                           \
     mju_mulMatVecSparse(Ap_out, d->qDeriv, x_in, nv, m->D_rownnz, m->D_rowadr,   \
@@ -1431,7 +1437,7 @@ static void flexInterp_cgsolve(const mjModel* m, mjData* d,
     mju_mulSymVecSparse(temp, d->M, x_in, nv, m->M_rownnz, m->M_rowadr,          \
                         m->M_colind);                                            \
     mju_addScl(Ap_out, temp, Ap_out, -h, nv);                                    \
-    mjd_flexInterp_mul(m, d, Ap_out, x_in, -(h*h), -h);                          \
+    mjd_flexInterp_mul(m, d, Ap_out, x_in, -(h*h), -h, K_rot_cache);             \
     mjd_flexBend_mul(m, d, Ap_out, x_in, h*h, h)
 
   // --- helper: preconditioner solve z = (M - h*qDeriv)^{-1} * r ---

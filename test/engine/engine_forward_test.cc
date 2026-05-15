@@ -3147,7 +3147,7 @@ TEST_F(ForwardTest, FlexTrilinearInstability) {
   // using mulKD for legacy check consistency, but we know it applies h^2+h*d
   // scaling; actually, let's stick to the high-level property checks from
   // FlexStiffnessSign which used mulKD
-  mjd_flexInterp_mul(model, data, flex_Kv.data(), v.data(), h * h, h);
+  mjd_flexInterp_mul(model, data, flex_Kv.data(), v.data(), h * h, h, NULL);
 
   // compute v^T*M*v and v^T*scale*K*v
   mjtNum vMv = mju_dot(v.data(), Mv.data(), nv);
