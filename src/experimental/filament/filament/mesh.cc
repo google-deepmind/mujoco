@@ -14,13 +14,13 @@
 
 #include "experimental/filament/filament/mesh.h"
 
+#include <algorithm>
 #include <cfloat>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
 #include <mutex>
-#include <span>
 #include <utility>
 
 #include <filament/Box.h>
@@ -353,8 +353,10 @@ filament::RenderableManager::PrimitiveType Mesh::GetPrimitiveType() const {
   return type_;
 }
 
-std::span<const filament::VertexAttribute> Mesh::GetVertexAttributes() const {
-  return {attributes_.data(), attributes_.data() + num_attributes_};
+bool Mesh::HasVertexAttribute(mjrVertexAttributeUsage attrib) const {
+  auto fattrib = GetUsage(mjrVertexAttribute{.usage = attrib});
+  auto it = std::find(attributes_.begin(), attributes_.end(), fattrib);
+  return it != attributes_.end();
 }
 
 bool Mesh::HasBounds() const {

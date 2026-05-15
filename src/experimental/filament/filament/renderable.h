@@ -121,7 +121,6 @@ class Renderable : public mjrRenderable {
   void AppendMesh(const Mesh* mesh);
   void InitPartEntity(Part& part);
 
-  ObjectManager::MaterialType GetColorMaterialType() const;
   void AssignMaterial(mjrDrawMode mode,
                       ObjectManager::MaterialType material_type);
 

@@ -20,7 +20,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <span>
 #include <vector>
 
 #include <filament/Box.h>
@@ -52,8 +51,8 @@ class Mesh : public mjrMesh {
   // Returns the primitive type of the mesh.
   filament::RenderableManager::PrimitiveType GetPrimitiveType() const;
 
-  // Returns the vertex attribute usages for the mesh.
-  std::span<const filament::VertexAttribute> GetVertexAttributes() const;
+  // Returns true if the mesh has the given attribute.
+  bool HasVertexAttribute(mjrVertexAttributeUsage attrib) const;
 
   // Returns whether the mesh has bounds.
   bool HasBounds() const;

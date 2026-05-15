@@ -14,7 +14,6 @@
 
 #include "experimental/filament/filament/renderable.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <numbers>
 
@@ -34,7 +33,6 @@
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -210,7 +208,9 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
 void Renderable::UpdateMaterial(const mjrMaterial& material) {
   material_ = material;
 
-  AssignMaterial(mjDRAW_MODE_COLOR, GetColorMaterialType());
+  const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
+
+  AssignMaterial(mjDRAW_MODE_COLOR, GetMaterialType(material_, mesh));
   if (!material_.decor_ux) {
     AssignMaterial(mjDRAW_MODE_DEPTH, ObjectManager::kUnlitDepth);
     AssignMaterial(mjDRAW_MODE_SEGMENTATION, ObjectManager::kUnlitSegmentation);
@@ -344,73 +344,6 @@ void Renderable::SetWireframe(bool wireframe) {
                        wireframe_ ? kWireframeType : part.mesh->GetPrimitiveType(),
                        vertex_buffer, index_buffer, part.elem_offset,
                        part.elem_count);
-    }
-  }
-}
-
-ObjectManager::MaterialType Renderable::GetColorMaterialType() const {
-  if (material_.decor_ux) {
-    if (material_.color_texture) {
-      return ObjectManager::kUnlitUi;
-    } else {
-      return ObjectManager::kUnlitDecor;
-    }
-  } else if (material_.orm_texture) {
-    return ObjectManager::kPbrPacked;
-  } else if (material_.metallic_texture) {
-    return ObjectManager::kPbr;
-  } else if (material_.roughness_texture) {
-    return ObjectManager::kPbr;
-  } else if (material_.metallic >= 0) {
-    return ObjectManager::kPbr;
-  } else if (material_.roughness >= 0) {
-    return ObjectManager::kPbr;
-  }
-
-  // Check to see if we're dealing with a mesh with texture coordinates.
-  // `data_id` is the id of the mesh in model (i.e. the geom has mesh
-  // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if
-  // it has them.
-  bool has_texcoords = false;
-  const Texture* color_texture = Texture::downcast(material_.color_texture);
-  if (!parts_.empty()) {
-    const auto attribs = parts_[0].mesh->GetVertexAttributes();
-    auto it = std::find(attribs.begin(), attribs.end(),
-                        filament::VertexAttribute::UV0);
-    has_texcoords = (it != attribs.end());
-  }
-
-  if (color_texture == nullptr) {
-    if (material_.color[3] < 1.0f) {
-      return ObjectManager::kPhongColorFade;
-    } else if (material_.reflective) {
-      return ObjectManager::kPhongColorReflect;
-    } else {
-      return ObjectManager::kPhongColor;
-    }
-  } else if (color_texture->GetSamplerType() == mjTEXTURE_CUBE) {
-    if (material_.color[3] < 1.0f) {
-      return ObjectManager::kPhongCubeFade;
-    } else if (material_.reflective) {
-      return ObjectManager::kPhongCubeReflect;
-    } else {
-      return ObjectManager::kPhongCube;
-    }
-  } else if (has_texcoords) {
-    if (material_.color[3] < 1.0f) {
-      return ObjectManager::kPhong2dUvFade;
-    } else if (material_.reflective) {
-      return ObjectManager::kPhong2dUvReflect;
-    } else {
-      return ObjectManager::kPhong2dUv;
-    }
-  } else {
-    if (material_.color[3] < 1.0f) {
-      return ObjectManager::kPhong2dFade;
-    } else if (material_.reflective) {
-      return ObjectManager::kPhong2dReflect;
-    } else {
-      return ObjectManager::kPhong2d;
     }
   }
 }

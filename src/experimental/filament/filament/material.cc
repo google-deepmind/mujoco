@@ -21,11 +21,75 @@
 #include <filament/TextureSampler.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament_util.h"
+#include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
+
+ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
+                                            const Mesh* mesh) {
+  if (material.decor_ux) {
+    if (material.color_texture) {
+      return ObjectManager::kUnlitUi;
+    } else {
+      return ObjectManager::kUnlitDecor;
+    }
+  } else if (material.orm_texture) {
+    return ObjectManager::kPbrPacked;
+  } else if (material.metallic_texture) {
+    return ObjectManager::kPbr;
+  } else if (material.roughness_texture) {
+    return ObjectManager::kPbr;
+  } else if (material.metallic >= 0) {
+    return ObjectManager::kPbr;
+  } else if (material.roughness >= 0) {
+    return ObjectManager::kPbr;
+  }
+
+  // Check to see if we're dealing with a mesh with texture coordinates.
+  // `data_id` is the id of the mesh in model (i.e. the geom has mesh
+  // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if
+  // it has them.
+  const Texture* color_texture = Texture::downcast(material.color_texture);
+  const bool has_texcoords =
+      mesh ? mesh->HasVertexAttribute(mjVERTEX_ATTRIBUTE_USAGE_UV) : false;
+
+  if (color_texture == nullptr) {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPhongColorFade;
+    } else if (material.reflective) {
+      return ObjectManager::kPhongColorReflect;
+    } else {
+      return ObjectManager::kPhongColor;
+    }
+  } else if (color_texture->GetSamplerType() == mjTEXTURE_CUBE) {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPhongCubeFade;
+    } else if (material.reflective) {
+      return ObjectManager::kPhongCubeReflect;
+    } else {
+      return ObjectManager::kPhongCube;
+    }
+  } else if (has_texcoords) {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPhong2dUvFade;
+    } else if (material.reflective) {
+      return ObjectManager::kPhong2dUvReflect;
+    } else {
+      return ObjectManager::kPhong2dUv;
+    }
+  } else {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPhong2dFade;
+    } else if (material.reflective) {
+      return ObjectManager::kPhong2dReflect;
+    } else {
+      return ObjectManager::kPhong2d;
+    }
+  }
+}
 
 void UpdateMaterialInstance(filament::MaterialInstance* instance,
                             const mjrMaterial& material,
