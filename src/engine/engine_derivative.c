@@ -978,6 +978,19 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
     // gather raw node positions (unrotated)
     mju_flexGatherState(m, d, f, xpos, NULL);
 
+    // check if centered fast path applies: centered, all nodes on simple slider
+    // bodies (body_simple == 2 means diag M with sliders only, J = I_3 per node)
+    int use_fast_path = m->flex_centered[f];
+    if (use_fast_path) {
+      int nodenum_f = m->flex_nodenum[f];
+      for (int n = 0; n < nodenum_f; n++) {
+        if (m->body_simple[bodyid[n]] != 2) {
+          use_fast_path = 0;
+          break;
+        }
+      }
+    }
+
     // loop over finite elements
     for (int fe = 0; fe < nelem_fe; fe++) {
       // get element stiffness
@@ -1070,30 +1083,51 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
         continue;
       }
 
-      // construct sparse Jacobian for this element's nodes
-      int current_adr = 0;
-      for (int n = 0; n < npe; n++) {
-        int bid = bodyid[gindices[n]];
-        int chain_nnz = mj_bodyChain(m, bid, chain_colind);
-        mj_jacSparse(m, d, blk_jac, NULL, xpos+3*gindices[n], bid,
-                     chain_nnz, chain_colind, /*flg_skipcommon=*/0);
-
-        for (int r = 0; r < 3; r++) {
-          int row_idx = 3*n + r;
-          J_rownnz[row_idx] = chain_nnz;
-          J_rowadr[row_idx] = current_adr;
-
-          for (int idx = 0; idx < chain_nnz; idx++) {
-            J_colind[current_adr] = chain_colind[idx];
-            J_val[current_adr] = blk_jac[r*chain_nnz + idx];
-            current_adr++;
+      // fast path: centered flex with 3 translational DOFs per body
+      // J is identity, so J'*K*J*vec = K*vec — scatter directly
+      if (use_fast_path) {
+        for (int a = 0; a < npe; a++) {
+          int dof_a = m->body_dofadr[bodyid[gindices[a]]];
+          for (int b = 0; b < npe; b++) {
+            int dof_b = m->body_dofadr[bodyid[gindices[b]]];
+            // K_rot_cell[3*a, 3*b] is the 3x3 block
+            int adr = (3*a)*dim_e + 3*b;
+            for (int r = 0; r < 3; r++) {
+              mjtNum val = 0;
+              for (int c = 0; c < 3; c++) {
+                val += K_rot_cell[adr + r*dim_e + c] * vec[dof_b + c];
+              }
+              res[dof_a + r] += val;
+            }
           }
         }
+      } else {
+        // general path: construct sparse Jacobian for this element's nodes
+        int current_adr = 0;
+        for (int n = 0; n < npe; n++) {
+          int bid = bodyid[gindices[n]];
+          int chain_nnz = mj_bodyChain(m, bid, chain_colind);
+          mj_jacSparse(m, d, blk_jac, NULL, xpos+3*gindices[n], bid,
+                       chain_nnz, chain_colind, /*flg_skipcommon=*/0);
+
+          for (int r = 0; r < 3; r++) {
+            int row_idx = 3*n + r;
+            J_rownnz[row_idx] = chain_nnz;
+            J_rowadr[row_idx] = current_adr;
+
+            for (int idx = 0; idx < chain_nnz; idx++) {
+              J_colind[current_adr] = chain_colind[idx];
+              J_val[current_adr] = blk_jac[r*chain_nnz + idx];
+              current_adr++;
+            }
+          }
+        }
+
+        // res += J'*K_rot*J*vec
+        addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
+                          J_val, K_rot_cell, dim_e);
       }
 
-      // res += J'*K_rot*J*vec
-      addJTBJ_mulSparse(m, d, res, vec, J_rownnz, J_rowadr, J_colind,
-                        J_val, K_rot_cell, dim_e);
     }
   }
 
