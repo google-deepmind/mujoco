@@ -590,7 +590,7 @@ struct mjrMaterial {
   float color[4];
 
   // The color to use for segmentation rendering. Defaults to white.
-  float segmentation_color[4];
+  mjtByte segmentation_color[3];
 
   // Applies an addition scale to the UV coordinates of the object. Defaults to
   // (1, 1, 1).

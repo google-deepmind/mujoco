@@ -226,13 +226,9 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
       const double sample = std::fmod(0.5 + coef1 * index, 1.0);
       segmentation_color = 0x01000000 * sample;
     }
-
-    const uint8_t red = (segmentation_color >> 0) & 0xff;
-    const uint8_t green = (segmentation_color >> 8) & 0xff;
-    const uint8_t blue = (segmentation_color >> 16) & 0xff;
-    material.segmentation_color[0] = static_cast<float>(red) / 255.0f;
-    material.segmentation_color[1] = static_cast<float>(green) / 255.0f;
-    material.segmentation_color[2] = static_cast<float>(blue) / 255.0f;
+    material.segmentation_color[0] = (segmentation_color >> 0);
+    material.segmentation_color[1] = (segmentation_color >> 8);
+    material.segmentation_color[2] = (segmentation_color >> 16);
   }
 
   // UvScale only applies to objects that don't have explicit UV coordinates

@@ -19,6 +19,7 @@
 #include <filament/MaterialInstance.h>
 #include <filament/RenderableManager.h>
 #include <filament/TextureSampler.h>
+#include <math/vec4.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/mesh.h"
@@ -105,8 +106,12 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
                            ReadFloat4(material.color));
   }
   if (fmaterial->hasParameter("SegmentationColor")) {
+    filament::math::float4 color{
+        static_cast<float>(material.segmentation_color[0]) / 255.0f,
+        static_cast<float>(material.segmentation_color[1]) / 255.0f,
+        static_cast<float>(material.segmentation_color[2]) / 255.0f, 1.0f};
     instance->setParameter("SegmentationColor", filament::RgbaType::LINEAR,
-                           ReadFloat4(material.segmentation_color));
+                           color);
   }
   if (fmaterial->hasParameter("EmissiveFactor")) {
     instance->setParameter("EmissiveFactor", material.emissive);

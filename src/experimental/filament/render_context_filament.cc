@@ -97,8 +97,10 @@ void mjr_defaultLightParams(mjrLightParams* params) {
 void mjr_defaultMaterial(mjrMaterial* material) {
   memset(material, 0, sizeof(mjrMaterial));
   setf(material->color, {1.f, 1.f, 1.f, 1.f});
-  setf(material->segmentation_color, {1, 1, 1, 1});
   setf(material->uv_scale, {1, 1, 1});
+  material->segmentation_color[0] = 255;
+  material->segmentation_color[1] = 255;
+  material->segmentation_color[2] = 255;
   material->emissive = -1.0f;
   material->specular = -1.0f;
   material->glossiness = -1.0f;
