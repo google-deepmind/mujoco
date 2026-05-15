@@ -92,7 +92,8 @@ class SceneView : public mjrScene {
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;
   ColorGradingOptions color_grading_options_;
-  std::array<filament::View*, mjNUM_DRAW_MODES> views_;
+  filament::View* main_view_;
+  filament::View* depth_segment_view_;
 
   // Scene objects.
   std::unordered_set<Light*> lights_;

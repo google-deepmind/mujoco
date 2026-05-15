@@ -130,6 +130,8 @@ void mjrf_destroyContext(mjrfContext* ctx);
 typedef enum mjrDrawMode_ {
   // Render the scene with "normal" colors and lighting.
   mjDRAW_MODE_COLOR,
+  // Render the scene as a wireframe.
+  mjDRAW_MODE_WIREFRAME,
   // Render the scene as a grayscale depth map.
   mjDRAW_MODE_DEPTH,
   // Render each object with a unique, uniform (flat) color regardless of
@@ -137,7 +139,7 @@ typedef enum mjrDrawMode_ {
   mjDRAW_MODE_SEGMENTATION,
 } mjrDrawMode;
 
-enum { mjNUM_DRAW_MODES = 3 };  // Number of modes in `mjrDrawMode`.
+enum { mjNUM_DRAW_MODES = 4 };  // Number of modes in `mjrDrawMode`.
 
 // Parameters describing the camera to use for rendering an image.
 typedef mjvGLCamera mjrCamera;
@@ -707,9 +709,6 @@ void mjrf_setRenderableCastShadows(mjrRenderable* renderable,
 // Sets whether the renderable receives shadows or not.
 void mjrf_setRenderableReceiveShadows(mjrRenderable* renderable,
                                       mjtByte receive_shadows);
-
-// Forces the renderable to be rendered using lines.
-void mjrf_setRenderableWireframe(mjrRenderable* renderable, mjtByte wireframe);
 
 // Sets the layer mask of the renderable. See mjrRenderableParams for details.
 void mjrf_setRenderableLayerMask(mjrRenderable* renderable, uint8_t layer_mask);

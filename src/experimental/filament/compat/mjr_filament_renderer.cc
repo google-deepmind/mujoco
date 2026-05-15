@@ -59,7 +59,10 @@ void MjrFilamentRenderer::Render(const mjrRect& viewport,
       reqs[0].draw_mode = mjDRAW_MODE_SEGMENTATION;
     } else if (render_flags_[mjRND_DEPTH]) {
       reqs[0].draw_mode = mjDRAW_MODE_DEPTH;
+    } else if (render_flags_[mjRND_WIREFRAME]) {
+      reqs[0].draw_mode = mjDRAW_MODE_WIREFRAME;
     }
+
     reqs[0].camera = scene_bridge_->GetCamera();
     reqs[0].viewport = viewport;
     reqs[0].enable_shadows = render_flags_[mjRND_SHADOW];
@@ -109,6 +112,8 @@ void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
     reqs[0].draw_mode = mjDRAW_MODE_SEGMENTATION;
   } else if (render_flags_[mjRND_DEPTH]) {
     reqs[0].draw_mode = mjDRAW_MODE_DEPTH;
+  } else if (render_flags_[mjRND_WIREFRAME]) {
+    reqs[0].draw_mode = mjDRAW_MODE_WIREFRAME;
   }
   reqs[0].camera = scene_bridge_->GetCamera();
   reqs[0].viewport = viewport;

@@ -277,10 +277,6 @@ void mjrf_setRenderableLayerMask(mjrRenderable* renderable,
   mujoco::Renderable::downcast(renderable)->SetLayerMask(layer_mask);
 }
 
-void mjrf_setRenderableWireframe(mjrRenderable* renderable, mjtByte wireframe) {
-  mujoco::Renderable::downcast(renderable)->SetWireframe(wireframe);
-}
-
 void mjrf_setRenderableCastShadows(mjrRenderable* renderable,
                                    mjtByte cast_shadows) {
   mujoco::Renderable::downcast(renderable)->SetCastShadows(cast_shadows);

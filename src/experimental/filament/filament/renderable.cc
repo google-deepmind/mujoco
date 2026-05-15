@@ -210,8 +210,10 @@ void Renderable::UpdateMaterial(const mjrMaterial& material) {
 
   const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
 
-  AssignMaterial(mjDRAW_MODE_COLOR, GetMaterialType(material_, mesh));
+  const ObjectManager::MaterialType type = GetMaterialType(material, mesh);
+  AssignMaterial(mjDRAW_MODE_COLOR, type);
   if (!material_.decor_ux) {
+    AssignMaterial(mjDRAW_MODE_WIREFRAME, type);
     AssignMaterial(mjDRAW_MODE_DEPTH, ObjectManager::kUnlitDepth);
     AssignMaterial(mjDRAW_MODE_SEGMENTATION, ObjectManager::kUnlitSegmentation);
   }
@@ -221,7 +223,6 @@ void Renderable::UpdateMaterial(const mjrMaterial& material) {
       UpdateMaterialInstance(instances_[i], material_, object_mgr_);
     }
   }
-  SetDrawMode(draw_mode_);
 }
 
 void Renderable::AssignMaterial(mjrDrawMode mode,
@@ -256,6 +257,8 @@ void Renderable::SetDrawMode(mjrDrawMode mode) {
   if (material_.decor_ux) {
     mode = mjDRAW_MODE_COLOR;
   }
+
+  SetWireframe(mode == mjDRAW_MODE_WIREFRAME);
 
   filament::MaterialInstance* instance = instances_[static_cast<int>(mode)];
   if (instance) {

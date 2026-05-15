@@ -191,8 +191,6 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
   if (geom.category == mjCAT_DECOR) {
     mjrf_setRenderableCastShadows(renderable, false);
     mjrf_setRenderableReceiveShadows(renderable, false);
-  } else {
-    mjrf_setRenderableWireframe(renderable, render_flags[mjRND_WIREFRAME]);
   }
 
   if (geom.matid >= 0 && geom.matid < model->nmat) {

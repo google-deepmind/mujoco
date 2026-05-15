@@ -127,12 +127,16 @@ SceneView::SceneView(filament::Engine* engine, const mjrSceneParams& params)
   camera_ = engine->createCamera(utils::EntityManager::get().create());
   reflect_camera_ = engine->createCamera(utils::EntityManager::get().create());
 
-  for (auto& view : views_) {
-    view = engine->createView();
-    view->setScene(scene_);
-    view->setCamera(camera_);
-    view->setVisibleLayers(0xff, params.layer_mask);
-  }
+  main_view_ = engine->createView();
+  main_view_->setScene(scene_);
+  main_view_->setCamera(camera_);
+  main_view_->setVisibleLayers(0xff, params.layer_mask);
+
+  depth_segment_view_ = engine->createView();
+  depth_segment_view_->setScene(scene_);
+  depth_segment_view_->setCamera(camera_);
+  depth_segment_view_->setVisibleLayers(0xff, params.layer_mask);
+  depth_segment_view_->setPostProcessingEnabled(false);
 
   reflect_view_ = engine->createView();
   reflect_view_->setScene(scene_);
@@ -142,13 +146,8 @@ SceneView::SceneView(filament::Engine* engine, const mjrSceneParams& params)
   reflect_view_->setFrontFaceWindingInverted(true);
   reflect_view_->setVisibleLayers(0xff, params.reflection_layer_mask);
 
-  // Disable post processing for the depth and segmentation views to preserve
-  // the values.
-  views_[mjDRAW_MODE_DEPTH]->setPostProcessingEnabled(false);
-  views_[mjDRAW_MODE_SEGMENTATION]->setPostProcessingEnabled(false);
-
   // Rotate the fog to align with mujoco's +Z up space.
-  auto fog = views_[mjDRAW_MODE_COLOR]->getFogEntity();
+  auto fog = main_view_->getFogEntity();
   auto& tm = engine->getTransformManager();
   tm.create(fog);
   tm.setTransform(tm.getInstance(fog),
@@ -176,9 +175,8 @@ SceneView::~SceneView() {
     engine_->destroy(color_grading_);
   }
   engine_->destroy(scene_);
-  for (auto& view : views_) {
-    engine_->destroy(view);
-  }
+  engine_->destroy(depth_segment_view_);
+  engine_->destroy(main_view_);
 }
 
 void SceneView::AddToScene(Light* light) {
@@ -237,12 +235,10 @@ void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& req
     DisableReflections();
   }
 
-
   filament::Viewport viewport(request.viewport.left, request.viewport.bottom,
                               request.viewport.width, request.viewport.height);
-  for (auto& view : views_) {
-    view->setViewport(viewport);
-  }
+  main_view_->setViewport(viewport);
+  depth_segment_view_->setViewport(viewport);
   reflect_view_->setViewport(viewport);
 
   SetupCamera(request.camera, viewport, camera_);
@@ -251,7 +247,11 @@ void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& req
     iter->SetDrawMode(request.draw_mode);
   }
 
-  filament::View* view = views_[static_cast<int>(request.draw_mode)];
+  filament::View* view = main_view_;
+  if (request.draw_mode == mjDRAW_MODE_DEPTH ||
+      request.draw_mode == mjDRAW_MODE_SEGMENTATION) {
+    view = depth_segment_view_;
+  }
   view->setShadowingEnabled(request.enable_shadows);
   view->setPostProcessingEnabled(request.enable_post_processing);
 
@@ -328,7 +328,7 @@ void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
   auto color_grading = ToBuilder(color_grading_options_)
                            .toneMapper(tone_mapper.get())
                            .build(*GetEngine());
-  views_[mjDRAW_MODE_COLOR]->setColorGrading(color_grading);
+  main_view_->setColorGrading(color_grading);
   if (color_grading_) {
     GetEngine()->destroy(color_grading_);
   }
@@ -364,7 +364,7 @@ void SceneView::DisableReflections() {
 }
 
 filament::View* SceneView::GetDefaultRenderView() {
-  return views_[mjDRAW_MODE_COLOR];
+  return main_view_;
 }
 
 ColorGradingOptions SceneView::GetColorGradingOptions() const {
@@ -372,8 +372,6 @@ ColorGradingOptions SceneView::GetColorGradingOptions() const {
 }
 
 void SceneView::Configure(const mjModel* model) {
-  filament::View* view = views_[mjDRAW_MODE_COLOR];
-
   auto cg = color_grading_options_;
   cg.exposure = ReadElement(model, "filament.cg.exposure", cg.exposure);
   cg.contrast = ReadElement(model, "filament.cg.contrast", cg.contrast);
@@ -415,7 +413,7 @@ void SceneView::Configure(const mjModel* model) {
   }
   SetColorGradingOptions(cg);
 
-  auto ao = view->getAmbientOcclusionOptions();
+  auto ao = main_view_->getAmbientOcclusionOptions();
   ao.enabled = ReadElement(model, "filament.ao.enabled", true);
   ao.bentNormals = ReadElement(model, "filament.ao.bent_normals", false);
   ao.ssct.enabled = ReadElement(model, "filament.ao.ssct", ao.ssct.enabled);
@@ -427,17 +425,17 @@ void SceneView::Configure(const mjModel* model) {
                               filament::QualityLevel::ULTRA);
   ao.bilateralThreshold =
       ReadElement(model, "filament.ao.bilateral_threshold", 0.5f);
-  view->setAmbientOcclusionOptions(ao);
+  main_view_->setAmbientOcclusionOptions(ao);
 
-  auto msaa = view->getMultiSampleAntiAliasingOptions();
+  auto msaa = main_view_->getMultiSampleAntiAliasingOptions();
   msaa.enabled = ReadElement(model, "filament.msaa.enabled", true);
-  view->setMultiSampleAntiAliasingOptions(msaa);
+  main_view_->setMultiSampleAntiAliasingOptions(msaa);
 
-  auto shadow_type = view->getShadowType();
+  auto shadow_type = main_view_->getShadowType();
   shadow_type = ReadElement(model, "filament.shadows.type", shadow_type);
-  view->setShadowType(shadow_type);
+  main_view_->setShadowType(shadow_type);
 
-  auto fog_opts = view->getFogOptions();
+  auto fog_opts = main_view_->getFogOptions();
   fog_opts.enabled =
       ReadElement(model, "filament.fog.enabled", fog_opts.enabled);
   fog_opts.color = ReadElement(model, "filament.fog.color", fog_opts.color);
@@ -456,9 +454,9 @@ void SceneView::Configure(const mjModel* model) {
       model, "filament.fog.inScatteringStart", fog_opts.inScatteringStart);
   fog_opts.inScatteringSize = ReadElement(
       model, "filament.fog.inScatteringSize", fog_opts.inScatteringSize);
-  view->setFogOptions(fog_opts);
+  main_view_->setFogOptions(fog_opts);
 
-  auto bloom = view->getBloomOptions();
+  auto bloom = main_view_->getBloomOptions();
   bloom.enabled = ReadElement(model, "filament.bloom.enabled", bloom.enabled);
   bloom.strength =
       ReadElement(model, "filament.bloom.strength", bloom.strength);
@@ -468,6 +466,6 @@ void SceneView::Configure(const mjModel* model) {
   bloom.resolution =
       ReadElement(model, "filament.bloom.resolution", bloom.resolution);
   bloom.levels = ReadElement(model, "filament.bloom.levels", bloom.levels);
-  view->setBloomOptions(bloom);
+  main_view_->setBloomOptions(bloom);
 }
 }  // namespace mujoco
