@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <array>
+#include <string>
 #include <vector>
 
 #include <benchmark/benchmark.h>
@@ -26,7 +27,13 @@ namespace {
 // number of steps to roll out before benchmarking
 static const int kNumWarmupSteps = 500;
 
+// number of steps to benchmark (before resetting state)
+static const int kBatchSize = 50;
+
 void BM_StepHumanoid200(benchmark::State& state) {
+  int nthread = state.range(0);
+  std::string label = std::to_string(nthread) + " thread(s)";
+
   auto model_path = GetTestDataFilePath("benchmark/testdata/humanoid200.xml");
   std::array<char, 1024> error;
   mjModel* model =
@@ -36,8 +43,11 @@ void BM_StepHumanoid200(benchmark::State& state) {
   model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjData* data = mj_makeData(model);
-  mjThreadPool* threadpool = mju_threadPoolCreate(10);
-  mju_bindThreadPool(data, threadpool);
+  mjThreadPool* threadpool = nullptr;
+  if (nthread > 1) {
+    threadpool = mju_threadPoolCreate(nthread);
+    mju_bindThreadPool(data, threadpool);
+  }
 
   // warm-up rollout to get a steady state
   for (int i = 0; i < kNumWarmupSteps; i++) {
@@ -50,22 +60,29 @@ void BM_StepHumanoid200(benchmark::State& state) {
   std::vector<mjtNum> initial_state(size);
   mj_getState(model, data, initial_state.data(), spec);
 
-  // note: this tests resetting and stepping
-  for (int i = 0; i < 10; ++i) {
-    // reset to the saved state, step again, get the resulting state
+  while (state.KeepRunningBatch(kBatchSize)) {
+    // reset to the saved state
     mj_setState(model, data, initial_state.data(), spec);
-    for (int i = 0; i < kNumWarmupSteps; i++) {
+
+    // run a batch of steps
+    for (int i = 0; i < kBatchSize; i++) {
       mj_step(model, data);
     }
   }
 
+  state.SetLabel(label);
   state.SetItemsProcessed(state.iterations());
   mj_deleteData(data);
-  mju_threadPoolDestroy(threadpool);
+  if (threadpool) {
+    mju_threadPoolDestroy(threadpool);
+  }
 }
 
 void BM_Step22Humanoids(benchmark::State& state) {
-  auto model_path = GetTestDataFilePath("benchmark/testdata/22_humanoids.xml");
+  int nthread = state.range(0);
+  std::string label = std::to_string(nthread) + " thread(s)";
+
+  auto model_path = GetModelPath("humanoid/22_humanoids.xml");
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
@@ -73,8 +90,11 @@ void BM_Step22Humanoids(benchmark::State& state) {
   model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjData* data = mj_makeData(model);
-  mjThreadPool* threadpool = mju_threadPoolCreate(10);
-  mju_bindThreadPool(data, threadpool);
+  mjThreadPool* threadpool = nullptr;
+  if (nthread > 1) {
+    threadpool = mju_threadPoolCreate(nthread);
+    mju_bindThreadPool(data, threadpool);
+  }
 
   // warm-up rollout to get a steady state
   for (int i = 0; i < kNumWarmupSteps; i++) {
@@ -87,24 +107,28 @@ void BM_Step22Humanoids(benchmark::State& state) {
   std::vector<mjtNum> initial_state(size);
   mj_getState(model, data, initial_state.data(), spec);
 
-  std::vector<mjtNum> ctrl = GetCtrlNoise(model, kNumWarmupSteps);
+  std::vector<mjtNum> ctrl = GetCtrlNoise(model, kBatchSize);
 
-  // note: this tests resetting and stepping
-  for (int i = 0; i < 10; ++i) {
-    // reset to the saved state, step again, get the resulting state
+  while (state.KeepRunningBatch(kBatchSize)) {
+    // reset to the saved state
     mj_setState(model, data, initial_state.data(), spec);
-    for (int i = 0; i < kNumWarmupSteps; i++) {
+
+    // run a batch of steps
+    for (int i = 0; i < kBatchSize; i++) {
       mju_copy(data->ctrl, ctrl.data()+model->nu*i, model->nu);
       mj_step(model, data);
     }
   }
 
+  state.SetLabel(label);
   state.SetItemsProcessed(state.iterations());
   mj_deleteData(data);
-  mju_threadPoolDestroy(threadpool);
+  if (threadpool) {
+    mju_threadPoolDestroy(threadpool);
+  }
 }
 
-BENCHMARK(BM_StepHumanoid200);
-BENCHMARK(BM_Step22Humanoids);
+BENCHMARK(BM_StepHumanoid200)->Arg(1)->Arg(6);
+BENCHMARK(BM_Step22Humanoids)->Arg(1)->Arg(6);
 }  // namespace
 }  // namespace mujoco
