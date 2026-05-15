@@ -68,8 +68,9 @@ class FilamentContext : public mjrfContext {
   }
 
  private:
-  mjrFilamentConfig config_;
+  void ValidateSwapChains(std::span<const mjrRenderRequest> render_requests);
 
+  mjrFilamentConfig config_;
   filament::Engine* engine_ = nullptr;
   filament::Renderer* renderer_ = nullptr;
   filament::SwapChain* window_swap_chain_ = nullptr;

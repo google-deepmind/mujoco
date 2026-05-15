@@ -14,6 +14,7 @@
 
 #include "experimental/filament/filament/filament_context.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -86,6 +87,13 @@ mjrFrameHandle FilamentContext::Render(
     mju_error("Only one read request is supported for now.");
   }
 
+  if constexpr (UTILS_HAS_THREADING) {
+    // Wait until previous frame is completed before requesting a new frame.
+    engine_->flushAndWait();
+  }
+
+  ValidateSwapChains(requests);
+
   bool render_began = false;
   mjrRenderTarget* current_target = nullptr;
   for (const mjrRenderRequest& request : requests) {
@@ -98,22 +106,6 @@ mjrFrameHandle FilamentContext::Render(
     if (current_target == nullptr) {
       if (!read_requests.empty()) {
         mju_error("Cannot read pixels from the window.");
-      }
-
-      if constexpr (UTILS_HAS_THREADING) {
-        // Wait until previous frame is completed before requesting a new frame.
-        engine_->flushAndWait();
-      }
-
-      // If the window size has changed, we need to reacquire the swap chain.
-      if (request.viewport.width != window_width_ ||
-          request.viewport.height != window_height_) {
-        if (window_width_ != 0 && window_height_ != 0) {
-          engine_->destroy(window_swap_chain_);
-          window_swap_chain_ = engine_->createSwapChain(config_.native_window);
-        }
-        window_width_ = request.viewport.width;
-        window_height_ = request.viewport.height;
       }
 
       if (!render_began) {
@@ -193,6 +185,53 @@ void FilamentContext::GetFrameStats(mjrFrameHandle frame,
     stats_out->frame_rate = 1.0e9 / static_cast<double>(ns);
   } else {
     stats_out->frame_rate = 0.0;
+  }
+}
+
+void FilamentContext::ValidateSwapChains(
+    std::span<const mjrRenderRequest> requests) {
+  // Determine the maximum extents of the requests.
+  int max_window_width = 0;
+  int max_window_height = 0;
+  int max_offscreen_width = 0;
+  int max_offscreen_height = 0;
+
+  for (const mjrRenderRequest& request : requests) {
+    const int width = request.viewport.width + request.viewport.left;
+    const int height = request.viewport.height + request.viewport.bottom;
+    if (request.target == nullptr) {
+      max_window_width = std::max(max_window_width, width);
+      max_window_height = std::max(max_window_height, height);
+    } else {
+      max_offscreen_width = std::max(max_offscreen_width, width);
+      max_offscreen_height = std::max(max_offscreen_height, height);
+    }
+  }
+
+  if (max_window_width && max_window_height) {
+    if (max_window_width != window_width_ ||
+        max_window_width != window_height_) {
+      engine_->destroy(window_swap_chain_);
+      window_width_ = max_window_width;
+      window_height_ = max_window_height;
+      if (config_.native_window) {
+        window_swap_chain_ = engine_->createSwapChain(config_.native_window);
+      } else {
+        window_swap_chain_ =
+            engine_->createSwapChain(window_width_, window_height_);
+      }
+    }
+  }
+
+  if (max_offscreen_width && max_offscreen_height) {
+    if (max_offscreen_width != config_.width ||
+        max_offscreen_height != config_.height) {
+      engine_->destroy(offscreen_swap_chain_);
+      config_.width = max_offscreen_width;
+      config_.height = max_offscreen_height;
+      offscreen_swap_chain_ =
+          engine_->createSwapChain(config_.width, config_.height);
+    }
   }
 }
 
