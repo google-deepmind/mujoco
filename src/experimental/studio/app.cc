@@ -81,8 +81,14 @@ static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
 App::App(Config config)
-    : ini_path_(std::move(config.ini_path)), gfx_mode_(config.gfx_mode) {
+    : app_title_(std::move(config.title)),
+      ini_path_(std::move(config.ini_path)),
+      gfx_mode_(config.gfx_mode) {
   SwitchGraphicsMode(config.width, config.height, config.gfx_mode);
+
+  if (config.initial_theme.has_value()) {
+    ui_.theme = *config.initial_theme;
+  }
 
   ImPlot::CreateContext();
   mjv_defaultPerturb(&perturb_);
@@ -100,7 +106,7 @@ void App::SwitchGraphicsMode(int width, int height,
 
   platform::Window::Config window_config;
   window_config.gfx_mode = gfx_mode_;
-  window_ = std::make_unique<platform::Window>("MuJoCo Studio", width, height,
+  window_ = std::make_unique<platform::Window>(app_title_, width, height,
                                                window_config);
   renderer_ = std::make_unique<platform::Renderer>(
       window_->GetNativeWindowHandle(), gfx_mode_);
@@ -147,9 +153,9 @@ void App::LoadModelFromFile(const std::string& filepath) {
     UpdateFilePaths(resolved_file);
     if (model() && model()->names) {
       // Assumes the first string in the model is the name of the model itself.
-      window_->SetTitle("MuJoCo Studio : " + std::string(model()->names));
+      window_->SetTitle(app_title_ + " : " + std::string(model()->names));
     } else {
-      window_->SetTitle("MuJoCo Studio : " +
+      window_->SetTitle(app_title_ + " : " +
                         std::filesystem::path(filepath).stem().string());
     }
   } else {

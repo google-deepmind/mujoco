@@ -148,7 +148,7 @@ void RegisterAsset(std::string filename, std::string contents) {
 }
 
 // Javascript-facing function to initialize the app.
-void Init() {
+void Init(const std::string& title, bool dark_theme) {
   // Note: dimensions do not matter as window will be resized to fit canvas.
   const int width = 100;
   const int height = 100;
@@ -224,12 +224,17 @@ void Init() {
   github_provider.prefix = "github";
   mjp_registerResourceProvider(&github_provider);
 
-  g_app = new mujoco::studio::App({
-    .width = width,
-    .height = height,
-    .ini_path = ini_path,
-    .gfx_mode = mujoco::platform::GraphicsMode::FilamentWebGl,
-  });
+  mujoco::studio::App::Config config;
+  config.width = width;
+  config.height = height;
+  config.ini_path = ini_path;
+  config.gfx_mode = mujoco::platform::GraphicsMode::FilamentWebGl;
+  config.initial_theme = dark_theme ? mujoco::platform::GuiTheme::kDark
+                                    : mujoco::platform::GuiTheme::kLight;
+  if (!title.empty()) {
+    config.title = title;
+  }
+  g_app = new mujoco::studio::App(std::move(config));
   g_app->InitEmptyModel();
 }
 

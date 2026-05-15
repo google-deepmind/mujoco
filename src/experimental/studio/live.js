@@ -96,7 +96,9 @@ var Module = {
     Promise.all(assetPromises)
       .then(() => {
         try {
-          Module.init();
+          const prefersDark = !(window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: light)').matches);
+          Module.init("MuJoCo Live", prefersDark);
 
           // Check for a ?model= URL parameter and load from URL.
           const params = new URLSearchParams(window.location.search);
