@@ -261,16 +261,6 @@ mat4 CalculateClipFromWorld(const mjrRect& viewport, const mjrCamera& cam) {
 }
 
 void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
-  mjrf_setSceneShadowsEnabled(scene_.get(), scene->flags[mjRND_SHADOW]);
-  mjrf_setSceneReflectionsEnabled(scene_.get(), scene->flags[mjRND_REFLECTION]);
-  if (scene->flags[mjRND_SEGMENT]) {
-    draw_mode_ = mjDRAW_MODE_SEGMENTATION;
-  } else if (scene->flags[mjRND_DEPTH]) {
-    draw_mode_ = mjDRAW_MODE_DEPTH;
-  } else {
-    draw_mode_ = mjDRAW_MODE_COLOR;
-  }
-
   mjtNum hpos[3], hfwd[3];
   float headpos[3], gazedir[3];
   mjv_cameraInModel(hpos, hfwd, nullptr, scene);
@@ -355,7 +345,5 @@ void SceneBridge::SetDrawTextFunction(DrawTextAtFn fn) {
 mjrScene* SceneBridge::GetScene() const { return scene_.get(); }
 
 mjrCamera SceneBridge::GetCamera() const { return camera_; }
-
-mjrDrawMode SceneBridge::GetDrawMode() const { return draw_mode_; }
 
 }  // namespace mujoco

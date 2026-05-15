@@ -20,6 +20,7 @@
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
+#include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 #include "experimental/filament/compat/imgui_bridge.h"
 #include "experimental/filament/compat/scene_bridge.h"
@@ -81,6 +82,7 @@ class MjrFilamentRenderer {
   std::unique_ptr<SceneBridge> scene_bridge_;
   std::unique_ptr<ImguiBridge> imgui_bridge_;
   FrameBufferMode mode_ = FrameBufferMode::Window;
+  mjtByte render_flags_[mjNRNDFLAG];
 };
 
 }  // namespace mujoco

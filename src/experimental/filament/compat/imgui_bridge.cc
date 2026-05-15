@@ -36,9 +36,6 @@ using filament::math::mat3f;
 ImguiBridge::ImguiBridge(mjrfContext* ctx) : ctx_(ctx) {
   mjrSceneParams params;
   mjr_defaultSceneParams(&params);
-  params.enable_post_processing = false;
-  params.enable_reflections = false;
-  params.enable_shadows = false;
   scene_ = CreateScene(ctx_, params);
 }
 

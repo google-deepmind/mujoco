@@ -153,16 +153,6 @@ SceneView::SceneView(filament::Engine* engine, const mjrSceneParams& params)
   tm.create(fog);
   tm.setTransform(tm.getInstance(fog),
                   mat4::rotation(filament::math::f::PI / 2, float3{-1, 0, 0}));
-
-  if (!params.enable_post_processing) {
-    DisablePostProcessing();
-  }
-  if (!params.enable_reflections) {
-    DisableReflections();
-  }
-  if (!params.enable_shadows) {
-    DisableShadows();
-  }
 }
 
 SceneView::~SceneView() {
@@ -241,6 +231,13 @@ void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& req
     mju_error("Invalid scene for SceneView::Render.");
   }
 
+  if (request.enable_reflections) {
+    EnableReflections();
+  } else {
+    DisableReflections();
+  }
+
+
   filament::Viewport viewport(request.viewport.left, request.viewport.bottom,
                               request.viewport.width, request.viewport.height);
   for (auto& view : views_) {
@@ -255,9 +252,11 @@ void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& req
   }
 
   filament::View* view = views_[static_cast<int>(request.draw_mode)];
+  view->setShadowingEnabled(request.enable_shadows);
+  view->setPostProcessingEnabled(request.enable_post_processing);
+
   filament::MultiSampleAntiAliasingOptions options =
       view->getMultiSampleAntiAliasingOptions();
-
 
   RenderTarget* render_target = RenderTarget::downcast(request.target);
   if (render_target) {
@@ -337,17 +336,12 @@ void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
   color_grading_options_ = opts;
 }
 
-void SceneView::EnableShadows() {
-  views_[mjDRAW_MODE_COLOR]->setShadowingEnabled(true);
-}
-
-void SceneView::DisableShadows() {
-  views_[mjDRAW_MODE_COLOR]->setShadowingEnabled(false);
-}
-
 void SceneView::EnableReflections() {
-  reflections_enabled_ = true;
+  if (reflections_enabled_) {
+    return;
+  }
 
+  reflections_enabled_ = true;
   for (int i = 0; i < reflectives_.size(); ++i) {
     Renderable* renderable = reflectives_[i];
     mjrMaterial material = renderable->GetMaterial();
@@ -357,20 +351,16 @@ void SceneView::EnableReflections() {
 }
 
 void SceneView::DisableReflections() {
+  if (!reflections_enabled_) {
+    return;
+  }
+
   reflections_enabled_ = false;
   for (Renderable* renderable : reflectives_) {
     mjrMaterial material = renderable->GetMaterial();
     material.reflection_texture = nullptr;
     renderable->UpdateMaterial(material);
   }
-}
-
-void SceneView::EnablePostProcessing() {
-  views_[mjDRAW_MODE_COLOR]->setPostProcessingEnabled(true);
-}
-
-void SceneView::DisablePostProcessing() {
-  views_[mjDRAW_MODE_COLOR]->setPostProcessingEnabled(false);
 }
 
 filament::View* SceneView::GetDefaultRenderView() {

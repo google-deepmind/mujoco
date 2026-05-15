@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 
 #include <mujoco/mjmodel.h>
@@ -42,6 +43,7 @@ void MjrFilamentRenderer::Init(const mjModel* model) {
 void MjrFilamentRenderer::Render(const mjrRect& viewport,
                                  const mjvScene* scene) {
   scene_bridge_->Update(viewport, scene);
+  std::memcpy(render_flags_, scene->flags, mjNRNDFLAG * sizeof(mjtByte));
   // Update the UX renderable entity after processing the scene in case there
   // are any elements in the scene which generate UX draw calls (e.g. labels).
   if (mode_ != FrameBufferMode::OffScreen) {
@@ -52,15 +54,26 @@ void MjrFilamentRenderer::Render(const mjrRect& viewport,
     mjrRenderRequest reqs[2];
     mjr_defaultRenderRequest(&reqs[0]);
     reqs[0].scene = scene_bridge_->GetScene();
-    reqs[0].draw_mode = scene_bridge_->GetDrawMode();
+    reqs[0].draw_mode = mjDRAW_MODE_COLOR;
+    if (render_flags_[mjRND_SEGMENT]) {
+      reqs[0].draw_mode = mjDRAW_MODE_SEGMENTATION;
+    } else if (render_flags_[mjRND_DEPTH]) {
+      reqs[0].draw_mode = mjDRAW_MODE_DEPTH;
+    }
     reqs[0].camera = scene_bridge_->GetCamera();
     reqs[0].viewport = viewport;
+    reqs[0].enable_shadows = render_flags_[mjRND_SHADOW];
+    reqs[0].enable_reflections = render_flags_[mjRND_REFLECTION];
 
     mjr_defaultRenderRequest(&reqs[1]);
     reqs[1].scene = imgui_bridge_->GetScene();
     reqs[1].draw_mode = mjDRAW_MODE_COLOR;
     reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
     reqs[1].viewport = viewport;
+    reqs[1].enable_shadows = false;
+    reqs[1].enable_reflections = false;
+    reqs[1].enable_post_processing = false;
+
     filament_context_->Render(reqs);
   }
 }
@@ -91,15 +104,25 @@ void MjrFilamentRenderer::ReadPixels(mjrRect viewport, unsigned char* rgb,
   mjr_defaultRenderRequest(&reqs[0]);
 
   reqs[0].scene = scene_bridge_->GetScene();
-  reqs[0].draw_mode = scene_bridge_->GetDrawMode();
+  reqs[0].draw_mode = mjDRAW_MODE_COLOR;
+  if (render_flags_[mjRND_SEGMENT]) {
+    reqs[0].draw_mode = mjDRAW_MODE_SEGMENTATION;
+  } else if (render_flags_[mjRND_DEPTH]) {
+    reqs[0].draw_mode = mjDRAW_MODE_DEPTH;
+  }
   reqs[0].camera = scene_bridge_->GetCamera();
   reqs[0].viewport = viewport;
+  reqs[0].enable_shadows = render_flags_[mjRND_SHADOW];
+  reqs[0].enable_reflections = render_flags_[mjRND_REFLECTION];
 
   mjr_defaultRenderRequest(&reqs[1]);
   reqs[1].scene = imgui_bridge_->GetScene();
   reqs[1].draw_mode = mjDRAW_MODE_COLOR;
   reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
   reqs[1].viewport = viewport;
+  reqs[1].enable_shadows = false;
+  reqs[1].enable_reflections = false;
+  reqs[1].enable_post_processing = false;
 
   if (rgb) {
     mjrRenderTargetConfig config;

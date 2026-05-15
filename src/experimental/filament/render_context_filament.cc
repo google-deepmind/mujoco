@@ -74,9 +74,6 @@ void mjr_defaultMeshData(mjrMeshData* data) {
 
 void mjr_defaultSceneParams(mjrSceneParams* params) {
   memset(params, 0, sizeof(mjrSceneParams));
-  params->enable_post_processing = true;
-  params->enable_reflections = true;
-  params->enable_shadows = true;
   params->layer_mask = 0xff;
   params->reflection_layer_mask = 0xff;
 }
@@ -126,6 +123,9 @@ void mjr_defaultRenderTargetConfig(mjrRenderTargetConfig* config) {
 
 void mjr_defaultRenderRequest(mjrRenderRequest* request) {
   memset(request, 0, sizeof(mjrRenderRequest));
+  request->enable_post_processing = true;
+  request->enable_reflections = true;
+  request->enable_shadows = true;
 }
 
 void mjr_defaultReadPixelsRequest(mjrReadPixelsRequest* request) {
@@ -315,22 +315,6 @@ void mjrf_removeRenderableFromScene(mjrScene* scene,
 void mjrf_setSceneSkybox(mjrScene* scene, const mjrTexture* texture) {
   mujoco::SceneView::downcast(scene)->SetSkybox(
       mujoco::Texture::downcast(texture));
-}
-
-void mjrf_setSceneShadowsEnabled(mjrScene* scene, mjtByte enabled) {
-  if (enabled) {
-    mujoco::SceneView::downcast(scene)->EnableShadows();
-  } else {
-    mujoco::SceneView::downcast(scene)->DisableShadows();
-  }
-}
-
-void mjrf_setSceneReflectionsEnabled(mjrScene* scene, mjtByte enabled) {
-  if (enabled) {
-    mujoco::SceneView::downcast(scene)->EnableReflections();
-  } else {
-    mujoco::SceneView::downcast(scene)->DisableReflections();
-  }
 }
 
 void mjrf_configureSceneFromModel(mjrScene* scene, const mjModel* model) {

@@ -150,9 +150,6 @@ struct mjrRenderRequest {
   // The camera from which to render the scene.
   mjrCamera camera;
 
-  // The method (e.g. Color, Depth, Segmentation, etc.) to use for rendering.
-  mjrDrawMode draw_mode;
-
   // The viewport into which to render the image.
   mjrRect viewport;
 
@@ -160,6 +157,18 @@ struct mjrRenderRequest {
   // will be rendered to the window (as previously configured in
   // mjrFilamentConfig::native_window).
   mjrRenderTarget* target;
+
+  // The method (e.g. Color, Depth, Segmentation, etc.) to use for rendering.
+  mjrDrawMode draw_mode;
+
+  // Whether or not to enable post processing; enabled by default.
+  mjtByte enable_post_processing;
+
+  // Whether or not to enable reflections; enabled by default.
+  mjtByte enable_reflections;
+
+  // Whether or not to enable shadows; enabled by default.
+  mjtByte enable_shadows;
 };
 
 // Initializes the mjrRenderRequest to default values.
@@ -449,15 +458,6 @@ void mjrf_destroyMesh(mjrMesh* mesh);
 
 // Configuration parameters for a Scene.
 struct mjrSceneParams {
-  // Whether or not to enable post processing; enabled by default.
-  mjtByte enable_post_processing;
-
-  // Whether or not to enable reflections; enabled by default.
-  mjtByte enable_reflections;
-
-  // Whether or not to enable shadows; enabled by default.
-  mjtByte enable_shadows;
-
   // This mask, in conjunction with the layer mask in the Renderable, determines
   // which Renderables to render within the Scene.
   uint8_t layer_mask;
@@ -489,12 +489,6 @@ void mjrf_removeRenderableFromScene(mjrScene* scene, mjrRenderable* renderable);
 
 // Sets the skybox (cube texture) for the scene.
 void mjrf_setSceneSkybox(mjrScene* scene, const mjrTexture* texture);
-
-// Enables (or disables) shadows in the scene.
-void mjrf_setSceneShadowsEnabled(mjrScene* scene, mjtByte enabled);
-
-// Enables (or disables) reflections in the scene.
-void mjrf_setSceneReflectionsEnabled(mjrScene* scene, mjtByte enabled);
 
 // Configures the scene based on the parameters in an mjModel.
 void mjrf_configureSceneFromModel(mjrScene* scene, const mjModel* model);

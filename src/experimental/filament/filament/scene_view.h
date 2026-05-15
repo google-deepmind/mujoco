@@ -60,18 +60,6 @@ class SceneView : public mjrScene {
   // Returns the filament Engine managing the scene.
   filament::Engine* GetEngine() const { return engine_; }
 
-  // Enables/disables shadows for the default render view.
-  void EnableShadows();
-  void DisableShadows();
-
-  // Enables/disables reflections for the default render view.
-  void EnableReflections();
-  void DisableReflections();
-
-  // Enables/disables post processing for the default render view.
-  void EnablePostProcessing();
-  void DisablePostProcessing();
-
   // Returns the underlying filament View that is used for normal rendering.
   // Callers can update rendering settings (e.g. post processing) directly.
   filament::View* GetDefaultRenderView();
@@ -92,6 +80,9 @@ class SceneView : public mjrScene {
   }
 
  private:
+  void EnableReflections();
+  void DisableReflections();
+
   // Marks a renderable as reflective. Reflective renderables have to be
   // rendered in their own passes to create the reflective texture.
   void AddReflectiveRenderable(Renderable* renderable);
