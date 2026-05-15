@@ -227,9 +227,16 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
   d->flg_subtreevel = 0;
   d->flg_energyvel = 0;
 
-  // flexedge velocity: always sparse
-  mju_mulMatVecSparse(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge,
-                      m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind, NULL);
+  // flexedge velocity: skip interp and rigid flexes (edge Jacobians are zero)
+  mju_zero(d->flexedge_velocity, m->nflexedge);
+  for (int f = 0; f < m->nflex; f++) {
+    if (m->flex_rigid[f] || m->flex_interp[f]) continue;
+    int adr = m->flex_edgeadr[f];
+    int num = m->flex_edgenum[f];
+    mju_mulMatVecSparse(d->flexedge_velocity + adr, d->flexedge_J, d->qvel, num,
+                        m->flexedge_J_rownnz + adr, m->flexedge_J_rowadr + adr,
+                        m->flexedge_J_colind, NULL);
+  }
 
   // tendon velocity: always sparse
   mju_mulMatVecSparse(d->ten_velocity, d->ten_J, d->qvel, m->ntendon,
