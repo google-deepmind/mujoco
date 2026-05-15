@@ -98,7 +98,11 @@ public class MjMaterialImportTests {
     Assert.That(meshRenderer.sharedMaterial, Is.Not.Null);
     Assert.That(meshRenderer.sharedMaterial.color, Is.EqualTo(new Color(0.7f, 0.5f, 0.3f, 0.1f)));
     Assert.That(meshRenderer.sharedMaterial.GetFloat("_Metallic"), Is.EqualTo(0.2f));
-    Assert.That(meshRenderer.sharedMaterial.GetFloat("_Glossiness"), Is.GreaterThan(0.0f));
+    var smoothnessProperty = meshRenderer.sharedMaterial.HasProperty("_Glossiness")
+        ? "_Glossiness"
+        : "_Smoothness";
+    Assert.That(meshRenderer.sharedMaterial.HasProperty(smoothnessProperty), Is.True);
+    Assert.That(meshRenderer.sharedMaterial.GetFloat(smoothnessProperty), Is.GreaterThan(0.0f));
   }
 
   [Test]

@@ -226,11 +226,10 @@ public class MjImporterWithAssets : MjcfImporter {
       material = new Material(AssetDatabase.LoadMainAssetAtPath(
         AssetDatabase.GUIDToAssetPath(
           AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
+      material.shader = FindCompatibleShader(_standardShaderName);
     } else {
-      material = new Material(Shader.Find("Standard"));
+      material = new Material(FindCompatibleShader(_standardShaderName));
     }
-    material.SetColor("_Color", albedo);
-    material.SetFloat("_Metallic", reflectance);
 
     // In order to convert the specular/shininess parameters into glossiness/roughness,
     // we perform a coarse approximation.
@@ -245,7 +244,7 @@ public class MjImporterWithAssets : MjcfImporter {
     // Instead of modifying the Shininess parameter however, we're dirrectly modifying
     // the glossiness by bringing the value closer to the upper boundary.
     glossiness = (1.0f - reflectance) * glossiness + reflectance;
-    material.SetFloat("_Glossiness", glossiness);
+    ConfigureMujocoMaterial(material, albedo, reflectance, glossiness, rgba[3] < 1f);
 
     // We choose to define a simple emission model that only emits light, without scaling
     // the brightness of the defined color. If the user requires, they should tweak the material
@@ -283,10 +282,12 @@ public class MjImporterWithAssets : MjcfImporter {
             AssetDatabase.LoadMainAssetAtPath(
               AssetDatabase.GUIDToAssetPath(
                 AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
+          material.shader = FindCompatibleShader(_standardShaderName);
         } else {
-          material = new Material(Shader.Find("Standard"));
+          material = new Material(FindCompatibleShader(_standardShaderName));
         }
-        material.color = new Color(rgba[0], rgba[1], rgba[2], rgba[3]);
+        ConfigureMujocoMaterial(
+          material, new Color(rgba[0], rgba[1], rgba[2], rgba[3]), transparent: rgba[3] < 1f);
         // We use the geom's name, guaranteed to be unique, as the asset name.
         // If geom is nameless, use a random number.
         var name =
