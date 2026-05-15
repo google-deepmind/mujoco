@@ -267,6 +267,7 @@ def _put_option(
     implicitfast = o.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST
     if implicitfast and has_fluid_params:
       raise NotImplementedError('implicitfast not implemented for fluid drag.')
+    impl_fields['solver_scan'] = bool(impl_fields.get('solver_scan', False))
     impl_fields['has_fluid_params'] = has_fluid_params
     return types.Option(**fields, _impl=types.OptionJAX(**impl_fields))
 
