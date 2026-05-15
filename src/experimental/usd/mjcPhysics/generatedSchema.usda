@@ -4,6 +4,7 @@
 )
 
 class "MjcSceneAPI" (
+    apiSchemas = ["NewtonSceneAPI"]
     doc = "API providing global simulation options for MuJoCo."
 )
 {
@@ -120,7 +121,9 @@ class "MjcSceneAPI" (
     )
     uniform bool mjc:flag:gravity = 1 (
         displayName = "Gravity Toggle"
-        doc = "Enables the application of gravitational acceleration as defined in mjOption."
+        doc = """DEPRECATED: Use newton:gravityEnabled instead.
+
+        Enables the application of gravitational acceleration as defined in mjOption."""
     )
     uniform bool mjc:flag:invdiscrete = 0 (
         displayName = "Discrete-Time Inverse Dynamics Toggle"
@@ -200,7 +203,9 @@ class "MjcSceneAPI" (
     )
     uniform int mjc:option:iterations = 100 (
         displayName = "Solver Iterations"
-        doc = "Maximum number of iterations of the constraint solver."
+        doc = """DEPRECATED: Use newton:maxSolverIterations instead.
+
+        Maximum number of iterations of the constraint solver."""
     )
     uniform token mjc:option:jacobian = "auto" (
         allowedTokens = ["auto", "dense", "sparse"]
@@ -265,7 +270,9 @@ class "MjcSceneAPI" (
     )
     uniform double mjc:option:timestep = 0.002 (
         displayName = "Timestep"
-        doc = "Controls the timestep in seconds used by MuJoCo."
+        doc = """DEPRECATED: Use newton:timeStepsPerSecond instead.
+
+        Controls the timestep in seconds used by MuJoCo."""
     )
     uniform double mjc:option:tolerance = 1e-8 (
         displayName = "Solver Tolerance"
@@ -303,6 +310,7 @@ class "MjcImageableAPI" (
 }
 
 class "MjcCollisionAPI" (
+    apiSchemas = ["NewtonCollisionAPI"]
     doc = "API describing a MuJoCo collider."
 )
 {
@@ -312,7 +320,9 @@ class "MjcCollisionAPI" (
     )
     uniform double mjc:gap = 0 (
         displayName = "Gap"
-        doc = "Additional contact detection buffer beyond margin. Contacts are detected at distance margin + gap but forces are only generated at distance margin."
+        doc = """DEPRECATED: Use newton:contactGap instead.
+
+        Additional contact detection buffer beyond margin. Contacts are detected at distance margin + gap but forces are only generated at distance margin."
     )
     uniform int mjc:group = 0 (
         displayName = "Group"
@@ -320,7 +330,9 @@ class "MjcCollisionAPI" (
     )
     uniform double mjc:margin = 0 (
         displayName = "Margin"
-        doc = "Geometric inflation of the geom surface for the purpose of contact force generation."
+        doc = """DEPRECATED: Use newton:contactMargin and newton:contactGap instead.
+
+        Geometric inflation of the geom surface for the purpose of contact force generation."
     )
     uniform int mjc:priority = 0 (
         displayName = "Priority"
@@ -345,6 +357,7 @@ class "MjcCollisionAPI" (
 }
 
 class "MjcMeshCollisionAPI" (
+    apiSchemas = ["NewtonMeshCollisionAPI"]
     doc = "API describing a MuJoCo mesh collider."
 )
 {
@@ -355,7 +368,9 @@ class "MjcMeshCollisionAPI" (
     )
     uniform int mjc:maxhullvert = -1 (
         displayName = "Maximum Hull Vertices"
-        doc = "Sets an upper limit on the number of vertices in the meshes convex hull. The default value of -1 means unlimited."
+        doc = """DEPRECATED: Use newton:maxHullVertices instead.
+
+        Sets an upper limit on the number of vertices in the meshes convex hull. The default value of -1 means unlimited."""
     )
 }
 
@@ -537,16 +552,23 @@ class "MjcJointAPI" (
 }
 
 class "MjcMaterialAPI" (
-    doc = "API providing extension attributes to represent physical MuJoCo materials."
+    apiSchemas = ["NewtonMaterialAPI"]
+    doc = """DEPRECATED: Use NewtonMaterialAPI instead. All attributes on this API have been superseded by Newton equivalents.
+
+    API providing extension attributes to represent physical MuJoCo materials."""
 )
 {
     uniform double mjc:rollingfriction = 0.0001 (
         displayName = "Rolling Friction"
-        doc = "Friction value acting around both axes on the contact tangent plane."
+        doc = """DEPRECATED: Use newton:rollingFriction instead.
+
+        Friction value acting around both axes on the contact tangent plane."""
     )
     uniform double mjc:torsionalfriction = 0.005 (
         displayName = "Torsional Friction"
-        doc = "Friction value acting around contact normal."
+        doc = """DEPRECATED: Use newton:torsionalFriction instead.
+
+        Friction value acting around contact normal."""
     )
 }
 
@@ -586,23 +608,36 @@ class "MjcEqualityWeldAPI" (
 }
 
 class "MjcEqualityJointAPI" (
-    apiSchemas = ["MjcEqualityAPI"]
+    apiSchemas = ["NewtonMimicAPI"]
     doc = """API providing extension attributes to represent equality/joint constraints.
-    This API is applied to a joint prim which acts as the constrained joint (joint1 in
-    MuJoCo terminology). The target relationship points to another joint prim which is
-    the reference joint (joint2 in MuJoCo terminology). The constrained joint's position
-    or angle is constrained to be a quartic polynomial of the reference joint's position
-    or angle. Only scalar joint types (slide and hinge) can be used."""
+
+    This API is applied to a joint prim which acts as the follower (joint0). The leader
+    joint (joint1) is specified via the newton:mimicJoint relationship inherited from
+    NewtonMimicAPI.
+
+    The follower's position or angle is constrained to be a quartic polynomial of the
+    leader's position or angle:
+        joint0 = coef0 + coef1*(joint1) + coef2*(joint1)^2 + coef3*(joint1)^3 + coef4*(joint1)^4
+
+    The constant (coef0) and linear (coef1) coefficients are provided by NewtonMimicAPI
+    as newton:mimicCoef0 and newton:mimicCoef1. The higher-order coefficients (coef2-coef4)
+    are provided by this API.
+
+    Only scalar joint types (slide and hinge) can be used."""
 )
 {
     uniform double mjc:coef0 = 0 (
         displayName = "Coefficient 0"
-        doc = """Constant coefficient a0 of the quartic polynomial. The constraint is:
+        doc = """DEPRECATED: Use newton:mimicCoef0 instead.
+
+        Constant coefficient a0 of the quartic polynomial. The constraint is:
         y = y0 + a0 + a1*(x-x0) + a2*(x-x0)^2 + a3*(x-x0)^3 + a4*(x-x0)^4."""
     )
     uniform double mjc:coef1 = 1 (
         displayName = "Coefficient 1"
-        doc = "Linear coefficient a1 of the quartic polynomial."
+        doc = """DEPRECATED: Use newton:mimicCoef1 instead.
+
+        Linear coefficient a1 of the quartic polynomial."""
     )
     uniform double mjc:coef2 = 0 (
         displayName = "Coefficient 2"
@@ -615,6 +650,19 @@ class "MjcEqualityJointAPI" (
     uniform double mjc:coef4 = 0 (
         displayName = "Coefficient 4"
         doc = "Quartic coefficient a4 of the quartic polynomial."
+    )
+    uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2] (
+        displayName = "SolImp"
+        doc = "Constraint solver parameter for equality constraint simulation."
+    )
+    uniform double[] mjc:solref = [0.02, 1] (
+        displayName = "SolRef"
+        doc = "Constraint solver parameter for equality constraint simulation."
+    )
+    rel mjc:target (
+        doc = """DEPRECATED: Use newton:mimicJoint instead.
+
+        Secondary target of the equality constraint (the leader/reference joint)."""
     )
 }
 
