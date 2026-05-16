@@ -113,6 +113,90 @@ TEST_F(CoreSmoothTest, MjKinematicsWorldXipos) {
   mj_deleteModel(model);
 }
 
+TEST_F(CoreSmoothTest, SitePositionMutationUpdatesDefaultSiteXpos) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="default_pos" size=".01" pos="0 0 0"/>
+      <site name="nondefault_pos" size=".01" pos=".01 0 0"/>
+    </worldbody>
+  </mujoco>)";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  const int default_site = mj_name2id(model, mjOBJ_SITE, "default_pos");
+  const int nondefault_site = mj_name2id(model, mjOBJ_SITE, "nondefault_pos");
+  ASSERT_NE(default_site, -1);
+  ASSERT_NE(nondefault_site, -1);
+  EXPECT_EQ(model->site_sameframe[default_site], mjSAMEFRAME_BODY);
+  EXPECT_EQ(model->site_sameframe[nondefault_site], mjSAMEFRAME_BODYROT);
+
+  const mjtNum default_pos[3] = {.2, -.3, .4};
+  const mjtNum nondefault_pos[3] = {-.4, .5, -.6};
+  mju_copy3(model->site_pos + 3*default_site, default_pos);
+  mju_copy3(model->site_pos + 3*nondefault_site, nondefault_pos);
+
+  mj_forward(model, data);
+
+  EXPECT_THAT(AsVector(data->site_xpos + 3*default_site, 3),
+              Pointwise(MjNear(1e-12, 1e-12), AsVector(default_pos, 3)));
+  EXPECT_THAT(AsVector(data->site_xpos + 3*nondefault_site, 3),
+              Pointwise(MjNear(1e-12, 1e-12), AsVector(nondefault_pos, 3)));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(CoreSmoothTest, SiteQuatMutationUpdatesDefaultSiteXmat) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="default_quat" size=".01" pos=".01 0 0" quat="1 0 0 0"/>
+      <site name="nondefault_quat" size=".01" pos=".01 0 0"
+            quat=".7071067811865476 0 .7071067811865476 0"/>
+    </worldbody>
+  </mujoco>)";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  const int default_site = mj_name2id(model, mjOBJ_SITE, "default_quat");
+  const int nondefault_site = mj_name2id(model, mjOBJ_SITE, "nondefault_quat");
+  ASSERT_NE(default_site, -1);
+  ASSERT_NE(nondefault_site, -1);
+  EXPECT_EQ(model->site_sameframe[default_site], mjSAMEFRAME_BODYROT);
+  EXPECT_EQ(model->site_sameframe[nondefault_site], mjSAMEFRAME_NONE);
+
+  const mjtNum default_quat[4] = {
+    .9238795325112867, .3826834323650898, 0, 0
+  };
+  const mjtNum nondefault_quat[4] = {
+    .8660254037844386, 0, 0, .5
+  };
+  mju_copy4(model->site_quat + 4*default_site, default_quat);
+  mju_copy4(model->site_quat + 4*nondefault_site, nondefault_quat);
+
+  mj_forward(model, data);
+
+  mjtNum expected_default_xmat[9];
+  mjtNum expected_nondefault_xmat[9];
+  mju_quat2Mat(expected_default_xmat, default_quat);
+  mju_quat2Mat(expected_nondefault_xmat, nondefault_quat);
+
+  EXPECT_THAT(AsVector(data->site_xmat + 9*default_site, 9),
+              Pointwise(MjNear(1e-12, 1e-12),
+                        AsVector(expected_default_xmat, 9)));
+  EXPECT_THAT(AsVector(data->site_xmat + 9*nondefault_site, 9),
+              Pointwise(MjNear(1e-12, 1e-12),
+                        AsVector(expected_nondefault_xmat, 9)));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // ----------------------------- mj_tendon -------------------------------------
 
 TEST_F(CoreSmoothTest, FixedTendonSortedIndices) {
