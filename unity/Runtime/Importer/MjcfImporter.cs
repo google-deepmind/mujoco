@@ -17,10 +17,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Mujoco {
 // API for importing Mujoco XML files into Unity scenes.
 public class MjcfImporter {
+  protected const string _standardShaderName = "Standard";
+  protected const string _urpLitShaderName = "Universal Render Pipeline/Lit";
+
   // Any materials created at runtime will only be automatically cleaned up if no other objects
   // reference it AND Unity changes scenes. In long-running worlds with no scene resets, this means
   // those materials are never cleaned even after their MjBodies are destroyed, so we cache a
@@ -28,7 +32,7 @@ public class MjcfImporter {
   public static Material DefaultMujocoMaterial {
     get {
       if (_DefaultMujocoMaterial == null) {
-        _DefaultMujocoMaterial = new Material(Shader.Find("Standard"));
+        _DefaultMujocoMaterial = new Material(FindCompatibleShader(_standardShaderName));
       }
 
       return _DefaultMujocoMaterial;
@@ -57,6 +61,71 @@ public class MjcfImporter {
   }
 
   public MjcfImporter() {}
+
+  protected static Shader FindCompatibleShader(string builtInShaderName) {
+    if (IsUniversalRenderPipelineActive()) {
+      var urpLitShader = Shader.Find(_urpLitShaderName);
+      if (urpLitShader != null) {
+        return urpLitShader;
+      }
+    }
+
+    return Shader.Find(builtInShaderName);
+  }
+
+  private static bool IsUniversalRenderPipelineActive() {
+    var renderPipeline = GraphicsSettings.currentRenderPipeline;
+    return renderPipeline != null
+        && renderPipeline.GetType().Name.Contains("UniversalRenderPipelineAsset");
+  }
+
+  protected static void ConfigureMujocoMaterial(Material material, Color color, float metallic = 0f,
+      float smoothness = 0.5f, bool transparent = false) {
+    if (material.HasProperty("_Color")) {
+      material.SetColor("_Color", color);
+    }
+    if (material.HasProperty("_BaseColor")) {
+      material.SetColor("_BaseColor", color);
+    }
+    if (material.HasProperty("_Metallic")) {
+      material.SetFloat("_Metallic", metallic);
+    }
+    if (material.HasProperty("_Glossiness")) {
+      material.SetFloat("_Glossiness", smoothness);
+    }
+    if (material.HasProperty("_Smoothness")) {
+      material.SetFloat("_Smoothness", smoothness);
+    }
+    if (transparent) {
+      ConfigureTransparentMaterial(material);
+    }
+  }
+
+  protected static void ConfigureTransparentMaterial(Material material) {
+    if (material.shader == null || material.shader.name != _urpLitShaderName) {
+      return;
+    }
+
+    material.SetOverrideTag("RenderType", "Transparent");
+    if (material.HasProperty("_Surface")) {
+      material.SetFloat("_Surface", 1f);
+    }
+    if (material.HasProperty("_Blend")) {
+      material.SetFloat("_Blend", 0f);
+    }
+    if (material.HasProperty("_SrcBlend")) {
+      material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+    }
+    if (material.HasProperty("_DstBlend")) {
+      material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+    }
+    if (material.HasProperty("_ZWrite")) {
+      material.SetFloat("_ZWrite", 0f);
+    }
+    material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+    material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+    material.renderQueue = (int)RenderQueue.Transparent;
+  }
 
   public GameObject ImportString(string mjcfString, string name = null) {
     var mjcfXml = new XmlDocument();
