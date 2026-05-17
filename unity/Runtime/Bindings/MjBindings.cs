@@ -5724,6 +5724,7 @@ public unsafe struct mjData_ {
   public int nl;
   public int nefc;
   public int nJ;
+  public int nY;
   public int nA;
   public int nisland;
   public int nidof;
@@ -5883,6 +5884,10 @@ public unsafe struct mjData_ {
   public double* iefc_frictionloss;
   public double* iefc_D;
   public double* iefc_R;
+  public int* efc_Y_rownnz;
+  public int* efc_Y_rowadr;
+  public int* efc_Y_colind;
+  public double* efc_Y;
   public int* efc_AR_rownnz;
   public int* efc_AR_rowadr;
   public int* efc_AR_colind;

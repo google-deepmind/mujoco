@@ -6494,6 +6494,12 @@ struct MjData {
   void set_nJ(int value) {
     ptr_->nJ = value;
   }
+  int nY() const {
+    return ptr_->nY;
+  }
+  void set_nY(int value) {
+    ptr_->nY = value;
+  }
   int nA() const {
     return ptr_->nA;
   }
@@ -7004,6 +7010,18 @@ struct MjData {
   }
   emscripten::val iefc_R() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_R));
+  }
+  emscripten::val efc_Y_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_Y_rownnz));
+  }
+  emscripten::val efc_Y_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_Y_rowadr));
+  }
+  emscripten::val efc_Y_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nY, ptr_->efc_Y_colind));
+  }
+  emscripten::val efc_Y() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nY, ptr_->efc_Y));
   }
   emscripten::val efc_AR_rownnz() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_AR_rownnz));
@@ -11547,6 +11565,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("efc_J_rowsuper", &MjData::efc_J_rowsuper)
     .property("efc_KBIP", &MjData::efc_KBIP)
     .property("efc_R", &MjData::efc_R)
+    .property("efc_Y", &MjData::efc_Y)
+    .property("efc_Y_colind", &MjData::efc_Y_colind)
+    .property("efc_Y_rowadr", &MjData::efc_Y_rowadr)
+    .property("efc_Y_rownnz", &MjData::efc_Y_rownnz)
     .property("efc_aref", &MjData::efc_aref)
     .property("efc_b", &MjData::efc_b)
     .property("efc_diagApprox", &MjData::efc_diagApprox)
@@ -11626,6 +11648,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("moment_rownnz", &MjData::moment_rownnz)
     .property("nA", &MjData::nA, &MjData::set_nA, reference())
     .property("nJ", &MjData::nJ, &MjData::set_nJ, reference())
+    .property("nY", &MjData::nY, &MjData::set_nY, reference())
     .property("narena", &MjData::narena, &MjData::set_narena, reference())
     .property("nbody_awake", &MjData::nbody_awake, &MjData::set_nbody_awake, reference())
     .property("nbuffer", &MjData::nbuffer, &MjData::set_nbuffer, reference())

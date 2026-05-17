@@ -5493,6 +5493,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in constraint Jacobian',
              ),
              StructFieldDecl(
+                 name='nY',
+                 type=ValueType(name='int'),
+                 doc='number of non-zeros in constraint inverse inertia square root',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='nA',
                  type=ValueType(name='int'),
                  doc='number of non-zeros in constraint inverse inertia matrix',
@@ -6727,6 +6732,38 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nefc',),
              ),
              StructFieldDecl(
+                 name='efc_Y_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of non-zeros in Y row',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='efc_Y_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='row start address in Y colind array',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='efc_Y_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='column indices in sparse Y',
+                 array_extent=('nY',),
+             ),
+             StructFieldDecl(
+                 name='efc_Y',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='whitened Jacobian Y = J*M^(-1/2)',
+                 array_extent=('nY',),
+             ),
+             StructFieldDecl(
                  name='efc_AR_rownnz',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -6739,7 +6776,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='row start address in colind array',
+                 doc='row start address in AR colind array',
                  array_extent=('nefc',),
              ),
              StructFieldDecl(

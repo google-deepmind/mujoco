@@ -946,6 +946,10 @@
 
 // array fields of mjData that are used in the dual problem
 #define MJDATA_ARENA_POINTERS_DUAL                       \
+    XNV( int,      efc_Y_rownnz,      MJ_D(nefc),    1 ) \
+    XNV( int,      efc_Y_rowadr,      MJ_D(nefc),    1 ) \
+    XNV( int,      efc_Y_colind,      MJ_D(nY),      1 ) \
+    XNV( mjtNum,   efc_Y,             MJ_D(nY),      1 ) \
     XNV( int,      efc_AR_rownnz,     MJ_D(nefc),    1 ) \
     XNV( int,      efc_AR_rowadr,     MJ_D(nefc),    1 ) \
     XNV( int,      efc_AR_colind,     MJ_D(nA),      1 ) \
@@ -1020,6 +1024,7 @@
     X( int,       nl                 ) \
     X( int,       nefc               ) \
     X( int,       nJ                 ) \
+    X( int,       nY                 ) \
     X( int,       nA                 ) \
     X( int,       nisland            ) \
     X( int,       nidof              ) \

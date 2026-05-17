@@ -2591,12 +2591,137 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 }
 
 
+// pre-count Y_rownnz, Y_rowadr, return total nonzeros nY
+//   Y has the sparsity of J * inv(L'), where L is the Cholesky factor of M
+static int computeY_precount(int* Y_rownnz, int* Y_rowadr, int nefc, int nv,
+                             const int* J_rownnz, const int* J_rowadr, const int* J_colind,
+                             const int* M_rownnz, const int* M_rowadr, const int* M_colind,
+                             int* marker) {
+  mju_fillInt(marker, -1, nv);
+
+  Y_rowadr[0] = 0;
+  for (int r=0; r < nefc; r++) {
+    int nnz = 0;  // nonzeros in row r of Y
+
+    // traverse row r of J in reverse, count unique nonzeros
+    int start = J_rowadr[r];
+    int end = start + J_rownnz[r];
+    for (int i=end-1; i >= start; i--) {
+      int j = J_colind[i];
+
+      // if dof j is marked, it was already counted by a child dof: skip it
+      if (marker[j] == r) {
+        continue;
+      }
+
+      // traverse row j of M, marking new unique nonzeros
+      int nnzM = M_rownnz[j];
+      int adrM = M_rowadr[j];
+      for (int k=0; k < nnzM; k++) {
+        int c = M_colind[adrM + k];
+        if (marker[c] != r) {
+          marker[c] = r;
+          nnz++;
+        }
+      }
+    }
+
+    // update rownnz and rowadr
+    Y_rownnz[r] = nnz;
+    if (r < nefc - 1) {
+      Y_rowadr[r+1] = Y_rowadr[r] + nnz;
+    }
+  }
+
+  // total non-zeros in Y
+  return Y_rowadr[nefc-1] + Y_rownnz[nefc-1];
+}
+
+
+// fill Y column indices and values from J, chaining up the kinematic tree
+static void computeY_fill(mjtNum* Y, int* Y_colind,
+                          const int* Y_rownnz, const int* Y_rowadr, int nefc,
+                          const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
+                          const int* J_colind, const int* dof_parentid) {
+  for (int r=0; r < nefc; r++) {
+    // init row
+    int end = Y_rowadr[r] + Y_rownnz[r];
+    int adrJ = J_rowadr[r];
+    int remainJ = J_rownnz[r];
+    int nnzY = 0;
+
+    // complete chain in reverse
+    while (1) {
+      // get previous dof in src and dst
+      int prev_src = (remainJ > 0 ? J_colind[adrJ + remainJ - 1] : -1);
+      int prev_dst = (nnzY > 0 ? dof_parentid[Y_colind[end - nnzY]] : -1);
+
+      // both finished: break
+      if (prev_src < 0 && prev_dst < 0) {
+        break;
+      }
+
+      // add src
+      else if (prev_src >= prev_dst) {
+        nnzY++;
+        remainJ--;
+        Y_colind[end - nnzY] = prev_src;
+        Y[end - nnzY] = J[adrJ + remainJ];
+      }
+
+      // add dst
+      else {
+        nnzY++;
+        Y_colind[end - nnzY] = prev_dst;
+        Y[end - nnzY] = 0;
+      }
+    }
+
+    // compare with Y_rownnz: SHOULD NOT OCCUR
+    if (nnzY != Y_rownnz[r]) {
+      mjERROR("pre and post-count of Y_rownnz are not equal on row %d", r);
+    }
+  }
+}
+
+
+// in-place sparse back-substitution:  Y <- Y * M^{-1/2}
+static void computeY_backsub(mjtNum* Y, const int* Y_rownnz, const int* Y_rowadr,
+                             const int* Y_colind, int nefc,
+                             const mjtNum* qLD, const int* M_rownnz, const int* M_rowadr,
+                             const int* M_colind, const mjtNum* sqrtInvD) {
+  for (int r=0; r < nefc; r++) {
+    int nnzY = Y_rownnz[r];
+    int adrY = Y_rowadr[r];
+
+    // Y(r,:) <- inv(L') * Y(r,:), exploit sparsity of input vector
+    for (int i=adrY + nnzY-1; i >= adrY; i--) {
+      mjtNum val = Y[i];
+      if (val == 0) {
+        continue;
+      }
+      int j = Y_colind[i];
+      int adrM = M_rowadr[j];
+      mju_addToSclSparseInc(Y + adrY, qLD + adrM,
+                            nnzY, Y_colind + adrY,
+                            M_rownnz[j]-1, M_colind + adrM, -val);
+    }
+
+    // Y(r,:) <- sqrt(inv(D)) * Y(r,:)
+    for (int i=adrY; i < adrY + nnzY; i++) {
+      int j = Y_colind[i];
+      Y[i] *= sqrtInvD[j];
+    }
+  }
+}
+
+
 //---------------------------- top-level API for constraint construction ---------------------------
 
 // driver: call all functions above
 void mj_makeConstraint(const mjModel* m, mjData* d) {
   // clear sizes
-  d->ne = d->nf = d->nl = d->nefc = d->nJ = d->nA = 0;
+  d->ne = d->nf = d->nl = d->nefc = d->nJ = d->nA = d->nY = 0;
 
   // disabled or Jacobian not allocated: return
   if (mjDISABLED(mjDSBL_CONSTRAINT)) {
@@ -2705,177 +2830,60 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
   }
 
-  // sparse
+  // sparse Y = backsubM2(J')' and its transpose
   if (mj_isSparse(m)) {
-    // compute B = backsubM2(J')' and its transpose
-
-
-    // === pre-count B_rownnz, B_rowadr, nB (total nonzeros)
-
-    // allocate B rownnz and rowadr
-    int* B_rownnz = mjSTACKALLOC(d, nefc, int);
-    int* B_rowadr = mjSTACKALLOC(d, nefc, int);
+    // arena-allocate Y rownnz and rowadr
+    d->efc_Y_rownnz = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
+    d->efc_Y_rowadr = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
+    if (!d->efc_Y_rownnz || !d->efc_Y_rowadr) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
 
     // markers for merged dofs, initialized to -1
     int* marker = mjSTACKALLOC(d, nv, int);
-    mju_fillInt(marker, -1, nv);
 
-    B_rowadr[0] = 0;
-    for (int r=0; r < nefc; r++) {
-      // supernode: same sparsity as previous row
-      if (r > 0 && d->efc_J_rowsuper[r-1] > 0) {
-        B_rownnz[r] = B_rownnz[r-1];
-      }
+    // pre-count Y_rownnz, Y_rowadr, nY (total nonzeros)
+    d->nY = computeY_precount(d->efc_Y_rownnz, d->efc_Y_rowadr, nefc, nv,
+                              d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                              m->M_rownnz, m->M_rowadr, m->M_colind, marker);
 
-      // first row in supernode block: full chain traversal
-      else {
-        int nnz = 0;
-
-        // traverse row r of J in reverse, count unique nonzeros
-        int start = d->efc_J_rowadr[r];
-        int end = start + d->efc_J_rownnz[r];
-        for (int i=end-1; i >= start; i--) {
-          int j = d->efc_J_colind[i];
-
-          // if dof j is marked, it was already counted by a child dof: skip it
-          if (marker[j] == r) {
-            continue;
-          }
-
-          // traverse row j of M, marking new unique nonzeros
-          int nnzM = m->M_rownnz[j];
-          int adrM = m->M_rowadr[j];
-          for (int k=0; k < nnzM; k++) {
-            int c = m->M_colind[adrM + k];
-            if (marker[c] != r) {
-              marker[c] = r;
-              nnz++;
-            }
-          }
-        }
-        B_rownnz[r] = nnz;
-      }
-
-      // update rowadr
-      if (r < nefc - 1) {
-        B_rowadr[r+1] = B_rowadr[r] + B_rownnz[r];
-      }
+    // arena-allocate values and column indices
+    d->efc_Y = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nY, _Alignof(mjtNum));
+    d->efc_Y_colind = mj_arenaAllocByte(d, sizeof(int) * d->nY, _Alignof(int));
+    if (!d->efc_Y || !d->efc_Y_colind) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
     }
 
-    // total non-zeros in B
-    int nB = B_rowadr[nefc-1] + B_rownnz[nefc-1];
+    // fill in Y column indices, copy values from J
+    computeY_fill(d->efc_Y, d->efc_Y_colind, d->efc_Y_rownnz, d->efc_Y_rowadr, nefc,
+                  d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                  m->dof_parentid);
 
 
-    // === fill in B column indices, copy values from J
+    // in-place sparse back-substitution:  Y <- Y * M^-1/2
+    computeY_backsub(d->efc_Y, d->efc_Y_rownnz, d->efc_Y_rowadr,
+                     d->efc_Y_colind, nefc,
+                     d->qLD, m->M_rownnz, m->M_rowadr, m->M_colind, sqrtInvD);
 
-    // allocate values and column indices
-    mjtNum* B = mjSTACKALLOC(d, nB, mjtNum);
-    int* B_colind = mjSTACKALLOC(d, nB, int);
+    // Y supernodes are identical to J supernodes
+    const int* Y_rowsuper = d->efc_J_rowsuper;
 
-    for (int r=0; r < nefc; r++) {
-      // supernode: copy column indices, only update values from J
-      if (r > 0 && d->efc_J_rowsuper[r-1] > 0) {
-        int prevAdr = B_rowadr[r-1];
-        int adrB = B_rowadr[r];
-        int nnzB = B_rownnz[r];
-        mju_copyInt(B_colind + adrB, B_colind + prevAdr, nnzB);
-        mju_zero(B + adrB, nnzB);
-
-        // copy J values into correct positions
-        int adrJ = d->efc_J_rowadr[r];
-        int jnnz = d->efc_J_rownnz[r];
-        int bi = 0, ji = 0;
-        while (ji < jnnz && bi < nnzB) {
-          if (B_colind[adrB+bi] == d->efc_J_colind[adrJ+ji]) {
-            B[adrB+bi] = d->efc_J[adrJ+ji];
-            bi++;
-            ji++;
-          } else {
-            bi++;
-          }
-        }
-      }
-
-      // first row in supernode block: full chain completion
-      else {
-        int end = B_rowadr[r] + B_rownnz[r];
-        int adrJ = d->efc_J_rowadr[r];
-        int remainJ = d->efc_J_rownnz[r];
-        int nnzB = 0;
-
-        // complete chain in reverse
-        while (1) {
-          // get previous dof in src and dst
-          int prev_src = (remainJ > 0 ? d->efc_J_colind[adrJ + remainJ - 1] : -1);
-          int prev_dst = (nnzB > 0 ? m->dof_parentid[B_colind[end - nnzB]] : -1);
-
-          // both finished: break
-          if (prev_src < 0 && prev_dst < 0) {
-            break;
-          }
-
-          // add src
-          else if (prev_src >= prev_dst) {
-            nnzB++;
-            remainJ--;
-            B_colind[end - nnzB] = prev_src;
-            B[end - nnzB] = d->efc_J[adrJ + remainJ];
-          }
-
-          // add dst
-          else {
-            nnzB++;
-            B_colind[end - nnzB] = prev_dst;
-            B[end - nnzB] = 0;
-          }
-        }
-
-        // compare with B_rownnz: SHOULD NOT OCCUR
-        if (nnzB != B_rownnz[r]) {
-          mjERROR("pre and post-count of B_rownnz are not equal on row %d", r);
-        }
-      }
-    }
-
-
-    // === in-place sparse back-substitution:  B <- B * M^-1/2
-
-    // sparse backsubM2 (half of LD back-substitution)
-    for (int r=0; r < nefc; r++) {
-      int nnzB = B_rownnz[r];
-      int adrB = B_rowadr[r];
-
-      // B(r,:) <- inv(L') * B(r,:), exploit sparsity of input vector
-      for (int i=adrB + nnzB-1; i >= adrB; i--) {
-        mjtNum b = B[i];
-        if (b == 0) {
-          continue;
-        }
-        int j = B_colind[i];
-        int adrC = m->M_rowadr[j];
-        mju_addToSclSparseInc(B + adrB, d->qLD + adrC,
-                              nnzB, B_colind + adrB,
-                              m->M_rownnz[j]-1, m->M_colind + adrC, -b);
-      }
-
-      // B(r,:) <- sqrt(inv(D)) * B(r,:)
-      for (int i=adrB; i < adrB + nnzB; i++) {
-        int j = B_colind[i];
-        B[i] *= sqrtInvD[j];
-      }
-    }
-
-    // B supernodes are identical to J supernodes
-    const int* B_rowsuper = d->efc_J_rowsuper;
-
-    // construct B transposed
-    int* BT_rownnz = mjSTACKALLOC(d, nv, int);
-    int* BT_rowadr = mjSTACKALLOC(d, nv, int);
-    int* BT_colind = mjSTACKALLOC(d, nB, int);
-    mjtNum* BT = mjSTACKALLOC(d, nB, mjtNum);
-    mju_transposeSparse(BT, B, nefc, nv,
-                        BT_rownnz, BT_rowadr, BT_colind, NULL,
-                        B_rownnz, B_rowadr, B_colind);
+    // construct Y transposed
+    int* YT_rownnz = mjSTACKALLOC(d, nv, int);
+    int* YT_rowadr = mjSTACKALLOC(d, nv, int);
+    int* YT_colind = mjSTACKALLOC(d, d->nY, int);
+    mjtNum* YT = mjSTACKALLOC(d, d->nY, mjtNum);
+    mju_transposeSparse(YT, d->efc_Y, nefc, nv,
+                        YT_rownnz, YT_rowadr, YT_colind, NULL,
+                        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind);
 
     // allocate AR row nonzeros and addresses on arena
     d->efc_AR_rownnz = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
@@ -2891,8 +2899,8 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     int* diagind = mjSTACKALLOC(d, nefc, int);
     d->nA = mju_sqrMatTDSparseSymbolic(
         d->efc_AR_rownnz, d->efc_AR_rowadr, NULL, diagind,
-        nv, nefc, BT_rownnz, BT_rowadr, BT_colind,
-        B_rownnz, B_rowadr, B_colind, B_rowsuper, d);
+        nv, nefc, YT_rownnz, YT_rowadr, YT_colind,
+        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper, d);
 
     // allocate A values and column indices on arena
     d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
@@ -2905,17 +2913,18 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       return;
     }
 
-    // A = B * B': symbolic phase
+    // A = Y * Y': symbolic phase
     mju_sqrMatTDSparseSymbolic(
         d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind, diagind,
-        nv, nefc, BT_rownnz, BT_rowadr, BT_colind,
-        B_rownnz, B_rowadr, B_colind, B_rowsuper, d);
+        nv, nefc, YT_rownnz, YT_rowadr, YT_colind,
+        d->efc_Y_rownnz, d->efc_Y_rowadr, d->efc_Y_colind, Y_rowsuper, d);
 
-    // A = B * B': numeric phase
+    // A = Y * Y': numeric phase
     mju_sqrMatTDSparseNumeric(
         d->efc_AR, nefc, d->efc_AR_rownnz, d->efc_AR_rowadr,
-        d->efc_AR_colind, diagind, BT, BT_rownnz, BT_rowadr,
-        BT_colind, B, B_rownnz, B_rowadr, B_colind, B_rowsuper, NULL, d);
+        d->efc_AR_colind, diagind, YT, YT_rownnz, YT_rowadr,
+        YT_colind, d->efc_Y, d->efc_Y_rownnz, d->efc_Y_rowadr,
+        d->efc_Y_colind, Y_rowsuper, NULL, d);
 
     // AR = A + diag(R)
     for (int i=0; i < nefc; i++) {
@@ -2923,11 +2932,24 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     }
   }
 
-  // dense
+  // dense Y = backsubM2(J')' and its transpose
   else {
-    d->nA = nefc * nefc;
+    // arena-allocate efc_Y
+    d->nY = nefc * nv;
+    d->efc_Y = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nY, _Alignof(mjtNum));
+    if (!d->efc_Y) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
+
+    // Y = backsubM2(J')'
+    mj_solveM2(m, d, d->efc_Y, d->efc_J, sqrtInvD, nefc);
 
     // arena-allocate efc_AR
+    d->nA = nefc * nefc;
     d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
     if (!d->efc_AR) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
@@ -2937,18 +2959,12 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       return;
     }
 
-    // space for B = backsubM2(J')' and its transpose
-    mjtNum* B = mjSTACKALLOC(d, nefc*nv, mjtNum);
-    mjtNum* BT = mjSTACKALLOC(d, nv*nefc, mjtNum);
+    // construct YT on stack
+    mjtNum* YT = mjSTACKALLOC(d, nv*nefc, mjtNum);
+    mju_transpose(YT, d->efc_Y, nefc, nv);
 
-    // B = backsubM2(J')'
-    mj_solveM2(m, d, B, d->efc_J, sqrtInvD, nefc);
-
-    // construct BT
-    mju_transpose(BT, B, nefc, nv);
-
-    // AR = B * B'
-    mju_sqrMatTD(d->efc_AR, BT, NULL, nv, nefc);
+    // AR = Y * Y'
+    mju_sqrMatTD(d->efc_AR, YT, NULL, nv, nefc);
 
     // add R to diagonal of AR
     for (int r=0; r < nefc; r++) {
