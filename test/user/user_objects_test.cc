@@ -2676,6 +2676,38 @@ TEST_F(UserObjectsTest, Inertial) {
   EXPECT_THAT(error, HasSubstr("fullinertia and inertial orientation cannot"));
 }
 
+// Merged COM must be correct when a fused-static child has a non-identity
+// inertial-frame orientation (e.g. from a degenerate diaginertia).
+TEST_F(UserObjectsTest, FuseStaticWithRotatedInertial) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+    <worldbody>
+      <body name="parent">
+        <freejoint/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+        <body name="child" pos="1 0 0">
+          <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5"
+                    mass="1" diaginertia="0.01 0.01 0.02"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  // Child fuses into parent; only world + parent remain.
+  EXPECT_EQ(m->nbody, 2);
+  EXPECT_EQ(m->body_mass[1], 2);
+  // Mass-weighted COM in parent frame: (1*(0,0,0) + 1*(1,0,0)) / 2.
+  const mjtNum expected_com[3] = {0.5, 0, 0};
+  EXPECT_THAT(AsVector(m->body_ipos + 3, 3),
+              Pointwise(MjNear(1e-8, 1e-6), AsVector(expected_com, 3)));
+  mj_deleteModel(m);
+}
+
 TEST_F(UserObjectsTest, ZeroMass) {
   static constexpr char xml[] = R"(
   <mujoco>
