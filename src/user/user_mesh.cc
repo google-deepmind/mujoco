@@ -4071,8 +4071,9 @@ static void ComputeWarpMode(double* warp, const double* pos,
 }
 
 
-// compute the warp stiffness for a 2D face element, matching the transverse
-// shear energy of the old 3D-on-2D formulation: λ_warp = μ t (d1/d0 + d0/d1)/6
+// compute the warp bending stiffness for a 2D face element
+// uses plate bending theory: the warp mode is a pure twist (κ_xy),
+// with bending stiffness proportional to t³ (no shear locking)
 //   pos:          node positions (3*npe doubles)
 //   npe:          nodes per element
 //   normal_axis:  axis perpendicular to the face
@@ -4082,13 +4083,17 @@ static double ComputeWarpStiffness(const double* pos, int npe, int normal_axis,
                                    double E, double nu, double thickness) {
   int axis0 = (normal_axis + 1) % 3;
   int axis1 = (normal_axis + 2) % 3;
-  double d0 = pos[3*(npe-1) + axis0] - pos[axis0];
-  double d1 = pos[3*(npe-1) + axis1] - pos[axis1];
-  double mu = E / (2.0 * (1.0 + nu));
+  double d0 = std::abs(pos[3*(npe-1) + axis0] - pos[axis0]);
+  double d1 = std::abs(pos[3*(npe-1) + axis1] - pos[axis1]);
 
-  // warp stiffness from transverse shear Rayleigh quotient:
-  //   w^T K_phys w / |w|^2 = μ t (|d1/d0| + |d0/d1|) / 6
-  return mu * thickness * (std::abs(d1/d0) + std::abs(d0/d1)) / 6.0;
+  if (d0 < 1e-30 || d1 < 1e-30) return 0;
+
+  // plate bending rigidity: D = E*t³ / (12*(1-ν²))
+  double D = E * thickness * thickness * thickness / (12.0 * (1.0 - nu * nu));
+
+  // warp stiffness from twist curvature Rayleigh quotient:
+  //   w^T K_bend w / |w|^2 = D*(1-ν)*4 / (d0*d1)
+  return D * (1.0 - nu) * 4.0 / (d0 * d1);
 }
 
 
@@ -5069,10 +5074,10 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
         if (shell_mode) {
           // pure membrane K: eigendecompose gives 5 membrane modes (Q1),
-          // then we add 1 explicit warp mode
+          // then we add 1 explicit warp mode with bending stiffness (∝ t³)
           int neig = EigendecomposeStiffness(K_elem.data(), out, ndof_elem);
 
-          // add explicit warp mode with stiffness matching old transverse shear
+          // add explicit warp mode with plate bending stiffness
           double warp_stiffness = ComputeWarpStiffness(
               elem_pos.data(), npe, normal_axis, K_young, K_poisson, thickness);
           if (warp_stiffness > 0) {

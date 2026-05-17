@@ -50,7 +50,7 @@
         origin="0 0 0" count="8 2 12" cellcount="6 1 6"
         type="grid" name="soft_mesh_2" dim="3" spacing=".025 .05 .025"
         mass="0.43" radius="0.005" dof="trilinear" rgba="0.9 0.7 0.7 1">
-        <elasticity young="1e4" poisson="0.3" damping="0" elastic2d="bend" thickness="0.03"/>
+        <elasticity young="1e4" poisson="0.3" damping="0" elastic2d="bend" thickness="0.02"/>
         <edge equality="strain" solref="0.001 1" solimp="0.99 0.999 0.001"/>
         <contact selfcollide="none"
               internal="false"
