@@ -757,6 +757,7 @@ class Model(PyTreeNode):
   mesh_vertadr: np.ndarray
   mesh_vertnum: np.ndarray
   mesh_faceadr: np.ndarray
+  mesh_facenum: np.ndarray
   mesh_bvhadr: np.ndarray
   mesh_bvhnum: np.ndarray
   mesh_octadr: np.ndarray
@@ -767,12 +768,25 @@ class Model(PyTreeNode):
   mesh_vert: np.ndarray
   mesh_normal: np.ndarray
   mesh_face: np.ndarray
+  mesh_facenormal: np.ndarray
+  mesh_facetexcoord: np.ndarray
   mesh_graph: np.ndarray
+  mesh_scale: np.ndarray
   mesh_pos: np.ndarray
   mesh_quat: np.ndarray
+  mesh_pathadr: np.ndarray
   mesh_texcoordadr: np.ndarray
   mesh_texcoordnum: np.ndarray
   mesh_texcoord: np.ndarray
+  mesh_polynum: np.ndarray
+  mesh_polyadr: np.ndarray
+  mesh_polynormal: np.ndarray
+  mesh_polyvertadr: np.ndarray
+  mesh_polyvertnum: np.ndarray
+  mesh_polyvert: np.ndarray
+  mesh_polymapadr: np.ndarray
+  mesh_polymapnum: np.ndarray
+  mesh_polymap: np.ndarray
   flex_vertadr: np.ndarray
   flex_vertnum: np.ndarray
   flex_interp: np.ndarray
