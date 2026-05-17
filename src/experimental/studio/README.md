@@ -17,6 +17,47 @@ bash build.sh
 > [!NOTE]
 > For now [`build.sh`](build.sh) script works on windows in a git bash shell.
 
+To keep Studio build artifacts separate from other MuJoCo builds, you can also
+configure an isolated build directory manually:
+
+```
+cmake -B build-studio \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DUSE_STATIC_LIBCXX=OFF \
+  -DBUILD_SHARED_LIB=OFF \
+  -DMUJOCO_USE_FILAMENT=ON \
+  -DMUJOCO_BUILD_EXAMPLES=OFF \
+  -DMUJOCO_BUILD_SIMULATE=OFF \
+  -DMUJOCO_BUILD_TESTS=OFF \
+  -DMUJOCO_TEST_PYTHON_UTIL=OFF \
+  -DMUJOCO_WITH_USD=OFF \
+  -DMUJOCO_BUILD_STUDIO=ON \
+  -DFILAMENT_SKIP_SAMPLES=ON \
+  -DCMAKE_CXX_FLAGS=-Wno-error=deprecated-declarations \
+  -DFILAMENT_SHORTEN_MSVC_COMPILATION=OFF
+cmake --build build-studio --config Release --target mujoco_studio --parallel
+```
+
+Run `mujoco_studio` from the build output directory so it can find the copied
+font and Filament assets:
+
+```
+cd build-studio/bin
+./mujoco_studio --gfx=opengl
+```
+
+On macOS, Studio defaults to Filament OpenGL. The OpenGL implementation may be
+provided by Apple's Metal-backed OpenGL layer, so runtime logs can mention both
+OpenGL and Metal/Apple GPU details.
+
+### Troubleshooting
+
+If configure fails while resolving Filament dependencies, check whether CMake is
+finding package-manager CMake configs from environments such as Anaconda. In
+particular, an unrelated `abslConfig.cmake` can conflict with MuJoCo's fetched
+Abseil targets. Remove that prefix from `CMAKE_PREFIX_PATH`, or configure with
+`CMAKE_IGNORE_PREFIX_PATH` pointing at the conflicting environment prefix.
+
 ## Development
 
 The [`build.sh`](build.sh) script is intended to get you up and running quickly.
