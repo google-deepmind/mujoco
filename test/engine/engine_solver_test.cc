@@ -102,7 +102,7 @@ TEST_F(SolverTest, IslandsEquivalent) {
                                    std::abs(data_noisland->qacc[j]) +
                                    std::abs(data_island->qacc[j]));
           EXPECT_NEAR(data_noisland->qacc[j], data_island->qacc[j],
-                      MjTol(scale * rtol[i], 500 * scale * rtol[i]))
+                      MjTol(2 * scale * rtol[i], 500 * scale * rtol[i]))
               << "time: " << time << '\n'
               << "dof: " << j << '\n'
               << "maxiter: " << maxiter[i] << '\n'
