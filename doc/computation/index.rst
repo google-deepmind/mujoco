@@ -1514,6 +1514,20 @@ constraint would satisfy
 and so we would achieve the desired interpolation effect. This of course does not hold exactly in general, but the goal
 here is to construct a sensible and intuitive parameterization of the constraint model and get the scaling right.
 
+.. _soExactDiag:
+
+**Diagonal approximation:** The approximation has three sources of error: (i) it is frozen at ``qpos0`` rather than
+evaluated at the current configuration; (ii) it averages the directional inverse inertia into a scalar, assuming
+isotropy; and (iii) it treats the contributions of different bodies as independent, ignoring kinematic coupling through
+shared DOFs. These errors are usually modest, but can become significant for models with highly anisotropic inertias or
+long kinematic chains that operate far from ``qpos0``. In severe cases — particularly when the averaged inertia becomes
+near-zero despite finite directional inertia — the regularizer :math:`R` becomes near-zero, making constraints
+infinitely hard and causing divergence. The :ref:`diagexact<option-flag-diagexact>` flag replaces the approximation with
+the exact diagonal :math:`A_{ii} = \|Y_i\|^2`, where :math:`Y = J M^{-1/2}` is the whitened Jacobian, computed at the
+current configuration. This eliminates all three sources of error at a modest runtime cost: computing :math:`Y` requires
+a back-substitution with the Cholesky factor of the mass matrix for each active constraint row; if
+:ref:`dual solvers<soAlgorithms>` are used (PGS or NoSlip), the cost is negligible since :math:`Y` is computed anyway.
+
 Next we explain how the reference acceleration is computed. As already mentioned, we use a spring-damper model
 parameterized by *damping* and *stiffness* coefficients element-wise:
 

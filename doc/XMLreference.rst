@@ -697,6 +697,19 @@ from its default.
       order for the :ref:`sleep-init<body-sleep>` policy to take effect. Second, it must be set in order for static
       quantities to be computed. See :ref:`implementation notes<siSleep>` for more details.
 
+.. _option-flag-diagexact:
+
+:at:`diagexact`: :at-val:`[disable, enable], "disable"`
+   This flag enables computation of the exact diagonal of the constraint-space inertia matrix :math:`A = J M^{-1} J^T`,
+   replacing the body-based approximation normally used. The exact diagonal is computed from the whitened Jacobian
+   :math:`Y = J M^{-1/2}` as :math:`A_{ii} = \|Y_i\|^2`. This provides a more accurate
+   :ref:`impedance<soParameters>` computation, which can improve solver quality for models with complex kinematic
+   coupling. See :ref:`Diagonal approximation <soExactDiag>` for details on the approximation errors that this flag
+   eliminates. The cost is one back-substitution with the Cholesky factor of the mass matrix per active constraint row;
+   if dual solvers are used (:ref:`PGS<option-solver>` or :ref:`NoSlip<option-noslip_iterations>`), the cost is
+   negligible since :math:`Y` is computed anyway. Consider enabling this flag when observing divergence or poor
+   constraint quality, particularly in models with highly anisotropic body inertias or bodies operating far from the
+   initial configuration ``qpos0``.
 
 .. _compiler:
 

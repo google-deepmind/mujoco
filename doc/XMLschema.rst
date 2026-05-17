@@ -175,6 +175,9 @@
             .. grid-item::
                :ref:`sleep<option-flag-sleep>`
 
+            .. grid-item::
+               :ref:`diagexact<option-flag-diagexact>`
+
 
    .. dropdown:: :ref:`compiler<compiler>` |*|
 

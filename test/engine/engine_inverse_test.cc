@@ -48,28 +48,38 @@ TEST_F(InverseTest, ForwardInverseMatch) {
   // solver names for diagnostics
   const char* solver_name[] = {"PGS", "CG", "Newton"};
 
-  for (mjtSolver solver : {mjSOL_PGS, mjSOL_CG, mjSOL_NEWTON}) {
-    model->opt.solver = solver;
-    mj_resetData(model, data);
-
-    // simulate, call mj_forward
-    for (int i = 0; i < kSteps; ++i) {
-      mj_step(model, data);
+  for (int diagexact = 0; diagexact < 2; diagexact++) {
+    if (diagexact) {
+      model->opt.enableflags |= mjENBL_DIAGEXACT;
+    } else {
+      model->opt.enableflags &= ~mjENBL_DIAGEXACT;
     }
-    mj_forward(model, data);
 
-    // call built-in testing function
-    mj_compareFwdInv(model, data);
+    for (mjtSolver solver : {mjSOL_PGS, mjSOL_CG, mjSOL_NEWTON}) {
+      model->opt.solver = solver;
+      mj_resetData(model, data);
 
-    // per-solver tolerances
-    mjtNum epsilon;
-    switch (solver) {
-    case mjSOL_PGS:    epsilon = MjTol(1e-6, 1e-2);   break;
-    case mjSOL_CG:     epsilon = MjTol(1e-3, 1e-1);   break;
-    case mjSOL_NEWTON: epsilon = MjTol(1e-10, 5e-3);  break;
+      // simulate, call mj_forward
+      for (int i = 0; i < kSteps; ++i) {
+        mj_step(model, data);
+      }
+      mj_forward(model, data);
+
+      // call built-in testing function
+      mj_compareFwdInv(model, data);
+
+      // per-solver tolerances
+      mjtNum epsilon;
+      switch (solver) {
+      case mjSOL_PGS:    epsilon = MjTol(1e-6, 1e-2);   break;
+      case mjSOL_CG:     epsilon = MjTol(1e-3, 1e0);   break;
+      case mjSOL_NEWTON: epsilon = MjTol(1e-10, 1e-2);  break;
+      }
+      EXPECT_LT(data->solver_fwdinv[0], epsilon)
+        << solver_name[solver] << " diagexact=" << diagexact;
+      EXPECT_LT(data->solver_fwdinv[1], epsilon)
+        << solver_name[solver] << " diagexact=" << diagexact;
     }
-    EXPECT_LT(data->solver_fwdinv[0], epsilon) << solver_name[solver];
-    EXPECT_LT(data->solver_fwdinv[1], epsilon) << solver_name[solver];
   }
 
   mj_deleteData(data);

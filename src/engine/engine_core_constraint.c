@@ -2812,14 +2812,9 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 }
 
 
-// compute efc_AR
-void mj_projectConstraint(const mjModel* m, mjData* d) {
+// compute Y = J*M^{-1/2}; if flg_diagexact, overwrite efc_diagApprox with ||Y_i||^2
+static void mj_makeY(const mjModel* m, mjData* d, int flg_diagexact) {
   int nefc = d->nefc, nv = m->nv;
-
-  // nothing to do
-  if (nefc == 0 || !mj_isDual(m)) {
-    return;
-  }
 
   mj_markStack(d);
 
@@ -2843,10 +2838,8 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
       return;
     }
 
-    // markers for merged dofs, initialized to -1
-    int* marker = mjSTACKALLOC(d, nv, int);
-
     // pre-count Y_rownnz, Y_rowadr, nY (total nonzeros)
+    int* marker = mjSTACKALLOC(d, nv, int);
     d->nY = computeY_precount(d->efc_Y_rownnz, d->efc_Y_rowadr, nefc, nv,
                               d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
                               m->M_rownnz, m->M_rowadr, m->M_colind, marker);
@@ -2867,12 +2860,57 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
                   d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
                   m->dof_parentid);
 
-
     // in-place sparse back-substitution:  Y <- Y * M^-1/2
     computeY_backsub(d->efc_Y, d->efc_Y_rownnz, d->efc_Y_rowadr,
                      d->efc_Y_colind, nefc,
                      d->qLD, m->M_rownnz, m->M_rowadr, m->M_colind, sqrtInvD);
 
+    // overwrite diagApprox with exact diagonal: diagApprox[i] = ||Y_i||^2
+    if (flg_diagexact) {
+      for (int i=0; i < nefc; i++) {
+        int adr = d->efc_Y_rowadr[i];
+        int nnz = d->efc_Y_rownnz[i];
+        d->efc_diagApprox[i] = mju_dot(d->efc_Y+adr, d->efc_Y+adr, nnz);
+      }
+    }
+  }
+
+  // dense Y = backsubM2(J')' and its transpose
+  else {
+    // arena-allocate efc_Y
+    d->nY = nefc * nv;
+    d->efc_Y = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nY, _Alignof(mjtNum));
+    if (!d->efc_Y) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
+
+    // Y = backsubM2(J')'
+    mj_solveM2(m, d, d->efc_Y, d->efc_J, sqrtInvD, nefc);
+
+    // overwrite diagApprox with exact diagonal: diagApprox[i] = ||Y_i||^2
+    if (flg_diagexact) {
+      for (int i=0; i < nefc; i++) {
+        d->efc_diagApprox[i] = mju_dot(d->efc_Y+i*nv, d->efc_Y+i*nv, nv);
+      }
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
+// assemble AR = Y*Y' + diag(R) for dual solver
+static void mj_makeAR(const mjModel* m, mjData* d) {
+  int nefc = d->nefc, nv = m->nv;
+
+  mj_markStack(d);
+
+  // sparse
+  if (mj_isSparse(m)) {
     // Y supernodes are identical to J supernodes
     const int* Y_rowsuper = d->efc_J_rowsuper;
 
@@ -2934,20 +2972,6 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
   // dense Y = backsubM2(J')' and its transpose
   else {
-    // arena-allocate efc_Y
-    d->nY = nefc * nv;
-    d->efc_Y = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nY, _Alignof(mjtNum));
-    if (!d->efc_Y) {
-      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
-      mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
-      mj_freeStack(d);
-      return;
-    }
-
-    // Y = backsubM2(J')'
-    mj_solveM2(m, d, d->efc_Y, d->efc_J, sqrtInvD, nefc);
-
     // arena-allocate efc_AR
     d->nA = nefc * nefc;
     d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
@@ -2973,6 +2997,41 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
   }
 
   mj_freeStack(d);
+}
+
+
+// compute efc_Y, optionally efc_diagApprox, optionally efc_AR
+void mj_projectConstraint(const mjModel* m, mjData* d) {
+  int nefc = d->nefc;
+
+  // nothing to do
+  if (!nefc) {
+    return;
+  }
+
+  int isDual = mj_isDual(m);
+  int diagexact = mjENABLED(mjENBL_DIAGEXACT);
+
+  // compute Y = J*M^{-1/2}; overwrite diagApprox if diagexact
+  if (isDual || diagexact) {
+    mj_makeY(m, d, diagexact);
+  }
+
+  // recompute impedance from exact diagonal
+  if (diagexact && d->nefc) {
+    mj_makeImpedance(m, d);
+
+    // re-gather island D/R
+    if (d->nisland) {
+      mju_gather(d->iefc_D, d->efc_D, d->map_iefc2efc, d->nefc);
+      mju_gather(d->iefc_R, d->efc_R, d->map_iefc2efc, d->nefc);
+    }
+  }
+
+  // assemble AR for dual solver
+  if (isDual && d->nefc) {
+    mj_makeAR(m, d);
+  }
 }
 
 

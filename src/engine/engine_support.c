@@ -77,7 +77,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Energy",
   "Fwdinv",
   "InvDiscrete",
-  "Sleep"
+  "Sleep",
+  "DiagExact"
 };
 
 

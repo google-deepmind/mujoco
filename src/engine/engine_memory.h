@@ -76,6 +76,7 @@ static inline void mj_clearEfc(mjData* d) {
 #undef X
   d->nefc = 0;
   d->nisland = 0;
+  d->nJ = d->nY = d->nA = 0;
   d->contact = (mjContact*) d->arena;
 
   // if any contacts are allocated, clear their efc_address

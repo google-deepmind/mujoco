@@ -7,6 +7,12 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+- Added ``mjData.efc_Y``, the whitened constraint Jacobian :math:`Y = J M^{-1/2}`, allocated in the arena when
+  dual solvers (PGS or NoSlip) are used or when :ref:`diagexact<option-flag-diagexact>` is enabled.
+- Added the :ref:`diagexact<option-flag-diagexact>` enable flag, which computes the exact diagonal of the
+  constraint-space inertia matrix at the current configuration, replacing the default compile-time approximation.
+  This improves solver quality for models with anisotropic inertias or complex kinematic coupling. See
+  :ref:`Exact diagonal <soExactDiag>` for details.
 - The pseudo-random constraint visitation order in the :ref:`PGS solver<soAlgorithms>`, introduced in the previous
   release, now uses a fixed seed. The previous implementation seeded with ``mjData.time``, which introduced subtle yet
   undesirable time dependence.

@@ -208,12 +208,12 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   TM_END(mjTIMER_POS_MAKE);
 
   TM_RESTART;
-  mj_transmission(m, d);
-  TM_ADD(mjTIMER_POS_KINEMATICS);
-
-  TM_RESTART;
   mj_projectConstraint(m, d);
   TM_END(mjTIMER_POS_PROJECT);
+
+  TM_RESTART;
+  mj_transmission(m, d);
+  TM_ADD(mjTIMER_POS_KINEMATICS);
 
   TM_END1(mjTIMER_POSITION);
 }

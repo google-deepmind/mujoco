@@ -118,7 +118,8 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"flag", "?", "constraint", "equality", "frictionloss", "limit", "contact",
             "spring", "damper", "gravity", "clampctrl", "warmstart", "filterparent", "actuation",
             "refsafe", "sensor", "midphase", "eulerdamp", "autoreset", "nativeccd", "island",
-            "override", "energy", "fwdinv", "invdiscrete", "multiccd", "sleep"},
+            "override", "energy", "fwdinv", "invdiscrete", "multiccd", "sleep",
+            "diagexact"},
     {">"},
 
     {"size", "*", "memory", "njmax", "nconmax", "nstack", "nuserdata", "nkey",
@@ -1297,6 +1298,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READENBL("fwdinv",      mjENBL_FWDINV)
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
     READENBL("sleep",       mjENBL_SLEEP)
+    READENBL("diagexact",   mjENBL_DIAGEXACT)
 #undef READENBL
   }
 }
