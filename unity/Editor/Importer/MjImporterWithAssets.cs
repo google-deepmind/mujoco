@@ -153,7 +153,7 @@ public class MjImporterWithAssets : MjcfImporter {
     var assetReferenceName = MjEngineTool.Sanitize(unsanitizedAssetReferenceName);
     var sourceFilePath = Path.Combine(_sourceMeshesDir, fileName);
 
-    if (Path.GetExtension(sourceFilePath) != ".obj" && Path.GetExtension(sourceFilePath) != ".stl") {
+    if (Path.GetExtension(sourceFilePath).ToLower() != ".obj" && Path.GetExtension(sourceFilePath).ToLower() != ".stl") {
       throw new NotImplementedException("Type of mesh file not yet supported. " +
                                         "Please convert to binary STL or OBJ. " +
                                         $"Attempted to load: {sourceFilePath}");
@@ -194,11 +194,11 @@ public class MjImporterWithAssets : MjcfImporter {
   private void CopyMeshAndRescale(
       string sourceFilePath, string targetFilePath, Vector3 scale) {
     var originalMeshBytes = File.ReadAllBytes(sourceFilePath);
-    if (Path.GetExtension(sourceFilePath) == ".stl") {
+    if (Path.GetExtension(sourceFilePath).ToLower() == ".stl") {
       var mesh = StlMeshParser.ParseBinary(originalMeshBytes, scale);
       var rescaledMeshBytes = StlMeshParser.SerializeBinary(mesh);
       File.WriteAllBytes(targetFilePath, rescaledMeshBytes);
-    } else if (Path.GetExtension(sourceFilePath) == ".obj") {
+    } else if (Path.GetExtension(sourceFilePath).ToLower() == ".obj") {
       ObjMeshImportUtility.CopyAndScaleOBJFile(sourceFilePath, targetFilePath, scale);
     } else {
       throw new NotImplementedException($"Extension {Path.GetExtension(sourceFilePath)} " +
@@ -227,7 +227,7 @@ public class MjImporterWithAssets : MjcfImporter {
         AssetDatabase.GUIDToAssetPath(
           AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
     } else {
-      material = new Material(Shader.Find("Standard"));
+      material = new Material(MjcfImporter.GetLitShader());
     }
     material.SetColor("_Color", albedo);
     material.SetFloat("_Metallic", reflectance);
@@ -284,7 +284,7 @@ public class MjImporterWithAssets : MjcfImporter {
               AssetDatabase.GUIDToAssetPath(
                 AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
         } else {
-          material = new Material(Shader.Find("Standard"));
+          material = new Material(MjcfImporter.GetLitShader());
         }
         material.color = new Color(rgba[0], rgba[1], rgba[2], rgba[3]);
         // We use the geom's name, guaranteed to be unique, as the asset name.
