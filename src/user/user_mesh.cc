@@ -3944,22 +3944,24 @@ void inline ComputeLinearStiffness2D(std::vector<double>& K,
         throw mjCError(nullptr, "incorrect number of 2D basis functions");
       }
 
-      // tensor contraction (same structure as 3D but with zero normal column)
+      // tensor contraction: pure membrane (in-plane strain only)
+      // only loop over in-plane displacement directions to avoid transverse
+      // shear strains (ε_{normal,α}) which are spurious for thin shells
+      int inplane[2] = {axis0, axis1};
       for (int i = 0; i < npe; i++) {
         for (int j = 0; j < npe; j++) {
           Matrix du;
           Matrix dv;
           du.fill({0, 0, 0});
           dv.fill({0, 0, 0});
-          for (int k = 0; k < 3; k++) {
-            for (int l = 0; l < 3; l++) {
-              // du[k] has non-zero entries only at in-plane axes
+          for (int ki = 0; ki < 2; ki++) {
+            int k = inplane[ki];
+            for (int li = 0; li < 2; li++) {
+              int l = inplane[li];
               du[k][axis0] = invJ0 * F[i][0];
               du[k][axis1] = invJ1 * F[i][1];
-              // du[k][normal_axis] = 0 (already zero)
               dv[l][axis0] = invJ0 * F[j][0];
               dv[l][axis1] = invJ1 * F[j][1];
-              // dv[l][normal_axis] = 0 (already zero)
               K[ndof*(3*i+k) + 3*j+l] -= la * trace(du) * trace(dv) * dvol;
               // mu (not 2*mu): same convention as 3D ComputeLinearStiffness
               K[ndof*(3*i+k) + 3*j+l] -= mu * trace(inner(sym(du), sym(dv))) * dvol;
@@ -3974,99 +3976,138 @@ void inline ComputeLinearStiffness2D(std::vector<double>& K,
 }
 
 
+// compute the bilinear warp mode for a 2D face element
+//   warp:        output mode vector (ndof doubles), normalized to unit length
+//   pos:         node positions (3*npe doubles)
+//   npe:         nodes per element ((order+1)^2)
+//   order:       interpolation order (1 or 2)
+//   normal_axis: axis perpendicular to the face (0=x, 1=y, 2=z)
+static void ComputeWarpMode(double* warp, const double* pos,
+                            int npe, int order, int normal_axis) {
+  int ndof = 3 * npe;
+  int nbasis = order + 1;
+
+  // zero out
+  std::fill(warp, warp + ndof, 0.0);
+
+  // evaluate warp pattern (1-2s)(1-2t) at each node
+  for (int b0 = 0; b0 < nbasis; b0++) {
+    for (int b1 = 0; b1 < nbasis; b1++) {
+      int node = b0 * nbasis + b1;
+      double s = static_cast<double>(b0) / (nbasis - 1);
+      double t = static_cast<double>(b1) / (nbasis - 1);
+      warp[3*node + normal_axis] = (1 - 2*s) * (1 - 2*t);
+    }
+  }
+
+  // orthogonalize against rigid body modes (6 modes: 3 translations + 3 rotations)
+  // this is a no-op for rectangular elements (warp is already orthogonal)
+  // but keeps the code robust for non-square elements
+  double centroid[3] = {0, 0, 0};
+  for (int n = 0; n < npe; n++) {
+    for (int k = 0; k < 3; k++) {
+      centroid[k] += pos[3*n + k];
+    }
+  }
+  for (int k = 0; k < 3; k++) {
+    centroid[k] /= npe;
+  }
+
+  // build and orthonormalize rigid body modes inline
+  std::vector<double> rigid(6 * ndof, 0.0);
+
+  // translations
+  for (int n = 0; n < npe; n++) {
+    rigid[0*ndof + 3*n + 0] = 1;
+    rigid[1*ndof + 3*n + 1] = 1;
+    rigid[2*ndof + 3*n + 2] = 1;
+  }
+
+  // rotations about centroid
+  for (int n = 0; n < npe; n++) {
+    double rx = pos[3*n + 0] - centroid[0];
+    double ry = pos[3*n + 1] - centroid[1];
+    double rz = pos[3*n + 2] - centroid[2];
+    rigid[3*ndof + 3*n + 1] = -rz;
+    rigid[3*ndof + 3*n + 2] =  ry;
+    rigid[4*ndof + 3*n + 0] =  rz;
+    rigid[4*ndof + 3*n + 2] = -rx;
+    rigid[5*ndof + 3*n + 0] = -ry;
+    rigid[5*ndof + 3*n + 1] =  rx;
+  }
+
+  // orthonormalize rigid modes via modified Gram-Schmidt
+  for (int i = 0; i < 6; i++) {
+    double* ri = rigid.data() + i * ndof;
+    for (int j = 0; j < i; j++) {
+      const double* rj = rigid.data() + j * ndof;
+      double dot = 0;
+      for (int k = 0; k < ndof; k++) dot += ri[k] * rj[k];
+      for (int k = 0; k < ndof; k++) ri[k] -= dot * rj[k];
+    }
+    double norm2 = 0;
+    for (int k = 0; k < ndof; k++) norm2 += ri[k] * ri[k];
+    if (norm2 > 1e-20) {
+      double inv_norm = 1.0 / std::sqrt(norm2);
+      for (int k = 0; k < ndof; k++) ri[k] *= inv_norm;
+    }
+  }
+
+  // project warp against rigid modes
+  for (int i = 0; i < 6; i++) {
+    const double* ri = rigid.data() + i * ndof;
+    double dot = 0;
+    for (int k = 0; k < ndof; k++) dot += warp[k] * ri[k];
+    for (int k = 0; k < ndof; k++) warp[k] -= dot * ri[k];
+  }
+
+  // normalize
+  double norm2 = 0;
+  for (int k = 0; k < ndof; k++) norm2 += warp[k] * warp[k];
+  if (norm2 > 1e-20) {
+    double inv_norm = 1.0 / std::sqrt(norm2);
+    for (int k = 0; k < ndof; k++) warp[k] *= inv_norm;
+  }
+}
+
+
+// compute the warp stiffness for a 2D face element, matching the transverse
+// shear energy of the old 3D-on-2D formulation: λ_warp = μ t (d1/d0 + d0/d1)/6
+//   pos:          node positions (3*npe doubles)
+//   npe:          nodes per element
+//   normal_axis:  axis perpendicular to the face
+//   E, nu:        Young's modulus and Poisson's ratio
+//   thickness:    shell thickness
+static double ComputeWarpStiffness(const double* pos, int npe, int normal_axis,
+                                   double E, double nu, double thickness) {
+  int axis0 = (normal_axis + 1) % 3;
+  int axis1 = (normal_axis + 2) % 3;
+  double d0 = pos[3*(npe-1) + axis0] - pos[axis0];
+  double d1 = pos[3*(npe-1) + axis1] - pos[axis1];
+  double mu = E / (2.0 * (1.0 + nu));
+
+  // warp stiffness from transverse shear Rayleigh quotient:
+  //   w^T K_phys w / |w|^2 = μ t (|d1/d0| + |d0/d1|) / 6
+  return mu * thickness * (std::abs(d1/d0) + std::abs(d0/d1)) / 6.0;
+}
+
+
 // Eigendecompose cell stiffness matrix and store scaled eigenvectors.
 // K_cell is n×n stored (negative convention: K_stored = -K_physical).
 // Output layout in `out`:
 //   [0]: neig (as double)
 //   [1 .. neig*n]: sqrt(λ_phys_i) * v_i, row-major
-// If pos is non-null (3*npe doubles), rigid body modes are projected out of
-// each eigenvector to prevent ghost damping in the constraint solver.  The
-// constraint Jacobian freezes the corotational frame, so eigenvectors aligned
-// with rigid rotation patterns produce spurious velocity-level forces.
+// Modes with eigenvalue below a relative threshold are discarded (rigid body
+// modes and numerical zeros).
 // Returns number of retained eigenmodes.
 static int EigendecomposeStiffness(const double* K_cell_data,
-                                   double* out, int ndof,
-                                   const double* pos) {
-  int npe = ndof / 3;
-
+                                   double* out, int ndof) {
   // copy K_cell for in-place decomposition
   std::vector<double> mat(K_cell_data, K_cell_data + ndof * ndof);
   std::vector<double> eigval(ndof);
   std::vector<double> eigvec(ndof * ndof);
 
   mjuu_eigendecompose(mat.data(), eigval.data(), eigvec.data(), ndof);
-
-  // build orthonormal rigid body modes for projection
-  // 6 modes: 3 translations + 3 rotations about centroid
-  const int kMaxRigid = 6;
-  std::vector<double> rigid(pos ? kMaxRigid * ndof : 0, 0);
-
-  if (pos) {
-    // compute centroid
-    double centroid[3] = {0, 0, 0};
-    for (int n = 0; n < npe; n++) {
-      for (int k = 0; k < 3; k++) {
-        centroid[k] += pos[3*n + k];
-      }
-    }
-    for (int k = 0; k < 3; k++) {
-      centroid[k] /= npe;
-    }
-
-    // translation modes: uniform displacement along each axis
-    for (int n = 0; n < npe; n++) {
-      rigid[0*ndof + 3*n + 0] = 1;
-      rigid[1*ndof + 3*n + 1] = 1;
-      rigid[2*ndof + 3*n + 2] = 1;
-    }
-
-    // rotation modes: e_axis × (pos_n - centroid)
-    for (int n = 0; n < npe; n++) {
-      double rx = pos[3*n + 0] - centroid[0];
-      double ry = pos[3*n + 1] - centroid[1];
-      double rz = pos[3*n + 2] - centroid[2];
-
-      // rotation about x: [0, -rz, ry]
-      rigid[3*ndof + 3*n + 1] = -rz;
-      rigid[3*ndof + 3*n + 2] =  ry;
-
-      // rotation about y: [rz, 0, -rx]
-      rigid[4*ndof + 3*n + 0] =  rz;
-      rigid[4*ndof + 3*n + 2] = -rx;
-
-      // rotation about z: [-ry, rx, 0]
-      rigid[5*ndof + 3*n + 0] = -ry;
-      rigid[5*ndof + 3*n + 1] =  rx;
-    }
-
-    // orthonormalize via modified Gram-Schmidt
-    for (int i = 0; i < kMaxRigid; i++) {
-      double* ri = rigid.data() + i * ndof;
-      for (int j = 0; j < i; j++) {
-        const double* rj = rigid.data() + j * ndof;
-        double dot = 0;
-        for (int k = 0; k < ndof; k++) {
-          dot += ri[k] * rj[k];
-        }
-        for (int k = 0; k < ndof; k++) {
-          ri[k] -= dot * rj[k];
-        }
-      }
-      double norm2 = 0;
-      for (int k = 0; k < ndof; k++) {
-        norm2 += ri[k] * ri[k];
-      }
-      if (norm2 > 1e-20) {
-        double inv_norm = 1.0 / std::sqrt(norm2);
-        for (int k = 0; k < ndof; k++) {
-          ri[k] *= inv_norm;
-        }
-      } else {
-        // degenerate mode (e.g., collinear nodes): zero out
-        std::fill(ri, ri + ndof, 0.0);
-      }
-    }
-  }
 
   // K_stored = -K_physical, so physical eigenvalue = -eigval[i]
   // retain modes where physical eigenvalue > threshold
@@ -4086,46 +4127,8 @@ static int EigendecomposeStiffness(const double* K_cell_data,
       for (int j = 0; j < ndof; j++) {
         w[j] = scale * eigvec[j * ndof + i];
       }
-
-      // project out rigid body components
-      if (pos) {
-        for (int r = 0; r < kMaxRigid; r++) {
-          const double* rr = rigid.data() + r * ndof;
-          double dot = 0;
-          for (int j = 0; j < ndof; j++) {
-            dot += w[j] * rr[j];
-          }
-          for (int j = 0; j < ndof; j++) {
-            w[j] -= dot * rr[j];
-          }
-        }
-
-        // discard if projected norm is negligible relative to original
-        double norm2 = 0;
-        for (int j = 0; j < ndof; j++) {
-          norm2 += w[j] * w[j];
-        }
-        if (norm2 < lambda_phys * 1e-6) {
-          continue;  // mode was mostly rigid body: skip
-        }
-      }
-
       neig++;
-
-      // guard: eigendecomposed data must fit within ndof*ndof slot
-      // (guaranteed by rigid-body projection discarding >= 6 modes)
-      if (1 + neig * ndof > ndof * ndof) {
-        mju_error("EigendecomposeStiffness: output size %d exceeds buffer %d",
-                  1 + neig * ndof, ndof * ndof);
-      }
     }
-  }
-
-  // check that enough modes were discarded (rigid body + numerical artifacts)
-  // for 3D elements: expect ndof - neig == 6
-  if (pos && ndof - neig != kMaxRigid) {
-    mju_warning("EigendecomposeStiffness: only %d modes discarded, expected "
-                "at least %d rigid body modes", ndof - neig, kMaxRigid);
   }
 
   out[0] = static_cast<double>(neig);
@@ -5063,7 +5066,29 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       if (has_strain_eq) {
         // eigendecompose: store [neig, sqrt(λ)*v_1, sqrt(λ)*v_2, ...]
         std::fill(out, out + ndof_elem * ndof_elem, 0.0);
-        EigendecomposeStiffness(K_elem.data(), out, ndof_elem, elem_pos.data());
+
+        if (shell_mode) {
+          // pure membrane K: eigendecompose gives 5 membrane modes (Q1),
+          // then we add 1 explicit warp mode
+          int neig = EigendecomposeStiffness(K_elem.data(), out, ndof_elem);
+
+          // add explicit warp mode with stiffness matching old transverse shear
+          double warp_stiffness = ComputeWarpStiffness(
+              elem_pos.data(), npe, normal_axis, K_young, K_poisson, thickness);
+          if (warp_stiffness > 0) {
+            double* warp_out = out + 1 + neig * ndof_elem;
+            ComputeWarpMode(warp_out, elem_pos.data(), npe, spec.order,
+                            normal_axis);
+            // scale by sqrt(stiffness) to match eigenmode convention
+            double scale = std::sqrt(warp_stiffness);
+            for (int j = 0; j < ndof_elem; j++) {
+              warp_out[j] *= scale;
+            }
+            out[0] = static_cast<double>(neig + 1);
+          }
+        } else {
+          EigendecomposeStiffness(K_elem.data(), out, ndof_elem);
+        }
       } else {
         // store raw K for passive forces
         std::copy(K_elem.begin(), K_elem.end(), out);

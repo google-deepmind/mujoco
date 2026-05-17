@@ -709,9 +709,8 @@ TEST_F(CoreConstraintTest, ShellModeBendZeroForceAtRest) {
   // Check number of equalities
   EXPECT_EQ(m->neq, 6);
 
-  // Check total number of scalar equality constraints
-  // 6 faces * 6 physical modes per face = 36
-  // (2 spurious rigid-rotation modes from transverse shear are projected out)
+  // 6 faces * 6 modes per face = 36
+  // (5 membrane modes from pure 2D eigendecomposition + 1 explicit warp)
   EXPECT_EQ(d->ne, 36);
 
   // all constraint residuals should be zero at rest
