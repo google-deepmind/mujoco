@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <exception>
 #include <limits>
+#include <mutex>
 #include <sstream>
 #include <type_traits>
 #include <utility>
@@ -31,6 +32,15 @@
 namespace mujoco::python {
 namespace {
 namespace py = ::pybind11;
+
+// Mutex to protect global callback pointers in free-threaded mode.
+// In GIL mode, the GIL provides sufficient synchronization.
+#ifdef Py_GIL_DISABLED
+static std::mutex callbacks_mutex;
+#define CALLBACKS_LOCK() std::lock_guard<std::mutex> lock(callbacks_mutex)
+#else
+#define CALLBACKS_LOCK()
+#endif
 
 [[noreturn]] static void EscapeWithPythonException() {
   mju_error("Python exception raised");
@@ -287,6 +297,7 @@ template <typename CFuncPtr>
 void SetCallback(py::handle h, CFuncPtr py_trampoline,
                  PyObject** py_callback, CFuncPtr* mj_callback) {
   CFuncPtr cfuncptr = GetCFuncPtr<CFuncPtr>(h);
+  CALLBACKS_LOCK();
   if (h.is_none()) {
     Py_XDECREF(*py_callback);
     *py_callback = nullptr;
@@ -307,6 +318,7 @@ void SetCallback(py::handle h, CFuncPtr py_trampoline,
 }
 
 py::object GetCallback(PyObject* py_callback) {
+  CALLBACKS_LOCK();
   if (!py_callback) {
     return py::none();
   }
@@ -319,6 +331,7 @@ PYBIND11_MODULE(_callbacks, pymodule) {
     SetCallback(h, PyMjuUserWarning, &py_mju_user_warning, &::mju_user_warning);
   });
   pymodule.def("set_mju_user_malloc", [](py::handle h) {
+    CALLBACKS_LOCK();
     if (h.is_none()) {
       Py_XDECREF(py_mju_user_malloc);
       py_mju_user_malloc = nullptr;
@@ -334,6 +347,7 @@ PYBIND11_MODULE(_callbacks, pymodule) {
     }
   });
   pymodule.def("set_mju_user_free", [](py::handle h) {
+    CALLBACKS_LOCK();
     if (h.is_none()) {
       Py_XDECREF(py_mju_user_free);
       py_mju_user_free = nullptr;
@@ -376,18 +390,23 @@ PYBIND11_MODULE(_callbacks, pymodule) {
 
   // Getters
   pymodule.def("get_mju_user_warning", []() {
+    CALLBACKS_LOCK();
     return GetCallback(py_mju_user_warning);
   });
   pymodule.def("get_mju_user_malloc", []() {
+    CALLBACKS_LOCK();
     return GetCallback(py_mju_user_malloc);
   });
   pymodule.def("get_mju_user_free", []() {
+    CALLBACKS_LOCK();
     return GetCallback(py_mju_user_free);
   });
   pymodule.def("get_mjcb_passive", []() {
+    CALLBACKS_LOCK();
     return GetCallback(py_mjcb_passive);
   });
   pymodule.def("get_mjcb_control", []() {
+    CALLBACKS_LOCK();
     return GetCallback(py_mjcb_control);
   });
   pymodule.def("get_mjcb_contactfilter", []() {

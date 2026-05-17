@@ -37,6 +37,15 @@
 #include "errors.h"
 #include "private.h"
 #include "raw.h"
+
+// Mutex to protect global pointer maps in free-threaded mode.
+// In GIL mode, the GIL provides sufficient synchronization.
+#ifdef Py_GIL_DISABLED
+static std::mutex raw_map_mutex;
+#define RAW_MAP_LOCK() std::lock_guard<std::mutex> lock(raw_map_mutex)
+#else
+#define RAW_MAP_LOCK()
+#endif
 #include "serialization.h"
 #include "structs.h"
 #include "vfs.h"
@@ -223,6 +232,7 @@ MjModelRawPointerMap() {
 
 MjModelWrapper* MjModelWrapper::FromRawPointer(raw::MjModel* m) noexcept {
   try {
+    RAW_MAP_LOCK();
     auto& map = MjModelRawPointerMap();
     {
       py::gil_scoped_acquire gil;
@@ -249,6 +259,7 @@ MjModelWrapper::MjWrapper(raw::MjModel* ptr)
       indexer_(ptr, owner_) {
   bool is_newly_inserted = false;
   {
+    RAW_MAP_LOCK();
     py::gil_scoped_acquire gil;
     is_newly_inserted = MjModelRawPointerMap().insert({ptr_, this}).second;
   }
@@ -270,6 +281,7 @@ MjModelWrapper::MjWrapper(MjModelWrapper&& other)
       indexer_(ptr_, owner_) {
   bool is_newly_inserted = false;
   {
+    RAW_MAP_LOCK();
     py::gil_scoped_acquire gil;
     is_newly_inserted =
         MjModelRawPointerMap().insert_or_assign(ptr_, this).second;
@@ -293,6 +305,7 @@ MjModelWrapper::~MjWrapper() {
   if (ptr_) {
     bool erased = false;
     {
+      RAW_MAP_LOCK();
       py::gil_scoped_acquire gil;
       erased = MjModelRawPointerMap().erase(ptr_);
     }
@@ -593,6 +606,7 @@ absl::flat_hash_map<raw::MjData*, MjDataWrapper*>& MjDataRawPointerMap() {
 
 MjDataWrapper* MjDataWrapper::FromRawPointer(raw::MjData* m) noexcept {
   try {
+    RAW_MAP_LOCK();
     auto& map = MjDataRawPointerMap();
     {
       py::gil_scoped_acquire gil;
@@ -636,6 +650,7 @@ MjDataWrapper::MjWrapper(MjModelWrapper* model)
       indexer_(ptr_, model_->get(), owner_) {
   bool is_newly_inserted = false;
   {
+    RAW_MAP_LOCK();
     py::gil_scoped_acquire gil;
     is_newly_inserted = MjDataRawPointerMap().insert({ptr_, this}).second;
   }
@@ -675,6 +690,7 @@ MjDataWrapper::MjWrapper(const MjDataWrapper& other)
       indexer_(ptr_, model_->get(), owner_) {
   bool is_newly_inserted = false;
   {
+    RAW_MAP_LOCK();
     py::gil_scoped_acquire gil;
     is_newly_inserted = MjDataRawPointerMap().insert({ptr_, this}).second;
   }
@@ -706,6 +722,7 @@ MjDataWrapper::MjWrapper(MjDataWrapper&& other)
       indexer_(ptr_, model_->get(), owner_) {
   bool is_newly_inserted = false;
   {
+    RAW_MAP_LOCK();
     py::gil_scoped_acquire gil;
     is_newly_inserted =
         MjDataRawPointerMap().insert_or_assign(ptr_, this).second;
@@ -739,6 +756,7 @@ MjDataWrapper::MjWrapper(const MjDataWrapper& other, MjModelWrapper* model)
       indexer_(ptr_, model_->get(), owner_) {
   bool is_newly_inserted = false;
   {
+    RAW_MAP_LOCK();
     py::gil_scoped_acquire gil;
     is_newly_inserted = MjDataRawPointerMap().insert({ptr_, this}).second;
   }
@@ -769,6 +787,7 @@ MjDataWrapper::MjWrapper(MjModelWrapper* model, raw::MjData* d)
       indexer_(ptr_, model_->get(), owner_) {
   bool is_newly_inserted = false;
   {
+    RAW_MAP_LOCK();
     py::gil_scoped_acquire gil;
     is_newly_inserted = MjDataRawPointerMap().insert({ptr_, this}).second;
   }
@@ -782,6 +801,7 @@ MjDataWrapper::~MjWrapper() {
   if (ptr_) {
     bool erased = false;
     {
+      RAW_MAP_LOCK();
       py::gil_scoped_acquire gil;
       erased = MjDataRawPointerMap().erase(ptr_);
     }
