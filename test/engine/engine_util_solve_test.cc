@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <string>
 #include <vector>
@@ -226,6 +227,58 @@ TEST_F(BoxQPTest, AsymmetricUpperIgnored) {
 
   EXPECT_MJTNUM_EQ(res[0], -g[0]/H[0]);
   EXPECT_MJTNUM_EQ(res[1], lower[1]);
+}
+
+// verify mju_boxQP reads only the lower triangle of H by poisoning the upper
+// triangle with NaN and comparing to a clean symmetric solve (see issue #3275)
+TEST_F(BoxQPTest, UpperTrianglePoisoned) {
+  int n = 30;
+  const mjtNum nan = std::numeric_limits<mjtNum>::quiet_NaN();
+
+  // allocate on heap
+  mjtNum *H, *g, *lower, *upper;  // inputs
+  mjtNum *res, *R;                // outputs
+  int* index;                     // outputs
+  mju_boxQPmalloc(&res, &R, &index, &H, &g, n, &lower, &upper);
+
+  // generate a symmetric SPD Hessian and bounded QP problem
+  randomBoxQP(n, H, g, lower, upper, /*seed=*/1);
+
+  // solve with symmetric H to get the reference result
+  mju_zero(res, n);
+  int nfree_ref = mju_boxQP(res, R, index, H, g, n, lower, upper);
+  ASSERT_GT(nfree_ref, -1);
+
+  // save reference
+  std::vector<mjtNum> res_ref(res, res + n);
+  std::vector<int> index_ref(index, index + n);
+
+  // poison the strict upper triangle of H with NaN
+  for (int i=0; i < n; i++) {
+    for (int j=i+1; j < n; j++) {
+      H[n*i+j] = nan;
+    }
+  }
+
+  // solve again; result must match because only lower triangle should be read
+  mju_zero(res, n);
+  int nfree_poisoned = mju_boxQP(res, R, index, H, g, n, lower, upper);
+
+  EXPECT_EQ(nfree_poisoned, nfree_ref);
+  for (int i=0; i < n; i++) {
+    EXPECT_EQ(res[i], res_ref[i]) << "mismatch at index " << i;
+  }
+  for (int i=0; i < nfree_ref; i++) {
+    EXPECT_EQ(index[i], index_ref[i]) << "index mismatch at " << i;
+  }
+
+  mju_free(res);
+  mju_free(R);
+  mju_free(index);
+  mju_free(H);
+  mju_free(g);
+  mju_free(lower);
+  mju_free(upper);
 }
 
 // test mju_boxQP on a single random bounded QP

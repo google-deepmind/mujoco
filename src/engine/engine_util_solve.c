@@ -1407,6 +1407,21 @@ static mjtNum mulVecMatVecSym(const mjtNum* vec, const mjtNum* mat, int n) {
 }
 
 
+// multiply symmetric matrix with vector: res = mat*vec
+//   assumes symmetry of mat, ignores upper triangle
+//   res must not alias vec
+static void mulMatVecSym(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n) {
+  for (int i=0; i < n; i++) {
+    // diagonal + strict lower triangle: res[i] = sum_{j<=i} mat[i,j] * vec[j]
+    res[i] = mat[n*i+i] * vec[i] + mju_dot(mat+n*i, vec, i);
+    // strict upper mirror contribution: res[k] += mat[i,k] * vec[i] for k < i
+    for (int k=0; k < i; k++) {
+      res[k] += mat[n*i+k] * vec[i];
+    }
+  }
+}
+
+
 // minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper, explicit options
 //  additional arguments to mju_boxQP (see mju_boxQP documentation):
 //   maxiter     maximum number of iterations
@@ -1512,7 +1527,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     oldvalue = value;
 
     // compute gradient
-    mju_mulMatVec(grad, H, res, n, n);
+    mulMatVecSym(grad, H, res, n);
     mju_addTo(grad, g, n);
 
     // find clamped dimensions
@@ -1555,7 +1570,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     for (int i=0; i < n; i++) {
       temp[i] = clamped[i] ? res[i] : 0;
     }
-    mju_mulMatVec(search, H, temp, n, n);
+    mulMatVecSym(search, H, temp, n);
     mju_addTo(search, g, n);
 
     // search = compress_free(search)
