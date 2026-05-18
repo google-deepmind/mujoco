@@ -230,6 +230,7 @@ public class MjImporterWithAssets : MjcfImporter {
       material = new Material(MjcfImporter.GetLitShader());
     }
     material.SetColor("_Color", albedo);
+    material.SetColor("_BaseColor", albedo);
     material.SetFloat("_Metallic", reflectance);
 
     // In order to convert the specular/shininess parameters into glossiness/roughness,
@@ -286,7 +287,7 @@ public class MjImporterWithAssets : MjcfImporter {
         } else {
           material = new Material(MjcfImporter.GetLitShader());
         }
-        material.color = new Color(rgba[0], rgba[1], rgba[2], rgba[3]);
+        material.SetColor("_BaseColor", new Color(rgba[0], rgba[1], rgba[2], rgba[3]));
         // We use the geom's name, guaranteed to be unique, as the asset name.
         // If geom is nameless, use a random number.
         var name =
