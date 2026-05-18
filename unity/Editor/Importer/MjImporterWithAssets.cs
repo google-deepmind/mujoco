@@ -26,9 +26,6 @@ namespace Mujoco {
 
 // API for importing Mujoco XML files into Unity scenes.
 public class MjImporterWithAssets : MjcfImporter {
-
-  private const string _semiTransparentMaterialName = "mujoco_semitransparent_template";
-
   private string _sourceMeshesDir;
   private string _targetMeshesDir;
   private string _targetAssetDir;
@@ -225,9 +222,9 @@ public class MjImporterWithAssets : MjcfImporter {
     if (rgba[3] < 1f) {
       material = new Material(AssetDatabase.LoadMainAssetAtPath(
         AssetDatabase.GUIDToAssetPath(
-          AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
+          AssetDatabase.FindAssets(SemiTransparentMaterialName)[0])) as Material);
     } else {
-      material = new Material(MjcfImporter.GetLitShader());
+      material = new Material(GetLitShader());
     }
     material.SetColor("_Color", albedo);
     material.SetColor("_BaseColor", albedo);
@@ -283,9 +280,9 @@ public class MjImporterWithAssets : MjcfImporter {
           material = new Material(
             AssetDatabase.LoadMainAssetAtPath(
               AssetDatabase.GUIDToAssetPath(
-                AssetDatabase.FindAssets(_semiTransparentMaterialName)[0])) as Material);
+                AssetDatabase.FindAssets(SemiTransparentMaterialName)[0])) as Material);
         } else {
-          material = new Material(MjcfImporter.GetLitShader());
+          material = new Material(GetLitShader());
         }
         material.SetColor("_BaseColor", new Color(rgba[0], rgba[1], rgba[2], rgba[3]));
         // We use the geom's name, guaranteed to be unique, as the asset name.

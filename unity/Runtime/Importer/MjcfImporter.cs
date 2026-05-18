@@ -39,6 +39,22 @@ public class MjcfImporter {
     }
   }
 
+  // There are many configurations that need to be changed in a material to reliably render as
+  // transparent, so we use template materials to ensure all default settings are correct.
+  public static string SemiTransparentMaterialName {
+    get {
+      string defaultName = "mujoco_semitransparent_template";
+      if (GraphicsSettings.currentRenderPipeline != null) {
+        string pipelineType = GraphicsSettings.currentRenderPipeline.GetType().ToString();
+
+        if (pipelineType.Contains("HighDefinition")) {
+          defaultName = "mujoco_semitransparent_template_hd";
+        }
+      }
+      return defaultName;
+    }
+  }
+
   // Modifiers that change the settings of parsed nodes. They're limited to the scope of ParseRoot
   // method.
   protected MjXmlModifiers _modifiers;
