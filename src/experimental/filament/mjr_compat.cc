@@ -12,47 +12,213 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#include <cstring>
+#include <memory>
+
 #include <mujoco/mujoco.h>
+#include "experimental/filament/compat/scene_bridge.h"
 #include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/render_context_filament_cpp.h"
 
 // This library implements the entirety of mujoco's mjr API. You can link this
 // library with your application (instead of the "classic" mujoco renderer) to
-// use the same APIs but with Filament rendering instead.
+// use the same APIs but with Filament rendering instead. Note that some
+// functionality (e.g. ux-related functions like mjr_text, mjr_label, etc.)
+// will call mju_error if called.
 //
-// However, you should consider using filament's mjrf API directly as it will
-// provide you with access to more features and optimizations.
+// You should consider using filament's mjrf API directly as it will provide you
+// with access to more features and optimizations.
+
+namespace mujoco {
+namespace {
+
+class CompatContext {
+ public:
+  CompatContext(const mjrFilamentConfig* config, const mjModel* model);
+
+  void Render(const mjrRect& viewport, const mjvScene* scene);
+
+  void ReadPixels(mjrRect viewport, unsigned char* rgb, float* depth);
+
+  void SetFrameBuffer(int framebuffer) {
+    framebuffer_ = (mjtFramebuffer)framebuffer;
+  }
+
+  void UploadMesh(const mjModel* model, int id) {
+    scene_bridge_->UploadMesh(model, id);
+  }
+
+  void UploadTexture(const mjModel* model, int id) {
+    scene_bridge_->UploadTexture(model, id);
+  }
+
+  void UploadHeightField(const mjModel* model, int id) {
+    scene_bridge_->UploadHeightField(model, id);
+  }
+
+ private:
+  mjrDrawMode draw_mode_ = mjDRAW_MODE_COLOR;
+  UniquePtr<mjrfContext> context_;
+  std::unique_ptr<SceneBridge> scene_bridge_;
+  mjtFramebuffer framebuffer_ = mjFB_WINDOW;
+};
+
+CompatContext::CompatContext(const mjrFilamentConfig* config,
+                             const mjModel* model)
+    : context_(CreateContext(*config)) {
+  scene_bridge_ = std::make_unique<SceneBridge>(context_.get(), model);
+}
+
+void CompatContext::Render(const mjrRect& viewport, const mjvScene* scene) {
+  scene_bridge_->Update(viewport, scene);
+
+  if (scene->flags[mjRND_SEGMENT]) {
+    draw_mode_ = mjDRAW_MODE_SEGMENTATION;
+  } else if (scene->flags[mjRND_DEPTH]) {
+    draw_mode_ = mjDRAW_MODE_DEPTH;
+  } else if (scene->flags[mjRND_WIREFRAME]) {
+    draw_mode_ = mjDRAW_MODE_WIREFRAME;
+  } else {
+    draw_mode_ = mjDRAW_MODE_COLOR;
+  }
+
+  if (framebuffer_ == mjFB_WINDOW) {
+    mjrRenderRequest req;
+    mjr_defaultRenderRequest(&req);
+    req.scene = scene_bridge_->GetScene();
+    req.draw_mode = draw_mode_;
+    req.camera = scene_bridge_->GetCamera();
+    req.viewport = viewport;
+    mjrf_render(context_.get(), &req, 1, nullptr, 0);
+  }
+}
+
+void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
+                               float* depth) {
+  if (framebuffer_ == mjFB_WINDOW) {
+    mju_error("ReadPixels is only supported for offscreen rendering.");
+  }
+
+  if (rgb) {
+    mjrRenderTargetConfig config;
+    mjr_defaultRenderTargetConfig(&config);
+    config.width = viewport.width;
+    config.height = viewport.height;
+    config.color_format = mjPIXEL_FORMAT_RGB8;
+    config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+    auto target = CreateRenderTarget(context_.get(), config);
+
+    mjrRenderRequest req;
+    mjr_defaultRenderRequest(&req);
+    req.scene = scene_bridge_->GetScene();
+    req.draw_mode = draw_mode_;
+    req.camera = scene_bridge_->GetCamera();
+    req.viewport = viewport;
+    req.target = target.get();
+
+    mjrReadPixelsRequest read_req;
+    mjr_defaultReadPixelsRequest(&read_req);
+    read_req.target = target.get();
+    read_req.output = rgb;
+    read_req.num_bytes = viewport.width * viewport.height * 3;
+
+    const mjrFrameHandle frame = mjrf_render(context_.get(), &req, 1, &read_req, 1);
+    mjrf_waitForFrame(context_.get(), frame);
+  }
+
+  if (depth) {
+    mjrRenderTargetConfig config;
+    mjr_defaultRenderTargetConfig(&config);
+    config.width = viewport.width;
+    config.height = viewport.height;
+    config.color_format = mjPIXEL_FORMAT_R32F;
+    config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+    auto target = CreateRenderTarget(context_.get(), config);
+
+    mjrRenderRequest req;
+    mjr_defaultRenderRequest(&req);
+    req.scene = scene_bridge_->GetScene();
+    req.draw_mode = mjDRAW_MODE_DEPTH;
+    req.camera = scene_bridge_->GetCamera();
+    req.viewport = viewport;
+    req.target = target.get();
+
+    mjrReadPixelsRequest read_req;
+    mjr_defaultReadPixelsRequest(&read_req);
+    read_req.output = reinterpret_cast<uint8_t*>(depth);
+    read_req.num_bytes = viewport.width * viewport.height * sizeof(float);
+
+    const mjrFrameHandle frame = mjrf_render(context_.get(), &req, 1, &read_req, 1);
+    mjrf_waitForFrame(context_.get(), frame);
+  }
+}
+
+}  // namespace
+}  // namespace mujoco
+
+static thread_local mujoco::CompatContext* g_context = nullptr;
+
+static mujoco::CompatContext* GetCheckedContext() {
+  if (g_context == nullptr) {
+    mju_error("Missing context; did you call mjr_makeContext?");
+  }
+  return g_context;
+}
 
 extern "C" {
 
 // mjr functions that are supported by the filament renderer.
 
 void mjr_defaultContext(mjrContext* con) {
-  mjrf_defaultContext(con);
+  memset(con, 0, sizeof(mjrContext));
 }
+
+void mjr_makeFilamentContext(const mjModel* m, const mjrFilamentConfig* cfg,
+                             mjrContext* con) {
+  if (g_context != nullptr) {
+    mju_error("Context already exists!");
+  }
+  g_context = new mujoco::CompatContext(cfg, m);
+}
+
 void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
-  mjrf_makeContext(m, con, fontscale);
+  mjr_freeContext(con);
+
+  mjrFilamentConfig cfg;
+  memset(&cfg, 0, sizeof(mjrFilamentConfig));
+  cfg.width = m->vis.global.offwidth;
+  cfg.height = m->vis.global.offheight;
+  mjr_makeFilamentContext(m, &cfg, con);
 }
+
 void mjr_freeContext(mjrContext* con) {
-  mjrf_freeContext(con);
+  // mjr_freeContext may be called multiple times.
+  if (g_context) {
+    delete g_context;
+    g_context = nullptr;
+  }
+  mjr_defaultContext(con);
 }
+
 void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
-  mjrf_renderScene(viewport, scn, con);
+  GetCheckedContext()->Render(viewport, scn);
 }
 void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid) {
-  mjrf_uploadMesh(m, con, meshid);
+  GetCheckedContext()->UploadMesh(m, meshid);
 }
 void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
-  mjrf_uploadTexture(m, con, texid);
+  GetCheckedContext()->UploadTexture(m, texid);
 }
 void mjr_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid) {
-  mjrf_uploadHField(m, con, hfieldid);
+  GetCheckedContext()->UploadHeightField(m, hfieldid);
 }
 void mjr_setBuffer(int framebuffer, mjrContext* con) {
-  mjrf_setBuffer(framebuffer, con);
+  GetCheckedContext()->SetFrameBuffer(framebuffer);
 }
 void mjr_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
                           const mjrContext* con) {
-  mjrf_readPixels(rgb, depth, viewport, con);
+  GetCheckedContext()->ReadPixels(viewport, rgb, depth);
 }
 
 // mjr functions that are NOT supported by the filament renderer.

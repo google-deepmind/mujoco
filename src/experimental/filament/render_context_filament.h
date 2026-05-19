@@ -747,40 +747,6 @@ void mjrf_destroyRenderTarget(mjrRenderTarget* render_target);
 // settings.
 void mjrf_DEBUG_drawImguiEditor(mjrScene* scene);
 
-// Legacy API, to be deprecated.
-
-void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);
-
-void mjrf_makeFilamentContext(const mjModel* m, mjrContext* con,
-                              const mjrFilamentConfig* config);
-
-void mjrf_defaultContext(mjrContext* con);
-
-void mjrf_makeContext(const mjModel* m, mjrContext* con, int fontscale);
-
-void mjrf_freeContext(mjrContext* con);
-
-void mjrf_renderScene(mjrRect viewport, mjvScene* scn, const mjrContext* con);
-
-void mjrf_uploadMesh(const mjModel* m, const mjrContext* con, int meshid);
-
-void mjrf_uploadTexture(const mjModel* m, const mjrContext* con, int texid);
-
-void mjrf_uploadHField(const mjModel* m, const mjrContext* con, int hfieldid);
-
-void mjrf_setBuffer(int framebuffer, mjrContext* con);
-
-void mjrf_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
-                     const mjrContext* con);
-
-double mjrf_getFrameRate(const mjrContext* con);
-
-uintptr_t mjrf_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
-                              int width, int height, int bpp,
-                              const mjrContext* con);
-
-void mjrf_updateGui(const mjrContext* con);
-
 #if defined(__cplusplus)
 }  // extern "C"
 #endif
