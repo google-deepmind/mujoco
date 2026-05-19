@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/compat/imgui_bridge.h"
+#include "experimental/platform/ux/imgui_bridge.h"
 
 #include <cstddef>
 #include <cstdint>
