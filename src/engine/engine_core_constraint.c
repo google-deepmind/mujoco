@@ -1463,7 +1463,7 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
                   m->geom_bodyid[con->geom[side]] :
                   m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
     }
-    // compute Jacobian differences, skipping common dofs
+    // compute Jacobian differences, skipping common DOFs
     if (dim > 3) {
       return mj_jacDifPair(m, d, chain, bid[0], bid[1], con->pos, con->pos,
                            jac1p, jac2p, jacdifp, jac1r, jac2r, jacdifr, mj_isSparse(m), 1);
@@ -2490,6 +2490,15 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
         int asleep2 = d->body_awake[b2] == mjS_ASLEEP;
         if (asleep1 || asleep2) {
           mjERROR("contact %d involves sleeping geom %d", i, asleep1 ? g1 : g2);
+        }
+      }
+
+      // check flex contact sides
+      for (int side = 0; side < 2; side++) {
+        if (con->geom[side] >= 0) continue;
+        int b = mj_flexBody(m, con, side);
+        if (d->body_awake[m->body_weldid[b]] == mjS_ASLEEP) {
+          mjERROR("contact %d involves sleeping flex %d", i, con->flex[side]);
         }
       }
     }

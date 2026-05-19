@@ -30,6 +30,7 @@
 #include "engine/engine_inline.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_sort.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -437,6 +438,7 @@ void mj_collision(const mjModel* m, mjData* d) {
 
   int nexclude = m->nexclude, npair = m->npair, nbody = m->nbody;
   int nbodyflex = m->nbody + m->nflex;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < nbody;
 
   // reset the size of the contact array and invalidate efc arrays
   d->ncon = 0;
@@ -627,6 +629,9 @@ void mj_collision(const mjModel* m, mjData* d) {
   // flex self-collisions
   for (int f=0; f < m->nflex; f++) {
     if (!m->flex_rigid[f] && (m->flex_contype[f] & m->flex_conaffinity[f])) {
+      // skip if flex is asleep
+      if (sleep_filter && mj_sleepState(m, d, mjOBJ_FLEX, f) == mjS_ASLEEP) continue;
+
       // internal collisions
       if (m->flex_internal[f]) {
         int ncon_before = d->ncon;
@@ -1403,8 +1408,9 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
         add_pair(m, b1, b2, &npair, bfpair, maxpair);
       }
 
-      // add all b1:flex pairs
+      // add body:flex pairs, skip if flex asleep
       for (int f=0; f < nflex; f++) {
+        if (sleep_filter && mj_sleepState(m, d, mjOBJ_FLEX, f) == mjS_ASLEEP) continue;
         add_pair(m, b1, nbody+f, &npair, bfpair, maxpair);
       }
     }
@@ -1497,6 +1503,15 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
                            dsbl_filterparent)) {
           continue;
         }
+      }
+
+      // flex pair: skip if neither side is dynamically awake
+      else if (sleep_filter) {
+        int awake1 = (bf1 >= nbody) ? mj_sleepState(m, d, mjOBJ_FLEX, bf1-nbody) == mjS_AWAKE
+                                    : d->body_awake[bf1] == mjS_AWAKE && m->body_treeid[bf1] >= 0;
+        int awake2 = (bf2 >= nbody) ? mj_sleepState(m, d, mjOBJ_FLEX, bf2-nbody) == mjS_AWAKE
+                                    : d->body_awake[bf2] == mjS_AWAKE && m->body_treeid[bf2] >= 0;
+        if (!awake1 && !awake2) continue;
       }
 
       // add bodyflex pair if there is room in buffer

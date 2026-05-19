@@ -1176,11 +1176,6 @@ which are initialized asleep. These can be placed in mid-air or in deep collisio
 Notes
 ^^^^^
 
-.. admonition:: Subject to change
-   :class: warning
-
-   Sleeping is a new feature (Nov 2025) that is subject to change and may have latent bugs.
-
 **Sleeping actuators**
   As explained in the :ref:`body/sleep <body-sleep>` documentation, trees with actuators are by default not allowed to
   sleep, but this can be overridden by the user. The reason sleeping is not allowed by default is that once an actuator
@@ -1268,13 +1263,6 @@ Notes
 
 **RK4 integrator**
   The RK4 integrator is not currently supported, due to the subtleties of waking inside the sub-steps.
-
-**Latent bugs**
-  Sleeping may have latent bugs. These bugs may generally come in two varieties:
-
-  - Quantities which could be skipped are instead recomputed. The only observable effect of such a bug would be that
-    the simulation is slower than it could be. This type of bug can only be diagnosed with detailed profiling.
-  - Actual bugs. Hopefully these will lead to informative runtime errors, please report any to the development team.
 
 
 .. _siCoordinate:

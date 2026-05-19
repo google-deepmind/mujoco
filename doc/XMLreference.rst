@@ -2113,7 +2113,7 @@ defined. Its body name is automatically defined as "world".
    - Trees which are connected by tendons which have non-zero stiffness and damping are not allowed to sleep
      (overridable).
    - Trees which are connected by tendons which connect more than two trees are not allowed to sleep (not overridable).
-   - :ref:`flexes<ElemFlex>` are not allowed to sleep (not overridable).
+   - Constraint-free :ref:`flexes<ElemFlex>` are not allowed to sleep (not overridable).
    - All other trees are allowed to sleep (overridable).
 
    The policies :at-val:`never` and :at-val:`allowed` constitute user overrides of the automatic compiler policy.

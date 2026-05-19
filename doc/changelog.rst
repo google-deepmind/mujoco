@@ -16,6 +16,7 @@ General
 - The pseudo-random constraint visitation order in the :ref:`PGS solver<soAlgorithms>`, introduced in the previous
   release, now uses a fixed seed. The previous implementation seeded with ``mjData.time``, which introduced subtle yet
   undesirable time dependence.
+- Flexes are now allowed to sleep, with the exception of completely passive (constraint-free) flexes.
 
 .. admonition:: Breaking API changes
    :class: attention

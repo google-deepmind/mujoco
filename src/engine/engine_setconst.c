@@ -291,8 +291,13 @@ static void setFixed(mjModel* m, mjData* d) {
     }
   }
 
-  // flexes: trees containing bodies that are part of any flex are not allowed to sleep
+  // flexes: constraint-free trees are not allowed to sleep
   for (int i = 0; i < m->nflex; ++i) {
+    // constrained flexes are allowed to sleep
+    if (m->flex_edgeequality[i]) {
+      continue;
+    }
+
     // node-based flex
     if (m->flex_interp[i]) {
       int nodenum = m->flex_nodenum[i];

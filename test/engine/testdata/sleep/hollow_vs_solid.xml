@@ -1,22 +1,9 @@
-<!-- Copyright 2026 DeepMind Technologies Limited
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-         http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
--->
-
 <mujoco>
   <include file="scene.xml"/>
 
-  <option cone="elliptic" solver="CG" />
+  <option cone="elliptic" solver="CG" sleep_tolerance=".01">
+    <flag sleep="enable"/>
+  </option>
 
   <default>
     <default class="gripper">
@@ -59,7 +46,7 @@
 
     <body name="solid" pos=".32 0 .2">
       <flexcomp
-        origin="0 0 0" count="8 2 12" cellcount="6 1 6"
+        origin="0 0 0" count="8 2 12" cellcount="2 1 2"
         type="grid" name="soft_mesh" dim="3" spacing=".025 .05 .025"
         mass="0.43" radius="0.005" dof="trilinear" rgba="0.7 0.9 0.7 1">
         <edge equality="strain" solref="0.001 1"/>
@@ -73,10 +60,10 @@
 
     <body name="hollow" pos=".32 .45 .2">
       <flexcomp
-        origin="0 0 0" count="8 2 12" cellcount="6 1 6"
+        origin="0 0 0" count="8 2 12" cellcount="2 1 2"
         type="grid" name="soft_mesh_2" dim="3" spacing=".025 .05 .025"
         mass="0.43" radius="0.005" dof="trilinear" rgba="0.9 0.7 0.7 1">
-        <elasticity young="1e4" poisson="0.3" damping="0" elastic2d="bend" thickness="0.02"/>
+        <elasticity young="1e5" poisson="0.3" damping="0" elastic2d="bend" thickness="0.03"/>
         <edge equality="strain" solref="0.001 1" solimp="0.99 0.999 0.001"/>
         <contact selfcollide="none"
               internal="false"

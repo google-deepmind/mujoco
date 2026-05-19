@@ -331,7 +331,8 @@ static int findEdges(const mjModel* m, const mjData* d,
       // unless it is a flex equality, where the tree pattern changes per dof
       if (!(efc_type == mjCNSTR_EQUALITY &&
             (m->eq_type[efc_id] == mjEQ_FLEX ||
-             m->eq_type[efc_id] == mjEQ_FLEXVERT))) {
+             m->eq_type[efc_id] == mjEQ_FLEXVERT ||
+             m->eq_type[efc_id] == mjEQ_FLEXSTRAIN))) {
         // copy tree assignment from previous constraint and continue
         efc_tree[i] = efc_tree[i-1];
         continue;
@@ -482,7 +483,7 @@ void mj_island(const mjModel* m, mjData* d) {
   // compute dof_island, island_nv
   mju_zeroInt(d->island_nv, nisland);
   for (int i=0; i < nv; i++) {
-    // assign dofs to islands
+    // assign DOFs to islands
     int island = tree_island[m->dof_treeid[i]];  // -1 if unconstrained
     d->dof_island[i] = island;
 
@@ -499,7 +500,7 @@ void mj_island(const mjModel* m, mjData* d) {
   }
 
   // compute dof <-> idof maps
-  int* island_nv2 = mjSTACKALLOC(d, nisland + 1, int);  // last element counts unconstrained dofs
+  int* island_nv2 = mjSTACKALLOC(d, nisland + 1, int);  // last element counts unconstrained DOFs
   mju_zeroInt(island_nv2, nisland + 1);
   for (int dof=0; dof < nv; dof++) {
     int island = d->dof_island[dof];

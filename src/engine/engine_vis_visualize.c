@@ -772,6 +772,45 @@ static void addFlexGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     thisgeom->size[0] = m->flex_radius[i];
     setMaterial(m, thisgeom, m->flex_matid[i], m->flex_rgba+4*i, vopt->flags);
 
+    // override if visualizing islands
+    if (vopt->flags[mjVIS_ISLAND]) {
+      // find first dynamic body in flex
+      int bodyid = -1;
+      if (m->flex_interp[i]) {
+        int nodeadr = m->flex_nodeadr[i];
+        for (int j=0; j < m->flex_nodenum[i] && bodyid < 0; j++) {
+          int b = m->flex_nodebodyid[nodeadr+j];
+          if (m->body_treeid[b] >= 0) bodyid = b;
+        }
+      } else {
+        int vertadr = m->flex_vertadr[i];
+        for (int j=0; j < m->flex_vertnum[i] && bodyid < 0; j++) {
+          int b = m->flex_vertbodyid[vertadr+j];
+          if (m->body_treeid[b] >= 0) bodyid = b;
+        }
+      }
+
+      if (bodyid >= 0) {
+        // strip material
+        thisgeom->matid = -1;
+
+        int weld_id = m->body_weldid[bodyid];
+        int dof = m->body_dofadr[weld_id];
+        int island = d->nisland ? d->dof_island[dof] : -1;
+        int h = island >= 0 ? d->island_dofadr[island] : -1;
+        int awake = d->body_awake[bodyid];
+
+        // if sleep is enabled, color by first tree dof
+        if (h == -1 && mjENABLED(mjENBL_SLEEP)) {
+          int tree = m->dof_treeid[dof];
+          if (!awake) tree = mj_sleepCycle(d->tree_asleep, m->ntree, tree);
+          h = m->tree_dofadr[tree];
+        }
+
+        islandColor(thisgeom->rgba, h, awake);
+      }
+    }
+
     // set texcoord
     if (m->flex_texcoordadr[i] >= 0) {
       thisgeom->texcoord = 1;
