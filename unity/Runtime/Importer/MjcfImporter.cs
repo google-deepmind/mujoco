@@ -17,6 +17,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Mujoco {
 // API for importing Mujoco XML files into Unity scenes.
@@ -28,7 +29,13 @@ public class MjcfImporter {
   public static Material DefaultMujocoMaterial {
     get {
       if (_DefaultMujocoMaterial == null) {
-        _DefaultMujocoMaterial = new Material(Shader.Find("Standard"));
+        var shaderName = GetDefaultShaderName();
+        var shader = Shader.Find(shaderName);
+        if (shader == null) {
+          Debug.LogWarning($"Shader '{shaderName}' not found. Falling back to 'Standard'.");
+          shader = Shader.Find("Standard");
+        }
+        _DefaultMujocoMaterial = new Material(shader);
       }
 
       return _DefaultMujocoMaterial;
@@ -36,6 +43,24 @@ public class MjcfImporter {
     set {
       _DefaultMujocoMaterial = value;
     }
+  }
+
+  // Detects the active render pipeline and returns the appropriate default shader name.
+  private static string GetDefaultShaderName() {
+    var currentPipeline = GraphicsSettings.currentRenderPipeline;
+    if (currentPipeline != null) {
+      var pipelineType = currentPipeline.GetType().Name;
+      // Universal Render Pipeline (URP)
+      if (pipelineType.Contains("Universal")) {
+        return "Universal Render Pipeline/Lit";
+      }
+      // High Definition Render Pipeline (HDRP)
+      if (pipelineType.Contains("HDRenderPipeline")) {
+        return "HDRP/Lit";
+      }
+    }
+    // Built-in render pipeline (default)
+    return "Standard";
   }
 
   // Modifiers that change the settings of parsed nodes. They're limited to the scope of ParseRoot
