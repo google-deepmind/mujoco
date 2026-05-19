@@ -129,6 +129,24 @@ typedef enum mjtOrientation_ {     // type of orientation specifier
 } mjtOrientation;
 
 
+typedef enum mjtCTimer_ {          // compiler timing categories
+  // top-level timers (wall-clock)
+  mjCTIMER_TOTAL = 0,              // total compile time
+  mjCTIMER_ASSETS,                 // asset compilation
+
+  // asset sub-timers (CPU time, summed across all assets)
+  mjCTIMER_TEXTURE,                // textures
+  mjCTIMER_MESH_LOAD,              // mesh: file loading
+  mjCTIMER_MESH_HULL,              // mesh: convex hull
+  mjCTIMER_MESH_POLYGON,           // mesh: normals and polygons
+  mjCTIMER_MESH_INERTIA,           // mesh: volume, CoM, inertia
+  mjCTIMER_MESH_BVH,               // mesh: bounding volume hierarchy
+  mjCTIMER_MESH_OCTREE,            // mesh: octree and SDF
+
+  mjNCTIMER                        // number of compiler timers
+} mjtCTimer;
+
+
 //-------------------------------- attribute structs (mjs) -----------------------------------------
 
 typedef struct mjsElement_ {       // element type, do not modify

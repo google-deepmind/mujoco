@@ -381,6 +381,9 @@ def build_struct_header(
     builder.line(f"{s}* get() const;")
     builder.line(f"void set({s}* ptr);")
 
+    if w == "MjSpec":
+      builder.line("emscripten::val timer() const;")
+
     # field declarations
     for field in wrapped_fields:
       if field.declaration and field not in member_inits:
@@ -598,6 +601,7 @@ def _build_struct_bindings(
   #undef X_ACCESSOR""".lstrip())
     elif w == "MjSpec":
       builder.line(".constructor<const MjSpec &>()")
+      builder.line('.property("timer", &MjSpec::timer)')
     elif w == "MjvScene":
       builder.line(".constructor<MjModel *, int>()")
       builder.line(".constructor<>()")

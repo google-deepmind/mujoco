@@ -47,6 +47,24 @@ class SpecsTest(absltest.TestCase):
     self.assertIsInstance(spec.worldbody, mujoco.MjsBody)
     self.assertIsInstance(spec.worldbody, typing.get_args(mujoco.MjStruct))
 
+  def test_timer(self):
+    xml = """
+    <mujoco>
+      <asset>
+        <texture name="grid" type="2d" builtin="checker" width="300" height="300" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+        <material name="grid" texture="grid"/>
+      </asset>
+      <worldbody>
+        <geom type="plane" size="1 1 1" material="grid"/>
+      </worldbody>
+    </mujoco>
+    """
+    spec = mujoco.MjSpec.from_string(xml)
+    model = spec.compile()
+    self.assertGreater(spec.timer[mujoco.mjtCTimer.mjCTIMER_TOTAL], 0)
+    self.assertGreater(spec.timer[mujoco.mjtCTimer.mjCTIMER_ASSETS], 0)
+    self.assertGreater(spec.timer[mujoco.mjtCTimer.mjCTIMER_TEXTURE], 0)
+
   def test_basic(self):
     # Create a spec.
     spec = mujoco.MjSpec()

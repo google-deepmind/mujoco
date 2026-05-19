@@ -6471,6 +6471,22 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Get compiler error message from spec.',
      )),
+    ('mjs_getTimer',
+     FunctionDecl(
+         name='mjs_getTimer',
+         return_type=PointerType(
+             inner_type=ValueType(name='double', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+         ),
+         doc='Get compiler timing diagnostics from spec, returns pointer to array of size mjNCTIMER.',  # pylint: disable=line-too-long
+     )),
     ('mjs_isWarning',
      FunctionDecl(
          name='mjs_isWarning',

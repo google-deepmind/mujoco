@@ -718,6 +718,23 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjORIENTATION_EULER', 4),
          ]),
      )),
+    ('mjtCTimer',
+     EnumDecl(
+         name='mjtCTimer',
+         declname='enum mjtCTimer_',
+         values=dict([
+             ('mjCTIMER_TOTAL', 0),
+             ('mjCTIMER_ASSETS', 1),
+             ('mjCTIMER_TEXTURE', 2),
+             ('mjCTIMER_MESH_LOAD', 3),
+             ('mjCTIMER_MESH_HULL', 4),
+             ('mjCTIMER_MESH_POLYGON', 5),
+             ('mjCTIMER_MESH_INERTIA', 6),
+             ('mjCTIMER_MESH_BVH', 7),
+             ('mjCTIMER_MESH_OCTREE', 8),
+             ('mjNCTIMER', 9),
+         ]),
+     )),
     ('mjtCatBit',
      EnumDecl(
          name='mjtCatBit',

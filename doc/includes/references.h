@@ -1965,6 +1965,22 @@ typedef enum mjtOrientation_ {     // type of orientation specifier
   mjORIENTATION_ZAXIS,             // z axis (minimal rotation)
   mjORIENTATION_EULER,             // Euler angles
 } mjtOrientation;
+typedef enum mjtCTimer_ {          // compiler timing categories
+  // top-level timers (wall-clock)
+  mjCTIMER_TOTAL = 0,              // total compile time
+  mjCTIMER_ASSETS,                 // asset compilation
+
+  // asset sub-timers (CPU time, summed across all assets)
+  mjCTIMER_TEXTURE,                // textures
+  mjCTIMER_MESH_LOAD,              // mesh: file loading
+  mjCTIMER_MESH_HULL,              // mesh: convex hull
+  mjCTIMER_MESH_POLYGON,           // mesh: normals and polygons
+  mjCTIMER_MESH_INERTIA,           // mesh: volume, CoM, inertia
+  mjCTIMER_MESH_BVH,               // mesh: bounding volume hierarchy
+  mjCTIMER_MESH_OCTREE,            // mesh: octree and SDF
+
+  mjNCTIMER                        // number of compiler timers
+} mjtCTimer;
 typedef struct mjsElement_ {       // element type, do not modify
   mjtObj elemtype;                 // element type
   uint64_t signature;              // compilation signature
@@ -3471,6 +3487,7 @@ void mju_free(void* ptr);
 void mj_warning(mjData* d, int warning, int info);
 void mju_writeLog(const char* type, const char* msg);
 const char* mjs_getError(mjSpec* s);
+const double* mjs_getTimer(mjSpec* s);
 int mjs_isWarning(mjSpec* s);
 void mju_zero3(mjtNum res[3]);
 void mju_copy3(mjtNum res[3], const mjtNum data[3]);

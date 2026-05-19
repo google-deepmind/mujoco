@@ -3378,5 +3378,32 @@ TEST_F(MujocoTest, UserValue) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, CompilerTimers) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="grid" type="2d" builtin="checker" width="300" height="300" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+      <material name="grid" texture="grid"/>
+    </asset>
+    <worldbody>
+      <geom type="plane" size="1 1 1" material="grid"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+
+  EXPECT_GT(mjs_getTimer(spec)[mjCTIMER_TOTAL], 0);
+  EXPECT_GT(mjs_getTimer(spec)[mjCTIMER_ASSETS], 0);
+  EXPECT_GT(mjs_getTimer(spec)[mjCTIMER_TEXTURE], 0);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco

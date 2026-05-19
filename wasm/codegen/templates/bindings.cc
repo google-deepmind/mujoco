@@ -715,6 +715,10 @@ MjSpec::~MjSpec() {
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
+emscripten::val MjSpec::timer() const {
+  return emscripten::val(emscripten::typed_memory_view(9, mjs_getTimer(ptr_)));
+}
+
 std::unique_ptr<MjModel> mj_loadXML_wrapper_1(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));

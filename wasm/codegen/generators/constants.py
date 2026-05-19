@@ -176,6 +176,7 @@ _SKIPPED_GETTERS_AND_SETTERS: tuple[str, ...] = (
     "mjs_getDouble",
     "mjs_getPluginAttributes",
     "mjs_getString",
+    "mjs_getTimer",
     "mjs_getUserValue",
     "mjs_setBuffer",
     "mjs_setDouble",

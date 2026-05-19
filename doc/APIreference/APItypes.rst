@@ -828,6 +828,18 @@ Type of built-in procedural mesh.
 .. mujoco-include:: mjtMeshBuiltin
 
 
+.. _mjtCTimer:
+
+mjtCTimer
+~~~~~~~~~
+
+Compiler timing categories, used in :ref:`mjs_getTimer`. Top-level timers (``TOTAL``, ``ASSETS``) measure wall-clock
+time. Asset sub-timers measure CPU time summed across all assets; with multi-threaded compilation their sum can exceed
+the ``ASSETS`` wall-clock time.
+
+.. mujoco-include:: mjtCTimer
+
+
 .. _tyPluginEnums:
 
 Plugins

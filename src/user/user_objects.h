@@ -1133,6 +1133,7 @@ class mjCMesh_ : public mjCBase {
 
   // octree
   mjCOctree octree_;                  // octree of the mesh
+  double mesh_timer_[mjNCTIMER] = {0};
 };
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
@@ -1465,6 +1466,7 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
   void Compile(const mjVFS* vfs);
+  double texture_time_ = 0;
 
   std::string File() const { return file_; }
   std::string get_content_type() const { return content_type_; }

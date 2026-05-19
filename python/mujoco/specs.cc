@@ -55,6 +55,7 @@ using MjDouble3 = Eigen::Map<Eigen::Vector3d>;
 using MjDouble4 = Eigen::Map<Eigen::Vector4d>;
 using MjDouble5 = Eigen::Map<Eigen::Matrix<double, 5, 1>>;
 using MjDouble6 = Eigen::Map<Eigen::Matrix<double, 6, 1>>;
+using MjDouble9 = Eigen::Map<Eigen::Matrix<double, 9, 1>>;
 using MjDouble10 = Eigen::Map<Eigen::Matrix<double, 10, 1>>;
 using MjDouble11 = Eigen::Map<Eigen::Matrix<double, 11, 1>>;
 using MjDoubleVec = Eigen::Map<Eigen::VectorXd>;
@@ -69,6 +70,7 @@ using MjDoubleRef3 = Eigen::Ref<const Eigen::Vector3d>;
 using MjDoubleRef4 = Eigen::Ref<const Eigen::Vector4d>;
 using MjDoubleRef5 = Eigen::Ref<const Eigen::Matrix<double, 5, 1>>;
 using MjDoubleRef6 = Eigen::Ref<const Eigen::Matrix<double, 6, 1>>;
+using MjDoubleRef9 = Eigen::Ref<const Eigen::Matrix<double, 9, 1>>;
 using MjDoubleRef10 = Eigen::Ref<const Eigen::Matrix<double, 10, 1>>;
 using MjDoubleRef11 = Eigen::Ref<const Eigen::Matrix<double, 11, 1>>;
 using MjDoubleRefVec = Eigen::Ref<const Eigen::VectorXd>;
@@ -461,6 +463,12 @@ PYBIND11_MODULE(_specs, m) {
   mjSpec.def_property_readonly("_address", [](const MjSpec& self) {
     return reinterpret_cast<uintptr_t>(self.ptr);
   });
+  mjSpec.def_property_readonly(
+      "timer",
+      [](MjSpec& self) -> MjDouble9 {
+        return MjDouble9(const_cast<double*>(mjs_getTimer(self.ptr)));
+      },
+      py::return_value_policy::reference_internal);
   mjSpec.def_property(
       "copy_during_attach",
       [](MjSpec& self) {

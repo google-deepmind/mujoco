@@ -14,19 +14,18 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <climits>
 #include <cmath>
 #include <csetjmp>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
-#include <deque>
 #include <functional>
 #include <limits>
 #include <map>
 #include <memory>
 #include <queue>
-#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -688,10 +687,16 @@ void mjCMesh::Compile(const mjVFS* vfs) {
 
 // compiler
 void mjCMesh::TryCompile(const mjVFS* vfs) {
+  using Clock = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<double>;
+  std::fill_n(mesh_timer_, mjNCTIMER, 0.0);
+
   bool fromCache = false;
   CopyFromSpec();
   visual_ = true;
   mjCCache *cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
+
+  Clock::time_point t0 = Clock::now();
 
   // load file
   if (!file_.empty()) {
@@ -765,12 +770,13 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     LoadSDF();  // create using marching cubes
   }
 
+  mesh_timer_[mjCTIMER_MESH_LOAD] = Seconds(Clock::now() - t0).count();
+
   CheckInitialMesh();
 
   // compute mesh properties
   if (!fromCache) {
     Process();
-
     if (!file_.empty()) {
       CacheMesh(cache, resource_);
     }
@@ -778,6 +784,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     // When a mesh is loaded from the cache, has no octree but needs one,
     // we need to compute it here. If inversely it has an octree but we *do not*
     // need one, we clear it.
+    t0 = Clock::now();
     if (!needsdf) {
       octree_.Clear();
     } else if (octree_.NumNodes() == 0) {
@@ -789,6 +796,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
         octree_.ComputeSdfCoeffs(dvert.data(), nvert(), face_.data(), nface(), tree_);
       }
     }
+    mesh_timer_[mjCTIMER_MESH_OCTREE] = Seconds(Clock::now() - t0).count();
   }
 
   // close resource
@@ -1341,7 +1349,9 @@ double mjCMesh::ComputeFaceCentroid(double facecen[3], const double* dvert) cons
 
 void mjCMesh::Process() {
   std::vector<double> dvert(vert_.begin(), vert_.end());
-
+  using Clock = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<double>;
+  Clock::time_point t0;
   // create half-edge structure (if mesh was in XML)
   if (halfedge_.empty()) {
     for (int i = 0; i < nface(); i++) {
@@ -1370,6 +1380,7 @@ void mjCMesh::Process() {
     }
   }
 
+  t0 = Clock::now();
   // make graph describing convex hull
   if (needhull_ || face_.empty()) {
     MakeGraph(dvert.data());
@@ -1379,7 +1390,9 @@ void mjCMesh::Process() {
   if (face_.empty()) {
     CopyGraph();
   }
+  mesh_timer_[mjCTIMER_MESH_HULL] += Seconds(Clock::now() - t0).count();
 
+  t0 = Clock::now();
   // no normals: make
   if (normal_.empty()) {
     MakeNormal(dvert.data());
@@ -1424,6 +1437,9 @@ void mjCMesh::Process() {
     }
   }
 
+  mesh_timer_[mjCTIMER_MESH_POLYGON] += Seconds(Clock::now() - t0).count();
+
+  t0 = Clock::now();
   // user offset, rotation, scaling
   ApplyTransformations(dvert.data());
 
@@ -1519,7 +1535,9 @@ void mjCMesh::Process() {
 
   // recompute polygon normals
   MakePolygonNormals(dvert.data());
+  mesh_timer_[mjCTIMER_MESH_INERTIA] += Seconds(Clock::now() - t0).count();
 
+  t0 = Clock::now();
   // make bounding volume hierarchy
   if (tree_.Bvh().empty()) {
     face_aabb_.clear();
@@ -1530,7 +1548,9 @@ void mjCMesh::Process() {
     }
     tree_.CreateBVH();
   }
+  mesh_timer_[mjCTIMER_MESH_BVH] += Seconds(Clock::now() - t0).count();
 
+  t0 = Clock::now();
   // make octree
   if (needsdf) {
     octree_.SetFace(dvert, face_);
@@ -1546,6 +1566,7 @@ void mjCMesh::Process() {
   for (int i = 0; i < (int)dvert.size(); i++) {
     vert_[i] = (float)dvert[i];
   }
+  mesh_timer_[mjCTIMER_MESH_OCTREE] += Seconds(Clock::now() - t0).count();
 }
 
 

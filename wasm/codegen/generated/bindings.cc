@@ -5612,6 +5612,7 @@ struct MjSpec {
   std::unique_ptr<MjSpec> copy();
   mjSpec* get() const;
   void set(mjSpec* ptr);
+  emscripten::val timer() const;
   mjString modelname() const {
     return (ptr_ && ptr_->modelname) ? *(ptr_->modelname) : "";
   }
@@ -8402,6 +8403,10 @@ MjSpec::~MjSpec() {
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
+emscripten::val MjSpec::timer() const {
+  return emscripten::val(emscripten::typed_memory_view(9, mjs_getTimer(ptr_)));
+}
+
 std::unique_ptr<MjModel> mj_loadXML_wrapper_1(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
@@ -10911,6 +10916,17 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjBUTTON_LEFT", mjBUTTON_LEFT)
     .value("mjBUTTON_RIGHT", mjBUTTON_RIGHT)
     .value("mjBUTTON_MIDDLE", mjBUTTON_MIDDLE);
+  enum_<mjtCTimer>("mjtCTimer")
+    .value("mjCTIMER_TOTAL", mjCTIMER_TOTAL)
+    .value("mjCTIMER_ASSETS", mjCTIMER_ASSETS)
+    .value("mjCTIMER_TEXTURE", mjCTIMER_TEXTURE)
+    .value("mjCTIMER_MESH_LOAD", mjCTIMER_MESH_LOAD)
+    .value("mjCTIMER_MESH_HULL", mjCTIMER_MESH_HULL)
+    .value("mjCTIMER_MESH_POLYGON", mjCTIMER_MESH_POLYGON)
+    .value("mjCTIMER_MESH_INERTIA", mjCTIMER_MESH_INERTIA)
+    .value("mjCTIMER_MESH_BVH", mjCTIMER_MESH_BVH)
+    .value("mjCTIMER_MESH_OCTREE", mjCTIMER_MESH_OCTREE)
+    .value("mjNCTIMER", mjNCTIMER);
   enum_<mjtCamLight>("mjtCamLight")
     .value("mjCAMLIGHT_FIXED", mjCAMLIGHT_FIXED)
     .value("mjCAMLIGHT_TRACK", mjCAMLIGHT_TRACK)
@@ -12371,6 +12387,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("nupdate", &MjSolverStat::nupdate, &MjSolverStat::set_nupdate, reference());
   emscripten::class_<MjSpec>("MjSpec")
     .constructor<const MjSpec &>()
+    .property("timer", &MjSpec::timer)
     .property("comment", &MjSpec::comment, &MjSpec::set_comment, reference())
     .property("compiler", &MjSpec::compiler, reference())
     .property("element", &MjSpec::element, reference())

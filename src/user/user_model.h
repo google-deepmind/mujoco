@@ -198,6 +198,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCModel& operator-=(const mjCDef& subtree);    // remove default tree from this model
 
   mjSpec spec;
+  double timer[mjNCTIMER] = {0};                  // compiler timers
 
   mjModel* Compile(const mjVFS* vfs = nullptr, mjModel** m = nullptr);  // construct mjModel
   bool CopyBack(const mjModel*);                 // DECOMPILER: copy numeric back

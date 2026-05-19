@@ -17,6 +17,10 @@ General
   release, now uses a fixed seed. The previous implementation seeded with ``mjData.time``, which introduced subtle yet
   undesirable time dependence.
 - Flexes are now allowed to sleep, with the exception of completely passive (constraint-free) flexes.
+- Added compiler timing diagnostics via the new :ref:`mjtCTimer` enum and the :ref:`mjs_getTimer` C API. After
+  :ref:`mj_compile`, per-category timings (total, assets, mesh loading, convex hull, normals, inertia, BVH, octree,
+  textures) are available via ``mjs_getTimer(spec)``. The :ref:`compile<saCompile>` sample prints a detailed timing
+  breakdown when run without an output file.
 
 .. admonition:: Breaking API changes
    :class: attention

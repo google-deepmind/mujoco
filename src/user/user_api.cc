@@ -427,6 +427,17 @@ const char* mjs_getError(mjSpec* s) {
 
 
 
+// get compiler timers from model
+const double* mjs_getTimer(mjSpec* s) {
+  if (!s) {
+    return nullptr;
+  }
+  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  return modelC->timer;
+}
+
+
+
 // check if model has warnings
 int mjs_isWarning(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);

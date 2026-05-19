@@ -1005,6 +1005,9 @@ MJAPI void mju_writeLog(const char* type, const char* msg);
 // Get compiler error message from spec.
 MJAPI const char* mjs_getError(mjSpec* s);
 
+// Get compiler timing diagnostics from spec, returns pointer to array of size mjNCTIMER.
+MJAPI const double* mjs_getTimer(mjSpec* s);
+
 // Return 1 if compiler error is a warning.
 MJAPI int mjs_isWarning(mjSpec* s);
 

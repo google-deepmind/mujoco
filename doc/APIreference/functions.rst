@@ -2079,6 +2079,15 @@ Write [datetime, type: message] to MUJOCO_LOG.TXT.
 
 Get compiler error message from spec.
 
+.. _mjs_getTimer:
+
+`mjs_getTimer <#mjs_getTimer>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getTimer
+
+Get compiler timing diagnostics from spec, returns pointer to array of size mjNCTIMER.
+
 .. _mjs_isWarning:
 
 `mjs_isWarning <#mjs_isWarning>`__
