@@ -104,7 +104,9 @@ Window::Window(std::string_view title, int width, int height, Config config)
   }
 
   int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-  if (IsVulkan(config_.gfx_mode)) {
+  if (IsHeadless(config_.gfx_mode)) {
+    // No additional window flags needed for headless rendering.
+  } else if (IsVulkan(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_VULKAN;
   } else if (IsWebGl(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_OPENGL;
