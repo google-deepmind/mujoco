@@ -1,3 +1,10 @@
+.. raw:: html
+
+   <div class="schema-controls" style="margin-bottom: 1em;">
+     <button onclick="document.querySelectorAll('.schema-small details').forEach(d => d.open = true)" class="sd-btn sd-btn-outline-primary sd-btn-sm">Expand All</button>
+     <button onclick="document.querySelectorAll('.schema-small details details').forEach(d => d.open = false)" class="sd-btn sd-btn-outline-secondary sd-btn-sm" style="margin-left: 0.5em;">Collapse All</button>
+   </div>
+
 .. dropdown:: :ref:`mujoco<mujoco>` :octicon:`star`
    :open:
 
