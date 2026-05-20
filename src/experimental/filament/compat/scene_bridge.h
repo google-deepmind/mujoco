@@ -18,13 +18,13 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <string_view>
 #include <vector>
 
 #include <math/mat4.h>
 #include <math/vec3.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/compat/light_manager.h"
 #include "experimental/filament/compat/model_objects.h"
 #include "experimental/filament/render_context_filament.h"
 #include "experimental/filament/render_context_filament_cpp.h"
@@ -57,8 +57,6 @@ class SceneBridge {
   SceneBridge& operator=(const SceneBridge&) = delete;
 
  private:
-  void PrepareLights();
-
   // Converts a point in world space to clip space, eg. in the range [-1,-1, 0]
   // to [1, 1, 1]. Returns std::nullopt if the point is behind the camera.
   std::optional<filament::math::float3> ClipFromWorld(
@@ -66,19 +64,12 @@ class SceneBridge {
 
   mjrfContext* ctx_ = nullptr;
   std::unique_ptr<ModelObjects> model_objects_;
+  std::unique_ptr<LightManager> light_manager_;
   mjrCamera camera_;
   DrawTextAtFn draw_text_callback_;
   UniquePtr<mjrScene> scene_{nullptr, nullptr};
-  UniquePtr<mjrLight> fallback_ibl_{nullptr, nullptr};
-  UniquePtr<mjrTexture> fallback_ibl_texture_{nullptr, nullptr};
-  std::vector<UniquePtr<mjrLight>> lights_;
   std::vector<UniquePtr<mjrRenderable>> renderables_;
   filament::math::mat4 clip_from_world_;
-  int default_shadow_map_size_ = 2048;
-  float default_vsm_blur_width_ = 0.0f;
-  float fallback_head_light_intensity_ = 0.f;
-  float fallback_scene_light_intensity_ = 80'000.f;
-  float fallback_environment_light_intensity_ = 5'000.f;
 };
 
 }  // namespace mujoco
