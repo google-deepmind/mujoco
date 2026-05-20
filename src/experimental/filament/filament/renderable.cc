@@ -22,13 +22,13 @@
 #include <filament/RenderableManager.h>
 #include <filament/Scene.h>
 #include <filament/TransformManager.h>
+#include <math/mat3.h>
 #include <math/mat4.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/builtins.h"
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
@@ -40,6 +40,7 @@ namespace mujoco {
 using filament::math::float2;
 using filament::math::float3;
 using filament::math::float4;
+using filament::math::mat3f;
 using filament::math::mat4f;
 
 // An arbitrary scale factor for arrows.
@@ -149,21 +150,33 @@ void Renderable::InitPartEntity(Part& part) {
   }
 }
 
-void Renderable::SetTransform(const Trs& trs) {
+void Renderable::SetTransform(const float3& position, const mat3f& rotation) {
+  trs_.translation = position;
+  trs_.rotation = rotation;
+  UpdateTransform();
+}
+
+void Renderable::SetSize(const float3& size) {
+  trs_.size = size;
+  UpdateTransform();
+}
+
+void Renderable::UpdateTransform() {
   if (parts_.empty()) {
-    transform_ = trs.ToTransform();
+    transform_ = trs_.ToTransform();
     return;
   }
 
   filament::TransformManager& tm = GetEngine()->getTransformManager();
   if (get_transform_fn_) {
     for (int i = 0; i < parts_.size(); ++i) {
-      const mat4f& transform = get_transform_fn_(i, trs);
+      const mat4f transform = get_transform_fn_(i, trs_);
       tm.setTransform(tm.getInstance(parts_[i].entity), transform);
     }
   } else {
+    const mat4f transform = trs_.ToTransform();
     for (Part& part : parts_) {
-      tm.setTransform(tm.getInstance(part.entity), trs.ToTransform());
+      tm.setTransform(tm.getInstance(part.entity), transform);
     }
   }
   transform_ = tm.getTransform(tm.getInstance(parts_[0].entity));

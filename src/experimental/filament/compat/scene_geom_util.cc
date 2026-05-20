@@ -57,29 +57,21 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
   std::memcpy(position, &geom.pos, 3 * sizeof(float));
   float rotation[9];
   std::memcpy(rotation, &geom.mat, 9 * sizeof(float));
-  float size[3];
-  std::memcpy(size, &geom.size, 3 * sizeof(float));
 
   const mjtGeom geom_type = (mjtGeom)geom.type;
   switch (geom_type) {
     case mjGEOM_MESH:
     case mjGEOM_SDF:
       mjrf_setRenderableMesh(renderable, model_objs->GetMesh(geom.dataid), 0, 0);
-      // Ignore size for meshes.
-      size[0] = 1.f;
-      size[1] = 1.f;
-      size[2] = 1.f;
       break;
     case mjGEOM_HFIELD:
       mjrf_setRenderableMesh(renderable, model_objs->GetHeightField(geom.dataid), 0, 0);
-      // Ignore size for meshes.
-      size[0] = 1.f;
-      size[1] = 1.f;
-      size[2] = 1.f;
       break;
     case mjGEOM_PLANE: {
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
 
+      float size[3];
+      std::memcpy(size, &geom.size, 3 * sizeof(float));
       const bool is_infinite = !(size[0] > 0 && size[1] > 0);
       if (is_infinite) {
         // Infinite planes are scaled to match the tile size used by
@@ -90,40 +82,52 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       }
       // Planes only define an xy size, so set the z-dimension to 1.0f.
       size[2] = 1.0f;
+      mjrf_setRenderableSize(renderable, size);
       break;
     }
     case mjGEOM_SPHERE:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_ELLIPSOID:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_BOX:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_CAPSULE:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_CYLINDER:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_ARROW:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_ARROW1:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_ARROW2:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_LINE:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_LINEBOX:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_TRIANGLE:
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
+      mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_FLEX:
       mjrf_setRenderableMesh(renderable, model_objs->GetFlexSkinMesh(geom.objid), 0, 0);
@@ -133,9 +137,6 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       rotation[0] = 1.f;
       rotation[4] = 1.f;
       rotation[8] = 1.f;
-      size[0] = 1.f;
-      size[1] = 1.f;
-      size[2] = 1.f;
       break;
     case mjGEOM_SKIN:
       mjrf_setRenderableMesh(renderable, model_objs->GetFlexSkinMesh(geom.objid), 0, 0);
@@ -145,9 +146,6 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       rotation[0] = 1.f;
       rotation[4] = 1.f;
       rotation[8] = 1.f;
-      size[0] = 1.f;
-      size[1] = 1.f;
-      size[2] = 1.f;
       break;
     case mjGEOM_NONE:
     case mjGEOM_LABEL:
@@ -158,7 +156,7 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       break;
   }
 
-  mjrf_setRenderableTransform(renderable, position, rotation, size);
+  mjrf_setRenderableTransform(renderable, position, rotation);
 }
 
 static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,

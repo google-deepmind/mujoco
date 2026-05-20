@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_UTIL_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_UTIL_H_
 
+#include <string_view>
 #include <math/mat3.h>
 #include <math/mat4.h>
 #include <math/vec2.h>
@@ -56,22 +57,6 @@ inline filament::math::mat3f ReadMat3(const T* arr, int index = 0) {
                                ptr[2], ptr[5], ptr[8]);
   // clang-format on
 }
-
-// A tuple of translation, rotation, and size.
-struct Trs {
-  filament::math::float3 translation{0.0f, 0.0f, 0.0f};
-  filament::math::mat3f rotation;
-  // Note: this is _slightly_ different than scale. For example, for capsules,
-  // the size determines the length of the tube and the radius of the domes,
-  // but the shape remains a capsule.
-  filament::math::float3 size{1.0f, 1.0f, 1.0f};
-
-  // Converts the TRS to a transform matrix.
-  filament::math::mat4f ToTransform() const {
-    return filament::math::mat4f(rotation, translation) *
-           filament::math::mat4f::scaling(size);
-  }
-};
 
 // Calculates a reflection matrix for a plane defined by its transform.
 filament::math::mat4 ToReflectionMatrix(const filament::math::mat4& xform);

@@ -695,12 +695,16 @@ void mjrf_setRenderableGeomMesh(mjrRenderable* renderable, mjtGeom type,
 void mjrf_setRenderableMaterial(mjrRenderable* renderable,
                                 const mjrMaterial* material);
 
-// Sets the transform (position, rotation, and size) of the renderable. Note
-// that `size` is not the same as `scale`. For example, the z-size of a capsule
-// only scales the tubular-portion of its geometry, but not the spherical caps.
+// Sets the transform position and rotation of the renderable.
 void mjrf_setRenderableTransform(mjrRenderable* renderable,
                                  const float position[3],
-                                 const float rotation[9], const float size[3]);
+                                 const float rotation[9]);
+
+// Sets the size of the renderable. Note that, for most renderables, this is
+// equivalent to setting the scale. However, for some geom-based renderables,
+// the size scale is not applied uniformly (e.g. the spherical ends of a
+// capsule are scaled such that they always remain spherical).
+void mjrf_setRenderableSize(mjrRenderable* renderable, const float size[3]);
 
 // Sets whether the renderable casts shadows or not.
 void mjrf_setRenderableCastShadows(mjrRenderable* renderable,

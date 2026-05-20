@@ -21,10 +21,11 @@
 
 #include <filament/Engine.h>
 #include <filament/Scene.h>
+#include <math/mat3.h>
 #include <math/mat4.h>
+#include <math/vec3.h>
 #include <utils/Entity.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/render_context_filament.h"
@@ -53,8 +54,14 @@ class Renderable : public mjrRenderable {
   // Sets the mesh of this renderable to a built-in mesh based on the geom type.
   void SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad);
 
-  // Sets the transform of this renderable.
-  void SetTransform(const Trs& trs);
+  // Sets the position and rotation of this renderable.
+  void SetTransform(const filament::math::float3& position,
+                    const filament::math::mat3f& rotation);
+
+  // Sets the size of this renderable. Note: this is effectively the same as a
+  // scale for most renderables. However, for e.g. capsules, the spherical ends
+  // are not scaled and remain fixed in size.
+  void SetSize(const filament::math::float3& size);
 
   // Returns the current transform of this renderable.
   const filament::math::mat4f& GetTransform() const;
@@ -114,12 +121,24 @@ class Renderable : public mjrRenderable {
     int elem_count = 0;
   };
 
+  // A tuple of translation, rotation, and size.
+  struct Trs {
+    filament::math::float3 translation{0.0f, 0.0f, 0.0f};
+    filament::math::mat3f rotation;
+    filament::math::float3 size{1.0f, 1.0f, 1.0f};
+    filament::math::mat4f ToTransform() const {
+      return filament::math::mat4f(rotation, translation) *
+            filament::math::mat4f::scaling(size);
+    }
+  };
+
   // When composing a multi-part renderable, each Entity will have its own
   // transform offset based on the transform of the Renderable itself.
   using GetTransformFn = std::function<filament::math::mat4f(int, const Trs&)>;
 
   void AppendMesh(const Mesh* mesh);
   void InitPartEntity(Part& part);
+  void UpdateTransform();
 
   void AssignMaterial(mjrDrawMode mode,
                       ObjectManager::MaterialType material_type);
@@ -136,6 +155,7 @@ class Renderable : public mjrRenderable {
   std::vector<Part> parts_;
   filament::math::mat4f transform_;
   GetTransformFn get_transform_fn_;
+  Trs trs_;
   bool wireframe_ = false;
 };
 

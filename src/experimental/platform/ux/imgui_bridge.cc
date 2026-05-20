@@ -270,10 +270,8 @@ void ImguiBridge::Update() {
       }
       mjrf_setRenderableMaterial(renderable.get(), &material);
 
-      const float position[] = {0, 0, 0};
-      const float rotation[] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
       const float size[] = {scale.x, scale.y, 1.0f};
-      mjrf_setRenderableTransform(renderable.get(), position, rotation, size);
+      mjrf_setRenderableSize(renderable.get(), size);
 
       index_offset += command.ElemCount;
       ++renderable_index;
