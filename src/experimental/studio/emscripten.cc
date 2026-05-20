@@ -71,8 +71,17 @@ class AssetRegistry {
 // The caller is responsible for freeing the buffer. Returns 0 on failure.
 EM_ASYNC_JS(int, FetchUrl,
             (const char* url, char** out_data, std::int32_t* out_size), {
+              const urlStr = UTF8ToString(url);
+              const filename = urlStr.split('/').pop() || urlStr;
+              const dlEl = document.getElementById('loadingDownload');
+              const dlFileEl = document.getElementById('loadingDownloadFile');
+              if (dlEl) {
+                dlEl.style.display = 'block';
+              }
+              if (dlFileEl) {
+                dlFileEl.textContent = filename + '\u2026';
+              }
               try {
-                const urlStr = UTF8ToString(url);
                 const response = await fetch(urlStr);
                 if (!response.ok) {
                   console.error('Fetch failed: ' + response.status + ' ' +
@@ -89,6 +98,13 @@ EM_ASYNC_JS(int, FetchUrl,
               } catch (e) {
                 console.error('Fetch error:', e);
                 return 0;
+              } finally {
+                if (dlEl) {
+                  dlEl.style.display = 'none';
+                }
+                if (dlFileEl) {
+                  dlFileEl.textContent = "";
+                }
               }
             });
 
