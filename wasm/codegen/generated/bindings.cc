@@ -766,6 +766,36 @@ struct MjOption {
   bool owned_ = false;
 };
 
+struct MjPreContact {
+  ~MjPreContact();
+  MjPreContact();
+  explicit MjPreContact(mjPreContact *ptr);
+  MjPreContact(const MjPreContact &);
+  MjPreContact &operator=(const MjPreContact &);
+  std::unique_ptr<MjPreContact> copy();
+  mjPreContact* get() const;
+  void set(mjPreContact* ptr);
+  mjtNum dist() const {
+    return ptr_->dist;
+  }
+  void set_dist(mjtNum value) {
+    ptr_->dist = value;
+  }
+  emscripten::val pos() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->pos));
+  }
+  emscripten::val normal() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->normal));
+  }
+  emscripten::val tangent() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->tangent));
+  }
+
+ private:
+  mjPreContact* ptr_;
+  bool owned_ = false;
+};
+
 struct MjSolverStat {
   ~MjSolverStat();
   MjSolverStat();
@@ -7139,7 +7169,7 @@ MjContact::~MjContact() {
     delete ptr_;
   }
 }
-MjContact::MjContact() : ptr_(new mjContact) {
+MjContact::MjContact() : ptr_(new mjContact()) {
   owned_ = true;
 }
 MjContact::MjContact(const MjContact &other) : MjContact() {
@@ -7168,7 +7198,7 @@ MjLROpt::~MjLROpt() {
     delete ptr_;
   }
 }
-MjLROpt::MjLROpt() : ptr_(new mjLROpt) {
+MjLROpt::MjLROpt() : ptr_(new mjLROpt()) {
   owned_ = true;
   mj_defaultLROpt(ptr_);
 }
@@ -7198,7 +7228,7 @@ MjOption::~MjOption() {
     delete ptr_;
   }
 }
-MjOption::MjOption() : ptr_(new mjOption) {
+MjOption::MjOption() : ptr_(new mjOption()) {
   owned_ = true;
   mj_defaultOption(ptr_);
 }
@@ -7222,13 +7252,42 @@ void MjOption::set(mjOption* ptr) {
   ptr_ = ptr;
 }
 
+MjPreContact::MjPreContact(mjPreContact *ptr) : ptr_(ptr) {}
+MjPreContact::~MjPreContact() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjPreContact::MjPreContact() : ptr_(new mjPreContact()) {
+  owned_ = true;
+}
+MjPreContact::MjPreContact(const MjPreContact &other) : MjPreContact() {
+  *ptr_ = *other.get();
+}
+MjPreContact& MjPreContact::operator=(const MjPreContact &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjPreContact> MjPreContact::copy() {
+  return std::make_unique<MjPreContact>(*this);
+}
+mjPreContact* MjPreContact::get() const {
+  return ptr_;
+}
+void MjPreContact::set(mjPreContact* ptr) {
+  ptr_ = ptr;
+}
+
 MjSolverStat::MjSolverStat(mjSolverStat *ptr) : ptr_(ptr) {}
 MjSolverStat::~MjSolverStat() {
   if (owned_ && ptr_) {
     delete ptr_;
   }
 }
-MjSolverStat::MjSolverStat() : ptr_(new mjSolverStat) {
+MjSolverStat::MjSolverStat() : ptr_(new mjSolverStat()) {
   owned_ = true;
 }
 MjSolverStat::MjSolverStat(const MjSolverStat &other) : MjSolverStat() {
@@ -7257,7 +7316,7 @@ MjStatistic::~MjStatistic() {
     delete ptr_;
   }
 }
-MjStatistic::MjStatistic() : ptr_(new mjStatistic) {
+MjStatistic::MjStatistic() : ptr_(new mjStatistic()) {
   owned_ = true;
 }
 MjStatistic::MjStatistic(const MjStatistic &other) : MjStatistic() {
@@ -7286,7 +7345,7 @@ MjTimerStat::~MjTimerStat() {
     delete ptr_;
   }
 }
-MjTimerStat::MjTimerStat() : ptr_(new mjTimerStat) {
+MjTimerStat::MjTimerStat() : ptr_(new mjTimerStat()) {
   owned_ = true;
 }
 MjTimerStat::MjTimerStat(const MjTimerStat &other) : MjTimerStat() {
@@ -7315,7 +7374,7 @@ MjVisualGlobal::~MjVisualGlobal() {
     delete ptr_;
   }
 }
-MjVisualGlobal::MjVisualGlobal() : ptr_(new mjVisualGlobal) {
+MjVisualGlobal::MjVisualGlobal() : ptr_(new mjVisualGlobal()) {
   owned_ = true;
 }
 MjVisualGlobal::MjVisualGlobal(const MjVisualGlobal &other) : MjVisualGlobal() {
@@ -7344,7 +7403,7 @@ MjVisualHeadlight::~MjVisualHeadlight() {
     delete ptr_;
   }
 }
-MjVisualHeadlight::MjVisualHeadlight() : ptr_(new mjVisualHeadlight) {
+MjVisualHeadlight::MjVisualHeadlight() : ptr_(new mjVisualHeadlight()) {
   owned_ = true;
 }
 MjVisualHeadlight::MjVisualHeadlight(const MjVisualHeadlight &other) : MjVisualHeadlight() {
@@ -7373,7 +7432,7 @@ MjVisualMap::~MjVisualMap() {
     delete ptr_;
   }
 }
-MjVisualMap::MjVisualMap() : ptr_(new mjVisualMap) {
+MjVisualMap::MjVisualMap() : ptr_(new mjVisualMap()) {
   owned_ = true;
 }
 MjVisualMap::MjVisualMap(const MjVisualMap &other) : MjVisualMap() {
@@ -7402,7 +7461,7 @@ MjVisualQuality::~MjVisualQuality() {
     delete ptr_;
   }
 }
-MjVisualQuality::MjVisualQuality() : ptr_(new mjVisualQuality) {
+MjVisualQuality::MjVisualQuality() : ptr_(new mjVisualQuality()) {
   owned_ = true;
 }
 MjVisualQuality::MjVisualQuality(const MjVisualQuality &other) : MjVisualQuality() {
@@ -7431,7 +7490,7 @@ MjVisualRgba::~MjVisualRgba() {
     delete ptr_;
   }
 }
-MjVisualRgba::MjVisualRgba() : ptr_(new mjVisualRgba) {
+MjVisualRgba::MjVisualRgba() : ptr_(new mjVisualRgba()) {
   owned_ = true;
 }
 MjVisualRgba::MjVisualRgba(const MjVisualRgba &other) : MjVisualRgba() {
@@ -7460,7 +7519,7 @@ MjVisualScale::~MjVisualScale() {
     delete ptr_;
   }
 }
-MjVisualScale::MjVisualScale() : ptr_(new mjVisualScale) {
+MjVisualScale::MjVisualScale() : ptr_(new mjVisualScale()) {
   owned_ = true;
 }
 MjVisualScale::MjVisualScale(const MjVisualScale &other) : MjVisualScale() {
@@ -7489,7 +7548,7 @@ MjWarningStat::~MjWarningStat() {
     delete ptr_;
   }
 }
-MjWarningStat::MjWarningStat() : ptr_(new mjWarningStat) {
+MjWarningStat::MjWarningStat() : ptr_(new mjWarningStat()) {
   owned_ = true;
 }
 MjWarningStat::MjWarningStat(const MjWarningStat &other) : MjWarningStat() {
@@ -7534,7 +7593,7 @@ MjvCamera::~MjvCamera() {
     delete ptr_;
   }
 }
-MjvCamera::MjvCamera() : ptr_(new mjvCamera) {
+MjvCamera::MjvCamera() : ptr_(new mjvCamera()) {
   owned_ = true;
   mjv_defaultCamera(ptr_);
 }
@@ -7564,7 +7623,7 @@ MjvFigure::~MjvFigure() {
     delete ptr_;
   }
 }
-MjvFigure::MjvFigure() : ptr_(new mjvFigure) {
+MjvFigure::MjvFigure() : ptr_(new mjvFigure()) {
   owned_ = true;
   mjv_defaultFigure(ptr_);
 }
@@ -7594,7 +7653,7 @@ MjvGLCamera::~MjvGLCamera() {
     delete ptr_;
   }
 }
-MjvGLCamera::MjvGLCamera() : ptr_(new mjvGLCamera) {
+MjvGLCamera::MjvGLCamera() : ptr_(new mjvGLCamera()) {
   owned_ = true;
 }
 MjvGLCamera::MjvGLCamera(const MjvGLCamera &other) : MjvGLCamera() {
@@ -7623,7 +7682,7 @@ MjvGeom::~MjvGeom() {
     delete ptr_;
   }
 }
-MjvGeom::MjvGeom() : ptr_(new mjvGeom) {
+MjvGeom::MjvGeom() : ptr_(new mjvGeom()) {
   owned_ = true;
   mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);
 }
@@ -7653,7 +7712,7 @@ MjvLight::~MjvLight() {
     delete ptr_;
   }
 }
-MjvLight::MjvLight() : ptr_(new mjvLight) {
+MjvLight::MjvLight() : ptr_(new mjvLight()) {
   owned_ = true;
 }
 MjvLight::MjvLight(const MjvLight &other) : MjvLight() {
@@ -7682,7 +7741,7 @@ MjvOption::~MjvOption() {
     delete ptr_;
   }
 }
-MjvOption::MjvOption() : ptr_(new mjvOption) {
+MjvOption::MjvOption() : ptr_(new mjvOption()) {
   owned_ = true;
   mjv_defaultOption(ptr_);
 }
@@ -7712,7 +7771,7 @@ MjvPerturb::~MjvPerturb() {
     delete ptr_;
   }
 }
-MjvPerturb::MjvPerturb() : ptr_(new mjvPerturb) {
+MjvPerturb::MjvPerturb() : ptr_(new mjvPerturb()) {
   owned_ = true;
   mjv_defaultPerturb(ptr_);
 }
@@ -7750,7 +7809,7 @@ MjVisual::~MjVisual() {
     delete ptr_;
   }
 }
-MjVisual::MjVisual() : ptr_(new mjVisual), global(&ptr_->global), quality(&ptr_->quality), headlight(&ptr_->headlight), map(&ptr_->map), scale(&ptr_->scale), rgba(&ptr_->rgba) {
+MjVisual::MjVisual() : ptr_(new mjVisual()), global(&ptr_->global), quality(&ptr_->quality), headlight(&ptr_->headlight), map(&ptr_->map), scale(&ptr_->scale), rgba(&ptr_->rgba) {
   owned_ = true;
   mj_defaultVisual(ptr_);
 }
@@ -12375,6 +12434,13 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("tolerance", &MjOption::tolerance, &MjOption::set_tolerance, reference())
     .property("viscosity", &MjOption::viscosity, &MjOption::set_viscosity, reference())
     .property("wind", &MjOption::wind);
+  emscripten::class_<MjPreContact>("MjPreContact")
+    .constructor<>()
+    .function("copy", &MjPreContact::copy, take_ownership())
+    .property("dist", &MjPreContact::dist, &MjPreContact::set_dist, reference())
+    .property("normal", &MjPreContact::normal)
+    .property("pos", &MjPreContact::pos)
+    .property("tangent", &MjPreContact::tangent);
   emscripten::class_<MjSolverStat>("MjSolverStat")
     .constructor<>()
     .function("copy", &MjSolverStat::copy, take_ownership())

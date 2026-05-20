@@ -70,6 +70,9 @@ General
      Negative ``margin`` values are now permitted (corresponding to ``gap > margin`` under the old semantics). The
      constraint ``margin + gap >= 0`` should be maintained to ensure valid collision detection.
 
+   - The :ref:`mjfCollision` functions now populate the :ref:`mjPreContact` struct instead of the :ref:`mjContact`
+     struct. The :ref:`mjPreContact` only contains the necessary fields needed for the narrowphase collision detection.
+
    - MJX: Removed the deprecated ``nconmax`` argument from ``mjx.make_data`` and ``mjx.put_data`` in favor of
      ``naconmax``.
 

@@ -5140,6 +5140,42 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
+    ('mjPreContact',
+     StructDecl(
+         name='mjPreContact',
+         declname='struct mjPreContact_',
+         fields=(
+             StructFieldDecl(
+                 name='dist',
+                 type=ValueType(name='mjtNum'),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='pos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 doc='contact normal of the collision',
+             ),
+             StructFieldDecl(
+                 name='tangent',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 doc='first tangent direction',
+             ),
+         ),
+     )),
     ('mjContact',
      StructDecl(
          name='mjContact',

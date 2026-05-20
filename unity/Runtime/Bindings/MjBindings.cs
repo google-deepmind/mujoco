@@ -1521,6 +1521,14 @@ public unsafe struct mjModel_ {
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjPreContact_ {
+  public double dist;
+  public fixed double pos[3];
+  public fixed double normal[3];
+  public fixed double tangent[3];
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjContact_ {
   public double dist;
   public fixed double pos[3];

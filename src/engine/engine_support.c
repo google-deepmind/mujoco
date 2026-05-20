@@ -553,7 +553,7 @@ static mjtNum mj_geomDistanceCCD(const mjModel* m, mjData* d, int g1, int g2,
 // returns the smallest distance between two geoms
 mjtNum mj_geomDistance(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum distmax,
                        mjtNum fromto[6]) {
-  mjContact con[mjMAXCONPAIR];
+  mjPreContact con[mjMAXCONPAIR];
   mjtNum dist = distmax;
   if (fromto) mju_zero(fromto, 6);
 
@@ -594,8 +594,8 @@ mjtNum mj_geomDistance(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum
   // write fromto if given and a collision has been found
   if (fromto && smallest >= 0) {
     mjtNum sign = flip ? -1 : 1;
-    mju_addScl3(fromto+0, con[smallest].pos, con[smallest].frame, -0.5*sign*dist);
-    mju_addScl3(fromto+3, con[smallest].pos, con[smallest].frame, 0.5*sign*dist);
+    mju_addScl3(fromto+0, con[smallest].pos, con[smallest].normal, -0.5*sign*dist);
+    mju_addScl3(fromto+3, con[smallest].pos, con[smallest].normal, 0.5*sign*dist);
   }
 
   return dist;

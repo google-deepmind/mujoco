@@ -121,10 +121,18 @@ typedef enum mjtSleepState_ {       // sleep state of an object
 } mjtSleepState;
 
 
-//---------------------------------- mjContact -----------------------------------------------------
+//------------------------------------- Contact ----------------------------------------------------
+
+struct mjPreContact_ {             // contact parameters set by narrowphase collision functions
+  mjtNum dist;
+  mjtNum pos[3];
+  mjtNum normal[3];                // contact normal of the collision
+  mjtNum tangent[3];               // first tangent direction
+};
+typedef struct mjPreContact_ mjPreContact;
 
 struct mjContact_ {                // result of collision detection functions
-  // contact parameters set by near-phase collision function
+  // contact parameters set by narrowphase collision function
   mjtNum  dist;                    // distance between nearest points; neg: penetration
   mjtNum  pos[3];                  // position of contact point: midpoint between geoms
   mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]
@@ -533,7 +541,7 @@ typedef mjtNum (*mjfTime)(void);
 typedef mjtNum (*mjfAct)(const mjModel* m, const mjData* d, int id);
 
 // collision detection
-typedef int (*mjfCollision)(const mjModel* m, mjData* d, mjContact* con, int g1, int g2,
+typedef int (*mjfCollision)(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2,
                             mjtNum margin);
 
 #endif  // MUJOCO_MJDATA_H_

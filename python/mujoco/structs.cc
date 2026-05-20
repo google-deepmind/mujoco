@@ -615,6 +615,32 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(int, nupdate);
 #undef X
 
+  // ==================== MJPRECONTACT ==========================================
+  py::class_<MjPreContactWrapper> mjPreContact(m, "MjPreContact");
+  mjPreContact.def(py::init<>());
+  mjPreContact.def("__copy__", [](const MjPreContactWrapper& self) {
+    return MjPreContactWrapper(self);
+  });
+  mjPreContact.def("__deepcopy__", [](const MjPreContactWrapper& self, py::dict) {
+    return MjPreContactWrapper(self);
+  });
+  DefineStructFunctions(mjPreContact);
+
+#define X(var)                                                           \
+  mjPreContact.def_property(                                             \
+      #var, [](const MjPreContactWrapper& c) { return c.get()->var; },   \
+      [](MjPreContactWrapper& c, decltype(raw::MjPreContact::var) rhs) { \
+        c.get()->var = rhs;                                              \
+      })
+  X(dist);
+#undef X
+
+#define X(var) DefinePyArray(mjPreContact, #var, &MjPreContactWrapper::var)
+  X(pos);
+  X(normal);
+  X(tangent);
+#undef X
+
   // ==================== MJCONTACT ============================================
   py::class_<MjContactWrapper> mjContact(m, "MjContact");
   mjContact.def(py::init<>());

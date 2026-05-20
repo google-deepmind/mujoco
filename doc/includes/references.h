@@ -101,8 +101,15 @@ typedef enum mjtSleepState_ {       // sleep state of an object
   mjS_ASLEEP = 0,                   // object is asleep
   mjS_AWAKE  = 1                    // object is awake
 } mjtSleepState;
+struct mjPreContact_ {             // contact parameters set by narrowphase collision functions
+  mjtNum dist;
+  mjtNum pos[3];
+  mjtNum normal[3];                // contact normal of the collision
+  mjtNum tangent[3];               // first tangent direction
+};
+typedef struct mjPreContact_ mjPreContact;
 struct mjContact_ {                // result of collision detection functions
-  // contact parameters set by near-phase collision function
+  // contact parameters set by narrowphase collision function
   mjtNum  dist;                    // distance between nearest points; neg: penetration
   mjtNum  pos[3];                  // position of contact point: midpoint between geoms
   mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]

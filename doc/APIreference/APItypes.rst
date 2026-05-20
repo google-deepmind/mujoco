@@ -936,6 +936,15 @@ MJCF element :ref:`statistic <statistic>`. One instance of it is embedded in mjM
 .. mujoco-include:: mjStatistic
 
 
+.. _mjPreContact:
+
+mjPreContact
+~~~~~~~~~~~~
+
+This is the data structure holding information about one contact filled out by a narrowphase collision detector.
+
+.. mujoco-include:: mjPreContact
+
 .. _mjContact:
 
 mjContact
@@ -1780,7 +1789,7 @@ mjfCollision
 .. code-block:: C
 
    typedef int (*mjfCollision)(const mjModel* m, const mjData* d,
-                               mjContact* con, int g1, int g2, mjtNum margin);
+                               mjPreContact* con, int g1, int g2, mjtNum margin);
 
 This is the function type of the callbacks in the collision table :ref:`mjCOLLISIONFUNC`.
 

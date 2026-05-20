@@ -292,6 +292,7 @@ STRUCTS_TO_BIND: list[str] = list(
 NO_DEFAULT_CONSTRUCTORS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjContact",
+    "mjPreContact",
     "mjSolverStat",
     "mjStatistic",
     "mjTimerStat",

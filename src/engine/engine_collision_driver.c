@@ -1745,26 +1745,23 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int ipair, int g1, int g2) {
     return;
   }
 
-  // allocate mjContact[mjMAXCONPAIR] on the arena
-  mjContact* con =
-    (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * mjMAXCONPAIR, _Alignof(mjContact));
-  if (!con) {
-    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
-    return;
-  }
+
 
   // call collision detector to generate contacts
-  num = collisionFunc(m, d, con, g1, g2, margin + gap);
-
-  // check contacts
-  if (!num) {
-    resetArena(d);
+  mjPreContact precon[mjMAXCONPAIR];
+  if (!(num = collisionFunc(m, d, precon, g1, g2, margin + gap))) {
     return;
   }
 
   // check number of contacts, SHOULD NOT OCCUR
   if (num > mjMAXCONPAIR) {
     mjERROR("too many contacts returned by collision function");
+  }
+
+  mjContact* con = (mjContact*) mj_arenaAllocByte(d, sizeof(mjContact) * num, _Alignof(mjContact));
+  if (!con) {
+    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
+    return;
   }
 
   // set condim, solref, solimp, friction: dynamic
@@ -1787,7 +1784,12 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int ipair, int g1, int g2) {
 
   // add contacts returned by collision detector
   for (int i=0; i < num; i++) {
-    // set contact ids
+    // set contact parameters
+    con[i].dist = precon[i].dist;
+    mji_copy3(con[i].pos, precon[i].pos);
+    mji_copy3(con[i].frame + 0, precon[i].normal);
+    mji_copy3(con[i].frame + 3, precon[i].tangent);
+
     con[i].geom[0] = g1;
     con[i].geom[1] = g2;
     con[i].flex[0] = -1;
@@ -2109,23 +2111,32 @@ void mj_collideGeomElem(const mjModel* m, mjData* d, int g, int f, int e) {
                    pos, mat, size);
 
     // call raw primitive for corresponding geom type
-    if (type == mjGEOM_SPHERE) {
-      num = mjraw_SphereCapsule(con, margin + gap,
-                                d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g,
-                                pos, mat, size);
+    mjPreContact precon[2];
+    switch (type) {
+      case mjGEOM_SPHERE:
+        num = mjraw_SphereCapsule(precon, margin + gap, d->geom_xpos+3*g, d->geom_xmat+9*g,
+                                  m->geom_size+3*g, pos, mat, size);
+        break;
+      case mjGEOM_CAPSULE:
+        num = mjraw_CapsuleCapsule(precon, margin + gap, d->geom_xpos+3*g, d->geom_xmat+9*g,
+                                   m->geom_size+3*g, pos, mat, size);
+        break;
+      case mjGEOM_BOX:
+        num = mjraw_CapsuleBox(precon, margin + gap, pos, mat, size, d->geom_xpos+3*g,
+                               d->geom_xmat+9*g, m->geom_size+3*g);
+        break;
+      default:
+        num = 0;
     }
-    else if (type == mjGEOM_CAPSULE) {
-      num = mjraw_CapsuleCapsule(con, margin + gap,
-                                 d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g,
-                                 pos, mat, size);
-    }
-    else {
-      num = mjraw_CapsuleBox(con, margin + gap,
-                             pos, mat, size,
-                             d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g);
+
+    for (int i=0; i < num; i++) {
+      con[i].dist = precon[i].dist;
+      mju_copy3(con[i].pos, precon[i].pos);
+      mju_copy3(con[i].frame + 0, precon[i].normal);
+      mju_copy3(con[i].frame + 3, precon[i].tangent);
 
       // reverse contact normals, since box geom is second
-      for (int i=0; i < num; i++) {
+      if (type == mjGEOM_BOX) {
         mju_scl3(con[i].frame, con[i].frame, -1);
       }
     }
@@ -2256,7 +2267,14 @@ void mj_collideElems(const mjModel* m, mjData* d, int f1, int e1, int f2, int e2
                    pos2, mat2, size2);
 
     // raw primitive
-    num = mjraw_CapsuleCapsule(con, margin + gap, pos1, mat1, size1, pos2, mat2, size2);
+    mjPreContact precon[mjMAXCONPAIR];
+    num = mjraw_CapsuleCapsule(precon, margin + gap, pos1, mat1, size1, pos2, mat2, size2);
+    for (int i=0; i < num; i++) {
+      con[i].dist = precon[i].dist;
+      mju_copy3(con[i].pos, precon[i].pos);
+      mju_copy3(con[i].frame + 0, precon[i].normal);
+      mju_copy3(con[i].frame + 3, precon[i].tangent);
+    }
   }
 
   // general convex collision
@@ -2332,7 +2350,12 @@ void mj_collideElemVert(const mjModel* m, mjData* d, int f, int e, int v) {
     mjtNum pos[3], mat[9], size[2];
     mjtNum I[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     mj_makeCapsule(m, d, f, edata, pos, mat, size);
-    num = mjraw_SphereCapsule(con, 0, vert, I, &radius, pos, mat, size);
+    mjPreContact precon;
+    num = mjraw_SphereCapsule(&precon, 0, vert, I, &radius, pos, mat, size);
+    con->dist = precon.dist;
+    mju_copy3(con->pos, precon.pos);
+    mju_copy3(con->frame + 0, precon.normal);
+    mju_copy3(con->frame + 3, precon.tangent);
   }
 
   // sphere : triangle
