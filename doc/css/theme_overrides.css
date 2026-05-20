@@ -197,11 +197,6 @@ h4 {
   padding: 6px;
 }
 
-/* Don't change color of visited links.
-.rst-content a.reference:visited {
-  color: var(--rst-content-a-color);
-} */
-
 .rst-content code, .rst-content tt {
   font-size: 90%;
   padding: inherit;
