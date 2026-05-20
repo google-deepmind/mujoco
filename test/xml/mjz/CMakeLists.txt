@@ -17,3 +17,7 @@ mujoco_test(mjz_api_test)
 mujoco_test(
   mjz_decoder_test
 )
+
+mujoco_test(
+  mjz_encoder_test
+)

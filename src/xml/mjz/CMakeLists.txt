@@ -14,6 +14,7 @@
 
 set(MUJOCO_MJZ_SRCS
     mjz_decoder.cc
+    mjz_encoder.cc
 )
 
 target_sources(mujoco PRIVATE ${MUJOCO_MJZ_SRCS})
