@@ -232,6 +232,8 @@ void Renderer::DoRender(int width, int height) {
         draw_mode = mjDRAW_MODE_SEGMENTATION;
       } else if (scene_.flags[mjRND_DEPTH]) {
         draw_mode = mjDRAW_MODE_DEPTH;
+      } else if (scene_.flags[mjRND_WIREFRAME]) {
+        draw_mode = mjDRAW_MODE_WIREFRAME;
       }
 
       mjrRenderRequest reqs[2];
@@ -285,6 +287,8 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
       draw_mode = mjDRAW_MODE_SEGMENTATION;
     } else if (scene_.flags[mjRND_DEPTH]) {
       draw_mode = mjDRAW_MODE_DEPTH;
+    } else if (scene_.flags[mjRND_WIREFRAME]) {
+      draw_mode = mjDRAW_MODE_WIREFRAME;
     }
 
     mjrRenderTargetConfig config;
