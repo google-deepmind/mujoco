@@ -184,6 +184,8 @@ links below, to make this documentation self-contained.
    code.
 `mjsan.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjsan.h>`__
    Definitions required when building with sanitizer instrumentation.
+`mjassert.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjassert.h>`__
+   Compile-time size assertions verifying MuJoCo ABI stability across C and C++ compilers.
 
 .. _inVersion:
 

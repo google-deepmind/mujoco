@@ -80,6 +80,12 @@ General
    - MJX: Removed the deprecated ``nconmax`` argument from ``mjx.make_data`` and ``mjx.put_data`` in favor of
      ``naconmax``.
 
+   - Maybe-breaking: Added `mjassert.h
+     <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjassert.h>`__, a new header containing
+     compile-time assertions that verify the sizes of MuJoCo's public types for ABI stability. This is a first step
+     towards replacing ``int`` with strongly-typed enums in the public API. If these assertions fail on your compiler or
+     platform, please report the issue on GitHub.
+
 Version 3.8.1 (May 11, 2026)
 ----------------------------
 

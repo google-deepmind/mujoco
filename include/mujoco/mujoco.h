@@ -35,6 +35,7 @@
 #include <mujoco/mjtype.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mjassert.h>
 
 // this is a C-API
 #ifdef __cplusplus

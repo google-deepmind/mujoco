@@ -24,6 +24,7 @@ public static class MujocoLib {
 
 // ----------------------------------Constants----------------------------------
 
+public const bool THIRD_PARTY_MUJOCO_MJASSERT_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJDATA_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJEXPORT_H_ = true;
 public const bool MUJOCO_HELPER_DLL_LOCAL = true;
