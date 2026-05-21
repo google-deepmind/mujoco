@@ -24,7 +24,7 @@
 
 #include "src/engine/engine_collision_convex.h"
 #include <mujoco/mujoco.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include "test/fixture.h"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

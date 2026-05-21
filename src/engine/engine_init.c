@@ -17,7 +17,7 @@
 #include <string.h>
 
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include "engine/engine_util_blas.h"
 
 #ifdef _MSC_VER

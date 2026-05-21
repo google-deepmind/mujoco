@@ -17,8 +17,8 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
-#include <mujoco/mjtnum.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
+#include <mujoco/mjtype.h>
 #include <mujoco/mjxmacro.h>
 
 #ifdef __cplusplus

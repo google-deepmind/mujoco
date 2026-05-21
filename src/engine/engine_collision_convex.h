@@ -26,7 +26,7 @@
 #include <mujoco/mjexport.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 // minimum number of vertices to use hill-climbing in mesh support
 #define mjMESH_HILLCLIMB_MIN 10

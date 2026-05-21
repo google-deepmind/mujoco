@@ -73,6 +73,10 @@ General
    - The :ref:`mjfCollision` functions now populate the :ref:`mjPreContact` struct instead of the :ref:`mjContact`
      struct. The :ref:`mjPreContact` only contains the necessary fields needed for the narrowphase collision detection.
 
+   - The header file ``mjtnum.h`` was renamed to
+     `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>` and now includes all
+     enum type definitions.
+
    - MJX: Removed the deprecated ``nconmax`` argument from ``mjx.make_data`` and ``mjx.put_data`` in favor of
      ``naconmax``.
 
@@ -1194,7 +1198,7 @@ General
 10. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
 11. Added support for ``ball`` joints in the URDF parser ("spherical" in URDF).
 12. Replaced ``mjUSEDOUBLE`` which was previously hard-coded in
-    `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
+    `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/3577e2cf8bf841475b489aefff52276a39f24d51/include/mjtnum.h>`__
     with the build-time flag ``mjUSESINGLE``. If this symbol is not defined, MuJoCo will use double-precision floating
     point, as usual. If ``mjUSESINGLE`` is defined, MuJoCo will use single-precision floating point. See :ref:`mjtNum`.
 

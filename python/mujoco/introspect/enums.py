@@ -508,16 +508,6 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjSDFTYPE_COLLISION', 3),
          ]),
      )),
-    ('mjtTaskStatus',
-     EnumDecl(
-         name='mjtTaskStatus',
-         declname='enum mjtTaskStatus_',
-         values=dict([
-             ('mjTASK_NEW', 0),
-             ('mjTASK_QUEUED', 1),
-             ('mjTASK_COMPLETED', 2),
-         ]),
-     )),
     ('mjtState',
      EnumDecl(
          name='mjtState',
@@ -617,6 +607,16 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjS_STATIC', -1),
              ('mjS_ASLEEP', 0),
              ('mjS_AWAKE', 1),
+         ]),
+     )),
+    ('mjtTaskStatus',
+     EnumDecl(
+         name='mjtTaskStatus',
+         declname='enum mjtTaskStatus_',
+         values=dict([
+             ('mjTASK_NEW', 0),
+             ('mjTASK_QUEUED', 1),
+             ('mjTASK_COMPLETED', 2),
          ]),
      )),
     ('mjtGeomInertia',

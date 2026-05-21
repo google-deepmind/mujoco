@@ -24,7 +24,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"

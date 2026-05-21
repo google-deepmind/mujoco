@@ -18,107 +18,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjthread.h>
 
-//---------------------------------- primitive types (mjt) -----------------------------------------
-
-typedef enum mjtState_ {            // state elements
-  mjSTATE_TIME           = 1<<0,    // time
-  mjSTATE_QPOS           = 1<<1,    // position
-  mjSTATE_QVEL           = 1<<2,    // velocity
-  mjSTATE_ACT            = 1<<3,    // actuator activation
-  mjSTATE_HISTORY        = 1<<4,    // history buffers (control, sensor)
-  mjSTATE_WARMSTART      = 1<<5,    // acceleration used for warmstart
-  mjSTATE_CTRL           = 1<<6,    // control
-  mjSTATE_QFRC_APPLIED   = 1<<7,    // applied generalized force
-  mjSTATE_XFRC_APPLIED   = 1<<8,    // applied Cartesian force/torque
-  mjSTATE_EQ_ACTIVE      = 1<<9,    // enable/disable constraints
-  mjSTATE_MOCAP_POS      = 1<<10,   // positions of mocap bodies
-  mjSTATE_MOCAP_QUAT     = 1<<11,   // orientations of mocap bodies
-  mjSTATE_USERDATA       = 1<<12,   // user data
-  mjSTATE_PLUGIN         = 1<<13,   // plugin state
-
-  mjNSTATE               = 14,      // number of state elements
-
-  // convenience values for commonly used state specifications
-  mjSTATE_PHYSICS        = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT | mjSTATE_HISTORY,
-  mjSTATE_FULLPHYSICS    = mjSTATE_TIME | mjSTATE_PHYSICS | mjSTATE_PLUGIN,
-  mjSTATE_USER           = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
-                          mjSTATE_EQ_ACTIVE | mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT |
-                          mjSTATE_USERDATA,
-  mjSTATE_INTEGRATION    = mjSTATE_FULLPHYSICS | mjSTATE_USER | mjSTATE_WARMSTART
-} mjtState;
-
-
-typedef enum mjtConstraint_ {       // type of constraint
-  mjCNSTR_EQUALITY       = 0,       // equality constraint
-  mjCNSTR_FRICTION_DOF,             // dof friction
-  mjCNSTR_FRICTION_TENDON,          // tendon friction
-  mjCNSTR_LIMIT_JOINT,              // joint limit
-  mjCNSTR_LIMIT_TENDON,             // tendon limit
-  mjCNSTR_CONTACT_FRICTIONLESS,     // frictionless contact
-  mjCNSTR_CONTACT_PYRAMIDAL,        // frictional contact, pyramidal friction cone
-  mjCNSTR_CONTACT_ELLIPTIC          // frictional contact, elliptic friction cone
-} mjtConstraint;
-
-
-typedef enum mjtConstraintState_ {  // constraint state
-  mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
-  mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
-  mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
-  mjCNSTRSTATE_LINEARPOS,           // linear cost, positive side (friction)
-  mjCNSTRSTATE_CONE                 // squared distance to cone cost (elliptic contact)
-} mjtConstraintState;
-
-
-typedef enum mjtWarning_ {          // warning types
-  mjWARN_INERTIA         = 0,       // (near) singular inertia matrix
-  mjWARN_CONTACTFULL,               // too many contacts in contact list
-  mjWARN_CNSTRFULL,                 // too many constraints
-  mjWARN_BADQPOS,                   // bad number in qpos
-  mjWARN_BADQVEL,                   // bad number in qvel
-  mjWARN_BADQACC,                   // bad number in qacc
-  mjWARN_BADCTRL,                   // bad number in ctrl
-
-  mjNWARNING                        // number of warnings
-} mjtWarning;
-
-
-typedef enum mjtTimer_ {            // internal timers
-  // main api
-  mjTIMER_STEP           = 0,       // step
-  mjTIMER_FORWARD,                  // forward
-  mjTIMER_INVERSE,                  // inverse
-
-  // breakdown of step/forward
-  mjTIMER_POSITION,                 // fwdPosition
-  mjTIMER_VELOCITY,                 // fwdVelocity
-  mjTIMER_ACTUATION,                // fwdActuation
-  mjTIMER_CONSTRAINT,               // fwdConstraint
-  mjTIMER_ADVANCE,                  // mj_Euler, mj_implicit
-
-  // breakdown of fwdPosition
-  mjTIMER_POS_KINEMATICS,           // kinematics, com, tendon, transmission
-  mjTIMER_POS_INERTIA,              // inertia computations
-  mjTIMER_POS_COLLISION,            // collision detection
-  mjTIMER_POS_MAKE,                 // make constraints
-  mjTIMER_POS_PROJECT,              // project constraints
-
-  // breakdown of mj_collision
-  mjTIMER_COL_BROAD,                // broadphase
-  mjTIMER_COL_NARROW,               // narrowphase
-
-  mjNTIMER                          // number of timers
-} mjtTimer;
-
-
-typedef enum mjtSleepState_ {       // sleep state of an object
-  mjS_STATIC = -1,                  // object is static
-  mjS_ASLEEP = 0,                   // object is asleep
-  mjS_AWAKE  = 1                    // object is awake
-} mjtSleepState;
 
 
 //------------------------------------- Contact ----------------------------------------------------

@@ -46,7 +46,7 @@ MuJoCo defines a large number of types:
 Primitive types
 ---------------
 
-The two types below are defined in `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__.
+The three types below are defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__.
 
 
 .. _mjtNum:
@@ -63,7 +63,7 @@ double-precision version will always be available. Thus it is safe to write user
 However, our preference is to write code that works with either single or double precision. To this end we provide math
 utility functions that are always defined with the correct floating-point type.
 
-Note that changing ``mjUSESINGLE`` in ``mjtnum.h`` will not change how the library was compiled, and instead will
+Note that changing ``mjUSESINGLE`` in ``mjtype.h`` will not change how the library was compiled, and instead will
 result in numerous link errors. In general, the header files distributed with precompiled MuJoCo should never be
 changed by the user.
 

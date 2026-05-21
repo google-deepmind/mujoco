@@ -21,7 +21,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_ray.h"
 #include "test/fixture.h"

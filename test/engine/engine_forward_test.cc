@@ -28,7 +28,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
 #include "src/cc/array_safety.h"

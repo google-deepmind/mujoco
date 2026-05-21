@@ -21,7 +21,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 namespace mujoco::plugin::actuator {
 

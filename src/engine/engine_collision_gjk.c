@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_util_blas.h"

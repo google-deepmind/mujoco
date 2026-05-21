@@ -19,7 +19,7 @@
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -15,7 +15,7 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_INLINE_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_INLINE_H_
 
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 
 #ifdef __cplusplus

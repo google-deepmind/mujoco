@@ -415,7 +415,7 @@ indicated otherwise.
      - 1E-15
      - The minimal value allowed in any denominator, and in general any mathematical operation where 0 is not allowed.
        In almost all cases, MuJoCo silently clamps smaller values to mjMINVAL.
-       Defined in `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
+       Defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`_.
    * - ``mjPI``
      - :math:`\pi`
      - The value of :math:`\pi`. This is used in various trigonometric functions, and also for conversion from degrees

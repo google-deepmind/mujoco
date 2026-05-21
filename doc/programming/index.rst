@@ -165,8 +165,9 @@ links below, to make this documentation self-contained.
    Defines the primitive types and structures needed by the OpenGL renderer.
 `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__
    Defines the primitive types and structures needed by the UI framework.
-`mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
-   Defines MuJoCo's ``mjtNum`` floating-point type to be either ``double`` or ``float``. See :ref:`mjtNum`.
+`mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__
+   Defines primitive types and enums, including the ``mjtNum`` floating-point type to be either ``double`` or ``float``
+   (see :ref:`mjtNum`).
 `mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__
    Defines enums and structs used for :doc:`procedural model editing <modeledit>`.
 `mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__

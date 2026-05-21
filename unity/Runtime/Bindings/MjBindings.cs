@@ -64,7 +64,7 @@ public const bool ADDRESS_SANITIZER = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSPEC_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTHREAD_H_ = true;
 public const int mjMAXTHREAD = 128;
-public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTNUM_H_ = true;
+public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTYPE_H_ = true;
 public const double mjMINVAL = 1e-15;
 public const bool THIRD_PARTY_MUJOCO_MJUI_H_ = true;
 public const int mjMAXUISECT = 10;
@@ -443,11 +443,6 @@ public enum mjtSDFType : int{
   mjSDFTYPE_MIDSURFACE = 2,
   mjSDFTYPE_COLLISION = 3,
 }
-public enum mjtTaskStatus : int{
-  mjTASK_NEW = 0,
-  mjTASK_QUEUED = 1,
-  mjTASK_COMPLETED = 2,
-}
 public enum mjtState : int{
   mjSTATE_TIME = 1,
   mjSTATE_QPOS = 2,
@@ -518,6 +513,11 @@ public enum mjtSleepState : int{
   mjS_STATIC = -1,
   mjS_ASLEEP = 0,
   mjS_AWAKE = 1,
+}
+public enum mjtTaskStatus : int{
+  mjTASK_NEW = 0,
+  mjTASK_QUEUED = 1,
+  mjTASK_COMPLETED = 2,
 }
 public enum mjtGeomInertia : int{
   mjINERTIA_VOLUME = 0,
