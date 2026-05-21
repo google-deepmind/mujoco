@@ -154,11 +154,10 @@ links below, to make this documentation self-contained.
    global variables, and includes all other header files except mjxmacro.h.
 `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
-   model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.
+   model being simulated.
 `mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__
    Defines the C structure :ref:`mjData` which is the workspace where all computations
-   read their inputs and write their outputs. It also defines primitive types and other structures needed to define
-   mjData.
+   read their inputs and write their outputs.
 `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`__
    Defines the primitive types and structures needed by the abstract visualizer.
 `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__

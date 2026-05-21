@@ -115,7 +115,7 @@ All enum types use the ``mjt`` prefix.
 Model
 ^^^^^
 
-The enums below are defined in `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__.
+The enums below are defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__.
 
 
 .. _mjtDisableBit:
@@ -456,7 +456,7 @@ Formulas used to combine SDFs when calling mjc_distance and mjc_gradient.
 Data
 ^^^^
 
-The enums below are defined in `mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__.
+The enums below are defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__.
 
 
 
