@@ -24,7 +24,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_collision_gjk.h"
-#include "engine/engine_collision_primitive.h"
+#include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
@@ -33,6 +33,15 @@
 #include "engine/engine_util_spatial.h"
 
 #define mjMINVAL2 (mjMINVAL * mjMINVAL)
+
+// CCD internal buffer used for batched processing; if NULL, stack memory allocated on each
+// mjc_penetration call
+static mjTHREADLOCAL void* ccd_buffer = NULL;
+
+// set CCD internal buffer
+void mjc_setCCDBuffer(void* buffer) {
+  ccd_buffer = buffer;
+}
 
 // ccd prism first dir
 static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t *vec) {
@@ -85,18 +94,23 @@ static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj
   mjCCDConfig config;
   mjCCDStatus status;
   mjtNum dist;
+  int nwitness = 0;
+  void* buffer = ccd_buffer;
 
   // set config
-  mj_markStack(d);
   config.max_iterations = m->opt.ccd_iterations;
   config.tolerance = m->opt.ccd_tolerance;
   config.max_contacts = ncon;
   config.dist_cutoff = 0;  // no geom distances needed
-  config.buffer = mj_stackAllocByte(d, mjc_ccdSize(config.max_iterations), sizeof(mjtNum));
+  if (buffer) {
+    config.buffer = buffer;
+  } else {
+    mj_markStack(d);
+    config.buffer = mj_stackAllocByte(d, mjc_ccdSize(config.max_iterations), sizeof(mjtNum));
+  }
 
   if ((dist = mjc_ccd(&config, &status, obj1, obj2)) < 0) {
-    mj_freeStack(d);
-    int nwitness = status.nx;
+    nwitness = status.nx;
     for (int i = 0; i < nwitness; i++) {
       con[i].dist = margin + dist;
       con[i].pos[0] = 0.5*(status.x1[3*i + 0] + status.x2[3*i + 0]);
@@ -106,10 +120,11 @@ static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj
       mju_normalize3(con[i].normal);
       mji_zero3(con[i].tangent);
     }
-    return nwitness;
   }
-  mj_freeStack(d);
-  return 0;
+  if (!buffer) {
+    mj_freeStack(d);
+  }
+  return nwitness;
 }
 
 
