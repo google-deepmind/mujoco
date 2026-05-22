@@ -656,6 +656,10 @@ struct ImPlotPairLayout {
 // side-by-side; otherwise they are stacked vertically.
 ImPlotPairLayout ImPlot_ComputePairLayout();
 
+// Draws text at the given screen coordinates in clip space (i.e. [-1,-1,-1] to
+// [1,1,1]).
+void DrawTextAt(const char* text, float x, float y, float z);
+
 }  // namespace mujoco::platform
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_UX_IMGUI_WIDGETS_H_

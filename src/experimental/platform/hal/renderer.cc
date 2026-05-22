@@ -32,6 +32,7 @@
 #include "experimental/filament/render_context_filament_cpp.h"
 #include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/platform/ux/imgui_bridge.h"
+#include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/plugin.h"
 
 namespace mujoco::platform {
