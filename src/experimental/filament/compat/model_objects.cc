@@ -599,7 +599,13 @@ void ModelObjects::CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom
   mjrMeshData data;
   mjr_defaultMeshData(&data);
   UpdateSkinFlexMeshData(&data, model_, scene, geom);
-  dynamic_meshes_.insert_or_assign(geom.objid, CreateMesh(ctx_, data));
+  if (geom.type == mjGEOM_FLEX) {
+    flexes_.insert_or_assign(geom.objid, CreateMesh(ctx_, data));
+  } else if (geom.type == mjGEOM_SKIN) {
+    skins_.insert_or_assign(geom.objid, CreateMesh(ctx_, data));
+  } else {
+    mju_error("Unsupported dynamic mesh type: %d", geom.type);
+  }
 }
 
 const mjrMesh* ModelObjects::GetMesh(int data_id) const {
@@ -624,11 +630,19 @@ const mjrMesh* ModelObjects::GetHeightField(int hfield_id) const {
   return nullptr;
 }
 
-const mjrMesh* ModelObjects::GetFlexSkinMesh(int geom_id) const {
-  if (auto it = dynamic_meshes_.find(geom_id); it != dynamic_meshes_.end()) {
+const mjrMesh* ModelObjects::GetFlexMesh(int geom_id) const {
+  if (auto it = flexes_.find(geom_id); it != flexes_.end()) {
     return it->second.get();
   }
-  mju_error("Unknown dynamic mesh %d", geom_id);
+  mju_error("Unknown flex mesh %d", geom_id);
+  return nullptr;
+}
+
+const mjrMesh* ModelObjects::GetSkinMesh(int geom_id) const {
+  if (auto it = skins_.find(geom_id); it != skins_.end()) {
+    return it->second.get();
+  }
+  mju_error("Unknown skin mesh %d", geom_id);
   return nullptr;
 }
 

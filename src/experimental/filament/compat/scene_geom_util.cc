@@ -130,7 +130,7 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_FLEX:
-      mjrf_setRenderableMesh(renderable, model_objs->GetFlexSkinMesh(geom.objid), 0, 0);
+      mjrf_setRenderableMesh(renderable, model_objs->GetFlexMesh(geom.objid), 0, 0);
       // Flexes are defined in global space.
       std::memset(position, 0, sizeof(position));
       std::memset(rotation, 0, sizeof(rotation));
@@ -139,7 +139,7 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       rotation[8] = 1.f;
       break;
     case mjGEOM_SKIN:
-      mjrf_setRenderableMesh(renderable, model_objs->GetFlexSkinMesh(geom.objid), 0, 0);
+      mjrf_setRenderableMesh(renderable, model_objs->GetSkinMesh(geom.objid), 0, 0);
       // Skins are defined in global space.
       std::memset(position, 0, sizeof(position));
       std::memset(rotation, 0, sizeof(rotation));
