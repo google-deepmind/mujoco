@@ -20,6 +20,10 @@
 #include <stdarg.h>
 #include <time.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
 #include <unistd.h>
 #endif
@@ -45,6 +49,37 @@ static inline void mju_alignedFree(void* ptr) {
 #endif
 }
 
+//------------------------- UTF-8 file open --------------------------------------------------------
+
+// open file with UTF-8 filename support
+FILE* mju_fopen(const char* filename, const char* mode) {
+#ifdef _WIN32
+  // convert UTF-8 filename to wide string
+  int wlen = MultiByteToWideChar(CP_UTF8, 0, filename, -1, NULL, 0);
+  int wmlen = MultiByteToWideChar(CP_UTF8, 0, mode, -1, NULL, 0);
+  if (wlen == 0 || wmlen == 0) {
+    return NULL;
+  }
+
+  wchar_t* wfilename = (wchar_t*)malloc(wlen * sizeof(wchar_t));
+  wchar_t* wmode = (wchar_t*)malloc(wmlen * sizeof(wchar_t));
+  if (!wfilename || !wmode) {
+    free(wfilename);
+    free(wmode);
+    return NULL;
+  }
+
+  MultiByteToWideChar(CP_UTF8, 0, filename, -1, wfilename, wlen);
+  MultiByteToWideChar(CP_UTF8, 0, mode, -1, wmode, wmlen);
+
+  FILE* fp = _wfopen(wfilename, wmode);
+  free(wfilename);
+  free(wmode);
+  return fp;
+#else
+  return fopen(filename, mode);
+#endif
+}
 
 //------------------------- default user handlers --------------------------------------------------
 
@@ -92,7 +127,7 @@ void _mjPRIVATE__set_tls_warning_fn(callback_fn h) {
 void mju_writeLog(const char* type, const char* msg) {
   time_t rawtime;
   struct tm timeinfo;
-  FILE* fp = fopen("MUJOCO_LOG.TXT", "a+t");
+  FILE* fp = mju_fopen("MUJOCO_LOG.TXT", "a+t");
   if (fp) {
     // get time
     time(&rawtime);

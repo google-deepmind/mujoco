@@ -17,7 +17,6 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
 #include <functional>
 #include <memory>
 #include <sstream>
@@ -26,6 +25,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
 #include "engine/engine_io.h"
+#include "engine/engine_util_errmem.h"
 #include "user/user_resource.h"
 #include "xml/xml.h"
 #include "xml/xml_global.h"
@@ -76,7 +76,7 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
 int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz) {
   FILE *fp = stdout;
   if (filename != nullptr && filename[0] != '\0') {
-    fp = fopen(filename, "w");
+    fp = mju_fopen(filename, "w");
     if (!fp) {
       mjCopyError(error, "File not found", error_sz);
       return 0;
@@ -114,10 +114,11 @@ int mj_printSchema(const char* filename, char* buffer, int buffer_sz, int flg_ht
 
   // filename given: write to file
   if (filename) {
-    std::ofstream file;
-    file.open(filename);
-    file << str.str();
-    file.close();
+    FILE* file = mju_fopen(filename, "w");
+    if (file) {
+      fputs(str.str().c_str(), file);
+      fclose(file);
+    }
   }
 
   // buffer given: write to buffer
@@ -178,10 +179,13 @@ int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz)
     return -1;
   }
 
-  std::ofstream file;
-  file.open(filename);
-  file << result;
-  file.close();
+  FILE* file = mju_fopen(filename, "w");
+  if (!file) {
+    mjCopyError(error, "Could not open file for writing", error_sz);
+    return -1;
+  }
+  fputs(result.c_str(), file);
+  fclose(file);
   return 0;
 }
 

@@ -33,6 +33,7 @@
 
 #include <mujoco/mujoco.h>
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_util_errmem.h"
 
 
 // workaround with locale bug on some MacOS machines
@@ -1193,7 +1194,7 @@ std::string FilePath::StrLower() const {
 
 // read file into memory buffer
 std::vector<uint8_t> FileToMemory(const char* filename) {
-  FILE* fp = fopen(filename, "rb");
+  FILE* fp = mju_fopen(filename, "rb");
   if (!fp) {
     return {};
   }

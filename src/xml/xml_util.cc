@@ -222,9 +222,14 @@ void mjCopyError(char* dst, const char* src, int maxlen) {
 }
 
 void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies) {
-  // load XML file or parse string
+  // load XML file
   tinyxml2::XMLDocument doc;
-  doc.LoadFile(filename);
+  FILE* fp = mju_fopen(filename, "rb");
+  if (!fp) {
+    mju_error("Could not open XML file '%s'", filename);
+  }
+  doc.LoadFile(fp);
+  fclose(fp);
 
   // error checking
   if (doc.Error()) {
