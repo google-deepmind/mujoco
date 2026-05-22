@@ -1602,6 +1602,45 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_DCMOTOR)
     self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_DCMOTOR)
 
+  def test_set_to_muscle(self):
+    spec = mujoco.MjSpec()
+    actuator = spec.add_actuator()
+
+    # Test with tuple/list arguments for timeconst and range
+    actuator.set_to_muscle(
+        timeconst=(0.01, 0.04),
+        tausmooth=0.,
+        range=(0.75, 1.05),
+        force=-1.,
+        scale=200.,
+        lmin=0.5,
+        lmax=1.6,
+        vmax=1.5,
+        fpmax=1.3,
+        fvmax=1.2
+    )
+
+    # Verify dynprm contains timeconst values
+    self.assertEqual(actuator.dynprm[0], 0.01)
+    self.assertEqual(actuator.dynprm[1], 0.04)
+    self.assertEqual(actuator.dynprm[2], 0.)
+
+    # Verify gainprm contains range and muscle parameters
+    self.assertEqual(actuator.gainprm[0], 0.75)
+    self.assertEqual(actuator.gainprm[1], 1.05)
+    self.assertEqual(actuator.gainprm[2], -1.)
+    self.assertEqual(actuator.gainprm[3], 200.)
+    self.assertEqual(actuator.gainprm[4], 0.5)
+    self.assertEqual(actuator.gainprm[5], 1.6)
+    self.assertEqual(actuator.gainprm[6], 1.5)
+    self.assertEqual(actuator.gainprm[7], 1.3)
+    self.assertEqual(actuator.gainprm[8], 1.2)
+
+    # Verify actuator type settings
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_MUSCLE)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_MUSCLE)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_MUSCLE)
+
   def test_bad_contact_sensor(self):
     test_cases = [
         dict(
