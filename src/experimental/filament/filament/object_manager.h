@@ -42,7 +42,9 @@ class ObjectManager {
   // ObjectManager.
   enum MaterialType {
     kPbr,
+    kPbrTransparent,
     kPbrPacked,
+    kPbrPackedTransparent,
     kPhong2d,
     kPhong2dFade,
     kPhong2dReflect,

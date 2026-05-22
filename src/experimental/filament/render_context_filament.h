@@ -627,6 +627,9 @@ struct mjrMaterial {
   // The texture containing the base color of the object.
   const mjrTexture* color_texture;
 
+  // The texture containing the opacity of the object.
+  const mjrTexture* opacity_texture;
+
   // The normal map of the object.
   const mjrTexture* normal_texture;
 

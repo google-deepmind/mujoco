@@ -55,6 +55,8 @@ ObjectManager::ObjectManager(filament::Engine* engine)
     : engine_(engine) {
   materials_[kPbr] = LoadMaterial(engine, "pbr.filamat");
   materials_[kPbrPacked] = LoadMaterial(engine, "pbr_packed.filamat");
+  materials_[kPbrTransparent] = LoadMaterial(engine, "pbr_transparent.filamat");
+  materials_[kPbrPackedTransparent] = LoadMaterial(engine, "pbr_packed_transparent.filamat");
   materials_[kPhong2d] = LoadMaterial(engine, "phong_2d.filamat");
   materials_[kPhong2dFade] = LoadMaterial(engine, "phong_2d_fade.filamat");
   materials_[kPhong2dReflect] = LoadMaterial(engine, "phong_2d_reflect.filamat");
@@ -97,6 +99,7 @@ ObjectManager::ObjectManager(filament::Engine* engine)
 
   fallback_textures_[mjTEXROLE_USER] = fallback_black_;
   fallback_textures_[mjTEXROLE_RGB] = fallback_white_;
+  fallback_textures_[mjTEXROLE_OPACITY] = fallback_white_;
   fallback_textures_[mjTEXROLE_OCCLUSION] = fallback_white_;
   fallback_textures_[mjTEXROLE_ROUGHNESS] = fallback_white_;
   fallback_textures_[mjTEXROLE_METALLIC] = fallback_black_;

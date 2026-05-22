@@ -38,15 +38,35 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
       return ObjectManager::kUnlitDecor;
     }
   } else if (material.orm_texture) {
-    return ObjectManager::kPbrPacked;
+    if (material.opacity_texture) {
+      return ObjectManager::kPbrPackedTransparent;
+    } else {
+      return ObjectManager::kPbrPacked;
+    }
   } else if (material.metallic_texture) {
-    return ObjectManager::kPbr;
+    if (material.opacity_texture) {
+      return ObjectManager::kPbrPackedTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
   } else if (material.roughness_texture) {
-    return ObjectManager::kPbr;
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPbrTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
   } else if (material.metallic >= 0) {
-    return ObjectManager::kPbr;
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPbrTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
   } else if (material.roughness >= 0) {
-    return ObjectManager::kPbr;
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPbrTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
   }
 
   // Check to see if we're dealing with a mesh with texture coordinates.
@@ -163,6 +183,7 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
   };
 
   TrySetTexture("BaseColor", material.color_texture, mjTEXROLE_RGB);
+  TrySetTexture("Opacity", material.opacity_texture, mjTEXROLE_OPACITY);
   TrySetTexture("Normal", material.normal_texture, mjTEXROLE_NORMAL);
   TrySetTexture("Metallic", material.metallic_texture, mjTEXROLE_METALLIC);
   TrySetTexture("Roughness", material.roughness_texture, mjTEXROLE_ROUGHNESS);

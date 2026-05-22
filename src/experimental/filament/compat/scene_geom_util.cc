@@ -198,6 +198,7 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
     };
     material.color_texture = get_texture(mjTEXROLE_RGB);
     material.normal_texture = get_texture(mjTEXROLE_NORMAL);
+    material.opacity_texture = get_texture(mjTEXROLE_OPACITY);
     material.emissive_texture = get_texture(mjTEXROLE_EMISSIVE);
     material.orm_texture = get_texture(mjTEXROLE_ORM);
     material.metallic_texture = get_texture(mjTEXROLE_METALLIC);

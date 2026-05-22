@@ -100,7 +100,9 @@ file(COPY
 set(MATC_EXECUTABLE matc)
 set(MATERIAL_FILES
     pbr.mat
+    pbr_transparent.mat
     pbr_packed.mat
+    pbr_packed_transparent.mat
     phong_2d_fade.mat
     phong_2d.mat
     phong_2d_reflect.mat
