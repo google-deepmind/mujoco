@@ -148,7 +148,7 @@ def get_param_string(p: ast_nodes.FunctionParameterDecl) -> str:
         return f"const String& {p.name}"
     elif (
         p.type.inner_type.name
-        in ["int", "float", "double", "mjtNum", "mjtByte"]
+        in ["int", "float", "double", "mjtNum", "mjtByte", "mjtBool"]
         and p.type.inner_type.is_const
     ):
       return f"const NumberArray& {p.name}"

@@ -36,16 +36,17 @@
     typedef char mj_assert_##type[sizeof(type) == (size) ? 1 : -1]
 #endif
 
-// mjtnum.h
-MJ_ASSERT_SIZE(mjtByte, 1);
-MJ_ASSERT_SIZE(mjtSize, 8);
+// primitive types
 #if !defined(mjUSESINGLE)
 MJ_ASSERT_SIZE(mjtNum, 8);
 #else
 MJ_ASSERT_SIZE(mjtNum, 4);
 #endif
+MJ_ASSERT_SIZE(mjtByte, 1);
+MJ_ASSERT_SIZE(mjtBool, 1);
+MJ_ASSERT_SIZE(mjtSize, 8);
 
-// mjmodel.h
+// mjModel enums
 MJ_ASSERT_SIZE(mjtDisableBit, 4);
 MJ_ASSERT_SIZE(mjtEnableBit, 4);
 MJ_ASSERT_SIZE(mjtJoint, 4);
@@ -79,7 +80,7 @@ MJ_ASSERT_SIZE(mjtLRMode, 4);
 MJ_ASSERT_SIZE(mjtFlexSelf, 4);
 MJ_ASSERT_SIZE(mjtSDFType, 4);
 
-// mjdata.h
+// mjData enums
 MJ_ASSERT_SIZE(mjtState, 4);
 MJ_ASSERT_SIZE(mjtConstraint, 4);
 MJ_ASSERT_SIZE(mjtConstraintState, 4);

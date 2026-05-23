@@ -15,6 +15,7 @@
 #ifndef MUJOCO_INCLUDE_MJTYPE_H_
 #define MUJOCO_INCLUDE_MJTYPE_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 
@@ -33,9 +34,13 @@
 
 //---------------------------------- byte definition -----------------------------------------------
 
-typedef unsigned char mjtByte;    // used for true/false
+typedef unsigned char mjtByte;    // used for small integers and binary data
 
-
+#ifndef __cplusplus
+  typedef _Bool mjtBool;          // used for boolean values
+#else
+  typedef bool mjtBool;           // used for boolean values
+#endif
 
 //---------------------------------- size definition -----------------------------------------------
 

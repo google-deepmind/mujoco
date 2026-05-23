@@ -230,8 +230,7 @@ to which the symbol belongs. First we list the prefixes corresponding to type de
    Core simulation data structure (C struct), for example :ref:`mjModel`. If all characters
    after the prefix are capital, for example :ref:`mjMIN`, this is a macro or a symbol (#define).
 ``mjt``
-   Primitive type, for example :ref:`mjtGeom`. Except for mjtByte and mjtNum, all other
-   definitions in this family are enums.
+   Primitive type, for example :ref:`mjtNum` and :ref:`mjtGeom`. Most types in this family are enums.
 ``mjf``
    Callback function type, for example :ref:`mjfGeneric`.
 ``mjv``

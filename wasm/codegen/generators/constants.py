@@ -24,6 +24,7 @@ PRIMITIVE_TYPES: Set[str] = {
     "float",
     "int",
     "mjtByte",
+    "mjtBool",
     "mjtMeshBuiltin",
     "mjtNum",
     "mjtObj",  # Adding this to the primitives because it is used as int,

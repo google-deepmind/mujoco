@@ -84,11 +84,27 @@ changed by the user.
 mjtByte
 ^^^^^^^
 
-Byte type used to represent boolean variables.
+Byte type used to represent small integers and binary data.
 
 .. code-block:: C
 
    typedef unsigned char mjtByte;
+
+
+.. _mjtBool:
+
+mjtBool
+^^^^^^^
+
+Boolean type used to represent true/false values.
+
+.. code-block:: C
+
+   #ifndef __cplusplus
+     typedef _Bool mjtBool;
+   #else
+     typedef bool mjtBool;
+   #endif
 
 
 .. _mjtSize:
