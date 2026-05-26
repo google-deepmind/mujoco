@@ -179,6 +179,24 @@ def optimize(
         extras={},
     )
 
+  # Warn if any non-frozen parameter component starts at (or essentially at)
+  # a box bound. Optimization can stall in that corner on ill-conditioned or
+  # rank-deficient problems; both the mujoco and scipy backends are affected.
+  lo, hi = bounds
+  rng = hi - lo
+  safe_rng = np.where(rng > 0, rng, 1.0)
+  at_bound = ((x0 - lo) <= 1e-3 * safe_rng) | ((hi - x0) <= 1e-3 * safe_rng)
+  at_bound &= rng > 0
+  if at_bound.any():
+    logging.warning(
+        "%d of %d non-frozen parameter components start at (or essentially "
+        "at) a box bound. Optimization can stall in that corner on "
+        "ill-conditioned problems; consider calling "
+        "initial_params.move_off_bounds() before optimize().",
+        int(at_bound.sum()),
+        x0.size,
+    )
+
   def optimized_residual_fn(x):
     residuals, _, _ = residual_fn(x, opt_params)
     return np.concatenate(residuals)
