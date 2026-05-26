@@ -14,8 +14,11 @@
 # ==============================================================================
 """Tests for the model_modifier module."""
 
+import logging
+
 import mujoco
 from mujoco.sysid._src import model_modifier
+from mujoco.sysid._src import parameter
 import numpy as np
 
 
@@ -129,3 +132,47 @@ def test_apply_param_modifiers(box_spec, box_params):
   spec2 = box_spec.copy()
   result = model_modifier.apply_param_modifiers_spec(box_params, spec2)
   assert isinstance(result, mujoco.MjSpec)
+
+
+def test_apply_param_modifiers_warns_on_none_modifier(box_spec, caplog):
+  """Non-frozen parameters whose modifier is None trigger a warning naming them.
+
+  This catches the issue #3286 footgun: a modifier-factory whose `return modifier`
+  is misindented returns None, which silently no-ops at apply time and produces
+  a zero-gradient optimization.
+  """
+  params = parameter.ParameterDict()
+  params.add(parameter.Parameter("orphan_no_modifier", 1.0, 0.0, 2.0))
+
+  with caplog.at_level(logging.WARNING, logger="absl"):
+    model_modifier.apply_param_modifiers_spec(params, box_spec.copy())
+
+  assert any(
+      "orphan_no_modifier" in r.message and "modifier=None" in r.message
+      for r in caplog.records
+  ), "Expected a warning naming the parameter with modifier=None."
+
+  # Dedup: a second apply on the same ParameterDict does not re-warn.
+  caplog.clear()
+  with caplog.at_level(logging.WARNING, logger="absl"):
+    model_modifier.apply_param_modifiers_spec(params, box_spec.copy())
+  assert not any("modifier=None" in r.message for r in caplog.records), (
+      "Warning should fire at most once per ParameterDict instance."
+  )
+
+
+def test_apply_param_modifiers_silent_for_frozen_none_modifier(
+    box_spec, caplog
+):
+  """A frozen parameter with modifier=None is legitimate and must not warn."""
+  params = parameter.ParameterDict()
+  params.add(
+      parameter.Parameter("frozen_no_modifier", 1.0, 0.0, 2.0, frozen=True)
+  )
+
+  with caplog.at_level(logging.WARNING, logger="absl"):
+    model_modifier.apply_param_modifiers_spec(params, box_spec.copy())
+
+  assert not any("modifier=None" in r.message for r in caplog.records), (
+      "Did not expect a modifier=None warning for a frozen parameter."
+  )

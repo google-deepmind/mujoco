@@ -75,6 +75,11 @@ class Parameter:
       frozen: bool = False,
       modifier: ModifierFn | None = None,
   ):
+    if modifier is not None and not callable(modifier):
+      raise TypeError(
+          f"Parameter '{name}': modifier must be callable or None, got "
+          f"{type(modifier).__name__}."
+      )
     self.name = name
     self.nominal = np.atleast_1d(nominal)
     self.min_value = np.atleast_1d(min_value)

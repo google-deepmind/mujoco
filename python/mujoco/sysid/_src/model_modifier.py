@@ -17,6 +17,7 @@
 
 from typing import Any
 
+from absl import logging
 import mujoco
 from mujoco.sysid._src.parameter import InertiaType
 from mujoco.sysid._src.parameter import ModifierFn
@@ -60,6 +61,24 @@ def _get_obj_or_raise(spec: mujoco.MjSpec, obj_type: str, obj_name: str) -> Any:
 def apply_param_modifiers_spec(
     params: ParameterDict, spec: mujoco.MjSpec
 ) -> mujoco.MjSpec:
+  # Warn (once per ParameterDict) about non-frozen parameters whose modifier
+  # is None: those values are present in the decision vector but never reach
+  # the spec, which produces a zero gradient and a 0-iteration optimize. A
+  # common cause is a modifier factory whose `return modifier` line is
+  # indented one level too deep, making the factory return None.
+  if not getattr(params, "_sysid_warned_none_modifier", False):
+    no_mod = [
+        p.name for p in params.values() if not p.frozen and p.modifier is None
+    ]
+    if no_mod:
+      logging.warning(
+          "Non-frozen sysid parameters have modifier=None and will not "
+          "affect the spec: %s. If you passed a factory like "
+          "make_X_modifier(...), verify the `return modifier` is at the "
+          "outer function's indent, not inside the inner closure.",
+          ", ".join(no_mod),
+      )
+      setattr(params, "_sysid_warned_none_modifier", True)
   for key in params.keys():
     param = params[key]
     if not param.frozen:

@@ -16,6 +16,7 @@
 
 from mujoco.sysid._src import parameter
 import numpy as np
+import pytest
 
 
 def test_scalar_parameter():
@@ -146,3 +147,22 @@ def test_frozen_param_excluded():
   np.testing.assert_array_equal(params["free"].value, [1.5])
   # Frozen param unchanged.
   np.testing.assert_array_equal(params["frozen"].value, [5.0])
+
+
+def test_modifier_must_be_callable_or_none():
+  """A non-callable, non-None modifier is rejected at construction."""
+  with pytest.raises(TypeError, match="bad_param"):
+    parameter.Parameter("bad_param", 1.0, 0.0, 2.0, modifier=42)  # type: ignore[arg-type]
+
+
+def test_modifier_callable_class_accepted():
+  """A class instance with __call__ is a valid modifier (not just plain functions)."""
+
+  class CallableMod:
+
+    def __call__(self, spec, param):
+      del spec, param
+
+  # No exception.
+  p = parameter.Parameter("p", 1.0, 0.0, 2.0, modifier=CallableMod())
+  assert callable(p.modifier)
