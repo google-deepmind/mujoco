@@ -21,6 +21,159 @@ function hideLoading() {
   loadingOverlay.style.display = 'none';
 }
 
+// ---------------------------------------------------------------------------
+// Parallel asset prefetcher.
+//
+// MuJoCo's XML compiler walks the model and synchronously opens every
+// referenced mesh / texture / include via mjpResourceProvider. In WASM that
+// becomes a chain of ASYNCIFY-suspended fetch() calls — strictly serial,
+// one RTT per asset. For Menagerie models that's ~80 round trips and ~10 s
+// of avoidable wall time on a cold cache.
+//
+// This module mirrors MuJoCo's resource-discovery rules in JavaScript
+// (xml_native_reader.cc, xml.cc): it fetches the root XML, recursively
+// follows <include>s, walks all file-bearing tags, resolves each path
+// against <compiler assetdir|meshdir|texturedir>, and feeds the bytes
+// into the WASM-side FetchCache via Module.primeFetchCache(). When
+// LoadUrl subsequently asks for any of those URLs, the resource provider
+// returns immediately from memory.
+//
+// Keep the scheme list and the file-bearing tags in sync with
+// src/experimental/studio/emscripten.cc and src/xml/xml_native_reader.cc.
+// ---------------------------------------------------------------------------
+
+// MuJoCo Live custom URL schemes that the C++ resource providers rewrite
+// before fetching. JS must do the same so primed cache keys match what
+// the provider eventually asks for.
+function resolveScheme(url) {
+  if (url.startsWith('github:')) {
+    return 'https://raw.githubusercontent.com/' + url.slice('github:'.length);
+  }
+  return url;
+}
+
+// Resolve `file` against a directory URL (one that ends with '/'). Handles
+// '..' segments and absolute URLs via the WHATWG URL parser.
+function resolveAgainst(file, baseDir) {
+  try {
+    return new URL(file, baseDir).href;
+  } catch {
+    return baseDir + file;  // fallback for unrecognised base schemes
+  }
+}
+
+const ASSET_TAGS = [
+  // tag       => attribute(s) + which compiler-dir its files resolve under.
+  { tag: 'mesh',     dir: 'mesh',    attrs: ['file'] },
+  { tag: 'hfield',   dir: 'asset',   attrs: ['file'] },
+  { tag: 'skin',     dir: 'asset',   attrs: ['file'] },
+  { tag: 'texture',  dir: 'texture', attrs: ['file', 'fileright', 'fileleft',
+                                              'fileup', 'filedown',
+                                              'filefront', 'fileback'] },
+  // <flexcomp file=...> and inline <model file=...> resolve against the
+  // *model* file directory, not assetdir.
+  { tag: 'flexcomp', dir: null,      attrs: ['file'] },
+  { tag: 'model',    dir: null,      attrs: ['file'] },
+];
+
+async function prefetchModelAssets(rootUrl, onProgress) {
+  const visited = new Set();   // dedupe by resolved http(s) URL
+  const stats = { files: 0, bytes: 0, errors: 0 };
+
+  // Fetch a single URL and prime it into the WASM-side cache.
+  // Returns the decoded text iff `decodeText` is true (used for XMLs);
+  // otherwise returns null. Idempotent on the visited set.
+  async function fetchAndPrime(httpUrl, decodeText) {
+    if (visited.has(httpUrl)) return null;
+    visited.add(httpUrl);
+    try {
+      const response = await fetch(httpUrl);
+      if (!response.ok) {
+        console.warn('[prefetch] HTTP', response.status, httpUrl);
+        stats.errors++;
+        return null;
+      }
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      Module.primeFetchCache(httpUrl, bytes);
+      stats.files++;
+      stats.bytes += bytes.length;
+      onProgress?.(stats);
+      return decodeText ? new TextDecoder().decode(bytes) : null;
+    } catch (err) {
+      console.warn('[prefetch] error', httpUrl, err);
+      stats.errors++;
+      return null;
+    }
+  }
+
+  // Resolve the effective {asset,mesh,texture} directory URLs for one
+  // XML document, given the dirs inherited from its parent (if any).
+  // Empty <compiler> attributes inherit from the parent; missing ones
+  // fall back to the corresponding assetdir (matching xml_native_reader.cc).
+  function compilerDirs(doc, baseDir, inherited) {
+    const compiler = doc.getElementsByTagName('compiler')[0];
+    const attr = (name) => {
+      const v = compiler?.getAttribute(name);
+      return v == null ? null : (v.endsWith('/') ? v : v + '/');
+    };
+    const asset = attr('assetdir');
+    const mesh = attr('meshdir');
+    const tex = attr('texturedir');
+    const assetDir = asset !== null ? resolveAgainst(asset, baseDir)
+                                    : inherited.asset ?? baseDir;
+    return {
+      asset: assetDir,
+      mesh:    mesh !== null ? resolveAgainst(mesh, baseDir)
+                             : inherited.mesh    ?? assetDir,
+      texture: tex  !== null ? resolveAgainst(tex,  baseDir)
+                             : inherited.texture ?? assetDir,
+    };
+  }
+
+  // Walk an already-fetched XML: schedule every referenced asset fetch in
+  // parallel, then recurse into <include>s. The included XML inherits the
+  // current dirs.
+  async function walk(httpUrl, xmlText, inheritedDirs) {
+    const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+    if (doc.documentElement.tagName === 'parsererror') {
+      console.warn('[prefetch] XML parse failed:', httpUrl);
+      return;
+    }
+    const baseDir = httpUrl.slice(0, httpUrl.lastIndexOf('/') + 1);
+    const dirs = compilerDirs(doc, baseDir, inheritedDirs);
+
+    const pending = [];
+    for (const { tag, dir, attrs } of ASSET_TAGS) {
+      const base = dir ? dirs[dir] : baseDir;
+      for (const el of doc.getElementsByTagName(tag)) {
+        for (const a of attrs) {
+          const file = el.getAttribute(a);
+          if (file) pending.push(fetchAndPrime(resolveAgainst(file, base), false));
+        }
+      }
+    }
+    for (const el of doc.getElementsByTagName('include')) {
+      const file = el.getAttribute('file');
+      if (!file) continue;
+      const child = resolveAgainst(file, baseDir);
+      // Fetch + walk in parallel with the binary fetches above.
+      pending.push((async () => {
+        const text = await fetchAndPrime(child, true);
+        if (text) await walk(child, text, dirs);
+      })());
+    }
+    await Promise.all(pending);
+  }
+
+  const rootHttp = resolveScheme(rootUrl);
+  const rootXml = await fetchAndPrime(rootHttp, true);
+  if (rootXml) {
+    await walk(rootHttp, rootXml,
+               { asset: null, mesh: null, texture: null });
+  }
+  return stats;
+}
+
 var Module = {
   preRun: [],
   postRun: [],
@@ -111,13 +264,26 @@ var Module = {
             // loop until the load completes, otherwise renderFrame will
             // hit "Cannot have multiple async operations in flight".
             showLoading();
+            // Update the loading screen's "Downloading asset file" line with
+            // live progress from the JS prefetcher.
+            const dlEl = document.getElementById('loadingDownload');
+            const dlFileEl = document.getElementById('loadingDownloadFile');
+            if (dlEl) dlEl.style.display = 'block';
+            const onProgress = (s) => {
+              if (dlFileEl) {
+                dlFileEl.textContent =
+                  `${s.files} files · ${(s.bytes/1024/1024).toFixed(1)} MB`;
+              }
+            };
             requestAnimationFrame(() => {
               requestAnimationFrame(async () => {
                 try {
+                  await prefetchModelAssets(modelUrl, onProgress);
                   await Module.loadUrl(modelUrl);
                 } catch (error) {
                   console.error('Failed to load model from URL:', error);
                 } finally {
+                  if (dlEl) dlEl.style.display = 'none';
                   hideLoading();
                   requestAnimationFrame(Module.animate);
                 }
