@@ -297,7 +297,7 @@ static mjtNum dcmotorVoltage(mjtNum ctrl, mjtNum length, mjtNum velocity,
 
 
 // clamp vector to range
-static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, int n,
+static void clampVec(mjtNum* vec, const mjtNum* range, const mjtBool* limited, int n,
                       const int* index) {
   for (int i=0; i < n; i++) {
     int j = index ? index[i] : i;

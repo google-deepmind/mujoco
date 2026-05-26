@@ -766,6 +766,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
                                   float:   float_format,                    \
                                   int:     INT_FORMAT,                      \
                                   mjtByte: INT_FORMAT,                      \
+                                  mjtBool: INT_FORMAT,                      \
                                   mjtSize: SIZE_FORMAT,                     \
                                   default: NULL);                           \
     if (format) {                                                           \
@@ -1270,6 +1271,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
         int : INT_FORMAT,                                                     \
         mjtSize : SIZE_FORMAT,                                                \
         mjtByte : INT_FORMAT,                                                 \
+        mjtBool : INT_FORMAT,                                                 \
         default : NULL);                                                      \
     if (format) {                                                             \
       fprintf(fp, "  ");                                                      \

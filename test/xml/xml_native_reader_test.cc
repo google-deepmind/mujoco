@@ -2481,7 +2481,7 @@ TEST_F(ActuatorTest, ReadsByte) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull());
-  EXPECT_EQ(*(model->actuator_actlimited), (mjtByte)(1 & 0xFF));
+  EXPECT_EQ(*(model->actuator_actlimited), true);
   mj_deleteModel(model);
 }
 

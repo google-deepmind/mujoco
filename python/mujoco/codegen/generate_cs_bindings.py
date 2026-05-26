@@ -136,6 +136,7 @@ C_TO_CS_TYPE = {
     'void': 'void',
     'mjtNum': 'double',
     'mjtByte': 'byte',
+    'mjtBool': 'byte',
     'mjtSize': 'UInt64' if ctypes.sizeof(ctypes.c_size_t) == 8 else 'UInt32',
 }
 

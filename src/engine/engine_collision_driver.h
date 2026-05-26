@@ -39,7 +39,7 @@ MJAPI void mj_collision(const mjModel* m, mjData* d);
 MJAPI int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
                         const mjtNum xpos1[3], const mjtNum xmat1[9],
                         const mjtNum xpos2[3], const mjtNum xmat2[9], mjtNum margin,
-                        mjtNum product[36], mjtNum offset[12], mjtByte* initialize);
+                        mjtNum product[36], mjtNum offset[12], mjtBool* initialize);
 
 // is element active (for collisions)
 MJAPI int mj_isElemActive(const mjModel* m, int f, int e);

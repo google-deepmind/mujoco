@@ -220,7 +220,7 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, int sig) {
     if (element & sig) {
       int size = mj_stateElemSize(m, element);
 
-      // special handling of eq_active (mjtByte)
+      // special handling of eq_active (mjtBool)
       if (element == mjSTATE_EQ_ACTIVE) {
         int neq = m->neq;
         for (int j=0; j < neq; j++) {
@@ -288,7 +288,7 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig) {
     if (element & sig) {
       int size = mj_stateElemSize(m, element);
 
-      // special handling of eq_active (mjtByte)
+      // special handling of eq_active (mjtBool)
       if (element == mjSTATE_EQ_ACTIVE) {
         int neq = m->neq;
         for (int j=0; j < neq; j++) {
@@ -324,7 +324,7 @@ void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig) {
     if (element & sig) {
       int size = mj_stateElemSize(m, element);
 
-      // special handling of eq_active (mjtByte)
+      // special handling of eq_active (mjtBool)
       if (element == mjSTATE_EQ_ACTIVE) {
         int neq = m->neq;
         for (int j=0; j < neq; j++) {

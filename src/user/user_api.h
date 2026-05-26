@@ -377,7 +377,7 @@ MJAPI void mjs_setString(mjString* dest, const char* text);
 MJAPI void mjs_setStringVec(mjStringVec* dest, const char* text);
 
 // Set entry in string vector.
-MJAPI mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
+MJAPI mjtBool mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
 
 // Append text entry to string vector.
 MJAPI void mjs_appendString(mjStringVec* dest, const char* text);

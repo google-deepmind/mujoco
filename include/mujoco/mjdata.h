@@ -146,10 +146,10 @@ struct mjData_ {
   int     nv_awake;          // number of awake dofs
 
   // flags marking lazily evaluated stages
-  mjtByte flg_energypos;     // has mj_energyPos been called
-  mjtByte flg_energyvel;     // has mj_energyVel been called
-  mjtByte flg_subtreevel;    // has mj_subtreeVel been called
-  mjtByte flg_rnepost;       // has mj_rnePostConstraint been called
+  mjtBool flg_energypos;     // has mj_energyPos been called
+  mjtBool flg_energyvel;     // has mj_energyVel been called
+  mjtBool flg_subtreevel;    // has mj_subtreeVel been called
+  mjtBool flg_rnepost;       // has mj_rnePostConstraint been called
 
   // global properties
   mjtNum  time;              // simulation time
@@ -175,7 +175,7 @@ struct mjData_ {
   mjtNum* ctrl;              // control                                          (nu x 1)
   mjtNum* qfrc_applied;      // applied generalized force                        (nv x 1)
   mjtNum* xfrc_applied;      // applied Cartesian force/torque                   (nbody x 6)
-  mjtByte* eq_active;        // enable/disable constraints                       (neq x 1)
+  mjtBool* eq_active;        // enable/disable constraints                       (neq x 1)
 
   // mocap data
   mjtNum* mocap_pos;         // positions of mocap bodies                        (nmocap x 3)
@@ -256,7 +256,7 @@ struct mjData_ {
   mjtNum* qLDiagInv;         // 1/diag(D)                                        (nv x 1)
 
   // computed by mj_collision/mj_collideTree
-  mjtByte* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
+  mjtBool* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
 
   // computed by mj_updateSleep
   int*    tree_awake;        // is tree awake; 0: asleep; 1: awake               (ntree x 1)

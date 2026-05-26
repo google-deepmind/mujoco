@@ -21,6 +21,8 @@ General
   :ref:`mj_compile`, per-category timings (total, assets, mesh loading, convex hull, normals, inertia, BVH, octree,
   textures) are available via ``mjs_getTimer(spec)``. The :ref:`compile<saCompile>` sample prints a detailed timing
   breakdown when run without an output file.
+- Added :ref:`mjtBool` to represent boolean variables, replacing :ref:`mjtByte` across all boolean fields in
+  :ref:`mjModel`, :ref:`mjData`, and public C API function signatures.
 
 .. admonition:: Breaking API changes
    :class: attention

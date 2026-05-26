@@ -6575,28 +6575,28 @@ struct MjData {
   void set_nv_awake(int value) {
     ptr_->nv_awake = value;
   }
-  mjtByte flg_energypos() const {
+  mjtBool flg_energypos() const {
     return ptr_->flg_energypos;
   }
-  void set_flg_energypos(mjtByte value) {
+  void set_flg_energypos(mjtBool value) {
     ptr_->flg_energypos = value;
   }
-  mjtByte flg_energyvel() const {
+  mjtBool flg_energyvel() const {
     return ptr_->flg_energyvel;
   }
-  void set_flg_energyvel(mjtByte value) {
+  void set_flg_energyvel(mjtBool value) {
     ptr_->flg_energyvel = value;
   }
-  mjtByte flg_subtreevel() const {
+  mjtBool flg_subtreevel() const {
     return ptr_->flg_subtreevel;
   }
-  void set_flg_subtreevel(mjtByte value) {
+  void set_flg_subtreevel(mjtBool value) {
     ptr_->flg_subtreevel = value;
   }
-  mjtByte flg_rnepost() const {
+  mjtBool flg_rnepost() const {
     return ptr_->flg_rnepost;
   }
-  void set_flg_rnepost(mjtByte value) {
+  void set_flg_rnepost(mjtBool value) {
     ptr_->flg_rnepost = value;
   }
   mjtNum time() const {
@@ -8977,7 +8977,7 @@ void mj_mulM2_wrapper(const MjModel& m, const MjData& d, const val& res, const N
   mj_mulM2(m.get(), d.get(), res_.data(), vec_.data());
 }
 
-void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& dist, const val& normal, int nray, mjtNum cutoff) {
+void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtBool flg_static, int bodyexclude, const val& geomid, const val& dist, const val& normal, int nray, mjtNum cutoff) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
@@ -9052,7 +9052,7 @@ void mj_projectConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_projectConstraint(m.get(), d.get());
 }
 
-mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& normal) {
+mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtBool flg_static, int bodyexclude, const val& geomid, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
@@ -9061,7 +9061,7 @@ mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt,
   return mj_ray(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), normal_.data());
 }
 
-mjtNum mj_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid, const NumberArray& pnt, const NumberArray& vec, const val& vertid, const val& normal) {
+mjtNum mj_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face, mjtBool flg_skin, int flexid, const NumberArray& pnt, const NumberArray& vec, const val& vertid, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_VALUE(int, vertid);
@@ -9199,7 +9199,7 @@ std::string mj_versionString_wrapper() {
   return std::string(mj_versionString());
 }
 
-void mjd_inverseFD_wrapper(const MjModel& m, MjData& d, mjtNum eps, mjtByte flg_actuation, const val& DfDq, const val& DfDv, const val& DfDa, const val& DsDq, const val& DsDv, const val& DsDa, const val& DmDq) {
+void mjd_inverseFD_wrapper(const MjModel& m, MjData& d, mjtNum eps, mjtBool flg_actuation, const val& DfDq, const val& DfDv, const val& DfDa, const val& DsDq, const val& DsDv, const val& DsDa, const val& DmDq) {
   UNPACK_NULLABLE_VALUE(mjtNum, DfDq);
   UNPACK_NULLABLE_VALUE(mjtNum, DfDv);
   UNPACK_NULLABLE_VALUE(mjtNum, DfDa);
@@ -9237,7 +9237,7 @@ void mjd_subQuat_wrapper(const NumberArray& qa, const NumberArray& qb, const val
   mjd_subQuat(qa_.data(), qb_.data(), Da_.data(), Db_.data());
 }
 
-void mjd_transitionFD_wrapper(const MjModel& m, MjData& d, mjtNum eps, mjtByte flg_centered, const val& A, const val& B, const val& C, const val& D) {
+void mjd_transitionFD_wrapper(const MjModel& m, MjData& d, mjtNum eps, mjtBool flg_centered, const val& A, const val& B, const val& C, const val& D) {
   UNPACK_NULLABLE_VALUE(mjtNum, A);
   UNPACK_NULLABLE_VALUE(mjtNum, B);
   UNPACK_NULLABLE_VALUE(mjtNum, C);
@@ -10161,7 +10161,7 @@ void mju_axisAngle2Quat_wrapper(const val& res, const NumberArray& axis, mjtNum 
   mju_axisAngle2Quat(res_.data(), axis_.data(), angle);
 }
 
-void mju_band2Dense_wrapper(const val& res, const NumberArray& mat, int ntotal, int nband, int ndense, mjtByte flg_sym) {
+void mju_band2Dense_wrapper(const val& res, const NumberArray& mat, int ntotal, int nband, int ndense, mjtBool flg_sym) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, mat);
   CHECK_SIZE(mat, (ntotal - ndense) * nband + ndense * ntotal);
@@ -10169,7 +10169,7 @@ void mju_band2Dense_wrapper(const val& res, const NumberArray& mat, int ntotal, 
   mju_band2Dense(res_.data(), mat_.data(), ntotal, nband, ndense, flg_sym);
 }
 
-void mju_bandMulMatVec_wrapper(const val& res, const NumberArray& mat, const NumberArray& vec, int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym) {
+void mju_bandMulMatVec_wrapper(const val& res, const NumberArray& mat, const NumberArray& vec, int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, mat);
   UNPACK_ARRAY(mjtNum, vec);

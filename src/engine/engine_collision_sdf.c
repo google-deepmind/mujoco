@@ -772,7 +772,7 @@ static int selectFPS(const mjtNum* candidate, const mjtNum* dist, int ncandidate
                      int* selected_indices, int max_select) {
   if (ncandidate <= 0) return 0;
 
-  mjtByte selected[mjMAXCONPAIR] = {0};
+  mjtBool selected[mjMAXCONPAIR] = {false};
   mjtNum min_dist2[mjMAXCONPAIR];
   for (int i = 0; i < ncandidate; i++) {
     min_dist2[i] = mjMAXVAL;
@@ -791,7 +791,7 @@ static int selectFPS(const mjtNum* candidate, const mjtNum* dist, int ncandidate
   // iteratively select contacts using FPS
   int nselected = 0;
   while (nselected < max_select && nselected < mjMAXCONPAIR && best >= 0) {
-    selected[best] = 1;
+    selected[best] = true;
     selected_indices[nselected] = best;
     nselected++;
 
@@ -882,7 +882,7 @@ typedef struct {
 } MeshSDFContext;
 
 // process a single mesh face inline during BVH traversal
-static void processOneFace(int faceid, mjtByte* bvh_active, int node,
+static void processOneFace(int faceid, mjtBool* bvh_active, int node,
                            MeshSDFContext* ctx) {
   mjtNum corners[9];
   const mjModel* m = ctx->m;
@@ -903,7 +903,7 @@ static void processOneFace(int faceid, mjtByte* bvh_active, int node,
   processSdfCorners(corners, m, ctx->d, ctx->sdf, ctx->nstartpts,
                     ctx->candidate, ctx->dist, ctx->ncandidate);
 
-  if (bvh_active && *(ctx->ncandidate) > 0) bvh_active[node] = 1;
+  if (bvh_active && *(ctx->ncandidate) > 0) bvh_active[node] = true;
 }
 
 // Callback type for leaf node processing during BVH traversal
@@ -920,7 +920,7 @@ typedef int (*BVHLeafCallback)(int leaf_id, int node, void* ctx);
 // callback: function called for each leaf node
 // ctx: user context passed to callback
 static void traverseBVH(const mjtNum* bvh, const int* nodeid, const int* child,
-                        mjtByte* bvh_active, const mjtNum* offset, const mjtNum* rotation,
+                        mjtBool* bvh_active, const mjtNum* offset, const mjtNum* rotation,
                         const mjModel* m, const mjData* d, const mjSDF* sdf,
                         BVHLeafCallback callback, void* ctx) {
   int stack[64];
@@ -934,7 +934,7 @@ static void traverseBVH(const mjtNum* bvh, const int* nodeid, const int* child,
     if (nodeid[node] != -1) {
       if (boxIntersect(bvh + 6*node, offset, rotation, m, sdf, d)) {
         int active = callback(nodeid[node], node, ctx);
-        if (bvh_active && active) bvh_active[node] = 1;
+        if (bvh_active && active) bvh_active[node] = true;
       }
       continue;
     }
@@ -944,7 +944,7 @@ static void traverseBVH(const mjtNum* bvh, const int* nodeid, const int* child,
       continue;
     }
 
-    if (bvh_active) bvh_active[node] = 1;
+    if (bvh_active) bvh_active[node] = true;
 
     // push children
     for (int i = 0; i < 2; i++) {
@@ -1026,7 +1026,7 @@ int mjc_MeshSDF(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, 
     const int* nodeid = m->bvh_nodeid + bvhadr;
     const mjtNum* bvh = m->bvh_aabb + 6*bvhadr;
     const int* child = m->bvh_child + 2*bvhadr;
-    mjtByte* bvh_active = m->vis.global.bvactive ? d->bvh_active + bvhadr : NULL;
+    mjtBool* bvh_active = m->vis.global.bvactive ? d->bvh_active + bvhadr : NULL;
 
     traverseBVH(bvh, nodeid, child, bvh_active, ctx.offset, ctx.rotation,
                 m, d, ctx.sdf, meshFaceCallback, &ctx);
@@ -1354,7 +1354,7 @@ int mjc_FlexSDF(const mjModel* m, const mjData* d, mjContact* con,
   const int nbvhstatic = m->nbvhstatic;
   const mjtNum* bvh = d->bvh_aabb_dyn + 6*(bvhadr - nbvhstatic);
   const int* child = m->bvh_child + 2*bvhadr;
-  mjtByte* bvh_active = m->vis.global.bvactive ? d->bvh_active + bvhadr : NULL;
+  mjtBool* bvh_active = m->vis.global.bvactive ? d->bvh_active + bvhadr : NULL;
 
   // set up context for flex element processing
   FlexSDFContext fctx;

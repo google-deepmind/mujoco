@@ -103,6 +103,14 @@ void ImGui_DataPtrTable::DataPtr(const char* label, const mjtByte* ptr,
   }
 }
 
+void ImGui_DataPtrTable::DataPtr(const char* label, const mjtBool* ptr,
+                                 int index, int n) {
+  for (int i = 0; i < n; ++i) {
+    MakeLabel(label, i, n);
+    ImGui::Text("%s", ptr[index + i] ? "true" : "false");
+  }
+}
+
 void ImGui_DataPtrTable::DataPtr(const char* label, const mjtSize* ptr,
                                  int index, int n) {
   Numeric(label, ptr, index, n);

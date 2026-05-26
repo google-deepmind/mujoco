@@ -843,10 +843,10 @@ typedef struct  {
 int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
                   const mjtNum xpos1[3], const mjtNum xmat1[9],
                   const mjtNum xpos2[3], const mjtNum xmat2[9], mjtNum margin,
-                  mjtNum product[36], mjtNum offset[12], mjtByte* initialize) {
+                  mjtNum product[36], mjtNum offset[12], mjtBool* initialize) {
   // get infinite dimensions (planes only)
-  mjtByte inf1[3] = {aabb1[3] >= mjMAXVAL, aabb1[4] >= mjMAXVAL, aabb1[5] >= mjMAXVAL};
-  mjtByte inf2[3] = {aabb2[3] >= mjMAXVAL, aabb2[4] >= mjMAXVAL, aabb2[5] >= mjMAXVAL};
+  mjtBool inf1[3] = {aabb1[3] >= mjMAXVAL, aabb1[4] >= mjMAXVAL, aabb1[5] >= mjMAXVAL};
+  mjtBool inf2[3] = {aabb2[3] >= mjMAXVAL, aabb2[4] >= mjMAXVAL, aabb2[5] >= mjMAXVAL};
 
   // if a bounding box is infinite, there must be a collision
   if ((inf1[0] && inf1[1] && inf1[2]) || (inf2[0] && inf2[1] && inf2[2])) {
@@ -858,7 +858,7 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
   const mjtNum *xpos[2] = {xpos1, xpos2};
   mjtNum xcenter[2][3], normal[2][3][3];
   mjtNum proj[2], radius[2];
-  mjtByte infinite[2] = {inf1[0] || inf1[1] || inf1[2], inf2[0] || inf2[1] || inf2[2]};
+  mjtBool infinite[2] = {inf1[0] || inf1[1] || inf1[2], inf2[0] || inf2[1] || inf2[2]};
 
   // compute centers in local coordinates
   if (product == NULL) {
@@ -940,8 +940,8 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
                     int merged, int startadr, int pairadr) {
   int nbody = m->nbody, nbvhstatic = m->nbvhstatic;
-  mjtByte isbody1 = (bf1 < nbody);
-  mjtByte isbody2 = (bf2 < nbody);
+  mjtBool isbody1 = (bf1 < nbody);
+  mjtBool isbody2 = (bf2 < nbody);
   int f1 = isbody1 ? -1 : bf1 - nbody;
   int f2 = isbody2 ? -1 : bf2 - nbody;
   int mark_active = m->vis.global.bvactive;
@@ -957,7 +957,7 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
   // used with rotated bounding boxes (when bodies are involved)
   mjtNum product[36];  // 2 bb x 2 bb x 3 axes (body) x 3 axes (world)
   mjtNum offset[12];   // 2 bb x 2 bb x 3 axes (world)
-  mjtByte initialize = 1;
+  mjtBool initialize = true;
 
   // bitmask filter for bodyflex pair
   if (!canCollide2(m, bf1, bf2)) {
@@ -997,8 +997,8 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
     nstack--;
     int node1 = stack[nstack].node1;
     int node2 = stack[nstack].node2;
-    mjtByte isleaf1 = (child1[2*node1] < 0) && (child1[2*node1+1] < 0);
-    mjtByte isleaf2 = (child2[2*node2] < 0) && (child2[2*node2+1] < 0);
+    mjtBool isleaf1 = (child1[2*node1] < 0) && (child1[2*node1+1] < 0);
+    mjtBool isleaf2 = (child2[2*node2] < 0) && (child2[2*node2+1] < 0);
     int nodeid1 = m->bvh_nodeid[bvhadr1 + node1];
     int nodeid2 = m->bvh_nodeid[bvhadr2 + node2];
 
@@ -1035,8 +1035,8 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
               mj_narrowphase(m, d, pair, 1, 0);
             }
             if (mark_active) {
-              d->bvh_active[node1 + bvhadr1] = 1;
-              d->bvh_active[node2 + bvhadr2] = 1;
+              d->bvh_active[node1 + bvhadr1] = true;
+              d->bvh_active[node2 + bvhadr2] = true;
             }
           }
         }
@@ -1074,8 +1074,8 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
               mj_collideGeomElem(m, d, nodeid1, f2, nodeid2);
             }
             if (mark_active) {
-              d->bvh_active[node1 + bvhadr1] = 1;
-              d->bvh_active[node2 + bvhadr2] = 1;
+              d->bvh_active[node1 + bvhadr1] = true;
+              d->bvh_active[node2 + bvhadr2] = true;
             }
           }
         }
@@ -1104,8 +1104,8 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
       if (isleaf1 && isleaf2) {
         mj_collideElems(m, d, f1, nodeid1, f2, nodeid2);
         if (mark_active) {
-          d->bvh_active[node1 + bvhadr1] = 1;
-          d->bvh_active[node2 + bvhadr2] = 1;
+          d->bvh_active[node1 + bvhadr1] = true;
+          d->bvh_active[node2 + bvhadr2] = true;
         }
         continue;
       }
@@ -1118,8 +1118,8 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
     }
 
     if (mark_active) {
-      d->bvh_active[node1 + bvhadr1] = 1;
-      d->bvh_active[node2 + bvhadr2] = 1;
+      d->bvh_active[node1 + bvhadr1] = true;
+      d->bvh_active[node2 + bvhadr2] = true;
     }
 
     // keep traversing the tree

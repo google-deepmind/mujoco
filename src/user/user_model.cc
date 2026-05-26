@@ -2800,8 +2800,8 @@ void mjCModel::CopyTree(mjModel* m) {
       // set joint fields
       m->jnt_type[jid] = pj->type;
       m->jnt_group[jid] = pj->group;
-      m->jnt_limited[jid] = (mjtByte)pj->is_limited();
-      m->jnt_actfrclimited[jid] = (mjtByte)pj->is_actfrclimited();
+      m->jnt_limited[jid] = (mjtBool)pj->is_limited();
+      m->jnt_actfrclimited[jid] = (mjtBool)pj->is_actfrclimited();
       m->jnt_actgravcomp[jid] = pj->actgravcomp;
       m->jnt_qposadr[jid] = pj->qposadr_;
       m->jnt_dofadr[jid] = pj->dofadr_;
@@ -3016,8 +3016,8 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_targetbodyid[lid] = pl->targetbodyid;
       m->light_type[lid] = pl->type;
       m->light_texid[lid] = pl->texid;
-      m->light_castshadow[lid] = (mjtByte)pl->castshadow;
-      m->light_active[lid] = (mjtByte)pl->active;
+      m->light_castshadow[lid] = (mjtBool)pl->castshadow;
+      m->light_active[lid] = (mjtBool)pl->active;
       mjuu_copyvec(m->light_pos+3*lid, pl->pos, 3);
       mjuu_copyvec(m->light_dir+3*lid, pl->dir, 3);
       m->light_bulbradius[lid] = pl->bulbradius;
@@ -3822,8 +3822,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_num[i] = (int)pte->path.size();
     m->tendon_matid[i] = pte->matid;
     m->tendon_group[i] = pte->group;
-    m->tendon_limited[i] = (mjtByte)pte->is_limited();
-    m->tendon_actfrclimited[i] = (mjtByte)pte->is_actfrclimited();
+    m->tendon_limited[i] = (mjtBool)pte->is_limited();
+    m->tendon_actfrclimited[i] = (mjtBool)pte->is_actfrclimited();
     m->tendon_width[i] = (mjtNum)pte->width;
     mjuu_copyvec(m->tendon_solref_lim+mjNREF*i, pte->solref_limit, mjNREF);
     mjuu_copyvec(m->tendon_solimp_lim+mjNIMP*i, pte->solimp_limit, mjNIMP);
@@ -3891,9 +3891,9 @@ void mjCModel::CopyObjects(mjModel* m) {
       m->actuator_historyadr[i] = -1;
     }
 
-    m->actuator_ctrllimited[i] = (mjtByte)pac->is_ctrllimited();
-    m->actuator_forcelimited[i] = (mjtByte)pac->is_forcelimited();
-    m->actuator_actlimited[i] = (mjtByte)pac->is_actlimited();
+    m->actuator_ctrllimited[i] = (mjtBool)pac->is_ctrllimited();
+    m->actuator_forcelimited[i] = (mjtBool)pac->is_forcelimited();
+    m->actuator_actlimited[i] = (mjtBool)pac->is_actlimited();
     m->actuator_actearly[i] = pac->actearly;
     m->actuator_cranklength[i] = (mjtNum)pac->cranklength;
     mjuu_copyvec(m->actuator_gear + 6*i, pac->gear, 6);

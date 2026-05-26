@@ -123,10 +123,10 @@ struct mjData_ {
   int     nv_awake;          // number of awake dofs
 
   // flags marking lazily evaluated stages
-  mjtByte flg_energypos;     // has mj_energyPos been called
-  mjtByte flg_energyvel;     // has mj_energyVel been called
-  mjtByte flg_subtreevel;    // has mj_subtreeVel been called
-  mjtByte flg_rnepost;       // has mj_rnePostConstraint been called
+  mjtBool flg_energypos;     // has mj_energyPos been called
+  mjtBool flg_energyvel;     // has mj_energyVel been called
+  mjtBool flg_subtreevel;    // has mj_subtreeVel been called
+  mjtBool flg_rnepost;       // has mj_rnePostConstraint been called
 
   // global properties
   mjtNum  time;              // simulation time
@@ -152,7 +152,7 @@ struct mjData_ {
   mjtNum* ctrl;              // control                                          (nu x 1)
   mjtNum* qfrc_applied;      // applied generalized force                        (nv x 1)
   mjtNum* xfrc_applied;      // applied Cartesian force/torque                   (nbody x 6)
-  mjtByte* eq_active;        // enable/disable constraints                       (neq x 1)
+  mjtBool* eq_active;        // enable/disable constraints                       (neq x 1)
 
   // mocap data
   mjtNum* mocap_pos;         // positions of mocap bodies                        (nmocap x 3)
@@ -233,7 +233,7 @@ struct mjData_ {
   mjtNum* qLDiagInv;         // 1/diag(D)                                        (nv x 1)
 
   // computed by mj_collision/mj_collideTree
-  mjtByte* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
+  mjtBool* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
 
   // computed by mj_updateSleep
   int*    tree_awake;        // is tree awake; 0: asleep; 1: awake               (ntree x 1)
@@ -741,9 +741,9 @@ struct mjModel_ {
   int*      jnt_bodyid;           // id of joint's body                       (njnt x 1)
   int*      jnt_actuatorid;       // actuator contributing damping / armature (njnt x 1)
   int*      jnt_group;            // group for visibility                     (njnt x 1)
-  mjtByte*  jnt_limited;          // does joint have limits                   (njnt x 1)
-  mjtByte*  jnt_actfrclimited;    // does joint have actuator force limits    (njnt x 1)
-  mjtByte*  jnt_actgravcomp;      // is gravcomp force applied via actuators  (njnt x 1)
+  mjtBool*  jnt_limited;          // does joint have limits                   (njnt x 1)
+  mjtBool*  jnt_actfrclimited;    // does joint have actuator force limits    (njnt x 1)
+  mjtBool*  jnt_actgravcomp;      // is gravcomp force applied via actuators  (njnt x 1)
   mjtNum*   jnt_solref;           // constraint solver reference: limit       (njnt x mjNREF)
   mjtNum*   jnt_solimp;           // constraint solver impedance: limit       (njnt x mjNIMP)
   mjtNum*   jnt_pos;              // local anchor position                    (njnt x 3)
@@ -842,11 +842,11 @@ struct mjModel_ {
   int*      light_targetbodyid;   // id of targeted body; -1: none            (nlight x 1)
   int*      light_type;           // spot, directional, etc. (mjtLightType)   (nlight x 1)
   int*      light_texid;          // texture id for image lights              (nlight x 1)
-  mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
+  mjtBool*  light_castshadow;     // does light cast shadows                  (nlight x 1)
   float*    light_bulbradius;     // light radius for soft shadows            (nlight x 1)
   float*    light_intensity;      // intensity, in candela                    (nlight x 1)
   float*    light_range;          // range of effectiveness                   (nlight x 1)
-  mjtByte*  light_active;         // is light on                              (nlight x 1)
+  mjtBool*  light_active;         // is light on                              (nlight x 1)
   mjtNum*   light_pos;            // position rel. to body frame              (nlight x 3)
   mjtNum*   light_dir;            // direction rel. to body frame             (nlight x 3)
   mjtNum*   light_poscom0;        // global position rel. to sub-com in qpos0 (nlight x 3)
@@ -870,7 +870,7 @@ struct mjModel_ {
   mjtNum*   flex_friction;        // friction for (slide, spin, roll)         (nflex x 3)
   mjtNum*   flex_margin;          // geometric inflation for contact          (nflex x 1)
   mjtNum*   flex_gap;             // additional contact detection buffer      (nflex x 1)
-  mjtByte*  flex_internal;        // internal flex collision enabled          (nflex x 1)
+  mjtBool*  flex_internal;        // internal flex collision enabled          (nflex x 1)
   int*      flex_selfcollide;     // self collision mode (mjtFlexSelf)        (nflex x 1)
   int*      flex_activelayers;    // number of active element layers, 3D only (nflex x 1)
   int*      flex_passive;         // passive collisions enabled               (nflex x 1)
@@ -926,10 +926,10 @@ struct mjModel_ {
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
   int*      flex_edgeequality;    // 0:none, 1:edges, 2:vertices, 3:strain    (nflex x 1)
-  mjtByte*  flex_rigid;           // are all vertices in the same body        (nflex x 1)
-  mjtByte*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
-  mjtByte*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
-  mjtByte*  flex_flatskin;        // render flex skin with flat shading       (nflex x 1)
+  mjtBool*  flex_rigid;           // are all vertices in the same body        (nflex x 1)
+  mjtBool*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
+  mjtBool*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
+  mjtBool*  flex_flatskin;        // render flex skin with flat shading       (nflex x 1)
   int*      flex_bvhadr;          // address of bvh root; -1: no bvh          (nflex x 1)
   int*      flex_bvhnum;          // number of bounding volumes               (nflex x 1)
   int*      flexedge_J_rownnz;    // number of non-zeros in Jacobian row      (nflexedge x 1)
@@ -1020,7 +1020,7 @@ struct mjModel_ {
 
   // materials
   int*      mat_texid;            // indices of textures; -1: none            (nmat x mjNTEXROLE)
-  mjtByte*  mat_texuniform;       // make texture cube uniform                (nmat x 1)
+  mjtBool*  mat_texuniform;       // make texture cube uniform                (nmat x 1)
   float*    mat_texrepeat;        // texture repetition for 2d mapping        (nmat x 2)
   float*    mat_emission;         // emission (x rgb)                         (nmat x 1)
   float*    mat_specular;         // specular (x white)                       (nmat x 1)
@@ -1050,7 +1050,7 @@ struct mjModel_ {
   int*      eq_obj1id;            // id of object 1                           (neq x 1)
   int*      eq_obj2id;            // id of object 2                           (neq x 1)
   int*      eq_objtype;           // type of both objects (mjtObj)            (neq x 1)
-  mjtByte*  eq_active0;           // initial enable/disable constraint state  (neq x 1)
+  mjtBool*  eq_active0;           // initial enable/disable constraint state  (neq x 1)
   mjtNum*   eq_solref;            // constraint solver reference              (neq x mjNREF)
   mjtNum*   eq_solimp;            // constraint solver impedance              (neq x mjNIMP)
   mjtNum*   eq_data;              // numeric data for constraint              (neq x mjNEQDATA)
@@ -1066,8 +1066,8 @@ struct mjModel_ {
   int*      ten_J_rownnz;         // number of non-zeros in Jacobian row      (ntendon x 1)
   int*      ten_J_rowadr;         // row start address in colind array        (ntendon x 1)
   int*      ten_J_colind;         // column indices in sparse Jacobian        (nJten x 1)
-  mjtByte*  tendon_limited;       // does tendon have length limits           (ntendon x 1)
-  mjtByte*  tendon_actfrclimited; // does tendon have actuator force limits   (ntendon x 1)
+  mjtBool*  tendon_limited;       // does tendon have length limits           (ntendon x 1)
+  mjtBool*  tendon_actfrclimited; // does tendon have actuator force limits   (ntendon x 1)
   mjtNum*   tendon_width;         // width for rendering                      (ntendon x 1)
   mjtNum*   tendon_solref_lim;    // constraint solver reference: limit       (ntendon x mjNREF)
   mjtNum*   tendon_solimp_lim;    // constraint solver impedance: limit       (ntendon x mjNIMP)
@@ -1108,13 +1108,13 @@ struct mjModel_ {
   int*      actuator_history;     // history buffer: [nsample, interp]        (nu x 2)
   int*      actuator_historyadr;  // address in history buffer; -1: none      (nu x 1)
   mjtNum*   actuator_delay;       // delay time in seconds; 0: no delay       (nu x 1)
-  mjtByte*  actuator_ctrllimited; // is control limited                       (nu x 1)
-  mjtByte*  actuator_forcelimited;// is force limited                         (nu x 1)
-  mjtByte*  actuator_actlimited;  // is activation limited                    (nu x 1)
+  mjtBool*  actuator_ctrllimited; // is control limited                       (nu x 1)
+  mjtBool*  actuator_forcelimited;// is force limited                         (nu x 1)
+  mjtBool*  actuator_actlimited;  // is activation limited                    (nu x 1)
   mjtNum*   actuator_dynprm;      // dynamics parameters                      (nu x mjNDYN)
   mjtNum*   actuator_gainprm;     // gain parameters                          (nu x mjNGAIN)
   mjtNum*   actuator_biasprm;     // bias parameters                          (nu x mjNBIAS)
-  mjtByte*  actuator_actearly;    // step activation before force             (nu x 1)
+  mjtBool*  actuator_actearly;    // step activation before force             (nu x 1)
   mjtNum*   actuator_ctrlrange;   // range of controls                        (nu x 2)
   mjtNum*   actuator_forcerange;  // range of forces                          (nu x 2)
   mjtNum*   actuator_actrange;    // range of activations                     (nu x 2)
@@ -3373,10 +3373,10 @@ void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallba
 int mj_version(void);
 const char* mj_versionString(void);
 mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
-              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+              const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
               int geomid[1], mjtNum normal[3]);
 void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
-                 const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                 const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff);
 mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                     const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
@@ -3386,8 +3386,8 @@ mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3
                    const mjtNum pnt[3], const mjtNum vec[3], int geomtype,
                    mjtNum normal[3]);
 mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
-                  mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
-                  mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                  mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+                  mjtBool flg_skin, int flexid, const mjtNum pnt[3],
                   const mjtNum vec[3], int vertid[1], mjtNum normal[3]);
 mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                    const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
@@ -3582,10 +3582,10 @@ mjtNum mju_cholFactorBand(mjtNum* mat, int ntotal, int nband, int ndense,
 void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                        int ntotal, int nband, int ndense);
 void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
-                    mjtByte flg_sym);
+                    mjtBool flg_sym);
 void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
 void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                       int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+                       int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym);
 int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
 int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const mjtNum* g, int n,
@@ -3625,9 +3625,9 @@ const mjpPlugin* mjc_getSDF(const mjModel* m, int id);
 mjtNum mjc_distance(const mjModel* m, const mjData* d, const mjSDF* s, const mjtNum x[3]);
 void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s, mjtNum gradient[3],
                   const mjtNum x[3]);
-void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
+void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
-void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_actuation,
                    mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
                    mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                    mjtNum *DmDq);
@@ -3741,7 +3741,7 @@ int mjs_setName(mjsElement* element, const char* name);
 void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 void mjs_setString(mjString* dest, const char* text);
 void mjs_setStringVec(mjStringVec* dest, const char* text);
-mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
+mjtBool mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
 void mjs_appendString(mjStringVec* dest, const char* text);
 void mjs_setInt(mjIntVec* dest, const int* array, int size);
 void mjs_appendIntVec(mjIntVecVec* dest, const int* array, int size);

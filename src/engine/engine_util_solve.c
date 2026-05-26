@@ -664,7 +664,7 @@ int mju_bandDiag(int i, int ntotal, int nband, int ndense) {
 
 // convert band matrix to dense matrix
 void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
-                    mjtByte flg_sym) {
+                    mjtBool flg_sym) {
   int nsparse = ntotal-ndense;
 
   // clear all
@@ -717,7 +717,7 @@ void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int n
 
 // multiply band-diagonal matrix with vector
 void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                       int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym) {
+                       int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym) {
   int nsparse = ntotal-ndense;
 
   // handle multiple vectors

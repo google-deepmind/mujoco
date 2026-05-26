@@ -33,21 +33,21 @@
 //------------------------------ tendon wrapping ---------------------------------------------------
 
 // check for intersection of two 2D line segments
-static mjtByte is_intersect(const mjtNum* p1, const mjtNum* p2,
+static mjtBool is_intersect(const mjtNum* p1, const mjtNum* p2,
                             const mjtNum* p3, const mjtNum* p4) {
   mjtNum a, b;
 
   // compute determinant, check
   mjtNum det = (p4[1]-p3[1])*(p2[0]-p1[0]) - (p4[0]-p3[0])*(p2[1]-p1[1]);
   if (mju_abs(det) < mjMINVAL) {
-    return 0;
+    return false;
   }
 
   // compute intersection point on each line
   a = ((p4[0]-p3[0])*(p1[1]-p3[1]) - (p4[1]-p3[1])*(p1[0]-p3[0])) / det;
   b = ((p2[0]-p1[0])*(p1[1]-p3[1]) - (p2[1]-p1[1])*(p1[0]-p3[0])) / det;
 
-  return ((a >= 0 && a <= 1 && b >= 0 && b <= 1) ? 1 : 0);
+  return ((a >= 0 && a <= 1 && b >= 0 && b <= 1) ? true : false);
 }
 
 

@@ -2024,13 +2024,13 @@ void mjs_setString(mjString* dest, const char* text) {
 
 
 // Set specific entry in destination string vector.
-mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text) {
+mjtBool mjs_setInStringVec(mjStringVec* dest, int i, const char* text) {
   if (dest->size() <= i) {
     mju_error("Requested index in mjs_setInStringVec is out of bounds");
-    return 0;
+    return false;
   }
   dest->at(i) = std::string(text);
-  return 1;
+  return true;
 }
 
 

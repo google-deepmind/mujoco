@@ -203,6 +203,10 @@ auto Compare(unsigned char val1, unsigned char val2) {
   return val1 != val2;
 }
 
+auto Compare(bool val1, bool val2) {
+  return val1 != val2;
+}
+
 auto Compare(mjtSize val1, mjtSize val2) {
   return val1 > val2 ? val1 - val2 : val2 - val1;
 }

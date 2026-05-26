@@ -174,6 +174,7 @@ class ImGui_DataPtrTable {
   // dimensionality of n.
   void DataPtr(const char* label, const char* ptr, int index, int n);
   void DataPtr(const char* label, const mjtByte* ptr, int index, int n);
+  void DataPtr(const char* label, const mjtBool* ptr, int index, int n);
   void DataPtr(const char* label, const mjtSize* ptr, int index, int n);
   void DataPtr(const char* label, const int* ptr, int index, int n);
   void DataPtr(const char* label, const float* ptr, int index, int n);
@@ -299,7 +300,7 @@ class ImGui_SpecElementTable : public ImGui_DataPtrTable {
 
     ImGui::PushID(&val);
     ImGui::SetNextItemWidth(-1.0f);
-    if constexpr (std::is_same_v<T, mjtByte>) {
+    if constexpr (std::is_same_v<T, mjtByte> || std::is_same_v<T, mjtBool>) {
       if (read_only_) {
         ImGui::Text("%s", val ? "true" : "false");
       } else {
