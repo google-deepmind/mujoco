@@ -14,11 +14,12 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <exception>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <sstream>
-#include <utility>
 #include <vector>
 
 #include <mujoco/mujoco.h>
@@ -71,30 +72,6 @@ Roll out batch of trajectories from initial states, get resulting states and sen
                            remaining trajectory outputs like warnings.
 )";
 
-void FillRemainingOutputs(const mjModel* m, const mjData* d, size_t r, size_t t,
-                          int nstep, size_t nstate, size_t nsensordata,
-                          mjtNum* state, mjtNum* sensordata) {
-  for (; t < nstep; t++) {
-    size_t step = r*static_cast<size_t>(nstep) + t;
-    if (state) {
-      mj_getState(m, d, state + step*nstate, mjSTATE_FULLPHYSICS);
-    }
-    if (sensordata) {
-      mju_copy(sensordata + step*nsensordata, d->sensordata, nsensordata);
-    }
-  }
-}
-
-template <typename Callable>
-bool TryMjCall(Callable&& callable) {
-  try {
-    InterceptMjErrors(std::forward<Callable>(callable))();
-  } catch (const FatalError&) {
-    return false;
-  }
-  return true;
-}
-
 // C-style rollout function, assumes all arguments are valid
 // all input fields of d are initialised, contents at call time do not matter
 // after returning, d will contain the last step of the last rollout
@@ -102,7 +79,7 @@ void _unsafe_rollout(std::vector<const mjModel*>& m, mjData* d, int start_roll,
                      int end_roll, int nstep, unsigned int control_spec,
                      const mjtNum* state0, const mjtNum* warmstart0,
                      const mjtNum* control, mjtNum* state, mjtNum* sensordata,
-                     bool handle_mj_errors) {
+                     bool raise_on_error) {
   // sizes
   size_t nstate = static_cast<size_t>(mj_stateSize(m[0], mjSTATE_FULLPHYSICS));
   size_t ncontrol = static_cast<size_t>(mj_stateSize(m[0], control_spec));
@@ -143,17 +120,7 @@ void _unsafe_rollout(std::vector<const mjModel*>& m, mjData* d, int start_roll,
     }
 
     // set initial state
-    if (handle_mj_errors) {
-      if (!TryMjCall([&]() {
-        mj_setState(m[r], d, state0 + r*nstate, mjSTATE_FULLPHYSICS);
-      })) {
-        FillRemainingOutputs(
-            m[r], d, r, 0, nstep, nstate, nsensordata, state, sensordata);
-        continue;
-      }
-    } else {
-      mj_setState(m[r], d, state0 + r*nstate, mjSTATE_FULLPHYSICS);
-    }
+    mj_setState(m[r], d, state0 + r*nstate, mjSTATE_FULLPHYSICS);
 
     // set warmstart accelerations
     if (warmstart0) {
@@ -178,49 +145,49 @@ void _unsafe_rollout(std::vector<const mjModel*>& m, mjData* d, int start_roll,
         }
       }
 
-      // if any warnings, fill remaining outputs with current outputs, break
-      if (nwarning) {
-        FillRemainingOutputs(
-            m[r], d, r, t, nstep, nstate, nsensordata, state, sensordata);
-        break;
-      }
+      bool nerror = false;
 
       size_t step = r*static_cast<size_t>(nstep) + t;
 
       // controls
-      if (control) {
-        if (handle_mj_errors) {
-          if (!TryMjCall([&]() {
-            mj_setState(m[r], d, control + step*ncontrol, control_spec);
-          })) {
-            FillRemainingOutputs(
-                m[r], d, r, t, nstep, nstate, nsensordata, state, sensordata);
-            break;
-          }
-        } else {
-          mj_setState(m[r], d, control + step*ncontrol, control_spec);
-        }
+      if (control && !nwarning) {
+        mj_setState(m[r], d, control + step*ncontrol, control_spec);
       }
 
       // step
-      if (handle_mj_errors) {
-        if (!TryMjCall([&]() { mj_step(m[r], d); })) {
-          FillRemainingOutputs(
-              m[r], d, r, t, nstep, nstate, nsensordata, state, sensordata);
-          break;
+      if (!nwarning) {
+        try {
+          InterceptMjErrors(mj_step)(m[r], d);
+        } catch (const FatalError&) {
+          if (raise_on_error) {
+            throw;
+          }
+          nerror = true;
         }
-      } else {
-        mj_step(m[r], d);
       }
 
       // copy out new state
-      if (state) {
+      if (state && !nwarning && !nerror) {
         mj_getState(m[r], d, state + step*nstate, mjSTATE_FULLPHYSICS);
       }
 
       // copy out sensor values
-      if (sensordata) {
+      if (sensordata && !nwarning && !nerror) {
         mju_copy(sensordata + step*nsensordata, d->sensordata, nsensordata);
+      }
+
+      // if any warnings or handled errors, fill remaining outputs with current outputs, break
+      if (nwarning || nerror) {
+        for (; t < nstep; t++) {
+          size_t step = r*static_cast<size_t>(nstep) + t;
+          if (state) {
+            mj_getState(m[r], d, state + step*nstate, mjSTATE_FULLPHYSICS);
+          }
+          if (sensordata) {
+            mju_copy(sensordata + step*nsensordata, d->sensordata, nsensordata);
+          }
+        }
+        break;
       }
     }
   }
@@ -233,38 +200,57 @@ void _unsafe_rollout_threaded(std::vector<const mjModel*>& m,
                               const mjtNum* warmstart0, const mjtNum* control,
                               mjtNum* state, mjtNum* sensordata,
                               ThreadPool* pool, int chunk_size,
-                              bool handle_mj_errors) {
+                              bool raise_on_error) {
   int nfulljobs = nbatch / chunk_size;
   int chunk_remainder = nbatch % chunk_size;
   int njobs = (chunk_remainder > 0) ? nfulljobs + 1 : nfulljobs;
+  std::exception_ptr rollout_error;
+  std::mutex rollout_error_mutex;
 
   // Reset the pool counter
   pool->ResetCount();
 
   // schedule all jobs of full (chunk) size
   for (int j = 0; j < nfulljobs; j++) {
-    auto task = [=, &m, &d](void) {
+    auto task = [=, &m, &d, &rollout_error, &rollout_error_mutex](void) {
       int id = pool->WorkerId();
-      _unsafe_rollout(m, d[id], j*chunk_size, (j+1)*chunk_size,
-        nstep, control_spec, state0, warmstart0, control, state, sensordata,
-        handle_mj_errors);
+      try {
+        _unsafe_rollout(m, d[id], j*chunk_size, (j+1)*chunk_size,
+          nstep, control_spec, state0, warmstart0, control, state, sensordata,
+          raise_on_error);
+      } catch (...) {
+        std::lock_guard<std::mutex> lock(rollout_error_mutex);
+        if (!rollout_error) {
+          rollout_error = std::current_exception();
+        }
+      }
     };
     pool->Schedule(task);
   }
 
   // schedule any remaining jobs of size < chunk_size
   if (chunk_remainder > 0) {
-    auto task = [=, &m, &d](void) {
-      _unsafe_rollout(m, d[pool->WorkerId()], nfulljobs*chunk_size,
-        nfulljobs*chunk_size+chunk_remainder,
-        nstep, control_spec, state0, warmstart0, control, state, sensordata,
-        handle_mj_errors);
+    auto task = [=, &m, &d, &rollout_error, &rollout_error_mutex](void) {
+      try {
+        _unsafe_rollout(m, d[pool->WorkerId()], nfulljobs*chunk_size,
+          nfulljobs*chunk_size+chunk_remainder,
+          nstep, control_spec, state0, warmstart0, control, state, sensordata,
+          raise_on_error);
+      } catch (...) {
+        std::lock_guard<std::mutex> lock(rollout_error_mutex);
+        if (!rollout_error) {
+          rollout_error = std::current_exception();
+        }
+      }
     };
     pool->Schedule(task);
   }
 
   // wait for counter to increment up to number of jobs submitted by this thread
   pool->WaitCount(njobs);
+  if (rollout_error) {
+    std::rethrow_exception(rollout_error);
+  }
 }
 
 // NOLINTEND(whitespace/line_length)
@@ -365,29 +351,15 @@ class Rollout {
         } else {
           chunk_size_final = *chunk_size;
         }
-        if (raise_on_error) {
-          InterceptMjErrors(_unsafe_rollout_threaded)(
-              model_ptrs, data_ptrs, nbatch, nstep, control_spec, state0_ptr,
-              warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr,
-              this->pool_.get(), chunk_size_final, false);
-        } else {
-          _unsafe_rollout_threaded(
-              model_ptrs, data_ptrs, nbatch, nstep, control_spec, state0_ptr,
-              warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr,
-              this->pool_.get(), chunk_size_final, true);
-        }
+        _unsafe_rollout_threaded(
+            model_ptrs, data_ptrs, nbatch, nstep, control_spec, state0_ptr,
+            warmstart0_ptr, control_ptr, state_ptr, sensordata_ptr,
+            this->pool_.get(), chunk_size_final, raise_on_error);
       } else {
-        if (raise_on_error) {
-          InterceptMjErrors(_unsafe_rollout)(
-              model_ptrs, data_ptrs[0], 0, nbatch, nstep, control_spec,
-              state0_ptr, warmstart0_ptr, control_ptr, state_ptr,
-              sensordata_ptr, false);
-        } else {
-          _unsafe_rollout(
-              model_ptrs, data_ptrs[0], 0, nbatch, nstep, control_spec,
-              state0_ptr, warmstart0_ptr, control_ptr, state_ptr,
-              sensordata_ptr, true);
-        }
+        _unsafe_rollout(
+            model_ptrs, data_ptrs[0], 0, nbatch, nstep, control_spec,
+            state0_ptr, warmstart0_ptr, control_ptr, state_ptr,
+            sensordata_ptr, raise_on_error);
       }
     }
   }
