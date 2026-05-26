@@ -83,8 +83,12 @@ void StepControl::SetNoiseParameters(float ctrl_noise_scale,
   ctrl_noise_rate_ = ctrl_noise_rate;
 }
 
-void StepControl::SetPauseState(PauseState state, mjModel* m) {
+void StepControl::SetPauseState(PauseState state) {
   pause_state_ = state;
+}
+
+StepControl::PauseState StepControl::GetPauseState() const {
+  return pause_state_;
 }
 
 StepControl::Status StepControl::Advance(mjModel* m, mjData* d) {
@@ -184,7 +188,7 @@ StepControl::Status StepControl::Advance(mjModel* m, mjData* d) {
       for (mjtWarning w : kDivergedWarnings) {
         if (d->warning[w].number > 0) {
           // Stop stepping if the simulation diverged.
-          pause_state_ = PauseState::kNormalPaused;
+          SetPauseState(PauseState::kNormalPaused);
           return Status::kDiverged;
         }
       }

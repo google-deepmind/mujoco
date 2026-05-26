@@ -83,7 +83,7 @@ PYBIND11_MODULE(_constants, pymodule) {
   // from mujoco.h
   X(mjVERSION_HEADER);
 
-  // from mjtnum.h
+  // from mjtype.h
   X(mjMINVAL);
 
   #undef X

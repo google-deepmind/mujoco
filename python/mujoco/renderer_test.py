@@ -14,6 +14,9 @@
 # ==============================================================================
 """Tests for the MuJoCo renderer."""
 
+import gc
+import sys
+
 from absl.testing import absltest
 from absl.testing import parameterized
 import mujoco
@@ -156,6 +159,47 @@ class MuJoCoRendererTest(parameterized.TestCase):
       self.assertNotEqual(failing_render_size, render_size)
       with self.assertRaises(ValueError):
         renderer.render(out=np.zeros((*failing_render_size, 3), np.uint8))
+
+  def test_renderer_del_safe_when_init_fails_early(self):
+    """Regression test for #3213.
+
+    Renderer.__del__ must be safe on a partially-constructed instance when
+    __init__ raises before the rendering contexts are assigned. Previously,
+    AttributeError from __del__ masked the real __init__ exception.
+    """
+    xml = """
+<mujoco>
+  <visual>
+    <global offwidth="50" offheight="50"/>
+  </visual>
+  <worldbody/>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+
+    # Capture any exception raised from __del__ on the partially-constructed
+    # Renderer. Without the fix, __del__ raises AttributeError, which is
+    # funneled through sys.unraisablehook.
+    unraisable = []
+    old_hook = sys.unraisablehook
+    sys.unraisablehook = lambda args: unraisable.append(args)
+    try:
+      # width > offwidth raises ValueError in __init__ before
+      # self._gl_context is assigned.
+      with self.assertRaises(ValueError):
+        mujoco.Renderer(model, height=50, width=200)
+      gc.collect()
+    finally:
+      sys.unraisablehook = old_hook
+
+    self.assertEqual(
+        [u.exc_type.__name__ for u in unraisable],
+        [],
+        msg=(
+            'Renderer.__del__ raised on a partially-constructed instance; '
+            'see #3213.'
+        ),
+    )
 
 
 if __name__ == '__main__':

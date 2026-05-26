@@ -28,6 +28,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import Model as Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data as Data
 # isort: on
 
+
 from mujoco.mjx.third_party.mujoco_warp._src.bvh import refit_bvh as refit_bvh
 from mujoco.mjx.third_party.mujoco_warp._src.collision_driver import collision as collision
 from mujoco.mjx.third_party.mujoco_warp._src.collision_driver import nxn_broadphase as nxn_broadphase
@@ -104,6 +105,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import GainType as GainType
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType as GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType as IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType as JointType
+from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType as ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Option as Option
 from mujoco.mjx.third_party.mujoco_warp._src.types import RenderContext as RenderContext
 from mujoco.mjx.third_party.mujoco_warp._src.types import SolverType as SolverType

@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <string>
 #include <vector>
@@ -226,6 +227,79 @@ TEST_F(BoxQPTest, AsymmetricUpperIgnored) {
 
   EXPECT_MJTNUM_EQ(res[0], -g[0]/H[0]);
   EXPECT_MJTNUM_EQ(res[1], lower[1]);
+}
+
+// verify mju_boxQP reads only the lower triangle of H by poisoning the upper
+// triangle with NaN and comparing to a clean symmetric solve
+TEST_F(BoxQPTest, UpperTrianglePoisoned) {
+  int n = 30;
+  const mjtNum nan = std::numeric_limits<mjtNum>::quiet_NaN();
+
+  // allocate on heap
+  mjtNum *H, *g, *lower, *upper;  // inputs
+  mjtNum *res, *R;                // outputs
+  int* index;                     // outputs
+  mju_boxQPmalloc(&res, &R, &index, &H, &g, n, &lower, &upper);
+
+  struct Cleanup {
+    mjtNum *res, *R, *H, *g, *lower, *upper;
+    int* index;
+    ~Cleanup() {
+      mju_free(res);
+      mju_free(R);
+      mju_free(index);
+      mju_free(H);
+      mju_free(g);
+      mju_free(lower);
+      mju_free(upper);
+    }
+  } cleanup{res, R, H, g, lower, upper, index};
+
+  // generate a symmetric SPD Hessian and bounded QP problem
+  randomBoxQP(n, H, g, lower, upper, /*seed=*/1);
+
+  int maxiter = 100;
+  mjtNum mingrad = MjTol(1E-16, 1E-5);
+  mjtNum backtrack = 0.5;
+  mjtNum minstep = MjTol(1E-22, 1E-10);
+  mjtNum armijo = 0.1;
+
+  // solve with symmetric H to get the reference result
+  mju_zero(res, n);
+  int nfree_ref = mju_boxQPoption(res, R, index, H, g, n, lower, upper,
+                                  maxiter, mingrad, backtrack, minstep,
+                                  armijo, nullptr, 0);
+  ASSERT_GT(nfree_ref, -1);
+
+  // save reference
+  std::vector<mjtNum> res_ref(res, res + n);
+  std::vector<int> index_ref(index, index + n);
+  std::vector<mjtNum> R_ref(R, R + nfree_ref * nfree_ref);
+
+  // poison the strict upper triangle of H with NaN
+  for (int i=0; i < n; i++) {
+    for (int j=i+1; j < n; j++) {
+      H[n*i+j] = nan;
+    }
+  }
+
+  // solve again; result must match because only lower triangle should be read
+  mju_zero(res, n);
+  int nfree_poisoned = mju_boxQPoption(res, R, index, H, g, n, lower, upper,
+                                       maxiter, mingrad, backtrack, minstep,
+                                       armijo, nullptr, 0);
+
+  EXPECT_EQ(nfree_poisoned, nfree_ref);
+  for (int i=0; i < n; i++) {
+    EXPECT_EQ(res[i], res_ref[i]) << "mismatch at index " << i;
+  }
+  for (int i=0; i < nfree_ref; i++) {
+    EXPECT_EQ(index[i], index_ref[i]) << "index mismatch at " << i;
+    for (int j=0; j <= i; j++) {
+      int k = i * nfree_ref + j;
+      EXPECT_EQ(R[k], R_ref[k]) << "R mismatch at row " << i << ", col " << j;
+    }
+  }
 }
 
 // test mju_boxQP on a single random bounded QP
@@ -1039,6 +1113,148 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
 
   mj_deleteData(d);
   mj_deleteModel(model);
+}
+
+// ----------------------------- dense LU --------------------------------------
+
+using DenseLUTest = MujocoTest;
+
+// factor identity, solve recovers b exactly
+TEST_F(DenseLUTest, Identity) {
+  constexpr int n = 4;
+  mjtNum A[n*n] = {
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1,
+  };
+  int pivot[n];
+  mjtNum b[n] = {1, 2, 3, 4};
+  mjtNum x[n];
+
+  EXPECT_EQ(mju_factorLU(A, n, pivot), 1);
+  mju_solveLU(x, A, b, pivot, n);
+
+  for (int i = 0; i < n; i++) {
+    EXPECT_MJTNUM_EQ(x[i], b[i]);
+  }
+}
+
+// 3x3 with known solution
+TEST_F(DenseLUTest, SmallKnown) {
+  constexpr int n = 3;
+  // A = [2 1 1; 4 3 3; 8 7 9], b = [1; 1; 1]
+  // solution: x = [1; -1; 0]  (verified: A*x = [2-1; 4-3; 8-7] = [1;1;1])
+  mjtNum A[n*n] = {
+    2, 1, 1,
+    4, 3, 3,
+    8, 7, 9,
+  };
+  int pivot[n];
+  mjtNum b[n] = {1, 1, 1};
+  mjtNum x[n];
+
+  EXPECT_EQ(mju_factorLU(A, n, pivot), 1);
+  mju_solveLU(x, A, b, pivot, n);
+
+  mjtNum eps = MjTol(1e-14, 1e-6);
+  EXPECT_NEAR(x[0],  1, eps);
+  EXPECT_NEAR(x[1], -1, eps);
+  EXPECT_NEAR(x[2],  0, eps);
+}
+
+// random SPD matrices: compare LU solve against Cholesky solve
+TEST_F(DenseLUTest, RandomSPD) {
+  std::mt19937_64 rng;
+  rng.seed(7);
+  std::normal_distribution<double> dist(0, 1);
+
+  for (int n : {4, 8, 16}) {
+    vector<mjtNum> sqrtH(n * n);
+    vector<mjtNum> A(n * n);
+    vector<mjtNum> A_chol(n * n);
+    vector<mjtNum> b(n);
+    vector<mjtNum> x_lu(n);
+    vector<mjtNum> x_chol(n);
+    vector<int> pivot(n);
+
+    // generate random SPD matrix
+    for (int i = 0; i < n * n; i++) sqrtH[i] = dist(rng);
+    mju_mulMatTMat(A.data(), sqrtH.data(), sqrtH.data(), n, n, n);
+
+    // add diagonal regularizer
+    for (int i = 0; i < n; i++) A[i*n+i] += n;
+
+    // generate random rhs
+    for (int i = 0; i < n; i++) b[i] = dist(rng);
+
+    // solve with Cholesky
+    mju_copy(A_chol.data(), A.data(), n * n);
+    int rank = mju_cholFactor(A_chol.data(), n, 0);
+    EXPECT_EQ(rank, n);
+    mju_cholSolve(x_chol.data(), A_chol.data(), b.data(), n);
+
+    // solve with LU
+    int ok = mju_factorLU(A.data(), n, pivot.data());
+    EXPECT_EQ(ok, 1);
+    mju_solveLU(x_lu.data(), A.data(), b.data(), pivot.data(), n);
+
+    // compare
+    mjtNum eps = MjTol(1e-15, 1e-7);
+    EXPECT_THAT(AsVector(x_lu.data(), n),
+                Pointwise(MjNear(eps, eps),
+                          AsVector(x_chol.data(), n)));
+  }
+}
+
+// random non-symmetric matrices: verify A*x == b
+TEST_F(DenseLUTest, RandomGeneral) {
+  std::mt19937_64 rng;
+  rng.seed(42);
+  std::normal_distribution<double> dist(0, 1);
+
+  for (int n : {3, 5, 10, 20}) {
+    vector<mjtNum> A(n * n);
+    vector<mjtNum> A_orig(n * n);
+    vector<mjtNum> b(n);
+    vector<mjtNum> x(n);
+    vector<mjtNum> Ax(n);
+    vector<int> pivot(n);
+
+    // random non-symmetric matrix with diagonal dominance
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n; j++) {
+        A[i*n+j] = dist(rng);
+      }
+      A[i*n+i] += 2 * n;
+    }
+    mju_copy(A_orig.data(), A.data(), n * n);
+
+    // random rhs
+    for (int i = 0; i < n; i++) b[i] = dist(rng);
+
+    // factor and solve
+    int ok = mju_factorLU(A.data(), n, pivot.data());
+    EXPECT_EQ(ok, 1);
+    mju_solveLU(x.data(), A.data(), b.data(), pivot.data(), n);
+
+    // verify: A_orig * x == b
+    mju_mulMatVec(Ax.data(), A_orig.data(), x.data(), n, n);
+
+    mjtNum eps = MjTol(1e-14, 1e-5);
+    EXPECT_THAT(AsVector(Ax.data(), n),
+                Pointwise(MjNear(eps, eps), AsVector(b.data(), n)));
+  }
+}
+
+// near-singular matrix returns 0
+TEST_F(DenseLUTest, Singular) {
+  constexpr int n = 3;
+  // all zeros: maximally singular
+  mjtNum A[n*n] = {0};
+  int pivot[n];
+
+  EXPECT_EQ(mju_factorLU(A, n, pivot), 0);
 }
 
 }  // namespace

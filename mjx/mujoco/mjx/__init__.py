@@ -21,8 +21,8 @@ from mujoco.mjx._src.types import Data
 # isort: on
 
 # pylint:disable=g-importing-member
-from mujoco.mjx._src.collision_driver import collision
 from mujoco.mjx._src.bvh import refit_bvh
+from mujoco.mjx._src.collision_driver import collision
 from mujoco.mjx._src.constraint import make_constraint
 from mujoco.mjx._src.derivative import deriv_smooth_vel
 from mujoco.mjx._src.forward import euler
@@ -46,8 +46,10 @@ from mujoco.mjx._src.io import state_size
 from mujoco.mjx._src.passive import passive
 from mujoco.mjx._src.ray import ray
 from mujoco.mjx._src.render import render
+from mujoco.mjx._src.render import render_with_segmentation
 from mujoco.mjx._src.render_util import get_depth
 from mujoco.mjx._src.render_util import get_rgb
+from mujoco.mjx._src.render_util import get_segmentation
 from mujoco.mjx._src.sensor import sensor_acc
 from mujoco.mjx._src.sensor import sensor_pos
 from mujoco.mjx._src.sensor import sensor_vel

@@ -25,11 +25,11 @@
 
 // help
 static constexpr char helpstring[] =
-  "\n Usage:  compile infile outfile\n"
+  "\n Usage:  compile infile [outfile]\n"
   "   infile can be in mjcf, urdf, mjb format\n"
-  "   outfile can be in mjcf, mjb, txt format, or empty\n\n"
-  "   if infile is mjcf and outfile is empty, compilation will be "
-     "timed twice to measure the impact of caching\n\n"
+  "   outfile can be in mjcf, mjb, txt format\n\n"
+  "   if infile is mjcf or urdf and outfile is omitted, a detailed\n"
+  "   timing breakdown is printed for two compilations (cold and warm cache)\n\n"
   " Example: compile model.xml [model.mjb]\n";
 
 
@@ -137,17 +137,45 @@ int main(int argc, char** argv) {
     }
   }
 
+  // print compiler timing diagnostics
+  auto print_timers = [](const mjSpec* s, const char* label) {
+    const double* timer = mjs_getTimer(const_cast<mjSpec*>(s));
+    std::printf("\n%s:\n", label);
+    std::printf("  total:   %8.1f ms\n", 1e3 * timer[mjCTIMER_TOTAL]);
+    std::printf("  assets:  %8.1f ms (wall clock)\n", 1e3 * timer[mjCTIMER_ASSETS]);
+    std::printf("    load:  %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_LOAD]);
+    std::printf("    hull:  %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_HULL]);
+    std::printf("    poly:  %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_POLYGON]);
+    std::printf("    inert: %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_INERTIA]);
+    std::printf("    bvh:   %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_BVH]);
+    std::printf("    octr:  %8.1f ms\n", 1e3 * timer[mjCTIMER_MESH_OCTREE]);
+    std::printf("    tex:   %8.1f ms\n", 1e3 * timer[mjCTIMER_TEXTURE]);
+    std::printf("  other:   %8.1f ms\n",
+                1e3 * (timer[mjCTIMER_TOTAL] - timer[mjCTIMER_ASSETS]));
+  };
+
   // load model
-  double first=0, second=0;
+  mjSpec* s = nullptr;
   if (type1==typeXML) {
-    double starttime = gettm();
-    m = mj_loadXML(argv[1], 0, error, 1000);
-    first = gettm() - starttime;
-    if (m && type2 == typeNONE) {
+    s = mj_parseXML(argv[1], 0, error, 1000);
+    if (!s) {
+      return finish(error, EXIT_FAILURE);
+    }
+
+    m = mj_compile(s, 0);
+    if (!m) {
+      mj_deleteSpec(s);
+      return finish("Could not compile model", EXIT_FAILURE);
+    }
+
+    print_timers(s, "Compile 1 (cold cache)");
+
+    if (type2 == typeNONE) {
       mj_deleteModel(m);
-      starttime = gettm();
-      m = mj_loadXML(argv[1], 0, error, 1000);
-      second = gettm() - starttime;
+      m = mj_compile(s, 0);
+      if (m) {
+        print_timers(s, "Compile 2 (warm cache)");
+      }
     }
   } else {
     m = mj_loadModel(argv[1], 0);
@@ -155,16 +183,14 @@ int main(int argc, char** argv) {
 
   // check error
   if (!m) {
-    if (type1 == typeXML) {
-      return finish(error, EXIT_FAILURE);
-    } else {
-      return finish("Could not load model", EXIT_FAILURE);
-    }
+    if (s) mj_deleteSpec(s);
+    return finish("Could not load model", EXIT_FAILURE);
   }
 
   // save model
   if (type2 == typeXML) {
     if (!mj_saveLastXML(argv[2], m, error, 1000)) {
+      if (s) mj_deleteSpec(s);
       return finish(error, EXIT_FAILURE, m);
     }
   } else if (type2 == typeMJB) {
@@ -174,15 +200,6 @@ int main(int argc, char** argv) {
   }
 
   // finalize
-  char msg[1000];
-  if (first && type2 == typeNONE) {
-    snprintf(msg, sizeof(msg), "Done.\n"
-             "First compile: %.4gs\n"
-             "Second compile: %.4gs",
-             first, second);
-  } else {
-    snprintf(msg, sizeof(msg), "Done.");
-  }
-
-  return finish(msg, EXIT_SUCCESS, m);
+  if (s) mj_deleteSpec(s);
+  return finish("\nDone.", EXIT_SUCCESS, m);
 }

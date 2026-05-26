@@ -53,6 +53,9 @@ int mj_wakeEquality(const mjModel* m, mjData* d);
 // put trees to sleep according to tolerance, return number of slept trees
 int mj_sleep(const mjModel* m, mjData* d);
 
+// get a representative body from a flex contact side
+int mj_flexBody(const mjModel* m, const mjContact* con, int side);
+
 // return sleep state of object i
 MJAPI mjtSleepState mj_sleepState(const mjModel* m, const mjData* d, mjtObj type, int i);
 

@@ -304,6 +304,7 @@ PYBIND11_MODULE(_functions, pymodule) {
             m, d, flg_acc, result.data());
       });
   Def<traits::mj_rnePostConstraint>(pymodule);
+  Def<traits::mj_maxContact>(pymodule);
   Def<traits::mj_collision>(pymodule);
   Def<traits::mj_makeConstraint>(pymodule);
   Def<traits::mj_island>(pymodule);
@@ -731,7 +732,7 @@ PYBIND11_MODULE(_functions, pymodule) {
          Eigen::Ref<const EigenVectorX> vec,
          std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
              geomgroup,
-         mjtByte flg_static, int bodyexclude, Eigen::Ref<EigenVectorI> geomid,
+         mjtBool flg_static, int bodyexclude, Eigen::Ref<EigenVectorI> geomid,
          Eigen::Ref<EigenVectorX> dist,
          std::optional<Eigen::Ref<EigenVectorX>> normal,
          int nray, mjtNum cutoff) {
@@ -757,7 +758,7 @@ PYBIND11_MODULE(_functions, pymodule) {
              const mjtNum(*vec)[3],
              std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
                  geomgroup,
-             mjtByte flg_static, int bodyexclude,
+             mjtBool flg_static, int bodyexclude,
              std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> geomid,
              std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
             return mj_ray(m, d, &(*pnt)[0], &(*vec)[0],
@@ -816,8 +817,8 @@ PYBIND11_MODULE(_functions, pymodule) {
       "mj_rayFlex",
       util::UnwrapArgs(
           [](const raw::MjModel* m, const raw::MjData* d, int flex_layer,
-             mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
-             mjtByte flg_skin, int flexid, const mjtNum(*pnt)[3],
+             mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+             mjtBool flg_skin, int flexid, const mjtNum(*pnt)[3],
              const mjtNum(*vec)[3],
              std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> vertid,
              std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
@@ -1240,6 +1241,37 @@ PYBIND11_MODULE(_functions, pymodule) {
                                   colind.data());
       });
 
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_sym2dense, "n")(
+      pymodule,
+      [](Eigen::Ref<EigenArrayXX> res,
+         Eigen::Ref<const EigenVectorX> mat,
+         Eigen::Ref<const EigenVectorI> rownnz,
+         Eigen::Ref<const EigenVectorI> rowadr,
+         Eigen::Ref<const EigenVectorI> colind) {
+        if (res.rows() != res.cols()) {
+          throw py::type_error("res should be a square matrix");
+        }
+        if (res.rows() != rownnz.size()) {
+          throw py::type_error("#rows in res should equal size of rownnz");
+        }
+        if (res.rows() != rowadr.size()) {
+          throw py::type_error("#rows in res should equal size of rowadr");
+        }
+        if (res.rows() > 0) {
+          int nnz = rowadr.array().tail(1)[0] + rownnz.array().tail(1)[0];
+          if (mat.size() < nnz) {
+            throw py::type_error("mat size is too small for the given sparse "
+                                 "structure");
+          }
+          if (colind.size() < nnz) {
+            throw py::type_error("colind size is too small for the given "
+                                 "sparse structure");
+          }
+        }
+        return ::mju_sym2dense(res.data(), mat.data(), res.rows(),
+                               rownnz.data(), rowadr.data(), colind.data());
+      });
+
   // Quaternions
   Def<traits::mju_rotVecQuat>(pymodule);
   Def<traits::mju_negQuat>(pymodule);
@@ -1338,7 +1370,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_band2Dense>(
       pymodule,
       [](Eigen::Ref<EigenArrayXX> res, Eigen::Ref<const EigenVectorX> mat,
-         int ntotal, int nband, int ndense, mjtByte flg_sym) {
+         int ntotal, int nband, int ndense, mjtBool flg_sym) {
         int nMat = (ntotal - ndense) * nband + ndense * ntotal;
         if (mat.size() != nMat) {
           throw py::type_error(
@@ -1374,7 +1406,7 @@ PYBIND11_MODULE(_functions, pymodule) {
       pymodule,
       [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenArrayXX> mat,
          Eigen::Ref<const EigenArrayXX> vec, int ntotal, int nband, int ndense,
-         int nVec, mjtByte flg_sym) {
+         int nVec, mjtBool flg_sym) {
         int nMat = (ntotal - ndense) * nband + ndense * ntotal;
         if (mat.size() != nMat) {
           throw py::type_error(
@@ -1544,7 +1576,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjd_transitionFD>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         mjtNum eps, mjtByte flg_centered,
+         mjtNum eps, mjtBool flg_centered,
          std::optional<Eigen::Ref<EigenArrayXX>> A,
          std::optional<Eigen::Ref<EigenArrayXX>> B,
          std::optional<Eigen::Ref<EigenArrayXX>> C,
@@ -1575,7 +1607,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjd_inverseFD>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         mjtNum eps, mjtByte flg_actuation,
+         mjtNum eps, mjtBool flg_actuation,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDq,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDv,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDa,

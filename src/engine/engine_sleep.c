@@ -275,7 +275,32 @@ int mj_wake(const mjModel* m, mjData* d) {
 }
 
 
-// wake sleeping trees that touch awake trees, return number of woke trees
+// get a representative body from a flex contact side
+int mj_flexBody(const mjModel* m, const mjContact* con, int side) {
+  int f = con->flex[side];
+
+  // flex vertex contact (non-interpolated)
+  if (con->vert[side] >= 0 && m->flex_interp[f] == 0) {
+    return m->flex_vertbodyid[m->flex_vertadr[f] + con->vert[side]];
+  }
+
+  // flex element contact
+  if (con->elem[side] >= 0) {
+    if (m->flex_interp[f] == 0) {
+      int dim = m->flex_dim[f];
+      const int* edata = m->flex_elem + m->flex_elemdataadr[f] + con->elem[side]*(dim+1);
+      return m->flex_vertbodyid[m->flex_vertadr[f] + edata[0]];
+    } else {
+      return m->flex_nodebodyid[m->flex_nodeadr[f]];
+    }
+  }
+
+  // flex vertex contact (interpolated): use first node
+  return m->flex_nodebodyid[m->flex_nodeadr[f]];
+}
+
+
+// wake sleeping trees with collision contact, return number of woke trees
 int mj_wakeCollision(const mjModel* m, mjData* d) {
   int ntree = m->ntree, ncon = d->ncon, nwoke = 0;
 
@@ -287,13 +312,10 @@ int mj_wakeCollision(const mjModel* m, mjData* d) {
   for (int i=0; i < ncon; i++) {
     const mjContact* con = d->contact + i;
 
-    // only geom-geom contacts are handled
-    if (con->geom[0] < 0 || con->geom[1] < 0) {
-      continue;
-    }
+    // resolve body on each side
+    int b1 = con->geom[0] >= 0 ? m->geom_bodyid[con->geom[0]] : mj_flexBody(m, con, 0);
+    int b2 = con->geom[1] >= 0 ? m->geom_bodyid[con->geom[1]] : mj_flexBody(m, con, 1);
 
-    int b1 = m->geom_bodyid[con->geom[0]];
-    int b2 = m->geom_bodyid[con->geom[1]];
     int tree1 = m->body_treeid[b1];
     int tree2 = m->body_treeid[b2];
 
@@ -391,17 +413,59 @@ int mj_wakeEquality(const mjModel* m, mjData* d) {
         tree2 = m->body_treeid[m->site_bodyid[id2]];
       }
       break;
+
     case mjEQ_JOINT:
       tree1 = id1 >= 0 ? m->body_treeid[m->jnt_bodyid[id1]] : -1;
       tree2 = id2 >= 0 ? m->body_treeid[m->jnt_bodyid[id2]] : -1;
       break;
+
     case mjEQ_TENDON:
       mjERROR("tendon equality does not yet support sleeping");
       continue;
+
     case mjEQ_FLEX:
     case mjEQ_FLEXVERT:
-      mjERROR("flex equality does not yet support sleeping");
+    case mjEQ_FLEXSTRAIN: {
+      int f = id1;
+      int num, adr;
+      const int* bodyid;
+      if (m->flex_interp[f]) {
+        num = m->flex_nodenum[f];
+        adr = m->flex_nodeadr[f];
+        bodyid = m->flex_nodebodyid;
+      } else {
+        num = m->flex_vertnum[f];
+        adr = m->flex_vertadr[f];
+        bodyid = m->flex_vertbodyid;
+      }
+
+      // find the first awake tree, if any
+      int awake_tree = -1;
+      for (int j = 0; j < num; j++) {
+        int treeid = m->body_treeid[bodyid[adr+j]];
+        if (treeid >= 0 && d->tree_awake[treeid]) {
+          awake_tree = treeid;
+          break;
+        }
+      }
+
+      // wake sleeping island: find first sleeping tree, wakeTree wakes them all
+      if (awake_tree >= 0) {
+        int wakeval = d->tree_asleep[awake_tree];
+        for (int j = 0; j < num; j++) {
+          int treeid = m->body_treeid[bodyid[adr+j]];
+          if (treeid >= 0 && !d->tree_awake[treeid]) {
+            nwoke += mj_wakeTree(d->tree_asleep, m->ntree, treeid, wakeval);
+            #ifdef MJ_DEBUG_SLEEP
+            printf("woke tree %d due to flex equality %d at t=%g\n", treeid, i, d->time);
+            #endif
+            break;
+          }
+        }
+      }
       continue;
+    }
+
     default:
       continue;
     }
@@ -643,6 +707,7 @@ static mjtSleepState mj_equalitySleepState(const mjModel* m, const mjData* d, in
       break;
     case mjEQ_FLEX:
     case mjEQ_FLEXVERT:
+    case mjEQ_FLEXSTRAIN:
       objtype = mjOBJ_FLEX;
       break;
     default:
@@ -751,9 +816,27 @@ mjtSleepState mj_sleepState(const mjModel* m, const mjData* d, mjtObj type, int 
   case mjOBJ_SENSOR:
     return mj_sensorSleepState(m, d, i);
 
-  // always awake
-  case mjOBJ_FLEX:
-    return mjS_AWAKE;
+  case mjOBJ_FLEX: {
+    // all dynamic bodies share sleep state: find and check the first one
+    int num, adr;
+    const int* bodyid;
+    if (m->flex_interp[i]) {
+      num = m->flex_nodenum[i];
+      adr = m->flex_nodeadr[i];
+      bodyid = m->flex_nodebodyid;
+    } else {
+      num = m->flex_vertnum[i];
+      adr = m->flex_vertadr[i];
+      bodyid = m->flex_vertbodyid;
+    }
+    for (int j = 0; j < num; j++) {
+      int b = bodyid[adr+j];
+      if (m->body_treeid[b] >= 0) {
+        return (mjtSleepState) d->body_awake[b];
+      }
+    }
+    return mjS_STATIC;
+  }
 
   // undefined sleep state, return AWAKE
   case mjOBJ_UNKNOWN:

@@ -15,10 +15,12 @@
 #include "experimental/platform/ux/gui.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <imgui.h>
@@ -26,10 +28,24 @@
 #include <implot.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/helpers.h"
+#include "experimental/platform/sim/sim_profiler.h"
+#include "experimental/platform/sim/step_control.h"
 #include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/interaction.h"
 
 namespace mujoco::platform {
+namespace {
+struct SpeedStatus {
+  bool misaligned;
+  float measured;
+};
+
+static SpeedStatus IsSpeedMisaligned(const StepControl& step_control) {
+  const float desired = step_control.GetSpeed();
+  const float measured = step_control.GetSpeedMeasured();
+  return {std::abs(measured - desired) > 0.1f * desired, measured};
+}
+}  // namespace
 
 static ImVec2 GetFlexElementSize(int num_cols) {
   const float width = (ImGui::GetContentRegionAvail().x / num_cols) -
@@ -82,15 +98,15 @@ void SetupTheme(GuiTheme theme) {
     c[ImGuiCol_TextSelectedBg] = ImVec4(0.73, 0.73, 0.73, 0.35);
     c[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80, 0.80, 0.80, 0.35);
     c[ImGuiCol_DragDropTarget] = ImVec4(1.00, 1.00, 0.00, 0.90);
-    c[ImGuiCol_NavHighlight] = ImVec4(0.26, 0.59, 0.98, 1.00);
+    c[ImGuiCol_NavCursor] = ImVec4(0.26, 0.59, 0.98, 1.00);
     c[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00, 1.00, 1.00, 0.70);
     c[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80, 0.80, 0.80, 0.20);
     c[ImGuiCol_DockingEmptyBg] = ImVec4(0.38, 0.38, 0.38, 1.00);
     c[ImGuiCol_Tab] = ImVec4(0.25, 0.25, 0.25, 1.00);
     c[ImGuiCol_TabHovered] = ImVec4(0.40, 0.40, 0.40, 1.00);
-    c[ImGuiCol_TabActive] = ImVec4(0.33, 0.33, 0.33, 1.00);
-    c[ImGuiCol_TabUnfocused] = ImVec4(0.25, 0.25, 0.25, 1.00);
-    c[ImGuiCol_TabUnfocusedActive] = ImVec4(0.33, 0.33, 0.33, 1.00);
+    c[ImGuiCol_TabSelected] = ImVec4(0.33, 0.33, 0.33, 1.00);
+    c[ImGuiCol_TabDimmed] = ImVec4(0.25, 0.25, 0.25, 1.00);
+    c[ImGuiCol_TabDimmedSelected] = ImVec4(0.33, 0.33, 0.33, 1.00);
     c[ImGuiCol_DockingPreview] = ImVec4(0.85, 0.85, 0.85, 0.28);
     c[ImGuiCol_WindowBg].w = 1.0f;
   } else if (theme == GuiTheme::kLight) {
@@ -172,41 +188,60 @@ void SetupTheme(GuiTheme theme) {
     c[ImGuiCol_TabDimmedSelected] = check;
   }
 
+  float scale = s.FontScaleDpi;
+
   int hspacing = 4;
   int vspacing = 6;
   float rounding = 4.0f;
   s.DisplaySafeAreaPadding = ImVec2(0, 0);
-  s.WindowPadding = ImVec2(hspacing, vspacing);
-  s.FramePadding = ImVec2(hspacing, vspacing);
-  s.ItemSpacing = ImVec2(hspacing, vspacing);
-  s.ItemInnerSpacing = ImVec2(hspacing, vspacing);
-  s.WindowRounding = rounding;
-  s.FrameRounding = rounding;
-  s.TabRounding = rounding;
-  s.ScrollbarRounding = rounding;
-  s.ChildRounding = rounding;
-  s.GrabRounding = rounding;
-  s.PopupRounding = rounding;
+  s.WindowPadding = ImTrunc(ImVec2(hspacing * scale, vspacing * scale));
+  s.FramePadding = ImTrunc(ImVec2(hspacing * scale, 2.0f * scale));
+  s.ItemSpacing = ImTrunc(ImVec2(hspacing * scale, vspacing * scale));
+  s.ItemInnerSpacing = ImTrunc(ImVec2(hspacing * scale, vspacing * scale));
+  s.WindowRounding = ImTrunc(rounding * scale);
+  s.FrameRounding = ImTrunc(rounding * scale);
+  s.TabRounding = ImTrunc(rounding * scale);
+  s.ScrollbarRounding = ImTrunc(rounding * scale);
+  s.ChildRounding = ImTrunc(rounding * scale);
+  s.GrabRounding = ImTrunc(rounding * scale);
+  s.PopupRounding = ImTrunc(rounding * scale);
   s.WindowBorderSize = 0.0f;
   s.FrameBorderSize = 1.0f;
   s.PopupBorderSize = 1.0f;
-  s.IndentSpacing = 20.0f;
-  s.ScrollbarSize = 12.0f;
-  s.GrabMinSize = 5.0f;
+  s.IndentSpacing = ImTrunc(6.0f * scale);
+  s.ScrollbarSize = ImTrunc(12.0f * scale);
+  s.GrabMinSize = ImTrunc(5.0f * scale);
   s.WindowMenuButtonPosition = ImGuiDir_None;
   s.TabCloseButtonMinWidthSelected = 0.0f;
   s.DockingNodeHasCloseButton = false;
 }
 
+void RescaleDock(float ratio) {
+  if (ratio == 1) return;
+  ImGuiID root = ImGui::GetID("Root");
+  ImGuiDockNode* root_node = ImGui::DockBuilderGetNode(root);
+  if (root_node) {
+    struct ScaleNodes {
+      static void Apply(ImGuiDockNode* node, float r) {
+        node->SizeRef.x *= r;
+        if (node->ChildNodes[0]) Apply(node->ChildNodes[0], r);
+        if (node->ChildNodes[1]) Apply(node->ChildNodes[1], r);
+      }
+    };
+    ScaleNodes::Apply(root_node, ratio);
+  }
+}
+
 ImVec4 ConfigureDockingLayout() {
   ImGuiViewport* viewport = ImGui::GetMainViewport();
   const float scale = ImGui::GetWindowDpiScale();
+  const float font_scale = ImGui::GetIO().FontGlobalScale;
 
   const float kOptionsRelWidth = 0.22f;
   const float kInspectorRelWidth = 0.22f;
   const float kStatsRelHeight = 0.3f;
-  const float kToolsBarHeight = 48.f * scale;
-  const float kStatusBarHeight = 32.f * scale;
+  const float kToolsBarHeight = 36.f * scale * font_scale;
+  const float kStatusBarHeight = 32.f * scale * font_scale;
 
   const ImVec2 dockspace_pos{viewport->WorkPos.x,
                              viewport->WorkPos.y + kToolsBarHeight};
@@ -241,6 +276,9 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::DockBuilderSplitNode(inspector, ImGuiDir_Down, kStatsRelHeight,
                                 &properties, &inspector);
 
+    ImGuiID profiler = 0;
+    ImGui::DockBuilderSplitNode(main, ImGuiDir_Right, 0.42f, &profiler, &main);
+
     ImGui::DockBuilderDockWindow("Dockspace", main);
     ImGui::DockBuilderDockWindow("Options", options);
     ImGui::DockBuilderDockWindow("Explorer", inspector);
@@ -248,6 +286,7 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::DockBuilderDockWindow("Inspector", inspector);
     ImGui::DockBuilderDockWindow("Properties", properties);
     ImGui::DockBuilderDockWindow("Stats", stats);
+    ImGui::DockBuilderDockWindow("Profiler", profiler);
     ImGui::DockBuilderFinish(root);
   }
 
@@ -288,6 +327,10 @@ ImVec4 ConfigureDockingLayout() {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
+    style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
+    const float toolbar_vpad =
+        std::max(0.f, (kToolsBarHeight - ImGui::GetFrameHeight()) * 0.5f);
+    style.Var(ImGuiStyleVar_WindowPadding, ImVec2(4 * scale, toolbar_vpad));
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kToolsBarHeight),
                              ImGuiCond_Always);
@@ -300,6 +343,7 @@ ImVec4 ConfigureDockingLayout() {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
+    style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
     ImGui::SetNextWindowPos(ImVec2(0, viewport->Size.y - kStatusBarHeight),
                             ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kStatusBarHeight),
@@ -308,6 +352,11 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::End();
   }
 
+  ImGuiDockNode* central = ImGui::DockBuilderGetCentralNode(root);
+  if (central) {
+    return ImVec4(central->Pos.x, central->Pos.y,
+                  central->Size.x, central->Size.y);
+  }
   const int settings_width = dockspace_size.x * kOptionsRelWidth;
   const int inspector_width = dockspace_size.x * kInspectorRelWidth;
   const float workspace_x = dockspace_pos.x + settings_width;
@@ -317,39 +366,98 @@ ImVec4 ConfigureDockingLayout() {
   return ImVec4(workspace_x, workspace_y, workspace_w, workspace_h);
 }
 
-bool ThemeSelectGui(GuiTheme* theme) {
+void StepControlGui(const mjModel* model, StepControl* step_control,
+                    int& speed_index) {
+  platform::ScopedStyle style;
+  style.Var(ImGuiStyleVar_FrameRounding, 8.f * ImGui::GetStyle().FontScaleDpi);
+
+  const ImColor yellow(255, 215, 0, 255);
+  const ImColor green(40, 180, 40, 255);
+
+  auto make_button = [&](const char* icon, StepControl::PauseState target_state,
+                         ImColor color, ImDrawFlags corners,
+                         const char* tooltip = "",
+                         float hover_alpha = 1.f, float width_scale = 1.f) {
+    ImVec2 size(0, 0);
+    if (width_scale != 1.f) {
+      const ImGuiStyle& s = ImGui::GetStyle();
+      const float w = ImGui::CalcTextSize(icon).x + s.FramePadding.x * 2;
+      size.x = w * width_scale;
+    }
+    bool active = step_control->GetPauseState() == target_state;
+    if (ImGui_ColorButtonEx(icon, active, color, corners, size, hover_alpha)) {
+      step_control->SetPauseState(target_state);
+    }
+    if (!std::string_view(tooltip).empty()) {
+      ImGui::SetItemTooltip("%s", tooltip);
+    }
+  };
+
+  make_button(ICON_FA_PAUSE, StepControl::PauseState::kNormalPaused, yellow,
+              ImDrawFlags_RoundCornersLeft, "Pause", .3f, 1.6f);
+  ImGui::SameLine(0.f, 0.f);
+  make_button(ICON_FA_MAGIC, StepControl::PauseState::kViscousPaused, yellow,
+              ImDrawFlags_RoundCornersNone, "Viscous Pause", .3f, 1.3f);
+  ImGui::SameLine(0.f, 0.f);
+  make_button(ICON_FA_PLAY, StepControl::PauseState::kUnpaused, green,
+              ImDrawFlags_RoundCornersRight, "", .3f, 1.6f);
+
+  // Speed selection.
+  style.Reset();
+  ImGui::SameLine(0, ImGui::GetFrameHeight() * .6f);
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                      ImVec2(ImGui::GetStyle().FramePadding.x +
+                                 5.f * ImGui::GetStyle().FontScaleDpi,
+                             ImGui::GetStyle().FramePadding.y));
+
+  const auto [misaligned, measured] = IsSpeedMisaligned(*step_control);
+  char speed_preview[64];
+  if (misaligned) {
+    snprintf(speed_preview, sizeof(speed_preview), "%s %s (%-4.1f%%)",
+             ICON_FA_TACHOMETER, kPercentRealTime[speed_index], measured);
+  } else {
+    snprintf(speed_preview, sizeof(speed_preview), "%s %s", ICON_FA_TACHOMETER,
+             kPercentRealTime[speed_index]);
+  }
+
+  ImGui::SetNextItemWidth(ImGui::CalcTextSize(speed_preview).x +
+                          ImGui::GetStyle().FramePadding.x * 2.f);
+  if (ImGui::BeginCombo("##Speed", speed_preview,
+                        ImGuiComboFlags_NoArrowButton)) {
+    for (int n = 0; n < kPercentRealTime.size(); n++) {
+      if (ImGui::Selectable(kPercentRealTime[n], (speed_index == n))) {
+        speed_index = std::clamp<int>(n, 0, kPercentRealTime.size() - 1);
+        float speed = std::stof(kPercentRealTime[speed_index]);
+        step_control->SetSpeed(speed);
+      }
+    }
+    ImGui::EndCombo();
+  }
+
+  ImGui::PopStyleVar();
+  if (misaligned) {
+    ImGui::SetItemTooltip("%s", "Desired Speed (Measured Speed)");
+  } else {
+    ImGui::SetItemTooltip("%s", "Desired Speed");
+  }
+}
+
+bool ThemeSelectGui(GuiTheme* theme, const ImVec2& size) {
   static constexpr const char* ICON_DARKMODE = ICON_FA_CIRCLE;
   static constexpr const char* ICON_LIGHTMODE = ICON_FA_CIRCLE_O;
   static constexpr const char* ICON_CLASSICMODE = ICON_FA_ADJUST;
   const char* theme_icons[] = {ICON_LIGHTMODE, ICON_DARKMODE, ICON_CLASSICMODE};
   const char* theme_tooltips[] = {"Light Mode", "Dark Mode", "Classic Mode"};
-  const GuiTheme theme_values[] = {
-      GuiTheme::kLight,
-      GuiTheme::kDark,
-      GuiTheme::kClassic,
-  };
-
-  bool changed = false;
 
   int theme_idx = static_cast<int>(*theme);
-  ImGui::SetNextItemWidth(ImGui::CalcTextSize(theme_icons[0]).x +
-                          ImGui::GetStyle().FramePadding.x * 2);
-  if (ImGui::BeginCombo("##Theme", theme_icons[theme_idx],
-                        ImGuiComboFlags_NoArrowButton)) {
-    for (int n = 0; n < IM_ARRAYSIZE(theme_icons); n++) {
-      if (ImGui::Selectable(theme_icons[n], (theme_idx == n))) {
-        *theme = theme_values[n];
-        changed = true;
-      }
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("%s", theme_tooltips[n]);
-      }
-    }
-    ImGui::EndCombo();
+  if (ImGui::Button(theme_icons[theme_idx], size)) {
+    theme_idx = (theme_idx + 1) % IM_ARRAYSIZE(theme_icons);
+    *theme = static_cast<GuiTheme>(theme_idx);
+    return true;
   }
-  ImGui::SetItemTooltip("%s", "Theme");
+  ImGui::SetItemTooltip("%s", theme_tooltips[theme_idx]);
 
-  return changed;
+  return false;
 }
 
 bool LabelSelectionGui(mjvOption* opts) {
@@ -361,7 +469,8 @@ bool LabelSelectionGui(mjvOption* opts) {
 
   bool changed = false;
   const std::string label_preview =
-      std::string(ICON_LABEL) + " " + kLabelNames[opts->label];
+      opts->label == 0 ? std::string(ICON_LABEL) + " Label"
+                       : std::string(ICON_LABEL) + " " + kLabelNames[opts->label];
   if (ImGui::BeginCombo("##Label", label_preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
     for (int n = 0; n < IM_ARRAYSIZE(kLabelNames); n++) {
@@ -383,7 +492,8 @@ bool FrameSelectionGui(mjvOption* opts) {
 
   bool changed = false;
   const std::string frame_preview =
-      std::string(ICON_FRAME) + " " + kFrameNames[opts->frame];
+      opts->frame == 0 ? std::string(ICON_FRAME) + " Frame"
+                       : std::string(ICON_FRAME) + " " + kFrameNames[opts->frame];
   if (ImGui::BeginCombo("##Frame", frame_preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
     for (int n = 0; n < IM_ARRAYSIZE(kFrameNames); n++) {
@@ -423,7 +533,7 @@ bool CameraSelectionGui(const mjModel* model, mjData* data, mjvCamera& camera,
 
   auto select = [&](int type, int idx) {
     if (ImGui::Selectable(GetCameraName(model, camera, type).c_str(),
-            (type == idx))) {
+                          (type == idx))) {
       return true;
     }
     return false;
@@ -734,22 +844,6 @@ void PhysicsGui(mjModel* model, float min_width) {
     ImGui::TreePop();
   }
 
-  if (ImGui::TreeNodeEx("Actuator Groups")) {
-    if (ImGui::BeginTable("##ActuatorGroupsTable", num_cols)) {
-      const ImVec2 size = GetFlexElementSize(num_cols);
-      for (int i = 0; i < 6; ++i) {
-        char label[64];
-        std::snprintf(label, sizeof(label), "Act Group %d", i);
-        ImGui::TableNextColumn();
-        int flipped = ~opt.disableactuator;
-        ImGui_BitToggle(label, &flipped, 1 << i, size);
-        opt.disableactuator = ~flipped;
-      }
-      ImGui::EndTable();
-    }
-    ImGui::TreePop();
-  };
-
   if (ImGui::TreeNodeEx("Algorithmic Parameters")) {
     ImGui_Input("Timestep", &opt.timestep, {0, 1, 0.01, 0.1});
     ImGui_Input("Iterations", &opt.iterations, {0, 1000, 1, 10});
@@ -781,6 +875,22 @@ void PhysicsGui(mjModel* model, float min_width) {
     ImGui_InputN("Sol Imp", opt.o_solimp, 5, {.format = "%0.1f"});
     ImGui_InputN("Sol Ref", opt.o_solref, 2, {.format = "%0.1f"});
     ImGui_InputN("Friction", opt.o_friction, 5, {.format = "%.1f"});
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNodeEx("Actuator Groups")) {
+    if (ImGui::BeginTable("##ActuatorGroupsTable", num_cols)) {
+      const ImVec2 size = GetFlexElementSize(num_cols);
+      for (int i = 0; i < 6; ++i) {
+        char label[64];
+        std::snprintf(label, sizeof(label), "Act Group %d", i);
+        ImGui::TableNextColumn();
+        int flipped = ~opt.disableactuator;
+        ImGui_BitToggle(label, &flipped, 1 << i, size);
+        opt.disableactuator = ~flipped;
+      }
+      ImGui::EndTable();
+    }
     ImGui::TreePop();
   }
 
@@ -903,8 +1013,6 @@ void RenderingGui(const mjModel* model, mjvOption* vis_options,
       static_cast<int>(std::floor(available_width / min_width)), 1, 6);
 
   if (ImGui::TreeNodeEx("Model Elements", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
     if (ImGui::BeginTable("##ModelElementsTable", num_cols)) {
       const ImVec2 size = GetFlexElementSize(num_cols);
       for (int i = 0; i < mjNVISFLAG; ++i) {
@@ -913,14 +1021,10 @@ void RenderingGui(const mjModel* model, mjvOption* vis_options,
       }
       ImGui::EndTable();
     }
-
-    ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
     ImGui::TreePop();
   }
 
   if (ImGui::TreeNodeEx("Render Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
     if (ImGui::BeginTable("##RenderFlagsTable", num_cols)) {
       const ImVec2 size = GetFlexElementSize(num_cols);
       for (int i = 0; i < mjNRNDFLAG; ++i) {
@@ -929,8 +1033,6 @@ void RenderingGui(const mjModel* model, mjvOption* vis_options,
       }
       ImGui::EndTable();
     }
-
-    ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
     ImGui::TreePop();
   }
 }
@@ -947,8 +1049,6 @@ void GroupsGui(const mjModel* model, mjvOption* vis_options, float min_width) {
 
   auto GroupGui = [&](const char* name, mjtByte* group) {
     if (ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_DefaultOpen)) {
-      ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
       char label[64];
       std::snprintf(label, sizeof(label), "##%s", name);
       if (ImGui::BeginTable(label, num_cols)) {
@@ -961,8 +1061,6 @@ void GroupsGui(const mjModel* model, mjvOption* vis_options, float min_width) {
 
         ImGui::EndTable();
       }
-
-      ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
       ImGui::TreePop();
     }
   };
@@ -980,8 +1078,8 @@ void NoiseGui(const mjModel* model, const mjData* data, float& noise_scale,
               float& noise_rate) {
   const float item_width = ImGui::GetWindowWidth() * .6f;
   ImGui::PushItemWidth(item_width);
-  ImGui::SliderFloat("Scale", &noise_scale, 0, 1);
-  ImGui::SliderFloat("Rate", &noise_rate, 0, 4);
+  ImGui::SliderFloat("Noise scale", &noise_scale, 0, 1);
+  ImGui::SliderFloat("Noise rate", &noise_rate, 0, 4);
   ImGui::PopItemWidth();
 }
 
@@ -1067,12 +1165,24 @@ void ControlsGui(const mjModel* model, const mjData* data,
   ImGui::PopItemWidth();
 }
 
-void ConvergenceGui(const mjModel* model, mjData* data) {
-  if (ImPlot::BeginPlot("Convergence (log 10)", ImVec2(-1, 0),
-                        ImPlotFlags_NoMouseText)) {
+static int GetPlotXLimit(const mjData* data) {
+  int max_niter = 0;
+  const int nisland0 =
+      data->nefc ? mjMAX(1, mjMIN(data->nisland, mjNISLAND)) : 0;
+  for (int k = 0; k < nisland0; k++) {
+    max_niter = mjMAX(max_niter, data->solver_niter[k]);
+  }
+  return mjMAX(10, ((max_niter + 9) / 10) * 10);
+}
+
+void ConvergenceGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
+  int xlim = GetPlotXLimit(data);
+  ImPlotFlags flags =
+      ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
+  if (ImPlot::BeginPlot("Convergence (log 10) vs iter", plot_size, flags)) {
     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
-    ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisLimits(ImAxis_X1, 0, 20, ImPlotCond_Always);
+    ImPlot::SetupAxis(ImAxis_X1, "", ImPlotAxisFlags_AutoFit);
+    ImPlot::SetupAxisLimits(ImAxis_X1, 0, xlim, ImPlotCond_Always);
     ImPlot::SetupAxisFormat(ImAxis_Y1, "%.1f");
     ImPlot::SetupAxisLimits(ImAxis_Y1, -20, 5, ImPlotCond_Always);
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
@@ -1128,11 +1238,14 @@ void ConvergenceGui(const mjModel* model, mjData* data) {
   }
 }
 
-void CountsGui(const mjModel* model, mjData* data) {
-  if (ImPlot::BeginPlot("Counts", ImVec2(-1, 0), ImPlotFlags_NoMouseText)) {
+void CountsGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
+  int xlim = GetPlotXLimit(data);
+  ImPlotFlags flags =
+      ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
+  if (ImPlot::BeginPlot("Counts vs iter", plot_size, flags)) {
     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
-    ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisLimits(ImAxis_X1, 0, 20, ImPlotCond_Always);
+    ImPlot::SetupAxis(ImAxis_X1, "", ImPlotAxisFlags_AutoFit);
+    ImPlot::SetupAxisLimits(ImAxis_X1, 0, xlim, ImPlotCond_Always);
     ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0f");
     ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 80, ImPlotCond_Always);
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
@@ -1282,6 +1395,58 @@ void StatsGui(const mjModel* model, const mjData* data, bool paused,
     ImGui::Text("%d", data->nisland);
   }
   ImGui::Columns();
+}
+
+void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler) {
+  ImGui::SetWindowFontScale(0.8f);
+  ImVec2 avail = ImGui::GetContentRegionAvail();
+  const float pad = ImGui::GetStyle().ItemSpacing.x;
+  const float aspect = avail.y > 0 ? avail.x / avail.y : 1.0f;
+
+  ImVec2 plot_size;
+  int cols;
+  if (aspect < 0.8f) {
+    plot_size.x = avail.x;
+    plot_size.y = (avail.y - pad * 3.0f) * 0.25f;
+    cols = 1;
+  } else if (aspect < 1.8f) {
+    plot_size.x = (avail.x - pad) * 0.5f;
+    plot_size.y = (avail.y - pad) * 0.5f;
+    cols = 2;
+  } else {
+    plot_size.x = (avail.x - pad * 3.0f) * 0.25f;
+    plot_size.y = avail.y;
+    cols = 4;
+  }
+
+  int current_col = 0;
+  auto advance = [&]() {
+    current_col++;
+    if (current_col < cols) {
+      ImGui::SameLine();
+    } else {
+      current_col = 0;
+    }
+  };
+
+  if (cols == 2) {
+    // In 2x2 layout, vertically stack charts with the same x-axis.
+    CountsGui(model, data, plot_size);
+    advance();
+    profiler->DimensionsGraph(plot_size);
+    advance();
+    ConvergenceGui(model, data, plot_size);
+    advance();
+    profiler->CpuTimeGraph(plot_size);
+  } else {
+    CountsGui(model, data, plot_size);
+    advance();
+    ConvergenceGui(model, data, plot_size);
+    advance();
+    profiler->DimensionsGraph(plot_size);
+    advance();
+    profiler->CpuTimeGraph(plot_size);
+  }
 }
 
 }  // namespace mujoco::platform

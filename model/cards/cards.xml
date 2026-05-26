@@ -6,6 +6,7 @@
   <statistic extent="0.5" center="0 -.5 0"/>
 
   <visual>
+    <global realtime="0.3" cameraid="0"/>
     <map znear="0.1" zfar="10"/>
     <quality shadowsize="8192"/>
   </visual>

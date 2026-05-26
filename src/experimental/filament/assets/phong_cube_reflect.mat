@@ -15,7 +15,6 @@
 material {
     name : phong_cube_reflect,
     shadingModel : specularGlossiness,
-    culling : none,
     flipUV : false,
     parameters : [
         { type : float4, name : BaseColorFactor },

@@ -68,7 +68,7 @@ TEST_F(MjcConvexTest, CylinderBox) {
   EXPECT_EQ(data->ncon, 5);
 
   // with multiCCD disabled, should find 1 contact
-  model->opt.enableflags &= ~mjENBL_MULTICCD;
+  model->opt.disableflags |= mjDSBL_MULTICCD;
   mj_forward(model, data);
   EXPECT_EQ(data->ncon, 1);
 

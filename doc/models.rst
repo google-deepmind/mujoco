@@ -151,3 +151,5 @@ Biomechanical
      - Preview
    * - `Fruitfly <https://github.com/google-deepmind/mujoco_menagerie/tree/main/flybody>`_
      - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/flybody/flybody.png
+   * - `MS-Human-700 <https://github.com/google-deepmind/mujoco_menagerie/tree/main/ms_human_700>`_
+     - .. image:: https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main/ms_human_700/ms_human_700.png

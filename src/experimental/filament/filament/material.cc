@@ -19,105 +19,145 @@
 #include <filament/MaterialInstance.h>
 #include <filament/RenderableManager.h>
 #include <filament/TextureSampler.h>
-#include <mujoco/mjmodel.h>
+#include <math/vec4.h>
+#include <mujoco/mujoco.h>
+#include "experimental/filament/filament_util.h"
+#include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/texture.h"
+#include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
 
-Material::Material(ObjectManager* object_mgr) : object_mgr_(object_mgr) {
-  instances_[kDepth] =
-      object_mgr_->GetMaterial(ObjectManager::kUnlitDepth)->createInstance();
-  instances_[kSegmentation] =
-      object_mgr_->GetMaterial(ObjectManager::kUnlitSegmentation)
-          ->createInstance();
-}
+ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
+                                            const Mesh* mesh) {
+  if (material.decor_ux) {
+    if (material.color_texture) {
+      return ObjectManager::kUnlitUi;
+    } else {
+      return ObjectManager::kUnlitDecor;
+    }
+  } else if (material.orm_texture) {
+    if (material.opacity_texture) {
+      return ObjectManager::kPbrPackedTransparent;
+    } else {
+      return ObjectManager::kPbrPacked;
+    }
+  } else if (material.metallic_texture) {
+    if (material.opacity_texture) {
+      return ObjectManager::kPbrPackedTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
+  } else if (material.roughness_texture) {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPbrTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
+  } else if (material.metallic >= 0) {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPbrTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
+  } else if (material.roughness >= 0) {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPbrTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
+  }
 
-Material::~Material() noexcept {
-  filament::Engine* engine = object_mgr_->GetEngine();
-  for (int i = 0; i < kNumDrawModes; ++i) {
-    if (instances_[i]) {
-      engine->destroy(instances_[i]);
+  // Check to see if we're dealing with a mesh with texture coordinates.
+  // `data_id` is the id of the mesh in model (i.e. the geom has mesh
+  // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if
+  // it has them.
+  const Texture* color_texture = Texture::downcast(material.color_texture);
+  const bool has_texcoords =
+      mesh ? mesh->HasVertexAttribute(mjVERTEX_ATTRIBUTE_USAGE_UV) : false;
+
+  if (color_texture == nullptr) {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPhongColorFade;
+    } else if (material.reflective) {
+      return ObjectManager::kPhongColorReflect;
+    } else {
+      return ObjectManager::kPhongColor;
+    }
+  } else if (color_texture->GetSamplerType() == mjTEXTURE_CUBE) {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPhongCubeFade;
+    } else if (material.reflective) {
+      return ObjectManager::kPhongCubeReflect;
+    } else {
+      return ObjectManager::kPhongCube;
+    }
+  } else if (has_texcoords) {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPhong2dUvFade;
+    } else if (material.reflective) {
+      return ObjectManager::kPhong2dUvReflect;
+    } else {
+      return ObjectManager::kPhong2dUv;
+    }
+  } else {
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPhong2dFade;
+    } else if (material.reflective) {
+      return ObjectManager::kPhong2dReflect;
+    } else {
+      return ObjectManager::kPhong2d;
     }
   }
 }
 
-void Material::SetNormalMaterialType(
-    ObjectManager::MaterialType material_type) {
-  filament::Material* material = object_mgr_->GetMaterial(material_type);
-
-  if (instances_[kNormal]) {
-    const filament::Material* current_material =
-        instances_[kNormal]->getMaterial();
-    if (current_material == material) {
-      return;
-    }
-
-    object_mgr_->GetEngine()->destroy(instances_[kNormal]);
-    instances_[kNormal] = nullptr;
-  }
-  if (material) {
-    instances_[kNormal] = material->createInstance();
-    UpdateMaterialInstances();
-  }
-}
-
-void Material::UpdateParams(const Params& params) {
-  params_ = params;
-  UpdateMaterialInstances();
-}
-
-void Material::UpdateTextures(const Textures& textures) {
-  textures_ = textures;
-  UpdateMaterialInstances();
-}
-
-void Material::UpdateReflectionTexture(const Texture* tex) {
-  textures_.reflection = tex;
-  UpdateMaterialInstances();
-}
-
-void Material::UpdateMaterialInstances() {
-  filament::MaterialInstance* instance = instances_[DrawMode::kNormal];
-  if (instance == nullptr) {
-    return;
+void UpdateMaterialInstance(filament::MaterialInstance* instance,
+                            const mjrMaterial& material,
+                            ObjectManager* object_mgr) {
+  if (material.scissor[2] != 0 && material.scissor[3] != 0) {
+    instance->setScissor(material.scissor[0], material.scissor[1],
+                         material.scissor[2], material.scissor[3]);
   }
 
-  const filament::Material* material = instance->getMaterial();
-  if (material->hasParameter("BaseColorFactor")) {
+  const filament::Material* fmaterial = instance->getMaterial();
+  if (fmaterial->hasParameter("BaseColorFactor")) {
     instance->setParameter("BaseColorFactor", filament::RgbaType::sRGB,
-                           params_.color);
+                           ReadFloat4(material.color));
   }
-  if (material->hasParameter("EmissiveFactor")) {
-    instance->setParameter("EmissiveFactor", params_.emissive);
+  if (fmaterial->hasParameter("SegmentationColor")) {
+    filament::math::float4 color{
+        static_cast<float>(material.segmentation_color[0]) / 255.0f,
+        static_cast<float>(material.segmentation_color[1]) / 255.0f,
+        static_cast<float>(material.segmentation_color[2]) / 255.0f, 1.0f};
+    instance->setParameter("SegmentationColor", filament::RgbaType::LINEAR,
+                           color);
   }
-  if (material->hasParameter("SpecularFactor")) {
-    instance->setParameter("SpecularFactor", params_.specular);
+  if (fmaterial->hasParameter("EmissiveFactor")) {
+    instance->setParameter("EmissiveFactor", material.emissive);
   }
-  if (material->hasParameter("GlossinessFactor")) {
-    instance->setParameter("GlossinessFactor", params_.glossiness);
+  if (fmaterial->hasParameter("SpecularFactor")) {
+    instance->setParameter("SpecularFactor", material.specular);
   }
-  if (material->hasParameter("MetallicFactor")) {
+  if (fmaterial->hasParameter("GlossinessFactor")) {
+    instance->setParameter("GlossinessFactor", material.glossiness);
+  }
+  if (fmaterial->hasParameter("MetallicFactor")) {
     instance->setParameter("MetallicFactor",
-                           params_.metallic >= 0 ? params_.metallic : 1.0f);
+                           material.metallic >= 0 ? material.metallic : 1.0f);
   }
-  if (material->hasParameter("RoughnessFactor")) {
+  if (fmaterial->hasParameter("RoughnessFactor")) {
     instance->setParameter("RoughnessFactor",
-                           params_.roughness >= 0 ? params_.roughness : 1.0f);
+                           material.roughness >= 0 ? material.roughness : 1.0f);
   }
-  if (material->hasParameter("UvScale")) {
-    instance->setParameter("UvScale", params_.uv_scale);
+  if (fmaterial->hasParameter("UvScale")) {
+    instance->setParameter("UvScale", ReadFloat3(material.uv_scale));
   }
-  if (material->hasParameter("UvOffset")) {
-    instance->setParameter("UvOffset", params_.uv_offset);
+  if (fmaterial->hasParameter("UvOffset")) {
+    instance->setParameter("UvOffset", ReadFloat3(material.uv_offset));
   }
-  if (material->hasParameter("Reflectance")) {
-    instance->setParameter("Reflectance", params_.reflectance);
-  }
-
-  if (instances_[DrawMode::kSegmentation]) {
-    instances_[DrawMode::kSegmentation]->setParameter(
-        "BaseColorFactor", params_.segmentation_color);
+  if (fmaterial->hasParameter("Reflectance")) {
+    instance->setParameter("Reflectance", material.reflectance);
   }
 
   // All textures use the same default sampler.
@@ -129,26 +169,28 @@ void Material::UpdateMaterialInstances() {
   sampler.setMinFilter(
       filament::TextureSampler::MinFilter::LINEAR_MIPMAP_LINEAR);
 
-  auto TrySetTexture = [&](const char* name, const Texture* texture,
-                        mjtTextureRole role) {
-    if (material->hasParameter(name)) {
-      if (texture) {
-        instance->setParameter(name, texture->GetFilamentTexture(), sampler);
+  auto TrySetTexture = [&](const char* name, const mjrTexture* texture,
+                           mjtTextureRole role) {
+    if (fmaterial->hasParameter(name)) {
+      if (texture != nullptr) {
+        instance->setParameter(
+            name, Texture::downcast(texture)->GetFilamentTexture(), sampler);
       } else {
-        auto* fallback = object_mgr_->GetFallbackTexture(role);
-        instance->setParameter(name, fallback->GetFilamentTexture(), sampler);
+        instance->setParameter(name, object_mgr->GetFallbackTexture(role),
+                               sampler);
       }
     }
   };
 
-  TrySetTexture("BaseColor", textures_.color, mjTEXROLE_RGB);
-  TrySetTexture("Normal", textures_.normal, mjTEXROLE_NORMAL);
-  TrySetTexture("Metallic", textures_.metallic, mjTEXROLE_METALLIC);
-  TrySetTexture("Roughness", textures_.roughness, mjTEXROLE_ROUGHNESS);
-  TrySetTexture("Occlusion", textures_.occlusion, mjTEXROLE_OCCLUSION);
-  TrySetTexture("ORM", textures_.orm, mjTEXROLE_ORM);
-  TrySetTexture("Emissive", textures_.emissive, mjTEXROLE_EMISSIVE);
-  TrySetTexture("Reflection", textures_.reflection, mjTEXROLE_USER);
+  TrySetTexture("BaseColor", material.color_texture, mjTEXROLE_RGB);
+  TrySetTexture("Opacity", material.opacity_texture, mjTEXROLE_OPACITY);
+  TrySetTexture("Normal", material.normal_texture, mjTEXROLE_NORMAL);
+  TrySetTexture("Metallic", material.metallic_texture, mjTEXROLE_METALLIC);
+  TrySetTexture("Roughness", material.roughness_texture, mjTEXROLE_ROUGHNESS);
+  TrySetTexture("Occlusion", material.occlusion_texture, mjTEXROLE_OCCLUSION);
+  TrySetTexture("ORM", material.orm_texture, mjTEXROLE_ORM);
+  TrySetTexture("Emissive", material.emissive_texture, mjTEXROLE_EMISSIVE);
+  TrySetTexture("Reflection", material.reflection_texture, mjTEXROLE_USER);
 }
 
 }  // namespace mujoco

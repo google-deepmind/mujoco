@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
-#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -72,34 +71,24 @@ static void SelectParentPerturb(const mjModel* model, mjvPerturb& perturb) {
   // TODO: update selected element!
 }
 
-static constexpr const char* ICON_PLAY = platform::ICON_FA_PLAY;
-static constexpr const char* ICON_PAUSE = platform::ICON_FA_PAUSE;
-static constexpr const char* ICON_VISCOUS_PAUSE = platform::ICON_FA_MAGIC;
 static constexpr const char* ICON_COPY_CAMERA = platform::ICON_FA_COPY;
-static constexpr const char* ICON_UNLOAD_MODEL = platform::ICON_FA_EJECT;
 static constexpr const char* ICON_RELOAD_MODEL = platform::ICON_FA_REFRESH;
 static constexpr const char* ICON_RESET_MODEL = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_PREV_FRAME = platform::ICON_FA_CARET_LEFT;
 static constexpr const char* ICON_NEXT_FRAME = platform::ICON_FA_CARET_RIGHT;
 static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
-static constexpr const char* ICON_SPEED = platform::ICON_FA_TACHOMETER;
-static constexpr const char* ICON_RELOAD_SPEC = platform::ICON_FA_REFRESH;
 static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
-// logarithmically spaced real-time slow-down coefficients (percent)
-// clang-format off
-static constexpr std::array<const char*, 31> kPercentRealTime = {
-"100.0 ", " 80.0 ", " 66.0 ", " 50.0 ", " 40.0 ", " 33.0 ", " 25.0 ", " 20.0 ", " 16.0 ", " 13.0 ",
-" 10.0 ", "  8.0 ", "  6.6 ", "  5.0 ", "  4.0 ", "  3.3 ", "  2.5 ", "  2.0 ", "  1.6 ", "  1.3 ",
-"  1.0 ", "  0.8 ", "  0.7 ", "  0.5 ", "  0.4 ", "  0.33", "  0.25", "  0.2 ", "  0.16", "  0.13",
-"  0.1 ",
-};
-// clang-format on
-
 App::App(Config config)
-    : ini_path_(std::move(config.ini_path)), gfx_mode_(config.gfx_mode) {
+    : app_title_(std::move(config.title)),
+      ini_path_(std::move(config.ini_path)),
+      gfx_mode_(config.gfx_mode) {
   SwitchGraphicsMode(config.width, config.height, config.gfx_mode);
+
+  if (config.initial_theme.has_value()) {
+    ui_.theme = *config.initial_theme;
+  }
 
   ImPlot::CreateContext();
   mjv_defaultPerturb(&perturb_);
@@ -117,21 +106,16 @@ void App::SwitchGraphicsMode(int width, int height,
 
   platform::Window::Config window_config;
   window_config.gfx_mode = gfx_mode_;
-  window_ = std::make_unique<platform::Window>("MuJoCo Studio", width, height,
+  window_ = std::make_unique<platform::Window>(app_title_, width, height,
                                                window_config);
   renderer_ = std::make_unique<platform::Renderer>(
       window_->GetNativeWindowHandle(), gfx_mode_);
-}
 
-void App::ClearModel() {
-  model_holder_.reset();
-  window_->SetTitle("MuJoCo Studio");
-  step_control_.SetSpeed(100.f);
-  profiler_.Clear();
-  tmp_ = UiTempState();
-  load_error_ = "";
-  step_error_ = "";
-  edit_error_ = "";
+  // TODO: Figure out why this breaks on some platforms.
+  // LoadSettings();
+  if (ui_.window_width > 0 && ui_.window_height > 0) {
+    window_->Resize(ui_.window_width, ui_.window_height);
+  }
 }
 
 void App::Recompile() {
@@ -146,7 +130,8 @@ void App::RequestModelLoad(std::string model_file) {
 }
 
 void App::RequestModelReload() {
-  if (model_kind_ == kModelFromFile) {
+  if (model_kind_ == kModelFromFile ||
+      (model_kind_ == kEmptyModel && !model_path_.empty())) {
     pending_load_ = model_path_;
     preserve_camera_on_load_ = true;
   }
@@ -168,13 +153,16 @@ void App::LoadModelFromFile(const std::string& filepath) {
     UpdateFilePaths(resolved_file);
     if (model() && model()->names) {
       // Assumes the first string in the model is the name of the model itself.
-      window_->SetTitle("MuJoCo Studio : " + std::string(model()->names));
+      window_->SetTitle(app_title_ + " : " + std::string(model()->names));
     } else {
-      window_->SetTitle("MuJoCo Studio : " +
+      window_->SetTitle(app_title_ + " : " +
                         std::filesystem::path(filepath).stem().string());
     }
   } else {
     SetLoadError(std::string(model_holder_->error()));
+    // Keep track of the attempted load in case the user fixes the error and
+    // tries to reload the same file again.
+    model_path_ = resolved_file;
   }
 }
 
@@ -192,6 +180,10 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
 }
 
 void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
+  load_error_ = "";
+  step_error_ = "";
+  edit_error_ = "";
+
   model_path_ = std::move(filename);
 
   if (model_kind_ == kEmptyModel) {
@@ -221,8 +213,8 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
   // Initialize the speed based on the model's default real-time setting.
   float min_error = FLT_MAX;
   const float desired = mju_log(100 * model->vis.global.realtime);
-  for (int i = 0; i < kPercentRealTime.size(); ++i) {
-    const float speed = std::stof(kPercentRealTime[i]);
+  for (int i = 0; i < platform::kPercentRealTime.size(); ++i) {
+    const float speed = std::stof(platform::kPercentRealTime[i]);
     const float error = mju_abs(mju_log(speed) - desired);
     if (error < min_error) {
       min_error = error;
@@ -260,6 +252,8 @@ void App::UpdateFilePaths(const std::string& resolved_path) {
 void App::SetLoadError(std::string error) {
   InitEmptyModel();
   load_error_ = std::move(error);
+  step_error_ = "";
+  edit_error_ = "";
 }
 
 void App::ResetPhysics() {
@@ -467,14 +461,20 @@ void App::HandleMouseEvents() {
     if (perturb_.select > 0) {
       mjtMouse action = mjMOUSE_NONE;
       if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        action = io.KeyShift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
+        if (io.KeyAlt) {
+          action = io.KeyShift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
+        } else {
+          action = io.KeyShift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
+        }
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
         action = io.KeyShift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
         action = mjMOUSE_ZOOM;
       }
       const mjtPertBit active =
-          action == mjMOUSE_MOVE_V ? mjPERT_TRANSLATE : mjPERT_ROTATE;
+          (action == mjMOUSE_MOVE_V || action == mjMOUSE_MOVE_H)
+              ? mjPERT_TRANSLATE
+              : mjPERT_ROTATE;
       if (active != perturb_.active) {
         platform::InitPerturb(model(), data(), &camera_, &perturb_, active);
       }
@@ -595,6 +595,14 @@ void App::HandleKeyboardEvents() {
     tmp_.inspector_panel = !tmp_.inspector_panel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab)) {
     tmp_.options_panel = !tmp_.options_panel;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Minus | ImGuiMod_Ctrl)) {
+    float old_scale = ui_.font_scale;
+    ui_.font_scale = std::clamp(ui_.font_scale - 0.1f, 0.5f, 3.0f);
+    platform::RescaleDock(ui_.font_scale / old_scale);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal | ImGuiMod_Ctrl)) {
+    float old_scale = ui_.font_scale;
+    ui_.font_scale = std::clamp(ui_.font_scale + 0.1f, 0.5f, 3.0f);
+    platform::RescaleDock(ui_.font_scale / old_scale);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Minus)) {
     SetSpeedIndex(tmp_.speed_index + 1);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal)) {
@@ -613,14 +621,13 @@ void App::HandleKeyboardEvents() {
     }
   } else if (ImGui_IsChordJustPressed(ImGuiMod_Ctrl | ImGuiKey_Space)) {
     if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-      step_control_.SetPauseState(PauseState::kUnpaused, model());
+      step_control_.SetPauseState(PauseState::kUnpaused);
     } else {
-      step_control_.SetPauseState(PauseState::kViscousPaused, model());
-      tmp_.viscous_pause_time = ImGui::GetTime();
+      step_control_.SetPauseState(PauseState::kViscousPaused);
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Space)) {
     if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-      step_control_.SetPauseState(PauseState::kNormalPaused, model());
+      step_control_.SetPauseState(PauseState::kNormalPaused);
     } else if (step_control_.GetPauseState() == PauseState::kUnpaused) {
       step_control_.SetPauseState(PauseState::kNormalPaused);
     } else {
@@ -636,14 +643,12 @@ void App::HandleKeyboardEvents() {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
     ToggleWindow(tmp_.stats);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F3)) {
+    ToggleWindow(tmp_.profiler);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
     vis_options_.frame = (vis_options_.frame + 1) % mjNFRAME;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
     vis_options_.label = (vis_options_.label + 1) % mjNLABEL;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F9)) {
-    tmp_.chart_solver = !tmp_.chart_solver;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F10)) {
-    tmp_.chart_performance = !tmp_.chart_performance;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
     tmp_.full_screen = !tmp_.full_screen;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_H)) {
@@ -804,6 +809,10 @@ void App::LoadSettings() {
 void App::SaveSettings() {
   if (!ini_path_.empty()) {
     std::string settings = ImGui::SaveIniSettingsToMemory();
+    if (window_) {
+      ui_.window_width = window_->GetWidth();
+      ui_.window_height = window_->GetHeight();
+    }
     platform::AppendIniSection(settings, "[Studio][UX]", ui_.ToDict());
 
     platform::KeyValues plugin_names;
@@ -817,12 +826,13 @@ void App::SaveSettings() {
 }
 
 void App::SetSpeedIndex(int idx) {
-  if (idx == tmp_.speed_index || kPercentRealTime.empty()) {
+  if (idx == tmp_.speed_index || platform::kPercentRealTime.empty()) {
     return;
   }
 
-  tmp_.speed_index = std::clamp<int>(idx, 0, kPercentRealTime.size() - 1);
-  float speed = std::stof(kPercentRealTime[tmp_.speed_index]);
+  tmp_.speed_index =
+      std::clamp<int>(idx, 0, platform::kPercentRealTime.size() - 1);
+  float speed = std::stof(platform::kPercentRealTime[tmp_.speed_index]);
   step_control_.SetSpeed(speed);
 }
 
@@ -839,6 +849,8 @@ void App::BuildGui() {
   if (!tmp_.style_editor) {
     platform::SetupTheme(ui_.theme);
   }
+
+  ImGui::GetIO().FontGlobalScale = ui_.font_scale;
 
   const ImVec4 workspace_rect = platform::ConfigureDockingLayout();
 
@@ -879,11 +891,6 @@ void App::BuildGui() {
   }
 
   if (tmp_.inspector_panel) {
-    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
-      DataInspectorGui();
-    }
-    ImGui::End();
-
     if (ImGui::Begin("Explorer", &tmp_.inspector_panel)) {
       SpecExplorerGui();
     }
@@ -893,43 +900,40 @@ void App::BuildGui() {
       SpecEditorGui();
     }
     ImGui::End();
-  }
 
-  if (tmp_.chart_performance) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Performance", &tmp_.chart_performance)) {
-      profiler_.CpuTimeGraph();
-      profiler_.DimensionsGraph();
+    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
+      DataInspectorGui();
     }
     ImGui::End();
   }
 
-  if (tmp_.chart_solver) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
-      platform::CountsGui(model(), data());
-      platform::ConvergenceGui(model(), data());
+  if (tmp_.profiler) {
+    if (ImGui::Begin("Profiler", &tmp_.profiler,
+                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+      platform::ProfilerGui(model(), data(), &profiler_);
     }
     ImGui::End();
   }
 
   if (tmp_.picture_in_picture) {
     if (ImGui::Begin("Picture-in-Picture", &tmp_.picture_in_picture)) {
-      PipGui(model(), data(), window_.get(), renderer_.get(), &tmp_.pips);
+      platform::PipGui(model(), data(), window_->GetAspectRatio(),
+                       renderer_.get(), &tmp_.pips);
     }
     ImGui::End();
   }
 
   if (tmp_.help) {
     platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_Alpha, 0.6f);
+    style.Var(ImGuiStyleVar_Alpha, 0.8f);
     ImGui::SetNextWindowPos(ImVec2(workspace_rect.x, workspace_rect.y),
-                            ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(400, 0), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Help", &tmp_.help)) {
+                            ImGuiCond_Appearing);
+    ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Appearing);
+    if (ImGui::Begin("Help", &tmp_.help,
+                     ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.0f, 5.0f));
       HelpGui();
+      ImGui::PopStyleVar();
     }
     ImGui::End();
   }
@@ -1025,14 +1029,14 @@ void App::ModelOptionsGui() {
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Physics Settings", node_flags)) {
+  if (ImGui::TreeNodeEx("Physics", node_flags)) {
     platform::PhysicsGui(model(), min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("RenderingGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Rendering Settings", node_flags)) {
+  if (ImGui::TreeNodeEx("Rendering", node_flags)) {
     platform::RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
                            min_width);
     ImGui::TreePop();
@@ -1066,17 +1070,6 @@ void App::DataInspectorGui() {
   const ImGuiTreeNodeFlags node_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
-  ImGui::BeginChild("NoiseGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Noise", node_flags)) {
-    float noise_scale = 0;
-    float noise_rate = 0;
-    step_control_.GetNoiseParameters(noise_scale, noise_rate);
-    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
-    step_control_.SetNoiseParameters(noise_scale, noise_rate);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
-
   ImGui::BeginChild("JointsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Joints", node_flags)) {
     platform::JointsGui(model(), data(), &vis_options_);
@@ -1086,6 +1079,14 @@ void App::DataInspectorGui() {
 
   ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Controls", node_flags)) {
+
+    float noise_scale = 0;
+    float noise_rate = 0;
+    step_control_.GetNoiseParameters(noise_scale, noise_rate);
+    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
+    step_control_.SetNoiseParameters(noise_scale, noise_rate);
+    ImGui::Separator();
+
     platform::ControlsGui(model(), data(), &vis_options_);
     ImGui::TreePop();
   }
@@ -1295,18 +1296,24 @@ void App::SpecEditorGui() {
 }
 
 void App::HelpGui() {
+  const float pad = ImGui::GetStyle().ItemSpacing.x;
+  const float indent = pad * 2;
+  const float col0 = ImGui::CalcTextSize("Toggle Visc Pause").x + pad;
+  const float col1 = ImGui::CalcTextSize("Ctrl+Spc").x + pad + indent;
+  const float col2 = ImGui::CalcTextSize("Center of Mass").x + pad + indent;
+  const float col3 = ImGui::CalcTextSize("M").x + pad + indent;
+  ImGui::Dummy(ImVec2(col0 + col1 + col2 + col3, 0));
   ImGui::Columns(4);
-  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.35f);
-  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.15f);
-  ImGui::SetColumnWidth(2, ImGui::GetWindowWidth() * 0.4f);
-  ImGui::SetColumnWidth(3, ImGui::GetWindowWidth() * 0.1f);
+  ImGui::SetColumnWidth(0, col0);
+  ImGui::SetColumnWidth(1, col1);
+  ImGui::SetColumnWidth(2, col2);
+  ImGui::SetColumnWidth(3, col3);
 
   ImGui::Text("Help");
   ImGui::Text("Stats");
+  ImGui::Text("Profiler");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
-  ImGui::Text("Solver Charts");
-  ImGui::Text("Perf. Charts");
   ImGui::Text("Toggle Fullscreen");
   ImGui::Text("Free Camera");
   ImGui::Text("Toggle Pause");
@@ -1327,12 +1334,12 @@ void App::HelpGui() {
   ImGui::Text("Site Group");
 
   ImGui::NextColumn();
+  ImGui::Indent(indent);
   ImGui::Text("F1");
   ImGui::Text("F2");
+  ImGui::Text("F3");
   ImGui::Text("F6");
   ImGui::Text("F7");
-  ImGui::Text("F9");
-  ImGui::Text("F10");
   ImGui::Text("F11");
   ImGui::Text("Esc");
   ImGui::Text("Spc");
@@ -1340,7 +1347,7 @@ void App::HelpGui() {
   ImGui::Text("Bksp");
   ImGui::Text("Tab");
   ImGui::Text("Sh+Tab");
-  ImGui::Text("=");
+  ImGui::Text("+");
   ImGui::Text("-");
   ImGui::Text("[");
   ImGui::Text("]");
@@ -1353,6 +1360,7 @@ void App::HelpGui() {
   ImGui::Text("Sh+0-5");
 
   ImGui::NextColumn();
+  ImGui::Indent(indent);
   ImGui::Text("Activation");
   ImGui::Text("Auto Connect");
   ImGui::Text("Body Tree");
@@ -1379,6 +1387,7 @@ void App::HelpGui() {
   ImGui::Text("Transparent");
 
   ImGui::NextColumn();
+  ImGui::Indent(indent);
   ImGui::Text(",");
   ImGui::Text("K");
   ImGui::Text("`");
@@ -1407,29 +1416,13 @@ void App::HelpGui() {
   ImGui::Columns();
 }
 
-struct SpeedStatus {
-  bool misaligned;
-  float measured;
-};
-
-static SpeedStatus IsSpeedMisaligned(
-    const platform::StepControl& step_control) {
-  const float desired = step_control.GetSpeed();
-  const float measured = step_control.GetSpeedMeasured();
-  return {std::abs(measured - desired) > 0.1f * desired, measured};
-}
-
 void App::ToolBarGui() {
+  ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
   if (ImGui::BeginTable("##ToolBarTable", 2)) {
     platform::ScopedStyle style;
-    const ImColor red(220, 40, 40, 255);
-    const ImColor green(40, 180, 40, 255);
-    const ImColor yellow(250, 230, 10, 255);
-    const int combo_flags = ImGuiComboFlags_NoArrowButton;
-
-    const float scale = ImGui::GetWindowDpiScale();
-    const ImVec2 button_size(48.f * scale, 32.f * scale);
-    const ImVec2 play_button_size(80.f * scale, 32.f * scale);
+    style.Var(ImGuiStyleVar_ItemSpacing,
+              ImVec2(ImGui::GetStyle().ItemSpacing.x * 2.0f,
+                     ImGui::GetStyle().ItemSpacing.y));
 
     const float label_width = GetExpectedLabelWidth();
     const float copy_btn_width = ImGui::CalcTextSize(ICON_COPY_CAMERA).x +
@@ -1441,128 +1434,40 @@ void App::ToolBarGui() {
     const float right_width = label_width + sp + label_width + sp +
                               label_width + sp + copy_btn_width + sp +
                               theme_width;
-    const float separator_width = .2f * button_size.x;
+    const float separator_width = ImGui::GetFrameHeight() * .6f;
 
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, right_width);
 
     ImGui::TableNextColumn();
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetStyle().WindowPadding.x);
 
-    // Combined (Unload, Reload) widget
+    const float btn_size = ImGui::GetFrameHeight();
+    const ImVec2 square_size(btn_size, btn_size);
+
+    // Reload button.
     {
       style.Var(ImGuiStyleVar_FrameRounding, 2.0f);
-
-      // Unload button.
-      {
-        const ImColor a = red;
-        const ImColor h(a.Value.x, a.Value.y, a.Value.z, a.Value.w * 0.6f);
-        style.Color(ImGuiCol_ButtonHovered, h);
-        style.Color(ImGuiCol_ButtonActive, a);
-
-        if (ImGui::Button(ICON_UNLOAD_MODEL, button_size)) {
-          InitEmptyModel();
-        }
-        ImGui::SetItemTooltip("%s", "Unload");
-        style.Reset();
-      }
-
-      // Reload button.
-      ImGui::SameLine(0, 0);
-      if (ImGui::Button(ICON_RELOAD_MODEL, button_size)) {
+      if (ImGui::Button(ICON_RELOAD_MODEL, square_size)) {
         RequestModelReload();
       }
       ImGui::SetItemTooltip("%s", "Reload");
     }
 
     // Reset button.
-    ImGui::SameLine(0, separator_width);
-    if (ImGui::Button(ICON_RESET_MODEL, button_size)) {
+    ImGui::SameLine(0, 0.5 * separator_width);
+    if (ImGui::Button(ICON_RESET_MODEL, square_size)) {
       ResetPhysics();
     }
     ImGui::SetItemTooltip("%s", "Reset");
 
-    // Combined (Normal Pause, Viscous Pause, Play) widget
-    {
-      style.Var(ImGuiStyleVar_FrameRounding, 2.0f);
-
-      // Normal pause button.
-      ImGui::SameLine(0, separator_width);
-      ImColor paused_color = yellow;
-      bool paused = step_control_.GetPauseState() == PauseState::kNormalPaused;
-      if (platform::ImGui_ColorButton(ICON_PAUSE, paused, paused_color,
-                                      button_size)) {
-        if (!paused) {
-          step_control_.SetPauseState(PauseState::kNormalPaused, model());
-        }
-      }
-      ImGui::SetItemTooltip("%s", "Pause");
-
-      // Viscous pause button.
-      ImGui::SameLine(0, 0);
-      ImColor vpaused_color = green;
-      float t = 0.f;
-      bool vpaused =
-          step_control_.GetPauseState() == PauseState::kViscousPaused;
-      if (vpaused) {
-        t = ImGui::GetTime() - tmp_.viscous_pause_time;
-        t = std::sqrt(std::min(t / 0.75f, 1.0f));
-        vpaused_color = ImColor(ImLerp(green.Value, yellow.Value, t));
-      }
-      if (platform::ImGui_ColorButton(ICON_VISCOUS_PAUSE, vpaused,
-                                      vpaused_color, button_size,
-                                      t < 1.0f ? 1.0f : 0.5f)) {
-        if (!vpaused) {
-          step_control_.SetPauseState(PauseState::kViscousPaused, model());
-          tmp_.viscous_pause_time = ImGui::GetTime();
-        }
-      }
-      ImGui::SetItemTooltip("%s", "Viscous Pause");
-
-      // Play button.
-      ImGui::SameLine(0, 0);
-      if (platform::ImGui_ColorButton(
-              ICON_PLAY, step_control_.GetPauseState() == PauseState::kUnpaused,
-              green, button_size, 0.6f)) {
-        step_control_.SetPauseState(PauseState::kUnpaused, model());
-      }
-    }
-
-    // Speed selection.
-    ImGui::SameLine();
-    float pad_y = (button_size.y - ImGui::GetFontSize()) * 0.5f;
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(ImGui::GetStyle().FramePadding.x + 5.f, pad_y));
-    const auto [misaligned, measured] = IsSpeedMisaligned(step_control_);
-    char speed_preview[64];
-    if (misaligned) {
-      snprintf(speed_preview, sizeof(speed_preview), "%s%s (%-4.1f%%)",
-               ICON_SPEED, kPercentRealTime[tmp_.speed_index], measured);
-    } else {
-      snprintf(speed_preview, sizeof(speed_preview), "%s%s", ICON_SPEED,
-               kPercentRealTime[tmp_.speed_index]);
-    }
-    ImGui::SetNextItemWidth(ImGui::CalcTextSize(speed_preview).x +
-                            ImGui::GetStyle().FramePadding.x * 2);
-    if (ImGui::BeginCombo("##Speed", speed_preview, combo_flags)) {
-      for (int n = 0; n < kPercentRealTime.size(); n++) {
-        if (ImGui::Selectable(kPercentRealTime[n], (tmp_.speed_index == n))) {
-          SetSpeedIndex(n);
-        }
-      }
-      ImGui::EndCombo();
-    }
-    ImGui::PopStyleVar();
-    if (misaligned) {
-      ImGui::SetItemTooltip("%s", "Desired Speed (Measured Speed)");
-    } else {
-      ImGui::SetItemTooltip("%s", "Desired Speed");
-    }
+    // Combined (Normal Pause, Viscous Pause, Play) widget and Speed selection.
+    ImGui::SameLine(0, separator_width);
+    platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
 
     ImGui::TableNextColumn();
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                         (button_size.y - ImGui::GetFrameHeight()) * 0.5f);
 
-    if (ImGui::Button(ICON_COPY_CAMERA)) {
+    if (ImGui::Button(ICON_COPY_CAMERA, square_size)) {
       std::string camera_string = platform::CameraToString(data(), &camera_);
       platform::MaybeSaveToClipboard(camera_string);
     }
@@ -1582,13 +1487,14 @@ void App::ToolBarGui() {
 
     ImGui::SameLine();
     ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-    if (platform::ThemeSelectGui(&ui_.theme)) {
+    if (platform::ThemeSelectGui(&ui_.theme, square_size)) {
       platform::SetupTheme(ui_.theme);
       ImGui::GetIO().WantSaveIniSettings = true;
     }
 
     ImGui::EndTable();
   }
+  ImGui::PopStyleVar();
 }
 
 void App::StatusBarGui() {
@@ -1709,7 +1615,7 @@ void App::MainMenuGui() {
         if (step_control_.GetPauseState() != PauseState::kNormalPaused) {
           step_control_.SetPauseState(PauseState::kNormalPaused);
         } else {
-          step_control_.SetPauseState(PauseState::kUnpaused, model());
+          step_control_.SetPauseState(PauseState::kUnpaused);
         }
       }
       if (ImGui::MenuItem("Reset", "Backspace")) {
@@ -1800,6 +1706,11 @@ void App::MainMenuGui() {
                 gfx_mode_ == platform::GraphicsMode::FilamentVulkan)) {
           mode = platform::GraphicsMode::FilamentVulkan;
         }
+        if (ImGui::MenuItem(
+                "Filament Vulkan Software", nullptr,
+                gfx_mode_ == platform::GraphicsMode::FilamentVulkanSoftware)) {
+          mode = platform::GraphicsMode::FilamentVulkanSoftware;
+        }
         if (mode.has_value()) {
           pending_op_ = [=, this]() {
             const int width = window_->GetWidth();
@@ -1820,11 +1731,8 @@ void App::MainMenuGui() {
     }
 
     if (ImGui::BeginMenu("Charts")) {
-      if (ImGui::MenuItem("Solver", "F9")) {
-        tmp_.chart_solver = !tmp_.chart_solver;
-      }
-      if (ImGui::MenuItem("Performance", "F10")) {
-        tmp_.chart_performance = !tmp_.chart_performance;
+      if (ImGui::MenuItem("Profiler", "F3")) {
+        ToggleWindow(tmp_.profiler);
       }
       ImGui::EndMenu();
     }
@@ -1952,11 +1860,19 @@ float App::GetExpectedLabelWidth() {
 App::UiState::Dict App::UiState::ToDict() const {
   return {
       {"theme", std::to_string(static_cast<int>(theme))},
+      {"font_scale", std::to_string(font_scale)},
+      {"window_width", std::to_string(window_width)},
+      {"window_height", std::to_string(window_height)},
   };
 }
 
 void App::UiState::FromDict(const Dict& dict) {
+  using platform::ReadIniValue;
+
   *this = UiState();
   theme = ReadIniValue(dict, "theme", theme);
+  window_width = ReadIniValue(dict, "window_width", window_width);
+  window_height = ReadIniValue(dict, "window_height", window_height);
+  font_scale = ReadIniValue(dict, "font_scale", font_scale);
 }
 }  // namespace mujoco::studio

@@ -3,6 +3,7 @@
   <statistic extent="1.5"/>
 
   <visual>
+    <global realtime="0.2" cameraid="0"/>
     <rgba haze="0.15 0.25 0.35 1"/>
     <map shadowscale="0.5" zfar="40"/>
   </visual>
@@ -16,10 +17,6 @@
   <size memory="1G"/>
 
   <option solver="CG" tolerance="1e-6" timestep=".003" density="1.225" viscosity="1.8e-5" integrator="implicitfast"/>
-
-  <visual>
-    <global realtime="0.2"/>
-  </visual>
 
   <default>
     <default class="leaf">

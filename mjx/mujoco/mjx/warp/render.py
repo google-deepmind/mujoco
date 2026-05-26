@@ -48,43 +48,43 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _render_shim(
     # Model
     nworld: int,
-    cam_fovy: wp.array2d(dtype=float),
-    cam_intrinsic: wp.array2d(dtype=wp.vec4),
-    cam_projection: wp.array(dtype=int),
-    cam_sensorsize: wp.array(dtype=wp.vec2),
-    flex_edge: wp.array(dtype=wp.vec2i),
-    flex_radius: wp.array(dtype=float),
-    flex_vertadr: wp.array(dtype=int),
-    geom_dataid: wp.array(dtype=int),
-    geom_matid: wp.array2d(dtype=int),
-    geom_rgba: wp.array2d(dtype=wp.vec4),
-    geom_size: wp.array2d(dtype=wp.vec3),
-    geom_type: wp.array(dtype=int),
-    light_active: wp.array2d(dtype=bool),
-    light_castshadow: wp.array2d(dtype=bool),
-    light_type: wp.array2d(dtype=int),
-    mat_rgba: wp.array2d(dtype=wp.vec4),
-    mat_texid: wp.array3d(dtype=int),
-    mat_texrepeat: wp.array2d(dtype=wp.vec2),
-    mesh_faceadr: wp.array(dtype=int),
+    cam_fovy: wp.array2d[float],
+    cam_intrinsic: wp.array2d[wp.vec4],
+    cam_projection: wp.array[int],
+    cam_sensorsize: wp.array[wp.vec2],
+    flex_edge: wp.array[wp.vec2i],
+    flex_radius: wp.array[float],
+    flex_vertadr: wp.array[int],
+    geom_dataid: wp.array2d[int],
+    geom_matid: wp.array2d[int],
+    geom_rgba: wp.array2d[wp.vec4],
+    geom_size: wp.array2d[wp.vec3],
+    geom_type: wp.array[int],
+    light_active: wp.array2d[bool],
+    light_castshadow: wp.array2d[bool],
+    light_type: wp.array2d[int],
+    mat_rgba: wp.array2d[wp.vec4],
+    mat_texid: wp.array3d[int],
+    mat_texrepeat: wp.array2d[wp.vec2],
+    mesh_faceadr: wp.array[int],
     nlight: int,
     # Data
-    cam_xmat: wp.array2d(dtype=wp.mat33),
-    cam_xpos: wp.array2d(dtype=wp.vec3),
-    flexvert_xpos: wp.array2d(dtype=wp.vec3),
-    geom_xmat: wp.array2d(dtype=wp.mat33),
-    geom_xpos: wp.array2d(dtype=wp.vec3),
-    light_xdir: wp.array2d(dtype=wp.vec3),
-    light_xpos: wp.array2d(dtype=wp.vec3),
+    cam_xmat: wp.array2d[wp.mat33],
+    cam_xpos: wp.array2d[wp.vec3],
+    flexvert_xpos: wp.array2d[wp.vec3],
+    geom_xmat: wp.array2d[wp.mat33],
+    geom_xpos: wp.array2d[wp.vec3],
+    light_xdir: wp.array2d[wp.vec3],
+    light_xpos: wp.array2d[wp.vec3],
     # Registry
     rc_id: int,
-    rgb: wp.array2d(dtype=wp.uint32),
-    depth: wp.array2d(dtype=wp.float32),
+    rgb: wp.array2d[wp.uint32],
+    depth: wp.array2d[wp.float32],
+    seg: wp.array2d[wp.vec2i],
 ):
   _m.stat = _s
   _m.opt = _o
@@ -122,6 +122,7 @@ def _render_shim(
   render_context = _MJX_RENDER_CONTEXT_BUFFERS[(rc_id, wp.get_device().ordinal)]
   render_context.rgb_data = rgb
   render_context.depth_data = depth
+  render_context.seg_data = seg
   mjwarp.render(_m, _d, render_context)
 
 
@@ -130,10 +131,11 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
   output_dims = {
       'rgb': render_ctx.rgb_data_shape,
       'depth': render_ctx.depth_data_shape,
+      'seg': render_ctx.seg_data_shape,
   }
   jf = ffi.jax_callable_variadic_tuple(
       _render_shim,
-      num_outputs=2,
+      num_outputs=3,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([]),
@@ -157,15 +159,15 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
       has_side_effect=False,
   )
   out = jf(
-      d.qpos.shape[0],
+      render_ctx.nworld,
       m.cam_fovy,
       m.cam_intrinsic,
       m._impl.cam_projection,
       m.cam_sensorsize,
       m._impl.flex_edge,
       m._impl.flex_radius,
-      m._impl.flex_vertadr,
-      m.geom_dataid,
+      m.flex_vertadr,
+      jax.numpy.expand_dims(m.geom_dataid, 0),
       m.geom_matid,
       m.geom_rgba,
       m.geom_size,
@@ -207,4 +209,4 @@ def render_vmap(
     ctx: RenderContextPytree,
 ):
   out = render(m, d, ctx)
-  return out, [True, True]
+  return out, [True, True, True]

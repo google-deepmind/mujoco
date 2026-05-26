@@ -15,7 +15,9 @@
 
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src import util_misc
 from mujoco.mjx.third_party.mujoco_warp._src.support import next_act
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import BiasType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
@@ -31,27 +33,27 @@ wp.set_module_options({"enable_backward": False})
 @wp.kernel
 def _qderiv_actuator_passive_vel(
   # Model:
-  opt_timestep: wp.array(dtype=float),
-  actuator_dyntype: wp.array(dtype=int),
-  actuator_gaintype: wp.array(dtype=int),
-  actuator_biastype: wp.array(dtype=int),
-  actuator_actadr: wp.array(dtype=int),
-  actuator_actnum: wp.array(dtype=int),
-  actuator_forcelimited: wp.array(dtype=bool),
-  actuator_actlimited: wp.array(dtype=bool),
-  actuator_dynprm: wp.array2d(dtype=vec10f),
-  actuator_gainprm: wp.array2d(dtype=vec10f),
-  actuator_biasprm: wp.array2d(dtype=vec10f),
-  actuator_actearly: wp.array(dtype=bool),
-  actuator_forcerange: wp.array2d(dtype=wp.vec2),
-  actuator_actrange: wp.array2d(dtype=wp.vec2),
+  opt_timestep: wp.array[float],
+  actuator_dyntype: wp.array[int],
+  actuator_gaintype: wp.array[int],
+  actuator_biastype: wp.array[int],
+  actuator_actadr: wp.array[int],
+  actuator_actnum: wp.array[int],
+  actuator_forcelimited: wp.array[bool],
+  actuator_actlimited: wp.array[bool],
+  actuator_dynprm: wp.array2d[vec10f],
+  actuator_gainprm: wp.array2d[vec10f],
+  actuator_biasprm: wp.array2d[vec10f],
+  actuator_actearly: wp.array[bool],
+  actuator_forcerange: wp.array2d[wp.vec2],
+  actuator_actrange: wp.array2d[wp.vec2],
   # Data in:
-  act_in: wp.array2d(dtype=float),
-  ctrl_in: wp.array2d(dtype=float),
-  act_dot_in: wp.array2d(dtype=float),
-  actuator_force_in: wp.array2d(dtype=float),
+  act_in: wp.array2d[float],
+  ctrl_in: wp.array2d[float],
+  act_dot_in: wp.array2d[float],
+  actuator_force_in: wp.array2d[float],
   # Out:
-  vel_out: wp.array2d(dtype=float),
+  vel_out: wp.array2d[float],
 ):
   worldid, actid = wp.tid()
 
@@ -65,6 +67,28 @@ def _qderiv_actuator_passive_vel(
 
   if actuator_biastype[actid] == BiasType.AFFINE:
     bias = actuator_biasprm[actuator_biasprm_id, actid][2]
+  elif actuator_biastype[actid] == BiasType.DCMOTOR:
+    dynprm = actuator_dynprm[worldid % actuator_dynprm.shape[0], actid]
+    te = dynprm[0]
+    if te <= 0.0:
+      gainprm = actuator_gainprm[actuator_gainprm_id, actid]
+      R = gainprm[0]
+      K = gainprm[1]
+
+      slots = util_misc.dcmotor_slots(dynprm, gainprm)
+      slot_Ta = slots[2]
+
+      if slot_Ta >= 0:
+        adr = actuator_actadr[actid] + slot_Ta
+        T = act_in[worldid, adr]
+        alpha = gainprm[2]
+        T0 = gainprm[3]
+        Ta = dynprm[4]
+        R *= 1.0 + alpha * (T + Ta - T0)
+
+      bias = -K * K / wp.max(MJ_MINVAL, R)
+    else:
+      bias = 0.0
   else:
     bias = 0.0
 
@@ -121,16 +145,16 @@ def _qderiv_actuator_passive_actuation_dense(
   # Model:
   nu: int,
   # Data in:
-  moment_rownnz_in: wp.array2d(dtype=int),
-  moment_rowadr_in: wp.array2d(dtype=int),
-  moment_colind_in: wp.array2d(dtype=int),
-  actuator_moment_in: wp.array2d(dtype=float),
+  moment_rownnz_in: wp.array2d[int],
+  moment_rowadr_in: wp.array2d[int],
+  moment_colind_in: wp.array2d[int],
+  actuator_moment_in: wp.array2d[float],
   # In:
-  vel_in: wp.array2d(dtype=float),
-  qMi: wp.array(dtype=int),
-  qMj: wp.array(dtype=int),
+  vel_in: wp.array2d[float],
+  qMi: wp.array[int],
+  qMj: wp.array[int],
   # Out:
-  qDeriv_out: wp.array3d(dtype=float),
+  qDeriv_out: wp.array3d[float],
 ):
   worldid, elemid = wp.tid()
 
@@ -171,18 +195,18 @@ def _qderiv_actuator_passive_actuation_dense(
 @wp.kernel
 def _qderiv_actuator_passive_actuation_sparse(
   # Model:
-  M_rownnz: wp.array(dtype=int),
-  M_rowadr: wp.array(dtype=int),
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
   # Data in:
-  moment_rownnz_in: wp.array2d(dtype=int),
-  moment_rowadr_in: wp.array2d(dtype=int),
-  moment_colind_in: wp.array2d(dtype=int),
-  actuator_moment_in: wp.array2d(dtype=float),
+  moment_rownnz_in: wp.array2d[int],
+  moment_rowadr_in: wp.array2d[int],
+  moment_colind_in: wp.array2d[int],
+  actuator_moment_in: wp.array2d[float],
   # In:
-  vel_in: wp.array2d(dtype=float),
-  qMj: wp.array(dtype=int),
+  vel_in: wp.array2d[float],
+  qMj: wp.array[int],
   # Out:
-  qDeriv_out: wp.array3d(dtype=float),
+  qDeriv_out: wp.array3d[float],
 ):
   worldid, actid = wp.tid()
 
@@ -225,18 +249,20 @@ def _qderiv_actuator_passive_actuation_sparse(
 @wp.kernel
 def _qderiv_actuator_passive(
   # Model:
-  opt_timestep: wp.array(dtype=float),
+  opt_timestep: wp.array[float],
   opt_disableflags: int,
-  dof_damping: wp.array2d(dtype=float),
+  dof_damping: wp.array2d[float],
+  dof_dampingpoly: wp.array2d[wp.vec2],
   is_sparse: bool,
   # Data in:
-  qM_in: wp.array3d(dtype=float),
+  qvel_in: wp.array2d[float],
+  qM_in: wp.array3d[float],
   # In:
-  qMi: wp.array(dtype=int),
-  qMj: wp.array(dtype=int),
-  qDeriv_in: wp.array3d(dtype=float),
+  qMi: wp.array[int],
+  qMj: wp.array[int],
+  qDeriv_in: wp.array3d[float],
   # Out:
-  qDeriv_out: wp.array3d(dtype=float),
+  qDeriv_out: wp.array3d[float],
 ):
   worldid, elemid = wp.tid()
 
@@ -249,7 +275,10 @@ def _qderiv_actuator_passive(
     qderiv = qDeriv_in[worldid, dofiid, dofjid]
 
   if not (opt_disableflags & DisableBit.DAMPER) and dofiid == dofjid:
-    qderiv -= dof_damping[worldid % dof_damping.shape[0], dofiid]
+    damping = dof_damping[worldid % dof_damping.shape[0], dofiid]
+    dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dofiid]
+    v = qvel_in[worldid, dofiid]
+    qderiv -= util_misc._poly_force_deriv(damping, dpoly, v, 1)
 
   qderiv *= opt_timestep[worldid % opt_timestep.shape[0]]
 
@@ -267,19 +296,21 @@ def _qderiv_actuator_passive(
 def _qderiv_tendon_damping(
   # Model:
   ntendon: int,
-  opt_timestep: wp.array(dtype=float),
-  ten_J_rownnz: wp.array(dtype=int),
-  ten_J_rowadr: wp.array(dtype=int),
-  ten_J_colind: wp.array(dtype=int),
-  tendon_damping: wp.array2d(dtype=float),
+  opt_timestep: wp.array[float],
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  tendon_damping: wp.array2d[float],
+  tendon_dampingpoly: wp.array2d[wp.vec2],
   is_sparse: bool,
   # Data in:
-  ten_J_in: wp.array2d(dtype=float),
+  ten_J_in: wp.array2d[float],
+  ten_velocity_in: wp.array2d[float],
   # In:
-  qMi: wp.array(dtype=int),
-  qMj: wp.array(dtype=int),
+  qMi: wp.array[int],
+  qMj: wp.array[int],
   # Out:
-  qDeriv_out: wp.array3d(dtype=float),
+  qDeriv_out: wp.array3d[float],
 ):
   worldid, elemid = wp.tid()
   dofiid = qMi[elemid]
@@ -289,7 +320,8 @@ def _qderiv_tendon_damping(
   tendon_damping_id = worldid % tendon_damping.shape[0]
   for tenid in range(ntendon):
     damping = tendon_damping[tendon_damping_id, tenid]
-    if damping == 0.0:
+    dpoly = tendon_dampingpoly[worldid % tendon_dampingpoly.shape[0], tenid]
+    if damping == 0.0 and dpoly[0] == 0.0 and dpoly[1] == 0.0:
       continue
 
     rownnz = ten_J_rownnz[tenid]
@@ -305,7 +337,9 @@ def _qderiv_tendon_damping(
         Ji = ten_J_in[worldid, sparseid]
       if colind == dofjid:
         Jj = ten_J_in[worldid, sparseid]
-    qderiv -= Ji * Jj * damping
+
+    v = ten_velocity_in[worldid, tenid]
+    qderiv -= Ji * Jj * util_misc._poly_force_deriv(damping, dpoly, v, 1)
 
   qderiv *= opt_timestep[worldid % opt_timestep.shape[0]]
 
@@ -318,7 +352,7 @@ def _qderiv_tendon_damping(
 
 
 @event_scope
-def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d(dtype=float)):
+def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d[float]):
   """Analytical derivative of smooth forces w.r.t. velocities.
 
   Args:
@@ -382,7 +416,9 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d(dtype=float)):
         m.opt.timestep,
         m.opt.disableflags,
         m.dof_damping,
+        m.dof_dampingpoly,
         m.is_sparse,
+        d.qvel,
         d.qM,
         qMi,
         qMj,
@@ -405,8 +441,10 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d(dtype=float)):
         m.ten_J_rowadr,
         m.ten_J_colind,
         m.tendon_damping,
+        m.tendon_dampingpoly,
         m.is_sparse,
         d.ten_J,
+        d.ten_velocity,
         qMi,
         qMj,
       ],

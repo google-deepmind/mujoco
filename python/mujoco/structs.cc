@@ -41,6 +41,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
+#include "vfs.h"
 
 namespace mujoco::python::_impl {
 
@@ -301,24 +302,21 @@ PYBIND11_MODULE(_structs, m) {
   // ==================== MJMODEL ==============================================
   py::class_<MjModelWrapper> mjModel(m, "MjModel");
   mjModel.def_static(
-      "from_xml_string", &MjModelWrapper::LoadXML, py::arg("xml"),
-      py::arg_v("assets", py::none()),
+      "from_xml_string", MjModelWrapper::LoadXML, py::arg("xml"),
+      py::arg_v("assets", py::none()), py::arg("vfs") = py::none(),
       py::doc(
-          R"(Loads an MjModel from an XML string and an optional assets dictionary.)"));
+          R"(Loads an MjModel from an XML string and optional assets dict or VFS.)"));
   mjModel.def_static("_from_model_ptr", [](uintptr_t addr) {
     return MjModelWrapper::WrapRawModel(reinterpret_cast<raw::MjModel*>(addr));
   });
   mjModel.def_static(
-      "from_xml_path", &MjModelWrapper::LoadXMLFile, py::arg("filename"),
-      py::arg_v("assets", py::none()),
+      "from_xml_path", MjModelWrapper::LoadXMLFile, py::arg("filename"),
+      py::arg_v("assets", py::none()), py::arg("vfs") = py::none(),
       py::doc(
-          R"(Loads an MjModel from an XML file and an optional assets dictionary.
-
-The filename for the XML can also refer to a key in the assets dictionary.
-This is useful for example when the XML is not available as a file on disk.)"));
+          R"(Loads an MjModel from an XML file and optional assets dict or VFS.)"));
   mjModel.def_static(
       "from_binary_path", &MjModelWrapper::LoadBinaryFile, py::arg("filename"),
-      py::arg_v("assets", py::none()),
+      py::arg_v("assets", py::none()), py::arg("vfs") = py::none(),
       py::doc(
           R"(Loads an MjModel from an MJB file and an optional assets dictionary.
 
@@ -615,6 +613,32 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(int, nchange);
   X(int, neval);
   X(int, nupdate);
+#undef X
+
+  // ==================== MJPRECONTACT ==========================================
+  py::class_<MjPreContactWrapper> mjPreContact(m, "MjPreContact");
+  mjPreContact.def(py::init<>());
+  mjPreContact.def("__copy__", [](const MjPreContactWrapper& self) {
+    return MjPreContactWrapper(self);
+  });
+  mjPreContact.def("__deepcopy__", [](const MjPreContactWrapper& self, py::dict) {
+    return MjPreContactWrapper(self);
+  });
+  DefineStructFunctions(mjPreContact);
+
+#define X(var)                                                           \
+  mjPreContact.def_property(                                             \
+      #var, [](const MjPreContactWrapper& c) { return c.get()->var; },   \
+      [](MjPreContactWrapper& c, decltype(raw::MjPreContact::var) rhs) { \
+        c.get()->var = rhs;                                              \
+      })
+  X(dist);
+#undef X
+
+#define X(var) DefinePyArray(mjPreContact, #var, &MjPreContactWrapper::var)
+  X(pos);
+  X(normal);
+  X(tangent);
 #undef X
 
   // ==================== MJCONTACT ============================================

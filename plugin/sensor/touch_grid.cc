@@ -25,7 +25,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 
@@ -427,7 +427,11 @@ void TouchGrid::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
         continue;
       }
       if (scn->ngeom >= scn->maxgeom) {
-        mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);
+        if (!scn->status) {
+          mju_warning("Pre-allocated visual geom buffer is full. "
+                      "Increase maxgeom above %d.", scn->maxgeom);
+          scn->status = 1;
+        }
         mj_freeStack(d);
         return;
       } else {

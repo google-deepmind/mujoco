@@ -438,7 +438,7 @@ class TendonTest(parameterized.TestCase):
 
     if jacobian == JacobianType.DENSE:
       qM = np.zeros((m.nv, m.nv))  # pylint: disable=invalid-name
-      mujoco.mj_fullM(m, qM, d.qM)
+      mujoco.mju_sym2dense(qM, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
     else:
       qM = d.qM  # pylint: disable=invalid-name
     _assert_eq(dx._impl.qM, qM, 'qM')

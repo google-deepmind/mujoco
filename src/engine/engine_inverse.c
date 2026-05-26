@@ -59,6 +59,13 @@ void mj_invPosition(const mjModel* m, mjData* d) {
   mj_makeConstraint(m, d);
   TM_END(mjTIMER_POS_MAKE);
 
+  // compute exact diagonal if enabled
+  if (mjENABLED(mjENBL_DIAGEXACT)) {
+    TM_RESTART;
+    mj_projectConstraint(m, d);
+    TM_END(mjTIMER_POS_PROJECT);
+  }
+
   TM_RESTART;
   mj_transmission(m, d);
   TM_ADD(mjTIMER_POS_KINEMATICS);

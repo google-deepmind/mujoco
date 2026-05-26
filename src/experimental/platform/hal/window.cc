@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <span>
 #include <string>
 #include <string_view>
 
@@ -46,8 +45,8 @@ extern void* GetNativeWindowOsx(void* window);
 
 namespace mujoco::platform {
 
-static void InitImGui(SDL_Window* window, float content_scale, bool load_fonts,
-                      bool build_fonts) {
+static void InitImGui(SDL_Window* window, float content_scale,
+                      bool load_fonts) {
   ImGui::CreateContext();
 
   ImGuiIO& io = ImGui::GetIO();
@@ -84,10 +83,6 @@ static void InitImGui(SDL_Window* window, float content_scale, bool load_fonts,
     constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
     io.Fonts->AddFontFromMemoryTTF(data, size, 14.f, &icon_cfg, icon_ranges);
 
-    if (build_fonts) {
-      io.Fonts->Build();
-    }
-
     // Note: we purposefully do not "close" the font resources as ImGui may
     // need them again to resize fonts.
   }
@@ -109,7 +104,9 @@ Window::Window(std::string_view title, int width, int height, Config config)
   }
 
   int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-  if (IsVulkan(config_.gfx_mode)) {
+  if (IsHeadless(config_.gfx_mode)) {
+    // No additional window flags needed for headless rendering.
+  } else if (IsVulkan(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_VULKAN;
   } else if (IsWebGl(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_OPENGL;
@@ -124,17 +121,18 @@ Window::Window(std::string_view title, int width, int height, Config config)
     mju_error("Unsupported window config: %d", config_.gfx_mode);
   }
 
-  const float content_scale = ImGui_ImplSDL2_GetContentScaleForDisplay(0);
+  const float content_scale =
+      std::max(1.0f, ImGui_ImplSDL2_GetContentScaleForDisplay(0));
+  width_ = width * content_scale;
+  height_ = height * content_scale;
   sdl_window_ =
       SDL_CreateWindow(title.data(), SDL_WINDOWPOS_UNDEFINED,
-                       SDL_WINDOWPOS_UNDEFINED, width, height, window_flags);
+                       SDL_WINDOWPOS_UNDEFINED, width_, height_, window_flags);
   if (!sdl_window_) {
     mju_error("Error creating window: %s", SDL_GetError());
   }
 
-  InitImGui(sdl_window_, content_scale, config.load_fonts,
-            (config_.gfx_mode != GraphicsMode::ClassicOpenGl &&
-             config_.gfx_mode != GraphicsMode::ClassicOpenGlHeadless));
+  InitImGui(sdl_window_, content_scale, config.load_fonts);
 
   // Filament (except WebGL) manages its own swap chain including when to swap.
   // In all other cases, we'll use SDL to manage the swap chain.
@@ -165,8 +163,8 @@ Window::Window(std::string_view title, int width, int height, Config config)
 #endif
   }
 
-  int drawable_width = width;
-  int drawable_height = height;
+  int drawable_width = width_;
+  int drawable_height = height_;
   SDL_GL_GetDrawableSize(sdl_window_, &drawable_width, &drawable_height);
   scale_ = (float)drawable_width / (float)width_;
 }
@@ -179,6 +177,18 @@ Window::~Window() {
 
 void Window::SetTitle(std::string_view title) {
   SDL_SetWindowTitle(sdl_window_, title.data());
+}
+
+void Window::Resize(int width, int height) {
+  SDL_SetWindowSize(sdl_window_, width, height);
+  SDL_SetWindowPosition(sdl_window_, SDL_WINDOWPOS_CENTERED,
+                        SDL_WINDOWPOS_CENTERED);
+
+  SDL_GetWindowSize(sdl_window_, &width_, &height_);
+  int drawable_width = width_;
+  int drawable_height = height_;
+  SDL_GL_GetDrawableSize(sdl_window_, &drawable_width, &drawable_height);
+  scale_ = (float)drawable_width / (float)width_;
 }
 
 void Window::DisableWindowResizing() {

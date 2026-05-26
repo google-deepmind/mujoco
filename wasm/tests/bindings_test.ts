@@ -365,7 +365,7 @@ describe('MuJoCo WASM Bindings', () => {
       mujoco.mj_constraintUpdate(
           model!, data!, res.GetView(), cost, /*flg_coneHessian=*/ 1);
 
-      expect(cost.GetView()[0]).toBeCloseTo(3355.837);
+      expect(cost.GetView()[0]).toBeCloseTo(3357.584);
 
       res.delete();
       cost.delete();
@@ -514,7 +514,7 @@ describe('MuJoCo WASM Bindings', () => {
 
   it('should compute finite-differenced transition matrices', () => {
     const eps = 1e-6;
-    const flg_centered = 0;
+    const flg_centered = false;
     const dim = 2 * model!.nv + model!.na;
     const A = new mujoco.DoubleBuffer(dim * dim);
     const B = new mujoco.DoubleBuffer(dim * model!.nu);
@@ -684,10 +684,10 @@ describe('MuJoCo WASM Bindings', () => {
   it('should check constants values', () => {
     expect(mujoco.mjNEQDATA).toBe(11);
     expect(mujoco.mjDISABLESTRING).toEqual([
-      'Constraint', 'Equality', 'Frictionloss', 'Limit', 'Contact', 'Spring',
-      'Damper', 'Gravity', 'Clampctrl', 'Warmstart', 'Filterparent',
-      'Actuation', 'Refsafe', 'Sensor', 'Midphase', 'Eulerdamp', 'AutoReset',
-      'NativeCCD', 'Island'
+      'Constraint',   'Equality',  'Frictionloss', 'Limit',     'Contact',
+      'Spring',       'Damper',    'Gravity',      'Clampctrl', 'Warmstart',
+      'Filterparent', 'Actuation', 'Refsafe',      'Sensor',    'Midphase',
+      'Eulerdamp',    'AutoReset', 'NativeCCD',    'Island',    'MultiCCD',
     ]);
     expect(mujoco.mjRNDSTRING).toEqual([
       ['Shadow', '1', 'S'], ['Wireframe', '0', 'W'], ['Reflection', '1', 'R'],
@@ -1290,7 +1290,7 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_inverse_fd_none
   it('should compute inverse dynamics derivatives with null outputs', () => {
     const eps = 1e-6;
-    const flg_centered = 0;
+    const flg_centered = false;
     expect(
         () => mujoco.mjd_inverseFD(
             model!, data!, eps, flg_centered, null, null, null, null, null,
@@ -1301,7 +1301,7 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_inverse_fd
   it('should compute inverse dynamics derivatives', () => {
     const eps = 1e-6;
-    const flg_centered = 0;
+    const flg_centered = false;
 
     const nv = model!.nv;
     const nsensordata = model!.nsensordata;
@@ -1427,7 +1427,7 @@ describe('MuJoCo WASM Bindings', () => {
         expect(band.GetView()[index]).toEqual(i + 1);
       }
       const dense2 = new mujoco.DoubleBuffer(nTotal * nTotal);
-      const flgSym = 1;
+      const flgSym = true;
       mujoco.mju_band2Dense(
           dense2, band.GetView(), nTotal, nBand, nDense, flgSym);
       expectArraysEqual(new Float64Array(dense), dense2.GetView());

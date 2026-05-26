@@ -46,7 +46,7 @@ MuJoCo defines a large number of types:
 Primitive types
 ---------------
 
-The two types below are defined in `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__.
+The three types below are defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__.
 
 
 .. _mjtNum:
@@ -63,7 +63,7 @@ double-precision version will always be available. Thus it is safe to write user
 However, our preference is to write code that works with either single or double precision. To this end we provide math
 utility functions that are always defined with the correct floating-point type.
 
-Note that changing ``mjUSESINGLE`` in ``mjtnum.h`` will not change how the library was compiled, and instead will
+Note that changing ``mjUSESINGLE`` in ``mjtype.h`` will not change how the library was compiled, and instead will
 result in numerous link errors. In general, the header files distributed with precompiled MuJoCo should never be
 changed by the user.
 
@@ -84,11 +84,27 @@ changed by the user.
 mjtByte
 ^^^^^^^
 
-Byte type used to represent boolean variables.
+Byte type used to represent small integers and binary data.
 
 .. code-block:: C
 
    typedef unsigned char mjtByte;
+
+
+.. _mjtBool:
+
+mjtBool
+^^^^^^^
+
+Boolean type used to represent true/false values.
+
+.. code-block:: C
+
+   #ifndef __cplusplus
+     typedef _Bool mjtBool;
+   #else
+     typedef bool mjtBool;
+   #endif
 
 
 .. _mjtSize:
@@ -115,7 +131,7 @@ All enum types use the ``mjt`` prefix.
 Model
 ^^^^^
 
-The enums below are defined in `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__.
+The enums below are defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__.
 
 
 .. _mjtDisableBit:
@@ -456,7 +472,7 @@ Formulas used to combine SDFs when calling mjc_distance and mjc_gradient.
 Data
 ^^^^
 
-The enums below are defined in `mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__.
+The enums below are defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__.
 
 
 
@@ -828,6 +844,18 @@ Type of built-in procedural mesh.
 .. mujoco-include:: mjtMeshBuiltin
 
 
+.. _mjtCTimer:
+
+mjtCTimer
+~~~~~~~~~
+
+Compiler timing categories, used in :ref:`mjs_getTimer`. Top-level timers (``TOTAL``, ``ASSETS``) measure wall-clock
+time. Asset sub-timers measure CPU time summed across all assets; with multi-threaded compilation their sum can exceed
+the ``ASSETS`` wall-clock time.
+
+.. mujoco-include:: mjtCTimer
+
+
 .. _tyPluginEnums:
 
 Plugins
@@ -923,6 +951,15 @@ MJCF element :ref:`statistic <statistic>`. One instance of it is embedded in mjM
 
 .. mujoco-include:: mjStatistic
 
+
+.. _mjPreContact:
+
+mjPreContact
+~~~~~~~~~~~~
+
+This is the data structure holding information about one contact filled out by a narrowphase collision detector.
+
+.. mujoco-include:: mjPreContact
 
 .. _mjContact:
 
@@ -1768,7 +1805,7 @@ mjfCollision
 .. code-block:: C
 
    typedef int (*mjfCollision)(const mjModel* m, const mjData* d,
-                               mjContact* con, int g1, int g2, mjtNum margin);
+                               mjPreContact* con, int g1, int g2, mjtNum margin);
 
 This is the function type of the callbacks in the collision table :ref:`mjCOLLISIONFUNC`.
 

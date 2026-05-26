@@ -68,3 +68,13 @@ class RenderContextPytree(mjx_dataclasses.PyTreeNode):
   """
 
   key: int
+
+
+def get(rc: RenderContextPytree):
+  """Validates and returns the backing Warp render context."""
+  if not isinstance(rc, RenderContextPytree):
+    raise TypeError(
+        f'Expected RenderContextPytree, got {type(rc).__name__}.'
+        ' Use rc.pytree() to get the JAX-compatible handle.'
+    )
+  return _MJX_RENDER_CONTEXT_BUFFERS[(rc.key, None)]

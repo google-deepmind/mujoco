@@ -29,7 +29,7 @@ This script updates such instances with valid types
 @dataclasses.dataclass
 class Option:
   ...
-  timestep: wp.array(dtype=float)
+  timestep: wp.array[float]
   ...
 """
 
@@ -48,13 +48,13 @@ def replace_array_calls(match):
   dtype = args[-1]
 
   if n_args == 2:
-    return f'wp.array(dtype={dtype})'
+    return f'wp.array[{dtype}]'
   elif n_args == 3:
-    return f'wp.array2d(dtype={dtype})'
+    return f'wp.array2d[{dtype}]'
   elif n_args == 4:
-    return f'wp.array3d(dtype={dtype})'
+    return f'wp.array3d[{dtype}]'
   elif n_args == 5:
-    return f'wp.array4d(dtype={dtype})'
+    return f'wp.array4d[{dtype}]'
   else:
     return match.group(0)
 

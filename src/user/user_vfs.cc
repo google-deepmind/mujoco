@@ -236,6 +236,24 @@ VFS::Status VFS::Unmount(const FilePath& path) {
   return kInvalidResourceProvider;
 }
 
+bool VFS::ContainsBuffer(const char* name) {
+  if (name == nullptr) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(mutex_);
+  return mounts_.contains(name);
+}
+
+bool VFS::ContainsFile(const char* directory, const char* filename) {
+  if (filename == nullptr) {
+    return false;
+  }
+  mujoco::user::FilePath path(directory ? directory : "", filename);
+  std::string key = path.StripPath().Lower().Str();
+  std::lock_guard<std::mutex> lock(mutex_);
+  return mounts_.contains(key);
+}
+
 int VFS::Read(mjResource* resource, const void** buffer) {
   if (resource && resource->provider && resource->provider->read) {
     return resource->provider->read(resource, buffer);
@@ -498,3 +516,22 @@ int mj_deleteFileVFS(mjVFS* vfs, const char* filename) {
   }
   return mujoco::user::VFS::kSuccess;
 }
+
+int mj_containsBufferVFS(mjVFS* vfs, const char* name) {
+  mujoco::user::VFS* impl = mujoco::user::VFS::Upcast(vfs);
+  if (impl == nullptr) {
+    mju_error("mjVFS is null.");
+    return -1;
+  }
+  return impl->ContainsBuffer(name);
+}
+
+int mj_containsFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
+  mujoco::user::VFS* impl = mujoco::user::VFS::Upcast(vfs);
+  if (impl == nullptr) {
+    mju_error("mjVFS is null.");
+    return -1;
+  }
+  return impl->ContainsFile(directory, filename);
+}
+

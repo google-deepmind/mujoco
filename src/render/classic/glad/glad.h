@@ -114,7 +114,7 @@ GLAPI struct gladGLversionStruct mjGLVersion;
 
 GLAPI int mjGladLoadGL(void);
 
-GLAPI int mjGladLoadGLUnsafe(void) MJGLAD_NOEXCEPT;
+GLAPI int mjGladLoadGLUnsafe(void*) MJGLAD_NOEXCEPT;
 
 typedef unsigned int GLenum;
 typedef unsigned char GLboolean;

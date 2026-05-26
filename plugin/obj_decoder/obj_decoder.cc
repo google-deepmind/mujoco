@@ -114,7 +114,7 @@ int CanDecode(const mjResource* resource) {
 
 }  // namespace
 
-mjPLUGIN_LIB_INIT {
+mjPLUGIN_LIB_INIT(obj_decoder) {
   mjpDecoder decoder;
   mjp_defaultDecoder(&decoder);
   decoder.content_type = "model/obj";

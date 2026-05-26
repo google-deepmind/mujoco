@@ -49,6 +49,11 @@ class Renderer:
       ValueError: If `camera_id` is outside the valid range, or if `width` or
         `height` exceed the dimensions of MuJoCo's offscreen framebuffer.
     """
+    # Pre-initialize context attributes so __del__ -> close() is safe even if
+    # __init__ raises below before they are assigned. See #3213.
+    self._gl_context = None  # type: ignore
+    self._mjr_context = None
+
     buffer_width = model.vis.global_.offwidth
     buffer_height = model.vis.global_.offheight
     if width > buffer_width:
@@ -80,9 +85,8 @@ the clause:
 
     # Create render contexts.
     # TODO(nimrod): Figure out why pytype doesn't like gl_context.GLContext
-    self._gl_context = None  # type: ignore
     if gl_context.GLContext is not None:
-      self._gl_context = gl_context.GLContext(width, height)
+      self._gl_context = gl_context.GLContext(width, height)  # type: ignore
     if self._gl_context:
       self._gl_context.make_current()
     self._mjr_context = mujoco.MjrContext(model, font_scale.value)

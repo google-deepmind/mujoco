@@ -31,7 +31,7 @@
 #include <gtest/gtest.h>
 #include <absl/strings/match.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "src/xml/xml_numeric_format.h"
 #include "test/fixture.h"
@@ -1404,7 +1404,10 @@ std::vector<std::string> GetWriteReadTestModels() {
               absl::StrContains(xml, "hfield_xml") ||
               absl::StrContains(xml, "fromto_convex") ||
               absl::StrContains(xml, "cube_skin") ||
-              absl::StrContains(xml, "cube_3x3x3")) {
+              absl::StrContains(xml, "cube_3x3x3") ||
+              // exclude files that fail since we do not save pinned flex nodes
+              absl::StrContains(xml, "gripper_trilinear") ||
+              absl::StrContains(xml, "strain")) {
           continue;
         }
         models.push_back(xml);

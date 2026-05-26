@@ -22,7 +22,7 @@ from introspect import ast_nodes
 from introspect import structs
 
 
-SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtNum'}
+SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtBool', 'mjtNum'}
 
 # pylint: disable=bad-whitespace
 # key, parent, default, listname, objtype

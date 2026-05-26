@@ -15,7 +15,6 @@
 material {
     name : phong_color_fade,
     shadingModel : specularGlossiness,
-    culling: none,
     blending: fade,
     parameters : [
         { type : float4, name : BaseColorFactor },

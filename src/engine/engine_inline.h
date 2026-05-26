@@ -15,7 +15,7 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_INLINE_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_INLINE_H_
 
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 
 #ifdef __cplusplus
@@ -186,6 +186,21 @@ void mji_mulMatTMat3(mjtNum* restrict res, const mjtNum mat1[9], const mjtNum ma
   res[6] = mat1[2]*mat2[0] + mat1[5]*mat2[3] + mat1[8]*mat2[6];
   res[7] = mat1[2]*mat2[1] + mat1[5]*mat2[4] + mat1[8]*mat2[7];
   res[8] = mat1[2]*mat2[2] + mat1[5]*mat2[5] + mat1[8]*mat2[8];
+}
+
+
+// transpose 3x3 matrix
+static inline
+void mji_transpose3(mjtNum* restrict res, const mjtNum mat[9]) {
+  res[0] = mat[0];
+  res[1] = mat[3];
+  res[2] = mat[6];
+  res[3] = mat[1];
+  res[4] = mat[4];
+  res[5] = mat[7];
+  res[6] = mat[2];
+  res[7] = mat[5];
+  res[8] = mat[8];
 }
 
 

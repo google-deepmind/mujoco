@@ -20,6 +20,7 @@ from typing import Tuple
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src import math
+from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
@@ -600,6 +601,78 @@ def muscle_dynamics(control: float, activation: float, prm: vec10) -> float:
 
 
 @wp.func
+def dcmotor_slots(dynprm: types.vec10, gainprm: types.vec10) -> types.vec6i:
+  """Compute activation slot layout for a DC motor actuator.
+
+  Each DC motor can have up to 5 optional activation states. This function
+  determines which states are enabled (based on nonzero parameters) and
+  assigns each a contiguous slot offset in the activation array.
+
+  Returns a vec6i where:
+    s[0]: slew rate     — enabled when dynprm[7] > 0  (slew rate limit)
+    s[1]: integral      — enabled when gainprm[5] > 0 (integral gain ki)
+    s[2]: temperature   — enabled when dynprm[2] > 0  (thermal resistance RT)
+    s[3]: bristle       — enabled when dynprm[5] > 0  (LuGre stiffness sigma0)
+    s[4]: current       — enabled when dynprm[0] > 0  (electrical time const te)
+    s[5]: total number of active slots (num_slots)
+
+  Enabled slots hold a contiguous offset (0, 1, 2, ...); disabled slots
+  are set to -1.
+  """
+  s = types.vec6i(-1, -1, -1, -1, -1, 0)
+  num_slots = 0
+  if dynprm[7] > 0.0:
+    s[0] = num_slots
+    num_slots += 1
+  if gainprm[5] > 0.0:
+    s[1] = num_slots
+    num_slots += 1
+  if dynprm[2] > 0.0:
+    s[2] = num_slots
+    num_slots += 1
+  if dynprm[5] > 0.0:
+    s[3] = num_slots
+    num_slots += 1
+  if dynprm[0] > 0.0:
+    s[4] = num_slots
+    num_slots += 1
+  s[5] = num_slots
+  return s
+
+
+@wp.func
+def lugre_stribeck(velocity: float, F_C: float, F_S: float, v_S: float) -> float:
+  ratio = velocity / wp.max(MJ_MINVAL, v_S)
+  return F_C + (F_S - F_C) * wp.exp(-ratio * ratio)
+
+
+@wp.func
+def dcmotor_voltage(u: float, length: float, velocity: float, x_I: float, gainprm: types.vec10) -> float:
+  input_mode = int(gainprm[8])
+  Vmax = gainprm[7]
+  voltage = 0.0
+
+  if input_mode > 0:
+    kp = gainprm[4]
+    ki = gainprm[5]
+    kd = gainprm[6]
+
+    if input_mode == 1:
+      # position mode
+      voltage = kp * (u - length) + ki * x_I - kd * velocity
+    else:
+      # velocity mode
+      voltage = kp * (u - velocity) + ki * (x_I - length)
+  else:
+    voltage = u
+
+  if Vmax > 0.0:
+    voltage = wp.clamp(voltage, -Vmax, Vmax)
+
+  return voltage
+
+
+@wp.func
 def inside_geom(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, geomtype: int, point: wp.vec3) -> bool:
   """Return True if point is inside primitive geom, False otherwise."""
   # vector from geom to point
@@ -630,3 +703,34 @@ def inside_geom(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, geomtype: int, point
     return plocal[2] < 0.0
 
   return False
+
+
+@wp.func
+def _poly_force(linear: float, poly: wp.vec2, x: float, flg_odd: int) -> float:
+  x_val = wp.where(flg_odd == 1, wp.abs(x), x)
+  res = linear
+  res += poly[0] * x_val
+  res += poly[1] * x_val * x_val
+  return res
+
+
+@wp.func
+def _poly_force_deriv(linear: float, poly: wp.vec2, x: float, flg_odd: int) -> float:
+  x_val = wp.where(flg_odd == 1, wp.abs(x), x)
+  res = linear
+  res += 2.0 * poly[0] * x_val
+  res += 3.0 * poly[1] * x_val * x_val
+  return res
+
+
+@wp.func
+def poly_potential(linear: float, poly: wp.vec2, x: float, flg_odd: int) -> float:
+  x_val = wp.where(flg_odd == 1, wp.abs(x), x)
+  x_val2 = x_val * x_val
+  x_val3 = x_val2 * x_val
+  x_val4 = x_val3 * x_val
+
+  res = 0.5 * linear * x_val2
+  res += poly[0] * wp.static(1.0 / 3.0) * x_val3
+  res += poly[1] * 0.25 * x_val4
+  return res

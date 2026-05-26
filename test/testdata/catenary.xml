@@ -1,4 +1,8 @@
 <mujoco>
+  <option>
+    <flag multiccd="enable"/>
+  </option>
+
   <visual>
     <global elevation="-20"/>
   </visual>

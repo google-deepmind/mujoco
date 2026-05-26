@@ -228,36 +228,9 @@ Feature Parity
 ==============
 
 MJWarp supports most of the main simulation features of MuJoCo, with a few exceptions. MJWarp will raise an exception if
-asked to copy to device an :ref:`mjModel` with field values referencing unsupported features.
-
-The following features are **not supported** in MJWarp:
-
-.. list-table::
-   :width: 90%
-   :align: left
-   :widths: 2 5
-   :header-rows: 1
-
-   * - Category
-     - Feature
-   * - :ref:`Integrator <mjtIntegrator>`
-     - ``IMPLICIT``, ``IMPLICITFAST`` not supported with fluid drag
-   * - :ref:`Solver <mjtSolver>`
-     - ``PGS``, ``noslip``, :ref:`islands <soIsland>`
-   * - Fluid Model
-     - :ref:`flEllipsoid`
-   * - :ref:`Sensors <mjtSensor>`
-     - ``GEOMDIST``, ``GEOMNORMAL``, ``GEOMFROMTO``
-   * - Flex
-     - ``VERTCOLLIDE=false``, ``INTERNAL=true``
-   * - Jacobian format
-     - ``SPARSE``
-   * - Option
-     - :ref:`contact override <COverride>`
-   * - Plugins
-     - ``All`` except ``SDF``
-   * - :ref:`User parameters <CUser>`
-     - ``All``
+asked to copy to device an :ref:`mjModel` with field values referencing unsupported features. For the most up-to-date
+feature availability, please see
+`MuJoCo API Compatibility <https://github.com/google-deepmind/mujoco_warp#mujoco-api-compatibility>`__.
 
 .. _mjwPerf:
 
@@ -1265,8 +1238,6 @@ is available by setting the ``NATIVECCD`` disable flag:
 The specialized collider generates up to 8 contact points, compared to up to 4 for the convex pipeline, and may improve
 contact stability for tasks involving box stacking or manipulation.
 
-.. TODO(taylorhowell): update this section once multiccd is on by default.
-
 CCD margin
 ----------
 
@@ -1283,8 +1254,24 @@ CCD colliders and will raise a ``NotImplementedError`` when calling :func:`mjw.p
      - Scenario
      - Workaround
    * - box-box, box-mesh, mesh-mesh
-     - :ref:`MULTICCD <option-flag-multiccd>` enabled
-     - Set margin to ``0`` or do not enable ``MULTICCD``
+     - :ref:`MULTICCD <option-flag-multiccd>` enabled (on by default)
+     - Set margin to ``0`` or disable ``MULTICCD``
    * - box-box
      - :ref:`NATIVECCD <option-flag-nativeccd>` enabled (on by default)
      - Set margin to ``0`` or disable ``NATIVECCD``
+
+Rendering
+---------
+
+The batch renderer included in MJWarp serves a different purpose than MuJoCo's renderer. The MJWarp batch
+renderer is a single hit raycaster optimized for high throughput and low fidelity.
+
+It supports:
+ * Simple lambertian diffuse shading
+ * Basic point lights and directional lights
+ * Textures
+ * Shadows
+
+It does not support:
+ * Advanced lighting effects such as global illumination
+ * Physically based material properties

@@ -14,6 +14,7 @@
 
 #include "experimental/platform/ux/imgui_widgets.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <sstream>
@@ -23,6 +24,7 @@
 #include <vector>
 
 #include <imgui.h>
+#include <implot.h>
 #include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
@@ -94,6 +96,14 @@ void ImGui_DataPtrTable::DataPtr(const char* label, const char* ptr, int index,
 }
 
 void ImGui_DataPtrTable::DataPtr(const char* label, const mjtByte* ptr,
+                                 int index, int n) {
+  for (int i = 0; i < n; ++i) {
+    MakeLabel(label, i, n);
+    ImGui::Text("%s", ptr[index + i] ? "true" : "false");
+  }
+}
+
+void ImGui_DataPtrTable::DataPtr(const char* label, const mjtBool* ptr,
                                  int index, int n) {
   for (int i = 0; i < n; ++i) {
     MakeLabel(label, i, n);
@@ -321,7 +331,7 @@ bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
   float f = *value;
   const bool res = ImGui::SliderFloat(name, &f, min, max);
   if (res) {
-    *value = f;
+    *value = mju_clip(f, min, max);
   }
   return res;
 }
@@ -373,9 +383,107 @@ void ImGui_EndHSplit(bool open) {
 }
 
 void MaybeSaveToClipboard(const std::string& contents) {
-  if (ImGui::GetIO().SetClipboardTextFn) {
-    ImGui::GetIO().SetClipboardTextFn(nullptr, contents.c_str());
+  ImGui::SetClipboardText(contents.c_str());
+}
+
+ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size) {
+  ImPlotFlags flags = ImPlotFlags_None;
+  if (plot_size.x > 0 && plot_size.y > 0) {
+    const float min_dim = std::min(plot_size.x, plot_size.y);
+    if (min_dim < 150) {
+      flags |= ImPlotFlags_NoTitle;
+    }
+    if (min_dim < 140) {
+      flags |= ImPlotFlags_NoLegend;
+    }
   }
+  return flags;
+}
+
+void ImPlot_SetupTimeAxis(ImVec2 plot_size, const char* label,
+                          ImPlotAxisFlags extra_flags) {
+  ImPlotAxisFlags flags = extra_flags;
+  if (plot_size.x > 0 && plot_size.x < 180) {
+    flags |= ImPlotAxisFlags_NoTickLabels;
+  }
+  ImPlot::SetupAxis(ImAxis_X1, label, flags);
+}
+
+void ImPlot_SetupValueAxis(ImVec2 plot_size, const char* label,
+                           const char* format, ImPlotAxisFlags extra_flags) {
+  ImPlotAxisFlags flags = extra_flags;
+  if (plot_size.y > 0 && plot_size.y < 90) {
+    flags |= ImPlotAxisFlags_NoTickLabels;
+  }
+  ImPlot::SetupAxis(ImAxis_Y1, label, flags);
+  if (format) {
+    ImPlot::SetupAxisFormat(ImAxis_Y1, format);
+  }
+}
+
+void ImPlot_SetupFixedAxis(ImVec2 plot_size, double y_min, double y_max,
+                           const char* label, const char* format,
+                           const double* tick_values,
+                           const char* const* tick_labels, int n_ticks) {
+  ImPlotAxisFlags flags = ImPlotAxisFlags_None;
+  if (plot_size.y > 0 && plot_size.y < 90) {
+    flags |= ImPlotAxisFlags_NoTickLabels;
+  }
+  ImPlot::SetupAxis(ImAxis_Y1, label, flags);
+  ImPlot::SetupAxisLimits(ImAxis_Y1, y_min, y_max, ImPlotCond_Always);
+  if (format) {
+    ImPlot::SetupAxisFormat(ImAxis_Y1, format);
+  }
+  if (tick_values && n_ticks > 0) {
+    ImPlot::SetupAxisTicks(ImAxis_Y1, tick_values, n_ticks, tick_labels);
+  }
+}
+
+ImPlotPairLayout ImPlot_ComputePairLayout() {
+  ImVec2 avail = ImGui::GetContentRegionAvail();
+  bool is_wide = avail.x > avail.y;
+
+  const float item_spacing = ImGui::GetStyle().ItemSpacing.y;
+  ImVec2 plot_size(is_wide ? (avail.x - item_spacing) * 0.5f : avail.x,
+                   is_wide ? avail.y : (avail.y - item_spacing) * 0.5f);
+
+  return {
+      plot_size,
+      is_wide ? ImPlotLayoutDirection::kHorizontal
+              : ImPlotLayoutDirection::kVertical,
+  };
+}
+
+static ImVec2 ClipSpaceToWindowCoordinates(float x, float y) {
+  const ImVec2& display_size = ImGui::GetIO().DisplaySize;
+  const float pos_x = display_size.x * ((x + 1) * 0.5f);
+  const float pos_y = display_size.y * (1.0f - ((y + 1) * 0.5f));
+  return ImVec2(pos_x, pos_y);
+}
+
+void DrawTextAt(const char* text, float x, float y, float z) {
+  if (x < -1 || y < -1 || x > 1 || y > 1 || z < -1 || z > 1) {
+    return;
+  }
+
+  const ImVec2 center_pos = ClipSpaceToWindowCoordinates(x, y);
+  const ImVec2 size = ImGui::CalcTextSize(text);
+
+  const ImVec2 pos = ImVec2(center_pos.x - size.x / 2, center_pos.y);
+  const ImVec2 shadow_pos = ImVec2(pos.x + 2, pos.y + 2);
+  const int flags = ImGuiWindowFlags_NoBringToFrontOnFocus |
+                    ImGuiWindowFlags_NoFocusOnAppearing |
+                    ImGuiWindowFlags_NoBackground |
+                    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+                    ImGuiWindowFlags_NoNav;
+
+  ImGui::Begin("labels", nullptr, flags);
+  ImGui::BeginChild("labels", ImGui::GetIO().DisplaySize, 0, flags);
+  ImDrawList* draw_list = ImGui::GetWindowDrawList();
+  draw_list->AddText(shadow_pos, IM_COL32_BLACK, text);
+  draw_list->AddText(pos, IM_COL32_WHITE, text);
+  ImGui::EndChild();
+  ImGui::End();
 }
 
 }  // namespace mujoco::platform

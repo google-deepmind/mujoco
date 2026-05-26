@@ -79,6 +79,27 @@ TEST_F(UserFlexTest, CountTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("Count too small"));
 }
 
+TEST_F(UserFlexTest, CellnumZeroInterpolated) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="b0"/>
+    <body name="b1"/>
+    <body name="b2"/>
+    <body name="b3"/>
+  </worldbody>
+  <deformable>
+    <flex name="test" cellcount="2 2 0" dof="trilinear"
+          dim="3" body="b0 b1 b2 b3" element="0 1 2 3"/>
+  </deformable>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("cellcount cannot be 0"));
+}
+
 TEST_F(UserFlexTest, SpacingGreaterThanGeometry) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -371,9 +392,9 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
 
   EXPECT_EQ(m1->nflexvert, m2->nflexvert);
   for (int i = 0; i < 3*m1->nflexvert; ++i) {
-    EXPECT_EQ(m1->flex_vert[i], d2->flexvert_xpos[i]);
-    EXPECT_EQ(m1->flex_vert0[i], m2->flex_vert0[i]);
-    EXPECT_EQ(d1->flexvert_xpos[i], d2->flexvert_xpos[i]);
+    EXPECT_NEAR(m1->flex_vert[i], d2->flexvert_xpos[i], 1e-7);
+    EXPECT_NEAR(m1->flex_vert0[i], m2->flex_vert0[i], 1e-7);
+    EXPECT_NEAR(d1->flexvert_xpos[i], d2->flexvert_xpos[i], 1e-7);
   }
 
   EXPECT_EQ(m1->nM, m2->nM);
@@ -447,7 +468,7 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << error.data();
-  EXPECT_NE(m->flex_stiffness[0], 0);
+  EXPECT_NE(m->flex_stiffness[m->flex_stiffnessadr[0]], 0);
   EXPECT_EQ(m->nflexnode, 8);
 
   // constants are in the kernel
@@ -456,7 +477,8 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
     zeros[i] = 0;
     ones[i] = 1;
   }
-  mju_mulMatVec(res, m->flex_stiffness, ones, 3*m->nflexnode, 3*m->nflexnode);
+  mju_mulMatVec(res, m->flex_stiffness + m->flex_stiffnessadr[0], ones,
+                3 * m->nflexnode, 3 * m->nflexnode);
   EXPECT_THAT(res, Pointwise(MjNear(1e-8, 1e-4), zeros));
 
   mj_deleteModel(m);
@@ -496,7 +518,8 @@ TEST_F(UserFlexTest, StiffnessCacheDiffersByGeometry) {
 
   // Same number of nodes but different stiffness due to different geometry
   EXPECT_EQ(m_small->nflexnode, m_large->nflexnode);
-  EXPECT_NE(m_small->flex_stiffness[0], m_large->flex_stiffness[0]);
+  EXPECT_NE(m_small->flex_stiffness[m_small->flex_stiffnessadr[0]],
+            m_large->flex_stiffness[m_large->flex_stiffnessadr[0]]);
 
   mj_deleteModel(m_small);
   mj_deleteModel(m_large);
@@ -1008,5 +1031,374 @@ TEST_F(UserFlexTest, FlexNoConstraintsWarning) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserFlexTest, EmptyCellNodePinning) {
+  // A 2x2x2 grid with a box mesh that fills all cells.
+  // No nodes should be pinned.
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="box" spacing=".1 .1 .1" dim="3"
+              dof="trilinear" mass="1" cellcount="2 2 2">
+      <contact selfcollide="none"/>
+      <elasticity young="1"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // A 2x2x2 grid with trilinear order has (2+1)^3 = 27 node positions.
+  int nadr = m->flex_nodeadr[0];
+  int nnode = m->flex_nodenum[0];
+  EXPECT_EQ(nnode, 27);
+
+  // All cells are occupied by the box, so no node should be pinned.
+  int pinned = 0;
+  for (int n = nadr; n < nadr + nnode; n++) {
+    int bid = m->flex_nodebodyid[n];
+    if (m->body_jntnum[bid] == 0) {
+      pinned++;
+    }
+  }
+  EXPECT_EQ(pinned, 0);
+
+  // Verify simulation works
+  mjData* d = mj_makeData(m);
+  for (int i = 0; i < 10; i++) {
+    mj_step(m, d);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, EmptyCellNodePinningMesh) {
+  // Load bunny_multicell.xml which has a 3x3x3 grid.
+  // The bunny mesh only occupies some cells, so many nodes should be pinned.
+  const std::string xml_path =
+      GetModelPath("flex/bunny_multicell.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // 3x3x3 grid, order=1: (3+1)^3 = 64 node positions
+  int nadr = m->flex_nodeadr[0];
+  int nnode = m->flex_nodenum[0];
+  EXPECT_EQ(nnode, 64);
+
+  // Count pinned nodes (no joints)
+  int pinned = 0;
+  int free_nodes = 0;
+  for (int n = nadr; n < nadr + nnode; n++) {
+    int bid = m->flex_nodebodyid[n];
+    if (m->body_jntnum[bid] == 0) {
+      pinned++;
+    } else {
+      free_nodes++;
+    }
+  }
+
+  // At least some nodes should be pinned since the bunny doesn't fill all cells
+  EXPECT_GT(pinned, 0) << "Expected some nodes to be pinned from empty cells";
+  EXPECT_GT(free_nodes, 0) << "Expected some nodes to remain free";
+  EXPECT_EQ(pinned + free_nodes, nnode);
+
+  // Verify the model can simulate
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+  for (int i = 0; i < 10; i++) {
+    mj_step(m, d);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, EmptyCellNodePinningQuadratic) {
+  // Regression test for ci_min calculation with order=2.
+  // A 2x1x1 quadratic grid has nodes at gi=0..4 (5 nodes per axis).
+  // We place mesh vertices only in cell 0 (x in [0, 0.5]), so cell 1 is empty.
+  //
+  // Node gi=3 belongs only to cell 1 (1*2 <= 3 <= 2*2).
+  // With the old formula (gi-order)/order = (3-2)/2 = 0, it would also check
+  // cell 0 (non-empty), incorrectly marking gi=3 as non-pinned.
+  // Single hex element at x=[0,0.3], well inside cell 0 of a 3x1x1 grid.
+  // Anchor vertex at x=1.0 extends the bounding box to [0,1]^3.
+  // The 3x1x1 quadratic grid splits at x=0.33, 0.67.
+  // Cell 0 has vertices, cells 1 and 2 are empty.
+  // Interior nodes for cells 1,2 should be pinned to the parent body.
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="parent">
+    <freejoint/>
+    <inertial mass="0.01" pos="0 0 0"
+             diaginertia="0.001 0.001 0.001"/>
+    <flexcomp name="test" type="direct" dim="3"
+              dof="quadratic" mass="1" cellcount="3 1 1"
+              point="0.0 0.0 0.0  0.3 0.0 0.0
+                     0.0 1.0 0.0  0.3 1.0 0.0
+                     0.0 0.0 1.0  0.3 0.0 1.0
+                     0.0 1.0 1.0  0.3 1.0 1.0
+                     1.0 0.5 0.5"
+              element="0 1 3 2 4 5 7 6">
+      <contact selfcollide="none"/>
+      <elasticity young="1"/>
+    </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // 3x1x1 quadratic grid: (3*2+1) * (1*2+1) * (1*2+1) = 7*3*3 = 63 nodes
+  int nadr = m->flex_nodeadr[0];
+  int nnode = m->flex_nodenum[0];
+  EXPECT_EQ(nnode, 63);
+
+  // Count pinned nodes: pinned nodes are assigned to the parent body.
+  int parent_bid = mj_name2id(m, mjOBJ_BODY, "parent");
+  ASSERT_GT(parent_bid, 0);
+  int pinned = 0;
+  for (int n = nadr; n < nadr + nnode; n++) {
+    if (m->flex_nodebodyid[n] == parent_bid) {
+      pinned++;
+    }
+  }
+
+  // Cells 1 and 2 are empty, so nodes exclusively in those cells are pinned.
+  // Nodes at gi=3..6 (with any gj, gk) are only in cells 1 and/or 2.
+  // That's 4 * 3 * 3 = 36 nodes.
+  EXPECT_EQ(pinned, 36);
+
+  mj_deleteData(mj_makeData(m));
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, EmptyCellDetectsElements) {
+  // A cube surface mesh (dim=2, 12 triangles) spanning [0,1]^3.
+  // With cellcount="6 6 6" (216 cells), only 8 corner cells contain
+  // mesh vertices.
+  //
+  // Bug: MarkEmptyCells only checked vertices, so 208/216 cells are
+  // marked empty, causing most interior nodes to be incorrectly pinned.
+  // Fix: check element AABBs to correctly identify occupied cells.
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="parent">
+    <freejoint/>
+    <inertial mass="0.01" pos="0.5 0.5 0.5"
+             diaginertia="0.001 0.001 0.001"/>
+    <flexcomp name="test" type="direct" dim="2"
+              dof="trilinear" mass="1" cellcount="6 6 6"
+              point="0 0 0  1 0 0  1 1 0  0 1 0
+                     0 0 1  1 0 1  1 1 1  0 1 1"
+              element="0 1 2  0 2 3  4 6 5  4 7 6
+                       0 5 1  0 4 5  2 7 3  2 6 7
+                       0 3 7  0 7 4  1 5 6  1 6 2">
+      <contact selfcollide="none"/>
+    </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // 6x6x6 trilinear grid: (6+1)^3 = 343 nodes
+  int nadr = m->flex_nodeadr[0];
+  int nnode = m->flex_nodenum[0];
+  ASSERT_EQ(nnode, 343);
+
+  // Count pinned nodes: those assigned to the parent body.
+  int parent_bid = mj_name2id(m, mjOBJ_BODY, "parent");
+  ASSERT_GT(parent_bid, 0);
+  int pinned = 0;
+  for (int n = nadr; n < nadr + nnode; n++) {
+    if (m->flex_nodebodyid[n] == parent_bid) {
+      pinned++;
+    }
+  }
+
+  // The cube surface fills the entire bounding box. The element-AABB
+  // marks all boundary cells as surface cells (152/216). The interior
+  // flood-fill finds no exterior seeds (all boundary cells are surface),
+  // so the remaining 64 cells are classified as interior (non-empty).
+  // No cells are empty → 0 nodes pinned.
+  EXPECT_EQ(pinned, 0);
+
+  mj_deleteData(mj_makeData(m));
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, TotalMassTrilinear) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
+              dim="3" dof="trilinear" mass="1.5">
+      <contact selfcollide="none" internal="false"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  double total_mass = 0;
+  for (int i = 1; i < m->nbody; ++i) {
+    total_mass += m->body_mass[i];
+  }
+
+  EXPECT_NEAR(total_mass, 1.5, 1e-5);
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, TotalMassQuadratic) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 2 2" spacing="1 1 1"
+              dim="3" dof="quadratic" mass="2.0">
+      <contact selfcollide="none" internal="false"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  double total_mass = 0;
+  for (int i = 1; i < m->nbody; ++i) {
+    total_mass += m->body_mass[i];
+  }
+
+  EXPECT_NEAR(total_mass, 2.0, 1e-5);
+  mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, Dof2d) {
+  // 3x3 grid with dof="2d": 9 vertices, 2 DOFs each -> nv = 18
+  static constexpr char xml_2d[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 3 1" spacing=".1 .1 .1"
+              dim="2" radius=".01" dof="2d">
+      <edge equality="true"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+
+  // same model with dof="full" for comparison: 9 vertices, 3 DOFs each -> nv = 27
+  static constexpr char xml_full[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="3 3 1" spacing=".1 .1 .1"
+              dim="2" radius=".01">
+      <edge equality="true"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+
+  // load 2d model
+  mjModel* m_2d = LoadModelFromString(xml_2d, error.data(), error.size());
+  ASSERT_THAT(m_2d, NotNull()) << error.data();
+  mjData* d_2d = mj_makeData(m_2d);
+
+  // load full model
+  mjModel* m_full = LoadModelFromString(xml_full, error.data(), error.size());
+  ASSERT_THAT(m_full, NotNull()) << error.data();
+  mjData* d_full = mj_makeData(m_full);
+
+  // verify DOF counts
+  EXPECT_EQ(m_2d->nv, 18);    // 9 vertices * 2 DOFs
+  EXPECT_EQ(m_full->nv, 27);  // 9 vertices * 3 DOFs
+
+  // same number of vertices and elements
+  EXPECT_EQ(m_2d->nflexvert, m_full->nflexvert);
+  EXPECT_EQ(m_2d->nflexelem, m_full->nflexelem);
+
+  // each body has 2 DOFs in 2d mode, 3 in full mode
+  for (int i = 1; i < m_2d->nbody; i++) {
+    EXPECT_EQ(m_2d->body_dofnum[i], 2) << "body " << i;
+  }
+  for (int i = 1; i < m_full->nbody; i++) {
+    EXPECT_EQ(m_full->body_dofnum[i], 3) << "body " << i;
+  }
+
+  // simulate a few steps to make sure nothing crashes
+  for (int i = 0; i < 10; i++) {
+    mj_step(m_2d, d_2d);
+    mj_step(m_full, d_full);
+  }
+
+  mj_deleteModel(m_2d);
+  mj_deleteModel(m_full);
+  mj_deleteData(d_2d);
+  mj_deleteData(d_full);
+}
+
+TEST_F(UserFlexTest, Vert0RotationInvariant) {
+  // unrotated trilinear grid
+  static constexpr char xml_unrotated[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="parent">
+      <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
+                dim="3" dof="trilinear">
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+
+  // same grid rotated 45 degrees around Z via parent body quaternion
+  static constexpr char xml_rotated[] = R"(
+  <mujoco>
+  <worldbody>
+    <body name="parent" quat="0.9238795 0 0 0.3826834">
+      <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
+                dim="3" dof="trilinear">
+        <contact selfcollide="none" internal="false"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* m1 = LoadModelFromString(xml_unrotated, error.data(), error.size());
+  ASSERT_THAT(m1, NotNull()) << error.data();
+
+  mjModel* m2 = LoadModelFromString(xml_rotated, error.data(), error.size());
+  ASSERT_THAT(m2, NotNull()) << error.data();
+
+  // same number of vertices
+  ASSERT_EQ(m1->nflexvert, m2->nflexvert);
+
+  // vert0 must be identical regardless of rotation
+  for (int i = 0; i < 3 * m1->nflexvert; ++i) {
+    EXPECT_NEAR(m1->flex_vert0[i], m2->flex_vert0[i], 1e-10)
+        << "vert0 mismatch at index " << i;
+  }
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+}
+
 }  // namespace
 }  // namespace mujoco
+

@@ -31,7 +31,7 @@
 #include <mujoco/mujoco.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
@@ -118,7 +118,8 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"flag", "?", "constraint", "equality", "frictionloss", "limit", "contact",
             "spring", "damper", "gravity", "clampctrl", "warmstart", "filterparent", "actuation",
             "refsafe", "sensor", "midphase", "eulerdamp", "autoreset", "nativeccd", "island",
-            "override", "energy", "fwdinv", "invdiscrete", "multiccd", "sleep"},
+            "override", "energy", "fwdinv", "invdiscrete", "multiccd", "sleep",
+            "diagexact"},
     {">"},
 
     {"size", "*", "memory", "njmax", "nconmax", "nstack", "nuserdata", "nkey",
@@ -315,7 +316,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             {">"},
         {">"},
         {"flexcomp", "*", "name", "type", "group", "dim", "dof",
-            "count", "spacing", "radius", "rigid", "mass", "inertiabox",
+            "count", "cellcount", "spacing", "radius", "rigid", "mass", "inertiabox",
             "scale", "file", "point", "element", "texcoord", "material", "rgba",
             "flatskin", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler", "origin"},
         {"<"},
@@ -334,8 +335,8 @@ std::vector<const char*> MJCF[nMJCF] = {
 
     {"deformable", "*"},
     {"<"},
-        {"flex", "*", "name", "group", "dim", "radius", "material",
-            "rgba", "flatskin", "body", "vertex", "element", "texcoord", "elemtexcoord", "node"},
+        {"flex", "*", "name", "group", "dim", "radius", "material", "rgba", "flatskin", "body",
+            "vertex", "element", "texcoord", "elemtexcoord", "node", "cellcount", "dof"},
         {"<"},
             {"contact", "?",  "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
@@ -371,7 +372,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "active", "solref", "solimp"},
         {"flexvert", "*", "name", "class", "flex",
             "active", "solref", "solimp"},
-        {"flexstrain", "*", "name", "class", "flex",
+        {"flexstrain", "*", "name", "class", "flex", "cell",
             "active", "solref", "solimp"},
     {">"},
 
@@ -932,7 +933,8 @@ const mjMap fdof_map[mjNFCOMPDOFS] = {
   {"full",          mjFCOMPDOF_FULL},
   {"radial",        mjFCOMPDOF_RADIAL},
   {"trilinear",     mjFCOMPDOF_TRILINEAR},
-  {"quadratic",     mjFCOMPDOF_QUADRATIC}
+  {"quadratic",     mjFCOMPDOF_QUADRATIC},
+  {"2d",            mjFCOMPDOF_2D}
 };
 
 
@@ -1283,6 +1285,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("autoreset",    mjDSBL_AUTORESET)
     READDSBL("nativeccd",    mjDSBL_NATIVECCD)
     READDSBL("island",       mjDSBL_ISLAND)
+    READDSBL("multiccd",     mjDSBL_MULTICCD)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \
@@ -1294,8 +1297,8 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READENBL("energy",      mjENBL_ENERGY)
     READENBL("fwdinv",      mjENBL_FWDINV)
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
-    READENBL("multiccd",    mjENBL_MULTICCD)
     READENBL("sleep",       mjENBL_SLEEP)
+    READENBL("diagexact",   mjENBL_DIAGEXACT)
 #undef READENBL
   }
 }
@@ -1501,6 +1504,16 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
   ReadAttrInt(elem, "dim", &flex->dim);
   ReadAttrInt(elem, "group", &flex->group);
 
+  flex->cellcount[0] = 1;
+  flex->cellcount[1] = 1;
+  flex->cellcount[2] = 1;
+  ReadAttr(elem, "cellcount", 3, flex->cellcount, text);
+
+  flex->order = 0;
+  if (MapValue(elem, "dof", &n, fdof_map, mjNFCOMPDOFS)) {
+    flex->order = (n == mjFCOMPDOF_QUADRATIC) ? 2 : (n == mjFCOMPDOF_TRILINEAR ? 1 : 0);
+  }
+
   // read data vectors
   if (ReadAttrTxt(elem, "body", text, true)) {
     mjs_setStringVec(flex->vertbody, text.c_str());
@@ -1542,7 +1555,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
       flex->internal = (n == 1);
     }
     MapValue(cont, "selfcollide", &flex->selfcollide, flexself_map, 5);
-    if (MapValue(cont, "passive", &flex->passive, bool_map, 2)) {
+    if (MapValue(cont, "passive", &n, bool_map, 2)) {
       flex->passive = (n == 1);
     }
     ReadAttrInt(cont, "activelayers", &flex->activelayers);
@@ -2235,8 +2248,12 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
 
       case mjEQ_FLEX:
       case mjEQ_FLEXVERT:
+        ReadAttrTxt(elem, "flex", name1, true);
+        break;
+
       case mjEQ_FLEXSTRAIN:
         ReadAttrTxt(elem, "flex", name1, true);
+        ReadAttr(elem, "cell", 3, equality->data, text);
         break;
 
       case mjEQ_DISTANCE:
@@ -2526,14 +2543,14 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     double motorconst[2] = {inherited ? actuator->gainprm[1] : 0, 0};
     double resistance = inherited ? actuator->gainprm[0] : 0;
     double nominal[3] = {0, 0, 0};
-    double saturation[4] = {0, 0,
-                            inherited ? actuator->dynprm[1] : 0,
-                            inherited ? actuator->gainprm[8] : 0};
-    double controller[5] = {inherited ? actuator->gainprm[5] : 0,
+    double saturation[3] = {0, 0,
+                            inherited ? actuator->dynprm[1] : 0};
+    double controller[6] = {inherited ? actuator->gainprm[4] : 0,
+                            inherited ? actuator->gainprm[5] : 0,
                             inherited ? actuator->gainprm[6] : 0,
-                            inherited ? actuator->gainprm[7] : 0,
                             inherited ? actuator->dynprm[7] : 0,
-                            inherited ? actuator->dynprm[8] : 0};
+                            inherited ? actuator->dynprm[8] : 0,
+                            inherited ? actuator->gainprm[7] : 0};
     double inductance[2] = {0, inherited ? actuator->dynprm[0] : 0};
     double cogging[3] = {inherited ? actuator->biasprm[0] : 0,
                          inherited ? actuator->biasprm[1] : 0,
@@ -2544,22 +2561,21 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
                          inherited ? actuator->gainprm[2] : 0,
                          inherited ? actuator->gainprm[3] : 0,
                          inherited ? actuator->dynprm[4] : 0};
-    double lugre[6] = {inherited ? actuator->dynprm[5] : 0,
+    double lugre[5] = {inherited ? actuator->dynprm[5] : 0,
                        inherited ? actuator->dynprm[6] : 0,
-                       inherited ? actuator->damping[0] : 0,
                        inherited ? actuator->biasprm[3] : 0,
                        inherited ? actuator->biasprm[4] : 0,
                        inherited ? actuator->biasprm[5] : 0};
-    int input_mode = inherited ? (int)actuator->gainprm[9] : 0;
+    int input_mode = inherited ? (int)actuator->gainprm[8] : 0;
     ReadAttr(elem, "motorconst", 2, motorconst, text, false, false);
     ReadAttr(elem, "resistance", 1, &resistance, text);
     ReadAttr(elem, "nominal", 3, nominal, text, false, false);
-    ReadAttr(elem, "saturation", 4, saturation, text, false, false);
+    ReadAttr(elem, "saturation", 3, saturation, text, false, false);
     ReadAttr(elem, "inductance", 2, inductance, text, false, false);
     ReadAttr(elem, "cogging", 3, cogging, text, false, false);
-    ReadAttr(elem, "controller", 5, controller, text, false, false);
+    ReadAttr(elem, "controller", 6, controller, text, false, false);
     ReadAttr(elem, "thermal", 6, thermal, text, false, false);
-    ReadAttr(elem, "lugre", 6, lugre, text, false, false);
+    ReadAttr(elem, "lugre", 5, lugre, text, false, false);
     if (MapValue(elem, "input", &input_mode, dcmotorinput_map, dcmotorinput_sz)) {
       // successfully parsed
     }
@@ -2795,6 +2811,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     fcomp.type = (mjtFcompType)n;
   }
   ReadAttr(elem, "count", 3, fcomp.count, text);
+  ReadAttr(elem, "cellcount", 3, fcomp.cellcount, text);
   ReadAttr(elem, "spacing", 3, fcomp.spacing, text);
   ReadAttr(elem, "scale", 3, fcomp.scale, text);
   ReadAttr(elem, "mass", 1, &fcomp.mass, text);
@@ -2868,11 +2885,8 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   }
 
   // check errors
-  if (dflex.elastic2d >= 2 && fcomp.equality) {
-    throw mjXError(elem, "elasticity and edge constraints cannot both be present");
-  }
-  if (fcomp.equality == 3 && dflex.young > 0) {
-    throw mjXError(elem, "strain constraint and elasticity (young) cannot both be present");
+  if (dflex.elastic2d != 1 && fcomp.equality && dflex.young > 0) {
+    throw mjXError(elem, "flex constraints and elasticity (young) cannot both be present");
   }
 
   // contact

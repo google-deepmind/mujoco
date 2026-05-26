@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 3007000
+#define mjVERSION_HEADER 3009000
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -32,9 +32,10 @@
 #include <mujoco/mjsan.h>
 #include <mujoco/mjspec.h>
 #include <mujoco/mjthread.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mjassert.h>
 
 // this is a C-API
 #ifdef __cplusplus
@@ -93,6 +94,12 @@ MJAPI int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int 
 
 // Delete file from VFS; return 0: success, -1: not found in VFS.
 MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
+
+// Check if buffer exists in VFS; return 1: exists, 0: not found.
+MJAPI int mj_containsBufferVFS(mjVFS* vfs, const char* name);
+
+// Check if file exists in VFS; return 1: exists, 0: not found.
+MJAPI int mj_containsFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 
 // Delete all files from VFS and deallocates VFS internal memory.
 MJAPI void mj_deleteVFS(mjVFS* vfs);
@@ -460,6 +467,11 @@ MJAPI void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result);
 // RNE with complete data: compute cacc, cfrc_ext, cfrc_int.
 MJAPI void mj_rnePostConstraint(const mjModel* m, mjData* d);
 
+// Return the maximum number of contacts that can be generated between two geoms.
+// If has_margin is -1, then the margin is pulled from the model, otherwise if has_margin > 0
+// indicates that the geoms have a positive margin.
+MJAPI int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin);
+
 // Run collision detection.
 MJAPI void mj_collision(const mjModel* m, mjData* d);
 
@@ -668,7 +680,7 @@ MJAPI const char* mj_versionString(void);
 // geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.
 // Nullable: geomgroup, geomid, normal
 MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
-                    const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                    const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                     int geomid[1], mjtNum normal[3]);
 
 // Intersect multiple rays emanating from a single point, compute normals if given.
@@ -676,7 +688,7 @@ MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], cons
 // Geoms further than cutoff are ignored.
 // Nullable: geomgroup, geomid, normal
 MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
-                       const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                       const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                        int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff);
 
 // Intersect ray with hfield; return nearest distance or -1 if no intersection.
@@ -699,8 +711,8 @@ MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum 
 // and also output nearest vertex id and surface normal.
 // Nullable: vertid, normal
 MJAPI mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
-                        mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
-                        mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                        mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+                        mjtBool flg_skin, int flexid, const mjtNum pnt[3],
                         const mjtNum vec[3], int vertid[1], mjtNum normal[3]);
 
 // Intersect ray with skin; return nearest distance or -1 if no intersection,
@@ -994,6 +1006,9 @@ MJAPI void mju_writeLog(const char* type, const char* msg);
 // Get compiler error message from spec.
 MJAPI const char* mjs_getError(mjSpec* s);
 
+// Get compiler timing diagnostics from spec, returns pointer to array of size mjNCTIMER.
+MJAPI const double* mjs_getTimer(mjSpec* s);
+
 // Return 1 if compiler error is a warning.
 MJAPI int mjs_isWarning(mjSpec* s);
 
@@ -1195,6 +1210,10 @@ MJAPI int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
 MJAPI void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
                             const int* rownnz, const int* rowadr, const int* colind);
 
+// Convert lower-triangular symmetric CSR matrix to full dense matrix.
+MJAPI void mju_sym2dense(mjtNum* res, const mjtNum* mat, int n,
+                         const int* rownnz, const int* rowadr, const int* colind);
+
 
 //---------------------------------- Quaternions ---------------------------------------------------
 
@@ -1285,14 +1304,14 @@ MJAPI void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
 // Convert banded matrix to dense matrix, fill upper triangle if flg_sym>0.
 MJAPI void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
-                          mjtByte flg_sym);
+                          mjtBool flg_sym);
 
 // Convert dense matrix to banded matrix.
 MJAPI void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
 
 // Multiply band-diagonal matrix with nvec vectors, include upper triangle if flg_sym>0.
 MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                             int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+                             int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym);
 
 // Address of diagonal element i in band-dense matrix representation.
 MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
@@ -1442,7 +1461,7 @@ MJAPI void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s, mjtNu
 //      D: (nsensordata x 2*nv+na)
 //      C: (nsensordata x nu)
 // Nullable: A, B, C, D
-MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
+MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
                             mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
 
 // Finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)
@@ -1461,7 +1480,7 @@ MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg
 //     optionally computes mass matrix Jacobian DmDq
 //     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse
 // Nullable: DfDq, DfDv, DfDa, DsDq, DsDv, DsDa, DmDq
-MJAPI void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+MJAPI void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_actuation,
                          mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
                          mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                          mjtNum *DmDq);
@@ -1729,9 +1748,9 @@ MJAPI const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
 // Set actuator to DC motor; return error if any.
 // Nullable: motorconst, nominal, saturation, inductance, cogging, controller, thermal, lugre
 MJAPI const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double resistance,
-                                   double nominal[3], double saturation[4], double inductance[2],
-                                   double cogging[3], double controller[5], double thermal[6],
-                                   double lugre[6], int input_mode);
+                                   double nominal[3], double saturation[3], double inductance[2],
+                                   double cogging[3], double controller[6], double thermal[6],
+                                   double lugre[5], int input_mode);
 
 
 //---------------------------------- Assets --------------------------------------------------------
@@ -1759,68 +1778,72 @@ MJAPI int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, in
 //---------------------------------- Find and get utilities ----------------------------------------
 
 // Get spec from body.
-MJAPI mjSpec* mjs_getSpec(mjsElement* element);
+MJAPI mjSpec* mjs_getSpec(const mjsElement* element);
+
+// get spec that originally defined an element
+// contrary to mjs_getSpec, this does not change after attachment
+MJAPI mjSpec* mjs_getOriginSpec(const mjsElement* element);
 
 // Get compiler associated with element's origin spec.
-MJAPI mjsCompiler* mjs_getCompiler(mjsElement* element);
+MJAPI mjsCompiler* mjs_getCompiler(const mjsElement* element);
 
 // Find spec (model asset) by name.
-MJAPI mjSpec* mjs_findSpec(mjSpec* spec, const char* name);
+MJAPI mjSpec* mjs_findSpec(const mjSpec* spec, const char* name);
 
 // Find body in spec by name.
-MJAPI mjsBody* mjs_findBody(mjSpec* s, const char* name);
+MJAPI mjsBody* mjs_findBody(const mjSpec* s, const char* name);
 
 // Find element in spec by name.
-MJAPI mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name);
+MJAPI mjsElement* mjs_findElement(const mjSpec* s, mjtObj type, const char* name);
 
 // Find child body by name.
-MJAPI mjsBody* mjs_findChild(mjsBody* body, const char* name);
+MJAPI mjsBody* mjs_findChild(const mjsBody* body, const char* name);
 
 // Get parent body.
-MJAPI mjsBody* mjs_getParent(mjsElement* element);
+MJAPI mjsBody* mjs_getParent(const mjsElement* element);
 
 // Get parent frame.
-MJAPI mjsFrame* mjs_getFrame(mjsElement* element);
+MJAPI mjsFrame* mjs_getFrame(const mjsElement* element);
 
 // Find frame by name.
-MJAPI mjsFrame* mjs_findFrame(mjSpec* s, const char* name);
+MJAPI mjsFrame* mjs_findFrame(const mjSpec* s, const char* name);
 
 // Get default corresponding to an element.
-MJAPI mjsDefault* mjs_getDefault(mjsElement* element);
+MJAPI mjsDefault* mjs_getDefault(const mjsElement* element);
 
 // Find default in model by class name.
-MJAPI mjsDefault* mjs_findDefault(mjSpec* s, const char* classname);
+MJAPI mjsDefault* mjs_findDefault(const mjSpec* s, const char* classname);
 
 // Get global default from model.
-MJAPI mjsDefault* mjs_getSpecDefault(mjSpec* s);
+MJAPI mjsDefault* mjs_getSpecDefault(const mjSpec* s);
 
 // Get element id.
-MJAPI int mjs_getId(mjsElement* element);
+MJAPI int mjs_getId(const mjsElement* element);
 
 // Return body's first child of given type. If recurse is nonzero, also search the body's subtree.
-MJAPI mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse);
+MJAPI mjsElement* mjs_firstChild(const mjsBody* body, mjtObj type, int recurse);
 
 // Return body's next child of the same type; return NULL if child is last.
 // If recurse is nonzero, also search the body's subtree.
-MJAPI mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child, int recurse);
+MJAPI mjsElement* mjs_nextChild(const mjsBody* body, const mjsElement* child, int recurse);
 
 // Return spec's first element of selected type.
-MJAPI mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
+MJAPI mjsElement* mjs_firstElement(const mjSpec* s, mjtObj type);
 
 // Return spec's next element; return NULL if element is last.
-MJAPI mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
+MJAPI mjsElement* mjs_nextElement(const mjSpec* s, const mjsElement* element);
 
 // Get wrapped element in tendon path.
-MJAPI mjsElement* mjs_getWrapTarget(mjsWrap* wrap);
+MJAPI mjsElement* mjs_getWrapTarget(const mjsWrap* wrap);
 
 // Get wrapped element side site in tendon path if it has one, nullptr otherwise.
-MJAPI mjsSite* mjs_getWrapSideSite(mjsWrap* wrap);
+MJAPI mjsSite* mjs_getWrapSideSite(const mjsWrap* wrap);
 
 // Get divisor of mjsWrap wrapping a puller.
-MJAPI double mjs_getWrapDivisor(mjsWrap* wrap);
+MJAPI double mjs_getWrapDivisor(const mjsWrap* wrap);
 
 // Get coefficient of mjsWrap wrapping a joint.
-MJAPI double mjs_getWrapCoef(mjsWrap* wrap);
+MJAPI double mjs_getWrapCoef(const mjsWrap* wrap);
 
 //---------------------------------- Attribute setters ---------------------------------------------
 
@@ -1837,7 +1860,7 @@ MJAPI void mjs_setString(mjString* dest, const char* text);
 MJAPI void mjs_setStringVec(mjStringVec* dest, const char* text);
 
 // Set entry in string vector.
-MJAPI mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
+MJAPI mjtBool mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
 
 // Append text entry to string vector.
 MJAPI void mjs_appendString(mjStringVec* dest, const char* text);

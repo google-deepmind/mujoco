@@ -16,5 +16,4 @@ if(MUJOCO_BUILD_EXAMPLES)
   include(ShellTests)
 
   add_mujoco_shell_test(compile_test compile)
-  add_mujoco_shell_test(testspeed_test testspeed)
 endif()

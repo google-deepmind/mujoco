@@ -795,6 +795,15 @@ static void mj_computeSensorPos(const mjModel* m, mjData* d, int i, mjtNum* sens
 
   case mjSENS_INSIDESITE:                             // 1 if object is inside site
     get_xpos_xmat(d, objtype, objid, i, &xpos, &xmat);
+
+    // for massless bodies with positive subtree mass (e.g., flex parents),
+    // xipos is the static body frame origin; use subtree_com instead
+    if (objtype == mjOBJ_BODY && objid > 0 &&
+        m->body_mass[objid] < mjMINVAL &&
+        m->body_subtreemass[objid] >= mjMINVAL) {
+      xpos = d->subtree_com + 3*objid;
+    }
+
     sensordata[0] = mju_insideGeom(d->site_xpos + 3*refid,
                                    d->site_xmat + 9*refid,
                                    m->site_size + 3*refid,

@@ -44,6 +44,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         ux/gui.h
         ux/gui_spec.cc
         ux/gui_spec.h
+        ux/imgui_bridge.cc
+        ux/imgui_bridge.h
         ux/imgui_widgets.cc
         ux/imgui_widgets.h
         ux/interaction.cc

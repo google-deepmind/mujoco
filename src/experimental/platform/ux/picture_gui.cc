@@ -20,16 +20,14 @@
 #include <imgui.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/hal/renderer.h"
-#include "experimental/platform/hal/window.h"
 #include "experimental/platform/ux/imgui_widgets.h"
 
 namespace mujoco::platform {
 
 // Returns false if the user requests that this picture-in-picture widget be
 // removed from the GUI.
-static bool PipGuiImpl(const mjModel* model, mjData* data,
-                       platform::Window* window, platform::Renderer* renderer,
-                       PipState* pip) {
+static bool PipGuiImpl(const mjModel* model, mjData* data, float aspect_ratio,
+                       platform::Renderer* renderer, PipState* pip) {
   bool result = true;
 
   auto get_camera_name = [model](int i) -> const char* {
@@ -41,7 +39,7 @@ static bool PipGuiImpl(const mjModel* model, mjData* data,
   };
 
   const int width = ImGui::GetContentRegionAvail().x;
-  const int height = width / window->GetAspectRatio();
+  const int height = aspect_ratio != 0.f ? width / aspect_ratio : width;
   std::vector<std::byte> output(width * height * 3);
 
   const int combo_width = (width - 30) / 2;
@@ -97,7 +95,7 @@ static bool PipGuiImpl(const mjModel* model, mjData* data,
   return result;
 }
 
-void PipGui(const mjModel* model, mjData* data, platform::Window* window,
+void PipGui(const mjModel* model, mjData* data, float aspect_ratio,
             platform::Renderer* renderer, std::vector<PipState>* pips) {
   if (pips->empty()) {
     pips->emplace_back();
@@ -106,7 +104,7 @@ void PipGui(const mjModel* model, mjData* data, platform::Window* window,
   std::vector<int> to_delete;
   for (int i = 0; i < pips->size(); ++i) {
     PipState& pip = pips->at(i);
-    if (PipGuiImpl(model, data, window, renderer, &pip) == false) {
+    if (PipGuiImpl(model, data, aspect_ratio, renderer, &pip) == false) {
       to_delete.push_back(i);
     };
     ImGui::Separator();

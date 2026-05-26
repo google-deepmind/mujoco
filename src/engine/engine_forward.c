@@ -38,6 +38,7 @@
 #include "engine/engine_sleep.h"
 #include "engine/engine_solver.h"
 #include "engine/engine_support.h"
+#include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -207,12 +208,12 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   TM_END(mjTIMER_POS_MAKE);
 
   TM_RESTART;
-  mj_transmission(m, d);
-  TM_ADD(mjTIMER_POS_KINEMATICS);
-
-  TM_RESTART;
   mj_projectConstraint(m, d);
   TM_END(mjTIMER_POS_PROJECT);
+
+  TM_RESTART;
+  mj_transmission(m, d);
+  TM_ADD(mjTIMER_POS_KINEMATICS);
 
   TM_END1(mjTIMER_POSITION);
 }
@@ -226,9 +227,16 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
   d->flg_subtreevel = 0;
   d->flg_energyvel = 0;
 
-  // flexedge velocity: always sparse
-  mju_mulMatVecSparse(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge,
-                      m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind, NULL);
+  // flexedge velocity: skip interp and rigid flexes (edge Jacobians are zero)
+  mju_zero(d->flexedge_velocity, m->nflexedge);
+  for (int f = 0; f < m->nflex; f++) {
+    if (m->flex_rigid[f] || m->flex_interp[f]) continue;
+    int adr = m->flex_edgeadr[f];
+    int num = m->flex_edgenum[f];
+    mju_mulMatVecSparse(d->flexedge_velocity + adr, d->flexedge_J, d->qvel, num,
+                        m->flexedge_J_rownnz + adr, m->flexedge_J_rowadr + adr,
+                        m->flexedge_J_colind, NULL);
+  }
 
   // tendon velocity: always sparse
   mju_mulMatVecSparse(d->ten_velocity, d->ten_J, d->qvel, m->ntendon,
@@ -289,7 +297,7 @@ static mjtNum dcmotorVoltage(mjtNum ctrl, mjtNum length, mjtNum velocity,
 
 
 // clamp vector to range
-static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, int n,
+static void clampVec(mjtNum* vec, const mjtNum* range, const mjtBool* limited, int n,
                       const int* index) {
   for (int i=0; i < n; i++) {
     int j = index ? index[i] : i;
@@ -952,7 +960,7 @@ static void solve_threaded(const mjModel* m, mjData* d, int flg_Newton) {
 // compute efc_b, efc_force, qfrc_constraint; update qacc
 void mj_fwdConstraint(const mjModel* m, mjData* d) {
   TM_START;
-  int nv = m->nv, nefc = d->nefc, nisland = d->nisland;
+  int nv = m->nv, nefc = d->nefc, nisland = d->nisland, nidof;
 
   // always clear qfrc_constraint
   mju_zero(d->qfrc_constraint, nv);
@@ -969,50 +977,69 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   mj_mulJacVec(m, d, d->efc_b, d->qacc_smooth);
   mju_subFrom(d->efc_b, d->efc_aref, nefc);
 
+  // check for invalid solver type
+  if (m->opt.solver != mjSOL_PGS && m->opt.solver != mjSOL_CG && m->opt.solver != mjSOL_NEWTON) {
+    mjERROR("unknown solver type %d", m->opt.solver);
+  }
+
   // warmstart solver
   warmstart(m, d);
   mju_zeroInt(d->solver_niter, mjNISLAND);
 
   // check if islands are supported
-  int islands_supported = !mjDISABLED(mjDSBL_ISLAND)    &&
-                          nisland > 0                   &&
-                          m->opt.noslip_iterations == 0 &&
-                          (m->opt.solver == mjSOL_CG || m->opt.solver == mjSOL_NEWTON);
+  int islands_supported = !mjDISABLED(mjDSBL_ISLAND) && nisland > 0;
 
   // run solver over constraint islands
   if (islands_supported) {
-    int nidof = d->nidof;
-
-    // copy inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
-    mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
-    mju_gather(d->ifrc_constraint, d->qfrc_constraint, d->map_idof2dof, nidof);
-    mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
-    mju_gather(d->iacc,            d->qacc,            d->map_idof2dof, nidof);
-    mju_gather(d->iefc_force,      d->efc_force,       d->map_iefc2efc, nefc);
-    mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
-
-    // solve per island, with or without threads
-    if (!d->threadpool) {
-      // no threadpool, loop over islands
+    switch ((mjtSolver) m->opt.solver) {
+    case mjSOL_PGS:
       for (int island=0; island < nisland; island++) {
-        if (m->opt.solver == mjSOL_NEWTON) {
-          mj_solNewton_island(m, d, island, m->opt.iterations);
-        } else {
-          mj_solCG_island(m, d, island, m->opt.iterations);
-        }
+        mj_solPGS_island(m, d, island, m->opt.iterations);
       }
-    } else {
-      // have threadpool, solve using threads
-      solve_threaded(m, d, m->opt.solver == mjSOL_NEWTON);
+      break;
+
+    case mjSOL_CG:
+    case mjSOL_NEWTON:
+      // copy inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
+      nidof = d->nidof;
+      mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
+      mju_gather(d->ifrc_constraint, d->qfrc_constraint, d->map_idof2dof, nidof);
+      mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
+      mju_gather(d->iacc,            d->qacc,            d->map_idof2dof, nidof);
+      mju_gather(d->iefc_force,      d->efc_force,       d->map_iefc2efc, nefc);
+      mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
+
+      // solve per island, with or without threads
+      if (!d->threadpool) {
+        // no threadpool, loop over islands
+        for (int island=0; island < nisland; island++) {
+          if (m->opt.solver == mjSOL_NEWTON) {
+            mj_solNewton_island(m, d, island, m->opt.iterations);
+          } else {
+            mj_solCG_island(m, d, island, m->opt.iterations);
+          }
+        }
+      } else {
+        // have threadpool, solve using threads
+        solve_threaded(m, d, m->opt.solver == mjSOL_NEWTON);
+      }
+
+      // copy back solver outputs (scatter dofs since ni <= nv)
+      mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);
+      mju_scatter(d->qfrc_constraint, d->ifrc_constraint, d->map_idof2dof, nidof);
+      mju_gather(d->efc_force, d->iefc_force, d->map_efc2iefc, nefc);
+      break;
     }
 
-    // copy back solver outputs (scatter dofs since ni <= nv)
-    mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);
-    mju_scatter(d->qfrc_constraint, d->ifrc_constraint, d->map_idof2dof, nidof);
-    mju_gather(d->efc_force, d->iefc_force, d->map_efc2iefc, nefc);
+    // run noslip solver per island if enabled
+    if (m->opt.noslip_iterations > 0) {
+      for (int island=0; island < nisland; island++) {
+        mj_solNoSlip_island(m, d, island, m->opt.noslip_iterations);
+      }
+    }
   }
 
-  // run solver over all constraints
+  // run solver over all constraints (monolithic)
   else {
     switch ((mjtSolver) m->opt.solver) {
     case mjSOL_PGS:                     // PGS
@@ -1026,15 +1053,17 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     case mjSOL_NEWTON:                  // Newton
       mj_solNewton(m, d, m->opt.iterations);
       break;
+    }
 
-    default:
-      mjERROR("unknown solver type %d", m->opt.solver);
+    // run noslip solver if enabled
+    if (m->opt.noslip_iterations > 0) {
+      mj_solNoSlip(m, d, m->opt.noslip_iterations);
     }
   }
 
-  // run noslip solver if enabled
-  if (m->opt.noslip_iterations > 0) {
-    mj_solNoSlip(m, d, m->opt.noslip_iterations);
+  // dual solvers: map efc_force to joint space (always monolithic)
+  if (m->opt.solver == mjSOL_PGS || m->opt.noslip_iterations > 0) {
+    mj_dualFinish(m, d);
   }
 
   TM_END(mjTIMER_CONSTRAINT);
@@ -1043,7 +1072,10 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
 //-------------------------- state advancement and integration  ------------------------------------
 
-// advance state and time given activation derivatives, acceleration, and optional velocity
+// advance state and time
+//   act_dot: activation derivatives
+//   qacc:    acceleration used to update d->qvel (d->qvel += h*qacc)
+//   qvel:    optional velocity used for position integration; if NULL, use d->qvel
 static void mj_advance(const mjModel* m, mjData* d,
                        const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
   int nu = m->nu, nsensor = m->nsensor;
@@ -1346,203 +1378,485 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 }
 
 
-// context for flex interp reduced dense factorization/solve
-typedef struct {
-  mjtNum* H;              // dense Cholesky-factored matrix (ndof x ndof)
-  int* dof_indices;       // global DOF index for each local flex DOF
-  int ndof;               // number of flex DOFs
-  int ncoupling;          // number of off-diagonal coupling terms
-  mjtNum* coupling_val;   // coupling coefficient values
-  int* coupling_row;      // local flex row index for each coupling term
-  int* coupling_col;      // global DOF column index for each coupling term
-} FlexInterpContext;
-
-
-// collect flex DOFs for one flex, marking seen_dof and incrementing count
-static void flexInterp_collect(const mjModel* m, int f,
-                               int* chain_dofs, int* seen_dof, int* count) {
-  int nodenum = m->flex_nodenum[f];
-  int nodeadr = m->flex_nodeadr[f];
-  for (int n=0; n < nodenum; n++) {
-    int b = m->flex_nodebodyid[nodeadr+n];
-    int chain_nnz;
-    if (m->body_dofnum[b] == 0) {
-      // pinned node: use bodyChain to get parent DOFs
-      chain_nnz = mj_bodyChain(m, b, chain_dofs);
-    } else {
-      // regular flex node: use body's own DOFs only
-      chain_nnz = m->body_dofnum[b];
-      for (int j=0; j < chain_nnz; j++) {
-        chain_dofs[j] = m->body_dofadr[b] + j;
-      }
+// return 1 if any flex needs implicit stiffness treatment (interp or bending)
+static int flex_has_implicit_stiffness(const mjModel* m) {
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_rigid[f]) {
+      continue;
     }
-    for (int i=0; i < chain_nnz; i++) {
-      int dof = chain_dofs[i];
-      if (!seen_dof[dof]) {
-        seen_dof[dof] = 1;
-        (*count)++;
-      }
+
+    // interpolated flex with stiffness
+    if (m->flex_interp[f] &&
+        m->flex_edgeequality[f] != 3 &&
+        m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+      return 1;
+    }
+
+    // standard flex with bending
+    if (!m->flex_interp[f] && m->flex_dim[f] == 2 &&
+        m->flex_bendingadr[f] >= 0) {
+      return 1;
     }
   }
+  return 0;
 }
 
 
-// build and factor the reduced dense matrix for flex interp DOFs
-//   mark/free stack handled by caller
-static FlexInterpContext flexInterp_factor(const mjModel* m, mjData* d, int nv) {
-  FlexInterpContext ctx = {0};
-
-  int* chain_dofs = mjSTACKALLOC(d, nv, int);
-  int* seen_dof = mjSTACKALLOC(d, nv, int);
-  mju_fillInt(seen_dof, 0, nv);
-
-  // count flex DOFs
-  int ndof = 0;
-  for (int f=0; f < m->nflex; f++) {
-    if (m->flex_interp[f]) {
-      flexInterp_collect(m, f, chain_dofs, seen_dof, &ndof);
-    }
-  }
-  if (ndof == 0) {
-    return ctx;
-  }
-
-  // allocate and build global-to-local mapping
-  int* dof_indices = mjSTACKALLOC(d, ndof, int);
-  int* global2local = mjSTACKALLOC(d, nv, int);
-  mju_fillInt(global2local, -1, nv);
-
-  // collect unique DOFs in order
-  int cnt = 0;
-  mju_fillInt(seen_dof, 0, nv);
-  for (int f=0; f < m->nflex; f++) {
-    if (m->flex_interp[f]) {
-      int nodenum = m->flex_nodenum[f];
-      int nodeadr = m->flex_nodeadr[f];
-      for (int n=0; n < nodenum; n++) {
-        int b = m->flex_nodebodyid[nodeadr+n];
-        int chain_nnz;
-        if (m->body_dofnum[b] == 0) {
-          // pinned node: use bodyChain to get parent DOFs
-          chain_nnz = mj_bodyChain(m, b, chain_dofs);
-        } else {
-          // regular flex node: use body's own DOFs only
-          chain_nnz = m->body_dofnum[b];
-          for (int j=0; j < chain_nnz; j++) {
-            chain_dofs[j] = m->body_dofadr[b] + j;
-          }
-        }
-        for (int i=0; i < chain_nnz; i++) {
-          int dof = chain_dofs[i];
-          if (!seen_dof[dof]) {
-            seen_dof[dof] = 1;
-            dof_indices[cnt] = dof;
-            global2local[dof] = cnt;
-            cnt++;
-          }
-        }
-      }
-    }
-  }
-
-  // select sparse matrix format based on integrator
-  int implicit = (m->opt.integrator == mjINT_IMPLICIT);
-  const int* rownnz = implicit ? m->D_rownnz : m->M_rownnz;
-  const int* rowadr = implicit ? m->D_rowadr : m->M_rowadr;
-  const int* colind = implicit ? m->D_colind : m->M_colind;
-  const mjtNum* source = implicit ? d->qLU : d->qH;
-
-  // count coupling terms (off-diagonal: flex row, non-flex col)
-  int ncoupling = 0;
-  for (int i=0; i < ndof; i++) {
-    int row = dof_indices[i];
-    int start = rowadr[row];
-    int end = start + rownnz[row];
-    for (int k=start; k < end; k++) {
-      if (global2local[colind[k]] < 0) {
-        ncoupling++;
-      }
-    }
-  }
-
-  // allocate coupling storage
-  mjtNum* coupling_val = NULL;
-  int* coupling_row = NULL;
-  int* coupling_col = NULL;
-  if (ncoupling > 0) {
-    coupling_val = mjSTACKALLOC(d, ncoupling, mjtNum);
-    coupling_row = mjSTACKALLOC(d, ncoupling, int);
-    coupling_col = mjSTACKALLOC(d, ncoupling, int);
-  }
-
-  // build H_flex (dense) from qLU (implicit) or qH (implicitfast)
-  mjtNum* H = mjSTACKALLOC(d, ndof*ndof, mjtNum);
-  mju_zero(H, ndof*ndof);
-
-  int coup_cnt = 0;
-  for (int i=0; i < ndof; i++) {
-    int row = dof_indices[i];
-    int start = rowadr[row];
-    int end = start + rownnz[row];
-    for (int k=start; k < end; k++) {
-      int col = colind[k];
-      int local_j = global2local[col];
-      if (local_j >= 0) {
-        H[i*ndof+local_j] = source[k];
-      } else if (coup_cnt < ncoupling) {
-        coupling_val[coup_cnt] = source[k];
-        coupling_row[coup_cnt] = i;
-        coupling_col[coup_cnt] = col;
-        coup_cnt++;
-      }
-    }
-  }
-
-  // add flex stiffness and factorize
-  mjd_flexInterp_addH(m, d, H, dof_indices, ndof, m->opt.timestep);
-  mju_cholFactor(H, ndof, mjMINVAL);
-
-  // store results in context
-  ctx.H = H;
-  ctx.dof_indices = dof_indices;
-  ctx.ndof = ndof;
-  ctx.ncoupling = ncoupling;
-  ctx.coupling_val = coupling_val;
-  ctx.coupling_row = coupling_row;
-  ctx.coupling_col = coupling_col;
-  return ctx;
-}
-
-
-// solve the reduced dense system for flex interp DOFs, overwrite qacc
-static void flexInterp_solve(const mjModel* m, mjData* d, const FlexInterpContext* ctx,
-                             mjtNum* qacc, const mjtNum* qfrc, int nv) {
-  int ndof = ctx->ndof;
-  mjtNum* qfrc_flex = mjSTACKALLOC(d, ndof, mjtNum);
-  mjtNum* res = mjSTACKALLOC(d, nv, mjtNum);
-
+// preconditioned CG solve for implicit flex interp
+//   solves (M - h*qDeriv - (h^2+h*d)*K) * qacc = qfrc - h*K*qvel
+//   where K is the flex stiffness, using the already-factored standard system
+//   (M - h*qDeriv) as a preconditioner
+static void flexInterp_cgsolve(const mjModel* m, mjData* d,
+                                mjtNum* qacc, const mjtNum* qfrc, int nv) {
   mjtNum h = m->opt.timestep;
-  mjtNum damp = (m->nflex > 0 && m->flex_damping) ? m->flex_damping[0] : 0;
-  mjtNum scl = h*h + h*damp;
-  mjtNum factor = (scl > mjMINVAL) ? (h/scl) : 0;
+  int implicit = (m->opt.integrator == mjINT_IMPLICIT);
 
-  // velocity correction: -h * K * v
-  mju_zero(res, nv);
-  mjd_flexInterp_mulKD(m, d, res, d->qvel, h);
+  mj_markStack(d);
 
-  for (int i=0; i < ndof; i++) {
-    int global_dof = ctx->dof_indices[i];
-    qfrc_flex[i] = qfrc[global_dof] + res[global_dof] * factor;
+  // allocate CG work vectors
+  mjtNum* rhs = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* r = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* z = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* p = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* Ap = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* temp = mjSTACKALLOC(d, nv, mjtNum);
+
+  // precompute K_rot cache: same layout as m->flex_stiffness
+  int krot_size = m->nflexstiffness;
+  mjtNum* K_rot_cache = mjSTACKALLOC(d, krot_size, mjtNum);
+  mju_zero(K_rot_cache, krot_size);
+  mjd_flexInterp_cacheKrot(m, d, K_rot_cache);
+
+  // build RHS: rhs = qfrc
+  mju_copy(rhs, qfrc, nv);
+
+  // flex_interp velocity correction: rhs += h*K_interp*qvel (K_interp is NSD)
+  mjd_flexInterp_mul(m, d, rhs, d->qvel, h, 0, K_rot_cache);
+
+  // standard flex bending velocity correction: rhs -= h*K_bend*qvel
+  mjd_flexBend_mul(m, d, rhs, d->qvel, -h, 0);  // rhs -= h*K_bend*v
+
+  // --- helper: compute Ap = A*x ---
+  // A*x = (M - h*qDeriv)*x - (h^2+h*d)*K_interp*x + (h^2+h*d)*K_bend*x
+  #define FLEX_CG_MATVEC(Ap_out, x_in)                                           \
+    mju_mulMatVecSparse(Ap_out, d->qDeriv, x_in, nv, m->D_rownnz, m->D_rowadr,   \
+                        m->D_colind, NULL);                                      \
+    mju_mulSymVecSparse(temp, d->M, x_in, nv, m->M_rownnz, m->M_rowadr,          \
+                        m->M_colind);                                            \
+    mju_addScl(Ap_out, temp, Ap_out, -h, nv);                                    \
+    mjd_flexInterp_mul(m, d, Ap_out, x_in, -(h*h), -h, K_rot_cache);             \
+    mjd_flexBend_mul(m, d, Ap_out, x_in, h*h, h)
+
+  // --- helper: preconditioner solve z = (M - h*qDeriv)^{-1} * r ---
+  #define FLEX_CG_PRECOND(z_out, r_in)                                           \
+    if (implicit) {                                                              \
+      mju_solveLUSparse(z_out, d->qLU, r_in, nv, m->D_rownnz, m->D_rowadr,       \
+                        m->D_diag, m->D_colind, NULL);                           \
+    } else {                                                                     \
+      mju_copy(z_out, r_in, nv);                                                 \
+      mj_solveLD(z_out, d->qH, d->qHDiagInv, nv, 1, m->M_rownnz, m->M_rowadr,    \
+                 m->M_colind, NULL);                                             \
+    }
+
+  // initial residual: r = rhs - A*qacc
+  FLEX_CG_MATVEC(Ap, qacc);
+  mju_sub(r, rhs, Ap, nv);
+
+  // check if already converged
+  mjtNum rnorm = mju_dot(r, r, nv);
+  mjtNum tol = 1e-10 * mju_dot(rhs, rhs, nv);
+  if (rnorm < tol || rnorm < mjMINVAL) {
+    mj_freeStack(d);
+    return;
   }
 
-  // coupling correction: qfrc_flex -= H_coupling * qacc_parent
-  for (int k=0; k < ctx->ncoupling; k++) {
-    qfrc_flex[ctx->coupling_row[k]] -= ctx->coupling_val[k] * qacc[ctx->coupling_col[k]];
+  // z = precond(r), p = z
+  FLEX_CG_PRECOND(z, r);
+  mju_copy(p, z, nv);
+  mjtNum rz = mju_dot(r, z, nv);
+
+  // CG iterations
+  int maxiter = 50;
+  for (int iter=0; iter < maxiter; iter++) {
+    FLEX_CG_MATVEC(Ap, p);
+
+    // alpha = rz / dot(p, Ap)
+    mjtNum pAp = mju_dot(p, Ap, nv);
+    if (mju_abs(pAp) < mjMINVAL) break;
+    mjtNum alpha = rz / pAp;
+
+    // qacc += alpha * p
+    mju_addToScl(qacc, p, alpha, nv);
+
+    // r -= alpha * Ap
+    mju_addToScl(r, Ap, -alpha, nv);
+
+    // check convergence
+    rnorm = mju_dot(r, r, nv);
+    if (rnorm < tol || rnorm < mjMINVAL) break;
+
+    // z = precond(r)
+    FLEX_CG_PRECOND(z, r);
+
+    // beta = rz_new / rz
+    mjtNum rz_new = mju_dot(r, z, nv);
+    mjtNum beta = rz_new / mju_max(mjMINVAL, rz);
+
+    // p = z + beta * p
+    mju_addScl(p, z, p, beta, nv);
+    rz = rz_new;
   }
 
-  // solve and scatter back
-  mju_cholSolve(qfrc_flex, ctx->H, qfrc_flex, ndof);
-  mju_scatter(qacc, qfrc_flex, ctx->dof_indices, ndof);
+  #undef FLEX_CG_MATVEC
+  #undef FLEX_CG_PRECOND
+
+  mj_freeStack(d);
+}
+
+
+// return 1 if free joint is eligible for midpoint quaternion integration:
+//   standalone 6-DOF tree with no children, awake, and unconstrained
+static int midpoint_eligible(const mjModel* m, const mjData* d, int jnt) {
+  if (m->jnt_type[jnt] != mjJNT_FREE) {
+    return 0;
+  }
+
+  int body = m->jnt_bodyid[jnt];
+  int adr = m->jnt_dofadr[jnt];
+  int tree = m->dof_treeid[adr];
+
+  // must be standalone 6-DOF tree with no children
+  if (m->tree_dofnum[tree] != 6 ||
+      m->body_subtreemass[body] != m->body_mass[body]) {
+    return 0;
+  }
+
+  // must be awake
+  if (!d->tree_awake[tree]) {
+    return 0;
+  }
+
+  // must be unconstrained
+  if (d->nefc) {
+    // islands enabled: O(1) lookup
+    if (!mjDISABLED(mjDSBL_ISLAND)) {
+      if (d->dof_island[adr] >= 0) {
+        return 0;
+      }
+    }
+
+    // islands disabled: check if any constraint involves this tree
+    else {
+      for (int c=0; c < d->nefc; c++) {
+        int type = d->efc_type[c];
+        int id = d->efc_id[c];
+
+        // contact: check if either geom belongs to this body
+        if (type == mjCNSTR_CONTACT_FRICTIONLESS ||
+            type == mjCNSTR_CONTACT_PYRAMIDAL ||
+            type == mjCNSTR_CONTACT_ELLIPTIC) {
+          int g1 = d->contact[id].geom[0];
+          int g2 = d->contact[id].geom[1];
+          if (g1 >= 0 && m->geom_bodyid[g1] == body) return 0;
+          if (g2 >= 0 && m->geom_bodyid[g2] == body) return 0;
+        }
+
+        // connect or weld: check if either body is this body
+        else if (type == mjCNSTR_EQUALITY &&
+                 (m->eq_type[id] == mjEQ_CONNECT || m->eq_type[id] == mjEQ_WELD)) {
+          int b1 = m->eq_obj1id[id];
+          int b2 = m->eq_obj2id[id];
+          if (m->eq_objtype[id] == mjOBJ_SITE) {
+            b1 = m->site_bodyid[b1];
+            b2 = m->site_bodyid[b2];
+          }
+          if (b1 == body || b2 == body) return 0;
+        }
+
+        // tendon limit or friction: check first two trees
+        else if (type == mjCNSTR_LIMIT_TENDON || type == mjCNSTR_FRICTION_TENDON) {
+          if (m->tendon_treeid[2*id] == tree ||
+              m->tendon_treeid[2*id+1] == tree) return 0;
+        }
+      }
+    }
+  }
+
+  // otherwise eligible
+  return 1;
+}
+
+
+// return 1 if the body's CoM is at the joint origin (no translational-rotational coupling)
+static int midpoint_aligned(const mjModel* m, int jnt) {
+  int body = m->jnt_bodyid[jnt];
+  return m->body_ipos[3*body+0] == 0 &&
+         m->body_ipos[3*body+1] == 0 &&
+         m->body_ipos[3*body+2] == 0;
+}
+
+
+// implicit midpoint integration for 3D rotation of a single body
+//
+// solves the Euler rigid body equation in the inertial frame:
+//   I * (w_new - w) / h = tau - w_mid x (I*w_mid)
+// where w_mid = (w + w_new) / 2 is solved via Newton iteration.
+//
+// inputs:
+//   inertia:   principal moments of inertia (3)
+//   w:         initial angular velocity in principal axes frame (3)
+//   tau:       external torque in principal axes frame (3)
+//   h:         timestep
+// outputs:
+//   w_mid:     midpoint angular velocity in principal axes frame (3)
+// returns:     number of Newton iterations
+static int midpointNewton(const mjtNum inertia[3], const mjtNum w[3],
+                          const mjtNum tau[3], mjtNum h, mjtNum w_mid[3]) {
+  // precompute constants
+  mjtNum i2h = 2.0 / h;
+  mjtNum dI[3] = {inertia[2]-inertia[1], inertia[0]-inertia[2], inertia[1]-inertia[0]};
+  mjtNum i2h_I[3] = {i2h*inertia[0], i2h*inertia[1], i2h*inertia[2]};
+
+  // initialize solution to previous angular velocity
+  mji_copy3(w_mid, w);
+
+  // Newton iteration
+  int niter;
+  for (niter=0; niter < 100; niter++) {
+    // compute Coriolis term
+    mjtNum Iw[3] = {inertia[0]*w_mid[0], inertia[1]*w_mid[1], inertia[2]*w_mid[2]};
+    mjtNum coriolis[3];
+    mji_cross(coriolis, w_mid, Iw);
+
+    // residual: f = i2h*I*(w_mid - w) + w_mid x (I*w_mid) - tau
+    mjtNum f[3];
+    for (int k=0; k < 3; k++) {
+      f[k] = i2h_I[k]*(w_mid[k] - w[k]) + coriolis[k] - tau[k];
+    }
+
+    // check convergence
+    mjtNum fnorm = mju_norm3(f);
+#ifndef mjUSESINGLE
+    mjtNum tol = 1e-13;
+#else
+    mjtNum tol = 1e-6f;
+#endif
+    if (fnorm < tol*(1 + i2h*mju_norm3(Iw))) break;
+
+    // Jacobian: J = i2h*diag(I) + d(w x Iw)/dw
+    mjtNum J[9];
+    J[0] = i2h_I[0];        J[1] = w_mid[2]*dI[0];  J[2] = w_mid[1]*dI[0];
+    J[3] = w_mid[2]*dI[1];  J[4] = i2h_I[1];        J[5] = w_mid[0]*dI[1];
+    J[6] = w_mid[1]*dI[2];  J[7] = w_mid[0]*dI[2];  J[8] = i2h_I[2];
+
+    // solve J*delta = -f for search direction delta
+    mjtNum neg_f[3] = {-f[0], -f[1], -f[2]};
+    mjtNum delta[3];
+    mju_solve3(delta, J, neg_f);
+
+    // backtracking line search
+    mjtNum step = 1.0;
+    for (int ls=0; ls < 20; ls++) {
+      // candidate step
+      mjtNum w_try[3], Iw_try[3];
+      for (int k=0; k < 3; k++) {
+        w_try[k] = w_mid[k] + step*delta[k];
+        Iw_try[k] = inertia[k]*w_try[k];
+      }
+      mjtNum coriolis_try[3];
+      mji_cross(coriolis_try, w_try, Iw_try);
+
+      // residual at candidate step
+      mjtNum f_try[3];
+      for (int k=0; k < 3; k++) {
+        f_try[k] = i2h_I[k]*(w_try[k] - w[k]) + coriolis_try[k] - tau[k];
+      }
+
+      // accept step if residual decreased, otherwise backtrack
+      if (mju_norm3(f_try) < fnorm) {
+        mji_copy3(w_mid, w_try);
+        break;
+      }
+      step *= 0.5;
+    }
+  }
+
+  return niter;
+}
+
+
+// implicit midpoint integration for one free body
+//
+// solves the Euler rigid body equation in the inertial frame:
+//   I * dw/dt = tau - w x (I*w)
+// using the implicit midpoint rule:
+//   I * (w_new - w_old) / h = tau_mid - w_mid x (I*w_mid)
+// where w_mid = (w_old + w_new) / 2 is solved via Newton iteration.
+//
+// inputs:
+//   mass:      body mass
+//   inertia:   principal moments of inertia
+//   ipos:      CoM offset from joint origin, in body frame
+//   iquat:     inertial quaternion (body_iquat)
+//   xquat:     body orientation in world frame
+//   qvel_old:  current velocity (lin in world : rot in body)
+//   qfrc:      external force (lin in world : rot in body)
+//   gravity:   gravitational acceleration in world frame (NULL: no gravity)
+//   h:         timestep
+// outputs:
+//   qvel_new:  next velocity (lin in world : rot in body)
+int mj_midpoint(mjtNum mass, const mjtNum inertia[3], const mjtNum ipos[3],
+                const mjtNum iquat[4], const mjtNum xquat[4], const mjtNum qvel_old[6],
+                const mjtNum qfrc[6], const mjtNum gravity[3], mjtNum h,
+                mjtNum qvel_new[6]) {
+  // transform angular velocity and torque to inertial frame
+  mjtNum iquat_neg[4], w[3], tau[3];
+  mji_negQuat(iquat_neg, iquat);
+  mji_rotVecQuat(w, qvel_old+3, iquat_neg);  // qvel+3 (angular) is in body frame
+  mji_rotVecQuat(tau, qfrc+3, iquat_neg);    // qfrc+3 (angular) is in body frame
+
+  // check for translational-rotational coupling
+  int aligned = (ipos[0] == 0 && ipos[1] == 0 && ipos[2] == 0);
+
+  mjtNum r_com[3];    // joint-to-CoM vector in inertial frame
+  mjtNum tau_com[3];  // torque at CoM in inertial frame
+  mjtNum rot_x2i[4];  // quaternion rotation from world to inertial frame
+  mjtNum force[3];    // external force in inertial frame
+
+  // compute torque at CoM in inertial frame
+  if (aligned) {
+    mji_copy3(tau_com, tau);
+  } else {
+    // rotation from world to inertial frame
+    mjtNum xquat_neg[4];
+    mji_negQuat(xquat_neg, xquat);
+    mji_mulQuat(rot_x2i, iquat_neg, xquat_neg);
+
+    // force and CoM offset in inertial frame
+    mji_rotVecQuat(force, qfrc, rot_x2i);
+    mji_rotVecQuat(r_com, ipos, iquat_neg);
+
+    // torque at CoM in inertial frame
+    mjtNum rxf[3];
+    mji_cross(rxf, r_com, force);
+    mji_sub3(tau_com, tau, rxf);
+  }
+
+  // solve for midpoint angular velocity
+  mjtNum w_mid[3];
+  int niter = midpointNewton(inertia, w, tau_com, h, w_mid);
+
+  // next and mid angular velocities in inertial frame, rotate both to body frame
+  mjtNum w_new[3], w_new_body[3], w_mid_body[3];
+  for (int k=0; k < 3; k++) {
+    w_new[k] = 2.0*w_mid[k] - w[k];
+  }
+  mji_rotVecQuat(w_new_body, w_new, iquat);
+  mji_rotVecQuat(w_mid_body, w_mid, iquat);
+  mji_copy3(qvel_new+3, w_new_body);
+
+  // === aligned: return
+  if (aligned) {
+    return niter;
+  }
+
+  // === non-aligned: solve for translational velocity
+
+  // rotate linear velocity to inertial frame
+  mjtNum v[3];
+  mji_rotVecQuat(v, qvel_old, rot_x2i);
+
+  // current CoM velocities (rot, lin) in inertial frame
+  mjtNum wxr[3];
+  mji_cross(wxr, w, r_com);
+  mjtNum vcom[3];
+  mji_add3(vcom, v, wxr);
+
+  // right-hand side for midpoint CoM velocity
+  mjtNum i2h = 2.0 / h;
+  mjtNum b[3];
+  for (int k=0; k < 3; k++) {
+    b[k] = force[k]/mass + i2h*vcom[k];
+  }
+
+  // add gravity, if any
+  if (gravity) {
+    mjtNum g_inertial[3];
+    mji_rotVecQuat(g_inertial, gravity, rot_x2i);
+    mji_addTo3(b, g_inertial);
+  }
+
+  // analytic solution for (i2h*Id + [w_mid]x) * vcom_mid = b
+  mjtNum wnorm2 = mju_dot3(w_mid, w_mid);
+  mjtNum denom = i2h*i2h + wnorm2;
+  mjtNum w_dot_b = mju_dot3(w_mid, b);
+  mjtNum w_cross_b[3];
+  mji_cross(w_cross_b, w_mid, b);
+  mjtNum vcom_mid[3];
+  for (int k=0; k < 3; k++) {
+    vcom_mid[k] = (i2h*b[k] + (w_dot_b/i2h)*w_mid[k] - w_cross_b[k]) / denom;
+  }
+
+  // recover midpoint and new joint velocity in inertial frame
+  mjtNum wxr_mid[3];
+  mji_cross(wxr_mid, w_mid, r_com);
+  mjtNum v_mid[3], v_new[3];
+  for (int k=0; k < 3; k++) {
+    v_mid[k] = vcom_mid[k] - wxr_mid[k];
+    v_new[k] = 2.0*v_mid[k] - v[k];
+  }
+
+  // estimate new orientation
+  mjtNum axis[3];
+  mji_copy3(axis, w_mid_body);
+  mjtNum wnorm = mju_normalize3(axis);
+  mjtNum qrot_new[4];
+  mji_axisAngle2Quat(qrot_new, axis, h*wnorm);
+  mjtNum xquat_new[4];
+  mji_mulQuat(xquat_new, xquat, qrot_new);
+
+  // v_new (linear): inertial → body → world using new orientation
+  mjtNum v_body[3];
+  mji_rotVecQuat(v_body, v_new, iquat);
+  mji_rotVecQuat(qvel_new, v_body, xquat_new);
+
+  return niter;
+}
+
+
+// compute next velocities via midpoint integration for eligible free bodies
+//   qfrc:       total force (qfrc_smooth + qfrc_constraint)
+//   free_jntid: list of eligible free joint IDs
+//   nfree:      number of eligible free joints
+//   qvel_old:   output array for old velocities (6 per joint)
+//   qvel_new:   output array for new velocities (6 per joint)
+//   dofadr:     output array for DOF addresses (1 per joint)
+static void midpoint(const mjModel* m, const mjData* d, const mjtNum* qfrc,
+                     const int* free_jntid, int nfree,
+                     mjtNum* qvel_old, mjtNum* qvel_new, int* dofadr) {
+  for (int i=0; i < nfree; i++) {
+    int j = free_jntid[i];
+    int body = m->jnt_bodyid[j];
+
+    // save DOF address
+    int adr = m->jnt_dofadr[j];
+    dofadr[i] = adr;
+
+    // save old (current) velocity, needed after mj_advance (which overwrites qvel)
+    mju_copy(qvel_old+6*i, d->qvel+adr, 6);
+
+    // compute external force = qfrc + qfrc_bias (undo bias subtraction)
+    mjtNum qfrc_total[6];
+    mju_add(qfrc_total, qfrc+adr, d->qfrc_bias+adr, 6);
+
+    // gravity handled inside mj_midpoint (accelerating frame of reference)
+    const mjtNum* gravity = mjDISABLED(mjDSBL_GRAVITY) ? NULL : m->opt.gravity;
+
+    // midpoint solver for free joint j
+    mj_midpoint(m->body_mass[body], m->body_inertia+3*body, m->body_ipos+3*body,
+                m->body_iquat+4*body, d->xquat+4*body,
+                d->qvel+adr, qfrc_total, gravity, m->opt.timestep, qvel_new+6*i);
+  }
 }
 
 
@@ -1567,17 +1881,8 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
   }
 
-  // check for flex_interp
-  int has_flex_interp = 0;
-  for (int f=0; f < m->nflex; f++) {
-    if (m->flex_interp[f]) {
-      has_flex_interp = 1;
-      break;
-    }
-  }
-
-  // flex interp context (populated during factorization)
-  FlexInterpContext flex = {0};
+  // check for flex_interp that needs implicit treatment
+  int has_flex_stiffness = !sleep_filter && flex_has_implicit_stiffness(m);
 
   // factorization
   if (!skipfactor) {
@@ -1607,11 +1912,6 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjERROR("integrator must be implicit or implicitfast");
     }
 
-    // flex: reduced dense factorization
-    if (has_flex_interp && !sleep_filter) {
-      flex = flexInterp_factor(m, d, nv);
-    }
-
     // standard factorization (implicit / implicitfast)
     if (m->opt.integrator == mjINT_IMPLICIT) {
       int* scratch = mjSTACKALLOC(d, nv, int);
@@ -1635,13 +1935,70 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
   }
 
-  // flex: reduced dense solve
-  if (flex.H) {
-    flexInterp_solve(m, d, &flex, qacc, qfrc, nv);
+  // flex: CG correction for implicit flex stiffness
+  if (has_flex_stiffness) {
+    flexInterp_cgsolve(m, d, qacc, qfrc, m->nv);
   }
 
-  // advance state and time
-  mj_advance(m, d, d->act_dot, qacc, NULL);
+  // count and list joints of free bodies eligible for midpoint integration
+  int nfree = 0;
+  int* free_jntid = NULL;
+  if (!mjENABLED(mjENBL_INVDISCRETE) &&
+      m->opt.integrator == mjINT_IMPLICITFAST &&
+      m->opt.density == 0 && m->opt.viscosity == 0) {
+    free_jntid = mjSTACKALLOC(d, m->njnt, int);
+    for (int j=0; j < m->njnt; j++) {
+      if (midpoint_eligible(m, d, j)) {
+        free_jntid[nfree++] = j;
+      }
+    }
+  }
+
+  // compute midpoint velocities (used to update positions)
+  int* dofadr = NULL;
+  mjtNum* qvel_old = NULL;
+  mjtNum* qvel_new = NULL;
+  mjtNum* qvel_mid = NULL;
+  if (nfree) {
+    // allocate arrays, call midpoint solver for all eligible free joints
+    dofadr = mjSTACKALLOC(d, nfree, int);
+    qvel_new = mjSTACKALLOC(d, 6*nfree, mjtNum);
+    qvel_old = mjSTACKALLOC(d, 6*nfree, mjtNum);
+    midpoint(m, d, qfrc, free_jntid, nfree, qvel_old, qvel_new, dofadr);
+
+    // build qvel_mid = d->qvel + h*qacc for all DOFs, then overwrite midpoint DOFs
+    qvel_mid = mjSTACKALLOC(d, m->nv, mjtNum);
+    mju_addScl(qvel_mid, d->qvel, qacc, m->opt.timestep, m->nv);
+    for (int i=0; i < nfree; i++) {
+      int adr = dofadr[i];
+      int start = midpoint_aligned(m, free_jntid[i]) ? 3 : 0;
+      for (int k=start; k < 6; k++) {
+        qvel_mid[adr+k] = 0.5*(qvel_new[6*i+k] + qvel_old[6*i+k]);
+      }
+    }
+  }
+
+  // advance state and time (use qvel_mid if allocated, NULL otherwise)
+  mj_advance(m, d, d->act_dot, qacc, qvel_mid);
+
+  // overwrite midpoint DOFs with true next velocity and acceleration
+  if (nfree) {
+    mjtNum h_inv = 1.0 / m->opt.timestep;
+    for (int i=0; i < nfree; i++) {
+      // skip sleeping tree (may have been put to sleep during mj_advance)
+      int adr = dofadr[i];
+      if (!d->tree_awake[m->dof_treeid[adr]]) {
+        continue;
+      }
+
+      // overwrite 3 or 6 midpoint DOFs with true next velocity and acceleration
+      int start = midpoint_aligned(m, free_jntid[i]) ? 3 : 0;
+      for (int k=start; k < 6; k++) {
+        d->qvel[adr+k] = qvel_new[6*i+k];
+        d->qacc[adr+k] = (qvel_new[6*i+k] - qvel_old[6*i+k]) * h_inv;
+      }
+    }
+  }
 
   mj_freeStack(d);
 

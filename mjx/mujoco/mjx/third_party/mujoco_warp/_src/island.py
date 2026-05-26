@@ -26,24 +26,24 @@ from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 def _tree_edges(
   # Model:
   nv: int,
-  body_treeid: wp.array(dtype=int),
-  jnt_dofadr: wp.array(dtype=int),
-  dof_treeid: wp.array(dtype=int),
-  geom_bodyid: wp.array(dtype=int),
-  site_bodyid: wp.array(dtype=int),
-  eq_type: wp.array(dtype=int),
-  eq_obj1id: wp.array(dtype=int),
-  eq_obj2id: wp.array(dtype=int),
-  eq_objtype: wp.array(dtype=int),
+  body_treeid: wp.array[int],
+  jnt_dofadr: wp.array[int],
+  dof_treeid: wp.array[int],
+  geom_bodyid: wp.array[int],
+  site_bodyid: wp.array[int],
+  eq_type: wp.array[int],
+  eq_obj1id: wp.array[int],
+  eq_obj2id: wp.array[int],
+  eq_objtype: wp.array[int],
   # Data in:
-  nefc_in: wp.array(dtype=int),
-  contact_geom_in: wp.array(dtype=wp.vec2i),
-  efc_type_in: wp.array2d(dtype=int),
-  efc_id_in: wp.array2d(dtype=int),
-  efc_J_in: wp.array3d(dtype=float),
+  nefc_in: wp.array[int],
+  contact_geom_in: wp.array[wp.vec2i],
+  efc_type_in: wp.array2d[int],
+  efc_id_in: wp.array2d[int],
+  efc_J_in: wp.array3d[float],
   njmax_in: int,
   # Out:
-  tree_tree: wp.array3d(dtype=int),  # kernel_analyzer: off
+  tree_tree: wp.array3d[int],  # kernel_analyzer: off
 ):
   """Find tree edges."""
   worldid, efcid = wp.tid()
@@ -151,7 +151,7 @@ def _tree_edges(
     wp.atomic_max(tree_tree, worldid, first_tree, first_tree, 1)
 
 
-def tree_edges(m: types.Model, d: types.Data, tree_tree: wp.array3d(dtype=int)):
+def tree_edges(m: types.Model, d: types.Data, tree_tree: wp.array3d[int]):
   """Compute tree-tree adjacency matrix."""
   tree_tree.zero_()
   wp.launch(
@@ -184,14 +184,14 @@ def _flood_fill(
   # Model:
   ntree: int,
   # In:
-  tree_tree_in: wp.array3d(dtype=int),
-  labels_in: wp.array2d(dtype=int),
-  stack_in: wp.array2d(dtype=int),
+  tree_tree_in: wp.array3d[int],
+  labels_in: wp.array2d[int],
+  stack_in: wp.array2d[int],
   # Data out:
-  nisland_out: wp.array(dtype=int),
-  tree_island_out: wp.array2d(dtype=int),
+  nisland_out: wp.array[int],
+  tree_island_out: wp.array2d[int],
   # Out:
-  stack_out: wp.array2d(dtype=int),
+  stack_out: wp.array2d[int],
 ):
   """DFS flood fill to discover islands using tree_tree matrix."""
   worldid = wp.tid()

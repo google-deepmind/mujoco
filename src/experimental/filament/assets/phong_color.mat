@@ -15,7 +15,6 @@
 material {
     name : phong_color,
     shadingModel : specularGlossiness,
-    culling: none,
     parameters : [
         { type : float4, name : BaseColorFactor },
         { type : float, name : SpecularFactor },

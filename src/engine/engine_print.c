@@ -24,7 +24,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
@@ -766,6 +766,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
                                   float:   float_format,                    \
                                   int:     INT_FORMAT,                      \
                                   mjtByte: INT_FORMAT,                      \
+                                  mjtBool: INT_FORMAT,                      \
                                   mjtSize: SIZE_FORMAT,                     \
                                   default: NULL);                           \
     if (format) {                                                           \
@@ -1192,7 +1193,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   // BVHs
   fprintf(fp, "BVH:\n");
-  fprintf(fp, "  %-8s%-8s%-8s%-10s%-s\n","id", "depth", "nodeid", "child[0]" ,"child[1]");
+  fprintf(fp, "  %-8s%-8s%-8s%-10s%-s\n", "id", "depth", "nodeid", "child[0]", "child[1]");
   for (int i=0; i < m->nbvh; i++) {
     fprintf(fp, "  %-8d%-8d% -8d% -10d% -d\n",
             i, m->bvh_depth[i], m->bvh_nodeid[i], m->bvh_child[2*i], m->bvh_child[2*i+1]);
@@ -1203,7 +1204,6 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     fclose(fp);
   }
 }
-
 
 // print mjModel to text file
 void mj_printModel(const mjModel* m, const char* filename) {
@@ -1271,6 +1271,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
         int : INT_FORMAT,                                                     \
         mjtSize : SIZE_FORMAT,                                                \
         mjtByte : INT_FORMAT,                                                 \
+        mjtBool : INT_FORMAT,                                                 \
         default : NULL);                                                      \
     if (format) {                                                             \
       fprintf(fp, "  ");                                                      \
@@ -1545,7 +1546,6 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     mjtNum force[6] = {0};
     mj_contactForce(m, d, i, force);
     printVector("     force        ", force, 6, fp, float_format);
-
   }
   if (d->ncon) fprintf(fp, "\n");
 
@@ -1568,6 +1568,11 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
                 d->efc_J_rowadr, d->efc_J_colind, fp, float_format);
     mj_printSparsity("J: constraint Jacobian", d->nefc, m->nv, d->efc_J_rowadr, NULL,
                      d->efc_J_rownnz, d->efc_J_rowsuper, d->efc_J_colind, fp);
+    if (d->nY) {
+      mj_printSparsity("EFC_Y: inverse constraint inertia square root", d->nefc, m->nv,
+                       d->efc_Y_rowadr, NULL, d->efc_Y_rownnz, d->efc_J_rowsuper,
+                       d->efc_Y_colind, fp);
+    }
     if (d->nisland) {
       mj_printBlockSparsity("IEFC_J: block-diagonalized constraint Jacobian (nnzs are island ids)",
                             d->nefc, d->nidof, d->nisland,
@@ -1582,7 +1587,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
       printArray2dInt("EFC_AR_ROWADR", d->nefc, 1, d->efc_AR_rowadr, fp);
       printSparse("EFC_AR", d->efc_AR, d->nefc, d->efc_AR_rownnz,
                   d->efc_AR_rowadr, d->efc_AR_colind, fp, float_format);
-      mj_printSparsity("efc_AR: inverse constraint inertia", d->nefc, d->nefc, d->efc_AR_rowadr,
+      mj_printSparsity("EFC_AR: inverse constraint inertia", d->nefc, d->nefc, d->efc_AR_rowadr,
                        NULL, d->efc_AR_rownnz, NULL, d->efc_AR_colind, fp);
     }
   }

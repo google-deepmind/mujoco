@@ -191,10 +191,8 @@ TEST_F(CoreSmoothTest, TendonJdot) {
 
       mj_forward(m, d);
 
-      // get current J and Jdot for the tendon
+      // get current J for the tendon
       vector<mjtNum> ten_J(d->ten_J, d->ten_J + nv);
-      vector<mjtNum> ten_Jdot(nv, 0);
-      mj_tendonDot(m, d, 0, ten_Jdot.data());
 
       // compute finite-differenced Jdot
       mjtNum h = MjTol(1e-7, 5e-4);
@@ -206,7 +204,10 @@ TEST_F(CoreSmoothTest, TendonJdot) {
       mju_subFrom(ten_Jh.data(), ten_J.data(), nv);
       mju_scl(ten_Jh.data(), ten_Jh.data(), 1.0 / h, nv);
 
-      EXPECT_THAT(ten_Jdot, Pointwise(MjNear(1e-6, 2e-3), ten_Jh));
+      // test dot product against finite differences
+      mjtNum dot = mj_tendonDot(m, d, 0, d->qvel);
+      mjtNum expected_dot = mju_dot(ten_Jh.data(), d->qvel, nv);
+      EXPECT_NEAR(dot, expected_dot, MjTol(1e-5, 2e-3));
     }
 
     mj_deleteData(d);

@@ -17,6 +17,7 @@
 
 #include <vector>
 
+#include <imgui.h>
 #include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
@@ -33,8 +34,8 @@ class SimProfiler {
   void Update(const mjModel* model, const mjData* data);
 
   // Displays the profiling data using ImPlot.
-  void CpuTimeGraph();
-  void DimensionsGraph();
+  void CpuTimeGraph(ImVec2 plot_size = ImVec2(-1, 0));
+  void DimensionsGraph(ImVec2 plot_size = ImVec2(-1, 0));
 
  private:
   std::vector<float> cpu_total_;

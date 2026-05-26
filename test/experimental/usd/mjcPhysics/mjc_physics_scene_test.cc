@@ -172,6 +172,8 @@ TEST_F(MjcPhysicsSceneTest, TestDefaults) {
                                                     mjDSBL_EULERDAMP);
   EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(AutoResetFlag,
                                                     mjDSBL_AUTORESET);
+  EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(MultiCCDFlag,
+                                                    mjDSBL_MULTICCD);
 
   EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(OverrideFlag,
                                                    mjENBL_OVERRIDE);
@@ -179,8 +181,6 @@ TEST_F(MjcPhysicsSceneTest, TestDefaults) {
   EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(FwdinvFlag, mjENBL_FWDINV);
   EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(InvDiscreteFlag,
                                                    mjENBL_INVDISCRETE);
-  EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(MultiCCDFlag,
-                                                   mjENBL_MULTICCD);
 
   mj_deleteModel(default_model);
   mj_deleteSpec(empty_spec);

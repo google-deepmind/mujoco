@@ -266,7 +266,7 @@ MjvLight::~MjvLight() {
     delete ptr_;
   }
 }
-MjvLight::MjvLight() : ptr_(new mjvLight) {
+MjvLight::MjvLight() : ptr_(new mjvLight()) {
   owned_ = true;
 }
 MjvLight::MjvLight(const MjvLight &other) : MjvLight() {

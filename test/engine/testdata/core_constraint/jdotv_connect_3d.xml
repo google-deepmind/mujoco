@@ -1,0 +1,29 @@
+<mujoco>
+  <option integrator="implicit">
+   <flag contact="disable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 -1 1"/>
+
+    <!-- body 1: pendulum on world ball joint, tilted -->
+    <body name="upper">
+      <joint type="ball"/>
+      <geom type="box" size="0.03" fromto="0 0 0 0.5 0 0"/>
+      <geom type="box" size="0.03" fromto="0.5 0 0 0.5 0.3 0"/>
+      <site name="tip1" pos="0.5 0.3 0"/>
+    </body>
+
+    <!-- body 2: free body, positioned at tip of upper -->
+    <body name="lower" pos="0.5 0.3 0">
+      <freejoint/>
+      <geom type="box" size="0.04" fromto="0 0 0 0.5 0 0"/>
+      <geom type="box" size="0.04" fromto="0.5 0 0 0.5 0.3 0"/>
+      <site name="tip2" pos="0 0 0"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <connect site1="tip1" site2="tip2"/>
+  </equality>
+</mujoco>

@@ -185,6 +185,8 @@
     X( nflexedge )          \
     X( nflexelem )          \
     X( nflexelemdata )      \
+    X( nflexstiffness )     \
+    X( nflexbending )       \
     X( nflexelemedge )      \
     X( nflexshelldata )     \
     X( nflexevpair )        \
@@ -316,9 +318,9 @@
     X   ( int,     jnt_bodyid,            njnt,          1                    ) \
     X   ( int,     jnt_actuatorid,        njnt,          1                    ) \
     X   ( int,     jnt_group,             njnt,          1                    ) \
-    X   ( mjtByte, jnt_limited,           njnt,          1                    ) \
-    X   ( mjtByte, jnt_actfrclimited,     njnt,          1                    ) \
-    X   ( mjtByte, jnt_actgravcomp,       njnt,          1                    ) \
+    X   ( mjtBool, jnt_limited,           njnt,          1                    ) \
+    X   ( mjtBool, jnt_actfrclimited,     njnt,          1                    ) \
+    X   ( mjtBool, jnt_actgravcomp,       njnt,          1                    ) \
     X   ( mjtNum,  jnt_solref,            njnt,          mjNREF               ) \
     X   ( mjtNum,  jnt_solimp,            njnt,          mjNIMP               ) \
     X   ( mjtNum,  jnt_pos,               njnt,          3                    ) \
@@ -417,11 +419,11 @@
     X   ( int,     light_targetbodyid,    nlight,        1                    ) \
     X   ( int,     light_type,            nlight,        1                    ) \
     X   ( int,     light_texid,           nlight,        1                    ) \
-    X   ( mjtByte, light_castshadow,      nlight,        1                    ) \
+    X   ( mjtBool, light_castshadow,      nlight,        1                    ) \
     X   ( float,   light_bulbradius,      nlight,        1                    ) \
     X   ( float,   light_intensity,       nlight,        1                    ) \
     X   ( float,   light_range,           nlight,        1                    ) \
-    X   ( mjtByte, light_active,          nlight,        1                    ) \
+    X   ( mjtBool, light_active,          nlight,        1                    ) \
     X   ( mjtNum,  light_pos,             nlight,        3                    ) \
     X   ( mjtNum,  light_dir,             nlight,        3                    ) \
     X   ( mjtNum,  light_poscom0,         nlight,        3                    ) \
@@ -445,7 +447,7 @@
     X   ( mjtNum,  flex_friction,         nflex,         3                    ) \
     X   ( mjtNum,  flex_margin,           nflex,         1                    ) \
     X   ( mjtNum,  flex_gap,              nflex,         1                    ) \
-    X   ( mjtByte, flex_internal,         nflex,         1                    ) \
+    X   ( mjtBool, flex_internal,         nflex,         1                    ) \
     X   ( int,     flex_selfcollide,      nflex,         1                    ) \
     X   ( int,     flex_activelayers,     nflex,         1                    ) \
     X   ( int,     flex_passive,          nflex,         1                    ) \
@@ -453,6 +455,7 @@
     X   ( int,     flex_matid,            nflex,         1                    ) \
     X   ( int,     flex_group,            nflex,         1                    ) \
     X   ( int,     flex_interp,           nflex,         1                    ) \
+    X   ( int,     flex_cellnum,          nflex,         3                    ) \
     X   ( int,     flex_nodeadr,          nflex,         1                    ) \
     X   ( int,     flex_nodenum,          nflex,         1                    ) \
     X   ( int,     flex_vertadr,          nflex,         1                    ) \
@@ -462,7 +465,9 @@
     X   ( int,     flex_elemadr,          nflex,         1                    ) \
     X   ( int,     flex_elemnum,          nflex,         1                    ) \
     X   ( int,     flex_elemdataadr,      nflex,         1                    ) \
+    X   ( int,     flex_stiffnessadr,     nflex,         1                    ) \
     X   ( int,     flex_elemedgeadr,      nflex,         1                    ) \
+    X   ( int,     flex_bendingadr,       nflex,         1                    ) \
     X   ( int,     flex_shellnum,         nflex,         1                    ) \
     X   ( int,     flex_shelldataadr,     nflex,         1                    ) \
     X   ( int,     flex_evpairadr,        nflex,         1                    ) \
@@ -490,16 +495,16 @@
     X   ( mjtNum,  flexedge_invweight0,   nflexedge,     1                    ) \
     X   ( mjtNum,  flex_radius,           nflex,         1                    ) \
     X   ( mjtNum,  flex_size,             nflex,         3                    ) \
-    X   ( mjtNum,  flex_stiffness,        nflexelem,     21                   ) \
-    X   ( mjtNum,  flex_bending,          nflexedge,     17                   ) \
+    X   ( mjtNum,  flex_stiffness,        nflexstiffness, 1                   ) \
+    X   ( mjtNum,  flex_bending,          nflexbending,  1                    ) \
     X   ( mjtNum,  flex_damping,          nflex,         1                    ) \
     X   ( mjtNum,  flex_edgestiffness,    nflex,         1                    ) \
     X   ( mjtNum,  flex_edgedamping,      nflex,         1                    ) \
     X   ( int,     flex_edgeequality,     nflex,         1                    ) \
-    X   ( mjtByte, flex_rigid,            nflex,         1                    ) \
-    X   ( mjtByte, flexedge_rigid,        nflexedge,     1                    ) \
-    X   ( mjtByte, flex_centered,         nflex,         1                    ) \
-    X   ( mjtByte, flex_flatskin,         nflex,         1                    ) \
+    X   ( mjtBool, flex_rigid,            nflex,         1                    ) \
+    X   ( mjtBool, flexedge_rigid,        nflexedge,     1                    ) \
+    X   ( mjtBool, flex_centered,         nflex,         1                    ) \
+    X   ( mjtBool, flex_flatskin,         nflex,         1                    ) \
     X   ( int,     flex_bvhadr,           nflex,         1                    ) \
     X   ( int,     flex_bvhnum,           nflex,         1                    ) \
     X   ( int,     flexedge_J_rownnz,     nflexedge,     1                    ) \
@@ -590,7 +595,7 @@
 
 #define MJMODEL_POINTERS_MATERIAL                                               \
     X   ( int,     mat_texid,             nmat,          mjNTEXROLE           ) \
-    X   ( mjtByte, mat_texuniform,        nmat,          1                    ) \
+    X   ( mjtBool, mat_texuniform,        nmat,          1                    ) \
     X   ( float,   mat_texrepeat,         nmat,          2                    ) \
     X   ( float,   mat_emission,          nmat,          1                    ) \
     X   ( float,   mat_specular,          nmat,          1                    ) \
@@ -620,7 +625,7 @@
     X   ( int,     eq_obj1id,             neq,           1                    ) \
     X   ( int,     eq_obj2id,             neq,           1                    ) \
     X   ( int,     eq_objtype,            neq,           1                    ) \
-    X   ( mjtByte, eq_active0,            neq,           1                    ) \
+    X   ( mjtBool, eq_active0,            neq,           1                    ) \
     X   ( mjtNum,  eq_solref,             neq,           mjNREF               ) \
     X   ( mjtNum,  eq_solimp,             neq,           mjNIMP               ) \
     X   ( mjtNum,  eq_data,               neq,           mjNEQDATA            )
@@ -636,8 +641,8 @@
     X   ( int,     ten_J_rownnz,          ntendon,       1                    ) \
     X   ( int,     ten_J_rowadr,          ntendon,       1                    ) \
     X   ( int,     ten_J_colind,          nJten,         1                    ) \
-    X   ( mjtByte, tendon_limited,        ntendon,       1                    ) \
-    X   ( mjtByte, tendon_actfrclimited,  ntendon,       1                    ) \
+    X   ( mjtBool, tendon_limited,        ntendon,       1                    ) \
+    X   ( mjtBool, tendon_actfrclimited,  ntendon,       1                    ) \
     X   ( mjtNum,  tendon_width,          ntendon,       1                    ) \
     X   ( mjtNum,  tendon_solref_lim,     ntendon,       mjNREF               ) \
     X   ( mjtNum,  tendon_solimp_lim,     ntendon,       mjNIMP               ) \
@@ -673,13 +678,13 @@
     X   ( int,     actuator_history,      nu,            2                    ) \
     X   ( int,     actuator_historyadr,   nu,            1                    ) \
     X   ( mjtNum,  actuator_delay,        nu,            1                    ) \
-    X   ( mjtByte, actuator_ctrllimited,  nu,            1                    ) \
-    X   ( mjtByte, actuator_forcelimited, nu,            1                    ) \
-    X   ( mjtByte, actuator_actlimited,   nu,            1                    ) \
+    X   ( mjtBool, actuator_ctrllimited,  nu,            1                    ) \
+    X   ( mjtBool, actuator_forcelimited, nu,            1                    ) \
+    X   ( mjtBool, actuator_actlimited,   nu,            1                    ) \
     X   ( mjtNum,  actuator_dynprm,       nu,            mjNDYN               ) \
     X   ( mjtNum,  actuator_gainprm,      nu,            mjNGAIN              ) \
     X   ( mjtNum,  actuator_biasprm,      nu,            mjNBIAS              ) \
-    X   ( mjtByte, actuator_actearly,     nu,            1                    ) \
+    X   ( mjtBool, actuator_actearly,     nu,            1                    ) \
     X   ( mjtNum,  actuator_ctrlrange,    nu,            2                    ) \
     X   ( mjtNum,  actuator_forcerange,   nu,            2                    ) \
     X   ( mjtNum,  actuator_actrange,     nu,            2                    ) \
@@ -823,7 +828,7 @@
     X   ( mjtNum,    ctrl,              nu,          1           ) \
     X   ( mjtNum,    qfrc_applied,      nv,          1           ) \
     X   ( mjtNum,    xfrc_applied,      nbody,       6           ) \
-    X   ( mjtByte,   eq_active,         neq,         1           ) \
+    X   ( mjtBool,   eq_active,         neq,         1           ) \
     X   ( mjtNum,    mocap_pos,         nmocap,      3           ) \
     X   ( mjtNum,    mocap_quat,        nmocap,      4           ) \
     X   ( mjtNum,    qacc,              nv,          1           ) \
@@ -874,7 +879,7 @@
     XNV ( mjtNum,    M,                 nC,          1           ) \
     XNV ( mjtNum,    qLD,               nC,          1           ) \
     X   ( mjtNum,    qLDiagInv,         nv,          1           ) \
-    X   ( mjtByte,   bvh_active,        nbvh,        1           ) \
+    X   ( mjtBool,   bvh_active,        nbvh,        1           ) \
     X   ( int,       tree_awake,        ntree,       1           ) \
     X   ( int,       body_awake,        nbody,       1           ) \
     X   ( int,       body_awake_ind,    nbody,       1           ) \
@@ -941,6 +946,10 @@
 
 // array fields of mjData that are used in the dual problem
 #define MJDATA_ARENA_POINTERS_DUAL                       \
+    XNV( int,      efc_Y_rownnz,      MJ_D(nefc),    1 ) \
+    XNV( int,      efc_Y_rowadr,      MJ_D(nefc),    1 ) \
+    XNV( int,      efc_Y_colind,      MJ_D(nY),      1 ) \
+    XNV( mjtNum,   efc_Y,             MJ_D(nY),      1 ) \
     XNV( int,      efc_AR_rownnz,     MJ_D(nefc),    1 ) \
     XNV( int,      efc_AR_rowadr,     MJ_D(nefc),    1 ) \
     XNV( int,      efc_AR_colind,     MJ_D(nA),      1 ) \
@@ -1015,6 +1024,7 @@
     X( int,       nl                 ) \
     X( int,       nefc               ) \
     X( int,       nJ                 ) \
+    X( int,       nY                 ) \
     X( int,       nA                 ) \
     X( int,       nisland            ) \
     X( int,       nidof              ) \
@@ -1022,10 +1032,10 @@
     X( int,       nbody_awake        ) \
     X( int,       nparent_awake      ) \
     X( int,       nv_awake           ) \
-    X( mjtByte,   flg_energypos      ) \
-    X( mjtByte,   flg_energyvel      ) \
-    X( mjtByte,   flg_subtreevel     ) \
-    X( mjtByte,   flg_rnepost        ) \
+    X( mjtBool,   flg_energypos      ) \
+    X( mjtBool,   flg_energyvel      ) \
+    X( mjtBool,   flg_subtreevel     ) \
+    X( mjtBool,   flg_rnepost        ) \
     X( mjtNum,    time               ) \
     X( uintptr_t, threadpool         )
 

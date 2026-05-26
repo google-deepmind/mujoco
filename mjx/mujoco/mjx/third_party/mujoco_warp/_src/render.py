@@ -34,6 +34,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
+from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import RenderContext
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
@@ -43,17 +44,17 @@ wp.set_module_options({"enable_backward": False})
 @wp.func
 def sample_texture(
   # Model:
-  geom_type: wp.array(dtype=int),
-  mesh_faceadr: wp.array(dtype=int),
+  geom_type: wp.array[int],
+  mesh_faceadr: wp.array[int],
   # In:
   geom_id: int,
   tex_repeat: wp.vec2,
   tex: wp.Texture2D,
   pos: wp.vec3,
   rot: wp.mat33,
-  mesh_facetexcoord: wp.array(dtype=wp.vec3i),
-  mesh_texcoord: wp.array(dtype=wp.vec2),
-  mesh_texcoord_offsets: wp.array(dtype=int),
+  mesh_facetexcoord: wp.array[wp.vec3i],
+  mesh_texcoord: wp.array[wp.vec2],
+  mesh_texcoord_offsets: wp.array[int],
   hit_point: wp.vec3,
   bary_u: float,
   bary_v: float,
@@ -84,33 +85,99 @@ def sample_texture(
   return wp.vec3(tex_color[0], tex_color[1], tex_color[2])
 
 
+@wp.func
+def sample_skybox(
+  # In:
+  skybox_tex: wp.Texture2D,
+  face_width_inv: float,
+  ray_dir_world: wp.vec3,
+) -> wp.vec3:
+  # MuJoCo maps a world-space direction to cube-map space by rotating 90° about X
+  # (see render_gl3.c: S=x, T=z, R=-y). Faces in tex_data are stacked vertically
+  # in OpenGL cube-face order: +X, -X, +Y, -Y, +Z, -Z.
+  rx = ray_dir_world[0]
+  ry = ray_dir_world[2]
+  rz = -ray_dir_world[1]
+
+  arx = wp.abs(rx)
+  ary = wp.abs(ry)
+  arz = wp.abs(rz)
+
+  face = int(0)
+  sc = float(0.0)
+  tc = float(0.0)
+  ma = float(1.0)
+
+  if arx >= ary and arx >= arz:
+    ma = arx
+    if rx > 0.0:
+      face = 0
+      sc = -rz
+      tc = -ry
+    else:
+      face = 1
+      sc = rz
+      tc = -ry
+  elif ary >= arz:
+    ma = ary
+    if ry > 0.0:
+      face = 2
+      sc = rx
+      tc = rz
+    else:
+      face = 3
+      sc = rx
+      tc = -rz
+  else:
+    ma = arz
+    if rz > 0.0:
+      face = 4
+      sc = rx
+      tc = -ry
+    else:
+      face = 5
+      sc = -rx
+      tc = -ry
+
+  s = (math.safe_div(sc, ma) + 1.0) * 0.5
+  t = (math.safe_div(tc, ma) + 1.0) * 0.5
+
+  # Keep the linear filter from bleeding between adjacent faces in the vertical strip.
+  t_min = 0.5 * face_width_inv
+  t = wp.clamp(t, t_min, 1.0 - t_min)
+
+  v = (float(face) + t) * wp.static(1.0 / 6.0)
+  color = wp.texture_sample(skybox_tex, wp.vec2(s, v), dtype=wp.vec4)
+  return wp.vec3(color[0], color[1], color[2])
+
+
 # TODO: Investigate combining cast_ray and cast_ray_first_hit
 @wp.func
 def cast_ray(
   # Model:
-  geom_type: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
-  flex_vertadr: wp.array(dtype=int),
-  flex_edge: wp.array(dtype=wp.vec2i),
-  flex_radius: wp.array(dtype=float),
+  geom_type: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_size: wp.array2d[wp.vec3],
+  flex_vertadr: wp.array[int],
+  flex_edge: wp.array[wp.vec2i],
+  flex_radius: wp.array[float],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
-  flexvert_xpos_in: wp.array2d(dtype=wp.vec3),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
   # In:
   bvh_id: wp.uint64,
   group_root: int,
   worldid: int,
   bvh_ngeom: int,
   flex_bvh_ngeom: int,
-  enabled_geom_ids: wp.array(dtype=int),
-  mesh_bvh_id: wp.array(dtype=wp.uint64),
-  hfield_bvh_id: wp.array(dtype=wp.uint64),
-  flex_geom_flexid: wp.array(dtype=int),
-  flex_geom_edgeid: wp.array(dtype=int),
-  flex_bvh_id: wp.array(dtype=wp.uint64),
-  flex_group_root: wp.array2d(dtype=int),
+  enabled_geom_ids: wp.array[int],
+  mesh_bvh_id: wp.array[wp.uint64],
+  hfield_bvh_id: wp.array[wp.uint64],
+  flex_geom_flexid: wp.array[int],
+  flex_geom_edgeid: wp.array[int],
+  flex_bvh_id: wp.array[wp.uint64],
+  flex_group_root: wp.array2d[int],
   ray_origin_world: wp.vec3,
   ray_dir_world: wp.vec3,
 ) -> Tuple[int, float, wp.vec3, float, float, int, int]:
@@ -159,7 +226,7 @@ def cast_ray(
     if gtype == GeomType.HFIELD:
       d, n, u, v, f, geom_hfield_id = ray_mesh_with_bvh(
         hfield_bvh_id,
-        geom_dataid[gi],
+        geom_dataid[worldid % geom_dataid.shape[0], gi],
         geom_xpos_in[worldid, gi],
         geom_xmat_in[worldid, gi],
         ray_origin_world,
@@ -208,7 +275,7 @@ def cast_ray(
     if gtype == GeomType.MESH:
       d, n, u, v, f, hit_mesh_id = ray_mesh_with_bvh(
         mesh_bvh_id,
-        geom_dataid[gi],
+        geom_dataid[worldid % geom_dataid.shape[0], gi],
         geom_xpos_in[worldid, gi],
         geom_xmat_in[worldid, gi],
         ray_origin_world,
@@ -256,29 +323,29 @@ def cast_ray(
 @wp.func
 def cast_ray_first_hit(
   # Model:
-  geom_type: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
-  flex_vertadr: wp.array(dtype=int),
-  flex_edge: wp.array(dtype=wp.vec2i),
-  flex_radius: wp.array(dtype=float),
+  geom_type: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_size: wp.array2d[wp.vec3],
+  flex_vertadr: wp.array[int],
+  flex_edge: wp.array[wp.vec2i],
+  flex_radius: wp.array[float],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
-  flexvert_xpos_in: wp.array2d(dtype=wp.vec3),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
   # In:
   bvh_id: wp.uint64,
   group_root: int,
   worldid: int,
   bvh_ngeom: int,
   bvh_nflexgeom: int,
-  enabled_geom_ids: wp.array(dtype=int),
-  mesh_bvh_id: wp.array(dtype=wp.uint64),
-  hfield_bvh_id: wp.array(dtype=wp.uint64),
-  flex_geom_flexid: wp.array(dtype=int),
-  flex_geom_edgeid: wp.array(dtype=int),
-  flex_bvh_id: wp.array(dtype=wp.uint64),
-  flex_group_root: wp.array2d(dtype=int),
+  enabled_geom_ids: wp.array[int],
+  mesh_bvh_id: wp.array[wp.uint64],
+  hfield_bvh_id: wp.array[wp.uint64],
+  flex_geom_flexid: wp.array[int],
+  flex_geom_edgeid: wp.array[int],
+  flex_bvh_id: wp.array[wp.uint64],
+  flex_group_root: wp.array2d[int],
   ray_origin_world: wp.vec3,
   ray_dir_world: wp.vec3,
   max_dist: float,
@@ -314,7 +381,7 @@ def cast_ray_first_hit(
     if gtype == GeomType.HFIELD:
       d, n, u, v, f, geom_hfield_id = ray_mesh_with_bvh(
         hfield_bvh_id,
-        geom_dataid[gi],
+        geom_dataid[worldid % geom_dataid.shape[0], gi],
         geom_xpos_in[worldid, gi],
         geom_xmat_in[worldid, gi],
         ray_origin_world,
@@ -363,7 +430,7 @@ def cast_ray_first_hit(
     if gtype == GeomType.MESH:
       hit = ray_mesh_with_bvh_anyhit(
         mesh_bvh_id,
-        geom_dataid[gi],
+        geom_dataid[worldid % geom_dataid.shape[0], gi],
         geom_xpos_in[worldid, gi],
         geom_xmat_in[worldid, gi],
         ray_origin_world,
@@ -409,30 +476,30 @@ def cast_ray_first_hit(
 @wp.func
 def compute_lighting(
   # Model:
-  geom_type: wp.array(dtype=int),
-  geom_dataid: wp.array(dtype=int),
-  geom_size: wp.array2d(dtype=wp.vec3),
-  flex_vertadr: wp.array(dtype=int),
-  flex_edge: wp.array(dtype=wp.vec2i),
-  flex_radius: wp.array(dtype=float),
+  geom_type: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  geom_size: wp.array2d[wp.vec3],
+  flex_vertadr: wp.array[int],
+  flex_edge: wp.array[wp.vec2i],
+  flex_radius: wp.array[float],
   # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
-  flexvert_xpos_in: wp.array2d(dtype=wp.vec3),
+  geom_xpos_in: wp.array2d[wp.vec3],
+  geom_xmat_in: wp.array2d[wp.mat33],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
   # In:
   use_shadows: bool,
   bvh_id: wp.uint64,
   group_root: int,
   bvh_ngeom: int,
   bvh_nflexgeom: int,
-  enabled_geom_ids: wp.array(dtype=int),
+  enabled_geom_ids: wp.array[int],
   worldid: int,
-  mesh_bvh_id: wp.array(dtype=wp.uint64),
-  hfield_bvh_id: wp.array(dtype=wp.uint64),
-  flex_geom_flexid: wp.array(dtype=int),
-  flex_geom_edgeid: wp.array(dtype=int),
-  flex_bvh_id: wp.array(dtype=wp.uint64),
-  flex_group_root: wp.array2d(dtype=int),
+  mesh_bvh_id: wp.array[wp.uint64],
+  hfield_bvh_id: wp.array[wp.uint64],
+  flex_geom_flexid: wp.array[int],
+  flex_geom_edgeid: wp.array[int],
+  flex_bvh_id: wp.array[wp.uint64],
+  flex_group_root: wp.array2d[int],
   lightactive: bool,
   lighttype: int,
   lightcastshadow: bool,
@@ -525,70 +592,70 @@ def render(m: Model, d: Data, rc: RenderContext):
   """
   rc.rgb_data.fill_(rc.background_color)
   rc.depth_data.fill_(0.0)
-  rc.seg_data.fill_(-1)
+  rc.seg_data.fill_(wp.vec2i(-1, -1))
 
   @wp.kernel(module="unique", enable_backward=False)
   def _render_megakernel(
     # Model:
-    geom_type: wp.array(dtype=int),
-    geom_dataid: wp.array(dtype=int),
-    geom_matid: wp.array2d(dtype=int),
-    geom_size: wp.array2d(dtype=wp.vec3),
-    geom_rgba: wp.array2d(dtype=wp.vec4),
-    cam_projection: wp.array(dtype=int),
-    cam_fovy: wp.array2d(dtype=float),
-    cam_sensorsize: wp.array(dtype=wp.vec2),
-    cam_intrinsic: wp.array2d(dtype=wp.vec4),
-    light_type: wp.array2d(dtype=int),
-    light_castshadow: wp.array2d(dtype=bool),
-    light_active: wp.array2d(dtype=bool),
-    flex_vertadr: wp.array(dtype=int),
-    flex_edge: wp.array(dtype=wp.vec2i),
-    flex_radius: wp.array(dtype=float),
-    mesh_faceadr: wp.array(dtype=int),
-    mat_texid: wp.array3d(dtype=int),
-    mat_texrepeat: wp.array2d(dtype=wp.vec2),
-    mat_rgba: wp.array2d(dtype=wp.vec4),
+    geom_type: wp.array[int],
+    geom_dataid: wp.array2d[int],
+    geom_matid: wp.array2d[int],
+    geom_size: wp.array2d[wp.vec3],
+    geom_rgba: wp.array2d[wp.vec4],
+    cam_projection: wp.array[int],
+    cam_fovy: wp.array2d[float],
+    cam_sensorsize: wp.array[wp.vec2],
+    cam_intrinsic: wp.array2d[wp.vec4],
+    light_type: wp.array2d[int],
+    light_castshadow: wp.array2d[bool],
+    light_active: wp.array2d[bool],
+    flex_vertadr: wp.array[int],
+    flex_edge: wp.array[wp.vec2i],
+    flex_radius: wp.array[float],
+    mesh_faceadr: wp.array[int],
+    mat_texid: wp.array3d[int],
+    mat_texrepeat: wp.array2d[wp.vec2],
+    mat_rgba: wp.array2d[wp.vec4],
     # Data in:
-    geom_xpos_in: wp.array2d(dtype=wp.vec3),
-    geom_xmat_in: wp.array2d(dtype=wp.mat33),
-    cam_xpos_in: wp.array2d(dtype=wp.vec3),
-    cam_xmat_in: wp.array2d(dtype=wp.mat33),
-    light_xpos_in: wp.array2d(dtype=wp.vec3),
-    light_xdir_in: wp.array2d(dtype=wp.vec3),
-    flexvert_xpos_in: wp.array2d(dtype=wp.vec3),
+    geom_xpos_in: wp.array2d[wp.vec3],
+    geom_xmat_in: wp.array2d[wp.mat33],
+    cam_xpos_in: wp.array2d[wp.vec3],
+    cam_xmat_in: wp.array2d[wp.mat33],
+    light_xpos_in: wp.array2d[wp.vec3],
+    light_xdir_in: wp.array2d[wp.vec3],
+    flexvert_xpos_in: wp.array2d[wp.vec3],
     # In:
     nrender: int,
     use_shadows: bool,
     bvh_ngeom: int,
     bvh_nflexgeom: int,
-    cam_res: wp.array(dtype=wp.vec2i),
-    cam_id_map: wp.array(dtype=int),
-    ray: wp.array(dtype=wp.vec3),
-    rgb_adr: wp.array(dtype=int),
-    depth_adr: wp.array(dtype=int),
-    seg_adr: wp.array(dtype=int),
-    render_rgb: wp.array(dtype=bool),
-    render_depth: wp.array(dtype=bool),
-    render_seg: wp.array(dtype=bool),
+    cam_res: wp.array[wp.vec2i],
+    cam_id_map: wp.array[int],
+    ray: wp.array[wp.vec3],
+    rgb_adr: wp.array[int],
+    depth_adr: wp.array[int],
+    seg_adr: wp.array[int],
+    render_rgb: wp.array[bool],
+    render_depth: wp.array[bool],
+    render_seg: wp.array[bool],
     bvh_id: wp.uint64,
-    group_root: wp.array(dtype=int),
-    flex_bvh_id: wp.array(dtype=wp.uint64),
-    flex_group_root: wp.array2d(dtype=int),
-    enabled_geom_ids: wp.array(dtype=int),
-    mesh_bvh_id: wp.array(dtype=wp.uint64),
-    mesh_facetexcoord: wp.array(dtype=wp.vec3i),
-    mesh_texcoord: wp.array(dtype=wp.vec2),
-    mesh_texcoord_offsets: wp.array(dtype=int),
-    hfield_bvh_id: wp.array(dtype=wp.uint64),
-    flex_rgba: wp.array(dtype=wp.vec4),
-    flex_geom_flexid: wp.array(dtype=int),
-    flex_geom_edgeid: wp.array(dtype=int),
-    textures: wp.array(dtype=wp.Texture2D),
+    group_root: wp.array[int],
+    flex_bvh_id: wp.array[wp.uint64],
+    flex_group_root: wp.array2d[int],
+    enabled_geom_ids: wp.array[int],
+    mesh_bvh_id: wp.array[wp.uint64],
+    mesh_facetexcoord: wp.array[wp.vec3i],
+    mesh_texcoord: wp.array[wp.vec2],
+    mesh_texcoord_offsets: wp.array[int],
+    hfield_bvh_id: wp.array[wp.uint64],
+    flex_rgba: wp.array[wp.vec4],
+    flex_geom_flexid: wp.array[int],
+    flex_geom_edgeid: wp.array[int],
+    textures: wp.array[wp.Texture2D],
     # Out:
-    rgb_out: wp.array2d(dtype=wp.uint32),
-    depth_out: wp.array2d(dtype=float),
-    seg_out: wp.array2d(dtype=int),
+    rgb_out: wp.array2d[wp.uint32],
+    depth_out: wp.array2d[float],
+    seg_out: wp.array2d[wp.vec2i],
   ):
     worldid, rayid = wp.tid()
 
@@ -661,10 +728,25 @@ def render(m: Model, d: Data, rc: RenderContext):
     )
 
     if render_seg[cam_idx] and geom_id != -1:
-      seg_out[worldid, seg_adr[cam_idx] + rayid_local] = geom_id
+      if geom_id == -2:
+        seg_out[worldid, seg_adr[cam_idx] + rayid_local] = wp.vec2i(mesh_id, int(ObjType.FLEX))
+      else:
+        seg_out[worldid, seg_adr[cam_idx] + rayid_local] = wp.vec2i(geom_id, int(ObjType.GEOM))
 
     # Early Out
     if geom_id == -1:
+      if wp.static(rc.render_skybox) and render_rgb[cam_idx]:
+        skybox_color = sample_skybox(
+          textures[wp.static(rc.skybox_tex_id)],
+          wp.static(1.0 / float(rc.skybox_face_width)),
+          ray_dir_world,
+        )
+        rgb_out[worldid, rgb_adr[cam_idx] + rayid_local] = pack_rgba_to_uint32(
+          skybox_color[0] * 255.0,
+          skybox_color[1] * 255.0,
+          skybox_color[2] * 255.0,
+          255.0,
+        )
       return
 
     if render_depth[cam_idx]:

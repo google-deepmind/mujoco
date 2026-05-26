@@ -7,23 +7,23 @@ MuJoCo has a native 3D visualizer. Its use is illustrated in the :ref:`simulate.
 the simpler :ref:`basic.cc <saBasic>` code sample. While it is not a full-featured rendering engine, it is a
 convenient, efficient and reasonably good-looking visualizer that facilitates research and development. It renders not
 only the simulation state but also decorative elements such as contact points and forces, equivalent inertia boxes,
-convex hulls, kinematic trees, constraint violations, spatial frames and text labels; these can provide insight into
+convex hulls, kinematic trees, constraint violations, spatial frames, and text labels; these can provide insight into
 the physics simulation and help fine-tune the model.
 
 The visualizer is tightly integrated with the simulator and supports both onscreen and offscreen rendering, as
 illustrated in the :ref:`record.cc <saRecord>` code sample. This makes it suitable for synthetic computer vision and
-machine learning applications, especially in cloud environments. VR integration is also available as of MuJoCo version
-1.40, facilitating applications that utilize new head-mounted displays such as Oculus Rift and HTC Vive.
+machine learning applications, especially in cloud environments. VR integration is also available, facilitating
+applications that utilize head-mounted displays.
 
 Visualization in MuJoCo is a two-stage process:
 
 Abstract visualization and interaction
-   This stage populates the :ref:`mjvScene` data structure with a list of geometric objects, lights, cameras and
+   This stage populates the :ref:`mjvScene` data structure with a list of geometric objects, lights, cameras, and
    everything else needed to produce a 3D rendering. It also provides abstract keyboard and mouse hooks for user
    interaction. The relevant data structure and function names have the prefix ``mjv``.
 OpenGL rendering
    This stage takes the mjvScene data structure populated in the abstract visualization stage, and renders it. It also
-   provides basic 2d drawing and framebuffer access, so that most applications would not need to call OpenGL directly.
+   provides basic 2D drawing and framebuffer access, so that most applications would not need to call OpenGL directly.
    The relevant data structure and function names have the prefix ``mjr``.
 
 There are several reasons for this separation. First, the two stages are conceptually different and separating them is
@@ -105,8 +105,8 @@ Abstract visualization and interaction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This stage populates the :ref:`mjvScene` data structure with a list of geometric objects,
-lights, cameras and everything else needed to produce a 3D rendering. It also provides abstract keyboard and mouse hooks
-for user interaction.
+lights, cameras, and everything else needed to produce a 3D rendering. It also provides abstract keyboard and mouse
+hooks for user interaction.
 
 .. _viCamera:
 
@@ -125,14 +125,14 @@ are defined by the enum mjtCamera:
 
 mjCAMERA_FREE
    This is the most commonly used abstract camera. It can be freely moved with the mouse. It has a lookat point,
-   distance to the lookat point, azimuth and elevation; twist around the line of sight is not allowed. The function
-   :ref:`mjv_moveCamera` is a mouse hook for controlling all these camera properties interactively with the mouse. When
-   :ref:`simulate.cc <saSimulate>` first starts, it uses the free camera.
+   distance to the lookat point, azimuth, and elevation; twist around the line of sight is not allowed. The function
+   :ref:`mjv_moveCamera` is a mouse hook for controlling all these camera properties interactively with the mouse.
+   When :ref:`simulate.cc <saSimulate>` first starts, it uses the free camera.
 mjCAMERA_TRACKING
    This is similar to the free camera, except the lookat point is no longer a free parameter but instead is coupled to
    the MuJoCo body whose id is given by mjvCamera.trackbodyid. At each update, the lookat point is set to the center of
    mass of the kinematic subtree rooted at the specified body. There is also some filtering which produces smooth camera
-   motion. The distance, azimuth and elevation are controlled by the user and are not modified automatically. This is
+   motion. The distance, azimuth, and elevation are controlled by the user and are not modified automatically. This is
    useful for tracking a body as it moves around, without turning the camera. To switch from the free to the tracking
    camera in :ref:`simulate.cc <saSimulate>`, hold Ctrl and right-double-click on the body of interest. Press Esc to go
    back to the free camera.
@@ -171,7 +171,7 @@ because it needs information about the camera and viewport.
 The function mjv_select returns the index of the geom at the specified window coordinates, or -1 if there is no geom
 at those coordinates. The 3D position is also returned. See the code sample :ref:`simulate.cc <saSimulate>` for an
 example of how to use this function. Internally, mjv_select calls the engine-level function :ref:`mj_ray` which in turn
-calls the per-geom functions :ref:`mj_rayMesh`, :ref:`mj_rayHfield` and :ref:`mju_rayGeom`. The user can implement
+calls the per-geom functions :ref:`mj_rayMesh`, :ref:`mj_rayHfield`, and :ref:`mju_rayGeom`. The user can implement
 custom selection mechanisms by calling these functions directly. In a VR application for example, it would make sense to
 use the hand-held controller as a "laser pointer" that can select objects.
 
@@ -184,9 +184,8 @@ Interactive perturbations have proven very useful in exploring the model dynamic
 systems. The user is free to implement any perturbation mechanism of their choice by setting ``mjData.qfrc_applied`` or
 ``mjData.xfrc_applied`` to suitable forces (in generalized and Cartesian coordinates respectively).
 
-Prior to MuJoCo version 1.40, user code had to maintain a collection of objects in order to implement perturbations.
-All these objects are now grouped into the data structure :ref:`mjvPerturb`. Its use is illustrated in
-:ref:`simulate.cc <saSimulate>`.
+All objects needed to implement interactive perturbations are grouped into the data structure :ref:`mjvPerturb`.
+Its use is illustrated in :ref:`simulate.cc <saSimulate>`.
 The idea is to select a MuJoCo body of interest, and provide a reference pose (i.e., a 3D position and quaternion
 orientation) for that body. These are stored in mjPerturb.refpos/quat. The function :ref:`mjv_movePerturb` is a mouse
 hook for controlling the reference pose with the mouse. The function :ref:`mjv_initPerturb` is used to set the
@@ -275,40 +274,26 @@ Since we have introduced two spaces, namely model space and room space, we need 
 which spatial quantities are defined with respect to which spatial frame. Everything accessible by the simulator lives
 in the model space. The room space is only accessible by the visualizer. The only quantities defined in room space are
 the mjvGLCamera parameters. The functions :ref:`mjv_room2model`, :ref:`mjv_model2room`, :ref:`mjv_cameraInModel`,
-:ref:`mjv_cameraInRoom` perform the necessary transformations, and are needed for VR applications.
+and :ref:`mjv_cameraInRoom` perform the necessary transformations, and are needed for VR applications.
 
-We now outline the procedure for hooking up head tracking to MuJoCo's visualizer in a VR application. A code sample
-illustrating this will soon be posted. We assume that a tracking device provides in real-time the positions of the two
-eyes (usually generated by tracking the position and orientation of the head and assuming a user-specific ipd), as
-well as the forward and up camera directions. We copy these data directly into the two mjvGLCameras, which are in
-mjvScene.camera[n] where n=0 is the left eye and n=1 is the right eye. Note that the forward direction is normal to
-the projection surface, and not necessarily aligned with the gaze direction; indeed the gaze direction is unknown
-(unless we also have an eye-tracking device) and does not affect the rendering.
+While MuJoCo does not provide a built-in VR application, it provides data structures and functions to support VR
+integration in user code.
 
-We must also set the mjvGLCamera frustum. How this is done depends on the nature of the VR system. For head-mounted
-displays such as the Oculus Rift and HTC Vive, the projection surface moves with the head, and so the frustum is fixed
-and provided by the SDK. In this case we simply copy it into mjvGLCamera, averaging the left and right edges to
-compute the frustum_center parameter. Alternatively, the projection surface can be a monitor which is stationary in
-the room (which is the case in the zSpace system). For such systems we must compute the frustum at each frame, by
-taking into account the spatial relations between the monitor and the eyes/cameras. This assumes that the monitor is
-also tracked. The natural approach here is to define the monitor as the center of the room coordinate frame, and track
-the head relative to it. In the zSpace system this is done by embedding the motion capture cameras in the monitor
-itself.
+**Head tracking and cameras**
+   In a typical VR application, a tracking device provides the positions and orientations of the user's eyes in
+   real-time. These data can be copied directly into the two ``mjvGLCamera`` structures in ``mjvScene.camera[n]``
+   (where ``n=0`` is the left eye and ``n=1`` is the right eye). The ``mjvGLCamera`` frustum parameters must also be
+   set according to the physical characteristics of the tracked display.
 
-Apart from tracking the head and using the correct perspective projection, VR applications typically involve hand-held
-spatial controllers that must be mapped to the motion of simulated objects or otherwise interact with the simulation.
-The pose of these controllers is recorded by the motion capture system in room space. The transformation functions we
-provide (mjv_room2model in particular) can be used to map to model space. Once we have the pose of the controller in
-model space, we can use a MuJoCo mocap body (defined in the model) to insert the controller in the simulation. This is
-precisely why mocap bodies were introduced in MuJoCo. Such bodies are treated as fixed from the viewpoint of physics,
-yet the user is expected to move them programmatically at each simulation step. They can interact with the simulation
-through contacts, or better yet, through soft equality constraints to regular bodies which in turn make contacts. The
-latter approach is illustrated in the MPL models available on the Forum. It provides effective dynamic filtering and
-avoids contacts involving bodies that behave as if they are infinitely heavy (which is what a fixed body is). Note
-that the time-varying positions and orientations of the mocap bodies are stored in ``mjData.mocap_pos/quat``, as opposed
-to storing them in mjModel. This is because mjModel is supposed to remain constant. The fixed mocap body pose stored
-in mjModel is only used at initialization and reset, when user code has not yet had a chance to update
-mjData.mocap_pos/quat.
+**Controllers and mocap bodies**
+   Hand-held spatial controllers are also tracked in room space. The function :ref:`mjv_room2model` can map these
+   poses to model space. Once in model space, the controller poses can be used to update the position of MuJoCo
+   *mocap bodies*. Mocap bodies are treated as fixed from the viewpoint of physics, yet the user is expected to move
+   them programmatically at each simulation step. They can interact with the simulation through contacts, or better
+   yet, through soft equality constraints to regular bodies which in turn make contacts. This provides effective
+   dynamic filtering and avoids contacts involving bodies that behave as if they are infinitely heavy. The
+   time-varying positions and orientations of the mocap bodies are stored in ``mjData.mocap_pos`` and
+   ``mjData.mocap_quat``.
 
 .. _Rendering:
 
@@ -316,14 +301,14 @@ OpenGL Rendering
 ~~~~~~~~~~~~~~~~
 
 This stage takes the mjvScene data structure populated in the abstract visualization stage, and renders it. It also
-provides basic 2d drawing and framebuffer access, so that most applications would not need to call OpenGL directly.
+provides basic 2D drawing and framebuffer access, so that most applications would not need to call OpenGL directly.
 
 .. _reContext:
 
 Context and GPU resources
 '''''''''''''''''''''''''
 
-The first step in the rendering process is create the model-specific GPU context :ref:`mjrContext`. This is done by
+The first step in the rendering process is to create the model-specific GPU context :ref:`mjrContext`. This is done by
 first clearing the data structure with the function :ref:`mjr_defaultContext`, and then calling the function
 :ref:`mjr_makeContext`. This was already illustrated earlier; the relevant code is:
 
@@ -371,7 +356,7 @@ mjrContext.currentBuffer which changes whenever the active buffer changes. Some 
 because the user can upload modified resources with the functions :ref:`mjr_uploadTexture`, :ref:`mjr_uploadMesh`,
 :ref:`mjr_uploadHField`. This can be used to achieve dynamic effects such as inserting a video feed into the
 rendering, or modulating a terrain map. Such modifications affect the resources residing on the GPU, but their OpenGL
-names are reused, thus the change is not actually visible in mjrContext.
+names are reused; thus, the change is not actually visible in mjrContext.
 
 The user should **never** make changes to mjrContext directly. MuJoCo's renderer assumes that only it can manage
 mjrContext. In fact this kind of object would normally be opaque and its internal structure would not be exposed to
@@ -434,7 +419,7 @@ be obtained with the function :ref:`mjr_maxViewport`. Note that while the offscr
 window buffer size changes whenever the user resizes or maximizes the window. Therefore user code should not assume
 fixed viewport size. In the code sample :ref:`simulate.cc <saSimulate>` we use a callback which is triggered whenever
 the window size changes, while in :ref:`basic.cc <saBasic>` we simply check the window size every time we render. On
-certain scaled displays (only on OSX it seems) the window size and framebuffer size can be different. So if you are
+certain scaled displays (notably on MacOS) the window size and framebuffer size can be different. So if you are
 getting the size with GLFW functions, use glfwGetFramebufferSize rather than glfwGetWindowSize. On the other hand,
 mouse coordinates are returned by the operating system in window rather than framebuffer units; thus the mouse
 interaction functions discussed earlier should use glfwGetWindowSize to obtain the window height needed to normalize
@@ -468,10 +453,10 @@ mjSTEREO_SIDEBYSIDE
    side. In principle users can cross their eyes and see stereo on a regular monitor, but the goal here is to show it in
    a stereoscopic device. Most head-mounted displays support this stereo mode.
 
-In addition to the main mjr_render function, we provide several functions for "decorating" the image. These are 2d
-rendering functions and include :ref:`mjr_overlay`, :ref:`mjr_text`, :ref:`mjr_rectangle`, :ref:`mjr_figure`. The user
-can draw additional decorations with their own OpenGL code. This should be done after mjr_render, because mjr_render
-clears the viewport.
+In addition to the main mjr_render function, we provide several functions for "decorating" the image. These are 2D
+rendering functions and include :ref:`mjr_overlay`, :ref:`mjr_text`, :ref:`mjr_rectangle`, and :ref:`mjr_figure`. The
+user can draw additional decorations with their own OpenGL code. This should be done after mjr_render, because
+mjr_render clears the viewport.
 
 We also provide the functions :ref:`mjr_finish` and :ref:`mjr_getError` for explicit synchronization with the GPU and
 for OpenGL error checking. They simply call glFinish and glGetError internally. This together with the basic 2d

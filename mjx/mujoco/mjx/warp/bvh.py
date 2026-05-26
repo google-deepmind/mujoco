@@ -48,35 +48,34 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _refit_bvh_shim(
     # Model
     nworld: int,
-    flex_dim: wp.array(dtype=int),
-    flex_edge: wp.array(dtype=wp.vec2i),
-    flex_elem: wp.array(dtype=int),
-    flex_elemadr: wp.array(dtype=int),
-    flex_elemdataadr: wp.array(dtype=int),
-    flex_elemnum: wp.array(dtype=int),
-    flex_radius: wp.array(dtype=float),
-    flex_shell: wp.array(dtype=int),
-    flex_shelldataadr: wp.array(dtype=int),
-    flex_vertadr: wp.array(dtype=int),
-    flex_vertnum: wp.array(dtype=int),
-    geom_dataid: wp.array(dtype=int),
-    geom_size: wp.array2d(dtype=wp.vec3),
-    geom_type: wp.array(dtype=int),
+    flex_dim: wp.array[int],
+    flex_edge: wp.array[wp.vec2i],
+    flex_elem: wp.array[int],
+    flex_elemadr: wp.array[int],
+    flex_elemdataadr: wp.array[int],
+    flex_elemnum: wp.array[int],
+    flex_radius: wp.array[float],
+    flex_shell: wp.array[int],
+    flex_shelldataadr: wp.array[int],
+    flex_vertadr: wp.array[int],
+    flex_vertnum: wp.array[int],
+    geom_dataid: wp.array2d[int],
+    geom_size: wp.array2d[wp.vec3],
+    geom_type: wp.array[int],
     nflex: int,
     nflexelem: int,
     # Data
-    flexvert_xpos: wp.array2d(dtype=wp.vec3),
-    geom_xmat: wp.array2d(dtype=wp.mat33),
-    geom_xpos: wp.array2d(dtype=wp.vec3),
+    flexvert_xpos: wp.array2d[wp.vec3],
+    geom_xmat: wp.array2d[wp.mat33],
+    geom_xpos: wp.array2d[wp.vec3],
     # Registry
     rc_id: int,
     # Dummy output
-    dummy: wp.array(dtype=int),
+    dummy: wp.array[int],
 ):
   _m.stat = _s
   _m.opt = _o
@@ -111,7 +110,8 @@ def _refit_bvh_shim(
 def _refit_bvh_jax_impl(
     m: types.Model, d: types.Data, ctx: RenderContextPytree
 ):
-  output_dims = {'dummy': (d.qpos.shape[0],)}
+  render_ctx = _MJX_RENDER_CONTEXT_BUFFERS[(ctx.key, None)]
+  output_dims = {'dummy': (render_ctx.nworld,)}
   jf = ffi.jax_callable_variadic_tuple(
       _refit_bvh_shim,
       num_outputs=1,
@@ -124,7 +124,7 @@ def _refit_bvh_jax_impl(
       has_side_effect=True,
   )
   out = jf(
-      d.qpos.shape[0],
+      render_ctx.nworld,
       m._impl.flex_dim,
       m._impl.flex_edge,
       m._impl.flex_elem,
@@ -134,12 +134,12 @@ def _refit_bvh_jax_impl(
       m._impl.flex_radius,
       m._impl.flex_shell,
       m._impl.flex_shelldataadr,
-      m._impl.flex_vertadr,
-      m._impl.flex_vertnum,
-      m.geom_dataid,
+      m.flex_vertadr,
+      m.flex_vertnum,
+      jax.numpy.expand_dims(m.geom_dataid, 0),
       m.geom_size,
       m.geom_type,
-      m._impl.nflex,
+      m.nflex,
       m._impl.nflexelem,
       d._impl.flexvert_xpos,
       d.geom_xmat,

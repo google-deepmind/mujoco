@@ -660,6 +660,92 @@ void mj_jacDot(const mjModel* m, const mjData* d,
 }
 
 
+// compute 3/6-by-NV sparse Jacobian time derivative of global point attached to given body
+void mj_jacDotSparse(const mjModel* m, const mjData* d,
+                     mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
+                     int NV, const int* chain) {
+  mjtNum offset[3];
+  mjtNum pvel[6];
+
+  // clear jacobians, compute offset and pvel if required
+  if (jacp) {
+    mju_zero(jacp, 3*NV);
+    const mjtNum* com = d->subtree_com+3*m->body_rootid[body];
+    mju_sub3(offset, point, com);
+    mju_transformSpatial(pvel, d->cvel+6*body, 0, point, com, 0);
+  }
+  if (jacr) {
+    mju_zero(jacr, 3*NV);
+  }
+
+  // skip fixed bodies
+  body = m->body_weldid[body];
+
+  // no movable body found: nothing to do
+  if (!body) {
+    return;
+  }
+
+  // get last dof that affects this body
+  int da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
+
+  // start at end of chain (chain is in increasing order)
+  int ci = NV-1;
+
+  // backward pass over dof ancestor chain
+  while (da >= 0) {
+    // find chain index for this dof
+    while (ci >= 0 && chain[ci] > da) {
+      ci--;
+    }
+
+    // dof not in chain: SHOULD NOT OCCUR
+    if (ci < 0 || chain[ci] != da) {
+      mjERROR("dof index %d not found in chain", da);
+    }
+
+    mjtNum cdof_dot[6];
+    mji_copy6(cdof_dot, d->cdof_dot+6*da);
+    mjtNum* cdof = d->cdof+6*da;
+
+    // check for quaternion
+    mjtJoint type = m->jnt_type[m->dof_jntid[da]];
+    int dofadr = m->jnt_dofadr[m->dof_jntid[da]];
+    int is_quat = type == mjJNT_BALL || (type == mjJNT_FREE && da >= dofadr + 3);
+
+    // compute cdof_dot for quaternion (use current body cvel)
+    if (is_quat) {
+      mji_crossMotion(cdof_dot, d->cvel+6*m->dof_bodyid[da], cdof);
+    }
+
+    // construct rotation jacobian
+    if (jacr) {
+      jacr[ci+0*NV] += cdof_dot[0];
+      jacr[ci+1*NV] += cdof_dot[1];
+      jacr[ci+2*NV] += cdof_dot[2];
+    }
+
+    // construct translation jacobian (correct for rotation)
+    if (jacp) {
+      // first correction term, account for varying cdof
+      mjtNum tmp1[3];
+      mji_cross(tmp1, cdof_dot, offset);
+
+      // second correction term, account for point translational velocity
+      mjtNum tmp2[3];
+      mji_cross(tmp2, cdof, pvel + 3);
+
+      jacp[ci+0*NV] += cdof_dot[3] + tmp1[0] + tmp2[0];
+      jacp[ci+1*NV] += cdof_dot[4] + tmp1[1] + tmp2[1];
+      jacp[ci+2*NV] += cdof_dot[5] + tmp1[2] + tmp2[2];
+    }
+
+    // advance to parent dof
+    da = m->dof_parentid[da];
+  }
+}
+
+
 // compute subtree angular momentum matrix
 void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
   int nv = m->nv;
@@ -900,6 +986,42 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
 
 
 //-------------------------- miscellaneous utilities -----------------------------------------------
+
+// gather global node positions and velocities
+void mju_flexGatherState(const mjModel* m, const mjData* d, int f, mjtNum* xpos, mjtNum* vel) {
+  int nodenum = m->flex_nodenum[f];
+  int nstart = m->flex_nodeadr[f];
+  int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+
+  // compute positions and velocities
+  for (int i=0; i < nodenum; i++) {
+    int bid = bodyid[i];
+    if (m->flex_centered[f] ||
+        (m->flex_node[3*(i+nstart)+0] == 0 &&
+         m->flex_node[3*(i+nstart)+1] == 0 &&
+         m->flex_node[3*(i+nstart)+2] == 0)) {
+      mju_copy3(xpos + 3*i, d->xpos + 3*bid);
+    } else {
+      mju_mulMatVec3(xpos + 3*i, d->xmat + 9*bid, m->flex_node + 3*(i+nstart));
+      mju_addTo3(xpos + 3*i, d->xpos + 3*bid);
+    }
+
+    if (vel) {
+      mjtNum body_vel[6];
+      mj_objectVelocity(m, d, mjOBJ_BODY, bid, body_vel, 0);  // returns [omega, v_CoM] in world frame
+
+      // linear velocity at CoM
+      mju_copy3(vel + 3*i, body_vel + 3);
+
+      // add omega x (xpos - xipos)
+      mjtNum r[3], cross[3];
+      mju_sub3(r, xpos + 3*i, d->xipos + 3*bid);
+      mju_cross(cross, body_vel, r);
+      mju_addTo3(vel + 3*i, cross);
+    }
+  }
+}
+
 
 // extract 6D force:torque for one contact, in contact frame
 void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]) {

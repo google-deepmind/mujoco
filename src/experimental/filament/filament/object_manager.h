@@ -16,14 +16,19 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_OBJECT_MANAGER_H_
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <span>
 #include <string_view>
+#include <unordered_map>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
 #include <filament/Skybox.h>
+#include <filament/Texture.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/texture.h"
+#include "experimental/filament/filament/builtins.h"
 
 namespace mujoco {
 
@@ -33,9 +38,13 @@ class ObjectManager {
   ObjectManager(filament::Engine* engine);
   ~ObjectManager();
 
+  // The different filament::Materials that are loaded and managed by the
+  // ObjectManager.
   enum MaterialType {
     kPbr,
+    kPbrTransparent,
     kPbrPacked,
+    kPbrPackedTransparent,
     kPhong2d,
     kPhong2dFade,
     kPhong2dReflect,
@@ -49,26 +58,25 @@ class ObjectManager {
     kPhongCubeFade,
     kPhongCubeReflect,
     kUnlitSegmentation,
+    kUnlitDecor,
     kUnlitDepth,
-    kUnlitLine,
     kUnlitUi,
     kNumMaterials,
   };
-
-  // Returns the filament Engine that owns the assets.
-  filament::Engine* GetEngine() const { return engine_; }
 
   // Returns the Material of the given type.
   filament::Material* GetMaterial(MaterialType type) const;
 
   // Returns the fallback Texture with the given role.
-  const Texture* GetFallbackTexture(mjtTextureRole role) const;
+  const filament::Texture* GetFallbackTexture(mjtTextureRole role) const;
 
-  // Returns the fallback IndirectLight.
-  filament::IndirectLight* GetFallbackIndirectLight();
+  // Returns the built-in mesh collection with the given dimensions. For
+  // performance reasons, you should consider always using the same dimensions
+  // in order to reuse the same meshes.
+  Builtins* GetBuiltins(int nstack, int nslice, int nquad);
 
-  // Loads an indirect light from a file, setting it to the fallback.
-  void LoadFallbackIndirectLight(std::string_view filename, float intensity);
+  // Returns the filament Engine that owns the assets.
+  filament::Engine* GetEngine() const { return engine_; }
 
   ObjectManager(const ObjectManager&) = delete;
   ObjectManager& operator=(const ObjectManager&) = delete;
@@ -76,13 +84,12 @@ class ObjectManager {
  private:
   filament::Engine* engine_ = nullptr;
   std::array<filament::Material*, kNumMaterials> materials_;
-  std::array<Texture*, mjNTEXROLE> fallback_textures_;
-  std::unique_ptr<Texture> fallback_white_ = nullptr;
-  std::unique_ptr<Texture> fallback_black_ = nullptr;
-  std::unique_ptr<Texture> fallback_normal_ = nullptr;
-  std::unique_ptr<Texture> fallback_orm_ = nullptr;
-  std::unique_ptr<Texture> fallback_indirect_light_texture_ = nullptr;
-  filament::IndirectLight* fallback_indirect_light_ = nullptr;
+  std::array<filament::Texture*, mjNTEXROLE> fallback_textures_;
+  std::unordered_map<std::uint64_t, std::unique_ptr<Builtins>> builtins_;
+  filament::Texture* fallback_white_ = nullptr;
+  filament::Texture* fallback_black_ = nullptr;
+  filament::Texture* fallback_normal_ = nullptr;
+  filament::Texture* fallback_orm_ = nullptr;
 };
 
 }  // namespace mujoco

@@ -15,7 +15,6 @@
 material {
     name : phong_2d_fade,
     shadingModel : specularGlossiness,
-    culling : none,
     flipUV : false,
     blending: fade,
     parameters : [

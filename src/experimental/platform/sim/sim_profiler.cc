@@ -17,12 +17,11 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/ux/imgui_widgets.h"
 
 namespace mujoco::platform {
 
-SimProfiler::SimProfiler() {
-  Clear();
-}
+SimProfiler::SimProfiler() { Clear(); }
 
 void SimProfiler::Clear() {
   constexpr int kProfilerMaxFrames = 200;
@@ -88,21 +87,21 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   // Solver diagnostics.
   mjtNum sqrt_nnz = 0;
   int solver_niter = 0;
-  const int nisland = data->nefc ? mjMAX(1, mjMIN(data->nisland, mjNISLAND)) : 0;
-  for (int island=0; island < nisland; island++) {
+  const int nisland =
+      data->nefc ? mjMAX(1, mjMIN(data->nisland, mjNISLAND)) : 0;
+  for (int island = 0; island < nisland; island++) {
     sqrt_nnz += data->solver_nnz[island];
     solver_niter += data->solver_niter[island];
   }
   sqrt_nnz = mju_sqrt(sqrt_nnz);
 
   dim_dof_.erase(dim_dof_.begin());
-  int nv = (model->opt.enableflags & mjENBL_SLEEP) ? data->nv_awake
-                                                     : model->nv;
+  int nv = (model->opt.enableflags & mjENBL_SLEEP) ? data->nv_awake : model->nv;
   dim_dof_.push_back(nv);
 
   dim_body_.erase(dim_body_.begin());
   int nbody = (model->opt.enableflags & mjENBL_SLEEP) ? data->nbody_awake
-                                                        : model->nbody;
+                                                      : model->nbody;
   dim_body_.push_back(nbody);
 
   dim_constraint_.erase(dim_constraint_.begin());
@@ -115,16 +114,17 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   dim_contact_.push_back(data->ncon);
 
   dim_iteration_.erase(dim_iteration_.begin());
-  dim_iteration_.push_back(static_cast<float>(solver_niter) / nisland);
+  dim_iteration_.push_back(static_cast<float>(solver_niter) /
+                           mjMAX(1, nisland));
 }
 
-
-void SimProfiler::CpuTimeGraph() {
-  if (ImPlot::BeginPlot("CPU Time", ImVec2(-1, 0), ImPlotFlags_NoMouseText)) {
+void SimProfiler::CpuTimeGraph(ImVec2 plot_size) {
+  ImPlotFlags flags =
+      ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
+  if (ImPlot::BeginPlot("CPU msec vs frame", plot_size, flags)) {
     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
-    ImPlot::SetupAxis(ImAxis_X1, "frame", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxis(ImAxis_Y1, "msec", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.2f");
+    ImPlot_SetupTimeAxis(plot_size, "");
+    ImPlot_SetupValueAxis(plot_size, "", "%.2f");
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
     ImPlot::SetupFinish();
 
@@ -143,12 +143,13 @@ void SimProfiler::CpuTimeGraph() {
   }
 }
 
-void SimProfiler::DimensionsGraph() {
-  if (ImPlot::BeginPlot("Dimensions", ImVec2(-1, 0), ImPlotFlags_NoMouseText)) {
+void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
+  ImPlotFlags flags =
+      ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
+  if (ImPlot::BeginPlot("Dimensions vs frame", plot_size, flags)) {
     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
-    ImPlot::SetupAxis(ImAxis_X1, "frame", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxis(ImAxis_Y1, "count", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0f");
+    ImPlot_SetupTimeAxis(plot_size, "");
+    ImPlot_SetupValueAxis(plot_size, "", "%.0f");
     ImPlot::SetupLegend(ImPlotLocation_NorthEast);
     ImPlot::SetupFinish();
 

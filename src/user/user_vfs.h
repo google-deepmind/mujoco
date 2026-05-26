@@ -90,6 +90,12 @@ class VFS {
   // Unmounts the ResourceProvider from the given path.
   Status Unmount(const FilePath& path);
 
+  // Returns true if the VFS contains a buffer with the given name.
+  bool ContainsBuffer(const char* name);
+
+  // Returns true if the VFS contains a file with the given name.
+  bool ContainsFile(const char* directory, const char* filename);
+
   // Sets a destructor to be called when the VFS has no more open resources.
   // Assumes that `destructor` will delete `this`.
   //

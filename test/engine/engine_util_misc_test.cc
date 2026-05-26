@@ -430,11 +430,88 @@ TEST_F(InterpolationTest, mju_interpolate3D) {
     expected[0] = quadratic_function_1(sample[0], sample[1], sample[2]);
     expected[1] = quadratic_function_2(sample[0], sample[1], sample[2]);
     expected[2] = quadratic_function_3(sample[0], sample[1], sample[2]);
-    mju_interpolate3D(res, sample, coeff, order);
+    mju_interpolate3D(res, sample, coeff, order, NULL);
     EXPECT_NEAR(res[0], expected[0], MjTol(1e-10, 1e-5));
     EXPECT_NEAR(res[1], expected[1], MjTol(1e-10, 1e-5));
     EXPECT_NEAR(res[2], expected[2], MjTol(1e-10, 1e-5));
   }
+}
+
+TEST_F(InterpolationTest, mju_cellLookup_SingleCell) {
+  // single cell (1x1x1): local coords should equal global coords
+  int cellnum[3] = {1, 1, 1};
+  mjtNum coord[3] = {0.3, 0.7, 0.5};
+  mjtNum local[3];
+  int nodeindices[8];
+
+  int npc = mju_cellLookup(coord, cellnum, 1, local, nodeindices);
+  EXPECT_EQ(npc, 8);
+  EXPECT_NEAR(local[0], 0.3, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(local[1], 0.7, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(local[2], 0.5, MjTol(1e-12, 1e-6));
+
+  // for trilinear 1x1x1: nodes are 0..7 in lexicographic order
+  for (int i = 0; i < 8; i++) {
+    EXPECT_EQ(nodeindices[i], i);
+  }
+}
+
+TEST_F(InterpolationTest, mju_cellLookup_MultiCell) {
+  // 2x3x4 grid, trilinear: 3x4x5 = 60 nodes
+  int cellnum[3] = {2, 3, 4};
+  int order = 1;
+  int ny_g = 3*1 + 1;  // 4
+  int nz_g = 4*1 + 1;  // 5
+
+  // point at (0.75, 0.5, 0.125) -> cell (1, 1, 0)
+  mjtNum coord[3] = {0.75, 0.5, 0.125};
+  mjtNum local[3];
+  int nodeindices[8];
+
+  int npc = mju_cellLookup(coord, cellnum, order, local, nodeindices);
+  EXPECT_EQ(npc, 8);
+
+  // cell (1,1,0): local = (0.75*2 - 1, 0.5*3 - 1, 0.125*4 - 0)
+  EXPECT_NEAR(local[0], 0.5, 1e-12);
+  EXPECT_NEAR(local[1], 0.5, 1e-12);
+  EXPECT_NEAR(local[2], 0.5, 1e-12);
+
+  // expected node indices for cell (1,1,0), trilinear:
+  //   (gi, gj, gk) for li,lj,lk in {0,1}
+  //   gi = 1+li, gj = 1+lj, gk = 0+lk
+  //   gidx = gi*ny_g*nz_g + gj*nz_g + gk
+  int expected[8];
+  int ni = 0;
+  for (int li = 0; li <= 1; li++) {
+    for (int lj = 0; lj <= 1; lj++) {
+      for (int lk = 0; lk <= 1; lk++) {
+        expected[ni++] = (1+li)*ny_g*nz_g + (1+lj)*nz_g + lk;
+      }
+    }
+  }
+  for (int i = 0; i < 8; i++) {
+    EXPECT_EQ(nodeindices[i], expected[i]);
+  }
+}
+
+TEST_F(InterpolationTest, mju_cellLookup_Boundary) {
+  // point exactly at coord=1.0 should clamp to last cell
+  int cellnum[3] = {3, 3, 3};
+  mjtNum coord[3] = {1.0, 1.0, 1.0};
+  mjtNum local[3];
+
+  mju_cellLookup(coord, cellnum, 1, local, NULL);
+  // cell (2,2,2), local = (1*3 - 2, 1*3 - 2, 1*3 - 2) = (1, 1, 1)
+  EXPECT_NEAR(local[0], 1.0, 1e-12);
+  EXPECT_NEAR(local[1], 1.0, 1e-12);
+  EXPECT_NEAR(local[2], 1.0, 1e-12);
+
+  // point at coord=0.0 should map to first cell
+  mjtNum coord0[3] = {0.0, 0.0, 0.0};
+  mju_cellLookup(coord0, cellnum, 1, local, NULL);
+  EXPECT_NEAR(local[0], 0.0, 1e-12);
+  EXPECT_NEAR(local[1], 0.0, 1e-12);
+  EXPECT_NEAR(local[2], 0.0, 1e-12);
 }
 
 TEST_F(InterpolationTest, mju_defGradient) {
@@ -521,7 +598,48 @@ TEST_F(InterpolationTest, mju_defGradient) {
   EXPECT_THAT(mat, Pointwise(MjNear(1e-8, 1e-6), rot7));
 }
 
-// --------------------------------- Base64 ------------------------------------
+TEST_F(InterpolationTest, mju_flexInterpState_MultiCell) {
+  int order = 1;  // trilinear
+  int cy = 2;
+  int cz = 2;
+  int nodenum = 27;  // 3x3x3
+
+  std::vector<mjtNum> xpos(3 * nodenum);
+  mjtNum quat[4];
+
+  // Populate xpos directly for a grid centered at origin, rotated 90 deg around
+  // Z Original grid points: {-0.1, 0.0, 0.1}^3 Rotated: (x, y, z) -> (-y, x, z)
+  int idx = 0;
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      for (int k = 0; k < 3; k++) {
+        mjtNum x = (i - 1) * 0.1;
+        mjtNum y = (j - 1) * 0.1;
+        mjtNum z = (k - 1) * 0.1;
+
+        // Apply rotation
+        xpos[3*idx + 0] = -y;
+        xpos[3*idx + 1] = x;
+        xpos[3*idx + 2] = z;
+        idx++;
+      }
+    }
+  }
+
+  int npc = (order+1)*(order+1)*(order+1);
+  std::vector<mjtNum> xpos_c(3 * npc);
+
+  mju_flexGatherCellState(order, cy, cz, 0, 0, 0, xpos.data(), NULL, NULL,
+                          xpos_c.data(), NULL, NULL, NULL, quat);
+
+  // Expected quaternion for -90 deg around Z (global to local):
+  // [sqrt(0.5), 0, 0, -sqrt(0.5)]
+  mjtNum expected_val = mju_sqrt(0.5);
+  EXPECT_NEAR(quat[0], expected_val, 1e-5);
+  EXPECT_NEAR(quat[1], 0.0, 1e-5);
+  EXPECT_NEAR(quat[2], 0.0, 1e-5);
+  EXPECT_NEAR(quat[3], -expected_val, 1e-5);
+}
 
 using Base64Test = MujocoTest;
 
@@ -1045,6 +1163,391 @@ TEST_F(HistoryTest, CubicInterpolation) {
   mjtNum expected_0_8 = 3*0.8*0.8 - 2*0.8*0.8*0.8;
   EXPECT_NEAR(res[0], expected_0_8, MjTol(1e-9, 1e-9));
   EXPECT_NEAR(res[1], 1.0 - expected_0_8, MjTol(1e-9, 1e-9));
+}
+
+// -------------------------------- Face State ---------------------------------
+
+using FaceStateTest = MujocoTest;
+
+// verify mju_flexGatherFaceState returns correct node indices for all 6 faces
+// of a 1x1x1 trilinear grid (2x2x2 = 8 nodes, 4 nodes per face)
+TEST_F(FaceStateTest, NodeIndicesSingleCell) {
+  int order = 1;
+  int cx = 1, cy = 1, cz = 1;
+  int ny_g = cy * order + 1;  // 2
+  int nz_g = cz * order + 1;  // 2
+
+  // nelem_fe = 2*(1*1 + 1*1 + 1*1) = 6 face elements
+  // face 0: x=0, face 1: x=max, face 2: y=0, face 3: y=max,
+  // face 4: z=0, face 5: z=max
+
+  // create dummy positions for 8 nodes
+  std::vector<mjtNum> xpos(3 * 8, 0);
+  for (int i = 0; i < 8; i++) {
+    xpos[3*i + 0] = (i / 4) * 1.0;
+    xpos[3*i + 1] = ((i / 2) % 2) * 1.0;
+    xpos[3*i + 2] = (i % 2) * 1.0;
+  }
+
+  // helper: compute expected global node index from (gx, gy, gz)
+  auto gidx = [&](int gx, int gy, int gz) {
+    return gx * ny_g * nz_g + gy * nz_g + gz;
+  };
+
+  // face 0: x=0 (fixed g[0]=0, varying g[1], g[2])
+  // normal_axis=0, na0=1, na1=2
+  {
+    int indices[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, 0, xpos.data(), NULL, NULL,
+                            NULL, NULL, NULL, indices, NULL);
+    EXPECT_EQ(indices[0], gidx(0, 0, 0));
+    EXPECT_EQ(indices[1], gidx(0, 0, 1));
+    EXPECT_EQ(indices[2], gidx(0, 1, 0));
+    EXPECT_EQ(indices[3], gidx(0, 1, 1));
+  }
+
+  // face 1: x=max (fixed g[0]=1, varying g[1], g[2])
+  {
+    int indices[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, 1, xpos.data(), NULL, NULL,
+                            NULL, NULL, NULL, indices, NULL);
+    EXPECT_EQ(indices[0], gidx(1, 0, 0));
+    EXPECT_EQ(indices[1], gidx(1, 0, 1));
+    EXPECT_EQ(indices[2], gidx(1, 1, 0));
+    EXPECT_EQ(indices[3], gidx(1, 1, 1));
+  }
+
+  // face 2: y=0 (fixed g[1]=0)
+  // normal_axis=1, na0=2(z slow), na1=0(x fast)
+  // loop order: l0→z, l1→x
+  {
+    int indices[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, 2, xpos.data(), NULL, NULL,
+                            NULL, NULL, NULL, indices, NULL);
+    EXPECT_EQ(indices[0], gidx(0, 0, 0));  // l0=0(z=0), l1=0(x=0)
+    EXPECT_EQ(indices[1], gidx(1, 0, 0));  // l0=0(z=0), l1=1(x=1)
+    EXPECT_EQ(indices[2], gidx(0, 0, 1));  // l0=1(z=1), l1=0(x=0)
+    EXPECT_EQ(indices[3], gidx(1, 0, 1));  // l0=1(z=1), l1=1(x=1)
+  }
+
+  // face 3: y=max (fixed g[1]=1)
+  // normal_axis=1, na0=2(z slow), na1=0(x fast)
+  {
+    int indices[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, 3, xpos.data(), NULL, NULL,
+                            NULL, NULL, NULL, indices, NULL);
+    EXPECT_EQ(indices[0], gidx(0, 1, 0));  // l0=0(z=0), l1=0(x=0)
+    EXPECT_EQ(indices[1], gidx(1, 1, 0));  // l0=0(z=0), l1=1(x=1)
+    EXPECT_EQ(indices[2], gidx(0, 1, 1));  // l0=1(z=1), l1=0(x=0)
+    EXPECT_EQ(indices[3], gidx(1, 1, 1));  // l0=1(z=1), l1=1(x=1)
+  }
+
+  // face 4: z=0 (fixed g[2]=0, varying g[0], g[1])
+  // normal_axis=2, na0=0, na1=1
+  {
+    int indices[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, 4, xpos.data(), NULL, NULL,
+                            NULL, NULL, NULL, indices, NULL);
+    EXPECT_EQ(indices[0], gidx(0, 0, 0));
+    EXPECT_EQ(indices[1], gidx(0, 1, 0));
+    EXPECT_EQ(indices[2], gidx(1, 0, 0));
+    EXPECT_EQ(indices[3], gidx(1, 1, 0));
+  }
+
+  // face 5: z=max (fixed g[2]=1)
+  {
+    int indices[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, 5, xpos.data(), NULL, NULL,
+                            NULL, NULL, NULL, indices, NULL);
+    EXPECT_EQ(indices[0], gidx(0, 0, 1));
+    EXPECT_EQ(indices[1], gidx(0, 1, 1));
+    EXPECT_EQ(indices[2], gidx(1, 0, 1));
+    EXPECT_EQ(indices[3], gidx(1, 1, 1));
+  }
+}
+
+// verify node indices for a multi-cell grid (2x2x2 cells → 3x3x3 = 27 nodes)
+TEST_F(FaceStateTest, NodeIndicesMultiCell) {
+  int order = 1;
+  int cx = 2, cy = 2, cz = 2;
+  int ny_g = 3, nz_g = 3;  // (2*1+1) = 3
+
+  // nelem_fe = 2*(2*2 + 2*2 + 2*2) = 24 face elements
+  // face 0: x=0, cy*cz = 4 quads (indices 0-3)
+  // face 1: x=max, 4 quads (indices 4-7)
+  // face 2: y=0, cx*cz = 4 quads (indices 8-11)
+  // face 3: y=max, 4 quads (indices 12-15)
+  // face 4: z=0, cx*cy = 4 quads (indices 16-19)
+  // face 5: z=max, 4 quads (indices 20-23)
+
+  std::vector<mjtNum> xpos(3 * 27, 0);
+  for (int i = 0; i < 27; i++) {
+    int gi = i / 9;
+    int gj = (i / 3) % 3;
+    int gk = i % 3;
+    xpos[3*i + 0] = gi * 0.1;
+    xpos[3*i + 1] = gj * 0.1;
+    xpos[3*i + 2] = gk * 0.1;
+  }
+
+  auto gidx = [&](int gx, int gy, int gz) {
+    return gx * ny_g * nz_g + gy * nz_g + gz;
+  };
+
+  // face 0 (x=0), quad 0: (q0=0, q1=0) within cy*cz face
+  // c1 = face_count1[0] = cz = 2, so quad (0,0) → within_face = 0
+  // na0=1, na1=2: g[0]=0, g[1]=0..1, g[2]=0..1
+  {
+    int indices[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, 0, xpos.data(), NULL, NULL,
+                            NULL, NULL, NULL, indices, NULL);
+    EXPECT_EQ(indices[0], gidx(0, 0, 0));
+    EXPECT_EQ(indices[1], gidx(0, 0, 1));
+    EXPECT_EQ(indices[2], gidx(0, 1, 0));
+    EXPECT_EQ(indices[3], gidx(0, 1, 1));
+  }
+
+  // face 0 (x=0), quad 3: (q0=1, q1=1) → within_face = 1*2+1 = 3
+  {
+    int indices[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, 3, xpos.data(), NULL, NULL,
+                            NULL, NULL, NULL, indices, NULL);
+    EXPECT_EQ(indices[0], gidx(0, 1, 1));
+    EXPECT_EQ(indices[1], gidx(0, 1, 2));
+    EXPECT_EQ(indices[2], gidx(0, 2, 1));
+    EXPECT_EQ(indices[3], gidx(0, 2, 2));
+  }
+
+  // face 1 (x=max), quad 0: fe_idx = 4 (after face 0's 4 quads)
+  // g[0] = cx*order = 2
+  {
+    int indices[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, 4, xpos.data(), NULL, NULL,
+                            NULL, NULL, NULL, indices, NULL);
+    EXPECT_EQ(indices[0], gidx(2, 0, 0));
+    EXPECT_EQ(indices[1], gidx(2, 0, 1));
+    EXPECT_EQ(indices[2], gidx(2, 1, 0));
+    EXPECT_EQ(indices[3], gidx(2, 1, 1));
+  }
+}
+
+// verify node indices for a non-cubic grid (cx != cz)
+TEST_F(FaceStateTest, NodeIndicesNonCubicGrid) {
+  int order = 1;
+  int cx = 2, cy = 1, cz = 3;
+  int ny_g = cy * order + 1;  // 2
+  int nz_g = cz * order + 1;  // 4
+
+  // create dummy positions for (2*1+1)*(1*1+1)*(3*1+1) = 3*2*4 = 24 nodes
+  std::vector<mjtNum> xpos(3 * 24, 0);
+  for (int i = 0; i < 24; i++) {
+    int gi = i / 8;
+    int gj = (i / 4) % 2;
+    int gk = i % 4;
+    xpos[3*i + 0] = gi * 0.1;
+    xpos[3*i + 1] = gj * 0.1;
+    xpos[3*i + 2] = gk * 0.1;
+  }
+
+  auto gidx = [&](int gx, int gy, int gz) {
+    return gx * ny_g * nz_g + gy * nz_g + gz;
+  };
+
+  // face 2 (y=0): normal_axis=1, na0=2(z slow), na1=0(x fast)
+  // counts: na0 -> cz = 3, na1 -> cx = 2
+  // total quads on face 2 = 6
+  // we test within_face = 2 (third quad)
+  // correct: c1 = cx = 2. q0 = 2/2 = 1, q1 = 2%2 = 0
+  //
+  // face element index calculation:
+  // face 0: cy*cz = 1*3 = 3 quads (indices 0-2)
+  // face 1: cy*cz = 1*3 = 3 quads (indices 3-5)
+  // face 2: cx*cz = 2*3 = 6 quads. Quad 2 is index 2 within this face.
+  // Total flat index = 3 + 3 + 2 = 8
+  {
+    int indices[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, 8, xpos.data(), NULL, NULL,
+                            NULL, NULL, NULL, indices, NULL);
+    EXPECT_EQ(indices[0], gidx(0, 0, 1));
+    EXPECT_EQ(indices[1], gidx(1, 0, 1));
+    EXPECT_EQ(indices[2], gidx(0, 0, 2));
+    EXPECT_EQ(indices[3], gidx(1, 0, 2));
+  }
+}
+
+// verify data gathering: positions, velocities, and reference positions
+TEST_F(FaceStateTest, DataGathering) {
+  int order = 1;
+  int cx = 1, cy = 1, cz = 1;
+  int npe = 4;
+  int nnodes = 8;
+
+  // create positions and velocities for 8 nodes
+  std::vector<mjtNum> xpos(3 * nnodes);
+  std::vector<mjtNum> vel(3 * nnodes);
+  std::vector<mjtNum> xpos0(3 * nnodes);
+  for (int i = 0; i < nnodes; i++) {
+    for (int d = 0; d < 3; d++) {
+      xpos[3*i + d] = 10 * i + d;
+      vel[3*i + d] = 100 * i + d;
+      xpos0[3*i + d] = 1000 * i + d;
+    }
+  }
+
+  // gather face 4 (z=0): nodes at (0,0,0), (0,1,0), (1,0,0), (1,1,0)
+  // = global indices 0, 2, 4, 6
+  std::vector<mjtNum> xpos_f(3 * npe);
+  std::vector<mjtNum> vel_f(3 * npe);
+  std::vector<mjtNum> xpos0_f(3 * npe);
+  int indices[4];
+
+  mju_flexGatherFaceState(order, cx, cy, cz, 4, xpos.data(), vel.data(),
+                          xpos0.data(), xpos_f.data(), vel_f.data(),
+                          xpos0_f.data(), indices, NULL);
+
+  for (int n = 0; n < npe; n++) {
+    int gi = indices[n];
+    for (int d = 0; d < 3; d++) {
+      EXPECT_EQ(xpos_f[3*n + d], xpos[3*gi + d]);
+      EXPECT_EQ(vel_f[3*n + d], vel[3*gi + d]);
+      EXPECT_EQ(xpos0_f[3*n + d], xpos0[3*gi + d]);
+    }
+  }
+}
+
+// verify that flexInterpRotation2D produces identity for axis-aligned faces
+// (tested via mju_flexGatherFaceState with quat output)
+TEST_F(FaceStateTest, IdentityRotationAxisAligned) {
+  int order = 1;
+  int cx = 1, cy = 1, cz = 1;
+  int npe = 4;
+
+  // create an axis-aligned unit cube: 8 nodes at {0,1}^3
+  std::vector<mjtNum> xpos(3 * 8);
+  int idx = 0;
+  for (int i = 0; i <= 1; i++) {
+    for (int j = 0; j <= 1; j++) {
+      for (int k = 0; k <= 1; k++) {
+        xpos[3*idx + 0] = i;
+        xpos[3*idx + 1] = j;
+        xpos[3*idx + 2] = k;
+        idx++;
+      }
+    }
+  }
+
+  std::vector<mjtNum> xpos_f(3 * npe);
+  mjtNum quat[4];
+
+  // test all 6 faces: each should give identity rotation (quat = [1,0,0,0])
+  int nelem_fe = 6;
+  for (int fe = 0; fe < nelem_fe; fe++) {
+    mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos.data(), NULL, NULL,
+                            xpos_f.data(), NULL, NULL, NULL, quat);
+    EXPECT_NEAR(mju_abs(quat[0]), 1.0, 1e-10) << "face " << fe;
+    EXPECT_NEAR(quat[1], 0.0, 1e-10) << "face " << fe;
+    EXPECT_NEAR(quat[2], 0.0, 1e-10) << "face " << fe;
+    EXPECT_NEAR(quat[3], 0.0, 1e-10) << "face " << fe;
+  }
+}
+
+// verify that flexInterpRotation2D extracts the correct rotation for a
+// globally rotated cube (90° around z-axis)
+TEST_F(FaceStateTest, RotatedCubeRotation) {
+  int order = 1;
+  int cx = 1, cy = 1, cz = 1;
+  int npe = 4;
+
+  // create an axis-aligned unit cube, then rotate 90° around z
+  // rotation: (x,y,z) → (-y, x, z)
+  std::vector<mjtNum> xpos(3 * 8);
+  int idx = 0;
+  for (int i = 0; i <= 1; i++) {
+    for (int j = 0; j <= 1; j++) {
+      for (int k = 0; k <= 1; k++) {
+        mjtNum orig[3] = {(mjtNum)i, (mjtNum)j, (mjtNum)k};
+        mjtNum axis[3] = {0, 0, 1};
+        mjtNum rot_quat[4];
+        mju_axisAngle2Quat(rot_quat, axis, mjPI / 2);
+        mju_rotVecQuat(xpos.data() + 3*idx, orig, rot_quat);
+        idx++;
+      }
+    }
+  }
+
+  std::vector<mjtNum> xpos_f(3 * npe);
+  mjtNum quat[4];
+
+  // expected rotation: global→local is inverse of the 90° z rotation
+  // 90° around z: quat = [cos(45°), 0, 0, sin(45°)]
+  // inverse (global→local): [cos(45°), 0, 0, -sin(45°)]
+  mjtNum sq2 = mju_sqrt(0.5);
+
+  // test face 4 (z=0): normal_axis=2, in-plane axes are (0,1)
+  // tangent vectors should reflect the 90° z rotation
+  mju_flexGatherFaceState(order, cx, cy, cz, 4, xpos.data(), NULL, NULL,
+                          xpos_f.data(), NULL, NULL, NULL, quat);
+
+  EXPECT_NEAR(quat[0], sq2, 1e-5);
+  EXPECT_NEAR(quat[1], 0.0, 1e-5);
+  EXPECT_NEAR(quat[2], 0.0, 1e-5);
+  EXPECT_NEAR(quat[3], -sq2, 1e-5);
+
+  // test face 5 (z=max): should give same rotation
+  mju_flexGatherFaceState(order, cx, cy, cz, 5, xpos.data(), NULL, NULL,
+                          xpos_f.data(), NULL, NULL, NULL, quat);
+
+  EXPECT_NEAR(quat[0], sq2, 1e-5);
+  EXPECT_NEAR(quat[1], 0.0, 1e-5);
+  EXPECT_NEAR(quat[2], 0.0, 1e-5);
+  EXPECT_NEAR(quat[3], -sq2, 1e-5);
+}
+
+// verify that flexInterpRotation2D matches the 3D cell rotation for
+// the same globally-rotated cube
+TEST_F(FaceStateTest, RotationConsistencyWith3D) {
+  int order = 1;
+  int cx = 1, cy = 1, cz = 1;
+
+  // create 90° z-rotated unit cube
+  std::vector<mjtNum> xpos(3 * 8);
+  int idx = 0;
+  for (int i = 0; i <= 1; i++) {
+    for (int j = 0; j <= 1; j++) {
+      for (int k = 0; k <= 1; k++) {
+        mjtNum orig[3] = {(mjtNum)i, (mjtNum)j, (mjtNum)k};
+        mjtNum axis[3] = {0, 0, 1};
+        mjtNum rot_quat[4];
+        mju_axisAngle2Quat(rot_quat, axis, mjPI / 6);
+        mju_rotVecQuat(xpos.data() + 3*idx, orig, rot_quat);
+        idx++;
+      }
+    }
+  }
+
+  // get 3D cell rotation
+  int npc = 8;
+  std::vector<mjtNum> xpos_c(3 * npc);
+  mjtNum quat_3d[4];
+  mju_flexGatherCellState(order, cy, cz, 0, 0, 0, xpos.data(), NULL, NULL,
+                          xpos_c.data(), NULL, NULL, NULL, quat_3d);
+
+  // get 2D face rotation for each face and verify it matches the 3D rotation
+  int npe = 4;
+  std::vector<mjtNum> xpos_f(3 * npe);
+
+  int nelem_fe = 6;
+  for (int fe = 0; fe < nelem_fe; fe++) {
+    mjtNum quat_2d[4];
+    mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos.data(), NULL, NULL,
+                            xpos_f.data(), NULL, NULL, NULL, quat_2d);
+
+    // quaternions may differ by sign; compare unsigned
+    mjtNum dot = quat_3d[0]*quat_2d[0] + quat_3d[1]*quat_2d[1] +
+                 quat_3d[2]*quat_2d[2] + quat_3d[3]*quat_2d[3];
+    EXPECT_NEAR(mju_abs(dot), 1.0, 1e-5)
+        << "face " << fe << ": 2D rotation differs from 3D cell rotation";
+  }
 }
 
 }  // namespace

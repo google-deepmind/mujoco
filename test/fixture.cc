@@ -203,6 +203,10 @@ auto Compare(unsigned char val1, unsigned char val2) {
   return val1 != val2;
 }
 
+auto Compare(bool val1, bool val2) {
+  return val1 != val2;
+}
+
 auto Compare(mjtSize val1, mjtSize val2) {
   return val1 > val2 ? val1 - val2 : val2 - val1;
 }
@@ -251,10 +255,17 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
 
   // compare arrays, apart from bvh-related ones (which includes flex_vert0), as
   // those are sensitive to numerical differences when meshes are perfectly
-  // symmetric.
+  // symmetric.  Also skip flex fields derived from node local positions and
+  // cell geometry that are not fully serialized to XML.
 #define X(type, name, nr, nc)                                         \
-  if (strncmp(#name, "bvh_", 4) && strncmp(#name, "flex_vert0", 4) && \
-      strncmp(#name, "mesh_poly", 4)) {                               \
+  if (strncmp(#name, "bvh_", 4) &&                                    \
+      strncmp(#name, "flex_vert", 9) &&                               \
+      strncmp(#name, "mesh_poly", 9) &&                               \
+      strcmp(#name, "flex_centered") &&                               \
+      strcmp(#name, "flex_size") &&                                   \
+      strcmp(#name, "flexedge_length0") &&                            \
+      strcmp(#name, "flexedge_invweight0") &&                         \
+      strncmp(#name, "flex_node", 9)) {                               \
     for (int r = 0; r < m1->nr; r++) {                                \
       for (int c = 0; c < nc; c++) {                                  \
         dif = Compare(m1->name[r * nc + c], m2->name[r * nc + c]);    \

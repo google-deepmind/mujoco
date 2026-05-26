@@ -17,13 +17,16 @@
 
 #include <chrono>
 #include <cstddef>
-#include <functional>
 #include <memory>
 #include <ratio>
 #include <span>
 
 #include <mujoco/mujoco.h>
+#include "experimental/filament/compat/scene_bridge.h"
+#include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/render_context_filament_cpp.h"
 #include "experimental/platform/hal/graphics_mode.h"
+#include "experimental/platform/ux/imgui_bridge.h"
 
 namespace mujoco::platform {
 
@@ -96,13 +99,24 @@ class Renderer {
 
   void UpdateFps();
 
+  void DoRender(int width, int height);
+  void DoSetBuffer(int framebuffer);
+  void DoReadPixels(int width, int height, unsigned char* rgb);
+
   void* native_window_ = nullptr;
   GraphicsMode gfx_ = GraphicsMode::FilamentVulkan;
+
+  // State used by the classic renderer.
   std::shared_ptr<void> graphics_api_context_ = nullptr;
-  std::function<void(mjrRect, mjvScene*)> render_;
-  std::function<void(int)> set_buffer_;
-  std::function<void(unsigned char*, mjrRect)> read_pixels_;
   mjrContext render_context_;
+
+  // State used by the filament renderer.
+  UniquePtr<mjrfContext> filament_context_{nullptr, nullptr};
+  std::unique_ptr<SceneBridge> scene_bridge_;
+  std::unique_ptr<ImguiBridge> imgui_bridge_;
+
+  // Common state.
+  int framebuffer_mode_ = 0;
   mjvScene scene_;
   bool initialized_ = false;
   mjtNum last_update_time_ = -1;

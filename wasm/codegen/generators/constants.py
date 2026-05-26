@@ -24,6 +24,7 @@ PRIMITIVE_TYPES: Set[str] = {
     "float",
     "int",
     "mjtByte",
+    "mjtBool",
     "mjtMeshBuiltin",
     "mjtNum",
     "mjtObj",  # Adding this to the primitives because it is used as int,
@@ -124,6 +125,8 @@ _SKIPPED_ASSET_CACHE_FUNCTIONS: tuple[str, ...] = (
 _SKIPPED_VFS_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_addFileVFS",
+    "mj_containsBufferVFS",
+    "mj_containsFileVFS",
     "mj_mountVFS",
     "mj_unmountVFS",
     # go/keep-sorted end
@@ -174,6 +177,7 @@ _SKIPPED_GETTERS_AND_SETTERS: tuple[str, ...] = (
     "mjs_getDouble",
     "mjs_getPluginAttributes",
     "mjs_getString",
+    "mjs_getTimer",
     "mjs_getUserValue",
     "mjs_setBuffer",
     "mjs_setDouble",
@@ -289,6 +293,7 @@ STRUCTS_TO_BIND: list[str] = list(
 NO_DEFAULT_CONSTRUCTORS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjContact",
+    "mjPreContact",
     "mjSolverStat",
     "mjStatistic",
     "mjTimerStat",
@@ -313,6 +318,10 @@ MJDATA_SIZES: tuple[str, ...] = (
     "efc_AR_colind",
     "efc_AR_rowadr",
     "efc_AR_rownnz",
+    "efc_Y",
+    "efc_Y_colind",
+    "efc_Y_rowadr",
+    "efc_Y_rownnz",
     "efc_D",
     "efc_J",
     "efc_JT",
