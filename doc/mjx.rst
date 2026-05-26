@@ -473,7 +473,7 @@ The following table compares feature support between MJX-Warp and MJX-JAX compar
      - All
      - ``CONNECT``, ``WELD``, ``JOINT``, ``TENDON``
    * - :ref:`Integrator <mjtIntegrator>`
-     - All except ``IMPLICIT``
+     - All except ``IMPLICITFAST`` midpoint integrator feature
      - ``EULER``, ``RK4``, ``IMPLICITFAST`` (``IMPLICITFAST`` not supported with :doc:`fluid drag <computation/fluid>`)
    * - :ref:`Cone <mjtCone>`
      - All
@@ -503,8 +503,8 @@ The following table compares feature support between MJX-Warp and MJX-JAX compar
      - Sparse and Dense
      - Sparse and Dense
    * - Jacobian format
-     - ``DENSE`` only
      - ``DENSE`` and ``SPARSE``
+     - ``DENSE`` only
    * - Lights
      - ✓
      - Positions and directions
