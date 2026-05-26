@@ -29,6 +29,48 @@ import scipy.special
 XScale = Literal["jac"] | np.ndarray | float
 
 
+def _warn_if_ill_conditioned(
+    initial_params: parameter.ParameterDict,
+    residual_fn: Callable[..., Any],
+    threshold: float = 1e12,
+) -> None:
+  """Warn if cond(JᵀJ) at the starting point exceeds ``threshold``.
+
+  Costs one extra finite-difference Jacobian. ``threshold=1e12`` corresponds
+  to cond(J) ~ 1e6, well below the float64 limit (~1e16).
+  """
+  x0 = initial_params.as_vector()
+  bounds = initial_params.get_bounds()
+
+  def f(x):
+    residuals, _, _ = residual_fn(x, initial_params)
+    return np.concatenate(residuals)
+
+  eps = np.finfo(np.float64).eps ** 0.5
+  r0 = f(x0).reshape(-1, 1)
+  jac = np.asarray(
+      mujoco_minimize.jacobian_fd(
+          residual=f,
+          x=x0.reshape(-1, 1),
+          r=r0,
+          eps=eps,
+          n_res=0,
+          bounds=[bounds[0].reshape(-1, 1), bounds[1].reshape(-1, 1)],
+      )[0],
+      dtype=np.float64,
+  )
+  # eigvalsh on the gram matrix so rank-deficient directions are visible
+  # when n_params > n_residual components (SVD would drop to min(m, n)).
+  ev = np.maximum(np.linalg.eigvalsh(jac.T @ jac), 0.0)
+  cond_jtj = float(ev[-1] / ev[0]) if ev[0] > 0 else float("inf")
+  if cond_jtj > threshold:
+    logging.warning(
+        "cond(JᵀJ) ≈ %.1e at the starting point; the problem may be "
+        "ill-conditioned. Consider x_scale='jac' or regularizing.",
+        cond_jtj,
+    )
+
+
 def _scipy_least_squares(
     x0: np.ndarray,
     residual_fn: Callable[..., Any],
@@ -149,6 +191,7 @@ def optimize(
     residual_fn: Callable[..., Any],
     optimizer: Literal["scipy", "mujoco", "scipy_parallel_fd"] = "mujoco",
     verbose: bool = True,
+    check_conditioning: bool = False,
     **optimizer_kwargs,
 ) -> tuple[parameter.ParameterDict, scipy_optimize.OptimizeResult]:
   """Run nonlinear least-squares optimization on the residual.
@@ -160,6 +203,9 @@ def optimize(
     optimizer: Backend — ``"mujoco"`` (default), ``"scipy"``, or
       ``"scipy_parallel_fd"`` (scipy with MuJoCo finite-difference Jacobian).
     verbose: If True, log parameter comparison table after optimization.
+    check_conditioning: If True, estimate ``cond(JᵀJ)`` at the starting
+      point and emit a warning if it suggests numerical ill-conditioning.
+      Costs one extra finite-difference Jacobian.
     **optimizer_kwargs: Forwarded to the backend. Common ones:
 
       * ``max_iters``: maximum number of optimizer iterations.
@@ -193,6 +239,9 @@ def optimize(
         grad=np.zeros_like(x0),
         extras={},
     )
+
+  if check_conditioning:
+    _warn_if_ill_conditioned(initial_params, residual_fn)
 
   # Warn if any non-frozen parameter component starts at (or essentially at)
   # a box bound. Optimization can stall in that corner on ill-conditioned or
