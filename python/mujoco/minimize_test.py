@@ -319,6 +319,53 @@ class MinimizeTest(absltest.TestCase):
     self.assertIn('User-provided norm gradient matches', out.getvalue())
     self.assertIn('User-provided norm Hessian matches', out.getvalue())
 
+  def test_x_scale_default_is_no_op(self) -> None:
+    """x_scale=1.0 produces an identical trace to the default unscaled run."""
+    def residual(x):
+      return np.stack([1 - x[0, :], 10 * (x[1, :] - x[0, :] ** 2)])
+
+    x0 = np.array((0.0, 0.0))
+    x_default, trace_default = minimize.least_squares(
+        x0, residual, verbose=minimize.Verbosity.SILENT)
+    x_one, trace_one = minimize.least_squares(
+        x0, residual, x_scale=1.0, verbose=minimize.Verbosity.SILENT)
+    np.testing.assert_array_equal(x_default, x_one)
+    self.assertEqual(len(trace_default), len(trace_one))
+
+  def test_x_scale_reaches_same_minimum(self) -> None:
+    """Both 'jac' and an explicit array reach the unscaled run's minimum."""
+    def residual(x):
+      return np.stack([1 - x[0, :], 10 * (x[1, :] - x[0, :] ** 2)])
+
+    x0 = np.array((0.0, 0.0))
+    x_unscaled, _ = minimize.least_squares(
+        x0, residual, verbose=minimize.Verbosity.SILENT)
+    x_jac, _ = minimize.least_squares(
+        x0, residual, x_scale='jac', verbose=minimize.Verbosity.SILENT)
+    x_array, _ = minimize.least_squares(
+        x0, residual, x_scale=np.array([10.0, 0.1]),
+        verbose=minimize.Verbosity.SILENT)
+    np.testing.assert_allclose(x_jac, x_unscaled, atol=1e-6)
+    np.testing.assert_allclose(x_array, x_unscaled, atol=1e-6)
+
+  def test_x_scale_validation(self) -> None:
+    """Invalid x_scale arguments raise ValueError."""
+    def residual(x):
+      return x
+
+    x0 = np.array((1.0, 1.0))
+    bad_values = [
+        'bogus',                          # unknown string
+        np.array([1.0, -1.0]),            # non-positive entry
+        np.array([np.inf, 1.0]),          # non-finite entry
+        np.array([1.0]),                  # wrong shape
+    ]
+    for bad in bad_values:
+      with self.assertRaises(ValueError):
+        minimize.least_squares(
+            x0, residual, x_scale=bad,
+            verbose=minimize.Verbosity.SILENT)
+
 
 if __name__ == '__main__':
   absltest.main()
