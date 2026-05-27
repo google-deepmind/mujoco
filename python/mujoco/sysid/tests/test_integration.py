@@ -238,11 +238,12 @@ def test_arm_recover_armature():
 
 
 def _rank_1_residual_fn(x, p):
+  # Residual depends only on x[0]: J = [[1, 0], [2, 0]] is 2x2 rank 1.
   del p
   if x.ndim == 1:
-    r = np.array([x[0] + x[1] - 2.0])
+    r = np.array([x[0] - 1.0, 2.0 * x[0] - 2.0])
   else:
-    r = (x[0] + x[1] - 2.0).reshape(1, -1)
+    r = np.stack([x[0] - 1.0, 2.0 * x[0] - 2.0])
   return [r], None, None
 
 
@@ -260,7 +261,7 @@ def _full_rank_residual_fn(x, p):
     (_full_rank_residual_fn, False),
 ])
 def test_check_conditioning(residual_fn, expect_warning, caplog):
-  """check_conditioning=True warns iff cond(JᵀJ) is large at the starting point."""
+  """check_conditioning=True warns iff cond(J^T J) is large at the start."""
   params = sysid.ParameterDict()
   params.add(sysid.Parameter("a", 1.0, -10.0, 10.0))
   params.add(sysid.Parameter("b", 1.0, -10.0, 10.0))
@@ -271,5 +272,5 @@ def test_check_conditioning(residual_fn, expect_warning, caplog):
         optimizer="scipy", verbose=False, check_conditioning=True,
         max_iters=1,
     )
-  fired = any("cond(JᵀJ)" in r.message for r in caplog.records)
+  fired = any("cond(J^T J)" in r.message for r in caplog.records)
   assert fired is expect_warning

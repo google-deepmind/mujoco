@@ -26,18 +26,17 @@ import scipy.optimize as scipy_optimize
 import scipy.special
 
 
-XScale = Literal["jac"] | np.ndarray | float
-
-
 def _warn_if_ill_conditioned(
     initial_params: parameter.ParameterDict,
     residual_fn: Callable[..., Any],
     threshold: float = 1e12,
+    eps: float | None = None,
 ) -> None:
-  """Warn if cond(JᵀJ) at the starting point exceeds ``threshold``.
+  """Warn if cond(J^T J) at the starting point exceeds ``threshold``.
 
   Costs one extra finite-difference Jacobian. ``threshold=1e12`` corresponds
-  to cond(J) ~ 1e6, well below the float64 limit (~1e16).
+  to cond(J) ~ 1e6, well below the float64 limit (~1e16). ``eps`` defaults to
+  the finite-difference step used by the backends.
   """
   x0 = initial_params.as_vector()
   bounds = initial_params.get_bounds()
@@ -46,7 +45,8 @@ def _warn_if_ill_conditioned(
     residuals, _, _ = residual_fn(x, initial_params)
     return np.concatenate(residuals)
 
-  eps = np.finfo(np.float64).eps ** 0.5
+  if eps is None:
+    eps = np.finfo(np.float64).eps ** 0.5
   r0 = f(x0).reshape(-1, 1)
   jac = np.asarray(
       mujoco_minimize.jacobian_fd(
@@ -59,13 +59,10 @@ def _warn_if_ill_conditioned(
       )[0],
       dtype=np.float64,
   )
-  # eigvalsh on the gram matrix so rank-deficient directions are visible
-  # when n_params > n_residual components (SVD would drop to min(m, n)).
-  ev = np.maximum(np.linalg.eigvalsh(jac.T @ jac), 0.0)
-  cond_jtj = float(ev[-1] / ev[0]) if ev[0] > 0 else float("inf")
+  cond_jtj = float(np.linalg.cond(jac)) ** 2
   if cond_jtj > threshold:
     logging.warning(
-        "cond(JᵀJ) ≈ %.1e at the starting point; the problem may be "
+        "cond(J^T J) ~ %.1e at the starting point; the problem may be "
         "ill-conditioned. Consider x_scale='jac' or regularizing.",
         cond_jtj,
     )
@@ -84,7 +81,6 @@ def _scipy_least_squares(
     verbose = 2
   else:
     verbose = 0
-  x_scale = kwargs.pop("x_scale", "jac")
   loss = kwargs.pop("loss", "linear")
 
   jac_arg: str | Callable[..., Any]
@@ -117,7 +113,6 @@ def _scipy_least_squares(
       bounds=bounds,
       max_nfev=max_nfev,
       verbose=verbose,
-      x_scale=x_scale,
       loss=loss,
       jac=jac_arg,  # pyright: ignore[reportArgumentType]
       **kwargs,
@@ -128,10 +123,13 @@ def _mujoco_least_squares(
     x0: np.ndarray,
     residual_fn: Callable[..., Any],
     bounds: tuple[np.ndarray, np.ndarray],
-    x_scale: XScale = 1.0,
     **kwargs,
 ) -> scipy_optimize.OptimizeResult:
-  """Run MuJoCo's native least_squares optimizer."""
+  """Run MuJoCo's native least_squares optimizer.
+
+  ``**kwargs`` are forwarded to :func:`mujoco.minimize.least_squares`; see
+  its docstring (notably ``x_scale``).
+  """
   if kwargs.pop("verbose", True):
     verbose = mujoco_minimize.Verbosity.FULLITER
   else:
@@ -144,7 +142,6 @@ def _mujoco_least_squares(
       residual=residual_fn,
       verbose=verbose,
       max_iter=max_iter,
-      x_scale=x_scale,
       **kwargs,
   )
 
@@ -203,7 +200,7 @@ def optimize(
     optimizer: Backend — ``"mujoco"`` (default), ``"scipy"``, or
       ``"scipy_parallel_fd"`` (scipy with MuJoCo finite-difference Jacobian).
     verbose: If True, log parameter comparison table after optimization.
-    check_conditioning: If True, estimate ``cond(JᵀJ)`` at the starting
+    check_conditioning: If True, estimate ``cond(J^T J)`` at the starting
       point and emit a warning if it suggests numerical ill-conditioning.
       Costs one extra finite-difference Jacobian.
     **optimizer_kwargs: Forwarded to the backend. Common ones:
@@ -212,12 +209,9 @@ def optimize(
       * ``verbose``: per-backend verbosity flag (separate from this
         function's ``verbose``).
       * ``loss``: scipy loss function name (scipy backends only).
-      * ``x_scale``: per-parameter scaling. ``"jac"`` is adaptive
-        ``D_i = 1/||J(:,i)||`` per iteration; an explicit array or
-        positive scalar is used as ``D`` directly. Defaults: ``"jac"``
-        for scipy backends, ``1.0`` (no scaling) for the mujoco backend.
-        See :func:`scipy.optimize.least_squares` and
-        :func:`mujoco.minimize.least_squares` for details.
+      * ``x_scale``: per-parameter scaling, forwarded to the backend; see
+        :func:`scipy.optimize.least_squares` and
+        :func:`mujoco.minimize.least_squares`.
 
   Returns:
     ``(opt_params, opt_result)`` — the optimized ParameterDict and a
@@ -241,16 +235,19 @@ def optimize(
     )
 
   if check_conditioning:
-    _warn_if_ill_conditioned(initial_params, residual_fn)
+    _warn_if_ill_conditioned(
+        initial_params, residual_fn, eps=optimizer_kwargs.get("diff_step"),
+    )
 
   # Warn if any non-frozen parameter component starts at (or essentially at)
-  # a box bound. Optimization can stall in that corner on ill-conditioned or
-  # rank-deficient problems; both the mujoco and scipy backends are affected.
+  # a box bound. Only meaningful when x0 is feasible; otherwise the user is
+  # already outside the constraint set and the optimizer will clip first.
   lo, hi = bounds
   rng = hi - lo
   safe_rng = np.where(rng > 0, rng, 1.0)
-  at_bound = ((x0 - lo) <= 1e-3 * safe_rng) | ((hi - x0) <= 1e-3 * safe_rng)
-  at_bound &= rng > 0
+  in_bounds = (x0 >= lo) & (x0 <= hi)
+  near_bound = ((x0 - lo) <= 1e-3 * safe_rng) | ((hi - x0) <= 1e-3 * safe_rng)
+  at_bound = in_bounds & near_bound & (rng > 0)
   if at_bound.any():
     logging.warning(
         "%d of %d non-frozen parameter components start at (or essentially "
