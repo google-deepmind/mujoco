@@ -290,13 +290,27 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
   int nstart = m->flex_nodeadr[f];
   int nb = 0;
 
-  for (int j = 0; j < npc; j++) {
-    mjtNum w = mju_evalBasis(local, j, order);
-    if (w < 1e-5) {
-      continue;
+  if (npc > 27) {
+    for (int j = 0; j < npc; j++) {
+      mjtNum w = mju_evalBasis(local, j, order);
+      if (w < 1e-5) {
+        continue;
+      }
+      if (bweight) bweight[nb] = sign * w;
+      body[nb++] = m->flex_nodebodyid[nstart + nodeindices[j]];
     }
-    if (bweight) bweight[nb] = sign * w;
-    body[nb++] = m->flex_nodebodyid[nstart + nodeindices[j]];
+  } else {
+    mjtNum basis[27];
+    mju_evalBasisArray(basis, local, order);
+
+    for (int j = 0; j < npc; j++) {
+      mjtNum w = basis[j];
+      if (w < 1e-5) {
+        continue;
+      }
+      if (bweight) bweight[nb] = sign * w;
+      body[nb++] = m->flex_nodebodyid[nstart + nodeindices[j]];
+    }
   }
 
   return nb;

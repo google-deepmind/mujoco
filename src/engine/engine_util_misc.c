@@ -574,6 +574,49 @@ mjtNum mju_evalBasis(const mjtNum x[3], int i, int order) {
   }
 }
 
+// evaluate the basis functions at x for all nodes in the cell
+void mju_evalBasisArray(mjtNum* basis, const mjtNum x[3], int order) {
+  if (order == 1) {
+    mjtNum p[3][2] = {
+      {1 - x[0], x[0]},
+      {1 - x[1], x[1]},
+      {1 - x[2], x[2]}
+    };
+    int j = 0;
+    for (int i0=0; i0<2; i0++) {
+      mjtNum w0 = p[0][i0];
+      for (int i1=0; i1<2; i1++) {
+        mjtNum w01 = w0 * p[1][i1];
+        for (int i2=0; i2<2; i2++) {
+          basis[j++] = w01 * p[2][i2];
+        }
+      }
+    }
+  } else if (order == 2) {
+    mjtNum p[3][3];
+    for (int d=0; d<3; d++) {
+      for (int i=0; i<3; i++) {
+        p[d][i] = phi(x[d], i, 2);
+      }
+    }
+    int j = 0;
+    for (int i0=0; i0<3; i0++) {
+      mjtNum w0 = p[0][i0];
+      for (int i1=0; i1<3; i1++) {
+        mjtNum w01 = w0 * p[1][i1];
+        for (int i2=0; i2<3; i2++) {
+          basis[j++] = w01 * p[2][i2];
+        }
+      }
+    }
+  } else {
+    int npoint = (order + 1) * (order + 1) * (order + 1);
+    for (int j=0; j < npoint; j++) {
+      basis[j] = mju_evalBasis(x, j, order);
+    }
+  }
+}
+
 // map global parametric coord to cell-local coord and build node indices
 //   coord: [0,1]^3 parametric coordinates
 //   cellnum: cell counts (cx, cy, cz)
@@ -600,16 +643,21 @@ int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, mjtNu
 
   // build node indices for this cell
   if (nodeindices) {
+    int gi_base = ci * order;
+    int gj_base = cj * order;
+    int gk_base = ck * order;
     int ny_g = cy * order + 1;
     int nz_g = cz * order + 1;
     int ni = 0;
     for (int li = 0; li <= order; li++) {
+      int gi = gi_base + li;
+      int gi_stride = gi * ny_g * nz_g;
       for (int lj = 0; lj <= order; lj++) {
+        int gj = gj_base + lj;
+        int gj_stride = gi_stride + gj * nz_g;
         for (int lk = 0; lk <= order; lk++) {
-          int gi = ci*order + li;
-          int gj = cj*order + lj;
-          int gk = ck*order + lk;
-          nodeindices[ni++] = gi*ny_g*nz_g + gj*nz_g + gk;
+          int gk = gk_base + lk;
+          nodeindices[ni++] = gj_stride + gk;
         }
       }
     }
@@ -624,9 +672,21 @@ int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, mjtNu
 void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, int order,
                        const int* nodeindices) {
   int npoint = (order + 1) * (order + 1) * (order + 1);
+
+  if (npoint > 27) {
+    for (int j=0; j < npoint; j++) {
+      int idx = nodeindices ? nodeindices[j] : j;
+      mju_addToScl3(res, coeff+3*idx, mju_evalBasis(x, j, order));
+    }
+    return;
+  }
+
+  mjtNum basis[27];
+  mju_evalBasisArray(basis, x, order);
+
   for (int j=0; j < npoint; j++) {
     int idx = nodeindices ? nodeindices[j] : j;
-    mju_addToScl3(res, coeff+3*idx, mju_evalBasis(x, j, order));
+    mju_addToScl3(res, coeff+3*idx, basis[j]);
   }
 }
 
