@@ -13,6 +13,9 @@
 // limitations under the License.
 
 #include "experimental/filament/filament/material.h"
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 
 #include <filament/Color.h>
 #include <filament/Material.h>
@@ -28,6 +31,51 @@
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
+
+template <class T>
+static void Combine(uint64_t& seed, const T* v) {
+  seed ^= std::hash<T>()(*v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
+template <typename T>
+static uint64_t hash(const T& obj) {
+  static_assert(std::is_trivially_copyable_v<T>,
+                "Only trivially copyable types are hashable.");
+  int num_bytes = sizeof(T);
+  const std::byte* ptr = reinterpret_cast<const std::byte*>(&obj);
+  uint64_t seed = 0;
+  while (num_bytes >= sizeof(uint64_t)) {
+    Combine(seed, reinterpret_cast<const uint64_t*>(ptr));
+    ptr += sizeof(uint64_t);
+    num_bytes -= sizeof(uint64_t);
+  }
+  while (num_bytes >= sizeof(uint32_t)) {
+    Combine(seed, reinterpret_cast<const uint32_t*>(ptr));
+    ptr += sizeof(uint32_t);
+    num_bytes -= sizeof(uint32_t);
+  }
+  while (num_bytes >= sizeof(uint16_t)) {
+    Combine(seed, reinterpret_cast<const uint16_t*>(ptr));
+    ptr += sizeof(uint16_t);
+    num_bytes -= sizeof(uint16_t);
+  }
+  while (num_bytes >= sizeof(uint8_t)) {
+    Combine(seed, reinterpret_cast<const uint8_t*>(ptr));
+    ptr += sizeof(uint8_t);
+    num_bytes -= sizeof(uint8_t);
+  }
+  return seed;
+}
+
+uint64_t BuildMaterialKey(ObjectManager::MaterialType material_type,
+                         const mjrMaterial& material) {
+  // Normally, hashing the struct by memory would be a problem because of
+  // padding and other uninitialized data. However, we do a memset(0) on the
+  // entire structure in mjr_defaultMaterial so this should be safe.
+  uint64_t key = hash(material);
+  Combine(key, &material_type);
+  return key;
+}
 
 ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
                                             const Mesh* mesh) {
@@ -80,7 +128,7 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
   if (color_texture == nullptr) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPhongColorFade;
-    } else if (material.reflective) {
+    } else if (material.reflectance > 0) {
       return ObjectManager::kPhongColorReflect;
     } else {
       return ObjectManager::kPhongColor;
@@ -88,7 +136,7 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
   } else if (color_texture->GetSamplerType() == mjTEXTURE_CUBE) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPhongCubeFade;
-    } else if (material.reflective) {
+    } else if (material.reflectance > 0) {
       return ObjectManager::kPhongCubeReflect;
     } else {
       return ObjectManager::kPhongCube;
@@ -96,7 +144,7 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
   } else if (has_texcoords) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPhong2dUvFade;
-    } else if (material.reflective) {
+    } else if (material.reflectance > 0) {
       return ObjectManager::kPhong2dUvReflect;
     } else {
       return ObjectManager::kPhong2dUv;
@@ -104,7 +152,7 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
   } else {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPhong2dFade;
-    } else if (material.reflective) {
+    } else if (material.reflectance > 0) {
       return ObjectManager::kPhong2dReflect;
     } else {
       return ObjectManager::kPhong2d;

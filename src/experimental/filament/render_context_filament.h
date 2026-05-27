@@ -139,8 +139,6 @@ typedef enum mjrDrawMode_ {
   mjDRAW_MODE_SEGMENTATION,
 } mjrDrawMode;
 
-enum { mjNUM_DRAW_MODES = 4 };  // Number of modes in `mjrDrawMode`.
-
 // Parameters describing the camera to use for rendering an image.
 typedef mjvGLCamera mjrCamera;
 
@@ -614,8 +612,6 @@ struct mjrMaterial {
   // The emissive (glow) factor of the object.
   float emissive;
 
-  // Whether or not the object is a reflective surface. Only applies to planes.
-  mjtByte reflective;
   // The blend factor to use for reflective surfaces. A value of 1.0 means that
   // the surface is fully reflective (i.e. a mirror).
   float reflectance;

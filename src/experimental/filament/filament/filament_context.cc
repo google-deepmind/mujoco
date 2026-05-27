@@ -18,7 +18,9 @@
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <filament/Engine.h>
 #include <filament/IndexBuffer.h>
@@ -93,6 +95,14 @@ mjrFrameHandle FilamentContext::Render(
   }
 
   ValidateSwapChains(requests);
+
+  std::unordered_map<mjrScene*, std::vector<const mjrRenderRequest*>> scene_to_requests;
+  for (const mjrRenderRequest& request : requests) {
+    scene_to_requests[request.scene].push_back(&request);
+  }
+  for (auto& [scene, requests] : scene_to_requests) {
+    SceneView::downcast(scene)->PrepareToRender(requests);
+  }
 
   bool render_began = false;
   mjrRenderTarget* current_target = nullptr;

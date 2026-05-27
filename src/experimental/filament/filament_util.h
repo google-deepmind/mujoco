@@ -52,9 +52,9 @@ template <typename T>
 inline filament::math::mat3f ReadMat3(const T* arr, int index = 0) {
   // clang-format off
   const T* ptr = arr + (9 * index);
-  return filament::math::mat3f(ptr[0], ptr[3], ptr[6],
-                               ptr[1], ptr[4], ptr[7],
-                               ptr[2], ptr[5], ptr[8]);
+  return filament::math::mat3f(ptr[0], ptr[1], ptr[2],
+                               ptr[3], ptr[4], ptr[5],
+                               ptr[6], ptr[7], ptr[8]);
   // clang-format on
 }
 

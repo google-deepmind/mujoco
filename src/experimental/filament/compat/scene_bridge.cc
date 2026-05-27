@@ -129,8 +129,8 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       model_objects_->CreateSkinFlexMesh(scene, *geom);
     }
 
-    UniquePtr<mjrRenderable> renderable = CreateGeomRenderable(
-        *geom, ctx_, model_objects_.get(), headpos, scene->flags);
+    UniquePtr<mjrRenderable> renderable =
+        CreateGeomRenderable(*geom, ctx_, model_objects_.get(), scene->flags);
 
     mjrf_addRenderableToScene(scene_.get(), renderable.get());
     renderables_.push_back(std::move(renderable));

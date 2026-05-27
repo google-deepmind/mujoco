@@ -40,12 +40,6 @@ static float GetPlaneTileSize(const mjModel* model, int matid,
   }
 }
 
-static bool IsBehind(const float* headpos, const float* pos, const float* mat) {
-  return ((headpos[0] - pos[0]) * mat[2] + (headpos[1] - pos[1]) * mat[5] +
-              (headpos[2] - pos[2]) * mat[8] <
-          0.0f);
-}
-
 static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
                               ModelObjects* model_objs) {
   const mjModel* model = model_objs->GetModel();
@@ -69,19 +63,8 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
       break;
     case mjGEOM_PLANE: {
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
-
-      float size[3];
-      std::memcpy(size, &geom.size, 3 * sizeof(float));
-      const bool is_infinite = !(size[0] > 0 && size[1] > 0);
-      if (is_infinite) {
-        // Infinite planes are scaled to match the tile size used by
-        // re-centering in engine_vis_visualize.c.
-        const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
-        size[0] = plane_scale;
-        size[1] = plane_scale;
-      }
       // Planes only define an xy size, so set the z-dimension to 1.0f.
-      size[2] = 1.0f;
+      const float size[3] = {geom.size[0], geom.size[1], 1.0f};
       mjrf_setRenderableSize(renderable, size);
       break;
     }
@@ -160,7 +143,7 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
 }
 
 static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
-                               ModelObjects* model_objs, const float headpos[3],
+                               ModelObjects* model_objs,
                                const mjtByte render_flags[mjNRNDFLAG]) {
   const mjModel* model = model_objs->GetModel();
 
@@ -175,21 +158,8 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
   material.color[1] = geom.rgba[1];
   material.color[2] = geom.rgba[2];
   material.color[3] = geom.rgba[3];
-  if (geom.type == mjGEOM_PLANE) {
-    if (IsBehind(headpos, geom.pos, geom.mat)) {
-      material.color[3] *= 0.3;
-      mjrf_setRenderableReceiveShadows(renderable, false);
-      material.reflective = false;
-    } else {
-      mjrf_setRenderableReceiveShadows(renderable, true);
-      material.reflective = geom.reflectance > 0 && material.color[3] == 1.0f;
-    }
-  }
+
   mjrf_setRenderableLayerMask(renderable, geom.category);
-  if (geom.category == mjCAT_DECOR) {
-    mjrf_setRenderableCastShadows(renderable, false);
-    mjrf_setRenderableReceiveShadows(renderable, false);
-  }
 
   if (geom.matid >= 0 && geom.matid < model->nmat) {
     auto get_texture = [&](int role) -> const mjrTexture* {
@@ -310,12 +280,12 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
 
 UniquePtr<mjrRenderable> CreateGeomRenderable(
     const mjvGeom& geom, mjrfContext* ctx, ModelObjects* model_objs,
-    const float headpos[3], const mjtByte render_flags[mjNRNDFLAG]) {
+    const mjtByte render_flags[mjNRNDFLAG]) {
   mjrRenderableParams params;
   mjr_defaultRenderableParams(&params);
   auto renderable = CreateRenderable(ctx, params);
   PrepareGeomMeshes(renderable.get(), geom, model_objs);
-  UpdateGeomMaterial(renderable.get(), geom, model_objs, headpos, render_flags);
+  UpdateGeomMaterial(renderable.get(), geom, model_objs, render_flags);
   return renderable;
 }
 }  // namespace mujoco
