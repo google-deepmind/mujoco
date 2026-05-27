@@ -26,6 +26,9 @@ import scipy.optimize as scipy_optimize
 import scipy.special
 
 
+XScale = Literal["jac"] | np.ndarray | float
+
+
 def _scipy_least_squares(
     x0: np.ndarray,
     residual_fn: Callable[..., Any],
@@ -83,6 +86,7 @@ def _mujoco_least_squares(
     x0: np.ndarray,
     residual_fn: Callable[..., Any],
     bounds: tuple[np.ndarray, np.ndarray],
+    x_scale: XScale = 1.0,
     **kwargs,
 ) -> scipy_optimize.OptimizeResult:
   """Run MuJoCo's native least_squares optimizer."""
@@ -91,16 +95,17 @@ def _mujoco_least_squares(
   else:
     verbose = mujoco_minimize.Verbosity.SILENT
   max_iter = kwargs.pop("max_iters", 200)
+
   x, log = mujoco_minimize.least_squares(
       x0=x0,
       bounds=bounds,
       residual=residual_fn,
       verbose=verbose,
       max_iter=max_iter,
+      x_scale=x_scale,
       **kwargs,
   )
 
-  # If verbose, return the full optimization log.
   extras = {}
   if verbose == mujoco_minimize.Verbosity.FULLITER:
     extras["objective"] = [entry.objective for entry in log]
@@ -155,8 +160,18 @@ def optimize(
     optimizer: Backend — ``"mujoco"`` (default), ``"scipy"``, or
       ``"scipy_parallel_fd"`` (scipy with MuJoCo finite-difference Jacobian).
     verbose: If True, log parameter comparison table after optimization.
-    **optimizer_kwargs: Forwarded to the backend (e.g. ``max_iters``,
-      ``verbose``, ``loss``).
+    **optimizer_kwargs: Forwarded to the backend. Common ones:
+
+      * ``max_iters``: maximum number of optimizer iterations.
+      * ``verbose``: per-backend verbosity flag (separate from this
+        function's ``verbose``).
+      * ``loss``: scipy loss function name (scipy backends only).
+      * ``x_scale``: per-parameter scaling. ``"jac"`` is adaptive
+        ``D_i = 1/||J(:,i)||`` per iteration; an explicit array or
+        positive scalar is used as ``D`` directly. Defaults: ``"jac"``
+        for scipy backends, ``1.0`` (no scaling) for the mujoco backend.
+        See :func:`scipy.optimize.least_squares` and
+        :func:`mujoco.minimize.least_squares` for details.
 
   Returns:
     ``(opt_params, opt_result)`` — the optimized ParameterDict and a
