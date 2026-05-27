@@ -2,93 +2,94 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.9.0 (May 27, 2026)
+----------------------------
 
 General
 ^^^^^^^
-- Added ``mjData.efc_Y``, the whitened constraint Jacobian :math:`Y = J M^{-1/2}`, allocated in the arena when
-  dual solvers (PGS or NoSlip) are used or when :ref:`diagexact<option-flag-diagexact>` is enabled.
-- Added the :ref:`diagexact<option-flag-diagexact>` enable flag, which computes the exact diagonal of the
-  constraint-space inertia matrix at the current configuration, replacing the default compile-time approximation.
-  This improves solver quality for models with anisotropic inertias or complex kinematic coupling. See
-  :ref:`Exact diagonal <soExactDiag>` for details.
-- The pseudo-random constraint visitation order in the :ref:`PGS solver<soAlgorithms>`, introduced in the previous
-  release, now uses a fixed seed. The previous implementation seeded with ``mjData.time``, which introduced subtle yet
-  undesirable time dependence.
-- Flexes are now allowed to sleep, with the exception of completely passive (constraint-free) flexes.
-- Added compiler timing diagnostics via the new :ref:`mjtCTimer` enum and the :ref:`mjs_getTimer` C API. After
-  :ref:`mj_compile`, per-category timings (total, assets, mesh loading, convex hull, normals, inertia, BVH, octree,
-  textures) are available via ``mjs_getTimer(spec)``. The :ref:`compile<saCompile>` sample prints a detailed timing
-  breakdown when run without an output file.
-- Added :ref:`mjtBool` to represent boolean variables, replacing :ref:`mjtByte` across all boolean fields in
-  :ref:`mjModel`, :ref:`mjData`, and public C API function signatures.
+1. Added ``mjData.efc_Y``, the whitened constraint Jacobian :math:`Y = J M^{-1/2}`, allocated in the arena when
+   dual solvers (PGS or NoSlip) are used or when :ref:`diagexact<option-flag-diagexact>` is enabled.
+2. Added the :ref:`diagexact<option-flag-diagexact>` enable flag, which computes the exact diagonal of the
+   constraint-space inertia matrix at the current configuration, replacing the default compile-time approximation.
+   This improves solver quality for models with anisotropic inertias or complex kinematic coupling. See
+   :ref:`Exact diagonal <soExactDiag>` for details.
+3. The pseudo-random constraint visitation order in the :ref:`PGS solver<soAlgorithms>`, introduced in the previous
+   release, now uses a fixed seed. The previous implementation seeded with ``mjData.time``, which introduced subtle yet
+   undesirable time dependence.
+4. Flexes are now allowed to sleep, with the exception of completely passive (constraint-free) flexes.
+5. Added compiler timing diagnostics via the new :ref:`mjtCTimer` enum and the :ref:`mjs_getTimer` C API. After
+   :ref:`mj_compile`, per-category timings (total, assets, mesh loading, convex hull, normals, inertia, BVH, octree,
+   textures) are available via ``mjs_getTimer(spec)``. The :ref:`compile<saCompile>` sample prints a detailed timing
+   breakdown when run without an output file.
+6. Added :ref:`mjtBool` to represent boolean variables, replacing :ref:`mjtByte` across all boolean fields in
+   :ref:`mjModel`, :ref:`mjData`, and public C API function signatures.
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The semantics of the contact ``margin`` and ``gap`` parameters have been redesigned for conceptual clarity and
-     consistency with `Newton <https://github.com/newton-physics/newton>`__. See the new
-     :ref:`margin and gap<coMarginGap>` documentation section for details.
+   7. The semantics of the contact ``margin`` and ``gap`` parameters have been redesigned for conceptual clarity and
+      consistency with `Newton <https://github.com/newton-physics/newton>`__. See the new
+      :ref:`margin and gap<coMarginGap>` documentation section for details.
 
-     Previously, ``margin`` controlled the *detection threshold* (contacts exist when ``dist < margin``) and ``gap``
-     was subtracted from it to produce the *force threshold* (forces generated when ``dist < margin - gap``). This was
-     unintuitive: users expected ``margin`` to mean geometric inflation and ``gap`` to mean a spatial gap.
+      Previously, ``margin`` controlled the *detection threshold* (contacts exist when ``dist < margin``) and ``gap``
+      was subtracted from it to produce the *force threshold* (forces generated when ``dist < margin - gap``). This was
+      unintuitive: users expected ``margin`` to mean geometric inflation and ``gap`` to mean a spatial gap.
 
-     Under the new semantics, ``margin`` is the geometric inflation of the geom surface and ``gap`` is an additional
-     detection buffer beyond the inflated surface:
+      Under the new semantics, ``margin`` is the geometric inflation of the geom surface and ``gap`` is an additional
+      detection buffer beyond the inflated surface:
 
-     - **Detection**: contacts are created when ``dist < margin + gap``.
-     - **Force generation**: constraint forces are applied when ``dist < margin``.
-     - **Inactive contacts**: contacts with ``margin < dist ≤ margin + gap`` are included in ``mjData.contact`` but
-       generate no force (``efc_address = -1``). This is useful for :ref:`adhesion<actuator-adhesion>` actuators and
-       custom callbacks.
+      - **Detection**: contacts are created when ``dist < margin + gap``.
+      - **Force generation**: constraint forces are applied when ``dist < margin``.
+      - **Inactive contacts**: contacts with ``margin < dist ≤ margin + gap`` are included in ``mjData.contact`` but
+        generate no force (``efc_address = -1``). This is useful for :ref:`adhesion<actuator-adhesion>` actuators and
+        custom callbacks.
 
-     With the default values ``margin = 0``, ``gap = 0``, the behavior is unchanged.
+      With the default values ``margin = 0``, ``gap = 0``, the behavior is unchanged.
 
-     .. image:: images/modeling/margin_gap_light.svg
-        :width: 80%
-        :align: center
-        :class: only-light
+      .. image:: images/modeling/margin_gap_light.svg
+         :width: 80%
+         :align: center
+         :class: only-light
 
-     .. image:: images/modeling/margin_gap_dark.svg
-        :width: 80%
-        :align: center
-        :class: only-dark
+      .. image:: images/modeling/margin_gap_dark.svg
+         :width: 80%
+         :align: center
+         :class: only-dark
 
-     |
+      |
 
-     **Migration:** Models that use the default ``gap="0"`` (the vast majority) require no changes. For models with
-     ``gap > 0``, apply the following transformation to preserve identical behavior:
+      **Migration:** Models that use the default ``gap="0"`` (the vast majority) require no changes. For models with
+      ``gap > 0``, apply the following transformation to preserve identical behavior:
 
-     .. code-block::
+      .. code-block::
 
-        margin_new = margin_old - gap_old
-        gap_new    = gap_old
+         margin_new = margin_old - gap_old
+         gap_new    = gap_old
 
-     For example, a geom with the old attributes ``margin="0.1" gap="0.1"`` should be changed to
-     ``margin="0" gap="0.1"``.
+      For example, a geom with the old attributes ``margin="0.1" gap="0.1"`` should be changed to
+      ``margin="0" gap="0.1"``.
 
-     Negative ``margin`` values are now permitted (corresponding to ``gap > margin`` under the old semantics). The
-     constraint ``margin + gap >= 0`` should be maintained to ensure valid collision detection.
+      Negative ``margin`` values are now permitted (corresponding to ``gap > margin`` under the old semantics). The
+      constraint ``margin + gap >= 0`` should be maintained to ensure valid collision detection.
 
-   - The :ref:`mjfCollision` functions now populate the :ref:`mjPreContact` struct instead of the :ref:`mjContact`
-     struct. The :ref:`mjPreContact` only contains the necessary fields needed for the narrowphase collision detection.
+   8. The :ref:`mjfCollision` functions now populate the :ref:`mjPreContact` struct instead of the :ref:`mjContact`
+      struct. The :ref:`mjPreContact` only contains the necessary fields needed for the narrowphase collision detection.
 
-   - The header file ``mjtnum.h`` was renamed to
-     `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>` and now includes all
-     enum type definitions.
+   9. The header file ``mjtnum.h`` was renamed to
+      `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>` and now includes all
+      enum type definitions.
 
-   - The :ref:`tactile<sensor-tactile>` sensor now reports raw depth instead of an estimated pressure.
+   10. The :ref:`tactile<sensor-tactile>` sensor now reports raw depth instead of an estimated pressure.
 
-   - MJX: Removed the deprecated ``nconmax`` argument from ``mjx.make_data`` and ``mjx.put_data`` in favor of
-     ``naconmax``.
+   11. MJX: Removed the deprecated ``nconmax`` argument from ``mjx.make_data`` and ``mjx.put_data`` in favor of
+       ``naconmax``.
 
-   - Maybe-breaking: Added `mjassert.h
-     <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjassert.h>`__, a new header containing
-     compile-time assertions that verify the sizes of MuJoCo's public types for ABI stability. This is a first step
-     towards replacing ``int`` with strongly-typed enums in the public API. If these assertions fail on your compiler or
-     platform, please report the issue on GitHub.
+   12. Maybe-breaking: Added `mjassert.h
+       <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjassert.h>`__, a new header containing
+       compile-time assertions that verify the sizes of MuJoCo's public types for ABI stability. This is a first step
+       towards replacing ``int`` with strongly-typed enums in the public API. If these assertions fail on your compiler or
+       platform, please report the issue on GitHub.
+
 
 Version 3.8.1 (May 11, 2026)
 ----------------------------
