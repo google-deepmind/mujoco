@@ -151,7 +151,7 @@ links below, to make this documentation self-contained.
 
 `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
-   global variables, and includes all other header files except mjxmacro.h.
+   global variables, and includes all other header files except mjxmacro.h and mjspecmacro.h.
 `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated.
@@ -179,6 +179,10 @@ links below, to make this documentation self-contained.
    This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
    automate the mapping of mjModel and mjData into scripting languages, as well as other operations that require
    accessing all fields of mjModel and mjData.
+`mjspecmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspecmacro.h>`__
+   This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
+   automate the mapping of mjSpec and its element structs into scripting languages, as well as other operations that require
+   accessing all fields of mjSpec during procedural model editing.
 `mjexport.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
    Macros used for exporting public symbols from the MuJoCo library. This header should not be used directly by client
    code.

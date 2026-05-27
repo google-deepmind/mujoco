@@ -108,6 +108,8 @@ mujoco_test(fixture_test)
 
 mujoco_test(header_test)
 
+mujoco_test(mjspecmacro_test)
+
 mujoco_test(pipeline_test)
 
 add_subdirectory(benchmark)

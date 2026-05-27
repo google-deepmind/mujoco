@@ -706,7 +706,8 @@ X Macros
 ^^^^^^^^
 
 The X Macros are not needed in most user projects. They are used internally to allocate the model, and are also
-available for users who know how to use this programming technique. See the header file `mjxmacro.h
-<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`_ for the actual definitions. They are
+available for users who know how to use this programming technique. See the header files `mjxmacro.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`_ and `mjspecmacro.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspecmacro.h>`_ for the actual definitions. They are
 particularly useful in writing MuJoCo wrappers for scripting languages, where dynamic structures matching the MuJoCo
 data structures need to be constructed programmatically.
