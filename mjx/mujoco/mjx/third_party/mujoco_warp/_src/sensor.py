@@ -2252,18 +2252,14 @@ def _sensor_tactile(
     )
     vel_rel = vel_sensor - vel_other
 
-    kMaxDepth = 0.05
-    pressure = depth / wp.max(kMaxDepth - depth, MJ_MINVAL)
-    force = wp.mul(normal, pressure)
-
     forceT = wp.vec3(0.0, 0.0, 0.0)
-    forceT[0] = wp.dot(force, normal)
+    forceT[0] = -depth
     if has_frame:
       forceT[1] = wp.abs(wp.dot(vel_rel, tang1))
       forceT[2] = wp.abs(wp.dot(vel_rel, tang2))
 
     dim = sensor_dim[sensor_id] // 3
-    wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 0 * dim + vertid, forceT[0])
+    wp.atomic_max(sensordata_out, worldid, sensor_adr[sensor_id] + 0 * dim + vertid, forceT[0])
     wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 1 * dim + vertid, forceT[1])
     wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 2 * dim + vertid, forceT[2])
 

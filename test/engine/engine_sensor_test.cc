@@ -1702,7 +1702,7 @@ TEST_F(SensorTest, TactileSkipTangents) {
   EXPECT_EQ(data->time, 0.0);
   EXPECT_GT(data->ncon, 0) << "No contacts generated";
 
-  // Tactile sensor layout: [normal_forces..., tang1_forces..., tang2_forces...]
+  // Tactile sensor layout: [depths..., tang1_vel..., tang2_vel...]
   int ntaxel = model->nsensordata / 3;
   ASSERT_EQ(model->nsensordata % 3, 0) << "Sensor dim should be divisible by 3";
 
@@ -1712,13 +1712,13 @@ TEST_F(SensorTest, TactileSkipTangents) {
         << "Tangent component at index " << i << " should be 0";
   }
 
-  // Normal force components: verify count, sign, and magnitude ~-0.8
+  // Penetration depth components: verify count, sign, and magnitude ~0.2
   int nonzero_count = 0;
   for (int i = 0; i < ntaxel; i++) {
     if (data->sensordata[i] != 0) {
       nonzero_count++;
-      EXPECT_NEAR(data->sensordata[i], -0.8, 0.1)
-          << "Normal force at taxel " << i;
+      EXPECT_NEAR(data->sensordata[i], 0.2, 0.1)
+          << "Penetration depth at taxel " << i;
     }
   }
   EXPECT_EQ(nonzero_count, 2) << "Expected 2 taxels in contact";

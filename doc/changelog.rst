@@ -79,6 +79,8 @@ General
      `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>` and now includes all
      enum type definitions.
 
+   - The :ref:`tactile<sensor-tactile>` sensor now reports raw depth instead of an estimated pressure.
+
    - MJX: Removed the deprecated ``nconmax`` argument from ``mjx.make_data`` and ``mjx.put_data`` in favor of
      ``naconmax``.
 

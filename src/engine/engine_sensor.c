@@ -172,14 +172,8 @@ static void* tactile_taxel_batch(void* args) {
                           mesh_normal[normal_stride*j + 2]};
       mju_rotVecQuat(normal, normal, m->mesh_quat + 4 * mesh_id);
 
-      // get contact force
-      mjtNum force[3];
-      mjtNum kMaxDepth = 0.05;
-      mjtNum pressure = depth / mju_max(kMaxDepth - depth, mjMINVAL);
-      mju_scl3(force, normal, pressure);
-
-      // accumulate into forcesT (disjoint writes per taxel j)
-      t->forcesT[0*ncon + j] += mju_dot3(force, normal);
+      // take max penetration depth (SDF distance is negative; negate for positive output)
+      t->forcesT[0*ncon + j] = mju_max(t->forcesT[0*ncon + j], -depth);
 
       if (has_frame) {
         mjtNum tang1[3] = {mesh_normal[normal_stride*j + 3],
