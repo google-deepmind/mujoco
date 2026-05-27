@@ -14,17 +14,19 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
+
 import dataclasses
 import functools
+
 import jax
+import warp as wp
+
 from mujoco.mjx._src import types
+import mujoco.mjx.third_party.mujoco_warp as mjwarp
+from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 from mujoco.mjx.warp import ffi
 from mujoco.mjx.warp.render_context import _MJX_RENDER_CONTEXT_BUFFERS
 from mujoco.mjx.warp.render_context import RenderContextPytree
-import mujoco.mjx.third_party.mujoco_warp as mjwarp
-from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
-import warp as wp
-
 
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
@@ -47,6 +49,7 @@ _e = mjwarp.Constraint(
 _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
+
 
 @ffi.format_args_for_warp
 def _render_shim(

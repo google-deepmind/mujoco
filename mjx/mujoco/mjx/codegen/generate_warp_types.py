@@ -67,7 +67,8 @@ def _to_py_string(value, indent=0):
   next_indent_str = '  ' * (indent + 1)
   if isinstance(value, tuple):
     items = [_to_py_string(item, indent) for item in value]
-    return f'({', '.join(items)})'
+    joined_items = ', '.join(items)
+    return f'({joined_items})'
 
   if isinstance(value, type):
     if value.__module__ == 'builtins':
@@ -79,12 +80,14 @@ def _to_py_string(value, indent=0):
         f'\n{next_indent_str}{repr(k)}: {_to_py_string(v, indent + 1)}'
         for k, v in sorted(value.items(), key=lambda x: x[0])
     ]
-    return f'{{{','.join(items)}\n{indent_str}}}'
+    joined_items = ','.join(items)
+    return f'{{{joined_items}\n{indent_str}}}'
 
   if isinstance(value, set):
     items = sorted([_to_py_string(item, indent) for item in value])
     items = [f'\n{next_indent_str}{item}' for item in items]
-    return f'{{{",".join(items)}\n{indent_str}}}'
+    joined_items = ','.join(items)
+    return f'{{{joined_items}\n{indent_str}}}'
 
   return repr(value)
 
