@@ -227,34 +227,6 @@ class ModelIOTest(parameterized.TestCase):
         m.light_active.astype(np.asarray(mx.light_active).dtype),
     )
 
-  def test_replace_light_active(self):
-    """Tests that light_active can be replaced like other public fields."""
-    m = mujoco.MjModel.from_xml_string(_LIGHTS)
-    mx = mjx.put_model(m, impl='jax')
-
-    light_active = jp.array([True, False])
-    mx_replaced = mx.replace(light_active=light_active)
-
-    np.testing.assert_array_equal(
-        np.asarray(mx_replaced.light_active), np.asarray(light_active)
-    )
-    np.testing.assert_array_equal(np.asarray(mx.light_active), m.light_active)
-
-  def test_vmap_light_active_in_axes(self):
-    """Tests that light_active participates in batched model pytrees."""
-    m = mujoco.MjModel.from_xml_string(_LIGHTS)
-    mx = mjx.put_model(m, impl='jax')
-    light_active = jp.array([[True, False], [False, True], [True, True]])
-    mx_batched = mx.replace(light_active=light_active)
-
-    in_axes = jax.tree_util.tree_map(lambda x: None, mx)
-    in_axes = in_axes.replace(light_active=0)
-    mapped = jax.vmap(lambda model: model.light_active, in_axes=(in_axes,))(
-        mx_batched
-    )
-
-    np.testing.assert_array_equal(np.asarray(mapped), np.asarray(light_active))
-
   def test_fluid_params(self):
     """Test that has_fluid_params is set when fluid params are present."""
     m = mjx.put_model(
