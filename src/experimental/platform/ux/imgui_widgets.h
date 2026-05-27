@@ -617,6 +617,9 @@ inline void EndBoxSection() { ImGui::EndTable(); }
 // Saves the given contents to the clipboard if the clipboard is available.
 void MaybeSaveToClipboard(const std::string& contents);
 
+// Returns the expected width of a UI label based on MuJoCo visualization flags.
+float GetExpectedLabelWidth();
+
 // Returns plot flags with title/legend conditionally hidden when the plot
 // area is too small.  `plot_size` is the final rendered size of the plot.
 ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size);

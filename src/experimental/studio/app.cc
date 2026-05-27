@@ -826,14 +826,7 @@ void App::SaveSettings() {
 }
 
 void App::SetSpeedIndex(int idx) {
-  if (idx == tmp_.speed_index || platform::kPercentRealTime.empty()) {
-    return;
-  }
-
-  tmp_.speed_index =
-      std::clamp<int>(idx, 0, platform::kPercentRealTime.size() - 1);
-  float speed = std::stof(platform::kPercentRealTime[tmp_.speed_index]);
-  step_control_.SetSpeed(speed);
+  platform::SetSpeedIndex(&step_control_, tmp_.speed_index, idx);
 }
 
 void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx,
@@ -1022,7 +1015,7 @@ void App::BuildGui() {
 }
 
 void App::ModelOptionsGui() {
-  const float min_width = GetExpectedLabelWidth();
+  const float min_width = platform::GetExpectedLabelWidth();
   const ImGuiChildFlags child_flags =
       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
   const ImGuiTreeNodeFlags node_flags =
@@ -1064,7 +1057,7 @@ void App::DataInspectorGui() {
     return;
   }
 
-  const float min_width = GetExpectedLabelWidth();
+  const float min_width = platform::GetExpectedLabelWidth();
   const ImGuiChildFlags child_flags =
       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
   const ImGuiTreeNodeFlags node_flags =
@@ -1424,15 +1417,14 @@ void App::ToolBarGui() {
               ImVec2(ImGui::GetStyle().ItemSpacing.x * 2.0f,
                      ImGui::GetStyle().ItemSpacing.y));
 
-    const float label_width = GetExpectedLabelWidth();
-    const float copy_btn_width = ImGui::CalcTextSize(ICON_COPY_CAMERA).x +
-                                 ImGui::GetStyle().FramePadding.x * 2;
+    const float label_width = platform::GetExpectedLabelWidth();
+    const float copy_btn_width = ImGui::GetFrameHeight();
     const float theme_width =
         ImGui::CalcTextSize(platform::ICON_FA_CIRCLE_O).x +
         ImGui::GetStyle().FramePadding.x * 2;
     const float sp = ImGui::GetStyle().ItemSpacing.x;
-    const float right_width = label_width + sp + label_width + sp +
-                              label_width + sp + copy_btn_width + sp +
+    const float right_width = copy_btn_width + label_width + sp +
+                              label_width + sp + label_width + sp +
                               theme_width;
     const float separator_width = ImGui::GetFrameHeight() * .6f;
 
@@ -1467,26 +1459,15 @@ void App::ToolBarGui() {
 
     ImGui::TableNextColumn();
 
-    if (ImGui::Button(ICON_COPY_CAMERA, square_size)) {
-      std::string camera_string = platform::CameraToString(data(), &camera_);
-      platform::MaybeSaveToClipboard(camera_string);
-    }
-    ImGui::SetItemTooltip("%s", "Copy Camera");
-
-    ImGui::SameLine(0, 0);
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::CameraSelectionGui(model(), data(), camera_, ui_.camera_idx);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::LabelSelectionGui(&vis_options_);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::FrameSelectionGui(&vis_options_);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     if (platform::ThemeSelectGui(&ui_.theme, square_size)) {
       platform::SetupTheme(ui_.theme);
       ImGui::GetIO().WantSaveIniSettings = true;
@@ -1834,27 +1815,6 @@ void App::FileDialogGui() {
     ImGui::OpenPopup("FileDialog");
     window_->DisableWindowResizing();
   }
-}
-
-float App::GetExpectedLabelWidth() {
-  // Find the longest label which we'll use to set the minimum toggle button
-  // width. This isn't perfect because we may have labels that are longer, but
-  // it's a good enough approximation.
-  if (tmp_.expected_label_width == 0) {
-    int longest = 0;
-    const char* longest_label = "";
-    for (int i = 0; i < mjNVISFLAG; ++i) {
-      int length = static_cast<int>(strlen(mjVISSTRING[i][0]));
-      if (length > longest) {
-        longest_label = mjVISSTRING[i][0];
-        longest = length;
-      }
-    }
-    // Pad the width a bit to account for how the labels will be displayed
-    // (e.g. as button labels or besides checkboxes).
-    tmp_.expected_label_width = ImGui::CalcTextSize(longest_label).x + 16;
-  }
-  return tmp_.expected_label_width;
 }
 
 App::UiState::Dict App::UiState::ToDict() const {

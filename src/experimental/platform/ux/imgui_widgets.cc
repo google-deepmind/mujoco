@@ -386,6 +386,23 @@ void MaybeSaveToClipboard(const std::string& contents) {
   ImGui::SetClipboardText(contents.c_str());
 }
 
+float GetExpectedLabelWidth() {
+  static float expected_label_width = 0;
+  if (expected_label_width == 0) {
+    int longest = 0;
+    const char* longest_label = "";
+    for (int i = 0; i < mjNVISFLAG; ++i) {
+      int length = static_cast<int>(std::strlen(mjVISSTRING[i][0]));
+      if (length > longest) {
+        longest_label = mjVISSTRING[i][0];
+        longest = length;
+      }
+    }
+    expected_label_width = ImGui::CalcTextSize(longest_label).x + 16;
+  }
+  return expected_label_width;
+}
+
 ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size) {
   ImPlotFlags flags = ImPlotFlags_None;
   if (plot_size.x > 0 && plot_size.y > 0) {

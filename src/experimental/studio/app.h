@@ -224,8 +224,6 @@ class App {
   void SpecExplorerGui();
   void SpecEditorGui();
 
-  float GetExpectedLabelWidth();
-
   mjSpec* spec() { return model_holder_->spec(); }
   mjModel* model() { return model_holder_->model(); }
   mjData* data() { return model_holder_->data(); }

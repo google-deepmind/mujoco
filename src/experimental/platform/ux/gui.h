@@ -84,6 +84,10 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 void StepControlGui(const mjModel* model, StepControl* step_control,
                     int& speed_index);
 
+// Sets the simulation speed index and updates the StepControl object.
+void SetSpeedIndex(StepControl* step_control, int& speed_index,
+                   int request_idx);
+
 // UX for selecting the GUI theme.
 bool ThemeSelectGui(GuiTheme* theme, const ImVec2& size = ImVec2(0, 0));
 
