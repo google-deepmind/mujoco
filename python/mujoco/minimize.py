@@ -156,7 +156,7 @@ def least_squares(
     output: Optional[TextIO] = None,
     iter_callback: Optional[Callable[[List[IterLog]], None]] = None,
     check_derivatives: bool = False,
-    x_scale: Union[float, np.ndarray, str] = 1.0,
+    x_scale: Optional[Union[float, np.ndarray, str]] = None,
 ) -> Tuple[np.ndarray, List[IterLog]]:
   """Nonlinear Least Squares minimization with box bounds.
 
@@ -179,13 +179,12 @@ def least_squares(
     output: Optional file or StringIO to which to print messages.
     iter_callback: Optional iteration callback, takes trace argument.
     check_derivatives: Compare user-defined Jacobian and norm against fin-diff.
-    x_scale: Per-parameter scaling. Setting ``x_scale=D`` solves the problem in
-      the change of variables ``z = x / D`` and un-scales the result. ``1.0``
-      (default) is no scaling. ``'jac'`` sets ``D_i = 1 / ||J(:, i)||`` at each
-      iteration (matches scipy's ``least_squares(method='trf', x_scale='jac')``).
-      An array of shape ``(n,)`` (or a positive scalar) is used as ``D``
-      directly. Note that ``mu``, ``mu_min`` and ``mu_max`` then act on the
-      scaled subproblem.
+    x_scale: Per-parameter scaling (matches scipy's ``x_scale``). Setting
+      ``x_scale=D`` solves the problem in the change of variables ``z = x / D``
+      and un-scales the result. ``None`` (default) or ``1.0`` is no scaling.
+      ``'jac'`` sets ``D_i = 1 / ||J(:, i)||`` at each iteration. An array of
+      shape ``(n,)`` (or a positive scalar) is used as ``D`` directly. Note
+      that ``mu``, ``mu_min`` and ``mu_max`` then act on the scaled subproblem.
 
   Returns:
     x: best solution found
@@ -211,13 +210,15 @@ def least_squares(
   mu = np.float64(0.0)  # Optimistically start with no regularization.
   n_reduc = 0  # Number of sequential mu reductions.
 
-  # Resolve x_scale -> D of shape (n, 1). For 'jac', D is refreshed each iter.
+  # Resolve x_scale -> D of shape (n, 1). For 'jac', D is refreshed each iter;
+  # None means no scaling (D = 1).
   adaptive_scale = isinstance(x_scale, str)
   if adaptive_scale and x_scale != 'jac':
     raise ValueError(
-        f"x_scale must be 'jac', a positive scalar, or array, got {x_scale!r}."
+        f"x_scale must be None, 'jac', a positive scalar, or array, got "
+        f'{x_scale!r}.'
     )
-  if adaptive_scale:
+  if x_scale is None or adaptive_scale:
     D = np.ones((n, 1))
   else:
     D = np.asarray(x_scale, dtype=np.float64)
