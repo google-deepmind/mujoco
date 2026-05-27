@@ -2028,5 +2028,43 @@ TEST_F(MjGjkTest, CylinderBoxMargin) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjGjkTest, BoxEdgeFlipped) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" pos="1.10164554 -0.11389316 0.74"
+            quat="-0.348312918 0 0 0.937378318" type="box" size="0.65 0.48 0.04"/>
+      <geom name="geom2" type="box" size="0.1 1.2 1.4" pos="1.4 0 1.425"/>
+    </worldbody>
+  </mujoco>)";
+
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int g1 = mj_name2id(model, mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
+
+  EXPECT_EQ(ncons, 2);
+
+  EXPECT_NEAR(status.x1[0], 1.907368, kTolerance);
+  EXPECT_NEAR(status.x1[1], -0.052973, kTolerance);
+  EXPECT_NEAR(status.x1[2], 0.700000, kTolerance);
+  EXPECT_NEAR(status.x2[0], 1.30000, kTolerance);
+  EXPECT_NEAR(status.x2[1], -0.052973, kTolerance);
+  EXPECT_NEAR(status.x2[2], 0.700000, kTolerance);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

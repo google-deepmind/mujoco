@@ -2169,8 +2169,16 @@ static void multicontact(Polytope* pt, Face* face, mjCCDStatus* status,
 
   // face1 is an edge; clip face1 against face2
   if (edgecon1) {
-    scl3(approx_dir, n2 + 3*j, norm3(dir));
+    scl3(approx_dir, n2 + 3*j, -norm3(dir));
     polygonClip(status, face2, nface2, face1, nface1, n2 + 3*j, approx_dir);
+    // x1 and x2 must be flipped as we flipped the faces in polygonClip
+    int nx = status->nx;
+    for (int k = 0; k < nx; k++) {
+      mjtNum tmp[3];
+      copy3(tmp, status->x1 + 3*k);
+      copy3(status->x1 + 3*k, status->x2 + 3*k);
+      copy3(status->x2 + 3*k, tmp);
+    }
     return;
   }
 
