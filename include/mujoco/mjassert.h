@@ -20,7 +20,6 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjthread.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
@@ -122,9 +121,6 @@ MJ_ASSERT_SIZE(mjtButton, 4);
 MJ_ASSERT_SIZE(mjtEvent, 4);
 MJ_ASSERT_SIZE(mjtItem, 4);
 MJ_ASSERT_SIZE(mjtSection, 4);
-
-// mjthread.h
-MJ_ASSERT_SIZE(mjtTaskStatus, 4);
 
 // mjplugin.h
 MJ_ASSERT_SIZE(mjtPluginCapabilityBit, 4);

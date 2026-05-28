@@ -562,10 +562,9 @@ external force computed by inverse dynamics.
 Multi-threading
 ~~~~~~~~~~~~~~~
 
-MuJoCo has experimental support for within-step multi-threading. When a :ref:`mjThreadPool` is assigned to
-``mjData.threadpool``, parts of the simulation pipeline — such as collision detection and constraint solving across
-:ref:`islands<siSleep>` — can be distributed across worker threads. Note that within-step threading currently has
-significant memory overhead and is still a work in progress.
+MuJoCo has support for within-step multi-threading. When a thread pool is initialized via
+``mju_threadpool``, parts of the simulation pipeline — such as collision detection and constraint solving across
+:ref:`islands<siSleep>` — can be distributed across worker threads.
 
 The more common and well-supported use of multi-threading is to speed up sampling operations that are
 common in more advanced applications. Simulation is inherently serial over time (the output of one mj_step is the

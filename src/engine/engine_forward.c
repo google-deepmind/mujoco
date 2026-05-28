@@ -44,8 +44,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_sparse.h"
-#include "thread/thread_pool.h"
-#include "thread/thread_task.h"
+#include "engine/engine_thread.h"
 
 
 
@@ -116,28 +115,6 @@ void mj_checkAcc(const mjModel* m, mjData* d) {
 
 //-------------------------- solver components -----------------------------------------------------
 
-// args for internal functions in mj_fwdPosition
-struct mjFwdPositionArgs_ {
-  const mjModel* m;
-  mjData* d;
-};
-typedef struct mjFwdPositionArgs_ mjFwdPositionArgs;
-
-// wrapper for mj_crb and mj_factorM
-void* mj_inertialThreaded(void* args) {
-  mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
-  mj_makeM(forward_args->m, forward_args->d);
-  mj_factorM(forward_args->m, forward_args->d);
-  return NULL;
-}
-
-// wrapper for mj_collision
-void* mj_collisionThreaded(void* args) {
-  mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
-  mj_collision(forward_args->m, forward_args->d);
-  return NULL;
-}
-
 // kinematics-related computations
 void mj_fwdKinematics(const mjModel* m, mjData* d) {
   mj_kinematics(m, d);
@@ -162,36 +139,12 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 
   TM_END(mjTIMER_POS_KINEMATICS);
 
-  // no threadpool: inertia and collision on main thread
-  if (!d->threadpool) {
-    // inertia, timed internally (POS_INERTIA)
-    mj_makeM(m, d);
-    mj_factorM(m, d);
+  // inertia, timed internally (POS_INERTIA)
+  mj_makeM(m, d);
+  mj_factorM(m, d);
 
-    // collision, timed internally (POS_COLLISION)
-    mj_collision(m, d);
-  }
-
-  // have threadpool: inertia and collision on separate threads
-  else {
-    mjTask tasks[2];
-    mjFwdPositionArgs forward_args;
-    forward_args.m = m;
-    forward_args.d = d;
-
-    mju_defaultTask(&tasks[0]);
-    tasks[0].func = mj_inertialThreaded;
-    tasks[0].args = &forward_args;
-    mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[0]);
-
-    mju_defaultTask(&tasks[1]);
-    tasks[1].func = mj_collisionThreaded;
-    tasks[1].args = &forward_args;
-    mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[1]);
-
-    mju_taskJoin(&tasks[0]);
-    mju_taskJoin(&tasks[1]);
-  }
+  // collision, timed internally (POS_COLLISION)
+  mj_collision(m, d);
 
   if (mj_wakeCollision(m, d)) {
     mj_updateSleep(m, d);
@@ -909,51 +862,13 @@ static void warmstart(const mjModel* m, mjData* d) {
 }
 
 
-// struct encapsulating arguments to thread task
-struct mjSolIslandArgs_ {
-  const mjModel* m;
-  mjData* d;
-  int island;
-};
-typedef struct mjSolIslandArgs_ mjSolIslandArgs;
-
-// extract arguments, pass to CG solver
-static void* CG_wrapper(void* args) {
-  mjSolIslandArgs* solargs = (mjSolIslandArgs*) args;
-  mj_solCG_island(solargs->m, solargs->d, solargs->island, solargs->m->opt.iterations);
-  return NULL;
-}
-
-// extract arguments, pass to Newton solver
-static void* Newton_wrapper(void* args) {
-  mjSolIslandArgs* solargs = (mjSolIslandArgs*) args;
-  mj_solNewton_island(solargs->m, solargs->d, solargs->island, solargs->m->opt.iterations);
-  return NULL;
-}
-
-// CG solver, multi-threaded over islands
-static void solve_threaded(const mjModel* m, mjData* d, int flg_Newton) {
-  mj_markStack(d);
-  // allocate array of arguments to be passed to threads
-  mjSolIslandArgs* sol_island_args = mjSTACKALLOC(d, d->nisland, mjSolIslandArgs);
-  mjTask* tasks = mjSTACKALLOC(d, d->nisland, mjTask);
-
-  for (int island = 0; island < d->nisland; ++island) {
-    sol_island_args[island].m = m;
-    sol_island_args[island].d = d;
-    sol_island_args[island].island = island;
-
-    mju_defaultTask(&tasks[island]);
-    tasks[island].func = flg_Newton ? Newton_wrapper : CG_wrapper;
-    tasks[island].args = &sol_island_args[island];
-    mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[island]);
+// mju_dispatch callback: solve one island
+static void solveIslandTask(const mjModel* m, mjData* d, void* arg, int thread_id, int island) {
+  if (m->opt.solver == mjSOL_NEWTON) {
+    mj_solNewton_island(m, d, island, m->opt.iterations);
+  } else {
+    mj_solCG_island(m, d, island, m->opt.iterations);
   }
-
-  for (int island = 0; island < d->nisland; ++island) {
-    mju_taskJoin(&tasks[island]);
-  }
-
-  mj_freeStack(d);
 }
 
 
@@ -1009,20 +924,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
       mju_gather(d->iefc_force,      d->efc_force,       d->map_iefc2efc, nefc);
       mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
 
-      // solve per island, with or without threads
-      if (!d->threadpool) {
-        // no threadpool, loop over islands
-        for (int island=0; island < nisland; island++) {
-          if (m->opt.solver == mjSOL_NEWTON) {
-            mj_solNewton_island(m, d, island, m->opt.iterations);
-          } else {
-            mj_solCG_island(m, d, island, m->opt.iterations);
-          }
-        }
-      } else {
-        // have threadpool, solve using threads
-        solve_threaded(m, d, m->opt.solver == mjSOL_NEWTON);
-      }
+      mju_dispatch(m, d, solveIslandTask, NULL, nisland);
 
       // copy back solver outputs (scatter dofs since ni <= nv)
       mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);

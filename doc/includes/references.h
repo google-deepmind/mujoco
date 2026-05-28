@@ -89,9 +89,12 @@ struct mjData_ {
   // arena pointer
   size_t  parena;            // first available byte in arena
 
+  // threading
+  uintptr_t threadpool;      // thread pool pointer
+  mjtBool threadlock;        // disable stack freeing during threaded execution
+
   // memory utilization statistics
   mjtSize maxuse_stack;                       // maximum stack allocation in bytes (mutable)
-  mjtSize maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
   mjtSize maxuse_arena;                       // maximum arena allocation in bytes
   int     maxuse_con;                         // maximum number of contacts
   int     maxuse_efc;                         // maximum number of scalar constraints
@@ -393,9 +396,6 @@ struct mjData_ {
   int*    efc_state;         // constraint state (mjtConstraintState)            (nefc x 1)
   mjtNum* efc_force;         // constraint force in constraint space             (nefc x 1)
   mjtNum* ifrc_constraint;   // constraint force                                 (nidof x 1)
-
-  // thread pool pointer
-  uintptr_t threadpool;
 
   // compilation signature
   uint64_t  signature;       // also held by the mjSpec that compiled the model
@@ -2146,21 +2146,6 @@ typedef struct mjsDefault_ {       // default specification
   mjsTendon* tendon;               // tendon defaults
   mjsActuator* actuator;           // actuator defaults
 } mjsDefault;
-typedef enum mjtTaskStatus_ {  // status values for mjTask
-  mjTASK_NEW = 0,              // newly created
-  mjTASK_QUEUED,               // enqueued in a thread pool
-  mjTASK_COMPLETED             // completed execution
-} mjtTaskStatus;
-struct mjThreadPool_ {
-  int nworker;  // number of workers in the pool
-};
-typedef struct mjThreadPool_ mjThreadPool;
-struct mjTask_ {        // a task that can be executed by a thread pool.
-  mjfTask func;         // pointer to the function that implements the task
-  void* args;           // arguments to func
-  volatile int status;  // status of the task
-};
-typedef struct mjTask_ mjTask;
 typedef enum mjtDisableBit_ {     // disable default feature bitflags
   mjDSBL_CONSTRAINT   = 1<<0,     // entire constraint solver
   mjDSBL_EQUALITY     = 1<<1,     // equality constraints
@@ -3658,12 +3643,7 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
 int mju_isModifiedResource(const mjResource* resource, const char* timestamp);
 mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
                            const mjVFS* vfs);
-mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
-void mju_bindThreadPool(mjData* d, void* thread_pool);
-void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
-void mju_threadPoolDestroy(mjThreadPool* thread_pool);
-void mju_defaultTask(mjTask* task);
-void mju_taskJoin(mjTask* task);
+void mju_threadpool(mjData* d, int nthread);
 mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
                        const char* prefix, const char* suffix);
 mjsBody* mjs_addBody(mjsBody* body, const mjsDefault* def);

@@ -10,6 +10,16 @@ General
 - Added :ref:`mjs_makeFlex`, a new C API function equivalent to the :ref:`flexcomp<body-flexcomp>` element for
   programmatically creating flex objects with auto-generated bodies, joints, and equality constraints. Exposed as
   ``body.make_flex()`` in Python.
+- Added :ref:`mju_threadpool`, a new function for creating a thread pool on an ``mjData`` instance. When a thread pool
+  is initialized, parts of the simulation pipeline, such as collision detection and constraint solving across islands,
+  are parallelized. The thread pool is automatically destroyed when the ``mjData`` is freed.
+
+  .. admonition:: Breaking API changes
+     :class: attention
+
+     - The header file ``mjthread.h`` was removed along with the engine threading API.
+
+     **Migration:** Use :ref:`mju_threadpool` to set number of worker threads for the engine.
 
 Bug fixes
 ^^^^^^^^^
@@ -1708,7 +1718,7 @@ New features
    If island discovery is enabled, geoms, contacts and tendons will be colored according to the corresponding island,
    see video. Island discovery is currently disabled for models that have deformable objects (see previous item).
 
-5. Added :ref:`mjThreadPool` and :ref:`mjTask` which allow for multi-threaded operations within the MuJoCo engine
+5. Added ``mjThreadPool`` and ``mjTask`` which allow for multi-threaded operations within the MuJoCo engine
    pipeline. If engine-internal threading is enabled, the following operations will be multi-threaded:
 
    - Island constraint resolution, if island discovery is :ref:`enabled<option-flag-island>` and the

@@ -20,7 +20,7 @@
 
 #include <mujoco/mjtype.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjthread.h>
+
 
 
 
@@ -112,9 +112,12 @@ struct mjData_ {
   // arena pointer
   size_t  parena;            // first available byte in arena
 
+  // threading
+  uintptr_t threadpool;      // thread pool pointer
+  mjtBool threadlock;        // disable stack freeing during threaded execution
+
   // memory utilization statistics
   mjtSize maxuse_stack;                       // maximum stack allocation in bytes (mutable)
-  mjtSize maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
   mjtSize maxuse_arena;                       // maximum arena allocation in bytes
   int     maxuse_con;                         // maximum number of contacts
   int     maxuse_efc;                         // maximum number of scalar constraints
@@ -416,9 +419,6 @@ struct mjData_ {
   int*    efc_state;         // constraint state (mjtConstraintState)            (nefc x 1)
   mjtNum* efc_force;         // constraint force in constraint space             (nefc x 1)
   mjtNum* ifrc_constraint;   // constraint force                                 (nidof x 1)
-
-  // thread pool pointer
-  uintptr_t threadpool;
 
   // compilation signature
   uint64_t  signature;       // also held by the mjSpec that compiled the model

@@ -218,8 +218,7 @@ int main(int argc, char** argv) {
 
     // make and bind threadpool
     if (npoolthread > 1) {
-      mjThreadPool* threadpool = mju_threadPoolCreate(npoolthread);
-      mju_bindThreadPool(d[id], threadpool);
+      mju_threadpool(d[id], npoolthread);
     }
   }
 
@@ -348,11 +347,7 @@ int main(int argc, char** argv) {
 
   // free per-thread data
   for (int id=0; id < nthread; id++) {
-    mjThreadPool* threadpool = (mjThreadPool*) d[id]->threadpool;
     mj_deleteData(d[id]);
-    if (threadpool) {
-      mju_threadPoolDestroy(threadpool);
-    }
   }
 
   // finalize

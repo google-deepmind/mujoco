@@ -31,9 +31,8 @@ OpenGL renderer
    state-of-the-art rendering engines (and can be replaced with such an engine if desired) but nevertheless it provides
    efficient and informative 3D rendering.
 Thread
-   The threading framework is written in C++ and exposed in C. It provides a :ref:`mjThreadPool<mjThreadPool>` interface
-   to process tasks asynchronously. To enable use in MuJoCo, create a thread pool and assign it to the
-   ``mjData.threadpool`` field.
+   The threading framework is written in C++ and exposed in C. It provides a thread pool interface
+   to process tasks asynchronously. To enable use in MuJoCo, call ``mju_threadpool``.
 UI framework
    The UI framework is written in C. UI elements are rendered in OpenGL. It has its own event
    mechanism and abstract hooks for keyboard and mouse input. The code samples use it with GLFW, but it can also be used
@@ -171,8 +170,6 @@ links below, to make this documentation self-contained.
    Defines enums and structs used for :doc:`procedural model editing <modeledit>`.
 `mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
    Defines data structures required by :ref:`engine plugins<exPlugin>`.
-`mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`__
-   Defines data structures and functions required by :ref:`thread<Thread>`.
 `mjmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__
    Defines C macros that are useful in user code.
 `mjxmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__

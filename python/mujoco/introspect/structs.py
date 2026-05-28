@@ -5104,42 +5104,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
-    ('mjThreadPool',
-     StructDecl(
-         name='mjThreadPool',
-         declname='struct mjThreadPool_',
-         fields=(
-             StructFieldDecl(
-                 name='nworker',
-                 type=ValueType(name='int'),
-                 doc='number of workers in the pool',
-             ),
-         ),
-     )),
-    ('mjTask',
-     StructDecl(
-         name='mjTask',
-         declname='struct mjTask_',
-         fields=(
-             StructFieldDecl(
-                 name='func',
-                 type=ValueType(name='mjfTask'),
-                 doc='pointer to the function that implements the task',
-             ),
-             StructFieldDecl(
-                 name='args',
-                 type=PointerType(
-                     inner_type=ValueType(name='void'),
-                 ),
-                 doc='arguments to func',
-             ),
-             StructFieldDecl(
-                 name='status',
-                 type=ValueType(name='int', is_volatile=True),
-                 doc='status of the task',
-             ),
-         ),
-     )),
     ('mjPreContact',
      StructDecl(
          name='mjPreContact',
@@ -5423,17 +5387,19 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='first available byte in arena',
              ),
              StructFieldDecl(
+                 name='threadpool',
+                 type=ValueType(name='uintptr_t'),
+                 doc='thread pool pointer',
+             ),
+             StructFieldDecl(
+                 name='threadlock',
+                 type=ValueType(name='mjtBool'),
+                 doc='disable stack freeing during threaded execution',
+             ),
+             StructFieldDecl(
                  name='maxuse_stack',
                  type=ValueType(name='mjtSize'),
                  doc='maximum stack allocation in bytes (mutable)',
-             ),
-             StructFieldDecl(
-                 name='maxuse_threadstack',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtSize'),
-                     extents=(128,),
-                 ),
-                 doc='maximum stack allocation per thread in bytes',
              ),
              StructFieldDecl(
                  name='maxuse_arena',
@@ -6902,11 +6868,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='constraint force',
                  array_extent=('nidof',),
-             ),
-             StructFieldDecl(
-                 name='threadpool',
-                 type=ValueType(name='uintptr_t'),
-                 doc='thread pool pointer',
              ),
              StructFieldDecl(
                  name='signature',

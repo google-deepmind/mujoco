@@ -1642,33 +1642,36 @@ void UiEvent(mjuiState* state) {
     // simulation section
     else if (it && it->sectionid==SECT_SIMULATION) {
       switch (it->itemid) {
-      case 1:             // Reset
+      case 1:             // Threadpool
+        sim->pending_.update_threadpool = true;
+        break;
+      case 2:             // Reset
         sim->pending_.reset = true;
         break;
 
-      case 2:             // Reload
+      case 3:             // Reload
         sim->uiloadrequest.fetch_add(1);
         break;
 
-      case 3:             // Align
+      case 4:             // Align
         sim->pending_.align = true;
         break;
 
-      case 4:             // Copy key
+      case 5:             // Copy key
         sim->pending_.copy_key = true;
         sim->pending_.copy_key_full_precision = sim->platform_ui->IsShiftKeyPressed();
         break;
 
-      case 5:             // Adjust key
-      case 6:             // Load key
+      case 6:             // Adjust key
+      case 7:             // Load key
         sim->pending_.load_key = true;
         break;
 
-      case 7:             // Save key
+      case 8:             // Save key
         sim->pending_.save_key = true;
         break;
 
-      case 11:            // History scrubber
+      case 12:            // History scrubber
         sim->run = 0;
         sim->pending_.load_from_history = true;
         mjui0_update_section(sim, SECT_SIMULATION);
@@ -2174,6 +2177,11 @@ void Simulate::Sync(bool state_only) {
     pending_.print_data = std::nullopt;
   }
 
+  if (pending_.update_threadpool) {
+    mju_threadpool(d_, nthread);
+    pending_.update_threadpool = false;
+  }
+
   if (pending_.reset) {
     mj_resetData(m_, d_);
     mj_forward(m_, d_);
@@ -2561,13 +2569,13 @@ void Simulate::LoadOnRenderThread() {
   }
 
   // set keyframe range and divisions
-  this->ui0.sect[SECT_SIMULATION].item[5].slider.range[0] = 0;
-  this->ui0.sect[SECT_SIMULATION].item[5].slider.range[1] = mjMAX(0, this->m_->nkey - 1);
-  this->ui0.sect[SECT_SIMULATION].item[5].slider.divisions = mjMAX(1, this->m_->nkey - 1);
+  this->ui0.sect[SECT_SIMULATION].item[6].slider.range[0] = 0;
+  this->ui0.sect[SECT_SIMULATION].item[6].slider.range[1] = mjMAX(0, this->m_->nkey - 1);
+  this->ui0.sect[SECT_SIMULATION].item[6].slider.divisions = mjMAX(1, this->m_->nkey - 1);
 
   // set scrubber range and divisions
-  this->ui0.sect[SECT_SIMULATION].item[11].slider.range[0] = 1 - nhistory_;
-  this->ui0.sect[SECT_SIMULATION].item[11].slider.divisions = nhistory_;
+  this->ui0.sect[SECT_SIMULATION].item[12].slider.range[0] = 1 - nhistory_;
+  this->ui0.sect[SECT_SIMULATION].item[12].slider.divisions = nhistory_;
 
   // detect image sensors for visualization
   DetectImageSensors(this, this->m_);

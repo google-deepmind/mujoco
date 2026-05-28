@@ -1014,6 +1014,7 @@
     X( size_t,    pstack             ) \
     X( size_t,    pbase              ) \
     X( size_t,    parena             ) \
+    X( uintptr_t, threadpool         ) \
     X( size_t,    maxuse_stack       ) \
     X( size_t,    maxuse_arena       ) \
     X( int,       maxuse_con         ) \
@@ -1036,13 +1037,11 @@
     X( mjtBool,   flg_energyvel      ) \
     X( mjtBool,   flg_subtreevel     ) \
     X( mjtBool,   flg_rnepost        ) \
-    X( mjtNum,    time               ) \
-    X( uintptr_t, threadpool         )
+    X( mjtNum,    time               )
 
 
 // vector fields of mjData
 #define MJDATA_VECTOR                                                \
-    X( size_t,         maxuse_threadstack, mjMAXTHREAD,  1         ) \
     X( mjSolverStat,   solver,             mjNISLAND,    mjNSOLVER ) \
     X( int,            solver_niter,       mjNISLAND,    1         ) \
     X( int,            solver_nnz,         mjNISLAND,    1         ) \

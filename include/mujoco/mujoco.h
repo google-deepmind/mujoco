@@ -31,7 +31,6 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mjsan.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjthread.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
@@ -1593,23 +1592,8 @@ MJAPI mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
 
 //---------------------------------- Threads -------------------------------------------------------
 
-// Create a thread pool with the specified number of threads running.
-MJAPI mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
-
-// Adds a thread pool to mjData and configures it for multi-threaded use.
-MJAPI void mju_bindThreadPool(mjData* d, void* thread_pool);
-
-// Enqueue a task in a thread pool.
-MJAPI void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
-
-// Destroy a thread pool.
-MJAPI void mju_threadPoolDestroy(mjThreadPool* thread_pool);
-
-// Initialize an mjTask.
-MJAPI void mju_defaultTask(mjTask* task);
-
-// Wait for a task to complete.
-MJAPI void mju_taskJoin(mjTask* task);
+// Create a thread pool with nthread worker threads.
+MJAPI void mju_threadpool(mjData* d, int nthread);
 
 
 //---------------------------------- Attachment ----------------------------------------------------

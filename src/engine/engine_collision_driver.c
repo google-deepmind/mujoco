@@ -26,6 +26,7 @@
 #include "engine/engine_collision_gjk.h"
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_collision_sdf.h"
+#include "engine/engine_thread.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_inline.h"
@@ -178,10 +179,8 @@ static inline mjtNum getGap(const mjModel* m, int g1, int g2, int ipair) {
 static inline void resetArena(mjData* d) {
   d->parena = d->ncon * sizeof(mjContact);
 #ifdef ADDRESS_SANITIZER
-  if (!d->threadpool) {
     ASAN_POISON_MEMORY_REGION(
       (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
-  }
 #endif
 }
 
@@ -937,6 +936,7 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 }
 
 
+// binary search between two bodyflex trees
 void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
                     int merged, int startadr, int pairadr) {
   int nbody = m->nbody, nbvhstatic = m->nbvhstatic;
@@ -1814,12 +1814,66 @@ static void mj_makeCapsule(const mjModel* m, mjData* d, int f, const int vid[2],
 }
 
 
+// struct for collision task
+typedef struct {
+  mjPreContact* conbuffer;  // pre-contact buffer returned by collision functions
+  int* nconbuffer;          // contact count for each collision pair
+  char* epabuffer;          // buffer for nativeccd
+  int ccd_size;             // size of nativeccd buffer
+  const int* pairbuffer;    // collision pairs (g1, g2, ipair, index into conbuffer)
+  int npair;                // number of collision pairs
+  int chunksize;            // number of pairs to process per task
+  int maxcon;               // maximum number of contacts (size of conbuffer)
+} mjContactArg;
+
+
+static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id, int idx) {
+  mjContactArg* conargs = (mjContactArg*)arg;
+  mjPreContact* conbuffer = conargs->conbuffer;
+  char* epabuffer = conargs->epabuffer;
+  int chunksize = conargs->chunksize;
+  int globalidx = chunksize * idx;
+  const int* pair = conargs->pairbuffer + 4 * globalidx;
+  int* ncon = conargs->nconbuffer + chunksize * idx;
+
+  int npair = conargs->npair;
+  int n = mjMIN(chunksize, npair - globalidx);
+
+  mjc_setCCDBuffer(epabuffer + thread_id * conargs->ccd_size);
+  for (int i = 0; i < n; i++) {
+    int g1 = pair[4*i + 0];
+    int g2 = pair[4*i + 1];
+    int ipair = pair[4*i + 2];
+    int conpos = pair[4*i + 3];
+
+    mjfCollision collision_func = mjCOLLISIONFUNC[m->geom_type[g1]][m->geom_type[g2]];
+    mjtNum margin = getMargin(m, g1, g2, ipair);
+    mjtNum gap = getGap(m, g1, g2, ipair);
+    ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
+
+    // SHOULD NOT OCCUR
+    int expected_max = (globalidx + i + 1 < npair ? pair[4*(i+1) + 3] : conargs->maxcon) - conpos;
+    if (ncon[i] > expected_max) {
+      mjERROR("collision function returned %d contacts for geom pair (%d, %d), "
+              "expected at most %d from mj_maxContact", ncon[i], g1, g2, expected_max);
+    }
+  }
+  mjc_setCCDBuffer(NULL);
+}
+
+
 // compute contacts for a batch of collision pairs contained in a buffer of
 // stride 3 ints (g1, g2, ipair)
 // if buffer is NULL, results are read from arena starting at parena
 void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, size_t parena) {
+  int nthread = mju_numThread(d);
   int ccd_size = mjc_ccdSize(m->opt.ccd_iterations);
   mjtNum margin, gap;
+
+  // try to balance load of 5 chunks per thread (chunksize should be divisible by 16)
+  int chunksize = npair / mjMAX(1, 5 * nthread);
+  chunksize = mjMAX(16, (chunksize + 15) & ~15);  // round up to next 16
+  int nchunk = (npair + chunksize - 1) / chunksize;
 
   // set buffer and arena pointer
   if (!buffer) {
@@ -1829,9 +1883,6 @@ void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, s
   }
 
   mj_markStack(d);
-
-  // buffer store how many contacts are generated for each pair
-  int* nconbuffer = mj_stackAllocInt(d, npair);
 
   // buffer for pair data (g1, g2, ipair, index into conbuffer)
   int* pairbuffer = mj_stackAllocInt(d, 4 * npair);
@@ -1850,42 +1901,30 @@ void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, s
     maxcon += mj_maxContact(m, g1, g2, margin + gap > 0);
   }
 
-  // buffer for precontact data
-  mjPreContact* conbuffer = mjSTACKALLOC(d, maxcon, mjPreContact);
-
   // buffer data has been copied to metadata on the stack;
   // reclaim arena space so contacts can overwrite the buffer region
   d->parena = parena;
 
-  // set buffer for nativeccd
-  mj_markStack(d);
-  mjc_setCCDBuffer(mj_stackAllocByte(d, ccd_size, sizeof(mjtNum)));
+  mjContactArg arg;
+  arg.ccd_size = ccd_size;
+  arg.pairbuffer = pairbuffer;
+  arg.nconbuffer = mjSTACKALLOC(d, npair, int);
+  arg.conbuffer = mjSTACKALLOC(d, maxcon, mjPreContact);
+  arg.npair = npair;
+  arg.chunksize = chunksize;
+  arg.maxcon = maxcon;
 
-  for (int i = 0; i < npair; i++) {
-    int g1 = pairbuffer[4*i + 0];
-    int g2 = pairbuffer[4*i + 1];
-    int ipair = pairbuffer[4*i + 2];
-    int idx = pairbuffer[4*i + 3];
-    mjfCollision collision_func = mjCOLLISIONFUNC[m->geom_type[g1]][m->geom_type[g2]];
-    margin = getMargin(m, g1, g2, ipair);
-    gap = getGap(m, g1, g2, ipair);
-    nconbuffer[i] = collision_func(m, d, conbuffer + idx, g1, g2, margin + gap);
-
-    // SHOULD NOT OCCUR
-    int expected_max = (i + 1 < npair ? pairbuffer[4*(i+1) + 3] : maxcon) - idx;
-    if (nconbuffer[i] > expected_max) {
-      mjERROR("collision function returned %d contacts for geom pair (%d, %d), "
-              "expected at most %d from mj_maxContact", nconbuffer[i], g1, g2, expected_max);
-    }
+  // dispatch narrowphase to threads with local stack allocation for EPA
+  {
+    mj_markStack(d);
+    arg.epabuffer = mj_stackAllocByte(d, ccd_size * nthread, sizeof(mjtNum));
+    mju_dispatch(m, d, collisionTask, &arg, nchunk);
+    mj_freeStack(d);
   }
-
-  // set nativeccd buffer back to NULL
-  mjc_setCCDBuffer(NULL);
-  mj_freeStack(d);
 
   int ncon = 0;
   for (int i = 0; i < npair; i++) {
-    ncon += nconbuffer[i];
+    ncon += arg.nconbuffer[i];
   }
 
   if (ncon == 0) {
@@ -1906,7 +1945,7 @@ void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, s
   // fill in contact data
   int conpos = 0;
   for (int i = 0; i < npair; i++) {
-    if (!(ncon = nconbuffer[i]))
+    if (!(ncon = arg.nconbuffer[i]))
       continue;
 
     int condim;
@@ -1928,7 +1967,7 @@ void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, s
       mj_contactParam(m, &condim, solref, solimp, friction, g1, g2, -1, -1);
     }
 
-    mjPreContact* bc = conbuffer + pairbuffer[4*i + 3];
+    mjPreContact* bc = arg.conbuffer + pairbuffer[4*i+3];
     margin = getMargin(m, g1, g2, ipair);
     for (int j=0; j < ncon; j++) {
       mjContact* c = con + conpos + j;

@@ -60,7 +60,7 @@ Where the command line arguments are
   keyframe named "test" is present in the model, it is used as the initial state.
 - The ``ctrlnoise`` argument prevents models from settling into a static state where, due to warmstarts, one can
   measure artificially faster simulation.
-- When ``npoolthread > 1`` is specified, an engine-internal :ref:`mjThreadPool` is created with the specified number of
+- When ``npoolthread > 1`` is specified, an engine-internal thread pool is created with the specified number of
   threads, to speed up simulation of large scenes. Note that while it is possible to use both ``nthread`` and
   ``npoolthread``, the scenarios for which one would want these different types of multithreading are usually mutually
   exclusive.

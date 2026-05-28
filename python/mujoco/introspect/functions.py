@@ -9985,23 +9985,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Find the decoder for a resource and return the decoded spec. The caller takes ownership of the spec and is responsible for cleaning it up.',  # pylint: disable=line-too-long
      )),
-    ('mju_threadPoolCreate',
+    ('mju_threadpool',
      FunctionDecl(
-         name='mju_threadPoolCreate',
-         return_type=PointerType(
-             inner_type=ValueType(name='mjThreadPool'),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='number_of_threads',
-                 type=ValueType(name='size_t'),
-             ),
-         ),
-         doc='Create a thread pool with the specified number of threads running.',  # pylint: disable=line-too-long
-     )),
-    ('mju_bindThreadPool',
-     FunctionDecl(
-         name='mju_bindThreadPool',
+         name='mju_threadpool',
          return_type=ValueType(name='void'),
          parameters=(
              FunctionParameterDecl(
@@ -10011,75 +9997,11 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='thread_pool',
-                 type=PointerType(
-                     inner_type=ValueType(name='void'),
-                 ),
+                 name='nthread',
+                 type=ValueType(name='int'),
              ),
          ),
-         doc='Adds a thread pool to mjData and configures it for multi-threaded use.',  # pylint: disable=line-too-long
-     )),
-    ('mju_threadPoolEnqueue',
-     FunctionDecl(
-         name='mju_threadPoolEnqueue',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='thread_pool',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjThreadPool'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='task',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjTask'),
-                 ),
-             ),
-         ),
-         doc='Enqueue a task in a thread pool.',
-     )),
-    ('mju_threadPoolDestroy',
-     FunctionDecl(
-         name='mju_threadPoolDestroy',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='thread_pool',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjThreadPool'),
-                 ),
-             ),
-         ),
-         doc='Destroy a thread pool.',
-     )),
-    ('mju_defaultTask',
-     FunctionDecl(
-         name='mju_defaultTask',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='task',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjTask'),
-                 ),
-             ),
-         ),
-         doc='Initialize an mjTask.',
-     )),
-    ('mju_taskJoin',
-     FunctionDecl(
-         name='mju_taskJoin',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='task',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjTask'),
-                 ),
-             ),
-         ),
-         doc='Wait for a task to complete.',
+         doc='Create a thread pool with nthread worker threads.',
      )),
     ('mjs_attach',
      FunctionDecl(

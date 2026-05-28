@@ -118,7 +118,6 @@ set(MUJOCO_HEADERS
     include/mujoco/mjsan.h
     include/mujoco/mjspec.h
     include/mujoco/mjspecmacro.h
-    include/mujoco/mjthread.h
     include/mujoco/mjtype.h
     include/mujoco/mjui.h
     include/mujoco/mjvisualize.h
@@ -135,6 +134,7 @@ endif()
 
 # Emscripten does not support SHARED libs
 if(NOT EMSCRIPTEN)
+  find_package(Threads REQUIRED)
   add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
 else()
   add_library(mujoco STATIC ${MUJOCO_RESOURCE_FILES})
@@ -160,7 +160,6 @@ add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/xml/mjz)
-add_subdirectory(src/thread)
 if(NOT EMSCRIPTEN AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT)
   add_subdirectory(src/render/classic)
   add_subdirectory(src/ui)
@@ -203,6 +202,10 @@ target_link_libraries(
           tinyobjloader
           tinyxml2
 )
+
+if(NOT EMSCRIPTEN)
+  target_link_libraries(mujoco PRIVATE Threads::Threads)
+endif()
 
 set_target_properties(
   mujoco PROPERTIES VERSION "${mujoco_VERSION}" PUBLIC_HEADER "${MUJOCO_HEADERS}"

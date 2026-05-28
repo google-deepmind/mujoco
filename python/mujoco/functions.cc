@@ -725,6 +725,9 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_version>(pymodule);
   Def<traits::mj_versionString>(pymodule);
 
+  // Thread pool
+  Def<traits::mju_threadpool>(pymodule);
+
   // Ray collision
   Def<traits::mj_multiRay>(
       pymodule,

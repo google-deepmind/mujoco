@@ -452,10 +452,6 @@ indicated otherwise.
    * - ``mjMINAWAKE``
      - 10
      - The minimum number of timesteps that must pass after a tree is awoken, before it is allowed to go back to sleep.
-   * - ``mjMAXTHREAD``
-     - 128
-     - Maximum number of OS threads that can be used in a thread pool.
-       Defined in `mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`_.
 
 
 .. _glNumericSizes:
