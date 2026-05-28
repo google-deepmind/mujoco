@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include <pybind11/cast.h>
@@ -94,6 +95,7 @@ PYBIND11_MODULE(_constants, pymodule) {
   pymodule.attr("mjFRAMESTRING") = MakeTuple(mjFRAMESTRING);
   pymodule.attr("mjVISSTRING") = MakeTuple(mjVISSTRING);
   pymodule.attr("mjRNDSTRING") = MakeTuple(mjRNDSTRING);
+  pymodule.attr("MJTNUM_BYTES") = sizeof(mjtNum);
 }
 }  // namespace
 }  // namespace mujoco::python

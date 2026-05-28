@@ -59,6 +59,9 @@ using MjDouble9 = Eigen::Map<Eigen::Matrix<double, 9, 1>>;
 using MjDouble10 = Eigen::Map<Eigen::Matrix<double, 10, 1>>;
 using MjDouble11 = Eigen::Map<Eigen::Matrix<double, 11, 1>>;
 using MjDoubleVec = Eigen::Map<Eigen::VectorXd>;
+using MjNum2 = Eigen::Map<Eigen::Matrix<mjtNum, 2, 1>>;
+using MjNum3 = Eigen::Map<Eigen::Matrix<mjtNum, 3, 1>>;
+using MjNum5 = Eigen::Map<Eigen::Matrix<mjtNum, 5, 1>>;
 
 using MjIntRef2 = Eigen::Ref<const Eigen::Vector2i>;
 using MjIntRef3 = Eigen::Ref<const Eigen::Vector3i>;
@@ -74,6 +77,9 @@ using MjDoubleRef9 = Eigen::Ref<const Eigen::Matrix<double, 9, 1>>;
 using MjDoubleRef10 = Eigen::Ref<const Eigen::Matrix<double, 10, 1>>;
 using MjDoubleRef11 = Eigen::Ref<const Eigen::Matrix<double, 11, 1>>;
 using MjDoubleRefVec = Eigen::Ref<const Eigen::VectorXd>;
+using MjNumRef2 = Eigen::Ref<const Eigen::Matrix<mjtNum, 2, 1>>;
+using MjNumRef3 = Eigen::Ref<const Eigen::Matrix<mjtNum, 3, 1>>;
+using MjNumRef5 = Eigen::Ref<const Eigen::Matrix<mjtNum, 5, 1>>;
 
 template <typename LoadFunc>
 static raw::MjSpec* LoadSpecFileImpl(
