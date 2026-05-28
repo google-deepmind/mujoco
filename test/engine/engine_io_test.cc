@@ -987,20 +987,29 @@ TEST_F(EngineIoTest, LoadModelBufferRejectsOverflowingSizes) {
   // when multiplied by sizeof(type). ntexdata is a good candidate since it
   // is a byte count field and gets multiplied by sizeof(mjtByte)==1, but other
   // fields multiply by sizeof(int) or sizeof(mjtNum), making overflow easier.
-  mjtSize* sizes = reinterpret_cast<mjtSize*>(buffer.data() + header_bytes);
+  // Use memcpy to avoid undefined behavior from unaligned access.
+  const int size_offset = header_bytes + 49 * sizeof(mjtSize);
 
-  // save original value, set to overflow-inducing value
-  mjtSize original = sizes[49];  // ntexdata index (approximate)
-  sizes[49] = static_cast<mjtSize>(SIZE_MAX / 2);
+  // set to overflow-inducing value
+  mjtSize overflow_val = static_cast<mjtSize>(SIZE_MAX / 2);
+  std::memcpy(buffer.data() + size_offset, &overflow_val, sizeof(mjtSize));
 
   // also need to update the nbuffer field (last size) to avoid the early
   // nbuffer mismatch check — but the overflow should be caught earlier
   // in safeAddToBufferSize/mj_makeModel before we reach that check.
 
+  // intercept mju_warning because the test framework translates it to ADD_FAILURE
+  static bool warning_triggered = false;
+  warning_triggered = false;
+  mju_user_warning = [](const char* msg) {
+    warning_triggered = true;
+  };
+
   // attempt to load — should return NULL, not crash
   mjModel* bad_model = mj_loadModelBuffer(buffer.data(), bufsize);
   EXPECT_THAT(bad_model, IsNull())
       << "Expected mj_loadModelBuffer to reject overflow-inducing sizes";
+  EXPECT_TRUE(warning_triggered) << "Expected a warning about invalid sizes";
 
   // clean up if somehow it succeeded
   if (bad_model) {
