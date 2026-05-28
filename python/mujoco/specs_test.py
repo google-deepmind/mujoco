@@ -2032,5 +2032,75 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaises(mujoco.FatalError):
       spec.encode(filename, model)
 
+  def test_make_flex_grid(self):
+    # Create a spec with a flexcomp grid.
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(name='flex_body')
+    flex = body.make_flex(
+        name='test_flex',
+        type='grid',
+        dim=3,
+        count=[4, 4, 4],
+        spacing=[0.05, 0.05, 0.05],
+        mass=0.5,
+        equality=1,
+    )
+    self.assertIsNotNone(flex)
+    model = spec.compile()
+    self.assertIsNotNone(model)
+    self.assertGreater(model.nflex, 0)
+
+    # Verify elastic2d is forwarded to Make() and produces shell-mode
+    # strain constraints (equality=3 + elastic2d=2 triggers shell path).
+    spec2 = mujoco.MjSpec()
+    body2 = spec2.worldbody.add_body(name='shell_body')
+    flex2 = body2.make_flex(
+        name='shell_flex',
+        type='grid',
+        dim=3,
+        count=[3, 3, 3],
+        spacing=[0.1, 0.1, 0.1],
+        dof='trilinear',
+        cellcount=[2, 2, 1],
+        mass=0.5,
+        equality=3,  # strain
+        elastic2d=2,  # bend
+    )
+    flex2.young = 1e3
+    flex2.thickness = 0.01
+    flex2.selfcollide = mujoco.mjtFlexSelf.mjFLEXSELF_NONE
+    self.assertIsNotNone(flex2)
+    model2 = spec2.compile()
+    self.assertIsNotNone(model2)
+    # Shell mode creates face-based constraints; verify they exist.
+    self.assertGreater(model2.neq, 0)
+
+  def test_make_flex_defaults(self):
+    # Create a spec with minimal flexcomp args (defaults).
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(name='flex_body')
+    flex = body.make_flex(name='default_flex', equality=1)
+    self.assertIsNotNone(flex)
+    model = spec.compile()
+    self.assertIsNotNone(model)
+
+  def test_make_flex_with_pos_quat(self):
+    # Create a spec with flexcomp that has a pose.
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(name='flex_body')
+    flex = body.make_flex(
+        name='posed_flex',
+        type='grid',
+        dim=2,
+        count=[3, 3, 1],
+        spacing=[0.1, 0.1, 0.1],
+        pos=[1.0, 2.0, 3.0],
+        quat=[1.0, 0.0, 0.0, 0.0],
+        equality=1,
+    )
+    self.assertIsNotNone(flex)
+    model = spec.compile()
+    self.assertIsNotNone(model)
+
 if __name__ == '__main__':
   absltest.main()

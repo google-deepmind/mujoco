@@ -3678,6 +3678,12 @@ int mjs_delete(mjSpec* spec, mjsElement* element);
 mjsActuator* mjs_addActuator(mjSpec* s, const mjsDefault* def);
 mjsSensor* mjs_addSensor(mjSpec* s);
 mjsFlex* mjs_addFlex(mjSpec* s);
+mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
+                      const char* dof, const int count[3], const int cellcount[3],
+                      const double spacing[3], const double scale[3], double radius,
+                      double mass, double inertiabox, int equality, int rigid, int flatskin,
+                      int elastic2d, const double pos[3], const double quat[4],
+                      const double origin[3], const char* file, const mjVFS* vfs);
 mjsPair* mjs_addPair(mjSpec* s, const mjsDefault* def);
 mjsExclude* mjs_addExclude(mjSpec* s);
 mjsEquality* mjs_addEquality(mjSpec* s, const mjsDefault* def);

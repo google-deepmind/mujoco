@@ -843,6 +843,130 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::return_value_policy::reference_internal);
   mjsBody.def(
+      "make_flex",
+      [](raw::MjsBody& self,
+         const std::string& name,
+         std::optional<std::string> type,
+         int dim,
+         std::optional<std::string> dof,
+         std::optional<std::vector<int>> count,
+         std::optional<std::vector<int>> cellcount,
+         std::optional<std::vector<double>> spacing,
+         std::optional<std::vector<double>> scale,
+         double radius,
+         double mass,
+         double inertiabox,
+         int equality,
+         int rigid,
+         int flatskin,
+         int elastic2d,
+         std::optional<std::vector<double>> pos,
+         std::optional<std::vector<double>> quat,
+         std::optional<std::vector<double>> origin,
+         std::optional<std::string> file,
+         MjVfs* vfs) -> raw::MjsFlex* {
+        const char* type_str = type.has_value() ? type->c_str() : nullptr;
+        const char* dof_str = dof.has_value() ? dof->c_str() : nullptr;
+        const char* file_str = file.has_value() ? file->c_str() : nullptr;
+        const mjVFS* vfs_ptr = vfs ? vfs->get() : nullptr;
+
+        int count_arr[3] = {10, 10, 10};
+        if (count.has_value()) {
+          if (count->size() != 3) {
+            throw pybind11::value_error("count must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) count_arr[i] = (*count)[i];
+        }
+        const int* count_ptr = count.has_value() ? count_arr : nullptr;
+
+        int cellcount_arr[3] = {-1, -1, -1};
+        if (cellcount.has_value()) {
+          if (cellcount->size() != 3) {
+            throw pybind11::value_error("cellcount must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) cellcount_arr[i] = (*cellcount)[i];
+        }
+        const int* cellcount_ptr =
+            cellcount.has_value() ? cellcount_arr : nullptr;
+
+        double spacing_arr[3] = {0.02, 0.02, 0.02};
+        if (spacing.has_value()) {
+          if (spacing->size() != 3) {
+            throw pybind11::value_error("spacing must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) spacing_arr[i] = (*spacing)[i];
+        }
+        const double* spacing_ptr = spacing.has_value() ? spacing_arr : nullptr;
+
+        double scale_arr[3] = {1, 1, 1};
+        if (scale.has_value()) {
+          if (scale->size() != 3) {
+            throw pybind11::value_error("scale must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) scale_arr[i] = (*scale)[i];
+        }
+        const double* scale_ptr = scale.has_value() ? scale_arr : nullptr;
+
+        double pos_arr[3] = {0, 0, 0};
+        if (pos.has_value()) {
+          if (pos->size() != 3) {
+            throw pybind11::value_error("pos must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) pos_arr[i] = (*pos)[i];
+        }
+        const double* pos_ptr = pos.has_value() ? pos_arr : nullptr;
+
+        double quat_arr[4] = {1, 0, 0, 0};
+        if (quat.has_value()) {
+          if (quat->size() != 4) {
+            throw pybind11::value_error("quat must have 4 elements");
+          }
+          for (int i = 0; i < 4; i++) quat_arr[i] = (*quat)[i];
+        }
+        const double* quat_ptr = quat.has_value() ? quat_arr : nullptr;
+
+        double origin_arr[3] = {0, 0, 0};
+        if (origin.has_value()) {
+          if (origin->size() != 3) {
+            throw pybind11::value_error("origin must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) origin_arr[i] = (*origin)[i];
+        }
+        const double* origin_ptr = origin.has_value() ? origin_arr : nullptr;
+
+        auto out = mjs_makeFlex(
+            &self, name.c_str(), type_str, dim, dof_str,
+            count_ptr, cellcount_ptr, spacing_ptr, scale_ptr,
+            radius, mass, inertiabox, equality, rigid, flatskin, elastic2d,
+            pos_ptr, quat_ptr, origin_ptr, file_str, vfs_ptr);
+        if (!out) {
+          raw::MjSpec* spec = mjs_getSpec(self.element);
+          throw pybind11::value_error(mjs_getError(spec));
+        }
+        return out;
+      },
+      py::arg("name"),
+      py::arg("type") = py::none(),
+      py::arg("dim") = 3,
+      py::arg("dof") = py::none(),
+      py::arg("count") = py::none(),
+      py::arg("cellcount") = py::none(),
+      py::arg("spacing") = py::none(),
+      py::arg("scale") = py::none(),
+      py::arg("radius") = 0.0,
+      py::arg("mass") = 1.0,
+      py::arg("inertiabox") = 0.005,
+      py::arg("equality") = 0,
+      py::arg("rigid") = 0,
+      py::arg("flatskin") = 0,
+      py::arg("elastic2d") = 0,
+      py::arg("pos") = py::none(),
+      py::arg("quat") = py::none(),
+      py::arg("origin") = py::none(),
+      py::arg("file") = py::none(),
+      py::arg("vfs") = py::none(),
+      py::return_value_policy::reference_internal);
+  mjsBody.def(
       "find_child",
       [](raw::MjsBody& self, std::string& name) -> raw::MjsBody* {
         return mjs_findChild(&self, name.c_str());

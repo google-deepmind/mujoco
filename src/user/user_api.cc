@@ -33,6 +33,7 @@
 #include <mujoco/mujoco.h>
 #include "engine/engine_support.h"
 #include "user/user_cache.h"
+#include "user/user_flexcomp.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_resource.h"
@@ -594,6 +595,121 @@ mjsLight* mjs_addLight(mjsBody* bodyspec, const mjsDefault* defspec) {
 mjsFlex* mjs_addFlex(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   mjCFlex* flex = modelC->AddFlex();
+  return &flex->spec;
+}
+
+
+
+// helper: convert type string to mjtFcompType
+static mjtFcompType FlexcompTypeFromStr(const char* type) {
+  if (!type || !strcmp(type, "grid"))    return mjFCOMPTYPE_GRID;
+  if (!strcmp(type, "box"))              return mjFCOMPTYPE_BOX;
+  if (!strcmp(type, "cylinder"))         return mjFCOMPTYPE_CYLINDER;
+  if (!strcmp(type, "ellipsoid"))        return mjFCOMPTYPE_ELLIPSOID;
+  if (!strcmp(type, "square"))           return mjFCOMPTYPE_SQUARE;
+  if (!strcmp(type, "disc"))             return mjFCOMPTYPE_DISC;
+  if (!strcmp(type, "circle"))           return mjFCOMPTYPE_CIRCLE;
+  if (!strcmp(type, "mesh"))             return mjFCOMPTYPE_MESH;
+  if (!strcmp(type, "gmsh"))             return mjFCOMPTYPE_GMSH;
+  if (!strcmp(type, "direct"))           return mjFCOMPTYPE_DIRECT;
+  return mjFCOMPTYPE_GRID;  // default
+}
+
+// helper: convert dof string to mjtDof
+static mjtDof FlexcompDofFromStr(const char* dof) {
+  if (!dof || !strcmp(dof, "full"))      return mjFCOMPDOF_FULL;
+  if (!strcmp(dof, "radial"))            return mjFCOMPDOF_RADIAL;
+  if (!strcmp(dof, "trilinear"))         return mjFCOMPDOF_TRILINEAR;
+  if (!strcmp(dof, "quadratic"))         return mjFCOMPDOF_QUADRATIC;
+  if (!strcmp(dof, "2d"))                return mjFCOMPDOF_2D;
+  return mjFCOMPDOF_FULL;  // default
+}
+
+
+// add flexcomp: create flex with auto-generated bodies/joints
+mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
+                            const char* dof, const int count[3], const int cellcount[3],
+                            const double spacing[3], const double scale[3], double radius,
+                            double mass, double inertiabox, int equality, int rigid, int flatskin,
+                            int elastic2d, const double pos[3], const double quat[4],
+                            const double origin[3], const char* file, const mjVFS* vfs) {
+  if (!body || !name) {
+    mju_error("mjs_makeFlex: body and name must not be null");
+    return nullptr;
+  }
+
+  mjCModel* model = static_cast<mjCBody*>(body->element)->model;
+
+  // create temporary flexcomp with defaults
+  mjCFlexcomp fcomp;
+  fcomp.name = name;
+  fcomp.type = FlexcompTypeFromStr(type);
+  fcomp.doftype = FlexcompDofFromStr(dof);
+
+  // topology
+  if (count) {
+    fcomp.count[0] = count[0];
+    fcomp.count[1] = count[1];
+    fcomp.count[2] = count[2];
+  }
+  if (cellcount) {
+    fcomp.cellcount[0] = cellcount[0];
+    fcomp.cellcount[1] = cellcount[1];
+    fcomp.cellcount[2] = cellcount[2];
+  }
+  if (spacing) {
+    fcomp.spacing[0] = spacing[0];
+    fcomp.spacing[1] = spacing[1];
+    fcomp.spacing[2] = spacing[2];
+  }
+  if (scale) {
+    fcomp.scale[0] = scale[0];
+    fcomp.scale[1] = scale[1];
+    fcomp.scale[2] = scale[2];
+  }
+  if (origin) {
+    fcomp.origin[0] = origin[0];
+    fcomp.origin[1] = origin[1];
+    fcomp.origin[2] = origin[2];
+  }
+
+  // physics
+  fcomp.def.spec.flex->dim = dim;
+  fcomp.def.spec.flex->radius = radius;
+  if (mass > 0) fcomp.mass = mass;
+  if (inertiabox > 0) fcomp.inertiabox = inertiabox;
+  fcomp.equality = equality;
+  fcomp.rigid = rigid;
+  fcomp.def.spec.flex->flatskin = flatskin;
+  fcomp.def.spec.flex->elastic2d = elastic2d;
+
+  // pose
+  if (pos) {
+    fcomp.pos[0] = pos[0];
+    fcomp.pos[1] = pos[1];
+    fcomp.pos[2] = pos[2];
+  }
+  if (quat) {
+    fcomp.quat[0] = quat[0];
+    fcomp.quat[1] = quat[1];
+    fcomp.quat[2] = quat[2];
+    fcomp.quat[3] = quat[3];
+  }
+
+  // file
+  if (file) {
+    fcomp.file = file;
+  }
+
+  // call Make
+  char error[500] = "";
+  if (!fcomp.Make(body, error, sizeof(error), vfs)) {
+    model->SetError(mjCError(nullptr, "%s", error));
+    return nullptr;
+  }
+
+  // return the flex that was created (last flex in model)
+  mjCFlex* flex = model->Flexes().back();
   return &flex->spec;
 }
 

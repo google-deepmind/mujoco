@@ -9952,6 +9952,22 @@ int mjs_isWarning_wrapper(MjSpec& s) {
   return mjs_isWarning(s.get());
 }
 
+std::optional<MjsFlex> mjs_makeFlex_wrapper(MjsBody& body, const String& name, const StringOrNull& type, int dim, const StringOrNull& dof, const NumberArray& count, const NumberArray& cellcount, const NumberArray& spacing, const NumberArray& scale, double radius, double mass, double inertiabox, int equality, int rigid, int flatskin, int elastic2d, const NumberArray& pos, const NumberArray& quat, const NumberArray& origin, const StringOrNull& file, const MjVFS& vfs) {
+  CHECK_VAL(name);
+  UNPACK_NULLABLE_ARRAY(int, count);
+  UNPACK_NULLABLE_ARRAY(int, cellcount);
+  UNPACK_NULLABLE_ARRAY(double, spacing);
+  UNPACK_NULLABLE_ARRAY(double, scale);
+  UNPACK_NULLABLE_ARRAY(double, pos);
+  UNPACK_NULLABLE_ARRAY(double, quat);
+  UNPACK_NULLABLE_ARRAY(double, origin);
+  mjsFlex* result = mjs_makeFlex(body.get(), name.as<const std::string>().data(), type.as<const std::string>().data(), dim, dof.as<const std::string>().data(), count_.data(), cellcount_.data(), spacing_.data(), scale_.data(), radius, mass, inertiabox, equality, rigid, flatskin, elastic2d, pos_.data(), quat_.data(), origin_.data(), file.as<const std::string>().data(), vfs.get());
+  if (result == nullptr) {
+    return std::nullopt;
+  }
+  return MjsFlex(result);
+}
+
 int mjs_makeMesh_wrapper(MjsMesh& mesh, mjtMeshBuiltin builtin, const val& params, int nparams) {
   UNPACK_VALUE(double, params);
   return mjs_makeMesh(mesh.get(), builtin, params_.data(), nparams);
@@ -13474,6 +13490,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_getWrapSideSite", &mjs_getWrapSideSite_wrapper);
   function("mjs_getWrapTarget", &mjs_getWrapTarget_wrapper);
   function("mjs_isWarning", &mjs_isWarning_wrapper);
+  function("mjs_makeFlex", &mjs_makeFlex_wrapper);
   function("mjs_makeMesh", &mjs_makeMesh_wrapper);
   function("mjs_nextChild", &mjs_nextChild_wrapper);
   function("mjs_nextElement", &mjs_nextElement_wrapper);

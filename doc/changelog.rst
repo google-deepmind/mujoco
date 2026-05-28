@@ -5,10 +5,15 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+- Added :ref:`mjs_makeFlex`, a new C API function equivalent to the :ref:`flexcomp<body-flexcomp>` element for
+  programmatically creating flex objects with auto-generated bodies, joints, and equality constraints. Exposed as
+  ``body.make_flex()`` in Python.
+
 Bug fixes
 ^^^^^^^^^
 - Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
-
 
 Version 3.9.0 (May 27, 2026)
 ----------------------------

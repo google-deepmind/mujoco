@@ -4496,6 +4496,17 @@ Add sensor.
 
 Add flex.
 
+.. _mjs_makeFlex:
+
+`mjs_makeFlex <#mjs_makeFlex>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_makeFlex
+
+Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.
+
+*Nullable:* ``type``, ``dof``, ``count``, ``cellcount``, ``spacing``, ``scale``, ``pos``, ``quat``, ``origin``, ``file``, ``vfs``
+
 .. _mjs_addPair:
 
 `mjs_addPair <#mjs_addPair>`__

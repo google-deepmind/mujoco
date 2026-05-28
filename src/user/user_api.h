@@ -118,6 +118,14 @@ MJAPI mjsSensor* mjs_addSensor(mjSpec* s);
 // Add flex.
 MJAPI mjsFlex* mjs_addFlex(mjSpec* s);
 
+// Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.
+MJAPI mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
+                            const char* dof, const int count[3], const int cellcount[3],
+                            const double spacing[3], const double scale[3], double radius,
+                            double mass, double inertiabox, int equality, int rigid, int flatskin,
+                            int elastic2d, const double pos[3], const double quat[4],
+                            const double origin[3], const char* file, const mjVFS* vfs);
+
 // Add contact pair.
 MJAPI mjsPair* mjs_addPair(mjSpec* s, const mjsDefault* def);
 

@@ -10366,6 +10366,144 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Add flex.',
      )),
+    ('mjs_makeFlex',
+     FunctionDecl(
+         name='mjs_makeFlex',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsFlex'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='body',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsBody'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='type',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='dim',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='dof',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='count',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='cellcount',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='spacing',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='scale',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='radius',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='mass',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='inertiabox',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='equality',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='rigid',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='flatskin',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='elastic2d',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='pos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='quat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double', is_const=True),
+                     extents=(4,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='origin',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='file',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.',  # pylint: disable=line-too-long
+     )),
     ('mjs_addPair',
      FunctionDecl(
          name='mjs_addPair',

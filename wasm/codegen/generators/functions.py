@@ -143,7 +143,7 @@ def get_param_string(p: ast_nodes.FunctionParameterDecl) -> str:
     # Pointer to primitive value parameters or arrays
     if p.type.inner_type.name == "char":
       if p.nullable:
-        return f"const NullableString& {p.name}"
+        return f"const StringOrNull& {p.name}"
       else:
         return f"const String& {p.name}"
     elif (
