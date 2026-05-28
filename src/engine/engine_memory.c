@@ -16,7 +16,6 @@
 
 #include <inttypes.h>  // IWYU pragma: keep
 #include <limits.h>
-#include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -216,8 +215,7 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment,
   // call in mju_dispatch: atomically reserve space on the stack
   if (d->threadlock) {
     size_t alloc_size = size + alignment - 1 + 2 * mjREDZONE;
-    size_t old_pstack = atomic_fetch_add_explicit(
-        (_Atomic size_t*)&d->pstack, alloc_size, memory_order_relaxed);
+    size_t old_pstack = mj_atomic_add_size_t(&d->pstack, alloc_size);
 
     // check for stack overflow
     size_t stack_available_bytes = (size_t)d->narena - d->parena;

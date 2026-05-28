@@ -69,6 +69,16 @@
   #endif
 #endif
 
+// Atomics helper for size_t.
+#if defined(_MSC_VER) && !defined(__clang__)
+  #include <intrin.h>
+  #define mj_atomic_add_size_t(ptr, val) \
+      (size_t)_InterlockedExchangeAdd64((__int64 volatile*)(ptr), (__int64)(val))
+#else
+  #define mj_atomic_add_size_t(ptr, val) \
+      __atomic_fetch_add(ptr, val, __ATOMIC_RELAXED)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
