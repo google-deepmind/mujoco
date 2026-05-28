@@ -1636,6 +1636,17 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.gainprm[7], 1.3)
     self.assertEqual(actuator.gainprm[8], 1.2)
 
+    # Verify biasprm matches gainprm (copied by set_to_muscle)
+    self.assertEqual(actuator.biasprm[0], 0.75)
+    self.assertEqual(actuator.biasprm[1], 1.05)
+    self.assertEqual(actuator.biasprm[2], -1.)
+    self.assertEqual(actuator.biasprm[3], 200.)
+    self.assertEqual(actuator.biasprm[4], 0.5)
+    self.assertEqual(actuator.biasprm[5], 1.6)
+    self.assertEqual(actuator.biasprm[6], 1.5)
+    self.assertEqual(actuator.biasprm[7], 1.3)
+    self.assertEqual(actuator.biasprm[8], 1.2)
+
     # Verify actuator type settings
     self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_MUSCLE)
     self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_MUSCLE)
