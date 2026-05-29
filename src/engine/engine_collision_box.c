@@ -1402,13 +1402,15 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
   }
 
   // consolidate good
-  int i = 0;
+  int ncon = 0;
   for (int j=0; j < num; j++) {
     if (dupe[j] == 0) {
-      con[i] = tmp[j];
-      i++;
+      con[ncon++] = tmp[j];
+      if (ncon >= 8) {
+        break;
+      }
     }
   }
 
-  return i;
+  return ncon;
 }
