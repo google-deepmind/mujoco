@@ -319,6 +319,110 @@ class MinimizeTest(absltest.TestCase):
     self.assertIn('User-provided norm gradient matches', out.getvalue())
     self.assertIn('User-provided norm Hessian matches', out.getvalue())
 
+  def test_x_scale_default_is_no_op(self) -> None:
+    """x_scale=1.0 produces an identical trace to the default unscaled run."""
+    def residual(x):
+      return np.stack([1 - x[0, :], 10 * (x[1, :] - x[0, :] ** 2)])
+
+    x0 = np.array((0.0, 0.0))
+    x_default, trace_default = minimize.least_squares(
+        x0, residual, verbose=minimize.Verbosity.SILENT)
+    x_one, trace_one = minimize.least_squares(
+        x0, residual, x_scale=1.0, verbose=minimize.Verbosity.SILENT)
+    np.testing.assert_array_equal(x_default, x_one)
+    self.assertEqual(len(trace_default), len(trace_one))
+
+  def test_x_scale_reaches_same_minimum(self) -> None:
+    """Both 'jac' and an explicit array reach the unscaled run's minimum."""
+    def residual(x):
+      return np.stack([1 - x[0, :], 10 * (x[1, :] - x[0, :] ** 2)])
+
+    x0 = np.array((0.0, 0.0))
+    x_unscaled, _ = minimize.least_squares(
+        x0, residual, verbose=minimize.Verbosity.SILENT)
+    x_jac, _ = minimize.least_squares(
+        x0, residual, x_scale='jac', verbose=minimize.Verbosity.SILENT)
+    x_array, _ = minimize.least_squares(
+        x0, residual, x_scale=np.array([10.0, 0.1]),
+        verbose=minimize.Verbosity.SILENT)
+    np.testing.assert_allclose(x_jac, x_unscaled, atol=1e-6)
+    np.testing.assert_allclose(x_array, x_unscaled, atol=1e-6)
+
+  def test_x_scale_validation(self) -> None:
+    """Invalid x_scale arguments raise ValueError."""
+    def residual(x):
+      return x
+
+    x0 = np.array((1.0, 1.0))
+    bad_values = [
+        'bogus',                          # unknown string
+        np.array([1.0, -1.0]),            # non-positive entry
+        np.array([np.inf, 1.0]),          # non-finite entry
+        np.array([1.0]),                  # wrong shape
+    ]
+    for bad in bad_values:
+      with self.assertRaises(ValueError):
+        minimize.least_squares(
+            x0, residual, x_scale=bad,
+            verbose=minimize.Verbosity.SILENT)
+
+  def test_x_scale_with_bounds(self) -> None:
+    """x_scale combined with bounds reaches the constrained optimum."""
+    def residual(x):
+      return np.stack([1 - x[0, :], 10 * (x[1, :] - x[0, :] ** 2)])
+
+    x0 = np.array((2.0, 0.0))
+    bounds = [np.array((1.5, -10.0)), np.array((10.0, 10.0))]
+    expected = np.array([1.5, 2.25])
+
+    # Without scaling.
+    x_noscale, _ = minimize.least_squares(
+        x0, residual, bounds=bounds, verbose=minimize.Verbosity.SILENT)
+    np.testing.assert_allclose(x_noscale, expected, atol=1e-4)
+
+    # With fixed x_scale array.
+    x_scaled, _ = minimize.least_squares(
+        x0, residual, bounds=bounds, x_scale=np.array([1.0, 1e-5]),
+        verbose=minimize.Verbosity.SILENT)
+    np.testing.assert_allclose(x_scaled, expected, atol=1e-4)
+
+    # With adaptive x_scale='jac'.
+    x_jac, _ = minimize.least_squares(
+        x0, residual, bounds=bounds, x_scale='jac',
+        verbose=minimize.Verbosity.SILENT)
+    np.testing.assert_allclose(x_jac, expected, atol=1e-4)
+
+  def test_x_scale_jac_convergence(self) -> None:
+    """'jac' scaling converges faster on Powell's badly scaled function."""
+    # Powell's badly scaled function (Moré, Garbow, Hillstrom #3):
+    #   r1 = 1e4 * x1 * x2 - 1
+    #   r2 = exp(-x1) + exp(-x2) - 1.0001
+    # The 1e4 multiplier creates Jacobian columns with wildly different
+    # norms, making the unscaled LM regularizer ineffective.
+    def residual(x):
+      return np.stack([
+          1e4 * x[0, :] * x[1, :] - 1,
+          np.exp(-x[0, :]) + np.exp(-x[1, :]) - 1.0001,
+      ])
+
+    x0 = np.array([0.0, 1.0])
+    # Analytical solution: x1*x2 = 1e-4, exp(-x1)+exp(-x2) = 1.0001.
+    x_star = np.array([1.098159e-5, 9.106146])
+
+    x_default, trace_default = minimize.least_squares(
+        x0, residual, verbose=minimize.Verbosity.SILENT, max_iter=400)
+    x_jac, trace_jac = minimize.least_squares(
+        x0, residual, x_scale='jac', verbose=minimize.Verbosity.SILENT)
+
+    # Both reach the correct minimum.
+    np.testing.assert_allclose(x_default, x_star, rtol=1e-4)
+    np.testing.assert_allclose(x_jac, x_star, rtol=1e-4)
+
+    # Without scaling the solver needs 331 iterations to converge.
+    # With 'jac' scaling it converges in 55: a 6x improvement.
+    self.assertGreater(len(trace_default) - 1, 300)
+    self.assertLess(len(trace_jac) - 1, 70)
+
 
 if __name__ == '__main__':
   absltest.main()
