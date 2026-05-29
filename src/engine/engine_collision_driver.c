@@ -398,7 +398,7 @@ mjSORT(contactSort, mjContact, contactcompare);
 
 
 // filter flex contacts based on distance
-static void filterFlexContacts(mjData* d, int ncon_before) {
+MJAPI void mj_filterFlexContacts(mjData* d, int ncon_before) {
   int n = d->ncon - ncon_before;
   if (n <= mjMAXCONPAIR) {
     return;
@@ -407,6 +407,7 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
   mjContact* contacts = d->contact + ncon_before;
 
   mj_markStack(d);
+  mjContact* selected_contacts = mjSTACKALLOC(d, mjMAXCONPAIR, mjContact);
   mjtByte* selected = mjSTACKALLOC(d, n, mjtByte);
   mjtNum* min_dist = mjSTACKALLOC(d, n, mjtNum);
   memset(selected, 0, n);
@@ -428,7 +429,8 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
 
   while (nselected < mjMAXCONPAIR && best >= 0) {
     selected[best] = 1;
-    mjtNum* bestpos = contacts[best].pos;
+    selected_contacts[nselected] = contacts[best];
+    const mjtNum* bestpos = contacts[best].pos;
 
     int nextbest = -1;
     mjtNum nextbestdist = -1;
@@ -448,18 +450,12 @@ static void filterFlexContacts(mjData* d, int ncon_before) {
       }
     }
 
-    if (nselected < mjMAXCONPAIR - 1) {
-      mjContact temp = contacts[nselected];
-      contacts[nselected] = contacts[best];
-      contacts[best] = temp;
-
-      if (nextbest == nselected) {
-        nextbest = best;
-      }
-    }
-
     nselected++;
     best = nextbest;
+  }
+
+  for (int i = 0; i < nselected; i++) {
+    contacts[i] = selected_contacts[i];
   }
 
   mj_freeStack(d);
@@ -654,7 +650,7 @@ void mj_collision(const mjModel* m, mjData* d) {
 
       // filter flex contacts (limit per geom-flex or flex-flex pair)
       if (bf1 >= nbody || bf2 >= nbody) {
-        filterFlexContacts(d, ncon_before);
+        mj_filterFlexContacts(d, ncon_before);
         ncon_after = d->ncon;
       }
 
@@ -709,7 +705,7 @@ void mj_collision(const mjModel* m, mjData* d) {
           if (m->geom_type[g] == mjGEOM_PLANE) {
             int ncon_before = d->ncon;
             mj_collidePlaneFlex(m, d, g, f);
-            filterFlexContacts(d, ncon_before);
+            mj_filterFlexContacts(d, ncon_before);
             continue;
           }
 
@@ -717,7 +713,7 @@ void mj_collision(const mjModel* m, mjData* d) {
           if (m->geom_type[g] == mjGEOM_SDF) {
             int ncon_before = d->ncon;
             mj_collideSdfFlex(m, d, g, f);
-            filterFlexContacts(d, ncon_before);
+            mj_filterFlexContacts(d, ncon_before);
             continue;
           }
 
@@ -727,7 +723,7 @@ void mj_collision(const mjModel* m, mjData* d) {
           for (int e=0; e < elemnum; e++) {
             mj_collideGeomElem(m, d, g, f, e);
           }
-          filterFlexContacts(d, ncon_before);
+          mj_filterFlexContacts(d, ncon_before);
         }
         // realign the arena after adding contacts
         parena = alignArena(d, _Alignof(int));
@@ -751,7 +747,7 @@ void mj_collision(const mjModel* m, mjData* d) {
             mj_collideElems(m, d, f1, e1, f2, e2);
           }
         }
-        filterFlexContacts(d, ncon_before);
+        mj_filterFlexContacts(d, ncon_before);
 
         // realign the arena after adding contacts
         parena = alignArena(d, _Alignof(int));
@@ -785,7 +781,7 @@ void mj_collision(const mjModel* m, mjData* d) {
       if (m->flex_internal[f]) {
         int ncon_before = d->ncon;
         mj_collideFlexInternal(m, d, f);
-        filterFlexContacts(d, ncon_before);
+        mj_filterFlexContacts(d, ncon_before);
       }
 
       // active element collisions
@@ -819,7 +815,7 @@ void mj_collision(const mjModel* m, mjData* d) {
           }
         }
 
-        filterFlexContacts(d, ncon_before);
+        mj_filterFlexContacts(d, ncon_before);
       }
     }
   }

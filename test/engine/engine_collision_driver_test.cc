@@ -23,10 +23,12 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "test/fixture.h"
 #include "src/engine/engine_collision_driver.h"
+#include "src/engine/engine_memory.h"
+#include "test/fixture.h"
 
 
 namespace mujoco {
@@ -50,6 +52,55 @@ static std::vector<GeomPair> colliding_pairs(
   }
   std::sort(result.begin(), result.end());
   return result;
+}
+
+static std::vector<mjContact> ReferenceFlexContacts(const mjContact* contacts,
+                                                    int ncontact,
+                                                    int max_select) {
+  std::vector<mjContact> selected_contacts;
+  selected_contacts.reserve(max_select);
+
+  std::vector<mjtByte> selected(ncontact, 0);
+  std::vector<mjtNum> min_dist(ncontact, mjMAXVAL);
+
+  int best = 0;
+  mjtNum bestdist = -contacts[0].dist;
+  for (int i = 1; i < ncontact; i++) {
+    if (-contacts[i].dist > bestdist) {
+      bestdist = -contacts[i].dist;
+      best = i;
+    }
+  }
+
+  while (selected_contacts.size() < max_select && best >= 0) {
+    selected[best] = 1;
+    selected_contacts.push_back(contacts[best]);
+    const mjtNum* bestpos = contacts[best].pos;
+
+    int nextbest = -1;
+    mjtNum nextbestdist = -1;
+    for (int i = 0; i < ncontact; i++) {
+      if (selected[i]) {
+        continue;
+      }
+
+      mjtNum dx = contacts[i].pos[0] - bestpos[0];
+      mjtNum dy = contacts[i].pos[1] - bestpos[1];
+      mjtNum dz = contacts[i].pos[2] - bestpos[2];
+      mjtNum d2 = dx*dx + dy*dy + dz*dz;
+      if (d2 < min_dist[i]) {
+        min_dist[i] = d2;
+      }
+      if (min_dist[i] > nextbestdist) {
+        nextbestdist = min_dist[i];
+        nextbest = i;
+      }
+    }
+
+    best = nextbest;
+  }
+
+  return selected_contacts;
 }
 
 TEST_F(MjCollisionTest, AllCollisions) {
@@ -132,6 +183,48 @@ TEST_F(MjCollisionTest, ContactCount) {
 
   // there are 8 spheres, all touching the floor
   EXPECT_EQ(d->ncon, 8);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(MjCollisionTest, FilterFlexContactsMatchesReferenceSelection) {
+  constexpr int kNumContacts = mjMAXCONPAIR + 1;
+  constexpr char xml[] = R"(
+  <mujoco>
+    <size memory="64K"/>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  mjContact* contacts = static_cast<mjContact*>(
+      mj_arenaAllocByte(d, sizeof(mjContact) * kNumContacts, alignof(mjContact)));
+  ASSERT_THAT(contacts, NotNull());
+  ASSERT_EQ(contacts, d->contact);
+
+  d->ncon = kNumContacts;
+  for (int i = 0; i < kNumContacts; i++) {
+    mjContact contact = {};
+    contact.pos[0] = i;
+    contact.dist = -(((2 * i) % kNumContacts) + 1);
+    d->contact[i] = contact;
+  }
+
+  std::vector<mjContact> expected =
+      ReferenceFlexContacts(d->contact, kNumContacts, mjMAXCONPAIR);
+
+  mj_filterFlexContacts(d, 0);
+
+  EXPECT_EQ(d->ncon, mjMAXCONPAIR);
+  for (int i = 0; i < mjMAXCONPAIR; i++) {
+    EXPECT_MJTNUM_EQ(d->contact[i].pos[0], expected[i].pos[0]);
+    EXPECT_MJTNUM_EQ(d->contact[i].dist, expected[i].dist);
+  }
 
   mj_deleteData(d);
   mj_deleteModel(m);
