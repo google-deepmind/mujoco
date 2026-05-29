@@ -237,11 +237,7 @@ void Renderable::Prepare(std::span<const mjrRenderRequest*> requests) {
   // We assume BindMaterialInstance will be called with the same requests in
   // the same order. As such, we'll just store the draw state in a deque rather
   // than trying to perform any kind of matching with the requests.
-  if (!draw_queue_.empty()) {
-    mju_error(
-        "Expected all previous draw calls to be bound before preparing new "
-        "draw calls.");
-  }
+  draw_queue_.clear();
   curr_state_ = DrawState();
 
   int num_reflections = 0;
