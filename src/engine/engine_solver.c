@@ -1072,7 +1072,7 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
   // local sizes and flags
   int nv = ctx->nv;
   int nefc = ctx->nefc;
-  int nJ = ctx->is_sparse ? d->nJ : 0;
+  int nJ = ctx->is_sparse ? ctx->nJ : 0;
   int is_sparse = ctx->is_sparse;
   int is_elliptic = ctx->is_elliptic;
 
