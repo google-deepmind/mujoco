@@ -328,7 +328,7 @@ class Simulate {
   const mjuiDef def_simulation[15] = {
     {mjITEM_SECTION,   "Simulation",    mjPRESERVE, nullptr,     "AS"},
     {mjITEM_RADIO,     "",              5, &this->run,           "Pause\nRun"},
-    {mjITEM_EDITINT,   "Num threads",   5, &this->nthread,       "1"},
+    {mjITEM_SLIDERINT, "Num threads",   5, &this->nthread,       "0 10"},
     {mjITEM_BUTTON,    "Reset",         2, nullptr,              " #259"},
     {mjITEM_BUTTON,    "Reload",        5, nullptr,              "CL"},
     {mjITEM_BUTTON,    "Align",         2, nullptr,              "CA"},
