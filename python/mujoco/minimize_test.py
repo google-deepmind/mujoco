@@ -156,6 +156,29 @@ class MinimizeTest(absltest.TestCase):
       with self.assertRaises(ValueError):
         minimize.least_squares(x0, residual, bounds=bounds, output=out)
 
+  def test_jacobian_fd_respects_off_center_bounds(self) -> None:
+    # jacobian_fd must step *away* from the nearer bound, i.e. compare x to the
+    # box midpoint (lo + hi) / 2. With x at the lower bound of an off-center box
+    # the finite-difference perturbation must step inward (+eps), keeping every
+    # residual evaluation inside the bounds.
+    lo, hi = 10.0, 20.0
+    bounds = [np.array([[lo]]), np.array([[hi]])]
+    x = np.array([[lo]])
+    eps = np.float64(np.finfo(np.float64).eps ** 0.5)
+
+    evaluated = []
+
+    def residual(xx):
+      evaluated.append(np.asarray(xx, dtype=np.float64).copy())
+      return np.atleast_2d(np.sum(xx, axis=0))
+
+    r = residual(x)
+    minimize.jacobian_fd(residual, x, r, eps, 0, bounds)
+
+    all_points = np.concatenate([e.ravel() for e in evaluated])
+    self.assertGreaterEqual(all_points.min(), lo)
+    self.assertLessEqual(all_points.max(), hi)
+
   def test_iter_callback(self) -> None:
     def residual(x):
       return np.stack([1 - x[0, :], 10 * (x[1, :] - x[0, :] ** 2)])
