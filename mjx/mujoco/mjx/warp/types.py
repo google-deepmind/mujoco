@@ -88,12 +88,16 @@ class BlockDim:
     energy_vel_kinetic: energy velocity kinetic block dimension (sensor)
     cholesky_factorize: Cholesky factorize block dimension (smooth)
     cholesky_solve: Cholesky solve block dimension (smooth)
-    cholesky_factorize_solve: Cholesky factorize and solve block dimension (smooth)
+    cholesky_factorize_solve: Cholesky factorize and solve block dimension
+      (smooth)
     solve_LD_sparse_fused: solve LD sparse fused block dimension (smooth)
     update_gradient_cholesky: update gradient Cholesky block dimension (solver)
-    update_gradient_cholesky_blocked: update gradient Cholesky blocked block dimension (solver)
-    update_gradient_JTDAJ_sparse: update gradient JTDAJ sparse block dimension (solver)
-    update_gradient_JTDAJ_dense: update gradient JTDAJ dense block dimension (solver)
+    update_gradient_cholesky_blocked: update gradient Cholesky blocked block
+      dimension (solver)
+    update_gradient_JTDAJ_sparse: update gradient JTDAJ sparse block dimension
+      (solver)
+    update_gradient_JTDAJ_dense: update gradient JTDAJ dense block dimension
+      (solver)
     linesearch_iterative: linesearch iterative block dimension (solver)
     contact_jac_tiled: contact Jacobian tiled block dimension (solver)
     qderiv_actuator_dense: qderiv actuator dense block dimension (derivative)
@@ -153,7 +157,6 @@ class OptionWarp(PyTreeNode):
 
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
-
   D_colind: np.ndarray
   D_diag: np.ndarray
   D_rowadr: np.ndarray
@@ -336,7 +339,6 @@ class ModelWarp(PyTreeNode):
 
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
-
   M: jax.Array
   actuator_moment: jax.Array
   actuator_velocity: jax.Array
