@@ -180,6 +180,7 @@ def cast_ray(
   flex_group_root: wp.array2d[int],
   ray_origin_world: wp.vec3,
   ray_dir_world: wp.vec3,
+  cull_backfaces: bool,
 ) -> Tuple[int, float, wp.vec3, float, float, int, int]:
   dist = float(MJ_MAXVAL)
   normal = wp.vec3(0.0, 0.0, 0.0)
@@ -232,6 +233,7 @@ def cast_ray(
         ray_origin_world,
         ray_dir_world,
         dist,
+        cull_backfaces,
       )
     if gtype == GeomType.SPHERE:
       d, n = ray_sphere(
@@ -281,6 +283,7 @@ def cast_ray(
         ray_origin_world,
         ray_dir_world,
         dist,
+        cull_backfaces,
       )
     if gtype == GeomType.FLEX:
       hit_geom_id = -2
@@ -307,6 +310,11 @@ def cast_ray(
         d, n, u, v, f = ray_flex_with_bvh(flex_bvh_id, flexid, flex_gr, ray_origin_world, ray_dir_world, dist)
         if d >= 0.0:
           hit_mesh_id = flexid
+
+    # Backface cull: drop exit-face hits when the ray origin is inside the geom,
+    # matching ray_mesh_with_bvh's `dot(lvec, n) < 0` rule.
+    if cull_backfaces and d >= 0.0 and wp.dot(ray_dir_world, n) > 0.0:
+      d = -1.0
 
     if d >= 0.0 and d < dist:
       dist = d
@@ -349,6 +357,7 @@ def cast_ray_first_hit(
   ray_origin_world: wp.vec3,
   ray_dir_world: wp.vec3,
   max_dist: float,
+  cull_backfaces: bool,
 ) -> bool:
   """A simpler version of casting rays that only checks for the first hit."""
   query = wp.bvh_query_ray(bvh_id, ray_origin_world, ray_dir_world, group_root)
@@ -387,6 +396,7 @@ def cast_ray_first_hit(
         ray_origin_world,
         ray_dir_world,
         max_dist,
+        cull_backfaces,
       )
     if gtype == GeomType.SPHERE:
       d, n = ray_sphere(
@@ -467,6 +477,11 @@ def cast_ray_first_hit(
         )
         d = 0.0 if hit else -1.0
 
+    # Backface cull: see cast_ray for rationale. Strict `> 0` keeps tangent
+    # hits and skips branches with a zero-vector normal (mesh/flex anyhit).
+    if cull_backfaces and d >= 0.0 and wp.dot(ray_dir_world, n) > 0.0:
+      d = -1.0
+
     if d >= 0.0 and d < max_dist:
       return True
 
@@ -507,6 +522,7 @@ def compute_lighting(
   lightdir: wp.vec3,
   normal: wp.vec3,
   hitpoint: wp.vec3,
+  cull_backfaces: bool,
 ) -> float:
   light_contribution = float(0.0)
 
@@ -571,6 +587,7 @@ def compute_lighting(
       shadow_origin,
       L,
       max_t,
+      cull_backfaces,
     )
 
     if shadow_hit:
@@ -725,6 +742,7 @@ def render(m: Model, d: Data, rc: RenderContext):
       flex_group_root,
       ray_origin_world,
       ray_dir_world,
+      wp.static(rc.enable_backface_culling),
     )
 
     if render_seg[cam_idx] and geom_id != -1:
@@ -798,12 +816,14 @@ def render(m: Model, d: Data, rc: RenderContext):
             )
             base_color = wp.cw_mul(base_color, tex_color)
 
-    len_n = wp.length(normal)
-    n = normal if len_n > 0.0 else wp.vec3(0.0, 0.0, 1.0)
-    n = wp.normalize(n)
-    hemispheric = 0.5 * (n[2] + 1.0)
-    ambient_color = wp.vec3(0.4, 0.4, 0.45) * hemispheric + wp.vec3(0.1, 0.1, 0.12) * (1.0 - hemispheric)
-    result = 0.5 * wp.cw_mul(base_color, ambient_color)
+    result = wp.vec3(0.0, 0.0, 0.0)
+    if wp.static(rc.use_ambient_lighting):
+      len_n = wp.length(normal)
+      n = normal if len_n > 0.0 else wp.vec3(0.0, 0.0, 1.0)
+      n = wp.normalize(n)
+      hemispheric = 0.5 * (n[2] + 1.0)
+      ambient_color = wp.vec3(0.4, 0.4, 0.45) * hemispheric + wp.vec3(0.1, 0.1, 0.12) * (1.0 - hemispheric)
+      result = 0.5 * wp.cw_mul(base_color, ambient_color)
 
     # Apply lighting and shadows
     for l in range(wp.static(m.nlight)):
@@ -837,6 +857,7 @@ def render(m: Model, d: Data, rc: RenderContext):
         light_xdir_in[worldid, l],
         normal,
         hit_point,
+        wp.static(rc.enable_backface_culling),
       )
       result = result + base_color * light_contribution
 

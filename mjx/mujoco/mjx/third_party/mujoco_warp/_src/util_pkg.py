@@ -23,7 +23,7 @@ def _parse_version(version_str: str) -> tuple[tuple[int, int | str], ...]:
   """Parse a version string into comparable components.
 
   Dot-separated components form the version. Hyphen-separated suffixes (e.g.,
-  "-foo3") are treated as local build identifiers and stripped before
+  "-newton") are treated as local build identifiers and stripped before
   parsing. Each component is wrapped in a tuple: (0, int) for numeric parts,
   (-1, str) for non-numeric. A (0, 0) sentinel is appended so that stable
   releases sort above pre-release suffixes during Python tuple comparison
@@ -32,13 +32,13 @@ def _parse_version(version_str: str) -> tuple[tuple[int, int | str], ...]:
 
   Args:
     version_str: Version string like "3.5.0", "3.5.0.dev869102767", or
-      "3.9.0-foo3".
+      "3.9.0-newton".
 
   Returns:
     Tuple of (type_order, value) pairs for comparison, where type_order is 0
     for integers and -1 for strings, followed by a (0, 0) sentinel.
   """
-  # Strip local build identifier (e.g., "3.9.0-foo3" -> "3.9.0")
+  # Strip local build identifier (e.g., "3.9.0-newton" -> "3.9.0")
   version_str = version_str.split("-", 1)[0]
   parts = version_str.split(".")
   return tuple([(0, int(p)) if p.isdigit() else (-1, p) for p in parts] + [(0, 0)])

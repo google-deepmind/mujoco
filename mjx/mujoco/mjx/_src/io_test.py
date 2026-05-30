@@ -530,7 +530,7 @@ class DataIOTest(parameterized.TestCase):
     elif impl == 'warp':
       qm = np.zeros((m.nv, m.nv), dtype=np.float64)
       mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
-      np.testing.assert_allclose(dx._impl.qM, qm)
+      np.testing.assert_allclose(dx._impl.M[:m.nv, :m.nv], qm)
       # TODO(taylorhowell): test efc__J
       np.testing.assert_allclose(dx._impl.efc__aref[:3], d.efc_aref[:3])
 

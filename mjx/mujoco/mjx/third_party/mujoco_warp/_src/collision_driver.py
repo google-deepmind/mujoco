@@ -375,6 +375,7 @@ def _binary_search(values: wp.array[Any], value: Any, lower: int, upper: int) ->
   return upper
 
 
+@cache_kernel
 def _sap_project(opt_broadphase: int):
   @wp.kernel(module="unique", enable_backward=False)
   def sap_project(
@@ -531,6 +532,7 @@ def _sap_broadphase(opt_broadphase_filter: int, ngeom_aabb: int, ngeom_rbound: i
   return kernel
 
 
+@cache_kernel
 def _segmented_sort(tile_size: int):
   @wp.kernel(module="unique")
   def segmented_sort(
@@ -629,7 +631,9 @@ def sap_broadphase(m: Model, d: Data, ctx: CollisionContext):
   # assumes each geom has 5 other geoms (batched over all worlds)
   nsweep = 5 * nworldgeom
   wp.launch(
-    kernel=_sap_broadphase(m.opt.broadphase_filter, m.geom_aabb.shape[0], m.geom_rbound.shape[0], m.geom_margin.shape[0], m.geom_gap.shape[0]),
+    kernel=_sap_broadphase(
+      m.opt.broadphase_filter, m.geom_aabb.shape[0], m.geom_rbound.shape[0], m.geom_margin.shape[0], m.geom_gap.shape[0]
+    ),
     dim=nsweep,
     inputs=[
       m.ngeom,
@@ -718,7 +722,9 @@ def nxn_broadphase(m: Model, d: Data, ctx: CollisionContext):
   `contype`/`conaffinity`, parent-child relationships, and explicit `<exclude>` tags.
   """
   wp.launch(
-    _nxn_broadphase(m.opt.broadphase_filter, m.geom_aabb.shape[0], m.geom_rbound.shape[0], m.geom_margin.shape[0], m.geom_gap.shape[0]),
+    _nxn_broadphase(
+      m.opt.broadphase_filter, m.geom_aabb.shape[0], m.geom_rbound.shape[0], m.geom_margin.shape[0], m.geom_gap.shape[0]
+    ),
     dim=(d.nworld, m.nxn_geom_pair_filtered.shape[0]),
     inputs=[
       m.geom_type,

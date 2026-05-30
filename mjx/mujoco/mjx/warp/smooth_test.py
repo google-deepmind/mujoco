@@ -112,7 +112,7 @@ class SmoothTest(parameterized.TestCase):
 
     d = mujoco.MjData(m)
     mx = mjx.put_model(m, impl='warp')
-    mx = mx.replace(_impl=mx._impl.replace(qM_tiles=()))
+    mx = mx.replace(_impl=mx._impl.replace(M_tiles=()))
 
     rng = jax.random.PRNGKey(0)
     dx = mjx.make_data(m, impl='warp')
@@ -188,7 +188,7 @@ class SmoothTest(parameterized.TestCase):
     batch_size = 7
     d = mujoco.MjData(m)
     mx = mjx.put_model(m, impl='warp')
-    mx = mx.replace(_impl=mx._impl.replace(qM_tiles=()))
+    mx = mx.replace(_impl=mx._impl.replace(M_tiles=()))
 
     worldids = jp.arange(batch_size)
     dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
