@@ -17,7 +17,9 @@
 import ast
 import dataclasses
 import enum
+import inspect
 import logging
+import textwrap
 import typing
 from typing import Any, Callable, Dict, List, Optional, Set
 
@@ -281,6 +283,12 @@ else:
     Callback = None
 
 PyTreeNode = mjx_dataclasses.PyTreeNode
+
+
+def _as_numpy_array(value):
+  if hasattr(value, 'numpy'):
+    value = value.numpy()
+  return np.asarray(value)
 '''
   target_fpath.write_text(header)
 
@@ -298,6 +306,47 @@ _FLATTEN_UNFLATTEN = """
 """
 
 
+class _NumpyMethodAdapter(ast.NodeTransformer):
+  """Adapts copied Warp array methods to MJX numpy-backed fields."""
+
+  def visit_Call(self, node: ast.Call) -> ast.AST:  # pylint: disable=invalid-name
+    self.generic_visit(node)
+    if (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr == 'numpy'
+        and not node.args
+        and not node.keywords
+    ):
+      return ast.copy_location(
+          ast.Call(
+              func=ast.Name(id='_as_numpy_array', ctx=ast.Load()),
+              args=[node.func.value],
+              keywords=[],
+          ),
+          node,
+      )
+    return node
+
+
+def _get_explicit_method_nodes(cls: Any) -> List[ast.FunctionDef]:
+  """Returns explicit methods from a source class, adapted for MJX fields."""
+  source = textwrap.dedent(inspect.getsource(cls))
+  tree = ast.parse(source)
+  class_def = next(node for node in tree.body if isinstance(node, ast.ClassDef))
+
+  methods: List[ast.FunctionDef] = []
+  for node in class_def.body:
+    if not isinstance(node, ast.FunctionDef):
+      continue
+    if node.name in {'tree_flatten', 'tree_unflatten'}:
+      continue
+    methods.append(
+        typing.cast(ast.FunctionDef, _NumpyMethodAdapter().visit(node))
+    )
+
+  return methods
+
+
 def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
   new_class_body = _build_new_class_body_ast(
       set(cls.__annotations__.keys()),
@@ -305,7 +354,10 @@ def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
       dict(cls.__annotations__),
       add_docstring=False,
   )
-  cls_str = '\n'.join(['  ' + ast.unparse(node) for node in new_class_body])
+  new_class_body.extend(_get_explicit_method_nodes(cls))
+  cls_str = '\n'.join(
+      textwrap.indent(ast.unparse(node), '  ') for node in new_class_body
+  )
   cls_str = cls_str.replace('jax.Array', 'np.ndarray')
   with target_fpath.open('a') as f:
     f.write(f'''

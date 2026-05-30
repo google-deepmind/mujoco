@@ -47,6 +47,12 @@ else:
 PyTreeNode = mjx_dataclasses.PyTreeNode
 
 
+def _as_numpy_array(value):
+  if hasattr(value, 'numpy'):
+    value = value.numpy()
+  return np.asarray(value)
+
+
 @dataclasses.dataclass(frozen=True)
 @tree_util.register_pytree_node_class
 class TileSet:
@@ -61,6 +67,18 @@ class TileSet:
 
   adr: np.ndarray
   size: int
+
+  def __eq__(self, other) -> bool:
+    if self.__class__ is not other.__class__:
+      return NotImplemented
+    return self.size == other.size and np.array_equal(
+        np.asarray(_as_numpy_array(self.adr)),
+        np.asarray(_as_numpy_array(other.adr)),
+    )
+
+  def __hash__(self) -> int:
+    adr = np.asarray(_as_numpy_array(self.adr))
+    return hash((self.size, adr.dtype.str, adr.shape, adr.tobytes()))
 
   def tree_flatten(self):
     children = list((getattr(self, k) for k in self.__dataclass_fields__))
