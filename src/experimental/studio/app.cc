@@ -28,6 +28,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -227,6 +228,7 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
       plugin->post_model_loaded(plugin, model_path_.c_str());
     }
   });
+  tmp_.update_threadpool = true;
 }
 
 void App::UpdateFilePaths(const std::string& resolved_path) {
@@ -266,6 +268,11 @@ void App::ResetPhysics() {
 void App::UpdatePhysics() {
   if (!has_model()) {
     return;
+  }
+
+  if (tmp_.update_threadpool) {
+    mju_threadpool(data(), ui_.nthread);
+    tmp_.update_threadpool = false;
   }
 
   bool stepped = false;
@@ -1457,6 +1464,15 @@ void App::ToolBarGui() {
     ImGui::SameLine(0, separator_width);
     platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
 
+    ImGui::SameLine(0, separator_width);
+    ImGui::SetNextItemWidth(120);
+    ImGui::BeginDisabled(std::thread::hardware_concurrency() <= 1);
+    if (ImGui::SliderInt("##NumThreads", &ui_.nthread, 0, 8, "%d threads")) {
+      tmp_.update_threadpool = true;
+    }
+    ImGui::EndDisabled();
+    ImGui::SetItemTooltip("%s", "Number of threads in threadpool");
+
     ImGui::TableNextColumn();
 
     platform::CameraSelectionGui(model(), data(), camera_, ui_.camera_idx);
@@ -1823,6 +1839,7 @@ App::UiState::Dict App::UiState::ToDict() const {
       {"font_scale", std::to_string(font_scale)},
       {"window_width", std::to_string(window_width)},
       {"window_height", std::to_string(window_height)},
+      {"nthread", std::to_string(nthread)},
   };
 }
 
@@ -1834,5 +1851,6 @@ void App::UiState::FromDict(const Dict& dict) {
   window_width = ReadIniValue(dict, "window_width", window_width);
   window_height = ReadIniValue(dict, "window_height", window_height);
   font_scale = ReadIniValue(dict, "font_scale", font_scale);
+  nthread = ReadIniValue(dict, "nthread", nthread);
 }
 }  // namespace mujoco::studio

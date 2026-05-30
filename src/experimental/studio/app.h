@@ -114,6 +114,7 @@ class App {
     float font_scale = 1.0f;
     int window_width = 0;
     int window_height = 0;
+    int nthread = 0;
 
     using Dict = std::unordered_map<std::string, std::string>;
     Dict ToDict() const;
@@ -124,6 +125,7 @@ class App {
   struct UiTempState {
     bool should_exit = false;
     bool first_frame = true;
+    bool update_threadpool = false;
 
     // Windows.
     bool help = false;
