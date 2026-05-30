@@ -1080,7 +1080,7 @@ static void setStat(mjModel* m, mjData* d) {
 
       // infinite in both directions
       else {
-        rbound = 1;
+        rbound = 0.01;
       }
     } else if (m->geom_type[i] == mjGEOM_HFIELD) {
       int j = m->geom_dataid[i];
