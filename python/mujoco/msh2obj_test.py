@@ -14,6 +14,8 @@
 # ==============================================================================
 """Tests for msh2obj.py."""
 
+import struct
+import tempfile
 
 from absl.testing import absltest
 from etils import epath
@@ -74,6 +76,19 @@ class MshTest(absltest.TestCase):
           atol=1e-6,
           err_msg=f"Field {field} does not match between msh and obj models.",
       )
+
+  def test_texcoord_size_mismatch_error_reports_expected_count(self) -> None:
+    # A .msh that declares ntexcoord=5 but supplies only 2 texcoord floats.
+    # The error message must report the expected count (2*5), not a literal
+    # "{ntexcoord}" placeholder.
+    header = struct.pack("<4i", 1, 0, 5, 0)  # nvertex, nnormal, ntexcoord, nface
+    body = struct.pack("<3f", 0.0, 0.0, 0.0)  # 1 vertex
+    body += struct.pack("<2f", 0.5, 0.5)  # only 2 texcoord floats (expected 10)
+    with tempfile.NamedTemporaryFile(suffix=".msh") as f:
+      f.write(header + body)
+      f.flush()
+      with self.assertRaisesRegex(ValueError, r"texcoords: 2 != 2\*5\."):
+        msh2obj.Msh.create(epath.Path(f.name))
 
 
 if __name__ == "__main__":
