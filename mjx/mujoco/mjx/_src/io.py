@@ -179,8 +179,8 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
     wp_field.shape = wp_field.shape[1:]
   # warp scalars
   wp_dtype = type(wp_field)
-  if wp_dtype in wp.types.warp_type_to_np_dtype:
-    return wp.types.warp_type_to_np_dtype[wp_dtype](wp_field)
+  if wp_dtype in wp._src.types.warp_type_to_np_dtype:
+    return wp.dtype_to_numpy(wp_dtype)(wp_field)
 
   # warp arrays
   if isinstance(wp_field, wp.array):
