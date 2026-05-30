@@ -732,6 +732,28 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     ):
       rollout.rollout(model, data, initial_state, control)
 
+  def test_numpy_integer_nstep_and_chunk_size(self):
+    # nstep and chunk_size are commonly derived from numpy operations (e.g.
+    # array.shape[i]), which yield numpy integers. These are not instances of
+    # the Python `int` type, so they must be accepted explicitly.
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    data = mujoco.MjData(model)
+    initial_state = np.zeros((1, nstate))
+
+    nstep = 3
+    state, _ = rollout.rollout(
+        model, data, initial_state, nstep=np.int64(nstep)
+    )
+    self.assertEqual(state.shape[1], nstep)
+
+    # chunk_size is also accepted as a numpy integer.
+    state, _ = rollout.rollout(
+        model, data, initial_state, nstep=np.int64(nstep),
+        chunk_size=np.int64(1)
+    )
+    self.assertEqual(state.shape[1], nstep)
+
   def test_bad_sizes(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
