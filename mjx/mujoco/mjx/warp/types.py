@@ -78,6 +78,25 @@ class BlockDim:
   """Block dimension 'block_dim' settings for wp.launch_tiled.
 
   TODO(team): experimental and may be removed
+
+  Attributes:
+    segmented_sort: segmented sort block dimension (collision_driver)
+    euler_dense: Euler dense block dimension (forward)
+    actuator_velocity: actuator velocity block dimension (forward)
+    ray: ray block dimension (ray)
+    contact_sort: contact sort block dimension (sensor)
+    energy_vel_kinetic: energy velocity kinetic block dimension (sensor)
+    cholesky_factorize: Cholesky factorize block dimension (smooth)
+    cholesky_solve: Cholesky solve block dimension (smooth)
+    cholesky_factorize_solve: Cholesky factorize and solve block dimension (smooth)
+    solve_LD_sparse_fused: solve LD sparse fused block dimension (smooth)
+    update_gradient_cholesky: update gradient Cholesky block dimension (solver)
+    update_gradient_cholesky_blocked: update gradient Cholesky blocked block dimension (solver)
+    update_gradient_JTDAJ_sparse: update gradient JTDAJ sparse block dimension (solver)
+    update_gradient_JTDAJ_dense: update gradient JTDAJ dense block dimension (solver)
+    linesearch_iterative: linesearch iterative block dimension (solver)
+    contact_jac_tiled: contact Jacobian tiled block dimension (solver)
+    qderiv_actuator_dense: qderiv actuator dense block dimension (derivative)
   """
 
   actuator_velocity: int
@@ -135,9 +154,26 @@ class OptionWarp(PyTreeNode):
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
 
+  D_colind: np.ndarray
+  D_diag: np.ndarray
+  D_rowadr: np.ndarray
+  D_rownnz: np.ndarray
   M_colind: np.ndarray
+  M_elemid: np.ndarray
+  M_fullm_i: np.ndarray
+  M_fullm_j: np.ndarray
+  M_fullm_upper_elemid: np.ndarray
+  M_fullm_upper_i: np.ndarray
+  M_fullm_upper_j: np.ndarray
+  M_mulm_col: np.ndarray
+  M_mulm_madr: np.ndarray
+  M_mulm_rowadr: np.ndarray
   M_rowadr: np.ndarray
   M_rownnz: np.ndarray
+  M_tiles: Tuple[TileSet, ...]
+  actuator_delay: np.ndarray
+  actuator_history: np.ndarray
+  actuator_historyadr: np.ndarray
   actuator_trntype_body_adr: np.ndarray
   block_dim: BlockDim
   body_branch_start: np.ndarray
@@ -203,6 +239,8 @@ class ModelWarp(PyTreeNode):
   jnt_limited_slide_hinge_adr: np.ndarray
   light_bodyid: np.ndarray
   light_targetbodyid: np.ndarray
+  mapD2M: np.ndarray
+  mapM2D: np.ndarray
   mapM2M: np.ndarray
   mat_texrepeat: jax.Array
   max_ten_J_rownnz: int
@@ -248,22 +286,22 @@ class ModelWarp(PyTreeNode):
   oct_coeff: np.ndarray
   plugin: np.ndarray
   plugin_attr: np.ndarray
+  qD_fullm_i: np.ndarray
+  qD_fullm_j: np.ndarray
   qLD_all_updates: np.ndarray
   qLD_level_offsets: np.ndarray
   qLD_updates: Tuple[np.ndarray, ...]
-  qM_fullm_i: np.ndarray
-  qM_fullm_j: np.ndarray
-  qM_mulm_col: np.ndarray
-  qM_mulm_madr: np.ndarray
-  qM_mulm_rowadr: np.ndarray
-  qM_tiles: Tuple[TileSet, ...]
   rangefinder_sensor_adr: np.ndarray
   sensor_acc_adr: np.ndarray
   sensor_adr_to_contact_adr: np.ndarray
   sensor_collision_start_adr: np.ndarray
   sensor_contact_adr: np.ndarray
+  sensor_delay: np.ndarray
   sensor_e_kinetic: bool
   sensor_e_potential: bool
+  sensor_history: np.ndarray
+  sensor_historyadr: np.ndarray
+  sensor_interval: np.ndarray
   sensor_limitfrc_adr: np.ndarray
   sensor_limitpos_adr: np.ndarray
   sensor_limitvel_adr: np.ndarray
@@ -299,6 +337,7 @@ class ModelWarp(PyTreeNode):
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
 
+  M: jax.Array
   actuator_moment: jax.Array
   actuator_velocity: jax.Array
   cacc: jax.Array
@@ -322,6 +361,8 @@ class DataWarp(PyTreeNode):
   contact__vert: jax.Array
   contact__worldid: jax.Array
   crb: jax.Array
+  dof_island: jax.Array
+  dof_islandid: jax.Array
   efc__D: jax.Array
   efc__J: jax.Array
   efc__J_colind: jax.Array
@@ -332,19 +373,46 @@ class DataWarp(PyTreeNode):
   efc__aref: jax.Array
   efc__force: jax.Array
   efc__frictionloss: jax.Array
+  efc__iD: jax.Array
+  efc__iJ: jax.Array
+  efc__iJ_colind: jax.Array
+  efc__iJ_rowadr: jax.Array
+  efc__iJ_rownnz: jax.Array
+  efc__iaref: jax.Array
   efc__id: jax.Array
+  efc__iforce: jax.Array
+  efc__ifrictionloss: jax.Array
+  efc__iid: jax.Array
+  efc__island: jax.Array
+  efc__istate: jax.Array
+  efc__itype: jax.Array
   efc__margin: jax.Array
   efc__pos: jax.Array
   efc__state: jax.Array
   efc__type: jax.Array
   efc__vel: jax.Array
+  efc_islandid: jax.Array
   energy: jax.Array
   flexedge_J: jax.Array
   flexedge_length: jax.Array
   flexedge_velocity: jax.Array
   flexvert_xpos: jax.Array
+  iqacc: jax.Array
+  iqacc_smooth: jax.Array
+  iqfrc_constraint: jax.Array
+  iqfrc_smooth: jax.Array
+  island_dofadr: jax.Array
+  island_efcadr: jax.Array
+  island_ne: jax.Array
+  island_nefc: jax.Array
+  island_nf: jax.Array
+  island_nv: jax.Array
   light_xdir: jax.Array
   light_xpos: jax.Array
+  map_dof2idof: jax.Array
+  map_efc2iefc: jax.Array
+  map_idof2dof: jax.Array
+  map_iefc2efc: jax.Array
   moment_colind: jax.Array
   moment_rowadr: jax.Array
   moment_rownnz: jax.Array
@@ -355,6 +423,7 @@ class DataWarp(PyTreeNode):
   ne: jax.Array
   nefc: jax.Array
   nf: jax.Array
+  nidof: jax.Array
   nisland: jax.Array
   njmax: int
   njmax_nnz: int
@@ -363,7 +432,7 @@ class DataWarp(PyTreeNode):
   nworld: int
   qLD: jax.Array
   qLDiagInv: jax.Array
-  qM: jax.Array
+  qLU: jax.Array
   qfrc_damper: jax.Array
   qfrc_spring: jax.Array
   solver_niter: jax.Array
@@ -400,6 +469,7 @@ DATA_NON_VMAP = {
     'nacon',
     'naconmax',
     'ncollision',
+    'nidof',
     'njmax',
     'njmax_nnz',
     'njmax_pad',
@@ -433,6 +503,7 @@ batching.register_vmappable(DataWarp, int, int, _to_elt, _from_elt, None)
 
 _NDIM = {
     'Data': {
+        'M': 3,
         'act': 2,
         'act_dot': 2,
         'actuator_force': 2,
@@ -466,6 +537,8 @@ _NDIM = {
         'crb': 3,
         'ctrl': 2,
         'cvel': 3,
+        'dof_island': 2,
+        'dof_islandid': 2,
         'efc__D': 2,
         'efc__J': 3,
         'efc__J_colind': 3,
@@ -476,12 +549,25 @@ _NDIM = {
         'efc__aref': 2,
         'efc__force': 2,
         'efc__frictionloss': 2,
+        'efc__iD': 2,
+        'efc__iJ': 3,
+        'efc__iJ_colind': 3,
+        'efc__iJ_rowadr': 2,
+        'efc__iJ_rownnz': 2,
+        'efc__iaref': 2,
         'efc__id': 2,
+        'efc__iforce': 2,
+        'efc__ifrictionloss': 2,
+        'efc__iid': 2,
+        'efc__island': 2,
+        'efc__istate': 2,
+        'efc__itype': 2,
         'efc__margin': 2,
         'efc__pos': 2,
         'efc__state': 2,
         'efc__type': 2,
         'efc__vel': 2,
+        'efc_islandid': 2,
         'energy': 2,
         'eq_active': 2,
         'flexedge_J': 2,
@@ -490,8 +576,23 @@ _NDIM = {
         'flexvert_xpos': 3,
         'geom_xmat': 4,
         'geom_xpos': 3,
+        'history': 2,
+        'iqacc': 2,
+        'iqacc_smooth': 2,
+        'iqfrc_constraint': 2,
+        'iqfrc_smooth': 2,
+        'island_dofadr': 2,
+        'island_efcadr': 2,
+        'island_ne': 2,
+        'island_nefc': 2,
+        'island_nf': 2,
+        'island_nv': 2,
         'light_xdir': 3,
         'light_xpos': 3,
+        'map_dof2idof': 2,
+        'map_efc2iefc': 2,
+        'map_idof2dof': 2,
+        'map_iefc2efc': 2,
         'mocap_pos': 3,
         'mocap_quat': 3,
         'moment_colind': 2,
@@ -504,6 +605,7 @@ _NDIM = {
         'ne': 1,
         'nefc': 1,
         'nf': 1,
+        'nidof': 1,
         'nisland': 1,
         'njmax': 0,
         'njmax_nnz': 0,
@@ -512,7 +614,7 @@ _NDIM = {
         'nworld': 0,
         'qLD': 3,
         'qLDiagInv': 2,
-        'qM': 3,
+        'qLU': 3,
         'qacc': 2,
         'qacc_smooth': 2,
         'qacc_warmstart': 2,
@@ -555,9 +657,23 @@ _NDIM = {
         'xquat': 3,
     },
     'Model': {
+        'D_colind': 1,
+        'D_diag': 1,
+        'D_rowadr': 1,
+        'D_rownnz': 1,
         'M_colind': 1,
+        'M_elemid': 2,
+        'M_fullm_i': 1,
+        'M_fullm_j': 1,
+        'M_fullm_upper_elemid': 1,
+        'M_fullm_upper_i': 1,
+        'M_fullm_upper_j': 1,
+        'M_mulm_col': 1,
+        'M_mulm_madr': 1,
+        'M_mulm_rowadr': 1,
         'M_rowadr': 1,
         'M_rownnz': 1,
+        'M_tiles': -1,
         'actuator_acc0': 2,
         'actuator_actadr': 1,
         'actuator_actearly': 1,
@@ -569,6 +685,7 @@ _NDIM = {
         'actuator_cranklength': 2,
         'actuator_ctrllimited': 1,
         'actuator_ctrlrange': 3,
+        'actuator_delay': 1,
         'actuator_dynprm': 3,
         'actuator_dyntype': 1,
         'actuator_forcelimited': 1,
@@ -576,6 +693,8 @@ _NDIM = {
         'actuator_gainprm': 3,
         'actuator_gaintype': 1,
         'actuator_gear': 3,
+        'actuator_history': 2,
+        'actuator_historyadr': 1,
         'actuator_lengthrange': 3,
         'actuator_trnid': 2,
         'actuator_trntype': 1,
@@ -768,6 +887,8 @@ _NDIM = {
         'light_poscom0': 3,
         'light_targetbodyid': 1,
         'light_type': 2,
+        'mapD2M': 1,
+        'mapM2D': 1,
         'mapM2M': 1,
         'mat_rgba': 3,
         'mat_texid': 3,
@@ -796,6 +917,7 @@ _NDIM = {
         'mesh_vertnum': 1,
         'mocap_bodyid': 1,
         'nC': 0,
+        'nD': 0,
         'nJfe': 0,
         'nJmom': 0,
         'nJten': 0,
@@ -820,6 +942,7 @@ _NDIM = {
         'ngravcomp': 0,
         'nhfield': 0,
         'nhfielddata': 0,
+        'nhistory': 0,
         'njnt': 0,
         'nlight': 0,
         'nmat': 0,
@@ -896,15 +1019,11 @@ _NDIM = {
         'pair_solreffriction': 3,
         'plugin': 1,
         'plugin_attr': 2,
+        'qD_fullm_i': 1,
+        'qD_fullm_j': 1,
         'qLD_all_updates': 2,
         'qLD_level_offsets': 1,
         'qLD_updates': -1,
-        'qM_fullm_i': 1,
-        'qM_fullm_j': 1,
-        'qM_mulm_col': 1,
-        'qM_mulm_madr': 1,
-        'qM_mulm_rowadr': 1,
-        'qM_tiles': -1,
         'qpos0': 2,
         'qpos_spring': 2,
         'rangefinder_sensor_adr': 1,
@@ -915,9 +1034,13 @@ _NDIM = {
         'sensor_contact_adr': 1,
         'sensor_cutoff': 1,
         'sensor_datatype': 1,
+        'sensor_delay': 1,
         'sensor_dim': 1,
         'sensor_e_kinetic': 0,
         'sensor_e_potential': 0,
+        'sensor_history': 2,
+        'sensor_historyadr': 1,
+        'sensor_interval': 2,
         'sensor_intprm': 2,
         'sensor_limitfrc_adr': 1,
         'sensor_limitpos_adr': 1,
@@ -1015,6 +1138,7 @@ _NDIM = {
 }
 _BATCH_DIM = {
     'Data': {
+        'M': True,
         'act': True,
         'act_dot': True,
         'actuator_force': True,
@@ -1048,6 +1172,8 @@ _BATCH_DIM = {
         'crb': True,
         'ctrl': True,
         'cvel': True,
+        'dof_island': True,
+        'dof_islandid': True,
         'efc__D': True,
         'efc__J': True,
         'efc__J_colind': True,
@@ -1058,12 +1184,25 @@ _BATCH_DIM = {
         'efc__aref': True,
         'efc__force': True,
         'efc__frictionloss': True,
+        'efc__iD': True,
+        'efc__iJ': True,
+        'efc__iJ_colind': True,
+        'efc__iJ_rowadr': True,
+        'efc__iJ_rownnz': True,
+        'efc__iaref': True,
         'efc__id': True,
+        'efc__iforce': True,
+        'efc__ifrictionloss': True,
+        'efc__iid': True,
+        'efc__island': True,
+        'efc__istate': True,
+        'efc__itype': True,
         'efc__margin': True,
         'efc__pos': True,
         'efc__state': True,
         'efc__type': True,
         'efc__vel': True,
+        'efc_islandid': True,
         'energy': True,
         'eq_active': True,
         'flexedge_J': True,
@@ -1072,8 +1211,23 @@ _BATCH_DIM = {
         'flexvert_xpos': True,
         'geom_xmat': True,
         'geom_xpos': True,
+        'history': True,
+        'iqacc': True,
+        'iqacc_smooth': True,
+        'iqfrc_constraint': True,
+        'iqfrc_smooth': True,
+        'island_dofadr': True,
+        'island_efcadr': True,
+        'island_ne': True,
+        'island_nefc': True,
+        'island_nf': True,
+        'island_nv': True,
         'light_xdir': True,
         'light_xpos': True,
+        'map_dof2idof': True,
+        'map_efc2iefc': True,
+        'map_idof2dof': True,
+        'map_iefc2efc': True,
         'mocap_pos': True,
         'mocap_quat': True,
         'moment_colind': True,
@@ -1086,6 +1240,7 @@ _BATCH_DIM = {
         'ne': True,
         'nefc': True,
         'nf': True,
+        'nidof': False,
         'nisland': True,
         'njmax': False,
         'njmax_nnz': False,
@@ -1094,7 +1249,7 @@ _BATCH_DIM = {
         'nworld': False,
         'qLD': True,
         'qLDiagInv': True,
-        'qM': True,
+        'qLU': True,
         'qacc': True,
         'qacc_smooth': True,
         'qacc_warmstart': True,
@@ -1137,9 +1292,23 @@ _BATCH_DIM = {
         'xquat': True,
     },
     'Model': {
+        'D_colind': False,
+        'D_diag': False,
+        'D_rowadr': False,
+        'D_rownnz': False,
         'M_colind': False,
+        'M_elemid': False,
+        'M_fullm_i': False,
+        'M_fullm_j': False,
+        'M_fullm_upper_elemid': False,
+        'M_fullm_upper_i': False,
+        'M_fullm_upper_j': False,
+        'M_mulm_col': False,
+        'M_mulm_madr': False,
+        'M_mulm_rowadr': False,
         'M_rowadr': False,
         'M_rownnz': False,
+        'M_tiles': False,
         'actuator_acc0': True,
         'actuator_actadr': False,
         'actuator_actearly': False,
@@ -1151,6 +1320,7 @@ _BATCH_DIM = {
         'actuator_cranklength': True,
         'actuator_ctrllimited': False,
         'actuator_ctrlrange': True,
+        'actuator_delay': False,
         'actuator_dynprm': True,
         'actuator_dyntype': False,
         'actuator_forcelimited': False,
@@ -1158,6 +1328,8 @@ _BATCH_DIM = {
         'actuator_gainprm': True,
         'actuator_gaintype': False,
         'actuator_gear': True,
+        'actuator_history': False,
+        'actuator_historyadr': False,
         'actuator_lengthrange': True,
         'actuator_trnid': False,
         'actuator_trntype': False,
@@ -1350,6 +1522,8 @@ _BATCH_DIM = {
         'light_poscom0': True,
         'light_targetbodyid': False,
         'light_type': True,
+        'mapD2M': False,
+        'mapM2D': False,
         'mapM2M': False,
         'mat_rgba': True,
         'mat_texid': True,
@@ -1378,6 +1552,7 @@ _BATCH_DIM = {
         'mesh_vertnum': False,
         'mocap_bodyid': False,
         'nC': False,
+        'nD': False,
         'nJfe': False,
         'nJmom': False,
         'nJten': False,
@@ -1402,6 +1577,7 @@ _BATCH_DIM = {
         'ngravcomp': False,
         'nhfield': False,
         'nhfielddata': False,
+        'nhistory': False,
         'njnt': False,
         'nlight': False,
         'nmat': False,
@@ -1478,15 +1654,11 @@ _BATCH_DIM = {
         'pair_solreffriction': True,
         'plugin': False,
         'plugin_attr': False,
+        'qD_fullm_i': False,
+        'qD_fullm_j': False,
         'qLD_all_updates': False,
         'qLD_level_offsets': False,
         'qLD_updates': False,
-        'qM_fullm_i': False,
-        'qM_fullm_j': False,
-        'qM_mulm_col': False,
-        'qM_mulm_madr': False,
-        'qM_mulm_rowadr': False,
-        'qM_tiles': False,
         'qpos0': True,
         'qpos_spring': True,
         'rangefinder_sensor_adr': False,
@@ -1497,9 +1669,13 @@ _BATCH_DIM = {
         'sensor_contact_adr': False,
         'sensor_cutoff': False,
         'sensor_datatype': False,
+        'sensor_delay': False,
         'sensor_dim': False,
         'sensor_e_kinetic': False,
         'sensor_e_potential': False,
+        'sensor_history': False,
+        'sensor_historyadr': False,
+        'sensor_interval': False,
         'sensor_intprm': False,
         'sensor_limitfrc_adr': False,
         'sensor_limitpos_adr': False,

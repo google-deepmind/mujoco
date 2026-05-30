@@ -17,8 +17,8 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
-#include <mujoco/mjtnum.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
+#include <mujoco/mjtype.h>
 #include <mujoco/mjxmacro.h>
 
 #ifdef __cplusplus
@@ -48,9 +48,6 @@ void mj__markStack(mjData* d) __attribute__((noinline));
 void mj__freeStack(mjData* d) __attribute__((noinline));
 
 #endif  // ADDRESS_SANITIZER
-
-// returns the number of bytes available on the stack
-MJAPI size_t mj_stackBytesAvailable(mjData* d);
 
 // allocate bytes on the stack
 MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);

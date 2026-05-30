@@ -8,8 +8,8 @@ import ctypes
 import inspect
 import threading
 import traceback
+from collections.abc import Callable
 from enum import IntEnum
-from typing import Callable
 
 import jax
 
@@ -25,6 +25,7 @@ from warp._src.types import (
     type_size_in_bytes,
     type_to_warp,
 )
+from warp._src.utils import warn
 
 from .xla_ffi import *
 
@@ -249,19 +250,18 @@ class FfiKernel:
                 # check dtype
                 if input_value.dtype != input_arg.jax_scalar_type:
                     raise TypeError(
-                            f"Invalid data type for array argument '{input_arg.name}',"
-                            f" expected {input_arg.jax_scalar_type}, got {input_value.dtype}"
+                        f"Invalid data type for array argument '{input_arg.name}', expected {input_arg.jax_scalar_type}, got {input_value.dtype}"
                     )
                 # check ndim
                 if input_value.ndim != input_arg.jax_ndim:
                     raise TypeError(
-                            f"Invalid dimensionality for array argument '{input_arg.name}', expected {input_arg.jax_ndim} dimensions, got {input_value.ndim}"
+                        f"Invalid dimensionality for array argument '{input_arg.name}', expected {input_arg.jax_ndim} dimensions, got {input_value.ndim}"
                     )
                 # check inner dims
                 for d in range(input_arg.dtype_ndim):
                     if input_value.shape[input_arg.type.ndim + d] != input_arg.dtype_shape[d]:
                         raise TypeError(
-                                f"Invalid inner dimensions for array argument '{input_arg.name}', expected {input_arg.dtype_shape}, got {input_value.shape[-input_arg.dtype_ndim :]}"
+                            f"Invalid inner dimensions for array argument '{input_arg.name}', expected {input_arg.dtype_shape}, got {input_value.shape[-input_arg.dtype_ndim :]}"
                         )
             else:
                 # make sure scalar is not a traced variable, should be static
@@ -455,6 +455,7 @@ class FfiKernel:
                         hooks.forward_smem_bytes,
                         kernel_params,
                         stream,
+                        None,  # apic_info
                     )
                 else:
                     wp._src.context.runtime.core.wp_cpu_launch_kernel(
@@ -467,9 +468,7 @@ class FfiKernel:
         except Exception as e:
             print(traceback.format_exc())
             return create_ffi_error(
-                call_frame.contents.api,
-                XLA_FFI_Error_Code.UNKNOWN,
-                f"FFI callback error: {type(e).__name__}: {e}",
+                call_frame.contents.api, XLA_FFI_Error_Code.UNKNOWN, f"FFI callback error: {type(e).__name__}: {e}"
             )
 
 
@@ -617,7 +616,9 @@ class FfiCallable:
         self.input_output_aliases = input_output_aliases
 
         # register the callback
-        FFI_CCALLFUNC = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.POINTER(XLA_FFI_CallFrame))
+        FFI_CCALLFUNC = ctypes.CFUNCTYPE(
+                ctypes.c_void_p, ctypes.POINTER(XLA_FFI_CallFrame)
+        )
 
         self.callback_func_cuda = FFI_CCALLFUNC(lambda call_frame: self.ffi_callback(call_frame, platform="CUDA"))
         ffi_ccall_address_cuda = ctypes.cast(self.callback_func_cuda, ctypes.c_void_p)
@@ -1071,7 +1072,7 @@ class FfiCallable:
                         call_desc.capture = capture
 
                     else:
-                        # not capturing or on CPU
+                        # not capturing
                         self.func(*arg_list)
 
         except Exception as e:
@@ -1359,7 +1360,7 @@ def jax_kernel(
                 try:
                     gi.zero_()
                 except Exception as e:
-                    wp.utils.warn(f"Failed to zero gradient array: {e}", stacklevel=2)
+                    warn(f"Failed to zero gradient array: {e}", stacklevel=2)
                     raise e
 
         # NOTE: We cannot use a passed launch_dims here, the backward rule doesn't receive it (and it could be wrong under pmap/vmap).
@@ -1445,7 +1446,7 @@ def jax_kernel(
         non_static_inputs, output_vals_tuple = residuals
 
         input_vals = list(non_static_inputs)
-        for i, v in zip(static_args, nondiff_vals):
+        for i, v in zip(static_args, nondiff_vals, strict=True):
             input_vals.insert(i, v)
 
         # Normalize grad outputs and handle nested containers (e.g., single tuple for multi-output)
@@ -1461,7 +1462,7 @@ def jax_kernel(
 
         out_dims_map = {}
         param_ann = {p.name: p.annotation for p in parameters[:num_inputs]}
-        for name, val in zip(differentiable_input_names, non_static_inputs):
+        for name, val in zip(differentiable_input_names, non_static_inputs, strict=True):
             ann = param_ann.get(name)
             if ann is None:
                 continue

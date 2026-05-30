@@ -20,12 +20,14 @@ import warp as wp
 from mujoco.mjx.third_party.mujoco_warp._src import collision_driver
 from mujoco.mjx.third_party.mujoco_warp._src import constraint
 from mujoco.mjx.third_party.mujoco_warp._src import derivative
+from mujoco.mjx.third_party.mujoco_warp._src import history
 from mujoco.mjx.third_party.mujoco_warp._src import island
 from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import passive
 from mujoco.mjx.third_party.mujoco_warp._src import sensor
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import solver
+from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src import util_misc
 from mujoco.mjx.third_party.mujoco_warp._src.support import next_act
 from mujoco.mjx.third_party.mujoco_warp._src.support import xfrc_accumulate
@@ -302,6 +304,9 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
     outputs=[d.qpos],
   )
 
+  # advance history buffers before time advance
+  history.insert_ctrl_history(m, d)
+
   wp.launch(
     _next_time,
     dim=d.nworld,
@@ -346,17 +351,18 @@ def _compute_damping_deriv(
 def _euler_damp_qfrc_sparse(
   # Model:
   opt_timestep: wp.array[float],
-  dof_Madr: wp.array[int],
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
   # In:
   damp_deriv: wp.array2d[float],
   # Out:
-  qM_integration_out: wp.array3d[float],
+  M_integration_out: wp.array3d[float],
 ):
   worldid, tid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
 
-  adr = dof_Madr[tid]
-  qM_integration_out[worldid, 0, adr] += timestep * damp_deriv[worldid, tid]
+  adr = M_rowadr[tid] + M_rownnz[tid] - 1
+  M_integration_out[worldid, 0, adr] += timestep * damp_deriv[worldid, tid]
 
 
 @cache_kernel
@@ -366,7 +372,7 @@ def _tile_euler_dense(tile: TileSet):
     # Model:
     opt_timestep: wp.array[float],
     # Data in:
-    qM_in: wp.array3d[float],
+    M_in: wp.array3d[float],
     efc_Ma_in: wp.array2d[float],
     # In:
     damp_deriv: wp.array2d[float],
@@ -379,14 +385,14 @@ def _tile_euler_dense(tile: TileSet):
     TILE_SIZE = wp.static(tile.size)
 
     dofid = adr_in[nodeid]
-    M_tile = wp.tile_load(qM_in[worldid], shape=(TILE_SIZE, TILE_SIZE), offset=(dofid, dofid))
+    M_tile = wp.tile_load(M_in[worldid], shape=(TILE_SIZE, TILE_SIZE), offset=(dofid, dofid))
     damping_tile = wp.tile_load(damp_deriv[worldid], shape=(TILE_SIZE,), offset=(dofid,))
     damping_scaled = damping_tile * timestep
     qm_integration_tile = wp.tile_diag_add(M_tile, damping_scaled)
 
     Ma_tile = wp.tile_load(efc_Ma_in[worldid], shape=(TILE_SIZE,), offset=(dofid,))
-    L_tile = wp.tile_cholesky(qm_integration_tile)
-    qacc_tile = wp.tile_cholesky_solve(L_tile, Ma_tile)
+    L_tile = wp.tile_cholesky(qm_integration_tile, fill_mode="upper")
+    qacc_tile = wp.tile_cholesky_solve(L_tile, Ma_tile, fill_mode="upper")
     wp.tile_store(qacc_out[worldid], qacc_tile, offset=(dofid))
 
   return euler_dense
@@ -409,22 +415,22 @@ def euler(m: Model, d: Data):
     )
 
     if m.is_sparse:
-      qM = wp.clone(d.qM)
+      M = wp.clone(d.M)
       qLD = wp.empty((d.nworld, 1, m.nC), dtype=float)
       qLDiagInv = wp.empty((d.nworld, m.nv), dtype=float)
       wp.launch(
         _euler_damp_qfrc_sparse,
         dim=(d.nworld, m.nv),
-        inputs=[m.opt.timestep, m.dof_Madr, damp_deriv],
-        outputs=[qM],
+        inputs=[m.opt.timestep, m.M_rownnz, m.M_rowadr, damp_deriv],
+        outputs=[M],
       )
-      smooth.factor_solve_i(m, d, qM, qLD, qLDiagInv, qacc, d.efc.Ma)
+      smooth.factor_solve_i(m, d, M, qLD, qLDiagInv, qacc, d.efc.Ma)
     else:
-      for tile in m.qM_tiles:
+      for tile in m.M_tiles:
         wp.launch_tiled(
           _tile_euler_dense(tile),
           dim=(d.nworld, tile.adr.size),
-          inputs=[m.opt.timestep, d.qM, d.efc.Ma, damp_deriv, tile.adr],
+          inputs=[m.opt.timestep, d.M, d.efc.Ma, damp_deriv, tile.adr],
           outputs=[qacc],
           block_dim=m.block_dim.euler_dense,
         )
@@ -573,16 +579,62 @@ def rungekutta4(m: Model, d: Data):
   _advance(m, d, qacc_rk, qvel_rk)
 
 
+@wp.kernel
+def _map_m2d(
+  # Model:
+  mapM2D: wp.array[int],
+  is_sparse: bool,
+  # In:
+  qDi: wp.array[int],
+  qDj: wp.array[int],
+  qH_M: wp.array3d[float],
+  # Data out:
+  qLU_out: wp.array3d[float],
+):
+  worldid, elemid = wp.tid()
+  if is_sparse:
+    m_idx = mapM2D[elemid]
+    if m_idx >= 0:
+      qLU_out[worldid, 0, elemid] = qH_M[worldid, 0, m_idx]
+    else:
+      qLU_out[worldid, 0, elemid] = 0.0
+  else:
+    i = qDi[elemid]
+    j = qDj[elemid]
+    qLU_out[worldid, 0, elemid] = qH_M[worldid, i, j]
+
+
 @event_scope
 def implicit(m: Model, d: Data):
   """Integrates fully implicit in velocity."""
-  if ~(m.opt.disableflags | ~(DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER)):
+  if m.opt.integrator == IntegratorType.IMPLICIT:
+    qH_M = wp.empty(d.M.shape, dtype=float)
+
+    # 1. Compute M - dt * qDeriv_smooth in M-structure
+    derivative.deriv_smooth_vel(m, d, qH_M)
+
+    # 2. Map M-structure to D-structure
+    wp.launch(
+      _map_m2d,
+      dim=(d.nworld, m.nD),
+      inputs=[m.mapM2D, m.is_sparse, m.qD_fullm_i, m.qD_fullm_j, qH_M],
+      outputs=[d.qLU],
+    )
+
+    # 3. Compute RNE derivatives, scale by timestep, and subtract in-place from qLU
+    derivative.deriv_rne_vel(m, d, d.qLU, flg_subtract=True)
+
+    # 4. Factorize and solve: qacc = qLU \ Ma
+    qacc = wp.empty((d.nworld, m.nv), dtype=float)
+    smooth.factor_solve_lu(m, d, d.qLU, qacc, d.efc.Ma)
+    _advance(m, d, qacc)
+  elif ~(m.opt.disableflags | ~(DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER)):
     if m.is_sparse:
-      qDeriv = wp.empty((d.nworld, 1, m.nM), dtype=float)
+      qDeriv = wp.empty((d.nworld, 1, m.nC), dtype=float)
       qLD = wp.empty((d.nworld, 1, m.nC), dtype=float)
     else:
-      qDeriv = wp.empty(d.qM.shape, dtype=float)
-      qLD = wp.empty(d.qM.shape, dtype=float)
+      qDeriv = wp.empty(d.M.shape, dtype=float)
+      qLD = wp.empty(d.M.shape, dtype=float)
     qLDiagInv = wp.empty((d.nworld, m.nv), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
@@ -613,8 +665,7 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
   if m.opt.run_collision_detection:
     collision_driver.collision(m, d)
   constraint.make_constraint(m, d)
-  # TODO(team): remove False after island features are more complete
-  if False and not (m.opt.disableflags & DisableBit.ISLAND):
+  if m.ntree > 1 and not (m.opt.disableflags & types.DisableBit.ISLAND):
     island.island(m, d)
   smooth.transmission(m, d)
 
@@ -1098,6 +1149,13 @@ def fwd_actuation(m: Model, d: Data):
     d.actuator_force.zero_()
     return
 
+  # read delayed ctrl (or direct copy if no delay)
+  if m.nhistory > 0:
+    ctrl = wp.empty((d.nworld, m.nu), dtype=float)
+    history.read_ctrl_delayed(m, d, ctrl)
+  else:
+    ctrl = d.ctrl
+
   wp.launch(
     _actuator_force,
     dim=(d.nworld, m.nu),
@@ -1122,7 +1180,7 @@ def fwd_actuation(m: Model, d: Data):
       m.actuator_acc0,
       m.actuator_lengthrange,
       d.act,
-      d.ctrl,
+      ctrl,
       d.actuator_length,
       d.actuator_velocity,
       m.opt.disableflags & DisableBit.CLAMPCTRL,
@@ -1221,7 +1279,7 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
   xfrc_accumulate(m, d, d.qfrc_smooth)
 
   if factorize:
-    smooth.factor_solve_i(m, d, d.qM, d.qLD, d.qLDiagInv, d.qacc_smooth, d.qfrc_smooth)
+    smooth.factor_solve_i(m, d, d.M, d.qLD, d.qLDiagInv, d.qacc_smooth, d.qfrc_smooth)
   else:
     smooth.solve_m(m, d, d.qacc_smooth, d.qfrc_smooth)
 
@@ -1266,7 +1324,7 @@ def step(m: Model, d: Data):
     euler(m, d)
   elif m.opt.integrator == IntegratorType.RK4:
     rungekutta4(m, d)
-  elif m.opt.integrator == IntegratorType.IMPLICITFAST:
+  elif m.opt.integrator in (IntegratorType.IMPLICITFAST, IntegratorType.IMPLICIT):
     implicit(m, d)
   else:
     raise NotImplementedError(f"integrator {m.opt.integrator} not implemented.")
@@ -1307,8 +1365,7 @@ def step2(m: Model, d: Data):
   sensor.sensor_acc(m, d)
 
   # integrate with Euler or implicitfast
-  # TODO(team): implicit
-  if m.opt.integrator == IntegratorType.IMPLICITFAST:
+  if m.opt.integrator in (IntegratorType.IMPLICITFAST, IntegratorType.IMPLICIT):
     implicit(m, d)
   else:
     # note: RK4 defaults to Euler

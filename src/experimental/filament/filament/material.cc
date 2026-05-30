@@ -13,6 +13,9 @@
 // limitations under the License.
 
 #include "experimental/filament/filament/material.h"
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 
 #include <filament/Color.h>
 #include <filament/Material.h>
@@ -29,6 +32,51 @@
 
 namespace mujoco {
 
+template <class T>
+static void Combine(uint64_t& seed, const T* v) {
+  seed ^= std::hash<T>()(*v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
+template <typename T>
+static uint64_t hash(const T& obj) {
+  static_assert(std::is_trivially_copyable_v<T>,
+                "Only trivially copyable types are hashable.");
+  int num_bytes = sizeof(T);
+  const std::byte* ptr = reinterpret_cast<const std::byte*>(&obj);
+  uint64_t seed = 0;
+  while (num_bytes >= sizeof(uint64_t)) {
+    Combine(seed, reinterpret_cast<const uint64_t*>(ptr));
+    ptr += sizeof(uint64_t);
+    num_bytes -= sizeof(uint64_t);
+  }
+  while (num_bytes >= sizeof(uint32_t)) {
+    Combine(seed, reinterpret_cast<const uint32_t*>(ptr));
+    ptr += sizeof(uint32_t);
+    num_bytes -= sizeof(uint32_t);
+  }
+  while (num_bytes >= sizeof(uint16_t)) {
+    Combine(seed, reinterpret_cast<const uint16_t*>(ptr));
+    ptr += sizeof(uint16_t);
+    num_bytes -= sizeof(uint16_t);
+  }
+  while (num_bytes >= sizeof(uint8_t)) {
+    Combine(seed, reinterpret_cast<const uint8_t*>(ptr));
+    ptr += sizeof(uint8_t);
+    num_bytes -= sizeof(uint8_t);
+  }
+  return seed;
+}
+
+uint64_t BuildMaterialKey(ObjectManager::MaterialType material_type,
+                         const mjrMaterial& material) {
+  // Normally, hashing the struct by memory would be a problem because of
+  // padding and other uninitialized data. However, we do a memset(0) on the
+  // entire structure in mjr_defaultMaterial so this should be safe.
+  uint64_t key = hash(material);
+  Combine(key, &material_type);
+  return key;
+}
+
 ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
                                             const Mesh* mesh) {
   if (material.decor_ux) {
@@ -38,15 +86,35 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
       return ObjectManager::kUnlitDecor;
     }
   } else if (material.orm_texture) {
-    return ObjectManager::kPbrPacked;
+    if (material.opacity_texture) {
+      return ObjectManager::kPbrPackedTransparent;
+    } else {
+      return ObjectManager::kPbrPacked;
+    }
   } else if (material.metallic_texture) {
-    return ObjectManager::kPbr;
+    if (material.opacity_texture) {
+      return ObjectManager::kPbrPackedTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
   } else if (material.roughness_texture) {
-    return ObjectManager::kPbr;
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPbrTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
   } else if (material.metallic >= 0) {
-    return ObjectManager::kPbr;
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPbrTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
   } else if (material.roughness >= 0) {
-    return ObjectManager::kPbr;
+    if (material.color[3] < 1.0f) {
+      return ObjectManager::kPbrTransparent;
+    } else {
+      return ObjectManager::kPbr;
+    }
   }
 
   // Check to see if we're dealing with a mesh with texture coordinates.
@@ -60,7 +128,7 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
   if (color_texture == nullptr) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPhongColorFade;
-    } else if (material.reflective) {
+    } else if (material.reflectance > 0) {
       return ObjectManager::kPhongColorReflect;
     } else {
       return ObjectManager::kPhongColor;
@@ -68,7 +136,7 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
   } else if (color_texture->GetSamplerType() == mjTEXTURE_CUBE) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPhongCubeFade;
-    } else if (material.reflective) {
+    } else if (material.reflectance > 0) {
       return ObjectManager::kPhongCubeReflect;
     } else {
       return ObjectManager::kPhongCube;
@@ -76,7 +144,7 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
   } else if (has_texcoords) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPhong2dUvFade;
-    } else if (material.reflective) {
+    } else if (material.reflectance > 0) {
       return ObjectManager::kPhong2dUvReflect;
     } else {
       return ObjectManager::kPhong2dUv;
@@ -84,7 +152,7 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
   } else {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPhong2dFade;
-    } else if (material.reflective) {
+    } else if (material.reflectance > 0) {
       return ObjectManager::kPhong2dReflect;
     } else {
       return ObjectManager::kPhong2d;
@@ -163,6 +231,7 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
   };
 
   TrySetTexture("BaseColor", material.color_texture, mjTEXROLE_RGB);
+  TrySetTexture("Opacity", material.opacity_texture, mjTEXROLE_OPACITY);
   TrySetTexture("Normal", material.normal_texture, mjTEXROLE_NORMAL);
   TrySetTexture("Metallic", material.metallic_texture, mjTEXROLE_METALLIC);
   TrySetTexture("Roughness", material.roughness_texture, mjTEXROLE_ROUGHNESS);

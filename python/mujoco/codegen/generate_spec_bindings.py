@@ -22,7 +22,7 @@ from introspect import ast_nodes
 from introspect import structs
 
 
-SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtNum'}
+SCALAR_TYPES = {'int', 'double', 'float', 'mjtByte', 'mjtBool', 'mjtNum'}
 
 # pylint: disable=bad-whitespace
 # key, parent, default, listname, objtype
@@ -156,8 +156,10 @@ def _array_binding_code(
   if classname == 'mjSpec':  # raw mjSpec has a wrapper
     rawclassname = classname.replace('mjS', 'MjS')
     fullvarname = 'ptr->' + varname
-  if innertype == 'double' or innertype == 'mjtNum':
-    innertype = 'MjDouble'  # custom Eigen type
+  if innertype == 'mjtNum':
+    innertype = 'MjNum'  # custom Eigen type for mjtNum fields
+  elif innertype == 'double':
+    innertype = 'MjDouble'  # custom Eigen type for double fields
   elif innertype == 'float':
     innertype = 'MjFloat'  # custom Eigen type
   elif innertype == 'int':

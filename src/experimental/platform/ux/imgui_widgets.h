@@ -174,6 +174,7 @@ class ImGui_DataPtrTable {
   // dimensionality of n.
   void DataPtr(const char* label, const char* ptr, int index, int n);
   void DataPtr(const char* label, const mjtByte* ptr, int index, int n);
+  void DataPtr(const char* label, const mjtBool* ptr, int index, int n);
   void DataPtr(const char* label, const mjtSize* ptr, int index, int n);
   void DataPtr(const char* label, const int* ptr, int index, int n);
   void DataPtr(const char* label, const float* ptr, int index, int n);
@@ -299,7 +300,7 @@ class ImGui_SpecElementTable : public ImGui_DataPtrTable {
 
     ImGui::PushID(&val);
     ImGui::SetNextItemWidth(-1.0f);
-    if constexpr (std::is_same_v<T, mjtByte>) {
+    if constexpr (std::is_same_v<T, mjtByte> || std::is_same_v<T, mjtBool>) {
       if (read_only_) {
         ImGui::Text("%s", val ? "true" : "false");
       } else {
@@ -616,6 +617,9 @@ inline void EndBoxSection() { ImGui::EndTable(); }
 // Saves the given contents to the clipboard if the clipboard is available.
 void MaybeSaveToClipboard(const std::string& contents);
 
+// Returns the expected width of a UI label based on MuJoCo visualization flags.
+float GetExpectedLabelWidth();
+
 // Returns plot flags with title/legend conditionally hidden when the plot
 // area is too small.  `plot_size` is the final rendered size of the plot.
 ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size);
@@ -655,6 +659,10 @@ struct ImPlotPairLayout {
 // content region.  When the region is wider than tall, the plots are placed
 // side-by-side; otherwise they are stacked vertically.
 ImPlotPairLayout ImPlot_ComputePairLayout();
+
+// Draws text at the given screen coordinates in clip space (i.e. [-1,-1,-1] to
+// [1,1,1]).
+void DrawTextAt(const char* text, float x, float y, float z);
 
 }  // namespace mujoco::platform
 

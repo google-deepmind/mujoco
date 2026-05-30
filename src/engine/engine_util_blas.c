@@ -16,7 +16,7 @@
 
 #include <string.h>
 
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #include "engine/engine_util_blas_avx.h"  // IWYU pragma: keep
 

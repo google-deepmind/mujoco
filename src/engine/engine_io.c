@@ -33,6 +33,7 @@
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_sleep.h"
+#include "engine/engine_thread.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -184,9 +185,32 @@ static mjtSize safeAddToBufferSize(intptr_t* offset, mjtSize* nbuffer,
   if (__builtin_add_overflow(*nbuffer, to_add, nbuffer)) return 0;
   if (__builtin_add_overflow(*offset, to_add, offset)) return 0;
 #else
-  // TODO: offer a safe implementation for MSVC or other compilers that don't have the builtins
-  *nbuffer += SKIP(*offset) + type_size*nr*nc;
-  *offset += SKIP(*offset) + type_size*nr*nc;
+  // safe overflow checks for MSVC and other compilers without __builtin_*_overflow
+  {
+    size_t product;
+    size_t to_add;
+    size_t skip = SKIP(*offset);
+
+    // nc * nr
+    if (nr > 0 && (size_t)nc > SIZE_MAX / (size_t)nr) return 0;
+    product = (size_t)nc * (size_t)nr;
+
+    // product * type_size
+    if (type_size > 0 && product > SIZE_MAX / type_size) return 0;
+    product *= type_size;
+
+    // product + SKIP(*offset)
+    if (product > SIZE_MAX - skip) return 0;
+    to_add = product + skip;
+
+    // *nbuffer + to_add
+    if ((size_t)*nbuffer > SIZE_MAX - to_add) return 0;
+    *nbuffer += to_add;
+
+    // *offset + to_add
+    if (*offset > 0 && to_add > (size_t)(INTPTR_MAX - *offset)) return 0;
+    *offset += to_add;
+  }
 #endif
 
   return 1;
@@ -1081,6 +1105,7 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
 
   // clear threadpool
   d->threadpool = 0;
+  d->threadlock = 0;
 
   // clear nplugin (overwritten by _initPlugin)
   d->nplugin = 0;
@@ -1140,6 +1165,7 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
   *dest = *src;
   dest->buffer = save_buffer;
   dest->arena = save_arena;
+  dest->threadpool = 0;
   mj_setPtrData(m, dest);
 
   // save plugin_data, since the X macro copying block below will override it
@@ -1239,8 +1265,6 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
     }
   }
 
-  dest->threadpool = src->threadpool;
-
   return dest;
 }
 
@@ -1300,7 +1324,6 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // clear memory utilization stats
   d->maxuse_stack = 0;
-  memset(d->maxuse_threadstack, 0, mjMAXTHREAD*sizeof(mjtSize));
   d->maxuse_arena = 0;
   d->maxuse_con = 0;
   d->maxuse_efc = 0;
@@ -1572,6 +1595,7 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
 // de-allocate mjData
 void mj_deleteData(mjData* d) {
   if (d) {
+    mju_threadpool(d, 0);
     freeDataBuffers(d);
     mju_free(d);
   }

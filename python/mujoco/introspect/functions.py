@@ -4088,7 +4088,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='flg_static',
-                 type=ValueType(name='mjtByte'),
+                 type=ValueType(name='mjtBool'),
              ),
              FunctionParameterDecl(
                  name='bodyexclude',
@@ -4152,7 +4152,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='flg_static',
-                 type=ValueType(name='mjtByte'),
+                 type=ValueType(name='mjtBool'),
              ),
              FunctionParameterDecl(
                  name='bodyexclude',
@@ -4359,19 +4359,19 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='flg_vert',
-                 type=ValueType(name='mjtByte'),
+                 type=ValueType(name='mjtBool'),
              ),
              FunctionParameterDecl(
                  name='flg_edge',
-                 type=ValueType(name='mjtByte'),
+                 type=ValueType(name='mjtBool'),
              ),
              FunctionParameterDecl(
                  name='flg_face',
-                 type=ValueType(name='mjtByte'),
+                 type=ValueType(name='mjtBool'),
              ),
              FunctionParameterDecl(
                  name='flg_skin',
-                 type=ValueType(name='mjtByte'),
+                 type=ValueType(name='mjtBool'),
              ),
              FunctionParameterDecl(
                  name='flexid',
@@ -8479,7 +8479,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='flg_sym',
-                 type=ValueType(name='mjtByte'),
+                 type=ValueType(name='mjtBool'),
              ),
          ),
          doc='Convert banded matrix to dense matrix, fill upper triangle if flg_sym>0.',  # pylint: disable=line-too-long
@@ -8557,7 +8557,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='flg_sym',
-                 type=ValueType(name='mjtByte'),
+                 type=ValueType(name='mjtBool'),
              ),
          ),
          doc='Multiply band-diagonal matrix with nvec vectors, include upper triangle if flg_sym>0.',  # pylint: disable=line-too-long
@@ -9404,7 +9404,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='flg_centered',
-                 type=ValueType(name='mjtByte'),
+                 type=ValueType(name='mjtBool'),
              ),
              FunctionParameterDecl(
                  name='A',
@@ -9460,7 +9460,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='flg_actuation',
-                 type=ValueType(name='mjtByte'),
+                 type=ValueType(name='mjtBool'),
              ),
              FunctionParameterDecl(
                  name='DfDq',
@@ -9985,23 +9985,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Find the decoder for a resource and return the decoded spec. The caller takes ownership of the spec and is responsible for cleaning it up.',  # pylint: disable=line-too-long
      )),
-    ('mju_threadPoolCreate',
+    ('mju_threadpool',
      FunctionDecl(
-         name='mju_threadPoolCreate',
-         return_type=PointerType(
-             inner_type=ValueType(name='mjThreadPool'),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='number_of_threads',
-                 type=ValueType(name='size_t'),
-             ),
-         ),
-         doc='Create a thread pool with the specified number of threads running.',  # pylint: disable=line-too-long
-     )),
-    ('mju_bindThreadPool',
-     FunctionDecl(
-         name='mju_bindThreadPool',
+         name='mju_threadpool',
          return_type=ValueType(name='void'),
          parameters=(
              FunctionParameterDecl(
@@ -10011,75 +9997,11 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='thread_pool',
-                 type=PointerType(
-                     inner_type=ValueType(name='void'),
-                 ),
+                 name='nthread',
+                 type=ValueType(name='int'),
              ),
          ),
-         doc='Adds a thread pool to mjData and configures it for multi-threaded use.',  # pylint: disable=line-too-long
-     )),
-    ('mju_threadPoolEnqueue',
-     FunctionDecl(
-         name='mju_threadPoolEnqueue',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='thread_pool',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjThreadPool'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='task',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjTask'),
-                 ),
-             ),
-         ),
-         doc='Enqueue a task in a thread pool.',
-     )),
-    ('mju_threadPoolDestroy',
-     FunctionDecl(
-         name='mju_threadPoolDestroy',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='thread_pool',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjThreadPool'),
-                 ),
-             ),
-         ),
-         doc='Destroy a thread pool.',
-     )),
-    ('mju_defaultTask',
-     FunctionDecl(
-         name='mju_defaultTask',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='task',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjTask'),
-                 ),
-             ),
-         ),
-         doc='Initialize an mjTask.',
-     )),
-    ('mju_taskJoin',
-     FunctionDecl(
-         name='mju_taskJoin',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='task',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjTask'),
-                 ),
-             ),
-         ),
-         doc='Wait for a task to complete.',
+         doc='Create a thread pool with nthread worker threads.',
      )),
     ('mjs_attach',
      FunctionDecl(
@@ -10365,6 +10287,144 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Add flex.',
+     )),
+    ('mjs_makeFlex',
+     FunctionDecl(
+         name='mjs_makeFlex',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsFlex'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='body',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsBody'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='type',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='dim',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='dof',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='count',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='cellcount',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='spacing',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='scale',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='radius',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='mass',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='inertiabox',
+                 type=ValueType(name='double'),
+             ),
+             FunctionParameterDecl(
+                 name='equality',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='rigid',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='flatskin',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='elastic2d',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='pos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='quat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double', is_const=True),
+                     extents=(4,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='origin',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double', is_const=True),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='file',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.',  # pylint: disable=line-too-long
      )),
     ('mjs_addPair',
      FunctionDecl(
@@ -11627,7 +11687,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mjs_setInStringVec',
      FunctionDecl(
          name='mjs_setInStringVec',
-         return_type=ValueType(name='mjtByte'),
+         return_type=ValueType(name='mjtBool'),
          parameters=(
              FunctionParameterDecl(
                  name='dest',

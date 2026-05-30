@@ -31,7 +31,7 @@
 #include <gtest/gtest.h>
 #include <absl/strings/match.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "src/xml/xml_numeric_format.h"
 #include "test/fixture.h"

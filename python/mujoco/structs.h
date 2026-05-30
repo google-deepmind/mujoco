@@ -548,6 +548,27 @@ struct enable_if_mj_struct<raw::MjModel> { using type = void; };
 
 // ==================== MJCONTACT ==============================================
 template <>
+class MjWrapper<raw::MjPreContact> : public WrapperBase<raw::MjPreContact> {
+ public:
+  MjWrapper();
+  MjWrapper(const MjWrapper&);
+  MjWrapper(MjWrapper&&) = default;
+  MjWrapper(raw::MjPreContact* ptr, pybind11::handle owner);
+  ~MjWrapper() = default;
+
+  #define X(var)                                                     \
+    py_array_or_tuple_t<                                             \
+        std::remove_all_extents_t<decltype(raw::MjPreContact::var)>> \
+        var
+  X(pos);
+  X(normal);
+  X(tangent);
+  #undef X
+};
+
+using MjPreContactWrapper = MjWrapper<raw::MjPreContact>;
+
+template <>
 class MjWrapper<raw::MjContact> : public WrapperBase<raw::MjContact> {
  public:
   MjWrapper();
@@ -961,6 +982,7 @@ using _impl::MjSolverStatWrapper;
 using _impl::MjModelWrapper;
 using _impl::MjDataWrapper;
 using _impl::MjContactWrapper;
+using _impl::MjPreContactWrapper;
 using _impl::MjvPerturbWrapper;
 using _impl::MjvCameraWrapper;
 using _impl::MjvGLCameraWrapper;

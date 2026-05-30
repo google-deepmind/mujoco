@@ -15,10 +15,8 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_SCENE_VIEW_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_SCENE_VIEW_H_
 
-#include <array>
-#include <memory>
+#include <span>
 #include <unordered_set>
-#include <vector>
 
 #include <filament/Camera.h>
 #include <filament/ColorGrading.h>
@@ -29,7 +27,6 @@
 #include "experimental/filament/filament/color_grading_options.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/renderable.h"
-#include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 
@@ -55,6 +52,12 @@ class SceneView : public mjrScene {
   void RemoveFromScene(Renderable* renderable);
   void SetSkybox(const Texture* skybox_texture);
 
+  // Performs necessary preparations in order to render the given requests.
+  // Assumes that the Render() function will be called the same number of times
+  // and in the same order with the given requests.
+  void PrepareToRender(std::span<const mjrRenderRequest*> requests);
+
+  // Fulfills the given render request using the renderer.
   void Render(filament::Renderer* renderer, const mjrRenderRequest& request);
 
   // Returns the filament Engine managing the scene.
@@ -80,13 +83,6 @@ class SceneView : public mjrScene {
   }
 
  private:
-  void EnableReflections();
-  void DisableReflections();
-
-  // Marks a renderable as reflective. Reflective renderables have to be
-  // rendered in their own passes to create the reflective texture.
-  void AddReflectiveRenderable(Renderable* renderable);
-
   filament::Engine* engine_ = nullptr;
   filament::Scene* scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
@@ -103,11 +99,6 @@ class SceneView : public mjrScene {
   // Custom view and camera for reflective surfaces.
   filament::View* reflect_view_ = nullptr;
   filament::Camera* reflect_camera_ = nullptr;
-
-  // The list of reflective renderables and their corresponding render targets.
-  bool reflections_enabled_ = true;
-  std::vector<Renderable*> reflectives_;
-  std::vector<std::unique_ptr<RenderTarget>> reflect_targets_;
 };
 }  // namespace mujoco
 

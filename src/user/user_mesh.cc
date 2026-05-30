@@ -57,7 +57,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include "engine/engine_crossplatform.h"  // IWYU pragma: keep
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"

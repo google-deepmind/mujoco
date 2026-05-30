@@ -21,7 +21,7 @@
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_spatial.h"

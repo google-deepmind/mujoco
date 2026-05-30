@@ -28,7 +28,7 @@
 #include <absl/strings/str_format.h>
 #include <absl/strings/str_replace.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "src/cc/array_safety.h"
 #include "test/fixture.h"

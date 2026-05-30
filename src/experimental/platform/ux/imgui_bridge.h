@@ -65,10 +65,6 @@ class ImguiBridge {
   uintptr_t next_tex_id_ = 1;
 };
 
-// Draws text at the given screen coordinates in clip space (i.e. [-1,-1,-1] to
-// [1,1,1]).
-void DrawTextAt(const char* text, float x, float y, float z);
-
 }  // namespace mujoco
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_UX_IMGUI_BRIDGE_H_

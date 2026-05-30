@@ -19,7 +19,7 @@
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,13 +36,13 @@ MJAPI void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s, mjtNu
                         const mjtNum x[3]);
 
 // collision between a height field and a signed distance field
-int mjc_HFieldSDF(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin);
+int mjc_HFieldSDF(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
 
 // collision between a mesh and a signed distance field
-int mjc_MeshSDF(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin);
+int mjc_MeshSDF(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
 
 // collision between two signed distance fields
-int mjc_SDF(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin);
+int mjc_SDF(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
 
 // collision between entire flex and SDF geom (batched processing)
 int mjc_FlexSDF(const mjModel* m, const mjData* d, mjContact* con,

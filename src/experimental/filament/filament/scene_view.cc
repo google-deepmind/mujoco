@@ -14,11 +14,9 @@
 
 #include "experimental/filament/filament/scene_view.h"
 
-#include <algorithm>
-#include <array>
-#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string_view>
 
 #include <filament/ColorGrading.h>
@@ -145,6 +143,7 @@ SceneView::SceneView(filament::Engine* engine, const mjrSceneParams& params)
   reflect_view_->setPostProcessingEnabled(false);
   reflect_view_->setFrontFaceWindingInverted(true);
   reflect_view_->setVisibleLayers(0xff, params.reflection_layer_mask);
+  reflect_view_->setMultiSampleAntiAliasingOptions({.enabled = false});
 
   // Rotate the fog to align with mujoco's +Z up space.
   auto fog = main_view_->getFogEntity();
@@ -167,7 +166,6 @@ SceneView::~SceneView() {
   }
   lights_.clear();
   renderables_.clear();
-  reflect_targets_.clear();
   engine_->destroyCameraComponent(reflect_camera_->getEntity());
   engine_->destroy(reflect_view_);
   engine_->destroyCameraComponent(camera_->getEntity());
@@ -194,18 +192,11 @@ void SceneView::RemoveFromScene(Light* light) {
 void SceneView::AddToScene(Renderable* renderable) {
   if (renderables_.insert(renderable).second) {
     renderable->AddToScene(scene_);
-    if (renderable->GetMaterial().reflective) {
-      AddReflectiveRenderable(renderable);
-    }
   }
 }
 
 void SceneView::RemoveFromScene(Renderable* renderable) {
   if (renderables_.erase(renderable)) {
-    auto it = std::find(reflectives_.begin(), reflectives_.end(), renderable);
-    if (it != reflectives_.end()) {
-      reflectives_.erase(it);
-    }
     renderable->RemoveFromScene(scene_);
   }
 }
@@ -224,34 +215,30 @@ void SceneView::SetSkybox(const Texture* skybox_texture) {
   }
 }
 
+void SceneView::PrepareToRender(std::span<const mjrRenderRequest*> requests) {
+  for (const mjrRenderRequest* request : requests) {
+    if (request->scene != this) {
+      mju_error("Invalid scene for SceneView::PrepareToRender.");
+    }
+  }
+  for (Renderable* renderable : renderables_) {
+    renderable->Prepare(requests);
+  }
+}
+
 void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& request) {
   if (request.scene != this) {
     mju_error("Invalid scene for SceneView::Render.");
   }
 
-  if (request.enable_reflections) {
-    EnableReflections();
-  } else {
-    DisableReflections();
-  }
-
   filament::Viewport viewport(request.viewport.left, request.viewport.bottom,
                               request.viewport.width, request.viewport.height);
-  main_view_->setViewport(viewport);
-  depth_segment_view_->setViewport(viewport);
-  reflect_view_->setViewport(viewport);
-
-  SetupCamera(request.camera, viewport, camera_);
-
-  for (auto& iter : renderables_) {
-    iter->SetDrawMode(request.draw_mode);
-  }
-
   filament::View* view = main_view_;
   if (request.draw_mode == mjDRAW_MODE_DEPTH ||
       request.draw_mode == mjDRAW_MODE_SEGMENTATION) {
     view = depth_segment_view_;
   }
+  view->setViewport(viewport);
   view->setShadowingEnabled(request.enable_shadows);
   view->setPostProcessingEnabled(request.enable_post_processing);
 
@@ -264,25 +251,30 @@ void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& req
     view->setMultiSampleAntiAliasingOptions({.enabled = false});
   }
 
-  // Render reflection passes.
-  if (request.draw_mode == mjDRAW_MODE_COLOR && reflections_enabled_) {
-    for (size_t i = 0; i < reflectives_.size(); ++i) {
-      Renderable* renderable = reflectives_[i];
+  SetupCamera(request.camera, viewport, camera_);
+
+  for (auto& iter : renderables_) {
+    iter->BindMaterialInstance(request);
+
+    if (RenderTarget* target = iter->GetReflectionTarget()) {
+      viewport.left = 0;
+      viewport.bottom = 0;
+      reflect_view_->setViewport(viewport);
 
       // We assume the 0th entity is the reflective entity.
-      mat4 transform(renderable->GetTransform());
+      mat4 transform(iter->GetTransform());
       SetupReflectionCamera(transform, camera_, reflect_camera_);
 
       // Hide reflective surface from its own reflection pass.
-      std::uint8_t previous_layer_mask = renderable->SetLayerMask(0x00);
+      std::uint8_t previous_layer_mask = iter->SetLayerMask(0x00);
 
       // Render the reflection to its render target.
-      reflect_view_->setRenderTarget(
-          reflect_targets_[i]->GetFilamentRenderTarget());
+      reflect_view_->setRenderTarget(target->GetFilamentRenderTarget());
       renderer->render(reflect_view_);
+      reflect_view_->setRenderTarget(nullptr);
 
       // Unhide the reflective surface.
-      renderable->SetLayerMask(previous_layer_mask);
+      iter->SetLayerMask(previous_layer_mask);
     }
   }
 
@@ -293,33 +285,6 @@ void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& req
 
   if (request.target) {
     view->setMultiSampleAntiAliasingOptions(options);
-  }
-}
-
-void SceneView::AddReflectiveRenderable(Renderable* renderable) {
-  const int index = reflectives_.size();
-  reflectives_.push_back(renderable);
-
-  // Ensure we have the same number of render targets as we do reflective
-  // renderables.
-  while (reflect_targets_.size() < reflectives_.size()) {
-    mjrRenderTargetConfig config;
-    mjr_defaultRenderTargetConfig(&config);
-
-    config.color_format = mjPIXEL_FORMAT_RGBA8;
-    config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-    reflect_targets_.push_back(std::make_unique<RenderTarget>(engine_, config));
-  }
-
-  // Prepare a render target for the reflective renderable.
-  auto viewport = reflect_view_->getViewport();
-  auto& target = reflect_targets_[index];
-  target->Prepare(viewport.width, viewport.height);
-
-  if (reflections_enabled_) {
-    mjrMaterial material = renderable->GetMaterial();
-    material.reflection_texture = target->GetColorTexture();
-    renderable->UpdateMaterial(material);
   }
 }
 
@@ -334,33 +299,6 @@ void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
   }
   color_grading_ = color_grading;
   color_grading_options_ = opts;
-}
-
-void SceneView::EnableReflections() {
-  if (reflections_enabled_) {
-    return;
-  }
-
-  reflections_enabled_ = true;
-  for (int i = 0; i < reflectives_.size(); ++i) {
-    Renderable* renderable = reflectives_[i];
-    mjrMaterial material = renderable->GetMaterial();
-    material.reflection_texture = reflect_targets_[i]->GetColorTexture();
-    renderable->UpdateMaterial(material);
-  }
-}
-
-void SceneView::DisableReflections() {
-  if (!reflections_enabled_) {
-    return;
-  }
-
-  reflections_enabled_ = false;
-  for (Renderable* renderable : reflectives_) {
-    mjrMaterial material = renderable->GetMaterial();
-    material.reflection_texture = nullptr;
-    renderable->UpdateMaterial(material);
-  }
 }
 
 filament::View* SceneView::GetDefaultRenderView() {

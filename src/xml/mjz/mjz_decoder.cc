@@ -90,7 +90,7 @@ class ZipArchiveProvider : public mjpResourceProvider {
     // with the same name as the archive itself. Failing that, look for an XML
     // file within a subdirectory with the same name as the archive.
     const std::filesystem::path path(name_);
-    root_model_ = (path / path.stem()).string() + ".xml";
+    root_model_ = (path / path.stem()).generic_string() + ".xml";
     if (!Contains(root_model_)) {
       root_model_ = (path / path.stem() / path.stem()).string() + ".xml";
       if (!Contains(root_model_)) {
@@ -110,12 +110,14 @@ class ZipArchiveProvider : public mjpResourceProvider {
     };
     open = [](mjResource* resource) {
       ZipArchiveProvider* self = (ZipArchiveProvider*)resource->provider;
-      const bool found = self->Contains(resource->name);
+      auto path = std::filesystem::path(resource->name).lexically_normal();
+      const bool found = self->Contains(path.string());
       return found ? 1 : 0;
     };
     read = [](mjResource* resource, const void** buffer) {
       ZipArchiveProvider* self = (ZipArchiveProvider*)resource->provider;
-      std::span<char> bytes = self->Read(resource->name);
+      auto path = std::filesystem::path(resource->name).lexically_normal();
+      std::span<char> bytes = self->Read(path.string());
       *buffer = bytes.data();
       return static_cast<int>(bytes.size());
     };
@@ -138,6 +140,11 @@ class ZipArchiveProvider : public mjpResourceProvider {
 
   // Returns true if the archive contains a file with the given name/path.
   bool Contains(std::string_view name) const {
+    // Lexically normalized path might strip the archive path.
+    // a/b.mjz/../../../c.xml -> ../c.xml
+    if (!name.starts_with(name_)) {
+      return false;
+    }
     const std::string_view filename = name.substr(name_.size() + 1);
     return files_.find(filename.data()) != files_.end();
   }

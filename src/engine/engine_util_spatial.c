@@ -504,7 +504,7 @@ void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_force,
 }
 
 
-// make 3D frame given X axis (normal) and possibly Y axis (tangent 1)
+// make 3D frame given x-axis (normal) and possibly y-axis (tangent 1)
 void mju_makeFrame(mjtNum frame[9]) {
   mjtNum tmp[3];
 

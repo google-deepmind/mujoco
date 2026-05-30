@@ -28,6 +28,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -227,6 +228,7 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
       plugin->post_model_loaded(plugin, model_path_.c_str());
     }
   });
+  tmp_.update_threadpool = true;
 }
 
 void App::UpdateFilePaths(const std::string& resolved_path) {
@@ -266,6 +268,11 @@ void App::ResetPhysics() {
 void App::UpdatePhysics() {
   if (!has_model()) {
     return;
+  }
+
+  if (tmp_.update_threadpool) {
+    mju_threadpool(data(), ui_.nthread);
+    tmp_.update_threadpool = false;
   }
 
   bool stepped = false;
@@ -461,14 +468,20 @@ void App::HandleMouseEvents() {
     if (perturb_.select > 0) {
       mjtMouse action = mjMOUSE_NONE;
       if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        action = io.KeyShift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
+        if (io.KeyAlt) {
+          action = io.KeyShift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
+        } else {
+          action = io.KeyShift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
+        }
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
         action = io.KeyShift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
         action = mjMOUSE_ZOOM;
       }
       const mjtPertBit active =
-          action == mjMOUSE_MOVE_V ? mjPERT_TRANSLATE : mjPERT_ROTATE;
+          (action == mjMOUSE_MOVE_V || action == mjMOUSE_MOVE_H)
+              ? mjPERT_TRANSLATE
+              : mjPERT_ROTATE;
       if (active != perturb_.active) {
         platform::InitPerturb(model(), data(), &camera_, &perturb_, active);
       }
@@ -820,14 +833,7 @@ void App::SaveSettings() {
 }
 
 void App::SetSpeedIndex(int idx) {
-  if (idx == tmp_.speed_index || platform::kPercentRealTime.empty()) {
-    return;
-  }
-
-  tmp_.speed_index =
-      std::clamp<int>(idx, 0, platform::kPercentRealTime.size() - 1);
-  float speed = std::stof(platform::kPercentRealTime[tmp_.speed_index]);
-  step_control_.SetSpeed(speed);
+  platform::SetSpeedIndex(&step_control_, tmp_.speed_index, idx);
 }
 
 void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx,
@@ -1016,7 +1022,7 @@ void App::BuildGui() {
 }
 
 void App::ModelOptionsGui() {
-  const float min_width = GetExpectedLabelWidth();
+  const float min_width = platform::GetExpectedLabelWidth();
   const ImGuiChildFlags child_flags =
       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
   const ImGuiTreeNodeFlags node_flags =
@@ -1058,7 +1064,7 @@ void App::DataInspectorGui() {
     return;
   }
 
-  const float min_width = GetExpectedLabelWidth();
+  const float min_width = platform::GetExpectedLabelWidth();
   const ImGuiChildFlags child_flags =
       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
   const ImGuiTreeNodeFlags node_flags =
@@ -1418,15 +1424,14 @@ void App::ToolBarGui() {
               ImVec2(ImGui::GetStyle().ItemSpacing.x * 2.0f,
                      ImGui::GetStyle().ItemSpacing.y));
 
-    const float label_width = GetExpectedLabelWidth();
-    const float copy_btn_width = ImGui::CalcTextSize(ICON_COPY_CAMERA).x +
-                                 ImGui::GetStyle().FramePadding.x * 2;
+    const float label_width = platform::GetExpectedLabelWidth();
+    const float copy_btn_width = ImGui::GetFrameHeight();
     const float theme_width =
         ImGui::CalcTextSize(platform::ICON_FA_CIRCLE_O).x +
         ImGui::GetStyle().FramePadding.x * 2;
     const float sp = ImGui::GetStyle().ItemSpacing.x;
-    const float right_width = label_width + sp + label_width + sp +
-                              label_width + sp + copy_btn_width + sp +
+    const float right_width = copy_btn_width + label_width + sp +
+                              label_width + sp + label_width + sp +
                               theme_width;
     const float separator_width = ImGui::GetFrameHeight() * .6f;
 
@@ -1459,28 +1464,26 @@ void App::ToolBarGui() {
     ImGui::SameLine(0, separator_width);
     platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
 
+    ImGui::SameLine(0, separator_width);
+    ImGui::SetNextItemWidth(120);
+    ImGui::BeginDisabled(std::thread::hardware_concurrency() <= 1);
+    if (ImGui::SliderInt("##NumThreads", &ui_.nthread, 0, 8, "%d threads")) {
+      tmp_.update_threadpool = true;
+    }
+    ImGui::EndDisabled();
+    ImGui::SetItemTooltip("%s", "Number of threads in threadpool");
+
     ImGui::TableNextColumn();
 
-    if (ImGui::Button(ICON_COPY_CAMERA, square_size)) {
-      std::string camera_string = platform::CameraToString(data(), &camera_);
-      platform::MaybeSaveToClipboard(camera_string);
-    }
-    ImGui::SetItemTooltip("%s", "Copy Camera");
-
-    ImGui::SameLine(0, 0);
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::CameraSelectionGui(model(), data(), camera_, ui_.camera_idx);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::LabelSelectionGui(&vis_options_);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::FrameSelectionGui(&vis_options_);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     if (platform::ThemeSelectGui(&ui_.theme, square_size)) {
       platform::SetupTheme(ui_.theme);
       ImGui::GetIO().WantSaveIniSettings = true;
@@ -1830,33 +1833,13 @@ void App::FileDialogGui() {
   }
 }
 
-float App::GetExpectedLabelWidth() {
-  // Find the longest label which we'll use to set the minimum toggle button
-  // width. This isn't perfect because we may have labels that are longer, but
-  // it's a good enough approximation.
-  if (tmp_.expected_label_width == 0) {
-    int longest = 0;
-    const char* longest_label = "";
-    for (int i = 0; i < mjNVISFLAG; ++i) {
-      int length = static_cast<int>(strlen(mjVISSTRING[i][0]));
-      if (length > longest) {
-        longest_label = mjVISSTRING[i][0];
-        longest = length;
-      }
-    }
-    // Pad the width a bit to account for how the labels will be displayed
-    // (e.g. as button labels or besides checkboxes).
-    tmp_.expected_label_width = ImGui::CalcTextSize(longest_label).x + 16;
-  }
-  return tmp_.expected_label_width;
-}
-
 App::UiState::Dict App::UiState::ToDict() const {
   return {
       {"theme", std::to_string(static_cast<int>(theme))},
       {"font_scale", std::to_string(font_scale)},
       {"window_width", std::to_string(window_width)},
       {"window_height", std::to_string(window_height)},
+      {"nthread", std::to_string(nthread)},
   };
 }
 
@@ -1868,5 +1851,6 @@ void App::UiState::FromDict(const Dict& dict) {
   window_width = ReadIniValue(dict, "window_width", window_width);
   window_height = ReadIniValue(dict, "window_height", window_height);
   font_scale = ReadIniValue(dict, "font_scale", font_scale);
+  nthread = ReadIniValue(dict, "nthread", nthread);
 }
 }  // namespace mujoco::studio

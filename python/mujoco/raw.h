@@ -25,6 +25,7 @@
 // to them under the "raw" namespace.
 namespace mujoco::raw {
 
+using MjPreContact = ::mjPreContact;
 using MjContact = ::mjContact;
 using MjData = ::mjData;
 using MjLROpt = ::mjLROpt;

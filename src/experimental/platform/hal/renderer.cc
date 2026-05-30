@@ -32,6 +32,7 @@
 #include "experimental/filament/render_context_filament_cpp.h"
 #include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/platform/ux/imgui_bridge.h"
+#include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/plugin.h"
 
 namespace mujoco::platform {
@@ -232,6 +233,8 @@ void Renderer::DoRender(int width, int height) {
         draw_mode = mjDRAW_MODE_SEGMENTATION;
       } else if (scene_.flags[mjRND_DEPTH]) {
         draw_mode = mjDRAW_MODE_DEPTH;
+      } else if (scene_.flags[mjRND_WIREFRAME]) {
+        draw_mode = mjDRAW_MODE_WIREFRAME;
       }
 
       mjrRenderRequest reqs[2];
@@ -285,6 +288,8 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
       draw_mode = mjDRAW_MODE_SEGMENTATION;
     } else if (scene_.flags[mjRND_DEPTH]) {
       draw_mode = mjDRAW_MODE_DEPTH;
+    } else if (scene_.flags[mjRND_WIREFRAME]) {
+      draw_mode = mjDRAW_MODE_WIREFRAME;
     }
 
     mjrRenderTargetConfig config;

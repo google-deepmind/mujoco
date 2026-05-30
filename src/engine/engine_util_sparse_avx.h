@@ -23,7 +23,7 @@
 #include <immintrin.h>
 #include <string.h>
 
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 
 //------------------------------ sparse operations using avx ---------------------------------------

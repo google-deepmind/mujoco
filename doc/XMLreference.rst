@@ -8514,15 +8514,14 @@ Extraction
    :width: 30%
    :target: https://github.com/google-deepmind/mujoco/blob/main/model/tactile/tactile.xml
 
-The tactile sensor returns the penetration pressure and the sliding velocities in the tangent frame at given points
-between the geom associated with the sensor and the SDF geoms in contact with it. We define the penetration pressure as
-a function of the penetration depth :math:`p(d) = \frac{d}{d_{max}-d}`, which is zero at the surface and goes to
-infinity as the maximum depth is reached. The sensor is associated with a geom and a mesh. It is activated by the
-contact between its associated geom and other geoms. The vertices of the mesh, when positioned in the geom frame, are
-the points at which sensor values are computed, so the dimension of the output is 3 times the number of vertices in the
-mesh. The mesh must have 3 normal vectors per vertex, which are used to compute the tangent frame. If the penetration
-depth is positive (no contact), then all values are 0 for the corresponding vertex. Only contacts with geoms of type SDF
-contribute to the sensor output. The sensor can be visualized by enabling the visualization of contact points.
+The tactile sensor returns the maximum penetration depth and the sliding velocities in the tangent frame at given points
+between the geom associated with the sensor and the SDF geoms in contact with it. The sensor is associated with a geom
+and a mesh. It is activated by the contact between its associated geom and other geoms. The vertices of the mesh, when
+positioned in the geom frame, are the points at which sensor values are computed, so the dimension of the output is 3
+times the number of vertices in the mesh. The mesh must have 3 normal vectors per vertex, which are used to compute the
+tangent frame. If the penetration depth is positive (no contact), then all values are 0 for the corresponding vertex.
+Only contacts with geoms of type SDF contribute to the sensor output. The sensor can be visualized by enabling the
+visualization of contact points.
 
 .. _sensor-tactile-geom:
 

@@ -59,6 +59,9 @@ from mujoco._functions import *
 from mujoco._specs import *
 from mujoco._structs import *
 
+import numpy as np
+MJTNUM_DTYPE = np.float32 if MJTNUM_BYTES == 4 else np.float64  # pylint: disable=undefined-variable
+
 try:
   from mujoco._render import *  # pytype: disable=import-error
 except ImportError:

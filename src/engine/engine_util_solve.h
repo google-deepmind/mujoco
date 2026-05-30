@@ -17,7 +17,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,14 +82,14 @@ MJAPI void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
 // convert banded matrix to dense matrix, fill upper triangle if flg_sym>0
 MJAPI void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
-                          mjtByte flg_sym);
+                          mjtBool flg_sym);
 
 // convert dense matrix to banded matrix
 MJAPI void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
 
 // multiply band-diagonal matrix with vector, include upper triangle if flg_sym>0
 MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                             int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+                             int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym);
 
 // address of diagonal element i in band-dense matrix representation
 MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);

@@ -18,7 +18,7 @@
 #include <math.h>
 
 #include <mujoco/mjexport.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {

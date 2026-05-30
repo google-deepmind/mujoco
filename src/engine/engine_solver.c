@@ -877,12 +877,12 @@ typedef struct {
   mjtNum* qacc;
 
   // inertia
-  const int* M_rownnz;
-  const int* M_rowadr;
-  const int* M_colind;
-  const mjtNum* M;
-  const mjtNum* qLD;
-  const mjtNum* qLDiagInv;
+  int* M_rownnz;
+  int* M_rowadr;
+  int* M_colind;
+  mjtNum* M;
+  mjtNum* qLD;
+  mjtNum* qLDiagInv;
 
   // efc arrays
   const mjtNum* efc_D;
@@ -895,11 +895,11 @@ typedef struct {
   int* efc_state;
 
   // Jacobians
-  const int* J_rownnz;
-  const int* J_rowadr;
-  const int* J_rowsuper;
-  const int* J_colind;
-  const mjtNum* J;
+  int* J_rownnz;
+  int* J_rowadr;
+  int* J_rowsuper;
+  int* J_colind;
+  mjtNum* J;
   int* JT_rownnz;
   int* JT_rowadr;
   int* JT_rowsuper;
@@ -1031,14 +1031,6 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
     ctx->qacc_smooth      = d->iacc_smooth       + idofadr;
     ctx->qacc             = d->iacc              + idofadr;
 
-    // inertia
-    ctx->M_rownnz         = d->iM_rownnz         + idofadr;
-    ctx->M_rowadr         = d->iM_rowadr         + idofadr;
-    ctx->M_colind         = d->iM_colind;
-    ctx->M                = d->iM;
-    ctx->qLD              = d->iLD;
-    ctx->qLDiagInv        = d->iLDiagInv         + idofadr;
-
     // efc arrays
     int iefcadr           = d->island_iefcadr[island];
     ctx->efc_D            = d->iefc_D            + iefcadr;
@@ -1049,32 +1041,44 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
     ctx->efc_type         = d->iefc_type         + iefcadr;
     ctx->efc_force        = d->iefc_force        + iefcadr;
     ctx->efc_state        = d->iefc_state        + iefcadr;
-
-    // Jacobians
-    if (!ctx->is_sparse) {
-      ctx->J              = d->iefc_J + d->nidof * iefcadr;
-    } else {
-      ctx->J_rownnz       = d->iefc_J_rownnz     + iefcadr;
-      ctx->J_rowadr       = d->iefc_J_rowadr     + iefcadr;
-      ctx->J_rowsuper     = d->iefc_J_rowsuper   + iefcadr;
-      ctx->J_colind       = d->iefc_J_colind;
-      ctx->J              = d->iefc_J;
-      ctx->nJ             = ctx->J_rowadr[ctx->nefc-1] + ctx->J_rownnz[ctx->nefc-1]
-                            - ctx->J_rowadr[0];
-    }
   }
 }
 
 
 // allocate fixed-size arrays in mjPrimalContext
 //  mj_{mark/free}Stack in calling function!
-static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
+static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, int flg_Newton) {
   // local sizes and flags
   int nv = ctx->nv;
   int nefc = ctx->nefc;
-  int nJ = ctx->is_sparse ? d->nJ : 0;
   int is_sparse = ctx->is_sparse;
   int is_elliptic = ctx->is_elliptic;
+  int nJ = is_sparse ? d->nJ : 0;
+
+  // compute island matrix sizes if needed
+  int nC = 0;
+  if (ctx->island >= 0) {
+    // count nC: number of nonzeros in M block of island (always sparse)
+    int island = ctx->island;
+    int idofadr = d->island_idofadr[island];
+    for (int i = 0; i < nv; i++) {
+      int dof = d->map_idof2dof[idofadr + i];
+      nC += m->M_rownnz[dof];
+    }
+
+    // count nJ: number of nonzeros in J block of island (sparse or dense)
+    if (is_sparse) {
+      nJ = 0;
+      int iefcadr = d->island_iefcadr[island];
+      for (int i = 0; i < nefc; i++) {
+        int efc = d->map_iefc2efc[iefcadr + i];
+        nJ += d->efc_J_rownnz[efc];
+      }
+    } else {
+      nJ = nefc * nv;
+    }
+    ctx->nJ = nJ;
+  }
 
   // compute mjtNum block size
   size_t nNum = 5*nefc + 5*nv;         // common arrays
@@ -1090,6 +1094,11 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
     nNum += 3*nv;                      // CG arrays
   }
 
+  // add island matrix sizes
+  if (ctx->island >= 0) {
+    nNum += 2 * nC + nv + nJ;          // iM, iLD, iLDiagInv, iefc_J
+  }
+
   // compute int block size
   size_t nInt = nefc;                  // oldstate
   if (is_sparse) {
@@ -1097,9 +1106,57 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
     if (flg_Newton) nInt += 8*nv;      // Newton sparse
   }
 
+  // add island matrix sizes
+  if (ctx->island >= 0) {
+    nInt += 2 * nv + nC;               // iM_{rownnz, rowadr, colind}
+    if (is_sparse) {
+      nInt += 3 * nefc + nJ;           // iefc_J_{rownnz, rowadr, rowsuper, colind}
+    }
+  }
+
   // allocate mjtNum and int blocks
   mjtNum* numblock = mjSTACKALLOC(d, nNum, mjtNum);
   int* intblock    = mjSTACKALLOC(d, nInt, int);
+
+  // populate island matrices if needed
+  if (ctx->island >= 0) {
+    int island = ctx->island;
+
+    int idofadr = d->island_idofadr[island];
+    int iefcadr = d->island_iefcadr[island];
+
+    ctx->M_rownnz = intblock; intblock += nv;
+    ctx->M_rowadr = intblock; intblock += nv;
+    ctx->M_colind = intblock; intblock += nC;
+
+    ctx->M = numblock; numblock += nC;
+    ctx->qLD = numblock; numblock += nC;
+    ctx->qLDiagInv = numblock; numblock += nv;
+
+    mju_blockSparse(ctx->qLD, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
+                    d->qLD, m->M_rownnz, m->M_rowadr, m->M_colind,
+                    nv, d->map_idof2dof + idofadr, d->map_dof2idof,
+                    d->island_idofadr[island], 0, ctx->M, d->M);
+    mju_gather(ctx->qLDiagInv, d->qLDiagInv, d->map_idof2dof + idofadr, nv);
+
+    ctx->J = numblock; numblock += nJ;
+    if (!is_sparse) {
+      mju_block(ctx->J, d->efc_J, m->nv, nv, nefc,
+                d->map_iefc2efc + iefcadr, d->map_idof2dof + idofadr);
+    } else {
+      ctx->J_rownnz = intblock; intblock += nefc;
+      ctx->J_rowadr = intblock; intblock += nefc;
+      ctx->J_rowsuper = intblock; intblock += nefc;
+      ctx->J_colind = intblock; intblock += nJ;
+
+      mju_blockSparse(ctx->J, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+                      d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                      nefc, d->map_iefc2efc + iefcadr, d->map_dof2idof,
+                      d->island_idofadr[island], 0, NULL, NULL);
+
+      mju_superSparse(nefc, ctx->J_rowsuper, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind);
+    }
+  }
 
   // carve mjtNum block
   ctx->Jaref  = numblock;  numblock += nefc;
@@ -1962,7 +2019,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
 
   // make context
   PrimalPointers(m, d, &ctx, island);
-  PrimalAllocate(d, &ctx, flg_Newton);
+  PrimalAllocate(m, d, &ctx, flg_Newton);
 
   // local copies
   int nv   = ctx.nv;

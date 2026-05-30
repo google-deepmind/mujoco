@@ -1,0 +1,7 @@
+<mujoco>
+  <worldbody>
+    <body name="gc_body" pos="2 0 0">
+      <geom type="sphere" size="0.02"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -388,7 +388,7 @@ Defined in `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/includ
      - value
      - description
    * - ``mjVERSION_HEADER``
-     - 3009000
+     - 3010000
      - The version of the MuJoCo headers. This is an integer calculated from the version string "S.M.P"
        using the formula ``(S * 1e6) + (M * 1e3) + P``. For example, version 4.2.1 is represented as 4002001.
        The API function :ref:`mj_version` returns a number with the same meaning
@@ -415,7 +415,7 @@ indicated otherwise.
      - 1E-15
      - The minimal value allowed in any denominator, and in general any mathematical operation where 0 is not allowed.
        In almost all cases, MuJoCo silently clamps smaller values to mjMINVAL.
-       Defined in `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`_.
+       Defined in `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`_.
    * - ``mjPI``
      - :math:`\pi`
      - The value of :math:`\pi`. This is used in various trigonometric functions, and also for conversion from degrees
@@ -452,10 +452,6 @@ indicated otherwise.
    * - ``mjMINAWAKE``
      - 10
      - The minimum number of timesteps that must pass after a tree is awoken, before it is allowed to go back to sleep.
-   * - ``mjMAXTHREAD``
-     - 128
-     - Maximum number of OS threads that can be used in a thread pool.
-       Defined in `mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`_.
 
 
 .. _glNumericSizes:
@@ -706,7 +702,8 @@ X Macros
 ^^^^^^^^
 
 The X Macros are not needed in most user projects. They are used internally to allocate the model, and are also
-available for users who know how to use this programming technique. See the header file `mjxmacro.h
-<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`_ for the actual definitions. They are
+available for users who know how to use this programming technique. See the header files `mjxmacro.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`_ and `mjspecmacro.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspecmacro.h>`_ for the actual definitions. They are
 particularly useful in writing MuJoCo wrappers for scripting languages, where dynamic structures matching the MuJoCo
 data structures need to be constructed programmatically.

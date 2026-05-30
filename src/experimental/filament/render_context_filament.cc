@@ -247,14 +247,18 @@ void mjrf_setRenderableMaterial(mjrRenderable* renderable,
 
 void mjrf_setRenderableTransform(mjrRenderable* renderable,
                                  const float position[3],
-                                 const float rotation[9], const float size[3]) {
+                                 const float rotation[9]) {
   const filament::math::float3 fposition{position[0], position[1], position[2]};
-  const filament::math::float3 fsize{size[0], size[1], size[2]};
   const filament::math::mat3f frotation{rotation[0], rotation[3], rotation[6],
                                         rotation[1], rotation[4], rotation[7],
                                         rotation[2], rotation[5], rotation[8]};
   mujoco::Renderable::downcast(renderable)
-      ->SetTransform({fposition, frotation, fsize});
+      ->SetTransform(fposition, frotation);
+}
+
+void mjrf_setRenderableSize(mjrRenderable* renderable, const float size[3]) {
+  const filament::math::float3 fsize{size[0], size[1], size[2]};
+  mujoco::Renderable::downcast(renderable)->SetSize(fsize);
 }
 
 void mjrf_setRenderableLayerMask(mjrRenderable* renderable,

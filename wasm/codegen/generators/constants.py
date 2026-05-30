@@ -24,6 +24,7 @@ PRIMITIVE_TYPES: Set[str] = {
     "float",
     "int",
     "mjtByte",
+    "mjtBool",
     "mjtMeshBuiltin",
     "mjtNum",
     "mjtObj",  # Adding this to the primitives because it is used as int,
@@ -97,17 +98,6 @@ _SKIPPED_WRITABLE_ERROR: tuple[str, ...] = (
     "mj_printSchema",
 )
 
-# Omitted thread management functions
-_SKIPPED_THREAD_FUNCTIONS: tuple[str, ...] = (
-    # go/keep-sorted start
-    "mju_bindThreadPool",
-    "mju_defaultTask",
-    "mju_taskJoin",
-    "mju_threadPoolCreate",
-    "mju_threadPoolDestroy",
-    "mju_threadPoolEnqueue",
-    # go/keep-sorted end
-)
 
 # Omitted asset cache functions
 _SKIPPED_ASSET_CACHE_FUNCTIONS: tuple[str, ...] = (
@@ -206,7 +196,6 @@ _SKIPPED_UTILITY_FUNCTIONS: tuple[str, ...] = (
 # List of functions that should be skipped during the code generation process.
 SKIPPED_FUNCTIONS: tuple[str, ...] = (
     _SKIPPED_CLASS_METHODS
-    + _SKIPPED_THREAD_FUNCTIONS
     + _SKIPPED_MEMORY_FUNCTIONS
     + _SKIPPED_PLUGIN_FUNCTIONS
     + _SKIPPED_GETTERS_AND_SETTERS
@@ -222,8 +211,6 @@ SKIPPED_STRUCTS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjCache",
     "mjSDF",
-    "mjTask",
-    "mjThreadPool",
     "mjUI",
     "mjVFS",
     "mjrContext",
@@ -292,6 +279,7 @@ STRUCTS_TO_BIND: list[str] = list(
 NO_DEFAULT_CONSTRUCTORS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjContact",
+    "mjPreContact",
     "mjSolverStat",
     "mjStatistic",
     "mjTimerStat",

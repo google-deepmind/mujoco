@@ -39,7 +39,7 @@ set(MUJOCO_DEP_VERSION_qhull
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_miniz
-    3.1.1
+    d10b03cc73475af673df40f06e5cefd1d5f940d9
     CACHE STRING "Version of `miniz` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
@@ -58,7 +58,7 @@ set(MUJOCO_DEP_VERSION_gtest
 )
 
 set(MUJOCO_DEP_VERSION_benchmark
-    5c55f5d4f45a1b09c5d98aa63a671993ebd42c69
+    834a61fc65e8b7885fcf177f1230ae4b897118fa
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 

@@ -22,10 +22,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjthread.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
-#include "src/thread/thread_pool.h"
+#include "src/engine/engine_thread.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -61,8 +60,7 @@ TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
   mj_setState(model_threaded, data_threaded, initial_state.data(), spec);
 
   // bind a threadpool to the data_threaded
-  mjThreadPool* threadpool = mju_threadPoolCreate(10);
-  mju_bindThreadPool(data_threaded, threadpool);
+  mju_threadpool(data_threaded, 10);
 
   for (int i = 0; i < 10; ++i) {
     mj_step(model, data);
@@ -83,7 +81,6 @@ TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
   mj_deleteModel(model);
   mj_deleteData(data_threaded);
   mj_deleteModel(model_threaded);
-  mju_threadPoolDestroy(threadpool);
 }
 
 TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
@@ -116,8 +113,7 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
   mj_setState(model_threaded, data_threaded, initial_state.data(), spec);
 
   // bind a threadpool to the data_threaded
-  mjThreadPool* threadpool = mju_threadPoolCreate(10);
-  mju_bindThreadPool(data_threaded, threadpool);
+  mju_threadpool(data_threaded, 10);
 
   for (int i = 0; i < 10; ++i) {
     mj_step(model, data);
@@ -138,7 +134,6 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
   mj_deleteModel(model);
   mj_deleteData(data_threaded);
   mj_deleteModel(model_threaded);
-  mju_threadPoolDestroy(threadpool);
 }
 
 }  // namespace

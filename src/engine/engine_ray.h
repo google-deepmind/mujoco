@@ -25,14 +25,14 @@ extern "C" {
 
 MJAPI void mju_multiRayPrepare(const mjModel* m, const mjData* d,
                                const mjtNum pnt[3], const mjtNum ray_xmat[9],
-                               const mjtByte* geomgroup, mjtByte flg_static,
+                               const mjtByte* geomgroup, mjtBool flg_static,
                                int bodyexclude, mjtNum cutoff, mjtNum* geom_ba,
                                int* geom_eliminate);
 
 // intersect multiple rays emanating from a single source, compute normals if given
 //  similar semantics to mj_ray, but vec, normal and dist are arrays
 MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
-                       const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                       const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                        int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff);
 
 
@@ -40,7 +40,7 @@ MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const m
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
 //  geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion
 MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
-                    const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                    const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                     int geomid[1], mjtNum normal[3]);
 
 // intersect ray with hfield, compute normal if given
@@ -62,8 +62,8 @@ MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum 
 
 // intersect ray with flex, return nearest vertex id, compute normal if given
 MJAPI mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
-                        mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
-                        mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                        mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+                        mjtBool flg_skin, int flexid, const mjtNum pnt[3],
                         const mjtNum vec[3], int vertid[1], mjtNum normal[3]);
 
 // intersect ray with skin, return nearest vertex id

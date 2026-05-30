@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MATERIAL_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_MATERIAL_H_
 
+#include <cstdint>
 #include <filament/Engine.h>
 #include <filament/MaterialInstance.h>
 #include "experimental/filament/filament/mesh.h"
@@ -22,6 +23,11 @@
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
+
+// Generates a hash for the given material (type) and material parameters.
+using MaterialKey = uint64_t;
+MaterialKey BuildMaterialKey(ObjectManager::MaterialType type,
+                             const mjrMaterial& material);
 
 // Returns a MaterialType that best matches the given material data and mesh.
 ObjectManager::MaterialType GetMaterialType(

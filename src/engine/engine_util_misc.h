@@ -17,7 +17,7 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -88,6 +88,9 @@ MJAPI void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, 
 
 // evaluate the basis function at x for the i-th node
 MJAPI mjtNum mju_evalBasis(const mjtNum x[3], int i, int order);
+
+// evaluate the basis functions at x for all nodes in the cell
+MJAPI void mju_evalBasisArray(mjtNum* basis, const mjtNum x[3], int order);
 
 // map global parametric coord to cell-local coord and build node indices
 MJAPI int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, mjtNum local[3],

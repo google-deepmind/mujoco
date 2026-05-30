@@ -17,6 +17,7 @@ from typing import Any, Tuple
 
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src import history
 from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import ray
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
@@ -26,6 +27,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import sdf
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXCONPAIR
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import TACTILE_DEPTH_SEMANTICS
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConstraintType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
@@ -917,6 +919,10 @@ def sensor_pos(m: Model, d: Data):
     ],
   )
 
+  # apply sensor delay/interval for position sensors
+  history.apply_sensor_delay(m, d, m.sensor_pos_adr)
+  history.apply_sensor_delay(m, d, m.sensor_limitpos_adr)
+
   if m.callback.sensor:
     m.callback.sensor(m, d, Stage.POS)
 
@@ -1458,6 +1464,10 @@ def sensor_vel(m: Model, d: Data):
       d.sensordata,
     ],
   )
+
+  # apply sensor delay/interval for velocity sensors
+  history.apply_sensor_delay(m, d, m.sensor_vel_adr)
+  history.apply_sensor_delay(m, d, m.sensor_limitvel_adr)
 
   if m.callback.sensor:
     m.callback.sensor(m, d, Stage.VEL)
@@ -2252,18 +2262,24 @@ def _sensor_tactile(
     )
     vel_rel = vel_sensor - vel_other
 
-    kMaxDepth = 0.05
-    pressure = depth / wp.max(kMaxDepth - depth, MJ_MINVAL)
-    force = wp.mul(normal, pressure)
-
     forceT = wp.vec3(0.0, 0.0, 0.0)
-    forceT[0] = wp.dot(force, normal)
+    if wp.static(TACTILE_DEPTH_SEMANTICS):
+      forceT[0] = -depth
+    else:
+      kMaxDepth = 0.05
+      pressure = depth / wp.max(kMaxDepth - depth, MJ_MINVAL)
+      force = wp.mul(normal, pressure)
+      forceT[0] = wp.dot(force, normal)
+
     if has_frame:
       forceT[1] = wp.abs(wp.dot(vel_rel, tang1))
       forceT[2] = wp.abs(wp.dot(vel_rel, tang2))
 
     dim = sensor_dim[sensor_id] // 3
-    wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 0 * dim + vertid, forceT[0])
+    if wp.static(TACTILE_DEPTH_SEMANTICS):
+      wp.atomic_max(sensordata_out, worldid, sensor_adr[sensor_id] + 0 * dim + vertid, forceT[0])
+    else:
+      wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 0 * dim + vertid, forceT[0])
     wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 1 * dim + vertid, forceT[1])
     wp.atomic_add(sensordata_out, worldid, sensor_adr[sensor_id] + 2 * dim + vertid, forceT[2])
 
@@ -2708,6 +2724,10 @@ def sensor_acc(m: Model, d: Data):
       d.sensordata,
     ],
   )
+
+  # apply sensor delay/interval for acceleration sensors
+  history.apply_sensor_delay(m, d, m.sensor_acc_adr)
+  history.apply_sensor_delay(m, d, m.sensor_limitfrc_adr)
 
   if m.callback.sensor:
     m.callback.sensor(m, d, Stage.ACC)

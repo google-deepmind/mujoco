@@ -3375,59 +3375,14 @@ If no match, return NULL.
 
 Threads
 ^^^^^^^
-.. _mju_threadPoolCreate:
+.. _mju_threadpool:
 
-`mju_threadPoolCreate <#mju_threadPoolCreate>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mju_threadpool <#mju_threadpool>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mju_threadPoolCreate
+.. mujoco-include:: mju_threadpool
 
-Create a thread pool with the specified number of threads running.
-
-.. _mju_bindThreadPool:
-
-`mju_bindThreadPool <#mju_bindThreadPool>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_bindThreadPool
-
-Adds a thread pool to mjData and configures it for multi-threaded use.
-
-.. _mju_threadPoolEnqueue:
-
-`mju_threadPoolEnqueue <#mju_threadPoolEnqueue>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_threadPoolEnqueue
-
-Enqueue a task in a thread pool.
-
-.. _mju_threadPoolDestroy:
-
-`mju_threadPoolDestroy <#mju_threadPoolDestroy>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_threadPoolDestroy
-
-Destroy a thread pool.
-
-.. _mju_defaultTask:
-
-`mju_defaultTask <#mju_defaultTask>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_defaultTask
-
-Initialize an mjTask.
-
-.. _mju_taskJoin:
-
-`mju_taskJoin <#mju_taskJoin>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_taskJoin
-
-Wait for a task to complete.
+Create a thread pool with nthread worker threads.
 
 .. _Standardmath:
 
@@ -4495,6 +4450,17 @@ Add sensor.
 .. mujoco-include:: mjs_addFlex
 
 Add flex.
+
+.. _mjs_makeFlex:
+
+`mjs_makeFlex <#mjs_makeFlex>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_makeFlex
+
+Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.
+
+*Nullable:* ``type``, ``dof``, ``count``, ``cellcount``, ``spacing``, ``scale``, ``pos``, ``quat``, ``origin``, ``file``, ``vfs``
 
 .. _mjs_addPair:
 

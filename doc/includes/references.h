@@ -16,93 +16,15 @@
 // Error: C reference not found
 // NOLINTBEGIN
 
-typedef enum mjtState_ {            // state elements
-  mjSTATE_TIME           = 1<<0,    // time
-  mjSTATE_QPOS           = 1<<1,    // position
-  mjSTATE_QVEL           = 1<<2,    // velocity
-  mjSTATE_ACT            = 1<<3,    // actuator activation
-  mjSTATE_HISTORY        = 1<<4,    // history buffers (control, sensor)
-  mjSTATE_WARMSTART      = 1<<5,    // acceleration used for warmstart
-  mjSTATE_CTRL           = 1<<6,    // control
-  mjSTATE_QFRC_APPLIED   = 1<<7,    // applied generalized force
-  mjSTATE_XFRC_APPLIED   = 1<<8,    // applied Cartesian force/torque
-  mjSTATE_EQ_ACTIVE      = 1<<9,    // enable/disable constraints
-  mjSTATE_MOCAP_POS      = 1<<10,   // positions of mocap bodies
-  mjSTATE_MOCAP_QUAT     = 1<<11,   // orientations of mocap bodies
-  mjSTATE_USERDATA       = 1<<12,   // user data
-  mjSTATE_PLUGIN         = 1<<13,   // plugin state
-
-  mjNSTATE               = 14,      // number of state elements
-
-  // convenience values for commonly used state specifications
-  mjSTATE_PHYSICS        = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT | mjSTATE_HISTORY,
-  mjSTATE_FULLPHYSICS    = mjSTATE_TIME | mjSTATE_PHYSICS | mjSTATE_PLUGIN,
-  mjSTATE_USER           = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
-                          mjSTATE_EQ_ACTIVE | mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT |
-                          mjSTATE_USERDATA,
-  mjSTATE_INTEGRATION    = mjSTATE_FULLPHYSICS | mjSTATE_USER | mjSTATE_WARMSTART
-} mjtState;
-typedef enum mjtConstraint_ {       // type of constraint
-  mjCNSTR_EQUALITY       = 0,       // equality constraint
-  mjCNSTR_FRICTION_DOF,             // dof friction
-  mjCNSTR_FRICTION_TENDON,          // tendon friction
-  mjCNSTR_LIMIT_JOINT,              // joint limit
-  mjCNSTR_LIMIT_TENDON,             // tendon limit
-  mjCNSTR_CONTACT_FRICTIONLESS,     // frictionless contact
-  mjCNSTR_CONTACT_PYRAMIDAL,        // frictional contact, pyramidal friction cone
-  mjCNSTR_CONTACT_ELLIPTIC          // frictional contact, elliptic friction cone
-} mjtConstraint;
-typedef enum mjtConstraintState_ {  // constraint state
-  mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
-  mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
-  mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
-  mjCNSTRSTATE_LINEARPOS,           // linear cost, positive side (friction)
-  mjCNSTRSTATE_CONE                 // squared distance to cone cost (elliptic contact)
-} mjtConstraintState;
-typedef enum mjtWarning_ {          // warning types
-  mjWARN_INERTIA         = 0,       // (near) singular inertia matrix
-  mjWARN_CONTACTFULL,               // too many contacts in contact list
-  mjWARN_CNSTRFULL,                 // too many constraints
-  mjWARN_BADQPOS,                   // bad number in qpos
-  mjWARN_BADQVEL,                   // bad number in qvel
-  mjWARN_BADQACC,                   // bad number in qacc
-  mjWARN_BADCTRL,                   // bad number in ctrl
-
-  mjNWARNING                        // number of warnings
-} mjtWarning;
-typedef enum mjtTimer_ {            // internal timers
-  // main api
-  mjTIMER_STEP           = 0,       // step
-  mjTIMER_FORWARD,                  // forward
-  mjTIMER_INVERSE,                  // inverse
-
-  // breakdown of step/forward
-  mjTIMER_POSITION,                 // fwdPosition
-  mjTIMER_VELOCITY,                 // fwdVelocity
-  mjTIMER_ACTUATION,                // fwdActuation
-  mjTIMER_CONSTRAINT,               // fwdConstraint
-  mjTIMER_ADVANCE,                  // mj_Euler, mj_implicit
-
-  // breakdown of fwdPosition
-  mjTIMER_POS_KINEMATICS,           // kinematics, com, tendon, transmission
-  mjTIMER_POS_INERTIA,              // inertia computations
-  mjTIMER_POS_COLLISION,            // collision detection
-  mjTIMER_POS_MAKE,                 // make constraints
-  mjTIMER_POS_PROJECT,              // project constraints
-
-  // breakdown of mj_collision
-  mjTIMER_COL_BROAD,                // broadphase
-  mjTIMER_COL_NARROW,               // narrowphase
-
-  mjNTIMER                          // number of timers
-} mjtTimer;
-typedef enum mjtSleepState_ {       // sleep state of an object
-  mjS_STATIC = -1,                  // object is static
-  mjS_ASLEEP = 0,                   // object is asleep
-  mjS_AWAKE  = 1                    // object is awake
-} mjtSleepState;
+struct mjPreContact_ {             // contact parameters set by narrowphase collision functions
+  mjtNum dist;
+  mjtNum pos[3];
+  mjtNum normal[3];                // contact normal of the collision
+  mjtNum tangent[3];               // first tangent direction
+};
+typedef struct mjPreContact_ mjPreContact;
 struct mjContact_ {                // result of collision detection functions
-  // contact parameters set by near-phase collision function
+  // contact parameters set by narrowphase collision function
   mjtNum  dist;                    // distance between nearest points; neg: penetration
   mjtNum  pos[3];                  // position of contact point: midpoint between geoms
   mjtNum  frame[9];                // normal is in [0-2], points from geom[0] to geom[1]
@@ -167,9 +89,12 @@ struct mjData_ {
   // arena pointer
   size_t  parena;            // first available byte in arena
 
+  // threading
+  uintptr_t threadpool;      // thread pool pointer
+  mjtBool threadlock;        // disable stack freeing during threaded execution
+
   // memory utilization statistics
   mjtSize maxuse_stack;                       // maximum stack allocation in bytes (mutable)
-  mjtSize maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
   mjtSize maxuse_arena;                       // maximum arena allocation in bytes
   int     maxuse_con;                         // maximum number of contacts
   int     maxuse_efc;                         // maximum number of scalar constraints
@@ -201,10 +126,10 @@ struct mjData_ {
   int     nv_awake;          // number of awake dofs
 
   // flags marking lazily evaluated stages
-  mjtByte flg_energypos;     // has mj_energyPos been called
-  mjtByte flg_energyvel;     // has mj_energyVel been called
-  mjtByte flg_subtreevel;    // has mj_subtreeVel been called
-  mjtByte flg_rnepost;       // has mj_rnePostConstraint been called
+  mjtBool flg_energypos;     // has mj_energyPos been called
+  mjtBool flg_energyvel;     // has mj_energyVel been called
+  mjtBool flg_subtreevel;    // has mj_subtreeVel been called
+  mjtBool flg_rnepost;       // has mj_rnePostConstraint been called
 
   // global properties
   mjtNum  time;              // simulation time
@@ -230,7 +155,7 @@ struct mjData_ {
   mjtNum* ctrl;              // control                                          (nu x 1)
   mjtNum* qfrc_applied;      // applied generalized force                        (nv x 1)
   mjtNum* xfrc_applied;      // applied Cartesian force/torque                   (nbody x 6)
-  mjtByte* eq_active;        // enable/disable constraints                       (neq x 1)
+  mjtBool* eq_active;        // enable/disable constraints                       (neq x 1)
 
   // mocap data
   mjtNum* mocap_pos;         // positions of mocap bodies                        (nmocap x 3)
@@ -311,7 +236,7 @@ struct mjData_ {
   mjtNum* qLDiagInv;         // 1/diag(D)                                        (nv x 1)
 
   // computed by mj_collision/mj_collideTree
-  mjtByte* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
+  mjtBool* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
 
   // computed by mj_updateSleep
   int*    tree_awake;        // is tree awake; 0: asleep; 1: awake               (ntree x 1)
@@ -416,12 +341,6 @@ struct mjData_ {
   // computed by mj_island (dofs sorted by island)
   mjtNum* ifrc_smooth;       // net unconstrained force                          (nidof x 1)
   mjtNum* iacc_smooth;       // unconstrained acceleration                       (nidof x 1)
-  int*    iM_rownnz;         // inertia: non-zeros in each row                   (nidof x 1)
-  int*    iM_rowadr;         // inertia: address of each row in iM_colind        (nidof x 1)
-  int*    iM_colind;         // inertia: column indices of non-zeros             (nC x 1)
-  mjtNum* iM;                // total inertia (sparse)                           (nC x 1)
-  mjtNum* iLD;               // L'*D*L factorization of M (sparse)               (nC x 1)
-  mjtNum* iLDiagInv;         // 1/diag(D)                                        (nidof x 1)
   mjtNum* iacc;              // acceleration                                     (nidof x 1)
 
   // computed by mj_island (island constraint structure)
@@ -436,11 +355,6 @@ struct mjData_ {
   // computed by mj_island (constraints sorted by island)
   int*    iefc_type;         // constraint type (mjtConstraint)                  (nefc x 1)
   int*    iefc_id;           // id of object of specified type                   (nefc x 1)
-  int*    iefc_J_rownnz;     // number of non-zeros in constraint Jacobian row   (nefc x 1)
-  int*    iefc_J_rowadr;     // row start address in colind array                (nefc x 1)
-  int*    iefc_J_rowsuper;   // number of subsequent rows in supernode           (nefc x 1)
-  int*    iefc_J_colind;     // column indices in constraint Jacobian            (nJ x 1)
-  mjtNum* iefc_J;            // constraint Jacobian                              (nJ x 1)
   mjtNum* iefc_frictionloss; // frictionloss (friction)                          (nefc x 1)
   mjtNum* iefc_D;            // constraint mass                                  (nefc x 1)
   mjtNum* iefc_R;            // inverse constraint mass                          (nefc x 1)
@@ -472,376 +386,10 @@ struct mjData_ {
   mjtNum* efc_force;         // constraint force in constraint space             (nefc x 1)
   mjtNum* ifrc_constraint;   // constraint force                                 (nidof x 1)
 
-  // thread pool pointer
-  uintptr_t threadpool;
-
   // compilation signature
   uint64_t  signature;       // also held by the mjSpec that compiled the model
 };
 typedef struct mjData_ mjData;
-typedef enum mjtDisableBit_ {     // disable default feature bitflags
-  mjDSBL_CONSTRAINT   = 1<<0,     // entire constraint solver
-  mjDSBL_EQUALITY     = 1<<1,     // equality constraints
-  mjDSBL_FRICTIONLOSS = 1<<2,     // joint and tendon frictionloss constraints
-  mjDSBL_LIMIT        = 1<<3,     // joint and tendon limit constraints
-  mjDSBL_CONTACT      = 1<<4,     // contact constraints
-  mjDSBL_SPRING       = 1<<5,     // passive spring forces
-  mjDSBL_DAMPER       = 1<<6,     // passive damping forces
-  mjDSBL_GRAVITY      = 1<<7,     // gravitational forces
-  mjDSBL_CLAMPCTRL    = 1<<8,     // clamp control to specified range
-  mjDSBL_WARMSTART    = 1<<9,     // warmstart constraint solver
-  mjDSBL_FILTERPARENT = 1<<10,    // remove collisions with parent body
-  mjDSBL_ACTUATION    = 1<<11,    // apply actuation forces
-  mjDSBL_REFSAFE      = 1<<12,    // integrator safety: make ref[0]>=2*timestep
-  mjDSBL_SENSOR       = 1<<13,    // sensors
-  mjDSBL_MIDPHASE     = 1<<14,    // mid-phase collision filtering
-  mjDSBL_EULERDAMP    = 1<<15,    // implicit integration of joint damping in Euler integrator
-  mjDSBL_AUTORESET    = 1<<16,    // automatic reset when numerical issues are detected
-  mjDSBL_NATIVECCD    = 1<<17,    // native convex collision detection
-  mjDSBL_ISLAND       = 1<<18,    // constraint island discovery
-  mjDSBL_MULTICCD     = 1<<19,    // multiple CCD contact points
-
-  mjNDISABLE          = 20        // number of disable flags
-} mjtDisableBit;
-typedef enum mjtEnableBit_ {      // enable optional feature bitflags
-  mjENBL_OVERRIDE     = 1<<0,     // override contact parameters
-  mjENBL_ENERGY       = 1<<1,     // energy computation
-  mjENBL_FWDINV       = 1<<2,     // record solver statistics
-  mjENBL_INVDISCRETE  = 1<<3,     // discrete-time inverse dynamics
-  mjENBL_SLEEP        = 1<<4,     // sleeping
-  mjENBL_DIAGEXACT    = 1<<5,     // exact diagonal of constraint inertia
-
-  mjNENABLE           = 6         // number of enable flags
-} mjtEnableBit;
-typedef enum mjtJoint_ {          // type of degree of freedom
-  mjJNT_FREE          = 0,        // global position and orientation (quat)       (7)
-  mjJNT_BALL,                     // orientation (quat) relative to parent        (4)
-  mjJNT_SLIDE,                    // sliding distance along body-fixed axis       (1)
-  mjJNT_HINGE                     // rotation angle (rad) around body-fixed axis  (1)
-} mjtJoint;
-typedef enum mjtGeom_ {           // type of geometric shape
-  // regular geom types
-  mjGEOM_PLANE        = 0,        // plane
-  mjGEOM_HFIELD,                  // height field
-  mjGEOM_SPHERE,                  // sphere
-  mjGEOM_CAPSULE,                 // capsule
-  mjGEOM_ELLIPSOID,               // ellipsoid
-  mjGEOM_CYLINDER,                // cylinder
-  mjGEOM_BOX,                     // box
-  mjGEOM_MESH,                    // mesh
-  mjGEOM_SDF,                     // signed distance field
-
-  mjNGEOMTYPES,                   // number of regular geom types
-
-  // rendering-only geom types: not used in mjModel, not counted in mjNGEOMTYPES
-  mjGEOM_ARROW        = 100,      // arrow
-  mjGEOM_ARROW1,                  // arrow without wedges
-  mjGEOM_ARROW2,                  // arrow in both directions
-  mjGEOM_LINE,                    // line
-  mjGEOM_LINEBOX,                 // box with line edges
-  mjGEOM_FLEX,                    // flex
-  mjGEOM_SKIN,                    // skin
-  mjGEOM_LABEL,                   // text label
-  mjGEOM_TRIANGLE,                // triangle
-
-  mjGEOM_NONE         = 1001      // missing geom type
-} mjtGeom;
-typedef enum mjtProjection_ {     // type of camera projection
-  mjPROJ_PERSPECTIVE  = 0,        // perspective
-  mjPROJ_ORTHOGRAPHIC             // orthographic
-} mjtProjection;
-typedef enum mjtCamLight_ {       // tracking mode for camera and light
-  mjCAMLIGHT_FIXED    = 0,        // pos and rot fixed in body
-  mjCAMLIGHT_TRACK,               // pos tracks body, rot fixed in global
-  mjCAMLIGHT_TRACKCOM,            // pos tracks subtree com, rot fixed in body
-  mjCAMLIGHT_TARGETBODY,          // pos fixed in body, rot tracks target body
-  mjCAMLIGHT_TARGETBODYCOM        // pos fixed in body, rot tracks target subtree com
-} mjtCamLight;
-typedef enum mjtLightType_ {      // type of light
-  mjLIGHT_SPOT        = 0,        // spot
-  mjLIGHT_DIRECTIONAL,            // directional
-  mjLIGHT_POINT,                  // point
-  mjLIGHT_IMAGE,                  // image-based
-} mjtLightType;
-typedef enum mjtTexture_ {        // type of texture
-  mjTEXTURE_2D        = 0,        // 2d texture, suitable for planes and hfields
-  mjTEXTURE_CUBE,                 // cube texture, suitable for all other geom types
-  mjTEXTURE_SKYBOX                // cube texture used as skybox
-} mjtTexture;
-typedef enum mjtTextureRole_ {    // role of texture map in rendering
-  mjTEXROLE_USER      = 0,        // unspecified
-  mjTEXROLE_RGB,                  // base color (albedo)
-  mjTEXROLE_OCCLUSION,            // ambient occlusion
-  mjTEXROLE_ROUGHNESS,            // roughness
-  mjTEXROLE_METALLIC,             // metallic
-  mjTEXROLE_NORMAL,               // normal (bump) map
-  mjTEXROLE_OPACITY,              // opacity
-  mjTEXROLE_EMISSIVE,             // light emission
-  mjTEXROLE_RGBA,                 // base color, opacity
-  mjTEXROLE_ORM,                  // occlusion, roughness, metallic
-  mjNTEXROLE
-} mjtTextureRole;
-typedef enum mjtColorSpace_ {     // type of color space encoding
-  mjCOLORSPACE_AUTO   = 0,        // attempts to autodetect color space, defaults to linear
-  mjCOLORSPACE_LINEAR,            // linear color space
-  mjCOLORSPACE_SRGB               // standard RGB color space
-} mjtColorSpace;
-typedef enum mjtIntegrator_ {     // integrator mode
-  mjINT_EULER         = 0,        // semi-implicit Euler
-  mjINT_RK4,                      // 4th-order Runge Kutta
-  mjINT_IMPLICIT,                 // implicit in velocity
-  mjINT_IMPLICITFAST              // implicit in velocity, no rne derivative
-} mjtIntegrator;
-typedef enum mjtCone_ {           // type of friction cone
-  mjCONE_PYRAMIDAL     = 0,       // pyramidal
-  mjCONE_ELLIPTIC                 // elliptic
-} mjtCone;
-typedef enum mjtJacobian_ {       // type of constraint Jacobian
-  mjJAC_DENSE          = 0,       // dense
-  mjJAC_SPARSE,                   // sparse
-  mjJAC_AUTO                      // dense if nv<60, sparse otherwise
-} mjtJacobian;
-typedef enum mjtSolver_ {         // constraint solver algorithm
-  mjSOL_PGS            = 0,       // PGS    (dual)
-  mjSOL_CG,                       // CG     (primal)
-  mjSOL_NEWTON                    // Newton (primal)
-} mjtSolver;
-typedef enum mjtEq_ {             // type of equality constraint
-  mjEQ_CONNECT        = 0,        // connect two bodies at a point (ball joint)
-  mjEQ_WELD,                      // fix relative position and orientation of two bodies
-  mjEQ_JOINT,                     // couple the values of two scalar joints with cubic
-  mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
-  mjEQ_FLEX,                      // fix all edge lengths of a flex
-  mjEQ_FLEXVERT,                  // fix all vertex lengths of a flex
-  mjEQ_FLEXSTRAIN,                // constrain strain of a trilinear/quadratic flex (B-bar)
-  mjEQ_DISTANCE                   // unsupported, will cause an error if used
-} mjtEq;
-typedef enum mjtWrap_ {           // type of tendon wrap object
-  mjWRAP_NONE         = 0,        // null object
-  mjWRAP_JOINT,                   // constant moment arm
-  mjWRAP_PULLEY,                  // pulley used to split tendon
-  mjWRAP_SITE,                    // pass through site
-  mjWRAP_SPHERE,                  // wrap around sphere
-  mjWRAP_CYLINDER                 // wrap around (infinite) cylinder
-} mjtWrap;
-typedef enum mjtTrn_ {            // type of actuator transmission
-  mjTRN_JOINT         = 0,        // force on joint
-  mjTRN_JOINTINPARENT,            // force on joint, expressed in parent frame
-  mjTRN_SLIDERCRANK,              // force via slider-crank linkage
-  mjTRN_TENDON,                   // force on tendon
-  mjTRN_SITE,                     // force on site
-  mjTRN_BODY,                     // adhesion force on a body's geoms
-
-  mjTRN_UNDEFINED     = 1000      // undefined transmission type
-} mjtTrn;
-typedef enum mjtDyn_ {            // type of actuator dynamics
-  mjDYN_NONE          = 0,        // no internal dynamics; ctrl specifies force
-  mjDYN_INTEGRATOR,               // integrator: da/dt = u
-  mjDYN_FILTER,                   // linear filter: da/dt = (u-a) / tau
-  mjDYN_FILTEREXACT,              // linear filter: da/dt = (u-a) / tau, with exact integration
-  mjDYN_MUSCLE,                   // piecewise linear filter with two time constants
-  mjDYN_DCMOTOR,                  // DC motor electrical dynamics
-  mjDYN_USER                      // user-defined dynamics type
-} mjtDyn;
-typedef enum mjtGain_ {           // type of actuator gain
-  mjGAIN_FIXED        = 0,        // fixed gain
-  mjGAIN_AFFINE,                  // const + kp*length + kv*velocity
-  mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
-  mjGAIN_DCMOTOR,                 // DC motor gain: K or K/R
-  mjGAIN_USER                     // user-defined gain type
-} mjtGain;
-typedef enum mjtBias_ {           // type of actuator bias
-  mjBIAS_NONE         = 0,        // no bias
-  mjBIAS_AFFINE,                  // const + kp*length + kv*velocity
-  mjBIAS_MUSCLE,                  // muscle passive force computed by mju_muscleBias()
-  mjBIAS_DCMOTOR,                 // DC motor bias: back-EMF, cogging, LuGre friction
-  mjBIAS_USER                     // user-defined bias type
-} mjtBias;
-typedef enum mjtObj_ {            // type of MujoCo object
-  mjOBJ_UNKNOWN       = 0,        // unknown object type
-  mjOBJ_BODY,                     // body
-  mjOBJ_XBODY,                    // body, used to access regular frame instead of i-frame
-  mjOBJ_JOINT,                    // joint
-  mjOBJ_DOF,                      // dof
-  mjOBJ_GEOM,                     // geom
-  mjOBJ_SITE,                     // site
-  mjOBJ_CAMERA,                   // camera
-  mjOBJ_LIGHT,                    // light
-  mjOBJ_FLEX,                     // flex
-  mjOBJ_MESH,                     // mesh
-  mjOBJ_SKIN,                     // skin
-  mjOBJ_HFIELD,                   // heightfield
-  mjOBJ_TEXTURE,                  // texture
-  mjOBJ_MATERIAL,                 // material for rendering
-  mjOBJ_PAIR,                     // geom pair to include
-  mjOBJ_EXCLUDE,                  // body pair to exclude
-  mjOBJ_EQUALITY,                 // equality constraint
-  mjOBJ_TENDON,                   // tendon
-  mjOBJ_ACTUATOR,                 // actuator
-  mjOBJ_SENSOR,                   // sensor
-  mjOBJ_NUMERIC,                  // numeric
-  mjOBJ_TEXT,                     // text
-  mjOBJ_TUPLE,                    // tuple
-  mjOBJ_KEY,                      // keyframe
-  mjOBJ_PLUGIN,                   // plugin instance
-
-  mjNOBJECT,                      // number of object types
-
-  // meta elements, do not appear in mjModel
-  mjOBJ_FRAME         = 100,      // frame
-  mjOBJ_DEFAULT,                  // default
-  mjOBJ_MODEL                     // entire model
-} mjtObj;
-typedef enum mjtSensor_ {         // type of sensor
-  // common robotic sensors, attached to a site
-  mjSENS_TOUCH        = 0,        // scalar contact normal forces summed over sensor zone
-  mjSENS_ACCELEROMETER,           // 3D linear acceleration, in local frame
-  mjSENS_VELOCIMETER,             // 3D linear velocity, in local frame
-  mjSENS_GYRO,                    // 3D angular velocity, in local frame
-  mjSENS_FORCE,                   // 3D force between site's body and its parent body
-  mjSENS_TORQUE,                  // 3D torque between site's body and its parent body
-  mjSENS_MAGNETOMETER,            // 3D magnetometer
-  mjSENS_RANGEFINDER,             // scalar distance to nearest geom along z-axis
-  mjSENS_CAMPROJECTION,           // pixel coordinates of a site in the camera image
-
-  // sensors related to scalar joints, tendons, actuators
-  mjSENS_JOINTPOS,                // scalar joint position (hinge and slide only)
-  mjSENS_JOINTVEL,                // scalar joint velocity (hinge and slide only)
-  mjSENS_TENDONPOS,               // scalar tendon position
-  mjSENS_TENDONVEL,               // scalar tendon velocity
-  mjSENS_ACTUATORPOS,             // scalar actuator position
-  mjSENS_ACTUATORVEL,             // scalar actuator velocity
-  mjSENS_ACTUATORFRC,             // scalar actuator force
-  mjSENS_JOINTACTFRC,             // scalar actuator force, measured at the joint
-  mjSENS_TENDONACTFRC,            // scalar actuator force, measured at the tendon
-
-  // sensors related to ball joints
-  mjSENS_BALLQUAT,                // 4D ball joint quaternion
-  mjSENS_BALLANGVEL,              // 3D ball joint angular velocity
-
-  // joint and tendon limit sensors, in constraint space
-  mjSENS_JOINTLIMITPOS,           // joint limit distance-margin
-  mjSENS_JOINTLIMITVEL,           // joint limit velocity
-  mjSENS_JOINTLIMITFRC,           // joint limit force
-  mjSENS_TENDONLIMITPOS,          // tendon limit distance-margin
-  mjSENS_TENDONLIMITVEL,          // tendon limit velocity
-  mjSENS_TENDONLIMITFRC,          // tendon limit force
-
-  // sensors attached to an object with spatial frame: (x)body, geom, site, camera
-  mjSENS_FRAMEPOS,                // 3D position
-  mjSENS_FRAMEQUAT,               // 4D unit quaternion orientation
-  mjSENS_FRAMEXAXIS,              // 3D unit vector: x-axis of object's frame
-  mjSENS_FRAMEYAXIS,              // 3D unit vector: y-axis of object's frame
-  mjSENS_FRAMEZAXIS,              // 3D unit vector: z-axis of object's frame
-  mjSENS_FRAMELINVEL,             // 3D linear velocity
-  mjSENS_FRAMEANGVEL,             // 3D angular velocity
-  mjSENS_FRAMELINACC,             // 3D linear acceleration
-  mjSENS_FRAMEANGACC,             // 3D angular acceleration
-
-  // sensors related to kinematic subtrees; attached to a body (which is the subtree root)
-  mjSENS_SUBTREECOM,              // 3D center of mass of subtree
-  mjSENS_SUBTREELINVEL,           // 3D linear velocity of subtree
-  mjSENS_SUBTREEANGMOM,           // 3D angular momentum of subtree
-
-  // sensors of geometric relationships
-  mjSENS_INSIDESITE,              // 1 if object is inside a site, 0 otherwise
-  mjSENS_GEOMDIST,                // signed distance between two geoms
-  mjSENS_GEOMNORMAL,              // normal direction between two geoms
-  mjSENS_GEOMFROMTO,              // segment between two geoms
-
-  // sensors for reporting contacts which occurred during the simulation
-  mjSENS_CONTACT,                 // contacts which occurred during the simulation
-
-  // global sensors
-  mjSENS_E_POTENTIAL,             // potential energy
-  mjSENS_E_KINETIC,               // kinetic energy
-  mjSENS_CLOCK,                   // simulation time
-
-  // sensors related to SDFs
-  mjSENS_TACTILE,                 // tactile sensor
-
-  // plugin-controlled sensors
-  mjSENS_PLUGIN,                  // plugin-controlled
-
-  // user-defined sensor
-  mjSENS_USER                     // sensor data provided by mjcb_sensor callback
-} mjtSensor;
-typedef enum mjtStage_ {          // computation stage
-  mjSTAGE_NONE        = 0,        // no computations
-  mjSTAGE_POS,                    // position-dependent computations
-  mjSTAGE_VEL,                    // velocity-dependent computations
-  mjSTAGE_ACC                     // acceleration/force-dependent computations
-} mjtStage;
-typedef enum mjtDataType_ {       // data type for sensors
-  mjDATATYPE_REAL     = 0,        // real values, no constraints
-  mjDATATYPE_POSITIVE,            // positive values; 0 or negative: inactive
-  mjDATATYPE_AXIS,                // 3D unit vector
-  mjDATATYPE_QUATERNION           // unit quaternion
-} mjtDataType;
-typedef enum mjtConDataField_ {   // data fields returned by contact sensors
-  mjCONDATA_FOUND     = 0,        // whether a contact was found
-  mjCONDATA_FORCE,                // contact force
-  mjCONDATA_TORQUE,               // contact torque
-  mjCONDATA_DIST,                 // contact penetration distance
-  mjCONDATA_POS,                  // contact position
-  mjCONDATA_NORMAL,               // contact frame normal
-  mjCONDATA_TANGENT,              // contact frame first tangent
-
-  mjNCONDATA                      // number of contact sensor data fields
-} mjtConDataField;
-typedef enum mjtRayDataField_ {   // data fields returned by rangefinder sensors
-  mjRAYDATA_DIST     = 0,         // distance from ray origin to nearest surface
-  mjRAYDATA_DIR,                  // normalized ray direction
-  mjRAYDATA_ORIGIN,               // ray origin
-  mjRAYDATA_POINT,                // point at which ray intersects nearest surface
-  mjRAYDATA_NORMAL,               // surface normal at intersection point
-  mjRAYDATA_DEPTH,                // depth along z-axis
-
-  mjNRAYDATA                      // number of rangefinder sensor data fields
-} mjtRayDataField;
-typedef enum mjtCamOutBit_ {      // camera output type bitflags
-  mjCAMOUT_RGB        = 1<<0,     // RGB image
-  mjCAMOUT_DEPTH      = 1<<1,     // depth image (distance from camera plane)
-  mjCAMOUT_DIST       = 1<<2,     // distance image (distance from camera origin)
-  mjCAMOUT_NORMAL     = 1<<3,     // normal image
-  mjCAMOUT_SEG        = 1<<4,     // segmentation image
-
-  mjNCAMOUT           = 5         // number of camera output types
-} mjtCamOutBit;
-typedef enum mjtSameFrame_ {      // frame alignment of bodies with their children
-  mjSAMEFRAME_NONE    = 0,        // no alignment
-  mjSAMEFRAME_BODY,               // frame is same as body frame
-  mjSAMEFRAME_INERTIA,            // frame is same as inertial frame
-  mjSAMEFRAME_BODYROT,            // frame orientation is same as body orientation
-  mjSAMEFRAME_INERTIAROT          // frame orientation is same as inertia orientation
-} mjtSameFrame;
-typedef enum mjtSleepPolicy_ {    // per-tree sleep policy
-  mjSLEEP_AUTO        = 0,        // compiler chooses sleep policy
-  mjSLEEP_AUTO_NEVER,             // compiler sleep policy: never
-  mjSLEEP_AUTO_ALLOWED,           // compiler sleep policy: allowed
-  mjSLEEP_NEVER,                  // user sleep policy: never
-  mjSLEEP_ALLOWED,                // user sleep policy: allowed
-  mjSLEEP_INIT,                   // user sleep policy: initialized asleep
-} mjtSleepPolicy;
-typedef enum mjtLRMode_ {         // mode for actuator length range computation
-  mjLRMODE_NONE       = 0,        // do not process any actuators
-  mjLRMODE_MUSCLE,                // process muscle actuators
-  mjLRMODE_MUSCLEUSER,            // process muscle and user actuators
-  mjLRMODE_ALL                    // process all actuators
-} mjtLRMode;
-typedef enum mjtFlexSelf_ {       // mode for flex selfcollide
-  mjFLEXSELF_NONE     = 0,        // no self-collisions
-  mjFLEXSELF_NARROW,              // skip midphase, go directly to narrowphase
-  mjFLEXSELF_BVH,                 // use BVH in midphase (if midphase enabled)
-  mjFLEXSELF_SAP,                 // use SAP in midphase
-  mjFLEXSELF_AUTO                 // choose between BVH and SAP automatically
-} mjtFlexSelf;
-typedef enum mjtSDFType_ {        // signed distance function (SDF) type
-  mjSDFTYPE_SINGLE    = 0,        // single SDF
-  mjSDFTYPE_INTERSECTION,         // max(A, B)
-  mjSDFTYPE_MIDSURFACE,           // A - B
-  mjSDFTYPE_COLLISION,            // A + B + abs(max(A, B))
-} mjtSDFType;
 struct mjLROpt_ {                 // options for mj_setLengthRange()
   // flags
   int mode;                       // which actuators to process (mjtLRMode)
@@ -1182,9 +730,9 @@ struct mjModel_ {
   int*      jnt_bodyid;           // id of joint's body                       (njnt x 1)
   int*      jnt_actuatorid;       // actuator contributing damping / armature (njnt x 1)
   int*      jnt_group;            // group for visibility                     (njnt x 1)
-  mjtByte*  jnt_limited;          // does joint have limits                   (njnt x 1)
-  mjtByte*  jnt_actfrclimited;    // does joint have actuator force limits    (njnt x 1)
-  mjtByte*  jnt_actgravcomp;      // is gravcomp force applied via actuators  (njnt x 1)
+  mjtBool*  jnt_limited;          // does joint have limits                   (njnt x 1)
+  mjtBool*  jnt_actfrclimited;    // does joint have actuator force limits    (njnt x 1)
+  mjtBool*  jnt_actgravcomp;      // is gravcomp force applied via actuators  (njnt x 1)
   mjtNum*   jnt_solref;           // constraint solver reference: limit       (njnt x mjNREF)
   mjtNum*   jnt_solimp;           // constraint solver impedance: limit       (njnt x mjNIMP)
   mjtNum*   jnt_pos;              // local anchor position                    (njnt x 3)
@@ -1283,11 +831,11 @@ struct mjModel_ {
   int*      light_targetbodyid;   // id of targeted body; -1: none            (nlight x 1)
   int*      light_type;           // spot, directional, etc. (mjtLightType)   (nlight x 1)
   int*      light_texid;          // texture id for image lights              (nlight x 1)
-  mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
+  mjtBool*  light_castshadow;     // does light cast shadows                  (nlight x 1)
   float*    light_bulbradius;     // light radius for soft shadows            (nlight x 1)
   float*    light_intensity;      // intensity, in candela                    (nlight x 1)
   float*    light_range;          // range of effectiveness                   (nlight x 1)
-  mjtByte*  light_active;         // is light on                              (nlight x 1)
+  mjtBool*  light_active;         // is light on                              (nlight x 1)
   mjtNum*   light_pos;            // position rel. to body frame              (nlight x 3)
   mjtNum*   light_dir;            // direction rel. to body frame             (nlight x 3)
   mjtNum*   light_poscom0;        // global position rel. to sub-com in qpos0 (nlight x 3)
@@ -1311,7 +859,7 @@ struct mjModel_ {
   mjtNum*   flex_friction;        // friction for (slide, spin, roll)         (nflex x 3)
   mjtNum*   flex_margin;          // geometric inflation for contact          (nflex x 1)
   mjtNum*   flex_gap;             // additional contact detection buffer      (nflex x 1)
-  mjtByte*  flex_internal;        // internal flex collision enabled          (nflex x 1)
+  mjtBool*  flex_internal;        // internal flex collision enabled          (nflex x 1)
   int*      flex_selfcollide;     // self collision mode (mjtFlexSelf)        (nflex x 1)
   int*      flex_activelayers;    // number of active element layers, 3D only (nflex x 1)
   int*      flex_passive;         // passive collisions enabled               (nflex x 1)
@@ -1367,10 +915,10 @@ struct mjModel_ {
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
   int*      flex_edgeequality;    // 0:none, 1:edges, 2:vertices, 3:strain    (nflex x 1)
-  mjtByte*  flex_rigid;           // are all vertices in the same body        (nflex x 1)
-  mjtByte*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
-  mjtByte*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
-  mjtByte*  flex_flatskin;        // render flex skin with flat shading       (nflex x 1)
+  mjtBool*  flex_rigid;           // are all vertices in the same body        (nflex x 1)
+  mjtBool*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
+  mjtBool*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
+  mjtBool*  flex_flatskin;        // render flex skin with flat shading       (nflex x 1)
   int*      flex_bvhadr;          // address of bvh root; -1: no bvh          (nflex x 1)
   int*      flex_bvhnum;          // number of bounding volumes               (nflex x 1)
   int*      flexedge_J_rownnz;    // number of non-zeros in Jacobian row      (nflexedge x 1)
@@ -1461,7 +1009,7 @@ struct mjModel_ {
 
   // materials
   int*      mat_texid;            // indices of textures; -1: none            (nmat x mjNTEXROLE)
-  mjtByte*  mat_texuniform;       // make texture cube uniform                (nmat x 1)
+  mjtBool*  mat_texuniform;       // make texture cube uniform                (nmat x 1)
   float*    mat_texrepeat;        // texture repetition for 2d mapping        (nmat x 2)
   float*    mat_emission;         // emission (x rgb)                         (nmat x 1)
   float*    mat_specular;         // specular (x white)                       (nmat x 1)
@@ -1491,7 +1039,7 @@ struct mjModel_ {
   int*      eq_obj1id;            // id of object 1                           (neq x 1)
   int*      eq_obj2id;            // id of object 2                           (neq x 1)
   int*      eq_objtype;           // type of both objects (mjtObj)            (neq x 1)
-  mjtByte*  eq_active0;           // initial enable/disable constraint state  (neq x 1)
+  mjtBool*  eq_active0;           // initial enable/disable constraint state  (neq x 1)
   mjtNum*   eq_solref;            // constraint solver reference              (neq x mjNREF)
   mjtNum*   eq_solimp;            // constraint solver impedance              (neq x mjNIMP)
   mjtNum*   eq_data;              // numeric data for constraint              (neq x mjNEQDATA)
@@ -1507,8 +1055,8 @@ struct mjModel_ {
   int*      ten_J_rownnz;         // number of non-zeros in Jacobian row      (ntendon x 1)
   int*      ten_J_rowadr;         // row start address in colind array        (ntendon x 1)
   int*      ten_J_colind;         // column indices in sparse Jacobian        (nJten x 1)
-  mjtByte*  tendon_limited;       // does tendon have length limits           (ntendon x 1)
-  mjtByte*  tendon_actfrclimited; // does tendon have actuator force limits   (ntendon x 1)
+  mjtBool*  tendon_limited;       // does tendon have length limits           (ntendon x 1)
+  mjtBool*  tendon_actfrclimited; // does tendon have actuator force limits   (ntendon x 1)
   mjtNum*   tendon_width;         // width for rendering                      (ntendon x 1)
   mjtNum*   tendon_solref_lim;    // constraint solver reference: limit       (ntendon x mjNREF)
   mjtNum*   tendon_solimp_lim;    // constraint solver impedance: limit       (ntendon x mjNIMP)
@@ -1549,13 +1097,13 @@ struct mjModel_ {
   int*      actuator_history;     // history buffer: [nsample, interp]        (nu x 2)
   int*      actuator_historyadr;  // address in history buffer; -1: none      (nu x 1)
   mjtNum*   actuator_delay;       // delay time in seconds; 0: no delay       (nu x 1)
-  mjtByte*  actuator_ctrllimited; // is control limited                       (nu x 1)
-  mjtByte*  actuator_forcelimited;// is force limited                         (nu x 1)
-  mjtByte*  actuator_actlimited;  // is activation limited                    (nu x 1)
+  mjtBool*  actuator_ctrllimited; // is control limited                       (nu x 1)
+  mjtBool*  actuator_forcelimited;// is force limited                         (nu x 1)
+  mjtBool*  actuator_actlimited;  // is activation limited                    (nu x 1)
   mjtNum*   actuator_dynprm;      // dynamics parameters                      (nu x mjNDYN)
   mjtNum*   actuator_gainprm;     // gain parameters                          (nu x mjNGAIN)
   mjtNum*   actuator_biasprm;     // bias parameters                          (nu x mjNBIAS)
-  mjtByte*  actuator_actearly;    // step activation before force             (nu x 1)
+  mjtBool*  actuator_actearly;    // step activation before force             (nu x 1)
   mjtNum*   actuator_ctrlrange;   // range of controls                        (nu x 2)
   mjtNum*   actuator_forcerange;  // range of forces                          (nu x 2)
   mjtNum*   actuator_actrange;    // range of activations                     (nu x 2)
@@ -2587,21 +2135,454 @@ typedef struct mjsDefault_ {       // default specification
   mjsTendon* tendon;               // tendon defaults
   mjsActuator* actuator;           // actuator defaults
 } mjsDefault;
-typedef enum mjtTaskStatus_ {  // status values for mjTask
-  mjTASK_NEW = 0,              // newly created
-  mjTASK_QUEUED,               // enqueued in a thread pool
-  mjTASK_COMPLETED             // completed execution
-} mjtTaskStatus;
-struct mjThreadPool_ {
-  int nworker;  // number of workers in the pool
-};
-typedef struct mjThreadPool_ mjThreadPool;
-struct mjTask_ {        // a task that can be executed by a thread pool.
-  mjfTask func;         // pointer to the function that implements the task
-  void* args;           // arguments to func
-  volatile int status;  // status of the task
-};
-typedef struct mjTask_ mjTask;
+typedef enum mjtDisableBit_ {     // disable default feature bitflags
+  mjDSBL_CONSTRAINT   = 1<<0,     // entire constraint solver
+  mjDSBL_EQUALITY     = 1<<1,     // equality constraints
+  mjDSBL_FRICTIONLOSS = 1<<2,     // joint and tendon frictionloss constraints
+  mjDSBL_LIMIT        = 1<<3,     // joint and tendon limit constraints
+  mjDSBL_CONTACT      = 1<<4,     // contact constraints
+  mjDSBL_SPRING       = 1<<5,     // passive spring forces
+  mjDSBL_DAMPER       = 1<<6,     // passive damping forces
+  mjDSBL_GRAVITY      = 1<<7,     // gravitational forces
+  mjDSBL_CLAMPCTRL    = 1<<8,     // clamp control to specified range
+  mjDSBL_WARMSTART    = 1<<9,     // warmstart constraint solver
+  mjDSBL_FILTERPARENT = 1<<10,    // remove collisions with parent body
+  mjDSBL_ACTUATION    = 1<<11,    // apply actuation forces
+  mjDSBL_REFSAFE      = 1<<12,    // integrator safety: make ref[0]>=2*timestep
+  mjDSBL_SENSOR       = 1<<13,    // sensors
+  mjDSBL_MIDPHASE     = 1<<14,    // mid-phase collision filtering
+  mjDSBL_EULERDAMP    = 1<<15,    // implicit integration of joint damping in Euler integrator
+  mjDSBL_AUTORESET    = 1<<16,    // automatic reset when numerical issues are detected
+  mjDSBL_NATIVECCD    = 1<<17,    // native convex collision detection
+  mjDSBL_ISLAND       = 1<<18,    // constraint island discovery
+  mjDSBL_MULTICCD     = 1<<19,    // multiple CCD contact points
+
+  mjNDISABLE          = 20        // number of disable flags
+} mjtDisableBit;
+typedef enum mjtEnableBit_ {      // enable optional feature bitflags
+  mjENBL_OVERRIDE     = 1<<0,     // override contact parameters
+  mjENBL_ENERGY       = 1<<1,     // energy computation
+  mjENBL_FWDINV       = 1<<2,     // record solver statistics
+  mjENBL_INVDISCRETE  = 1<<3,     // discrete-time inverse dynamics
+  mjENBL_SLEEP        = 1<<4,     // sleeping
+  mjENBL_DIAGEXACT    = 1<<5,     // exact diagonal of constraint inertia
+
+  mjNENABLE           = 6         // number of enable flags
+} mjtEnableBit;
+typedef enum mjtJoint_ {          // type of degree of freedom
+  mjJNT_FREE          = 0,        // global position and orientation (quat)       (7)
+  mjJNT_BALL,                     // orientation (quat) relative to parent        (4)
+  mjJNT_SLIDE,                    // sliding distance along body-fixed axis       (1)
+  mjJNT_HINGE                     // rotation angle (rad) around body-fixed axis  (1)
+} mjtJoint;
+typedef enum mjtGeom_ {           // type of geometric shape
+  // regular geom types
+  mjGEOM_PLANE        = 0,        // plane
+  mjGEOM_HFIELD,                  // height field
+  mjGEOM_SPHERE,                  // sphere
+  mjGEOM_CAPSULE,                 // capsule
+  mjGEOM_ELLIPSOID,               // ellipsoid
+  mjGEOM_CYLINDER,                // cylinder
+  mjGEOM_BOX,                     // box
+  mjGEOM_MESH,                    // mesh
+  mjGEOM_SDF,                     // signed distance field
+
+  mjNGEOMTYPES,                   // number of regular geom types
+
+  // rendering-only geom types: not used in mjModel, not counted in mjNGEOMTYPES
+  mjGEOM_ARROW        = 100,      // arrow
+  mjGEOM_ARROW1,                  // arrow without wedges
+  mjGEOM_ARROW2,                  // arrow in both directions
+  mjGEOM_LINE,                    // line
+  mjGEOM_LINEBOX,                 // box with line edges
+  mjGEOM_FLEX,                    // flex
+  mjGEOM_SKIN,                    // skin
+  mjGEOM_LABEL,                   // text label
+  mjGEOM_TRIANGLE,                // triangle
+
+  mjGEOM_NONE         = 1001      // missing geom type
+} mjtGeom;
+typedef enum mjtProjection_ {     // type of camera projection
+  mjPROJ_PERSPECTIVE  = 0,        // perspective
+  mjPROJ_ORTHOGRAPHIC             // orthographic
+} mjtProjection;
+typedef enum mjtCamLight_ {       // tracking mode for camera and light
+  mjCAMLIGHT_FIXED    = 0,        // pos and rot fixed in body
+  mjCAMLIGHT_TRACK,               // pos tracks body, rot fixed in global
+  mjCAMLIGHT_TRACKCOM,            // pos tracks subtree com, rot fixed in body
+  mjCAMLIGHT_TARGETBODY,          // pos fixed in body, rot tracks target body
+  mjCAMLIGHT_TARGETBODYCOM        // pos fixed in body, rot tracks target subtree com
+} mjtCamLight;
+typedef enum mjtLightType_ {      // type of light
+  mjLIGHT_SPOT        = 0,        // spot
+  mjLIGHT_DIRECTIONAL,            // directional
+  mjLIGHT_POINT,                  // point
+  mjLIGHT_IMAGE,                  // image-based
+} mjtLightType;
+typedef enum mjtTexture_ {        // type of texture
+  mjTEXTURE_2D        = 0,        // 2d texture, suitable for planes and hfields
+  mjTEXTURE_CUBE,                 // cube texture, suitable for all other geom types
+  mjTEXTURE_SKYBOX                // cube texture used as skybox
+} mjtTexture;
+typedef enum mjtTextureRole_ {    // role of texture map in rendering
+  mjTEXROLE_USER      = 0,        // unspecified
+  mjTEXROLE_RGB,                  // base color (albedo)
+  mjTEXROLE_OCCLUSION,            // ambient occlusion
+  mjTEXROLE_ROUGHNESS,            // roughness
+  mjTEXROLE_METALLIC,             // metallic
+  mjTEXROLE_NORMAL,               // normal (bump) map
+  mjTEXROLE_OPACITY,              // opacity
+  mjTEXROLE_EMISSIVE,             // light emission
+  mjTEXROLE_RGBA,                 // base color, opacity
+  mjTEXROLE_ORM,                  // occlusion, roughness, metallic
+  mjNTEXROLE
+} mjtTextureRole;
+typedef enum mjtColorSpace_ {     // type of color space encoding
+  mjCOLORSPACE_AUTO   = 0,        // attempts to autodetect color space, defaults to linear
+  mjCOLORSPACE_LINEAR,            // linear color space
+  mjCOLORSPACE_SRGB               // standard RGB color space
+} mjtColorSpace;
+typedef enum mjtIntegrator_ {     // integrator mode
+  mjINT_EULER         = 0,        // semi-implicit Euler
+  mjINT_RK4,                      // 4th-order Runge Kutta
+  mjINT_IMPLICIT,                 // implicit in velocity
+  mjINT_IMPLICITFAST              // implicit in velocity, no rne derivative
+} mjtIntegrator;
+typedef enum mjtCone_ {           // type of friction cone
+  mjCONE_PYRAMIDAL     = 0,       // pyramidal
+  mjCONE_ELLIPTIC                 // elliptic
+} mjtCone;
+typedef enum mjtJacobian_ {       // type of constraint Jacobian
+  mjJAC_DENSE          = 0,       // dense
+  mjJAC_SPARSE,                   // sparse
+  mjJAC_AUTO                      // dense if nv<60, sparse otherwise
+} mjtJacobian;
+typedef enum mjtSolver_ {         // constraint solver algorithm
+  mjSOL_PGS            = 0,       // PGS    (dual)
+  mjSOL_CG,                       // CG     (primal)
+  mjSOL_NEWTON                    // Newton (primal)
+} mjtSolver;
+typedef enum mjtEq_ {             // type of equality constraint
+  mjEQ_CONNECT        = 0,        // connect two bodies at a point (ball joint)
+  mjEQ_WELD,                      // fix relative position and orientation of two bodies
+  mjEQ_JOINT,                     // couple the values of two scalar joints with cubic
+  mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
+  mjEQ_FLEX,                      // fix all edge lengths of a flex
+  mjEQ_FLEXVERT,                  // fix all vertex lengths of a flex
+  mjEQ_FLEXSTRAIN,                // constrain strain of a trilinear/quadratic flex (B-bar)
+  mjEQ_DISTANCE                   // unsupported, will cause an error if used
+} mjtEq;
+typedef enum mjtWrap_ {           // type of tendon wrap object
+  mjWRAP_NONE         = 0,        // null object
+  mjWRAP_JOINT,                   // constant moment arm
+  mjWRAP_PULLEY,                  // pulley used to split tendon
+  mjWRAP_SITE,                    // pass through site
+  mjWRAP_SPHERE,                  // wrap around sphere
+  mjWRAP_CYLINDER                 // wrap around (infinite) cylinder
+} mjtWrap;
+typedef enum mjtTrn_ {            // type of actuator transmission
+  mjTRN_JOINT         = 0,        // force on joint
+  mjTRN_JOINTINPARENT,            // force on joint, expressed in parent frame
+  mjTRN_SLIDERCRANK,              // force via slider-crank linkage
+  mjTRN_TENDON,                   // force on tendon
+  mjTRN_SITE,                     // force on site
+  mjTRN_BODY,                     // adhesion force on a body's geoms
+
+  mjTRN_UNDEFINED     = 1000      // undefined transmission type
+} mjtTrn;
+typedef enum mjtDyn_ {            // type of actuator dynamics
+  mjDYN_NONE          = 0,        // no internal dynamics; ctrl specifies force
+  mjDYN_INTEGRATOR,               // integrator: da/dt = u
+  mjDYN_FILTER,                   // linear filter: da/dt = (u-a) / tau
+  mjDYN_FILTEREXACT,              // linear filter: da/dt = (u-a) / tau, with exact integration
+  mjDYN_MUSCLE,                   // piecewise linear filter with two time constants
+  mjDYN_DCMOTOR,                  // DC motor electrical dynamics
+  mjDYN_USER                      // user-defined dynamics type
+} mjtDyn;
+typedef enum mjtGain_ {           // type of actuator gain
+  mjGAIN_FIXED        = 0,        // fixed gain
+  mjGAIN_AFFINE,                  // const + kp*length + kv*velocity
+  mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
+  mjGAIN_DCMOTOR,                 // DC motor gain: K or K/R
+  mjGAIN_USER                     // user-defined gain type
+} mjtGain;
+typedef enum mjtBias_ {           // type of actuator bias
+  mjBIAS_NONE         = 0,        // no bias
+  mjBIAS_AFFINE,                  // const + kp*length + kv*velocity
+  mjBIAS_MUSCLE,                  // muscle passive force computed by mju_muscleBias()
+  mjBIAS_DCMOTOR,                 // DC motor bias: back-EMF, cogging, LuGre friction
+  mjBIAS_USER                     // user-defined bias type
+} mjtBias;
+typedef enum mjtObj_ {            // type of MujoCo object
+  mjOBJ_UNKNOWN       = 0,        // unknown object type
+  mjOBJ_BODY,                     // body
+  mjOBJ_XBODY,                    // body, used to access regular frame instead of i-frame
+  mjOBJ_JOINT,                    // joint
+  mjOBJ_DOF,                      // dof
+  mjOBJ_GEOM,                     // geom
+  mjOBJ_SITE,                     // site
+  mjOBJ_CAMERA,                   // camera
+  mjOBJ_LIGHT,                    // light
+  mjOBJ_FLEX,                     // flex
+  mjOBJ_MESH,                     // mesh
+  mjOBJ_SKIN,                     // skin
+  mjOBJ_HFIELD,                   // heightfield
+  mjOBJ_TEXTURE,                  // texture
+  mjOBJ_MATERIAL,                 // material for rendering
+  mjOBJ_PAIR,                     // geom pair to include
+  mjOBJ_EXCLUDE,                  // body pair to exclude
+  mjOBJ_EQUALITY,                 // equality constraint
+  mjOBJ_TENDON,                   // tendon
+  mjOBJ_ACTUATOR,                 // actuator
+  mjOBJ_SENSOR,                   // sensor
+  mjOBJ_NUMERIC,                  // numeric
+  mjOBJ_TEXT,                     // text
+  mjOBJ_TUPLE,                    // tuple
+  mjOBJ_KEY,                      // keyframe
+  mjOBJ_PLUGIN,                   // plugin instance
+
+  mjNOBJECT,                      // number of object types
+
+  // meta elements, do not appear in mjModel
+  mjOBJ_FRAME         = 100,      // frame
+  mjOBJ_DEFAULT,                  // default
+  mjOBJ_MODEL                     // entire model
+} mjtObj;
+typedef enum mjtSensor_ {         // type of sensor
+  // common robotic sensors, attached to a site
+  mjSENS_TOUCH        = 0,        // scalar contact normal forces summed over sensor zone
+  mjSENS_ACCELEROMETER,           // 3D linear acceleration, in local frame
+  mjSENS_VELOCIMETER,             // 3D linear velocity, in local frame
+  mjSENS_GYRO,                    // 3D angular velocity, in local frame
+  mjSENS_FORCE,                   // 3D force between site's body and its parent body
+  mjSENS_TORQUE,                  // 3D torque between site's body and its parent body
+  mjSENS_MAGNETOMETER,            // 3D magnetometer
+  mjSENS_RANGEFINDER,             // scalar distance to nearest geom along z-axis
+  mjSENS_CAMPROJECTION,           // pixel coordinates of a site in the camera image
+
+  // sensors related to scalar joints, tendons, actuators
+  mjSENS_JOINTPOS,                // scalar joint position (hinge and slide only)
+  mjSENS_JOINTVEL,                // scalar joint velocity (hinge and slide only)
+  mjSENS_TENDONPOS,               // scalar tendon position
+  mjSENS_TENDONVEL,               // scalar tendon velocity
+  mjSENS_ACTUATORPOS,             // scalar actuator position
+  mjSENS_ACTUATORVEL,             // scalar actuator velocity
+  mjSENS_ACTUATORFRC,             // scalar actuator force
+  mjSENS_JOINTACTFRC,             // scalar actuator force, measured at the joint
+  mjSENS_TENDONACTFRC,            // scalar actuator force, measured at the tendon
+
+  // sensors related to ball joints
+  mjSENS_BALLQUAT,                // 4D ball joint quaternion
+  mjSENS_BALLANGVEL,              // 3D ball joint angular velocity
+
+  // joint and tendon limit sensors, in constraint space
+  mjSENS_JOINTLIMITPOS,           // joint limit distance-margin
+  mjSENS_JOINTLIMITVEL,           // joint limit velocity
+  mjSENS_JOINTLIMITFRC,           // joint limit force
+  mjSENS_TENDONLIMITPOS,          // tendon limit distance-margin
+  mjSENS_TENDONLIMITVEL,          // tendon limit velocity
+  mjSENS_TENDONLIMITFRC,          // tendon limit force
+
+  // sensors attached to an object with spatial frame: (x)body, geom, site, camera
+  mjSENS_FRAMEPOS,                // 3D position
+  mjSENS_FRAMEQUAT,               // 4D unit quaternion orientation
+  mjSENS_FRAMEXAXIS,              // 3D unit vector: x-axis of object's frame
+  mjSENS_FRAMEYAXIS,              // 3D unit vector: y-axis of object's frame
+  mjSENS_FRAMEZAXIS,              // 3D unit vector: z-axis of object's frame
+  mjSENS_FRAMELINVEL,             // 3D linear velocity
+  mjSENS_FRAMEANGVEL,             // 3D angular velocity
+  mjSENS_FRAMELINACC,             // 3D linear acceleration
+  mjSENS_FRAMEANGACC,             // 3D angular acceleration
+
+  // sensors related to kinematic subtrees; attached to a body (which is the subtree root)
+  mjSENS_SUBTREECOM,              // 3D center of mass of subtree
+  mjSENS_SUBTREELINVEL,           // 3D linear velocity of subtree
+  mjSENS_SUBTREEANGMOM,           // 3D angular momentum of subtree
+
+  // sensors of geometric relationships
+  mjSENS_INSIDESITE,              // 1 if object is inside a site, 0 otherwise
+  mjSENS_GEOMDIST,                // signed distance between two geoms
+  mjSENS_GEOMNORMAL,              // normal direction between two geoms
+  mjSENS_GEOMFROMTO,              // segment between two geoms
+
+  // sensors for reporting contacts which occurred during the simulation
+  mjSENS_CONTACT,                 // contacts which occurred during the simulation
+
+  // global sensors
+  mjSENS_E_POTENTIAL,             // potential energy
+  mjSENS_E_KINETIC,               // kinetic energy
+  mjSENS_CLOCK,                   // simulation time
+
+  // sensors related to SDFs
+  mjSENS_TACTILE,                 // tactile sensor
+
+  // plugin-controlled sensors
+  mjSENS_PLUGIN,                  // plugin-controlled
+
+  // user-defined sensor
+  mjSENS_USER                     // sensor data provided by mjcb_sensor callback
+} mjtSensor;
+typedef enum mjtStage_ {          // computation stage
+  mjSTAGE_NONE        = 0,        // no computations
+  mjSTAGE_POS,                    // position-dependent computations
+  mjSTAGE_VEL,                    // velocity-dependent computations
+  mjSTAGE_ACC                     // acceleration/force-dependent computations
+} mjtStage;
+typedef enum mjtDataType_ {       // data type for sensors
+  mjDATATYPE_REAL     = 0,        // real values, no constraints
+  mjDATATYPE_POSITIVE,            // positive values; 0 or negative: inactive
+  mjDATATYPE_AXIS,                // 3D unit vector
+  mjDATATYPE_QUATERNION           // unit quaternion
+} mjtDataType;
+typedef enum mjtConDataField_ {   // data fields returned by contact sensors
+  mjCONDATA_FOUND     = 0,        // whether a contact was found
+  mjCONDATA_FORCE,                // contact force
+  mjCONDATA_TORQUE,               // contact torque
+  mjCONDATA_DIST,                 // contact penetration distance
+  mjCONDATA_POS,                  // contact position
+  mjCONDATA_NORMAL,               // contact frame normal
+  mjCONDATA_TANGENT,              // contact frame first tangent
+
+  mjNCONDATA                      // number of contact sensor data fields
+} mjtConDataField;
+typedef enum mjtRayDataField_ {   // data fields returned by rangefinder sensors
+  mjRAYDATA_DIST     = 0,         // distance from ray origin to nearest surface
+  mjRAYDATA_DIR,                  // normalized ray direction
+  mjRAYDATA_ORIGIN,               // ray origin
+  mjRAYDATA_POINT,                // point at which ray intersects nearest surface
+  mjRAYDATA_NORMAL,               // surface normal at intersection point
+  mjRAYDATA_DEPTH,                // depth along z-axis
+
+  mjNRAYDATA                      // number of rangefinder sensor data fields
+} mjtRayDataField;
+typedef enum mjtCamOutBit_ {      // camera output type bitflags
+  mjCAMOUT_RGB        = 1<<0,     // RGB image
+  mjCAMOUT_DEPTH      = 1<<1,     // depth image (distance from camera plane)
+  mjCAMOUT_DIST       = 1<<2,     // distance image (distance from camera origin)
+  mjCAMOUT_NORMAL     = 1<<3,     // normal image
+  mjCAMOUT_SEG        = 1<<4,     // segmentation image
+
+  mjNCAMOUT           = 5         // number of camera output types
+} mjtCamOutBit;
+typedef enum mjtSameFrame_ {      // frame alignment of bodies with their children
+  mjSAMEFRAME_NONE    = 0,        // no alignment
+  mjSAMEFRAME_BODY,               // frame is same as body frame
+  mjSAMEFRAME_INERTIA,            // frame is same as inertial frame
+  mjSAMEFRAME_BODYROT,            // frame orientation is same as body orientation
+  mjSAMEFRAME_INERTIAROT          // frame orientation is same as inertia orientation
+} mjtSameFrame;
+typedef enum mjtSleepPolicy_ {    // per-tree sleep policy
+  mjSLEEP_AUTO        = 0,        // compiler chooses sleep policy
+  mjSLEEP_AUTO_NEVER,             // compiler sleep policy: never
+  mjSLEEP_AUTO_ALLOWED,           // compiler sleep policy: allowed
+  mjSLEEP_NEVER,                  // user sleep policy: never
+  mjSLEEP_ALLOWED,                // user sleep policy: allowed
+  mjSLEEP_INIT,                   // user sleep policy: initialized asleep
+} mjtSleepPolicy;
+typedef enum mjtLRMode_ {         // mode for actuator length range computation
+  mjLRMODE_NONE       = 0,        // do not process any actuators
+  mjLRMODE_MUSCLE,                // process muscle actuators
+  mjLRMODE_MUSCLEUSER,            // process muscle and user actuators
+  mjLRMODE_ALL                    // process all actuators
+} mjtLRMode;
+typedef enum mjtFlexSelf_ {       // mode for flex selfcollide
+  mjFLEXSELF_NONE     = 0,        // no self-collisions
+  mjFLEXSELF_NARROW,              // skip midphase, go directly to narrowphase
+  mjFLEXSELF_BVH,                 // use BVH in midphase (if midphase enabled)
+  mjFLEXSELF_SAP,                 // use SAP in midphase
+  mjFLEXSELF_AUTO                 // choose between BVH and SAP automatically
+} mjtFlexSelf;
+typedef enum mjtSDFType_ {        // signed distance function (SDF) type
+  mjSDFTYPE_SINGLE    = 0,        // single SDF
+  mjSDFTYPE_INTERSECTION,         // max(A, B)
+  mjSDFTYPE_MIDSURFACE,           // A - B
+  mjSDFTYPE_COLLISION,            // A + B + abs(max(A, B))
+} mjtSDFType;
+typedef enum mjtState_ {            // state elements
+  mjSTATE_TIME           = 1<<0,    // time
+  mjSTATE_QPOS           = 1<<1,    // position
+  mjSTATE_QVEL           = 1<<2,    // velocity
+  mjSTATE_ACT            = 1<<3,    // actuator activation
+  mjSTATE_HISTORY        = 1<<4,    // history buffers (control, sensor)
+  mjSTATE_WARMSTART      = 1<<5,    // acceleration used for warmstart
+  mjSTATE_CTRL           = 1<<6,    // control
+  mjSTATE_QFRC_APPLIED   = 1<<7,    // applied generalized force
+  mjSTATE_XFRC_APPLIED   = 1<<8,    // applied Cartesian force/torque
+  mjSTATE_EQ_ACTIVE      = 1<<9,    // enable/disable constraints
+  mjSTATE_MOCAP_POS      = 1<<10,   // positions of mocap bodies
+  mjSTATE_MOCAP_QUAT     = 1<<11,   // orientations of mocap bodies
+  mjSTATE_USERDATA       = 1<<12,   // user data
+  mjSTATE_PLUGIN         = 1<<13,   // plugin state
+
+  mjNSTATE               = 14,      // number of state elements
+
+  // convenience values for commonly used state specifications
+  mjSTATE_PHYSICS        = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT | mjSTATE_HISTORY,
+  mjSTATE_FULLPHYSICS    = mjSTATE_TIME | mjSTATE_PHYSICS | mjSTATE_PLUGIN,
+  mjSTATE_USER           = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
+                           mjSTATE_EQ_ACTIVE | mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT |
+                           mjSTATE_USERDATA,
+  mjSTATE_INTEGRATION    = mjSTATE_FULLPHYSICS | mjSTATE_USER | mjSTATE_WARMSTART
+} mjtState;
+typedef enum mjtConstraint_ {       // type of constraint
+  mjCNSTR_EQUALITY       = 0,       // equality constraint
+  mjCNSTR_FRICTION_DOF,             // dof friction
+  mjCNSTR_FRICTION_TENDON,          // tendon friction
+  mjCNSTR_LIMIT_JOINT,              // joint limit
+  mjCNSTR_LIMIT_TENDON,             // tendon limit
+  mjCNSTR_CONTACT_FRICTIONLESS,     // frictionless contact
+  mjCNSTR_CONTACT_PYRAMIDAL,        // frictional contact, pyramidal friction cone
+  mjCNSTR_CONTACT_ELLIPTIC          // frictional contact, elliptic friction cone
+} mjtConstraint;
+typedef enum mjtConstraintState_ {  // constraint state
+  mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
+  mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
+  mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
+  mjCNSTRSTATE_LINEARPOS,           // linear cost, positive side (friction)
+  mjCNSTRSTATE_CONE                 // squared distance to cone cost (elliptic contact)
+} mjtConstraintState;
+typedef enum mjtWarning_ {          // warning types
+  mjWARN_INERTIA         = 0,       // (near) singular inertia matrix
+  mjWARN_CONTACTFULL,               // too many contacts in contact list
+  mjWARN_CNSTRFULL,                 // too many constraints
+  mjWARN_BADQPOS,                   // bad number in qpos
+  mjWARN_BADQVEL,                   // bad number in qvel
+  mjWARN_BADQACC,                   // bad number in qacc
+  mjWARN_BADCTRL,                   // bad number in ctrl
+
+  mjNWARNING                        // number of warnings
+} mjtWarning;
+typedef enum mjtTimer_ {            // internal timers
+  // main api
+  mjTIMER_STEP           = 0,       // step
+  mjTIMER_FORWARD,                  // forward
+  mjTIMER_INVERSE,                  // inverse
+
+  // breakdown of step/forward
+  mjTIMER_POSITION,                 // fwdPosition
+  mjTIMER_VELOCITY,                 // fwdVelocity
+  mjTIMER_ACTUATION,                // fwdActuation
+  mjTIMER_CONSTRAINT,               // fwdConstraint
+  mjTIMER_ADVANCE,                  // mj_Euler, mj_implicit
+
+  // breakdown of fwdPosition
+  mjTIMER_POS_KINEMATICS,           // kinematics, com, tendon, transmission
+  mjTIMER_POS_INERTIA,              // inertia computations
+  mjTIMER_POS_COLLISION,            // collision detection
+  mjTIMER_POS_MAKE,                 // make constraints
+  mjTIMER_POS_PROJECT,              // project constraints
+
+  // breakdown of mj_collision
+  mjTIMER_COL_BROAD,                // broadphase
+  mjTIMER_COL_NARROW,               // narrowphase
+
+  mjNTIMER                          // number of timers
+} mjtTimer;
+typedef enum mjtSleepState_ {       // sleep state of an object
+  mjS_STATIC = -1,                  // object is static
+  mjS_ASLEEP = 0,                   // object is asleep
+  mjS_AWAKE  = 1                    // object is awake
+} mjtSleepState;
 typedef enum mjtButton_ {         // mouse button
   mjBUTTON_NONE = 0,              // no button
   mjBUTTON_LEFT,                  // left button
@@ -3366,10 +3347,10 @@ void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallba
 int mj_version(void);
 const char* mj_versionString(void);
 mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
-              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+              const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
               int geomid[1], mjtNum normal[3]);
 void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
-                 const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                 const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff);
 mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                     const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
@@ -3379,8 +3360,8 @@ mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3
                    const mjtNum pnt[3], const mjtNum vec[3], int geomtype,
                    mjtNum normal[3]);
 mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
-                  mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
-                  mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                  mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+                  mjtBool flg_skin, int flexid, const mjtNum pnt[3],
                   const mjtNum vec[3], int vertid[1], mjtNum normal[3]);
 mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                    const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
@@ -3575,10 +3556,10 @@ mjtNum mju_cholFactorBand(mjtNum* mat, int ntotal, int nband, int ndense,
 void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                        int ntotal, int nband, int ndense);
 void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
-                    mjtByte flg_sym);
+                    mjtBool flg_sym);
 void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
 void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                       int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+                       int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym);
 int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
 int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const mjtNum* g, int n,
@@ -3618,9 +3599,9 @@ const mjpPlugin* mjc_getSDF(const mjModel* m, int id);
 mjtNum mjc_distance(const mjModel* m, const mjData* d, const mjSDF* s, const mjtNum x[3]);
 void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s, mjtNum gradient[3],
                   const mjtNum x[3]);
-void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
+void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
-void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_actuation,
                    mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
                    mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                    mjtNum *DmDq);
@@ -3651,12 +3632,7 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
 int mju_isModifiedResource(const mjResource* resource, const char* timestamp);
 mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
                            const mjVFS* vfs);
-mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
-void mju_bindThreadPool(mjData* d, void* thread_pool);
-void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
-void mju_threadPoolDestroy(mjThreadPool* thread_pool);
-void mju_defaultTask(mjTask* task);
-void mju_taskJoin(mjTask* task);
+void mju_threadpool(mjData* d, int nthread);
 mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
                        const char* prefix, const char* suffix);
 mjsBody* mjs_addBody(mjsBody* body, const mjsDefault* def);
@@ -3671,6 +3647,12 @@ int mjs_delete(mjSpec* spec, mjsElement* element);
 mjsActuator* mjs_addActuator(mjSpec* s, const mjsDefault* def);
 mjsSensor* mjs_addSensor(mjSpec* s);
 mjsFlex* mjs_addFlex(mjSpec* s);
+mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
+                      const char* dof, const int count[3], const int cellcount[3],
+                      const double spacing[3], const double scale[3], double radius,
+                      double mass, double inertiabox, int equality, int rigid, int flatskin,
+                      int elastic2d, const double pos[3], const double quat[4],
+                      const double origin[3], const char* file, const mjVFS* vfs);
 mjsPair* mjs_addPair(mjSpec* s, const mjsDefault* def);
 mjsExclude* mjs_addExclude(mjSpec* s);
 mjsEquality* mjs_addEquality(mjSpec* s, const mjsDefault* def);
@@ -3734,7 +3716,7 @@ int mjs_setName(mjsElement* element, const char* name);
 void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 void mjs_setString(mjString* dest, const char* text);
 void mjs_setStringVec(mjStringVec* dest, const char* text);
-mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
+mjtBool mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
 void mjs_appendString(mjStringVec* dest, const char* text);
 void mjs_setInt(mjIntVec* dest, const int* array, int size);
 void mjs_appendIntVec(mjIntVecVec* dest, const int* array, int size);

@@ -139,8 +139,6 @@ typedef enum mjrDrawMode_ {
   mjDRAW_MODE_SEGMENTATION,
 } mjrDrawMode;
 
-enum { mjNUM_DRAW_MODES = 4 };  // Number of modes in `mjrDrawMode`.
-
 // Parameters describing the camera to use for rendering an image.
 typedef mjvGLCamera mjrCamera;
 
@@ -614,8 +612,6 @@ struct mjrMaterial {
   // The emissive (glow) factor of the object.
   float emissive;
 
-  // Whether or not the object is a reflective surface. Only applies to planes.
-  mjtByte reflective;
   // The blend factor to use for reflective surfaces. A value of 1.0 means that
   // the surface is fully reflective (i.e. a mirror).
   float reflectance;
@@ -626,6 +622,9 @@ struct mjrMaterial {
 
   // The texture containing the base color of the object.
   const mjrTexture* color_texture;
+
+  // The texture containing the opacity of the object.
+  const mjrTexture* opacity_texture;
 
   // The normal map of the object.
   const mjrTexture* normal_texture;
@@ -695,12 +694,16 @@ void mjrf_setRenderableGeomMesh(mjrRenderable* renderable, mjtGeom type,
 void mjrf_setRenderableMaterial(mjrRenderable* renderable,
                                 const mjrMaterial* material);
 
-// Sets the transform (position, rotation, and size) of the renderable. Note
-// that `size` is not the same as `scale`. For example, the z-size of a capsule
-// only scales the tubular-portion of its geometry, but not the spherical caps.
+// Sets the transform position and rotation of the renderable.
 void mjrf_setRenderableTransform(mjrRenderable* renderable,
                                  const float position[3],
-                                 const float rotation[9], const float size[3]);
+                                 const float rotation[9]);
+
+// Sets the size of the renderable. Note that, for most renderables, this is
+// equivalent to setting the scale. However, for some geom-based renderables,
+// the size scale is not applied uniformly (e.g. the spherical ends of a
+// capsule are scaled such that they always remain spherical).
+void mjrf_setRenderableSize(mjrRenderable* renderable, const float size[3]);
 
 // Sets whether the renderable casts shadows or not.
 void mjrf_setRenderableCastShadows(mjrRenderable* renderable,

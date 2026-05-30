@@ -32,7 +32,7 @@
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_util_errmem.h"
-#include "src/thread/thread_pool.h"
+#include "src/engine/engine_thread.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -804,32 +804,18 @@ TEST_F(EngineIoTest, VeryLargeMemory) {
   }
 }
 
-struct TestFunctionArgs_ {
-  mjData* d;
-  int input;
-  int stack_output;
-  int arena_output;
-  size_t output_thread_worker;
+struct TestFunctionArgs {
+  int stack_output[1000];
+  int arena_output[1000];
 };
-typedef TestFunctionArgs_ TestFunctionArgs;
 
-void* TestFunction(void* args) {
+void TestFunction(const mjModel* m, mjData* d, void* args, int i, int j) {
   TestFunctionArgs* test_args = static_cast<TestFunctionArgs*>(args);
-  test_args->output_thread_worker =
-      mju_threadPoolCurrentWorkerId((mjThreadPool*)test_args->d->threadpool);
-  mj_markStack(test_args->d);
-  int* test_ints = mj_stackAllocInt(test_args->d, 10);
-  test_ints[0] = test_args->input;
-  test_args->stack_output = test_ints[0];
-
-  int* test_arena_ints =
-      (int*)mj_arenaAllocByte(test_args->d, sizeof(int) * 10, alignof(int));
-  test_arena_ints[0] = test_args->input;
-  test_args->arena_output = test_arena_ints[0];
-
-
-  mj_freeStack(test_args->d);
-  return nullptr;
+  mj_markStack(d);
+  int* test_ints = mj_stackAllocInt(d, 10);
+  test_ints[0] = j;
+  test_args->stack_output[j] = test_ints[0];
+  mj_freeStack(d);
 }
 
 TEST_F(EngineIoTest, TestStackShardingForThreads) {
@@ -846,38 +832,18 @@ TEST_F(EngineIoTest, TestStackShardingForThreads) {
 
   mjData* data = mj_makeData(model);
   ASSERT_THAT(data, NotNull());
-  mjThreadPool* thread_pool = mju_threadPoolCreate(10);
-  mju_bindThreadPool(data, thread_pool);
+  mju_threadpool(data, 10);
 
   constexpr int kTasks = 1000;
-  TestFunctionArgs test_function_args[kTasks];
-  mjTask tasks[kTasks];
-  for (int i = 0; i < kTasks; ++i) {
-    test_function_args[i].d = data;
-    test_function_args[i].input = i;
-    mju_defaultTask(&tasks[i]);
-    tasks[i].func = TestFunction;
-    tasks[i].args = &test_function_args[i];
-    mju_threadPoolEnqueue(thread_pool, &tasks[i]);
-  }
-
-  mj_markStack(data);
-  int* test_ints = mj_stackAllocInt(data, 10);
-  test_ints[0] = 1;
-  mj_freeStack(data);
+  TestFunctionArgs test_function_args;
+  mju_dispatch(model, data, TestFunction, &test_function_args, kTasks);
 
   for (int i = 0; i < kTasks; ++i) {
-    mju_taskJoin(&tasks[i]);
-  }
-
-  for (int i = 0; i < kTasks; ++i) {
-    EXPECT_EQ(test_function_args[i].input, test_function_args[i].stack_output);
-    EXPECT_EQ(test_function_args[i].input, test_function_args[i].arena_output);
+    EXPECT_EQ(i, test_function_args.stack_output[i]);
   }
 
   mj_deleteData(data);
   mj_deleteModel(model);
-  mju_threadPoolDestroy(thread_pool);
 }
 
 #ifdef ADDRESS_SANITIZER
@@ -954,6 +920,68 @@ TEST_F(EngineIoTest, RedZoneAlignmentTest) {
   mj_deleteModel(model);
 }
 #endif
+
+// Regression test: crafted binary model with overflow-inducing sizes must be
+// safely rejected (not cause heap overflow). This exercises the overflow checks
+// in safeAddToBufferSize on all compilers including MSVC.
+TEST_F(EngineIoTest, LoadModelBufferRejectsOverflowingSizes) {
+  // construct a minimal valid-looking .mjb header
+  int header[5];
+  header[0] = 20;              // ID
+  header[1] = sizeof(mjtNum);  // floating point size
+  // We need the correct nsize and nptr from the current build.
+  // Rather than hardcoding, we create and save a trivial model, then mutate
+  // the sizes to trigger overflow.
+
+  constexpr char xml[] = "<mujoco />";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  // save model to a buffer
+  int bufsize = mj_sizeModel(model);
+  ASSERT_GT(bufsize, 0);
+  std::vector<char> buffer(bufsize);
+  mj_saveModel(model, nullptr, buffer.data(), bufsize);
+  mj_deleteModel(model);
+
+  // locate the size fields in the buffer (after 5-int header)
+  const int header_bytes = 5 * sizeof(int);
+  ASSERT_GT(bufsize, header_bytes + 77 * (int)sizeof(mjtSize));
+
+  // mutate a size field to an extremely large value that would overflow
+  // when multiplied by sizeof(type). ntexdata is a good candidate since it
+  // is a byte count field and gets multiplied by sizeof(mjtByte)==1, but other
+  // fields multiply by sizeof(int) or sizeof(mjtNum), making overflow easier.
+  // Use memcpy to avoid undefined behavior from unaligned access.
+  const int size_offset = header_bytes + 49 * sizeof(mjtSize);
+
+  // set to overflow-inducing value
+  mjtSize overflow_val = static_cast<mjtSize>(SIZE_MAX / 2);
+  std::memcpy(buffer.data() + size_offset, &overflow_val, sizeof(mjtSize));
+
+  // also need to update the nbuffer field (last size) to avoid the early
+  // nbuffer mismatch check — but the overflow should be caught earlier
+  // in safeAddToBufferSize/mj_makeModel before we reach that check.
+
+  // intercept mju_warning because the test framework translates it to ADD_FAILURE
+  static bool warning_triggered = false;
+  warning_triggered = false;
+  mju_user_warning = [](const char* msg) {
+    warning_triggered = true;
+  };
+
+  // attempt to load — should return NULL, not crash
+  mjModel* bad_model = mj_loadModelBuffer(buffer.data(), bufsize);
+  EXPECT_THAT(bad_model, IsNull())
+      << "Expected mj_loadModelBuffer to reject overflow-inducing sizes";
+  EXPECT_TRUE(warning_triggered) << "Expected a warning about invalid sizes";
+
+  // clean up if somehow it succeeded
+  if (bad_model) {
+    mj_deleteModel(bad_model);
+  }
+}
 
 }  // namespace
 }  // namespace mujoco

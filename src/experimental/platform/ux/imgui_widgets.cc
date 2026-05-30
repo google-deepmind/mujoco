@@ -103,6 +103,14 @@ void ImGui_DataPtrTable::DataPtr(const char* label, const mjtByte* ptr,
   }
 }
 
+void ImGui_DataPtrTable::DataPtr(const char* label, const mjtBool* ptr,
+                                 int index, int n) {
+  for (int i = 0; i < n; ++i) {
+    MakeLabel(label, i, n);
+    ImGui::Text("%s", ptr[index + i] ? "true" : "false");
+  }
+}
+
 void ImGui_DataPtrTable::DataPtr(const char* label, const mjtSize* ptr,
                                  int index, int n) {
   Numeric(label, ptr, index, n);
@@ -378,6 +386,23 @@ void MaybeSaveToClipboard(const std::string& contents) {
   ImGui::SetClipboardText(contents.c_str());
 }
 
+float GetExpectedLabelWidth() {
+  static float expected_label_width = 0;
+  if (expected_label_width == 0) {
+    int longest = 0;
+    const char* longest_label = "";
+    for (int i = 0; i < mjNVISFLAG; ++i) {
+      int length = static_cast<int>(std::strlen(mjVISSTRING[i][0]));
+      if (length > longest) {
+        longest_label = mjVISSTRING[i][0];
+        longest = length;
+      }
+    }
+    expected_label_width = ImGui::CalcTextSize(longest_label).x + 16;
+  }
+  return expected_label_width;
+}
+
 ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size) {
   ImPlotFlags flags = ImPlotFlags_None;
   if (plot_size.x > 0 && plot_size.y > 0) {
@@ -444,6 +469,38 @@ ImPlotPairLayout ImPlot_ComputePairLayout() {
       is_wide ? ImPlotLayoutDirection::kHorizontal
               : ImPlotLayoutDirection::kVertical,
   };
+}
+
+static ImVec2 ClipSpaceToWindowCoordinates(float x, float y) {
+  const ImVec2& display_size = ImGui::GetIO().DisplaySize;
+  const float pos_x = display_size.x * ((x + 1) * 0.5f);
+  const float pos_y = display_size.y * (1.0f - ((y + 1) * 0.5f));
+  return ImVec2(pos_x, pos_y);
+}
+
+void DrawTextAt(const char* text, float x, float y, float z) {
+  if (x < -1 || y < -1 || x > 1 || y > 1 || z < -1 || z > 1) {
+    return;
+  }
+
+  const ImVec2 center_pos = ClipSpaceToWindowCoordinates(x, y);
+  const ImVec2 size = ImGui::CalcTextSize(text);
+
+  const ImVec2 pos = ImVec2(center_pos.x - size.x / 2, center_pos.y);
+  const ImVec2 shadow_pos = ImVec2(pos.x + 2, pos.y + 2);
+  const int flags = ImGuiWindowFlags_NoBringToFrontOnFocus |
+                    ImGuiWindowFlags_NoFocusOnAppearing |
+                    ImGuiWindowFlags_NoBackground |
+                    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+                    ImGuiWindowFlags_NoNav;
+
+  ImGui::Begin("labels", nullptr, flags);
+  ImGui::BeginChild("labels", ImGui::GetIO().DisplaySize, 0, flags);
+  ImDrawList* draw_list = ImGui::GetWindowDrawList();
+  draw_list->AddText(shadow_pos, IM_COL32_BLACK, text);
+  draw_list->AddText(pos, IM_COL32_WHITE, text);
+  ImGui::EndChild();
+  ImGui::End();
 }
 
 }  // namespace mujoco::platform

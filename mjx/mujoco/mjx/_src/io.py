@@ -179,8 +179,8 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
     wp_field.shape = wp_field.shape[1:]
   # warp scalars
   wp_dtype = type(wp_field)
-  if wp_dtype in wp.types.warp_type_to_np_dtype:
-    return wp.types.warp_type_to_np_dtype[wp_dtype](wp_field)
+  if wp_dtype in wp._src.types.warp_type_to_np_dtype:
+    return wp.dtype_to_numpy(wp_dtype)(wp_field)
 
   # warp arrays
   if isinstance(wp_field, wp.array):
@@ -272,6 +272,10 @@ def _put_option(
 
 
   if impl == types.Impl.WARP:
+    if not mjxw.mjwp_io.ENABLE_ISLANDS:
+      fields['disableflags'] = types.DisableBit(
+          fields['disableflags'] | mjwp_types.DisableBit.ISLAND
+      )
     impl_fields = {k: _wp_to_np_type(v) for k, v in impl_fields.items()}
     return types.Option(**fields, _impl=mjxw.types.OptionWarp(**impl_fields))
 
@@ -1272,8 +1276,11 @@ def _get_data_into_warp(
       else:
         value = getattr(d_i, field.name)
 
-      if field.name in ('ne', 'nl', 'nf'):
-        pass
+      if field.name in ('ne', 'nl', 'nf', 'nisland', 'nidof'):
+        if isinstance(value, np.ndarray) and value.size == 0:
+          value = 0
+        else:
+          value = int(value)
       elif field.name in ('nefc', 'ncon'):
         value = {'nefc': nefc, 'ncon': ncon}[field.name]
       elif field.name.endswith('xmat') or field.name == 'ximat':
@@ -1287,9 +1294,11 @@ def _get_data_into_warp(
           'contact',
           'qM',
           'qLD',
+          'qLU',
           'qLDiagInv',
           'ten_J',
           'flexedge_J',
+          'M',
       ):
         continue
       if field.name.startswith('efc_'):

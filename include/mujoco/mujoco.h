@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 3009000
+#define mjVERSION_HEADER 3010000
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -31,10 +31,10 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mjsan.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjthread.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mjassert.h>
 
 // this is a C-API
 #ifdef __cplusplus
@@ -679,7 +679,7 @@ MJAPI const char* mj_versionString(void);
 // geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.
 // Nullable: geomgroup, geomid, normal
 MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
-                    const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                    const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                     int geomid[1], mjtNum normal[3]);
 
 // Intersect multiple rays emanating from a single point, compute normals if given.
@@ -687,7 +687,7 @@ MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], cons
 // Geoms further than cutoff are ignored.
 // Nullable: geomgroup, geomid, normal
 MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
-                       const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                       const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                        int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff);
 
 // Intersect ray with hfield; return nearest distance or -1 if no intersection.
@@ -710,8 +710,8 @@ MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum 
 // and also output nearest vertex id and surface normal.
 // Nullable: vertid, normal
 MJAPI mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
-                        mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
-                        mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                        mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+                        mjtBool flg_skin, int flexid, const mjtNum pnt[3],
                         const mjtNum vec[3], int vertid[1], mjtNum normal[3]);
 
 // Intersect ray with skin; return nearest distance or -1 if no intersection,
@@ -1303,14 +1303,14 @@ MJAPI void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
 // Convert banded matrix to dense matrix, fill upper triangle if flg_sym>0.
 MJAPI void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
-                          mjtByte flg_sym);
+                          mjtBool flg_sym);
 
 // Convert dense matrix to banded matrix.
 MJAPI void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense);
 
 // Multiply band-diagonal matrix with nvec vectors, include upper triangle if flg_sym>0.
 MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                             int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym);
+                             int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym);
 
 // Address of diagonal element i in band-dense matrix representation.
 MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
@@ -1460,7 +1460,7 @@ MJAPI void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s, mjtNu
 //      D: (nsensordata x 2*nv+na)
 //      C: (nsensordata x nu)
 // Nullable: A, B, C, D
-MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
+MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
                             mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D);
 
 // Finite differenced Jacobians of (force, sensors) = mj_inverse(state, acceleration)
@@ -1479,7 +1479,7 @@ MJAPI void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg
 //     optionally computes mass matrix Jacobian DmDq
 //     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse
 // Nullable: DfDq, DfDv, DfDa, DsDq, DsDv, DsDa, DmDq
-MJAPI void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+MJAPI void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_actuation,
                          mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
                          mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                          mjtNum *DmDq);
@@ -1592,23 +1592,8 @@ MJAPI mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
 
 //---------------------------------- Threads -------------------------------------------------------
 
-// Create a thread pool with the specified number of threads running.
-MJAPI mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
-
-// Adds a thread pool to mjData and configures it for multi-threaded use.
-MJAPI void mju_bindThreadPool(mjData* d, void* thread_pool);
-
-// Enqueue a task in a thread pool.
-MJAPI void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
-
-// Destroy a thread pool.
-MJAPI void mju_threadPoolDestroy(mjThreadPool* thread_pool);
-
-// Initialize an mjTask.
-MJAPI void mju_defaultTask(mjTask* task);
-
-// Wait for a task to complete.
-MJAPI void mju_taskJoin(mjTask* task);
+// Create a thread pool with nthread worker threads.
+MJAPI void mju_threadpool(mjData* d, int nthread);
 
 
 //---------------------------------- Attachment ----------------------------------------------------
@@ -1665,6 +1650,15 @@ MJAPI mjsSensor* mjs_addSensor(mjSpec* s);
 
 // Add flex.
 MJAPI mjsFlex* mjs_addFlex(mjSpec* s);
+
+// Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.
+// Nullable: type, dof, count, cellcount, spacing, scale, pos, quat, origin, file, vfs
+MJAPI mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
+                            const char* dof, const int count[3], const int cellcount[3],
+                            const double spacing[3], const double scale[3], double radius,
+                            double mass, double inertiabox, int equality, int rigid, int flatskin,
+                            int elastic2d, const double pos[3], const double quat[4],
+                            const double origin[3], const char* file, const mjVFS* vfs);
 
 // Add contact pair.
 // Nullable: def
@@ -1859,7 +1853,7 @@ MJAPI void mjs_setString(mjString* dest, const char* text);
 MJAPI void mjs_setStringVec(mjStringVec* dest, const char* text);
 
 // Set entry in string vector.
-MJAPI mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
+MJAPI mjtBool mjs_setInStringVec(mjStringVec* dest, int i, const char* text);
 
 // Append text entry to string vector.
 MJAPI void mjs_appendString(mjStringVec* dest, const char* text);

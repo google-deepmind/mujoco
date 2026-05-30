@@ -228,36 +228,9 @@ Feature Parity
 ==============
 
 MJWarp supports most of the main simulation features of MuJoCo, with a few exceptions. MJWarp will raise an exception if
-asked to copy to device an :ref:`mjModel` with field values referencing unsupported features.
-
-The following features are **not supported** in MJWarp:
-
-.. list-table::
-   :width: 90%
-   :align: left
-   :widths: 2 5
-   :header-rows: 1
-
-   * - Category
-     - Feature
-   * - :ref:`Integrator <mjtIntegrator>`
-     - ``IMPLICIT``, ``IMPLICITFAST`` not supported with fluid drag
-   * - :ref:`Solver <mjtSolver>`
-     - ``PGS``, ``noslip``, :ref:`islands <soIsland>`
-   * - Fluid Model
-     - :ref:`flEllipsoid`
-   * - :ref:`Sensors <mjtSensor>`
-     - ``GEOMDIST``, ``GEOMNORMAL``, ``GEOMFROMTO``
-   * - Flex
-     - ``VERTCOLLIDE=false``, ``INTERNAL=true``
-   * - Jacobian format
-     - ``SPARSE``
-   * - Option
-     - :ref:`contact override <COverride>`
-   * - Plugins
-     - ``All`` except ``SDF``
-   * - :ref:`User parameters <CUser>`
-     - ``All``
+asked to copy to device an :ref:`mjModel` with field values referencing unsupported features. For the most up-to-date
+feature availability, please see
+`MuJoCo API Compatibility <https://github.com/google-deepmind/mujoco_warp#mujoco-api-compatibility>`__.
 
 .. _mjwPerf:
 

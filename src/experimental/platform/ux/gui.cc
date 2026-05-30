@@ -316,8 +316,7 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::Begin("Dockspace", nullptr, kWorkspaceFlags);
     const ImGuiDockNodeFlags kDockSpaceFlags =
         ImGuiDockNodeFlags_PassthruCentralNode |
-        ImGuiDockNodeFlags_NoDockingOverCentralNode |
-        ImGuiDockNodeFlags_AutoHideTabBar;
+        ImGuiDockNodeFlags_NoDockingOverCentralNode;
     ImGui::DockSpace(root, ImVec2(0.0f, 0.0f), kDockSpaceFlags);
     ImGui::End();
   }
@@ -426,9 +425,7 @@ void StepControlGui(const mjModel* model, StepControl* step_control,
                         ImGuiComboFlags_NoArrowButton)) {
     for (int n = 0; n < kPercentRealTime.size(); n++) {
       if (ImGui::Selectable(kPercentRealTime[n], (speed_index == n))) {
-        speed_index = std::clamp<int>(n, 0, kPercentRealTime.size() - 1);
-        float speed = std::stof(kPercentRealTime[speed_index]);
-        step_control->SetSpeed(speed);
+        SetSpeedIndex(step_control, speed_index, n);
       }
     }
     ImGui::EndCombo();
@@ -440,6 +437,17 @@ void StepControlGui(const mjModel* model, StepControl* step_control,
   } else {
     ImGui::SetItemTooltip("%s", "Desired Speed");
   }
+}
+
+void SetSpeedIndex(StepControl* step_control, int& speed_index,
+                   int request_idx) {
+  if (!step_control || request_idx == speed_index || kPercentRealTime.empty()) {
+    return;
+  }
+
+  speed_index = std::clamp<int>(request_idx, 0, kPercentRealTime.size() - 1);
+  float speed = std::stof(kPercentRealTime[speed_index]);
+  step_control->SetSpeed(speed);
 }
 
 bool ThemeSelectGui(GuiTheme* theme, const ImVec2& size) {
@@ -471,6 +479,7 @@ bool LabelSelectionGui(mjvOption* opts) {
   const std::string label_preview =
       opts->label == 0 ? std::string(ICON_LABEL) + " Label"
                        : std::string(ICON_LABEL) + " " + kLabelNames[opts->label];
+  ImGui::SetNextItemWidth(GetExpectedLabelWidth());
   if (ImGui::BeginCombo("##Label", label_preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
     for (int n = 0; n < IM_ARRAYSIZE(kLabelNames); n++) {
@@ -494,6 +503,7 @@ bool FrameSelectionGui(mjvOption* opts) {
   const std::string frame_preview =
       opts->frame == 0 ? std::string(ICON_FRAME) + " Frame"
                        : std::string(ICON_FRAME) + " " + kFrameNames[opts->frame];
+  ImGui::SetNextItemWidth(GetExpectedLabelWidth());
   if (ImGui::BeginCombo("##Frame", frame_preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
     for (int n = 0; n < IM_ARRAYSIZE(kFrameNames); n++) {
@@ -530,6 +540,19 @@ static std::string GetCameraName(const mjModel* model, const mjvCamera& camera,
 bool CameraSelectionGui(const mjModel* model, mjData* data, mjvCamera& camera,
                         int& index) {
   static constexpr const char* ICON_CAMERA = ICON_FA_CAMERA;
+  static constexpr const char* ICON_COPY_CAMERA = ICON_FA_COPY;
+
+  // Copy camera button.
+  const float btn_size = ImGui::GetFrameHeight();
+  const ImVec2 square_size(btn_size, btn_size);
+  if (ImGui::Button(ICON_COPY_CAMERA, square_size)) {
+    std::string camera_string = CameraToString(data, &camera);
+    MaybeSaveToClipboard(camera_string);
+  }
+  ImGui::SetItemTooltip("%s", "Copy Camera");
+  ImGui::SameLine(0, 0);
+
+  ImGui::SetNextItemWidth(GetExpectedLabelWidth());
 
   auto select = [&](int type, int idx) {
     if (ImGui::Selectable(GetCameraName(model, camera, type).c_str(),

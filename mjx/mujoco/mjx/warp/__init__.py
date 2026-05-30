@@ -23,6 +23,7 @@ if not typing.TYPE_CHECKING:
   warp: Any = None
   mujoco_warp: Any = None
   mjwp_types: Any = None
+  mjwp_io: Any = None
   WARP_INSTALLED: bool = False
 
   # pylint: disable=g-import-not-at-top
@@ -35,6 +36,7 @@ if not typing.TYPE_CHECKING:
   try:
     from mujoco.mjx.third_party import mujoco_warp
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
+    from mujoco.mjx.third_party.mujoco_warp._src import io as mjwp_io
   except (ImportError, RuntimeError) as e:
     print('Failed to import mujoco_warp:', e)
     pass
@@ -67,7 +69,11 @@ else:
     def BlockDim(self, *args, **kwargs):  # pylint: disable=invalid-name
       pass
 
+  class _MjwpIoStub:
+    ENABLE_ISLANDS = True
+
   WARP_INSTALLED: bool = True
   warp: Any = _WpStub()
   mujoco_warp: Any = _MjwpStub()
   mjwp_types: Any = _MjwpTypesStub()
+  mjwp_io: Any = _MjwpIoStub()

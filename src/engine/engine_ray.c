@@ -66,7 +66,7 @@ static mjtNum latitude(const mjtNum vec[3]) {
 
 // eliminate geom
 static int ray_eliminate(const mjModel* m, const mjData* d, int geomid,
-                         const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude) {
+                         const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude) {
   // body exclusion
   if (m->geom_bodyid[geomid] == bodyexclude) {
     return 1;
@@ -850,14 +850,14 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
         if (normal) mju_copy3(normal, normal_local);
-        if (mark_active) d->bvh_active[node + bvhadr] = 1;
+        if (mark_active) d->bvh_active[node + bvhadr] = true;
       }
       continue;
     }
 
     // used for rendering
     if (mark_active) {
-      d->bvh_active[node + bvhadr] = 1;
+      d->bvh_active[node + bvhadr] = true;
     }
 
     // add children to the stack
@@ -1000,8 +1000,8 @@ mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3
 
 // intersect ray with flex, return nearest vertex id, compute normal if given
 mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
-                  mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
-                  mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                  mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+                  mjtBool flg_skin, int flexid, const mjtNum pnt[3],
                   const mjtNum vec[3], int vertid[1], mjtNum normal[3]) {
   int dim = m->flex_dim[flexid];
 
@@ -1306,7 +1306,7 @@ static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
 //  geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion
 mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
-              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+              const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
               int geomid[1], mjtNum normal[3]) {
   int ngeom = m->ngeom;
   mjtNum dist, newdist;
@@ -1353,7 +1353,7 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtN
 
 // Initializes spherical bounding angles (geom_ba) and flag vector for a given source
 void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
-                         const mjtNum ray_xmat[9], const mjtByte* geomgroup, mjtByte flg_static,
+                         const mjtNum ray_xmat[9], const mjtByte* geomgroup, mjtBool flg_static,
                          int bodyexclude, mjtNum cutoff, mjtNum* geom_ba, int* geom_eliminate) {
   if (ray_xmat) {
     mjERROR("ray_xmat is currently unused, should be NULL");
@@ -1542,7 +1542,7 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
 
 // performs multiple ray intersections, compute normals if given
 void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
-                 const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                 const mjtByte* geomgroup, mjtBool flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff) {
   mj_markStack(d);
 

@@ -493,7 +493,7 @@ def build_struct_source(
 
   if not is_mjs:
     # default constructor
-    with builder.function(f"{w}::{w}() : ptr_(new {s}){fields_init}"):
+    with builder.function(f"{w}::{w}() : ptr_(new {s}()){fields_init}"):
       builder.line("owned_ = true;")
       default_func = _default_function_statement(s)
       if default_func:

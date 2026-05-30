@@ -31,7 +31,7 @@
 #include <mujoco/mujoco.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"

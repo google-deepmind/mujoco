@@ -15,6 +15,7 @@
 // Tests for engine/engine_collision_box.c.
 
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -45,11 +46,9 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
     mj_forward(model, data);
 
     // allocate contact array and matching arrays
-    mj_markStack(data);
-    mjContact* con_raw = (mjContact*) mj_stackAllocByte(
-        data, mjMAXCONPAIR * sizeof(mjContact), alignof(mjContact));
-    int* match_raw = mj_stackAllocInt(data, mjMAXCONPAIR);
-    int* match = mj_stackAllocInt(data, data->ncon);
+    std::vector<mjPreContact> precon(mjMAXCONPAIR);
+    std::vector<int> match_raw(mjMAXCONPAIR);
+    std::vector<int> match(data->ncon);
 
     int g1 = -1;
     int g2 = -1;
@@ -73,20 +72,21 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
       g2 = g2new;
 
       // call low-level box-box collider
-      int num = mjc_BoxBox(model, data, con_raw, g1, g2, con->includemargin);
+      int num = mjc_BoxBox(model, data, precon.data(), g1, g2,
+                           con->includemargin);
 
       // allocate and clear arrays marking already matched contacts
-      mju_zeroInt(match_raw, num);
-      mju_zeroInt(match, data->ncon);
+      mju_zeroInt(match_raw.data(), num);
+      mju_zeroInt(match.data(), data->ncon);
 
       // loop over raw contacts, match with contact array using pos
       int nmatched = 0;
       for (int i = 0; i < num; i++) {
         for (int j = 0; j < data->ncon; j++) {
           if (!match[j] &&
-              con_raw[i].pos[0] == data->contact[j].pos[0] &&
-              con_raw[i].pos[1] == data->contact[j].pos[1] &&
-              con_raw[i].pos[2] == data->contact[j].pos[2]) {
+              precon[i].pos[0] == data->contact[j].pos[0] &&
+              precon[i].pos[1] == data->contact[j].pos[1] &&
+              precon[i].pos[2] == data->contact[j].pos[2]) {
             match_raw[i] = match[j] = 1;
             nmatched++;
           }
@@ -97,11 +97,11 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
       EXPECT_EQ(nmatched, num) << local_path;
 
       // get box info
-      const mjtNum* pos1 =  data->geom_xpos  + 3 * g1;
-      const mjtNum* mat1 =  data->geom_xmat  + 9 * g1;
+      const mjtNum* pos1 = data->geom_xpos + 3 * g1;
+      const mjtNum* mat1 = data->geom_xmat + 9 * g1;
       const mjtNum* size1 = model->geom_size + 3 * g1;
-      const mjtNum* pos2 =  data->geom_xpos  + 3 * g2;
-      const mjtNum* mat2 =  data->geom_xmat  + 9 * g2;
+      const mjtNum* pos2 = data->geom_xpos + 3 * g2;
+      const mjtNum* mat2 = data->geom_xmat + 9 * g2;
       const mjtNum* size2 = model->geom_size + 3 * g2;
       mjtNum margin = mju_max(model->geom_margin[g1], model->geom_margin[g2]);
 
@@ -117,8 +117,10 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
           static mjtNum kRatio = 1.01;
 
           // is the contact outside: 1, inside: -1, within the removal width: 0
-          int out1 = mju_outsideBox(con_raw[i].pos, pos1, mat1, sz1, kRatio);
-          int out2 = mju_outsideBox(con_raw[i].pos, pos2, mat2, sz2, kRatio);
+          int out1 = mju_outsideBox(precon[i].pos, pos1, mat1, sz1,
+                                    kRatio);
+          int out2 = mju_outsideBox(precon[i].pos, pos2, mat2, sz2,
+                                    kRatio);
 
           // mark as bad if outside one box and not inside the other box
           bool outside = (out1 == 1 && out2 != -1) || (out2 == 1 && out1 != -1);
@@ -129,7 +131,6 @@ TEST_F(MjCollisionBoxTest, BadContacts) {
       }
     }
 
-    mj_freeStack(data);
     mj_deleteData(data);
     mj_deleteModel(model);
   }
@@ -146,11 +147,9 @@ TEST_F(MjCollisionBoxTest, DuplicateContacts) {
   mj_forward(model, data);
 
   // allocate contact array and matching arrays
-  mj_markStack(data);
-  mjContact* con_raw = (mjContact*) mj_stackAllocByte(
-      data, mjMAXCONPAIR * sizeof(mjContact), alignof(mjContact));
-  int* match_raw = mj_stackAllocInt(data, mjMAXCONPAIR);
-  int* match = mj_stackAllocInt(data, data->ncon);
+  std::vector<mjPreContact> precon(mjMAXCONPAIR);
+  std::vector<int> match_raw(mjMAXCONPAIR);
+  std::vector<int> match(data->ncon);
 
 
   int g1 = -1;
@@ -175,20 +174,21 @@ TEST_F(MjCollisionBoxTest, DuplicateContacts) {
     g2 = g2new;
 
     // call low-level box-box collider
-    int num = mjc_BoxBox(model, data, con_raw, g1, g2, con->includemargin);
+    int num = mjc_BoxBox(model, data, precon.data(), g1, g2,
+                         con->includemargin);
 
     // allocate and clear arrays marking already matched contacts
-    mju_zeroInt(match_raw, num);
-    mju_zeroInt(match, data->ncon);
+    mju_zeroInt(match_raw.data(), num);
+    mju_zeroInt(match.data(), data->ncon);
 
     // loop over raw contacts, match with contact array using pos
     int nmatched = 0;
     for (int i = 0; i < num; i++) {
       for (int j = 0; j < data->ncon; j++) {
         if (!match[j] &&
-            con_raw[i].pos[0] == data->contact[j].pos[0] &&
-            con_raw[i].pos[1] == data->contact[j].pos[1] &&
-            con_raw[i].pos[2] == data->contact[j].pos[2]) {
+            precon[i].pos[0] == data->contact[j].pos[0] &&
+            precon[i].pos[1] == data->contact[j].pos[1] &&
+            precon[i].pos[2] == data->contact[j].pos[2]) {
           match_raw[i] = match[j] = 1;
           nmatched++;
         }
@@ -207,9 +207,9 @@ TEST_F(MjCollisionBoxTest, DuplicateContacts) {
           if (duplicate || i == j) {
             continue;
           }
-          if (con_raw[i].pos[0] == con_raw[j].pos[0] &&
-              con_raw[i].pos[1] == con_raw[j].pos[1] &&
-              con_raw[i].pos[2] == con_raw[j].pos[2]) {
+          if (precon[i].pos[0] == precon[j].pos[0] &&
+              precon[i].pos[1] == precon[j].pos[1] &&
+              precon[i].pos[2] == precon[j].pos[2]) {
             duplicate = true;
           }
         }
@@ -220,11 +220,9 @@ TEST_F(MjCollisionBoxTest, DuplicateContacts) {
     }
   }
 
-  mj_freeStack(data);
   mj_deleteData(data);
   mj_deleteModel(model);
 }
-
 
 static const char* const kDeepFilePath =
     "engine/testdata/collision_box/boxbox_deep.xml";
@@ -273,7 +271,6 @@ TEST_F(MjCollisionBoxTest, BoxSphere) {
   mj_deleteModel(model);
 }
 
-
 TEST_F(MjCollisionBoxTest, BoxBoxContactDistance) {
   constexpr char xml[] = R"(
   <mujoco>
@@ -289,12 +286,12 @@ TEST_F(MjCollisionBoxTest, BoxBoxContactDistance) {
 
   mjData* data = mj_makeData(model);
   mj_kinematics(model, data);
-  mjContact contact[9];
+  mjPreContact precon[mjMAXCONPAIR];
 
   for (mjfCollision collision : {mjc_BoxBox, mjc_Convex}) {
-    int n = collision(model, data, contact, 0, 1, 0.0);
+    int n = collision(model, data, precon, 0, 1, 0.0);
     for (int i = 0; i < n; i++) {
-      EXPECT_NEAR(contact[i].dist, -0.5, MjTol(1e-8, 1e-6));
+      EXPECT_NEAR(precon[i].dist, -0.5, MjTol(1e-8, 1e-6));
     }
   }
 
