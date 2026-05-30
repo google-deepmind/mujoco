@@ -526,15 +526,6 @@ void mj_island(const mjModel* m, mjData* d) {
     d->island_dofadr[i] = d->map_idof2dof[d->island_idofadr[i]];
   }
 
-  // inertia: block-diagonalize both iLD <- qLD and iM <- M
-  mju_blockDiagSparse(d->iLD, d->iM_rownnz, d->iM_rowadr, d->iM_colind,
-                      d->qLD,  m->M_rownnz, m->M_rowadr, m->M_colind,
-                      nidof, nisland,
-                      d->map_idof2dof, d->map_dof2idof,
-                      d->island_idofadr, d->island_idofadr,
-                      d->iM, d->M);
-  mju_gather(d->iLDiagInv, d->qLDiagInv, d->map_idof2dof, nidof);
-
 
   // ------------------------------------- constraints ---------------------------------------------
 
@@ -577,32 +568,6 @@ void mj_island(const mjModel* m, mjData* d) {
 
   // SHOULD NOT OCCUR
   if (!mju_compare(island_nefc2, d->island_nefc, nisland)) mjERROR("island_nefc miscount");
-
-  // dense: block-diagonalize Jacobian
-  if (!mj_isSparse(m)) {
-    mju_blockDiag(d->iefc_J, d->efc_J,
-                  nv, nidof, nisland,
-                  d->map_iefc2efc, d->map_idof2dof,
-                  d->island_nefc, d->island_nv,
-                  d->island_iefcadr, d->island_idofadr);
-  }
-
-  // sparse
-  else {
-    // block-diagonalize Jacobian
-    mju_blockDiagSparse(d->iefc_J, d->iefc_J_rownnz, d->iefc_J_rowadr, d->iefc_J_colind,
-                        d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
-                        nefc, nisland,
-                        d->map_iefc2efc, d->map_dof2idof,
-                        d->island_iefcadr, d->island_idofadr, NULL, NULL);
-
-    // recompute rowsuper per island
-    for (int island=0; island < nisland; island++) {
-      int adr = d->island_iefcadr[island];
-      mju_superSparse(d->island_nefc[island], d->iefc_J_rowsuper + adr,
-                      d->iefc_J_rownnz + adr, d->iefc_J_rowadr + adr, d->iefc_J_colind);
-    }
-  }
 
   // copy position-dependent efc vectors required by solver
   mju_gatherInt(d->iefc_type, d->efc_type, d->map_iefc2efc, nefc);

@@ -969,12 +969,6 @@
     X  ( int,     map_idof2dof,      MJ_M(nv),       1 ) \
     X  ( mjtNum,  ifrc_smooth,       MJ_D(nidof),    1 ) \
     X  ( mjtNum,  iacc_smooth,       MJ_D(nidof),    1 ) \
-    XNV( int,     iM_rownnz,         MJ_D(nidof),    1 ) \
-    XNV( int,     iM_rowadr,         MJ_D(nidof),    1 ) \
-    XNV( int,     iM_colind,         MJ_M(nC),       1 ) \
-    XNV( mjtNum,  iM,                MJ_M(nC),       1 ) \
-    XNV( mjtNum,  iLD,               MJ_M(nC),       1 ) \
-    X  ( mjtNum,  iLDiagInv,         MJ_D(nidof),    1 ) \
     X  ( mjtNum,  iacc,              MJ_D(nidof),    1 ) \
     X  ( int,     efc_island,        MJ_D(nefc),     1 ) \
     X  ( int,     island_ne,         MJ_D(nisland),  1 ) \
@@ -985,11 +979,6 @@
     X  ( int,     map_iefc2efc,      MJ_D(nefc),     1 ) \
     X  ( int,     iefc_type,         MJ_D(nefc),     1 ) \
     X  ( int,     iefc_id,           MJ_D(nefc),     1 ) \
-    XNV( int,     iefc_J_rownnz,     MJ_D(nefc),     1 ) \
-    XNV( int,     iefc_J_rowadr,     MJ_D(nefc),     1 ) \
-    XNV( int,     iefc_J_rowsuper,   MJ_D(nefc),     1 ) \
-    XNV( int,     iefc_J_colind,     MJ_D(nJ),       1 ) \
-    XNV( mjtNum,  iefc_J,            MJ_D(nJ),       1 ) \
     X  ( mjtNum,  iefc_frictionloss, MJ_D(nefc),     1 ) \
     X  ( mjtNum,  iefc_D,            MJ_D(nefc),     1 ) \
     X  ( mjtNum,  iefc_R,            MJ_D(nefc),     1 ) \

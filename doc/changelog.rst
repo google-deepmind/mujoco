@@ -19,7 +19,11 @@ General
 
      - The header file ``mjthread.h`` was removed along with the engine threading API.
 
-     **Migration:** Use :ref:`mju_threadpool` to set number of worker threads for the engine.
+       **Migration:** Use :ref:`mju_threadpool` to set number of worker threads for the engine.
+
+     - Moved island sparse matrix construction from :ref:`mj_island` (single threaded) into :ref:`mj_fwdConstraint`
+       (multi-threaded). The island-specific matrices ``iM, iLD, iefc_J`` were removed from the arena and are now
+       allocated on the stack.
 
 Bug fixes
 ^^^^^^^^^

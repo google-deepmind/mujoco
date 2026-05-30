@@ -6542,54 +6542,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nidof',),
              ),
              StructFieldDecl(
-                 name='iM_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='inertia: non-zeros in each row',
-                 array_extent=('nidof',),
-             ),
-             StructFieldDecl(
-                 name='iM_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='inertia: address of each row in iM_colind',
-                 array_extent=('nidof',),
-             ),
-             StructFieldDecl(
-                 name='iM_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='inertia: column indices of non-zeros',
-                 array_extent=('nC',),
-             ),
-             StructFieldDecl(
-                 name='iM',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='total inertia (sparse)',
-                 array_extent=('nC',),
-             ),
-             StructFieldDecl(
-                 name='iLD',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc="L'*D*L factorization of M (sparse)",
-                 array_extent=('nC',),
-             ),
-             StructFieldDecl(
-                 name='iLDiagInv',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='1/diag(D)',
-                 array_extent=('nidof',),
-             ),
-             StructFieldDecl(
                  name='iacc',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -6668,46 +6620,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='id of object of specified type',
                  array_extent=('nefc',),
-             ),
-             StructFieldDecl(
-                 name='iefc_J_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of non-zeros in constraint Jacobian row',
-                 array_extent=('nefc',),
-             ),
-             StructFieldDecl(
-                 name='iefc_J_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='row start address in colind array',
-                 array_extent=('nefc',),
-             ),
-             StructFieldDecl(
-                 name='iefc_J_rowsuper',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of subsequent rows in supernode',
-                 array_extent=('nefc',),
-             ),
-             StructFieldDecl(
-                 name='iefc_J_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='column indices in constraint Jacobian',
-                 array_extent=('nJ',),
-             ),
-             StructFieldDecl(
-                 name='iefc_J',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='constraint Jacobian',
-                 array_extent=('nJ',),
              ),
              StructFieldDecl(
                  name='iefc_frictionloss',

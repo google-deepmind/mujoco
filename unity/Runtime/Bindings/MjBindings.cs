@@ -5752,12 +5752,6 @@ public unsafe struct mjData_ {
   public int* map_idof2dof;
   public double* ifrc_smooth;
   public double* iacc_smooth;
-  public int* iM_rownnz;
-  public int* iM_rowadr;
-  public int* iM_colind;
-  public double* iM;
-  public double* iLD;
-  public double* iLDiagInv;
   public double* iacc;
   public int* efc_island;
   public int* island_ne;
@@ -5768,11 +5762,6 @@ public unsafe struct mjData_ {
   public int* map_iefc2efc;
   public int* iefc_type;
   public int* iefc_id;
-  public int* iefc_J_rownnz;
-  public int* iefc_J_rowadr;
-  public int* iefc_J_rowsuper;
-  public int* iefc_J_colind;
-  public double* iefc_J;
   public double* iefc_frictionloss;
   public double* iefc_D;
   public double* iefc_R;

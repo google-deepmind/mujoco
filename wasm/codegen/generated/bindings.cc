@@ -6981,24 +6981,6 @@ struct MjData {
   emscripten::val iacc_smooth() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iacc_smooth));
   }
-  emscripten::val iM_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iM_rownnz));
-  }
-  emscripten::val iM_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iM_rowadr));
-  }
-  emscripten::val iM_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->iM_colind));
-  }
-  emscripten::val iM() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->iM));
-  }
-  emscripten::val iLD() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->iLD));
-  }
-  emscripten::val iLDiagInv() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iLDiagInv));
-  }
   emscripten::val iacc() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iacc));
   }
@@ -7028,21 +7010,6 @@ struct MjData {
   }
   emscripten::val iefc_id() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_id));
-  }
-  emscripten::val iefc_J_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_J_rownnz));
-  }
-  emscripten::val iefc_J_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_J_rowadr));
-  }
-  emscripten::val iefc_J_rowsuper() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_J_rowsuper));
-  }
-  emscripten::val iefc_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nJ, ptr_->iefc_J_colind));
-  }
-  emscripten::val iefc_J() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nJ, ptr_->iefc_J));
   }
   emscripten::val iefc_frictionloss() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_frictionloss));
@@ -11694,20 +11661,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("geom_xmat", &MjData::geom_xmat)
     .property("geom_xpos", &MjData::geom_xpos)
     .property("history", &MjData::history)
-    .property("iLD", &MjData::iLD)
-    .property("iLDiagInv", &MjData::iLDiagInv)
-    .property("iM", &MjData::iM)
-    .property("iM_colind", &MjData::iM_colind)
-    .property("iM_rowadr", &MjData::iM_rowadr)
-    .property("iM_rownnz", &MjData::iM_rownnz)
     .property("iacc", &MjData::iacc)
     .property("iacc_smooth", &MjData::iacc_smooth)
     .property("iefc_D", &MjData::iefc_D)
-    .property("iefc_J", &MjData::iefc_J)
-    .property("iefc_J_colind", &MjData::iefc_J_colind)
-    .property("iefc_J_rowadr", &MjData::iefc_J_rowadr)
-    .property("iefc_J_rownnz", &MjData::iefc_J_rownnz)
-    .property("iefc_J_rowsuper", &MjData::iefc_J_rowsuper)
     .property("iefc_R", &MjData::iefc_R)
     .property("iefc_aref", &MjData::iefc_aref)
     .property("iefc_force", &MjData::iefc_force)
