@@ -31,7 +31,7 @@
 namespace mujoco {
 namespace {
 
-constexpr double kInertiaTol = MjTol(1e-6, 1e-6);
+const double kInertiaTol = MjTol(1e-6, 1e-6);
 
 using std::string;
 using ::testing::ElementsAre;

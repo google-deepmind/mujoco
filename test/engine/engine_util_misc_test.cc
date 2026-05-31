@@ -67,8 +67,8 @@ TEST_F(UtilMiscTest, Sigmoid) {
   EXPECT_EQ(mju_sigmoid(2),   1);
 
   // epsilon for finite-differencing
-  constexpr mjtNum dx = MjTol(1e-7, 1e-3);
-  constexpr mjtNum fd_tol = MjTol(1e-7, 1e-3);
+  const mjtNum dx = MjTol(1e-7, 1e-3);
+  const mjtNum fd_tol = MjTol(1e-7, 1e-3);
 
   // derivative at 0
   mjtNum dy_dx_0 = (mju_sigmoid(0 + dx) - mju_sigmoid(0)) / dx;

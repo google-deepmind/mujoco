@@ -93,8 +93,8 @@ mjtNum objective(const mjtNum* x, const mjtNum* H, const mjtNum* g, int n) {
 // utility: test if res is the minimum of a given box-QP problem
 bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
                  const mjtNum* lower, const mjtNum* upper) {
-  constexpr mjtNum eps = MjTol(1e-4, 5e-2);  // epsilon used for nudging
-  constexpr mjtNum threshold = MjTol(0, -2e-3);  // comparison threshold
+  const mjtNum eps = MjTol(1e-4, 5e-2);  // epsilon used for nudging
+  const mjtNum threshold = MjTol(0, -2e-3);  // comparison threshold
   bool is_minimum = true;
   mjtNum* res_nudge = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
 

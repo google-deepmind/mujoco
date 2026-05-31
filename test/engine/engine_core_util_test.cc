@@ -176,7 +176,7 @@ TEST_F(AngMomMatTest, CompareAngMomMats) {
   mj_angmomMat(model, data, angmom_mat, bodyid);
 
   // compute the angular momentum matrix using finite differences
-  static constexpr mjtNum eps = MjTol(1e-6, 1e-3);
+  static const mjtNum eps = MjTol(1e-6, 1e-3);
   for (int i = 0; i < nv; i++) {
     // reset vel, forward nudge i-th dof, get angmom
     mju_copy(data->qvel, model->key_qvel, model->nv);
@@ -505,7 +505,7 @@ TEST_F(JacobianTest, JacDot) {
     mj_jacDot(model, data, jacp_dot.data(), jacr_dot.data(), point, bodyid);
 
     // jac_h: jacobian after integrating qpos with a timestep of h
-    constexpr mjtNum h = MjTol(1e-7, 5e-4);
+    const mjtNum h = MjTol(1e-7, 5e-4);
     mj_integratePos(model, data->qpos, data->qvel, h);
     mj_kinematics(model, data);
     mj_comPos(model, data);

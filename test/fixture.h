@@ -16,7 +16,7 @@
 #define MUJOCO_TEST_FIXTURE_H_
 
 #include <csetjmp>
-#include <cstdio>  // IWYU pragma: keep
+#include <cstdio>   // IWYU pragma: keep
 #include <cstdlib>  // IWYU pragma: keep
 #include <cstring>
 #include <iomanip>
@@ -35,51 +35,63 @@
 
 extern "C" {
 MJAPI void _mjPRIVATE__set_tls_error_fn(decltype(mju_user_error));
-MJAPI decltype(mju_user_error)  _mjPRIVATE__get_tls_error_fn();
+MJAPI decltype(mju_user_error) _mjPRIVATE__get_tls_error_fn();
 }
 
 namespace mujoco {
 
+// Runtime scale factor for test tolerances, controlled by MJTOL_SCALE env var.
+// Set MJTOL_SCALE=0 to run tests with zero tolerance and see actual residuals.
+inline mjtNum MjTolScale() {
+  static const mjtNum scale = []() {
+    const char* env = std::getenv("MJTOL_SCALE");
+    return env ? std::atof(env) : 1.0;
+  }();
+  return scale;
+}
+
 // Precision-aware GMock matcher. Use instead of DoubleNear/FloatNear.
 // Under double builds, uses double_tol. Under float builds, uses float_tol.
+// Scaled by MJTOL_SCALE env var (default 1.0).
 template <typename T1, typename T2>
 inline auto MjNear(T1 double_tol, T2 float_tol) {
 #ifdef mjUSESINGLE
-  return ::testing::FloatNear(static_cast<float>(float_tol));
+  return ::testing::FloatNear(static_cast<float>(float_tol) * MjTolScale());
 #else
-  return ::testing::DoubleNear(static_cast<double>(double_tol));
+  return ::testing::DoubleNear(static_cast<double>(double_tol) * MjTolScale());
 #endif
 }
 
 // Precision-aware GMock matcher (3-arg version).
 // Under double builds, matches near target with double_tol.
 // Under float builds, matches near target with float_tol.
+// Scaled by MJTOL_SCALE env var (default 1.0).
 template <typename T1, typename T2, typename T3>
 inline auto MjNear(T1 target, T2 double_tol, T3 float_tol) {
 #ifdef mjUSESINGLE
   return ::testing::FloatNear(static_cast<float>(target),
-                              static_cast<float>(float_tol));
+                              static_cast<float>(float_tol) * MjTolScale());
 #else
   return ::testing::DoubleNear(static_cast<double>(target),
-                               static_cast<double>(double_tol));
+                               static_cast<double>(double_tol) * MjTolScale());
 #endif
 }
-
 // Precision-aware tolerance for EXPECT_NEAR.
+// Scaled by MJTOL_SCALE env var (default 1.0).
 template <typename T1, typename T2>
-constexpr mjtNum MjTol(T1 double_tol, T2 float_tol) {
+inline mjtNum MjTol(T1 double_tol, T2 float_tol) {
 #ifdef mjUSESINGLE
-  return static_cast<mjtNum>(float_tol);
+  return static_cast<mjtNum>(float_tol) * MjTolScale();
 #else
-  return static_cast<mjtNum>(double_tol);
+  return static_cast<mjtNum>(double_tol) * MjTolScale();
 #endif
 }
 
 // Precision-aware equality assertion: 4 ULPs in either precision.
 #ifdef mjUSESINGLE
-  #define EXPECT_MJTNUM_EQ(a, b) EXPECT_FLOAT_EQ(a, b)
+#define EXPECT_MJTNUM_EQ(a, b) EXPECT_FLOAT_EQ(a, b)
 #else
-  #define EXPECT_MJTNUM_EQ(a, b) EXPECT_DOUBLE_EQ(a, b)
+#define EXPECT_MJTNUM_EQ(a, b) EXPECT_DOUBLE_EQ(a, b)
 #endif
 
 // Installs and uninstalls error callbacks on MuJoCo that fail the currently
@@ -187,7 +199,7 @@ inline void PrintMatrix(const mjtNum* mat, int nrow, int ncol, int p = 5,
   std::cerr << name << "\n";
   for (int r = 0; r < nrow; r++) {
     for (int c = 0; c < ncol; c++) {
-      mjtNum val = mat[c + r*ncol];
+      mjtNum val = mat[c + r * ncol];
       if (val) {
         std::cerr << std::fixed << std::setw(5 + p) << val << " ";
       } else {
@@ -232,7 +244,6 @@ class MockFilesystem {
                       const unsigned char** buffer) const;
   std::string FullPath(const std::string& path) const;
 
-
  private:
   std::string StripPrefix(const char* path) const;
   static std::string PathReduce(const std::string& current_dir,
@@ -243,7 +254,6 @@ class MockFilesystem {
   std::string prefix_;
   std::string dir_;  // current directory
 };
-
 
 }  // namespace mujoco
 #endif  // MUJOCO_TEST_FIXTURE_H_

@@ -1378,7 +1378,7 @@ TEST_F(XMLReaderTest, ParseReplicate) {
 
   // check body positions
   mjtNum pos[2] = {0, 0};
-  constexpr mjtNum tol = MjTol(1e-8, 1e-3);
+  const mjtNum tol = MjTol(1e-8, 1e-3);
   for (int i = 1; i < 102; ++i) {
     mjtNum theta = (i-1) * 1.8 * mjPI / 180;
     EXPECT_NEAR(m->body_pos[3*i+0], pos[0] + sin(theta), tol) << i;

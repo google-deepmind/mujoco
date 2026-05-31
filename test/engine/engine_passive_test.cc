@@ -297,7 +297,7 @@ TEST_F(EllipsoidFluidTest, GeomsEquivalentToBodies) {
   d1->qpos[6] = 0.5;
 
   // tolerance for floating point numbers
-  constexpr mjtNum tol = MjTol(1e-14, 1e-5);
+  const mjtNum tol = MjTol(1e-14, 1e-5);
 
   EXPECT_EQ(m1->nv, m2->nv);
 
@@ -552,7 +552,7 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
           energy += metric[21*t+idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
-      constexpr mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-5);
+      const mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-5);
       EXPECT_NEAR(4*energy/volume, 2*scale*scale, tol);
     }
   }
@@ -603,7 +603,7 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
           energy += metric[21*t+idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
-      constexpr mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-4);
+      const mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-4);
       EXPECT_NEAR(energy/volume, 3*scale*scale, tol);
     }
   }
@@ -1019,7 +1019,7 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
   mj_forward(m, d);
 
   // spring forces should still be zero after rigid rotation
-  constexpr mjtNum tol = MjTol(1e-6, 1e-3);
+  const mjtNum tol = MjTol(1e-6, 1e-3);
   for (int i = 0; i < m->nv; i++) {
     EXPECT_NEAR(d->qfrc_spring[i], 0, tol)
         << "nonzero spring force at DOF " << i << " after rigid rotation";
