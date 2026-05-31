@@ -873,14 +873,21 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
           mju_cellLookup(coord, m->flex_cellnum+3*i, order, loc, nodeindices);
 
           // find node with largest weight in this cell
+          // in shell mode, skip interior nodes (pinned to worldbody)
           int nodeid = -1;
           int nstart = m->flex_nodeadr[i];
           mjtNum w = 0;
+          int shell_mode = m->flex_interp[i] < 0;
           for (int j = 0; j < npc; j++) {
             mjtNum ww = mju_evalBasis(loc, j, order);
+            int nid = nodeindices[j];
+            // skip interior nodes in shell mode (they map to worldbody)
+            if (shell_mode && m->body_dofnum[m->flex_nodebodyid[nstart + nid]] == 0) {
+              continue;
+            }
             if (ww > w) {
               w = ww;
-              nodeid = nodeindices[j];
+              nodeid = nid;
             }
           }
           flexbodyid = m->flex_nodebodyid[nstart + nodeid];

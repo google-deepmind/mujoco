@@ -277,9 +277,17 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
     mju_addToScl3(coord, m->flex_vert0 + 3*v[i], mju_abs(vweight[i]));
   }
 
-  int order = m->flex_interp[f];
-  order = order < 0 ? -order : order;
+  int interp = m->flex_interp[f];
+  int order = interp < 0 ? -interp : interp;
   int npc = (order+1)*(order+1)*(order+1);  // number of nodes per cell
+
+  // grid dimensions for shell mode
+  int nx = 0, ny = 0, nz = 0;
+  if (interp < 0) {
+    nx = m->flex_cellnum[3*f+0] * order + 1;
+    ny = m->flex_cellnum[3*f+1] * order + 1;
+    nz = m->flex_cellnum[3*f+2] * order + 1;
+  }
 
   // cell lookup: get local coords and node indices
   mjtNum local[3];
@@ -290,14 +298,46 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
   int nstart = m->flex_nodeadr[f];
   int nb = 0;
 
+  if (!m->flex_nodebodyid) {
+    return 0;
+  }
+
   if (npc > 27) {
     for (int j = 0; j < npc; j++) {
       mjtNum w = mju_evalBasis(local, j, order);
       if (w < 1e-5) {
         continue;
       }
-      if (bweight) bweight[nb] = sign * w;
-      body[nb++] = m->flex_nodebodyid[nstart + nodeindices[j]];
+
+      int idx = nodeindices[j];
+
+      // shell mode: map interior nodes to boundary
+      if (interp < 0) {
+        int k_idx = idx % nz;
+        int rest = idx / nz;
+        int j_idx = rest % ny;
+        int i_idx = rest / ny;
+
+        if (i_idx > 0 && i_idx < nx-1 && j_idx > 0 && j_idx < ny-1 && k_idx > 0 && k_idx < nz-1) {
+          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, sign * w, &nb, body, bweight, m->flex_nodebodyid, nstart);
+          continue;
+        }
+      }
+
+      // add node, check for duplicates (especially needed when combining with TFI)
+      int b = m->flex_nodebodyid[nstart + idx];
+      int found = 0;
+      for (int k = 0; k < nb; k++) {
+        if (body[k] == b) {
+          if (bweight) bweight[k] += sign * w;
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        if (bweight) bweight[nb] = sign * w;
+        body[nb++] = b;
+      }
     }
   } else {
     mjtNum basis[27];
@@ -308,10 +348,39 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
       if (w < 1e-5) {
         continue;
       }
-      if (bweight) bweight[nb] = sign * w;
-      body[nb++] = m->flex_nodebodyid[nstart + nodeindices[j]];
+
+      int idx = nodeindices[j];
+
+      // shell mode: map interior nodes to boundary
+      if (interp < 0) {
+        int k_idx = idx % nz;
+        int rest = idx / nz;
+        int j_idx = rest % ny;
+        int i_idx = rest / ny;
+
+        if (i_idx > 0 && i_idx < nx-1 && j_idx > 0 && j_idx < ny-1 && k_idx > 0 && k_idx < nz-1) {
+          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, sign * w, &nb, body, bweight, m->flex_nodebodyid, nstart);
+          continue;
+        }
+      }
+
+      // add node, check for duplicates (especially needed when combining with TFI)
+      int b = m->flex_nodebodyid[nstart + idx];
+      int found = 0;
+      for (int k = 0; k < nb; k++) {
+        if (body[k] == b) {
+          if (bweight) bweight[k] += sign * w;
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        if (bweight) bweight[nb] = sign * w;
+        body[nb++] = b;
+      }
     }
   }
+
 
   return nb;
 }

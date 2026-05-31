@@ -644,8 +644,26 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     int nz = flex->spec.cellcount[2] * flex->spec.order + 1;
     int nnode = nx * ny * nz;
 
-    // mark empty cells and pin nodes exclusively in empty cells
-    MarkEmptyCells(flex, point.data(), npnt, minmax, nx, ny, nz);
+    // mark empty cells and pin nodes exclusively in empty cells (volume mode only)
+    if (!dflex->elastic2d) {
+      MarkEmptyCells(flex, point.data(), npnt, minmax, nx, ny, nz);
+    }
+
+    // shell mode: pin all interior (non-boundary) nodes
+    if (dflex->elastic2d) {
+      for (int gi = 0; gi < nx; gi++) {
+        for (int gj = 0; gj < ny; gj++) {
+          for (int gk = 0; gk < nz; gk++) {
+            bool is_boundary = (gi == 0 || gi == nx-1 ||
+                                gj == 0 || gj == ny-1 ||
+                                gk == 0 || gk == nz-1);
+            if (!is_boundary) {
+              pinned[gi*ny*nz + gj*nz + gk] = true;
+            }
+          }
+        }
+      }
+    }
 
     // if MarkEmptyCells pinned any nodes, force centered=false
     // so that pf->node (local positions) is saved to the model

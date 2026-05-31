@@ -898,6 +898,151 @@ void mju_flexFaceNormal2D(mjtNum normal[3], mjtNum t1[3], mjtNum t2[3],
 }
 
 
+// helper: get nodexpos value for node (i,j,k) in an nx*ny*nz grid
+static inline const mjtNum* nodeAt(const mjtNum* nodexpos, int ny, int nz, int i, int j, int k) {
+  return nodexpos + 3*(i*ny*nz + j*nz + k);
+}
+
+// reconstruct interior node positions from boundary nodes via Transfinite Interpolation
+void mju_shellTrackInterior(mjtNum* nodexpos, int nx, int ny, int nz) {
+  // need at least 3 nodes in each direction to have interior nodes
+  if (nx < 3 || ny < 3 || nz < 3) {
+    return;
+  }
+
+  for (int i = 1; i < nx-1; i++) {
+    for (int j = 1; j < ny-1; j++) {
+      for (int k = 1; k < nz-1; k++) {
+        // parametric coordinates in [0, 1]
+        mjtNum s = (mjtNum)i / (nx-1);
+        mjtNum t = (mjtNum)j / (ny-1);
+        mjtNum u = (mjtNum)k / (nz-1);
+
+        mjtNum result[3] = {0, 0, 0};
+
+        // --- face contributions (bilinear interpolation on each face pair) ---
+        // x-faces: i=0 and i=nx-1
+        for (int d = 0; d < 3; d++) {
+          result[d] += (1-s) * nodeAt(nodexpos, ny, nz, 0, j, k)[d]
+                     +    s  * nodeAt(nodexpos, ny, nz, nx-1, j, k)[d];
+        }
+        // y-faces: j=0 and j=ny-1
+        for (int d = 0; d < 3; d++) {
+          result[d] += (1-t) * nodeAt(nodexpos, ny, nz, i, 0, k)[d]
+                     +    t  * nodeAt(nodexpos, ny, nz, i, ny-1, k)[d];
+        }
+        // z-faces: k=0 and k=nz-1
+        for (int d = 0; d < 3; d++) {
+          result[d] += (1-u) * nodeAt(nodexpos, ny, nz, i, j, 0)[d]
+                     +    u  * nodeAt(nodexpos, ny, nz, i, j, nz-1)[d];
+        }
+
+        // --- edge corrections (subtract 12 edges, each linearly interpolated) ---
+        // edges along x (4 edges: (j,k) at corners of y-z face)
+        for (int d = 0; d < 3; d++) {
+          result[d] -= (1-t)*(1-u) * nodeAt(nodexpos, ny, nz, i, 0, 0)[d];
+          result[d] -= (1-t)*   u  * nodeAt(nodexpos, ny, nz, i, 0, nz-1)[d];
+          result[d] -=    t *(1-u) * nodeAt(nodexpos, ny, nz, i, ny-1, 0)[d];
+          result[d] -=    t *   u  * nodeAt(nodexpos, ny, nz, i, ny-1, nz-1)[d];
+        }
+        // edges along y (4 edges: (i,k) at corners of x-z face)
+        for (int d = 0; d < 3; d++) {
+          result[d] -= (1-s)*(1-u) * nodeAt(nodexpos, ny, nz, 0, j, 0)[d];
+          result[d] -= (1-s)*   u  * nodeAt(nodexpos, ny, nz, 0, j, nz-1)[d];
+          result[d] -=    s *(1-u) * nodeAt(nodexpos, ny, nz, nx-1, j, 0)[d];
+          result[d] -=    s *   u  * nodeAt(nodexpos, ny, nz, nx-1, j, nz-1)[d];
+        }
+        // edges along z (4 edges: (i,j) at corners of x-y face)
+        for (int d = 0; d < 3; d++) {
+          result[d] -= (1-s)*(1-t) * nodeAt(nodexpos, ny, nz, 0, 0, k)[d];
+          result[d] -= (1-s)*   t  * nodeAt(nodexpos, ny, nz, 0, ny-1, k)[d];
+          result[d] -=    s *(1-t) * nodeAt(nodexpos, ny, nz, nx-1, 0, k)[d];
+          result[d] -=    s *   t  * nodeAt(nodexpos, ny, nz, nx-1, ny-1, k)[d];
+        }
+
+        // --- corner corrections (add 8 corners back) ---
+        for (int d = 0; d < 3; d++) {
+          result[d] += (1-s)*(1-t)*(1-u) * nodeAt(nodexpos, ny, nz, 0, 0, 0)[d];
+          result[d] += (1-s)*(1-t)*   u  * nodeAt(nodexpos, ny, nz, 0, 0, nz-1)[d];
+          result[d] += (1-s)*   t *(1-u) * nodeAt(nodexpos, ny, nz, 0, ny-1, 0)[d];
+          result[d] += (1-s)*   t *   u  * nodeAt(nodexpos, ny, nz, 0, ny-1, nz-1)[d];
+          result[d] +=    s *(1-t)*(1-u) * nodeAt(nodexpos, ny, nz, nx-1, 0, 0)[d];
+          result[d] +=    s *(1-t)*   u  * nodeAt(nodexpos, ny, nz, nx-1, 0, nz-1)[d];
+          result[d] +=    s *   t *(1-u) * nodeAt(nodexpos, ny, nz, nx-1, ny-1, 0)[d];
+          result[d] +=    s *   t *   u  * nodeAt(nodexpos, ny, nz, nx-1, ny-1, nz-1)[d];
+        }
+
+        // write result to interior node
+        mju_copy3(nodexpos + 3*(i*ny*nz + j*nz + k), result);
+      }
+    }
+  }
+}
+
+
+// helper to accumulate weights in a sparse list
+static void addWeight(int* nb, int* body, mjtNum* bweight, int b, mjtNum w) {
+  for (int i = 0; i < *nb; i++) {
+    if (body[i] == b) {
+      if (bweight) {
+        bweight[i] += w;
+      }
+      return;
+    }
+  }
+  body[*nb] = b;
+  if (bweight) {
+    bweight[*nb] = w;
+  }
+  (*nb)++;
+}
+
+// compute TFI weights for an interior node (i,j,k) and distribute to boundary nodes
+void mju_shellTFIWeights(int nx, int ny, int nz, int i, int j, int k,
+                         mjtNum w, int* nb, int* body, mjtNum* bweight,
+                         const int* nodebodyid, int nstart) {
+  mjtNum s = (mjtNum)i / (nx-1);
+  mjtNum t = (mjtNum)j / (ny-1);
+  mjtNum u = (mjtNum)k / (nz-1);
+
+  // face contributions
+  addWeight(nb, body, bweight, nodebodyid[nstart + 0*ny*nz + j*nz + k], w * (1-s));
+  addWeight(nb, body, bweight, nodebodyid[nstart + (nx-1)*ny*nz + j*nz + k], w * s);
+
+  addWeight(nb, body, bweight, nodebodyid[nstart + i*ny*nz + 0*nz + k], w * (1-t));
+  addWeight(nb, body, bweight, nodebodyid[nstart + i*ny*nz + (ny-1)*nz + k], w * t);
+
+  addWeight(nb, body, bweight, nodebodyid[nstart + i*ny*nz + j*nz + 0], w * (1-u));
+  addWeight(nb, body, bweight, nodebodyid[nstart + i*ny*nz + j*nz + (nz-1)], w * u);
+
+  // edge corrections
+  addWeight(nb, body, bweight, nodebodyid[nstart + i*ny*nz + 0*nz + 0], -w * (1-t)*(1-u));
+  addWeight(nb, body, bweight, nodebodyid[nstart + i*ny*nz + 0*nz + (nz-1)], -w * (1-t)*u);
+  addWeight(nb, body, bweight, nodebodyid[nstart + i*ny*nz + (ny-1)*nz + 0], -w * t*(1-u));
+  addWeight(nb, body, bweight, nodebodyid[nstart + i*ny*nz + (ny-1)*nz + (nz-1)], -w * t*u);
+
+  addWeight(nb, body, bweight, nodebodyid[nstart + 0*ny*nz + j*nz + 0], -w * (1-s)*(1-u));
+  addWeight(nb, body, bweight, nodebodyid[nstart + 0*ny*nz + j*nz + (nz-1)], -w * (1-s)*u);
+  addWeight(nb, body, bweight, nodebodyid[nstart + (nx-1)*ny*nz + j*nz + 0], -w * s*(1-u));
+  addWeight(nb, body, bweight, nodebodyid[nstart + (nx-1)*ny*nz + j*nz + (nz-1)], -w * s*u);
+
+  addWeight(nb, body, bweight, nodebodyid[nstart + 0*ny*nz + 0*nz + k], -w * (1-s)*(1-t));
+  addWeight(nb, body, bweight, nodebodyid[nstart + 0*ny*nz + (ny-1)*nz + k], -w * (1-s)*t);
+  addWeight(nb, body, bweight, nodebodyid[nstart + (nx-1)*ny*nz + 0*nz + k], -w * s*(1-t));
+  addWeight(nb, body, bweight, nodebodyid[nstart + (nx-1)*ny*nz + (ny-1)*nz + k], -w * s*t);
+
+  // corner corrections
+  addWeight(nb, body, bweight, nodebodyid[nstart + 0*ny*nz + 0*nz + 0], w * (1-s)*(1-t)*(1-u));
+  addWeight(nb, body, bweight, nodebodyid[nstart + 0*ny*nz + 0*nz + (nz-1)], w * (1-s)*(1-t)*u);
+  addWeight(nb, body, bweight, nodebodyid[nstart + 0*ny*nz + (ny-1)*nz + 0], w * (1-s)*t*(1-u));
+  addWeight(nb, body, bweight, nodebodyid[nstart + 0*ny*nz + (ny-1)*nz + (nz-1)], w * (1-s)*t*u);
+  addWeight(nb, body, bweight, nodebodyid[nstart + (nx-1)*ny*nz + 0*nz + 0], w * s*(1-t)*(1-u));
+  addWeight(nb, body, bweight, nodebodyid[nstart + (nx-1)*ny*nz + 0*nz + (nz-1)], w * s*(1-t)*u);
+  addWeight(nb, body, bweight, nodebodyid[nstart + (nx-1)*ny*nz + (ny-1)*nz + 0], w * s*t*(1-u));
+  addWeight(nb, body, bweight, nodebodyid[nstart + (nx-1)*ny*nz + (ny-1)*nz + (nz-1)], w * s*t*u);
+}
+
+
 //------------------------------ actuator models ---------------------------------------------------
 
 // normalized muscle length-gain curve

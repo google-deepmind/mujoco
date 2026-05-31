@@ -147,6 +147,14 @@ static inline mjtNum mju_flexDphi(mjtNum s, int i, int order) {
     default: return 0;
   }
 }
+// reconstruct interior node positions from boundary nodes via Transfinite Interpolation
+MJAPI void mju_shellTrackInterior(mjtNum* nodexpos, int nx, int ny, int nz);
+
+// compute TFI weights for an interior node (i,j,k) and distribute to boundary nodes
+MJAPI void mju_shellTFIWeights(int nx, int ny, int nz, int i, int j, int k,
+                               mjtNum w, int* nb, int* body, mjtNum* bweight,
+                               const int* nodebodyid, int nstart);
+
 
 // ----------------------------- Base64 ------------------------------------------------------------
 
