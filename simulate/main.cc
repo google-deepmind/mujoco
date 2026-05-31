@@ -233,6 +233,12 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
     extension = filename_str.substr(dot_pos);
   }
 
+  std::string content_type;
+  if (extension == ".usd" || extension == ".usda" ||
+      extension == ".usdc" || extension == ".usdz") {
+    content_type = "model/usd";
+  }
+
   if (extension == ".mjb") {
     mnew = mj_loadModel(filename, nullptr);
     if (!mnew) {
@@ -241,7 +247,9 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   } else if (extension == ".xml") {
     mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
   } else {
-    mjSpec* spec = mj_parse(filename, nullptr, nullptr, loadError, kErrorLength);
+    mjSpec* spec = mj_parse(
+        filename, content_type.empty() ? nullptr : content_type.c_str(), nullptr,
+        loadError, kErrorLength);
     if (!spec) {
       mju::strcpy_arr(loadError, "could not parse model");
     } else {
