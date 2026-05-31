@@ -318,7 +318,7 @@ struct mjData_ {
   mjtNum* efc_pos;           // constraint position (equality, contact)          (nefc x 1)
   mjtNum* efc_margin;        // inclusion margin (contact)                       (nefc x 1)
   mjtNum* efc_frictionloss;  // frictionloss (friction)                          (nefc x 1)
-  mjtNum* efc_diagApprox;    // approximation to diagonal of A                   (nefc x 1)
+  mjtNum* efc_diagA;         // diagonal of A matrix, approximate or exact       (nefc x 1)
   mjtNum* efc_KBIP;          // stiffness, damping, impedance, imp'              (nefc x 4)
   mjtNum* efc_D;             // constraint mass                                  (nefc x 1)
   mjtNum* efc_R;             // inverse constraint mass                          (nefc x 1)

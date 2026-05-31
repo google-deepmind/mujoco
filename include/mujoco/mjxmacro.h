@@ -933,7 +933,7 @@
     X  ( mjtNum,   efc_pos,           MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_margin,        MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_frictionloss,  MJ_D(nefc),    1 ) \
-    X  ( mjtNum,   efc_diagApprox,    MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_diagA,         MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_KBIP,          MJ_D(nefc),    4 ) \
     X  ( mjtNum,   efc_D,             MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_R,             MJ_D(nefc),    1 ) \

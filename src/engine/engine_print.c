@@ -1598,7 +1598,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printArray2d("EFC_POS", d->nefc, 1, d->efc_pos, fp, float_format);
   printArray2d("EFC_MARGIN", d->nefc, 1, d->efc_margin, fp, float_format);
   printArray2d("EFC_FRICTIONLOSS", d->nefc, 1, d->efc_frictionloss, fp, float_format);
-  printArray2d("EFC_DIAGAPPROX", d->nefc, 1, d->efc_diagApprox, fp, float_format);
+  printArray2d("EFC_DIAGA", d->nefc, 1, d->efc_diagA, fp, float_format);
   printArray2d("EFC_KBIP", d->nefc, 4, d->efc_KBIP, fp, float_format);
   printArray2d("EFC_D", d->nefc, 1, d->efc_D, fp, float_format);
   printArray2d("EFC_R", d->nefc, 1, d->efc_R, fp, float_format);

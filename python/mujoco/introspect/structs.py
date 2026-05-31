@@ -6406,11 +6406,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nefc',),
              ),
              StructFieldDecl(
-                 name='efc_diagApprox',
+                 name='efc_diagA',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='approximation to diagonal of A',
+                 doc='diagonal of A matrix, approximate or exact',
                  array_extent=('nefc',),
              ),
              StructFieldDecl(

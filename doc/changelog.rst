@@ -28,6 +28,10 @@ General
        (multi-threaded). The island-specific matrices ``iM, iLD, iefc_J`` were removed from the arena and are now
        allocated on the stack.
 
+     - Following the introduction of the :ref:`diagexact<option-flag-diagexact>` flag, the ``mjData`` field
+       ``efc_diagApprox`` was renamed to ``efc_diagA``, as it can now be either the exact or approximate diagonal of
+       the :math:`A` ("Delassus") matrix.
+
 Bug fixes
 ^^^^^^^^^
 - Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.

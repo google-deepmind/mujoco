@@ -146,7 +146,7 @@ TEST_F(CoreConstraintTest, EqualityBodySite) {
     ASSERT_GT(data->time, time) << "Divergence detected";
   }
   int nefc_site = data->nefc;
-  std::vector<mjtNum> dA = AsVector(data->efc_diagApprox, nefc_site);
+  std::vector<mjtNum> dA = AsVector(data->efc_diagA, nefc_site);
 
   // reset
   mj_resetData(model, data);
@@ -163,7 +163,7 @@ TEST_F(CoreConstraintTest, EqualityBodySite) {
 
   // compare
   EXPECT_EQ(nefc_site, data->nefc);
-  EXPECT_THAT(AsVector(data->efc_diagApprox, data->nefc),
+  EXPECT_THAT(AsVector(data->efc_diagA, data->nefc),
               Pointwise(MjNear(1e-12, 1e-4), dA));
 
   mj_deleteData(data);

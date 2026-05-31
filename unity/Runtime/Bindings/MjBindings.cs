@@ -5735,7 +5735,7 @@ public unsafe struct mjData_ {
   public double* efc_pos;
   public double* efc_margin;
   public double* efc_frictionloss;
-  public double* efc_diagApprox;
+  public double* efc_diagA;
   public double* efc_KBIP;
   public double* efc_D;
   public double* efc_R;

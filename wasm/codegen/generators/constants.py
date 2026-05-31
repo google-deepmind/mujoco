@@ -320,7 +320,7 @@ MJDATA_SIZES: tuple[str, ...] = (
     "efc_R",
     "efc_aref",
     "efc_b",
-    "efc_diagApprox",
+    "efc_diagA",
     "efc_force",
     "efc_frictionloss",
     "efc_id",

@@ -440,7 +440,7 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
   EXPECT_EQ(d2->nefc, 4*(d2->contact[0].dim-1)*2);
   EXPECT_EQ(d1->nJ, d2->nJ);
   for (int i = 0; i < d1->nefc; ++i) {
-    EXPECT_EQ(d1->efc_diagApprox[i], d2->efc_diagApprox[i]);
+    EXPECT_EQ(d1->efc_diagA[i], d2->efc_diagA[i]);
     EXPECT_EQ(d1->efc_D[i], d2->efc_D[i]);
   }
 

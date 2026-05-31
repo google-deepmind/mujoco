@@ -6930,8 +6930,8 @@ struct MjData {
   emscripten::val efc_frictionloss() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_frictionloss));
   }
-  emscripten::val efc_diagApprox() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_diagApprox));
+  emscripten::val efc_diagA() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_diagA));
   }
   emscripten::val efc_KBIP() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc * 4, ptr_->efc_KBIP));
@@ -11635,7 +11635,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("efc_Y_rownnz", &MjData::efc_Y_rownnz)
     .property("efc_aref", &MjData::efc_aref)
     .property("efc_b", &MjData::efc_b)
-    .property("efc_diagApprox", &MjData::efc_diagApprox)
+    .property("efc_diagA", &MjData::efc_diagA)
     .property("efc_force", &MjData::efc_force)
     .property("efc_frictionloss", &MjData::efc_frictionloss)
     .property("efc_id", &MjData::efc_id)

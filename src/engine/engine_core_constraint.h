@@ -74,10 +74,10 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
 
 //------------------------ parameter computation/extraction ----------------------------------------
 
-// compute efc_diagApprox
+// compute efc_diagA
 void mj_diagApprox(const mjModel* m, mjData* d);
 
-// compute efc_R, efc_D, efc_KDIP, adjust diagApprox
+// compute efc_R, efc_D, efc_KDIP, adjust diagA
 void mj_makeImpedance(const mjModel* m, mjData* d);
 
 
