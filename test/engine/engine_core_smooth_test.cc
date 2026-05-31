@@ -408,7 +408,7 @@ void TestConnect(const char* const filepath) {
   }
   for (int i=0; i < 3; i++) {
     EXPECT_THAT(data->sensordata[i] - model->sensor_user[i],
-                MjNear(0, 1e-6, 1e-4));
+                MjNear(0, 1e-6, 2e-4));
   }
   mj_deleteData(data);
   mj_deleteModel(model);

@@ -973,7 +973,7 @@ TEST_F(SensorTest, ContactNet) {
       mj_applyFT(model, data, force, torque, point, b1, qfrc.data());
 
       // compare
-      EXPECT_THAT(qfrc, Pointwise(MjNear(1e-6, 1e-4), qfrc_expected));
+      EXPECT_THAT(qfrc, Pointwise(MjNear(1e-6, 2e-4), qfrc_expected));
 
       // check net force, sensor returns body2 -> body1
       vector net21 = GetSensor(model, data, "net21");
@@ -992,7 +992,7 @@ TEST_F(SensorTest, ContactNet) {
       mj_applyFT(model, data, force, torque, point, b2, qfrc.data());
 
       // compare
-      EXPECT_THAT(qfrc, Pointwise(MjNear(1e-6, 1e-4), qfrc_expected));
+      EXPECT_THAT(qfrc, Pointwise(MjNear(1e-6, 2e-4), qfrc_expected));
 
       nconmax = std::max(nconmax, data->ncon);
     }

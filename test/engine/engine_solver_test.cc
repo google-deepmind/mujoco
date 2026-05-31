@@ -64,9 +64,9 @@ TEST_F(SolverTest, IslandsEquivalent) {
   // quite a lot, even at high iteration count and zero {ls_}tolerance.
   // Increasing the iteration count higher than 60 does not improve convergence.
   mjtNum rtol[kNumTol] = {
-      MjTol(1e-1, 2),
-      MjTol(3e-2, 1),
-      MjTol(1.5e-4, 3.6)
+      MjTol(1e-1, 1.2e-1),
+      MjTol(3e-2, 2e-2),
+      MjTol(1.3e-5, 2.8e-3)
   };
 
   for (int i = 0; i < kNumTol; ++i) {
@@ -188,7 +188,7 @@ TEST_F(SolverTest, IslandsEquivalentForward) {
           int worst_idx = -1;
           mjtNum scale = 0.5 * (mju_norm(data_noisland->qacc, nv) +
                                 mju_norm(data_island->qacc, nv));
-          mjtNum rtol = solver == mjSOL_CG ? MjTol(1e-6, 1e-2)
+          mjtNum rtol = solver == mjSOL_CG ? MjTol(1e-8, 1e-4)
                                            : MjTol(1e-13, 1e-3);
           mjtNum worst_allowed = scale * rtol;
 
@@ -240,7 +240,7 @@ TEST_F(SolverTest, SolversEquivalent) {
        .tolerances =
            {
                .newton        = MjTol(1e-13, 1e-5),
-               .cg            = MjTol(1e-5,  1e-2),
+               .cg            = MjTol(1e-13, 1e-5),
                .pgs_pyramidal = MjTol(1e-12, 1e-5),
                .pgs_elliptic  = MjTol(1e-3,  1e-2),
            }},
@@ -248,7 +248,7 @@ TEST_F(SolverTest, SolversEquivalent) {
        .tolerances =
            {
                .newton        = MjTol(1e-13, 1e-5),
-               .cg            = MjTol(1e-5,  1e-2),
+               .cg            = MjTol(1e-12, 1e-5),
                .pgs_pyramidal = MjTol(1e-5,  1e-5),
                .pgs_elliptic  = MjTol(1e-8,  1e-4),
            }},
