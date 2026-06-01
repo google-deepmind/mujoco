@@ -23,6 +23,9 @@ function FLV(lmin, lmax, vmax, fpmax, fvmax)
   a = 0.5*(lmin+1);
   b = 0.5*(1+lmax);
   c = fvmax-1;
+  fontsize = 20;
+  axpos = {[0.12 0.59 0.37 0.39], [0.58 0.59 0.37 0.39], ...
+           [0.12 0.06 0.37 0.39], [0.58 0.06 0.37 0.39]};
 
     % length and velocity ranges to plot
     LL = linspace(lmin, lmax, 51);
@@ -37,10 +40,10 @@ function FLV(lmin, lmax, vmax, fpmax, fvmax)
             FP(i) = 0;
         elseif L<=b
             x = (L-1)/(b-1);
-            FP(i) = 0.25*fpmax*x*x*x;
+            FP(i) = 0.5*fpmax*x*x;
         else
             x = (L-b)/(b-1);
-            FP(i) = 0.25*fpmax*(1+3*x);
+            FP(i) = fpmax*(0.5+x);
         end
     end
 
@@ -49,7 +52,7 @@ function FLV(lmin, lmax, vmax, fpmax, fvmax)
     for i=1:length(LL)
         L = LL(i);
 
-        FL(i) = bump(L, lmin, 1, lmax) + 0.15*bump(L, lmin, 0.5*(lmin+0.95), 0.95);
+        FL(i) = bump(L, lmin, 1, lmax);
     end
 
     % velocity-active
@@ -72,6 +75,7 @@ function FLV(lmin, lmax, vmax, fpmax, fvmax)
     figure(1);
     clf;
     subplot(2,2,1);
+    set(gca, 'position', axpos{1});
     plot(LL, FL, 'r', 'linewidth', 1);
     hold on;
     plot(LL, 0.5*FL, 'b', 'linewidth', 1);
@@ -81,14 +85,15 @@ function FLV(lmin, lmax, vmax, fpmax, fvmax)
     ylabel('force (F0)');
     text(0.9, 0.85, 'act = 1.0');
     text(0.9, 0.4, 'act = 0.5');
-    text(1.3, 1.2, 'passive');
+    text(1.2, 1.2, 'passive');
     box off;
     grid on;
     set(gca, 'xtick', [lmin 1 lmax], 'xticklabel', {'lmin', '1', 'lmax'}, ...
-    'ytick', [0 1 fpmax], 'yticklabel', {'0', '1', 'fpmax'});
+    'ytick', [0 1 fpmax 1.5*fpmax], 'yticklabel', {'0', '1', 'fpmax', '1.5 fpmax'});
 
     % plot velocity
     subplot(2,2,2);
+    set(gca, 'position', axpos{2});
     set( plot(VV, FV, 'linewidth', 1), 'color', [.1 .5 .1]);
     axis tight;
     xlabel('velocity (L0/s)');
@@ -100,6 +105,7 @@ function FLV(lmin, lmax, vmax, fpmax, fvmax)
 
     % plot full activation
     subplot(2,2,3);
+    set(gca, 'position', axpos{3});
     surf(LL, VV, FV'*FL + ones(size(VV))'*FP);
     axis tight;
     xlabel('length');
@@ -111,6 +117,7 @@ function FLV(lmin, lmax, vmax, fpmax, fvmax)
 
     % plot half activation
     subplot(2,2,4);
+    set(gca, 'position', axpos{4});
     surf(LL, VV, 0.5*FV'*FL + ones(size(VV))'*FP);
     axis tight;
     xlabel('length');
@@ -119,6 +126,9 @@ function FLV(lmin, lmax, vmax, fpmax, fvmax)
     title('act = 0.5');
     box off;
     set(gca, 'xtick', [lmin, 1, lmax], 'ytick', [-vmax, 0, vmax], 'ztick', [0, 1]);
+    set(findall(gcf, '-property', 'fontsize'), 'fontsize', fontsize);
+    set(findall(gcf, 'string', 'act = 1.0'), 'fontweight', 'bold');
+    set(findall(gcf, 'string', 'act = 0.5'), 'fontweight', 'bold');
 end
 
 
