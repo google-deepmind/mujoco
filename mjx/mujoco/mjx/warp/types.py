@@ -240,7 +240,6 @@ class ModelWarp(PyTreeNode):
   is_sparse: bool
   jnt_limited_ball_adr: np.ndarray
   jnt_limited_slide_hinge_adr: np.ndarray
-  light_active: jax.Array
   light_bodyid: np.ndarray
   light_targetbodyid: np.ndarray
   mapD2M: np.ndarray

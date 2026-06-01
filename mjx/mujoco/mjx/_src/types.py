@@ -747,6 +747,7 @@ class Model(PyTreeNode):
   cam_intrinsic: jax.Array
   light_mode: np.ndarray
   light_type: jax.Array
+  light_active: jax.Array
   light_castshadow: jax.Array
   light_pos: jax.Array
   light_dir: jax.Array

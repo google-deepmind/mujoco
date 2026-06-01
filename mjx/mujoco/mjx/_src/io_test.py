@@ -113,6 +113,15 @@ _SIMPLE_BODY = """
   </mujoco>
 """
 
+_LIGHTS = """
+  <mujoco>
+    <worldbody>
+      <light name="inactive" active="false"/>
+      <light name="active" active="true"/>
+    </worldbody>
+  </mujoco>
+"""
+
 
 def _get_name_from_path(path: jax.tree_util.KeyPath) -> str:
   """Returns a flattened name from a jax.tree_util.KeyPath."""
@@ -202,6 +211,21 @@ class ModelIOTest(parameterized.TestCase):
     np.testing.assert_equal(mx.wrap_type, m.wrap_type)
     np.testing.assert_equal(mx.wrap_objid, m.wrap_objid)
     np.testing.assert_almost_equal(mx.wrap_prm, m.wrap_prm)
+
+  @parameterized.parameters('jax', 'warp', 'cpp')
+  def test_put_model_light_active(self, impl):
+    """Tests that light_active is copied to the public Model field."""
+    if impl == 'warp' and not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp not installed.')
+
+    m = mujoco.MjModel.from_xml_string(_LIGHTS)
+    mx = mjx.put_model(m, impl=impl)
+
+    self.assertIn('light_active', [f.name for f in mx.fields()])
+    np.testing.assert_array_equal(
+        np.asarray(mx.light_active),
+        m.light_active.astype(np.asarray(mx.light_active).dtype),
+    )
 
   def test_fluid_params(self):
     """Test that has_fluid_params is set when fluid params are present."""
