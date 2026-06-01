@@ -38,6 +38,9 @@ class SimProfiler {
   void DimensionsGraph(ImVec2 plot_size = ImVec2(-1, 0));
 
  private:
+  static constexpr int kProfilerMaxFrames = 200;
+  int head_ = 0;
+
   std::vector<float> cpu_total_;
   std::vector<float> cpu_collision_;
   std::vector<float> cpu_prepare_;
