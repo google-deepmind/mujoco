@@ -27,6 +27,12 @@ except OSError:
 from OpenGL import EGL
 from OpenGL import error
 
+# Expose everything from upstream so that this can be used as a drop-in
+# replacement for OpenGL.EGL. Extension wrappers below use eglGetProcAddress
+# because PyOpenGL may not expose these entry points directly.
+# pylint: disable=wildcard-import,g-bad-import-order
+from OpenGL.EGL import *
+
 # From the EGL_NV_device_cuda extension.
 EGL_CUDA_DEVICE_NV = 0x323A
 
@@ -95,13 +101,3 @@ def eglQueryDeviceAttribEXT(device, attribute):  # pylint: disable=invalid-name
     raise error.GLError(err=EGL.eglGetError(),
                         baseOperation=eglQueryDeviceAttribEXT,
                         result=success)
-
-
-# Expose everything from upstream so that
-# we can use this as a drop-in replacement for OpenGL.EGL.
-# pylint: disable=wildcard-import,g-bad-import-order
-_eglQueryDevicesEXTWrapper = eglQueryDevicesEXT  # pylint: disable=invalid-name
-_eglQueryDeviceAttribEXTWrapper = eglQueryDeviceAttribEXT  # pylint: disable=invalid-name
-from OpenGL.EGL import *
-eglQueryDevicesEXT = _eglQueryDevicesEXTWrapper  # pylint: disable=invalid-name
-eglQueryDeviceAttribEXT = _eglQueryDeviceAttribEXTWrapper  # pylint: disable=invalid-name

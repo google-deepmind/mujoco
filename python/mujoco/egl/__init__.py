@@ -40,18 +40,18 @@ def _get_egl_device_cuda_id(device):
     return None
 
 
-def _get_egl_device_cuda_map(devices):
+def _get_cuda_to_egl_device_map(devices):
   """Returns a CUDA id to EGL device map, or None if it is unavailable."""
-  cuda_map = {}
+  cuda_to_egl_device = {}
   for device in devices:
     cuda_id = _get_egl_device_cuda_id(device)
-    if cuda_id is None or cuda_id in cuda_map:
+    if cuda_id is None or cuda_id in cuda_to_egl_device:
       return None
-    cuda_map[cuda_id] = device
-  return cuda_map
+    cuda_to_egl_device[cuda_id] = device
+  return cuda_to_egl_device
 
 
-def _parse_cuda_visible_devices():
+def _parse_cuda_device_ids():
   """Returns integer CUDA_VISIBLE_DEVICES entries, if they are parseable."""
   value = os.environ.get('CUDA_VISIBLE_DEVICES')
   if not value:
@@ -73,57 +73,61 @@ def _parse_cuda_visible_devices():
   return device_ids or None
 
 
-def _visible_cuda_candidates(cuda_map):
+def _egl_device_from_cuda_ids(cuda_to_egl_device, cuda_ids):
+  """Returns the first EGL device matching one of the CUDA ids."""
+  if cuda_to_egl_device is None:
+    return None
+
+  for cuda_id in cuda_ids:
+    if cuda_id in cuda_to_egl_device:
+      return cuda_to_egl_device[cuda_id]
+  return None
+
+
+def _cuda_id_candidates(device_id, cuda_devices):
+  """Returns CUDA ids matching a logical or physical device selection."""
+  if cuda_devices:
+    if 0 <= device_id < len(cuda_devices):
+      yield cuda_devices[device_id]
+    if device_id in cuda_devices:
+      yield cuda_devices.index(device_id)
+  yield device_id
+
+
+def _cuda_device_order(cuda_to_egl_device, cuda_devices):
   """Returns EGL devices ordered by CUDA_VISIBLE_DEVICES, if possible."""
-  visible_cuda_devices = _parse_cuda_visible_devices()
-  if not visible_cuda_devices:
+  if not cuda_devices:
     return None
 
   candidates = []
-  for logical_id, physical_id in enumerate(visible_cuda_devices):
-    if physical_id in cuda_map:
-      candidates.append(cuda_map[physical_id])
-    elif logical_id in cuda_map:
-      candidates.append(cuda_map[logical_id])
-    else:
+  for logical_id, physical_id in enumerate(cuda_devices):
+    device = _egl_device_from_cuda_ids(
+        cuda_to_egl_device, (physical_id, logical_id))
+    if device is None:
       return None
+    candidates.append(device)
 
   return candidates
 
 
-def _ordered_egl_devices(devices):
+def _ordered_egl_devices(devices, cuda_to_egl_device, cuda_devices):
   """Returns EGL devices in CUDA order when possible."""
-  cuda_map = _get_egl_device_cuda_map(devices)
-  if cuda_map is None:
-    return devices, None
+  if cuda_to_egl_device is None:
+    return devices
 
-  candidates = _visible_cuda_candidates(cuda_map)
+  candidates = _cuda_device_order(cuda_to_egl_device, cuda_devices)
   if candidates:
-    return candidates, cuda_map
+    return candidates
 
-  return [cuda_map[cuda_id] for cuda_id in sorted(cuda_map)], cuda_map
+  return [cuda_to_egl_device[cuda_id] for cuda_id in sorted(cuda_to_egl_device)]
 
 
-def _select_egl_device(devices, cuda_map, device_id):
+def _select_egl_device(devices, cuda_to_egl_device, cuda_devices, device_id):
   """Selects an EGL device by CUDA id when possible, otherwise by index."""
-  visible_cuda_devices = _parse_cuda_visible_devices()
-  if cuda_map is not None and visible_cuda_devices:
-    if 0 <= device_id < len(visible_cuda_devices):
-      physical_id = visible_cuda_devices[device_id]
-      if physical_id in cuda_map:
-        return cuda_map[physical_id]
-      if device_id in cuda_map:
-        return cuda_map[device_id]
-
-    if device_id in visible_cuda_devices:
-      logical_id = visible_cuda_devices.index(device_id)
-      if device_id in cuda_map:
-        return cuda_map[device_id]
-      if logical_id in cuda_map:
-        return cuda_map[logical_id]
-
-  if cuda_map is not None and device_id in cuda_map:
-    return cuda_map[device_id]
+  device = _egl_device_from_cuda_ids(
+      cuda_to_egl_device, _cuda_id_candidates(device_id, cuda_devices))
+  if device is not None:
+    return device
 
   if not 0 <= device_id < len(devices):
     raise RuntimeError(
@@ -136,13 +140,17 @@ def _select_egl_device(devices, cuda_map, device_id):
 def create_initialized_egl_device_display():
   """Creates an initialized EGL display directly on a device."""
   all_devices = EGL.eglQueryDevicesEXT()
-  ordered_devices, cuda_map = _ordered_egl_devices(all_devices)
+  cuda_to_egl_device = _get_cuda_to_egl_device_map(all_devices)
+  cuda_devices = _parse_cuda_device_ids()
+  ordered_devices = _ordered_egl_devices(
+      all_devices, cuda_to_egl_device, cuda_devices)
   selected_device = os.environ.get('MUJOCO_EGL_DEVICE_ID', None)
   if selected_device is None:
     candidates = ordered_devices
   else:
     device_idx = int(selected_device)
-    candidates = [_select_egl_device(ordered_devices, cuda_map, device_idx)]
+    candidates = [_select_egl_device(
+        ordered_devices, cuda_to_egl_device, cuda_devices, device_idx)]
   for device in candidates:
     display = EGL.eglGetPlatformDisplayEXT(
         EGL.EGL_PLATFORM_DEVICE_EXT, device, None)
