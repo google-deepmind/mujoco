@@ -51,9 +51,8 @@ def _get_cuda_to_egl_device_map(devices):
   return cuda_to_egl_device
 
 
-def _parse_cuda_device_ids():
+def _parse_cuda_device_ids(value):
   """Returns integer CUDA_VISIBLE_DEVICES entries, if they are parseable."""
-  value = os.environ.get('CUDA_VISIBLE_DEVICES')
   if not value:
     return None
 
@@ -141,7 +140,7 @@ def create_initialized_egl_device_display():
   """Creates an initialized EGL display directly on a device."""
   all_devices = EGL.eglQueryDevicesEXT()
   cuda_to_egl_device = _get_cuda_to_egl_device_map(all_devices)
-  cuda_devices = _parse_cuda_device_ids()
+  cuda_devices = _parse_cuda_device_ids(os.environ.get('CUDA_VISIBLE_DEVICES'))
   ordered_devices = _ordered_egl_devices(
       all_devices, cuda_to_egl_device, cuda_devices)
   selected_device = os.environ.get('MUJOCO_EGL_DEVICE_ID', None)
