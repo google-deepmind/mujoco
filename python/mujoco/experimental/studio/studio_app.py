@@ -34,6 +34,7 @@ See the sample/ folder for usage examples.
 
 import os
 import sys
+import typing
 
 import mujoco
 from mujoco.experimental.studio import parser
@@ -44,6 +45,9 @@ from mujoco.experimental.studio import viewer_protocol
 import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
+
+# Type alias for a custom physics step function.
+StepFn = typing.Callable[[mujoco.MjModel, mujoco.MjData], None]
 
 
 def load_model_from_file(
@@ -246,13 +250,28 @@ class StudioApp:
     else:
       mujoco.mjv_applyPerturbPose(self.model, self.data, perturb, 1)
 
-  def update_physics(self, perturb: mujoco.MjvPerturb) -> None:
-    """Applies the purturbations and advances the physics."""
+  def update_physics(
+      self,
+      perturb: mujoco.MjvPerturb,
+      *,
+      step_fn: StepFn | None = None,
+  ) -> None:
+    """Applies the perturbations and advances the physics.
+
+    Args:
+      perturb: The MuJoCo perturbation object.
+      step_fn: Optional custom physics step function.  When provided, it is
+        called instead of ``step_control.advance``.  The function receives
+        ``(model, data)`` and should step the simulation in-place.
+    """
     self.apply_perturb(perturb)
 
-    advance_status = self.step_control.advance(self.model, self.data)
-    if advance_status == sim.StepStatus.AUTO_RESET:
-      self.reset_physics()
+    if step_fn is not None:
+      step_fn(self.model, self.data)
+    else:
+      advance_status = self.step_control.advance(self.model, self.data)
+      if advance_status == sim.StepStatus.AUTO_RESET:
+        self.reset_physics()
 
   def reset_physics_gui(self) -> None:
     """GUI to Reset the physics i.e., the reset button."""
@@ -272,13 +291,15 @@ class StudioApp:
       camera: mujoco.MjvCamera,
       vis_options: mujoco.MjvOption,
       perturb: mujoco.MjvPerturb,
+      *,
       drop_file: str = '',
+      step_fn: StepFn | None = None,
   ) -> bool:
     """Update the simulation and handle user input.
 
     Handles mouse input to compute perturbations or camera motion.
     Handles keyboard input e.g., for keybindings or camera motion.
-    Applies the purturbations and advances the physics.
+    Applies the perturbations and advances the physics.
     The argument objects are provided by the viewer.
 
     Args:
@@ -287,6 +308,8 @@ class StudioApp:
       perturb: The MuJoCo perturbation object.
       drop_file: Path of a file dropped into the viewer window. If non-empty the
         current model is replaced with the dropped file.
+      step_fn: Optional custom physics step function.  When provided, it is
+        called instead of ``step_control.advance``.
 
     Returns:
       Whether the application should continue running, this is a
@@ -297,16 +320,31 @@ class StudioApp:
 
     self.handle_mouse_events(camera, vis_options, perturb)
     self.handle_keyboard_events(camera, vis_options)
-    self.update_physics(perturb)
+    self.update_physics(perturb, step_fn=step_fn)
     return self.is_running()
 
-  def update_from_viewer(self, viewer: viewer_protocol.Viewer) -> bool:
-    """Convenience wrapper around update() that unpacks viewer attributes."""
+  def update_from_viewer(
+      self,
+      viewer: viewer_protocol.Viewer,
+      *,
+      step_fn: StepFn | None = None,
+  ) -> bool:
+    """Convenience wrapper around update() that unpacks viewer attributes.
+
+    Args:
+      viewer: A viewer conforming to the Viewer protocol.
+      step_fn: Optional custom physics step function.  When provided, it is
+        called instead of ``step_control.advance``.
+
+    Returns:
+      Whether the application should continue running.
+    """
     return self.update(
         viewer.camera,
         viewer.vis_options,
         viewer.perturb,
         drop_file=viewer.get_drop_file(),
+        step_fn=step_fn,
     )
 
   def build_gui(
