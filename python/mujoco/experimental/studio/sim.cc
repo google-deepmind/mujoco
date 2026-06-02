@@ -42,11 +42,21 @@ PYBIND11_MODULE(sim, m) {
       .def(py::init<>())
       .def(
           "advance",
-          [](StepControl& self, mujoco::python::MjModelWrapper& model,
-             mujoco::python::MjDataWrapper& data) {
-            return self.Advance(model.get(), data.get());
+          [](StepControl& self, py::object model_obj, py::object data_obj,
+             py::object step_fn) {
+            auto& model = py::cast<mujoco::python::MjModelWrapper&>(model_obj);
+            auto& data = py::cast<mujoco::python::MjDataWrapper&>(data_obj);
+            if (step_fn.is_none()) {
+              return self.Advance(model.get(), data.get());
+            } else {
+              return self.Advance(
+                  model.get(), data.get(),
+                  [step_fn, model_obj, data_obj](mjModel*, mjData*) {
+                    step_fn(model_obj, data_obj);
+                  });
+            }
           },
-          py::arg("model"), py::arg("data"),
+          py::arg("model"), py::arg("data"), py::arg("step_fn") = py::none(),
           "Step physics forward, respecting speed settings and refresh budget.")
       .def("force_sync", &StepControl::ForceSync,
            "Ensures the next Advance() will synchronize time and step once.")
