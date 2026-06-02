@@ -58,13 +58,9 @@ MJAPI void _mjPRIVATE__set_tls_warning_fn(void (*h)(const char*));
 MJAPI void mju_error_raw(const char* msg);
 MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
 MJAPI void mju_error_v(const char* msg, va_list args);
-MJAPI void mju_error_i(const char* msg, int i);
-MJAPI void mju_error_s(const char* msg, const char* text);
 
 // warnings
 MJAPI void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
-MJAPI void mju_warning_i(const char* msg, int i);
-MJAPI void mju_warning_s(const char* msg, const char* text);
 
 // write [datetime, type: message] to MUJOCO_LOG.TXT
 MJAPI void mju_writeLog(const char* type, const char* msg);

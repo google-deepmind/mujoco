@@ -7225,19 +7225,7 @@ public static unsafe extern void mjui_render(mjUI_* ui, mjuiState_* state, mjrCo
 public static unsafe extern void mju_error([MarshalAs(UnmanagedType.LPStr)]string msg);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_error_i([MarshalAs(UnmanagedType.LPStr)]string msg, int i);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_error_s([MarshalAs(UnmanagedType.LPStr)]string msg, [MarshalAs(UnmanagedType.LPStr)]string text);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_warning([MarshalAs(UnmanagedType.LPStr)]string msg);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_warning_i([MarshalAs(UnmanagedType.LPStr)]string msg, int i);
-
-[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mju_warning_s([MarshalAs(UnmanagedType.LPStr)]string msg, [MarshalAs(UnmanagedType.LPStr)]string text);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_clearHandlers();

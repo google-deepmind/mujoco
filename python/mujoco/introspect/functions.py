@@ -6288,44 +6288,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Main error function; does not return to caller.',
      )),
-    ('mju_error_i',
-     FunctionDecl(
-         name='mju_error_i',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='msg',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='i',
-                 type=ValueType(name='int'),
-             ),
-         ),
-         doc='Deprecated: use mju_error.',
-     )),
-    ('mju_error_s',
-     FunctionDecl(
-         name='mju_error_s',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='msg',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='text',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Deprecated: use mju_error.',
-     )),
     ('mju_warning',
      FunctionDecl(
          name='mju_warning',
@@ -6339,44 +6301,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Main warning function; returns to caller.',
-     )),
-    ('mju_warning_i',
-     FunctionDecl(
-         name='mju_warning_i',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='msg',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='i',
-                 type=ValueType(name='int'),
-             ),
-         ),
-         doc='Deprecated: use mju_warning.',
-     )),
-    ('mju_warning_s',
-     FunctionDecl(
-         name='mju_warning_s',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='msg',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='text',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Deprecated: use mju_warning.',
      )),
     ('mju_clearHandlers',
      FunctionDecl(

@@ -1980,24 +1980,6 @@ Error and memory
 
 Main error function; does not return to caller.
 
-.. _mju_error_i:
-
-`mju_error_i <#mju_error_i>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_error_i
-
-Deprecated: use mju_error.
-
-.. _mju_error_s:
-
-`mju_error_s <#mju_error_s>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_error_s
-
-Deprecated: use mju_error.
-
 .. _mju_warning:
 
 `mju_warning <#mju_warning>`__
@@ -2006,24 +1988,6 @@ Deprecated: use mju_error.
 .. mujoco-include:: mju_warning
 
 Main warning function; returns to caller.
-
-.. _mju_warning_i:
-
-`mju_warning_i <#mju_warning_i>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_warning_i
-
-Deprecated: use mju_warning.
-
-.. _mju_warning_s:
-
-`mju_warning_s <#mju_warning_s>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_warning_s
-
-Deprecated: use mju_warning.
 
 .. _mju_clearHandlers:
 
