@@ -42,6 +42,9 @@ class SdfAssetPath;
 
 /// \class MjcPhysicsMaterialAPI
 ///
+/// DEPRECATED: Use NewtonMaterialAPI instead. All attributes on this API have
+/// been superseded by Newton equivalents.
+///
 /// API providing extension attributes to represent physical MuJoCo materials.
 ///
 class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
@@ -148,6 +151,8 @@ class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // TORSIONALFRICTION
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:torsionalFriction instead.
+  ///
   /// Friction value acting around contact normal.
   ///
   /// | ||
@@ -173,6 +178,8 @@ class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // ROLLINGFRICTION
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:rollingFriction instead.
+  ///
   /// Friction value acting around both axes on the contact tangent plane.
   ///
   /// | ||
