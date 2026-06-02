@@ -5481,7 +5481,10 @@ uint64_t mjCModel::Signature() {
     tree << "<actuator/>\n";
   }
   for (unsigned int i = 0; i < sensors_.size(); ++i) {
-    tree << "<sensor>" << std::to_string(sensors_[i]->spec.type) << "<sensor/>\n";
+    tree << "<sensor>"
+         << std::to_string(sensors_[i]->spec.type) << " "
+         << std::to_string(sensors_[i]->spec.dim)
+         << "<sensor/>\n";
   }
   for (unsigned int i = 0; i < keys_.size(); ++i) {
     tree << "<key/>\n";

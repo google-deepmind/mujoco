@@ -625,6 +625,36 @@ TEST_F(SensorTest, OjbtypeParsedButNotRequired) {
   mj_deleteModel(model);
 }
 
+TEST_F(SensorTest, UserSensorDimAffectsModelSignature) {
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <sensor>
+      <user name="user_sensor" dim="100"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <sensor>
+      <user name="user_sensor" dim="200"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  mjModel* model1 = LoadModelFromString(xml1, nullptr, 0);
+  mjModel* model2 = LoadModelFromString(xml2, nullptr, 0);
+
+  ASSERT_THAT(model1, NotNull());
+  ASSERT_THAT(model2, NotNull());
+  EXPECT_EQ(model1->nsensordata, 100);
+  EXPECT_EQ(model2->nsensordata, 200);
+  EXPECT_NE(model1->signature, model2->signature);
+
+  mj_deleteModel(model1);
+  mj_deleteModel(model2);
+}
+
 TEST_F(SensorTest, NegativeIntervalError) {
   static constexpr char xml[] = R"(
   <mujoco>
