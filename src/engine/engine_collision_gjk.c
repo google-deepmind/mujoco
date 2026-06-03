@@ -1538,6 +1538,9 @@ static mjtNum planeNormal(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3],
   sub3(diff1, v2, v1);
   sub3(diff2, v3, v1);
   cross3(res, diff1, diff2);
+
+  // normalize isn't needed (cancelled out), but done to avoid asymmetric rounding later on
+  mju_normalize3(res);
   return dot3(res, v1);
 }
 

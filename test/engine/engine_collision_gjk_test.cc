@@ -411,6 +411,65 @@ TEST_F(MjGjkTest, BoxBoxDepth3) {
   EXPECT_NEAR(dir[2], -1, kTolerance);
 }
 
+
+TEST_F(MjGjkTest, BoxBoxSize05) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" size="0.5 0.5 0.5"/>
+      <geom name="geom2" type="box" size="0.5 0.5 0.5"/>
+    </worldbody>
+  </mujoco>)";
+
+  TestModel model = LoadModel(xml);
+  TestData data = MakeData(model.get());
+  mj_forward(model.get(), data.get());
+
+  mjtNum* xmat = data->geom_xmat;
+  mjtNum* xpos = data->geom_xpos;
+
+  xmat[0] = 1.000000000000000;
+  xmat[1] = 0.000000047289880;
+  xmat[2] = -0.000000050905665;
+  xmat[3] = -0.000000047289880;
+  xmat[4] = 1.000000000000000;
+  xmat[5] = 0.000000017136196;
+  xmat[6] = 0.000000050905665;
+  xmat[7] = -0.000000017136193;
+  xmat[8] = 1.000000000000000;
+
+  xpos[0] = 0.000000009724202;
+  xpos[1] = -0.000000014139289;
+  xpos[2] = 7.369161128997803;
+
+  xmat = data->geom_xmat + 9;
+  xpos = data->geom_xpos + 3;
+
+  xmat[0] = 1.000000000000000;
+  xmat[1] = -0.000000013726950;
+  xmat[2] = 0.000000008946020;
+  xmat[3] = 0.000000013726950;
+  xmat[4] = 1.000000000000000;
+  xmat[5] = -0.000000012039017;
+  xmat[6] = -0.000000008946020;
+  xmat[7] = 0.000000012039017;
+  xmat[8] = 1.000000000000000;
+
+  xpos[0] = 0.000000013445962;
+  xpos[1] = -0.000000019194527;
+  xpos[2] = 8.264492034912109;
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
+
+  ASSERT_EQ(ncons, 4);
+}
+
 TEST_F(MjGjkTest, BoxBoxTouching) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -424,13 +483,13 @@ TEST_F(MjGjkTest, BoxBoxTouching) {
   TestData data = MakeData(model.get());
   mj_forward(model.get(), data.get());
 
-  int geom1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
-  int geom2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
 
   mjCCDStatus status;
   std::vector<mjtNum> dir, pos;
   mjtNum dist;
-  int ncons = Penetration(status, dist, dir, pos, model, data, geom1, geom2);
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2);
 
   ASSERT_EQ(ncons, 0);
   EXPECT_EQ(status.epa_status, -1);
