@@ -848,7 +848,7 @@ TEST_F(DerivativeTest, LinearSystemInverse) {
 
   // expect that acceleration derivatives are the mass matrix
   vector<mjtNum> DfDa_expect(nv*nv, 0);
-  mj_fullM(model, DfDa_expect.data(), data->qM);
+  mj_fullM(model, data, DfDa_expect.data());
   EXPECT_THAT(DfDa, Pointwise(DoubleNear(eps), DfDa_expect));
 
   // expect that sensor derivatives w.r.t position only see sensor 1 at dof 0

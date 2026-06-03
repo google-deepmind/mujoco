@@ -598,8 +598,8 @@ MJAPI int mj_name2id(const mjModel* m, int type, const char* name);
 // Get name of object with the specified mjtObj type and id; return NULL if name not found.
 MJAPI const char* mj_id2name(const mjModel* m, int type, int id);
 
-// Convert sparse inertia matrix M into full (i.e. dense) matrix.
-MJAPI void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
+// Convert sparse inertia matrix into full (i.e. dense) matrix.
+MJAPI void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst);
 
 // Multiply vector by inertia matrix.
 MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);

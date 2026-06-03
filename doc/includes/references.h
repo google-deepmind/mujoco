@@ -3320,7 +3320,7 @@ void mj_jacDot(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr,
 void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 int mj_name2id(const mjModel* m, int type, const char* name);
 const char* mj_id2name(const mjModel* m, int type, int id);
-void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
+void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst);
 void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst, int* rownnz, int* rowadr, int* colind);

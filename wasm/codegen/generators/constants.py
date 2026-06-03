@@ -565,7 +565,6 @@ FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
   CHECK_SIZE(qpos2, m.nq());
     """.strip(),
     "mj_fullM": """
-  CHECK_SIZE(M, m.nM());
   CHECK_SIZE(dst, m.nv() * m.nv());
     """.strip(),
     "mj_geomDistance": """

@@ -3479,19 +3479,19 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
                  name='dst',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
              ),
-             FunctionParameterDecl(
-                 name='M',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                 ),
-             ),
          ),
-         doc='Convert sparse inertia matrix M into full (i.e. dense) matrix.',
+         doc='Convert sparse inertia matrix into full (i.e. dense) matrix.',
      )),
     ('mj_mulM',
      FunctionDecl(

@@ -608,13 +608,13 @@ TEST_F(InertiaTest, FullM) {
   ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
   int nv = m->nv;
 
-  // forward dynamics, populate qM and qLD
+  // forward dynamics, populate M and qLD
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
-  // get dense mass matrix from M using mju_sym2dense
+  // get dense mass matrix from M using mj_fullM
   vector<mjtNum> M(nv * nv);
-  mju_sym2dense(M.data(), d->M, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
+  mj_fullM(m, d, M.data());
 
   // get dense mass matrix from M using mju_sparse2dense
   vector<mjtNum> M_CSR(nv * nv);

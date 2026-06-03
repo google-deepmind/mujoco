@@ -342,17 +342,6 @@ found, the function will return ``distmax`` and ``fromto``, if given, will be se
    As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
    :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
 
-.. _mj_fullM:
-
-Convert sparse inertia matrix ``M`` into full (i.e. dense) matrix.
-|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same structure as ``mjData.qM``.
-
-The ``mjData`` members ``qM`` and ``M`` represent the same matrix in different formats; the former is unique to
-MuJoCo, the latter is standard Compressed Sparse Row (lower triangle only). The :math:`L^T D L` factor of the inertia
-matrix ``mjData.qLD`` uses the same CSR format as ``mjData.M``. See
-`engine_support_test <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_support_test.cc>`__ for
-pedagogical examples.
-
 .. _mj_mulM:
 
 This function multiplies the joint-space inertia matrix stored in ``mjData.M`` by a vector.

@@ -6946,7 +6946,7 @@ public static unsafe extern int mj_name2id(mjModel_* m, int type, [MarshalAs(Unm
 public static unsafe extern IntPtr mj_id2name(mjModel_* m, int type, int id);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_fullM(mjModel_* m, double* dst, double* M);
+public static unsafe extern void mj_fullM(mjModel_* m, mjData_* d, double* dst);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_mulM(mjModel_* m, mjData_* d, double* res, double* vec);

@@ -30,6 +30,12 @@ General
        the :math:`A` ("Delassus") matrix.
      - The deprecated functions ``mju_{error,warning}_{i,s}`` have been removed.
 
+     - Changed the signature of :ref:`mj_fullM` from ``mj_fullM(m, dst, M)`` to ``mj_fullM(m, d, dst)`` as part of the
+       planned deprecation of ``mjData.qM`` in favor of the CSR-format ``mjData.M``.
+
+       **Migration:** For inertia matrix conversion, replace ``mj_fullM(m, dst, d->qM)`` with ``mj_fullM(m, d, dst)`` or
+       ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
+
 Bug fixes
 ^^^^^^^^^
 - Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
