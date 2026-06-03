@@ -200,7 +200,6 @@ void Texture::Upload(const mjrTextureData& data) {
   } else {
     const int face_size = config_.width * GetFaceHeight(config_) * num_channels;
     const int num_bytes = face_size * kNumFacesPerCube;
-    filament::Texture::FaceOffsets offsets(face_size);
 
     if (config_.width == config_.height) {
       uint8_t* copy = new uint8_t[num_bytes];
@@ -212,7 +211,9 @@ void Texture::Upload(const mjrTextureData& data) {
       }
       filament::Texture::PixelBufferDescriptor desc(copy, num_bytes, format,
                                                     type, release_callback);
-      texture_->setImage(*engine_, 0, std::move(desc), offsets);
+      texture_->setImage(*engine_, /*level=*/0, /*xoffset=*/0, /*yoffset=*/0,
+                         /*zoffset=*/0, config_.width, GetFaceHeight(config_),
+                         /*depth=*/6, std::move(desc));
       ReleaseData();
     } else {
       if (num_bytes != data.nbytes) {
@@ -223,7 +224,9 @@ void Texture::Upload(const mjrTextureData& data) {
       };
       filament::Texture::PixelBufferDescriptor desc(
           data.bytes, data.nbytes, format, type, callback, this);
-      texture_->setImage(*engine_, 0, std::move(desc), offsets);
+      texture_->setImage(*engine_, /*level=*/0, /*xoffset=*/0, /*yoffset=*/0,
+                         /*zoffset=*/0, config_.width, GetFaceHeight(config_),
+                         /*depth=*/6, std::move(desc));
     }
   }
 
