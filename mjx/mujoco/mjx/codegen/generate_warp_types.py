@@ -297,6 +297,30 @@ _FLATTEN_UNFLATTEN = """
     return cls(*children)
 """
 
+_NESTED_DATACLASS_MANUAL_METHODS = {
+    'TileSet': """
+  def __eq__(self, other) -> bool:
+    if self.__class__ is not other.__class__:
+      return NotImplemented
+    return self.size == other.size and np.array_equal(
+        np.asarray(self.adr), np.asarray(other.adr)
+    )
+
+  def __hash__(self) -> int:
+    adr = np.asarray(self.adr)
+    return hash((self.size, adr.dtype.str, adr.shape, adr.tobytes()))
+""",
+}
+
+_NESTED_DATACLASS_MANUAL_METHOD_NOTES = {
+    'TileSet': (
+        '    # Manually kept in this generated shim until TileSet method '
+        'generation is\n'
+        '    # needed more broadly. Keep this in sync with '
+        'mujoco_warp._src.types.TileSet.\n'
+    ),
+}
+
 
 def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
   new_class_body = _build_new_class_body_ast(
@@ -307,6 +331,7 @@ def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
   )
   cls_str = '\n'.join(['  ' + ast.unparse(node) for node in new_class_body])
   cls_str = cls_str.replace('jax.Array', 'np.ndarray')
+  manual_methods = _NESTED_DATACLASS_MANUAL_METHODS.get(cls.__name__, '')
   with target_fpath.open('a') as f:
     f.write(f'''
 @dataclasses.dataclass(frozen=True)
@@ -314,8 +339,21 @@ def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
 class {cls.__name__}:
   """{cls.__doc__}"""
 {cls_str}
-{_FLATTEN_UNFLATTEN}
+{manual_methods}{_FLATTEN_UNFLATTEN}
 ''')
+
+
+def _write_manual_method_notes(target_fpath: epath.Path):
+  """Restores method comments stripped by AST-based file rewrites."""
+  src = target_fpath.read_text()
+  for cls_name, note in _NESTED_DATACLASS_MANUAL_METHOD_NOTES.items():
+    class_start = src.index(f'class {cls_name}:')
+    method_start = src.index(
+        '    def __eq__(self, other) -> bool:\n', class_start
+    )
+    if note not in src[class_start:method_start]:
+      src = src[:method_start] + note + src[method_start:]
+  target_fpath.write_text(src)
 
 
 def _get_meta_fields(cls_name: str) -> Set[str]:
@@ -565,6 +603,7 @@ def main(argv):
   write_ndim_annotations(target_fpath)
   write_nworld_leading_dim(target_fpath)
 
+  _write_manual_method_notes(target_fpath)
   file.write_license(target_fpath)
   file.format_file(target_fpath)
 
