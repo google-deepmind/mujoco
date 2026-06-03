@@ -31,6 +31,31 @@ physics-related quantities.
 
 We also provide [Python bindings] and a plug-in for the [Unity] game engine.
 
+## Key Features
+
+MuJoCo is designed for speed, accuracy, and ease of use in advanced robotics and machine learning research. Its core capabilities include:
+
+- **Generalized Coordinates**: Highly efficient reduced-coordinate formulation for articulated bodies without joint violations.
+- **Advanced Contact Dynamics**: Continuous-time collision detection and soft constraint models for stable manipulation and locomotion.
+- **Biomechanics Support**: Built-in, physiologically accurate muscle models for biomechanical simulations.
+- **First-Class Optimization**: Deep integration with inverse dynamics, finite-difference derivatives, and optimal control workflows.
+- **High Performance**: A native C API optimized for cache coherence, vectorization, and minimal memory allocations.
+
+## Repository Structure
+
+The MuJoCo codebase is organized into several key areas to support its wide range of bindings and tools:
+
+- `src/`: The core physics engine written in highly optimized C.
+- `python/`: Official Python bindings, including utilities for environments and model manipulation.
+- `mjx/`: MuJoCo XLA, a JAX-based implementation designed for hardware acceleration (TPU/GPU) and massive parallelization.
+- `simulate/`: The native interactive 3D viewer (`simulate` binary) with a custom UI.
+- `plugin/`: Official engine plugins extending MuJoCo with custom sensors, actuators, and collision primitives.
+- `unity/`: Plug-in and C# bindings for the Unity game engine.
+- `wasm/`: WebAssembly and JavaScript support for running MuJoCo in the browser.
+- `model/`: A curated collection of standard environments and robotic models.
+- `sample/`: C/C++ code samples demonstrating how to interact with the core API.
+- `doc/`: The source files for the official Sphinx-based documentation.
+
 ## Documentation
 
 MuJoCo's documentation can be found at [mujoco.readthedocs.io]. Upcoming
@@ -104,23 +129,13 @@ We aim to release MuJoCo in the first week of each month. Our versioning
 standards changed to modified Semantic Versioning in 3.5.0,
 see [versioning](VERSIONING.md) for details.
 
-## Contributing
+## Community & Contributing
 
-We welcome community engagement: questions, requests for help, bug reports and
-feature requests. To read more about bug reports, feature requests and more
-ambitious contributions, please see our [contributors guide](CONTRIBUTING.md)
-and [style guide](STYLEGUIDE.md).
+We welcome community engagement: questions, requests for help, bug reports, and feature requests.
 
-## Asking Questions
-
-Questions and requests for help are welcome as a GitHub
-["Asking for Help" Discussion](https://github.com/google-deepmind/mujoco/discussions/categories/asking-for-help)
-and should focus on a specific problem or question.
-
-## Bug reports and feature requests
-
-GitHub [Issues](https://github.com/google-deepmind/mujoco/issues) are reserved
-for bug reports, feature requests and other development-related subjects.
+- **Asking for Help**: Questions and requests for help are welcome as a GitHub ["Asking for Help" Discussion](https://github.com/google-deepmind/mujoco/discussions/categories/asking-for-help) and should focus on a specific problem or question.
+- **Bug Reports & Feature Requests**: GitHub [Issues](https://github.com/google-deepmind/mujoco/issues) are reserved strictly for bug reports, feature requests, and development-related subjects.
+- **Code Contributions**: To read more about ambitious contributions, please see our [contributors guide](CONTRIBUTING.md) and [style guide](STYLEGUIDE.md).
 
 ## Related software
 MuJoCo is the backbone for numerous environment packages. Below we list several
