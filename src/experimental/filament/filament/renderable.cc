@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <numbers>
 #include <span>
 
@@ -39,7 +38,7 @@
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/reflection_manager.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -233,14 +232,14 @@ const mjrMaterial& Renderable::GetMaterial() const {
   return material_;
 }
 
-void Renderable::Prepare(std::span<const mjrRenderRequest*> requests) {
+void Renderable::Prepare(std::span<const mjrRenderRequest*> requests,
+                         ReflectionManager* reflection_mgr) {
   // We assume BindMaterialInstance will be called with the same requests in
   // the same order. As such, we'll just store the draw state in a deque rather
   // than trying to perform any kind of matching with the requests.
   draw_queue_.clear();
   curr_state_ = DrawState();
 
-  int num_reflections = 0;
   for (const mjrRenderRequest* request : requests) {
     DrawState draw_state;
     mjrMaterial material = material_;
@@ -266,21 +265,8 @@ void Renderable::Prepare(std::span<const mjrRenderRequest*> requests) {
                             request->enable_reflections &&
                             material.reflectance > 0.0;
     if (reflective) {
-      // Allocate a render target as needed and assign it to the material's
-      // reflection texture.
-      if (reflect_targets_.size() == num_reflections) {
-        mjrRenderTargetConfig config;
-        mjr_defaultRenderTargetConfig(&config);
-        config.color_format = mjPIXEL_FORMAT_RGBA8;
-        config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-        reflect_targets_.push_back(
-            std::make_unique<RenderTarget>(GetEngine(), config));
-      }
-      RenderTarget* target = reflect_targets_[num_reflections].get();
-      target->Prepare(request->viewport.width, request->viewport.height);
-      material.reflection_texture = target->GetColorTexture();
-      draw_state.reflection_idx = num_reflections;
-      ++num_reflections;
+      material.reflection_texture = reflection_mgr->Register(
+          this, request->viewport.width, request->viewport.height);
     }
 
     draw_state.material_key =
@@ -317,14 +303,6 @@ MaterialKey Renderable::PrepareMaterialInstance(const mjrMaterial& material,
     instances_[key] = instance;
   }
   return key;
-}
-
-RenderTarget* Renderable::GetReflectionTarget() const {
-  if (curr_state_.reflection_idx < 0) {
-    return nullptr;
-  } else {
-    return reflect_targets_[curr_state_.reflection_idx].get();
-  }
 }
 
 void Renderable::BindMaterialInstance(const mjrRenderRequest& request) {

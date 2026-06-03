@@ -38,6 +38,7 @@
 #include <math/vec4.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/reflection_manager.h"
 #include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/color_grading_options.h"
 #include "experimental/filament/filament/light.h"
@@ -121,6 +122,8 @@ static void SetupReflectionCamera(const mat4& surface_xform,
 
 SceneView::SceneView(filament::Engine* engine, const mjrSceneParams& params)
     : engine_(engine) {
+  reflection_mgr_ = std::make_unique<ReflectionManager>(engine_);
+
   scene_ = engine->createScene();
   camera_ = engine->createCamera(utils::EntityManager::get().create());
   reflect_camera_ = engine->createCamera(utils::EntityManager::get().create());
@@ -221,8 +224,10 @@ void SceneView::PrepareToRender(std::span<const mjrRenderRequest*> requests) {
       mju_error("Invalid scene for SceneView::PrepareToRender.");
     }
   }
+
+  reflection_mgr_->ClearRenderables();
   for (Renderable* renderable : renderables_) {
-    renderable->Prepare(requests);
+    renderable->Prepare(requests, reflection_mgr_.get());
   }
 }
 
@@ -257,27 +262,26 @@ void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& req
     iter->BindMaterialInstance(request);
   }
 
-  for (auto& iter : renderables_) {
-    if (RenderTarget* target = iter->GetReflectionTarget()) {
-      viewport.left = 0;
-      viewport.bottom = 0;
-      reflect_view_->setViewport(viewport);
+  for (int i = 0; i < reflection_mgr_->GetNumRenderables(); ++i) {
+    Renderable* renderable =
+        Renderable::downcast(reflection_mgr_->GetRenderable(i));
+    const mat4 transform(renderable->GetTransform());
+    SetupReflectionCamera(transform, camera_, reflect_camera_);
 
-      // We assume the 0th entity is the reflective entity.
-      mat4 transform(iter->GetTransform());
-      SetupReflectionCamera(transform, camera_, reflect_camera_);
+    // Hide reflective surface from its own reflection pass.
+    std::uint8_t previous_layer_mask = renderable->SetLayerMask(0x00);
 
-      // Hide reflective surface from its own reflection pass.
-      std::uint8_t previous_layer_mask = iter->SetLayerMask(0x00);
+    // Render the reflection to its render target.
+    viewport.left = 0;
+    viewport.bottom = 0;
+    reflect_view_->setViewport(viewport);
+    const RenderTarget* target = reflection_mgr_->GetRenderTarget(i);
+    reflect_view_->setRenderTarget(target->GetFilamentRenderTarget());
+    renderer->render(reflect_view_);
+    reflect_view_->setRenderTarget(nullptr);
 
-      // Render the reflection to its render target.
-      reflect_view_->setRenderTarget(target->GetFilamentRenderTarget());
-      renderer->render(reflect_view_);
-      reflect_view_->setRenderTarget(nullptr);
-
-      // Unhide the reflective surface.
-      iter->SetLayerMask(previous_layer_mask);
-    }
+    // Unhide the reflective surface.
+    renderable->SetLayerMask(previous_layer_mask);
   }
 
   view->setRenderTarget(render_target ? render_target->GetFilamentRenderTarget()

@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_SCENE_VIEW_H_
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_SCENE_VIEW_H_
 
+#include <memory>
 #include <span>
 #include <unordered_set>
 
@@ -27,6 +28,7 @@
 #include "experimental/filament/filament/color_grading_options.h"
 #include "experimental/filament/filament/light.h"
 #include "experimental/filament/filament/renderable.h"
+#include "experimental/filament/filament/reflection_manager.h"
 #include "experimental/filament/filament/texture.h"
 #include "experimental/filament/render_context_filament.h"
 
@@ -99,6 +101,7 @@ class SceneView : public mjrScene {
   // Custom view and camera for reflective surfaces.
   filament::View* reflect_view_ = nullptr;
   filament::Camera* reflect_camera_ = nullptr;
+  std::unique_ptr<ReflectionManager> reflection_mgr_;
 };
 }  // namespace mujoco
 

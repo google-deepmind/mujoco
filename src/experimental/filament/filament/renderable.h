@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
-#include <memory>
 #include <span>
 #include <unordered_map>
 #include <vector>
@@ -33,7 +32,7 @@
 #include "experimental/filament/filament/material.h"
 #include "experimental/filament/filament/mesh.h"
 #include "experimental/filament/filament/object_manager.h"
-#include "experimental/filament/filament/render_target.h"
+#include "experimental/filament/filament/reflection_manager.h"
 #include "experimental/filament/render_context_filament.h"
 
 namespace mujoco {
@@ -107,15 +106,11 @@ class Renderable : public mjrRenderable {
   const mjrMaterial& GetMaterial() const;
 
   // Prepares the material instances for the given render requests.
-  void Prepare(std::span<const mjrRenderRequest*> requests);
+  void Prepare(std::span<const mjrRenderRequest*> requests,
+               ReflectionManager* reflection_mgr);
 
   // Binds the material instance for the given render request.
   void BindMaterialInstance(const mjrRenderRequest& request);
-
-  // Returns the render target used for reflections, if any. The main render
-  // function will use this target to render a reflection for this renderable
-  // based on the current camera position.
-  RenderTarget* GetReflectionTarget() const;
 
   static Renderable* downcast(mjrRenderable* renderable) {
     return static_cast<Renderable*>(renderable);
@@ -147,15 +142,13 @@ class Renderable : public mjrRenderable {
   };
 
   // For each render request in a batch, we may need to render the object
-  // differently (e.g. a different reflection texture for each camera). However,
-  // we cannot change the material instance during the actual frame rendering
-  // (i.e. between beginFrame/endFrame). Instead, we can switch out the material
-  // instance entirely for each request. We keep track of which instance, as
-  // well as other render state, to use with each render request.
+  // differently. However, we cannot change the material instance during the
+  // actual frame rendering (i.e. between beginFrame/endFrame). Instead, we can
+  // switch out the material instance entirely for each request. We keep track
+  // of which instance, as well as other render state, to use with each render
+  // request.
   struct DrawState {
     MaterialKey material_key;
-    // Index to the reflection target to use, if any.
-    int reflection_idx = -1;
     bool cast_shadows = true;
     bool receive_shadows = true;
     bool wireframe = false;
@@ -180,7 +173,6 @@ class Renderable : public mjrRenderable {
   mjtGeom geom_type_ = mjGEOM_NONE;
   mjrMaterial material_;
   std::unordered_map<MaterialKey, filament::MaterialInstance*> instances_;
-  std::vector<std::unique_ptr<RenderTarget>> reflect_targets_;
   std::deque<DrawState> draw_queue_;
   DrawState curr_state_;
   filament::Scene* assigned_scene_ = nullptr;
