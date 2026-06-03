@@ -67,6 +67,7 @@ class BlockDim:
     linesearch_iterative: linesearch iterative block dimension (solver)
     contact_jac_tiled: contact Jacobian tiled block dimension (solver)
     qderiv_actuator_dense: qderiv actuator dense block dimension (derivative)
+    render: render block dimension (render)
   """
 
   # collision_driver
@@ -93,6 +94,8 @@ class BlockDim:
   contact_jac_tiled: int = 32
   # derivative
   qderiv_actuator_dense: int = 32
+  # render
+  render: int = 64
 
 
 class BroadphaseType(enum.IntEnum):
@@ -2206,6 +2209,8 @@ class RenderContext:
       mesh-ray rule. When False, the renderer reports inner-surface hits, which
       is faster but causes a camera placed inside a geom to render that geom's
       back wall.
+    geom_ray_types: tuple of GeomType int values present in the scene, used to
+      statically eliminate unused intersection branches in the ray-cast kernels.
   """
 
   nrender: int
@@ -2260,3 +2265,4 @@ class RenderContext:
   znear: float
   total_rays: int
   enable_backface_culling: bool
+  geom_ray_types: tuple = ()

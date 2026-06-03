@@ -159,8 +159,6 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
   material.color[2] = geom.rgba[2];
   material.color[3] = geom.rgba[3];
 
-  mjrf_setRenderableLayerMask(renderable, geom.category);
-
   if (geom.matid >= 0 && geom.matid < model->nmat) {
     auto get_texture = [&](int role) -> const mjrTexture* {
       const int tex_id = model->mat_texid[geom.matid * mjNTEXROLE + role];
@@ -283,6 +281,7 @@ UniquePtr<mjrRenderable> CreateGeomRenderable(
     const mjtByte render_flags[mjNRNDFLAG]) {
   mjrRenderableParams params;
   mjr_defaultRenderableParams(&params);
+  params.layer_mask = geom.category;
   auto renderable = CreateRenderable(ctx, params);
   PrepareGeomMeshes(renderable.get(), geom, model_objs);
   UpdateGeomMaterial(renderable.get(), geom, model_objs, render_flags);

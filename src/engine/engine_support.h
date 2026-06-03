@@ -58,7 +58,7 @@ MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 //-------------------------- inertia functions -----------------------------------------------------
 
 // convert sparse inertia matrix M into full matrix
-MJAPI void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
+MJAPI void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst);
 
 // multiply vector by inertia matrix
 MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);

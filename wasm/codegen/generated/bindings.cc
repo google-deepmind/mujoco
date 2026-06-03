@@ -8709,12 +8709,10 @@ void mj_forwardSkip_wrapper(const MjModel& m, MjData& d, int skipstage, int skip
   mj_forwardSkip(m.get(), d.get(), skipstage, skipsensor);
 }
 
-void mj_fullM_wrapper(const MjModel& m, const val& dst, const NumberArray& M) {
+void mj_fullM_wrapper(const MjModel& m, const MjData& d, const val& dst) {
   UNPACK_VALUE(mjtNum, dst);
-  UNPACK_ARRAY(mjtNum, M);
-  CHECK_SIZE(M, m.nM());
   CHECK_SIZE(dst, m.nv() * m.nv());
-  mj_fullM(m.get(), dst_.data(), M_.data());
+  mj_fullM(m.get(), d.get(), dst_.data());
 }
 
 void mj_fwdAcceleration_wrapper(const MjModel& m, MjData& d) {

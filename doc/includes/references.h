@@ -3320,7 +3320,7 @@ void mj_jacDot(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr,
 void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 int mj_name2id(const mjModel* m, int type, const char* name);
 const char* mj_id2name(const mjModel* m, int type, int id);
-void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
+void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst);
 void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst, int* rownnz, int* rowadr, int* colind);
@@ -3457,11 +3457,7 @@ void mjui_update(int section, int item, const mjUI* ui,
 mjuiItem* mjui_event(mjUI* ui, mjuiState* state, const mjrContext* con);
 void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con);
 void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
-void mju_error_i(const char* msg, int i);
-void mju_error_s(const char* msg, const char* text);
 void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
-void mju_warning_i(const char* msg, int i);
-void mju_warning_s(const char* msg, const char* text);
 void mju_clearHandlers(void);
 void* mju_malloc(size_t size);
 void mju_free(void* ptr);

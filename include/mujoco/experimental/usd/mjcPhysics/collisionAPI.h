@@ -323,6 +323,8 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // MARGIN
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:contactMargin and newton:contactGap instead.
+  ///
   /// Geometric inflation of the geom surface for the purpose of contact force
   /// generation.
   ///
@@ -348,6 +350,8 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // GAP
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:contactGap instead.
+  ///
   /// Additional contact detection buffer beyond margin. Contacts are detected
   /// at distance margin + gap but forces are only generated at distance margin.
   ///

@@ -50,6 +50,14 @@ function resolveScheme(url) {
 }
 
 async function prefetchModelAssets(rootUrl, onProgress) {
+  // Only prefetch when the root URL is one we know how to fetch from
+  // Javascript. Other resource-provider-backed schemes (e.g., uploaded files
+  // via the drag-and-drop path) skip the prefetcher entirely and let
+  // Module.loadUrl handle take the existing slow path.
+  if (!/^(https?:|github:)/.test(rootUrl)) {
+    return { files: 0, bytes: 0, errors: 0 };
+  }
+
   const primed = new Set();   // URLs we've already pushed into FetchCache
   const stats = { files: 0, bytes: 0, errors: 0 };
 

@@ -147,14 +147,10 @@ _SKIPPED_MEMORY_FUNCTIONS: tuple[str, ...] = (
     "mju_boxQPmalloc",
     "mju_clearHandlers",
     "mju_error",
-    "mju_error_i",
-    "mju_error_s",
     "mju_free",
     "mju_malloc",
     "mju_strncpy",
     "mju_warning",
-    "mju_warning_i",
-    "mju_warning_s",
     # go/keep-sorted end
 )
 
@@ -569,7 +565,6 @@ FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
   CHECK_SIZE(qpos2, m.nq());
     """.strip(),
     "mj_fullM": """
-  CHECK_SIZE(M, m.nM());
   CHECK_SIZE(dst, m.nv() * m.nv());
     """.strip(),
     "mj_geomDistance": """

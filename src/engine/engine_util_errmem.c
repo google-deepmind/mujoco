@@ -169,30 +169,6 @@ void mju_warning(const char* msg, ...) {
 }
 
 
-// error with int argument
-void mju_error_i(const char* msg, int i) {
-  mju_error(msg, i);
-}
-
-
-// warning with int argument
-void mju_warning_i(const char* msg, int i) {
-  mju_warning(msg, i);
-}
-
-
-// error string argument
-void mju_error_s(const char* msg, const char* text) {
-  mju_error(msg, text);
-}
-
-
-// warning string argument
-void mju_warning_s(const char* msg, const char* text) {
-  mju_warning(msg, text);
-}
-
-
 //------------------------------ malloc and free ---------------------------------------------------
 
 // allocate memory; byte-align on 64; pad size to multiple of 64

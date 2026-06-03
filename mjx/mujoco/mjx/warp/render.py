@@ -14,19 +14,17 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
-
 import dataclasses
 import functools
-
 import jax
-import warp as wp
-
 from mujoco.mjx._src import types
-import mujoco.mjx.third_party.mujoco_warp as mjwarp
-from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 from mujoco.mjx.warp import ffi
 from mujoco.mjx.warp.render_context import _MJX_RENDER_CONTEXT_BUFFERS
 from mujoco.mjx.warp.render_context import RenderContextPytree
+import mujoco.mjx.third_party.mujoco_warp as mjwarp
+from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
+import warp as wp
+
 
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
@@ -55,6 +53,7 @@ _cb = mjwp_types.Callback(
 def _render_shim(
     # Model
     nworld: int,
+    block_dim: mjwp_types.BlockDim,
     cam_fovy: wp.array2d[float],
     cam_intrinsic: wp.array2d[wp.vec4],
     cam_projection: wp.array[int],
@@ -94,6 +93,7 @@ def _render_shim(
   _m.callback = _cb
   _d.efc = _e
   _d.contact = _c
+  _m.block_dim = block_dim
   _m.cam_fovy = cam_fovy
   _m.cam_intrinsic = cam_intrinsic
   _m.cam_projection = cam_projection
@@ -164,6 +164,7 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
   )
   out = jf(
       render_ctx.nworld,
+      m._impl.block_dim,
       m.cam_fovy,
       m.cam_intrinsic,
       m._impl.cam_projection,

@@ -255,7 +255,9 @@ void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& req
 
   for (auto& iter : renderables_) {
     iter->BindMaterialInstance(request);
+  }
 
+  for (auto& iter : renderables_) {
     if (RenderTarget* target = iter->GetReflectionTarget()) {
       viewport.left = 0;
       viewport.bottom = 0;

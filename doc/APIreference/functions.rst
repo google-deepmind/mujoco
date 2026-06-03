@@ -601,14 +601,7 @@ Get name of object with the specified :ref:`mjtObj` type and id, returns ``NULL`
 
 .. mujoco-include:: mj_fullM
 
-Convert sparse inertia matrix ``M`` into full (i.e. dense) matrix.
-|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same structure as ``mjData.qM``.
-
-The ``mjData`` members ``qM`` and ``M`` represent the same matrix in different formats; the former is unique to
-MuJoCo, the latter is standard Compressed Sparse Row (lower triangle only). The :math:`L^T D L` factor of the inertia
-matrix ``mjData.qLD`` uses the same CSR format as ``mjData.M``. See
-`engine_support_test <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_support_test.cc>`__ for
-pedagogical examples.
+Convert sparse inertia matrix into full (i.e. dense) matrix.
 
 .. _mj_mulM:
 
@@ -1980,24 +1973,6 @@ Error and memory
 
 Main error function; does not return to caller.
 
-.. _mju_error_i:
-
-`mju_error_i <#mju_error_i>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_error_i
-
-Deprecated: use mju_error.
-
-.. _mju_error_s:
-
-`mju_error_s <#mju_error_s>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_error_s
-
-Deprecated: use mju_error.
-
 .. _mju_warning:
 
 `mju_warning <#mju_warning>`__
@@ -2006,24 +1981,6 @@ Deprecated: use mju_error.
 .. mujoco-include:: mju_warning
 
 Main warning function; returns to caller.
-
-.. _mju_warning_i:
-
-`mju_warning_i <#mju_warning_i>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_warning_i
-
-Deprecated: use mju_warning.
-
-.. _mju_warning_s:
-
-`mju_warning_s <#mju_warning_s>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mju_warning_s
-
-Deprecated: use mju_warning.
 
 .. _mju_clearHandlers:
 

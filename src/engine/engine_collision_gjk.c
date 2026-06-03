@@ -28,6 +28,11 @@
 #define mjMINVAL2 (mjMINVAL * mjMINVAL)
 #define mjMAXVAL2 (mjMAXVAL * mjMAXVAL)
 
+// align memory size on 8-byte boundary; needed for single precision
+static inline size_t align8(size_t size) {
+  return ((size + 7) / 8) * 8;
+}
+
 // subdistance algorithm for GJK that computes the barycentric coordinates of the point in a
 // simplex closest to the origin
 // implementation adapted from Montanari et al, ToG 2017
@@ -1533,6 +1538,9 @@ static mjtNum planeNormal(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3],
   sub3(diff1, v2, v1);
   sub3(diff2, v3, v1);
   cross3(res, diff1, diff2);
+
+  // normalize isn't needed (cancelled out), but done to avoid asymmetric rounding later on
+  mju_normalize3(res);
   return dot3(res, v1);
 }
 
@@ -2217,10 +2225,11 @@ static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) 
 
 // return size in bytes of the buffer needed for mjc_ccd for a given number of iterations
 size_t mjc_ccdSize(int iterations) {
-  return (sizeof(Face) * 6 * iterations)           // faces in polytope
-         + (sizeof(Face*) * 6 * iterations)        // map in polytope
-         + (sizeof(Vertex) * (5 + iterations))     // vertices in polytope
-         + 2 * (24 * sizeof(int));                 // horizon data
+  return align8(sizeof(Vertex) * (5 + iterations))     // vertices in polytope
+         + align8(sizeof(Face) * 6 * iterations)       // faces in polytope
+         + align8(sizeof(Face*) * 6 * iterations)      // map in polytope
+         + align8(sizeof(int) * 24)                    // horizon indices
+         + align8(sizeof(int) * 24);                   // horizon edges
 }
 
 
@@ -2313,13 +2322,13 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     pt.maxfaces = 6 * N;
     uint8_t* buffer = config->buffer;
     pt.verts = (Vertex*)buffer;
-    buffer += sizeof(Vertex) * (5 + N);
+    buffer += align8(sizeof(Vertex) * (5 + N));
     pt.faces = (Face*)buffer;
-    buffer += sizeof(Face) * (6 * N);
+    buffer += align8(sizeof(Face) * (6 * N));
     pt.map = (Face**)buffer;
-    buffer += sizeof(Face*) * (6 * N);
+    buffer += align8(sizeof(Face*) * (6 * N));
     pt.horizon.indices = (int*)buffer;
-    buffer += sizeof(int) * 24;
+    buffer += align8(sizeof(int) * 24);
     pt.horizon.edges = (int*)buffer;
 
     int ret;

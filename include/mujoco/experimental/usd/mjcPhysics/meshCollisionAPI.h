@@ -179,6 +179,8 @@ class MjcPhysicsMeshCollisionAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // MAXHULLVERT
   // --------------------------------------------------------------------- //
+  /// DEPRECATED: Use newton:maxHullVertices instead.
+  ///
   /// Sets an upper limit on the number of vertices in the meshes convex hull.
   /// The default value of -1 means unlimited.
   ///
