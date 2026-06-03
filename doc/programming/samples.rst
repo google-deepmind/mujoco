@@ -93,7 +93,8 @@ Interaction is done with the mouse; built-in help with a summary of available co
 ``F1`` key. Briefly, an object is selected by left-double-click. The user can then apply forces and torques on the
 selected object by holding Ctrl and dragging the mouse. Dragging the mouse alone (without Ctrl) moves the camera. There
 are keyboard shortcuts for pausing the simulation, resetting, and re-loading the model file. The latter functionality is
-very useful while editing the model in an XML editor.
+very useful while editing the model in an XML editor. For a full reference of keyboard shortcuts and mouse controls, see
+:ref:`Simulate keyboard shortcuts <saSimulateShortcuts>`.
 
 The code is long yet reasonably commented, so it is best to just read it. Here we provide a high-level overview.
 The ``main()`` function initializes both MuJoCo and GLFW, opens a window, and install GLFW callbacks for mouse and
