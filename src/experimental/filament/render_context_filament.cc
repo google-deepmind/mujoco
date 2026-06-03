@@ -245,6 +245,11 @@ void mjrf_setRenderableMaterial(mjrRenderable* renderable,
   mujoco::Renderable::downcast(renderable)->UpdateMaterial(*material);
 }
 
+void mjrf_getRenderableMaterial(mjrRenderable* renderable,
+                                mjrMaterial* material) {
+  *material = mujoco::Renderable::downcast(renderable)->GetMaterial();
+}
+
 void mjrf_setRenderableTransform(mjrRenderable* renderable,
                                  const float position[3],
                                  const float rotation[9]) {
@@ -259,21 +264,6 @@ void mjrf_setRenderableTransform(mjrRenderable* renderable,
 void mjrf_setRenderableSize(mjrRenderable* renderable, const float size[3]) {
   const filament::math::float3 fsize{size[0], size[1], size[2]};
   mujoco::Renderable::downcast(renderable)->SetSize(fsize);
-}
-
-void mjrf_setRenderableLayerMask(mjrRenderable* renderable,
-                                 uint8_t layer_mask) {
-  mujoco::Renderable::downcast(renderable)->SetLayerMask(layer_mask);
-}
-
-void mjrf_setRenderableCastShadows(mjrRenderable* renderable,
-                                   mjtByte cast_shadows) {
-  mujoco::Renderable::downcast(renderable)->SetCastShadows(cast_shadows);
-}
-
-void mjrf_setRenderableReceiveShadows(mjrRenderable* renderable,
-                                      mjtByte receive_shadows) {
-  mujoco::Renderable::downcast(renderable)->SetReceiveShadows(receive_shadows);
 }
 
 void mjrf_addLightToScene(mjrScene* scene, mjrLight* light) {
