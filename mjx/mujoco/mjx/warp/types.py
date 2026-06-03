@@ -15,17 +15,14 @@
 """MJX Warp types.
 DO NOT EDIT. This file is auto-generated.
 """
-
 import dataclasses
 import typing
 from typing import Tuple
-
 import jax
 from jax import tree_util
 from jax.interpreters import batching
-import numpy as np
-
 from mujoco.mjx._src import dataclasses as mjx_dataclasses
+import numpy as np
 
 if typing.TYPE_CHECKING:
   GraphMode = int
@@ -37,7 +34,6 @@ if typing.TYPE_CHECKING:
 else:
   try:
     from warp._src.jax_experimental.ffi import GraphMode
-
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 
     Callback = mjwp_types.Callback
@@ -45,7 +41,6 @@ else:
     GraphMode = int
     Callback = None
 PyTreeNode = mjx_dataclasses.PyTreeNode
-
 
 @dataclasses.dataclass(frozen=True)
 @tree_util.register_pytree_node_class
@@ -58,7 +53,6 @@ class TileSet:
     adr: address of each tile in the set
     size: size of all the tiles in this set
   """
-
   adr: np.ndarray
   size: int
 
@@ -101,8 +95,8 @@ class BlockDim:
     linesearch_iterative: linesearch iterative block dimension (solver)
     contact_jac_tiled: contact Jacobian tiled block dimension (solver)
     qderiv_actuator_dense: qderiv actuator dense block dimension (derivative)
+    render: render block dimension (render)
   """
-
   actuator_velocity: int
   cholesky_factorize: int
   cholesky_factorize_solve: int
@@ -114,6 +108,7 @@ class BlockDim:
   linesearch_iterative: int
   qderiv_actuator_dense: int
   ray: int
+  render: int
   segmented_sort: int
   solve_LD_sparse_fused: int
   update_gradient_JTDAJ_dense: int
@@ -133,13 +128,10 @@ class BlockDim:
 
 class StatisticWarp(PyTreeNode):
   """Derived fields from Statistic."""
-
   meaninertia: jax.Array
-
 
 class OptionWarp(PyTreeNode):
   """Derived fields from Option."""
-
   broadphase: int
   broadphase_filter: int
   ccd_iterations: int
@@ -153,7 +145,6 @@ class OptionWarp(PyTreeNode):
   run_collision_detection: bool
   sdf_initpoints: int
   sdf_iterations: int
-
 
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
@@ -336,7 +327,6 @@ class ModelWarp(PyTreeNode):
   wrap_site_adr: np.ndarray
   wrap_site_pair_adr: np.ndarray
 
-
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
   M: jax.Array
@@ -448,8 +438,6 @@ class DataWarp(PyTreeNode):
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   shape = property(lambda self: self.cacc.shape)
-
-
 DATA_NON_VMAP = {
     'contact__dim',
     'contact__dist',
@@ -477,7 +465,6 @@ DATA_NON_VMAP = {
     'njmax_pad',
     'nworld',
 }
-
 
 def _to_elt(cont, _, d, axis):
   return DataWarp(**{
@@ -712,6 +699,7 @@ _NDIM = {
         'block_dim__linesearch_iterative': 0,
         'block_dim__qderiv_actuator_dense': 0,
         'block_dim__ray': 0,
+        'block_dim__render': 0,
         'block_dim__segmented_sort': 0,
         'block_dim__solve_LD_sparse_fused': 0,
         'block_dim__update_gradient_JTDAJ_dense': 0,
@@ -1347,6 +1335,7 @@ _BATCH_DIM = {
         'block_dim__linesearch_iterative': False,
         'block_dim__qderiv_actuator_dense': False,
         'block_dim__ray': False,
+        'block_dim__render': False,
         'block_dim__segmented_sort': False,
         'block_dim__solve_LD_sparse_fused': False,
         'block_dim__update_gradient_JTDAJ_dense': False,

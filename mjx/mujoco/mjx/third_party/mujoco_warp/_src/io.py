@@ -3058,11 +3058,11 @@ def create_render_context(
 
   # Locate skybox texture
   skybox_tex_ids = np.nonzero(mjm.tex_type == mujoco.mjtTexture.mjTEXTURE_SKYBOX)[0] if mjm.ntex else np.array([], dtype=int)
-  if render_skybox:
-    assert skybox_tex_ids.size > 0, "render_skybox=True but the model has no texture with type mjTEXTURE_SKYBOX"
+  if render_skybox and skybox_tex_ids.size > 0:
     skybox_tex_id = int(skybox_tex_ids[0])
     skybox_face_width = int(mjm.tex_width[skybox_tex_id])
   else:
+    render_skybox = False
     skybox_tex_id = -1
     skybox_face_width = 1
 
@@ -3157,6 +3157,13 @@ def create_render_context(
 
   bvh_ngeom = len(geom_enabled_idx)
 
+  # Geom types present among enabled geoms, plus FLEX when flex primitives exist.
+  # Used to statically eliminate unused intersection branches in the ray-cast kernels.
+  geom_ray_types = set(int(t) for t in mjm.geom_type[geom_enabled_idx])
+  if len(flex_geom_flexid) > 0:
+    geom_ray_types.add(int(types.GeomType.FLEX))
+  geom_ray_types = tuple(sorted(geom_ray_types))
+
   rc = types.RenderContext(
     nrender=ncam,
     cam_res=cam_res_arr,
@@ -3210,6 +3217,7 @@ def create_render_context(
     znear=znear,
     total_rays=int(total),
     enable_backface_culling=enable_backface_culling,
+    geom_ray_types=geom_ray_types,
   )
 
   bvh.build_scene_bvh(mjm, mjd, rc, nworld)

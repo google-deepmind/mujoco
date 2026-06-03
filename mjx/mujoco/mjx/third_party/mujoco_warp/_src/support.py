@@ -1012,7 +1012,7 @@ def get_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
         elif element == State.EQ_ACTIVE:
           for j in range(neq):
             state_out[worldid, adr + j] = float(eq_active_in[worldid, j])
-          adr += j
+          adr += neq
         elif element == State.MOCAP_POS:
           for j in range(nmocap):
             pos = mocap_pos_in[worldid, j]
@@ -1160,12 +1160,12 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
         elif element == State.EQ_ACTIVE:
           for j in range(neq):
             eq_active_out[worldid, j] = bool(state_in[worldid, adr + j])
-          adr += j
+          adr += neq
         elif element == State.MOCAP_POS:
           for j in range(nmocap):
             pos = wp.vec3(
-              state_in[worldid, adr + 1],
               state_in[worldid, adr + 0],
+              state_in[worldid, adr + 1],
               state_in[worldid, adr + 2],
             )
             mocap_pos_out[worldid, j] = pos
