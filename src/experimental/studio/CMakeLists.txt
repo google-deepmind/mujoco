@@ -120,8 +120,9 @@ if(EMSCRIPTEN)
         -sASYNCIFY=1
         -sFETCH=1
         -sGL_PREINITIALIZED_CONTEXT=1
-        -sSTACK_SIZE=512mb
+        -sSTACK_SIZE=32mb
         -sINITIAL_MEMORY=1024mb
+        -sMAXIMUM_MEMORY=4gb
         -sASSERTIONS=1
         -fexceptions
         -g
