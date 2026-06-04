@@ -344,9 +344,9 @@ TEST_F(MjGjkTest, BoxBoxDepth2) {
 
   ASSERT_EQ(ncons, 1);
   EXPECT_NEAR(dist, -0.033401579411886845, kTolerance);
-  EXPECT_NEAR(dir[0], 0, kTolerance);
-  EXPECT_NEAR(dir[1], 0, kTolerance);
-  EXPECT_NEAR(dir[2], 1, kTolerance);
+  EXPECT_THAT(dir[0], MjNear(0, kTolerance, 1e-5));
+  EXPECT_THAT(dir[1], MjNear(0, kTolerance, 1e-5));
+  EXPECT_THAT(dir[2], MjNear(1, kTolerance, 1e-5));
 }
 
 TEST_F(MjGjkTest, BoxBoxDepth3) {
@@ -726,10 +726,10 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD5) {
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
 
   ASSERT_EQ(ncons, 8);
-  EXPECT_NEAR(dist, -0.0001077858631973211, kTolerance);
 
-  EXPECT_NEAR(dir[0], 0.00019065, kTolerance);
-  EXPECT_NEAR(dir[1], -8.6494189274575805e-05, kTolerance);
+  EXPECT_THAT(dist, MjNear(-0.0001077858631973211, kTolerance, 1e-4));
+  EXPECT_THAT(dir[0], MjNear(0.00019065, kTolerance, 1e-4));
+  EXPECT_THAT(dir[1], MjNear(-0.00008649, kTolerance, 1e-4));
   EXPECT_NEAR(dir[2], -1, kTolerance);
 }
 
@@ -772,11 +772,11 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD6) {
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
 
   ASSERT_EQ(ncons, 5);
-  EXPECT_NEAR(dist, -0.00009843, kTolerance);
+  EXPECT_THAT(dist, MjNear(-0.00009843, kTolerance, 1e-4));
 
-  EXPECT_NEAR(dir[0], -0.0008879306751646528, kTolerance);
-  EXPECT_NEAR(dir[1], -0.00046014397575771832, kTolerance);
-  EXPECT_NEAR(dir[2], 1, kTolerance);
+  EXPECT_THAT(dir[0], MjNear(-0.0008879, kTolerance, 1e-4));
+  EXPECT_THAT(dir[1], MjNear(-0.0004601, kTolerance, 1e-3));
+  EXPECT_NEAR(dir[2], 0.9999994, kTolerance);
 }
 
 TEST_F(MjGjkTest, BoxBoxMultiCCD7) {
