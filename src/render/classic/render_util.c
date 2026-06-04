@@ -191,7 +191,7 @@ void mjr_perspective(float fovy, float aspect, float znear, float zfar) {
   h = tan((double)fovy / 360.0 * mjPI) * (double)znear;
   w = h * (double)aspect;
 
-  // make symmetric frustrum
+  // make symmetric frustum
   glFrustum(-w, w, -h, h, (double)znear, (double)zfar);
 }
 

@@ -7,7 +7,7 @@
 
   <statistic extent="1"/>
 
-  <!-- switch the integrator to "implicit" for better gyroscopic stabillity -->
+  <!-- switch the integrator to "implicit" for better gyroscopic stability -->
   <option timestep="0.01" integrator="implicitfast"/>
 
   <worldbody>
