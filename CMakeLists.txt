@@ -98,7 +98,11 @@ if(EMSCRIPTEN)
   endif()
 endif()
 
-if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
+if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE OR MUJOCO_USE_FILAMENT))
+  # NOTE: OBJC* languages are proactively enabled when using Filament to
+  # workaround a CMake bug triggered by Filament recently adding:
+  #   set(EXTRA_LANGS OBJC OBJCXX)
+  # See also: https://gitlab.kitware.com/cmake/cmake/-/work_items/24104
   enable_language(OBJC)
   enable_language(OBJCXX)
 endif()
