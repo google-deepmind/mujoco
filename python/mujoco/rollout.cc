@@ -172,15 +172,7 @@ void _unsafe_rollout(std::vector<const mjModel*>& m, mjData* d, int start_roll,
         if (raise_on_error) {
           throw;
         }
-        // Write this step before continuing to the fill path.
-        if (state) {
-          mj_getState(m[r], d, state + step*nstate, mjSTATE_FULLPHYSICS);
-        }
-        if (sensordata) {
-          mju_copy(sensordata + step*nsensordata, d->sensordata, nsensordata);
-        }
         nerror = true;
-        continue;
       }
 
       // copy out new state
