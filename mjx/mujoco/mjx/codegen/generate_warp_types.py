@@ -312,15 +312,6 @@ _NESTED_DATACLASS_MANUAL_METHODS = {
 """,
 }
 
-_NESTED_DATACLASS_MANUAL_METHOD_NOTES = {
-    'TileSet': (
-        '    # Manually kept in this generated shim until TileSet method '
-        'generation is\n'
-        '    # needed more broadly. Keep this in sync with '
-        'mujoco_warp._src.types.TileSet.\n'
-    ),
-}
-
 
 def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
   new_class_body = _build_new_class_body_ast(
@@ -341,19 +332,6 @@ class {cls.__name__}:
 {cls_str}
 {manual_methods}{_FLATTEN_UNFLATTEN}
 ''')
-
-
-def _write_manual_method_notes(target_fpath: epath.Path):
-  """Restores method comments stripped by AST-based file rewrites."""
-  src = target_fpath.read_text()
-  for cls_name, note in _NESTED_DATACLASS_MANUAL_METHOD_NOTES.items():
-    class_start = src.index(f'class {cls_name}:')
-    method_start = src.index(
-        '    def __eq__(self, other) -> bool:\n', class_start
-    )
-    if note not in src[class_start:method_start]:
-      src = src[:method_start] + note + src[method_start:]
-  target_fpath.write_text(src)
 
 
 def _get_meta_fields(cls_name: str) -> Set[str]:
@@ -603,7 +581,6 @@ def main(argv):
   write_ndim_annotations(target_fpath)
   write_nworld_leading_dim(target_fpath)
 
-  _write_manual_method_notes(target_fpath)
   file.write_license(target_fpath)
   file.format_file(target_fpath)
 
