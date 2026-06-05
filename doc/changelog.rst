@@ -39,6 +39,9 @@ General
 Bug fixes
 ^^^^^^^^^
 - Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
+- Fixed Python ``MjsActuator.set_to_muscle`` ignoring the ``timeconst`` and ``range`` arguments. The pybind11 lambda
+  declared these as bare C arrays (``double[2]``) which decayed to pointers; they now use ``std::array<double, 2>``
+  consistent with the other array-valued setters (:issue:`3282`).
 
 Version 3.9.0 (May 27, 2026)
 ----------------------------
