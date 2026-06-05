@@ -346,6 +346,7 @@ def _island_map_dofs(
   island_idofadr_in: wp.array2d[int],
   nidof_in: wp.array[int],
   island_nv_inout: wp.array2d[int],
+  island_dofadr_out: wp.array2d[int],
   map_dof2idof_out: wp.array2d[int],
   map_idof2dof_out: wp.array2d[int],
   idof_islandid_out: wp.array2d[int],
@@ -360,6 +361,7 @@ def _island_map_dofs(
     local_idx = wp.atomic_add(island_nv_inout, worldid, island_id, 1)
     idof = island_idofadr_in[worldid, island_id] + local_idx
     idof_islandid_out[worldid, idof] = island_id
+    wp.atomic_min(island_dofadr_out, worldid, island_id, dofid)
   else:
     cnt = wp.atomic_add(unconstrained_cnt_inout, worldid, 0, 1)
     idof = nidof + cnt
@@ -804,7 +806,7 @@ def compute_island_mapping(m: types.Model, d: types.Data, ctx: IslandSolverConte
   Populates island solver context arrays via ctx: nv, nefc, ne, nf,
   iefcadr, nidof, map_dof2idof, map_idof2dof, dof_islandid, map_efc2iefc,
   map_iefc2efc, efc_islandid. Also populates d.dof_island, d.efc.island,
-  and d.island_dofadr.
+  d.island_idofadr, and d.island_dofadr.
 
   Args:
     m: Model.
@@ -816,6 +818,8 @@ def compute_island_mapping(m: types.Model, d: types.Data, ctx: IslandSolverConte
     d.dof_islandid = wp.empty((d.nworld, m.nv), dtype=int)
   if d.efc_islandid.shape[1] != d.njmax:
     d.efc_islandid = wp.empty((d.nworld, d.njmax), dtype=int)
+  if d.island_idofadr.shape[1] != m.ntree:
+    d.island_idofadr = wp.empty((d.nworld, m.ntree), dtype=int)
 
   # Ensure island-local DOF arrays are allocated at the right shape
   if d.iqacc.shape[1] != m.nv:
@@ -829,7 +833,7 @@ def compute_island_mapping(m: types.Model, d: types.Data, ctx: IslandSolverConte
     dim=(d.nworld, m.ntree),
     inputs=[],
     outputs=[
-      d.island_dofadr,
+      d.island_idofadr,
       d.island_nv,
       d.island_nefc,
       d.island_ne,
@@ -901,16 +905,17 @@ def compute_island_mapping(m: types.Model, d: types.Data, ctx: IslandSolverConte
     _island_scan_sizes,
     dim=d.nworld,
     inputs=[d.nisland],
-    outputs=[d.island_dofadr, d.island_nv, d.island_nefc, d.island_efcadr, d.nidof],
+    outputs=[d.island_idofadr, d.island_nv, d.island_nefc, d.island_efcadr, d.nidof],
   )
 
   # 4. Map DOFs
   unconstrained_cnt = wp.zeros((d.nworld, 1), dtype=int)
+  d.island_dofadr.fill_(m.nv)
   wp.launch(
     _island_map_dofs,
     dim=(d.nworld, m.nv),
-    inputs=[m.nv, d.dof_island, d.island_dofadr, d.nidof],
-    outputs=[d.island_nv, d.map_dof2idof, d.map_idof2dof, d.dof_islandid, unconstrained_cnt],
+    inputs=[m.nv, d.dof_island, d.island_idofadr, d.nidof],
+    outputs=[d.island_nv, d.island_dofadr, d.map_dof2idof, d.map_idof2dof, d.dof_islandid, unconstrained_cnt],
   )
 
   # 5. Map Constraints

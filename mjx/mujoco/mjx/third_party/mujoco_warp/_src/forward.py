@@ -25,6 +25,7 @@ from mujoco.mjx.third_party.mujoco_warp._src import island
 from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import passive
 from mujoco.mjx.third_party.mujoco_warp._src import sensor
+from mujoco.mjx.third_party.mujoco_warp._src import sleep
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import solver
 from mujoco.mjx.third_party.mujoco_warp._src import types
@@ -328,6 +329,11 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
   )
 
   wp.copy(d.qacc_warmstart, d.qacc)
+
+  if not (m.opt.disableflags & DisableBit.ISLAND) and (m.opt.enableflags & EnableBit.SLEEP):
+    sleep.sleep(m, d)
+    fwd_velocity(m, d)
+    sleep.update_sleep(m, d)
 
 
 @wp.kernel
@@ -658,13 +664,37 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
   smooth.camlight(m, d)
   smooth.flex(m, d)
   smooth.tendon(m, d)
+
+  sleep_enabled = not (m.opt.disableflags & DisableBit.ISLAND) and (m.opt.enableflags & EnableBit.SLEEP)
+
+  if sleep_enabled and m.ntendon > 0:
+    sleep.wake_tendon(m, d)
+    sleep.update_sleep_trees(m, d)
+
   smooth.crb(m, d)
   smooth.tendon_armature(m, d)
   if factorize:
     smooth.factor_m(m, d)
   if m.opt.run_collision_detection:
-    collision_driver.collision(m, d)
+    if sleep_enabled:
+      # pass 1
+      collision_driver.collision(m, d)
+      # check for newly awake
+      skip = wp.zeros(1, dtype=int)
+      sleep.wake_collision(m, d, skip)
+      sleep.update_sleep(m, d)
+      # pass 2: broadphase kernels early-return if skip[0] is 0
+      collision_driver.collision(m, d, skip)
+    else:
+      collision_driver.collision(m, d)
+
   constraint.make_constraint(m, d)
+
+  if sleep_enabled:
+    if m.neq > 0:
+      sleep.wake_equality(m, d)
+    sleep.update_sleep(m, d)
+
   if m.ntree > 1 and not (m.opt.disableflags & types.DisableBit.ISLAND):
     island.island(m, d)
   smooth.transmission(m, d)
@@ -1242,23 +1272,39 @@ def fwd_actuation(m: Model, d: Data):
   )
 
 
-@wp.kernel
-def _qfrc_smooth(
-  # Data in:
-  qfrc_applied_in: wp.array2d[float],
-  qfrc_bias_in: wp.array2d[float],
-  qfrc_passive_in: wp.array2d[float],
-  qfrc_actuator_in: wp.array2d[float],
-  # Data out:
-  qfrc_smooth_out: wp.array2d[float],
-):
-  worldid, dofid = wp.tid()
-  qfrc_smooth_out[worldid, dofid] = (
-    qfrc_passive_in[worldid, dofid]
-    - qfrc_bias_in[worldid, dofid]
-    + qfrc_actuator_in[worldid, dofid]
-    + qfrc_applied_in[worldid, dofid]
-  )
+@cache_kernel
+def _qfrc_smooth(enable_sleep: bool):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    body_treeid: wp.array[int],
+    dof_bodyid: wp.array[int],
+    # Data in:
+    qfrc_applied_in: wp.array2d[float],
+    tree_awake_in: wp.array2d[int],
+    qfrc_bias_in: wp.array2d[float],
+    qfrc_passive_in: wp.array2d[float],
+    qfrc_actuator_in: wp.array2d[float],
+    # Data out:
+    qfrc_smooth_out: wp.array2d[float],
+  ):
+    worldid, dofid = wp.tid()
+
+    if wp.static(enable_sleep):
+      bodyid = dof_bodyid[dofid]
+      tree = body_treeid[bodyid]
+      if tree >= 0 and tree_awake_in[worldid, tree] == 0:
+        qfrc_smooth_out[worldid, dofid] = 0.0
+        return
+
+    qfrc_smooth_out[worldid, dofid] = (
+      qfrc_passive_in[worldid, dofid]
+      - qfrc_bias_in[worldid, dofid]
+      + qfrc_actuator_in[worldid, dofid]
+      + qfrc_applied_in[worldid, dofid]
+    )
+
+  return kernel
 
 
 @event_scope
@@ -1270,10 +1316,19 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
     d: The data object containing the current state and output arrays.
     factorize: Flag to factorize inertia matrix.
   """
+  enable_sleep = bool(m.opt.enableflags & EnableBit.SLEEP)
   wp.launch(
-    _qfrc_smooth,
+    _qfrc_smooth(enable_sleep),
     dim=(d.nworld, m.nv),
-    inputs=[d.qfrc_applied, d.qfrc_bias, d.qfrc_passive, d.qfrc_actuator],
+    inputs=[
+      m.body_treeid,
+      m.dof_bodyid,
+      d.qfrc_applied,
+      d.tree_awake,
+      d.qfrc_bias,
+      d.qfrc_passive,
+      d.qfrc_actuator,
+    ],
     outputs=[d.qfrc_smooth],
   )
   xfrc_accumulate(m, d, d.qfrc_smooth)
@@ -1287,6 +1342,10 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
 @event_scope
 def forward(m: Model, d: Data):
   """Forward dynamics."""
+  if not (m.opt.disableflags & DisableBit.ISLAND) and (m.opt.enableflags & EnableBit.SLEEP):
+    sleep.wake(m, d)
+    sleep.update_sleep(m, d)
+
   energy = m.opt.enableflags & EnableBit.ENERGY
 
   fwd_position(m, d, factorize=False)

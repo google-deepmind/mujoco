@@ -67,9 +67,18 @@ def _render_shim(
     geom_size: wp.array2d[wp.vec3],
     geom_type: wp.array[int],
     light_active: wp.array2d[bool],
+    light_ambient: wp.array2d[wp.vec3],
+    light_attenuation: wp.array2d[wp.vec3],
     light_castshadow: wp.array2d[bool],
+    light_cutoff: wp.array2d[float],
+    light_diffuse: wp.array2d[wp.vec3],
+    light_exponent: wp.array2d[float],
+    light_specular: wp.array2d[wp.vec3],
     light_type: wp.array2d[int],
+    mat_emission: wp.array2d[float],
     mat_rgba: wp.array2d[wp.vec4],
+    mat_shininess: wp.array2d[float],
+    mat_specular: wp.array2d[float],
     mat_texid: wp.array3d[int],
     mat_texrepeat: wp.array2d[wp.vec2],
     mesh_faceadr: wp.array[int],
@@ -107,9 +116,18 @@ def _render_shim(
   _m.geom_size = geom_size
   _m.geom_type = geom_type
   _m.light_active = light_active
+  _m.light_ambient = light_ambient
+  _m.light_attenuation = light_attenuation
   _m.light_castshadow = light_castshadow
+  _m.light_cutoff = light_cutoff
+  _m.light_diffuse = light_diffuse
+  _m.light_exponent = light_exponent
+  _m.light_specular = light_specular
   _m.light_type = light_type
+  _m.mat_emission = mat_emission
   _m.mat_rgba = mat_rgba
+  _m.mat_shininess = mat_shininess
+  _m.mat_specular = mat_specular
   _m.mat_texid = mat_texid
   _m.mat_texrepeat = mat_texrepeat
   _m.mesh_faceadr = mesh_faceadr
@@ -154,6 +172,7 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
           'geom_xpos',
           'light_active',
           'light_castshadow',
+          'light_cutoff',
           'light_type',
           'mat_rgba',
           'mat_texid',
@@ -178,9 +197,18 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
       m.geom_size,
       m.geom_type,
       m.light_active,
+      m._impl.light_ambient,
+      m._impl.light_attenuation,
       m.light_castshadow,
+      m.light_cutoff,
+      m._impl.light_diffuse,
+      m._impl.light_exponent,
+      m._impl.light_specular,
       m.light_type,
+      m._impl.mat_emission,
       m.mat_rgba,
+      m._impl.mat_shininess,
+      m._impl.mat_specular,
       m.mat_texid,
       m._impl.mat_texrepeat,
       m.mesh_faceadr,
