@@ -29,6 +29,7 @@
 #include <mujoco/mjspec.h>
 #include "src/xml/xml_api.h"
 #include "src/xml/xml_numeric_format.h"
+#include "test/compare_model.h"
 #include "test/fixture.h"
 
 namespace mujoco {

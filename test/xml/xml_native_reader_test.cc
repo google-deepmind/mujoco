@@ -30,6 +30,7 @@
 #include "src/cc/array_safety.h"
 #include "src/engine/engine_util_errmem.h"
 #include "src/xml/xml_api.h"
+#include "test/compare_model.h"
 #include "test/fixture.h"
 
 namespace mujoco {

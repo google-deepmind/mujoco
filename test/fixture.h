@@ -182,9 +182,6 @@ std::string SaveAndReadXml(const mjSpec* spec);
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
                                  mjtNum ctrlnoise = 0.01);
 
-// Compares all fields of two mjModels.
-// Returns the name of the different field and the max difference.
-mjtNum CompareModel(const mjModel* m1, const mjModel* m2, std::string& field);
 
 // Returns a vector containing the elements of the array.
 template <typename T>

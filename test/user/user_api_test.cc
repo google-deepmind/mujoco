@@ -31,6 +31,7 @@
 #include <mujoco/mjspec.h>
 #include <mujoco/mjplugin.h>
 #include "src/xml/xml_api.h"
+#include "test/compare_model.h"
 #include "test/fixture.h"
 
 namespace mujoco {
