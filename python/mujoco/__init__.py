@@ -161,6 +161,25 @@ def from_zip(file: Union[str, IO[bytes]]) -> _specs.MjSpec:
   return _specs.MjSpec.from_string(xml_string, assets=assets)
 
 
+def _accumulate_bind_item(items: list, value: Any) -> None:
+  """Adds a per-element attribute value to a batched bind result.
+
+  Scalar-valued attributes (e.g. ``qposadr`` for a hinge joint) are flattened
+  into ``items`` to preserve the historical dm_control-compatible layout. Array-
+  valued attributes (e.g. ``geom.size``) are kept as a leading batch dimension
+  so that a length-1 slice does not silently squeeze it away.
+  """
+  size = getattr(value, 'size', None)
+  if size is None or size == 1:
+    try:
+      items.extend(value)
+      return
+    except TypeError:
+      items.append(value)
+      return
+  items.append(value)
+
+
 class _MjBindModel:
   """Wrapper for MjModel that allows binding multiple specs."""
 
@@ -170,7 +189,7 @@ class _MjBindModel:
   def __getattr__(self, key: str):
     items = []
     for e in self.elements:
-      items.extend(getattr(e, key))
+      _accumulate_bind_item(items, getattr(e, key))
     return items
 
   def __setattr__(self, key: str, value: Any):
@@ -186,7 +205,7 @@ class _MjBindData:
   def __getattr__(self, key: str):
     items = []
     for e in self.elements:
-      items.extend(getattr(e, key))
+      _accumulate_bind_item(items, getattr(e, key))
     return items
 
   def __setattr__(self, key: str, value: Any):
