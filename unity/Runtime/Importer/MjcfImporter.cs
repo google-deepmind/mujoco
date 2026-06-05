@@ -28,7 +28,7 @@ public class MjcfImporter {
   public static Material DefaultMujocoMaterial {
     get {
       if (_DefaultMujocoMaterial == null) {
-        _DefaultMujocoMaterial = new Material(Shader.Find("Standard"));
+        _DefaultMujocoMaterial = new Material(GetCompatibleShader());
       }
 
       return _DefaultMujocoMaterial;
@@ -36,6 +36,32 @@ public class MjcfImporter {
     set {
       _DefaultMujocoMaterial = value;
     }
+  }
+
+  // Detects the active render pipeline and returns a compatible shader.
+  private static Shader GetCompatibleShader() {
+    var currentPipeline = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
+    if (currentPipeline != null) {
+      var pipelineType = currentPipeline.GetType().ToString();
+      // Check for URP
+      if (pipelineType.Contains("UniversalRenderPipelineAsset") ||
+          pipelineType.Contains("Universal")) {
+        var urpShader = Shader.Find("Universal Render Pipeline/Lit");
+        if (urpShader != null) {
+          return urpShader;
+        }
+      }
+      // Check for HDRP
+      if (pipelineType.Contains("HDRenderPipelineAsset") ||
+          pipelineType.Contains("HighDefinition")) {
+        var hdrpShader = Shader.Find("HDRP/Lit");
+        if (hdrpShader != null) {
+          return hdrpShader;
+        }
+      }
+    }
+    // Fall back to Standard shader for built-in pipeline
+    return Shader.Find("Standard");
   }
 
   // Modifiers that change the settings of parsed nodes. They're limited to the scope of ParseRoot
