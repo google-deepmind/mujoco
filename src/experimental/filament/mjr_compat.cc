@@ -58,7 +58,7 @@ class CompatContext {
   }
 
  private:
-  mjrDrawMode draw_mode_ = mjDRAW_MODE_COLOR;
+  mjrDrawMode draw_mode_ = mjDRAW_MODE_DEFAULT;
   UniquePtr<mjrfContext> context_;
   std::unique_ptr<SceneBridge> scene_bridge_;
   mjtFramebuffer framebuffer_ = mjFB_WINDOW;
@@ -74,13 +74,17 @@ void CompatContext::Render(const mjrRect& viewport, const mjvScene* scene) {
   scene_bridge_->Update(viewport, scene);
 
   if (scene->flags[mjRND_SEGMENT]) {
-    draw_mode_ = mjDRAW_MODE_SEGMENTATION;
+    if (scene->flags[mjRND_IDCOLOR]) {
+      draw_mode_ = mjDRAW_MODE_SEGMENTATION_BY_ID;
+    } else {
+      draw_mode_ = mjDRAW_MODE_SEGMENTATION_BY_COLOR;
+    }
   } else if (scene->flags[mjRND_DEPTH]) {
     draw_mode_ = mjDRAW_MODE_DEPTH;
   } else if (scene->flags[mjRND_WIREFRAME]) {
     draw_mode_ = mjDRAW_MODE_WIREFRAME;
   } else {
-    draw_mode_ = mjDRAW_MODE_COLOR;
+    draw_mode_ = mjDRAW_MODE_DEFAULT;
   }
 
   if (framebuffer_ == mjFB_WINDOW) {

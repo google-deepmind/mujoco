@@ -127,15 +127,16 @@ void mjrf_destroyContext(mjrfContext* ctx);
 
 // Describes the look/intention of the final rendered image.
 typedef enum mjrDrawMode_ {
-  // Render the scene with "normal" colors and lighting.
-  mjDRAW_MODE_COLOR,
+  // Render the scene with default settings for colors and lighting (shading).
+  mjDRAW_MODE_DEFAULT,
   // Render the scene as a wireframe.
   mjDRAW_MODE_WIREFRAME,
   // Render the scene as a grayscale depth map.
   mjDRAW_MODE_DEPTH,
-  // Render each object with a unique, uniform (flat) color regardless of
-  // lighting and texture.
-  mjDRAW_MODE_SEGMENTATION,
+  // Render each object using its segmentation id (see mjrMaterial).
+  mjDRAW_MODE_SEGMENTATION_BY_ID,
+  // Render each object with a unique color based on its segmentation id.
+  mjDRAW_MODE_SEGMENTATION_BY_COLOR,
 } mjrDrawMode;
 
 // Parameters describing the camera to use for rendering an image.
@@ -595,8 +596,9 @@ struct mjrMaterial {
   // The color of the object. Defaults to white.
   float color[4];
 
-  // The color to use for segmentation rendering. Defaults to white.
-  mjtByte segmentation_color[3];
+  // The ID to use for segmentation rendering. These IDs will be mapped to a
+  // RGB8 color, so only the first 24 bits are used.
+  int32_t segmentation_id;
 
   // Applies an addition scale to the UV coordinates of the object. Defaults to
   // (1, 1, 1).

@@ -228,9 +228,13 @@ void Renderer::DoRender(int width, int height) {
       imgui_bridge_->Update();
     }
     if (framebuffer_mode_ == 0) {
-      mjrDrawMode draw_mode = mjDRAW_MODE_COLOR;
+      mjrDrawMode draw_mode = mjDRAW_MODE_DEFAULT;
       if (scene_.flags[mjRND_SEGMENT]) {
-        draw_mode = mjDRAW_MODE_SEGMENTATION;
+        if (scene_.flags[mjRND_IDCOLOR]) {
+          draw_mode = mjDRAW_MODE_SEGMENTATION_BY_ID;
+        } else {
+          draw_mode = mjDRAW_MODE_SEGMENTATION_BY_COLOR;
+        }
       } else if (scene_.flags[mjRND_DEPTH]) {
         draw_mode = mjDRAW_MODE_DEPTH;
       } else if (scene_.flags[mjRND_WIREFRAME]) {
@@ -249,7 +253,7 @@ void Renderer::DoRender(int width, int height) {
 
       mjr_defaultRenderRequest(&reqs[1]);
       reqs[1].scene = imgui_bridge_->GetScene();
-      reqs[1].draw_mode = mjDRAW_MODE_COLOR;
+      reqs[1].draw_mode = mjDRAW_MODE_DEFAULT;
       reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
       reqs[1].viewport = viewport;
       reqs[1].enable_shadows = false;
@@ -283,9 +287,13 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
     mjr_setBuffer(mjFB_WINDOW, &render_context_);
     FlipImage(rgb, viewport.width, viewport.height, 3);
   } else {
-    mjrDrawMode draw_mode = mjDRAW_MODE_COLOR;
+    mjrDrawMode draw_mode = mjDRAW_MODE_DEFAULT;
     if (scene_.flags[mjRND_SEGMENT]) {
-      draw_mode = mjDRAW_MODE_SEGMENTATION;
+      if (scene_.flags[mjRND_IDCOLOR]) {
+        draw_mode = mjDRAW_MODE_SEGMENTATION_BY_ID;
+      } else {
+        draw_mode = mjDRAW_MODE_SEGMENTATION_BY_COLOR;
+      }
     } else if (scene_.flags[mjRND_DEPTH]) {
       draw_mode = mjDRAW_MODE_DEPTH;
     } else if (scene_.flags[mjRND_WIREFRAME]) {
@@ -312,7 +320,7 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
 
     mjr_defaultRenderRequest(&reqs[1]);
     reqs[1].scene = imgui_bridge_->GetScene();
-    reqs[1].draw_mode = mjDRAW_MODE_COLOR;
+    reqs[1].draw_mode = mjDRAW_MODE_DEFAULT;
     reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
     reqs[1].target = target.get();
     reqs[1].viewport = viewport;

@@ -240,7 +240,8 @@ void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& req
                               request.viewport.width, request.viewport.height);
   filament::View* view = main_view_;
   if (request.draw_mode == mjDRAW_MODE_DEPTH ||
-      request.draw_mode == mjDRAW_MODE_SEGMENTATION) {
+      request.draw_mode == mjDRAW_MODE_SEGMENTATION_BY_ID ||
+      request.draw_mode == mjDRAW_MODE_SEGMENTATION_BY_COLOR) {
     view = depth_segment_view_;
   }
   view->setViewport(viewport);

@@ -14,6 +14,7 @@
 
 #include "experimental/filament/filament/renderable.h"
 
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <numbers>
@@ -257,15 +258,19 @@ void Renderable::Prepare(std::span<const mjrRenderRequest*> requests,
       }
     }
 
-    if (request->draw_mode != mjDRAW_MODE_SEGMENTATION) {
+    if (request->draw_mode == mjDRAW_MODE_SEGMENTATION_BY_COLOR) {
+      constexpr double phi1 = 1.61803398874989484820;  // Cached Phi(1).
+      constexpr double coef1 = 1.0 / phi1;
+      const double index = static_cast<double>(material.segmentation_id);
+      const double sample = std::fmod(0.5 + coef1 * index, 1.0);
+      material.segmentation_id = 0x01000000 * sample;
+    } else if (request->draw_mode != mjDRAW_MODE_SEGMENTATION_BY_ID) {
       // Clear out the segmentation color in order to take advantage of shared
       // materials.
-      material.segmentation_color[0] = 0;
-      material.segmentation_color[1] = 0;
-      material.segmentation_color[2] = 0;
+      material.segmentation_id = 0;
     }
 
-    const bool reflective = request->draw_mode == mjDRAW_MODE_COLOR &&
+    const bool reflective = request->draw_mode == mjDRAW_MODE_DEFAULT &&
                             request->enable_reflections &&
                             material.reflectance > 0.0;
     if (reflective) {

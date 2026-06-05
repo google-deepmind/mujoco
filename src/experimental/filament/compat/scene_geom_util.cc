@@ -183,20 +183,7 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
     material.roughness = model->mat_roughness[geom.matid];
   }
 
-  if (geom.segid >= 0) {
-    uint32_t segmentation_color = geom.segid + 1;
-    const bool use_segid_color = render_flags[mjRND_IDCOLOR];
-    if (!use_segid_color) {
-      constexpr double phi1 = 1.61803398874989484820;  // Cached Phi(1).
-      constexpr double coef1 = 1.0 / phi1;
-      const double index = static_cast<double>(geom.segid);
-      const double sample = std::fmod(0.5 + coef1 * index, 1.0);
-      segmentation_color = 0x01000000 * sample;
-    }
-    material.segmentation_color[0] = (segmentation_color >> 0);
-    material.segmentation_color[1] = (segmentation_color >> 8);
-    material.segmentation_color[2] = (segmentation_color >> 16);
-  }
+  material.segmentation_id = geom.segid;
 
   // UvScale only applies to objects that don't have explicit UV coordinates
   // in their vertex buffer. Instead, we set the UV coordinate to be the same

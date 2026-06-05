@@ -195,7 +195,9 @@ MaterialManager::MaterialKey MaterialManager::PrepareMaterialInstance(
   ObjectManager::MaterialType type;
   if (draw_mode == mjDRAW_MODE_DEPTH) {
     type = ObjectManager::kUnlitDepth;
-  } else if (draw_mode == mjDRAW_MODE_SEGMENTATION) {
+  } else if (draw_mode == mjDRAW_MODE_SEGMENTATION_BY_ID) {
+    type = ObjectManager::kUnlitSegmentation;
+  } else if (draw_mode == mjDRAW_MODE_SEGMENTATION_BY_COLOR) {
     type = ObjectManager::kUnlitSegmentation;
   } else {
     type = GetMaterialType(material, mesh);
@@ -238,10 +240,12 @@ void MaterialManager::UpdateMaterialInstance(filament::MaterialInstance* instanc
                            ReadFloat4(material.color));
   }
   if (fmaterial->hasParameter("SegmentationColor")) {
-    filament::math::float4 color{
-        static_cast<float>(material.segmentation_color[0]) / 255.0f,
-        static_cast<float>(material.segmentation_color[1]) / 255.0f,
-        static_cast<float>(material.segmentation_color[2]) / 255.0f, 1.0f};
+    const uint8_t r = material.segmentation_id >> 0;
+    const uint8_t g = material.segmentation_id >> 8;
+    const uint8_t b = material.segmentation_id >> 16;
+    const filament::math::float4 color{static_cast<float>(r) / 255.0f,
+                                       static_cast<float>(g) / 255.0f,
+                                       static_cast<float>(b) / 255.0f, 1.0f};
     instance->setParameter("SegmentationColor", filament::RgbaType::LINEAR,
                            color);
   }
