@@ -38,6 +38,7 @@
 #include <utils/compiler.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/filament_platform_factory.h"
+#include "experimental/filament/filament/material_manager.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/scene_view.h"
@@ -72,9 +73,11 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config)
       engine_->createSwapChain(config_.width, config_.height);
 
   object_manager_ = std::make_unique<ObjectManager>(engine_);
+  material_manager_ = std::make_unique<MaterialManager>(object_manager_.get());
 }
 
 FilamentContext::~FilamentContext() {
+  material_manager_.reset();
   object_manager_.reset();
   engine_->destroy(renderer_);
   engine_->destroy(window_swap_chain_);
@@ -95,6 +98,8 @@ mjrFrameHandle FilamentContext::Render(
   }
 
   ValidateSwapChains(requests);
+
+  material_manager_->BeginFrame();
 
   std::unordered_map<mjrScene*, std::vector<const mjrRenderRequest*>> scene_to_requests;
   for (const mjrRenderRequest& request : requests) {
@@ -157,6 +162,7 @@ mjrFrameHandle FilamentContext::Render(
 
   if (render_began) {
     renderer_->endFrame();
+    material_manager_->EndFrame();
   }
   if constexpr (!UTILS_HAS_THREADING) {
     engine_->execute();

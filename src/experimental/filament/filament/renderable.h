@@ -19,7 +19,6 @@
 #include <deque>
 #include <functional>
 #include <span>
-#include <unordered_map>
 #include <vector>
 
 #include <filament/Engine.h>
@@ -29,9 +28,8 @@
 #include <math/vec3.h>
 #include <utils/Entity.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/material_manager.h"
 #include "experimental/filament/filament/mesh.h"
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/reflection_manager.h"
 #include "experimental/filament/render_context_filament.h"
 
@@ -45,7 +43,7 @@ namespace mujoco {
 class Renderable : public mjrRenderable {
  public:
   Renderable(filament::Engine* engine, const mjrRenderableParams& params,
-             ObjectManager* object_mgr);
+             MaterialManager* material_mgr);
   ~Renderable() noexcept;
 
   Renderable(const Renderable&) = delete;
@@ -148,7 +146,7 @@ class Renderable : public mjrRenderable {
   // of which instance, as well as other render state, to use with each render
   // request.
   struct DrawState {
-    MaterialKey material_key;
+    MaterialManager::MaterialKey material_key;
     bool cast_shadows = true;
     bool receive_shadows = true;
     bool wireframe = false;
@@ -162,17 +160,12 @@ class Renderable : public mjrRenderable {
   void InitPartEntity(Part& part);
   void UpdateTransform();
 
-  MaterialKey PrepareMaterialInstance(const mjrMaterial& material,
-                                      mjrDrawMode draw_mode);
-  void SetMaterialInstance(MaterialKey key);
-
   filament::Engine* GetEngine();
 
-  ObjectManager* object_mgr_;
+  MaterialManager* material_mgr_;
   mjrRenderableParams params_;
   mjtGeom geom_type_ = mjGEOM_NONE;
   mjrMaterial material_;
-  std::unordered_map<MaterialKey, filament::MaterialInstance*> instances_;
   std::deque<DrawState> draw_queue_;
   DrawState curr_state_;
   filament::Scene* assigned_scene_ = nullptr;
@@ -181,7 +174,6 @@ class Renderable : public mjrRenderable {
   GetTransformFn get_transform_fn_;
   Trs trs_;
   bool infinite_plane_ = false;
-  bool wireframe_ = false;
 };
 
 }  // namespace mujoco

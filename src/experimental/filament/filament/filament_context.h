@@ -24,6 +24,7 @@
 #include <filament/Renderer.h>
 #include <filament/SwapChain.h>
 #include <math/vec4.h>
+#include "experimental/filament/filament/material_manager.h"
 #include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/render_context_filament.h"
 
@@ -60,6 +61,8 @@ class FilamentContext : public mjrfContext {
 
   ObjectManager* GetObjectManager() const { return object_manager_.get(); }
 
+  MaterialManager* GetMaterialManager() const { return material_manager_.get(); }
+
   static FilamentContext* downcast(mjrfContext* context) {
     return static_cast<FilamentContext*>(context);
   }
@@ -77,6 +80,7 @@ class FilamentContext : public mjrfContext {
   filament::SwapChain* offscreen_swap_chain_ = nullptr;
   std::unique_ptr<filament::backend::Platform> platform_;
   std::unique_ptr<ObjectManager> object_manager_;
+  std::unique_ptr<MaterialManager> material_manager_;
   int window_width_ = 0;
   int window_height_ = 0;
   std::uint64_t frame_counter_ = 0;

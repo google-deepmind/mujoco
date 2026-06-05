@@ -168,7 +168,7 @@ mjrRenderable* mjrf_createRenderable(mjrfContext* ctx,
                                      const mjrRenderableParams* params) {
   return new mujoco::Renderable(
       mujoco::FilamentContext::downcast(ctx)->GetEngine(), *params,
-      mujoco::FilamentContext::downcast(ctx)->GetObjectManager());
+      mujoco::FilamentContext::downcast(ctx)->GetMaterialManager());
 }
 
 void mjrf_destroyRenderable(mjrRenderable* renderable) {

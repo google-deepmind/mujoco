@@ -37,8 +37,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/imgui_editor.cc
         filament/light.cc
         filament/light.h
-        filament/material.cc
-        filament/material.h
+        filament/material_manager.cc
+        filament/material_manager.h
         filament/mesh.cc
         filament/mesh.h
         filament/object_manager.cc

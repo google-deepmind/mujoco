@@ -1,4 +1,4 @@
-// Copyright 2025 DeepMind Technologies Limited
+// Copyright 2026 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/material_manager.h"
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -67,18 +67,47 @@ static uint64_t hash(const T& obj) {
   return seed;
 }
 
-uint64_t BuildMaterialKey(ObjectManager::MaterialType material_type,
-                         const mjrMaterial& material) {
+MaterialManager::MaterialManager(ObjectManager* object_mgr)
+    : object_mgr_(object_mgr) {}
+
+MaterialManager::~MaterialManager() {
+  for (auto& [key, instance] : instances_) {
+    object_mgr_->GetEngine()->destroy(instance);
+  }
+}
+
+void MaterialManager::BeginFrame() {
+  used_keys_.clear();
+}
+
+void MaterialManager::EndFrame() {
+  if (instances_.size() == used_keys_.size()) {
+    return;
+  }
+  for (auto it = instances_.begin(); it != instances_.end();) {
+    if (!used_keys_.contains(it->first)) {
+      object_mgr_->GetEngine()->destroy(it->second);
+      it = instances_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+static MaterialManager::MaterialKey BuildMaterialKey(
+    MaterialManager::MaterialType material_type, mjtGeom geom_type,
+    const mjrMaterial& material) {
   // Normally, hashing the struct by memory would be a problem because of
   // padding and other uninitialized data. However, we do a memset(0) on the
   // entire structure in mjr_defaultMaterial so this should be safe.
   uint64_t key = hash(material);
+  Combine(key, &geom_type);
   Combine(key, &material_type);
   return key;
 }
 
-ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
-                                            const Mesh* mesh) {
+MaterialManager::MaterialType MaterialManager::GetMaterialType(
+    const mjrMaterial& material, const Mesh* mesh) {
   if (material.decor_ux) {
     if (material.color_texture) {
       return ObjectManager::kUnlitUi;
@@ -160,9 +189,44 @@ ObjectManager::MaterialType GetMaterialType(const mjrMaterial& material,
   }
 }
 
-void UpdateMaterialInstance(filament::MaterialInstance* instance,
-                            const mjrMaterial& material,
-                            ObjectManager* object_mgr) {
+MaterialManager::MaterialKey MaterialManager::PrepareMaterialInstance(
+    const mjrMaterial& material, mjrDrawMode draw_mode, mjtGeom geom_type,
+    const Mesh* mesh) {
+  ObjectManager::MaterialType type;
+  if (draw_mode == mjDRAW_MODE_DEPTH) {
+    type = ObjectManager::kUnlitDepth;
+  } else if (draw_mode == mjDRAW_MODE_SEGMENTATION) {
+    type = ObjectManager::kUnlitSegmentation;
+  } else {
+    type = GetMaterialType(material, mesh);
+  }
+
+  const MaterialKey key = BuildMaterialKey(type, geom_type, material);
+
+  auto it = instances_.find(key);
+  if (it == instances_.end()) {
+    filament::MaterialInstance* instance =
+        object_mgr_->GetMaterial(type)->createInstance();
+    UpdateMaterialInstance(instance, material);
+    if (geom_type == mjGEOM_PLANE || geom_type == mjGEOM_TRIANGLE) {
+      instance->setCullingMode(filament::MaterialInstance::CullingMode::NONE);
+    }
+    instances_[key] = instance;
+  }
+  used_keys_.insert(key);
+  return key;
+}
+
+filament::MaterialInstance* MaterialManager::GetInstance(MaterialKey key) {
+  auto it = instances_.find(key);
+  if (it == instances_.end()) {
+    return nullptr;
+  }
+  return it->second;
+}
+
+void MaterialManager::UpdateMaterialInstance(filament::MaterialInstance* instance,
+                            const mjrMaterial& material) {
   if (material.scissor[2] != 0 && material.scissor[3] != 0) {
     instance->setScissor(material.scissor[0], material.scissor[1],
                          material.scissor[2], material.scissor[3]);
@@ -224,7 +288,7 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
         instance->setParameter(
             name, Texture::downcast(texture)->GetFilamentTexture(), sampler);
       } else {
-        instance->setParameter(name, object_mgr->GetFallbackTexture(role),
+        instance->setParameter(name, object_mgr_->GetFallbackTexture(role),
                                sampler);
       }
     }
@@ -239,6 +303,14 @@ void UpdateMaterialInstance(filament::MaterialInstance* instance,
   TrySetTexture("ORM", material.orm_texture, mjTEXROLE_ORM);
   TrySetTexture("Emissive", material.emissive_texture, mjTEXROLE_EMISSIVE);
   TrySetTexture("Reflection", material.reflection_texture, mjTEXROLE_USER);
+}
+
+ObjectManager* MaterialManager::GetObjectManager() const {
+  return object_mgr_;
+}
+
+filament::Engine* MaterialManager::GetEngine() const {
+  return object_mgr_->GetEngine();
 }
 
 }  // namespace mujoco

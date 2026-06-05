@@ -35,9 +35,8 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/builtins.h"
-#include "experimental/filament/filament/material.h"
+#include "experimental/filament/filament/material_manager.h"
 #include "experimental/filament/filament/mesh.h"
-#include "experimental/filament/filament/object_manager.h"
 #include "experimental/filament/filament/reflection_manager.h"
 #include "experimental/filament/render_context_filament.h"
 
@@ -55,8 +54,8 @@ static constexpr float kArrowHeadSize = 1.75f;
 
 Renderable::Renderable(filament::Engine* engine,
                        const mjrRenderableParams& params,
-                       ObjectManager* object_mgr)
-    : object_mgr_(object_mgr), params_(params) {
+                       MaterialManager* material_mgr)
+    : material_mgr_(material_mgr), params_(params) {
   mjr_defaultMaterial(&material_);
 }
 
@@ -69,9 +68,6 @@ Renderable::~Renderable() noexcept {
     }
     engine->destroy(part.entity);
     em.destroy(part.entity);
-  }
-  for (auto& instance : instances_) {
-    engine->destroy(instance.second);
   }
 }
 
@@ -261,6 +257,14 @@ void Renderable::Prepare(std::span<const mjrRenderRequest*> requests,
       }
     }
 
+    if (request->draw_mode != mjDRAW_MODE_SEGMENTATION) {
+      // Clear out the segmentation color in order to take advantage of shared
+      // materials.
+      material.segmentation_color[0] = 0;
+      material.segmentation_color[1] = 0;
+      material.segmentation_color[2] = 0;
+    }
+
     const bool reflective = request->draw_mode == mjDRAW_MODE_COLOR &&
                             request->enable_reflections &&
                             material.reflectance > 0.0;
@@ -269,40 +273,11 @@ void Renderable::Prepare(std::span<const mjrRenderRequest*> requests,
           this, request->viewport.width, request->viewport.height);
     }
 
-    draw_state.material_key =
-        PrepareMaterialInstance(material, request->draw_mode);
+    const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
+    draw_state.material_key = material_mgr_->PrepareMaterialInstance(
+        material, request->draw_mode, geom_type_, mesh);
     draw_queue_.push_back(draw_state);
   }
-}
-
-MaterialKey Renderable::PrepareMaterialInstance(const mjrMaterial& material,
-                                                mjrDrawMode draw_mode) {
-  ObjectManager::MaterialType type;
-  if (draw_mode == mjDRAW_MODE_COLOR || draw_mode == mjDRAW_MODE_WIREFRAME) {
-    const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
-    type = GetMaterialType(material, mesh);
-  } else if (draw_mode == mjDRAW_MODE_DEPTH) {
-    type = ObjectManager::kUnlitDepth;
-  } else if (draw_mode == mjDRAW_MODE_SEGMENTATION) {
-    type = ObjectManager::kUnlitSegmentation;
-  } else {
-    mju_error("Invalid draw mode: %d", draw_mode);
-    return 0;
-  }
-
-  const MaterialKey key = BuildMaterialKey(type, material);
-
-  auto it = instances_.find(key);
-  if (it == instances_.end()) {
-    filament::MaterialInstance* instance =
-        object_mgr_->GetMaterial(type)->createInstance();
-    UpdateMaterialInstance(instance, material, object_mgr_);
-    if (geom_type_ == mjGEOM_PLANE || geom_type_ == mjGEOM_TRIANGLE) {
-      instance->setCullingMode(filament::MaterialInstance::CullingMode::NONE);
-    }
-    instances_[key] = instance;
-  }
-  return key;
 }
 
 void Renderable::BindMaterialInstance(const mjrRenderRequest& request) {
@@ -351,21 +326,23 @@ void Renderable::BindMaterialInstance(const mjrRenderRequest& request) {
   SetCastShadows(state.cast_shadows);
   SetReceiveShadows(state.receive_shadows);
   SetWireframe(state.wireframe);
-  SetMaterialInstance(state.material_key);
-  curr_state_ = state;
-  draw_queue_.pop_front();
-}
 
-void Renderable::SetMaterialInstance(MaterialKey key) {
-  if (key != curr_state_.material_key) {
-    filament::MaterialInstance* instance = instances_[key];
+  if (state.material_key != curr_state_.material_key) {
+    filament::MaterialInstance* instance =
+        material_mgr_->GetInstance(state.material_key);
+    if (!instance) {
+      mju_error("Failed to get material instance.");
+      return;
+    }
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
       filament::RenderableManager::Instance ri = rm.getInstance(part.entity);
       rm.setMaterialInstanceAt(ri, 0, instance);
     }
-    curr_state_.material_key = key;
   }
+
+  curr_state_ = state;
+  draw_queue_.pop_front();
 }
 
 std::uint8_t Renderable::SetLayerMask(std::uint8_t mask) {
@@ -412,8 +389,8 @@ void Renderable::SetCastShadows(bool cast_shadows) {
     params_.cast_shadows = cast_shadows;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-  for (Part& part : parts_) {
-        rm.setCastShadows(rm.getInstance(part.entity), params_.cast_shadows);
+    for (Part& part : parts_) {
+      rm.setCastShadows(rm.getInstance(part.entity), params_.cast_shadows);
     }
   }
 }
@@ -433,15 +410,15 @@ void Renderable::SetWireframe(bool wireframe) {
   static constexpr auto kWireframeType =
       filament::RenderableManager::PrimitiveType::LINES;
 
-  if (wireframe != wireframe_) {
-    wireframe_ = wireframe;
+  if (wireframe != curr_state_.wireframe) {
+    curr_state_.wireframe = wireframe;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
       filament::VertexBuffer* vertex_buffer = part.mesh->GetFilamentVertexBuffer();
       filament::IndexBuffer* index_buffer = part.mesh->GetFilamentIndexBuffer();
       rm.setGeometryAt(rm.getInstance(part.entity), 0,
-                       wireframe_ ? kWireframeType : part.mesh->GetPrimitiveType(),
+                       wireframe ? kWireframeType : part.mesh->GetPrimitiveType(),
                        vertex_buffer, index_buffer, part.elem_offset,
                        part.elem_count);
     }
@@ -449,7 +426,8 @@ void Renderable::SetWireframe(bool wireframe) {
 }
 
 void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
-  Builtins* builtins = object_mgr_->GetBuiltins(nstack, nslice, nquad);
+  Builtins* builtins =
+      material_mgr_->GetObjectManager()->GetBuiltins(nstack, nslice, nquad);
   geom_type_ = type;
 
   switch (type) {
@@ -641,6 +619,6 @@ void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
   }
 }
 
-filament::Engine* Renderable::GetEngine() { return object_mgr_->GetEngine(); }
+filament::Engine* Renderable::GetEngine() { return material_mgr_->GetEngine(); }
 
 }  // namespace mujoco
