@@ -25,10 +25,10 @@ jobs:
       VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_version || github.ref_name }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
 
     - name: Setup Node.js for WASM bindings
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '24.x'
 

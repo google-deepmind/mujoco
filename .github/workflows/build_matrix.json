@@ -1,0 +1,104 @@
+{
+  "comment": "Build matrix for build.yml. 'tier' controls when an entry runs: 'core' runs on every pull_request and push; 'extended' runs only on push to main (full compiler sweep). See generate_matrix() in build_steps.sh.",
+  "include": [
+    {
+      "os": "ubuntu-24.04",
+      "label": "ubuntu-24.04-gcc-14",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=gcc-14 -DCMAKE_CXX_COMPILER:STRING=g++-14 -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed",
+      "tmpdir": "/tmp",
+      "tier": "core"
+    },
+    {
+      "os": "ubuntu-24.04",
+      "label": "ubuntu-24.04-gcc-13",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=gcc-13 -DCMAKE_CXX_COMPILER:STRING=g++-13 -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed",
+      "tmpdir": "/tmp",
+      "tier": "extended"
+    },
+    {
+      "os": "ubuntu-22.04",
+      "label": "ubuntu-22.04-gcc-12",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=gcc-12 -DCMAKE_CXX_COMPILER:STRING=g++-12 -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed",
+      "tmpdir": "/tmp",
+      "tier": "extended"
+    },
+    {
+      "os": "ubuntu-22.04",
+      "label": "ubuntu-22.04-gcc-11",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=gcc-11 -DCMAKE_CXX_COMPILER:STRING=g++-11 -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed",
+      "tmpdir": "/tmp",
+      "tier": "extended"
+    },
+    {
+      "os": "ubuntu-22.04",
+      "label": "ubuntu-22.04-gcc-10",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=gcc-10 -DCMAKE_CXX_COMPILER:STRING=g++-10 -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed",
+      "tmpdir": "/tmp",
+      "tier": "core"
+    },
+    {
+      "os": "ubuntu-24.04",
+      "label": "ubuntu-24.04-clang-18",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-18 -DCMAKE_CXX_COMPILER:STRING=clang++-18 -DMUJOCO_HARDEN:BOOL=ON",
+      "tmpdir": "/tmp",
+      "tier": "core"
+    },
+    {
+      "os": "ubuntu-24.04",
+      "label": "ubuntu-24.04-clang-17",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-17 -DCMAKE_CXX_COMPILER:STRING=clang++-17 -DMUJOCO_HARDEN:BOOL=ON",
+      "tmpdir": "/tmp",
+      "tier": "extended"
+    },
+    {
+      "os": "ubuntu-24.04",
+      "label": "ubuntu-24.04-clang-16",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-16 -DCMAKE_CXX_COMPILER:STRING=clang++-16 -DMUJOCO_HARDEN:BOOL=ON",
+      "tmpdir": "/tmp",
+      "tier": "extended"
+    },
+    {
+      "os": "ubuntu-22.04",
+      "label": "ubuntu-22.04-clang-15",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-15 -DCMAKE_CXX_COMPILER:STRING=clang++-15 -DMUJOCO_HARDEN:BOOL=ON",
+      "tmpdir": "/tmp",
+      "tier": "extended"
+    },
+    {
+      "os": "ubuntu-22.04",
+      "label": "ubuntu-22.04-clang-14",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-14 -DCMAKE_CXX_COMPILER:STRING=clang++-14 -DMUJOCO_HARDEN:BOOL=ON",
+      "tmpdir": "/tmp",
+      "tier": "extended"
+    },
+    {
+      "os": "ubuntu-22.04",
+      "label": "ubuntu-22.04-clang-13",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-13 -DCMAKE_CXX_COMPILER:STRING=clang++-13 -DCMAKE_EXE_LINKER_FLAGS:STRING=-rtlib=compiler-rt -DCMAKE_SHARED_LINKER_FLAGS:STRING=-rtlib=compiler-rt -DMUJOCO_HARDEN:BOOL=ON",
+      "tmpdir": "/tmp",
+      "tier": "core"
+    },
+    {
+      "os": "macos-15",
+      "label": "macos-15-arm64",
+      "cmake_args": "-G Ninja -DMUJOCO_HARDEN:BOOL=ON",
+      "tmpdir": "/tmp",
+      "tier": "core"
+    },
+    {
+      "os": "macos-15-large",
+      "label": "macos-15-x86_64",
+      "cmake_args": "-G Ninja -DMUJOCO_HARDEN:BOOL=ON",
+      "tmpdir": "/tmp",
+      "tier": "core"
+    },
+    {
+      "os": "windows-2025",
+      "label": "windows-2025",
+      "cmake_args": "-DCMAKE_SYSTEM_VERSION=\"10.0.26100.0\"",
+      "cmake_build_args": "-- -m",
+      "tmpdir": "C:/Temp",
+      "tier": "core"
+    }
+  ]
+}
