@@ -248,9 +248,13 @@ jobs:
               -DMUJOCO_HARDEN:BOOL=ON
           - os: windows-2025
             label: "windows-2025-ninja-studio"
+            # Embedded debug info (/Z7) instead of /Zi (a shared .pdb): sccache
+            # can't coordinate concurrent writes to one .pdb (fatal error C1041).
             cmake_args: >-
               -G Ninja
               -DCMAKE_SYSTEM_VERSION=10.0.26100.0
+              -DCMAKE_POLICY_DEFAULT_CMP0141=NEW
+              -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
           - os: macos-15
             label: "macos-15-arm64-studio"
             cmake_args: >-
@@ -281,6 +285,18 @@ jobs:
       if: ${{ runner.os != 'Windows' }}
       uses: hendrikmuhs/ccache-action@v1.2.23
       with:
+        key: ${{ matrix.label }}-filament-${{ hashFiles('cmake/third_party_deps/filament.cmake') }}
+        restore-keys: ${{ matrix.label }}-filament-
+        max-size: "2.0G"
+
+    # ccache doesn't support MSVC; sccache does. The Windows Filament build is the
+    # longest job in CI, so caching it is the biggest remaining lever. Paired with
+    # /Z7 above (sccache can't share a .pdb).
+    - name: Setup sccache
+      if: ${{ runner.os == 'Windows' }}
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        variant: sccache
         key: ${{ matrix.label }}-filament-${{ hashFiles('cmake/third_party_deps/filament.cmake') }}
         restore-keys: ${{ matrix.label }}-filament-
         max-size: "2.0G"

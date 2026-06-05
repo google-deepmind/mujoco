@@ -17,14 +17,23 @@
 # consider making the builds parallel.
 
 
-# Wrap the compiler with ccache when it is available (set up by ccache-action in
-# CI). This makes warm rebuilds - including the expensive, pinned Filament build -
-# much faster. ccache is content-addressed on the full compiler invocation, so
-# changing a flag or source forces a recompile: a stale object is never reused.
-# Guarded by `command -v` so the script still works locally without ccache.
+# Wrap the compiler with a compiler cache when available (set up by ccache-action
+# in CI): ccache on POSIX, sccache on Windows/MSVC (ccache does not support MSVC,
+# and Windows runners ship ccache preinstalled, so prefer sccache there). Both are
+# content-addressed on the full compiler invocation, so changing a flag or source
+# forces a recompile: a stale object is never reused. Guarded by `command -v` so
+# the script still works locally without a cache.
+COMPILER_LAUNCHER=""
+if [[ "${RUNNER_OS}" == "Windows" ]] && command -v sccache >/dev/null 2>&1; then
+    COMPILER_LAUNCHER="sccache"
+elif command -v ccache >/dev/null 2>&1; then
+    COMPILER_LAUNCHER="ccache"
+elif command -v sccache >/dev/null 2>&1; then
+    COMPILER_LAUNCHER="sccache"
+fi
 CCACHE_ARGS=""
-if command -v ccache >/dev/null 2>&1; then
-    CCACHE_ARGS="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+if [[ -n "${COMPILER_LAUNCHER}" ]]; then
+    CCACHE_ARGS="-DCMAKE_C_COMPILER_LAUNCHER=${COMPILER_LAUNCHER} -DCMAKE_CXX_COMPILER_LAUNCHER=${COMPILER_LAUNCHER}"
 fi
 
 
