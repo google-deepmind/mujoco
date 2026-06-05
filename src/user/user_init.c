@@ -271,8 +271,10 @@ void mjs_defaultTexture(mjsTexture* texture) {
   texture->random = 0.01;
   texture->gridsize[0] = texture->gridsize[1] = 1;
   texture->nchannel = 3;
+  // gridlayout is a fixed-size, non-null-terminated field, so copy the exact
+  // number of bytes (memcpy avoids GCC's -Wstringop-truncation on the missing nul).
   char defaultlayout[sizeof(texture->gridlayout)] = "............";
-  strncpy(texture->gridlayout, defaultlayout, sizeof(texture->gridlayout));
+  memcpy(texture->gridlayout, defaultlayout, sizeof(texture->gridlayout));
 }
 
 
