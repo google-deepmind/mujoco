@@ -28,3 +28,12 @@ mujoco_test(
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
 )
+
+mujoco_test(
+  xml_write_read_test
+  ADDITIONAL_LINK_LIBRARIES
+  absl::flat_hash_set
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
+)

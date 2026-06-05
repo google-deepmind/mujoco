@@ -27,6 +27,13 @@ mujoco_test(
 )
 
 mujoco_test(
+  user_recompile_test
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
+)
+
+mujoco_test(
   user_flex_test
 )
 
