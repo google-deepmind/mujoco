@@ -39,6 +39,7 @@ General
 Bug fixes
 ^^^^^^^^^
 - Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
+- Fixed a bug in ``model.bind()`` / ``data.bind()`` where the batch dimension was incorrectly squeezed when binding a single element (:issue:`3128`).
 
 Version 3.9.0 (May 27, 2026)
 ----------------------------
