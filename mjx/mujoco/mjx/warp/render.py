@@ -14,17 +14,19 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
+
 import dataclasses
 import functools
+
 import jax
+import warp as wp
+
 from mujoco.mjx._src import types
+import mujoco.mjx.third_party.mujoco_warp as mjwarp
+from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 from mujoco.mjx.warp import ffi
 from mujoco.mjx.warp.render_context import _MJX_RENDER_CONTEXT_BUFFERS
 from mujoco.mjx.warp.render_context import RenderContextPytree
-import mujoco.mjx.third_party.mujoco_warp as mjwarp
-from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
-import warp as wp
-
 
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
@@ -171,10 +173,18 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
           'geom_xmat',
           'geom_xpos',
           'light_active',
+          'light_ambient',
+          'light_attenuation',
           'light_castshadow',
           'light_cutoff',
+          'light_diffuse',
+          'light_exponent',
+          'light_specular',
           'light_type',
+          'mat_emission',
           'mat_rgba',
+          'mat_shininess',
+          'mat_specular',
           'mat_texid',
       ]),
       stage_out_argnames=set([]),
@@ -197,18 +207,18 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
       m.geom_size,
       m.geom_type,
       m.light_active,
-      m._impl.light_ambient,
-      m._impl.light_attenuation,
+      m.light_ambient,
+      m.light_attenuation,
       m.light_castshadow,
       m.light_cutoff,
-      m._impl.light_diffuse,
-      m._impl.light_exponent,
-      m._impl.light_specular,
+      m.light_diffuse,
+      m.light_exponent,
+      m.light_specular,
       m.light_type,
-      m._impl.mat_emission,
+      m.mat_emission,
       m.mat_rgba,
-      m._impl.mat_shininess,
-      m._impl.mat_specular,
+      m.mat_shininess,
+      m.mat_specular,
       m.mat_texid,
       m._impl.mat_texrepeat,
       m.mesh_faceadr,

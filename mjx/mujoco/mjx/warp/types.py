@@ -15,14 +15,18 @@
 """MJX Warp types.
 DO NOT EDIT. This file is auto-generated.
 """
+
 import dataclasses
 import typing
 from typing import Tuple
+
 import jax
 from jax import tree_util
 from jax.interpreters import batching
-from mujoco.mjx._src import dataclasses as mjx_dataclasses
 import numpy as np
+
+from mujoco.mjx._src import dataclasses as mjx_dataclasses
+
 if typing.TYPE_CHECKING:
   GraphMode = int
 
@@ -33,6 +37,7 @@ if typing.TYPE_CHECKING:
 else:
   try:
     from warp._src.jax_experimental.ffi import GraphMode
+
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 
     Callback = mjwp_types.Callback
@@ -40,6 +45,7 @@ else:
     GraphMode = int
     Callback = None
 PyTreeNode = mjx_dataclasses.PyTreeNode
+
 
 @dataclasses.dataclass(frozen=True)
 @tree_util.register_pytree_node_class
@@ -52,6 +58,7 @@ class TileSet:
     adr: address of each tile in the set
     size: size of all the tiles in this set
   """
+
   adr: np.ndarray
   size: int
 
@@ -81,21 +88,18 @@ class BlockDim:
     energy_vel_kinetic: energy velocity kinetic block dimension (sensor)
     cholesky_factorize: Cholesky factorize block dimension (smooth)
     cholesky_solve: Cholesky solve block dimension (smooth)
-    cholesky_factorize_solve: Cholesky factorize and solve block dimension
-      (smooth)
+    cholesky_factorize_solve: Cholesky factorize and solve block dimension (smooth)
     solve_LD_sparse_fused: solve LD sparse fused block dimension (smooth)
     update_gradient_cholesky: update gradient Cholesky block dimension (solver)
-    update_gradient_cholesky_blocked: update gradient Cholesky blocked block
-      dimension (solver)
-    update_gradient_JTDAJ_sparse: update gradient JTDAJ sparse block dimension
-      (solver)
-    update_gradient_JTDAJ_dense: update gradient JTDAJ dense block dimension
-      (solver)
+    update_gradient_cholesky_blocked: update gradient Cholesky blocked block dimension (solver)
+    update_gradient_JTDAJ_sparse: update gradient JTDAJ sparse block dimension (solver)
+    update_gradient_JTDAJ_dense: update gradient JTDAJ dense block dimension (solver)
     linesearch_iterative: linesearch iterative block dimension (solver)
     contact_jac_tiled: contact Jacobian tiled block dimension (solver)
     qderiv_actuator_dense: qderiv actuator dense block dimension (derivative)
     render: render block dimension (render)
   """
+
   actuator_velocity: int
   cholesky_factorize: int
   cholesky_factorize_solve: int
@@ -127,10 +131,13 @@ class BlockDim:
 
 class StatisticWarp(PyTreeNode):
   """Derived fields from Statistic."""
+
   meaninertia: jax.Array
+
 
 class OptionWarp(PyTreeNode):
   """Derived fields from Option."""
+
   broadphase: int
   broadphase_filter: int
   ccd_iterations: int
@@ -146,8 +153,10 @@ class OptionWarp(PyTreeNode):
   sdf_iterations: int
   sleep_tolerance: jax.Array
 
+
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
+
   D_colind: np.ndarray
   D_diag: np.ndarray
   D_rowadr: np.ndarray
@@ -232,19 +241,11 @@ class ModelWarp(PyTreeNode):
   is_sparse: bool
   jnt_limited_ball_adr: np.ndarray
   jnt_limited_slide_hinge_adr: np.ndarray
-  light_ambient: jax.Array
-  light_attenuation: jax.Array
   light_bodyid: np.ndarray
-  light_diffuse: jax.Array
-  light_exponent: jax.Array
-  light_specular: jax.Array
   light_targetbodyid: np.ndarray
   mapD2M: np.ndarray
   mapM2D: np.ndarray
   mapM2M: np.ndarray
-  mat_emission: jax.Array
-  mat_shininess: jax.Array
-  mat_specular: jax.Array
   mat_texrepeat: jax.Array
   max_ten_J_rownnz: int
   mesh_polyadr: np.ndarray
@@ -337,8 +338,10 @@ class ModelWarp(PyTreeNode):
   wrap_site_adr: np.ndarray
   wrap_site_pair_adr: np.ndarray
 
+
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
+
   M: jax.Array
   actuator_moment: jax.Array
   actuator_velocity: jax.Array
@@ -457,6 +460,8 @@ class DataWarp(PyTreeNode):
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   shape = property(lambda self: self.cacc.shape)
+
+
 DATA_NON_VMAP = {
     'contact__dim',
     'contact__dist',
@@ -484,6 +489,7 @@ DATA_NON_VMAP = {
     'njmax_pad',
     'nworld',
 }
+
 
 def _to_elt(cont, _, d, axis):
   return DataWarp(**{
