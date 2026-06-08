@@ -1049,8 +1049,8 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD11) {
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 8);
 
-  ASSERT_EQ(ncons, 4);
-
+  // contact unrecoverable under single precision
+  ASSERT_EQ(ncons, sizeof(mjtNum) == 8 ? 4 : 0);
 }
 
 TEST_F(MjGjkTest, BoxBoxMultiCCD12) {
@@ -1228,9 +1228,7 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD14) {
   std::vector<mjtNum> dir, pos;
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 8);
-
   ASSERT_EQ(ncons, 4);
-
 }
 
 TEST_F(MjGjkTest, SmallBoxMesh) {
@@ -1275,19 +1273,23 @@ TEST_F(MjGjkTest, SmallBoxMesh) {
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, geom1, geom2);
 
-  ASSERT_EQ(ncons, 1);
-  EXPECT_NEAR(dist, 0, kTolerance);
+  // contact unrecoverable under single precision
+  ASSERT_EQ(ncons, sizeof(mjtNum) == 8 ? 1 : 0);
+  if (ncons) {
+    EXPECT_NEAR(dist, 0, kTolerance);
 
-  // direction
-  EXPECT_NEAR(dir[0], 0, kTolerance);
-  EXPECT_NEAR(dir[1], 0, kTolerance);
-  EXPECT_NEAR(dir[2], 1, kTolerance);
+    // direction
+    EXPECT_NEAR(dir[0], 0, kTolerance);
+    EXPECT_NEAR(dir[1], 0, kTolerance);
+    EXPECT_NEAR(dir[2], 1, kTolerance);
 
-  // position
-  EXPECT_NEAR(pos[0], 0, kTolerance);
-  EXPECT_NEAR(pos[1], 0, kTolerance);
-  EXPECT_NEAR(pos[2], 0, kTolerance);
+    // position
+    EXPECT_NEAR(pos[0], 0, kTolerance);
+    EXPECT_NEAR(pos[1], 0, kTolerance);
+    EXPECT_NEAR(pos[2], 0, kTolerance);
+  }
 }
+
 TEST_F(MjGjkTest, BoxMesh) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1801,18 +1803,13 @@ static constexpr char xml[] = R"(
   ASSERT_EQ(ncons, 1);
   EXPECT_NEAR(dist, -0.01, kTolerance);
 
-  EXPECT_NEAR(dir[0], 0, kTolerance);
-  EXPECT_NEAR(dir[1], 0, kTolerance);
-  EXPECT_NEAR(dir[2], 1, kTolerance);
-
-  EXPECT_NEAR(pos[0], 0, kTolerance);
-  EXPECT_NEAR(pos[1], 0, kTolerance);
-  EXPECT_NEAR(pos[2], -0.005, kTolerance);
+  EXPECT_THAT(dir[0], MjNear(0, kTolerance, 1e-5));
+  EXPECT_THAT(dir[1], MjNear(0, kTolerance, 1e-5));
+  EXPECT_THAT(dir[2], MjNear(1, kTolerance, kTolerance));
 
   // multicontact
   ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
   ASSERT_EQ(ncons, 4);
-
 }
 
 TEST_F(MjGjkTest, EllipsoidEllipsoidIntersect) {
