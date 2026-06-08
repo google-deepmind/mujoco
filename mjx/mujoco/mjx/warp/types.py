@@ -55,6 +55,19 @@ class TileSet:
   adr: np.ndarray
   size: int
 
+  # Manually kept in this generated shim until TileSet method generation is
+  # needed more broadly. Keep this in sync with mujoco_warp._src.types.TileSet.
+  def __eq__(self, other) -> bool:
+    if self.__class__ is not other.__class__:
+      return NotImplemented
+    return self.size == other.size and np.array_equal(
+        np.asarray(self.adr), np.asarray(other.adr)
+    )
+
+  def __hash__(self) -> int:
+    adr = np.asarray(self.adr)
+    return hash((self.size, adr.dtype.str, adr.shape, adr.tobytes()))
+
   def tree_flatten(self):
     children = list((getattr(self, k) for k in self.__dataclass_fields__))
     return (children, None)
