@@ -877,11 +877,15 @@ void ParseUsdPhysicsScene(mjSpec* spec,
 
 void ParseUsdPhysicsMassAPIForBody(mjsBody* body,
                                    const pxr::UsdPhysicsMassAPI& mass_api) {
+  bool has_mass = false;
+  bool has_diagonal_inertia = false;
+
   auto mass_attr = mass_api.GetMassAttr();
   if (mass_attr.HasAuthoredValue()) {
     float mass;
     mass_attr.Get(&mass);
     body->mass = mass;
+    has_mass = true;
   }
 
   auto com_attr = mass_api.GetCenterOfMassAttr();
@@ -903,6 +907,11 @@ void ParseUsdPhysicsMassAPIForBody(mjsBody* body,
     pxr::GfVec3f diag_inertia;
     diag_inertia_attr.Get(&diag_inertia);
     SetDoubleArrFromGfVec3d(body->inertia, diag_inertia);
+    has_diagonal_inertia = true;
+  }
+
+  if (has_mass && has_diagonal_inertia) {
+    body->explicitinertial = true;
   }
 }
 
