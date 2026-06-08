@@ -920,7 +920,8 @@ typedef struct {
   // CG arrays (PrimalAllocate, CG only)
   mjtNum* gradold;        // previous gradient                            (nv x 1)
   mjtNum* Mgradold;       // previous preconditioned gradient             (nv x 1)
-  mjtNum* Mgraddif;       // gradient difference                          (nv x 1)
+  mjtNum* graddif;        // grad - gradold                               (nv x 1)
+  mjtNum* Mgraddif;       // M\(grad - gradold)                           (nv x 1)
 
   // Newton arrays, known-size (PrimalAllocate)
   mjtNum* D;              // constraint inertia                           (nefc x 1)
@@ -1091,7 +1092,7 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
       if (is_elliptic) nNum += nv*nv;  // Lcone (dense)
     }
   } else {
-    nNum += 3*nv;                      // CG arrays
+    nNum += 4*nv;                      // CG arrays
   }
 
   // add island matrix sizes
@@ -1185,6 +1186,7 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
   } else {
     ctx->gradold  = numblock;  numblock += nv;
     ctx->Mgradold = numblock;  numblock += nv;
+    ctx->graddif  = numblock;  numblock += nv;
     ctx->Mgraddif = numblock;  numblock += nv;
   }
 
@@ -2283,7 +2285,40 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     if (flg_Newton) {
       mju_scl(ctx.search, ctx.Mgrad, -1, nv);
     } else {
-      // Polak-Ribiere
+#ifndef mjCG_PRP
+      // Hager-Zhang conjugate direction update
+      mjtNum d_dot_y, y_dot_My, y_dot_Mgrad, d_dot_grad;
+      mjtNum beta_hz;
+      mjtNum d_norm, grad_norm, eta_k;
+      const mjtNum eta = 0.01;
+
+      // graddif = grad - gradold, Mgraddif = Mgrad - Mgradold
+      mju_sub(ctx.graddif, ctx.grad, ctx.gradold, nv);
+      mju_sub(ctx.Mgraddif, ctx.Mgrad, ctx.Mgradold, nv);
+
+      // compute d'*y; restart to steepest descent if conjugacy is lost
+      d_dot_y = mju_dot(ctx.search, ctx.graddif, nv);
+      if (d_dot_y < mjMINVAL) {
+        beta = 0;
+      } else {
+        // compute remaining inner products for the HZ formula
+        y_dot_My = mju_dot(ctx.graddif, ctx.Mgraddif, nv);
+        y_dot_Mgrad = mju_dot(ctx.graddif, ctx.Mgrad, nv);
+        d_dot_grad = mju_dot(ctx.search, ctx.grad, nv);
+
+        // primary Hager-Zhang beta coefficient
+        beta_hz = (y_dot_Mgrad - 2*(y_dot_My/d_dot_y)*d_dot_grad) / d_dot_y;
+
+        // dynamic truncation threshold to ensure d is not orthogonal to grad
+        d_norm = mju_norm(ctx.search, nv);
+        grad_norm = mju_norm(ctx.grad, nv);
+        eta_k = -1.0 / mju_max(mjMINVAL, d_norm * mju_min(eta, grad_norm));
+
+        // apply lower bound
+        beta = mju_max(eta_k, beta_hz);
+      }
+#else
+      // Polak-Ribiere-Plus conjugate direction update
       mju_sub(ctx.Mgraddif, ctx.Mgrad, ctx.Mgradold, nv);
       beta = mju_dot(ctx.grad, ctx.Mgraddif, nv) /
              mju_max(mjMINVAL, mju_dot(ctx.gradold, ctx.Mgradold, nv));
@@ -2292,6 +2327,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
       if (beta < 0) {
         beta = 0;
       }
+#endif
 
       // update
       for (int i=0; i < nv; i++) {
