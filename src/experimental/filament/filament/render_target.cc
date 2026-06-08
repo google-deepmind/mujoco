@@ -64,7 +64,6 @@ void RenderTarget::Prepare(int width, int height) {
   color_config.sampler_type = mjTEXTURE_2D;
   color_config.format = config_.color_format;
   color_config.color_space = mjCOLORSPACE_LINEAR;
-  color_config.format = mjPIXEL_FORMAT_RGB8;
   color_flags.color_attachment = true;
   color_texture_ = std::make_unique<Texture>(engine_, color_config, color_flags);
 
@@ -76,7 +75,6 @@ void RenderTarget::Prepare(int width, int height) {
   depth_config.sampler_type = mjTEXTURE_2D;
   depth_config.format = config_.depth_format;
   depth_config.color_space = mjCOLORSPACE_LINEAR;
-  depth_config.format = mjPIXEL_FORMAT_DEPTH32F;
   depth_flags.depth_attachment = true;
   depth_texture_ = std::make_unique<Texture>(engine_, depth_config, depth_flags);
 
