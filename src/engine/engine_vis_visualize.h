@@ -69,7 +69,7 @@ int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3]
                  mjtNum* catenary, int ncatenary);
 
 // convert HSV to RGB
-void hsv2rgb(float *RGB, float H, float S, float V);
+MJAPI void hsv2rgb(float *RGB, float H, float S, float V);
 
 #ifdef __cplusplus
 }
