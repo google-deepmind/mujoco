@@ -732,7 +732,7 @@ void mjrf_setRenderableSize(mjrfRenderable* renderable, const float size[3]);
 // See mjrf_render for more details.
 
 // Defines the basic properties of a render target.
-struct mjrRenderTargetConfig {
+struct mjrfRenderTargetConfig {
   // The width of the render target.
   int width;
 
@@ -747,11 +747,11 @@ struct mjrRenderTargetConfig {
 };
 
 // Initializes the RenderTargetConfig to default values.
-void mjrf_defaultRenderTargetConfig(mjrRenderTargetConfig* config);
+void mjrf_defaultRenderTargetConfig(mjrfRenderTargetConfig* config);
 
 // Creates a render target for the filament renderer.
 mjrfRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx,
-                                         const mjrRenderTargetConfig* config);
+                                         const mjrfRenderTargetConfig* config);
 
 // Destroys the render target.
 void mjrf_destroyRenderTarget(mjrfRenderTarget* render_target);

@@ -105,7 +105,7 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
   }
 
   if (rgb) {
-    mjrRenderTargetConfig config;
+    mjrfRenderTargetConfig config;
     mjrf_defaultRenderTargetConfig(&config);
     config.width = viewport.width;
     config.height = viewport.height;
@@ -132,7 +132,7 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
   }
 
   if (depth) {
-    mjrRenderTargetConfig config;
+    mjrfRenderTargetConfig config;
     mjrf_defaultRenderTargetConfig(&config);
     config.width = viewport.width;
     config.height = viewport.height;

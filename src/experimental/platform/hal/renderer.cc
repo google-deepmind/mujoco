@@ -298,7 +298,7 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
       draw_mode = mjDRAW_MODE_WIREFRAME;
     }
 
-    mjrRenderTargetConfig config;
+    mjrfRenderTargetConfig config;
     mjrf_defaultRenderTargetConfig(&config);
     config.width = viewport.width;
     config.height = viewport.height;

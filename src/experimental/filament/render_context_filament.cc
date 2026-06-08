@@ -95,8 +95,8 @@ void mjrf_defaultRenderableParams(mjrfRenderableParams* params) {
   params->blend_order = 0;
 }
 
-void mjrf_defaultRenderTargetConfig(mjrRenderTargetConfig* config) {
-  memset(config, 0, sizeof(mjrRenderTargetConfig));
+void mjrf_defaultRenderTargetConfig(mjrfRenderTargetConfig* config) {
+  memset(config, 0, sizeof(mjrfRenderTargetConfig));
   config->color_format = mjPIXEL_FORMAT_RGBA8;
   config->depth_format = mjPIXEL_FORMAT_DEPTH32F;
 }
@@ -171,7 +171,7 @@ void mjrf_destroyRenderable(mjrfRenderable* renderable) {
 }
 
 mjrfRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx,
-                                         const mjrRenderTargetConfig* config) {
+                                         const mjrfRenderTargetConfig* config) {
   return new mujoco::RenderTarget(
       mujoco::FilamentContext::downcast(ctx)->GetEngine(), *config);
 }

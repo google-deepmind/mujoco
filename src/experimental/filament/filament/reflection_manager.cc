@@ -34,7 +34,7 @@ void ReflectionManager::ClearRenderables() {
 mjrfTexture* ReflectionManager::Register(mjrfRenderable* renderable, int width,
                                         int height) {
   if (targets_.size() == renderables_.size()) {
-    mjrRenderTargetConfig config;
+    mjrfRenderTargetConfig config;
     mjrf_defaultRenderTargetConfig(&config);
     config.color_format = mjPIXEL_FORMAT_RGBA8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;

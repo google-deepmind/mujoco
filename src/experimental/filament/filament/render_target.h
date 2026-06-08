@@ -31,7 +31,7 @@ class RenderTarget : public mjrfRenderTarget {
  public:
   // Defines the types of textures to create for the color and depth
   // attachments.
-  RenderTarget(filament::Engine* engine, const mjrRenderTargetConfig& config);
+  RenderTarget(filament::Engine* engine, const mjrfRenderTargetConfig& config);
   ~RenderTarget() noexcept;
 
   RenderTarget(const RenderTarget&) = delete;
@@ -65,7 +65,7 @@ class RenderTarget : public mjrfRenderTarget {
   void Destroy();
 
   filament::Engine* engine_ = nullptr;
-  mjrRenderTargetConfig config_;
+  mjrfRenderTargetConfig config_;
   filament::RenderTarget* render_target_ = nullptr;
   std::unique_ptr<Texture> color_texture_ = nullptr;
   std::unique_ptr<Texture> depth_texture_ = nullptr;

@@ -32,7 +32,7 @@
 namespace mujoco {
 
 RenderTarget::RenderTarget(filament::Engine* engine,
-                           const mjrRenderTargetConfig& config)
+                           const mjrfRenderTargetConfig& config)
     : engine_(engine), config_(config) {
   if (config_.width > 0 && config_.height > 0) {
     Prepare(config_.width, config_.height);

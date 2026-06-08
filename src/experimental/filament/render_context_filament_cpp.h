@@ -62,7 +62,7 @@ inline UniquePtr<mjrfRenderable> CreateRenderable(
 }
 
 inline UniquePtr<mjrfRenderTarget> CreateRenderTarget(
-    mjrfContext* ctx, const mjrRenderTargetConfig& config) {
+    mjrfContext* ctx, const mjrfRenderTargetConfig& config) {
   mjrfRenderTarget* render_target = mjrf_createRenderTarget(ctx, &config);
   return UniquePtr<mjrfRenderTarget>(render_target, mjrf_destroyRenderTarget);
 }
