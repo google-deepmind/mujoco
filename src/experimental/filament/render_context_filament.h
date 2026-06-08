@@ -105,10 +105,6 @@ struct mjrFilamentConfig {
   // rendering will be done to an offscreen framebuffer.
   void* native_window;
 
-  // The initial width and height of the offscreen framebuffer.
-  int width;
-  int height;
-
   // The backend graphics API to use.
   mjrGraphicsApi graphics_api;
 

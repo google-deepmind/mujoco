@@ -97,8 +97,6 @@ void Renderer::Init(const mjModel* model) {
       mjrFilamentConfig cfg;
       mjrf_defaultFilamentConfig(&cfg);
       cfg.native_window = native_window_;
-      cfg.width = model->vis.global.offwidth;
-      cfg.height = model->vis.global.offheight;
       cfg.force_software_rendering = IsSoftware(gfx_);
       cfg.graphics_api = IsOpenGl(gfx_) || IsWebGl(gfx_)
                              ? mjGRAPHICS_API_OPENGL

@@ -83,6 +83,8 @@ class FilamentContext : public mjrfContext {
   std::unique_ptr<MaterialManager> material_manager_;
   int window_width_ = 0;
   int window_height_ = 0;
+  int offscreen_width_ = 0;
+  int offscreen_height_ = 0;
   std::uint64_t frame_counter_ = 0;
 };
 

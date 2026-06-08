@@ -64,13 +64,8 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config)
 #else
   if (config_.native_window) {
     window_swap_chain_ = engine_->createSwapChain(config_.native_window);
-  } else {
-    window_swap_chain_ =
-        engine_->createSwapChain(config_.width, config_.height);
   }
 #endif
-  offscreen_swap_chain_ =
-      engine_->createSwapChain(config_.width, config_.height);
 
   object_manager_ = std::make_unique<ObjectManager>(engine_);
   material_manager_ = std::make_unique<MaterialManager>(object_manager_.get());
@@ -240,13 +235,13 @@ void FilamentContext::ValidateSwapChains(
   }
 
   if (max_offscreen_width && max_offscreen_height) {
-    if (max_offscreen_width != config_.width ||
-        max_offscreen_height != config_.height) {
+    if (max_offscreen_width != offscreen_width_ ||
+        max_offscreen_height != offscreen_height_) {
       engine_->destroy(offscreen_swap_chain_);
-      config_.width = max_offscreen_width;
-      config_.height = max_offscreen_height;
+      offscreen_width_ = max_offscreen_width;
+      offscreen_height_ = max_offscreen_height;
       offscreen_swap_chain_ =
-          engine_->createSwapChain(config_.width, config_.height);
+          engine_->createSwapChain(offscreen_width_, offscreen_height_);
     }
   }
 }

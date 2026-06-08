@@ -190,9 +190,7 @@ void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
   mjr_freeContext(con);
 
   mjrFilamentConfig cfg;
-  memset(&cfg, 0, sizeof(mjrFilamentConfig));
-  cfg.width = m->vis.global.offwidth;
-  cfg.height = m->vis.global.offheight;
+  mjrf_defaultFilamentConfig(&cfg);
   mjr_makeFilamentContext(m, &cfg, con);
 }
 
