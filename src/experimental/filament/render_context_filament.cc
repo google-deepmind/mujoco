@@ -81,6 +81,8 @@ void mjr_defaultMaterial(mjrMaterial* material) {
   memset(material, 0, sizeof(mjrMaterial));
   setf(material->color, {1.f, 1.f, 1.f, 1.f});
   setf(material->uv_scale, {1, 1, 1});
+  material->sleep_state = mjS_STATIC;
+  material->island_id = -1;
   material->emissive = -1.0f;
   material->specular = -1.0f;
   material->glossiness = -1.0f;

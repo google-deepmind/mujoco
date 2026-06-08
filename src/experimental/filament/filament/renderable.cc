@@ -34,6 +34,7 @@
 #include <math/vec4.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "engine/engine_vis_visualize.h"
 #include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/builtins.h"
 #include "experimental/filament/filament/material_manager.h"
@@ -270,12 +271,50 @@ void Renderable::Prepare(std::span<const mjrRenderRequest*> requests,
       material.segmentation_id = 0;
     }
 
+    if (request->draw_mode == mjDRAW_MODE_ISLANDS &&
+        material.sleep_state != mjS_STATIC) {
+      float hue = 1.0f;
+      float saturation = 0.0f;
+      float value = 0.7f;
+      if (material.island_id >= 0) {
+        const double h = static_cast<double>(material.island_id) + 1.0;
+        hue = mju_Halton(h, 7);
+        saturation = 0.5 + 0.5 * mju_Halton(h, 3);
+        value = 0.6 + 0.4 * mju_Halton(h, 5);
+      }
+      if (material.sleep_state == mjS_ASLEEP) {
+        value *= 0.6;
+        saturation *= 0.7;
+      }
+      hsv2rgb(material.color, hue, saturation, value);
+      material.color[3] = 1;
+
+      // Remove textures so they don't interfere with the island color.
+      material.color_texture = nullptr;
+      material.metallic_texture = nullptr;
+      material.roughness_texture = nullptr;
+      material.occlusion_texture = nullptr;
+      material.orm_texture = nullptr;
+    }
+
+    if (request->draw_mode == mjDRAW_MODE_DEFAULT_NO_TEXTURES) {
+      material.color_texture = nullptr;
+      material.metallic_texture = nullptr;
+      material.roughness_texture = nullptr;
+      material.occlusion_texture = nullptr;
+      material.orm_texture = nullptr;
+    }
+
     const bool reflective = request->draw_mode == mjDRAW_MODE_DEFAULT &&
                             request->enable_reflections &&
                             material.reflectance > 0.0;
     if (reflective) {
       material.reflection_texture = reflection_mgr->Register(
           this, request->viewport.width, request->viewport.height);
+    }
+
+    if (material.selected) {
+      material.emissive += 0.3f;  // vis->global.glow
     }
 
     const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;

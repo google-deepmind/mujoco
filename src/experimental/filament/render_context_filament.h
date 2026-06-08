@@ -129,10 +129,14 @@ void mjrf_destroyContext(mjrfContext* ctx);
 typedef enum mjrDrawMode_ {
   // Render the scene with default settings for colors and lighting (shading).
   mjDRAW_MODE_DEFAULT,
+  // Like mjDRAW_MODE_DEFAULT, but disable textures.
+  mjDRAW_MODE_DEFAULT_NO_TEXTURES,
   // Render the scene as a wireframe.
   mjDRAW_MODE_WIREFRAME,
   // Render the scene as a grayscale depth map.
   mjDRAW_MODE_DEPTH,
+  // Render each object using its.
+  mjDRAW_MODE_ISLANDS,
   // Render each object using its segmentation id (see mjrMaterial).
   mjDRAW_MODE_SEGMENTATION_BY_ID,
   // Render each object with a unique color based on its segmentation id.
@@ -600,6 +604,10 @@ struct mjrMaterial {
   // RGB8 color, so only the first 24 bits are used.
   int32_t segmentation_id;
 
+  // The island ID and sleep state.
+  int32_t island_id;
+  mjtSleepState sleep_state;
+
   // Applies an addition scale to the UV coordinates of the object. Defaults to
   // (1, 1, 1).
   float uv_scale[3];
@@ -629,6 +637,10 @@ struct mjrMaterial {
   // If true, does not apply any lighting to the object. Assumes the object is
   // used for UX or decorative elements like contact forces and labels.
   mjtByte decor_ux;
+
+  // If true, renders the object such that it appears "selected" for the
+  // purposes of UX visualization.
+  mjtByte selected;
 
   // The texture containing the base color of the object.
   const mjrTexture* color_texture;
