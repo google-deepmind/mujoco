@@ -467,12 +467,6 @@ void mjrf_destroyMesh(mjrfMesh* mesh);
 
 // Configuration parameters for a Scene.
 struct mjrfSceneParams {
-  // This mask, in conjunction with the layer mask in the Renderable, determines
-  // which Renderables to render within the Scene.
-  uint8_t layer_mask;
-
-  // The layer mask to use for reflections.
-  uint8_t reflection_layer_mask;
 };
 
 // Initializes the mjrfSceneParams to default values.
@@ -686,15 +680,6 @@ struct mjrfRenderableParams {
 
   // Whether or not the Renderable receives shadows.
   mjtBool receive_shadows;
-
-  // The layers to which the Renderable belongs. This mask is used in
-  // conjunction with the layer mask in the Scene to determine which
-  // Renderables to render. Defaults to 0xff.
-  uint8_t layer_mask;
-
-  // Controls the order in which the Renderable is drawn relative to other
-  // Renderables; defaults to 4.
-  uint8_t priority;
 
   // Similar to priority, but provides finer-grained control for Renderables
   // with transparency; defaults to 0.

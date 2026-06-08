@@ -136,8 +136,6 @@ void Renderable::InitPartEntity(Part& part) {
   }
   builder.castShadows(params_.cast_shadows);
   builder.receiveShadows(params_.receive_shadows);
-  builder.layerMask(0xff, params_.layer_mask);
-  builder.priority(params_.priority);
   builder.blendOrder(0, params_.blend_order);
   builder.screenSpaceContactShadows(true);
 
@@ -223,6 +221,11 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
 }
 
 void Renderable::UpdateMaterial(const mjrfMaterial& material) {
+  uint8_t layer_mask_ = kLayerMask_Object;
+  if (material.decor_ux) {
+    layer_mask_ = kLayerMask_Decor;
+  }
+  SetLayerMask(layer_mask_);
   material_ = material;
 }
 
@@ -390,26 +393,13 @@ void Renderable::BindMaterialInstance(const mjrfRenderRequest& request) {
 }
 
 std::uint8_t Renderable::SetLayerMask(std::uint8_t mask) {
-  std::uint8_t prev = params_.layer_mask;
-  if (mask != params_.layer_mask) {
-    params_.layer_mask = mask;
+  std::uint8_t prev = layer_mask_;
+  if (mask != layer_mask_) {
+    layer_mask_ = mask;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
-      rm.setLayerMask(rm.getInstance(part.entity), 0xff, params_.layer_mask);
-    }
-  }
-  return prev;
-}
-
-std::uint8_t Renderable::SetPriority(std::uint8_t priority) {
-  std::uint8_t prev = params_.priority;
-  if (priority != params_.priority) {
-    params_.priority = priority;
-
-    filament::RenderableManager& rm = GetEngine()->getRenderableManager();
-    for (Part& part : parts_) {
-      rm.setPriority(rm.getInstance(part.entity), params_.priority);
+      rm.setLayerMask(rm.getInstance(part.entity), 0xff, layer_mask_);
     }
   }
   return prev;

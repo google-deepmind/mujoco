@@ -35,6 +35,13 @@
 
 namespace mujoco {
 
+enum LayerMask : uint8_t {
+  kLayerMask_Object  = 0x01 << 1,
+  kLayerMask_Decor   = 0x01 << 2,
+  kLayerMask_All     = 0xff,
+  kLayerMask_None    = 0x00,
+};
+
 // A Renderable is effectively two things: a mesh and a material.
 //
 // The mesh describes the surface geometry of the object and the material
@@ -72,10 +79,6 @@ class Renderable : public mjrfRenderable {
   // Sets the layer mask for this renderable. Layer masks can be used to
   // show/hide groups of renderables in scenes. Returns the previous layer mask.
   std::uint8_t SetLayerMask(std::uint8_t mask);
-
-  // Sets the draw priority this renderable. The priority determines the order
-  // in which renderables are rendered. Returns the previous priority.
-  std::uint8_t SetPriority(std::uint8_t priority);
 
   // Sets the blend order for this renderable. This determines the order in
   // which transparent renderables are blended together. Returns the previous
@@ -173,6 +176,7 @@ class Renderable : public mjrfRenderable {
   filament::math::mat4f transform_;
   GetTransformFn get_transform_fn_;
   Trs trs_;
+  uint8_t layer_mask_ = 0x00;
   bool infinite_plane_ = false;
 };
 

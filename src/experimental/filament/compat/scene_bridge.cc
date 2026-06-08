@@ -43,8 +43,6 @@ SceneBridge::SceneBridge(mjrfContext* ctx, const mjModel* model)
     : ctx_(ctx) {
   mjrfSceneParams params;
   mjrf_defaultSceneParams(&params);
-  params.layer_mask = mjCAT_ALL;
-  params.reflection_layer_mask = mjCAT_DYNAMIC | mjCAT_STATIC;
   scene_ = CreateScene(ctx_, params);
   model_objects_ = std::make_unique<ModelObjects>(model, ctx_);
 

@@ -57,8 +57,6 @@ void mjrf_defaultMeshData(mjrfMeshData* data) {
 
 void mjrf_defaultSceneParams(mjrfSceneParams* params) {
   memset(params, 0, sizeof(mjrfSceneParams));
-  params->layer_mask = 0xff;
-  params->reflection_layer_mask = 0xff;
 }
 
 void mjrf_defaultLightParams(mjrfLightParams* params) {
@@ -94,8 +92,6 @@ void mjrf_defaultRenderableParams(mjrfRenderableParams* params) {
   memset(params, 0, sizeof(mjrfRenderableParams));
   params->cast_shadows = true;
   params->receive_shadows = true;
-  params->layer_mask = 0x01;
-  params->priority = 4;
   params->blend_order = 0;
 }
 

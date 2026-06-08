@@ -268,7 +268,6 @@ UniquePtr<mjrfRenderable> CreateGeomRenderable(
     const mjtByte render_flags[mjNRNDFLAG]) {
   mjrfRenderableParams params;
   mjrf_defaultRenderableParams(&params);
-  params.layer_mask = geom.category;
   auto renderable = CreateRenderable(ctx, params);
   PrepareGeomMeshes(renderable.get(), geom, model_objs);
   UpdateGeomMaterial(renderable.get(), geom, model_objs, render_flags);
