@@ -239,9 +239,9 @@ void Renderer::DoRender(int width, int height) {
         draw_mode = mjDRAW_MODE_WIREFRAME;
       }
 
-      mjrRenderRequest reqs[2];
+      mjrfRenderRequest reqs[2];
 
-      mjr_defaultRenderRequest(&reqs[0]);
+      mjrf_defaultRenderRequest(&reqs[0]);
       reqs[0].scene = scene_bridge_->GetScene();
       reqs[0].draw_mode = draw_mode;
       reqs[0].camera = scene_bridge_->GetCamera();
@@ -249,7 +249,7 @@ void Renderer::DoRender(int width, int height) {
       reqs[0].enable_shadows = scene_.flags[mjRND_SHADOW];
       reqs[0].enable_reflections = scene_.flags[mjRND_REFLECTION];
 
-      mjr_defaultRenderRequest(&reqs[1]);
+      mjrf_defaultRenderRequest(&reqs[1]);
       reqs[1].scene = imgui_bridge_->GetScene();
       reqs[1].draw_mode = mjDRAW_MODE_DEFAULT;
       reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
@@ -299,15 +299,15 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
     }
 
     mjrRenderTargetConfig config;
-    mjr_defaultRenderTargetConfig(&config);
+    mjrf_defaultRenderTargetConfig(&config);
     config.width = viewport.width;
     config.height = viewport.height;
     config.color_format = mjPIXEL_FORMAT_RGB8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     auto target = CreateRenderTarget(filament_context_.get(), config);
 
-    mjrRenderRequest reqs[2];
-    mjr_defaultRenderRequest(&reqs[0]);
+    mjrfRenderRequest reqs[2];
+    mjrf_defaultRenderRequest(&reqs[0]);
     reqs[0].scene = scene_bridge_->GetScene();
     reqs[0].draw_mode = draw_mode;
     reqs[0].camera = scene_bridge_->GetCamera();
@@ -316,7 +316,7 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
     reqs[0].enable_shadows = scene_.flags[mjRND_SHADOW];
     reqs[0].enable_reflections = scene_.flags[mjRND_REFLECTION];
 
-    mjr_defaultRenderRequest(&reqs[1]);
+    mjrf_defaultRenderRequest(&reqs[1]);
     reqs[1].scene = imgui_bridge_->GetScene();
     reqs[1].draw_mode = mjDRAW_MODE_DEFAULT;
     reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
@@ -326,14 +326,14 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
     reqs[1].enable_reflections = false;
     reqs[1].enable_post_processing = false;
 
-    mjrReadPixelsRequest read_request;
-    mjr_defaultReadPixelsRequest(&read_request);
+    mjrfReadPixelsRequest read_request;
+    mjrf_defaultReadPixelsRequest(&read_request);
     read_request.target = target.get();
     read_request.output = rgb;
     read_request.num_bytes = viewport.width * viewport.height * 3;
 
     const int num_requests = (framebuffer_mode_ == 2) ? 2 : 1;
-    const mjrFrameHandle frame = mjrf_render(
+    const mjrfFrameHandle frame = mjrf_render(
         filament_context_.get(), &reqs[0], num_requests, &read_request, 1);
     mjrf_waitForFrame(filament_context_.get(), frame);
   }
@@ -354,8 +354,8 @@ void Renderer::UpdateFps() {
       frames_ = 0;
     }
   } else {
-    mjrFrameStats stats;
-    mjr_defaultFrameStats(&stats);
+    mjrfFrameStats stats;
+    mjrf_defaultFrameStats(&stats);
     mjrf_getFrameStats(filament_context_.get(), 0, &stats);
     fps_ = stats.frame_rate;
   }

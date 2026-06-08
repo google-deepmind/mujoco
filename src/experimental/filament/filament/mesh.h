@@ -33,10 +33,10 @@
 namespace mujoco {
 
 // Owns a filament Vertex and Index buffer representing a geometry mesh.
-class Mesh : public mjrMesh {
+class Mesh : public mjrfMesh {
  public:
   // Creates a Mesh from the given MeshData.
-  Mesh(filament::Engine* engine, const mjrMeshData& data);
+  Mesh(filament::Engine* engine, const mjrfMeshData& data);
   ~Mesh();
 
   Mesh(const Mesh&) = delete;
@@ -60,17 +60,17 @@ class Mesh : public mjrMesh {
   // Returns the bounds of the mesh.
   filament::Box GetBounds() const;
 
-  static Mesh* downcast(mjrMesh* mesh) {
+  static Mesh* downcast(mjrfMesh* mesh) {
     return static_cast<Mesh*>(mesh);
   }
-  static const Mesh* downcast(const mjrMesh* mesh) {
+  static const Mesh* downcast(const mjrfMesh* mesh) {
     return static_cast<const Mesh*>(mesh);
   }
 
  private:
-  void BuildVertexBuffer(const mjrMeshData& data);
-  void BuildIndexBuffer(const mjrMeshData& data);
-  void UpdateBounds(const mjrMeshData& data);
+  void BuildVertexBuffer(const mjrfMeshData& data);
+  void BuildIndexBuffer(const mjrfMeshData& data);
+  void UpdateBounds(const mjrfMeshData& data);
 
   filament::math::float4* BuildOrientationsFromNormals(
       int nvertices, const mjrVertexAttribute& normals);

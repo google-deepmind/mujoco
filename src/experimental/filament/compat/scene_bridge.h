@@ -50,7 +50,7 @@ class SceneBridge {
   void SetDrawTextFunction(DrawTextAtFn fn);
 
   // Returns the managed scene.
-  mjrScene* GetScene() const;
+  mjrfScene* GetScene() const;
   mjrCamera GetCamera() const;
 
   SceneBridge(const SceneBridge&) = delete;
@@ -67,8 +67,8 @@ class SceneBridge {
   std::unique_ptr<LightManager> light_manager_;
   mjrCamera camera_;
   DrawTextAtFn draw_text_callback_;
-  UniquePtr<mjrScene> scene_{nullptr, nullptr};
-  std::vector<UniquePtr<mjrRenderable>> renderables_;
+  UniquePtr<mjrfScene> scene_{nullptr, nullptr};
+  std::vector<UniquePtr<mjrfRenderable>> renderables_;
   filament::math::mat4 clip_from_world_;
 };
 

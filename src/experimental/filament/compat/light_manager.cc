@@ -35,7 +35,7 @@ using filament::math::float4;
 using filament::math::mat3;
 using filament::math::mat4;
 
-static UniquePtr<mjrTexture> CreateFallbackIndirectLightTexture(
+static UniquePtr<mjrfTexture> CreateFallbackIndirectLightTexture(
     mjrfContext* ctx) {
   const std::string filename = ResolveFilamentAssetPath("ibl.ktx");
   mjResource* resource =
@@ -49,8 +49,8 @@ static UniquePtr<mjrTexture> CreateFallbackIndirectLightTexture(
     mju_error("Failed to read resource: %s", filename.c_str());
   }
 
-  mjrTextureConfig config;
-  mjr_defaultTextureConfig(&config);
+  mjrfTextureConfig config;
+  mjrf_defaultTextureConfig(&config);
   config.width = 1;
   config.height = 1;
   config.sampler_type = mjTEXTURE_CUBE;
@@ -59,8 +59,8 @@ static UniquePtr<mjrTexture> CreateFallbackIndirectLightTexture(
 
   auto texture = CreateTexture(ctx, config);
 
-  mjrTextureData payload;
-  mjr_defaultTextureData(&payload);
+  mjrfTextureData payload;
+  mjrf_defaultTextureData(&payload);
   payload.bytes = bytes;
   payload.nbytes = nbytes;
   payload.release_callback = +[](void* user_data) {
@@ -72,7 +72,7 @@ static UniquePtr<mjrTexture> CreateFallbackIndirectLightTexture(
   return texture;
 }
 
-LightManager::LightManager(mjrfContext* ctx, mjrScene* scene,
+LightManager::LightManager(mjrfContext* ctx, mjrfScene* scene,
                            ModelObjects* model_objects)
     : ctx_(ctx), scene_(scene) {
   const mjModel* model = model_objects->GetModel();
@@ -112,8 +112,8 @@ void LightManager::Prepare(ModelObjects* model_objects) {
     total_light_intensity += model->light_intensity[i];
 
     if (model->light_type[i] == mjLIGHT_IMAGE) {
-      mjrLightParams params;
-      mjr_defaultLightParams(&params);
+      mjrfLightParams params;
+      mjrf_defaultLightParams(&params);
       params.type = mjLIGHT_IMAGE;
       params.texture = model_objects->GetTexture(model->light_texid[i]);
       params.intensity = model->light_intensity[i];
@@ -122,8 +122,8 @@ void LightManager::Prepare(ModelObjects* model_objects) {
       lights_.emplace_back(std::move(light_obj));
       has_image_based_light = true;
     } else {
-      mjrLightParams params;
-      mjr_defaultLightParams(&params);
+      mjrfLightParams params;
+      mjrf_defaultLightParams(&params);
       params.color[0] = model->light_diffuse[0];
       params.color[1] = model->light_diffuse[1];
       params.color[2] = model->light_diffuse[2];
@@ -147,8 +147,8 @@ void LightManager::Prepare(ModelObjects* model_objects) {
   // Add a placeholder (black) headlight as our last light. Going forward, we'll
   // assume lights_.back() is always the headlight.
   {
-    mjrLightParams params;
-    mjr_defaultLightParams(&params);
+    mjrfLightParams params;
+    mjrf_defaultLightParams(&params);
     // We break with the spec here slightly and use a spot light for the head
     // light instead of a directional params. This is because filament only
     // supports a single directional light, and we'd rather allow a scene
@@ -166,8 +166,8 @@ void LightManager::Prepare(ModelObjects* model_objects) {
   if (!has_image_based_light && total_light_intensity > 0.0f) {
     // Create a black indirect light to ensure that the skybox is
     // oriented to respect mujoco's Z-up convention.
-    mjrLightParams params;
-    mjr_defaultLightParams(&params);
+    mjrfLightParams params;
+    mjrf_defaultLightParams(&params);
     params.type = mjLIGHT_IMAGE;
     params.intensity = 10.0f;
     fallback_ibl_ = CreateLight(ctx_, params);
@@ -181,8 +181,8 @@ void LightManager::Prepare(ModelObjects* model_objects) {
     // Create a fallback environment light.
     fallback_ibl_texture_ = CreateFallbackIndirectLightTexture(ctx_);
 
-    mjrLightParams params;
-    mjr_defaultLightParams(&params);
+    mjrfLightParams params;
+    mjrf_defaultLightParams(&params);
     params.type = mjLIGHT_IMAGE;
     params.texture = fallback_ibl_texture_.get();
     params.intensity = fallback_environment_light_intensity_;
@@ -204,7 +204,7 @@ void LightManager::Prepare(ModelObjects* model_objects) {
   mjrf_setSceneSkybox(scene_, model_objects->GetSkyboxTexture());
 }
 
-mjrLight* LightManager::GetLight(int index) {
+mjrfLight* LightManager::GetLight(int index) {
   if (index < 0 || index >= lights_.size()) {
     return nullptr;
   }

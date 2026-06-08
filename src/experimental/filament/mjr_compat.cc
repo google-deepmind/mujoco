@@ -88,8 +88,8 @@ void CompatContext::Render(const mjrRect& viewport, const mjvScene* scene) {
   }
 
   if (framebuffer_ == mjFB_WINDOW) {
-    mjrRenderRequest req;
-    mjr_defaultRenderRequest(&req);
+    mjrfRenderRequest req;
+    mjrf_defaultRenderRequest(&req);
     req.scene = scene_bridge_->GetScene();
     req.draw_mode = draw_mode_;
     req.camera = scene_bridge_->GetCamera();
@@ -106,54 +106,54 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (rgb) {
     mjrRenderTargetConfig config;
-    mjr_defaultRenderTargetConfig(&config);
+    mjrf_defaultRenderTargetConfig(&config);
     config.width = viewport.width;
     config.height = viewport.height;
     config.color_format = mjPIXEL_FORMAT_RGB8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     auto target = CreateRenderTarget(context_.get(), config);
 
-    mjrRenderRequest req;
-    mjr_defaultRenderRequest(&req);
+    mjrfRenderRequest req;
+    mjrf_defaultRenderRequest(&req);
     req.scene = scene_bridge_->GetScene();
     req.draw_mode = draw_mode_;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
     req.target = target.get();
 
-    mjrReadPixelsRequest read_req;
-    mjr_defaultReadPixelsRequest(&read_req);
+    mjrfReadPixelsRequest read_req;
+    mjrf_defaultReadPixelsRequest(&read_req);
     read_req.target = target.get();
     read_req.output = rgb;
     read_req.num_bytes = viewport.width * viewport.height * 3;
 
-    const mjrFrameHandle frame = mjrf_render(context_.get(), &req, 1, &read_req, 1);
+    const mjrfFrameHandle frame = mjrf_render(context_.get(), &req, 1, &read_req, 1);
     mjrf_waitForFrame(context_.get(), frame);
   }
 
   if (depth) {
     mjrRenderTargetConfig config;
-    mjr_defaultRenderTargetConfig(&config);
+    mjrf_defaultRenderTargetConfig(&config);
     config.width = viewport.width;
     config.height = viewport.height;
     config.color_format = mjPIXEL_FORMAT_R32F;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     auto target = CreateRenderTarget(context_.get(), config);
 
-    mjrRenderRequest req;
-    mjr_defaultRenderRequest(&req);
+    mjrfRenderRequest req;
+    mjrf_defaultRenderRequest(&req);
     req.scene = scene_bridge_->GetScene();
     req.draw_mode = mjDRAW_MODE_DEPTH;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
     req.target = target.get();
 
-    mjrReadPixelsRequest read_req;
-    mjr_defaultReadPixelsRequest(&read_req);
+    mjrfReadPixelsRequest read_req;
+    mjrf_defaultReadPixelsRequest(&read_req);
     read_req.output = reinterpret_cast<uint8_t*>(depth);
     read_req.num_bytes = viewport.width * viewport.height * sizeof(float);
 
-    const mjrFrameHandle frame = mjrf_render(context_.get(), &req, 1, &read_req, 1);
+    const mjrfFrameHandle frame = mjrf_render(context_.get(), &req, 1, &read_req, 1);
     mjrf_waitForFrame(context_.get(), frame);
   }
 }

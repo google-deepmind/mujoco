@@ -30,16 +30,16 @@ namespace mujoco {
 
 static constexpr int kNumFacesPerCube = 6;
 
-static bool IsCompressed(const mjrTextureConfig& config) {
+static bool IsCompressed(const mjrfTextureConfig& config) {
   return config.format == mjPIXEL_FORMAT_KTX;
 }
 
-static bool IsCubeMap(const mjrTextureConfig& config) {
+static bool IsCubeMap(const mjrfTextureConfig& config) {
   return config.sampler_type == mjTEXTURE_CUBE ||
          config.sampler_type == mjTEXTURE_SKYBOX;
 }
 
-static int GetFaceHeight(const mjrTextureConfig& config) {
+static int GetFaceHeight(const mjrfTextureConfig& config) {
   int face_height = config.height;
   if (config.width != config.height) {
     if (config.width * kNumFacesPerCube != config.height) {
@@ -53,7 +53,7 @@ static int GetFaceHeight(const mjrTextureConfig& config) {
   return face_height;
 }
 
-static int GetNumChannels(const mjrTextureConfig& config) {
+static int GetNumChannels(const mjrfTextureConfig& config) {
   switch (config.format) {
     case mjPIXEL_FORMAT_R8:
       return 1;
@@ -67,7 +67,7 @@ static int GetNumChannels(const mjrTextureConfig& config) {
   }
 }
 
-static filament::Texture::Format GetTextureFormat(const mjrTextureConfig& config) {
+static filament::Texture::Format GetTextureFormat(const mjrfTextureConfig& config) {
   switch (config.format) {
     case mjPIXEL_FORMAT_R8:
       return filament::Texture::Format::R;
@@ -82,7 +82,7 @@ static filament::Texture::Format GetTextureFormat(const mjrTextureConfig& config
 }
 
 static filament::Texture::InternalFormat GetTextureInternalFormat(
-    const mjrTextureConfig& config) {
+    const mjrfTextureConfig& config) {
   if (config.color_space == mjCOLORSPACE_SRGB) {
     switch (config.format) {
       case mjPIXEL_FORMAT_RGB8:
@@ -112,7 +112,7 @@ static filament::Texture::InternalFormat GetTextureInternalFormat(
   }
 }
 
-Texture::Texture(filament::Engine* engine, const mjrTextureConfig& config,
+Texture::Texture(filament::Engine* engine, const mjrfTextureConfig& config,
                  InternalFlags flags)
     : engine_(engine), config_(config) {
   if (IsCompressed(config_)) {
@@ -160,7 +160,7 @@ Texture::~Texture() {
   }
 }
 
-void Texture::Upload(const mjrTextureData& data) {
+void Texture::Upload(const mjrfTextureData& data) {
   user_data_ = data.user_data;
   release_callback_ = data.release_callback;
 

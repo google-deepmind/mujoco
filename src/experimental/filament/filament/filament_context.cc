@@ -80,9 +80,9 @@ FilamentContext::~FilamentContext() {
   filament::Engine::destroy(engine_);
 }
 
-mjrFrameHandle FilamentContext::Render(
-    std::span<const mjrRenderRequest> requests,
-    std::span<const mjrReadPixelsRequest> read_requests) {
+mjrfFrameHandle FilamentContext::Render(
+    std::span<const mjrfRenderRequest> requests,
+    std::span<const mjrfReadPixelsRequest> read_requests) {
   if (read_requests.size() > 1) {
     mju_error("Only one read request is supported for now.");
   }
@@ -96,8 +96,8 @@ mjrFrameHandle FilamentContext::Render(
 
   material_manager_->BeginFrame();
 
-  std::unordered_map<mjrScene*, std::vector<const mjrRenderRequest*>> scene_to_requests;
-  for (const mjrRenderRequest& request : requests) {
+  std::unordered_map<mjrfScene*, std::vector<const mjrfRenderRequest*>> scene_to_requests;
+  for (const mjrfRenderRequest& request : requests) {
     scene_to_requests[request.scene].push_back(&request);
   }
   for (auto& [scene, requests] : scene_to_requests) {
@@ -105,8 +105,8 @@ mjrFrameHandle FilamentContext::Render(
   }
 
   bool render_began = false;
-  mjrRenderTarget* current_target = nullptr;
-  for (const mjrRenderRequest& request : requests) {
+  mjrfRenderTarget* current_target = nullptr;
+  for (const mjrfRenderRequest& request : requests) {
     if (request.target != current_target && render_began) {
       renderer_->endFrame();
       render_began = false;
@@ -134,7 +134,7 @@ mjrFrameHandle FilamentContext::Render(
             "Rendering to a render target without a read request is pointless.");
       }
 
-      const mjrReadPixelsRequest& read_request = read_requests[0];
+      const mjrfReadPixelsRequest& read_request = read_requests[0];
       if (read_request.num_bytes == 0) {
         mju_error("Output buffer size is zero.");
       }
@@ -173,7 +173,7 @@ mjrFrameHandle FilamentContext::Render(
   return ++frame_counter_;
 }
 
-void FilamentContext::WaitForFrame(mjrFrameHandle frame_handle) {
+void FilamentContext::WaitForFrame(mjrfFrameHandle frame_handle) {
   if (frame_counter_ < frame_handle) {
     engine_->flushAndWait();
   }
@@ -187,8 +187,8 @@ void FilamentContext::SetClearColor(const filament::math::float4& color) {
   renderer_->setClearOptions(opts);
 }
 
-void FilamentContext::GetFrameStats(mjrFrameHandle frame,
-                                    mjrFrameStats* stats_out) const {
+void FilamentContext::GetFrameStats(mjrfFrameHandle frame,
+                                    mjrfFrameStats* stats_out) const {
   utils::FixedCapacityVector<filament::Renderer::FrameInfo> frame_info =
       renderer_->getFrameInfoHistory(1);
   if (!frame_info.empty()) {
@@ -200,14 +200,14 @@ void FilamentContext::GetFrameStats(mjrFrameHandle frame,
 }
 
 void FilamentContext::ValidateSwapChains(
-    std::span<const mjrRenderRequest> requests) {
+    std::span<const mjrfRenderRequest> requests) {
   // Determine the maximum extents of the requests.
   int max_window_width = 0;
   int max_window_height = 0;
   int max_offscreen_width = 0;
   int max_offscreen_height = 0;
 
-  for (const mjrRenderRequest& request : requests) {
+  for (const mjrfRenderRequest& request : requests) {
     const int width = request.viewport.width + request.viewport.left;
     const int height = request.viewport.height + request.viewport.bottom;
     if (request.target == nullptr) {

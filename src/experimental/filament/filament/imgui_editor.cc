@@ -647,7 +647,7 @@ void DrawLightGui(filament::LightManager& lm,
 
 extern "C" {
 
-void mjrf_DEBUG_drawImguiEditor(mjrScene* scene) {
+void mjrf_DEBUG_drawImguiEditor(mjrfScene* scene) {
   mujoco::SceneView* scene_view = mujoco::SceneView::downcast(scene);
   filament::View* view = scene_view->GetDefaultRenderView();
   filament::Engine* engine = scene_view->GetEngine();

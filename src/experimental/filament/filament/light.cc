@@ -34,7 +34,7 @@ namespace mujoco {
 using filament::math::float3;
 using filament::math::mat3f;
 
-Light::Light(filament::Engine* engine, const mjrLightParams& params)
+Light::Light(filament::Engine* engine, const mjrfLightParams& params)
     : engine_(engine), params_(params) {
   // Filament treats image-based lights (IBLs) as separate objects (i.e.
   // filament::IndirectLight) and so we need to handle IBLs specially.

@@ -27,7 +27,7 @@
 namespace mujoco {
 
 // Manages a filament RenderTarget and the textures which are bound to it.
-class RenderTarget : public mjrRenderTarget {
+class RenderTarget : public mjrfRenderTarget {
  public:
   // Defines the types of textures to create for the color and depth
   // attachments.
@@ -54,10 +54,10 @@ class RenderTarget : public mjrRenderTarget {
   // Returns the underlying filament render target.
   filament::RenderTarget* GetFilamentRenderTarget() const;
 
-  static RenderTarget* downcast(mjrRenderTarget* render_target) {
+  static RenderTarget* downcast(mjrfRenderTarget* render_target) {
     return static_cast<RenderTarget*>(render_target);
   }
-  static const RenderTarget* downcast(const mjrRenderTarget* render_target) {
+  static const RenderTarget* downcast(const mjrfRenderTarget* render_target) {
     return static_cast<const RenderTarget*>(render_target);
   }
 

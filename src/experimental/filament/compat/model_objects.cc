@@ -402,7 +402,7 @@ static std::span<const int> GetIndices(const mjModel* model,
   }
 }
 
-static void UpdateMeshData(mjrMeshData* data, const mjModel* model, int id,
+static void UpdateMeshData(mjrfMeshData* data, const mjModel* model, int id,
                            MeshType mesh_type) {
   if (!IsValidIndex(model, id, mesh_type)) {
     mju_error("Invalid index %d for type %d", id, mesh_type);
@@ -457,7 +457,7 @@ static void UpdateMeshData(mjrMeshData* data, const mjModel* model, int id,
   data->bounds_max[2] = builder->bounds_max.z;
 }
 
-void UpdateSkinFlexMeshData(mjrMeshData* data, const mjModel* model,
+void UpdateSkinFlexMeshData(mjrfMeshData* data, const mjModel* model,
                             const mjvScene* scene, const mjvGeom& geom) {
   auto positions = GetPositions(model, scene, geom);
   auto normals = GetNormals(model, scene, geom);
@@ -520,14 +520,14 @@ void ModelObjects::UploadMesh(const mjModel* model, int id) {
   meshes_.erase(id);
   convex_hulls_.erase(id);
 
-  mjrMeshData data;
-  mjr_defaultMeshData(&data);
+  mjrfMeshData data;
+  mjrf_defaultMeshData(&data);
   UpdateMeshData(&data, model, id, MeshType::kNormal);
   meshes_.insert_or_assign(id, CreateMesh(ctx_, data));
 
   if (model->mesh_graphadr[id] >= 0) {
-    mjrMeshData convex_hull_data;
-    mjr_defaultMeshData(&convex_hull_data);
+    mjrfMeshData convex_hull_data;
+    mjrf_defaultMeshData(&convex_hull_data);
     UpdateMeshData(&convex_hull_data, model, id, MeshType::kConvexHull);
     convex_hulls_.insert_or_assign(id, CreateMesh(ctx_, convex_hull_data));
   }
@@ -541,8 +541,8 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
     mju_error("Invalid texture index: %d", id);
   }
 
-  mjrTextureConfig config;
-  mjr_defaultTextureConfig(&config);
+  mjrfTextureConfig config;
+  mjrf_defaultTextureConfig(&config);
   config.width = model->tex_width[id];
   config.height = model->tex_height[id];
   config.sampler_type = (mjtTexture)model->tex_type[id];
@@ -565,8 +565,8 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
     config.format = mjPIXEL_FORMAT_KTX;
   }
 
-  mjrTextureData payload;
-  mjr_defaultTextureData(&payload);
+  mjrfTextureData payload;
+  mjrf_defaultTextureData(&payload);
   payload.bytes = model->tex_data + model->tex_adr[id];
   payload.nbytes =
       model->tex_width[id] * model->tex_height[id] * model->tex_nchannel[id];
@@ -589,15 +589,15 @@ void ModelObjects::UploadHeightField(const mjModel* model, int id) {
 
   height_fields_.erase(id);
 
-  mjrMeshData data;
-  mjr_defaultMeshData(&data);
+  mjrfMeshData data;
+  mjrf_defaultMeshData(&data);
   UpdateMeshData(&data, model, id, MeshType::kHeightField);
   height_fields_.insert_or_assign(id, CreateMesh(ctx_, data));
 }
 
 void ModelObjects::CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom) {
-  mjrMeshData data;
-  mjr_defaultMeshData(&data);
+  mjrfMeshData data;
+  mjrf_defaultMeshData(&data);
   UpdateSkinFlexMeshData(&data, model_, scene, geom);
   if (geom.type == mjGEOM_FLEX) {
     flexes_.insert_or_assign(geom.objid, CreateMesh(ctx_, data));
@@ -608,7 +608,7 @@ void ModelObjects::CreateSkinFlexMesh(const mjvScene* scene, const mjvGeom& geom
   }
 }
 
-const mjrMesh* ModelObjects::GetMesh(int data_id) const {
+const mjrfMesh* ModelObjects::GetMesh(int data_id) const {
   // As defined by mjv_updateScene:
   //   original mesh: mesh_id * 2
   //   convex hull: (mesh_id * 2) + 1
@@ -622,7 +622,7 @@ const mjrMesh* ModelObjects::GetMesh(int data_id) const {
   }
 }
 
-const mjrMesh* ModelObjects::GetHeightField(int hfield_id) const {
+const mjrfMesh* ModelObjects::GetHeightField(int hfield_id) const {
   if (auto it = height_fields_.find(hfield_id); it != height_fields_.end()) {
     return it->second.get();
   }
@@ -630,7 +630,7 @@ const mjrMesh* ModelObjects::GetHeightField(int hfield_id) const {
   return nullptr;
 }
 
-const mjrMesh* ModelObjects::GetFlexMesh(int geom_id) const {
+const mjrfMesh* ModelObjects::GetFlexMesh(int geom_id) const {
   if (auto it = flexes_.find(geom_id); it != flexes_.end()) {
     return it->second.get();
   }
@@ -638,7 +638,7 @@ const mjrMesh* ModelObjects::GetFlexMesh(int geom_id) const {
   return nullptr;
 }
 
-const mjrMesh* ModelObjects::GetSkinMesh(int geom_id) const {
+const mjrfMesh* ModelObjects::GetSkinMesh(int geom_id) const {
   if (auto it = skins_.find(geom_id); it != skins_.end()) {
     return it->second.get();
   }
@@ -646,7 +646,7 @@ const mjrMesh* ModelObjects::GetSkinMesh(int geom_id) const {
   return nullptr;
 }
 
-const mjrTexture* ModelObjects::GetTexture(int tex_id) const {
+const mjrfTexture* ModelObjects::GetTexture(int tex_id) const {
   if (auto it = textures_.find(tex_id); it != textures_.end()) {
     return it->second.get();
   }
@@ -654,7 +654,7 @@ const mjrTexture* ModelObjects::GetTexture(int tex_id) const {
   return nullptr;
 }
 
-const mjrTexture* ModelObjects::GetSkyboxTexture() const {
+const mjrfTexture* ModelObjects::GetSkyboxTexture() const {
   for (auto& iter : textures_) {
     if (model_->tex_type[iter.first] == mjTEXTURE_SKYBOX) {
       return iter.second.get();

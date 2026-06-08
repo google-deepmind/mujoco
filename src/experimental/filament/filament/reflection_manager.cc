@@ -31,11 +31,11 @@ void ReflectionManager::ClearRenderables() {
   renderables_.clear();
 }
 
-mjrTexture* ReflectionManager::Register(mjrRenderable* renderable, int width,
+mjrfTexture* ReflectionManager::Register(mjrfRenderable* renderable, int width,
                                         int height) {
   if (targets_.size() == renderables_.size()) {
     mjrRenderTargetConfig config;
-    mjr_defaultRenderTargetConfig(&config);
+    mjrf_defaultRenderTargetConfig(&config);
     config.color_format = mjPIXEL_FORMAT_RGBA8;
     config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
     targets_.push_back(std::make_unique<RenderTarget>(engine_, config));
@@ -50,7 +50,7 @@ int ReflectionManager::GetNumRenderables() const {
   return renderables_.size();
 }
 
-mjrRenderable* ReflectionManager::GetRenderable(int index) const {
+mjrfRenderable* ReflectionManager::GetRenderable(int index) const {
   return renderables_[index];
 }
 

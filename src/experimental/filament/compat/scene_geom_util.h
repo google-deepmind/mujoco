@@ -24,7 +24,7 @@
 namespace mujoco {
 
 // Creates a Renderable from the given mjvGeom.
-UniquePtr<mjrRenderable> CreateGeomRenderable(
+UniquePtr<mjrfRenderable> CreateGeomRenderable(
     const mjvGeom& geom, mjrfContext* ctx, ModelObjects* model_objs,
     const mjtByte render_flags[mjNRNDFLAG]);
 

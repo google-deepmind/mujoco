@@ -120,7 +120,7 @@ static void SetupReflectionCamera(const mat4& surface_xform,
   reflection_camera->setCustomProjection(oblique, near, far);
 }
 
-SceneView::SceneView(filament::Engine* engine, const mjrSceneParams& params)
+SceneView::SceneView(filament::Engine* engine, const mjrfSceneParams& params)
     : engine_(engine) {
   reflection_mgr_ = std::make_unique<ReflectionManager>(engine_);
 
@@ -218,8 +218,8 @@ void SceneView::SetSkybox(const Texture* skybox_texture) {
   }
 }
 
-void SceneView::PrepareToRender(std::span<const mjrRenderRequest*> requests) {
-  for (const mjrRenderRequest* request : requests) {
+void SceneView::PrepareToRender(std::span<const mjrfRenderRequest*> requests) {
+  for (const mjrfRenderRequest* request : requests) {
     if (request->scene != this) {
       mju_error("Invalid scene for SceneView::PrepareToRender.");
     }
@@ -231,7 +231,7 @@ void SceneView::PrepareToRender(std::span<const mjrRenderRequest*> requests) {
   }
 }
 
-void SceneView::Render(filament::Renderer* renderer, const mjrRenderRequest& request) {
+void SceneView::Render(filament::Renderer* renderer, const mjrfRenderRequest& request) {
   if (request.scene != this) {
     mju_error("Invalid scene for SceneView::Render.");
   }

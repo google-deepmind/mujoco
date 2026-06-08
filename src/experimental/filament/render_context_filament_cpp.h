@@ -31,40 +31,40 @@ inline UniquePtr<mjrfContext> CreateContext(const mjrFilamentConfig& config) {
   return UniquePtr<mjrfContext>(context, mjrf_destroyContext);
 }
 
-inline UniquePtr<mjrTexture> CreateTexture(mjrfContext* ctx,
-                                           const mjrTextureConfig& config) {
-  mjrTexture* texture = mjrf_createTexture(ctx, &config);
-  return UniquePtr<mjrTexture>(texture, mjrf_destroyTexture);
+inline UniquePtr<mjrfTexture> CreateTexture(mjrfContext* ctx,
+                                            const mjrfTextureConfig& config) {
+  mjrfTexture* texture = mjrf_createTexture(ctx, &config);
+  return UniquePtr<mjrfTexture>(texture, mjrf_destroyTexture);
 }
 
-inline UniquePtr<mjrMesh> CreateMesh(mjrfContext* ctx,
-                                     const mjrMeshData& data) {
-  mjrMesh* mesh = mjrf_createMesh(ctx, &data);
-  return UniquePtr<mjrMesh>(mesh, mjrf_destroyMesh);
+inline UniquePtr<mjrfMesh> CreateMesh(mjrfContext* ctx,
+                                      const mjrfMeshData& data) {
+  mjrfMesh* mesh = mjrf_createMesh(ctx, &data);
+  return UniquePtr<mjrfMesh>(mesh, mjrf_destroyMesh);
 }
 
-inline UniquePtr<mjrScene> CreateScene(mjrfContext* ctx,
-                                       const mjrSceneParams& params) {
-  mjrScene* scene = mjrf_createScene(ctx, &params);
-  return UniquePtr<mjrScene>(scene, mjrf_destroyScene);
+inline UniquePtr<mjrfScene> CreateScene(mjrfContext* ctx,
+                                        const mjrfSceneParams& params) {
+  mjrfScene* scene = mjrf_createScene(ctx, &params);
+  return UniquePtr<mjrfScene>(scene, mjrf_destroyScene);
 }
 
-inline UniquePtr<mjrLight> CreateLight(mjrfContext* ctx,
-                                       const mjrLightParams& params) {
-  mjrLight* light = mjrf_createLight(ctx, &params);
-  return UniquePtr<mjrLight>(light, mjrf_destroyLight);
+inline UniquePtr<mjrfLight> CreateLight(mjrfContext* ctx,
+                                        const mjrfLightParams& params) {
+  mjrfLight* light = mjrf_createLight(ctx, &params);
+  return UniquePtr<mjrfLight>(light, mjrf_destroyLight);
 }
 
-inline UniquePtr<mjrRenderable> CreateRenderable(
-    mjrfContext* ctx, const mjrRenderableParams& params) {
-  mjrRenderable* renderable = mjrf_createRenderable(ctx, &params);
-  return UniquePtr<mjrRenderable>(renderable, mjrf_destroyRenderable);
+inline UniquePtr<mjrfRenderable> CreateRenderable(
+    mjrfContext* ctx, const mjrfRenderableParams& params) {
+  mjrfRenderable* renderable = mjrf_createRenderable(ctx, &params);
+  return UniquePtr<mjrfRenderable>(renderable, mjrf_destroyRenderable);
 }
 
-inline UniquePtr<mjrRenderTarget> CreateRenderTarget(
+inline UniquePtr<mjrfRenderTarget> CreateRenderTarget(
     mjrfContext* ctx, const mjrRenderTargetConfig& config) {
-  mjrRenderTarget* render_target = mjrf_createRenderTarget(ctx, &config);
-  return UniquePtr<mjrRenderTarget>(render_target, mjrf_destroyRenderTarget);
+  mjrfRenderTarget* render_target = mjrf_createRenderTarget(ctx, &config);
+  return UniquePtr<mjrfRenderTarget>(render_target, mjrf_destroyRenderTarget);
 }
 
 std::string ResolveFilamentAssetPath(const std::string& filename);

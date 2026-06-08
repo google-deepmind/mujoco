@@ -26,9 +26,9 @@ namespace mujoco {
 
 // Wrapper around both a "normal" filament Light Entity and a filament
 // IndirectLight.
-class Light : public mjrLight {
+class Light : public mjrfLight {
  public:
-  Light(filament::Engine* engine, const mjrLightParams& params);
+  Light(filament::Engine* engine, const mjrfLightParams& params);
   ~Light() noexcept;
 
   Light(const Light&) = delete;
@@ -57,10 +57,10 @@ class Light : public mjrLight {
   void Enable();
   void Disable();
 
-  static Light* downcast(mjrLight* light) {
+  static Light* downcast(mjrfLight* light) {
     return static_cast<Light*>(light);
   }
-  static const Light* downcast(const mjrLight* light) {
+  static const Light* downcast(const mjrfLight* light) {
     return static_cast<const Light*>(light);
   }
 
@@ -68,7 +68,7 @@ class Light : public mjrLight {
   filament::Engine* engine_ = nullptr;
   filament::IndirectLight* ibl_ = nullptr;
   utils::Entity entity_;
-  mjrLightParams params_;
+  mjrfLightParams params_;
   bool enabled_ = true;
 };
 

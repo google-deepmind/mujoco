@@ -24,7 +24,7 @@
 namespace mujoco {
 
 // Wrapper around a filament::Texture.
-class Texture : public mjrTexture {
+class Texture : public mjrfTexture {
  public:
   // Flags for internal use.
   struct InternalFlags {
@@ -34,7 +34,7 @@ class Texture : public mjrTexture {
   };
 
   // Creates a texture with the given data.
-  Texture(filament::Engine* engine, const mjrTextureConfig& config,
+  Texture(filament::Engine* engine, const mjrfTextureConfig& config,
           InternalFlags flags = InternalFlags());
 
   ~Texture();
@@ -43,7 +43,7 @@ class Texture : public mjrTexture {
   Texture& operator=(const Texture&) = delete;
 
   // Uploads the given data to the texture.
-  void Upload(const mjrTextureData& data);
+  void Upload(const mjrfTextureData& data);
 
   // Returns the width of the texture.
   int GetWidth() const { return config_.width; }
@@ -63,10 +63,10 @@ class Texture : public mjrTexture {
     return has_spherical_harmonics_ ? &spherical_harmonics_ : nullptr;
   }
 
-  static Texture* downcast(mjrTexture* texture) {
+  static Texture* downcast(mjrfTexture* texture) {
     return static_cast<Texture*>(texture);
   }
-  static const Texture* downcast(const mjrTexture* texture) {
+  static const Texture* downcast(const mjrfTexture* texture) {
     return static_cast<const Texture*>(texture);
   }
 
@@ -75,7 +75,7 @@ class Texture : public mjrTexture {
 
   filament::Engine* engine_ = nullptr;
   filament::Texture* texture_ = nullptr;
-  mjrTextureConfig config_;
+  mjrfTextureConfig config_;
   SphericalHarmonics spherical_harmonics_;
   bool has_spherical_harmonics_ = false;
 

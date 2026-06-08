@@ -40,7 +40,7 @@ static float GetPlaneTileSize(const mjModel* model, int matid,
   }
 }
 
-static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
+static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
                               ModelObjects* model_objs) {
   const mjModel* model = model_objs->GetModel();
   const int nstack = model->vis.quality.numstacks;
@@ -142,13 +142,13 @@ static void PrepareGeomMeshes(mjrRenderable* renderable, const mjvGeom& geom,
   mjrf_setRenderableTransform(renderable, position, rotation);
 }
 
-static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
+static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
                                ModelObjects* model_objs,
                                const mjtByte render_flags[mjNRNDFLAG]) {
   const mjModel* model = model_objs->GetModel();
 
-  mjrMaterial material;
-  mjr_defaultMaterial(&material);
+  mjrfMaterial material;
+  mjrf_defaultMaterial(&material);
 
   if (geom.category == mjCAT_DECOR) {
     material.decor_ux = true;
@@ -160,7 +160,7 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
   material.color[3] = geom.rgba[3];
 
   if (geom.matid >= 0 && geom.matid < model->nmat) {
-    auto get_texture = [&](int role) -> const mjrTexture* {
+    auto get_texture = [&](int role) -> const mjrfTexture* {
       const int tex_id = model->mat_texid[geom.matid * mjNTEXROLE + role];
       return tex_id >= 0 ? model_objs->GetTexture(tex_id) : nullptr;
     };
@@ -263,11 +263,11 @@ static void UpdateGeomMaterial(mjrRenderable* renderable, const mjvGeom& geom,
   mjrf_setRenderableMaterial(renderable, &material);
 }
 
-UniquePtr<mjrRenderable> CreateGeomRenderable(
+UniquePtr<mjrfRenderable> CreateGeomRenderable(
     const mjvGeom& geom, mjrfContext* ctx, ModelObjects* model_objs,
     const mjtByte render_flags[mjNRNDFLAG]) {
-  mjrRenderableParams params;
-  mjr_defaultRenderableParams(&params);
+  mjrfRenderableParams params;
+  mjrf_defaultRenderableParams(&params);
   params.layer_mask = geom.category;
   auto renderable = CreateRenderable(ctx, params);
   PrepareGeomMeshes(renderable.get(), geom, model_objs);

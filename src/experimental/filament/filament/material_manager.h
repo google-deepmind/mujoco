@@ -32,7 +32,7 @@ namespace mujoco {
 // Centralizing the MaterialInstance management allows multiple Renderables to
 // share the same MaterialInstance, which can reduce GPU overhead.
 // MaterialInstance uniqueness is determined by hashing the parameters (mainly
-// the mjrMaterial) used to create the instance.
+// the mjrfMaterial) used to create the instance.
 //
 // Any unused MaterialInstances are destroyed at the end of each frame.
 class MaterialManager {
@@ -57,11 +57,11 @@ class MaterialManager {
   void EndFrame();
 
   // Returns a MaterialType that best matches the given material data and mesh.
-  MaterialType GetMaterialType(const mjrMaterial& material, const Mesh* mesh);
+  MaterialType GetMaterialType(const mjrfMaterial& material, const Mesh* mesh);
 
   // Prepares a MaterialInstance based on the given parameters if one does not
   // already exist. Returns the key associated with the MaterialInstance.
-  MaterialKey PrepareMaterialInstance(const mjrMaterial& material,
+  MaterialKey PrepareMaterialInstance(const mjrfMaterial& material,
                                       mjrDrawMode draw_mode, mjtGeom geom_type,
                                       const Mesh* mesh);
 
@@ -77,7 +77,7 @@ class MaterialManager {
   // texture is not provided, a default texture from the ObjectManager will be
   // used instead.
   void UpdateMaterialInstance(filament::MaterialInstance* instance,
-                              const mjrMaterial& material);
+                              const mjrfMaterial& material);
 
   ObjectManager* object_mgr_;
   std::unordered_map<MaterialKey, filament::MaterialInstance*> instances_;

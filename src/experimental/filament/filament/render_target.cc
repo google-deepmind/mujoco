@@ -56,8 +56,8 @@ void RenderTarget::Prepare(int width, int height) {
     return;
   }
 
-  mjrTextureConfig color_config;
-  mjr_defaultTextureConfig(&color_config);
+  mjrfTextureConfig color_config;
+  mjrf_defaultTextureConfig(&color_config);
   Texture::InternalFlags color_flags;
   color_config.width = width;
   color_config.height = height;
@@ -67,8 +67,8 @@ void RenderTarget::Prepare(int width, int height) {
   color_flags.color_attachment = true;
   color_texture_ = std::make_unique<Texture>(engine_, color_config, color_flags);
 
-  mjrTextureConfig depth_config;
-  mjr_defaultTextureConfig(&depth_config);
+  mjrfTextureConfig depth_config;
+  mjrf_defaultTextureConfig(&depth_config);
   Texture::InternalFlags depth_flags;
   depth_config.width = width;
   depth_config.height = height;

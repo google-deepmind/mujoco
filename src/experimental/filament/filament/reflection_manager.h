@@ -36,7 +36,7 @@ class ReflectionManager {
   // Registers a Renderable as being reflective. Internally, this function will
   // create a RenderTarget of the given size and return the texture that the
   // Renderable can use as its reflection.
-  mjrTexture* Register(mjrRenderable* renderable, int width, int height);
+  mjrfTexture* Register(mjrfRenderable* renderable, int width, int height);
 
   // Clears all previously registered renderables. This should be called at the
   // beginning of a frame.
@@ -46,14 +46,14 @@ class ReflectionManager {
   int GetNumRenderables() const;
 
   // Returns the renderable at the given index.
-  mjrRenderable* GetRenderable(int index) const;
+  mjrfRenderable* GetRenderable(int index) const;
 
   // Returns the RenderTarget at the given index.
   const RenderTarget* GetRenderTarget(int index) const;
 
  private:
   filament::Engine* engine_;
-  std::vector<mjrRenderable*> renderables_;
+  std::vector<mjrfRenderable*> renderables_;
   std::vector<std::unique_ptr<RenderTarget>> targets_;
 };
 }  // namespace mujoco

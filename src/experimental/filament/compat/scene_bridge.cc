@@ -41,8 +41,8 @@ using filament::math::mat4;
 
 SceneBridge::SceneBridge(mjrfContext* ctx, const mjModel* model)
     : ctx_(ctx) {
-  mjrSceneParams params;
-  mjr_defaultSceneParams(&params);
+  mjrfSceneParams params;
+  mjrf_defaultSceneParams(&params);
   params.layer_mask = mjCAT_ALL;
   params.reflection_layer_mask = mjCAT_DYNAMIC | mjCAT_STATIC;
   scene_ = CreateScene(ctx_, params);
@@ -129,14 +129,14 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       model_objects_->CreateSkinFlexMesh(scene, *geom);
     }
 
-    UniquePtr<mjrRenderable> renderable =
+    UniquePtr<mjrfRenderable> renderable =
         CreateGeomRenderable(*geom, ctx_, model_objects_.get(), scene->flags);
 
     mjrf_addRenderableToScene(scene_.get(), renderable.get());
     renderables_.push_back(std::move(renderable));
   }
 
-  mjrLight* headlight = nullptr;
+  mjrfLight* headlight = nullptr;
   bool headlight_enabled = false;
   for (int i = 0; i < scene->nlight; ++i) {
     const mjvLight& scene_light = scene->lights[i];
@@ -156,7 +156,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       mjrf_setLightColor(headlight, scene_light.diffuse);
       mjrf_setLightTransform(headlight, headpos, gazedir);
       continue;
-    } else if (mjrLight* light = light_manager_->GetLight(scene_light.id)) {
+    } else if (mjrfLight* light = light_manager_->GetLight(scene_light.id)) {
       mjrf_setLightColor(light, scene_light.diffuse);
       mjrf_setLightTransform(light, scene_light.pos, scene_light.dir);
     } else {
@@ -186,7 +186,7 @@ void SceneBridge::SetDrawTextFunction(DrawTextAtFn fn) {
   draw_text_callback_ = std::move(fn);
 }
 
-mjrScene* SceneBridge::GetScene() const { return scene_.get(); }
+mjrfScene* SceneBridge::GetScene() const { return scene_.get(); }
 
 mjrCamera SceneBridge::GetCamera() const { return camera_; }
 

@@ -96,7 +96,7 @@ void MaterialManager::EndFrame() {
 
 static MaterialManager::MaterialKey BuildMaterialKey(
     MaterialManager::MaterialType material_type, mjtGeom geom_type,
-    const mjrMaterial& material) {
+    const mjrfMaterial& material) {
   // Normally, hashing the struct by memory would be a problem because of
   // padding and other uninitialized data. However, we do a memset(0) on the
   // entire structure in mjr_defaultMaterial so this should be safe.
@@ -107,7 +107,7 @@ static MaterialManager::MaterialKey BuildMaterialKey(
 }
 
 MaterialManager::MaterialType MaterialManager::GetMaterialType(
-    const mjrMaterial& material, const Mesh* mesh) {
+    const mjrfMaterial& material, const Mesh* mesh) {
   if (material.decor_ux) {
     if (material.color_texture) {
       return ObjectManager::kUnlitUi;
@@ -190,7 +190,7 @@ MaterialManager::MaterialType MaterialManager::GetMaterialType(
 }
 
 MaterialManager::MaterialKey MaterialManager::PrepareMaterialInstance(
-    const mjrMaterial& material, mjrDrawMode draw_mode, mjtGeom geom_type,
+    const mjrfMaterial& material, mjrDrawMode draw_mode, mjtGeom geom_type,
     const Mesh* mesh) {
   ObjectManager::MaterialType type;
   if (draw_mode == mjDRAW_MODE_DEPTH) {
@@ -228,7 +228,7 @@ filament::MaterialInstance* MaterialManager::GetInstance(MaterialKey key) {
 }
 
 void MaterialManager::UpdateMaterialInstance(filament::MaterialInstance* instance,
-                            const mjrMaterial& material) {
+                            const mjrfMaterial& material) {
   if (material.scissor[2] != 0 && material.scissor[3] != 0) {
     instance->setScissor(material.scissor[0], material.scissor[1],
                          material.scissor[2], material.scissor[3]);
@@ -285,7 +285,7 @@ void MaterialManager::UpdateMaterialInstance(filament::MaterialInstance* instanc
   sampler.setMinFilter(
       filament::TextureSampler::MinFilter::LINEAR_MIPMAP_LINEAR);
 
-  auto TrySetTexture = [&](const char* name, const mjrTexture* texture,
+  auto TrySetTexture = [&](const char* name, const mjrfTexture* texture,
                            mjtTextureRole role) {
     if (fmaterial->hasParameter(name)) {
       if (texture != nullptr) {

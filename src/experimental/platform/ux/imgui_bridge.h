@@ -37,7 +37,7 @@ class ImguiBridge {
   void Update();
 
   // Returns the managed UX scene.
-  mjrScene* GetScene() const;
+  mjrfScene* GetScene() const;
   mjrCamera GetCamera(int width, int height) const;
 
   // Uploads texture to be used with ImGui's Image and ImageButton functions.
@@ -55,13 +55,13 @@ class ImguiBridge {
   void CreateTexture(ImTextureData* data);
   void UpdateTexture(ImTextureData* data);
   void DestroyTexture(ImTextureData* data);
-  mjrTexture* GetTexture(uintptr_t tex_id) const;
+  mjrfTexture* GetTexture(uintptr_t tex_id) const;
 
   mjrfContext* ctx_ = nullptr;
-  UniquePtr<mjrScene> scene_{nullptr, nullptr};
-  std::vector<UniquePtr<mjrRenderable>> renderables_;
-  std::vector<UniquePtr<mjrMesh>> meshes_;
-  std::unordered_map<uintptr_t, UniquePtr<mjrTexture>> textures_;
+  UniquePtr<mjrfScene> scene_{nullptr, nullptr};
+  std::vector<UniquePtr<mjrfRenderable>> renderables_;
+  std::vector<UniquePtr<mjrfMesh>> meshes_;
+  std::unordered_map<uintptr_t, UniquePtr<mjrfTexture>> textures_;
   uintptr_t next_tex_id_ = 1;
 };
 

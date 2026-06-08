@@ -39,9 +39,9 @@ namespace mujoco {
 // The filament Scene is populated with the objects (e.g. lights, renderables,
 // skybox, etc.). It manages multiple views to support a variety of draw modes
 // (e.g. normal, depth, segmentation, etc.) as well as reflective surfaces.
-class SceneView : public mjrScene {
+class SceneView : public mjrfScene {
  public:
-  SceneView(filament::Engine* engine, const mjrSceneParams& params);
+  SceneView(filament::Engine* engine, const mjrfSceneParams& params);
   ~SceneView();
 
   SceneView(const SceneView&) = delete;
@@ -57,10 +57,10 @@ class SceneView : public mjrScene {
   // Performs necessary preparations in order to render the given requests.
   // Assumes that the Render() function will be called the same number of times
   // and in the same order with the given requests.
-  void PrepareToRender(std::span<const mjrRenderRequest*> requests);
+  void PrepareToRender(std::span<const mjrfRenderRequest*> requests);
 
   // Fulfills the given render request using the renderer.
-  void Render(filament::Renderer* renderer, const mjrRenderRequest& request);
+  void Render(filament::Renderer* renderer, const mjrfRenderRequest& request);
 
   // Returns the filament Engine managing the scene.
   filament::Engine* GetEngine() const { return engine_; }
@@ -77,10 +77,10 @@ class SceneView : public mjrScene {
   // scene view accordingly.
   void Configure(const mjModel* model);
 
-  static SceneView* downcast(mjrScene* scene) {
+  static SceneView* downcast(mjrfScene* scene) {
     return static_cast<SceneView*>(scene);
   }
-  static const SceneView* downcast(const mjrScene* scene) {
+  static const SceneView* downcast(const mjrfScene* scene) {
     return static_cast<const SceneView*>(scene);
   }
 

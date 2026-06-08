@@ -59,16 +59,16 @@ static std::size_t NumIndicesPerSide(int num_quads_per_axis) {
   return kNumIndicesPerQuad * num_quads_per_axis * num_quads_per_axis;
 }
 
-class BuiltinBuilder : public mjrMeshData {
+class BuiltinBuilder : public mjrfMeshData {
  public:
-  BuiltinBuilder() { mjr_defaultMeshData(this); }
+  BuiltinBuilder() { mjrf_defaultMeshData(this); }
   virtual ~BuiltinBuilder() = default;
 
   template <typename T, typename... Args>
   static std::unique_ptr<Mesh> Create(filament::Engine* engine,
                                       Args&&... args) {
     auto builder = new T(std::forward<Args>(args)...);
-    mjrMeshData* mesh_data = builder->PrepareMeshData();
+    mjrfMeshData* mesh_data = builder->PrepareMeshData();
     mesh_data->release_callback = +[](void* user_data) {
       delete static_cast<BuiltinBuilder*>(user_data);
     };
@@ -76,8 +76,8 @@ class BuiltinBuilder : public mjrMeshData {
     return std::make_unique<Mesh>(engine, *mesh_data);
   }
 
-  mjrMeshData* PrepareMeshData() {
-    // Update the `mjrMeshData` fields.
+  mjrfMeshData* PrepareMeshData() {
+    // Update the `mjrfMeshData` fields.
     nattributes = 2;
     attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
     attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
