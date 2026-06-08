@@ -1663,24 +1663,37 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
     return;
   }
 
-  // no pruning needed
-  int k = 0;
-  for (int i = 0; i < 3*npolygon; i += 3) {
-    int skip = 0;
-
-    // find possible duplicate vertices
-    for (int j = 0; j < k; j += 3) {
-      if (equal3(status->x2 + j, polygon + i)) {
-        skip = 1;
-        break;
+  // if the face is an edge, remove potential duplicates
+  if (nface2 == 2 && npolygon > 2) {
+    // find the two most distant vertices in the polygon
+    int best1 = 0, best2 = 1;
+    mjtNum d = 0;
+    for (int i = 0; i < npolygon; i++) {
+      for (int j = i + 1; j < npolygon; j++) {
+        mjtNum diff[3];
+        sub3(diff, polygon + 3*j, polygon + 3*i);
+        mjtNum d2 = dot3(diff, diff);
+        if (d2 > d) {
+          d = d2;
+          best1 = i;
+          best2 = j;
+        }
       }
     }
-    if (skip) continue;
-    copy3(status->x2 + k, polygon + i);
-    sub3(status->x1 + k, status->x2 + k, dir);
-    k += 3;
+    copy3(status->x2, polygon + 3*best1);
+    sub3(status->x1, status->x2, dir);
+    copy3(status->x2 + 3, polygon + 3*best2);
+    sub3(status->x1 + 3, status->x2 + 3, dir);
+    status->nx = 2;
+    return;
   }
-  status->nx = k/3;
+
+  // no pruning needed
+  for (int i = 0; i < 3*npolygon; i += 3) {
+    copy3(status->x2 + i, polygon + i);
+    sub3(status->x1 + i, status->x2 + i, dir);
+  }
+  status->nx = npolygon;
 }
 
 
