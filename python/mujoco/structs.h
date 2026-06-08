@@ -40,10 +40,60 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
+#include "dlpack.h"
 
 namespace py = ::pybind11;
 
 namespace mujoco::python {
+
+inline void DLManagedTensorDeleter(DLManagedTensor* dlm_tensor) {
+  if (dlm_tensor) {
+    if (dlm_tensor->manager_ctx) {
+      py::handle parent = reinterpret_cast<PyObject*>(dlm_tensor->manager_ctx);
+      py::gil_scoped_acquire gil;
+      parent.dec_ref();
+    }
+    delete[] dlm_tensor->dl_tensor.shape;
+    delete[] dlm_tensor->dl_tensor.strides;
+    delete dlm_tensor;
+  }
+}
+
+inline py::capsule ToDLPack(py::array_t<mjtNum> arr, py::handle parent) {
+  py::buffer_info info = arr.request();
+  DLManagedTensor* dlm_tensor = new DLManagedTensor;
+
+  dlm_tensor->manager_ctx = parent.ptr();
+  parent.inc_ref();
+
+  dlm_tensor->deleter = DLManagedTensorDeleter;
+
+  DLTensor& dt = dlm_tensor->dl_tensor;
+  dt.data = info.ptr;
+  dt.device.device_type = kDLCPU;
+  dt.device.device_id = 0;
+  dt.ndim = info.ndim;
+
+  dt.dtype.code = kDLFloat;
+  dt.dtype.bits = sizeof(mjtNum) * 8;
+  dt.dtype.lanes = 1;
+  dt.byte_offset = 0;
+
+  dt.shape = new int64_t[info.ndim];
+  dt.strides = new int64_t[info.ndim];
+  for (int i = 0; i < info.ndim; ++i) {
+    dt.shape[i] = info.shape[i];
+    dt.strides[i] = info.strides[i] / sizeof(mjtNum);
+  }
+
+  return py::capsule(dlm_tensor, "dltensor", [](PyObject* obj) {
+    DLManagedTensor* ext = static_cast<DLManagedTensor*>(
+        PyCapsule_GetPointer(obj, "dltensor"));
+    if (ext) {
+      ext->deleter(ext);
+    }
+  });
+}
 
 class MjVfs;
 
