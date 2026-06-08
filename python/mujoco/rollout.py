@@ -219,9 +219,9 @@ class Rollout:
 
     # allocate output if not provided
     if state is None:
-      state = np.empty((nbatch, nstep, nstate))
+      state = np.empty((nbatch, nstep, nstate), dtype=mujoco.MJTNUM_DTYPE)
     if sensordata is None:
-      sensordata = np.empty((nbatch, nstep, nsensordata))
+      sensordata = np.empty((nbatch, nstep, nsensordata), dtype=mujoco.MJTNUM_DTYPE)
 
     # call rollout
     self.rollout_.rollout(
@@ -376,7 +376,7 @@ def _ensure_2d(arg):
   if arg is None:
     return None
   else:
-    return np.ascontiguousarray(np.atleast_2d(arg), dtype=np.float64)
+    return np.ascontiguousarray(np.atleast_2d(arg), dtype=mujoco.MJTNUM_DTYPE)
 
 
 def _ensure_3d(arg):
@@ -390,7 +390,7 @@ def _ensure_3d(arg):
       arg = arg[np.newaxis, np.newaxis, ...]
     elif arg.ndim == 2:
       arg = arg[np.newaxis, ...]
-    return np.ascontiguousarray(arg, dtype=np.float64)
+    return np.ascontiguousarray(arg, dtype=mujoco.MJTNUM_DTYPE)
 
 
 def _infer_dimension(dim, value, **kwargs):
