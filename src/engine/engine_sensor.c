@@ -408,8 +408,12 @@ static int matchContact(const mjModel* m, const mjData* d, int conid,
   // get geom, body ids
   int geom1 = d->contact[conid].geom[0];
   int geom2 = d->contact[conid].geom[1];
-  int body1 = geom1 >= 0 ? m->geom_bodyid[geom1] : -1;
-  int body2 = geom2 >= 0 ? m->geom_bodyid[geom2] : -1;
+  int body1 = geom1 >= 0
+      ? m->geom_bodyid[geom1]
+      : mj_flexBody(m, &d->contact[conid], 0);
+  int body2 = geom2 >= 0
+      ? m->geom_bodyid[geom2]
+      : mj_flexBody(m, &d->contact[conid], 1);
 
   // check match of sensor objects with contact objects
   int match11 = checkMatch(m, body1, geom1, type1, id1);
@@ -1040,7 +1044,9 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
       con = d->contact + j;
       int conbody[2];
       for (int k=0; k < 2; k++) {
-        conbody[k] = (con->geom[k] >= 0) ? m->geom_bodyid[con->geom[k]] : -1;
+        conbody[k] = (con->geom[k] >= 0)
+            ? m->geom_bodyid[con->geom[k]]
+            : mj_flexBody(m, con, k);
       }
 
       // select contacts involving sensorized body
@@ -1216,8 +1222,12 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
       int* contact_geom_ids = mj_stackAllocInt(d, d->ncon);
       int ncontact = 0;
       for (int k = 0; k < d->ncon; k++) {
-        int body1 = m->body_weldid[m->geom_bodyid[d->contact[k].geom1]];
-        int body2 = m->body_weldid[m->geom_bodyid[d->contact[k].geom2]];
+        int body1 = (d->contact[k].geom1 >= 0)
+            ? m->body_weldid[m->geom_bodyid[d->contact[k].geom1]]
+            : m->body_weldid[mj_flexBody(m, &d->contact[k], 0)];
+        int body2 = (d->contact[k].geom2 >= 0)
+            ? m->body_weldid[m->geom_bodyid[d->contact[k].geom2]]
+            : m->body_weldid[mj_flexBody(m, &d->contact[k], 1)];
         if (body1 == parent_weld) {
           int add = 1;
           for (int j = 0; j < ncontact; j++) {
