@@ -176,6 +176,7 @@ class Viewer {
 };
 
 PYBIND11_MODULE(native_viewer_cc, m) {
+  pybind11::module_::import("mujoco._structs");
   pybind11::class_<Viewer>(m, "Viewer")
       .def(pybind11::init<const std::string&, int, int, const std::string&>())
       .def("InitRenderer", &Viewer::InitRenderer)

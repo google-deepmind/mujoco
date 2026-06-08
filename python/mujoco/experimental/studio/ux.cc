@@ -57,6 +57,7 @@ struct RenderFlags {
 };
 
 PYBIND11_MODULE(ux, m) {
+  py::module_::import("mujoco._structs");
   py::class_<RenderFlags>(m, "RenderFlags")
       .def(py::init<>())
       .def_readwrite("flags", &RenderFlags::flags);

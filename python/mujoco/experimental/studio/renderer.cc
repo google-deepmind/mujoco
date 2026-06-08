@@ -69,6 +69,7 @@ class Renderer {
 }  // namespace mujoco::python
 
 PYBIND11_MODULE(renderer, m) {
+  pybind11::module_::import("mujoco._structs");
   pybind11::class_<mujoco::python::Renderer>(m, "Renderer")
       .def(pybind11::init<const std::string&>())
       .def("Init", &mujoco::python::Renderer::Init)
