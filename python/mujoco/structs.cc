@@ -207,7 +207,7 @@ PYBIND11_MODULE(_structs, m) {
                        return raw::MjVisualGlobal(other);
                      });
   DefineStructFunctions(mjVisualGlobal);
-#define X(type, var) \
+#define X(type, var, dim) \
   mjVisualGlobal.def_readwrite(#var, &raw::MjVisualGlobal::var);
   MJVISUAL_GLOBAL_FIELDS
 #undef X
@@ -221,7 +221,8 @@ PYBIND11_MODULE(_structs, m) {
                         return raw::MjVisualQuality(other);
                       });
   DefineStructFunctions(mjVisualQuality);
-#define X(var) mjVisualQuality.def_readwrite(#var, &raw::MjVisualQuality::var);
+#define X(type, var, dim) \
+  mjVisualQuality.def_readwrite(#var, &raw::MjVisualQuality::var);
   MJVISUAL_QUALITY_FIELDS
 #undef X
 
@@ -254,7 +255,8 @@ PYBIND11_MODULE(_structs, m) {
     return raw::MjVisualMap(other);
   });
   DefineStructFunctions(mjVisualMap);
-#define X(var) mjVisualMap.def_readwrite(#var, &raw::MjVisualMap::var);
+#define X(type, var, dim) \
+  mjVisualMap.def_readwrite(#var, &raw::MjVisualMap::var);
   MJVISUAL_MAP_FIELDS
 #undef X
 
@@ -267,7 +269,8 @@ PYBIND11_MODULE(_structs, m) {
                       return raw::MjVisualScale(other);
                     });
   DefineStructFunctions(mjVisualScale);
-#define X(var) mjVisualScale.def_readwrite(#var, &raw::MjVisualScale::var);
+#define X(type, var, dim) \
+  mjVisualScale.def_readwrite(#var, &raw::MjVisualScale::var);
   MJVISUAL_SCALE_FIELDS
 #undef X
 
@@ -280,9 +283,10 @@ PYBIND11_MODULE(_structs, m) {
                      return MjVisualRgbaWrapper(other);
                    });
   DefineStructFunctions(mjVisualRgba);
-#define X(var) DefinePyArray(mjVisualRgba, #var, &MjVisualRgbaWrapper::var);
+#define XVEC(type, var, dim) \
+  DefinePyArray(mjVisualRgba, #var, &MjVisualRgbaWrapper::var);
   MJVISUAL_RGBA_FIELDS
-#undef X
+#undef XVEC
 
 #define X(var)                    \
   mjVisual.def_property_readonly( \
@@ -615,15 +619,16 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(int, nupdate);
 #undef X
 
-  // ==================== MJPRECONTACT ==========================================
+  // ==================== MJPRECONTACT =========================================
   py::class_<MjPreContactWrapper> mjPreContact(m, "MjPreContact");
   mjPreContact.def(py::init<>());
   mjPreContact.def("__copy__", [](const MjPreContactWrapper& self) {
     return MjPreContactWrapper(self);
   });
-  mjPreContact.def("__deepcopy__", [](const MjPreContactWrapper& self, py::dict) {
-    return MjPreContactWrapper(self);
-  });
+  mjPreContact.def("__deepcopy__",
+                   [](const MjPreContactWrapper& self, py::dict) {
+                     return MjPreContactWrapper(self);
+                   });
   DefineStructFunctions(mjPreContact);
 
 #define X(var)                                                           \

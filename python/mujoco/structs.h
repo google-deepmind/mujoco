@@ -270,12 +270,12 @@ class MjWrapper<raw::MjVisualRgba> : public WrapperBase<raw::MjVisualRgba> {
   MjWrapper(raw::MjVisualRgba* ptr, pybind11::handle owner);
   ~MjWrapper() = default;
 
-  #define X(var)                                                     \
-    py_array_or_tuple_t<                                             \
-        std::remove_all_extents_t<decltype(raw::MjVisualRgba::var)>> \
-        var;
+#define XVEC(type, var, dim)                                       \
+  py_array_or_tuple_t<                                             \
+      std::remove_all_extents_t<decltype(raw::MjVisualRgba::var)>> \
+      var;
   MJVISUAL_RGBA_FIELDS
-  #undef X
+#undef XVEC
 };
 
 using MjVisualRgbaWrapper = MjWrapper<raw::MjVisualRgba>;

@@ -633,7 +633,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   fprintf(fp, "VISUAL\n");
 
   fprintf(fp, "  GLOBAL\n");
-#define X(type, name)                                                       \
+#define X(type, name, sz)                                                   \
   fprintf(fp, NAME_FORMAT, "    " #name);                                   \
   {                                                                         \
     const char* format =                                                    \
@@ -646,7 +646,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 #undef X
 
   fprintf(fp, "  QUALITY\n");
-#define X(name)                                  \
+#define X(type, name, sz)                        \
   fprintf(fp, NAME_FORMAT, "    " #name);        \
   fprintf(fp, INT_FORMAT, m->vis.quality.name);  \
   fprintf(fp, "\n");
@@ -680,7 +680,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 #undef X
 
   fprintf(fp, "  MAP\n");
-#define X(name)                                \
+#define X(type, name, sz)                      \
   fprintf(fp, NAME_FORMAT, "    " #name);      \
   fprintf(fp, float_format, m->vis.map.name);  \
   fprintf(fp, "\n");
@@ -689,7 +689,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 #undef X
 
   fprintf(fp, "  SCALE\n");
-#define X(name)                                  \
+#define X(type, name, sz)                        \
   fprintf(fp, NAME_FORMAT, "    " #name);        \
   fprintf(fp, float_format, m->vis.scale.name);  \
   fprintf(fp, "\n");
@@ -698,17 +698,16 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 #undef X
 
   fprintf(fp, "  RGBA\n");
-#define X(name)                                       \
+#define XVEC(type, name, sz)                          \
   fprintf(fp, NAME_FORMAT, "    " #name);             \
   {                                                   \
-    for (int i = 0; i < 4; i++) {                     \
+    for (int i = 0; i < sz; i++) {                    \
       fprintf(fp, float_format, m->vis.rgba.name[i]); \
     }                                                 \
   }                                                   \
   fprintf(fp, "\n");
-
   MJVISUAL_RGBA_FIELDS
-#undef X
+#undef XVEC
   fprintf(fp, "\n");
 
   // total mass
