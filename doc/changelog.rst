@@ -44,6 +44,7 @@ General
 Bug fixes
 ^^^^^^^^^
 - Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
+- Fixed a bug where the mesh compiler would produce non-unit convex hull polygon normals.
 
 Version 3.9.0 (May 27, 2026)
 ----------------------------
