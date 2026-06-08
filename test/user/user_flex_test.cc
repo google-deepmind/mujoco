@@ -1399,6 +1399,18 @@ TEST_F(UserFlexTest, Vert0RotationInvariant) {
   mj_deleteModel(m2);
 }
 
+TEST_F(UserFlexTest, Load1DFlexFromOBJ) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/flex_line_obj.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_EQ(m->nflexvert, 4);
+  EXPECT_EQ(m->nflexelem, 3);
+  EXPECT_EQ(m->flex_dim[0], 1);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco
 

@@ -16,6 +16,7 @@ General
 - Added :ref:`mjs_makeFlex`, a new C API function equivalent to the :ref:`flexcomp<body-flexcomp>` element for
   programmatically creating flex objects with auto-generated bodies, joints, and equality constraints. Exposed as
   ``body.make_flex()`` in Python.
+- Added support for loading 1D flex components from OBJ line segments
 - Significantly improved the quality of coarse convex hulls produced by the :ref:`maxhullvert<asset-mesh-maxhullvert>`
   attribute by invoking Qhull's `Q9 <http://www.qhull.org/html/qh-optq.htm#Q9>`__ option.
 
