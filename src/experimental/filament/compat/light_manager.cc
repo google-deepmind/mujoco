@@ -63,7 +63,7 @@ static UniquePtr<mjrfTexture> CreateFallbackIndirectLightTexture(
   mjrf_defaultTextureData(&payload);
   payload.bytes = bytes;
   payload.nbytes = nbytes;
-  payload.release_callback = +[](void* user_data) {
+  payload.release = +[](void* user_data) {
     mju_closeResource((mjResource*)user_data);
   };
   payload.user_data = resource;

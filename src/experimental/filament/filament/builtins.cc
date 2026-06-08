@@ -69,7 +69,7 @@ class BuiltinBuilder : public mjrfMeshData {
                                       Args&&... args) {
     auto builder = new T(std::forward<Args>(args)...);
     mjrfMeshData* mesh_data = builder->PrepareMeshData();
-    mesh_data->release_callback = +[](void* user_data) {
+    mesh_data->release = +[](void* user_data) {
       delete static_cast<BuiltinBuilder*>(user_data);
     };
     mesh_data->user_data = builder;

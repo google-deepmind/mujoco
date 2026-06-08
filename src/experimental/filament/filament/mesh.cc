@@ -110,9 +110,9 @@ Mesh::Mesh(filament::Engine* engine, const mjrfMeshData& data)
 
   // If the user has provided a release callback, then we need to ensure we
   // call is when filament is done with the mesh data.
-  if (data.release_callback) {
+  if (data.release) {
     shared_state_->callbacks.push_back([=]() {
-      data.release_callback(data.user_data);
+      data.release(data.user_data);
     });
   }
 

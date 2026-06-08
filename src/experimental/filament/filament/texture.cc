@@ -162,7 +162,7 @@ Texture::~Texture() {
 
 void Texture::Upload(const mjrfTextureData& data) {
   user_data_ = data.user_data;
-  release_callback_ = data.release_callback;
+  release_callback_ = data.release;
 
   if (data.bytes == nullptr || data.nbytes == 0) {
     ReleaseData();

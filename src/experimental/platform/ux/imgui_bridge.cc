@@ -101,7 +101,7 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   texture_data.bytes = bytes;
   texture_data.nbytes = num_bytes;
   texture_data.user_data = bytes;
-  texture_data.release_callback = callback;
+  texture_data.release = callback;
 
   std::memcpy(bytes, pixels, num_bytes);
   mjrf_setTextureData(texture, &texture_data);
@@ -138,7 +138,7 @@ void ImguiBridge::UpdateTexture(ImTextureData* data) {
   texture_data.bytes = data->GetPixels();
   texture_data.nbytes = data->Width * data->Height * 4;
   texture_data.user_data = nullptr;
-  texture_data.release_callback = nullptr;
+  texture_data.release = nullptr;
   mjrf_setTextureData(iter->second.get(), &texture_data);
   data->SetStatus(ImTextureStatus_OK);
 }

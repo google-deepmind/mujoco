@@ -165,8 +165,8 @@ mjrfFrameHandle FilamentContext::Render(
 
   if (!read_requests.empty()) {
     engine_->flushAndWait();
-    if (read_requests[0].read_completed_callback) {
-      read_requests[0].read_completed_callback(read_requests[0].user_data);
+    if (read_requests[0].read_completed) {
+      read_requests[0].read_completed(read_requests[0].user_data);
     }
   }
 

@@ -67,6 +67,9 @@ struct mjrfLight {};
 struct mjrfRenderable {};
 struct mjrfRenderTarget {};
 
+// Callback function type for rendering operations.
+typedef void (*mjrfCallback)(void* user_data);
+
 // ## Rendering Context (mjrfContext)
 //
 // The Context is the main entry point for the library. It manages all the
@@ -194,7 +197,7 @@ struct mjrfReadPixelsRequest {
 
   // Callback when the read pixels operation is complete. This function can
   // optionally be used to free the output buffer if needed.
-  void (*read_completed_callback)(void* user_data);
+  mjrfCallback read_completed;
 
   // User data to pass to the completion callback.
   void* user_data;
@@ -310,7 +313,7 @@ struct mjrfTextureData {
   // Because rendering may be multithreaded, we cannot make assumptions about
   // when the image data will finish uploading to the GPU. As such, we will use
   // this callback to notify callers when it is safe to free the image data.
-  void (*release_callback)(void* user_data);
+  mjrfCallback release;
 
   // User data to pass to the release callback.
   void* user_data;
@@ -441,7 +444,7 @@ struct mjrfMeshData {
   // Because rendering may be multithreaded, we cannot make assumptions about
   // when the mesh data will finish uploading to the GPU. As such, we will use
   // this callback to notify callers when it is safe to free the mesh data.
-  void (*release_callback)(void* user_data);
+  mjrfCallback release;
 
   // User data to pass to the release callback.
   void* user_data;

@@ -414,7 +414,7 @@ static void UpdateMeshData(mjrfMeshData* data, const mjModel* model, int id,
 
   MeshBuilder* builder = new MeshBuilder(num_vertices);
   data->user_data = builder;
-  data->release_callback = [](void* user_data) {
+  data->release = [](void* user_data) {
     delete static_cast<MeshBuilder*>(user_data);
   };
 
@@ -485,7 +485,7 @@ void UpdateSkinFlexMeshData(mjrfMeshData* data, const mjModel* model,
   data->index_type = mjINDEX_TYPE_U32;
   data->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
   data->compute_bounds = true;
-  data->release_callback = nullptr;
+  data->release = nullptr;
   data->user_data = nullptr;
 }
 
@@ -572,7 +572,7 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
       model->tex_width[id] * model->tex_height[id] * model->tex_nchannel[id];
   // We assume that the model has the same lifetime as the engine.
   payload.user_data = nullptr;
-  payload.release_callback = nullptr;
+  payload.release = nullptr;
 
   auto texture = CreateTexture(ctx_, config);
   mjrf_setTextureData(texture.get(), &payload);
