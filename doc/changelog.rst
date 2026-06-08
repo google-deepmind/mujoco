@@ -7,15 +7,17 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+- Added :ref:`mju_threadpool`, a new function for creating a thread pool on an ``mjData`` instance. When a thread pool
+  is initialized, parts of the simulation pipeline, such as collision detection and constraint solving across islands,
+  are parallelized. The thread pool is automatically destroyed when the ``mjData`` is freed.
 - Improved primal solver convergence under float32. Improvements initially proposed by :github:user:`n3b` in
   :issue:`2313` and :github:user:`denzeler-nvidia` in :doc:`MJWarp <mjwarp/index>` pull request
   `1374 <https://github.com/google-deepmind/mujoco_warp/pull/1374>`__.
 - Added :ref:`mjs_makeFlex`, a new C API function equivalent to the :ref:`flexcomp<body-flexcomp>` element for
   programmatically creating flex objects with auto-generated bodies, joints, and equality constraints. Exposed as
   ``body.make_flex()`` in Python.
-- Added :ref:`mju_threadpool`, a new function for creating a thread pool on an ``mjData`` instance. When a thread pool
-  is initialized, parts of the simulation pipeline, such as collision detection and constraint solving across islands,
-  are parallelized. The thread pool is automatically destroyed when the ``mjData`` is freed.
+- Significantly improved the quality of coarse convex hulls produced by the :ref:`maxhullvert<asset-mesh-maxhullvert>`
+  attribute by invoking Qhull's `Q9 <http://www.qhull.org/html/qh-optq.htm#Q9>`__ option.
 
   .. admonition:: Breaking API changes
      :class: attention

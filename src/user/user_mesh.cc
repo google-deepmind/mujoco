@@ -1730,8 +1730,9 @@ void mjCMesh::MakeGraph(const double* dvert) {
 
   std::string qhopt = "qhull Qt";
   if (maxhullvert_ > -1) {
+    // qhull "Q9" picks the furthest of all furthest points across facets.
     // qhull "TA" actually means "number of vertices added after the initial simplex"
-    qhopt += " TA" + std::to_string(maxhullvert_ - 4);
+    qhopt += " Q9 TA" + std::to_string(maxhullvert_ - 4);
   }
 
   // graph not needed for small meshes
