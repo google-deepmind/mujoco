@@ -14,6 +14,9 @@
 
 #include "experimental/platform/sim/sim_profiler.h"
 
+#include <algorithm>
+#include <vector>
+
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
@@ -25,6 +28,7 @@ SimProfiler::SimProfiler() { Clear(); }
 
 void SimProfiler::Clear() {
   head_ = 0;
+  num_frames_ = 0;
   cpu_total_.clear();
   cpu_collision_.clear();
   cpu_prepare_.clear();
@@ -103,6 +107,47 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   dim_iteration_[head_] = static_cast<float>(solver_niter) / mjMAX(1, nisland);
 
   head_ = (head_ + 1) % kProfilerMaxFrames;
+  num_frames_ = std::min(num_frames_ + 1, kProfilerMaxFrames);
+}
+
+SimProfiler::Summary SimProfiler::GetSummary() const {
+  Summary summary;
+  summary.capacity = kProfilerMaxFrames;
+  summary.num_frames = num_frames_;
+
+  // Valid data is contiguous in [0, num_frames_): the ring buffer fills from
+  // index 0 and num_frames_ saturates at the capacity, so once it wraps the
+  // entire buffer is valid.
+  const int n = num_frames_;
+  auto stats = [n](const std::vector<float>& buffer) {
+    MetricStats metric;
+    if (n == 0) {
+      return metric;
+    }
+    metric.min = metric.max = buffer[0];
+    double sum = 0;
+    for (int i = 0; i < n; ++i) {
+      float value = buffer[i];
+      sum += value;
+      metric.min = std::min(metric.min, value);
+      metric.max = std::max(metric.max, value);
+    }
+    metric.average = static_cast<float>(sum / n);
+    return metric;
+  };
+
+  summary.cpu_total = stats(cpu_total_);
+  summary.cpu_collision = stats(cpu_collision_);
+  summary.cpu_prepare = stats(cpu_prepare_);
+  summary.cpu_solve = stats(cpu_solve_);
+  summary.cpu_other = stats(cpu_other_);
+  summary.dim_dof = stats(dim_dof_);
+  summary.dim_body = stats(dim_body_);
+  summary.dim_constraint = stats(dim_constraint_);
+  summary.dim_sqrt_nnz = stats(dim_sqrt_nnz_);
+  summary.dim_contact = stats(dim_contact_);
+  summary.dim_iteration = stats(dim_iteration_);
+  return summary;
 }
 
 void SimProfiler::CpuTimeGraph(ImVec2 plot_size) {

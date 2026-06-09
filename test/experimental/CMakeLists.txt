@@ -29,4 +29,7 @@ if(MUJOCO_WITH_USD)
   add_subdirectory(usd/plugins/mjcf)
 endif()
 
-
+# The platform library is only built as part of the mujoco studio components.
+if(MUJOCO_BUILD_STUDIO)
+  add_subdirectory(platform/sim)
+endif()
