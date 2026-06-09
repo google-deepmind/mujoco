@@ -243,4 +243,8 @@ void Texture::ReleaseData() {
   }
 }
 
+mjrSamplerType Texture::GetSamplerType() const {
+  return static_cast<mjrSamplerType>(config_.sampler_type);
+}
+
 }  // namespace mujoco

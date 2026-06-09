@@ -959,6 +959,23 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(height);
 #undef X
 
+  // ==================== MJRVERTEXATTRIBUTE ===================================
+  py::class_<raw::MjrVertexAttribute> mjrVertexAttribute(m, "MjrVertexAttribute");
+  mjrVertexAttribute.def(py::init([](int usage, int type) {
+                           return raw::MjrVertexAttribute{nullptr, usage, type};
+                         }),
+                         py::arg("usage") = 0, py::arg("type") = 0);
+  mjrVertexAttribute.def("__copy__",
+              [](const raw::MjrVertexAttribute& other) { return raw::MjrVertexAttribute(other); });
+  mjrVertexAttribute.def("__deepcopy__", [](const raw::MjrVertexAttribute& other, py::dict) {
+    return raw::MjrVertexAttribute(other);
+  });
+  DefineStructFunctions(mjrVertexAttribute);
+#define X(var) mjrVertexAttribute.def_readwrite(#var, &raw::MjrVertexAttribute::var)
+  X(usage);
+  X(type);
+#undef X
+
   // ==================== MJVPERTURB ===========================================
   py::class_<MjvPerturbWrapper> mjvPerturb(m, "MjvPerturb");
   mjvPerturb.def(py::init<>());

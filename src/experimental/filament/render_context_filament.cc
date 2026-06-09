@@ -192,7 +192,7 @@ int mjrf_getTextureHeight(const mjrfTexture* texture) {
   return mujoco::Texture::downcast(texture)->GetHeight();
 }
 
-mjrSamplerType mjrf_getSamplerType(const mjrfTexture* texture) {
+int mjrf_getSamplerType(const mjrfTexture* texture) {
   return mujoco::Texture::downcast(texture)->GetSamplerType();
 }
 
@@ -219,7 +219,7 @@ void mjrf_setLightTransform(mjrfLight* light, const float position[3],
       {direction[0], direction[1], direction[2]});
 }
 
-mjrLightType mjrf_getLightType(const mjrfLight* light) {
+int mjrf_getLightType(const mjrfLight* light) {
   return mujoco::Light::downcast(light)->GetType();
 }
 

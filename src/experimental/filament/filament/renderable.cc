@@ -322,7 +322,8 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
 
     const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
     draw_state.material_key = material_mgr_->PrepareMaterialInstance(
-        material, request->draw_mode, geom_type_, mesh);
+        material, static_cast<mjrDrawMode>(request->draw_mode), geom_type_,
+        mesh);
     draw_queue_.push_back(draw_state);
   }
 }

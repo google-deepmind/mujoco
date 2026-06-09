@@ -10945,6 +10945,31 @@ void mjv_updateSkin_wrapper(const MjModel& m, const MjData& d, MjvScene& scn) {
 }
 
 EMSCRIPTEN_BINDINGS(mujoco_bindings) {
+  enum_<mjrIndexType>("mjrIndexType")
+    .value("mjINDEX_TYPE_U16", mjINDEX_TYPE_U16)
+    .value("mjINDEX_TYPE_U32", mjINDEX_TYPE_U32);
+  enum_<mjrMeshPrimitiveType>("mjrMeshPrimitiveType")
+    .value("mjMESH_PRIMITIVE_TYPE_TRIANGLES", mjMESH_PRIMITIVE_TYPE_TRIANGLES)
+    .value("mjMESH_PRIMITIVE_TYPE_LINES", mjMESH_PRIMITIVE_TYPE_LINES);
+  enum_<mjrPixelFormat>("mjrPixelFormat")
+    .value("mjPIXEL_FORMAT_UNKNOWN", mjPIXEL_FORMAT_UNKNOWN)
+    .value("mjPIXEL_FORMAT_R8", mjPIXEL_FORMAT_R8)
+    .value("mjPIXEL_FORMAT_RGB8", mjPIXEL_FORMAT_RGB8)
+    .value("mjPIXEL_FORMAT_RGBA8", mjPIXEL_FORMAT_RGBA8)
+    .value("mjPIXEL_FORMAT_R32F", mjPIXEL_FORMAT_R32F)
+    .value("mjPIXEL_FORMAT_DEPTH32F", mjPIXEL_FORMAT_DEPTH32F)
+    .value("mjPIXEL_FORMAT_KTX", mjPIXEL_FORMAT_KTX);
+  enum_<mjrVertexAttributeType>("mjrVertexAttributeType")
+    .value("mjVERTEX_ATTRIBUTE_TYPE_FLOAT2", mjVERTEX_ATTRIBUTE_TYPE_FLOAT2)
+    .value("mjVERTEX_ATTRIBUTE_TYPE_FLOAT3", mjVERTEX_ATTRIBUTE_TYPE_FLOAT3)
+    .value("mjVERTEX_ATTRIBUTE_TYPE_FLOAT4", mjVERTEX_ATTRIBUTE_TYPE_FLOAT4)
+    .value("mjVERTEX_ATTRIBUTE_TYPE_UBYTE4", mjVERTEX_ATTRIBUTE_TYPE_UBYTE4);
+  enum_<mjrVertexAttributeUsage>("mjrVertexAttributeUsage")
+    .value("mjVERTEX_ATTRIBUTE_USAGE_POSITION", mjVERTEX_ATTRIBUTE_USAGE_POSITION)
+    .value("mjVERTEX_ATTRIBUTE_USAGE_NORMAL", mjVERTEX_ATTRIBUTE_USAGE_NORMAL)
+    .value("mjVERTEX_ATTRIBUTE_USAGE_TANGENTS", mjVERTEX_ATTRIBUTE_USAGE_TANGENTS)
+    .value("mjVERTEX_ATTRIBUTE_USAGE_UV", mjVERTEX_ATTRIBUTE_USAGE_UV)
+    .value("mjVERTEX_ATTRIBUTE_USAGE_COLOR", mjVERTEX_ATTRIBUTE_USAGE_COLOR);
   enum_<mjtAlignFree>("mjtAlignFree")
     .value("mjALIGNFREE_FALSE", mjALIGNFREE_FALSE)
     .value("mjALIGNFREE_TRUE", mjALIGNFREE_TRUE)

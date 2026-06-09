@@ -191,4 +191,8 @@ void Light::Disable() {
   }
 }
 
+mjtLightType Light::GetType() const {
+  return static_cast<mjtLightType>(params_.type);
+}
+
 }  // namespace mujoco

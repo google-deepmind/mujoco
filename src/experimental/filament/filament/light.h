@@ -51,7 +51,7 @@ class Light : public mjrfLight {
   void SetIntensity(float intensity);
 
   // Returns the type of the light.
-  mjtLightType GetType() const { return params_.type; }
+  mjtLightType GetType() const;
 
   // Enables/disables the light in the scene.
   void Enable();

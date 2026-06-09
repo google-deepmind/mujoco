@@ -10840,6 +10840,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
+    ('mjrVertexAttribute',
+     StructDecl(
+         name='mjrVertexAttribute',
+         declname='struct mjrVertexAttribute_',
+         fields=(
+             StructFieldDecl(
+                 name='bytes',
+                 type=PointerType(
+                     inner_type=ValueType(name='void', is_const=True),
+                 ),
+                 doc='vertex data',
+             ),
+             StructFieldDecl(
+                 name='usage',
+                 type=ValueType(name='int'),
+                 doc='mjrVertexAttributeUsage; e.g. position, normal, etc.',
+             ),
+             StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='int'),
+                 doc='mjrVertexAttributeType; e.g. float3, ubyte4, etc.',
+             ),
+         ),
+     )),
     ('mjrContext',
      StructDecl(
          name='mjrContext',

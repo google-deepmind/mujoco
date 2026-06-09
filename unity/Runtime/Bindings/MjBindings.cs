@@ -729,6 +729,36 @@ public enum mjtFont : int{
   mjFONT_SHADOW = 1,
   mjFONT_BIG = 2,
 }
+public enum mjrPixelFormat : int{
+  mjPIXEL_FORMAT_UNKNOWN = 0,
+  mjPIXEL_FORMAT_R8 = 1,
+  mjPIXEL_FORMAT_RGB8 = 2,
+  mjPIXEL_FORMAT_RGBA8 = 3,
+  mjPIXEL_FORMAT_R32F = 4,
+  mjPIXEL_FORMAT_DEPTH32F = 5,
+  mjPIXEL_FORMAT_KTX = 6,
+}
+public enum mjrVertexAttributeUsage : int{
+  mjVERTEX_ATTRIBUTE_USAGE_POSITION = 0,
+  mjVERTEX_ATTRIBUTE_USAGE_NORMAL = 1,
+  mjVERTEX_ATTRIBUTE_USAGE_TANGENTS = 2,
+  mjVERTEX_ATTRIBUTE_USAGE_UV = 3,
+  mjVERTEX_ATTRIBUTE_USAGE_COLOR = 4,
+}
+public enum mjrVertexAttributeType : int{
+  mjVERTEX_ATTRIBUTE_TYPE_FLOAT2 = 0,
+  mjVERTEX_ATTRIBUTE_TYPE_FLOAT3 = 1,
+  mjVERTEX_ATTRIBUTE_TYPE_FLOAT4 = 2,
+  mjVERTEX_ATTRIBUTE_TYPE_UBYTE4 = 3,
+}
+public enum mjrIndexType : int{
+  mjINDEX_TYPE_U16 = 0,
+  mjINDEX_TYPE_U32 = 1,
+}
+public enum mjrMeshPrimitiveType : int{
+  mjMESH_PRIMITIVE_TYPE_TRIANGLES = 0,
+  mjMESH_PRIMITIVE_TYPE_LINES = 1,
+}
 public enum mjtButton : int{
   mjBUTTON_NONE = 0,
   mjBUTTON_LEFT = 1,
@@ -6094,6 +6124,13 @@ public unsafe struct mjrRect_ {
   public int bottom;
   public int width;
   public int height;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjrVertexAttribute_ {
+  public void* bytes;
+  public int usage;
+  public int type;
 }
 
 [StructLayout(LayoutKind.Sequential)]

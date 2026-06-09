@@ -76,6 +76,7 @@ using MjWarningStat = ::mjWarningStat;
 // From mjrender.h
 using MjrRect = ::mjrRect;
 using MjrContext = ::mjrContext;
+using MjrVertexAttribute = ::mjrVertexAttribute;
 
 // From mjvisualize.h
 using MjvPerturb = ::mjvPerturb;

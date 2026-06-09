@@ -947,6 +947,61 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjFONT_BIG', 2),
          ]),
      )),
+    ('mjrPixelFormat',
+     EnumDecl(
+         name='mjrPixelFormat',
+         declname='enum mjrPixelFormat_',
+         values=dict([
+             ('mjPIXEL_FORMAT_UNKNOWN', 0),
+             ('mjPIXEL_FORMAT_R8', 1),
+             ('mjPIXEL_FORMAT_RGB8', 2),
+             ('mjPIXEL_FORMAT_RGBA8', 3),
+             ('mjPIXEL_FORMAT_R32F', 4),
+             ('mjPIXEL_FORMAT_DEPTH32F', 5),
+             ('mjPIXEL_FORMAT_KTX', 6),
+         ]),
+     )),
+    ('mjrVertexAttributeUsage',
+     EnumDecl(
+         name='mjrVertexAttributeUsage',
+         declname='enum mjrVertexAttributeUsage_',
+         values=dict([
+             ('mjVERTEX_ATTRIBUTE_USAGE_POSITION', 0),
+             ('mjVERTEX_ATTRIBUTE_USAGE_NORMAL', 1),
+             ('mjVERTEX_ATTRIBUTE_USAGE_TANGENTS', 2),
+             ('mjVERTEX_ATTRIBUTE_USAGE_UV', 3),
+             ('mjVERTEX_ATTRIBUTE_USAGE_COLOR', 4),
+         ]),
+     )),
+    ('mjrVertexAttributeType',
+     EnumDecl(
+         name='mjrVertexAttributeType',
+         declname='enum mjrVertexAttributeType_',
+         values=dict([
+             ('mjVERTEX_ATTRIBUTE_TYPE_FLOAT2', 0),
+             ('mjVERTEX_ATTRIBUTE_TYPE_FLOAT3', 1),
+             ('mjVERTEX_ATTRIBUTE_TYPE_FLOAT4', 2),
+             ('mjVERTEX_ATTRIBUTE_TYPE_UBYTE4', 3),
+         ]),
+     )),
+    ('mjrIndexType',
+     EnumDecl(
+         name='mjrIndexType',
+         declname='enum mjrIndexType_',
+         values=dict([
+             ('mjINDEX_TYPE_U16', 0),
+             ('mjINDEX_TYPE_U32', 1),
+         ]),
+     )),
+    ('mjrMeshPrimitiveType',
+     EnumDecl(
+         name='mjrMeshPrimitiveType',
+         declname='enum mjrMeshPrimitiveType_',
+         values=dict([
+             ('mjMESH_PRIMITIVE_TYPE_TRIANGLES', 0),
+             ('mjMESH_PRIMITIVE_TYPE_LINES', 1),
+         ]),
+     )),
     ('mjtButton',
      EnumDecl(
          name='mjtButton',
