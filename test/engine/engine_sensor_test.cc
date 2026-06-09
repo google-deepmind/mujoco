@@ -1813,5 +1813,59 @@ TEST_F(SensorTest, TactileMeshIdMismatchedValidator) {
   mj_deleteModel(m);
 }
 
+// Test that contact and touch sensors work with Flex contacts.
+TEST_F(SensorTest, FlexContactSensors) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -9.81"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 10"/>
+      <body name="parent" pos="0 0 0.005">
+        <flexcomp name="soft" type="grid" dof="trilinear" cellcount="2 2 2"
+                  count="7 8 9" radius="0.01" dim="3" mass="1"
+                  spacing="0.05 0.05 0.05">
+            <elasticity young="5e4" poisson="0.2"/>
+            <contact selfcollide="none"/>
+        </flexcomp>
+      </body>
+      <site name="floor_site" type="box" size="1 1 0.01" pos="0 0 0"/>
+    </worldbody>
+    <sensor>
+      <contact name="flex_contact_subtree" subtree1="parent"/>
+      <contact name="flex_contact_body" body1="parent"/>
+      <touch name="floor_touch" site="floor_site"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  mj_forward(m, d);
+
+  // We expect at least one contact between the flex and the floor
+  ASSERT_GT(d->ncon, 0) << "No contacts generated";
+
+  // Check the contact sensor "flex_contact_subtree"
+  vector flex_contact_subtree = GetSensor(m, d, "flex_contact_subtree");
+  EXPECT_GT(flex_contact_subtree[0], 0)
+      << "Flex contact sensor (subtree) did not detect any contacts";
+
+  // Check the contact sensor "flex_contact_body"
+  vector flex_contact_body = GetSensor(m, d, "flex_contact_body");
+  EXPECT_EQ(flex_contact_body[0], 0)
+      << "Flex contact sensor (body) should not match contacts on child bodies";
+
+  // Check the touch sensor "floor_touch"
+  vector floor_touch = GetSensor(m, d, "floor_touch");
+  EXPECT_GT(floor_touch[0], 0.0)
+      << "Floor touch sensor did not detect any force";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco
