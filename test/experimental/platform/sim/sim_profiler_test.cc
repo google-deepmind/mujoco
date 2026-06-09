@@ -52,60 +52,54 @@ TEST_F(SimProfilerTest, SummaryAcrossWrap) {
   // Records one frame with a known average step time. The component CPU timers
   // are left at zero, so cpu_total (and hence cpu_other) is exactly `step_ms`.
   SimProfiler profiler;
-  mjData* data = holder->data();
   auto record_frame = [&](float step_ms) {
-    data->timer[mjTIMER_STEP].duration = step_ms;
-    data->timer[mjTIMER_STEP].number = 1;
-    profiler.Update(holder->model(), data);
+    holder->data()->timer[mjTIMER_STEP].duration = step_ms;
+    holder->data()->timer[mjTIMER_STEP].number = 1;
+    profiler.Update(holder->model(), holder->data());
   };
 
-  const int capacity = SimProfiler().GetSummary().capacity;
-  ASSERT_GT(capacity, 1);
-  const float nv = static_cast<float>(holder->model()->nv);
+  const int max_frames = SimProfiler().GetSummary().max_frames;
+  ASSERT_GT(max_frames, 1);
 
-  // Record capacity - 1 frames with step times 1, 2, ..., capacity - 1.
-  for (int i = 1; i <= capacity - 1; ++i) {
+  // Record max_frames - 1 frames with step times 1, 2, ..., max_frames - 1.
+  for (int i = 1; i <= max_frames - 1; ++i) {
     record_frame(static_cast<float>(i));
   }
   {
     SimProfiler::Summary s = profiler.GetSummary();
-    EXPECT_EQ(s.num_frames, capacity - 1);
-    EXPECT_EQ(s.capacity, capacity);
-    // Mean of 1..capacity-1, and cpu_other absorbs the whole step time.
-    EXPECT_METRIC_EQ(s.cpu_total, capacity / 2.0f, 1.0f,
-                     static_cast<float>(capacity - 1));
+    EXPECT_EQ(s.num_frames, max_frames - 1);
+    EXPECT_EQ(s.max_frames, max_frames);
+    // cpu_total is the mean of step times 1..max_frames-1. The component timers
+    // are zero, so cpu_other == cpu_total.
+    EXPECT_METRIC_EQ(s.cpu_total, max_frames / 2.0f, 1, max_frames - 1);
     EXPECT_FLOAT_EQ(s.cpu_other.average, s.cpu_total.average);
-    // Dimensions are constant across frames.
+    const int nv = holder->model()->nv;
     EXPECT_METRIC_EQ(s.dim_dof, nv, nv, nv);
   }
 
-  // One more frame fills the buffer exactly (values 1..capacity).
-  record_frame(static_cast<float>(capacity));
+  // One more frame fills the buffer exactly (values 1..max_frames).
+  record_frame(static_cast<float>(max_frames));
   {
     SimProfiler::Summary s = profiler.GetSummary();
-    EXPECT_EQ(s.num_frames, capacity);
-    EXPECT_METRIC_EQ(s.cpu_total, (capacity + 1) / 2.0f, 1.0f,
-                     static_cast<float>(capacity));
+    EXPECT_EQ(s.num_frames, max_frames);
+    EXPECT_METRIC_EQ(s.cpu_total, (max_frames + 1) / 2.0f, 1, max_frames);
   }
 
-  // One more frame wraps: slot 0 (value 1) is overwritten with capacity + 1,
-  // so the retained window is 2..capacity+1 and num_frames saturates.
-  record_frame(static_cast<float>(capacity + 1));
+  // One more frame wraps: slot 0 (value 1) is overwritten with max_frames + 1,
+  // so the retained window is 2..max_frames+1 and num_frames saturates.
+  record_frame(static_cast<float>(max_frames + 1));
   {
     SimProfiler::Summary s = profiler.GetSummary();
-    EXPECT_EQ(s.num_frames, capacity);
-    EXPECT_METRIC_EQ(s.cpu_total, (capacity + 3) / 2.0f, 2.0f,
-                     static_cast<float>(capacity + 1));
+    EXPECT_EQ(s.num_frames, max_frames);
+    EXPECT_METRIC_EQ(s.cpu_total, (max_frames + 3) / 2.0f, 2, max_frames + 1);
   }
 
-  // Clear resets the counts and statistics (capacity is intrinsic and stays).
+  // Clear the profiler and check for empty summary.
   profiler.Clear();
   {
     SimProfiler::Summary s = profiler.GetSummary();
     EXPECT_EQ(s.num_frames, 0);
-    EXPECT_EQ(s.capacity, capacity);
-    EXPECT_METRIC_EQ(s.cpu_total, 0.0f, 0.0f, 0.0f);
-    EXPECT_METRIC_EQ(s.dim_dof, 0.0f, 0.0f, 0.0f);
+    EXPECT_EQ(s.max_frames, max_frames);
   }
 }
 

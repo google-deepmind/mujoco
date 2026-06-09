@@ -29,29 +29,13 @@ SimProfiler::SimProfiler() { Clear(); }
 void SimProfiler::Clear() {
   head_ = 0;
   num_frames_ = 0;
-  cpu_total_.clear();
-  cpu_collision_.clear();
-  cpu_prepare_.clear();
-  cpu_solve_.clear();
-  cpu_other_.clear();
-  dim_dof_.clear();
-  dim_body_.clear();
-  dim_constraint_.clear();
-  dim_sqrt_nnz_.clear();
-  dim_contact_.clear();
-  dim_iteration_.clear();
 
-  cpu_total_.resize(kProfilerMaxFrames, 0);
-  cpu_collision_.resize(kProfilerMaxFrames, 0);
-  cpu_prepare_.resize(kProfilerMaxFrames, 0);
-  cpu_solve_.resize(kProfilerMaxFrames, 0);
-  cpu_other_.resize(kProfilerMaxFrames, 0);
-  dim_dof_.resize(kProfilerMaxFrames, 0);
-  dim_body_.resize(kProfilerMaxFrames, 0);
-  dim_constraint_.resize(kProfilerMaxFrames, 0);
-  dim_sqrt_nnz_.resize(kProfilerMaxFrames, 0);
-  dim_contact_.resize(kProfilerMaxFrames, 0);
-  dim_iteration_.resize(kProfilerMaxFrames, 0);
+  for (std::vector<float>* v : {&cpu_total_, &cpu_collision_, &cpu_prepare_,
+                                &cpu_solve_, &cpu_other_, &dim_dof_,
+                                &dim_body_, &dim_constraint_, &dim_sqrt_nnz_,
+                                &dim_contact_, &dim_iteration_}) {
+    v->assign(kMaxFrames, 0);
+  }
 }
 
 void SimProfiler::Update(const mjModel* model, const mjData* data) {
@@ -106,17 +90,17 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   dim_contact_[head_] = data->ncon;
   dim_iteration_[head_] = static_cast<float>(solver_niter) / mjMAX(1, nisland);
 
-  head_ = (head_ + 1) % kProfilerMaxFrames;
-  num_frames_ = std::min(num_frames_ + 1, kProfilerMaxFrames);
+  head_ = (head_ + 1) % kMaxFrames;
+  num_frames_ = std::min(num_frames_ + 1, kMaxFrames);
 }
 
 SimProfiler::Summary SimProfiler::GetSummary() const {
   Summary summary;
-  summary.capacity = kProfilerMaxFrames;
+  summary.max_frames = kMaxFrames;
   summary.num_frames = num_frames_;
 
   // Valid data is contiguous in [0, num_frames_): the ring buffer fills from
-  // index 0 and num_frames_ saturates at the capacity, so once it wraps the
+  // index 0 and num_frames_ saturates at max_frames, so once it wraps the
   // entire buffer is valid.
   const int n = num_frames_;
   auto stats = [n](const std::vector<float>& buffer) {
@@ -127,20 +111,22 @@ SimProfiler::Summary SimProfiler::GetSummary() const {
     metric.min = metric.max = buffer[0];
     double sum = 0;
     for (int i = 0; i < n; ++i) {
-      float value = buffer[i];
-      sum += value;
-      metric.min = std::min(metric.min, value);
-      metric.max = std::max(metric.max, value);
+      sum += buffer[i];
+      metric.min = std::min(metric.min, buffer[i]);
+      metric.max = std::max(metric.max, buffer[i]);
     }
     metric.average = static_cast<float>(sum / n);
     return metric;
   };
 
+  // CpuTimeGraph stats.
   summary.cpu_total = stats(cpu_total_);
   summary.cpu_collision = stats(cpu_collision_);
   summary.cpu_prepare = stats(cpu_prepare_);
   summary.cpu_solve = stats(cpu_solve_);
   summary.cpu_other = stats(cpu_other_);
+
+  // DimensionsGraph stats.
   summary.dim_dof = stats(dim_dof_);
   summary.dim_body = stats(dim_body_);
   summary.dim_constraint = stats(dim_constraint_);

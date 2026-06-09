@@ -37,8 +37,8 @@ class SimProfiler {
   // Snapshot of aggregate profiling statistics. Useful for tests and for a
   // textual readout in the UI.
   struct Summary {
-    int num_frames = 0;  // Recorded frames, saturating at capacity.
-    int capacity = 0;    // Maximum frames retained (== kProfilerMaxFrames).
+    int num_frames = 0;  // Recorded frames, saturating at max_frames.
+    int max_frames = 0;  // Maximum frames retained (== kMaxFrames).
     MetricStats cpu_total, cpu_collision, cpu_prepare, cpu_solve, cpu_other;
     MetricStats dim_dof, dim_body, dim_constraint, dim_sqrt_nnz, dim_contact, dim_iteration;
   };
@@ -57,9 +57,9 @@ class SimProfiler {
   void DimensionsGraph(ImVec2 plot_size = ImVec2(-1, 0));
 
  private:
-  static constexpr int kProfilerMaxFrames = 200;
+  static constexpr int kMaxFrames = 200;
   int head_ = 0;
-  int num_frames_ = 0;  // Recorded frames, saturating at kProfilerMaxFrames.
+  int num_frames_ = 0;  // Recorded frames, saturating at kMaxFrames.
 
   std::vector<float> cpu_total_;
   std::vector<float> cpu_collision_;
