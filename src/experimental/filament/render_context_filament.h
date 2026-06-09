@@ -466,6 +466,9 @@ mjrfRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx, const mjrfRenderTarg
 // Destroys the render target.
 void mjrf_destroyRenderTarget(mjrfRenderTarget* render_target);
 
+// Resizes the render target to the given width and height.
+void mjrf_resizeRenderTarget(mjrfRenderTarget* render_target, int width, int height);
+
 // ## Debug-only functions.
 
 // Draws an ImGui editor for the given scene, exposing filament-specific settings.

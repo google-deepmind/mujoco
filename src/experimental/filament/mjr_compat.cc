@@ -62,6 +62,8 @@ class CompatContext {
   UniquePtr<mjrfContext> context_;
   std::unique_ptr<SceneBridge> scene_bridge_;
   mjtFramebuffer framebuffer_ = mjFB_WINDOW;
+  UniquePtr<mjrfRenderTarget> color_target_{nullptr, nullptr};
+  UniquePtr<mjrfRenderTarget> depth_target_{nullptr, nullptr};
 };
 
 CompatContext::CompatContext(const mjrFilamentConfig* config,
@@ -104,14 +106,18 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     mju_error("ReadPixels is only supported for offscreen rendering.");
   }
 
+  const int width = viewport.width;
+  const int height = viewport.height;
+
   if (rgb) {
-    mjrfRenderTargetConfig config;
-    mjrf_defaultRenderTargetConfig(&config);
-    config.width = viewport.width;
-    config.height = viewport.height;
-    config.color_format = mjPIXEL_FORMAT_RGB8;
-    config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-    auto target = CreateRenderTarget(context_.get(), config);
+    if (!color_target_) {
+      mjrfRenderTargetConfig config;
+      mjrf_defaultRenderTargetConfig(&config);
+      config.color_format = mjPIXEL_FORMAT_RGB8;
+      config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+      color_target_ = CreateRenderTarget(context_.get(), config);
+    }
+    mjrf_resizeRenderTarget(color_target_.get(), width, height);
 
     mjrfRenderRequest req;
     mjrf_defaultRenderRequest(&req);
@@ -119,11 +125,11 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     req.draw_mode = draw_mode_;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
-    req.target = target.get();
+    req.target = color_target_.get();
 
     mjrfReadPixelsRequest read_req;
     mjrf_defaultReadPixelsRequest(&read_req);
-    read_req.target = target.get();
+    read_req.target = color_target_.get();
     read_req.output = rgb;
     read_req.num_bytes = viewport.width * viewport.height * 3;
 
@@ -132,13 +138,14 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
   }
 
   if (depth) {
-    mjrfRenderTargetConfig config;
-    mjrf_defaultRenderTargetConfig(&config);
-    config.width = viewport.width;
-    config.height = viewport.height;
-    config.color_format = mjPIXEL_FORMAT_R32F;
-    config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
-    auto target = CreateRenderTarget(context_.get(), config);
+    if (!depth_target_) {
+      mjrfRenderTargetConfig config;
+      mjrf_defaultRenderTargetConfig(&config);
+      config.color_format = mjPIXEL_FORMAT_R32F;
+      config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+      depth_target_ = CreateRenderTarget(context_.get(), config);
+    }
+    mjrf_resizeRenderTarget(depth_target_.get(), width, height);
 
     mjrfRenderRequest req;
     mjrf_defaultRenderRequest(&req);
@@ -146,10 +153,11 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     req.draw_mode = mjDRAW_MODE_DEPTH;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
-    req.target = target.get();
+    req.target = depth_target_.get();
 
     mjrfReadPixelsRequest read_req;
     mjrf_defaultReadPixelsRequest(&read_req);
+    read_req.target = depth_target_.get();
     read_req.output = reinterpret_cast<uint8_t*>(depth);
     read_req.num_bytes = viewport.width * viewport.height * sizeof(float);
 
