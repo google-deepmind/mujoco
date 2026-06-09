@@ -143,7 +143,8 @@ void mjrf_destroyMesh(mjrfMesh* mesh) { delete mujoco::Mesh::downcast(mesh); }
 
 mjrfScene* mjrf_createScene(mjrfContext* ctx, const mjrfSceneParams* params) {
   return new mujoco::SceneView(
-      mujoco::FilamentContext::downcast(ctx)->GetEngine(), *params);
+      mujoco::FilamentContext::downcast(ctx)->GetObjectManager(),
+      mujoco::FilamentContext::downcast(ctx)->GetMaterialManager(), *params);
 }
 
 void mjrf_destroyScene(mjrfScene* scene) {

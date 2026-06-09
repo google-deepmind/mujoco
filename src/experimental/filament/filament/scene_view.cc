@@ -18,6 +18,7 @@
 #include <memory>
 #include <span>
 #include <string_view>
+#include <vector>
 
 #include <filament/ColorGrading.h>
 #include <filament/LightManager.h>
@@ -38,10 +39,13 @@
 #include <math/vec4.h>
 #include <utils/EntityManager.h>
 #include <mujoco/mujoco.h>
+#include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/outliner.h"
 #include "experimental/filament/filament/reflection_manager.h"
 #include "experimental/filament/filament_util.h"
 #include "experimental/filament/filament/color_grading_options.h"
 #include "experimental/filament/filament/light.h"
+#include "experimental/filament/filament/material_manager.h"
 #include "experimental/filament/filament/render_target.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/texture.h"
@@ -120,9 +124,11 @@ static void SetupReflectionCamera(const mat4& surface_xform,
   reflection_camera->setCustomProjection(oblique, near, far);
 }
 
-SceneView::SceneView(filament::Engine* engine, const mjrfSceneParams& params)
-    : engine_(engine) {
-  reflection_mgr_ = std::make_unique<ReflectionManager>(engine_);
+SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
+                     const mjrfSceneParams& params)
+    : object_mgr_(object_mgr), material_mgr_(material_mgr) {
+  filament::Engine* engine = object_mgr_->GetEngine();
+  reflection_mgr_ = std::make_unique<ReflectionManager>(engine);
 
   scene_ = engine->createScene();
   camera_ = engine->createCamera(utils::EntityManager::get().create());
@@ -157,9 +163,12 @@ SceneView::SceneView(filament::Engine* engine, const mjrfSceneParams& params)
 }
 
 SceneView::~SceneView() {
+  filament::Engine* engine = object_mgr_->GetEngine();
+
+  outliner_.reset();
   if (skybox_) {
     scene_->setSkybox(nullptr);
-    engine_->destroy(skybox_);
+    engine->destroy(skybox_);
   }
   for (auto& light : lights_) {
     light->RemoveFromScene(scene_);
@@ -169,15 +178,15 @@ SceneView::~SceneView() {
   }
   lights_.clear();
   renderables_.clear();
-  engine_->destroyCameraComponent(reflect_camera_->getEntity());
-  engine_->destroy(reflect_view_);
-  engine_->destroyCameraComponent(camera_->getEntity());
+  engine->destroyCameraComponent(reflect_camera_->getEntity());
+  engine->destroy(reflect_view_);
+  engine->destroyCameraComponent(camera_->getEntity());
   if (color_grading_) {
-    engine_->destroy(color_grading_);
+    engine->destroy(color_grading_);
   }
-  engine_->destroy(scene_);
-  engine_->destroy(depth_segment_view_);
-  engine_->destroy(main_view_);
+  engine->destroy(scene_);
+  engine->destroy(depth_segment_view_);
+  engine->destroy(main_view_);
 }
 
 void SceneView::AddToScene(Light* light) {
@@ -225,9 +234,21 @@ void SceneView::PrepareToRender(std::span<const mjrfRenderRequest*> requests) {
     }
   }
 
+  bool has_selected = false;
   reflection_mgr_->ClearRenderables();
   for (Renderable* renderable : renderables_) {
     renderable->Prepare(requests, reflection_mgr_.get());
+    if (renderable->GetMaterial().selected) {
+      has_selected = true;
+    }
+  }
+
+  if (has_selected) {
+    mjrfMaterial material;
+    mjrf_defaultMaterial(&material);
+    material.selected = true;
+    outline_material_key_ = material_mgr_->PrepareMaterialInstance(
+        material, mjDRAW_MODE_DEFAULT, mjGEOM_NONE, nullptr);
   }
 }
 
@@ -259,8 +280,13 @@ void SceneView::Render(filament::Renderer* renderer, const mjrfRenderRequest& re
 
   SetupCamera(request.camera, viewport, camera_);
 
+  std::vector<Renderable*> selected_renderables;
   for (auto& iter : renderables_) {
     iter->BindMaterialInstance(request);
+    if (iter->GetMaterial().selected &&
+        request.draw_mode == mjDRAW_MODE_DEFAULT) {
+      selected_renderables.push_back(iter);
+    }
   }
 
   for (int i = 0; i < reflection_mgr_->GetNumRenderables(); ++i) {
@@ -285,10 +311,24 @@ void SceneView::Render(filament::Renderer* renderer, const mjrfRenderRequest& re
     renderable->SetLayerMask(prev_layer_mask);
   }
 
-  view->setRenderTarget(render_target ? render_target->GetFilamentRenderTarget()
-                                      : nullptr);
+  filament::RenderTarget* filament_render_target =
+      render_target ? render_target->GetFilamentRenderTarget() : nullptr;
+  view->setRenderTarget(filament_render_target);
   renderer->render(view);
   view->setRenderTarget(nullptr);
+
+  if (!selected_renderables.empty()) {
+    if (!outliner_) {
+      outliner_ =
+          std::make_unique<Outliner>(object_mgr_, kLayerMask_Outline,
+                                     float4{0.9f, 0.9f, 0.2f, 1.0f}, 3.5f);
+    }
+
+    for (Renderable* renderable : selected_renderables) {
+      renderable->SetMaterialInstance(outline_material_key_);
+    }
+    outliner_->Render(renderer, view, filament_render_target);
+  }
 
   if (request.target) {
     view->setMultiSampleAntiAliasingOptions(options);

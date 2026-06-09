@@ -185,6 +185,12 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
 
   material.segmentation_id = geom.segid;
 
+  // Assume an emissive object is a selected object.
+  if (geom.emission > 0 && geom.emission == model->vis.global.glow) {
+    material.selected = true;
+    material.emissive = 0.0f;
+  }
+
   // UvScale only applies to objects that don't have explicit UV coordinates
   // in their vertex buffer. Instead, we set the UV coordinate to be the same
   // as the vertex position.

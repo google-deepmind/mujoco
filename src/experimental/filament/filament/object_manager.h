@@ -19,7 +19,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <span>
 #include <string_view>
 #include <unordered_map>
 
@@ -61,6 +60,9 @@ class ObjectManager {
     kUnlitDecor,
     kUnlitDepth,
     kUnlitUi,
+    kOutlineComposite,
+    kOutlineFlatten,
+    kOutlineJumpFlood,
     kNumMaterials,
   };
 
@@ -69,6 +71,10 @@ class ObjectManager {
 
   // Returns the fallback Texture with the given role.
   const filament::Texture* GetFallbackTexture(mjtTextureRole role) const;
+
+  // Returns the buffers for creating a full-screen quad.
+  filament::VertexBuffer* GetQuadVertexBuffer() const { return quad_vb_; }
+  filament::IndexBuffer* GetQuadIndexBuffer() const { return quad_ib_; }
 
   // Returns the built-in mesh collection with the given dimensions. For
   // performance reasons, you should consider always using the same dimensions
@@ -82,6 +88,8 @@ class ObjectManager {
   ObjectManager& operator=(const ObjectManager&) = delete;
 
  private:
+  void CreateQuadBuffers();
+
   filament::Engine* engine_ = nullptr;
   std::array<filament::Material*, kNumMaterials> materials_;
   std::array<filament::Texture*, mjNTEXROLE> fallback_textures_;
@@ -90,6 +98,8 @@ class ObjectManager {
   filament::Texture* fallback_black_ = nullptr;
   filament::Texture* fallback_normal_ = nullptr;
   filament::Texture* fallback_orm_ = nullptr;
+  filament::VertexBuffer* quad_vb_ = nullptr;
+  filament::IndexBuffer* quad_ib_ = nullptr;
 };
 
 }  // namespace mujoco

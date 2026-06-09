@@ -38,6 +38,7 @@ namespace mujoco {
 enum LayerMask : uint8_t {
   kLayerMask_Object  = 0x01 << 1,
   kLayerMask_Decor   = 0x01 << 2,
+  kLayerMask_Outline = 0x01 << 3,
   kLayerMask_All     = 0xff,
   kLayerMask_None    = 0x00,
 };
@@ -112,6 +113,8 @@ class Renderable : public mjrfRenderable {
 
   // Binds the material instance for the given render request.
   void BindMaterialInstance(const mjrfRenderRequest& request);
+
+  MaterialManager::MaterialKey SetMaterialInstance(MaterialManager::MaterialKey key);
 
   static Renderable* downcast(mjrfRenderable* renderable) {
     return static_cast<Renderable*>(renderable);

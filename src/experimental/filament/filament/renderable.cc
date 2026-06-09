@@ -225,6 +225,9 @@ void Renderable::UpdateMaterial(const mjrfMaterial& material) {
   if (material.decor_ux) {
     layer_mask_ = kLayerMask_Decor;
   }
+  if (material.selected) {
+    layer_mask_ |= kLayerMask_Outline;
+  }
   SetLayerMask(layer_mask_);
   material_ = material;
 }
@@ -244,6 +247,7 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
   for (const mjrfRenderRequest* request : requests) {
     DrawState draw_state;
     mjrfMaterial material = material_;
+    material.selected = false;
 
     draw_state.wireframe = (request->draw_mode == mjDRAW_MODE_WIREFRAME);
     if (material.decor_ux) {
@@ -374,23 +378,23 @@ void Renderable::BindMaterialInstance(const mjrfRenderRequest& request) {
   SetCastShadows(state.cast_shadows);
   SetReceiveShadows(state.receive_shadows);
   SetWireframe(state.wireframe);
+  SetMaterialInstance(state.material_key);
+  curr_state_ = state;
+  draw_queue_.pop_front();
+}
 
-  if (state.material_key != curr_state_.material_key) {
+MaterialManager::MaterialKey Renderable::SetMaterialInstance(MaterialManager::MaterialKey key) {
+  MaterialManager::MaterialKey prev = curr_state_.material_key;
+  if (key != curr_state_.material_key) {
     filament::MaterialInstance* instance =
-        material_mgr_->GetInstance(state.material_key);
-    if (!instance) {
-      mju_error("Failed to get material instance.");
-      return;
-    }
+        material_mgr_->GetInstance(key);
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
       filament::RenderableManager::Instance ri = rm.getInstance(part.entity);
       rm.setMaterialInstanceAt(ri, 0, instance);
     }
   }
-
-  curr_state_ = state;
-  draw_queue_.pop_front();
+  return prev;
 }
 
 std::uint8_t Renderable::SetLayerMask(std::uint8_t mask) {

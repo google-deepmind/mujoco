@@ -27,6 +27,9 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/color_grading_options.h"
 #include "experimental/filament/filament/light.h"
+#include "experimental/filament/filament/material_manager.h"
+#include "experimental/filament/filament/object_manager.h"
+#include "experimental/filament/filament/outliner.h"
 #include "experimental/filament/filament/renderable.h"
 #include "experimental/filament/filament/reflection_manager.h"
 #include "experimental/filament/filament/texture.h"
@@ -41,7 +44,8 @@ namespace mujoco {
 // (e.g. normal, depth, segmentation, etc.) as well as reflective surfaces.
 class SceneView : public mjrfScene {
  public:
-  SceneView(filament::Engine* engine, const mjrfSceneParams& params);
+  SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
+            const mjrfSceneParams& params);
   ~SceneView();
 
   SceneView(const SceneView&) = delete;
@@ -63,7 +67,7 @@ class SceneView : public mjrfScene {
   void Render(filament::Renderer* renderer, const mjrfRenderRequest& request);
 
   // Returns the filament Engine managing the scene.
-  filament::Engine* GetEngine() const { return engine_; }
+  filament::Engine* GetEngine() const { return object_mgr_->GetEngine(); }
 
   // Returns the underlying filament View that is used for normal rendering.
   // Callers can update rendering settings (e.g. post processing) directly.
@@ -85,7 +89,8 @@ class SceneView : public mjrfScene {
   }
 
  private:
-  filament::Engine* engine_ = nullptr;
+  ObjectManager* object_mgr_ = nullptr;
+  MaterialManager* material_mgr_ = nullptr;
   filament::Scene* scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;
@@ -101,6 +106,9 @@ class SceneView : public mjrfScene {
   // Custom view and camera for reflective surfaces.
   filament::View* reflect_view_ = nullptr;
   filament::Camera* reflect_camera_ = nullptr;
+
+  MaterialManager::MaterialKey outline_material_key_;
+  std::unique_ptr<Outliner> outliner_;
   std::unique_ptr<ReflectionManager> reflection_mgr_;
 };
 }  // namespace mujoco

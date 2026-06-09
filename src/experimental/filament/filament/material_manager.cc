@@ -193,7 +193,9 @@ MaterialManager::MaterialKey MaterialManager::PrepareMaterialInstance(
     const mjrfMaterial& material, mjrDrawMode draw_mode, mjtGeom geom_type,
     const Mesh* mesh) {
   ObjectManager::MaterialType type;
-  if (draw_mode == mjDRAW_MODE_DEPTH) {
+  if (material.selected) {
+    type = ObjectManager::kOutlineFlatten;
+  } else if (draw_mode == mjDRAW_MODE_DEPTH) {
     type = ObjectManager::kUnlitDepth;
   } else if (draw_mode == mjDRAW_MODE_SEGMENTATION_BY_ID) {
     type = ObjectManager::kUnlitSegmentation;

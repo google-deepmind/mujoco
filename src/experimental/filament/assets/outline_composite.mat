@@ -1,0 +1,82 @@
+// Copyright 2026 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// This material uses the results of the Jump Flooding Algorithm to draw an
+// outline around an object. The outline is drawn by checking the distance to
+// the nearest edge point (as computed by the algorithm) and, if within the
+// desired width, setting the color of the pixel to the desired outline color.
+
+material {
+    name : outline_composite,
+    blending : transparent,
+    culling : none,
+    depthWrite : false,
+    depthCulling : false,
+    parameters : [
+        { type : sampler2d, name : source },
+        { type : float4, name : color },
+        { type : float, name : width }
+    ],
+    variables : [
+        vertex
+    ],
+    domain : postprocess
+}
+
+vertex {
+  void postProcessVertex(inout PostProcessVertexInputs postProcess) {
+    postProcess.vertex.xy = uvToRenderTargetUV(postProcess.normalizedUV);
+  }
+}
+
+fragment {
+  vec2 unpack(vec4 value) {
+    float x = value.r + value.g / 255.0;
+    float y = value.b + value.a / 255.0;
+    // Reverse scale and bias
+    return (vec2(x, y) - 0.001) / 0.999;
+  }
+
+  void postProcess(inout PostProcessInputs postProcess) {
+    vec4 tex = texture(materialParams_source, variable_vertex.xy);
+    if (tex == vec4(0.0)) {
+      discard;
+    }
+
+    vec2 edge = unpack(tex);
+
+    // Calculate distance to the nearest edge in pixel units.
+    vec2 size = vec2(textureSize(materialParams_source, 0));
+    vec2 diff = (edge - variable_vertex.xy) * size;
+    float dist = length(diff);
+
+    // Exclude the interior of the selected object itself.
+    if (dist <= 0.5) {
+      discard;
+    }
+
+    // Only draw outline if the pixel is within 'width' of an edge.
+    float width = materialParams.width;
+    if (dist >= width) {
+      discard;
+    }
+
+    // Inner edge anti-aliasing (smooths transition from object to outline).
+    // Outer edge anti-aliasing (fades at the outline boundary).
+    float inner_alpha = smoothstep(0.0, 1.0, dist);
+    float outer_alpha = smoothstep(width, width - 1.0, dist);
+    float alpha = outer_alpha * inner_alpha;
+    postProcess.color = mix(vec4(0), materialParams.color, alpha * materialParams.color.a);
+  }
+}

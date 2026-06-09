@@ -14,10 +14,8 @@
 
 #include "experimental/filament/filament/object_manager.h"
 
-#include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -27,6 +25,7 @@
 #include <filament/Material.h>
 #include <filament/Skybox.h>
 #include <filament/Texture.h>
+#include <math/vec2.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/builtins.h"
 #include "user/user_resource.h"
@@ -73,6 +72,9 @@ ObjectManager::ObjectManager(filament::Engine* engine)
   materials_[kUnlitDecor] = LoadMaterial(engine, "unlit_decor.filamat");
   materials_[kUnlitDepth] = LoadMaterial(engine, "unlit_depth.filamat");
   materials_[kUnlitUi] = LoadMaterial(engine, "unlit_ui.filamat");
+  materials_[kOutlineComposite] = LoadMaterial(engine, "outline_composite.filamat");
+  materials_[kOutlineFlatten] = LoadMaterial(engine, "outline_flatten.filamat");
+  materials_[kOutlineJumpFlood] = LoadMaterial(engine, "outline_jumpflood.filamat");
 
   static uint8_t black_rgb[3] = {0, 0, 0};
   static uint8_t white_rgb[3] = {255, 255, 255};
@@ -106,9 +108,13 @@ ObjectManager::ObjectManager(filament::Engine* engine)
   fallback_textures_[mjTEXROLE_NORMAL] = fallback_normal_;
   fallback_textures_[mjTEXROLE_EMISSIVE] = fallback_black_;
   fallback_textures_[mjTEXROLE_ORM] = fallback_orm_;
+
+  CreateQuadBuffers();
 }
 
 ObjectManager::~ObjectManager() {
+  engine_->destroy(quad_vb_);
+  engine_->destroy(quad_ib_);
   engine_->destroy(fallback_black_);
   engine_->destroy(fallback_white_);
   engine_->destroy(fallback_normal_);
@@ -148,4 +154,33 @@ const filament::Texture* ObjectManager::GetFallbackTexture(
   }
   return fallback_textures_[role];
 }
+
+void ObjectManager::CreateQuadBuffers() {
+  // Define a single triangle that completely covers the viewport. (A single
+  // large triangle is more efficient than a two-triangle quad because it
+  // avoids the diagonal edge where pixels might be rasterized twice.)
+  static const filament::math::float2 kVertices[3] = {
+      {-1.0f, -1.0f},
+      { 3.0f, -1.0f},
+      {-1.0f,  3.0f}
+  };
+
+  static const uint16_t kIndices[3] = {0, 1, 2};
+
+  filament::VertexBuffer::Builder vb_builder;
+  vb_builder.bufferCount(1);
+  vb_builder.vertexCount(3);
+  vb_builder.attribute(filament::VertexAttribute::POSITION, 0,
+                       filament::VertexBuffer::AttributeType::FLOAT2, 0,
+                       sizeof(filament::math::float2));
+  quad_vb_ = vb_builder.build(*engine_);
+  quad_vb_->setBufferAt(*engine_, 0, {kVertices, sizeof(kVertices)});
+
+  filament::IndexBuffer::Builder ib_builder;
+  ib_builder.indexCount(3);
+  ib_builder.bufferType(filament::IndexBuffer::IndexType::USHORT);
+  quad_ib_ = ib_builder.build(*engine_);
+  quad_ib_->setBuffer(*engine_, {kIndices, sizeof(kIndices)});
+}
+
 }  // namespace mujoco

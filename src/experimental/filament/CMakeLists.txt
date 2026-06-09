@@ -43,6 +43,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         filament/mesh.h
         filament/object_manager.cc
         filament/object_manager.h
+        filament/outliner.cc
+        filament/outliner.h
         filament/reflection_manager.cc
         filament/reflection_manager.h
         filament/render_target.cc
@@ -117,6 +119,9 @@ set(MATERIAL_FILES
     phong_cube_fade.mat
     phong_cube.mat
     phong_cube_reflect.mat
+    outline_composite.mat
+    outline_flatten.mat
+    outline_jumpflood.mat
     unlit_decor.mat
     unlit_depth.mat
     unlit_segmentation.mat
