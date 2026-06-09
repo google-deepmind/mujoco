@@ -110,14 +110,12 @@ setup_emsdk() {
 
 configure_mujoco() {
     echo "Configuring MuJoCo..."
-    # Disable IPO/LTO to cut build time, but keep it on where turning it off breaks
-    # the build (neither is a CI build-time bottleneck):
-    #   - Windows (MSVC): /GL-off exposes a latent heap corruption in
-    #     SetConstTest.SleepingNotAllowed (a real bug worth a separate look).
-    #   - GCC: at -O3 without LTO, libstdc++ trips known -Werror false positives
-    #     (e.g. -Wrestrict in <char_traits>) that LTO otherwise hides.
+    # Disable IPO/LTO to cut build time. Skip this on Windows: turning off MSVC's
+    # whole-program optimization (/GL) exposes a latent heap corruption in
+    # SetConstTest.SleepingNotAllowed (a real bug worth a separate investigation),
+    # and Windows build time is not a CI bottleneck.
     local ipo_off="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF"
-    if [[ "${RUNNER_OS}" == "Windows" || "${CMAKE_ARGS}" == *gcc* ]]; then
+    if [[ "${RUNNER_OS}" == "Windows" ]]; then
         ipo_off=""
     fi
     mkdir build &&
