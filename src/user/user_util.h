@@ -115,8 +115,8 @@ void mjuu_localquat(double* local, const double* child, const double* parent);
 void mjuu_crossvec(double* a, const double* b, const double* c);
 
 // compute normal vector to given triangle
-template<typename T> MJAPI double mjuu_makenormal(double* normal, const T a[3],
-                                                  const T b[3], const T c[3]);
+template<typename T> double mjuu_makenormal(double* normal, const T a[3],
+                                            const T b[3], const T c[3]);
 
 // compute quaternion corresponding to minimal rotation from [0;0;1] to vec
 void mjuu_z2quat(double* quat, const double* vec);

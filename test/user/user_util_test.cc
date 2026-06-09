@@ -182,26 +182,6 @@ TEST_F(UserUtilTest, VectorToStringEmpty) {
   EXPECT_EQ(VectorToString(v), "");
 }
 
-TEST_F(UserUtilTest, MakeNormal) {
-  double a[3] = {0, 0, 0};
-  double b[3] = {1, 0, 0};
-  double c[3] = {0, 1, 0};
-  double normal[3];
-  double nrm = mjuu_makenormal(normal, a, b, c);
-  EXPECT_EQ(nrm, 1.0);
-  EXPECT_THAT(normal, ElementsAre(0, 0, 1));
-}
-
-TEST_F(UserUtilTest, MakeNormalDegenerate) {
-  double a[3] = {0, 0, 0};
-  double b[3] = {1, 0, 0};
-  double c[3] = {2, 0, 0};
-  double normal[3] = {0, 0, 0};
-  double nrm = mjuu_makenormal(normal, a, b, c);
-  EXPECT_EQ(nrm, 1.0);
-  EXPECT_THAT(normal, ElementsAre(1, 0, 0));
-}
-
 // utility: modified Gram-Schmidt to orthogonalize columns of Q (n x n)
 static void gramSchmidt(double* Q, int n) {
   for (int j = 0; j < n; j++) {
