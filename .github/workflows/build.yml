@@ -54,22 +54,6 @@ jobs:
               -DCMAKE_CXX_COMPILER:STRING=g++-12
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
-          - os: ubuntu-22.04
-            label: "ubuntu-22.04-gcc-11"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=gcc-11
-              -DCMAKE_CXX_COMPILER:STRING=g++-11
-              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
-            tmpdir: "/tmp"
-          - os: ubuntu-22.04
-            label: "ubuntu-22.04-gcc-10"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=gcc-10
-              -DCMAKE_CXX_COMPILER:STRING=g++-10
-              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
-            tmpdir: "/tmp"
           - os: ubuntu-24.04
             label: "ubuntu-24.04-clang-18"
             cmake_args: >-
@@ -262,8 +246,6 @@ jobs:
       if: ${{ matrix.label != 'windows-2025' &&
               matrix.label != 'macos-15-arm64' &&
               matrix.label != 'macos-15-x86_64' &&
-              matrix.label != 'ubuntu-22.04-gcc-10' &&
-              matrix.label != 'ubuntu-22.04-gcc-11' &&
               matrix.label != 'ubuntu-22.04-gcc-12' }}
       run: bash ./.github/workflows/build_steps.sh build_studio
 
