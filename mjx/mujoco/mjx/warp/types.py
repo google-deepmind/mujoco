@@ -15,17 +15,14 @@
 """MJX Warp types.
 DO NOT EDIT. This file is auto-generated.
 """
-
 import dataclasses
 import typing
 from typing import Tuple
-
 import jax
 from jax import tree_util
 from jax.interpreters import batching
-import numpy as np
-
 from mujoco.mjx._src import dataclasses as mjx_dataclasses
+import numpy as np
 
 if typing.TYPE_CHECKING:
   GraphMode = int
@@ -37,7 +34,6 @@ if typing.TYPE_CHECKING:
 else:
   try:
     from warp._src.jax_experimental.ffi import GraphMode
-
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 
     Callback = mjwp_types.Callback
@@ -45,7 +41,6 @@ else:
     GraphMode = int
     Callback = None
 PyTreeNode = mjx_dataclasses.PyTreeNode
-
 
 @dataclasses.dataclass(frozen=True)
 @tree_util.register_pytree_node_class
@@ -58,12 +53,9 @@ class TileSet:
     adr: address of each tile in the set
     size: size of all the tiles in this set
   """
-
   adr: np.ndarray
   size: int
 
-  # Manually kept in this generated shim until TileSet method generation is
-  # needed more broadly. Keep this in sync with mujoco_warp._src.types.TileSet.
   def __eq__(self, other) -> bool:
     if self.__class__ is not other.__class__:
       return NotImplemented
@@ -101,18 +93,25 @@ class BlockDim:
     energy_vel_kinetic: energy velocity kinetic block dimension (sensor)
     cholesky_factorize: Cholesky factorize block dimension (smooth)
     cholesky_solve: Cholesky solve block dimension (smooth)
-    cholesky_factorize_solve: Cholesky factorize and solve block dimension (smooth)
+    cholesky_factorize_solve: Cholesky factorize and solve block dimension
+      (smooth)
     solve_LD_sparse_fused: solve LD sparse fused block dimension (smooth)
     update_gradient_cholesky: update gradient Cholesky block dimension (solver)
-    update_gradient_cholesky_blocked: update gradient Cholesky blocked block dimension (solver)
-    update_gradient_JTDAJ_sparse: update gradient JTDAJ sparse block dimension (solver)
-    update_gradient_JTDAJ_dense: update gradient JTDAJ dense block dimension (solver)
+    update_gradient_cholesky_blocked: update gradient Cholesky blocked block
+      dimension (solver)
+    update_gradient_JTDAJ_sparse: update gradient JTDAJ sparse block dimension
+      (solver)
+    update_gradient_JTDAJ_dense: update gradient JTDAJ dense block dimension
+      (solver)
     linesearch_iterative: linesearch iterative block dimension (solver)
+    update_gradient_grad: update gradient grad block dimension (solver)
+    solve_beta_accumulate: solve beta accumulate block dimension (solver)
+    solve_search_update_cg: solve search update CG block dimension (solver)
+    solve_init_search_cg: solve init search CG block dimension (solver)
     contact_jac_tiled: contact Jacobian tiled block dimension (solver)
     qderiv_actuator_dense: qderiv actuator dense block dimension (derivative)
     render: render block dimension (render)
   """
-
   actuator_velocity: int
   cholesky_factorize: int
   cholesky_factorize_solve: int
@@ -127,10 +126,14 @@ class BlockDim:
   render: int
   segmented_sort: int
   solve_LD_sparse_fused: int
+  solve_beta_accumulate: int
+  solve_init_search_cg: int
+  solve_search_update_cg: int
   update_gradient_JTDAJ_dense: int
   update_gradient_JTDAJ_sparse: int
   update_gradient_cholesky: int
   update_gradient_cholesky_blocked: int
+  update_gradient_grad: int
 
   def tree_flatten(self):
     children = list((getattr(self, k) for k in self.__dataclass_fields__))
@@ -144,13 +147,10 @@ class BlockDim:
 
 class StatisticWarp(PyTreeNode):
   """Derived fields from Statistic."""
-
   meaninertia: jax.Array
-
 
 class OptionWarp(PyTreeNode):
   """Derived fields from Option."""
-
   broadphase: int
   broadphase_filter: int
   ccd_iterations: int
@@ -159,17 +159,13 @@ class OptionWarp(PyTreeNode):
   graph_conditional: bool
   graph_mode: GraphMode
   impratio_invsqrt: jax.Array
-  ls_parallel: bool
-  ls_parallel_min_step: float
   run_collision_detection: bool
   sdf_initpoints: int
   sdf_iterations: int
   sleep_tolerance: jax.Array
 
-
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
-
   D_colind: np.ndarray
   D_diag: np.ndarray
   D_rowadr: np.ndarray
@@ -254,6 +250,7 @@ class ModelWarp(PyTreeNode):
   is_sparse: bool
   jnt_limited_ball_adr: np.ndarray
   jnt_limited_slide_hinge_adr: np.ndarray
+  jtcj_max_pairs: int
   light_bodyid: np.ndarray
   light_targetbodyid: np.ndarray
   mapD2M: np.ndarray
@@ -351,10 +348,8 @@ class ModelWarp(PyTreeNode):
   wrap_site_adr: np.ndarray
   wrap_site_pair_adr: np.ndarray
 
-
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
-
   M: jax.Array
   actuator_moment: jax.Array
   actuator_velocity: jax.Array
@@ -473,8 +468,6 @@ class DataWarp(PyTreeNode):
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   shape = property(lambda self: self.cacc.shape)
-
-
 DATA_NON_VMAP = {
     'contact__dim',
     'contact__dist',
@@ -502,7 +495,6 @@ DATA_NON_VMAP = {
     'njmax_pad',
     'nworld',
 }
-
 
 def _to_elt(cont, _, d, axis):
   return DataWarp(**{
@@ -749,10 +741,14 @@ _NDIM = {
         'block_dim__render': 0,
         'block_dim__segmented_sort': 0,
         'block_dim__solve_LD_sparse_fused': 0,
+        'block_dim__solve_beta_accumulate': 0,
+        'block_dim__solve_init_search_cg': 0,
+        'block_dim__solve_search_update_cg': 0,
         'block_dim__update_gradient_JTDAJ_dense': 0,
         'block_dim__update_gradient_JTDAJ_sparse': 0,
         'block_dim__update_gradient_cholesky': 0,
         'block_dim__update_gradient_cholesky_blocked': 0,
+        'block_dim__update_gradient_grad': 0,
         'body_branch_start': 1,
         'body_branches': 1,
         'body_conaffinity': 1,
@@ -914,6 +910,7 @@ _NDIM = {
         'jnt_stiffness': 2,
         'jnt_stiffnesspoly': 3,
         'jnt_type': 1,
+        'jtcj_max_pairs': 0,
         'light_active': 2,
         'light_ambient': 3,
         'light_attenuation': 3,
@@ -1043,8 +1040,6 @@ _NDIM = {
         'opt__integrator': 0,
         'opt__iterations': 0,
         'opt__ls_iterations': 0,
-        'opt__ls_parallel': 0,
-        'opt__ls_parallel_min_step': 0,
         'opt__ls_tolerance': 1,
         'opt__magnetic': 2,
         'opt__run_collision_detection': 0,
@@ -1170,8 +1165,6 @@ _NDIM = {
         'integrator': 0,
         'iterations': 0,
         'ls_iterations': 0,
-        'ls_parallel': 0,
-        'ls_parallel_min_step': 0,
         'ls_tolerance': 1,
         'magnetic': 2,
         'run_collision_detection': 0,
@@ -1407,10 +1400,14 @@ _BATCH_DIM = {
         'block_dim__render': False,
         'block_dim__segmented_sort': False,
         'block_dim__solve_LD_sparse_fused': False,
+        'block_dim__solve_beta_accumulate': False,
+        'block_dim__solve_init_search_cg': False,
+        'block_dim__solve_search_update_cg': False,
         'block_dim__update_gradient_JTDAJ_dense': False,
         'block_dim__update_gradient_JTDAJ_sparse': False,
         'block_dim__update_gradient_cholesky': False,
         'block_dim__update_gradient_cholesky_blocked': False,
+        'block_dim__update_gradient_grad': False,
         'body_branch_start': False,
         'body_branches': False,
         'body_conaffinity': False,
@@ -1572,6 +1569,7 @@ _BATCH_DIM = {
         'jnt_stiffness': True,
         'jnt_stiffnesspoly': True,
         'jnt_type': False,
+        'jtcj_max_pairs': False,
         'light_active': True,
         'light_ambient': True,
         'light_attenuation': True,
@@ -1701,8 +1699,6 @@ _BATCH_DIM = {
         'opt__integrator': False,
         'opt__iterations': False,
         'opt__ls_iterations': False,
-        'opt__ls_parallel': False,
-        'opt__ls_parallel_min_step': False,
         'opt__ls_tolerance': True,
         'opt__magnetic': True,
         'opt__run_collision_detection': False,
@@ -1828,8 +1824,6 @@ _BATCH_DIM = {
         'integrator': False,
         'iterations': False,
         'ls_iterations': False,
-        'ls_parallel': False,
-        'ls_parallel_min_step': False,
         'ls_tolerance': True,
         'magnetic': True,
         'run_collision_detection': False,

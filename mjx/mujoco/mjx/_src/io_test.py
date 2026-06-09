@@ -182,8 +182,6 @@ class ModelIOTest(parameterized.TestCase):
       self.assertFalse(hasattr(mx, 'bvh_aabb'))
 
     elif impl == 'warp':
-      # Options specific to Warp are populated.
-      self.assertTrue(hasattr(mx.opt._impl, 'ls_parallel'))
       # Fields private to Warp backend impl are populated.
       self.assertTrue(hasattr(mx._impl, 'nxn_geom_pair'))
     elif impl == 'cpp':

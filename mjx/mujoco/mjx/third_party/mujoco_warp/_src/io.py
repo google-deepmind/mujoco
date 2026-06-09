@@ -257,9 +257,6 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   opt.tolerance = max(opt.tolerance, 1e-6)
 
   # warp only fields
-  ls_parallel_id = mujoco.mj_name2id(mjm, mujoco.mjtObj.mjOBJ_NUMERIC, "ls_parallel")
-  opt.ls_parallel = (ls_parallel_id > -1) and (mjm.numeric_data[mjm.numeric_adr[ls_parallel_id]] == 1)
-  opt.ls_parallel_min_step = 1.0e-6  # TODO(team): determine good default setting
   opt.broadphase = types.BroadphaseType.NXN
   opt.broadphase_filter = types.BroadphaseFilter.PLANE | types.BroadphaseFilter.SPHERE | types.BroadphaseFilter.OBB
   opt.graph_conditional = True
@@ -301,12 +298,38 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   m.nmaxpyramid = np.maximum(1, 2 * (m.nmaxcondim - 1))
   m.has_sdf_geom = (mjm.geom_type == mujoco.mjtGeom.mjGEOM_SDF).any()
   m.block_dim = types.BlockDim()
+  # Derive CG solver block_dim from nv: clamp(round_up_to_32(nv), 32, 256)
+  _nv_block = max(32, min(256, ((mjm.nv + 31) // 32) * 32))
+  m.block_dim.update_gradient_grad = _nv_block
+  m.block_dim.solve_beta_accumulate = _nv_block
+  m.block_dim.solve_search_update_cg = _nv_block
+  m.block_dim.solve_init_search_cg = _nv_block
   if mjm.nv > 500:
     m.block_dim.linesearch_iterative = 512
   m.is_sparse = is_sparse(mjm)
   m.has_fluid = mjm.opt.wind.any() or mjm.opt.density > 0 or mjm.opt.viscosity > 0
 
   m.max_ten_J_rownnz = int(mjm.ten_J_rownnz.max()) if mjm.ntendon else 0
+
+  # Upper bound on a contact's Jacobian support, to size the elliptic-cone JTCJ launch (one
+  # thread per (contact, support-pair)). A contact's row spans the dof chains of weld(b1) and
+  # weld(b2) (see _efc_contact_jac_sparse in constraint.py); take the largest union over all
+  # geom-carrying bodies -- a safe superset, since over-estimating only adds skipped threads.
+  # A body's dof chain is exactly the sparsity of its deepest dof's row in the (ancestor-
+  # structured) mass matrix, so reuse MuJoCo's precomputed M_colind rather than re-walking.
+  def _dof_chain(body):
+    if mjm.body_dofnum[body] == 0:
+      return frozenset()
+    dof = int(mjm.body_dofadr[body] + mjm.body_dofnum[body] - 1)
+    adr = int(mjm.M_rowadr[dof])
+    return frozenset(int(mjm.M_colind[adr + k]) for k in range(int(mjm.M_rownnz[dof])))
+
+  chains = list({_dof_chain(int(mjm.body_weldid[b])) for b in mjm.geom_bodyid})
+  max_rownnz = 0
+  for i, chain_i in enumerate(chains):
+    for chain_j in chains[i:]:
+      max_rownnz = max(max_rownnz, len(chain_i | chain_j))
+  m.jtcj_max_pairs = max(max_rownnz * (max_rownnz + 1) // 2, 1)
 
   # body ids grouped by tree level (depth-based traversal)
   bodies, body_depth = {}, np.zeros(mjm.nbody, dtype=int) - 1
@@ -2841,7 +2864,6 @@ def override_model(model: types.Model | mujoco.MjModel, overrides: dict[str, Any
 
   Overrides are of the format:
     opt.iterations = 1
-    opt.ls_parallel = True
     opt.cone = pyramidal
     opt.disableflags = contact | spring
   """
@@ -2865,7 +2887,6 @@ def override_model(model: types.Model | mujoco.MjModel, overrides: dict[str, Any
   mjw_only_fields = {
     "opt.broadphase",
     "opt.broadphase_filter",
-    "opt.ls_parallel",
     "opt.graph_conditional",
     "opt.contact_sensor_maxmatch",
   }
@@ -2881,6 +2902,11 @@ def override_model(model: types.Model | mujoco.MjModel, overrides: dict[str, Any
     overrides = overrides_dict
 
   for key, val in overrides.items():
+    if key == "opt.ls_parallel":
+      raise ValueError("ls_parallel was removed in MuJoCo Warp 3.9.1.")
+    if key == "opt.ls_parallel_min_step":
+      raise ValueError("ls_parallel_min_step was removed in MuJoCo Warp 3.9.1.")
+
     # skip overrides on MjModel for properties that are only on mjw.Model
     if key in mjw_only_fields and isinstance(model, mujoco.MjModel):
       continue

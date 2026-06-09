@@ -66,6 +66,10 @@ class BlockDim:
     update_gradient_JTDAJ_sparse: update gradient JTDAJ sparse block dimension (solver)
     update_gradient_JTDAJ_dense: update gradient JTDAJ dense block dimension (solver)
     linesearch_iterative: linesearch iterative block dimension (solver)
+    update_gradient_grad: update gradient grad block dimension (solver)
+    solve_beta_accumulate: solve beta accumulate block dimension (solver)
+    solve_search_update_cg: solve search update CG block dimension (solver)
+    solve_init_search_cg: solve init search CG block dimension (solver)
     contact_jac_tiled: contact Jacobian tiled block dimension (solver)
     qderiv_actuator_dense: qderiv actuator dense block dimension (derivative)
     render: render block dimension (render)
@@ -92,6 +96,10 @@ class BlockDim:
   update_gradient_JTDAJ_sparse: int = 64
   update_gradient_JTDAJ_dense: int = 128
   linesearch_iterative: int = 32
+  update_gradient_grad: int = 256
+  solve_beta_accumulate: int = 256
+  solve_search_update_cg: int = 256
+  solve_init_search_cg: int = 256
   contact_jac_tiled: int = 32
   # derivative
   qderiv_actuator_dense: int = 32
@@ -800,8 +808,6 @@ class Option:
 
   warp only fields:
     impratio_invsqrt: ratio of friction-to-normal contact impedance (stored as inverse square root)
-    ls_parallel: evaluate engine solver step sizes in parallel
-    ls_parallel_min_step: minimum step size for solver linesearch
     broadphase: broadphase type (BroadphaseType)
     broadphase_filter: broadphase filter bitflag (BroadphaseFilter)
     graph_conditional: flag to use cuda graph conditional
@@ -834,13 +840,28 @@ class Option:
   sdf_iterations: int
   # warp only fields:
   impratio_invsqrt: array("*", float)
-  ls_parallel: bool
-  ls_parallel_min_step: float
   broadphase: BroadphaseType
   broadphase_filter: BroadphaseFilter
   graph_conditional: bool
   run_collision_detection: bool
   contact_sensor_maxmatch: int
+
+  # TODO(team): remove in future version
+  @property
+  def ls_parallel(self) -> bool:
+    raise AttributeError("ls_parallel was removed in MuJoCo Warp 3.9.1.")
+
+  @ls_parallel.setter
+  def ls_parallel(self, value: bool):
+    raise AttributeError("ls_parallel was removed in MuJoCo Warp 3.9.1.")
+
+  @property
+  def ls_parallel_min_step(self) -> float:
+    raise AttributeError("ls_parallel_min_step was removed in MuJoCo Warp 3.9.1.")
+
+  @ls_parallel_min_step.setter
+  def ls_parallel_min_step(self, value: float):
+    raise AttributeError("ls_parallel_min_step was removed in MuJoCo Warp 3.9.1.")
 
 
 @dataclasses.dataclass
@@ -1290,6 +1311,7 @@ class Model:
     tendon_geom_adr: geom tendon address
     tendon_limited_adr: addresses for limited tendons
     max_ten_J_rownnz: maximum number of non-zeros in a tendon row
+    jtcj_max_pairs: bound on a contact's support-pair count, sizes the elliptic-cone JTCJ launch
     ten_wrapadr_site: wrap object starting address for sites
     ten_wrapnum_site: number of site wrap objects per tendon
     wrap_jnt_adr: addresses for joint tendon wrap object
@@ -1719,6 +1741,7 @@ class Model:
   tendon_geom_adr: wp.array[int]
   tendon_limited_adr: wp.array[int]
   max_ten_J_rownnz: int
+  jtcj_max_pairs: int
   ten_wrapadr_site: wp.array[int]
   ten_wrapnum_site: wp.array[int]
   wrap_jnt_adr: wp.array[int]
@@ -2205,7 +2228,6 @@ class SolverContext:
   mv: wp.array2d[float]
   jv: wp.array2d[float]
   quad: wp.array2d[wp.vec3]
-  quad_gauss: wp.array[wp.vec3]
   alpha: wp.array[float]
   improvement: wp.array[float]
   prev_grad: wp.array2d[float]

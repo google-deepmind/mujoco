@@ -14,17 +14,14 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
-
 import dataclasses
 import functools
-
 import jax
-import warp as wp
-
 from mujoco.mjx._src import types
+from mujoco.mjx.warp import ffi
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
-from mujoco.mjx.warp import ffi
+import warp as wp
 
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
@@ -241,6 +238,7 @@ def _forward_shim(
     jnt_stiffness: wp.array2d[float],
     jnt_stiffnesspoly: wp.array2d[wp.vec2],
     jnt_type: wp.array[int],
+    jtcj_max_pairs: int,
     light_bodyid: wp.array[int],
     light_dir: wp.array2d[wp.vec3],
     light_dir0: wp.array2d[wp.vec3],
@@ -415,8 +413,6 @@ def _forward_shim(
     opt__integrator: int,
     opt__iterations: int,
     opt__ls_iterations: int,
-    opt__ls_parallel: bool,
-    opt__ls_parallel_min_step: float,
     opt__ls_tolerance: wp.array[float],
     opt__magnetic: wp.array[wp.vec3],
     opt__run_collision_detection: bool,
@@ -780,6 +776,7 @@ def _forward_shim(
   _m.jnt_stiffness = jnt_stiffness
   _m.jnt_stiffnesspoly = jnt_stiffnesspoly
   _m.jnt_type = jnt_type
+  _m.jtcj_max_pairs = jtcj_max_pairs
   _m.light_bodyid = light_bodyid
   _m.light_dir = light_dir
   _m.light_dir0 = light_dir0
@@ -865,8 +862,6 @@ def _forward_shim(
   _m.opt.integrator = opt__integrator
   _m.opt.iterations = opt__iterations
   _m.opt.ls_iterations = opt__ls_iterations
-  _m.opt.ls_parallel = opt__ls_parallel
-  _m.opt.ls_parallel_min_step = opt__ls_parallel_min_step
   _m.opt.ls_tolerance = opt__ls_tolerance
   _m.opt.magnetic = opt__magnetic
   _m.opt.run_collision_detection = opt__run_collision_detection
@@ -1796,6 +1791,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.jnt_stiffness,
       m.jnt_stiffnesspoly,
       m.jnt_type,
+      m._impl.jtcj_max_pairs,
       m._impl.light_bodyid,
       m.light_dir,
       m.light_dir0,
@@ -1970,8 +1966,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.opt.integrator,
       m.opt.iterations,
       m.opt.ls_iterations,
-      m.opt._impl.ls_parallel,
-      m.opt._impl.ls_parallel_min_step,
       m.opt.ls_tolerance,
       m.opt.magnetic,
       m.opt._impl.run_collision_detection,
@@ -2498,6 +2492,7 @@ def _step_shim(
     jnt_stiffness: wp.array2d[float],
     jnt_stiffnesspoly: wp.array2d[wp.vec2],
     jnt_type: wp.array[int],
+    jtcj_max_pairs: int,
     light_bodyid: wp.array[int],
     light_dir: wp.array2d[wp.vec3],
     light_dir0: wp.array2d[wp.vec3],
@@ -2677,8 +2672,6 @@ def _step_shim(
     opt__integrator: int,
     opt__iterations: int,
     opt__ls_iterations: int,
-    opt__ls_parallel: bool,
-    opt__ls_parallel_min_step: float,
     opt__ls_tolerance: wp.array[float],
     opt__magnetic: wp.array[wp.vec3],
     opt__run_collision_detection: bool,
@@ -3048,6 +3041,7 @@ def _step_shim(
   _m.jnt_stiffness = jnt_stiffness
   _m.jnt_stiffnesspoly = jnt_stiffnesspoly
   _m.jnt_type = jnt_type
+  _m.jtcj_max_pairs = jtcj_max_pairs
   _m.light_bodyid = light_bodyid
   _m.light_dir = light_dir
   _m.light_dir0 = light_dir0
@@ -3136,8 +3130,6 @@ def _step_shim(
   _m.opt.integrator = opt__integrator
   _m.opt.iterations = opt__iterations
   _m.opt.ls_iterations = opt__ls_iterations
-  _m.opt.ls_parallel = opt__ls_parallel
-  _m.opt.ls_parallel_min_step = opt__ls_parallel_min_step
   _m.opt.ls_tolerance = opt__ls_tolerance
   _m.opt.magnetic = opt__magnetic
   _m.opt.run_collision_detection = opt__run_collision_detection
@@ -4089,6 +4081,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.jnt_stiffness,
       m.jnt_stiffnesspoly,
       m.jnt_type,
+      m._impl.jtcj_max_pairs,
       m._impl.light_bodyid,
       m.light_dir,
       m.light_dir0,
@@ -4268,8 +4261,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.opt.integrator,
       m.opt.iterations,
       m.opt.ls_iterations,
-      m.opt._impl.ls_parallel,
-      m.opt._impl.ls_parallel_min_step,
       m.opt.ls_tolerance,
       m.opt.magnetic,
       m.opt._impl.run_collision_detection,
