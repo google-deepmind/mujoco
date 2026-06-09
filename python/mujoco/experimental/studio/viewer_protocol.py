@@ -21,6 +21,17 @@ from typing import Protocol
 import mujoco
 from mujoco.experimental.studio import ux
 
+GFX_MODES = (
+    'classic',
+    'classic_headless',
+    'opengl',
+    'opengl_headless',
+    'opengl_software',
+    'vulkan',
+    'vulkan_software',
+    'webgl',
+)
+
 
 class Viewer(Protocol):
   """Structural interface for any viewer."""

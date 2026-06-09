@@ -33,11 +33,14 @@ from mujoco.experimental.studio import native_viewer as _viewer
 from mujoco.experimental.studio import sim as _sim
 from mujoco.experimental.studio import studio_app
 from mujoco.experimental.studio import ux
+from mujoco.experimental.studio import viewer_protocol
 import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
 
-_GFX = absl_flags.DEFINE_string('gfx', '', 'Rendering graphics mode.')
+_GFX = absl_flags.DEFINE_enum(
+    'gfx', None, viewer_protocol.GFX_MODES, 'Rendering graphics mode.'
+)
 _WIDTH = absl_flags.DEFINE_integer('width', 1200, 'Width of the output image.')
 _HEIGHT = absl_flags.DEFINE_integer('height', 800, 'Height of the output image')
 

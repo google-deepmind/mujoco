@@ -21,11 +21,14 @@ from absl import flags
 import mujoco
 from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import renderer
+from mujoco.experimental.studio import viewer_protocol
 from PIL import Image
 
 _MODEL = flags.DEFINE_string('model', '', 'Model file to load.')
 _OUTPUT = flags.DEFINE_string('output', '', 'Output file to save.')
-_GFX = flags.DEFINE_string('gfx', '', 'Renderer to use.')
+_GFX = flags.DEFINE_enum(
+    'gfx', None, viewer_protocol.GFX_MODES, 'Rendering graphics mode.'
+)
 _WIDTH = flags.DEFINE_integer('width', 320, 'Width of the output image.')
 _HEIGHT = flags.DEFINE_integer('height', 240, 'Height of the output image.')
 _STEPS = flags.DEFINE_integer('steps', 1, 'Number of steps before render.')
@@ -50,7 +53,7 @@ def main(argv):
     mujoco.mj_step(model, data)
 
   try:
-    r = renderer.Renderer(_GFX.value)
+    r = renderer.Renderer(_GFX.value or '')
     r.Init(model)
     pixels = r.Render(
         model, data, None, None, None, _WIDTH.value, _HEIGHT.value

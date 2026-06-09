@@ -17,8 +17,11 @@ from absl import app as absl_app
 from absl import flags as absl_flags
 from mujoco.experimental.studio import native_viewer
 from mujoco.experimental.studio import studio_app
+from mujoco.experimental.studio import viewer_protocol
 
-_GFX = absl_flags.DEFINE_string('gfx', '', 'Rendering graphics mode.')
+_GFX = absl_flags.DEFINE_enum(
+    'gfx', None, viewer_protocol.GFX_MODES, 'Rendering graphics mode.'
+)
 _WIDTH = absl_flags.DEFINE_integer('width', 1200, 'Width of the output image.')
 _HEIGHT = absl_flags.DEFINE_integer('height', 800, 'Height of the output image')
 

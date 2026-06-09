@@ -21,17 +21,18 @@ to use these classes.
 """
 
 import mujoco
-
 from mujoco.experimental.studio import native_viewer_cc as _viewer
 from mujoco.experimental.studio import ux
+from mujoco.experimental.studio import viewer_protocol
 
 
-class NativeViewer:
+class NativeViewer(viewer_protocol.Viewer):
   """Simulation-agnostic native viewer for MuJoCo models."""
 
   def __init__(
       self,
       model: mujoco.MjModel,
+      *,
       camera: mujoco.MjvCamera | None = None,
       vis_options: mujoco.MjvOption | None = None,
       perturb: mujoco.MjvPerturb | None = None,
@@ -39,7 +40,7 @@ class NativeViewer:
       title: str = '',
       width: int = 1200,
       height: int = 800,
-      gfx: str = '',
+      gfx: str | None = None,
   ) -> None:
     """Initializes the NativeViewer.
 
@@ -55,12 +56,12 @@ class NativeViewer:
       title: Title of the viewer window.
       width: Initial width of the viewer window.
       height: Initial height of the viewer window.
-      gfx: Graphics mode.
+      gfx: Graphics mode. If None, uses the platform default.
     """
     self.camera = camera or mujoco.MjvCamera()
     self.perturb = perturb or mujoco.MjvPerturb()
     self.vis_options = vis_options or mujoco.MjvOption()
-    self._viewer = _viewer.Viewer(title, width, height, gfx)
+    self._viewer = _viewer.Viewer(title, width, height, gfx or '')
     self._viewer.InitRenderer(model)
     # This class does not own the model but we need to know if the model being
     # rendered has changed, so we store the unique python object id here so we
