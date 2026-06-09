@@ -139,7 +139,9 @@ ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
       root->physics_scene = prim_path;
     }
 
-    if (prim.IsA<pxr::UsdGeomGprim>()) {
+    bool is_site = prim.HasAPI<pxr::MjcPhysicsSiteAPI>();
+
+    if (prim.IsA<pxr::UsdGeomGprim>() && !is_site) {
       bool has_collision_api = prim.HasAPI<pxr::UsdPhysicsCollisionAPI>();
       if (has_collision_api) {
         bool collision_enabled = false;
@@ -155,7 +157,7 @@ ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
       }
     }
 
-    if (prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
+    if (is_site) {
       current_node->sites.push_back(prim_path);
       // Sites should not have children.
       it.PruneChildren();
