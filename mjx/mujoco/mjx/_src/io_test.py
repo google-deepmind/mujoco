@@ -799,7 +799,7 @@ class DataIOTest(parameterized.TestCase):
 
     # Use a model with at least one kinematic tree so that island
     # fields (e.g. dof_island, tree_island) are populated on the host
-    # MjData. 
+    # MjData.
     m = mujoco.MjModel.from_xml_string("""
       <mujoco>
         <worldbody>
