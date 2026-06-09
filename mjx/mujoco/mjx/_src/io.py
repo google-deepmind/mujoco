@@ -1307,6 +1307,10 @@ def _get_data_into_warp(
       if isinstance(value, np.ndarray) and value.shape:
         result_field = getattr(result_i, field.name)
         if result_field.shape != value.shape:
+          # When ENABLE_ISLANDS is False, mujoco_warp allocates island fields with width 0,
+          # while the host MjData sizes to nv/ntree. Skip to prevent mismatch.
+          if value.size == 0 and not mjxw.mjwp_io.ENABLE_ISLANDS:
+            continue
           raise ValueError(
               f'Input field {field.name} has shape {value.shape}, but output'
               f' has shape {result_field.shape}'

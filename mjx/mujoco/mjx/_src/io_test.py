@@ -797,11 +797,29 @@ class DataIOTest(parameterized.TestCase):
     if not mjx_io.has_cuda_gpu_device():
       self.skipTest('No CUDA GPU device.')
 
-    m = mujoco.MjModel.from_xml_string('<mujoco></mujoco>')
+    # Use a model with at least one kinematic tree so that island
+    # fields (e.g. dof_island, tree_island) are populated on the host
+    # MjData.
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <body>
+            <freejoint/>
+            <geom size="0.1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
     d = mujoco.MjData(m)
     mx = mjx.put_model(m, impl='warp')
     dx = mjx.make_data(m, impl='warp')
     mjx.get_data_into(d, mx, dx)
+
+    # Island data is not populated when ENABLE_ISLANDS is False, so the host
+    # MjData island fields should be left at their default (nv,)/(ntree,)
+    # shapes rather than triggering a shape mismatch.
+    self.assertEqual(d.dof_island.shape, (m.nv,))
+    self.assertEqual(d.tree_island.shape, (m.ntree,))
 
   @parameterized.parameters(('jax',))
   def test_get_data_into_wrong_shape(self, impl):
