@@ -93,6 +93,7 @@ typedef struct {
   Face* faces;        // list of faces that make up the polytope
   int nfaces;         // number of faces
   int maxfaces;       // max number of faces that can be stored in polytope
+  mjtNum center[3];   // center of the polytope
   Face** map;         // linear map storing faces
   int nmap;           // number of faces in map
   struct Horizon {    // polytope boundary edges that can be seen from w
@@ -929,6 +930,10 @@ static inline int rayTriangle(const mjtNum v1[3], const mjtNum v2[3], const mjtN
 static int polytope2(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum *v1 = status->simplex[0].vert, *v2 = status->simplex[1].vert;
 
+  // set the polytope center
+  add3(pt->center, v1, v2);
+  scl3(pt->center, pt->center, 0.5);
+
   mjtNum diff[3];
   sub3(diff, v2, v1);
 
@@ -997,13 +1002,12 @@ static int polytope2(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
     return mjEPA_P2_NONCONVEX;
   }
 
+  // populate face map
   for (int i = 0; i < 6; i++) {
     pt->map[i] = pt->faces + i;
     pt->faces[i].index = i;
   }
   pt->nmap = 6;
-
-  // valid hexahedron for EPA
   return 0;
 }
 
@@ -1076,6 +1080,11 @@ static int polytope3(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
   const mjtNum *v1 = status->simplex[0].vert,
                *v2 = status->simplex[1].vert,
                *v3 = status->simplex[2].vert;
+
+  // set the polytope center
+  add3(pt->center, v1, v2);
+  add3(pt->center, pt->center, v3);
+  scl3(pt->center, pt->center, 1.0 / 3.0);
 
   // get normals in both directions
   mjtNum diff1[3], diff2[3], n[3], n_neg[3];
@@ -1156,6 +1165,12 @@ static int polytope4(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
   int v3 = insertVertex(pt, status->simplex + 2);
   int v4 = insertVertex(pt, status->simplex + 3);
 
+  // set the polytope center
+  add3(pt->center, pt->verts[v1].vert, pt->verts[v2].vert);
+  add3(pt->center, pt->center, pt->verts[v3].vert);
+  add3(pt->center, pt->center, pt->verts[v4].vert);
+  scl3(pt->center, pt->center, 0.25);
+
   // if the origin is on a face, replace the 3-simplex with a 2-simplex
   if (attachFace(pt, v1, v2, v3, 1, 3, 2) < mjMINDIST4) {
     replaceSimplex3(pt, status, v1, v2, v3);
@@ -1229,6 +1244,14 @@ static inline mjtNum attachFace(Polytope* pt, int v1, int v2, int v3,
   if (ret) {
     return 0;
   }
+
+  // ensure projection points outward from the polytope
+  mjtNum outward[3];
+  sub3(outward, pt->verts[v1].vert, pt->center);
+  if (dot3(face->v, outward) < 0) {
+    scl3(face->v, face->v, -1);
+  }
+
   face->dist2 = dot3(face->v, face->v);
   face->index = -1;
 
