@@ -155,7 +155,6 @@ class BuildCMakeExtension(build_ext.build_ext):
     self._configure_cmake()
     for ext in self.extensions:
       assert ext.name.startswith(EXT_PREFIX)
-      assert '.' not in ext.name[len(EXT_PREFIX) :]
       self.build_extension(ext)
     self._copy_external_libraries()
     self._copy_mujoco_headers()
@@ -317,8 +316,19 @@ class BuildCMakeExtension(build_ext.build_ext):
 
   def build_extension(self, ext):
     dest_path = self.get_ext_fullpath(ext.name)
-    build_path = os.path.join(self.build_temp, os.path.basename(dest_path))
-    shutil.copyfile(build_path, dest_path)
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+    # Reconstruct relative path from extension name to support nested extensions
+    rel_ext_name = ext.name[len(EXT_PREFIX):]
+    rel_path = rel_ext_name.replace('.', '/')
+    filename = os.path.basename(dest_path)
+    rel_dir = os.path.dirname(rel_path)
+
+    build_path = os.path.join(self.build_temp, rel_dir, filename)
+    if os.path.exists(build_path):
+      shutil.copyfile(build_path, dest_path)
+    else:
+      print(f"Warning: Extension {ext.name} was not built by CMake. Skipping.")
 
 
 class InstallScripts(install_scripts.install_scripts):
