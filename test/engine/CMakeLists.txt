@@ -67,6 +67,8 @@ mujoco_test(engine_support_test)
 
 mujoco_test(engine_thread_test)
 
+mujoco_test(engine_toi_test ADDITIONAL_LINK_LIBRARIES ccd)
+
 mujoco_test(engine_util_blas_test)
 
 mujoco_test(engine_util_errmem_test)

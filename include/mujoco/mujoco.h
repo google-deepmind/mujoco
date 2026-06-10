@@ -630,6 +630,12 @@ MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
 MJAPI mjtNum mj_geomDistance(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum distmax,
                              mjtNum fromto[6]);
 
+// Compute time of impact between two convex geoms within [0, horizon], assuming constant
+// world-frame velocities taken from d. Return TOI, 0 if already touching, -1 if no impact.
+// Nullable: fromto
+MJAPI mjtNum mj_geomTOI(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum horizon,
+                        mjtNum fromto[6]);
+
 // Extract 6D force:torque given contact id, in the contact frame.
 MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
 

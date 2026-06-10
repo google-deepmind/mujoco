@@ -77,6 +77,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_support.h
     engine_thread.cc
     engine_thread.h
+    engine_toi.c
+    engine_toi.h
     engine_util_blas.c
     engine_util_blas.h
     engine_util_blas_avx.h
