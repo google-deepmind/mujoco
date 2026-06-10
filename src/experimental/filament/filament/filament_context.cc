@@ -221,7 +221,7 @@ void FilamentContext::ValidateSwapChains(
 
   if (max_window_width && max_window_height) {
     if (max_window_width != window_width_ ||
-        max_window_width != window_height_) {
+        max_window_height != window_height_) {
       engine_->destroy(window_swap_chain_);
       window_width_ = max_window_width;
       window_height_ = max_window_height;
