@@ -1871,7 +1871,10 @@ mjfOpenResource
 
    typedef int (*mjfOpenResource)(mjResource* resource);
 
-This callback is for opening a resource; returns zero on failure.
+This callback is for opening a resource; returns zero on failure. Note that
+if this callback returns zero, the ``close`` callback will not be called.
+Therefore, the ``open`` callback is responsible for cleaning up any allocated
+memory or resources before returning zero to avoid memory leaks.
 
 .. _mjfReadResource:
 

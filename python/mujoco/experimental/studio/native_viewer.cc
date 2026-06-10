@@ -79,6 +79,10 @@ class Viewer {
     resource_provider.open = [](mjResource* resource) {
       auto* data = new ResourceData();
       data->bytes = LoadAsset(resource->name);
+      if (data->bytes.empty()) {
+        delete data;
+        return 0;
+      }
       resource->data = data;
       return static_cast<int>(data->bytes.size());
     };
@@ -135,9 +139,7 @@ class Viewer {
                                   bytes_per_pixel);
   }
 
-  std::string GetDropFile() {
-    return window_->GetDropFile();
-  }
+  std::string GetDropFile() { return window_->GetDropFile(); }
 
   void Present(const mujoco::python::MjModelWrapper& model,
                mujoco::python::MjDataWrapper& data,

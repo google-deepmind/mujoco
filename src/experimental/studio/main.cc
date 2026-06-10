@@ -84,6 +84,10 @@ int main(int argc, char** argv, char** envp) {
   resource_provider.open = [](mjResource* resource) {
     const std::string resolved_path = Resolve(resource->name);
     FileResource* f = new FileResource(resolved_path);
+    if (f->Size() == 0) {
+      delete f;
+      return 0;
+    }
     resource->data = f;
     return f->Size();
   };
