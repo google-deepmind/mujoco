@@ -1165,7 +1165,8 @@ void mjXUtil::WriteAttrKeys(XMLElement* elem, std::string name, const mjMap* map
 
   std::string text = FindValue(map, mapsz, data[0]);
   for (int i = 1; i < ndata; ++i) {
-    text += " " + FindValue(map, mapsz, data[i]);
+    text += " ";
+    text += FindValue(map, mapsz, data[i]);
   }
 
   WriteAttrTxt(elem, name, text);

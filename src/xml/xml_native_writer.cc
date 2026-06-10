@@ -97,7 +97,7 @@ static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
 
       // insert another newline
       if (line_pos != string::npos) {
-        str.insert(line_pos + 1, "\n");
+        str.insert(line_pos + 1, 1, '\n');
         pos++;  // account for inserted newline
       }
 
