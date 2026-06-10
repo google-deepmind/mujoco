@@ -180,11 +180,13 @@ copy_plugins_window() {
 
 configure_samples() {
     echo "Configuring samples..."
+    # Samples are tiny, so they keep the default IPO/LTO: disabling it saves no
+    # meaningful build time and would expose the same gcc -Werror false positives
+    # that -O3-without-LTO triggers (see configure_mujoco).
     mkdir build &&
     cd build &&
     cmake .. \
         -DCMAKE_BUILD_TYPE:STRING=Release \
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -Dmujoco_ROOT:STRING=${TMPDIR}/mujoco_install \
         ${CCACHE_ARGS} \
         ${CMAKE_ARGS}
@@ -193,11 +195,11 @@ configure_samples() {
 
 configure_simulate() {
     echo "Configuring simulate..."
+    # See configure_samples: keep the default IPO/LTO for this small build.
     mkdir build &&
     cd build &&
     cmake .. \
         -DCMAKE_BUILD_TYPE:STRING=Release \
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -Dmujoco_ROOT:STRING=${TMPDIR}/mujoco_install \
         ${CCACHE_ARGS} \
         ${CMAKE_ARGS}
