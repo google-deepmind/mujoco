@@ -94,6 +94,15 @@ if(NOT EMSCRIPTEN)
     add_executable(mujoco_studio)
     target_sources(mujoco_studio PRIVATE main.cc)
     configure_studio_target(mujoco_studio)
+    install(
+      TARGETS mujoco_studio
+      RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
+      BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
+    )
+    install(
+      DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets"
+      DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
+    )
 endif()
 
 # WASM Live target.
