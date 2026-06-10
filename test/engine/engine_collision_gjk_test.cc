@@ -1353,6 +1353,64 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD14) {
   ASSERT_EQ(ncons, 4);
 }
 
+TEST_F(MjGjkTest, BoxBoxMultiCCD15) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" size="0.5 0.5 0.1"/>
+      <geom name="geom2" type="box" size="0.025 0.025 0.025"/>
+    </worldbody>
+  </mujoco>)";
+
+  TestModel model = LoadModel(xml);
+  TestData data = MakeData(model.get());
+  mj_forward(model.get(), data.get());
+
+  mjtNum* xmat = data->geom_xmat;
+  mjtNum* xpos = data->geom_xpos;
+
+  xmat[0] = 1.0;
+  xmat[1] = 0.0;
+  xmat[2] = 0.0;
+  xmat[3] = 0.0;
+  xmat[4] = 1.0;
+  xmat[5] = 0.0;
+  xmat[6] = 0.0;
+  xmat[7] = 0.0;
+  xmat[8] = 1.0;
+
+  xpos[0] = 0.0;
+  xpos[1] = 0.0;
+  xpos[2] = 0.0;
+
+  xmat = data->geom_xmat + 9;
+  xpos = data->geom_xpos + 3;
+
+  xmat[0] = 1.0;
+  xmat[1] = 1.62423755001306e-10;
+  xmat[2] = -1.73500047822017e-05;
+  xmat[3] = 1.44241105171083e-10;
+  xmat[4] = 1.0;
+  xmat[5] = 1.76752037077677e-05;
+  xmat[6] = 1.73500047822017e-05;
+  xmat[7] = -1.76752037077677e-05;
+  xmat[8] = 1.0;
+
+  xpos[0] = 0.0520339831709862;
+  xpos[1] = -0.0520339831709862;
+  xpos[2] = 0.124986477196217;
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
+
+  ASSERT_EQ(ncons, sizeof(mjtNum) == 8 ? 4 : 0);
+}
+
 TEST_F(MjGjkTest, SmallBoxMesh) {
   static constexpr char xml[] = R"(
   <mujoco>
