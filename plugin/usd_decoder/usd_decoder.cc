@@ -932,6 +932,21 @@ void ParseUsdPhysicsMassAPIForGeom(mjsGeom* geom,
   }
 }
 
+bool HasAuthoredMassOrDensity(const pxr::UsdPhysicsMassAPI& mass_api) {
+  return mass_api.GetMassAttr().HasAuthoredValue() ||
+         mass_api.GetDensityAttr().HasAuthoredValue();
+}
+
+bool IsMasslessMjcImageable(const pxr::UsdPrim& prim) {
+  if (!prim.HasAPI<pxr::MjcPhysicsImageableAPI>()) {
+    return false;
+  }
+  if (!prim.HasAPI<pxr::UsdPhysicsMassAPI>()) {
+    return true;
+  }
+  return !HasAuthoredMassOrDensity(pxr::UsdPhysicsMassAPI(prim));
+}
+
 void ParseMjcPhysicsCollisionAPI(
     mjsGeom* geom, const pxr::MjcPhysicsCollisionAPI& collision_api) {
   auto shell_inertia_attr = collision_api.GetShellInertiaAttr();
@@ -1892,6 +1907,13 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
     if (material) {
       mjs_setString(geom->material, mjs_getName(material->element)->c_str());
     }
+  }
+
+  if (IsMasslessMjcImageable(gprim)) {
+    // MjcImageableAPI marks MuJoCo visual-only geoms. If they do not carry
+    // explicit mass or density, keep them from inheriting MuJoCo's default
+    // geom density and affecting inferred body inertias.
+    geom->density = 0;
   }
 
   if (gprim.HasAPI<pxr::UsdPhysicsMassAPI>()) {
