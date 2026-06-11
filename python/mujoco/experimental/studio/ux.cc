@@ -96,6 +96,13 @@ PYBIND11_MODULE(ux, m) {
       py::arg("theme"), "Set up Dear ImGui visual theme.");
 
   m.def(
+      "set_imgui_context",
+      [](intptr_t ptr) {
+        ImGui::SetCurrentContext(reinterpret_cast<ImGuiContext*>(ptr));
+      },
+      py::arg("ptr"), "Set ImGui context pointer.");
+
+  m.def(
       "configure_docking_layout",
       []() {
         ImVec4 r = mujoco::platform::ConfigureDockingLayout();

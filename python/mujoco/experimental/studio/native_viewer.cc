@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <fstream>
+#include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
 #include <mujoco/experimental/platform/hal/graphics_mode.h>
@@ -180,6 +181,10 @@ class Viewer {
     window_->Present(pixels_);
   }
 
+  intptr_t GetImGuiContext() {
+    return reinterpret_cast<intptr_t>(ImGui::GetCurrentContext());
+  }
+
  private:
   std::unique_ptr<mujoco::platform::Window> window_;
   std::unique_ptr<mujoco::platform::Renderer> renderer_;
@@ -195,7 +200,8 @@ PYBIND11_MODULE(native_viewer_cc, m) {
       .def("Present", &Viewer::Present)
       .def("UploadImage", &Viewer::UploadImage)
       .def("RenderToTexture", &Viewer::RenderToTexture)
-      .def("GetDropFile", &Viewer::GetDropFile);
+      .def("GetDropFile", &Viewer::GetDropFile)
+      .def("GetImGuiContext", &Viewer::GetImGuiContext);
   m.def("IsCrd", &IsCrd);
   m.def("IsCuda", &IsCuda);
 }

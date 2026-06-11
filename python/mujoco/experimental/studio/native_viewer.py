@@ -24,6 +24,7 @@ import mujoco
 from mujoco.experimental.studio import native_viewer_cc as _viewer
 from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_protocol
+from mujoco.experimental.dear_imgui import dear_imgui as imgui
 
 
 class NativeViewer(viewer_protocol.Viewer):
@@ -74,6 +75,10 @@ class NativeViewer(viewer_protocol.Viewer):
       self.render_flags = ux.RenderFlags()
       # Initted to match mujoco/src/engine/engine_vis_init.c
       self.render_flags.flags = [1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1]
+
+    ctx = self._viewer.GetImGuiContext()
+    imgui.SetCurrentContext(ctx)
+    ux.set_imgui_context(ctx)
 
   def _sync_renderer(self, model: mujoco.MjModel) -> None:
     """Re-initializes the renderer if the model object has changed."""
