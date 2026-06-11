@@ -163,7 +163,8 @@ PYBIND11_MODULE(dear_imgui, m) {
       .value("CallbackAlways", ImGuiInputTextFlags_CallbackAlways)
       .value("CallbackCharFilter", ImGuiInputTextFlags_CallbackCharFilter)
       .value("CallbackResize", ImGuiInputTextFlags_CallbackResize)
-      .value("CallbackEdit", ImGuiInputTextFlags_CallbackEdit);
+      .value("CallbackEdit", ImGuiInputTextFlags_CallbackEdit)
+      .value("WordWrap", ImGuiInputTextFlags_WordWrap);
 
   py::enum_<ImGuiTreeNodeFlags_>(m, "TreeNodeFlags")
       .value("None", ImGuiTreeNodeFlags_None)
