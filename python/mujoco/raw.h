@@ -19,6 +19,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjspec.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
 
 // Type aliases for MuJoCo C structs to allow us refer to consistently refer
@@ -72,6 +73,8 @@ using MjVisualMap = decltype(::mjVisual::map);
 using MjVisualScale = decltype(::mjVisual::scale);
 using MjVisualRgba = decltype(::mjVisual::rgba);
 using MjWarningStat = ::mjWarningStat;
+using MjLogConfig = ::mjLogConfig;
+using MjLogMessage = ::mjLogMessage;
 
 // From mjrender.h
 using MjrRect = ::mjrRect;

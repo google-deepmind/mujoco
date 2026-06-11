@@ -886,20 +886,79 @@ and :ref:`mj_stackAllocByte` is provided for allocation of arbitrary number of b
 
 .. _siError:
 
-Errors and warnings
-~~~~~~~~~~~~~~~~~~~
+Errors, warnings, logging
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When a terminal error occurs, MuJoCo calls the function :ref:`mju_error` internally. Here is what mju_error does:
+MuJoCo has a unified logging system for errors, warnings and informational messages. All log output is routed
+through a single callback of type :ref:`mjfLogHandler`, which receives a structured :ref:`mjLogMessage`
+containing the severity level, message text, and optional source location. Errors are fatal and terminate the
+program by default. Warnings indicate problematic but non-fatal conditions. Informational messages provide
+optional diagnostic output.
 
-#. Append the error message at the end of the file MUJOCO_LOG.TXT in the program directory (create the file if it does
-   not exist). Also write the date and time along with the error message.
-#. If the user error callback :ref:`mju_user_error` is installed, call that function with the error message as
-   argument. Otherwise, print the error message and "Press Enter to exit..." to standard output. Then wait for any
-   keyboard input, and then terminate the simulator with failure.
+.. _siLogHandler:
 
-If a user error callback is installed, it must **not** return, otherwise the behavior of the simulator is undefined.
-The idea here is that if mju_error is called, the simulation cannot continue and the user is expected to make some
-change such that the error condition is avoided. The error messages are self-explanatory.
+Installing a handler
+^^^^^^^^^^^^^^^^^^^^
+
+Users who want to intercept and process MuJoCo's log output should install a log handler using
+:ref:`mju_setLogHandler`. The handler receives all errors, warnings and info messages as a single structured
+callback:
+
+.. code-block:: C
+
+   void my_handler(const mjLogMessage* msg) {
+     // do something with msg, for example:
+     printf("%s\n", msg->subject);
+   }
+
+   // install handler, save previous
+   mjfLogHandler prev = mju_setLogHandler(my_handler);
+
+   // ... do work ...
+
+   // restore previous handler
+   mju_setLogHandler(prev);
+
+:ref:`mju_setLogHandler` returns the previously installed handler (which is never ``NULL``; passing ``NULL`` restores
+the default handler). The previous handler can be used in two ways:
+
+* **Save/restore**: A library or subsystem can temporarily install its own handler and later restore the previous one.
+* **Chaining**: A custom handler can act as a pure observer by calling the previous handler at the end of its callback
+  to preserve existing behavior. Conversely, handlers intended to intercept and recover from errors (e.g., via
+  ``longjmp``) should not chain to the previous handler.
+
+When the handler is called with ``level == mjLOG_ERROR``, the error is always fatal: the :ref:`default handler
+<siDefaultHandler>` terminates the process with ``exit(EXIT_FAILURE)`` (unless a legacy error handler is installed).
+Handlers that wish to recover from errors (e.g., to throw a C++ exception or convert to a Python exception) must not
+return — they should ``longjmp`` to a previously established recovery point or otherwise transfer control before
+returning. This is how the compiler and Python bindings handle errors. MuJoCo is written with the assumption that
+error handlers will not return; if they do, the behavior of the software is undefined.
+
+.. warning::
+   Log handlers must not call :ref:`mju_error` from within the callback; this will cause infinite recursion.
+
+.. _siDefaultHandler:
+
+Default handler
+^^^^^^^^^^^^^^^
+
+If no custom handler is installed (or if ``NULL`` is passed to :ref:`mju_setLogHandler`), MuJoCo uses a default
+handler that provides the following behavior:
+
+#. If a legacy handler (:ref:`mju_user_error` or :ref:`mju_user_warning`) is installed, it is called with the
+   formatted message text. This provides backward compatibility with existing code.
+#. Otherwise, the message is written to the log file (default: ``MUJOCO_LOG.TXT``) and printed to the
+   console (``stderr`` for errors and warnings, ``stdout`` for info).
+#. For errors, the program is terminated with ``exit(EXIT_FAILURE)`` (unless a legacy error handler is installed).
+
+The default handler's behavior can be configured using :ref:`mju_setLogConfig` and :ref:`mju_getLogConfig`,
+which control whether output goes to the console, the log file path (or disabling file logging by setting it to
+an empty string), and which info topics are enabled.
+
+.. _siErrorRecovery:
+
+Error recovery
+^^^^^^^^^^^^^^
 
 One situation where it is desirable to continue even after an error is an interactive simulator that fails to load a
 model file. This could be because the user provided the wrong file name, or because model compilation failed. This is
@@ -909,26 +968,99 @@ operation fails, and there is no need to exit the program. In the case of mj_loa
 containing the parser or compiler error that caused the failure, while mj_loadModel generates corresponding warnings
 (see below).
 
-Internally mj_loadXML actually uses the mju_error mechanism, by temporarily installing a "user" handler that triggers
-a C++ exception, which is then intercepted. This is possible because the parser, compiler and runtime are compiled and
-linked together, and use the same copy of the C/C++ memory manager and standard library. If the user implements an
-error callback that triggers a C++ exception, this will be in their workspace which is not necessarily the same as the
-MuJoCo library workspace, and so it is not clear what will happen; the outcome probably depends on the compiler and
-platform. It is better to avoid this approach and simply exit when mju_error is called (which is the default behavior
-in the absence of a user handler).
+Internally mj_loadXML actually uses the mju_error mechanism, by temporarily installing a thread-local handler
+(using the internal ``_mjPRIVATE_setTlsLogHandler``) that triggers a C++ exception, which is then intercepted.
+This thread-local override takes priority over the global handler and affects only the calling thread.
 
-MuJoCo can also generate warnings. They indicate conditions that are likely to cause numerical inaccuracies, but can
-also indicate problems with loading a model and other problematic situations where the simulator is nevertheless able
-to continue normal operation. The warning mechanism has two levels. The high-level is implemented with the function
-:ref:`mj_warning`. It registers a warning in mjData as explained in more detail in the :ref:`diagnostics
-<siDiagnostics>` section below, and also calls the low-level function :ref:`mju_warning`. Alternatively, the low-level
-function may be called directly (from within mj_loadModel for example) without registering a warning in mjData. This
-is done in places where mjData is not available.
+.. _siInfoMessages:
 
-mju_warning does the following: if the user callback :ref:`mju_user_warning` is installed, it calls that callback.
-Otherwise it appends the warning message to MUJOCO_LOG.TXT and also does a printf, similar to mju_error but without
-exiting. When MuJoCo wrappers are developed for environments such as MATLAB, it makes sense to install a user callback
-which prints warnings in the command window (with mexPrintf).
+Informational messages
+^^^^^^^^^^^^^^^^^^^^^^
+
+MuJoCo provides two :ref:`levels<mjtLogLevel>` of opt-in diagnostic logging: informational messages (``mjLOG_INFO``) and
+debug traces (``mjLOG_DEBUG``). Both use topic identifiers from the :ref:`mjtLogTopic` enum, but have a subtle
+architectural distinction in how filtering is applied:
+
+* **INFO messages**: Emitted unconditionally by the engine. Filtering happens on the **consumer side** inside the
+  default handler. Custom handlers installed via :ref:`mju_setLogHandler` receive all INFO messages and
+  can implement their own filtering logic.
+
+* **DEBUG messages**: Designed for tight, high-frequency simulation loops where constructing strings would be a
+  performance bottleneck. Therefore, filtering happens on the **producer side** via :ref:`mju_isTopicEnabled`. If a
+  topic is disabled, the message is never constructed or dispatched. Consequently, custom handlers will only receive
+  DEBUG messages if the topic is explicitly enabled in the active :ref:`mjLogConfig`.
+
+In the default handler, INFO messages are followed by a blank line for readability, whereas high-frequency DEBUG traces
+are printed compactly without trailing blank lines.
+
+To enable topics in the default handler configuration:
+
+.. code-block:: C
+
+   // enable sleep/wake messages
+   mjLogConfig config = mju_getLogConfig();
+   config.topics |= (1 << (mjTOPIC_SLEEP - 1));
+   mju_setLogConfig(config);
+
+Topic 0 (``mjTOPIC_NONE``) always passes through, regardless of the topic configuration.
+
+Note that topics are 1-indexed, so the bitmask for topic ``t`` is ``(1 << (t - 1))``. This is also how the
+``topics`` field of :ref:`mjLogConfig` is encoded.
+
+Topics can also be enabled via the environment variable ``MUJOCO_LOG_TOPICS``, which is read once at startup.
+The value is a comma-separated list of topic names (case-insensitive), derived from the :ref:`mjtLogTopic` enum
+by removing the ``mjTOPIC_`` prefix and lowercasing (e.g., ``mjTOPIC_SLEEP`` becomes ``sleep``).
+For example:
+
+.. code-block:: shell
+
+   export MUJOCO_LOG_TOPICS=sleep,time_stp
+
+This is equivalent to programmatically enabling the corresponding topic bits via :ref:`mju_setLogConfig`, and is
+useful for enabling diagnostics without modifying code.
+
+
+.. _siLogFrameworks:
+
+Frameworks and wrappers
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Framework authors (e.g., those building Python bindings, MATLAB wrappers, or game engine integrations) should
+install a custom log handler to route MuJoCo's output to their environment's logging system:
+
+.. code-block:: C
+
+   // example: route to a framework's logging API
+   void framework_handler(const mjLogMessage* msg) {
+     if (msg->level == mjLOG_ERROR) {
+       framework_log_error(msg->subject);
+       framework_abort();  // must not return
+     } else if (msg->level == mjLOG_WARNING) {
+       framework_log_warning(msg->subject);
+     } else {
+       framework_log_info(msg->subject);
+     }
+   }
+
+   mju_setLogHandler(framework_handler);
+
+The :ref:`mjLogMessage` struct also provides source location information (``func``, ``file``, ``line``) when
+available, which can be useful for debugging.
+
+.. _siLogLegacy:
+
+Legacy handlers
+^^^^^^^^^^^^^^^
+
+The global function pointers :ref:`mju_user_error` and :ref:`mju_user_warning` are still supported for backward
+compatibility, but are deprecated in favor of :ref:`mju_setLogHandler`. When both a custom log handler and legacy
+handlers are installed, the custom log handler takes precedence. The legacy handlers are only consulted by the
+*default* handler when no custom handler has been installed.
+
+.. _siLogMemory:
+
+Memory handlers
+^^^^^^^^^^^^^^^
 
 When MuJoCo allocates and frees memory on the heap, it always uses the functions :ref:`mju_malloc` and
 :ref:`mju_free`. These functions call the user callbacks :ref:`mju_user_malloc` and :ref:`mju_user_free` when

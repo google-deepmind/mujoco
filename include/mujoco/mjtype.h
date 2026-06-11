@@ -576,4 +576,47 @@ typedef enum mjtSleepState_ {       // sleep state of an object
   mjS_AWAKE  = 1                    // object is awake
 } mjtSleepState;
 
+
+
+//---------------------------------- logging -------------------------------------------------------
+
+typedef enum mjtLogLevel_ {       // log message severity
+  mjLOG_DEBUG       = 0,          // internal engine debug trace (opt-in via topic filtering)
+  mjLOG_INFO,                     // informational (opt-in via topic filtering)
+  mjLOG_WARNING,                  // warning
+  mjLOG_ERROR,                    // error
+} mjtLogLevel;
+
+typedef enum mjtLogTopic_ {       // log topic identifiers
+  mjTOPIC_NONE     = 0,           // no topic (always passes filtering)
+                                  // INFO topics:
+  mjTOPIC_TIME_STP = 1,           // timing diagnostics (step)
+  mjTOPIC_TIME_CMP = 2,           // timing diagnostics (compile)
+                                  // DEBUG topics:
+  mjTOPIC_SLEEP    = 3,           // sleep/wake events
+
+  mjNTOPIC         = 3            // number of filterable topics
+} mjtLogTopic;
+
+typedef struct mjLogMessage_ {    // structured log message
+  int level;                      // mjtLogLevel
+  int topic;                      // mjtLogTopic (0 for error/warning/user)
+  char subject[1024];             // message subject (one-liner, printf-formatted)
+  const char* body;               // message body (multi-line detail, or NULL)
+  const char* func;               // __func__ or NULL
+  const char* file;               // __FILE__ or NULL
+  int line;                       // __LINE__ or 0
+  mjtBool timestamp;              // prepend timestamp to output
+} mjLogMessage;
+
+typedef struct mjLogConfig_ {     // log handler default configuration
+  mjtBool logto_console;          // print to console (default: true)
+  mjtBool logto_file;             // print to log file (default: true)
+  char logfile[1024];             // log file path (default: "MUJOCO_LOG.TXT")
+  int topics;                     // enabled info topic bitmask (default: 0)
+} mjLogConfig;
+
+// function type for log handler callback; must be thread-safe, must not call mju_error
+typedef void (*mjfLogHandler)(const mjLogMessage*);
+
 #endif  // MUJOCO_INCLUDE_MJTYPE_H_

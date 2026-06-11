@@ -32,6 +32,7 @@
 
 #include <mujoco/mujoco.h>
 #include "engine/engine_support.h"
+#include "engine/engine_util_errmem.h"
 #include "user/user_cache.h"
 #include "user/user_flexcomp.h"
 #include "user/user_model.h"
@@ -204,10 +205,53 @@ int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
   return nbytes;
 }
 
+// helper function to log compile time diagnostics
+static void LogCompileTime(const double* t) {
+  std::string body(1024, '\0');
+  int n = std::snprintf(body.data(), body.size(),
+                        "  total:     %8.1f   (wall clock)\n"
+                        "  assets:    %8.1f   -\n"
+                        "    load:    %8.1f     (CPU time)\n"
+                        "    hull:    %8.1f     -\n"
+                        "    polygon: %8.1f     -\n"
+                        "    inertia: %8.1f     -\n"
+                        "    bvh:     %8.1f     -\n"
+                        "    octree:  %8.1f     -\n"
+                        "    texture: %8.1f     -\n"
+                        "  other:     %8.1f   (wall clock)",
+                        1e3 * t[mjCTIMER_TOTAL],
+                        1e3 * t[mjCTIMER_ASSETS],
+                        1e3 * t[mjCTIMER_MESH_LOAD],
+                        1e3 * t[mjCTIMER_MESH_HULL],
+                        1e3 * t[mjCTIMER_MESH_POLYGON],
+                        1e3 * t[mjCTIMER_MESH_INERTIA],
+                        1e3 * t[mjCTIMER_MESH_BVH],
+                        1e3 * t[mjCTIMER_MESH_OCTREE],
+                        1e3 * t[mjCTIMER_TEXTURE],
+                        1e3 * (t[mjCTIMER_TOTAL] - t[mjCTIMER_ASSETS]));
+  if (n > 0 && n < body.size()) {
+    body.resize(n);
+  }
+
+  // send log message
+  mjLogMessage msg = {.level = mjLOG_INFO,
+                      .topic = mjTOPIC_TIME_CMP,
+                      .subject = "compile time (ms)",
+                      .body = body.c_str()};
+  mju_message(&msg);
+}
+
 // compile model
 mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  return modelC->Compile(vfs);
+  mjModel* m = modelC->Compile(vfs);
+
+  // log compile time if model was compiled successfully
+  if (m) {
+    LogCompileTime(modelC->timer);
+  }
+
+  return m;
 }
 
 

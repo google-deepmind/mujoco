@@ -192,6 +192,7 @@ _ALLOWED_FIXED_ARRAYS = {
 
 _FUNCTION_POINTER_TYPES = {
     'mjfItemEnable',
+    'mjfLogHandler',
 }
 
 _STRUCT_NAME_OVERRIDES = {}

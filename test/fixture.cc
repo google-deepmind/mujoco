@@ -21,12 +21,10 @@
 #include <cstring>
 #include <filesystem>  // NOLINT
 #include <fstream>
-#include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
 
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -39,7 +37,6 @@
 #include <absl/strings/str_join.h>
 #include <absl/synchronization/mutex.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/xml/xml_global.h"
 

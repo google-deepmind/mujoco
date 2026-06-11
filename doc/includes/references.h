@@ -2619,6 +2619,38 @@ typedef enum mjtSleepState_ {       // sleep state of an object
   mjS_ASLEEP = 0,                   // object is asleep
   mjS_AWAKE  = 1                    // object is awake
 } mjtSleepState;
+typedef enum mjtLogLevel_ {       // log message severity
+  mjLOG_DEBUG       = 0,          // internal engine debug trace (opt-in via topic filtering)
+  mjLOG_INFO,                     // informational (opt-in via topic filtering)
+  mjLOG_WARNING,                  // warning
+  mjLOG_ERROR,                    // error
+} mjtLogLevel;
+typedef enum mjtLogTopic_ {       // log topic identifiers
+  mjTOPIC_NONE     = 0,           // no topic (always passes filtering)
+                                  // INFO topics:
+  mjTOPIC_TIME_STP = 1,           // timing diagnostics (step)
+  mjTOPIC_TIME_CMP = 2,           // timing diagnostics (compile)
+                                  // DEBUG topics:
+  mjTOPIC_SLEEP    = 3,           // sleep/wake events
+
+  mjNTOPIC         = 3            // number of filterable topics
+} mjtLogTopic;
+typedef struct mjLogMessage_ {    // structured log message
+  int level;                      // mjtLogLevel
+  int topic;                      // mjtLogTopic (0 for error/warning/user)
+  char subject[1024];             // message subject (one-liner, printf-formatted)
+  const char* body;               // message body (multi-line detail, or NULL)
+  const char* func;               // __func__ or NULL
+  const char* file;               // __FILE__ or NULL
+  int line;                       // __LINE__ or 0
+  mjtBool timestamp;              // prepend timestamp to output
+} mjLogMessage;
+typedef struct mjLogConfig_ {     // log handler default configuration
+  mjtBool logto_console;          // print to console (default: true)
+  mjtBool logto_file;             // print to log file (default: true)
+  char logfile[1024];             // log file path (default: "MUJOCO_LOG.TXT")
+  int topics;                     // enabled info topic bitmask (default: 0)
+} mjLogConfig;
 typedef enum mjtButton_ {         // mouse button
   mjBUTTON_NONE = 0,              // no button
   mjBUTTON_LEFT,                  // left button
@@ -3495,6 +3527,11 @@ void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con);
 void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
 void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
 void mju_clearHandlers(void);
+mjfLogHandler mju_setLogHandler(mjfLogHandler handler);
+mjLogConfig mju_getLogConfig(void);
+void mju_setLogConfig(mjLogConfig config);
+void mju_info(int topic, const char* msg, ...) mjPRINTFLIKE(2, 3);
+void mju_message(const mjLogMessage* msg);
 void* mju_malloc(size_t size);
 void mju_free(void* ptr);
 void mj_warning(mjData* d, int warning, int info);

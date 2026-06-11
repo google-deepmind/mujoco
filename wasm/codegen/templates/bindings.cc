@@ -833,6 +833,11 @@ int mj_setLengthRange_wrapper(const MjModel& m, const MjData& d, int index, cons
   return result;
 }
 
+void mju_info_wrapper(int topic, const String& msg) {
+  CHECK_VAL(msg);
+  mju_info(topic, "%s", msg.as<const std::string>().data());
+}
+
 // {{ WRAPPER_FUNCTIONS }}
 
 EMSCRIPTEN_BINDINGS(mujoco_bindings) {
@@ -879,6 +884,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_saveModel", &mj_saveModel_wrapper);
   function("mj_saveLastXML", &mj_saveLastXML_wrapper);
   function("mj_setLengthRange", &mj_setLengthRange_wrapper);
+  function("mju_info", &mju_info_wrapper);
   // mj_compile is bound using two overloads to handle the optional MjVFS argument,
   // as using std::optional<MjVFS> caused memory errors due to missing copy/move constructors.
   function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&)>(&mj_compile_wrapper_1));

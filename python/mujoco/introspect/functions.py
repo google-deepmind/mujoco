@@ -6309,6 +6309,69 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          parameters=(),
          doc='Clear user error and memory handlers.',
      )),
+    ('mju_setLogHandler',
+     FunctionDecl(
+         name='mju_setLogHandler',
+         return_type=ValueType(name='mjfLogHandler'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='handler',
+                 type=ValueType(name='mjfLogHandler'),
+             ),
+         ),
+         doc='Set the active log handler; return the previous handler. If handler is NULL, restore the default handler.',  # pylint: disable=line-too-long
+     )),
+    ('mju_getLogConfig',
+     FunctionDecl(
+         name='mju_getLogConfig',
+         return_type=ValueType(name='mjLogConfig'),
+         parameters=(),
+         doc='Get default handler configuration.',
+     )),
+    ('mju_setLogConfig',
+     FunctionDecl(
+         name='mju_setLogConfig',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='config',
+                 type=ValueType(name='mjLogConfig'),
+             ),
+         ),
+         doc='Set default handler configuration.',
+     )),
+    ('mju_info',
+     FunctionDecl(
+         name='mju_info',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='topic',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='msg',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Log an info message with optional topic filtering.',
+     )),
+    ('mju_message',
+     FunctionDecl(
+         name='mju_message',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='msg',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjLogMessage', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Dispatch a structured log message to the active handler.',
+     )),
     ('mju_malloc',
      FunctionDecl(
          name='mju_malloc',

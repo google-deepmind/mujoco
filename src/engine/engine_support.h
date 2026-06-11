@@ -28,6 +28,7 @@ extern "C" {
 MJAPI extern const char* mjDISABLESTRING[mjNDISABLE];
 MJAPI extern const char* mjENABLESTRING[mjNENABLE];
 MJAPI extern const char* mjTIMERSTRING[mjNTIMER];
+MJAPI extern const char* mjTOPICSTRING[mjNTOPIC];
 
 // arrays
 MJAPI extern const int mjCONDATA_SIZE[mjNCONDATA];  // TODO(tassa): expose in public header?

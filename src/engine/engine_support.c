@@ -102,6 +102,14 @@ const char* mjTIMERSTRING[mjNTIMER]= {
 };
 
 
+// names of log topics (index i corresponds to topic i+1)
+const char* mjTOPICSTRING[mjNTOPIC] = {
+  "Step timing",
+  "Compile timing",
+  "Sleep/wake"
+};
+
+
 // size of contact data fields
 const int mjCONDATA_SIZE[mjNCONDATA] = {
   1,  // mjCONDATA_FOUND

@@ -185,38 +185,38 @@ TEST_F(SleepTest, MjSleepUpdate) {
   mj_deleteModel(m);
 }
 
-TEST_F(SleepTest, MjWakeTree) {
+TEST_F(SleepTest, MjWakeIsland) {
   // one awake tree and two cycles
   int asleep[] = {kAwake, 2, 1, 3};
-  EXPECT_EQ(mj_wakeTree(asleep, 4, 0, kAwake), 0);
+  EXPECT_EQ(mj_wakeIsland(asleep, 4, 0, kAwake, nullptr, 0), 0);
   EXPECT_THAT(AsVector(asleep, 4), ElementsAre(kAwake, 2, 1, 3));
-  EXPECT_EQ(mj_wakeTree(asleep, 4, 1, kAwake), 2);
+  EXPECT_EQ(mj_wakeIsland(asleep, 4, 1, kAwake, nullptr, 0), 2);
   EXPECT_THAT(AsVector(asleep, 4),
               ElementsAre(kAwake, kAwake, kAwake, 3));
-  EXPECT_EQ(mj_wakeTree(asleep, 4, 3, kAwake), 1);
+  EXPECT_EQ(mj_wakeIsland(asleep, 4, 3, kAwake, nullptr, 0), 1);
   EXPECT_THAT(AsVector(asleep, 4),
               ElementsAre(kAwake, kAwake, kAwake, kAwake));
 }
 
-TEST_F(SleepTest, BadWakeTree) {
+TEST_F(SleepTest, BadWakeIsland) {
   EXPECT_FATAL_FAILURE(
       ([] {
         int asleep_bad1[] = {-1, 0};
-        mj_wakeTree(asleep_bad1, 2, 1, kAwake);
+        mj_wakeIsland(asleep_bad1, 2, 1, kAwake, nullptr, 0);
       }()),
       "invalid sleep state index -1 when waking tree 1");
 
   EXPECT_FATAL_FAILURE(
       ([] {
         int asleep_bad2[] = {-1, 2};
-        mj_wakeTree(asleep_bad2, 2, 1, kAwake);
+        mj_wakeIsland(asleep_bad2, 2, 1, kAwake, nullptr, 0);
       }()),
       "invalid sleep state index 2 when waking tree 1");
 
   EXPECT_FATAL_FAILURE(
       ([] {
         int asleep_bad3[] = {1, 2, 1};
-        mj_wakeTree(asleep_bad3, 3, 0, kAwake);
+        mj_wakeIsland(asleep_bad3, 3, 0, kAwake, nullptr, 0);
       }()),
       "tree 0 is not in a cycle");
 }

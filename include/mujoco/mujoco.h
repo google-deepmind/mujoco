@@ -41,11 +41,13 @@
 extern "C" {
 #endif
 
-// user error and memory handlers
-MJAPI extern void  (*mju_user_error)(const char*);
-MJAPI extern void  (*mju_user_warning)(const char*);
+// user memory handlers
 MJAPI extern void* (*mju_user_malloc)(size_t);
 MJAPI extern void  (*mju_user_free)(void*);
+
+// legacy error/warning handlers (deprecated: prefer mju_setLogHandler)
+MJAPI extern void  (*mju_user_error)(const char*);
+MJAPI extern void  (*mju_user_warning)(const char*);
 
 
 // callbacks extending computation pipeline
@@ -71,6 +73,7 @@ MJAPI extern const char* mjLABELSTRING[mjNLABEL];
 MJAPI extern const char* mjFRAMESTRING[mjNFRAME];
 MJAPI extern const char* mjVISSTRING[mjNVISFLAG][3];
 MJAPI extern const char* mjRNDSTRING[mjNRNDFLAG][3];
+MJAPI extern const char* mjTOPICSTRING[mjNTOPIC];
 
 
 //---------------------------------- Virtual file system -------------------------------------------
@@ -977,6 +980,22 @@ MJAPI void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
 
 // Clear user error and memory handlers.
 MJAPI void mju_clearHandlers(void);
+
+// Set the active log handler; return the previous handler.
+// If handler is NULL, restore the default handler.
+MJAPI mjfLogHandler mju_setLogHandler(mjfLogHandler handler);
+
+// Get default handler configuration.
+MJAPI mjLogConfig mju_getLogConfig(void);
+
+// Set default handler configuration.
+MJAPI void mju_setLogConfig(mjLogConfig config);
+
+// Log an info message with optional topic filtering.
+MJAPI void mju_info(int topic, const char* msg, ...) mjPRINTFLIKE(2, 3);
+
+// Dispatch a structured log message to the active handler.
+MJAPI void mju_message(const mjLogMessage* msg);
 
 // Allocate memory; byte-align on 64; pad size to multiple of 64.
 MJAPI void* mju_malloc(size_t size);

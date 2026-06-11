@@ -516,6 +516,19 @@ public enum mjtSleepState : int{
   mjS_ASLEEP = 0,
   mjS_AWAKE = 1,
 }
+public enum mjtLogLevel : int{
+  mjLOG_DEBUG = 0,
+  mjLOG_INFO = 1,
+  mjLOG_WARNING = 2,
+  mjLOG_ERROR = 3,
+}
+public enum mjtLogTopic : int{
+  mjTOPIC_NONE = 0,
+  mjTOPIC_TIME_STP = 1,
+  mjTOPIC_TIME_CMP = 2,
+  mjTOPIC_SLEEP = 3,
+  mjNTOPIC = 3,
+}
 public enum mjtGeomInertia : int{
   mjINERTIA_VOLUME = 0,
   mjINERTIA_SHELL = 1,
@@ -802,6 +815,26 @@ public enum mjtSection : int{
 }
 
 // -------------------------------struct declarations---------------------------
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjLogMessage_ {
+  public int level;
+  public int topic;
+  public fixed char subject[1024];
+  public char* body;
+  public char* func;
+  public char* file;
+  public int line;
+  public byte timestamp;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjLogConfig_ {
+  public byte logto_console;
+  public byte logto_file;
+  public fixed char logfile[1024];
+  public int topics;
+}
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjLROpt_ {
@@ -7266,6 +7299,21 @@ public static unsafe extern void mju_warning([MarshalAs(UnmanagedType.LPStr)]str
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mju_clearHandlers();
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern IntPtr mju_setLogHandler(IntPtr handler);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern mjLogConfig_ mju_getLogConfig();
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_setLogConfig(mjLogConfig_ config);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_info(int topic, [MarshalAs(UnmanagedType.LPStr)]string msg);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_message(mjLogMessage_* msg);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void* mju_malloc(UIntPtr size);

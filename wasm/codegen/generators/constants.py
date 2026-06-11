@@ -149,6 +149,7 @@ _SKIPPED_MEMORY_FUNCTIONS: tuple[str, ...] = (
     "mju_error",
     "mju_free",
     "mju_malloc",
+    "mju_setLogHandler",
     "mju_strncpy",
     "mju_warning",
     # go/keep-sorted end
@@ -230,6 +231,7 @@ MANUAL_WRAPPER_FUNCTIONS: tuple[str, ...] = (
     "mj_saveModel",
     "mj_setLengthRange",
     "mju_error",
+    "mju_info",
     # go/keep-sorted end
 )
 
@@ -276,6 +278,8 @@ STRUCTS_TO_BIND: list[str] = list(
 NO_DEFAULT_CONSTRUCTORS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjContact",
+    "mjLogConfig",
+    "mjLogMessage",
     "mjPreContact",
     "mjSolverStat",
     "mjStatistic",

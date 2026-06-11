@@ -597,6 +597,90 @@ struct MjLROpt {
   bool owned_ = false;
 };
 
+struct MjLogConfig {
+  ~MjLogConfig();
+  MjLogConfig();
+  explicit MjLogConfig(mjLogConfig *ptr);
+  MjLogConfig(const MjLogConfig &);
+  MjLogConfig &operator=(const MjLogConfig &);
+  std::unique_ptr<MjLogConfig> copy();
+  mjLogConfig* get() const;
+  void set(mjLogConfig* ptr);
+  mjtBool logto_console() const {
+    return ptr_->logto_console;
+  }
+  void set_logto_console(mjtBool value) {
+    ptr_->logto_console = value;
+  }
+  mjtBool logto_file() const {
+    return ptr_->logto_file;
+  }
+  void set_logto_file(mjtBool value) {
+    ptr_->logto_file = value;
+  }
+  emscripten::val logfile() const {
+    return emscripten::val(emscripten::typed_memory_view(1024, ptr_->logfile));
+  }
+  int topics() const {
+    return ptr_->topics;
+  }
+  void set_topics(int value) {
+    ptr_->topics = value;
+  }
+
+ private:
+  mjLogConfig* ptr_;
+  bool owned_ = false;
+};
+
+struct MjLogMessage {
+  ~MjLogMessage();
+  MjLogMessage();
+  explicit MjLogMessage(mjLogMessage *ptr);
+  mjLogMessage* get() const;
+  void set(mjLogMessage* ptr);
+  int level() const {
+    return ptr_->level;
+  }
+  void set_level(int value) {
+    ptr_->level = value;
+  }
+  int topic() const {
+    return ptr_->topic;
+  }
+  void set_topic(int value) {
+    ptr_->topic = value;
+  }
+  emscripten::val subject() const {
+    return emscripten::val(emscripten::typed_memory_view(1024, ptr_->subject));
+  }
+  std::string body() const {
+    return ptr_->body ? std::string(ptr_->body) : "";
+  }
+  std::string func() const {
+    return ptr_->func ? std::string(ptr_->func) : "";
+  }
+  std::string file() const {
+    return ptr_->file ? std::string(ptr_->file) : "";
+  }
+  int line() const {
+    return ptr_->line;
+  }
+  void set_line(int value) {
+    ptr_->line = value;
+  }
+  mjtBool timestamp() const {
+    return ptr_->timestamp;
+  }
+  void set_timestamp(mjtBool value) {
+    ptr_->timestamp = value;
+  }
+
+ private:
+  mjLogMessage* ptr_;
+  bool owned_ = false;
+};
+
 struct MjOption {
   ~MjOption();
   MjOption();
@@ -7194,6 +7278,51 @@ void MjLROpt::set(mjLROpt* ptr) {
   ptr_ = ptr;
 }
 
+MjLogConfig::MjLogConfig(mjLogConfig *ptr) : ptr_(ptr) {}
+MjLogConfig::~MjLogConfig() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjLogConfig::MjLogConfig() : ptr_(new mjLogConfig()) {
+  owned_ = true;
+}
+MjLogConfig::MjLogConfig(const MjLogConfig &other) : MjLogConfig() {
+  *ptr_ = *other.get();
+}
+MjLogConfig& MjLogConfig::operator=(const MjLogConfig &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjLogConfig> MjLogConfig::copy() {
+  return std::make_unique<MjLogConfig>(*this);
+}
+mjLogConfig* MjLogConfig::get() const {
+  return ptr_;
+}
+void MjLogConfig::set(mjLogConfig* ptr) {
+  ptr_ = ptr;
+}
+
+MjLogMessage::MjLogMessage(mjLogMessage *ptr) : ptr_(ptr) {}
+MjLogMessage::~MjLogMessage() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjLogMessage::MjLogMessage() : ptr_(new mjLogMessage()) {
+  owned_ = true;
+}
+mjLogMessage* MjLogMessage::get() const {
+  return ptr_;
+}
+void MjLogMessage::set(mjLogMessage* ptr) {
+  ptr_ = ptr;
+}
+
 MjOption::MjOption(mjOption *ptr) : ptr_(ptr) {}
 MjOption::~MjOption() {
   if (owned_ && ptr_) {
@@ -8550,6 +8679,11 @@ int mj_setLengthRange_wrapper(const MjModel& m, const MjData& d, int index, cons
     mju_error("%s", error.data());
   }
   return result;
+}
+
+void mju_info_wrapper(int topic, const String& msg) {
+  CHECK_VAL(msg);
+  mju_info(topic, "%s", msg.as<const std::string>().data());
 }
 
 void mj_Euler_wrapper(const MjModel& m, MjData& d) {
@@ -10364,6 +10498,12 @@ void mju_fill_wrapper(const val& res, mjtNum val) {
   mju_fill(res_.data(), val, n);
 }
 
+MjLogConfig mju_getLogConfig_wrapper() {
+  MjLogConfig result;
+  *result.get() = mju_getLogConfig();
+  return result;
+}
+
 void mju_insertionSort_wrapper(const val& list) {
   UNPACK_VALUE(mjtNum, list);
   int n = list_.size();
@@ -10391,6 +10531,10 @@ int mju_mat2Rot_wrapper(const val& quat, const NumberArray& mat) {
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, mat);
   return mju_mat2Rot(quat_.data(), mat_.data());
+}
+
+void mju_message_wrapper(const MjLogMessage& msg) {
+  mju_message(msg.get());
 }
 
 void mju_mulMatMat_wrapper(const val& res, const NumberArray& mat1, const NumberArray& mat2, int r1, int c1, int c2) {
@@ -10640,6 +10784,10 @@ void mju_scl3_wrapper(const val& res, const NumberArray& vec, mjtNum scl) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   mju_scl3(res_.data(), vec_.data(), scl);
+}
+
+void mju_setLogConfig_wrapper(const MjLogConfig& config) {
+  mju_setLogConfig(*config.get());
 }
 
 void mju_sparse2dense_wrapper(const val& res, const NumberArray& mat, int nr, int nc, const NumberArray& rownnz, const NumberArray& rowadr, const NumberArray& colind) {
@@ -11258,6 +11406,17 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjLIMITED_FALSE", mjLIMITED_FALSE)
     .value("mjLIMITED_TRUE", mjLIMITED_TRUE)
     .value("mjLIMITED_AUTO", mjLIMITED_AUTO);
+  enum_<mjtLogLevel>("mjtLogLevel")
+    .value("mjLOG_DEBUG", mjLOG_DEBUG)
+    .value("mjLOG_INFO", mjLOG_INFO)
+    .value("mjLOG_WARNING", mjLOG_WARNING)
+    .value("mjLOG_ERROR", mjLOG_ERROR);
+  enum_<mjtLogTopic>("mjtLogTopic")
+    .value("mjTOPIC_NONE", mjTOPIC_NONE)
+    .value("mjTOPIC_TIME_STP", mjTOPIC_TIME_STP)
+    .value("mjTOPIC_TIME_CMP", mjTOPIC_TIME_CMP)
+    .value("mjTOPIC_SLEEP", mjTOPIC_SLEEP)
+    .value("mjNTOPIC", mjNTOPIC);
   enum_<mjtMark>("mjtMark")
     .value("mjMARK_NONE", mjMARK_NONE)
     .value("mjMARK_EDGE", mjMARK_EDGE)
@@ -11817,6 +11976,23 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("tolrange", &MjLROpt::tolrange, &MjLROpt::set_tolrange, reference())
     .property("useexisting", &MjLROpt::useexisting, &MjLROpt::set_useexisting, reference())
     .property("uselimit", &MjLROpt::uselimit, &MjLROpt::set_uselimit, reference());
+  emscripten::class_<MjLogConfig>("MjLogConfig")
+    .constructor<>()
+    .function("copy", &MjLogConfig::copy, take_ownership())
+    .property("logfile", &MjLogConfig::logfile)
+    .property("logto_console", &MjLogConfig::logto_console, &MjLogConfig::set_logto_console, reference())
+    .property("logto_file", &MjLogConfig::logto_file, &MjLogConfig::set_logto_file, reference())
+    .property("topics", &MjLogConfig::topics, &MjLogConfig::set_topics, reference());
+  emscripten::class_<MjLogMessage>("MjLogMessage")
+    .constructor<>()
+    .property("body", &MjLogMessage::body, reference())
+    .property("file", &MjLogMessage::file, reference())
+    .property("func", &MjLogMessage::func, reference())
+    .property("level", &MjLogMessage::level, &MjLogMessage::set_level, reference())
+    .property("line", &MjLogMessage::line, &MjLogMessage::set_line, reference())
+    .property("subject", &MjLogMessage::subject)
+    .property("timestamp", &MjLogMessage::timestamp, &MjLogMessage::set_timestamp, reference())
+    .property("topic", &MjLogMessage::topic, &MjLogMessage::set_topic, reference());
   emscripten::class_<MjModel>("MjModel")
     // mj_loadXML is deprecated and will be removed in a future release
     .class_function("mj_loadXML", emscripten::select_overload<std::unique_ptr<MjModel>(std::string)>(&mj_loadXML_wrapper_1))
@@ -13534,6 +13710,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mju_eye", &mju_eye_wrapper);
   function("mju_f2n", &mju_f2n_wrapper);
   function("mju_fill", &mju_fill_wrapper);
+  function("mju_getLogConfig", &mju_getLogConfig_wrapper);
   function("mju_insertionSort", &mju_insertionSort_wrapper);
   function("mju_insertionSortInt", &mju_insertionSortInt_wrapper);
   function("mju_isBad", &mju_isBad);
@@ -13541,6 +13718,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mju_mat2Quat", &mju_mat2Quat_wrapper);
   function("mju_mat2Rot", &mju_mat2Rot_wrapper);
   function("mju_max", &mju_max);
+  function("mju_message", &mju_message_wrapper);
   function("mju_min", &mju_min);
   function("mju_mulMatMat", &mju_mulMatMat_wrapper);
   function("mju_mulMatMatT", &mju_mulMatMatT_wrapper);
@@ -13577,6 +13755,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mju_round", &mju_round);
   function("mju_scl", &mju_scl_wrapper);
   function("mju_scl3", &mju_scl3_wrapper);
+  function("mju_setLogConfig", &mju_setLogConfig_wrapper);
   function("mju_sigmoid", &mju_sigmoid);
   function("mju_sign", &mju_sign);
   function("mju_sparse2dense", &mju_sparse2dense_wrapper);
@@ -13636,6 +13815,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_saveModel", &mj_saveModel_wrapper);
   function("mj_saveLastXML", &mj_saveLastXML_wrapper);
   function("mj_setLengthRange", &mj_setLengthRange_wrapper);
+  function("mju_info", &mju_info_wrapper);
   // mj_compile is bound using two overloads to handle the optional MjVFS argument,
   // as using std::optional<MjVFS> caused memory errors due to missing copy/move constructors.
   function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&)>(&mj_compile_wrapper_1));

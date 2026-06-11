@@ -1971,7 +1971,9 @@ Error and memory
 
 .. mujoco-include:: mju_error
 
-Main error function; does not return to caller.
+Main error function. The error message is dispatched to the active log handler (see :ref:`mju_setLogHandler`).
+Errors are always fatal: if the handler returns, the process is terminated with ``exit(EXIT_FAILURE)``. Handlers
+wishing to recover must ``longjmp`` or otherwise transfer control before returning.
 
 .. _mju_warning:
 
@@ -1980,7 +1982,7 @@ Main error function; does not return to caller.
 
 .. mujoco-include:: mju_warning
 
-Main warning function; returns to caller.
+Main warning function; returns to caller. The warning message is dispatched to the active log handler.
 
 .. _mju_clearHandlers:
 
@@ -1989,7 +1991,114 @@ Main warning function; returns to caller.
 
 .. mujoco-include:: mju_clearHandlers
 
-Clear user error and memory handlers.
+Clear all user handlers and restore defaults. Resets the legacy error/warning/memory callbacks to ``NULL``, restores
+the default log handler, and resets the log configuration to its defaults (console and file output enabled, all info
+topics disabled).
+
+.. _mju_setLogHandler:
+
+`mju_setLogHandler <#mju_setLogHandler>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_setLogHandler
+
+Set the active global log handler. Returns the previous handler (which is never ``NULL``), intended for save/restore
+or callback chaining. If ``handler`` is ``NULL``, the default handler is restored. The handler receives all errors,
+warnings and informational messages as a structured :ref:`mjLogMessage`. See :ref:`siLogHandler` for usage examples.
+
+.. _mju_getLogConfig:
+
+`mju_getLogConfig <#mju_getLogConfig>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_getLogConfig
+
+Get the current default handler configuration. See :ref:`mjLogConfig`.
+
+.. _mju_setLogConfig:
+
+`mju_setLogConfig <#mju_setLogConfig>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_setLogConfig
+
+Set the default handler configuration. Controls console output, file output, and info topic filtering.
+See :ref:`mjLogConfig`.
+
+Example usage (disabling file output):
+
+.. code-block:: C
+
+   mjLogConfig config = mju_getLogConfig();
+   config.logto_file = false;
+   mju_setLogConfig(config);
+
+.. _mju_info:
+
+`mju_info <#mju_info>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_info
+
+Log an informational message with optional topic filtering. The ``topic`` argument is a :ref:`mjtLogTopic` value.
+Topic 0 (``mjTOPIC_NONE``) always passes through. Other topics must be enabled in the default handler configuration
+via :ref:`mju_setLogConfig`. Note that topic filtering is implemented in the default handler; custom handlers
+receive all info messages regardless.
+
+.. _mju_message:
+
+`mju_message <#mju_message>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_message
+
+Dispatch a structured :ref:`mjLogMessage` to the active log handler. This is the primary entry point for emitting
+log messages with full control over all fields. The convenience functions :ref:`mju_error`, :ref:`mju_warning`, and
+:ref:`mju_info` are thin wrappers that populate an ``mjLogMessage`` and call this function.
+
+The ``subject`` field is a one-line summary (up to 1024 bytes, inline in the struct). The ``body`` field is an
+optional ``const char*`` pointer to multi-line detail text, owned by the caller. When ``body`` is ``NULL``, only the
+subject line is printed.
+
+The default handler formats the output as follows:
+
+.. code-block:: text
+
+   LEVEL FUNC (FILE:LINE) TIME: SUBJECT
+   BODY
+
+where:
+
+- ``LEVEL`` is ``ERROR``, ``WARNING``, ``INFO``, or ``DEBUG``.
+- ``FUNC`` is present when the ``func`` field is set.
+- ``(FILE:LINE)`` is present when the ``file`` and ``line`` fields are set.
+- ``TIME`` is present when the ``timestamp`` field is set or file logging is active.
+- ``SUBJECT`` is the contents of the ``subject`` field.
+- ``BODY`` follows on the next line(s), printed raw without indentation or separators, only if non-NULL.
+
+The default handler appends a trailing blank line after ``ERROR``, ``WARNING``, and ``INFO`` messages for visual
+separation. ``DEBUG`` messages are printed compactly without a trailing blank line.
+
+Example usage:
+
+.. code-block:: C
+
+   mjLogMessage msg = {
+     .level = mjLOG_INFO,
+     .timestamp = true,
+     .body = "  height:     0.001 m\n  velocity:   0.000 m/s\n  bounces:    47",
+   };
+   snprintf(msg.subject, sizeof(msg.subject), "The ball has come to rest");
+   mju_message(&msg);
+
+This produces:
+
+.. code-block:: text
+
+   INFO Mon Jun  9 15:04:05 2026: The ball has come to rest
+     height:     0.001 m
+     velocity:   0.000 m/s
+     bounces:    47
 
 .. _mju_malloc:
 

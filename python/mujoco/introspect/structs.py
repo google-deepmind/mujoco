@@ -28,6 +28,92 @@ from .ast_nodes import StructFieldDecl
 from .ast_nodes import ValueType
 
 STRUCTS: Mapping[str, StructDecl] = dict([
+    ('mjLogMessage',
+     StructDecl(
+         name='mjLogMessage',
+         declname='struct mjLogMessage_',
+         fields=(
+             StructFieldDecl(
+                 name='level',
+                 type=ValueType(name='int'),
+                 doc='mjtLogLevel',
+             ),
+             StructFieldDecl(
+                 name='topic',
+                 type=ValueType(name='int'),
+                 doc='mjtLogTopic (0 for error/warning/user)',
+             ),
+             StructFieldDecl(
+                 name='subject',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(1024,),
+                 ),
+                 doc='message subject (one-liner, printf-formatted)',
+             ),
+             StructFieldDecl(
+                 name='body',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 doc='message body (multi-line detail, or NULL)',
+             ),
+             StructFieldDecl(
+                 name='func',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 doc='__func__ or NULL',
+             ),
+             StructFieldDecl(
+                 name='file',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 doc='__FILE__ or NULL',
+             ),
+             StructFieldDecl(
+                 name='line',
+                 type=ValueType(name='int'),
+                 doc='__LINE__ or 0',
+             ),
+             StructFieldDecl(
+                 name='timestamp',
+                 type=ValueType(name='mjtBool'),
+                 doc='prepend timestamp to output',
+             ),
+         ),
+     )),
+    ('mjLogConfig',
+     StructDecl(
+         name='mjLogConfig',
+         declname='struct mjLogConfig_',
+         fields=(
+             StructFieldDecl(
+                 name='logto_console',
+                 type=ValueType(name='mjtBool'),
+                 doc='print to console (default: true)',
+             ),
+             StructFieldDecl(
+                 name='logto_file',
+                 type=ValueType(name='mjtBool'),
+                 doc='print to log file (default: true)',
+             ),
+             StructFieldDecl(
+                 name='logfile',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(1024,),
+                 ),
+                 doc='log file path (default: "MUJOCO_LOG.TXT")',
+             ),
+             StructFieldDecl(
+                 name='topics',
+                 type=ValueType(name='int'),
+                 doc='enabled info topic bitmask (default: 0)',
+             ),
+         ),
+     )),
     ('mjLROpt',
      StructDecl(
          name='mjLROpt',

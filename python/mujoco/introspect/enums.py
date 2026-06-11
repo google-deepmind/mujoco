@@ -609,6 +609,29 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjS_AWAKE', 1),
          ]),
      )),
+    ('mjtLogLevel',
+     EnumDecl(
+         name='mjtLogLevel',
+         declname='enum mjtLogLevel_',
+         values=dict([
+             ('mjLOG_DEBUG', 0),
+             ('mjLOG_INFO', 1),
+             ('mjLOG_WARNING', 2),
+             ('mjLOG_ERROR', 3),
+         ]),
+     )),
+    ('mjtLogTopic',
+     EnumDecl(
+         name='mjtLogTopic',
+         declname='enum mjtLogTopic_',
+         values=dict([
+             ('mjTOPIC_NONE', 0),
+             ('mjTOPIC_TIME_STP', 1),
+             ('mjTOPIC_TIME_CMP', 2),
+             ('mjTOPIC_SLEEP', 3),
+             ('mjNTOPIC', 3),
+         ]),
+     )),
     ('mjtGeomInertia',
      EnumDecl(
          name='mjtGeomInertia',

@@ -32,10 +32,14 @@ you are simulating multiple models in parallel, they use the same set of callbac
 mju_user_error
 ~~~~~~~~~~~~~~
 
-This is called from within the main error function :ref:`mju_error`. When installed, this function overrides the default
-error processing. Once it prints error messages (or whatever else the user wants to do), it must **exit** the program.
-MuJoCo is written with the assumption that mju_error will not return. If it does, the behavior of the software is
-undefined.
+.. deprecated::
+   Use :ref:`mju_setLogHandler` instead. See :ref:`siLogHandler`.
+
+Called by the default log handler when a fatal error occurs. If installed, this function overrides the default error
+processing. It may ``longjmp`` out or return. MuJoCo is written with the assumption that error handlers will not
+return; if they do, the behavior of the software is undefined.
+
+If a custom log handler is installed via :ref:`mju_setLogHandler`, this callback is not consulted.
 
 .. code-block:: C
 
@@ -47,8 +51,11 @@ undefined.
 mju_user_warning
 ~~~~~~~~~~~~~~~~
 
-This is called from within the main warning function :ref:`mju_warning`. It is similar to the error handler, but instead
-it must return without exiting the program.
+.. deprecated::
+   Use :ref:`mju_setLogHandler` instead. See :ref:`siLogHandler`.
+
+Called by the default log handler when a warning occurs. If a custom log handler is installed via
+:ref:`mju_setLogHandler`, this callback is not consulted.
 
 .. code-block:: C
 
@@ -185,9 +192,9 @@ mjcb_time
 ~~~~~~~~~
 
 Installing this callback enables the built-in profiler, and keeps timing statistics in ``mjData.timer``. The return type
-is mjtNum, while the time units are up to the user. :ref:`simulate.cc <saSimulate>` assumes the unit is 1 millisecond.
-In order to be useful, the callback should use high-resolution timers with at least microsecond precision. This is
-because the computations being timed are very fast.
+is mjtNum, while the time units are up to the user. Both :ref:`simulate.cc <saSimulate>` and the ``mjTOPIC_TIME_STP``
+informational :ref:`topic <mjtLogTopic>` assume the unit is 1 millisecond. In order to be useful, the callback should
+use high-resolution timers with at least microsecond precision.
 
 .. code-block:: C
 

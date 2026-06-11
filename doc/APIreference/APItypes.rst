@@ -540,6 +540,33 @@ Sleep state of an object.
 .. mujoco-include:: mjtSleepState
 
 
+.. _tyLogEnums:
+
+Logging
+~~~~~~~
+
+.. _mjtLogLevel:
+
+mjtLogLevel
+"""""""""""
+
+Log message severity level.
+
+.. mujoco-include:: mjtLogLevel
+
+
+.. _mjtLogTopic:
+
+mjtLogTopic
+"""""""""""
+
+Topic identifiers for informational messages. Used with :ref:`mju_info` for topic-based filtering.
+Topic 0 (``mjTOPIC_NONE``) always passes through the default handler's filter. Other topics must be enabled in
+the :ref:`mjLogConfig` bitmask. Since topics are 1-indexed, the bitmask for topic ``t`` is ``(1 << (t - 1))``.
+
+.. mujoco-include:: mjtLogTopic
+
+
 .. _tyVisEnums:
 
 Visualization
@@ -1057,6 +1084,36 @@ mjCache
 Asset cache used by the compiler to avoid repeated slow recompilation. See :ref:`Asset cache<Assetcache>`.
 
 .. mujoco-include:: mjCache
+
+
+.. _tyLogStructure:
+
+Logging
+^^^^^^^
+
+.. _mjLogMessage:
+
+mjLogMessage
+~~~~~~~~~~~~
+
+Structured log message passed to :ref:`mjfLogHandler` callbacks. Contains the severity level, optional topic for
+info messages, a one-line subject, an optional multi-line body, and optional source location (function name, file
+name, line number).
+
+.. mujoco-include:: mjLogMessage
+
+
+.. _mjLogConfig:
+
+mjLogConfig
+~~~~~~~~~~~
+
+Configuration for the default log handler. Controls whether messages are printed to the console and/or written to
+a log file (default: ``MUJOCO_LOG.TXT``). The ``logto_file`` field enables file logging, while ``logfile`` specifies
+the file path. The ``topics`` field is a bitmask of :ref:`mjtLogTopic` values: bit ``(topic - 1)`` enables
+that topic. Topic 0 (``mjTOPIC_NONE``) always passes through.
+
+.. mujoco-include:: mjLogConfig
 
 
 .. _tyStatStructure:
@@ -1834,6 +1891,26 @@ mjfCollision
                                mjPreContact* con, int g1, int g2, mjtNum margin);
 
 This is the function type of the callbacks in the collision table :ref:`mjCOLLISIONFUNC`.
+
+
+.. _tyLogCallbacks:
+
+Log Callbacks
+^^^^^^^^^^^^^
+
+.. _mjfLogHandler:
+
+mjfLogHandler
+~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef void (*mjfLogHandler)(const mjLogMessage*);
+
+This is the function type of the log handler callback installed via :ref:`mju_setLogHandler`. The handler receives
+all errors, warnings and informational messages as structured :ref:`mjLogMessage` data. It must be thread-safe.
+
+It must not call :ref:`mju_error` from within the callback.
 
 
 .. _tyUICallbacks:

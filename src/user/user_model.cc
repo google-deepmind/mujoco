@@ -4623,20 +4623,21 @@ void mjCModel::CheckRepeat(mjtObj type) {
 constexpr int kErrorBufferSize = 500;
 static thread_local std::jmp_buf error_jmp_buf;
 static thread_local char errortext[kErrorBufferSize] = "";
-static void errorhandler(const char* msg) {
-  mju::strcpy_arr(errortext, msg);
-  std::longjmp(error_jmp_buf, 1);
-}
 
 
 // warning handler for low-level engine
 static thread_local char warningtext[kErrorBufferSize] = "";       // top-level warning buffer
 static thread_local std::string* local_warningtext_ptr = nullptr;  // sub-thread warning buffer
-static void warninghandler(const char* msg) {
-  if (local_warningtext_ptr) {
-    *local_warningtext_ptr = msg;
-  } else {
-    mju::strcpy_arr(warningtext, msg);
+static void compilerLogHandler(const mjLogMessage* msg) {
+  if (msg->level == mjLOG_ERROR) {
+    mju::strcpy_arr(errortext, msg->subject);
+    std::longjmp(error_jmp_buf, 1);
+  } else if (msg->level == mjLOG_WARNING) {
+    if (local_warningtext_ptr) {
+      *local_warningtext_ptr = msg->subject;
+    } else {
+      mju::strcpy_arr(warningtext, msg->subject);
+    }
   }
 }
 
@@ -4660,13 +4661,8 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   mjModel* volatile model = (m && *m) ? *m : nullptr;
   mjData* volatile data = nullptr;
 
-  // save error and warning handlers
-  void (*save_error)(const char*) = _mjPRIVATE__get_tls_error_fn();
-  void (*save_warning)(const char*) = _mjPRIVATE__get_tls_warning_fn();
-
-  // install error and warning handlers, clear error and warning
-  _mjPRIVATE__set_tls_error_fn(errorhandler);
-  _mjPRIVATE__set_tls_warning_fn(warninghandler);
+  // save log handler
+  mjfLogHandler save_handler = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
 
   errInfo = mjCError();
   warningtext[0] = 0;
@@ -4705,14 +4701,12 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
     }
 
     // restore handler, return 0
-    _mjPRIVATE__set_tls_error_fn(save_error);
-    _mjPRIVATE__set_tls_warning_fn(save_warning);
+    _mjPRIVATE_setTlsLogHandler(save_handler);
     return nullptr;
   }
 
-  // restore error handler, mark as compiled, return mjModel
-  _mjPRIVATE__set_tls_error_fn(save_error);
-  _mjPRIVATE__set_tls_warning_fn(save_warning);
+  // restore log handler, mark as compiled, return mjModel
+  _mjPRIVATE_setTlsLogHandler(save_handler);
   compiled = true;
   return model;
 }
@@ -4723,8 +4717,7 @@ static void CompileMesh(mjCMesh* mesh, const mjVFS* vfs,
                         std::exception_ptr& exception, std::mutex& exception_mutex,
                         std::string* warningtext) {
   local_warningtext_ptr = warningtext;
-  auto previous_handler = _mjPRIVATE__get_tls_warning_fn();
-  _mjPRIVATE__set_tls_warning_fn(warninghandler);
+  auto previous_handler = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
 
   try {
     mesh->Compile(vfs);
@@ -4735,7 +4728,7 @@ static void CompileMesh(mjCMesh* mesh, const mjVFS* vfs,
     }
   }
 
-  _mjPRIVATE__set_tls_warning_fn(previous_handler);
+  _mjPRIVATE_setTlsLogHandler(previous_handler);
   local_warningtext_ptr = nullptr;
 }
 
@@ -4746,8 +4739,7 @@ static void CompileTexture(mjCTexture* texture, const mjVFS* vfs,
   using Clock = std::chrono::steady_clock;
   using Seconds = std::chrono::duration<double>;
   local_warningtext_ptr = warningtext;
-  auto previous_handler = _mjPRIVATE__get_tls_warning_fn();
-  _mjPRIVATE__set_tls_warning_fn(warninghandler);
+  auto previous_handler = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
 
   Clock::time_point t0 = Clock::now();
   try {
@@ -4760,7 +4752,7 @@ static void CompileTexture(mjCTexture* texture, const mjVFS* vfs,
   }
   texture->texture_time_ = Seconds(Clock::now() - t0).count();
 
-  _mjPRIVATE__set_tls_warning_fn(previous_handler);
+  _mjPRIVATE_setTlsLogHandler(previous_handler);
   local_warningtext_ptr = nullptr;
 }
 
@@ -4822,7 +4814,7 @@ void mjCModel::CompileMeshesAndTextures(const mjVFS* vfs) {
   for (int i = 0; i < nmesh; i++) {
     if (!mesh_warningtext[i].empty()) {
       if (has_warning) {
-        concatenated_warnings += "\n";
+        concatenated_warnings += '\n';
       }
       concatenated_warnings += mesh_warningtext[i];
       has_warning = true;
