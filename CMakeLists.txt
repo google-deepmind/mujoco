@@ -171,6 +171,7 @@ endif()
 add_subdirectory(src/render/noop)
 
 if(MUJOCO_USE_FILAMENT)
+  add_subdirectory(src/render/filament)
   add_subdirectory(src/experimental/filament)
 endif()
 

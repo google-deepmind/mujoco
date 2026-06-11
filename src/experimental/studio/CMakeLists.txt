@@ -82,7 +82,7 @@ function(configure_studio_target TARGET_NAME)
             POST_BUILD
             COMMAND ${CMAKE_COMMAND}
                 -E copy_directory
-                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/experimental/filament/assets
+                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/render/filament/assets
                     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
             COMMENT "Copying Filament assets to build directory"
         )

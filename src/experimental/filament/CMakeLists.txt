@@ -14,47 +14,13 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-set(MUJOCO_FILAMENT_TARGET_NAME mujoco_filament)
+set(MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME mujoco_filament_experimental)
 
-add_library(${MUJOCO_FILAMENT_TARGET_NAME} STATIC)
-target_compile_definitions(${MUJOCO_FILAMENT_TARGET_NAME} PRIVATE MJ_STATIC)
+add_library(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME} STATIC)
+target_compile_definitions(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME} PRIVATE MJ_STATIC)
 
-target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
+target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
     PUBLIC
-        render_context_filament.h
-        render_context_filament.cc
-        render_context_filament_cpp.h
-        filament_util.h
-        filament_util.cc
-        filament/builtins.cc
-        filament/builtins.h
-        filament/color_grading_options.cc
-        filament/color_grading_options.h
-        filament/filament_context.cc
-        filament/filament_context.h
-        filament/filament_platform_factory.cc
-        filament/filament_platform_factory.h
-        filament/imgui_editor.cc
-        filament/light.cc
-        filament/light.h
-        filament/material_manager.cc
-        filament/material_manager.h
-        filament/mesh.cc
-        filament/mesh.h
-        filament/object_manager.cc
-        filament/object_manager.h
-        filament/outliner.cc
-        filament/outliner.h
-        filament/reflection_manager.cc
-        filament/reflection_manager.h
-        filament/render_target.cc
-        filament/render_target.h
-        filament/renderable.cc
-        filament/renderable.h
-        filament/scene_view.cc
-        filament/scene_view.h
-        filament/texture.cc
-        filament/texture.h
         compat/light_manager.cc
         compat/light_manager.h
         compat/model_objects.cc
@@ -65,107 +31,20 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         compat/scene_geom_util.h
 )
 if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
-    target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
+    target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
         PUBLIC
             mjr_compat.cc
     )
 endif()
 
-target_include_directories(${MUJOCO_FILAMENT_TARGET_NAME}
+target_include_directories(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/src
 )
 
-include(third_party_deps/dear_imgui)
-include(third_party_deps/filament)
-target_link_libraries(${MUJOCO_FILAMENT_TARGET_NAME}
-    dear_imgui
-    filament
-    image       # provided by filament
-    ktxreader   # provided by filament
+target_link_libraries(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
+    mujoco_filament
 )
 
-add_library(mujoco::filament ALIAS ${MUJOCO_FILAMENT_TARGET_NAME})
-
-# The "mujoco::filament" library needs access to some assets (e.g. filament
-# material shaders) in order to do rendering. As such, you must also include
-# the assets under MUJOCO_FILAMENT_ASSETS_DIR in your project. As part of
-# the filament library configuration, you will provide a function that the
-# library will use to load these assets.
-set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
-set(OUTPUT_ASSETS_DIR "${CMAKE_CURRENT_BINARY_DIR}/assets")
-file(MAKE_DIRECTORY ${OUTPUT_ASSETS_DIR})
-file(COPY
-    "${ASSETS_DIR}/ibl.ktx"
-    DESTINATION ${OUTPUT_ASSETS_DIR}
-)
-
-set(MATC_EXECUTABLE matc)
-set(MATERIAL_FILES
-    pbr.mat
-    pbr_transparent.mat
-    pbr_packed.mat
-    pbr_packed_transparent.mat
-    phong_2d_fade.mat
-    phong_2d.mat
-    phong_2d_reflect.mat
-    phong_2d_uv_fade.mat
-    phong_2d_uv.mat
-    phong_2d_uv_reflect.mat
-    phong_color_fade.mat
-    phong_color.mat
-    phong_color_reflect.mat
-    phong_cube_fade.mat
-    phong_cube.mat
-    phong_cube_reflect.mat
-    outline_composite.mat
-    outline_flatten.mat
-    outline_jumpflood.mat
-    unlit_decor.mat
-    unlit_depth.mat
-    unlit_segmentation.mat
-    unlit_ui.mat
-)
-
-foreach(MATERIAL_FILE ${MATERIAL_FILES})
-    get_filename_component(MATERIAL_NAME ${MATERIAL_FILE} NAME_WE)
-    set(INPUT_FILE "${ASSETS_DIR}/${MATERIAL_FILE}")
-    set(OUTPUT_FILE "${OUTPUT_ASSETS_DIR}/${MATERIAL_NAME}.filamat")
-
-    if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
-        set(PRECOMPILED_FILE "${MUJOCO_NATIVE_BUILD_DIR}/src/experimental/filament/assets/${MATERIAL_NAME}.filamat")
-        add_custom_command(
-            OUTPUT ${OUTPUT_FILE}
-            COMMAND ${CMAKE_COMMAND} -E copy
-                ${PRECOMPILED_FILE}
-                ${OUTPUT_FILE}
-            DEPENDS ${PRECOMPILED_FILE}
-            COMMENT "Copying precompiled material ${MATERIAL_NAME}.filamat"
-        )
-    else()
-        add_custom_command(
-            OUTPUT ${OUTPUT_FILE}
-            COMMAND ${MATC_EXECUTABLE}
-                --platform=all
-                --api=vulkan
-                --api=opengl
-                --variant-filter skinning
-                --optimize-size
-                --output ${OUTPUT_FILE}
-                ${INPUT_FILE}
-            DEPENDS ${INPUT_FILE}
-            DEPENDS matc
-            COMMENT "Compiling ${MATERIAL_FILE}"
-        )
-    endif()
-
-    list(APPEND MUJOCO_FILAMENT_ASSET_FILES ${OUTPUT_FILE})
-endforeach()
-
-list(APPEND MUJOCO_FILAMENT_ASSET_FILES "${OUTPUT_ASSETS_DIR}/ibl.ktx")
-
-add_custom_target(mujoco_filament_assets DEPENDS ${MUJOCO_FILAMENT_ASSET_FILES})
-add_dependencies(${MUJOCO_FILAMENT_TARGET_NAME} mujoco_filament_assets)
-
-set(MUJOCO_FILAMENT_ASSETS_DIR ${OUTPUT_ASSETS_DIR})
+add_library(mujoco::filament_experimental ALIAS ${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME})

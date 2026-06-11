@@ -19,18 +19,18 @@
 #include <utility>
 
 #include <math/TMatHelpers.h>
+#include <math/TVecHelpers.h>
 #include <math/mat4.h>
 #include <math/mathfwd.h>
-#include <math/TVecHelpers.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/light_manager.h"
 #include "experimental/filament/compat/model_objects.h"
 #include "experimental/filament/compat/scene_geom_util.h"
-#include "experimental/filament/filament_util.h"
-#include "experimental/filament/render_context_filament_cpp.h"
-#include "experimental/filament/render_context_filament.h"
+#include "render/filament/mjrfilament.h"
+#include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/filament_util.h"
 
 namespace mujoco {
 

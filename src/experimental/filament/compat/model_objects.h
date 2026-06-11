@@ -19,8 +19,8 @@
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/render_context_filament.h"
-#include "experimental/filament/render_context_filament_cpp.h"
+#include "render/filament/mjrfilament.h"
+#include "render/filament/mjrfilament_cpp.h"
 
 namespace mujoco {
 

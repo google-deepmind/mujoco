@@ -104,6 +104,7 @@ target_link_libraries(${MUJOCO_PLATFORM_TARGET_NAME}
     dear_imgui_stdlib
     implot
     mujoco::filament
+    mujoco::filament_experimental
     webp
     SDL2::SDL2-static
     ${MUJOCO_PLATFORM_RENDER_DEPS}
