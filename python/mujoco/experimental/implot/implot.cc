@@ -27,10 +27,7 @@ using ImString = const char*;
 static constexpr const ImVec2 ImVec2_Zero = ImVec2(0.0f, 0.0f);
 static constexpr const ImVec2 ImVec2_One = ImVec2(1.0f, 1.0f);
 static constexpr const ImVec2 ImVec2_NegOne_Zero = ImVec2(-1.0f, 0.0f);
-static constexpr const ImVec4 ImVec4_Zero = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
 static constexpr const ImVec4 ImVec4_One = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-static constexpr const ImPlotRect ImPlotRect_Default{};
-static constexpr const ImPlotRange ImPlotRange_Default{};
 
 PYBIND11_MODULE(implot, m) {
   // Import dear_imgui to make types like ImVec2 available.
