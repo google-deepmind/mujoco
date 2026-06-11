@@ -1880,7 +1880,7 @@ static void addPerturbGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     mjtNum mat[9];
     mju_quat2Mat(mat, pert->refquat);
     mju_addTo3(pos, d->xipos+3*pert->select);
-    mjv_initGeom(thisgeom, mjGEOM_BOX, sz, pos, mat, rgba);
+    mjv_initGeom(thisgeom, mjGEOM_LINEBOX, sz, pos, mat, rgba);
 
     releaseGeom(&thisgeom, scn);
   }
