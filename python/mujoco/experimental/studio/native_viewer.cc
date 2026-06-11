@@ -72,6 +72,7 @@ class Viewer {
  public:
   Viewer(const std::string& title, int width, int height,
          std::string graphics_mode_str) {
+    py::gil_scoped_release no_gil;
     // Register resource providers for font and filament assets.
     mjpResourceProvider resource_provider;
     mjp_defaultResourceProvider(&resource_provider);
@@ -113,16 +114,19 @@ class Viewer {
   }
 
   void InitRenderer(const mujoco::python::MjModelWrapper& model) {
+    py::gil_scoped_release no_gil;
     renderer_->Init(model.get());
   }
 
   bool NewFrame() {
+    py::gil_scoped_release no_gil;
     const mujoco::platform::Window::Status status = window_->NewFrame();
     return status == mujoco::platform::Window::Status::kRunning;
   }
 
   intptr_t UploadImage(intptr_t tex_id, const std::string img, int width,
                        int height, int bpp) {
+    py::gil_scoped_release no_gil;
     return renderer_->UploadImage(tex_id, (const std::byte*)img.data(), width,
                                   height, bpp);
   }
@@ -131,6 +135,7 @@ class Viewer {
                       mujoco::python::MjDataWrapper& data,
                       mujoco::python::MjvCameraWrapper& cam, int width,
                       int height, int tex_id) {
+    py::gil_scoped_release no_gil;
     const int bytes_per_pixel = 3;
     std::vector<std::byte> bytes(width * height * bytes_per_pixel);
     renderer_->RenderToTexture(model.get(), data.get(), cam.get(), width,
@@ -139,7 +144,9 @@ class Viewer {
                                   bytes_per_pixel);
   }
 
-  std::string GetDropFile() { return window_->GetDropFile(); }
+  std::string GetDropFile() {
+    return window_->GetDropFile();
+  }
 
   void Present(const mujoco::python::MjModelWrapper& model,
                mujoco::python::MjDataWrapper& data,
@@ -147,6 +154,8 @@ class Viewer {
                mujoco::python::MjvCameraWrapper& camera,
                mujoco::python::MjvOptionWrapper& vis_options,
                const std::vector<uint8_t>& render_flags) {
+    py::gil_scoped_release no_gil;
+
     const float width = window_->GetWidth();
     const float height = window_->GetHeight();
     const float scale = window_->GetScale();
