@@ -382,6 +382,15 @@ setuptools.setup(
         CMakeExtension('mujoco._simulate'),
         CMakeExtension('mujoco._specs'),
         CMakeExtension('mujoco._structs'),
+        # Studio extensions
+        CMakeExtension('mujoco.experimental.studio.parser'),
+        CMakeExtension('mujoco.experimental.studio.native_viewer_cc'),
+        CMakeExtension('mujoco.experimental.studio.renderer'),
+        CMakeExtension('mujoco.experimental.studio.ux'),
+        CMakeExtension('mujoco.experimental.studio.sim'),
+        # ImGui/ImPlot extensions
+        CMakeExtension('mujoco.experimental.dear_imgui.dear_imgui'),
+        CMakeExtension('mujoco.experimental.implot.implot'),
     ],
     scripts=['mujoco/mjpython/mjpython.py']
     if platform.system() == 'Darwin'

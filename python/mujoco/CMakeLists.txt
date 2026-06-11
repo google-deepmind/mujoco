@@ -150,6 +150,7 @@ if(NOT TARGET mujoco::platform)
     foreach(dep_lib IN ITEMS
       mujoco_filament
       dear_imgui
+      dear_imgui_stdlib
       implot
       filament
       backend
@@ -178,7 +179,12 @@ if(NOT TARGET mujoco::platform)
     )
       find_library(DEP_PATH_${dep_lib} ${dep_lib} HINTS ${MUJOCO_LIBRARY_DIR})
       if(DEP_PATH_${dep_lib})
-        list(APPEND PLATFORM_DEPS "${DEP_PATH_${dep_lib}}")
+        add_library(mujoco::dep::${dep_lib} STATIC IMPORTED GLOBAL)
+        set_target_properties(mujoco::dep::${dep_lib} PROPERTIES
+          IMPORTED_LOCATION "${DEP_PATH_${dep_lib}}"
+          INTERFACE_INCLUDE_DIRECTORIES "${MUJOCO_INCLUDE}"
+        )
+        list(APPEND PLATFORM_DEPS mujoco::dep::${dep_lib})
       endif()
     endforeach()
 
@@ -524,6 +530,8 @@ target_link_libraries(
           structs_header
 )
 
+add_subdirectory(experimental/studio)
+
 set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_callbacks>"
     "$<TARGET_FILE:_constants>"
@@ -537,6 +545,12 @@ set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_structs>"
     "$<TARGET_FILE:mujoco>"
 )
+
+if(MUJOCO_STUDIO_TARGETS)
+  foreach(target IN LISTS MUJOCO_STUDIO_TARGETS)
+    list(APPEND LIBRARIES_FOR_WHEEL "$<TARGET_FILE:${target}>")
+  endforeach()
+endif()
 
 if(APPLE)
   add_executable(mjpython mjpython/mjpython.mm)
@@ -573,6 +587,9 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
     _structs
     mujoco
   )
+  if(MUJOCO_STUDIO_TARGETS)
+    add_dependencies(wheel ${MUJOCO_STUDIO_TARGETS})
+  endif()
   if(APPLE)
     add_dependencies(wheel mjpython)
   endif()
