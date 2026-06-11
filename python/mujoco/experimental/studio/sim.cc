@@ -15,7 +15,7 @@
 // Python bindings for MuJoCo platform simulation components.
 
 #include <mujoco/mujoco.h>
-#include "third_party/mujoco/src/experimental/platform/sim/step_control.h"
+#include <mujoco/experimental/platform/sim/step_control.h>
 #include "structs.h"
 #include <pybind11/pybind11.h>
 

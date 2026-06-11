@@ -24,9 +24,9 @@
 #include <fstream>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include "third_party/mujoco/src/experimental/platform/hal/graphics_mode.h"
-#include "third_party/mujoco/src/experimental/platform/hal/renderer.h"
-#include "third_party/mujoco/src/experimental/platform/hal/window.h"
+#include <mujoco/experimental/platform/hal/graphics_mode.h>
+#include <mujoco/experimental/platform/hal/renderer.h>
+#include <mujoco/experimental/platform/hal/window.h>
 #include "structs.h"
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>

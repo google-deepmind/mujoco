@@ -15,7 +15,7 @@
 #include <string_view>
 
 #include <mujoco/mujoco.h>
-#include "third_party/mujoco/src/experimental/platform/sim/model_holder.h"
+#include <mujoco/experimental/platform/sim/model_holder.h>
 #include "structs.h"
 #include <pybind11/pybind11.h>
 

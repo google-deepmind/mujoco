@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "third_party/mujoco/src/experimental/platform/hal/renderer.h"
+#include <mujoco/experimental/platform/hal/renderer.h>
 
 #include <cstddef>
 #include <memory>
@@ -21,7 +21,7 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "third_party/mujoco/src/experimental/platform/hal/graphics_mode.h"
+#include <mujoco/experimental/platform/hal/graphics_mode.h>
 #include "structs.h"
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
