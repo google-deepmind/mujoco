@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
 #include <string_view>
 
 #include <mujoco/mujoco.h>
@@ -24,7 +25,11 @@ namespace mujoco::python {
 // Loads, parses, and compiles a MuJoCo model from the given file. Returns the
 // python mjData object (which also contains the compiled mjModel).
 py::object Parse(std::string_view filepath) {
-  auto holder = platform::ModelHolder::FromFile(filepath);
+  std::unique_ptr<platform::ModelHolder> holder;
+  {
+    py::gil_scoped_release no_gil;
+    holder = platform::ModelHolder::FromFile(filepath);
+  }
   if (!holder->ok()) {
     throw py::value_error(
         std::string("Failed to load model from '") +

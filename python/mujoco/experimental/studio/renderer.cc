@@ -36,12 +36,16 @@ class Renderer {
   using GraphicsMode = mujoco::platform::GraphicsMode;
 
   Renderer(const std::string& graphics_mode_str) {
+    py::gil_scoped_release no_gil;
     const GraphicsMode mode = mujoco::platform::GraphicsModeFromString(
         graphics_mode_str, GraphicsMode::FilamentOpenGl);
     impl_ = std::make_unique<RendererImpl>(nullptr, mode);
   }
 
-  void Init(const MjModelWrapper& model) { impl_->Init(model.get()); }
+  void Init(const MjModelWrapper& model) {
+    py::gil_scoped_release no_gil;
+    impl_->Init(model.get());
+  }
 
   pybind11::bytes Render(const MjModelWrapper& model, MjDataWrapper& data,
                          std::optional<MjvPerturbWrapper>& perturb,
@@ -49,10 +53,13 @@ class Renderer {
                          std::optional<MjvOptionWrapper>& vis_option, int width,
                          int height) {
     std::vector<std::byte> pixels(width * height * 3);
-    impl_->Render(
-        model.get(), data.get(), perturb ? perturb.value().get() : nullptr,
-        camera ? camera.value().get() : nullptr,
-        vis_option ? vis_option.value().get() : nullptr, width, height, pixels);
+    {
+      py::gil_scoped_release no_gil;
+      impl_->Render(
+          model.get(), data.get(), perturb ? perturb.value().get() : nullptr,
+          camera ? camera.value().get() : nullptr,
+          vis_option ? vis_option.value().get() : nullptr, width, height, pixels);
+    }
     return pybind11::bytes((const char*)pixels.data(), pixels.size());
   }
 
