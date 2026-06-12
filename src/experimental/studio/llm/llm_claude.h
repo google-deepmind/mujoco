@@ -38,7 +38,9 @@ class ClaudeProvider : public LlmProvider {
   static std::string KeyFromEnv();
 
   LlmResult Send(const std::string& system,
-                 const std::vector<LlmMessage>& messages) override;
+                 const std::vector<LlmMessage>& messages,
+                 const std::vector<ToolDef>& tools,
+                 const ToolExecutor& exec) override;
 
   const char* name() const override { return "Claude"; }
 

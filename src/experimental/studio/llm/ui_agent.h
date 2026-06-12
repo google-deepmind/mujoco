@@ -60,11 +60,19 @@ class UiAgent {
   void set_synchronous(bool s) { synchronous_ = s; }
   void set_provider(std::unique_ptr<LlmProvider> provider);
 
+  // Registers the tools offered to the model and the executor that runs them.
+  // The executor is invoked from the provider's tool-use loop (on the worker
+  // thread in async mode), so it should be quick and only touch state that is
+  // safe to mutate there (e.g. setting a window-open bool).
+  void set_tools(std::vector<ToolDef> tools, ToolExecutor exec);
+
  private:
   std::shared_ptr<LlmProvider> provider_;
   std::string provider_name_;
   std::string system_;
   std::vector<Turn> history_;
+  std::vector<ToolDef> tools_;
+  ToolExecutor executor_;
 
   bool synchronous_ = false;
   std::atomic<bool> busy_{false};

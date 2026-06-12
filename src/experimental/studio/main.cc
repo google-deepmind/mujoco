@@ -23,11 +23,14 @@
 #include <string_view>
 #include <vector>
 
+#include <cstdio>
+
 #include <absl/flags/flag.h>
 #include <absl/flags/parse.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/studio/app.h"
+#include "experimental/studio/llm/llm_claude.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");
 ABSL_FLAG(int, window_height, 720, "Window height");
@@ -46,6 +49,10 @@ ABSL_FLAG(int, capture_frames, 200, "Number of frames to capture.");
 ABSL_FLAG(std::string, capture_script, "tools",
           "Which scripted interaction to record: 'tools' (rail/palette window "
           "toggling) or 'llm' (ask the LLM a question in the Ctrl+P box).");
+ABSL_FLAG(std::string, llm_probe, "",
+          "If set, send this prompt to the real Claude provider (using "
+          "ANTHROPIC_API_KEY) and print the reply, then exit. Headless probe to "
+          "verify the live connection without launching the GUI.");
 
 std::string Resolve(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
@@ -87,6 +94,27 @@ class FileResource {
 
 int main(int argc, char** argv, char** envp) {
   absl::ParseCommandLine(argc, argv);
+
+  // Headless probe of the live Claude provider (no window/graphics needed).
+  const std::string llm_probe = absl::GetFlag(FLAGS_llm_probe);
+  if (!llm_probe.empty()) {
+    std::string key = mujoco::studio::ClaudeProvider::KeyFromEnv();
+    if (key.empty()) {
+      std::fprintf(stderr, "[llm_probe] ANTHROPIC_API_KEY is not set.\n");
+      return 1;
+    }
+    mujoco::studio::ClaudeProvider provider(std::move(key));
+    mujoco::studio::LlmResult r = provider.Send(
+        "You are a terse assistant. Answer in one short sentence.",
+        {{"user", llm_probe}}, /*tools=*/{},
+        [](const std::string&, const std::string&) { return std::string(); });
+    if (r.ok) {
+      std::fprintf(stderr, "[llm_probe] OK: %s\n", r.text.c_str());
+      return 0;
+    }
+    std::fprintf(stderr, "[llm_probe] ERROR: %s\n", r.error.c_str());
+    return 2;
+  }
 
   const char* home = std::getenv("HOME");
   const std::string ini_path = std::string(home ? home : ".") + "/.mujoco.ini";

@@ -30,11 +30,12 @@ namespace mujoco::studio {
 UiAgent::UiAgent() {
   system_ =
       "You are an AI assistant embedded in MuJoCo Studio, a GUI for the MuJoCo "
-      "physics simulator. The user types requests into a command box. In this "
-      "version you can only respond with short text; direct control of the UI "
-      "(via the ImGui Test Engine) is coming soon. Keep answers brief and "
-      "concrete, referring to Studio's panels (Physics, Rendering, Joints, "
-      "Controls, Sensor, Watch, State, Explorer, Editor) by name.";
+      "physics simulator. The user types requests into a command box. You can "
+      "open Studio's tool windows by calling the open_tool_window tool (the "
+      "panels on the left icon rail: Physics, Rendering, Visualization, Joints, "
+      "Controls, Sensor, Watch, State, Explorer, Editor). When the user asks to "
+      "open, show, or bring up a panel, call the tool. Keep any text replies to "
+      "one short sentence.";
 
   std::string key = ClaudeProvider::KeyFromEnv();
   if (!key.empty()) {
@@ -51,6 +52,11 @@ void UiAgent::set_provider(std::unique_ptr<LlmProvider> provider) {
   provider_name_ = provider_->name();
 }
 
+void UiAgent::set_tools(std::vector<ToolDef> tools, ToolExecutor exec) {
+  tools_ = std::move(tools);
+  executor_ = std::move(exec);
+}
+
 void UiAgent::Ask(const std::string& question) {
   if (question.empty() || busy_) return;
 
@@ -62,7 +68,7 @@ void UiAgent::Ask(const std::string& question) {
   for (const Turn& t : history_) messages.push_back({t.role, t.text});
 
   if (synchronous_) {
-    LlmResult r = provider_->Send(system_, messages);
+    LlmResult r = provider_->Send(system_, messages, tools_, executor_);
     history_.push_back({"assistant", r.ok ? r.text : ("[error] " + r.error)});
     busy_ = false;
     return;
@@ -72,8 +78,10 @@ void UiAgent::Ask(const std::string& question) {
   auto provider = provider_;          // shared: outlives the agent if needed.
   auto pending = pending_;
   std::string system = system_;
-  std::thread([provider, pending, system, messages] {
-    LlmResult r = provider->Send(system, messages);
+  std::vector<ToolDef> tools = tools_;
+  ToolExecutor exec = executor_;
+  std::thread([provider, pending, system, messages, tools, exec] {
+    LlmResult r = provider->Send(system, messages, tools, exec);
     std::lock_guard<std::mutex> lk(pending->mu);
     pending->result = std::move(r);
     pending->done = true;

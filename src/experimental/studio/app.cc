@@ -100,6 +100,7 @@ App::App(Config config)
   mjv_defaultOption(&vis_options_);
 
   RegisterToolWindows();
+  RegisterLlmTools();
   profiler_.Clear();
 }
 
@@ -1259,6 +1260,51 @@ std::vector<CommandPalette::Command> App::CollectCommands() {
   commands.push_back({"Help", [this] { ToggleWindow(tmp_.help); }});
 
   return commands;
+}
+
+void App::RegisterLlmTools() {
+  // Signs-of-life action: let the model open a rail/tool window, as if the user
+  // clicked its rail button. (The design's ImGui Test Engine path will later
+  // supersede this direct toggle; see LLM_INTEGRATION_DESIGN.md.)
+  std::string enum_list;
+  for (size_t i = 0; i < tool_windows_.size(); ++i) {
+    if (i) enum_list += ",";
+    enum_list += "\"" + tool_windows_[i].title + "\"";
+  }
+  ToolDef open_tool{
+      "open_tool_window",
+      "Open one of MuJoCo Studio's tool windows (the panels on the left icon "
+      "rail). Call this when the user asks to open, show, or bring up a panel.",
+      "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\","
+      "\"enum\":[" +
+          enum_list +
+          "],\"description\":\"The panel to open.\"}},\"required\":[\"name\"]}"};
+
+  auto exec = [this](const std::string& name,
+                     const std::string& json_args) -> std::string {
+    if (name != "open_tool_window") return "Unknown tool: " + name;
+    // Pull the "name" argument (the panel title) out of the JSON.
+    std::string panel;
+    size_t k = json_args.find("\"name\"");
+    if (k != std::string::npos) {
+      size_t colon = json_args.find(':', k);
+      size_t q = (colon == std::string::npos)
+                     ? std::string::npos
+                     : json_args.find('"', colon + 1);
+      size_t end =
+          (q == std::string::npos) ? std::string::npos : json_args.find('"', q + 1);
+      if (end != std::string::npos) panel = json_args.substr(q + 1, end - q - 1);
+    }
+    for (ToolWindow& tw : tool_windows_) {
+      if (tw.title == panel) {
+        tw.open = true;
+        return "Opened the " + panel + " panel.";
+      }
+    }
+    return "No panel named '" + panel + "'.";
+  };
+
+  ui_agent_.set_tools({open_tool}, exec);
 }
 
 void App::SpecExplorerGui() {

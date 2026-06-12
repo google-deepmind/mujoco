@@ -50,10 +50,11 @@ void App::StartCapture(const std::string& out_dir, int total_frames,
   capture_.click_flash = 0.0f;
 
   if (script == CaptureScript::kLlm) {
-    // Deterministic, offline capture: run the agent inline with the mock
-    // provider so the reply is ready on the next frame and reveals frame-by-
-    // frame (no network, no thread timing in the recording).
-    ui_agent_.set_provider(std::make_unique<MockProvider>());
+    // Run the agent inline so the reply is ready on the next frame and reveals
+    // frame-by-frame. Keep whatever provider the environment selected: with
+    // ANTHROPIC_API_KEY set this is the real Claude provider (the synchronous
+    // call just blocks that one capture frame on the network); without a key it
+    // falls back to the mock.
     ui_agent_.set_synchronous(true);
   }
 }
@@ -86,7 +87,7 @@ void App::CaptureStepLlm() {
   const int f = c.frame;
 
   // The question we "type" into the Ctrl+P box.
-  static const std::string kQuestion = "make gravity weaker";
+  static const std::string kQuestion = "open the physics menu";
 
   // Phase 0: open the command palette.
   if (f == 8) command_palette_.Open();

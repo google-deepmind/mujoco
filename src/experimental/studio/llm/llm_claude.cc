@@ -14,6 +14,7 @@
 
 #include "experimental/studio/llm/llm_claude.h"
 
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -25,10 +26,11 @@
 namespace mujoco::studio {
 namespace {
 
-// --- Minimal JSON helpers (we only need to build a request and pull the text
-// blocks out of the response; no general-purpose parser required). ----------
+constexpr int kMaxToolIterations = 6;
 
-// Wraps `s` in quotes and escapes it as a JSON string.
+// --- Minimal JSON helpers. We build the request by hand and pull the pieces we
+// need out of the response; no general-purpose parser required. --------------
+
 std::string JsonString(const std::string& s) {
   std::string o = "\"";
   for (unsigned char c : s) {
@@ -79,9 +81,8 @@ unsigned Hex4(const std::string& s, size_t i) {
   return v;
 }
 
-// Parses the JSON string token whose opening quote is at `pos`. Appends the
-// decoded contents to `out`. Returns the index just past the closing quote, or
-// std::string::npos on malformed input.
+// Parses the JSON string token whose opening quote is at `pos`, appending the
+// decoded contents to `out`. Returns the index past the closing quote, or npos.
 size_t ParseJsonStringAt(const std::string& s, size_t pos, std::string& out) {
   if (pos >= s.size() || s[pos] != '"') return std::string::npos;
   size_t i = pos + 1;
@@ -101,9 +102,8 @@ size_t ParseJsonStringAt(const std::string& s, size_t pos, std::string& out) {
         case 'b': out += '\b'; break;
         case 'f': out += '\f'; break;
         case 'u': {
-          unsigned cp = Hex4(s, i + 2);
-          AppendUtf8(out, cp);
-          i += 4;  // the four hex digits (the \\u is consumed below)
+          AppendUtf8(out, Hex4(s, i + 2));
+          i += 4;
           break;
         }
         default: out += e; break;
@@ -117,6 +117,43 @@ size_t ParseJsonStringAt(const std::string& s, size_t pos, std::string& out) {
   return std::string::npos;
 }
 
+// Given `pos` at a '{' or '[', returns the index just past the matching close,
+// respecting strings/escapes. npos on malformed input.
+size_t SkipJsonValue(const std::string& s, size_t pos) {
+  if (pos >= s.size() || (s[pos] != '{' && s[pos] != '[')) {
+    return std::string::npos;
+  }
+  const char open = s[pos];
+  const char close = (open == '{') ? '}' : ']';
+  int depth = 0;
+  bool in_str = false;
+  for (size_t i = pos; i < s.size(); ++i) {
+    char c = s[i];
+    if (in_str) {
+      if (c == '\\') { ++i; continue; }
+      if (c == '"') in_str = false;
+    } else if (c == '"') {
+      in_str = true;
+    } else if (c == open) {
+      ++depth;
+    } else if (c == close) {
+      if (--depth == 0) return i + 1;
+    }
+  }
+  return std::string::npos;
+}
+
+// Reads a JSON string value that follows `key` (e.g. "\"id\":") in `s`.
+std::string ReadStringField(const std::string& s, const std::string& key) {
+  size_t k = s.find(key);
+  if (k == std::string::npos) return "";
+  size_t q = s.find('"', k + key.size());
+  if (q == std::string::npos) return "";
+  std::string out;
+  ParseJsonStringAt(s, q, out);
+  return out;
+}
+
 // Concatenates the text of every {"type":"text", ...} content block.
 std::string ExtractAssistantText(const std::string& json) {
   std::string out;
@@ -125,7 +162,7 @@ std::string ExtractAssistantText(const std::string& json) {
   while ((i = json.find(key, i)) != std::string::npos) {
     size_t t = json.find("\"text\":", i + key.size());
     if (t == std::string::npos) break;
-    size_t q = json.find('"', t + 7);  // 7 == strlen("\"text\":")
+    size_t q = json.find('"', t + 7);
     if (q == std::string::npos) break;
     std::string piece;
     size_t after = ParseJsonStringAt(json, q, piece);
@@ -136,36 +173,102 @@ std::string ExtractAssistantText(const std::string& json) {
   return out;
 }
 
-// Pulls the error message out of an Anthropic error response, if present.
 std::string ExtractErrorMessage(const std::string& json) {
   size_t e = json.find("\"type\":\"error\"");
-  if (e == std::string::npos) e = 0;
-  size_t m = json.find("\"message\":", e);
+  size_t m = json.find("\"message\":", e == std::string::npos ? 0 : e);
   if (m == std::string::npos) return "";
-  size_t q = json.find('"', m + 10);  // 10 == strlen("\"message\":")
+  size_t q = json.find('"', m + 10);
   if (q == std::string::npos) return "";
   std::string out;
-  if (ParseJsonStringAt(json, q, out) == std::string::npos) return "";
+  ParseJsonStringAt(json, q, out);
   return out;
+}
+
+// Returns the raw top-level "content":[...] array substring (with brackets).
+std::string ExtractRawContentArray(const std::string& json) {
+  size_t c = json.find("\"content\":");
+  if (c == std::string::npos) return "";
+  size_t b = json.find('[', c);
+  if (b == std::string::npos) return "";
+  size_t e = SkipJsonValue(json, b);
+  if (e == std::string::npos) return "";
+  return json.substr(b, e - b);
+}
+
+struct ToolUse {
+  std::string id;
+  std::string name;
+  std::string input;  // raw JSON object
+};
+
+// Finds every {"type":"tool_use", ...} block (Anthropic emits "type" first).
+std::vector<ToolUse> ExtractToolUseBlocks(const std::string& json) {
+  std::vector<ToolUse> out;
+  const std::string key = "\"type\":\"tool_use\"";
+  size_t i = 0;
+  while ((i = json.find(key, i)) != std::string::npos) {
+    size_t bs = json.rfind('{', i);
+    size_t be = (bs == std::string::npos) ? std::string::npos
+                                          : SkipJsonValue(json, bs);
+    if (bs == std::string::npos || be == std::string::npos) {
+      i += key.size();
+      continue;
+    }
+    const std::string block = json.substr(bs, be - bs);
+    ToolUse tu;
+    tu.id = ReadStringField(block, "\"id\":");
+    tu.name = ReadStringField(block, "\"name\":");
+    size_t ip = block.find("\"input\":");
+    if (ip != std::string::npos) {
+      size_t ob = block.find('{', ip + 8);
+      if (ob != std::string::npos) {
+        size_t oe = SkipJsonValue(block, ob);
+        if (oe != std::string::npos) tu.input = block.substr(ob, oe - ob);
+      }
+    }
+    if (tu.input.empty()) tu.input = "{}";
+    out.push_back(std::move(tu));
+    i = be;
+  }
+  return out;
+}
+
+// Serializes conversation turns as the inner contents of a "messages" array.
+std::string SerializeMessages(const std::vector<LlmMessage>& messages) {
+  std::string inner;
+  for (size_t i = 0; i < messages.size(); ++i) {
+    if (i) inner += ",";
+    inner += "{\"role\":" + JsonString(messages[i].role) +
+             ",\"content\":" + JsonString(messages[i].text) + "}";
+  }
+  return inner;
+}
+
+// Serializes the tools array (input_schema is already a JSON object string).
+std::string SerializeTools(const std::vector<ToolDef>& tools) {
+  if (tools.empty()) return "";
+  std::string t = "[";
+  for (size_t i = 0; i < tools.size(); ++i) {
+    if (i) t += ",";
+    t += "{\"name\":" + JsonString(tools[i].name) +
+         ",\"description\":" + JsonString(tools[i].description) +
+         ",\"input_schema\":" + tools[i].input_schema + "}";
+  }
+  t += "]";
+  return t;
 }
 
 std::string BuildRequestBody(const std::string& model, int max_tokens,
                              const std::string& system,
-                             const std::vector<LlmMessage>& messages) {
+                             const std::string& messages_inner,
+                             const std::string& tools_inner) {
   std::string body = "{";
   body += "\"model\":" + JsonString(model) + ",";
   body += "\"max_tokens\":" + std::to_string(max_tokens) + ",";
   body += "\"thinking\":{\"type\":\"adaptive\"},";
-  if (!system.empty()) {
-    body += "\"system\":" + JsonString(system) + ",";
-  }
-  body += "\"messages\":[";
-  for (size_t i = 0; i < messages.size(); ++i) {
-    if (i) body += ",";
-    body += "{\"role\":" + JsonString(messages[i].role) +
-            ",\"content\":" + JsonString(messages[i].text) + "}";
-  }
-  body += "]}";
+  if (!system.empty()) body += "\"system\":" + JsonString(system) + ",";
+  if (!tools_inner.empty()) body += "\"tools\":" + tools_inner + ",";
+  body += "\"messages\":[" + messages_inner + "]}";
   return body;
 }
 
@@ -182,8 +285,8 @@ ClaudeProvider::ClaudeProvider(std::string api_key)
 }  // namespace mujoco::studio
 
 // ---------------------------------------------------------------------------
-// Platform transport. Kept at the bottom and isolated so <windows.h> never
-// bleeds into the rest of the studio sources.
+// Platform transport + the tool-use loop. Kept at the bottom and isolated so
+// <windows.h> never bleeds into the rest of the studio sources.
 // ---------------------------------------------------------------------------
 
 #ifdef _WIN32
@@ -203,8 +306,6 @@ std::wstring Widen(const std::string& s) {
   return w;
 }
 
-// POSTs `body` to https://api.anthropic.com<path>. Returns false on a transport
-// error (sets `err`); otherwise sets `status` and `response`.
 bool HttpsPost(const std::string& headers, const std::string& body,
                int& status, std::string& response, std::string& err) {
   status = 0;
@@ -215,13 +316,9 @@ bool HttpsPost(const std::string& headers, const std::string& body,
                                   WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                   WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS,
                                   0);
-  if (!session) {
-    err = "WinHttpOpen failed";
-    return false;
-  }
-  HINTERNET connect =
-      WinHttpConnect(session, L"api.anthropic.com", INTERNET_DEFAULT_HTTPS_PORT,
-                     0);
+  if (!session) { err = "WinHttpOpen failed"; return false; }
+  HINTERNET connect = WinHttpConnect(
+      session, L"api.anthropic.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
   if (!connect) {
     err = "WinHttpConnect failed";
     WinHttpCloseHandle(session);
@@ -253,7 +350,6 @@ bool HttpsPost(const std::string& headers, const std::string& body,
         request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
         WINHTTP_HEADER_NAME_BY_INDEX, &code, &code_size, WINHTTP_NO_HEADER_INDEX);
     status = static_cast<int>(code);
-
     for (;;) {
       DWORD avail = 0;
       if (!WinHttpQueryDataAvailable(request, &avail) || avail == 0) break;
@@ -277,36 +373,73 @@ bool HttpsPost(const std::string& headers, const std::string& body,
 }  // namespace
 
 LlmResult ClaudeProvider::Send(const std::string& system,
-                               const std::vector<LlmMessage>& messages) {
+                               const std::vector<LlmMessage>& messages,
+                               const std::vector<ToolDef>& tools,
+                               const ToolExecutor& exec) {
   LlmResult r;
   if (api_key_.empty()) {
     r.error = "ANTHROPIC_API_KEY is not set.";
     return r;
   }
 
-  const std::string body = BuildRequestBody(model_, max_tokens_, system, messages);
   const std::string headers = "x-api-key: " + api_key_ + "\r\n" +
                               "anthropic-version: 2023-06-01\r\n" +
                               "content-type: application/json";
+  const std::string convo = SerializeMessages(messages);
+  const std::string tools_inner = SerializeTools(tools);
+  std::string extra;  // assistant/tool_result turns appended across the loop.
 
-  int status = 0;
-  std::string response, err;
-  if (!HttpsPost(headers, body, status, response, err)) {
-    r.error = err;
-    return r;
+  for (int iter = 0; iter < kMaxToolIterations; ++iter) {
+    const std::string body =
+        BuildRequestBody(model_, max_tokens_, system, convo + extra, tools_inner);
+
+    int status = 0;
+    std::string response, err;
+    if (!HttpsPost(headers, body, status, response, err)) {
+      r.error = err;
+      return r;
+    }
+    if (status != 200) {
+      std::string msg = ExtractErrorMessage(response);
+      r.error = "HTTP " + std::to_string(status) +
+                (msg.empty() ? (": " + response) : (": " + msg));
+      return r;
+    }
+
+    std::vector<ToolUse> calls = ExtractToolUseBlocks(response);
+    if (calls.empty()) {
+      r.text = ExtractAssistantText(response);
+      if (r.text.empty()) {
+        r.error = "Empty response from Claude.";
+        return r;
+      }
+      r.ok = true;
+      return r;
+    }
+
+    // Echo the assistant turn (text + thinking + tool_use blocks) verbatim,
+    // then answer each tool_use with a tool_result, and loop.
+    const std::string raw_content = ExtractRawContentArray(response);
+    if (raw_content.empty()) {
+      r.error = "Could not parse tool_use content.";
+      return r;
+    }
+    extra += ",{\"role\":\"assistant\",\"content\":" + raw_content + "}";
+
+    std::string results = "[";
+    for (size_t k = 0; k < calls.size(); ++k) {
+      std::string out =
+          exec ? exec(calls[k].name, calls[k].input) : std::string("(no executor)");
+      if (k) results += ",";
+      results += "{\"type\":\"tool_result\",\"tool_use_id\":" +
+                 JsonString(calls[k].id) + ",\"content\":" + JsonString(out) +
+                 "}";
+    }
+    results += "]";
+    extra += ",{\"role\":\"user\",\"content\":" + results + "}";
   }
-  if (status != 200) {
-    std::string msg = ExtractErrorMessage(response);
-    r.error = "HTTP " + std::to_string(status) +
-              (msg.empty() ? (": " + response) : (": " + msg));
-    return r;
-  }
-  r.text = ExtractAssistantText(response);
-  if (r.text.empty()) {
-    r.error = "Empty response from Claude.";
-    return r;
-  }
-  r.ok = true;
+
+  r.error = "Tool-use loop did not converge.";
   return r;
 }
 
@@ -317,7 +450,9 @@ LlmResult ClaudeProvider::Send(const std::string& system,
 namespace mujoco::studio {
 
 LlmResult ClaudeProvider::Send(const std::string& /*system*/,
-                               const std::vector<LlmMessage>& /*messages*/) {
+                               const std::vector<LlmMessage>& /*messages*/,
+                               const std::vector<ToolDef>& /*tools*/,
+                               const ToolExecutor& /*exec*/) {
   LlmResult r;
   r.error =
       "Claude transport is only implemented for Windows (WinHTTP) in this "

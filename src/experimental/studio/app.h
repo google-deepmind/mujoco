@@ -256,6 +256,9 @@ class App {
     bool open = false;
   };
   void RegisterToolWindows();
+  // Registers the LLM tools (currently just open_tool_window) and their
+  // executor on ui_agent_. Call after RegisterToolWindows so titles exist.
+  void RegisterLlmTools();
   std::vector<CommandPalette::Command> CollectCommands();
   // Opens/closes a registered tool window by its title (used by the capture
   // script and the command palette).
