@@ -135,11 +135,11 @@ class MujocoTest : public ::testing::Test {
 template <typename Return, typename... Args>
 auto MjuErrorMessageFrom(Return (*func)(Args...)) {
   thread_local std::jmp_buf current_jmp_buf;
-  thread_local char err_msg[1000];
+  thread_local char err_msg[2048];
 
   auto new_error_handler = +[](const mjLogMessage* msg) -> void {
     if (msg->level != mjLOG_ERROR) return;
-    std::strncpy(err_msg, msg->subject, sizeof(err_msg));
+    std::snprintf(err_msg, sizeof(err_msg), "%s", msg->subject);
     std::longjmp(current_jmp_buf, 1);
   };
 
