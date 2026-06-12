@@ -245,13 +245,13 @@ static void mju_defaultLogHandler(const mjLogMessage* msg) {
   }
 
   if (msg->level == mjLOG_ERROR && mju_user_error) {
-    char buf[1024];
+    char buf[2048];
     mju_user_error(mju_legacy_text(msg, buf, sizeof(buf)));
     return;
   }
 
   if (msg->level == mjLOG_WARNING && mju_user_warning) {
-    char buf[1024];
+    char buf[2048];
     mju_user_warning(mju_legacy_text(msg, buf, sizeof(buf)));
     return;
   }
