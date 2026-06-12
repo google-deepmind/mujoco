@@ -22,6 +22,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
         helpers.cc
         helpers.h
+        sys_utils.cc
+        sys_utils.h
         hal/egl_utils.cc
         hal/egl_utils.h
         hal/graphics_mode.cc

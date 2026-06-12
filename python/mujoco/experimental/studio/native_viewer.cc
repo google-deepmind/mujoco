@@ -16,10 +16,12 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>  // NOLINT(build/c++17)
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
+
 
 #include <fstream>
 #include <imgui.h>
@@ -28,6 +30,7 @@
 #include <mujoco/experimental/platform/hal/graphics_mode.h>
 #include <mujoco/experimental/platform/hal/renderer.h>
 #include <mujoco/experimental/platform/hal/window.h>
+#include <mujoco/experimental/platform/sys_utils.h>
 #include "structs.h"
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
@@ -48,8 +51,15 @@ static bool IsCrd() {
 }
 
 static std::vector<std::byte> LoadAsset(std::string_view path) {
-  std::string file_path = "assets/" +
-      std::string(path.substr(path.find(':') + 1));
+  std::string_view subpath = path.substr(path.find(':') + 1);
+  static const std::string asset_dir = []() {
+    std::string module_dir =
+        mujoco::platform::GetModuleDir((void*)&LoadAsset);
+    return module_dir.empty()
+               ? "assets"
+               : (std::filesystem::path(module_dir) / "assets").string();
+  }();
+  std::string file_path = asset_dir + "/" + std::string(subpath);
 
   std::ifstream file(file_path, std::ios::binary | std::ios::ate);
   if (!file.is_open()) {
