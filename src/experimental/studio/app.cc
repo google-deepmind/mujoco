@@ -1638,16 +1638,33 @@ void App::ScrubberOverlayGui(const ImVec4& workspace_rect) {
 }
 
 void App::StatusBarGui() {
-  // Build the status string; it is right-aligned in the bar.
+  // Build the status line; it is right-aligned in the bar. From left to right:
+  // model counts, sim time + frame, per-step solve time, FPS, then run state.
   std::string status;
+  if (has_model() && has_data()) {
+    const mjModel* m = model();
+    const mjData* d = data();
+    const int step_num = d->timer[mjTIMER_STEP].number;
+    const double ms_per_step =
+        step_num > 0 ? d->timer[mjTIMER_STEP].duration / step_num : 0.0;
+    char buf[256];
+    std::snprintf(buf, sizeof(buf),
+                  "bodies %d   dof %d   contacts %d      "
+                  "t %.3f s   frame %d      "
+                  "%.2f ms/step      %.0f fps      |   ",
+                  m->nbody, m->nv, d->ncon, d->time, sim_history_.GetIndex(),
+                  ms_per_step, renderer_->GetFps());
+    status = buf;
+  }
+
   if (!has_model()) {
-    status = "No model loaded";
+    status += "No model loaded";
   } else if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-    status = "Viscous Pause";
+    status += "Viscous Pause";
   } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
-    status = "Paused";
+    status += "Paused";
   } else {
-    status = "Running";
+    status += "Running";
   }
   if (!step_error_.empty()) {
     status += "   |   Step Error: " + step_error_;
