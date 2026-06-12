@@ -970,9 +970,11 @@ void App::BuildGui() {
   FileDialogGui();
 
   // Ctrl+P command palette, drawn last so it sits on top. Commands are only
-  // gathered while it is open.
+  // gathered while it is open. Place it 10px below the top transport overlay.
   if (command_palette_.is_open()) {
-    command_palette_.Draw(CollectCommands(), workspace_rect);
+    const ImVec4 palette_rect(workspace_rect.x, tmp_.top_overlay_bottom + 10.0f,
+                              workspace_rect.z, workspace_rect.w);
+    command_palette_.Draw(CollectCommands(), palette_rect);
   }
 
   if (tmp_.imgui_demo) {
@@ -1567,6 +1569,8 @@ void App::TopOverlayGui(const ImVec4& workspace_rect) {
                    kOverlayFlags | ImGuiWindowFlags_AlwaysAutoResize)) {
     ToolBarGui();
   }
+  // Remember the bar's bottom edge so the command palette can sit just below it.
+  tmp_.top_overlay_bottom = ImGui::GetWindowPos().y + ImGui::GetWindowSize().y;
   ImGui::End();
 }
 

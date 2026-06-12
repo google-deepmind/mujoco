@@ -65,8 +65,8 @@ void CommandPalette::Draw(const std::vector<Command>& commands,
   }
 
   constexpr float kWidth = 480.0f;
-  // Centered horizontally, a little below the top of the workspace.
-  ImGui::SetNextWindowPos(ImVec2(rect.x + rect.z * 0.5f, rect.y + 40.0f),
+  // Centered horizontally; the caller supplies the top edge (rect.y).
+  ImGui::SetNextWindowPos(ImVec2(rect.x + rect.z * 0.5f, rect.y),
                           ImGuiCond_Always, ImVec2(0.5f, 0.0f));
   // Fixed width, height grows with the autocomplete list.
   ImGui::SetNextWindowSizeConstraints(ImVec2(kWidth, 0),

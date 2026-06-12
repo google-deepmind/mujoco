@@ -148,6 +148,9 @@ class App {
     bool implot_demo = false;
     float editor_split = -1;
     float explorer_split = -1;
+    // Bottom edge (in screen space) of the top transport overlay, recorded each
+    // frame so the command palette can sit just below it.
+    float top_overlay_bottom = 0;
 
     // Controls.
     bool perturb_active = false;
