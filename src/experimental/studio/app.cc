@@ -1028,8 +1028,9 @@ float App::RailWidth() const {
 }
 
 float App::ScrubberWidth() const {
-  const ImGuiStyle& style = ImGui::GetStyle();
-  return ImGui::GetFrameHeight() * 1.6f + 2.0f * style.WindowPadding.x;
+  // A thin vertical strip: one frame wide plus a small padding on each side
+  // (kScrubberPad in ScrubberOverlayGui).
+  return ImGui::GetFrameHeight() + 8.0f;
 }
 
 void App::ToolRailGui(const ImVec4& workspace_rect) {
@@ -1579,15 +1580,20 @@ void App::ScrubberOverlayGui(const ImVec4& workspace_rect) {
     return;
   }
   const ImGuiStyle& style = ImGui::GetStyle();
-  const float margin = style.ItemSpacing.x;
   const float scrub_w = ScrubberWidth();
   const float h = std::max(160.0f, workspace_rect.w * 0.6f);
-  const float x = workspace_rect.x + workspace_rect.z - scrub_w - margin;
+  // Inset 10px from the right edge, mirroring the rail's 10px left inset.
+  constexpr float kScrubberInsetX = 10.0f;
+  const float x = workspace_rect.x + workspace_rect.z - scrub_w - kScrubberInsetX;
   const float y = workspace_rect.y + (workspace_rect.w - h) * 0.5f;
 
   ImGui::SetNextWindowPos(ImVec2(x, y));
   ImGui::SetNextWindowSize(ImVec2(scrub_w, h));
   ImGui::SetNextWindowBgAlpha(kOverlayAlpha);
+  // Tight padding so the thin strip's content fills its width.
+  constexpr float kScrubberPad = 4.0f;
+  platform::ScopedStyle pad;
+  pad.Var(ImGuiStyleVar_WindowPadding, ImVec2(kScrubberPad, kScrubberPad));
   if (ImGui::Begin("##Scrubber", nullptr, kOverlayFlags)) {
     const float col_w = ImGui::GetContentRegionAvail().x;
     const float step = ImGui::GetFrameHeight() + style.ItemSpacing.y;
