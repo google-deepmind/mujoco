@@ -18,6 +18,7 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/model_objects.h"
+#include "experimental/filament/compat/scene_objects.h"
 #include "render/filament/mjrfilament.h"
 #include "render/filament/mjrfilament_cpp.h"
 
@@ -26,7 +27,7 @@ namespace mujoco {
 // Creates a Renderable from the given mjvGeom.
 UniquePtr<mjrfRenderable> CreateGeomRenderable(
     const mjvGeom& geom, mjrfContext* ctx, ModelObjects* model_objs,
-    const mjtByte render_flags[mjNRNDFLAG]);
+    SceneObjects* scene_objs, const mjtByte render_flags[mjNRNDFLAG]);
 
 }  // namespace mujoco
 

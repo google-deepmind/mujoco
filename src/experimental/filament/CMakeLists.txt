@@ -29,6 +29,8 @@ target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
         compat/scene_bridge.h
         compat/scene_geom_util.cc
         compat/scene_geom_util.h
+        compat/scene_objects.cc
+        compat/scene_objects.h
 )
 if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
     target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}

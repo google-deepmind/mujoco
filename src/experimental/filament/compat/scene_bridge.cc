@@ -28,6 +28,7 @@
 #include "experimental/filament/compat/light_manager.h"
 #include "experimental/filament/compat/model_objects.h"
 #include "experimental/filament/compat/scene_geom_util.h"
+#include "experimental/filament/compat/scene_objects.h"
 #include "render/filament/mjrfilament.h"
 #include "render/filament/mjrfilament_cpp.h"
 #include "render/filament/support/filament_util.h"
@@ -45,6 +46,7 @@ SceneBridge::SceneBridge(mjrfContext* ctx, const mjModel* model)
   mjrf_defaultSceneParams(&params);
   scene_ = CreateScene(ctx_, params);
   model_objects_ = std::make_unique<ModelObjects>(model, ctx_);
+  scene_objects_ = std::make_unique<SceneObjects>(ctx_);
 
   mjrf_configureSceneFromModel(scene_.get(), model);
 
@@ -124,11 +126,12 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
     }
 
     if (geom->type == mjGEOM_FLEX || geom->type == mjGEOM_SKIN) {
-      model_objects_->CreateSkinFlexMesh(scene, *geom);
+      scene_objects_->CreateSkinFlexMesh(scene, model_objects_->GetModel(),
+                                         *geom);
     }
 
-    UniquePtr<mjrfRenderable> renderable =
-        CreateGeomRenderable(*geom, ctx_, model_objects_.get(), scene->flags);
+    UniquePtr<mjrfRenderable> renderable = CreateGeomRenderable(
+        *geom, ctx_, model_objects_.get(), scene_objects_.get(), scene->flags);
 
     mjrf_addRenderableToScene(scene_.get(), renderable.get());
     renderables_.push_back(std::move(renderable));

@@ -22,6 +22,7 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/model_objects.h"
+#include "experimental/filament/compat/scene_objects.h"
 #include "render/filament/mjrfilament.h"
 #include "render/filament/mjrfilament_cpp.h"
 
@@ -41,7 +42,8 @@ static float GetPlaneTileSize(const mjModel* model, int matid,
 }
 
 static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
-                              ModelObjects* model_objs) {
+                              ModelObjects* model_objs,
+                              SceneObjects* scene_objs) {
   const mjModel* model = model_objs->GetModel();
   const int nstack = model->vis.quality.numstacks;
   const int nslice = model->vis.quality.numslices;
@@ -113,7 +115,7 @@ static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
       mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_FLEX:
-      mjrf_setRenderableMesh(renderable, model_objs->GetFlexMesh(geom.objid), 0, 0);
+      mjrf_setRenderableMesh(renderable, scene_objs->GetFlexMesh(geom.objid), 0, 0);
       // Flexes are defined in global space.
       std::memset(position, 0, sizeof(position));
       std::memset(rotation, 0, sizeof(rotation));
@@ -122,7 +124,7 @@ static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
       rotation[8] = 1.f;
       break;
     case mjGEOM_SKIN:
-      mjrf_setRenderableMesh(renderable, model_objs->GetSkinMesh(geom.objid), 0, 0);
+      mjrf_setRenderableMesh(renderable, scene_objs->GetSkinMesh(geom.objid), 0, 0);
       // Skins are defined in global space.
       std::memset(position, 0, sizeof(position));
       std::memset(rotation, 0, sizeof(rotation));
@@ -271,11 +273,11 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
 
 UniquePtr<mjrfRenderable> CreateGeomRenderable(
     const mjvGeom& geom, mjrfContext* ctx, ModelObjects* model_objs,
-    const mjtByte render_flags[mjNRNDFLAG]) {
+    SceneObjects* scene_objs, const mjtByte render_flags[mjNRNDFLAG]) {
   mjrfRenderableParams params;
   mjrf_defaultRenderableParams(&params);
   auto renderable = CreateRenderable(ctx, params);
-  PrepareGeomMeshes(renderable.get(), geom, model_objs);
+  PrepareGeomMeshes(renderable.get(), geom, model_objs, scene_objs);
   UpdateGeomMaterial(renderable.get(), geom, model_objs, render_flags);
   return renderable;
 }

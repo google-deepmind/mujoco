@@ -26,6 +26,7 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/light_manager.h"
 #include "experimental/filament/compat/model_objects.h"
+#include "experimental/filament/compat/scene_objects.h"
 #include "render/filament/mjrfilament.h"
 #include "render/filament/mjrfilament_cpp.h"
 
@@ -64,6 +65,7 @@ class SceneBridge {
 
   mjrfContext* ctx_ = nullptr;
   std::unique_ptr<ModelObjects> model_objects_;
+  std::unique_ptr<SceneObjects> scene_objects_;
   std::unique_ptr<LightManager> light_manager_;
   mjrCamera camera_;
   DrawTextAtFn draw_text_callback_;
