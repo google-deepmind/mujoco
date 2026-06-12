@@ -49,11 +49,12 @@ TEST_F(SimProfilerTest, SummaryAcrossWrap) {
   std::unique_ptr<ModelHolder> holder = ModelHolder::FromSpec(spec);
   ASSERT_THAT(holder->model(), NotNull()) << holder->error();
 
-  // Records one frame with a known average step time. The component CPU timers
-  // are left at zero, so cpu_total (and hence cpu_other) is exactly `step_ms`.
+  // Records one frame with step time 1, 2, 3, ... on successive calls, so the
+  // recorded cpu_total equals the call count.
   SimProfiler profiler;
-  auto record_frame = [&](float step_ms) {
-    holder->data()->timer[mjTIMER_STEP].duration = step_ms;
+  int frame = 0;
+  auto record_frame = [&]() {
+    holder->data()->timer[mjTIMER_STEP].duration = static_cast<mjtNum>(++frame);
     holder->data()->timer[mjTIMER_STEP].number = 1;
     profiler.Update(holder->model(), holder->data());
   };
@@ -63,7 +64,7 @@ TEST_F(SimProfilerTest, SummaryAcrossWrap) {
 
   // Record max_frames - 1 frames with step times 1, 2, ..., max_frames - 1.
   for (int i = 1; i <= max_frames - 1; ++i) {
-    record_frame(static_cast<float>(i));
+    record_frame();
   }
   {
     SimProfiler::Summary s = profiler.GetSummary();
@@ -78,7 +79,7 @@ TEST_F(SimProfilerTest, SummaryAcrossWrap) {
   }
 
   // One more frame fills the buffer exactly (values 1..max_frames).
-  record_frame(static_cast<float>(max_frames));
+  record_frame();
   {
     SimProfiler::Summary s = profiler.GetSummary();
     EXPECT_EQ(s.num_frames, max_frames);
@@ -87,7 +88,7 @@ TEST_F(SimProfilerTest, SummaryAcrossWrap) {
 
   // One more frame wraps: slot 0 (value 1) is overwritten with max_frames + 1,
   // so the retained window is 2..max_frames+1 and num_frames saturates.
-  record_frame(static_cast<float>(max_frames + 1));
+  record_frame();
   {
     SimProfiler::Summary s = profiler.GetSummary();
     EXPECT_EQ(s.num_frames, max_frames);
