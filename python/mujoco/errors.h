@@ -105,7 +105,7 @@ class ErrorBase : public pybind11::builtin_exception {
 // Instead, we call setjmp before entering MuJoCo, and do a longjmp from
 // mju_user_error back to C++ to throw an exception.
 static thread_local std::jmp_buf mju_error_jmp_buf;
-static thread_local std::array<char, 1024> mju_error_msg{0};
+static thread_local std::array<char, 2048> mju_error_msg{0};
 
 // The handler to forward non-error messages to.  Set by WrapFunc before each
 // call into MuJoCo C code, pointing to either the previously installed TLS
@@ -126,8 +126,8 @@ static inline void MjErrorHandler(const mjLogMessage* msg) {
     std::snprintf(mju_error_msg.data(), mju_error_msg.size(), "%s: %s",
                   msg->func, msg->subject);
   } else {
-    std::strncpy(mju_error_msg.data(), msg->subject, mju_error_msg.size() - 1);
-    mju_error_msg.data()[mju_error_msg.size() - 1] = '\0';
+    std::snprintf(mju_error_msg.data(), mju_error_msg.size(), "%s",
+                  msg->subject);
   }
   std::longjmp(mju_error_jmp_buf, 1);
 }
