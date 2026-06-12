@@ -970,10 +970,12 @@ void App::BuildGui() {
   FileDialogGui();
 
   // Ctrl+P command palette, drawn last so it sits on top. Commands are only
-  // gathered while it is open. Place it 10px below the top transport overlay.
+  // gathered while it is open. Centered on the screen, 10px below the top
+  // transport overlay (so it lines up with that bar).
   if (command_palette_.is_open()) {
-    const ImVec4 palette_rect(workspace_rect.x, tmp_.top_overlay_bottom + 10.0f,
-                              workspace_rect.z, workspace_rect.w);
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    const ImVec4 palette_rect(vp->WorkPos.x, tmp_.top_overlay_bottom + 10.0f,
+                              vp->WorkSize.x, workspace_rect.w);
     command_palette_.Draw(CollectCommands(), palette_rect);
   }
 
@@ -1558,11 +1560,12 @@ constexpr float kOverlayAlpha = 0.65f;
 
 void App::TopOverlayGui(const ImVec4& workspace_rect) {
   const float margin = ImGui::GetStyle().ItemSpacing.x;
-  // Auto-size to the packed controls and horizontally center the bar within the
-  // open viewport area (between the rail and the right-edge scrubber). The
-  // (0.5, 0) pivot keeps it centered regardless of its content width.
-  const float usable_w = workspace_rect.z - RailWidth() - ScrubberWidth();
-  const float center_x = workspace_rect.x + RailWidth() + usable_w * 0.5f;
+  // Auto-size to the packed controls and center horizontally on the actual
+  // screen center (the rail and scrubber are thin overlays that don't sit at the
+  // top center, so we don't bias around them). The (0.5, 0) pivot keeps it
+  // centered regardless of its content width.
+  const ImGuiViewport* vp = ImGui::GetMainViewport();
+  const float center_x = vp->WorkPos.x + vp->WorkSize.x * 0.5f;
   ImGui::SetNextWindowPos(ImVec2(center_x, workspace_rect.y + margin),
                           ImGuiCond_Always, ImVec2(0.5f, 0.0f));
   ImGui::SetNextWindowBgAlpha(kOverlayAlpha);
@@ -1634,9 +1637,26 @@ void App::ScrubberOverlayGui(const ImVec4& workspace_rect) {
 }
 
 void App::StatusBarGui() {
-  // Build the status line; it is right-aligned in the bar. From left to right:
-  // model counts, sim time + frame, per-step solve time, FPS, then run state.
-  std::string status;
+  // Left: run state + any error message. Right: model/sim metrics.
+  std::string left;
+  if (!has_model()) {
+    left = "No model loaded";
+  } else if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
+    left = "Viscous Pause";
+  } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
+    left = "Paused";
+  } else {
+    left = "Running";
+  }
+  if (!step_error_.empty()) {
+    left += "   |   Step Error: " + step_error_;
+  } else if (!load_error_.empty()) {
+    left += "   |   Load Error: " + load_error_;
+  } else if (!edit_error_.empty()) {
+    left += "   |   Edit Error: " + edit_error_;
+  }
+
+  std::string right;
   if (has_model() && has_data()) {
     const mjModel* m = model();
     const mjData* d = data();
@@ -1647,27 +1667,10 @@ void App::StatusBarGui() {
     std::snprintf(buf, sizeof(buf),
                   "bodies %d   dof %d   contacts %d      "
                   "t %.3f s   frame %d      "
-                  "%.2f ms/step      %.0f fps      |   ",
+                  "%.2f ms/step      %.0f fps",
                   m->nbody, m->nv, d->ncon, d->time, sim_history_.GetIndex(),
                   ms_per_step, renderer_->GetFps());
-    status = buf;
-  }
-
-  if (!has_model()) {
-    status += "No model loaded";
-  } else if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-    status += "Viscous Pause";
-  } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
-    status += "Paused";
-  } else {
-    status += "Running";
-  }
-  if (!step_error_.empty()) {
-    status += "   |   Step Error: " + step_error_;
-  } else if (!load_error_.empty()) {
-    status += "   |   Load Error: " + load_error_;
-  } else if (!edit_error_.empty()) {
-    status += "   |   Edit Error: " + edit_error_;
+    right = buf;
   }
 
   // A full-width bar pinned to the bottom of the viewport, styled like the top
@@ -1694,11 +1697,17 @@ void App::StatusBarGui() {
       ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus |
       ImGuiWindowFlags_NoNavFocus;
   if (ImGui::Begin("##StatusBar", nullptr, flags)) {
-    const float text_w = ImGui::CalcTextSize(status.c_str()).x;
-    ImGui::SetCursorPosX(
-        std::max(s.ItemSpacing.x, ImGui::GetWindowWidth() - text_w -
-                                      2.0f * s.ItemSpacing.x));
-    ImGui::TextUnformatted(status.c_str());
+    // Status message on the left.
+    ImGui::TextUnformatted(left.c_str());
+    // Metrics right-aligned on the same line.
+    if (!right.empty()) {
+      const float right_w = ImGui::CalcTextSize(right.c_str()).x;
+      ImGui::SameLine();
+      ImGui::SetCursorPosX(std::max(
+          ImGui::GetCursorPosX(),
+          ImGui::GetWindowWidth() - right_w - 2.0f * s.ItemSpacing.x));
+      ImGui::TextUnformatted(right.c_str());
+    }
   }
   ImGui::End();
 }

@@ -71,7 +71,9 @@ void CommandPalette::Draw(const std::vector<Command>& commands,
   // Fixed width, height grows with the autocomplete list.
   ImGui::SetNextWindowSizeConstraints(ImVec2(kWidth, 0),
                                       ImVec2(kWidth, FLT_MAX));
-  ImGui::SetNextWindowBgAlpha(0.97f);
+  // Translucent, matching the rail/scrubber/top overlays. The input box keeps
+  // its own (opaque) frame colour; the completion list shows the scene through.
+  ImGui::SetNextWindowBgAlpha(0.65f);
 
   const ImGuiWindowFlags flags =
       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
