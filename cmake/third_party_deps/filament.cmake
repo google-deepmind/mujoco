@@ -23,12 +23,17 @@ include(FindOrFetch)
 set(BUILD_SHARED_LIBS_OLD ${BUILD_SHARED_LIBS})
 set(BUILD_SHARED_LIBS OFF)
 
-# Filament's ShaderMinifier.cpp uses strlen without including <cstring>, and
-# PostProcessManager.h uses std::optional without including <optional>.
+# Older filament versions were missing some includes (ShaderMinifier.cpp used
+# strlen without <cstring>; PostProcessManager.h used std::optional without
+# <optional>), so a forced include was added to make them build. The pinned
+# filament version now includes these headers directly, so the workaround is
+# obsolete. It must NOT be re-added on MSVC: the Visual Studio generator hoists
+# /FI into the project-wide <ForcedIncludeFiles>, which MSBuild also applies to
+# filament's generated C resource files (e.g. fxaa.c). Pulling the C++ STL into
+# a C compile fails with "STL1003: expected C++ compiler" (error C1189). Kept
+# for non-MSVC only, where it is harmless and scoped to C++ by CMAKE_CXX_FLAGS.
 set(CMAKE_CXX_FLAGS_OLD "${CMAKE_CXX_FLAGS}")
-if(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FI cstring /FI optional")
-else()
+if(NOT MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include cstring -include optional")
 endif()
 
