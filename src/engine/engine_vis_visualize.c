@@ -1083,6 +1083,61 @@ static void addSiteGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 }
 
 
+int mjv_isCatenary(const mjModel* m, const mjData* d, int i, mjtNum* length) {
+  int has_stiffness = m->tendon_stiffness[i] ||
+                      !mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY);
+
+  // tendon has a deadband spring
+  int limitedspring =
+    has_stiffness                         &&    // positive stiffness
+    m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
+    m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
+
+  // tendon has a simple length constraint, but is currently not limited
+  mjtNum ten_length = d->ten_length[i];
+  mjtNum lower = m->tendon_range[2*i];
+  mjtNum upper = m->tendon_range[2*i + 1];
+  int limitedconstraint =
+    !has_stiffness                        &&    // zero stiffness
+    m->tendon_limited[i] == 1             &&    // limited length range
+    lower == 0                            &&    // range lower-bound is 0
+    ten_length < upper;                         // current length is smaller than upper bound
+
+  int has_damping = m->tendon_damping[i] || !mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY);
+
+  // conditions for drawing a catenary
+  int draw_catenary =
+    !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
+    mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
+    m->tendon_num[i] == 2                 &&    // only two sites on the tendon
+    (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
+    !has_damping                          &&    // no damping
+    m->tendon_frictionloss[i] == 0;             // no frictionloss
+
+  // no actuator
+  if (draw_catenary) {
+    for (int j=0; j < m->nu; j++) {
+      if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == i) {
+        draw_catenary = 0;
+        break;
+      }
+    }
+  }
+
+  if (draw_catenary) {
+    // length of the tendon
+    if (limitedconstraint) {
+      *length = m->tendon_range[2*i+1];
+    } else {
+      *length = m->tendon_lengthspring[2*i+1];
+    }
+  }
+
+  return draw_catenary;
+}
+
+
+
 static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, int catmask,
                                   mjvScene* scn) {
   const int category = mjCAT_DYNAMIC;
@@ -1098,45 +1153,8 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
       continue;
     }
 
-    int has_stiffness = m->tendon_stiffness[i] ||
-                        !mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY);
-
-    // tendon has a deadband spring
-    int limitedspring =
-      has_stiffness                         &&    // positive stiffness
-      m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
-      m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
-
-    // tendon has a simple length constraint, but is currently not limited
-    mjtNum ten_length = d->ten_length[i];
-    mjtNum lower = m->tendon_range[2*i];
-    mjtNum upper = m->tendon_range[2*i + 1];
-    int limitedconstraint =
-      !has_stiffness                        &&    // zero stiffness
-      m->tendon_limited[i] == 1             &&    // limited length range
-      lower == 0                            &&    // range lower-bound is 0
-      ten_length < upper;                         // current length is smaller than upper bound
-
-    int has_damping = m->tendon_damping[i] || !mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY);
-
-    // conditions for drawing a catenary
-    int draw_catenary =
-      !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
-      mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
-      m->tendon_num[i] == 2                 &&    // only two sites on the tendon
-      (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
-      !has_damping                          &&    // no damping
-      m->tendon_frictionloss[i] == 0;             // no frictionloss
-
-    // no actuator
-    if (draw_catenary) {
-      for (int j=0; j < m->nu; j++) {
-        if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == i) {
-          draw_catenary = 0;
-          break;
-        }
-      }
-    }
+    mjtNum length;
+    int draw_catenary = mjv_isCatenary(m, d, i, &length);
 
     // conditions not met: draw straight lines
     if (!draw_catenary) {
@@ -1212,14 +1230,6 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
       mjtNum x0[3], x1[3];
       mju_copy3(x0, d->wrap_xpos + 3*d->ten_wrapadr[i]);
       mju_copy3(x1, d->wrap_xpos + 3*d->ten_wrapadr[i] + 3);
-
-      // length of the tendon
-      mjtNum length;
-      if (limitedconstraint) {
-        length = m->tendon_range[2*i+1];
-      } else {
-        length = m->tendon_lengthspring[2*i+1];
-      }
 
       // get number of points along catenary path (capped at 100)
       int ncatenary = mjMIN(m->vis.quality.numslices + 1, 100);
