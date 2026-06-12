@@ -81,10 +81,35 @@ static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
 static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
+// Icon + title for each left-rail tool panel. Order must match
+// UiTempState::ToolPanel. Icons are FontAwesome 4 glyphs chosen to evoke each
+// panel's name (gears=physics, cube=rendering, object-group=visibility groups,
+// eye=visualization, link=joints, sliders=controls, rss=sensor signal,
+// binoculars=watch, table=state vector, sitemap=explorer tree, pencil=editor).
+struct ToolPanelDef {
+  const char* icon;
+  const char* title;
+};
+constexpr ToolPanelDef kToolPanelDefs[] = {
+    {platform::ICON_FA_COGS, "Physics"},
+    {platform::ICON_FA_CUBE, "Rendering"},
+    {platform::ICON_FA_OBJECT_GROUP, "Visibility Groups"},
+    {platform::ICON_FA_EYE, "Visualization"},
+    {platform::ICON_FA_LINK, "Joints"},
+    {platform::ICON_FA_SLIDERS, "Controls"},
+    {platform::ICON_FA_RSS, "Sensor"},
+    {platform::ICON_FA_BINOCULARS, "Watch"},
+    {platform::ICON_FA_TABLE, "State"},
+    {platform::ICON_FA_SITEMAP, "Explorer"},
+    {platform::ICON_FA_PENCIL, "Editor"},
+};
+
 App::App(Config config)
     : app_title_(std::move(config.title)),
       ini_path_(std::move(config.ini_path)),
-      gfx_mode_(config.gfx_mode) {
+      gfx_mode_(config.gfx_mode),
+      screenshot_path_(std::move(config.screenshot_path)),
+      screenshot_frame_(config.screenshot_frame) {
   SwitchGraphicsMode(config.width, config.height, config.gfx_mode);
 
   if (config.initial_theme.has_value()) {
@@ -374,6 +399,29 @@ void App::Render() {
   window_->EndFrame();
   window_->Present(pixels_);
 
+  // Auto-screenshot: once enough frames have rendered for the model and GUI to
+  // settle, dump the headless framebuffer (RGB888, scene + GUI) to a PPM and
+  // request exit. Only valid in headless mode, where pixels_ is populated.
+  if (!screenshot_path_.empty() && IsHeadless(window_->GetGraphicsMode())) {
+    if (frame_count_ == screenshot_frame_) {
+      const int w = static_cast<int>(width);
+      const int h = static_cast<int>(height);
+      std::FILE* f = std::fopen(screenshot_path_.c_str(), "wb");
+      if (f != nullptr) {
+        std::fprintf(f, "P6\n%d %d\n255\n", w, h);
+        std::fwrite(pixels_.data(), 1, pixels_.size(), f);
+        std::fclose(f);
+        mju_warning("Saved screenshot to %s (%dx%d)", screenshot_path_.c_str(),
+                    w, h);
+      } else {
+        mju_warning("Could not open screenshot file %s",
+                    screenshot_path_.c_str());
+      }
+      tmp_.should_exit = true;
+    }
+    ++frame_count_;
+  }
+
   if (has_data()) {
     for (int i = 0; i < mjNTIMER; i++) {
       data()->timer[i].duration = 0;
@@ -598,8 +646,6 @@ void App::HandleKeyboardEvents() {
     tmp_.should_exit = true;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_A | ImGuiMod_Ctrl)) {
     mjv_defaultFreeCamera(model(), &camera_);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab | ImGuiMod_Shift)) {
-    tmp_.inspector_panel = !tmp_.inspector_panel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab)) {
     tmp_.options_panel = !tmp_.options_panel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Minus | ImGuiMod_Ctrl)) {
@@ -854,57 +900,26 @@ void App::BuildGui() {
 
   const ImVec4 workspace_rect = platform::ConfigureDockingLayout();
 
-  // Place charts in bottom right corner of the workspace.
-  const ImVec2 chart_size(250, 500);
-  const ImVec2 chart_pos(workspace_rect.x + workspace_rect.z - chart_size.x,
-                         workspace_rect.y + workspace_rect.w - chart_size.y);
-
   MainMenuGui();
 
-  {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    if (ImGui::Begin("ToolBar")) {
-      ImGui::PopStyleVar();
-      ToolBarGui();
-    } else {
-      ImGui::PopStyleVar();
-    }
-    ImGui::End();
-  }
+  // DCC-style translucent overlays on top of the viewport, replacing the old
+  // docked toolbar / status-bar strips: transport + view controls along the
+  // top, a vertical frame scrubber flush to the right edge, and a small status
+  // readout in the bottom-left.
+  TopOverlayGui(workspace_rect);
+  ScrubberOverlayGui(workspace_rect);
+  StatusOverlayGui(workspace_rect);
 
-  {
-    platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
-    style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-    style.Var(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    if (ImGui::Begin("StatusBar")) {
-      StatusBarGui();
-    }
-    ImGui::End();
-  }
-
+  // Feature documentation: the old "Options" and "Inspector" side panels
+  // reserved two wide fixed columns even when their collapsing sections were
+  // closed, wasting a lot of horizontal space. They are replaced by a thin
+  // Photoshop-style icon rail on the left; each button opens that section as a
+  // floating, movable tool window so the viewport stays large and tools appear
+  // only on demand. The Explorer (spec tree) and Editor are rail tools too, so
+  // no side panels stay docked.
   if (tmp_.options_panel) {
-    if (ImGui::Begin("Options", &tmp_.options_panel)) {
-      ModelOptionsGui();
-    }
-    ImGui::End();
-  }
-
-  if (tmp_.inspector_panel) {
-    if (ImGui::Begin("Explorer", &tmp_.inspector_panel)) {
-      SpecExplorerGui();
-    }
-    ImGui::End();
-
-    if (ImGui::Begin("Editor", &tmp_.inspector_panel)) {
-      SpecEditorGui();
-    }
-    ImGui::End();
-
-    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
-      DataInspectorGui();
-    }
-    ImGui::End();
+    ToolRailGui(workspace_rect);
+    ToolWindowsGui(workspace_rect);
   }
 
   if (tmp_.profiler) {
@@ -1021,98 +1036,191 @@ void App::BuildGui() {
   }
 }
 
-void App::ModelOptionsGui() {
-  const float min_width = platform::GetExpectedLabelWidth();
-  const ImGuiChildFlags child_flags =
-      ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
-  const ImGuiTreeNodeFlags node_flags =
-      ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
-
-  ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Physics", node_flags)) {
-    platform::PhysicsGui(model(), min_width);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
-
-  ImGui::BeginChild("RenderingGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Rendering", node_flags)) {
-    platform::RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
-                           min_width);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
-
-  ImGui::BeginChild("GroupsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Visibility Groups", node_flags)) {
-    platform::GroupsGui(model(), &vis_options_, min_width);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
-
-  ImGui::BeginChild("VisualizationGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Visualization", node_flags)) {
-    platform::VisualizationGui(model(), &vis_options_, &camera_, min_width);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
+float App::RailWidth() const {
+  const ImGuiStyle& style = ImGui::GetStyle();
+  const float button = ImGui::GetFrameHeight() * 1.6f;
+  return 2 * button + style.ItemSpacing.x + 2.0f * style.WindowPadding.x;
 }
 
-void App::DataInspectorGui() {
+float App::ScrubberWidth() const {
+  const ImGuiStyle& style = ImGui::GetStyle();
+  return ImGui::GetFrameHeight() * 1.6f + 2.0f * style.WindowPadding.x;
+}
+
+void App::ToolRailGui(const ImVec4& workspace_rect) {
+  static_assert(IM_ARRAYSIZE(kToolPanelDefs) == UiTempState::ToolPanel_Count,
+                "kToolPanelDefs must have one entry per ToolPanel");
+
+  const float button = ImGui::GetFrameHeight() * 1.6f;  // square icon button
+  constexpr int kColumns = 2;
+  const float rail_width = RailWidth();
+
+  // Pin the rail to the left edge of the workspace, spanning the area between
+  // the toolbar and the status bar.
+  const ImGuiViewport* viewport = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, workspace_rect.y));
+  ImGui::SetNextWindowSize(ImVec2(rail_width, workspace_rect.w));
+
+  const ImGuiWindowFlags flags =
+      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking |
+      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+      ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+  if (ImGui::Begin("##ToolRail", nullptr, flags)) {
+    // Lay out square icon buttons in a 2-column grid. `active` highlights the
+    // button when its window/panel is open; returns true when clicked.
+    int slot = 0;
+    auto icon_button = [&](const char* icon, const char* title,
+                           bool active) -> bool {
+      if (slot % kColumns != 0) {
+        ImGui::SameLine();
+      }
+      ++slot;
+      if (active) {
+        ImGui::PushStyleColor(ImGuiCol_Button,
+                              ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+      }
+      ImGui::PushID(title);
+      const bool clicked = ImGui::Button(icon, ImVec2(button, button));
+      ImGui::PopID();
+      if (active) {
+        ImGui::PopStyleColor();
+      }
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("%s", title);
+      }
+      return clicked;
+    };
+
+    // Group 0: model actions (reload / reset). These are one-shot buttons, not
+    // toggles, so they never show the "active" highlight.
+    if (icon_button(ICON_RELOAD_MODEL, "Reload", false)) {
+      RequestModelReload();
+    }
+    if (icon_button(ICON_RESET_MODEL, "Reset", false)) {
+      ResetPhysics();
+    }
+    ImGui::Separator();
+    slot = 0;
+
+    // Group 1: model + data tool panels (each opens a floating tool window).
+    for (int i = 0; i < UiTempState::ToolPanel_Count; ++i) {
+      if (icon_button(kToolPanelDefs[i].icon, kToolPanelDefs[i].title,
+                      tmp_.tool_open[i])) {
+        tmp_.tool_open[i] = !tmp_.tool_open[i];
+      }
+    }
+
+    // Group 2: view / diagnostics windows (toggle the app's own windows).
+    ImGui::Separator();
+    slot = 0;
+    if (icon_button(platform::ICON_FA_TACHOMETER, "Profiler", tmp_.profiler)) {
+      ToggleWindow(tmp_.profiler);
+    }
+    if (icon_button(platform::ICON_FA_BAR_CHART, "Stats", tmp_.stats)) {
+      ToggleWindow(tmp_.stats);
+    }
+    if (icon_button(platform::ICON_FA_CLONE, "Picture-in-Picture",
+                    tmp_.picture_in_picture)) {
+      tmp_.picture_in_picture = !tmp_.picture_in_picture;
+    }
+    if (icon_button(platform::ICON_FA_QUESTION_CIRCLE, "Help", tmp_.help)) {
+      ToggleWindow(tmp_.help);
+    }
+  }
+  ImGui::End();
+}
+
+void App::ToolWindowsGui(const ImVec4& workspace_rect) {
+  const float rail_width = RailWidth();
+
+  for (int i = 0; i < UiTempState::ToolPanel_Count; ++i) {
+    if (!tmp_.tool_open[i]) {
+      continue;
+    }
+    // Cascade newly opened windows just to the right of the rail.
+    const float offset = 24.0f * i;
+    ImGui::SetNextWindowPos(
+        ImVec2(workspace_rect.x + rail_width + 8.0f + offset,
+               workspace_rect.y + 8.0f + offset),
+        ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(320, 360), ImGuiCond_FirstUseEver);
+    // Give each window a stable, unique ImGui id via the "###" suffix so the
+    // windows are not captured by ConfigureDockingLayout's name-based docking
+    // of the old "Explorer"/"Editor" side panels; they stay floating next to
+    // the rail until the user chooses to dock them.
+    char window_id[64];
+    std::snprintf(window_id, sizeof(window_id), "%s###ToolWindow%d",
+                  kToolPanelDefs[i].title, i);
+    if (ImGui::Begin(window_id, &tmp_.tool_open[i])) {
+      ToolPanelContent(i);
+    }
+    ImGui::End();
+  }
+}
+
+void App::ToolPanelContent(int tool_panel) {
+  const float min_width = platform::GetExpectedLabelWidth();
+
+  // Panels that only need the model are available even with no mjData.
+  switch (tool_panel) {
+    case UiTempState::ToolPanel_Physics:
+      platform::PhysicsGui(model(), min_width);
+      return;
+    case UiTempState::ToolPanel_Rendering:
+      platform::RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
+                             min_width);
+      return;
+    case UiTempState::ToolPanel_Groups:
+      platform::GroupsGui(model(), &vis_options_, min_width);
+      return;
+    case UiTempState::ToolPanel_Visualization:
+      platform::VisualizationGui(model(), &vis_options_, &camera_, min_width);
+      return;
+    case UiTempState::ToolPanel_Explorer:
+      SpecExplorerGui();
+      return;
+    case UiTempState::ToolPanel_Editor:
+      SpecEditorGui();
+      return;
+    default:
+      break;
+  }
+
+  // The remaining panels read live simulation data.
   if (!has_data()) {
     ImGui::Text("No mjData loaded.");
     return;
   }
 
-  const float min_width = platform::GetExpectedLabelWidth();
-  const ImGuiChildFlags child_flags =
-      ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
-  const ImGuiTreeNodeFlags node_flags =
-      ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
-
-  ImGui::BeginChild("JointsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Joints", node_flags)) {
-    platform::JointsGui(model(), data(), &vis_options_);
-    ImGui::TreePop();
+  switch (tool_panel) {
+    case UiTempState::ToolPanel_Joints:
+      platform::JointsGui(model(), data(), &vis_options_);
+      return;
+    case UiTempState::ToolPanel_Controls: {
+      float noise_scale = 0;
+      float noise_rate = 0;
+      step_control_.GetNoiseParameters(noise_scale, noise_rate);
+      platform::NoiseGui(model(), data(), noise_scale, noise_rate);
+      step_control_.SetNoiseParameters(noise_scale, noise_rate);
+      ImGui::Separator();
+      platform::ControlsGui(model(), data(), &vis_options_);
+      return;
+    }
+    case UiTempState::ToolPanel_Sensor:
+      platform::SensorGui(model(), data());
+      return;
+    case UiTempState::ToolPanel_Watch:
+      platform::WatchGui(model(), data(), ui_.watch_field,
+                         sizeof(ui_.watch_field), ui_.watch_index);
+      return;
+    case UiTempState::ToolPanel_State:
+      platform::StateGui(model(), data(), tmp_.state, tmp_.state_sig, min_width);
+      return;
+    default:
+      return;
   }
-  ImGui::EndChild();
-
-  ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Controls", node_flags)) {
-
-    float noise_scale = 0;
-    float noise_rate = 0;
-    step_control_.GetNoiseParameters(noise_scale, noise_rate);
-    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
-    step_control_.SetNoiseParameters(noise_scale, noise_rate);
-    ImGui::Separator();
-
-    platform::ControlsGui(model(), data(), &vis_options_);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
-
-  ImGui::BeginChild("SensorGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Sensor", node_flags)) {
-    platform::SensorGui(model(), data());
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
-
-  ImGui::BeginChild("WatchGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Watch", node_flags)) {
-    platform::WatchGui(model(), data(), ui_.watch_field,
-                       sizeof(ui_.watch_field), ui_.watch_index);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
-
-  ImGui::BeginChild("StateGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("State", node_flags)) {
-    platform::StateGui(model(), data(), tmp_.state, tmp_.state_sig, min_width);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
 }
 
 void App::SpecExplorerGui() {
@@ -1417,154 +1525,140 @@ void App::HelpGui() {
 }
 
 void App::ToolBarGui() {
-  ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
-  if (ImGui::BeginTable("##ToolBarTable", 2)) {
-    platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_ItemSpacing,
-              ImVec2(ImGui::GetStyle().ItemSpacing.x * 2.0f,
-                     ImGui::GetStyle().ItemSpacing.y));
+  platform::ScopedStyle style;
+  style.Var(ImGuiStyleVar_ItemSpacing,
+            ImVec2(ImGui::GetStyle().ItemSpacing.x * 2.0f,
+                   ImGui::GetStyle().ItemSpacing.y));
+  // Gap between logical groups (transport | threads | view selectors).
+  const float group_gap = ImGui::GetFrameHeight();
 
-    const float label_width = platform::GetExpectedLabelWidth();
-    const float copy_btn_width = ImGui::GetFrameHeight();
-    const float theme_width =
-        ImGui::CalcTextSize(platform::ICON_FA_CIRCLE_O).x +
-        ImGui::GetStyle().FramePadding.x * 2;
-    const float sp = ImGui::GetStyle().ItemSpacing.x;
-    const float right_width = copy_btn_width + label_width + sp +
-                              label_width + sp + label_width + sp +
-                              theme_width;
-    const float separator_width = ImGui::GetFrameHeight() * .6f;
+  // Transport: combined (Normal Pause, Viscous Pause, Play) widget + speed.
+  platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
 
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, right_width);
-
-    ImGui::TableNextColumn();
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetStyle().WindowPadding.x);
-
-    const float btn_size = ImGui::GetFrameHeight();
-    const ImVec2 square_size(btn_size, btn_size);
-
-    // Reload button.
-    {
-      style.Var(ImGuiStyleVar_FrameRounding, 2.0f);
-      if (ImGui::Button(ICON_RELOAD_MODEL, square_size)) {
-        RequestModelReload();
-      }
-      ImGui::SetItemTooltip("%s", "Reload");
-    }
-
-    // Reset button.
-    ImGui::SameLine(0, 0.5 * separator_width);
-    if (ImGui::Button(ICON_RESET_MODEL, square_size)) {
-      ResetPhysics();
-    }
-    ImGui::SetItemTooltip("%s", "Reset");
-
-    // Combined (Normal Pause, Viscous Pause, Play) widget and Speed selection.
-    ImGui::SameLine(0, separator_width);
-    platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
-
-    ImGui::SameLine(0, separator_width);
-    ImGui::SetNextItemWidth(120);
-    ImGui::BeginDisabled(std::thread::hardware_concurrency() <= 1);
-    if (ImGui::SliderInt("##NumThreads", &ui_.nthread, 0, 8, "%d threads")) {
-      tmp_.update_threadpool = true;
-    }
-    ImGui::EndDisabled();
-    ImGui::SetItemTooltip("%s", "Number of threads in threadpool");
-
-    ImGui::TableNextColumn();
-
-    platform::CameraSelectionGui(model(), data(), camera_, ui_.camera_idx);
-
-    ImGui::SameLine();
-    platform::LabelSelectionGui(&vis_options_);
-
-    ImGui::SameLine();
-    platform::FrameSelectionGui(&vis_options_);
-
-    ImGui::SameLine();
-    if (platform::ThemeSelectGui(&ui_.theme, square_size)) {
-      platform::SetupTheme(ui_.theme);
-      ImGui::GetIO().WantSaveIniSettings = true;
-    }
-
-    ImGui::EndTable();
-  }
-  ImGui::PopStyleVar();
+  // View display selectors. (Engine settings like the threadpool size live in
+  // Edit > Preferences, not on this transport bar.)
+  ImGui::SameLine(0, group_gap);
+  platform::CameraSelectionGui(model(), data(), camera_, ui_.camera_idx);
+  ImGui::SameLine();
+  platform::LabelSelectionGui(&vis_options_);
+  ImGui::SameLine();
+  platform::FrameSelectionGui(&vis_options_);
 }
 
-void App::StatusBarGui() {
-  if (ImGui::BeginTable("##StatusBarTable", 2)) {
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 520);
+namespace {
+// Shared flags for the translucent viewport overlays.
+constexpr ImGuiWindowFlags kOverlayFlags =
+    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+    ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking |
+    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+    ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavFocus;
+constexpr float kOverlayAlpha = 0.65f;
+}  // namespace
 
-    ImGui::TableNextColumn();
+void App::TopOverlayGui(const ImVec4& workspace_rect) {
+  const float margin = ImGui::GetStyle().ItemSpacing.x;
+  // Auto-size to the packed controls and horizontally center the bar within the
+  // open viewport area (between the rail and the right-edge scrubber). The
+  // (0.5, 0) pivot keeps it centered regardless of its content width.
+  const float usable_w = workspace_rect.z - RailWidth() - ScrubberWidth();
+  const float center_x = workspace_rect.x + RailWidth() + usable_w * 0.5f;
+  ImGui::SetNextWindowPos(ImVec2(center_x, workspace_rect.y + margin),
+                          ImGuiCond_Always, ImVec2(0.5f, 0.0f));
+  ImGui::SetNextWindowBgAlpha(kOverlayAlpha);
+  if (ImGui::Begin("##TopOverlay", nullptr,
+                   kOverlayFlags | ImGuiWindowFlags_AlwaysAutoResize)) {
+    ToolBarGui();
+  }
+  ImGui::End();
+}
 
-    if (!has_model()) {
-      ImGui::Text("No model loaded");
-    } else if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-      ImGui::Text("Viscous Pause");
-      ImGui::SetItemTooltip("Zero gravity, high viscosity, no spring forces");
-    } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
-      ImGui::Text("Paused");
-    } else {
-      ImGui::Text("Running");
-    }
+void App::ScrubberOverlayGui(const ImVec4& workspace_rect) {
+  if (!has_model()) {
+    return;
+  }
+  const ImGuiStyle& style = ImGui::GetStyle();
+  const float margin = style.ItemSpacing.x;
+  const float scrub_w = ScrubberWidth();
+  const float h = std::max(160.0f, workspace_rect.w * 0.6f);
+  const float x = workspace_rect.x + workspace_rect.z - scrub_w - margin;
+  const float y = workspace_rect.y + (workspace_rect.w - h) * 0.5f;
 
-    if (!step_error_.empty()) {
-      ImGui::SameLine();
-      ImGui::Text(" | Step Error: %s", step_error_.c_str());
-    } else if (!load_error_.empty()) {
-      ImGui::SameLine();
-      ImGui::Text(" | Load Error: %s", load_error_.c_str());
-    } else if (!edit_error_.empty()) {
-      ImGui::SameLine();
-      ImGui::Text(" | Edit Error: %s", edit_error_.c_str());
-    }
+  ImGui::SetNextWindowPos(ImVec2(x, y));
+  ImGui::SetNextWindowSize(ImVec2(scrub_w, h));
+  ImGui::SetNextWindowBgAlpha(kOverlayAlpha);
+  if (ImGui::Begin("##Scrubber", nullptr, kOverlayFlags)) {
+    const float col_w = ImGui::GetContentRegionAvail().x;
+    const float step = ImGui::GetFrameHeight() + style.ItemSpacing.y;
 
-    ImGui::TableNextColumn();
-    ImGui::Text("%s", " |");
-
-    // Frame scrubber.
-    platform::ScopedStyle style;
-
-    style.Var(ImGuiStyleVar_FrameBorderSize, 0);
-    style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_PREV_FRAME)) {
-      LoadHistory(sim_history_.GetIndex() - 1);
-    }
-    ImGui::SetItemTooltip("%s", "Previous Frame");
-
-    style.Reset();
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(450);
-    int index = sim_history_.GetIndex();
-    if (ImGui::SliderInt("##ScrubIndex", &index, 1 - sim_history_.Size(), 0)) {
-      LoadHistory(index);
-    }
-
-    style.Var(ImGuiStyleVar_FrameBorderSize, 0);
-    style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_NEXT_FRAME)) {
+    // Next frame (toward the current state) at the top.
+    if (ImGui::Button(platform::ICON_FA_CARET_UP, ImVec2(col_w, 0))) {
       if (sim_history_.GetIndex() == 0) {
         step_control_.RequestSingleStep();
       } else {
         LoadHistory(sim_history_.GetIndex() + 1);
       }
     }
-    ImGui::SetItemTooltip("%s", "Next Frame");
+    ImGui::SetItemTooltip("%s", "Next frame");
 
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_CURR_FRAME)) {
+    // Vertical history slider fills the middle (top = current, down = older).
+    int index = sim_history_.GetIndex();
+    const float slider_h =
+        std::max(40.0f, ImGui::GetContentRegionAvail().y - 2.0f * step);
+    if (ImGui::VSliderInt("##ScrubIndex", ImVec2(col_w, slider_h), &index,
+                          1 - sim_history_.Size(), 0, "")) {
+      LoadHistory(index);
+    }
+    ImGui::SetItemTooltip("Frame %d of %d", index, sim_history_.Size());
+
+    // Previous frame (toward older states) below the slider.
+    if (ImGui::Button(platform::ICON_FA_CARET_DOWN, ImVec2(col_w, 0))) {
+      LoadHistory(sim_history_.GetIndex() - 1);
+    }
+    ImGui::SetItemTooltip("%s", "Previous frame");
+
+    // Jump to the current (latest) frame.
+    if (ImGui::Button(ICON_CURR_FRAME, ImVec2(col_w, 0))) {
       LoadHistory(0);
     }
-    ImGui::SetItemTooltip("%s", "Current Frame");
-
-    ImGui::EndTable();
+    ImGui::SetItemTooltip("%s", "Current frame");
   }
+  ImGui::End();
+}
+
+void App::StatusOverlayGui(const ImVec4& workspace_rect) {
+  const float margin = ImGui::GetStyle().ItemSpacing.x;
+
+  // Anchor to the bottom-left of the viewport (just right of the rail).
+  ImGui::SetNextWindowPos(
+      ImVec2(workspace_rect.x + RailWidth() + margin,
+             workspace_rect.y + workspace_rect.w - margin),
+      ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+  ImGui::SetNextWindowBgAlpha(kOverlayAlpha);
+  if (ImGui::Begin("##StatusOverlay", nullptr,
+                   kOverlayFlags | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (!has_model()) {
+      ImGui::TextUnformatted("No model loaded");
+    } else if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
+      ImGui::TextUnformatted("Viscous Pause");
+      ImGui::SetItemTooltip("Zero gravity, high viscosity, no spring forces");
+    } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
+      ImGui::TextUnformatted("Paused");
+    } else {
+      ImGui::TextUnformatted("Running");
+    }
+
+    if (!step_error_.empty()) {
+      ImGui::SameLine();
+      ImGui::Text("| Step Error: %s", step_error_.c_str());
+    } else if (!load_error_.empty()) {
+      ImGui::SameLine();
+      ImGui::Text("| Load Error: %s", load_error_.c_str());
+    } else if (!edit_error_.empty()) {
+      ImGui::SameLine();
+      ImGui::Text("| Edit Error: %s", edit_error_.c_str());
+    }
+  }
+  ImGui::End();
 }
 
 void App::MainMenuGui() {
@@ -1602,6 +1696,22 @@ void App::MainMenuGui() {
         tmp_.should_exit = true;
       }
 #endif  // !__EMSCRIPTEN__
+      ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Edit")) {
+      if (ImGui::BeginMenu("Preferences")) {
+        ImGui::TextUnformatted("Threadpool size");
+        ImGui::SetNextItemWidth(180);
+        ImGui::BeginDisabled(std::thread::hardware_concurrency() <= 1);
+        if (ImGui::SliderInt("##NumThreads", &ui_.nthread, 0, 8, "%d threads")) {
+          tmp_.update_threadpool = true;
+        }
+        ImGui::EndDisabled();
+        ImGui::SetItemTooltip("%s",
+                              "Number of worker threads used to step the model");
+        ImGui::EndMenu();
+      }
       ImGui::EndMenu();
     }
 
@@ -1651,14 +1761,9 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
-      if (ImGui::MenuItem(tmp_.options_panel ? "Hide Options" : "Show Options",
+      if (ImGui::MenuItem(tmp_.options_panel ? "Hide Tools" : "Show Tools",
                           "Tab")) {
         tmp_.options_panel = !tmp_.options_panel;
-      }
-      if (ImGui::MenuItem(
-              tmp_.inspector_panel ? "Hide Inspector" : "Show Inspector",
-              "Shift+Tab")) {
-        tmp_.inspector_panel = !tmp_.inspector_panel;
       }
       if (ImGui::MenuItem("Full Screen", "F11")) {
         tmp_.full_screen = !tmp_.full_screen;
@@ -1761,6 +1866,17 @@ void App::MainMenuGui() {
       ImGui::MenuItem(version.c_str());
       ImGui::EndMenu();
     }
+
+    // Theme selector, right-aligned on the menu bar. ThemeSelectGui cycles
+    // Light -> Dark -> Classic on click and shows the current theme's icon.
+    const float theme_btn_w = ImGui::GetFrameHeight();
+    ImGui::SameLine(ImGui::GetWindowWidth() - theme_btn_w -
+                    ImGui::GetStyle().FramePadding.x * 2.0f);
+    if (platform::ThemeSelectGui(&ui_.theme, ImVec2(theme_btn_w, 0))) {
+      platform::SetupTheme(ui_.theme);
+      ImGui::GetIO().WantSaveIniSettings = true;
+    }
+
     ImGui::EndMainMenuBar();
   }
 }

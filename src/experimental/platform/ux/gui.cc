@@ -234,14 +234,15 @@ void RescaleDock(float ratio) {
 
 ImVec4 ConfigureDockingLayout() {
   ImGuiViewport* viewport = ImGui::GetMainViewport();
-  const float scale = ImGui::GetWindowDpiScale();
-  const float font_scale = ImGui::GetIO().FontGlobalScale;
 
   const float kOptionsRelWidth = 0.22f;
   const float kInspectorRelWidth = 0.22f;
   const float kStatsRelHeight = 0.3f;
-  const float kToolsBarHeight = 36.f * scale * font_scale;
-  const float kStatusBarHeight = 32.f * scale * font_scale;
+  // The toolbar and status bar are drawn as translucent overlays on top of the
+  // viewport (App::TopOverlayGui / ScrubberOverlayGui / StatusOverlayGui), so no
+  // strips are reserved; the dockspace fills the whole area below the menu bar.
+  const float kToolsBarHeight = 0.f;
+  const float kStatusBarHeight = 0.f;
 
   const ImVec2 dockspace_pos{viewport->WorkPos.x,
                              viewport->WorkPos.y + kToolsBarHeight};
@@ -302,11 +303,6 @@ ImVec4 ConfigureDockingLayout() {
       ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBringToFrontOnFocus |
       ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
 
-  const ImGuiWindowFlags kFixedFlags =
-      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
-      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
-      ImGuiWindowFlags_NoDocking;
-
   // Main workspace area in which we can dock other windows.
   {
     platform::ScopedStyle style;
@@ -318,36 +314,6 @@ ImVec4 ConfigureDockingLayout() {
         ImGuiDockNodeFlags_PassthruCentralNode |
         ImGuiDockNodeFlags_NoDockingOverCentralNode;
     ImGui::DockSpace(root, ImVec2(0.0f, 0.0f), kDockSpaceFlags);
-    ImGui::End();
-  }
-
-  // Toolbar is fixed at the top.
-  {
-    platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
-    style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
-    const float toolbar_vpad =
-        std::max(0.f, (kToolsBarHeight - ImGui::GetFrameHeight()) * 0.5f);
-    style.Var(ImGuiStyleVar_WindowPadding, ImVec2(4 * scale, toolbar_vpad));
-    ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kToolsBarHeight),
-                             ImGuiCond_Always);
-    ImGui::Begin("ToolBar", nullptr, kFixedFlags);
-    ImGui::End();
-  }
-
-  // StatusBar is fixed at the bottom.
-  {
-    platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
-    style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
-    ImGui::SetNextWindowPos(ImVec2(0, viewport->Size.y - kStatusBarHeight),
-                            ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kStatusBarHeight),
-                             ImGuiCond_Always);
-    ImGui::Begin("StatusBar", nullptr, kFixedFlags);
     ImGui::End();
   }
 

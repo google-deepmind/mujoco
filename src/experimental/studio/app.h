@@ -61,6 +61,14 @@ class App {
 
     // The application title shown in the window title bar.
     std::string title = "MuJoCo Studio";
+
+    // If non-empty, the app runs to capture a single screenshot: once
+    // `screenshot_frame` frames have been rendered (giving the model and GUI
+    // time to settle), the full window framebuffer is written to this path as
+    // a binary PPM (P6) and the app exits. Requires a headless graphics mode
+    // so that the framebuffer is read back into CPU memory.
+    std::string screenshot_path;
+    int screenshot_frame = 30;
   };
 
   explicit App(Config config);
@@ -133,13 +141,32 @@ class App {
     bool profiler = false;
     bool picture_in_picture = false;
     bool options_panel = true;
-    bool inspector_panel = true;
     bool full_screen = false;
     bool style_editor = false;
     bool imgui_demo = false;
     bool implot_demo = false;
     float editor_split = -1;
     float explorer_split = -1;
+
+    // Left icon-rail tool panels. Each entry corresponds to one square button in
+    // the rail that toggles a floating window holding the UI that previously
+    // lived as a collapsing section in the Options/Inspector side panels. Keep
+    // this enum in sync with kToolPanelDefs in app.cc.
+    enum ToolPanel {
+      ToolPanel_Physics,
+      ToolPanel_Rendering,
+      ToolPanel_Groups,
+      ToolPanel_Visualization,
+      ToolPanel_Joints,
+      ToolPanel_Controls,
+      ToolPanel_Sensor,
+      ToolPanel_Watch,
+      ToolPanel_State,
+      ToolPanel_Explorer,
+      ToolPanel_Editor,
+      ToolPanel_Count,
+    };
+    bool tool_open[ToolPanel_Count] = {};
 
     // Controls.
     bool perturb_active = false;
@@ -218,11 +245,22 @@ class App {
 
   void MainMenuGui();
   void ToolBarGui();
-  void StatusBarGui();
   void HelpGui();
   void FileDialogGui();
-  void ModelOptionsGui();
-  void DataInspectorGui();
+  // Photoshop-style left rail of square icon buttons, and the floating tool
+  // windows they open (one per UiTempState::ToolPanel).
+  void ToolRailGui(const ImVec4& workspace_rect);
+  void ToolWindowsGui(const ImVec4& workspace_rect);
+  void ToolPanelContent(int tool_panel);
+  // DCC-style translucent overlays drawn on top of the viewport: a top bar with
+  // transport + view controls, a vertical frame scrubber flush to the right
+  // edge, and a small status readout. RailWidth/ScrubberWidth give the reserved
+  // gutters so the overlays don't overlap the rail or each other.
+  void TopOverlayGui(const ImVec4& workspace_rect);
+  void ScrubberOverlayGui(const ImVec4& workspace_rect);
+  void StatusOverlayGui(const ImVec4& workspace_rect);
+  float RailWidth() const;
+  float ScrubberWidth() const;
   void SpecExplorerGui();
   void SpecEditorGui();
 
@@ -257,6 +295,11 @@ class App {
   platform::SpecEditor spec_editor_;
   std::vector<std::string> search_paths_;
   std::vector<std::byte> pixels_;
+
+  // Auto-screenshot capture (see Config::screenshot_path).
+  std::string screenshot_path_;
+  int screenshot_frame_ = 30;
+  int frame_count_ = 0;
 
   mjvCamera camera_;
   mjvPerturb perturb_;

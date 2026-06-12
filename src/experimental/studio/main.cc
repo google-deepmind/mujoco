@@ -33,6 +33,11 @@ ABSL_FLAG(int, window_width, 1400, "Window width");
 ABSL_FLAG(int, window_height, 720, "Window height");
 ABSL_FLAG(std::string, model_file, "", "MuJoCo model file.");
 ABSL_FLAG(std::string, gfx, "", "Graphics API");
+ABSL_FLAG(std::string, screenshot, "",
+          "If set, render headless and write the framebuffer to this path as a "
+          "binary PPM once the model has loaded, then exit.");
+ABSL_FLAG(int, screenshot_frame, 30,
+          "Frame index at which the screenshot is captured.");
 
 std::string Resolve(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
@@ -107,6 +112,14 @@ int main(int argc, char** argv, char** envp) {
 
   std::string gfx = absl::GetFlag(FLAGS_gfx);
 
+  // Screenshot capture reads the framebuffer back from CPU memory, which only
+  // happens in a headless graphics mode. Default to headless OpenGL if the
+  // caller requested a screenshot without specifying a graphics mode.
+  const std::string screenshot = absl::GetFlag(FLAGS_screenshot);
+  if (!screenshot.empty() && gfx.empty()) {
+    gfx = "opengl_headless";
+  }
+
   const char* session_type = std::getenv("XDG_SESSION_TYPE");
   const char* wayland_display = std::getenv("WAYLAND_DISPLAY");
   if ((session_type && std::string_view(session_type) == "wayland") ||
@@ -132,6 +145,8 @@ int main(int argc, char** argv, char** envp) {
     .height = height,
     .ini_path = ini_path,
     .gfx_mode = gfx_mode,
+    .screenshot_path = screenshot,
+    .screenshot_frame = absl::GetFlag(FLAGS_screenshot_frame),
   });
 
   // If the model file is not specified, try to load it from the first argument
