@@ -17,6 +17,7 @@
 
 #include <vector>
 
+#include <mujoco/mujoco.h>
 #include "render/filament/mjrfilament.h"
 #include "render/filament/mjrfilament_cpp.h"
 #include "render/filament/support/model_objects.h"
@@ -29,6 +30,9 @@ class LightManager {
   LightManager(mjrfContext* ctx, mjrfScene* scene, ModelObjects* model_objects);
   ~LightManager();
 
+  // Updates the state of the lights in the scene.
+  void Update(const mjData* data);
+
   // Returns the light with the given index in the mjModel. Note that an extra
   // headlight is assigned of the index `nlight`.
   mjrfLight* GetLight(int index);
@@ -37,10 +41,12 @@ class LightManager {
   LightManager& operator=(const LightManager&) = delete;
 
  private:
-  void Prepare(ModelObjects* model_objects);
+  void Prepare();
 
   mjrfContext* ctx_ = nullptr;
   mjrfScene* scene_ = nullptr;
+  ModelObjects* model_objects_ = nullptr;
+
   UniquePtr<mjrfLight> fallback_ibl_{nullptr, nullptr};
   UniquePtr<mjrfTexture> fallback_ibl_texture_{nullptr, nullptr};
   std::vector<UniquePtr<mjrfLight>> lights_;

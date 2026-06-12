@@ -74,7 +74,7 @@ static UniquePtr<mjrfTexture> CreateFallbackIndirectLightTexture(
 
 LightManager::LightManager(mjrfContext* ctx, mjrfScene* scene,
                            ModelObjects* model_objects)
-    : ctx_(ctx), scene_(scene) {
+    : ctx_(ctx), scene_(scene), model_objects_(model_objects) {
   const mjModel* model = model_objects->GetModel();
   default_shadow_map_size_ = ReadElement(
       model, "filament.shadows.map_size", default_shadow_map_size_);
@@ -89,7 +89,7 @@ LightManager::LightManager(mjrfContext* ctx, mjrfScene* scene,
   fallback_environment_light_intensity_ =
       ReadElement(model, "filament.fallback.environment_light_intensity",
                   fallback_environment_light_intensity_);
-  Prepare(model_objects);
+  Prepare();
 }
 
 LightManager::~LightManager() {
@@ -103,8 +103,8 @@ LightManager::~LightManager() {
   fallback_ibl_.reset();
 }
 
-void LightManager::Prepare(ModelObjects* model_objects) {
-  const mjModel* model = model_objects->GetModel();
+void LightManager::Prepare() {
+  const mjModel* model = model_objects_->GetModel();
 
   bool has_image_based_light = false;
   float total_light_intensity = 0.0f;
@@ -115,7 +115,7 @@ void LightManager::Prepare(ModelObjects* model_objects) {
       mjrfLightParams params;
       mjrf_defaultLightParams(&params);
       params.type = mjLIGHT_IMAGE;
-      params.texture = model_objects->GetTexture(model->light_texid[i]);
+      params.texture = model_objects_->GetTexture(model->light_texid[i]);
       params.intensity = model->light_intensity[i];
       auto light_obj = CreateLight(ctx_, params);
       mjrf_addLightToScene(scene_, light_obj.get());
@@ -201,7 +201,29 @@ void LightManager::Prepare(ModelObjects* model_objects) {
     }
   }
 
-  mjrf_setSceneSkybox(scene_, model_objects->GetSkyboxTexture());
+  mjrf_setSceneSkybox(scene_, model_objects_->GetSkyboxTexture());
+}
+
+void LightManager::Update(const mjData* data) {
+  const mjModel* model = model_objects_->GetModel();
+  for (int i = 0; i <= model->nlight; ++i) {
+    // Light with index nlight is the headlight.
+    mjrfLight* light = lights_[i].get();
+    if (i == model->nlight) {
+      const float3 color = ReadFloat3(model->vis.headlight.diffuse);
+      mjrf_setLightColor(light, color.v);
+      mjrf_setLightEnabled(light, model->vis.headlight.active);
+    } else {
+      const float3 pos = ReadFloat3(data->light_xpos, i);
+      const float3 dir = ReadFloat3(data->light_xdir, i);
+      mjrf_setLightTransform(light, pos.v, dir.v);
+
+      const float3 color = ReadFloat3(model->light_diffuse, i);
+      mjrf_setLightColor(light, color.v);
+
+      mjrf_setLightEnabled(light, model->light_active[i]);
+    }
+  }
 }
 
 mjrfLight* LightManager::GetLight(int index) {
