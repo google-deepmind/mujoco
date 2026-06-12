@@ -38,6 +38,11 @@ ABSL_FLAG(std::string, screenshot, "",
           "binary PPM once the model has loaded, then exit.");
 ABSL_FLAG(int, screenshot_frame, 30,
           "Frame index at which the screenshot is captured.");
+ABSL_FLAG(std::string, capture_gif, "",
+          "If set, render headless and write one framebuffer PPM per frame "
+          "(frame_%04d.ppm) into this directory while running the scripted UI "
+          "capture, then exit. Assemble into a GIF with e.g. ImageMagick.");
+ABSL_FLAG(int, capture_frames, 200, "Number of frames to capture.");
 
 std::string Resolve(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
@@ -116,7 +121,8 @@ int main(int argc, char** argv, char** envp) {
   // happens in a headless graphics mode. Default to headless OpenGL if the
   // caller requested a screenshot without specifying a graphics mode.
   const std::string screenshot = absl::GetFlag(FLAGS_screenshot);
-  if (!screenshot.empty() && gfx.empty()) {
+  const std::string capture_gif = absl::GetFlag(FLAGS_capture_gif);
+  if ((!screenshot.empty() || !capture_gif.empty()) && gfx.empty()) {
     gfx = "opengl_headless";
   }
 
@@ -157,6 +163,17 @@ int main(int argc, char** argv, char** envp) {
     app.InitEmptyModel();
   } else {
     app.LoadModelFromFile(model_file);
+  }
+
+  // Scripted GIF capture: run the UI script headless, writing one PPM/frame.
+  if (!capture_gif.empty()) {
+    app.StartCapture(capture_gif, absl::GetFlag(FLAGS_capture_frames));
+    while (app.Update() && app.capture_active()) {
+      app.BuildGui();
+      app.Render();
+      app.SaveCaptureFrame();
+    }
+    return 0;
   }
 
   while (app.Update()) {

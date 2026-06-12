@@ -40,9 +40,14 @@ class CommandPalette {
   };
 
   void Open();
+  // Opens the palette pre-filled with `text` (e.g. ">Physics"); used by the
+  // capture script to show command-mode interactions.
+  void OpenWith(const std::string& text);
   void Close();
   void Toggle();
   bool is_open() const { return open_; }
+  // Center of the palette window from the last Draw (for the capture cursor).
+  ImVec2 window_center() const { return center_; }
 
   // Draws the palette (if open), horizontally centered near the top of `rect`
   // (x, y, width, height). `commands` is searched in '>' command mode.
@@ -53,6 +58,7 @@ class CommandPalette {
   bool focus_input_ = false;
   int selection_ = 0;
   char input_[256] = "";
+  ImVec2 center_{0.0f, 0.0f};
 };
 
 }  // namespace mujoco::studio

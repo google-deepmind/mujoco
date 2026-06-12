@@ -982,6 +982,11 @@ void App::BuildGui() {
     command_palette_.Draw(CollectCommands(), palette_rect);
   }
 
+  // Scripted GIF capture: advance the script and draw the synthetic cursor.
+  if (capture_.active) {
+    CaptureStep();
+  }
+
   if (tmp_.imgui_demo) {
     ImGui::ShowDemoWindow();
   }
@@ -1075,6 +1080,11 @@ void App::ToolRailGui(const ImVec4& workspace_rect) {
       ImGui::PushID(title);
       const bool clicked = ImGui::Button(icon, ImVec2(button, button));
       ImGui::PopID();
+      // Record the button center for the capture script's cursor targeting.
+      const ImVec2 lo = ImGui::GetItemRectMin();
+      const ImVec2 hi = ImGui::GetItemRectMax();
+      rail_button_center_[title] =
+          ImVec2((lo.x + hi.x) * 0.5f, (lo.y + hi.y) * 0.5f);
       if (active) {
         ImGui::PopStyleColor();
       }
@@ -1145,6 +1155,10 @@ void App::ToolWindowsGui(const ImVec4& workspace_rect) {
     if (ImGui::Begin(window_id, &tw.open)) {
       tw.render();
     }
+    // Record the window rect (x, y, w, h) for the capture script's cursor.
+    const ImVec2 wp = ImGui::GetWindowPos();
+    const ImVec2 ws = ImGui::GetWindowSize();
+    tool_window_rect_[tw.title] = ImVec4(wp.x, wp.y, ws.x, ws.y);
     ImGui::End();
   }
 }

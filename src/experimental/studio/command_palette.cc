@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cfloat>
+#include <cstddef>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -46,6 +48,13 @@ void CommandPalette::Open() {
   focus_input_ = true;
   selection_ = 0;
   input_[0] = '\0';
+}
+
+void CommandPalette::OpenWith(const std::string& text) {
+  Open();
+  const std::size_t n = std::min(text.size(), sizeof(input_) - 1);
+  std::memcpy(input_, text.data(), n);
+  input_[n] = '\0';
 }
 
 void CommandPalette::Close() { open_ = false; }
@@ -82,6 +91,8 @@ void CommandPalette::Draw(const std::vector<Command>& commands,
       ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoNavInputs;
 
   if (ImGui::Begin("##CommandPalette", nullptr, flags)) {
+    center_ = ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowSize().x * 0.5f,
+                     ImGui::GetWindowPos().y + ImGui::GetWindowSize().y * 0.5f);
     if (focus_input_) {
       ImGui::SetKeyboardFocusHere();
       focus_input_ = false;

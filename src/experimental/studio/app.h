@@ -39,6 +39,7 @@
 #include "experimental/platform/ux/picture_gui.h"
 #include "experimental/platform/ux/spec_editor.h"
 #include "experimental/studio/command_palette.h"
+#include "experimental/studio/ui_capture.h"
 
 namespace mujoco::studio {
 
@@ -98,6 +99,13 @@ class App {
 
   // Renders everything (e.g. the simulation and the GUI).
   void Render();
+
+  // Scripted, headless UI capture for GIFs (defined in ui_capture.cc). Begin a
+  // capture, then per frame call BuildGui()/Render()/SaveCaptureFrame() while
+  // capture_active() is true.
+  void StartCapture(const std::string& out_dir, int total_frames);
+  bool capture_active() const { return capture_.active; }
+  bool SaveCaptureFrame();
 
  private:
   // The kind of model that is currently loaded.
@@ -246,6 +254,11 @@ class App {
   };
   void RegisterToolWindows();
   std::vector<CommandPalette::Command> CollectCommands();
+  // Opens/closes a registered tool window by its title (used by the capture
+  // script and the command palette).
+  void ToggleToolWindowByName(const std::string& title);
+  // Runs the capture script + draws the synthetic cursor (called from BuildGui).
+  void CaptureStep();
 
   // Photoshop-style left rail of square icon buttons, and the floating tool
   // windows they open.
@@ -311,6 +324,12 @@ class App {
   // Registered rail/tool windows and the Ctrl+P command palette.
   std::vector<ToolWindow> tool_windows_;
   CommandPalette command_palette_;
+
+  // Capture/GIF state and the on-screen rects the script aims the cursor at
+  // (recorded each frame): rail button centers and open tool-window rects.
+  CaptureState capture_;
+  std::unordered_map<std::string, ImVec2> rail_button_center_;
+  std::unordered_map<std::string, ImVec4> tool_window_rect_;
 
   UiState ui_;
   UiTempState tmp_;
