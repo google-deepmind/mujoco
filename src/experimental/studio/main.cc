@@ -43,6 +43,9 @@ ABSL_FLAG(std::string, capture_gif, "",
           "(frame_%04d.ppm) into this directory while running the scripted UI "
           "capture, then exit. Assemble into a GIF with e.g. ImageMagick.");
 ABSL_FLAG(int, capture_frames, 200, "Number of frames to capture.");
+ABSL_FLAG(std::string, capture_script, "tools",
+          "Which scripted interaction to record: 'tools' (rail/palette window "
+          "toggling) or 'llm' (ask the LLM a question in the Ctrl+P box).");
 
 std::string Resolve(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
@@ -167,7 +170,12 @@ int main(int argc, char** argv, char** envp) {
 
   // Scripted GIF capture: run the UI script headless, writing one PPM/frame.
   if (!capture_gif.empty()) {
-    app.StartCapture(capture_gif, absl::GetFlag(FLAGS_capture_frames));
+    const std::string script = absl::GetFlag(FLAGS_capture_script);
+    const auto capture_script = (script == "llm")
+                                    ? mujoco::studio::CaptureScript::kLlm
+                                    : mujoco::studio::CaptureScript::kTools;
+    app.StartCapture(capture_gif, absl::GetFlag(FLAGS_capture_frames),
+                     capture_script);
     while (app.Update() && app.capture_active()) {
       app.BuildGui();
       app.Render();

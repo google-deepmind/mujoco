@@ -39,6 +39,8 @@
 #include "experimental/platform/ux/picture_gui.h"
 #include "experimental/platform/ux/spec_editor.h"
 #include "experimental/studio/command_palette.h"
+#include "experimental/studio/llm/llm_panel.h"
+#include "experimental/studio/llm/ui_agent.h"
 #include "experimental/studio/ui_capture.h"
 
 namespace mujoco::studio {
@@ -103,7 +105,8 @@ class App {
   // Scripted, headless UI capture for GIFs (defined in ui_capture.cc). Begin a
   // capture, then per frame call BuildGui()/Render()/SaveCaptureFrame() while
   // capture_active() is true.
-  void StartCapture(const std::string& out_dir, int total_frames);
+  void StartCapture(const std::string& out_dir, int total_frames,
+                    CaptureScript script = CaptureScript::kTools);
   bool capture_active() const { return capture_.active; }
   bool SaveCaptureFrame();
 
@@ -259,6 +262,8 @@ class App {
   void ToggleToolWindowByName(const std::string& title);
   // Runs the capture script + draws the synthetic cursor (called from BuildGui).
   void CaptureStep();
+  // The LLM "ask in the Ctrl+P box" capture timeline (CaptureScript::kLlm).
+  void CaptureStepLlm();
 
   // Photoshop-style left rail of square icon buttons, and the floating tool
   // windows they open.
@@ -324,6 +329,11 @@ class App {
   // Registered rail/tool windows and the Ctrl+P command palette.
   std::vector<ToolWindow> tool_windows_;
   CommandPalette command_palette_;
+
+  // LLM "ask" support: plain (non-'>') palette input is routed to ui_agent_ and
+  // the reply is rendered in the palette by llm_panel_.
+  UiAgent ui_agent_;
+  LlmPanel llm_panel_;
 
   // Capture/GIF state and the on-screen rects the script aims the cursor at
   // (recorded each frame): rail button centers and open tool-window rects.

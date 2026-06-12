@@ -168,24 +168,35 @@ it can *see* the result — observation, not a second actuator.) No direct
 ## 5. Control flow & data-dependent tasks
 
 A flat JSON program can't branch or loop ("set *every* hinge to zero" needs
-`for j in range(njnt)`). Three escalating answers, same `test_runner` seam:
+`for j in range(njnt)`), and it can't *see* whether a step worked. Four
+escalating answers, same `test_runner` seam — **add them in this order**:
 
 1. **Multi-turn agent loop (default, cheapest).** The model runs a short program
    that *observes* (e.g. `item_read`, or opens a window and reads it), gets the
    result back, then emits a concrete linear program. Control flow lives at the
    *turn* granularity — and we already have that loop. Covers most cases without
    any new machinery.
-2. **Embed Lua** (when linear-per-turn gets clumsy). The LLM writes Lua that calls
-   bindings into the Test Engine context; real loops/conditionals, still
-   sandboxed. `test_runner` swaps its JSON interpreter for a Lua VM behind the
-   same "execute a program" interface.
-3. **Embed Python via pybind11** (the maximal interpreter). The LLM writes Python
+2. **Vision in the loop (do this before Lua).** Feed rendered `pixels_` frames
+   back to the model as image input so it can verify a step landed, read values
+   off the screen (status bar, charts), and pursue visual goals ("it fell over —
+   reset it"). This is the bigger robustness win *and the cheaper build*: it
+   reuses the framebuffer readback we already have for capture, so it's localized
+   provider plumbing (encode + attach an image block) with no new subsystem.
+   Lua, by contrast, needs a new dependency, a hand-written binding layer, and a
+   tricky interaction with the Test Engine frame-yield coroutine — so vision
+   comes first.
+3. **Embed Lua** (when linear-per-turn gets clumsy). The LLM writes Lua that calls
+   bindings into the Test Engine context; real loops/conditionals, in-script
+   readback, still sandboxed. `test_runner` swaps its JSON interpreter for a Lua
+   VM behind the same "execute a program" interface.
+4. **Embed Python via pybind11** (the maximal interpreter). The LLM writes Python
    that drives a thin Test Engine binding — literally a preview of the end state
    (§6), de-risking the migration.
 
 The vocabulary/interpreter is a dial: JSON-ops is the minimum, embedded
 Python is the maximum, and `test_runner`'s contract ("run a program against the
-Test Engine") never changes as we slide along it.
+Test Engine") never changes as we slide along it. Vision is an orthogonal
+*observation* channel that improves every rung without changing the actuator.
 
 ---
 
@@ -284,9 +295,14 @@ scripted harness specifically to avoid this; for an LLM that must drive
 5. **GIF recording** of generated programs via the existing capture pipeline —
    "show me how to X" returns a clip.
 6. **Multi-turn observe→act** (`item_read` / Watch) for data-dependent tasks.
-7. **Gemini provider** to validate the abstraction.
-8. **Python**: swap the provider to the `anthropic` SDK and let `run_ui_program`
-   take Python driving the Test Engine binding. Single-actuator rule unchanged.
+7. **Vision in the loop.** Feed `pixels_` frames back to the model for
+   verification and visual goals — small change, reuses the capture path.
+   **Comes before Lua** (cheaper to build, bigger robustness win).
+8. **Lua (optional)** — only once per-step turn cost on bulk/iterative tasks
+   actually hurts; gives in-script loops/branches/readback.
+9. **Gemini provider** to validate the abstraction.
+10. **Python**: swap the provider to the `anthropic` SDK and let `run_ui_program`
+    take Python driving the Test Engine binding. Single-actuator rule unchanged.
 
 ---
 

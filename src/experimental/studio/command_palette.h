@@ -43,6 +43,9 @@ class CommandPalette {
   // Opens the palette pre-filled with `text` (e.g. ">Physics"); used by the
   // capture script to show command-mode interactions.
   void OpenWith(const std::string& text);
+  // Replaces the input text without opening/closing (used by the capture script
+  // to "type" a question one character at a time).
+  void SetText(const std::string& text);
   void Close();
   void Toggle();
   bool is_open() const { return open_; }
@@ -51,7 +54,14 @@ class CommandPalette {
 
   // Draws the palette (if open), horizontally centered near the top of `rect`
   // (x, y, width, height). `commands` is searched in '>' command mode.
-  void Draw(const std::vector<Command>& commands, const ImVec4& rect);
+  //
+  // Input that does NOT start with '>' is "ask" mode: pressing Enter calls
+  // `on_submit_plain(text)` (and clears the box, keeping it open), and
+  // `render_below` is invoked inside the palette window to draw the LLM
+  // conversation right in the Ctrl+P box. Both callbacks are optional.
+  void Draw(const std::vector<Command>& commands, const ImVec4& rect,
+            const std::function<void()>& render_below = {},
+            const std::function<void(const std::string&)>& on_submit_plain = {});
 
  private:
   bool open_ = false;

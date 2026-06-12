@@ -30,6 +30,14 @@ function(configure_studio_target TARGET_NAME)
             mujoco_logo.h
             ui_capture.cc
             ui_capture.h
+            llm/llm_claude.cc
+            llm/llm_claude.h
+            llm/llm_mock.h
+            llm/llm_panel.cc
+            llm/llm_panel.h
+            llm/llm_provider.h
+            llm/ui_agent.cc
+            llm/ui_agent.h
     )
 
     target_include_directories(${TARGET_NAME}
@@ -47,6 +55,8 @@ function(configure_studio_target TARGET_NAME)
             PROPERTIES
                 VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
         )
+        # WinHTTP transport for the Claude provider (llm/llm_claude.cc).
+        target_link_libraries(${TARGET_NAME} PRIVATE winhttp)
     endif()
 
     target_link_libraries(${TARGET_NAME}

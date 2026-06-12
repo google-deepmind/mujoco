@@ -57,6 +57,12 @@ void CommandPalette::OpenWith(const std::string& text) {
   input_[n] = '\0';
 }
 
+void CommandPalette::SetText(const std::string& text) {
+  const std::size_t n = std::min(text.size(), sizeof(input_) - 1);
+  std::memcpy(input_, text.data(), n);
+  input_[n] = '\0';
+}
+
 void CommandPalette::Close() { open_ = false; }
 
 void CommandPalette::Toggle() {
@@ -67,8 +73,10 @@ void CommandPalette::Toggle() {
   }
 }
 
-void CommandPalette::Draw(const std::vector<Command>& commands,
-                          const ImVec4& rect) {
+void CommandPalette::Draw(
+    const std::vector<Command>& commands, const ImVec4& rect,
+    const std::function<void()>& render_below,
+    const std::function<void(const std::string&)>& on_submit_plain) {
   if (!open_) {
     return;
   }
@@ -102,8 +110,20 @@ void CommandPalette::Draw(const std::vector<Command>& commands,
         "##cmdinput", "Type  >  for commands...", input_, sizeof(input_),
         ImGuiInputTextFlags_EnterReturnsTrue);
 
+    const bool command_mode = (input_[0] == '>');
+
+    // Ask mode: plain (non-'>') text submitted with Enter goes to the LLM. The
+    // box clears but stays open so the answer can render below.
+    if (entered && !command_mode && input_[0] != '\0') {
+      if (on_submit_plain) {
+        on_submit_plain(std::string(input_));
+      }
+      input_[0] = '\0';
+      focus_input_ = true;
+    }
+
     // Command mode is entered by typing '>' as the first character.
-    if (input_[0] == '>') {
+    if (command_mode) {
       const std::string query(input_ + 1);
 
       std::vector<const Command*> matches;
@@ -143,6 +163,9 @@ void CommandPalette::Draw(const std::vector<Command>& commands,
           Close();
         }
       }
+    } else if (render_below) {
+      // Ask mode: draw the LLM conversation inside the palette window.
+      render_below();
     }
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {

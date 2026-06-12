@@ -26,11 +26,18 @@ namespace mujoco::studio {
 // in ui_capture.cc). This is a lightweight stand-in for the Dear ImGui Test
 // Engine: it scripts the app's own state + a synthetic cursor rather than
 // injecting real input, which keeps it self-contained and headless-friendly.
+// Which scripted interaction to record.
+enum class CaptureScript {
+  kTools,  // open/close tool windows via the rail and the command palette.
+  kLlm,    // ask the LLM a question in the Ctrl+P box and show the reply.
+};
+
 struct CaptureState {
   bool active = false;
   std::string out_dir;   // directory for frame_%04d.ppm
   int frame = 0;         // current capture frame index
   int total_frames = 0;  // stop after this many frames
+  CaptureScript script = CaptureScript::kTools;
 
   ImVec2 cursor{-100.0f, -100.0f};  // synthetic cursor, screen space
   float click_flash = 0.0f;         // >0 draws a click ring, decays per frame

@@ -21,9 +21,12 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdio>
+#include <memory>
 #include <string>
 
 #include <imgui.h>
+
+#include "experimental/studio/llm/llm_mock.h"
 
 namespace mujoco::studio {
 
@@ -36,13 +39,23 @@ void App::ToggleToolWindowByName(const std::string& title) {
   }
 }
 
-void App::StartCapture(const std::string& out_dir, int total_frames) {
+void App::StartCapture(const std::string& out_dir, int total_frames,
+                       CaptureScript script) {
   capture_.active = true;
   capture_.out_dir = out_dir;
   capture_.frame = 0;
   capture_.total_frames = total_frames;
+  capture_.script = script;
   capture_.cursor = ImVec2(-100.0f, -100.0f);
   capture_.click_flash = 0.0f;
+
+  if (script == CaptureScript::kLlm) {
+    // Deterministic, offline capture: run the agent inline with the mock
+    // provider so the reply is ready on the next frame and reveals frame-by-
+    // frame (no network, no thread timing in the recording).
+    ui_agent_.set_provider(std::make_unique<MockProvider>());
+    ui_agent_.set_synchronous(true);
+  }
 }
 
 bool App::SaveCaptureFrame() {
@@ -68,7 +81,45 @@ bool App::SaveCaptureFrame() {
   return capture_.active;
 }
 
+void App::CaptureStepLlm() {
+  CaptureState& c = capture_;
+  const int f = c.frame;
+
+  // The question we "type" into the Ctrl+P box.
+  static const std::string kQuestion = "make gravity weaker";
+
+  // Phase 0: open the command palette.
+  if (f == 8) command_palette_.Open();
+
+  // Phase 1: type the question one character at a time (frames 12..12+N).
+  constexpr int kTypeStart = 12;
+  if (f >= kTypeStart &&
+      f <= kTypeStart + static_cast<int>(kQuestion.size())) {
+    const int n = f - kTypeStart;
+    command_palette_.SetText(kQuestion.substr(0, n));
+  }
+
+  // Phase 2: "press Enter" -> submit to the (synchronous, mock) agent and clear
+  // the input. The reply renders + reveals over the following frames.
+  const int kSubmit = kTypeStart + static_cast<int>(kQuestion.size()) + 6;
+  if (f == kSubmit) {
+    ui_agent_.Ask(kQuestion);
+    command_palette_.SetText("");
+  }
+
+  // Phase 3: linger on the answer, then close the palette near the end.
+  if (f == c.total_frames - 12) command_palette_.Close();
+
+  // No synthetic cursor for the typing demo; the box + reveal tell the story.
+  c.cursor = ImVec2(-100.0f, -100.0f);
+}
+
 void App::CaptureStep() {
+  if (capture_.script == CaptureScript::kLlm) {
+    CaptureStepLlm();
+    return;
+  }
+
   CaptureState& c = capture_;
   const int f = c.frame;
 

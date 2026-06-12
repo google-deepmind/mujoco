@@ -975,11 +975,15 @@ void App::BuildGui() {
   // Ctrl+P command palette, drawn last so it sits on top. Commands are only
   // gathered while it is open. Centered on the screen, 10px below the top
   // transport overlay (so it lines up with that bar).
+  ui_agent_.Poll();
   if (command_palette_.is_open()) {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     const ImVec4 palette_rect(vp->WorkPos.x, tmp_.top_overlay_bottom + 10.0f,
                               vp->WorkSize.x, workspace_rect.w);
-    command_palette_.Draw(CollectCommands(), palette_rect);
+    command_palette_.Draw(
+        CollectCommands(), palette_rect,
+        [this] { llm_panel_.Render(ui_agent_); },
+        [this](const std::string& q) { ui_agent_.Ask(q); });
   }
 
   // Scripted GIF capture: advance the script and draw the synthetic cursor.
