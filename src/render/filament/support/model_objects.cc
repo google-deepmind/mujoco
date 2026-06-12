@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/compat/model_objects.h"
+#include "render/filament/support/model_objects.h"
 
 #include <algorithm>
 #include <cfloat>

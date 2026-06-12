@@ -55,6 +55,10 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         core/texture.h
         support/filament_util.h
         support/filament_util.cc
+        support/light_manager.h
+        support/light_manager.cc
+        support/model_objects.h
+        support/model_objects.cc
 )
 
 target_include_directories(${MUJOCO_FILAMENT_TARGET_NAME}

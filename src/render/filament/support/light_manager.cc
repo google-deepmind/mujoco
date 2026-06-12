@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/filament/compat/light_manager.h"
+#include "render/filament/support/light_manager.h"
 
 #include <memory>
 #include <string>
@@ -23,10 +23,10 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/compat/model_objects.h"
 #include "render/filament/mjrfilament_cpp.h"
 #include "render/filament/mjrfilament.h"
 #include "render/filament/support/filament_util.h"
+#include "render/filament/support/model_objects.h"
 
 namespace mujoco {
 

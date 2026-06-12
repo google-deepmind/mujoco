@@ -21,10 +21,6 @@ target_compile_definitions(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME} PRIVATE M
 
 target_sources(${MUJOCO_FILAMENT_EXPERIMENTAL_TARGET_NAME}
     PUBLIC
-        compat/light_manager.cc
-        compat/light_manager.h
-        compat/model_objects.cc
-        compat/model_objects.h
         compat/scene_bridge.cc
         compat/scene_bridge.h
         compat/scene_geom_util.cc

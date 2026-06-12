@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_LIGHT_MANAGER_H_
-#define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_LIGHT_MANAGER_H_
+#ifndef MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_LIGHT_MANAGER_H_
+#define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_LIGHT_MANAGER_H_
 
 #include <vector>
 
-#include "experimental/filament/compat/model_objects.h"
 #include "render/filament/mjrfilament.h"
 #include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/model_objects.h"
 
 namespace mujoco {
 
-// Manages Light entities for an mjrfScene using data from an mjvScene.
+// Manages Light entities for an mjrfScene.
 class LightManager {
  public:
   LightManager(mjrfContext* ctx, mjrfScene* scene, ModelObjects* model_objects);
@@ -53,4 +53,4 @@ class LightManager {
 
 }  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_LIGHT_MANAGER_H_
+#endif  // MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_LIGHT_MANAGER_H_
