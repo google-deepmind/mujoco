@@ -244,6 +244,7 @@ class App {
   void SetupTheme(platform::GuiTheme theme);
 
   void MainMenuGui();
+  void GraphicsModeMenu();
   void ToolBarGui();
   void HelpGui();
   void FileDialogGui();

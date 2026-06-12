@@ -1053,19 +1053,22 @@ void App::ToolRailGui(const ImVec4& workspace_rect) {
 
   const float button = ImGui::GetFrameHeight() * 1.6f;  // square icon button
   constexpr int kColumns = 2;
-  const float rail_width = RailWidth();
 
-  // Pin the rail to the left edge of the workspace, spanning the area between
-  // the toolbar and the status bar.
-  const ImGuiViewport* viewport = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, workspace_rect.y));
-  ImGui::SetNextWindowSize(ImVec2(rail_width, workspace_rect.w));
+  // Float the rail vertically centered on the left, auto-sized to just contain
+  // its buttons, and inset a little from the left edge (matches the scrubber).
+  constexpr float kRailInsetX = 10.0f;
+  ImGui::SetNextWindowPos(
+      ImVec2(workspace_rect.x + kRailInsetX,
+             workspace_rect.y + workspace_rect.w * 0.5f),
+      ImGuiCond_Always, ImVec2(0.0f, 0.5f));
+  ImGui::SetNextWindowBgAlpha(0.65f);  // translucent, like the other overlays
 
   const ImGuiWindowFlags flags =
       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
       ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking |
       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-      ImGuiWindowFlags_NoBringToFrontOnFocus;
+      ImGuiWindowFlags_NoBringToFrontOnFocus |
+      ImGuiWindowFlags_AlwaysAutoResize;
 
   if (ImGui::Begin("##ToolRail", nullptr, flags)) {
     // Lay out square icon buttons in a 2-column grid. `active` highlights the
@@ -1661,6 +1664,59 @@ void App::StatusOverlayGui(const ImVec4& workspace_rect) {
   ImGui::End();
 }
 
+void App::GraphicsModeMenu() {
+#ifdef __linux__
+  if (ImGui::BeginMenu("Graphics Mode (Experimental)")) {
+    std::optional<platform::GraphicsMode> mode;
+    if (ImGui::MenuItem("Classic OpenGL", nullptr,
+                        gfx_mode_ == platform::GraphicsMode::ClassicOpenGl)) {
+      mode = platform::GraphicsMode::ClassicOpenGl;
+    }
+    if (ImGui::MenuItem(
+            "Classic OpenGL Headless", nullptr,
+            gfx_mode_ == platform::GraphicsMode::ClassicOpenGlHeadless)) {
+      mode = platform::GraphicsMode::ClassicOpenGlHeadless;
+    }
+    if (ImGui::MenuItem("Filament OpenGL", nullptr,
+                        gfx_mode_ == platform::GraphicsMode::FilamentOpenGl)) {
+      mode = platform::GraphicsMode::FilamentOpenGl;
+    }
+    if (ImGui::MenuItem(
+            "Filament OpenGL Headless", nullptr,
+            gfx_mode_ == platform::GraphicsMode::FilamentOpenGlHeadless)) {
+      mode = platform::GraphicsMode::FilamentOpenGlHeadless;
+    }
+    if (ImGui::MenuItem(
+            "Filament OpenGL Software", nullptr,
+            gfx_mode_ == platform::GraphicsMode::FilamentOpenGlSoftware)) {
+      mode = platform::GraphicsMode::FilamentOpenGlSoftware;
+    }
+    if (ImGui::MenuItem("Filament Vulkan", nullptr,
+                        gfx_mode_ == platform::GraphicsMode::FilamentVulkan)) {
+      mode = platform::GraphicsMode::FilamentVulkan;
+    }
+    if (ImGui::MenuItem(
+            "Filament Vulkan Software", nullptr,
+            gfx_mode_ == platform::GraphicsMode::FilamentVulkanSoftware)) {
+      mode = platform::GraphicsMode::FilamentVulkanSoftware;
+    }
+    if (mode.has_value()) {
+      pending_op_ = [=, this]() {
+        const int width = window_->GetWidth();
+        const int height = window_->GetHeight();
+        SwitchGraphicsMode(width, height, *mode);
+        // TODO: figure out why ImGui doesn't work unless we do this twice.
+        if (IsClassic(*mode)) {
+          SwitchGraphicsMode(width, height, *mode);
+        }
+        renderer_->Init(model());
+      };
+    }
+    ImGui::EndMenu();
+  }
+#endif  // __linux__
+}
+
 void App::MainMenuGui() {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
@@ -1710,6 +1766,17 @@ void App::MainMenuGui() {
         ImGui::EndDisabled();
         ImGui::SetItemTooltip("%s",
                               "Number of worker threads used to step the model");
+
+        GraphicsModeMenu();
+
+        ImGui::Separator();
+        if (ImGui::MenuItem("Save Config")) {
+          SaveSettings();
+        }
+        if (ImGui::MenuItem("Reset Config")) {
+          platform::SaveText("\n\n", ini_path_);
+          LoadSettings();
+        }
         ImGui::EndMenu();
       }
       ImGui::EndMenu();
@@ -1752,15 +1819,6 @@ void App::MainMenuGui() {
     }
 
     if (ImGui::BeginMenu("View")) {
-      if (ImGui::MenuItem("Save Config")) {
-        SaveSettings();
-      }
-      if (ImGui::MenuItem("Reset Config")) {
-        platform::SaveText("\n\n", ini_path_);
-        LoadSettings();
-      }
-      ImGui::Separator();
-
       if (ImGui::MenuItem(tmp_.options_panel ? "Hide Tools" : "Show Tools",
                           "Tab")) {
         tmp_.options_panel = !tmp_.options_panel;
@@ -1770,74 +1828,20 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
-      if (ImGui::MenuItem("Picture-in-Picture")) {
-        tmp_.picture_in_picture = !tmp_.picture_in_picture;
-      }
-      ImGui::Separator();
-
-#ifdef __linux__
-      if (ImGui::BeginMenu("Graphics Mode (Experimental)")) {
-        std::optional<platform::GraphicsMode> mode;
-        if (ImGui::MenuItem(
-                "Classic OpenGL", nullptr,
-                gfx_mode_ == platform::GraphicsMode::ClassicOpenGl)) {
-          mode = platform::GraphicsMode::ClassicOpenGl;
-        }
-        if (ImGui::MenuItem(
-                "Classic OpenGL Headless", nullptr,
-                gfx_mode_ == platform::GraphicsMode::ClassicOpenGlHeadless)) {
-          mode = platform::GraphicsMode::ClassicOpenGlHeadless;
-        }
-        if (ImGui::MenuItem(
-                "Filament OpenGL", nullptr,
-                gfx_mode_ == platform::GraphicsMode::FilamentOpenGl)) {
-          mode = platform::GraphicsMode::FilamentOpenGl;
-        }
-        if (ImGui::MenuItem(
-                "Filament OpenGL Headless", nullptr,
-                gfx_mode_ == platform::GraphicsMode::FilamentOpenGlHeadless)) {
-          mode = platform::GraphicsMode::FilamentOpenGlHeadless;
-        }
-        if (ImGui::MenuItem(
-                "Filament OpenGL Software", nullptr,
-                gfx_mode_ == platform::GraphicsMode::FilamentOpenGlSoftware)) {
-          mode = platform::GraphicsMode::FilamentOpenGlSoftware;
-        }
-        if (ImGui::MenuItem(
-                "Filament Vulkan", nullptr,
-                gfx_mode_ == platform::GraphicsMode::FilamentVulkan)) {
-          mode = platform::GraphicsMode::FilamentVulkan;
-        }
-        if (ImGui::MenuItem(
-                "Filament Vulkan Software", nullptr,
-                gfx_mode_ == platform::GraphicsMode::FilamentVulkanSoftware)) {
-          mode = platform::GraphicsMode::FilamentVulkanSoftware;
-        }
-        if (mode.has_value()) {
-          pending_op_ = [=, this]() {
-            const int width = window_->GetWidth();
-            const int height = window_->GetHeight();
-            SwitchGraphicsMode(width, height, *mode);
-            // TODO: figure out why ImGui doesn't work unless we do this twice.
-            if (IsClassic(*mode)) {
-              SwitchGraphicsMode(width, height, *mode);
-            }
-            renderer_->Init(model());
-          };
-        }
-        ImGui::EndMenu();
-      }
-#endif  // __linux__
-
-      ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("Charts")) {
-      if (ImGui::MenuItem("Profiler", "F3")) {
+      // Diagnostics / secondary windows.
+      if (ImGui::MenuItem("Profiler", "F3", tmp_.profiler)) {
         ToggleWindow(tmp_.profiler);
       }
+      if (ImGui::MenuItem("Stats", "F2", tmp_.stats)) {
+        ToggleWindow(tmp_.stats);
+      }
+      if (ImGui::MenuItem("Picture-in-Picture", nullptr,
+                          tmp_.picture_in_picture)) {
+        tmp_.picture_in_picture = !tmp_.picture_in_picture;
+      }
       ImGui::EndMenu();
     }
+
     if (ImGui::BeginMenu("Plugins")) {
       // Placeholder menu item that will be populated by plugins later on. We
       // do this now in so that the menu is present at the right place.
@@ -1847,19 +1851,18 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("Help", "F1", tmp_.help)) {
         ToggleWindow(tmp_.help);
       }
-      if (ImGui::MenuItem("Stats", "F2", tmp_.stats)) {
-        ToggleWindow(tmp_.stats);
-      }
       ImGui::Separator();
-      if (ImGui::MenuItem("Style Editor", "", tmp_.style_editor)) {
-        tmp_.style_editor = !tmp_.style_editor;
-      }
-      ImGui::Separator();
-      if (ImGui::MenuItem("ImGui Demo")) {
-        tmp_.imgui_demo = !tmp_.imgui_demo;
-      }
-      if (ImGui::MenuItem("ImPlot Demo")) {
-        tmp_.implot_demo = !tmp_.implot_demo;
+      if (ImGui::BeginMenu("Developer")) {
+        if (ImGui::MenuItem("Style Editor", nullptr, tmp_.style_editor)) {
+          tmp_.style_editor = !tmp_.style_editor;
+        }
+        if (ImGui::MenuItem("ImGui Demo", nullptr, tmp_.imgui_demo)) {
+          tmp_.imgui_demo = !tmp_.imgui_demo;
+        }
+        if (ImGui::MenuItem("ImPlot Demo", nullptr, tmp_.implot_demo)) {
+          tmp_.implot_demo = !tmp_.implot_demo;
+        }
+        ImGui::EndMenu();
       }
       ImGui::Separator();
       std::string version = "Version " + std::string(mj_versionString());
