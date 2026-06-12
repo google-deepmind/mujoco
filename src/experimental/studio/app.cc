@@ -1537,24 +1537,10 @@ void App::HelpGui() {
 }
 
 void App::ToolBarGui() {
-  platform::ScopedStyle style;
-  style.Var(ImGuiStyleVar_ItemSpacing,
-            ImVec2(ImGui::GetStyle().ItemSpacing.x * 2.0f,
-                   ImGui::GetStyle().ItemSpacing.y));
-  // Gap between logical groups (transport | threads | view selectors).
-  const float group_gap = ImGui::GetFrameHeight();
-
-  // Transport: combined (Normal Pause, Viscous Pause, Play) widget + speed.
+  // Transport only: combined (Normal Pause, Viscous Pause, Play) widget + speed.
+  // The view-display selectors (camera/label/frame) live on the menu bar, and
+  // engine settings (threadpool size) live in Edit > Preferences.
   platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
-
-  // View display selectors. (Engine settings like the threadpool size live in
-  // Edit > Preferences, not on this transport bar.)
-  ImGui::SameLine(0, group_gap);
-  platform::CameraSelectionGui(model(), data(), camera_, ui_.camera_idx);
-  ImGui::SameLine();
-  platform::LabelSelectionGui(&vis_options_);
-  ImGui::SameLine();
-  platform::FrameSelectionGui(&vis_options_);
 }
 
 namespace {
@@ -1913,12 +1899,27 @@ void App::MainMenuGui() {
       ImGui::EndMenu();
     }
 
-    // Theme selector, right-aligned on the menu bar. ThemeSelectGui cycles
-    // Light -> Dark -> Classic on click and shows the current theme's icon.
-    const float theme_btn_w = ImGui::GetFrameHeight();
-    ImGui::SameLine(ImGui::GetWindowWidth() - theme_btn_w -
-                    ImGui::GetStyle().FramePadding.x * 2.0f);
-    if (platform::ThemeSelectGui(&ui_.theme, ImVec2(theme_btn_w, 0))) {
+    // Right-aligned cluster of view-display selectors followed by the theme
+    // selector. CameraSelectionGui is [copy button + combo]; the Label/Frame
+    // selectors are a single combo each (all combos use GetExpectedLabelWidth);
+    // the theme button is one frame wide. Pre-compute the cluster width so it
+    // hugs the right edge of the menu bar.
+    const ImGuiStyle& menu_style = ImGui::GetStyle();
+    const float frame_h = ImGui::GetFrameHeight();
+    const float label_w = platform::GetExpectedLabelWidth();
+    const float cluster_w =
+        2.0f * frame_h + 3.0f * label_w + 3.0f * menu_style.ItemSpacing.x;
+    ImGui::SameLine(ImGui::GetWindowWidth() - cluster_w -
+                    menu_style.FramePadding.x * 2.0f);
+
+    platform::CameraSelectionGui(model(), data(), camera_, ui_.camera_idx);
+    ImGui::SameLine();
+    platform::LabelSelectionGui(&vis_options_);
+    ImGui::SameLine();
+    platform::FrameSelectionGui(&vis_options_);
+    ImGui::SameLine();
+    // Theme selector: cycles Light -> Dark -> Classic and shows its icon.
+    if (platform::ThemeSelectGui(&ui_.theme, ImVec2(frame_h, 0))) {
       platform::SetupTheme(ui_.theme);
       ImGui::GetIO().WantSaveIniSettings = true;
     }
