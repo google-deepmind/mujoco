@@ -48,6 +48,7 @@
 #include "experimental/platform/ux/interaction.h"
 #include "experimental/platform/ux/picture_gui.h"
 #include "experimental/platform/ux/plugin.h"
+#include "experimental/studio/mujoco_logo.h"
 
 namespace mujoco::studio {
 
@@ -107,6 +108,8 @@ void App::SwitchGraphicsMode(int width, int height,
   renderer_.reset();
   window_.reset();
   gfx_mode_ = mode;
+  // The renderer owns GPU textures; force the logo to re-upload on the new one.
+  logo_texture_ = 0;
 
   platform::Window::Config window_config;
   window_config.gfx_mode = gfx_mode_;
@@ -1767,6 +1770,17 @@ void App::GraphicsModeMenu() {
 
 void App::MainMenuGui() {
   if (ImGui::BeginMainMenuBar()) {
+    // MuJoCo logo in a square to the left of the File menu. Uploaded lazily
+    // (the renderer must exist) and kept square at the menu-bar height.
+    if (logo_texture_ == 0) {
+      logo_texture_ = renderer_->UploadImage(
+          0, reinterpret_cast<const std::byte*>(kMujocoLogoRgba),
+          kMujocoLogoWidth, kMujocoLogoHeight, 4);
+    }
+    const float logo_size = ImGui::GetFrameHeight();
+    ImGui::Image(logo_texture_, ImVec2(logo_size, logo_size));
+    ImGui::SameLine();
+
     if (ImGui::BeginMenu("File")) {
 #ifndef __EMSCRIPTEN__
       if (ImGui::MenuItem("Open Model File", "Ctrl+O")) {

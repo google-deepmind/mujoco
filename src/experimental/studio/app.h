@@ -295,6 +295,10 @@ class App {
   std::vector<std::string> search_paths_;
   std::vector<std::byte> pixels_;
 
+  // ImGui texture id for the MuJoCo logo on the menu bar. Uploaded lazily and
+  // reset to 0 on a graphics-mode switch (which recreates the renderer).
+  int logo_texture_ = 0;
+
   // Auto-screenshot capture (see Config::screenshot_path).
   std::string screenshot_path_;
   int screenshot_frame_ = 30;

@@ -27,6 +27,7 @@ function(configure_studio_target TARGET_NAME)
             app.h
             command_palette.cc
             command_palette.h
+            mujoco_logo.h
     )
 
     target_include_directories(${TARGET_NAME}
