@@ -238,11 +238,12 @@ ImVec4 ConfigureDockingLayout() {
   const float kOptionsRelWidth = 0.22f;
   const float kInspectorRelWidth = 0.22f;
   const float kStatsRelHeight = 0.3f;
-  // The toolbar and status bar are drawn as translucent overlays on top of the
-  // viewport (App::TopOverlayGui / ScrubberOverlayGui / StatusOverlayGui), so no
-  // strips are reserved; the dockspace fills the whole area below the menu bar.
+  // The toolbar is a translucent overlay on the viewport (App::TopOverlayGui),
+  // so no top strip is reserved. The status bar is a real bar pinned to the
+  // bottom (App::StatusBarGui), so reserve a strip the height of one frame for
+  // it; the dockspace fills the area between the menu bar and the status bar.
   const float kToolsBarHeight = 0.f;
-  const float kStatusBarHeight = 0.f;
+  const float kStatusBarHeight = ImGui::GetFrameHeight();
 
   const ImVec2 dockspace_pos{viewport->WorkPos.x,
                              viewport->WorkPos.y + kToolsBarHeight};

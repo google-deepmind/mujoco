@@ -25,6 +25,8 @@ function(configure_studio_target TARGET_NAME)
         PRIVATE
             app.cc
             app.h
+            command_palette.cc
+            command_palette.h
     )
 
     target_include_directories(${TARGET_NAME}

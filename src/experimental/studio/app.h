@@ -38,6 +38,7 @@
 #include "experimental/platform/ux/interaction.h"
 #include "experimental/platform/ux/picture_gui.h"
 #include "experimental/platform/ux/spec_editor.h"
+#include "experimental/studio/command_palette.h"
 
 namespace mujoco::studio {
 
@@ -148,26 +149,6 @@ class App {
     float editor_split = -1;
     float explorer_split = -1;
 
-    // Left icon-rail tool panels. Each entry corresponds to one square button in
-    // the rail that toggles a floating window holding the UI that previously
-    // lived as a collapsing section in the Options/Inspector side panels. Keep
-    // this enum in sync with kToolPanelDefs in app.cc.
-    enum ToolPanel {
-      ToolPanel_Physics,
-      ToolPanel_Rendering,
-      ToolPanel_Groups,
-      ToolPanel_Visualization,
-      ToolPanel_Joints,
-      ToolPanel_Controls,
-      ToolPanel_Sensor,
-      ToolPanel_Watch,
-      ToolPanel_State,
-      ToolPanel_Explorer,
-      ToolPanel_Editor,
-      ToolPanel_Count,
-    };
-    bool tool_open[ToolPanel_Count] = {};
-
     // Controls.
     bool perturb_active = false;
     int speed_index = 0;
@@ -248,18 +229,32 @@ class App {
   void ToolBarGui();
   void HelpGui();
   void FileDialogGui();
+
+  // A floating tool window surfaced as a rail button and a command-palette
+  // entry. Registering one is just appending {icon, title, render} to
+  // tool_windows_ (see RegisterToolWindows) -- this is the seam a future Python
+  // binding would use to add windows from script. `title` is reused as the
+  // button tooltip, the window title, and the command-palette name.
+  struct ToolWindow {
+    const char* icon = nullptr;
+    std::string title;
+    std::function<void()> render;
+    bool open = false;
+  };
+  void RegisterToolWindows();
+  std::vector<CommandPalette::Command> CollectCommands();
+
   // Photoshop-style left rail of square icon buttons, and the floating tool
-  // windows they open (one per UiTempState::ToolPanel).
+  // windows they open.
   void ToolRailGui(const ImVec4& workspace_rect);
   void ToolWindowsGui(const ImVec4& workspace_rect);
-  void ToolPanelContent(int tool_panel);
   // DCC-style translucent overlays drawn on top of the viewport: a top bar with
-  // transport + view controls, a vertical frame scrubber flush to the right
-  // edge, and a small status readout. RailWidth/ScrubberWidth give the reserved
-  // gutters so the overlays don't overlap the rail or each other.
+  // transport + view controls, and a vertical frame scrubber flush to the right
+  // edge. RailWidth/ScrubberWidth give the gutters so overlays don't overlap.
   void TopOverlayGui(const ImVec4& workspace_rect);
   void ScrubberOverlayGui(const ImVec4& workspace_rect);
-  void StatusOverlayGui(const ImVec4& workspace_rect);
+  // Bottom status bar, styled like the top menu bar (status text right-aligned).
+  void StatusBarGui();
   float RailWidth() const;
   float ScrubberWidth() const;
   void SpecExplorerGui();
@@ -305,6 +300,10 @@ class App {
   mjvCamera camera_;
   mjvPerturb perturb_;
   mjvOption vis_options_;
+
+  // Registered rail/tool windows and the Ctrl+P command palette.
+  std::vector<ToolWindow> tool_windows_;
+  CommandPalette command_palette_;
 
   UiState ui_;
   UiTempState tmp_;

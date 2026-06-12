@@ -81,29 +81,6 @@ static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
 static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
-// Icon + title for each left-rail tool panel. Order must match
-// UiTempState::ToolPanel. Icons are FontAwesome 4 glyphs chosen to evoke each
-// panel's name (gears=physics, cube=rendering, object-group=visibility groups,
-// eye=visualization, link=joints, sliders=controls, rss=sensor signal,
-// binoculars=watch, table=state vector, sitemap=explorer tree, pencil=editor).
-struct ToolPanelDef {
-  const char* icon;
-  const char* title;
-};
-constexpr ToolPanelDef kToolPanelDefs[] = {
-    {platform::ICON_FA_COGS, "Physics"},
-    {platform::ICON_FA_CUBE, "Rendering"},
-    {platform::ICON_FA_OBJECT_GROUP, "Visibility Groups"},
-    {platform::ICON_FA_EYE, "Visualization"},
-    {platform::ICON_FA_LINK, "Joints"},
-    {platform::ICON_FA_SLIDERS, "Controls"},
-    {platform::ICON_FA_RSS, "Sensor"},
-    {platform::ICON_FA_BINOCULARS, "Watch"},
-    {platform::ICON_FA_TABLE, "State"},
-    {platform::ICON_FA_SITEMAP, "Explorer"},
-    {platform::ICON_FA_PENCIL, "Editor"},
-};
-
 App::App(Config config)
     : app_title_(std::move(config.title)),
       ini_path_(std::move(config.ini_path)),
@@ -121,6 +98,7 @@ App::App(Config config)
   mjv_defaultCamera(&camera_);
   mjv_defaultOption(&vis_options_);
 
+  RegisterToolWindows();
   profiler_.Clear();
 }
 
@@ -636,7 +614,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_D | ImGuiMod_Ctrl)) {
     tmp_.file_dialog = UiTempState::FileDialog_PrintData;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_P | ImGuiMod_Ctrl)) {
-    tmp_.file_dialog = UiTempState::FileDialog_SaveScreenshot;
+    command_palette_.Toggle();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_C | ImGuiMod_Ctrl)) {
     std::string keyframe = platform::KeyframeToString(model(), data(), false);
     platform::MaybeSaveToClipboard(keyframe);
@@ -902,13 +880,12 @@ void App::BuildGui() {
 
   MainMenuGui();
 
-  // DCC-style translucent overlays on top of the viewport, replacing the old
-  // docked toolbar / status-bar strips: transport + view controls along the
-  // top, a vertical frame scrubber flush to the right edge, and a small status
-  // readout in the bottom-left.
+  // DCC-style translucent overlays on top of the viewport (transport + view
+  // controls along the top, a vertical frame scrubber on the right) plus a
+  // menu-bar-styled status bar pinned to the bottom.
   TopOverlayGui(workspace_rect);
   ScrubberOverlayGui(workspace_rect);
-  StatusOverlayGui(workspace_rect);
+  StatusBarGui();
 
   // Feature documentation: the old "Options" and "Inspector" side panels
   // reserved two wide fixed columns even when their collapsing sections were
@@ -992,6 +969,12 @@ void App::BuildGui() {
 
   FileDialogGui();
 
+  // Ctrl+P command palette, drawn last so it sits on top. Commands are only
+  // gathered while it is open.
+  if (command_palette_.is_open()) {
+    command_palette_.Draw(CollectCommands(), workspace_rect);
+  }
+
   if (tmp_.imgui_demo) {
     ImGui::ShowDemoWindow();
   }
@@ -1048,9 +1031,6 @@ float App::ScrubberWidth() const {
 }
 
 void App::ToolRailGui(const ImVec4& workspace_rect) {
-  static_assert(IM_ARRAYSIZE(kToolPanelDefs) == UiTempState::ToolPanel_Count,
-                "kToolPanelDefs must have one entry per ToolPanel");
-
   const float button = ImGui::GetFrameHeight() * 1.6f;  // square icon button
   constexpr int kColumns = 2;
 
@@ -1107,11 +1087,10 @@ void App::ToolRailGui(const ImVec4& workspace_rect) {
     ImGui::Separator();
     slot = 0;
 
-    // Group 1: model + data tool panels (each opens a floating tool window).
-    for (int i = 0; i < UiTempState::ToolPanel_Count; ++i) {
-      if (icon_button(kToolPanelDefs[i].icon, kToolPanelDefs[i].title,
-                      tmp_.tool_open[i])) {
-        tmp_.tool_open[i] = !tmp_.tool_open[i];
+    // Group 1: registered tool windows (each opens a floating tool window).
+    for (ToolWindow& tw : tool_windows_) {
+      if (icon_button(tw.icon, tw.title.c_str(), tw.open)) {
+        tw.open = !tw.open;
       }
     }
 
@@ -1138,8 +1117,9 @@ void App::ToolRailGui(const ImVec4& workspace_rect) {
 void App::ToolWindowsGui(const ImVec4& workspace_rect) {
   const float rail_width = RailWidth();
 
-  for (int i = 0; i < UiTempState::ToolPanel_Count; ++i) {
-    if (!tmp_.tool_open[i]) {
+  for (int i = 0; i < static_cast<int>(tool_windows_.size()); ++i) {
+    ToolWindow& tw = tool_windows_[i];
+    if (!tw.open) {
       continue;
     }
     // Cascade newly opened windows just to the right of the rail.
@@ -1149,81 +1129,110 @@ void App::ToolWindowsGui(const ImVec4& workspace_rect) {
                workspace_rect.y + 8.0f + offset),
         ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(320, 360), ImGuiCond_FirstUseEver);
-    // Give each window a stable, unique ImGui id via the "###" suffix so the
-    // windows are not captured by ConfigureDockingLayout's name-based docking
-    // of the old "Explorer"/"Editor" side panels; they stay floating next to
-    // the rail until the user chooses to dock them.
-    char window_id[64];
+    // Stable, unique ImGui id (via "###") so these windows are not captured by
+    // ConfigureDockingLayout's name-based docking; they stay floating.
+    char window_id[96];
     std::snprintf(window_id, sizeof(window_id), "%s###ToolWindow%d",
-                  kToolPanelDefs[i].title, i);
-    if (ImGui::Begin(window_id, &tmp_.tool_open[i])) {
-      ToolPanelContent(i);
+                  tw.title.c_str(), i);
+    if (ImGui::Begin(window_id, &tw.open)) {
+      tw.render();
     }
     ImGui::End();
   }
 }
 
-void App::ToolPanelContent(int tool_panel) {
-  const float min_width = platform::GetExpectedLabelWidth();
+void App::RegisterToolWindows() {
+  // Wraps a render callback so it shows a placeholder until mjData is available.
+  auto needs_data = [this](std::function<void()> fn) -> std::function<void()> {
+    return [this, fn = std::move(fn)]() {
+      if (!has_data()) {
+        ImGui::TextUnformatted("No mjData loaded.");
+        return;
+      }
+      fn();
+    };
+  };
 
-  // Panels that only need the model are available even with no mjData.
-  switch (tool_panel) {
-    case UiTempState::ToolPanel_Physics:
-      platform::PhysicsGui(model(), min_width);
-      return;
-    case UiTempState::ToolPanel_Rendering:
-      platform::RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
-                             min_width);
-      return;
-    case UiTempState::ToolPanel_Groups:
-      platform::GroupsGui(model(), &vis_options_, min_width);
-      return;
-    case UiTempState::ToolPanel_Visualization:
-      platform::VisualizationGui(model(), &vis_options_, &camera_, min_width);
-      return;
-    case UiTempState::ToolPanel_Explorer:
-      SpecExplorerGui();
-      return;
-    case UiTempState::ToolPanel_Editor:
-      SpecEditorGui();
-      return;
-    default:
-      break;
+  // Icons are FontAwesome 4 glyphs chosen to evoke each window's name. Adding a
+  // window here is all it takes to get a rail button, a tooltip, and a
+  // command-palette entry -- the intended extension point (incl. a future
+  // Python API that would register windows whose render() calls back to script).
+  tool_windows_.push_back({platform::ICON_FA_COGS, "Physics", [this] {
+                             platform::PhysicsGui(
+                                 model(), platform::GetExpectedLabelWidth());
+                           }});
+  tool_windows_.push_back({platform::ICON_FA_CUBE, "Rendering", [this] {
+                             platform::RenderingGui(
+                                 model(), &vis_options_,
+                                 renderer_->GetRenderFlags(),
+                                 platform::GetExpectedLabelWidth());
+                           }});
+  tool_windows_.push_back(
+      {platform::ICON_FA_OBJECT_GROUP, "Visibility Groups", [this] {
+         platform::GroupsGui(model(), &vis_options_,
+                             platform::GetExpectedLabelWidth());
+       }});
+  tool_windows_.push_back({platform::ICON_FA_EYE, "Visualization", [this] {
+                             platform::VisualizationGui(
+                                 model(), &vis_options_, &camera_,
+                                 platform::GetExpectedLabelWidth());
+                           }});
+  tool_windows_.push_back(
+      {platform::ICON_FA_LINK, "Joints", needs_data([this] {
+         platform::JointsGui(model(), data(), &vis_options_);
+       })});
+  tool_windows_.push_back(
+      {platform::ICON_FA_SLIDERS, "Controls", needs_data([this] {
+         float noise_scale = 0;
+         float noise_rate = 0;
+         step_control_.GetNoiseParameters(noise_scale, noise_rate);
+         platform::NoiseGui(model(), data(), noise_scale, noise_rate);
+         step_control_.SetNoiseParameters(noise_scale, noise_rate);
+         ImGui::Separator();
+         platform::ControlsGui(model(), data(), &vis_options_);
+       })});
+  tool_windows_.push_back(
+      {platform::ICON_FA_RSS, "Sensor",
+       needs_data([this] { platform::SensorGui(model(), data()); })});
+  tool_windows_.push_back(
+      {platform::ICON_FA_BINOCULARS, "Watch", needs_data([this] {
+         platform::WatchGui(model(), data(), ui_.watch_field,
+                            sizeof(ui_.watch_field), ui_.watch_index);
+       })});
+  tool_windows_.push_back(
+      {platform::ICON_FA_TABLE, "State", needs_data([this] {
+         platform::StateGui(model(), data(), tmp_.state, tmp_.state_sig,
+                            platform::GetExpectedLabelWidth());
+       })});
+  tool_windows_.push_back(
+      {platform::ICON_FA_SITEMAP, "Explorer", [this] { SpecExplorerGui(); }});
+  tool_windows_.push_back(
+      {platform::ICON_FA_PENCIL, "Editor", [this] { SpecEditorGui(); }});
+}
+
+std::vector<CommandPalette::Command> App::CollectCommands() {
+  std::vector<CommandPalette::Command> commands;
+
+  // Model actions.
+  commands.push_back({"Reload", [this] { RequestModelReload(); }});
+  commands.push_back({"Reset", [this] { ResetPhysics(); }});
+
+  // Registered tool windows (index is stable for the process lifetime).
+  for (int i = 0; i < static_cast<int>(tool_windows_.size()); ++i) {
+    commands.push_back({tool_windows_[i].title, [this, i] {
+                          tool_windows_[i].open = !tool_windows_[i].open;
+                        }});
   }
 
-  // The remaining panels read live simulation data.
-  if (!has_data()) {
-    ImGui::Text("No mjData loaded.");
-    return;
-  }
+  // View / diagnostics windows.
+  commands.push_back({"Profiler", [this] { ToggleWindow(tmp_.profiler); }});
+  commands.push_back({"Stats", [this] { ToggleWindow(tmp_.stats); }});
+  commands.push_back({"Picture-in-Picture", [this] {
+                        tmp_.picture_in_picture = !tmp_.picture_in_picture;
+                      }});
+  commands.push_back({"Help", [this] { ToggleWindow(tmp_.help); }});
 
-  switch (tool_panel) {
-    case UiTempState::ToolPanel_Joints:
-      platform::JointsGui(model(), data(), &vis_options_);
-      return;
-    case UiTempState::ToolPanel_Controls: {
-      float noise_scale = 0;
-      float noise_rate = 0;
-      step_control_.GetNoiseParameters(noise_scale, noise_rate);
-      platform::NoiseGui(model(), data(), noise_scale, noise_rate);
-      step_control_.SetNoiseParameters(noise_scale, noise_rate);
-      ImGui::Separator();
-      platform::ControlsGui(model(), data(), &vis_options_);
-      return;
-    }
-    case UiTempState::ToolPanel_Sensor:
-      platform::SensorGui(model(), data());
-      return;
-    case UiTempState::ToolPanel_Watch:
-      platform::WatchGui(model(), data(), ui_.watch_field,
-                         sizeof(ui_.watch_field), ui_.watch_index);
-      return;
-    case UiTempState::ToolPanel_State:
-      platform::StateGui(model(), data(), tmp_.state, tmp_.state_sig, min_width);
-      return;
-    default:
-      return;
-  }
+  return commands;
 }
 
 void App::SpecExplorerGui() {
@@ -1628,38 +1637,55 @@ void App::ScrubberOverlayGui(const ImVec4& workspace_rect) {
   ImGui::End();
 }
 
-void App::StatusOverlayGui(const ImVec4& workspace_rect) {
-  const float margin = ImGui::GetStyle().ItemSpacing.x;
+void App::StatusBarGui() {
+  // Build the status string; it is right-aligned in the bar.
+  std::string status;
+  if (!has_model()) {
+    status = "No model loaded";
+  } else if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
+    status = "Viscous Pause";
+  } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
+    status = "Paused";
+  } else {
+    status = "Running";
+  }
+  if (!step_error_.empty()) {
+    status += "   |   Step Error: " + step_error_;
+  } else if (!load_error_.empty()) {
+    status += "   |   Load Error: " + load_error_;
+  } else if (!edit_error_.empty()) {
+    status += "   |   Edit Error: " + edit_error_;
+  }
 
-  // Anchor to the bottom-left of the viewport (just right of the rail).
+  // A full-width bar pinned to the bottom of the viewport, styled like the top
+  // menu bar (same background colour, square corners). ConfigureDockingLayout
+  // reserves the matching strip so it does not overlap the dockspace.
+  const ImGuiViewport* vp = ImGui::GetMainViewport();
+  const float h = ImGui::GetFrameHeight();
+  const ImGuiStyle& s = ImGui::GetStyle();
   ImGui::SetNextWindowPos(
-      ImVec2(workspace_rect.x + RailWidth() + margin,
-             workspace_rect.y + workspace_rect.w - margin),
-      ImGuiCond_Always, ImVec2(0.0f, 1.0f));
-  ImGui::SetNextWindowBgAlpha(kOverlayAlpha);
-  if (ImGui::Begin("##StatusOverlay", nullptr,
-                   kOverlayFlags | ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (!has_model()) {
-      ImGui::TextUnformatted("No model loaded");
-    } else if (step_control_.GetPauseState() == PauseState::kViscousPaused) {
-      ImGui::TextUnformatted("Viscous Pause");
-      ImGui::SetItemTooltip("Zero gravity, high viscosity, no spring forces");
-    } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
-      ImGui::TextUnformatted("Paused");
-    } else {
-      ImGui::TextUnformatted("Running");
-    }
+      ImVec2(vp->WorkPos.x, vp->WorkPos.y + vp->WorkSize.y - h));
+  ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, h));
 
-    if (!step_error_.empty()) {
-      ImGui::SameLine();
-      ImGui::Text("| Step Error: %s", step_error_.c_str());
-    } else if (!load_error_.empty()) {
-      ImGui::SameLine();
-      ImGui::Text("| Load Error: %s", load_error_.c_str());
-    } else if (!edit_error_.empty()) {
-      ImGui::SameLine();
-      ImGui::Text("| Edit Error: %s", edit_error_.c_str());
-    }
+  platform::ScopedStyle style;
+  style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
+  style.Var(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  style.Var(ImGuiStyleVar_WindowPadding,
+            ImVec2(s.ItemSpacing.x, (h - ImGui::GetTextLineHeight()) * 0.5f));
+  style.Color(ImGuiCol_WindowBg, ImGui::GetStyleColorVec4(ImGuiCol_MenuBarBg));
+
+  const ImGuiWindowFlags flags =
+      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking |
+      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+      ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus |
+      ImGuiWindowFlags_NoNavFocus;
+  if (ImGui::Begin("##StatusBar", nullptr, flags)) {
+    const float text_w = ImGui::CalcTextSize(status.c_str()).x;
+    ImGui::SetCursorPosX(
+        std::max(s.ItemSpacing.x, ImGui::GetWindowWidth() - text_w -
+                                      2.0f * s.ItemSpacing.x));
+    ImGui::TextUnformatted(status.c_str());
   }
   ImGui::End();
 }
@@ -1731,7 +1757,7 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("Save MJB", "Ctrl+Shift+S")) {
         tmp_.file_dialog = UiTempState::FileDialog_SaveMjb;
       }
-      if (ImGui::MenuItem("Save Screenshot", "Ctrl+P")) {
+      if (ImGui::MenuItem("Save Screenshot")) {
         tmp_.file_dialog = UiTempState::FileDialog_SaveScreenshot;
       }
       ImGui::Separator();
