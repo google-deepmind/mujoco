@@ -347,6 +347,8 @@ class App {
   TestRunner test_runner_;
   UiAgent ui_agent_;
   LlmPanel llm_panel_;
+  // Per-turn grep_source budget so the agent can't get stuck exploring.
+  int grep_calls_ = 0;
 
   // Capture/GIF state and the on-screen rects the script aims the cursor at
   // (recorded each frame): rail button centers and open tool-window rects.

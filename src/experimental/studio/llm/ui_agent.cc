@@ -34,9 +34,18 @@ UiAgent::UiAgent() {
       "the UI exclusively by calling the run_ui_program tool, which drives the "
       "real on-screen widgets through the ImGui Test Engine (clicking buttons, "
       "opening panels, etc.) -- see that tool's description for how to reference "
-      "items. When the user asks you to do something in the UI, call the tool "
-      "with the appropriate op-program. Keep any text replies to one short "
-      "sentence.";
+      "items.\n"
+      "The refs you use MUST correspond to real widgets; do not invent ids. The "
+      "rail-button refs in the run_ui_program description are reliable. For "
+      "joint names/sliders, grep_source to confirm the exact name (e.g. grep "
+      "'knee').\n"
+      "STRICT BUDGET: use at most ~4 grep_source calls TOTAL, then emit one "
+      "run_ui_program and finish. Do not keep exploring. If a control has no "
+      "clean ref, use its keyboard shortcut instead -- in particular, to "
+      "pause/play press Space via {\"op\":\"key_chars\",\"text\":\" \"}; never "
+      "hunt for the pause button's ref. If you can't reference something after a "
+      "grep or two, skip it and proceed with the rest.\n"
+      "Keep any text replies to one short sentence.";
 
   std::string key = ClaudeProvider::KeyFromEnv();
   if (!key.empty()) {
@@ -62,6 +71,7 @@ void UiAgent::Ask(const std::string& question) {
   if (question.empty() || busy_) return;
 
   history_.push_back({"user", question});
+  if (on_ask_) on_ask_();  // reset per-turn budgets (e.g. grep count)
   busy_ = true;
 
   std::vector<LlmMessage> messages;

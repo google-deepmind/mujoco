@@ -48,6 +48,7 @@
 #include "experimental/platform/ux/interaction.h"
 #include "experimental/platform/ux/picture_gui.h"
 #include "experimental/platform/ux/plugin.h"
+#include "experimental/studio/llm/source_search.h"
 #include "experimental/studio/mujoco_logo.h"
 
 namespace mujoco::studio {
@@ -1323,6 +1324,16 @@ void App::RegisterLlmTools() {
       "Example -- open the Physics panel: "
       "{\"ops\":[{\"op\":\"item_click\",\"ref\":\"//ToolRail/###Physics\"}]}";
 
+  ToolDef grep_source{
+      "grep_source",
+      "Case-insensitive substring search over the Studio C++ source. Use it to "
+      "verify that an item id/label/name actually exists before referencing it "
+      "in run_ui_program (don't guess refs), or to discover the exact spelling "
+      "of a widget label, joint name, menu item, etc. Returns matching "
+      "file:line: source lines.",
+      "{\"type\":\"object\",\"properties\":{\"pattern\":{\"type\":\"string\","
+      "\"description\":\"text to search for\"}},\"required\":[\"pattern\"]}"};
+
   ToolDef run_program{
       "run_ui_program", description,
       "{\"type\":\"object\",\"properties\":{\"ops\":{\"type\":\"array\","
@@ -1339,15 +1350,43 @@ void App::RegisterLlmTools() {
 
   auto exec = [this](const std::string& name,
                      const std::string& json_args) -> std::string {
-    if (name != "run_ui_program") return "Unknown tool: " + name;
-    // Echo the program the LLM generated to the console before running it.
-    std::fprintf(stderr, "[run_ui_program] %s\n", json_args.c_str());
-    std::fflush(stderr);
-    const int n = test_runner_.Run(json_args);
-    return "Queued a " + std::to_string(n) + "-op UI program.";
+    if (name == "grep_source") {
+      // Hard per-turn budget so the agent can't get stuck exploring (the system
+      // prompt also asks it to grep sparingly).
+      if (grep_calls_ >= 6) {
+        return "Grep budget reached. Stop searching and emit a run_ui_program "
+               "now with what you know (use keyboard shortcuts for anything you "
+               "couldn't reference).";
+      }
+      ++grep_calls_;
+      // Extract the "pattern" string argument.
+      std::string pattern;
+      size_t k = json_args.find("\"pattern\"");
+      if (k != std::string::npos) {
+        size_t colon = json_args.find(':', k);
+        size_t q = (colon == std::string::npos)
+                       ? std::string::npos
+                       : json_args.find('"', colon + 1);
+        size_t e = (q == std::string::npos) ? std::string::npos
+                                            : json_args.find('"', q + 1);
+        if (e != std::string::npos) pattern = json_args.substr(q + 1, e - q - 1);
+      }
+      std::fprintf(stderr, "[grep_source] %s\n", pattern.c_str());
+      std::fflush(stderr);
+      return GrepSource(pattern, 40);
+    }
+    if (name == "run_ui_program") {
+      // Echo the program the LLM generated to the console before running it.
+      std::fprintf(stderr, "[run_ui_program] %s\n", json_args.c_str());
+      std::fflush(stderr);
+      const int n = test_runner_.Run(json_args);
+      return "Queued a " + std::to_string(n) + "-op UI program.";
+    }
+    return "Unknown tool: " + name;
   };
 
-  ui_agent_.set_tools({run_program}, exec);
+  ui_agent_.set_tools({grep_source, run_program}, exec);
+  ui_agent_.set_on_ask([this] { grep_calls_ = 0; });
 }
 
 void App::SpecExplorerGui() {

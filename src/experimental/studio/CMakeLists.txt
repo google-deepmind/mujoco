@@ -37,10 +37,18 @@ function(configure_studio_target TARGET_NAME)
             llm/llm_panel.cc
             llm/llm_panel.h
             llm/llm_provider.h
+            llm/source_search.cc
+            llm/source_search.h
             llm/test_runner.cc
             llm/test_runner.h
             llm/ui_agent.cc
             llm/ui_agent.h
+    )
+
+    # Lets the grep_source LLM tool search the Studio sources at runtime.
+    target_compile_definitions(${TARGET_NAME}
+        PRIVATE
+            MUJOCO_STUDIO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
     )
 
     target_include_directories(${TARGET_NAME}

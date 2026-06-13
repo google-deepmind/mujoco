@@ -66,6 +66,10 @@ class UiAgent {
   // safe to mutate there (e.g. setting a window-open bool).
   void set_tools(std::vector<ToolDef> tools, ToolExecutor exec);
 
+  // Callback run at the start of each Ask (UI thread), e.g. to reset per-turn
+  // budgets like the grep-call count.
+  void set_on_ask(std::function<void()> cb) { on_ask_ = std::move(cb); }
+
  private:
   std::shared_ptr<LlmProvider> provider_;
   std::string provider_name_;
@@ -73,6 +77,7 @@ class UiAgent {
   std::vector<Turn> history_;
   std::vector<ToolDef> tools_;
   ToolExecutor executor_;
+  std::function<void()> on_ask_;
 
   bool synchronous_ = false;
   std::atomic<bool> busy_{false};

@@ -26,7 +26,7 @@
 namespace mujoco::studio {
 namespace {
 
-constexpr int kMaxToolIterations = 6;
+constexpr int kMaxToolIterations = 20;
 
 // --- Minimal JSON helpers. We build the request by hand and pull the pieces we
 // need out of the response; no general-purpose parser required. --------------
