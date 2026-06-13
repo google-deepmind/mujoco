@@ -30,12 +30,13 @@ namespace mujoco::studio {
 UiAgent::UiAgent() {
   system_ =
       "You are an AI assistant embedded in MuJoCo Studio, a GUI for the MuJoCo "
-      "physics simulator. The user types requests into a command box. You can "
-      "open Studio's tool windows by calling the open_tool_window tool (the "
-      "panels on the left icon rail: Physics, Rendering, Visualization, Joints, "
-      "Controls, Sensor, Watch, State, Explorer, Editor). When the user asks to "
-      "open, show, or bring up a panel, call the tool. Keep any text replies to "
-      "one short sentence.";
+      "physics simulator. The user types requests into a command box. You act on "
+      "the UI exclusively by calling the run_ui_program tool, which drives the "
+      "real on-screen widgets through the ImGui Test Engine (clicking buttons, "
+      "opening panels, etc.) -- see that tool's description for how to reference "
+      "items. When the user asks you to do something in the UI, call the tool "
+      "with the appropriate op-program. Keep any text replies to one short "
+      "sentence.";
 
   std::string key = ClaudeProvider::KeyFromEnv();
   if (!key.empty()) {

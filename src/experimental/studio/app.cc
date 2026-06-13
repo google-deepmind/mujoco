@@ -104,8 +104,19 @@ App::App(Config config)
   profiler_.Clear();
 }
 
+App::~App() {
+  // Stop the test engine while the ImGui context is still alive. We don't
+  // Destroy() it (that must follow ImGui::DestroyContext, which the window never
+  // calls); leaking the engine at process exit is harmless.
+  test_runner_.Stop();
+}
+
 void App::SwitchGraphicsMode(int width, int height,
                              platform::GraphicsMode mode) {
+  // The test engine is bound to the ImGui context that the window owns. Stop it
+  // before the window is torn down. (We don't Destroy()/restart across a real
+  // graphics switch yet -- not exercised here; the engine just stays stopped.)
+  test_runner_.Stop();
   renderer_.reset();
   window_.reset();
   gfx_mode_ = mode;
@@ -124,6 +135,9 @@ void App::SwitchGraphicsMode(int width, int height,
   if (ui_.window_width > 0 && ui_.window_height > 0) {
     window_->Resize(ui_.window_width, ui_.window_height);
   }
+
+  // The Window ctor created a fresh ImGui context; bind the test engine to it.
+  test_runner_.Start();
 }
 
 void App::Recompile() {
@@ -380,6 +394,10 @@ void App::Render() {
 
   window_->EndFrame();
   window_->Present(pixels_);
+
+  // Tick the test engine after the swap so it can advance any queued UI program
+  // (the run_ui_program tool) and perform clicks across frames.
+  test_runner_.PostSwap();
 
   // Auto-screenshot: once enough frames have rendered for the model and GUI to
   // settle, dump the headless framebuffer (RGB888, scene + GUI) to a PPM and
@@ -1068,7 +1086,7 @@ void App::ToolRailGui(const ImVec4& workspace_rect) {
       ImGuiWindowFlags_NoBringToFrontOnFocus |
       ImGuiWindowFlags_AlwaysAutoResize;
 
-  if (ImGui::Begin("##ToolRail", nullptr, flags)) {
+  if (ImGui::Begin("ToolRail", nullptr, flags)) {
     // Lay out square icon buttons in a 2-column grid. `active` highlights the
     // button when its window/panel is open; returns true when clicked.
     int slot = 0;
@@ -1082,9 +1100,10 @@ void App::ToolRailGui(const ImVec4& workspace_rect) {
         ImGui::PushStyleColor(ImGuiCol_Button,
                               ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
       }
-      ImGui::PushID(title);
-      const bool clicked = ImGui::Button(icon, ImVec2(button, button));
-      ImGui::PopID();
+      // Explicit ### id so the test engine can reference the button as
+      // "//ToolRail/<title>" (the visible label stays the icon glyph).
+      const std::string label = std::string(icon) + "###" + title;
+      const bool clicked = ImGui::Button(label.c_str(), ImVec2(button, button));
       // Record the button center for the capture script's cursor targeting.
       const ImVec2 lo = ImGui::GetItemRectMin();
       const ImVec2 hi = ImGui::GetItemRectMax();
@@ -1263,48 +1282,49 @@ std::vector<CommandPalette::Command> App::CollectCommands() {
 }
 
 void App::RegisterLlmTools() {
-  // Signs-of-life action: let the model open a rail/tool window, as if the user
-  // clicked its rail button. (The design's ImGui Test Engine path will later
-  // supersede this direct toggle; see LLM_INTEGRATION_DESIGN.md.)
-  std::string enum_list;
-  for (size_t i = 0; i < tool_windows_.size(); ++i) {
-    if (i) enum_list += ",";
-    enum_list += "\"" + tool_windows_[i].title + "\"";
-  }
-  ToolDef open_tool{
-      "open_tool_window",
-      "Open one of MuJoCo Studio's tool windows (the panels on the left icon "
-      "rail). Call this when the user asks to open, show, or bring up a panel.",
-      "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\","
-      "\"enum\":[" +
-          enum_list +
-          "],\"description\":\"The panel to open.\"}},\"required\":[\"name\"]}"};
+  // The sole actuator: the model drives the real UI through the ImGui Test
+  // Engine by emitting a JSON op-program whose refs are ImGui item IDs (see
+  // LLM_INTEGRATION_DESIGN.md and test_runner_).
+  std::string panels = "Reload, Reset";
+  for (const ToolWindow& tw : tool_windows_) panels += ", " + tw.title;
+  panels += ", Profiler, Stats, Picture-in-Picture, Help";
+
+  const std::string description =
+      "Drive the MuJoCo Studio UI by running a short program of Dear ImGui Test "
+      "Engine operations -- this clicks the real on-screen widgets. Use it for "
+      "any UI action the user asks for.\n"
+      "Reference items by their ImGui path. The left icon rail is the window "
+      "'ToolRail'; each of its panel buttons is referenced as "
+      "'//ToolRail/###<Panel>' (note the ### prefix on the panel name), where "
+      "<Panel> is one of: " +
+      panels +
+      ". Clicking a panel button toggles that panel. Top menu-bar items use the "
+      "'menu_click' op with a path like 'View/Tools'.\n"
+      "Example -- open the Physics panel: "
+      "{\"ops\":[{\"op\":\"item_click\",\"ref\":\"//ToolRail/###Physics\"}]}";
+
+  ToolDef run_program{
+      "run_ui_program", description,
+      "{\"type\":\"object\",\"properties\":{\"ops\":{\"type\":\"array\","
+      "\"items\":{\"type\":\"object\",\"properties\":{"
+      "\"op\":{\"type\":\"string\",\"enum\":[\"item_click\",\"menu_click\","
+      "\"item_check\",\"item_uncheck\",\"set_float\",\"set_int\",\"key_chars\","
+      "\"set_ref\"]},"
+      "\"ref\":{\"type\":\"string\",\"description\":\"ImGui item path, e.g. "
+      "//ToolRail/###Physics\"},"
+      "\"path\":{\"type\":\"string\",\"description\":\"menu path for "
+      "menu_click\"},"
+      "\"value\":{\"type\":\"number\"},\"text\":{\"type\":\"string\"}},"
+      "\"required\":[\"op\"]}}},\"required\":[\"ops\"]}"};
 
   auto exec = [this](const std::string& name,
                      const std::string& json_args) -> std::string {
-    if (name != "open_tool_window") return "Unknown tool: " + name;
-    // Pull the "name" argument (the panel title) out of the JSON.
-    std::string panel;
-    size_t k = json_args.find("\"name\"");
-    if (k != std::string::npos) {
-      size_t colon = json_args.find(':', k);
-      size_t q = (colon == std::string::npos)
-                     ? std::string::npos
-                     : json_args.find('"', colon + 1);
-      size_t end =
-          (q == std::string::npos) ? std::string::npos : json_args.find('"', q + 1);
-      if (end != std::string::npos) panel = json_args.substr(q + 1, end - q - 1);
-    }
-    for (ToolWindow& tw : tool_windows_) {
-      if (tw.title == panel) {
-        tw.open = true;
-        return "Opened the " + panel + " panel.";
-      }
-    }
-    return "No panel named '" + panel + "'.";
+    if (name != "run_ui_program") return "Unknown tool: " + name;
+    const int n = test_runner_.Run(json_args);
+    return "Queued a " + std::to_string(n) + "-op UI program.";
   };
 
-  ui_agent_.set_tools({open_tool}, exec);
+  ui_agent_.set_tools({run_program}, exec);
 }
 
 void App::SpecExplorerGui() {

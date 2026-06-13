@@ -93,6 +93,12 @@ class FileResource {
 };
 
 int main(int argc, char** argv, char** envp) {
+#ifdef _WIN32
+  // Headless runs (screenshots/captures) must never block on a Windows assert
+  // dialog: route assert/abort output to stderr instead of popping a modal box.
+  _set_error_mode(_OUT_TO_STDERR);
+#endif
+
   absl::ParseCommandLine(argc, argv);
 
   // Headless probe of the live Claude provider (no window/graphics needed).

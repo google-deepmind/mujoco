@@ -15,6 +15,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 include(third_party_deps/dear_imgui)
+include(third_party_deps/imgui_test_engine)
 include(third_party_deps/implot)
 include(third_party_deps/opensans)
 include(third_party_deps/font_awesome)
@@ -36,6 +37,8 @@ function(configure_studio_target TARGET_NAME)
             llm/llm_panel.cc
             llm/llm_panel.h
             llm/llm_provider.h
+            llm/test_runner.cc
+            llm/test_runner.h
             llm/ui_agent.cc
             llm/ui_agent.h
     )
@@ -64,6 +67,7 @@ function(configure_studio_target TARGET_NAME)
             absl::flags
             absl::flags_parse
             dear_imgui
+            imgui_test_engine
             implot
             mujoco::mujoco
             mujoco::platform

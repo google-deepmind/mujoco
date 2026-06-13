@@ -40,6 +40,7 @@
 #include "experimental/platform/ux/spec_editor.h"
 #include "experimental/studio/command_palette.h"
 #include "experimental/studio/llm/llm_panel.h"
+#include "experimental/studio/llm/test_runner.h"
 #include "experimental/studio/llm/ui_agent.h"
 #include "experimental/studio/ui_capture.h"
 
@@ -76,6 +77,7 @@ class App {
   };
 
   explicit App(Config config);
+  ~App();
 
   // Loads an empty mjModel.
   void InitEmptyModel();
@@ -334,7 +336,11 @@ class App {
   CommandPalette command_palette_;
 
   // LLM "ask" support: plain (non-'>') palette input is routed to ui_agent_ and
-  // the reply is rendered in the palette by llm_panel_.
+  // the reply is rendered in the palette by llm_panel_. The model drives the UI
+  // exclusively through test_runner_ (the ImGui Test Engine), via the
+  // run_ui_program tool. Declared after window_ so it stops before the ImGui
+  // context (owned by the window) is destroyed.
+  TestRunner test_runner_;
   UiAgent ui_agent_;
   LlmPanel llm_panel_;
 

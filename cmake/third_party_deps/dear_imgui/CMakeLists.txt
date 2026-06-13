@@ -28,6 +28,12 @@ target_sources(dear_imgui
     ${dear_imgui_SOURCE_DIR}/imgui_demo.cpp
 )
 
+# Compile the Dear ImGui Test Engine hooks into imgui (and propagate the macro
+# to everyone who includes imgui.h, so item IDs/layout stay consistent). This
+# lets the LLM drive the UI via the test engine (see the imgui_test_engine dep
+# and the studio test_runner). PUBLIC so the macro reaches all imgui consumers.
+target_compile_definitions(dear_imgui PUBLIC IMGUI_ENABLE_TEST_ENGINE)
+
 # SDL2 backend
 # TODO: I don't know how to correctly check for dependencies in cmake. This
 # assumes that SDL2 is pulled in _before_ dear_imgui, but that seems fragile.
