@@ -40,12 +40,13 @@ void App::ToggleToolWindowByName(const std::string& title) {
 }
 
 void App::StartCapture(const std::string& out_dir, int total_frames,
-                       CaptureScript script) {
+                       CaptureScript script, const std::string& llm_prompt) {
   capture_.active = true;
   capture_.out_dir = out_dir;
   capture_.frame = 0;
   capture_.total_frames = total_frames;
   capture_.script = script;
+  capture_.llm_prompt = llm_prompt;
   capture_.cursor = ImVec2(-100.0f, -100.0f);
   capture_.click_flash = 0.0f;
 
@@ -87,7 +88,9 @@ void App::CaptureStepLlm() {
   const int f = c.frame;
 
   // The question we "type" into the Ctrl+P box.
-  static const std::string kQuestion = "open the physics menu";
+  const std::string kQuestion = capture_.llm_prompt.empty()
+                                    ? std::string("open the physics menu")
+                                    : capture_.llm_prompt;
 
   // Phase 0: open the command palette.
   if (f == 8) command_palette_.Open();

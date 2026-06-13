@@ -38,6 +38,7 @@ struct CaptureState {
   int frame = 0;         // current capture frame index
   int total_frames = 0;  // stop after this many frames
   CaptureScript script = CaptureScript::kTools;
+  std::string llm_prompt;  // question typed into the Ctrl+P box (kLlm script)
 
   ImVec2 cursor{-100.0f, -100.0f};  // synthetic cursor, screen space
   float click_flash = 0.0f;         // >0 draws a click ring, decays per frame

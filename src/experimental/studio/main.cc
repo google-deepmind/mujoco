@@ -49,6 +49,9 @@ ABSL_FLAG(int, capture_frames, 200, "Number of frames to capture.");
 ABSL_FLAG(std::string, capture_script, "tools",
           "Which scripted interaction to record: 'tools' (rail/palette window "
           "toggling) or 'llm' (ask the LLM a question in the Ctrl+P box).");
+ABSL_FLAG(std::string, capture_prompt, "",
+          "For --capture_script=llm: the question typed into the Ctrl+P box "
+          "(defaults to 'open the physics menu').");
 ABSL_FLAG(std::string, llm_probe, "",
           "If set, send this prompt to the real Claude provider (using "
           "ANTHROPIC_API_KEY) and print the reply, then exit. Headless probe to "
@@ -209,7 +212,7 @@ int main(int argc, char** argv, char** envp) {
                                     ? mujoco::studio::CaptureScript::kLlm
                                     : mujoco::studio::CaptureScript::kTools;
     app.StartCapture(capture_gif, absl::GetFlag(FLAGS_capture_frames),
-                     capture_script);
+                     capture_script, absl::GetFlag(FLAGS_capture_prompt));
     while (app.Update() && app.capture_active()) {
       app.BuildGui();
       app.Render();

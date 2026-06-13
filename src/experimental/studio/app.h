@@ -108,7 +108,8 @@ class App {
   // capture, then per frame call BuildGui()/Render()/SaveCaptureFrame() while
   // capture_active() is true.
   void StartCapture(const std::string& out_dir, int total_frames,
-                    CaptureScript script = CaptureScript::kTools);
+                    CaptureScript script = CaptureScript::kTools,
+                    const std::string& llm_prompt = "");
   bool capture_active() const { return capture_.active; }
   bool SaveCaptureFrame();
 
