@@ -953,13 +953,33 @@ void App::BuildGui() {
   }
 
   if (tmp_.stats) {
-    platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_Alpha, 0.6f);
-    if (ImGui::Begin("Stats", &tmp_.stats)) {
-      const float fps = renderer_->GetFps();
-      platform::StatsGui(
-          model(), data(),
-          step_control_.GetPauseState() == PauseState::kNormalPaused, fps);
+    // A small floating window. The "###" id keeps the docking layout's
+    // name-based docking from capturing it over the rail (same trick as the
+    // tool windows); first shown just to the right of the rail. Rendered with
+    // plain text rather than the docked StatsGui (whose ImGui::Columns layout
+    // doesn't play well in a small floating window).
+    ImGui::SetNextWindowPos(
+        ImVec2(workspace_rect.x + RailWidth() + 16.0f, workspace_rect.y + 16.0f),
+        ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(200.0f, 0.0f), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Stats###StatsWindow", &tmp_.stats,
+                     ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::Text("FPS        %.0f", renderer_->GetFps());
+      if (has_data()) {
+        const mjModel* m = model();
+        const mjData* d = data();
+        const bool paused =
+            step_control_.GetPauseState() == PauseState::kNormalPaused;
+        const auto timer = paused ? mjTIMER_FORWARD : mjTIMER_STEP;
+        const double ms =
+            d->timer[timer].duration / mjMAX(1, d->timer[timer].number);
+        ImGui::Text("Step       %.3f ms", ms);
+        ImGui::Text("Sim time   %.3f s", d->time);
+        ImGui::Separator();
+        ImGui::Text("Bodies     %d", m->nbody);
+        ImGui::Text("DOFs       %d", m->nv);
+        ImGui::Text("Contacts   %d", d->ncon);
+      }
     }
     ImGui::End();
   }

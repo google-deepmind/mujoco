@@ -270,10 +270,6 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::DockBuilderSplitNode(main, ImGuiDir_Right, kInspectorRelWidth,
                                 &inspector, &main);
 
-    ImGuiID stats = 0;
-    ImGui::DockBuilderSplitNode(options, ImGuiDir_Down, kStatsRelHeight, &stats,
-                                &options);
-
     ImGuiID properties = 0;
     ImGui::DockBuilderSplitNode(inspector, ImGuiDir_Down, kStatsRelHeight,
                                 &properties, &inspector);
@@ -287,7 +283,7 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::DockBuilderDockWindow("Editor", inspector);
     ImGui::DockBuilderDockWindow("Inspector", inspector);
     ImGui::DockBuilderDockWindow("Properties", properties);
-    ImGui::DockBuilderDockWindow("Stats", stats);
+    // Stats is a small floating window (App::BuildGui), not docked over the rail.
     ImGui::DockBuilderDockWindow("Profiler", profiler);
     ImGui::DockBuilderFinish(root);
   }
