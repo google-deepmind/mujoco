@@ -158,4 +158,15 @@ list(APPEND MUJOCO_FILAMENT_ASSET_FILES "${OUTPUT_ASSETS_DIR}/ibl.ktx")
 add_custom_target(mujoco_filament_assets DEPENDS ${MUJOCO_FILAMENT_ASSET_FILES})
 add_dependencies(${MUJOCO_FILAMENT_TARGET_NAME} mujoco_filament_assets)
 
-set(MUJOCO_FILAMENT_ASSETS_DIR ${OUTPUT_ASSETS_DIR})
+set(MUJOCO_FILAMENT_ASSETS_DIR
+    ${OUTPUT_ASSETS_DIR}
+    CACHE PATH "Directory containing generated MuJoCo Filament runtime assets."
+)
+
+install(
+    DIRECTORY "${OUTPUT_ASSETS_DIR}/"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/assets"
+    FILES_MATCHING
+    PATTERN "*.filamat"
+    PATTERN "*.ktx"
+)
