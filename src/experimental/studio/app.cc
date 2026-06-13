@@ -1320,6 +1320,9 @@ void App::RegisterLlmTools() {
   auto exec = [this](const std::string& name,
                      const std::string& json_args) -> std::string {
     if (name != "run_ui_program") return "Unknown tool: " + name;
+    // Echo the program the LLM generated to the console before running it.
+    std::fprintf(stderr, "[run_ui_program] %s\n", json_args.c_str());
+    std::fflush(stderr);
     const int n = test_runner_.Run(json_args);
     return "Queued a " + std::to_string(n) + "-op UI program.";
   };
