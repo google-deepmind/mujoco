@@ -40,7 +40,8 @@ fragment {
     material.baseColor     *= texture(materialParams_BaseColor, uv);
     material.specularColor = vec3(materialParams.SpecularFactor);
     material.glossiness    = materialParams.GlossinessFactor;
-    material.emissive      = vec4(materialParams.EmissiveFactor);
+    material.emissive      = vec4(
+        materialParams.BaseColorFactor.rgb * materialParams.EmissiveFactor, 0.0);
 
     // Apply reflection.
     vec4 reflection = texture(materialParams_Reflection, screen_uv);
