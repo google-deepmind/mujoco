@@ -1049,6 +1049,36 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(height);
 #undef X
 
+  // ==================== MJRRENDERERINFO ======================================
+  py::class_<raw::MjrRendererInfo> mjrRendererInfo(m, "MjrRendererInfo");
+  mjrRendererInfo.def(py::init([]() {
+    raw::MjrRendererInfo info;
+    mjr_defaultRendererInfo(&info);
+    return info;
+  }));
+  mjrRendererInfo.def("__copy__", [](const raw::MjrRendererInfo& other) {
+    return raw::MjrRendererInfo(other);
+  });
+  mjrRendererInfo.def("__deepcopy__",
+                      [](const raw::MjrRendererInfo& other, py::dict) {
+                        return raw::MjrRendererInfo(other);
+  });
+  DefineStructFunctions(mjrRendererInfo);
+  mjrRendererInfo.def_property_readonly("renderer",
+                                        [](const raw::MjrRendererInfo& info) {
+                                          return info.renderer ? info.renderer
+                                                               : "";
+                                        });
+  mjrRendererInfo.def_property_readonly("backend",
+                                        [](const raw::MjrRendererInfo& info) {
+                                          return info.backend ? info.backend
+                                                              : "";
+                                        });
+  mjrRendererInfo.def_property_readonly(
+      "backend_version", [](const raw::MjrRendererInfo& info) {
+        return info.backend_version ? info.backend_version : "";
+      });
+
   // ==================== MJRVERTEXATTRIBUTE ===================================
   py::class_<raw::MjrVertexAttribute> mjrVertexAttribute(m,
                                                          "MjrVertexAttribute");

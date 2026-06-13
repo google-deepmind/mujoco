@@ -245,6 +245,8 @@ PYBIND11_MODULE(_render, pymodule) {
   using EigenFloatVectorX = Eigen::Vector<float, Eigen::Dynamic>;
 
   // Skipped: mjr_defaultContext (have MjrContext.__init__)
+  Def<traits::mjr_defaultRendererInfo>(pymodule);
+  Def<traits::mjr_getRendererInfo>(pymodule);
   // Skipped: mjr_makeContext (have MjrContext.__init__)
   Def<traits::mjr_changeFont>(pymodule);
   Def<traits::mjr_addAux>(pymodule);

@@ -59,6 +59,8 @@ class FilamentContext : public mjrfContext {
 
   filament::Engine* GetEngine() const { return engine_; }
 
+  filament::Engine::Backend GetBackend() const { return backend_; }
+
   ObjectManager* GetObjectManager() const { return object_manager_.get(); }
 
   MaterialManager* GetMaterialManager() const {
@@ -76,6 +78,7 @@ class FilamentContext : public mjrfContext {
   void ValidateSwapChains(std::span<const mjrfRenderRequest> render_requests);
 
   mjrfContextConfig config_;
+  filament::Engine::Backend backend_;
   filament::Engine* engine_ = nullptr;
   filament::Renderer* renderer_ = nullptr;
   filament::SwapChain* window_swap_chain_ = nullptr;

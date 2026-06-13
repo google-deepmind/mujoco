@@ -37,6 +37,17 @@ static void setf(float (&arr)[N], const std::array<float, N>& values) {
   }
 }
 
+static const char* BackendName(filament::Engine::Backend backend) {
+  switch (backend) {
+    case filament::Engine::Backend::OPENGL:
+      return "opengl";
+    case filament::Engine::Backend::VULKAN:
+      return "vulkan";
+    default:
+      return "unknown";
+  }
+}
+
 extern "C" {
 
 void mjrf_defaultContextConfig(mjrfContextConfig* config) {
@@ -122,6 +133,13 @@ mjrfContext* mjrf_createContext(const mjrfContextConfig* config) {
 
 void mjrf_destroyContext(mjrfContext* ctx) {
   delete mujoco::FilamentContext::downcast(ctx);
+}
+
+void mjrf_getRendererInfo(mjrfContext* ctx, mjrRendererInfo* info) {
+  memset(info, 0, sizeof(mjrRendererInfo));
+  info->renderer = "filament";
+  info->backend = ctx ? BackendName(mujoco::FilamentContext::downcast(ctx)->GetBackend()) : "";
+  info->backend_version = "";
 }
 
 mjrfTexture* mjrf_createTexture(mjrfContext* ctx,
