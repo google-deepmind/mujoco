@@ -14,8 +14,11 @@
 
 #include "experimental/studio/llm/ui_agent.h"
 
+#include <cstdlib>
+#include <fstream>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
@@ -25,27 +28,48 @@
 #include "experimental/studio/llm/llm_mock.h"
 #include "experimental/studio/llm/llm_provider.h"
 
+#ifndef MUJOCO_STUDIO_SOURCE_DIR
+#define MUJOCO_STUDIO_SOURCE_DIR ""
+#endif
+
 namespace mujoco::studio {
+namespace {
+
+std::string ReadFile(const std::string& path) {
+  std::ifstream f(path, std::ios::binary);
+  if (!f) return "";
+  std::ostringstream ss;
+  ss << f.rdbuf();
+  return ss.str();
+}
+
+// The system prompt lives in an editable file on disk so it can be tweaked
+// without recompiling (and it hot-reloads each turn). Lookup order: the
+// MUJOCO_STUDIO_SYSTEM_PROMPT env var, then llm/system_prompt.md in the source
+// tree, then a built-in fallback.
+std::string LoadSystemPrompt() {
+  if (const char* env = std::getenv("MUJOCO_STUDIO_SYSTEM_PROMPT");
+      env && *env) {
+    if (std::string s = ReadFile(env); !s.empty()) return s;
+  }
+  const std::string root = MUJOCO_STUDIO_SOURCE_DIR;
+  if (!root.empty()) {
+    if (std::string s = ReadFile(root + "/studio/llm/system_prompt.md");
+        !s.empty()) {
+      return s;
+    }
+  }
+  return
+      "You are an AI assistant embedded in MuJoCo Studio. Act on the UI only by "
+      "calling run_ui_program (it drives the real widgets via the ImGui Test "
+      "Engine). Use model_info for joint/actuator/body names and grep_source for "
+      "source-level ids; do not invent refs. Keep replies to one short sentence.";
+}
+
+}  // namespace
 
 UiAgent::UiAgent() {
-  system_ =
-      "You are an AI assistant embedded in MuJoCo Studio, a GUI for the MuJoCo "
-      "physics simulator. The user types requests into a command box. You act on "
-      "the UI exclusively by calling the run_ui_program tool, which drives the "
-      "real on-screen widgets through the ImGui Test Engine (clicking buttons, "
-      "opening panels, etc.) -- see that tool's description for how to reference "
-      "items.\n"
-      "The refs you use MUST correspond to real widgets; do not invent ids. The "
-      "rail-button refs in the run_ui_program description are reliable. For "
-      "joint names/sliders, grep_source to confirm the exact name (e.g. grep "
-      "'knee').\n"
-      "STRICT BUDGET: use at most ~4 grep_source calls TOTAL, then emit one "
-      "run_ui_program and finish. Do not keep exploring. If a control has no "
-      "clean ref, use its keyboard shortcut instead -- in particular, to "
-      "pause/play press Space via {\"op\":\"key_chars\",\"text\":\" \"}; never "
-      "hunt for the pause button's ref. If you can't reference something after a "
-      "grep or two, skip it and proceed with the rest.\n"
-      "Keep any text replies to one short sentence.";
+  system_ = LoadSystemPrompt();
 
   std::string key = ClaudeProvider::KeyFromEnv();
   if (!key.empty()) {
@@ -70,6 +94,7 @@ void UiAgent::set_tools(std::vector<ToolDef> tools, ToolExecutor exec) {
 void UiAgent::Ask(const std::string& question) {
   if (question.empty() || busy_) return;
 
+  system_ = LoadSystemPrompt();  // hot-reload so edits apply without a restart
   history_.push_back({"user", question});
   if (on_ask_) on_ask_();  // reset per-turn budgets (e.g. grep count)
   busy_ = true;

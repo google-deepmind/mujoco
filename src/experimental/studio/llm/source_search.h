@@ -20,12 +20,14 @@
 namespace mujoco::studio {
 
 // Case-insensitive substring grep over the Studio C++ source tree (configured
-// at build time via MUJOCO_STUDIO_SOURCE_DIR). Returns up to `max_results`
-// matches as "relative/path:line: trimmed source line", or a short message if
-// nothing matched / the source dir isn't available. Backs the LLM grep_source
-// tool, which the agent uses to verify item ids/labels exist before referencing
-// them in a UI program (instead of hallucinating refs).
-std::string GrepSource(const std::string& pattern, int max_results);
+// at build time via MUJOCO_STUDIO_SOURCE_DIR) AND, if `extra_dir` is non-empty,
+// the loaded model's directory (its input files: .xml/.urdf/.mjcf/.txt). This
+// is the single generic "search disk" capability the agent uses to find/verify
+// names before referencing them: widget ids/labels live in the source, model
+// entity names (joints, bodies) live in the input files. Returns up to
+// `max_results` matches as "relative/path:line: trimmed line".
+std::string GrepSource(const std::string& pattern, const std::string& extra_dir,
+                       int max_results);
 
 }  // namespace mujoco::studio
 

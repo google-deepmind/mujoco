@@ -20,6 +20,7 @@
 #include <fstream>
 #include <string>
 #include <system_error>
+#include <vector>
 
 #ifndef MUJOCO_STUDIO_SOURCE_DIR
 #define MUJOCO_STUDIO_SOURCE_DIR ""
@@ -36,9 +37,11 @@ std::string ToLower(std::string s) {
   return s;
 }
 
-bool IsSourceFile(const fs::path& p) {
-  const std::string ext = p.extension().string();
-  return ext == ".cc" || ext == ".cpp" || ext == ".h" || ext == ".hpp";
+bool IsSearchableFile(const fs::path& p) {
+  const std::string ext = ToLower(p.extension().string());
+  return ext == ".cc" || ext == ".cpp" || ext == ".h" || ext == ".hpp" ||
+         ext == ".xml" || ext == ".urdf" || ext == ".mjcf" ||
+         ext == ".xacro" || ext == ".txt";
 }
 
 std::string Trim(const std::string& s) {
@@ -52,37 +55,44 @@ std::string Trim(const std::string& s) {
 
 }  // namespace
 
-std::string GrepSource(const std::string& pattern, int max_results) {
+std::string GrepSource(const std::string& pattern, const std::string& extra_dir,
+                       int max_results) {
   if (pattern.empty()) return "(empty pattern)";
-  const std::string root = MUJOCO_STUDIO_SOURCE_DIR;
-  if (root.empty()) return "(source search not available in this build)";
+
+  std::vector<std::string> roots;
+  if (const std::string src = MUJOCO_STUDIO_SOURCE_DIR; !src.empty()) {
+    roots.push_back(src);
+  }
+  if (!extra_dir.empty()) roots.push_back(extra_dir);
+  if (roots.empty()) return "(no search roots available)";
 
   const std::string needle = ToLower(pattern);
   std::string out;
   int count = 0;
   std::error_code ec;
 
-  fs::recursive_directory_iterator it(root, ec), end;
-  if (ec) return "(could not open source dir: " + root + ")";
+  for (const std::string& root : roots) {
+    fs::recursive_directory_iterator it(root, ec), end;
+    if (ec) continue;  // skip a root we can't open
+    for (; it != end; it.increment(ec)) {
+      if (ec) break;
+      const fs::path& p = it->path();
+      if (!fs::is_regular_file(p, ec) || !IsSearchableFile(p)) continue;
 
-  for (; it != end; it.increment(ec)) {
-    if (ec) break;
-    const fs::path& p = it->path();
-    if (!fs::is_regular_file(p, ec) || !IsSourceFile(p)) continue;
-
-    std::ifstream f(p);
-    if (!f) continue;
-    std::string line;
-    int lineno = 0;
-    while (std::getline(f, line)) {
-      ++lineno;
-      if (ToLower(line).find(needle) == std::string::npos) continue;
-      std::string rel = fs::relative(p, root, ec).string();
-      if (ec) rel = p.filename().string();
-      out += rel + ":" + std::to_string(lineno) + ": " + Trim(line) + "\n";
-      if (++count >= max_results) {
-        out += "(truncated at " + std::to_string(max_results) + " matches)\n";
-        return out;
+      std::ifstream f(p);
+      if (!f) continue;
+      std::string line;
+      int lineno = 0;
+      while (std::getline(f, line)) {
+        ++lineno;
+        if (ToLower(line).find(needle) == std::string::npos) continue;
+        std::string rel = fs::relative(p, root, ec).string();
+        if (ec) rel = p.filename().string();
+        out += rel + ":" + std::to_string(lineno) + ": " + Trim(line) + "\n";
+        if (++count >= max_results) {
+          out += "(truncated at " + std::to_string(max_results) + " matches)\n";
+          return out;
+        }
       }
     }
   }

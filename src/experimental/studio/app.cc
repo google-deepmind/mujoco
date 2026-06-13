@@ -1324,13 +1324,14 @@ void App::RegisterLlmTools() {
       "Example -- open the Physics panel: "
       "{\"ops\":[{\"op\":\"item_click\",\"ref\":\"//ToolRail/###Physics\"}]}";
 
-  ToolDef grep_source{
-      "grep_source",
-      "Case-insensitive substring search over the Studio C++ source. Use it to "
-      "verify that an item id/label/name actually exists before referencing it "
-      "in run_ui_program (don't guess refs), or to discover the exact spelling "
-      "of a widget label, joint name, menu item, etc. Returns matching "
-      "file:line: source lines.",
+  ToolDef grep{
+      "grep",
+      "Case-insensitive substring search over the Studio C++ source AND the "
+      "currently-loaded model's input files (e.g. the model XML). Use it to "
+      "find/verify exact names before referencing them: widget ids/labels and "
+      "keyboard shortcuts live in the source; model entity names (joints, "
+      "bodies, actuators) live in the input files -- e.g. grep 'knee' to find "
+      "the real joint name. Returns matching file:line lines.",
       "{\"type\":\"object\",\"properties\":{\"pattern\":{\"type\":\"string\","
       "\"description\":\"text to search for\"}},\"required\":[\"pattern\"]}"};
 
@@ -1350,11 +1351,11 @@ void App::RegisterLlmTools() {
 
   auto exec = [this](const std::string& name,
                      const std::string& json_args) -> std::string {
-    if (name == "grep_source") {
+    if (name == "grep") {
       // Hard per-turn budget so the agent can't get stuck exploring (the system
       // prompt also asks it to grep sparingly).
       if (grep_calls_ >= 6) {
-        return "Grep budget reached. Stop searching and emit a run_ui_program "
+        return "Search budget reached. Stop searching and emit a run_ui_program "
                "now with what you know (use keyboard shortcuts for anything you "
                "couldn't reference).";
       }
@@ -1371,9 +1372,14 @@ void App::RegisterLlmTools() {
                                             : json_args.find('"', q + 1);
         if (e != std::string::npos) pattern = json_args.substr(q + 1, e - q - 1);
       }
-      std::fprintf(stderr, "[grep_source] %s\n", pattern.c_str());
+      std::fprintf(stderr, "[grep] %s\n", pattern.c_str());
       std::fflush(stderr);
-      return GrepSource(pattern, 40);
+      // Also search the loaded model's input files (where joint/body names live).
+      std::string model_dir;
+      if (!model_path_.empty()) {
+        model_dir = std::filesystem::path(model_path_).parent_path().string();
+      }
+      return GrepSource(pattern, model_dir, 40);
     }
     if (name == "run_ui_program") {
       // Echo the program the LLM generated to the console before running it.
@@ -1385,7 +1391,7 @@ void App::RegisterLlmTools() {
     return "Unknown tool: " + name;
   };
 
-  ui_agent_.set_tools({grep_source, run_program}, exec);
+  ui_agent_.set_tools({grep, run_program}, exec);
   ui_agent_.set_on_ask([this] { grep_calls_ = 0; });
 }
 
