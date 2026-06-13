@@ -125,6 +125,14 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.model: mujoco.MjModel = mujoco.MjModel.from_xml_string(TEST_XML)
     self.data = mujoco.MjData(self.model)
 
+  def test_renderer_info_binding(self):
+    info = mujoco.MjrRendererInfo()
+    mujoco.mjr_getRendererInfo(info)
+
+    self.assertIn(info.renderer, ('classic', 'filament', 'noop'))
+    self.assertIn(info.backend, ('', 'opengl', 'vulkan', 'unknown'))
+    self.assertIsInstance(info.backend_version, str)
+
   def test_load_xml_can_handle_name_clash(self):
     xml_1 = r"""
 <mujoco>

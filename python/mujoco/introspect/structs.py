@@ -10995,6 +10995,34 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
+    ('mjrRendererInfo',
+     StructDecl(
+         name='mjrRendererInfo',
+         declname='struct mjrRendererInfo_',
+         fields=(
+             StructFieldDecl(
+                 name='renderer',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 doc='renderer family: classic, filament, noop',
+             ),
+             StructFieldDecl(
+                 name='backend',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 doc='graphics backend: opengl, vulkan; empty if uninitialized',
+             ),
+             StructFieldDecl(
+                 name='backend_version',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+                 doc='backend version string, empty if unknown',
+             ),
+         ),
+     )),
     ('mjrVertexAttribute',
      StructDecl(
          name='mjrVertexAttribute',
