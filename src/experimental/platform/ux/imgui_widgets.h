@@ -443,10 +443,14 @@ bool ImGui_ButtonToggle(const char* label, T* boolean,
   style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[color]);
   style.Var(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
 
+  // Display is " <icon>  <label>", but the leading icon changes with state,
+  // which would make the ImGui id mutate on toggle (and embed a non-ASCII
+  // glyph). Append an explicit "###<label>" so the id is the stable, greppable
+  // "###<label>" -- letting the LLM/test engine reference it as "**/###<label>".
   const std::string txt =
       std::string(" ") +
       std::string(*boolean ? ICON_FA_CHECK_SQUARE_O : ICON_FA_SQUARE_O) + "  " +
-      label;
+      label + "###" + label;
   if (ImGui::Button(txt.c_str(), size)) {
     *boolean = !(*boolean);
     return true;

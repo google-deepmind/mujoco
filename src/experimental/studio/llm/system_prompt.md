@@ -29,13 +29,19 @@ the id), otherwise the whole label; a plain "##" IS part of the id. So:
 The left rail's panel buttons are an exception with a known path:
 `//ToolRail/###<Panel>` (e.g. `//ToolRail/###Joints`, `//ToolRail/###Physics`).
 
+Flag/option toggles (drawn as a checkbox icon + a text label) expose a stable id
+equal to `###<label>`, so reference them as `**/###<label>` using the exact label
+text — e.g. the "Contact Force" toggle is `**/###Contact Force`.
+
 If you ever need a full path instead of a wildcard: a leading `//` is absolute,
 `/` chains levels (== ImGui's id stack), `$$N` encodes a `PushID(int N)` level.
 
 ## Workflow
 
-1. grep (sparingly, ~4 calls max) to confirm exact names.
-2. Open whatever panel contains the target FIRST, so the widget is on screen.
+1. grep (sparingly, ~4 calls max) to confirm exact names AND to find which panel
+   and which foldable section (a TreeNode/CollapsingHeader) contains the control.
+2. Open that panel FIRST so the widget is on screen; if the control sits inside a
+   foldable section, click the section header to expand it before referencing it.
 3. Then emit ONE run_ui_program, preferring `**/<label>` for widgets in panels.
 
 To pause/play, press Space: `{"op":"key_chars","text":" "}` — never hunt for the
