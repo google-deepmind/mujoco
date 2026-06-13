@@ -50,7 +50,7 @@ void App::StartCapture(const std::string& out_dir, int total_frames,
   capture_.cursor = ImVec2(-100.0f, -100.0f);
   capture_.click_flash = 0.0f;
 
-  if (script == CaptureScript::kLlm) {
+  if (script == CaptureScript::kLlm || script == CaptureScript::kLlmDemo) {
     // Run the agent inline so the reply is ready on the next frame and reveals
     // frame-by-frame. Keep whatever provider the environment selected: with
     // ANTHROPIC_API_KEY set this is the real Claude provider (the synchronous
@@ -118,7 +118,64 @@ void App::CaptureStepLlm() {
   c.cursor = ImVec2(-100.0f, -100.0f);
 }
 
+namespace {
+// Escapes a string for embedding in a JSON string literal.
+std::string JsonEscape(const std::string& s) {
+  std::string o;
+  for (char ch : s) {
+    if (ch == '"' || ch == '\\') {
+      o += '\\';
+      o += ch;
+    } else if (ch == '\n') {
+      o += "\\n";
+    } else {
+      o += ch;
+    }
+  }
+  return o;
+}
+}  // namespace
+
+void App::CaptureStepLlmDemo() {
+  CaptureState& c = capture_;
+  const int f = c.frame;
+  const std::string prompt =
+      c.llm_prompt.empty() ? std::string("show the stats panel") : c.llm_prompt;
+
+  constexpr int kOpen = 8;
+  constexpr int kTypeStart = 16;
+  constexpr int kCharsPerFrame = 2;  // cinematic typing speed
+  const int n = static_cast<int>(prompt.size());
+  const int type_frames = (n + kCharsPerFrame - 1) / kCharsPerFrame;
+  const int submit = kTypeStart + type_frames + 8;
+
+  // Open the command palette (the app's Ctrl+P action).
+  if (f == kOpen) command_palette_.Open();
+
+  // Type the prompt into the box a couple of characters per frame.
+  if (f >= kTypeStart && f < kTypeStart + type_frames) {
+    const int chars = std::min(n, (f - kTypeStart + 1) * kCharsPerFrame);
+    command_palette_.SetText(prompt.substr(0, chars));
+  }
+
+  // Submit: fire the agent (synchronous, like kLlm) and clear the box. The
+  // LLM's reply then drives the UI via its run_ui_program program, played back
+  // by the test engine over the following frames.
+  if (f == submit) {
+    command_palette_.SetText(prompt);  // ensure the full prompt is shown
+    ui_agent_.Ask(prompt);
+    command_palette_.SetText("");
+  }
+
+  if (f == c.total_frames - 12) command_palette_.Close();
+  c.cursor = ImVec2(-100.0f, -100.0f);
+}
+
 void App::CaptureStep() {
+  if (capture_.script == CaptureScript::kLlmDemo) {
+    CaptureStepLlmDemo();
+    return;
+  }
   if (capture_.script == CaptureScript::kLlm) {
     CaptureStepLlm();
     return;

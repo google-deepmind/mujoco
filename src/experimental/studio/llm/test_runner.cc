@@ -105,6 +105,20 @@ std::string ExtractOpsArray(const std::string& json_args) {
   return json_args.substr(b, e - b);
 }
 
+// Maps a small set of key names to ImGuiKey (enough for the demo: typing into
+// the palette and pressing Enter).
+ImGuiKey KeyFromName(const std::string& n) {
+  if (n == "Enter") return ImGuiKey_Enter;
+  if (n == "Tab") return ImGuiKey_Tab;
+  if (n == "Escape" || n == "Esc") return ImGuiKey_Escape;
+  if (n == "Space") return ImGuiKey_Space;
+  if (n == "Backspace") return ImGuiKey_Backspace;
+  if (n.size() == 1 && n[0] >= 'A' && n[0] <= 'Z') {
+    return static_cast<ImGuiKey>(ImGuiKey_A + (n[0] - 'A'));
+  }
+  return ImGuiKey_None;
+}
+
 // Calls `fn` with each top-level object substring inside an array.
 template <typename Fn>
 void ForEachObject(const std::string& arr, Fn fn) {
@@ -222,6 +236,9 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
                           static_cast<int>(ReadNumber(obj, "\"value\"")));
     } else if (op == "key_chars") {
       ctx->KeyChars(text.c_str());
+    } else if (op == "key_press") {
+      ImGuiKey key = KeyFromName(ReadString(obj, "\"key\""));
+      if (key != ImGuiKey_None) ctx->KeyPress(key);
     } else if (op == "set_ref") {
       ctx->SetRef(ref.c_str());
     }

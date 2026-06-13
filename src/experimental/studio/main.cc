@@ -52,6 +52,10 @@ ABSL_FLAG(std::string, capture_script, "tools",
 ABSL_FLAG(std::string, capture_prompt, "",
           "For --capture_script=llm: the question typed into the Ctrl+P box "
           "(defaults to 'open the physics menu').");
+ABSL_FLAG(std::string, capture_prompt_demo, "",
+          "Like --capture_prompt but drives the whole interaction (open the "
+          "Ctrl+P box, type the prompt, press Enter) through the real input "
+          "path via the test engine, for a cooler demo gif.");
 ABSL_FLAG(std::string, llm_probe, "",
           "If set, send this prompt to the real Claude provider (using "
           "ANTHROPIC_API_KEY) and print the reply, then exit. Headless probe to "
@@ -207,12 +211,21 @@ int main(int argc, char** argv, char** envp) {
 
   // Scripted GIF capture: run the UI script headless, writing one PPM/frame.
   if (!capture_gif.empty()) {
+    const std::string demo_prompt = absl::GetFlag(FLAGS_capture_prompt_demo);
     const std::string script = absl::GetFlag(FLAGS_capture_script);
-    const auto capture_script = (script == "llm")
-                                    ? mujoco::studio::CaptureScript::kLlm
-                                    : mujoco::studio::CaptureScript::kTools;
+    mujoco::studio::CaptureScript capture_script;
+    std::string capture_prompt;
+    if (!demo_prompt.empty()) {
+      capture_script = mujoco::studio::CaptureScript::kLlmDemo;
+      capture_prompt = demo_prompt;
+    } else if (script == "llm") {
+      capture_script = mujoco::studio::CaptureScript::kLlm;
+      capture_prompt = absl::GetFlag(FLAGS_capture_prompt);
+    } else {
+      capture_script = mujoco::studio::CaptureScript::kTools;
+    }
     app.StartCapture(capture_gif, absl::GetFlag(FLAGS_capture_frames),
-                     capture_script, absl::GetFlag(FLAGS_capture_prompt));
+                     capture_script, capture_prompt);
     while (app.Update() && app.capture_active()) {
       app.BuildGui();
       app.Render();

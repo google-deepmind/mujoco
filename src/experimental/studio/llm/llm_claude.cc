@@ -317,6 +317,10 @@ bool HttpsPost(const std::string& headers, const std::string& body,
                                   WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS,
                                   0);
   if (!session) { err = "WinHttpOpen failed"; return false; }
+  // Generous timeouts (ms): resolve, connect, send, receive. Claude can take a
+  // while on complex prompts (adaptive thinking + a long tool-use program), so
+  // allow several minutes for the response rather than WinHTTP's 30s default.
+  WinHttpSetTimeouts(session, 60000, 60000, 300000, 300000);
   HINTERNET connect = WinHttpConnect(
       session, L"api.anthropic.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
   if (!connect) {

@@ -270,6 +270,9 @@ class App {
   void CaptureStep();
   // The LLM "ask in the Ctrl+P box" capture timeline (CaptureScript::kLlm).
   void CaptureStepLlm();
+  // Like CaptureStepLlm but drives Ctrl+P / typing / Enter through the real
+  // input path via the test engine (CaptureScript::kLlmDemo).
+  void CaptureStepLlmDemo();
 
   // Photoshop-style left rail of square icon buttons, and the floating tool
   // windows they open.

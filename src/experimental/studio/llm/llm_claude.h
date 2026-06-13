@@ -47,7 +47,7 @@ class ClaudeProvider : public LlmProvider {
  private:
   std::string api_key_;
   std::string model_ = "claude-opus-4-8";
-  int max_tokens_ = 2048;
+  int max_tokens_ = 8192;
 };
 
 }  // namespace mujoco::studio

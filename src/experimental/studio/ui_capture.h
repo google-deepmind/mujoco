@@ -28,8 +28,10 @@ namespace mujoco::studio {
 // injecting real input, which keeps it self-contained and headless-friendly.
 // Which scripted interaction to record.
 enum class CaptureScript {
-  kTools,  // open/close tool windows via the rail and the command palette.
-  kLlm,    // ask the LLM a question in the Ctrl+P box and show the reply.
+  kTools,    // open/close tool windows via the rail and the command palette.
+  kLlm,      // ask the LLM a question in the Ctrl+P box and show the reply.
+  kLlmDemo,  // like kLlm but types the prompt + submits via the real input
+             // path (test engine Ctrl+P / typing / Enter) for a cooler gif.
 };
 
 struct CaptureState {
