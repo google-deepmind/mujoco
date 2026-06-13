@@ -315,3 +315,182 @@ scripted harness specifically to avoid this; for an LLM that must drive
   baked-in, revisit once the model is choosing what to read.
 - Vision-in-the-loop: feed `pixels_` frames back for observation, or rely on
   `item_read` + Watch at first?
+
+---
+
+## 12. Resolving accurate ImGui Test Engine refs (the hard part)
+
+The single biggest robustness risk is **ref construction**: for `run_ui_program`
+to act, the model must produce a ref string that the Test Engine resolves to the
+intended widget. Today it does this from grep over source + input files. The
+question: can the model *reliably* get a correct ref this way, and what does it
+take to make that true? This section is grounded in the actual id code
+(`imgui.cpp` `ImHashStr`/`GetID`/`PushID`, `imgui_te_utils.cpp`
+`ImHashDecoratedPath`, `imgui_te_context.cpp` wildcard search) and the
+[Named-References wiki](https://github.com/ocornut/imgui_test_engine/wiki/Named-References).
+
+### 12.1 How ids and refs actually work (the ground rules)
+
+An item's id is `hash(id_significant_label, seed = top of the ID stack)`:
+
+- **`ImHashStr` rules.** The display label is everything before the first `##`.
+  The *id-significant* substring is everything from the **last `###`** onward
+  (the `###` resets the hash), else the whole label — and a plain `##` (two
+  hashes) is **included** in the id. So `Button("Save")`→id of `"Save"`;
+  `Button("Save##2")`→id of `"Save##2"` (display "Save"); `Button("Save###x")`→id
+  of `"###x"` (display "Save").
+- **The ID stack (seed).** `Begin`, `TreeNode`, `PushID`, tabs, tables, etc. push
+  levels; each item is seeded by the level above it. `PushID(const char*)` pushes
+  `hash(str)`; **`PushID(int n)` pushes `hash(raw int bytes)`**; **`PushID(void*
+  p)` pushes `hash(raw pointer bytes)`**.
+- **Test Engine ref grammar** (`ImHashDecoratedPath`): `/` chains the seed (== the
+  ID stack); a leading `//` resets the seed to 0 (absolute); `###` resets;
+  `$$N` encodes a `PushID(int N)` level; `$$(type)value` encodes a pointer level
+  (discouraged); `\` escapes a literal `/`; `//$FOCUSED` = focused window.
+- **Wildcard `**/leaf`** resolves on the GUI side by matching an item whose
+  **label** satisfies `ImHashStr(label,0) == ImHashStr(leaf,0)` — i.e. it matches
+  the *leaf label string anywhere*, ignoring the whole seed/stack. Powerful, but:
+  only matches **visible (unclipped)** items, no partial matches, and is
+  ambiguous if the label isn't unique.
+
+### 12.2 The cases that occur in ImGui code (check every solution against these)
+
+Ordered roughly easy → hard, with whether a *static* (source+grep) ref is
+derivable:
+
+1. **Literal label, window scope** — `Button("OK")`. Ref `//Win/OK`. **Greppable.**
+2. **`##` disambiguator** — `Button("Play##2")`. Ref `//Win/Play##2`. **Greppable.**
+3. **`###` stable id** — `Button("Play###x")`. Ref must use `###x`, not `Play`.
+   **Greppable** (if the model applies the `###` rule).
+4. **Nested literal stack** — `TreeNode("N")` … `Button("OK")`. Ref `//Win/N/OK`.
+   **Greppable** (if all levels are literals).
+5. **`PushID("key")`** — literal string key. Ref includes the key segment.
+   **Greppable.**
+6. **`PushID(literal int)`** — e.g. `PushID(3)`. Ref `…/$$3/…`. **Greppable.**
+7. **Widgets in a loop with `PushID(i)`** — the seed depends on the runtime index;
+   the same source line makes N items. **Not directly greppable**: the model sees
+   `PushID(i)` but not the values. Sometimes recoverable as `$$0,$$1,…` *if* it
+   can bound the loop (often from input-file data); the leaf label is frequently
+   identical across iterations → wildcard is ambiguous.
+8. **`PushID(ptr)`** — seeded from a runtime pointer. **Not greppable, not even
+   stable across runs.** Only `$$(ptr)value` (unknowable) or a *unique leaf
+   label* via wildcard can reach it.
+9. **Computed/`snprintf` labels** — `snprintf(b,"joint %d",i); Slider(b)`. The
+   label is runtime; source has only the format string. **Not greppable;** needs
+   the exact rendered label.
+10. **Runtime-data labels (our knee)** — `Slider(joint_name)` where `joint_name`
+    comes from the loaded model. The string isn't in the C++ at all — it's in the
+    **input file**. **Greppable only because we grep input files too;** ref via
+    `**/knee_right` (visible) or the constructed window path.
+11. **Framework `PushOverrideID`** — docking nodes, tab items, table instance ids,
+    popups. Ids are computed from window/table ids, not labels. **Not statically
+    referenceable**; the engine exposes helpers (`WindowInfo`, table/tab APIs)
+    instead.
+12. **Child windows / our tool windows** — `BeginChild`/`Begin("T###ToolWindowN")`
+    produce mangled or index-dependent ids. **Partially greppable** (the literal
+    parts), but index/mangling defeats a clean path → needs a convention or
+    `WindowInfo(...)`.
+13. **Geometry/pos-based ids** (`GetIDFromRectangle`, some internal widgets) and
+    **clipped items** (off-screen in a scroll region) — **not statically
+    referenceable / invisible to wildcard** without scrolling.
+
+The easy bucket (1–6) is already reliably greppable today. The hard bucket
+(7–13) is what any real solution must address: **loops, pointers, computed
+labels, framework ids, child/tool windows, clipping.**
+
+### 12.3 The options
+
+**Option 1 — Conventions for our + plugin UI code.**
+Require interactive widgets to carry a stable, greppable, human-meaningful id
+(an explicit `###key`), and in loops to `PushID(stable_string_key)` (never an
+`int`/`ptr`); forbid `PushID(ptr)`; append `###key` to computed labels.
+- *Pros:* makes refs deterministic and greppable; easy to state in one sentence
+  ("every interactive widget needs a stable `###id`; in loops push a stable
+  string key"); zero runtime cost; generalizes to plugins that follow it.
+- *Cons:* it's a constraint/footgun on UI authors — exactly what we said we want
+  to minimize; unenforceable on third-party/legacy code; the loop key still has
+  to *come from somewhere greppable* (works when it's the model name we already
+  grep from the input file; doesn't help for purely runtime keys); nothing for
+  framework ids (11) or clipping (13).
+- *Covers:* 1–7, 10, 12 — **if everyone complies.**
+
+**Option 2 — Macros that bake `__FILE__:__LINE__` into the id.**
+A widget macro pushes `###<file>:<line>` so the model greps the source location
+(trivially findable) and builds the ref from it.
+- *Pros:* the call site is the most greppable thing there is; works even when the
+  *label* is dynamic (the id is the location); deterministic at a point in time.
+- *Cons:* **a single line in a loop yields N identical `file:line` ids → collision**
+  (still needs a per-iteration key — back to case 7); it's a convention/footgun
+  (every widget must use the macro, incl. plugins); ids are opaque to humans and
+  churn when code moves lines; the model must know the exact `__FILE__` spelling.
+- *Covers:* 1–6, 9, 10 *single-instance*; **not 7/8 loops/pointers, not 11.**
+  Solves "which call site," not "which iteration."
+
+**Option 3 — Repurpose ImGui's ID Stack Tool / Item Picker (runtime id→path).**
+`DebugHookIdInfo` already reconstructs the decorated path for a target id; the
+Item Picker captures an item by clicking; `GatherItems()` enumerates; the engine
+stores a `DebugLabel` per item. Build a tool that lists live items with their
+reconstructed refs.
+- *Pros:* **ground truth** — reflects loops, `PushID(int/ptr)`, computed labels,
+  dynamic data, all of it, because it reads the live stack as items draw; no
+  conventions, no footguns; generalizes to any plugin automatically; this is the
+  runtime analog of grep.
+- *Cons:* it's **runtime, not source+grep** (breaks the stated "from source"
+  premise — though it shares DNA with video feedback, also runtime); only sees
+  **visible** items; `PushOverrideID` levels reconstruct as raw hex, not a name
+  (referenceable by id, not by readable path); it's one more tool (we want few).
+- *Covers:* essentially **all visible cases**; weakest on framework ids (names)
+  and clipped items.
+
+**Option 4 — A ref "sentinel"/registry the UI code drops and the prompt knows.**
+A one-liner like `StudioRef("knee_slider")` next to (or inside the loop of) an
+important widget records that widget's live id under a stable name. The model
+greps the source for `StudioRef("…")` names (purely static!) and references by
+name; the runtime resolves name→live id. This is the web `data-testid` /
+accessibility-id pattern, which is the proven answer in E2E UI testing.
+- *Pros:* clean split — **the model works purely from source** (greps marker
+  names that *are* in the source) while the runtime does the hard id math;
+  robust for annotated widgets regardless of loops/pointers/dynamic labels
+  (the marker captures the live id); human-meaningful; **opt-in** (annotate only
+  what matters) so it's low-footgun.
+- *Cons:* only covers what authors annotate → not automatic/complete; plugins
+  must annotate to be first-class; a registry to maintain.
+- *Covers:* any case the author chooses to tag, including 7–10; not the untagged
+  long tail.
+
+**Option 5 — Alternatives / what we already lean on.**
+- *5a. Wildcard + grep-over-inputs + the rules in the prompt (today, zero code).*
+  Model greps source+inputs for the leaf label, uses `**/<id-part>`. Covers
+  1–10 for **uniquely-labelled, visible** items with **no UI-code constraints**.
+  Fails on duplicate labels (7/8), clipping (13), framework ids (11). Cheapest,
+  least footgun, not complete.
+- *5b. A single generic "list live UI items" introspection tool* (Option 3
+  framed minimally: "search the live UI" as the runtime sibling of "search the
+  disk"). One generic tool, no conventions, most robust general mechanism.
+- *5c. Video feedback as the corrector* — don't require perfect refs; the agent
+  sees nothing happened and retries / picks another ref. Subsumes the long tail.
+
+### 12.4 Recommended mix
+
+Layer cheapest-and-most-general first; only add structure where it pays:
+
+1. **Document the exact rules in the system prompt** (§12.1) and **default to
+   `**/<leaf>` wildcards + grep over source *and* input files.** Zero UI-code
+   constraints; handles the common unique-label case (incl. the knee). *(We have
+   most of this; just add the `###`/`$$`/wildcard rules to `system_prompt.md`.)*
+2. **An opt-in `data-testid`-style ref marker (Option 4)** for the widgets/loops
+   that matter — the low-footgun way to make loops, pointers, and dynamic labels
+   reliably addressable without constraining *all* UI code. Plugins that want
+   first-class agent control tag their key widgets; the rest still get best
+   effort. Prefer this over blanket conventions (Option 1) or `file:line` macros
+   (Option 2), which constrain everyone and still don't solve loops.
+3. **Runtime safety nets for the long tail:** a single generic *list-live-items*
+   tool (5b/Option 3) and/or **video feedback** (5c) for clipped, ambiguous, or
+   framework-id cases that no static ref can express.
+
+Explicitly *not* recommended: making the model statically reverse-engineer the
+full id algorithm. The hashing is knowable, but `PushID(int/ptr)` in loops and
+`PushOverrideID` are fundamentally runtime — chasing them from source text is the
+brittle path. Keep the static layer simple (rules + wildcard + grep), make the
+important things addressable by name (test-ids), and let runtime feedback close
+the rest.
