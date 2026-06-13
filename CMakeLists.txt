@@ -211,6 +211,9 @@ target_link_libraries(
 if(NOT EMSCRIPTEN)
   target_link_libraries(mujoco PRIVATE Threads::Threads)
 endif()
+if(CMAKE_DL_LIBS)
+  target_link_libraries(mujoco PRIVATE ${CMAKE_DL_LIBS})
+endif()
 
 set_target_properties(
   mujoco PROPERTIES VERSION "${mujoco_VERSION}" PUBLIC_HEADER "${MUJOCO_HEADERS}"
