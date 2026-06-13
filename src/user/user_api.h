@@ -431,6 +431,12 @@ MJAPI const void* mjs_getPluginAttributes(const mjsPlugin* plugin);
 
 //---------------------------------- Other utilities -----------------------------------------------
 
+// Return 1 if a field was authored or mutated relative to its inherited default, 0 otherwise.
+MJAPI int mjs_isAuthored(const void* elem_ptr, const void* field_ptr);
+
+// Record explicit authoring of an element's field.
+MJAPI void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored);
+
 // Set element's default.
 MJAPI void mjs_setDefault(mjsElement* element, const mjsDefault* def);
 

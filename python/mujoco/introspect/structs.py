@@ -6996,6 +6996,68 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='texture directory',
              ),
+             StructFieldDecl(
+                 name='authored',
+                 type=ValueType(name='uint64_t'),
+                 doc='bitmask of authored compiler fields',
+             ),
+         ),
+     )),
+    ('mjsAuthored',
+     StructDecl(
+         name='mjsAuthored',
+         declname='struct mjsAuthored_',
+         fields=(
+             StructFieldDecl(
+                 name='option',
+                 type=ValueType(name='uint64_t'),
+                 doc='authored mjOption fields',
+             ),
+             StructFieldDecl(
+                 name='disableflags',
+                 type=ValueType(name='int'),
+                 doc='individual authored disable flags',
+             ),
+             StructFieldDecl(
+                 name='enableflags',
+                 type=ValueType(name='int'),
+                 doc='individual authored enable flags',
+             ),
+             StructFieldDecl(
+                 name='disableactuator',
+                 type=ValueType(name='int'),
+                 doc='individual authored actuator groups',
+             ),
+             StructFieldDecl(
+                 name='visual_global',
+                 type=ValueType(name='uint64_t'),
+                 doc='authored visual.global fields',
+             ),
+             StructFieldDecl(
+                 name='visual_quality',
+                 type=ValueType(name='uint64_t'),
+                 doc='authored visual.quality fields',
+             ),
+             StructFieldDecl(
+                 name='visual_headlight',
+                 type=ValueType(name='uint64_t'),
+                 doc='authored visual.headlight fields',
+             ),
+             StructFieldDecl(
+                 name='visual_map',
+                 type=ValueType(name='uint64_t'),
+                 doc='authored visual.map fields',
+             ),
+             StructFieldDecl(
+                 name='visual_scale',
+                 type=ValueType(name='uint64_t'),
+                 doc='authored visual.scale fields',
+             ),
+             StructFieldDecl(
+                 name='visual_rgba',
+                 type=ValueType(name='uint64_t'),
+                 doc='authored visual.rgba fields',
+             ),
          ),
      )),
     ('mjSpec',
@@ -7135,6 +7197,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='hasImplicitPluginElem',
                  type=ValueType(name='mjtByte'),
                  doc='already encountered an implicit plugin sensor/actuator',
+             ),
+             StructFieldDecl(
+                 name='authored',
+                 type=ValueType(name='mjsAuthored'),
+                 doc='authored tracking bitmasks for mjModel structs',
              ),
          ),
      )),

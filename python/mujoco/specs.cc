@@ -267,6 +267,7 @@ PYBIND11_MODULE(_specs, m) {
   py::class_<raw::MjVisualHeadlight> mjVisualHeadlight(m, "MjVisualHeadlight");
   py::class_<raw::MjVisualRgba> mjVisualRgba(m, "MjVisualRgba");
   py::class_<raw::MjsCompiler> mjsCompiler(m, "MjsCompiler");
+  py::class_<raw::MjsAuthored> mjsAuthored(m, "MjsAuthored");
   DefineArray<char>(m, "MjCharVec");
   DefineArray<std::string>(m, "MjStringVec");
   DefineArray<std::byte>(m, "MjByteVec");

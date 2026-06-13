@@ -31,6 +31,8 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
+#include <mujoco/mjspecmacro.h>
+#include <mujoco/mjxmacro.h>
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "user/user_cache.h"
@@ -2372,4 +2374,170 @@ mjCache* mj_getCache() {
     return c;
   }();
   return &cache_cwrapper;
+}
+
+
+// return 1 if a field was authored, 0 otherwise
+int mjs_isAuthored(const void* elem_ptr, const void* field_ptr) {
+  if (!elem_ptr || !field_ptr) return 0;
+  const mjsElement* el = *reinterpret_cast<const mjsElement* const*>(elem_ptr);
+  if (!el) return 0;
+
+  // model-level sub-structs (compiler, option, visual)
+  if (el->elemtype == mjOBJ_MODEL) {
+    const mjCModel* cel = static_cast<const mjCModel*>(el);
+    int idx = 0;
+
+#define CHECK_FIELD(FIELD_PATH, AUTHORED_MASK)                               \
+  if (field_ptr == &FIELD_PATH) return (AUTHORED_MASK & (1ULL << idx)) != 0; \
+  idx++;
+#define CHECK_FIELD_VEC(FIELD_PATH, AUTHORED_MASK)         \
+  if (field_ptr == FIELD_PATH || field_ptr == &FIELD_PATH) \
+    return (AUTHORED_MASK & (1ULL << idx)) != 0;           \
+  idx++;
+
+#define X(type, name, dim) CHECK_FIELD(cel->spec.compiler.name, cel->spec.compiler.authored)
+#define XVEC(type, name, dim) CHECK_FIELD_VEC(cel->spec.compiler.name, cel->spec.compiler.authored)
+    idx = 0;
+    MJSCOMPILER_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) CHECK_FIELD(cel->spec.option.name, cel->spec.authored.option)
+#define XVEC(type, name, dim) CHECK_FIELD_VEC(cel->spec.option.name, cel->spec.authored.option)
+    idx = 0;
+    MJOPTION_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) \
+  CHECK_FIELD(cel->spec.visual.global.name, cel->spec.authored.visual_global)
+    idx = 0;
+    MJVISUAL_GLOBAL_FIELDS
+#undef X
+
+#define X(type, name, dim) \
+  CHECK_FIELD(cel->spec.visual.quality.name, cel->spec.authored.visual_quality)
+    idx = 0;
+    MJVISUAL_QUALITY_FIELDS
+#undef X
+
+#define X(type, name, dim) \
+  CHECK_FIELD(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
+#define XVEC(type, name, dim) \
+  CHECK_FIELD_VEC(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
+    idx = 0;
+    MJVISUAL_HEADLIGHT_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) CHECK_FIELD(cel->spec.visual.map.name, cel->spec.authored.visual_map)
+    idx = 0;
+    MJVISUAL_MAP_FIELDS
+#undef X
+
+#define X(type, name, dim) CHECK_FIELD(cel->spec.visual.scale.name, cel->spec.authored.visual_scale)
+    idx = 0;
+    MJVISUAL_SCALE_FIELDS
+#undef X
+
+#define XVEC(type, name, dim) \
+  CHECK_FIELD_VEC(cel->spec.visual.rgba.name, cel->spec.authored.visual_rgba)
+    idx = 0;
+    MJVISUAL_RGBA_FIELDS
+#undef XVEC
+
+#undef CHECK_FIELD
+#undef CHECK_FIELD_VEC
+  }
+
+  return 0;
+}
+
+
+
+// record explicit authoring of an element's field
+void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored) {
+  if (!elem_ptr || !field_ptr) return;
+  mjsElement* el = const_cast<mjsElement*>(*reinterpret_cast<const mjsElement* const*>(elem_ptr));
+  if (!el) return;
+
+#define SET_FIELD(FIELD_PATH, AUTHORED_MASK) \
+  if (field_ptr == &FIELD_PATH) {            \
+    if (authored)                            \
+      AUTHORED_MASK |= (1ULL << idx);        \
+    else                                     \
+      AUTHORED_MASK &= ~(1ULL << idx);       \
+    return;                                  \
+  }                                          \
+  idx++;
+
+#define SET_FIELD_VEC(FIELD_PATH, AUTHORED_MASK)             \
+  if (field_ptr == FIELD_PATH || field_ptr == &FIELD_PATH) { \
+    if (authored)                                            \
+      AUTHORED_MASK |= (1ULL << idx);                        \
+    else                                                     \
+      AUTHORED_MASK &= ~(1ULL << idx);                       \
+    return;                                                  \
+  }                                                          \
+  idx++;
+
+  // model-level sub-structs (compiler, option, visual)
+  if (el->elemtype == mjOBJ_MODEL) {
+    mjCModel* cel = static_cast<mjCModel*>(el);
+    int idx = 0;
+
+#define X(type, name, dim) SET_FIELD(cel->spec.compiler.name, cel->spec.compiler.authored)
+#define XVEC(type, name, dim) SET_FIELD_VEC(cel->spec.compiler.name, cel->spec.compiler.authored)
+    idx = 0;
+    MJSCOMPILER_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) SET_FIELD(cel->spec.option.name, cel->spec.authored.option)
+#define XVEC(type, name, dim) SET_FIELD_VEC(cel->spec.option.name, cel->spec.authored.option)
+    idx = 0;
+    MJOPTION_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) SET_FIELD(cel->spec.visual.global.name, cel->spec.authored.visual_global)
+    idx = 0;
+    MJVISUAL_GLOBAL_FIELDS
+#undef X
+
+#define X(type, name, dim) \
+  SET_FIELD(cel->spec.visual.quality.name, cel->spec.authored.visual_quality)
+    idx = 0;
+    MJVISUAL_QUALITY_FIELDS
+#undef X
+
+#define X(type, name, dim) \
+  SET_FIELD(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
+#define XVEC(type, name, dim) \
+  SET_FIELD_VEC(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
+    idx = 0;
+    MJVISUAL_HEADLIGHT_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) SET_FIELD(cel->spec.visual.map.name, cel->spec.authored.visual_map)
+    idx = 0;
+    MJVISUAL_MAP_FIELDS
+#undef X
+
+#define X(type, name, dim) SET_FIELD(cel->spec.visual.scale.name, cel->spec.authored.visual_scale)
+    idx = 0;
+    MJVISUAL_SCALE_FIELDS
+#undef X
+
+#define XVEC(type, name, dim) \
+  SET_FIELD_VEC(cel->spec.visual.rgba.name, cel->spec.authored.visual_rgba)
+    idx = 0;
+    MJVISUAL_RGBA_FIELDS
+#undef XVEC
+  }
+
+#undef SET_FIELD
+#undef SET_FIELD_VEC
 }

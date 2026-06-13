@@ -1503,6 +1503,75 @@ struct MjWarningStat {
   bool owned_ = false;
 };
 
+struct MjsAuthored {
+  explicit MjsAuthored(mjsAuthored *ptr);
+  mjsAuthored* get() const;
+  void set(mjsAuthored* ptr);
+  uint64_t option() const {
+    return ptr_->option;
+  }
+  void set_option(uint64_t value) {
+    ptr_->option = value;
+  }
+  int disableflags() const {
+    return ptr_->disableflags;
+  }
+  void set_disableflags(int value) {
+    ptr_->disableflags = value;
+  }
+  int enableflags() const {
+    return ptr_->enableflags;
+  }
+  void set_enableflags(int value) {
+    ptr_->enableflags = value;
+  }
+  int disableactuator() const {
+    return ptr_->disableactuator;
+  }
+  void set_disableactuator(int value) {
+    ptr_->disableactuator = value;
+  }
+  uint64_t visual_global() const {
+    return ptr_->visual_global;
+  }
+  void set_visual_global(uint64_t value) {
+    ptr_->visual_global = value;
+  }
+  uint64_t visual_quality() const {
+    return ptr_->visual_quality;
+  }
+  void set_visual_quality(uint64_t value) {
+    ptr_->visual_quality = value;
+  }
+  uint64_t visual_headlight() const {
+    return ptr_->visual_headlight;
+  }
+  void set_visual_headlight(uint64_t value) {
+    ptr_->visual_headlight = value;
+  }
+  uint64_t visual_map() const {
+    return ptr_->visual_map;
+  }
+  void set_visual_map(uint64_t value) {
+    ptr_->visual_map = value;
+  }
+  uint64_t visual_scale() const {
+    return ptr_->visual_scale;
+  }
+  void set_visual_scale(uint64_t value) {
+    ptr_->visual_scale = value;
+  }
+  uint64_t visual_rgba() const {
+    return ptr_->visual_rgba;
+  }
+  void set_visual_rgba(uint64_t value) {
+    ptr_->visual_rgba = value;
+  }
+
+ private:
+  mjsAuthored* ptr_;
+};
+
 struct MjsElement {
   explicit MjsElement(mjsElement *ptr);
   mjsElement* get() const;
@@ -2272,6 +2341,12 @@ struct MjsCompiler {
     if (ptr_ && ptr_->texturedir) {
       *(ptr_->texturedir) = value;
     }
+  }
+  uint64_t authored() const {
+    return ptr_->authored;
+  }
+  void set_authored(uint64_t value) {
+    ptr_->authored = value;
   }
 
  private:
@@ -5866,6 +5941,7 @@ struct MjSpec {
   MjOption option;
   MjVisual visual;
   MjStatistic stat;
+  MjsAuthored authored;
 };
 
 struct MjsActuator {
@@ -7672,6 +7748,14 @@ void MjWarningStat::set(mjWarningStat* ptr) {
   ptr_ = ptr;
 }
 
+MjsAuthored::MjsAuthored(mjsAuthored *ptr) : ptr_(ptr) {}
+mjsAuthored* MjsAuthored::get() const {
+  return ptr_;
+}
+void MjsAuthored::set(mjsAuthored* ptr) {
+  ptr_ = ptr;
+}
+
 MjsElement::MjsElement(mjsElement *ptr) : ptr_(ptr) {}
 mjsElement* MjsElement::get() const {
   return ptr_;
@@ -8514,7 +8598,8 @@ MjSpec::MjSpec()
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {
   owned_ = true;
   mjs_defaultSpec(ptr_);
 };
@@ -8525,7 +8610,8 @@ MjSpec::MjSpec(mjSpec *ptr)
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {}
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {}
 
 MjSpec::MjSpec(const MjSpec &other)
     : ptr_(mj_copySpec(other.get())),
@@ -8533,7 +8619,8 @@ MjSpec::MjSpec(const MjSpec &other)
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {
   owned_ = true;
 }
 
@@ -12630,6 +12717,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjSpec>("MjSpec")
     .constructor<const MjSpec &>()
     .property("timer", &MjSpec::timer)
+    .property("authored", &MjSpec::authored, reference())
     .property("comment", &MjSpec::comment, &MjSpec::set_comment, reference())
     .property("compiler", &MjSpec::compiler, reference())
     .property("element", &MjSpec::element, reference())
@@ -12810,6 +12898,17 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("target", &MjsActuator::target, &MjsActuator::set_target, reference())
     .property("trntype", &MjsActuator::trntype, &MjsActuator::set_trntype, reference())
     .property("userdata", &MjsActuator::userdata, reference());
+  emscripten::class_<MjsAuthored>("MjsAuthored")
+    .property("disableactuator", &MjsAuthored::disableactuator, &MjsAuthored::set_disableactuator, reference())
+    .property("disableflags", &MjsAuthored::disableflags, &MjsAuthored::set_disableflags, reference())
+    .property("enableflags", &MjsAuthored::enableflags, &MjsAuthored::set_enableflags, reference())
+    .property("option", &MjsAuthored::option, &MjsAuthored::set_option, reference())
+    .property("visual_global", &MjsAuthored::visual_global, &MjsAuthored::set_visual_global, reference())
+    .property("visual_headlight", &MjsAuthored::visual_headlight, &MjsAuthored::set_visual_headlight, reference())
+    .property("visual_map", &MjsAuthored::visual_map, &MjsAuthored::set_visual_map, reference())
+    .property("visual_quality", &MjsAuthored::visual_quality, &MjsAuthored::set_visual_quality, reference())
+    .property("visual_rgba", &MjsAuthored::visual_rgba, &MjsAuthored::set_visual_rgba, reference())
+    .property("visual_scale", &MjsAuthored::visual_scale, &MjsAuthored::set_visual_scale, reference());
   emscripten::class_<MjsBody>("MjsBody")
     .property("alt", &MjsBody::alt, reference())
     .property("childclass", &MjsBody::childclass, &MjsBody::set_childclass, reference())
@@ -12852,6 +12951,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjsCompiler>("MjsCompiler")
     .property("LRopt", &MjsCompiler::LRopt, reference())
     .property("alignfree", &MjsCompiler::alignfree, &MjsCompiler::set_alignfree, reference())
+    .property("authored", &MjsCompiler::authored, &MjsCompiler::set_authored, reference())
     .property("autolimits", &MjsCompiler::autolimits, &MjsCompiler::set_autolimits, reference())
     .property("balanceinertia", &MjsCompiler::balanceinertia, &MjsCompiler::set_balanceinertia, reference())
     .property("boundinertia", &MjsCompiler::boundinertia, &MjsCompiler::set_boundinertia, reference())
@@ -13390,6 +13490,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("translate", &MjvScene::translate);
   emscripten::register_optional<MjSpec>();
   emscripten::register_optional<MjsActuator>();
+  emscripten::register_optional<MjsAuthored>();
   emscripten::register_optional<MjsBody>();
   emscripten::register_optional<MjsCamera>();
   emscripten::register_optional<MjsCompiler>();

@@ -666,7 +666,8 @@ MjSpec::MjSpec()
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {
   owned_ = true;
   mjs_defaultSpec(ptr_);
 };
@@ -677,7 +678,8 @@ MjSpec::MjSpec(mjSpec *ptr)
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {}
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {}
 
 MjSpec::MjSpec(const MjSpec &other)
     : ptr_(mj_copySpec(other.get())),
@@ -685,7 +687,8 @@ MjSpec::MjSpec(const MjSpec &other)
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {
   owned_ = true;
 }
 

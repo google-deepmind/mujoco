@@ -5868,6 +5868,21 @@ public unsafe struct mjsCompiler_ {
   public mjLROpt_ LRopt;
   public void* meshdir;
   public void* texturedir;
+  public UInt64 authored;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjsAuthored_ {
+  public UInt64 option;
+  public int disableflags;
+  public int enableflags;
+  public int disableactuator;
+  public UInt64 visual_global;
+  public UInt64 visual_quality;
+  public UInt64 visual_headlight;
+  public UInt64 visual_map;
+  public UInt64 visual_scale;
+  public UInt64 visual_rgba;
 }
 
 [StructLayout(LayoutKind.Sequential)]

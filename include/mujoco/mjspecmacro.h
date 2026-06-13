@@ -43,7 +43,8 @@
     X   ( int,       alignfree,         1 ) \
     X   ( mjLROpt,   LRopt,             1 ) \
     X   ( mjString*, meshdir,           1 ) \
-    X   ( mjString*, texturedir,        1 )
+    X   ( mjString*, texturedir,        1 ) \
+    X   ( uint64_t,  authored,          1 )
 
 
 //-------------------------------- mjSpec ----------------------------------------------------------

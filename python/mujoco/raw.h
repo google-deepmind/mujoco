@@ -61,6 +61,7 @@ using MjsTuple = ::mjsTuple;
 using MjsKey = ::mjsKey;
 using MjsDefault = ::mjsDefault;
 using MjsCompiler = ::mjsCompiler;
+using MjsAuthored = ::mjsAuthored;
 using MjOption = ::mjOption;
 using MjSolverStat = ::mjSolverStat;
 using MjStatistic = ::mjStatistic;

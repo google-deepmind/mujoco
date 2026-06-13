@@ -1588,7 +1588,20 @@ typedef struct mjsCompiler_ {      // compiler options
   mjLROpt LRopt;                   // options for lengthrange computation
   mjString* meshdir;               // mesh and hfield directory
   mjString* texturedir;            // texture directory
+  uint64_t authored;               // bitmask of authored compiler fields
 } mjsCompiler;
+typedef struct mjsAuthored_ {      // authored tracking bitmasks for mjModel structs
+  uint64_t option;                 // authored mjOption fields
+  int      disableflags;           // individual authored disable flags
+  int      enableflags;            // individual authored enable flags
+  int      disableactuator;        // individual authored actuator groups
+  uint64_t visual_global;          // authored visual.global fields
+  uint64_t visual_quality;         // authored visual.quality fields
+  uint64_t visual_headlight;       // authored visual.headlight fields
+  uint64_t visual_map;             // authored visual.map fields
+  uint64_t visual_scale;           // authored visual.scale fields
+  uint64_t visual_rgba;            // authored visual.rgba fields
+} mjsAuthored;
 typedef struct mjSpec_ {           // model specification
   mjsElement* element;             // element type
   mjString* modelname;             // model name
@@ -1625,6 +1638,9 @@ typedef struct mjSpec_ {           // model specification
 
   // other
   mjtByte hasImplicitPluginElem;   // already encountered an implicit plugin sensor/actuator
+
+  // authored tracking bitmasks for mjModel structs
+  mjsAuthored authored;
 } mjSpec;
 typedef struct mjsOrientation_ {   // alternative orientation specifiers
   mjtOrientation type;             // active orientation specifier

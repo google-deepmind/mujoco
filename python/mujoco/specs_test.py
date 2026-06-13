@@ -2102,5 +2102,76 @@ class SpecsTest(absltest.TestCase):
     model = spec.compile()
     self.assertIsNotNone(model)
 
+  def test_authored_struct(self):
+    spec = mujoco.MjSpec()
+    # authored struct should be accessible with correct fields
+    self.assertEqual(spec.authored.option, 0)
+    self.assertEqual(spec.authored.disableflags, 0)
+    self.assertEqual(spec.authored.enableflags, 0)
+    self.assertEqual(spec.authored.disableactuator, 0)
+    self.assertEqual(spec.authored.visual_global, 0)
+    self.assertEqual(spec.authored.visual_quality, 0)
+    self.assertEqual(spec.authored.visual_headlight, 0)
+    self.assertEqual(spec.authored.visual_map, 0)
+    self.assertEqual(spec.authored.visual_scale, 0)
+    self.assertEqual(spec.authored.visual_rgba, 0)
+    # compiler authored should be zero
+    self.assertEqual(spec.compiler.authored, 0)
+
+  def test_authored_flags_from_xml(self):
+    spec = mujoco.MjSpec.from_string("""
+    <mujoco>
+      <option timestep="0.01">
+        <flag constraint="disable" energy="enable"/>
+      </option>
+      <compiler boundmass="1"/>
+      <visual>
+        <global fovy="60"/>
+        <quality shadowsize="1024"/>
+      </visual>
+      <worldbody/>
+    </mujoco>
+    """)
+    # disable/enable flags should be tracked
+    self.assertNotEqual(
+        spec.authored.disableflags & mujoco.mjtDisableBit.mjDSBL_CONSTRAINT, 0)
+    self.assertEqual(
+        spec.authored.disableflags & mujoco.mjtDisableBit.mjDSBL_CONTACT, 0)
+    self.assertNotEqual(
+        spec.authored.enableflags & mujoco.mjtEnableBit.mjENBL_ENERGY, 0)
+    self.assertEqual(
+        spec.authored.enableflags & mujoco.mjtEnableBit.mjENBL_OVERRIDE, 0)
+
+    # option authored bitmask should be nonzero (timestep was authored)
+    self.assertNotEqual(spec.authored.option, 0)
+
+    # compiler authored bitmask should be nonzero (boundmass was authored)
+    self.assertNotEqual(spec.compiler.authored, 0)
+
+    # visual authored bitmask should be nonzero (fovy, shadowsize were authored)
+    self.assertNotEqual(spec.authored.visual_global, 0)
+    self.assertNotEqual(spec.authored.visual_quality, 0)
+
+    # visual sections that were not authored should be zero
+    self.assertEqual(spec.authored.visual_headlight, 0)
+    self.assertEqual(spec.authored.visual_map, 0)
+    self.assertEqual(spec.authored.visual_scale, 0)
+    self.assertEqual(spec.authored.visual_rgba, 0)
+
+  def test_authored_defaults_zero(self):
+    spec = mujoco.MjSpec.from_string("""
+    <mujoco>
+      <worldbody/>
+    </mujoco>
+    """)
+    # nothing authored in an empty model
+    self.assertEqual(spec.authored.option, 0)
+    self.assertEqual(spec.authored.disableflags, 0)
+    self.assertEqual(spec.authored.enableflags, 0)
+    self.assertEqual(spec.compiler.authored, 0)
+    self.assertEqual(spec.authored.visual_global, 0)
+    self.assertEqual(spec.authored.visual_quality, 0)
+    self.assertEqual(spec.authored.visual_map, 0)
+
 if __name__ == '__main__':
   absltest.main()

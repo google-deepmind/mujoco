@@ -1420,6 +1420,16 @@ Compiler options.
 .. mujoco-include:: mjsCompiler
 
 
+.. _mjsAuthored:
+
+mjsAuthored
+~~~~~~~~~~~
+
+Authored tracking bitmasks for ``mjModel`` structs.
+
+.. mujoco-include:: mjsAuthored
+
+
 .. _mjsBody:
 
 mjsBody
