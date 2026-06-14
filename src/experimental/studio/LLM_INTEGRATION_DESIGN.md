@@ -457,3 +457,60 @@ surgery* — a payoff of the single-actuator design.
 Rough estimate: **~1–2 days** Windows-only (namespace + include paths + CMake +
 API façade; near-zero logic change), **+2–4 days** for cross-platform (a libcurl
 transport and Linux/macOS testing).
+
+---
+
+## 13. A "prompt-only" WASM demo (brainstorm)
+
+Goal: a stripped WASM build where the user sees only the 3D viewport + the Ctrl+P
+command palette. The full ImGui UI (rail, panels, menus, scrubber, …) still
+exists and runs so the agent can address and drive it, but is invisible — so the
+app *appears* to be controlled purely by the prompt.
+
+**The enabling fact:** the Test Engine addresses items from the per-frame item
+registry (`ItemAdd` ids + rects), populated by **building** the UI, not by
+**drawing** it. Addressability is orthogonal to visibility. So we can build the
+whole UI every frame (agent can inspect/click it) while suppressing its pixels.
+
+### Simplest approach — "ghost UI" (alpha 0)
+Add a `prompt_only` flag. When on, render every ImGui window EXCEPT the command
+palette with `style.Alpha = 0` (set it at the top of `BuildGui`, restore to 1
+just before the palette, which is already drawn last). The windows are still
+submitted, so their items keep ids/rects and stay fully clickable by the Test
+Engine; they simply draw nothing. The 3D viewport (the renderer, not ImGui) draws
+normally behind, the palette draws on top. The user sees: scene + palette.
+- Why it works: alpha is render-only — `ItemAdd`, hit-testing, `GatherItems`, and
+  `ItemClick` all operate on the registry + rects, unaffected by alpha. The agent
+  toggles e.g. "Contact Force" in the invisible Rendering panel and the *visible*
+  viewport updates, because the hidden UI mutates the same shared state the
+  renderer reads.
+- Effort: tens of lines — gate the non-palette windows' alpha behind the flag.
+- Caveat: an invisible window still *captures mouse* if the user clicks over its
+  area. For a passive, prompt-driven demo that's fine (the user only types). To
+  remove even that, also push hidden windows off-screen (below).
+
+### Refinement — off-screen positioning
+Force the hidden windows to coordinates outside the visible viewport
+(`SetNextWindowPos` Always). They're invisible AND never under the user's mouse
+(no input stealing), while the Test Engine still clicks them by moving its
+simulated mouse to their off-screen rects (ImGui hit-tests in its own coordinate
+space, not the OS window). Wrinkle: ImGui's keep-windows-on-screen clamp can pull
+them back, so it needs a forced position (and possibly an internal pos set) —
+slightly fiddlier than alpha-0, hence a refinement, not the default.
+
+### Heavier alternatives (not needed)
+- Filter `ImDrawData`: drop the hidden windows' draw lists before the backend
+  renders. Clean visually, but ImGui exposes no tidy cmd-list→window map.
+- Render the hidden UI into a separate offscreen ImGui context. Most isolation,
+  most plumbing.
+
+### WASM fit
+The emscripten target already builds (`emscripten.cc`, WebGL2 Filament). This is
+a render-mode toggle on top of it — no new subsystem — so the prompt-only build
+is the existing WASM app plus the ghost-UI flag.
+
+### Verdict
+Yes, simple. The **ghost-UI alpha-0 mode** yields a convincing "controlled only by
+the prompt" app for ~tens of lines, WASM-compatible, precisely because the Test
+Engine needs the UI *built*, not *shown*. Mouse-capture by the invisible windows
+is the only rough edge, removed by off-screen positioning if it matters.
