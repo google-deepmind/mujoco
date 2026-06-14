@@ -136,6 +136,7 @@ The op vocabulary (each maps to one or a few `ImGuiTestContext` calls):
 |---|---|
 | `item_click` / `click_id` | left-click an item (by `ref`, or by exact `id` from inspect_ui) |
 | `right_click` / `double_click` | right-/double-click an item (context menus, etc.) |
+| `hover` / `item_hold` | move the mouse over an item / press-and-hold for `seconds` |
 | `item_check` / `item_uncheck` | set a checkbox-like item |
 | `item_open` / `item_close` | expand/collapse a tree node or header by absolute state |
 | `set_float` / `set_float_id` / `set_int` | type a number into an input or slider (by ref or id) |

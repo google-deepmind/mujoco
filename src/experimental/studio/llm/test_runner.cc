@@ -266,7 +266,7 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
          op == "item_uncheck" || op == "set_float" || op == "set_float_id" ||
          op == "set_int" || op == "combo_select" || op == "set_text" ||
          op == "right_click" || op == "double_click" || op == "item_open" ||
-         op == "item_close");
+         op == "item_close" || op == "hover" || op == "item_hold");
     if (targets_item && !ctx->ItemExists(tref)) {
       const std::string what =
           id != 0 ? ("id=" + std::to_string(id)) : ("ref=" + ref);
@@ -335,6 +335,13 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
       ctx->ItemOpen(tref, ImGuiTestOpFlags_NoError);
     } else if (op == "item_close") {
       ctx->ItemClose(tref, ImGuiTestOpFlags_NoError);
+    } else if (op == "hover") {
+      // Move the mouse over an item (triggers hover state / tooltips).
+      ctx->MouseMove(tref, ImGuiTestOpFlags_NoError);
+    } else if (op == "item_hold") {
+      // Press and hold the item for `seconds` (e.g. press-and-hold buttons).
+      ctx->ItemHold(tref,
+                    static_cast<float>(ReadNumber(obj, "\"seconds\"")));
     } else if (op == "scroll") {
       // Scroll a window to reveal clipped content; `ref`/`id` is the window,
       // `to` is "bottom" (default "top"). Guarded so a bad window ref is a skip.

@@ -83,6 +83,8 @@ except where noted:
   close an already-open one.
 - `right_click` — right-click an item (opens its context menu).
 - `double_click` — double-click an item.
+- `hover` — move the mouse over an item (triggers hover state / tooltip).
+- `item_hold` — press and hold an item for `{"seconds":N}` (press-and-hold buttons).
 - `scroll` — scroll a WINDOW to reveal clipped content:
   `{"op":"scroll","ref":"//<Window>","to":"bottom"}` (or `"top"`); then inspect_ui
   again to pick up rows that were below the fold.
