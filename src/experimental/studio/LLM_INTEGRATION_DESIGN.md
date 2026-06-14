@@ -423,3 +423,37 @@ algorithm. `PushID(int/ptr)` in loops and `PushOverrideID` are fundamentally
 runtime; chasing them from source text is the brittle path. Keep the static layer
 simple (rules + wildcard + grep), let `inspect_ui` resolve live ids, and let
 runtime feedback close the rest.
+
+---
+
+## 12. Extracting a standalone ImGui agent library (assessment)
+
+The integration is already **independent of MuJoCo**: `studio/llm/*.{h,cc}`
+contain zero MuJoCo symbols (`mjModel`/`mjData`/`mjs_`/`mjv_`/`mj_`, no
+`<mujoco>` include) and `#include` only each other plus `imgui_test_engine`. So
+extracting it into a reusable `imgui_llm`-style library is *packaging, not
+surgery* — a payoff of the single-actuator design.
+
+- **Free (already decoupled):** the actuator (`test_runner` — op interpreter,
+  `inspect_ui` gather, `ItemExists` guards, `combo_select`, …), the provider seam
+  (`llm_provider`), `ui_agent`, `llm_panel`.
+- **Small / mechanical:** rename the `mujoco::studio` namespace + include paths;
+  parameterize `source_search`'s source dir (today a `MUJOCO_STUDIO_SOURCE_DIR`
+  build define) to host-supplied; move the app-specific bits of the
+  `run_ui_program` tool *description* (it names `ToolRail` / Studio panels) into
+  the host's system prompt.
+- **Moderate (the real work):** a small public API (host registers its prompt,
+  grep dirs, extra tools, and calls `Start`/`Stop`/`PostSwap` each frame) + a
+  standalone CMake that fetches dear_imgui (with `IMGUI_ENABLE_TEST_ENGINE`) and
+  `imgui_test_engine` (the existing `cmake/third_party_deps/imgui_test_engine.cmake`
+  is reusable); and a cross-platform HTTP transport (today the Claude transport is
+  WinHTTP-only with a non-Windows stub).
+- **Stays in the host:** `ui_capture` (the headless GIF harness) drives app
+  state, not the library.
+- **Host constraint (inherent, not work):** the embedding app must build ImGui
+  with `IMGUI_ENABLE_TEST_ENGINE` + a coroutine impl and link
+  `imgui_test_engine`.
+
+Rough estimate: **~1–2 days** Windows-only (namespace + include paths + CMake +
+API façade; near-zero logic change), **+2–4 days** for cross-platform (a libcurl
+transport and Linux/macOS testing).
