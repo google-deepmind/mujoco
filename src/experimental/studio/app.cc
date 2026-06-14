@@ -1381,14 +1381,24 @@ void App::RegisterLlmTools() {
       "run_ui_program", description,
       "{\"type\":\"object\",\"properties\":{\"ops\":{\"type\":\"array\","
       "\"items\":{\"type\":\"object\",\"properties\":{"
-      "\"op\":{\"type\":\"string\",\"enum\":[\"item_click\",\"menu_click\","
-      "\"item_check\",\"item_uncheck\",\"set_float\",\"set_int\",\"key_chars\","
-      "\"set_ref\"]},"
+      "\"op\":{\"type\":\"string\",\"enum\":[\"item_click\",\"click_id\","
+      "\"right_click\",\"double_click\",\"item_check\",\"item_uncheck\","
+      "\"item_open\",\"item_close\",\"set_float\",\"set_float_id\",\"set_int\","
+      "\"set_text\",\"combo_select\",\"menu_click\",\"scroll\",\"key_chars\","
+      "\"key_press\",\"wait\",\"set_ref\"]},"
       "\"ref\":{\"type\":\"string\",\"description\":\"ImGui item path, e.g. "
       "//ToolRail/###Physics\"},"
+      "\"id\":{\"type\":\"number\",\"description\":\"exact ImGui id from "
+      "inspect_ui\"},"
       "\"path\":{\"type\":\"string\",\"description\":\"menu path for "
       "menu_click\"},"
-      "\"value\":{\"type\":\"number\"},\"text\":{\"type\":\"string\"}},"
+      "\"value\":{\"description\":\"number for set_float/set_int, or the option "
+      "text (string) for combo_select\"},"
+      "\"text\":{\"type\":\"string\",\"description\":\"text for set_text/"
+      "key_chars\"},"
+      "\"key\":{\"type\":\"string\",\"description\":\"key name for key_press\"},"
+      "\"to\":{\"type\":\"string\",\"description\":\"scroll target: top|bottom\"},"
+      "\"seconds\":{\"type\":\"number\",\"description\":\"duration for wait\"}},"
       "\"required\":[\"op\"]}}},\"required\":[\"ops\"]}"};
 
   auto exec = [this](const std::string& name,

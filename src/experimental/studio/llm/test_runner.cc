@@ -264,7 +264,9 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
     const bool targets_item =
         (op == "item_click" || op == "click_id" || op == "item_check" ||
          op == "item_uncheck" || op == "set_float" || op == "set_float_id" ||
-         op == "set_int" || op == "combo_select");
+         op == "set_int" || op == "combo_select" || op == "set_text" ||
+         op == "right_click" || op == "double_click" || op == "item_open" ||
+         op == "item_close");
     if (targets_item && !ctx->ItemExists(tref)) {
       const std::string what =
           id != 0 ? ("id=" + std::to_string(id)) : ("ref=" + ref);
@@ -321,6 +323,32 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
       if (frames < 0) frames = 0;
       if (frames > 600) frames = 600;
       if (frames > 0) ctx->Yield(frames);
+    } else if (op == "set_text") {
+      ctx->ItemInputValue(tref, text.c_str());
+    } else if (op == "right_click") {
+      ctx->ItemClick(tref, ImGuiMouseButton_Right, ImGuiTestOpFlags_NoError);
+    } else if (op == "double_click") {
+      ctx->ItemDoubleClick(tref, ImGuiTestOpFlags_NoError);
+    } else if (op == "item_open") {
+      // Expand a tree node / collapsing header (absolute -- unlike item_click,
+      // which toggles and so can close an already-open section).
+      ctx->ItemOpen(tref, ImGuiTestOpFlags_NoError);
+    } else if (op == "item_close") {
+      ctx->ItemClose(tref, ImGuiTestOpFlags_NoError);
+    } else if (op == "scroll") {
+      // Scroll a window to reveal clipped content; `ref`/`id` is the window,
+      // `to` is "bottom" (default "top"). Guarded so a bad window ref is a skip.
+      if (ctx->GetWindowByRef(tref) != nullptr) {
+        if (ReadString(obj, "\"to\"") == "bottom") {
+          ctx->ScrollToBottom(tref);
+        } else {
+          ctx->ScrollToTop(tref);
+        }
+      } else {
+        std::fprintf(stderr,
+                     "[run_ui_program] skip scroll: window not found (%s)\n",
+                     ref.c_str());
+      }
     } else if (op == "key_chars") {
       ctx->KeyChars(text.c_str());
     } else if (op == "key_press") {

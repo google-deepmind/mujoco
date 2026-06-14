@@ -67,6 +67,29 @@ then `{"op":"combo_select","id":<that id>,"value":"Body"}`. After editing the
 spec in the Editor, click its "Compile and Reload" button to apply the change to
 the model.
 
+## The op vocabulary
+
+Every op takes a widget by `"ref"` or by `"id"` (an exact id from inspect_ui),
+except where noted:
+
+- `item_click` / `click_id` — left-click a button, checkbox, selectable, tab, or
+  tree node (toggles a tree node / collapsing header).
+- `item_check` / `item_uncheck` — set a checkbox to a known state.
+- `set_float` / `set_int` — type a number into a numeric input or slider.
+- `set_text` — type a string into a text input: `{"op":"set_text","ref":...,"text":"..."}`.
+- `combo_select` — open a combo / popup-menu button and click an entry (see above).
+- `item_open` / `item_close` — expand / collapse a tree node or section by ABSOLUTE
+  state. Prefer these over `item_click` to reveal a section, since they never
+  close an already-open one.
+- `right_click` — right-click an item (opens its context menu).
+- `double_click` — double-click an item.
+- `scroll` — scroll a WINDOW to reveal clipped content:
+  `{"op":"scroll","ref":"//<Window>","to":"bottom"}` (or `"top"`); then inspect_ui
+  again to pick up rows that were below the fold.
+- `menu_click` — click a main menu-bar path: `{"op":"menu_click","path":"View/Tools"}`.
+- `key_chars` / `key_press` — type text / press a key.
+- `wait` — hold for `{"seconds":N}` (see below).
+
 ## Rendering modes & flags
 
 How the main 3D view renders is controlled in the Rendering panel

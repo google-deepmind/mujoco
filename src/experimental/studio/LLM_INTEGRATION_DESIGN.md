@@ -134,14 +134,22 @@ The op vocabulary (each maps to one or a few `ImGuiTestContext` calls):
 
 | op | effect |
 |---|---|
-| `item_click` / `click_id` | click an item (by `ref`, or by exact `id` from inspect_ui) |
+| `item_click` / `click_id` | left-click an item (by `ref`, or by exact `id` from inspect_ui) |
+| `right_click` / `double_click` | right-/double-click an item (context menus, etc.) |
 | `item_check` / `item_uncheck` | set a checkbox-like item |
-| `set_float` / `set_float_id` / `set_int` | type a value into an input (by ref or id) |
+| `item_open` / `item_close` | expand/collapse a tree node or header by absolute state |
+| `set_float` / `set_float_id` / `set_int` | type a number into an input or slider (by ref or id) |
+| `set_text` | type a string into a text input |
 | `combo_select` | open a combo/popup-menu button and click an entry (`ref`/`id` + `value`) |
 | `menu_click` | click a main-menu-bar path, e.g. `View/Tools` |
+| `scroll` | scroll a window to top/bottom to reveal clipped content |
 | `key_chars` / `key_press` | type text / press a key |
 | `wait` | hold for `seconds` (renders frames in place; visible in a recording) |
 | `set_ref` | set the base ref for following relative ops |
+
+Each op maps to one `ImGuiTestContext` call, so the vocabulary tracks the Test
+Engine's own surface; covering a new non-esoteric ImGui interaction is one more
+`else if` in `TestRunner::Execute`.
 
 Addressing: the **most reliable** reference is a widget's exact `ImGuiID` from
 `inspect_ui` (`click_id`/`set_float_id`), which is truncation- and clip-proof.
