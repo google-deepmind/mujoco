@@ -116,9 +116,9 @@ From an audit of the UI against the rules above (2026-06-14). Worst first.
 - [x] **Cryptic `##`-only combo ids** — DONE. The top-overlay Speed/Label/Frame/
   Camera combos (`platform/ux/gui.cc`) now use `###<Name>` ids.
 
-- [ ] **Verify `menu_click`** drives the main menu bar (File / Edit / Simulation
-  / View / Plugins in `studio/app.cc`) end-to-end; the op is implemented but has
-  not been exercised.
+- [x] **`menu_click`** — DONE. It now roots a bare path at the `##MainMenuBar`
+  window (a bare first segment was being read as a window name). Verified by
+  opening the ImGui demo window from `Help/Developer` and driving it.
 
 - [ ] **File open/save uses a NATIVE OS dialog.** `App::FileDialogGui`
   (`studio/app.cc`) calls `platform::OpenFileDialog` / `SaveFileDialog`, which on
