@@ -393,6 +393,13 @@ LlmResult ClaudeProvider::Send(const std::string& system,
   const std::string tools_inner = SerializeTools(tools);
   std::string extra;  // assistant/tool_result turns appended across the loop.
 
+  // Opt-in transcript: dumps each assistant turn (text + the tool_use ops it
+  // emitted) and each tool_result, so the whole conversation can be inspected.
+  const bool verbose = std::getenv("MUJOCO_STUDIO_LLM_VERBOSE") != nullptr;
+  auto vtrunc = [](const std::string& s, size_t n) {
+    return s.size() > n ? s.substr(0, n) + " ...(truncated)" : s;
+  };
+
   for (int iter = 0; iter < kMaxToolIterations; ++iter) {
     const std::string body =
         BuildRequestBody(model_, max_tokens_, system, convo + extra, tools_inner);
@@ -410,12 +417,24 @@ LlmResult ClaudeProvider::Send(const std::string& system,
       return r;
     }
 
+    if (verbose) {
+      const std::string atext = ExtractAssistantText(response);
+      if (!atext.empty()) {
+        std::fprintf(stderr, "\n===== assistant (turn %d) =====\n%s\n", iter,
+                     atext.c_str());
+      }
+    }
+
     std::vector<ToolUse> calls = ExtractToolUseBlocks(response);
     if (calls.empty()) {
       r.text = ExtractAssistantText(response);
       if (r.text.empty()) {
         r.error = "Empty response from Claude.";
         return r;
+      }
+      if (verbose) {
+        std::fprintf(stderr, "\n===== final assistant reply =====\n%s\n",
+                     r.text.c_str());
       }
       r.ok = true;
       return r;
@@ -432,8 +451,16 @@ LlmResult ClaudeProvider::Send(const std::string& system,
 
     std::string results = "[";
     for (size_t k = 0; k < calls.size(); ++k) {
+      if (verbose) {
+        std::fprintf(stderr, "\n----- tool_use (turn %d): %s -----\n%s\n", iter,
+                     calls[k].name.c_str(), vtrunc(calls[k].input, 2000).c_str());
+      }
       std::string out =
           exec ? exec(calls[k].name, calls[k].input) : std::string("(no executor)");
+      if (verbose) {
+        std::fprintf(stderr, "----- tool_result: %s -----\n%s\n",
+                     calls[k].name.c_str(), vtrunc(out, 2000).c_str());
+      }
       if (k) results += ",";
       results += "{\"type\":\"tool_result\",\"tool_use_id\":" +
                  JsonString(calls[k].id) + ",\"content\":" + JsonString(out) +
