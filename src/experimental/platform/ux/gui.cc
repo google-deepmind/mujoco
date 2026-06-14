@@ -388,7 +388,7 @@ void StepControlGui(const mjModel* model, StepControl* step_control,
 
   ImGui::SetNextItemWidth(ImGui::CalcTextSize(speed_preview).x +
                           ImGui::GetStyle().FramePadding.x * 2.f);
-  if (ImGui::BeginCombo("##Speed", speed_preview,
+  if (ImGui::BeginCombo("###Speed", speed_preview,
                         ImGuiComboFlags_NoArrowButton)) {
     for (int n = 0; n < kPercentRealTime.size(); n++) {
       if (ImGui::Selectable(kPercentRealTime[n], (speed_index == n))) {
@@ -447,7 +447,7 @@ bool LabelSelectionGui(mjvOption* opts) {
       opts->label == 0 ? std::string(ICON_LABEL) + " Label"
                        : std::string(ICON_LABEL) + " " + kLabelNames[opts->label];
   ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-  if (ImGui::BeginCombo("##Label", label_preview.c_str(),
+  if (ImGui::BeginCombo("###Label", label_preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
     for (int n = 0; n < IM_ARRAYSIZE(kLabelNames); n++) {
       if (ImGui::Selectable(kLabelNames[n], (opts->label == n))) {
@@ -471,7 +471,7 @@ bool FrameSelectionGui(mjvOption* opts) {
       opts->frame == 0 ? std::string(ICON_FRAME) + " Frame"
                        : std::string(ICON_FRAME) + " " + kFrameNames[opts->frame];
   ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-  if (ImGui::BeginCombo("##Frame", frame_preview.c_str(),
+  if (ImGui::BeginCombo("###Frame", frame_preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
     for (int n = 0; n < IM_ARRAYSIZE(kFrameNames); n++) {
       if (ImGui::Selectable(kFrameNames[n], (opts->frame == n))) {
@@ -534,7 +534,7 @@ bool CameraSelectionGui(const mjModel* model, mjData* data, mjvCamera& camera,
 
   const std::string preview =
       std::string(ICON_CAMERA) + " " + GetCameraName(model, camera, index);
-  if (ImGui::BeginCombo("##Camera", preview.c_str(),
+  if (ImGui::BeginCombo("###Camera", preview.c_str(),
                         ImGuiComboFlags_NoArrowButton)) {
     if (select(kTumbleCameraIdx, index)) {
       index = SetCamera(model, &camera, kTumbleCameraIdx);
