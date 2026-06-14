@@ -1568,6 +1568,7 @@ void App::SpecEditorGui() {
           }
         };
 
+        option("Body", mjOBJ_BODY);  // added to the world body
         option("Actuator", mjOBJ_ACTUATOR);
         option("Equality", mjOBJ_EQUALITY);
         option("Exclude", mjOBJ_EXCLUDE);

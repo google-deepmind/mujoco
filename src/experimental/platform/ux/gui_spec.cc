@@ -101,6 +101,7 @@ static void AddEditorButtons(mjsElement* element, mjsElement** selected_element,
           *selected_element = editor.AddBodyElement(body, type);
         }
       };
+      option("Body", mjOBJ_BODY);  // nested child body
       option("Camera", mjOBJ_CAMERA);
       option("Frame", mjOBJ_FRAME);
       option("Geom", mjOBJ_GEOM);

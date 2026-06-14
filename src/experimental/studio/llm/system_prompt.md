@@ -58,6 +58,15 @@ source. To pick a combo option use:
 `{"op":"combo_select","ref":"//ObjectLauncher/Shape","value":"Sphere"}`. Find the
 combo's label and its option strings by grepping the source.
 
+combo_select also drives ANY button that opens a popup menu (e.g. an "add"
+menu): give it the button -- by its inspected id (`"id":N`) or its ref -- and the
+menu entry's exact text, and it opens the menu and clicks the entry. Clicking
+such a button alone only OPENS the menu; you must then select an entry. E.g. to
+add a body in the Editor, open the Editor, inspect to get the " + " button's id,
+then `{"op":"combo_select","id":<that id>,"value":"Body"}`. After editing the
+spec in the Editor, click its "Compile and Reload" button to apply the change to
+the model.
+
 ## Rendering modes & flags
 
 How the main 3D view renders is controlled in the Rendering panel
