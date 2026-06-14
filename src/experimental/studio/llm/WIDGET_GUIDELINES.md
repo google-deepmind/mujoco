@@ -2,7 +2,7 @@
 
 MuJoCo Studio lets an LLM agent drive the UI through the Dear ImGui Test Engine
 (see `LLM_INTEGRATION_DESIGN.md`). The agent learns the UI by reading source and
-by calling `inspect_ui`, which lists every on-screen widget as
+by calling `inspect_ui`, which lists the on-screen widgets that report a label as
 
 ```
 [<Window>]
@@ -100,21 +100,18 @@ From an audit of the UI against the rules above (2026-06-14). Worst first.
   scope each row by a stable string — thread the row label from `Table::Label()`
   into `Table::Input()` and use `PushID(label)` instead of `PushID(&val)`.
 
-- [ ] **Combos and numeric inputs don't surface in `inspect_ui`.** Root cause:
-  ImGui only forwards a label to the test engine when a widget calls
+- **Combos and numeric inputs don't surface in `inspect_ui` — accepted, not a
+  blocker.** ImGui only forwards a label to the test engine when a widget calls
   `IMGUI_TEST_ENGINE_ITEM_INFO` itself; `BeginCombo` never does and stepped
   `InputScalar` forwards its inner `""`, so both reach `TestRunner::DoGather`
-  with an empty `DebugLabel` and get filtered. They ARE operable (combos via
-  `combo_select`, inputs via `set_float`/`set_int` + a `//Window/Label` path),
-  just invisible to inspection. Fix WITHOUT touching every call site (so any
-  vanilla ImGui code works):
-  - Preferred: in `DoGather`, when `DebugLabel` is empty, reverse the id->label
-    with ImGui's ID Stack Tool — set `g.DebugHookIdInfoId = it->ID`, `Yield()`
-    one frame, read the leaf of `g.DebugIDStackTool.Results`. Self-contained in
-    `test_runner.cc`; works for every widget type.
-  - Or: 2-line patch to the vendored ImGui so `BeginCombo`/stepped `InputScalar`
-    call `IMGUI_TEST_ENGINE_ITEM_INFO(id, label, ...)` — simpler but couples us
-    to an ImGui patch.
+  with an empty `DebugLabel` and get filtered. They are still OPERABLE — combos
+  via `combo_select`, inputs via `set_float`/`set_int` on a `//Window/Label`
+  path the agent finds by grepping the source — so this is a discoverability
+  gap, not a wall. Auto-listing them would need either a multi-frame ID-Stack-
+  Tool resolver driven from the app loop (ImGui zeroes `DebugHookIdInfoId` in
+  `NewFrame` and only follows the hovered item, so it can't be driven from the
+  gather coroutine) or a patch to vendored ImGui. Both judged not worth it for
+  now; left as grep-discoverable.
 
 - [x] **Cryptic `##`-only combo ids** — DONE. The top-overlay Speed/Label/Frame/
   Camera combos (`platform/ux/gui.cc`) now use `###<Name>` ids.
