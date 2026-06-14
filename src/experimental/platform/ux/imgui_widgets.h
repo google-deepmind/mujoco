@@ -54,6 +54,7 @@ static constexpr const char ICON_FA_CUBE[] = "\xEF\x86\xB2";
 static constexpr const char ICON_FA_DIAMOND[] = "\xEF\x88\x99";
 static constexpr const char ICON_FA_EJECT[] = "\xEF\x81\x92";
 static constexpr const char ICON_FA_EYE[] = "\xEF\x81\xAE";
+static constexpr const char ICON_FA_FAST_BACKWARD[] = "\xEF\x81\x89";
 static constexpr const char ICON_FA_FAST_FORWARD[] = "\xEF\x81\x90";
 static constexpr const char ICON_FA_LINK[] = "\xEF\x83\x81";
 static constexpr const char ICON_FA_MAGIC[] = "\xEF\x83\x90";

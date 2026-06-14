@@ -318,11 +318,18 @@ void TestRunner::DoGather(ImGuiTestContext* ctx,
     for (int i = 0; i < items.GetSize() && total < 250; ++i) {
       const ImGuiTestItemInfo* it = items.GetByIndex(i);
       if (it == nullptr || it->DebugLabel[0] == '\0') continue;
-      // Show the display name (strip any "###id" suffix, which may be truncated
-      // and is confusing) for recognition only -- the id is the exact address.
+      // For recognition only -- the id is the exact address. When a label uses
+      // "###" the part AFTER the last "###" is the self-describing id text
+      // (e.g. "<icon>###Next frame" -> "Next frame"); show that. Otherwise show
+      // the label up to the first "##" (its visible text).
       std::string label = it->DebugLabel;
-      const size_t h = label.find("###");
-      if (h != std::string::npos) label = label.substr(0, h);
+      const size_t triple = label.rfind("###");
+      if (triple != std::string::npos) {
+        label = label.substr(triple + 3);
+      } else {
+        const size_t dbl = label.find("##");
+        if (dbl != std::string::npos) label = label.substr(0, dbl);
+      }
       lines += std::string("  ") + label + "  [id=" + std::to_string(it->ID) +
                "]\n";
       ++total;

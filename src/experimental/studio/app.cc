@@ -1772,8 +1772,14 @@ void App::ScrubberOverlayGui(const ImVec4& workspace_rect) {
     const float col_w = ImGui::GetContentRegionAvail().x;
     const float step = ImGui::GetFrameHeight() + style.ItemSpacing.y;
 
+    // Every control gets a stable, self-describing "###<Name>" id: the leading
+    // glyph is only decoration (and would otherwise be the icon's gibberish
+    // bytes), while the name after "###" is what the test engine / LLM agent
+    // sees and addresses. See llm/WIDGET_GUIDELINES.md.
+
     // Next frame (toward the current state) at the top.
-    if (ImGui::Button(platform::ICON_FA_CARET_UP, ImVec2(col_w, 0))) {
+    if (ImGui::Button((std::string(platform::ICON_FA_CARET_UP) +
+                       "###Next frame").c_str(), ImVec2(col_w, 0))) {
       if (sim_history_.GetIndex() == 0) {
         step_control_.RequestSingleStep();
       } else {
@@ -1783,26 +1789,36 @@ void App::ScrubberOverlayGui(const ImVec4& workspace_rect) {
     ImGui::SetItemTooltip("%s", "Next frame");
 
     // Vertical history slider fills the middle (top = current, down = older).
+    // Reserve room for the three buttons that follow it.
     int index = sim_history_.GetIndex();
     const float slider_h =
-        std::max(40.0f, ImGui::GetContentRegionAvail().y - 2.0f * step);
-    if (ImGui::VSliderInt("##ScrubIndex", ImVec2(col_w, slider_h), &index,
+        std::max(40.0f, ImGui::GetContentRegionAvail().y - 3.0f * step);
+    if (ImGui::VSliderInt("###Frame", ImVec2(col_w, slider_h), &index,
                           1 - sim_history_.Size(), 0, "")) {
       LoadHistory(index);
     }
     ImGui::SetItemTooltip("Frame %d of %d", index, sim_history_.Size());
 
     // Previous frame (toward older states) below the slider.
-    if (ImGui::Button(platform::ICON_FA_CARET_DOWN, ImVec2(col_w, 0))) {
+    if (ImGui::Button((std::string(platform::ICON_FA_CARET_DOWN) +
+                       "###Previous frame").c_str(), ImVec2(col_w, 0))) {
       LoadHistory(sim_history_.GetIndex() - 1);
     }
     ImGui::SetItemTooltip("%s", "Previous frame");
 
     // Jump to the current (latest) frame.
-    if (ImGui::Button(ICON_CURR_FRAME, ImVec2(col_w, 0))) {
+    if (ImGui::Button((std::string(ICON_CURR_FRAME) +
+                       "###Current frame").c_str(), ImVec2(col_w, 0))) {
       LoadHistory(0);
     }
     ImGui::SetItemTooltip("%s", "Current frame");
+
+    // Jump to the oldest recorded frame (the start of sim history).
+    if (ImGui::Button((std::string(platform::ICON_FA_FAST_BACKWARD) +
+                       "###Oldest frame").c_str(), ImVec2(col_w, 0))) {
+      LoadHistory(1 - sim_history_.Size());
+    }
+    ImGui::SetItemTooltip("%s", "Oldest frame (start of history)");
   }
   ImGui::End();
 }
