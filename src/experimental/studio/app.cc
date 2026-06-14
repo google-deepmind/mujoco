@@ -1390,9 +1390,12 @@ void App::RegisterLlmTools() {
       return GrepSource(pattern, model_dir, 40);
     }
     if (name == "inspect_ui") {
-      std::fprintf(stderr, "[inspect_ui]\n");
+      std::string result = test_runner_.Inspect();
+      std::fprintf(stderr, "===== inspect_ui result =====\n%s===== end inspect_ui "
+                           "=====\n",
+                   result.c_str());
       std::fflush(stderr);
-      return test_runner_.Inspect();
+      return result;
     }
     if (name == "run_ui_program") {
       // Echo the program the LLM generated to the console before running it.
