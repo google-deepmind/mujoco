@@ -173,6 +173,14 @@ class ObjectLauncher {
   std::vector<ObjectInfo> objects_;
 };
 
+// Anchor symbol. Referencing this from the Studio app forces this translation
+// unit to be linked into the executable, which in turn lets the
+// mjPLUGIN_LIB_INIT registration below run. Without it, MSVC drops this
+// otherwise-unreferenced object file from the static platform library and the
+// plugin never registers (which is why this file used to be excluded on
+// Windows).
+void LinkObjectLauncherPlugin() {}
+
 }  // namespace mujoco::studio
 
 mjPLUGIN_LIB_INIT(object_launcher) {
@@ -183,6 +191,7 @@ mjPLUGIN_LIB_INIT(object_launcher) {
   mujoco::platform::GuiPlugin gui;
   gui.data = &plugin;
   gui.name = "ObjectLauncher";
+  gui.icon = mujoco::platform::ICON_FA_ROCKET;  // it shoots objects out
   gui.update = [](mujoco::platform::GuiPlugin* self) {
     auto* plugin = static_cast<mujoco::studio::ObjectLauncher*>(self->data);
     plugin->UpdateGui();

@@ -58,12 +58,10 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         ux/spec_editor.h
 )
 
-if(NOT WIN32)
-  target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
-      PUBLIC
-          ux/object_launcher_plugin.cc
-  )
-endif()
+target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
+    PUBLIC
+        ux/object_launcher_plugin.cc
+)
 
 if(APPLE)
     set_source_files_properties(hal/window_osx.mm PROPERTIES

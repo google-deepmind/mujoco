@@ -67,6 +67,7 @@ static constexpr const char ICON_FA_PLUS[] = "\xEF\x81\xA7";
 static constexpr const char ICON_FA_QUESTION_CIRCLE[] = "\xEF\x81\x99";
 static constexpr const char ICON_FA_REFRESH[] = "\xEF\x80\xA1";
 static constexpr const char ICON_FA_REPEAT[] = "\xEF\x80\x9E";
+static constexpr const char ICON_FA_ROCKET[] = "\xEF\x84\xB5";
 static constexpr const char ICON_FA_RSS[] = "\xEF\x82\x9E";
 static constexpr const char ICON_FA_SITEMAP[] = "\xEF\x83\xA8";
 static constexpr const char ICON_FA_SLIDERS[] = "\xEF\x87\x9E";

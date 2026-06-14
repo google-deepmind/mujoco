@@ -45,6 +45,11 @@ struct GuiPlugin final {
   // The name of the plugin; must be unique.
   const char* name = "";
 
+  // Optional icon (a UTF-8 font glyph, e.g. one of platform::ICON_FA_*) shown
+  // on this plugin's button in the Studio tool rail. When null/empty the rail
+  // falls back to a generic plugin icon.
+  const char* icon = nullptr;
+
   // The function that will update the plugin's window. Plugin GUI updates
   // happen when the window is `active` and after all other Studio GUI updates.
   UpdateFn update = nullptr;

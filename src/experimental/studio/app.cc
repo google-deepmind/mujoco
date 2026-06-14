@@ -83,6 +83,11 @@ static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
 static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
+// Defined in platform/ux/object_launcher_plugin.cc. Calling it forces that
+// translation unit (and so its mjPLUGIN_LIB_INIT registration) to be linked in;
+// see the comment there.
+void LinkObjectLauncherPlugin();
+
 App::App(Config config)
     : app_title_(std::move(config.title)),
       ini_path_(std::move(config.ini_path)),
@@ -102,6 +107,7 @@ App::App(Config config)
 
   RegisterToolWindows();
   RegisterLlmTools();
+  LinkObjectLauncherPlugin();  // ensure the launcher plugin is registered
   profiler_.Clear();
 }
 
@@ -1173,6 +1179,30 @@ void App::ToolRailGui(const ImVec4& workspace_rect) {
     if (icon_button(platform::ICON_FA_QUESTION_CIRCLE, "Help", tmp_.help)) {
       ToggleWindow(tmp_.help);
     }
+
+    // Group 3: GUI plugins (the same entries as the "Plugins" main menu). Each
+    // button toggles the plugin's window, exactly like its menu item. Only
+    // plugins that draw a window (have an `update`) are listed, matching the
+    // menu. The separator/new row is emitted lazily so it doesn't appear when
+    // no GUI plugins are registered.
+    bool first_plugin = true;
+    platform::ForEachPlugin<platform::GuiPlugin>(
+        [&](platform::GuiPlugin* plugin) {
+          if (!plugin->update) {
+            return;
+          }
+          if (first_plugin) {
+            ImGui::Separator();
+            slot = 0;
+            first_plugin = false;
+          }
+          const char* icon = (plugin->icon && plugin->icon[0])
+                                 ? plugin->icon
+                                 : platform::ICON_FA_MAGIC;
+          if (icon_button(icon, plugin->name, plugin->active)) {
+            plugin->active = !plugin->active;
+          }
+        });
   }
   ImGui::End();
 }

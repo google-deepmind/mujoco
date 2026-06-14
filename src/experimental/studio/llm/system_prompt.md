@@ -95,6 +95,13 @@ Worked example — "turn on the Contact Force flag":
 3. `run_ui_program {"ops":[{"op":"click_id","id":3332464552}]}` (use the id you
    saw; do NOT use a `**/` ref here).
 
+To do an action N times (e.g. "shoot 3 boxes", "step 5 frames"), REPEAT the same
+click N times -- emit the click op N times (one per repetition, e.g. three
+`click_id` ops on the "Launch" button to shoot 3 boxes). Don't assume there is a
+count/quantity field or that a "+" stepper sets how many; those steppers change a
+parameter's value, not the number of actions. Each button click performs the
+action once.
+
 To pause/play, press Space: `{"op":"key_chars","text":" "}` — never hunt for the
 pause button's ref. If you cannot reference something after a search or two,
 skip it and proceed. Keep any text replies to one short sentence.
