@@ -77,20 +77,29 @@ static bool PipGuiImpl(const mjModel* model, mjData* data, float aspect_ratio,
     result = false;
   }
 
-  mjtByte* flags = renderer->GetRenderFlags();
-  const int prev_depth = flags[mjRND_DEPTH];
-  const int prev_segment = flags[mjRND_SEGMENT];
-  flags[mjRND_DEPTH] = (pip->mode == PipState::Depth) ? 1 : 0;
-  flags[mjRND_SEGMENT] = (pip->mode == PipState::Segmentation) ? 1 : 0;
-  renderer->RenderToTexture(model, data, &camera, width, height, output.data());
-  pip->texture =
-      renderer->UploadImage(pip->texture, output.data(), width, height, 3);
+  // The live preview needs an extra offscreen render-to-texture pass. Headless
+  // backends (used for scripted screenshots/GIF capture) can't do it and would
+  // hang, so skip the render there and just show a placeholder -- the preview
+  // isn't visible in a headless capture anyway.
+  if (IsHeadless(renderer->GetGraphicsMode())) {
+    ImGui::TextUnformatted("(preview unavailable in headless mode)");
+  } else {
+    mjtByte* flags = renderer->GetRenderFlags();
+    const int prev_depth = flags[mjRND_DEPTH];
+    const int prev_segment = flags[mjRND_SEGMENT];
+    flags[mjRND_DEPTH] = (pip->mode == PipState::Depth) ? 1 : 0;
+    flags[mjRND_SEGMENT] = (pip->mode == PipState::Segmentation) ? 1 : 0;
+    renderer->RenderToTexture(model, data, &camera, width, height,
+                              output.data());
+    pip->texture =
+        renderer->UploadImage(pip->texture, output.data(), width, height, 3);
 
-  // Restore previous render flags.
-  flags[mjRND_DEPTH] = prev_depth;
-  flags[mjRND_SEGMENT] = prev_segment;
+    // Restore previous render flags.
+    flags[mjRND_DEPTH] = prev_depth;
+    flags[mjRND_SEGMENT] = prev_segment;
 
-  ImGui::Image(pip->texture, {(float)width, (float)height});
+    ImGui::Image(pip->texture, {(float)width, (float)height});
+  }
   ImGui::PopID();
   return result;
 }

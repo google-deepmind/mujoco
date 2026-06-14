@@ -45,6 +45,31 @@ item_check / item_uncheck, which don't work on them).
 If you ever need a full path instead of a wildcard: a leading `//` is absolute,
 `/` chains levels (== ImGui's id stack), `$$N` encodes a `PushID(int N)` level.
 
+## Rendering modes & flags
+
+How the main 3D view renders is controlled in the Rendering panel
+(`//ToolRail/###Rendering`). Its "Render Flags" section (open by default) holds
+the global render modes -- Shadow, Wireframe, Reflection, Skybox, Fog, Depth,
+**Segment** (= segmentation), Id Color, Cull Face -- and its "Model Elements"
+section holds per-element visibility (contacts, joints, transparency, ...). All
+are click-to-toggle buttons; toggle the one named for what you want (e.g. the
+"Segment" flag for "segmentation rendering mode").
+
+A section header like "Render Flags" or "Model Elements" is a collapsible tree
+node, NOT a toggle. These sections are open by default, so clicking a header
+COLLAPSES it (hiding its toggles) -- never click a header to "open" an
+already-open section. If inspect_ui lists a section's HEADER but none of the
+toggles under it (the header is the last item shown for that panel), the panel
+is too short and that section sits BELOW the fold: its rows are clipped and
+cannot be inspected or clicked. To reveal it, COLLAPSE the section(s) above it
+(click their headers once) so it moves up into the visible area, then inspect
+again and toggle the flag. E.g. to reach "Segment" when only the "Render Flags"
+header is listed, first collapse "Model Elements".
+
+Picture-in-Picture is a separate per-camera preview window, not the main view;
+its Color/Depth/Segmentation combo changes only that small thumbnail. Never use
+Picture-in-Picture to satisfy a request about how the main scene renders.
+
 ## Workflow
 
 1. Call inspect_ui FIRST. Many controls are ALREADY on screen -- the rail,

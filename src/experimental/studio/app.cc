@@ -1191,7 +1191,11 @@ void App::ToolWindowsGui(const ImVec4& workspace_rect) {
         ImVec2(workspace_rect.x + rail_width + 8.0f + offset,
                workspace_rect.y + 8.0f + offset),
         ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(320, 360), ImGuiCond_FirstUseEver);
+    // Default wide+tall enough that flag panels (e.g. Rendering's Model
+    // Elements + Render Flags) lay out in ~3 columns and fit without the lower
+    // section being clipped below the fold (clipped rows aren't rendered, so
+    // they're invisible to the test engine / inspect_ui).
+    ImGui::SetNextWindowSize(ImVec2(460, 520), ImGuiCond_FirstUseEver);
     // Stable, unique ImGui id (via "###") so these windows are not captured by
     // ConfigureDockingLayout's name-based docking; they stay floating.
     char window_id[96];

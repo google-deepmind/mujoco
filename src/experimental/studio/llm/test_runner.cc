@@ -15,6 +15,7 @@
 #include "experimental/studio/llm/test_runner.h"
 
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <memory>
 #include <mutex>
@@ -254,14 +255,32 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
     const ImGuiTestRef tref =
         (id != 0) ? ImGuiTestRef(id) : ImGuiTestRef(ref.c_str());
 
+    // Ops that act on a specific widget. Guard them so a stale or hallucinated
+    // ref/id can never DEADLOCK playback: ItemExists() is a bounded NoError
+    // lookup, and we additionally pass NoError to the action itself so the
+    // engine never aborts/hangs the coroutine on a miss. (Without this, an
+    // ItemClick on a non-existent id froze the whole app.) A missing item is
+    // skipped and the remaining ops still run.
+    const bool targets_item =
+        (op == "item_click" || op == "click_id" || op == "item_check" ||
+         op == "item_uncheck" || op == "set_float" || op == "set_float_id" ||
+         op == "set_int");
+    if (targets_item && !ctx->ItemExists(tref)) {
+      const std::string what =
+          id != 0 ? ("id=" + std::to_string(id)) : ("ref=" + ref);
+      std::fprintf(stderr, "[run_ui_program] skip %s: item not found (%s)\n",
+                   op.c_str(), what.c_str());
+      return;  // continue with the next op
+    }
+
     if (op == "item_click" || op == "click_id") {
-      ctx->ItemClick(tref);
+      ctx->ItemClick(tref, 0, ImGuiTestOpFlags_NoError);
     } else if (op == "menu_click") {
       ctx->MenuClick((path.empty() ? ref : path).c_str());
     } else if (op == "item_check") {
-      ctx->ItemCheck(tref);
+      ctx->ItemCheck(tref, ImGuiTestOpFlags_NoError);
     } else if (op == "item_uncheck") {
-      ctx->ItemUncheck(tref);
+      ctx->ItemUncheck(tref, ImGuiTestOpFlags_NoError);
     } else if (op == "set_float" || op == "set_float_id") {
       ctx->ItemInputValue(tref,
                           static_cast<float>(ReadNumber(obj, "\"value\"")));
