@@ -247,28 +247,33 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
     const std::string ref = ReadString(obj, "\"ref\"");
     const std::string path = ReadString(obj, "\"path\"");
     const std::string text = ReadString(obj, "\"text\"");
+    // An item op may carry an "id" (exact ImGuiID from inspect_ui) instead of a
+    // ref; the id always wins. This makes both {op:click_id,id:N} and
+    // {op:item_click,id:N} work, and is truncation/clip-proof.
+    const ImGuiID id = static_cast<ImGuiID>(ReadNumber(obj, "\"id\""));
+    const ImGuiTestRef tref =
+        (id != 0) ? ImGuiTestRef(id) : ImGuiTestRef(ref.c_str());
 
-    if (op == "item_click") {
-      ctx->ItemClick(ref.c_str());
+    if (op == "item_click" || op == "click_id") {
+      ctx->ItemClick(tref);
     } else if (op == "menu_click") {
       ctx->MenuClick((path.empty() ? ref : path).c_str());
     } else if (op == "item_check") {
-      ctx->ItemCheck(ref.c_str());
+      ctx->ItemCheck(tref);
     } else if (op == "item_uncheck") {
-      ctx->ItemUncheck(ref.c_str());
-    } else if (op == "set_float") {
-      ctx->ItemInputValue(ref.c_str(),
+      ctx->ItemUncheck(tref);
+    } else if (op == "set_float" || op == "set_float_id") {
+      ctx->ItemInputValue(tref,
                           static_cast<float>(ReadNumber(obj, "\"value\"")));
     } else if (op == "set_int") {
-      ctx->ItemInputValue(ref.c_str(),
-                          static_cast<int>(ReadNumber(obj, "\"value\"")));
+      ctx->ItemInputValue(tref, static_cast<int>(ReadNumber(obj, "\"value\"")));
     } else if (op == "key_chars") {
       ctx->KeyChars(text.c_str());
     } else if (op == "key_press") {
       ImGuiKey key = KeyFromName(ReadString(obj, "\"key\""));
       if (key != ImGuiKey_None) ctx->KeyPress(key);
     } else if (op == "set_ref") {
-      ctx->SetRef(ref.c_str());
+      ctx->SetRef(tref);
     }
     // Unknown ops are ignored (forward-compatible).
   });
@@ -305,7 +310,13 @@ void TestRunner::DoGather(ImGuiTestContext* ctx,
     for (int i = 0; i < items.GetSize() && total < 250; ++i) {
       const ImGuiTestItemInfo* it = items.GetByIndex(i);
       if (it == nullptr || it->DebugLabel[0] == '\0') continue;
-      lines += std::string("  ") + it->DebugLabel + "\n";
+      // Show the display name (strip any "###id" suffix, which may be truncated
+      // and is confusing) for recognition only -- the id is the exact address.
+      std::string label = it->DebugLabel;
+      const size_t h = label.find("###");
+      if (h != std::string::npos) label = label.substr(0, h);
+      lines += std::string("  ") + label + "  [id=" + std::to_string(it->ID) +
+               "]\n";
       ++total;
       if (++n >= 40) {
         lines += "  ...\n";

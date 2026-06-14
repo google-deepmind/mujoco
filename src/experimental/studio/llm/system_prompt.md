@@ -14,9 +14,12 @@ source; model entity names (joints, bodies, actuators) live in the input files
 
 ## How to reference a widget (ImGui Test Engine rules)
 
-PREFER the wildcard form **/<label> — it finds a widget anywhere by its label,
-so you do NOT need to know its window or path. The label must currently be on
-screen, so open its panel first; if a label is not unique it is ambiguous.
+The MOST reliable reference is a widget's exact id from inspect_ui — act on it
+with `click_id`/`set_float_id` (see Workflow). Only when you have NOT inspected a
+widget, use the wildcard form `**/<label>`: it finds a widget anywhere by its
+label without needing its window or path, but the label must currently be on
+screen (open its panel first) and unique. Inspect labels are for recognition
+only — never build a `**/` ref from an inspect label; use that item's id.
 
 The id-significant part of a label is the text after the LAST "###" (### resets
 the id), otherwise the whole label; a plain "##" IS part of the id. So:
@@ -46,8 +49,19 @@ If you ever need a full path instead of a wildcard: a leading `//` is absolute,
    target label isn't listed, you opened the wrong panel (or it's inside a
    collapsed section) -- open a different panel, or expand the section, then
    inspect_ui again. Repeat until the target shows up.
-3. Then emit ONE run_ui_program, preferring `**/<label>` for the widgets you
-   confirmed are visible.
+3. Then emit ONE run_ui_program. IMPORTANT: for any widget that appeared in an
+   inspect_ui result you MUST address it by its exact id from the `[id=N]`
+   annotation -- `{"op":"click_id","id":N}` or
+   `{"op":"set_float_id","id":N,"value":V}` -- and NOT by `**/<label>`. A
+   wildcard can miss an item that is clipped or scrolled off screen (and click
+   the wrong one), whereas click_id always finds the exact item and scrolls it
+   into view. Use `**/<label>` only for a widget you did not inspect.
+
+Worked example — "turn on the Contact Force flag":
+1. `run_ui_program {"ops":[{"op":"item_click","ref":"//ToolRail/###Rendering"}]}`
+2. `inspect_ui` → output includes `  Contact Force  [id=3332464552]`
+3. `run_ui_program {"ops":[{"op":"click_id","id":3332464552}]}` (use the id you
+   saw; do NOT use a `**/` ref here).
 
 To pause/play, press Space: `{"op":"key_chars","text":" "}` — never hunt for the
 pause button's ref. If you cannot reference something after a search or two,
