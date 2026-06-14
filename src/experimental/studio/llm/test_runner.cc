@@ -278,7 +278,11 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
     if (op == "item_click" || op == "click_id") {
       ctx->ItemClick(tref, 0, ImGuiTestOpFlags_NoError);
     } else if (op == "menu_click") {
-      ctx->MenuClick((path.empty() ? ref : path).c_str());
+      // Root a bare "File/Open" path at the main menu bar window. Without this,
+      // MenuClick reads the first segment ("File") as a window name and fails.
+      std::string mp = path.empty() ? ref : path;
+      if (mp.rfind("//", 0) != 0) mp = "//##MainMenuBar/" + mp;
+      ctx->MenuClick(mp.c_str());
     } else if (op == "item_check") {
       ctx->ItemCheck(tref, ImGuiTestOpFlags_NoError);
     } else if (op == "item_uncheck") {
