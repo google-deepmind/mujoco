@@ -23,7 +23,8 @@
 namespace mujoco::studio {
 
 // Talks to the Anthropic Messages API (POST /v1/messages). Defaults to model
-// claude-opus-4-8 with adaptive thinking. The API key is read from the
+// claude-haiku-4-5 (switchable at runtime via SetModel / the "/model" command).
+// The API key is read from the
 // ANTHROPIC_API_KEY environment variable (see KeyFromEnv). Transport is WinHTTP
 // on Windows; other platforms return an error result for now (no SDK in-tree).
 //
@@ -52,8 +53,8 @@ class ClaudeProvider : public LlmProvider {
 
  private:
   std::string api_key_;
-  std::string model_ = "claude-opus-4-8";
-  bool adaptive_thinking_ = true;
+  std::string model_ = "claude-haiku-4-5";
+  bool adaptive_thinking_ = false;  // Haiku 4.5 doesn't accept adaptive thinking
   int max_tokens_ = 8192;
 };
 

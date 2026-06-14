@@ -83,7 +83,7 @@ forward non-`>` prompts).
 | File | Responsibility |
 |---|---|
 | `llm_provider.h` | Provider-agnostic interface: `ToolDef`, `LlmMessage`, `LlmResult`, and `LlmProvider::Send(system, messages, tools, executor)`. No vendor types leak out. |
-| `llm_claude.{h,cc}` | Claude implementation: `claude-opus-4-8`, adaptive thinking, raw HTTPS to `POST /v1/messages` (WinHTTP), with our own tool-use loop. `MUJOCO_STUDIO_LLM_VERBOSE` dumps the full transcript. |
+| `llm_claude.{h,cc}` | Claude implementation: defaults to `claude-haiku-4-5` (switchable via `/model`), raw HTTPS to `POST /v1/messages` (WinHTTP), with our own tool-use loop. `MUJOCO_STUDIO_LLM_VERBOSE` dumps the full transcript. |
 | `llm_mock.h` | A trivial offline provider for development without a key. |
 | `source_search.{h,cc}` | `GrepSource(pattern, …)` — the `grep` tool's backend; searches the Studio source dir (baked via CMake) plus the loaded model's input-file dir. |
 | `test_runner.{h,cc}` | The actuator. Owns the ImGui Test Engine + a single generic test; interprets a `run_ui_program` op-program, runs the cross-thread `inspect_ui` gather, guards every item op so a bad ref/id can't hang. |
@@ -218,8 +218,11 @@ actuator.
 vendor SDK. `LlmProvider::Send(system, messages, tools, executor)` runs a full
 tool-use loop and calls `executor(name, json_args)` for each tool call.
 
-- **Claude** (`llm_claude.cc`) is the only implementation today: `claude-opus-4-8`,
-  adaptive thinking (`thinking:{type:"adaptive"}`). The host is C++ (no official
+- **Claude** (`llm_claude.cc`) is the only implementation today. It defaults to
+  `claude-haiku-4-5` and is switchable at runtime with the `/model` command
+  (opus / sonnet / haiku, or a full id); adaptive thinking
+  (`thinking:{type:"adaptive"}`) is used for the opus/sonnet 4.6+ family and
+  omitted for Haiku, which doesn't accept it. The host is C++ (no official
   Anthropic SDK), so this is **raw HTTPS to `POST /v1/messages`** via WinHTTP with
   our own tool-use loop (`max_tokens` 8192, generous timeouts, ≤20 iterations).
   The key comes from `ANTHROPIC_API_KEY`, never hard-coded.
