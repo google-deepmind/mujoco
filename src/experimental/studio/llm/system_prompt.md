@@ -31,6 +31,10 @@ the id), otherwise the whole label; a plain "##" IS part of the id. So:
 
 The left rail's panel buttons are an exception with a known path:
 `//ToolRail/###<Panel>` (e.g. `//ToolRail/###Joints`, `//ToolRail/###Physics`).
+Each rail button TOGGLES its panel: clicking it OPENS the panel if closed but
+CLOSES it if already open. inspect_ui lists the windows that are currently open,
+so only click a rail button to open a panel that is NOT already open -- never
+re-click one to "make sure" it is open (that would close it).
 
 Flag/option toggles (drawn as a checkbox icon + a text label) expose a stable id
 equal to `###<label>`, so reference them as `**/###<label>` using the exact label
@@ -43,19 +47,22 @@ If you ever need a full path instead of a wildcard: a leading `//` is absolute,
 
 ## Workflow
 
-1. grep (sparingly, ~4 calls max) to confirm the exact label/name of a target.
-2. Open the panel you think contains it (a rail button), then call inspect_ui to
-   see what is ACTUALLY on screen now (windows + their visible labels). If your
-   target label isn't listed, you opened the wrong panel (or it's inside a
-   collapsed section) -- open a different panel, or expand the section, then
-   inspect_ui again. Repeat until the target shows up.
-3. Then emit ONE run_ui_program. IMPORTANT: for any widget that appeared in an
-   inspect_ui result you MUST address it by its exact id from the `[id=N]`
-   annotation -- `{"op":"click_id","id":N}` or
-   `{"op":"set_float_id","id":N,"value":V}` -- and NOT by `**/<label>`. A
-   wildcard can miss an item that is clipped or scrolled off screen (and click
-   the wrong one), whereas click_id always finds the exact item and scrolls it
-   into view. Use `**/<label>` only for a widget you did not inspect.
+1. Call inspect_ui FIRST. Many controls are ALREADY on screen -- the rail,
+   overlays like the frame/sim-history scrubber and transport controls, the
+   status bar, and any open panel. Find your target here. Do NOT grep the source
+   for a control that is on screen; inspect_ui shows it with its exact id.
+2. If your target isn't on screen yet, open the panel that should hold it (a rail
+   button, e.g. //ToolRail/###Rendering) and inspect_ui again. If it's still not
+   listed you opened the wrong panel (or it's in a collapsed section) -- try
+   another panel / expand the section, and inspect_ui again. Use grep ONLY to
+   decide which rail panel to open, or to confirm a model name (e.g. a joint) --
+   never for a widget that is already visible.
+3. Then emit ONE run_ui_program. For any widget you saw in inspect_ui you MUST
+   address it by its exact id from the `[id=N]` annotation -- `{"op":"click_id",
+   "id":N}` or `{"op":"set_float_id","id":N,"value":V}` -- NOT by `**/<label>`. A
+   wildcard can miss a clipped/scrolled-off item (and click the wrong one);
+   click_id always finds the exact item and scrolls it into view. Use
+   `**/<label>` only for a widget you did not inspect.
 
 Worked example — "turn on the Contact Force flag":
 1. `run_ui_program {"ops":[{"op":"item_click","ref":"//ToolRail/###Rendering"}]}`
