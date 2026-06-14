@@ -90,7 +90,8 @@ static void AddEditorButtons(mjsElement* element, mjsElement** selected_element,
   }
   ImGui::SameLine(x);
   if (element->elemtype == mjOBJ_BODY) {
-    if (ImGui::SmallButton(ICON_FA_PLUS)) {
+    if (ImGui::SmallButton(
+            (std::string(ICON_FA_PLUS) + "###Add child").c_str())) {
       ImGui::OpenPopupOnItemClick("BodyAddChild", 0);
     }
 
@@ -113,7 +114,8 @@ static void AddEditorButtons(mjsElement* element, mjsElement** selected_element,
 
     ImGui::SameLine();
   }
-  if (ImGui::SmallButton(ICON_FA_TRASH_CAN)) {
+  if (ImGui::SmallButton(
+          (std::string(ICON_FA_TRASH_CAN) + "###Delete element").c_str())) {
     editor.DeleteActiveElement();
     *selected_element = nullptr;
   }

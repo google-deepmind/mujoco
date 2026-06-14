@@ -15,6 +15,7 @@
 #include "experimental/platform/ux/picture_gui.h"
 
 #include <cstddef>
+#include <string>
 #include <vector>
 
 #include <imgui.h>
@@ -73,7 +74,8 @@ static bool PipGuiImpl(const mjModel* model, mjData* data, float aspect_ratio,
   }
 
   ImGui::SameLine();
-  if (ImGui::Button(ICON_FA_TRASH_CAN)) {
+  if (ImGui::Button(
+          (std::string(ICON_FA_TRASH_CAN) + "###Remove preview").c_str())) {
     result = false;
   }
 

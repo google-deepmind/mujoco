@@ -1530,13 +1530,13 @@ void App::SpecEditorGui() {
 
       ImGui::TableNextColumn();
       ImGui::BeginDisabled(!spec_editor_.CanUndo());
-      if (ImGui::Button(ICON_UNDO_SPEC)) {
+      if (ImGui::Button((std::string(ICON_UNDO_SPEC) + "###Undo").c_str())) {
         spec_editor_.Undo();
       }
       ImGui::EndDisabled();
       ImGui::SameLine();
       ImGui::BeginDisabled(!spec_editor_.CanRedo());
-      if (ImGui::Button(ICON_REDO_SPEC)) {
+      if (ImGui::Button((std::string(ICON_REDO_SPEC) + "###Redo").c_str())) {
         spec_editor_.Redo();
       }
       ImGui::EndDisabled();

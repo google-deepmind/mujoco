@@ -615,10 +615,14 @@ inline bool ImGui_ColorButtonEx(const char* label, bool active, ImColor color,
                 s.FrameRounding, corners, s.FrameBorderSize);
   }
 
-  // Draw label centered.
+  // Draw label centered. Only the visible portion (before "##") is drawn, so a
+  // stable "icon###id" label gives the test engine a usable id without showing
+  // the id text. label_size above was likewise measured up to "##".
+  const char* text_end = label;
+  while (*text_end && !(text_end[0] == '#' && text_end[1] == '#')) ++text_end;
   const ImVec2 text_pos(pos.x + (btn_size.x - label_size.x) * 0.5f,
                         pos.y + (btn_size.y - label_size.y) * 0.5f);
-  dl->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_Text), label);
+  dl->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_Text), label, text_end);
 
   return clicked;
 }

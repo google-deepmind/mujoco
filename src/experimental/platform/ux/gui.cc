@@ -347,7 +347,11 @@ void StepControlGui(const mjModel* model, StepControl* step_control,
       size.x = w * width_scale;
     }
     bool active = step_control->GetPauseState() == target_state;
-    if (ImGui_ColorButtonEx(icon, active, color, corners, size, hover_alpha)) {
+    // Stable, self-describing "icon###<name>" id (the name doubles as tooltip)
+    // so the test engine / agent can recognise and operate these icon buttons.
+    const std::string label = std::string(icon) + "###" + tooltip;
+    if (ImGui_ColorButtonEx(label.c_str(), active, color, corners, size,
+                            hover_alpha)) {
       step_control->SetPauseState(target_state);
     }
     if (!std::string_view(tooltip).empty()) {
@@ -362,7 +366,7 @@ void StepControlGui(const mjModel* model, StepControl* step_control,
               ImDrawFlags_RoundCornersNone, "Viscous Pause", .3f, 1.3f);
   ImGui::SameLine(0.f, 0.f);
   make_button(ICON_FA_PLAY, StepControl::PauseState::kUnpaused, green,
-              ImDrawFlags_RoundCornersRight, "", .3f, 1.6f);
+              ImDrawFlags_RoundCornersRight, "Play", .3f, 1.6f);
 
   // Speed selection.
   style.Reset();
@@ -508,7 +512,8 @@ bool CameraSelectionGui(const mjModel* model, mjData* data, mjvCamera& camera,
   // Copy camera button.
   const float btn_size = ImGui::GetFrameHeight();
   const ImVec2 square_size(btn_size, btn_size);
-  if (ImGui::Button(ICON_COPY_CAMERA, square_size)) {
+  if (ImGui::Button((std::string(ICON_COPY_CAMERA) + "###Copy camera").c_str(),
+                    square_size)) {
     std::string camera_string = CameraToString(data, &camera);
     MaybeSaveToClipboard(camera_string);
   }
