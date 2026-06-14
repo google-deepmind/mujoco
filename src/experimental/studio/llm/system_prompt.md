@@ -47,12 +47,21 @@ If you ever need a full path instead of a wildcard: a leading `//` is absolute,
 
 Some widgets never appear in inspect_ui and can't be matched by `**/<label>`:
 combo boxes, and the value field of numeric inputs (only their `-`/`+` steppers
-show). For these, address the widget by its DIRECT path `//<WindowName>/<Label>`
-built from the source -- this computes the id from the label, so it doesn't need
-the label to be registered (which is why the `**/` wildcard fails on them). The
-window name is the panel/window title (a plugin's window is its name, e.g.
-`//ObjectLauncher`); the Label is the exact string passed to the widget in the
-source. To pick a combo option use:
+show). For these, address the widget by its DIRECT path built from the source --
+this computes the id from the label, so it doesn't need the label to be
+registered (which is why the `**/` wildcard fails on them). The window name is
+the panel/window title (a plugin's window is its name, e.g. `//ObjectLauncher`);
+the Label is the exact string passed to the widget in the source.
+
+- A combo (`ImGui::Combo`/`BeginCombo`) is at `//<Window>/<Label>`.
+- A Studio numeric input (`ImGui_Input("Label", ...)`) is NOT at
+  `//<Window>/<Label>` -- it wraps `InputScalarN`, which puts the value field one
+  `PushID(int)` level deeper, so it is `//<Window>/<Label>/$$0` (for a multi-value
+  input the components are `/$$0`, `/$$1`, ...). Set it with
+  `{"op":"set_float","ref":"//<Window>/<Label>/$$0","value":N}` (or `set_int`).
+  E.g. set the launcher's Size: `{"op":"set_float","ref":"//ObjectLauncher/Size/$$0","value":0.3}`.
+
+To pick a combo option use:
 `{"op":"combo_select","ref":"//<Window>/<ComboLabel>","value":"<ExactOptionText>"}`
 — e.g. set the launcher's shape to a sphere with
 `{"op":"combo_select","ref":"//ObjectLauncher/Shape","value":"Sphere"}`. Find the

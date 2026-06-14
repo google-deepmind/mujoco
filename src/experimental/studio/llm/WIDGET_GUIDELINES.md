@@ -105,9 +105,11 @@ From an audit of the UI against the rules above (2026-06-14). Worst first.
   `IMGUI_TEST_ENGINE_ITEM_INFO` itself; `BeginCombo` never does and stepped
   `InputScalar` forwards its inner `""`, so both reach `TestRunner::DoGather`
   with an empty `DebugLabel` and get filtered. They are still OPERABLE — combos
-  via `combo_select`, inputs via `set_float`/`set_int` on a `//Window/Label`
-  path the agent finds by grepping the source — so this is a discoverability
-  gap, not a wall. Auto-listing them would need either a multi-frame ID-Stack-
+  via `combo_select` on `//Window/Label`, and numeric inputs via
+  `set_float`/`set_int` on `//Window/Label/$$0` (Studio's `ImGui_Input` wraps
+  `InputScalarN`, which nests the value field one `PushID(int)` level deeper) —
+  both found by grepping the source, so this is a discoverability gap, not a
+  wall. Auto-listing them would need either a multi-frame ID-Stack-
   Tool resolver driven from the app loop (ImGui zeroes `DebugHookIdInfoId` in
   `NewFrame` and only follows the hovered item, so it can't be driven from the
   gather coroutine) or a patch to vendored ImGui. Both judged not worth it for

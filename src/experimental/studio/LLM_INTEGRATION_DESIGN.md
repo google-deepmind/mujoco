@@ -405,9 +405,10 @@ wildcard+grep. The **built** answer layers the cheapest-and-most-general first:
    by inspection without per-widget markers.
 
 Known gaps, all documented in WIDGET_GUIDELINES: combos/inputs don't *list* in
-`inspect_ui` (operable via grep + `combo_select`/`set_float`); the spec property
-editor uses `PushID(&val)` (case 8) so its fields aren't addressable; the native
-file dialog isn't drivable by the Test Engine.
+`inspect_ui` (still operable via grep — a combo at `//Window/Label`, a Studio
+`ImGui_Input` field at `//Window/Label/$$0` since it wraps `InputScalarN`); the
+spec property editor uses `PushID(&val)` (case 8) so its fields aren't
+addressable; the native file dialog isn't drivable by the Test Engine.
 
 Deferred (analysed, not built): opt-in `data-testid`-style ref markers for the
 untagged long tail, and **video feedback** as the corrector that lets the agent
