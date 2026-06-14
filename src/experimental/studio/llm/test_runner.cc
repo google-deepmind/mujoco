@@ -264,7 +264,7 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
     const bool targets_item =
         (op == "item_click" || op == "click_id" || op == "item_check" ||
          op == "item_uncheck" || op == "set_float" || op == "set_float_id" ||
-         op == "set_int");
+         op == "set_int" || op == "combo_select");
     if (targets_item && !ctx->ItemExists(tref)) {
       const std::string what =
           id != 0 ? ("id=" + std::to_string(id)) : ("ref=" + ref);
@@ -286,6 +286,33 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
                           static_cast<float>(ReadNumber(obj, "\"value\"")));
     } else if (op == "set_int") {
       ctx->ItemInputValue(tref, static_cast<int>(ReadNumber(obj, "\"value\"")));
+    } else if (op == "combo_select") {
+      // Pick an option from a combo box. `tref` is the combo (a ref/id that
+      // exists -- guarded above), `value` is the option's exact text. Open the
+      // combo, then click the option in the now-focused popup window (addressed
+      // by the popup's real name, mirroring the engine's ComboClick, but with
+      // ItemExists guards so a miss can't hang). Combos don't register a label
+      // with the test engine, so inspect_ui won't list them; address the combo
+      // by its direct path, e.g. "//ObjectLauncher/Shape".
+      const std::string value = ReadString(obj, "\"value\"");
+      ctx->ItemClick(tref, 0, ImGuiTestOpFlags_NoError);
+      ImGuiWindow* popup = ctx->GetWindowByRef("//$FOCUSED");
+      bool done = false;
+      if (popup != nullptr && popup->Name != nullptr) {
+        const std::string item =
+            std::string("//") + popup->Name + "/**/" + value;
+        const ImGuiTestRef item_ref(item.c_str());
+        if (ctx->ItemExists(item_ref)) {
+          ctx->ItemClick(item_ref, 0, ImGuiTestOpFlags_NoError);
+          done = true;
+        }
+      }
+      if (!done) {
+        std::fprintf(stderr,
+                     "[run_ui_program] skip combo_select: option not found "
+                     "(%s)\n",
+                     value.c_str());
+      }
     } else if (op == "key_chars") {
       ctx->KeyChars(text.c_str());
     } else if (op == "key_press") {

@@ -45,6 +45,19 @@ item_check / item_uncheck, which don't work on them).
 If you ever need a full path instead of a wildcard: a leading `//` is absolute,
 `/` chains levels (== ImGui's id stack), `$$N` encodes a `PushID(int N)` level.
 
+Some widgets never appear in inspect_ui and can't be matched by `**/<label>`:
+combo boxes, and the value field of numeric inputs (only their `-`/`+` steppers
+show). For these, address the widget by its DIRECT path `//<WindowName>/<Label>`
+built from the source -- this computes the id from the label, so it doesn't need
+the label to be registered (which is why the `**/` wildcard fails on them). The
+window name is the panel/window title (a plugin's window is its name, e.g.
+`//ObjectLauncher`); the Label is the exact string passed to the widget in the
+source. To pick a combo option use:
+`{"op":"combo_select","ref":"//<Window>/<ComboLabel>","value":"<ExactOptionText>"}`
+— e.g. set the launcher's shape to a sphere with
+`{"op":"combo_select","ref":"//ObjectLauncher/Shape","value":"Sphere"}`. Find the
+combo's label and its option strings by grepping the source.
+
 ## Rendering modes & flags
 
 How the main 3D view renders is controlled in the Rendering panel
