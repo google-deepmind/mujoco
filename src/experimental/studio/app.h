@@ -282,7 +282,9 @@ class App {
   // transport + view controls, and a vertical frame scrubber flush to the right
   // edge. RailWidth/ScrubberWidth give the gutters so overlays don't overlap.
   void TopOverlayGui(const ImVec4& workspace_rect);
-  void ScrubberOverlayGui(const ImVec4& workspace_rect);
+  // Viewport-anchored (like the command palette) so it stays bottom-centered
+  // regardless of docking.
+  void ScrubberOverlayGui();
   // Bottom status bar, styled like the top menu bar (status text right-aligned).
   void StatusBarGui();
   float RailWidth() const;

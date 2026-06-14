@@ -917,7 +917,7 @@ void App::BuildGui() {
   // controls along the top, a vertical frame scrubber on the right) plus a
   // menu-bar-styled status bar pinned to the bottom.
   TopOverlayGui(workspace_rect);
-  ScrubberOverlayGui(workspace_rect);
+  ScrubberOverlayGui();
   StatusBarGui();
 
   // Feature documentation: the old "Options" and "Inspector" side panels
@@ -1797,19 +1797,22 @@ void App::TopOverlayGui(const ImVec4& workspace_rect) {
   ImGui::End();
 }
 
-void App::ScrubberOverlayGui(const ImVec4& workspace_rect) {
+void App::ScrubberOverlayGui() {
   if (!has_model()) {
     return;
   }
   const ImGuiStyle& style = ImGui::GetStyle();
-  // A horizontal strip along the bottom center: its length matches the height it
-  // had as a vertical strip, its thickness is the old (thin) width. Its bottom
-  // sits kOverlayInset above the top of the status bar (workspace_rect.y +
-  // workspace_rect.w), and it is centered in the workspace width.
+  // A horizontal strip centered along the bottom of the screen. It is anchored
+  // to the viewport -- like the Ctrl+P palette -- not the dockspace, so it stays
+  // centered on screen and does not shift when a panel is docked. Its length
+  // matches the height it had as a vertical strip; its thickness is the old
+  // (thin) width; its bottom sits kOverlayInset above the top of the status bar.
+  const ImGuiViewport* vp = ImGui::GetMainViewport();
+  const float status_bar_h = ImGui::GetFrameHeight();
+  const float status_bar_top = vp->WorkPos.y + vp->WorkSize.y - status_bar_h;
   const float thickness = ScrubberWidth();
-  const float length = std::max(160.0f, workspace_rect.w * 0.6f);
-  const float status_bar_top = workspace_rect.y + workspace_rect.w;
-  const float x = workspace_rect.x + (workspace_rect.z - length) * 0.5f;
+  const float length = std::max(160.0f, (vp->WorkSize.y - status_bar_h) * 0.6f);
+  const float x = vp->WorkPos.x + (vp->WorkSize.x - length) * 0.5f;
   const float y = status_bar_top - kOverlayInset - thickness;
 
   ImGui::SetNextWindowPos(ImVec2(x, y));
