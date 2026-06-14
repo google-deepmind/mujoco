@@ -83,6 +83,10 @@ static constexpr const char* ICON_CURR_FRAME = platform::ICON_FA_FAST_FORWARD;
 static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
+// Inset of the viewport overlays (left rail, bottom scrubber, top toolbar) from
+// the screen edge they hug.
+static constexpr float kOverlayInset = 10.0f;
+
 // Defined in platform/ux/object_launcher_plugin.cc. Calling it forces that
 // translation unit (and so its mjPLUGIN_LIB_INIT registration) to be linked in;
 // see the comment there.
@@ -1098,10 +1102,9 @@ void App::ToolRailGui(const ImVec4& workspace_rect) {
   constexpr int kColumns = 2;
 
   // Float the rail vertically centered on the left, auto-sized to just contain
-  // its buttons, and inset a little from the left edge (matches the scrubber).
-  constexpr float kRailInsetX = 10.0f;
+  // its buttons, and inset kOverlayInset from the left edge.
   ImGui::SetNextWindowPos(
-      ImVec2(workspace_rect.x + kRailInsetX,
+      ImVec2(workspace_rect.x + kOverlayInset,
              workspace_rect.y + workspace_rect.w * 0.5f),
       ImGuiCond_Always, ImVec2(0.0f, 0.5f));
   ImGui::SetNextWindowBgAlpha(0.65f);  // translucent, like the other overlays
@@ -1775,14 +1778,14 @@ constexpr float kOverlayAlpha = 0.65f;
 }  // namespace
 
 void App::TopOverlayGui(const ImVec4& workspace_rect) {
-  const float margin = ImGui::GetStyle().ItemSpacing.x;
   // Auto-size to the packed controls and center horizontally on the actual
   // screen center (the rail and scrubber are thin overlays that don't sit at the
   // top center, so we don't bias around them). The (0.5, 0) pivot keeps it
-  // centered regardless of its content width.
+  // centered regardless of its content width. workspace_rect.y is the menu-bar
+  // bottom, so sit kOverlayInset below it.
   const ImGuiViewport* vp = ImGui::GetMainViewport();
   const float center_x = vp->WorkPos.x + vp->WorkSize.x * 0.5f;
-  ImGui::SetNextWindowPos(ImVec2(center_x, workspace_rect.y + margin),
+  ImGui::SetNextWindowPos(ImVec2(center_x, workspace_rect.y + kOverlayInset),
                           ImGuiCond_Always, ImVec2(0.5f, 0.0f));
   ImGui::SetNextWindowBgAlpha(kOverlayAlpha);
   if (ImGui::Begin("##TopOverlay", nullptr,
@@ -1799,32 +1802,61 @@ void App::ScrubberOverlayGui(const ImVec4& workspace_rect) {
     return;
   }
   const ImGuiStyle& style = ImGui::GetStyle();
-  const float scrub_w = ScrubberWidth();
-  const float h = std::max(160.0f, workspace_rect.w * 0.6f);
-  // Inset 10px from the right edge, mirroring the rail's 10px left inset.
-  constexpr float kScrubberInsetX = 10.0f;
-  const float x = workspace_rect.x + workspace_rect.z - scrub_w - kScrubberInsetX;
-  const float y = workspace_rect.y + (workspace_rect.w - h) * 0.5f;
+  // A horizontal strip along the bottom center: its length matches the height it
+  // had as a vertical strip, its thickness is the old (thin) width. Its bottom
+  // sits kOverlayInset above the top of the status bar (workspace_rect.y +
+  // workspace_rect.w), and it is centered in the workspace width.
+  const float thickness = ScrubberWidth();
+  const float length = std::max(160.0f, workspace_rect.w * 0.6f);
+  const float status_bar_top = workspace_rect.y + workspace_rect.w;
+  const float x = workspace_rect.x + (workspace_rect.z - length) * 0.5f;
+  const float y = status_bar_top - kOverlayInset - thickness;
 
   ImGui::SetNextWindowPos(ImVec2(x, y));
-  ImGui::SetNextWindowSize(ImVec2(scrub_w, h));
+  ImGui::SetNextWindowSize(ImVec2(length, thickness));
   ImGui::SetNextWindowBgAlpha(kOverlayAlpha);
-  // Tight padding so the thin strip's content fills its width.
+  // Tight padding so the thin strip's content fills its height.
   constexpr float kScrubberPad = 4.0f;
   platform::ScopedStyle pad;
   pad.Var(ImGuiStyleVar_WindowPadding, ImVec2(kScrubberPad, kScrubberPad));
   if (ImGui::Begin("##Scrubber", nullptr, kOverlayFlags)) {
-    const float col_w = ImGui::GetContentRegionAvail().x;
-    const float step = ImGui::GetFrameHeight() + style.ItemSpacing.y;
+    // One row; square icon buttons with a horizontal slider filling the middle.
+    // Every control carries a stable, self-describing "###<Name>" id so the test
+    // engine / LLM agent can address it (see llm/WIDGET_GUIDELINES.md).
+    const float row_h = ImGui::GetContentRegionAvail().y;
+    const ImVec2 btn(row_h, row_h);
 
-    // Every control gets a stable, self-describing "###<Name>" id: the leading
-    // glyph is only decoration (and would otherwise be the icon's gibberish
-    // bytes), while the name after "###" is what the test engine / LLM agent
-    // sees and addresses. See llm/WIDGET_GUIDELINES.md.
+    // Oldest frame (start of history) at the left.
+    if (ImGui::Button((std::string(platform::ICON_FA_FAST_BACKWARD) +
+                       "###Oldest frame").c_str(), btn)) {
+      LoadHistory(1 - sim_history_.Size());
+    }
+    ImGui::SetItemTooltip("%s", "Oldest frame (start of history)");
 
-    // Next frame (toward the current state) at the top.
-    if (ImGui::Button((std::string(platform::ICON_FA_CARET_UP) +
-                       "###Next frame").c_str(), ImVec2(col_w, 0))) {
+    // Previous frame (toward older states).
+    ImGui::SameLine();
+    if (ImGui::Button((std::string(ICON_PREV_FRAME) +
+                       "###Previous frame").c_str(), btn)) {
+      LoadHistory(sim_history_.GetIndex() - 1);
+    }
+    ImGui::SetItemTooltip("%s", "Previous frame");
+
+    // Horizontal history slider fills the middle (left = oldest, right = now).
+    // Reserve room for the two buttons that follow it.
+    ImGui::SameLine();
+    int index = sim_history_.GetIndex();
+    const float slider_w = std::max(
+        40.0f, ImGui::GetContentRegionAvail().x - 2.0f * (row_h + style.ItemSpacing.x));
+    ImGui::SetNextItemWidth(slider_w);
+    if (ImGui::SliderInt("###Frame", &index, 1 - sim_history_.Size(), 0, "")) {
+      LoadHistory(index);
+    }
+    ImGui::SetItemTooltip("Frame %d of %d", index, sim_history_.Size());
+
+    // Next frame (toward the current state).
+    ImGui::SameLine();
+    if (ImGui::Button((std::string(ICON_NEXT_FRAME) +
+                       "###Next frame").c_str(), btn)) {
       if (sim_history_.GetIndex() == 0) {
         step_control_.RequestSingleStep();
       } else {
@@ -1833,37 +1865,13 @@ void App::ScrubberOverlayGui(const ImVec4& workspace_rect) {
     }
     ImGui::SetItemTooltip("%s", "Next frame");
 
-    // Vertical history slider fills the middle (top = current, down = older).
-    // Reserve room for the three buttons that follow it.
-    int index = sim_history_.GetIndex();
-    const float slider_h =
-        std::max(40.0f, ImGui::GetContentRegionAvail().y - 3.0f * step);
-    if (ImGui::VSliderInt("###Frame", ImVec2(col_w, slider_h), &index,
-                          1 - sim_history_.Size(), 0, "")) {
-      LoadHistory(index);
-    }
-    ImGui::SetItemTooltip("Frame %d of %d", index, sim_history_.Size());
-
-    // Previous frame (toward older states) below the slider.
-    if (ImGui::Button((std::string(platform::ICON_FA_CARET_DOWN) +
-                       "###Previous frame").c_str(), ImVec2(col_w, 0))) {
-      LoadHistory(sim_history_.GetIndex() - 1);
-    }
-    ImGui::SetItemTooltip("%s", "Previous frame");
-
-    // Jump to the current (latest) frame.
+    // Jump to the current (latest) frame at the right.
+    ImGui::SameLine();
     if (ImGui::Button((std::string(ICON_CURR_FRAME) +
-                       "###Current frame").c_str(), ImVec2(col_w, 0))) {
+                       "###Current frame").c_str(), btn)) {
       LoadHistory(0);
     }
     ImGui::SetItemTooltip("%s", "Current frame");
-
-    // Jump to the oldest recorded frame (the start of sim history).
-    if (ImGui::Button((std::string(platform::ICON_FA_FAST_BACKWARD) +
-                       "###Oldest frame").c_str(), ImVec2(col_w, 0))) {
-      LoadHistory(1 - sim_history_.Size());
-    }
-    ImGui::SetItemTooltip("%s", "Oldest frame (start of history)");
   }
   ImGui::End();
 }
