@@ -313,6 +313,14 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
                      "(%s)\n",
                      value.c_str());
       }
+    } else if (op == "wait") {
+      // Hold for a duration before the next op. Renders frames in place (so a
+      // recorded gif shows a real pause); ~12 frames per requested second, and
+      // the sim keeps stepping meanwhile. Capped so a huge value can't stall.
+      int frames = static_cast<int>(ReadNumber(obj, "\"seconds\"") * 12.0);
+      if (frames < 0) frames = 0;
+      if (frames > 600) frames = 600;
+      if (frames > 0) ctx->Yield(frames);
     } else if (op == "key_chars") {
       ctx->KeyChars(text.c_str());
     } else if (op == "key_press") {

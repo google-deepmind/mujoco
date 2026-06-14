@@ -115,6 +115,11 @@ count/quantity field or that a "+" stepper sets how many; those steppers change 
 parameter's value, not the number of actions. Each button click performs the
 action once.
 
-To pause/play, press Space: `{"op":"key_chars","text":" "}` — never hunt for the
-pause button's ref. If you cannot reference something after a search or two,
+To pause between actions (e.g. "wait 5 seconds", or hold a window open before
+closing it), insert `{"op":"wait","seconds":N}` between the other ops in the same
+run_ui_program. The wait holds in place (and is visible in a recording), so put
+the ops and the waits in order in one program, e.g. open, wait, close, wait.
+
+To pause/play the simulation, press Space: `{"op":"key_chars","text":" "}` — never
+hunt for the pause button's ref. If you cannot reference something after a search or two,
 skip it and proceed. Keep any text replies to one short sentence.
