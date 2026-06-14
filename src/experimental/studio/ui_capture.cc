@@ -50,14 +50,12 @@ void App::StartCapture(const std::string& out_dir, int total_frames,
   capture_.cursor = ImVec2(-100.0f, -100.0f);
   capture_.click_flash = 0.0f;
 
-  if (script == CaptureScript::kLlm || script == CaptureScript::kLlmDemo) {
-    // Run the agent inline so the reply is ready on the next frame and reveals
-    // frame-by-frame. Keep whatever provider the environment selected: with
-    // ANTHROPIC_API_KEY set this is the real Claude provider (the synchronous
-    // call just blocks that one capture frame on the network); without a key it
-    // falls back to the mock.
-    ui_agent_.set_synchronous(true);
-  }
+  // The LLM scripts run the agent ASYNCHRONOUSLY (on a worker thread) so it can
+  // call inspect_ui -- which blocks the worker until the UI thread runs a gather
+  // -- without deadlocking the render loop. The capture keeps rendering frames
+  // while the conversation and UI program play out, and ends once everything has
+  // been idle for a while (see CaptureStepLlm). Keep whatever provider the
+  // environment selected (real Claude when ANTHROPIC_API_KEY is set, else mock).
 }
 
 bool App::SaveCaptureFrame() {
@@ -87,34 +85,45 @@ void App::CaptureStepLlm() {
   CaptureState& c = capture_;
   const int f = c.frame;
 
-  // The question we "type" into the Ctrl+P box.
-  const std::string kQuestion = capture_.llm_prompt.empty()
+  const std::string kQuestion = c.llm_prompt.empty()
                                     ? std::string("open the physics menu")
-                                    : capture_.llm_prompt;
+                                    : c.llm_prompt;
 
-  // Phase 0: open the command palette.
-  if (f == 8) command_palette_.Open();
-
-  // Phase 1: type the question one character at a time (frames 12..12+N).
   constexpr int kTypeStart = 12;
-  if (f >= kTypeStart &&
-      f <= kTypeStart + static_cast<int>(kQuestion.size())) {
-    const int n = f - kTypeStart;
-    command_palette_.SetText(kQuestion.substr(0, n));
+  constexpr int kCharsPerFrame = 2;
+  const int n = static_cast<int>(kQuestion.size());
+  const int type_frames = (n + kCharsPerFrame - 1) / kCharsPerFrame;
+  const int submit = kTypeStart + type_frames + 6;
+
+  // Open the palette and "type" the question a couple of chars per frame.
+  if (f == 8) command_palette_.Open();
+  if (f >= kTypeStart && f < kTypeStart + type_frames) {
+    const int chars = std::min(n, (f - kTypeStart + 1) * kCharsPerFrame);
+    command_palette_.SetText(kQuestion.substr(0, chars));
   }
 
-  // Phase 2: "press Enter" -> submit to the (synchronous, mock) agent and clear
-  // the input. The reply renders + reveals over the following frames.
-  const int kSubmit = kTypeStart + static_cast<int>(kQuestion.size()) + 6;
-  if (f == kSubmit) {
+  // Submit (async): the agent runs on a worker thread; its conversation and the
+  // UI program it queues play out over the following frames while we keep
+  // rendering. (Async so inspect_ui's blocking gather doesn't stall the loop.)
+  if (f == submit) {
+    command_palette_.SetText(kQuestion);
     ui_agent_.Ask(kQuestion);
     command_palette_.SetText("");
+    c.asked = true;
   }
 
-  // Phase 3: linger on the answer, then close the palette near the end.
-  if (f == c.total_frames - 12) command_palette_.Close();
+  // End the capture once the agent and test engine have been idle for a while
+  // (the whole interaction has settled).
+  if (c.asked && f > submit) {
+    if (!ui_agent_.busy() && test_runner_.idle()) {
+      ++c.idle_frames;
+    } else {
+      c.idle_frames = 0;
+    }
+    if (c.idle_frames == 12) command_palette_.Close();
+    if (c.idle_frames >= 36) c.active = false;
+  }
 
-  // No synthetic cursor for the typing demo; the box + reveal tell the story.
   c.cursor = ImVec2(-100.0f, -100.0f);
 }
 

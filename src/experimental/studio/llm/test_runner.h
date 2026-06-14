@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_LLM_TEST_RUNNER_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_LLM_TEST_RUNNER_H_
 
+#include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -60,17 +62,42 @@ class TestRunner {
   // i.e. {"ops":[ ... ]}. Returns the number of ops parsed. Thread-safe.
   int Run(const std::string& json_args);
 
+  // Lists the items currently visible on screen (grouped by window, with their
+  // labels), so the agent can confirm what actually opened / find a target.
+  // BLOCKS the calling thread until the UI thread runs the gather, so it must
+  // NOT be called from the UI thread (use the async agent). Thread-safe.
+  std::string Inspect();
+
+  // True when nothing is queued and the engine isn't running a test.
+  bool idle();
+
  private:
+  // Hands a gather result back from the UI thread to a blocked caller.
+  struct GatherResult {
+    std::mutex mu;
+    std::condition_variable cv;
+    bool done = false;
+    std::string text;
+  };
+  // A queued unit of work for the (single) registered test to run on the UI
+  // thread: either a UI op-program or a "gather visible items" request.
+  struct Job {
+    bool gather = false;
+    std::string payload;  // ops-array JSON for a program job
+    std::shared_ptr<GatherResult> result;  // set for gather jobs
+  };
+
   static void TestFuncThunk(ImGuiTestContext* ctx);
   void Execute(ImGuiTestContext* ctx, const std::string& ops_json);
+  void DoGather(ImGuiTestContext* ctx, const std::shared_ptr<GatherResult>& out);
 
   ImGuiTestEngine* engine_ = nullptr;
   ImGuiTest* test_ = nullptr;
   bool running_ = false;
 
   std::mutex mu_;
-  std::vector<std::string> queue_;  // pending programs (ops arrays as JSON)
-  std::string running_ops_;         // program the queued test is executing
+  std::vector<Job> jobs_;  // pending work (UI thread drains in PostSwap)
+  Job running_job_;        // the job the currently-queued test is executing
 };
 
 }  // namespace mujoco::studio

@@ -14,13 +14,16 @@
 
 #include "experimental/studio/llm/test_runner.h"
 
+#include <chrono>
 #include <cstdlib>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include "imgui_test_engine/imgui_te_context.h"
 #include "imgui_test_engine/imgui_te_engine.h"
@@ -181,9 +184,9 @@ void TestRunner::PostSwap() {
   if (!engine_ || !running_) return;
   {
     std::lock_guard<std::mutex> lk(mu_);
-    if (!queue_.empty() && ImGuiTestEngine_IsTestQueueEmpty(engine_)) {
-      running_ops_ = std::move(queue_.front());
-      queue_.erase(queue_.begin());
+    if (!jobs_.empty() && ImGuiTestEngine_IsTestQueueEmpty(engine_)) {
+      running_job_ = std::move(jobs_.front());
+      jobs_.erase(jobs_.begin());
       ImGuiTestEngine_QueueTest(engine_, test_, ImGuiTestRunFlags_None);
     }
   }
@@ -193,6 +196,12 @@ void TestRunner::PostSwap() {
   ImGuiTestEngine_PostSwap(engine_);
 }
 
+bool TestRunner::idle() {
+  if (!engine_ || !running_) return true;
+  std::lock_guard<std::mutex> lk(mu_);
+  return jobs_.empty() && ImGuiTestEngine_IsTestQueueEmpty(engine_);
+}
+
 int TestRunner::Run(const std::string& json_args) {
   std::string ops = ExtractOpsArray(json_args);
   if (ops.empty()) return 0;
@@ -200,17 +209,36 @@ int TestRunner::Run(const std::string& json_args) {
   ForEachObject(ops, [&](const std::string&) { ++count; });
   {
     std::lock_guard<std::mutex> lk(mu_);
-    queue_.push_back(std::move(ops));
+    jobs_.push_back(Job{/*gather=*/false, std::move(ops), nullptr});
   }
   return count;
 }
 
+std::string TestRunner::Inspect() {
+  if (!engine_ || !running_) return "(test engine not running)";
+  auto result = std::make_shared<GatherResult>();
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    jobs_.push_back(Job{/*gather=*/true, std::string(), result});
+  }
+  std::unique_lock<std::mutex> lk(result->mu);
+  if (!result->cv.wait_for(lk, std::chrono::seconds(20),
+                           [&] { return result->done; })) {
+    return "(inspect timed out)";
+  }
+  return result->text;
+}
+
 void TestRunner::TestFuncThunk(ImGuiTestContext* ctx) {
   auto* self = static_cast<TestRunner*>(ctx->Test->UserData);
-  // running_ops_ was set under the lock in PostSwap before the test was queued;
-  // by the time the test runs no other program can start, so reading it here is
-  // safe.
-  self->Execute(ctx, self->running_ops_);
+  // running_job_ was set under the lock in PostSwap before the test was queued;
+  // by the time the test runs no other job can start, so reading it here (on the
+  // UI thread) is safe.
+  if (self->running_job_.gather) {
+    self->DoGather(ctx, self->running_job_.result);
+  } else {
+    self->Execute(ctx, self->running_job_.payload);
+  }
 }
 
 void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
@@ -244,6 +272,57 @@ void TestRunner::Execute(ImGuiTestContext* ctx, const std::string& ops_json) {
     }
     // Unknown ops are ignored (forward-compatible).
   });
+}
+
+void TestRunner::DoGather(ImGuiTestContext* ctx,
+                          const std::shared_ptr<GatherResult>& out) {
+  // Snapshot the currently-active top-level windows up front (by id+name), so
+  // gathering -- which yields across frames -- can't trip over the window list
+  // changing under us.
+  struct WinRef {
+    ImGuiID id;
+    std::string name;
+  };
+  std::vector<WinRef> wins;
+  ImGuiContext& g = *ImGui::GetCurrentContext();
+  for (ImGuiWindow* w : g.Windows) {
+    if (w == nullptr || !w->WasActive || w->Hidden) continue;
+    if (w->Flags & ImGuiWindowFlags_ChildWindow) continue;
+    std::string name = w->Name ? w->Name : "";
+    const size_t h = name.find("##");  // strip the "##"/"###" id suffix
+    if (h != std::string::npos) name = name.substr(0, h);
+    if (name.empty()) continue;
+    wins.push_back({w->ID, name});
+  }
+
+  std::string text;
+  int total = 0;
+  for (const WinRef& wr : wins) {
+    ImGuiTestItemList items;
+    ctx->GatherItems(&items, ImGuiTestRef(wr.id), 99);
+    std::string lines;
+    int n = 0;
+    for (int i = 0; i < items.GetSize() && total < 250; ++i) {
+      const ImGuiTestItemInfo* it = items.GetByIndex(i);
+      if (it == nullptr || it->DebugLabel[0] == '\0') continue;
+      lines += std::string("  ") + it->DebugLabel + "\n";
+      ++total;
+      if (++n >= 40) {
+        lines += "  ...\n";
+        break;
+      }
+    }
+    if (!lines.empty()) text += "[" + wr.name + "]\n" + lines;
+    if (total >= 250) break;
+  }
+  if (text.empty()) text = "(no visible items found)";
+
+  if (out) {
+    std::lock_guard<std::mutex> lk(out->mu);
+    out->text = std::move(text);
+    out->done = true;
+    out->cv.notify_all();
+  }
 }
 
 }  // namespace mujoco::studio

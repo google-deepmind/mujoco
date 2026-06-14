@@ -1335,6 +1335,14 @@ void App::RegisterLlmTools() {
       "{\"type\":\"object\",\"properties\":{\"pattern\":{\"type\":\"string\","
       "\"description\":\"text to search for\"}},\"required\":[\"pattern\"]}"};
 
+  ToolDef inspect_ui{
+      "inspect_ui",
+      "Lists the widgets currently visible on screen, grouped by window, with "
+      "their labels. Call it AFTER opening a panel to confirm the right window "
+      "actually opened and the controls you need are showing (and to read exact "
+      "labels). Takes no arguments.",
+      "{\"type\":\"object\",\"properties\":{},\"required\":[]}"};
+
   ToolDef run_program{
       "run_ui_program", description,
       "{\"type\":\"object\",\"properties\":{\"ops\":{\"type\":\"array\","
@@ -1381,6 +1389,11 @@ void App::RegisterLlmTools() {
       }
       return GrepSource(pattern, model_dir, 40);
     }
+    if (name == "inspect_ui") {
+      std::fprintf(stderr, "[inspect_ui]\n");
+      std::fflush(stderr);
+      return test_runner_.Inspect();
+    }
     if (name == "run_ui_program") {
       // Echo the program the LLM generated to the console before running it.
       std::fprintf(stderr, "[run_ui_program] %s\n", json_args.c_str());
@@ -1391,7 +1404,7 @@ void App::RegisterLlmTools() {
     return "Unknown tool: " + name;
   };
 
-  ui_agent_.set_tools({grep, run_program}, exec);
+  ui_agent_.set_tools({grep, inspect_ui, run_program}, exec);
   ui_agent_.set_on_ask([this] { grep_calls_ = 0; });
 }
 

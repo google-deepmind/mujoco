@@ -31,18 +31,23 @@ The left rail's panel buttons are an exception with a known path:
 
 Flag/option toggles (drawn as a checkbox icon + a text label) expose a stable id
 equal to `###<label>`, so reference them as `**/###<label>` using the exact label
-text — e.g. the "Contact Force" toggle is `**/###Contact Force`.
+text — e.g. the "Contact Force" toggle is `**/###Contact Force`. These are
+buttons that flip state on click, so toggle them with op `item_click` (NOT
+item_check / item_uncheck, which don't work on them).
 
 If you ever need a full path instead of a wildcard: a leading `//` is absolute,
 `/` chains levels (== ImGui's id stack), `$$N` encodes a `PushID(int N)` level.
 
 ## Workflow
 
-1. grep (sparingly, ~4 calls max) to confirm exact names AND to find which panel
-   and which foldable section (a TreeNode/CollapsingHeader) contains the control.
-2. Open that panel FIRST so the widget is on screen; if the control sits inside a
-   foldable section, click the section header to expand it before referencing it.
-3. Then emit ONE run_ui_program, preferring `**/<label>` for widgets in panels.
+1. grep (sparingly, ~4 calls max) to confirm the exact label/name of a target.
+2. Open the panel you think contains it (a rail button), then call inspect_ui to
+   see what is ACTUALLY on screen now (windows + their visible labels). If your
+   target label isn't listed, you opened the wrong panel (or it's inside a
+   collapsed section) -- open a different panel, or expand the section, then
+   inspect_ui again. Repeat until the target shows up.
+3. Then emit ONE run_ui_program, preferring `**/<label>` for the widgets you
+   confirmed are visible.
 
 To pause/play, press Space: `{"op":"key_chars","text":" "}` — never hunt for the
 pause button's ref. If you cannot reference something after a search or two,

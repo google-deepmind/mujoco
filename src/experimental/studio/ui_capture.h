@@ -44,6 +44,12 @@ struct CaptureState {
 
   ImVec2 cursor{-100.0f, -100.0f};  // synthetic cursor, screen space
   float click_flash = 0.0f;         // >0 draws a click ring, decays per frame
+
+  // For the async LLM scripts: whether the question has been asked, and how many
+  // consecutive frames the agent + test engine have been idle (used to end the
+  // capture once the whole interaction has settled).
+  bool asked = false;
+  int idle_frames = 0;
 };
 
 }  // namespace mujoco::studio
