@@ -14,6 +14,7 @@
 
 #include "experimental/studio/llm/llm_claude.h"
 
+#include <cctype>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -259,13 +260,13 @@ std::string SerializeTools(const std::vector<ToolDef>& tools) {
 }
 
 std::string BuildRequestBody(const std::string& model, int max_tokens,
-                             const std::string& system,
+                             bool adaptive_thinking, const std::string& system,
                              const std::string& messages_inner,
                              const std::string& tools_inner) {
   std::string body = "{";
   body += "\"model\":" + JsonString(model) + ",";
   body += "\"max_tokens\":" + std::to_string(max_tokens) + ",";
-  body += "\"thinking\":{\"type\":\"adaptive\"},";
+  if (adaptive_thinking) body += "\"thinking\":{\"type\":\"adaptive\"},";
   if (!system.empty()) body += "\"system\":" + JsonString(system) + ",";
   if (!tools_inner.empty()) body += "\"tools\":" + tools_inner + ",";
   body += "\"messages\":[" + messages_inner + "]}";
@@ -281,6 +282,32 @@ std::string ClaudeProvider::KeyFromEnv() {
 
 ClaudeProvider::ClaudeProvider(std::string api_key)
     : api_key_(std::move(api_key)) {}
+
+std::string ClaudeProvider::SetModel(const std::string& id_or_alias) {
+  // Normalize: strip whitespace, lowercase.
+  std::string a;
+  for (char c : id_or_alias) {
+    if (c == ' ' || c == '\t') continue;
+    a += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  }
+  std::string id;
+  if (a == "opus") {
+    id = "claude-opus-4-8";
+  } else if (a == "sonnet") {
+    id = "claude-sonnet-4-6";
+  } else if (a == "haiku") {
+    id = "claude-haiku-4-5";
+  } else if (a.rfind("claude-", 0) == 0) {
+    id = a;  // a full model id, passed through
+  } else {
+    return "";  // unrecognized
+  }
+  model_ = id;
+  // Adaptive thinking is the on-mode for the opus/sonnet 4.6+ family; Haiku 4.5
+  // doesn't accept it, so send no thinking parameter for it.
+  adaptive_thinking_ = id.find("haiku") == std::string::npos;
+  return id;
+}
 
 }  // namespace mujoco::studio
 
@@ -402,7 +429,8 @@ LlmResult ClaudeProvider::Send(const std::string& system,
 
   for (int iter = 0; iter < kMaxToolIterations; ++iter) {
     const std::string body =
-        BuildRequestBody(model_, max_tokens_, system, convo + extra, tools_inner);
+        BuildRequestBody(model_, max_tokens_, adaptive_thinking_, system,
+                         convo + extra, tools_inner);
 
     int status = 0;
     std::string response, err;

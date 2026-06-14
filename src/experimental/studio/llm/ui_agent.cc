@@ -94,6 +94,28 @@ void UiAgent::set_tools(std::vector<ToolDef> tools, ToolExecutor exec) {
 void UiAgent::Ask(const std::string& question) {
   if (question.empty() || busy_) return;
 
+  // "/model [opus|sonnet|haiku|<id>]" is a local command: switch the provider's
+  // model (or report the current one) without calling the model.
+  if (question.rfind("/model", 0) == 0) {
+    std::string arg = question.substr(6);
+    const size_t b = arg.find_first_not_of(" \t");
+    const size_t e = arg.find_last_not_of(" \t");
+    arg = (b == std::string::npos) ? "" : arg.substr(b, e - b + 1);
+    std::string msg;
+    if (arg.empty()) {
+      const std::string cur = provider_->Model();
+      msg = "Current model: " + (cur.empty() ? std::string("(n/a)") : cur) +
+            ". Usage: /model opus | sonnet | haiku (or a full claude-... id).";
+    } else if (std::string id = provider_->SetModel(arg); !id.empty()) {
+      msg = "Switched to " + id + ".";
+    } else {
+      msg = "Unknown model \"" + arg + "\". Try: opus, sonnet, haiku.";
+    }
+    history_.push_back({"user", question});
+    history_.push_back({"assistant", msg});
+    return;
+  }
+
   system_ = LoadSystemPrompt();  // hot-reload so edits apply without a restart
   history_.push_back({"user", question});
   if (on_ask_) on_ask_();  // reset per-turn budgets (e.g. grep count)

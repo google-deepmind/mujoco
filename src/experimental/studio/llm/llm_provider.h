@@ -69,6 +69,16 @@ class LlmProvider {
 
   // Short name for the status line (e.g. "Claude", "mock").
   virtual const char* name() const = 0;
+
+  // Switch the active model. `id_or_alias` is a friendly alias ("opus",
+  // "sonnet", "haiku") or a full model id. Returns the resolved model id, or ""
+  // if unrecognized/unsupported. Default: no-op.
+  virtual std::string SetModel(const std::string& /*id_or_alias*/) {
+    return "";
+  }
+
+  // The current model id (e.g. "claude-opus-4-8"), or "" if not applicable.
+  virtual std::string Model() const { return ""; }
 };
 
 }  // namespace mujoco::studio
