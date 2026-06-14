@@ -1336,6 +1336,18 @@ std::vector<CommandPalette::Command> App::CollectCommands() {
                       }});
   commands.push_back({"Help", [this] { ToggleWindow(tmp_.help); }});
 
+  // GUI plugins (the same entries as the Plugins menu and the rail). Each
+  // toggles the plugin's window; only plugins that draw one are listed.
+  platform::ForEachPlugin<platform::GuiPlugin>(
+      [&commands](platform::GuiPlugin* plugin) {
+        if (!plugin->update) {
+          return;
+        }
+        commands.push_back({plugin->name, [plugin] {
+                              plugin->active = !plugin->active;
+                            }});
+      });
+
   return commands;
 }
 
