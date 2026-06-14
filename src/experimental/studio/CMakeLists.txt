@@ -33,6 +33,8 @@ function(configure_studio_target TARGET_NAME)
             ui_capture.h
             llm/llm_claude.cc
             llm/llm_claude.h
+            llm/llm_gemini.cc
+            llm/llm_gemini.h
             llm/llm_mock.h
             llm/llm_panel.cc
             llm/llm_panel.h

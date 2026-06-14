@@ -14,6 +14,7 @@
 
 #include "experimental/studio/llm/ui_agent.h"
 
+#include <cctype>
 #include <cstdlib>
 #include <fstream>
 #include <memory>
@@ -25,6 +26,7 @@
 #include <vector>
 
 #include "experimental/studio/llm/llm_claude.h"
+#include "experimental/studio/llm/llm_gemini.h"
 #include "experimental/studio/llm/llm_mock.h"
 #include "experimental/studio/llm/llm_provider.h"
 
@@ -94,8 +96,9 @@ void UiAgent::set_tools(std::vector<ToolDef> tools, ToolExecutor exec) {
 void UiAgent::Ask(const std::string& question) {
   if (question.empty() || busy_) return;
 
-  // "/model [opus|sonnet|haiku|<id>]" is a local command: switch the provider's
-  // model (or report the current one) without calling the model.
+  // "/model <alias|id>" is a local command: switch the provider/model (or report
+  // the current one) without calling the model. Claude aliases:
+  // opus/sonnet/haiku; Gemini aliases: gemini/flash/pro; or a full id.
   if (question.rfind("/model", 0) == 0) {
     std::string arg = question.substr(6);
     const size_t b = arg.find_first_not_of(" \t");
@@ -105,11 +108,45 @@ void UiAgent::Ask(const std::string& question) {
     if (arg.empty()) {
       const std::string cur = provider_->Model();
       msg = "Current model: " + (cur.empty() ? std::string("(n/a)") : cur) +
-            ". Usage: /model opus | sonnet | haiku (or a full claude-... id).";
-    } else if (std::string id = provider_->SetModel(arg); !id.empty()) {
-      msg = "Switched to " + id + ".";
+            " (" + provider_->name() +
+            "). Usage: /model opus|sonnet|haiku | gemini|flash|pro | <full id>.";
     } else {
-      msg = "Unknown model \"" + arg + "\". Try: opus, sonnet, haiku.";
+      std::string a;
+      for (char c : arg) a += static_cast<char>(std::tolower(
+                                  static_cast<unsigned char>(c)));
+      const bool gemini =
+          a.rfind("gemini", 0) == 0 || a == "flash" || a == "pro";
+      const bool claude = a == "opus" || a == "sonnet" || a == "haiku" ||
+                          a.rfind("claude-", 0) == 0;
+      // Ensure the right provider is active (constructing from its env key the
+      // first time), then set the model on it.
+      const char* want = gemini ? "Gemini" : (claude ? "Claude" : nullptr);
+      if (want == nullptr) {
+        msg = "Unknown model \"" + arg +
+              "\". Try: opus, sonnet, haiku, gemini, flash, pro.";
+      } else {
+        if (std::string(provider_->name()) != want) {
+          std::string key = gemini ? GeminiProvider::KeyFromEnv()
+                                   : ClaudeProvider::KeyFromEnv();
+          if (key.empty()) {
+            msg = std::string(gemini ? "GEMINI_API_KEY (or GOOGLE_API_KEY)"
+                                     : "ANTHROPIC_API_KEY") +
+                  " is not set.";
+          } else if (gemini) {
+            provider_ = std::make_shared<GeminiProvider>(key);
+            provider_name_ = provider_->name();
+          } else {
+            provider_ = std::make_shared<ClaudeProvider>(key);
+            provider_name_ = provider_->name();
+          }
+        }
+        if (msg.empty()) {
+          std::string id = provider_->SetModel(arg);
+          msg = id.empty()
+                    ? ("Unknown " + std::string(want) + " model \"" + arg + "\".")
+                    : ("Switched to " + id + " (" + want + ").");
+        }
+      }
     }
     history_.push_back({"user", question});
     history_.push_back({"assistant", msg});
