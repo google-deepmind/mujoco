@@ -117,6 +117,15 @@ From an audit of the UI against the rules above (2026-06-14). Worst first.
   / View / Plugins in `studio/app.cc`) end-to-end; the op is implemented but has
   not been exercised.
 
+- [ ] **File open/save uses a NATIVE OS dialog.** `App::FileDialogGui`
+  (`studio/app.cc`) calls `platform::OpenFileDialog` / `SaveFileDialog`, which on
+  Windows is `IFileOpenDialog` (a native COM dialog), on Linux zenity, on macOS
+  Cocoa. The test engine cannot drive any of these, and headless they block / pop
+  a real desktop dialog -- so "use the File menu to load X" is not doable by the
+  agent and is unsafe to run. Fix: add an in-app (ImGui) path field + Open button
+  in the modal (the native browser can stay as a "Browse..." button), so the
+  agent can type a path and click Open.
+
 Done (kept for reference): icon-only buttons — Editor undo/redo, camera copy,
 PiP remove, spec-tree add-child/delete, transport pause/viscous/play — now carry
 `###<Name>` ids, and `ImGui_ColorButtonEx` draws only the pre-`##` label.
