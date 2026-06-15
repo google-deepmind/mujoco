@@ -130,7 +130,7 @@ Mesh::~Mesh() {
 }
 
 void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
-  if (data.nvertices == 0) {
+  if (data.num_vertices == 0) {
     mju_error("mjrfMeshData has no vertices.");
   }
 
@@ -182,7 +182,7 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
 
   // Build the vertex buffer.
   filament::VertexBuffer::Builder vb_builder;
-  vb_builder.vertexCount(data.nvertices);
+  vb_builder.vertexCount(data.num_vertices);
 
   if (data.interleaved) {
     // For an interleaved vertex buffer, we will create a single buffer which
@@ -194,7 +194,7 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
       total_vertex_size += VertexAttributeTypeSize(data.attributes[i]);
     }
     const void* bytes = data.attributes[0].bytes;
-    const size_t nbytes = data.nvertices * total_vertex_size;
+    const size_t nbytes = data.num_vertices * total_vertex_size;
 
     // We assume the buffer is tightly packed with no padding between
     // attributes. As such, the stride is equal to the total vertex size and
@@ -240,11 +240,11 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
     for (int i = 0; i < data.nattributes; ++i) {
       const mjrVertexAttribute& attrib = data.attributes[i];
       const void* bytes = attrib.bytes;
-      size_t nbytes = data.nvertices * VertexAttributeTypeSize(attrib);
+      size_t nbytes = data.num_vertices * VertexAttributeTypeSize(attrib);
       if (attrib.usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
         // Replace normals with orientations.
-        nbytes = data.nvertices * sizeof(float4);
-        bytes = BuildOrientationsFromNormals(data.nvertices, attrib);
+        nbytes = data.num_vertices * sizeof(float4);
+        bytes = BuildOrientationsFromNormals(data.num_vertices, attrib);
       }
       auto* user_data = new std::shared_ptr<SharedState>(shared_state_);
       vertex_buffer_->setBufferAt(*engine_, i,
@@ -254,15 +254,15 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
 }
 
 void Mesh::BuildIndexBuffer(const mjrfMeshData& data) {
-  if (data.nindices == 0) {
+  if (data.num_indices == 0) {
     return;
   }
 
   const int element_size =
       data.index_type == mjINDEX_TYPE_U16 ? sizeof(uint16_t) : sizeof(uint32_t);
-  const int num_bytes = data.nindices * element_size;
+  const int num_bytes = data.num_indices * element_size;
 
-  // If indices == 0 and nindices > 0, then the user is specifying that the
+  // If indices == 0 and num_indices > 0, then the user is specifying that the
   // vertices are provided "in order", i.e. the indices are 0, 1, 2, 3, ...
   // In this case, we need to create the sequence of indices explicitly.
   const void* indices = data.indices;
@@ -279,7 +279,7 @@ void Mesh::BuildIndexBuffer(const mjrfMeshData& data) {
   }
 
   filament::IndexBuffer::Builder ib_builder;
-  ib_builder.indexCount(data.nindices);
+  ib_builder.indexCount(data.num_indices);
   ib_builder.bufferType(data.index_type == mjINDEX_TYPE_U16
                             ? filament::IndexBuffer::IndexType::USHORT
                             : filament::IndexBuffer::IndexType::UINT);
@@ -290,12 +290,12 @@ void Mesh::BuildIndexBuffer(const mjrfMeshData& data) {
   index_buffer_->setBuffer(*engine_, std::move(desc));
 }
 
-float4* Mesh::BuildOrientationsFromNormals(int nvertices,
+float4* Mesh::BuildOrientationsFromNormals(int num_vertices,
                                            const mjrVertexAttribute& normals) {
-  float4* orientations = new float4[nvertices];
+  float4* orientations = new float4[num_vertices];
   shared_state_->callbacks.push_back([=]() { delete[] orientations; });
   const float* normals_ptr = reinterpret_cast<const float*>(normals.bytes);
-  for (int i = 0; i < nvertices; ++i) {
+  for (int i = 0; i < num_vertices; ++i) {
     orientations[i] = CalculateOrientation(ReadFloat3(normals_ptr, i));
   }
   return orientations;
@@ -316,7 +316,7 @@ void Mesh::UpdateBounds(const mjrfMeshData& data) {
     const float* positions =
         reinterpret_cast<const float*>(data.attributes[0].bytes);
 
-    for (int i = 0; i < data.nvertices; ++i) {
+    for (int i = 0; i < data.num_vertices; ++i) {
       const float3 position = ReadFloat3(positions, i);
       bounds_min = min(bounds_min, position);
       bounds_max = max(bounds_max, position);

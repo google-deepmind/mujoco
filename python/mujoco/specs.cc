@@ -1577,20 +1577,22 @@ PYBIND11_MODULE(_specs, m) {
       py::arg("diameter") = -1);
   mjsActuator.def(
       "set_to_muscle",
-      [](raw::MjsActuator* self, double timeconst[2], double tausmooth,
-         double range[2], double force, double scale, double lmin, double lmax,
-         double vmax, double fpmax, double fvmax) {
+      [](raw::MjsActuator* self, std::array<double, 2> timeconst,
+         double tausmooth, std::array<double, 2> range, double force,
+         double scale, double lmin, double lmax, double vmax, double fpmax,
+         double fvmax) {
         std::string err =
-            mjs_setToMuscle(self, timeconst, tausmooth, range, force, scale,
-                            lmin, lmax, vmax, fpmax, fvmax);
+            mjs_setToMuscle(self, timeconst.data(), tausmooth, range.data(),
+                            force, scale, lmin, lmax, vmax, fpmax, fvmax);
         if (!err.empty()) {
           throw pybind11::value_error(err);
         }
       },
-      py::arg("timeconst") = -1, py::arg("tausmooth"),
-      py::arg("range") = std::array<double, 2>{-1, -1}, py::arg("force") = -1,
-      py::arg("scale") = -1, py::arg("lmin") = -1, py::arg("lmax") = -1,
-      py::arg("vmax") = -1, py::arg("fpmax") = -1, py::arg("fvmax") = -1);
+      py::arg("timeconst") = std::array<double, 2>{-1, -1},
+      py::arg("tausmooth"), py::arg("range") = std::array<double, 2>{-1, -1},
+      py::arg("force") = -1, py::arg("scale") = -1, py::arg("lmin") = -1,
+      py::arg("lmax") = -1, py::arg("vmax") = -1, py::arg("fpmax") = -1,
+      py::arg("fvmax") = -1);
   mjsActuator.def(
       "set_to_adhesion",
       [](raw::MjsActuator* self, double gain) {

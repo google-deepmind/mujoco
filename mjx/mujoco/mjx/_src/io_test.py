@@ -476,18 +476,16 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d._impl.efc_force.shape, (nefc,))
 
     if impl == 'jax':
-      self.assertEqual(d._impl.qM.shape, (nv, nv))
+      self.assertEqual(d._impl.M.shape, (nv, nv))
       self.assertEqual(d._impl.qLD.shape, (nv, nv))
       self.assertEqual(d._impl.qLDiagInv.shape, (0,))
-
 
     # test sparse
     m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
     d = mjx.make_data(m, impl=impl)
-    self.assertEqual(d._impl.qM.shape, (nm,))
-    self.assertEqual(d._impl.qLD.shape, (nm,))
+    self.assertEqual(d._impl.M.shape, (m.nC,))
+    self.assertEqual(d._impl.qLD.shape, (m.nC,))
     self.assertEqual(d._impl.qLDiagInv.shape, (nv,))
-
 
 
   @mock.patch.dict(os.environ, {'MJX_GPU_DEFAULT_WARP': 'true'})
@@ -605,7 +603,7 @@ class DataIOTest(parameterized.TestCase):
     )
 
     # check sparse mass matrices are correct
-    np.testing.assert_allclose(dx_sparse._impl.qM, d.qM, atol=1e-8)
+    np.testing.assert_allclose(dx_sparse._impl.M, d.M, atol=1e-8)
     np.testing.assert_allclose(dx_sparse._impl.qLD, d.qLD, atol=1e-8)
     np.testing.assert_allclose(
         dx_sparse._impl.qLDiagInv, d.qLDiagInv, atol=1e-8
@@ -619,7 +617,7 @@ class DataIOTest(parameterized.TestCase):
     if impl == 'jax':
       qm = np.zeros((m.nv, m.nv))
       mujoco.mju_sym2dense(qm, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
-      np.testing.assert_allclose(dx_from_dense._impl.qM, qm, atol=1e-8)
+      np.testing.assert_allclose(dx_from_dense._impl.M, qm, atol=1e-8)
 
 
   def test_put_data_warp_ndim(self):
@@ -865,8 +863,8 @@ class DataIOTest(parameterized.TestCase):
       mjx.make_data(m)
 
   @parameterized.parameters(JacobianType.DENSE, JacobianType.SPARSE)
-  def test_qm_mapm2m(self, jacobian):
-    """Test that qM is mapped to M."""
+  def test_m_mapm2m(self, jacobian):
+    """Test that M matches MuJoCo."""
     m = test_util.load_test_file('humanoid/humanoid.xml')
     m.opt.jacobian = jacobian
     d = mujoco.MjData(m)

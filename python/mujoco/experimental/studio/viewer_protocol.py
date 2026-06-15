@@ -16,10 +16,12 @@
 StudioApp uses the protocol for convenience methods that accept any viewer.
 """
 
+import dataclasses
+from typing import Any
 from typing import Protocol
-
 import mujoco
 from mujoco.experimental.studio import ux
+import numpy as np
 
 GFX_MODES = (
     'classic',
@@ -31,6 +33,27 @@ GFX_MODES = (
     'vulkan_software',
     'webgl',
 )
+
+
+@dataclasses.dataclass
+class SimToView:
+  """A message sent from the simulation to the viewer."""
+
+  model: mujoco.MjModel | None = None
+  state: np.ndarray | None = None
+  state_sig: int = 0
+  user_data: dict[str, Any] = dataclasses.field(default_factory=dict)
+
+
+@dataclasses.dataclass
+class ViewToSim:
+  """A message sent from the viewer to the simulation."""
+
+  state: np.ndarray | None = None
+  state_sig: int = 0
+  reset: bool = False
+  send_rate: float = 60.0
+  user_data: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 class Viewer(Protocol):

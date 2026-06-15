@@ -99,7 +99,7 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   mjrfTextureData texture_data;
   mjrf_defaultTextureData(&texture_data);
   texture_data.bytes = bytes;
-  texture_data.nbytes = num_bytes;
+  texture_data.num_bytes = num_bytes;
   texture_data.user_data = bytes;
   texture_data.release = callback;
 
@@ -136,7 +136,7 @@ void ImguiBridge::UpdateTexture(ImTextureData* data) {
   mjrfTextureData texture_data;
   mjrf_defaultTextureData(&texture_data);
   texture_data.bytes = data->GetPixels();
-  texture_data.nbytes = data->Width * data->Height * 4;
+  texture_data.num_bytes = data->Width * data->Height * 4;
   texture_data.user_data = nullptr;
   texture_data.release = nullptr;
   mjrf_setTextureData(iter->second.get(), &texture_data);
@@ -232,8 +232,8 @@ void ImguiBridge::Update() {
     data.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_UBYTE4;
     data.attributes[2].bytes = cmds->VtxBuffer.Data + sizeof(float) * 4;
     data.interleaved = true;
-    data.nvertices = cmds->VtxBuffer.Size;
-    data.nindices = cmds->IdxBuffer.Size;
+    data.num_vertices = cmds->VtxBuffer.Size;
+    data.num_indices = cmds->IdxBuffer.Size;
     data.indices = cmds->IdxBuffer.Data;
     data.index_type = mjINDEX_TYPE_U16;
     data.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;

@@ -159,6 +159,7 @@ class BuildCMakeExtension(build_ext.build_ext):
     self._copy_external_libraries()
     self._copy_mujoco_headers()
     self._copy_plugin_libraries()
+    self._copy_studio_assets()
     if self._is_apple:
       self._copy_mjpython()
 
@@ -221,6 +222,26 @@ class BuildCMakeExtension(build_ext.build_ext):
         shutil.copyfile(
             os.path.join(directory, filename), os.path.join(dst, filename)
         )
+
+  def _copy_studio_assets(self):
+    assets_src = None
+    for directory, subdirs, _ in os.walk(os.environ[MUJOCO_PATH]):
+      if 'assets' in subdirs:
+        candidate = os.path.join(directory, 'assets')
+        if os.path.exists(os.path.join(candidate, 'fontawesome-webfont.ttf')):
+          assets_src = candidate
+          break
+
+    if assets_src:
+      dst = os.path.join(
+          os.path.dirname(self.get_ext_fullpath(self.extensions[0].name)),
+          'experimental/studio/assets',
+      )
+      if os.path.exists(dst):
+        shutil.rmtree(dst)
+      shutil.copytree(assets_src, dst)
+    else:
+      print("Warning: Studio assets not found in MUJOCO_PATH. Skipping.")
 
   def _copy_mjpython(self):
     src_dir = os.path.join(os.path.dirname(__file__), 'mujoco/mjpython')
