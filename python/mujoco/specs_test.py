@@ -1602,6 +1602,38 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_DCMOTOR)
     self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_DCMOTOR)
 
+    actuator = spec.add_actuator()
+    actuator.set_to_muscle(tausmooth=0.1)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_MUSCLE)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_MUSCLE)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_MUSCLE)
+    self.assertEqual(actuator.dynprm[2], 0.1)
+
+    actuator.set_to_muscle(
+        timeconst=[0.02, 0.05],
+        tausmooth=0.2,
+        range=[0.8, 1.2],
+        force=5.0,
+        scale=250.0,
+        lmin=0.6,
+        lmax=1.7,
+        vmax=1.8,
+        fpmax=1.4,
+        fvmax=1.5,
+    )
+    self.assertEqual(actuator.dynprm[0], 0.02)
+    self.assertEqual(actuator.dynprm[1], 0.05)
+    self.assertEqual(actuator.dynprm[2], 0.2)
+    self.assertEqual(actuator.gainprm[0], 0.8)
+    self.assertEqual(actuator.gainprm[1], 1.2)
+    self.assertEqual(actuator.gainprm[2], 5.0)
+    self.assertEqual(actuator.gainprm[3], 250.0)
+    self.assertEqual(actuator.gainprm[4], 0.6)
+    self.assertEqual(actuator.gainprm[5], 1.7)
+    self.assertEqual(actuator.gainprm[6], 1.8)
+    self.assertEqual(actuator.gainprm[7], 1.4)
+    self.assertEqual(actuator.gainprm[8], 1.5)
+
   def test_bad_contact_sensor(self):
     test_cases = [
         dict(
