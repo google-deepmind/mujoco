@@ -2348,9 +2348,12 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
       mj_joint->axis[2] = 1;
     }
 
+    pxr::UsdAttribute lower_attr = revolute.GetLowerLimitAttr();
+    pxr::UsdAttribute upper_attr = revolute.GetUpperLimitAttr();
     float lower, upper;
-    if (revolute.GetLowerLimitAttr().Get(&lower) &&
-        revolute.GetUpperLimitAttr().Get(&upper)) {
+    if (lower_attr.HasAuthoredValue() && upper_attr.HasAuthoredValue() &&
+        lower_attr.Get(&lower) && upper_attr.Get(&upper) &&
+        !(std::isinf(lower) && lower < 0 && std::isinf(upper) && upper > 0)) {
       mj_joint->limited = mjLIMITED_TRUE;
       if (spec->compiler.degree) {
         mj_joint->range[0] = lower;
@@ -2377,9 +2380,12 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
       mj_joint->axis[1] = 0;
       mj_joint->axis[2] = 1;
     }
+    pxr::UsdAttribute lower_attr = prismatic.GetLowerLimitAttr();
+    pxr::UsdAttribute upper_attr = prismatic.GetUpperLimitAttr();
     float lower, upper;
-    if (prismatic.GetLowerLimitAttr().Get(&lower) &&
-        prismatic.GetUpperLimitAttr().Get(&upper)) {
+    if (lower_attr.HasAuthoredValue() && upper_attr.HasAuthoredValue() &&
+        lower_attr.Get(&lower) && upper_attr.Get(&upper) &&
+        !(std::isinf(lower) && lower < 0 && std::isinf(upper) && upper > 0)) {
       mj_joint->limited = mjLIMITED_TRUE;
       mj_joint->range[0] = lower;
       mj_joint->range[1] = upper;
