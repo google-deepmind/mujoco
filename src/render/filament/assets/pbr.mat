@@ -25,7 +25,8 @@ material {
         { type : sampler2d, name : Emissive },
         { type : float4, name : BaseColorFactor },
         { type : float, name : MetallicFactor },
-        { type : float, name : RoughnessFactor }
+        { type : float, name : RoughnessFactor },
+        { type : float, name : EmissiveFactor }
 
     ],
     requires : [
@@ -48,6 +49,8 @@ fragment {
     material.metallic         = materialParams.MetallicFactor;
     material.metallic         *= texture(materialParams_Metallic, uv).r;
     material.emissive         = texture(materialParams_Emissive, uv);
-    material.emissive.a       = 1.0 - material.emissive.a;
+    material.emissive.rgb     *= materialParams.EmissiveFactor;
+    material.emissive.a       = (1.0 - material.emissive.a) *
+                                materialParams.EmissiveFactor;
   }
 }
