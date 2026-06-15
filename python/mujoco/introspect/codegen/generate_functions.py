@@ -19,6 +19,7 @@ The JSON input can be generated via:
 """
 
 import json
+import os
 from typing import Any, Mapping, Sequence
 
 from absl import app
@@ -28,8 +29,8 @@ from introspect import ast_nodes
 from introspect import type_parsing
 from . import formatter
 
-_HEADER_PATH = flags.DEFINE_string(
-    'header_path', None, 'Path to the original mujoco.h')
+_HEADER_PATHS = flags.DEFINE_string(
+    'header_paths', None, 'Path to all header files')
 _JSON_PATH = flags.DEFINE_string(
     'json_path', None,
     'Path to the JSON file representing the Clang AST for mujoco.h')
@@ -47,8 +48,9 @@ def traverse(node, visitor):
 class MjFunctionVisitor:
   """A Clang AST JSON node visitor for MuJoCo API function declarations."""
 
-  def __init__(self, raw_header):
-    self._raw_header = raw_header
+  def __init__(self, raw_headers: Mapping[str, str]):
+    self._raw_headers = raw_headers
+    self._current_source = ''
     self._functions = {}
 
   def _make_function(self, node: ClangJsonNode) -> ast_nodes.FunctionDecl:
@@ -101,7 +103,7 @@ class MjFunctionVisitor:
     if type_name.endswith('*'):
       decl_begin = node['range']['begin']['offset']
       decl_end = node['range']['end']['offset'] + node['range']['end']['tokLen']
-      decl = self._raw_header[decl_begin:decl_end]
+      decl = self._raw_headers[self._current_source][decl_begin:decl_end]
       name_begin = node['loc']['offset'] - decl_begin
       name_end = name_begin + node['loc']['tokLen']
       type_name = decl[:name_begin] + decl[name_end:]
@@ -128,6 +130,9 @@ class MjFunctionVisitor:
       return ''.join(strings)
 
   def visit(self, node: ClangJsonNode) -> None:
+    if 'loc' in node and 'file' in node['loc']:
+      self._current_source = os.path.basename(node['loc']['file'])
+
     # Skip mjs_setUserValueWithCleanup as it's only useful for heap allocated
     # objects and doesn't need a python wrapper.
     if (
@@ -150,8 +155,12 @@ def main(argv: Sequence[str]) -> None:
   with open(_JSON_PATH.value, 'r', encoding='utf-8') as f:
     root = json.load(f)
 
-  with open(_HEADER_PATH.value, 'r') as f:
-    visitor = MjFunctionVisitor(f.read())
+  raw_headers = {}
+  for p in (_HEADER_PATHS.value or '').split():
+    with open(p, 'r') as f:
+      raw_headers[os.path.basename(p)] = f.read()
+
+  visitor = MjFunctionVisitor(raw_headers)
 
   traverse(root, visitor)
 
