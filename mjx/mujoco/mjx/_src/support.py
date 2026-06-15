@@ -60,14 +60,8 @@ def make_m(
 ) -> jax.Array:
   """Computes M = a @ b.T + diag(d)."""
 
-  ij = []
-  for i in range(m.nv):
-    j = i
-    while j > -1:
-      ij.append((i, j))
-      j = m.dof_parentid[j]
-
-  i, j = (jp.array(x) for x in zip(*ij))
+  i = np.repeat(np.arange(m.nv), m.M_rownnz)
+  j = m.M_colind
 
   if not is_sparse(m):
     qm = a @ b.T
@@ -82,29 +76,23 @@ def make_m(
   b_j = jp.take(b, j, axis=0)
   qm = jax.vmap(jp.dot)(a_i, b_j)
 
-  # add diagonal
   if d is not None:
-    qm = qm.at[m.dof_Madr].add(d)
+    diag_adr = m.M_rowadr + m.M_rownnz - 1
+    qm = qm.at[diag_adr].add(d)
 
   return qm
 
 
 def full_m(m: Model, d: Data) -> jax.Array:
-  """Reconstitute dense mass matrix from qM."""
+  """Reconstitute dense mass matrix from M."""
 
   if not is_sparse(m):
-    return d._impl.qM  # pytype: disable=attribute-error
+    return d._impl.M  # pytype: disable=attribute-error
 
-  ij = []
-  for i in range(m.nv):
-    j = i
-    while j > -1:
-      ij.append((i, j))
-      j = m.dof_parentid[j]
+  i = np.repeat(np.arange(m.nv), m.M_rownnz)
+  j = m.M_colind
 
-  i, j = (jp.array(x) for x in zip(*ij))
-
-  mat = jp.zeros((m.nv, m.nv)).at[(i, j)].set(d._impl.qM)  # pytype: disable=attribute-error
+  mat = jp.zeros((m.nv, m.nv)).at[(i, j)].set(d._impl.M)  # pytype: disable=attribute-error
 
   # also set upper triangular
   mat = mat + jp.tril(mat, -1).T
@@ -116,24 +104,23 @@ def mul_m(m: Model, d: Data, vec: jax.Array) -> jax.Array:
   """Multiply vector by inertia matrix."""
 
   if not is_sparse(m):
-    return d._impl.qM @ vec  # pytype: disable=attribute-error
+    return d._impl.M @ vec  # pytype: disable=attribute-error
 
-  diag_mul = d._impl.qM[jp.array(m.dof_Madr)] * vec  # pytype: disable=attribute-error
+  diag_adr = m.M_rowadr + m.M_rownnz - 1
+  diag_mul = d._impl.M[diag_adr] * vec  # pytype: disable=attribute-error
 
   is_, js, madr_ijs = [], [], []
   for i in range(m.nv):
-    madr_ij, j = m.dof_Madr[i], i
+    adr = m.M_rowadr[i]
+    for k in range(m.M_rownnz[i] - 1):
+      is_.append(i)
+      js.append(m.M_colind[adr + k])
+      madr_ijs.append(adr + k)
 
-    while True:
-      madr_ij, j = madr_ij + 1, m.dof_parentid[j]
-      if j == -1:
-        break
-      is_, js, madr_ijs = is_ + [i], js + [j], madr_ijs + [madr_ij]
+  i, j, madr_ij = (np.array(x, dtype=np.int32) for x in (is_, js, madr_ijs))
 
-  i, j, madr_ij = (jp.array(x, dtype=jp.int32) for x in (is_, js, madr_ijs))
-
-  out = diag_mul.at[i].add(d._impl.qM[madr_ij] * vec[j])  # pytype: disable=attribute-error
-  out = out.at[j].add(d._impl.qM[madr_ij] * vec[i])  # pytype: disable=attribute-error
+  out = diag_mul.at[i].add(d._impl.M[madr_ij] * vec[j])  # pytype: disable=attribute-error
+  out = out.at[j].add(d._impl.M[madr_ij] * vec[i])  # pytype: disable=attribute-error
 
   return out
 

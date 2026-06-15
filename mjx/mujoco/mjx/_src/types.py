@@ -696,6 +696,9 @@ class Model(PyTreeNode):
   dof_treeid: np.ndarray
   dof_Madr: np.ndarray  # pylint:disable=invalid-name
   dof_simplenum: np.ndarray
+  M_rowadr: np.ndarray  # pylint:disable=invalid-name
+  M_rownnz: np.ndarray  # pylint:disable=invalid-name
+  M_colind: np.ndarray  # pylint:disable=invalid-name
   dof_solref: jax.Array
   dof_solimp: jax.Array
   dof_frictionloss: jax.Array
@@ -996,7 +999,6 @@ class DataJAX(PyTreeNode):
   wrap_xpos: jax.Array
   actuator_moment: jax.Array
   crb: jax.Array
-  qM: jax.Array  # pylint:disable=invalid-name
   M: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
