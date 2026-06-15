@@ -4,6 +4,9 @@ name: lint
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   pre-commit:
     name: pre-commit
