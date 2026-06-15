@@ -358,10 +358,10 @@ static void UpdateMeshData(mjrfMeshData* data, const mjModel* model, int id,
   }
 
   data->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-  data->nvertices = num_vertices;
-  data->nindices = data->nvertices;
+  data->num_vertices = num_vertices;
+  data->num_indices = data->num_vertices;
   data->indices = nullptr;
-  data->index_type = data->nvertices >= std::numeric_limits<uint16_t>::max()
+  data->index_type = data->num_vertices >= std::numeric_limits<uint16_t>::max()
                          ? mjINDEX_TYPE_U32
                          : mjINDEX_TYPE_U16;
   data->nattributes = has_uvs ? 3 : 2;
@@ -463,7 +463,7 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
   mjrfTextureData payload;
   mjrf_defaultTextureData(&payload);
   payload.bytes = model->tex_data + model->tex_adr[id];
-  payload.nbytes =
+  payload.num_bytes =
       model->tex_width[id] * model->tex_height[id] * model->tex_nchannel[id];
   // We assume that the model has the same lifetime as the engine.
   payload.user_data = nullptr;

@@ -200,7 +200,7 @@ void mjrf_destroyTexture(mjrfTexture* texture);
 
 struct mjrfTextureData {  // binary data for a texture (mjrfTexture)
   const void* bytes;      // pointer to image data, or nullptr for empty texture
-  mjtSize nbytes;         // number of bytes in the image data
+  mjtSize num_bytes;      // number of bytes in the image data
   mjrfCallback release;   // callback when data has finished uploading
   void* user_data;        // user data for release callback
 };
@@ -246,11 +246,11 @@ int mjrf_getSamplerType(const mjrfTexture* texture);
 enum { mjMAX_VERTEX_ATTRIBUTES = 16 };
 
 struct mjrfMeshData {       // binary data for a mesh (mjrfMesh)
-  mjtSize nvertices;        // number of vertices; all vertex attributes share this size
+  mjtSize num_vertices;     // number of vertices; all vertex attributes share this size
   int nattributes;          // number of attributes defined
   mjrVertexAttribute attributes[mjMAX_VERTEX_ATTRIBUTES];  // per-vertex attribute information
   mjtBool interleaved;      // true if vertex attributes are interleaved
-  mjtSize nindices;         // number of indices
+  mjtSize num_indices;      // number of indices
   const void* indices;      // indices data array
   int index_type;           // mjrIndexType; (e.g. UINT16 or UINT32)
   int primitive_type;       // mjrMeshPrimitiveType; (e.g. TRIANGLES, etc.)

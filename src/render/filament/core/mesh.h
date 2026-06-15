@@ -71,7 +71,7 @@ class Mesh : public mjrfMesh {
   void UpdateBounds(const mjrfMeshData& data);
 
   filament::math::float4* BuildOrientationsFromNormals(
-      int nvertices, const mjrVertexAttribute& normals);
+      int num_vertices, const mjrVertexAttribute& normals);
 
   void ReleaseResources();
 

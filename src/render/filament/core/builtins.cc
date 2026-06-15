@@ -85,10 +85,10 @@ class BuiltinBuilder : public mjrfMeshData {
     attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
     attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
     attributes[1].bytes = reinterpret_cast<const void*>(orientations_.data());
-    nvertices = positions_.size();
+    num_vertices = positions_.size();
 
     indices = indices_.data();
-    nindices = indices_.size();
+    num_indices = indices_.size();
     index_type = mjINDEX_TYPE_U16;
     return this;
   }

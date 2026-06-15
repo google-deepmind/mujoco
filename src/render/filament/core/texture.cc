@@ -165,14 +165,14 @@ void Texture::Upload(const mjrfTextureData& data) {
   user_data_ = data.user_data;
   release_callback_ = data.release;
 
-  if (data.bytes == nullptr || data.nbytes == 0) {
+  if (data.bytes == nullptr || data.num_bytes == 0) {
     ReleaseData();
     return;
   }
 
   if (config_.format == mjPIXEL_FORMAT_KTX) {
     image::Ktx1Bundle* bundle = new image::Ktx1Bundle(
-        reinterpret_cast<const uint8_t*>(data.bytes), data.nbytes);
+        reinterpret_cast<const uint8_t*>(data.bytes), data.num_bytes);
     has_spherical_harmonics_ = true;
     bundle->getSphericalHarmonics(spherical_harmonics_);
     const bool is_srgb = false;
@@ -188,14 +188,14 @@ void Texture::Upload(const mjrfTextureData& data) {
   const filament::Texture::Format format = GetTextureFormat(config_);
 
   if (!IsCubeMap(config_)) {
-    if (config_.width * config_.height * num_channels != data.nbytes) {
+    if (config_.width * config_.height * num_channels != data.num_bytes) {
       mju_error("Texture size does not match data size.");
     }
 
     auto callback = +[](void* buffer, size_t size, void* user) {
       reinterpret_cast<Texture*>(user)->ReleaseData();
     };
-    filament::Texture::PixelBufferDescriptor desc(data.bytes, data.nbytes,
+    filament::Texture::PixelBufferDescriptor desc(data.bytes, data.num_bytes,
                                                   format, type, callback, this);
     texture_->setImage(*engine_, 0, std::move(desc));
   } else {
@@ -217,14 +217,14 @@ void Texture::Upload(const mjrfTextureData& data) {
                          /*depth=*/6, std::move(desc));
       ReleaseData();
     } else {
-      if (num_bytes != data.nbytes) {
+      if (num_bytes != data.num_bytes) {
         mju_error("Texture size does not match data size.");
       }
       auto callback = +[](void* buffer, size_t size, void* user) {
         reinterpret_cast<Texture*>(user)->ReleaseData();
       };
       filament::Texture::PixelBufferDescriptor desc(
-          data.bytes, data.nbytes, format, type, callback, this);
+          data.bytes, data.num_bytes, format, type, callback, this);
       texture_->setImage(*engine_, /*level=*/0, /*xoffset=*/0, /*yoffset=*/0,
                          /*zoffset=*/0, config_.width, GetFaceHeight(config_),
                          /*depth=*/6, std::move(desc));

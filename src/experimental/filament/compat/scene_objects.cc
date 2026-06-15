@@ -125,8 +125,8 @@ static void UpdateSkinFlexMeshData(mjrfMeshData* data, const mjModel* model,
   data->attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
   data->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
   data->attributes[2].bytes = uvs.data();
-  data->nvertices = positions.size() / 3;
-  data->nindices = num_indices;
+  data->num_vertices = positions.size() / 3;
+  data->num_indices = num_indices;
   data->indices = indices.data();
   data->index_type = mjINDEX_TYPE_U32;
   data->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
