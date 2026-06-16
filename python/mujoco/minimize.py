@@ -505,7 +505,7 @@ def jacobian_fd(
   if bounds is None:
     eps_vec = eps * np.ones((n, 1))
   else:
-    mid = 0.5 * (bounds[1] - bounds[0])
+    mid = 0.5 * bounds[0] + 0.5 * bounds[1]
     eps_vec = np.where(x > mid, -eps, eps)
   eps_vec *= np.maximum(1.0, np.abs(x))
   eps_vec = (eps_vec + x) - x
