@@ -29,7 +29,9 @@
 #include <mujoco/mujoco.h>
 #include "src/cc/array_safety.h"
 #include "src/engine/engine_util_errmem.h"
+#include "src/user/user_api.h"
 #include "src/xml/xml_api.h"
+#include "test/compare_model.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -61,6 +63,73 @@ TEST_F(XMLReaderTest, UniqueElementTest) {
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
   EXPECT_THAT(error.data(), HasSubstr("unique element 'flag' found 2 times"));
+}
+
+TEST_F(XMLReaderTest, AuthoredFromXml) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler boundmass="1"/>
+    <option timestep="0.01" gravity="0 0 -5">
+      <flag constraint="disable"/>
+    </option>
+    <visual>
+      <global fovy="60"/>
+      <quality shadowsize="1024"/>
+    </visual>
+    <worldbody/>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // option: timestep authored, gravity authored, density not authored
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->option.timestep), 1);
+  EXPECT_EQ(mjs_isAuthored(spec, spec->option.gravity), 1);
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->option.density), 0);
+
+  // compiler: boundmass authored, boundinertia not authored
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->compiler.boundmass), 1);
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->compiler.boundinertia), 0);
+
+  // flags: constraint disable authored, contact not authored
+  EXPECT_NE(spec->authored.disableflags & mjDSBL_CONSTRAINT, 0);
+  EXPECT_EQ(spec->authored.disableflags & mjDSBL_CONTACT, 0);
+
+  // visual global: fovy authored, ipd not authored
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->visual.global.fovy), 1);
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->visual.global.ipd), 0);
+
+  // visual quality: shadowsize authored, offsamples not authored
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->visual.quality.shadowsize), 1);
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->visual.quality.offsamples), 0);
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLReaderTest, AuthoredDefaultsZero) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody/>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // nothing authored in an empty model
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->option.timestep), 0);
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->option.gravity), 0);
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->compiler.boundmass), 0);
+  EXPECT_EQ(spec->authored.disableflags, 0);
+  EXPECT_EQ(spec->authored.enableflags, 0);
+  EXPECT_EQ(spec->authored.disableactuator, 0);
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->visual.global.fovy), 0);
+  EXPECT_EQ(mjs_isAuthored(spec, &spec->visual.map.znear), 0);
+
+  mj_deleteSpec(spec);
 }
 
 TEST_F(XMLReaderTest, MemorySize) {
@@ -1378,7 +1447,7 @@ TEST_F(XMLReaderTest, ParseReplicate) {
 
   // check body positions
   mjtNum pos[2] = {0, 0};
-  constexpr mjtNum tol = MjTol(1e-8, 1e-3);
+  const mjtNum tol = MjTol(1e-8, 1e-3);
   for (int i = 1; i < 102; ++i) {
     mjtNum theta = (i-1) * 1.8 * mjPI / 180;
     EXPECT_NEAR(m->body_pos[3*i+0], pos[0] + sin(theta), tol) << i;
@@ -2481,7 +2550,7 @@ TEST_F(ActuatorTest, ReadsByte) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull());
-  EXPECT_EQ(*(model->actuator_actlimited), (mjtByte)(1 & 0xFF));
+  EXPECT_EQ(*(model->actuator_actlimited), true);
   mj_deleteModel(model);
 }
 

@@ -15,6 +15,7 @@
 // Tests for engine/engine_core_constraint.c.
 
 #include <array>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -146,7 +147,7 @@ TEST_F(CoreConstraintTest, EqualityBodySite) {
     ASSERT_GT(data->time, time) << "Divergence detected";
   }
   int nefc_site = data->nefc;
-  std::vector<mjtNum> dA = AsVector(data->efc_diagApprox, nefc_site);
+  std::vector<mjtNum> dA = AsVector(data->efc_diagA, nefc_site);
 
   // reset
   mj_resetData(model, data);
@@ -163,7 +164,7 @@ TEST_F(CoreConstraintTest, EqualityBodySite) {
 
   // compare
   EXPECT_EQ(nefc_site, data->nefc);
-  EXPECT_THAT(AsVector(data->efc_diagApprox, data->nefc),
+  EXPECT_THAT(AsVector(data->efc_diagA, data->nefc),
               Pointwise(MjNear(1e-12, 1e-4), dA));
 
   mj_deleteData(data);
@@ -709,9 +710,8 @@ TEST_F(CoreConstraintTest, ShellModeBendZeroForceAtRest) {
   // Check number of equalities
   EXPECT_EQ(m->neq, 6);
 
-  // Check total number of scalar equality constraints
-  // 6 faces * 6 physical modes per face = 36
-  // (2 spurious rigid-rotation modes from transverse shear are projected out)
+  // 6 faces * 6 modes per face = 36
+  // (5 membrane modes from pure 2D eigendecomposition + 1 explicit warp)
   EXPECT_EQ(d->ne, 36);
 
   // all constraint residuals should be zero at rest
@@ -1091,6 +1091,104 @@ INSTANTIATE_TEST_SUITE_P(
     return info.param.test_name;
   }
 );
+
+TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option jacobian="dense"/>
+    <worldbody>
+      <flexcomp name="flex" type="grid" count="3 3 3" spacing=".1 .1 .1" dim="3" dof="trilinear">
+        <elasticity elastic2d="stretch" thickness="0.01"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+      <geom type="plane" size="1 1 1" pos="0 0 -1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, testing::NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  mj_forward(model, data);
+
+  // find central vertex index (13 for 3x3x3 grid)
+  int central_idx = 13;
+
+  // verify it is interior
+  int nx = 3, ny = 3, nz = 3;
+  int k = central_idx / (nx * ny);
+  int rest = central_idx % (nx * ny);
+  int j = rest / nx;
+  int i = rest % nx;
+  ASSERT_TRUE(i > 0 && i < nx-1 && j > 0 && j < ny-1 && k > 0 && k < nz-1);
+
+  // create manual contact with central vertex
+  mjContact con;
+  memset(&con, 0, sizeof(mjContact));
+  con.flex[0] = -1;
+  con.flex[1] = -1;
+  con.vert[0] = -1;
+  con.vert[1] = -1;
+  con.geom[0] = model->ngeom - 1;  // plane geom
+  con.geom[1] = -1;  // must be -1 to trigger flex branch in mj_contactJacobian
+  con.flex[1] = 0;
+  con.vert[1] = central_idx;
+  con.dim = 1;
+  mju_copy3(con.pos, data->flexvert_xpos + 3*central_idx);
+  con.frame[0] = 0; con.frame[1] = 0; con.frame[2] = 1;  // normal
+
+  // buffer for Jacobian
+  std::vector<mjtNum> jacdif(3*model->nv, 0.0);
+
+  // call mj_contactJacobian
+  mj_contactJacobian(model, data, &con, 1, nullptr, jacdif.data(),
+                     nullptr, nullptr, nullptr,
+                     nullptr, nullptr, nullptr,
+                     nullptr);
+
+  // check that boundary nodes have non-zero entries, and central node has zero
+
+
+  bool boundary_has_dof = false;
+  bool interior_has_dof = false;
+
+  for (int n = 0; n < model->flex_nodenum[0]; n++) {
+    int b = model->flex_nodebodyid[model->flex_nodeadr[0] + n];
+    int dofadr = model->body_dofadr[b];
+    int dofnum = model->body_dofnum[b];
+
+    bool has_jac = false;
+    if (dofadr >= 0) {
+      for (int d = 0; d < dofnum; d++) {
+        if (mju_abs(jacdif[dofadr + d]) > 1e-6) {
+          has_jac = true;
+        }
+      }
+    }
+
+    int kn = n / (nx * ny);
+    int restn = n % (nx * ny);
+    int jn = restn / nx;
+    int in = restn % nx;
+    bool is_interior = (in > 0 && in < nx - 1 && jn > 0 && jn < ny - 1 &&
+                        kn > 0 && kn < nz - 1);
+
+    if (is_interior) {
+      if (has_jac) interior_has_dof = true;
+    } else {
+      if (has_jac) boundary_has_dof = true;
+    }
+  }
+
+  EXPECT_TRUE(boundary_has_dof)
+      << "Boundary nodes should receive contact force";
+  EXPECT_FALSE(interior_has_dof)
+      << "Interior nodes should not receive contact force";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 }  // namespace
 }  // namespace mujoco

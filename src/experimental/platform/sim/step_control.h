@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_SIM_STEP_CONTROL_H_
 
 #include <chrono>
+#include <functional>
 #include <string>
 
 #include <mujoco/mujoco.h>
@@ -24,6 +25,7 @@ namespace mujoco::platform {
 
 using Seconds = std::chrono::duration<double>;
 using Clock = std::chrono::steady_clock;
+using StepFn = std::function<void(mjModel*, mjData*)>;
 
 // State and logic for physics synchronization and stepping.
 class StepControl {
@@ -53,7 +55,7 @@ class StepControl {
       mjWARN_BADQACC, mjWARN_BADQVEL, mjWARN_BADQPOS};
 
   // Steps physics forward, respecting speed settings and refresh budget.
-  Status Advance(mjModel* m, mjData* d);
+  Status Advance(mjModel* m, mjData* d, StepFn step_fn = nullptr);
 
   // Ensures the next call to Advance() will synchronize time and step once.
   void ForceSync();

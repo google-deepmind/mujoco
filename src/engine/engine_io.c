@@ -33,6 +33,7 @@
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_sleep.h"
+#include "engine/engine_thread.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -184,9 +185,32 @@ static mjtSize safeAddToBufferSize(intptr_t* offset, mjtSize* nbuffer,
   if (__builtin_add_overflow(*nbuffer, to_add, nbuffer)) return 0;
   if (__builtin_add_overflow(*offset, to_add, offset)) return 0;
 #else
-  // TODO: offer a safe implementation for MSVC or other compilers that don't have the builtins
-  *nbuffer += SKIP(*offset) + type_size*nr*nc;
-  *offset += SKIP(*offset) + type_size*nr*nc;
+  // safe overflow checks for MSVC and other compilers without __builtin_*_overflow
+  {
+    size_t product;
+    size_t to_add;
+    size_t skip = SKIP(*offset);
+
+    // nc * nr
+    if (nr > 0 && (size_t)nc > SIZE_MAX / (size_t)nr) return 0;
+    product = (size_t)nc * (size_t)nr;
+
+    // product * type_size
+    if (type_size > 0 && product > SIZE_MAX / type_size) return 0;
+    product *= type_size;
+
+    // product + SKIP(*offset)
+    if (product > SIZE_MAX - skip) return 0;
+    to_add = product + skip;
+
+    // *nbuffer + to_add
+    if ((size_t)*nbuffer > SIZE_MAX - to_add) return 0;
+    *nbuffer += to_add;
+
+    // *offset + to_add
+    if (*offset > 0 && to_add > (size_t)(INTPTR_MAX - *offset)) return 0;
+    *offset += to_add;
+  }
 #endif
 
   return 1;
@@ -1045,6 +1069,9 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
     mjERROR("could not allocate mjData");
   }
 
+  // prevent spurious timing print from mj_resetData before _resetData zeroes the struct
+  d->timer[mjTIMER_STEP].number = 0;
+
   // compute buffer size
   d->nbuffer = 0;
   d->buffer = d->arena = NULL;
@@ -1081,6 +1108,7 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
 
   // clear threadpool
   d->threadpool = 0;
+  d->threadlock = 0;
 
   // clear nplugin (overwritten by _initPlugin)
   d->nplugin = 0;
@@ -1140,6 +1168,7 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
   *dest = *src;
   dest->buffer = save_buffer;
   dest->arena = save_arena;
+  dest->threadpool = 0;
   mj_setPtrData(m, dest);
 
   // save plugin_data, since the X macro copying block below will override it
@@ -1239,8 +1268,6 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
     }
   }
 
-  dest->threadpool = src->threadpool;
-
   return dest;
 }
 
@@ -1300,7 +1327,6 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // clear memory utilization stats
   d->maxuse_stack = 0;
-  memset(d->maxuse_threadstack, 0, mjMAXTHREAD*sizeof(mjtSize));
   d->maxuse_arena = 0;
   d->maxuse_con = 0;
   d->maxuse_efc = 0;
@@ -1320,6 +1346,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->nl = 0;
   d->nefc = 0;
   d->nJ = 0;
+  d->nY = 0;
   d->nA = 0;
   d->nisland = 0;
   d->nidof = 0;
@@ -1539,10 +1566,83 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 }
 
 
+// emit step timing diagnostics
+static void mj_logTimingDiagnostics(const mjData* d) {
+  int nstep = d->timer[mjTIMER_STEP].number;
+  if (nstep <= 0) {
+    return;
+  }
+
+  mjtNum tstep = d->timer[mjTIMER_STEP].duration / nstep;
+  if (tstep <= 0) {
+    return;
+  }
+
+  char buf[2048];
+  int pos = 0;
+  mjtNum components = 0;
+
+  for (int i = mjTIMER_POSITION; i <= mjTIMER_ADVANCE; i++) {
+    if (d->timer[i].number > 0) {
+      mjtNum istep = d->timer[i].duration / d->timer[i].number;
+      components += istep;
+      pos += snprintf(buf + pos, sizeof(buf) - pos,
+                      "%s  %-15s %8.1f  (%5.1f%%)",
+                      pos > 0 ? "\n" : "",
+                      mjTIMERSTRING[i], istep * 1000, 100 * istep / tstep);
+
+      // position sub-breakdown
+      if (i == mjTIMER_POSITION) {
+        for (int p = mjTIMER_POS_KINEMATICS; p <= mjTIMER_POS_PROJECT; p++) {
+          if (d->timer[p].number > 0) {
+            mjtNum pstep = d->timer[p].duration / d->timer[p].number;
+            pos += snprintf(buf + pos, sizeof(buf) - pos,
+                            "\n    %-13s %8.1f  (%5.1f%%)",
+                            mjTIMERSTRING[p] + 4, pstep * 1000, 100 * pstep / tstep);
+
+            // collision sub-breakdown
+            if (p == mjTIMER_POS_COLLISION) {
+              for (int c = mjTIMER_COL_BROAD; c <= mjTIMER_COL_NARROW; c++) {
+                if (d->timer[c].number > 0) {
+                  mjtNum cstep = d->timer[c].duration / d->timer[c].number;
+                  pos += snprintf(buf + pos, sizeof(buf) - pos,
+                                  "\n      %-11s %8.1f  (%5.1f%%)",
+                                  mjTIMERSTRING[c] + 4, cstep * 1000, 100 * cstep / tstep);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  mjtNum other = tstep - components;
+  pos += snprintf(buf + pos, sizeof(buf) - pos,
+                  "%s  %-15s %8.1f  (%5.1f%%)",
+                  pos > 0 ? "\n" : "",
+                  "other", other * 1000, 100 * other / tstep);
+
+  pos += snprintf(buf + pos, sizeof(buf) - pos,
+                  "%s  %-15s %8.1f",
+                  pos > 0 ? "\n" : "",
+                  "total", tstep * 1000);
+
+  mjLogMessage msg = {.level = mjLOG_INFO, .topic = mjTOPIC_TIME_STP, .body = buf};
+  snprintf(msg.subject, sizeof(msg.subject),
+           "average time per step (%d steps, units: \u00B5s)", nstep);
+  mju_message(&msg);
+}
+
+
 // clear data, set data->qpos = model->qpos0
 void mj_resetData(const mjModel* m, mjData* d) {
+  // emit step timing diagnostics before timers are cleared
+  mj_logTimingDiagnostics(d);
+
   _resetData(m, d, 0);
 }
+
 
 
 // clear data, set data->qpos = model->qpos0, fill with debug_value
@@ -1571,6 +1671,7 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
 // de-allocate mjData
 void mj_deleteData(mjData* d) {
   if (d) {
+    mju_threadpool(d, 0);
     freeDataBuffers(d);
     mju_free(d);
   }
@@ -2072,8 +2173,7 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: invalid sensor_refid";
     }
     if (sensor_type == mjSENS_TACTILE) {
-      int obj_id = m->sensor_objid[i];
-      int parent_body = m->geom_bodyid[obj_id];
+      int parent_body = m->geom_bodyid[m->sensor_refid[i]];
       int collision_geoms = 0;
       for (int b = 0; b < m->body_geomnum[parent_body]; ++b) {
         int geom_id = m->body_geomadr[parent_body]+b;

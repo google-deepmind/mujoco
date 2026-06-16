@@ -664,7 +664,7 @@ int mju_bandDiag(int i, int ntotal, int nband, int ndense) {
 
 // convert band matrix to dense matrix
 void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense,
-                    mjtByte flg_sym) {
+                    mjtBool flg_sym) {
   int nsparse = ntotal-ndense;
 
   // clear all
@@ -717,7 +717,7 @@ void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int n
 
 // multiply band-diagonal matrix with vector
 void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                       int ntotal, int nband, int ndense, int nvec, mjtByte flg_sym) {
+                       int ntotal, int nband, int ndense, int nvec, mjtBool flg_sym) {
   int nsparse = ntotal-ndense;
 
   // handle multiple vectors
@@ -1407,6 +1407,19 @@ static mjtNum mulVecMatVecSym(const mjtNum* vec, const mjtNum* mat, int n) {
 }
 
 
+// multiply symmetric matrix with vector: res = mat*vec
+//   assumes symmetry of mat, ignores upper triangle, res must not alias vec
+static void mulSymVec(mjtNum* restrict res, const mjtNum* mat, const mjtNum* vec, int n) {
+  for (int i=0; i < n; i++) {
+    // diagonal + strict lower triangle: res[i] = sum_{j<=i} mat[i,j] * vec[j]
+    res[i] = mat[n*i+i]*vec[i] + mju_dot(mat+n*i, vec, i);
+
+    // strict upper mirror contribution: res[k] += mat[i,k] * vec[i] for k < i
+    mju_addToScl(res, mat+n*i, vec[i], i);
+  }
+}
+
+
 // minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper, explicit options
 //  additional arguments to mju_boxQP (see mju_boxQP documentation):
 //   maxiter     maximum number of iterations
@@ -1512,7 +1525,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     oldvalue = value;
 
     // compute gradient
-    mju_mulMatVec(grad, H, res, n, n);
+    mulSymVec(grad, H, res, n);
     mju_addTo(grad, g, n);
 
     // find clamped dimensions
@@ -1555,7 +1568,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     for (int i=0; i < n; i++) {
       temp[i] = clamped[i] ? res[i] : 0;
     }
-    mju_mulMatVec(search, H, temp, n, n);
+    mulSymVec(search, H, temp, n);
     mju_addTo(search, g, n);
 
     // search = compress_free(search)

@@ -17,7 +17,7 @@
 
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,6 +89,9 @@ MJAPI void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, 
 // evaluate the basis function at x for the i-th node
 MJAPI mjtNum mju_evalBasis(const mjtNum x[3], int i, int order);
 
+// evaluate the basis functions at x for all nodes in the cell
+MJAPI void mju_evalBasisArray(mjtNum* basis, const mjtNum x[3], int order);
+
 // map global parametric coord to cell-local coord and build node indices
 MJAPI int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, mjtNum local[3],
                          int* nodeindices);
@@ -144,6 +147,14 @@ static inline mjtNum mju_flexDphi(mjtNum s, int i, int order) {
     default: return 0;
   }
 }
+// reconstruct interior node positions from boundary nodes via Transfinite Interpolation
+MJAPI void mju_shellTrackInterior(mjtNum* nodexpos, int nx, int ny, int nz);
+
+// compute TFI weights for an interior node (i,j,k) and distribute to boundary nodes
+MJAPI void mju_shellTFIWeights(int nx, int ny, int nz, int i, int j, int k,
+                               mjtNum w, int* nb, int* body, mjtNum* bweight,
+                               const int* nodebodyid, int nstart);
+
 
 // ----------------------------- Base64 ------------------------------------------------------------
 

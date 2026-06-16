@@ -86,7 +86,7 @@ if(NOT TARGET mujoco)
     if(MUJOCO_FRAMEWORK)
       message("MuJoCo framework is at ${MUJOCO_FRAMEWORK}/mujoco.framework")
       set(MUJOCO_LIBRARY
-          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.3.8.1.dylib
+          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.3.10.0.dylib
       )
       target_compile_options(mujoco INTERFACE -F${MUJOCO_FRAMEWORK})
     endif()
@@ -94,7 +94,7 @@ if(NOT TARGET mujoco)
 
   if(NOT MUJOCO_FRAMEWORK)
     find_library(
-      MUJOCO_LIBRARY mujoco mujoco.3.8.1 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
+      MUJOCO_LIBRARY mujoco mujoco.3.10.0 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
     )
     find_path(MUJOCO_INCLUDE mujoco/mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
     message("MuJoCo is at ${MUJOCO_LIBRARY}")
@@ -128,6 +128,72 @@ if(NOT TARGET mujoco)
     set_target_properties(mujoco PROPERTIES IMPORTED_SONAME "${MUJOCO_SONAME}")
   endif()
   add_library(mujoco::mujoco ALIAS mujoco)
+endif()
+
+# =================== MUJOCO PLATFORM STATIC LIBRARY ==========================
+if(NOT TARGET mujoco::platform)
+  find_library(
+    MUJOCO_PLATFORM_LIBRARY mujoco_platform HINTS ${MUJOCO_LIBRARY_DIR}
+  )
+  if(MUJOCO_PLATFORM_LIBRARY)
+    message(STATUS "Found mujoco_platform library at ${MUJOCO_PLATFORM_LIBRARY}")
+    add_library(mujoco_platform STATIC IMPORTED GLOBAL)
+    set_target_properties(mujoco_platform PROPERTIES IMPORTED_LOCATION "${MUJOCO_PLATFORM_LIBRARY}")
+    add_library(mujoco::platform ALIAS mujoco_platform)
+
+    set_target_properties(mujoco_platform PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${MUJOCO_INCLUDE};${MUJOCO_INCLUDE}/mujoco;${MUJOCO_INCLUDE}/SDL2"
+    )
+    target_compile_features(mujoco_platform INTERFACE cxx_std_20)
+
+    set(PLATFORM_DEPS)
+    foreach(dep_lib IN ITEMS
+      mujoco_filament
+      dear_imgui
+      dear_imgui_stdlib
+      implot
+      filament
+      backend
+      SDL2
+      glfw3
+      image
+      ktxreader
+      utils
+      math
+      bluegl
+      bluevk
+      filabridge
+      filaflat
+      filamat
+      matlang
+      shaders
+      smol-v
+      glslang
+      SPIRV
+      SPIRV-Tools
+      SPIRV-Tools-opt
+      basis_encoder
+      basis_transcoder
+      zstd
+      z
+    )
+      find_library(DEP_PATH_${dep_lib} ${dep_lib} HINTS ${MUJOCO_LIBRARY_DIR})
+      if(DEP_PATH_${dep_lib})
+        add_library(mujoco::dep::${dep_lib} STATIC IMPORTED GLOBAL)
+        set_target_properties(mujoco::dep::${dep_lib} PROPERTIES
+          IMPORTED_LOCATION "${DEP_PATH_${dep_lib}}"
+          INTERFACE_INCLUDE_DIRECTORIES "${MUJOCO_INCLUDE}"
+        )
+        list(APPEND PLATFORM_DEPS mujoco::dep::${dep_lib})
+      endif()
+    endforeach()
+
+    if(UNIX AND NOT APPLE)
+      list(APPEND PLATFORM_DEPS pthread dl rt)
+    endif()
+
+    set_target_properties(mujoco_platform PROPERTIES INTERFACE_LINK_LIBRARIES "${PLATFORM_DEPS}")
+  endif()
 endif()
 
 # ==================== ABSEIL ==================================================
@@ -175,7 +241,7 @@ findorfetch(
   GIT_REPO
   https://gitlab.com/libeigen/eigen
   GIT_TAG
-  75bcd155c40cb48e647c87c3f29052360255bc9e
+  ea13a98decd497a8c5588fb5de71b57bcf10d864
   TARGETS
   Eigen3::Eigen
   EXCLUDE_FROM_ALL
@@ -271,6 +337,7 @@ target_sources(
             structs.h
 )
 set_target_properties(structs_header PROPERTIES PUBLIC_HEADER structs.h)
+target_include_directories(structs_header INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(
   structs_header
   INTERFACE absl::flat_hash_map
@@ -463,6 +530,8 @@ target_link_libraries(
           structs_header
 )
 
+add_subdirectory(experimental/studio)
+
 set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_callbacks>"
     "$<TARGET_FILE:_constants>"
@@ -476,6 +545,12 @@ set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_structs>"
     "$<TARGET_FILE:mujoco>"
 )
+
+if(MUJOCO_STUDIO_TARGETS)
+  foreach(target IN LISTS MUJOCO_STUDIO_TARGETS)
+    list(APPEND LIBRARIES_FOR_WHEEL "$<TARGET_FILE:${target}>")
+  endforeach()
+endif()
 
 if(APPLE)
   add_executable(mjpython mjpython/mjpython.mm)
@@ -512,6 +587,9 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
     _structs
     mujoco
   )
+  if(MUJOCO_STUDIO_TARGETS)
+    add_dependencies(wheel ${MUJOCO_STUDIO_TARGETS})
+  endif()
   if(APPLE)
     add_dependencies(wheel mjpython)
   endif()

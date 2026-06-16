@@ -22,6 +22,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
         helpers.cc
         helpers.h
+        sys_utils.cc
+        sys_utils.h
         hal/egl_utils.cc
         hal/egl_utils.h
         hal/graphics_mode.cc
@@ -44,6 +46,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         ux/gui.h
         ux/gui_spec.cc
         ux/gui_spec.h
+        ux/imgui_bridge.cc
+        ux/imgui_bridge.h
         ux/imgui_widgets.cc
         ux/imgui_widgets.h
         ux/interaction.cc
@@ -102,6 +106,7 @@ target_link_libraries(${MUJOCO_PLATFORM_TARGET_NAME}
     dear_imgui_stdlib
     implot
     mujoco::filament
+    mujoco::filament_experimental
     webp
     SDL2::SDL2-static
     ${MUJOCO_PLATFORM_RENDER_DEPS}

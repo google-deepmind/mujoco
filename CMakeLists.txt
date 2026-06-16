@@ -29,7 +29,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 3.8.1
+  VERSION 3.10.0
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -98,7 +98,11 @@ if(EMSCRIPTEN)
   endif()
 endif()
 
-if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
+if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE OR MUJOCO_USE_FILAMENT))
+  # NOTE: OBJC* languages are proactively enabled when using Filament to
+  # workaround a CMake bug triggered by Filament recently adding:
+  #   set(EXTRA_LANGS OBJC OBJCXX)
+  # See also: https://gitlab.kitware.com/cmake/cmake/-/work_items/24104
   enable_language(OBJC)
   enable_language(OBJCXX)
 endif()
@@ -108,6 +112,7 @@ include(MujocoMacOS)
 include(MujocoDependencies)
 
 set(MUJOCO_HEADERS
+    include/mujoco/mjassert.h
     include/mujoco/mjdata.h
     include/mujoco/mjexport.h
     include/mujoco/mjmacro.h
@@ -116,8 +121,8 @@ set(MUJOCO_HEADERS
     include/mujoco/mjrender.h
     include/mujoco/mjsan.h
     include/mujoco/mjspec.h
-    include/mujoco/mjthread.h
-    include/mujoco/mjtnum.h
+    include/mujoco/mjspecmacro.h
+    include/mujoco/mjtype.h
     include/mujoco/mjui.h
     include/mujoco/mjvisualize.h
     include/mujoco/mjxmacro.h
@@ -133,6 +138,7 @@ endif()
 
 # Emscripten does not support SHARED libs
 if(NOT EMSCRIPTEN)
+  find_package(Threads REQUIRED)
   add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
 else()
   add_library(mujoco STATIC ${MUJOCO_RESOURCE_FILES})
@@ -157,7 +163,7 @@ add_subdirectory(plugin/stl_decoder)
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
-add_subdirectory(src/thread)
+add_subdirectory(src/xml/mjz)
 if(NOT EMSCRIPTEN AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT)
   add_subdirectory(src/render/classic)
   add_subdirectory(src/ui)
@@ -165,6 +171,7 @@ endif()
 add_subdirectory(src/render/noop)
 
 if(MUJOCO_USE_FILAMENT)
+  add_subdirectory(src/render/filament)
   add_subdirectory(src/experimental/filament)
 endif()
 
@@ -200,6 +207,10 @@ target_link_libraries(
           tinyobjloader
           tinyxml2
 )
+
+if(NOT EMSCRIPTEN)
+  target_link_libraries(mujoco PRIVATE Threads::Threads)
+endif()
 
 set_target_properties(
   mujoco PROPERTIES VERSION "${mujoco_VERSION}" PUBLIC_HEADER "${MUJOCO_HEADERS}"
@@ -256,7 +267,6 @@ if(MUJOCO_BUILD_SIMULATE)
 endif()
 
 if(MUJOCO_BUILD_STUDIO)
-  add_subdirectory(src/experimental/mjz)
   add_subdirectory(src/experimental/platform)
   add_subdirectory(src/experimental/studio)
 endif()
@@ -296,11 +306,8 @@ if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
   endif()
 endif()
 
-if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
+if(NOT EMSCRIPTEN AND NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
   set(MUJOCO_TARGETS mujoco)
-  if (EMSCRIPTEN)
-    list(APPEND MUJOCO_TARGETS lodepng)
-  endif()
 
   # Install the libraries.
   install(

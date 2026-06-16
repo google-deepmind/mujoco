@@ -875,8 +875,8 @@ The size of each array (``njnt`` in this case) is also given in ``mjModel``. The
 first, followed by the limits of the second joint etc. This ordering reflects the fact that all matrices in MuJoCo have
 row-major format.
 
-The available element types are defined in `mjmodel.h
-<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h#L237>`_, in the enum type :ref:`mjtObj`.
+The available element types are defined in `mjtype.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__, in the enum type :ref:`mjtObj`.
 These enums are mostly used internally. One exception are the functions :ref:`mj_name2id` and :ref:`mj_id2name` in the
 MuJoCo API, which map element names to integer ids and vice versa. These functions take an element type as input.
 

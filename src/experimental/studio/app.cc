@@ -28,6 +28,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -81,8 +82,14 @@ static constexpr const char* ICON_UNDO_SPEC = platform::ICON_FA_UNDO;
 static constexpr const char* ICON_REDO_SPEC = platform::ICON_FA_REPEAT;
 
 App::App(Config config)
-    : ini_path_(std::move(config.ini_path)), gfx_mode_(config.gfx_mode) {
+    : app_title_(std::move(config.title)),
+      ini_path_(std::move(config.ini_path)),
+      gfx_mode_(config.gfx_mode) {
   SwitchGraphicsMode(config.width, config.height, config.gfx_mode);
+
+  if (config.initial_theme.has_value()) {
+    ui_.theme = *config.initial_theme;
+  }
 
   ImPlot::CreateContext();
   mjv_defaultPerturb(&perturb_);
@@ -100,21 +107,16 @@ void App::SwitchGraphicsMode(int width, int height,
 
   platform::Window::Config window_config;
   window_config.gfx_mode = gfx_mode_;
-  window_ = std::make_unique<platform::Window>("MuJoCo Studio", width, height,
+  window_ = std::make_unique<platform::Window>(app_title_, width, height,
                                                window_config);
   renderer_ = std::make_unique<platform::Renderer>(
       window_->GetNativeWindowHandle(), gfx_mode_);
-}
 
-void App::ClearModel() {
-  model_holder_.reset();
-  window_->SetTitle("MuJoCo Studio");
-  step_control_.SetSpeed(100.f);
-  profiler_.Clear();
-  tmp_ = UiTempState();
-  load_error_ = "";
-  step_error_ = "";
-  edit_error_ = "";
+  // TODO: Figure out why this breaks on some platforms.
+  // LoadSettings();
+  if (ui_.window_width > 0 && ui_.window_height > 0) {
+    window_->Resize(ui_.window_width, ui_.window_height);
+  }
 }
 
 void App::Recompile() {
@@ -129,7 +131,8 @@ void App::RequestModelLoad(std::string model_file) {
 }
 
 void App::RequestModelReload() {
-  if (model_kind_ == kModelFromFile) {
+  if (model_kind_ == kModelFromFile ||
+      (model_kind_ == kEmptyModel && !model_path_.empty())) {
     pending_load_ = model_path_;
     preserve_camera_on_load_ = true;
   }
@@ -151,13 +154,16 @@ void App::LoadModelFromFile(const std::string& filepath) {
     UpdateFilePaths(resolved_file);
     if (model() && model()->names) {
       // Assumes the first string in the model is the name of the model itself.
-      window_->SetTitle("MuJoCo Studio : " + std::string(model()->names));
+      window_->SetTitle(app_title_ + " : " + std::string(model()->names));
     } else {
-      window_->SetTitle("MuJoCo Studio : " +
+      window_->SetTitle(app_title_ + " : " +
                         std::filesystem::path(filepath).stem().string());
     }
   } else {
     SetLoadError(std::string(model_holder_->error()));
+    // Keep track of the attempted load in case the user fixes the error and
+    // tries to reload the same file again.
+    model_path_ = resolved_file;
   }
 }
 
@@ -175,6 +181,10 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
 }
 
 void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
+  load_error_ = "";
+  step_error_ = "";
+  edit_error_ = "";
+
   model_path_ = std::move(filename);
 
   if (model_kind_ == kEmptyModel) {
@@ -218,6 +228,7 @@ void App::OnModelLoaded(std::string filename, ModelKind model_kind) {
       plugin->post_model_loaded(plugin, model_path_.c_str());
     }
   });
+  tmp_.update_threadpool = true;
 }
 
 void App::UpdateFilePaths(const std::string& resolved_path) {
@@ -243,6 +254,8 @@ void App::UpdateFilePaths(const std::string& resolved_path) {
 void App::SetLoadError(std::string error) {
   InitEmptyModel();
   load_error_ = std::move(error);
+  step_error_ = "";
+  edit_error_ = "";
 }
 
 void App::ResetPhysics() {
@@ -255,6 +268,11 @@ void App::ResetPhysics() {
 void App::UpdatePhysics() {
   if (!has_model()) {
     return;
+  }
+
+  if (tmp_.update_threadpool) {
+    mju_threadpool(data(), ui_.nthread);
+    tmp_.update_threadpool = false;
   }
 
   bool stepped = false;
@@ -450,14 +468,20 @@ void App::HandleMouseEvents() {
     if (perturb_.select > 0) {
       mjtMouse action = mjMOUSE_NONE;
       if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        action = io.KeyShift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
+        if (io.KeyAlt) {
+          action = io.KeyShift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
+        } else {
+          action = io.KeyShift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
+        }
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
         action = io.KeyShift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
         action = mjMOUSE_ZOOM;
       }
       const mjtPertBit active =
-          action == mjMOUSE_MOVE_V ? mjPERT_TRANSLATE : mjPERT_ROTATE;
+          (action == mjMOUSE_MOVE_V || action == mjMOUSE_MOVE_H)
+              ? mjPERT_TRANSLATE
+              : mjPERT_ROTATE;
       if (active != perturb_.active) {
         platform::InitPerturb(model(), data(), &camera_, &perturb_, active);
       }
@@ -626,14 +650,12 @@ void App::HandleKeyboardEvents() {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
     ToggleWindow(tmp_.stats);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F3)) {
+    ToggleWindow(tmp_.profiler);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
     vis_options_.frame = (vis_options_.frame + 1) % mjNFRAME;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
     vis_options_.label = (vis_options_.label + 1) % mjNLABEL;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F9)) {
-    tmp_.chart_solver = !tmp_.chart_solver;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F10)) {
-    tmp_.chart_performance = !tmp_.chart_performance;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
     tmp_.full_screen = !tmp_.full_screen;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_H)) {
@@ -794,6 +816,10 @@ void App::LoadSettings() {
 void App::SaveSettings() {
   if (!ini_path_.empty()) {
     std::string settings = ImGui::SaveIniSettingsToMemory();
+    if (window_) {
+      ui_.window_width = window_->GetWidth();
+      ui_.window_height = window_->GetHeight();
+    }
     platform::AppendIniSection(settings, "[Studio][UX]", ui_.ToDict());
 
     platform::KeyValues plugin_names;
@@ -807,14 +833,7 @@ void App::SaveSettings() {
 }
 
 void App::SetSpeedIndex(int idx) {
-  if (idx == tmp_.speed_index || platform::kPercentRealTime.empty()) {
-    return;
-  }
-
-  tmp_.speed_index =
-      std::clamp<int>(idx, 0, platform::kPercentRealTime.size() - 1);
-  float speed = std::stof(platform::kPercentRealTime[tmp_.speed_index]);
-  step_control_.SetSpeed(speed);
+  platform::SetSpeedIndex(&step_control_, tmp_.speed_index, idx);
 }
 
 void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx,
@@ -872,11 +891,6 @@ void App::BuildGui() {
   }
 
   if (tmp_.inspector_panel) {
-    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
-      DataInspectorGui();
-    }
-    ImGui::End();
-
     if (ImGui::Begin("Explorer", &tmp_.inspector_panel)) {
       SpecExplorerGui();
     }
@@ -886,32 +900,17 @@ void App::BuildGui() {
       SpecEditorGui();
     }
     ImGui::End();
-  }
 
-  if (tmp_.chart_performance) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Performance", &tmp_.chart_performance)) {
-      auto layout = platform::ImPlot_ComputePairLayout();
-      profiler_.CpuTimeGraph(layout.plot_size);
-      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
-        ImGui::SameLine();
-      }
-      profiler_.DimensionsGraph(layout.plot_size);
+    if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
+      DataInspectorGui();
     }
     ImGui::End();
   }
 
-  if (tmp_.chart_solver) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
-      auto layout = platform::ImPlot_ComputePairLayout();
-      platform::CountsGui(model(), data(), layout.plot_size);
-      if (layout.direction == platform::ImPlotLayoutDirection::kHorizontal) {
-        ImGui::SameLine();
-      }
-      platform::ConvergenceGui(model(), data(), layout.plot_size);
+  if (tmp_.profiler) {
+    if (ImGui::Begin("Profiler", &tmp_.profiler,
+                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+      platform::ProfilerGui(model(), data(), &profiler_);
     }
     ImGui::End();
   }
@@ -1023,7 +1022,7 @@ void App::BuildGui() {
 }
 
 void App::ModelOptionsGui() {
-  const float min_width = GetExpectedLabelWidth();
+  const float min_width = platform::GetExpectedLabelWidth();
   const ImGuiChildFlags child_flags =
       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
   const ImGuiTreeNodeFlags node_flags =
@@ -1065,22 +1064,11 @@ void App::DataInspectorGui() {
     return;
   }
 
-  const float min_width = GetExpectedLabelWidth();
+  const float min_width = platform::GetExpectedLabelWidth();
   const ImGuiChildFlags child_flags =
       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize;
   const ImGuiTreeNodeFlags node_flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
-
-  ImGui::BeginChild("NoiseGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Noise", node_flags)) {
-    float noise_scale = 0;
-    float noise_rate = 0;
-    step_control_.GetNoiseParameters(noise_scale, noise_rate);
-    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
-    step_control_.SetNoiseParameters(noise_scale, noise_rate);
-    ImGui::TreePop();
-  }
-  ImGui::EndChild();
 
   ImGui::BeginChild("JointsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Joints", node_flags)) {
@@ -1091,6 +1079,14 @@ void App::DataInspectorGui() {
 
   ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
   if (ImGui::TreeNodeEx("Controls", node_flags)) {
+
+    float noise_scale = 0;
+    float noise_rate = 0;
+    step_control_.GetNoiseParameters(noise_scale, noise_rate);
+    platform::NoiseGui(model(), data(), noise_scale, noise_rate);
+    step_control_.SetNoiseParameters(noise_scale, noise_rate);
+    ImGui::Separator();
+
     platform::ControlsGui(model(), data(), &vis_options_);
     ImGui::TreePop();
   }
@@ -1315,10 +1311,9 @@ void App::HelpGui() {
 
   ImGui::Text("Help");
   ImGui::Text("Stats");
+  ImGui::Text("Profiler");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
-  ImGui::Text("Solver Charts");
-  ImGui::Text("Perf. Charts");
   ImGui::Text("Toggle Fullscreen");
   ImGui::Text("Free Camera");
   ImGui::Text("Toggle Pause");
@@ -1342,10 +1337,9 @@ void App::HelpGui() {
   ImGui::Indent(indent);
   ImGui::Text("F1");
   ImGui::Text("F2");
+  ImGui::Text("F3");
   ImGui::Text("F6");
   ImGui::Text("F7");
-  ImGui::Text("F9");
-  ImGui::Text("F10");
   ImGui::Text("F11");
   ImGui::Text("Esc");
   ImGui::Text("Spc");
@@ -1430,15 +1424,14 @@ void App::ToolBarGui() {
               ImVec2(ImGui::GetStyle().ItemSpacing.x * 2.0f,
                      ImGui::GetStyle().ItemSpacing.y));
 
-    const float label_width = GetExpectedLabelWidth();
-    const float copy_btn_width = ImGui::CalcTextSize(ICON_COPY_CAMERA).x +
-                                 ImGui::GetStyle().FramePadding.x * 2;
+    const float label_width = platform::GetExpectedLabelWidth();
+    const float copy_btn_width = ImGui::GetFrameHeight();
     const float theme_width =
         ImGui::CalcTextSize(platform::ICON_FA_CIRCLE_O).x +
         ImGui::GetStyle().FramePadding.x * 2;
     const float sp = ImGui::GetStyle().ItemSpacing.x;
-    const float right_width = label_width + sp + label_width + sp +
-                              label_width + sp + copy_btn_width + sp +
+    const float right_width = copy_btn_width + label_width + sp +
+                              label_width + sp + label_width + sp +
                               theme_width;
     const float separator_width = ImGui::GetFrameHeight() * .6f;
 
@@ -1471,28 +1464,26 @@ void App::ToolBarGui() {
     ImGui::SameLine(0, separator_width);
     platform::StepControlGui(model(), &step_control_, tmp_.speed_index);
 
+    ImGui::SameLine(0, separator_width);
+    ImGui::SetNextItemWidth(120);
+    ImGui::BeginDisabled(std::thread::hardware_concurrency() <= 1);
+    if (ImGui::SliderInt("##NumThreads", &ui_.nthread, 0, 8, "%d threads")) {
+      tmp_.update_threadpool = true;
+    }
+    ImGui::EndDisabled();
+    ImGui::SetItemTooltip("%s", "Number of threads in threadpool");
+
     ImGui::TableNextColumn();
 
-    if (ImGui::Button(ICON_COPY_CAMERA, square_size)) {
-      std::string camera_string = platform::CameraToString(data(), &camera_);
-      platform::MaybeSaveToClipboard(camera_string);
-    }
-    ImGui::SetItemTooltip("%s", "Copy Camera");
-
-    ImGui::SameLine(0, 0);
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::CameraSelectionGui(model(), data(), camera_, ui_.camera_idx);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::LabelSelectionGui(&vis_options_);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     platform::FrameSelectionGui(&vis_options_);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(GetExpectedLabelWidth());
     if (platform::ThemeSelectGui(&ui_.theme, square_size)) {
       platform::SetupTheme(ui_.theme);
       ImGui::GetIO().WantSaveIniSettings = true;
@@ -1712,6 +1703,11 @@ void App::MainMenuGui() {
                 gfx_mode_ == platform::GraphicsMode::FilamentVulkan)) {
           mode = platform::GraphicsMode::FilamentVulkan;
         }
+        if (ImGui::MenuItem(
+                "Filament Vulkan Software", nullptr,
+                gfx_mode_ == platform::GraphicsMode::FilamentVulkanSoftware)) {
+          mode = platform::GraphicsMode::FilamentVulkanSoftware;
+        }
         if (mode.has_value()) {
           pending_op_ = [=, this]() {
             const int width = window_->GetWidth();
@@ -1732,11 +1728,8 @@ void App::MainMenuGui() {
     }
 
     if (ImGui::BeginMenu("Charts")) {
-      if (ImGui::MenuItem("Solver", "F9")) {
-        tmp_.chart_solver = !tmp_.chart_solver;
-      }
-      if (ImGui::MenuItem("Performance", "F10")) {
-        tmp_.chart_performance = !tmp_.chart_performance;
+      if (ImGui::MenuItem("Profiler", "F3")) {
+        ToggleWindow(tmp_.profiler);
       }
       ImGui::EndMenu();
     }
@@ -1840,37 +1833,24 @@ void App::FileDialogGui() {
   }
 }
 
-float App::GetExpectedLabelWidth() {
-  // Find the longest label which we'll use to set the minimum toggle button
-  // width. This isn't perfect because we may have labels that are longer, but
-  // it's a good enough approximation.
-  if (tmp_.expected_label_width == 0) {
-    int longest = 0;
-    const char* longest_label = "";
-    for (int i = 0; i < mjNVISFLAG; ++i) {
-      int length = static_cast<int>(strlen(mjVISSTRING[i][0]));
-      if (length > longest) {
-        longest_label = mjVISSTRING[i][0];
-        longest = length;
-      }
-    }
-    // Pad the width a bit to account for how the labels will be displayed
-    // (e.g. as button labels or besides checkboxes).
-    tmp_.expected_label_width = ImGui::CalcTextSize(longest_label).x + 16;
-  }
-  return tmp_.expected_label_width;
-}
-
 App::UiState::Dict App::UiState::ToDict() const {
   return {
       {"theme", std::to_string(static_cast<int>(theme))},
       {"font_scale", std::to_string(font_scale)},
+      {"window_width", std::to_string(window_width)},
+      {"window_height", std::to_string(window_height)},
+      {"nthread", std::to_string(nthread)},
   };
 }
 
 void App::UiState::FromDict(const Dict& dict) {
+  using platform::ReadIniValue;
+
   *this = UiState();
   theme = ReadIniValue(dict, "theme", theme);
-  font_scale = platform::ReadIniValue(dict, "font_scale", font_scale);
+  window_width = ReadIniValue(dict, "window_width", window_width);
+  window_height = ReadIniValue(dict, "window_height", window_height);
+  font_scale = ReadIniValue(dict, "font_scale", font_scale);
+  nthread = ReadIniValue(dict, "nthread", nthread);
 }
 }  // namespace mujoco::studio

@@ -21,7 +21,7 @@
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_spatial.h"
@@ -121,7 +121,7 @@ TEST_F(RotVecQuatTest, TestEquivalence) {
       {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {-0.5, 1, -0.5}, {1.22, -2.33, 3.44}};
   // List of angles to rotate by, in degrees
   mjtNum angles[6] = {0.0, 1e-8, 31, 47, 181, 271};
-  static constexpr mjtNum eps = MjTol(1e-15, 1e-5);
+  static const mjtNum eps = MjTol(1e-15, 1e-5);
   for (auto vec : vecs) {
     // Unit-normalize the vector
     mju_normalize3(vec);

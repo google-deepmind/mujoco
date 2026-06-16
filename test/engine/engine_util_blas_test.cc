@@ -20,7 +20,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include "test/fixture.h"
 
 namespace mujoco {

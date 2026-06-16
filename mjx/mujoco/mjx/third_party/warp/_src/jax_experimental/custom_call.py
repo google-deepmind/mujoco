@@ -131,13 +131,13 @@ def _warp_custom_callback(stream, buffers, opaque, opaque_len):
 
     # Launch the kernel.
     wp._src.context.runtime.core.wp_cuda_launch_kernel(
-        device.context, hooks.forward, bounds.size, 0, 256, hooks.forward_smem_bytes, kernel_params, stream
+        device.context, hooks.forward, bounds.size, 0, 256, hooks.forward_smem_bytes, kernel_params, stream, None
     )
 
 
 def _create_jax_warp_primitive():
     import jax  # noqa: PLC0415
-    from jax._src.interpreters import batching  # noqa: PLC0415
+    from jax.interpreters import batching  # noqa: PLC0415
     from jax.interpreters import mlir  # noqa: PLC0415
     from jax.interpreters.mlir import ir  # noqa: PLC0415
     from jaxlib.hlo_helpers import custom_call  # noqa: PLC0415
@@ -170,9 +170,9 @@ def _create_jax_warp_primitive():
         # Figure out the number of outputs.
         wp_kernel = _registered_kernels[params["kernel"]]
         output_count = len(wp_kernel.adj.args) - len(args)
-        shape, dim = next((a.shape, d) for a, d in zip(args, dims) if d is not None)
+        shape, dim = next((a.shape, d) for a, d in zip(args, dims, strict=True) if d is not None)
         size = shape[dim]
-        args = [batching.bdim_at_front(a, d, size) if len(a.shape) else a for a, d in zip(args, dims)]
+        args = [batching.bdim_at_front(a, d, size) if len(a.shape) else a for a, d in zip(args, dims, strict=True)]
         # Create the batched primitive.
         return _jax_warp_p.bind(*args, **params), [dims[0]] * output_count
 
@@ -211,6 +211,7 @@ def _create_jax_warp_primitive():
     def base_type_to_jax_ir(warp_dtype):
         warp_to_jax_dict = {
             wp.float16: ir.F16Type.get(),
+            wp.bfloat16: ir.BF16Type.get(),
             wp.float32: ir.F32Type.get(),
             wp.float64: ir.F64Type.get(),
             wp.int8: ir.IntegerType.get_signless(8),
@@ -232,6 +233,7 @@ def _create_jax_warp_primitive():
     def base_type_is_compatible(warp_type, jax_ir_type):
         jax_ir_to_warp = {
             "f16": wp.float16,
+            "bf16": wp.bfloat16,
             "f32": wp.float32,
             "f64": wp.float64,
             "i8": wp.int8,
@@ -324,7 +326,7 @@ def _create_jax_warp_primitive():
         # Figure out the types and shapes of the input arrays.
         arg_strings = []
         operand_layouts = []
-        for actual, warg in zip(args, wp_kernel.adj.args):
+        for actual, warg in zip(args, wp_kernel.adj.args, strict=False):
             wtype = warg.type
             rtt = ir.RankedTensorType(actual.type)
 

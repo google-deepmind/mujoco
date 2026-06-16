@@ -14,6 +14,7 @@
 # ==============================================================================
 """End-to-end integration tests for mujoco.sysid."""
 
+import logging
 import pathlib
 import tempfile
 
@@ -21,6 +22,7 @@ import mujoco
 import mujoco.rollout as rollout
 from mujoco import sysid
 import numpy as np
+import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -233,3 +235,42 @@ def test_arm_recover_armature():
     assert (result_dir / "results.pkl").exists()
     assert (result_dir / "confidence.pkl").exists()
     assert (result_dir / "arm.xml").exists()
+
+
+def _rank_1_residual_fn(x, p):
+  # Residual depends only on x[0]: J = [[1, 0], [2, 0]] is 2x2 rank 1.
+  del p
+  if x.ndim == 1:
+    r = np.array([x[0] - 1.0, 2.0 * x[0] - 2.0])
+  else:
+    r = np.stack([x[0] - 1.0, 2.0 * x[0] - 2.0])
+  return [r], None, None
+
+
+def _full_rank_residual_fn(x, p):
+  del p
+  if x.ndim == 1:
+    r = np.array([x[0] - 1.0, x[1] - 2.0])
+  else:
+    r = np.stack([x[0] - 1.0, x[1] - 2.0])
+  return [r], None, None
+
+
+@pytest.mark.parametrize("residual_fn,expect_warning", [
+    (_rank_1_residual_fn, True),
+    (_full_rank_residual_fn, False),
+])
+def test_check_conditioning(residual_fn, expect_warning, caplog):
+  """check_conditioning=True warns iff cond(J^T J) is large at the start."""
+  params = sysid.ParameterDict()
+  params.add(sysid.Parameter("a", 1.0, -10.0, 10.0))
+  params.add(sysid.Parameter("b", 1.0, -10.0, 10.0))
+
+  with caplog.at_level(logging.WARNING, logger="absl"):
+    sysid.optimize(
+        initial_params=params, residual_fn=residual_fn,
+        optimizer="scipy", verbose=False, check_conditioning=True,
+        max_iters=1,
+    )
+  fired = any("cond(J^T J)" in r.message for r in caplog.records)
+  assert fired is expect_warning

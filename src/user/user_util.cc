@@ -379,6 +379,7 @@ template<typename T> double mjuu_makenormal(double* normal, const T a[3],
     normal[0] = 1;
     normal[1] = 0;
     normal[2] = 0;
+    return 1;
   }
   normal[0] /= nrm;
   normal[1] /= nrm;

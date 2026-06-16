@@ -19,7 +19,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include "engine/engine_util_sparse_avx.h"
 
 #ifdef __cplusplus

@@ -54,14 +54,6 @@ function(configure_studio_target TARGET_NAME)
             mujoco::platform
     )
 
-    # TODO: re-enable mjz support on Windows builds once DllMain issue is resolved.
-    if (NOT WIN32)
-        target_link_libraries(${TARGET_NAME}
-            PRIVATE
-                mujoco::mjz
-        )
-    endif()
-
     file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
 
     add_custom_command(
@@ -90,7 +82,7 @@ function(configure_studio_target TARGET_NAME)
             POST_BUILD
             COMMAND ${CMAKE_COMMAND}
                 -E copy_directory
-                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/experimental/filament/assets
+                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/render/filament/assets
                     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
             COMMENT "Copying Filament assets to build directory"
         )
@@ -102,23 +94,32 @@ if(NOT EMSCRIPTEN)
     add_executable(mujoco_studio)
     target_sources(mujoco_studio PRIVATE main.cc)
     configure_studio_target(mujoco_studio)
+    install(
+      TARGETS mujoco_studio
+      RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
+      BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
+    )
+    install(
+      DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets"
+      DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
+    )
 endif()
 
 # WASM Live target.
 if(EMSCRIPTEN)
-    add_executable(mujoco_live)
-    target_sources(mujoco_live PRIVATE wasm.cc)
-    target_compile_options(mujoco_live PRIVATE -g)
-    configure_studio_target(mujoco_live)
-    target_link_libraries(mujoco_live PRIVATE mujoco::render_noop)
+    add_executable(mujoco_studio)
+    target_sources(mujoco_studio PRIVATE emscripten.cc)
+    target_compile_options(mujoco_studio PRIVATE -g)
+    configure_studio_target(mujoco_studio)
+    target_link_libraries(mujoco_studio PRIVATE mujoco::render_noop)
 
     # Ensure resource decoder plugins are linked into the WASM binary.
-    target_link_options(mujoco_live PRIVATE
+    target_link_options(mujoco_studio PRIVATE
         -Wl,--whole-archive $<TARGET_FILE:mujoco> -Wl,--no-whole-archive
     )
 
     # Filament's OpenGL backend requires WebGL2 / full ES3 bindings.
-    target_link_options(mujoco_live PRIVATE
+    target_link_options(mujoco_studio PRIVATE
         --bind
         -sUSE_WEBGL2=1
         -sFULL_ES3
@@ -128,8 +129,9 @@ if(EMSCRIPTEN)
         -sASYNCIFY=1
         -sFETCH=1
         -sGL_PREINITIALIZED_CONTEXT=1
-        -sSTACK_SIZE=512mb
+        -sSTACK_SIZE=32mb
         -sINITIAL_MEMORY=1024mb
+        -sMAXIMUM_MEMORY=4gb
         -sASSERTIONS=1
         -fexceptions
         -g

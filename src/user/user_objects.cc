@@ -1285,7 +1285,7 @@ void mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double 
     }
 
     // skip if the box is empty
-    if (colliding.empty() || task.lev >= 6) {
+    if (colliding.empty() || task.lev >= max_depth_) {
       continue;
     }
 

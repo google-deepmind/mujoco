@@ -60,7 +60,7 @@ Where the command line arguments are
   keyframe named "test" is present in the model, it is used as the initial state.
 - The ``ctrlnoise`` argument prevents models from settling into a static state where, due to warmstarts, one can
   measure artificially faster simulation.
-- When ``npoolthread > 1`` is specified, an engine-internal :ref:`mjThreadPool` is created with the specified number of
+- When ``npoolthread > 1`` is specified, an engine-internal thread pool is created with the specified number of
   threads, to speed up simulation of large scenes. Note that while it is possible to use both ``nthread`` and
   ``npoolthread``, the scenarios for which one would want these different types of multithreading are usually mutually
   exclusive.
@@ -120,16 +120,19 @@ Windows power plan so that the minimum processor state is 100%.
 `compile <https://github.com/google-deepmind/mujoco/blob/main/sample/compile.cc>`_
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This code sample evokes the built-in parser and compiler. It implements all possible model conversions from (MJCF, URDF,
-MJB) format to (MJCF, MJB, TXT) format. Models saved as MJCF use a canonical subset of our format as described in the
-:doc:`../modeling` chapter, and therefore MJCF-to-MJCF conversion will generally result in a different file.
+This code sample invokes the built-in parser and compiler. It implements all possible model conversions from (MJCF,
+URDF, MJB) format to (MJCF, MJB, TXT) format. Models saved as MJCF use a canonical subset of our format as described in
+the :doc:`../modeling` chapter, and therefore MJCF-to-MJCF conversion will generally result in a different file.
 The TXT format is a human-readable road-map to the model. It cannot be loaded by MuJoCo, but can be a very useful aid
 during model development. It is in one-to-one correspondence with the compiled mjModel. Note also that one can use the
 function :ref:`mj_printData` to create a text file which is in one-to-one correspondence
 with mjData, although this is not done by the code sample.
 
-If the input file is MJCF and the output file is empty, compilation is performed and timed twice to measure the impact
-of the compiler's :ref:`asset cache<Assetcache>`.
+If the input file is MJCF or URDF and the output file is empty, compilation is performed twice to measure the impact
+of the compiler's :ref:`asset cache<Assetcache>`. A detailed timing breakdown is printed for each compilation, showing
+total time, asset processing time (wall clock), and per-category CPU times for meshes and textures. These timings are
+read from the :ref:`mjtCTimer` fields via :ref:`mjs_getTimer`, which can be read programmatically
+after any call to :ref:`mj_compile`.
 
 .. _saBasic:
 

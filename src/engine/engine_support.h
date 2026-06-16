@@ -18,7 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +28,7 @@ extern "C" {
 MJAPI extern const char* mjDISABLESTRING[mjNDISABLE];
 MJAPI extern const char* mjENABLESTRING[mjNENABLE];
 MJAPI extern const char* mjTIMERSTRING[mjNTIMER];
+MJAPI extern const char* mjTOPICSTRING[mjNTOPIC];
 
 // arrays
 MJAPI extern const int mjCONDATA_SIZE[mjNCONDATA];  // TODO(tassa): expose in public header?
@@ -58,7 +59,7 @@ MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 //-------------------------- inertia functions -----------------------------------------------------
 
 // convert sparse inertia matrix M into full matrix
-MJAPI void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
+MJAPI void mj_fullM(const mjModel* m, const mjData* d, mjtNum* dst);
 
 // multiply vector by inertia matrix
 MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);

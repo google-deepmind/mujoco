@@ -18,7 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
 
 
@@ -33,7 +33,10 @@ struct mjResource_ {
 };
 typedef struct mjResource_ mjResource;
 
-// callback for opening a resource, returns zero on failure
+// callback for opening a resource, returns zero on failure.
+// Note: If opening fails, the close callback will not be called. Therefore, the
+// open callback is responsible for cleaning up any allocated memory before
+// returning 0.
 typedef int (*mjfOpenResource)(mjResource* resource);
 
 // callback for reading a resource

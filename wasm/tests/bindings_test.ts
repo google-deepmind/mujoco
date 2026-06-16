@@ -514,7 +514,7 @@ describe('MuJoCo WASM Bindings', () => {
 
   it('should compute finite-differenced transition matrices', () => {
     const eps = 1e-6;
-    const flg_centered = 0;
+    const flg_centered = false;
     const dim = 2 * model!.nv + model!.na;
     const A = new mujoco.DoubleBuffer(dim * dim);
     const B = new mujoco.DoubleBuffer(dim * model!.nu);
@@ -1290,7 +1290,7 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_inverse_fd_none
   it('should compute inverse dynamics derivatives with null outputs', () => {
     const eps = 1e-6;
-    const flg_centered = 0;
+    const flg_centered = false;
     expect(
         () => mujoco.mjd_inverseFD(
             model!, data!, eps, flg_centered, null, null, null, null, null,
@@ -1301,7 +1301,7 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_inverse_fd
   it('should compute inverse dynamics derivatives', () => {
     const eps = 1e-6;
-    const flg_centered = 0;
+    const flg_centered = false;
 
     const nv = model!.nv;
     const nsensordata = model!.nsensordata;
@@ -1427,7 +1427,7 @@ describe('MuJoCo WASM Bindings', () => {
         expect(band.GetView()[index]).toEqual(i + 1);
       }
       const dense2 = new mujoco.DoubleBuffer(nTotal * nTotal);
-      const flgSym = 1;
+      const flgSym = true;
       mujoco.mju_band2Dense(
           dense2, band.GetView(), nTotal, nBand, nDense, flgSym);
       expectArraysEqual(new Float64Array(dense), dense2.GetView());

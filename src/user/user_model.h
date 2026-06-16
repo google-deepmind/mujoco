@@ -30,7 +30,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjspec.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include "user/user_objects.h"
 
 typedef std::map<std::string, int, std::less<> > mjKeyMap;
@@ -198,6 +198,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCModel& operator-=(const mjCDef& subtree);    // remove default tree from this model
 
   mjSpec spec;
+  double timer[mjNCTIMER] = {0};                  // compiler timers
 
   mjModel* Compile(const mjVFS* vfs = nullptr, mjModel** m = nullptr);  // construct mjModel
   bool CopyBack(const mjModel*);                 // DECOMPILER: copy numeric back

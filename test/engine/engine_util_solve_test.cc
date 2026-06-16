@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <string>
 #include <vector>
@@ -92,8 +93,8 @@ mjtNum objective(const mjtNum* x, const mjtNum* H, const mjtNum* g, int n) {
 // utility: test if res is the minimum of a given box-QP problem
 bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
                  const mjtNum* lower, const mjtNum* upper) {
-  constexpr mjtNum eps = MjTol(1e-4, 5e-2);  // epsilon used for nudging
-  constexpr mjtNum threshold = MjTol(0, -2e-3);  // comparison threshold
+  const mjtNum eps = MjTol(1e-4, 5e-2);  // epsilon used for nudging
+  const mjtNum threshold = MjTol(0, -2e-3);  // comparison threshold
   bool is_minimum = true;
   mjtNum* res_nudge = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
 
@@ -226,6 +227,79 @@ TEST_F(BoxQPTest, AsymmetricUpperIgnored) {
 
   EXPECT_MJTNUM_EQ(res[0], -g[0]/H[0]);
   EXPECT_MJTNUM_EQ(res[1], lower[1]);
+}
+
+// verify mju_boxQP reads only the lower triangle of H by poisoning the upper
+// triangle with NaN and comparing to a clean symmetric solve
+TEST_F(BoxQPTest, UpperTrianglePoisoned) {
+  int n = 30;
+  const mjtNum nan = std::numeric_limits<mjtNum>::quiet_NaN();
+
+  // allocate on heap
+  mjtNum *H, *g, *lower, *upper;  // inputs
+  mjtNum *res, *R;                // outputs
+  int* index;                     // outputs
+  mju_boxQPmalloc(&res, &R, &index, &H, &g, n, &lower, &upper);
+
+  struct Cleanup {
+    mjtNum *res, *R, *H, *g, *lower, *upper;
+    int* index;
+    ~Cleanup() {
+      mju_free(res);
+      mju_free(R);
+      mju_free(index);
+      mju_free(H);
+      mju_free(g);
+      mju_free(lower);
+      mju_free(upper);
+    }
+  } cleanup{res, R, H, g, lower, upper, index};
+
+  // generate a symmetric SPD Hessian and bounded QP problem
+  randomBoxQP(n, H, g, lower, upper, /*seed=*/1);
+
+  int maxiter = 100;
+  mjtNum mingrad = MjTol(1E-16, 1E-5);
+  mjtNum backtrack = 0.5;
+  mjtNum minstep = MjTol(1E-22, 1E-10);
+  mjtNum armijo = 0.1;
+
+  // solve with symmetric H to get the reference result
+  mju_zero(res, n);
+  int nfree_ref = mju_boxQPoption(res, R, index, H, g, n, lower, upper,
+                                  maxiter, mingrad, backtrack, minstep,
+                                  armijo, nullptr, 0);
+  ASSERT_GT(nfree_ref, -1);
+
+  // save reference
+  std::vector<mjtNum> res_ref(res, res + n);
+  std::vector<int> index_ref(index, index + n);
+  std::vector<mjtNum> R_ref(R, R + nfree_ref * nfree_ref);
+
+  // poison the strict upper triangle of H with NaN
+  for (int i=0; i < n; i++) {
+    for (int j=i+1; j < n; j++) {
+      H[n*i+j] = nan;
+    }
+  }
+
+  // solve again; result must match because only lower triangle should be read
+  mju_zero(res, n);
+  int nfree_poisoned = mju_boxQPoption(res, R, index, H, g, n, lower, upper,
+                                       maxiter, mingrad, backtrack, minstep,
+                                       armijo, nullptr, 0);
+
+  EXPECT_EQ(nfree_poisoned, nfree_ref);
+  for (int i=0; i < n; i++) {
+    EXPECT_EQ(res[i], res_ref[i]) << "mismatch at index " << i;
+  }
+  for (int i=0; i < nfree_ref; i++) {
+    EXPECT_EQ(index[i], index_ref[i]) << "index mismatch at " << i;
+    for (int j=0; j <= i; j++) {
+      int k = i * nfree_ref + j;
+      EXPECT_EQ(R[k], R_ref[k]) << "R mismatch at row " << i << ", col " << j;
+    }
+  }
 }
 
 // test mju_boxQP on a single random bounded QP

@@ -17,7 +17,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 
 
 #define mjNGROUP        6         // number of geom, site, joint, skin groups with visflags

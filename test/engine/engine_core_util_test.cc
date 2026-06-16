@@ -88,6 +88,55 @@ TEST_F(FlexGatherStateTest, mju_flexGatherState_Grid) {
   mj_deleteModel(model);
 }
 
+TEST_F(FlexGatherStateTest, mju_flexGatherState_ShellMode) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="flex0" type="grid" count="3 3 3" spacing=".1 .1 .1"
+                dim="3" mass="1" radius="0.01" dof="trilinear" cellcount="2 2 2">
+        <elasticity young="5e4" poisson="0.2" elastic2d="stretch" thickness="0.02"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  ASSERT_EQ(model->nflex, 1);
+  int f = 0;
+  model->flex_interp[f] = -1;
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int nodenum = model->flex_nodenum[f];
+  int nstart = model->flex_nodeadr[f];
+
+  // Move boundary nodes, keep interior node stuck (it is pinned)
+  mjtNum shift[3] = {0.1, 0.2, 0.3};
+  for (int i = 0; i < nodenum; i++) {
+    if (i == 13) continue; // Skip center node
+    int b = model->flex_nodebodyid[nstart + i];
+    data->xpos[3*b + 0] += shift[0];
+    data->xpos[3*b + 1] += shift[1];
+    data->xpos[3*b + 2] += shift[2];
+  }
+
+  std::vector<mjtNum> xpos(3 * nodenum);
+  mju_flexGatherState(model, data, f, xpos.data(), NULL);
+
+  // Verify that gathered xpos for center node (13) is the TFI reconstructed position
+  EXPECT_NEAR(xpos[3*13 + 0], shift[0], 1e-5);
+  EXPECT_NEAR(xpos[3*13 + 1], shift[1], 1e-5);
+  EXPECT_NEAR(xpos[3*13 + 2], shift[2], 1e-5);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 
 using AngMomMatTest = MujocoTest;
 
@@ -176,7 +225,7 @@ TEST_F(AngMomMatTest, CompareAngMomMats) {
   mj_angmomMat(model, data, angmom_mat, bodyid);
 
   // compute the angular momentum matrix using finite differences
-  static constexpr mjtNum eps = MjTol(1e-6, 1e-3);
+  static const mjtNum eps = MjTol(1e-6, 1e-3);
   for (int i = 0; i < nv; i++) {
     // reset vel, forward nudge i-th dof, get angmom
     mju_copy(data->qvel, model->key_qvel, model->nv);
@@ -505,7 +554,7 @@ TEST_F(JacobianTest, JacDot) {
     mj_jacDot(model, data, jacp_dot.data(), jacr_dot.data(), point, bodyid);
 
     // jac_h: jacobian after integrating qpos with a timestep of h
-    constexpr mjtNum h = MjTol(1e-7, 5e-4);
+    const mjtNum h = MjTol(1e-7, 5e-4);
     mj_integratePos(model, data->qpos, data->qvel, h);
     mj_kinematics(model, data);
     mj_comPos(model, data);

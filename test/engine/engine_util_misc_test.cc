@@ -67,8 +67,8 @@ TEST_F(UtilMiscTest, Sigmoid) {
   EXPECT_EQ(mju_sigmoid(2),   1);
 
   // epsilon for finite-differencing
-  constexpr mjtNum dx = MjTol(1e-7, 1e-3);
-  constexpr mjtNum fd_tol = MjTol(1e-7, 1e-3);
+  const mjtNum dx = MjTol(1e-7, 1e-3);
+  const mjtNum fd_tol = MjTol(1e-7, 1e-3);
 
   // derivative at 0
   mjtNum dy_dx_0 = (mju_sigmoid(0 + dx) - mju_sigmoid(0)) / dx;
@@ -1547,6 +1547,168 @@ TEST_F(FaceStateTest, RotationConsistencyWith3D) {
                  quat_3d[2]*quat_2d[2] + quat_3d[3]*quat_2d[3];
     EXPECT_NEAR(mju_abs(dot), 1.0, 1e-5)
         << "face " << fe << ": 2D rotation differs from 3D cell rotation";
+  }
+}
+
+// ------------------------------ Shell TFI Interpolation ----------------------
+
+using ShellTFITest = MujocoTest;
+
+// helper: set up a regular nx*ny*nz grid with positions at grid indices
+static void MakeRegularGrid(mjtNum* nodexpos, int nx, int ny, int nz) {
+  for (int i = 0; i < nx; i++) {
+    for (int j = 0; j < ny; j++) {
+      for (int k = 0; k < nz; k++) {
+        int idx = i*ny*nz + j*nz + k;
+        nodexpos[3*idx+0] = (mjtNum)i;
+        nodexpos[3*idx+1] = (mjtNum)j;
+        nodexpos[3*idx+2] = (mjtNum)k;
+      }
+    }
+  }
+}
+
+TEST_F(ShellTFITest, IdentityGrid) {
+  // 3x3x3 grid: 1 interior node at (1,1,1)
+  constexpr int nx = 3, ny = 3, nz = 3;
+  mjtNum nodexpos[3*nx*ny*nz];
+  MakeRegularGrid(nodexpos, nx, ny, nz);
+
+  // save expected interior position
+  mjtNum expected[3] = {1.0, 1.0, 1.0};
+
+  // run TFI
+  mju_shellTrackInterior(nodexpos, nx, ny, nz);
+
+  // interior node at (1,1,1) should match
+  int idx = 1*ny*nz + 1*nz + 1;
+  EXPECT_NEAR(nodexpos[3*idx+0], expected[0], MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(nodexpos[3*idx+1], expected[1], MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(nodexpos[3*idx+2], expected[2], MjTol(1e-12, 1e-5));
+}
+
+TEST_F(ShellTFITest, UniformScaling) {
+  // 3x3x3: scale all boundary nodes by 2x, interior should follow
+  constexpr int nx = 3, ny = 3, nz = 3;
+  mjtNum nodexpos[3*nx*ny*nz];
+  MakeRegularGrid(nodexpos, nx, ny, nz);
+
+  // scale all nodes
+  for (int i = 0; i < 3*nx*ny*nz; i++) {
+    nodexpos[i] *= 2.0;
+  }
+
+  // run TFI — interior should be reconstructed to 2*original
+  mju_shellTrackInterior(nodexpos, nx, ny, nz);
+
+  int idx = 1*ny*nz + 1*nz + 1;
+  EXPECT_NEAR(nodexpos[3*idx+0], 2.0, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(nodexpos[3*idx+1], 2.0, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(nodexpos[3*idx+2], 2.0, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(ShellTFITest, AffineDeformation) {
+  // 4x4x4 grid with 8 interior nodes. Apply affine transform to boundary,
+  // then verify TFI reproduces the same affine transform on interior nodes.
+  constexpr int nx = 4, ny = 4, nz = 4;
+  mjtNum nodexpos[3*nx*ny*nz];
+  MakeRegularGrid(nodexpos, nx, ny, nz);
+
+  // affine: F(x,y,z) = A*[x,y,z]^T + b
+  // A = [[2, 0.5, 0], [0.3, 1.5, 0], [0, 0, 1]], b = [10, 20, 30]
+  auto affine = [](mjtNum x, mjtNum y, mjtNum z, mjtNum out[3]) {
+    out[0] = 2.0*x + 0.5*y + 10.0;
+    out[1] = 0.3*x + 1.5*y + 20.0;
+    out[2] = z + 30.0;
+  };
+
+  // apply affine to all nodes
+  for (int i = 0; i < nx; i++) {
+    for (int j = 0; j < ny; j++) {
+      for (int k = 0; k < nz; k++) {
+        int idx = i*ny*nz + j*nz + k;
+        affine((mjtNum)i, (mjtNum)j, (mjtNum)k, nodexpos + 3*idx);
+      }
+    }
+  }
+
+  // corrupt interior nodes to verify TFI actually reconstructs them
+  for (int i = 1; i < nx-1; i++) {
+    for (int j = 1; j < ny-1; j++) {
+      for (int k = 1; k < nz-1; k++) {
+        int idx = i*ny*nz + j*nz + k;
+        nodexpos[3*idx+0] = -999;
+        nodexpos[3*idx+1] = -999;
+        nodexpos[3*idx+2] = -999;
+      }
+    }
+  }
+
+  // run TFI
+  mju_shellTrackInterior(nodexpos, nx, ny, nz);
+
+  // check all interior nodes match affine
+  for (int i = 1; i < nx-1; i++) {
+    for (int j = 1; j < ny-1; j++) {
+      for (int k = 1; k < nz-1; k++) {
+        int idx = i*ny*nz + j*nz + k;
+        mjtNum expected[3];
+        affine((mjtNum)i, (mjtNum)j, (mjtNum)k, expected);
+        EXPECT_NEAR(nodexpos[3*idx+0], expected[0], MjTol(1e-12, 1e-4))
+            << "i=" << i << " j=" << j << " k=" << k;
+        EXPECT_NEAR(nodexpos[3*idx+1], expected[1], MjTol(1e-12, 1e-4))
+            << "i=" << i << " j=" << j << " k=" << k;
+        EXPECT_NEAR(nodexpos[3*idx+2], expected[2], MjTol(1e-12, 1e-4))
+            << "i=" << i << " j=" << j << " k=" << k;
+      }
+    }
+  }
+}
+
+TEST_F(ShellTFITest, BoundaryUnmodified) {
+  // verify that boundary nodes are not modified by TFI
+  constexpr int nx = 4, ny = 4, nz = 4;
+  mjtNum nodexpos[3*nx*ny*nz];
+  MakeRegularGrid(nodexpos, nx, ny, nz);
+
+  // save boundary node values
+  mjtNum saved[3*nx*ny*nz];
+  mju_copy(saved, nodexpos, 3*nx*ny*nz);
+
+  mju_shellTrackInterior(nodexpos, nx, ny, nz);
+
+  // check all boundary nodes unchanged
+  for (int i = 0; i < nx; i++) {
+    for (int j = 0; j < ny; j++) {
+      for (int k = 0; k < nz; k++) {
+        bool is_boundary = (i == 0 || i == nx-1 ||
+                            j == 0 || j == ny-1 ||
+                            k == 0 || k == nz-1);
+        if (is_boundary) {
+          int idx = i*ny*nz + j*nz + k;
+          EXPECT_EQ(nodexpos[3*idx+0], saved[3*idx+0]);
+          EXPECT_EQ(nodexpos[3*idx+1], saved[3*idx+1]);
+          EXPECT_EQ(nodexpos[3*idx+2], saved[3*idx+2]);
+        }
+      }
+    }
+  }
+}
+
+TEST_F(ShellTFITest, NoInteriorSmallGrid) {
+  // 2x2x2 and 2x3x2: no interior nodes, TFI should be a no-op
+  constexpr int nx = 2, ny = 3, nz = 2;
+  mjtNum nodexpos[3*nx*ny*nz];
+  MakeRegularGrid(nodexpos, nx, ny, nz);
+
+  mjtNum saved[3*nx*ny*nz];
+  mju_copy(saved, nodexpos, 3*nx*ny*nz);
+
+  mju_shellTrackInterior(nodexpos, nx, ny, nz);
+
+  // all nodes unchanged
+  for (int i = 0; i < 3*nx*ny*nz; i++) {
+    EXPECT_EQ(nodexpos[i], saved[i]);
   }
 }
 

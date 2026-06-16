@@ -14,7 +14,7 @@ jobs:
   build-and-upload-artifacts:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Prepare Linux
       run: bash ./.github/workflows/build_steps.sh prepare_linux
@@ -32,7 +32,13 @@ jobs:
       run: |
         mkdir -p dist/bin
         cp -r build_wasm/bin/* dist/bin/
-        cp src/experimental/studio/index.html dist/index.html
+        cp src/experimental/studio/live.html dist/index.html
+        cp src/experimental/studio/live.css dist/live.css
+        cp src/experimental/studio/live.js dist/live.js
+        COMMIT_HASH=$(git rev-parse HEAD 2>/dev/null || true)
+        if [ -n "$COMMIT_HASH" ]; then
+          sed -i "s/__COMMIT_HASH_PLACEHOLDER__/$COMMIT_HASH/g" dist/index.html
+        fi
 
     - name: Upload GitHub Pages artifacts
       uses: actions/upload-pages-artifact@v3

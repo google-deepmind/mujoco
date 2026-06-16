@@ -24,8 +24,6 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 
-// uncomment to print sleep/wake events
-// #define MJ_DEBUG_SLEEP
 
 //-------------------------------- update ----------------------------------------------------------
 
@@ -187,8 +185,14 @@ int mj_sleepCycle(const int* tree_asleep, int ntree, int i) {
 
 //-------------------------------- wake ------------------------------------------------------------
 
+// helper for pluralizing in log messages
+static inline const char* plural(int n) {
+  return n > 1 ? "s" : "";
+}
+
+
 // wake tree i and its associated cycle, return number of woke trees
-int mj_wakeTree(int* tree_asleep, int ntree, int i, int wakeval) {
+int mj_wakeIsland(int* tree_asleep, int ntree, int i, int wakeval, const char* reason, mjtNum time) {
   int nwoke = 0;
 
   // i is invalid; SHOULD NOT OCCUR
@@ -207,6 +211,7 @@ int mj_wakeTree(int* tree_asleep, int ntree, int i, int wakeval) {
   // tree i asleep: wake up tree and its island cycle
   else {
     int current = i;
+    int woke_trees[1024];  // buffer for woke tree indices
     do {
       // get the index of the next tree in the cycle
       int next = tree_asleep[current];
@@ -217,8 +222,9 @@ int mj_wakeTree(int* tree_asleep, int ntree, int i, int wakeval) {
         return 0;
       }
 
-      // wake the current tree, increment count, advance to next
+      // wake the current tree, record index, increment and advance to next
       tree_asleep[current] = wakeval;
+      if (nwoke < 1024) woke_trees[nwoke] = current;
       nwoke++;
       current = next;
     } while (current != i && nwoke < ntree);
@@ -228,6 +234,21 @@ int mj_wakeTree(int* tree_asleep, int ntree, int i, int wakeval) {
       mjERROR("tree %d is not in a cycle", i);
       return 0;
     }
+
+#ifndef MJ_DISABLE_DEBUG_TRACING
+    if (reason && mju_isTopicEnabled(mjTOPIC_SLEEP)) {
+      int nprint = mjMIN(nwoke, 1024);
+      char buf[1024];
+      int pos = snprintf(buf, sizeof(buf), "t=%6.3g, woke due to %s tree%s ", time, reason, plural(nprint));
+      for (int j = 0; j < nprint; j++) {
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "%d%s", woke_trees[j],
+                        (j == nprint - 1) ? "" : " ");
+      }
+      mjLogMessage msg = {.level = mjLOG_DEBUG, .topic = mjTOPIC_SLEEP, .func = __func__};
+      mju_strncpy(msg.subject, buf, sizeof(msg.subject));
+      mju_message(&msg);
+    }
+#endif
   }
 
   return nwoke;
@@ -260,14 +281,7 @@ int mj_wake(const mjModel* m, mjData* d) {
 
     // if qpos mismatch or cannot sleep: wake up
     if (d->tree_awake[i] || !treeCanSleep(m, d, i, 0)) {
-      int woke = mj_wakeTree(d->tree_asleep, ntree, i, kAwake);
-      if (woke) {
-        nwoke += woke;
-
-        #ifdef MJ_DEBUG_SLEEP
-        printf("woke tree %d due to perturbation at t=%g\n", i, d->time);
-        #endif
-      }
+      nwoke += mj_wakeIsland(d->tree_asleep, ntree, i, kAwake, "perturbation", d->time);
     }
   }
 
@@ -275,7 +289,32 @@ int mj_wake(const mjModel* m, mjData* d) {
 }
 
 
-// wake sleeping trees that touch awake trees, return number of woke trees
+// get a representative body from a flex contact side
+int mj_flexBody(const mjModel* m, const mjContact* con, int side) {
+  int f = con->flex[side];
+
+  // flex vertex contact (non-interpolated)
+  if (con->vert[side] >= 0 && m->flex_interp[f] == 0) {
+    return m->flex_vertbodyid[m->flex_vertadr[f] + con->vert[side]];
+  }
+
+  // flex element contact
+  if (con->elem[side] >= 0) {
+    if (m->flex_interp[f] == 0) {
+      int dim = m->flex_dim[f];
+      const int* edata = m->flex_elem + m->flex_elemdataadr[f] + con->elem[side]*(dim+1);
+      return m->flex_vertbodyid[m->flex_vertadr[f] + edata[0]];
+    } else {
+      return m->flex_nodebodyid[m->flex_nodeadr[f]];
+    }
+  }
+
+  // flex vertex contact (interpolated): use first node
+  return m->flex_nodebodyid[m->flex_nodeadr[f]];
+}
+
+
+// wake sleeping trees with collision contact, return number of woke trees
 int mj_wakeCollision(const mjModel* m, mjData* d) {
   int ntree = m->ntree, ncon = d->ncon, nwoke = 0;
 
@@ -287,13 +326,10 @@ int mj_wakeCollision(const mjModel* m, mjData* d) {
   for (int i=0; i < ncon; i++) {
     const mjContact* con = d->contact + i;
 
-    // only geom-geom contacts are handled
-    if (con->geom[0] < 0 || con->geom[1] < 0) {
-      continue;
-    }
+    // resolve body on each side
+    int b1 = con->geom[0] >= 0 ? m->geom_bodyid[con->geom[0]] : mj_flexBody(m, con, 0);
+    int b2 = con->geom[1] >= 0 ? m->geom_bodyid[con->geom[1]] : mj_flexBody(m, con, 1);
 
-    int b1 = m->geom_bodyid[con->geom[0]];
-    int b2 = m->geom_bodyid[con->geom[1]];
     int tree1 = m->body_treeid[b1];
     int tree2 = m->body_treeid[b2];
 
@@ -318,11 +354,7 @@ int mj_wakeCollision(const mjModel* m, mjData* d) {
     // wake sleeping tree
     int sleeping_tree = awake1 ? tree2 : tree1;
     int wakeval = awake1 ? d->tree_asleep[tree1] : d->tree_asleep[tree2];
-    nwoke += mj_wakeTree(d->tree_asleep, ntree, sleeping_tree, wakeval);
-
-    #ifdef MJ_DEBUG_SLEEP
-    printf("woke tree %d due to contact at t=%g\n", sleeping_tree, d->time);
-    #endif
+    nwoke += mj_wakeIsland(d->tree_asleep, ntree, sleeping_tree, wakeval, "contact", d->time);
   }
 
   return nwoke;
@@ -350,11 +382,8 @@ int mj_wakeTendon(const mjModel* m, mjData* d) {
     if (awake1 != awake2) {
       int sleeping_tree = awake1 ? tree2 : tree1;
       int wakeval = awake1 ? d->tree_asleep[tree1] : d->tree_asleep[tree2];
-      nwoke += mj_wakeTree(d->tree_asleep, m->ntree, sleeping_tree, wakeval);
-
-      #ifdef MJ_DEBUG_SLEEP
-      printf("woke tree %d due to tendon constraint at t=%g\n", sleeping_tree, d->time);
-      #endif
+      nwoke += mj_wakeIsland(d->tree_asleep, m->ntree, sleeping_tree, wakeval,
+                             "tendon constraint", d->time);
     }
   }
 
@@ -391,17 +420,57 @@ int mj_wakeEquality(const mjModel* m, mjData* d) {
         tree2 = m->body_treeid[m->site_bodyid[id2]];
       }
       break;
+
     case mjEQ_JOINT:
       tree1 = id1 >= 0 ? m->body_treeid[m->jnt_bodyid[id1]] : -1;
       tree2 = id2 >= 0 ? m->body_treeid[m->jnt_bodyid[id2]] : -1;
       break;
+
     case mjEQ_TENDON:
       mjERROR("tendon equality does not yet support sleeping");
       continue;
+
     case mjEQ_FLEX:
     case mjEQ_FLEXVERT:
-      mjERROR("flex equality does not yet support sleeping");
+    case mjEQ_FLEXSTRAIN: {
+      int f = id1;
+      int num, adr;
+      const int* bodyid;
+      if (m->flex_interp[f]) {
+        num = m->flex_nodenum[f];
+        adr = m->flex_nodeadr[f];
+        bodyid = m->flex_nodebodyid;
+      } else {
+        num = m->flex_vertnum[f];
+        adr = m->flex_vertadr[f];
+        bodyid = m->flex_vertbodyid;
+      }
+
+      // find the first awake tree, if any
+      int awake_tree = -1;
+      for (int j = 0; j < num; j++) {
+        int treeid = m->body_treeid[bodyid[adr+j]];
+        if (treeid >= 0 && d->tree_awake[treeid]) {
+          awake_tree = treeid;
+          break;
+        }
+      }
+
+      // wake sleeping island: find first sleeping tree, wakeTree wakes them all
+      if (awake_tree >= 0) {
+        int wakeval = d->tree_asleep[awake_tree];
+        for (int j = 0; j < num; j++) {
+          int treeid = m->body_treeid[bodyid[adr+j]];
+          if (treeid >= 0 && !d->tree_awake[treeid]) {
+            nwoke += mj_wakeIsland(d->tree_asleep, m->ntree, treeid, wakeval,
+                                   "flex equality", d->time);
+            break;
+          }
+        }
+      }
       continue;
+    }
+
     default:
       continue;
     }
@@ -430,12 +499,8 @@ int mj_wakeEquality(const mjModel* m, mjData* d) {
       int cycle1 = mj_sleepCycle(d->tree_asleep, m->ntree, tree1);
       int cycle2 = mj_sleepCycle(d->tree_asleep, m->ntree, tree2);
       if (cycle1 != cycle2) {
-        int nwoke1 = mj_wakeTree(d->tree_asleep, m->ntree, tree1, kAwake);
-        int nwoke2 = mj_wakeTree(d->tree_asleep, m->ntree, tree2, kAwake);
-
-        #ifdef MJ_DEBUG_SLEEP
-        printf("woke trees %d, %d due to equality %d at t=%g\n", tree1, tree2, i, d->time);
-        #endif
+        int nwoke1 = mj_wakeIsland(d->tree_asleep, m->ntree, tree1, kAwake, "equality", d->time);
+        int nwoke2 = mj_wakeIsland(d->tree_asleep, m->ntree, tree2, kAwake, "equality", d->time);
 
         nwoke += nwoke1 + nwoke2;
       }
@@ -444,11 +509,7 @@ int mj_wakeEquality(const mjModel* m, mjData* d) {
 
     // one is asleep and one is awake, wake the sleeping tree
     int sleeping_tree = s1 == mjS_ASLEEP ? tree1 : tree2;
-    nwoke += mj_wakeTree(d->tree_asleep, m->ntree, sleeping_tree, kAwake);
-
-    #ifdef MJ_DEBUG_SLEEP
-    printf("woke tree %d due to equality %d at t=%g\n", sleeping_tree, i, d->time);
-    #endif
+    nwoke += mj_wakeIsland(d->tree_asleep, m->ntree, sleeping_tree, kAwake, "equality", d->time);
   }
 
   return nwoke;
@@ -458,7 +519,7 @@ int mj_wakeEquality(const mjModel* m, mjData* d) {
 //-------------------------------- sleep -----------------------------------------------------------
 
 // put n trees to sleep (create cycle), set their velocity and acceleration to zero
-static inline void sleepTrees(const mjModel* m, mjData* d, const int* tree, int n) {
+static inline void mj_sleepTrees(const mjModel* m, mjData* d, const int* tree, int n) {
   for (int i=0; i < n; i++) {
     // create cycle
     int current = tree[i];
@@ -481,17 +542,18 @@ static inline void sleepTrees(const mjModel* m, mjData* d, const int* tree, int 
     mju_zero(d->qacc+adr, num);
   }
 
-  #ifdef MJ_DEBUG_SLEEP
-  if (n == 1) {
-    printf("tree %d put to sleep at t=%g\n", tree[0], d->time);
-  } else if (n > 1) {
-    printf("trees ");
+#ifndef MJ_DISABLE_DEBUG_TRACING
+  if (mju_isTopicEnabled(mjTOPIC_SLEEP)) {
+    char buf[1024];
+    int pos = snprintf(buf, sizeof(buf), "t=%6.2g, slept tree%s ", d->time, plural(n));
     for (int i = 0; i < n; i++) {
-      printf("%d%s", tree[i], (i == n - 1) ? "" : ", ");
+      pos += snprintf(buf + pos, sizeof(buf) - pos, "%d%s", tree[i], (i == n - 1) ? "" : " ");
     }
-    printf(" put to sleep at t=%g\n", d->time);
+    mjLogMessage msg = {.level = mjLOG_DEBUG, .topic = mjTOPIC_SLEEP, .func = __func__};
+    mju_strncpy(msg.subject, buf, sizeof(msg.subject));
+    mju_message(&msg);
   }
-  #endif
+#endif
 }
 
 
@@ -547,7 +609,7 @@ int mj_sleep(const mjModel* m, mjData* d) {
     if (can_sleep) {
       const int* tree = d->map_itree2tree + start;
       int n = d->island_ntree[i];
-      sleepTrees(m, d, tree, n);
+      mj_sleepTrees(m, d, tree, n);
       nslept += n;
     }
   }
@@ -557,7 +619,7 @@ int mj_sleep(const mjModel* m, mjData* d) {
   for (int j=start; j < ntree; j++) {
     int i = nisland ? d->map_itree2tree[j] : j;
     if (d->tree_asleep[i] == -1) {
-      sleepTrees(m, d, &i, 1);
+      mj_sleepTrees(m, d, &i, 1);
       nslept++;
     }
   }
@@ -643,6 +705,7 @@ static mjtSleepState mj_equalitySleepState(const mjModel* m, const mjData* d, in
       break;
     case mjEQ_FLEX:
     case mjEQ_FLEXVERT:
+    case mjEQ_FLEXSTRAIN:
       objtype = mjOBJ_FLEX;
       break;
     default:
@@ -751,9 +814,27 @@ mjtSleepState mj_sleepState(const mjModel* m, const mjData* d, mjtObj type, int 
   case mjOBJ_SENSOR:
     return mj_sensorSleepState(m, d, i);
 
-  // always awake
-  case mjOBJ_FLEX:
-    return mjS_AWAKE;
+  case mjOBJ_FLEX: {
+    // all dynamic bodies share sleep state: find and check the first one
+    int num, adr;
+    const int* bodyid;
+    if (m->flex_interp[i]) {
+      num = m->flex_nodenum[i];
+      adr = m->flex_nodeadr[i];
+      bodyid = m->flex_nodebodyid;
+    } else {
+      num = m->flex_vertnum[i];
+      adr = m->flex_vertadr[i];
+      bodyid = m->flex_vertbodyid;
+    }
+    for (int j = 0; j < num; j++) {
+      int b = bodyid[adr+j];
+      if (m->body_treeid[b] >= 0) {
+        return (mjtSleepState) d->body_awake[b];
+      }
+    }
+    return mjS_STATIC;
+  }
 
   // undefined sleep state, return AWAKE
   case mjOBJ_UNKNOWN:
@@ -770,8 +851,3 @@ mjtSleepState mj_sleepState(const mjModel* m, const mjData* d, mjtObj type, int 
     return mjS_AWAKE;
   }
 }
-
-
-#ifdef MJ_DEBUG_SLEEP
-  #undef MJ_DEBUG_SLEEP
-#endif

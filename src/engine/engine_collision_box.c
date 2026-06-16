@@ -20,24 +20,18 @@
 #include "engine/engine_util_misc.h"
 
 // hard-clamp vector to range [-limit(i), +limit(i)]
-static void mju_clampVec(mjtNum* vec, const mjtNum* limit, int n)
-{
-  int i;
-
-  // loop over active limits
-  for (i = 0; i < n; i++) {
+static void mju_clampVec(mjtNum* vec, const mjtNum* limit, int n) {
+  for (int i = 0; i < n; i++) {
+    // loop over active limits
     if (limit[i] > 0) {
-      if (vec[i] < -limit[i])
-        vec[i] = -limit[i];
-      else if (vec[i] > limit[i])
-        vec[i] = limit[i];
+      vec[i] = mju_clip(vec[i], -limit[i], limit[i]);
     }
   }
 }
 
 
 // raw sphere : box
-int mjraw_SphereBox(mjContact* con, mjtNum margin,
+int mjraw_SphereBox(mjPreContact* con, mjtNum margin,
                     const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
                     const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2) {
   int i, k;
@@ -74,29 +68,32 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
 
     mji_copy3(pos, center);
     mji_addToScl3(pos, nearest, (size1[0] - closest) / 2);
-    mji_mulMatVec3(con[0].frame, mat2, nearest);
+    mji_mulMatVec3(con[0].normal, mat2, nearest);
     dist = -closest;
   } else {
     mji_addToScl3(deepest, tmp, size1[0]);
     mju_zero3(pos);
     mji_addToScl3(pos, clamped, 0.5);
     mji_addToScl3(pos, deepest, 0.5);
-    mji_mulMatVec3(con[0].frame, mat2, tmp);
+    mji_mulMatVec3(con[0].normal, mat2, tmp);
   }
 
   mji_mulMatVec3(tmp, mat2, pos);
   mji_add3(con[0].pos, tmp, pos2);
   con[0].dist = dist - size1[0];
-  mju_zero3(con[0].frame + 3);
-
+  mji_zero3(con[0].tangent);
   return 1;
 }
 
 
 // sphere : box
-int mjc_SphereBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
-  mjGETINFO;
-
+int mjc_SphereBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin) {
+  const mjtNum* pos1  = d->geom_xpos + 3*g1;
+  const mjtNum* mat1  = d->geom_xmat + 9*g1;
+  const mjtNum* size1 = m->geom_size + 3*g1;
+  const mjtNum* pos2  = d->geom_xpos + 3*g2;
+  const mjtNum* mat2  = d->geom_xmat + 9*g2;
+  const mjtNum* size2 = m->geom_size + 3*g2;
   return mjraw_SphereBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
 
@@ -115,9 +112,10 @@ int mjc_SphereBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, m
 */
 
 // raw capsule : box
-int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
+int mjraw_CapsuleBox(mjPreContact* con, mjtNum margin,
                      const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
-                     const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2) {
+                     const mjtNum* pos2, const mjtNum* mat2,
+                     const mjtNum* size2) {
   mjtNum tmp1[3], tmp2[3], tmp3[3], halfaxis[3], axis[3], dif[3];
   mjtNum pos[3];          // position of capsule in box-local frame
 
@@ -148,7 +146,7 @@ int mjraw_CapsuleBox(mjContact* con, mjtNum margin,
   secondpos = -4;  // initialize to no 2nd contact (valid values are between -1 and 1)
 
   mji_sub3(tmp1, pos1, pos2);       // bring capsule to box-local frame (center's box is at (0,0,0))
-  mji_mulMatTVec3(pos, mat2, tmp1);  // and axis parralel to world
+  mji_mulMatTVec3(pos, mat2, tmp1);  // and axis parallel to world
 
   tmp1[0] = mat1[2];  // capsule's axis
   tmp1[1] = mat1[5];
@@ -591,21 +589,25 @@ skip:
 
 
 // capsule : box
-int mjc_CapsuleBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
-  mjGETINFO
+int mjc_CapsuleBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin) {
+  const mjtNum* pos1  = d->geom_xpos + 3*g1;
+  const mjtNum* pos2  = d->geom_xpos + 3*g2;
+  const mjtNum* mat1  = d->geom_xmat + 9*g1;
+  const mjtNum* mat2  = d->geom_xmat + 9*g2;
+  const mjtNum* size1 = m->geom_size + 3*g1;
+  const mjtNum* size2 = m->geom_size + 3*g2;
   return mjraw_CapsuleBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
 
 
 // internal box : box
 static inline
-int _boxbox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2, mjtNum margin)
-{
+int _boxbox(const mjModel* M, const mjData* D, mjPreContact* con, int g1, int g2, mjtNum margin) {
   const mjtNum* pos1 = D->geom_xpos + 3 * g1;
-  const mjtNum* mat1 = D->geom_xmat + 9 * g1;
-  const mjtNum* size1 = M->geom_size + 3 * g1;
   const mjtNum* pos2 = D->geom_xpos + 3 * g2;
+  const mjtNum* mat1 = D->geom_xmat + 9 * g1;
   const mjtNum* mat2 = D->geom_xmat + 9 * g2;
+  const mjtNum* size1 = M->geom_size + 3 * g1;
   const mjtNum* size2 = M->geom_size + 3 * g2;
 
   mjtNum pos12[3], pos21[3], rot[9], rott[9], rotabs[9], rottabs[9], tmp1[3], tmp2[3], plen1[3],
@@ -883,8 +885,10 @@ int _boxbox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2, m
           if (mju_abs(c2) > ss[1 - q])
             continue;
 
-          mji_copy3(points[n], lines[i]);
-          mji_addToScl3(points[n++], lines[i] + 3, c1);
+          if (n < mjMAXCONPAIR) {
+            mji_copy3(points[n], lines[i]);
+            mji_addToScl3(points[n++], lines[i] + 3, c1);
+          }
         }
       }
     }
@@ -911,10 +915,12 @@ int _boxbox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2, m
       if (u <= 0 || v <= 0 || u >= 1 || v >= 1)
         continue;
 
-      points[n][0] = llx;
-      points[n][1] = lly;
-      points[n][2] = (pts[0][2] + u * pts[1][2] + v * pts[2][2]);
-      n++;
+      if (n < mjMAXCONPAIR) {
+        points[n][0] = llx;
+        points[n][1] = lly;
+        points[n][2] = (pts[0][2] + u * pts[1][2] + v * pts[2][2]);
+        n++;
+      }
     }
   }
 
@@ -929,7 +935,9 @@ int _boxbox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2, m
       if (tmp1[1] <= -ly || tmp1[1] >= ly)
         continue;
 
-    mji_copy3(points[n++], tmp1);
+    if (n < mjMAXCONPAIR) {
+      mji_copy3(points[n++], tmp1);
+    }
   }
 
 
@@ -955,22 +963,23 @@ int _boxbox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2, m
   tmp2[1] = (q2 ? -1 : 1) * r[5];
   tmp2[2] = (q2 ? -1 : 1) * r[8];
 
-  mji_copy3(con[0].frame, tmp2);
-  mju_zero3(con[0].frame + 3);
+  mji_copy3(con[0].normal, tmp2);
+  mji_zero3(con[0].tangent);
 
 
 
 
-  for (i = 0; i < n; i++)
-  {
+  for (i = 0; i < n; i++) {
     con[i].dist = 2 * points[i][2];
     points[i][2] += hz;
 
     mji_mulMatVec3(tmp2, r, points[i]);
     mji_add3(con[i].pos, tmp2, p);
 
-    if (i)
-      mji_copy6(con[i].frame, con[0].frame);
+    if (i) {
+      mji_copy3(con[i].normal, con[0].normal);
+      mji_zero3(con[i].tangent);
+    }
   }
 
 
@@ -1315,8 +1324,8 @@ edgeedge:
 
   mji_mulMatVec3(tmp1, r, rnorm);
 
-  mji_scl3(con[0].frame, tmp1, in ? -1 : 1);
-  mju_zero3(con[0].frame + 3);
+  mji_scl3(con[0].normal, tmp1, in ? -1 : 1);
+  mji_zero3(con[0].tangent);
 
 
   for (i = 0; i < n; i++) {
@@ -1327,7 +1336,8 @@ edgeedge:
 
     mji_add3(con[i].pos, tmp2, pos1);
 
-    mji_copy6(con[i].frame, con[0].frame);
+    mji_copy3(con[i].normal, con[0].normal);
+    mji_zero3(con[i].tangent);
   }
 
   return n;
@@ -1338,13 +1348,13 @@ edgeedge:
 
 
 // box : box
-int mjc_BoxBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
-  int num = _boxbox(m, d, con, g1, g2, margin);
+int mjc_BoxBox(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin) {
+  mjPreContact tmp[mjMAXCONPAIR];
+  int num = _boxbox(m, d, tmp, g1, g2, margin);
 
-  // use dim field to mark: -1: bad, 0: good
-  for (int i=0; i < num; i++) {
-    con[i].dim = 0;
-  }
+  // -1: bad, 0: good
+  int dupe[mjMAXCONPAIR] = {0};
+
 
   // get box info
   const mjtNum* pos1 =  d->geom_xpos + 3 * g1;
@@ -1364,47 +1374,43 @@ int mjc_BoxBox(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtN
     static mjtNum kRemoveRatio = 1.01;
 
     // is the contact outside: 1, inside: -1, within the removal width: 0
-    int out1 = mju_outsideBox(con[i].pos, pos1, mat1, sz1, kRemoveRatio);
-    int out2 = mju_outsideBox(con[i].pos, pos2, mat2, sz2, kRemoveRatio);
+    int out1 = mju_outsideBox(tmp[i].pos, pos1, mat1, sz1, kRemoveRatio);
+    int out2 = mju_outsideBox(tmp[i].pos, pos2, mat2, sz2, kRemoveRatio);
 
     // mark as bad if outside one box and not inside the other box
     if ((out1 == 1 && out2 != -1) || (out2 == 1 && out1 != -1)) {
-      con[i].dim = -1;
+      dupe[i] = -1;
     }
   }
 
   // find duplicates
   for (int i=0; i < num-1; i++) {
-    if (con[i].dim == -1) {
+    if (dupe[i] == -1) {
       continue;  // already marked bad: skip
     }
     for (int j=i+1; j < num; j++) {
-      if (con[j].dim == -1) {
+      if (dupe[j] == -1) {
         continue;  // already marked bad: skip
       }
-      if (con[i].pos[0] == con[j].pos[0] &&
-          con[i].pos[1] == con[j].pos[1] &&
-          con[i].pos[2] == con[j].pos[2]) {
-        con[i].dim = -1;
+      if (tmp[i].pos[0] == tmp[j].pos[0] &&
+          tmp[i].pos[1] == tmp[j].pos[1] &&
+          tmp[i].pos[2] == tmp[j].pos[2]) {
+        dupe[i] = -1;
         break;
       }
     }
   }
 
   // consolidate good
-  int i = 0;
+  int ncon = 0;
   for (int j=0; j < num; j++) {
-    // good: maybe copy
-    if (con[j].dim == 0) {
-      // different: copy
-      if (i < j) {
-        con[i] = con[j];
+    if (dupe[j] == 0) {
+      con[ncon++] = tmp[j];
+      if (ncon >= 8) {
+        break;
       }
-
-      // advance either way
-      i++;
     }
   }
 
-  return i;
+  return ncon;
 }

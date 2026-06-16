@@ -26,6 +26,7 @@
 #include <absl/strings/str_format.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "test/compare_model.h"
 #include "test/fixture.h"
 
 namespace mujoco {

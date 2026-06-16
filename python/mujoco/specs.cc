@@ -55,9 +55,13 @@ using MjDouble3 = Eigen::Map<Eigen::Vector3d>;
 using MjDouble4 = Eigen::Map<Eigen::Vector4d>;
 using MjDouble5 = Eigen::Map<Eigen::Matrix<double, 5, 1>>;
 using MjDouble6 = Eigen::Map<Eigen::Matrix<double, 6, 1>>;
+using MjDouble9 = Eigen::Map<Eigen::Matrix<double, 9, 1>>;
 using MjDouble10 = Eigen::Map<Eigen::Matrix<double, 10, 1>>;
 using MjDouble11 = Eigen::Map<Eigen::Matrix<double, 11, 1>>;
 using MjDoubleVec = Eigen::Map<Eigen::VectorXd>;
+using MjNum2 = Eigen::Map<Eigen::Matrix<mjtNum, 2, 1>>;
+using MjNum3 = Eigen::Map<Eigen::Matrix<mjtNum, 3, 1>>;
+using MjNum5 = Eigen::Map<Eigen::Matrix<mjtNum, 5, 1>>;
 
 using MjIntRef2 = Eigen::Ref<const Eigen::Vector2i>;
 using MjIntRef3 = Eigen::Ref<const Eigen::Vector3i>;
@@ -69,9 +73,13 @@ using MjDoubleRef3 = Eigen::Ref<const Eigen::Vector3d>;
 using MjDoubleRef4 = Eigen::Ref<const Eigen::Vector4d>;
 using MjDoubleRef5 = Eigen::Ref<const Eigen::Matrix<double, 5, 1>>;
 using MjDoubleRef6 = Eigen::Ref<const Eigen::Matrix<double, 6, 1>>;
+using MjDoubleRef9 = Eigen::Ref<const Eigen::Matrix<double, 9, 1>>;
 using MjDoubleRef10 = Eigen::Ref<const Eigen::Matrix<double, 10, 1>>;
 using MjDoubleRef11 = Eigen::Ref<const Eigen::Matrix<double, 11, 1>>;
 using MjDoubleRefVec = Eigen::Ref<const Eigen::VectorXd>;
+using MjNumRef2 = Eigen::Ref<const Eigen::Matrix<mjtNum, 2, 1>>;
+using MjNumRef3 = Eigen::Ref<const Eigen::Matrix<mjtNum, 3, 1>>;
+using MjNumRef5 = Eigen::Ref<const Eigen::Matrix<mjtNum, 5, 1>>;
 
 template <typename LoadFunc>
 static raw::MjSpec* LoadSpecFileImpl(
@@ -259,6 +267,7 @@ PYBIND11_MODULE(_specs, m) {
   py::class_<raw::MjVisualHeadlight> mjVisualHeadlight(m, "MjVisualHeadlight");
   py::class_<raw::MjVisualRgba> mjVisualRgba(m, "MjVisualRgba");
   py::class_<raw::MjsCompiler> mjsCompiler(m, "MjsCompiler");
+  py::class_<raw::MjsAuthored> mjsAuthored(m, "MjsAuthored");
   DefineArray<char>(m, "MjCharVec");
   DefineArray<std::string>(m, "MjStringVec");
   DefineArray<std::byte>(m, "MjByteVec");
@@ -461,6 +470,12 @@ PYBIND11_MODULE(_specs, m) {
   mjSpec.def_property_readonly("_address", [](const MjSpec& self) {
     return reinterpret_cast<uintptr_t>(self.ptr);
   });
+  mjSpec.def_property_readonly(
+      "timer",
+      [](MjSpec& self) -> MjDouble9 {
+        return MjDouble9(const_cast<double*>(mjs_getTimer(self.ptr)));
+      },
+      py::return_value_policy::reference_internal);
   mjSpec.def_property(
       "copy_during_attach",
       [](MjSpec& self) {
@@ -833,6 +848,130 @@ PYBIND11_MODULE(_specs, m) {
         }
         return FindAllImpl(self, objtype, true);
       },
+      py::return_value_policy::reference_internal);
+  mjsBody.def(
+      "make_flex",
+      [](raw::MjsBody& self,
+         const std::string& name,
+         std::optional<std::string> type,
+         int dim,
+         std::optional<std::string> dof,
+         std::optional<std::vector<int>> count,
+         std::optional<std::vector<int>> cellcount,
+         std::optional<std::vector<double>> spacing,
+         std::optional<std::vector<double>> scale,
+         double radius,
+         double mass,
+         double inertiabox,
+         int equality,
+         int rigid,
+         int flatskin,
+         int elastic2d,
+         std::optional<std::vector<double>> pos,
+         std::optional<std::vector<double>> quat,
+         std::optional<std::vector<double>> origin,
+         std::optional<std::string> file,
+         MjVfs* vfs) -> raw::MjsFlex* {
+        const char* type_str = type.has_value() ? type->c_str() : nullptr;
+        const char* dof_str = dof.has_value() ? dof->c_str() : nullptr;
+        const char* file_str = file.has_value() ? file->c_str() : nullptr;
+        const mjVFS* vfs_ptr = vfs ? vfs->get() : nullptr;
+
+        int count_arr[3] = {10, 10, 10};
+        if (count.has_value()) {
+          if (count->size() != 3) {
+            throw pybind11::value_error("count must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) count_arr[i] = (*count)[i];
+        }
+        const int* count_ptr = count.has_value() ? count_arr : nullptr;
+
+        int cellcount_arr[3] = {-1, -1, -1};
+        if (cellcount.has_value()) {
+          if (cellcount->size() != 3) {
+            throw pybind11::value_error("cellcount must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) cellcount_arr[i] = (*cellcount)[i];
+        }
+        const int* cellcount_ptr =
+            cellcount.has_value() ? cellcount_arr : nullptr;
+
+        double spacing_arr[3] = {0.02, 0.02, 0.02};
+        if (spacing.has_value()) {
+          if (spacing->size() != 3) {
+            throw pybind11::value_error("spacing must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) spacing_arr[i] = (*spacing)[i];
+        }
+        const double* spacing_ptr = spacing.has_value() ? spacing_arr : nullptr;
+
+        double scale_arr[3] = {1, 1, 1};
+        if (scale.has_value()) {
+          if (scale->size() != 3) {
+            throw pybind11::value_error("scale must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) scale_arr[i] = (*scale)[i];
+        }
+        const double* scale_ptr = scale.has_value() ? scale_arr : nullptr;
+
+        double pos_arr[3] = {0, 0, 0};
+        if (pos.has_value()) {
+          if (pos->size() != 3) {
+            throw pybind11::value_error("pos must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) pos_arr[i] = (*pos)[i];
+        }
+        const double* pos_ptr = pos.has_value() ? pos_arr : nullptr;
+
+        double quat_arr[4] = {1, 0, 0, 0};
+        if (quat.has_value()) {
+          if (quat->size() != 4) {
+            throw pybind11::value_error("quat must have 4 elements");
+          }
+          for (int i = 0; i < 4; i++) quat_arr[i] = (*quat)[i];
+        }
+        const double* quat_ptr = quat.has_value() ? quat_arr : nullptr;
+
+        double origin_arr[3] = {0, 0, 0};
+        if (origin.has_value()) {
+          if (origin->size() != 3) {
+            throw pybind11::value_error("origin must have 3 elements");
+          }
+          for (int i = 0; i < 3; i++) origin_arr[i] = (*origin)[i];
+        }
+        const double* origin_ptr = origin.has_value() ? origin_arr : nullptr;
+
+        auto out = mjs_makeFlex(
+            &self, name.c_str(), type_str, dim, dof_str,
+            count_ptr, cellcount_ptr, spacing_ptr, scale_ptr,
+            radius, mass, inertiabox, equality, rigid, flatskin, elastic2d,
+            pos_ptr, quat_ptr, origin_ptr, file_str, vfs_ptr);
+        if (!out) {
+          raw::MjSpec* spec = mjs_getSpec(self.element);
+          throw pybind11::value_error(mjs_getError(spec));
+        }
+        return out;
+      },
+      py::arg("name"),
+      py::arg("type") = py::none(),
+      py::arg("dim") = 3,
+      py::arg("dof") = py::none(),
+      py::arg("count") = py::none(),
+      py::arg("cellcount") = py::none(),
+      py::arg("spacing") = py::none(),
+      py::arg("scale") = py::none(),
+      py::arg("radius") = 0.0,
+      py::arg("mass") = 1.0,
+      py::arg("inertiabox") = 0.005,
+      py::arg("equality") = 0,
+      py::arg("rigid") = 0,
+      py::arg("flatskin") = 0,
+      py::arg("elastic2d") = 0,
+      py::arg("pos") = py::none(),
+      py::arg("quat") = py::none(),
+      py::arg("origin") = py::none(),
+      py::arg("file") = py::none(),
+      py::arg("vfs") = py::none(),
       py::return_value_policy::reference_internal);
   mjsBody.def(
       "find_child",
@@ -1438,20 +1577,22 @@ PYBIND11_MODULE(_specs, m) {
       py::arg("diameter") = -1);
   mjsActuator.def(
       "set_to_muscle",
-      [](raw::MjsActuator* self, double timeconst[2], double tausmooth,
-         double range[2], double force, double scale, double lmin, double lmax,
-         double vmax, double fpmax, double fvmax) {
+      [](raw::MjsActuator* self, std::array<double, 2> timeconst,
+         double tausmooth, std::array<double, 2> range, double force,
+         double scale, double lmin, double lmax, double vmax, double fpmax,
+         double fvmax) {
         std::string err =
-            mjs_setToMuscle(self, timeconst, tausmooth, range, force, scale,
-                            lmin, lmax, vmax, fpmax, fvmax);
+            mjs_setToMuscle(self, timeconst.data(), tausmooth, range.data(),
+                            force, scale, lmin, lmax, vmax, fpmax, fvmax);
         if (!err.empty()) {
           throw pybind11::value_error(err);
         }
       },
-      py::arg("timeconst") = -1, py::arg("tausmooth"),
-      py::arg("range") = std::array<double, 2>{-1, -1}, py::arg("force") = -1,
-      py::arg("scale") = -1, py::arg("lmin") = -1, py::arg("lmax") = -1,
-      py::arg("vmax") = -1, py::arg("fpmax") = -1, py::arg("fvmax") = -1);
+      py::arg("timeconst") = std::array<double, 2>{-1, -1},
+      py::arg("tausmooth"), py::arg("range") = std::array<double, 2>{-1, -1},
+      py::arg("force") = -1, py::arg("scale") = -1, py::arg("lmin") = -1,
+      py::arg("lmax") = -1, py::arg("vmax") = -1, py::arg("fpmax") = -1,
+      py::arg("fvmax") = -1);
   mjsActuator.def(
       "set_to_adhesion",
       [](raw::MjsActuator* self, double gain) {

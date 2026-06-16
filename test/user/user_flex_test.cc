@@ -440,7 +440,7 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
   EXPECT_EQ(d2->nefc, 4*(d2->contact[0].dim-1)*2);
   EXPECT_EQ(d1->nJ, d2->nJ);
   for (int i = 0; i < d1->nefc; ++i) {
-    EXPECT_EQ(d1->efc_diagApprox[i], d2->efc_diagApprox[i]);
+    EXPECT_EQ(d1->efc_diagA[i], d2->efc_diagA[i]);
     EXPECT_EQ(d1->efc_D[i], d2->efc_D[i]);
   }
 
@@ -1397,6 +1397,18 @@ TEST_F(UserFlexTest, Vert0RotationInvariant) {
 
   mj_deleteModel(m1);
   mj_deleteModel(m2);
+}
+
+TEST_F(UserFlexTest, Load1DFlexFromOBJ) {
+  const std::string xml_path =
+      GetTestDataFilePath("user/testdata/flex_line_obj.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_EQ(m->nflexvert, 4);
+  EXPECT_EQ(m->nflexelem, 3);
+  EXPECT_EQ(m->flex_dim[0], 1);
+  mj_deleteModel(m);
 }
 
 }  // namespace

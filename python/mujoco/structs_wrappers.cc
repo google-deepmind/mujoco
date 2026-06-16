@@ -535,6 +535,26 @@ std::unique_ptr<MjModelWrapper> MjModelWrapper::Deserialize(
   return std::unique_ptr<MjModelWrapper>(new MjModelWrapper(model));
 }
 
+// ==================== MJPRECONTACT ==========================================
+#define X(var) var(InitPyArray(ptr_->var, owner_))
+MjPreContactWrapper::MjWrapper()
+    : WrapperBase(new raw::MjPreContact{}),
+      X(pos),
+      X(normal),
+      X(tangent) {}
+
+MjPreContactWrapper::MjWrapper(raw::MjPreContact* ptr, py::handle owner)
+    : WrapperBase(ptr, owner),
+      X(pos),
+      X(normal),
+      X(tangent) {}
+#undef X
+
+MjPreContactWrapper::MjWrapper(const MjPreContactWrapper& other)
+    : MjPreContactWrapper() {
+  *this->ptr_ = *other.ptr_;
+}
+
 // ==================== MJCONTACT ==============================================
 #define X(var) var(InitPyArray(ptr_->var, owner_))
 MjContactWrapper::MjWrapper()
@@ -812,6 +832,7 @@ void MjDataWrapper::Serialize(std::ostream& output) const {
   X(ne);
   X(nf);
   X(nJ);
+  X(nY);
   X(nA);
   X(nefc);
   X(nisland);
@@ -891,6 +912,7 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
   X(ne);
   X(nf);
   X(nJ);
+  X(nY);
   X(nA);
   X(nefc);
   X(nisland);
@@ -996,6 +1018,28 @@ MjWarningStatList::MjStructList(raw::MjWarningStat* ptr, int num,
 MjWarningStatList::MjStructList(MjWarningStatList& other, py::slice slice)
     : StructListBase(other, slice), X(int, lastinfo), X(int, number) {}
 #undef X
+
+// ==================== MJLOGCONFIG ============================================
+MjLogConfigWrapper::MjWrapper() : WrapperBase(new raw::MjLogConfig{}) {}
+
+MjLogConfigWrapper::MjWrapper(raw::MjLogConfig* ptr, py::handle owner)
+    : WrapperBase(ptr, owner) {}
+
+MjLogConfigWrapper::MjWrapper(const MjLogConfigWrapper& other)
+    : MjLogConfigWrapper() {
+  *this->ptr_ = *other.ptr_;
+}
+
+// ==================== MJLOGMESSAGE ===========================================
+MjLogMessageWrapper::MjWrapper() : WrapperBase(new raw::MjLogMessage{}) {}
+
+MjLogMessageWrapper::MjWrapper(raw::MjLogMessage* ptr, py::handle owner)
+    : WrapperBase(ptr, owner) {}
+
+MjLogMessageWrapper::MjWrapper(const MjLogMessageWrapper& other)
+    : MjLogMessageWrapper() {
+  *this->ptr_ = *other.ptr_;
+}
 
 // ==================== MJTIMERSTAT ============================================
 MjTimerStatWrapper::MjWrapper() : WrapperBase(new raw::MjTimerStat{}) {}

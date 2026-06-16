@@ -67,7 +67,8 @@ def _to_py_string(value, indent=0):
   next_indent_str = '  ' * (indent + 1)
   if isinstance(value, tuple):
     items = [_to_py_string(item, indent) for item in value]
-    return f'({', '.join(items)})'
+    joined_items = ', '.join(items)
+    return f'({joined_items})'
 
   if isinstance(value, type):
     if value.__module__ == 'builtins':
@@ -79,12 +80,14 @@ def _to_py_string(value, indent=0):
         f'\n{next_indent_str}{repr(k)}: {_to_py_string(v, indent + 1)}'
         for k, v in sorted(value.items(), key=lambda x: x[0])
     ]
-    return f'{{{','.join(items)}\n{indent_str}}}'
+    joined_items = ','.join(items)
+    return f'{{{joined_items}\n{indent_str}}}'
 
   if isinstance(value, set):
     items = sorted([_to_py_string(item, indent) for item in value])
     items = [f'\n{next_indent_str}{item}' for item in items]
-    return f'{{{",".join(items)}\n{indent_str}}}'
+    joined_items = ','.join(items)
+    return f'{{{joined_items}\n{indent_str}}}'
 
   return repr(value)
 
@@ -294,6 +297,21 @@ _FLATTEN_UNFLATTEN = """
     return cls(*children)
 """
 
+_NESTED_DATACLASS_MANUAL_METHODS = {
+    'TileSet': """
+  def __eq__(self, other) -> bool:
+    if self.__class__ is not other.__class__:
+      return NotImplemented
+    return self.size == other.size and np.array_equal(
+        np.asarray(self.adr), np.asarray(other.adr)
+    )
+
+  def __hash__(self) -> int:
+    adr = np.asarray(self.adr)
+    return hash((self.size, adr.dtype.str, adr.shape, adr.tobytes()))
+""",
+}
+
 
 def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
   new_class_body = _build_new_class_body_ast(
@@ -304,6 +322,7 @@ def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
   )
   cls_str = '\n'.join(['  ' + ast.unparse(node) for node in new_class_body])
   cls_str = cls_str.replace('jax.Array', 'np.ndarray')
+  manual_methods = _NESTED_DATACLASS_MANUAL_METHODS.get(cls.__name__, '')
   with target_fpath.open('a') as f:
     f.write(f'''
 @dataclasses.dataclass(frozen=True)
@@ -311,7 +330,7 @@ def write_nested_dataclass(target_fpath: epath.Path, cls: Any):
 class {cls.__name__}:
   """{cls.__doc__}"""
 {cls_str}
-{_FLATTEN_UNFLATTEN}
+{manual_methods}{_FLATTEN_UNFLATTEN}
 ''')
 
 

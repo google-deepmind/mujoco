@@ -292,7 +292,7 @@ void mjd_smooth_velFD(const mjModel* m, mjData* d, mjtNum eps) {
 //   single-letter shortcuts:
 //     inputs: q=qpos, v=qvel, a=act, u=ctrl
 //     outputs: y=next_state (concatenated next qpos, qvel, act), s=sensordata
-void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
+void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
                 mjtNum* DyDq, mjtNum* DyDv, mjtNum* DyDa, mjtNum* DyDu,
                 mjtNum* DsDq, mjtNum* DsDv, mjtNum* DsDa, mjtNum* DsDu) {
   if (m->nhistory) {
@@ -539,7 +539,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
 //      B: (2*nv+na x nu)
 //      C: (nsensordata x 2*nv+na)
 //      D: (nsensordata x nu)
-void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_centered,
+void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
                       mjtNum* A, mjtNum* B, mjtNum* C, mjtNum* D) {
   if (m->opt.integrator == mjINT_RK4) {
     mjERROR("RK4 integrator is not supported");
@@ -605,7 +605,7 @@ void mjd_transitionFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_cente
 //   notes:
 //     optionally compute mass matrix Jacobian DmDq
 //     flg_actuation specifies whether to subtract qfrc_actuator from qfrc_inverse
-void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtByte flg_actuation,
+void mjd_inverseFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_actuation,
                    mjtNum *DfDq, mjtNum *DfDv, mjtNum *DfDa,
                    mjtNum *DsDq, mjtNum *DsDv, mjtNum *DsDa,
                    mjtNum *DmDq) {

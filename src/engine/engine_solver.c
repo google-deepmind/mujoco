@@ -444,15 +444,10 @@ static void solPGS(const mjModel* m, mjData* d, int island,
     }
   }
 
-  // seed PCG32 RNG from simulation time
+  // seed PCG32 RNG with a fixed seed
   pcg32_state rng;
-  uint64_t seed = 0;
-  memcpy(&seed, &d->time, sizeof(d->time));
   rng.state = 0;
   rng.inc = 1;
-  rng.state = seed;
-  pcg32_next(&rng);
-  rng.state += seed;
   pcg32_next(&rng);
 
   // main iteration
@@ -882,12 +877,12 @@ typedef struct {
   mjtNum* qacc;
 
   // inertia
-  const int* M_rownnz;
-  const int* M_rowadr;
-  const int* M_colind;
-  const mjtNum* M;
-  const mjtNum* qLD;
-  const mjtNum* qLDiagInv;
+  int* M_rownnz;
+  int* M_rowadr;
+  int* M_colind;
+  mjtNum* M;
+  mjtNum* qLD;
+  mjtNum* qLDiagInv;
 
   // efc arrays
   const mjtNum* efc_D;
@@ -900,11 +895,11 @@ typedef struct {
   int* efc_state;
 
   // Jacobians
-  const int* J_rownnz;
-  const int* J_rowadr;
-  const int* J_rowsuper;
-  const int* J_colind;
-  const mjtNum* J;
+  int* J_rownnz;
+  int* J_rowadr;
+  int* J_rowsuper;
+  int* J_colind;
+  mjtNum* J;
   int* JT_rownnz;
   int* JT_rowadr;
   int* JT_rowsuper;
@@ -925,7 +920,8 @@ typedef struct {
   // CG arrays (PrimalAllocate, CG only)
   mjtNum* gradold;        // previous gradient                            (nv x 1)
   mjtNum* Mgradold;       // previous preconditioned gradient             (nv x 1)
-  mjtNum* Mgraddif;       // gradient difference                          (nv x 1)
+  mjtNum* graddif;        // grad - gradold                               (nv x 1)
+  mjtNum* Mgraddif;       // M\(grad - gradold)                           (nv x 1)
 
   // Newton arrays, known-size (PrimalAllocate)
   mjtNum* D;              // constraint inertia                           (nefc x 1)
@@ -1036,14 +1032,6 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
     ctx->qacc_smooth      = d->iacc_smooth       + idofadr;
     ctx->qacc             = d->iacc              + idofadr;
 
-    // inertia
-    ctx->M_rownnz         = d->iM_rownnz         + idofadr;
-    ctx->M_rowadr         = d->iM_rowadr         + idofadr;
-    ctx->M_colind         = d->iM_colind;
-    ctx->M                = d->iM;
-    ctx->qLD              = d->iLD;
-    ctx->qLDiagInv        = d->iLDiagInv         + idofadr;
-
     // efc arrays
     int iefcadr           = d->island_iefcadr[island];
     ctx->efc_D            = d->iefc_D            + iefcadr;
@@ -1054,32 +1042,44 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
     ctx->efc_type         = d->iefc_type         + iefcadr;
     ctx->efc_force        = d->iefc_force        + iefcadr;
     ctx->efc_state        = d->iefc_state        + iefcadr;
-
-    // Jacobians
-    if (!ctx->is_sparse) {
-      ctx->J              = d->iefc_J + d->nidof * iefcadr;
-    } else {
-      ctx->J_rownnz       = d->iefc_J_rownnz     + iefcadr;
-      ctx->J_rowadr       = d->iefc_J_rowadr     + iefcadr;
-      ctx->J_rowsuper     = d->iefc_J_rowsuper   + iefcadr;
-      ctx->J_colind       = d->iefc_J_colind;
-      ctx->J              = d->iefc_J;
-      ctx->nJ             = ctx->J_rowadr[ctx->nefc-1] + ctx->J_rownnz[ctx->nefc-1]
-                            - ctx->J_rowadr[0];
-    }
   }
 }
 
 
 // allocate fixed-size arrays in mjPrimalContext
 //  mj_{mark/free}Stack in calling function!
-static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
+static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, int flg_Newton) {
   // local sizes and flags
   int nv = ctx->nv;
   int nefc = ctx->nefc;
-  int nJ = ctx->is_sparse ? d->nJ : 0;
   int is_sparse = ctx->is_sparse;
   int is_elliptic = ctx->is_elliptic;
+  int nJ = is_sparse ? d->nJ : 0;
+
+  // compute island matrix sizes if needed
+  int nC = 0;
+  if (ctx->island >= 0) {
+    // count nC: number of nonzeros in M block of island (always sparse)
+    int island = ctx->island;
+    int idofadr = d->island_idofadr[island];
+    for (int i = 0; i < nv; i++) {
+      int dof = d->map_idof2dof[idofadr + i];
+      nC += m->M_rownnz[dof];
+    }
+
+    // count nJ: number of nonzeros in J block of island (sparse or dense)
+    if (is_sparse) {
+      nJ = 0;
+      int iefcadr = d->island_iefcadr[island];
+      for (int i = 0; i < nefc; i++) {
+        int efc = d->map_iefc2efc[iefcadr + i];
+        nJ += d->efc_J_rownnz[efc];
+      }
+    } else {
+      nJ = nefc * nv;
+    }
+    ctx->nJ = nJ;
+  }
 
   // compute mjtNum block size
   size_t nNum = 5*nefc + 5*nv;         // common arrays
@@ -1092,7 +1092,12 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
       if (is_elliptic) nNum += nv*nv;  // Lcone (dense)
     }
   } else {
-    nNum += 3*nv;                      // CG arrays
+    nNum += 4*nv;                      // CG arrays
+  }
+
+  // add island matrix sizes
+  if (ctx->island >= 0) {
+    nNum += 2 * nC + nv + nJ;          // iM, iLD, iLDiagInv, iefc_J
   }
 
   // compute int block size
@@ -1102,9 +1107,57 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
     if (flg_Newton) nInt += 8*nv;      // Newton sparse
   }
 
+  // add island matrix sizes
+  if (ctx->island >= 0) {
+    nInt += 2 * nv + nC;               // iM_{rownnz, rowadr, colind}
+    if (is_sparse) {
+      nInt += 3 * nefc + nJ;           // iefc_J_{rownnz, rowadr, rowsuper, colind}
+    }
+  }
+
   // allocate mjtNum and int blocks
   mjtNum* numblock = mjSTACKALLOC(d, nNum, mjtNum);
   int* intblock    = mjSTACKALLOC(d, nInt, int);
+
+  // populate island matrices if needed
+  if (ctx->island >= 0) {
+    int island = ctx->island;
+
+    int idofadr = d->island_idofadr[island];
+    int iefcadr = d->island_iefcadr[island];
+
+    ctx->M_rownnz = intblock; intblock += nv;
+    ctx->M_rowadr = intblock; intblock += nv;
+    ctx->M_colind = intblock; intblock += nC;
+
+    ctx->M = numblock; numblock += nC;
+    ctx->qLD = numblock; numblock += nC;
+    ctx->qLDiagInv = numblock; numblock += nv;
+
+    mju_blockSparse(ctx->qLD, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
+                    d->qLD, m->M_rownnz, m->M_rowadr, m->M_colind,
+                    nv, d->map_idof2dof + idofadr, d->map_dof2idof,
+                    d->island_idofadr[island], 0, ctx->M, d->M);
+    mju_gather(ctx->qLDiagInv, d->qLDiagInv, d->map_idof2dof + idofadr, nv);
+
+    ctx->J = numblock; numblock += nJ;
+    if (!is_sparse) {
+      mju_block(ctx->J, d->efc_J, m->nv, nv, nefc,
+                d->map_iefc2efc + iefcadr, d->map_idof2dof + idofadr);
+    } else {
+      ctx->J_rownnz = intblock; intblock += nefc;
+      ctx->J_rowadr = intblock; intblock += nefc;
+      ctx->J_rowsuper = intblock; intblock += nefc;
+      ctx->J_colind = intblock; intblock += nJ;
+
+      mju_blockSparse(ctx->J, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+                      d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                      nefc, d->map_iefc2efc + iefcadr, d->map_dof2idof,
+                      d->island_idofadr[island], 0, NULL, NULL);
+
+      mju_superSparse(nefc, ctx->J_rowsuper, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind);
+    }
+  }
 
   // carve mjtNum block
   ctx->Jaref  = numblock;  numblock += nefc;
@@ -1133,6 +1186,7 @@ static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
   } else {
     ctx->gradold  = numblock;  numblock += nv;
     ctx->Mgradold = numblock;  numblock += nv;
+    ctx->graddif  = numblock;  numblock += nv;
     ctx->Mgraddif = numblock;  numblock += nv;
   }
 
@@ -1315,7 +1369,145 @@ struct _mjPrimalPnt {
 typedef struct _mjPrimalPnt mjPrimalPnt;
 
 
-// evaluate linesearch cost, return first and second derivatives
+// Huber cost of a single friction constraint at a given point x
+static mjtNum frictionCost(mjtNum x, mjtNum f, mjtNum Rf, mjtNum D) {
+  // -bound < x < bound : quadratic
+  if (-Rf < x && x < Rf) return 0.5*D*x*x;
+
+  // x < -bound : linear negative
+  else if (x <= -Rf) return f*(-0.5*Rf - x);
+
+  // bound < x : linear positive
+  else return f*(-0.5*Rf + x);
+}
+
+
+// Huber cost difference of a single friction constraint: cost(x) - cost(start)
+static mjtNum frictionCostDif(mjtNum start, mjtNum x, mjtNum f, mjtNum Rf, mjtNum D) {
+  int state_start = (-Rf < start && start < Rf) ? 0 : (start <= -Rf ? -1 : 1);
+  int state_x = (-Rf < x && x < Rf) ? 0 : (x <= -Rf ? -1 : 1);
+
+  // both quadratic
+  if (state_start == 0 && state_x == 0) {
+    return 0.5*D*(x - start)*(x + start);
+  }
+
+  // both linear negative
+  if (state_start == -1 && state_x == -1) {
+    return f*(start - x);
+  }
+
+  // both linear positive
+  if (state_start == 1 && state_x == 1) {
+    return f*(x - start);
+  }
+
+  // otherwise different zones: compute absolute costs and subtract
+  return frictionCost(x, f, Rf, D) - frictionCost(start, f, Rf, D);
+}
+
+
+// compute cost of an elliptic cone at a given alpha
+static mjtNum ellipticCost(const mjtNum* quad, mjtNum alpha, mjtNum mu, mjtNum Dm) {
+  mjtNum U0 = quad[3], V0 = quad[4], UU = quad[5];
+  mjtNum UV = quad[6], VV = quad[7];
+  mjtNum N = U0 + alpha*V0;
+  mjtNum Tsqr = UU + alpha*(2*UV + alpha*VV);
+
+  // no tangential force : top or bottom zone
+  if (Tsqr <= 0) {
+    // bottom zone: quadratic cost
+    if (N < 0) return alpha*alpha*quad[2] + alpha*quad[1] + quad[0];
+
+    // top zone: nothing to do
+  }
+
+  // otherwise regular processing
+  else {
+    mjtNum T = mju_sqrt(Tsqr);
+    // N>=mu*T : top zone
+    if (N >= mu*T) {
+      // nothing to do
+    }
+
+    // mu*N+T<=0 : bottom zone
+    else if (mu*N+T <= 0) {
+      return alpha*alpha*quad[2] + alpha*quad[1] + quad[0];
+    }
+
+    // otherwise middle zone
+    else {
+      return 0.5*Dm*(N-mu*T)*(N-mu*T);
+    }
+  }
+
+  return 0;
+}
+
+
+// compute cost difference of an elliptic cone at a given alpha: cost(alpha) - cost(0)
+static mjtNum ellipticCostDif(const mjtNum* quad, mjtNum alpha, mjtNum mu, mjtNum Dm) {
+  mjtNum U0 = quad[3], V0 = quad[4], UU = quad[5];
+  mjtNum UV = quad[6], VV = quad[7];
+
+  // determine zone and cost at alpha=0
+  int zone0 = 0;
+  mjtNum T0 = 0;
+  if (UU <= 0) {
+    zone0 = (U0 < 0) ? 2 : 1;
+  } else {
+    T0 = mju_sqrt(UU);
+    if (U0 >= mu*T0) {
+      zone0 = 1;  // top zone
+    } else if (mu*U0 + T0 <= 0) {
+      zone0 = 2;  // bottom zone
+    } else {
+      zone0 = 3;  // middle zone
+    }
+  }
+
+  // determine zone and cost at alpha
+  mjtNum N = U0 + alpha*V0;
+  mjtNum Tsqr = UU + alpha*(2*UV + alpha*VV);
+  int zone_alpha = 0;
+  mjtNum T = 0;
+
+  if (Tsqr <= 0) {
+    zone_alpha = (N < 0) ? 2 : 1;  // bottom or top zone
+  } else {
+    T = mju_sqrt(Tsqr);
+    if (N >= mu*T) {
+      zone_alpha = 1;  // top zone
+    } else if (mu*N + T <= 0) {
+      zone_alpha = 2;  // bottom zone
+    } else {
+      zone_alpha = 3;  // middle zone
+    }
+  }
+
+  // both top zone
+  if (zone0 == 1 && zone_alpha == 1) {
+    return 0;
+  }
+
+  // both bottom zone
+  if (zone0 == 2 && zone_alpha == 2) {
+    return alpha*alpha*quad[2] + alpha*quad[1];
+  }
+
+  // both middle zone
+  if (zone0 == 3 && zone_alpha == 3) {
+    mjtNum diff_alpha = N - mu*T;
+    mjtNum diff0 = U0 - mu*T0;
+    return 0.5*Dm*(diff_alpha - diff0)*(diff_alpha + diff0);
+  }
+
+  // otherwise different zones: compute absolute costs and subtract
+  return ellipticCost(quad, alpha, mu, Dm) - ellipticCost(quad, 0, mu, Dm);
+}
+
+
+// evaluate shifted linesearch cost: cost(alpha) - cost(0), and derivatives
 static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
   int ne = ctx->ne, nf = ctx->nf, nefc = ctx->nefc;
 
@@ -1323,41 +1515,45 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
   mjtNum cost = 0, alpha = p->alpha;
   mjtNum deriv[2] = {0, 0};
 
-  // init quad with Gauss
-  mjtNum quadTotal[3];
-  mju_copy3(quadTotal, ctx->quadGauss);
+  // init quad with Gauss, shifted: drop quadGauss[0]
+  mjtNum quadTotal[3] = {0, ctx->quadGauss[1], ctx->quadGauss[2]};
 
   // process constraints
   for (int i=0; i < nefc; i++) {
-    // equality
+    // equality: shifted quad (skip quad[0])
     if (i < ne) {
-      mju_addTo3(quadTotal, ctx->quad+3*i);
+      quadTotal[1] += ctx->quad[3*i+1];
+      quadTotal[2] += ctx->quad[3*i+2];
       continue;
     }
 
-    // friction
+    // friction: compute cost(alpha) - cost(0) directly
     if (i < ne + nf) {
       // search point, friction loss, bound (Rf)
-      mjtNum start = ctx->Jaref[i], dir = ctx->Jv[i];
+      mjtNum start = ctx->Jaref[i];
+      mjtNum dir = ctx->Jv[i];
       mjtNum x = start + alpha*dir;
       mjtNum f = ctx->efc_frictionloss[i];
+      mjtNum D = ctx->efc_D[i];
       mjtNum Rf = ctx->efc_R[i]*f;
+
+      // cost delta
+      cost += frictionCostDif(start, x, f, Rf, D);
 
       // -bound < x < bound : quadratic
       if (-Rf < x && x < Rf) {
-        mju_addTo3(quadTotal, ctx->quad+3*i);
+        deriv[0] += D*x*dir;
+        deriv[1] += D*dir*dir;
       }
 
       // x < -bound : linear negative
       else if (x <= -Rf) {
-        mjtNum qf[3] = {f*(-0.5*Rf-start), -f*dir, 0};
-        mju_addTo3(quadTotal, qf);
+        deriv[0] += -f*dir;
       }
 
       // bound < x : linear positive
       else {
-        mjtNum qf[3] = {f*(-0.5*Rf+start), f*dir, 0};
-        mju_addTo3(quadTotal, qf);
+        deriv[0] += f*dir;
       }
       continue;
     }
@@ -1378,15 +1574,19 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
       mjtNum VV = quad[7];
       mjtNum Dm = quad[8];
 
-      // compute N, Tsqr
+      // shifted cost
+      cost += ellipticCostDif(quad, alpha, mu, Dm);
+
+      // compute N, Tsqr for derivatives
       mjtNum N = U0 + alpha*V0;
       mjtNum Tsqr = UU + alpha*(2*UV + alpha*VV);
 
       // no tangential force : top or bottom zone
       if (Tsqr <= 0) {
-        // bottom zone: quadratic cost
+        // bottom zone: quadratic derivatives
         if (N < 0) {
-          mju_addTo3(quadTotal, quad);
+          deriv[0] += 2*alpha*quad[2] + quad[1];
+          deriv[1] += 2*quad[2];
         }
 
         // top zone: nothing to do
@@ -1404,7 +1604,8 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
 
         // mu*N+T<=0 : bottom zone
         else if (mu*N+T <= 0) {
-          mju_addTo3(quadTotal, quad);
+          deriv[0] += 2*alpha*quad[2] + quad[1];
+          deriv[1] += 2*quad[2];
         }
 
         // otherwise middle zone
@@ -1413,9 +1614,6 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
           mjtNum N1 = V0;
           mjtNum T1 = (UV + alpha*VV)/T;
           mjtNum T2 = VV/T - (UV + alpha*VV)*T1/(T*T);
-
-          // add to cost
-          cost += 0.5*Dm*(N-mu*T)*(N-mu*T);
           deriv[0] += Dm*(N-mu*T)*(N1-mu*T1);
           deriv[1] += Dm*((N1-mu*T1)*(N1-mu*T1) + (N-mu*T)*(-mu*T2));
         }
@@ -1425,16 +1623,23 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
       i += (dim-1);
     } else {                                                  // inequality
       // search point
-      mjtNum x = ctx->Jaref[i] + alpha*ctx->Jv[i];
+      mjtNum start = ctx->Jaref[i];
+      mjtNum x = start + alpha*ctx->Jv[i];
+      mjtNum cost0 = start < 0 ? ctx->quad[3*i] : 0;
 
       // active
       if (x < 0) {
-        mju_addTo3(quadTotal, ctx->quad+3*i);
+        // shifted quad: add quad[1], quad[2] and (quad[0] - cost0)
+        quadTotal[0] += ctx->quad[3*i] - cost0;
+        quadTotal[1] += ctx->quad[3*i+1];
+        quadTotal[2] += ctx->quad[3*i+2];
+      } else {
+        cost -= cost0;
       }
     }
   }
 
-  // add total quadratic
+  // add total quadratic (quadTotal[0] contains only shifted residuals)
   cost += alpha*alpha*quadTotal[2] + alpha*quadTotal[1] + quadTotal[0];
   deriv[0] += 2*alpha*quadTotal[2] + quadTotal[1];
   deriv[1] += 2*quadTotal[2];
@@ -1484,7 +1689,8 @@ static int updateBracket(mjPrimalContext* ctx,
 
 
 // line search
-static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_iterations) {
+static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_iterations,
+                           mjtNum* improvement) {
   int nv = ctx->nv, nefc = ctx->nefc;
   mjPrimalPnt p0, p1, p2, pmid, p1next, p2next;
 
@@ -1492,6 +1698,7 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
   ctx->LSiter = 0;
   ctx->LSresult = 0;
   ctx->LSslope = 1;       // means not computed
+  *improvement = 0;
 
   // save search vector length, check
   mjtNum snorm = mju_norm(ctx->search, nv);
@@ -1535,6 +1742,7 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
       ctx->LSresult = 0;  // SUCCESS
     }
     ctx->LSslope = mju_abs(p1.deriv[0])*slopescl;
+    *improvement = -p1.cost;
     return p1.alpha;
   }
 
@@ -1590,6 +1798,7 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
     // check for convergence
     if (mju_abs(p1.deriv[0]) < gtol) {
       ctx->LSslope = mju_abs(p1.deriv[0])*slopescl;
+      *improvement = -p1.cost;
       return p1.alpha;                          // SUCCESS
     }
   }
@@ -1598,6 +1807,7 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
   if (ctx->LSiter >= ls_iterations) {
     ctx->LSresult = 3;                          // could not bracket
     ctx->LSslope = mju_abs(p1.deriv[0])*slopescl;
+    *improvement = -p1.cost;
     return p1.alpha;
   }
 
@@ -1605,6 +1815,7 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
   if (!p2update) {
     ctx->LSresult = 6;                          // no p2 update
     ctx->LSslope = mju_abs(p1.deriv[0])*slopescl;
+    *improvement = -p1.cost;
     return p1.alpha;
   }
 
@@ -1634,6 +1845,7 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
     }
     if (bestind >= 0) {
       ctx->LSslope = mju_abs(candidates[bestind].deriv[0])*slopescl;
+      *improvement = -candidates[bestind].cost;
       return candidates[bestind].alpha;       // SUCCESS
     }
 
@@ -1643,25 +1855,28 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
 
     // no update possible: numerical accuracy reached, use midpoint
     if (!b1 && !b2) {
-      if (pmid.cost < p0.cost) {
+      if (pmid.cost < 0) {
         ctx->LSresult = 0;  // SUCCESS
       } else {
         ctx->LSresult = 7;  // no improvement, could not bracket
       }
 
       ctx->LSslope = mju_abs(pmid.deriv[0])*slopescl;
+      *improvement = -pmid.cost;
       return pmid.alpha;
     }
   }
 
   // choose bracket with best cost
-  if (p1.cost <= p2.cost && p1.cost < p0.cost) {
+  if (p1.cost <= p2.cost && p1.cost < 0) {
     ctx->LSresult = 4;                          // improvement but no convergence
     ctx->LSslope = mju_abs(p1.deriv[0])*slopescl;
+    *improvement = -p1.cost;
     return p1.alpha;
-  } else if (p2.cost <= p1.cost && p2.cost < p0.cost) {
+  } else if (p2.cost <= p1.cost && p2.cost < 0) {
     ctx->LSresult = 4;                          // improvement but no convergence
     ctx->LSslope = mju_abs(p2.deriv[0])*slopescl;
+    *improvement = -p2.cost;
     return p2.alpha;
   } else {
     ctx->LSresult = 5;                          // no improvement
@@ -1967,7 +2182,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
 
   // make context
   PrimalPointers(m, d, &ctx, island);
-  PrimalAllocate(d, &ctx, flg_Newton);
+  PrimalAllocate(m, d, &ctx, flg_Newton);
 
   // local copies
   int nv   = ctx.nv;
@@ -2017,7 +2232,9 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
   // main loop
   while (iter < maxiter) {
     // perform linesearch
-    alpha = PrimalSearch(&ctx, m->opt.tolerance * m->opt.ls_tolerance, m->opt.ls_iterations);
+    mjtNum ls_improvement;
+    alpha = PrimalSearch(&ctx, m->opt.tolerance * m->opt.ls_tolerance, m->opt.ls_iterations,
+                         &ls_improvement);
 
     // no improvement: done
     if (alpha == 0) {
@@ -2035,7 +2252,6 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
       mju_copy(ctx.Mgradold, ctx.Mgrad, nv);
     }
     mju_copyInt(oldstate, ctx.efc_state, nefc);
-    mjtNum oldcost = ctx.cost;
 
     // update
     PrimalUpdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
@@ -2051,7 +2267,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     }
 
     // scale improvement, gradient, save stats
-    mjtNum improvement = scale * (oldcost - ctx.cost);
+    mjtNum improvement = scale * ls_improvement;
     mjtNum gradient = scale * mju_norm(ctx.grad, nv);
     saveStats(m, d, island, iter, improvement, gradient, ctx.LSslope,
               ctx.nactive, nchange, ctx.LSiter, ctx.nupdate);
@@ -2060,7 +2276,8 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     iter++;
 
     // termination
-    if (improvement < m->opt.tolerance || gradient < m->opt.tolerance) {
+    if ((improvement > 0 && improvement < m->opt.tolerance) ||
+         gradient < m->opt.tolerance) {
       break;
     }
 
@@ -2068,7 +2285,40 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     if (flg_Newton) {
       mju_scl(ctx.search, ctx.Mgrad, -1, nv);
     } else {
-      // Polak-Ribiere
+#ifndef mjCG_PRP
+      // Hager-Zhang conjugate direction update
+      mjtNum d_dot_y, y_dot_My, y_dot_Mgrad, d_dot_grad;
+      mjtNum beta_hz;
+      mjtNum d_norm, grad_norm, eta_k;
+      const mjtNum eta = 0.01;
+
+      // graddif = grad - gradold, Mgraddif = Mgrad - Mgradold
+      mju_sub(ctx.graddif, ctx.grad, ctx.gradold, nv);
+      mju_sub(ctx.Mgraddif, ctx.Mgrad, ctx.Mgradold, nv);
+
+      // compute d'*y; restart to steepest descent if conjugacy is lost
+      d_dot_y = mju_dot(ctx.search, ctx.graddif, nv);
+      if (d_dot_y < mjMINVAL) {
+        beta = 0;
+      } else {
+        // compute remaining inner products for the HZ formula
+        y_dot_My = mju_dot(ctx.graddif, ctx.Mgraddif, nv);
+        y_dot_Mgrad = mju_dot(ctx.graddif, ctx.Mgrad, nv);
+        d_dot_grad = mju_dot(ctx.search, ctx.grad, nv);
+
+        // primary Hager-Zhang beta coefficient
+        beta_hz = (y_dot_Mgrad - 2*(y_dot_My/d_dot_y)*d_dot_grad) / d_dot_y;
+
+        // dynamic truncation threshold to ensure d is not orthogonal to grad
+        d_norm = mju_norm(ctx.search, nv);
+        grad_norm = mju_norm(ctx.grad, nv);
+        eta_k = -1.0 / mju_max(mjMINVAL, d_norm * mju_min(eta, grad_norm));
+
+        // apply lower bound
+        beta = mju_max(eta_k, beta_hz);
+      }
+#else
+      // Polak-Ribiere-Plus conjugate direction update
       mju_sub(ctx.Mgraddif, ctx.Mgrad, ctx.Mgradold, nv);
       beta = mju_dot(ctx.grad, ctx.Mgraddif, nv) /
              mju_max(mjMINVAL, mju_dot(ctx.gradold, ctx.Mgradold, nv));
@@ -2077,6 +2327,7 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
       if (beta < 0) {
         beta = 0;
       }
+#endif
 
       // update
       for (int i=0; i < nv; i++) {

@@ -1020,6 +1020,23 @@ void mju_flexGatherState(const mjModel* m, const mjData* d, int f, mjtNum* xpos,
       mju_addTo3(vel + 3*i, cross);
     }
   }
+
+  // shell mode: reconstruct interior node positions and velocities via TFI
+  int interp = m->flex_interp[f];
+  if (interp < 0) {
+    int order = -interp;
+    int cx = m->flex_cellnum[3*f+0];
+    int cy = m->flex_cellnum[3*f+1];
+    int cz = m->flex_cellnum[3*f+2];
+    int nx_g = cx * order + 1;
+    int ny_g = cy * order + 1;
+    int nz_g = cz * order + 1;
+
+    mju_shellTrackInterior(xpos, nx_g, ny_g, nz_g);
+    if (vel) {
+      mju_shellTrackInterior(vel, nx_g, ny_g, nz_g);
+    }
+  }
 }
 
 

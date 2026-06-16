@@ -666,7 +666,8 @@ MjSpec::MjSpec()
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {
   owned_ = true;
   mjs_defaultSpec(ptr_);
 };
@@ -677,7 +678,8 @@ MjSpec::MjSpec(mjSpec *ptr)
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {}
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {}
 
 MjSpec::MjSpec(const MjSpec &other)
     : ptr_(mj_copySpec(other.get())),
@@ -685,7 +687,8 @@ MjSpec::MjSpec(const MjSpec &other)
       compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat) {
+      stat(&ptr_->stat),
+      authored(&ptr_->authored) {
   owned_ = true;
 }
 
@@ -714,6 +717,10 @@ MjSpec::~MjSpec() {
 
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
+
+emscripten::val MjSpec::timer() const {
+  return emscripten::val(emscripten::typed_memory_view(9, mjs_getTimer(ptr_)));
+}
 
 std::unique_ptr<MjModel> mj_loadXML_wrapper_1(std::string filename) {
   char error[1000];
@@ -829,6 +836,11 @@ int mj_setLengthRange_wrapper(const MjModel& m, const MjData& d, int index, cons
   return result;
 }
 
+void mju_info_wrapper(int topic, const String& msg) {
+  CHECK_VAL(msg);
+  mju_info(topic, "%s", msg.as<const std::string>().data());
+}
+
 // {{ WRAPPER_FUNCTIONS }}
 
 EMSCRIPTEN_BINDINGS(mujoco_bindings) {
@@ -875,6 +887,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_saveModel", &mj_saveModel_wrapper);
   function("mj_saveLastXML", &mj_saveLastXML_wrapper);
   function("mj_setLengthRange", &mj_setLengthRange_wrapper);
+  function("mju_info", &mju_info_wrapper);
   // mj_compile is bound using two overloads to handle the optional MjVFS argument,
   // as using std::optional<MjVFS> caused memory errors due to missing copy/move constructors.
   function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&)>(&mj_compile_wrapper_1));

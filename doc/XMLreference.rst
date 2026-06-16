@@ -376,8 +376,8 @@ adjust it properly through the XML.
 :at:`o_margin`: :at-val:`real, "0"`
    This attribute replaces the margin parameter of all active contact pairs when :ref:`Contact override <COverride>` is
    enabled. Otherwise MuJoCo uses the element-specific margin attribute of :ref:`geom<body-geom>` or
-   :ref:`pair<contact-pair>` depending on how the contact pair was generated. See also :ref:`Collision` in the
-   Computation chapter. The related gap parameter does not have a global override.
+   :ref:`pair<contact-pair>` depending on how the contact pair was generated. See :ref:`margin and gap<coMarginGap>` in
+   the Computation chapter. The related gap parameter does not have a global override.
 
 .. _option-o_solref:
 .. _option-o_solimp:
@@ -697,6 +697,19 @@ from its default.
       order for the :ref:`sleep-init<body-sleep>` policy to take effect. Second, it must be set in order for static
       quantities to be computed. See :ref:`implementation notes<siSleep>` for more details.
 
+.. _option-flag-diagexact:
+
+:at:`diagexact`: :at-val:`[disable, enable], "disable"`
+   This flag enables computation of the exact diagonal of the constraint-space inertia matrix :math:`A = J M^{-1} J^T`,
+   replacing the body-based approximation normally used. The exact diagonal is computed from the whitened Jacobian
+   :math:`Y = J M^{-1/2}` as :math:`A_{ii} = \|Y_i\|^2`. This provides a more accurate
+   :ref:`impedance<soParameters>` computation, which can improve solver quality for models with complex kinematic
+   coupling. See :ref:`Diagonal approximation <soExactDiag>` for details on the approximation errors that this flag
+   eliminates. The cost is one back-substitution with the Cholesky factor of the mass matrix per active constraint row;
+   if dual solvers are used (:ref:`PGS<option-solver>` or :ref:`NoSlip<option-noslip_iterations>`), the cost is
+   negligible since :math:`Y` is computed anyway. Consider enabling this flag when observing divergence or poor
+   constraint quality, particularly in models with highly anisotropic body inertias or bodies operating far from the
+   initial configuration ``qpos0``.
 
 .. _compiler:
 
@@ -2100,7 +2113,7 @@ defined. Its body name is automatically defined as "world".
    - Trees which are connected by tendons which have non-zero stiffness and damping are not allowed to sleep
      (overridable).
    - Trees which are connected by tendons which connect more than two trees are not allowed to sleep (not overridable).
-   - :ref:`flexes<ElemFlex>` are not allowed to sleep (not overridable).
+   - Constraint-free :ref:`flexes<ElemFlex>` are not allowed to sleep (not overridable).
    - All other trees are allowed to sleep (overridable).
 
    The policies :at-val:`never` and :at-val:`allowed` constitute user overrides of the automatic compiler policy.
@@ -2702,18 +2715,20 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-margin:
 
 :at:`margin`: :at-val:`real, "0"`
-   Distance threshold below which contacts are detected and included in the global array mjData.contact. This however
-   does not mean that contact force will be generated. A contact is considered active only if the distance between the
-   two geom surfaces is below margin-gap. Recall that constraint impedance can be a function of distance, as explained
-   in :ref:`CSolver`. The quantity this function is applied to is the distance between
-   the two geoms minus the margin plus the gap.
+   Geometric inflation of the geom surface for the purpose of contact force generation. When the distance between two
+   geom surfaces is below ``margin``, the contact is considered active and contact forces are generated. The constraint
+   impedance can be a function of distance, as explained in :ref:`CSolver`. The quantity this function is applied to is
+   the distance between the two geoms minus the ``margin``. See :ref:`margin and gap<coMarginGap>`.
 
 .. _body-geom-gap:
 
 :at:`gap`: :at-val:`real, "0"`
-   This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the
-   constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is
-   positive, geom distances between margin and margin-gap correspond to such inactive contacts.
+   Additional contact detection buffer beyond ``margin``. When this value is positive, contacts are detected at
+   distance ``margin + gap`` but forces are only generated at distance ``margin``. Contacts with distance between
+   ``margin`` and ``margin + gap`` are included in ``mjData.contact`` as inactive contacts (with ``efc_address`` = -1).
+   These inactive contacts can be used for custom computations, for example by :ref:`adhesion<actuator-adhesion>`
+   actuators which use contacts in the gap zone to generate adhesive forces without producing contact forces.
+   See :ref:`margin and gap<coMarginGap>`.
 
 .. _body-geom-fromto:
 
@@ -3122,7 +3137,7 @@ Attributes may be applied or ignored depending on the lighting model being used.
 .. _body-light-directional:
 
 :at:`directional`: :at-val:`[false, true], "false"`
-   This is a deprecated legacy attribute. Please use :ref:`light <body-light-type>` type instead. If set to "true", and
+   This is a deprecated legacy attribute. Please use light :ref:`type <body-light-type>` instead. If set to "true", and
    no type is specified, this will change the light type to be directional.
 
 .. _body-light-castshadow:
@@ -4110,14 +4125,15 @@ friction can only be created with this element.
 .. _contact-pair-margin:
 
 :at:`margin`: :at-val:`real, "0"`
-   Distance threshold below which contacts are detected and included in the global array mjData.contact.
+   Geometric inflation for the purpose of contact force generation. Contacts are detected at distance ``margin + gap``
+   and forces are generated at distance ``margin``.
 
 .. _contact-pair-gap:
 
 :at:`gap`: :at-val:`real, "0"`
-   This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the
-   constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is
-   positive, geom distances between margin and margin-gap correspond to such inactive contacts.
+   Additional contact detection buffer beyond ``margin``. When this value is positive, contacts with distance between
+   ``margin`` and ``margin + gap`` are included in ``mjData.contact`` as inactive contacts but no contact forces are
+   generated.
 
 
 .. _contact-exclude:
@@ -6286,16 +6302,16 @@ This element has nine custom attributes in addition to the common attributes:
 
 This element defines an active adhesion actuator which injects forces at contacts in the normal direction, see
 illustration video. The model shown in the video can be found `here
-<https://github.com/google-deepmind/mujoco/tree/main/model/adhesion>`_ and includes inline annotations. The transmission target
-is a :el:`body`, and adhesive forces are injected into all contacts involving geoms which belong to this body. The force
-is divided equally between multiple contacts. When the :at:`gap` attribute is not used, this actuator requires active
-contacts and cannot apply a force at a distance, more like the active adhesion on the feet of geckos and insects rather
-than an industrial vacuum gripper. In order to enable "suction at a distance", "inflate" the body's geoms by
-:at:`margin` and add a corresponding :at:`gap` which activates contacts only after :at:`gap` penetration distance. This
-will create a layer around the geom where contacts are detected but are inactive, and can be used for
-applying the adhesive force. In the video above, such inactive contacts are blue, while active contacts are orange.
-An adhesion actuator's length is always 0. :at:`ctrlrange` is required and must also be nonnegative (no repulsive forces
-are allowed). The underlying :el:`general` attributes are set as follows:
+<https://github.com/google-deepmind/mujoco/tree/main/model/adhesion>`_ and includes inline annotations. The transmission
+target is a :el:`body`, and adhesive forces are injected into all contacts involving geoms which belong to this body.
+The force is divided equally between multiple contacts. When the :ref:`gap<body-geom-gap>` attribute is not used, this
+actuator requires active contacts and cannot apply a force at a distance, more like the active adhesion on the feet of
+geckos and insects rather than an industrial vacuum gripper. In order to enable "suction at a distance", set the
+:ref:`gap<body-geom-gap>` attribute of the body's geoms to a positive value. This creates a layer around each geom where
+contacts are detected but no contact forces are generated, and the adhesive force can act across this gap. In the video
+above, such inactive contacts are blue, while active contacts are orange. An adhesion actuator's length is always 0.
+:at:`ctrlrange` is required and must also be nonnegative (no repulsive forces are allowed). The underlying :el:`general`
+attributes are set as follows:
 
 =========== ======= =========== ========
 Attribute   Setting Attribute   Setting
@@ -8498,15 +8514,14 @@ Extraction
    :width: 30%
    :target: https://github.com/google-deepmind/mujoco/blob/main/model/tactile/tactile.xml
 
-The tactile sensor returns the penetration pressure and the sliding velocities in the tangent frame at given points
-between the geom associated with the sensor and the SDF geoms in contact with it. We define the penetration pressure as
-a function of the penetration depth :math:`p(d) = \frac{d}{d_{max}-d}`, which is zero at the surface and goes to
-infinity as the maximum depth is reached. The sensor is associated with a geom and a mesh. It is activated by the
-contact between its associated geom and other geoms. The vertices of the mesh, when positioned in the geom frame, are
-the points at which sensor values are computed, so the dimension of the output is 3 times the number of vertices in the
-mesh. The mesh must have 3 normal vectors per vertex, which are used to compute the tangent frame. If the penetration
-depth is positive (no contact), then all values are 0 for the corresponding vertex. Only contacts with geoms of type SDF
-contribute to the sensor output. The sensor can be visualized by enabling the visualization of contact points.
+The tactile sensor returns the maximum penetration depth and the sliding velocities in the tangent frame at given points
+between the geom associated with the sensor and the SDF geoms in contact with it. The sensor is associated with a geom
+and a mesh. It is activated by the contact between its associated geom and other geoms. The vertices of the mesh, when
+positioned in the geom frame, are the points at which sensor values are computed, so the dimension of the output is 3
+times the number of vertices in the mesh. The mesh must have 3 normal vectors per vertex, which are used to compute the
+tangent frame. If the penetration depth is positive (no contact), then all values are 0 for the corresponding vertex.
+Only contacts with geoms of type SDF contribute to the sensor output. The sensor can be visualized by enabling the
+visualization of contact points.
 
 .. _sensor-tactile-geom:
 

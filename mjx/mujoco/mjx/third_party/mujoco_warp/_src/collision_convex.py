@@ -23,6 +23,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.collision_core import contact_param
 from mujoco.mjx.third_party.mujoco_warp._src.collision_core import geom_collision_pair
 from mujoco.mjx.third_party.mujoco_warp._src.collision_core import write_contact
 from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import ccd
+from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import epa_phase
+from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import gjk_phase
 from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import multicontact
 from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import support
 from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import Geom
@@ -35,6 +37,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAX_EPAFACES
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAX_EPAHORIZON
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXCONPAIR
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import NEW_GAP_SEMANTICS
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
@@ -714,6 +717,7 @@ def ccd_kernel_builder(
     opt_ccd_tolerance: wp.array[float],
     # Data in:
     naconmax_in: int,
+    naccdmax_in: int,
     # In:
     epa_vert_in: wp.array2d[wp.vec3],
     epa_vert_index_in: wp.array2d[int],
@@ -736,7 +740,7 @@ def ccd_kernel_builder(
     geom2: Geom,
     geoms: wp.vec2i,
     worldid: int,
-    ccdid: int,
+    nccd_in: wp.array[int],
     margin: float,
     gap: float,
     condim: int,
@@ -773,28 +777,52 @@ def ccd_kernel_builder(
     if is_collision_sensor:
       cutoff = 1.0e32
     else:
-      cutoff = 0.0
-    dist, ncollision, w1, w2, multiccd_idx = ccd(
+      if wp.static(NEW_GAP_SEMANTICS):
+        cutoff = gap
+      else:
+        cutoff = 0.0
+    needs_epa, dist, ncollision, w1, w2, gjk_result, geom1, geom2 = gjk_phase(
       opt_ccd_tolerance[worldid % opt_ccd_tolerance.shape[0]],
       cutoff,
       gjk_iterations,
-      epa_iterations,
       geom1,
       geom2,
       geomtype1,
       geomtype2,
       x1,
       x2,
-      epa_vert_in[ccdid],
-      epa_vert_index_in[ccdid],
-      epa_face_in[ccdid],
-      epa_pr_in[ccdid],
-      epa_norm2_in[ccdid],
-      epa_horizon_in[ccdid],
     )
 
-    if dist >= 0.0 and pairid[1] == -1:
-      return 0
+    ccdid = int(-1)
+    multiccd_idx = int(-1)
+
+    if needs_epa:
+      ccdid = wp.atomic_add(nccd_in, geomgeomid, 1)
+      if ccdid >= naccdmax_in:
+        wp.printf("CCD overflow - please increase naccdmax to %u\n", ccdid)
+        return 0
+      dist, ncollision, w1, w2, multiccd_idx = epa_phase(
+        opt_ccd_tolerance[worldid % opt_ccd_tolerance.shape[0]],
+        epa_iterations,
+        gjk_result,
+        geom1,
+        geom2,
+        geomtype1,
+        geomtype2,
+        epa_vert_in[ccdid],
+        epa_vert_index_in[ccdid],
+        epa_face_in[ccdid],
+        epa_pr_in[ccdid],
+        epa_norm2_in[ccdid],
+        epa_horizon_in[ccdid],
+      )
+
+    if wp.static(NEW_GAP_SEMANTICS):
+      if dist >= gap and pairid[1] == -1:
+        return 0
+    else:
+      if dist >= 0.0 and pairid[1] == -1:
+        return 0
 
     # CCD operates on margin-inflated shapes (support() inflates each geom by
     # 0.5 * margin).  The returned dist is therefore relative to the inflated
@@ -982,11 +1010,6 @@ def ccd_kernel_builder(
     if geom_type[g1] != geomtype1 or geom_type[g2] != geomtype2:
       return
 
-    ccdid = wp.atomic_add(nccd_in, wp.static(geomgeomid), 1)
-    if ccdid >= naccdmax_in:
-      wp.printf("CCD overflow - please increase naccdmax to %u\n", ccdid)
-      return
-
     worldid = collision_worldid_in[collisionid]
 
     _, margin, gap, condim, friction, solref, solreffriction, solimp = contact_params(
@@ -1038,6 +1061,7 @@ def ccd_kernel_builder(
     eval_ccd_write_contact(
       opt_ccd_tolerance,
       naconmax_in,
+      naccdmax_in,
       epa_vert_in,
       epa_vert_index_in,
       epa_face_in,
@@ -1059,7 +1083,7 @@ def ccd_kernel_builder(
       geom2,
       geoms,
       worldid,
-      ccdid,
+      nccd_in,
       margin,
       gap,
       condim,

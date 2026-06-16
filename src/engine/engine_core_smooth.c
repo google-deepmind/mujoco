@@ -607,6 +607,11 @@ void mj_flex(const mjModel* m, mjData* d) {
         mjERROR("flex_interp_order mismatch");
       }
 
+      // shell mode: reconstruct interior node positions from boundary via TFI
+      if (interp < 0) {
+        mju_shellTrackInterior(nodexpos, nx_g, ny_g, nz_g);
+      }
+
       for (int i=vstart; i < vend; i++) {
         mju_zero3(d->flexvert_xpos+3*i);
 

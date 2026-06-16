@@ -31,8 +31,12 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
+#include <mujoco/mjspecmacro.h>
+#include <mujoco/mjxmacro.h>
 #include "engine/engine_support.h"
+#include "engine/engine_util_errmem.h"
 #include "user/user_cache.h"
+#include "user/user_flexcomp.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_resource.h"
@@ -203,10 +207,53 @@ int mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
   return nbytes;
 }
 
+// helper function to log compile time diagnostics
+static void LogCompileTime(const double* t) {
+  std::string body(1024, '\0');
+  int n = std::snprintf(body.data(), body.size(),
+                        "  total:     %8.1f   (wall clock)\n"
+                        "  assets:    %8.1f   -\n"
+                        "    load:    %8.1f     (CPU time)\n"
+                        "    hull:    %8.1f     -\n"
+                        "    polygon: %8.1f     -\n"
+                        "    inertia: %8.1f     -\n"
+                        "    bvh:     %8.1f     -\n"
+                        "    octree:  %8.1f     -\n"
+                        "    texture: %8.1f     -\n"
+                        "  other:     %8.1f   (wall clock)",
+                        1e3 * t[mjCTIMER_TOTAL],
+                        1e3 * t[mjCTIMER_ASSETS],
+                        1e3 * t[mjCTIMER_MESH_LOAD],
+                        1e3 * t[mjCTIMER_MESH_HULL],
+                        1e3 * t[mjCTIMER_MESH_POLYGON],
+                        1e3 * t[mjCTIMER_MESH_INERTIA],
+                        1e3 * t[mjCTIMER_MESH_BVH],
+                        1e3 * t[mjCTIMER_MESH_OCTREE],
+                        1e3 * t[mjCTIMER_TEXTURE],
+                        1e3 * (t[mjCTIMER_TOTAL] - t[mjCTIMER_ASSETS]));
+  if (n > 0 && n < body.size()) {
+    body.resize(n);
+  }
+
+  // send log message
+  mjLogMessage msg = {.level = mjLOG_INFO,
+                      .topic = mjTOPIC_TIME_CMP,
+                      .subject = "compile time (ms)",
+                      .body = body.c_str()};
+  mju_message(&msg);
+}
+
 // compile model
 mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  return modelC->Compile(vfs);
+  mjModel* m = modelC->Compile(vfs);
+
+  // log compile time if model was compiled successfully
+  if (m) {
+    LogCompileTime(modelC->timer);
+  }
+
+  return m;
 }
 
 
@@ -427,6 +474,17 @@ const char* mjs_getError(mjSpec* s) {
 
 
 
+// get compiler timers from model
+const double* mjs_getTimer(mjSpec* s) {
+  if (!s) {
+    return nullptr;
+  }
+  mjCModel* modelC = static_cast<mjCModel*>(s->element);
+  return modelC->timer;
+}
+
+
+
 // check if model has warnings
 int mjs_isWarning(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
@@ -583,6 +641,121 @@ mjsLight* mjs_addLight(mjsBody* bodyspec, const mjsDefault* defspec) {
 mjsFlex* mjs_addFlex(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   mjCFlex* flex = modelC->AddFlex();
+  return &flex->spec;
+}
+
+
+
+// helper: convert type string to mjtFcompType
+static mjtFcompType FlexcompTypeFromStr(const char* type) {
+  if (!type || !strcmp(type, "grid"))    return mjFCOMPTYPE_GRID;
+  if (!strcmp(type, "box"))              return mjFCOMPTYPE_BOX;
+  if (!strcmp(type, "cylinder"))         return mjFCOMPTYPE_CYLINDER;
+  if (!strcmp(type, "ellipsoid"))        return mjFCOMPTYPE_ELLIPSOID;
+  if (!strcmp(type, "square"))           return mjFCOMPTYPE_SQUARE;
+  if (!strcmp(type, "disc"))             return mjFCOMPTYPE_DISC;
+  if (!strcmp(type, "circle"))           return mjFCOMPTYPE_CIRCLE;
+  if (!strcmp(type, "mesh"))             return mjFCOMPTYPE_MESH;
+  if (!strcmp(type, "gmsh"))             return mjFCOMPTYPE_GMSH;
+  if (!strcmp(type, "direct"))           return mjFCOMPTYPE_DIRECT;
+  return mjFCOMPTYPE_GRID;  // default
+}
+
+// helper: convert dof string to mjtDof
+static mjtDof FlexcompDofFromStr(const char* dof) {
+  if (!dof || !strcmp(dof, "full"))      return mjFCOMPDOF_FULL;
+  if (!strcmp(dof, "radial"))            return mjFCOMPDOF_RADIAL;
+  if (!strcmp(dof, "trilinear"))         return mjFCOMPDOF_TRILINEAR;
+  if (!strcmp(dof, "quadratic"))         return mjFCOMPDOF_QUADRATIC;
+  if (!strcmp(dof, "2d"))                return mjFCOMPDOF_2D;
+  return mjFCOMPDOF_FULL;  // default
+}
+
+
+// add flexcomp: create flex with auto-generated bodies/joints
+mjsFlex* mjs_makeFlex(mjsBody* body, const char* name, const char* type, int dim,
+                            const char* dof, const int count[3], const int cellcount[3],
+                            const double spacing[3], const double scale[3], double radius,
+                            double mass, double inertiabox, int equality, int rigid, int flatskin,
+                            int elastic2d, const double pos[3], const double quat[4],
+                            const double origin[3], const char* file, const mjVFS* vfs) {
+  if (!body || !name) {
+    mju_error("mjs_makeFlex: body and name must not be null");
+    return nullptr;
+  }
+
+  mjCModel* model = static_cast<mjCBody*>(body->element)->model;
+
+  // create temporary flexcomp with defaults
+  mjCFlexcomp fcomp;
+  fcomp.name = name;
+  fcomp.type = FlexcompTypeFromStr(type);
+  fcomp.doftype = FlexcompDofFromStr(dof);
+
+  // topology
+  if (count) {
+    fcomp.count[0] = count[0];
+    fcomp.count[1] = count[1];
+    fcomp.count[2] = count[2];
+  }
+  if (cellcount) {
+    fcomp.cellcount[0] = cellcount[0];
+    fcomp.cellcount[1] = cellcount[1];
+    fcomp.cellcount[2] = cellcount[2];
+  }
+  if (spacing) {
+    fcomp.spacing[0] = spacing[0];
+    fcomp.spacing[1] = spacing[1];
+    fcomp.spacing[2] = spacing[2];
+  }
+  if (scale) {
+    fcomp.scale[0] = scale[0];
+    fcomp.scale[1] = scale[1];
+    fcomp.scale[2] = scale[2];
+  }
+  if (origin) {
+    fcomp.origin[0] = origin[0];
+    fcomp.origin[1] = origin[1];
+    fcomp.origin[2] = origin[2];
+  }
+
+  // physics
+  fcomp.def.spec.flex->dim = dim;
+  fcomp.def.spec.flex->radius = radius;
+  if (mass > 0) fcomp.mass = mass;
+  if (inertiabox > 0) fcomp.inertiabox = inertiabox;
+  fcomp.equality = equality;
+  fcomp.rigid = rigid;
+  fcomp.def.spec.flex->flatskin = flatskin;
+  fcomp.def.spec.flex->elastic2d = elastic2d;
+
+  // pose
+  if (pos) {
+    fcomp.pos[0] = pos[0];
+    fcomp.pos[1] = pos[1];
+    fcomp.pos[2] = pos[2];
+  }
+  if (quat) {
+    fcomp.quat[0] = quat[0];
+    fcomp.quat[1] = quat[1];
+    fcomp.quat[2] = quat[2];
+    fcomp.quat[3] = quat[3];
+  }
+
+  // file
+  if (file) {
+    fcomp.file = file;
+  }
+
+  // call Make
+  char error[500] = "";
+  if (!fcomp.Make(body, error, sizeof(error), vfs)) {
+    model->SetError(mjCError(nullptr, "%s", error));
+    return nullptr;
+  }
+
+  // return the flex that was created (last flex in model)
+  mjCFlex* flex = model->Flexes().back();
   return &flex->spec;
 }
 
@@ -1308,6 +1481,16 @@ mjSpec* mjs_getSpec(const mjsElement* element) {
 
 
 
+// get spec that originally defined an element
+// contrary to mjs_getSpec, this does not change after attachment
+mjSpec* mjs_getOriginSpec(const mjsElement* element) {
+  const mjCModel* model = static_cast<const mjCBase*>(element)->model;
+  const mjsCompiler* compiler = static_cast<const mjCBase*>(element)->compiler;
+  return model->FindSpec(compiler);
+}
+
+
+
 mjsCompiler* mjs_getCompiler(const mjsElement* element) {
   return static_cast<const mjCBase*>(element)->compiler;
 }
@@ -2003,13 +2186,13 @@ void mjs_setString(mjString* dest, const char* text) {
 
 
 // Set specific entry in destination string vector.
-mjtByte mjs_setInStringVec(mjStringVec* dest, int i, const char* text) {
+mjtBool mjs_setInStringVec(mjStringVec* dest, int i, const char* text) {
   if (dest->size() <= i) {
     mju_error("Requested index in mjs_setInStringVec is out of bounds");
-    return 0;
+    return false;
   }
   dest->at(i) = std::string(text);
-  return 1;
+  return true;
 }
 
 
@@ -2191,4 +2374,170 @@ mjCache* mj_getCache() {
     return c;
   }();
   return &cache_cwrapper;
+}
+
+
+// return 1 if a field was authored, 0 otherwise
+int mjs_isAuthored(const void* elem_ptr, const void* field_ptr) {
+  if (!elem_ptr || !field_ptr) return 0;
+  const mjsElement* el = *reinterpret_cast<const mjsElement* const*>(elem_ptr);
+  if (!el) return 0;
+
+  // model-level sub-structs (compiler, option, visual)
+  if (el->elemtype == mjOBJ_MODEL) {
+    const mjCModel* cel = static_cast<const mjCModel*>(el);
+    int idx = 0;
+
+#define CHECK_FIELD(FIELD_PATH, AUTHORED_MASK)                               \
+  if (field_ptr == &FIELD_PATH) return (AUTHORED_MASK & (1ULL << idx)) != 0; \
+  idx++;
+#define CHECK_FIELD_VEC(FIELD_PATH, AUTHORED_MASK)         \
+  if (field_ptr == FIELD_PATH || field_ptr == &FIELD_PATH) \
+    return (AUTHORED_MASK & (1ULL << idx)) != 0;           \
+  idx++;
+
+#define X(type, name, dim) CHECK_FIELD(cel->spec.compiler.name, cel->spec.compiler.authored)
+#define XVEC(type, name, dim) CHECK_FIELD_VEC(cel->spec.compiler.name, cel->spec.compiler.authored)
+    idx = 0;
+    MJSCOMPILER_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) CHECK_FIELD(cel->spec.option.name, cel->spec.authored.option)
+#define XVEC(type, name, dim) CHECK_FIELD_VEC(cel->spec.option.name, cel->spec.authored.option)
+    idx = 0;
+    MJOPTION_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) \
+  CHECK_FIELD(cel->spec.visual.global.name, cel->spec.authored.visual_global)
+    idx = 0;
+    MJVISUAL_GLOBAL_FIELDS
+#undef X
+
+#define X(type, name, dim) \
+  CHECK_FIELD(cel->spec.visual.quality.name, cel->spec.authored.visual_quality)
+    idx = 0;
+    MJVISUAL_QUALITY_FIELDS
+#undef X
+
+#define X(type, name, dim) \
+  CHECK_FIELD(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
+#define XVEC(type, name, dim) \
+  CHECK_FIELD_VEC(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
+    idx = 0;
+    MJVISUAL_HEADLIGHT_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) CHECK_FIELD(cel->spec.visual.map.name, cel->spec.authored.visual_map)
+    idx = 0;
+    MJVISUAL_MAP_FIELDS
+#undef X
+
+#define X(type, name, dim) CHECK_FIELD(cel->spec.visual.scale.name, cel->spec.authored.visual_scale)
+    idx = 0;
+    MJVISUAL_SCALE_FIELDS
+#undef X
+
+#define XVEC(type, name, dim) \
+  CHECK_FIELD_VEC(cel->spec.visual.rgba.name, cel->spec.authored.visual_rgba)
+    idx = 0;
+    MJVISUAL_RGBA_FIELDS
+#undef XVEC
+
+#undef CHECK_FIELD
+#undef CHECK_FIELD_VEC
+  }
+
+  return 0;
+}
+
+
+
+// record explicit authoring of an element's field
+void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored) {
+  if (!elem_ptr || !field_ptr) return;
+  mjsElement* el = const_cast<mjsElement*>(*reinterpret_cast<const mjsElement* const*>(elem_ptr));
+  if (!el) return;
+
+#define SET_FIELD(FIELD_PATH, AUTHORED_MASK) \
+  if (field_ptr == &FIELD_PATH) {            \
+    if (authored)                            \
+      AUTHORED_MASK |= (1ULL << idx);        \
+    else                                     \
+      AUTHORED_MASK &= ~(1ULL << idx);       \
+    return;                                  \
+  }                                          \
+  idx++;
+
+#define SET_FIELD_VEC(FIELD_PATH, AUTHORED_MASK)             \
+  if (field_ptr == FIELD_PATH || field_ptr == &FIELD_PATH) { \
+    if (authored)                                            \
+      AUTHORED_MASK |= (1ULL << idx);                        \
+    else                                                     \
+      AUTHORED_MASK &= ~(1ULL << idx);                       \
+    return;                                                  \
+  }                                                          \
+  idx++;
+
+  // model-level sub-structs (compiler, option, visual)
+  if (el->elemtype == mjOBJ_MODEL) {
+    mjCModel* cel = static_cast<mjCModel*>(el);
+    int idx = 0;
+
+#define X(type, name, dim) SET_FIELD(cel->spec.compiler.name, cel->spec.compiler.authored)
+#define XVEC(type, name, dim) SET_FIELD_VEC(cel->spec.compiler.name, cel->spec.compiler.authored)
+    idx = 0;
+    MJSCOMPILER_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) SET_FIELD(cel->spec.option.name, cel->spec.authored.option)
+#define XVEC(type, name, dim) SET_FIELD_VEC(cel->spec.option.name, cel->spec.authored.option)
+    idx = 0;
+    MJOPTION_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) SET_FIELD(cel->spec.visual.global.name, cel->spec.authored.visual_global)
+    idx = 0;
+    MJVISUAL_GLOBAL_FIELDS
+#undef X
+
+#define X(type, name, dim) \
+  SET_FIELD(cel->spec.visual.quality.name, cel->spec.authored.visual_quality)
+    idx = 0;
+    MJVISUAL_QUALITY_FIELDS
+#undef X
+
+#define X(type, name, dim) \
+  SET_FIELD(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
+#define XVEC(type, name, dim) \
+  SET_FIELD_VEC(cel->spec.visual.headlight.name, cel->spec.authored.visual_headlight)
+    idx = 0;
+    MJVISUAL_HEADLIGHT_FIELDS
+#undef X
+#undef XVEC
+
+#define X(type, name, dim) SET_FIELD(cel->spec.visual.map.name, cel->spec.authored.visual_map)
+    idx = 0;
+    MJVISUAL_MAP_FIELDS
+#undef X
+
+#define X(type, name, dim) SET_FIELD(cel->spec.visual.scale.name, cel->spec.authored.visual_scale)
+    idx = 0;
+    MJVISUAL_SCALE_FIELDS
+#undef X
+
+#define XVEC(type, name, dim) \
+  SET_FIELD_VEC(cel->spec.visual.rgba.name, cel->spec.authored.visual_rgba)
+    idx = 0;
+    MJVISUAL_RGBA_FIELDS
+#undef XVEC
+  }
+
+#undef SET_FIELD
+#undef SET_FIELD_VEC
 }

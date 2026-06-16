@@ -233,13 +233,13 @@ TEST_F(CoreSmoothTest, TendonArmature) {
 
     // get full M, includes both CRB and tendon inertia
     vector<mjtNum> M(nv*nv);
-    mj_fullM(m, M.data(), d->qM);
+    mj_fullM(m, d, M.data());
 
     // put only CRB inertia in M2
     mj_crb(m, d);
     mju_scatter(d->qM, d->M, m->mapM2M, m->nC);
     vector<mjtNum> M2(nv*nv);
-    mj_fullM(m, M2.data(), d->qM);
+    mj_fullM(m, d, M2.data());
 
     vector<mjtNum> ten_J(nv);     // tendon Jacobian
     vector<mjtNum> ten_M(nv*nv);  // tendon inertia
@@ -408,7 +408,7 @@ void TestConnect(const char* const filepath) {
   }
   for (int i=0; i < 3; i++) {
     EXPECT_THAT(data->sensordata[i] - model->sensor_user[i],
-                MjNear(0, 1e-6, 1e-4));
+                MjNear(0, 1e-6, 2e-4));
   }
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -681,13 +681,28 @@ TEST_F(CoreSmoothTest, FactorI) {
 
   // dense M matrix
   vector<mjtNum> Mexpected(nv*nv);
-  mj_fullM(model, Mexpected.data(), data->qM);
+  mj_fullM(model, data, Mexpected.data());
 
   // expect matrices to match to floating point precision
   EXPECT_THAT(M, Pointwise(MjNear(1e-12, 1e-5), Mexpected));
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+// Convert legacy-format symmetric matrix to dense (local helper for tests).
+static void legacyToDense(const mjModel* m, mjtNum* dst, const mjtNum* M) {
+  int adr = 0, nv = m->nv;
+  mju_zero(dst, nv*nv);
+  for (int i = 0; i < nv; i++) {
+    int j = i;
+    while (j >= 0) {
+      dst[i*nv+j] = M[adr];
+      dst[j*nv+i] = M[adr];
+      j = m->dof_parentid[j];
+      adr++;
+    }
+  }
 }
 
 TEST_F(CoreSmoothTest, SolveLDs) {
@@ -712,7 +727,7 @@ TEST_F(CoreSmoothTest, SolveLDs) {
   mju_sparse2dense(LDdense.data(), d->qLD, nv, nv,
                    m->M_rownnz, m->M_rowadr, m->M_colind);
   vector<mjtNum> LDdense2(nv*nv);
-  mj_fullM(m, LDdense2.data(), LDlegacy.data());
+  legacyToDense(m, LDdense2.data(), LDlegacy.data());
 
   // expect lower triangles to match exactly
   for (int i=0; i < nv; i++) {

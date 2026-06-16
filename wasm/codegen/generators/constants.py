@@ -23,13 +23,20 @@ PRIMITIVE_TYPES: Set[str] = {
     "double",
     "float",
     "int",
+    "int16_t",
+    "int32_t",
+    "int8_t",
+    "mjtBool",
     "mjtByte",
     "mjtMeshBuiltin",
     "mjtNum",
     "mjtObj",  # Adding this to the primitives because it is used as int,
     "mjtSize",
     "size_t",
+    "uint16_t",
+    "uint32_t",
     "uint64_t",
+    "uint8_t",
     "uintptr_t",
     "unsigned char",
     "unsigned int",
@@ -97,17 +104,6 @@ _SKIPPED_WRITABLE_ERROR: tuple[str, ...] = (
     "mj_printSchema",
 )
 
-# Omitted thread management functions
-_SKIPPED_THREAD_FUNCTIONS: tuple[str, ...] = (
-    # go/keep-sorted start
-    "mju_bindThreadPool",
-    "mju_defaultTask",
-    "mju_taskJoin",
-    "mju_threadPoolCreate",
-    "mju_threadPoolDestroy",
-    "mju_threadPoolEnqueue",
-    # go/keep-sorted end
-)
 
 # Omitted asset cache functions
 _SKIPPED_ASSET_CACHE_FUNCTIONS: tuple[str, ...] = (
@@ -157,14 +153,11 @@ _SKIPPED_MEMORY_FUNCTIONS: tuple[str, ...] = (
     "mju_boxQPmalloc",
     "mju_clearHandlers",
     "mju_error",
-    "mju_error_i",
-    "mju_error_s",
     "mju_free",
     "mju_malloc",
+    "mju_setLogHandler",
     "mju_strncpy",
     "mju_warning",
-    "mju_warning_i",
-    "mju_warning_s",
     # go/keep-sorted end
 )
 
@@ -176,6 +169,7 @@ _SKIPPED_GETTERS_AND_SETTERS: tuple[str, ...] = (
     "mjs_getDouble",
     "mjs_getPluginAttributes",
     "mjs_getString",
+    "mjs_getTimer",
     "mjs_getUserValue",
     "mjs_setBuffer",
     "mjs_setDouble",
@@ -205,7 +199,6 @@ _SKIPPED_UTILITY_FUNCTIONS: tuple[str, ...] = (
 # List of functions that should be skipped during the code generation process.
 SKIPPED_FUNCTIONS: tuple[str, ...] = (
     _SKIPPED_CLASS_METHODS
-    + _SKIPPED_THREAD_FUNCTIONS
     + _SKIPPED_MEMORY_FUNCTIONS
     + _SKIPPED_PLUGIN_FUNCTIONS
     + _SKIPPED_GETTERS_AND_SETTERS
@@ -221,12 +214,11 @@ SKIPPED_STRUCTS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjCache",
     "mjSDF",
-    "mjTask",
-    "mjThreadPool",
     "mjUI",
     "mjVFS",
     "mjrContext",
     "mjrRect",
+    "mjrVertexAttribute",
     "mjuiDef",
     "mjuiItem",
     "mjuiSection",
@@ -245,6 +237,7 @@ MANUAL_WRAPPER_FUNCTIONS: tuple[str, ...] = (
     "mj_saveModel",
     "mj_setLengthRange",
     "mju_error",
+    "mju_info",
     # go/keep-sorted end
 )
 
@@ -291,6 +284,9 @@ STRUCTS_TO_BIND: list[str] = list(
 NO_DEFAULT_CONSTRUCTORS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjContact",
+    "mjLogConfig",
+    "mjLogMessage",
+    "mjPreContact",
     "mjSolverStat",
     "mjStatistic",
     "mjTimerStat",
@@ -315,6 +311,10 @@ MJDATA_SIZES: tuple[str, ...] = (
     "efc_AR_colind",
     "efc_AR_rowadr",
     "efc_AR_rownnz",
+    "efc_Y",
+    "efc_Y_colind",
+    "efc_Y_rowadr",
+    "efc_Y_rownnz",
     "efc_D",
     "efc_J",
     "efc_JT",
@@ -327,7 +327,7 @@ MJDATA_SIZES: tuple[str, ...] = (
     "efc_R",
     "efc_aref",
     "efc_b",
-    "efc_diagApprox",
+    "efc_diagA",
     "efc_force",
     "efc_frictionloss",
     "efc_id",
@@ -576,7 +576,6 @@ FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
   CHECK_SIZE(qpos2, m.nq());
     """.strip(),
     "mj_fullM": """
-  CHECK_SIZE(M, m.nM());
   CHECK_SIZE(dst, m.nv() * m.nv());
     """.strip(),
     "mj_geomDistance": """

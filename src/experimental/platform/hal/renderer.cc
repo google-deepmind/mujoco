@@ -16,6 +16,8 @@
 
 #include <chrono>
 #include <cstddef>
+#include <functional>
+#include <memory>
 #include <span>
 #include <utility>
 
@@ -25,11 +27,22 @@
 #if !defined(__EMSCRIPTEN__) && !defined(__APPLE__)
 #include "experimental/platform/hal/egl_utils.h"
 #endif
-#include "experimental/filament/render_context_filament.h"
+#include "experimental/filament/compat/scene_bridge.h"
 #include "experimental/platform/hal/graphics_mode.h"
+#include "experimental/platform/ux/imgui_bridge.h"
+#include "experimental/platform/ux/imgui_widgets.h"
 #include "experimental/platform/ux/plugin.h"
+#include "render/filament/mjrfilament.h"
+#include "render/filament/mjrfilament_cpp.h"
 
 namespace mujoco::platform {
+
+static std::function<void()> g_update_gui_callback = nullptr;
+static void PluginUpdate(GuiPlugin* plugin) {
+  if (g_update_gui_callback) {
+    g_update_gui_callback();
+  }
+}
 
 static void FlipImage(unsigned char* pixels, int width, int height, int bpp) {
   const int row_size = width * bpp;
@@ -54,9 +67,16 @@ Renderer::Renderer(void* native_window, GraphicsMode gfx)
       ImGui_ImplOpenGL3_Init();
     }
   }
+
+  g_update_gui_callback = [this]() {
+    if (scene_bridge_) {
+      mjrf_DEBUG_drawImguiEditor(scene_bridge_->GetScene());
+    }
+  };
 }
 
 Renderer::~Renderer() {
+  g_update_gui_callback = nullptr;
   if (IsClassic(gfx_)) {
     if (ImGui::GetCurrentContext()) {
       ImGui_ImplOpenGL3_Shutdown();
@@ -72,38 +92,20 @@ void Renderer::Init(const mjModel* model) {
     if (IsClassic(gfx_)) {
       mjr_defaultContext(&render_context_);
       mjr_makeContext(model, &render_context_, mjFONTSCALE_150);
-      render_ = [&](mjrRect rect, mjvScene* scene) {
-        mjr_render(rect, scene, &render_context_);
-      };
-      set_buffer_ = [&](int framebuffer) {
-        mjr_setBuffer(framebuffer, &render_context_);
-      };
-      read_pixels_ = [&](unsigned char* pixels, mjrRect rect) {
-        mjr_readPixels(pixels, nullptr, rect, &render_context_);
-        mjr_setBuffer(mjFB_WINDOW, &render_context_);
-      };
+
     } else {
-      mjrf_defaultContext(&render_context_);
-      mjrFilamentConfig render_config;
-      mjrf_defaultFilamentConfig(&render_config);
-      render_config.native_window = native_window_;
-      render_config.width = model->vis.global.offwidth;
-      render_config.height = model->vis.global.offheight;
-      render_config.force_software_rendering = IsSoftware(gfx_);
-      render_config.graphics_api = IsOpenGl(gfx_) || IsWebGl(gfx_)
-                                       ? mjGRAPHICS_API_OPENGL
-                                       : mjGRAPHICS_API_VULKAN;
-      mjrf_makeFilamentContext(model, &render_context_, &render_config);
-      render_ = [&](mjrRect rect, mjvScene* scene) {
-        mjrf_renderScene(rect, scene, &render_context_);
-      };
-      set_buffer_ = [&](int framebuffer) {
-        mjrf_setBuffer(framebuffer, &render_context_);
-      };
-      read_pixels_ = [&](unsigned char* pixels, mjrRect rect) {
-        mjrf_readPixels(pixels, nullptr, rect, &render_context_);
-        mjrf_setBuffer(mjFB_WINDOW, &render_context_);
-      };
+      mjrFilamentConfig cfg;
+      mjrf_defaultFilamentConfig(&cfg);
+      cfg.native_window = native_window_;
+      cfg.force_software_rendering = IsSoftware(gfx_);
+      cfg.graphics_api = IsOpenGl(gfx_) || IsWebGl(gfx_)
+                             ? mjGRAPHICS_API_OPENGL
+                             : mjGRAPHICS_API_VULKAN;
+      filament_context_ = CreateContext(cfg);
+      scene_bridge_ =
+          std::make_unique<SceneBridge>(filament_context_.get(), model);
+      imgui_bridge_ = std::make_unique<ImguiBridge>(filament_context_.get());
+      scene_bridge_->SetDrawTextFunction(DrawTextAt);
     }
 
     mjv_defaultScene(&scene_);
@@ -118,7 +120,9 @@ void Renderer::Deinit() {
     if (IsClassic(gfx_)) {
       mjr_freeContext(&render_context_);
     } else {
-      mjrf_freeContext(&render_context_);
+      scene_bridge_.reset();
+      imgui_bridge_.reset();
+      filament_context_.reset();
     }
     initialized_ = false;
   }
@@ -163,11 +167,10 @@ void Renderer::Render(const mjModel* model, mjData* data,
     // The filament backend supports two offscreen framebuffers.
     // mjFB_OFFSCREEN renders just the mjvScene data. +1 also includes the
     // ImGui draw data.
-    set_buffer_(IsClassic(gfx_) ? mjFB_OFFSCREEN : mjFB_OFFSCREEN + 1);
+    DoSetBuffer(IsClassic(gfx_) ? mjFB_OFFSCREEN : mjFB_OFFSCREEN + 1);
   }
 
-  const mjrRect viewport = {0, 0, width, height};
-  render_(viewport, &scene_);
+  DoRender(width, height);
 
   // The filament backend knows how to renders the ImGui draw data. For the
   // classic backend, we need to render the ImGui draw data ourselves.
@@ -179,10 +182,7 @@ void Renderer::Render(const mjModel* model, mjData* data,
 
   if (render_to_texture) {
     unsigned char* ptr = reinterpret_cast<unsigned char*>(pixels.data());
-    read_pixels_(ptr, viewport);
-    if (IsClassic(gfx_)) {
-      FlipImage(ptr, width, height, 3);
-    }
+    DoReadPixels(width, height, ptr);
   }
 
   UpdateFps();
@@ -195,17 +195,12 @@ void Renderer::RenderToTexture(const mjModel* model, mjData* data,
     return;
   }
 
-  const mjrRect viewport = {0, 0, width, height};
   mjv_updateCamera(model, data, camera, &scene_);
-
-  set_buffer_(mjFB_OFFSCREEN);
-  render_(viewport, &scene_);
-
   unsigned char* ptr = reinterpret_cast<unsigned char*>(output);
-  read_pixels_(ptr, viewport);
-  if (IsClassic(gfx_)) {
-    FlipImage(ptr, width, height, 3);
-  }
+
+  DoSetBuffer(mjFB_OFFSCREEN);
+  DoRender(width, height);
+  DoReadPixels(width, height, ptr);
 }
 
 int Renderer::UploadImage(int texture_id, const std::byte* pixels, int width,
@@ -213,10 +208,136 @@ int Renderer::UploadImage(int texture_id, const std::byte* pixels, int width,
   if (IsClassic(gfx_)) {
     return 0;
   } else {
-    return mjrf_uploadGuiImage(texture_id,
-                               reinterpret_cast<const unsigned char*>(pixels),
-                               width, height, bpp, &render_context_);
+    return imgui_bridge_->UploadImage(
+        texture_id, reinterpret_cast<const unsigned char*>(pixels), width,
+        height, bpp);
   }
+}
+
+void Renderer::DoRender(int width, int height) {
+  const mjrRect viewport = {0, 0, width, height};
+  if (IsClassic(gfx_)) {
+    mjr_render(viewport, &scene_, &render_context_);
+  } else {
+    scene_bridge_->Update(viewport, &scene_);
+    // Update the UX renderable entity after processing the scene in case there
+    // are any elements in the scene which generate UX draw calls (e.g. labels).
+    if (framebuffer_mode_ != 1) {
+      imgui_bridge_->Update();
+    }
+    if (framebuffer_mode_ == 0) {
+      mjrDrawMode draw_mode = mjDRAW_MODE_DEFAULT;
+      if (scene_.flags[mjRND_SEGMENT]) {
+        if (scene_.flags[mjRND_IDCOLOR]) {
+          draw_mode = mjDRAW_MODE_SEGMENTATION_BY_ID;
+        } else {
+          draw_mode = mjDRAW_MODE_SEGMENTATION_BY_COLOR;
+        }
+      } else if (scene_.flags[mjRND_DEPTH]) {
+        draw_mode = mjDRAW_MODE_DEPTH;
+      } else if (scene_.flags[mjRND_WIREFRAME]) {
+        draw_mode = mjDRAW_MODE_WIREFRAME;
+      }
+
+      mjrfRenderRequest reqs[2];
+
+      mjrf_defaultRenderRequest(&reqs[0]);
+      reqs[0].scene = scene_bridge_->GetScene();
+      reqs[0].draw_mode = draw_mode;
+      reqs[0].camera = scene_bridge_->GetCamera();
+      reqs[0].viewport = viewport;
+      reqs[0].enable_shadows = scene_.flags[mjRND_SHADOW];
+      reqs[0].enable_reflections = scene_.flags[mjRND_REFLECTION];
+
+      mjrf_defaultRenderRequest(&reqs[1]);
+      reqs[1].scene = imgui_bridge_->GetScene();
+      reqs[1].draw_mode = mjDRAW_MODE_DEFAULT;
+      reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
+      reqs[1].viewport = viewport;
+      reqs[1].enable_shadows = false;
+      reqs[1].enable_reflections = false;
+      reqs[1].enable_post_processing = false;
+
+      mjrf_render(filament_context_.get(), &reqs[0], 2, nullptr, 0);
+    }
+  }
+}
+
+void Renderer::DoSetBuffer(int framebuffer) {
+  framebuffer_mode_ = framebuffer;
+  if (IsClassic(gfx_)) {
+    mjr_setBuffer(framebuffer, &render_context_);
+  }
+}
+
+void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
+  if (!rgb) {
+    return;
+  }
+  if (framebuffer_mode_ == 0) {
+    mju_warning("ReadPixels is only supported for offscreen rendering.");
+    return;
+  }
+
+  const mjrRect viewport = {0, 0, width, height};
+  if (IsClassic(gfx_)) {
+    mjr_readPixels(rgb, nullptr, viewport, &render_context_);
+    mjr_setBuffer(mjFB_WINDOW, &render_context_);
+    FlipImage(rgb, viewport.width, viewport.height, 3);
+  } else {
+    mjrDrawMode draw_mode = mjDRAW_MODE_DEFAULT;
+    if (scene_.flags[mjRND_SEGMENT]) {
+      if (scene_.flags[mjRND_IDCOLOR]) {
+        draw_mode = mjDRAW_MODE_SEGMENTATION_BY_ID;
+      } else {
+        draw_mode = mjDRAW_MODE_SEGMENTATION_BY_COLOR;
+      }
+    } else if (scene_.flags[mjRND_DEPTH]) {
+      draw_mode = mjDRAW_MODE_DEPTH;
+    } else if (scene_.flags[mjRND_WIREFRAME]) {
+      draw_mode = mjDRAW_MODE_WIREFRAME;
+    }
+
+    mjrfRenderTargetConfig config;
+    mjrf_defaultRenderTargetConfig(&config);
+    config.width = viewport.width;
+    config.height = viewport.height;
+    config.color_format = mjPIXEL_FORMAT_RGB8;
+    config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+    auto target = CreateRenderTarget(filament_context_.get(), config);
+
+    mjrfRenderRequest reqs[2];
+    mjrf_defaultRenderRequest(&reqs[0]);
+    reqs[0].scene = scene_bridge_->GetScene();
+    reqs[0].draw_mode = draw_mode;
+    reqs[0].camera = scene_bridge_->GetCamera();
+    reqs[0].target = target.get();
+    reqs[0].viewport = viewport;
+    reqs[0].enable_shadows = scene_.flags[mjRND_SHADOW];
+    reqs[0].enable_reflections = scene_.flags[mjRND_REFLECTION];
+
+    mjrf_defaultRenderRequest(&reqs[1]);
+    reqs[1].scene = imgui_bridge_->GetScene();
+    reqs[1].draw_mode = mjDRAW_MODE_DEFAULT;
+    reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
+    reqs[1].target = target.get();
+    reqs[1].viewport = viewport;
+    reqs[1].enable_shadows = false;
+    reqs[1].enable_reflections = false;
+    reqs[1].enable_post_processing = false;
+
+    mjrfReadPixelsRequest read_request;
+    mjrf_defaultReadPixelsRequest(&read_request);
+    read_request.target = target.get();
+    read_request.output = rgb;
+    read_request.num_bytes = viewport.width * viewport.height * 3;
+
+    const int num_requests = (framebuffer_mode_ == 2) ? 2 : 1;
+    const mjrfFrameHandle frame = mjrf_render(
+        filament_context_.get(), &reqs[0], num_requests, &read_request, 1);
+    mjrf_waitForFrame(filament_context_.get(), frame);
+  }
+  DoSetBuffer(mjFB_WINDOW);
 }
 
 double Renderer::GetFps() { return fps_; }
@@ -233,7 +354,10 @@ void Renderer::UpdateFps() {
       frames_ = 0;
     }
   } else {
-    fps_ = mjrf_getFrameRate(&render_context_);
+    mjrfFrameStats stats;
+    mjrf_defaultFrameStats(&stats);
+    mjrf_getFrameStats(filament_context_.get(), 0, &stats);
+    fps_ = stats.frame_rate;
   }
 }
 
@@ -243,7 +367,7 @@ mjPLUGIN_LIB_INIT(renderer) {
   mujoco::platform::GuiPlugin plugin;
   plugin.name = "Filament";
   plugin.update = [](mujoco::platform::GuiPlugin* self) {
-    mjrf_updateGui(nullptr);
+    mujoco::platform::PluginUpdate(self);
   };
   mujoco::platform::RegisterPlugin(plugin);
 }

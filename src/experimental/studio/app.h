@@ -55,6 +55,12 @@ class App {
 
     // The graphics configuration used for initializing the window.
     platform::GraphicsMode gfx_mode = platform::GraphicsMode::FilamentVulkan;
+
+    // The initial GUI theme. If set, overrides the default (kLight).
+    std::optional<platform::GuiTheme> initial_theme;
+
+    // The application title shown in the window title bar.
+    std::string title = "MuJoCo Studio";
   };
 
   explicit App(Config config);
@@ -106,6 +112,9 @@ class App {
     int key_idx = 0;
     platform::GuiTheme theme = platform::GuiTheme::kLight;
     float font_scale = 1.0f;
+    int window_width = 0;
+    int window_height = 0;
+    int nthread = 0;
 
     using Dict = std::unordered_map<std::string, std::string>;
     Dict ToDict() const;
@@ -116,12 +125,12 @@ class App {
   struct UiTempState {
     bool should_exit = false;
     bool first_frame = true;
+    bool update_threadpool = false;
 
     // Windows.
     bool help = false;
     bool stats = false;
-    bool chart_solver = false;
-    bool chart_performance = false;
+    bool profiler = false;
     bool picture_in_picture = false;
     bool options_panel = true;
     bool inspector_panel = true;
@@ -175,9 +184,6 @@ class App {
   // Requests that the currently loaded model be reloaded at the next update.
   void RequestModelReload();
 
-  // Clears the currently loaded model and all associated state.
-  void ClearModel();
-
   // Recompiles the spec, updating the model and data.
   void Recompile();
 
@@ -220,8 +226,6 @@ class App {
   void SpecExplorerGui();
   void SpecEditorGui();
 
-  float GetExpectedLabelWidth();
-
   mjSpec* spec() { return model_holder_->spec(); }
   mjModel* model() { return model_holder_->model(); }
   mjData* data() { return model_holder_->data(); }
@@ -229,6 +233,7 @@ class App {
   bool has_model() const { return model_holder_ && model_holder_->model(); }
   bool has_data() const { return model_holder_ && model_holder_->data(); }
 
+  std::string app_title_;
   std::string ini_path_;
   std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
   std::string model_path_;

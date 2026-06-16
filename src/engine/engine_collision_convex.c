@@ -24,7 +24,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_collision_gjk.h"
-#include "engine/engine_collision_primitive.h"
+#include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
@@ -34,6 +34,15 @@
 
 #define mjMINVAL2 (mjMINVAL * mjMINVAL)
 
+// CCD internal buffer used for batched processing; if NULL, stack memory allocated on each
+// mjc_penetration call
+static mjTHREADLOCAL void* ccd_buffer = NULL;
+
+// set CCD internal buffer
+void mjc_setCCDBuffer(void* buffer) {
+  ccd_buffer = buffer;
+}
+
 // ccd prism first dir
 static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t *vec) {
   ccdVec3Set(vec, 0, 0, 1);
@@ -41,7 +50,7 @@ static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t *vec) {
 
 // wrapper around libccd; returns number of collisions found
 static inline int _libccd_wrapper(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
-                                  mjContact* con, mjtNum margin) {
+                                  mjPreContact* con, mjtNum margin) {
   ccd_t ccd;
   CCD_INIT(&ccd);
   ccd.mpr_tolerance = m->opt.ccd_tolerance;
@@ -64,10 +73,10 @@ static inline int _libccd_wrapper(const mjModel* m, mjCCDObj* obj1, mjCCDObj* ob
     if (ccdVec3Eq(&ccd_dir, ccd_vec3_origin)) {
       return 0;
     }
-    con->dist = margin - ccd_depth;
-    mji_copy3(con->frame, ccd_dir.v);
-    mji_copy3(con->pos, ccd_pos.v);
-    mji_zero3(con->frame + 3);
+    con[0].dist = margin - ccd_depth;
+    mji_copy3(con[0].normal, ccd_dir.v);
+    mji_copy3(con[0].pos, ccd_pos.v);
+    mji_zero3(con[0].tangent);
     return 1;
   }
   return 0;
@@ -76,7 +85,7 @@ static inline int _libccd_wrapper(const mjModel* m, mjCCDObj* obj1, mjCCDObj* ob
 
 // find penetration info between two geoms; returns number of collisions found
 static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj* obj2,
-                           mjContact* con, int ncon, mjtNum margin) {
+                           mjPreContact* con, int ncon, mjtNum margin) {
   if (mjDISABLED(mjDSBL_NATIVECCD)) {
     return _libccd_wrapper(m, obj1, obj2, con, margin);
   }
@@ -85,31 +94,37 @@ static int mjc_penetration(const mjModel* m, mjData* d, mjCCDObj* obj1, mjCCDObj
   mjCCDConfig config;
   mjCCDStatus status;
   mjtNum dist;
+  int nwitness = 0;
+  void* buffer = ccd_buffer;
 
   // set config
-  mj_markStack(d);
   config.max_iterations = m->opt.ccd_iterations;
   config.tolerance = m->opt.ccd_tolerance;
   config.max_contacts = ncon;
   config.dist_cutoff = 0;  // no geom distances needed
-  config.buffer = mj_stackAllocByte(d, mjc_ccdSize(config.max_iterations), sizeof(mjtNum));
+  if (buffer) {
+    config.buffer = buffer;
+  } else {
+    mj_markStack(d);
+    config.buffer = mj_stackAllocByte(d, mjc_ccdSize(config.max_iterations), sizeof(mjtNum));
+  }
 
   if ((dist = mjc_ccd(&config, &status, obj1, obj2)) < 0) {
-    mj_freeStack(d);
-    int nwitness = status.nx;
-    for (int i = 0; i < nwitness; i++, con++) {
-      con->dist = margin + dist;
-      con->pos[0] = 0.5*(status.x1[3*i + 0] + status.x2[3*i + 0]);
-      con->pos[1] = 0.5*(status.x1[3*i + 1] + status.x2[3*i + 1]);
-      con->pos[2] = 0.5*(status.x1[3*i + 2] + status.x2[3*i + 2]);
-      mji_sub3(con->frame, status.x1 + 3*i, status.x2 + 3*i);
-      mju_normalize3(con->frame);
-      mji_zero3(con->frame + 3);
+    nwitness = status.nx;
+    for (int i = 0; i < nwitness; i++) {
+      con[i].dist = margin + dist;
+      con[i].pos[0] = 0.5*(status.x1[3*i + 0] + status.x2[3*i + 0]);
+      con[i].pos[1] = 0.5*(status.x1[3*i + 1] + status.x2[3*i + 1]);
+      con[i].pos[2] = 0.5*(status.x1[3*i + 2] + status.x2[3*i + 2]);
+      mji_sub3(con[i].normal, status.x1 + 3*i, status.x2 + 3*i);
+      mju_normalize3(con[i].normal);
+      mji_zero3(con[i].tangent);
     }
-    return nwitness;
   }
-  mj_freeStack(d);
-  return 0;
+  if (!buffer) {
+    mj_freeStack(d);
+  }
+  return nwitness;
 }
 
 
@@ -780,9 +795,10 @@ static void mjc_setCCDObjFlex(mjCCDObj* obj, int flex, int elem, int vert) {
 
 
 // compare new contact to previous contacts, return 1 if it is far from all of them
-static int mjc_isDistinctContact(mjContact* con, int ncon, mjtNum tolerance) {
+static int mjc_isDistinctContact(const mjPreContact* con, int ncon, mjtNum tolerance) {
+  const mjtNum* last_pos = con[ncon - 1].pos;
   for (int i=0; i < ncon-1; i++) {
-    if (mju_dist3(con[i].pos, con[ncon - 1].pos) <= tolerance) {
+    if (mju_dist3(con[i].pos, last_pos) <= tolerance) {
       return 0;
     }
   }
@@ -838,7 +854,7 @@ static int maxContacts(const mjModel* m, const mjCCDObj* obj1, const mjCCDObj* o
 
 
 // multi-point convex-convex collision, using libccd
-int mjc_Convex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin) {
   // init ccd objects
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, margin);
@@ -857,7 +873,7 @@ int mjc_Convex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtN
   }
 
   // look for additional contacts
-  if (ncon == 1 && !mjDISABLED(mjDSBL_MULTICCD)  // TODO(tassa) leave as bitflag or make geom attribute (?)
+  if (ncon == 1 && !mjDISABLED(mjDSBL_MULTICCD)
       && m->geom_type[g1] != mjGEOM_ELLIPSOID && m->geom_type[g1] != mjGEOM_SPHERE
       && m->geom_type[g2] != mjGEOM_ELLIPSOID && m->geom_type[g2] != mjGEOM_SPHERE) {
     // multiCCD parameters
@@ -866,7 +882,8 @@ int mjc_Convex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtN
 
     // complete frame of initial contact
     mjtNum frame[9];
-    mji_copy9(frame, con[0].frame);
+    mji_copy3(frame, con[0].normal);
+    mju_zero(frame+3, 6);
     mju_makeFrame(frame);
 
     // tolerance for determining if newly found contacts are distinct
@@ -926,7 +943,7 @@ const int maxplanemesh = 3;
 const mjtNum tolplanemesh = 0.3;
 
 // add one plane-mesh contact
-static int addplanemesh(mjContact* con, const float vertex[3],
+static int addplanemesh(mjPreContact* con, const float vertex[3],
                         const mjtNum pos1[3], const mjtNum normal1[3],
                         const mjtNum pos2[3], const mjtNum mat2[9],
                         const mjtNum first[3], mjtNum rbound) {
@@ -945,44 +962,47 @@ static int addplanemesh(mjContact* con, const float vertex[3],
   mji_sub3(dif, pnt, pos1);
 
   // set distance
-  con->dist = mju_dot3(normal1, dif);
+  con[0].dist = mju_dot3(normal1, dif);
 
   // set position
-  mji_copy3(con->pos, pnt);
-  mji_addToScl3(con->pos, normal1, -0.5*con->dist);
+  mji_copy3(con[0].pos, pnt);
+  mji_addToScl3(con[0].pos, normal1, -0.5*con[0].dist);
 
   // set frame
-  mji_copy3(con->frame, normal1);
-  mju_zero3(con->frame+3);
+  mji_copy3(con[0].normal, normal1);
+  mji_zero3(con[0].tangent);
 
   return 1;
 }
 
 
 // plane-convex collision, using libccd
-int mjc_PlaneConvex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
-  mjGETINFO
-  mjtNum dist, dif[3], normal[3] = {mat1[2], mat1[5], mat1[8]};
-  ccd_vec3_t dir, vec;
+int mjc_PlaneConvex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin) {
+  const mjtNum* pos1  = d->geom_xpos + 3*g1;
+  const mjtNum* mat1  = d->geom_xmat + 9*g1;
+  const mjtNum* pos2  = d->geom_xpos + 3*g2;
+  const mjtNum* mat2  = d->geom_xmat + 9*g2;
+
+  mjtNum dif[3], normal[3] = {mat1[2], mat1[5], mat1[8]};
+  ccd_vec3_t ccd_dir, ccd_vec;
   mjCCDObj obj;
   mjc_initCCDObj(&obj, m, d, g2, 0);
   // get support point in -normal direction
-  ccdVec3Set(&dir, -mat1[2], -mat1[5], -mat1[8]);
-  mjccd_support(&obj, &dir, &vec);
+  ccdVec3Set(&ccd_dir, -mat1[2], -mat1[5], -mat1[8]);
+  mjccd_support(&obj, &ccd_dir, &ccd_vec);
 
   // compute normal distance, return if too far
-  mji_sub3(dif, vec.v, pos1);
-  dist = mju_dot3(normal, dif);
-  if (dist > margin) {
+  mji_sub3(dif, ccd_vec.v, pos1);
+  con[0].dist = mju_dot3(normal, dif);
+  if (con[0].dist > margin) {
     return 0;
   }
 
   // fill in contact data
-  con->dist = dist;
-  mji_copy3(con->pos, vec.v);
-  mji_addToScl3(con->pos, normal, -0.5*dist);
-  mji_copy3(con->frame, normal);
-  mju_zero3(con->frame+3);
+  mji_copy3(con[0].pos, ccd_vec.v);
+  mji_addToScl3(con[0].pos, normal, -0.5*con[0].dist);
+  mji_copy3(con[0].normal, normal);
+  mji_zero3(con[0].tangent);
 
   //--------------- add all/connected vertices below margin
   float* vertdata;
@@ -1001,7 +1021,7 @@ int mjc_PlaneConvex(const mjModel* m, mjData* d, mjContact* con, int g1, int g2,
 
   // express dir in geom local frame
   mjtNum locdir[3];
-  mju_mulMatTVec3(locdir, d->geom_xmat+9*g, dir.v);
+  mju_mulMatTVec3(locdir, d->geom_xmat+9*g, ccd_dir.v);
 
   // inclusion threshold along locdir, relative to geom2 center
   mji_sub3(dif, pos2, pos1);
@@ -1097,7 +1117,8 @@ static inline void addPrismVert(mjCCDObj* obj, int r, int c, int i, mjtNum dx, m
 
 
 // entry point for heightfield collisions
-int mjc_ConvexHField(const mjModel* m, mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
+int mjc_ConvexHField(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2,
+                     mjtNum margin) {
   // hfield frame
   const mjtNum* pos1 = d->geom_xpos + 3*g1;
   const mjtNum* mat1 = d->geom_xmat + 9*g1;
@@ -1116,16 +1137,16 @@ int mjc_ConvexHField(const mjModel* m, mjData* d, mjContact* con, int g1, int g2
   // try early return using box-sphere test
 
   // express geom2 pos in hfield frame
-  mjtNum pos[3] = {pos2[0] - pos1[0], pos2[1] - pos1[1], pos2[2] - pos1[2]};
-  mju_mulMatTVec3(pos, mat1, pos);
+  mjtNum local_pos[3] = {pos2[0] - pos1[0], pos2[1] - pos1[1], pos2[2] - pos1[2]};
+  mju_mulMatTVec3(local_pos, mat1, local_pos);
 
   // sphere radius is geom2 rbound + margin
   mjtNum radius = m->geom_rbound[g2] + margin;
 
   // box-sphere test
-  if ((size0 < pos[0] - radius) || (-size0 > pos[0] + radius) ||
-      (size1 < pos[1] - radius) || (-size1 > pos[1] + radius) ||
-      (size2 < pos[2] - radius) || (-size3 > pos[2] + radius)) {
+  if ((size0 < local_pos[0] - radius) || (-size0 > local_pos[0] + radius) ||
+      (size1 < local_pos[1] - radius) || (-size1 > local_pos[1] + radius) ||
+      (size2 < local_pos[2] - radius) || (-size3 > local_pos[2] + radius)) {
     return 0;
   }
 
@@ -1142,42 +1163,42 @@ int mjc_ConvexHField(const mjModel* m, mjData* d, mjContact* con, int g1, int g2
   mji_mulMatTMat3(mat, mat1, mat2);
 
   mji_copy9(obj2.mat, mat);
-  mji_copy3(obj2.pos, pos);
+  mji_copy3(obj2.pos, local_pos);
 
-  mjtNum dir[3] = {0, 0, 0}, res[3];
+  mjtNum local_dir[3] = {0, 0, 0}, res[3];
 
   // get support point in +X
-  dir[0] = 1;
-  obj2.support(res, &obj2, dir);
+  local_dir[0] = 1;
+  obj2.support(res, &obj2, local_dir);
   mjtNum xmax = res[0];
 
   // get support point in -X
-  dir[0] = -1;
-  obj2.support(res, &obj2, dir);
+  local_dir[0] = -1;
+  obj2.support(res, &obj2, local_dir);
   mjtNum xmin = res[0];
 
-  dir[0] = 0;
+  local_dir[0] = 0;
 
   // get support point in +Y
-  dir[1] = 1;
-  obj2.support(res, &obj2, dir);
+  local_dir[1] = 1;
+  obj2.support(res, &obj2, local_dir);
   mjtNum ymax = res[1];
 
   // get support point in -Y
-  dir[1] = -1;
-  obj2.support(res, &obj2, dir);
+  local_dir[1] = -1;
+  obj2.support(res, &obj2, local_dir);
   mjtNum ymin = res[1];
 
-  dir[1] = 0;
+  local_dir[1] = 0;
 
   // get support point in +Z
-  dir[2] = 1;
-  obj2.support(res, &obj2, dir);
+  local_dir[2] = 1;
+  obj2.support(res, &obj2, local_dir);
   mjtNum zmax = res[2];
 
   // get support point in -Z
-  dir[2] = -1;
-  obj2.support(res, &obj2, dir);
+  local_dir[2] = -1;
+  obj2.support(res, &obj2, local_dir);
   mjtNum zmin = res[2];
 
   // AABB box-box test
@@ -1226,10 +1247,10 @@ int mjc_ConvexHField(const mjModel* m, mjData* d, mjContact* con, int g1, int g2
         // run penetration function, save contact
         if (mjc_penetration(m, d, &obj1, &obj2, con + ncon, 1, 0.0)) {
           // transform to global coordinates
-          mji_copy3(dir, con[ncon].frame);
-          mji_copy3(pos, con[ncon].pos);
-          mji_mulMatVec3(con[ncon].frame, mat1, dir);
-          mji_mulMatVec3(con[ncon].pos, mat1, pos);
+          mji_copy3(local_dir, con[ncon].normal);
+          mji_copy3(local_pos, con[ncon].pos);
+          mji_mulMatVec3(con[ncon].normal, mat1, local_dir);
+          mji_mulMatVec3(con[ncon].pos, mat1, local_pos);
           mji_addTo3(con[ncon].pos, pos1);
 
           // force out of all loops if max contacts reached
@@ -1247,7 +1268,7 @@ int mjc_ConvexHField(const mjModel* m, mjData* d, mjContact* con, int g1, int g2
   if (mjDISABLED(mjDSBL_NATIVECCD)) {
     // fix contact normals
     for (int i=0; i < ncon; i++) {
-      mjc_fixNormal(m, d, con+i, g1, g2);
+      mjc_fixNormal(m, d, con + i, g1, g2);
     }
   }
 
@@ -1362,7 +1383,7 @@ static int mjc_ellipsoidOutside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum
 
 
 // fix normals if required
-void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2) {
+void mjc_fixNormal(const mjModel* m, const mjData* d, mjPreContact* con, int g1, int g2) {
   mjtNum dst1, dst2;
 
   // get geom ids and types
@@ -1389,8 +1410,8 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 
   // init normals
   mjtNum normal[2][3] = {
-    {con->frame[0], con->frame[1], con->frame[2]},
-    {-con->frame[0], -con->frame[1], -con->frame[2]}
+    {con->normal[0], con->normal[1], con->normal[2]},
+    {-con->normal[0], -con->normal[1], -con->normal[2]}
   };
 
   // process geoms in type range
@@ -1402,27 +1423,27 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
       mjtNum* size = m->geom_size + 3*gid[i];
 
       // map contact point and normal to local frame
-      mjtNum dif[3], pos[3], nrm[3];
+      mjtNum dif[3], pos1[3], nrm[3];
       mju_sub3(dif, con->pos, d->geom_xpos+3*gid[i]);
-      mju_mulMatTVec3(pos, mat, dif);
+      mju_mulMatTVec3(pos1, mat, dif);
       mju_mulMatTVec3(nrm, mat, normal[i]);
 
       // process according to type
       switch (type[i]) {
       case mjGEOM_SPHERE:
-        mji_copy3(nrm, pos);
+        mji_copy3(nrm, pos1);
         processed[i] = 1;
         break;
 
       case mjGEOM_CAPSULE:
         // Z: bottom cap
-        if (pos[2] < -size[1]) {
-          nrm[2] = pos[2]+size[1];
+        if (pos1[2] < -size[1]) {
+          nrm[2] = pos1[2]+size[1];
         }
 
         // Z: top cap
-        else if (pos[2] > size[1]) {
-          nrm[2] = pos[2]-size[1];
+        else if (pos1[2] > size[1]) {
+          nrm[2] = pos1[2]-size[1];
         }
 
         // Z: cylinder
@@ -1431,8 +1452,8 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
         }
 
         // copy XY
-        nrm[0] = pos[0];
-        nrm[1] = pos[1];
+        nrm[0] = pos1[0];
+        nrm[1] = pos1[1];
         processed[i] = 1;
         break;
 
@@ -1443,27 +1464,27 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
         }
 
         // compute elliptic distance^2
-        dst1 = pos[0]*pos[0]/(size[0]*size[0]) +
-               pos[1]*pos[1]/(size[1]*size[1]) +
-               pos[2]*pos[2]/(size[2]*size[2]);
+        dst1 = pos1[0]*pos1[0]/(size[0]*size[0]) +
+               pos1[1]*pos1[1]/(size[1]*size[1]) +
+               pos1[2]*pos1[2]/(size[2]*size[2]);
 
         // dispatch to inside or outside solver
         if (dst1 <= 1) {
-          processed[i] = mjc_ellipsoidInside(nrm, pos, size);
+          processed[i] = mjc_ellipsoidInside(nrm, pos1, size);
         } else {
-          processed[i] = mjc_ellipsoidOutside(nrm, pos, size);
+          processed[i] = mjc_ellipsoidOutside(nrm, pos1, size);
         }
         break;
 
       case mjGEOM_CYLINDER:
         // skip if within 5% length of flat wall
-        if (mju_abs(pos[2]) > 0.95*size[1]) {
+        if (mju_abs(pos1[2]) > 0.95*size[1]) {
           break;
         }
 
         // compute distances to flat and round wall
-        dst1 = mju_abs(size[1]-mju_abs(pos[2]));
-        dst2 = mju_abs(size[0]-mju_norm(pos, 2));
+        dst1 = mju_abs(size[1]-mju_abs(pos1[2]));
+        dst2 = mju_abs(size[0]-mju_norm(pos1, 2));
 
         // require 4x closer to round than flat wall
         if (dst1 < 0.25*dst2) {
@@ -1471,8 +1492,8 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
         }
 
         // set normal for round wall
-        nrm[0] = pos[0];
-        nrm[1] = pos[1];
+        nrm[0] = pos1[0];
+        nrm[1] = pos1[1];
         nrm[2] = 0;
         processed[i] = 1;
         break;
@@ -1492,23 +1513,18 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 
   // both processed: average
   if (processed[0] && processed[1]) {
-    mji_sub3(con->frame, normal[0], normal[1]);
-    mju_normalize3(con->frame);
+    mji_sub3(con->normal, normal[0], normal[1]);
+    mju_normalize3(con->normal);
   }
 
   // first processed: copy
   else if (processed[0]) {
-    mji_copy3(con->frame, normal[0]);
+    mji_copy3(con->normal, normal[0]);
   }
 
   // second processed: copy reverse
   else if (processed[1]) {
-    mji_scl3(con->frame, normal[1], -1);
-  }
-
-  // clear second frame axis if processed, just in case
-  if (processed[0] || processed[1]) {
-    mju_zero3(con->frame+3);
+    mji_scl3(con->normal, normal[1], -1);
   }
 }
 
@@ -1525,7 +1541,8 @@ int mjc_ConvexElem(const mjModel* m, mjData* d, mjContact* con, int g1, int f1, 
   mjc_setCCDObjFlex(&obj2, f2, e2, -1);
 
   // find contacts
-  int ncon = mjc_penetration(m, d, &obj1, &obj2, con, 1, margin);
+  mjPreContact precon[8];
+  int ncon = mjc_penetration(m, d, &obj1, &obj2, precon, 1, margin);
 
   // fix normals for 2D flex
   if (ncon && !mjDISABLED(mjDSBL_NATIVECCD)) {
@@ -1536,9 +1553,17 @@ int mjc_ConvexElem(const mjModel* m, mjData* d, mjContact* con, int g1, int f1, 
 
     if (isflex2d) {
       for (int i = 0; i < ncon; i++) {
-        mjc_fixNormal(m, d, con + i, g1, -1);
+        mjc_fixNormal(m, d, precon + i, g1, -1);
       }
     }
+  }
+
+  // copy to con
+  for (int i = 0; i < ncon; i++) {
+    con[i].dist = precon[i].dist;
+    mji_copy3(con[i].pos, precon[i].pos);
+    mji_copy3(con[i].frame, precon[i].normal);
+    mju_zero3(con[i].frame + 3);
   }
 
   return ncon;
@@ -1659,14 +1684,14 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjContact* con, int g, int f, in
           }
 
           // run ccd, save contact
-          if (mjc_penetration(m, d, &obj1, &obj2, con + cnt, 1, 0.0)) {
+          mjContact* ccon = con + cnt;
+          mjPreContact precon;
+          if (mjc_penetration(m, d, &obj1, &obj2, &precon, 1, 0.0)) {
             // transform to global coordinates
-            mjtNum dir[3], pos[3];
-            mji_copy3(dir, con[cnt].frame);
-            mji_copy3(pos, con[cnt].pos);
-            mji_mulMatVec3(con[cnt].frame, hmat, dir);
-            mji_mulMatVec3(con[cnt].pos, hmat, pos);
-            mji_addTo3(con[cnt].pos, hpos);
+            mji_zero3(ccon->frame + 3);
+            mji_mulMatVec3(ccon->frame, hmat, precon.normal);
+            mji_mulMatVec3(ccon->pos, hmat, precon.pos);
+            mji_addTo3(ccon->pos, hpos);
 
             // count, stop if max number reached
             cnt++;

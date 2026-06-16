@@ -97,7 +97,7 @@ static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
 
       // insert another newline
       if (line_pos != string::npos) {
-        str.insert(line_pos + 1, "\n");
+        str.insert(line_pos + 1, 1, '\n');
         pos++;  // account for inserted newline
       }
 
@@ -190,6 +190,7 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
   WriteAttrKey(cont, "internal", bool_map, 2, flex->internal, defflex.internal);
   WriteAttrKey(cont, "selfcollide", flexself_map, 5, flex->selfcollide, defflex.selfcollide);
   WriteAttrInt(cont, "activelayers", flex->activelayers, defflex.activelayers);
+  WriteAttrKey(cont, "passive", bool_map, 2, flex->passive, defflex.passive);
 
   // remove contact is no attributes
   if (!cont->FirstAttribute()) {
@@ -202,7 +203,7 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
   WriteAttr(elastic, "poisson", 1, &flex->poisson, &defflex.poisson);
   WriteAttr(elastic, "thickness", 1, &flex->thickness, &defflex.thickness);
   WriteAttr(elastic, "damping", 1, &flex->damping, &defflex.damping);
-  WriteAttrKey(elastic, "elastic2d", elastic2d_map, 2, flex->elastic2d, defflex.elastic2d);
+  WriteAttrKey(elastic, "elastic2d", elastic2d_map, 4, flex->elastic2d, defflex.elastic2d);
 
   // edge subelement
   XMLElement* edge = InsertEnd(elem, "edge");
@@ -1125,6 +1126,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEENBL("fwdinv",         mjENBL_FWDINV)
     WRITEENBL("invdiscrete",    mjENBL_INVDISCRETE)
     WRITEENBL("sleep",          mjENBL_SLEEP)
+    WRITEENBL("diagexact",      mjENBL_DIAGEXACT)
 #undef WRITEENBL
   }
 

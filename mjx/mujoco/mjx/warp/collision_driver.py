@@ -14,15 +14,17 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
+
 import dataclasses
 import functools
+
 import jax
-from mujoco.mjx._src import types
-from mujoco.mjx.warp import ffi
-import mujoco.mjx.third_party.mujoco_warp as mjwarp
-from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 import warp as wp
 
+from mujoco.mjx._src import types
+import mujoco.mjx.third_party.mujoco_warp as mjwarp
+from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
+from mujoco.mjx.warp import ffi
 
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
@@ -45,6 +47,7 @@ _e = mjwarp.Constraint(
 _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
+
 
 @ffi.format_args_for_warp
 def _collision_shim(
@@ -73,6 +76,7 @@ def _collision_shim(
     flex_vertadr: wp.array[int],
     flex_vertflexid: wp.array[int],
     geom_aabb: wp.array3d[wp.vec3],
+    geom_bodyid: wp.array[int],
     geom_conaffinity: wp.array[int],
     geom_condim: wp.array[int],
     geom_contype: wp.array[int],
@@ -140,11 +144,13 @@ def _collision_shim(
     opt__ccd_iterations: int,
     opt__ccd_tolerance: wp.array[float],
     opt__disableflags: int,
+    opt__enableflags: int,
     opt__sdf_initpoints: int,
     opt__sdf_iterations: int,
     # Data
     naccdmax: int,
     naconmax: int,
+    body_awake: wp.array2d[int],
     flexvert_xpos: wp.array2d[wp.vec3],
     geom_xmat: wp.array2d[wp.mat33],
     geom_xpos: wp.array2d[wp.vec3],
@@ -195,6 +201,7 @@ def _collision_shim(
   _m.flex_vertadr = flex_vertadr
   _m.flex_vertflexid = flex_vertflexid
   _m.geom_aabb = geom_aabb
+  _m.geom_bodyid = geom_bodyid
   _m.geom_conaffinity = geom_conaffinity
   _m.geom_condim = geom_condim
   _m.geom_contype = geom_contype
@@ -253,6 +260,7 @@ def _collision_shim(
   _m.opt.ccd_iterations = opt__ccd_iterations
   _m.opt.ccd_tolerance = opt__ccd_tolerance
   _m.opt.disableflags = opt__disableflags
+  _m.opt.enableflags = opt__enableflags
   _m.opt.sdf_initpoints = opt__sdf_initpoints
   _m.opt.sdf_iterations = opt__sdf_iterations
   _m.pair_dim = pair_dim
@@ -264,6 +272,7 @@ def _collision_shim(
   _m.pair_solreffriction = pair_solreffriction
   _m.plugin = plugin
   _m.plugin_attr = plugin_attr
+  _d.body_awake = body_awake
   _d.contact.dim = contact__dim
   _d.contact.dist = contact__dist
   _d.contact.efc_address = contact__efc_address
@@ -386,6 +395,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.flex_vertadr,
       m._impl.flex_vertflexid,
       m.geom_aabb,
+      m.geom_bodyid,
       m.geom_conaffinity,
       m.geom_condim,
       m.geom_contype,
@@ -453,10 +463,12 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.opt._impl.ccd_iterations,
       m.opt._impl.ccd_tolerance,
       m.opt.disableflags,
+      m.opt.enableflags,
       m.opt._impl.sdf_initpoints,
       m.opt._impl.sdf_iterations,
       d._impl.naccdmax,
       d._impl.naconmax,
+      d._impl.body_awake,
       d._impl.flexvert_xpos,
       d.geom_xmat,
       d.geom_xpos,

@@ -14,18 +14,18 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <climits>
 #include <cmath>
 #include <csetjmp>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
-#include <deque>
 #include <functional>
 #include <limits>
 #include <map>
 #include <memory>
-#include <set>
+#include <queue>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -57,7 +57,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include "engine/engine_crossplatform.h"  // IWYU pragma: keep
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
@@ -687,10 +687,16 @@ void mjCMesh::Compile(const mjVFS* vfs) {
 
 // compiler
 void mjCMesh::TryCompile(const mjVFS* vfs) {
+  using Clock = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<double>;
+  std::fill_n(mesh_timer_, mjNCTIMER, 0.0);
+
   bool fromCache = false;
   CopyFromSpec();
   visual_ = true;
   mjCCache *cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
+
+  Clock::time_point t0 = Clock::now();
 
   // load file
   if (!file_.empty()) {
@@ -764,12 +770,13 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     LoadSDF();  // create using marching cubes
   }
 
+  mesh_timer_[mjCTIMER_MESH_LOAD] = Seconds(Clock::now() - t0).count();
+
   CheckInitialMesh();
 
   // compute mesh properties
   if (!fromCache) {
     Process();
-
     if (!file_.empty()) {
       CacheMesh(cache, resource_);
     }
@@ -777,16 +784,19 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     // When a mesh is loaded from the cache, has no octree but needs one,
     // we need to compute it here. If inversely it has an octree but we *do not*
     // need one, we clear it.
+    t0 = Clock::now();
     if (!needsdf) {
       octree_.Clear();
     } else if (octree_.NumNodes() == 0) {
       std::vector<double> dvert(vert_.begin(), vert_.end());
       octree_.SetFace(dvert, face_);
+      octree_.SetMaxDepth(spec.octree_maxdepth);
       octree_.CreateOctree(aamm_);
       if (!plugin.active) {
         octree_.ComputeSdfCoeffs(dvert.data(), nvert(), face_.data(), nface(), tree_);
       }
     }
+    mesh_timer_[mjCTIMER_MESH_OCTREE] = Seconds(Clock::now() - t0).count();
   }
 
   // close resource
@@ -1339,7 +1349,9 @@ double mjCMesh::ComputeFaceCentroid(double facecen[3], const double* dvert) cons
 
 void mjCMesh::Process() {
   std::vector<double> dvert(vert_.begin(), vert_.end());
-
+  using Clock = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<double>;
+  Clock::time_point t0;
   // create half-edge structure (if mesh was in XML)
   if (halfedge_.empty()) {
     for (int i = 0; i < nface(); i++) {
@@ -1368,6 +1380,7 @@ void mjCMesh::Process() {
     }
   }
 
+  t0 = Clock::now();
   // make graph describing convex hull
   if (needhull_ || face_.empty()) {
     MakeGraph(dvert.data());
@@ -1377,7 +1390,9 @@ void mjCMesh::Process() {
   if (face_.empty()) {
     CopyGraph();
   }
+  mesh_timer_[mjCTIMER_MESH_HULL] += Seconds(Clock::now() - t0).count();
 
+  t0 = Clock::now();
   // no normals: make
   if (normal_.empty()) {
     MakeNormal(dvert.data());
@@ -1422,6 +1437,9 @@ void mjCMesh::Process() {
     }
   }
 
+  mesh_timer_[mjCTIMER_MESH_POLYGON] += Seconds(Clock::now() - t0).count();
+
+  t0 = Clock::now();
   // user offset, rotation, scaling
   ApplyTransformations(dvert.data());
 
@@ -1517,7 +1535,9 @@ void mjCMesh::Process() {
 
   // recompute polygon normals
   MakePolygonNormals(dvert.data());
+  mesh_timer_[mjCTIMER_MESH_INERTIA] += Seconds(Clock::now() - t0).count();
 
+  t0 = Clock::now();
   // make bounding volume hierarchy
   if (tree_.Bvh().empty()) {
     face_aabb_.clear();
@@ -1528,10 +1548,13 @@ void mjCMesh::Process() {
     }
     tree_.CreateBVH();
   }
+  mesh_timer_[mjCTIMER_MESH_BVH] += Seconds(Clock::now() - t0).count();
 
+  t0 = Clock::now();
   // make octree
   if (needsdf) {
     octree_.SetFace(dvert, face_);
+    octree_.SetMaxDepth(spec.octree_maxdepth);
     octree_.CreateOctree(aamm_);
 
     if (!plugin.active) {
@@ -1543,6 +1566,7 @@ void mjCMesh::Process() {
   for (int i = 0; i < (int)dvert.size(); i++) {
     vert_[i] = (float)dvert[i];
   }
+  mesh_timer_[mjCTIMER_MESH_OCTREE] += Seconds(Clock::now() - t0).count();
 }
 
 
@@ -1706,13 +1730,86 @@ void mjCMesh::MakeGraph(const double* dvert) {
 
   std::string qhopt = "qhull Qt";
   if (maxhullvert_ > -1) {
+    // qhull "Q9" picks the furthest of all furthest points across facets.
     // qhull "TA" actually means "number of vertices added after the initial simplex"
-    qhopt += " TA" + std::to_string(maxhullvert_ - 4);
+    qhopt += " Q9 TA" + std::to_string(maxhullvert_ - 4);
   }
 
   // graph not needed for small meshes
   if (nvert() < 4) {
     return;
+  }
+
+  // check for colocated/collinear/coplanar vertices
+  {
+    // find second vertex that is distinct from vertex 0
+    int v1 = -1;
+    double len1 = 0;
+    for (int i = 1; i < nvert(); i++) {
+      len1 = mjuu_dist3(dvert+3*i, dvert);
+      if (len1 > mjMINVAL) {
+        v1 = i;
+        break;
+      }
+    }
+
+    // no second vertex found: all vertices are colocated
+    if (v1 < 0) {
+      throw mjCError(this,
+          "mesh '%s' has colocated vertices, cannot compute convex hull."
+          " Consider using a small sphere instead",
+          name.c_str());
+    }
+
+    // find first non-collinear triple to define a plane
+    double edge1[3] = {dvert[3*v1+0] - dvert[0],
+                       dvert[3*v1+1] - dvert[1],
+                       dvert[3*v1+2] - dvert[2]};
+    double normal[3] = {0, 0, 0};
+    bool collinear = true;
+    for (int i = 1; i < nvert(); i++) {
+      if (i == v1) continue;
+      double edge2[3] = {dvert[3*i+0] - dvert[0],
+                         dvert[3*i+1] - dvert[1],
+                         dvert[3*i+2] - dvert[2]};
+      double len2 = sqrt(mjuu_dot3(edge2, edge2));
+      if (len2 < mjMINVAL) continue;
+      mjuu_crossvec(normal, edge1, edge2);
+      double norm = sqrt(mjuu_dot3(normal, normal));
+      if (norm > mjMINVAL * len1 * len2) {
+        normal[0] /= norm;
+        normal[1] /= norm;
+        normal[2] /= norm;
+        collinear = false;
+        break;
+      }
+    }
+
+    // vertices are collinear: cannot compute convex hull
+    if (collinear) {
+      throw mjCError(this,
+          "mesh '%s' has collinear vertices, cannot compute convex hull."
+          " Consider using a thin capsule instead",
+          name.c_str());
+    }
+
+    // find first vertex that is not on the plane
+    double d = mjuu_dot3(normal, dvert);
+    bool coplanar = true;
+    for (int i = 0; i < nvert(); i++) {
+      if (fabs(mjuu_dot3(normal, dvert+3*i) - d) > mjMINVAL * len1) {
+        coplanar = false;
+        break;
+      }
+    }
+
+    // vertices are coplanar: cannot compute convex hull
+    if (coplanar) {
+      throw mjCError(this,
+          "mesh '%s' has coplanar vertices, cannot compute convex hull."
+          " Consider using a primitive geom type (plane or thin box) instead",
+          name.c_str());
+    }
   }
 
   qhT qh_qh;
@@ -3869,22 +3966,24 @@ void inline ComputeLinearStiffness2D(std::vector<double>& K,
         throw mjCError(nullptr, "incorrect number of 2D basis functions");
       }
 
-      // tensor contraction (same structure as 3D but with zero normal column)
+      // tensor contraction: pure membrane (in-plane strain only)
+      // only loop over in-plane displacement directions to avoid transverse
+      // shear strains (ε_{normal,α}) which are spurious for thin shells
+      int inplane[2] = {axis0, axis1};
       for (int i = 0; i < npe; i++) {
         for (int j = 0; j < npe; j++) {
           Matrix du;
           Matrix dv;
           du.fill({0, 0, 0});
           dv.fill({0, 0, 0});
-          for (int k = 0; k < 3; k++) {
-            for (int l = 0; l < 3; l++) {
-              // du[k] has non-zero entries only at in-plane axes
+          for (int ki = 0; ki < 2; ki++) {
+            int k = inplane[ki];
+            for (int li = 0; li < 2; li++) {
+              int l = inplane[li];
               du[k][axis0] = invJ0 * F[i][0];
               du[k][axis1] = invJ1 * F[i][1];
-              // du[k][normal_axis] = 0 (already zero)
               dv[l][axis0] = invJ0 * F[j][0];
               dv[l][axis1] = invJ1 * F[j][1];
-              // dv[l][normal_axis] = 0 (already zero)
               K[ndof*(3*i+k) + 3*j+l] -= la * trace(du) * trace(dv) * dvol;
               // mu (not 2*mu): same convention as 3D ComputeLinearStiffness
               K[ndof*(3*i+k) + 3*j+l] -= mu * trace(inner(sym(du), sym(dv))) * dvol;
@@ -3899,99 +3998,143 @@ void inline ComputeLinearStiffness2D(std::vector<double>& K,
 }
 
 
+// compute the bilinear warp mode for a 2D face element
+//   warp:        output mode vector (ndof doubles), normalized to unit length
+//   pos:         node positions (3*npe doubles)
+//   npe:         nodes per element ((order+1)^2)
+//   order:       interpolation order (1 or 2)
+//   normal_axis: axis perpendicular to the face (0=x, 1=y, 2=z)
+static void ComputeWarpMode(double* warp, const double* pos,
+                            int npe, int order, int normal_axis) {
+  int ndof = 3 * npe;
+  int nbasis = order + 1;
+
+  // zero out
+  std::fill(warp, warp + ndof, 0.0);
+
+  // evaluate warp pattern (1-2s)(1-2t) at each node
+  for (int b0 = 0; b0 < nbasis; b0++) {
+    for (int b1 = 0; b1 < nbasis; b1++) {
+      int node = b0 * nbasis + b1;
+      double s = static_cast<double>(b0) / (nbasis - 1);
+      double t = static_cast<double>(b1) / (nbasis - 1);
+      warp[3*node + normal_axis] = (1 - 2*s) * (1 - 2*t);
+    }
+  }
+
+  // orthogonalize against rigid body modes (6 modes: 3 translations + 3 rotations)
+  // this is a no-op for rectangular elements (warp is already orthogonal)
+  // but keeps the code robust for non-square elements
+  double centroid[3] = {0, 0, 0};
+  for (int n = 0; n < npe; n++) {
+    for (int k = 0; k < 3; k++) {
+      centroid[k] += pos[3*n + k];
+    }
+  }
+  for (int k = 0; k < 3; k++) {
+    centroid[k] /= npe;
+  }
+
+  // build and orthonormalize rigid body modes inline
+  std::vector<double> rigid(6 * ndof, 0.0);
+
+  // translations
+  for (int n = 0; n < npe; n++) {
+    rigid[0*ndof + 3*n + 0] = 1;
+    rigid[1*ndof + 3*n + 1] = 1;
+    rigid[2*ndof + 3*n + 2] = 1;
+  }
+
+  // rotations about centroid
+  for (int n = 0; n < npe; n++) {
+    double rx = pos[3*n + 0] - centroid[0];
+    double ry = pos[3*n + 1] - centroid[1];
+    double rz = pos[3*n + 2] - centroid[2];
+    rigid[3*ndof + 3*n + 1] = -rz;
+    rigid[3*ndof + 3*n + 2] =  ry;
+    rigid[4*ndof + 3*n + 0] =  rz;
+    rigid[4*ndof + 3*n + 2] = -rx;
+    rigid[5*ndof + 3*n + 0] = -ry;
+    rigid[5*ndof + 3*n + 1] =  rx;
+  }
+
+  // orthonormalize rigid modes via modified Gram-Schmidt
+  for (int i = 0; i < 6; i++) {
+    double* ri = rigid.data() + i * ndof;
+    for (int j = 0; j < i; j++) {
+      const double* rj = rigid.data() + j * ndof;
+      double dot = 0;
+      for (int k = 0; k < ndof; k++) dot += ri[k] * rj[k];
+      for (int k = 0; k < ndof; k++) ri[k] -= dot * rj[k];
+    }
+    double norm2 = 0;
+    for (int k = 0; k < ndof; k++) norm2 += ri[k] * ri[k];
+    if (norm2 > 1e-20) {
+      double inv_norm = 1.0 / std::sqrt(norm2);
+      for (int k = 0; k < ndof; k++) ri[k] *= inv_norm;
+    }
+  }
+
+  // project warp against rigid modes
+  for (int i = 0; i < 6; i++) {
+    const double* ri = rigid.data() + i * ndof;
+    double dot = 0;
+    for (int k = 0; k < ndof; k++) dot += warp[k] * ri[k];
+    for (int k = 0; k < ndof; k++) warp[k] -= dot * ri[k];
+  }
+
+  // normalize
+  double norm2 = 0;
+  for (int k = 0; k < ndof; k++) norm2 += warp[k] * warp[k];
+  if (norm2 > 1e-20) {
+    double inv_norm = 1.0 / std::sqrt(norm2);
+    for (int k = 0; k < ndof; k++) warp[k] *= inv_norm;
+  }
+}
+
+
+// compute the warp bending stiffness for a 2D face element
+// uses plate bending theory: the warp mode is a pure twist (κ_xy),
+// with bending stiffness proportional to t³ (no shear locking)
+//   pos:          node positions (3*npe doubles)
+//   npe:          nodes per element
+//   normal_axis:  axis perpendicular to the face
+//   E, nu:        Young's modulus and Poisson's ratio
+//   thickness:    shell thickness
+static double ComputeWarpStiffness(const double* pos, int npe, int normal_axis,
+                                   double E, double nu, double thickness) {
+  int axis0 = (normal_axis + 1) % 3;
+  int axis1 = (normal_axis + 2) % 3;
+  double d0 = std::abs(pos[3*(npe-1) + axis0] - pos[axis0]);
+  double d1 = std::abs(pos[3*(npe-1) + axis1] - pos[axis1]);
+
+  if (d0 < 1e-30 || d1 < 1e-30) return 0;
+
+  // plate bending rigidity: D = E*t³ / (12*(1-ν²))
+  double D = E * thickness * thickness * thickness / (12.0 * (1.0 - nu * nu));
+
+  // warp stiffness from twist curvature Rayleigh quotient:
+  //   w^T K_bend w / |w|^2 = D*(1-ν)*4 / (d0*d1)
+  return D * (1.0 - nu) * 4.0 / (d0 * d1);
+}
+
+
 // Eigendecompose cell stiffness matrix and store scaled eigenvectors.
 // K_cell is n×n stored (negative convention: K_stored = -K_physical).
 // Output layout in `out`:
 //   [0]: neig (as double)
 //   [1 .. neig*n]: sqrt(λ_phys_i) * v_i, row-major
-// If pos is non-null (3*npe doubles), rigid body modes are projected out of
-// each eigenvector to prevent ghost damping in the constraint solver.  The
-// constraint Jacobian freezes the corotational frame, so eigenvectors aligned
-// with rigid rotation patterns produce spurious velocity-level forces.
+// Modes with eigenvalue below a relative threshold are discarded (rigid body
+// modes and numerical zeros).
 // Returns number of retained eigenmodes.
 static int EigendecomposeStiffness(const double* K_cell_data,
-                                   double* out, int ndof,
-                                   const double* pos) {
-  int npe = ndof / 3;
-
+                                   double* out, int ndof) {
   // copy K_cell for in-place decomposition
   std::vector<double> mat(K_cell_data, K_cell_data + ndof * ndof);
   std::vector<double> eigval(ndof);
   std::vector<double> eigvec(ndof * ndof);
 
   mjuu_eigendecompose(mat.data(), eigval.data(), eigvec.data(), ndof);
-
-  // build orthonormal rigid body modes for projection
-  // 6 modes: 3 translations + 3 rotations about centroid
-  const int kMaxRigid = 6;
-  std::vector<double> rigid(pos ? kMaxRigid * ndof : 0, 0);
-
-  if (pos) {
-    // compute centroid
-    double centroid[3] = {0, 0, 0};
-    for (int n = 0; n < npe; n++) {
-      for (int k = 0; k < 3; k++) {
-        centroid[k] += pos[3*n + k];
-      }
-    }
-    for (int k = 0; k < 3; k++) {
-      centroid[k] /= npe;
-    }
-
-    // translation modes: uniform displacement along each axis
-    for (int n = 0; n < npe; n++) {
-      rigid[0*ndof + 3*n + 0] = 1;
-      rigid[1*ndof + 3*n + 1] = 1;
-      rigid[2*ndof + 3*n + 2] = 1;
-    }
-
-    // rotation modes: e_axis × (pos_n - centroid)
-    for (int n = 0; n < npe; n++) {
-      double rx = pos[3*n + 0] - centroid[0];
-      double ry = pos[3*n + 1] - centroid[1];
-      double rz = pos[3*n + 2] - centroid[2];
-
-      // rotation about x: [0, -rz, ry]
-      rigid[3*ndof + 3*n + 1] = -rz;
-      rigid[3*ndof + 3*n + 2] =  ry;
-
-      // rotation about y: [rz, 0, -rx]
-      rigid[4*ndof + 3*n + 0] =  rz;
-      rigid[4*ndof + 3*n + 2] = -rx;
-
-      // rotation about z: [-ry, rx, 0]
-      rigid[5*ndof + 3*n + 0] = -ry;
-      rigid[5*ndof + 3*n + 1] =  rx;
-    }
-
-    // orthonormalize via modified Gram-Schmidt
-    for (int i = 0; i < kMaxRigid; i++) {
-      double* ri = rigid.data() + i * ndof;
-      for (int j = 0; j < i; j++) {
-        const double* rj = rigid.data() + j * ndof;
-        double dot = 0;
-        for (int k = 0; k < ndof; k++) {
-          dot += ri[k] * rj[k];
-        }
-        for (int k = 0; k < ndof; k++) {
-          ri[k] -= dot * rj[k];
-        }
-      }
-      double norm2 = 0;
-      for (int k = 0; k < ndof; k++) {
-        norm2 += ri[k] * ri[k];
-      }
-      if (norm2 > 1e-20) {
-        double inv_norm = 1.0 / std::sqrt(norm2);
-        for (int k = 0; k < ndof; k++) {
-          ri[k] *= inv_norm;
-        }
-      } else {
-        // degenerate mode (e.g., collinear nodes): zero out
-        std::fill(ri, ri + ndof, 0.0);
-      }
-    }
-  }
 
   // K_stored = -K_physical, so physical eigenvalue = -eigval[i]
   // retain modes where physical eigenvalue > threshold
@@ -4011,46 +4154,8 @@ static int EigendecomposeStiffness(const double* K_cell_data,
       for (int j = 0; j < ndof; j++) {
         w[j] = scale * eigvec[j * ndof + i];
       }
-
-      // project out rigid body components
-      if (pos) {
-        for (int r = 0; r < kMaxRigid; r++) {
-          const double* rr = rigid.data() + r * ndof;
-          double dot = 0;
-          for (int j = 0; j < ndof; j++) {
-            dot += w[j] * rr[j];
-          }
-          for (int j = 0; j < ndof; j++) {
-            w[j] -= dot * rr[j];
-          }
-        }
-
-        // discard if projected norm is negligible relative to original
-        double norm2 = 0;
-        for (int j = 0; j < ndof; j++) {
-          norm2 += w[j] * w[j];
-        }
-        if (norm2 < lambda_phys * 1e-6) {
-          continue;  // mode was mostly rigid body: skip
-        }
-      }
-
       neig++;
-
-      // guard: eigendecomposed data must fit within ndof*ndof slot
-      // (guaranteed by rigid-body projection discarding >= 6 modes)
-      if (1 + neig * ndof > ndof * ndof) {
-        mju_error("EigendecomposeStiffness: output size %d exceeds buffer %d",
-                  1 + neig * ndof, ndof * ndof);
-      }
     }
-  }
-
-  // check that enough modes were discarded (rigid body + numerical artifacts)
-  // for 3D elements: expect ndof - neig == 6
-  if (pos && ndof - neig != kMaxRigid) {
-    mju_warning("EigendecomposeStiffness: only %d modes discarded, expected "
-                "at least %d rigid body modes", ndof - neig, kMaxRigid);
   }
 
   out[0] = static_cast<double>(neig);
@@ -4594,11 +4699,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (spec.cellcount[0] == 0 || spec.cellcount[1] == 0 || spec.cellcount[2] == 0) {
       throw mjCError(this, "cellcount cannot be 0 in any dimension when interpolation order > 0");
     }
-    if (elastic2d && !(spec.cellcount[0] == 1 || spec.cellcount[1] == 1 || spec.cellcount[2] == 1)) {
-      throw mjCError(this,
-                     "shell trilinear flex requires at least one dimension "
-                     "with cell count equal to one (no interior nodes)");
-    }
+
     int expected_nodes = (spec.cellcount[0] * spec.order + 1) *
                          (spec.cellcount[1] * spec.order + 1) *
                          (spec.cellcount[2] * spec.order + 1);
@@ -4624,8 +4725,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // no elemtexcoord: copy from faces
   if (elemtexcoord_.empty() && !texcoord_.empty()) {
-    elemtexcoord_.assign(3*nelem, 0);
-    memcpy(elemtexcoord_.data(), elem_.data(), 3*nelem*sizeof(int));
+    elemtexcoord_.assign((dim + 1) * nelem, 0);
+    memcpy(elemtexcoord_.data(), elem_.data(), (dim + 1) * nelem * sizeof(int));
   }
 
   // resolve material name
@@ -4840,10 +4941,27 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // create shell fragments and element-vertex collision pairs
   CreateShellPair();
 
+  // recompute cell_empty from vertex/element geometry (volume mode only)
+  // (survives XML round-trips where flexcomp data is lost)
+  if (interpolated && !elastic2d && cell_empty.empty()) {
+    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    if (cx * cy * cz > 1) {
+      ComputeCellEmpty(vertxpos.data(), elem_.data(), nvert, nelem, dim);
+    }
+  }
+
   // compute linear stiffness for interpolated elements (cached)
   bool stiffness_cached = false;
   if (young > 0 && interpolated) {
     stiffness_cached = LoadCachedStiffness();
+  }
+
+  // check if any strain equality references this flex
+  for (auto* equality : model->Equalities()) {
+    if (equality->spec.type == mjEQ_FLEXSTRAIN && *equality->spec.name1 == name) {
+      has_strain_eq = true;
+      break;
+    }
   }
 
   if (!stiffness_cached && interpolated && (young > 0 || has_strain_eq)) {
@@ -4971,7 +5089,29 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       if (has_strain_eq) {
         // eigendecompose: store [neig, sqrt(λ)*v_1, sqrt(λ)*v_2, ...]
         std::fill(out, out + ndof_elem * ndof_elem, 0.0);
-        EigendecomposeStiffness(K_elem.data(), out, ndof_elem, elem_pos.data());
+
+        if (shell_mode) {
+          // pure membrane K: eigendecompose gives 5 membrane modes (Q1),
+          // then we add 1 explicit warp mode with bending stiffness (∝ t³)
+          int neig = EigendecomposeStiffness(K_elem.data(), out, ndof_elem);
+
+          // add explicit warp mode with plate bending stiffness
+          double warp_stiffness = ComputeWarpStiffness(
+              elem_pos.data(), npe, normal_axis, K_young, K_poisson, thickness);
+          if (warp_stiffness > 0) {
+            double* warp_out = out + 1 + neig * ndof_elem;
+            ComputeWarpMode(warp_out, elem_pos.data(), npe, spec.order,
+                            normal_axis);
+            // scale by sqrt(stiffness) to match eigenmode convention
+            double scale = std::sqrt(warp_stiffness);
+            for (int j = 0; j < ndof_elem; j++) {
+              warp_out[j] *= scale;
+            }
+            out[0] = static_cast<double>(neig + 1);
+          }
+        } else {
+          EigendecomposeStiffness(K_elem.data(), out, ndof_elem);
+        }
       } else {
         // store raw K for passive forces
         std::copy(K_elem.begin(), K_elem.end(), out);
@@ -5138,6 +5278,131 @@ std::vector<double> mjCFlex::ComputeUnrotatedNodePositions(
     nodexpos_local = nodexpos;
   }
   return nodexpos_local;
+}
+
+
+// identify cells with no mesh content from vertex/element geometry
+void mjCFlex::ComputeCellEmpty(const double* vpos, const int* elems,
+                               int nv, int ne, int fdim,
+                               const double* bbox) {
+  int cx = spec.cellcount[0];
+  int cy = spec.cellcount[1];
+  int cz = spec.cellcount[2];
+  int ncells = cx * cy * cz;
+
+  // use precomputed bounding box if provided, otherwise compute from vertices
+  double minmax[6];
+  if (bbox) {
+    for (int j = 0; j < 6; j++) minmax[j] = bbox[j];
+  } else {
+    minmax[0] = minmax[1] = minmax[2] = 1e30;
+    minmax[3] = minmax[4] = minmax[5] = -1e30;
+    for (int i = 0; i < nv; i++) {
+      for (int j = 0; j < 3; j++) {
+        minmax[j+0] = std::min(minmax[j+0], vpos[3*i+j]);
+        minmax[j+3] = std::max(minmax[j+3], vpos[3*i+j]);
+      }
+    }
+  }
+
+  double dx = minmax[3] - minmax[0];
+  double dy = minmax[4] - minmax[1];
+  double dz = minmax[5] - minmax[2];
+
+  // determine which cells contain mesh elements
+  std::vector<bool> has_element(ncells, false);
+  int nvpe = fdim + 1;
+
+  if (nvpe > 0 && ne > 0) {
+    for (int e = 0; e < ne; e++) {
+      // compute element AABB
+      double elo[3] = {1e30, 1e30, 1e30};
+      double ehi[3] = {-1e30, -1e30, -1e30};
+      for (int v = 0; v < nvpe; v++) {
+        int vid = elems[nvpe * e + v];
+        for (int j = 0; j < 3; j++) {
+          elo[j] = std::min(elo[j], vpos[3 * vid + j]);
+          ehi[j] = std::max(ehi[j], vpos[3 * vid + j]);
+        }
+      }
+
+      // map element AABB to cell range
+      auto cellIdx = [](double coord, double lo, double d, int nc) {
+        if (d <= 0) return 0;
+        int c = (int)((coord - lo) / d * nc);
+        return std::max(0, std::min(nc - 1, c));
+      };
+
+      int ci0 = cellIdx(elo[0], minmax[0], dx, cx);
+      int ci1 = cellIdx(ehi[0], minmax[0], dx, cx);
+      int cj0 = cellIdx(elo[1], minmax[1], dy, cy);
+      int cj1 = cellIdx(ehi[1], minmax[1], dy, cy);
+      int ck0 = cellIdx(elo[2], minmax[2], dz, cz);
+      int ck1 = cellIdx(ehi[2], minmax[2], dz, cz);
+
+      for (int ci = ci0; ci <= ci1; ci++) {
+        for (int cj = cj0; cj <= cj1; cj++) {
+          for (int ck = ck0; ck <= ck1; ck++) {
+            has_element[ci * cy * cz + cj * cz + ck] = true;
+          }
+        }
+      }
+    }
+  }
+
+  cell_empty.assign(ncells, false);
+
+  // for dim=2 (surface mesh): flood-fill from boundary to find exterior cells
+  if (fdim == 2 && nvpe == 3 && ne > 0) {
+    std::vector<bool> visited(ncells, false);
+    std::queue<std::array<int, 3>> bfs;
+
+    // seed BFS from boundary cells that have no elements
+    for (int ci = 0; ci < cx; ci++) {
+      for (int cj = 0; cj < cy; cj++) {
+        for (int ck = 0; ck < cz; ck++) {
+          if (ci == 0 || ci == cx - 1 ||
+              cj == 0 || cj == cy - 1 ||
+              ck == 0 || ck == cz - 1) {
+            int idx = ci * cy * cz + cj * cz + ck;
+            if (!has_element[idx] && !visited[idx]) {
+              visited[idx] = true;
+              cell_empty[idx] = true;
+              bfs.push({ci, cj, ck});
+            }
+          }
+        }
+      }
+    }
+
+    // BFS: spread through non-element cells
+    const int dirs[6][3] = {
+        {-1, 0, 0}, {1, 0, 0},  {0, -1, 0},
+        {0, 1, 0},  {0, 0, -1}, {0, 0, 1}};
+    while (!bfs.empty()) {
+      auto [ci, cj, ck] = bfs.front();
+      bfs.pop();
+      for (auto& d : dirs) {
+        int ni = ci + d[0], nj = cj + d[1], nk = ck + d[2];
+        if (ni < 0 || ni >= cx ||
+            nj < 0 || nj >= cy ||
+            nk < 0 || nk >= cz) {
+          continue;
+        }
+        int nidx = ni * cy * cz + nj * cz + nk;
+        if (!visited[nidx] && !has_element[nidx]) {
+          visited[nidx] = true;
+          cell_empty[nidx] = true;
+          bfs.push({ni, nj, nk});
+        }
+      }
+    }
+  } else {
+    // dim!=2: cells without element overlap are empty
+    for (int c = 0; c < ncells; c++) {
+      cell_empty[c] = !has_element[c];
+    }
+  }
 }
 
 

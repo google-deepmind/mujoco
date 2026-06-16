@@ -14,17 +14,19 @@
 # ==============================================================================
 
 """DO NOT EDIT. This file is auto-generated."""
+
 import dataclasses
 import functools
+
 import jax
+import warp as wp
+
 from mujoco.mjx._src import types
+import mujoco.mjx.third_party.mujoco_warp as mjwarp
+from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 from mujoco.mjx.warp import ffi
 from mujoco.mjx.warp.render_context import _MJX_RENDER_CONTEXT_BUFFERS
 from mujoco.mjx.warp.render_context import RenderContextPytree
-import mujoco.mjx.third_party.mujoco_warp as mjwarp
-from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
-import warp as wp
-
 
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
@@ -48,10 +50,12 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _render_shim(
     # Model
     nworld: int,
+    block_dim: mjwp_types.BlockDim,
     cam_fovy: wp.array2d[float],
     cam_intrinsic: wp.array2d[wp.vec4],
     cam_projection: wp.array[int],
@@ -65,9 +69,18 @@ def _render_shim(
     geom_size: wp.array2d[wp.vec3],
     geom_type: wp.array[int],
     light_active: wp.array2d[bool],
+    light_ambient: wp.array2d[wp.vec3],
+    light_attenuation: wp.array2d[wp.vec3],
     light_castshadow: wp.array2d[bool],
+    light_cutoff: wp.array2d[float],
+    light_diffuse: wp.array2d[wp.vec3],
+    light_exponent: wp.array2d[float],
+    light_specular: wp.array2d[wp.vec3],
     light_type: wp.array2d[int],
+    mat_emission: wp.array2d[float],
     mat_rgba: wp.array2d[wp.vec4],
+    mat_shininess: wp.array2d[float],
+    mat_specular: wp.array2d[float],
     mat_texid: wp.array3d[int],
     mat_texrepeat: wp.array2d[wp.vec2],
     mesh_faceadr: wp.array[int],
@@ -91,6 +104,7 @@ def _render_shim(
   _m.callback = _cb
   _d.efc = _e
   _d.contact = _c
+  _m.block_dim = block_dim
   _m.cam_fovy = cam_fovy
   _m.cam_intrinsic = cam_intrinsic
   _m.cam_projection = cam_projection
@@ -104,9 +118,18 @@ def _render_shim(
   _m.geom_size = geom_size
   _m.geom_type = geom_type
   _m.light_active = light_active
+  _m.light_ambient = light_ambient
+  _m.light_attenuation = light_attenuation
   _m.light_castshadow = light_castshadow
+  _m.light_cutoff = light_cutoff
+  _m.light_diffuse = light_diffuse
+  _m.light_exponent = light_exponent
+  _m.light_specular = light_specular
   _m.light_type = light_type
+  _m.mat_emission = mat_emission
   _m.mat_rgba = mat_rgba
+  _m.mat_shininess = mat_shininess
+  _m.mat_specular = mat_specular
   _m.mat_texid = mat_texid
   _m.mat_texrepeat = mat_texrepeat
   _m.mesh_faceadr = mesh_faceadr
@@ -149,9 +172,19 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
           'geom_size',
           'geom_xmat',
           'geom_xpos',
+          'light_active',
+          'light_ambient',
+          'light_attenuation',
           'light_castshadow',
+          'light_cutoff',
+          'light_diffuse',
+          'light_exponent',
+          'light_specular',
           'light_type',
+          'mat_emission',
           'mat_rgba',
+          'mat_shininess',
+          'mat_specular',
           'mat_texid',
       ]),
       stage_out_argnames=set([]),
@@ -160,6 +193,7 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
   )
   out = jf(
       render_ctx.nworld,
+      m._impl.block_dim,
       m.cam_fovy,
       m.cam_intrinsic,
       m._impl.cam_projection,
@@ -172,10 +206,19 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
       m.geom_rgba,
       m.geom_size,
       m.geom_type,
-      m._impl.light_active,
+      m.light_active,
+      m.light_ambient,
+      m.light_attenuation,
       m.light_castshadow,
+      m.light_cutoff,
+      m.light_diffuse,
+      m.light_exponent,
+      m.light_specular,
       m.light_type,
+      m.mat_emission,
       m.mat_rgba,
+      m.mat_shininess,
+      m.mat_specular,
       m.mat_texid,
       m._impl.mat_texrepeat,
       m.mesh_faceadr,

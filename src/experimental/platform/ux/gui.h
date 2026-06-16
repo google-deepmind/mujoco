@@ -28,6 +28,7 @@
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/sim/sim_profiler.h"
 #include "experimental/platform/sim/step_control.h"
 
 namespace mujoco::platform {
@@ -82,6 +83,10 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 // to real-time percentages in range [100%, 0.1%]).
 void StepControlGui(const mjModel* model, StepControl* step_control,
                     int& speed_index);
+
+// Sets the simulation speed index and updates the StepControl object.
+void SetSpeedIndex(StepControl* step_control, int& speed_index,
+                   int request_idx);
 
 // UX for selecting the GUI theme.
 bool ThemeSelectGui(GuiTheme* theme, const ImVec2& size = ImVec2(0, 0));
@@ -147,6 +152,9 @@ void ConvergenceGui(const mjModel* model, mjData* data,
 // UX for the solver counts chart.
 void CountsGui(const mjModel* model, mjData* data,
                ImVec2 plot_size = ImVec2(-1, 0));
+
+// UX for Profiler panel combining Solver and Performance metrics.
+void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler);
 
 // UX for displaying basic simulation information. Note that the pause state and
 // FPS needs to be tracked by the caller and passed here to be displayed.

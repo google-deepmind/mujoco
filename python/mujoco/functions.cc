@@ -591,15 +591,12 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_id2name>(pymodule);
   Def<traits::mj_fullM>(
       pymodule,
-      [](const raw::MjModel* m, Eigen::Ref<EigenArrayXX> dst,
-         Eigen::Ref<const EigenVectorX> M) {
-        if (M.size() != m->nM) {
-          throw py::type_error("M should be of size nM");
-        }
+      [](const raw::MjModel* m, const raw::MjData* d,
+         Eigen::Ref<EigenArrayXX> dst) {
         if (dst.cols() != m->nv || dst.rows() != m->nv) {
           throw py::type_error("dst should be of shape (nv, nv)");
         }
-        return ::mj_fullM(m, dst.data(), M.data());
+        return ::mj_fullM(m, d, dst.data());
       });
   Def<traits::mj_mulM>(
       pymodule,
@@ -725,6 +722,9 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_version>(pymodule);
   Def<traits::mj_versionString>(pymodule);
 
+  // Thread pool
+  Def<traits::mju_threadpool>(pymodule);
+
   // Ray collision
   Def<traits::mj_multiRay>(
       pymodule,
@@ -732,7 +732,7 @@ PYBIND11_MODULE(_functions, pymodule) {
          Eigen::Ref<const EigenVectorX> vec,
          std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
              geomgroup,
-         mjtByte flg_static, int bodyexclude, Eigen::Ref<EigenVectorI> geomid,
+         mjtBool flg_static, int bodyexclude, Eigen::Ref<EigenVectorI> geomid,
          Eigen::Ref<EigenVectorX> dist,
          std::optional<Eigen::Ref<EigenVectorX>> normal,
          int nray, mjtNum cutoff) {
@@ -758,7 +758,7 @@ PYBIND11_MODULE(_functions, pymodule) {
              const mjtNum(*vec)[3],
              std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
                  geomgroup,
-             mjtByte flg_static, int bodyexclude,
+             mjtBool flg_static, int bodyexclude,
              std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> geomid,
              std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
             return mj_ray(m, d, &(*pnt)[0], &(*vec)[0],
@@ -817,8 +817,8 @@ PYBIND11_MODULE(_functions, pymodule) {
       "mj_rayFlex",
       util::UnwrapArgs(
           [](const raw::MjModel* m, const raw::MjData* d, int flex_layer,
-             mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
-             mjtByte flg_skin, int flexid, const mjtNum(*pnt)[3],
+             mjtBool flg_vert, mjtBool flg_edge, mjtBool flg_face,
+             mjtBool flg_skin, int flexid, const mjtNum(*pnt)[3],
              const mjtNum(*vec)[3],
              std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> vertid,
              std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
@@ -1370,7 +1370,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_band2Dense>(
       pymodule,
       [](Eigen::Ref<EigenArrayXX> res, Eigen::Ref<const EigenVectorX> mat,
-         int ntotal, int nband, int ndense, mjtByte flg_sym) {
+         int ntotal, int nband, int ndense, mjtBool flg_sym) {
         int nMat = (ntotal - ndense) * nband + ndense * ntotal;
         if (mat.size() != nMat) {
           throw py::type_error(
@@ -1406,7 +1406,7 @@ PYBIND11_MODULE(_functions, pymodule) {
       pymodule,
       [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenArrayXX> mat,
          Eigen::Ref<const EigenArrayXX> vec, int ntotal, int nband, int ndense,
-         int nVec, mjtByte flg_sym) {
+         int nVec, mjtBool flg_sym) {
         int nMat = (ntotal - ndense) * nband + ndense * ntotal;
         if (mat.size() != nMat) {
           throw py::type_error(
@@ -1576,7 +1576,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjd_transitionFD>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         mjtNum eps, mjtByte flg_centered,
+         mjtNum eps, mjtBool flg_centered,
          std::optional<Eigen::Ref<EigenArrayXX>> A,
          std::optional<Eigen::Ref<EigenArrayXX>> B,
          std::optional<Eigen::Ref<EigenArrayXX>> C,
@@ -1607,7 +1607,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjd_inverseFD>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         mjtNum eps, mjtByte flg_actuation,
+         mjtNum eps, mjtBool flg_actuation,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDq,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDv,
          std::optional<Eigen::Ref<EigenArrayXX>> DfDa,

@@ -228,36 +228,9 @@ Feature Parity
 ==============
 
 MJWarp supports most of the main simulation features of MuJoCo, with a few exceptions. MJWarp will raise an exception if
-asked to copy to device an :ref:`mjModel` with field values referencing unsupported features.
-
-The following features are **not supported** in MJWarp:
-
-.. list-table::
-   :width: 90%
-   :align: left
-   :widths: 2 5
-   :header-rows: 1
-
-   * - Category
-     - Feature
-   * - :ref:`Integrator <mjtIntegrator>`
-     - ``IMPLICIT``, ``IMPLICITFAST`` not supported with fluid drag
-   * - :ref:`Solver <mjtSolver>`
-     - ``PGS``, ``noslip``, :ref:`islands <soIsland>`
-   * - Fluid Model
-     - :ref:`flEllipsoid`
-   * - :ref:`Sensors <mjtSensor>`
-     - ``GEOMDIST``, ``GEOMNORMAL``, ``GEOMFROMTO``
-   * - Flex
-     - ``VERTCOLLIDE=false``, ``INTERNAL=true``
-   * - Jacobian format
-     - ``SPARSE``
-   * - Option
-     - :ref:`contact override <COverride>`
-   * - Plugins
-     - ``All`` except ``SDF``
-   * - :ref:`User parameters <CUser>`
-     - ``All``
+asked to copy to device an :ref:`mjModel` with field values referencing unsupported features. For the most up-to-date
+feature availability, please see
+`MuJoCo API Compatibility <https://github.com/google-deepmind/mujoco_warp#mujoco-api-compatibility>`__.
 
 .. _mjwPerf:
 
@@ -345,29 +318,6 @@ Similar to the maximum numbers of contacts and constraints, a good value for thi
 specific. :func:`mjwarp-testspeed <mujoco_warp.testspeed>` and :func:`mjwarp-viewer <mujoco_warp.viewer>` may be useful
 for tuning the value of this parameter.
 
-Parallel linesearch
--------------------
-
-In addition to the constraint solver's iterative linesearch, MJWarp provides a parallel linesearch routine that
-evaluates a set of step sizes in parallel and selects the best one. The step sizes are spaced logarithmically from
-:attr:`Model.opt.ls_parallel_min_step <mujoco_warp.Option.ls_parallel_min_step>` to 1 and the number of step sizes to
-evaluate is set via :attr:`Model.opt.ls_iterations <mujoco_warp.Option.ls_iterations>`.
-
-In some cases the parallel routine may provide improved performance compared to the constraint solver's default
-iterative linesearch.
-
-To enable this routine set ``Model.opt.ls_parallel=True`` or add a custom numeric field to the XML
-
-.. code-block:: xml
-
-   <custom>
-     <numeric name="ls_parallel" data="1"/>
-   </custom>
-
-.. admonition:: Experimental feature
-  :class: note
-
-  The parallel linesearch is currently an experimental feature.
 
 Memory
 ------
@@ -1083,8 +1033,6 @@ exceptions:
 
 Additional MJWarp-only options are available:
 
-- ``ls_parallel``: use parallel linesearch with the constraint solver
-- ``ls_parallel_min_step``: minimum step size for the parallel linesearch
 - ``broadphase``: type of broadphase algorithm (:class:`mjw.BroadphaseType <mujoco_warp.BroadphaseType>`)
 - ``broadphase_filter``: type of filtering utilized by broadphase
   (:class:`mjw.BroadphaseFilter <mujoco_warp.BroadphaseFilter>`)

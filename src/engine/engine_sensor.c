@@ -35,8 +35,7 @@
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
-#include "thread/thread_pool.h"
-#include "thread/thread_task.h"
+#include "engine/engine_thread.h"
 
 
 
@@ -64,8 +63,6 @@ mjPARTIAL_SORT(ContactSelect, ContactInfo, ContactInfoCompare);
 
 // arguments for parallel tactile sensor computation
 typedef struct mjTactileTaskArgs_ {
-  const mjModel* m;
-  mjData* d;
   int sensor_id;
   int mesh_id;
   int geom_id;
@@ -80,10 +77,8 @@ typedef struct mjTactileTaskArgs_ {
 
 
 // worker function for parallel tactile computation over taxel batches
-static void* tactile_taxel_batch(void* args) {
+static void* tactile_taxel_batch(const mjModel* m, mjData* d, void* args) {
   mjTactileTaskArgs* t = (mjTactileTaskArgs*)args;
-  const mjModel* m = t->m;
-  mjData* d = t->d;
   int mesh_id = t->mesh_id;
   int geom_id = t->geom_id;
   int parent_weld = t->parent_weld;
@@ -172,14 +167,8 @@ static void* tactile_taxel_batch(void* args) {
                           mesh_normal[normal_stride*j + 2]};
       mju_rotVecQuat(normal, normal, m->mesh_quat + 4 * mesh_id);
 
-      // get contact force
-      mjtNum force[3];
-      mjtNum kMaxDepth = 0.05;
-      mjtNum pressure = depth / mju_max(kMaxDepth - depth, mjMINVAL);
-      mju_scl3(force, normal, pressure);
-
-      // accumulate into forcesT (disjoint writes per taxel j)
-      t->forcesT[0*ncon + j] += mju_dot3(force, normal);
+      // take max penetration depth (SDF distance is negative; negate for positive output)
+      t->forcesT[0*ncon + j] = mju_max(t->forcesT[0*ncon + j], -depth);
 
       if (has_frame) {
         mjtNum tang1[3] = {mesh_normal[normal_stride*j + 3],
@@ -196,6 +185,12 @@ static void* tactile_taxel_batch(void* args) {
     }
   }
   return NULL;
+}
+
+
+static void tactileTask(const mjModel* m, mjData* d, void* arg, int thread_id, int task_id) {
+  mjTactileTaskArgs* args_array = (mjTactileTaskArgs*)arg;
+  tactile_taxel_batch(m, d, &args_array[task_id]);
 }
 
 
@@ -413,8 +408,12 @@ static int matchContact(const mjModel* m, const mjData* d, int conid,
   // get geom, body ids
   int geom1 = d->contact[conid].geom[0];
   int geom2 = d->contact[conid].geom[1];
-  int body1 = geom1 >= 0 ? m->geom_bodyid[geom1] : -1;
-  int body2 = geom2 >= 0 ? m->geom_bodyid[geom2] : -1;
+  int body1 = geom1 >= 0
+      ? m->geom_bodyid[geom1]
+      : mj_flexBody(m, &d->contact[conid], 0);
+  int body2 = geom2 >= 0
+      ? m->geom_bodyid[geom2]
+      : mj_flexBody(m, &d->contact[conid], 1);
 
   // check match of sensor objects with contact objects
   int match11 = checkMatch(m, body1, geom1, type1, id1);
@@ -1045,7 +1044,9 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
       con = d->contact + j;
       int conbody[2];
       for (int k=0; k < 2; k++) {
-        conbody[k] = (con->geom[k] >= 0) ? m->geom_bodyid[con->geom[k]] : -1;
+        conbody[k] = (con->geom[k] >= 0)
+            ? m->geom_bodyid[con->geom[k]]
+            : mj_flexBody(m, con, k);
       }
 
       // select contacts involving sensorized body
@@ -1221,8 +1222,12 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
       int* contact_geom_ids = mj_stackAllocInt(d, d->ncon);
       int ncontact = 0;
       for (int k = 0; k < d->ncon; k++) {
-        int body1 = m->body_weldid[m->geom_bodyid[d->contact[k].geom1]];
-        int body2 = m->body_weldid[m->geom_bodyid[d->contact[k].geom2]];
+        int body1 = (d->contact[k].geom1 >= 0)
+            ? m->body_weldid[m->geom_bodyid[d->contact[k].geom1]]
+            : m->body_weldid[mj_flexBody(m, &d->contact[k], 0)];
+        int body2 = (d->contact[k].geom2 >= 0)
+            ? m->body_weldid[m->geom_bodyid[d->contact[k].geom2]]
+            : m->body_weldid[mj_flexBody(m, &d->contact[k], 1)];
         if (body1 == parent_weld) {
           int add = 1;
           for (int j = 0; j < ncontact; j++) {
@@ -1267,18 +1272,15 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
       // threshold for parallelization (taxel count below which sequential is faster)
       const int kTactileParallelThreshold = 1000;
 
-      // parallel path: use threadpool to process taxel batches
-      if (d->threadpool && ncon >= kTactileParallelThreshold) {
-        int nthreads = mju_threadPoolNumberOfThreads((mjThreadPool*)d->threadpool);
-        int batch_size = (ncon + nthreads - 1) / nthreads;
-        int ntasks = (ncon + batch_size - 1) / batch_size;
+      // parallel path: use mj_batch to process taxel batches
+      int nthread = mju_numThread(d);
+      if (nthread > 0 && ncon >= kTactileParallelThreshold) {
+        int batch_size = (ncon + nthread - 1) / nthread;
+        int ntask = (ncon + batch_size - 1) / batch_size;
 
-        mjTask* tasks = mjSTACKALLOC(d, ntasks, mjTask);
-        mjTactileTaskArgs* task_args = mjSTACKALLOC(d, ntasks, mjTactileTaskArgs);
+        mjTactileTaskArgs* task_args = mjSTACKALLOC(d, ntask, mjTactileTaskArgs);
 
-        for (int t = 0; t < ntasks; t++) {
-          task_args[t].m = m;
-          task_args[t].d = d;
+        for (int t = 0; t < ntask; t++) {
           task_args[t].sensor_id = i;
           task_args[t].mesh_id = mesh_id;
           task_args[t].geom_id = geom_id;
@@ -1289,22 +1291,13 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
           task_args[t].start_taxel = t * batch_size;
           task_args[t].end_taxel = mju_min((t+1) * batch_size, ncon);
           task_args[t].forcesT = forcesT;
-
-          mju_defaultTask(&tasks[t]);
-          tasks[t].func = tactile_taxel_batch;
-          tasks[t].args = &task_args[t];
-          mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[t]);
         }
 
-        for (int t = 0; t < ntasks; t++) {
-          mju_taskJoin(&tasks[t]);
-        }
+        mju_dispatch(m, d, tactileTask, task_args, ntask);
       }
       // sequential path: call tactile_taxel_batch with full range
       else {
         mjTactileTaskArgs args;
-        args.m = m;
-        args.d = d;
         args.sensor_id = i;
         args.mesh_id = mesh_id;
         args.geom_id = geom_id;
@@ -1315,7 +1308,7 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
         args.start_taxel = 0;
         args.end_taxel = ncon;
         args.forcesT = forcesT;
-        tactile_taxel_batch(&args);
+        tactile_taxel_batch(m, d, &args);
       }
 
       // compute sensor output

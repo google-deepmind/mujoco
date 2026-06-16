@@ -104,7 +104,9 @@ Window::Window(std::string_view title, int width, int height, Config config)
   }
 
   int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-  if (IsVulkan(config_.gfx_mode)) {
+  if (IsHeadless(config_.gfx_mode)) {
+    // No additional window flags needed for headless rendering.
+  } else if (IsVulkan(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_VULKAN;
   } else if (IsWebGl(config_.gfx_mode)) {
     window_flags |= SDL_WINDOW_OPENGL;
@@ -175,6 +177,18 @@ Window::~Window() {
 
 void Window::SetTitle(std::string_view title) {
   SDL_SetWindowTitle(sdl_window_, title.data());
+}
+
+void Window::Resize(int width, int height) {
+  SDL_SetWindowSize(sdl_window_, width, height);
+  SDL_SetWindowPosition(sdl_window_, SDL_WINDOWPOS_CENTERED,
+                        SDL_WINDOWPOS_CENTERED);
+
+  SDL_GetWindowSize(sdl_window_, &width_, &height_);
+  int drawable_width = width_;
+  int drawable_height = height_;
+  SDL_GL_GetDrawableSize(sdl_window_, &drawable_width, &drawable_height);
+  scale_ = (float)drawable_width / (float)width_;
 }
 
 void Window::DisableWindowResizing() {

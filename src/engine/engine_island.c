@@ -331,7 +331,8 @@ static int findEdges(const mjModel* m, const mjData* d,
       // unless it is a flex equality, where the tree pattern changes per dof
       if (!(efc_type == mjCNSTR_EQUALITY &&
             (m->eq_type[efc_id] == mjEQ_FLEX ||
-             m->eq_type[efc_id] == mjEQ_FLEXVERT))) {
+             m->eq_type[efc_id] == mjEQ_FLEXVERT ||
+             m->eq_type[efc_id] == mjEQ_FLEXSTRAIN))) {
         // copy tree assignment from previous constraint and continue
         efc_tree[i] = efc_tree[i-1];
         continue;
@@ -482,7 +483,7 @@ void mj_island(const mjModel* m, mjData* d) {
   // compute dof_island, island_nv
   mju_zeroInt(d->island_nv, nisland);
   for (int i=0; i < nv; i++) {
-    // assign dofs to islands
+    // assign DOFs to islands
     int island = tree_island[m->dof_treeid[i]];  // -1 if unconstrained
     d->dof_island[i] = island;
 
@@ -499,7 +500,7 @@ void mj_island(const mjModel* m, mjData* d) {
   }
 
   // compute dof <-> idof maps
-  int* island_nv2 = mjSTACKALLOC(d, nisland + 1, int);  // last element counts unconstrained dofs
+  int* island_nv2 = mjSTACKALLOC(d, nisland + 1, int);  // last element counts unconstrained DOFs
   mju_zeroInt(island_nv2, nisland + 1);
   for (int dof=0; dof < nv; dof++) {
     int island = d->dof_island[dof];
@@ -524,15 +525,6 @@ void mj_island(const mjModel* m, mjData* d) {
   for (int i=0; i < nisland; i++) {
     d->island_dofadr[i] = d->map_idof2dof[d->island_idofadr[i]];
   }
-
-  // inertia: block-diagonalize both iLD <- qLD and iM <- M
-  mju_blockDiagSparse(d->iLD, d->iM_rownnz, d->iM_rowadr, d->iM_colind,
-                      d->qLD,  m->M_rownnz, m->M_rowadr, m->M_colind,
-                      nidof, nisland,
-                      d->map_idof2dof, d->map_dof2idof,
-                      d->island_idofadr, d->island_idofadr,
-                      d->iM, d->M);
-  mju_gather(d->iLDiagInv, d->qLDiagInv, d->map_idof2dof, nidof);
 
 
   // ------------------------------------- constraints ---------------------------------------------
@@ -576,32 +568,6 @@ void mj_island(const mjModel* m, mjData* d) {
 
   // SHOULD NOT OCCUR
   if (!mju_compare(island_nefc2, d->island_nefc, nisland)) mjERROR("island_nefc miscount");
-
-  // dense: block-diagonalize Jacobian
-  if (!mj_isSparse(m)) {
-    mju_blockDiag(d->iefc_J, d->efc_J,
-                  nv, nidof, nisland,
-                  d->map_iefc2efc, d->map_idof2dof,
-                  d->island_nefc, d->island_nv,
-                  d->island_iefcadr, d->island_idofadr);
-  }
-
-  // sparse
-  else {
-    // block-diagonalize Jacobian
-    mju_blockDiagSparse(d->iefc_J, d->iefc_J_rownnz, d->iefc_J_rowadr, d->iefc_J_colind,
-                        d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
-                        nefc, nisland,
-                        d->map_iefc2efc, d->map_dof2idof,
-                        d->island_iefcadr, d->island_idofadr, NULL, NULL);
-
-    // recompute rowsuper per island
-    for (int island=0; island < nisland; island++) {
-      int adr = d->island_iefcadr[island];
-      mju_superSparse(d->island_nefc[island], d->iefc_J_rowsuper + adr,
-                      d->iefc_J_rownnz + adr, d->iefc_J_rowadr + adr, d->iefc_J_colind);
-    }
-  }
 
   // copy position-dependent efc vectors required by solver
   mju_gatherInt(d->iefc_type, d->efc_type, d->map_iefc2efc, nefc);

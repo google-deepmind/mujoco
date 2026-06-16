@@ -24,14 +24,14 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjtnum.h>
+#include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
-constexpr double kInertiaTol = MjTol(1e-6, 1e-6);
+const double kInertiaTol = MjTol(1e-6, 1e-6);
 
 using std::string;
 using ::testing::ElementsAre;
@@ -2002,7 +2002,7 @@ TEST_F(LimitedTest, JointLimited) {
 
   // see `user/testdata/auto_limits.xml` for expected values
   for (int i = 0; i < model->njnt; i++) {
-    EXPECT_EQ(model->jnt_limited[i], (mjtByte)model->jnt_user[i])
+    EXPECT_EQ(model->jnt_limited[i], (mjtBool)model->jnt_user[i])
         << i << " " << (int)model->jnt_limited[i] << " "
         << (int)model->jnt_user[i];
   }

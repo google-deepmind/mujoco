@@ -31,9 +31,8 @@ OpenGL renderer
    state-of-the-art rendering engines (and can be replaced with such an engine if desired) but nevertheless it provides
    efficient and informative 3D rendering.
 Thread
-   The threading framework is written in C++ and exposed in C. It provides a :ref:`mjThreadPool<mjThreadPool>` interface
-   to process tasks asynchronously. To enable use in MuJoCo, create a thread pool and assign it to the
-   ``mjData.threadpool`` field.
+   The threading framework is written in C++ and exposed in C. It provides a thread pool interface
+   to process tasks asynchronously. To enable use in MuJoCo, call ``mju_threadpool``.
 UI framework
    The UI framework is written in C. UI elements are rendered in OpenGL. It has its own event
    mechanism and abstract hooks for keyboard and mouse input. The code samples use it with GLFW, but it can also be used
@@ -151,39 +150,43 @@ links below, to make this documentation self-contained.
 
 `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
-   global variables, and includes all other header files except mjxmacro.h.
+   global variables, and includes all other header files except mjxmacro.h and mjspecmacro.h.
 `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
-   model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.
+   model being simulated.
 `mjdata.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjdata.h>`__
    Defines the C structure :ref:`mjData` which is the workspace where all computations
-   read their inputs and write their outputs. It also defines primitive types and other structures needed to define
-   mjData.
+   read their inputs and write their outputs.
 `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`__
    Defines the primitive types and structures needed by the abstract visualizer.
 `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__
    Defines the primitive types and structures needed by the OpenGL renderer.
 `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__
    Defines the primitive types and structures needed by the UI framework.
-`mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
-   Defines MuJoCo's ``mjtNum`` floating-point type to be either ``double`` or ``float``. See :ref:`mjtNum`.
+`mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__
+   Defines primitive types and enums, including the ``mjtNum`` floating-point type to be either ``double`` or ``float``
+   (see :ref:`mjtNum`).
 `mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__
    Defines enums and structs used for :doc:`procedural model editing <modeledit>`.
 `mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
    Defines data structures required by :ref:`engine plugins<exPlugin>`.
-`mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`__
-   Defines data structures and functions required by :ref:`thread<Thread>`.
 `mjmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__
    Defines C macros that are useful in user code.
 `mjxmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
    This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
    automate the mapping of mjModel and mjData into scripting languages, as well as other operations that require
    accessing all fields of mjModel and mjData.
+`mjspecmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspecmacro.h>`__
+   This file is optional and is not included by mujoco.h. It defines :ref:`X Macros <tyXMacro>` that can
+   automate the mapping of mjSpec and its element structs into scripting languages, as well as other operations that require
+   accessing all fields of mjSpec during procedural model editing.
 `mjexport.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
    Macros used for exporting public symbols from the MuJoCo library. This header should not be used directly by client
    code.
 `mjsan.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjsan.h>`__
    Definitions required when building with sanitizer instrumentation.
+`mjassert.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjassert.h>`__
+   Compile-time size assertions verifying MuJoCo ABI stability across C and C++ compilers.
 
 .. _inVersion:
 
@@ -228,8 +231,7 @@ to which the symbol belongs. First we list the prefixes corresponding to type de
    Core simulation data structure (C struct), for example :ref:`mjModel`. If all characters
    after the prefix are capital, for example :ref:`mjMIN`, this is a macro or a symbol (#define).
 ``mjt``
-   Primitive type, for example :ref:`mjtGeom`. Except for mjtByte and mjtNum, all other
-   definitions in this family are enums.
+   Primitive type, for example :ref:`mjtNum` and :ref:`mjtGeom`. Most types in this family are enums.
 ``mjf``
    Callback function type, for example :ref:`mjfGeneric`.
 ``mjv``
