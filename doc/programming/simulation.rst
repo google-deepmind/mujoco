@@ -986,9 +986,9 @@ architectural distinction in how filtering is applied:
   can implement their own filtering logic.
 
 * **DEBUG messages**: Designed for tight, high-frequency simulation loops where constructing strings would be a
-  performance bottleneck. Therefore, filtering happens on the **producer side** via :ref:`mju_isTopicEnabled`. If a
-  topic is disabled, the message is never constructed or dispatched. Consequently, custom handlers will only receive
-  DEBUG messages if the topic is explicitly enabled in the active :ref:`mjLogConfig`.
+  performance bottleneck. Therefore, filtering happens on the **producer side**. If a topic is disabled, the message is
+  never constructed or dispatched. Consequently, custom handlers will only receive DEBUG messages if the topic is
+  explicitly enabled in the active :ref:`mjLogConfig`.
 
 In the default handler, INFO messages are followed by a blank line for readability, whereas high-frequency DEBUG traces
 are printed compactly without trailing blank lines.
