@@ -46,7 +46,7 @@ static filament::Engine::Backend ResolveBackend(int graphics_api) {
   return backend;
 }
 
-FilamentPlatformSetup CreateFilamentPlatform(const mjrFilamentConfig& config) {
+FilamentPlatformSetup CreateFilamentPlatform(const mjrfContextConfig& config) {
   FilamentPlatformSetup setup;
   setup.backend = ResolveBackend(config.graphics_api);
   return setup;

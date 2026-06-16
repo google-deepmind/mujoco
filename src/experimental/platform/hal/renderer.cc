@@ -94,8 +94,8 @@ void Renderer::Init(const mjModel* model) {
       mjr_makeContext(model, &render_context_, mjFONTSCALE_150);
 
     } else {
-      mjrFilamentConfig cfg;
-      mjrf_defaultFilamentConfig(&cfg);
+      mjrfContextConfig cfg;
+      mjrf_defaultContextConfig(&cfg);
       cfg.native_window = native_window_;
       cfg.force_software_rendering = IsSoftware(gfx_);
       cfg.graphics_api = IsOpenGl(gfx_) || IsWebGl(gfx_)

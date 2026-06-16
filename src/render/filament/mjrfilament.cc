@@ -39,8 +39,8 @@ static void setf(float (&arr)[N], const std::array<float, N>& values) {
 
 extern "C" {
 
-void mjrf_defaultFilamentConfig(mjrFilamentConfig* config) {
-  memset(config, 0, sizeof(mjrFilamentConfig));
+void mjrf_defaultContextConfig(mjrfContextConfig* config) {
+  memset(config, 0, sizeof(mjrfContextConfig));
 }
 
 void mjrf_defaultTextureData(mjrfTextureData* data) {
@@ -116,7 +116,7 @@ void mjrf_defaultFrameStats(mjrfFrameStats* stats) {
   memset(stats, 0, sizeof(mjrfFrameStats));
 }
 
-mjrfContext* mjrf_createContext(const mjrFilamentConfig* config) {
+mjrfContext* mjrf_createContext(const mjrfContextConfig* config) {
   return new mujoco::FilamentContext(config);
 }
 

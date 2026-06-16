@@ -26,7 +26,7 @@ namespace mujoco {
 template <typename T>
 using UniquePtr = std::unique_ptr<T, void (*)(T*)>;
 
-inline UniquePtr<mjrfContext> CreateContext(const mjrFilamentConfig& config) {
+inline UniquePtr<mjrfContext> CreateContext(const mjrfContextConfig& config) {
   mjrfContext* context = mjrf_createContext(&config);
   return UniquePtr<mjrfContext>(context, mjrf_destroyContext);
 }

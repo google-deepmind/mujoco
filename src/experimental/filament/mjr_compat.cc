@@ -35,7 +35,7 @@ namespace {
 
 class CompatContext {
  public:
-  CompatContext(const mjrFilamentConfig* config, const mjModel* model);
+  CompatContext(const mjrfContextConfig* config, const mjModel* model);
 
   void Render(const mjrRect& viewport, const mjvScene* scene);
 
@@ -66,7 +66,7 @@ class CompatContext {
   UniquePtr<mjrfRenderTarget> depth_target_{nullptr, nullptr};
 };
 
-CompatContext::CompatContext(const mjrFilamentConfig* config,
+CompatContext::CompatContext(const mjrfContextConfig* config,
                              const mjModel* model)
     : context_(CreateContext(*config)) {
   scene_bridge_ = std::make_unique<SceneBridge>(context_.get(), model);
@@ -186,7 +186,7 @@ void mjr_defaultContext(mjrContext* con) {
   memset(con, 0, sizeof(mjrContext));
 }
 
-void mjr_makeFilamentContext(const mjModel* m, const mjrFilamentConfig* cfg,
+void mjr_makeFilamentContext(const mjModel* m, const mjrfContextConfig* cfg,
                              mjrContext* con) {
   if (g_context != nullptr) {
     mju_error("Context already exists!");
@@ -197,8 +197,8 @@ void mjr_makeFilamentContext(const mjModel* m, const mjrFilamentConfig* cfg,
 void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale) {
   mjr_freeContext(con);
 
-  mjrFilamentConfig cfg;
-  mjrf_defaultFilamentConfig(&cfg);
+  mjrfContextConfig cfg;
+  mjrf_defaultContextConfig(&cfg);
   mjr_makeFilamentContext(m, &cfg, con);
 }
 

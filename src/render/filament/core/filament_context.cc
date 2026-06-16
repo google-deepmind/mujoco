@@ -46,7 +46,7 @@
 
 namespace mujoco {
 
-FilamentContext::FilamentContext(const mjrFilamentConfig* config)
+FilamentContext::FilamentContext(const mjrfContextConfig* config)
     : config_(*config) {
   FilamentPlatformSetup setup = CreateFilamentPlatform(config_);
   platform_ = std::move(setup.platform);

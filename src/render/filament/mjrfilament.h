@@ -89,18 +89,18 @@ typedef enum mjrGraphicsApi_ {  // underlying graphics API to use for rendering
   mjGRAPHICS_API_VULKAN,        // vulkan
 } mjrGraphicsApi;
 
-struct mjrFilamentConfig_ {          // parameters for creating filament context (mjrfContext)
+struct mjrfContextConfig_ {          // parameters for creating filament context (mjrfContext)
   int graphics_api;                  // mjrGraphicsApi; rendering graphics API
   mjtBool force_software_rendering;  // force backend to use software rendering
   void* native_window;               // platform-dependent window handle (or nullptr for windowless)
 };
-typedef struct mjrFilamentConfig_ mjrFilamentConfig;
+typedef struct mjrfContextConfig_ mjrfContextConfig;
 
-// Initializes the mjrFilamentConfig to default values.
-void mjrf_defaultFilamentConfig(mjrFilamentConfig* config);
+// Initializes the mjrfContextConfig to default values.
+void mjrf_defaultContextConfig(mjrfContextConfig* config);
 
 // Creates a filament rendering context.
-mjrfContext* mjrf_createContext(const mjrFilamentConfig* config);
+mjrfContext* mjrf_createContext(const mjrfContextConfig* config);
 
 // Destroys the filament rendering context.
 void mjrf_destroyContext(mjrfContext* ctx);
