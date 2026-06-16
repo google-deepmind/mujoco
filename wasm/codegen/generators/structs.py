@@ -116,7 +116,7 @@ def _generate_field_data(
     return WrappedFieldData(
         declaration=builder.to_string(),
         typename=_get_field_struct_type(f, s),
-        binding=_get_property_binding(f, w, setter=True, reference=True),
+        binding=_get_property_binding(f, w, setter=True),
         is_primitive_or_fixed_size=True,
     )
 
