@@ -849,25 +849,9 @@ void PhysicsGui(mjModel* model, float min_width) {
   const char* opts3[] = {"PGS", "CG", "Newton"};
   ImGui::Combo("Solver", &opt.solver, opts3, IM_ARRAYSIZE(opts3));
 
-  if (ImGui::TreeNodeEx("Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
-    if (ImGui::BeginTable("##PhysicsFlagsTable", num_cols)) {
-      const ImVec2 size = GetFlexElementSize(num_cols);
-      for (int i = 0; i < mjNDISABLE; ++i) {
-        ImGui::TableNextColumn();
-        int flipped = ~opt.disableflags;
-        ImGui_BitToggle(mjDISABLESTRING[i], &flipped, 1 << i, size);
-        opt.disableflags = ~flipped;
-      }
-      for (int i = 0; i < mjNENABLE; ++i) {
-        ImGui::TableNextColumn();
-        ImGui_BitToggle(mjENABLESTRING[i], &opt.enableflags, 1 << i, size);
-      }
-      ImGui::EndTable();
-    }
-    ImGui::TreePop();
-  }
 
-  if (ImGui::TreeNodeEx("Algorithmic Parameters")) {
+  if (ImGui::TreeNodeEx("Algorithmic Parameters",
+                        ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui_Input("Timestep", &opt.timestep, {0, 1, 0.01, 0.1});
     ImGui_Input("Iterations", &opt.iterations, {0, 1000, 1, 10});
     ImGui_Input("Tolerance", &opt.tolerance, {0, 1, 1e-7, 1e-6});
@@ -893,11 +877,29 @@ void PhysicsGui(mjModel* model, float min_width) {
     ImGui::TreePop();
   };
 
+  if (ImGui::TreeNodeEx("Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::BeginTable("##PhysicsFlagsTable", num_cols)) {
+      const ImVec2 size = GetFlexElementSize(num_cols);
+      for (int i = 0; i < mjNDISABLE; ++i) {
+        ImGui::TableNextColumn();
+        int flipped = ~opt.disableflags;
+        ImGui_BitToggle(mjDISABLESTRING[i], &flipped, 1 << i, size);
+        opt.disableflags = ~flipped;
+      }
+      for (int i = 0; i < mjNENABLE; ++i) {
+        ImGui::TableNextColumn();
+        ImGui_BitToggle(mjENABLESTRING[i], &opt.enableflags, 1 << i, size);
+      }
+      ImGui::EndTable();
+    }
+    ImGui::TreePop();
+  }
+
   if (ImGui::TreeNodeEx("Contact Override")) {
-    ImGui_Input("Margin", &opt.o_margin, {.min = 0.1, .max = 1});
-    ImGui_InputN("Sol Imp", opt.o_solimp, 5, {.format = "%0.1f"});
-    ImGui_InputN("Sol Ref", opt.o_solref, 2, {.format = "%0.1f"});
-    ImGui_InputN("Friction", opt.o_friction, 5, {.format = "%.1f"});
+    ImGui_Input("Margin", &opt.o_margin, {.min = 0.0, .max = 1});
+    ImGui_InputN("Sol Imp", opt.o_solimp, 5, {.format = "%0.3f"});
+    ImGui_InputN("Sol Ref", opt.o_solref, 2, {.format = "%0.3f"});
+    ImGui_InputN("Friction", opt.o_friction, 5, {.format = "%.3f"});
     ImGui::TreePop();
   }
 
