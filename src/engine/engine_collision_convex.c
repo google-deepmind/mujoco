@@ -1532,7 +1532,7 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjPreContact* con, int g1,
 //----------------------------  flex collisions ---------------------------------------------
 
 // geom-elem or elem-elem or vert-elem convex collision using ccd
-int mjc_ConvexElem(const mjModel* m, mjData* d, mjContact* con, int g1, int f1, int e1, int v1,
+int mjc_ConvexElem(const mjModel* m, mjData* d, mjPreContact* con, int g1, int f1, int e1, int v1,
                    int f2, int e2, mjtNum margin) {
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, margin);
@@ -1541,8 +1541,7 @@ int mjc_ConvexElem(const mjModel* m, mjData* d, mjContact* con, int g1, int f1, 
   mjc_setCCDObjFlex(&obj2, f2, e2, -1);
 
   // find contacts
-  mjPreContact precon[8];
-  int ncon = mjc_penetration(m, d, &obj1, &obj2, precon, 1, margin);
+  int ncon = mjc_penetration(m, d, &obj1, &obj2, con, 1, margin);
 
   // fix normals for 2D flex
   if (ncon && !mjDISABLED(mjDSBL_NATIVECCD)) {
@@ -1553,25 +1552,16 @@ int mjc_ConvexElem(const mjModel* m, mjData* d, mjContact* con, int g1, int f1, 
 
     if (isflex2d) {
       for (int i = 0; i < ncon; i++) {
-        mjc_fixNormal(m, d, precon + i, g1, -1);
+        mjc_fixNormal(m, d, con + i, g1, -1);
       }
     }
   }
-
-  // copy to con
-  for (int i = 0; i < ncon; i++) {
-    con[i].dist = precon[i].dist;
-    mji_copy3(con[i].pos, precon[i].pos);
-    mji_copy3(con[i].frame, precon[i].normal);
-    mju_zero3(con[i].frame + 3);
-  }
-
   return ncon;
 }
 
 
 // test a height field and a flex element for collision
-int mjc_HFieldElem(const mjModel* m, mjData* d, mjContact* con, int g, int f, int e,
+int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, int e,
                    mjtNum margin) {
   mjtNum vec[3], dx, dy;
   mjtNum xmin, xmax, ymin, ymax, zmin, zmax;
@@ -1684,14 +1674,12 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjContact* con, int g, int f, in
           }
 
           // run ccd, save contact
-          mjContact* ccon = con + cnt;
-          mjPreContact precon;
-          if (mjc_penetration(m, d, &obj1, &obj2, &precon, 1, 0.0)) {
+          if (mjc_penetration(m, d, &obj1, &obj2, con + cnt, 1, 0.0)) {
             // transform to global coordinates
-            mji_zero3(ccon->frame + 3);
-            mji_mulMatVec3(ccon->frame, hmat, precon.normal);
-            mji_mulMatVec3(ccon->pos, hmat, precon.pos);
-            mji_addTo3(ccon->pos, hpos);
+            mji_zero3(con[cnt].tangent);
+            mju_mulMatVec3(con[cnt].normal, hmat, con[cnt].normal);
+            mju_mulMatVec3(con[cnt].pos, hmat, con[cnt].pos);
+            mji_addTo3(con[cnt].pos, hpos);
 
             // count, stop if max number reached
             cnt++;
