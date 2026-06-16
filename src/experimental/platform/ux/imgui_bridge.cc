@@ -221,7 +221,7 @@ void ImguiBridge::Update() {
 
     mjrfMeshData data;
     mjrf_defaultMeshData(&data);
-    data.nattributes = 3;
+    data.num_attributes = 3;
     data.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
     data.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
     data.attributes[0].bytes = cmds->VtxBuffer.Data;

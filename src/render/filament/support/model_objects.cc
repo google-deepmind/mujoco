@@ -364,7 +364,7 @@ static void UpdateMeshData(mjrfMeshData* data, const mjModel* model, int id,
   data->index_type = data->num_vertices >= std::numeric_limits<uint16_t>::max()
                          ? mjINDEX_TYPE_U32
                          : mjINDEX_TYPE_U16;
-  data->nattributes = has_uvs ? 3 : 2;
+  data->num_attributes = has_uvs ? 3 : 2;
   data->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
   data->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
   data->attributes[0].bytes = builder->positions.data();

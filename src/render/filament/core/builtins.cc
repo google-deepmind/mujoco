@@ -78,7 +78,7 @@ class BuiltinBuilder : public mjrfMeshData {
 
   mjrfMeshData* PrepareMeshData() {
     // Update the `mjrfMeshData` fields.
-    nattributes = 2;
+    num_attributes = 2;
     attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
     attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
     attributes[0].bytes = reinterpret_cast<const void*>(positions_.data());

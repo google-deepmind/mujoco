@@ -254,7 +254,7 @@ enum { mjMAX_VERTEX_ATTRIBUTES = 16 };
 
 struct mjrfMeshData_ {     // binary data for a mesh (mjrfMesh)
   mjtSize num_vertices;    // number of vertices; all vertex attributes share this size
-  int nattributes;         // number of attributes defined
+  int num_attributes;      // number of attributes defined
   mjrVertexAttribute attributes[mjMAX_VERTEX_ATTRIBUTES];  // per-vertex attribute information
   mjtBool interleaved;     // true if vertex attributes are interleaved
   mjtSize num_indices;     // number of indices

@@ -115,7 +115,7 @@ static void UpdateSkinFlexMeshData(mjrfMeshData* data, const mjModel* model,
     num_indices = 3 * scene->flexfaceused[geom.objid];
   }
 
-  data->nattributes = uvs.data() ? 3 : 2;
+  data->num_attributes = uvs.data() ? 3 : 2;
   data->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
   data->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
   data->attributes[0].bytes = positions.data();

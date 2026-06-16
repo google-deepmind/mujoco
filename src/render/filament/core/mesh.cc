@@ -156,7 +156,7 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
   const mjrVertexAttribute* positions = nullptr;
   const mjrVertexAttribute* normals = nullptr;
   const mjrVertexAttribute* tangents = nullptr;
-  for (int i = 0; i < data.nattributes; ++i) {
+  for (int i = 0; i < data.num_attributes; ++i) {
     if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_POSITION) {
       positions = &data.attributes[i];
     } else if (data.attributes[i].usage == mjVERTEX_ATTRIBUTE_USAGE_NORMAL) {
@@ -190,7 +190,7 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
     // starting from the first attribute's payload.
     vb_builder.bufferCount(1);
     int total_vertex_size = 0;
-    for (int i = 0; i < data.nattributes; ++i) {
+    for (int i = 0; i < data.num_attributes; ++i) {
       total_vertex_size += VertexAttributeTypeSize(data.attributes[i]);
     }
     const void* bytes = data.attributes[0].bytes;
@@ -200,7 +200,7 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
     // attributes. As such, the stride is equal to the total vertex size and
     // each offset is the sum of the sizes of the preceding attributes.
     int offset = 0;
-    for (int i = 0; i < data.nattributes; ++i) {
+    for (int i = 0; i < data.num_attributes; ++i) {
       const mjrVertexAttribute& attrib = data.attributes[i];
       const filament::VertexAttribute usage = GetUsage(attrib);
       filament::VertexBuffer::AttributeType type = GetType(attrib);
@@ -218,8 +218,8 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
   } else {
     // For a non-interleaved vertex buffer, we assign a separate buffer to each
     // attribute.
-    vb_builder.bufferCount(data.nattributes);
-    for (int i = 0; i < data.nattributes; ++i) {
+    vb_builder.bufferCount(data.num_attributes);
+    for (int i = 0; i < data.num_attributes; ++i) {
       const mjrVertexAttribute& attrib = data.attributes[i];
       const filament::VertexAttribute usage = GetUsage(attrib);
       filament::VertexBuffer::AttributeType type = GetType(attrib);
@@ -233,11 +233,11 @@ void Mesh::BuildVertexBuffer(const mjrfMeshData& data) {
       }
       attributes_[i] = usage;
     }
-    num_attributes_ = data.nattributes;
+    num_attributes_ = data.num_attributes;
     vertex_buffer_ = vb_builder.build(*engine_);
 
     // Assign the individual data buffers.
-    for (int i = 0; i < data.nattributes; ++i) {
+    for (int i = 0; i < data.num_attributes; ++i) {
       const mjrVertexAttribute& attrib = data.attributes[i];
       const void* bytes = attrib.bytes;
       size_t nbytes = data.num_vertices * VertexAttributeTypeSize(attrib);
