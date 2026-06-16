@@ -45,7 +45,7 @@ int mjc_MeshSDF(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, 
 int mjc_SDF(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtNum margin);
 
 // collision between entire flex and SDF geom (batched processing)
-int mjc_FlexSDF(const mjModel* m, const mjData* d, mjContact* con,
+int mjc_FlexSDF(const mjModel* m, const mjData* d, mjPreContact* con, int* elem,
                 int g, int f, mjtNum margin);
 
 #ifdef __cplusplus

@@ -577,28 +577,9 @@ static int addPreContact(mjtNum* points, mjPreContact* con, const mjtNum x[3],
   mju_addTo3(con->pos, pos2);
   mju_addTo3(con->pos, vec);
 
-  return cnt+1;
+  return cnt + 1;
 }
 
-
-// adds candidate point to result
-// flipNormal: 0 = normal points INTO SDF (for mesh-SDF where SDF is g2)
-//             1 = normal points OUT of SDF (for flex-SDF where SDF is g1)
-static int addContact(mjtNum* points, mjContact* con, const mjtNum x[3],
-                      const mjtNum pos2[3], const mjtNum quat2[4], mjtNum dist,
-                      int cnt, const mjModel* m, const mjSDF* s, const mjData* d,
-                      int flipNormal) {
-  mjPreContact precon;
-  int ncon = addPreContact(points, &precon, x, pos2, quat2, dist, cnt, m, s, d,
-                           flipNormal);
-  if (ncon > cnt) {
-    con[cnt].dist = precon.dist;
-    mju_copy3(con[cnt].pos, precon.pos);
-    mju_copy3(con[cnt].frame, precon.normal);
-    mju_zero3(con[cnt].frame + 3);
-  }
-  return ncon;
-}
 
 // finds minimum of Frank-Wolfe objective
 static mjtNum stepFrankWolfe(mjtNum x[3], const mjtNum* corners, int ncorners,
@@ -1264,7 +1245,7 @@ static int flexElemCallback(int elem_idx, int node, void* ctx) {
 }
 
 
-int mjc_FlexSDF(const mjModel* m, const mjData* d, mjContact* con,
+int mjc_FlexSDF(const mjModel* m, const mjData* d, mjPreContact* con, int* elem,
                 int g, int f, mjtNum margin) {
   // g = SDF geom, f = flex
   int dim = m->flex_dim[f];
@@ -1336,11 +1317,11 @@ int mjc_FlexSDF(const mjModel* m, const mjData* d, mjContact* con,
       int elem_cnt = 0;
       for (int i = 0; i < elem_ncandidate && cnt < mjMAXCONPAIR; i++) {
         int old_elem_cnt = elem_cnt;
-        elem_cnt = addContact(elem_points, con + cnt, elem_candidate + 3*i, sdf_pos, sdf_quat,
+        elem_cnt = addPreContact(elem_points, con + cnt, elem_candidate + 3*i, sdf_pos, sdf_quat,
                               elem_dist[i], elem_cnt, m, &sdf, d, 1);
         // set element ID for successfully added contact
         if (elem_cnt > old_elem_cnt) {
-          con[cnt].elem[1] = e;
+          elem[cnt] = e;
           cnt++;
         }
       }
@@ -1380,11 +1361,11 @@ int mjc_FlexSDF(const mjModel* m, const mjData* d, mjContact* con,
   if (ncandidate <= mjMAXCONPAIR) {
     for (int i = 0; i < ncandidate; i++) {
       int old_cnt = cnt;
-      cnt = addContact(points, con, candidate + 3*i, sdf_pos, sdf_quat,
-                       dist[i], cnt, m, &sdf, d, 1);
+      cnt = addPreContact(points, con + cnt, candidate + 3*i, sdf_pos, sdf_quat, dist[i], cnt, m,
+                          &sdf, d, 1);
       // set element ID for successfully added contact
       if (cnt > old_cnt) {
-        con[old_cnt].elem[1] = elem_id[i];
+        elem[old_cnt] = elem_id[i];
       }
     }
     return cnt;
@@ -1398,11 +1379,11 @@ int mjc_FlexSDF(const mjModel* m, const mjData* d, mjContact* con,
   for (int i = 0; i < nselected; i++) {
     int idx = selected_indices[i];
     int old_cnt = cnt;
-    cnt = addContact(points, con, candidate + 3*idx, sdf_pos, sdf_quat,
-                     dist[idx], cnt, m, &sdf, d, 1);
+    cnt = addPreContact(points, con + cnt, candidate + 3*idx, sdf_pos, sdf_quat, dist[idx], cnt, m,
+                        &sdf, d, 1);
     // set element ID for successfully added contact
     if (cnt > old_cnt) {
-      con[old_cnt].elem[1] = elem_id[idx];
+      elem[old_cnt] = elem_id[idx];
     }
   }
 

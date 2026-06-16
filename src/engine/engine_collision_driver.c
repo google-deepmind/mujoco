@@ -351,14 +351,23 @@ int mj_isElemActive(const mjModel* m, int f, int e) {
 //----------------------------- collision detection entry point ------------------------------------
 
 // binary search between two bodyflex trees
-void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
-                    int merged, int startadr, int pairadr);
+static void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
+                           int merged, int startadr, int pairadr);
 
 // compute contacts for a batch of collision pairs contained in a buffer of
 // stride 3 ints (g1, g2, ipair)
 // if buffer is NULL, results are read from arena starting at parena
-void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, size_t parena);
+static void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair,
+                           size_t parena);
 
+// test a plane geom and a flex for collision, add to contact list
+static void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f);
+
+// test an SDF geom and a flex for collision, add to contact list
+static void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f);
+
+// test for internal flex collisions, add to contact list
+static void mj_collideFlexInternal(const mjModel* m, mjData* d, int f);
 
 // compare contact pairs by their geom/elem/vert IDs
 static inline int contactcompare(const mjContact* c1, const mjContact* c2, void* context) {
@@ -937,8 +946,8 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
 
 
 // binary search between two bodyflex trees
-void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
-                    int merged, int startadr, int pairadr) {
+static void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
+                           int merged, int startadr, int pairadr) {
   int nbody = m->nbody, nbvhstatic = m->nbvhstatic;
   mjtBool isbody1 = (bf1 < nbody);
   mjtBool isbody2 = (bf2 < nbody);
@@ -1865,7 +1874,8 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
 // compute contacts for a batch of collision pairs contained in a buffer of
 // stride 3 ints (g1, g2, ipair)
 // if buffer is NULL, results are read from arena starting at parena
-void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, size_t parena) {
+static void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair,
+                           size_t parena) {
   int nthread = mju_numThread(d);
   int ccd_size = mjc_ccdSize(m->opt.ccd_iterations);
   mjtNum margin, gap;
@@ -1992,7 +2002,7 @@ void mj_narrowphase(const mjModel* m, mjData* d, const int* buffer, int npair, s
 
 
 // test a plane geom and a flex for collision, add to contact list
-void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
+static void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
   mjContact con;
   mjtNum radius = m->flex_radius[f];
   mjtNum* pos = d->geom_xpos + 3*g;
@@ -2049,7 +2059,7 @@ void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f) {
 
 
 // test an SDF geom and a flex for collision, add to contact list
-void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
+static void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
   // only support dim==2 (triangular elements)
   if (m->flex_dim[f] != 2) {
     return;
@@ -2065,29 +2075,37 @@ void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
 
   // allocate temporary contact array on stack (zero-initialized)
   mj_markStack(d);
-  mjContact* con = mjSTACKALLOC(d, mjMAXCONPAIR, mjContact);
-  memset(con, 0, mjMAXCONPAIR * sizeof(mjContact));
+  mjPreContact* precon = mjSTACKALLOC(d, mjMAXCONPAIR, mjPreContact);
+  int* elem = mjSTACKALLOC(d, mjMAXCONPAIR, int);
 
   // call batched flex-SDF collision
-  int num = mjc_FlexSDF(m, d, con, g, f, margin + gap);
+  int num = mjc_FlexSDF(m, d, precon, elem, g, f, margin + gap);
 
   // add contacts to mjData
+  mjContact con;
+  memset(&con, 0, sizeof(mjContact));
   for (int i = 0; i < num; i++) {
+    // copy properties from mjPreContact to mjContact
+    con.dist = precon[i].dist;
+    mju_copy3(con.pos, precon[i].pos);
+    mju_copy3(con.frame, precon[i].normal);
+    mju_copy3(con.frame + 3, precon[i].tangent);
+
     // set contact ids
-    con[i].geom[0] = g;
-    con[i].geom[1] = -1;
-    con[i].flex[0] = -1;
-    con[i].flex[1] = f;
-    con[i].elem[0] = -1;
-    // con[i].elem[1] already set by mjc_FlexSDF with actual element index
-    con[i].vert[0] = -1;
-    con[i].vert[1] = -1;
+    con.geom[0] = g;
+    con.geom[1] = -1;
+    con.flex[0] = -1;
+    con.flex[1] = f;
+    con.elem[0] = -1;
+    con.elem[1] = elem[i];
+    con.vert[0] = -1;
+    con.vert[1] = -1;
 
     // set remaining contact parameters
-    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction);
+    mj_setContact(m, &con, condim, margin, solref, solreffriction, solimp, friction);
 
     // add to mjData, abort if too many contacts
-    if (mj_addContact(m, d, con + i)) {
+    if (mj_addContact(m, d, &con)) {
       mj_freeStack(d);
       return;
     }
@@ -2098,7 +2116,7 @@ void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f) {
 
 
 // test single triangle plane : vertex
-static int planeVertex(mjContact* con, const mjtNum* pos, mjtNum rad,
+static int planeVertex(mjPreContact* con, const mjtNum* pos, mjtNum rad,
                        int t0, int t1, int t2, int v) {
   // make t0 the origin
   mjtNum e1[3], e2[3], ev[3];
@@ -2119,17 +2137,16 @@ static int planeVertex(mjContact* con, const mjtNum* pos, mjtNum rad,
 
   // construct contact
   con->dist = -dst-2*rad;
-  mju_scl3(con->frame, nrm, -1);
-  mju_zero3(con->frame+3);
+  mju_scl3(con->normal, nrm, -1);
+  mju_zero3(con->tangent);
   mju_addScl3(con->pos, pos+3*v, nrm, -0.5*dst);
-  con->vert[1] = v;
   return 1;
 }
 
 
 // test for internal flex collisions, add to contact list
 // ignore margin to avoid permament self-collision
-void mj_collideFlexInternal(const mjModel* m, mjData* d, int f) {
+static void mj_collideFlexInternal(const mjModel* m, mjData* d, int f) {
   int flex_evpairnum = m->flex_evpairnum[f];
 
   // predefined element-vertex
@@ -2161,29 +2178,50 @@ void mj_collideFlexInternal(const mjModel* m, mjData* d, int f) {
   // process all elements
   const mjtNum* vertxpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
   for (int e=0; e < flex_elemnum; e++) {
+    mjPreContact precon;
     const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*4;
     con.elem[0] = e;
 
     // face (0,1,2)
-    if (planeVertex(&con, vertxpos, radius, edata[0], edata[1], edata[2], edata[3])) {
+    if (planeVertex(&precon, vertxpos, radius, edata[0], edata[1], edata[2], edata[3])) {
+      con.vert[1] = edata[3];
+      con.dist = precon.dist;
+      mju_copy3(con.pos, precon.pos);
+      mju_copy3(con.frame, precon.normal);
+      mju_copy3(con.frame + 3, precon.tangent);
       mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction);
       if (mj_addContact(m, d, &con)) return;
     }
 
     // face (0,2,3)
-    if (planeVertex(&con, vertxpos, radius, edata[0], edata[2], edata[3], edata[1])) {
+    if (planeVertex(&precon, vertxpos, radius, edata[0], edata[2], edata[3], edata[1])) {
+      con.vert[1] = edata[1];
+      con.dist = precon.dist;
+      mju_copy3(con.pos, precon.pos);
+      mju_copy3(con.frame, precon.normal);
+      mju_copy3(con.frame + 3, precon.tangent);
       mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction);
       if (mj_addContact(m, d, &con)) return;
     }
 
     // face (0,3,1)
-    if (planeVertex(&con, vertxpos, radius, edata[0], edata[3], edata[1], edata[2])) {
+    if (planeVertex(&precon, vertxpos, radius, edata[0], edata[3], edata[1], edata[2])) {
+      con.vert[1] = edata[2];
+      con.dist = precon.dist;
+      mju_copy3(con.pos, precon.pos);
+      mju_copy3(con.frame, precon.normal);
+      mju_copy3(con.frame + 3, precon.tangent);
       mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction);
       if (mj_addContact(m, d, &con)) return;
     }
 
     // face (1,3,2)
-    if (planeVertex(&con, vertxpos, radius, edata[1], edata[3], edata[2], edata[0])) {
+    if (planeVertex(&precon, vertxpos, radius, edata[1], edata[3], edata[2], edata[0])) {
+      con.vert[1] = edata[0];
+      con.dist = precon.dist;
+      mju_copy3(con.pos, precon.pos);
+      mju_copy3(con.frame, precon.normal);
+      mju_copy3(con.frame + 3, precon.tangent);
       mj_setContact(m, &con, condim, 0, solref, solreffriction, solimp, friction);
       if (mj_addContact(m, d, &con)) return;
     }

@@ -47,15 +47,6 @@ MJAPI int mj_isElemActive(const mjModel* m, int f, int e);
 // broad phase collision detection; return list of bodyflex pairs
 int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair);
 
-// test a plane geom and a flex for collision, add to contact list
-void mj_collidePlaneFlex(const mjModel* m, mjData* d, int g, int f);
-
-// test an SDF geom and a flex for collision, add to contact list
-void mj_collideSdfFlex(const mjModel* m, mjData* d, int g, int f);
-
-// test for internal flex collisions, add to contact list
-void mj_collideFlexInternal(const mjModel* m, mjData* d, int f);
-
 // test active element self-collisions with SAP
 void mj_collideFlexSAP(const mjModel* m, mjData* d, int f);
 
