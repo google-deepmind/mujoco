@@ -24,7 +24,6 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-
 #include <utility>
 #include <vector>
 
@@ -33,6 +32,7 @@
 #include <absl/base/attributes.h>
 #include <absl/base/const_init.h>
 #include <absl/base/thread_annotations.h>
+#include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 #include <absl/synchronization/mutex.h>
@@ -42,34 +42,102 @@
 
 namespace mujoco {
 namespace {
+using ::testing::_;
+using ::testing::Not;
+using ::testing::Return;
+using ::testing::Truly;
+
+// Returns true if the warning matches a known benign warning to ignore.
+bool IsBenignWarning(const std::string& msg) {
+  static const char* const kBenignWarnings[] = {
+      "is not rigid and has no equality constraints",
+  };
+  for (const char* warning : kBenignWarnings) {
+    if (absl::StrContains(msg, warning)) {
+      return true;
+    }
+  }
+  return false;
+}
+}  // namespace
+
+thread_local MockWarningHandler* MockWarningHandler::active_handler = nullptr;
+
+// Registers this handler as the active one.
+MockWarningHandler::MockWarningHandler() {
+  prev_ = active_handler;
+  active_handler = this;
+
+  // By default, ignore matches in the benign warnings list
+  ON_CALL(*this, Warn(Truly(IsBenignWarning)))
+      .WillByDefault([](const std::string&) {});
+
+  // Fail on all other warnings
+  ON_CALL(*this, Warn(Not(Truly(IsBenignWarning))))
+      .WillByDefault([](const std::string& msg) {
+        ADD_FAILURE() << "mju_user_warning: " << msg;
+      });
+}
+
+// Restores the previously active warning handler.
+MockWarningHandler::~MockWarningHandler() { active_handler = prev_; }
+
+// Configures the mock warning handler to ignore all warnings.
+void MockWarningHandler::ExpectWarnings() {
+  EXPECT_CALL(*this, Warn(_)).WillRepeatedly(Return());
+}
+
+// Returns the active warning handler.
+MockWarningHandler* MockWarningHandler::GetActive() { return active_handler; }
+
+namespace {
 
 using ::testing::NotNull;
 
 ABSL_CONST_INIT static absl::Mutex handlers_mutex(absl::kConstInit);
 static int guard_count ABSL_GUARDED_BY(handlers_mutex) = 0;
+static mjfLogHandler prev_log_handler ABSL_GUARDED_BY(handlers_mutex) = nullptr;
 
-void default_mj_error_handler(const char* msg) {
-  FAIL() << "mju_user_error: " << msg;
-}
+void default_mj_log_handler(const mjLogMessage* msg) {
+  std::string subject = msg->subject;
+  if (msg->func) {
+    subject = std::string(msg->func) + ": " + msg->subject;
+  }
 
-void default_mj_warning_handler(const char* msg) {
-  ADD_FAILURE() << "mju_user_warning: " << msg;
+  if (msg->level == mjLOG_ERROR) {
+    if (mju_user_error) {
+      mju_user_error(subject.c_str());
+    } else {
+      FAIL() << "mju_user_error: " << subject;
+    }
+  } else if (msg->level == mjLOG_WARNING) {
+    std::string full_msg = subject;
+    if (msg->body) {
+      full_msg += "\n" + std::string(msg->body);
+    }
+    if (mju_user_warning) {
+      mju_user_warning(full_msg.c_str());
+    } else if (auto* handler = MockWarningHandler::GetActive()) {
+      handler->Warn(full_msg);
+    } else {
+      ADD_FAILURE() << "mju_user_warning: " << full_msg;
+    }
+  }
 }
 }  // namespace
 
 MujocoErrorTestGuard::MujocoErrorTestGuard() {
   absl::MutexLock lock(handlers_mutex);
   if (++guard_count == 1) {
-    mju_user_error = default_mj_error_handler;
-    mju_user_warning = default_mj_warning_handler;
+    prev_log_handler = mju_setLogHandler(default_mj_log_handler);
   }
 }
 
 MujocoErrorTestGuard::~MujocoErrorTestGuard() {
   absl::MutexLock lock(handlers_mutex);
   if (--guard_count == 0) {
-    mju_user_error = nullptr;
-    mju_user_warning = nullptr;
+    mju_setLogHandler(prev_log_handler);
+    prev_log_handler = nullptr;
   }
 }
 
@@ -97,11 +165,29 @@ mjModel* LoadModelFromString(std::string_view xml, char* error,
   if (spec) {
     model = mj_compile(spec, vfs);
 
-    if (error && (!model || mjs_isWarning(spec))) {
-      strncpy(error, mjs_getError(spec), error_size);
-      error[error_size - 1] = '\0';
+    if (error) {
+      if (!model) {
+        strncpy(error, mjs_getError(spec), error_size);
+        error[error_size - 1] = '\0';
+      } else {
+        int num_warnings = mjs_numWarnings(spec);
+        if (num_warnings > 0) {
+          std::string all_warnings;
+          for (int i = 0; i < num_warnings; ++i) {
+            if (!all_warnings.empty()) {
+              all_warnings += '\n';
+            }
+            all_warnings += mjs_getWarning(spec, i);
+          }
+          strncpy(error, all_warnings.c_str(), error_size);
+          error[error_size - 1] = '\0';
+        } else {
+          error[0] = '\0';
+        }
+      }
     }
   }
+
   SetGlobalXmlSpec(spec);
   return model;
 }

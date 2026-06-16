@@ -84,6 +84,12 @@ class WriteReadCompareTest : public XMLWriterTest,
 TEST_P(WriteReadCompareTest, WriteReadCompare) {
   std::string xml = GetParam();
 
+  // If this is the flex_line_obj model, expect the 'is not rigid' warning
+  if (absl::StrContains(xml, "flex_line_obj")) {
+    EXPECT_CALL(mock_warning_handler, Warn(testing::HasSubstr("is not rigid")))
+        .WillRepeatedly(testing::Return());
+  }
+
   // full precision float printing
   FullFloatPrecision increase_precision;
 

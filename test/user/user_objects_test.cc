@@ -1181,7 +1181,7 @@ TEST_F(MjCGeomTest, IgnoreBadGeomOutsideInertiagrouprange) {
 TEST_F(MjCGeomTest, NanSize) {
   // even if the caller ignores warnings, models shouldn't compile with NaN
   // geom sizes
-  mju_user_warning = nullptr;
+  mock_warning_handler.ExpectWarnings();
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>

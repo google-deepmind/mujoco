@@ -3555,6 +3555,8 @@ void mju_writeLog(const char* type, const char* msg);
 const char* mjs_getError(mjSpec* s);
 const double* mjs_getTimer(mjSpec* s);
 int mjs_isWarning(mjSpec* s);
+int mjs_numWarnings(const mjSpec* spec);
+const char* mjs_getWarning(const mjSpec* spec, int index);
 void mju_zero3(mjtNum res[3]);
 void mju_copy3(mjtNum res[3], const mjtNum data[3]);
 void mju_scl3(mjtNum res[3], const mjtNum vec[3], mjtNum scl);

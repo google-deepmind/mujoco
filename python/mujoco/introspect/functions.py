@@ -6486,7 +6486,41 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Return 1 if compiler error is a warning.',
+         doc='Return 1 if compiler error is a warning. Deprecated: use mjs_numWarnings(s) > 0.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_numWarnings',
+     FunctionDecl(
+         name='mjs_numWarnings',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='spec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Get number of warnings accumulated in the spec.',
+     )),
+    ('mjs_getWarning',
+     FunctionDecl(
+         name='mjs_getWarning',
+         return_type=PointerType(
+             inner_type=ValueType(name='char', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='spec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='index',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Get the i-th warning message (returns nullptr if index out of bounds).',  # pylint: disable=line-too-long
      )),
     ('mju_zero3',
      FunctionDecl(

@@ -45,7 +45,9 @@ constexpr int GetExpectedStackUsageBytes() {
   }
 }
 
-TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
+class TestMjArrayList : public MujocoTest {};
+
+TEST_F(TestMjArrayList, TestMjArrayListSingleThreaded) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString("<mujoco/>", error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error.data();
@@ -81,7 +83,7 @@ TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
   mj_deleteModel(m);
 }
 
-TEST(TestMjArrayList, ZeroInitialCapacity) {
+TEST_F(TestMjArrayList, ZeroInitialCapacity) {
   char error[1024];
   mjModel* m = LoadModelFromString("<mujoco/>", error, sizeof(error));
   ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;

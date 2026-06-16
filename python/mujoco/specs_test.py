@@ -597,6 +597,18 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaisesRegex(ValueError, expected_error):
       spec.compile()
 
+  def test_compile_warnings(self):
+    xml = """
+    <mujoco>
+      <worldbody>
+        <flexcomp name="my_flex" type="grid" count="3 3 1" spacing=".05 .05 .05" radius=".01" dim="2"/>
+      </worldbody>
+    </mujoco>
+    """
+    spec = mujoco.MjSpec.from_string(xml)
+    with self.assertWarnsRegex(UserWarning, 'is not rigid'):
+      spec.compile()
+
   def test_recompile(self):
     # Create a spec.
     spec = mujoco.MjSpec()

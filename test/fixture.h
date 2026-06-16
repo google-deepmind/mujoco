@@ -44,7 +44,7 @@ namespace mujoco {
 inline mjtNum MjTolScale() {
   static const mjtNum scale = []() {
     const char* env = std::getenv("MJTOL_SCALE");
-    return env ? std::atof(env) : 1.0;
+    return env ? std::strtod(env, nullptr) : 1.0;
   }();
   return scale;
 }
@@ -106,6 +106,28 @@ class MujocoErrorTestGuard {
   ~MujocoErrorTestGuard();
 };
 
+// Mock handler for capturing and verifying mju_warning logs.
+class MockWarningHandler {
+ public:
+  // Constructor that registers this handler as the active one.
+  MockWarningHandler();
+  // Destructor that restores the previously active handler.
+  ~MockWarningHandler();
+
+  // Mock method called when a warning is intercepted.
+  MOCK_METHOD(void, Warn, (const std::string& msg));
+
+  // Allow any number of warnings without triggering test failure.
+  void ExpectWarnings();
+
+  // Returns the thread-local active mock warning handler.
+  static MockWarningHandler* GetActive();
+
+ private:
+  static thread_local MockWarningHandler* active_handler;
+  MockWarningHandler* prev_ = nullptr;
+};
+
 // A test fixture which simplifies writing tests for the MuJoCo C API.
 // By default, any MuJoCo operation which triggers a warning or error will
 // trigger a test failure.
@@ -127,6 +149,9 @@ class MujocoTest : public ::testing::Test {
     });
   }
   ~MujocoTest() { mj_freeLastXML(); }
+
+ protected:
+  MockWarningHandler mock_warning_handler;
 
  private:
   MujocoErrorTestGuard error_guard;

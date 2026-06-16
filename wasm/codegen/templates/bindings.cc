@@ -113,15 +113,20 @@ EMSCRIPTEN_DECLARE_VAL_TYPE(StringOrNull);
     mju_error("Invalid argument: %s is undefined", #val); \
   }
 
-void ThrowMujocoErrorToJS(const char* msg) {
-  // Get a handle to the JS global Error constructor function, create a new
-  // object instance and then throw the object as an exception using the
-  // val::throw_() helper function.
-  val(val::global("Error").new_(val("MuJoCo Error: " + std::string(msg))))
-      .throw_();
+void ThrowMujocoErrorToJS(const mjLogMessage* msg) {
+  if (msg->level == mjLOG_ERROR) {
+    std::string message = msg->subject;
+    if (msg->func) {
+      message = std::string(msg->func) + ": " + msg->subject;
+    }
+    // Get a handle to the JS global Error constructor function, create a new
+    // object instance and then throw the object as an exception using the
+    // val::throw_() helper function.
+    val(val::global("Error").new_(val("MuJoCo Error: " + message))).throw_();
+  }
 }
 __attribute__((constructor)) void InitMuJoCoErrorHandler() {
-  mju_user_error = ThrowMujocoErrorToJS;
+  mju_setLogHandler(ThrowMujocoErrorToJS);
 }
 
 // Generates a descriptive error message for when a key lookup fails.
@@ -798,9 +803,21 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
 
 std::unique_ptr<MjModel> mj_compile_wrapper_1(const MjSpec& spec) {
   mjSpec* spec_ptr = spec.get();
+
+  // suppress stderr playback: warnings are raised via console.warn() below
+  mjfLogHandler prev = _mjPRIVATE_setTlsLogHandler([](const mjLogMessage*) {});
   mjModel* model = mj_compile(spec_ptr, nullptr);
-  if (!model || mjs_isWarning(spec_ptr)) {
+  _mjPRIVATE_setTlsLogHandler(prev);
+  if (!model) {
     mju_error("%s", mjs_getError(spec_ptr));
+  }
+  int num_warnings = mjs_numWarnings(spec_ptr);
+  if (num_warnings > 0) {
+    for (int i = 0; i < num_warnings; ++i) {
+      val::global("console").call<void>(
+          "warn",
+          val("MuJoCo Warning: " + std::string(mjs_getWarning(spec_ptr, i))));
+    }
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -808,9 +825,21 @@ std::unique_ptr<MjModel> mj_compile_wrapper_1(const MjSpec& spec) {
 std::unique_ptr<MjModel> mj_compile_wrapper_2(const MjSpec& spec, const MjVFS& vfs) {
   mjSpec* spec_ptr = spec.get();
   mjVFS* vfs_ptr = vfs.get();
+
+  // suppress stderr playback: warnings are raised via console.warn() below
+  mjfLogHandler prev = _mjPRIVATE_setTlsLogHandler([](const mjLogMessage*) {});
   mjModel* model = mj_compile(spec_ptr, vfs_ptr);
-  if (!model || mjs_isWarning(spec_ptr)) {
+  _mjPRIVATE_setTlsLogHandler(prev);
+  if (!model) {
     mju_error("%s", mjs_getError(spec_ptr));
+  }
+  int num_warnings = mjs_numWarnings(spec_ptr);
+  if (num_warnings > 0) {
+    for (int i = 0; i < num_warnings; ++i) {
+      val::global("console").call<void>(
+          "warn",
+          val("MuJoCo Warning: " + std::string(mjs_getWarning(spec_ptr, i))));
+    }
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }

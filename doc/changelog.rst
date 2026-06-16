@@ -20,6 +20,8 @@ General
   - New types: :ref:`mjtLogLevel`, :ref:`mjtLogTopic`, :ref:`mjLogMessage`, :ref:`mjLogConfig`.
   - The legacy callbacks :ref:`mju_user_error` and :ref:`mju_user_warning` are deprecated but remain functional.
 
+- Added :ref:`mjs_numWarnings` and :ref:`mjs_getWarning` for retrieving all warnings accumulated during model
+  compilation and attachment. Deprecated :ref:`mjs_isWarning` in favor of ``mjs_numWarnings(s) > 0``.
 - Improved primal solver convergence under float32. Improvements initially proposed by :github:user:`n3b` in
   :issue:`2313` and :github:user:`denzeler-nvidia` in :doc:`MJWarp <mjwarp/index>` pull request
   `1374 <https://github.com/google-deepmind/mujoco_warp/pull/1374>`__.

@@ -1546,7 +1546,7 @@ void mjCMesh::Process() {
     for (int i = 0; i < nface(); i++) {
       SetBoundingVolume(i, dvert.data());
     }
-    tree_.CreateBVH();
+    tree_.CreateBVH(model, this);
   }
   mesh_timer_[mjCTIMER_MESH_BVH] += Seconds(Clock::now() - t0).count();
 
@@ -5451,7 +5451,7 @@ void mjCFlex::CreateBVH() {
 
   // create hierarchy
   tree.RemoveInactiveVolumes(nbvh);
-  tree.CreateBVH();
+  tree.CreateBVH(model, this);
 }
 
 

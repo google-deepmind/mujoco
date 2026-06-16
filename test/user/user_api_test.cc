@@ -3291,5 +3291,168 @@ TEST_F(MujocoTest, CompilerTimers) {
   mj_deleteSpec(spec);
 }
 
+// -------------------- test compile warning infrastructure --------------------
+
+TEST_F(MujocoTest, CompileWarningCount) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <geom size="1"/>
+        <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
+                  dim="2" radius="0.01">
+          <contact internal="false"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+
+  // flex with no passive forces should produce a warning
+  EXPECT_GT(mjs_numWarnings(spec), 0);
+  EXPECT_THAT(mjs_getWarning(spec, 0), HasSubstr("not rigid"));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, CompileWarningOutOfBounds) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsGeom* geom = mjs_addGeom(world, 0);
+  geom->size[0] = 1;
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+
+  // no warnings expected for simple model
+  EXPECT_EQ(mjs_numWarnings(spec), 0);
+  EXPECT_THAT(mjs_getWarning(spec, 0), IsNull());
+  EXPECT_THAT(mjs_getWarning(spec, -1), IsNull());
+
+  // nullptr spec should not crash
+  EXPECT_EQ(mjs_numWarnings(nullptr), 0);
+  EXPECT_THAT(mjs_getWarning(nullptr, 0), IsNull());
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, RecompileClearsCompileWarnings) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <geom size="1"/>
+        <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
+                  dim="2" radius="0.01">
+          <contact internal="false"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+  int first_count = mjs_numWarnings(spec);
+  EXPECT_GT(first_count, 0);
+
+  // recompile — warnings should be regenerated, not accumulated
+  mj_deleteModel(model);
+  model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+  EXPECT_EQ(mjs_numWarnings(spec), first_count);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, LoadXMLWarningInErrorBuffer) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <geom size="1"/>
+        <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
+                  dim="2" radius="0.01">
+          <contact internal="false"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // write xml to VFS
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "model.xml", xml, sizeof(xml));
+
+  std::array<char, 1024> error;
+  error[0] = '\0';
+  mjModel* model = mj_loadXML("model.xml", &vfs, error.data(), error.size());
+  ASSERT_THAT(model, NotNull());
+
+  // warning should be in the error buffer
+  EXPECT_THAT(error.data(), HasSubstr("not rigid"));
+
+  mj_deleteModel(model);
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(MujocoTest, CompileWarningChainedToHandler) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <geom size="1"/>
+        <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
+                  dim="2" radius="0.01">
+          <contact internal="false"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // install a custom log handler that captures warnings
+  std::vector<std::string> captured_warnings;
+  static thread_local std::vector<std::string>* capture_ptr = nullptr;
+  capture_ptr = &captured_warnings;
+
+  // install custom log handler (replaces global, so mock is bypassed)
+
+  mjfLogHandler prev = mju_setLogHandler([](const mjLogMessage* msg) {
+    if (msg->level == mjLOG_WARNING && capture_ptr) {
+      capture_ptr->push_back(msg->subject);
+    }
+  });
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull());
+
+  // restore log handler
+  mju_setLogHandler(prev);
+  capture_ptr = nullptr;
+
+  // chaining should have forwarded warnings to our handler
+  EXPECT_THAT(captured_warnings, testing::Contains(HasSubstr("not rigid")));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco

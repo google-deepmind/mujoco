@@ -2161,7 +2161,25 @@ Get compiler timing diagnostics from spec, returns pointer to array of size mjNC
 
 .. mujoco-include:: mjs_isWarning
 
-Return 1 if compiler error is a warning.
+Return 1 if compiler error is a warning. Deprecated: use mjs_numWarnings(s) > 0.
+
+.. _mjs_numWarnings:
+
+`mjs_numWarnings <#mjs_numWarnings>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_numWarnings
+
+Get number of warnings accumulated in the spec.
+
+.. _mjs_getWarning:
+
+`mjs_getWarning <#mjs_getWarning>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWarning
+
+Get the i-th warning message (returns nullptr if index out of bounds).
 
 .. _Miscellaneous:
 

@@ -483,15 +483,37 @@ const double* mjs_getTimer(mjSpec* s) {
   return modelC->timer;
 }
 
-
-
-// check if model has warnings
+// check if model has warnings (but no error)
+// TODO(tassa): delete this function
 int mjs_isWarning(mjSpec* s) {
+  if (!s) {
+    return 0;
+  }
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  return modelC->GetError().warning;
+  return modelC->GetError().message[0] == '\0' &&
+         !modelC->GetWarnings().empty();
 }
 
+// get number of warnings
+int mjs_numWarnings(const mjSpec* spec) {
+  if (!spec) {
+    return 0;
+  }
+  const mjCModel* modelC = static_cast<const mjCModel*>(spec->element);
+  return static_cast<int>(modelC->GetWarnings().size());
+}
 
+// get the i-th warning message
+const char* mjs_getWarning(const mjSpec* spec, int index) {
+  if (!spec) {
+    return nullptr;
+  }
+  const mjCModel* modelC = static_cast<const mjCModel*>(spec->element);
+  if (index < 0 || index >= static_cast<int>(modelC->GetWarnings().size())) {
+    return nullptr;
+  }
+  return modelC->GetWarnings()[index].c_str();
+}
 
 // delete model
 void mj_deleteSpec(mjSpec* s) {

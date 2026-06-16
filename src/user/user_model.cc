@@ -1239,6 +1239,7 @@ void mjCModel::Clear() {
   hasImplicitPluginElem = false;
   compiled = false;
   errInfo = mjCError();
+  ClearCompileWarnings();
   qpos0.clear();
 }
 
@@ -1508,7 +1509,21 @@ const mjCError& mjCModel::GetError() const {
   return errInfo;
 }
 
+// add warning to vector (immediate delivery outside compile)
+void mjCModel::AddWarning(std::string msg, const mjCBase* obj) {
+  if (obj) {
+    msg += "\nElement name '" + obj->name + "', id " + std::to_string(obj->id);
+    if (!obj->info.empty()) {
+      msg += ", " + obj->info;
+    }
+  }
 
+  // outside compile: deliver immediately via normal handler chain
+  if (!compiling_) {
+    mju_warning("%s", msg.c_str());
+  }
+  warnings_.push_back(std::move(msg));
+}
 
 // pointer to world body
 mjCBody* mjCModel::GetWorld() {
@@ -3551,8 +3566,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     if (!pfl->rigid && m->flex_edgeequality[i] == 0 &&
         !pfl->edgestiffness && !pfl->edgedamping && !pfl->damping &&
         pfl->bending.empty()) {
-      mju_warning("flex '%s' is not rigid and has no equality constraints "
-                  "or passive forces", pfl->name.c_str());
+      AddWarning("flex '" + pfl->name +
+                     "' is not rigid and has no equality constraints or "
+                     "passive forces",
+                 pfl);
     }
 
     // copy bvh data (flex aabb computed dynamically in mjData)
@@ -4212,9 +4229,10 @@ template void mjCModel::RestoreState<mjtNum>(
 // resolve keyframe references
 void mjCModel::StoreKeyframes(mjCModel* dest) {
   if (this != dest && !key_pending_.empty()) {
-    mju_warning(
-      "Child model has pending keyframes. They will not be namespaced correctly. "
-      "To prevent this, compile the child model before attaching it again.");
+    dest->AddWarning(
+        "Child model has pending keyframes. They will not be namespaced "
+        "correctly. "
+        "To prevent this, compile the child model before attaching it again.");
   }
 
   // do not change compilation quantities in case the user wants to recompile preserving the state
@@ -4633,10 +4651,17 @@ static void compilerLogHandler(const mjLogMessage* msg) {
     mju::strcpy_arr(errortext, msg->subject);
     std::longjmp(error_jmp_buf, 1);
   } else if (msg->level == mjLOG_WARNING) {
+    // buffer for structured capture (append, not overwrite)
     if (local_warningtext_ptr) {
-      *local_warningtext_ptr = msg->subject;
+      if (!local_warningtext_ptr->empty()) {
+        *local_warningtext_ptr += '\n';
+      }
+      *local_warningtext_ptr += msg->subject;
     } else {
-      mju::strcpy_arr(warningtext, msg->subject);
+      if (warningtext[0]) {
+        mju::strcat_arr(warningtext, "\n");
+      }
+      mju::strcat_arr(warningtext, msg->subject);
     }
   }
 }
@@ -4661,10 +4686,15 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   mjModel* volatile model = (m && *m) ? *m : nullptr;
   mjData* volatile data = nullptr;
 
-  // save log handler
-  mjfLogHandler save_handler = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
+  // install compiler log handler (captures warnings silently)
+  mjfLogHandler prev_tls = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
 
   errInfo = mjCError();
+
+  // set flag so warnings are captured in the spec vector rather than delivered
+  // immediately
+  compiling_ = true;
+  ClearCompileWarnings();
   warningtext[0] = 0;
 
   try {
@@ -4677,7 +4707,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
       // also include the last warning that was issued. this is useful for
       // warnings that came out of plugin implementations.
       if (warningtext[0]) {
-        error_msg += "\n";
+        error_msg += '\n';
         error_msg += warningtext;
       }
       throw mjCError(0, "engine error: %s", error_msg.c_str());
@@ -4701,13 +4731,21 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
     }
 
     // restore handler, return 0
-    _mjPRIVATE_setTlsLogHandler(save_handler);
+    _mjPRIVATE_setTlsLogHandler(prev_tls);
+    compiling_ = false;
     return nullptr;
   }
 
-  // restore log handler, mark as compiled, return mjModel
-  _mjPRIVATE_setTlsLogHandler(save_handler);
+  // restore log handler
+  _mjPRIVATE_setTlsLogHandler(prev_tls);
+  compiling_ = false;
   compiled = true;
+
+  // play back compile warnings through the normal handler chain
+  for (int i = num_attach_warnings_; i < warnings_.size(); ++i) {
+    mju_warning("%s", warnings_[i].c_str());
+  }
+
   return model;
 }
 
@@ -5353,7 +5391,22 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     throw mjCError(0, "could not create mjData");
   }
 
+  // pass compiler warnings into structured warning vector before validation
+  if (warningtext[0]) {
+    std::string warnings(warningtext);
+    std::istringstream stream(warnings);
+    std::string line;
+    while (std::getline(stream, line)) {
+      if (!line.empty()) {
+        AddWarning(line);
+      }
+    }
+  }
+
   // test forward simulation unless asleep_init is true (potentially expensive)
+  // reset warningtext: engine warnings from validation are not compiler
+  // warnings
+  warningtext[0] = 0;
   if (!asleep_init) {
     mj_step(m, d);
   }
@@ -5364,11 +5417,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   m->opt.enableflags = enableflags;
   d = nullptr;
 
-  // pass warning back
-  if (warningtext[0]) {
-    mju::strcpy_arr(errInfo.message, warningtext);
-    errInfo.warning = true;
-  }
 
   // save signature
   m->signature = Signature();

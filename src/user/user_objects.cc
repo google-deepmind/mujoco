@@ -38,12 +38,11 @@
 #include <utility>
 #include <vector>
 
-#include "lodepng.h"
-#include "cc/array_safety.h"
-#include "engine/engine_passive.h"
-#include "engine/engine_support.h"
+#include "lodepng.h"  // NOLINT
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
+#include "cc/array_safety.h"
+#include "engine/engine_passive.h"
 #include "user/user_api.h"
 #include "user/user_cache.h"
 #include "user/user_model.h"
@@ -197,7 +196,6 @@ mjCError::mjCError(const mjCBase* obj, const char* msg, const char* str, int pos
   char temp[600];
 
   // init
-  warning = false;
   if (obj || msg) {
     mju::sprintf_arr(message, "Error");
   } else {
@@ -396,12 +394,12 @@ mjCBoundingVolumeHierarchy::AddBoundingVolume(const int* id, int contype, int co
 
 
 // create bounding volume hierarchy
-void mjCBoundingVolumeHierarchy::CreateBVH() {
+void mjCBoundingVolumeHierarchy::CreateBVH(mjCModel* model,
+                                           const mjCBase* owner) {
   std::vector<BVElement> elements;
   Make(elements);
-  MakeBVH(elements.begin(), elements.end());
+  MakeBVH(elements.begin(), elements.end(), 0, model, owner);
 }
-
 
 void mjCBoundingVolumeHierarchy::Make(std::vector<BVElement>& elements) {
   // precompute the positions of each element in the hierarchy's axes, and drop
@@ -424,8 +422,9 @@ void mjCBoundingVolumeHierarchy::Make(std::vector<BVElement>& elements) {
 
 // compute bounding volume hierarchy
 int mjCBoundingVolumeHierarchy::MakeBVH(
-  std::vector<BVElement>::iterator elements_begin,
-  std::vector<BVElement>::iterator elements_end, int lev) {
+    std::vector<BVElement>::iterator elements_begin,
+    std::vector<BVElement>::iterator elements_end, int lev, mjCModel* model,
+    const mjCBase* owner) {
   int nelements = elements_end - elements_begin;
   if (nelements == 0) {
     return -1;
@@ -525,11 +524,13 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
 
   // recursive calls
   if (m > 0) {
-    child_[2*index + 0] = MakeBVH(elements_begin, elements_begin + m, lev + 1);
+    child_[2 * index + 0] =
+        MakeBVH(elements_begin, elements_begin + m, lev + 1, model, owner);
   }
 
   if (m != nelements) {
-    child_[2*index + 1] = MakeBVH(elements_begin + m, elements_end, lev + 1);
+    child_[2 * index + 1] =
+        MakeBVH(elements_begin + m, elements_end, lev + 1, model, owner);
   }
 
   // SHOULD NOT OCCUR
@@ -539,13 +540,11 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
   }
 
   if (lev > mjMAXTREEDEPTH) {
-    mju_warning("max tree depth exceeded in body=%s", name_.c_str());
+    model->AddWarning("max tree depth exceeded", owner);
   }
 
   return index;
 }
-
-
 
 //------------------------- class mjCOctree implementation --------------------------------------------
 
@@ -2631,7 +2630,7 @@ void mjCBody::ComputeBVH() {
     tree.AddBoundingVolume(&geom->id, geom->contype, geom->conaffinity,
                            geom->pos, geom->quat, geom->aabb);
   }
-  tree.CreateBVH();
+  tree.CreateBVH(model, this);
 }
 
 
@@ -3871,7 +3870,7 @@ void mjCGeom::SetFluidCoefs(void) {
 
 // compute bounding box
 void mjCGeom::ComputeAABB(void) {
-  double aamm[6]; // axis-aligned bounding box in (min, max) format
+  double aamm[6];  // axis-aligned bounding box in (min, max) format
   switch (type) {
     case mjGEOM_HFIELD:
       aamm[0] = -hfield->size[0];

@@ -80,7 +80,9 @@ struct ActLimitedTestCase {
   mjtIntegrator integrator;
 };
 
-using ParametrizedForwardTest = ::testing::TestWithParam<ActLimitedTestCase>;
+class ParametrizedForwardTest
+    : public MujocoTest,
+      public ::testing::WithParamInterface<ActLimitedTestCase> {};
 
 TEST_P(ParametrizedForwardTest, ActLimited) {
   static constexpr char xml[] = R"(

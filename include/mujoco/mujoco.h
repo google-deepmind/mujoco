@@ -1015,9 +1015,14 @@ MJAPI const char* mjs_getError(mjSpec* s);
 // Get compiler timing diagnostics from spec, returns pointer to array of size mjNCTIMER.
 MJAPI const double* mjs_getTimer(mjSpec* s);
 
-// Return 1 if compiler error is a warning.
+// Return 1 if compiler error is a warning. Deprecated: use mjs_numWarnings(s) > 0.
 MJAPI int mjs_isWarning(mjSpec* s);
 
+// Get number of warnings accumulated in the spec.
+MJAPI int mjs_numWarnings(const mjSpec* spec);
+
+// Get the i-th warning message (returns nullptr if index out of bounds).
+MJAPI const char* mjs_getWarning(const mjSpec* spec, int index);
 
 //---------------------------------- Standard math -------------------------------------------------
 
