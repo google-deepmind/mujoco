@@ -254,8 +254,17 @@ build_python_bindings() {
     # recompile). CCACHE_BASEDIR rewrites absolute paths under it to paths relative
     # to the (also-in-temp) build cwd, cancelling the random component so objects
     # hash identically across runs. CCACHE_SLOPPINESS ignores timestamp/path noise.
+    #
+    # Do NOT add system_headers here: CMake adds the imported mujoco target's
+    # include dir (MUJOCO_PATH/include) as -isystem, so ccache would treat the
+    # public MuJoCo headers as system headers and skip hashing them. A change that
+    # lives only in those headers (a new mjData field, a new enum value) would then
+    # go undetected and ccache would reuse an object compiled against the old struct
+    # layout, producing an ABI-mismatched binding (wrong field offsets, stale
+    # mjNENABLE, signature mismatch). The mtime/ctime flags are kept: they handle the
+    # temp-dir churn without affecting header content detection.
     export CCACHE_BASEDIR="${TMPDIR}"
-    export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale,system_headers"
+    export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale"
     MUJOCO_PATH="${TMPDIR}/mujoco_install" \
     MUJOCO_PLUGIN_PATH="${TMPDIR}/mujoco_install/mujoco_plugin" \
     MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CCACHE_ARGS} ${CMAKE_ARGS}" \
