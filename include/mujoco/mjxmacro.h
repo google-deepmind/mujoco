@@ -824,7 +824,8 @@
     X   ( mjtNum,    act,               na,          1           ) \
     X   ( mjtNum,    history,           nhistory,    1           ) \
     X   ( mjtNum,    qacc_warmstart,    nv,          1           ) \
-    X   ( mjtNum,    fricanchor,        nbody,       28          ) \
+    X   ( mjtNum,    fricanchor,        nbody,       24          ) \
+    X   ( int,       fricpair,          nbody,       4           ) \
     X   ( mjtNum,    plugin_state,      npluginstate, 1          ) \
     X   ( mjtNum,    ctrl,              nu,          1           ) \
     X   ( mjtNum,    qfrc_applied,      nv,          1           ) \

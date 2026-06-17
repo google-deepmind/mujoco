@@ -3130,25 +3130,29 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 //-------------------- Stiction: body-pair relative-pose anchor (mjENBL_STICTION) ------------------
 // one relative-pose anchor per contacting body pair, keyed by the integer pair (bodyA, bodyB). a
 // contact's tangential residual r is computed from the anchor and fed as a spring into the friction
-// reference. state in d->fricanchor (nbody slots of 28 mjtNum), persistent across steps.
+// reference. state is split across two parallel per-slot arrays, persistent across steps: d->fricpair
+// holds the integer key+state (bodyA, bodyB, valid, slid), d->fricanchor holds the two anchor poses.
 // scope: only elliptic contacts between two geoms on distinct bodies get the spring, and only on the
 // two translational friction rows. frictionless, pyramidal, flex and self contacts are no-ops; the
 // torsional and rolling dims of a condim>3 contact are left to the plain damper.
 
-#define mjPA_STRIDE 28          // mjtNum per slot
-#define mjPA_BA   0             // body A id (as mjtNum)
-#define mjPA_BB   1             // body B id (as mjtNum)
+// d->fricpair: int key+state per slot (nbody x 4)
+#define mjPA_NKEY 4
+#define mjPA_BA   0             // body A id
+#define mjPA_BB   1             // body B id
 #define mjPA_VAL  2             // slot valid (0/1)
 #define mjPA_SLID 3             // pair slid last step (0/1)
-#define mjPA_POSA 4             // [4..6]   body A pos at anchor
-#define mjPA_MATA 7             // [7..15]  body A mat at anchor
-#define mjPA_POSB 16            // [16..18] body B pos at anchor
-#define mjPA_MATB 19            // [19..27] body B mat at anchor
+// d->fricanchor: mjtNum anchor poses per slot (nbody x 24)
+#define mjPA_NPOSE 24
+#define mjPA_POSA 0             // [0..2]   body A pos at anchor
+#define mjPA_MATA 3             // [3..11]  body A mat at anchor
+#define mjPA_POSB 12            // [12..14] body B pos at anchor
+#define mjPA_MATB 15            // [15..23] body B mat at anchor
 #define mjPA_COSRESET 0.99999   // re-anchor if a body rotated past acos(0.99999) ~= 0.26 deg
 #define mjPA_SLIPFRAC 0.98      // pair has slid when aggregate |f_t| >= this * mu * sum(f_n)
 
-// the anchor table is an open-addressed hash map: slot = hash(bA,bB) then linear probing, so lookup
-// and insertion are O(1) on average instead of O(nbody). bA < bB, so the key is ordered.
+// the table is an open-addressed hash map: slot = hash(bA,bB) then linear probing, so lookup and
+// insertion are O(1) on average instead of O(nbody). bA < bB, so the key is ordered.
 static int pa_hash(int bA, int bB, int nbody) {
   unsigned int h = (unsigned int)bA*73856093u ^ (unsigned int)bB*19349663u;
   return (int)(h % (unsigned int)nbody);
@@ -3159,9 +3163,9 @@ static int pa_find(const mjData* d, int nbody, int bA, int bB) {
   int h = pa_hash(bA, bB, nbody);
   for (int n=0; n < nbody; n++) {
     int i = h+n; if (i >= nbody) i -= nbody;
-    const mjtNum* s = d->fricanchor + mjPA_STRIDE*i;
-    if (!s[mjPA_VAL]) return -1;                         // empty slot ends the probe: not present
-    if ((int)s[mjPA_BA] == bA && (int)s[mjPA_BB] == bB) return i;
+    const int* key = d->fricpair + mjPA_NKEY*i;
+    if (!key[mjPA_VAL]) return -1;                       // empty slot ends the probe: not present
+    if (key[mjPA_BA] == bA && key[mjPA_BB] == bB) return i;
   }
   return -1;                                             // table full, not present
 }
@@ -3171,7 +3175,7 @@ static int pa_insert(const mjData* d, int nbody, int bA, int bB) {
   int h = pa_hash(bA, bB, nbody);
   for (int n=0; n < nbody; n++) {
     int i = h+n; if (i >= nbody) i -= nbody;
-    if (!d->fricanchor[mjPA_STRIDE*i + mjPA_VAL]) return i;
+    if (!d->fricpair[mjPA_NKEY*i + mjPA_VAL]) return i;
   }
   return -1;
 }
@@ -3180,24 +3184,25 @@ static int pa_insert(const mjData* d, int nbody, int bA, int bB) {
 static void pa_delete(mjData* d, int nbody, int i) {
   int j = i;
   while (1) {
-    d->fricanchor[mjPA_STRIDE*i + mjPA_VAL] = 0;        // open a gap at i
+    d->fricpair[mjPA_NKEY*i + mjPA_VAL] = 0;            // open a gap at i
     int k;
     do {
       j = j+1; if (j >= nbody) j -= nbody;
-      mjtNum* sj = d->fricanchor + mjPA_STRIDE*j;
-      if (!sj[mjPA_VAL]) return;                        // probe chain ended: done
-      k = pa_hash((int)sj[mjPA_BA], (int)sj[mjPA_BB], nbody);   // home slot of the entry at j
+      int* keyj = d->fricpair + mjPA_NKEY*j;
+      if (!keyj[mjPA_VAL]) return;                      // probe chain ended: done
+      k = pa_hash(keyj[mjPA_BA], keyj[mjPA_BB], nbody);  // home slot of the entry at j
       // keep probing while k lies cyclically in (i, j]: that entry cannot fill the gap at i
     } while ((i < j) ? (i < k && k <= j) : (i < k || k <= j));
-    mju_copy(d->fricanchor + mjPA_STRIDE*i, d->fricanchor + mjPA_STRIDE*j, mjPA_STRIDE);
+    mju_copyInt(d->fricpair + mjPA_NKEY*i, d->fricpair + mjPA_NKEY*j, mjPA_NKEY);
+    mju_copy(d->fricanchor + mjPA_NPOSE*i, d->fricanchor + mjPA_NPOSE*j, mjPA_NPOSE);
     i = j;                                              // entry moved up; new gap at j
   }
 }
 
-// write the current pose of bodies (bA,bB) into slot s as the new anchor
-static void pa_setanchor(const mjData* d, mjtNum* s, int bA, int bB) {
-  mju_copy3(s+mjPA_POSA, d->xpos+3*bA); mju_copy(s+mjPA_MATA, d->xmat+9*bA, 9);
-  mju_copy3(s+mjPA_POSB, d->xpos+3*bB); mju_copy(s+mjPA_MATB, d->xmat+9*bB, 9);
+// write the current pose of bodies (bA,bB) into anchor slot a
+static void pa_setanchor(const mjData* d, mjtNum* a, int bA, int bB) {
+  mju_copy3(a+mjPA_POSA, d->xpos+3*bA); mju_copy(a+mjPA_MATA, d->xmat+9*bA, 9);
+  mju_copy3(a+mjPA_POSB, d->xpos+3*bB); mju_copy(a+mjPA_MATB, d->xmat+9*bB, 9);
 }
 
 // current world position of the material point that sat at world p in body pose (pos0, mat0)
@@ -3242,16 +3247,17 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
       if (bA > bB) { int t = bA; bA = bB; bB = t; }         // canonical order
       int pi = pa_find(d, nbody, bA, bB);
       if (pi < 0) continue;                                 // no anchor yet: kinetic (damper) only
-      mjtNum* s = d->fricanchor + mjPA_STRIDE*pi;
+      const int* key = d->fricpair + mjPA_NKEY*pi;
+      const mjtNum* a = d->fricanchor + mjPA_NPOSE*pi;
       // skip the spring if the pair slid last step or a body rotated past the anchor (rolling): the
       // anchor is stale, so the damper alone gives kinetic friction (mj_stictionUpdate re-anchors)
-      mjtNum cA = 0.5*(mju_dot(d->xmat+9*bA, s+mjPA_MATA, 9) - 1);
-      mjtNum cB = 0.5*(mju_dot(d->xmat+9*bB, s+mjPA_MATB, 9) - 1);
-      if (s[mjPA_SLID] || cA < mjPA_COSRESET || cB < mjPA_COSRESET) continue;
+      mjtNum cA = 0.5*(mju_dot(d->xmat+9*bA, a+mjPA_MATA, 9) - 1);
+      mjtNum cB = 0.5*(mju_dot(d->xmat+9*bB, a+mjPA_MATB, 9) - 1);
+      if (key[mjPA_SLID] || cA < mjPA_COSRESET || cB < mjPA_COSRESET) continue;
       // tangential slip at this contact = world(material_A) - world(material_B)
       mjtNum wA[3], wB[3], slip[3];
-      pa_world(wA, con->pos, s+mjPA_POSA, s+mjPA_MATA, d->xpos+3*bA, d->xmat+9*bA);
-      pa_world(wB, con->pos, s+mjPA_POSB, s+mjPA_MATB, d->xpos+3*bB, d->xmat+9*bB);
+      pa_world(wA, con->pos, a+mjPA_POSA, a+mjPA_MATA, d->xpos+3*bA, d->xmat+9*bA);
+      pa_world(wB, con->pos, a+mjPA_POSB, a+mjPA_MATB, d->xpos+3*bB, d->xmat+9*bB);
       mju_sub3(slip, wA, wB);
       // add spring K*I*r to the translational friction rows, reusing the normal-row stiffness
       mjtNum KI = d->efc_KBIP[4*adr] * d->efc_KBIP[4*adr+2];
@@ -3298,9 +3304,9 @@ void mj_stictionUpdate(const mjModel* m, mjData* d) {
     if (pi < 0) {                                   // new pair: anchor at current poses
       pi = pa_insert(d, nbody, bA, bB);
       if (pi < 0) continue;                         // table full -> no memory for this pair
-      mjtNum* s = d->fricanchor + mjPA_STRIDE*pi;
-      s[mjPA_BA] = bA; s[mjPA_BB] = bB; s[mjPA_VAL] = 1; s[mjPA_SLID] = 0;
-      pa_setanchor(d, s, bA, bB);
+      int* key = d->fricpair + mjPA_NKEY*pi;
+      key[mjPA_BA] = bA; key[mjPA_BB] = bB; key[mjPA_VAL] = 1; key[mjPA_SLID] = 0;
+      pa_setanchor(d, d->fricanchor + mjPA_NPOSE*pi, bA, bB);
     }
     seen[pi] = 1;
     mjtNum f1 = d->efc_force[adr+1], f2 = (con->dim > 2) ? d->efc_force[adr+2] : 0;
@@ -3312,24 +3318,25 @@ void mj_stictionUpdate(const mjModel* m, mjData* d) {
   // pass 2: re-anchor survivors that slid or rotated (in place); collect pairs that lost contact
   int nevict = 0;
   for (int i=0; i < nbody; i++) {
-    mjtNum* s = d->fricanchor + mjPA_STRIDE*i;
-    if (!s[mjPA_VAL]) continue;
-    int bA = (int)s[mjPA_BA], bB = (int)s[mjPA_BB];
+    int* key = d->fricpair + mjPA_NKEY*i;
+    if (!key[mjPA_VAL]) continue;
+    int bA = key[mjPA_BA], bB = key[mjPA_BB];
     if (!seen[i]) {                                 // lost contact: queue for removal below
       evict[2*nevict] = bA; evict[2*nevict+1] = bB; nevict++;
       continue;
     }
-    mjtNum cA = 0.5*(mju_dot(d->xmat+9*bA, s+mjPA_MATA, 9) - 1);
-    mjtNum cB = 0.5*(mju_dot(d->xmat+9*bB, s+mjPA_MATB, 9) - 1);
+    mjtNum* a = d->fricanchor + mjPA_NPOSE*i;
+    mjtNum cA = 0.5*(mju_dot(d->xmat+9*bA, a+mjPA_MATA, 9) - 1);
+    mjtNum cB = 0.5*(mju_dot(d->xmat+9*bB, a+mjPA_MATB, 9) - 1);
     int rotated = (cA < mjPA_COSRESET || cB < mjPA_COSRESET);
     // pair slid when the aggregate friction reached the cone: |sum f_t| vs the total cone capacity
     // mu*sum(f_n) (the sum of per-contact cone radii). per-contact efc_state is unreliable here
     // (a lightly loaded contact saturates while the body is still held), so use this body-level
     // signal. exact when the pair's contacts are coplanar (a body on another body's surface); the
     // tangential sum is approximate for non-parallel normals.
-    s[mjPA_SLID] = (tfn[i] > 0 && mju_norm3(tft+3*i) >= mjPA_SLIPFRAC * tmu[i] * tfn[i]);
-    if (s[mjPA_SLID] || rotated) {
-      pa_setanchor(d, s, bA, bB);
+    key[mjPA_SLID] = (tfn[i] > 0 && mju_norm3(tft+3*i) >= mjPA_SLIPFRAC * tmu[i] * tfn[i]);
+    if (key[mjPA_SLID] || rotated) {
+      pa_setanchor(d, a, bA, bB);
     }
   }
   // remove evicted pairs by key (backward-shift relocates surviving entries, so re-find each)

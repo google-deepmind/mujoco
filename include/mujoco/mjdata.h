@@ -172,7 +172,8 @@ struct mjData_ {
   mjtNum* act;               // actuator activation                              (na x 1)
   mjtNum* history;           // history buffer                                   (nhistory x 1)
   mjtNum* qacc_warmstart;    // acceleration used for warmstart                  (nv x 1)
-  mjtNum* fricanchor;        // stiction body-pair anchors (mjENBL_STICTION)     (nbody x 28)
+  mjtNum* fricanchor;        // stiction body-pair anchor poses (mjENBL_STICTION) (nbody x 24)
+  int*    fricpair;          // stiction body-pair key+state (mjENBL_STICTION)    (nbody x 4)
   mjtNum* plugin_state;      // plugin state                                     (npluginstate x 1)
 
   // control

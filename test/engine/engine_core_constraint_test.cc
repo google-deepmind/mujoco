@@ -1372,12 +1372,13 @@ TEST_F(StictionTest, ResetClearsAnchors) {
   m->opt.enableflags |= mjENBL_STICTION;
   mjData* d = mj_makeData(m);
   for (int i=0; i < 200; i++) mj_step(m, d);
-  // a contacting pair must have populated an anchor.
-  mjtNum sum = 0;
-  for (int i=0; i < 28*m->nbody; i++) sum += mju_abs(d->fricanchor[i]);
-  EXPECT_GT(sum, 0) << "a contacting pair should have populated an anchor";
+  // a contacting pair must have populated an anchor (valid flag set in fricpair).
+  int nvalid = 0;
+  for (int i=0; i < m->nbody; i++) nvalid += d->fricpair[4*i + 2];  // [.+2] = valid flag
+  EXPECT_GT(nvalid, 0) << "a contacting pair should have populated an anchor";
   mj_resetData(m, d);
-  for (int i=0; i < 28*m->nbody; i++) EXPECT_EQ(d->fricanchor[i], 0);
+  for (int i=0; i < 4*m->nbody; i++) EXPECT_EQ(d->fricpair[i], 0);
+  for (int i=0; i < 24*m->nbody; i++) EXPECT_EQ(d->fricanchor[i], 0);
   mj_deleteData(d);
   mj_deleteModel(m);
 }
