@@ -111,7 +111,7 @@ MaterialManager::MaterialType MaterialManager::GetMaterialType(
     if (material.color_texture) {
       return ObjectManager::kUnlitUi;
     } else {
-      return ObjectManager::kUnlitDecor;
+      return ObjectManager::kDecor;
     }
   } else if (material.orm_texture) {
     if (material.opacity_texture) {

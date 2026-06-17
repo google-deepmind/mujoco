@@ -162,7 +162,7 @@ var Module = {
       "assets/outline_composite.filamat",
       "assets/outline_flatten.filamat",
       "assets/outline_jumpflood.filamat",
-      "assets/unlit_decor.filamat",
+      "assets/decor.filamat",
       "assets/unlit_depth.filamat",
       "assets/unlit_segmentation.filamat",
       "assets/unlit_ui.filamat"

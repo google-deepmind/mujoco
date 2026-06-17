@@ -1,4 +1,4 @@
-// Copyright 2025 DeepMind Technologies Limited
+// Copyright 2026 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,16 +13,19 @@
 // limitations under the License.
 
 material {
-    name : unlit_decor,
-    shadingModel : unlit,
+    name : decor,
+    shadingModel : specularGlossiness,
     parameters : [
         { type : float4, name : BaseColorFactor }
     ]
 }
 
 fragment {
-    void material(inout MaterialInputs material) {
-      prepareMaterial(material);
-      material.baseColor = materialParams.BaseColorFactor;
-    }
+  void material(inout MaterialInputs material) {
+    prepareMaterial(material);
+    material.baseColor     = materialParams.BaseColorFactor;
+    material.specularColor = vec3(0.0);
+    material.glossiness    = 0.0;
+    material.emissive      = vec4(0.0);
+  }
 }
