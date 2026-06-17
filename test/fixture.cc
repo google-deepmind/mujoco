@@ -51,6 +51,7 @@ using ::testing::Truly;
 bool IsBenignWarning(const std::string& msg) {
   static const char* const kBenignWarnings[] = {
       "is not rigid and has no equality constraints",
+      "Attach conflict",
   };
   for (const char* warning : kBenignWarnings) {
     if (absl::StrContains(msg, warning)) {

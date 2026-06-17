@@ -27,6 +27,8 @@ set(MUJOCO_USER_SRCS
     user_model.h
     user_objects.cc
     user_objects.h
+    user_resolver.cc
+    user_resolver.h
     user_resource.cc
     user_resource.h
     user_threadpool.cc

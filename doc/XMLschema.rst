@@ -254,6 +254,9 @@
          .. grid-item::
             :ref:`alignfree<compiler-alignfree>`
 
+         .. grid-item::
+            :ref:`conflict<compiler-conflict>`
+
 
       .. dropdown:: :ref:`lengthrange<compiler-lengthrange>` :octicon:`dot`
 

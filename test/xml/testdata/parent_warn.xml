@@ -1,0 +1,15 @@
+<mujoco model="parent_warn">
+  <compiler conflict="warning"/>
+  <option timestep="0.005" iterations="50" gravity="0 0 -10">
+    <flag damper="disable"/>
+  </option>
+  <asset>
+    <model name="child" file="child_unmergable.xml"/>
+  </asset>
+  <worldbody>
+    <body name="parent_body">
+      <geom name="parent_geom" size="2"/>
+      <attach model="child" body="child_body" prefix="child/"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -251,6 +251,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   void SetError(const mjCError& error) { errInfo = error; }         // set value of error object
   void AddWarning(std::string msg,  // add warning to vector
                   const mjCBase* obj = nullptr);
+  void AddGroupedWarning(const std::string& subject,  // add grouped warning
+                         const std::string& body);
   const std::vector<std::string>& GetWarnings()
       const {  // get accumulated warnings
     return warnings_;

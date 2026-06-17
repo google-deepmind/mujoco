@@ -1803,6 +1803,36 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 
+  it('should compile a spec and emit warnings', () => {
+    const xml = `
+    <mujoco>
+      <worldbody>
+        <flexcomp name="test" type="grid" count="4 4 1" spacing=".2 .2 .2"
+                  dim="2" radius=".1"/>
+      </worldbody>
+    </mujoco>`;
+    let spec = null;
+    let model = null;
+    const warnSpy = spyOn(console, 'warn');
+    try {
+      spec = mujoco.parseXMLString(xml);
+      expect(spec).not.toBeNull();
+
+      model = mujoco.mj_compile(spec);
+      expect(model).not.toBeNull();
+      expect(warnSpy).toHaveBeenCalled();
+      const warningCall = warnSpy.calls.mostRecent();
+      expect(warningCall.args[0]).toContain("no equality constraints or passive forces");
+    } finally {
+      if (spec) {
+        spec.delete();
+      }
+      if (model) {
+        model.delete();
+      }
+    }
+  });
+
   it('should compile a spec from XML string with no assets', () => {
     let spec = null;
     let model = null;

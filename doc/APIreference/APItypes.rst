@@ -915,6 +915,15 @@ Type of built-in procedural mesh.
 
 .. mujoco-include:: mjtMeshBuiltin
 
+.. _mjtConflict:
+
+mjtConflict
+~~~~~~~~~~~
+
+Conflict resolution mode for attach.
+
+.. mujoco-include:: mjtConflict
+
 
 .. _mjtCTimer:
 

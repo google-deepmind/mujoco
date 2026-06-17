@@ -171,6 +171,67 @@ Note also that once a child is attached by reference to a parent, the child cann
      finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
      lost.
 
+.. _meAttributeMerging:
+
+Attribute Merging
+^^^^^^^^^^^^^^^^^
+
+When attaching a child spec (or an element from a child spec) to a parent spec using :ref:`mjs_attach`, global
+attributes from the child may conflict with those in the parent. A conflict occurs when both the parent and child
+specify authored values for the same field and those values differ. Note that for XML-based models, explicitly writing a
+value (even if it matches the default value) counts as authoring and can trigger conflicts. The
+:ref:`compiler/conflict<compiler-conflict>` attribute controls how such conflicts are resolved. Fields where only one
+side specifies an authored value never conflict.
+
+:at-val:`warning` (default)
+   Parent values take precedence. Whenever a conflict is detected, a warning is emitted but the parent value is not
+   modified. This preserves the pre-existing attachment behavior.
+
+:at-val:`merge`
+   Attribute values are merged using a per-field strategy as described in the table below. When only the child specifies
+   an authored value, it is adopted by the parent.
+
+:at-val:`error`
+   Any conflict results in a compile error. No values are modified.
+
+The table below describes the per-field merge strategy used in :at-val:`merge` mode.
+
+.. list-table:: Attribute Merging Behavior (:at-val:`merge` mode)
+   :widths: 15 60 25
+   :header-rows: 1
+   :name: meAttributeMergingTable
+
+   * - Behavior
+     - Fields
+     - Justification
+   * - **Minimum**
+     - **option**: :ref:`timestep<option-timestep>`, :ref:`tolerance<option-tolerance>`, :ref:`ls_tolerance<option-ls_tolerance>`,
+       :ref:`noslip_tolerance<option-noslip_tolerance>`, :ref:`ccd_tolerance<option-ccd_tolerance>`,
+       :ref:`sleep_tolerance<option-sleep_tolerance>`,
+       |br| **visual**: :ref:`znear<visual-map-znear>`, :ref:`realtime<visual-global-realtime>`
+     - Preserves precision and stability.
+   * - **Maximum**
+     - **option**: :ref:`iterations<option-iterations>`, :ref:`ls_iterations<option-ls_iterations>`,
+       :ref:`noslip_iterations<option-noslip_iterations>`, :ref:`ccd_iterations<option-ccd_iterations>`,
+       :ref:`sdf_iterations<option-sdf_iterations>`, :ref:`sdf_initpoints<option-sdf_initpoints>`,
+       |br| **size**: :ref:`memory<size-memory>`, :ref:`nkey<size-nkey>`, :ref:`nuserdata<size-nuserdata>`,
+       :ref:`nuser_body<size-nuser_body>`, :ref:`nuser_jnt<size-nuser_jnt>`, :ref:`nuser_geom<size-nuser_geom>`, :ref:`nuser_site<size-nuser_site>`,
+       :ref:`nuser_cam<size-nuser_cam>`, :ref:`nuser_tendon<size-nuser_tendon>`, :ref:`nuser_actuator<size-nuser_actuator>`, :ref:`nuser_sensor<size-nuser_sensor>`
+       |br| **visual**: :ref:`zfar<visual-map-zfar>`
+     - Ensures sufficient resources and limits.
+   * - **OR (union)**
+     - **option**: :ref:`disableflags<option-flag>`, :ref:`enableflags<option-flag>`,
+       :ref:`disableactuator<option-actuatorgroupdisable>`
+     - Flags from both models are combined.
+   * - **Error**
+     - **option**: :ref:`gravity<option-gravity>`, :ref:`wind<option-wind>`, :ref:`magnetic<option-magnetic>`,
+       :ref:`density<option-density>`, :ref:`viscosity<option-viscosity>`, :ref:`integrator<option-integrator>`,
+       :ref:`cone<option-cone>`, :ref:`jacobian<option-jacobian>`, :ref:`solver<option-solver>`,
+       :ref:`impratio<option-impratio>`,
+       :ref:`o_margin<option-o_margin>`, :ref:`o_solref<option-o_solref>`, :ref:`o_solimp<option-o_solimp>`,
+       :ref:`o_friction<option-o_friction>`
+     - Raised if non-default values conflict.
+
 .. _meDefault:
 
 Default classes

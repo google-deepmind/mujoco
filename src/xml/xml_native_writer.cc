@@ -1034,6 +1034,8 @@ void mjXWriter::Compiler(XMLElement* root) {
   if (!model->compiler.autolimits) {
     WriteAttrTxt(section, "autolimits", "false");
   }
+  WriteAttrKey(section, "conflict", conflict_map, conflict_sz,
+               model->compiler.conflict, mjCONFLICT_WARNING);
 }
 
 

@@ -20,6 +20,7 @@ import math
 import os
 import textwrap
 import typing
+import warnings
 import zipfile  # pylint: disable=unused-import
 
 from absl import flags
@@ -1160,7 +1161,7 @@ class SpecsTest(absltest.TestCase):
 
     spec = mujoco.MjSpec()
     material = spec.add_material(name='mat')
-    texture = spec.add_texture(
+    spec.add_texture(
         name='tex', builtin=mujoco.mjtBuiltin.mjBUILTIN_FLAT, width=2, height=2
     )
 
@@ -1795,7 +1796,9 @@ class SpecsTest(absltest.TestCase):
     sidesite = body.add_site(name='sidesite', pos=[2, 0, -5])
     site4 = body.add_site(name='site4', pos=[0, 1, -6])
 
-    sphere = spec.worldbody.add_geom(name='sphere', size=[.2, 0, 0], pos=[0, 0, -2])
+    sphere = spec.worldbody.add_geom(
+        name='sphere', size=[0.2, 0, 0], pos=[0, 0, -2]
+    )
 
     cylinder = spec.worldbody.add_geom(
         name='cylinder',
@@ -2216,6 +2219,130 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.authored.visual_global, 0)
     self.assertEqual(spec.authored.visual_quality, 0)
     self.assertEqual(spec.authored.visual_map, 0)
+
+  def test_attach_conflict_merge_procedural(self):
+    # Procedural attach with merge mode: min/max fields are merged.
+    parent = mujoco.MjSpec()
+    parent.compiler.conflict = mujoco.mjtConflict.mjCONFLICT_MERGE
+    parent.option.timestep = 0.005
+    parent.option.iterations = 150
+    parent.worldbody.add_geom().size[0] = 1
+
+    child = mujoco.MjSpec()
+    child.option.timestep = 0.001  # smaller -> wins (min-merge)
+    child.option.iterations = 200  # larger -> wins (max-merge)
+    child_body = child.worldbody.add_body()
+    child_body.add_geom().size[0] = 1
+
+    frame = parent.worldbody.add_frame()
+    frame.attach_body(child_body, prefix='child_')
+
+    # merged values are applied immediately at attach time
+    self.assertEqual(parent.option.timestep, 0.001)
+    self.assertEqual(parent.option.iterations, 200)
+
+    # compile succeeds with the merged values
+    model = parent.compile()
+    self.assertIsNotNone(model)
+    self.assertEqual(model.opt.timestep, 0.001)
+    self.assertEqual(model.opt.iterations, 200)
+
+  def test_attach_conflict_error_procedural(self):
+    # Procedural attach with unmergeable conflict: raises ValueError,
+    # parent spec is unchanged.
+    parent = mujoco.MjSpec()
+    parent.compiler.conflict = mujoco.mjtConflict.mjCONFLICT_MERGE
+    parent.option.timestep = 0.005
+    parent.option.integrator = mujoco.mjtIntegrator.mjINT_RK4
+
+    child = mujoco.MjSpec()
+    child.option.timestep = 0.001
+    child.option.integrator = mujoco.mjtIntegrator.mjINT_IMPLICIT
+    child_body = child.worldbody.add_body()
+    child_body.add_geom().size[0] = 1
+
+    frame = parent.worldbody.add_frame()
+
+    with self.assertRaisesRegex(ValueError, 'integrator'):
+      frame.attach_body(child_body, prefix='child_')
+
+    # parent spec should be unchanged (two-pass guarantee)
+    self.assertEqual(parent.option.timestep, 0.005)
+    self.assertEqual(parent.option.integrator, mujoco.mjtIntegrator.mjINT_RK4)
+
+  def test_attach_conflict_merge_xml(self):
+    # XML-based attach with merge mode: child timestep wins (min).
+    parent_xml = textwrap.dedent("""\
+      <mujoco>
+        <compiler conflict="merge"/>
+        <option timestep="0.005" iterations="50"/>
+        <asset>
+          <model name="child" file="child.xml"/>
+        </asset>
+        <worldbody>
+          <body name="parent_body">
+            <geom size="1"/>
+            <attach model="child" body="child_body" prefix="child/"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+
+    child_xml = textwrap.dedent("""\
+      <mujoco>
+        <option timestep="0.001" iterations="150"/>
+        <worldbody>
+          <body name="child_body">
+            <geom size="1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+
+    spec = mujoco.MjSpec.from_string(
+        parent_xml,
+        include={'child.xml': child_xml.encode()},
+    )
+    model = spec.compile()
+    self.assertIsNotNone(model)
+    self.assertEqual(model.opt.timestep, 0.001)  # min
+    self.assertEqual(model.opt.iterations, 150)  # max
+
+  def test_attach_conflict_error_xml(self):
+    # XML-based attach with error mode: any conflict raises ValueError.
+    parent_xml = textwrap.dedent("""\
+      <mujoco>
+        <compiler conflict="error"/>
+        <option timestep="0.005"/>
+        <asset>
+          <model name="child" file="child.xml"/>
+        </asset>
+        <worldbody>
+          <body name="parent_body">
+            <geom size="1"/>
+            <attach model="child" body="child_body" prefix="child/"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+
+    child_xml = textwrap.dedent("""\
+      <mujoco>
+        <option timestep="0.001"/>
+        <worldbody>
+          <body name="child_body">
+            <geom size="1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+
+    with self.assertRaisesRegex(ValueError, 'timestep'):
+      mujoco.MjSpec.from_string(
+          parent_xml,
+          include={'child.xml': child_xml.encode()},
+      )
+
 
 if __name__ == '__main__':
   absltest.main()

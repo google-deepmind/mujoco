@@ -25,27 +25,27 @@
 
 //-------------------------------- mjsCompiler -----------------------------------------------------
 
-#define MJSCOMPILER_FIELDS                  \
-    X   ( mjtByte,   autolimits,        1 ) \
-    X   ( double,    boundmass,         1 ) \
-    X   ( double,    boundinertia,      1 ) \
-    X   ( double,    settotalmass,      1 ) \
-    X   ( mjtByte,   balanceinertia,    1 ) \
-    X   ( mjtByte,   fitaabb,           1 ) \
-    X   ( mjtByte,   degree,            1 ) \
-    XVEC( char,      eulerseq,          3 ) \
-    X   ( mjtByte,   discardvisual,     1 ) \
-    X   ( mjtByte,   usethread,         1 ) \
-    X   ( mjtByte,   fusestatic,        1 ) \
-    X   ( int,       inertiafromgeom,   1 ) \
-    XVEC( int,       inertiagrouprange, 2 ) \
-    X   ( mjtByte,   saveinertial,      1 ) \
-    X   ( int,       alignfree,         1 ) \
-    X   ( mjLROpt,   LRopt,             1 ) \
-    X   ( mjString*, meshdir,           1 ) \
-    X   ( mjString*, texturedir,        1 ) \
-    X   ( uint64_t,  authored,          1 )
-
+#define MJSCOMPILER_FIELDS        \
+  X(mjtByte, autolimits, 1)       \
+  X(double, boundmass, 1)         \
+  X(double, boundinertia, 1)      \
+  X(double, settotalmass, 1)      \
+  X(mjtByte, balanceinertia, 1)   \
+  X(mjtByte, fitaabb, 1)          \
+  X(mjtByte, degree, 1)           \
+  XVEC(char, eulerseq, 3)         \
+  X(mjtByte, discardvisual, 1)    \
+  X(mjtByte, usethread, 1)        \
+  X(mjtByte, fusestatic, 1)       \
+  X(int, inertiafromgeom, 1)      \
+  XVEC(int, inertiagrouprange, 2) \
+  X(mjtByte, saveinertial, 1)     \
+  X(int, alignfree, 1)            \
+  X(int, conflict, 1)             \
+  X(mjLROpt, LRopt, 1)            \
+  X(mjString*, meshdir, 1)        \
+  X(mjString*, texturedir, 1)     \
+  X(uint64_t, authored, 1)
 
 //-------------------------------- mjSpec ----------------------------------------------------------
 

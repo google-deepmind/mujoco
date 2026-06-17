@@ -22,6 +22,17 @@ General
 
 - Added :ref:`mjs_numWarnings` and :ref:`mjs_getWarning` for retrieving all warnings accumulated during model
   compilation and attachment. Deprecated :ref:`mjs_isWarning` in favor of ``mjs_numWarnings(s) > 0``.
+- Added the :ref:`compiler/conflict<compiler-conflict>` attribute for controlling how conflicting global attributes
+  are resolved during :ref:`attachment<mjs_attach>`. Possible values are "warning" (default: parent values take
+  precedence, warnings emitted on conflicts), "merge" (per-field min/max/error strategy), and "error" (any
+  conflict raises an error). See :ref:`Attribute Merging <meAttributeMerging>` for details.
+
+  .. admonition:: Future breaking API changes
+     :class: warning
+
+     The current default conflict resolution policy "warn" (ignore the child model) is backward compatible.
+     However, the default policy will change to "merge" in a future release.
+
 - Improved primal solver convergence under float32. Improvements initially proposed by :github:user:`n3b` in
   :issue:`2313` and :github:user:`denzeler-nvidia` in :doc:`MJWarp <mjwarp/index>` pull request
   `1374 <https://github.com/google-deepmind/mujoco_warp/pull/1374>`__.

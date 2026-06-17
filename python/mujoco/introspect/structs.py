@@ -6978,6 +6978,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='align free joints with inertial frame',
              ),
              StructFieldDecl(
+                 name='conflict',
+                 type=ValueType(name='int'),
+                 doc='conflict resolution for attach (mjtConflict)',
+             ),
+             StructFieldDecl(
                  name='LRopt',
                  type=ValueType(name='mjLROpt'),
                  doc='options for lengthrange computation',

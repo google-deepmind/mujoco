@@ -45,29 +45,30 @@ std::vector<std::string> GetWriteReadTestModels() {
       if (p.path().extension() == ext) {
         std::string xml = p.path().string();
         if (  // if file is meant to fail, skip it
-              absl::StrContains(xml, "malformed_") ||
-              absl::StrContains(xml, "_fail") ||
-              // exclude files that are too slow to load
-              absl::StrContains(xml, "cow") ||
-              absl::StrContains(xml, "gmsh_") ||
-              absl::StrContains(xml, "shark_") ||
-              absl::StrContains(xml, "perf") ||
-              // exclude files that fail the comparison test
-              absl::StrContains(xml, "rfcamera") ||
-              absl::StrContains(xml, "tactile") ||
-              absl::StrContains(xml, "makemesh") ||
-              absl::StrContains(xml, "many_dependencies") ||
-              absl::StrContains(xml, "usd") ||
-              absl::StrContains(xml, "torus_maxhull") ||
-              absl::StrContains(xml, "fitmesh_") ||
-              absl::StrContains(xml, "lengthrange") ||
-              absl::StrContains(xml, "hfield_xml") ||
-              absl::StrContains(xml, "fromto_convex") ||
-              absl::StrContains(xml, "cube_skin") ||
-              absl::StrContains(xml, "cube_3x3x3") ||
-              // exclude files that fail since we do not save pinned flex nodes
-              absl::StrContains(xml, "gripper_trilinear") ||
-              absl::StrContains(xml, "strain")) {
+            absl::StrContains(xml, "malformed_") ||
+            absl::StrContains(xml, "_fail") ||
+            // exclude files that are too slow to load
+            absl::StrContains(xml, "cow") || absl::StrContains(xml, "gmsh_") ||
+            absl::StrContains(xml, "shark_") ||
+            absl::StrContains(xml, "perf") ||
+            // exclude files that fail the comparison test
+            absl::StrContains(xml, "rfcamera") ||
+            absl::StrContains(xml, "tactile") ||
+            absl::StrContains(xml, "makemesh") ||
+            absl::StrContains(xml, "many_dependencies") ||
+            absl::StrContains(xml, "usd") ||
+            absl::StrContains(xml, "torus_maxhull") ||
+            absl::StrContains(xml, "fitmesh_") ||
+            absl::StrContains(xml, "lengthrange") ||
+            absl::StrContains(xml, "hfield_xml") ||
+            absl::StrContains(xml, "fromto_convex") ||
+            absl::StrContains(xml, "cube_skin") ||
+            absl::StrContains(xml, "cube_3x3x3") ||
+            // exclude files that fail since we do not save pinned flex nodes
+            absl::StrContains(xml, "gripper_trilinear") ||
+            absl::StrContains(xml, "strain") ||
+            // exclude conflict tests (known option conflict warnings/errors)
+            absl::StrContains(xml, "xml/testdata/parent_")) {
           continue;
         }
         models.push_back(xml);
@@ -83,12 +84,6 @@ class WriteReadCompareTest : public XMLWriterTest,
 };
 TEST_P(WriteReadCompareTest, WriteReadCompare) {
   std::string xml = GetParam();
-
-  // If this is the flex_line_obj model, expect the 'is not rigid' warning
-  if (absl::StrContains(xml, "flex_line_obj")) {
-    EXPECT_CALL(mock_warning_handler, Warn(testing::HasSubstr("is not rigid")))
-        .WillRepeatedly(testing::Return());
-  }
 
   // full precision float printing
   FullFloatPrecision increase_precision;

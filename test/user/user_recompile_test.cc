@@ -47,8 +47,9 @@ std::vector<std::string> GetRecompileTestModels() {
         if (absl::StrContains(xml, "malformed_") ||
             absl::StrContains(xml, "_fail") ||
             absl::StrContains(xml, "touch_grid") ||
-            absl::StrContains(xml, "perf") ||
-            absl::StrContains(xml, "cow")) {
+            absl::StrContains(xml, "perf") || absl::StrContains(xml, "cow") ||
+            // exclude conflict test assets (designed to fail compile)
+            absl::StrContains(xml, "xml/testdata/parent_")) {
           continue;
         }
         models.push_back(xml);

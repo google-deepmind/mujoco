@@ -2331,6 +2331,12 @@ struct MjsCompiler {
   void set_alignfree(int value) {
     ptr_->alignfree = value;
   }
+  int conflict() const {
+    return ptr_->conflict;
+  }
+  void set_conflict(int value) {
+    ptr_->conflict = value;
+  }
   mjString meshdir() const {
     return (ptr_ && ptr_->meshdir) ? *(ptr_->meshdir) : "";
   }
@@ -11312,6 +11318,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   enum_<mjtCone>("mjtCone")
     .value("mjCONE_PYRAMIDAL", mjCONE_PYRAMIDAL)
     .value("mjCONE_ELLIPTIC", mjCONE_ELLIPTIC);
+  enum_<mjtConflict>("mjtConflict")
+    .value("mjCONFLICT_WARNING", mjCONFLICT_WARNING)
+    .value("mjCONFLICT_MERGE", mjCONFLICT_MERGE)
+    .value("mjCONFLICT_ERROR", mjCONFLICT_ERROR);
   enum_<mjtConstraint>("mjtConstraint")
     .value("mjCNSTR_EQUALITY", mjCNSTR_EQUALITY)
     .value("mjCNSTR_FRICTION_DOF", mjCNSTR_FRICTION_DOF)
@@ -12993,6 +13003,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("balanceinertia", &MjsCompiler::balanceinertia, &MjsCompiler::set_balanceinertia, reference())
     .property("boundinertia", &MjsCompiler::boundinertia, &MjsCompiler::set_boundinertia, reference())
     .property("boundmass", &MjsCompiler::boundmass, &MjsCompiler::set_boundmass, reference())
+    .property("conflict", &MjsCompiler::conflict, &MjsCompiler::set_conflict, reference())
     .property("degree", &MjsCompiler::degree, &MjsCompiler::set_degree, reference())
     .property("discardvisual", &MjsCompiler::discardvisual, &MjsCompiler::set_discardvisual, reference())
     .property("eulerseq", &MjsCompiler::eulerseq)

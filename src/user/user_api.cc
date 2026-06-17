@@ -20,7 +20,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <functional>
 #include <iterator>
 #include <map>
@@ -30,15 +30,16 @@
 #include <utility>
 #include <vector>
 
-#include <mujoco/mujoco.h>
 #include <mujoco/mjspecmacro.h>
 #include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "user/user_cache.h"
 #include "user/user_flexcomp.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
+#include "user/user_resolver.h"
 #include "user/user_resource.h"
 #include "user/user_util.h"
 
@@ -382,7 +383,6 @@ static mjsElement* attachFrameToSite(mjCSite* parent, const mjCFrame* child,
   return attached_frame;
 }
 
-
 mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
                        const char* prefix, const char* suffix) {
   if (!parent) {
@@ -394,6 +394,31 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
     return nullptr;
   }
   mjCModel* model = static_cast<mjCModel*>(mjs_getSpec(parent)->element);
+  const mjSpec* child_spec = nullptr;
+  if (child->elemtype == mjOBJ_MODEL) {
+    child_spec = &(static_cast<const mjCModel*>(child)->spec);
+  } else {
+    child_spec = &(static_cast<const mjCBase*>(child)->model->spec);
+  }
+
+  // handle global attribute conflicts
+  if (child_spec && child_spec != &model->spec) {
+    std::string error_msg, warning_subject, warning_body;
+    bool success = mujoco::ResolveConflicts(
+        &model->spec, child_spec,
+        static_cast<mjtConflict>(model->spec.compiler.conflict), &error_msg,
+        &warning_subject, &warning_body);
+
+    if (!success) {
+      model->SetError(mjCError(0, "%s", error_msg.c_str()));
+      return nullptr;
+    }
+
+    if (!warning_body.empty()) {
+      model->AddGroupedWarning(warning_subject, warning_body);
+    }
+  }
+
   if (child->elemtype == mjOBJ_MODEL) {
     mjCModel* child_model = static_cast<mjCModel*>((mjsElement*)child);
     mjsBody* worldbody = mjs_findBody(&child_model->spec, "world");
@@ -411,11 +436,12 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
     SetFrame(worldbody, mjOBJ_CAMERA, worldframe);
     child = worldframe->element;
   }
+  mjsElement* result = nullptr;
   switch (parent->elemtype) {
     case mjOBJ_FRAME:
       if (child->elemtype == mjOBJ_BODY) {
-        return attachBody(static_cast<mjCFrame*>(parent),
-                          static_cast<const mjCBody*>(child), prefix, suffix);
+        result = attachBody(static_cast<mjCFrame*>(parent),
+                            static_cast<const mjCBody*>(child), prefix, suffix);
       } else if (child->elemtype == mjOBJ_FRAME) {
         mjsBody* parent_body = mjs_getParent(parent);
         if (!parent_body) {
@@ -429,35 +455,46 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
         if (mjs_setFrame(attached_frame, &frame->spec)) {
           return nullptr;
         }
-        return attached_frame;
+        result = attached_frame;
       } else {
         model->SetError(mjCError(0, "child element is not a body or frame"));
         return nullptr;
       }
+      break;
     case mjOBJ_BODY:
       if (child->elemtype == mjOBJ_FRAME) {
-        return attachFrame(static_cast<mjCBody*>(parent),
-                           static_cast<const mjCFrame*>(child), prefix, suffix);
+        result =
+            attachFrame(static_cast<mjCBody*>(parent),
+                        static_cast<const mjCFrame*>(child), prefix, suffix);
       } else {
         model->SetError(mjCError(0, "child element is not a frame"));
         return nullptr;
       }
+      break;
     case mjOBJ_SITE:
       if (child->elemtype == mjOBJ_BODY) {
-        return attachToSite(static_cast<mjCSite*>(parent),
-                            static_cast<const mjCBody*>(child), prefix, suffix);
+        result =
+            attachToSite(static_cast<mjCSite*>(parent),
+                         static_cast<const mjCBody*>(child), prefix, suffix);
       } else if (child->elemtype == mjOBJ_FRAME) {
-        return attachFrameToSite(static_cast<mjCSite*>(parent),
-                                 static_cast<const mjCFrame*>(child), prefix, suffix);
+        result = attachFrameToSite(static_cast<mjCSite*>(parent),
+                                   static_cast<const mjCFrame*>(child), prefix,
+                                   suffix);
       } else {
         model->SetError(mjCError(0, "child element is not a body or frame"));
         return nullptr;
       }
+      break;
     default:
       model->SetError(mjCError(0, "parent element is not a frame, body or site"));
       return nullptr;
   }
-  return nullptr;
+
+  // mark all warnings accumulated so far as attach-phase
+  if (result) {
+    model->SetAttachWarningBoundary();
+  }
+  return result;
 }
 
 

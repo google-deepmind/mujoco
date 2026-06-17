@@ -2668,18 +2668,17 @@ void AttachNestedKeyframe(bool compile) {
   // compile required before further attachment
   mjModel* m_child = compile ? mj_compile(child, 0) : nullptr;
 
-  // check warning is issued, empty for a compiled model
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-      util::strcpy_arr(warning, msg);
-  };
-
   // attach child to parent
   mjs_attach(mjs_findFrame(parent, "frame")->element,
              mjs_findBody(child, "body")->element, "child-", "");
 
-  EXPECT_THAT(warning, HasSubstr(compile ? "" : "model has pending keyframes"));
+  if (compile) {
+    EXPECT_EQ(mjs_numWarnings(parent), 0);
+  } else {
+    EXPECT_GE(mjs_numWarnings(parent), 1);
+    EXPECT_THAT(mjs_getWarning(parent, 0),
+                HasSubstr("model has pending keyframes"));
+  }
 
   // compare models
   mjtNum tol = 0;
@@ -2702,6 +2701,7 @@ void AttachNestedKeyframe(bool compile) {
 }
 
 TEST_F(MujocoTest, TestAttachNestedKeyframe) {
+  mock_warning_handler.ExpectWarnings();
   AttachNestedKeyframe(/*compile=*/true);
   AttachNestedKeyframe(/*compile=*/false);
 }
@@ -3451,6 +3451,99 @@ TEST_F(MujocoTest, CompileWarningChainedToHandler) {
   EXPECT_THAT(captured_warnings, testing::Contains(HasSubstr("not rigid")));
 
   mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, WarningAccumulationAndRetrieval) {
+  mock_warning_handler.ExpectWarnings();
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="parent"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="child">
+        <frame name="child_frame"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char xml_gchild[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="gchild"/>
+    </worldbody>
+    <keyframe>
+      <key name="k1"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+  mjSpec* gchild = mj_parseXMLString(xml_gchild, 0, er.data(), er.size());
+  ASSERT_THAT(gchild, NotNull()) << er.data();
+
+  mjs_setDeepCopy(parent, true);
+  mjs_setDeepCopy(child, true);
+  mjs_setDeepCopy(gchild, true);
+
+  mjs_attach(mjs_findFrame(child, "child_frame")->element,
+             mjs_findBody(gchild, "gchild")->element, "gchild-", "");
+
+  mjs_attach(mjs_findFrame(parent, "parent")->element,
+             mjs_findBody(child, "child")->element, "child-", "");
+
+  EXPECT_EQ(mjs_numWarnings(parent), 1);
+  EXPECT_THAT(mjs_getWarning(parent, 0),
+              HasSubstr("Child model has pending keyframes"));
+  EXPECT_THAT(mjs_getWarning(parent, 1), IsNull());
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteSpec(gchild);
+}
+
+TEST_F(MujocoTest, CompilationWarningsClearedOnRecompile) {
+  mock_warning_handler.ExpectWarnings();
+  // flex with no edge stiffness or equality triggers passive forces warning
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" count="4 4 1" spacing=".2 .2 .2"
+              dim="2" radius=".1"/>
+  </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+
+  // first compile: should generate flex warning
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull());
+  int n1 = mjs_numWarnings(spec);
+  EXPECT_EQ(n1, 1);
+  EXPECT_THAT(mjs_getWarning(spec, 0),
+              HasSubstr("no equality constraints or passive forces"));
+
+  // recompile: warnings should be cleared and regenerated
+  mj_deleteModel(m);
+  m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull());
+  EXPECT_EQ(mjs_numWarnings(spec), n1);
+
+  mj_deleteModel(m);
   mj_deleteSpec(spec);
 }
 

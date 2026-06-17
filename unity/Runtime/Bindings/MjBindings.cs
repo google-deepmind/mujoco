@@ -583,6 +583,11 @@ public enum mjtOrientation : int{
   mjORIENTATION_ZAXIS = 3,
   mjORIENTATION_EULER = 4,
 }
+public enum mjtConflict : int{
+  mjCONFLICT_WARNING = 0,
+  mjCONFLICT_MERGE = 1,
+  mjCONFLICT_ERROR = 2,
+}
 public enum mjtCTimer : int{
   mjCTIMER_TOTAL = 0,
   mjCTIMER_ASSETS = 1,
@@ -5865,6 +5870,7 @@ public unsafe struct mjsCompiler_ {
   public fixed int inertiagrouprange[2];
   public byte saveinertial;
   public int alignfree;
+  public int conflict;
   public mjLROpt_ LRopt;
   public void* meshdir;
   public void* texturedir;

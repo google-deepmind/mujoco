@@ -900,6 +900,27 @@ has any effect. The settings here are global and apply to the entire model.
 :at:`saveinertial`: :at-val:`[false, true], "false"`
    If set to "true", the compiler will save explicit :ref:`inertial <body-inertial>` clauses for all bodies.
 
+.. _compiler-conflict:
+
+:at:`conflict`: :at-val:`[warning, merge, error], "warning"`
+   This attribute controls how conflicting global attributes (physics options, sizes, visual settings) are resolved when
+   a child spec is attached to a parent using :ref:`mjs_attach`. A conflict occurs when both the parent and child specify
+   authored values for the same field and those values differ. See :ref:`Attribute Merging <meAttributeMerging>` for
+   details and a per-field table.
+
+   :at-val:`warning`
+      Parent values take precedence. When a conflict is detected, a warning is emitted but the parent value is not
+      modified. This is the default and preserves the pre-existing attachment behavior.
+
+   :at-val:`merge`
+      Fields are merged using field-specific strategies (minimum, maximum, OR, or error), depending on the field's
+      semantics. When only the child specifies an authored value, it is adopted by the parent. See the
+      :ref:`merging table <meAttributeMergingTable>` for per-field details.
+
+   :at-val:`error`
+      Any conflict between authored values results in a compile error. This is the strictest mode and is useful for
+      detecting unintended attribute mismatches.
+
 .. _compiler-lengthrange:
 
 :el-prefix:`compiler/` |-| **lengthrange** |?|

@@ -146,6 +146,7 @@ raw::MjModel* MjSpec::Compile(mjVFS* vfs) {
       warnings.attr("warn")(mjs_getWarning(ptr, i));
     }
   }
+
   return m;
 }
 

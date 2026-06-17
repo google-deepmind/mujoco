@@ -731,6 +731,16 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjORIENTATION_EULER', 4),
          ]),
      )),
+    ('mjtConflict',
+     EnumDecl(
+         name='mjtConflict',
+         declname='enum mjtConflict_',
+         values=dict([
+             ('mjCONFLICT_WARNING', 0),
+             ('mjCONFLICT_MERGE', 1),
+             ('mjCONFLICT_ERROR', 2),
+         ]),
+     )),
     ('mjtCTimer',
      EnumDecl(
          name='mjtCTimer',

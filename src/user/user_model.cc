@@ -1525,6 +1525,22 @@ void mjCModel::AddWarning(std::string msg, const mjCBase* obj) {
   warnings_.push_back(std::move(msg));
 }
 
+// add grouped warning with subject/body split (immediate delivery outside
+// compile)
+void mjCModel::AddGroupedWarning(const std::string& subject,
+                                 const std::string& body) {
+  std::string full = body.empty() ? subject : subject + "\n" + body;
+  warnings_.push_back(full);
+
+  // outside compile: deliver immediately via structured log message
+  if (!compiling_) {
+    mjLogMessage m = {.level = mjLOG_WARNING};
+    snprintf(m.subject, sizeof(m.subject), "%s", subject.c_str());
+    m.body = body.empty() ? nullptr : body.c_str();
+    mju_message(&m);
+  }
+}
+
 // pointer to world body
 mjCBody* mjCModel::GetWorld() {
   return bodies_[0];
@@ -5025,6 +5041,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     ~ScopedDisableThreading() { ref = saved; }
   } disable_usethread(compiler.usethread);
 #endif
+
+  // clear compile-phase warnings from previous compile, keep attach warnings
+  ClearCompileWarnings();
 
   using Clock = std::chrono::steady_clock;
   using Seconds = std::chrono::duration<double>;
