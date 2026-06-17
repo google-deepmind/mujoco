@@ -3147,19 +3147,51 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 #define mjPA_COSRESET 0.99999   // re-anchor if a body rotated past acos(0.99999) ~= 0.26 deg
 #define mjPA_SLIPFRAC 0.98      // pair has slid when aggregate |f_t| >= this * mu * sum(f_n)
 
-// find the slot holding (bA,bB), or -1
+// the anchor table is an open-addressed hash map: slot = hash(bA,bB) then linear probing, so lookup
+// and insertion are O(1) on average instead of O(nbody). bA < bB, so the key is ordered.
+static int pa_hash(int bA, int bB, int nbody) {
+  unsigned int h = (unsigned int)bA*73856093u ^ (unsigned int)bB*19349663u;
+  return (int)(h % (unsigned int)nbody);
+}
+
+// find the slot holding (bA,bB), or -1. probe from the hash until a match or an empty slot
 static int pa_find(const mjData* d, int nbody, int bA, int bB) {
-  for (int i=0; i < nbody; i++) {
+  int h = pa_hash(bA, bB, nbody);
+  for (int n=0; n < nbody; n++) {
+    int i = h+n; if (i >= nbody) i -= nbody;
     const mjtNum* s = d->fricanchor + mjPA_STRIDE*i;
-    if (s[mjPA_VAL] && (int)s[mjPA_BA] == bA && (int)s[mjPA_BB] == bB) return i;
+    if (!s[mjPA_VAL]) return -1;                         // empty slot ends the probe: not present
+    if ((int)s[mjPA_BA] == bA && (int)s[mjPA_BB] == bB) return i;
+  }
+  return -1;                                             // table full, not present
+}
+
+// return an empty slot for (bA,bB) (the first empty in its probe sequence), or -1 if the table full
+static int pa_insert(const mjData* d, int nbody, int bA, int bB) {
+  int h = pa_hash(bA, bB, nbody);
+  for (int n=0; n < nbody; n++) {
+    int i = h+n; if (i >= nbody) i -= nbody;
+    if (!d->fricanchor[mjPA_STRIDE*i + mjPA_VAL]) return i;
   }
   return -1;
 }
 
-// find an empty slot, or -1 if the table is full
-static int pa_empty(const mjData* d, int nbody) {
-  for (int i=0; i < nbody; i++) if (!d->fricanchor[mjPA_STRIDE*i + mjPA_VAL]) return i;
-  return -1;
+// remove the entry at slot i, preserving the probe invariant (linear-probing backward-shift delete)
+static void pa_delete(mjData* d, int nbody, int i) {
+  int j = i;
+  while (1) {
+    d->fricanchor[mjPA_STRIDE*i + mjPA_VAL] = 0;        // open a gap at i
+    int k;
+    do {
+      j = j+1; if (j >= nbody) j -= nbody;
+      mjtNum* sj = d->fricanchor + mjPA_STRIDE*j;
+      if (!sj[mjPA_VAL]) return;                        // probe chain ended: done
+      k = pa_hash((int)sj[mjPA_BA], (int)sj[mjPA_BB], nbody);   // home slot of the entry at j
+      // keep probing while k lies cyclically in (i, j]: that entry cannot fill the gap at i
+    } while ((i < j) ? (i < k && k <= j) : (i < k || k <= j));
+    mju_copy(d->fricanchor + mjPA_STRIDE*i, d->fricanchor + mjPA_STRIDE*j, mjPA_STRIDE);
+    i = j;                                              // entry moved up; new gap at j
+  }
 }
 
 // write the current pose of bodies (bA,bB) into slot s as the new anchor
@@ -3246,6 +3278,7 @@ void mj_stictionUpdate(const mjModel* m, mjData* d) {
   int nbody = m->nbody;
   mj_markStack(d);
   int* seen = mjSTACKALLOC(d, nbody, int);          // pair had a contact this step
+  int* evict = mjSTACKALLOC(d, 2*nbody, int);       // (bA,bB) keys of pairs that lost contact
   mjtNum* tft = mjSTACKALLOC(d, 3*nbody, mjtNum);   // aggregate tangential force per slot
   mjtNum* tfn = mjSTACKALLOC(d, nbody, mjtNum);     // aggregate normal force per slot
   mjtNum* tmu = mjSTACKALLOC(d, nbody, mjtNum);     // cone mu per slot
@@ -3263,7 +3296,7 @@ void mj_stictionUpdate(const mjModel* m, mjData* d) {
     if (bA > bB) { int t = bA; bA = bB; bB = t; }
     int pi = pa_find(d, nbody, bA, bB);
     if (pi < 0) {                                   // new pair: anchor at current poses
-      pi = pa_empty(d, nbody);
+      pi = pa_insert(d, nbody, bA, bB);
       if (pi < 0) continue;                         // table full -> no memory for this pair
       mjtNum* s = d->fricanchor + mjPA_STRIDE*pi;
       s[mjPA_BA] = bA; s[mjPA_BB] = bB; s[mjPA_VAL] = 1; s[mjPA_SLID] = 0;
@@ -3276,12 +3309,16 @@ void mj_stictionUpdate(const mjModel* m, mjData* d) {
     tmu[pi] = con->mu;
   }
 
-  // pass 2: evict pairs not seen; flag slid pairs; re-anchor pairs that slid or rotated
+  // pass 2: re-anchor survivors that slid or rotated (in place); collect pairs that lost contact
+  int nevict = 0;
   for (int i=0; i < nbody; i++) {
     mjtNum* s = d->fricanchor + mjPA_STRIDE*i;
     if (!s[mjPA_VAL]) continue;
-    if (!seen[i]) { s[mjPA_VAL] = 0; continue; }    // lost contact this step
     int bA = (int)s[mjPA_BA], bB = (int)s[mjPA_BB];
+    if (!seen[i]) {                                 // lost contact: queue for removal below
+      evict[2*nevict] = bA; evict[2*nevict+1] = bB; nevict++;
+      continue;
+    }
     mjtNum cA = 0.5*(mju_dot(d->xmat+9*bA, s+mjPA_MATA, 9) - 1);
     mjtNum cB = 0.5*(mju_dot(d->xmat+9*bB, s+mjPA_MATB, 9) - 1);
     int rotated = (cA < mjPA_COSRESET || cB < mjPA_COSRESET);
@@ -3294,6 +3331,11 @@ void mj_stictionUpdate(const mjModel* m, mjData* d) {
     if (s[mjPA_SLID] || rotated) {
       pa_setanchor(d, s, bA, bB);
     }
+  }
+  // remove evicted pairs by key (backward-shift relocates surviving entries, so re-find each)
+  for (int e=0; e < nevict; e++) {
+    int i = pa_find(d, nbody, evict[2*e], evict[2*e+1]);
+    if (i >= 0) pa_delete(d, nbody, i);
   }
   mj_freeStack(d);
 }
