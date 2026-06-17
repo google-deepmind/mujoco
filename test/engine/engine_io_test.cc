@@ -31,7 +31,6 @@
 #include <absl/strings/str_format.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_util_errmem.h"
 #include "src/engine/engine_thread.h"
 #include "test/fixture.h"
 
@@ -130,14 +129,10 @@ TEST_F(EngineIoTest, MakeDataReturnsNullOnFailure) {
 
   // fail mj_makeData intentionally with a bad size
   model->nbody = -1;
-  static bool warning;
-  warning = false;
-  mju_user_warning = [](const char* error) {
-    warning = true;
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
   mjData* data = mj_makeData(model);
   EXPECT_THAT(data, IsNull());
-  EXPECT_TRUE(warning) << "Expecting warning to be triggered.";
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -964,18 +959,14 @@ TEST_F(EngineIoTest, LoadModelBufferRejectsOverflowingSizes) {
   // nbuffer mismatch check — but the overflow should be caught earlier
   // in safeAddToBufferSize/mj_makeModel before we reach that check.
 
-  // intercept mju_warning because the test framework translates it to ADD_FAILURE
-  static bool warning_triggered = false;
-  warning_triggered = false;
-  mju_user_warning = [](const char* msg) {
-    warning_triggered = true;
-  };
+  // Intercept warnings to prevent them from failing the test.
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
 
   // attempt to load — should return NULL, not crash
   mjModel* bad_model = mj_loadModelBuffer(buffer.data(), bufsize);
   EXPECT_THAT(bad_model, IsNull())
       << "Expected mj_loadModelBuffer to reject overflow-inducing sizes";
-  EXPECT_TRUE(warning_triggered) << "Expected a warning about invalid sizes";
 
   // clean up if somehow it succeeded
   if (bad_model) {

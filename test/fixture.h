@@ -117,8 +117,9 @@ class MockWarningHandler {
   // Mock method called when a warning is intercepted.
   MOCK_METHOD(void, Warn, (const std::string& msg));
 
-  // Allow any number of warnings without triggering test failure.
-  void ExpectWarnings();
+  // Allow any number of warnings (if empty) or expect at least one warning
+  // containing the specified substring (if non-empty).
+  void ExpectWarnings(std::string_view substring = "");
 
   // Returns the thread-local active mock warning handler.
   static MockWarningHandler* GetActive();

@@ -30,7 +30,6 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
-#include "src/cc/array_safety.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -1310,11 +1309,8 @@ TEST_F(MjCMeshTest, NaNConvexHullDisallowed) {
     </asset>
   </mujoco>
     )";
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model, testing::IsNull());

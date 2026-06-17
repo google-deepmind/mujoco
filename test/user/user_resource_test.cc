@@ -24,7 +24,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "src/cc/array_safety.h"
+#include <absl/strings/str_format.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_plugin.h"
@@ -51,8 +51,9 @@ int open_str(mjResource* resource) {
     return 0;
   }
 
-  resource->data = mju_malloc(100*sizeof(char));
-  std::strcpy((char*) resource->data, "Hello World");
+  const std::size_t kBufferSize = 100;
+  resource->data = mju_malloc(kBufferSize * sizeof(char));
+  absl::SNPrintF((char*) resource->data, kBufferSize, "Hello World");
   return 1;
 }
 
@@ -128,17 +129,10 @@ TEST_F(ResourceTest, RegisterProviderMissingCallbacks) {
       .prefix = "myprefix",
   };
 
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("callback");
 
   int i = mjp_registerResourceProvider(&provider);
-
-  // warning message related to missing callbacks
-  EXPECT_THAT(warning, HasSubstr("callback"));
   EXPECT_LT(i, 1);
 }
 
@@ -150,17 +144,10 @@ TEST_F(ResourceTest, RegisterProviderMissingPrefix) {
       .close = close_nop,
   };
 
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("prefix");
 
   int i = mjp_registerResourceProvider(&provider);
-
-  // warning message related to missing prefix
-  EXPECT_THAT(warning, HasSubstr("prefix"));
   EXPECT_LT(i, 1);
 }
 
@@ -172,17 +159,10 @@ TEST_F(ResourceTest, RegisterProviderInvalidPrefix1) {
       .close = close_nop,
   };
 
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("prefix");
 
   int i = mjp_registerResourceProvider(&provider);
-
-  // warning message related to missing prefix
-  EXPECT_THAT(warning, HasSubstr("prefix"));
   EXPECT_LT(i, 1);
 }
 
@@ -194,17 +174,10 @@ TEST_F(ResourceTest, RegisterProviderInvalidPrefix2) {
       .close = close_nop,
   };
 
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("prefix");
 
   int i = mjp_registerResourceProvider(&provider);
-
-  // warning message related to missing prefix
-  EXPECT_THAT(warning, HasSubstr("prefix"));
   EXPECT_LT(i, 1);
 }
 
@@ -316,13 +289,8 @@ TEST_F(ResourceTest, NameWithValidPrefix) {
   int i = mjp_registerResourceProvider(&provider);
   EXPECT_GT(i, 0);
 
-
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
 
   // open resource
   mjResource* resource = mju_openResource("", "nop:found", nullptr, nullptr, 0);
@@ -342,13 +310,8 @@ TEST_F(ResourceTest, NameWithUpperCasePrefix) {
   int i = mjp_registerResourceProvider(&provider);
   EXPECT_GT(i, 0);
 
-
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
 
   // open resource
   mjResource* resource = mju_openResource("", "NOP:found", nullptr, nullptr, 0);
@@ -368,13 +331,8 @@ TEST_F(ResourceTest, NameWithInvalidPrefix) {
   int i = mjp_registerResourceProvider(&provider);
   EXPECT_GT(i, 0);
 
-
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings();
 
   // open resource
   mjResource* resource = mju_openResource("", "nopfound", nullptr, nullptr, 0);

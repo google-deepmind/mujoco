@@ -24,9 +24,9 @@
 #include <string>
 #include <vector>
 
+#include <absl/strings/str_format.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "src/cc/array_safety.h"
 #include <mujoco/mujoco.h>
 #include <mujoco/mjspec.h>
 #include <mujoco/mjplugin.h>
@@ -38,9 +38,8 @@ namespace mujoco {
 namespace {
 
 using ::testing::HasSubstr;
-using ::testing::NotNull;
 using ::testing::IsNull;
-
+using ::testing::NotNull;
 
 // -------------------------- test model manipulation  -------------------------
 
@@ -243,7 +242,8 @@ int open_mock(mjResource* resource) {
   </mujoco>
   )";
   resource->data = mju_malloc(sizeof(parent_xml));
-  std::strcpy((char*)resource->data, parent_xml);
+  absl::SNPrintF(static_cast<char*>(resource->data), sizeof(parent_xml), "%s",
+                 parent_xml);
   return 1;
 }
 
@@ -2668,6 +2668,12 @@ void AttachNestedKeyframe(bool compile) {
   // compile required before further attachment
   mjModel* m_child = compile ? mj_compile(child, 0) : nullptr;
 
+  // check warning is issued, empty for a compiled model
+  MockWarningHandler warning_handler;
+  if (!compile) {
+    warning_handler.ExpectWarnings("model has pending keyframes");
+  }
+
   // attach child to parent
   mjs_attach(mjs_findFrame(parent, "frame")->element,
              mjs_findBody(child, "body")->element, "child-", "");
@@ -2679,7 +2685,6 @@ void AttachNestedKeyframe(bool compile) {
     EXPECT_THAT(mjs_getWarning(parent, 0),
                 HasSubstr("model has pending keyframes"));
   }
-
   // compare models
   mjtNum tol = 0;
   std::string field = "";

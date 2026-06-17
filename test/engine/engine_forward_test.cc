@@ -31,7 +31,6 @@
 #include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include <mujoco/mjxmacro.h>
-#include "src/cc/array_safety.h"
 #include "src/engine/engine_callback.h"
 #include "src/engine/engine_core_util.h"
 #include "src/engine/engine_io.h"
@@ -68,10 +67,11 @@ static const char* const kTendonForceClamp =
 
 using ::testing::Pointwise;
 
-using ::testing::Ne;
-using ::testing::HasSubstr;
-using ::testing::NotNull;
+using ::testing::_;
 using ::testing::Gt;
+using ::testing::HasSubstr;
+using ::testing::Ne;
+using ::testing::NotNull;
 
 // --------------------------- activation limits -------------------------------
 
@@ -997,32 +997,28 @@ TEST_F(ForwardTest, ControlClamping) {
   // data->ctrl[1] remains pristine
   EXPECT_EQ(data->ctrl[1], 2);
 
-  // install warning handler
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
 
   // for the unclamped actuator, huge raises warning
+  warning_handler.ExpectWarnings(
+      "Nan, Inf or huge value in CTRL at ACTUATOR 0");
   data->ctrl[0] = 10*mjMAXVAL;
   mj_forward(model, data);
-  EXPECT_THAT(warning,
-              HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 0"));
+  testing::Mock::VerifyAndClearExpectations(&warning_handler);
 
   // for the clamped actuator, huge does not raise warning
+  EXPECT_CALL(warning_handler, Warn(_)).Times(0);
   mj_resetData(model, data);
-  warning[0] = '\0';
   data->ctrl[1] = 10*mjMAXVAL;
   mj_forward(model, data);
-  EXPECT_EQ(warning[0], '\0');
+  testing::Mock::VerifyAndClearExpectations(&warning_handler);
 
   // for the clamped actuator, NaN raises warning
+  warning_handler.ExpectWarnings(
+      "Nan, Inf or huge value in CTRL at ACTUATOR 1");
   mj_resetData(model, data);
   data->ctrl[1] = std::numeric_limits<double>::quiet_NaN();
   mj_forward(model, data);
-  EXPECT_THAT(warning,
-              HasSubstr("Nan, Inf or huge value in CTRL at ACTUATOR 1"));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -2865,7 +2861,8 @@ TEST_F(ActEarlyTest, RemovesOneStepDelay) {
     mj_step(model, data);
     for (int j = 0; j < model->nu / 2; j++) {
       // this is true for torque actuators
-      EXPECT_NEAR(last_qfrc[2 * j], data->qfrc_actuator[2 * j + 1], MjTol(1e-3, 1e-1))
+      EXPECT_NEAR(last_qfrc[2 * j], data->qfrc_actuator[2 * j + 1],
+                  MjTol(1e-3, 1e-1))
           << "there should be a 1 step delay between qfrc for "
           << mj_id2name(model, mjOBJ_ACTUATOR, 2 * j);
     }

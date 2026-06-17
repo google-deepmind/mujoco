@@ -28,7 +28,6 @@
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "src/cc/array_safety.h"
-#include "src/engine/engine_util_errmem.h"
 #include "src/user/user_api.h"
 #include "src/xml/xml_api.h"
 #include "test/compare_model.h"
@@ -381,14 +380,10 @@ TEST_F(XMLReaderTest, CanParseNanAndRaisesWarning) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  static char warning[1024];
-  warning[0] = '\0';
-  mju_user_warning = [](const char* msg) {
-    util::strcpy_arr(warning, msg);
-  };
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("XML contains a 'NaN'");
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull());
-  EXPECT_THAT(warning, HasSubstr("XML contains a 'NaN'"));
   EXPECT_THAT(model->geom_pos[0], IsNan());
   EXPECT_THAT(model->geom_pos[1], IsNan());
   EXPECT_THAT(model->geom_pos[2], IsNan());

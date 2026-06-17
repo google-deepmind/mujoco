@@ -83,9 +83,16 @@ MockWarningHandler::MockWarningHandler() {
 // Restores the previously active warning handler.
 MockWarningHandler::~MockWarningHandler() { active_handler = prev_; }
 
-// Configures the mock warning handler to ignore all warnings.
-void MockWarningHandler::ExpectWarnings() {
-  EXPECT_CALL(*this, Warn(_)).WillRepeatedly(Return());
+// Configures the mock warning handler to ignore all warnings (if empty) or
+// expect at least one warning containing substring (if non-empty).
+void MockWarningHandler::ExpectWarnings(std::string_view substring) {
+  if (substring.empty()) {
+    EXPECT_CALL(*this, Warn(_)).WillRepeatedly(Return());
+  } else {
+    EXPECT_CALL(*this, Warn(::testing::HasSubstr(std::string(substring))))
+        .Times(::testing::AtLeast(1))
+        .WillRepeatedly(Return());
+  }
 }
 
 // Returns the active warning handler.
@@ -102,10 +109,12 @@ static mjfLogHandler prev_log_handler ABSL_GUARDED_BY(handlers_mutex) = nullptr;
 void default_mj_log_handler(const mjLogMessage* msg) {
   std::string subject = msg->subject;
   if (msg->func) {
-    subject = std::string(msg->func) + ": " + msg->subject;
+    subject = absl::StrCat(msg->func, ": ", msg->subject);
   }
 
   if (msg->level == mjLOG_ERROR) {
+    // legacy fallback: some tests still install mju_user_error to intercept
+    // errors with longjmp-based capture
     if (mju_user_error) {
       mju_user_error(subject.c_str());
     } else {
@@ -114,14 +123,12 @@ void default_mj_log_handler(const mjLogMessage* msg) {
   } else if (msg->level == mjLOG_WARNING) {
     std::string full_msg = subject;
     if (msg->body) {
-      full_msg += "\n" + std::string(msg->body);
+      absl::StrAppend(&full_msg, "\n", msg->body);
     }
-    if (mju_user_warning) {
-      mju_user_warning(full_msg.c_str());
-    } else if (auto* handler = MockWarningHandler::GetActive()) {
+    if (auto* handler = MockWarningHandler::GetActive()) {
       handler->Warn(full_msg);
     } else {
-      ADD_FAILURE() << "mju_user_warning: " << full_msg;
+      ADD_FAILURE() << "Unexpected warning: " << full_msg;
     }
   }
 }
