@@ -3191,12 +3191,11 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
                      -KBIP[4*i]*KBIP[4*i+2]*(d->efc_pos[i]-d->efc_margin[i]);
   }
 
-  // stiction: friction position residual from the per-body-pair anchor
+  // stiction: friction position residual from the per-body-pair anchor. read-only: anchors are
+  // created, re-anchored and evicted once per step in mj_stictionUpdate, so this produces the same
+  // aref in forward and inverse dynamics (no double mutation, fwdinv consistent).
   if (mjENABLED(mjENBL_STICTION)) {
     int nbody = m->nbody;
-    mj_markStack(d);
-    int* seen = mjSTACKALLOC(d, nbody, int);
-    mju_zeroInt(seen, nbody);
     for (int c=0; c < d->ncon; c++) {
       mjContact* con = d->contact + c;
       int adr = con->efc_address;
@@ -3205,29 +3204,18 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
       int bB = m->geom_bodyid[con->geom[1]];
       if (bA > bB) { int t = bA; bA = bB; bB = t; }         // canonical order
       int pi = pa_find(d, nbody, bA, bB);
-      if (pi < 0) {                                          // new pair: anchor at current poses
-        pi = pa_empty(d, nbody);
-        if (pi < 0) continue;                               // table full -> no memory for this pair
-        mjtNum* s = d->fricanchor + mjPA_STRIDE*pi;
-        s[mjPA_BA] = bA; s[mjPA_BB] = bB; s[mjPA_VAL] = 1; s[mjPA_SLID] = 0;
-        pa_setanchor(d, s, bA, bB);
-      }
-      seen[pi] = 1;
+      if (pi < 0) continue;                                 // no anchor yet: kinetic (damper) only
       mjtNum* s = d->fricanchor + mjPA_STRIDE*pi;
+      // skip the spring if the pair slid last step or a body rotated past the anchor (rolling): the
+      // anchor is stale, so the damper alone gives kinetic friction (mj_stictionUpdate re-anchors)
+      mjtNum cA = 0.5*(mju_dot(d->xmat+9*bA, s+mjPA_MATA, 9) - 1);
+      mjtNum cB = 0.5*(mju_dot(d->xmat+9*bB, s+mjPA_MATB, 9) - 1);
+      if (s[mjPA_SLID] || cA < mjPA_COSRESET || cB < mjPA_COSRESET) continue;
       // tangential slip at this contact = world(material_A) - world(material_B)
       mjtNum wA[3], wB[3], slip[3];
       pa_world(wA, con->pos, s+mjPA_POSA, s+mjPA_MATA, d->xpos+3*bA, d->xmat+9*bA);
       pa_world(wB, con->pos, s+mjPA_POSB, s+mjPA_MATB, d->xpos+3*bB, d->xmat+9*bB);
       mju_sub3(slip, wA, wB);
-      // re-anchor if the contact swept to new material: a body rotated (rolling), or the pair slid
-      // last step (force reached the cone). then the spring is off and the damper gives kinetic friction
-      mjtNum cA = 0.5*(mju_dot(d->xmat+9*bA, s+mjPA_MATA, 9) - 1);
-      mjtNum cB = 0.5*(mju_dot(d->xmat+9*bB, s+mjPA_MATB, 9) - 1);
-      if (cA < mjPA_COSRESET || cB < mjPA_COSRESET || s[mjPA_SLID]) {
-        pa_setanchor(d, s, bA, bB);
-        s[mjPA_SLID] = 0;
-        continue;
-      }
       // add spring K*I*r to the translational friction rows, reusing the normal-row stiffness
       mjtNum KI = d->efc_KBIP[4*adr] * d->efc_KBIP[4*adr+2];
       for (int j=1; j < con->dim && j < 3; j++) {
@@ -3235,11 +3223,6 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
         d->efc_aref[adr+j] += KI * r;
       }
     }
-    // evict pairs with no contact this step
-    for (int i=0; i < nbody; i++) {
-      if (d->fricanchor[mjPA_STRIDE*i + mjPA_VAL] && !seen[i]) d->fricanchor[mjPA_STRIDE*i + mjPA_VAL] = 0;
-    }
-    mj_freeStack(d);
   }
 
   // subtract Jdot*v correction for connect/weld equality constraints
@@ -3249,17 +3232,22 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
 }
 
 
-// post-solve: flag pairs whose aggregate friction reached the cone (they slid), for re-anchoring
-// next step. per-contact state is unreliable under load redistribution, so use the body-level
-// signal: total |f_t| vs mu*sum(f_n).
-void mj_pairAnchorUpdate(const mjModel* m, mjData* d) {
+// stiction: once-per-step anchor maintenance (mjENBL_STICTION). creates anchors for new contacting
+// body pairs, flags pairs that slid (aggregate friction reached the cone) or rotated (rolling) and
+// re-anchors them at the current pose, and evicts pairs that lost contact. must run exactly once per
+// step after the solve; mj_referenceConstraint only reads the result.
+void mj_stictionUpdate(const mjModel* m, mjData* d) {
   if (!mjENABLED(mjENBL_STICTION)) return;
   int nbody = m->nbody;
   mj_markStack(d);
+  int* seen = mjSTACKALLOC(d, nbody, int);          // pair had a contact this step
   mjtNum* tft = mjSTACKALLOC(d, 3*nbody, mjtNum);   // aggregate tangential force per slot
   mjtNum* tfn = mjSTACKALLOC(d, nbody, mjtNum);     // aggregate normal force per slot
   mjtNum* tmu = mjSTACKALLOC(d, nbody, mjtNum);     // cone mu per slot
+  mju_zeroInt(seen, nbody);
   mju_zero(tft, 3*nbody); mju_zero(tfn, nbody); mju_zero(tmu, nbody);
+
+  // pass 1: create anchors for new pairs, mark seen, accumulate friction force per pair
   for (int c=0; c < d->ncon; c++) {
     mjContact* con = d->contact + c;
     int adr = con->efc_address;
@@ -3267,16 +3255,34 @@ void mj_pairAnchorUpdate(const mjModel* m, mjData* d) {
     int bA = m->geom_bodyid[con->geom[0]], bB = m->geom_bodyid[con->geom[1]];
     if (bA > bB) { int t = bA; bA = bB; bB = t; }
     int pi = pa_find(d, nbody, bA, bB);
-    if (pi < 0) continue;
+    if (pi < 0) {                                   // new pair: anchor at current poses
+      pi = pa_empty(d, nbody);
+      if (pi < 0) continue;                         // table full -> no memory for this pair
+      mjtNum* s = d->fricanchor + mjPA_STRIDE*pi;
+      s[mjPA_BA] = bA; s[mjPA_BB] = bB; s[mjPA_VAL] = 1; s[mjPA_SLID] = 0;
+      pa_setanchor(d, s, bA, bB);
+    }
+    seen[pi] = 1;
     mjtNum f1 = d->efc_force[adr+1], f2 = (con->dim > 2) ? d->efc_force[adr+2] : 0;
     for (int k=0; k < 3; k++) tft[3*pi+k] += con->frame[3+k]*f1 + con->frame[6+k]*f2;
     tfn[pi] += d->efc_force[adr];
     tmu[pi] = con->mu;
   }
+
+  // pass 2: evict pairs not seen; flag slid pairs; re-anchor pairs that slid or rotated
   for (int i=0; i < nbody; i++) {
-    if (d->fricanchor[mjPA_STRIDE*i + mjPA_VAL] &&
-        mju_norm3(tft+3*i) >= mjPA_SLIPFRAC * tmu[i] * tfn[i]) {
-      d->fricanchor[mjPA_STRIDE*i + mjPA_SLID] = 1;
+    mjtNum* s = d->fricanchor + mjPA_STRIDE*i;
+    if (!s[mjPA_VAL]) continue;
+    if (!seen[i]) { s[mjPA_VAL] = 0; continue; }    // lost contact this step
+    int bA = (int)s[mjPA_BA], bB = (int)s[mjPA_BB];
+    mjtNum cA = 0.5*(mju_dot(d->xmat+9*bA, s+mjPA_MATA, 9) - 1);
+    mjtNum cB = 0.5*(mju_dot(d->xmat+9*bB, s+mjPA_MATB, 9) - 1);
+    int rotated = (cA < mjPA_COSRESET || cB < mjPA_COSRESET);
+    // pair slid when aggregate |f_t| reached the friction cone (per-contact state is unreliable
+    // under load redistribution, so use the body-level signal)
+    s[mjPA_SLID] = (mju_norm3(tft+3*i) >= mjPA_SLIPFRAC * tmu[i] * tfn[i]);
+    if (s[mjPA_SLID] || rotated) {
+      pa_setanchor(d, s, bA, bB);
     }
   }
   mj_freeStack(d);

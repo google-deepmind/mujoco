@@ -968,9 +968,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     mj_dualFinish(m, d);
   }
 
-  // stiction: flag body pairs that slid this step (mjENBL_STICTION)
-  mj_pairAnchorUpdate(m, d);
-
   TM_END(mjTIMER_CONSTRAINT);
 }
 
@@ -1991,6 +1988,9 @@ void mj_step(const mjModel* m, mjData* d) {
     mj_compareFwdInv(m, d);
   }
 
+  // stiction: update body-pair friction anchors once per step (after fwdinv, before integration)
+  mj_stictionUpdate(m, d);
+
   // use selected integrator
   switch ((mjtIntegrator) m->opt.integrator) {
   case mjINT_EULER:
@@ -2060,6 +2060,9 @@ void mj_step2(const mjModel* m, mjData* d) {
   if (mjENABLED(mjENBL_FWDINV)) {
     mj_compareFwdInv(m, d);
   }
+
+  // stiction: update body-pair friction anchors once per step (after fwdinv, before integration)
+  mj_stictionUpdate(m, d);
 
   // integrate with Euler or implicit; RK4 defaults to Euler
   if (m->opt.integrator == mjINT_IMPLICIT || m->opt.integrator == mjINT_IMPLICITFAST) {

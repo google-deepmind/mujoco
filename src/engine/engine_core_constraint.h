@@ -105,8 +105,8 @@ MJAPI void mj_constraintUpdate_impl(int ne, int nf, int nefc,
 MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                                mjtNum cost[1], int flg_coneHessian);
 
-// stiction: post-solve slip detection for body-pair friction anchors (mjENBL_STICTION)
-void mj_pairAnchorUpdate(const mjModel* m, mjData* d);
+// stiction: once-per-step body-pair friction anchor maintenance (mjENBL_STICTION)
+void mj_stictionUpdate(const mjModel* m, mjData* d);
 
 
 #ifdef __cplusplus
