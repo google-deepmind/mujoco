@@ -3131,6 +3131,9 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 // one relative-pose anchor per contacting body pair, keyed by the integer pair (bodyA, bodyB). a
 // contact's tangential residual r is computed from the anchor and fed as a spring into the friction
 // reference. state in d->fricanchor (nbody slots of 28 mjtNum), persistent across steps.
+// scope: only elliptic contacts between two geoms on distinct bodies get the spring, and only on the
+// two translational friction rows. frictionless, pyramidal, flex and self contacts are no-ops; the
+// torsional and rolling dims of a condim>3 contact are left to the plain damper.
 
 #define mjPA_STRIDE 28          // mjtNum per slot
 #define mjPA_BA   0             // body A id (as mjtNum)
@@ -3200,8 +3203,10 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
       mjContact* con = d->contact + c;
       int adr = con->efc_address;
       if (adr < 0 || d->efc_type[adr] != mjCNSTR_CONTACT_ELLIPTIC) continue;
+      if (con->geom[0] < 0 || con->geom[1] < 0) continue;   // flex contact: no body-pair anchor
       int bA = m->geom_bodyid[con->geom[0]];
       int bB = m->geom_bodyid[con->geom[1]];
+      if (bA == bB) continue;                               // self-contact: degenerate anchor
       if (bA > bB) { int t = bA; bA = bB; bB = t; }         // canonical order
       int pi = pa_find(d, nbody, bA, bB);
       if (pi < 0) continue;                                 // no anchor yet: kinetic (damper) only
@@ -3252,7 +3257,9 @@ void mj_stictionUpdate(const mjModel* m, mjData* d) {
     mjContact* con = d->contact + c;
     int adr = con->efc_address;
     if (adr < 0 || d->efc_type[adr] != mjCNSTR_CONTACT_ELLIPTIC) continue;
+    if (con->geom[0] < 0 || con->geom[1] < 0) continue;   // flex contact: no body-pair anchor
     int bA = m->geom_bodyid[con->geom[0]], bB = m->geom_bodyid[con->geom[1]];
+    if (bA == bB) continue;                               // self-contact: degenerate anchor
     if (bA > bB) { int t = bA; bA = bB; bB = t; }
     int pi = pa_find(d, nbody, bA, bB);
     if (pi < 0) {                                   // new pair: anchor at current poses
