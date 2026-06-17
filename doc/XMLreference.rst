@@ -711,6 +711,22 @@ from its default.
    constraint quality, particularly in models with highly anisotropic body inertias or bodies operating far from the
    initial configuration ``qpos0``.
 
+.. _option-flag-stiction:
+
+:at:`stiction`: :at-val:`[disable, enable], "disable"`
+   This flag enables static friction (stiction) for :ref:`elliptic<option-cone>` frictional contacts. MuJoCo's
+   soft-constraint friction has no tangential position residual, so a frictional contact behaves as a damper rather than
+   a spring: it produces no force at zero sliding velocity and therefore creeps under a static sub-limit tangential load
+   (for example a box resting on an incline below the slip angle, or an object held in a pinch grasp). When this flag is
+   enabled, MuJoCo stores one relative-pose anchor per contacting body pair and feeds the tangential displacement from
+   that anchor back as a spring in the friction reference, eliminating the steady-state creep. The anchor is reset when
+   the pair's aggregate friction force reaches the friction cone (the contact slides, giving kinetic friction) or when a
+   body rotates relative to the anchor (rolling), so the flag does not brake sliding or rolling motion. The spring is
+   applied only to the two translational friction directions of elliptic contacts; frictionless, pyramidal, flex and
+   self contacts are unaffected. The anchor state lives in ``mjData.fricanchor`` and is not part of the serialized state
+   (see :ref:`mj_getState`); it is reconstructed from contacts after a state restore. This feature is off by default and
+   the default code path is unchanged.
+
 .. _compiler:
 
 **compiler** |*|

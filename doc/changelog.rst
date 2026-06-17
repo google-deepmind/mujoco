@@ -7,6 +7,12 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+- Added the :ref:`stiction<option-flag-stiction>` flag, which enables static friction for elliptic frictional
+  contacts. Soft-constraint friction is a damper with no tangential position residual, so contacts creep under a static
+  sub-limit load (a box on an incline below the slip angle, an object in a pinch grasp). When enabled, MuJoCo stores one
+  relative-pose anchor per contacting body pair (in the new ``mjData.fricanchor`` field) and feeds the tangential
+  displacement back as a spring, eliminating the steady-state creep without braking sliding or rolling. Off by default;
+  the default code path is unchanged.
 - Added :ref:`mju_threadpool`, a new function for creating a thread pool on an ``mjData`` instance. When a thread pool
   is initialized, parts of the simulation pipeline, such as collision detection and constraint solving across islands,
   are parallelized. The thread pool is automatically destroyed when the ``mjData`` is freed.
