@@ -1,0 +1,33 @@
+<mujoco model="stiction_ramp">
+  <!-- DEMO: block on a 30deg ramp (tan30=0.58 < mu=1, so it SHOULD stay).
+       Toggle the "Stiction" checkbox in simulate's Option panel:
+         ON  -> block holds (real static friction).
+         OFF -> block creeps down the grid (the soft-friction slip we fixed).
+       impratio=0.2 softens friction to make the slip visible in seconds (it does NOT
+       affect the normal contact, so the block doesn't sink). Backspace to reset.        -->
+  <option timestep="0.002" cone="elliptic" impratio="0.2">
+    <flag stiction="enable"/>
+  </option>
+  <statistic extent="0.6"/>
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6"/>
+    <global azimuth="120" elevation="-20"/>
+  </visual>
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.26 0.28 0.33" rgb2="0.42 0.45 0.52"
+             width="512" height="512"/>
+    <material name="grid" texture="grid" texrepeat="80 60" reflectance="0.05"/>
+  </asset>
+  <worldbody>
+    <light pos="0 -0.6 2" dir="0 0.3 -1"/>
+    <geom name="ramp" type="plane" size="2 1.5 0.1" euler="0 30 0"
+          friction="1 0.005 0.0001" material="grid"/>
+    <!-- fixed yellow start-line on the ramp surface, at the block's uphill edge -->
+    <geom name="startline" type="box" size="0.004 0.25 0.012" pos="-0.555 0 0.333" euler="0 30 0"
+          rgba="0.95 0.85 0.2 1" contype="0" conaffinity="0"/>
+    <body name="block" pos="-0.45 0 0.36" euler="0 30 0">
+      <freejoint/>
+      <geom type="box" size="0.09 0.09 0.09" mass="1" friction="1 0.005 0.0001" rgba="0.85 0.33 0.22 1"/>
+    </body>
+  </worldbody>
+</mujoco>
