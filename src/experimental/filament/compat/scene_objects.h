@@ -30,7 +30,7 @@ class SceneObjects {
   explicit SceneObjects(mjrfContext* ctx);
 
   // Creates a skin or flex mesh from the given geom in the mjvScene.
-  void CreateSkinFlexMesh(const mjvScene* scene, const mjModel* model,
+  bool CreateSkinFlexMesh(const mjvScene* scene, const mjModel* model,
                           const mjvGeom& geom);
 
   // Returns the mesh for the given geom id, as created by CreateSkinFlexMesh.
