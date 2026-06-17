@@ -5708,6 +5708,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nv',),
              ),
              StructFieldDecl(
+                 name='fricanchor',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='stiction body-pair anchors (mjENBL_STICTION)',
+                 array_extent=('nbody', 28),
+             ),
+             StructFieldDecl(
                  name='plugin_state',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
