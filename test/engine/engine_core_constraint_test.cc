@@ -1190,5 +1190,251 @@ TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
   mj_deleteModel(model);
 }
 
+// -------------------------- stiction (mjENBL_STICTION) ---------------------------
+
+using StictionTest = MujocoTest;
+
+// box (free joint) on an elliptic-cone plane, mu = 1.
+static constexpr char kStictionBox[] = R"(
+<mujoco>
+  <option timestep="0.002" cone="elliptic"/>
+  <worldbody>
+    <geom name="floor" type="plane" size="2 2 .1" friction="1 .005 .0001"/>
+    <body name="box" pos="0 0 .1">
+      <freejoint/>
+      <geom type="box" size=".1 .1 .1" mass="1" friction="1 .005 .0001"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+// step with a constant horizontal load at the box COM, return mean speed over the tail.
+static mjtNum SteadySpeed(mjModel* m, mjtNum fx) {
+  mjData* d = mj_makeData(m);
+  for (int i=0; i < 500; i++) mj_step(m, d);
+  int box = mj_name2id(m, mjOBJ_BODY, "box");
+  mju_zero(d->qvel, m->nv);
+  mjtNum sum = 0; int n = 0;
+  for (int i=0; i < 4000; i++) {
+    d->xfrc_applied[6*box] = fx;
+    mj_step(m, d);
+    if (i > 2800) { sum += mju_abs(d->qvel[0]); n++; }
+  }
+  mj_deleteData(d);
+  return sum / n;
+}
+
+// the flag parses from <flag stiction> and round-trips through the writer.
+TEST_F(StictionTest, FlagParsesAndWrites) {
+  static constexpr char xml[] = R"(
+  <mujoco><option><flag stiction="enable"/></option>
+    <worldbody><geom type="plane" size="1 1 1"/></worldbody>
+  </mujoco>)";
+  char error[1024];
+  // reader: the enable bit is set on the compiled model.
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  EXPECT_TRUE(m->opt.enableflags & mjENBL_STICTION);
+  mj_deleteModel(m);
+
+  // writer: the flag is emitted by mj_saveXMLString (the spec must be compiled first).
+  mjSpec* s = mj_parseXMLString(xml, nullptr, error, sizeof(error));
+  ASSERT_THAT(s, NotNull()) << error;
+  mjModel* compiled = mj_compile(s, nullptr);
+  ASSERT_THAT(compiled, NotNull()) << mjs_getError(s);
+  std::array<char, 8192> buf;
+  ASSERT_GT(mj_saveXMLString(s, buf.data(), buf.size(), error, sizeof(error)), -1) << error;
+  EXPECT_THAT(std::string(buf.data()), testing::HasSubstr("stiction"));
+  mj_deleteModel(compiled);
+  mj_deleteSpec(s);
+}
+
+// a sub-limit static load makes the soft-friction box creep; stiction holds it.
+TEST_F(StictionTest, HoldsUnderStaticLoad) {
+  char error[1024];
+  mjModel* m = LoadModelFromString(kStictionBox, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  m->opt.solver = mjSOL_NEWTON;
+  m->opt.iterations = 200;
+  m->opt.tolerance = 1e-12;
+  mjtNum load = 0.5 * 9.81;  // 50% of the friction limit (mu*m*g)
+
+  m->opt.enableflags &= ~mjENBL_STICTION;
+  mjtNum v_off = SteadySpeed(m, load);
+  m->opt.enableflags |= mjENBL_STICTION;
+  mjtNum v_on = SteadySpeed(m, load);
+
+  EXPECT_GT(v_off, 1e-4) << "baseline soft friction should creep";
+  EXPECT_LT(v_on, 1e-9) << "stiction should hold the box";
+  mj_deleteModel(m);
+}
+
+// stiction must not brake a sphere that is rolling without slipping.
+TEST_F(StictionTest, RollingNotBraked) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" cone="elliptic"/>
+    <worldbody>
+      <geom type="plane" size="5 5 .1" friction="1 .005 .0001"/>
+      <body name="ball" pos="0 0 .1">
+        <freejoint/>
+        <geom type="sphere" size=".1" mass="1" friction="1 .005 .0001"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  m->opt.solver = mjSOL_NEWTON;
+  m->opt.enableflags |= mjENBL_STICTION;
+  mjData* d = mj_makeData(m);
+  for (int i=0; i < 200; i++) mj_step(m, d);
+  d->qvel[0] = 1.0;     // vx
+  d->qvel[4] = -10.0;   // wy = -vx/r (r = 0.1): rolling without slipping
+  for (int i=0; i < 2000; i++) mj_step(m, d);
+  EXPECT_GT(d->qvel[0], 0.4) << "rolling sphere should keep most of its speed";
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// a box given an initial slide under a sub-limit load decelerates and re-sticks.
+TEST_F(StictionTest, ReSticksAfterSlide) {
+  char error[1024];
+  mjModel* m = LoadModelFromString(kStictionBox, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  m->opt.solver = mjSOL_NEWTON;
+  m->opt.iterations = 200;
+  m->opt.tolerance = 1e-12;
+  m->opt.enableflags |= mjENBL_STICTION;
+  mjData* d = mj_makeData(m);
+  for (int i=0; i < 500; i++) mj_step(m, d);
+  int box = mj_name2id(m, mjOBJ_BODY, "box");
+  mju_zero(d->qvel, m->nv);
+  d->qvel[0] = 0.3;     // initial slide
+  for (int i=0; i < 4000; i++) {
+    d->xfrc_applied[6*box] = 0.5 * 9.81;
+    mj_step(m, d);
+  }
+  EXPECT_LT(mju_abs(d->qvel[0]), 1e-6) << "box should re-stick after sliding";
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// stiction keeps forward and inverse dynamics consistent: the anchor mutation runs
+// once per step in mj_step, and mj_referenceConstraint only reads it.
+TEST_F(StictionTest, ForwardInverseConsistent) {
+  char error[1024];
+  mjModel* m = LoadModelFromString(kStictionBox, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  m->opt.solver = mjSOL_NEWTON;
+  m->opt.iterations = 200;
+  m->opt.tolerance = 1e-12;
+  m->opt.enableflags |= mjENBL_STICTION | mjENBL_FWDINV;
+  mjData* d = mj_makeData(m);
+  int box = mj_name2id(m, mjOBJ_BODY, "box");
+  mjtNum worst = 0;
+  for (int i=0; i < 2000; i++) {
+    d->xfrc_applied[6*box] = 0.5 * 9.81;
+    mj_step(m, d);
+    worst = mju_max(worst, mju_max(d->solver_fwdinv[0], d->solver_fwdinv[1]));
+  }
+  EXPECT_LT(worst, 1e-6) << "stiction must not break the fwd/inv comparison";
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// two identical runs produce bit-identical state.
+TEST_F(StictionTest, Deterministic) {
+  char error[1024];
+  mjModel* m = LoadModelFromString(kStictionBox, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  m->opt.enableflags |= mjENBL_STICTION;
+  std::vector<mjtNum> q1(m->nq), q2(m->nq);
+  for (int r=0; r < 2; r++) {
+    mjData* d = mj_makeData(m);
+    int box = mj_name2id(m, mjOBJ_BODY, "box");
+    for (int i=0; i < 1500; i++) {
+      d->xfrc_applied[6*box] = 0.5 * 9.81;
+      mj_step(m, d);
+    }
+    std::memcpy((r ? q2 : q1).data(), d->qpos, m->nq*sizeof(mjtNum));
+    mj_deleteData(d);
+  }
+  EXPECT_EQ(q1, q2);
+  mj_deleteModel(m);
+}
+
+// mj_resetData clears the anchor buffer (free via the X-macro).
+TEST_F(StictionTest, ResetClearsAnchors) {
+  char error[1024];
+  mjModel* m = LoadModelFromString(kStictionBox, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  m->opt.enableflags |= mjENBL_STICTION;
+  mjData* d = mj_makeData(m);
+  for (int i=0; i < 200; i++) mj_step(m, d);
+  // a contacting pair must have populated an anchor.
+  mjtNum sum = 0;
+  for (int i=0; i < 28*m->nbody; i++) sum += mju_abs(d->fricanchor[i]);
+  EXPECT_GT(sum, 0) << "a contacting pair should have populated an anchor";
+  mj_resetData(m, d);
+  for (int i=0; i < 28*m->nbody; i++) EXPECT_EQ(d->fricanchor[i], 0);
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// stiction is a no-op for pyramidal cones (only elliptic rows get the spring).
+TEST_F(StictionTest, PyramidalIsNoOp) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" cone="pyramidal"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="2 2 .1" friction="1 .005 .0001"/>
+      <body name="box" pos="0 0 .1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1" mass="1" friction="1 .005 .0001"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjtNum load = 0.5 * 9.81;
+  m->opt.enableflags &= ~mjENBL_STICTION;
+  mjtNum v_off = SteadySpeed(m, load);
+  m->opt.enableflags |= mjENBL_STICTION;
+  mjtNum v_on = SteadySpeed(m, load);
+  EXPECT_EQ(v_off, v_on) << "pyramidal cone must be unaffected by stiction";
+  mj_deleteModel(m);
+}
+
+// flex contacts (geom == -1) must not be dereferenced as geoms; the sim stays finite.
+TEST_F(StictionTest, FlexContactsSafe) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" cone="elliptic"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1" friction="1 .005 .0001"/>
+      <flexcomp name="soft" type="grid" count="4 4 1" spacing=".05 .05 .05" pos="0 0 .3"
+                radius=".01" dim="2" mass="1">
+        <contact selfcollide="none" internal="false"/>
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>)";
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  m->opt.enableflags |= mjENBL_STICTION;
+  mjData* d = mj_makeData(m);
+  for (int i=0; i < 1000; i++) {
+    mj_step(m, d);
+    for (int k=0; k < m->nq; k++) {
+      ASSERT_FALSE(mju_isBad(d->qpos[k])) << "flex contact corrupted the state";
+    }
+  }
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco
