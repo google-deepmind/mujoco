@@ -1394,7 +1394,7 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
     }
     if (upper - lower < tolerance) {
       // terminate without contact when upper < lower on first iteration
-      if (k == 0 && upper < lower) {
+      if (k == 0 && upper < lower - 1e-10) {
         face = NULL;
       }
       break;

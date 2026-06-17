@@ -1954,6 +1954,51 @@ TEST_F(MjGjkTest, BoxBox) {
   EXPECT_EQ(dist, 1);
 }
 
+TEST_F(MjGjkTest, BoxBoxLarge) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" pos="0 0 0.25" size="50 50 0.25"/>
+      <geom name="geom2" type="box" pos="0 0 0.60" size="0.1 0.1 0.1"/>
+    </worldbody>
+  </mujoco>)";
+
+  TestModel model = LoadModel(xml);
+  TestData data = MakeData(model.get());
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjtNum* xmat = data->geom_xmat;
+  mjtNum* xpos = data->geom_xpos;
+
+  xpos = data->geom_xpos + 3;
+  xmat = data->geom_xmat + 9;
+
+  xpos[0] = -0.000000000043537;
+  xpos[1] = -0.000000000012973;
+  xpos[2] = 0.599245786666870;
+
+  xmat[0] = 1.000000000000000;
+  xmat[1] = -0.000000000004566;
+  xmat[2] = -0.000000000167641;
+  xmat[3] = 0.000000000004566;
+  xmat[4] = 1.000000000000000;
+  xmat[5] = -0.000000000017877;
+  xmat[6] = 0.000000000167641;
+  xmat[7] = 0.000000000017877;
+  xmat[8] = 1.000000000000000;
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncon = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
+
+  EXPECT_NEAR(dist, -0.000754, kTolerance);
+  EXPECT_EQ(ncon, 4);
+}
+
 TEST_F(MjGjkTest, LongBox) {
 static constexpr char xml[] = R"(
   <mujoco>
