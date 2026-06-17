@@ -3285,9 +3285,12 @@ void mj_stictionUpdate(const mjModel* m, mjData* d) {
     mjtNum cA = 0.5*(mju_dot(d->xmat+9*bA, s+mjPA_MATA, 9) - 1);
     mjtNum cB = 0.5*(mju_dot(d->xmat+9*bB, s+mjPA_MATB, 9) - 1);
     int rotated = (cA < mjPA_COSRESET || cB < mjPA_COSRESET);
-    // pair slid when aggregate |f_t| reached the friction cone (per-contact state is unreliable
-    // under load redistribution, so use the body-level signal)
-    s[mjPA_SLID] = (mju_norm3(tft+3*i) >= mjPA_SLIPFRAC * tmu[i] * tfn[i]);
+    // pair slid when the aggregate friction reached the cone: |sum f_t| vs the total cone capacity
+    // mu*sum(f_n) (the sum of per-contact cone radii). per-contact efc_state is unreliable here
+    // (a lightly loaded contact saturates while the body is still held), so use this body-level
+    // signal. exact when the pair's contacts are coplanar (a body on another body's surface); the
+    // tangential sum is approximate for non-parallel normals.
+    s[mjPA_SLID] = (tfn[i] > 0 && mju_norm3(tft+3*i) >= mjPA_SLIPFRAC * tmu[i] * tfn[i]);
     if (s[mjPA_SLID] || rotated) {
       pa_setanchor(d, s, bA, bB);
     }
