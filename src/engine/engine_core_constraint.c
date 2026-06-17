@@ -3127,6 +3127,56 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 }
 
 
+//-------------------- Stiction: body-pair relative-pose anchor (mjENBL_STICTION) ------------------
+// one relative-pose anchor per contacting body pair, keyed by the integer pair (bodyA, bodyB). a
+// contact's tangential residual r is computed from the anchor and fed as a spring into the friction
+// reference. state in d->fricanchor (nbody slots of 28 mjtNum), persistent across steps.
+
+#define mjPA_STRIDE 28          // mjtNum per slot
+#define mjPA_BA   0             // body A id (as mjtNum)
+#define mjPA_BB   1             // body B id (as mjtNum)
+#define mjPA_VAL  2             // slot valid (0/1)
+#define mjPA_SLID 3             // pair slid last step (0/1)
+#define mjPA_POSA 4             // [4..6]   body A pos at anchor
+#define mjPA_MATA 7             // [7..15]  body A mat at anchor
+#define mjPA_POSB 16            // [16..18] body B pos at anchor
+#define mjPA_MATB 19            // [19..27] body B mat at anchor
+#define mjPA_COSRESET 0.99999   // re-anchor if a body rotated past acos(0.99999) ~= 0.26 deg
+#define mjPA_SLIPFRAC 0.98      // pair has slid when aggregate |f_t| >= this * mu * sum(f_n)
+
+// find the slot holding (bA,bB), or -1
+static int pa_find(const mjData* d, int nbody, int bA, int bB) {
+  for (int i=0; i < nbody; i++) {
+    const mjtNum* s = d->fricanchor + mjPA_STRIDE*i;
+    if (s[mjPA_VAL] && (int)s[mjPA_BA] == bA && (int)s[mjPA_BB] == bB) return i;
+  }
+  return -1;
+}
+
+// find an empty slot, or -1 if the table is full
+static int pa_empty(const mjData* d, int nbody) {
+  for (int i=0; i < nbody; i++) if (!d->fricanchor[mjPA_STRIDE*i + mjPA_VAL]) return i;
+  return -1;
+}
+
+// write the current pose of bodies (bA,bB) into slot s as the new anchor
+static void pa_setanchor(const mjData* d, mjtNum* s, int bA, int bB) {
+  mju_copy3(s+mjPA_POSA, d->xpos+3*bA); mju_copy(s+mjPA_MATA, d->xmat+9*bA, 9);
+  mju_copy3(s+mjPA_POSB, d->xpos+3*bB); mju_copy(s+mjPA_MATB, d->xmat+9*bB, 9);
+}
+
+// current world position of the material point that sat at world p in body pose (pos0, mat0)
+static void pa_world(mjtNum res[3], const mjtNum p[3],
+                     const mjtNum pos0[3], const mjtNum mat0[9],
+                     const mjtNum pos[3], const mjtNum mat[9]) {
+  mjtNum tmp[3], loc[3];
+  mju_sub3(tmp, p, pos0);
+  mju_mulMatTVec3(loc, mat0, tmp);  // loc = mat0^T (p - pos0): material point in the anchor frame
+  mju_mulMatVec3(res, mat, loc);    // res = mat * loc
+  mju_addTo3(res, pos);             // res += pos
+}
+
+
 // compute efc_vel, efc_aref
 void mj_referenceConstraint(const mjModel* m, mjData* d) {
   int nefc = d->nefc;
@@ -3141,10 +3191,95 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
                      -KBIP[4*i]*KBIP[4*i+2]*(d->efc_pos[i]-d->efc_margin[i]);
   }
 
+  // stiction: friction position residual from the per-body-pair anchor
+  if (mjENABLED(mjENBL_STICTION)) {
+    int nbody = m->nbody;
+    mj_markStack(d);
+    int* seen = mjSTACKALLOC(d, nbody, int);
+    mju_zeroInt(seen, nbody);
+    for (int c=0; c < d->ncon; c++) {
+      mjContact* con = d->contact + c;
+      int adr = con->efc_address;
+      if (adr < 0 || d->efc_type[adr] != mjCNSTR_CONTACT_ELLIPTIC) continue;
+      int bA = m->geom_bodyid[con->geom[0]];
+      int bB = m->geom_bodyid[con->geom[1]];
+      if (bA > bB) { int t = bA; bA = bB; bB = t; }         // canonical order
+      int pi = pa_find(d, nbody, bA, bB);
+      if (pi < 0) {                                          // new pair: anchor at current poses
+        pi = pa_empty(d, nbody);
+        if (pi < 0) continue;                               // table full -> no memory for this pair
+        mjtNum* s = d->fricanchor + mjPA_STRIDE*pi;
+        s[mjPA_BA] = bA; s[mjPA_BB] = bB; s[mjPA_VAL] = 1; s[mjPA_SLID] = 0;
+        pa_setanchor(d, s, bA, bB);
+      }
+      seen[pi] = 1;
+      mjtNum* s = d->fricanchor + mjPA_STRIDE*pi;
+      // tangential slip at this contact = world(material_A) - world(material_B)
+      mjtNum wA[3], wB[3], slip[3];
+      pa_world(wA, con->pos, s+mjPA_POSA, s+mjPA_MATA, d->xpos+3*bA, d->xmat+9*bA);
+      pa_world(wB, con->pos, s+mjPA_POSB, s+mjPA_MATB, d->xpos+3*bB, d->xmat+9*bB);
+      mju_sub3(slip, wA, wB);
+      // re-anchor if the contact swept to new material: a body rotated (rolling), or the pair slid
+      // last step (force reached the cone). then the spring is off and the damper gives kinetic friction
+      mjtNum cA = 0.5*(mju_dot(d->xmat+9*bA, s+mjPA_MATA, 9) - 1);
+      mjtNum cB = 0.5*(mju_dot(d->xmat+9*bB, s+mjPA_MATB, 9) - 1);
+      if (cA < mjPA_COSRESET || cB < mjPA_COSRESET || s[mjPA_SLID]) {
+        pa_setanchor(d, s, bA, bB);
+        s[mjPA_SLID] = 0;
+        continue;
+      }
+      // add spring K*I*r to the translational friction rows, reusing the normal-row stiffness
+      mjtNum KI = d->efc_KBIP[4*adr] * d->efc_KBIP[4*adr+2];
+      for (int j=1; j < con->dim && j < 3; j++) {
+        mjtNum r = mju_dot3(slip, con->frame + 3*j);         // frame rows: 0=normal, 1=t1, 2=t2
+        d->efc_aref[adr+j] += KI * r;
+      }
+    }
+    // evict pairs with no contact this step
+    for (int i=0; i < nbody; i++) {
+      if (d->fricanchor[mjPA_STRIDE*i + mjPA_VAL] && !seen[i]) d->fricanchor[mjPA_STRIDE*i + mjPA_VAL] = 0;
+    }
+    mj_freeStack(d);
+  }
+
   // subtract Jdot*v correction for connect/weld equality constraints
   if (d->ne > 0) {
     mj_Jdotv(m, d, d->efc_aref);
   }
+}
+
+
+// post-solve: flag pairs whose aggregate friction reached the cone (they slid), for re-anchoring
+// next step. per-contact state is unreliable under load redistribution, so use the body-level
+// signal: total |f_t| vs mu*sum(f_n).
+void mj_pairAnchorUpdate(const mjModel* m, mjData* d) {
+  if (!mjENABLED(mjENBL_STICTION)) return;
+  int nbody = m->nbody;
+  mj_markStack(d);
+  mjtNum* tft = mjSTACKALLOC(d, 3*nbody, mjtNum);   // aggregate tangential force per slot
+  mjtNum* tfn = mjSTACKALLOC(d, nbody, mjtNum);     // aggregate normal force per slot
+  mjtNum* tmu = mjSTACKALLOC(d, nbody, mjtNum);     // cone mu per slot
+  mju_zero(tft, 3*nbody); mju_zero(tfn, nbody); mju_zero(tmu, nbody);
+  for (int c=0; c < d->ncon; c++) {
+    mjContact* con = d->contact + c;
+    int adr = con->efc_address;
+    if (adr < 0 || d->efc_type[adr] != mjCNSTR_CONTACT_ELLIPTIC) continue;
+    int bA = m->geom_bodyid[con->geom[0]], bB = m->geom_bodyid[con->geom[1]];
+    if (bA > bB) { int t = bA; bA = bB; bB = t; }
+    int pi = pa_find(d, nbody, bA, bB);
+    if (pi < 0) continue;
+    mjtNum f1 = d->efc_force[adr+1], f2 = (con->dim > 2) ? d->efc_force[adr+2] : 0;
+    for (int k=0; k < 3; k++) tft[3*pi+k] += con->frame[3+k]*f1 + con->frame[6+k]*f2;
+    tfn[pi] += d->efc_force[adr];
+    tmu[pi] = con->mu;
+  }
+  for (int i=0; i < nbody; i++) {
+    if (d->fricanchor[mjPA_STRIDE*i + mjPA_VAL] &&
+        mju_norm3(tft+3*i) >= mjPA_SLIPFRAC * tmu[i] * tfn[i]) {
+      d->fricanchor[mjPA_STRIDE*i + mjPA_SLID] = 1;
+    }
+  }
+  mj_freeStack(d);
 }
 
 
