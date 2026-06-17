@@ -1389,6 +1389,8 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->xfrc_applied, 6*m->nbody);
   mju_zero(d->qacc, m->nv);  // input to inverse dynamics
   mju_zero(d->qacc_warmstart, m->nv);
+  mju_zero(d->fricanchor, 24*m->nbody);  // stiction body-pair anchor poses (mjENBL_STICTION)
+  mju_zeroInt(d->fricpair, 4*m->nbody);  // stiction body-pair key+state (mjENBL_STICTION)
   mju_zero(d->act_dot, m->na);
   mju_zero(d->userdata, m->nuserdata);
   mju_zero(d->mocap_pos, 3*m->nmocap);
