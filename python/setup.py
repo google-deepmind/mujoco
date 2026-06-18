@@ -41,10 +41,10 @@ EXT_PREFIX = 'mujoco.'
 def get_long_description():
   """Creates a long description for the package from bundled markdown files."""
   current_dir = os.path.dirname('__file__')
-  with open(os.path.join(current_dir, 'README.md')) as f:
+  with open(os.path.join(current_dir, 'README.md'), encoding='utf-8') as f:
     description = f.read()
   try:
-    with open(os.path.join(current_dir, 'LICENSES_THIRD_PARTY.md')) as f:
+    with open(os.path.join(current_dir, 'LICENSES_THIRD_PARTY.md'), encoding='utf-8') as f:
       description = f'{description}\n{f.read()}'
   except FileNotFoundError:
     pass
