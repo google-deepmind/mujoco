@@ -89,6 +89,7 @@ if(NOT TARGET mujoco)
           ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.3.10.0.dylib
       )
       target_compile_options(mujoco INTERFACE -F${MUJOCO_FRAMEWORK})
+      set(MUJOCO_INCLUDE "${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/Headers")
     endif()
   endif()
 
@@ -132,8 +133,12 @@ endif()
 
 # =================== MUJOCO PLATFORM STATIC LIBRARY ==========================
 if(NOT TARGET mujoco::platform)
+  set(MUJOCO_PLATFORM_HINTS ${MUJOCO_LIBRARY_DIR})
+  if(MUJOCO_FRAMEWORK)
+    list(APPEND MUJOCO_PLATFORM_HINTS "${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A")
+  endif()
   find_library(
-    MUJOCO_PLATFORM_LIBRARY mujoco_platform HINTS ${MUJOCO_LIBRARY_DIR}
+    MUJOCO_PLATFORM_LIBRARY mujoco_platform HINTS ${MUJOCO_PLATFORM_HINTS}
   )
   if(MUJOCO_PLATFORM_LIBRARY)
     message(STATUS "Found mujoco_platform library at ${MUJOCO_PLATFORM_LIBRARY}")
@@ -141,8 +146,9 @@ if(NOT TARGET mujoco::platform)
     set_target_properties(mujoco_platform PROPERTIES IMPORTED_LOCATION "${MUJOCO_PLATFORM_LIBRARY}")
     add_library(mujoco::platform ALIAS mujoco_platform)
 
+    set(PLATFORM_INCLUDES "${MUJOCO_INCLUDE}" "${MUJOCO_INCLUDE}/mujoco" "${MUJOCO_INCLUDE}/SDL2")
     set_target_properties(mujoco_platform PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${MUJOCO_INCLUDE};${MUJOCO_INCLUDE}/mujoco;${MUJOCO_INCLUDE}/SDL2"
+      INTERFACE_INCLUDE_DIRECTORIES "${PLATFORM_INCLUDES}"
     )
     target_compile_features(mujoco_platform INTERFACE cxx_std_20)
 
@@ -177,7 +183,7 @@ if(NOT TARGET mujoco::platform)
       zstd
       z
     )
-      find_library(DEP_PATH_${dep_lib} ${dep_lib} HINTS ${MUJOCO_LIBRARY_DIR})
+      find_library(DEP_PATH_${dep_lib} ${dep_lib} HINTS ${MUJOCO_PLATFORM_HINTS})
       if(DEP_PATH_${dep_lib})
         add_library(mujoco::dep::${dep_lib} STATIC IMPORTED GLOBAL)
         set_target_properties(mujoco::dep::${dep_lib} PROPERTIES
@@ -190,6 +196,22 @@ if(NOT TARGET mujoco::platform)
 
     if(UNIX AND NOT APPLE)
       list(APPEND PLATFORM_DEPS pthread dl rt)
+    endif()
+    if(APPLE)
+      list(APPEND PLATFORM_DEPS
+        "-framework Cocoa"
+        "-framework IOKit"
+        "-framework Carbon"
+        "-framework ForceFeedback"
+        "-framework CoreVideo"
+        "-framework CoreAudio"
+        "-framework AudioToolbox"
+        "-framework Metal"
+        "-framework GameController"
+        "-framework CoreHaptics"
+        "-framework AVFoundation"
+        "-framework QuartzCore"
+      )
     endif()
 
     set_target_properties(mujoco_platform PROPERTIES INTERFACE_LINK_LIBRARIES "${PLATFORM_DEPS}")
@@ -493,6 +515,10 @@ target_link_libraries(
           structs_header
           structs_wrappers
 )
+
+if(APPLE)
+  set_target_properties(_structs PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE)
+endif()
 
 if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/specs.cc.inc)
   add_custom_command(

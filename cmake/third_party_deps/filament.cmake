@@ -32,6 +32,11 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include cstring -include optional")
 endif()
 
+# Filament generates deprecated warnings on MacOS.
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-declarations")
+endif()
+
 set(FILAMENT_ENABLE_EXPERIMENTAL_GCC_SUPPORT ON)
 set(FILAMENT_SKIP_SDL2 ON)
 set(FILAMENT_USE_EXTERNAL_ABSL ON)

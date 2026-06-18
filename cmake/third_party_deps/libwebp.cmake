@@ -20,9 +20,21 @@ mark_as_advanced(MUJOCO_DEP_VERSION_libwebp)
 
 include(FindOrFetch)
 
+set(LIBWEBP_PATCH_COMMAND
+  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/libwebp-apple-float16.patch
+)
+
+set(BUILD_SHARED_LIBS_OLD ${BUILD_SHARED_LIBS})
+set(BUILD_SHARED_LIBS OFF)
+
 fetchpackage(
     PACKAGE_NAME  libwebp
     GIT_REPO      https://github.com/webmproject/libwebp.git
     GIT_TAG       ${MUJOCO_DEP_VERSION_libwebp}
     TARGETS       webp
+    PATCH_COMMAND ${LIBWEBP_PATCH_COMMAND}
 )
+
+set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_OLD})
+
+

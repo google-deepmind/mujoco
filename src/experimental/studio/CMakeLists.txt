@@ -54,24 +54,31 @@ function(configure_studio_target TARGET_NAME)
             mujoco::platform
     )
 
-    file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
+    get_target_property(IS_BUNDLE ${TARGET_NAME} MACOSX_BUNDLE)
+    if(IS_BUNDLE)
+        set(STUDIO_ASSETS_DIR $<TARGET_FILE_DIR:${TARGET_NAME}>/../Resources/assets)
+    else()
+        set(STUDIO_ASSETS_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
+    endif()
 
     add_custom_command(
         TARGET ${TARGET_NAME}
         POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
         COMMAND ${CMAKE_COMMAND}
             -E copy
                 ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/opensans-src/fonts/ttf/OpenSans-Regular.ttf
-                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+                ${STUDIO_ASSETS_DIR}
         COMMENT "Copying OpenSans-Regular.ttf assets to build directory"
     )
     add_custom_command(
         TARGET ${TARGET_NAME}
         POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
         COMMAND ${CMAKE_COMMAND}
             -E copy
                 ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/font_awesome-src/fonts/fontawesome-webfont.ttf
-                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+                ${STUDIO_ASSETS_DIR}
         COMMENT "Copying fontawesome-webfont.ttf to build directory"
     )
 
@@ -80,10 +87,11 @@ function(configure_studio_target TARGET_NAME)
         add_custom_command(
             TARGET ${TARGET_NAME}
             POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
             COMMAND ${CMAKE_COMMAND}
                 -E copy_directory
                     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/render/filament/assets
-                    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+                    ${STUDIO_ASSETS_DIR}
             COMMENT "Copying Filament assets to build directory"
         )
     endif()
@@ -92,6 +100,13 @@ endfunction()
 # Desktop Studio target.
 if(NOT EMSCRIPTEN)
     add_executable(mujoco_studio)
+    if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
+        set_target_properties(mujoco_studio PROPERTIES
+            MACOSX_BUNDLE TRUE
+            INSTALL_RPATH "@executable_path/../Frameworks;@executable_path/../../.."
+            BUILD_WITH_INSTALL_RPATH TRUE
+        )
+    endif()
     target_sources(mujoco_studio PRIVATE main.cc)
     configure_studio_target(mujoco_studio)
     install(
@@ -99,10 +114,13 @@ if(NOT EMSCRIPTEN)
       RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
       BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
     )
-    install(
-      DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets"
-      DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
-    )
+    get_target_property(IS_BUNDLE mujoco_studio MACOSX_BUNDLE)
+    if(NOT IS_BUNDLE)
+        install(
+          DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets"
+          DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
+        )
+    endif()
 endif()
 
 # WASM Live target.

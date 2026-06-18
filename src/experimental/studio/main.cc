@@ -42,6 +42,10 @@ std::string Resolve(std::string_view path) {
   if (exe_dir.empty()) {
     return std::string("assets/") + std::string(subpath);
   }
+  std::filesystem::path resources_dir = exe_dir.parent_path() / "Resources";
+  if (std::filesystem::exists(resources_dir / "assets")) {
+    return (resources_dir / "assets" / subpath).string();
+  }
   return (exe_dir / "assets" / subpath).string();
 }
 
