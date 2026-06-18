@@ -153,14 +153,13 @@ if(NOT TARGET mujoco::platform)
     target_compile_features(mujoco_platform INTERFACE cxx_std_20)
 
     set(PLATFORM_DEPS)
-    foreach(dep_lib IN ITEMS
+    set(dep_libs
       mujoco_filament
       dear_imgui
       dear_imgui_stdlib
       implot
       filament
       backend
-      SDL2
       glfw3
       image
       ktxreader
@@ -181,8 +180,38 @@ if(NOT TARGET mujoco::platform)
       basis_encoder
       basis_transcoder
       zstd
+      webp
+      sharpyuv
       z
     )
+
+   set(platform_system_libs)
+    if(WIN32)
+      list(APPEND dep_libs SDL2-static)
+      set(platform_system_libs winmm setupapi version imm32 opengl32)
+    else()
+      list(APPEND dep_libs SDL2)
+      if(UNIX AND NOT APPLE)
+        set(platform_system_libs pthread dl rt)
+      elseif(APPLE)
+        set(platform_system_libs
+          "-framework Cocoa"
+          "-framework IOKit"
+          "-framework Carbon"
+          "-framework ForceFeedback"
+          "-framework CoreVideo"
+          "-framework CoreAudio"
+          "-framework AudioToolbox"
+          "-framework Metal"
+          "-framework GameController"
+          "-framework CoreHaptics"
+          "-framework AVFoundation"
+          "-framework QuartzCore"
+        )
+      endif()
+    endif()
+
+    foreach(dep_lib IN LISTS dep_libs)
       find_library(DEP_PATH_${dep_lib} ${dep_lib} HINTS ${MUJOCO_PLATFORM_HINTS})
       if(DEP_PATH_${dep_lib})
         add_library(mujoco::dep::${dep_lib} STATIC IMPORTED GLOBAL)
@@ -194,25 +223,7 @@ if(NOT TARGET mujoco::platform)
       endif()
     endforeach()
 
-    if(UNIX AND NOT APPLE)
-      list(APPEND PLATFORM_DEPS pthread dl rt)
-    endif()
-    if(APPLE)
-      list(APPEND PLATFORM_DEPS
-        "-framework Cocoa"
-        "-framework IOKit"
-        "-framework Carbon"
-        "-framework ForceFeedback"
-        "-framework CoreVideo"
-        "-framework CoreAudio"
-        "-framework AudioToolbox"
-        "-framework Metal"
-        "-framework GameController"
-        "-framework CoreHaptics"
-        "-framework AVFoundation"
-        "-framework QuartzCore"
-      )
-    endif()
+    list(APPEND PLATFORM_DEPS ${platform_system_libs})
 
     set_target_properties(mujoco_platform PROPERTIES INTERFACE_LINK_LIBRARIES "${PLATFORM_DEPS}")
   endif()
