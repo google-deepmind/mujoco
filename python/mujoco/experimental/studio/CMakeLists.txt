@@ -68,3 +68,18 @@ target_include_directories(implot PRIVATE ../dear_imgui)
 set_target_properties(implot PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/../implot"
 )
+
+# Workaround for duplicate symbol error (wp_fractional_scale_manager_v1_interface)
+# when linking both GLFW (via Filament) and SDL2 statically on Linux.
+if(UNIX AND NOT APPLE)
+  set(STUDIO_PY_MODULES
+      parser
+      native_viewer_cc
+      renderer
+      ux
+      sim
+  )
+  foreach(target ${STUDIO_PY_MODULES})
+    target_link_options(${target} PRIVATE "-Wl,--allow-multiple-definition")
+  endforeach()
+endif()
