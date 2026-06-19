@@ -18,7 +18,7 @@
 namespace mujoco::plugin::passive {
 
 mjPLUGIN_LIB_INIT {
-    InducedMagnet::RegisterPlugin();
+    MagneticPlugin::RegisterPlugin();
 }
 
 }  // namespace mujoco::plugin::passive

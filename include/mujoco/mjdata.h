@@ -190,6 +190,9 @@ typedef struct mjSolverStat_ mjSolverStat;
 //---------------------------------- mjData --------------------------------------------------------
 
 struct mjData_ {
+  mjtNum B0_magnetic[3];
+  mjtNum dB_magnetic[3];
+
   // constant sizes
   mjtSize narena;            // size of the arena in bytes (inclusive of the stack)
   mjtSize nbuffer;           // size of main buffer in bytes
