@@ -498,7 +498,7 @@ diff --git a/filament/backend/CMakeLists.txt b/filament/backend/CMakeLists.txt
 @@ -525,3 +525,7 @@
  endif()
  
-+if (WIN32)
++if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 +    list(APPEND FILAMENT_WARNINGS -Wno-error=cast-function-type-mismatch -Wno-error=unused-variable -Wno-error=microsoft-unqualified-friend)
 +endif()
 +
