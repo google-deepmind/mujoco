@@ -439,7 +439,7 @@ void mjrf_setRenderableMesh(mjrfRenderable* renderable, const mjrfMesh* mesh, in
 // Sets the mesh of the renderable to a built-in mesh based on the geom type. Note: using the same
 // parameters (nstack, nslice, nquad) will have better performance as the internal mesh data can be
 // shared across renderables.
-void mjrf_setRenderableGeomMesh(mjrfRenderable* renderable, mjtGeom type, int nstack, int nslice,
+void mjrf_setRenderableGeomMesh(mjrfRenderable* renderable, int type, int nstack, int nslice,
                                 int nquad);
 
 // Sets the material properties and textures of the renderable.

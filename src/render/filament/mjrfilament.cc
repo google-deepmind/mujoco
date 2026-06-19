@@ -230,10 +230,10 @@ void mjrf_setRenderableMesh(mjrfRenderable* renderable, const mjrfMesh* mesh,
       ->SetMesh(mujoco::Mesh::downcast(mesh), elem_offset, elem_count);
 }
 
-void mjrf_setRenderableGeomMesh(mjrfRenderable* renderable, mjtGeom type,
+void mjrf_setRenderableGeomMesh(mjrfRenderable* renderable, int type,
                                 int nstack, int nslice, int nquad) {
   mujoco::Renderable::downcast(renderable)
-      ->SetGeomMesh(type, nstack, nslice, nquad);
+      ->SetGeomMesh(static_cast<mjtGeom>(type), nstack, nslice, nquad);
 }
 
 void mjrf_setRenderableMaterial(mjrfRenderable* renderable,
