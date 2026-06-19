@@ -109,6 +109,19 @@ if(NOT EMSCRIPTEN)
     endif()
     target_sources(mujoco_studio PRIVATE main.cc)
     configure_studio_target(mujoco_studio)
+    if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
+        include(TargetAddRpath)
+        target_add_rpath(
+          TARGETS
+          mujoco_studio
+          INSTALL_DIRECTORY
+          "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
+          LIB_DIRS
+          "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
+          DEPENDS
+          MUJOCO_ENABLE_RPATH
+        )
+    endif()
     install(
       TARGETS mujoco_studio
       RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT studio
