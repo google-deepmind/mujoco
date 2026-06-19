@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_RENDER_FILAMENT_MJRFILAMENT_H_
-#define MUJOCO_SRC_RENDER_FILAMENT_MJRFILAMENT_H_
+#ifndef MUJOCO_MJRFILAMENT_H_
+#define MUJOCO_MJRFILAMENT_H_
 
 #include <stdint.h>
 
@@ -184,12 +184,12 @@ void mjrf_getFrameStats(mjrfContext* ctx, mjrfFrameHandle frame, mjrfFrameStats*
 // filament's `cmgen` tool to generate a KTX image from your source image. This tool will calculate
 // additional data (i.e. the spherical harmonics) and encode that information into the KTX file.
 
-struct mjrfTextureConfig_ {  // parameters for creating a texture (mjrfTexture)
-  int width;                 // texture width; or number of bytes for compressed data (e.g. KTX)
-  int height;                // texture height; or 0 for compressed data (e.g. KTX)
-  int format;                // mjrPixelFormat; (e.g. RGB8, RGBA8, KTX, etc.)
-  int color_space;           // mjrColorSpace; (e.g. LINEAR, sRGB, etc.)
-  int sampler_type;          // mjrSamplerType; texture sampler (e.g. 2D, cube, etc.)
+struct mjrfTextureConfig_ {     // parameters for creating a texture (mjrfTexture)
+  int width;                    // texture width; or number of bytes for compressed data (e.g. KTX)
+  int height;                   // texture height; or 0 for compressed data (e.g. KTX)
+  int format;                   // mjrPixelFormat; (e.g. RGB8, RGBA8, KTX, etc.)
+  int color_space;              // mjrColorSpace; (e.g. LINEAR, sRGB, etc.)
+  int sampler_type;             // mjrSamplerType; texture sampler (e.g. 2D, cube, etc.)
 };
 typedef struct mjrfTextureConfig_ mjrfTextureConfig;
 
@@ -252,20 +252,20 @@ int mjrf_getSamplerType(const mjrfTexture* texture);
 // Maximum number of vertex attributes in a mesh.
 enum { mjMAX_VERTEX_ATTRIBUTES = 16 };
 
-struct mjrfMeshData_ {     // binary data for a mesh (mjrfMesh)
-  mjtSize num_vertices;    // number of vertices; all vertex attributes share this size
-  int num_attributes;      // number of attributes defined
+struct mjrfMeshData_ {      // binary data for a mesh (mjrfMesh)
+  mjtSize num_vertices;     // number of vertices; all vertex attributes share this size
+  int num_attributes;       // number of attributes defined
   mjrVertexAttribute attributes[mjMAX_VERTEX_ATTRIBUTES];  // per-vertex attribute information
-  mjtBool interleaved;     // true if vertex attributes are interleaved
-  mjtSize num_indices;     // number of indices
-  const void* indices;     // indices data array
-  int index_type;          // mjrIndexType; (e.g. UINT16 or UINT32)
-  int primitive_type;      // mjrMeshPrimitiveType; (e.g. TRIANGLES, etc.)
-  mjtBool compute_bounds;  // if true, compute bounds from vertex positions
-  float bounds_min[3];     // min/max bounds; assume unset if bounds_min == bounds_max
+  mjtBool interleaved;      // true if vertex attributes are interleaved
+  mjtSize num_indices;      // number of indices
+  const void* indices;      // indices data array
+  int index_type;           // mjrIndexType; (e.g. UINT16 or UINT32)
+  int primitive_type;       // mjrMeshPrimitiveType; (e.g. TRIANGLES, etc.)
+  mjtBool compute_bounds;   // if true, compute bounds from vertex positions
+  float bounds_min[3];      // min/max bounds; assume unset if bounds_min == bounds_max
   float bounds_max[3];
-  mjrfCallback release;    // callback when data has finished uploading
-  void* user_data;         // user data for release callback
+  mjrfCallback release;     // callback when data has finished uploading
+  void* user_data;          // user data for release callback
 };
 typedef struct mjrfMeshData_ mjrfMeshData;
 
@@ -283,7 +283,7 @@ void mjrf_destroyMesh(mjrfMesh* mesh);
 // A scene is a collection of entities (Lights and Renderables) that describes what is to be
 // rendered.
 
-struct mjrfSceneParams_ {  // parameters for creating a scene (mjrfScene)
+struct mjrfSceneParams_ {         // parameters for creating a scene (mjrfScene)
 };
 typedef struct mjrfSceneParams_ mjrfSceneParams;
 
@@ -385,22 +385,22 @@ int mjrf_getLightType(const mjrfLight* light);
 //
 // Which lighting model is used is determined by the mjrfMaterial properties.
 
-struct mjrfMaterial_ {      // material properties for a renderable (mjrfMaterial)
-  float color[4];           // object color; defaults to white
-  int32_t segmentation_id;  // ID for segmentation rendering; maps to RGB8 color (i.e. 24 bits)
-  int32_t island_id;        // ID to which the renderable belongs
-  int sleep_state;          // mjtSleepState; sleep state of the renderable
-  float uv_scale[3];        // scale applied to UV coordinates; defaults to (1,1,1)
-  float uv_offset[3];       // offset applied to UV coordinates; defaults to (0,0,0)
-  float scissor[4];         // if non-zero, applies scissor testing when rendering
-  float metallic;           // metallic factory [0, 1]; disabled if < 0
-  float roughness;          // roughness factor [0, 1]; disabled if < 0
-  float specular;           // specular factor [0, 1]; disabled if < 0
-  float glossiness;         // glossiness factor [0, 1]; disabled if < 0
-  float emissive;           // emissive/glow factor [0, 1]; disabled if < 0
-  float reflectance;        // blend factor for reflective surfaces [0, 1]; applies only to planes
-  mjtBool decor_ux;         // for ux elements, does not apply any lighting
-  mjtBool selected;         // for "selected" ux elements, adds additional styling
+struct mjrfMaterial_ {        // material properties for a renderable (mjrfMaterial)
+  float color[4];             // object color; defaults to white
+  int32_t segmentation_id;    // ID for segmentation rendering; maps to RGB8 color (i.e. 24 bits)
+  int32_t island_id;          // ID to which the renderable belongs
+  int sleep_state;            // mjtSleepState; sleep state of the renderable
+  float uv_scale[3];          // scale applied to UV coordinates; defaults to (1,1,1)
+  float uv_offset[3];         // offset applied to UV coordinates; defaults to (0,0,0)
+  float scissor[4];           // if non-zero, applies scissor testing when rendering
+  float metallic;             // metallic factory [0, 1]; disabled if < 0
+  float roughness;            // roughness factor [0, 1]; disabled if < 0
+  float specular;             // specular factor [0, 1]; disabled if < 0
+  float glossiness;           // glossiness factor [0, 1]; disabled if < 0
+  float emissive;             // emissive/glow factor [0, 1]; disabled if < 0
+  float reflectance;          // blend factor for reflective surfaces [0, 1]; applies only to planes
+  mjtBool decor_ux;           // for ux elements, does not apply any lighting
+  mjtBool selected;           // for "selected" ux elements, adds additional styling
   const mjrfTexture* color_texture;       // color/albedo texture (RGB8)
   const mjrfTexture* opacity_texture;     // opacity texture (A8)
   const mjrfTexture* normal_texture;      // normal map texture (RGB8)
@@ -491,4 +491,4 @@ void mjrf_DEBUG_drawImguiEditor(mjrfScene* scene);
 }  // extern "C"
 #endif
 
-#endif  // MUJOCO_SRC_RENDER_FILAMENT_MJRFILAMENT_H_
+#endif  // MUJOCO_MJRFILAMENT_H_

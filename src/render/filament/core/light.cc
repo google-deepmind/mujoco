@@ -24,9 +24,9 @@
 #include <math/vec3.h>
 #include <utils/Entity.h>
 #include <utils/EntityManager.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/core/texture.h"
-#include "render/filament/mjrfilament.h"
 #include "render/filament/support/filament_util.h"
 
 namespace mujoco {

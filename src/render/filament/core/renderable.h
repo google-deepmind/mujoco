@@ -27,11 +27,11 @@
 #include <math/mat4.h>
 #include <math/vec3.h>
 #include <utils/Entity.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/core/material_manager.h"
 #include "render/filament/core/mesh.h"
 #include "render/filament/core/reflection_manager.h"
-#include "render/filament/mjrfilament.h"
 
 namespace mujoco {
 

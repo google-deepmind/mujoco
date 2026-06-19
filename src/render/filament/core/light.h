@@ -19,8 +19,8 @@
 #include <filament/Scene.h>
 #include <math/vec3.h>
 #include <utils/Entity.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/mjrfilament.h"
 
 namespace mujoco {
 

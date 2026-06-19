@@ -31,8 +31,8 @@
 #include <math/TVecHelpers.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/mjrfilament.h"
 #include "render/filament/support/filament_util.h"
 
 namespace mujoco {

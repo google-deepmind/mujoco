@@ -24,9 +24,9 @@
 #include <filament/Renderer.h>
 #include <filament/SwapChain.h>
 #include <math/vec4.h>
+#include <mujoco/mjrfilament.h>
 #include "render/filament/core/material_manager.h"
 #include "render/filament/core/object_manager.h"
-#include "render/filament/mjrfilament.h"
 
 namespace mujoco {
 

@@ -38,6 +38,7 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <utils/EntityManager.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/core/color_grading_options.h"
 #include "render/filament/core/light.h"
@@ -48,7 +49,6 @@
 #include "render/filament/core/render_target.h"
 #include "render/filament/core/renderable.h"
 #include "render/filament/core/texture.h"
-#include "render/filament/mjrfilament.h"
 #include "render/filament/support/filament_util.h"
 
 namespace mujoco {

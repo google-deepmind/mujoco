@@ -19,7 +19,7 @@
 
 #include <backend/Platform.h>
 #include <filament/Engine.h>
-#include "render/filament/mjrfilament.h"
+#include <mujoco/mjrfilament.h>
 
 namespace mujoco {
 

@@ -20,7 +20,7 @@
 #include <vector>
 
 #include <imgui.h>
-#include "render/filament/mjrfilament.h"
+#include <mujoco/mjrfilament.h>
 #include "render/filament/mjrfilament_cpp.h"
 
 namespace mujoco {

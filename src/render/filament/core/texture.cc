@@ -23,8 +23,8 @@
 #include <filament/Texture.h>
 #include <image/Ktx1Bundle.h>
 #include <ktxreader/Ktx1Reader.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/mjrfilament.h"
 
 namespace mujoco {
 

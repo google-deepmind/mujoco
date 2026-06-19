@@ -18,7 +18,7 @@
 #include <filament/Engine.h>
 #include <filament/Texture.h>
 #include <math/vec3.h>
-#include "render/filament/mjrfilament.h"
+#include <mujoco/mjrfilament.h>
 
 // Functions for creating filament textures.
 namespace mujoco {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "render/filament/mjrfilament.h"
+#include <mujoco/mjrfilament.h>
 
 #include <array>
 #include <cstdint>

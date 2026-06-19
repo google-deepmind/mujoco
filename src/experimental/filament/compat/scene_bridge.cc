@@ -24,10 +24,10 @@
 #include <math/mathfwd.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/scene_geom_util.h"
 #include "experimental/filament/compat/scene_objects.h"
-#include "render/filament/mjrfilament.h"
 #include "render/filament/mjrfilament_cpp.h"
 #include "render/filament/support/filament_util.h"
 #include "render/filament/support/light_manager.h"

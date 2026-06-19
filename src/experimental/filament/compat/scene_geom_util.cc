@@ -19,10 +19,10 @@
 #include <cstring>
 #include <memory>
 
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/scene_objects.h"
-#include "render/filament/mjrfilament.h"
 #include "render/filament/mjrfilament_cpp.h"
 #include "render/filament/support/model_objects.h"
 

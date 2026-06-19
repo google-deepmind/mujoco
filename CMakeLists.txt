@@ -119,6 +119,7 @@ set(MUJOCO_HEADERS
     include/mujoco/mjmodel.h
     include/mujoco/mjplugin.h
     include/mujoco/mjrender.h
+    include/mujoco/mjrfilament.h
     include/mujoco/mjsan.h
     include/mujoco/mjspec.h
     include/mujoco/mjspecmacro.h

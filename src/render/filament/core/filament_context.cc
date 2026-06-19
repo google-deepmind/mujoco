@@ -36,13 +36,13 @@
 #include <math/vec4.h>
 #include <utils/FixedCapacityVector.h>
 #include <utils/compiler.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/core/filament_platform_factory.h"
 #include "render/filament/core/material_manager.h"
 #include "render/filament/core/object_manager.h"
 #include "render/filament/core/render_target.h"
 #include "render/filament/core/scene_view.h"
-#include "render/filament/mjrfilament.h"
 
 namespace mujoco {
 

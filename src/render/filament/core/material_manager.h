@@ -21,10 +21,10 @@
 
 #include <filament/Engine.h>
 #include <filament/MaterialInstance.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/core/mesh.h"
 #include "render/filament/core/object_manager.h"
-#include "render/filament/mjrfilament.h"
 
 namespace mujoco {
 

@@ -161,6 +161,8 @@ links below, to make this documentation self-contained.
    Defines the primitive types and structures needed by the abstract visualizer.
 `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`__
    Defines the primitive types and structures needed by the OpenGL renderer.
+`mjrfilament.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrfilament.h>`__
+   Defines the primitive types and structures needed by the filament renderer.
 `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`__
    Defines the primitive types and structures needed by the UI framework.
 `mjtype.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtype.h>`__

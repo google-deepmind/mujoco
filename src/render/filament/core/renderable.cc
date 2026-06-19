@@ -33,13 +33,13 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <utils/EntityManager.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_vis_visualize.h"
 #include "render/filament/core/builtins.h"
 #include "render/filament/core/material_manager.h"
 #include "render/filament/core/mesh.h"
 #include "render/filament/core/reflection_manager.h"
-#include "render/filament/mjrfilament.h"
 #include "render/filament/support/filament_util.h"
 
 namespace mujoco {

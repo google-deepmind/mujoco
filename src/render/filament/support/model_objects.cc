@@ -26,8 +26,8 @@
 #include <math/vec2.h>
 #include <math/vec3.h>
 #include <math/vec4.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/mjrfilament.h"
 #include "render/filament/mjrfilament_cpp.h"
 #include "render/filament/support/filament_util.h"
 

@@ -28,7 +28,7 @@
 #include <filament/RenderableManager.h>
 #include <filament/VertexBuffer.h>
 #include <math/vec4.h>
-#include "render/filament/mjrfilament.h"
+#include <mujoco/mjrfilament.h>
 
 namespace mujoco {
 

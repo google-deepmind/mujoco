@@ -32,9 +32,9 @@
 #include <math/mathfwd.h>
 #include <math/scalar.h>
 #include <math/vec3.h>
+#include <mujoco/mjrfilament.h>
 #include "render/filament/core/color_grading_options.h"
 #include "render/filament/core/scene_view.h"
-#include "render/filament/mjrfilament.h"
 
 namespace mujoco {
 

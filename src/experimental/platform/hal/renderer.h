@@ -21,11 +21,11 @@
 #include <ratio>
 #include <span>
 
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/scene_bridge.h"
 #include "experimental/platform/hal/graphics_mode.h"
 #include "experimental/platform/ux/imgui_bridge.h"
-#include "render/filament/mjrfilament.h"
 #include "render/filament/mjrfilament_cpp.h"
 
 namespace mujoco::platform {

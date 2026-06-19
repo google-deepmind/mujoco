@@ -17,8 +17,8 @@
 #include <memory>
 
 #include <filament/Engine.h>
+#include <mujoco/mjrfilament.h>
 #include "render/filament/core/render_target.h"
-#include "render/filament/mjrfilament.h"
 
 namespace mujoco {
 

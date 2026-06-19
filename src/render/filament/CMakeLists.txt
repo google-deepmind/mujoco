@@ -21,7 +21,6 @@ target_compile_definitions(${MUJOCO_FILAMENT_TARGET_NAME} PRIVATE MJ_STATIC)
 
 target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
     PUBLIC
-        mjrfilament.h
         mjrfilament.cc
         mjrfilament_cpp.h
         core/builtins.cc

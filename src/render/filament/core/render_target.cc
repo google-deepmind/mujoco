@@ -25,9 +25,9 @@
 #include <filament/RenderTarget.h>
 #include <filament/Renderer.h>
 #include <filament/Texture.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/core/texture.h"
-#include "render/filament/mjrfilament.h"
 
 namespace mujoco {
 

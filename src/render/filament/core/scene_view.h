@@ -24,6 +24,7 @@
 #include <filament/Engine.h>
 #include <filament/Scene.h>
 #include <filament/View.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/core/color_grading_options.h"
 #include "render/filament/core/light.h"
@@ -33,7 +34,6 @@
 #include "render/filament/core/reflection_manager.h"
 #include "render/filament/core/renderable.h"
 #include "render/filament/core/texture.h"
-#include "render/filament/mjrfilament.h"
 
 namespace mujoco {
 

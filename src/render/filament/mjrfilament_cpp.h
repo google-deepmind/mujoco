@@ -18,7 +18,7 @@
 #include <memory>
 #include <string>
 
-#include "render/filament/mjrfilament.h"
+#include <mujoco/mjrfilament.h>
 
 namespace mujoco {
 
