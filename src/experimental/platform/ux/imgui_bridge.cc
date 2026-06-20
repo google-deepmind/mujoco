@@ -203,7 +203,7 @@ void ImguiBridge::Update() {
       } else if (tex->Status == ImTextureStatus_WantUpdates) {
         UpdateTexture(tex);
       } else if (tex->Status == ImTextureStatus_WantDestroy &&
-                 tex->UnusedFrames > 0) {
+                 tex->UnusedFrames >= 3) {
         DestroyTexture(tex);
       }
     }
