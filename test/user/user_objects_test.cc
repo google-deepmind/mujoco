@@ -1038,6 +1038,93 @@ TEST_F(MjCGeomTest, ShellInertiaEllipsoid) {
   mj_deleteModel(m);
 }
 
+TEST_F(MjCGeomTest, ShellInertiaEllipsoidAsymmetric) {
+  if constexpr (sizeof(mjtNum) == sizeof(float)) {
+    GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which vanish in float32 precision";
+  }
+  // test ellipsoid with all-different semi-axes: a != b != c
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom type="ellipsoid" size="0.3 0.5 0.7" shellinertia="true"/>
+      </body>
+      <body>
+        <!-- mass is difference of body 4 and 3 masses -->
+        <geom type="ellipsoid" size="0.3 0.5 0.7" mass="3084.614015" shellinertia="true"/>
+      </body>
+      <body>
+        <geom type="ellipsoid" size="0.3 0.5 0.7" density="1e8"/>
+      </body>
+      <body>
+        <geom type="ellipsoid" size="0.30000001 0.50000001 0.70000001" density="1e8"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+
+  // semi-axes
+  mjtNum a = 0.3;
+  mjtNum b = 0.5;
+  mjtNum c = 0.7;
+
+  // surface area via Thomsen approximation (same formula used by MuJoCo)
+  double p = 1.6075;
+  double tmp = std::pow(a * b, p) + std::pow(b * c, p) + std::pow(c * a, p);
+  double area = 4 * mjPI * std::pow(tmp / 3, 1.0 / p);
+
+  // body 1: shell inertia (default density = 1000)
+  mjtNum mass1 = area * 1000;
+  EXPECT_NEAR(m->body_mass[1], mass1, kInertiaTol);
+
+  // shell inertia via eps-expansion (same algorithm as MuJoCo source)
+  double eps = 1e-6;
+  double Va = 4 * mjPI * a * b * c / 3;
+  double ae = a + eps, be = b + eps, ce = c + eps;
+  double Vb = 4 * mjPI * ae * be * ce / 3;
+  double density = mass1 / (Vb - Va);
+  double mass_a = Va * density;
+  double mass_b = Vb * density;
+  mjtNum I1x = mass_b * (be * be + ce * ce) / 5 - mass_a * (b * b + c * c) / 5;
+  mjtNum I1y = mass_b * (ae * ae + ce * ce) / 5 - mass_a * (a * a + c * c) / 5;
+  mjtNum I1z = mass_b * (ae * ae + be * be) / 5 - mass_a * (a * a + b * b) / 5;
+
+  // note: increased tolerance, due to ellipsoid approximation
+  EXPECT_NEAR(m->body_inertia[3], I1x, 10 * kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[4], I1y, 10 * kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[5], I1z, 10 * kInertiaTol);
+
+  // body 2: shell inertia, with specified mass
+  mjtNum mass2 = 3084.614015;
+  EXPECT_NEAR(m->body_mass[2], mass2, kInertiaTol);
+  EXPECT_FLOAT_EQ(m->body_mass[4] - m->body_mass[3], m->body_mass[2]);
+
+  double density2 = mass2 / (Vb - Va);
+  double mass2_a = Va * density2;
+  double mass2_b = Vb * density2;
+  mjtNum I2x = mass2_b * (be * be + ce * ce) / 5 - mass2_a * (b * b + c * c) / 5;
+  mjtNum I2y = mass2_b * (ae * ae + ce * ce) / 5 - mass2_a * (a * a + c * c) / 5;
+  mjtNum I2z = mass2_b * (ae * ae + be * be) / 5 - mass2_a * (a * a + b * b) / 5;
+  EXPECT_NEAR(m->body_inertia[6], I2x, 10 * kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[7], I2y, 10 * kInertiaTol);
+  EXPECT_NEAR(m->body_inertia[8], I2z, 10 * kInertiaTol);
+
+  // compute approximate shell inertia by subtracting inertias of massive bodies
+  // with small radius difference
+  mjtNum* inertia3 = m->body_inertia + 9;
+  mjtNum* inertia4 = m->body_inertia + 12;
+  mjtNum shell_inertia[3];
+  mju_sub3(shell_inertia, inertia4, inertia3);
+  EXPECT_NEAR(shell_inertia[0], m->body_inertia[6], 10 * kInertiaTol);
+  EXPECT_NEAR(shell_inertia[1], m->body_inertia[7], 10 * kInertiaTol);
+  EXPECT_NEAR(shell_inertia[2], m->body_inertia[8], 10 * kInertiaTol);
+
+  mj_deleteModel(m);
+}
+
 TEST_F(MjCGeomTest, ShellInertiaBox) {
   if constexpr (sizeof(mjtNum) == sizeof(float)) {
     GTEST_SKIP() << "ShellInertia tests use radii differences of ~1e-8, which vanish in float32 precision";
