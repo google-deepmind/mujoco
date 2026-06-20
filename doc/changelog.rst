@@ -66,6 +66,9 @@ General
 
 Bug fixes
 ^^^^^^^^^
+- Fixed a vulnerability in the System Identification toolbox where loading a trajectory or time series called
+  ``np.load`` with ``allow_pickle=True``, allowing arbitrary code execution from a malicious ``.npz`` file. Signal
+  metadata is now serialized as JSON and loaded with ``allow_pickle=False``.
 - Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
 - Fixed a bug where the mesh compiler would produce non-unit convex hull polygon normals.
 
