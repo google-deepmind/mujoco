@@ -937,7 +937,7 @@ void App::BuildGui() {
   if (tmp_.stats) {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
-    if (ImGui::Begin("Stats", &tmp_.stats)) {
+    if (ImGui::Begin("Info", &tmp_.stats)) {
       const float fps = renderer_->GetFps();
       platform::StatsGui(
           model(), data(),
@@ -1308,7 +1308,7 @@ void App::HelpGui() {
   ImGui::SetColumnWidth(3, col3);
 
   ImGui::Text("Help");
-  ImGui::Text("Stats");
+  ImGui::Text("Info");
   ImGui::Text("Profiler");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
@@ -1661,10 +1661,17 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
+      if (ImGui::MenuItem("Info", "F2", tmp_.stats)) {
+        ToggleWindow(tmp_.stats);
+      }
+      if (ImGui::MenuItem("Profiler", "F3", tmp_.profiler)) {
+        ToggleWindow(tmp_.profiler);
+      }
+      ImGui::Separator();
+
       if (ImGui::MenuItem("Picture-in-Picture")) {
         tmp_.picture_in_picture = !tmp_.picture_in_picture;
       }
-      ImGui::Separator();
 
 #ifdef __linux__
       if (ImGui::BeginMenu("Graphics Mode (Experimental)")) {
@@ -1723,12 +1730,6 @@ void App::MainMenuGui() {
       ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("Charts")) {
-      if (ImGui::MenuItem("Profiler", "F3")) {
-        ToggleWindow(tmp_.profiler);
-      }
-      ImGui::EndMenu();
-    }
     if (ImGui::BeginMenu("Plugins")) {
       // Placeholder menu item that will be populated by plugins later on. We
       // do this now in so that the menu is present at the right place.
@@ -1737,9 +1738,6 @@ void App::MainMenuGui() {
     if (ImGui::BeginMenu("Help")) {
       if (ImGui::MenuItem("Help", "F1", tmp_.help)) {
         ToggleWindow(tmp_.help);
-      }
-      if (ImGui::MenuItem("Stats", "F2", tmp_.stats)) {
-        ToggleWindow(tmp_.stats);
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Style Editor", "", tmp_.style_editor)) {
