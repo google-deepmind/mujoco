@@ -1071,7 +1071,7 @@ TEST_F(MjCGeomTest, ShellInertiaEllipsoidAsymmetric) {
   mjtNum b = 0.5;
   mjtNum c = 0.7;
 
-  // surface area via Thomsen approximation (same formula used by MuJoCo)
+  // surface area via Thomsen approximation 
   double p = 1.6075;
   double tmp = std::pow(a * b, p) + std::pow(b * c, p) + std::pow(c * a, p);
   double area = 4 * mjPI * std::pow(tmp / 3, 1.0 / p);
@@ -1080,7 +1080,7 @@ TEST_F(MjCGeomTest, ShellInertiaEllipsoidAsymmetric) {
   mjtNum mass1 = area * 1000;
   EXPECT_NEAR(m->body_mass[1], mass1, kInertiaTol);
 
-  // shell inertia via eps-expansion (same algorithm as MuJoCo source)
+  // shell inertia via eps-expansion 
   double eps = 1e-6;
   double Va = 4 * mjPI * a * b * c / 3;
   double ae = a + eps, be = b + eps, ce = c + eps;
