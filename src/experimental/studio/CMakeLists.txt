@@ -16,7 +16,7 @@ cmake_minimum_required(VERSION 3.16)
 
 include(third_party_deps/dear_imgui)
 include(third_party_deps/implot)
-include(third_party_deps/opensans)
+include(third_party_deps/atkinson_hyperlegible_next)
 include(third_party_deps/font_awesome)
 
 # Common configuration shared between mujoco_studio and mujoco_live.
@@ -67,9 +67,9 @@ function(configure_studio_target TARGET_NAME)
         COMMAND ${CMAKE_COMMAND} -E make_directory ${STUDIO_ASSETS_DIR}
         COMMAND ${CMAKE_COMMAND}
             -E copy
-                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/opensans-src/fonts/ttf/OpenSans-Regular.ttf
-                ${STUDIO_ASSETS_DIR}
-        COMMENT "Copying OpenSans-Regular.ttf assets to build directory"
+                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/atkinson_hyperlegible_next-src/fonts/variable/AtkinsonHyperlegibleNext[wght].ttf"
+                ${STUDIO_ASSETS_DIR}/AtkinsonHyperlegibleNext[wght].ttf
+        COMMENT "Copying AtkinsonHyperlegibleNext font to build directory"
     )
     add_custom_command(
         TARGET ${TARGET_NAME}

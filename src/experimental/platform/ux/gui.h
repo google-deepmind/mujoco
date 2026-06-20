@@ -40,6 +40,9 @@ enum class GuiTheme {
   kClassic,
 };
 
+// Render a section header with custom, visually-balanced smaller expand/collapse arrow.
+bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags = 0, float arrow_scale = 0.55f);
+
 // Updates the ImGui internal style state to match the requested theme.
 void SetupTheme(GuiTheme theme);
 

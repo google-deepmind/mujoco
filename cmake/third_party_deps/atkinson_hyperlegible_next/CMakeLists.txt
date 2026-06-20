@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited
+# Copyright 2026 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set(MUJOCO_DEP_VERSION_opensans
-    3d45774008254746e09bce4f8922b515a7b6a26b
-    CACHE STRING "Tag/version of `opensans` to be fetched."
-)
-mark_as_advanced(MUJOCO_DEP_VERSION_opensans)
-
-include(FindOrFetch)
-
-fetchpackage(
-    PACKAGE_NAME  opensans
-    GIT_REPO      https://github.com/googlefonts/opensans.git
-    GIT_TAG       ${MUJOCO_DEP_VERSION_opensans}
-    CUSTOM_CMAKE  "${CMAKE_SOURCE_DIR}/cmake/third_party_deps/opensans/CMakeLists.txt"
-)
+# Data-only package.

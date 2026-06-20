@@ -142,7 +142,7 @@ var Module = {
     const assetsToPrefetch = [
       "assets/fontawesome-webfont.ttf",
       "assets/ibl.ktx",
-      "assets/OpenSans-Regular.ttf",
+      "assets/AtkinsonHyperlegibleNext[wght].ttf",
       "assets/pbr.filamat",
       "assets/pbr_transparent.filamat",
       "assets/pbr_packed.filamat",
@@ -188,8 +188,7 @@ var Module = {
     Promise.all(assetPromises)
       .then(() => {
         try {
-          const prefersDark = !(window.matchMedia &&
-              window.matchMedia('(prefers-color-scheme: light)').matches);
+          const prefersDark = true;
           Module.init("MuJoCo Live", prefersDark);
 
           // Check for a ?model= URL parameter and load from URL.

@@ -110,7 +110,7 @@ class App {
     int watch_index = 0;
     int camera_idx = platform::kTumbleCameraIdx;
     int key_idx = 0;
-    platform::GuiTheme theme = platform::GuiTheme::kLight;
+    platform::GuiTheme theme = platform::GuiTheme::kDark;
     float font_scale = 1.0f;
     int window_width = 0;
     int window_height = 0;

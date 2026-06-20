@@ -33,6 +33,31 @@
 
 namespace mujoco::platform {
 
+// Helper to get available content region width that does not change/reflow
+// when the vertical scrollbar appears or disappears.
+// Walks up the parent window chain to find the scroll-owning ancestor (the
+// actual panel window, not a child window), and reserves scrollbar width
+// when that panel's scrollbar is not currently visible.
+inline float GetStableAvailWidth() {
+  ImGuiWindow* window = ImGui::GetCurrentWindow();
+  float avail_x = ImGui::GetContentRegionAvail().x;
+
+  // Walk up past child windows to the actual panel that owns the scrollbar.
+  ImGuiWindow* scroll_owner = window;
+  while (scroll_owner &&
+         (scroll_owner->Flags & ImGuiWindowFlags_ChildWindow) &&
+         scroll_owner->ParentWindow) {
+    scroll_owner = scroll_owner->ParentWindow;
+  }
+
+  if (scroll_owner &&
+      !(scroll_owner->Flags & ImGuiWindowFlags_NoScrollbar) &&
+      !scroll_owner->ScrollbarY) {
+    avail_x -= ImGui::GetStyle().ScrollbarSize;
+  }
+  return avail_x;
+}
+
 // FontAwesome icon codes.
 static constexpr const char ICON_FA_ADJUST[] = "\xEF\x81\x82";
 static constexpr const char ICON_FA_ARROWS[] = "\xEF\x81\x87";

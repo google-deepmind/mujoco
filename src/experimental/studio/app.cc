@@ -862,12 +862,8 @@ void App::BuildGui() {
   MainMenuGui();
 
   {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     if (ImGui::Begin("ToolBar")) {
-      ImGui::PopStyleVar();
       ToolBarGui();
-    } else {
-      ImGui::PopStyleVar();
     }
     ImGui::End();
   }
@@ -1029,14 +1025,14 @@ void App::ModelOptionsGui() {
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Physics", node_flags)) {
+  if (platform::SectionHeader("Physics", node_flags, 0.65f)) {
     platform::PhysicsGui(model(), min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("RenderingGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Rendering", node_flags)) {
+  if (platform::SectionHeader("Rendering", node_flags, 0.65f)) {
     platform::RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
                            min_width);
     ImGui::TreePop();
@@ -1044,14 +1040,14 @@ void App::ModelOptionsGui() {
   ImGui::EndChild();
 
   ImGui::BeginChild("GroupsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Visibility Groups", node_flags)) {
+  if (platform::SectionHeader("Visibility Groups", node_flags, 0.65f)) {
     platform::GroupsGui(model(), &vis_options_, min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("VisualizationGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Visualization", node_flags)) {
+  if (platform::SectionHeader("Visualization", node_flags, 0.65f)) {
     platform::VisualizationGui(model(), &vis_options_, &camera_, min_width);
     ImGui::TreePop();
   }
@@ -1071,14 +1067,14 @@ void App::DataInspectorGui() {
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   ImGui::BeginChild("JointsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Joints", node_flags)) {
+  if (platform::SectionHeader("Joints", node_flags, 0.65f)) {
     platform::JointsGui(model(), data(), &vis_options_);
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("ControlsGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Controls", node_flags)) {
+  if (platform::SectionHeader("Controls", node_flags, 0.65f)) {
 
     float noise_scale = 0;
     float noise_rate = 0;
@@ -1093,14 +1089,14 @@ void App::DataInspectorGui() {
   ImGui::EndChild();
 
   ImGui::BeginChild("SensorGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Sensor", node_flags)) {
+  if (platform::SectionHeader("Sensor", node_flags, 0.65f)) {
     platform::SensorGui(model(), data());
     ImGui::TreePop();
   }
   ImGui::EndChild();
 
   ImGui::BeginChild("WatchGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("Watch", node_flags)) {
+  if (platform::SectionHeader("Watch", node_flags, 0.65f)) {
     platform::WatchGui(model(), data(), ui_.watch_field,
                        sizeof(ui_.watch_field), ui_.watch_index);
     ImGui::TreePop();
@@ -1108,7 +1104,7 @@ void App::DataInspectorGui() {
   ImGui::EndChild();
 
   ImGui::BeginChild("StateGui", {0, 0}, child_flags);
-  if (ImGui::TreeNodeEx("State", node_flags)) {
+  if (platform::SectionHeader("State", node_flags, 0.65f)) {
     platform::StateGui(model(), data(), tmp_.state, tmp_.state_sig, min_width);
     ImGui::TreePop();
   }
@@ -1212,7 +1208,9 @@ void App::SpecEditorGui() {
       ImGui::EndDisabled();
 
       ImGui::TableNextColumn();
-      ImGui::PushStyleColor(ImGuiCol_Button, ImColor(40, 180, 40, 255).Value);
+      bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
+      ImColor compile_green = is_dark ? ImColor(40, 125, 60, 255) : ImColor(40, 180, 40, 255);
+      ImGui::PushStyleColor(ImGuiCol_Button, compile_green.Value);
       if (ImGui::Button("Compile and Reload", ImVec2(-1, 0))) {
         pending_op_ = [this]() {
           auto tmp_holder = spec_editor_.Compile();
@@ -1426,13 +1424,10 @@ void App::ToolBarGui() {
 
     const float label_width = platform::GetExpectedLabelWidth();
     const float copy_btn_width = ImGui::GetFrameHeight();
-    const float theme_width =
-        ImGui::CalcTextSize(platform::ICON_FA_CIRCLE_O).x +
-        ImGui::GetStyle().FramePadding.x * 2;
     const float sp = ImGui::GetStyle().ItemSpacing.x;
     const float right_width = copy_btn_width + label_width + sp +
                               label_width + sp + label_width + sp +
-                              theme_width;
+                              copy_btn_width;
     const float separator_width = ImGui::GetFrameHeight() * .6f;
 
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
@@ -1568,6 +1563,7 @@ void App::StatusBarGui() {
 }
 
 void App::MainMenuGui() {
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(12.0f * ImGui::GetStyle().FontScaleDpi, ImGui::GetStyle().ItemSpacing.y));
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
 #ifndef __EMSCRIPTEN__
@@ -1763,6 +1759,7 @@ void App::MainMenuGui() {
     }
     ImGui::EndMainMenuBar();
   }
+  ImGui::PopStyleVar();
 }
 
 void App::FileDialogGui() {
