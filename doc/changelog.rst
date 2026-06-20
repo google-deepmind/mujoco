@@ -34,7 +34,7 @@ General
      However, the default policy will change to "merge" in a future release.
 
 - Improved primal solver convergence under float32. Improvements initially proposed by :github:user:`n3b` in
-  :issue:`2313` and :github:user:`denzeler-nvidia` in :doc:`MJWarp <mjwarp/index>` pull request
+  :issue:`2313` and :github:user:`adenzler-nvidia` in :doc:`MJWarp <mjwarp/index>` pull request
   `1374 <https://github.com/google-deepmind/mujoco_warp/pull/1374>`__.
 - The :ref:`CG solver<soAlgorithms>` now uses the Hager-Zhang conjugate direction update instead of the
   Polak-Ribiere-Plus formula. This improves convergence and leads to a significant speedup under float32.
