@@ -290,6 +290,8 @@ void PhysicsLoop(mj::Simulate& sim) {
   std::chrono::time_point<mj::Simulate::Clock> syncCPU;
   mjtNum syncSim = 0;
 
+  int last_run = -1;
+
   // run until asked to exit
   while (!sim.exitrequest.load()) {
     if (sim.droploadrequest.load()) {
@@ -355,6 +357,15 @@ void PhysicsLoop(mj::Simulate& sim) {
 
       // run only if model is present
       if (m) {
+        // reset timers on transition between running and paused
+        if (sim.run != last_run) {
+          if (last_run != -1) {
+            std::memset(d->timer, 0, sizeof(d->timer));
+            std::memset(sim.timer_prev_, 0, sizeof(sim.timer_prev_));
+          }
+          last_run = sim.run;
+        }
+
         // running
         if (sim.run) {
           bool stepped = false;
