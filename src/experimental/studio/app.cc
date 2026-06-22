@@ -936,8 +936,21 @@ void App::BuildGui() {
 
   if (tmp_.stats) {
     platform::ScopedStyle style;
-    style.Var(ImGuiStyleVar_Alpha, 0.6f);
-    if (ImGui::Begin("Info", &tmp_.stats)) {
+    style.Var(ImGuiStyleVar_Alpha, 0.8f);
+    const float scale = ImGui::GetWindowDpiScale();
+    ImGui::SetNextWindowPos(
+        ImVec2(workspace_rect.x,
+               workspace_rect.y + workspace_rect.w),
+        ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(240.0f * scale, -1.0f),
+                                        ImVec2(FLT_MAX, -1.0f));
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
+                                   ImGuiWindowFlags_NoResize |
+                                   ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoCollapse |
+                                   ImGuiWindowFlags_AlwaysAutoResize |
+                                   ImGuiWindowFlags_NoSavedSettings;
+    if (ImGui::Begin("Info", nullptr, flags)) {
       const float fps = renderer_->GetFps();
       platform::StatsGui(
           model(), data(),
