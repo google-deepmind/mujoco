@@ -15,8 +15,6 @@
 // Tests for engine/engine_core_smooth.c.
 
 #include "src/engine/engine_core_smooth.h"
-#include "src/engine/engine_util_misc.h"
-#include "src/engine/engine_util_sparse.h"
 
 #include <algorithm>
 #include <string>
@@ -30,6 +28,8 @@
 #include <mujoco/mjspec.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_util_misc.h"
+#include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -43,7 +43,6 @@ using ::testing::Not;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 using CoreSmoothTest = MujocoTest;
-
 
 constexpr bool EndsWith(std::string_view str, std::string_view suffix) {
   return str.size() >= suffix.size() &&
@@ -64,31 +63,28 @@ TEST_F(CoreSmoothTest, MjDataWorldBodyValuesAreInitialized) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
-  mj_resetDataDebug(model, data, 'd');
-  mj_forward(model, data);
-  mj_rnePostConstraint(model, data);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_resetDataDebug(model.get(), data.get(), 'd');
+  mj_forward(model.get(), data.get());
+  mj_rnePostConstraint(model.get(), data.get());
 
   {
-#define X(type, name, d0, d1)                                                 \
-    if constexpr (std::string_view(#d0) == "nbody") {                         \
-      absl::Span<type> values(data->name, model->d0 * d1);                    \
-      if constexpr (EndsWith(#name, "quat")) {                                \
-        EXPECT_THAT(values, ElementsAre(1, 0, 0, 0)) << #name;                \
-      } else if constexpr (EndsWith(#name, "mat")) {                          \
-        EXPECT_THAT(values, ElementsAre(1, 0, 0, 0, 1, 0, 0, 0, 1)) << #name; \
-      } else if constexpr (std::string_view(#type) == "mjtNum") {             \
-        EXPECT_THAT(values, Each(MjNear(0.0, 1e-7, 1e-7))) << #name;          \
-      }                                                                       \
-    }
+#define X(type, name, d0, d1)                                               \
+  if constexpr (std::string_view(#d0) == "nbody") {                         \
+    absl::Span<type> values(data->name, model->d0 * d1);                    \
+    if constexpr (EndsWith(#name, "quat")) {                                \
+      EXPECT_THAT(values, ElementsAre(1, 0, 0, 0)) << #name;                \
+    } else if constexpr (EndsWith(#name, "mat")) {                          \
+      EXPECT_THAT(values, ElementsAre(1, 0, 0, 0, 1, 0, 0, 0, 1)) << #name; \
+    } else if constexpr (std::string_view(#type) == "mjtNum") {             \
+      EXPECT_THAT(values, Each(MjNear(0.0, 1e-7, 1e-7))) << #name;          \
+    }                                                                       \
+  }
     MJDATA_POINTERS
 #undef X
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // --------------------------- mj_kinematics -----------------------------------
@@ -101,16 +97,13 @@ TEST_F(CoreSmoothTest, MjKinematicsWorldXipos) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
-  mj_resetDataDebug(model, data, 'd');
-  mj_kinematics(model, data);
+  mj_resetDataDebug(model.get(), data.get(), 'd');
+  mj_kinematics(model.get(), data.get());
   EXPECT_THAT(AsVector(&data->xipos[0], 3), ElementsAre(0, 0, 0));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // ----------------------------- mj_tendon -------------------------------------
@@ -145,19 +138,16 @@ TEST_F(CoreSmoothTest, FixedTendonSortedIndices) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
   ASSERT_EQ(model->ntendon, 1);
   ASSERT_EQ(model->nwrap, 3);
 
-  mjData* data = mj_makeData(model);
-  mj_fwdPosition(model, data);
+  MjDataPtr data = MakeData(model);
+  mj_fwdPosition(model.get(), data.get());
 
   mjtNum* J = data->ten_J;
   EXPECT_THAT(vector<mjtNum>(J, J + 3), ElementsAre(1, 2, 3));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 static const char* const kTen_J0 = "engine/testdata/core_smooth/ten_J0.xml";
@@ -232,33 +222,33 @@ TEST_F(CoreSmoothTest, TendonArmature) {
     mj_forward(m, d);
 
     // get full M, includes both CRB and tendon inertia
-    vector<mjtNum> M(nv*nv);
+    vector<mjtNum> M(nv * nv);
     mj_fullM(m, d, M.data());
 
     // put only CRB inertia in M2
     mj_crb(m, d);
     mju_scatter(d->qM, d->M, m->mapM2M, m->nC);
-    vector<mjtNum> M2(nv*nv);
+    vector<mjtNum> M2(nv * nv);
     mj_fullM(m, d, M2.data());
 
-    vector<mjtNum> ten_J(nv);     // tendon Jacobian
-    vector<mjtNum> ten_M(nv*nv);  // tendon inertia
+    vector<mjtNum> ten_J(nv);       // tendon Jacobian
+    vector<mjtNum> ten_M(nv * nv);  // tendon inertia
 
     // add tendon inertias to M2 using outer product
-    for (int j=0; j < m->ntendon; j++) {
+    for (int j = 0; j < m->ntendon; j++) {
       // get tendon Jacobian
       int rowadr = m->ten_J_rowadr[j];
       int* rownnz = m->ten_J_rownnz + j;
       int zero = 0;
-      mju_sparse2dense(ten_J.data(), d->ten_J + rowadr, 1, nv,
-                       rownnz, &zero, m->ten_J_colind + rowadr);
+      mju_sparse2dense(ten_J.data(), d->ten_J + rowadr, 1, nv, rownnz, &zero,
+                       m->ten_J_colind + rowadr);
 
       // get tendon inertia only, using outer product
       mju_mulMatMat(ten_M.data(), ten_J.data(), ten_J.data(), nv, 1, nv);
       mju_scl(ten_M.data(), ten_M.data(), m->tendon_armature[j], nv * nv);
 
       // manually add values, at nonzeros only
-      for (int i=0; i < nv*nv; i++) {
+      for (int i = 0; i < nv * nv; i++) {
         if (M[i]) M2[i] += ten_M[i];
       }
     }
@@ -304,7 +294,7 @@ TEST_F(CoreSmoothTest, TendonArmatureConservesEnergy) {
         mj_step(m, d);
         ASSERT_GT(d->time, time) << "Divergence detected";
         mjtNum energy_t = d->energy[0] + d->energy[1];
-        EXPECT_NEAR(energy_t, energy_0, MjTol(eps, 3*eps));
+        EXPECT_NEAR(energy_t, energy_0, MjTol(eps, 3 * eps));
       }
     }
     mj_deleteData(d);
@@ -378,13 +368,13 @@ TEST_F(CoreSmoothTest, TendonInertiaEquivalent) {
       mjtNum time = d->time;
       mj_step(m, d);
       ASSERT_GT(d->time, time) << "Divergence detected";
-      vector<mjtNum> xpos = AsVector(d->geom_xpos + 3*gid, 3);
+      vector<mjtNum> xpos = AsVector(d->geom_xpos + 3 * gid, 3);
 
       time = d_e->time;
       mj_step(m_e, d_e);
       ASSERT_GT(d_e->time, time) << "Divergence detected";
-      vector<mjtNum> xpos_e = AsVector(d_e->geom_xpos + 3*gid_e, 3);
-      EXPECT_THAT(xpos, Pointwise(MjNear(eps, 10*eps), xpos_e));
+      vector<mjtNum> xpos_e = AsVector(d_e->geom_xpos + 3 * gid_e, 3);
+      EXPECT_THAT(xpos, Pointwise(MjNear(eps, 10 * eps), xpos_e));
     }
     mj_deleteData(d);
     mj_deleteModel(m);
@@ -393,20 +383,18 @@ TEST_F(CoreSmoothTest, TendonInertiaEquivalent) {
   }
 }
 
-
 // --------------------------- connect constraint ------------------------------
 
 // test that bodies hanging on connects lead to expected force sensor readings
 void TestConnect(const char* const filepath) {
   const std::string xml_path = GetTestDataFilePath(filepath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   mjData* data = mj_makeData(model);
   // settle physics:
-  for (int i=0; i < 1000; i++) {
+  for (int i = 0; i < 1000; i++) {
     mj_step(model, data);
   }
-  for (int i=0; i < 3; i++) {
+  for (int i = 0; i < 3; i++) {
     EXPECT_THAT(data->sensordata[i] - model->sensor_user[i],
                 MjNear(0, 1e-6, 2e-4));
   }
@@ -414,13 +402,11 @@ void TestConnect(const char* const filepath) {
   mj_deleteModel(model);
 }
 
-
 TEST_F(CoreSmoothTest, RnePostConnectForceSlide) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/connect/force_slide.xml";
   TestConnect(kModelFilePath);
 }
-
 
 TEST_F(CoreSmoothTest, RnePostConnectForceSlideRotated) {
   constexpr char kModelFilePath[] =
@@ -428,13 +414,11 @@ TEST_F(CoreSmoothTest, RnePostConnectForceSlideRotated) {
   TestConnect(kModelFilePath);
 }
 
-
 TEST_F(CoreSmoothTest, RnePostConnectForceFree) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/connect/force_free.xml";
   TestConnect(kModelFilePath);
 }
-
 
 TEST_F(CoreSmoothTest, RnePostConnectTorque) {
   constexpr char kModelFilePath[] =
@@ -442,38 +426,33 @@ TEST_F(CoreSmoothTest, RnePostConnectTorque) {
   TestConnect(kModelFilePath);
 }
 
-
 TEST_F(CoreSmoothTest, RnePostConnectMultipleConstraints) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/connect/multiple_constraints.xml";
   TestConnect(kModelFilePath);
 }
 
-
 // --------------------------- weld constraint ---------------------------------
 
 // test that bodies attached with welds lead to expected force sensor readings
 void TestWeld(const char* const filepath) {
   const std::string xml_path = GetTestDataFilePath(filepath);
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   mjData* data = mj_makeData(model);
   // settle physics:
-  for (int i=0; i < 1000; i++) {
+  for (int i = 0; i < 1000; i++) {
     mj_step(model, data);
   }
-  for (int sensor_index=0; sensor_index < model->nsensor; sensor_index++) {
-    for (int i=0; i < 3; i++) {
-      EXPECT_NEAR(
-          data->sensordata[model->sensor_adr[sensor_index] + i],
-          model->sensor_user[model->nuser_sensor*sensor_index + i],
-          MjTol(1e-6, 5e-5));
+  for (int sensor_index = 0; sensor_index < model->nsensor; sensor_index++) {
+    for (int i = 0; i < 3; i++) {
+      EXPECT_NEAR(data->sensordata[model->sensor_adr[sensor_index] + i],
+                  model->sensor_user[model->nuser_sensor * sensor_index + i],
+                  MjTol(1e-6, 5e-5));
     }
   }
   mj_deleteData(data);
   mj_deleteModel(model);
 }
-
 
 TEST_F(CoreSmoothTest, RnePostWeldForceFree) {
   constexpr char kModelFilePath[] =
@@ -481,13 +460,11 @@ TEST_F(CoreSmoothTest, RnePostWeldForceFree) {
   TestWeld(kModelFilePath);
 }
 
-
 TEST_F(CoreSmoothTest, RnePostWeldForceFreeRotated) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_free_rotated.xml";
   TestWeld(kModelFilePath);
 }
-
 
 TEST_F(CoreSmoothTest, RnePostWeldForceTorqueFree) {
   constexpr char kModelFilePath[] =
@@ -495,13 +472,11 @@ TEST_F(CoreSmoothTest, RnePostWeldForceTorqueFree) {
   TestWeld(kModelFilePath);
 }
 
-
 TEST_F(CoreSmoothTest, RnePostWeldForceTorqueFreeRotated) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/force_torque_free_rotated.xml";
   TestWeld(kModelFilePath);
 }
-
 
 TEST_F(CoreSmoothTest, WeldRatioForceFree) {
   constexpr char kModelFilePath[] =
@@ -509,20 +484,17 @@ TEST_F(CoreSmoothTest, WeldRatioForceFree) {
   TestConnect(kModelFilePath);
 }
 
-
 TEST_F(CoreSmoothTest, WeldRatioForceSlide) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/tfratio0_force_slide.xml";
   TestConnect(kModelFilePath);
 }
 
-
 TEST_F(CoreSmoothTest, WeldRatioTorqueFree) {
   constexpr char kModelFilePath[] =
       "engine/testdata/core_smooth/rne_post/weld/tfratio0_torque_free.xml";
   TestConnect(kModelFilePath);
 }
-
 
 TEST_F(CoreSmoothTest, WeldRatioForceSlideRotated) {
   constexpr char kModelFilePath[] =
@@ -555,7 +527,7 @@ TEST_F(CoreSmoothTest, EqualityBodySite) {
   mj_resetData(model, data);
 
   // turn site-defined equalities off, equivalent body-defined equalities on
-  for (int e=0; e < 4; e++) data->eq_active[e] = 1 - data->eq_active[e];
+  for (int e = 0; e < 4; e++) data->eq_active[e] = 1 - data->eq_active[e];
 
   // simulate again, get sensordata
   while (data->time < 0.1) {
@@ -586,7 +558,7 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
   mjtNum targetpos[] = {.01, .02, .03};
   mjtNum targetrot[] = {.1, .2, .3};
   mju_copy3(data->ctrl, targetpos);
-  mju_copy3(data->ctrl+3, targetrot);
+  mju_copy3(data->ctrl + 3, targetrot);
 
   // step for 5 seconds
   while (data->time < 10) {
@@ -601,13 +573,14 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
 
   // check that position matches target to within 1e-3 length units
   mjtNum relpos[3];
-  mju_sub3(relpos, data->site_xpos+3*site_id, data->site_xpos+3*refsite_id);
+  mju_sub3(relpos, data->site_xpos + 3 * site_id,
+           data->site_xpos + 3 * refsite_id);
   EXPECT_THAT(relpos, Pointwise(MjNear(1e-3, 5e-3), targetpos));
 
   // check that orientation matches target to within 0.06 radians
   mjtNum site_xquat[4], refsite_xquat[4], relrot[3];
-  mju_mat2Quat(refsite_xquat, data->site_xmat+9*refsite_id);
-  mju_mat2Quat(site_xquat, data->site_xmat+9*site_id);
+  mju_mat2Quat(refsite_xquat, data->site_xmat + 9 * refsite_id);
+  mju_mat2Quat(site_xquat, data->site_xmat + 9 * site_id);
   mju_subQuat(relrot, site_xquat, refsite_xquat);
   EXPECT_THAT(relrot, Pointwise(MjNear(0.06, 0.06), targetrot));
 
@@ -632,7 +605,7 @@ TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
     mjtNum time = data->time;
     mj_step(model, data);
     ASSERT_GT(data->time, time) << "Divergence detected";
-    for (int i=0; i < 6; i++) {
+    for (int i = 0; i < 6; i++) {
       EXPECT_LT(mju_abs(data->sensordata[i]), eps);
     }
   }
@@ -654,33 +627,33 @@ TEST_F(CoreSmoothTest, FactorI) {
 
   // dense L matrix
   int nv = model->nv;
-  vector<mjtNum> Ldense(nv*nv, 0);
-  mju_sparse2dense(Ldense.data(), data->qLD, nv, nv,
-                   model->M_rownnz, model->M_rowadr, model->M_colind);
-  for (int i=0; i < nv; i++) {
+  vector<mjtNum> Ldense(nv * nv, 0);
+  mju_sparse2dense(Ldense.data(), data->qLD, nv, nv, model->M_rownnz,
+                   model->M_rowadr, model->M_colind);
+  for (int i = 0; i < nv; i++) {
     // set diagonal to 1
-    Ldense[i*nv+i] = 1;
+    Ldense[i * nv + i] = 1;
   }
 
   // dense D matrix
-  vector<mjtNum> Ddense(nv*nv);
-  mju_sparse2dense(Ddense.data(), data->qLD, nv, nv,
-                   model->M_rownnz, model->M_rowadr, model->M_colind);
-  for (int i=0; i < nv; i++) {
-    for (int j=0; j < nv; j++) {
+  vector<mjtNum> Ddense(nv * nv);
+  mju_sparse2dense(Ddense.data(), data->qLD, nv, nv, model->M_rownnz,
+                   model->M_rowadr, model->M_colind);
+  for (int i = 0; i < nv; i++) {
+    for (int j = 0; j < nv; j++) {
       // zero everything except the diagonal
-      if (i != j) Ddense[i*nv+j] = 0;
+      if (i != j) Ddense[i * nv + j] = 0;
     }
   }
 
   // perform multiplication: M = L^T * D * L
-  vector<mjtNum> tmp(nv*nv);
-  vector<mjtNum> M(nv*nv);
+  vector<mjtNum> tmp(nv * nv);
+  vector<mjtNum> M(nv * nv);
   mju_mulMatMat(tmp.data(), Ddense.data(), Ldense.data(), nv, nv, nv);
   mju_mulMatTMat(M.data(), Ldense.data(), tmp.data(), nv, nv, nv);
 
   // dense M matrix
-  vector<mjtNum> Mexpected(nv*nv);
+  vector<mjtNum> Mexpected(nv * nv);
   mj_fullM(model, data, Mexpected.data());
 
   // expect matrices to match to floating point precision
@@ -693,12 +666,12 @@ TEST_F(CoreSmoothTest, FactorI) {
 // Convert legacy-format symmetric matrix to dense (local helper for tests).
 static void legacyToDense(const mjModel* m, mjtNum* dst, const mjtNum* M) {
   int adr = 0, nv = m->nv;
-  mju_zero(dst, nv*nv);
+  mju_zero(dst, nv * nv);
   for (int i = 0; i < nv; i++) {
     int j = i;
     while (j >= 0) {
-      dst[i*nv+j] = M[adr];
-      dst[j*nv+i] = M[adr];
+      dst[i * nv + j] = M[adr];
+      dst[j * nv + i] = M[adr];
       j = m->dof_parentid[j];
       adr++;
     }
@@ -723,31 +696,32 @@ TEST_F(CoreSmoothTest, SolveLDs) {
   mju_scatter(LDlegacy.data(), d->qLD, m->mapM2M, nC);
 
   // compare LD and LDs densified matrices
-  vector<mjtNum> LDdense(nv*nv);
-  mju_sparse2dense(LDdense.data(), d->qLD, nv, nv,
-                   m->M_rownnz, m->M_rowadr, m->M_colind);
-  vector<mjtNum> LDdense2(nv*nv);
+  vector<mjtNum> LDdense(nv * nv);
+  mju_sparse2dense(LDdense.data(), d->qLD, nv, nv, m->M_rownnz, m->M_rowadr,
+                   m->M_colind);
+  vector<mjtNum> LDdense2(nv * nv);
   legacyToDense(m, LDdense2.data(), LDlegacy.data());
 
   // expect lower triangles to match exactly
-  for (int i=0; i < nv; i++) {
-    for (int j=0; j < i; j++) {
-      EXPECT_NEAR(LDdense[i*nv+j], LDdense2[i*nv+j], MjTol(1e-14, 1e-6));
+  for (int i = 0; i < nv; i++) {
+    for (int j = 0; j < i; j++) {
+      EXPECT_NEAR(LDdense[i * nv + j], LDdense2[i * nv + j],
+                  MjTol(1e-14, 1e-6));
     }
   }
 
   // compare legacy and CSR LD vector solve
   vector<mjtNum> vec(nv);
   vector<mjtNum> vec2(nv);
-  for (int i=0; i < nv; i++) vec[i] = vec2[i] = 20 + 30*i;
-  for (int i=0; i < nv; i+=2) vec[i] = vec2[i] = 0;
+  for (int i = 0; i < nv; i++) vec[i] = vec2[i] = 20 + 30 * i;
+  for (int i = 0; i < nv; i += 2) vec[i] = vec2[i] = 0;
 
   mj_solveLD_legacy(m, vec.data(), 1, LDlegacy.data(), d->qLDiagInv);
-  mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, 1,
-             m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
+  mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr,
+             m->M_colind, nullptr);
 
   // expect vectors to match up to floating point precision
-  for (int i=0; i < nv; i++) {
+  for (int i = 0; i < nv; i++) {
     EXPECT_NEAR(vec[i], vec2[i], MjTol(1e-14, 5e-6));
   }
 
@@ -772,17 +746,17 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
 
   // compare n LD and LDs vector solve
   int n = 3;
-  vector<mjtNum> vec(nv*n);
-  vector<mjtNum> vec2(nv*n);
-  for (int i=0; i < nv*n; i++) vec[i] = vec2[i] = 2 + 3*i;
-  for (int i=0; i < nv*n; i+=3) vec[i] = vec2[i] = 0;
+  vector<mjtNum> vec(nv * n);
+  vector<mjtNum> vec2(nv * n);
+  for (int i = 0; i < nv * n; i++) vec[i] = vec2[i] = 2 + 3 * i;
+  for (int i = 0; i < nv * n; i += 3) vec[i] = vec2[i] = 0;
 
   mj_solveLD_legacy(m, vec.data(), n, LDlegacy.data(), d->qLDiagInv);
-  mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
+  mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n, m->M_rownnz, m->M_rowadr,
+             m->M_colind, nullptr);
 
   // expect vectors to match up to floating point precision
-  for (int i=0; i < nv*n; i++) {
+  for (int i = 0; i < nv * n; i++) {
     EXPECT_NEAR(vec[i], vec2[i], MjTol(1e-14, 5e-6));
   }
 
@@ -802,27 +776,27 @@ TEST_F(CoreSmoothTest, SolveM2) {
   // inverse square root of D from inertia LDL decomposition
   int nv = m->nv;
   vector<mjtNum> sqrtInvD(nv);
-  for (int i=0; i < nv; i++) {
+  for (int i = 0; i < nv; i++) {
     int diag = m->M_rowadr[i] + m->M_rownnz[i] - 1;
     sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
   }
 
   // compare full solve and half solve
   int n = 3;
-  vector<mjtNum> vec(nv*n);
-  vector<mjtNum> vec2(nv*n);
-  for (int i=0; i < nv*n; i++) vec[i] = vec2[i] = 2 + 3*i;
-  for (int i=0; i < nv*n; i+=3) vec[i] = vec2[i] = 0;
-  vector<mjtNum> res(nv*n);
+  vector<mjtNum> vec(nv * n);
+  vector<mjtNum> vec2(nv * n);
+  for (int i = 0; i < nv * n; i++) vec[i] = vec2[i] = 2 + 3 * i;
+  for (int i = 0; i < nv * n; i += 3) vec[i] = vec2[i] = 0;
+  vector<mjtNum> res(nv * n);
 
   mj_solveM2(m, d, res.data(), vec.data(), sqrtInvD.data(), n);
-  mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
+  mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n, m->M_rownnz, m->M_rowadr,
+             m->M_colind, nullptr);
 
   // expect equality of dot(v, M^-1 * v) and dot(M^-1/2 * v, M^-1/2 * v)
-  for (int i=0; i < n; i++) {
-    EXPECT_NEAR(mju_dot(vec2.data() + i*nv, vec.data() + i*nv, nv),
-                mju_dot(res.data() + i*nv, res.data() + i*nv, nv),
+  for (int i = 0; i < n; i++) {
+    EXPECT_NEAR(mju_dot(vec2.data() + i * nv, vec.data() + i * nv, nv),
+                mju_dot(res.data() + i * nv, res.data() + i * nv, nv),
                 MjTol(1e-10, 1e-2));
   }
 
@@ -856,8 +830,8 @@ TEST_F(CoreSmoothTest, FactorIs) {
   vector<mjtNum> qLDiagInvExpected(d->qLDiagInv, d->qLDiagInv + nv);
   vector<mjtNum> qLDiagInv(nv, 0);
 
-  mj_factorI(qLD.data(), qLDiagInv.data(), nv,
-             m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
+  mj_factorI(qLD.data(), qLDiagInv.data(), nv, m->M_rownnz, m->M_rowadr,
+             m->M_colind, nullptr);
 
   // expect outputs to match to floating point precision
   EXPECT_THAT(qLD, Pointwise(MjNear(1e-12, 1e-4), qLDexpected));
@@ -891,9 +865,9 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
   // check that nJfv is correct:
   // corner vertices: 2 * (1+3) * 3 + 2 * (1+2) * 3 = 42
@@ -903,33 +877,33 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   EXPECT_EQ(m->nJfv, 123);
 
   // Run kinematics to populate xpos/xmat initially
-  mj_fwdKinematics(m, d);
+  mj_fwdKinematics(m.get(), d.get());
 
   // Check invariants for scale=1
   // The constraints should be satisfied
   int nvert = m->flex_vertnum[0];
   ASSERT_EQ(nvert, 9);
-  for (int i=0; i < nvert; i++) {
-    EXPECT_NEAR(d->flexvert_length[2*i+0], 0.0, MjTol(1e-5, 5e-5));
-    EXPECT_NEAR(d->flexvert_length[2*i+1], 0.0, MjTol(1e-5, 5e-5));
+  for (int i = 0; i < nvert; i++) {
+    EXPECT_NEAR(d->flexvert_length[2 * i + 0], 0.0, MjTol(1e-5, 5e-5));
+    EXPECT_NEAR(d->flexvert_length[2 * i + 1], 0.0, MjTol(1e-5, 5e-5));
   }
 
   // set qvel to rigid rotation
-  ASSERT_EQ(m->nv, 3*nvert);
+  ASSERT_EQ(m->nv, 3 * nvert);
   mju_zero(d->qvel, m->nv);
-  for (int i=0; i < nvert; i++) {
-    const mjtNum* p = d->xpos + 3*m->flex_vertbodyid[i];
-    d->qvel[3*i+0] = -p[1];
-    d->qvel[3*i+1] = p[0];
-    d->qvel[3*i+2] = 1.0;
+  for (int i = 0; i < nvert; i++) {
+    const mjtNum* p = d->xpos + 3 * m->flex_vertbodyid[i];
+    d->qvel[3 * i + 0] = -p[1];
+    d->qvel[3 * i + 1] = p[0];
+    d->qvel[3 * i + 2] = 1.0;
   }
 
   // check that Jacobian times velocity is zero for rigid body motion
-  vector<mjtNum> Jv(2*nvert, 0);
-  for (int i=0; i < 2*nvert; i++) {
+  vector<mjtNum> Jv(2 * nvert, 0);
+  for (int i = 0; i < 2 * nvert; i++) {
     int row_start = m->flexvert_J_rowadr[i];
     int row_nnz = m->flexvert_J_rownnz[i];
-    for (int j=0; j < row_nnz; j++) {
+    for (int j = 0; j < row_nnz; j++) {
       Jv[i] += d->flexvert_J[row_start + j] *
                d->qvel[m->flexvert_J_colind[row_start + j]];
     }
@@ -941,37 +915,37 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   int edges[] = {1, 3, 5, 7};
   int center[] = {4};
   for (int i : corners) {
-    EXPECT_EQ(m->flexvert_J_rownnz[2*i+0], (i == 0 || i == 8) ? 12 : 9);
-    EXPECT_EQ(m->flexvert_J_rownnz[2*i+1], (i == 0 || i == 8) ? 12 : 9);
+    EXPECT_EQ(m->flexvert_J_rownnz[2 * i + 0], (i == 0 || i == 8) ? 12 : 9);
+    EXPECT_EQ(m->flexvert_J_rownnz[2 * i + 1], (i == 0 || i == 8) ? 12 : 9);
   }
   for (int i : edges) {
-    EXPECT_EQ(m->flexvert_J_rownnz[2*i+0], 15);
-    EXPECT_EQ(m->flexvert_J_rownnz[2*i+1], 15);
+    EXPECT_EQ(m->flexvert_J_rownnz[2 * i + 0], 15);
+    EXPECT_EQ(m->flexvert_J_rownnz[2 * i + 1], 15);
   }
   for (int i : center) {
-    EXPECT_EQ(m->flexvert_J_rownnz[2*i+0], 21);
-    EXPECT_EQ(m->flexvert_J_rownnz[2*i+1], 21);
+    EXPECT_EQ(m->flexvert_J_rownnz[2 * i + 0], 21);
+    EXPECT_EQ(m->flexvert_J_rownnz[2 * i + 1], 21);
   }
 
   // check rowadr
   EXPECT_EQ(m->flexvert_J_rowadr[0], 0);
-  for (int i=1; i < 2*nvert; i++) {
+  for (int i = 1; i < 2 * nvert; i++) {
     EXPECT_EQ(m->flexvert_J_rowadr[i],
-              m->flexvert_J_rowadr[i-1] + m->flexvert_J_rownnz[i-1]);
+              m->flexvert_J_rowadr[i - 1] + m->flexvert_J_rownnz[i - 1]);
   }
 
   // check that colind are sorted and unique
   int nnzJ = 0;
-  for (int i = 0; i < 2*nvert; i++) {
+  for (int i = 0; i < 2 * nvert; i++) {
     nnzJ += m->flexvert_J_rownnz[i];
   }
-  EXPECT_EQ(nnzJ, 2*m->nJfv);
-  for (int i=0; i < 2*nvert; i++) {
+  EXPECT_EQ(nnzJ, 2 * m->nJfv);
+  for (int i = 0; i < 2 * nvert; i++) {
     int row_start = m->flexvert_J_rowadr[i];
     int row_nnz = m->flexvert_J_rownnz[i];
-    for (int j=0; j < row_nnz-1; j++) {
-      EXPECT_LE(m->flexvert_J_colind[row_start+j],
-                m->flexvert_J_colind[row_start+j+1]);
+    for (int j = 0; j < row_nnz - 1; j++) {
+      EXPECT_LE(m->flexvert_J_colind[row_start + j],
+                m->flexvert_J_colind[row_start + j + 1]);
     }
   }
 
@@ -979,8 +953,8 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   auto fd_check = [&](double tolerance) {
     std::vector<mjtNum> qpos0(m->nq);
     mju_copy(qpos0.data(), d->qpos, m->nq);
-    mj_kinematics(m, d);
-    mj_flex(m, d);
+    mj_kinematics(m.get(), d.get());
+    mj_flex(m.get(), d.get());
 
     mjtNum eps = MjTol(1e-6, 1e-4);
     int nflexvert = m->flex_vertnum[0];
@@ -988,15 +962,15 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
     std::vector<mjtNum> qpos_backup(m->nq);
     mju_copy(qpos_backup.data(), d->qpos, m->nq);
 
-    for (int i=0; i < m->nv; ++i) {
+    for (int i = 0; i < m->nv; ++i) {
       std::vector<mjtNum> qvel(m->nv, 0);
       qvel[i] = 1.0;
 
       // plus
       mju_copy(d->qpos, qpos_backup.data(), m->nq);
-      mj_integratePos(m, d->qpos, qvel.data(), eps);
-      mj_kinematics(m, d);
-      mj_flex(m, d);
+      mj_integratePos(m.get(), d->qpos, qvel.data(), eps);
+      mj_kinematics(m.get(), d.get());
+      mj_flex(m.get(), d.get());
       std::vector<mjtNum> L_plus(2 * nflexvert);
       for (int e = 0; e < 2 * nflexvert; ++e) {
         L_plus[e] = d->flexvert_length[e];
@@ -1004,21 +978,21 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
 
       // minus
       mju_copy(d->qpos, qpos_backup.data(), m->nq);
-      mj_integratePos(m, d->qpos, qvel.data(), -eps);
-      mj_kinematics(m, d);
-      mj_flex(m, d);
+      mj_integratePos(m.get(), d->qpos, qvel.data(), -eps);
+      mj_kinematics(m.get(), d.get());
+      mj_flex(m.get(), d.get());
       std::vector<mjtNum> L_minus(2 * nflexvert);
       for (int e = 0; e < 2 * nflexvert; ++e) {
         L_minus[e] = d->flexvert_length[e];
       }
 
       for (int e = 0; e < 2 * nflexvert; ++e) {
-        jac_fd[e*m->nv + i] = (L_plus[e] - L_minus[e]) / (2*eps);
+        jac_fd[e * m->nv + i] = (L_plus[e] - L_minus[e]) / (2 * eps);
       }
     }
     mju_copy(d->qpos, qpos_backup.data(), m->nq);
-    mj_kinematics(m, d);
-    mj_flex(m, d);
+    mj_kinematics(m.get(), d.get());
+    mj_flex(m.get(), d.get());
 
     // Compare with analytic
     std::vector<mjtNum> jac_analytic(2 * nflexvert * m->nv);
@@ -1027,27 +1001,27 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
       int row_start = m->flexvert_J_rowadr[e];
       int row_nnz = m->flexvert_J_rownnz[e];
       for (int i = 0; i < row_nnz; ++i) {
-        jac_analytic[e*m->nv + m->flexvert_J_colind[row_start+i]] =
-            d->flexvert_J[row_start+i];
+        jac_analytic[e * m->nv + m->flexvert_J_colind[row_start + i]] =
+            d->flexvert_J[row_start + i];
       }
     }
     EXPECT_THAT(jac_analytic, Not(Each(MjNear(0.0, 1e-7, 1e-4))));
     EXPECT_THAT(jac_analytic, Pointwise(MjNear(tolerance, 1e-1), jac_fd));
 
     mju_copy(d->qpos, qpos0.data(), m->nq);
-    mj_kinematics(m, d);
-    mj_flex(m, d);
+    mj_kinematics(m.get(), d.get());
+    mj_flex(m.get(), d.get());
   };
 
   fd_check(MjTol(5e-5, 5e-2));
 
   // Set qpos to put flex in scale=2 configuration.
-  for (int i=0; i < nvert; i++) {
-    d->qpos[3*i+0] = d->xpos[3*(i+1)+0];
-    d->qpos[3*i+1] = d->xpos[3*(i+1)+1];
-    d->qpos[3*i+2] = d->xpos[3*(i+1)+2];
+  for (int i = 0; i < nvert; i++) {
+    d->qpos[3 * i + 0] = d->xpos[3 * (i + 1) + 0];
+    d->qpos[3 * i + 1] = d->xpos[3 * (i + 1) + 1];
+    d->qpos[3 * i + 2] = d->xpos[3 * (i + 1) + 2];
   }
-  mj_fwdKinematics(m, d);
+  mj_fwdKinematics(m.get(), d.get());
 
   // Get mass scaling factor
   mjtNum scale = 1.0;
@@ -1062,19 +1036,16 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   // Invariant 0: Trace(E) = 3 + 3 = 6
   // Invariant 1: Det(C) - 1 = 4 * 4 - 1 = 15
   // Note: constraints are now scaled by sqrt(mass)
-  for (int i=0; i < nvert; i++) {
+  for (int i = 0; i < nvert; i++) {
     EXPECT_NEAR(d->flexvert_length[2 * i + 0], 6.0 * scale, MjTol(1e-5, 5e-4));
     EXPECT_NEAR(d->flexvert_length[2 * i + 1], 15.0 * scale, MjTol(1e-5, 5e-4));
   }
 
   // Perturb z-positions so configuration is not flat
-  for (int i=0; i < nvert; i++) {
-    d->qpos[3*i+2] += 0.01 * (i%2 ? 1 : -1);
+  for (int i = 0; i < nvert; i++) {
+    d->qpos[3 * i + 2] += 0.01 * (i % 2 ? 1 : -1);
   }
   fd_check(5e-5);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 // Test failure case for flexvert_J sparsity with skipped flexes
@@ -1107,12 +1078,12 @@ TEST_F(CoreSmoothTest, FlexvertJSparsitySkippedFlex) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // Forward dynamics to compute Jacobians
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
 
   // Check sparsity overlap
   // Flex 0 starts at row 0
@@ -1136,9 +1107,6 @@ TEST_F(CoreSmoothTest, FlexvertJSparsitySkippedFlex) {
   // Verify that Flex 2 starts AFTER Flex 0 ends
   EXPECT_GE(f2_start_adr, f0_end_adr)
       << "Flex 2 Jacobian overwrites Flex 0 Jacobian due to skipped Flex 1";
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // Test stability of flexvert constraint under different integrator/solver

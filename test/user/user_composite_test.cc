@@ -48,9 +48,8 @@ TEST_F(UserCompositeTest, ShapeCanBeOmitted) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, NotNull()) << error.data();
-  mj_deleteModel(m);
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), NotNull()) << error.data();
 }
 
 TEST_F(UserCompositeTest, InvalidShape) {
@@ -64,8 +63,8 @@ TEST_F(UserCompositeTest, InvalidShape) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(),
               HasSubstr("The curve array contains an invalid shape"));
 }

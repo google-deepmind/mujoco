@@ -28,7 +28,6 @@ namespace {
 
 using ElasticityTest = MujocoTest;
 
-
 // -------------------------------- cable -----------------------------------
 TEST_F(ElasticityTest, CantileverIntoCircle) {
 #ifdef mjUSESINGLE
@@ -66,25 +65,24 @@ TEST_F(ElasticityTest, CantileverIntoCircle) {
 
   char error[1024] = {0};
 
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
-  // see Oliver Weeger, Sai-Kit Yeung, Martin L. Dunn, "Isogeometric collocation methods for Cosserat rods and rod
-  // structures", section 7.1 (DOI: j.cma.2016.05.009), the torque for achieving an angle phi is phi * E * Iy.
+  // see Oliver Weeger, Sai-Kit Yeung, Martin L. Dunn, "Isogeometric collocation
+  // methods for Cosserat rods and rod structures", section 7.1 (DOI:
+  // j.cma.2016.05.009), the torque for achieving an angle phi is phi * E * Iy.
   mjtNum Iy = mjPI * pow(0.005, 4) / 4;
   mjtNum torque = 2 * mjPI * 1e9 * Iy;
-  for (int i=0; i < 1300; i++) {
+  for (int i = 0; i < 1300; i++) {
     if (i < 300) {
       d->ctrl[0] += torque / 300;
     }
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
   EXPECT_NEAR(d->sensordata[0], 0, std::numeric_limits<float>::epsilon());
   EXPECT_NEAR(d->sensordata[1], 0, std::numeric_limits<float>::epsilon());
   EXPECT_NEAR(d->sensordata[2], 1, std::numeric_limits<float>::epsilon());
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(ElasticityTest, InvalidTxtAttribute) {
@@ -106,8 +104,8 @@ TEST_F(ElasticityTest, InvalidTxtAttribute) {
 
   char error[1024] = {0};
 
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::IsNull());
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::IsNull());
 }
 
 TEST_F(ElasticityTest, InvalidMixedAttribute) {
@@ -129,8 +127,8 @@ TEST_F(ElasticityTest, InvalidMixedAttribute) {
 
   char error[1024] = {0};
 
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::IsNull());
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::IsNull());
 }
 
 TEST_F(ElasticityTest, ValidAttributes) {
@@ -152,9 +150,8 @@ TEST_F(ElasticityTest, ValidAttributes) {
 
   char error[1024] = {0};
 
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mj_deleteModel(m);
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
 }
 
 }  // namespace

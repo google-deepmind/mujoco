@@ -24,18 +24,14 @@
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
-
-
 namespace mujoco {
 namespace {
 
+using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
-using ::testing::HasSubstr;
 using ::testing::Pointwise;
 using UserFlexTest = MujocoTest;
-
-
 
 TEST_F(UserFlexTest, ParentMustHaveName) {
   static constexpr char xml[] = R"(
@@ -46,8 +42,8 @@ TEST_F(UserFlexTest, ParentMustHaveName) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull());
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("required attribute missing: 'name'"));
 }
 
@@ -60,8 +56,8 @@ TEST_F(UserFlexTest, InvalidDim) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull());
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("Invalid dim, must be between 1 and 3"));
 }
 
@@ -74,8 +70,8 @@ TEST_F(UserFlexTest, CountTooSmall) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull());
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("Count too small"));
 }
 
@@ -95,8 +91,8 @@ TEST_F(UserFlexTest, CellnumZeroInterpolated) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull());
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("cellcount cannot be 0"));
 }
 
@@ -109,8 +105,8 @@ TEST_F(UserFlexTest, SpacingGreaterThanGeometry) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(),
               HasSubstr("Spacing must be larger than geometry size"));
 }
@@ -124,8 +120,8 @@ TEST_F(UserFlexTest, ScaleMinValue) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("Scale must be larger than mjMINVAL"));
 }
 
@@ -138,8 +134,8 @@ TEST_F(UserFlexTest, MassMinValue) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(),
               HasSubstr("Mass and inertiabox must be larger than mjMINVAL"));
 }
@@ -153,8 +149,8 @@ TEST_F(UserFlexTest, PointSizeNotMultipleOf3) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("Point size must be a multiple of 3"));
 }
 
@@ -167,8 +163,8 @@ TEST_F(UserFlexTest, ElementSize) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(),
               HasSubstr("Element size must be a multiple of dim+1"));
 }
@@ -182,8 +178,8 @@ TEST_F(UserFlexTest, PointAndElementNotInDirect) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("Point and element required"));
 }
 
@@ -196,8 +192,8 @@ TEST_F(UserFlexTest, UnknownFlexCompType) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("invalid keyword: 'unknown'"));
 }
 
@@ -212,8 +208,8 @@ TEST_F(UserFlexTest, InvalidPinid) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(),
               HasSubstr("element 1 has point id 1, number of points is 1"));
 }
@@ -227,8 +223,8 @@ TEST_F(UserFlexTest, MeshFileMissing) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("File is required"));
 }
 
@@ -249,8 +245,8 @@ TEST_F(UserFlexTest, CreateBVHSuccess) {
   ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, RigidFlex) {
@@ -261,8 +257,8 @@ TEST_F(UserFlexTest, RigidFlex) {
   ASSERT_THAT(m, NotNull()) << error.data();
   mjData* d = mj_makeData(m);
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, FlexNotCollide) {
@@ -277,17 +273,16 @@ TEST_F(UserFlexTest, FlexNotCollide) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
-  mjData* d = mj_makeData(m);
-  mj_step(m, d);
-  mj_deleteModel(m);
-  mj_deleteData(d);
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  MjDataPtr d = MakeData(m);
+  mj_step(m.get(), d.get());
 }
 
 TEST_F(UserFlexTest, BoundingBoxCoordinates) {
 #ifdef mjUSESINGLE
-  GTEST_SKIP() << "Float32 rounding in bounding box centering gives ~3e-8 error";
+  GTEST_SKIP()
+      << "Float32 rounding in bounding box centering gives ~3e-8 error";
 #endif
   static constexpr char xml[] = R"(
   <mujoco>
@@ -298,34 +293,31 @@ TEST_F(UserFlexTest, BoundingBoxCoordinates) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
-  mjData* d = mj_makeData(m);
-  mj_kinematics(m, d);
-  mj_flex(m, d);
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  MjDataPtr d = MakeData(m);
+  mj_kinematics(m.get(), d.get());
+  mj_flex(m.get(), d.get());
 
-  EXPECT_EQ(m->nflexvert, 5*5*5);
-  EXPECT_EQ(m->nflexelem, 4*4*4*6);
+  EXPECT_EQ(m->nflexvert, 5 * 5 * 5);
+  EXPECT_EQ(m->nflexelem, 4 * 4 * 4 * 6);
   EXPECT_EQ(m->flex_dim[0], 3);
 
   // Cartesian coordinates
   EXPECT_EQ(d->flexvert_xpos[0], -1);
   EXPECT_EQ(d->flexvert_xpos[1], -2);
   EXPECT_EQ(d->flexvert_xpos[2], -3);
-  EXPECT_EQ(d->flexvert_xpos[3*m->nflexvert-3], 3);
-  EXPECT_EQ(d->flexvert_xpos[3*m->nflexvert-2], 2);
-  EXPECT_EQ(d->flexvert_xpos[3*m->nflexvert-1], 1);
+  EXPECT_EQ(d->flexvert_xpos[3 * m->nflexvert - 3], 3);
+  EXPECT_EQ(d->flexvert_xpos[3 * m->nflexvert - 2], 2);
+  EXPECT_EQ(d->flexvert_xpos[3 * m->nflexvert - 1], 1);
 
   // bounding box coordinates
   EXPECT_EQ(m->flex_vert0[0], 0);
   EXPECT_EQ(m->flex_vert0[1], 0);
   EXPECT_EQ(m->flex_vert0[2], 0);
-  EXPECT_EQ(m->flex_vert0[3*m->nflexvert-3], 1);
-  EXPECT_EQ(m->flex_vert0[3*m->nflexvert-2], 1);
-  EXPECT_EQ(m->flex_vert0[3*m->nflexvert-1], 1);
-
-  mj_deleteModel(m);
-  mj_deleteData(d);
+  EXPECT_EQ(m->flex_vert0[3 * m->nflexvert - 3], 1);
+  EXPECT_EQ(m->flex_vert0[3 * m->nflexvert - 2], 1);
+  EXPECT_EQ(m->flex_vert0[3 * m->nflexvert - 1], 1);
 }
 
 TEST_F(UserFlexTest, TrilinearCannotDoSelfCollision) {
@@ -339,8 +331,8 @@ TEST_F(UserFlexTest, TrilinearCannotDoSelfCollision) {
   </worldbody>
   </mujoco>
   )";
-  mjModel* m1 = LoadModelFromString(xml_selfcoll, error.data(), error.size());
-  EXPECT_THAT(m1, IsNull()) << error.data();
+  MjModelPtr m1 = LoadModelFromString(xml_selfcoll, error.data(), error.size());
+  EXPECT_THAT(m1.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(),
               HasSubstr("trilinear interpolation cannot do self-collision"));
   static constexpr char xml_internal[] = R"(
@@ -352,8 +344,8 @@ TEST_F(UserFlexTest, TrilinearCannotDoSelfCollision) {
   </worldbody>
   </mujoco>
   )";
-  mjModel* m2 = LoadModelFromString(xml_internal, error.data(), error.size());
-  EXPECT_THAT(m2, IsNull()) << error.data();
+  MjModelPtr m2 = LoadModelFromString(xml_internal, error.data(), error.size());
+  EXPECT_THAT(m2.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(),
               HasSubstr("trilinear interpolation cannot do internal"));
 }
@@ -370,10 +362,11 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m1 = LoadModelFromString(xml_trilinear, error.data(), error.size());
-  ASSERT_THAT(m1, NotNull()) << error.data();
-  mjData* d1 = mj_makeData(m1);
-  mj_step(m1, d1);
+  MjModelPtr m1 =
+      LoadModelFromString(xml_trilinear, error.data(), error.size());
+  ASSERT_THAT(m1.get(), NotNull()) << error.data();
+  MjDataPtr d1 = MakeData(m1);
+  mj_step(m1.get(), d1.get());
 
   static constexpr char xml_linear[] = R"(
   <mujoco>
@@ -385,13 +378,13 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
   </worldbody>
   </mujoco>
   )";
-  mjModel* m2 = LoadModelFromString(xml_linear, error.data(), error.size());
-  ASSERT_THAT(m2, NotNull()) << error.data();
-  mjData* d2 = mj_makeData(m2);
-  mj_step(m2, d2);
+  MjModelPtr m2 = LoadModelFromString(xml_linear, error.data(), error.size());
+  ASSERT_THAT(m2.get(), NotNull()) << error.data();
+  MjDataPtr d2 = MakeData(m2);
+  mj_step(m2.get(), d2.get());
 
   EXPECT_EQ(m1->nflexvert, m2->nflexvert);
-  for (int i = 0; i < 3*m1->nflexvert; ++i) {
+  for (int i = 0; i < 3 * m1->nflexvert; ++i) {
     EXPECT_NEAR(m1->flex_vert[i], d2->flexvert_xpos[i], 1e-7);
     EXPECT_NEAR(m1->flex_vert0[i], m2->flex_vert0[i], 1e-7);
     EXPECT_NEAR(d1->flexvert_xpos[i], d2->flexvert_xpos[i], 1e-7);
@@ -409,11 +402,11 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
     }
     EXPECT_EQ(m1->body_mass[i], m2->body_mass[i]);
     for (int j = 0; j < 2; ++j) {
-      EXPECT_EQ(m1->body_invweight0[i*2+j], m2->body_invweight0[i*2+j]);
+      EXPECT_EQ(m1->body_invweight0[i * 2 + j], m2->body_invweight0[i * 2 + j]);
     }
     for (int j = 0; j < 10; ++j) {
-      EXPECT_NEAR(d1->cinert[10*i+j], d2->cinert[i*10+j], 1e-5) << i;
-      EXPECT_NEAR(d1->crb[10*i+j], d2->crb[i*10+j], 1e-5) << i;
+      EXPECT_NEAR(d1->cinert[10 * i + j], d2->cinert[i * 10 + j], 1e-5) << i;
+      EXPECT_NEAR(d1->crb[10 * i + j], d2->crb[i * 10 + j], 1e-5) << i;
     }
   }
 
@@ -436,18 +429,13 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
     }
   }
 
-  EXPECT_EQ(d1->nefc, 4*(d1->contact[0].dim-1)*2);
-  EXPECT_EQ(d2->nefc, 4*(d2->contact[0].dim-1)*2);
+  EXPECT_EQ(d1->nefc, 4 * (d1->contact[0].dim - 1) * 2);
+  EXPECT_EQ(d2->nefc, 4 * (d2->contact[0].dim - 1) * 2);
   EXPECT_EQ(d1->nJ, d2->nJ);
   for (int i = 0; i < d1->nefc; ++i) {
     EXPECT_EQ(d1->efc_diagA[i], d2->efc_diagA[i]);
     EXPECT_EQ(d1->efc_D[i], d2->efc_D[i]);
   }
-
-  mj_deleteModel(m1);
-  mj_deleteModel(m2);
-  mj_deleteData(d1);
-  mj_deleteData(d2);
 }
 
 TEST_F(UserFlexTest, StiffnessMatrix) {
@@ -466,22 +454,20 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_NE(m->flex_stiffness[m->flex_stiffnessadr[0]], 0);
   EXPECT_EQ(m->nflexnode, 8);
 
   // constants are in the kernel
   mjtNum ones[24], zeros[24], res[24];
-  for (int i = 0; i < 3*m->nflexnode; ++i) {
+  for (int i = 0; i < 3 * m->nflexnode; ++i) {
     zeros[i] = 0;
     ones[i] = 1;
   }
   mju_mulMatVec(res, m->flex_stiffness + m->flex_stiffnessadr[0], ones,
                 3 * m->nflexnode, 3 * m->nflexnode);
   EXPECT_THAT(res, Pointwise(MjNear(1e-8, 1e-4), zeros));
-
-  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, StiffnessCacheDiffersByGeometry) {
@@ -510,19 +496,18 @@ TEST_F(UserFlexTest, StiffnessCacheDiffersByGeometry) {
   </mujoco>
   )";
 
-  mjModel* m_small = LoadModelFromString(xml_small, error.data(), error.size());
-  ASSERT_THAT(m_small, NotNull()) << error.data();
+  MjModelPtr m_small =
+      LoadModelFromString(xml_small, error.data(), error.size());
+  ASSERT_THAT(m_small.get(), NotNull()) << error.data();
 
-  mjModel* m_large = LoadModelFromString(xml_large, error.data(), error.size());
-  ASSERT_THAT(m_large, NotNull()) << error.data();
+  MjModelPtr m_large =
+      LoadModelFromString(xml_large, error.data(), error.size());
+  ASSERT_THAT(m_large.get(), NotNull()) << error.data();
 
   // Same number of nodes but different stiffness due to different geometry
   EXPECT_EQ(m_small->nflexnode, m_large->nflexnode);
   EXPECT_NE(m_small->flex_stiffness[m_small->flex_stiffnessadr[0]],
             m_large->flex_stiffness[m_large->flex_stiffnessadr[0]]);
-
-  mj_deleteModel(m_small);
-  mj_deleteModel(m_large);
 }
 
 TEST_F(UserFlexTest, LoadTexture) {
@@ -552,8 +537,8 @@ TEST_F(UserFlexTest, LoadMSHBinary_41_Success) {
   EXPECT_EQ(m->nflexelem, 24);
   EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHBinary_22_Success) {
@@ -567,8 +552,8 @@ TEST_F(UserFlexTest, LoadMSHBinary_22_Success) {
   EXPECT_EQ(m->nflexelem, 24);
   EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHSurfaceBinary_41_Success) {
@@ -585,18 +570,18 @@ TEST_F(UserFlexTest, LoadMSHSurfaceBinary_41_Success) {
   EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
-  EXPECT_EQ(d->flexvert_xpos[0], -0.5 );
-  EXPECT_EQ(d->flexvert_xpos[1], -0.5 );
-  EXPECT_EQ(d->flexvert_xpos[2], 0 );
+  EXPECT_EQ(d->flexvert_xpos[0], -0.5);
+  EXPECT_EQ(d->flexvert_xpos[1], -0.5);
+  EXPECT_EQ(d->flexvert_xpos[2], 0);
 
   // first element
-  EXPECT_EQ(m->flex_elem[0], 9-1 );
-  EXPECT_EQ(m->flex_elem[1], 4-1 );
-  EXPECT_EQ(m->flex_elem[2], 3-1 );
+  EXPECT_EQ(m->flex_elem[0], 9 - 1);
+  EXPECT_EQ(m->flex_elem[1], 4 - 1);
+  EXPECT_EQ(m->flex_elem[2], 3 - 1);
 
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHSurfaceBinary_22_Success) {
@@ -613,18 +598,18 @@ TEST_F(UserFlexTest, LoadMSHSurfaceBinary_22_Success) {
   EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
-  EXPECT_EQ(d->flexvert_xpos[0], -0.5 );
-  EXPECT_EQ(d->flexvert_xpos[1], -0.5 );
-  EXPECT_EQ(d->flexvert_xpos[2], 0 );
+  EXPECT_EQ(d->flexvert_xpos[0], -0.5);
+  EXPECT_EQ(d->flexvert_xpos[1], -0.5);
+  EXPECT_EQ(d->flexvert_xpos[2], 0);
 
   // first element
-  EXPECT_EQ(m->flex_elem[0], 9-1 );
-  EXPECT_EQ(m->flex_elem[1], 4-1 );
-  EXPECT_EQ(m->flex_elem[2], 3-1 );
+  EXPECT_EQ(m->flex_elem[0], 9 - 1);
+  EXPECT_EQ(m->flex_elem[1], 4 - 1);
+  EXPECT_EQ(m->flex_elem[2], 3 - 1);
 
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHBinaryFTETWILD_22_Success) {
@@ -638,8 +623,8 @@ TEST_F(UserFlexTest, LoadMSHBinaryFTETWILD_22_Success) {
   EXPECT_EQ(m->nflexelem, 1073);
   EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_41_Success) {
@@ -653,8 +638,8 @@ TEST_F(UserFlexTest, LoadMSHASCII_41_Success) {
   EXPECT_EQ(m->nflexelem, 24);
   EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_22_Success) {
@@ -668,8 +653,8 @@ TEST_F(UserFlexTest, LoadMSHASCII_22_Success) {
   EXPECT_EQ(m->nflexelem, 24);
   EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHSurfaceASCII_41_Success) {
@@ -686,18 +671,18 @@ TEST_F(UserFlexTest, LoadMSHSurfaceASCII_41_Success) {
   EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
-  EXPECT_EQ(d->flexvert_xpos[0], -0.5 );
-  EXPECT_EQ(d->flexvert_xpos[1], -0.5 );
-  EXPECT_EQ(d->flexvert_xpos[2], 0 );
+  EXPECT_EQ(d->flexvert_xpos[0], -0.5);
+  EXPECT_EQ(d->flexvert_xpos[1], -0.5);
+  EXPECT_EQ(d->flexvert_xpos[2], 0);
 
   // first element
-  EXPECT_EQ(m->flex_elem[0], 9-1 );
-  EXPECT_EQ(m->flex_elem[1], 4-1 );
-  EXPECT_EQ(m->flex_elem[2], 3-1 );
+  EXPECT_EQ(m->flex_elem[0], 9 - 1);
+  EXPECT_EQ(m->flex_elem[1], 4 - 1);
+  EXPECT_EQ(m->flex_elem[2], 3 - 1);
 
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHSurfaceASCII_22_Success) {
@@ -714,18 +699,18 @@ TEST_F(UserFlexTest, LoadMSHSurfaceASCII_22_Success) {
   EXPECT_EQ(m->flex_dim[0], 2);
 
   // first node x y z
-  EXPECT_EQ(d->flexvert_xpos[0], -0.5 );
-  EXPECT_EQ(d->flexvert_xpos[1], -0.5 );
-  EXPECT_EQ(d->flexvert_xpos[2], 0 );
+  EXPECT_EQ(d->flexvert_xpos[0], -0.5);
+  EXPECT_EQ(d->flexvert_xpos[1], -0.5);
+  EXPECT_EQ(d->flexvert_xpos[2], 0);
 
   // first element
-  EXPECT_EQ(m->flex_elem[0], 9-1 );
-  EXPECT_EQ(m->flex_elem[1], 4-1 );
-  EXPECT_EQ(m->flex_elem[2], 3-1 );
+  EXPECT_EQ(m->flex_elem[0], 9 - 1);
+  EXPECT_EQ(m->flex_elem[1], 4 - 1);
+  EXPECT_EQ(m->flex_elem[2], 3 - 1);
 
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCIIFTETWILD_22_Success) {
@@ -739,70 +724,69 @@ TEST_F(UserFlexTest, LoadMSHASCIIFTETWILD_22_Success) {
   EXPECT_EQ(m->nflexelem, 1070);
   EXPECT_EQ(m->flex_dim[0], 3);
   mj_step(m, d);
-  mj_deleteModel(m);
   mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_41_MissingNodeHeader_Fail) {
-  const std::string xml_path =
-      GetTestDataFilePath(
-          "user/testdata/malformed_cube_41_ascii_missing_node_header.xml");
+  const std::string xml_path = GetTestDataFilePath(
+      "user/testdata/malformed_cube_41_ascii_missing_node_header.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr(
-        "XML Error: Error: All nodes must be in single block"));
+  EXPECT_THAT(error.data(),
+              HasSubstr("XML Error: Error: All nodes must be in single block"));
   mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_41_MissingNodeIndex_Fail) {
-  const std::string xml_path =
-      GetTestDataFilePath(
-          "user/testdata/malformed_cube_41_ascii_missing_node_index.xml");
+  const std::string xml_path = GetTestDataFilePath(
+      "user/testdata/malformed_cube_41_ascii_missing_node_index.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr(
-        "XML Error: Error: Node tags must be sequential"));
+  EXPECT_THAT(error.data(),
+              HasSubstr("XML Error: Error: Node tags must be sequential"));
   mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_41_MissingElementHeader_Fail) {
-  const std::string xml_path =
-      GetTestDataFilePath(
-          "user/testdata/malformed_cube_41_ascii_missing_element_header.xml");
+  const std::string xml_path = GetTestDataFilePath(
+      "user/testdata/malformed_cube_41_ascii_missing_element_header.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr(
-        "XML Error: Error: All elements must be in single block"));
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("XML Error: Error: All elements must be in single block"));
   mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_41_MissingElement_Fail) {
-  const std::string xml_path =
-      GetTestDataFilePath(
-          "user/testdata/malformed_cube_41_ascii_missing_element.xml");
+  const std::string xml_path = GetTestDataFilePath(
+      "user/testdata/malformed_cube_41_ascii_missing_element.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr(
-        "XML Error: Error: Error reading Elements"));
+  EXPECT_THAT(error.data(),
+              HasSubstr("XML Error: Error: Error reading Elements"));
   mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest,
        LoadMSHASCII_41_MismatchBetweenMaxNodesAndNodesInBlock_Fail) {
-  const std::string xml_path =
-      GetTestDataFilePath(
-          "user/testdata/malformed_cube_41_ascii_mismatch_between_max_nodes_and_nodes_in_block.xml");
+  const std::string xml_path = GetTestDataFilePath(
+      "user/testdata/"
+      "malformed_cube_41_ascii_mismatch_between_max_nodes_and_nodes_in_block."
+      "xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr(
-        "XML Error: Error: Maximum number of nodes must be equal to number of nodes in a block\nElement 'flexcomp', line 22\n"));
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("XML Error: Error: Maximum number of nodes must be equal to "
+                "number of nodes in a block\nElement 'flexcomp', line 22\n"));
   mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNumNodes_Fail) {
-  const std::string xml_path =
-      GetTestDataFilePath(
-          "user/testdata/malformed_cube_22_ascii_missing_num_nodes.xml");
+  const std::string xml_path = GetTestDataFilePath(
+      "user/testdata/malformed_cube_22_ascii_missing_num_nodes.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   // TODO(mohammadhamid): Replace with an assertion about the error message. For
@@ -812,20 +796,18 @@ TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNumNodes_Fail) {
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNode_Fail) {
-  const std::string xml_path =
-      GetTestDataFilePath(
-          "user/testdata/malformed_cube_22_ascii_missing_node.xml");
+  const std::string xml_path = GetTestDataFilePath(
+      "user/testdata/malformed_cube_22_ascii_missing_node.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr(
-        "XML Error: Error: Error reading node tags"));
+  EXPECT_THAT(error.data(),
+              HasSubstr("XML Error: Error: Error reading node tags"));
   mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNumElements_Fail) {
-  const std::string xml_path =
-      GetTestDataFilePath(
-          "user/testdata/malformed_shark_22_ascii_missing_num_elements.xml");
+  const std::string xml_path = GetTestDataFilePath(
+      "user/testdata/malformed_shark_22_ascii_missing_num_elements.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   // TODO(mohammadhamid): Replace with an assertion about the error message. For
@@ -835,20 +817,18 @@ TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNumElements_Fail) {
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_22_MissingElement_Fail) {
-  const std::string xml_path =
-      GetTestDataFilePath(
-          "user/testdata/malformed_cube_22_ascii_missing_element.xml");
+  const std::string xml_path = GetTestDataFilePath(
+      "user/testdata/malformed_cube_22_ascii_missing_element.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(), HasSubstr(
-        "XML Error: Error: Error reading Elements"));
+  EXPECT_THAT(error.data(),
+              HasSubstr("XML Error: Error: Error reading Elements"));
   mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_dim_missing_in_xml) {
-  const std::string xml_path =
-      GetTestDataFilePath(
-          "user/testdata/cube_22_ascii_vol_gmshApp_missing_dim.xml");
+  const std::string xml_path = GetTestDataFilePath(
+      "user/testdata/cube_22_ascii_vol_gmshApp_missing_dim.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   EXPECT_EQ(m->flex_dim[0], 3);
@@ -871,9 +851,8 @@ TEST_F(UserFlexTest, TrilinearUnusedVertices_Crash) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, testing::NotNull()) << error.data();
-  mj_deleteModel(m);
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), testing::NotNull()) << error.data();
 }
 
 TEST_F(UserFlexTest, MeshNodePinning) {
@@ -891,8 +870,8 @@ TEST_F(UserFlexTest, MeshNodePinning) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, testing::NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), testing::NotNull()) << error.data();
 
   // Verify that node 0 (corner) is pinned
   // Trilinear 3D has 8 nodes.
@@ -901,14 +880,11 @@ TEST_F(UserFlexTest, MeshNodePinning) {
   // m->nbody should reflect this. Flex bodies are added to the model.
   // Model has 1 world body + flex bodies.
   EXPECT_EQ(m->nbody, 1 + 7);  // 1 world + 7 flex nodes (1 pinned)
-
-  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, FlexcompMeshLoadsFromVFS) {
   // read cube.stl from testdata into a buffer
-  const std::string stl_path =
-      GetTestDataFilePath("user/testdata/cube.stl");
+  const std::string stl_path = GetTestDataFilePath("user/testdata/cube.stl");
   FILE* f = fopen(stl_path.c_str(), "rb");
   ASSERT_THAT(f, NotNull()) << "Could not open " << stl_path;
   fseek(f, 0, SEEK_END);
@@ -938,12 +914,10 @@ TEST_F(UserFlexTest, FlexcompMeshLoadsFromVFS) {
 
   // cleanup
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
-  ASSERT_THAT(m, NotNull()) << error.data();
-  mjData* d = mj_makeData(m);
-  mj_step(m, d);
-  mj_deleteData(d);
-  mj_deleteModel(m);
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  MjDataPtr d = MakeData(m);
+  mj_step(m.get(), d.get());
   mj_deleteVFS(&vfs);
 }
 
@@ -986,22 +960,20 @@ TEST_F(UserFlexTest, FlexAttachConstraintPreserved) {
 
   // First verify the standalone flex model has constraints
   std::array<char, 1024> error;
-  mjModel* m_standalone =
+  MjModelPtr m_standalone =
       LoadModelFromString(flex_xml, error.data(), error.size(), vfs.get());
-  ASSERT_THAT(m_standalone, NotNull()) << error.data();
-  mjData* d_standalone = mj_makeData(m_standalone);
-  mj_forward(m_standalone, d_standalone);
+  ASSERT_THAT(m_standalone.get(), NotNull()) << error.data();
+  MjDataPtr d_standalone = MakeData(m_standalone);
+  mj_forward(m_standalone.get(), d_standalone.get());
   int standalone_neq = m_standalone->neq;
   EXPECT_GT(standalone_neq, 0) << "Standalone flex should have constraints";
-  mj_deleteData(d_standalone);
-  mj_deleteModel(m_standalone);
 
   // Now load the parent model which attaches the flex
-  mjModel* m_attached =
+  MjModelPtr m_attached =
       LoadModelFromString(parent_xml, error.data(), error.size(), vfs.get());
-  ASSERT_THAT(m_attached, NotNull()) << error.data();
-  mjData* d_attached = mj_makeData(m_attached);
-  mj_forward(m_attached, d_attached);
+  ASSERT_THAT(m_attached.get(), NotNull()) << error.data();
+  MjDataPtr d_attached = MakeData(m_attached);
+  mj_forward(m_attached.get(), d_attached.get());
 
   // THE BUG: flex constraints disappear when attached
   EXPECT_GT(m_attached->neq, 0)
@@ -1009,8 +981,6 @@ TEST_F(UserFlexTest, FlexAttachConstraintPreserved) {
   EXPECT_EQ(m_attached->neq, standalone_neq)
       << "Attached flex should have same number of constraints as standalone";
 
-  mj_deleteData(d_attached);
-  mj_deleteModel(m_attached);
   mj_deleteVFS(vfs.get());
 }
 
@@ -1024,11 +994,10 @@ TEST_F(UserFlexTest, FlexNoConstraintsWarning) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
   EXPECT_THAT(error.data(),
               HasSubstr("no equality constraints or passive forces"));
-  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, EmptyCellNodePinning) {
@@ -1046,8 +1015,8 @@ TEST_F(UserFlexTest, EmptyCellNodePinning) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 
   // A 2x2x2 grid with trilinear order has (2+1)^3 = 27 node positions.
   int nadr = m->flex_nodeadr[0];
@@ -1065,20 +1034,16 @@ TEST_F(UserFlexTest, EmptyCellNodePinning) {
   EXPECT_EQ(pinned, 0);
 
   // Verify simulation works
-  mjData* d = mj_makeData(m);
+  MjDataPtr d = MakeData(m);
   for (int i = 0; i < 10; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, EmptyCellNodePinningMesh) {
   // Load bunny_multicell.xml which has a 3x3x3 grid.
   // The bunny mesh only occupies some cells, so many nodes should be pinned.
-  const std::string xml_path =
-      GetModelPath("flex/bunny_multicell.xml");
+  const std::string xml_path = GetModelPath("flex/bunny_multicell.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << error.data();
@@ -1152,8 +1117,8 @@ TEST_F(UserFlexTest, EmptyCellNodePinningQuadratic) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 
   // 3x1x1 quadratic grid: (3*2+1) * (1*2+1) * (1*2+1) = 7*3*3 = 63 nodes
   int nadr = m->flex_nodeadr[0];
@@ -1161,7 +1126,7 @@ TEST_F(UserFlexTest, EmptyCellNodePinningQuadratic) {
   EXPECT_EQ(nnode, 63);
 
   // Count pinned nodes: pinned nodes are assigned to the parent body.
-  int parent_bid = mj_name2id(m, mjOBJ_BODY, "parent");
+  int parent_bid = mj_name2id(m.get(), mjOBJ_BODY, "parent");
   ASSERT_GT(parent_bid, 0);
   int pinned = 0;
   for (int n = nadr; n < nadr + nnode; n++) {
@@ -1175,8 +1140,7 @@ TEST_F(UserFlexTest, EmptyCellNodePinningQuadratic) {
   // That's 4 * 3 * 3 = 36 nodes.
   EXPECT_EQ(pinned, 36);
 
-  mj_deleteData(mj_makeData(m));
-  mj_deleteModel(m);
+  mj_deleteData(mj_makeData(m.get()));
 }
 
 TEST_F(UserFlexTest, EmptyCellDetectsElements) {
@@ -1208,8 +1172,8 @@ TEST_F(UserFlexTest, EmptyCellDetectsElements) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 
   // 6x6x6 trilinear grid: (6+1)^3 = 343 nodes
   int nadr = m->flex_nodeadr[0];
@@ -1217,7 +1181,7 @@ TEST_F(UserFlexTest, EmptyCellDetectsElements) {
   ASSERT_EQ(nnode, 343);
 
   // Count pinned nodes: those assigned to the parent body.
-  int parent_bid = mj_name2id(m, mjOBJ_BODY, "parent");
+  int parent_bid = mj_name2id(m.get(), mjOBJ_BODY, "parent");
   ASSERT_GT(parent_bid, 0);
   int pinned = 0;
   for (int n = nadr; n < nadr + nnode; n++) {
@@ -1233,8 +1197,7 @@ TEST_F(UserFlexTest, EmptyCellDetectsElements) {
   // No cells are empty → 0 nodes pinned.
   EXPECT_EQ(pinned, 0);
 
-  mj_deleteData(mj_makeData(m));
-  mj_deleteModel(m);
+  mj_deleteData(mj_makeData(m.get()));
 }
 
 TEST_F(UserFlexTest, TotalMassTrilinear) {
@@ -1249,8 +1212,8 @@ TEST_F(UserFlexTest, TotalMassTrilinear) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 
   double total_mass = 0;
   for (int i = 1; i < m->nbody; ++i) {
@@ -1258,7 +1221,6 @@ TEST_F(UserFlexTest, TotalMassTrilinear) {
   }
 
   EXPECT_NEAR(total_mass, 1.5, 1e-5);
-  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, TotalMassQuadratic) {
@@ -1273,8 +1235,8 @@ TEST_F(UserFlexTest, TotalMassQuadratic) {
   </mujoco>
   )";
   std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(m, NotNull()) << error.data();
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
 
   double total_mass = 0;
   for (int i = 1; i < m->nbody; ++i) {
@@ -1282,7 +1244,6 @@ TEST_F(UserFlexTest, TotalMassQuadratic) {
   }
 
   EXPECT_NEAR(total_mass, 2.0, 1e-5);
-  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, Dof2d) {
@@ -1298,7 +1259,8 @@ TEST_F(UserFlexTest, Dof2d) {
   </mujoco>
   )";
 
-  // same model with dof="full" for comparison: 9 vertices, 3 DOFs each -> nv = 27
+  // same model with dof="full" for comparison: 9 vertices, 3 DOFs each -> nv =
+  // 27
   static constexpr char xml_full[] = R"(
   <mujoco>
   <worldbody>
@@ -1313,14 +1275,14 @@ TEST_F(UserFlexTest, Dof2d) {
   std::array<char, 1024> error;
 
   // load 2d model
-  mjModel* m_2d = LoadModelFromString(xml_2d, error.data(), error.size());
-  ASSERT_THAT(m_2d, NotNull()) << error.data();
-  mjData* d_2d = mj_makeData(m_2d);
+  MjModelPtr m_2d = LoadModelFromString(xml_2d, error.data(), error.size());
+  ASSERT_THAT(m_2d.get(), NotNull()) << error.data();
+  MjDataPtr d_2d = MakeData(m_2d);
 
   // load full model
-  mjModel* m_full = LoadModelFromString(xml_full, error.data(), error.size());
-  ASSERT_THAT(m_full, NotNull()) << error.data();
-  mjData* d_full = mj_makeData(m_full);
+  MjModelPtr m_full = LoadModelFromString(xml_full, error.data(), error.size());
+  ASSERT_THAT(m_full.get(), NotNull()) << error.data();
+  MjDataPtr d_full = MakeData(m_full);
 
   // verify DOF counts
   EXPECT_EQ(m_2d->nv, 18);    // 9 vertices * 2 DOFs
@@ -1340,14 +1302,9 @@ TEST_F(UserFlexTest, Dof2d) {
 
   // simulate a few steps to make sure nothing crashes
   for (int i = 0; i < 10; i++) {
-    mj_step(m_2d, d_2d);
-    mj_step(m_full, d_full);
+    mj_step(m_2d.get(), d_2d.get());
+    mj_step(m_full.get(), d_full.get());
   }
-
-  mj_deleteModel(m_2d);
-  mj_deleteModel(m_full);
-  mj_deleteData(d_2d);
-  mj_deleteData(d_full);
 }
 
 TEST_F(UserFlexTest, Vert0RotationInvariant) {
@@ -1380,11 +1337,12 @@ TEST_F(UserFlexTest, Vert0RotationInvariant) {
   )";
 
   std::array<char, 1024> error;
-  mjModel* m1 = LoadModelFromString(xml_unrotated, error.data(), error.size());
-  ASSERT_THAT(m1, NotNull()) << error.data();
+  MjModelPtr m1 =
+      LoadModelFromString(xml_unrotated, error.data(), error.size());
+  ASSERT_THAT(m1.get(), NotNull()) << error.data();
 
-  mjModel* m2 = LoadModelFromString(xml_rotated, error.data(), error.size());
-  ASSERT_THAT(m2, NotNull()) << error.data();
+  MjModelPtr m2 = LoadModelFromString(xml_rotated, error.data(), error.size());
+  ASSERT_THAT(m2.get(), NotNull()) << error.data();
 
   // same number of vertices
   ASSERT_EQ(m1->nflexvert, m2->nflexvert);
@@ -1394,9 +1352,6 @@ TEST_F(UserFlexTest, Vert0RotationInvariant) {
     EXPECT_NEAR(m1->flex_vert0[i], m2->flex_vert0[i], 1e-10)
         << "vert0 mismatch at index " << i;
   }
-
-  mj_deleteModel(m1);
-  mj_deleteModel(m2);
 }
 
 TEST_F(UserFlexTest, Load1DFlexFromOBJ) {
@@ -1413,4 +1368,3 @@ TEST_F(UserFlexTest, Load1DFlexFromOBJ) {
 
 }  // namespace
 }  // namespace mujoco
-
