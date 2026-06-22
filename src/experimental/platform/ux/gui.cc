@@ -990,9 +990,9 @@ void PhysicsGui(mjModel* model, float min_width) {
     ImGui_InputN("Gravity", opt.gravity, 3);
     ImGui_InputN("Wind", opt.wind, 3);
     ImGui_InputN("Magnetic", opt.magnetic, 3);
-    ImGui_Input("Density", &opt.density, {.min = .1, .max = 1});
-    ImGui_Input("Viscosity", &opt.viscosity, {.min = .1, .max = 10});
-    ImGui_Input("Imp Ratio", &opt.impratio, {.min = .1, .max = 1});
+    ImGui_Input("Density", &opt.density, {.min = 0.0});
+    ImGui_Input("Viscosity", &opt.viscosity, {.min = 0.0});
+    ImGui_Input("Imp Ratio", &opt.impratio, {.min = 0.0});
     ImGui::TreePop();
   };
 
@@ -1015,7 +1015,7 @@ void PhysicsGui(mjModel* model, float min_width) {
   }
 
   if (SectionHeader("Contact Override")) {
-    ImGui_Input("Margin", &opt.o_margin, {.min = 0.0, .max = 1});
+    ImGui_Input("Margin", &opt.o_margin, {.min = 0.0});
     ImGui_InputN("Sol Imp", opt.o_solimp, 5, {.format = "%0.3f"});
     ImGui_InputN("Sol Ref", opt.o_solref, 2, {.format = "%0.3f"});
     ImGui_InputN("Friction", opt.o_friction, 5, {.format = "%.3f"});
