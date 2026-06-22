@@ -2,75 +2,75 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.10.0 (June 22, 2026)
+------------------------------
 
 General
 ^^^^^^^
-- Added :ref:`mju_threadpool`, a new function for creating a thread pool on an ``mjData`` instance. When a thread pool
-  is initialized, parts of the simulation pipeline, such as collision detection and constraint solving across islands,
-  are parallelized. The thread pool is automatically destroyed when the ``mjData`` is freed.
-- Added a unified :ref:`logging API<siError>`:
+1. Added :ref:`mju_threadpool`, a new function for creating a thread pool on an ``mjData`` instance. When a thread pool
+   is initialized, parts of the simulation pipeline, such as collision detection and constraint solving across islands,
+   are parallelized. The thread pool is automatically destroyed when the ``mjData`` is freed.
+2. Added a unified :ref:`logging API<siError>`:
 
-  - All errors, warnings, and informational messages are now routed through a single :ref:`mjfLogHandler` callback
-    receiving a structured :ref:`mjLogMessage`.
-  - Users can install a custom handler via :ref:`mju_setLogHandler`,
-    configure the default handler's behavior (console/file output, topic filtering) via :ref:`mju_setLogConfig`.
-  - Messages can be emitted via :ref:`mju_info` and :ref:`mju_message`.
-  - New types: :ref:`mjtLogLevel`, :ref:`mjtLogTopic`, :ref:`mjLogMessage`, :ref:`mjLogConfig`.
-  - The legacy callbacks :ref:`mju_user_error` and :ref:`mju_user_warning` are deprecated but remain functional.
+   - All errors, warnings, and informational messages are now routed through a single :ref:`mjfLogHandler` callback
+     receiving a structured :ref:`mjLogMessage`.
+   - Users can install a custom handler via :ref:`mju_setLogHandler`,
+     configure the default handler's behavior (console/file output, topic filtering) via :ref:`mju_setLogConfig`.
+   - Messages can be emitted via :ref:`mju_info` and :ref:`mju_message`.
+   - New types: :ref:`mjtLogLevel`, :ref:`mjtLogTopic`, :ref:`mjLogMessage`, :ref:`mjLogConfig`.
+   - The legacy callbacks :ref:`mju_user_error` and :ref:`mju_user_warning` are deprecated but remain functional.
 
-- Added :ref:`mjs_numWarnings` and :ref:`mjs_getWarning` for retrieving all warnings accumulated during model
-  compilation and attachment. Deprecated :ref:`mjs_isWarning` in favor of ``mjs_numWarnings(s) > 0``.
-- Added the :ref:`compiler/conflict<compiler-conflict>` attribute for controlling how conflicting global attributes
-  are resolved during :ref:`attachment<mjs_attach>`. Possible values are "warning" (default: parent values take
-  precedence, warnings emitted on conflicts), "merge" (per-field min/max/error strategy), and "error" (any
-  conflict raises an error). See :ref:`Attribute Merging <meAttributeMerging>` for details.
+3. Added :ref:`mjs_numWarnings` and :ref:`mjs_getWarning` for retrieving all warnings accumulated during model
+   compilation and attachment. Deprecated :ref:`mjs_isWarning` in favor of ``mjs_numWarnings(s) > 0``.
+4. Added the :ref:`compiler/conflict<compiler-conflict>` attribute for controlling how conflicting global attributes
+   are resolved during :ref:`attachment<mjs_attach>`. Possible values are "warning" (default: parent values take
+   precedence, warnings emitted on conflicts), "merge" (per-field min/max/error strategy), and "error" (any
+   conflict raises an error). See :ref:`Attribute Merging <meAttributeMerging>` for details.
 
-  .. admonition:: Future breaking API changes
-     :class: warning
+   .. admonition:: Future breaking API changes
+      :class: warning
 
-     The current default conflict resolution policy "warn" (ignore the child model) is backward compatible.
-     However, the default policy will change to "merge" in a future release.
+      The current default conflict resolution policy "warn" (ignore the child model) is backward compatible.
+      However, the default policy will change to "merge" in a future release.
 
-- Improved primal solver convergence under float32. Improvements initially proposed by :github:user:`n3b` in
-  :issue:`2313` and :github:user:`adenzler-nvidia` in :doc:`MJWarp <mjwarp/index>` pull request
-  `1374 <https://github.com/google-deepmind/mujoco_warp/pull/1374>`__.
-- The :ref:`CG solver<soAlgorithms>` now uses the Hager-Zhang conjugate direction update instead of the
-  Polak-Ribiere-Plus formula. This improves convergence and leads to a significant speedup under float32.
-- Added :ref:`mjs_makeFlex`, a new C API function equivalent to the :ref:`flexcomp<body-flexcomp>` element for
-  programmatically creating flex objects with auto-generated bodies, joints, and equality constraints. Exposed as
-  ``body.make_flex()`` in Python.
-- Added support for loading 1D flex components from OBJ line segments
-- Significantly improved the quality of coarse convex hulls produced by the :ref:`maxhullvert<asset-mesh-maxhullvert>`
-  attribute by invoking Qhull's `Q9 <http://www.qhull.org/html/qh-optq.htm#Q9>`__ option.
+5. Improved primal solver convergence under float32. Improvements initially proposed by :github:user:`n3b` in
+   :issue:`2313` and :github:user:`adenzler-nvidia` in :doc:`MJWarp <mjwarp/index>` pull request
+   `1374 <https://github.com/google-deepmind/mujoco_warp/pull/1374>`__.
+6. The :ref:`CG solver<soAlgorithms>` now uses the Hager-Zhang conjugate direction update instead of the
+   Polak-Ribiere-Plus formula. This improves convergence and leads to a significant speedup under float32.
+7. Added :ref:`mjs_makeFlex`, a new C API function equivalent to the :ref:`flexcomp<body-flexcomp>` element for
+   programmatically creating flex objects with auto-generated bodies, joints, and equality constraints. Exposed as
+   ``body.make_flex()`` in Python.
+8. Added support for loading 1D flex components from OBJ line segments
+9. Significantly improved the quality of coarse convex hulls produced by the :ref:`maxhullvert<asset-mesh-maxhullvert>`
+   attribute by invoking Qhull's `Q9 <http://www.qhull.org/html/qh-optq.htm#Q9>`__ option.
 
-  .. admonition:: Breaking API changes
-     :class: attention
+   .. admonition:: Breaking API changes
+      :class: attention
 
-     - The header file ``mjthread.h`` was removed along with the old engine threading API.
-       |br| **Migration:** Use :ref:`mju_threadpool` to set number of worker threads for the engine.
-     - Moved island sparse matrix construction from :ref:`mj_island` (single threaded) into :ref:`mj_fwdConstraint`
-       (multi-threaded). The island-specific matrices ``iM, iLD, iefc_J`` were removed from the arena and are now
-       allocated on the stack.
-     - Following the introduction of the :ref:`diagexact<option-flag-diagexact>` flag, the ``mjData`` field
-       ``efc_diagApprox`` was renamed to ``efc_diagA``, as it can now be either the exact or approximate diagonal of
-       the :math:`A` ("Delassus") matrix.
-     - The deprecated functions ``mju_{error,warning}_{i,s}`` have been removed.
+      - The header file ``mjthread.h`` was removed along with the old engine threading API.
+        |br| **Migration:** Use :ref:`mju_threadpool` to set number of worker threads for the engine.
+      - Moved island sparse matrix construction from :ref:`mj_island` (single threaded) into :ref:`mj_fwdConstraint`
+        (multi-threaded). The island-specific matrices ``iM, iLD, iefc_J`` were removed from the arena and are now
+        allocated on the stack.
+      - Following the introduction of the :ref:`diagexact<option-flag-diagexact>` flag, the ``mjData`` field
+        ``efc_diagApprox`` was renamed to ``efc_diagA``, as it can now be either the exact or approximate diagonal of
+        the :math:`A` ("Delassus") matrix.
+      - The deprecated functions ``mju_{error,warning}_{i,s}`` have been removed.
 
-     - Changed the signature of :ref:`mj_fullM` from ``mj_fullM(m, dst, M)`` to ``mj_fullM(m, d, dst)`` as part of the
-       planned deprecation of ``mjData.qM`` in favor of the CSR-format ``mjData.M``.
+      - Changed the signature of :ref:`mj_fullM` from ``mj_fullM(m, dst, M)`` to ``mj_fullM(m, d, dst)`` as part of the
+        planned deprecation of ``mjData.qM`` in favor of the CSR-format ``mjData.M``.
 
-       **Migration:** For inertia matrix conversion, replace ``mj_fullM(m, dst, d->qM)`` with ``mj_fullM(m, d, dst)`` or
-       ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
+        **Migration:** For inertia matrix conversion, replace ``mj_fullM(m, dst, d->qM)`` with ``mj_fullM(m, d, dst)`` or
+        ``mju_sym2dense(dst, d->M, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind)``.
 
 Bug fixes
 ^^^^^^^^^
-- Fixed a vulnerability in the System Identification toolbox where loading a trajectory or time series called
-  ``np.load`` with ``allow_pickle=True``, allowing arbitrary code execution from a malicious ``.npz`` file. Signal
-  metadata is now serialized as JSON and loaded with ``allow_pickle=False``.
-- Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
-- Fixed a bug where the mesh compiler would produce non-unit convex hull polygon normals.
+10. Fixed a vulnerability in the System Identification toolbox where loading a trajectory or time series called
+    ``np.load`` with ``allow_pickle=True``, allowing arbitrary code execution from a malicious ``.npz`` file. Signal
+    metadata is now serialized as JSON and loaded with ``allow_pickle=False``.
+11. Fixed a bug in the ``mjz`` :ref:`decoder <mjpDecoder>` where unnormalized paths would fail to be read.
+12. Fixed a bug where the mesh compiler would produce non-unit convex hull polygon normals.
 
 Version 3.9.0 (May 27, 2026)
 ----------------------------
