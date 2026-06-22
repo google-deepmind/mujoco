@@ -157,7 +157,7 @@ const std::string GetModelPath(std::string_view path) {  // NOLINT
   return absl::StrCat("../model/", path);
 }
 
-mjModel* LoadModelFromString(std::string_view xml, char* error,
+MjModelPtr LoadModelFromString(std::string_view xml, char* error,
                              int error_size, mjVFS* vfs) {
   if (error) {
     error[0] = '\0';
@@ -197,7 +197,11 @@ mjModel* LoadModelFromString(std::string_view xml, char* error,
   }
 
   SetGlobalXmlSpec(spec);
-  return model;
+  return MjModelPtr(model);
+}
+
+MjDataPtr MakeData(const MjModelPtr& model) {
+  return MjDataPtr(mj_makeData(model.get()));
 }
 
 static void AssertModelNotNull(mjModel* model,

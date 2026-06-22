@@ -118,7 +118,7 @@ class StudioApp:
     self.step_control = sim.StepControl()
     self.ux_state = ux.UxState()
     self.theme = ux.GuiTheme.LIGHT
-    self.show_stats = False
+    self.show_info = False
     self.show_solver = False
     self.should_quit = False
     self.status = 'Ready'
@@ -368,12 +368,12 @@ class StudioApp:
       if imgui.BeginMenu('Charts'):
         if imgui.MenuItem('Solver', '', self.show_solver):
           self.show_solver = not self.show_solver
-        if imgui.MenuItem('Stats', '', self.show_stats):
-          self.show_stats = not self.show_stats
+        if imgui.MenuItem('Info', '', self.show_info):
+          self.show_info = not self.show_info
         imgui.EndMenu()
       if imgui.BeginMenu('Help'):
-        if imgui.MenuItem('Stats', '', self.show_stats):
-          self.show_stats = not self.show_stats
+        if imgui.MenuItem('Info', '', self.show_info):
+          self.show_info = not self.show_info
         imgui.Separator()
         version = f'Version {mujoco.mj_versionString()}'
         imgui.MenuItem(version)
@@ -462,10 +462,10 @@ class StudioApp:
       ux.convergence_gui(self.model, self.data)
       imgui.End()
 
-    if self.show_stats:
-      _, self.show_stats = imgui.Begin('Stats', self.show_stats)
+    if self.show_info:
+      _, self.show_info = imgui.Begin('Info', self.show_info)
       paused = self.step_control.get_pause_state() != sim.PauseState.UNPAUSED
-      ux.stats_gui(self.model, self.data, paused, 0.0)
+      ux.info_gui(self.model, self.data, paused, 0.0)
       imgui.End()
 
     # -- Status bar -----------------------------------------------------------

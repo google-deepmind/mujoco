@@ -49,28 +49,25 @@ TEST_F(PassiveTest, DisableFlags) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(flex_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
+  MjModelPtr m = LoadModelFromString(flex_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   EXPECT_MJTNUM_EQ(d->qacc[0], 11);
 
   m->opt.disableflags = mjDSBL_DAMPER;
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   EXPECT_MJTNUM_EQ(d->qacc[0], 10);
 
   m->opt.disableflags = mjDSBL_SPRING;
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   EXPECT_MJTNUM_EQ(d->qacc[0], 1);
 
   m->opt.disableflags = mjDSBL_SPRING | mjDSBL_DAMPER;
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   EXPECT_EQ(d->qacc[0], -10);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, GravcompNestedBody) {
@@ -89,17 +86,14 @@ TEST_F(PassiveTest, GravcompNestedBody) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
 
   EXPECT_GT(d->qacc[2], 0);
   EXPECT_NEAR(d->qacc[2], 2.0, 0.1);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, PolyStiffnessSlide) {
@@ -119,16 +113,13 @@ TEST_F(PassiveTest, PolyStiffnessSlide) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   EXPECT_MJTNUM_EQ(d->qfrc_spring[0], -48);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, PolyStiffnessAntiSymmetric) {
@@ -148,16 +139,13 @@ TEST_F(PassiveTest, PolyStiffnessAntiSymmetric) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   EXPECT_MJTNUM_EQ(d->qfrc_spring[0], 8);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, PolyStiffnessTendon) {
@@ -183,21 +171,18 @@ TEST_F(PassiveTest, PolyStiffnessTendon) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 
   m->tendon_stiffness[0] = 10;
   m->tendon_stiffnesspoly[0] = 5;
   m->tendon_stiffnesspoly[1] = 1;
 
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   EXPECT_MJTNUM_EQ(d->qfrc_spring[0], -48);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, PolyStiffnessEnergy) {
@@ -221,21 +206,18 @@ TEST_F(PassiveTest, PolyStiffnessEnergy) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   mjtNum total_energy = d->energy[0] + d->energy[1];
 
   for (int i = 0; i < 100; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
     EXPECT_NEAR(d->energy[0] + d->energy[1], total_energy, 0.002);
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 // ------------------------ ellipsoid fluid model ------------------------------
@@ -261,11 +243,11 @@ TEST_F(EllipsoidFluidTest, GeomsEquivalentToBodies) {
   )";
 
   char error[1024];
-  mjModel* m2 = LoadModelFromString(two_bodies_xml, error, sizeof(error));
-  ASSERT_THAT(m2, NotNull()) << error;
-  mjData* d2 = mj_makeData(m2);
+  MjModelPtr m2 = LoadModelFromString(two_bodies_xml, error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << error;
+  MjDataPtr d2 = MakeData(m2);
   for (int i = 0; i < 6; i++) {
-    d2->qvel[i] = (mjtNum) i+1;
+    d2->qvel[i] = (mjtNum)i + 1;
   }
   d2->qpos[3] = 0.5;
   d2->qpos[4] = 0.5;
@@ -285,11 +267,11 @@ TEST_F(EllipsoidFluidTest, GeomsEquivalentToBodies) {
   </mujoco>
   )";
 
-  mjModel* m1 = LoadModelFromString(one_body_xml, error, sizeof(error));
-  ASSERT_THAT(m1, NotNull()) << error;
-  mjData* d1 = mj_makeData(m1);
+  MjModelPtr m1 = LoadModelFromString(one_body_xml, error, sizeof(error));
+  ASSERT_THAT(m1.get(), NotNull()) << error;
+  MjDataPtr d1 = MakeData(m1);
   for (int i = 0; i < 6; i++) {
-    d1->qvel[i] = (mjtNum) i+1;
+    d1->qvel[i] = (mjtNum)i + 1;
   }
   d1->qpos[3] = 0.5;
   d1->qpos[4] = 0.5;
@@ -301,16 +283,11 @@ TEST_F(EllipsoidFluidTest, GeomsEquivalentToBodies) {
 
   EXPECT_EQ(m1->nv, m2->nv);
 
-  mj_forward(m2, d2);
-  mj_forward(m1, d1);
+  mj_forward(m2.get(), d2.get());
+  mj_forward(m1.get(), d1.get());
   for (int i = 0; i < m1->nv; i++) {
     EXPECT_NEAR(d2->qfrc_passive[i], d1->qfrc_passive[i], tol);
   }
-
-  mj_deleteData(d1);
-  mj_deleteModel(m1);
-  mj_deleteData(d2);
-  mj_deleteModel(m2);
 }
 
 TEST_F(EllipsoidFluidTest, DefaultsPropagate) {
@@ -334,15 +311,12 @@ TEST_F(EllipsoidFluidTest, DefaultsPropagate) {
   )";
 
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  EXPECT_THAT(AsVector(model->geom_fluid, 6),
-              ElementsAre(0, 0, 0, 0, 0, 0));
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  EXPECT_THAT(AsVector(model->geom_fluid, 6), ElementsAre(0, 0, 0, 0, 0, 0));
   EXPECT_THAT(AsVector(model->geom_fluid + mjNFLUID, 6),
               ElementsAre(1, 2, 3, 4, 5, 6));
-  mj_deleteModel(model);
 }
-
 
 // ------------------------------ tendons --------------------------------------
 
@@ -359,7 +333,7 @@ TEST_F(TendonTest, SpringrangeDeadband) {
   // initial state outside deadband: spring is active
   mj_forward(model, data);
   mjtNum expected_force = model->tendon_stiffness[0] *
-      (model->tendon_lengthspring[1] - data->ten_length[0]);
+                          (model->tendon_lengthspring[1] - data->ten_length[0]);
   EXPECT_EQ(expected_force, data->qfrc_passive[0]);
 
   // put body inside deadband: spring is inactive
@@ -391,12 +365,10 @@ TEST_F(ElasticityTest, FlexCompatibility) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(flex_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
+  MjModelPtr m = LoadModelFromString(flex_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
 
-  mjData* d = mj_makeData(m);
-  mj_deleteData(d);
-  mj_deleteModel(m);
+  MjDataPtr d = MakeData(m);
 }
 
 // -------------------------------- shell -----------------------------------
@@ -413,39 +385,37 @@ TEST_F(ElasticityTest, ElasticEnergyShell) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  mj_kinematics(m, d);
-  mj_flex(m, d);
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_kinematics(m.get(), d.get());
+  mj_flex(m.get(), d.get());
 
   // check that a plane is in the kernel of the energy
   for (mjtNum scale = 1; scale < 4; scale++) {
     for (int e = 0; e < m->flex_edgenum[0]; e++) {
-      int* edge = m->flex_edge + 2*(m->flex_edgeadr[0] + e);
-      int* flap = m->flex_edgeflap + 2*(m->flex_edgeadr[0] + e);
+      int* edge = m->flex_edge + 2 * (m->flex_edgeadr[0] + e);
+      int* flap = m->flex_edgeflap + 2 * (m->flex_edgeadr[0] + e);
       int v[4] = {edge[0], edge[1], flap[0], flap[1]};
-      if (v[3]== -1) {
+      if (v[3] == -1) {
         continue;
       }
       mjtNum energy = 0;
-      mjtNum volume = 1./2.;
+      mjtNum volume = 1. / 2.;
       for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
           for (int x = 0; x < 3; x++) {
-            mjtNum elongation1 = scale * d->flexvert_xpos[3*v[i]+x];
-            mjtNum elongation2 = scale * d->flexvert_xpos[3*v[j]+x];
-            energy += m->flex_bending[17*e+4*i+j] * elongation1 * elongation2;
+            mjtNum elongation1 = scale * d->flexvert_xpos[3 * v[i] + x];
+            mjtNum elongation2 = scale * d->flexvert_xpos[3 * v[j] + x];
+            energy +=
+                m->flex_bending[17 * e + 4 * i + j] * elongation1 * elongation2;
           }
         }
       }
-      EXPECT_NEAR(
-        4*energy/volume, 0, std::numeric_limits<float>::epsilon());
+      EXPECT_NEAR(4 * energy / volume, 0,
+                  std::numeric_limits<float>::epsilon());
     }
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(ElasticityTest, CurvedShell) {
@@ -487,12 +457,12 @@ TEST_F(ElasticityTest, CurvedShell) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  mj_kinematics(m, d);
-  mj_flex(m, d);
-  mj_passive(m, d);
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_kinematics(m.get(), d.get());
+  mj_flex(m.get(), d.get());
+  mj_passive(m.get(), d.get());
 
   // v1 force component is in-plane along v1-v0 edge (y-axis)
   EXPECT_NEAR(d->qfrc_spring[3], 0, 1e-6);
@@ -505,9 +475,6 @@ TEST_F(ElasticityTest, CurvedShell) {
   // v3 force component is in-plane along v3-v0 edge (z-axis)
   EXPECT_NEAR(d->qfrc_spring[9], 0, 1e-6);
   EXPECT_NEAR(d->qfrc_spring[10], 0, 1e-6);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 // -------------------------------- membrane -----------------------------------
@@ -525,12 +492,12 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
-  mj_kinematics(m, d);
-  mj_flex(m, d);
+  mj_kinematics(m.get(), d.get());
+  mj_flex(m.get(), d.get());
   mjtNum* metric = m->flex_stiffness + 21 * m->flex_elemadr[0];
 
   // check that if the entire geometry is rescaled by a factor "scale", then
@@ -539,26 +506,24 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
   for (mjtNum scale = 1; scale < 4; scale++) {
     for (int t = 0; t < m->flex_elemnum[0]; t++) {
       mjtNum energy = 0;
-      mjtNum volume = 1./2.;
+      mjtNum volume = 1. / 2.;
       int idx = 0;
       for (int e1 = 0; e1 < 3; e1++) {
         for (int e2 = e1; e2 < 3; e2++) {
-          int idx1 = m->flex_elemedge[3*t+e1 + m->flex_elemedgeadr[0]];
-          int idx2 = m->flex_elemedge[3*t+e2 + m->flex_elemedgeadr[0]];
+          int idx1 = m->flex_elemedge[3 * t + e1 + m->flex_elemedgeadr[0]];
+          int idx2 = m->flex_elemedge[3 * t + e2 + m->flex_elemedgeadr[0]];
           mjtNum elong1 =
               scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
           mjtNum elong2 =
               scale * m->flexedge_length0[idx2] * m->flexedge_length0[idx2];
-          energy += metric[21*t+idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
+          energy +=
+              metric[21 * t + idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
       const mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-5);
-      EXPECT_NEAR(4*energy/volume, 2*scale*scale, tol);
+      EXPECT_NEAR(4 * energy / volume, 2 * scale * scale, tol);
     }
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 // -------------------------------- solid -----------------------------------
@@ -576,12 +541,12 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(cantilever_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
-  mj_kinematics(m, d);
-  mj_flex(m, d);
+  mj_kinematics(m.get(), d.get());
+  mj_flex(m.get(), d.get());
   mjtNum* metric = m->flex_stiffness + 21 * m->flex_elemadr[0];
 
   // check that if the entire geometry is rescaled by a factor "scale", then
@@ -590,26 +555,24 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
   for (mjtNum scale = 1; scale < 4; scale++) {
     for (int t = 0; t < m->flex_elemnum[0]; t++) {
       mjtNum energy = 0;
-      mjtNum volume = 1./6.;
+      mjtNum volume = 1. / 6.;
       int idx = 0;
       for (int e1 = 0; e1 < 6; e1++) {
         for (int e2 = e1; e2 < 6; e2++) {
-          int idx1 = m->flex_elemedge[6*t+e1 + m->flex_elemedgeadr[0]];
-          int idx2 = m->flex_elemedge[6*t+e2 + m->flex_elemedgeadr[0]];
+          int idx1 = m->flex_elemedge[6 * t + e1 + m->flex_elemedgeadr[0]];
+          int idx2 = m->flex_elemedge[6 * t + e2 + m->flex_elemedgeadr[0]];
           mjtNum elong1 =
               scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
           mjtNum elong2 =
               scale * m->flexedge_length0[idx2] * m->flexedge_length0[idx2];
-          energy += metric[21*t+idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
+          energy +=
+              metric[21 * t + idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
       const mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-4);
-      EXPECT_NEAR(energy/volume, 3*scale*scale, tol);
+      EXPECT_NEAR(energy / volume, 3 * scale * scale, tol);
     }
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, PolynomialStiffnessJoint) {
@@ -626,19 +589,16 @@ TEST_F(PassiveTest, PolynomialStiffnessJoint) {
     </keyframe>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
-  ASSERT_THAT(m, NotNull());
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
-  mj_forward(m, d);
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
+  mj_forward(m.get(), d.get());
 
   mjtNum x = 0.5;
   mjtNum a = 2, b = 3, c = 4;
   mjtNum expected = -(a + b * x + c * x * x) * x;
   EXPECT_NEAR(d->qfrc_spring[0], expected, 1e-12);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, PolynomialStiffnessNegativeDisplacement) {
@@ -655,19 +615,16 @@ TEST_F(PassiveTest, PolynomialStiffnessNegativeDisplacement) {
     </keyframe>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
-  ASSERT_THAT(m, NotNull());
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
-  mj_forward(m, d);
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
+  mj_forward(m.get(), d.get());
 
   mjtNum x = -0.5;
   mjtNum a = 2, b = 3, c = 4;
   mjtNum expected = -(a + b * x + c * x * x) * x;
   EXPECT_NEAR(d->qfrc_spring[0], expected, 1e-12);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, PolyStiffnessFixedTendon) {
@@ -693,19 +650,16 @@ TEST_F(PassiveTest, PolyStiffnessFixedTendon) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
 
   mjtNum x = d->ten_length[0] - m->tendon_lengthspring[1];
-  mjtNum expected = -(10 + 5*x + 1*x*x) * x;
+  mjtNum expected = -(10 + 5 * x + 1 * x * x) * x;
   EXPECT_NEAR(d->qfrc_spring[0], expected, 1e-12);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, PolyStiffnessSpatialTendon) {
@@ -734,22 +688,17 @@ TEST_F(PassiveTest, PolyStiffnessSpatialTendon) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
 
   mjtNum x = d->ten_length[0] - m->tendon_lengthspring[1];
-  mjtNum expected = -x * (10 + 5*x + 1*x*x);
+  mjtNum expected = -x * (10 + 5 * x + 1 * x * x);
   EXPECT_NEAR(d->qfrc_spring[0], expected, 1e-12);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
-
-
 
 TEST_F(PassiveTest, PolynomialDampingJoint) {
   static constexpr char xml[] = R"(
@@ -765,19 +714,16 @@ TEST_F(PassiveTest, PolynomialDampingJoint) {
     </keyframe>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
-  ASSERT_THAT(m, NotNull());
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
-  mj_forward(m, d);
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
+  mj_forward(m.get(), d.get());
 
   mjtNum v = 0.5;
   mjtNum a = 2, b = 3, c = 4;
   mjtNum expected = -(a * v + b * v * mju_abs(v) + c * v * v * v);
   EXPECT_NEAR(d->qfrc_damper[0], expected, 1e-12);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, PolynomialDampingNegativeVelocity) {
@@ -794,19 +740,16 @@ TEST_F(PassiveTest, PolynomialDampingNegativeVelocity) {
     </keyframe>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
-  ASSERT_THAT(m, NotNull());
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
-  mj_forward(m, d);
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
+  mj_forward(m.get(), d.get());
 
   mjtNum v = -0.5;
   mjtNum a = 2, b = 3, c = 4;
   mjtNum expected = -(a * v + b * v * mju_abs(v) + c * v * v * v);
   EXPECT_NEAR(d->qfrc_damper[0], expected, 1e-12);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(PassiveTest, PolynomialDampingTendon) {
@@ -832,19 +775,16 @@ TEST_F(PassiveTest, PolynomialDampingTendon) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
 
   mjtNum v = d->ten_velocity[0];
-  mjtNum expected = -(10*v + 5*v*mju_abs(v) + 1*v*v*v);
+  mjtNum expected = -(10 * v + 5 * v * mju_abs(v) + 1 * v * v * v);
   EXPECT_NEAR(d->qfrc_damper[0], expected, 1e-12);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 // shell-mode (elastic2d=stretch) flexcomp must have zero passive spring forces
@@ -867,20 +807,17 @@ TEST_F(ElasticityTest, ShellModeZeroForceAtRest) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
 
   // all spring forces should be zero at rest
   for (int i = 0; i < m->nv; i++) {
     EXPECT_NEAR(d->qfrc_spring[i], 0, 1e-10)
         << "nonzero spring force at DOF " << i;
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 // interpolated shell bending must produce zero spring forces at rest
@@ -901,16 +838,16 @@ TEST_F(ElasticityTest, InterpBendingZeroForceAtRest) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
   // verify bending data was compiled
   const mjtNum* bdata = m->flex_bending + m->flex_bendingadr[0];
   int nedge = (int)bdata[0];
   EXPECT_GT(nedge, 0) << "no bending edges compiled";
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
 
   // all spring forces should be zero at rest
   for (int i = 0; i < m->nv; i++) {
@@ -944,9 +881,6 @@ TEST_F(ElasticityTest, InterpBendingZeroForceAtRest) {
   EXPECT_GT(n_flat, 0) << "no intra-surface edges found";
   EXPECT_GT(n_corner, 0) << "no corner edges found";
   EXPECT_EQ(n_flat + n_corner, nedge);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 // interpolated shell bending must produce zero forces after a rigid rotation
@@ -967,21 +901,23 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, testing::NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
   // compute geometric center from body positions (skip world body)
   mjtNum center[3] = {0, 0, 0};
   int nnodes = 0;
   for (int b = 1; b < m->nbody; b++) {
-    center[0] += m->body_pos[3*b + 0];
-    center[1] += m->body_pos[3*b + 1];
-    center[2] += m->body_pos[3*b + 2];
+    center[0] += m->body_pos[3 * b + 0];
+    center[1] += m->body_pos[3 * b + 1];
+    center[2] += m->body_pos[3 * b + 2];
     nnodes++;
   }
   ASSERT_GT(nnodes, 0);
-  center[0] /= nnodes; center[1] /= nnodes; center[2] /= nnodes;
+  center[0] /= nnodes;
+  center[1] /= nnodes;
+  center[2] /= nnodes;
 
   // rotation: 45 degrees about (1,1,1)/sqrt(3)
   mjtNum angle = 45 * 3.14159265358979 / 180.0;
@@ -995,9 +931,9 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
   // new_pos = center + R * (body_pos - center)
   // qpos = new_pos - body_pos
   for (int b = 1; b < m->nbody; b++) {
-    mjtNum rel[3] = {m->body_pos[3*b+0] - center[0],
-                     m->body_pos[3*b+1] - center[1],
-                     m->body_pos[3*b+2] - center[2]};
+    mjtNum rel[3] = {m->body_pos[3 * b + 0] - center[0],
+                     m->body_pos[3 * b + 1] - center[1],
+                     m->body_pos[3 * b + 2] - center[2]};
     mjtNum rotated[3];
     mju_rotVecQuat(rotated, rel, neg_quat);
 
@@ -1007,7 +943,10 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
       int qadr = m->jnt_qposadr[jid];
       int axis = -1;
       for (int a = 0; a < 3; a++) {
-        if (m->jnt_axis[3*jid + a] != 0) { axis = a; break; }
+        if (m->jnt_axis[3 * jid + a] != 0) {
+          axis = a;
+          break;
+        }
       }
       if (axis >= 0) {
         d->qpos[qadr] =
@@ -1016,7 +955,7 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
     }
   }
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
 
   // spring forces should still be zero after rigid rotation
   const mjtNum tol = MjTol(1e-6, 1e-3);
@@ -1024,9 +963,6 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
     EXPECT_NEAR(d->qfrc_spring[i], 0, tol)
         << "nonzero spring force at DOF " << i << " after rigid rotation";
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 }  // namespace

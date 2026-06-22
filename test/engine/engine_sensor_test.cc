@@ -35,7 +35,6 @@ namespace {
 using ::std::string;
 using ::std::vector;
 
-
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
@@ -50,16 +49,16 @@ using ::testing::WhenSorted;
 const mjtNum tol = 1e-14;  // nearness tolerance for floating point numbers
 
 // returns as a vector the measured values from sensor with index `id`
-static vector<mjtNum> GetSensor(const mjModel* model,
-                                const mjData* data, int id) {
+static vector<mjtNum> GetSensor(const mjModel* model, const mjData* data,
+                                int id) {
   return vector<mjtNum>(
       data->sensordata + model->sensor_adr[id],
       data->sensordata + model->sensor_adr[id] + model->sensor_dim[id]);
 }
 
 // returns as a vector the measured values from sensor with name `name
-static vector<mjtNum> GetSensor(const mjModel* model,
-                                const mjData* data, const char* name) {
+static vector<mjtNum> GetSensor(const mjModel* model, const mjData* data,
+                                const char* name) {
   int id = mj_name2id(model, mjOBJ_SENSOR, name);
   return vector<mjtNum>(
       data->sensordata + model->sensor_adr[id],
@@ -79,34 +78,31 @@ TEST_F(SensorTest, DisableSensors) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // call mj_forward, expect clock to report 0
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_EQ(data->sensordata[0], 0.0);
 
   // call mj_step, mj_step1, expect clock to be incremented by timestep
-  mj_step(model, data);
-  mj_step1(model, data);
+  mj_step(model.get(), data.get());
+  mj_step1(model.get(), data.get());
   EXPECT_EQ(data->sensordata[0], model->opt.timestep);
 
   // disable sensors, call mj_step, mj_step1, expect clock to not increment
   model->opt.disableflags |= mjDSBL_SENSOR;
-  mj_step(model, data);
-  mj_step1(model, data);
-  EXPECT_EQ(data->time, 2*model->opt.timestep);
+  mj_step(model.get(), data.get());
+  mj_step1(model.get(), data.get());
+  EXPECT_EQ(data->time, 2 * model->opt.timestep);
   EXPECT_EQ(data->sensordata[0], model->opt.timestep);
 
   // re-enable sensors, call mj_step, mj_step1, expect clock to match time
   model->opt.disableflags = 0;
-  mj_step(model, data);
-  mj_step1(model, data);
+  mj_step(model.get(), data.get());
+  mj_step1(model.get(), data.get());
   EXPECT_EQ(data->time, data->sensordata[0]);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // --------------------- test relative frame sensors  --------------------------
@@ -132,23 +128,20 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMat) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
-  mj_forward(model, data);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
 
   // compare actual and expected values
-  vector pos = GetSensor(model, data, 0);
+  vector pos = GetSensor(model.get(), data.get(), 0);
   EXPECT_THAT(pos, Pointwise(MjNear(tol, 1e-6), {5, 5, 0}));
 
-  vector xaxis = GetSensor(model, data, 1);
+  vector xaxis = GetSensor(model.get(), data.get(), 1);
   EXPECT_THAT(xaxis, Pointwise(MjNear(tol, 1e-6), {0, -1, 0}));
 
-  vector yaxis = GetSensor(model, data, 2);
+  vector yaxis = GetSensor(model.get(), data.get(), 2);
   EXPECT_THAT(yaxis, Pointwise(MjNear(tol, 1e-6), {1, 0, 0}));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // orientations given by quaternion and by orientation matrix are identical
@@ -171,21 +164,18 @@ TEST_F(RelativeFrameSensorTest, ReferenceQuatMat) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
   // call mj_forward and convert orientation matrix to quaternion
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   mjtNum mat[9], converted_quat[4];
   mju_transpose(mat, data->sensordata, 3, 3);
   mju_mat2Quat(converted_quat, mat);
 
   // compare quaternion sensor and quat derived from orientation matrix
-  vector quat = GetSensor(model, data, 3);
+  vector quat = GetSensor(model.get(), data.get(), 3);
   EXPECT_THAT(quat, Pointwise(MjNear(tol, 1e-6), converted_quat));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // compare global frame and initially co-located relative frame on same body
@@ -218,30 +208,27 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMatQuat) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
+  MjModelPtr model = LoadModelFromString(xml);
   constexpr int nsensordata = 32;
   ASSERT_EQ(model->nsensordata, nsensordata);
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
 
   // call mj_forward, save global sensors (colocated with reference frame)
-  mj_forward(model, data);
-  vector expected_values(data->sensordata, data->sensordata+nsensordata/2);
+  mj_forward(model.get(), data.get());
+  vector expected_values(data->sensordata, data->sensordata + nsensordata / 2);
 
   // set qpos to arbitrary values, call mj_forward
-  for (int i=0; i < 7; i++) {
-    data->qpos[i] = i+1;
+  for (int i = 0; i < 7; i++) {
+    data->qpos[i] = i + 1;
   }
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
 
   // get values from relative sensors after moving the object
-  vector actual_values(data->sensordata+nsensordata/2,
-                            data->sensordata+nsensordata);
+  vector actual_values(data->sensordata + nsensordata / 2,
+                       data->sensordata + nsensordata);
 
   // object and reference have moved together, we expect values to not change
   EXPECT_THAT(actual_values, Pointwise(MjNear(tol, 1e-6), expected_values));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // hand-picked velocities and orientations for simple expected values
@@ -264,19 +251,16 @@ TEST_F(RelativeFrameSensorTest, FrameVelLinearFixed) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
   data->qvel[0] = mju_sqrt(2);
   data->qvel[1] = 1;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
 
   // compare to expected values
-  vector linvel = GetSensor(model, data, 0);
+  vector linvel = GetSensor(model.get(), data.get(), 0);
   const mjtNum expected_linvel[3] = {-mju_sqrt(0.5), mju_sqrt(0.5), 0};
   EXPECT_THAT(linvel, Pointwise(MjNear(tol, 1e-6), expected_linvel));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // object and reference in the same body, expect angular velocities to be zero
@@ -296,19 +280,16 @@ TEST_F(RelativeFrameSensorTest, FrameVelAngFixed) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
   // set joint velocities and call forward dynamics
   data->qvel[0] = 1;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
 
   // obj and ref rotate together, relative angular velocities should be zero
-  vector angvel = GetSensor(model, data, 0);
+  vector angvel = GetSensor(model.get(), data.get(), 0);
   EXPECT_THAT(angvel, Pointwise(MjNear(tol, 1e-6), {0, 0, 0}));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // object and reference rotate on the same global axis
@@ -331,21 +312,18 @@ TEST_F(RelativeFrameSensorTest, FrameVelAngOpposing) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
   // set joint velocities and call forward dynamics
   data->qvel[0] = -1;
   data->qvel[1] = 1;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
 
   // obj and ref rotate on same axis, we can just difference the velocities
-  vector angvel = GetSensor(model, data, 0);
-  const mjtNum expected_angvel[3] = {0, data->qvel[1]-data->qvel[0], 0};
+  vector angvel = GetSensor(model.get(), data.get(), 0);
+  const mjtNum expected_angvel[3] = {0, data->qvel[1] - data->qvel[0], 0};
   EXPECT_THAT(angvel, Pointwise(MjNear(tol, 1e-6), expected_angvel));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // two arbitrary frames, compare velocity sensors and fin-diffed positions
@@ -374,37 +352,37 @@ TEST_F(RelativeFrameSensorTest, FrameVelGeneral) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
   mjtNum dt = 1e-6;  // timestep used for finite differencing
 
   // set (arbitrary) joint velocities and call forward dynamics
   data->qvel[0] = 1;
   data->qvel[1] = -1;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
 
   // save measured linear and angular velocities as vectors
-  vector linvel = GetSensor(model, data, 2);
-  vector angvel = GetSensor(model, data, 3);
+  vector linvel = GetSensor(model.get(), data.get(), 2);
+  vector angvel = GetSensor(model.get(), data.get(), 3);
 
   // save current position, quaternion as arrays
   mjtNum pos0[3], quat0[4];
   mju_copy3(pos0, data->sensordata);
-  mju_copy4(quat0, data->sensordata+3);
+  mju_copy4(quat0, data->sensordata + 3);
 
   // explicit Euler integration with small dt
   mju_addToScl(data->qpos, data->qvel, dt, 2);
 
   // call mj_forward again, save new position and quaternion
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   mjtNum pos1[3], quat1[4];
   mju_copy3(pos1, data->sensordata);
-  mju_copy4(quat1, data->sensordata+3);
+  mju_copy4(quat1, data->sensordata + 3);
 
   // compute expected linear velocities using finite differencing
   mjtNum linvel_findiff[3];
   mju_sub3(linvel_findiff, pos1, pos0);
-  mju_scl3(linvel_findiff, linvel_findiff, 1/dt);
+  mju_scl3(linvel_findiff, linvel_findiff, 1 / dt);
 
   // compute expected angular velocities using finite differencing
   mjtNum dquat[4], angvel_findiff[3];
@@ -413,13 +391,8 @@ TEST_F(RelativeFrameSensorTest, FrameVelGeneral) {
   mju_quat2Vel(angvel_findiff, dquat, dt);
 
   // compare analytic and finite-differenced relative velocities
-  EXPECT_THAT(linvel, Pointwise(MjNear(10 * dt, 0.15),
-                                linvel_findiff));
-  EXPECT_THAT(angvel,
-              Pointwise(MjNear(10 * dt, 0.2), angvel_findiff));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  EXPECT_THAT(linvel, Pointwise(MjNear(10 * dt, 0.15), linvel_findiff));
+  EXPECT_THAT(angvel, Pointwise(MjNear(10 * dt, 0.2), angvel_findiff));
 }
 
 // ------------------------- general sensor tests  -----------------------------
@@ -439,18 +412,15 @@ TEST_F(SensorTest, EnableEnergy) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
-  mj_forward(model, data);
-  EXPECT_NEAR(data->energy[0], 2*3*5, MjTol(1e-12, 1e-5));
+  mj_forward(model.get(), data.get());
+  EXPECT_NEAR(data->energy[0], 2 * 3 * 5, MjTol(1e-12, 1e-5));
 
   model->opt.enableflags &= ~mjENBL_ENERGY;
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
   EXPECT_NEAR(data->energy[0], 0, MjTol(1e-12, 1e-5));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, PotentialEnergy) {
@@ -468,18 +438,15 @@ TEST_F(SensorTest, PotentialEnergy) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
-  mj_forward(model, data);
-  EXPECT_NEAR(data->sensordata[0], 2*3*5, MjTol(1e-12, 1e-5));
+  mj_forward(model.get(), data.get());
+  EXPECT_NEAR(data->sensordata[0], 2 * 3 * 5, MjTol(1e-12, 1e-5));
 
   data->qpos[2] = 7;
-  mj_forward(model, data);
-  EXPECT_NEAR(data->sensordata[0], 7*3*5, MjTol(1e-12, 1e-5));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  mj_forward(model.get(), data.get());
+  EXPECT_NEAR(data->sensordata[0], 7 * 3 * 5, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(SensorTest, PotentialEnergyFreeJointSpring) {
@@ -497,16 +464,13 @@ TEST_F(SensorTest, PotentialEnergyFreeJointSpring) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
   data->qpos[0] = 1;
   data->qpos[1] = 2;
   data->qpos[2] = 3;
-  mj_forward(model, data);
-  EXPECT_NEAR(data->sensordata[0], 0.5*2*14, MjTol(1e-12, 1e-5));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  mj_forward(model.get(), data.get());
+  EXPECT_NEAR(data->sensordata[0], 0.5 * 2 * 14, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(SensorTest, KineticEnergy) {
@@ -523,21 +487,18 @@ TEST_F(SensorTest, KineticEnergy) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
   while (data->time < 1.5) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
 
   mjtNum mass = 3;
   mjtNum speed = data->time * mju_norm3(model->opt.gravity);
   EXPECT_NEAR(data->sensordata[0], 0.5 * mass * speed * speed,
               MjTol(1e-7, 1e-2));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, PolyStiffnessEnergy) {
@@ -561,21 +522,18 @@ TEST_F(SensorTest, PolyStiffnessEnergy) {
   )";
 
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
-  mj_resetDataKeyframe(m, d, 0);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_resetDataKeyframe(m.get(), d.get(), 0);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   mjtNum total_energy = d->energy[0] + d->energy[1];
 
   for (int i = 0; i < 100; i++) {
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
     EXPECT_NEAR(d->energy[0] + d->energy[1], total_energy, 0.003);
   }
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 // test clock sensor
@@ -589,25 +547,23 @@ TEST_F(SensorTest, Clock) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
   // call step 4 times, checking that clock works as expected
-  for (int i=0; i < 5; i++) {
-    mj_step(model, data);
-    mj_step1(model, data);  // update values of position-based sensors
+  for (int i = 0; i < 5; i++) {
+    mj_step(model.get(), data.get());
+    mj_step1(model.get(),
+             data.get());  // update values of position-based sensors
     EXPECT_EQ(data->sensordata[0], data->time);
     EXPECT_EQ(data->sensordata[1], mju_min(data->time, 3e-3));
   }
 
   // check names
-  const char* name0 = mj_id2name(model, mjOBJ_SENSOR, 0);
+  const char* name0 = mj_id2name(model.get(), mjOBJ_SENSOR, 0);
   EXPECT_EQ(name0, nullptr);
-  const char* name1 = mj_id2name(model, mjOBJ_SENSOR, 1);
+  const char* name1 = mj_id2name(model.get(), mjOBJ_SENSOR, 1);
   EXPECT_THAT(name1, StrEq("clampedclock"));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // test that integer parameters pass through
@@ -672,8 +628,11 @@ TEST_F(SensorTest, CollisionSequential) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model_ptr = LoadModelFromString(xml);
+  MjDataPtr data_ptr = MakeData(model_ptr);
+
+  mjModel* model = model_ptr.get();
+  mjData* data = data_ptr.get();
   mj_forward(model, data);
 
   mjtNum eps = 1e-14;
@@ -688,14 +647,11 @@ TEST_F(SensorTest, CollisionSequential) {
   EXPECT_THAT(GetSensor(model, data, 5),
               Pointwise(MjNear(eps, 1e-7), vector<mjtNum>{1, 0, 0}));
   EXPECT_THAT(GetSensor(model, data, 6),
-              Pointwise(MjNear(eps, 1e-6),
-                        vector<mjtNum>{0, 0, 0, 0, 0, .8}));
+              Pointwise(MjNear(eps, 1e-6), vector<mjtNum>{0, 0, 0, 0, 0, .8}));
   EXPECT_THAT(GetSensor(model, data, 7),
-              Pointwise(MjNear(eps, 1e-6),
-                        vector<mjtNum>{1, 0, .7, 1, 0, 0}));
+              Pointwise(MjNear(eps, 1e-6), vector<mjtNum>{1, 0, .7, 1, 0, 0}));
   EXPECT_THAT(GetSensor(model, data, 8),
-              Pointwise(MjNear(eps, 1e-6),
-                        vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
+              Pointwise(MjNear(eps, 1e-6), vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
 
   EXPECT_THAT(GetSensor(model, data, 9),
               Pointwise(MjNear(eps, 1e-7), GetSensor(model, data, 0)));
@@ -709,9 +665,6 @@ TEST_F(SensorTest, CollisionSequential) {
               Pointwise(MjNear(eps, 1e-6), GetSensor(model, data, 8)));
   EXPECT_THAT(GetSensor(model, data, 14),
               Pointwise(MjNear(eps, 1e-7), GetSensor(model, data, 2)));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, BadContact) {
@@ -757,8 +710,8 @@ TEST_F(SensorTest, BadContact) {
     xml.replace(pos, 8, test.bad_attr);
 
     char error[1024];
-    mjModel* model = LoadModelFromString(xml.c_str(), error, sizeof(error));
-    ASSERT_THAT(model, IsNull()) << "Test case: " << test.bad_attr;
+    MjModelPtr model = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(model.get(), IsNull()) << "Test case: " << test.bad_attr;
     EXPECT_THAT(error, HasSubstr(test.expected_error))
         << "Test case: " << test.bad_attr;
   }
@@ -820,8 +773,7 @@ TEST_F(SensorTest, Contact) {
                                {3, 0, 0, 0, 0, 1, 4, 0, 0, -1, 0, 0}));
 
     vector b2r = GetSensor(model, data, "b2_reduced");
-    EXPECT_THAT(b2r,
-                Pointwise(MjNear(1e-4, 0.02), {4, 0, 0, -1, 0, 0}));
+    EXPECT_THAT(b2r, Pointwise(MjNear(1e-4, 0.02), {4, 0, 0, -1, 0, 0}));
   }
 
   mj_deleteData(data);
@@ -852,9 +804,9 @@ TEST_F(SensorTest, ContactSorted) {
   EXPECT_THAT(sorted_force, SizeIs(12));
   vector<mjtNum> nnorms;
   for (size_t i = 0; i < sorted_force.size(); i += 3) {
-    nnorms.push_back(-sorted_force[i]*sorted_force[i] +
-                     -sorted_force[i+1]*sorted_force[i+1] +
-                     -sorted_force[i+2]*sorted_force[i+2]);
+    nnorms.push_back(-sorted_force[i] * sorted_force[i] +
+                     -sorted_force[i + 1] * sorted_force[i + 1] +
+                     -sorted_force[i + 2] * sorted_force[i + 2]);
   }
   EXPECT_THAT(nnorms, WhenSorted(ElementsAreArray(nnorms)));
 
@@ -864,9 +816,8 @@ TEST_F(SensorTest, ContactSorted) {
 
   vector largest = GetSensor(model, data, "largest force");
   EXPECT_THAT(largest, SizeIs(3));
-  EXPECT_THAT(largest, ElementsAre(sorted_force[0],
-                                   sorted_force[1],
-                                   sorted_force[2]));
+  EXPECT_THAT(largest,
+              ElementsAre(sorted_force[0], sorted_force[1], sorted_force[2]));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -921,12 +872,12 @@ TEST_F(SensorTest, ContactSubtreePartial) {
     mj_step(model, data);
   }
 
-  EXPECT_EQ(GetSensor(model, data, "all")[0],     4);
-  EXPECT_EQ(GetSensor(model, data, "world")[0],   4);
-  EXPECT_EQ(GetSensor(model, data, "thigh")[0],   4);
-  EXPECT_EQ(GetSensor(model, data, "shin")[0],    2);
-  EXPECT_EQ(GetSensor(model, data, "foot")[0],    1);
-  EXPECT_EQ(GetSensor(model, data, "foot_w")[0],  0);
+  EXPECT_EQ(GetSensor(model, data, "all")[0], 4);
+  EXPECT_EQ(GetSensor(model, data, "world")[0], 4);
+  EXPECT_EQ(GetSensor(model, data, "thigh")[0], 4);
+  EXPECT_EQ(GetSensor(model, data, "shin")[0], 2);
+  EXPECT_EQ(GetSensor(model, data, "foot")[0], 1);
+  EXPECT_EQ(GetSensor(model, data, "foot_w")[0], 0);
   EXPECT_EQ(GetSensor(model, data, "foot_w2")[0], 1);
 
   mj_deleteData(data);
@@ -1028,12 +979,12 @@ TEST_F(SensorTest, CameraProjection) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
   // call step to update sensors
-  mj_step(model, data);
-  mj_step1(model, data);  // update values of position-based sensors
+  mj_step(model.get(), data.get());
+  mj_step1(model.get(), data.get());  // update values of position-based sensors
   EXPECT_THAT(model->cam_resolution[0], 1920);
   EXPECT_THAT(model->cam_resolution[1], 1200);
   mjtNum eps = 1e-4;
@@ -1043,9 +994,6 @@ TEST_F(SensorTest, CameraProjection) {
   EXPECT_NEAR(data->sensordata[3], 1200, eps);
   EXPECT_NEAR(data->sensordata[4], 960, eps);
   EXPECT_NEAR(data->sensordata[5], 600, eps);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, InsideSite) {
@@ -1074,22 +1022,19 @@ TEST_F(SensorTest, InsideSite) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
   ASSERT_EQ(model->nsensordata, 5);
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
 
   mjtNum hpos[5] = {-.5, -.25, 0, .25, .5};
   for (int i = 0; i < 5; i++) {
     data->qpos[0] = hpos[i];
-    mj_forward(model, data);
+    mj_forward(model.get(), data.get());
     vector<mjtNum> expected(5, 0.0);
     expected[i] = 1.0;
     EXPECT_EQ(AsVector(data->sensordata, model->nsensordata), expected);
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, RangefinderCamera) {
@@ -1111,15 +1056,15 @@ TEST_F(SensorTest, RangefinderCamera) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   // first sensor: data="dist depth" => (1+1)*9 = 18
   // second sensor: data="dist dir origin point" => (1+3+3+3)*9 = 90
   EXPECT_EQ(model->nsensordata, 108);
 
-  mjData* data = mj_makeData(model);
-  mj_forward(model, data);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
 
   mjtNum tol = 1e-6;
   mjtNum height = 2.0;
@@ -1134,13 +1079,13 @@ TEST_F(SensorTest, RangefinderCamera) {
       int idx = row * 3 + col;
       mjtNum dx = offsets[col] / fy;
       mjtNum dy = offsets[row] / fy;
-      mjtNum expected_dist = height * mju_sqrt(1 + dx*dx + dy*dy);
-      mjtNum dist = data->sensordata[adr0 + idx*stride0];
+      mjtNum expected_dist = height * mju_sqrt(1 + dx * dx + dy * dy);
+      mjtNum dist = data->sensordata[adr0 + idx * stride0];
       EXPECT_NEAR(dist, expected_dist, tol)
           << "perspective dist pixel (" << row << ", " << col << ")";
 
       // depth should equal camera height (2.0) for all pixels
-      mjtNum depth = data->sensordata[adr0 + idx*stride0 + 1];
+      mjtNum depth = data->sensordata[adr0 + idx * stride0 + 1];
       EXPECT_NEAR(depth, height, tol)
           << "perspective depth pixel (" << row << ", " << col << ")";
     }
@@ -1167,14 +1112,14 @@ TEST_F(SensorTest, RangefinderCamera) {
 
       // ray hits z=0 plane: distance = origin_z / cos45
       mjtNum expected_dist = origin_z / cos45;
-      mjtNum dist = data->sensordata[adr1 + idx*stride1];
+      mjtNum dist = data->sensordata[adr1 + idx * stride1];
       EXPECT_NEAR(dist, expected_dist, tol)
           << "orthographic dist pixel (" << row << ", " << col << ")";
 
       // verify point = origin + dir * dist
-      mjtNum* dir = data->sensordata + adr1 + idx*stride1 + 1;
-      mjtNum* origin = data->sensordata + adr1 + idx*stride1 + 4;
-      mjtNum* point = data->sensordata + adr1 + idx*stride1 + 7;
+      mjtNum* dir = data->sensordata + adr1 + idx * stride1 + 1;
+      mjtNum* origin = data->sensordata + adr1 + idx * stride1 + 4;
+      mjtNum* point = data->sensordata + adr1 + idx * stride1 + 7;
       mjtNum expected_point[3];
       mju_addScl3(expected_point, origin, dir, dist);
       EXPECT_NEAR(point[0], expected_point[0], tol)
@@ -1185,9 +1130,6 @@ TEST_F(SensorTest, RangefinderCamera) {
           << "ortho point[2] pixel (" << row << ", " << col << ")";
     }
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, RFCamera) {
@@ -1210,9 +1152,9 @@ TEST_F(SensorTest, RFCamera) {
   for (int s = 0; s < 2; s++) {
     int adr = model->sensor_adr[s];
     for (int i = 0; i < 16; i++) {
-      mjtNum dist = data->sensordata[adr + i*stride];
-      mjtNum* point = data->sensordata + adr + i*stride + 1;
-      mjtNum* normal = data->sensordata + adr + i*stride + 4;
+      mjtNum dist = data->sensordata[adr + i * stride];
+      mjtNum* point = data->sensordata + adr + i * stride + 1;
+      mjtNum* normal = data->sensordata + adr + i * stride + 4;
 
       EXPECT_TRUE(dist > 0 || dist == -1) << "sensor " << s << " pixel " << i;
 
@@ -1251,9 +1193,9 @@ TEST_F(SensorTest, SensorDelay) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // delay = 0.02 seconds, timestep = 0.01
   // history = 3 (more than delay/timestep=2) to ensure buffer coverage
@@ -1266,31 +1208,28 @@ TEST_F(SensorTest, SensorDelay) {
 
   // step 0: qpos=10, read from initial buffer
   data->qpos[0] = 10.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 0.0, 1e-10) << "step 0";
 
   // step 1: qpos=20, still reading initial buffer
   data->qpos[0] = 20.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 0.0, 1e-10) << "step 1";
 
   // step 2: qpos=30, read value from step 0 (delay=2 steps)
   data->qpos[0] = 30.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 10.0, 1e-10) << "step 2";
 
   // step 3: qpos=40, read value from step 1 (delay=2 steps)
   data->qpos[0] = 40.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 20.0, 1e-10) << "step 3";
 
   // step 4: qpos=50, read value from step 2 (delay=2 steps)
   data->qpos[0] = 50.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 30.0, 1e-10) << "step 4";
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // Test sensor delay with linear interpolation (interp=1)
@@ -1311,9 +1250,9 @@ TEST_F(SensorTest, SensorDelayLinearInterp) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // delay = 0.015 seconds = 1.5*timestep, nsample=3, interp=1 (linear)
   // With linear interpolation and 1.5*timestep delay, the read time falls
@@ -1324,32 +1263,29 @@ TEST_F(SensorTest, SensorDelayLinearInterp) {
 
   // Set increasing qpos values: step i -> qpos = (i+1)*10
   // Buffer has samples at times: -0.02, -0.01, 0 (initialized)
-  // After step 0 at time=0.01: buffer has times -0.01, 0, 0.01 with values 0, 0, 10
-  // Read at time 0.01 - 0.015 = -0.005: interpolate between t=-0.01 (val=0) and t=0 (val=0)
-  // Expected: 0 * 0.5 + 0 * 0.5 = 0
+  // After step 0 at time=0.01: buffer has times -0.01, 0, 0.01 with values 0,
+  // 0, 10 Read at time 0.01 - 0.015 = -0.005: interpolate between t=-0.01
+  // (val=0) and t=0 (val=0) Expected: 0 * 0.5 + 0 * 0.5 = 0
 
   data->qpos[0] = 10.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 0.0, 1e-10) << "step 0";
 
-  // After step 1 at time=0.02: buffer has times 0, 0.01, 0.02 with values 0, 10, 20
-  // Read at time 0.02 - 0.015 = 0.005: interpolate between t=0 (val=0) and t=0.01 (val=10)
-  // Expected: 0 * 0.5 + 10 * 0.5 = 5
+  // After step 1 at time=0.02: buffer has times 0, 0.01, 0.02 with values 0,
+  // 10, 20 Read at time 0.02 - 0.015 = 0.005: interpolate between t=0 (val=0)
+  // and t=0.01 (val=10) Expected: 0 * 0.5 + 10 * 0.5 = 5
 
   data->qpos[0] = 20.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 5.0, 1e-10) << "step 1";
 
-  // After step 2 at time=0.03: buffer has times 0.01, 0.02, 0.03 with values 10, 20, 30
-  // Read at 0.03 - 0.015 = 0.015: interpolate between t=0.01 (val=10) and t=0.02 (val=20)
-  // Expected: 10 * 0.5 + 20 * 0.5 = 15
+  // After step 2 at time=0.03: buffer has times 0.01, 0.02, 0.03 with values
+  // 10, 20, 30 Read at 0.03 - 0.015 = 0.015: interpolate between t=0.01
+  // (val=10) and t=0.02 (val=20) Expected: 10 * 0.5 + 20 * 0.5 = 15
 
   data->qpos[0] = 30.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 15.0, 1e-10) << "step 2";
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, SensorInterval) {
@@ -1372,12 +1308,12 @@ TEST_F(SensorTest, SensorInterval) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
-  int sensor0 = mj_name2id(model, mjOBJ_SENSOR, "default_phase");
-  int sensor1 = mj_name2id(model, mjOBJ_SENSOR, "offset_phase");
+  int sensor0 = mj_name2id(model.get(), mjOBJ_SENSOR, "default_phase");
+  int sensor1 = mj_name2id(model.get(), mjOBJ_SENSOR, "offset_phase");
   int adr0 = model->sensor_adr[sensor0];
   int adr1 = model->sensor_adr[sensor1];
 
@@ -1387,8 +1323,8 @@ TEST_F(SensorTest, SensorInterval) {
   //   rounded up to dt: -2, -5, -7, -10, -12, -15, -17, -20, -22, -25
   // sensor1 (phase = -1.5): continuous times are -1.5, -4, -6.5, ...
   //   rounded up to dt: -1, -4, -6, -9, -11, -14, -16, -19, -21, -24
-  int n0 = model->sensor_history[2*sensor0];
-  int n1 = model->sensor_history[2*sensor1];
+  int n0 = model->sensor_history[2 * sensor0];
+  int n1 = model->sensor_history[2 * sensor1];
   mjtNum* buf0 = data->history + model->sensor_historyadr[sensor0];
   mjtNum* buf1 = data->history + model->sensor_historyadr[sensor1];
   mjtNum* times0 = buf0 + 2;
@@ -1416,7 +1352,7 @@ TEST_F(SensorTest, SensorInterval) {
   for (int t = 0; t < 15; t++) {
     // set position to current time (so we can track when sensor was computed)
     data->qpos[0] = t;
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
 
     // update expected values based on trigger pattern
     if (triggers0[t]) value0 = t;
@@ -1427,9 +1363,6 @@ TEST_F(SensorTest, SensorInterval) {
     EXPECT_NEAR(data->sensordata[adr1], value1, MjTol(1e-10, 1e-7))
         << "sensor1 at t=" << t;
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, SensorDelayInterval) {
@@ -1448,14 +1381,14 @@ TEST_F(SensorTest, SensorDelayInterval) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // Combined delay and interval
   EXPECT_EQ(model->sensor_history[0], 5);
   EXPECT_NEAR(model->sensor_delay[0], 0.02, MjTol(1e-10, 1e-7));
-  EXPECT_NEAR(model->sensor_interval[2*0], 0.03, MjTol(1e-10, 1e-7));
+  EXPECT_NEAR(model->sensor_interval[2 * 0], 0.03, MjTol(1e-10, 1e-7));
 
   // Verify initial buffer timestamps (after mj_makeData/mj_resetData)
   // With period=0.03, dt=0.01, nsample=5, phase=0 (means -period=-0.03):
@@ -1477,17 +1410,14 @@ TEST_F(SensorTest, SensorDelayInterval) {
   // - At t=0, interval satisfied: compute 5.0, insert at t=0 (current time)
   // - Reading happens at d->time - delay; at t=0.02, reads at t=0.00 (5.0)
   for (int i = 0; i < 2; i++) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
     // sensor reads delayed value (0.0 from initial buffer)
     EXPECT_NEAR(data->sensordata[0], 0.0, MjTol(1e-10, 1e-7)) << "step " << i;
   }
 
   // step 3 (i=2): reading at t=0.00 now returns the inserted value 5.0
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 5.0, MjTol(1e-10, 1e-7));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, SensorHistoryOnly) {
@@ -1506,29 +1436,26 @@ TEST_F(SensorTest, SensorHistoryOnly) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // history only, no delay or interval
   EXPECT_EQ(model->sensor_history[0], 5);
   EXPECT_NEAR(model->sensor_delay[0], 0.0, MjTol(1e-10, 1e-7));
-  EXPECT_NEAR(model->sensor_interval[2*0], 0.0, MjTol(1e-10, 1e-7));
+  EXPECT_NEAR(model->sensor_interval[2 * 0], 0.0, MjTol(1e-10, 1e-7));
 
   // set position
   data->qpos[0] = 3.0;
 
   // without delay, sensordata reflects current value immediately
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 3.0, 1e-10);
 
   // change position, check again
   data->qpos[0] = 7.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 7.0, 1e-10);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, SensorDelayMultiDim) {
@@ -1547,9 +1474,9 @@ TEST_F(SensorTest, SensorDelayMultiDim) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // ballangvel is 3D
   EXPECT_EQ(model->sensor_dim[0], 3);
@@ -1561,20 +1488,17 @@ TEST_F(SensorTest, SensorDelayMultiDim) {
   data->qvel[2] = 3.0;
 
   // step: reading delayed value (initially 0)
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[0], 0.0, 1e-10);
   EXPECT_NEAR(data->sensordata[1], 0.0, 1e-10);
   EXPECT_NEAR(data->sensordata[2], 0.0, 1e-10);
 
   // after delay, values should propagate
-  mj_step(model, data);
-  mj_step(model, data);
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
+  mj_step(model.get(), data.get());
+  mj_step(model.get(), data.get());
   // angular velocity is affected by dynamics, just check the buffer works
   EXPECT_THAT(AsVector(data->sensordata, 3), Not(ElementsAre(0.0, 0.0, 0.0)));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SensorTest, ReadSensor) {
@@ -1593,20 +1517,20 @@ TEST_F(SensorTest, ReadSensor) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // step with different qpos values to populate buffer
   // mj_advance inserts at current time, then time advances
   data->qpos[0] = 1.0;
-  mj_step(model, data);  // inserts 1.0 at t=0, time -> 0.01
+  mj_step(model.get(), data.get());  // inserts 1.0 at t=0, time -> 0.01
 
   data->qpos[0] = 2.0;
-  mj_step(model, data);  // inserts 2.0 at t=0.01, time -> 0.02
+  mj_step(model.get(), data.get());  // inserts 2.0 at t=0.01, time -> 0.02
 
   data->qpos[0] = 3.0;
-  mj_step(model, data);  // inserts 3.0 at t=0.02, time -> 0.03
+  mj_step(model.get(), data.get());  // inserts 3.0 at t=0.02, time -> 0.03
 
   // now time=0.03, buffer has: [t=0: 1.0, t=0.01: 2.0, t=0.02: 3.0]
 
@@ -1615,19 +1539,16 @@ TEST_F(SensorTest, ReadSensor) {
   const mjtNum* ptr;
 
   // read at t=0 -> returns 1.0
-  ptr = mj_readSensor(model, data, 0, 0.0, result, /*order=*/0);
+  ptr = mj_readSensor(model.get(), data.get(), 0, 0.0, result, /*order=*/0);
   EXPECT_NEAR(*ptr, 1.0, 1e-10);
 
   // read at t=0.01 -> returns 2.0 (ZOH: exactly at insertion time)
-  ptr = mj_readSensor(model, data, 0, 0.01, result, /*order=*/0);
+  ptr = mj_readSensor(model.get(), data.get(), 0, 0.01, result, /*order=*/0);
   EXPECT_NEAR(*ptr, 2.0, 1e-10);
 
   // read at t=0.02 -> returns 3.0
-  ptr = mj_readSensor(model, data, 0, 0.02, result, /*order=*/0);
+  ptr = mj_readSensor(model.get(), data.get(), 0, 0.02, result, /*order=*/0);
   EXPECT_NEAR(*ptr, 3.0, 1e-10);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // mj_sensorAcc returns correct accelerometer after mj_step1 (issue #3133)
@@ -1647,22 +1568,19 @@ TEST_F(SensorTest, AccelerometerAfterStep1) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
 
   // settle the simulation with split-step loop
   for (int i = 0; i < 100; i++) {
-    mj_step1(model, data);
-    mj_step2(model, data);
+    mj_step1(model.get(), data.get());
+    mj_step2(model.get(), data.get());
   }
 
   // call mj_step1 + mj_sensorAcc, expect gravity reading (~9.81 m/s^2)
-  mj_step1(model, data);
-  mj_sensorAcc(model, data);
+  mj_step1(model.get(), data.get());
+  mj_sensorAcc(model.get(), data.get());
   EXPECT_NEAR(data->sensordata[2], 9.81, 1e-2);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // Test tactile sensor reads non-zero values when contacts occur
@@ -1690,13 +1608,13 @@ TEST_F(SensorTest, TactileSkipTangents) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
   ASSERT_GT(model->nsensordata, 0) << "No sensor data allocated";
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
 
   // Use mj_forward to compute collisions and sensors at t=0
-  mj_forward(model, data);
+  mj_forward(model.get(), data.get());
 
   // Verify initial state
   EXPECT_EQ(data->time, 0.0);
@@ -1722,11 +1640,7 @@ TEST_F(SensorTest, TactileSkipTangents) {
     }
   }
   EXPECT_EQ(nonzero_count, 2) << "Expected 2 taxels in contact";
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
-
 
 // insidesite uses subtree_com for massless flex parent bodies
 TEST_F(SensorTest, InsideSiteFlexBody) {
@@ -1755,18 +1669,18 @@ TEST_F(SensorTest, InsideSiteFlexBody) {
   char error[1024] = {0};
   EXPECT_CALL(mock_warning_handler, Warn(testing::HasSubstr("is not rigid")))
       .WillOnce(testing::Return());
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
   // flex is at origin, site is a large box at origin — should be inside
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
   EXPECT_EQ(d->sensordata[0], 1)
       << "flex body should be inside the container site";
 
   // shift all vertex/node bodies far outside the site via qpos
   // each body has 3 slide joints (x, y, z); shift z by +10
-  int parent_id = mj_name2id(m, mjOBJ_BODY, "parent");
+  int parent_id = mj_name2id(m.get(), mjOBJ_BODY, "parent");
   for (int b = parent_id + 1; b < m->nbody; b++) {
     if (m->body_parentid[b] == parent_id) {
       int jadr = m->body_jntadr[b];
@@ -1776,14 +1690,11 @@ TEST_F(SensorTest, InsideSiteFlexBody) {
       }
     }
   }
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
 
   // subtree_com should now be far outside; sensor should read 0
   EXPECT_EQ(d->sensordata[0], 0)
       << "flex body should be outside the container site after displacement";
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 // Test that a tactile sensor's compile-time body-collision check correctly
@@ -1809,10 +1720,8 @@ TEST_F(SensorTest, TactileMeshIdMismatchedValidator) {
   )";
 
   char error[1024] = {0};
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-
-  mj_deleteModel(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
 }
 
 // Test that contact and touch sensors work with Flex contacts.
@@ -1843,32 +1752,30 @@ TEST_F(SensorTest, FlexContactSensors) {
   char error[1024] = {0};
   EXPECT_CALL(mock_warning_handler, Warn(testing::HasSubstr("is not rigid")))
       .WillOnce(testing::Return());
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
 
   // We expect at least one contact between the flex and the floor
   ASSERT_GT(d->ncon, 0) << "No contacts generated";
 
   // Check the contact sensor "flex_contact_subtree"
-  vector flex_contact_subtree = GetSensor(m, d, "flex_contact_subtree");
+  vector flex_contact_subtree =
+      GetSensor(m.get(), d.get(), "flex_contact_subtree");
   EXPECT_GT(flex_contact_subtree[0], 0)
       << "Flex contact sensor (subtree) did not detect any contacts";
 
   // Check the contact sensor "flex_contact_body"
-  vector flex_contact_body = GetSensor(m, d, "flex_contact_body");
+  vector flex_contact_body = GetSensor(m.get(), d.get(), "flex_contact_body");
   EXPECT_EQ(flex_contact_body[0], 0)
       << "Flex contact sensor (body) should not match contacts on child bodies";
 
   // Check the touch sensor "floor_touch"
-  vector floor_touch = GetSensor(m, d, "floor_touch");
+  vector floor_touch = GetSensor(m.get(), d.get(), "floor_touch");
   EXPECT_GT(floor_touch[0], 0.0)
       << "Floor touch sensor did not detect any force";
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 }  // namespace

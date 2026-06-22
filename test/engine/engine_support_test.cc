@@ -38,10 +38,6 @@ using ::testing::Ne;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 
-
-
-
-
 using Name2idTest = MujocoTest;
 
 static constexpr char name2idTestingModel[] = R"(
@@ -94,79 +90,69 @@ static constexpr char name2idTestingModel[] = R"(
 )";
 
 TEST_F(Name2idTest, FindIds) {
-    char error[1024];
-    mjModel* model =
-        LoadModelFromString(name2idTestingModel, error, sizeof(error));
-    ASSERT_THAT(model, NotNull()) << error;
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(name2idTestingModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-    EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "world"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "body1"), 1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "body2"), 2);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_GEOM, "body1_geom1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_GEOM, "body1_geom2"), 1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_JOINT, "joint2"), 1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_MESH, "mesh1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_LIGHT, "light1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_CAMERA, "camera1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_SITE, "site2"), 1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_MATERIAL, "material1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_TEXTURE, "texture1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_TENDON, "tendon1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_ACTUATOR, "actuator1"), 0);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_SENSOR, "sensor1"), 0);
-
-    mj_deleteModel(model);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_BODY, "world"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_BODY, "body1"), 1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_BODY, "body2"), 2);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_GEOM, "body1_geom1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_GEOM, "body1_geom2"), 1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_JOINT, "joint2"), 1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_MESH, "mesh1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_LIGHT, "light1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_CAMERA, "camera1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_SITE, "site2"), 1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_MATERIAL, "material1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_TEXTURE, "texture1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_TENDON, "tendon1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_ACTUATOR, "actuator1"), 0);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_SENSOR, "sensor1"), 0);
 }
 
-TEST_F(Name2idTest,  MissingIds) {
-    char error[1024];
-    mjModel* model =
-        LoadModelFromString(name2idTestingModel, error, sizeof(error));
-    ASSERT_THAT(model, NotNull()) << error;
+TEST_F(Name2idTest, MissingIds) {
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(name2idTestingModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-    EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "abody3"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_GEOM, "abody2_geom2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_JOINT, "joint3"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_MESH, "amesh2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_LIGHT, "alight2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_CAMERA, "acamera2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_SITE, "asite3"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_MATERIAL, "amaterial2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_TEXTURE, "atexture2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_TENDON, "atendon2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_ACTUATOR, "aactuator2"), -1);
-    EXPECT_THAT(mj_name2id(model, mjOBJ_SENSOR, "asensor2"), -1);
-
-    mj_deleteModel(model);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_BODY, "abody3"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_GEOM, "abody2_geom2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_JOINT, "joint3"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_MESH, "amesh2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_LIGHT, "alight2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_CAMERA, "acamera2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_SITE, "asite3"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_MATERIAL, "amaterial2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_TEXTURE, "atexture2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_TENDON, "atendon2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_ACTUATOR, "aactuator2"), -1);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_SENSOR, "asensor2"), -1);
 }
 
 TEST_F(Name2idTest, EmptyIds) {
-    char error[1024];
-    mjModel* model =
-        LoadModelFromString(name2idTestingModel, error, sizeof(error));
-    ASSERT_THAT(model, NotNull()) << error;
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(name2idTestingModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-    EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, ""), -1);
-
-    mj_deleteModel(model);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_BODY, ""), -1);
 }
 
 TEST_F(Name2idTest, Namespaces) {
-    char error[1024];
-    mjModel* model =
-        LoadModelFromString(name2idTestingModel, error, sizeof(error));
-    ASSERT_THAT(model, NotNull()) << error;
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(name2idTestingModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
-    EXPECT_THAT(mj_name2id(model, mjOBJ_GEOM, "camera1"), 3);
-
-    mj_deleteModel(model);
+  EXPECT_THAT(mj_name2id(model.get(), mjOBJ_GEOM, "camera1"), 3);
 }
 
 using VersionTest = MujocoTest;
 
-TEST_F(VersionTest, MjVersion) {
-  EXPECT_EQ(mj_version(), mjVERSION_HEADER);
-}
+TEST_F(VersionTest, MjVersion) { EXPECT_EQ(mj_version(), mjVERSION_HEADER); }
 
 TEST_F(VersionTest, MjVersionString) {
 #if GTEST_USES_SIMPLE_RE == 1
@@ -176,7 +162,6 @@ TEST_F(VersionTest, MjVersionString) {
 #endif
   EXPECT_THAT(std::string(mj_versionString()), regex_matcher);
 }
-
 
 using SupportTest = MujocoTest;
 
@@ -188,7 +173,7 @@ void randomQuatPair(mjtNum qa[4], mjtNum qb[4], mjtNum angle, int seed) {
   std::normal_distribution<double> dist(0, 1);
 
   // sample qa = qb
-  for (int i=0; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     qa[i] = qb[i] = dist(rng);
   }
   mju_normalize4(qa);
@@ -196,7 +181,7 @@ void randomQuatPair(mjtNum qa[4], mjtNum qb[4], mjtNum angle, int seed) {
 
   // integrate qb in random direction by angle
   mjtNum dir[3];
-  for (int i=0; i < 3; i++) {
+  for (int i = 0; i < 3; i++) {
     dir[i] = dist(rng);
   }
   mju_normalize3(dir);
@@ -218,8 +203,8 @@ TEST_F(SupportTest, DifferentiatePosSubQuat) {
   const mjtNum eps = 1e-12;  // epsilon for float comparison
 
   char error[1024];
-  mjModel* model = LoadModelFromString(ballJointModel, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(ballJointModel, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   int seed = 1;
   for (mjtNum angle : {0.0, 1e-5, 1e-2}) {
@@ -230,7 +215,7 @@ TEST_F(SupportTest, DifferentiatePosSubQuat) {
 
       // get velocity given timestep
       mjtNum qvel[3];
-      mj_differentiatePos(model, qvel, dt, qpos1, qpos2);
+      mj_differentiatePos(model.get(), qvel, dt, qpos1, qpos2);
 
       // equivalent computation
       mjtNum qneg[4], qdif[4], qvel_expect[3];
@@ -242,8 +227,6 @@ TEST_F(SupportTest, DifferentiatePosSubQuat) {
       EXPECT_THAT(AsVector(qvel, 3), Pointwise(MjNear(eps, 1e-3), qvel_expect));
     }
   }
-
-  mj_deleteModel(model);
 }
 
 static const char* const kDefaultModel = "testdata/model.xml";
@@ -261,9 +244,9 @@ TEST_F(StateTest, GetSetStateStepEqual) {
   std::normal_distribution<double> dist(0, .01);
 
   // set controls and applied joint forces to random values
-  for (int i=0; i < model->nu; i++) data->ctrl[i] = dist(rng);
-  for (int i=0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
-  for (int i=0; i < model->neq; i++) data->eq_active[i] = dist(rng) > 0;
+  for (int i = 0; i < model->nu; i++) data->ctrl[i] = dist(rng);
+  for (int i = 0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
+  for (int i = 0; i < model->neq; i++) data->eq_active[i] = dist(rng) > 0;
 
   // take one step
   mj_step(model, data);
@@ -320,38 +303,35 @@ TEST_F(StateTest, GetSetStateDelay) {
   )";
 
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // verify history buffer exists: nhistory = 2 + 2*5 = 12
   EXPECT_EQ(model->nhistory, 12);  // [user, cursor, times(5), values(5)]
 
   // state size should include history buffer
-  int size = mj_stateSize(model, mjSTATE_HISTORY);
+  int size = mj_stateSize(model.get(), mjSTATE_HISTORY);
   EXPECT_EQ(size, model->nhistory);
 
   // step to populate history buffer
   data->ctrl[0] = 1.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
   data->ctrl[0] = 2.0;
-  mj_step(model, data);
+  mj_step(model.get(), data.get());
 
   // get history state
   vector<mjtNum> history_state(size);
-  mj_getState(model, data, history_state.data(), mjSTATE_HISTORY);
+  mj_getState(model.get(), data.get(), history_state.data(), mjSTATE_HISTORY);
 
   // modify the history buffer manually (value at index 7 = 2+5 = after times)
   data->history[7] = 99.0;  // first value
 
   // set history state back - should restore original
-  mj_setState(model, data, history_state.data(), mjSTATE_HISTORY);
+  mj_setState(model.get(), data.get(), history_state.data(), mjSTATE_HISTORY);
 
   // verify restoration
   EXPECT_NE(data->history[7], 99.0);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(StateTest, CopyState) {
@@ -367,13 +347,13 @@ TEST_F(StateTest, CopyState) {
 
   // modify d_src
   src->time = 1.23;
-  for (int i=0; i < m->nq; ++i) src->qpos[i] = i*0.1;
-  for (int i=0; i < m->nv; ++i) src->qvel[i] = i*0.2;
-  for (int i=0; i < m->na; ++i) src->act[i] = i*0.3;
-  for (int i=0; i < m->nu; ++i) src->ctrl[i] = i*0.4;
-  for (int i=0; i < m->nhistory; ++i) src->history[i] = i*0.5;
+  for (int i = 0; i < m->nq; ++i) src->qpos[i] = i * 0.1;
+  for (int i = 0; i < m->nv; ++i) src->qvel[i] = i * 0.2;
+  for (int i = 0; i < m->na; ++i) src->act[i] = i * 0.3;
+  for (int i = 0; i < m->nu; ++i) src->ctrl[i] = i * 0.4;
+  for (int i = 0; i < m->nhistory; ++i) src->history[i] = i * 0.5;
 
-  for (int i=0; i < m->neq; ++i) src->eq_active[i] = 1 - m->eq_active0[i];
+  for (int i = 0; i < m->neq; ++i) src->eq_active[i] = 1 - m->eq_active0[i];
 
   // check that states differ
   EXPECT_NE(src->time, dst->time);
@@ -413,9 +393,9 @@ TEST_F(StateTest, ExtractState) {
   std::normal_distribution<double> dist(0, .01);
 
   // set controls and applied joint forces to random values
-  for (int i=0; i < model->nu; i++) data->ctrl[i] = dist(rng);
-  for (int i=0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
-  for (int i=0; i < model->neq; i++) data->eq_active[i] = dist(rng) > 0;
+  for (int i = 0; i < model->nu; i++) data->ctrl[i] = dist(rng);
+  for (int i = 0; i < model->nv; i++) data->qfrc_applied[i] = dist(rng);
+  for (int i = 0; i < model->neq; i++) data->eq_active[i] = dist(rng) > 0;
 
   // take one step
   mj_step(model, data);
@@ -518,16 +498,15 @@ TEST_F(InertiaTest, AddMdenseSameAsSparse) {
   }
 
   // sparse addM
-  mj_addM(m, d, dst_sparse.data(), rownnz.data(),
-          rowadr.data(), colind.data());
+  mj_addM(m, d, dst_sparse.data(), rownnz.data(), rowadr.data(), colind.data());
 
   // dense addM
   mj_addM(m, d, dst_dense.data(), nullptr, nullptr, nullptr);
 
   // dense comparison (lower triangle)
-  for (int i=0; i < nv; i++) {
-    for (int j=0; j < nv; j++) {
-      EXPECT_EQ(dst_dense[i*nv+j], dst_sparse[i*nv+j]);
+  for (int i = 0; i < nv; i++) {
+    for (int j = 0; j < nv; j++) {
+      EXPECT_EQ(dst_dense[i * nv + j], dst_sparse[i * nv + j]);
     }
   }
 
@@ -547,13 +526,13 @@ TEST_F(InertiaTest, mulM) {
   mj_forward(model, data);
 
   // dense M matrix
-  vector<mjtNum> Mdense(nv*nv);
-  mju_sym2dense(Mdense.data(), data->M, nv,
-                model->M_rownnz, model->M_rowadr, model->M_colind);
+  vector<mjtNum> Mdense(nv * nv);
+  mju_sym2dense(Mdense.data(), data->M, nv, model->M_rownnz, model->M_rowadr,
+                model->M_colind);
 
   // arbitrary RHS vector
   vector<mjtNum> vec(nv);
-  for (int i=0; i < nv; i++) vec[i] = vec[i] = 20 + 30*i;
+  for (int i = 0; i < nv; i++) vec[i] = vec[i] = 20 + 30 * i;
 
   // multiply directly
   vector<mjtNum> res1(nv, 0);
@@ -582,7 +561,7 @@ TEST_F(InertiaTest, mulM2) {
 
   // arbitrary RHS vector
   vector<mjtNum> vec(nv);
-  for (int i=0; i < nv; i++) vec[i] = .2 + .3*i;
+  for (int i = 0; i < nv; i++) vec[i] = .2 + .3 * i;
 
   // multiply sqrtMvec = M^1/2 * vec
   vector<mjtNum> sqrtMvec(nv);
@@ -618,8 +597,8 @@ TEST_F(InertiaTest, FullM) {
 
   // get dense mass matrix from M using mju_sparse2dense
   vector<mjtNum> M_CSR(nv * nv);
-  mju_sparse2dense(M_CSR.data(), d->M, nv, nv,
-                   m->M_rownnz, m->M_rowadr, m->M_colind);
+  mju_sparse2dense(M_CSR.data(), d->M, nv, nv, m->M_rownnz, m->M_rowadr,
+                   m->M_colind);
 
   // expect lower triangles to match exactly
   for (int i = 0; i < nv; ++i) {
@@ -630,8 +609,8 @@ TEST_F(InertiaTest, FullM) {
 
   // get dense LTDL factor (D on the diagonal)
   vector<mjtNum> LD(nv * nv);
-  mju_sparse2dense(LD.data(), d->qLD, nv, nv,
-                   m->M_rownnz, m->M_rowadr, m->M_colind);
+  mju_sparse2dense(LD.data(), d->qLD, nv, nv, m->M_rownnz, m->M_rowadr,
+                   m->M_colind);
 
   // extract L and D from LD
   vector<mjtNum> L = LD;
@@ -686,88 +665,85 @@ static constexpr char GeomDistanceTestingModel2[] = R"(
 
 TEST_F(SupportTest, GeomDistance) {
   char error[1024];
-  mjModel* model =
+  MjModelPtr model =
       LoadModelFromString(GeomDistanceTestingModel1, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
-  mj_kinematics(model, data);
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
 
   // plane-sphere, distmax too small
   mjtNum distmax = 0.5;
-  EXPECT_EQ(mj_geomDistance(model, data, 0, 1, distmax, nullptr), 0.5);
+  EXPECT_EQ(mj_geomDistance(model.get(), data.get(), 0, 1, distmax, nullptr),
+            0.5);
   mjtNum fromto[6];
-  EXPECT_EQ(mj_geomDistance(model, data, 0, 1, distmax, fromto), 0.5);
+  EXPECT_EQ(mj_geomDistance(model.get(), data.get(), 0, 1, distmax, fromto),
+            0.5);
   EXPECT_THAT(fromto, Pointwise(Eq(), vector<mjtNum>{0, 0, 0, 0, 0, 0}));
 
   // plane-sphere
   distmax = 1.0;
-  EXPECT_THAT(mj_geomDistance(model, data, 0, 1, 1.0, fromto),
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 0, 1, 1.0, fromto),
               MjNear(0.8, 1e-12, 1e-5));
   mjtNum eps = 1e-12;
-  EXPECT_THAT(fromto, Pointwise(MjNear(eps, 1e-5),
-                                vector<mjtNum>{0, 0, 0, 0, 0, 0.8}));
+  EXPECT_THAT(fromto,
+              Pointwise(MjNear(eps, 1e-5), vector<mjtNum>{0, 0, 0, 0, 0, 0.8}));
 
   // sphere-plane
-  EXPECT_THAT(mj_geomDistance(model, data, 1, 0, 1.0, fromto),
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 1, 0, 1.0, fromto),
               MjNear(0.8, 1e-12, 1e-5));
-  EXPECT_THAT(fromto, Pointwise(MjNear(eps, 1e-5),
-                                vector<mjtNum>{0, 0, 0.8, 0, 0, 0}));
+  EXPECT_THAT(fromto,
+              Pointwise(MjNear(eps, 1e-5), vector<mjtNum>{0, 0, 0.8, 0, 0, 0}));
 
   // sphere-sphere
-  EXPECT_THAT(mj_geomDistance(model, data, 1, 2, 1.0, fromto),
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 1, 2, 1.0, fromto),
               MjNear(0.5, 1e-12, 1e-5));
-  EXPECT_THAT(fromto, Pointwise(MjNear(eps, 1e-5),
-                                vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
+  EXPECT_THAT(fromto,
+              Pointwise(MjNear(eps, 1e-5), vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
 
   // sphere-sphere, flipped order
-  EXPECT_THAT(mj_geomDistance(model, data, 2, 1, 1.0, fromto),
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 2, 1, 1.0, fromto),
               MjNear(0.5, 1e-12, 1e-5));
-  EXPECT_THAT(fromto, Pointwise(MjNear(eps, 1e-5),
-                                vector<mjtNum>{.7, 0, 1, .2, 0, 1}));
+  EXPECT_THAT(fromto,
+              Pointwise(MjNear(eps, 1e-5), vector<mjtNum>{.7, 0, 1, .2, 0, 1}));
 
   // mesh-sphere (close distmax)
   distmax = 0.701;
   eps = model->opt.ccd_tolerance;
-  EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
-              MjNear(0.7, eps, eps*100));
-  EXPECT_THAT(fromto, Pointwise(MjNear(eps, eps*100),
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 3, 1, distmax, fromto),
+              MjNear(0.7, eps, eps * 100));
+  EXPECT_THAT(fromto, Pointwise(MjNear(eps, eps * 100),
                                 vector<mjtNum>{0, 0, .1, 0, 0, .8}));
 
   // mesh-sphere (far distmax)
   distmax = 1.0;
-  EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
-              MjNear(0.7, eps, eps*100));
-  EXPECT_THAT(fromto, Pointwise(MjNear(eps, eps*100),
+  EXPECT_THAT(mj_geomDistance(model.get(), data.get(), 3, 1, distmax, fromto),
+              MjNear(0.7, eps, eps * 100));
+  EXPECT_THAT(fromto, Pointwise(MjNear(eps, eps * 100),
                                 vector<mjtNum>{0, 0, .1, 0, 0, .8}));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SupportTest, GeomDistanceFromToFlipped) {
   mjtNum distmax = 10.0;
   char error[1024];
-  mjModel* model =
+  MjModelPtr model =
       LoadModelFromString(GeomDistanceTestingModel2, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
-  mj_kinematics(model, data);
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
 
   mjtNum fromto01[6];
   mjtNum fromto10[6];
 
   for (int flag : {0, (int)mjDSBL_NATIVECCD}) {
     model->opt.disableflags = flag;
-    mj_geomDistance(model, data, 0, 1, distmax, fromto01);
-    mj_geomDistance(model, data, 1, 0, distmax, fromto10);
+    mj_geomDistance(model.get(), data.get(), 0, 1, distmax, fromto01);
+    mj_geomDistance(model.get(), data.get(), 1, 0, distmax, fromto10);
     mjtNum fromto10flipped[6] = {fromto10[3], fromto10[4], fromto10[5],
                                  fromto10[0], fromto10[1], fromto10[2]};
 
     EXPECT_THAT(AsVector(fromto10flipped, 6),
                 Pointwise(MjNear(1.0e-12, 1e-5), fromto01));
   }
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 static constexpr char kSetKeyframeTestingModel[] = R"(
@@ -789,43 +765,38 @@ static constexpr char kSetKeyframeTestingModel[] = R"(
 
 TEST_F(SupportTest, SetKeyframe) {
   char error[1024];
-  mjModel* model =
+  MjModelPtr model =
       LoadModelFromString(kSetKeyframeTestingModel, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   data->ctrl[0] = 1;
   while (data->time < 1) {
-    mj_step(model, data);
+    mj_step(model.get(), data.get());
   }
 
-  mj_setKeyframe(model, data, 1);
+  mj_setKeyframe(model.get(), data.get(), 1);
   EXPECT_EQ(data->time, model->key_time[1]);
   EXPECT_EQ(data->ctrl[0], model->key_ctrl[model->nu * 1]);
   EXPECT_EQ(data->qpos[0], model->key_qpos[model->nq * 1]);
   EXPECT_EQ(data->qvel[0], model->key_qvel[model->nv * 1]);
   EXPECT_EQ(data->act[0], model->key_act[model->na * 1]);
 
-  mj_step(model, data);
-  mj_setKeyframe(model, data, 0);
+  mj_step(model.get(), data.get());
+  mj_setKeyframe(model.get(), data.get(), 0);
   EXPECT_EQ(data->time, model->key_time[0]);
   EXPECT_EQ(data->ctrl[0], model->key_ctrl[model->nu * 0]);
   EXPECT_EQ(data->qpos[0], model->key_qpos[model->nq * 0]);
   EXPECT_EQ(data->qvel[0], model->key_qvel[model->nv * 0]);
   EXPECT_EQ(data->act[0], model->key_act[model->na * 0]);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SupportTest, ContactSensorDim) {
-  int dataSpec = 1 << mjCONDATA_FOUND   |
-                 1 << mjCONDATA_FORCE   |
-                 1 << mjCONDATA_DIST    |
-                 1 << mjCONDATA_POS     |
+  int dataSpec = 1 << mjCONDATA_FOUND | 1 << mjCONDATA_FORCE |
+                 1 << mjCONDATA_DIST | 1 << mjCONDATA_POS |
                  1 << mjCONDATA_TANGENT;
 
-  EXPECT_EQ(mju_condataSize(dataSpec), 1+3+1+3+3);
+  EXPECT_EQ(mju_condataSize(dataSpec), 1 + 3 + 1 + 3 + 3);
 }
 
 // ------------------------------ ctrl delays --------------------------------
@@ -844,16 +815,14 @@ TEST_F(SupportTest, ReadCtrlNoDelay) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
 
   // no delay: should return current ctrl value
   data->ctrl[0] = 42.0;
-  EXPECT_EQ(mj_readCtrl(model, data, 0, data->time, /*order=*/0), 42.0);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  EXPECT_EQ(mj_readCtrl(model.get(), data.get(), 0, data->time, /*order=*/0),
+            42.0);
 }
 
 TEST_F(SupportTest, ReadCtrlWithDelay) {
@@ -872,9 +841,9 @@ TEST_F(SupportTest, ReadCtrlWithDelay) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // model should have delay configured
   // delay = 0.03 seconds, timestep = 0.01, so ndelay = ceil(0.03/0.01) = 3
@@ -884,11 +853,8 @@ TEST_F(SupportTest, ReadCtrlWithDelay) {
 
   // initially, buffer should be filled with constant value (from init)
   // reading at current time should return the init value
-  mjtNum val = mj_readCtrl(model, data, 0, data->time, /*order=*/0);
+  mjtNum val = mj_readCtrl(model.get(), data.get(), 0, data->time, /*order=*/0);
   EXPECT_EQ(val, data->ctrl[0]);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SupportTest, InitCtrlDelay) {
@@ -907,35 +873,33 @@ TEST_F(SupportTest, InitCtrlDelay) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // verify nhistory
   EXPECT_EQ(model->actuator_history[0], 3);
 
   // initialize with custom times and values
-  // buffer stores: time 0.0 -> value 1.0, time 0.01 -> value 2.0, time 0.02 -> value 3.0
+  // buffer stores: time 0.0 -> value 1.0, time 0.01 -> value 2.0, time 0.02 ->
+  // value 3.0
   mjtNum times[3] = {0.0, 0.01, 0.02};
   mjtNum values[3] = {1.0, 2.0, 3.0};
-  mj_initCtrlHistory(model, data, 0, times, values);
+  mj_initCtrlHistory(model.get(), data.get(), 0, times, values);
 
   // mj_readCtrl now auto-subtracts delay: lookup_time = time - delay
   // delay = 0.02, so:
   //   time=0.04 -> lookup at 0.02 -> value 3.0
   //   time=0.03 -> lookup at 0.01 -> value 2.0
   //   time=0.02 -> lookup at 0.00 -> value 1.0
-  mjtNum val = mj_readCtrl(model, data, 0, 0.04, /*order=*/0);
+  mjtNum val = mj_readCtrl(model.get(), data.get(), 0, 0.04, /*order=*/0);
   EXPECT_EQ(val, 3.0);
 
-  val = mj_readCtrl(model, data, 0, 0.03, /*order=*/0);
+  val = mj_readCtrl(model.get(), data.get(), 0, 0.03, /*order=*/0);
   EXPECT_EQ(val, 2.0);
 
-  val = mj_readCtrl(model, data, 0, 0.02, /*order=*/0);
+  val = mj_readCtrl(model.get(), data.get(), 0, 0.02, /*order=*/0);
   EXPECT_EQ(val, 1.0);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SupportTest, InitCtrlDelayNullTimes) {
@@ -954,9 +918,9 @@ TEST_F(SupportTest, InitCtrlDelayNullTimes) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // get existing times from buffer
   int adr = model->actuator_historyadr[0];
@@ -965,7 +929,7 @@ TEST_F(SupportTest, InitCtrlDelayNullTimes) {
 
   // initialize with NULL times (use existing) and new values
   mjtNum values[3] = {10.0, 20.0, 30.0};
-  mj_initCtrlHistory(model, data, 0, nullptr, values);
+  mj_initCtrlHistory(model.get(), data.get(), 0, nullptr, values);
 
   // verify times are unchanged
   EXPECT_EQ(buf[2], existing_times[0]);
@@ -976,9 +940,6 @@ TEST_F(SupportTest, InitCtrlDelayNullTimes) {
   EXPECT_EQ(buf[5], 10.0);
   EXPECT_EQ(buf[6], 20.0);
   EXPECT_EQ(buf[7], 30.0);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(SupportTest, InitSensorDelay) {
@@ -997,36 +958,35 @@ TEST_F(SupportTest, InitSensorDelay) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // verify nsample for sensor
   EXPECT_EQ(model->sensor_history[0], 3);
 
   // initialize with custom times and values, phase=0
-  // buffer stores: time 0.0 -> value 0.5, time 0.01 -> value 0.6, time 0.02 -> value 0.7
+  // buffer stores: time 0.0 -> value 0.5, time 0.01 -> value 0.6, time 0.02 ->
+  // value 0.7
   mjtNum times[3] = {0.0, 0.01, 0.02};
   mjtNum values[3] = {0.5, 0.6, 0.7};
-  mj_initSensorHistory(model, data, 0, times, values, /*phase=*/0.0);
+  mj_initSensorHistory(model.get(), data.get(), 0, times, values,
+                       /*phase=*/0.0);
 
   // mj_readSensor now auto-subtracts delay: lookup_time = time - delay
   // delay = 0.02, so:
   //   time=0.04 -> lookup at 0.02 -> value 0.7
   //   time=0.03 -> lookup at 0.01 -> value 0.6
   mjtNum result = 0;
-  const mjtNum* ptr = mj_readSensor(model, data, 0, 0.04, &result, /*order=*/0);
+  const mjtNum* ptr =
+      mj_readSensor(model.get(), data.get(), 0, 0.04, &result, /*order=*/0);
   mjtNum val = ptr ? *ptr : result;
   EXPECT_NEAR(val, 0.7, 1e-6);
 
-  ptr = mj_readSensor(model, data, 0, 0.03, &result, /*order=*/0);
+  ptr = mj_readSensor(model.get(), data.get(), 0, 0.03, &result, /*order=*/0);
   val = ptr ? *ptr : result;
   EXPECT_NEAR(val, 0.6, 1e-6);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 }  // namespace
 }  // namespace mujoco
-

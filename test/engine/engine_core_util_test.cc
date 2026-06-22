@@ -49,10 +49,10 @@ TEST_F(FlexGatherStateTest, mju_flexGatherState_Grid) {
   )";
 
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
-  mj_forward(model, data);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
 
   ASSERT_EQ(model->nflex, 1);
   int f = 0;
@@ -63,29 +63,26 @@ TEST_F(FlexGatherStateTest, mju_flexGatherState_Grid) {
   ASSERT_TRUE(model->flex_centered[f]);
   for (int i = 0; i < nodenum; i++) {
     int b = model->flex_nodebodyid[nstart + i];
-    mjtNum x = data->xpos[3*b + 0];
-    mjtNum y = data->xpos[3*b + 1];
-    mjtNum z = data->xpos[3*b + 2];
+    mjtNum x = data->xpos[3 * b + 0];
+    mjtNum y = data->xpos[3 * b + 1];
+    mjtNum z = data->xpos[3 * b + 2];
 
     // Rotate 90 degrees around Z: (x, y, z) -> (-y, x, z)
-    data->xpos[3*b + 0] = -y;
-    data->xpos[3*b + 1] = x;
-    data->xpos[3*b + 2] = z;
+    data->xpos[3 * b + 0] = -y;
+    data->xpos[3 * b + 1] = x;
+    data->xpos[3 * b + 2] = z;
   }
 
   std::vector<mjtNum> xpos(3 * nodenum);
-  mju_flexGatherState(model, data, f, xpos.data(), NULL);
+  mju_flexGatherState(model.get(), data.get(), f, xpos.data(), NULL);
 
   // Verify that gathered xpos matches the rotated data->xpos
   for (int i = 0; i < nodenum; i++) {
     int b = model->flex_nodebodyid[nstart + i];
-    EXPECT_NEAR(xpos[3*i + 0], data->xpos[3*b + 0], 1e-5);
-    EXPECT_NEAR(xpos[3*i + 1], data->xpos[3*b + 1], 1e-5);
-    EXPECT_NEAR(xpos[3*i + 2], data->xpos[3*b + 2], 1e-5);
+    EXPECT_NEAR(xpos[3 * i + 0], data->xpos[3 * b + 0], 1e-5);
+    EXPECT_NEAR(xpos[3 * i + 1], data->xpos[3 * b + 1], 1e-5);
+    EXPECT_NEAR(xpos[3 * i + 2], data->xpos[3 * b + 2], 1e-5);
   }
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 TEST_F(FlexGatherStateTest, mju_flexGatherState_ShellMode) {
@@ -102,15 +99,15 @@ TEST_F(FlexGatherStateTest, mju_flexGatherState_ShellMode) {
   )";
 
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
 
   ASSERT_EQ(model->nflex, 1);
   int f = 0;
   model->flex_interp[f] = -1;
 
-  mjData* data = mj_makeData(model);
-  mj_forward(model, data);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
 
   int nodenum = model->flex_nodenum[f];
   int nstart = model->flex_nodeadr[f];
@@ -118,25 +115,22 @@ TEST_F(FlexGatherStateTest, mju_flexGatherState_ShellMode) {
   // Move boundary nodes, keep interior node stuck (it is pinned)
   mjtNum shift[3] = {0.1, 0.2, 0.3};
   for (int i = 0; i < nodenum; i++) {
-    if (i == 13) continue; // Skip center node
+    if (i == 13) continue;  // Skip center node
     int b = model->flex_nodebodyid[nstart + i];
-    data->xpos[3*b + 0] += shift[0];
-    data->xpos[3*b + 1] += shift[1];
-    data->xpos[3*b + 2] += shift[2];
+    data->xpos[3 * b + 0] += shift[0];
+    data->xpos[3 * b + 1] += shift[1];
+    data->xpos[3 * b + 2] += shift[2];
   }
 
   std::vector<mjtNum> xpos(3 * nodenum);
-  mju_flexGatherState(model, data, f, xpos.data(), NULL);
+  mju_flexGatherState(model.get(), data.get(), f, xpos.data(), NULL);
 
-  // Verify that gathered xpos for center node (13) is the TFI reconstructed position
-  EXPECT_NEAR(xpos[3*13 + 0], shift[0], 1e-5);
-  EXPECT_NEAR(xpos[3*13 + 1], shift[1], 1e-5);
-  EXPECT_NEAR(xpos[3*13 + 2], shift[2], 1e-5);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  // Verify that gathered xpos for center node (13) is the TFI reconstructed
+  // position
+  EXPECT_NEAR(xpos[3 * 13 + 0], shift[0], 1e-5);
+  EXPECT_NEAR(xpos[3 * 13 + 1], shift[1], 1e-5);
+  EXPECT_NEAR(xpos[3 * 13 + 2], shift[2], 1e-5);
 }
-
 
 using AngMomMatTest = MujocoTest;
 
@@ -172,26 +166,26 @@ static constexpr char AngMomTestingModel[] = R"(
 // compare subtree angular momentum computed in two ways
 TEST_F(AngMomMatTest, CompareAngMom) {
   char error[1024];
-  mjModel* model =
+  MjModelPtr model =
       LoadModelFromString(AngMomTestingModel, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  ASSERT_THAT(model.get(), NotNull()) << error;
   int nv = model->nv;
-  int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
+  int bodyid = mj_name2id(model.get(), mjOBJ_BODY, "link1");
 
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
 
   // reset to the keyframe with some angular velocities
-  mj_resetDataKeyframe(model, data, 0);
-  mj_forward(model, data);
+  mj_resetDataKeyframe(model.get(), data.get(), 0);
+  mj_forward(model.get(), data.get());
 
   // get the reference value of angular momentum
-  mj_subtreeVel(model, data);
+  mj_subtreeVel(model.get(), data.get());
   mjtNum angmom_ref[3];
-  mju_copy3(angmom_ref, data->subtree_angmom+3*bodyid);
+  mju_copy3(angmom_ref, data->subtree_angmom + 3 * bodyid);
 
   // compute angular momentum using the angular momentum matrix
-  mjtNum* angmom_mat = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
-  mj_angmomMat(model, data, angmom_mat, bodyid);
+  mjtNum* angmom_mat = (mjtNum*)mju_malloc(sizeof(mjtNum) * 3 * nv);
+  mj_angmomMat(model.get(), data.get(), angmom_mat, bodyid);
   mjtNum angmom_test[3];
   mju_mulMatVec(angmom_test, angmom_mat, data->qvel, 3, nv);
 
@@ -201,28 +195,26 @@ TEST_F(AngMomMatTest, CompareAngMom) {
   }
 
   mju_free(angmom_mat);
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // compare subtree angular momentum matrix: analytical and findiff
 TEST_F(AngMomMatTest, CompareAngMomMats) {
   char error[1024];
-  mjModel* model =
+  MjModelPtr model =
       LoadModelFromString(AngMomTestingModel, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  ASSERT_THAT(model.get(), NotNull()) << error;
   int nv = model->nv;
-  int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
-  mjData* data = mj_makeData(model);
-  mjtNum* angmom_mat = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
-  mjtNum* angmom_mat_fd = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
+  int bodyid = mj_name2id(model.get(), mjOBJ_BODY, "link1");
+  MjDataPtr data = MakeData(model);
+  mjtNum* angmom_mat = (mjtNum*)mju_malloc(sizeof(mjtNum) * 3 * nv);
+  mjtNum* angmom_mat_fd = (mjtNum*)mju_malloc(sizeof(mjtNum) * 3 * nv);
 
   // reset to the keyframe with some angular velocities
-  mj_resetDataKeyframe(model, data, 0);
-  mj_forward(model, data);
+  mj_resetDataKeyframe(model.get(), data.get(), 0);
+  mj_forward(model.get(), data.get());
 
   // compute the angular momentum matrix using the analytical method
-  mj_angmomMat(model, data, angmom_mat, bodyid);
+  mj_angmomMat(model.get(), data.get(), angmom_mat, bodyid);
 
   // compute the angular momentum matrix using finite differences
   static const mjtNum eps = MjTol(1e-6, 1e-3);
@@ -230,34 +222,32 @@ TEST_F(AngMomMatTest, CompareAngMomMats) {
     // reset vel, forward nudge i-th dof, get angmom
     mju_copy(data->qvel, model->key_qvel, model->nv);
     data->qvel[i] += eps;
-    mj_forward(model, data);
-    mj_subtreeVel(model, data);
+    mj_forward(model.get(), data.get());
+    mj_subtreeVel(model.get(), data.get());
     mjtNum agmf[3];
-    mju_copy3(agmf, data->subtree_angmom+3*bodyid);
+    mju_copy3(agmf, data->subtree_angmom + 3 * bodyid);
 
     // reset vel, backward nudge i-th dof, get angmom
     mju_copy(data->qvel, model->key_qvel, model->nv);
     data->qvel[i] -= eps;
-    mj_forward(model, data);
-    mj_subtreeVel(model, data);
+    mj_forward(model.get(), data.get());
+    mj_subtreeVel(model.get(), data.get());
     mjtNum agmb[3];
-    mju_copy3(agmb, data->subtree_angmom+3*bodyid);
+    mju_copy3(agmb, data->subtree_angmom + 3 * bodyid);
 
     // finite-difference the angmom matrix
     for (int j = 0; j < 3; j++) {
-      angmom_mat_fd[nv*j+i] = (agmf[j] - agmb[j]) / (2 * eps);
+      angmom_mat_fd[nv * j + i] = (agmf[j] - agmb[j]) / (2 * eps);
     }
   }
 
   // compare the two matrices
-  for (int i = 0; i < 3*nv; i++) {
+  for (int i = 0; i < 3 * nv; i++) {
     EXPECT_THAT(angmom_mat_fd[i], MjNear(angmom_mat[i], 1e-8, 2e-4));
   }
 
   mju_free(angmom_mat_fd);
   mju_free(angmom_mat);
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 using JacobianTest = MujocoTest;
@@ -297,100 +287,97 @@ static constexpr char kJacobianTestingModel[] = R"(
 // compare analytic and finite-differenced subtree-com Jacobian
 TEST_F(JacobianTest, SubtreeJac) {
   char error[1024];
-  mjModel* model =
+  MjModelPtr model =
       LoadModelFromString(kJacobianTestingModel, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  ASSERT_THAT(model.get(), NotNull()) << error;
   int nv = model->nv;
-  int bodyid = mj_name2id(model, mjOBJ_BODY, "main");
-  mjData* data = mj_makeData(model);
-  mjtNum* jac_subtree = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
-  mjtNum* qpos = (mjtNum*) mju_malloc(sizeof(mjtNum)*model->nq);
-  mjtNum* nudge = (mjtNum*) mju_malloc(sizeof(mjtNum)*nv);
+  int bodyid = mj_name2id(model.get(), mjOBJ_BODY, "main");
+  MjDataPtr data = MakeData(model);
+  mjtNum* jac_subtree = (mjtNum*)mju_malloc(sizeof(mjtNum) * 3 * nv);
+  mjtNum* qpos = (mjtNum*)mju_malloc(sizeof(mjtNum) * model->nq);
+  mjtNum* nudge = (mjtNum*)mju_malloc(sizeof(mjtNum) * nv);
 
   // all we need for Jacobians are kinematics and CoM-related quantities
-  mj_kinematics(model, data);
-  mj_comPos(model, data);
+  mj_kinematics(model.get(), data.get());
+  mj_comPos(model.get(), data.get());
 
   // get subtree CoM Jacobian of free body
-  mj_jacSubtreeCom(model, data, jac_subtree, bodyid);
+  mj_jacSubtreeCom(model.get(), data.get(), jac_subtree, bodyid);
 
   // save current subtree-com and qpos, clear nudge
   mjtNum subtree_com[3];
-  mju_copy3(subtree_com, data->subtree_com+3*bodyid);
+  mju_copy3(subtree_com, data->subtree_com + 3 * bodyid);
   mju_copy(qpos, data->qpos, model->nq);
   mju_zero(nudge, nv);
 
   // compare analytic Jacobian to finite-difference approximation
   static const mjtNum eps = 1e-6;
-  for (int i=0; i < nv; i++) {
+  for (int i = 0; i < nv; i++) {
     // reset qpos, nudge i-th dof, update data->qpos, reset nudge
     mju_copy(data->qpos, qpos, model->nq);
     nudge[i] = 1;
-    mj_integratePos(model, data->qpos, nudge, eps);
+    mj_integratePos(model.get(), data->qpos, nudge, eps);
     nudge[i] = 0;
 
     // kinematics and comPos to get nudged com
-    mj_kinematics(model, data);
-    mj_comPos(model, data);
+    mj_kinematics(model.get(), data.get());
+    mj_comPos(model.get(), data.get());
 
     // compare finite-differenced and analytic Jacobian
-    for (int j=0; j < 3; j++) {
-      mjtNum findiff = (data->subtree_com[3*bodyid+j] - subtree_com[j]) / eps;
-      EXPECT_THAT(jac_subtree[nv*j+i], MjNear(findiff, eps, 1e-2));
+    for (int j = 0; j < 3; j++) {
+      mjtNum findiff =
+          (data->subtree_com[3 * bodyid + j] - subtree_com[j]) / eps;
+      EXPECT_THAT(jac_subtree[nv * j + i], MjNear(findiff, eps, 1e-2));
     }
   }
 
   mju_free(nudge);
   mju_free(qpos);
   mju_free(jac_subtree);
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 // confirm that applying linear forces via the subtree-com Jacobian only creates
 // the expected linear accelerations (no accelerations of internal joints)
 TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
   char error[1024];
-  mjModel* model =
+  MjModelPtr model =
       LoadModelFromString(kJacobianTestingModel, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
+  ASSERT_THAT(model.get(), NotNull()) << error;
   int nv = model->nv;
-  int bodyid = mj_name2id(model, mjOBJ_BODY, "main");
-  mjData* data = mj_makeData(model);
-  mjtNum* jac_subtree = (mjtNum*) mju_malloc(sizeof(mjtNum)*3*nv);
+  int bodyid = mj_name2id(model.get(), mjOBJ_BODY, "main");
+  MjDataPtr data = MakeData(model);
+  mjtNum* jac_subtree = (mjtNum*)mju_malloc(sizeof(mjtNum) * 3 * nv);
 
   // all we need for Jacobians are kinematics and CoM-related quantities
-  mj_kinematics(model, data);
-  mj_comPos(model, data);
+  mj_kinematics(model.get(), data.get());
+  mj_comPos(model.get(), data.get());
 
   // get subtree CoM Jacobian of free body
-  mj_jacSubtreeCom(model, data, jac_subtree, bodyid);
+  mj_jacSubtreeCom(model.get(), data.get(), jac_subtree, bodyid);
 
   // uncomment for debugging
   // mju_printMat(jac_subtree, 3, nv);
 
   // call fwdPosition since we'll need the factorised mass matrix in the test
-  mj_fwdPosition(model, data);
+  mj_fwdPosition(model.get(), data.get());
 
   // treating the subtree Jacobian as the projection of 3 axis-aligned unit
   // forces into joint space, solve for the resulting accelerations in-place
-  mj_solveM(model, data, jac_subtree, jac_subtree, 3);
+  mj_solveM(model.get(), data.get(), jac_subtree, jac_subtree, 3);
 
   // expect to find accelerations of magnitude 1/subtreemass in the first 3
   // coordinates of the free joint and 0s elsewhere, since applying forces to
   // the CoM should accelerate the whole mechanism without any internal motion
   int body_dofadr = model->body_dofadr[bodyid];
-  mjtNum invtreemass = 1.0/model->body_subtreemass[bodyid];
+  mjtNum invtreemass = 1.0 / model->body_subtreemass[bodyid];
   for (int r = 0; r < 3; r++) {
     for (int c = 0; c < nv; c++) {
       mjtNum expected = c - body_dofadr == r ? invtreemass : 0.0;
-      EXPECT_THAT(jac_subtree[nv*r+c], MjNear(expected, max_abs_err, 1e-4));
+      EXPECT_THAT(jac_subtree[nv * r + c], MjNear(expected, max_abs_err, 1e-4));
     }
   }
 
   mju_free(jac_subtree);
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
 static constexpr char kQuat[] = R"(
@@ -519,65 +506,65 @@ static constexpr char kHinge[] = R"(
 TEST_F(JacobianTest, JacDot) {
   for (auto xml : {kHinge, kQuat, kTelescope, kFreeBall, kQuatlessPendulum}) {
     char error[1024];
-    mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-    ASSERT_THAT(model, NotNull()) << error;
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
     int nv = model->nv;
-    mjData* data = mj_makeData(model);
+    MjDataPtr data = MakeData(model);
 
     // load keyframe if present, step for a bit
-    if (model->nkey) mj_resetDataKeyframe(model, data, 0);
+    if (model->nkey) mj_resetDataKeyframe(model.get(), data.get(), 0);
     while (data->time < 0.1) {
-      mj_step(model, data);
+      mj_step(model.get(), data.get());
     }
 
     // minimal call required for mj_jacDot outputs to be valid
-    mj_kinematics(model, data);
-    mj_comPos(model, data);
-    mj_comVel(model, data);
+    mj_kinematics(model.get(), data.get());
+    mj_comPos(model.get(), data.get());
+    mj_comVel(model.get(), data.get());
 
     // get bodyid
-    int bodyid = mj_name2id(model, mjOBJ_BODY, "query");
+    int bodyid = mj_name2id(model.get(), mjOBJ_BODY, "query");
     EXPECT_GT(bodyid, 0);
 
     // get site position
-    int siteid = mj_name2id(model, mjOBJ_SITE, "query");
+    int siteid = mj_name2id(model.get(), mjOBJ_SITE, "query");
     EXPECT_GT(siteid, -1);
     mjtNum point[3];
-    mju_copy3(point, data->site_xpos+3*siteid);
+    mju_copy3(point, data->site_xpos + 3 * siteid);
 
     // jac, jac_dot
-    std::vector<mjtNum> jacp(3*nv);
-    std::vector<mjtNum> jacr(3*nv);
-    mj_jac(model, data, jacp.data(), jacr.data(), point, bodyid);
-    std::vector<mjtNum> jacp_dot(3*nv);
-    std::vector<mjtNum> jacr_dot(3*nv);
-    mj_jacDot(model, data, jacp_dot.data(), jacr_dot.data(), point, bodyid);
+    std::vector<mjtNum> jacp(3 * nv);
+    std::vector<mjtNum> jacr(3 * nv);
+    mj_jac(model.get(), data.get(), jacp.data(), jacr.data(), point, bodyid);
+    std::vector<mjtNum> jacp_dot(3 * nv);
+    std::vector<mjtNum> jacr_dot(3 * nv);
+    mj_jacDot(model.get(), data.get(), jacp_dot.data(), jacr_dot.data(), point,
+              bodyid);
 
     // jac_h: jacobian after integrating qpos with a timestep of h
     const mjtNum h = MjTol(1e-7, 5e-4);
-    mj_integratePos(model, data->qpos, data->qvel, h);
-    mj_kinematics(model, data);
-    mj_comPos(model, data);
-    std::vector<mjtNum> jacp_h(3*nv);
-    std::vector<mjtNum> jacr_h(3*nv);
-    mju_copy3(point, data->site_xpos+3*siteid);  // get updated site position
-    mj_jac(model, data, jacp_h.data(), jacr_h.data(), point, bodyid);
+    mj_integratePos(model.get(), data->qpos, data->qvel, h);
+    mj_kinematics(model.get(), data.get());
+    mj_comPos(model.get(), data.get());
+    std::vector<mjtNum> jacp_h(3 * nv);
+    std::vector<mjtNum> jacr_h(3 * nv);
+    mju_copy3(point,
+              data->site_xpos + 3 * siteid);  // get updated site position
+    mj_jac(model.get(), data.get(), jacp_h.data(), jacr_h.data(), point,
+           bodyid);
 
     // jac_dot_h finite-difference approximation
-    std::vector<mjtNum> jacp_dot_h(3*nv);
-    mju_sub(jacp_dot_h.data(), jacp_h.data(), jacp.data(), 3*nv);
-    mju_scl(jacp_dot_h.data(), jacp_dot_h.data(), 1/h, 3*nv);
-    std::vector<mjtNum> jacr_dot_h(3*nv);
-    mju_sub(jacr_dot_h.data(), jacr_h.data(), jacr.data(), 3*nv);
-    mju_scl(jacr_dot_h.data(), jacr_dot_h.data(), 1/h, 3*nv);
+    std::vector<mjtNum> jacp_dot_h(3 * nv);
+    mju_sub(jacp_dot_h.data(), jacp_h.data(), jacp.data(), 3 * nv);
+    mju_scl(jacp_dot_h.data(), jacp_dot_h.data(), 1 / h, 3 * nv);
+    std::vector<mjtNum> jacr_dot_h(3 * nv);
+    mju_sub(jacr_dot_h.data(), jacr_h.data(), jacr.data(), 3 * nv);
+    mju_scl(jacr_dot_h.data(), jacr_dot_h.data(), 1 / h, 3 * nv);
 
     // compare finite-differenced and analytic
     mjtNum tol = 1e-5;
     EXPECT_THAT(jacp_dot, Pointwise(MjNear(tol, 5e-2), jacp_dot_h));
     EXPECT_THAT(jacr_dot, Pointwise(MjNear(tol, 5e-2), jacr_dot_h));
-
-    mj_deleteData(data);
-    mj_deleteModel(model);
   }
 }
 
@@ -585,34 +572,35 @@ TEST_F(JacobianTest, JacDot) {
 TEST_F(JacobianTest, JacDotSparse) {
   for (auto xml : {kHinge, kQuat, kTelescope, kFreeBall, kQuatlessPendulum}) {
     char error[1024];
-    mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-    ASSERT_THAT(model, NotNull()) << error;
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
     int nv = model->nv;
-    mjData* data = mj_makeData(model);
+    MjDataPtr data = MakeData(model);
 
     // load keyframe if present, step for a bit
-    if (model->nkey) mj_resetDataKeyframe(model, data, 0);
+    if (model->nkey) mj_resetDataKeyframe(model.get(), data.get(), 0);
     while (data->time < 0.1) {
-      mj_step(model, data);
+      mj_step(model.get(), data.get());
     }
 
     // minimal call required for mj_jacDot outputs to be valid
-    mj_kinematics(model, data);
-    mj_comPos(model, data);
-    mj_comVel(model, data);
+    mj_kinematics(model.get(), data.get());
+    mj_comPos(model.get(), data.get());
+    mj_comVel(model.get(), data.get());
 
     // get bodyid and site position
-    int bodyid = mj_name2id(model, mjOBJ_BODY, "query");
+    int bodyid = mj_name2id(model.get(), mjOBJ_BODY, "query");
     EXPECT_GT(bodyid, 0);
-    int siteid = mj_name2id(model, mjOBJ_SITE, "query");
+    int siteid = mj_name2id(model.get(), mjOBJ_SITE, "query");
     EXPECT_GT(siteid, -1);
     mjtNum point[3];
-    mju_copy3(point, data->site_xpos+3*siteid);
+    mju_copy3(point, data->site_xpos + 3 * siteid);
 
     // dense jacDot
-    std::vector<mjtNum> jacp_dense(3*nv);
-    std::vector<mjtNum> jacr_dense(3*nv);
-    mj_jacDot(model, data, jacp_dense.data(), jacr_dense.data(), point, bodyid);
+    std::vector<mjtNum> jacp_dense(3 * nv);
+    std::vector<mjtNum> jacr_dense(3 * nv);
+    mj_jacDot(model.get(), data.get(), jacp_dense.data(), jacr_dense.data(),
+              point, bodyid);
 
     // compute body chain using public mjModel fields
     std::vector<int> chain(nv);
@@ -629,31 +617,27 @@ TEST_F(JacobianTest, JacDotSparse) {
     EXPECT_GT(NV, 0);
 
     // sparse jacDot
-    std::vector<mjtNum> jacp_sparse(3*NV);
-    std::vector<mjtNum> jacr_sparse(3*NV);
-    mj_jacDotSparse(model, data, jacp_sparse.data(), jacr_sparse.data(),
-                    point, bodyid, NV, chain.data());
+    std::vector<mjtNum> jacp_sparse(3 * NV);
+    std::vector<mjtNum> jacr_sparse(3 * NV);
+    mj_jacDotSparse(model.get(), data.get(), jacp_sparse.data(),
+                    jacr_sparse.data(), point, bodyid, NV, chain.data());
 
     // expand sparse to dense and compare
-    std::vector<mjtNum> jacp_expanded(3*nv, 0);
-    std::vector<mjtNum> jacr_expanded(3*nv, 0);
+    std::vector<mjtNum> jacp_expanded(3 * nv, 0);
+    std::vector<mjtNum> jacr_expanded(3 * nv, 0);
     for (int ci = 0; ci < NV; ci++) {
       int di = chain[ci];
       for (int r = 0; r < 3; r++) {
-        jacp_expanded[di+r*nv] = jacp_sparse[ci+r*NV];
-        jacr_expanded[di+r*nv] = jacr_sparse[ci+r*NV];
+        jacp_expanded[di + r * nv] = jacp_sparse[ci + r * NV];
+        jacr_expanded[di + r * nv] = jacr_sparse[ci + r * NV];
       }
     }
 
     // expect bitwise equality
     EXPECT_EQ(jacp_expanded, jacp_dense);
     EXPECT_EQ(jacr_expanded, jacr_dense);
-
-    mj_deleteData(data);
-    mj_deleteModel(model);
   }
 }
-
 
 // validate rotational Jacobian used in welds
 TEST_F(JacobianTest, WeldRotJacobian) {
@@ -678,23 +662,23 @@ TEST_F(JacobianTest, WeldRotJacobian) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, testing::NotNull()) << error;
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), testing::NotNull()) << error;
   ASSERT_EQ(model->nq, 7);
   ASSERT_EQ(model->nv, 6);
   static const int nv = 6;  // for increased readability
-  mjData* data = mj_makeData(model);
+  MjDataPtr data = MakeData(model);
 
   // arbitrary initial values for the ball and hinge joints
   mjtNum qpos0[7] = {.5, .5, .5, .5, .7, .8, .9};
 
   // compute required quantities using mj_step1
-  mj_step1(model, data);
+  mj_step1(model.get(), data.get());
 
   // get orientation error
   mjtNum res[3];
   // compute rotation residual following formula in mj_instantiateEquality
-  auto RotationResidual = [](const mjModel *model, mjData *data,
+  auto RotationResidual = [](const mjModel* model, mjData* data,
                              const mjtNum qpos[7], const mjtNum dqpos[6],
                              mjtNum res[3]) {
     // copy configuration, compute required quantities with mj_step1
@@ -710,80 +694,75 @@ TEST_F(JacobianTest, WeldRotJacobian) {
 
     // compute orientation residual
     mjtNum quat1[4], quat2[4], quat3[4];
-    mju_copy4(quat1, data->xquat+4*1);
-    mju_negQuat(quat2, data->xquat+4*2);
+    mju_copy4(quat1, data->xquat + 4 * 1);
+    mju_negQuat(quat2, data->xquat + 4 * 2);
     mju_mulQuat(quat3, quat2, quat1);
-    mju_copy3(res, quat3+1);
+    mju_copy3(res, quat3 + 1);
   };
 
-  RotationResidual(model, data, qpos0, NULL, res);
+  RotationResidual(model.get(), data.get(), qpos0, NULL, res);
 
   // compute Jacobian with finite-differencing
-  mjtNum jacFD[3*nv];
+  mjtNum jacFD[3 * nv];
   mjtNum dqpos[nv] = {0};
   mjtNum dres[3];
   const mjtNum eps = 1e-6;
-  for (int i=0; i < nv; i++) {
+  for (int i = 0; i < nv; i++) {
     // nudge i-th dof
     dqpos[i] = eps;
 
     // get nudged residual
-    RotationResidual(model, data, qpos0, dqpos, dres);
+    RotationResidual(model.get(), data.get(), qpos0, dqpos, dres);
 
     // remove nudge
     dqpos[i] = 0.0;
 
     // compute Jacobian column
-    for (int j=0; j < 3; j++) {
-      jacFD[nv*j + i] = (dres[j] - res[j]) / eps;
+    for (int j = 0; j < 3; j++) {
+      jacFD[nv * j + i] = (dres[j] - res[j]) / eps;
     }
   }
 
   // reset mjData to qpos0
   mju_copy(data->qpos, qpos0, 7);
-  mj_step1(model, data);
+  mj_step1(model.get(), data.get());
 
   // intermediate quaternions quat1 and quat2
   mjtNum quat1[4], negQuat2[4];
-  mju_copy4(quat1, data->xquat+4*1);
-  mju_negQuat(negQuat2, data->xquat+4*2);
+  mju_copy4(quat1, data->xquat + 4 * 1);
+  mju_negQuat(negQuat2, data->xquat + 4 * 2);
 
   // get analytical Jacobian following formula in mj_instantiateEquality
-  mjtNum jacdif[3*nv], jac0[3*nv], jac1[3*nv];
+  mjtNum jacdif[3 * nv], jac0[3 * nv], jac1[3 * nv];
   mjtNum point[3] = {0};
 
   // rotational Jacobian difference
-  mj_jacDifPair(model, data, NULL, 2, 1, point, point,
-                NULL, NULL, NULL, jac0, jac1, jacdif, mj_isSparse(model),
+  mj_jacDifPair(model.get(), data.get(), NULL, 2, 1, point, point, NULL, NULL,
+                NULL, jac0, jac1, jacdif, mj_isSparse(model.get()),
                 /*flg_skipcommon=*/0);
 
   // formula: 0.5 * neg(quat2) * (jac1-jac2) * quat1
   mjtNum axis[3], quat3[4], quat4[4];
-  for (int j=0; j < nv; j++) {
+  for (int j = 0; j < nv; j++) {
     // axis = [jac1-jac2]_col(j)
-    axis[0] = jacdif[0*nv+j];
-    axis[1] = jacdif[1*nv+j];
-    axis[2] = jacdif[2*nv+j];
+    axis[0] = jacdif[0 * nv + j];
+    axis[1] = jacdif[1 * nv + j];
+    axis[2] = jacdif[2 * nv + j];
 
     // apply formula
     mju_mulQuatAxis(quat3, negQuat2, axis);
     mju_mulQuat(quat4, quat3, quat1);
 
     // correct Jacobian
-    jacdif[0*nv+j] = 0.5*quat4[1];
-    jacdif[1*nv+j] = 0.5*quat4[2];
-    jacdif[2*nv+j] = 0.5*quat4[3];
+    jacdif[0 * nv + j] = 0.5 * quat4[1];
+    jacdif[1 * nv + j] = 0.5 * quat4[2];
+    jacdif[2 * nv + j] = 0.5 * quat4[3];
   }
 
   // test that analytical and finite-differenced Jacobians match
-  EXPECT_THAT(AsVector(jacFD, 3*nv),
-              Pointwise(MjNear(eps, 1e-3), AsVector(jacdif, 3*nv)));
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  EXPECT_THAT(AsVector(jacFD, 3 * nv),
+              Pointwise(MjNear(eps, 1e-3), AsVector(jacdif, 3 * nv)));
 }
 
 }  // namespace
 }  // namespace mujoco
-
-

@@ -14,6 +14,8 @@
 
 // Tests for engine/engine_island.c.
 
+#include "src/engine/engine_island.h"
+
 #include <string>
 #include <vector>
 
@@ -21,7 +23,6 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_island.h"
 #include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
 
@@ -34,16 +35,11 @@ using ::testing::NotNull;
 using ::testing::Pointwise;
 using IslandTest = MujocoTest;
 
-
 TEST_F(IslandTest, FloodFillSingleton) {
   // adjacency matrix for the graph  0   1   2
   //                                 U       U
   // (3 singletons, 0 and 2 have self-edges)
-  mjtNum mat[9] = {
-    1, 0, 0,
-    0, 0, 0,
-    0, 0, 1
-  };
+  mjtNum mat[9] = {1, 0, 0, 0, 0, 0, 0, 0, 1};
   constexpr int nr = 3;
   constexpr int nnz = 2;
   int rownnz[nr];
@@ -54,7 +50,7 @@ TEST_F(IslandTest, FloodFillSingleton) {
 
   // outputs / scratch
   int island[nr];
-  int scratch[2*nr];
+  int scratch[2 * nr];
 
   // flood fill
   int nisland = mj_floodFill(island, nr, rownnz, rowadr, colind, scratch);
@@ -63,14 +59,9 @@ TEST_F(IslandTest, FloodFillSingleton) {
   EXPECT_THAT(island, ElementsAre(0, -1, 1));
 }
 
-
 TEST_F(IslandTest, FloodFill1) {
   // adjacency matrix for the graph  0 - 1 - 2
-  mjtNum mat[9] = {
-    0, 1, 0,
-    1, 0, 1,
-    0, 1, 0
-  };
+  mjtNum mat[9] = {0, 1, 0, 1, 0, 1, 0, 1, 0};
   constexpr int nr = 3;
   constexpr int nnz = 4;
   int rownnz[nr];
@@ -89,17 +80,11 @@ TEST_F(IslandTest, FloodFill1) {
   EXPECT_THAT(island, ElementsAre(0, 0, 0));
 }
 
-
 TEST_F(IslandTest, FloodFill2) {
   //  adjacency matrix for the graph   6 – 1 – 4   0 – 3 – 5 – 2
   mjtNum mat[49] = {
-    0, 0, 0, 1, 0, 0, 0,
-    0, 0, 0, 0, 1, 0, 1,
-    0, 0, 0, 0, 0, 1, 0,
-    1, 0, 0, 0, 0, 1, 0,
-    0, 1, 0, 0, 0, 0, 0,
-    0, 0, 1, 1, 0, 0, 0,
-    0, 1, 0, 0, 0, 0, 0,
+      0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
+      0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
   };
   constexpr int nr = 7;
   constexpr int nnz = 10;
@@ -119,15 +104,11 @@ TEST_F(IslandTest, FloodFill2) {
   EXPECT_THAT(island, ElementsAre(0, 1, 0, 0, 1, 0, 1));
 }
 
-
 TEST_F(IslandTest, FloodFill3a) {
   //  adjacency matrix for the graph   0   2   1 – 3
   //                                       U
   mjtNum mat[16] = {
-    0, 0, 0, 0,
-    0, 0, 0, 1,
-    0, 0, 1, 0,
-    0, 1, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,
   };
   constexpr int nr = 4;
   constexpr int nnz = 3;
@@ -147,7 +128,6 @@ TEST_F(IslandTest, FloodFill3a) {
   EXPECT_THAT(island, ElementsAre(-1, 0, 1, 0));
 }
 
-
 TEST_F(IslandTest, FloodFill3b) {
   /*
     adjacency matrix for the graph   1 – 2   3   4 – 5
@@ -155,13 +135,8 @@ TEST_F(IslandTest, FloodFill3b) {
                                                  0 – 6
   */
   mjtNum mat[49] = {
-    0, 0, 0, 0, 1, 0, 1,
-    0, 1, 1, 0, 0, 0, 0,
-    0, 1, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0,
-    1, 0, 0, 0, 0, 1, 1,
-    0, 0, 0, 0, 1, 0, 1,
-    1, 0, 0, 0, 1, 1, 0,
+      0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0,
   };
   constexpr int nr = 7;
   constexpr int nnz = 13;
@@ -181,8 +156,7 @@ TEST_F(IslandTest, FloodFill3b) {
   EXPECT_THAT(island, ElementsAre(0, 1, 1, -1, 0, 0, 0));
 }
 
-static const char* const kAbacusPath =
-    "engine/testdata/island/abacus.xml";
+static const char* const kAbacusPath = "engine/testdata/island/abacus.xml";
 
 TEST_F(IslandTest, Abacus) {
   const std::string xml_path = GetTestDataFilePath(kAbacusPath);
@@ -207,10 +181,10 @@ TEST_F(IslandTest, Abacus) {
   }
 
   // sizes
-  int nv      = model->nv;
-  int nefc    = data->nefc;
+  int nv = model->nv;
+  int nefc = data->nefc;
   int nisland = data->nisland;
-  int nidof   = data->nidof;
+  int nidof = data->nidof;
 
   // 4 dofs, 12 constraints, 2 islands
   EXPECT_EQ(nv, 4);
@@ -268,9 +242,9 @@ TEST_F(IslandTest, Abacus) {
   }
 
   // local variables
-  nefc           = data->nefc;
-  nisland        = data->nisland;
-  nidof          = data->nidof;
+  nefc = data->nefc;
+  nisland = data->nisland;
+  nidof = data->nidof;
 
   EXPECT_EQ(nisland, 3);
   EXPECT_EQ(nidof, 4);
@@ -314,8 +288,8 @@ TEST_F(IslandTest, DenseSparse) {
   }
 
   // sizes
-  int nv      = model->nv;
-  int nefc    = data1->nefc;
+  int nv = model->nv;
+  int nefc = data1->nefc;
   int nisland = data1->nisland;
 
   // expect sparse and dense to be identical
@@ -327,8 +301,7 @@ TEST_F(IslandTest, DenseSparse) {
             AsVector(data2->island_idofadr, nisland));
   EXPECT_EQ(AsVector(data1->island_nv, nisland),
             AsVector(data2->island_nv, nisland));
-  EXPECT_EQ(AsVector(data1->dof_island, nv),
-            AsVector(data2->dof_island, nv));
+  EXPECT_EQ(AsVector(data1->dof_island, nv), AsVector(data2->dof_island, nv));
   EXPECT_EQ(AsVector(data1->map_idof2dof, nv),
             AsVector(data2->map_idof2dof, nv));
   EXPECT_EQ(AsVector(data1->map_dof2idof, nv),
@@ -462,12 +435,10 @@ TEST_F(IslandTest, EqualityConstraintOfTendons) {
 </mujoco>
 )";
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
-  mj_forward(model, data);
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
 }
 
 TEST_F(IslandTest, PGSIsland) {
@@ -496,8 +467,7 @@ TEST_F(IslandTest, PGSIsland) {
   // solve without islands
   m->opt.disableflags |= mjDSBL_ISLAND;
   mj_forward(m, d);
-  std::vector<mjtNum> qfrc_mono(d->qfrc_constraint,
-                                d->qfrc_constraint + m->nv);
+  std::vector<mjtNum> qfrc_mono(d->qfrc_constraint, d->qfrc_constraint + m->nv);
 
   // expect close match (inexact due to randomized constraint visitation order)
   EXPECT_THAT(qfrc_island, Pointwise(MjNear(1e-3, 1e-3), qfrc_mono));

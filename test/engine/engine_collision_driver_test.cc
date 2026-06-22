@@ -14,6 +14,8 @@
 
 // Tests for engine/engine_collision_driver.c.
 
+#include "src/engine/engine_collision_driver.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -26,22 +28,20 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
-#include "src/engine/engine_collision_driver.h"
-
 
 namespace mujoco {
 namespace {
 
 using MjCollisionTest = MujocoTest;
 using GeomPair = std::pair<std::string, std::string>;
-using ::testing::IsEmpty;
 using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 using ::testing::NotNull;
 
 // Returns a sorted list of pairs of colliding geom names, where each pair of
 // geom names is sorted.
-static std::vector<GeomPair> colliding_pairs(
-    const mjModel* model, const mjData* data) {
+static std::vector<GeomPair> colliding_pairs(const mjModel* model,
+                                             const mjData* data) {
   std::vector<GeomPair> result;
   for (int i = 0; i < data->ncon; i++) {
     std::string geom1 = mj_id2name(model, mjOBJ_GEOM, data->contact[i].geom[0]);
@@ -53,18 +53,16 @@ static std::vector<GeomPair> colliding_pairs(
 }
 
 TEST_F(MjCollisionTest, AllCollisions) {
-  static const char* const kModelFilePath =
-      "engine/testdata/collisions.xml";
+  static const char* const kModelFilePath = "engine/testdata/collisions.xml";
   const std::string xml_path = GetTestDataFilePath(kModelFilePath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   mjData* data = mj_makeData(model);
 
   // mjCOL_ALL is the default
   mj_fwdPosition(model, data);
-  EXPECT_THAT(colliding_pairs(model, data), ElementsAre(
-      GeomPair("box", "sphere_collides"),
-      GeomPair("box", "sphere_predefined")
-  ));
+  EXPECT_THAT(colliding_pairs(model, data),
+              ElementsAre(GeomPair("box", "sphere_collides"),
+                          GeomPair("box", "sphere_predefined")));
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -72,20 +70,16 @@ TEST_F(MjCollisionTest, AllCollisions) {
 
 TEST_F(MjCollisionTest, EmptyModel) {
   char error[1024];
-  mjModel* model = LoadModelFromString("<mujoco/>", error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString("<mujoco/>", error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
-  mj_fwdPosition(model, data);
-  EXPECT_THAT(colliding_pairs(model, data), IsEmpty());
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
+  mj_fwdPosition(model.get(), data.get());
+  EXPECT_THAT(colliding_pairs(model.get(), data.get()), IsEmpty());
 }
 
 TEST_F(MjCollisionTest, ZeroedHessian) {
-  static const char* const kModelFilePath =
-      "engine/testdata/collisions.xml";
+  static const char* const kModelFilePath = "engine/testdata/collisions.xml";
   const std::string xml_path = GetTestDataFilePath(kModelFilePath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   mjData* data = mj_makeData(model);
@@ -123,18 +117,15 @@ TEST_F(MjCollisionTest, ContactCount) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
   ASSERT_THAT(d, NotNull());
 
-  mj_forward(m, d);
+  mj_forward(m.get(), d.get());
 
   // there are 8 spheres, all touching the floor
   EXPECT_EQ(d->ncon, 8);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(MjCollisionTest, FilterParent) {
@@ -159,12 +150,12 @@ TEST_F(MjCollisionTest, FilterParent) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
   ASSERT_THAT(d, NotNull());
 
-  mj_fwdPosition(m, d);
+  mj_fwdPosition(m.get(), d.get());
 
   // there should be zero contacts, because colliding1 and colliding2 are in
   // bodies that have a parent-child relationship, through welds
@@ -172,13 +163,10 @@ TEST_F(MjCollisionTest, FilterParent) {
 
   // when this filtering is disabled, the geoms should collide
   m->opt.disableflags |= mjDSBL_FILTERPARENT;
-  mj_fwdPosition(m, d);
+  mj_fwdPosition(m.get(), d.get());
 
-  EXPECT_THAT(colliding_pairs(m, d),
+  EXPECT_THAT(colliding_pairs(m.get(), d.get()),
               ElementsAre(GeomPair("colliding1", "colliding2")));
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(MjCollisionTest, FilterParentDoesntAffectWorldBody) {
@@ -194,20 +182,17 @@ TEST_F(MjCollisionTest, FilterParentDoesntAffectWorldBody) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
   ASSERT_THAT(d, NotNull());
 
-  mj_fwdPosition(m, d);
+  mj_fwdPosition(m.get(), d.get());
 
   // even though colliding1 and colliding2 are have a parent-child relationship,
   // they collide because colliding1 is in <worldbody>
-  EXPECT_THAT(colliding_pairs(m, d),
+  EXPECT_THAT(colliding_pairs(m.get(), d.get()),
               ElementsAre(GeomPair("colliding1", "colliding2")));
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(MjCollisionTest, TestOBB) {
@@ -219,14 +204,18 @@ TEST_F(MjCollisionTest, TestOBB) {
   mjtNum mat2[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 
   EXPECT_THAT(
-    mj_collideOBB(bvh1, bvh2, pos1, mat1, pos2, mat2, 0, NULL, NULL, 0), true);
+      mj_collideOBB(bvh1, bvh2, pos1, mat1, pos2, mat2, 0, NULL, NULL, 0),
+      true);
 
   // rotate by 45 degrees
-  mat2[0] = 1./mju_sqrt(2.); mat2[1] = -1./mju_sqrt(2.);
-  mat2[3] = 1./mju_sqrt(2.); mat2[4] =  1./mju_sqrt(2.);
+  mat2[0] = 1. / mju_sqrt(2.);
+  mat2[1] = -1. / mju_sqrt(2.);
+  mat2[3] = 1. / mju_sqrt(2.);
+  mat2[4] = 1. / mju_sqrt(2.);
 
   EXPECT_THAT(
-    mj_collideOBB(bvh1, bvh2, pos1, mat1, pos2, mat2, 0, NULL, NULL, 0), false);
+      mj_collideOBB(bvh1, bvh2, pos1, mat1, pos2, mat2, 0, NULL, NULL, 0),
+      false);
 }
 
 TEST_F(MjCollisionTest, PlaneInBody) {
@@ -244,13 +233,11 @@ TEST_F(MjCollisionTest, PlaneInBody) {
     </mujoco>
   )";
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
   ASSERT_THAT(d, NotNull());
-  mj_step(m, d);
-  mj_deleteData(d);
-  mj_deleteModel(m);
+  mj_step(m.get(), d.get());
 }
 
 TEST_F(MjCollisionTest, PinchingSucceeds) {
@@ -299,13 +286,13 @@ TEST_F(MjCollisionTest, PinchingSucceeds) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
   ASSERT_THAT(d, NotNull());
 
-  int lift_id = mj_name2id(m, mjOBJ_ACTUATOR, "lift");
-  int grasp_id = mj_name2id(m, mjOBJ_ACTUATOR, "grasp");
+  int lift_id = mj_name2id(m.get(), mjOBJ_ACTUATOR, "lift");
+  int grasp_id = mj_name2id(m.get(), mjOBJ_ACTUATOR, "grasp");
 
   // Phase 1: Lower gripper.
   // The gripper base starts at z=0.5. The finger has length 0.2 (size 0.1),
@@ -316,21 +303,21 @@ TEST_F(MjCollisionTest, PinchingSucceeds) {
   for (int i = 0; i < 500; ++i) {
     d->ctrl[lift_id] = -0.35;  // Lower
     d->ctrl[grasp_id] = 0;     // Open
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
 
   // Phase 2: Pinch
   for (int i = 0; i < 100; ++i) {
     d->ctrl[lift_id] = -0.35;  // Hold height
     d->ctrl[grasp_id] = 0.8;   // Close (max 1)
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
 
   // Phase 3: Lift
   for (int i = 0; i < 1000; ++i) {
     d->ctrl[lift_id] = 0.5;   // Lift up
     d->ctrl[grasp_id] = 0.8;  // Keep closed
-    mj_step(m, d);
+    mj_step(m.get(), d.get());
   }
 
   // Check if cloth is lifted
@@ -352,9 +339,6 @@ TEST_F(MjCollisionTest, PinchingSucceeds) {
   // Specialized primitives (mjraw_BoxTriangle, mjraw_CapsuleTriangle) should
   // enable stable pinching, so we expect the cloth to be lifted.
   EXPECT_GT(avg_z, 0.2) << "Cloth slipped out of gripper!";
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(MjCollisionTest, MarginSumming) {
@@ -376,18 +360,15 @@ TEST_F(MjCollisionTest, MarginSumming) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
   ASSERT_THAT(d, NotNull());
 
-  mj_fwdPosition(m, d);
+  mj_fwdPosition(m.get(), d.get());
 
   // With margin summing, we expect 1 contact
   EXPECT_EQ(d->ncon, 1);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
 }
 
 TEST_F(MjCollisionTest, MaxContact) {
@@ -414,48 +395,45 @@ TEST_F(MjCollisionTest, MaxContact) {
   </mujoco>
   )";
   char error[1024];
-  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(m, NotNull()) << error;
-  mjData* d = mj_makeData(m);
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
   ASSERT_THAT(d, NotNull());
 
-  int mesh = mj_name2id(m, mjOBJ_GEOM, "mesh");
-  int box = mj_name2id(m, mjOBJ_GEOM, "box");
-  int plane = mj_name2id(m, mjOBJ_GEOM, "plane");
-  int sphere = mj_name2id(m, mjOBJ_GEOM, "sphere");
-  int capsule = mj_name2id(m, mjOBJ_GEOM, "capsule");
-  int ellipsoid = mj_name2id(m, mjOBJ_GEOM, "ellipsoid");
-  int cylinder = mj_name2id(m, mjOBJ_GEOM, "cylinder");
+  int mesh = mj_name2id(m.get(), mjOBJ_GEOM, "mesh");
+  int box = mj_name2id(m.get(), mjOBJ_GEOM, "box");
+  int plane = mj_name2id(m.get(), mjOBJ_GEOM, "plane");
+  int sphere = mj_name2id(m.get(), mjOBJ_GEOM, "sphere");
+  int capsule = mj_name2id(m.get(), mjOBJ_GEOM, "capsule");
+  int ellipsoid = mj_name2id(m.get(), mjOBJ_GEOM, "ellipsoid");
+  int cylinder = mj_name2id(m.get(), mjOBJ_GEOM, "cylinder");
 
-  EXPECT_EQ(mj_maxContact(m, mesh, box, -1), 4);
-  EXPECT_EQ(mj_maxContact(m, mesh, plane, -1), 3);
-  EXPECT_EQ(mj_maxContact(m, box, plane, -1), 4);
-  EXPECT_EQ(mj_maxContact(m, mesh, mesh, -1), 4);
-  EXPECT_EQ(mj_maxContact(m, box, box, -1), 8);
-  EXPECT_EQ(mj_maxContact(m, capsule, capsule, -1), 2);
-  EXPECT_EQ(mj_maxContact(m, capsule, box, -1), 4);
-  EXPECT_EQ(mj_maxContact(m, capsule, plane, -1), 2);
-  EXPECT_EQ(mj_maxContact(m, cylinder, plane, -1), 4);
-  EXPECT_EQ(mj_maxContact(m, sphere, sphere, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, sphere, capsule, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, sphere, box, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, sphere, mesh, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, sphere, plane, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, sphere, cylinder, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, ellipsoid, ellipsoid, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, ellipsoid, box, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, ellipsoid, mesh, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, ellipsoid, plane, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, ellipsoid, cylinder, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, ellipsoid, capsule, -1), 1);
-  EXPECT_EQ(mj_maxContact(m, capsule, cylinder, -1), 5);
-  EXPECT_EQ(mj_maxContact(m, capsule, mesh, -1), 5);
-  EXPECT_EQ(mj_maxContact(m, cylinder, cylinder, -1), 5);
-  EXPECT_EQ(mj_maxContact(m, cylinder, box, -1), 5);
-  EXPECT_EQ(mj_maxContact(m, cylinder, mesh, -1), 5);
-
-  mj_deleteData(d);
-  mj_deleteModel(m);
+  EXPECT_EQ(mj_maxContact(m.get(), mesh, box, -1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), mesh, plane, -1), 3);
+  EXPECT_EQ(mj_maxContact(m.get(), box, plane, -1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), mesh, mesh, -1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), box, box, -1), 8);
+  EXPECT_EQ(mj_maxContact(m.get(), capsule, capsule, -1), 2);
+  EXPECT_EQ(mj_maxContact(m.get(), capsule, box, -1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), capsule, plane, -1), 2);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, plane, -1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), sphere, sphere, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), sphere, capsule, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), sphere, box, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), sphere, mesh, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), sphere, plane, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), sphere, cylinder, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), ellipsoid, ellipsoid, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), ellipsoid, box, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), ellipsoid, mesh, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), ellipsoid, plane, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), ellipsoid, cylinder, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), ellipsoid, capsule, -1), 1);
+  EXPECT_EQ(mj_maxContact(m.get(), capsule, cylinder, -1), 5);
+  EXPECT_EQ(mj_maxContact(m.get(), capsule, mesh, -1), 5);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, cylinder, -1), 5);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, box, -1), 5);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, mesh, -1), 5);
 }
 
 }  // namespace

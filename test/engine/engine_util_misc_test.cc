@@ -14,19 +14,20 @@
 
 // Tests for engine/engine_util_solve.c.
 
+#include "src/engine/engine_util_misc.h"
+
 #include <array>
-#include <vector>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 #include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
+#include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_util_misc.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -60,11 +61,11 @@ TEST_F(UtilMiscTest, PrintsMemoryWarning) {
 
 TEST_F(UtilMiscTest, Sigmoid) {
   // function values
-  EXPECT_EQ(mju_sigmoid(-1),  0);
-  EXPECT_EQ(mju_sigmoid(0),   0);
+  EXPECT_EQ(mju_sigmoid(-1), 0);
+  EXPECT_EQ(mju_sigmoid(0), 0);
   EXPECT_EQ(mju_sigmoid(0.5), 0.5);
-  EXPECT_EQ(mju_sigmoid(1),   1);
-  EXPECT_EQ(mju_sigmoid(2),   1);
+  EXPECT_EQ(mju_sigmoid(1), 1);
+  EXPECT_EQ(mju_sigmoid(2), 1);
 
   // epsilon for finite-differencing
   const mjtNum dx = MjTol(1e-7, 1e-3);
@@ -80,8 +81,8 @@ TEST_F(UtilMiscTest, Sigmoid) {
 
   // derivative at 0.5
   const mjtNum x = 0.5;
-  mjtNum dy_dx_0p5 = (mju_sigmoid(x + dx) - mju_sigmoid(x - dx)) / (2*dx);
-  mjtNum expected = 30*x*x*x*x - 60*x*x*x + 30*x*x;
+  mjtNum dy_dx_0p5 = (mju_sigmoid(x + dx) - mju_sigmoid(x - dx)) / (2 * dx);
+  mjtNum expected = 30 * x * x * x * x - 60 * x * x * x + 30 * x * x;
   EXPECT_NEAR(dy_dx_0p5, expected, fd_tol);
 }
 
@@ -125,29 +126,27 @@ TEST_F(UtilMiscTest, SphereWrap) {
   )";
 
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
-  ASSERT_THAT(model, NotNull()) << error;
-  mjData* data = mj_makeData(model);
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
 
   // measure tendon length for keyframe 0
-  mj_resetDataKeyframe(model, data, 0);
-  mj_forward(model, data);
+  mj_resetDataKeyframe(model.get(), data.get(), 0);
+  mj_forward(model.get(), data.get());
   mjtNum ten_length0 = data->sensordata[0];
 
   // measure tendon length for keyframe 1
-  mj_resetDataKeyframe(model, data, 1);
-  mj_forward(model, data);
+  mj_resetDataKeyframe(model.get(), data.get(), 1);
+  mj_forward(model.get(), data.get());
   mjtNum ten_length1 = data->sensordata[0];
 
   // difference should be small
   mjtNum diff = ten_length1 - ten_length0;
   EXPECT_LT(mju_abs(diff), 1e-3);
-
-  mj_deleteData(data);
-  mj_deleteModel(model);
 }
 
-// compute time constant as in Millard et al. (2013) https://doi.org/10.1115/1.4023390
+// compute time constant as in Millard et al. (2013)
+// https://doi.org/10.1115/1.4023390
 mjtNum muscleDynamicsMillard(mjtNum ctrl, mjtNum act, const mjtNum prm[2]) {
   // clamp control
   mjtNum ctrlclamp = mju_clip(ctrl, 0, 1);
@@ -157,13 +156,13 @@ mjtNum muscleDynamicsMillard(mjtNum ctrl, mjtNum act, const mjtNum prm[2]) {
 
   mjtNum tau;
   if (ctrlclamp > act) {
-    tau = prm[0] * (0.5 + 1.5*actclamp);
+    tau = prm[0] * (0.5 + 1.5 * actclamp);
   } else {
-    tau = prm[1] / (0.5 + 1.5*actclamp);
+    tau = prm[1] / (0.5 + 1.5 * actclamp);
   }
 
   // filter output
-  return (ctrlclamp-act) / mjMAX(mjMINVAL, tau);
+  return (ctrlclamp - act) / mjMAX(mjMINVAL, tau);
 }
 
 TEST_F(UtilMiscTest, SmoothMuscleDynamics) {
@@ -188,7 +187,7 @@ TEST_F(UtilMiscTest, SmoothMuscleDynamics) {
   EXPECT_EQ(muscleDynamicsMillard(ctrl, act, prm),
             mju_muscleDynamics(ctrl, act, prm));
 
-  ctrl = 0.6 + eps;         // larger than act by just over 0.5*tau_smooth
+  ctrl = 0.6 + eps;  // larger than act by just over 0.5*tau_smooth
   EXPECT_EQ(muscleDynamicsMillard(ctrl, act, prm),
             mju_muscleDynamics(ctrl, act, prm));
 
@@ -196,11 +195,11 @@ TEST_F(UtilMiscTest, SmoothMuscleDynamics) {
   mjtNum tau_act = 0.2;
   mjtNum tau_deact = 0.3;
   for (mjtNum dctrl : {0.0, 0.1, 0.2, 1.0, 1.1}) {
-    mjtNum lower = mju_muscleDynamicsTimescale(-dctrl,
-                                               tau_act, tau_deact, tau_smooth);
-    mjtNum upper = mju_muscleDynamicsTimescale(dctrl,
-                                               tau_act, tau_deact, tau_smooth);
-    EXPECT_EQ(0.5*(upper + lower), 0.5*(tau_act + tau_deact));
+    mjtNum lower =
+        mju_muscleDynamicsTimescale(-dctrl, tau_act, tau_deact, tau_smooth);
+    mjtNum upper =
+        mju_muscleDynamicsTimescale(dctrl, tau_act, tau_deact, tau_smooth);
+    EXPECT_EQ(0.5 * (upper + lower), 0.5 * (tau_act + tau_deact));
   }
 }
 
@@ -208,13 +207,13 @@ TEST_F(UtilMiscTest, MuscleGainLength) {
   mjtNum lmin = 0.5;
   mjtNum lmax = 1.5;
 
-  EXPECT_EQ(mju_muscleGainLength(0.0,  lmin, lmax), 0);
-  EXPECT_EQ(mju_muscleGainLength(0.5,  lmin, lmax), 0);
+  EXPECT_EQ(mju_muscleGainLength(0.0, lmin, lmax), 0);
+  EXPECT_EQ(mju_muscleGainLength(0.5, lmin, lmax), 0);
   EXPECT_EQ(mju_muscleGainLength(0.75, lmin, lmax), 0.5);
-  EXPECT_EQ(mju_muscleGainLength(1.0,  lmin, lmax), 1);
+  EXPECT_EQ(mju_muscleGainLength(1.0, lmin, lmax), 1);
   EXPECT_EQ(mju_muscleGainLength(1.25, lmin, lmax), 0.5);
-  EXPECT_EQ(mju_muscleGainLength(1.5,  lmin, lmax), 0);
-  EXPECT_EQ(mju_muscleGainLength(2.0,  lmin, lmax), 0);
+  EXPECT_EQ(mju_muscleGainLength(1.5, lmin, lmax), 0);
+  EXPECT_EQ(mju_muscleGainLength(2.0, lmin, lmax), 0);
 }
 
 TEST_F(UtilMiscTest, MjuSparseMap) {
@@ -250,10 +249,8 @@ TEST_F(UtilMiscTest, MjuSparseMap) {
   // Verify the map by checking values
   mjtNum mat_res_gathered[nnz_res];
   mju_gather(mat_res_gathered, mat_src, map, nnz_res);
-  EXPECT_THAT(AsVector(mat_res_gathered, nnz_res),
-              ElementsAre(1, 3, 5, 6));
+  EXPECT_THAT(AsVector(mat_res_gathered, nnz_res), ElementsAre(1, 3, 5, 6));
 }
-
 
 TEST_F(UtilMiscTest, MjuSparseLower2SymMap) {
   // nr = 3
@@ -277,8 +274,8 @@ TEST_F(UtilMiscTest, MjuSparseLower2SymMap) {
   int map[res_nnz];
   int cursor[nr];
 
-  mju_lower2SymMap(map, nr, rowadr_res, rownnz_res, colind_res,
-                   rowadr_src, rownnz_src, colind_src, cursor);
+  mju_lower2SymMap(map, nr, rowadr_res, rownnz_res, colind_res, rowadr_src,
+                   rownnz_src, colind_src, cursor);
 
   // Expected map:
   // res(0,0) -> src(0,0) (k=0) => map[0] = 0
@@ -323,8 +320,8 @@ TEST_F(UtilMiscTest, MjuSparseLower2SymMapPartial) {
   int map[res_nnz];
   int cursor[nr];
 
-  mju_lower2SymMap(map, nr, rowadr_res, rownnz_res, colind_res,
-                   rowadr_src, rownnz_src, colind_src, cursor);
+  mju_lower2SymMap(map, nr, rowadr_res, rownnz_res, colind_res, rowadr_src,
+                   rownnz_src, colind_src, cursor);
 
   // Expected map for the non-zeros in res:
   // res(0,0) -> src(0,0) (k=0) => map[0] = 0
@@ -398,23 +395,24 @@ using InterpolationTest = MujocoTest;
 TEST_F(InterpolationTest, mju_interpolate3D) {
   // quadratic functions should be interpolated exactly if order = 2
   auto quadratic_function_1 = [](mjtNum x, mjtNum y, mjtNum z) {
-    return x*x + y*y + z*z;
+    return x * x + y * y + z * z;
   };
   auto quadratic_function_2 = [](mjtNum x, mjtNum y, mjtNum z) {
-    return x*y*z + y*z*z + x*z*z;
+    return x * y * z + y * z * z + x * z * z;
   };
   auto quadratic_function_3 = [](mjtNum x, mjtNum y, mjtNum z) {
-    return x*y*z + y*z*z + x*z*z + y*y*z + x*x*z + x + y + z;
+    return x * y * z + y * z * z + x * z * z + y * y * z + x * x * z + x + y +
+           z;
   };
   static constexpr int order = 2;
-  mjtNum coeff[3*(order+1)*(order+1)*(order+1)];
+  mjtNum coeff[3 * (order + 1) * (order + 1) * (order + 1)];
   int index = 0;
   for (int i = 0; i <= order; ++i) {
     for (int j = 0; j <= order; ++j) {
       for (int k = 0; k <= order; ++k) {
-        coeff[3*index+0] = quadratic_function_1(.5*i, .5*j, .5*k);
-        coeff[3*index+1] = quadratic_function_2(.5*i, .5*j, .5*k);
-        coeff[3*index+2] = quadratic_function_3(.5*i, .5*j, .5*k);
+        coeff[3 * index + 0] = quadratic_function_1(.5 * i, .5 * j, .5 * k);
+        coeff[3 * index + 1] = quadratic_function_2(.5 * i, .5 * j, .5 * k);
+        coeff[3 * index + 2] = quadratic_function_3(.5 * i, .5 * j, .5 * k);
         index++;
       }
     }
@@ -460,8 +458,8 @@ TEST_F(InterpolationTest, mju_cellLookup_MultiCell) {
   // 2x3x4 grid, trilinear: 3x4x5 = 60 nodes
   int cellnum[3] = {2, 3, 4};
   int order = 1;
-  int ny_g = 3*1 + 1;  // 4
-  int nz_g = 4*1 + 1;  // 5
+  int ny_g = 3 * 1 + 1;  // 4
+  int nz_g = 4 * 1 + 1;  // 5
 
   // point at (0.75, 0.5, 0.125) -> cell (1, 1, 0)
   mjtNum coord[3] = {0.75, 0.5, 0.125};
@@ -485,7 +483,7 @@ TEST_F(InterpolationTest, mju_cellLookup_MultiCell) {
   for (int li = 0; li <= 1; li++) {
     for (int lj = 0; lj <= 1; lj++) {
       for (int lk = 0; lk <= 1; lk++) {
-        expected[ni++] = (1+li)*ny_g*nz_g + (1+lj)*nz_g + lk;
+        expected[ni++] = (1 + li) * ny_g * nz_g + (1 + lj) * nz_g + lk;
       }
     }
   }
@@ -519,8 +517,8 @@ TEST_F(InterpolationTest, mju_defGradient) {
   mjtNum mat[9];
   mjtNum p1[3] = {.5, .5, .5};
   mjtNum p2[3] = {.25, .25, .25};
-  mjtNum dof0[24] = {0, 0, 0,  0, 0, 1,  0, 1, 0,  0, 1, 1,
-                     1, 0, 0,  1, 0, 1,  1, 1, 0,  1, 1, 1};
+  mjtNum dof0[24] = {0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1,
+                     1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1};
 
   // identity
   mjtNum dof1[24];
@@ -538,7 +536,7 @@ TEST_F(InterpolationTest, mju_defGradient) {
 
   // constant stretch
   mjtNum dof3[24];
-  for (int i = 0; i < 24; ++i) dof3[i] = 2*dof0[i];
+  for (int i = 0; i < 24; ++i) dof3[i] = 2 * dof0[i];
   mju_defGradient(mat, p1, dof3, order);
   EXPECT_THAT(mat, ElementsAreArray({2, 0, 0, 0, 2, 0, 0, 0, 2}));
   mju_defGradient(mat, p2, dof3, order);
@@ -546,7 +544,7 @@ TEST_F(InterpolationTest, mju_defGradient) {
 
   // axial stretch
   mjtNum dof4[24];
-  for (int i = 0; i < 24; ++i) dof4[i] = (i%3 == 1 ? 2 : 1)*dof0[i];
+  for (int i = 0; i < 24; ++i) dof4[i] = (i % 3 == 1 ? 2 : 1) * dof0[i];
   mju_defGradient(mat, p1, dof4, order);
   EXPECT_THAT(mat, ElementsAreArray({1, 0, 0, 0, 2, 0, 0, 0, 1}));
   mju_defGradient(mat, p2, dof4, order);
@@ -557,8 +555,8 @@ TEST_F(InterpolationTest, mju_defGradient) {
   for (int i = 0; i < 8; ++i) {
     mjtNum quat[4] = {0, 0, 0, 1};
     mjtNum axis[3] = {0, 0, 1};
-    mju_axisAngle2Quat(quat, axis, mjPI/2);
-    mju_rotVecQuat(dof5 + 3*i, dof0 + 3*i, quat);
+    mju_axisAngle2Quat(quat, axis, mjPI / 2);
+    mju_rotVecQuat(dof5 + 3 * i, dof0 + 3 * i, quat);
   }
   mju_defGradient(mat, p1, dof5, order);
   EXPECT_THAT(mat, Pointwise(MjNear(1e-8, 1e-6), {0, -1, 0, 1, 0, 0, 0, 0, 1}));
@@ -571,8 +569,8 @@ TEST_F(InterpolationTest, mju_defGradient) {
   for (int i = 0; i < 8; ++i) {
     mjtNum quat[4];
     mjtNum axis[3] = {0, 0, 1};
-    mju_axisAngle2Quat(quat, axis, mjPI/6);
-    mju_rotVecQuat(dof6 + 3*i, dof0 + 3*i, quat);
+    mju_axisAngle2Quat(quat, axis, mjPI / 6);
+    mju_rotVecQuat(dof6 + 3 * i, dof0 + 3 * i, quat);
     mju_quat2Mat(rot6, quat);
   }
   mju_defGradient(mat, p1, dof6, order);
@@ -587,9 +585,9 @@ TEST_F(InterpolationTest, mju_defGradient) {
     mjtNum quat[4];
     mjtNum axis[3] = {0, 0, 1};
     mjtNum offset[3] = {-.5, -.5, 0};
-    mju_axisAngle2Quat(quat, axis, mjPI/6);
-    mju_add3(dof7 + 3*i, dof0 + 3*i, offset);
-    mju_rotVecQuat(dof7 + 3*i, dof0 + 3*i, quat);
+    mju_axisAngle2Quat(quat, axis, mjPI / 6);
+    mju_add3(dof7 + 3 * i, dof0 + 3 * i, offset);
+    mju_rotVecQuat(dof7 + 3 * i, dof0 + 3 * i, quat);
     mju_quat2Mat(rot7, quat);
   }
   mju_defGradient(mat, p1, dof7, order);
@@ -618,15 +616,15 @@ TEST_F(InterpolationTest, mju_flexInterpState_MultiCell) {
         mjtNum z = (k - 1) * 0.1;
 
         // Apply rotation
-        xpos[3*idx + 0] = -y;
-        xpos[3*idx + 1] = x;
-        xpos[3*idx + 2] = z;
+        xpos[3 * idx + 0] = -y;
+        xpos[3 * idx + 1] = x;
+        xpos[3 * idx + 2] = z;
         idx++;
       }
     }
   }
 
-  int npc = (order+1)*(order+1)*(order+1);
+  int npc = (order + 1) * (order + 1) * (order + 1);
   std::vector<mjtNum> xpos_c(3 * npc);
 
   mju_flexGatherCellState(order, cy, cz, 0, 0, 0, xpos.data(), NULL, NULL,
@@ -775,7 +773,7 @@ TEST_F(Base64Test, mju_isValidBase64_valid4) {
 
 TEST_F(Base64Test, mju_decodeBase64) {
   std::array<std::uint8_t, 5> buffer;
-  const char *s = "D4a+//A=";
+  const char* s = "D4a+//A=";
 
   std::size_t n = mju_decodeBase64(buffer.data(), s);
 
@@ -785,7 +783,7 @@ TEST_F(Base64Test, mju_decodeBase64) {
 
 TEST_F(Base64Test, mju_decodeBase6_align0) {
   std::array<std::uint8_t, 3> buffer;
-  const char *s = "QUJD";
+  const char* s = "QUJD";
 
   std::size_t n = mju_decodeBase64(buffer.data(), s);
 
@@ -795,7 +793,7 @@ TEST_F(Base64Test, mju_decodeBase6_align0) {
 
 TEST_F(Base64Test, mju_decodeBase64_align1) {
   std::array<std::uint8_t, 2> buffer;
-  const char *s = "QUI=";
+  const char* s = "QUI=";
 
   std::size_t n = mju_decodeBase64(buffer.data(), s);
 
@@ -805,7 +803,7 @@ TEST_F(Base64Test, mju_decodeBase64_align1) {
 
 TEST_F(Base64Test, mju_decodeBase64_align2) {
   std::array<std::uint8_t, 1> buffer;
-  const char *s = "QQ==";
+  const char* s = "QQ==";
 
   std::size_t n = mju_decodeBase64(buffer.data(), s);
 
@@ -814,7 +812,7 @@ TEST_F(Base64Test, mju_decodeBase64_align2) {
 }
 
 TEST_F(Base64Test, mju_decodeBase64_null) {
-  const char *s = "";
+  const char* s = "";
 
   std::size_t n = mju_decodeBase64(NULL, s);
 
@@ -823,7 +821,7 @@ TEST_F(Base64Test, mju_decodeBase64_null) {
 
 TEST_F(Base64Test, mju_decodeBase64_ones) {
   std::array<std::uint8_t, 3> buffer;
-  const char *s = "////";
+  const char* s = "////";
 
   std::size_t n = mju_decodeBase64(buffer.data(), s);
 
@@ -834,7 +832,7 @@ TEST_F(Base64Test, mju_decodeBase64_ones) {
 TEST_F(Base64Test, decodeAndEncode) {
   std::array<std::uint8_t, 5> buffer1;
   std::array<char, 9> buffer2;
-  const char *s = "D4a+/vA=";
+  const char* s = "D4a+/vA=";
 
   mju_decodeBase64(buffer1.data(), s);
   mju_encodeBase64(buffer2.data(), buffer1.data(), buffer1.size());
@@ -853,15 +851,15 @@ using HistoryTest = MujocoTest;
 TEST_F(HistoryTest, Init) {
   constexpr int n = 4;
   constexpr int dim = 1;
-  mjtNum buf[2 + n + n*dim];
+  mjtNum buf[2 + n + n * dim];
 
   std::vector<mjtNum> times = {4, 6, 8, 10};
   std::vector<mjtNum> values = {99, 99, 99, 99};
   mju_historyInit(buf, n, dim, times.data(), values.data(), 0.0);
 
   // check header
-  EXPECT_EQ(buf[0], 0.0);  // user
-  EXPECT_EQ(buf[1], static_cast<mjtNum>(n-1));  // cursor = n-1
+  EXPECT_EQ(buf[0], 0.0);                         // user
+  EXPECT_EQ(buf[1], static_cast<mjtNum>(n - 1));  // cursor = n-1
 
   // timestamps: [4, 6, 8, 10] (t=10 is newest)
   // values: [99, 99, 99, 99]
@@ -874,13 +872,13 @@ TEST_F(HistoryTest, Init) {
 TEST_F(HistoryTest, Init_Vector) {
   constexpr int n = 3;
   constexpr int dim = 2;
-  mjtNum buf[2 + n + n*dim];
+  mjtNum buf[2 + n + n * dim];
 
   std::vector<mjtNum> times = {-2, -1, 0};
   std::vector<mjtNum> values = {1.0, 2.0, 1.0, 2.0, 1.0, 2.0};
   mju_historyInit(buf, n, dim, times.data(), values.data(), 0.0);
 
-  EXPECT_EQ(buf[1], static_cast<mjtNum>(n-1));  // cursor = n-1
+  EXPECT_EQ(buf[1], static_cast<mjtNum>(n - 1));  // cursor = n-1
 
   // verify via read function
   mjtNum res[dim];
@@ -894,7 +892,7 @@ TEST_F(HistoryTest, Append) {
   constexpr int n = 4;
   constexpr int dim = 1;
   // Initialize buffer properly, then insert
-  mjtNum buf[2 + 2*n];
+  mjtNum buf[2 + 2 * n];
   buf[0] = 0.0;
   buf[1] = n - 1;
   // timestamps: [4, 6, 8, 10]
@@ -926,7 +924,7 @@ TEST_F(HistoryTest, Append) {
 TEST_F(HistoryTest, Append_Multiple) {
   constexpr int n = 3;
   constexpr int dim = 1;
-  mjtNum buf[2 + 2*n];
+  mjtNum buf[2 + 2 * n];
   buf[0] = 0.0;
   buf[1] = n - 1;
   mjtNum times[] = {-2, -1, 0};
@@ -947,20 +945,23 @@ TEST_F(HistoryTest, Append_Multiple) {
 TEST_F(HistoryTest, ReadVector_ExactMatch) {
   constexpr int n = 3;
   constexpr int dim = 2;
-  mjtNum buf[2 + n + n*dim];
+  mjtNum buf[2 + n + n * dim];
   buf[0] = 0.0;
   buf[1] = n - 1;
   mjtNum times[] = {0, 1, 2};
   mju_copy(buf + 2, times, n);
-  mju_zero(buf + 2 + n, n*dim);
+  mju_zero(buf + 2 + n, n * dim);
 
   // set values: t=0->(1,2), t=1->(3,4), t=2->(5,6)
   mjtNum* slot0 = mju_historyInsert(buf, n, dim, 0.0);
-  slot0[0] = 1.0; slot0[1] = 2.0;
+  slot0[0] = 1.0;
+  slot0[1] = 2.0;
   mjtNum* slot1 = mju_historyInsert(buf, n, dim, 1.0);
-  slot1[0] = 3.0; slot1[1] = 4.0;
+  slot1[0] = 3.0;
+  slot1[1] = 4.0;
   mjtNum* slot2 = mju_historyInsert(buf, n, dim, 2.0);
-  slot2[0] = 5.0; slot2[1] = 6.0;
+  slot2[0] = 5.0;
+  slot2[1] = 6.0;
 
   mjtNum res[dim];
   const mjtNum* ptr = mju_historyRead(buf, n, dim, res, 1.0, 0);
@@ -972,19 +973,22 @@ TEST_F(HistoryTest, ReadVector_ExactMatch) {
 TEST_F(HistoryTest, ReadVector_ZOH) {
   constexpr int n = 3;
   constexpr int dim = 2;
-  mjtNum buf[2 + n + n*dim];
+  mjtNum buf[2 + n + n * dim];
   buf[0] = 0.0;
   buf[1] = n - 1;
   mjtNum times[] = {0, 1, 2};
   mju_copy(buf + 2, times, n);
-  mju_zero(buf + 2 + n, n*dim);
+  mju_zero(buf + 2 + n, n * dim);
 
   mjtNum* slot0 = mju_historyInsert(buf, n, dim, 0.0);
-  slot0[0] = 1.0; slot0[1] = 2.0;
+  slot0[0] = 1.0;
+  slot0[1] = 2.0;
   mjtNum* slot1 = mju_historyInsert(buf, n, dim, 1.0);
-  slot1[0] = 3.0; slot1[1] = 4.0;
+  slot1[0] = 3.0;
+  slot1[1] = 4.0;
   mjtNum* slot2 = mju_historyInsert(buf, n, dim, 2.0);
-  slot2[0] = 5.0; slot2[1] = 6.0;
+  slot2[0] = 5.0;
+  slot2[1] = 6.0;
 
   mjtNum res[dim];
   const mjtNum* ptr = mju_historyRead(buf, n, dim, res, 0.5, 0);
@@ -996,19 +1000,22 @@ TEST_F(HistoryTest, ReadVector_ZOH) {
 TEST_F(HistoryTest, ReadVector_Linear) {
   constexpr int n = 3;
   constexpr int dim = 2;
-  mjtNum buf[2 + n + n*dim];
+  mjtNum buf[2 + n + n * dim];
   buf[0] = 0.0;
   buf[1] = n - 1;
   mjtNum times[] = {0, 1, 2};
   mju_copy(buf + 2, times, n);
-  mju_zero(buf + 2 + n, n*dim);
+  mju_zero(buf + 2 + n, n * dim);
 
   mjtNum* slot0 = mju_historyInsert(buf, n, dim, 0.0);
-  slot0[0] = 1.0; slot0[1] = 2.0;
+  slot0[0] = 1.0;
+  slot0[1] = 2.0;
   mjtNum* slot1 = mju_historyInsert(buf, n, dim, 1.0);
-  slot1[0] = 3.0; slot1[1] = 4.0;
+  slot1[0] = 3.0;
+  slot1[1] = 4.0;
   mjtNum* slot2 = mju_historyInsert(buf, n, dim, 2.0);
-  slot2[0] = 5.0; slot2[1] = 6.0;
+  slot2[0] = 5.0;
+  slot2[1] = 6.0;
 
   mjtNum res[dim];
   const mjtNum* ptr = mju_historyRead(buf, n, dim, res, 0.5, 1);
@@ -1020,7 +1027,7 @@ TEST_F(HistoryTest, ReadVector_Linear) {
 TEST_F(HistoryTest, InsertOutOfOrder) {
   constexpr int n = 4;
   constexpr int dim = 1;
-  mjtNum buf[2 + 2*n];
+  mjtNum buf[2 + 2 * n];
   mjtNum res;
 
   auto reset = [&]() {
@@ -1067,7 +1074,7 @@ TEST_F(HistoryTest, InsertOutOfOrder) {
 TEST_F(HistoryTest, InsertReplaceOnCollision) {
   constexpr int n = 4;
   constexpr int dim = 1;
-  mjtNum buf[2 + 2*n];
+  mjtNum buf[2 + 2 * n];
   mjtNum res;
 
   auto reset = [&]() {
@@ -1129,15 +1136,17 @@ TEST_F(HistoryTest, CubicInterpolation) {
   buf[1] = n - 1;
   mjtNum times[] = {-1, 0};
   mju_copy(buf + 2, times, n);
-  mju_zero(buf + 2 + n, n*dim);
+  mju_zero(buf + 2 + n, n * dim);
 
   // Insert (0, 0, 1) and (1, 1, 0).
   // Dim 0: 0 -> 1. Spline: p(x) = 3x^2 - 2x^3
   // Dim 1: 1 -> 0. Spline: p(x) = 1 - 3x^2 + 2x^3
   mjtNum* slot0 = mju_historyInsert(buf, n, dim, 0.0);
-  slot0[0] = 0.0; slot0[1] = 1.0;
+  slot0[0] = 0.0;
+  slot0[1] = 1.0;
   mjtNum* slot1 = mju_historyInsert(buf, n, dim, 1.0);
-  slot1[0] = 1.0; slot1[1] = 0.0;
+  slot1[0] = 1.0;
+  slot1[1] = 0.0;
 
   mjtNum res[2];
 
@@ -1152,7 +1161,7 @@ TEST_F(HistoryTest, CubicInterpolation) {
   // Dim 0: 3*0.25^2 - 2*0.25^3
   // Dim 1: 1 - (3*0.25^2 - 2*0.25^3)
   mju_historyRead(buf, n, dim, res, 0.25, 2);
-  mjtNum expected_0_25 = 3*0.25*0.25 - 2*0.25*0.25*0.25;
+  mjtNum expected_0_25 = 3 * 0.25 * 0.25 - 2 * 0.25 * 0.25 * 0.25;
   EXPECT_NEAR(res[0], expected_0_25, MjTol(1e-9, 1e-9));
   EXPECT_NEAR(res[1], 1.0 - expected_0_25, MjTol(1e-9, 1e-9));
 
@@ -1160,7 +1169,7 @@ TEST_F(HistoryTest, CubicInterpolation) {
   // Dim 0: 3*0.8^2 - 2*0.8^3
   // Dim 1: 1 - (3*0.8^2 - 2*0.8^3)
   mju_historyRead(buf, n, dim, res, 0.8, 2);
-  mjtNum expected_0_8 = 3*0.8*0.8 - 2*0.8*0.8*0.8;
+  mjtNum expected_0_8 = 3 * 0.8 * 0.8 - 2 * 0.8 * 0.8 * 0.8;
   EXPECT_NEAR(res[0], expected_0_8, MjTol(1e-9, 1e-9));
   EXPECT_NEAR(res[1], 1.0 - expected_0_8, MjTol(1e-9, 1e-9));
 }
@@ -1184,9 +1193,9 @@ TEST_F(FaceStateTest, NodeIndicesSingleCell) {
   // create dummy positions for 8 nodes
   std::vector<mjtNum> xpos(3 * 8, 0);
   for (int i = 0; i < 8; i++) {
-    xpos[3*i + 0] = (i / 4) * 1.0;
-    xpos[3*i + 1] = ((i / 2) % 2) * 1.0;
-    xpos[3*i + 2] = (i % 2) * 1.0;
+    xpos[3 * i + 0] = (i / 4) * 1.0;
+    xpos[3 * i + 1] = ((i / 2) % 2) * 1.0;
+    xpos[3 * i + 2] = (i % 2) * 1.0;
   }
 
   // helper: compute expected global node index from (gx, gy, gz)
@@ -1198,8 +1207,8 @@ TEST_F(FaceStateTest, NodeIndicesSingleCell) {
   // normal_axis=0, na0=1, na1=2
   {
     int indices[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, 0, xpos.data(), NULL, NULL,
-                            NULL, NULL, NULL, indices, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, 0, xpos.data(), NULL, NULL, NULL,
+                            NULL, NULL, indices, NULL);
     EXPECT_EQ(indices[0], gidx(0, 0, 0));
     EXPECT_EQ(indices[1], gidx(0, 0, 1));
     EXPECT_EQ(indices[2], gidx(0, 1, 0));
@@ -1209,8 +1218,8 @@ TEST_F(FaceStateTest, NodeIndicesSingleCell) {
   // face 1: x=max (fixed g[0]=1, varying g[1], g[2])
   {
     int indices[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, 1, xpos.data(), NULL, NULL,
-                            NULL, NULL, NULL, indices, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, 1, xpos.data(), NULL, NULL, NULL,
+                            NULL, NULL, indices, NULL);
     EXPECT_EQ(indices[0], gidx(1, 0, 0));
     EXPECT_EQ(indices[1], gidx(1, 0, 1));
     EXPECT_EQ(indices[2], gidx(1, 1, 0));
@@ -1222,8 +1231,8 @@ TEST_F(FaceStateTest, NodeIndicesSingleCell) {
   // loop order: l0→z, l1→x
   {
     int indices[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, 2, xpos.data(), NULL, NULL,
-                            NULL, NULL, NULL, indices, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, 2, xpos.data(), NULL, NULL, NULL,
+                            NULL, NULL, indices, NULL);
     EXPECT_EQ(indices[0], gidx(0, 0, 0));  // l0=0(z=0), l1=0(x=0)
     EXPECT_EQ(indices[1], gidx(1, 0, 0));  // l0=0(z=0), l1=1(x=1)
     EXPECT_EQ(indices[2], gidx(0, 0, 1));  // l0=1(z=1), l1=0(x=0)
@@ -1234,8 +1243,8 @@ TEST_F(FaceStateTest, NodeIndicesSingleCell) {
   // normal_axis=1, na0=2(z slow), na1=0(x fast)
   {
     int indices[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, 3, xpos.data(), NULL, NULL,
-                            NULL, NULL, NULL, indices, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, 3, xpos.data(), NULL, NULL, NULL,
+                            NULL, NULL, indices, NULL);
     EXPECT_EQ(indices[0], gidx(0, 1, 0));  // l0=0(z=0), l1=0(x=0)
     EXPECT_EQ(indices[1], gidx(1, 1, 0));  // l0=0(z=0), l1=1(x=1)
     EXPECT_EQ(indices[2], gidx(0, 1, 1));  // l0=1(z=1), l1=0(x=0)
@@ -1246,8 +1255,8 @@ TEST_F(FaceStateTest, NodeIndicesSingleCell) {
   // normal_axis=2, na0=0, na1=1
   {
     int indices[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, 4, xpos.data(), NULL, NULL,
-                            NULL, NULL, NULL, indices, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, 4, xpos.data(), NULL, NULL, NULL,
+                            NULL, NULL, indices, NULL);
     EXPECT_EQ(indices[0], gidx(0, 0, 0));
     EXPECT_EQ(indices[1], gidx(0, 1, 0));
     EXPECT_EQ(indices[2], gidx(1, 0, 0));
@@ -1257,8 +1266,8 @@ TEST_F(FaceStateTest, NodeIndicesSingleCell) {
   // face 5: z=max (fixed g[2]=1)
   {
     int indices[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, 5, xpos.data(), NULL, NULL,
-                            NULL, NULL, NULL, indices, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, 5, xpos.data(), NULL, NULL, NULL,
+                            NULL, NULL, indices, NULL);
     EXPECT_EQ(indices[0], gidx(0, 0, 1));
     EXPECT_EQ(indices[1], gidx(0, 1, 1));
     EXPECT_EQ(indices[2], gidx(1, 0, 1));
@@ -1285,9 +1294,9 @@ TEST_F(FaceStateTest, NodeIndicesMultiCell) {
     int gi = i / 9;
     int gj = (i / 3) % 3;
     int gk = i % 3;
-    xpos[3*i + 0] = gi * 0.1;
-    xpos[3*i + 1] = gj * 0.1;
-    xpos[3*i + 2] = gk * 0.1;
+    xpos[3 * i + 0] = gi * 0.1;
+    xpos[3 * i + 1] = gj * 0.1;
+    xpos[3 * i + 2] = gk * 0.1;
   }
 
   auto gidx = [&](int gx, int gy, int gz) {
@@ -1299,8 +1308,8 @@ TEST_F(FaceStateTest, NodeIndicesMultiCell) {
   // na0=1, na1=2: g[0]=0, g[1]=0..1, g[2]=0..1
   {
     int indices[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, 0, xpos.data(), NULL, NULL,
-                            NULL, NULL, NULL, indices, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, 0, xpos.data(), NULL, NULL, NULL,
+                            NULL, NULL, indices, NULL);
     EXPECT_EQ(indices[0], gidx(0, 0, 0));
     EXPECT_EQ(indices[1], gidx(0, 0, 1));
     EXPECT_EQ(indices[2], gidx(0, 1, 0));
@@ -1310,8 +1319,8 @@ TEST_F(FaceStateTest, NodeIndicesMultiCell) {
   // face 0 (x=0), quad 3: (q0=1, q1=1) → within_face = 1*2+1 = 3
   {
     int indices[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, 3, xpos.data(), NULL, NULL,
-                            NULL, NULL, NULL, indices, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, 3, xpos.data(), NULL, NULL, NULL,
+                            NULL, NULL, indices, NULL);
     EXPECT_EQ(indices[0], gidx(0, 1, 1));
     EXPECT_EQ(indices[1], gidx(0, 1, 2));
     EXPECT_EQ(indices[2], gidx(0, 2, 1));
@@ -1322,8 +1331,8 @@ TEST_F(FaceStateTest, NodeIndicesMultiCell) {
   // g[0] = cx*order = 2
   {
     int indices[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, 4, xpos.data(), NULL, NULL,
-                            NULL, NULL, NULL, indices, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, 4, xpos.data(), NULL, NULL, NULL,
+                            NULL, NULL, indices, NULL);
     EXPECT_EQ(indices[0], gidx(2, 0, 0));
     EXPECT_EQ(indices[1], gidx(2, 0, 1));
     EXPECT_EQ(indices[2], gidx(2, 1, 0));
@@ -1344,9 +1353,9 @@ TEST_F(FaceStateTest, NodeIndicesNonCubicGrid) {
     int gi = i / 8;
     int gj = (i / 4) % 2;
     int gk = i % 4;
-    xpos[3*i + 0] = gi * 0.1;
-    xpos[3*i + 1] = gj * 0.1;
-    xpos[3*i + 2] = gk * 0.1;
+    xpos[3 * i + 0] = gi * 0.1;
+    xpos[3 * i + 1] = gj * 0.1;
+    xpos[3 * i + 2] = gk * 0.1;
   }
 
   auto gidx = [&](int gx, int gy, int gz) {
@@ -1366,8 +1375,8 @@ TEST_F(FaceStateTest, NodeIndicesNonCubicGrid) {
   // Total flat index = 3 + 3 + 2 = 8
   {
     int indices[4];
-    mju_flexGatherFaceState(order, cx, cy, cz, 8, xpos.data(), NULL, NULL,
-                            NULL, NULL, NULL, indices, NULL);
+    mju_flexGatherFaceState(order, cx, cy, cz, 8, xpos.data(), NULL, NULL, NULL,
+                            NULL, NULL, indices, NULL);
     EXPECT_EQ(indices[0], gidx(0, 0, 1));
     EXPECT_EQ(indices[1], gidx(1, 0, 1));
     EXPECT_EQ(indices[2], gidx(0, 0, 2));
@@ -1388,9 +1397,9 @@ TEST_F(FaceStateTest, DataGathering) {
   std::vector<mjtNum> xpos0(3 * nnodes);
   for (int i = 0; i < nnodes; i++) {
     for (int d = 0; d < 3; d++) {
-      xpos[3*i + d] = 10 * i + d;
-      vel[3*i + d] = 100 * i + d;
-      xpos0[3*i + d] = 1000 * i + d;
+      xpos[3 * i + d] = 10 * i + d;
+      vel[3 * i + d] = 100 * i + d;
+      xpos0[3 * i + d] = 1000 * i + d;
     }
   }
 
@@ -1408,9 +1417,9 @@ TEST_F(FaceStateTest, DataGathering) {
   for (int n = 0; n < npe; n++) {
     int gi = indices[n];
     for (int d = 0; d < 3; d++) {
-      EXPECT_EQ(xpos_f[3*n + d], xpos[3*gi + d]);
-      EXPECT_EQ(vel_f[3*n + d], vel[3*gi + d]);
-      EXPECT_EQ(xpos0_f[3*n + d], xpos0[3*gi + d]);
+      EXPECT_EQ(xpos_f[3 * n + d], xpos[3 * gi + d]);
+      EXPECT_EQ(vel_f[3 * n + d], vel[3 * gi + d]);
+      EXPECT_EQ(xpos0_f[3 * n + d], xpos0[3 * gi + d]);
     }
   }
 }
@@ -1428,9 +1437,9 @@ TEST_F(FaceStateTest, IdentityRotationAxisAligned) {
   for (int i = 0; i <= 1; i++) {
     for (int j = 0; j <= 1; j++) {
       for (int k = 0; k <= 1; k++) {
-        xpos[3*idx + 0] = i;
-        xpos[3*idx + 1] = j;
-        xpos[3*idx + 2] = k;
+        xpos[3 * idx + 0] = i;
+        xpos[3 * idx + 1] = j;
+        xpos[3 * idx + 2] = k;
         idx++;
       }
     }
@@ -1469,7 +1478,7 @@ TEST_F(FaceStateTest, RotatedCubeRotation) {
         mjtNum axis[3] = {0, 0, 1};
         mjtNum rot_quat[4];
         mju_axisAngle2Quat(rot_quat, axis, mjPI / 2);
-        mju_rotVecQuat(xpos.data() + 3*idx, orig, rot_quat);
+        mju_rotVecQuat(xpos.data() + 3 * idx, orig, rot_quat);
         idx++;
       }
     }
@@ -1519,7 +1528,7 @@ TEST_F(FaceStateTest, RotationConsistencyWith3D) {
         mjtNum axis[3] = {0, 0, 1};
         mjtNum rot_quat[4];
         mju_axisAngle2Quat(rot_quat, axis, mjPI / 6);
-        mju_rotVecQuat(xpos.data() + 3*idx, orig, rot_quat);
+        mju_rotVecQuat(xpos.data() + 3 * idx, orig, rot_quat);
         idx++;
       }
     }
@@ -1543,8 +1552,8 @@ TEST_F(FaceStateTest, RotationConsistencyWith3D) {
                             xpos_f.data(), NULL, NULL, NULL, quat_2d);
 
     // quaternions may differ by sign; compare unsigned
-    mjtNum dot = quat_3d[0]*quat_2d[0] + quat_3d[1]*quat_2d[1] +
-                 quat_3d[2]*quat_2d[2] + quat_3d[3]*quat_2d[3];
+    mjtNum dot = quat_3d[0] * quat_2d[0] + quat_3d[1] * quat_2d[1] +
+                 quat_3d[2] * quat_2d[2] + quat_3d[3] * quat_2d[3];
     EXPECT_NEAR(mju_abs(dot), 1.0, 1e-5)
         << "face " << fe << ": 2D rotation differs from 3D cell rotation";
   }
@@ -1559,10 +1568,10 @@ static void MakeRegularGrid(mjtNum* nodexpos, int nx, int ny, int nz) {
   for (int i = 0; i < nx; i++) {
     for (int j = 0; j < ny; j++) {
       for (int k = 0; k < nz; k++) {
-        int idx = i*ny*nz + j*nz + k;
-        nodexpos[3*idx+0] = (mjtNum)i;
-        nodexpos[3*idx+1] = (mjtNum)j;
-        nodexpos[3*idx+2] = (mjtNum)k;
+        int idx = i * ny * nz + j * nz + k;
+        nodexpos[3 * idx + 0] = (mjtNum)i;
+        nodexpos[3 * idx + 1] = (mjtNum)j;
+        nodexpos[3 * idx + 2] = (mjtNum)k;
       }
     }
   }
@@ -1571,7 +1580,7 @@ static void MakeRegularGrid(mjtNum* nodexpos, int nx, int ny, int nz) {
 TEST_F(ShellTFITest, IdentityGrid) {
   // 3x3x3 grid: 1 interior node at (1,1,1)
   constexpr int nx = 3, ny = 3, nz = 3;
-  mjtNum nodexpos[3*nx*ny*nz];
+  mjtNum nodexpos[3 * nx * ny * nz];
   MakeRegularGrid(nodexpos, nx, ny, nz);
 
   // save expected interior position
@@ -1581,44 +1590,44 @@ TEST_F(ShellTFITest, IdentityGrid) {
   mju_shellTrackInterior(nodexpos, nx, ny, nz);
 
   // interior node at (1,1,1) should match
-  int idx = 1*ny*nz + 1*nz + 1;
-  EXPECT_NEAR(nodexpos[3*idx+0], expected[0], MjTol(1e-12, 1e-5));
-  EXPECT_NEAR(nodexpos[3*idx+1], expected[1], MjTol(1e-12, 1e-5));
-  EXPECT_NEAR(nodexpos[3*idx+2], expected[2], MjTol(1e-12, 1e-5));
+  int idx = 1 * ny * nz + 1 * nz + 1;
+  EXPECT_NEAR(nodexpos[3 * idx + 0], expected[0], MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(nodexpos[3 * idx + 1], expected[1], MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(nodexpos[3 * idx + 2], expected[2], MjTol(1e-12, 1e-5));
 }
 
 TEST_F(ShellTFITest, UniformScaling) {
   // 3x3x3: scale all boundary nodes by 2x, interior should follow
   constexpr int nx = 3, ny = 3, nz = 3;
-  mjtNum nodexpos[3*nx*ny*nz];
+  mjtNum nodexpos[3 * nx * ny * nz];
   MakeRegularGrid(nodexpos, nx, ny, nz);
 
   // scale all nodes
-  for (int i = 0; i < 3*nx*ny*nz; i++) {
+  for (int i = 0; i < 3 * nx * ny * nz; i++) {
     nodexpos[i] *= 2.0;
   }
 
   // run TFI — interior should be reconstructed to 2*original
   mju_shellTrackInterior(nodexpos, nx, ny, nz);
 
-  int idx = 1*ny*nz + 1*nz + 1;
-  EXPECT_NEAR(nodexpos[3*idx+0], 2.0, MjTol(1e-12, 1e-5));
-  EXPECT_NEAR(nodexpos[3*idx+1], 2.0, MjTol(1e-12, 1e-5));
-  EXPECT_NEAR(nodexpos[3*idx+2], 2.0, MjTol(1e-12, 1e-5));
+  int idx = 1 * ny * nz + 1 * nz + 1;
+  EXPECT_NEAR(nodexpos[3 * idx + 0], 2.0, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(nodexpos[3 * idx + 1], 2.0, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(nodexpos[3 * idx + 2], 2.0, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(ShellTFITest, AffineDeformation) {
   // 4x4x4 grid with 8 interior nodes. Apply affine transform to boundary,
   // then verify TFI reproduces the same affine transform on interior nodes.
   constexpr int nx = 4, ny = 4, nz = 4;
-  mjtNum nodexpos[3*nx*ny*nz];
+  mjtNum nodexpos[3 * nx * ny * nz];
   MakeRegularGrid(nodexpos, nx, ny, nz);
 
   // affine: F(x,y,z) = A*[x,y,z]^T + b
   // A = [[2, 0.5, 0], [0.3, 1.5, 0], [0, 0, 1]], b = [10, 20, 30]
   auto affine = [](mjtNum x, mjtNum y, mjtNum z, mjtNum out[3]) {
-    out[0] = 2.0*x + 0.5*y + 10.0;
-    out[1] = 0.3*x + 1.5*y + 20.0;
+    out[0] = 2.0 * x + 0.5 * y + 10.0;
+    out[1] = 0.3 * x + 1.5 * y + 20.0;
     out[2] = z + 30.0;
   };
 
@@ -1626,20 +1635,20 @@ TEST_F(ShellTFITest, AffineDeformation) {
   for (int i = 0; i < nx; i++) {
     for (int j = 0; j < ny; j++) {
       for (int k = 0; k < nz; k++) {
-        int idx = i*ny*nz + j*nz + k;
-        affine((mjtNum)i, (mjtNum)j, (mjtNum)k, nodexpos + 3*idx);
+        int idx = i * ny * nz + j * nz + k;
+        affine((mjtNum)i, (mjtNum)j, (mjtNum)k, nodexpos + 3 * idx);
       }
     }
   }
 
   // corrupt interior nodes to verify TFI actually reconstructs them
-  for (int i = 1; i < nx-1; i++) {
-    for (int j = 1; j < ny-1; j++) {
-      for (int k = 1; k < nz-1; k++) {
-        int idx = i*ny*nz + j*nz + k;
-        nodexpos[3*idx+0] = -999;
-        nodexpos[3*idx+1] = -999;
-        nodexpos[3*idx+2] = -999;
+  for (int i = 1; i < nx - 1; i++) {
+    for (int j = 1; j < ny - 1; j++) {
+      for (int k = 1; k < nz - 1; k++) {
+        int idx = i * ny * nz + j * nz + k;
+        nodexpos[3 * idx + 0] = -999;
+        nodexpos[3 * idx + 1] = -999;
+        nodexpos[3 * idx + 2] = -999;
       }
     }
   }
@@ -1648,17 +1657,17 @@ TEST_F(ShellTFITest, AffineDeformation) {
   mju_shellTrackInterior(nodexpos, nx, ny, nz);
 
   // check all interior nodes match affine
-  for (int i = 1; i < nx-1; i++) {
-    for (int j = 1; j < ny-1; j++) {
-      for (int k = 1; k < nz-1; k++) {
-        int idx = i*ny*nz + j*nz + k;
+  for (int i = 1; i < nx - 1; i++) {
+    for (int j = 1; j < ny - 1; j++) {
+      for (int k = 1; k < nz - 1; k++) {
+        int idx = i * ny * nz + j * nz + k;
         mjtNum expected[3];
         affine((mjtNum)i, (mjtNum)j, (mjtNum)k, expected);
-        EXPECT_NEAR(nodexpos[3*idx+0], expected[0], MjTol(1e-12, 1e-4))
+        EXPECT_NEAR(nodexpos[3 * idx + 0], expected[0], MjTol(1e-12, 1e-4))
             << "i=" << i << " j=" << j << " k=" << k;
-        EXPECT_NEAR(nodexpos[3*idx+1], expected[1], MjTol(1e-12, 1e-4))
+        EXPECT_NEAR(nodexpos[3 * idx + 1], expected[1], MjTol(1e-12, 1e-4))
             << "i=" << i << " j=" << j << " k=" << k;
-        EXPECT_NEAR(nodexpos[3*idx+2], expected[2], MjTol(1e-12, 1e-4))
+        EXPECT_NEAR(nodexpos[3 * idx + 2], expected[2], MjTol(1e-12, 1e-4))
             << "i=" << i << " j=" << j << " k=" << k;
       }
     }
@@ -1668,12 +1677,12 @@ TEST_F(ShellTFITest, AffineDeformation) {
 TEST_F(ShellTFITest, BoundaryUnmodified) {
   // verify that boundary nodes are not modified by TFI
   constexpr int nx = 4, ny = 4, nz = 4;
-  mjtNum nodexpos[3*nx*ny*nz];
+  mjtNum nodexpos[3 * nx * ny * nz];
   MakeRegularGrid(nodexpos, nx, ny, nz);
 
   // save boundary node values
-  mjtNum saved[3*nx*ny*nz];
-  mju_copy(saved, nodexpos, 3*nx*ny*nz);
+  mjtNum saved[3 * nx * ny * nz];
+  mju_copy(saved, nodexpos, 3 * nx * ny * nz);
 
   mju_shellTrackInterior(nodexpos, nx, ny, nz);
 
@@ -1681,14 +1690,13 @@ TEST_F(ShellTFITest, BoundaryUnmodified) {
   for (int i = 0; i < nx; i++) {
     for (int j = 0; j < ny; j++) {
       for (int k = 0; k < nz; k++) {
-        bool is_boundary = (i == 0 || i == nx-1 ||
-                            j == 0 || j == ny-1 ||
-                            k == 0 || k == nz-1);
+        bool is_boundary = (i == 0 || i == nx - 1 || j == 0 || j == ny - 1 ||
+                            k == 0 || k == nz - 1);
         if (is_boundary) {
-          int idx = i*ny*nz + j*nz + k;
-          EXPECT_EQ(nodexpos[3*idx+0], saved[3*idx+0]);
-          EXPECT_EQ(nodexpos[3*idx+1], saved[3*idx+1]);
-          EXPECT_EQ(nodexpos[3*idx+2], saved[3*idx+2]);
+          int idx = i * ny * nz + j * nz + k;
+          EXPECT_EQ(nodexpos[3 * idx + 0], saved[3 * idx + 0]);
+          EXPECT_EQ(nodexpos[3 * idx + 1], saved[3 * idx + 1]);
+          EXPECT_EQ(nodexpos[3 * idx + 2], saved[3 * idx + 2]);
         }
       }
     }
@@ -1698,16 +1706,16 @@ TEST_F(ShellTFITest, BoundaryUnmodified) {
 TEST_F(ShellTFITest, NoInteriorSmallGrid) {
   // 2x2x2 and 2x3x2: no interior nodes, TFI should be a no-op
   constexpr int nx = 2, ny = 3, nz = 2;
-  mjtNum nodexpos[3*nx*ny*nz];
+  mjtNum nodexpos[3 * nx * ny * nz];
   MakeRegularGrid(nodexpos, nx, ny, nz);
 
-  mjtNum saved[3*nx*ny*nz];
-  mju_copy(saved, nodexpos, 3*nx*ny*nz);
+  mjtNum saved[3 * nx * ny * nz];
+  mju_copy(saved, nodexpos, 3 * nx * ny * nz);
 
   mju_shellTrackInterior(nodexpos, nx, ny, nz);
 
   // all nodes unchanged
-  for (int i = 0; i < 3*nx*ny*nz; i++) {
+  for (int i = 0; i < 3 * nx * ny * nz; i++) {
     EXPECT_EQ(nodexpos[i], saved[i]);
   }
 }
