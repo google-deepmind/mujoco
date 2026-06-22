@@ -649,7 +649,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
-    ToggleWindow(tmp_.stats);
+    ToggleWindow(tmp_.info);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F3)) {
     ToggleWindow(tmp_.profiler);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
@@ -934,7 +934,7 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  if (tmp_.stats) {
+  if (tmp_.info) {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_Alpha, 0.8f);
     const float scale = ImGui::GetWindowDpiScale();
@@ -952,7 +952,7 @@ void App::BuildGui() {
                                    ImGuiWindowFlags_NoSavedSettings;
     if (ImGui::Begin("Info", nullptr, flags)) {
       const float fps = renderer_->GetFps();
-      platform::StatsGui(
+      platform::InfoGui(
           model(), data(),
           step_control_.GetPauseState() == PauseState::kNormalPaused, fps);
     }
@@ -1674,8 +1674,8 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
 
-      if (ImGui::MenuItem("Info", "F2", tmp_.stats)) {
-        ToggleWindow(tmp_.stats);
+      if (ImGui::MenuItem("Info", "F2", tmp_.info)) {
+        ToggleWindow(tmp_.info);
       }
       if (ImGui::MenuItem("Profiler", "F3", tmp_.profiler)) {
         ToggleWindow(tmp_.profiler);

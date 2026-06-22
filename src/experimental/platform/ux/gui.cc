@@ -359,7 +359,7 @@ ImVec4 ConfigureDockingLayout() {
 
   const float kOptionsRelWidth = 0.15f;
   const float kInspectorRelWidth = 0.22f;
-  const float kStatsRelHeight = 0.3f;
+  const float kPropertiesRelHeight = 0.3f;
   const float kToolsBarHeight = 36.f * scale * font_scale;
   const float kStatusBarHeight = 32.f * scale * font_scale;
 
@@ -388,12 +388,8 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::DockBuilderSplitNode(main, ImGuiDir_Right, kInspectorRelWidth,
                                 &inspector, &main);
 
-    ImGuiID stats = 0;
-    ImGui::DockBuilderSplitNode(options, ImGuiDir_Down, kStatsRelHeight, &stats,
-                                &options);
-
     ImGuiID properties = 0;
-    ImGui::DockBuilderSplitNode(inspector, ImGuiDir_Down, kStatsRelHeight,
+    ImGui::DockBuilderSplitNode(inspector, ImGuiDir_Down, kPropertiesRelHeight,
                                 &properties, &inspector);
 
     ImGuiID profiler = 0;
@@ -405,7 +401,6 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::DockBuilderDockWindow("Editor", inspector);
     ImGui::DockBuilderDockWindow("Inspector", inspector);
     ImGui::DockBuilderDockWindow("Properties", properties);
-    ImGui::DockBuilderDockWindow("Stats", stats);
     ImGui::DockBuilderDockWindow("Profiler", profiler);
     ImGui::DockBuilderFinish(root);
   }
@@ -1472,8 +1467,8 @@ void CountsGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
   }
 }
 
-void StatsGui(const mjModel* model, const mjData* data, bool paused,
-              float fps) {
+void InfoGui(const mjModel* model, const mjData* data, bool paused,
+             float fps) {
   const int num_islands = std::clamp(data->nisland, 1, mjNISLAND);
 
   // compute solver error (maximum over islands)

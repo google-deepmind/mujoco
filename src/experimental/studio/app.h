@@ -129,7 +129,7 @@ class App {
 
     // Windows.
     bool help = false;
-    bool stats = false;
+    bool info = false;
     bool profiler = false;
     bool picture_in_picture = false;
     bool options_panel = true;
