@@ -95,6 +95,8 @@ App::App(Config config)
   mjv_defaultPerturb(&perturb_);
   mjv_defaultCamera(&camera_);
   mjv_defaultOption(&vis_options_);
+  std::memset(&plugin_scene_, 0, sizeof(mjvScene));
+  mjv_makeScene(nullptr, &plugin_scene_, 2000);
 
   profiler_.Clear();
 
@@ -102,6 +104,10 @@ App::App(Config config)
       [this](const mjModel* m, mjData* d) { PreStep(m, d); });
   step_control_.SetPostStepCallback(
       [this](const mjModel* m, mjData* d) { PostStep(m, d); });
+}
+
+App::~App() {
+  mjv_freeScene(&plugin_scene_);
 }
 
 void App::SwitchGraphicsMode(int width, int height,
@@ -389,8 +395,17 @@ void App::Render() {
   } else {
     pixels_.clear();
   }
+
+  plugin_scene_.ngeom = 0;
+  platform::ForEachPlugin<platform::ScenePlugin>([&](auto* plugin) {
+    if (plugin->enhance_scene) {
+      plugin->enhance_scene(plugin, model(), data(), &plugin_scene_);
+    }
+  });
+
   renderer_->Render(model(), data(), &perturb_, &camera_, &vis_options_,
-                    width * scale, height * scale, pixels_);
+                    width * scale, height * scale, pixels_,
+                    {plugin_scene_.geoms, (size_t)plugin_scene_.ngeom});
 
   window_->EndFrame();
   window_->Present(pixels_);

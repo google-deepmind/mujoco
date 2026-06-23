@@ -64,6 +64,7 @@ class App {
   };
 
   explicit App(Config config);
+  ~App();
 
   // Loads an empty mjModel.
   void InitEmptyModel();
@@ -263,6 +264,7 @@ class App {
   mjvCamera camera_;
   mjvPerturb perturb_;
   mjvOption vis_options_;
+  mjvScene plugin_scene_;
 
   UiState ui_;
   UiTempState tmp_;

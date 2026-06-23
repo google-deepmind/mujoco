@@ -73,7 +73,8 @@ class Renderer {
   // otherwise renders to the `native_window` provided at construction.
   void Render(const mjModel* model, mjData* data, const mjvPerturb* perturb,
               mjvCamera* camera, const mjvOption* vis_option, int width,
-              int height, std::span<std::byte> pixels = {});
+              int height, std::span<std::byte> pixels = {},
+              std::span<mjvGeom> extra_geoms = {});
 
   // Populates the given output buffer with RGB888 pixel data. The size of the
   // output buffer must be at least width * height * 3.

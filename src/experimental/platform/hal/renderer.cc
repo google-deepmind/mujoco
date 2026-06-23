@@ -14,6 +14,7 @@
 
 #include "experimental/platform/hal/renderer.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <functional>
@@ -136,7 +137,8 @@ void Renderer::Deinit() {
 void Renderer::Render(const mjModel* model, mjData* data,
                       const mjvPerturb* perturb, mjvCamera* camera,
                       const mjvOption* vis_option, int width, int height,
-                      std::span<std::byte> pixels) {
+                      std::span<std::byte> pixels,
+                      std::span<mjvGeom> extra_geoms) {
   if (!initialized_) {
     return;
   }
@@ -157,6 +159,11 @@ void Renderer::Render(const mjModel* model, mjData* data,
   }
 
   mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL, &scene_);
+  const int nextra_geoms =
+      std::min<int>(extra_geoms.size(), scene_.maxgeom - scene_.ngeom);
+  for (int i = 0; i < nextra_geoms; ++i) {
+    scene_.geoms[scene_.ngeom++] = extra_geoms[i];
+  }
 
   const bool render_to_texture = !pixels.empty();
   if (render_to_texture) {

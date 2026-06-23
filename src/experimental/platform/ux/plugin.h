@@ -53,6 +53,21 @@ struct GuiPlugin final {
   void* data = nullptr;
 };
 
+// Plugin for adding additional scene geoms.
+struct ScenePlugin final {
+  using EnhanceSceneFn = void (*)(ScenePlugin* self, const mjModel* model,
+                                  mjData* data, mjvScene* scene);
+
+  // The name of the plugin; must be unique.
+  const char* name = "";
+
+  // This function will add additional mjvGeom objects to the mjvScene.
+  EnhanceSceneFn enhance_scene = nullptr;
+
+  // Optional data pointer.
+  void* data = nullptr;
+};
+
 // Plugin for loading and updating models.
 struct ModelPlugin final {
   using GetModelToLoadFn = const char* (*)(ModelPlugin* self, int* size,
