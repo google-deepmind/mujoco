@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+- Added Nesterov momentum extrapolation with adaptive gradient restart (O'Donoghue-Candès) to the PGS solver,
+  significantly improving convergence. Overall PGS now requires ~2x fewer iterations.
+
 Version 3.10.0 (June 22, 2026)
 ------------------------------
 

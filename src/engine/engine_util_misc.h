@@ -281,13 +281,13 @@ MJAPI void mju_d2n(mjtNum* res, const double* vec, int n);
 // convert from mjtNum to double
 MJAPI void mju_n2d(double* res, const mjtNum* vec, int n);
 
-// gather mjtNums
+// gather mjtNums: res[i] = vec[ind[i]], or copy if ind is NULL
 MJAPI void mju_gather(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
 // gather mjtNums, set to 0 at negative indices
 MJAPI void mju_gatherMasked(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
-// scatter mjtNums
+// scatter mjtNums: res[ind[i]] = vec[i], or copy if ind is NULL
 MJAPI void mju_scatter(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
 // gather integers
