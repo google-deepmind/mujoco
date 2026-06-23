@@ -421,7 +421,9 @@ void App::ProcessPendingLoads() {
       const char* buf = plugin->get_model_to_load(
           plugin, &size, content_type, sizeof(content_type), model_name,
           sizeof(model_name));
-      if (buf && size) {
+      if (buf && buf == model_name) {
+        LoadModelFromFile(model_name);
+      } else if (buf && size) {
         const std::byte* bytes = reinterpret_cast<const std::byte*>(buf);
         LoadModelFromBuffer({bytes, bytes + size}, content_type, model_name);
       }

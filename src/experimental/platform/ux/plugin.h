@@ -68,7 +68,8 @@ struct ModelPlugin final {
 
   // Callback for when the plugin wants to load a new model. This function will
   // return a buffer containing the model data as well as the content type of
-  // the buffer. Returns nullptr if no model needs to be loaded.s
+  // the buffer. If buf == model_name, then we assume that model_name stores the
+  // path of the model to load. Returns nullptr if no model needs to be loaded.
   GetModelToLoadFn get_model_to_load = nullptr;
 
   // Callback when a new model is loaded.
