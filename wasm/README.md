@@ -389,6 +389,36 @@ model.delete();
 As with buffers, you are responsible for managing the memory of these struct
  instances and must call `.delete()` on them when you are finished.
 
+#### Native mjr Rendering
+
+The WASM bindings include the classic MuJoCo `mjr` renderer. This allows a
+scene produced with `mjv_updateScene` to be rendered through MuJoCo's native
+OpenGL/WebGL path and read back from an offscreen buffer.
+
+`MjrContext` owns MuJoCo GL resources, so it must be constructed only after a
+valid WebGL context exists and is current. Call `.free()` or `.delete()` when
+the rendering context is no longer needed.
+
+```typescript
+const scene = new mujoco.MjvScene(model, 1000);
+const context = new mujoco.MjrContext(
+    model,
+    mujoco.mjtFontScale.mjFONTSCALE_150.value
+);
+const viewport = new mujoco.MjrRect(0, 0, 640, 480);
+const rgb = new Uint8Array(viewport.width * viewport.height * 3);
+const depth = new Float32Array(viewport.width * viewport.height);
+
+mujoco.mjr_resizeOffscreen(viewport.width, viewport.height, context);
+mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN.value, context);
+mujoco.mjr_render(viewport, scene, context);
+mujoco.mjr_readPixels(rgb, depth, viewport, context);
+
+viewport.delete();
+context.delete();
+scene.delete();
+```
+
 ### Enums
 Access via `.value`:
 ```javascript

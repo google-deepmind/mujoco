@@ -17,7 +17,7 @@ import 'jasmine';
 import {MainModule, MjContact, MjContactVec, MjData, MjLROpt, MjModel,
 MjOption, MjsGeom, MjSolverStat, MjSpec, MjStatistic, MjTimerStat, MjvCamera,
 MjvFigure, MjvGeom, MjvGLCamera, MjvLight, MjvOption, MjvPerturb, MjvScene,
-MjWarningStat, MjVFS, Uint8Buffer} from '../dist/mujoco.js';
+MjWarningStat, MjVFS, MjrContext, MjrRect, Uint8Buffer} from '../dist/mujoco.js';
 
 import loadMujoco from '../dist/mujoco.js'
 
@@ -96,6 +96,42 @@ describe('MuJoCo WASM Bindings', () => {
 
   beforeAll(async () => {
     mujoco = await loadMujoco();
+  });
+
+  describe('mjr render API', () => {
+    it('should expose MjrRect properties', () => {
+      const rect = new mujoco.MjrRect(1, 2, 3, 4);
+      expect(rect.left).toBe(1);
+      expect(rect.bottom).toBe(2);
+      expect(rect.width).toBe(3);
+      expect(rect.height).toBe(4);
+
+      rect.width = 8;
+      rect.height = 9;
+      expect(rect.width).toBe(8);
+      expect(rect.height).toBe(9);
+
+      const typedRect: MjrRect = rect;
+      typedRect.delete();
+    });
+
+    it('should expose the default MjrContext wrapper', () => {
+      const context = new mujoco.MjrContext();
+      expect(context.offWidth).toBe(0);
+      expect(context.offHeight).toBe(0);
+      expect(context.currentBuffer).toBe(0);
+      expect(context.fogRGBA.length).toBe(4);
+      expect(context.auxWidth.length).toBe(10);
+
+      context.offWidth = 640;
+      context.offHeight = 480;
+      expect(context.offWidth).toBe(640);
+      expect(context.offHeight).toBe(480);
+
+      const typedContext: MjrContext = context;
+      typedContext.free();
+      typedContext.delete();
+    });
   });
 
   function unlinkXMLFile(filename: string) {

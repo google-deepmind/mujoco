@@ -8462,6 +8462,82 @@ struct MjvScene {
   std::vector<MjvGLCamera> camera;
 };
 
+struct MjrRect {
+  MjrRect() = default;
+  MjrRect(int left, int bottom, int width, int height)
+      : rect_{left, bottom, width, height} {}
+  explicit MjrRect(mjrRect rect) : rect_(rect) {}
+
+  int left() const { return rect_.left; }
+  void set_left(int value) { rect_.left = value; }
+  int bottom() const { return rect_.bottom; }
+  void set_bottom(int value) { rect_.bottom = value; }
+  int width() const { return rect_.width; }
+  void set_width(int value) { rect_.width = value; }
+  int height() const { return rect_.height; }
+  void set_height(int value) { rect_.height = value; }
+
+  mjrRect get() const { return rect_; }
+  void set(mjrRect rect) { rect_ = rect; }
+
+ private:
+  mjrRect rect_ = {0, 0, 0, 0};
+};
+
+struct MjrContext {
+  MjrContext();
+  MjrContext(MjModel* m, int fontscale);
+  ~MjrContext();
+
+  void Free();
+  mjrContext* get() const;
+  void set(mjrContext* ptr);
+
+#define X(type, var)        \
+  type var() const {        \
+    return ptr_->var;       \
+  }                         \
+  void set_##var(type val) { \
+    ptr_->var = val;        \
+  }
+  X(float, lineWidth)
+  X(float, shadowClip)
+  X(float, shadowScale)
+  X(float, fogStart)
+  X(float, fogEnd)
+  X(int, shadowSize)
+  X(int, offWidth)
+  X(int, offHeight)
+  X(int, offSamples)
+  X(int, fontScale)
+  X(int, glInitialized)
+  X(int, windowAvailable)
+  X(int, windowSamples)
+  X(int, windowStereo)
+  X(int, windowDoublebuffer)
+  X(int, currentBuffer)
+  X(int, readPixelFormat)
+  X(int, readDepthMap)
+#undef X
+
+  emscripten::val fogRGBA() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->fogRGBA));
+  }
+  emscripten::val auxWidth() const {
+    return emscripten::val(emscripten::typed_memory_view(mjNAUX, ptr_->auxWidth));
+  }
+  emscripten::val auxHeight() const {
+    return emscripten::val(emscripten::typed_memory_view(mjNAUX, ptr_->auxHeight));
+  }
+  emscripten::val auxSamples() const {
+    return emscripten::val(emscripten::typed_memory_view(mjNAUX, ptr_->auxSamples));
+  }
+
+ private:
+  mjrContext* ptr_;
+  bool owned_ = false;
+};
+
 struct MjVFS {
   MjVFS() : ptr_(new mjVFS) { mj_defaultVFS(ptr_); }
   ~MjVFS() {
@@ -8602,6 +8678,34 @@ int MjvScene::GetSumFlexFaces() const {
 std::vector<MjvGeom> MjvScene::geoms() const {
   return InitWrapperArray<MjvGeom>(ptr_->geoms, ptr_->ngeom);
 }
+
+MjrContext::MjrContext() : ptr_(new mjrContext) {
+  owned_ = true;
+  mjr_defaultContext(ptr_);
+}
+
+MjrContext::MjrContext(MjModel* m, int fontscale) : MjrContext() {
+  if (!m) {
+    mju_error("Invalid argument: model is null");
+  }
+  mjr_makeContext(m->get(), ptr_, fontscale);
+}
+
+MjrContext::~MjrContext() {
+  if (owned_ && ptr_) {
+    mjr_freeContext(ptr_);
+    delete ptr_;
+  }
+}
+
+void MjrContext::Free() {
+  if (ptr_) {
+    mjr_freeContext(ptr_);
+  }
+}
+
+mjrContext* MjrContext::get() const { return ptr_; }
+void MjrContext::set(mjrContext* ptr) { ptr_ = ptr; }
 
 MjSpec::MjSpec()
     : ptr_(mj_makeSpec()),
@@ -8806,6 +8910,39 @@ int mj_setLengthRange_wrapper(const MjModel& m, const MjData& d, int index, cons
 void mju_info_wrapper(int topic, const String& msg) {
   CHECK_VAL(msg);
   mju_info(topic, "%s", msg.as<const std::string>().data());
+}
+
+void mjr_resizeOffscreen_wrapper(int width, int height, MjrContext& con) {
+  mjr_resizeOffscreen(width, height, con.get());
+}
+
+void mjr_restoreBuffer_wrapper(const MjrContext& con) {
+  mjr_restoreBuffer(con.get());
+}
+
+void mjr_setBuffer_wrapper(int framebuffer, MjrContext& con) {
+  mjr_setBuffer(framebuffer, con.get());
+}
+
+void mjr_readPixels_wrapper(const val& rgb, const val& depth,
+                            const MjrRect& viewport, const MjrContext& con) {
+  UNPACK_NULLABLE_VALUE(uint8_t, rgb);
+  UNPACK_NULLABLE_VALUE(float, depth);
+  mjr_readPixels(rgb_.data(), depth_.data(), viewport.get(), con.get());
+}
+
+void mjr_render_wrapper(const MjrRect& viewport, MjvScene& scn,
+                        const MjrContext& con) {
+  mjr_render(viewport.get(), scn.get(), con.get());
+}
+
+MjrRect mjr_maxViewport_wrapper(const MjrContext& con) {
+  return MjrRect(mjr_maxViewport(con.get()));
+}
+
+void mjr_rectangle_wrapper(const MjrRect& viewport, float r, float g, float b,
+                           float a) {
+  mjr_rectangle(viewport.get(), r, g, b, a);
 }
 
 void mj_Euler_wrapper(const MjModel& m, MjData& d) {
@@ -13573,6 +13710,41 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
       .function("addBuffer", &MjVFS::AddBuffer)
       .function("deleteFile", &MjVFS::DeleteFile);
 
+  emscripten::class_<MjrRect>("MjrRect")
+      .constructor<>()
+      .constructor<int, int, int, int>()
+      .property("left", &MjrRect::left, &MjrRect::set_left)
+      .property("bottom", &MjrRect::bottom, &MjrRect::set_bottom)
+      .property("width", &MjrRect::width, &MjrRect::set_width)
+      .property("height", &MjrRect::height, &MjrRect::set_height);
+
+  emscripten::class_<MjrContext>("MjrContext")
+      .constructor<>()
+      .constructor<MjModel*, int>()
+      .function("free", &MjrContext::Free)
+      .property("lineWidth", &MjrContext::lineWidth, &MjrContext::set_lineWidth)
+      .property("shadowClip", &MjrContext::shadowClip, &MjrContext::set_shadowClip)
+      .property("shadowScale", &MjrContext::shadowScale, &MjrContext::set_shadowScale)
+      .property("fogStart", &MjrContext::fogStart, &MjrContext::set_fogStart)
+      .property("fogEnd", &MjrContext::fogEnd, &MjrContext::set_fogEnd)
+      .property("fogRGBA", &MjrContext::fogRGBA)
+      .property("shadowSize", &MjrContext::shadowSize, &MjrContext::set_shadowSize)
+      .property("offWidth", &MjrContext::offWidth, &MjrContext::set_offWidth)
+      .property("offHeight", &MjrContext::offHeight, &MjrContext::set_offHeight)
+      .property("offSamples", &MjrContext::offSamples, &MjrContext::set_offSamples)
+      .property("fontScale", &MjrContext::fontScale, &MjrContext::set_fontScale)
+      .property("auxWidth", &MjrContext::auxWidth)
+      .property("auxHeight", &MjrContext::auxHeight)
+      .property("auxSamples", &MjrContext::auxSamples)
+      .property("glInitialized", &MjrContext::glInitialized, &MjrContext::set_glInitialized)
+      .property("windowAvailable", &MjrContext::windowAvailable, &MjrContext::set_windowAvailable)
+      .property("windowSamples", &MjrContext::windowSamples, &MjrContext::set_windowSamples)
+      .property("windowStereo", &MjrContext::windowStereo, &MjrContext::set_windowStereo)
+      .property("windowDoublebuffer", &MjrContext::windowDoublebuffer, &MjrContext::set_windowDoublebuffer)
+      .property("currentBuffer", &MjrContext::currentBuffer, &MjrContext::set_currentBuffer)
+      .property("readPixelFormat", &MjrContext::readPixelFormat, &MjrContext::set_readPixelFormat)
+      .property("readDepthMap", &MjrContext::readDepthMap, &MjrContext::set_readDepthMap);
+
   function("mj_Euler", &mj_Euler_wrapper);
   function("mj_RungeKutta", &mj_RungeKutta_wrapper);
   function("mj_addContact", &mj_addContact_wrapper);
@@ -13961,6 +14133,15 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjv_updateCamera", &mjv_updateCamera_wrapper);
   function("mjv_updateScene", &mjv_updateScene_wrapper);
   function("mjv_updateSkin", &mjv_updateSkin_wrapper);
+  function("mjr_resizeOffscreen", &mjr_resizeOffscreen_wrapper);
+  function("mjr_restoreBuffer", &mjr_restoreBuffer_wrapper);
+  function("mjr_setBuffer", &mjr_setBuffer_wrapper);
+  function("mjr_readPixels", &mjr_readPixels_wrapper);
+  function("mjr_render", &mjr_render_wrapper);
+  function("mjr_maxViewport", &mjr_maxViewport_wrapper);
+  function("mjr_rectangle", &mjr_rectangle_wrapper);
+  function("mjr_finish", &mjr_finish);
+  function("mjr_getError", &mjr_getError);
   function("parseXMLString", &parseXMLString_wrapper, take_ownership());
   function("error", &error_wrapper);
   function("mj_saveModel", &mj_saveModel_wrapper);

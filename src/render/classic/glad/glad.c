@@ -57,7 +57,16 @@
 
 static void* mjGlad_get_proc(const char *namez);
 
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/html5_webgl.h>
+
+static int mjGlad_open_gl(void* get_proc_address) {
+  (void)get_proc_address;
+  return 1;
+}
+
+static void mjGlad_close_gl(void) {}
+#elif defined(_WIN32) || defined(__CYGWIN__)
 #ifndef _WINDOWS_
 #undef APIENTRY
 #endif
@@ -259,6 +268,9 @@ void mjGlad_close_gl(void) {
 
 static
 void* mjGlad_get_proc(const char *namez) {
+#if defined(__EMSCRIPTEN__)
+  return (void*)emscripten_webgl_get_proc_address(namez);
+#else
   void* result = NULL;
 
 #if !defined(__APPLE__) && !defined(__HAIKU__)
@@ -276,6 +288,7 @@ void* mjGlad_get_proc(const char *namez) {
   }
 
   return result;
+#endif
 }
 
 struct gladGLversionStruct mjGLVersion = { 0, 0 };
