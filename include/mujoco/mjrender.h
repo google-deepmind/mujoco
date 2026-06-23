@@ -109,21 +109,19 @@ typedef enum mjrMeshPrimitiveType_ {    // type of mesh primitive
 } mjrMeshPrimitiveType;
 
 
-struct mjrRect_ {                 // OpenGL rectangle
+typedef struct mjrRect_ {         // OpenGL rectangle
   int left;                       // left (usually 0)
   int bottom;                     // bottom (usually 0)
   int width;                      // width (usually buffer width)
   int height;                     // height (usually buffer height)
-};
-typedef struct mjrRect_ mjrRect;
+} mjrRect;
 
 
-struct mjrVertexAttribute_ {      // vertex attribute format specification
-  const void* bytes;              // vertex data
-  int usage;                      // mjrVertexAttributeUsage; e.g. position, normal, etc.
-  int type;                       // mjrVertexAttributeType; e.g. float3, ubyte4, etc.
-};
-typedef struct mjrVertexAttribute_ mjrVertexAttribute;
+typedef struct mjrVertexAttribute_ {  // vertex attribute format specification
+  const void* bytes;                  // vertex data
+  int usage;                          // mjrVertexAttributeUsage; e.g. position, normal, etc.
+  int type;                           // mjrVertexAttributeType; e.g. float3, ubyte4, etc.
+} mjrVertexAttribute;
 
 
 // alias non-rendering types into mjr namespace
@@ -135,7 +133,7 @@ typedef mjvGLCamera mjrCamera;
 
 //---------------------------------- mjrContext ----------------------------------------------------
 
-struct mjrContext_ {                // custom OpenGL context
+typedef struct mjrContext_ {        // custom OpenGL context
   // parameters copied from mjVisual
   float lineWidth;                  // line width for wireframe rendering
   float shadowClip;                 // clipping radius for directional lights
@@ -226,8 +224,7 @@ struct mjrContext_ {                // custom OpenGL context
 
   // depth output format
   int readDepthMap;                 // depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR
-};
-typedef struct mjrContext_ mjrContext;
+} mjrContext;
 
 #if defined(__cplusplus)
 }

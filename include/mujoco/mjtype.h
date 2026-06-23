@@ -50,7 +50,7 @@ typedef int64_t mjtSize;          // used for buffer sizes
 
 //---------------------------------- enum types (mjModel) ------------------------------------------
 
-typedef enum mjtDisableBit_ {     // disable default feature bitflags
+typedef enum mjtDisableBit {      // disable default feature bitflags
   mjDSBL_CONSTRAINT   = 1<<0,     // entire constraint solver
   mjDSBL_EQUALITY     = 1<<1,     // equality constraints
   mjDSBL_FRICTIONLOSS = 1<<2,     // joint and tendon frictionloss constraints
@@ -76,7 +76,7 @@ typedef enum mjtDisableBit_ {     // disable default feature bitflags
 } mjtDisableBit;
 
 
-typedef enum mjtEnableBit_ {      // enable optional feature bitflags
+typedef enum mjtEnableBit {       // enable optional feature bitflags
   mjENBL_OVERRIDE     = 1<<0,     // override contact parameters
   mjENBL_ENERGY       = 1<<1,     // energy computation
   mjENBL_FWDINV       = 1<<2,     // record solver statistics
@@ -88,7 +88,7 @@ typedef enum mjtEnableBit_ {      // enable optional feature bitflags
 } mjtEnableBit;
 
 
-typedef enum mjtJoint_ {          // type of degree of freedom
+typedef enum mjtJoint {           // type of degree of freedom
   mjJNT_FREE          = 0,        // global position and orientation (quat)       (7)
   mjJNT_BALL,                     // orientation (quat) relative to parent        (4)
   mjJNT_SLIDE,                    // sliding distance along body-fixed axis       (1)
@@ -96,7 +96,7 @@ typedef enum mjtJoint_ {          // type of degree of freedom
 } mjtJoint;
 
 
-typedef enum mjtGeom_ {           // type of geometric shape
+typedef enum mjtGeom {            // type of geometric shape
   // regular geom types
   mjGEOM_PLANE        = 0,        // plane
   mjGEOM_HFIELD,                  // height field
@@ -125,13 +125,13 @@ typedef enum mjtGeom_ {           // type of geometric shape
 } mjtGeom;
 
 
-typedef enum mjtProjection_ {     // type of camera projection
+typedef enum mjtProjection {      // type of camera projection
   mjPROJ_PERSPECTIVE  = 0,        // perspective
   mjPROJ_ORTHOGRAPHIC             // orthographic
 } mjtProjection;
 
 
-typedef enum mjtCamLight_ {       // tracking mode for camera and light
+typedef enum mjtCamLight {        // tracking mode for camera and light
   mjCAMLIGHT_FIXED    = 0,        // pos and rot fixed in body
   mjCAMLIGHT_TRACK,               // pos tracks body, rot fixed in global
   mjCAMLIGHT_TRACKCOM,            // pos tracks subtree com, rot fixed in body
@@ -140,7 +140,7 @@ typedef enum mjtCamLight_ {       // tracking mode for camera and light
 } mjtCamLight;
 
 
-typedef enum mjtLightType_ {      // type of light
+typedef enum mjtLightType {       // type of light
   mjLIGHT_SPOT        = 0,        // spot
   mjLIGHT_DIRECTIONAL,            // directional
   mjLIGHT_POINT,                  // point
@@ -148,14 +148,14 @@ typedef enum mjtLightType_ {      // type of light
 } mjtLightType;
 
 
-typedef enum mjtTexture_ {        // type of texture
+typedef enum mjtTexture {         // type of texture
   mjTEXTURE_2D        = 0,        // 2d texture, suitable for planes and hfields
   mjTEXTURE_CUBE,                 // cube texture, suitable for all other geom types
   mjTEXTURE_SKYBOX                // cube texture used as skybox
 } mjtTexture;
 
 
-typedef enum mjtTextureRole_ {    // role of texture map in rendering
+typedef enum mjtTextureRole {     // role of texture map in rendering
   mjTEXROLE_USER      = 0,        // unspecified
   mjTEXROLE_RGB,                  // base color (albedo)
   mjTEXROLE_OCCLUSION,            // ambient occlusion
@@ -170,14 +170,14 @@ typedef enum mjtTextureRole_ {    // role of texture map in rendering
 } mjtTextureRole;
 
 
-typedef enum mjtColorSpace_ {     // type of color space encoding
+typedef enum mjtColorSpace {      // type of color space encoding
   mjCOLORSPACE_AUTO   = 0,        // attempts to autodetect color space, defaults to linear
   mjCOLORSPACE_LINEAR,            // linear color space
   mjCOLORSPACE_SRGB               // standard RGB color space
 } mjtColorSpace;
 
 
-typedef enum mjtIntegrator_ {     // integrator mode
+typedef enum mjtIntegrator {      // integrator mode
   mjINT_EULER         = 0,        // semi-implicit Euler
   mjINT_RK4,                      // 4th-order Runge Kutta
   mjINT_IMPLICIT,                 // implicit in velocity
@@ -185,27 +185,27 @@ typedef enum mjtIntegrator_ {     // integrator mode
 } mjtIntegrator;
 
 
-typedef enum mjtCone_ {           // type of friction cone
+typedef enum mjtCone {            // type of friction cone
   mjCONE_PYRAMIDAL     = 0,       // pyramidal
   mjCONE_ELLIPTIC                 // elliptic
 } mjtCone;
 
 
-typedef enum mjtJacobian_ {       // type of constraint Jacobian
+typedef enum mjtJacobian {        // type of constraint Jacobian
   mjJAC_DENSE          = 0,       // dense
   mjJAC_SPARSE,                   // sparse
   mjJAC_AUTO                      // dense if nv<60, sparse otherwise
 } mjtJacobian;
 
 
-typedef enum mjtSolver_ {         // constraint solver algorithm
+typedef enum mjtSolver {          // constraint solver algorithm
   mjSOL_PGS            = 0,       // PGS    (dual)
   mjSOL_CG,                       // CG     (primal)
   mjSOL_NEWTON                    // Newton (primal)
 } mjtSolver;
 
 
-typedef enum mjtEq_ {             // type of equality constraint
+typedef enum mjtEq {              // type of equality constraint
   mjEQ_CONNECT        = 0,        // connect two bodies at a point (ball joint)
   mjEQ_WELD,                      // fix relative position and orientation of two bodies
   mjEQ_JOINT,                     // couple the values of two scalar joints with cubic
@@ -217,7 +217,7 @@ typedef enum mjtEq_ {             // type of equality constraint
 } mjtEq;
 
 
-typedef enum mjtWrap_ {           // type of tendon wrap object
+typedef enum mjtWrap {            // type of tendon wrap object
   mjWRAP_NONE         = 0,        // null object
   mjWRAP_JOINT,                   // constant moment arm
   mjWRAP_PULLEY,                  // pulley used to split tendon
@@ -227,7 +227,7 @@ typedef enum mjtWrap_ {           // type of tendon wrap object
 } mjtWrap;
 
 
-typedef enum mjtTrn_ {            // type of actuator transmission
+typedef enum mjtTrn {             // type of actuator transmission
   mjTRN_JOINT         = 0,        // force on joint
   mjTRN_JOINTINPARENT,            // force on joint, expressed in parent frame
   mjTRN_SLIDERCRANK,              // force via slider-crank linkage
@@ -239,7 +239,7 @@ typedef enum mjtTrn_ {            // type of actuator transmission
 } mjtTrn;
 
 
-typedef enum mjtDyn_ {            // type of actuator dynamics
+typedef enum mjtDyn {             // type of actuator dynamics
   mjDYN_NONE          = 0,        // no internal dynamics; ctrl specifies force
   mjDYN_INTEGRATOR,               // integrator: da/dt = u
   mjDYN_FILTER,                   // linear filter: da/dt = (u-a) / tau
@@ -250,7 +250,7 @@ typedef enum mjtDyn_ {            // type of actuator dynamics
 } mjtDyn;
 
 
-typedef enum mjtGain_ {           // type of actuator gain
+typedef enum mjtGain {            // type of actuator gain
   mjGAIN_FIXED        = 0,        // fixed gain
   mjGAIN_AFFINE,                  // const + kp*length + kv*velocity
   mjGAIN_MUSCLE,                  // muscle FLV curve computed by mju_muscleGain()
@@ -259,7 +259,7 @@ typedef enum mjtGain_ {           // type of actuator gain
 } mjtGain;
 
 
-typedef enum mjtBias_ {           // type of actuator bias
+typedef enum mjtBias {            // type of actuator bias
   mjBIAS_NONE         = 0,        // no bias
   mjBIAS_AFFINE,                  // const + kp*length + kv*velocity
   mjBIAS_MUSCLE,                  // muscle passive force computed by mju_muscleBias()
@@ -268,7 +268,7 @@ typedef enum mjtBias_ {           // type of actuator bias
 } mjtBias;
 
 
-typedef enum mjtObj_ {            // type of MujoCo object
+typedef enum mjtObj {             // type of MujoCo object
   mjOBJ_UNKNOWN       = 0,        // unknown object type
   mjOBJ_BODY,                     // body
   mjOBJ_XBODY,                    // body, used to access regular frame instead of i-frame
@@ -305,7 +305,7 @@ typedef enum mjtObj_ {            // type of MujoCo object
 } mjtObj;
 
 
-typedef enum mjtSensor_ {         // type of sensor
+typedef enum mjtSensor {         // type of sensor
   // common robotic sensors, attached to a site
   mjSENS_TOUCH        = 0,        // scalar contact normal forces summed over sensor zone
   mjSENS_ACCELEROMETER,           // 3D linear acceleration, in local frame
@@ -381,7 +381,7 @@ typedef enum mjtSensor_ {         // type of sensor
 } mjtSensor;
 
 
-typedef enum mjtStage_ {          // computation stage
+typedef enum mjtStage {           // computation stage
   mjSTAGE_NONE        = 0,        // no computations
   mjSTAGE_POS,                    // position-dependent computations
   mjSTAGE_VEL,                    // velocity-dependent computations
@@ -389,7 +389,7 @@ typedef enum mjtStage_ {          // computation stage
 } mjtStage;
 
 
-typedef enum mjtDataType_ {       // data type for sensors
+typedef enum mjtDataType {        // data type for sensors
   mjDATATYPE_REAL     = 0,        // real values, no constraints
   mjDATATYPE_POSITIVE,            // positive values; 0 or negative: inactive
   mjDATATYPE_AXIS,                // 3D unit vector
@@ -397,7 +397,7 @@ typedef enum mjtDataType_ {       // data type for sensors
 } mjtDataType;
 
 
-typedef enum mjtConDataField_ {   // data fields returned by contact sensors
+typedef enum mjtConDataField {    // data fields returned by contact sensors
   mjCONDATA_FOUND     = 0,        // whether a contact was found
   mjCONDATA_FORCE,                // contact force
   mjCONDATA_TORQUE,               // contact torque
@@ -410,7 +410,7 @@ typedef enum mjtConDataField_ {   // data fields returned by contact sensors
 } mjtConDataField;
 
 
-typedef enum mjtRayDataField_ {   // data fields returned by rangefinder sensors
+typedef enum mjtRayDataField {    // data fields returned by rangefinder sensors
   mjRAYDATA_DIST     = 0,         // distance from ray origin to nearest surface
   mjRAYDATA_DIR,                  // normalized ray direction
   mjRAYDATA_ORIGIN,               // ray origin
@@ -422,7 +422,7 @@ typedef enum mjtRayDataField_ {   // data fields returned by rangefinder sensors
 } mjtRayDataField;
 
 
-typedef enum mjtCamOutBit_ {      // camera output type bitflags
+typedef enum mjtCamOutBit {       // camera output type bitflags
   mjCAMOUT_RGB        = 1<<0,     // RGB image
   mjCAMOUT_DEPTH      = 1<<1,     // depth image (distance from camera plane)
   mjCAMOUT_DIST       = 1<<2,     // distance image (distance from camera origin)
@@ -433,7 +433,7 @@ typedef enum mjtCamOutBit_ {      // camera output type bitflags
 } mjtCamOutBit;
 
 
-typedef enum mjtSameFrame_ {      // frame alignment of bodies with their children
+typedef enum mjtSameFrame {       // frame alignment of bodies with their children
   mjSAMEFRAME_NONE    = 0,        // no alignment
   mjSAMEFRAME_BODY,               // frame is same as body frame
   mjSAMEFRAME_INERTIA,            // frame is same as inertial frame
@@ -442,7 +442,7 @@ typedef enum mjtSameFrame_ {      // frame alignment of bodies with their childr
 } mjtSameFrame;
 
 
-typedef enum mjtSleepPolicy_ {    // per-tree sleep policy
+typedef enum mjtSleepPolicy {     // per-tree sleep policy
   mjSLEEP_AUTO        = 0,        // compiler chooses sleep policy
   mjSLEEP_AUTO_NEVER,             // compiler sleep policy: never
   mjSLEEP_AUTO_ALLOWED,           // compiler sleep policy: allowed
@@ -452,7 +452,7 @@ typedef enum mjtSleepPolicy_ {    // per-tree sleep policy
 } mjtSleepPolicy;
 
 
-typedef enum mjtLRMode_ {         // mode for actuator length range computation
+typedef enum mjtLRMode {          // mode for actuator length range computation
   mjLRMODE_NONE       = 0,        // do not process any actuators
   mjLRMODE_MUSCLE,                // process muscle actuators
   mjLRMODE_MUSCLEUSER,            // process muscle and user actuators
@@ -460,7 +460,7 @@ typedef enum mjtLRMode_ {         // mode for actuator length range computation
 } mjtLRMode;
 
 
-typedef enum mjtFlexSelf_ {       // mode for flex selfcollide
+typedef enum mjtFlexSelf {        // mode for flex selfcollide
   mjFLEXSELF_NONE     = 0,        // no self-collisions
   mjFLEXSELF_NARROW,              // skip midphase, go directly to narrowphase
   mjFLEXSELF_BVH,                 // use BVH in midphase (if midphase enabled)
@@ -469,7 +469,7 @@ typedef enum mjtFlexSelf_ {       // mode for flex selfcollide
 } mjtFlexSelf;
 
 
-typedef enum mjtSDFType_ {        // signed distance function (SDF) type
+typedef enum mjtSDFType {         // signed distance function (SDF) type
   mjSDFTYPE_SINGLE    = 0,        // single SDF
   mjSDFTYPE_INTERSECTION,         // max(A, B)
   mjSDFTYPE_MIDSURFACE,           // A - B
@@ -480,7 +480,7 @@ typedef enum mjtSDFType_ {        // signed distance function (SDF) type
 
 //---------------------------------- enum types (mjData) -------------------------------------------
 
-typedef enum mjtState_ {            // state elements
+typedef enum mjtState {             // state elements
   mjSTATE_TIME           = 1<<0,    // time
   mjSTATE_QPOS           = 1<<1,    // position
   mjSTATE_QVEL           = 1<<2,    // velocity
@@ -508,7 +508,7 @@ typedef enum mjtState_ {            // state elements
 } mjtState;
 
 
-typedef enum mjtConstraint_ {       // type of constraint
+typedef enum mjtConstraint {        // type of constraint
   mjCNSTR_EQUALITY       = 0,       // equality constraint
   mjCNSTR_FRICTION_DOF,             // dof friction
   mjCNSTR_FRICTION_TENDON,          // tendon friction
@@ -520,7 +520,7 @@ typedef enum mjtConstraint_ {       // type of constraint
 } mjtConstraint;
 
 
-typedef enum mjtConstraintState_ {  // constraint state
+typedef enum mjtConstraintState {   // constraint state
   mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
   mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
   mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
@@ -529,7 +529,7 @@ typedef enum mjtConstraintState_ {  // constraint state
 } mjtConstraintState;
 
 
-typedef enum mjtWarning_ {          // warning types
+typedef enum mjtWarning {           // warning types
   mjWARN_INERTIA         = 0,       // (near) singular inertia matrix
   mjWARN_CONTACTFULL,               // too many contacts in contact list
   mjWARN_CNSTRFULL,                 // too many constraints
@@ -542,7 +542,7 @@ typedef enum mjtWarning_ {          // warning types
 } mjtWarning;
 
 
-typedef enum mjtTimer_ {            // internal timers
+typedef enum mjtTimer {             // internal timers
   // main api
   mjTIMER_STEP           = 0,       // step
   mjTIMER_FORWARD,                  // forward
@@ -570,7 +570,7 @@ typedef enum mjtTimer_ {            // internal timers
 } mjtTimer;
 
 
-typedef enum mjtSleepState_ {       // sleep state of an object
+typedef enum mjtSleepState {        // sleep state of an object
   mjS_STATIC = -1,                  // object is static
   mjS_ASLEEP = 0,                   // object is asleep
   mjS_AWAKE  = 1                    // object is awake
@@ -580,14 +580,14 @@ typedef enum mjtSleepState_ {       // sleep state of an object
 
 //---------------------------------- logging -------------------------------------------------------
 
-typedef enum mjtLogLevel_ {       // log message severity
+typedef enum mjtLogLevel {        // log message severity
   mjLOG_DEBUG       = 0,          // internal engine debug trace (opt-in via topic filtering)
   mjLOG_INFO,                     // informational (opt-in via topic filtering)
   mjLOG_WARNING,                  // warning
   mjLOG_ERROR,                    // error
 } mjtLogLevel;
 
-typedef enum mjtLogTopic_ {       // log topic identifiers
+typedef enum mjtLogTopic {        // log topic identifiers
   mjTOPIC_NONE     = 0,           // no topic (always passes filtering)
                                   // INFO topics:
   mjTOPIC_TIME_STP = 1,           // timing diagnostics (step)
