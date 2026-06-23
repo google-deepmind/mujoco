@@ -28,7 +28,7 @@ namespace mujoco {
 // Creates and manages a SceneView using data read from ImGui.
 class ImguiBridge {
  public:
-  explicit ImguiBridge(mjrfContext* ctx);
+  explicit ImguiBridge(mjrfContext* ctx, mjrfScene* scene);
   ~ImguiBridge();
 
   // Prepares the Renderables using data from the current ImGui state. This
@@ -36,8 +36,7 @@ class ImguiBridge {
   // synced.
   void Update();
 
-  // Returns the managed UX scene.
-  mjrfScene* GetScene() const;
+  // Returns the camera used for rendering the UX scene.
   mjrCamera GetCamera(int width, int height) const;
 
   // Uploads texture to be used with ImGui's Image and ImageButton functions.
@@ -58,7 +57,7 @@ class ImguiBridge {
   mjrfTexture* GetTexture(uintptr_t tex_id) const;
 
   mjrfContext* ctx_ = nullptr;
-  UniquePtr<mjrfScene> scene_{nullptr, nullptr};
+  mjrfScene* scene_ = nullptr;
   std::vector<UniquePtr<mjrfRenderable>> renderables_;
   std::vector<UniquePtr<mjrfMesh>> meshes_;
   std::unordered_map<uintptr_t, UniquePtr<mjrfTexture>> textures_;

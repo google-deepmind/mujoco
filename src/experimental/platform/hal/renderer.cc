@@ -69,8 +69,8 @@ Renderer::Renderer(void* native_window, GraphicsMode gfx)
   }
 
   g_update_gui_callback = [this]() {
-    if (scene_bridge_) {
-      mjrf_DEBUG_drawImguiEditor(scene_bridge_->GetScene());
+    if (main_scene_) {
+      mjrf_DEBUG_drawImguiEditor(main_scene_.get());
     }
   };
 }
@@ -102,9 +102,12 @@ void Renderer::Init(const mjModel* model) {
                              ? mjGRAPHICS_API_OPENGL
                              : mjGRAPHICS_API_VULKAN;
       filament_context_ = CreateContext(cfg);
-      scene_bridge_ =
-          std::make_unique<SceneBridge>(filament_context_.get(), model);
-      imgui_bridge_ = std::make_unique<ImguiBridge>(filament_context_.get());
+      main_scene_ = CreateScene(filament_context_.get(), {});
+      ux_scene_ = CreateScene(filament_context_.get(), {});
+      scene_bridge_ = std::make_unique<SceneBridge>(filament_context_.get(),
+                                                    main_scene_.get(), model);
+      imgui_bridge_ = std::make_unique<ImguiBridge>(filament_context_.get(),
+                                                    ux_scene_.get());
       scene_bridge_->SetDrawTextFunction(DrawTextAt);
     }
 
@@ -122,6 +125,8 @@ void Renderer::Deinit() {
     } else {
       scene_bridge_.reset();
       imgui_bridge_.reset();
+      ux_scene_.reset();
+      main_scene_.reset();
       filament_context_.reset();
     }
     initialized_ = false;
@@ -242,7 +247,7 @@ void Renderer::DoRender(int width, int height) {
       mjrfRenderRequest reqs[2];
 
       mjrf_defaultRenderRequest(&reqs[0]);
-      reqs[0].scene = scene_bridge_->GetScene();
+      reqs[0].scene = main_scene_.get();
       reqs[0].draw_mode = draw_mode;
       reqs[0].camera = scene_bridge_->GetCamera();
       reqs[0].viewport = viewport;
@@ -250,7 +255,7 @@ void Renderer::DoRender(int width, int height) {
       reqs[0].enable_reflections = scene_.flags[mjRND_REFLECTION];
 
       mjrf_defaultRenderRequest(&reqs[1]);
-      reqs[1].scene = imgui_bridge_->GetScene();
+      reqs[1].scene = ux_scene_.get();
       reqs[1].draw_mode = mjDRAW_MODE_DEFAULT;
       reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
       reqs[1].viewport = viewport;
@@ -308,7 +313,7 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
 
     mjrfRenderRequest reqs[2];
     mjrf_defaultRenderRequest(&reqs[0]);
-    reqs[0].scene = scene_bridge_->GetScene();
+    reqs[0].scene = main_scene_.get();
     reqs[0].draw_mode = draw_mode;
     reqs[0].camera = scene_bridge_->GetCamera();
     reqs[0].target = target.get();
@@ -317,7 +322,7 @@ void Renderer::DoReadPixels(int width, int height, unsigned char* rgb) {
     reqs[0].enable_reflections = scene_.flags[mjRND_REFLECTION];
 
     mjrf_defaultRenderRequest(&reqs[1]);
-    reqs[1].scene = imgui_bridge_->GetScene();
+    reqs[1].scene = ux_scene_.get();
     reqs[1].draw_mode = mjDRAW_MODE_DEFAULT;
     reqs[1].camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
     reqs[1].target = target.get();

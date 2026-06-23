@@ -33,10 +33,10 @@ namespace mujoco {
 using filament::math::float3;
 using filament::math::mat3f;
 
-ImguiBridge::ImguiBridge(mjrfContext* ctx) : ctx_(ctx) {
+ImguiBridge::ImguiBridge(mjrfContext* ctx, mjrfScene* scene)
+    : ctx_(ctx), scene_(scene) {
   mjrfSceneParams params;
   mjrf_defaultSceneParams(&params);
-  scene_ = CreateScene(ctx_, params);
 }
 
 ImguiBridge::~ImguiBridge() {
@@ -287,15 +287,13 @@ void ImguiBridge::PrepareRenderables(int count) {
     params.receive_shadows = false;
     params.blend_order = static_cast<std::uint16_t>(renderables_.size() + 1);
     auto& renderable = renderables_.emplace_back(CreateRenderable(ctx_, params));
-    mjrf_addRenderableToScene(scene_.get(), renderable.get());
+    mjrf_addRenderableToScene(scene_, renderable.get());
   }
   while (renderables_.size() > count) {
-    mjrf_removeRenderableFromScene(scene_.get(), renderables_.back().get());
+    mjrf_removeRenderableFromScene(scene_, renderables_.back().get());
     renderables_.pop_back();
   }
 }
-
-mjrfScene* ImguiBridge::GetScene() const { return scene_.get(); }
 
 mjrCamera ImguiBridge::GetCamera(int width, int height) const {
   mjrCamera camera;

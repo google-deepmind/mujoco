@@ -112,6 +112,8 @@ class Renderer {
 
   // State used by the filament renderer.
   UniquePtr<mjrfContext> filament_context_{nullptr, nullptr};
+  UniquePtr<mjrfScene> main_scene_{nullptr, nullptr};
+  UniquePtr<mjrfScene> ux_scene_{nullptr, nullptr};
   std::unique_ptr<SceneBridge> scene_bridge_;
   std::unique_ptr<ImguiBridge> imgui_bridge_;
 
