@@ -145,8 +145,7 @@ static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
 }
 
 static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
-                               ModelObjects* model_objs,
-                               const mjtByte render_flags[mjNRNDFLAG]) {
+                               ModelObjects* model_objs) {
   const mjModel* model = model_objs->GetModel();
 
   mjrfMaterial material;
@@ -271,14 +270,15 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
   mjrf_setRenderableMaterial(renderable, &material);
 }
 
-UniquePtr<mjrfRenderable> CreateGeomRenderable(
-    const mjvGeom& geom, mjrfContext* ctx, ModelObjects* model_objs,
-    SceneObjects* scene_objs, const mjtByte render_flags[mjNRNDFLAG]) {
+UniquePtr<mjrfRenderable> CreateGeomRenderable(const mjvGeom& geom,
+                                               mjrfContext* ctx,
+                                               ModelObjects* model_objs,
+                                               SceneObjects* scene_objs) {
   mjrfRenderableParams params;
   mjrf_defaultRenderableParams(&params);
   auto renderable = CreateRenderable(ctx, params);
   PrepareGeomMeshes(renderable.get(), geom, model_objs, scene_objs);
-  UpdateGeomMaterial(renderable.get(), geom, model_objs, render_flags);
+  UpdateGeomMaterial(renderable.get(), geom, model_objs);
   return renderable;
 }
 }  // namespace mujoco
