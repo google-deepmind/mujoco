@@ -32,7 +32,7 @@ namespace {
 // format a numeric value for conflict messages
 template <typename T>
 std::string fmtVal(T val) {
-  if constexpr (std::is_same_v<T, mjtNum>) {
+  if constexpr (std::is_floating_point_v<T>) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%g", val);
     return buf;
@@ -87,8 +87,10 @@ struct Resolver {
 
     // "FIELD: parent has X, child has Y"
     auto prefix = [&]() {
-      return std::string(name) + ": parent has " + fmtVal(pval) +
-             ", child has " + fmtVal(cval);
+      std::string p_str = fmtVal(pval) + (parent_authored ? "" : " (default)");
+      std::string c_str = fmtVal(cval) + (child_authored ? "" : " (default)");
+      return std::string(name) + ": parent has " + p_str +
+             ", child has " + c_str;
     };
 
     // only child authored: adopt or keep
@@ -168,8 +170,10 @@ struct Resolver {
 
     // "FIELD: parent has X Y Z, child has X Y Z"
     auto prefix = [&]() {
-      return std::string(name) + ": parent has " + fmtArr(pval, N) +
-             ", child has " + fmtArr(cval, N);
+      std::string p_str = fmtArr(pval, N) + (parent_authored ? "" : " (default)");
+      std::string c_str = fmtArr(cval, N) + (child_authored ? "" : " (default)");
+      return std::string(name) + ": parent has " + p_str +
+             ", child has " + c_str;
     };
 
     // only child authored: adopt or keep

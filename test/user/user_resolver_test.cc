@@ -914,5 +914,52 @@ TEST_F(MujocoTest, AttachWarningBoundaryAndPreservation) {
   mj_deleteSpec(child2);
 }
 
+TEST_F(MujocoTest, AttachConflictWarningZFarDefaultMessage) {
+  mock_warning_handler.ExpectWarnings();
+
+  static constexpr char parent_xml[] = R"(
+    <mujoco>
+      <compiler conflict="warning"/>
+      <worldbody/>
+    </mujoco>
+  )";
+
+  static constexpr char child_xml[] = R"(
+    <mujoco>
+      <visual>
+        <map zfar="30"/>
+      </visual>
+      <worldbody/>
+    </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjSpec* parent =
+      mj_parseXMLString(parent_xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(parent, NotNull()) << error.data();
+
+  mjSpec* child =
+      mj_parseXMLString(child_xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(child, NotNull()) << error.data();
+
+  mjsBody* world = mjs_findBody(parent, "world");
+  mjsElement* attached =
+      mjs_attach(world->element, child->element, "child_", "");
+  ASSERT_THAT(attached, NotNull()) << "Error details: " << mjs_getError(parent);
+
+  // Since only the child authored 'zfar' and the parent relied on defaults,
+  // we warning-log and state that the parent has the default value.
+  EXPECT_TRUE(mjs_isWarning(parent));
+  EXPECT_EQ(mjs_numWarnings(parent), 1);
+  EXPECT_THAT(
+      mjs_getWarning(parent, 0),
+      HasSubstr("zfar: parent has 50 (default), child has "
+                "30, keeping parent value"));
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+}
+
 }  // namespace
 }  // namespace mujoco
+
