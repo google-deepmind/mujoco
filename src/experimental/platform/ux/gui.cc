@@ -312,10 +312,10 @@ void SetupTheme(GuiTheme theme) {
 
   int hspacing = 3;
   int vspacing = 2;
-  float rounding = 2.0f;
+  float rounding = 3.0f;
   s.DisplaySafeAreaPadding = ImVec2(0, 0);
   s.WindowPadding = ImTrunc(ImVec2(6.0f * scale, 6.0f * scale));
-  s.FramePadding = ImTrunc(ImVec2(hspacing * scale, 3.0f * scale));
+  s.FramePadding = ImTrunc(ImVec2(hspacing * scale, 4.0f * scale));
   s.ItemSpacing = ImTrunc(ImVec2(hspacing * scale, vspacing * scale));
   s.ItemInnerSpacing = ImTrunc(ImVec2(hspacing * scale, vspacing * scale));
   s.WindowRounding = ImTrunc(rounding * scale);
@@ -326,7 +326,7 @@ void SetupTheme(GuiTheme theme) {
   s.GrabRounding = ImTrunc(rounding * scale);
   s.PopupRounding = ImTrunc(rounding * scale);
   s.WindowBorderSize = 0.0f;
-  s.FrameBorderSize = 0.0f;
+  s.FrameBorderSize = 1.0f;
   s.PopupBorderSize = 1.0f;
   s.IndentSpacing = ImTrunc(10.0f * scale);
   s.ScrollbarSize = ImTrunc(10.0f * scale);
