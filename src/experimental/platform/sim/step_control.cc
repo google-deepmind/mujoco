@@ -92,8 +92,7 @@ StepControl::PauseState StepControl::GetPauseState() const {
   return pause_state_;
 }
 
-StepControl::Status StepControl::Advance(mjModel* m, mjData* d,
-                                         StepFn step_fn) {
+StepControl::Status StepControl::Advance(mjModel* m, mjData* d) {
   if (!m) {
     return Status::kOk;
   }
@@ -187,11 +186,7 @@ StepControl::Status StepControl::Advance(mjModel* m, mjData* d,
     if (pre_step_) {
       pre_step_(m, d);
     }
-    if (step_fn) {
-      step_fn(m, d);
-    } else {
-      mj_step(m, d);
-    }
+    mj_step(m, d);
     if (post_step_) {
       post_step_(m, d);
     }

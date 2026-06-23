@@ -55,7 +55,7 @@ class StepControl {
       mjWARN_BADQACC, mjWARN_BADQVEL, mjWARN_BADQPOS};
 
   // Steps physics forward, respecting speed settings and refresh budget.
-  Status Advance(mjModel* m, mjData* d, StepFn step_fn = nullptr);
+  Status Advance(mjModel* m, mjData* d);
 
   // Ensures the next call to Advance() will synchronize time and step once.
   void ForceSync();
