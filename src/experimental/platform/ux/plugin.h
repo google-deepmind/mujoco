@@ -62,6 +62,10 @@ struct ModelPlugin final {
                                            int model_name_size);
   using PostModelLoadedFn = void (*)(ModelPlugin* self, const char* model_path);
   using DoUpdateFn = bool (*)(ModelPlugin* self, mjModel* model, mjData* data);
+  using PreStepFn = void (*)(ModelPlugin* self, const mjModel* model,
+                             mjData* data);
+  using PostStepFn = void (*)(ModelPlugin* self, const mjModel* model,
+                              mjData* data);
 
   // The name of the plugin; must be unique.
   const char* name = "";
@@ -78,6 +82,14 @@ struct ModelPlugin final {
   // Callback when the physics simulation is updated. Returns true if the
   // simulation should be stepped.
   DoUpdateFn do_update = nullptr;
+
+  // Callback immediately before mj_step is called on the model. This may be
+  // called multiple times per update/frame.
+  PreStepFn pre_step = nullptr;
+
+  // Callback immediately after mj_step is called on the model. This may be
+  // called multiple times per update/frame.
+  PostStepFn post_step = nullptr;
 
   // Optional data pointer.
   void* data = nullptr;

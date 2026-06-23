@@ -97,6 +97,11 @@ App::App(Config config)
   mjv_defaultOption(&vis_options_);
 
   profiler_.Clear();
+
+  step_control_.SetPreStepCallback(
+      [this](const mjModel* m, mjData* d) { PreStep(m, d); });
+  step_control_.SetPostStepCallback(
+      [this](const mjModel* m, mjData* d) { PostStep(m, d); });
 }
 
 void App::SwitchGraphicsMode(int width, int height,
@@ -327,6 +332,22 @@ void App::UpdatePhysics() {
       mj_getState(model(), data(), state.data(), mjSTATE_INTEGRATION);
     }
   }
+}
+
+void App::PreStep(const mjModel* m, mjData* d) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
+    if (plugin->pre_step) {
+      plugin->pre_step(plugin, m, d);
+    }
+  });
+}
+
+void App::PostStep(const mjModel* m, mjData* d) {
+  platform::ForEachPlugin<platform::ModelPlugin>([&](auto* plugin) {
+    if (plugin->post_step) {
+      plugin->post_step(plugin, m, d);
+    }
+  });
 }
 
 void App::LoadHistory(int offset) {

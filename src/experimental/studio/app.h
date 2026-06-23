@@ -198,6 +198,8 @@ class App {
 
   void ResetPhysics();
   void UpdatePhysics();
+  void PreStep(const mjModel* m, mjData* d);
+  void PostStep(const mjModel* m, mjData* d);
 
   void LoadSettings();
   void SaveSettings();
