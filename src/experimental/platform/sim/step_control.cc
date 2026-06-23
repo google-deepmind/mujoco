@@ -184,10 +184,16 @@ StepControl::Status StepControl::Advance(mjModel* m, mjData* d,
 
     mjtNum prev_time = d->time;
     InjectNoise(m, d);
+    if (pre_step_) {
+      pre_step_(m, d);
+    }
     if (step_fn) {
       step_fn(m, d);
     } else {
       mj_step(m, d);
+    }
+    if (post_step_) {
+      post_step_(m, d);
     }
 
     if (mjDISABLED(mjDSBL_AUTORESET)) {
@@ -247,6 +253,14 @@ void StepControl::InjectNoise(const mjModel* m, mjData* d) {
       d->ctrl[i] = mju_clip(d->ctrl[i], bottom, top);
     }
   }
+}
+
+void StepControl::SetPreStepCallback(StepFn step_fn) {
+  pre_step_ = step_fn;
+}
+
+void StepControl::SetPostStepCallback(StepFn step_fn) {
+  post_step_ = step_fn;
 }
 
 }  // namespace mujoco::platform

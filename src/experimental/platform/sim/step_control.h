@@ -69,6 +69,10 @@ class StepControl {
   void GetNoiseParameters(float& noise_scale, float& noise_rate) const;
   void SetNoiseParameters(float noise_scale, float noise_rate);
 
+  // Callbacks that will be invoked before/after each call to mj_step.
+  void SetPreStepCallback(StepFn step_fn);
+  void SetPostStepCallback(StepFn step_fn);
+
   enum class PauseState { kUnpaused, kNormalPaused, kViscousPaused };
 
   // Sets the pause state of the simulation.
@@ -120,6 +124,10 @@ class StepControl {
   // which has the effect of making the constraint solver eventually converge
   // while the simulation is paused.
   bool pause_update_ = false;
+
+  // Callbacks that can be invoked before/after physics is stepped.
+  StepFn pre_step_ = nullptr;
+  StepFn post_step_ = nullptr;
 };
 
 }  // namespace mujoco::platform
