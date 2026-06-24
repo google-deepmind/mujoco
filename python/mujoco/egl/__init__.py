@@ -65,6 +65,12 @@ def create_initialized_egl_device_display():
 EGL_DISPLAY = None
 
 
+def _free_display():
+    global EGL_DISPLAY
+    EGL.eglTerminate(EGL_DISPLAY)
+    EGL_DISPLAY = None
+
+
 EGL_ATTRIBUTES = (
     EGL.EGL_RED_SIZE, 8,
     EGL.EGL_GREEN_SIZE, 8,
@@ -99,7 +105,7 @@ class GLContext:
           "driver does not support the PLATFORM_DEVICE extension, which is "
           "required for creating a headless rendering context."
         )
-      atexit.register(EGL.eglTerminate, EGL_DISPLAY)
+      atexit.register(_free_display)
     EGL.eglChooseConfig(
         EGL_DISPLAY,
         EGL_ATTRIBUTES,
@@ -125,7 +131,7 @@ class GLContext:
   def free(self):
     """Frees resources associated with this context."""
     global EGL_DISPLAY
-    if self._context:
+    if EGL_DISPLAY and self._context:
       current_context = EGL.eglGetCurrentContext()
       if current_context and self._context.address == current_context.address:
         EGL.eglMakeCurrent(EGL_DISPLAY, EGL.EGL_NO_SURFACE,
