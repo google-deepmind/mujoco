@@ -1937,5 +1937,230 @@ TEST_F(SensorTest, FlexContactSensors) {
       << "Floor touch sensor did not detect any force";
 }
 
+// ---------------------- mj_sensorLogLik tests ----------------------------------------
+
+// XML with two joint-position sensors: one with noise, one without.
+// The joint is free to move so sensordata is non-trivial after mj_forward.
+static constexpr char kLogLikXml[] = R"(
+<mujoco>
+  <worldbody>
+    <body>
+      <joint name="j1" type="slide" axis="1 0 0"/>
+      <joint name="j2" type="slide" axis="0 1 0"/>
+      <geom size="0.1"/>
+    </body>
+  </worldbody>
+  <sensor>
+    <jointpos name="s_noisy" joint="j1" noise="0.5"/>
+    <jointpos name="s_silent" joint="j2"/>
+  </sensor>
+</mujoco>
+)";
+
+// 0.5 * log(2*pi), the per-channel normalization constant of a unit Gaussian
+static const double kHalfLog2Pi = 0.9189385332046727;
+
+using SensorLogLikTest = MujocoTest;
+
+// When all sensor_noise values are zero, the function should return exactly 0.
+TEST_F(SensorLogLikTest, AllNoisesZeroReturnsZero) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j" type="slide" axis="1 0 0"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos name="s" joint="j"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  // obs matches sensordata exactly; noise is zero so result must be 0
+  vector<mjtNum> obs(m->nsensordata, 0);
+  mju_copy(obs.data(), d->sensordata, m->nsensordata);
+
+  EXPECT_MJTNUM_EQ(mj_sensorLogLik(m.get(), d.get(), obs.data()), (mjtNum)0);
+}
+
+// A sensor with noise=0 should not contribute even when obs != sensordata.
+TEST_F(SensorLogLikTest, ZeroNoiseSensorIsIgnored) {
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(kLogLikXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  // Make obs a perfect copy so the noisy sensor contributes only normalization.
+  vector<mjtNum> obs(m->nsensordata);
+  mju_copy(obs.data(), d->sensordata, m->nsensordata);
+
+  mjtNum loglik = mj_sensorLogLik(m.get(), d.get(), obs.data());
+
+  // s_silent (noise=0) must not affect the result.
+  // Perturbing its obs channel should leave loglik unchanged.
+  int id_silent = mj_name2id(m.get(), mjOBJ_SENSOR, "s_silent");
+  obs[m->sensor_adr[id_silent]] += 100.0;
+  EXPECT_MJTNUM_EQ(mj_sensorLogLik(m.get(), d.get(), obs.data()), loglik);
+}
+
+// Perfect observation: obs == sensordata.
+// log-likelihood should equal -dim * (log(sigma) + 0.5*log(2*pi)).
+TEST_F(SensorLogLikTest, PerfectObservationMatchesNormalization) {
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(kLogLikXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  // obs == sensordata: residuals are zero
+  vector<mjtNum> obs(m->nsensordata);
+  mju_copy(obs.data(), d->sensordata, m->nsensordata);
+
+  mjtNum loglik = mj_sensorLogLik(m.get(), d.get(), obs.data());
+
+  // Only s_noisy (sigma=0.5, dim=1) contributes.
+  double sigma = 0.5;
+  double expected = -(mju_log(sigma) + kHalfLog2Pi);  // dim=1
+  EXPECT_NEAR(loglik, expected, MjTol(1e-12, 1e-5));
+}
+
+// Residual of exactly one sigma should reduce log-likelihood by exactly 0.5
+// compared to the perfect-observation case.
+TEST_F(SensorLogLikTest, OneSigmaResidualReducesByHalf) {
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(kLogLikXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  vector<mjtNum> obs_perfect(m->nsensordata);
+  mju_copy(obs_perfect.data(), d->sensordata, m->nsensordata);
+  mjtNum loglik_perfect = mj_sensorLogLik(m.get(), d.get(), obs_perfect.data());
+
+  // shift noisy sensor obs by exactly one sigma
+  int id_noisy = mj_name2id(m.get(), mjOBJ_SENSOR, "s_noisy");
+  double sigma = m->sensor_noise[id_noisy];
+  vector<mjtNum> obs_shifted = obs_perfect;
+  obs_shifted[m->sensor_adr[id_noisy]] += sigma;  // residual = sigma
+
+  mjtNum loglik_shifted = mj_sensorLogLik(m.get(), d.get(), obs_shifted.data());
+
+  // -0.5 * (sigma/sigma)^2 = -0.5 below the perfect case
+  EXPECT_NEAR(loglik_perfect - loglik_shifted, 0.5, MjTol(1e-12, 1e-5));
+}
+
+// Log-likelihood is additive across independent sensors.
+// Two sensors at perfect obs should give twice a single sensor's contribution.
+TEST_F(SensorLogLikTest, AdditiveAcrossSensors) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j1" type="slide" axis="1 0 0"/>
+        <joint name="j2" type="slide" axis="0 1 0"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos name="s1" joint="j1" noise="0.5"/>
+      <jointpos name="s2" joint="j2" noise="0.5"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  // Perfect observation; both sensors same sigma=0.5
+  vector<mjtNum> obs(m->nsensordata);
+  mju_copy(obs.data(), d->sensordata, m->nsensordata);
+
+  mjtNum loglik = mj_sensorLogLik(m.get(), d.get(), obs.data());
+
+  double sigma = 0.5;
+  double expected = -2 * (mju_log(sigma) + kHalfLog2Pi);  // two sensors, dim=1 each
+  EXPECT_NEAR(loglik, expected, MjTol(1e-12, 1e-5));
+}
+
+// Multi-dimensional sensor (velocimeter, dim=3): all channels use the same sigma.
+TEST_F(SensorLogLikTest, MultiDimSensorAllChannelsUseSameSigma) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j" type="free"/>
+        <geom size="0.1"/>
+        <site name="s"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <velocimeter name="vel" site="s" noise="0.2"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  vector<mjtNum> obs(m->nsensordata);
+  mju_copy(obs.data(), d->sensordata, m->nsensordata);
+
+  mjtNum loglik = mj_sensorLogLik(m.get(), d.get(), obs.data());
+
+  // velocimeter has dim=3; perfect obs gives -3*(log(sigma) + 0.5*log(2*pi))
+  double sigma = 0.2;
+  double expected = -3 * (mju_log(sigma) + kHalfLog2Pi);
+  EXPECT_NEAR(loglik, expected, MjTol(1e-12, 1e-5));
+}
+
+// Symmetry: swapping obs and sensordata must give the same result (Gaussian is symmetric).
+TEST_F(SensorLogLikTest, SymmetricInResidual) {
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(kLogLikXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  int id_noisy = mj_name2id(m.get(), mjOBJ_SENSOR, "s_noisy");
+  double sigma = m->sensor_noise[id_noisy];
+
+  vector<mjtNum> obs(m->nsensordata, 0);
+  mju_copy(obs.data(), d->sensordata, m->nsensordata);
+  obs[m->sensor_adr[id_noisy]] += 0.3;  // arbitrary non-zero residual
+
+  // Positive residual
+  mjtNum ll_pos = mj_sensorLogLik(m.get(), d.get(), obs.data());
+
+  // Negative residual of same magnitude
+  obs[m->sensor_adr[id_noisy]] -= 0.6;
+  mjtNum ll_neg = mj_sensorLogLik(m.get(), d.get(), obs.data());
+
+  EXPECT_NEAR(ll_pos, ll_neg, MjTol(1e-12, 1e-5));
+}
+
+// The function should still return a finite value when nsensor == 0.
+TEST_F(SensorLogLikTest, NoSensorsReturnsZero) {
+  constexpr char xml[] = R"(<mujoco><worldbody/></mujoco>)";
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  EXPECT_MJTNUM_EQ(mj_sensorLogLik(m.get(), d.get(), nullptr), (mjtNum)0);
+}
+
 }  // namespace
 }  // namespace mujoco

@@ -1653,6 +1653,41 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 }
 
 
+//-------------------------------- log-likelihood -------------------------------------------------
+
+// Gaussian log-likelihood of obs given current sensordata and per-sensor noise.
+// obs has the same layout as d->sensordata (length nsensordata).
+// Sensors with sensor_noise[i] <= 0 are skipped; they do not contribute.
+// Suitable as a particle filter importance weight: w = exp(mj_sensorLogLik(m, d, obs)).
+mjtNum mj_sensorLogLik(const mjModel* m, const mjData* d, const mjtNum* obs) {
+  // 0.5 * log(2*pi); precomputed normalization constant for a scalar Gaussian
+  static const mjtNum kHalfLog2Pi = (mjtNum)0.9189385332046727417803796;
+
+  mjtNum loglik = 0;
+  for (int i = 0; i < m->nsensor; i++) {
+    mjtNum sigma = m->sensor_noise[i];
+    if (sigma <= 0) {
+      continue;  // sensor not modeled; skip (consistent with apply_cutoff "0: ignore")
+    }
+
+    int adr = m->sensor_adr[i];
+    int dim = m->sensor_dim[i];
+    mjtNum inv_sigma2 = 1.0 / (sigma * sigma);
+
+    // accumulate squared residuals
+    for (int j = 0; j < dim; j++) {
+      mjtNum r = d->sensordata[adr + j] - obs[adr + j];
+      loglik -= 0.5 * inv_sigma2 * r * r;
+    }
+
+    // normalization: -dim * (log(sigma) + 0.5*log(2*pi))
+    loglik -= dim * (mju_log(sigma) + kHalfLog2Pi);
+  }
+
+  return loglik;
+}
+
+
 //-------------------------------- energy ----------------------------------------------------------
 
 // position-dependent energy (potential)

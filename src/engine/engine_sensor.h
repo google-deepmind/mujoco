@@ -37,6 +37,12 @@ MJAPI void mj_sensorVel(const mjModel* m, mjData* d);
 // acceleration/force-dependent sensors
 MJAPI void mj_sensorAcc(const mjModel* m, mjData* d);
 
+// Gaussian log-likelihood of obs given current sensordata and per-sensor noise.
+// obs has the same layout as d->sensordata (length nsensordata).
+// Sensors with sensor_noise[i] <= 0 are skipped; they do not contribute.
+// Suitable as a particle filter importance weight: w = exp(mj_sensorLogLik(m, d, obs)).
+MJAPI mjtNum mj_sensorLogLik(const mjModel* m, const mjData* d, const mjtNum* obs);
+
 
 //-------------------------------- energy ----------------------------------------------------------
 
