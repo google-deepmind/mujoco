@@ -90,7 +90,7 @@ typedef enum mjrGraphicsApi_ {  // underlying graphics API to use for rendering
 } mjrGraphicsApi;
 
 typedef struct mjrfContextConfig_ {  // parameters for creating filament context (mjrfContext)
-  int graphics_api;                  // mjrGraphicsApi; rendering graphics API
+  int graphics_api;                  // rendering graphics API [mjrGraphicsApi]
   mjtBool force_software_rendering;  // force backend to use software rendering
   void* native_window;               // platform-dependent window handle (or nullptr for windowless)
 } mjrfContextConfig;
@@ -119,7 +119,7 @@ typedef struct mjrfRenderRequest_ {  // a single rendering operation
   mjrCamera camera;                  // camera (viewpoint) from which to render scene
   mjrRect viewport;                  // viewport (rect area) into which to render
   mjrfRenderTarget* target;          // target used for rendering (or nullptr for window rendering)
-  int draw_mode;                     // mjrDrawMode; method to use for drawing objects
+  int draw_mode;                     // method to use for drawing objects [mjrDrawMode]
   mjtBool enable_post_processing;    // enable post processing, enabled by default
   mjtBool enable_reflections;        // enable reflections, enabled by default
   mjtBool enable_shadows;            // enable shadows, enabled by default
@@ -181,11 +181,11 @@ void mjrf_getFrameStats(mjrfContext* ctx, mjrfFrameHandle frame, mjrfFrameStats*
 // additional data (i.e. the spherical harmonics) and encode that information into the KTX file.
 
 typedef struct mjrfTextureConfig_ {  // parameters for creating a texture (mjrfTexture)
-  int width;                         // width; or number of bytes for compressed data (e.g. KTX)
-  int height;                        // height; or 0 for compressed data (e.g. KTX)
-  int format;                        // mjrPixelFormat; (e.g. RGB8, RGBA8, KTX, etc.)
-  int color_space;                   // mjrColorSpace; (e.g. LINEAR, sRGB, etc.)
-  int sampler_type;                  // mjrSamplerType; texture sampler (e.g. 2D, cube, etc.)
+  int width;                         // texture width, or number of bytes for compressed data (e.g. KTX)
+  int height;                        // texture height, or 0 for compressed data (e.g. KTX)
+  int format;                        // pixel format (e.g. RGB8, RGBA8, KTX, etc.) [mjrPixelFormat]
+  int color_space;                   // color space (e.g. LINEAR, sRGB, etc.) [mjrColorSpace]
+  int sampler_type;                  // texture sampler (e.g. 2D, cube, etc.) [mjrSamplerType]
 } mjrfTextureConfig;
 
 // Initializes the mjrfTextureConfig to default values.
@@ -219,6 +219,7 @@ int mjrf_getTextureWidth(const mjrfTexture* texture);
 int mjrf_getTextureHeight(const mjrfTexture* texture);
 
 // Returns the sampler type (mjrSamplerType) used by the texture.
+// [returns: mjrSamplerType]
 int mjrf_getTextureSamplerType(const mjrfTexture* texture);
 
 // ## Meshes (mjrfMesh)
@@ -253,8 +254,8 @@ typedef struct mjrfMeshData_ {  // binary data for a mesh (mjrfMesh)
   mjtBool interleaved;          // true if vertex attributes are interleaved
   mjtSize num_indices;          // number of indices
   const void* indices;          // indices data array
-  int index_type;               // mjrIndexType; (e.g. UINT16 or UINT32)
-  int primitive_type;           // mjrMeshPrimitiveType; (e.g. TRIANGLES, etc.)
+  int index_type;               // index data format (e.g. UINT16 or UINT32) [mjrIndexType]
+  int primitive_type;           // index interpretation (e.g. TRIANGLES, etc.) [mjrMeshPrimitiveType]
   mjtBool compute_bounds;       // if true, compute bounds from vertex positions
   float bounds_min[3];          // min/max bounds; assume unset if bounds_min == bounds_max
   float bounds_max[3];
@@ -324,7 +325,7 @@ void mjrf_configureSceneFromModel(mjrfScene* scene, const mjModel* model);
 // Each shadow-casting light incurs a performance cost.
 
 typedef struct mjrfLightParams_ {  // parameters for creating a light (mjrfLight)
-  int type;                        // mjrLightType; type of light (e.g. spot, point, image, etc.)
+  int type;                        // type of light (e.g. spot, point, image, etc.) [mjrLightType]
   const mjrfTexture* texture;      // texture; only for image lights
   float color[3];                  // RGB color
   float intensity;                 // light intensity, in candela
@@ -380,7 +381,7 @@ typedef struct mjrfMaterial_ {  // material properties for a renderable (mjrfMat
   float color[4];               // object color; defaults to white
   int32_t segmentation_id;      // ID for segmentation rendering; maps to RGB8 color (i.e. 24 bits)
   int32_t island_id;            // ID to which the renderable belongs
-  int sleep_state;              // mjtSleepState; sleep state of the renderable
+  int sleep_state;              // sleep state of the renderable [mjtSleepState]
   float uv_scale[3];            // scale applied to UV coordinates; defaults to (1,1,1)
   float uv_offset[3];           // offset applied to UV coordinates; defaults to (0,0,0)
   float scissor[4];             // if non-zero, applies scissor testing when rendering
@@ -389,7 +390,7 @@ typedef struct mjrfMaterial_ {  // material properties for a renderable (mjrfMat
   float specular;               // specular factor [0, 1]; disabled if < 0
   float glossiness;             // glossiness factor [0, 1]; disabled if < 0
   float emissive;               // emissive/glow factor [0, 1]; disabled if < 0
-  float reflectance;            // blend factor for reflective surfaces [0, 1]; only for planes
+  float reflectance;            // blend factor for reflective surfaces [0, 1]; applies only to planes
   mjtBool decor_ux;             // for ux elements, does not apply any lighting
   mjtBool selected;             // for "selected" ux elements, adds additional styling
   const mjrfTexture* color_texture;       // color/albedo texture (RGB8)
@@ -428,6 +429,7 @@ void mjrf_setRenderableMesh(mjrfRenderable* renderable, const mjrfMesh* mesh, in
 // Sets the mesh of the renderable to a built-in mesh based on the geom type. Note: using the same
 // parameters (nstack, nslice, nquad) will have better performance as the internal mesh data can be
 // shared across renderables.
+// [type: mjtGeom]
 void mjrf_setRenderableGeomMesh(mjrfRenderable* renderable, int type, int nstack, int nslice,
                                 int nquad);
 
@@ -451,11 +453,11 @@ void mjrf_setRenderableSize(mjrfRenderable* renderable, const float size[3]);
 // A render target is a memory buffer that holds the results of a rendering operation. (This is an
 // alternative to rendering directly to the screen.) See mjrf_render for more details.
 
-typedef struct mjrfRenderTargetConfig_ {  // parameters for creating a render target
+typedef struct mjrfRenderTargetConfig_ {  // parameters for creating a render target (mjrfRenderTarget)
   int width;                              // texture width
   int height;                             // texture height
-  int color_format;                       // mjrPixelFormat; pixel format for color buffer
-  int depth_format;                       // mjrPixelFormat; pixel format for depth buffer
+  int color_format;                       // pixel format for color buffer [mjrPixelFormat]
+  int depth_format;                       // pixel format for depth buffer [mjrPixelFormat]
 } mjrfRenderTargetConfig;
 
 // Initializes the RenderTargetConfig to default values.
