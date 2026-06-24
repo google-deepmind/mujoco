@@ -52,10 +52,10 @@ class MaterialManager {
   // Marks the beginning of a new frame, allowing us to track which
   // MaterialInstances are used during the frame so they can be removed at the
   // end of the frame.
-  void BeginFrame();
+  void PrepareToRender();
 
   // Removes any unused MaterialInstances.
-  void EndFrame();
+  void RemoveUnusedMaterials();
 
   // Returns a MaterialType that best matches the given material data and mesh.
   MaterialType GetMaterialType(const mjrfMaterial& material, const Mesh* mesh);

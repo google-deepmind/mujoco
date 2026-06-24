@@ -38,6 +38,13 @@ static void Combine(uint64_t& seed, const T* v) {
   seed ^= std::hash<T>()(*v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 
+static void Combine(uint64_t& seed, const mjrfTexture* texture) {
+  if (texture) {
+    const uint64_t id = Texture::downcast(texture)->Id();
+    Combine(seed, &id);
+  }
+}
+
 template <typename T>
 static uint64_t hash(const T& obj) {
   static_assert(std::is_trivially_copyable_v<T>,
@@ -77,9 +84,9 @@ MaterialManager::~MaterialManager() {
   }
 }
 
-void MaterialManager::BeginFrame() { used_keys_.clear(); }
+void MaterialManager::PrepareToRender() { used_keys_.clear(); }
 
-void MaterialManager::EndFrame() {
+void MaterialManager::RemoveUnusedMaterials() {
   if (instances_.size() == used_keys_.size()) {
     return;
   }
@@ -102,6 +109,15 @@ static MaterialManager::MaterialKey BuildMaterialKey(
   uint64_t key = hash(material);
   Combine(key, &geom_type);
   Combine(key, &material_type);
+  Combine(key, material.color_texture);
+  Combine(key, material.opacity_texture);
+  Combine(key, material.normal_texture);
+  Combine(key, material.orm_texture);
+  Combine(key, material.metallic_texture);
+  Combine(key, material.roughness_texture);
+  Combine(key, material.occlusion_texture);
+  Combine(key, material.emissive_texture);
+  Combine(key, material.reflection_texture);
   return key;
 }
 

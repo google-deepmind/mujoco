@@ -94,16 +94,17 @@ mjrfFrameHandle FilamentContext::Render(
 
   ValidateSwapChains(requests);
 
-  material_manager_->BeginFrame();
-
   std::unordered_map<mjrfScene*, std::vector<const mjrfRenderRequest*>>
       scene_to_requests;
   for (const mjrfRenderRequest& request : requests) {
     scene_to_requests[request.scene].push_back(&request);
   }
+
+  material_manager_->PrepareToRender();
   for (auto& [scene, requests] : scene_to_requests) {
     SceneView::downcast(scene)->PrepareToRender(requests);
   }
+  material_manager_->RemoveUnusedMaterials();
 
   bool render_began = false;
   mjrfRenderTarget* current_target = nullptr;
@@ -159,7 +160,6 @@ mjrfFrameHandle FilamentContext::Render(
 
   if (render_began) {
     renderer_->endFrame();
-    material_manager_->EndFrame();
   }
   if constexpr (!UTILS_HAS_THREADING) {
     engine_->execute();

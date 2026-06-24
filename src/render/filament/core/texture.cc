@@ -14,6 +14,7 @@
 
 #include "render/filament/core/texture.h"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -27,6 +28,8 @@
 #include <mujoco/mujoco.h>
 
 namespace mujoco {
+
+static std::atomic<uint64_t> g_next_texture_id{1};
 
 static constexpr int kNumFacesPerCube = 6;
 
@@ -115,7 +118,7 @@ static filament::Texture::InternalFormat GetTextureInternalFormat(
 
 Texture::Texture(filament::Engine* engine, const mjrfTextureConfig& config,
                  InternalFlags flags)
-    : engine_(engine), config_(config) {
+    : id_(g_next_texture_id++), engine_(engine), config_(config) {
   if (IsCompressed(config_)) {
     // We defer creation of compressed textures until Upload() is called. In
     // the meantime, we don't really know anything about the texture (e.g.
